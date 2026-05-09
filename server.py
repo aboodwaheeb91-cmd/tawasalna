@@ -30,7 +30,7 @@ app.add_middleware(
 # Model (أقوى embedding للعربي عملياً)
 # ─────────────────────────────────────────
 print("⏳ Loading embedding model...")
-model = SentenceTransformer("intfloat/multilingual-e5-base")
+model = SentenceTransformer("paraphrase-multilingual-MiniLM-L12-v2")
 print("✅ Model loaded.")
 
 # ─────────────────────────────────────────
