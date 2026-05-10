@@ -4,3 +4,4 @@ sentence-transformers==3.0.1
 scikit-learn==1.5.0
 numpy==1.26.4
 bcrypt
+psycopg2-binary
