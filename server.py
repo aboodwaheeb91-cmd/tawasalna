@@ -1,12 +1,12 @@
 """
 تواصلنا - Arabic Job Matching Engine
-MVP Backend - FastAPI + Multilingual E5 Embeddings
+MVP Backend - FastAPI + Multilingual E5 Embeddings + Auth
 """
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
 import numpy as np
@@ -14,6 +14,7 @@ import json
 import os
 from datetime import datetime
 from typing import List, Optional
+from auth import init_db, create_user, authenticate_user, get_user_by_id
 
 # ─────────────────────────────────────────
 # App Setup
@@ -26,6 +27,16 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ─────────────────────────────────────────
+# DB Init on startup
+# ─────────────────────────────────────────
+@app.on_event("startup")
+def on_startup():
+    try:
+        init_db()
+    except Exception as e:
+        print(f"⚠️ DB init failed: {e}")
 
 # ─────────────────────────────────────────
 # Lazy Model Loading
@@ -103,6 +114,16 @@ class FeedbackInput(BaseModel):
     action: str
     user_id: Optional[str] = None
 
+class RegisterInput(BaseModel):
+    full_name: str
+    email: str
+    password: str
+    user_type: Optional[str] = "emp"
+
+class LoginInput(BaseModel):
+    email: str
+    password: str
+
 # ─────────────────────────────────────────
 # Logging
 # ─────────────────────────────────────────
@@ -123,6 +144,44 @@ def root():
 @app.get("/health")
 def health():
     return {"status": "ok", "jobs_count": len(jobs), "model": "MiniLM-L12-v2"}
+
+# ─────────────────────────────────────────
+# Auth Routes
+# ─────────────────────────────────────────
+
+@app.post("/auth/register")
+def register(data: RegisterInput):
+    if not data.full_name.strip():
+        raise HTTPException(status_code=400, detail="الاسم الكامل مطلوب")
+    if not data.email.strip():
+        raise HTTPException(status_code=400, detail="البريد الإلكتروني مطلوب")
+    if len(data.password) < 6:
+        raise HTTPException(status_code=400, detail="كلمة المرور يجب أن تكون 6 أحرف على الأقل")
+    if data.user_type not in ("emp", "co", "edu"):
+        raise HTTPException(status_code=400, detail="نوع الحساب غير صحيح")
+    try:
+        user = create_user(data.full_name, data.email, data.password, data.user_type)
+        return {"status": "success", "message": "تم إنشاء الحساب بنجاح", "user": user}
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="خطأ في الخادم، حاول لاحقاً")
+
+@app.post("/auth/login")
+def login(data: LoginInput):
+    if not data.email.strip() or not data.password:
+        raise HTTPException(status_code=400, detail="البريد وكلمة المرور مطلوبان")
+    user = authenticate_user(data.email, data.password)
+    if not user:
+        raise HTTPException(status_code=401, detail="البريد الإلكتروني أو كلمة المرور غير صحيحة")
+    return {"status": "success", "message": "تم تسجيل الدخول بنجاح", "user": user}
+
+@app.get("/auth/user/{user_id}")
+def get_user(user_id: int):
+    user = get_user_by_id(user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="المستخدم غير موجود")
+    return {"user": user}
 
 @app.post("/match")
 def match_cv(cv: CVInput):
