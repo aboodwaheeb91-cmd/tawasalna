@@ -5,6 +5,7 @@ MVP Backend - FastAPI + Multilingual E5 Embeddings
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
@@ -27,19 +28,40 @@ app.add_middleware(
 )
 
 # ─────────────────────────────────────────
-# Model (أقوى embedding للعربي عملياً)
+# Lazy Model Loading
 # ─────────────────────────────────────────
-model = None
+_model = None
+_job_embeddings = None
 
 def get_model():
-    global model
-    if model is None:
+    global _model
+    if _model is None:
         print("⏳ Loading embedding model...")
-        model = SentenceTransformer("paraphrase-multilingual-MiniLM-L12-v2")
+        _model = SentenceTransformer("paraphrase-multilingual-MiniLM-L12-v2")
         print("✅ Model loaded.")
-    return model
+    return _model
+
+def get_job_embeddings():
+    global _job_embeddings
+    if _job_embeddings is not None:
+        return _job_embeddings
+
+    EMBEDDINGS_FILE = "job_embeddings.npy"
+    job_texts = [f"passage: {j['title']} {j['text']}" for j in jobs]
+
+    if os.path.exists(EMBEDDINGS_FILE):
+        print("✅ Loading cached embeddings...")
+        _job_embeddings = np.load(EMBEDDINGS_FILE)
+        return _job_embeddings
+
+    print("⏳ Computing job embeddings...")
+    _job_embeddings = get_model().encode(job_texts, normalize_embeddings=True)
+    np.save(EMBEDDINGS_FILE, _job_embeddings)
+    print("✅ Embeddings saved.")
+    return _job_embeddings
+
 # ─────────────────────────────────────────
-# Jobs Database (استبدلها بـ PostgreSQL لاحقاً)
+# Jobs Database
 # ─────────────────────────────────────────
 JOBS_FILE = "jobs.json"
 
@@ -47,7 +69,6 @@ def load_jobs():
     if os.path.exists(JOBS_FILE):
         with open(JOBS_FILE, "r", encoding="utf-8") as f:
             return json.load(f)
-    # Default jobs إذا ما في ملف
     return [
         {"id": 1, "title": "محاسب", "company": "شركة المال والأعمال", "location": "عمان", "text": "نبحث عن محاسب لديه خبرة في Excel والمالية والضرائب"},
         {"id": 2, "title": "مطور ويب", "company": "تك ستارت", "location": "الرياض", "text": "مطلوب مطور React و FastAPI خبرة 3 سنوات على الأقل"},
@@ -60,26 +81,6 @@ def load_jobs():
     ]
 
 jobs = load_jobs()
-
-# ─────────────────────────────────────────
-# Precompute Job Embeddings (مرة واحدة بس)
-# ─────────────────────────────────────────
-EMBEDDINGS_FILE = "job_embeddings.npy"
-
-def get_job_embeddings():
-    job_texts = [f"passage: {j['title']} {j['text']}" for j in jobs]
-    
-    if os.path.exists(EMBEDDINGS_FILE):
-        print("✅ Loading cached embeddings...")
-        return np.load(EMBEDDINGS_FILE)
-    
-    print("⏳ Computing job embeddings...")
-    embeddings = model.encode(job_texts, normalize_embeddings=True)
-    np.save(EMBEDDINGS_FILE, embeddings)
-    print("✅ Embeddings saved.")
-    return embeddings
-
-job_embeddings = get_job_embeddings()
 
 # ─────────────────────────────────────────
 # Schemas
@@ -99,11 +100,11 @@ class FeedbackInput(BaseModel):
     cv_text: str
     job_id: int
     score: float
-    action: str  # "clicked" | "applied" | "rejected" | "hired"
+    action: str
     user_id: Optional[str] = None
 
 # ─────────────────────────────────────────
-# Logging (Data Flywheel 🔥)
+# Logging
 # ─────────────────────────────────────────
 def log_event(filename: str, data: dict):
     os.makedirs("logs", exist_ok=True)
@@ -114,31 +115,23 @@ def log_event(filename: str, data: dict):
 # Routes
 # ─────────────────────────────────────────
 
-from fastapi.responses import HTMLResponse
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse
 @app.get("/", response_class=HTMLResponse)
 def root():
     with open("index.html", "r", encoding="utf-8") as f:
         return f.read()
+
 @app.get("/health")
 def health():
-    return {"status": "ok", "jobs_count": len(jobs), "model": "multilingual-e5-base"}
-
+    return {"status": "ok", "jobs_count": len(jobs), "model": "MiniLM-L12-v2"}
 
 @app.post("/match")
 def match_cv(cv: CVInput):
-    """
-    المطابقة الرئيسية: CV → أفضل وظائف
-    """
     if not cv.cv_text.strip():
         raise HTTPException(status_code=400, detail="cv_text لا يمكن أن يكون فارغاً")
 
-    # E5 format: query prefix
     query = f"query: {cv.cv_text}"
-    cv_embedding = model.encode([query], normalize_embeddings=True)
-
-    scores = cosine_similarity(cv_embedding, job_embeddings)[0]
+    cv_embedding = get_model().encode([query], normalize_embeddings=True)
+    scores = cosine_similarity(cv_embedding, get_job_embeddings())[0]
 
     top_k = min(cv.top_k or 5, len(jobs))
     top_indices = np.argsort(scores)[::-1][:top_k]
@@ -155,7 +148,6 @@ def match_cv(cv: CVInput):
         for i in top_indices
     ]
 
-    # 🔥 Log كل request = داتا مجانية
     log_event("matches.jsonl", {
         "timestamp": datetime.now().isoformat(),
         "user_id": cv.user_id,
@@ -169,14 +161,8 @@ def match_cv(cv: CVInput):
         "matches": results
     }
 
-
 @app.post("/feedback")
 def log_feedback(data: FeedbackInput):
-    """
-    تسجيل تفاعل المستخدم - هاد هو الذهب الحقيقي
-    applied / hired = positive signal قوي
-    rejected = negative signal
-    """
     signal = {
         "timestamp": datetime.now().isoformat(),
         "user_id": data.user_id,
@@ -186,45 +172,32 @@ def log_feedback(data: FeedbackInput):
         "action": data.action,
         "label": 1 if data.action in ["applied", "hired"] else 0
     }
-
     log_event("training_signals.jsonl", signal)
-
     return {"status": "logged", "signal_type": "positive" if signal["label"] == 1 else "negative"}
-
 
 @app.post("/jobs/add")
 def add_job(job: JobInput):
-    """
-    إضافة وظيفة جديدة وتحديث الـ embeddings
-    """
-    global jobs, job_embeddings
+    global jobs, _job_embeddings
 
     new_id = max(j["id"] for j in jobs) + 1
     new_job = {"id": new_id, **job.dict()}
     jobs.append(new_job)
 
-    # حفظ الوظائف
     with open(JOBS_FILE, "w", encoding="utf-8") as f:
         json.dump(jobs, f, ensure_ascii=False, indent=2)
 
-    # تحديث الـ embeddings
     job_texts = [f"passage: {j['title']} {j['text']}" for j in jobs]
-    job_embeddings = model.encode(job_texts, normalize_embeddings=True)
-    np.save(EMBEDDINGS_FILE, job_embeddings)
+    _job_embeddings = get_model().encode(job_texts, normalize_embeddings=True)
+    np.save("job_embeddings.npy", _job_embeddings)
 
     return {"status": "added", "job_id": new_id}
-
 
 @app.get("/jobs")
 def list_jobs():
     return {"jobs": jobs, "count": len(jobs)}
 
-
 @app.get("/stats")
 def stats():
-    """
-    إحصائيات الـ logs (مفيدة لمتابعة الـ data flywheel)
-    """
     def count_lines(filename):
         path = f"logs/{filename}"
         if not os.path.exists(path):
@@ -232,11 +205,8 @@ def stats():
         with open(path, encoding="utf-8") as f:
             return sum(1 for _ in f)
 
-    matches = count_lines("matches.jsonl")
-    signals = count_lines("training_signals.jsonl")
-
     return {
-        "total_matches": matches,
-        "total_feedback_signals": signals,
+        "total_matches": count_lines("matches.jsonl"),
+        "total_feedback_signals": count_lines("training_signals.jsonl"),
         "jobs_count": len(jobs)
     }
