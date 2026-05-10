@@ -15,7 +15,25 @@ def get_conn():
     url = os.environ.get("SUPABASE_DB_URL")
     if not url:
         raise RuntimeError("SUPABASE_DB_URL is not set")
-    return psycopg2.connect(url, cursor_factory=psycopg2.extras.RealDictCursor)
+    # Parse manually to handle special chars like # in password
+    # Format: postgresql://user:password@host:port/dbname
+    try:
+        without_scheme = url.split("://", 1)[1]
+        userinfo, hostinfo = without_scheme.split("@", 1)
+        username, password = userinfo.split(":", 1)
+        host_port, dbname = hostinfo.split("/", 1)
+        if ":" in host_port:
+            host, port = host_port.rsplit(":", 1)
+            port = int(port)
+        else:
+            host, port = host_port, 5432
+        return psycopg2.connect(
+            host=host, port=port, user=username,
+            password=password, dbname=dbname,
+            cursor_factory=psycopg2.extras.RealDictCursor
+        )
+    except Exception:
+        return psycopg2.connect(url, cursor_factory=psycopg2.extras.RealDictCursor)
 
 def init_db():
     conn = get_conn()
