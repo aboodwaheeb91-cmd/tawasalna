@@ -1,22 +1,383 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="ar" dir="rtl" id="html">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>تواصلنا</title>
-<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@700;900&display=swap" rel="stylesheet">
+<title>تواصلنا - الدخول</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;900&display=swap" rel="stylesheet">
 <style>
-*{margin:0;padding:0;box-sizing:border-box;}
-body{background:#070b18;min-height:100vh;display:flex;align-items:center;justify-content:center;font-family:Cairo,sans-serif;}
-h1{font-size:3rem;background:linear-gradient(135deg,#00c896,#2563ff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
-p{color:rgba(255,255,255,0.4);margin-top:10px;text-align:center;}
+* { margin:0; padding:0; box-sizing:border-box; }
+
+body {
+  font-family:'Cairo',sans-serif;
+  background:#070b18;
+  min-height:100vh;
+  display:flex; align-items:center; justify-content:center;
+  overflow-y:auto;
+  padding:40px 0;
+}
+
+/* ── Background ── */
+.bg { position:fixed; inset:0; z-index:0; pointer-events:none; }
+.orb {
+  position:absolute; border-radius:50%;
+  filter:blur(110px);
+  animation:breathe 9s ease-in-out infinite;
+}
+.o1{width:650px;height:650px;background:#00c896;opacity:.13;top:-220px;right:-180px;}
+.o2{width:550px;height:550px;background:#2563ff;opacity:.12;bottom:-200px;left:-160px;animation-delay:4s;}
+.o3{width:320px;height:320px;background:#ff6b35;opacity:.06;top:45%;left:35%;animation-delay:2s;}
+@keyframes breathe{0%,100%{transform:scale(1);}50%{transform:scale(1.08) translateY(-20px);}}
+
+.grid {
+  position:fixed;inset:0;z-index:0;
+  background-image:
+    linear-gradient(rgba(255,255,255,.025) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(255,255,255,.025) 1px,transparent 1px);
+  background-size:55px 55px;
+}
+
+@keyframes rise {
+  0%   {opacity:0;transform:translateY(100vh) scale(0);}
+  10%  {opacity:0.5;}
+  90%  {opacity:0.2;}
+  100% {opacity:0;transform:translateY(-80px) scale(1.5);}
+}
+
+/* ── Language btn ── */
+.lang-btn {
+  position:fixed; top:20px; left:20px; z-index:100;
+  background:rgba(255,255,255,.06);
+  border:1px solid rgba(255,255,255,.1);
+  border-radius:20px; padding:7px 16px;
+  color:rgba(255,255,255,.7);
+  font-family:'Cairo',sans-serif; font-size:.8rem; font-weight:700;
+  cursor:pointer; transition:all .25s ease;
+  backdrop-filter:blur(10px);
+}
+.lang-btn:hover{background:rgba(255,255,255,.1);color:#fff;}
+
+/* ── Wrapper ── */
+.wrap{position:relative;z-index:10;width:100%;max-width:400px;padding:20px;}
+
+/* ── Logo ── */
+.logo{text-align:center;margin-bottom:40px;animation:fDown .7s ease both;}
+.logo-row{display:inline-flex;align-items:center;gap:10px;margin-bottom:6px;}
+.logo-icon{
+  width:44px;height:44px;
+  background:linear-gradient(135deg,#00c896,#2563ff);
+  border-radius:14px;display:flex;align-items:center;justify-content:center;
+  font-size:1.3rem;box-shadow:0 8px 28px rgba(0,200,150,.35);
+}
+.logo-name{
+  font-size:1.9rem;font-weight:900;
+  background:linear-gradient(135deg,#fff,rgba(255,255,255,.7));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+}
+.logo-sub{font-size:.78rem;color:rgba(255,255,255,.45);}
+@keyframes fDown{from{opacity:0;transform:translateY(-16px);}to{opacity:1;transform:translateY(0);}}
+@keyframes fUp  {from{opacity:0;transform:translateY(20px); }to{opacity:1;transform:translateY(0);}}
+
+/* ── Card ── */
+.card-outer{position:relative;animation:fUp .7s ease .15s both;}
+
+/* ── Tabs ── */
+.tabs{display:flex;gap:6px;padding:0 2px;}
+
+.tab {
+  flex:1;
+  display:flex;flex-direction:column;align-items:center;gap:3px;
+  padding:10px 6px 14px;
+  border:1px solid rgba(255,255,255,.09);
+  border-bottom:none;
+  border-radius:16px 16px 0 0;
+  background:rgba(10,14,28,.85);
+  cursor:pointer;
+  font-family:'Cairo',sans-serif;
+  font-size:.73rem;font-weight:700;
+  color:rgba(255,255,255,.38);
+  transition:all .3s ease;
+  backdrop-filter:blur(16px);
+  position:relative;
+}
+.tab .ti{font-size:1.1rem;transition:transform .3s ease;}
+.tab:hover{color:rgba(255,255,255,.65);background:rgba(255,255,255,.05);}
+.tab.active{
+  color:#fff;
+  border-color:var(--tc,rgba(0,200,150,.35));
+  background:var(--tb,rgba(0,200,150,.08));
+}
+.tab.active .ti{transform:scale(1.18);}
+
+/* Active tab bottom border hides the bubble's top border */
+.tab.active::after{
+  content:'';
+  position:absolute;
+  bottom:-1px; left:0; right:0;
+  height:2px;
+  background:var(--tb,rgba(0,200,150,.08));
+}
+
+/* ── Bubble ── */
+.bubble{
+  border:1px solid var(--bb,rgba(0,200,150,.2));
+  border-top:none;
+  border-radius:0 0 24px 24px;
+  padding:22px 24px 26px;
+  background:var(--bg2,rgba(0,200,150,.04));
+  backdrop-filter:blur(40px);
+  box-shadow:
+    0 24px 80px rgba(0,0,0,.65),
+    0 0 50px var(--bglow,rgba(0,200,150,.07)),
+    inset 0 0 0 1px rgba(255,255,255,.03);
+  transition:all .4s ease;
+}
+
+/* ── Sep ── */
+.sep{
+  height:1px;
+  background:linear-gradient(90deg,transparent,var(--sc,#00c896),transparent);
+  opacity:.4; margin-bottom:20px;
+  transition:background .4s ease;
+}
+
+/* ── Welcome ── */
+.welcome{text-align:center;margin-bottom:20px;}
+.w-ico{font-size:2.3rem;display:block;margin-bottom:6px;animation:bob 2.5s ease infinite;}
+@keyframes bob{0%,100%{transform:translateY(0);}50%{transform:translateY(-5px);}}
+.welcome h2{font-size:1.08rem;font-weight:800;color:#fff;margin-bottom:3px;}
+.welcome p {font-size:.77rem;color:rgba(255,255,255,.48);}
+
+/* ── Fields ── */
+.field{margin-bottom:12px;}
+.field label{display:block;font-size:.75rem;font-weight:700;color:rgba(255,255,255,.48);margin-bottom:5px;}
+.field input{
+  width:100%;padding:12px 14px;
+  background:rgba(255,255,255,.04);
+  border:1px solid rgba(255,255,255,.08);
+  border-radius:11px;
+  color:#fff;
+  font-family:'Cairo',sans-serif;font-size:.86rem;
+  outline:none;transition:all .25s ease;direction:rtl;
+}
+.field input::placeholder{color:rgba(255,255,255,.18);}
+.field input:focus{
+  border-color:var(--fc,rgba(0,200,150,.4));
+  background:var(--fb,rgba(0,200,150,.04));
+  box-shadow:0 0 0 3px var(--fs,rgba(0,200,150,.08));
+}
+
+.forgot{text-align:left;margin:-2px 0 15px;}
+.forgot a{font-size:.72rem;color:var(--lc,#00c896);text-decoration:none;opacity:.8;}
+.forgot a:hover{opacity:1;}
+
+/* ── CTA ── */
+.cta{
+  width:100%;padding:13px;
+  background:var(--cta,linear-gradient(135deg,#00c896,#2563ff));
+  border:none;border-radius:13px;
+  color:#fff;
+  font-family:'Cairo',sans-serif;font-size:.92rem;font-weight:800;
+  cursor:pointer;transition:all .3s ease;
+  position:relative;overflow:hidden;
+}
+.cta::after{
+  content:'';position:absolute;top:0;left:-100%;
+  width:100%;height:100%;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.18),transparent);
+  transition:left .5s ease;
+}
+.cta:hover{transform:translateY(-2px);box-shadow:0 10px 30px var(--cs,rgba(0,200,150,.35));}
+.cta:hover::after{left:100%;}
+< truncated lines 192-203 >
+  text-align:center;margin-top:18px;
+  font-size:.74rem;color:rgba(255,255,255,.32);
+  animation:fUp .7s ease .3s both;
+}
+.foot a{color:var(--lc,#00c896);text-decoration:none;font-weight:600;}
 </style>
 </head>
 <body>
-<div style="text-align:center">
-<h1>تواصلنا</h1>
-<p>منصة التوظيف والتوثيق العربية</p>
-<p style="margin-top:8px;font-size:.8rem">قريباً...</p>
+
+<div class="bg">
+  <div class="orb o1"></div>
+  <div class="orb o2"></div>
+  <div class="orb o3"></div>
 </div>
+<div class="grid"></div>
+<div id="pts" style="position:fixed;inset:0;z-index:0;pointer-events:none;"></div>
+
+<button class="lang-btn" onclick="toggleLang()" id="langBtn">🌐 English</button>
+
+<div class="wrap">
+
+  <div class="logo">
+    <div class="logo-row">
+      <div class="logo-icon">🔗</div>
+      <div class="logo-name" id="logoName">تواصلنا</div>
+    </div>
+    <div class="logo-sub" id="logoSub">منصة التوظيف والتوثيق العربية</div>
+  </div>
+
+  <div class="card-outer">
+
+    <div class="tabs">
+      <button class="tab active" onclick="pick('emp',this)">
+        <span class="ti">👤</span><span id="t1">موظف</span>
+      </button>
+      <button class="tab" onclick="pick('co',this)">
+        <span class="ti">🏢</span><span id="t2">شركة</span>
+      </button>
+      <button class="tab" onclick="pick('edu',this)">
+        <span class="ti">🎓</span><span id="t3">تعليمي</span>
+      </button>
+    </div>
+
+    <div class="bubble" id="bubble">
+      <div class="sep" id="sep"></div>
+
+      <div class="welcome">
+        <span class="w-ico" id="wIco">👤</span>
+        <h2 id="wTit">أهلاً بك في تواصلنا!</h2>
+        <p  id="wSub">سجّل دخولك للوصول إلى حسابك كموظف</p>
+      </div>
+
+      <div id="fIn">
+        <div class="field">
+          <label id="lUser">اسم المستخدم أو البريد</label>
+          <input type="text" id="iUser" placeholder="أدخل اسم المستخدم...">
+        </div>
+        <div class="field">
+          <label id="lPass">كلمة المرور</label>
+          <input type="password" id="iPass" placeholder="••••••••">
+        </div>
+        <div class="forgot"><a href="#" id="forgotLink">نسيت كلمة المرور؟</a></div>
+        <button class="cta" id="ctaBtn">دخول ←</button>
+        <div class="switch-link">
+          <span id="noAcc">ليس لديك حساب؟</span>
+          <a href="#" onclick="showReg();return false;" id="regLink">تسجيل جديد</a>
+        </div>
+      </div>
+
+      <div id="fUp" style="display:none">
+        <div class="field">
+          <label id="lName">الاسم الكامل</label>
+          <input type="text" id="iName" placeholder="أدخل اسمك الكامل...">
+        </div>
+        <div class="field">
+          <label id="lEmail">البريد الإلكتروني</label>
+          <input type="email" id="iEmail" placeholder="example@email.com">
+        </div>
+        <div class="field">
+          <label id="lPass2">كلمة المرور</label>
+          <input type="password" id="iPass2" placeholder="••••••••">
+        </div>
+        <button class="cta" id="ctaBtn2">إنشاء حساب ←</button>
+        <div class="switch-link">
+          <span id="hasAcc">لديك حساب؟</span>
+          <a href="#" onclick="showLogin();return false;" id="loginLink">تسجيل الدخول</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="foot">
+    <span id="terms">بتسجيلك أنت توافق على </span>
+    <a href="#" id="tou">شروط الاستخدام</a>
+    <span id="and"> و</span>
+    <a href="#" id="priv">الخصوصية</a>
+  </div>
+
+</div>
+
+<script>
+/* Particles */
+const pts = document.getElementById('pts');
+for(let i=0;i<25;i++){
+  const d = document.createElement('div');
+  const sz = 2+Math.random()*3;
+  const c = ['#00c896','#2563ff','#ff6b35','#818cf8'][Math.floor(Math.random()*4)];
+  d.style.cssText=`position:absolute;border-radius:50%;width:${sz}px;height:${sz}px;background:${c};left:${Math.random()*100}%;opacity:0;animation:rise ${7+Math.random()*9}s linear ${Math.random()*10}s infinite;`;
+  pts.appendChild(d);
+}
+
+/* Themes */
+const T={
+  emp:{ico:'👤',ar:{tit:'أهلاً بك في تواصلنا!',sub:'سجّل دخولك للوصول إلى حسابك كموظف'},en:{tit:'Welcome to Tawasolna!',sub:'Sign in to access your employee account'},tc:'rgba(0,200,150,.35)',tb:'rgba(0,200,150,.08)',bb:'rgba(0,200,150,.2)',bg2:'rgba(0,200,150,.04)',bglow:'rgba(0,200,150,.07)',sc:'#00c896',cta:'linear-gradient(135deg,#00c896,#2563ff)',cs:'rgba(0,200,150,.35)',fc:'rgba(0,200,150,.4)',fb:'rgba(0,200,150,.04)',fs:'rgba(0,200,150,.08)',lc:'#00c896'},
+  co: {ico:'🏢',ar:{tit:'مرحباً بمنشأتكم!',sub:'ابحثوا عن أفضل الكفاءات العربية'},en:{tit:'Welcome, Company!',sub:'Find the best Arabic talent for your team'},tc:'rgba(99,102,241,.4)',tb:'rgba(99,102,241,.09)',bb:'rgba(99,102,241,.22)',bg2:'rgba(99,102,241,.04)',bglow:'rgba(99,102,241,.08)',sc:'#818cf8',cta:'linear-gradient(135deg,#6366f1,#8b5cf6)',cs:'rgba(99,102,241,.4)',fc:'rgba(99,102,241,.4)',fb:'rgba(99,102,241,.04)',fs:'rgba(99,102,241,.08)',lc:'#a5b4fc'},
+  edu:{ico:'🎓',ar:{tit:'مرحباً بمؤسستكم!',sub:'وثّقوا الشهادات وانشروا الدورات التعليمية'},en:{tit:'Welcome, Institution!',sub:'Verify certificates and publish courses'},tc:'rgba(251,146,60,.38)',tb:'rgba(251,146,60,.08)',bb:'rgba(251,146,60,.2)',bg2:'rgba(251,146,60,.04)',bglow:'rgba(251,146,60,.07)',sc:'#fb923c',cta:'linear-gradient(135deg,#f97316,#ef4444)',cs:'rgba(249,115,22,.4)',fc:'rgba(251,146,60,.4)',fb:'rgba(251,146,60,.04)',fs:'rgba(251,146,60,.08)',lc:'#fb923c'},
+};
+
+const L={
+  ar:{logoSub:'منصة التوظيف والتوثيق العربية',t1:'موظف',t2:'شركة',t3:'تعليمي',lUser:'اسم المستخدم أو البريد',iUser:'أدخل اسم المستخدم...',lPass:'كلمة المرور',iPass:'••••••••',forgot:'نسيت كلمة المرور؟',cta:'دخول ←',noAcc:'ليس لديك حساب؟',regLink:'تسجيل جديد',lName:'الاسم الكامل',iName:'أدخل اسمك الكامل...',lEmail:'البريد الإلكتروني',iEmail:'example@email.com',lPass2:'كلمة المرور',iPass2:'••••••••',cta2:'إنشاء حساب ←',hasAcc:'لديك حساب؟',loginLink:'تسجيل الدخول',terms:'بتسجيلك أنت توافق على ',tou:'شروط الاستخدام',and:' و',priv:'الخصوصية',langBtn:'🌐 English',dir:'rtl'},
+  en:{logoSub:'Arabic Employment & Verification Platform',t1:'Employee',t2:'Company',t3:'Education',lUser:'Username or Email',iUser:'Enter your username...',lPass:'Password',iPass:'••••••••',forgot:'Forgot password?',cta:'Sign In →',noAcc:"Don't have an account?",regLink:'Register',lName:'Full Name',iName:'Enter your full name...',lEmail:'Email Address',iEmail:'example@email.com',lPass2:'Password',iPass2:'••••••••',cta2:'Create Account →',hasAcc:'Already have an account?',loginLink:'Sign In',terms:'By registering you agree to our ',tou:'Terms of Use',and:' and ',priv:'Privacy Policy',langBtn:'🌐 عربي',dir:'ltr'},
+};
+
+let lang='ar', curType='emp';
+
+function applyTheme(type){
+  curType=type;
+  const t=T[type];
+  const r=document.documentElement;
+  const bub=document.getElementById('bubble');
+  const sep=document.getElementById('sep');
+  bub.style.borderColor=t.bb;
+  bub.style.background=t.bg2;
+  bub.style.boxShadow=`0 24px 80px rgba(0,0,0,.65),0 0 50px ${t.bglow},inset 0 0 0 1px rgba(255,255,255,.03)`;
+  sep.style.background=`linear-gradient(90deg,transparent,${t.sc},transparent)`;
+  document.querySelectorAll('.cta').forEach(b=>b.style.background=t.cta);
+  r.style.setProperty('--tc',t.tc);
+  r.style.setProperty('--tb',t.tb);
+  r.style.setProperty('--fc',t.fc);
+  r.style.setProperty('--fb',t.fb);
+  r.style.setProperty('--fs',t.fs);
+  r.style.setProperty('--lc',t.lc);
+  r.style.setProperty('--cs',t.cs);
+  document.querySelectorAll('.tab').forEach(tab=>{
+    if(tab.classList.contains('active')){tab.style.borderColor=t.tc;tab.style.background=t.tb;}
+    else{tab.style.borderColor='';tab.style.background='';}
+  });
+}
+
+function pick(type,btn){
+  document.querySelectorAll('.tab').forEach(b=>{b.classList.remove('active');b.style.borderColor='';b.style.background='';});
+  btn.classList.add('active');
+  const t=T[type]; const copy=lang==='ar'?t.ar:t.en;
+  document.getElementById('wIco').textContent=t.ico;
+  document.getElementById('wTit').textContent=copy.tit;
+  document.getElementById('wSub').textContent=copy.sub;
+  applyTheme(type);
+  const bub=document.getElementById('bubble');
+  bub.style.transition='none';bub.style.opacity='.7';bub.style.transform='translateY(6px)';
+  requestAnimationFrame(()=>{bub.style.transition='all .35s ease';bub.style.opacity='1';bub.style.transform='translateY(0)';});
+}
+
+function applyLang(l){
+  const t=L[l];
+  document.getElementById('html').setAttribute('dir',t.dir);
+  document.getElementById('html').setAttribute('lang',l==='ar'?'ar':'en');
+  ['logoSub','t1','t2','t3','lUser','lPass','forgotLink','noAcc','regLink','lName','lEmail','lPass2','hasAcc','loginLink','terms','tou','and','priv','langBtn'].forEach(id=>{
+    const el=document.getElementById(id); if(el&&t[id]) el.textContent=t[id];
+  });
+  document.getElementById('iUser').placeholder=t.iUser;
+  document.getElementById('iPass').placeholder=t.iPass;
+  document.getElementById('iName').placeholder=t.iName;
+  document.getElementById('iEmail').placeholder=t.iEmail;
+  document.getElementById('iPass2').placeholder=t.iPass2;
+  document.getElementById('ctaBtn').textContent=t.cta;
+  document.getElementById('ctaBtn2').textContent=t.cta2;
+  document.querySelectorAll('input').forEach(i=>i.style.direction=l==='ar'?'rtl':'ltr');
+  const th=T[curType]; const copy=l==='ar'?th.ar:th.en;
+  document.getElementById('wTit').textContent=copy.tit;
+  document.getElementById('wSub').textContent=copy.sub;
+}
+
+function toggleLang(){lang=lang==='ar'?'en':'ar';applyLang(lang);}
+function showReg(){document.getElementById('fIn').style.display='none';document.getElementById('fUp').style.display='block';}
+function showLogin(){document.getElementById('fIn').style.display='block';document.getElementById('fUp').style.display='none';}
+
+applyTheme('emp');
+applyLang('ar');
+</script>
 </body>
 </html>
