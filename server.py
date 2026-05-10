@@ -29,10 +29,15 @@ app.add_middleware(
 # ─────────────────────────────────────────
 # Model (أقوى embedding للعربي عملياً)
 # ─────────────────────────────────────────
-print("⏳ Loading embedding model...")
-model = SentenceTransformer("paraphrase-multilingual-MiniLM-L12-v2")
-print("✅ Model loaded.")
+model = None
 
+def get_model():
+    global model
+    if model is None:
+        print("⏳ Loading embedding model...")
+        model = SentenceTransformer("paraphrase-multilingual-MiniLM-L12-v2")
+        print("✅ Model loaded.")
+    return model
 # ─────────────────────────────────────────
 # Jobs Database (استبدلها بـ PostgreSQL لاحقاً)
 # ─────────────────────────────────────────
