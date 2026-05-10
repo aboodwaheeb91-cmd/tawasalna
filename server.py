@@ -111,7 +111,7 @@ def log_event(filename: str, data: dict):
 
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
-
+from fastapi.responses import HTMLResponse
 @app.get("/", response_class=HTMLResponse)
 def root():
     with open("index.html", "r", encoding="utf-8") as f:
