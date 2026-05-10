@@ -3,37 +3,35 @@ Authentication module - User registration & login with Supabase PostgreSQL
 """
 
 import os
+import bcrypt
 import psycopg2
 import psycopg2.extras
-from passlib.context import CryptContext
 from datetime import datetime
 from typing import Optional
-
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 def get_conn():
     url = os.environ.get("SUPABASE_DB_URL")
     if not url:
         raise RuntimeError("SUPABASE_DB_URL is not set")
+    # Strip any accidental whitespace from the URL
+    url = url.strip().replace(" ", "")
     # Parse manually to handle special chars like # in password
     # Format: postgresql://user:password@host:port/dbname
-    try:
-        without_scheme = url.split("://", 1)[1]
-        userinfo, hostinfo = without_scheme.split("@", 1)
-        username, password = userinfo.split(":", 1)
-        host_port, dbname = hostinfo.split("/", 1)
-        if ":" in host_port:
-            host, port = host_port.rsplit(":", 1)
-            port = int(port)
-        else:
-            host, port = host_port, 5432
-        return psycopg2.connect(
-            host=host, port=port, user=username,
-            password=password, dbname=dbname,
-            cursor_factory=psycopg2.extras.RealDictCursor
-        )
-    except Exception:
-        return psycopg2.connect(url, cursor_factory=psycopg2.extras.RealDictCursor)
+    without_scheme = url.split("://", 1)[1]
+    userinfo, hostinfo = without_scheme.split("@", 1)
+    username, password = userinfo.split(":", 1)
+    host_port, dbname = hostinfo.split("/", 1)
+    if ":" in host_port:
+        host, port = host_port.rsplit(":", 1)
+        port = int(port)
+    else:
+        host, port = host_port, 5432
+    return psycopg2.connect(
+        host=host, port=port, user=username,
+        password=password, dbname=dbname,
+        sslmode="require",
+        cursor_factory=psycopg2.extras.RealDictCursor
+    )
 
 def init_db():
     conn = get_conn()
@@ -54,10 +52,11 @@ def init_db():
     print("✅ Users table ready.")
 
 def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+    salt = bcrypt.gensalt()
+    return bcrypt.hashpw(password.encode("utf-8"), salt).decode("utf-8")
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return pwd_context.verify(plain, hashed)
+    return bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
 
 def create_user(full_name: str, email: str, password: str, user_type: str) -> dict:
     conn = get_conn()
