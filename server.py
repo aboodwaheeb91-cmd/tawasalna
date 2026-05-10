@@ -109,10 +109,13 @@ def log_event(filename: str, data: dict):
 # Routes
 # ─────────────────────────────────────────
 
-@app.get("/")
-def root():
-    return {"message": "تواصلنا API - Arabic Job Matching Engine 🚀", "version": "1.0.0"}
+from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 
+@app.get("/", response_class=HTMLResponse)
+def root():
+    with open("index.html", "r", encoding="utf-8") as f:
+        return f.read()
 @app.get("/health")
 def health():
     return {"status": "ok", "jobs_count": len(jobs), "model": "multilingual-e5-base"}
