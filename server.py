@@ -1,12 +1,11 @@
 """
 تواصلنا - Arabic Job Matching Engine
-MVP Backend - FastAPI + Multilingual E5 Embeddings + Auth
 """
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
 import json
 import os
 from datetime import datetime
@@ -29,41 +28,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ─────────────────────────────────────────
-# DB Init on startup
-# ─────────────────────────────────────────
 @app.on_event("startup")
 def on_startup():
     try:
         init_db()
     except Exception as e:
         print(f"⚠️ DB init failed: {e}")
-
-# ─────────────────────────────────────────
-# Lazy Model Loading
-# ─────────────────────────────────────────
-@app.post("/match")
-def match_cv(cv: CVInput):
-    if not cv.cv_text.strip():
-        raise HTTPException(status_code=400, detail="cv_text لا يمكن أن يكون فارغاً")
-    
-    # Simple text matching مؤقتاً
-    query = cv.cv_text.lower()
-    results = []
-    for job in jobs:
-        score = sum(1 for word in query.split() if word in job["text"].lower())
-        results.append({
-            "job_id": job["id"],
-            "title": job["title"],
-            "company": job["company"],
-            "location": job["location"],
-            "score": score,
-            "match_percent": min(score * 10, 100)
-        })
-    
-    results = sorted(results, key=lambda x: x["score"], reverse=True)[:cv.top_k or 5]
-    return {"status": "success", "matches": results}
-
 
 # ─────────────────────────────────────────
 # Jobs Database
@@ -174,7 +144,7 @@ def root():
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "jobs_count": len(jobs), "model": "MiniLM-L12-v2"}
+    return {"status": "ok", "jobs_count": len(jobs)}
 
 # ─────────────────────────────────────────
 # Auth Routes
@@ -290,42 +260,34 @@ def request_verification(data: VerifyRequestInput):
     except Exception as e:
         raise HTTPException(status_code=500, detail="خطأ في الخادم، حاول لاحقاً")
 
+# ─────────────────────────────────────────
+# Match Route
+# ─────────────────────────────────────────
+
 @app.post("/match")
 def match_cv(cv: CVInput):
     if not cv.cv_text.strip():
         raise HTTPException(status_code=400, detail="cv_text لا يمكن أن يكون فارغاً")
-
-    query = f"query: {cv.cv_text}"
-    cv_embedding = get_model().encode([query], normalize_embeddings=True)
-    scores = cosine_similarity(cv_embedding, get_job_embeddings())[0]
-
-    top_k = min(cv.top_k or 5, len(jobs))
-    top_indices = np.argsort(scores)[::-1][:top_k]
-
-    results = [
-        {
-            "job_id": jobs[i]["id"],
-            "title": jobs[i]["title"],
-            "company": jobs[i]["company"],
-            "location": jobs[i]["location"],
-            "score": round(float(scores[i]), 4),
-            "match_percent": round(float(scores[i]) * 100, 1)
-        }
-        for i in top_indices
-    ]
-
+    query = cv.cv_text.lower()
+    results = []
+    for job in jobs:
+        score = sum(1 for word in query.split() if word in job["text"].lower())
+        results.append({
+            "job_id": job["id"],
+            "title": job["title"],
+            "company": job["company"],
+            "location": job["location"],
+            "score": score,
+            "match_percent": min(score * 10, 100)
+        })
+    results = sorted(results, key=lambda x: x["score"], reverse=True)[:cv.top_k or 5]
     log_event("matches.jsonl", {
         "timestamp": datetime.now().isoformat(),
         "user_id": cv.user_id,
         "cv_text": cv.cv_text,
         "results": results
     })
-
-    return {
-        "status": "success",
-        "cv_preview": cv.cv_text[:100] + "..." if len(cv.cv_text) > 100 else cv.cv_text,
-        "matches": results
-    }
+    return {"status": "success", "matches": results}
 
 @app.post("/feedback")
 def log_feedback(data: FeedbackInput):
@@ -341,23 +303,6 @@ def log_feedback(data: FeedbackInput):
     log_event("training_signals.jsonl", signal)
     return {"status": "logged", "signal_type": "positive" if signal["label"] == 1 else "negative"}
 
-@app.post("/jobs/add")
-def add_job(job: JobInput):
-    global jobs, _job_embeddings
-
-    new_id = max(j["id"] for j in jobs) + 1
-    new_job = {"id": new_id, **job.dict()}
-    jobs.append(new_job)
-
-    with open(JOBS_FILE, "w", encoding="utf-8") as f:
-        json.dump(jobs, f, ensure_ascii=False, indent=2)
-
-    job_texts = [f"passage: {j['title']} {j['text']}" for j in jobs]
-    _job_embeddings = get_model().encode(job_texts, normalize_embeddings=True)
-    np.save("job_embeddings.npy", _job_embeddings)
-
-    return {"status": "added", "job_id": new_id}
-
 @app.get("/jobs")
 def list_jobs():
     return {"jobs": jobs, "count": len(jobs)}
@@ -370,7 +315,6 @@ def stats():
             return 0
         with open(path, encoding="utf-8") as f:
             return sum(1 for _ in f)
-
     return {
         "total_matches": count_lines("matches.jsonl"),
         "total_feedback_signals": count_lines("training_signals.jsonl"),
