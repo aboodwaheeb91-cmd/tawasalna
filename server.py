@@ -7,9 +7,6 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, EmailStr
-from sentence_transformers import SentenceTransformer
-from sklearn.metrics.pairwise import cosine_similarity
-import numpy as np
 import json
 import os
 from datetime import datetime
@@ -45,35 +42,28 @@ def on_startup():
 # ─────────────────────────────────────────
 # Lazy Model Loading
 # ─────────────────────────────────────────
-_model = None
-_job_embeddings = None
+@app.post("/match")
+def match_cv(cv: CVInput):
+    if not cv.cv_text.strip():
+        raise HTTPException(status_code=400, detail="cv_text لا يمكن أن يكون فارغاً")
+    
+    # Simple text matching مؤقتاً
+    query = cv.cv_text.lower()
+    results = []
+    for job in jobs:
+        score = sum(1 for word in query.split() if word in job["text"].lower())
+        results.append({
+            "job_id": job["id"],
+            "title": job["title"],
+            "company": job["company"],
+            "location": job["location"],
+            "score": score,
+            "match_percent": min(score * 10, 100)
+        })
+    
+    results = sorted(results, key=lambda x: x["score"], reverse=True)[:cv.top_k or 5]
+    return {"status": "success", "matches": results}
 
-def get_model():
-    global _model
-    if _model is None:
-        print("⏳ Loading embedding model...")
-        _model = SentenceTransformer("paraphrase-multilingual-MiniLM-L12-v2")
-        print("✅ Model loaded.")
-    return _model
-
-def get_job_embeddings():
-    global _job_embeddings
-    if _job_embeddings is not None:
-        return _job_embeddings
-
-    EMBEDDINGS_FILE = "job_embeddings.npy"
-    job_texts = [f"passage: {j['title']} {j['text']}" for j in jobs]
-
-    if os.path.exists(EMBEDDINGS_FILE):
-        print("✅ Loading cached embeddings...")
-        _job_embeddings = np.load(EMBEDDINGS_FILE)
-        return _job_embeddings
-
-    print("⏳ Computing job embeddings...")
-    _job_embeddings = get_model().encode(job_texts, normalize_embeddings=True)
-    np.save(EMBEDDINGS_FILE, _job_embeddings)
-    print("✅ Embeddings saved.")
-    return _job_embeddings
 
 # ─────────────────────────────────────────
 # Jobs Database
