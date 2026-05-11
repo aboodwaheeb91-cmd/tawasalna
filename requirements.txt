@@ -3,5 +3,5 @@ uvicorn==0.30.1
 sentence-transformers==3.0.1
 scikit-learn==1.5.0
 numpy==1.26.4
-bcrypt
-psycopg2-binary
+bcrypt==4.1.3
+psycopg2-binary==2.9.9
