@@ -1,18 +1,16 @@
 """
 تواصلنا - Arabic Job Matching Engine
-MVP Backend - FastAPI + Multilingual E5 Embeddings + Auth
+MVP Backend - FastAPI + Auth
 """
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
-from pydantic import BaseModel, EmailStr
-from sklearn.metrics.pairwise import cosine_similarity
-import numpy as np
+from pydantic import BaseModel
 import json
 import os
 from datetime import datetime
-from typing import List, Optional
+from typing import Optional
 from auth import init_db, create_user, authenticate_user, get_user_by_id
 
 # ─────────────────────────────────────────
@@ -38,40 +36,6 @@ def on_startup():
         print(f"⚠️ DB init failed: {e}")
 
 # ─────────────────────────────────────────
-# Lazy Model Loading
-# ─────────────────────────────────────────
-_model = None
-_job_embeddings = None
-
-def get_model():
-    global _model
-    if _model is None:
-        print("⏳ Loading embedding model...")
-        from sentence_transformers import SentenceTransformer
-        _model = SentenceTransformer("paraphrase-multilingual-MiniLM-L12-v2")
-        print("✅ Model loaded.")
-    return _model
-
-def get_job_embeddings():
-    global _job_embeddings
-    if _job_embeddings is not None:
-        return _job_embeddings
-
-    EMBEDDINGS_FILE = "job_embeddings.npy"
-    job_texts = [f"passage: {j['title']} {j['text']}" for j in jobs]
-
-    if os.path.exists(EMBEDDINGS_FILE):
-        print("✅ Loading cached embeddings...")
-        _job_embeddings = np.load(EMBEDDINGS_FILE)
-        return _job_embeddings
-
-    print("⏳ Computing job embeddings...")
-    _job_embeddings = get_model().encode(job_texts, normalize_embeddings=True)
-    np.save(EMBEDDINGS_FILE, _job_embeddings)
-    print("✅ Embeddings saved.")
-    return _job_embeddings
-
-# ─────────────────────────────────────────
 # Jobs Database
 # ─────────────────────────────────────────
 JOBS_FILE = "jobs.json"
@@ -92,6 +56,27 @@ def load_jobs():
     ]
 
 jobs = load_jobs()
+
+# ─────────────────────────────────────────
+# Simple text matching (بدون AI مؤقتاً)
+# ─────────────────────────────────────────
+def simple_match(cv_text: str, top_k: int = 5):
+    cv_words = set(cv_text.lower().split())
+    results = []
+    for job in jobs:
+        job_words = set((job["title"] + " " + job["text"]).lower().split())
+        common = len(cv_words & job_words)
+        score = common / max(len(cv_words), 1)
+        results.append({
+            "job_id": job["id"],
+            "title": job["title"],
+            "company": job["company"],
+            "location": job["location"],
+            "score": round(score, 4),
+            "match_percent": round(score * 100, 1)
+        })
+    results.sort(key=lambda x: x["score"], reverse=True)
+    return results[:top_k]
 
 # ─────────────────────────────────────────
 # Schemas
@@ -143,7 +128,7 @@ def root():
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "jobs_count": len(jobs), "model": "MiniLM-L12-v2"}
+    return {"status": "ok", "jobs_count": len(jobs)}
 
 # ─────────────────────────────────────────
 # Auth Routes
@@ -188,24 +173,7 @@ def match_cv(cv: CVInput):
     if not cv.cv_text.strip():
         raise HTTPException(status_code=400, detail="cv_text لا يمكن أن يكون فارغاً")
 
-    query = f"query: {cv.cv_text}"
-    cv_embedding = get_model().encode([query], normalize_embeddings=True)
-    scores = cosine_similarity(cv_embedding, get_job_embeddings())[0]
-
-    top_k = min(cv.top_k or 5, len(jobs))
-    top_indices = np.argsort(scores)[::-1][:top_k]
-
-    results = [
-        {
-            "job_id": jobs[i]["id"],
-            "title": jobs[i]["title"],
-            "company": jobs[i]["company"],
-            "location": jobs[i]["location"],
-            "score": round(float(scores[i]), 4),
-            "match_percent": round(float(scores[i]) * 100, 1)
-        }
-        for i in top_indices
-    ]
+    results = simple_match(cv.cv_text, cv.top_k or 5)
 
     log_event("matches.jsonl", {
         "timestamp": datetime.now().isoformat(),
@@ -234,23 +202,6 @@ def log_feedback(data: FeedbackInput):
     log_event("training_signals.jsonl", signal)
     return {"status": "logged", "signal_type": "positive" if signal["label"] == 1 else "negative"}
 
-@app.post("/jobs/add")
-def add_job(job: JobInput):
-    global jobs, _job_embeddings
-
-    new_id = max(j["id"] for j in jobs) + 1
-    new_job = {"id": new_id, **job.dict()}
-    jobs.append(new_job)
-
-    with open(JOBS_FILE, "w", encoding="utf-8") as f:
-        json.dump(jobs, f, ensure_ascii=False, indent=2)
-
-    job_texts = [f"passage: {j['title']} {j['text']}" for j in jobs]
-    _job_embeddings = get_model().encode(job_texts, normalize_embeddings=True)
-    np.save("job_embeddings.npy", _job_embeddings)
-
-    return {"status": "added", "job_id": new_id}
-
 @app.get("/jobs")
 def list_jobs():
     return {"jobs": jobs, "count": len(jobs)}
@@ -269,3 +220,4 @@ def stats():
         "total_feedback_signals": count_lines("training_signals.jsonl"),
         "jobs_count": len(jobs)
     }
+        
