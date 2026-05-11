@@ -1,17 +1,24 @@
 """
 تواصلنا - Arabic Job Matching Engine
-MVP Backend - FastAPI + Auth
+MVP Backend - FastAPI + Multilingual E5 Embeddings + Auth
 """
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
+from sentence_transformers import SentenceTransformer
+from sklearn.metrics.pairwise import cosine_similarity
+import numpy as np
 import json
 import os
 from datetime import datetime
-from typing import Optional
-from auth import init_db, create_user, authenticate_user, get_user_by_id
+from typing import List, Optional
+from auth import (
+    init_db, create_user, authenticate_user, get_user_by_id,
+    get_public_profile, get_full_profile, update_profile,
+    add_experience, add_education, add_course, create_verify_request
+)
 
 # ─────────────────────────────────────────
 # App Setup
@@ -36,6 +43,39 @@ def on_startup():
         print(f"⚠️ DB init failed: {e}")
 
 # ─────────────────────────────────────────
+# Lazy Model Loading
+# ─────────────────────────────────────────
+_model = None
+_job_embeddings = None
+
+def get_model():
+    global _model
+    if _model is None:
+        print("⏳ Loading embedding model...")
+        _model = SentenceTransformer("paraphrase-multilingual-MiniLM-L12-v2")
+        print("✅ Model loaded.")
+    return _model
+
+def get_job_embeddings():
+    global _job_embeddings
+    if _job_embeddings is not None:
+        return _job_embeddings
+
+    EMBEDDINGS_FILE = "job_embeddings.npy"
+    job_texts = [f"passage: {j['title']} {j['text']}" for j in jobs]
+
+    if os.path.exists(EMBEDDINGS_FILE):
+        print("✅ Loading cached embeddings...")
+        _job_embeddings = np.load(EMBEDDINGS_FILE)
+        return _job_embeddings
+
+    print("⏳ Computing job embeddings...")
+    _job_embeddings = get_model().encode(job_texts, normalize_embeddings=True)
+    np.save(EMBEDDINGS_FILE, _job_embeddings)
+    print("✅ Embeddings saved.")
+    return _job_embeddings
+
+# ─────────────────────────────────────────
 # Jobs Database
 # ─────────────────────────────────────────
 JOBS_FILE = "jobs.json"
@@ -56,27 +96,6 @@ def load_jobs():
     ]
 
 jobs = load_jobs()
-
-# ─────────────────────────────────────────
-# Simple text matching (بدون AI مؤقتاً)
-# ─────────────────────────────────────────
-def simple_match(cv_text: str, top_k: int = 5):
-    cv_words = set(cv_text.lower().split())
-    results = []
-    for job in jobs:
-        job_words = set((job["title"] + " " + job["text"]).lower().split())
-        common = len(cv_words & job_words)
-        score = common / max(len(cv_words), 1)
-        results.append({
-            "job_id": job["id"],
-            "title": job["title"],
-            "company": job["company"],
-            "location": job["location"],
-            "score": round(score, 4),
-            "match_percent": round(score * 100, 1)
-        })
-    results.sort(key=lambda x: x["score"], reverse=True)
-    return results[:top_k]
 
 # ─────────────────────────────────────────
 # Schemas
@@ -109,6 +128,43 @@ class LoginInput(BaseModel):
     email: str
     password: str
 
+class ProfileUpdateInput(BaseModel):
+    headline: Optional[str] = None
+    bio: Optional[str] = None
+    location: Optional[str] = None
+    skills: Optional[List[str]] = None
+    avatar_url: Optional[str] = None
+    website: Optional[str] = None
+
+class ExperienceInput(BaseModel):
+    title: str
+    company: str
+    location: Optional[str] = None
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+    is_current: Optional[bool] = False
+    description: Optional[str] = None
+
+class EducationInput(BaseModel):
+    institution: str
+    degree: Optional[str] = None
+    field: Optional[str] = None
+    start_year: Optional[int] = None
+    end_year: Optional[int] = None
+    description: Optional[str] = None
+
+class CourseInput(BaseModel):
+    title: str
+    provider: Optional[str] = None
+    completion_date: Optional[str] = None
+    certificate_url: Optional[str] = None
+    description: Optional[str] = None
+
+class VerifyRequestInput(BaseModel):
+    user_id: int
+    document_url: Optional[str] = None
+    notes: Optional[str] = None
+
 # ─────────────────────────────────────────
 # Logging
 # ─────────────────────────────────────────
@@ -128,7 +184,7 @@ def root():
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "jobs_count": len(jobs)}
+    return {"status": "ok", "jobs_count": len(jobs), "model": "MiniLM-L12-v2"}
 
 # ─────────────────────────────────────────
 # Auth Routes
@@ -168,12 +224,105 @@ def get_user(user_id: int):
         raise HTTPException(status_code=404, detail="المستخدم غير موجود")
     return {"user": user}
 
+# ─────────────────────────────────────────
+# Profile Routes
+# ─────────────────────────────────────────
+
+@app.get("/profile/{user_id}")
+def public_profile(user_id: int):
+    profile = get_public_profile(user_id)
+    if not profile:
+        raise HTTPException(status_code=404, detail="الملف الشخصي غير موجود")
+    return {"status": "success", "profile": profile}
+
+@app.get("/profile/{user_id}/full")
+def full_profile(user_id: int):
+    profile = get_full_profile(user_id)
+    if not profile:
+        raise HTTPException(status_code=404, detail="الملف الشخصي غير موجود")
+    return {"status": "success", "profile": profile}
+
+@app.put("/profile/{user_id}")
+def update_user_profile(user_id: int, data: ProfileUpdateInput):
+    try:
+        profile = update_profile(user_id, data.dict())
+        return {"status": "success", "message": "تم تحديث الملف الشخصي", "profile": profile}
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="خطأ في الخادم، حاول لاحقاً")
+
+# ─────────────────────────────────────────
+# Experience / Education / Course Routes
+# ─────────────────────────────────────────
+
+@app.post("/experience/{user_id}")
+def add_user_experience(user_id: int, data: ExperienceInput):
+    if not data.title.strip() or not data.company.strip():
+        raise HTTPException(status_code=400, detail="المسمى الوظيفي وجهة العمل مطلوبان")
+    try:
+        entry = add_experience(user_id, data.dict())
+        return {"status": "success", "message": "تمت إضافة الخبرة", "experience": entry}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="خطأ في الخادم، حاول لاحقاً")
+
+@app.post("/education/{user_id}")
+def add_user_education(user_id: int, data: EducationInput):
+    if not data.institution.strip():
+        raise HTTPException(status_code=400, detail="اسم المؤسسة التعليمية مطلوب")
+    try:
+        entry = add_education(user_id, data.dict())
+        return {"status": "success", "message": "تمت إضافة التعليم", "education": entry}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="خطأ في الخادم، حاول لاحقاً")
+
+@app.post("/course/{user_id}")
+def add_user_course(user_id: int, data: CourseInput):
+    if not data.title.strip():
+        raise HTTPException(status_code=400, detail="اسم الدورة مطلوب")
+    try:
+        entry = add_course(user_id, data.dict())
+        return {"status": "success", "message": "تمت إضافة الدورة", "course": entry}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="خطأ في الخادم، حاول لاحقاً")
+
+# ─────────────────────────────────────────
+# Verification Route
+# ─────────────────────────────────────────
+
+@app.post("/verify-request")
+def request_verification(data: VerifyRequestInput):
+    try:
+        req = create_verify_request(data.user_id, data.dict())
+        return {"status": "success", "message": "تم إرسال طلب التحقق بنجاح", "request": req}
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="خطأ في الخادم، حاول لاحقاً")
+
 @app.post("/match")
 def match_cv(cv: CVInput):
     if not cv.cv_text.strip():
         raise HTTPException(status_code=400, detail="cv_text لا يمكن أن يكون فارغاً")
 
-    results = simple_match(cv.cv_text, cv.top_k or 5)
+    query = f"query: {cv.cv_text}"
+    cv_embedding = get_model().encode([query], normalize_embeddings=True)
+    scores = cosine_similarity(cv_embedding, get_job_embeddings())[0]
+
+    top_k = min(cv.top_k or 5, len(jobs))
+    top_indices = np.argsort(scores)[::-1][:top_k]
+
+    results = [
+        {
+            "job_id": jobs[i]["id"],
+            "title": jobs[i]["title"],
+            "company": jobs[i]["company"],
+            "location": jobs[i]["location"],
+            "score": round(float(scores[i]), 4),
+            "match_percent": round(float(scores[i]) * 100, 1)
+        }
+        for i in top_indices
+    ]
 
     log_event("matches.jsonl", {
         "timestamp": datetime.now().isoformat(),
@@ -202,6 +351,23 @@ def log_feedback(data: FeedbackInput):
     log_event("training_signals.jsonl", signal)
     return {"status": "logged", "signal_type": "positive" if signal["label"] == 1 else "negative"}
 
+@app.post("/jobs/add")
+def add_job(job: JobInput):
+    global jobs, _job_embeddings
+
+    new_id = max(j["id"] for j in jobs) + 1
+    new_job = {"id": new_id, **job.dict()}
+    jobs.append(new_job)
+
+    with open(JOBS_FILE, "w", encoding="utf-8") as f:
+        json.dump(jobs, f, ensure_ascii=False, indent=2)
+
+    job_texts = [f"passage: {j['title']} {j['text']}" for j in jobs]
+    _job_embeddings = get_model().encode(job_texts, normalize_embeddings=True)
+    np.save("job_embeddings.npy", _job_embeddings)
+
+    return {"status": "added", "job_id": new_id}
+
 @app.get("/jobs")
 def list_jobs():
     return {"jobs": jobs, "count": len(jobs)}
@@ -220,4 +386,3 @@ def stats():
         "total_feedback_signals": count_lines("training_signals.jsonl"),
         "jobs_count": len(jobs)
     }
-        
