@@ -3,6 +3,8 @@ Authentication module - User registration & login with Supabase PostgreSQL
 """
 
 import os
+os.environ.setdefault('PGSSLMODE', 'require')
+import os
 import bcrypt
 import psycopg2
 import psycopg2.extras
