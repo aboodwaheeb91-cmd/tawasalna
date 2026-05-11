@@ -7,7 +7,6 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, EmailStr
-SentenceTransformer = None
 from sklearn.metrics.pairwise import cosine_similarity
 import numpy as np
 import json
@@ -49,8 +48,8 @@ def get_model():
     if _model is None:
         print("⏳ Loading embedding model...")
         from sentence_transformers import SentenceTransformer
-_model = SentenceTransformer("paraphrase-multilingual-MiniLM-L12-v2")
-print("✅ Model loaded.")
+        _model = SentenceTransformer("paraphrase-multilingual-MiniLM-L12-v2")
+        print("✅ Model loaded.")
     return _model
 
 def get_job_embeddings():
