@@ -52,14 +52,19 @@ def push_changes():
         return False
 
     result_status = run('git status --porcelain')
-    if not result_status.stdout.strip():
-        print('[auto-sync] Nothing to commit.')
-        return True
+    has_local_changes = bool(result_status.stdout.strip())
 
-    timestamp = time.strftime('%Y-%m-%d %H:%M:%S')
-    result_commit = run(f'git commit -m "Auto-sync: {timestamp}"')
-    if result_commit.returncode != 0:
-        print(f'[auto-sync] git commit failed: {result_commit.stderr}')
+    if has_local_changes:
+        timestamp = time.strftime('%Y-%m-%d %H:%M:%S')
+        result_commit = run(f'git commit -m "Auto-sync: {timestamp}"')
+        if result_commit.returncode != 0:
+            print(f'[auto-sync] git commit failed: {result_commit.stderr}')
+            return False
+
+    result_pull = run('git pull --rebase origin main')
+    if result_pull.returncode != 0:
+        print(f'[auto-sync] git pull --rebase failed: {result_pull.stderr}')
+        run('git rebase --abort')
         return False
 
     result_push = run('git push origin main')
@@ -67,7 +72,10 @@ def push_changes():
         print(f'[auto-sync] git push failed: {result_push.stderr}')
         return False
 
-    print(f'[auto-sync] Pushed changes at {timestamp}')
+    if has_local_changes:
+        print(f'[auto-sync] Pushed changes at {time.strftime("%Y-%m-%d %H:%M:%S")}')
+    else:
+        print(f'[auto-sync] Pulled remote changes and local branch is up to date.')
     return True
 
 def main():
