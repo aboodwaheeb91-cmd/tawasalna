@@ -82,6 +82,31 @@ def notifications(): return read_html("notifications.html")
 def notifications_html(): return read_html("notifications.html")
 
 
+
+@app.get("/messages", response_class=HTMLResponse)
+def messages(): return read_html("messages.html")
+
+@app.get("/messages.html", response_class=HTMLResponse)
+def messages_html(): return read_html("messages.html")
+
+@app.get("/employees-group", response_class=HTMLResponse)
+def employees_group(): return read_html("employees-group.html")
+
+@app.get("/employees-group.html", response_class=HTMLResponse)
+def employees_group_html(): return read_html("employees-group.html")
+
+@app.get("/job-detail", response_class=HTMLResponse)
+def job_detail(): return read_html("job-detail.html")
+
+@app.get("/job-detail.html", response_class=HTMLResponse)
+def job_detail_html(): return read_html("job-detail.html")
+
+@app.get("/settings", response_class=HTMLResponse)
+def settings(): return read_html("settings.html")
+
+@app.get("/settings.html", response_class=HTMLResponse)
+def settings_html(): return read_html("settings.html")
+
 # ── Jobs ──
 JOBS_FILE = "jobs.json"
 

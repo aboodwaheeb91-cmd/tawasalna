@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>تواصلنا - الرسائل</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
+<style>
+:root{--ac:#00c896;--ac2:#2563ff;--bg:#070b18;--card:rgba(255,255,255,.03);--border:rgba(255,255,255,.07);--t:rgba(255,255,255,.87);--t2:rgba(255,255,255,.5);--t3:rgba(255,255,255,.27);}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;height:100vh;overflow:hidden;}
+
+/* NAV */
+.nav{height:52px;display:flex;align-items:center;gap:8px;padding:0 14px;background:rgba(7,11,24,.93);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);position:fixed;top:0;left:0;right:0;z-index:100;}
+.nav-logo{font-size:1rem;font-weight:900;background:linear-gradient(135deg,var(--ac),var(--ac2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-left:auto;cursor:pointer;}
+.nb{padding:5px 11px;border-radius:8px;border:1px solid var(--border);background:rgba(255,255,255,.07);color:var(--t2);font-family:'Cairo',sans-serif;font-size:.73rem;font-weight:700;cursor:pointer;transition:all .2s;}
+.nb:hover{background:rgba(255,255,255,.12);color:var(--t);}
+
+/* LAYOUT */
+.layout{display:grid;grid-template-columns:300px 1fr;height:calc(100vh - 52px);margin-top:52px;}
+
+/* CONVERSATIONS LIST */
+.conv-list{border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;}
+.conv-search{padding:12px;border-bottom:1px solid var(--border);}
+.cs-input{width:100%;padding:8px 12px;background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:10px;color:var(--t);font-family:'Cairo',sans-serif;font-size:.78rem;outline:none;direction:rtl;}
+.cs-input::placeholder{color:var(--t3);}
+.conv-items{flex:1;overflow-y:auto;}
+.conv-item{display:flex;gap:10px;padding:12px 14px;cursor:pointer;transition:background .15s;border-bottom:1px solid rgba(255,255,255,.04);align-items:flex-start;}
+.conv-item:hover{background:rgba(255,255,255,.03);}
+.conv-item.active{background:rgba(0,200,150,.06);border-right:3px solid var(--ac);}
+.conv-item.unread .ci-name{color:#fff;font-weight:800;}
+.conv-item.unread .ci-preview{color:var(--t2);}
+.ci-ava{width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,var(--ac2),var(--ac));display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0;}
+.ci-body{flex:1;min-width:0;}
+.ci-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:2px;}
+.ci-name{font-size:.78rem;font-weight:700;color:var(--t2);}
+.ci-time{font-size:.62rem;color:var(--t3);}
+.ci-preview{font-size:.7rem;color:var(--t3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.ci-badge{background:var(--ac);color:#fff;border-radius:10px;padding:1px 6px;font-size:.58rem;font-weight:900;}
+
+/* CHAT */
+.chat{display:flex;flex-direction:column;background:rgba(255,255,255,.01);}
+.chat-head{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-shrink:0;}
+.ch-ava{width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,var(--ac2),var(--ac));display:flex;align-items:center;justify-content:center;font-size:.95rem;flex-shrink:0;}
+.ch-name{font-size:.85rem;font-weight:800;}
+.ch-status{font-size:.65rem;color:var(--ac);}
+.ch-actions{margin-right:auto;display:flex;gap:6px;}
+.ch-btn{padding:5px 11px;border-radius:8px;border:1px solid var(--border);background:rgba(255,255,255,.06);color:var(--t2);font-family:'Cairo',sans-serif;font-size:.7rem;font-weight:700;cursor:pointer;transition:all .2s;}
+.ch-btn:hover{background:rgba(255,255,255,.12);color:var(--t);}
+.ch-btn-primary{background:linear-gradient(135deg,var(--ac),var(--ac2));color:#fff;border-color:transparent;}
+
+/* MESSAGES */
+.messages{flex:1;overflow-y:auto;padding:16px 18px;display:flex;flex-direction:column;gap:10px;}
+.date-divider{text-align:center;font-size:.62rem;color:var(--t3);padding:6px 0;}
+
+/* Message bubble */
+.msg{display:flex;gap:8px;max-width:75%;}
+.msg.sent{align-self:flex-start;flex-direction:row-reverse;}
+.msg.recv{align-self:flex-end;}
+.msg-ava{width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,var(--ac2),var(--ac));display:flex;align-items:center;justify-content:center;font-size:.75rem;flex-shrink:0;align-self:flex-end;}
+.msg-body{}
+.msg-bubble{padding:10px 14px;border-radius:16px;font-size:.78rem;line-height:1.5;}
+.msg.sent .msg-bubble{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.08);border-radius:16px 4px 16px 16px;}
+.msg.recv .msg-bubble{background:linear-gradient(135deg,rgba(37,99,255,.2),rgba(0,200,150,.15));border:1px solid rgba(37,99,255,.2);border-radius:4px 16px 16px 16px;}
+.msg-time{font-size:.6rem;color:var(--t3);margin-top:3px;}
+.msg.recv .msg-time{text-align:left;}
+
+/* Interview card in chat */
+.interview-msg{background:rgba(234,179,8,.06);border:1px solid rgba(234,179,8,.2);border-radius:14px;padding:14px 16px;max-width:320px;}
+.im-title{font-size:.8rem;font-weight:800;color:#eab308;margin-bottom:8px;}
+.im-details{display:flex;flex-direction:column;gap:4px;margin-bottom:10px;}
+.im-row{font-size:.72rem;color:var(--t2);display:flex;align-items:center;gap:6px;}
+.im-actions{display:flex;gap:6px;}
+.im-btn{flex:1;padding:7px;border-radius:8px;border:none;font-family:'Cairo',sans-serif;font-size:.72rem;font-weight:700;cursor:pointer;}
+.im-accept{background:rgba(0,200,150,.2);color:#00c896;border:1px solid rgba(0,200,150,.3);}
+.im-decline{background:rgba(255,255,255,.07);color:var(--t2);}
+
+/* Input */
+.chat-input{padding:12px 16px;border-top:1px solid var(--border);display:flex;gap:8px;align-items:flex-end;flex-shrink:0;}
+.input-wrap{flex:1;background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:14px;padding:10px 14px;display:flex;align-items:flex-end;gap:8px;transition:border-color .2s;}
+.input-wrap:focus-within{border-color:rgba(0,200,150,.3);}
+.msg-input{flex:1;background:transparent;border:none;outline:none;color:var(--t);font-family:'Cairo',sans-serif;font-size:.82rem;resize:none;max-height:100px;direction:rtl;}
+.msg-input::placeholder{color:var(--t3);}
+.attach-btn{color:var(--t3);cursor:pointer;font-size:1rem;transition:color .2s;flex-shrink:0;}
+.attach-btn:hover{color:var(--ac);}
+.send-btn{width:42px;height:42px;border-radius:12px;border:none;background:linear-gradient(135deg,var(--ac),var(--ac2));color:#fff;font-size:1rem;cursor:pointer;transition:all .2s;flex-shrink:0;display:flex;align-items:center;justify-content:center;}
+.send-btn:hover{transform:scale(1.05);}
+
+/* Empty state */
+.empty-chat{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--t3);}
+.empty-chat .ei{font-size:3rem;margin-bottom:12px;}
+.empty-chat p{font-size:.8rem;}
+
+/* Interview modal */
+.overlay{position:fixed;inset:0;z-index:2000;background:rgba(0,0,0,.75);display:flex;align-items:center;justify-content:center;padding:16px;opacity:0;pointer-events:none;transition:opacity .2s;}
+.overlay.show{opacity:1;pointer-events:all;}
+.modal{background:#0a0f1e;border:1px solid rgba(255,255,255,.1);border-radius:20px;width:100%;max-width:440px;padding:24px;font-family:'Cairo',sans-serif;transform:translateY(12px);transition:transform .2s;}
+.overlay.show .modal{transform:translateY(0);}
+.modal-title{font-size:.95rem;font-weight:800;color:#fff;margin-bottom:18px;}
+.mf{margin-bottom:12px;}
+.mf label{display:block;font-size:.72rem;font-weight:700;color:rgba(255,255,255,.45);margin-bottom:4px;}
+.mf input,.mf textarea,.mf select{width:100%;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:'Cairo',sans-serif;font-size:.82rem;outline:none;direction:rtl;}
+.mf input:focus{border-color:var(--ac);}
+.mrow{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.mact{display:flex;gap:8px;margin-top:16px;}
+.mbtn{flex:1;padding:10px;border:none;border-radius:10px;font-family:'Cairo',sans-serif;font-size:.82rem;font-weight:700;cursor:pointer;}
+.mbtn-ok{background:linear-gradient(135deg,var(--ac),var(--ac2));color:#fff;}
+.mbtn-no{background:rgba(255,255,255,.07);color:rgba(255,255,255,.55);}
+
+@media(max-width:700px){
+  .layout{grid-template-columns:1fr;}
+  .conv-list{display:none;}
+  .conv-list.mobile-show{display:flex;position:fixed;inset:52px 0 0 0;z-index:50;background:var(--bg);}
+}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <button class="nb" onclick="goHome()">← رجوع</button>
+  <span style="font-size:.82rem;font-weight:700;color:var(--t2)">💬 الرسائل</span>
+  <div class="nav-logo" onclick="goHome()">تواصلنا</div>
+</nav>
+
+<div class="layout">
+
+  <!-- CONVERSATIONS -->
+  <div class="conv-list" id="convList">
+    <div class="conv-search">
+      <input class="cs-input" placeholder="🔍 بحث في المحادثات...">
+    </div>
+    <div class="conv-items">
+
+      <div class="conv-item active unread" onclick="openConv(this,'شركة تك ستارت','🏢')">
+        <div class="ci-ava">🏢</div>
+        <div class="ci-body">
+          <div class="ci-top"><span class="ci-name">شركة تك ستارت</span><span class="ci-time">10:30 ص</span></div>
+          <div class="ci-preview">موعد مقابلة يوم الثلاثاء...</div>
+        </div>
+        <span class="ci-badge">2</span>
+      </div>
+
+      <div class="conv-item unread" onclick="openConv(this,'شركة إبداع للتقنية','💻')">
+        <div class="ci-ava" style="background:linear-gradient(135deg,#8b5cf6,#2563ff)">💻</div>
+        <div class="ci-body">
+          <div class="ci-top"><span class="ci-name">شركة إبداع للتقنية</span><span class="ci-time">أمس</span></div>
+          <div class="ci-preview">يسعدنا مراجعة ملفك الشخصي...</div>
+        </div>
+        <span class="ci-badge">1</span>
+      </div>
+
+      <div class="conv-item" onclick="openConv(this,'أكاديمية التميز','🎓')">
+        <div class="ci-ava" style="background:linear-gradient(135deg,#8b5cf6,#ec4899)">🎓</div>
+        <div class="ci-body">
+          <div class="ci-top"><span class="ci-name">أكاديمية التميز</span><span class="ci-time">منذ 3 أيام</span></div>
+          <div class="ci-preview">دورة React المتقدم متاحة الآن</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- CHAT -->
+  <div class="chat" id="chatArea">
+    <div class="chat-head" id="chatHead">
+      <div class="ch-ava" id="chatAva">🏢</div>
+      <div>
+        <div class="ch-name" id="chatName">شركة تك ستارت</div>
+        <div class="ch-status">متصل الآن</div>
+      </div>
+      <div class="ch-actions">
+        <button class="ch-btn" onclick="openInterview()">📅 موعد مقابلة</button>
+        <button class="ch-btn ch-btn-primary" onclick="openConvProfile()">👤 الملف</button>
+      </div>
+    </div>
+
+    <div class="messages" id="messages">
+      <div class="date-divider">اليوم</div>
+
+      <!-- Received (from company) -->
+      <div class="msg recv">
+        <div class="msg-ava">🏢</div>
+        <div class="msg-body">
+          <div class="msg-bubble">مرحباً! نود إبلاغك باهتمامنا بملفك الشخصي لوظيفة مطور Full Stack لدينا. هل أنت متاح لمقابلة قريباً؟</div>
+          <div class="msg-time">10:15 ص</div>
+        </div>
+      </div>
+
+      <!-- Sent (from user) -->
+      <div class="msg sent">
+        <div class="msg-ava">👤</div>
+        <div class="msg-body">
+          <div class="msg-bubble">مرحباً! شكراً لاهتمامكم. نعم، أنا متاح هذا الأسبوع.</div>
+          <div class="msg-time">10:22 ص ✓✓</div>
+        </div>
+      </div>
+
+      <!-- Interview invitation card -->
+      <div class="msg recv">
+        <div class="msg-ava">🏢</div>
+        <div class="msg-body">
+          <div class="interview-msg">
+            <div class="im-title">📅 دعوة مقابلة عمل</div>
+            <div class="im-details">
+              <div class="im-row">📆 <span>الثلاثاء، 20 مايو 2025</span></div>
+              <div class="im-row">⏰ <span>10:00 صباحاً</span></div>
+              <div class="im-row">📍 <span>عمان - الدوار الأول، مبنى الأعمال</span></div>
+              <div class="im-row">👤 <span>مع: أحمد الخالدي - مدير التوظيف</span></div>
+              <div class="im-row">💼 <span>وظيفة: مطور Full Stack</span></div>
+            </div>
+            <div class="im-actions">
+              <button class="im-btn im-accept" onclick="acceptInterview(this)">✓ تأكيد الحضور</button>
+              <button class="im-btn im-decline">طلب تغيير</button>
+            </div>
+          </div>
+          <div class="msg-time">10:30 ص</div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- INPUT -->
+    <div class="chat-input">
+      <div class="input-wrap">
+        <textarea class="msg-input" id="msgInput" placeholder="اكتب رسالتك..." rows="1" onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
+        <span class="attach-btn">📎</span>
+      </div>
+      <button class="send-btn" onclick="sendMessage()">➤</button>
+    </div>
+  </div>
+
+</div>
+
+<!-- INTERVIEW MODAL -->
+<div class="overlay" id="interviewOverlay" onclick="closeOverlay(event)">
+  <div class="modal">
+    <div class="modal-title">📅 إرسال موعد مقابلة</div>
+    <div class="mf"><label>اسم المتقدم</label><input id="i-name" placeholder="اسم الموظف..."></div>
+    <div class="mrow">
+      <div class="mf"><label>التاريخ</label><input id="i-date" type="date"></div>
+      <div class="mf"><label>الوقت</label><input id="i-time" type="time"></div>
+    </div>
+    <div class="mf"><label>الموقع</label><input id="i-loc" placeholder="عنوان مكان المقابلة..."></div>
+    <div class="mf"><label>المسؤول عن المقابلة</label><input id="i-person" placeholder="اسم المدير..."></div>
+    <div class="mf"><label>ملاحظات إضافية</label><textarea id="i-notes" placeholder="أي تعليمات أو معلومات إضافية..."></textarea></div>
+    <div class="mact">
+      <button class="mbtn mbtn-ok" onclick="sendInterview()">إرسال الموعد</button>
+      <button class="mbtn mbtn-no" onclick="document.getElementById('interviewOverlay').classList.remove('show')">إلغاء</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let _user = null;
+try { _user = JSON.parse(localStorage.getItem('tw_user')); } catch(e){}
+if(!_user||!_user.id){ window.location.href='/'; }
+
+function openConv(el, name, ava){
+  document.querySelectorAll('.conv-item').forEach(i=>i.classList.remove('active'));
+  el.classList.add('active');
+  el.classList.remove('unread');
+  const badge = el.querySelector('.ci-badge');
+  if(badge) badge.remove();
+  document.getElementById('chatName').textContent = name;
+  document.getElementById('chatAva').textContent = ava;
+}
+
+function openInterview(){
+  document.getElementById('interviewOverlay').classList.add('show');
+}
+
+function sendInterview(){
+  const date = document.getElementById('i-date').value;
+  const time = document.getElementById('i-time').value;
+  const loc = document.getElementById('i-loc').value;
+  const person = document.getElementById('i-person').value;
+  if(!date||!time){ alert('أدخل التاريخ والوقت'); return; }
+
+  const card = `<div class="msg recv" style="margin-top:8px">
+    <div class="msg-ava">🏢</div>
+    <div class="msg-body">
+      <div class="interview-msg">
+        <div class="im-title">📅 دعوة مقابلة عمل</div>
+        <div class="im-details">
+          <div class="im-row">📆 <span>${date}</span></div>
+          <div class="im-row">⏰ <span>${time}</span></div>
+          <div class="im-row">📍 <span>${loc||'سيتم التحديد لاحقاً'}</span></div>
+          ${person?`<div class="im-row">👤 <span>مع: ${person}</span></div>`:''}
+        </div>
+        <div class="im-actions">
+          <button class="im-btn im-accept" onclick="acceptInterview(this)">✓ تأكيد الحضور</button>
+          <button class="im-btn im-decline">طلب تغيير</button>
+        </div>
+      </div>
+      <div class="msg-time">الآن</div>
+    </div>
+  </div>`;
+
+  document.getElementById('messages').insertAdjacentHTML('beforeend', card);
+  document.getElementById('interviewOverlay').classList.remove('show');
+  scrollDown();
+}
+
+function acceptInterview(btn){
+  btn.textContent = '✓ تم التأكيد';
+  btn.style.background = 'rgba(0,200,150,.3)';
+  btn.disabled = true;
+}
+
+function sendMessage(){
+  const input = document.getElementById('msgInput');
+  const text = input.value.trim();
+  if(!text) return;
+  const msgs = document.getElementById('messages');
+  msgs.insertAdjacentHTML('beforeend', `
+    <div class="msg sent">
+      <div class="msg-ava">👤</div>
+      <div class="msg-body">
+        <div class="msg-bubble">${text}</div>
+        <div class="msg-time">الآن ✓✓</div>
+      </div>
+    </div>`);
+  input.value = '';
+  input.style.height = 'auto';
+  scrollDown();
+}
+
+function handleKey(e){
+  if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); sendMessage(); }
+}
+
+function autoResize(el){
+  el.style.height='auto';
+  el.style.height=Math.min(el.scrollHeight,100)+'px';
+}
+
+function scrollDown(){
+  const msgs = document.getElementById('messages');
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function closeOverlay(e){
+  if(e.target.classList.contains('overlay')) e.target.classList.remove('show');
+}
+
+function openConvProfile(){
+  window.open('profile.html', '_blank');
+}
+
+function goHome(){
+  if(!_user){ window.location.href='/'; return; }
+  const dest = _user.user_type==='co'?'company-profile.html?id='+_user.id:_user.user_type==='edu'?'edu.html':'home.html';
+  window.location.href = dest;
+}
+
+scrollDown();
+</script>
+</body>
+</html>

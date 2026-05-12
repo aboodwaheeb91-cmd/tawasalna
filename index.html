@@ -3,603 +3,278 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>تواصلنا - الدخول</title>
+<title>تواصلنا - دخول وتسجيل</title>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;900&display=swap" rel="stylesheet">
 <style>
-* { margin:0; padding:0; box-sizing:border-box; }
+:root{--ac:#00c896;--ac2:#2563ff;--t:#fff;--t2:rgba(255,255,255,.55);--t3:rgba(255,255,255,.28);}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'Cairo',sans-serif;background:#070b18;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:40px 16px;overflow-x:hidden;}
 
-body {
-  font-family:'Cairo',sans-serif;
-  background:#070b18;
-  min-height:100vh;
-  display:flex; align-items:center; justify-content:center;
-  overflow-y:auto;
-  padding:40px 0;
-}
+/* BG */
+.bg{position:fixed;inset:0;pointer-events:none;z-index:0;}
+.orb{position:absolute;border-radius:50%;filter:blur(110px);animation:breathe 9s ease-in-out infinite;}
+.o1{width:600px;height:600px;background:#00c896;opacity:.12;top:-200px;right:-160px;}
+.o2{width:500px;height:500px;background:#2563ff;opacity:.11;bottom:-180px;left:-140px;animation-delay:4s;}
+.o3{width:280px;height:280px;background:#8b5cf6;opacity:.07;top:40%;left:30%;animation-delay:2s;}
+@keyframes breathe{0%,100%{transform:scale(1);}50%{transform:scale(1.08) translateY(-18px);}}
+.grid{position:fixed;inset:0;z-index:0;background-image:linear-gradient(rgba(255,255,255,.022) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.022) 1px,transparent 1px);background-size:52px 52px;}
 
-.bg { position:fixed; inset:0; z-index:0; pointer-events:none; }
-.orb {
-  position:absolute; border-radius:50%;
-  filter:blur(110px);
-  animation:breathe 9s ease-in-out infinite;
-}
-.o1{width:650px;height:650px;background:#00c896;opacity:.13;top:-220px;right:-180px;}
-.o2{width:550px;height:550px;background:#2563ff;opacity:.12;bottom:-200px;left:-160px;animation-delay:4s;}
-.o3{width:320px;height:320px;background:#ff6b35;opacity:.06;top:45%;left:35%;animation-delay:2s;}
-@keyframes breathe{0%,100%{transform:scale(1);}50%{transform:scale(1.08) translateY(-20px);}}
+/* WRAP */
+.wrap{position:relative;z-index:10;width:100%;max-width:420px;}
 
-.grid {
-  position:fixed;inset:0;z-index:0;
-  background-image:
-    linear-gradient(rgba(255,255,255,.025) 1px,transparent 1px),
-    linear-gradient(90deg,rgba(255,255,255,.025) 1px,transparent 1px);
-  background-size:55px 55px;
-}
+/* LOGO */
+.logo{text-align:center;margin-bottom:32px;}
+.logo-mark{font-size:2.4rem;font-weight:900;background:linear-gradient(135deg,var(--ac),var(--ac2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;line-height:1;}
+.logo-sub{font-size:.72rem;color:var(--t3);margin-top:3px;letter-spacing:.5px;}
 
-@keyframes rise {
-  0%   {opacity:0;transform:translateY(100vh) scale(0);}
-  10%  {opacity:0.5;}
-  90%  {opacity:0.2;}
-  100% {opacity:0;transform:translateY(-80px) scale(1.5);}
-}
+/* TYPE SELECTOR */
+.type-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;}
+.type-btn{padding:14px 10px;border-radius:16px;border:2px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);cursor:pointer;text-align:center;transition:all .25s;font-family:'Cairo',sans-serif;}
+.type-btn:hover{border-color:rgba(255,255,255,.2);background:rgba(255,255,255,.07);}
+.type-btn.active{border-color:var(--ac);background:rgba(0,200,150,.08);}
+.type-btn.active.inst{border-color:var(--ac2);background:rgba(37,99,255,.08);}
+.tb-ico{font-size:1.8rem;margin-bottom:6px;}
+.tb-name{font-size:.8rem;font-weight:800;color:var(--t);}
+.tb-sub{font-size:.65rem;color:var(--t3);margin-top:2px;}
 
-.lang-btn {
-  position:fixed; top:20px; left:20px; z-index:100;
-  background:rgba(255,255,255,.06);
-  border:1px solid rgba(255,255,255,.1);
-  border-radius:20px; padding:7px 16px;
-  color:rgba(255,255,255,.7);
-  font-family:'Cairo',sans-serif; font-size:.8rem; font-weight:700;
-  cursor:pointer; transition:all .25s ease;
-  backdrop-filter:blur(10px);
-}
-.lang-btn:hover{background:rgba(255,255,255,.1);color:#fff;}
+/* INSTITUTION TYPES */
+.inst-types{margin-bottom:14px;overflow:hidden;max-height:0;transition:max-height .35s ease,opacity .35s ease;opacity:0;}
+.inst-types.show{max-height:80px;opacity:1;}
+.inst-select{width:100%;padding:11px 14px;background:rgba(255,255,255,.05);border:1.5px solid rgba(255,255,255,.1);border-radius:13px;color:var(--t);font-family:'Cairo',sans-serif;font-size:.84rem;outline:none;direction:rtl;cursor:pointer;appearance:none;transition:border-color .2s;}
+.inst-select:focus{border-color:var(--ac2);}
+.inst-select option{background:#0d1526;}
 
-.wrap{position:relative;z-index:10;width:100%;max-width:400px;padding:20px;}
+/* BUBBLE (form card) */
+.bubble{background:linear-gradient(160deg,rgba(20,30,55,.9),rgba(10,18,38,.95));border:1px solid rgba(255,255,255,.09);border-radius:24px;padding:28px 26px;backdrop-filter:blur(24px);box-shadow:0 20px 70px rgba(0,0,0,.6);}
 
-.logo{text-align:center;margin-bottom:40px;animation:fDown .7s ease both;}
-.logo-row{display:inline-flex;align-items:center;gap:10px;margin-bottom:6px;}
-.logo-icon{
-  width:44px;height:44px;
-  background:linear-gradient(135deg,#00c896,#2563ff);
-  border-radius:14px;display:flex;align-items:center;justify-content:center;
-  font-size:1.3rem;box-shadow:0 8px 28px rgba(0,200,150,.35);
-}
-.logo-name{
-  font-size:1.9rem;font-weight:900;
-  background:linear-gradient(135deg,#fff,rgba(255,255,255,.7));
-  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
-}
-.logo-sub{font-size:.78rem;color:rgba(255,255,255,.45);}
-@keyframes fDown{from{opacity:0;transform:translateY(-16px);}to{opacity:1;transform:translateY(0);}}
-@keyframes fUp  {from{opacity:0;transform:translateY(20px); }to{opacity:1;transform:translateY(0);}}
+/* TABS (login/register) */
+.form-tabs{display:flex;gap:0;margin-bottom:22px;background:rgba(255,255,255,.05);border-radius:12px;padding:4px;}
+.ftab{flex:1;padding:8px;border-radius:9px;border:none;background:transparent;color:var(--t2);font-family:'Cairo',sans-serif;font-size:.78rem;font-weight:700;cursor:pointer;transition:all .2s;}
+.ftab.active{background:rgba(255,255,255,.1);color:var(--t);}
 
-.card-outer{position:relative;animation:fUp .7s ease .15s both;}
+/* FIELDS */
+.field{margin-bottom:13px;}
+.field label{display:block;font-size:.71rem;font-weight:700;color:var(--t3);margin-bottom:5px;}
+.field input{width:100%;padding:11px 14px;background:rgba(255,255,255,.06);border:1.5px solid rgba(255,255,255,.09);border-radius:12px;color:var(--t);font-family:'Cairo',sans-serif;font-size:.84rem;outline:none;direction:rtl;transition:border-color .2s;}
+.field input:focus{border-color:var(--ac);}
+.field input::placeholder{color:var(--t3);}
 
-.tabs{display:flex;gap:6px;padding:0 2px;}
-.tab {
-  flex:1;
-  display:flex;flex-direction:column;align-items:center;gap:3px;
-  padding:10px 6px 14px;
-  border:1px solid rgba(255,255,255,.09);
-  border-bottom:none;
-  border-radius:16px 16px 0 0;
-  background:rgba(10,14,28,.85);
-  cursor:pointer;
-  font-family:'Cairo',sans-serif;
-  font-size:.73rem;font-weight:700;
-  color:rgba(255,255,255,.38);
-  transition:all .3s ease;
-  backdrop-filter:blur(16px);
-  position:relative;
-}
-.tab .ti{font-size:1.1rem;transition:transform .3s ease;}
-.tab:hover{color:rgba(255,255,255,.65);background:rgba(255,255,255,.05);}
-.tab.active{
-  color:#fff;
-  border-color:var(--tc,rgba(0,200,150,.35));
-  background:var(--tb,rgba(0,200,150,.08));
-}
-.tab.active .ti{transform:scale(1.18);}
-.tab.active::after{
-  content:'';position:absolute;
-  bottom:-1px; left:0; right:0;
-  height:2px;
-  background:var(--tb,rgba(0,200,150,.08));
-}
+/* CTA */
+.cta{width:100%;padding:13px;border:none;border-radius:13px;background:linear-gradient(135deg,var(--ac),var(--ac2));color:#fff;font-family:'Cairo',sans-serif;font-size:.92rem;font-weight:900;cursor:pointer;transition:all .25s;margin-top:4px;}
+.cta:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,200,150,.35);}
+.cta:disabled{opacity:.6;transform:none;cursor:wait;}
+.cta.inst-cta{background:linear-gradient(135deg,var(--ac2),#8b5cf6);}
 
-.bubble{
-  border:1px solid var(--bb,rgba(0,200,150,.2));
-  border-top:none;
-  border-radius:0 0 24px 24px;
-  padding:22px 24px 26px;
-  background:var(--bg2,rgba(0,200,150,.04));
-  backdrop-filter:blur(40px);
-  box-shadow:
-    0 24px 80px rgba(0,0,0,.65),
-    0 0 50px var(--bglow,rgba(0,200,150,.07)),
-    inset 0 0 0 1px rgba(255,255,255,.03);
-  transition:all .4s ease;
-}
+/* LINKS */
+.switch-link{text-align:center;margin-top:14px;font-size:.73rem;color:var(--t3);}
+.switch-link span{color:var(--ac);cursor:pointer;font-weight:700;}
+.switch-link span:hover{text-decoration:underline;}
 
-.sep{
-  height:1px;
-  background:linear-gradient(90deg,transparent,var(--sc,#00c896),transparent);
-  opacity:.4; margin-bottom:20px;
-  transition:background .4s ease;
-}
-
-.welcome{text-align:center;margin-bottom:20px;}
-.w-ico{font-size:2.3rem;display:block;margin-bottom:6px;animation:bob 2.5s ease infinite;}
-@keyframes bob{0%,100%{transform:translateY(0);}50%{transform:translateY(-5px);}}
-.welcome h2{font-size:1.08rem;font-weight:800;color:#fff;margin-bottom:3px;}
-.welcome p {font-size:.77rem;color:rgba(255,255,255,.48);}
-
-.field{margin-bottom:12px;}
-.field label{display:block;font-size:.75rem;font-weight:700;color:rgba(255,255,255,.48);margin-bottom:5px;}
-.field input{
-  width:100%;padding:12px 14px;
-  background:rgba(255,255,255,.04);
-  border:1px solid rgba(255,255,255,.08);
-  border-radius:11px;
-  color:#fff;
-  font-family:'Cairo',sans-serif;font-size:.86rem;
-  outline:none;transition:all .25s ease;direction:rtl;
-}
-.field input::placeholder{color:rgba(255,255,255,.18);}
-.field input:focus{
-  border-color:var(--fc,rgba(0,200,150,.4));
-  background:var(--fb,rgba(0,200,150,.04));
-  box-shadow:0 0 0 3px var(--fs,rgba(0,200,150,.08));
-}
-.field input.error{
-  border-color:rgba(239,68,68,.5);
-  box-shadow:0 0 0 3px rgba(239,68,68,.1);
-}
-
-.forgot{text-align:left;margin:-2px 0 15px;}
-.forgot a{font-size:.72rem;color:var(--lc,#00c896);text-decoration:none;opacity:.8;}
-.forgot a:hover{opacity:1;}
-
-.cta{
-  width:100%;padding:13px;
-  background:var(--cta,linear-gradient(135deg,#00c896,#2563ff));
-  border:none;border-radius:13px;
-  color:#fff;
-  font-family:'Cairo',sans-serif;font-size:.92rem;font-weight:800;
-  cursor:pointer;transition:all .3s ease;
-  position:relative;overflow:hidden;
-}
-.cta::after{
-  content:'';position:absolute;top:0;left:-100%;
-  width:100%;height:100%;
-  background:linear-gradient(90deg,transparent,rgba(255,255,255,.18),transparent);
-  transition:left .5s ease;
-}
-.cta:hover:not(:disabled){transform:translateY(-2px);box-shadow:0 10px 30px var(--cs,rgba(0,200,150,.35));}
-.cta:hover:not(:disabled)::after{left:100%;}
-.cta:disabled{opacity:.6;cursor:not-allowed;}
-
-.switch-link{
-  text-align:center;margin-top:18px;
-  font-size:.74rem;color:rgba(255,255,255,.32);
-}
-.switch-link a{color:var(--lc,#00c896);text-decoration:none;font-weight:600;}
-
-.foot{
-  text-align:center;margin-top:18px;
-  font-size:.74rem;color:rgba(255,255,255,.32);
-  animation:fUp .7s ease .3s both;
-}
-.foot a{color:var(--lc,#00c896);text-decoration:none;font-weight:600;}
-
-/* Toast */
-.toast{
-  position:fixed;top:20px;right:50%;transform:translateX(50%);
-  z-index:999;
-  padding:12px 22px;border-radius:14px;
-  font-family:'Cairo',sans-serif;font-size:.85rem;font-weight:700;
-  color:#fff;
-  opacity:0;pointer-events:none;
-  transition:opacity .3s ease, transform .3s ease;
-  transform:translateX(50%) translateY(-10px);
-  max-width:320px;text-align:center;
-}
-.toast.show{opacity:1;transform:translateX(50%) translateY(0);}
-.toast.success{background:linear-gradient(135deg,#00c896,#059669);box-shadow:0 8px 30px rgba(0,200,150,.4);}
-.toast.error  {background:linear-gradient(135deg,#ef4444,#dc2626);box-shadow:0 8px 30px rgba(239,68,68,.4);}
-
-/* Dashboard (shown after login) */
-.dashboard{display:none;position:relative;z-index:10;width:100%;max-width:500px;padding:20px;}
-.dash-card{
-  background:rgba(10,14,28,.9);
-  border:1px solid rgba(255,255,255,.09);
-  border-radius:24px;
-  padding:28px 26px;
-  backdrop-filter:blur(40px);
-  box-shadow:0 24px 80px rgba(0,0,0,.65);
-}
-.dash-header{display:flex;align-items:center;gap:14px;margin-bottom:24px;}
-.dash-avatar{
-  width:52px;height:52px;
-  background:var(--cta,linear-gradient(135deg,#00c896,#2563ff));
-  border-radius:16px;
-  display:flex;align-items:center;justify-content:center;
-  font-size:1.5rem;
-}
-.dash-name{font-size:1.1rem;font-weight:800;color:#fff;}
-.dash-email{font-size:.75rem;color:rgba(255,255,255,.45);}
-.dash-badge{
-  display:inline-block;margin-top:4px;
-  padding:3px 10px;border-radius:20px;
-  font-size:.65rem;font-weight:700;
-  background:var(--cta,linear-gradient(135deg,#00c896,#2563ff));
-  color:#fff;
-}
-.dash-sep{height:1px;background:rgba(255,255,255,.07);margin:20px 0;}
-.dash-stat{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;}
-.dash-stat-label{font-size:.78rem;color:rgba(255,255,255,.45);}
-.dash-stat-val{font-size:.85rem;font-weight:700;color:#fff;}
-.logout-btn{
-  width:100%;margin-top:20px;padding:12px;
-  background:rgba(239,68,68,.12);
-  border:1px solid rgba(239,68,68,.25);
-  border-radius:13px;
-  color:rgba(239,68,68,.85);
-  font-family:'Cairo',sans-serif;font-size:.88rem;font-weight:700;
-  cursor:pointer;transition:all .3s ease;
-}
-.logout-btn:hover{background:rgba(239,68,68,.2);color:#ef4444;}
+/* TOAST */
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);padding:11px 20px;border-radius:12px;font-size:.8rem;font-weight:700;z-index:9999;transition:transform .3s ease;pointer-events:none;white-space:nowrap;}
+.toast.show{transform:translateX(-50%) translateY(0);}
+.toast.success{background:#065f46;color:#6ee7b7;border:1px solid rgba(110,231,183,.2);}
+.toast.error{background:#7f1d1d;color:#fca5a5;border:1px solid rgba(252,165,165,.2);}
 </style>
 </head>
 <body>
-
-<div class="bg">
-  <div class="orb o1"></div>
-  <div class="orb o2"></div>
-  <div class="orb o3"></div>
-</div>
+<div class="bg"><div class="orb o1"></div><div class="orb o2"></div><div class="orb o3"></div></div>
 <div class="grid"></div>
-<div id="pts" style="position:fixed;inset:0;z-index:0;pointer-events:none;"></div>
+
+<div class="wrap">
+  <!-- Logo -->
+  <div class="logo">
+    <div class="logo-mark">تواصلنا</div>
+    <div class="logo-sub">منصة التوظيف والتوثيق العربية</div>
+  </div>
+
+  <!-- Type selector -->
+  <div class="type-row">
+    <div class="type-btn active" id="empBtn" onclick="selectType('emp')">
+      <div class="tb-ico">👤</div>
+      <div class="tb-name">موظف</div>
+      <div class="tb-sub">باحث عن عمل</div>
+    </div>
+    <div class="type-btn" id="instBtn" onclick="selectType('inst')">
+      <div class="tb-ico">🏛️</div>
+      <div class="tb-name">جهة / مؤسسة</div>
+      <div class="tb-sub">شركة، جامعة، مركز...</div>
+    </div>
+  </div>
+
+  <!-- Institution subtype -->
+  <div class="inst-types" id="instTypes">
+    <select class="inst-select" id="instSubtype" onchange="updateInstType()">
+      <option value="" disabled selected>اختر نوع جهتك...</option>
+      <optgroup label="🏢 جهات تجارية">
+        <option value="co|شركة خاصة">🏢 شركة خاصة</option>
+        <option value="co|مصنع">🏭 مصنع</option>
+        <option value="co|بنك / مؤسسة مالية">🏦 بنك / مؤسسة مالية</option>
+        <option value="co|مستشفى / مركز طبي">🏥 مستشفى / مركز طبي</option>
+        <option value="co|جهة حكومية">🏛️ جهة حكومية</option>
+        <option value="co|أخرى">🔧 أخرى</option>
+      </optgroup>
+      <optgroup label="🎓 جهات تعليمية">
+        <option value="edu|جامعة / كلية">🎓 جامعة / كلية</option>
+        <option value="edu|مدرسة">🏫 مدرسة</option>
+        <option value="edu|مركز تدريب">📚 مركز تدريب</option>
+      </optgroup>
+    </select>
+  </div>
+
+  <!-- Form bubble -->
+  <div class="bubble">
+    <div class="form-tabs">
+      <button class="ftab active" id="loginTab" onclick="showForm('login')">دخول</button>
+      <button class="ftab" id="regTab" onclick="showForm('register')">تسجيل جديد</button>
+    </div>
+
+    <!-- LOGIN -->
+    <div id="loginForm">
+      <div class="field"><label>البريد الإلكتروني</label><input id="lEmail" type="email" placeholder="example@email.com"></div>
+      <div class="field"><label>كلمة المرور</label><input id="lPass" type="password" placeholder="••••••••"></div>
+      <div style="text-align:left;margin-bottom:12px"><span style="font-size:.7rem;color:var(--t3);cursor:pointer">نسيت كلمة المرور؟</span></div>
+      <button class="cta" id="loginBtn" onclick="doLogin()">دخول</button>
+      <div class="switch-link">ما عندك حساب؟ <span onclick="showForm('register')">سجّل الآن</span></div>
+    </div>
+
+    <!-- REGISTER -->
+    <div id="registerForm" style="display:none">
+      <div class="field"><label id="nameLabel">الاسم الكامل</label><input id="rName" placeholder="اكتب اسمك..."></div>
+      <div class="field"><label>البريد الإلكتروني</label><input id="rEmail" type="email" placeholder="example@email.com"></div>
+      <div class="field"><label>كلمة المرور (6 أحرف على الأقل)</label><input id="rPass" type="password" placeholder="••••••••"></div>
+      <button class="cta" id="regBtn" onclick="doRegister()">إنشاء حساب</button>
+      <div class="switch-link">عندك حساب؟ <span onclick="showForm('login')">دخول</span></div>
+    </div>
+  </div>
+</div>
 
 <div class="toast" id="toast"></div>
 
-<button class="lang-btn" onclick="toggleLang()" id="langBtn">🌐 English</button>
-
-<!-- Login / Register page -->
-<div class="wrap" id="authWrap">
-
-  <div class="logo">
-    <div class="logo-row">
-      <div class="logo-icon">🔗</div>
-      <div class="logo-name" id="logoName">تواصلنا</div>
-    </div>
-    <div class="logo-sub" id="logoSub">منصة التوظيف والتوثيق العربية</div>
-  </div>
-
-  <div class="card-outer">
-    <div class="tabs">
-      <button class="tab active" onclick="pick('emp',this)">
-        <span class="ti">👤</span><span id="t1">موظف</span>
-      </button>
-      <button class="tab" onclick="pick('co',this)">
-        <span class="ti">🏢</span><span id="t2">شركة</span>
-      </button>
-      <button class="tab" onclick="pick('edu',this)">
-        <span class="ti">🎓</span><span id="t3">تعليمي</span>
-      </button>
-    </div>
-
-    <div class="bubble" id="bubble">
-      <div class="sep" id="sep"></div>
-
-      <div class="welcome">
-        <span class="w-ico" id="wIco">👤</span>
-        <h2 id="wTit">أهلاً بك في تواصلنا!</h2>
-        <p  id="wSub">سجّل دخولك للوصول إلى حسابك كموظف</p>
-      </div>
-
-      <!-- Login form -->
-      <div id="fIn">
-        <div class="field">
-          <label id="lUser">البريد الإلكتروني</label>
-          <input type="email" id="iUser" placeholder="example@email.com">
-        </div>
-        <div class="field">
-          <label id="lPass">كلمة المرور</label>
-          <input type="password" id="iPass" placeholder="••••••••">
-        </div>
-        <div class="forgot"><a href="#" id="forgotLink">نسيت كلمة المرور؟</a></div>
-        <button class="cta" id="ctaBtn" onclick="doLogin()">دخول ←</button>
-        <div class="switch-link">
-          <span id="noAcc">ليس لديك حساب؟</span>
-          <a href="#" onclick="showReg();return false;" id="regLink">تسجيل جديد</a>
-        </div>
-      </div>
-
-      <!-- Register form -->
-      <div id="fUp" style="display:none">
-        <div class="field">
-          <label id="lName">الاسم الكامل</label>
-          <input type="text" id="iName" placeholder="أدخل اسمك الكامل...">
-        </div>
-        <div class="field">
-          <label id="lEmail">البريد الإلكتروني</label>
-          <input type="email" id="iEmail" placeholder="example@email.com">
-        </div>
-        <div class="field">
-          <label id="lPass2">كلمة المرور</label>
-          <input type="password" id="iPass2" placeholder="••••••••">
-        </div>
-        <button class="cta" id="ctaBtn2" onclick="doRegister()">إنشاء حساب ←</button>
-        <div class="switch-link">
-          <span id="hasAcc">لديك حساب؟</span>
-          <a href="#" onclick="showLogin();return false;" id="loginLink">تسجيل الدخول</a>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="foot">
-    <span id="terms">بتسجيلك أنت توافق على </span>
-    <a href="#" id="tou">شروط الاستخدام</a>
-    <span id="and"> و</span>
-    <a href="#" id="priv">الخصوصية</a>
-  </div>
-
-</div>
-
-<!-- Dashboard page -->
-<div class="dashboard" id="dashWrap">
-  <div class="logo" style="margin-bottom:24px;">
-    <div class="logo-row">
-      <div class="logo-icon">🔗</div>
-      <div class="logo-name">تواصلنا</div>
-    </div>
-  </div>
-  <div class="dash-card">
-    <div class="dash-header">
-      <div class="dash-avatar" id="dashAvatar">👤</div>
-      <div>
-        <div class="dash-name" id="dashName">-</div>
-        <div class="dash-email" id="dashEmail">-</div>
-        <span class="dash-badge" id="dashBadge">موظف</span>
-      </div>
-    </div>
-    <div class="dash-sep"></div>
-    <div class="dash-stat">
-      <span class="dash-stat-label" id="dlJoined">تاريخ التسجيل</span>
-      <span class="dash-stat-val" id="dvJoined">-</span>
-    </div>
-    <div class="dash-stat">
-      <span class="dash-stat-label" id="dlId">رقم الحساب</span>
-      <span class="dash-stat-val" id="dvId">-</span>
-    </div>
-    <div class="dash-stat">
-      <span class="dash-stat-label" id="dlStatus">حالة الحساب</span>
-      <span class="dash-stat-val" style="color:#00c896;" id="dvStatus">نشط ✓</span>
-    </div>
-    <div class="dash-sep"></div>
-    <button class="logout-btn" id="logoutBtn" onclick="doLogout()">تسجيل الخروج</button>
-  </div>
-</div>
-
 <script>
-/* ── Particles ── */
-const pts=document.getElementById('pts');
-for(let i=0;i<25;i++){
-  const d=document.createElement('div');
-  const sz=2+Math.random()*3;
-  const c=['#00c896','#2563ff','#ff6b35','#818cf8'][Math.floor(Math.random()*4)];
-  d.style.cssText=`position:absolute;border-radius:50%;width:${sz}px;height:${sz}px;background:${c};left:${Math.random()*100}%;opacity:0;animation:rise ${7+Math.random()*9}s linear ${Math.random()*10}s infinite;`;
-  pts.appendChild(d);
+let curType = 'emp';
+let instUserType = '';
+let instSubtype = '';
+
+// ── Auto redirect if session exists ──
+try {
+  const saved = JSON.parse(localStorage.getItem('tw_user'));
+  if(saved && saved.id){
+    const dest = saved.user_type==='co' ? 'company-profile.html?id='+saved.id
+               : saved.user_type==='edu' ? 'edu.html'
+               : 'home.html';
+    window.location.href = dest;
+  }
+} catch(e){}
+
+function selectType(type){
+  curType = type;
+  const empBtn = document.getElementById('empBtn');
+  const instBtn = document.getElementById('instBtn');
+  const instTypes = document.getElementById('instTypes');
+  const nameLabel = document.getElementById('nameLabel');
+  const cta = document.getElementById('regBtn');
+
+  if(type === 'emp'){
+    empBtn.classList.add('active');
+    empBtn.classList.remove('inst');
+    instBtn.classList.remove('active');
+    instTypes.classList.remove('show');
+    nameLabel.textContent = 'الاسم الكامل';
+    cta.classList.remove('inst-cta');
+    document.getElementById('rName').placeholder = 'اكتب اسمك...';
+  } else {
+    instBtn.classList.add('active','inst');
+    empBtn.classList.remove('active');
+    instTypes.classList.add('show');
+    nameLabel.textContent = 'اسم الجهة / المؤسسة';
+    cta.classList.add('inst-cta');
+    document.getElementById('rName').placeholder = 'اسم شركتك أو مؤسستك...';
+  }
 }
 
-/* ── Themes ── */
-const T={
-  emp:{ico:'👤',ar:{tit:'أهلاً بك في تواصلنا!',sub:'سجّل دخولك للوصول إلى حسابك كموظف',badge:'موظف'},en:{tit:'Welcome to Tawasolna!',sub:'Sign in to access your employee account',badge:'Employee'},tc:'rgba(0,200,150,.35)',tb:'rgba(0,200,150,.08)',bb:'rgba(0,200,150,.2)',bg2:'rgba(0,200,150,.04)',bglow:'rgba(0,200,150,.07)',sc:'#00c896',cta:'linear-gradient(135deg,#00c896,#2563ff)',cs:'rgba(0,200,150,.35)',fc:'rgba(0,200,150,.4)',fb:'rgba(0,200,150,.04)',fs:'rgba(0,200,150,.08)',lc:'#00c896'},
-  co: {ico:'🏢',ar:{tit:'مرحباً بمنشأتكم!',sub:'ابحثوا عن أفضل الكفاءات العربية',badge:'شركة'},en:{tit:'Welcome, Company!',sub:'Find the best Arabic talent for your team',badge:'Company'},tc:'rgba(99,102,241,.4)',tb:'rgba(99,102,241,.09)',bb:'rgba(99,102,241,.22)',bg2:'rgba(99,102,241,.04)',bglow:'rgba(99,102,241,.08)',sc:'#818cf8',cta:'linear-gradient(135deg,#6366f1,#8b5cf6)',cs:'rgba(99,102,241,.4)',fc:'rgba(99,102,241,.4)',fb:'rgba(99,102,241,.04)',fs:'rgba(99,102,241,.08)',lc:'#a5b4fc'},
-  edu:{ico:'🎓',ar:{tit:'مرحباً بمؤسستكم!',sub:'وثّقوا الشهادات وانشروا الدورات التعليمية',badge:'تعليمي'},en:{tit:'Welcome, Institution!',sub:'Verify certificates and publish courses',badge:'Education'},tc:'rgba(251,146,60,.38)',tb:'rgba(251,146,60,.08)',bb:'rgba(251,146,60,.2)',bg2:'rgba(251,146,60,.04)',bglow:'rgba(251,146,60,.07)',sc:'#fb923c',cta:'linear-gradient(135deg,#f97316,#ef4444)',cs:'rgba(249,115,22,.4)',fc:'rgba(251,146,60,.4)',fb:'rgba(251,146,60,.04)',fs:'rgba(251,146,60,.08)',lc:'#fb923c'},
-};
-
-const L={
-  ar:{logoSub:'منصة التوظيف والتوثيق العربية',t1:'موظف',t2:'شركة',t3:'تعليمي',lUser:'البريد الإلكتروني',iUser:'example@email.com',lPass:'كلمة المرور',iPass:'••••••••',forgot:'نسيت كلمة المرور؟',cta:'دخول ←',noAcc:'ليس لديك حساب؟',regLink:'تسجيل جديد',lName:'الاسم الكامل',iName:'أدخل اسمك الكامل...',lEmail:'البريد الإلكتروني',iEmail:'example@email.com',lPass2:'كلمة المرور',iPass2:'••••••••',cta2:'إنشاء حساب ←',hasAcc:'لديك حساب؟',loginLink:'تسجيل الدخول',terms:'بتسجيلك أنت توافق على ',tou:'شروط الاستخدام',and:' و',priv:'الخصوصية',langBtn:'🌐 English',dir:'rtl',dlJoined:'تاريخ التسجيل',dlId:'رقم الحساب',dlStatus:'حالة الحساب',dvStatus:'نشط ✓',logout:'تسجيل الخروج'},
-  en:{logoSub:'Arabic Employment & Verification Platform',t1:'Employee',t2:'Company',t3:'Education',lUser:'Email Address',iUser:'example@email.com',lPass:'Password',iPass:'••••••••',forgot:'Forgot password?',cta:'Sign In →',noAcc:"Don't have an account?",regLink:'Register',lName:'Full Name',iName:'Enter your full name...',lEmail:'Email Address',iEmail:'example@email.com',lPass2:'Password',iPass2:'••••••••',cta2:'Create Account →',hasAcc:'Already have an account?',loginLink:'Sign In',terms:'By registering you agree to our ',tou:'Terms of Use',and:' and ',priv:'Privacy Policy',langBtn:'🌐 عربي',dir:'ltr',dlJoined:'Joined',dlId:'Account ID',dlStatus:'Status',dvStatus:'Active ✓',logout:'Sign Out'},
-};
-
-let lang='ar', curType='emp';
-
-/* ── Toast ── */
-let toastTimer;
-function showToast(msg, type='success'){
-  const t=document.getElementById('toast');
-  t.textContent=msg;
-  t.className=`toast ${type} show`;
-  clearTimeout(toastTimer);
-  toastTimer=setTimeout(()=>{t.classList.remove('show');},3500);
+function updateInstType(){
+  const val = document.getElementById('instSubtype').value;
+  if(!val) return;
+  const parts = val.split('|');
+  instUserType = parts[0];
+  instSubtype = parts[1];
 }
 
-/* ── Session ── */
-function saveSession(user){
-  localStorage.setItem('tw_user', JSON.stringify(user));
-}
-function loadSession(){
-  try{ return JSON.parse(localStorage.getItem('tw_user')||'null'); } catch(e){return null;}
-}
-function clearSession(){
-  localStorage.removeItem('tw_user');
+function showForm(form){
+  document.getElementById('loginForm').style.display = form==='login' ? '' : 'none';
+  document.getElementById('registerForm').style.display = form==='register' ? '' : 'none';
+  document.getElementById('loginTab').classList.toggle('active', form==='login');
+  document.getElementById('regTab').classList.toggle('active', form==='register');
 }
 
-/* ── Dashboard ── */
-const typeLabels={emp:{ar:'موظف',en:'Employee'},co:{ar:'شركة',en:'Company'},edu:{ar:'تعليمي',en:'Education'}};
-const typeIcons={emp:'👤',co:'🏢',edu:'🎓'};
-
-function showDashboard(user){
-  const dest = user.user_type==='co' ? 'company-profile.html?id='+user.id : user.user_type==='edu' ? 'edu.html' : 'home.html';
-  window.location.href = dest;
-  return;
-  const l=L[lang];
-  const typeKey=user.user_type||'emp';
-  const badgeLbl=typeLabels[typeKey]?typeLabels[typeKey][lang]:(lang==='ar'?'موظف':'Employee');
-  document.getElementById('dashAvatar').textContent=typeIcons[typeKey]||'👤';
-  document.getElementById('dashName').textContent=user.full_name;
-  document.getElementById('dashEmail').textContent=user.email;
-  document.getElementById('dashBadge').textContent=badgeLbl;
-  document.getElementById('dvId').textContent='#'+user.id;
-  document.getElementById('dvStatus').textContent=l.dvStatus;
-  document.getElementById('dvJoined').textContent=user.created_at?user.created_at.slice(0,10):'-';
-  document.getElementById('dlJoined').textContent=l.dlJoined;
-  document.getElementById('dlId').textContent=l.dlId;
-  document.getElementById('dlStatus').textContent=l.dlStatus;
-  document.getElementById('logoutBtn').textContent=l.logout;
-  const th=T[typeKey];
-  document.documentElement.style.setProperty('--cta',th.cta);
-  document.documentElement.style.setProperty('--lc',th.lc);
-  d.querySelector('.dash-card').style.borderColor=th.bb;
+function toast(msg, type='success'){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = `toast ${type} show`;
+  setTimeout(()=>t.classList.remove('show'), 3200);
 }
 
-function doLogout(){
-  clearSession();
-  document.getElementById('dashWrap').style.display='none';
-  document.getElementById('authWrap').style.display='block';
-  showToast(lang==='ar'?'تم تسجيل الخروج':'Signed out','success');
-}
-
-/* ── Login ── */
 async function doLogin(){
-  const email=document.getElementById('iUser').value.trim();
-  const pass=document.getElementById('iPass').value;
-  const btn=document.getElementById('ctaBtn');
-  if(!email||!pass){showToast(lang==='ar'?'أدخل البريد وكلمة المرور':'Enter email and password','error');return;}
-  btn.disabled=true;
-  btn.textContent=lang==='ar'?'جاري الدخول...':'Signing in...';
+  const email = document.getElementById('lEmail').value.trim();
+  const pass = document.getElementById('lPass').value;
+  if(!email||!pass){ toast('أدخل البريد وكلمة المرور','error'); return; }
+  const btn = document.getElementById('loginBtn');
+  btn.disabled = true; btn.textContent = 'جاري الدخول...';
   try{
-    const res=await fetch('/auth/login',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({email,password:pass})
-    });
-    const data=await res.json();
-    if(!res.ok){showToast(data.detail||'خطأ','error');return;}
-    saveSession(data.user);
-    showToast(lang==='ar'?'مرحباً بك! 👋':'Welcome back! 👋','success');
-    setTimeout(()=>showDashboard(data.user),600);
-  }catch(e){
-    showToast(lang==='ar'?'تعذّر الاتصال بالخادم':'Server connection failed','error');
-  }finally{
-    btn.disabled=false;
-    btn.textContent=L[lang].cta;
-  }
+    const res = await fetch('/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password:pass})});
+    const data = await res.json();
+    if(!res.ok){ toast(data.detail||'خطأ في الدخول','error'); return; }
+    localStorage.setItem('tw_user', JSON.stringify(data.user));
+    toast('مرحباً بك! 👋');
+    setTimeout(()=>{
+      const u = data.user;
+      const dest = u.user_type==='co' ? 'company-profile.html?id='+u.id
+                 : u.user_type==='edu' ? 'edu.html'
+                 : 'home.html';
+      window.location.href = dest;
+    }, 600);
+  }catch(e){ toast('تعذّر الاتصال بالخادم','error'); }
+  finally{ btn.disabled=false; btn.textContent='دخول'; }
 }
 
-/* ── Register ── */
 async function doRegister(){
-  const full_name=document.getElementById('iName').value.trim();
-  const email=document.getElementById('iEmail').value.trim();
-  const password=document.getElementById('iPass2').value;
-  const btn=document.getElementById('ctaBtn2');
-  if(!full_name){showToast(lang==='ar'?'أدخل اسمك الكامل':'Enter your full name','error');return;}
-  if(!email){showToast(lang==='ar'?'أدخل البريد الإلكتروني':'Enter your email','error');return;}
-  if(password.length<6){showToast(lang==='ar'?'كلمة المرور يجب أن تكون 6 أحرف على الأقل':'Password must be at least 6 characters','error');return;}
-  btn.disabled=true;
-  btn.textContent=lang==='ar'?'جاري الإنشاء...':'Creating...';
+  const full_name = document.getElementById('rName').value.trim();
+  const email = document.getElementById('rEmail').value.trim();
+  const password = document.getElementById('rPass').value;
+  if(!full_name){ toast('أدخل الاسم','error'); return; }
+  if(!email){ toast('أدخل البريد الإلكتروني','error'); return; }
+  if(password.length<6){ toast('كلمة المرور قصيرة جداً','error'); return; }
+  if(curType==='inst' && !instUserType){ toast('اختر نوع الجهة أولاً','error'); return; }
+  const user_type = curType==='emp' ? 'emp' : instUserType;
+  const btn = document.getElementById('regBtn');
+  btn.disabled=true; btn.textContent='جاري الإنشاء...';
   try{
-    const res=await fetch('/auth/register',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({full_name,email,password,user_type:curType})
-    });
-    const data=await res.json();
-    if(!res.ok){showToast(data.detail||'خطأ','error');return;}
-    saveSession(data.user);
-    showToast(lang==='ar'?'تم إنشاء حسابك بنجاح 🎉':'Account created successfully 🎉','success');
-    setTimeout(()=>showDashboard(data.user),700);
-  }catch(e){
-    showToast(lang==='ar'?'تعذّر الاتصال بالخادم':'Server connection failed','error');
-  }finally{
-    btn.disabled=false;
-    btn.textContent=L[lang].cta2;
-  }
+    const res = await fetch('/auth/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({full_name,email,password,user_type})});
+    const data = await res.json();
+    if(!res.ok){ toast(data.detail||'خطأ في التسجيل','error'); return; }
+    // Store institution subtype
+    const userData = {...data.user, institution_subtype: instSubtype||''};
+    localStorage.setItem('tw_user', JSON.stringify(userData));
+    toast('تم إنشاء حسابك! 🎉');
+    setTimeout(()=>{
+      const u = data.user;
+      const dest = u.user_type==='co' ? 'company-profile.html?id='+u.id
+                 : u.user_type==='edu' ? 'edu.html'
+                 : 'home.html';
+      window.location.href = dest;
+    }, 700);
+  }catch(e){ toast('تعذّر الاتصال بالخادم','error'); }
+  finally{ btn.disabled=false; btn.textContent='إنشاء حساب'; }
 }
 
-/* ── Keyboard enter ── */
-document.addEventListener('keydown',e=>{
+document.addEventListener('keydown', e => {
   if(e.key==='Enter'){
-    if(document.getElementById('fIn').style.display!=='none') doLogin();
+    const lf = document.getElementById('loginForm');
+    if(lf.style.display!=='none') doLogin();
     else doRegister();
   }
 });
-
-/* ── Theme / tabs ── */
-function applyTheme(type){
-  curType=type;
-  const t=T[type];
-  const bub=document.getElementById('bubble');
-  bub.style.borderColor=t.bb;
-  bub.style.background=t.bg2;
-  bub.style.boxShadow=`0 24px 80px rgba(0,0,0,.65),0 0 50px ${t.bglow},inset 0 0 0 1px rgba(255,255,255,.03)`;
-  document.getElementById('sep').style.background=`linear-gradient(90deg,transparent,${t.sc},transparent)`;
-  document.querySelectorAll('.cta').forEach(b=>b.style.background=t.cta);
-  const r=document.documentElement;
-  r.style.setProperty('--tc',t.tc);r.style.setProperty('--tb',t.tb);
-  r.style.setProperty('--fc',t.fc);r.style.setProperty('--fb',t.fb);
-  r.style.setProperty('--fs',t.fs);r.style.setProperty('--lc',t.lc);
-  r.style.setProperty('--cs',t.cs);r.style.setProperty('--cta',t.cta);
-  document.querySelectorAll('.tab').forEach(tab=>{
-    if(tab.classList.contains('active')){tab.style.borderColor=t.tc;tab.style.background=t.tb;}
-    else{tab.style.borderColor='';tab.style.background='';}
-  });
-}
-
-function pick(type,btn){
-  document.querySelectorAll('.tab').forEach(b=>{b.classList.remove('active');b.style.borderColor='';b.style.background='';});
-  btn.classList.add('active');
-  const t=T[type];const copy=lang==='ar'?t.ar:t.en;
-  document.getElementById('wIco').textContent=t.ico;
-  document.getElementById('wTit').textContent=copy.tit;
-  document.getElementById('wSub').textContent=copy.sub;
-  applyTheme(type);
-  const bub=document.getElementById('bubble');
-  bub.style.transition='none';bub.style.opacity='.7';bub.style.transform='translateY(6px)';
-  requestAnimationFrame(()=>{bub.style.transition='all .35s ease';bub.style.opacity='1';bub.style.transform='translateY(0)';});
-}
-
-/* ── Language ── */
-function applyLang(l){
-  const t=L[l];
-  document.getElementById('html').setAttribute('dir',t.dir);
-  document.getElementById('html').setAttribute('lang',l==='ar'?'ar':'en');
-  ['logoSub','t1','t2','t3','lUser','lPass','noAcc','regLink','lName','lEmail','lPass2','hasAcc','loginLink','terms','tou','and','priv','langBtn'].forEach(id=>{
-    const el=document.getElementById(id);if(el&&t[id])el.textContent=t[id];
-  });
-  document.getElementById('forgotLink').textContent=t.forgot;
-  document.getElementById('iUser').placeholder=t.iUser;
-  document.getElementById('iPass').placeholder=t.iPass;
-  document.getElementById('iName').placeholder=t.iName;
-  document.getElementById('iEmail').placeholder=t.iEmail;
-  document.getElementById('iPass2').placeholder=t.iPass2;
-  document.getElementById('ctaBtn').textContent=t.cta;
-  document.getElementById('ctaBtn2').textContent=t.cta2;
-  document.querySelectorAll('input').forEach(i=>i.style.direction=l==='ar'?'rtl':'ltr');
-  const th=T[curType];const copy=l==='ar'?th.ar:th.en;
-  document.getElementById('wTit').textContent=copy.tit;
-  document.getElementById('wSub').textContent=copy.sub;
-}
-
-function toggleLang(){lang=lang==='ar'?'en':'ar';applyLang(lang);}
-function showReg(){document.getElementById('fIn').style.display='none';document.getElementById('fUp').style.display='block';}
-function showLogin(){document.getElementById('fIn').style.display='block';document.getElementById('fUp').style.display='none';}
-
-/* ── Init ── */
-applyTheme('emp');
-applyLang('ar');
-
-/* ── Auto-restore session ── */
-const saved=loadSession();
-if(saved&&saved.id){
-  const dest=saved.user_type==='co'?'company-profile.html?id='+saved.id:saved.user_type==='edu'?'edu.html':'home.html';
-  window.location.href=dest;
-}
 </script>
 </body>
 </html>

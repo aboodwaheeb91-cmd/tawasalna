@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>تواصلنا - الإعدادات</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
+<style>
+:root{--ac:#00c896;--ac2:#2563ff;--bg:#070b18;--card:rgba(255,255,255,.03);--border:rgba(255,255,255,.07);--t:rgba(255,255,255,.87);--t2:rgba(255,255,255,.5);--t3:rgba(255,255,255,.27);}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-height:100vh;}
+.nav{position:fixed;top:0;left:0;right:0;z-index:100;height:52px;display:flex;align-items:center;gap:8px;padding:0 14px;background:rgba(7,11,24,.93);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);}
+.nav-logo{font-size:1rem;font-weight:900;background:linear-gradient(135deg,var(--ac),var(--ac2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-left:auto;cursor:pointer;}
+.nb{padding:5px 11px;border-radius:8px;border:1px solid var(--border);background:rgba(255,255,255,.07);color:var(--t2);font-family:'Cairo',sans-serif;font-size:.73rem;font-weight:700;cursor:pointer;transition:all .2s;}
+.nb:hover{background:rgba(255,255,255,.12);color:var(--t);}
+
+.main{padding:70px 16px 40px;max-width:680px;margin:0 auto;}
+.page-title{font-size:1.1rem;font-weight:900;margin-bottom:24px;}
+
+.settings-group{margin-bottom:24px;}
+.sg-title{font-size:.68rem;font-weight:800;color:var(--t3);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:10px;padding-right:4px;}
+.sg-card{background:var(--card);border:1px solid var(--border);border-radius:16px;overflow:hidden;}
+
+.setting-row{display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid rgba(255,255,255,.04);cursor:pointer;transition:background .15s;}
+.setting-row:last-child{border-bottom:none;}
+.setting-row:hover{background:rgba(255,255,255,.03);}
+.sr-ico{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1rem;flex-shrink:0;}
+.si-green{background:rgba(0,200,150,.12);}
+.si-blue{background:rgba(37,99,255,.12);}
+.si-purple{background:rgba(139,92,246,.12);}
+.si-orange{background:rgba(249,115,22,.12);}
+.si-red{background:rgba(239,68,68,.12);}
+.si-gray{background:rgba(255,255,255,.06);}
+.sr-body{flex:1;}
+.sr-name{font-size:.8rem;font-weight:700;margin-bottom:1px;}
+.sr-sub{font-size:.68rem;color:var(--t3);}
+.sr-right{display:flex;align-items:center;gap:8px;}
+.sr-val{font-size:.72rem;color:var(--t2);}
+.sr-arrow{font-size:.7rem;color:var(--t3);}
+
+/* Toggle */
+.toggle{width:40px;height:22px;background:rgba(255,255,255,.1);border-radius:11px;position:relative;cursor:pointer;transition:background .2s;border:none;flex-shrink:0;}
+.toggle.on{background:linear-gradient(135deg,var(--ac),var(--ac2));}
+.toggle::after{content:'';position:absolute;top:3px;right:3px;width:16px;height:16px;border-radius:50%;background:#fff;transition:transform .2s;}
+.toggle.on::after{transform:translateX(-18px);}
+
+/* Danger zone */
+.danger-row{display:flex;align-items:center;gap:12px;padding:14px 16px;cursor:pointer;transition:background .15s;}
+.danger-row:hover{background:rgba(239,68,68,.04);}
+
+/* Modal */
+.overlay{position:fixed;inset:0;z-index:2000;background:rgba(0,0,0,.78);display:flex;align-items:center;justify-content:center;padding:16px;opacity:0;pointer-events:none;transition:opacity .2s;}
+.overlay.show{opacity:1;pointer-events:all;}
+.modal{background:#0a0f1e;border:1px solid rgba(255,255,255,.1);border-radius:20px;width:100%;max-width:420px;padding:24px;font-family:'Cairo',sans-serif;transform:translateY(12px);transition:transform .2s;}
+.overlay.show .modal{transform:translateY(0);}
+.modal-title{font-size:.95rem;font-weight:800;color:#fff;margin-bottom:18px;}
+.mf{margin-bottom:12px;}
+.mf label{display:block;font-size:.72rem;font-weight:700;color:rgba(255,255,255,.45);margin-bottom:4px;}
+.mf input,.mf select{width:100%;padding:10px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:'Cairo',sans-serif;font-size:.82rem;outline:none;direction:rtl;}
+.mf input:focus{border-color:var(--ac);}
+.mf select option{background:#0a0f1e;}
+.mact{display:flex;gap:8px;margin-top:16px;}
+.mbtn{flex:1;padding:10px;border:none;border-radius:10px;font-family:'Cairo',sans-serif;font-size:.82rem;font-weight:700;cursor:pointer;}
+.mbtn-ok{background:linear-gradient(135deg,var(--ac),var(--ac2));color:#fff;}
+.mbtn-danger{background:rgba(239,68,68,.2);color:#f87171;border:1px solid rgba(239,68,68,.3);}
+.mbtn-no{background:rgba(255,255,255,.07);color:rgba(255,255,255,.55);}
+
+/* Toast */
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);padding:10px 18px;border-radius:12px;font-size:.78rem;font-weight:700;z-index:9999;transition:transform .3s;pointer-events:none;}
+.toast.show{transform:translateX(-50%) translateY(0);}
+.toast.success{background:#065f46;color:#6ee7b7;border:1px solid rgba(110,231,183,.2);}
+.toast.error{background:#7f1d1d;color:#fca5a5;}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <button class="nb" onclick="goHome()">← رجوع</button>
+  <span style="font-size:.82rem;font-weight:700;color:var(--t2)">⚙️ الإعدادات</span>
+  <div class="nav-logo" onclick="goHome()">تواصلنا</div>
+</nav>
+
+<div class="main">
+  <div class="page-title">⚙️ الإعدادات</div>
+
+  <!-- ACCOUNT -->
+  <div class="settings-group">
+    <div class="sg-title">الحساب</div>
+    <div class="sg-card">
+      <div class="setting-row" onclick="openModal('name')">
+        <div class="sr-ico si-green">👤</div>
+        <div class="sr-body"><div class="sr-name">الاسم الكامل</div><div class="sr-sub" id="dispName">—</div></div>
+        <div class="sr-right"><span class="sr-arrow">‹</span></div>
+      </div>
+      <div class="setting-row" onclick="openModal('email')">
+        <div class="sr-ico si-blue">✉️</div>
+        <div class="sr-body"><div class="sr-name">البريد الإلكتروني</div><div class="sr-sub" id="dispEmail">—</div></div>
+        <div class="sr-right"><span class="sr-arrow">‹</span></div>
+      </div>
+      <div class="setting-row" onclick="openModal('password')">
+        <div class="sr-ico si-purple">🔒</div>
+        <div class="sr-body"><div class="sr-name">كلمة المرور</div><div class="sr-sub">تغيير كلمة المرور</div></div>
+        <div class="sr-right"><span class="sr-arrow">‹</span></div>
+      </div>
+      <div class="setting-row" onclick="openModal('phone')">
+        <div class="sr-ico si-green">📱</div>
+        <div class="sr-body"><div class="sr-name">رقم الهاتف</div><div class="sr-sub">لم يُضف بعد</div></div>
+        <div class="sr-right"><span class="sr-arrow">‹</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- NOTIFICATIONS -->
+  <div class="settings-group">
+    <div class="sg-title">الإشعارات</div>
+    <div class="sg-card">
+      <div class="setting-row">
+        <div class="sr-ico si-orange">🔔</div>
+        <div class="sr-body"><div class="sr-name">إشعارات الوظائف</div><div class="sr-sub">وظائف تناسب ملفك</div></div>
+        <button class="toggle on" onclick="this.classList.toggle('on')"></button>
+      </div>
+      <div class="setting-row">
+        <div class="sr-ico si-blue">💬</div>
+        <div class="sr-body"><div class="sr-name">إشعارات الرسائل</div><div class="sr-sub">رسائل من الشركات</div></div>
+        <button class="toggle on" onclick="this.classList.toggle('on')"></button>
+      </div>
+      <div class="setting-row">
+        <div class="sr-ico si-green">✅</div>
+        <div class="sr-body"><div class="sr-name">إشعارات التوثيق</div><div class="sr-sub">تحديثات طلبات التوثيق</div></div>
+        <button class="toggle on" onclick="this.classList.toggle('on')"></button>
+      </div>
+      <div class="setting-row">
+        <div class="sr-ico si-purple">📅</div>
+        <div class="sr-body"><div class="sr-name">تذكير المقابلات</div><div class="sr-sub">قبل المقابلة بساعة</div></div>
+        <button class="toggle on" onclick="this.classList.toggle('on')"></button>
+      </div>
+      <div class="setting-row">
+        <div class="sr-ico si-gray">📰</div>
+        <div class="sr-body"><div class="sr-name">نشرة أخبار العمالة</div><div class="sr-sub">أسبوعياً</div></div>
+        <button class="toggle" onclick="this.classList.toggle('on')"></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- PRIVACY -->
+  <div class="settings-group">
+    <div class="sg-title">الخصوصية</div>
+    <div class="sg-card">
+      <div class="setting-row">
+        <div class="sr-ico si-green">👁</div>
+        <div class="sr-body"><div class="sr-name">ظهور ملفي للشركات</div><div class="sr-sub">الشركات المسجلة فقط تراك</div></div>
+        <button class="toggle on" onclick="this.classList.toggle('on')"></button>
+      </div>
+      <div class="setting-row" onclick="openModal('lang')">
+        <div class="sr-ico si-blue">🌍</div>
+        <div class="sr-body"><div class="sr-name">لغة الواجهة</div><div class="sr-sub">عربي</div></div>
+        <div class="sr-right"><span class="sr-val">AR</span><span class="sr-arrow">‹</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ABOUT -->
+  <div class="settings-group">
+    <div class="sg-title">عن التطبيق</div>
+    <div class="sg-card">
+      <div class="setting-row">
+        <div class="sr-ico si-gray">ℹ️</div>
+        <div class="sr-body"><div class="sr-name">الإصدار</div></div>
+        <div class="sr-right"><span class="sr-val">1.0.0 Beta</span></div>
+      </div>
+      <div class="setting-row" onclick="window.open('https://tawasolna.com','_blank')">
+        <div class="sr-ico si-blue">🌐</div>
+        <div class="sr-body"><div class="sr-name">الموقع الرسمي</div></div>
+        <div class="sr-right"><span class="sr-val">tawasolna.com</span><span class="sr-arrow">‹</span></div>
+      </div>
+      <div class="setting-row">
+        <div class="sr-ico si-gray">📋</div>
+        <div class="sr-body"><div class="sr-name">سياسة الخصوصية وشروط الاستخدام</div></div>
+        <div class="sr-right"><span class="sr-arrow">‹</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- DANGER -->
+  <div class="settings-group">
+    <div class="sg-title">منطقة الخطر</div>
+    <div class="sg-card">
+      <div class="danger-row" onclick="logout()">
+        <div class="sr-ico" style="background:rgba(239,68,68,.1);width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1rem;">🚪</div>
+        <div class="sr-body"><div class="sr-name" style="color:#f87171;">تسجيل الخروج</div><div class="sr-sub">الخروج من حسابك</div></div>
+        <span class="sr-arrow">‹</span>
+      </div>
+      <div class="danger-row" onclick="openModal('delete')">
+        <div class="sr-ico" style="background:rgba(239,68,68,.1);width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1rem;">🗑️</div>
+        <div class="sr-body"><div class="sr-name" style="color:#f87171;">حذف الحساب</div><div class="sr-sub">حذف نهائي لا يمكن التراجع عنه</div></div>
+        <span class="sr-arrow">‹</span>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- MODAL -->
+<div class="overlay" id="overlay" onclick="closeOverlay(event)">
+  <div class="modal" id="modal"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+let _user=null;
+try{_user=JSON.parse(localStorage.getItem('tw_user'));}catch(e){}
+if(!_user||!_user.id){window.location.href='/';}
+if(_user){
+  document.getElementById('dispName').textContent=_user.full_name||'—';
+  document.getElementById('dispEmail').textContent=_user.email||'—';
+}
+
+function openModal(type){
+  let h='';
+  if(type==='name') h=`<div class="modal-title">👤 تغيير الاسم</div>
+    <div class="mf"><label>الاسم الكامل</label><input id="m-v" value="${_user.full_name||''}"></div>
+    <div class="mact"><button class="mbtn mbtn-ok" onclick="saveField('name')">حفظ</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
+  else if(type==='email') h=`<div class="modal-title">✉️ تغيير البريد الإلكتروني</div>
+    <div class="mf"><label>البريد الجديد</label><input id="m-v" type="email" value="${_user.email||''}"></div>
+    <div class="mact"><button class="mbtn mbtn-ok" onclick="saveField('email')">حفظ</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
+  else if(type==='password') h=`<div class="modal-title">🔒 تغيير كلمة المرور</div>
+    <div class="mf"><label>كلمة المرور الحالية</label><input type="password" id="m-old" placeholder="••••••••"></div>
+    <div class="mf"><label>كلمة المرور الجديدة</label><input type="password" id="m-v" placeholder="••••••••"></div>
+    <div class="mf"><label>تأكيد كلمة المرور</label><input type="password" id="m-v2" placeholder="••••••••"></div>
+    <div class="mact"><button class="mbtn mbtn-ok" onclick="savePassword()">تغيير</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
+  else if(type==='phone') h=`<div class="modal-title">📱 رقم الهاتف</div>
+    <div class="mf"><label>رقم الهاتف</label><input id="m-v" type="tel" placeholder="+962 79 000 0000" dir="ltr"></div>
+    <div class="mact"><button class="mbtn mbtn-ok" onclick="toast('تم الحفظ ✓')">حفظ</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
+  else if(type==='lang') h=`<div class="modal-title">🌍 لغة الواجهة</div>
+    <div class="mf"><label>اللغة</label><select id="m-v"><option value="ar">العربية</option><option value="en">English</option></select></div>
+    <div class="mact"><button class="mbtn mbtn-ok" onclick="toast('تم الحفظ ✓')">حفظ</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
+  else if(type==='delete') h=`<div class="modal-title" style="color:#f87171">⚠️ حذف الحساب</div>
+    <p style="font-size:.78rem;color:var(--t2);margin-bottom:14px">هذا الإجراء نهائي ولا يمكن التراجع عنه. سيتم حذف جميع بياناتك وملفك الشخصي.</p>
+    <div class="mf"><label>اكتب "احذف حسابي" للتأكيد</label><input id="m-v" placeholder="احذف حسابي"></div>
+    <div class="mact"><button class="mbtn mbtn-danger" onclick="confirmDelete()">حذف نهائي</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
+  document.getElementById('modal').innerHTML=h;
+  document.getElementById('overlay').classList.add('show');
+}
+
+function saveField(field){
+  const v=document.getElementById('m-v').value.trim();
+  if(!v){toast('أدخل القيمة','error');return;}
+  if(field==='name'){_user.full_name=v;document.getElementById('dispName').textContent=v;}
+  if(field==='email'){_user.email=v;document.getElementById('dispEmail').textContent=v;}
+  localStorage.setItem('tw_user',JSON.stringify(_user));
+  closeModal();
+  toast('تم الحفظ ✓');
+}
+
+function savePassword(){
+  const v=document.getElementById('m-v').value;
+  const v2=document.getElementById('m-v2').value;
+  if(v!==v2){toast('كلمتا المرور لا تتطابقان','error');return;}
+  if(v.length<6){toast('كلمة المرور قصيرة جداً','error');return;}
+  closeModal();
+  toast('تم تغيير كلمة المرور ✓');
+}
+
+function confirmDelete(){
+  const v=document.getElementById('m-v').value;
+  if(v!=='احذف حسابي'){toast('اكتب النص بالضبط','error');return;}
+  localStorage.removeItem('tw_user');
+  window.location.href='/';
+}
+
+function closeModal(){document.getElementById('overlay').classList.remove('show');}
+function closeOverlay(e){if(e.target===document.getElementById('overlay'))closeModal();}
+
+function toast(msg,type='success'){
+  const t=document.getElementById('toast');
+  t.textContent=msg;
+  t.className=`toast ${type} show`;
+  setTimeout(()=>t.classList.remove('show'),2800);
+}
+
+function logout(){
+  localStorage.removeItem('tw_user');
+  window.location.href='/';
+}
+
+function goHome(){
+  if(!_user){window.location.href='/';return;}
+  const dest=_user.user_type==='co'?'company-profile.html?id='+_user.id:_user.user_type==='edu'?'edu.html':'home.html';
+  window.location.href=dest;
+}
+</script>
+</body>
+</html>

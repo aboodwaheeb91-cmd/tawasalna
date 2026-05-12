@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>تواصلنا - تفاصيل الوظيفة</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
+<style>
+:root{--ac:#00c896;--ac2:#2563ff;--bg:#070b18;--card:rgba(255,255,255,.03);--border:rgba(255,255,255,.07);--t:rgba(255,255,255,.87);--t2:rgba(255,255,255,.5);--t3:rgba(255,255,255,.27);}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-height:100vh;}
+.nav{position:fixed;top:0;left:0;right:0;z-index:100;height:52px;display:flex;align-items:center;gap:8px;padding:0 14px;background:rgba(7,11,24,.93);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);}
+.nav-logo{font-size:1rem;font-weight:900;background:linear-gradient(135deg,var(--ac),var(--ac2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-left:auto;cursor:pointer;}
+.nb{padding:5px 11px;border-radius:8px;border:none;cursor:pointer;font-family:'Cairo',sans-serif;font-size:.73rem;font-weight:700;transition:all .2s;}
+.nb-ghost{background:rgba(255,255,255,.07);color:var(--t2);border:1px solid var(--border);}
+.nb-primary{background:linear-gradient(135deg,var(--ac),var(--ac2));color:#fff;}
+.nb-primary:hover{transform:translateY(-1px);box-shadow:0 4px 14px rgba(0,200,150,.35);}
+
+.main{padding:70px 16px 40px;max-width:860px;margin:0 auto;}
+.grid{display:grid;grid-template-columns:1fr 300px;gap:20px;}
+
+/* JOB HEADER */
+.job-header{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:24px;margin-bottom:18px;}
+.jh-top{display:flex;gap:16px;align-items:flex-start;margin-bottom:16px;}
+.co-logo{width:72px;height:72px;border-radius:16px;background:linear-gradient(135deg,var(--ac2),var(--ac));display:flex;align-items:center;justify-content:center;font-size:1.8rem;flex-shrink:0;}
+.job-title{font-size:1.3rem;font-weight:900;margin-bottom:4px;}
+.co-name{font-size:.82rem;color:var(--ac);font-weight:700;cursor:pointer;margin-bottom:8px;}
+.co-name:hover{text-decoration:underline;}
+.job-meta{display:flex;gap:12px;flex-wrap:wrap;}
+.jm-item{display:flex;align-items:center;gap:5px;font-size:.72rem;color:var(--t2);background:rgba(255,255,255,.05);border-radius:20px;padding:3px 10px;}
+.job-tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:14px;}
+.jtag{padding:3px 10px;border-radius:20px;font-size:.68rem;font-weight:700;}
+.tg{background:rgba(0,200,150,.1);color:#00c896;}
+.tb{background:rgba(37,99,255,.1);color:#60a5fa;}
+.tgr{background:rgba(255,255,255,.06);color:var(--t2);}
+
+/* MATCH BAR */
+.match-bar{background:rgba(0,200,150,.06);border:1px solid rgba(0,200,150,.2);border-radius:14px;padding:14px 16px;margin-bottom:18px;display:flex;align-items:center;gap:14px;}
+.match-ring{width:56px;height:56px;border-radius:50%;background:conic-gradient(var(--ac) 0% 92%,rgba(255,255,255,.08) 92%);display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:900;color:var(--ac);flex-shrink:0;position:relative;}
+.match-ring::after{content:'';position:absolute;inset:5px;border-radius:50%;background:var(--bg);}
+.match-ring span{position:relative;z-index:1;}
+.match-info h3{font-size:.82rem;font-weight:800;color:#00c896;margin-bottom:3px;}
+.match-info p{font-size:.72rem;color:var(--t2);}
+.match-skills{display:flex;gap:5px;flex-wrap:wrap;margin-top:6px;}
+.ms{padding:2px 8px;border-radius:20px;font-size:.63rem;font-weight:700;}
+.ms-yes{background:rgba(0,200,150,.12);color:#00c896;}
+.ms-no{background:rgba(239,68,68,.1);color:#f87171;}
+
+/* SECTIONS */
+.section{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:20px;margin-bottom:14px;}
+.sec-title{font-size:.85rem;font-weight:800;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--border);}
+.body-text{font-size:.8rem;color:var(--t2);line-height:1.8;}
+.req-list{list-style:none;}
+.req-list li{display:flex;align-items:flex-start;gap:8px;padding:6px 0;font-size:.78rem;color:var(--t2);border-bottom:1px solid rgba(255,255,255,.04);}
+.req-list li:last-child{border-bottom:none;}
+.req-list li::before{content:'•';color:var(--ac);flex-shrink:0;font-size:1.2rem;line-height:1;}
+.pref-list li::before{color:rgba(255,255,255,.3);}
+
+/* SIDEBAR */
+.side-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:18px;margin-bottom:14px;}
+.sc-title{font-size:.78rem;font-weight:800;margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid var(--border);}
+.sc-item{display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.04);}
+.sc-item:last-child{border-bottom:none;}
+.sc-ico{font-size:1rem;width:20px;flex-shrink:0;margin-top:1px;}
+.sc-key{font-size:.66rem;color:var(--t3);margin-bottom:1px;}
+.sc-val{font-size:.76rem;font-weight:700;}
+
+.apply-card{background:linear-gradient(135deg,rgba(0,200,150,.08),rgba(37,99,255,.06));border:1px solid rgba(0,200,150,.2);border-radius:16px;padding:18px;text-align:center;margin-bottom:14px;}
+.apply-title{font-size:.85rem;font-weight:800;margin-bottom:6px;}
+.apply-sub{font-size:.72rem;color:var(--t2);margin-bottom:14px;}
+.apply-btn{width:100%;padding:13px;border:none;border-radius:13px;background:linear-gradient(135deg,var(--ac),var(--ac2));color:#fff;font-family:'Cairo',sans-serif;font-size:.9rem;font-weight:900;cursor:pointer;transition:all .25s;margin-bottom:8px;}
+.apply-btn:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,200,150,.35);}
+.apply-btn.applied{background:rgba(0,200,150,.15);color:#00c896;border:1px solid rgba(0,200,150,.3);transform:none;box-shadow:none;}
+.save-btn{width:100%;padding:9px;border:1px solid var(--border);border-radius:11px;background:rgba(255,255,255,.06);color:var(--t2);font-family:'Cairo',sans-serif;font-size:.78rem;font-weight:700;cursor:pointer;transition:all .2s;}
+.save-btn:hover{background:rgba(255,255,255,.1);color:var(--t);}
+.deadline{font-size:.68rem;color:var(--t3);margin-top:8px;}
+
+/* OVERLAY */
+.overlay{position:fixed;inset:0;z-index:2000;background:rgba(0,0,0,.78);display:flex;align-items:center;justify-content:center;padding:16px;opacity:0;pointer-events:none;transition:opacity .2s;}
+.overlay.show{opacity:1;pointer-events:all;}
+.modal{background:#0a0f1e;border:1px solid rgba(255,255,255,.1);border-radius:20px;width:100%;max-width:460px;max-height:88vh;overflow-y:auto;padding:24px;font-family:'Cairo',sans-serif;transform:translateY(12px);transition:transform .2s;}
+.overlay.show .modal{transform:translateY(0);}
+.modal-title{font-size:.95rem;font-weight:800;color:#fff;margin-bottom:18px;}
+.mf{margin-bottom:12px;}
+.mf label{display:block;font-size:.72rem;font-weight:700;color:rgba(255,255,255,.45);margin-bottom:4px;}
+.mf textarea{width:100%;padding:10px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:'Cairo',sans-serif;font-size:.82rem;outline:none;resize:vertical;min-height:100px;direction:rtl;}
+.mf textarea:focus{border-color:var(--ac);}
+.mact{display:flex;gap:8px;margin-top:16px;}
+.mbtn{flex:1;padding:10px;border:none;border-radius:10px;font-family:'Cairo',sans-serif;font-size:.82rem;font-weight:700;cursor:pointer;}
+.mbtn-ok{background:linear-gradient(135deg,var(--ac),var(--ac2));color:#fff;}
+.mbtn-no{background:rgba(255,255,255,.07);color:rgba(255,255,255,.55);}
+
+@media(max-width:700px){.grid{grid-template-columns:1fr;}}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <button class="nb nb-ghost" onclick="history.back()">← رجوع</button>
+  <div class="nav-logo" onclick="goHome()">تواصلنا</div>
+</nav>
+
+<div class="main">
+
+  <!-- Header -->
+  <div class="job-header">
+    <div class="jh-top">
+      <div class="co-logo">🏢</div>
+      <div>
+        <div class="job-title">مطور Full Stack - React & Python</div>
+        <div class="co-name" onclick="window.location.href='company-profile.html'">شركة تك ستارت</div>
+        <div class="job-meta">
+          <span class="jm-item">📍 عمان، الأردن</span>
+          <span class="jm-item">⏰ دوام كامل</span>
+          <span class="jm-item">💰 800 - 1200 دينار/شهر</span>
+          <span class="jm-item">🕐 نُشرت منذ يومين</span>
+        </div>
+      </div>
+    </div>
+    <div class="job-tags">
+      <span class="jtag tg">React</span><span class="jtag tg">Python</span>
+      <span class="jtag tg">FastAPI</span><span class="jtag tg">PostgreSQL</span>
+      <span class="jtag tb">Remote جزئي</span>
+      <span class="jtag tgr">3-5 سنوات</span>
+      <span class="jtag tgr">بكالوريوس</span>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div>
+
+      <!-- Match -->
+      <div class="match-bar">
+        <div class="match-ring"><span>92%</span></div>
+        <div class="match-info">
+          <h3>ملفك يتطابق بنسبة 92% مع هذه الوظيفة</h3>
+          <p>لديك معظم المهارات المطلوبة</p>
+          <div class="match-skills">
+            <span class="ms ms-yes">✓ React</span>
+            <span class="ms ms-yes">✓ Python</span>
+            <span class="ms ms-yes">✓ FastAPI</span>
+            <span class="ms ms-no">✗ AWS</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Description -->
+      <div class="section">
+        <div class="sec-title">📋 وصف الوظيفة</div>
+        <div class="body-text">
+          نحن في شركة تك ستارت نبحث عن مطور Full Stack موهوب ومتحمس للانضمام إلى فريقنا المتنامي. ستعمل على تطوير تطبيقات ويب متكاملة باستخدام React في الواجهة الأمامية وPython/FastAPI في الواجهة الخلفية.<br><br>
+          ستكون مسؤولاً عن تصميم وتطوير وصيانة ميزات المنتج الأساسية، والتعاون مع فريق التصميم لتحويل النماذج إلى واجهات تفاعلية، وضمان جودة الكود من خلال مراجعات الكود والاختبارات.
+        </div>
+      </div>
+
+      <!-- Requirements -->
+      <div class="section">
+        <div class="sec-title">✅ المتطلبات الأساسية</div>
+        <ul class="req-list">
+          <li>خبرة 3-5 سنوات في تطوير تطبيقات الويب</li>
+          <li>إتقان React.js مع Hooks و Context API</li>
+          <li>خبرة في Python و FastAPI أو Django</li>
+          <li>معرفة قواعد البيانات PostgreSQL و MySQL</li>
+          <li>معرفة بـ Git وإدارة الكود</li>
+          <li>مهارات تواصل جيدة باللغتين العربية والإنجليزية</li>
+        </ul>
+      </div>
+
+      <!-- Preferred -->
+      <div class="section">
+        <div class="sec-title">⭐ يُفضَّل وجود</div>
+        <ul class="req-list pref-list">
+          <li>خبرة في Docker و AWS</li>
+          <li>معرفة بـ TypeScript</li>
+          <li>تجربة في منهجيات Agile / Scrum</li>
+          <li>مساهمات في مشاريع مفتوحة المصدر</li>
+        </ul>
+      </div>
+
+      <!-- Benefits -->
+      <div class="section">
+        <div class="sec-title">🎁 المزايا والمكافآت</div>
+        <ul class="req-list">
+          <li>راتب تنافسي 800-1200 دينار أردني شهرياً</li>
+          <li>تأمين صحي شامل للموظف والعائلة</li>
+          <li>ميزانية تدريب سنوية 500 دينار</li>
+          <li>دوام مرن + إمكانية العمل عن بُعد يومين أسبوعياً</li>
+          <li>مكافآت أداء نصف سنوية</li>
+          <li>بيئة عمل شبابية وديناميكية</li>
+        </ul>
+      </div>
+
+    </div>
+
+    <div>
+      <!-- Apply card -->
+      <div class="apply-card">
+        <div class="apply-title">هل أنت مهتم؟</div>
+        <div class="apply-sub">آخر موعد للتقديم: 30 مايو 2025</div>
+        <button class="apply-btn" id="applyBtn" onclick="openApply()">تقديم الآن ←</button>
+        <button class="save-btn" id="saveBtn" onclick="saveJob(this)">💾 حفظ الوظيفة</button>
+        <div class="deadline">⏰ تبقى 12 يوم على انتهاء التقديم</div>
+      </div>
+
+      <!-- Job info -->
+      <div class="side-card">
+        <div class="sc-title">معلومات الوظيفة</div>
+        <div class="sc-item"><span class="sc-ico">🏢</span><div><div class="sc-key">الشركة</div><div class="sc-val" style="color:var(--ac);cursor:pointer" onclick="window.location.href='company-profile.html'">شركة تك ستارت</div></div></div>
+        <div class="sc-item"><span class="sc-ico">📍</span><div><div class="sc-key">الموقع</div><div class="sc-val">عمان، الأردن</div></div></div>
+        <div class="sc-item"><span class="sc-ico">⏰</span><div><div class="sc-key">نوع العمل</div><div class="sc-val">دوام كامل</div></div></div>
+        <div class="sc-item"><span class="sc-ico">💰</span><div><div class="sc-key">الراتب</div><div class="sc-val">800 - 1200 دينار/شهر</div></div></div>
+        <div class="sc-item"><span class="sc-ico">🎓</span><div><div class="sc-key">المؤهل</div><div class="sc-val">بكالوريوس في الحاسوب أو ما يعادله</div></div></div>
+        <div class="sc-item"><span class="sc-ico">📅</span><div><div class="sc-key">تاريخ النشر</div><div class="sc-val">13 مايو 2025</div></div></div>
+      </div>
+
+      <!-- Similar jobs -->
+      <div class="side-card">
+        <div class="sc-title">وظائف مشابهة</div>
+        <div class="sc-item" style="cursor:pointer" onclick="window.location.reload()">
+          <span class="sc-ico">💻</span>
+          <div><div class="sc-val">مطور Frontend</div><div class="sc-key">إبداع للتقنية · عمان</div></div>
+        </div>
+        <div class="sc-item" style="cursor:pointer" onclick="window.location.reload()">
+          <span class="sc-ico">🚀</span>
+          <div><div class="sc-val">مهندس Backend</div><div class="sc-key">سوفت لاب · الرياض</div></div>
+        </div>
+        <div class="sc-item" style="cursor:pointer" onclick="window.location.reload()">
+          <span class="sc-ico">📱</span>
+          <div><div class="sc-val">مطور Flutter</div><div class="sc-key">تك رايز · دبي</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- APPLY MODAL -->
+<div class="overlay" id="applyOverlay" onclick="closeOverlay(event)">
+  <div class="modal">
+    <div class="modal-title">📝 تقديم على وظيفة مطور Full Stack</div>
+    <div style="background:rgba(0,200,150,.06);border:1px solid rgba(0,200,150,.15);border-radius:10px;padding:10px 12px;font-size:.74rem;color:var(--t2);margin-bottom:14px">
+      سيتم إرفاق ملفك الشخصي (TW-EMP-XXXXX) تلقائياً مع الطلب.
+    </div>
+    <div class="mf">
+      <label>رسالة تغطية (اختياري)</label>
+      <textarea placeholder="أخبر الشركة لماذا أنت مناسب لهذه الوظيفة..."></textarea>
+    </div>
+    <div class="mact">
+      <button class="mbtn mbtn-ok" onclick="confirmApply()">إرسال الطلب ✓</button>
+      <button class="mbtn mbtn-no" onclick="document.getElementById('applyOverlay').classList.remove('show')">إلغاء</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let _user=null;
+try{_user=JSON.parse(localStorage.getItem('tw_user'));}catch(e){}
+if(!_user||!_user.id){window.location.href='/';}
+
+function openApply(){document.getElementById('applyOverlay').classList.add('show');}
+
+function confirmApply(){
+  const btn=document.getElementById('applyBtn');
+  btn.textContent='✓ تم التقديم';
+  btn.classList.add('applied');
+  btn.onclick=null;
+  document.getElementById('applyOverlay').classList.remove('show');
+}
+
+function saveJob(btn){
+  btn.textContent='✓ محفوظة';
+  btn.style.color='var(--ac)';
+  btn.onclick=null;
+}
+
+function closeOverlay(e){if(e.target.classList.contains('overlay'))e.target.classList.remove('show');}
+function goHome(){window.location.href=_user?'home.html':'/';}
+</script>
+</body>
+</html>

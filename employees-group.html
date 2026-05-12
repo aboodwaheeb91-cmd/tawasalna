@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>تواصلنا - موظفو الشركة</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
+<style>
+:root{--ac:#2563ff;--ac2:#00c896;--bg:#070b18;--card:rgba(255,255,255,.03);--border:rgba(255,255,255,.07);--t:rgba(255,255,255,.87);--t2:rgba(255,255,255,.5);--t3:rgba(255,255,255,.27);}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-height:100vh;}
+
+.nav{position:fixed;top:0;left:0;right:0;z-index:100;height:52px;display:flex;align-items:center;gap:8px;padding:0 14px;background:rgba(7,11,24,.93);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);}
+.nav-logo{font-size:1rem;font-weight:900;background:linear-gradient(135deg,var(--ac),var(--ac2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-left:auto;cursor:pointer;}
+.nb{padding:5px 11px;border-radius:8px;border:none;cursor:pointer;font-family:'Cairo',sans-serif;font-size:.73rem;font-weight:700;transition:all .2s;}
+.nb-ghost{background:rgba(255,255,255,.07);color:var(--t2);border:1px solid var(--border);}
+.nb-ghost:hover{background:rgba(255,255,255,.12);color:var(--t);}
+.nb-primary{background:linear-gradient(135deg,var(--ac),var(--ac2));color:#fff;}
+.nb-primary:hover{transform:translateY(-1px);box-shadow:0 4px 14px rgba(37,99,255,.35);}
+
+.layout{padding-top:52px;display:grid;grid-template-columns:260px 1fr;max-width:1100px;margin:0 auto;min-height:100vh;}
+
+/* SIDEBAR */
+.sidebar{padding:18px 12px;border-left:1px solid var(--border);position:sticky;top:52px;height:calc(100vh - 52px);overflow-y:auto;}
+.co-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:14px;margin-bottom:14px;text-align:center;}
+.co-logo{width:54px;height:54px;border-radius:13px;margin:0 auto 8px;background:linear-gradient(135deg,var(--ac),var(--ac2));display:flex;align-items:center;justify-content:center;font-size:1.4rem;}
+.co-name{font-size:.82rem;font-weight:800;margin-bottom:2px;}
+.co-code{font-size:.58rem;color:var(--t3);letter-spacing:.8px;}
+.co-stats{display:flex;margin-top:10px;padding-top:10px;border-top:1px solid var(--border);}
+.cst{flex:1;text-align:center;}
+.csn{font-size:.9rem;font-weight:900;color:var(--ac);}
+.csl{font-size:.58rem;color:var(--t3);}
+
+.nav-menu{display:flex;flex-direction:column;gap:2px;}
+.ni{display:flex;align-items:center;gap:8px;padding:8px 11px;border-radius:9px;cursor:pointer;transition:all .2s;color:var(--t2);font-size:.78rem;font-weight:700;text-decoration:none;}
+.ni:hover{background:rgba(255,255,255,.05);color:var(--t);}
+.ni.active{background:rgba(37,99,255,.08);color:var(--ac);border:1px solid rgba(37,99,255,.15);}
+.ni-ico{font-size:.95rem;width:18px;text-align:center;}
+
+/* MAIN */
+.main{padding:20px 18px;}
+.sec-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
+.sec-hd h2{font-size:.88rem;font-weight:800;}
+
+/* STATS */
+.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px;}
+.stat-card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:14px;display:flex;align-items:center;gap:10px;}
+.si{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0;}
+.si-blue{background:rgba(37,99,255,.15);}
+.si-green{background:rgba(0,200,150,.15);}
+.si-purple{background:rgba(139,92,246,.15);}
+.si-orange{background:rgba(249,115,22,.15);}
+.sn{font-size:1.2rem;font-weight:900;margin-bottom:1px;}
+.sl{font-size:.64rem;color:var(--t2);}
+
+/* GROUPS */
+.groups-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;margin-bottom:20px;}
+.group-card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:14px;cursor:pointer;transition:all .2s;}
+.group-card:hover{border-color:rgba(37,99,255,.25);transform:translateY(-1px);}
+.group-card.active-g{border-color:rgba(37,99,255,.35);background:rgba(37,99,255,.05);}
+.gc-icon{font-size:1.6rem;margin-bottom:6px;}
+.gc-name{font-size:.8rem;font-weight:800;margin-bottom:3px;}
+.gc-count{font-size:.66rem;color:var(--t3);}
+.add-group-card{background:rgba(255,255,255,.02);border:2px dashed rgba(37,99,255,.2);border-radius:14px;padding:14px;cursor:pointer;transition:all .2s;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-height:90px;}
+.add-group-card:hover{border-color:rgba(37,99,255,.45);background:rgba(37,99,255,.04);}
+.agc-ico{font-size:1.4rem;color:rgba(37,99,255,.5);}
+.agc-lbl{font-size:.74rem;font-weight:700;color:rgba(37,99,255,.6);}
+
+/* EMPLOYEES TABLE */
+.table-wrap{background:var(--card);border:1px solid var(--border);border-radius:16px;overflow:hidden;}
+.table-head{display:grid;grid-template-columns:1fr 1fr .8fr .7fr .6fr;padding:11px 16px;background:rgba(255,255,255,.03);border-bottom:1px solid var(--border);font-size:.67rem;font-weight:700;color:var(--t3);letter-spacing:.5px;}
+.table-row{display:grid;grid-template-columns:1fr 1fr .8fr .7fr .6fr;padding:12px 16px;border-bottom:1px solid rgba(255,255,255,.04);align-items:center;transition:background .15s;}
+.table-row:last-child{border-bottom:none;}
+.table-row:hover{background:rgba(255,255,255,.02);}
+.tr-emp{display:flex;align-items:center;gap:9px;}
+.tr-ava{width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,var(--ac),var(--ac2));display:flex;align-items:center;justify-content:center;font-size:.85rem;flex-shrink:0;}
+.tr-name{font-size:.78rem;font-weight:700;}
+.tr-code{font-size:.62rem;color:var(--t3);}
+.tr-dept{font-size:.74rem;color:var(--t2);}
+.tr-join{font-size:.68rem;color:var(--t3);}
+.tr-course{font-size:.68rem;}
+.c-done{color:var(--ac2);}
+.c-inprog{color:#eab308;}
+.c-none{color:var(--t3);}
+.tr-actions{display:flex;gap:4px;}
+.ta-btn{padding:4px 9px;border-radius:7px;border:none;font-family:'Cairo',sans-serif;font-size:.62rem;font-weight:700;cursor:pointer;transition:all .15s;}
+.ta-view{background:rgba(37,99,255,.1);color:#60a5fa;}
+.ta-msg{background:rgba(255,255,255,.07);color:var(--t2);}
+.ta-course{background:rgba(0,200,150,.1);color:var(--ac2);}
+
+/* ADD employee search */
+.add-emp-box{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:16px;margin-bottom:16px;}
+.add-emp-box h3{font-size:.82rem;font-weight:800;margin-bottom:12px;}
+.add-row{display:flex;gap:8px;}
+.add-input{flex:1;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:10px;color:var(--t);font-family:'Cairo',sans-serif;font-size:.8rem;outline:none;direction:rtl;}
+.add-input:focus{border-color:var(--ac);}
+.add-input::placeholder{color:var(--t3);}
+
+/* Modal */
+.overlay{position:fixed;inset:0;z-index:2000;background:rgba(0,0,0,.78);display:flex;align-items:center;justify-content:center;padding:16px;opacity:0;pointer-events:none;transition:opacity .2s;}
+.overlay.show{opacity:1;pointer-events:all;}
+.modal{background:#0a0f1e;border:1px solid rgba(255,255,255,.1);border-radius:20px;width:100%;max-width:460px;max-height:88vh;overflow-y:auto;padding:24px;font-family:'Cairo',sans-serif;transform:translateY(12px);transition:transform .2s;}
+.overlay.show .modal{transform:translateY(0);}
+.modal-title{font-size:.95rem;font-weight:800;color:#fff;margin-bottom:18px;}
+.mf{margin-bottom:12px;}
+.mf label{display:block;font-size:.72rem;font-weight:700;color:rgba(255,255,255,.45);margin-bottom:4px;}
+.mf input,.mf select{width:100%;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:'Cairo',sans-serif;font-size:.82rem;outline:none;direction:rtl;}
+.mf input:focus{border-color:var(--ac);}
+.mf select option{background:#0a0f1e;}
+.mact{display:flex;gap:8px;margin-top:16px;}
+.mbtn{flex:1;padding:10px;border:none;border-radius:10px;font-family:'Cairo',sans-serif;font-size:.82rem;font-weight:700;cursor:pointer;}
+.mbtn-ok{background:linear-gradient(135deg,var(--ac),var(--ac2));color:#fff;}
+.mbtn-no{background:rgba(255,255,255,.07);color:rgba(255,255,255,.55);}
+
+/* Course assign modal */
+.course-item{display:flex;align-items:center;gap:10px;padding:10px 12px;background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:10px;margin-bottom:7px;cursor:pointer;transition:all .2s;}
+.course-item:hover{border-color:rgba(0,200,150,.3);}
+.course-item.selected{border-color:rgba(0,200,150,.4);background:rgba(0,200,150,.06);}
+.ci-ico{font-size:1.2rem;}
+.ci-info{flex:1;}
+.ci-name{font-size:.78rem;font-weight:700;}
+.ci-meta{font-size:.65rem;color:var(--t3);}
+.ci-check{color:var(--ac2);font-size:.9rem;}
+
+@media(max-width:768px){
+  .layout{grid-template-columns:1fr;}
+  .sidebar{display:none;}
+  .stats-row{grid-template-columns:1fr 1fr;}
+  .table-head,.table-row{grid-template-columns:1fr .8fr .6fr;}
+  .table-head span:nth-child(3),.table-row .tr-join,
+  .table-head span:nth-child(4),.table-row .tr-course{display:none;}
+}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <button class="nb nb-ghost" onclick="goBack()">← ملف الشركة</button>
+  <span style="font-size:.82rem;font-weight:700;color:var(--t2)">👥 موظفو الشركة</span>
+  <div class="nav-logo" onclick="goBack()">تواصلنا</div>
+  <button class="nb nb-primary" onclick="openAddEmp()">+ إضافة موظف</button>
+</nav>
+
+<div class="layout">
+
+  <aside class="sidebar">
+    <div class="co-card">
+      <div class="co-logo">🏢</div>
+      <div class="co-name" id="sCoName">شركتك</div>
+      <div class="co-code" id="sCoCode">TW-CO-00001</div>
+      <div class="co-stats">
+        <div class="cst"><div class="csn" id="totalEmp">5</div><div class="csl">موظف</div></div>
+        <div class="cst"><div class="csn">2</div><div class="csl">مجموعة</div></div>
+        <div class="cst"><div class="csn">3</div><div class="csl">دورة نشطة</div></div>
+      </div>
+    </div>
+    <nav class="nav-menu">
+      <a class="ni" href="#" onclick="goBack()"><span class="ni-ico">🏢</span>ملف الشركة</a>
+      <a class="ni active" href="#"><span class="ni-ico">👥</span>الموظفون</a>
+      <a class="ni" href="company.html"><span class="ni-ico">🔍</span>بحث موظفين</a>
+      <a class="ni" href="messages.html"><span class="ni-ico">💬</span>الرسائل</a>
+      <a class="ni" href="notifications.html"><span class="ni-ico">🔔</span>الإشعارات</a>
+    </nav>
+  </aside>
+
+  <main class="main">
+
+    <!-- Stats -->
+    <div class="stats-row">
+      <div class="stat-card"><div class="si si-blue">👥</div><div><div class="sn" id="st1">5</div><div class="sl">إجمالي الموظفين</div></div></div>
+      <div class="stat-card"><div class="si si-green">🎓</div><div><div class="sn">3</div><div class="sl">في دورات نشطة</div></div></div>
+      <div class="stat-card"><div class="si si-purple">✅</div><div><div class="sn">8</div><div class="sl">شهادة موثقة</div></div></div>
+      <div class="stat-card"><div class="si si-orange">⭐</div><div><div class="sn">4.3</div><div class="sl">متوسط التقييم</div></div></div>
+    </div>
+
+    <!-- Add employee -->
+    <div class="add-emp-box">
+      <h3>➕ إضافة موظف للشركة</h3>
+      <div class="add-row">
+        <input class="add-input" id="empSearch" placeholder="اكتب كود الموظف (TW-EMP-XXXXX) أو بريده الإلكتروني...">
+        <button class="nb nb-primary" onclick="addEmployee()">إضافة</button>
+      </div>
+      <div style="font-size:.68rem;color:var(--t3);margin-top:7px">الموظف سيُضاف لقائمة موظفيك ويمكنه تقييم الشركة</div>
+    </div>
+
+    <!-- Groups -->
+    <div class="sec-hd">
+      <h2>📂 المجموعات / الأقسام</h2>
+      <button class="nb nb-ghost" onclick="openAddGroup()">+ مجموعة جديدة</button>
+    </div>
+    <div class="groups-row" id="groupsRow">
+      <div class="group-card active-g" onclick="filterGroup('all',this)">
+        <div class="gc-icon">👥</div>
+        <div class="gc-name">كل الموظفين</div>
+        <div class="gc-count">5 موظفين</div>
+      </div>
+      <div class="group-card" onclick="filterGroup('dev',this)">
+        <div class="gc-icon">💻</div>
+        <div class="gc-name">قسم التطوير</div>
+        <div class="gc-count">3 موظفين</div>
+      </div>
+      <div class="group-card" onclick="filterGroup('design',this)">
+        <div class="gc-icon">🎨</div>
+        <div class="gc-name">قسم التصميم</div>
+        <div class="gc-count">2 موظفين</div>
+      </div>
+      <div class="add-group-card" onclick="openAddGroup()">
+        <div class="agc-ico">+</div>
+        <div class="agc-lbl">إضافة قسم</div>
+      </div>
+    </div>
+
+    <!-- Employees Table -->
+    <div class="sec-hd">
+      <h2>👤 قائمة الموظفين</h2>
+      <div style="display:flex;gap:6px">
+        <button class="nb nb-ghost" onclick="openAssignCourse()">🎓 تعيين دورة</button>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <div class="table-head">
+        <span>الموظف</span>
+        <span>القسم</span>
+        <span>تاريخ الإضافة</span>
+        <span>الدورة الحالية</span>
+        <span>إجراء</span>
+      </div>
+      <div id="empTable">
+        <div class="table-row" data-group="dev">
+          <div class="tr-emp"><div class="tr-ava">👨‍💻</div><div><div class="tr-name">أحمد محمد الزعبي</div><div class="tr-code">TW-EMP-00101</div></div></div>
+          <div class="tr-dept">التطوير</div>
+          <div class="tr-join">2025/01/10</div>
+          <div class="tr-course c-inprog">⏳ React المتقدم</div>
+          <div class="tr-actions"><button class="ta-btn ta-view" onclick="viewEmp()">👁</button><button class="ta-btn ta-msg" onclick="msgEmp()">💬</button><button class="ta-btn ta-course" onclick="openAssignCourse()">🎓</button></div>
+        </div>
+        <div class="table-row" data-group="dev">
+          <div class="tr-emp"><div class="tr-ava">👩‍💻</div><div><div class="tr-name">سارة خالد المنصور</div><div class="tr-code">TW-EMP-00102</div></div></div>
+          <div class="tr-dept">التطوير</div>
+          <div class="tr-join">2025/02/05</div>
+          <div class="tr-course c-done">✓ Python أساسيات</div>
+          <div class="tr-actions"><button class="ta-btn ta-view" onclick="viewEmp()">👁</button><button class="ta-btn ta-msg" onclick="msgEmp()">💬</button><button class="ta-btn ta-course" onclick="openAssignCourse()">🎓</button></div>
+        </div>
+        <div class="table-row" data-group="dev">
+          <div class="tr-emp"><div class="tr-ava">👨‍💻</div><div><div class="tr-name">محمد يوسف البكري</div><div class="tr-code">TW-EMP-00103</div></div></div>
+          <div class="tr-dept">التطوير</div>
+          <div class="tr-join">2025/02/20</div>
+          <div class="tr-course c-none">— لا يوجد</div>
+          <div class="tr-actions"><button class="ta-btn ta-view" onclick="viewEmp()">👁</button><button class="ta-btn ta-msg" onclick="msgEmp()">💬</button><button class="ta-btn ta-course" onclick="openAssignCourse()">🎓</button></div>
+        </div>
+        <div class="table-row" data-group="design">
+          <div class="tr-emp"><div class="tr-ava">👩‍🎨</div><div><div class="tr-name">رنا عبدالله الحسن</div><div class="tr-code">TW-EMP-00104</div></div></div>
+          <div class="tr-dept">التصميم</div>
+          <div class="tr-join">2025/03/01</div>
+          <div class="tr-course c-inprog">⏳ UX Design</div>
+          <div class="tr-actions"><button class="ta-btn ta-view" onclick="viewEmp()">👁</button><button class="ta-btn ta-msg" onclick="msgEmp()">💬</button><button class="ta-btn ta-course" onclick="openAssignCourse()">🎓</button></div>
+        </div>
+        <div class="table-row" data-group="design">
+          <div class="tr-emp"><div class="tr-ava">👨‍🎨</div><div><div class="tr-name">خالد إبراهيم العمر</div><div class="tr-code">TW-EMP-00105</div></div></div>
+          <div class="tr-dept">التصميم</div>
+          <div class="tr-join">2025/03/15</div>
+          <div class="tr-course c-done">✓ Figma أساسيات</div>
+          <div class="tr-actions"><button class="ta-btn ta-view" onclick="viewEmp()">👁</button><button class="ta-btn ta-msg" onclick="msgEmp()">💬</button><button class="ta-btn ta-course" onclick="openAssignCourse()">🎓</button></div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- ADD EMPLOYEE MODAL -->
+<div class="overlay" id="addEmpOverlay" onclick="closeOverlay(event)">
+  <div class="modal">
+    <div class="modal-title">➕ إضافة موظف</div>
+    <div class="mf"><label>كود الموظف أو البريد الإلكتروني</label><input id="m-emp" placeholder="TW-EMP-XXXXX أو email@..."></div>
+    <div class="mf"><label>القسم / المجموعة</label>
+      <select id="m-dept">
+        <option>كل الموظفين</option>
+        <option>قسم التطوير</option>
+        <option>قسم التصميم</option>
+      </select>
+    </div>
+    <div style="background:rgba(0,200,150,.06);border:1px solid rgba(0,200,150,.15);border-radius:10px;padding:10px 12px;font-size:.72rem;color:var(--t2);margin-bottom:12px">
+      ملاحظة: الموظف لن يرى معلومات الموظفين الآخرين. فقط يمكنه تقييم شركتك.
+    </div>
+    <div class="mact">
+      <button class="mbtn mbtn-ok" onclick="confirmAddEmp()">إضافة</button>
+      <button class="mbtn mbtn-no" onclick="document.getElementById('addEmpOverlay').classList.remove('show')">إلغاء</button>
+    </div>
+  </div>
+</div>
+
+<!-- ADD GROUP MODAL -->
+<div class="overlay" id="addGroupOverlay" onclick="closeOverlay(event)">
+  <div class="modal">
+    <div class="modal-title">📂 إضافة قسم / مجموعة</div>
+    <div class="mf"><label>اسم القسم</label><input id="m-gname" placeholder="مثال: قسم المبيعات..."></div>
+    <div class="mf"><label>أيقونة</label><input id="m-gico" placeholder="📊" style="font-size:1.2rem;max-width:80px"></div>
+    <div class="mact">
+      <button class="mbtn mbtn-ok" onclick="confirmAddGroup()">إنشاء القسم</button>
+      <button class="mbtn mbtn-no" onclick="document.getElementById('addGroupOverlay').classList.remove('show')">إلغاء</button>
+    </div>
+  </div>
+</div>
+
+<!-- ASSIGN COURSE MODAL -->
+<div class="overlay" id="courseOverlay" onclick="closeOverlay(event)">
+  <div class="modal">
+    <div class="modal-title">🎓 تعيين دورة للموظفين</div>
+    <div style="font-size:.74rem;color:var(--t2);margin-bottom:14px">اختر دورة من المراكز التعليمية المتاحة:</div>
+    <div class="course-item" onclick="selectCourse(this)">
+      <div class="ci-ico">⚛️</div>
+      <div class="ci-info"><div class="ci-name">React المتقدم</div><div class="ci-meta">أكاديمية التميز · 24 ساعة · 49$</div></div>
+      <span class="ci-check" style="display:none">✓</span>
+    </div>
+    <div class="course-item" onclick="selectCourse(this)">
+      <div class="ci-ico">🐍</div>
+      <div class="ci-info"><div class="ci-name">Python للمبتدئين</div><div class="ci-meta">أكاديمية التميز · 8 ساعات · مجاني</div></div>
+      <span class="ci-check" style="display:none">✓</span>
+    </div>
+    <div class="course-item" onclick="selectCourse(this)">
+      <div class="ci-ico">🎨</div>
+      <div class="ci-info"><div class="ci-name">UX Design Fundamentals</div><div class="ci-meta">مركز الإبداع · 16 ساعة · 35$</div></div>
+      <span class="ci-check" style="display:none">✓</span>
+    </div>
+    <div class="mf" style="margin-top:12px"><label>عيّن للمجموعة</label>
+      <select><option>كل الموظفين</option><option>قسم التطوير</option><option>قسم التصميم</option></select>
+    </div>
+    <div class="mf"><label>من يدفع؟</label>
+      <select><option>الشركة تدفع</option><option>الموظف يدفع</option><option>مقسّم 50/50</option></select>
+    </div>
+    <div class="mact">
+      <button class="mbtn mbtn-ok" onclick="assignCourse()">تعيين الدورة</button>
+      <button class="mbtn mbtn-no" onclick="document.getElementById('courseOverlay').classList.remove('show')">إلغاء</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let _user=null;
+try{_user=JSON.parse(localStorage.getItem('tw_user'));}catch(e){}
+if(!_user||!_user.id||_user.user_type!=='co'){window.location.href='/';}
+if(_user){
+  document.getElementById('sCoName').textContent=_user.full_name||'شركتك';
+  document.getElementById('sCoCode').textContent='TW-CO-'+String(_user.id).padStart(5,'0');
+}
+
+function filterGroup(g,el){
+  document.querySelectorAll('.group-card').forEach(c=>c.classList.remove('active-g'));
+  el.classList.add('active-g');
+  document.querySelectorAll('.table-row').forEach(r=>{
+    r.style.display=(g==='all'||r.dataset.group===g)?'':'none';
+  });
+}
+
+function addEmployee(){
+  const v=document.getElementById('empSearch').value.trim();
+  if(!v)return;
+  openAddEmp();
+  document.getElementById('m-emp').value=v;
+}
+
+function openAddEmp(){document.getElementById('addEmpOverlay').classList.add('show');}
+
+function confirmAddEmp(){
+  const emp=document.getElementById('m-emp').value.trim();
+  const dept=document.getElementById('m-dept').value;
+  if(!emp){alert('أدخل كود الموظف');return;}
+  const table=document.getElementById('empTable');
+  table.insertAdjacentHTML('afterbegin',`
+    <div class="table-row" data-group="all">
+      <div class="tr-emp"><div class="tr-ava">👤</div><div><div class="tr-name">${emp}</div><div class="tr-code">جديد</div></div></div>
+      <div class="tr-dept">${dept}</div>
+      <div class="tr-join">${new Date().toLocaleDateString('ar')}</div>
+      <div class="tr-course c-none">— لا يوجد</div>
+      <div class="tr-actions"><button class="ta-btn ta-view" onclick="viewEmp()">👁</button><button class="ta-btn ta-msg" onclick="msgEmp()">💬</button><button class="ta-btn ta-course" onclick="openAssignCourse()">🎓</button></div>
+    </div>`);
+  const n=parseInt(document.getElementById('st1').textContent)+1;
+  document.getElementById('st1').textContent=n;
+  document.getElementById('totalEmp').textContent=n;
+  document.getElementById('addEmpOverlay').classList.remove('show');
+  document.getElementById('empSearch').value='';
+}
+
+function openAddGroup(){document.getElementById('addGroupOverlay').classList.add('show');}
+
+function confirmAddGroup(){
+  const nm=document.getElementById('m-gname').value.trim();
+  const ico=document.getElementById('m-gico').value.trim()||'📂';
+  if(!nm)return;
+  const addCard=document.querySelector('.add-group-card');
+  addCard.insertAdjacentHTML('beforebegin',`
+    <div class="group-card" onclick="filterGroup('${nm}',this)">
+      <div class="gc-icon">${ico}</div>
+      <div class="gc-name">${nm}</div>
+      <div class="gc-count">0 موظفين</div>
+    </div>`);
+  document.getElementById('addGroupOverlay').classList.remove('show');
+}
+
+function openAssignCourse(){document.getElementById('courseOverlay').classList.add('show');}
+
+function selectCourse(el){
+  document.querySelectorAll('.course-item').forEach(i=>{i.classList.remove('selected');i.querySelector('.ci-check').style.display='none';});
+  el.classList.add('selected');
+  el.querySelector('.ci-check').style.display='';
+}
+
+function assignCourse(){
+  alert('تم تعيين الدورة للموظفين المحددين! ✓');
+  document.getElementById('courseOverlay').classList.remove('show');
+}
+
+function viewEmp(){window.open('profile.html','_blank');}
+function msgEmp(){window.location.href='messages.html';}
+function closeOverlay(e){if(e.target.classList.contains('overlay'))e.target.classList.remove('show');}
+function goBack(){window.location.href='company-profile.html?id='+(_user?_user.id:'');}
+</script>
+</body>
+</html>

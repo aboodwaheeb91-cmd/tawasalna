@@ -151,11 +151,15 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-heig
 <body>
 
 <nav class="nav">
-  <button class="nb nb-ghost" onclick="history.back()">← رجوع</button>
-  <div class="nav-logo" onclick="goHome()">تواصلنا</div>
-  <div id="ownerActions" style="display:none;gap:6px">
-    <button class="nb nb-ghost" onclick="location.href='company.html'">🔍 البحث عن موظفين</button>
-    <button class="nb nb-primary" onclick="openEditModal()">✏️ تعديل الملف</button>
+    <div class="nav-logo" onclick="goHome()">تواصلنا</div>
+  <div id="ownerActions" style="display:none;gap:6px;flex-wrap:wrap">
+    <button class="nb nb-ghost" onclick="location.href='company.html'">🔍 موظفين</button>
+    <button class="nb nb-ghost" onclick="location.href='employees-group.html'">👥 فريقي</button>
+    <button class="nb nb-ghost" onclick="location.href='messages.html'">💬 رسائل</button>
+    <button class="nb nb-ghost" onclick="location.href='notifications.html'">🔔 إشعارات</button>
+    <button class="nb nb-ghost" onclick="location.href='settings.html'">⚙️</button>
+    <button class="nb nb-primary" onclick="openPostJob()">+ نشر وظيفة</button>
+    <button class="nb nb-ghost" onclick="openEditModal()">✏️ تعديل</button>
   </div>
 </nav>
 
@@ -500,11 +504,67 @@ function sendMsg(){
 function closeEdit(e){ if(e.target===document.getElementById('editOverlay')) document.getElementById('editOverlay').classList.remove('show'); }
 function closeContact(e){ if(e.target===document.getElementById('contactOverlay')) document.getElementById('contactOverlay').classList.remove('show'); }
 
+function openPostJob(){document.getElementById('postJobOverlay').classList.add('show');}
+
+function publishJob(){
+  const title=document.getElementById('j-title').value.trim();
+  if(!title){alert('أدخل المسمى الوظيفي');return;}
+  const type=document.getElementById('j-type').value;
+  const loc=document.getElementById('j-loc').value||'—';
+  const s1=document.getElementById('j-sal1').value;
+  const s2=document.getElementById('j-sal2').value;
+  const skills=document.getElementById('j-skills').value.split(',').filter(s=>s.trim());
+
+  const jobCard=`<div class="job-card">
+    <div class="job-title">${title}</div>
+    <div class="job-meta"><span>📍 ${loc}</span><span>⏰ ${type}</span><span>🕐 الآن</span></div>
+    <div class="job-tags">
+      ${skills.slice(0,4).map(s=>`<span class="jtag jtag-blue">${s.trim()}</span>`).join('')}
+    </div>
+    <div class="job-footer">
+      <div><div class="job-salary">${s1&&s2?s1+' - '+s2+' دينار/شهر':'لم يُحدد'}</div></div>
+      <button class="apply-btn" style="background:rgba(255,255,255,.07);color:var(--t2)">إدارة الطلبات</button>
+    </div>
+  </div>`;
+
+  const list=document.getElementById('jobsList');
+  list.insertAdjacentHTML('afterbegin',jobCard);
+  document.getElementById('jobsCount').textContent=parseInt(document.getElementById('jobsCount').textContent)+1;
+  document.getElementById('postJobOverlay').classList.remove('show');
+}
+
 function goHome(){
   if(!_user){ window.location.href = '/'; return; }
   const dest = _user.user_type==='co' ? 'company.html' : _user.user_type==='edu' ? 'edu.html' : 'home.html';
   window.location.href = dest;
 }
 </script>
+
+<!-- POST JOB MODAL -->
+<div class="overlay" id="postJobOverlay" onclick="if(event.target===this)this.classList.remove('show')">
+  <div class="modal" style="max-width:520px">
+    <div class="modal-title">💼 نشر وظيفة جديدة</div>
+    <div class="mf"><label>المسمى الوظيفي *</label><input id="j-title" placeholder="مثال: مطور Full Stack..."></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="mf"><label>الموقع</label><input id="j-loc" placeholder="عمان، الأردن"></div>
+      <div class="mf"><label>نوع الدوام</label>
+        <select id="j-type" style="width:100%;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:'Cairo',sans-serif;font-size:.82rem;outline:none;direction:rtl">
+          <option>دوام كامل</option><option>دوام جزئي</option><option>عن بُعد</option><option>هجين</option>
+        </select>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="mf"><label>الراتب من</label><input id="j-sal1" type="number" placeholder="800"></div>
+      <div class="mf"><label>الراتب إلى</label><input id="j-sal2" type="number" placeholder="1200"></div>
+    </div>
+    <div class="mf"><label>وصف الوظيفة</label><textarea id="j-desc" style="width:100%;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:'Cairo',sans-serif;font-size:.82rem;outline:none;resize:vertical;min-height:80px;direction:rtl" placeholder="اكتب وصف الوظيفة والمتطلبات..."></textarea></div>
+    <div class="mf"><label>المهارات المطلوبة (افصل بفاصلة)</label><input id="j-skills" placeholder="React, Python, SQL..."></div>
+    <div class="mact">
+      <button class="mbtn mbtn-ok" onclick="publishJob()">نشر الوظيفة</button>
+      <button class="mbtn mbtn-no" onclick="document.getElementById('postJobOverlay').classList.remove('show')">إلغاء</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
