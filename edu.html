@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>تواصلنا - المركز التعليمي</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
+<style>
+:root{--ac:#8b5cf6;--ac2:#2563ff;--bg:#070b18;--card:rgba(255,255,255,.03);--border:rgba(255,255,255,.07);--t:rgba(255,255,255,.87);--t2:rgba(255,255,255,.5);--t3:rgba(255,255,255,.27);}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-height:100vh;}
+
+/* ── NAV ── */
+.nav{position:fixed;top:0;left:0;right:0;z-index:100;height:52px;display:flex;align-items:center;gap:8px;padding:0 14px;background:rgba(7,11,24,.93);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);}
+.nav-logo{font-size:1rem;font-weight:900;background:linear-gradient(135deg,var(--ac),var(--ac2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-left:auto;}
+.nb{padding:5px 11px;border-radius:8px;border:none;cursor:pointer;font-family:'Cairo',sans-serif;font-size:.73rem;font-weight:700;transition:all .2s;}
+.nb-ghost{background:rgba(255,255,255,.07);color:var(--t2);border:1px solid var(--border);}
+.nb-ghost:hover{background:rgba(255,255,255,.12);color:var(--t);}
+.nb-primary{background:linear-gradient(135deg,var(--ac),var(--ac2));color:#fff;}
+.nb-primary:hover{transform:translateY(-1px);box-shadow:0 4px 14px rgba(139,92,246,.35);}
+.nb-danger{background:rgba(239,68,68,.1);color:#f87171;border:1px solid rgba(239,68,68,.15);}
+.edu-name{font-size:.8rem;font-weight:700;color:var(--t2);}
+.nav-ava{width:32px;height:32px;border-radius:10px;background:linear-gradient(135deg,var(--ac),var(--ac2));display:flex;align-items:center;justify-content:center;font-size:.85rem;}
+
+/* ── LAYOUT ── */
+.layout{padding-top:52px;display:grid;grid-template-columns:220px 1fr;max-width:1160px;margin:0 auto;min-height:100vh;}
+
+/* ── SIDEBAR ── */
+.sidebar{padding:18px 12px;border-left:1px solid var(--border);position:sticky;top:52px;height:calc(100vh - 52px);overflow-y:auto;}
+.edu-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:16px;margin-bottom:14px;text-align:center;}
+.edu-logo{width:62px;height:62px;border-radius:14px;margin:0 auto 10px;background:linear-gradient(135deg,var(--ac),var(--ac2));display:flex;align-items:center;justify-content:center;font-size:1.6rem;box-shadow:0 4px 16px rgba(139,92,246,.25);}
+.edu-nm{font-size:.86rem;font-weight:800;margin-bottom:2px;}
+.edu-type{font-size:.7rem;color:var(--ac);font-weight:700;margin-bottom:6px;}
+.edu-code{font-size:.58rem;color:var(--t3);letter-spacing:.8px;}
+.edu-stats{display:flex;margin-top:10px;padding-top:10px;border-top:1px solid var(--border);}
+.estat{flex:1;text-align:center;}
+.esn{font-size:.9rem;font-weight:900;color:var(--ac);}
+.esl{font-size:.58rem;color:var(--t3);}
+
+.nav-menu{display:flex;flex-direction:column;gap:2px;}
+.ni{display:flex;align-items:center;gap:8px;padding:8px 11px;border-radius:9px;cursor:pointer;transition:all .2s;color:var(--t2);font-size:.78rem;font-weight:700;text-decoration:none;}
+.ni:hover{background:rgba(255,255,255,.05);color:var(--t);}
+.ni.active{background:rgba(139,92,246,.08);color:var(--ac);border:1px solid rgba(139,92,246,.15);}
+.ni-ico{font-size:.95rem;width:18px;text-align:center;}
+.ni-badge{margin-right:auto;background:var(--ac);color:#fff;border-radius:10px;padding:1px 6px;font-size:.58rem;font-weight:900;}
+
+/* ── MAIN ── */
+.main{padding:20px 18px;}
+
+/* Section header */
+.sec-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
+.sec-hd h2{font-size:.88rem;font-weight:800;}
+
+/* Stats */
+.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:22px;}
+.stat-card{background:var(--card);border:1px solid var(--border);border-radius:15px;padding:16px;display:flex;align-items:center;gap:12px;}
+.stat-icon{width:42px;height:42px;border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:1.2rem;flex-shrink:0;}
+.si-purple{background:rgba(139,92,246,.15);}
+.si-blue{background:rgba(37,99,255,.15);}
+.si-green{background:rgba(0,200,150,.15);}
+.si-orange{background:rgba(249,115,22,.15);}
+.stat-info{}
+.stat-n{font-size:1.3rem;font-weight:900;color:var(--t);margin-bottom:1px;}
+.stat-l{font-size:.66rem;color:var(--t2);}
+
+/* Course cards grid */
+.courses-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;margin-bottom:22px;}
+.course-card{background:var(--card);border:1px solid var(--border);border-radius:18px;overflow:hidden;transition:all .2s;cursor:pointer;}
+.course-card:hover{border-color:rgba(139,92,246,.25);transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.3);}
+.course-thumb{height:120px;display:flex;align-items:center;justify-content:center;font-size:2.8rem;position:relative;}
+.course-thumb .overlay{position:absolute;inset:0;background:linear-gradient(to bottom,transparent,rgba(7,11,24,.7));}
+.price-badge{position:absolute;top:10px;left:10px;padding:3px 10px;border-radius:20px;font-size:.65rem;font-weight:800;font-family:'Cairo',sans-serif;z-index:1;}
+.free{background:rgba(0,200,150,.2);color:#00c896;border:1px solid rgba(0,200,150,.3);}
+.paid{background:rgba(139,92,246,.2);color:#c4b5fd;border:1px solid rgba(139,92,246,.3);}
+.status-badge{position:absolute;top:10px;right:10px;padding:3px 8px;border-radius:20px;font-size:.6rem;font-weight:800;z-index:1;}
+.published{background:rgba(0,200,150,.2);color:#00c896;border:1px solid rgba(0,200,150,.25);}
+.draft{background:rgba(255,255,255,.08);color:var(--t2);border:1px solid var(--border);}
+.course-body{padding:14px 16px;}
+.course-title{font-size:.88rem;font-weight:800;margin-bottom:4px;}
+.course-desc{font-size:.73rem;color:var(--t2);margin-bottom:10px;line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+.course-meta{display:flex;gap:10px;font-size:.67rem;color:var(--t3);margin-bottom:12px;}
+.course-actions{display:flex;gap:6px;}
+.ca-btn{flex:1;padding:7px;border-radius:9px;border:none;font-family:'Cairo',sans-serif;font-size:.72rem;font-weight:700;cursor:pointer;transition:all .2s;}
+.ca-edit{background:rgba(255,255,255,.07);color:var(--t2);}
+.ca-edit:hover{background:rgba(255,255,255,.12);color:var(--t);}
+.ca-view{background:rgba(139,92,246,.15);color:#c4b5fd;}
+.ca-view:hover{background:rgba(139,92,246,.25);}
+.enrollments{display:flex;align-items:center;gap:4px;font-size:.67rem;color:var(--t3);margin-bottom:8px;}
+.enroll-dots{display:flex;}
+.edot{width:18px;height:18px;border-radius:50%;background:linear-gradient(135deg,var(--ac),var(--ac2));border:2px solid var(--bg);margin-left:-5px;display:flex;align-items:center;justify-content:center;font-size:.55rem;}
+
+/* Add course card */
+.add-course-card{background:rgba(255,255,255,.02);border:2px dashed rgba(139,92,246,.2);border-radius:18px;padding:30px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;cursor:pointer;transition:all .2s;min-height:200px;}
+.add-course-card:hover{border-color:rgba(139,92,246,.45);background:rgba(139,92,246,.04);}
+.add-ico{width:52px;height:52px;border-radius:14px;background:rgba(139,92,246,.12);display:flex;align-items:center;justify-content:center;font-size:1.5rem;transition:all .2s;}
+.add-course-card:hover .add-ico{background:rgba(139,92,246,.2);}
+.add-lbl{font-size:.82rem;font-weight:700;color:rgba(139,92,246,.7);}
+.add-sub{font-size:.68rem;color:var(--t3);}
+
+/* Enrollments table */
+.table-wrap{background:var(--card);border:1px solid var(--border);border-radius:16px;overflow:hidden;margin-bottom:20px;}
+.table-head{display:grid;grid-template-columns:1fr 1fr 1fr .6fr .5fr;gap:0;padding:11px 16px;background:rgba(255,255,255,.03);border-bottom:1px solid var(--border);font-size:.68rem;font-weight:700;color:var(--t3);letter-spacing:.5px;}
+.table-row{display:grid;grid-template-columns:1fr 1fr 1fr .6fr .5fr;gap:0;padding:11px 16px;border-bottom:1px solid var(--border);align-items:center;transition:background .15s;cursor:pointer;}
+.table-row:last-child{border-bottom:none;}
+.table-row:hover{background:rgba(255,255,255,.02);}
+.tr-name{font-size:.78rem;font-weight:700;display:flex;align-items:center;gap:7px;}
+.tr-ava{width:26px;height:26px;border-radius:8px;background:linear-gradient(135deg,#2563ff,#00c896);display:flex;align-items:center;justify-content:center;font-size:.7rem;flex-shrink:0;}
+.tr-course{font-size:.74rem;color:var(--t2);}
+.tr-date{font-size:.68rem;color:var(--t3);}
+.tr-status{font-size:.64rem;font-weight:700;padding:2px 7px;border-radius:10px;}
+.st-active{background:rgba(0,200,150,.1);color:#00c896;}
+.st-pending{background:rgba(251,146,60,.1);color:#fb923c;}
+.tr-action{display:flex;gap:4px;}
+.ta-btn{padding:4px 8px;border-radius:6px;border:none;font-family:'Cairo',sans-serif;font-size:.62rem;font-weight:700;cursor:pointer;background:rgba(255,255,255,.07);color:var(--t2);transition:all .15s;}
+.ta-btn:hover{background:rgba(255,255,255,.12);color:var(--t);}
+
+/* Announcements */
+.announce-wrap{display:flex;flex-direction:column;gap:10px;margin-bottom:20px;}
+.announce{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:14px 16px;display:flex;gap:12px;align-items:flex-start;}
+.ann-ico{width:36px;height:36px;border-radius:9px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:1rem;}
+.ann-purple{background:rgba(139,92,246,.12);}
+.ann-blue{background:rgba(37,99,255,.12);}
+.ann-green{background:rgba(0,200,150,.12);}
+.ann-title{font-size:.78rem;font-weight:700;margin-bottom:2px;}
+.ann-body{font-size:.72rem;color:var(--t2);line-height:1.5;}
+.ann-date{font-size:.63rem;color:var(--t3);margin-top:4px;}
+
+/* Modal */
+.overlay{position:fixed;inset:0;z-index:2000;background:rgba(0,0,0,.78);display:flex;align-items:center;justify-content:center;padding:16px;opacity:0;pointer-events:none;transition:opacity .2s;}
+.overlay.show{opacity:1;pointer-events:all;}
+.modal{background:#0a0f1e;border:1px solid rgba(255,255,255,.1);border-radius:20px;width:100%;max-width:520px;max-height:90vh;overflow-y:auto;padding:26px;font-family:'Cairo',sans-serif;transform:translateY(12px);transition:transform .2s;}
+.overlay.show .modal{transform:translateY(0);}
+.modal-title{font-size:1rem;font-weight:800;color:#fff;margin-bottom:20px;}
+.mf{margin-bottom:13px;}
+.mf label{display:block;font-size:.72rem;font-weight:700;color:rgba(255,255,255,.45);margin-bottom:4px;}
+.mf input,.mf textarea,.mf select{width:100%;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:'Cairo',sans-serif;font-size:.82rem;outline:none;transition:border-color .2s;direction:rtl;}
+.mf input:focus,.mf textarea:focus{border-color:var(--ac);}
+.mf textarea{resize:vertical;min-height:80px;}
+.mf select option{background:#0a0f1e;}
+.price-row{display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:center;}
+.toggle-wrap{display:flex;align-items:center;gap:8px;}
+.toggle{width:38px;height:22px;background:rgba(255,255,255,.1);border-radius:11px;position:relative;cursor:pointer;transition:background .2s;border:none;flex-shrink:0;}
+.toggle.on{background:linear-gradient(135deg,var(--ac),var(--ac2));}
+.toggle::after{content:'';position:absolute;top:3px;right:3px;width:16px;height:16px;border-radius:50%;background:#fff;transition:transform .2s;}
+.toggle.on::after{transform:translateX(-16px);}
+.toggle-label{font-size:.78rem;color:var(--t2);font-weight:600;}
+.mrow{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.mact{display:flex;gap:8px;margin-top:18px;}
+.mbtn{flex:1;padding:10px;border:none;border-radius:10px;font-family:'Cairo',sans-serif;font-size:.82rem;font-weight:700;cursor:pointer;transition:all .2s;}
+.mbtn-ok{background:linear-gradient(135deg,var(--ac),var(--ac2));color:#fff;}
+.mbtn-ok:hover{transform:translateY(-1px);}
+.mbtn-no{background:rgba(255,255,255,.07);color:rgba(255,255,255,.55);}
+
+/* Bottom nav */
+.bnav{display:none;position:fixed;bottom:0;left:0;right:0;z-index:100;background:rgba(7,11,24,.95);backdrop-filter:blur(20px);border-top:1px solid var(--border);padding:8px 0 4px;justify-content:space-around;}
+.bn{display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer;padding:4px 10px;border-radius:9px;}
+.bn .bi{font-size:1.15rem;}
+.bn .bl{font-size:.56rem;color:var(--t3);font-weight:700;}
+.bn.active .bl{color:var(--ac);}
+
+@media(max-width:768px){
+  .layout{grid-template-columns:1fr;}
+  .sidebar{display:none;}
+  .stats-row{grid-template-columns:1fr 1fr;}
+  .bnav{display:flex;}
+  body{padding-bottom:68px;}
+  .table-head,.table-row{grid-template-columns:1fr 1fr .5fr;}
+  .table-head span:nth-child(3),.table-row .tr-date,
+  .table-head span:nth-child(4),.table-row .tr-action{display:none;}
+}
+@media(max-width:480px){
+  .courses-grid{grid-template-columns:1fr;}
+  .stats-row{grid-template-columns:1fr 1fr;}
+}
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav class="nav">
+  <div class="nav-logo">تواصلنا</div>
+  <span class="edu-name" id="eduName">...</span>
+  <button class="nb nb-primary" onclick="openModal()">+ إضافة دورة</button>
+  <button class="nb nb-ghost">الإعدادات</button>
+  <button class="nb nb-danger" onclick="logout()">خروج</button>
+  <div class="nav-ava">🎓</div>
+</nav>
+
+<div class="layout">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="edu-card">
+      <div class="edu-logo">🎓</div>
+      <div class="edu-nm" id="sEduName">أكاديمية التميز</div>
+      <div class="edu-type">مركز تعليمي معتمد</div>
+      <div class="edu-code" id="sEduCode">TW-EDU-00001</div>
+      <div class="edu-stats">
+        <div class="estat"><div class="esn" id="coursesCount">0</div><div class="esl">دورة</div></div>
+        <div class="estat"><div class="esn" id="studentsCount">0</div><div class="esl">طالب</div></div>
+        <div class="estat"><div class="esn" id="viewsCount">0</div><div class="esl">زيارة</div></div>
+      </div>
+    </div>
+
+    <nav class="nav-menu">
+      <a class="ni active" href="#dashboard"><span class="ni-ico">📊</span>لوحة التحكم</a>
+      <a class="ni" href="#courses"><span class="ni-ico">📚</span>دوراتي<span class="ni-badge" id="sbCoursesCount">0</span></a>
+      <a class="ni" href="#enrollments"><span class="ni-ico">👥</span>المتسجلون<span class="ni-badge">0</span></a>
+      <a class="ni" href="#"><span class="ni-ico">⭐</span>التقييمات</a>
+      <a class="ni" href="#"><span class="ni-ico">📢</span>الإعلانات</a>
+      <a class="ni" href="#"><span class="ni-ico">💬</span>الرسائل<span class="ni-badge">2</span></a>
+      <a class="ni" href="#"><span class="ni-ico">📈</span>التحليلات</a>
+      <a class="ni" href="#" onclick="logout()" style="color:rgba(239,68,68,.6)"><span class="ni-ico">🚪</span>خروج</a>
+    </nav>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main">
+
+    <!-- Stats -->
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="stat-icon si-purple">📚</div>
+        <div class="stat-info"><div class="stat-n" id="st1">0</div><div class="stat-l">دورة منشورة</div></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon si-blue">👥</div>
+        <div class="stat-info"><div class="stat-n" id="st2">0</div><div class="stat-l">إجمالي المتسجلين</div></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon si-green">⭐</div>
+        <div class="stat-info"><div class="stat-n" id="st3">—</div><div class="stat-l">متوسط التقييم</div></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon si-orange">👁</div>
+        <div class="stat-info"><div class="stat-n" id="st4">0</div><div class="stat-l">مشاهدة هذا الشهر</div></div>
+      </div>
+    </div>
+
+    <!-- Courses -->
+    <div class="sec-hd" id="courses">
+      <h2>📚 دوراتي</h2>
+      <button class="nb nb-primary" onclick="openModal()">+ دورة جديدة</button>
+    </div>
+
+    <div class="courses-grid" id="coursesGrid">
+
+      <!-- Sample course 1 -->
+      <div class="course-card">
+        <div class="course-thumb" style="background:linear-gradient(135deg,#1a0a2e,#2d1b69)">
+          🐍
+          <div class="overlay"></div>
+          <span class="price-badge free">مجاني</span>
+          <span class="status-badge published">منشور ✓</span>
+        </div>
+        <div class="course-body">
+          <div class="course-title">Python للمبتدئين من الصفر</div>
+          <div class="course-desc">تعلم أساسيات البرمجة بلغة Python من الصفر حتى مستوى متوسط مع تطبيقات عملية</div>
+          <div class="enrollments">
+            <div class="enroll-dots">
+              <div class="edot">👤</div><div class="edot">👤</div><div class="edot">👤</div>
+            </div>
+            <span>+12 متسجل</span>
+          </div>
+          <div class="course-meta"><span>⏱ 8 ساعات</span><span>📹 24 درس</span><span>⭐ 4.8</span></div>
+          <div class="course-actions">
+            <button class="ca-btn ca-edit">✏️ تعديل</button>
+            <button class="ca-btn ca-view">👁 عرض</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Sample course 2 -->
+      <div class="course-card">
+        <div class="course-thumb" style="background:linear-gradient(135deg,#0a1628,#1a2f4a)">
+          ⚛️
+          <div class="overlay"></div>
+          <span class="price-badge paid">49$</span>
+          <span class="status-badge published">منشور ✓</span>
+        </div>
+        <div class="course-body">
+          <div class="course-title">React.js المتقدم</div>
+          <div class="course-desc">تعمق في React Hooks وContext API وأحدث الممارسات في تطوير واجهات المستخدم</div>
+          <div class="enrollments">
+            <div class="enroll-dots">
+              <div class="edot">👤</div><div class="edot">👤</div>
+            </div>
+            <span>+5 متسجل</span>
+          </div>
+          <div class="course-meta"><span>⏱ 24 ساعة</span><span>📹 68 درس</span><span>⭐ 4.9</span></div>
+          <div class="course-actions">
+            <button class="ca-btn ca-edit">✏️ تعديل</button>
+            <button class="ca-btn ca-view">👁 عرض</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Sample course 3 - draft -->
+      <div class="course-card">
+        <div class="course-thumb" style="background:linear-gradient(135deg,#1a1205,#2a2010)">
+          🤖
+          <div class="overlay"></div>
+          <span class="price-badge paid">89$</span>
+          <span class="status-badge draft">مسودة</span>
+        </div>
+        <div class="course-body">
+          <div class="course-title">الذكاء الاصطناعي العملي</div>
+          <div class="course-desc">دورة شاملة في ML وDL مع TensorFlow وPyTorch من الأساسيات للتطبيقات</div>
+          <div class="enrollments"><span style="color:var(--t3);font-size:.67rem">لم يُنشر بعد</span></div>
+          <div class="course-meta"><span>⏱ 40 ساعة</span><span>📹 0/110 درس</span></div>
+          <div class="course-actions">
+            <button class="ca-btn ca-edit">✏️ إكمال</button>
+            <button class="ca-btn ca-view" style="background:rgba(0,200,150,.1);color:#00c896">نشر</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Add course -->
+      <div class="add-course-card" onclick="openModal()">
+        <div class="add-ico">+</div>
+        <div class="add-lbl">إضافة دورة جديدة</div>
+        <div class="add-sub">انشر دورتك وصل للموظفين</div>
+      </div>
+
+    </div>
+
+    <!-- Enrollments -->
+    <div class="sec-hd" id="enrollments">
+      <h2>👥 آخر المتسجلين</h2>
+      <a href="#" style="font-size:.72rem;color:var(--ac);text-decoration:none;font-weight:700">عرض الكل</a>
+    </div>
+
+    <div class="table-wrap">
+      <div class="table-head">
+        <span>الاسم</span>
+        <span>الدورة</span>
+        <span>تاريخ التسجيل</span>
+        <span>الحالة</span>
+        <span>إجراء</span>
+      </div>
+      <div class="table-row">
+        <div class="tr-name"><div class="tr-ava">👤</div>أحمد محمد الزعبي</div>
+        <div class="tr-course">Python للمبتدئين</div>
+        <div class="tr-date">2025/05/10</div>
+        <span class="tr-status st-active">نشط</span>
+        <div class="tr-action"><button class="ta-btn">👁 عرض</button></div>
+      </div>
+      <div class="table-row">
+        <div class="tr-name"><div class="tr-ava">👤</div>سارة خالد المنصور</div>
+        <div class="tr-course">React المتقدم</div>
+        <div class="tr-date">2025/05/09</div>
+        <span class="tr-status st-active">نشط</span>
+        <div class="tr-action"><button class="ta-btn">👁 عرض</button></div>
+      </div>
+      <div class="table-row">
+        <div class="tr-name"><div class="tr-ava">👤</div>محمد يوسف البكري</div>
+        <div class="tr-course">Python للمبتدئين</div>
+        <div class="tr-date">2025/05/08</div>
+        <span class="tr-status st-pending">معلق</span>
+        <div class="tr-action"><button class="ta-btn">👁 عرض</button></div>
+      </div>
+      <div class="table-row">
+        <div class="tr-name"><div class="tr-ava">👤</div>رنا عبدالله الحسن</div>
+        <div class="tr-course">React المتقدم</div>
+        <div class="tr-date">2025/05/07</div>
+        <span class="tr-status st-active">نشط</span>
+        <div class="tr-action"><button class="ta-btn">👁 عرض</button></div>
+      </div>
+      <div class="table-row">
+        <div class="tr-name"><div class="tr-ava">👤</div>خالد إبراهيم العمر</div>
+        <div class="tr-course">Python للمبتدئين</div>
+        <div class="tr-date">2025/05/06</div>
+        <span class="tr-status st-active">نشط</span>
+        <div class="tr-action"><button class="ta-btn">👁 عرض</button></div>
+      </div>
+    </div>
+
+    <!-- Announcements -->
+    <div class="sec-hd"><h2>📢 الإشعارات والأخبار</h2></div>
+    <div class="announce-wrap">
+      <div class="announce">
+        <div class="ann-ico ann-purple">🎓</div>
+        <div>
+          <div class="ann-title">تواصلنا تدعم المراكز التعليمية المعتمدة</div>
+          <div class="ann-body">يمكنك الآن توثيق شهادات الموظفين مباشرة من لوحة التحكم. الموظفون الذين أتموا دوراتك يحصلون على badge موثق في ملفهم الشخصي.</div>
+          <div class="ann-date">منذ يومين · تواصلنا</div>
+        </div>
+      </div>
+      <div class="announce">
+        <div class="ann-ico ann-blue">📊</div>
+        <div>
+          <div class="ann-title">إحصائيات الشهر الماضي</div>
+          <div class="ann-body">حصلت دوراتك على 47 مشاهدة و17 تسجيل جديد خلال الشهر الماضي. دورة Python في المرتبة الأولى.</div>
+          <div class="ann-date">منذ 5 أيام · تواصلنا</div>
+        </div>
+      </div>
+      <div class="announce">
+        <div class="ann-ico ann-green">✅</div>
+        <div>
+          <div class="ann-title">طلب توثيق جديد</div>
+          <div class="ann-body">الموظف أحمد الزعبي طلب توثيق شهادة إتمام دورة Python منك. راجع الطلب وأكد الإتمام.</div>
+          <div class="ann-date">منذ ساعة · طلب توثيق</div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- BOTTOM NAV -->
+<div class="bnav">
+  <div class="bn active"><span class="bi">📊</span><span class="bl">الرئيسية</span></div>
+  <div class="bn"><span class="bi">📚</span><span class="bl">دوراتي</span></div>
+  <div class="bn" onclick="openModal()"><span class="bi">➕</span><span class="bl">إضافة</span></div>
+  <div class="bn"><span class="bi">👥</span><span class="bl">طلاب</span></div>
+  <div class="bn"><span class="bi">💬</span><span class="bl">رسائل</span></div>
+</div>
+
+<!-- MODAL - Add Course -->
+<div class="overlay" id="overlay" onclick="closeOverlay(event)">
+  <div class="modal">
+    <div class="modal-title">📚 إضافة دورة جديدة</div>
+
+    <div class="mf"><label>عنوان الدورة *</label><input id="m-title" placeholder="مثال: Python للمبتدئين من الصفر"></div>
+    <div class="mf"><label>وصف الدورة</label><textarea id="m-desc" placeholder="اكتب وصفاً مختصراً للدورة..."></textarea></div>
+    <div class="mrow">
+      <div class="mf"><label>التخصص</label>
+        <select id="m-cat">
+          <option>برمجة وتقنية</option>
+          <option>محاسبة ومالية</option>
+          <option>تصميم</option>
+          <option>إدارة أعمال</option>
+          <option>لغات</option>
+          <option>صحة وطب</option>
+          <option>أخرى</option>
+        </select>
+      </div>
+      <div class="mf"><label>المدة (بالساعات)</label><input id="m-dur" type="number" placeholder="8"></div>
+    </div>
+    <div class="mf">
+      <label>التسعير</label>
+      <div class="price-row">
+        <div class="toggle-wrap">
+          <button class="toggle" id="freeToggle" onclick="toggleFree()" title="مجاني"></button>
+          <span class="toggle-label" id="freeLabel">مدفوع</span>
+        </div>
+        <input id="m-price" type="number" placeholder="السعر بالدولار ($)" min="0">
+      </div>
+    </div>
+    <div class="mf"><label>رابط الدورة أو المنصة</label><input id="m-link" placeholder="https://..."></div>
+
+    <div class="mact">
+      <button class="mbtn mbtn-ok" onclick="addCourse()">نشر الدورة</button>
+      <button class="mbtn mbtn-ok" style="background:rgba(255,255,255,.08);color:rgba(255,255,255,.6)" onclick="saveDraft()">حفظ مسودة</button>
+      <button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Session ──
+let _user = null;
+try { _user = JSON.parse(localStorage.getItem('tw_user')); } catch(e){}
+
+if(!_user || !_user.id || _user.user_type !== 'edu'){
+  window.location.href = '/';
+}
+
+if(_user){
+  const name = _user.full_name || 'مركز تعليمي';
+  const code = 'TW-EDU-' + String(_user.id).padStart(5,'0');
+  document.getElementById('eduName').textContent = name;
+  document.getElementById('sEduName').textContent = name;
+  document.getElementById('sEduCode').textContent = code;
+
+  // Count demo courses
+  const courses = document.querySelectorAll('.course-card:not(.add-course-card)').length;
+  const published = document.querySelectorAll('.status-badge.published').length;
+  const students = 17;
+  document.getElementById('st1').textContent = published;
+  document.getElementById('st2').textContent = students;
+  document.getElementById('st3').textContent = '4.8';
+  document.getElementById('st4').textContent = 47;
+  document.getElementById('coursesCount').textContent = courses;
+  document.getElementById('studentsCount').textContent = students;
+  document.getElementById('viewsCount').textContent = 47;
+  document.getElementById('sbCoursesCount').textContent = courses;
+}
+
+// ── Toggle free/paid ──
+let isFree = false;
+function toggleFree(){
+  isFree = !isFree;
+  const t = document.getElementById('freeToggle');
+  const l = document.getElementById('freeLabel');
+  const p = document.getElementById('m-price');
+  t.classList.toggle('on', isFree);
+  l.textContent = isFree ? 'مجاني' : 'مدفوع';
+  p.disabled = isFree;
+  p.style.opacity = isFree ? '.4' : '1';
+  if(isFree) p.value = '';
+}
+
+// ── Add Course ──
+function addCourse(){
+  const title = document.getElementById('m-title').value.trim();
+  if(!title){ alert('أدخل عنوان الدورة'); return; }
+  const desc = document.getElementById('m-desc').value.trim();
+  const price = isFree ? 0 : (parseFloat(document.getElementById('m-price').value) || 0);
+  const dur = document.getElementById('m-dur').value || '?';
+  const icons = ['🐍','⚛️','🤖','📊','🎨','💼','🌐'];
+  const ico = icons[Math.floor(Math.random()*icons.length)];
+  const colors = ['linear-gradient(135deg,#1a0a2e,#2d1b69)','linear-gradient(135deg,#0a1628,#1a2f4a)','linear-gradient(135deg,#0f1a28,#1a2d3a)'];
+  const col = colors[Math.floor(Math.random()*colors.length)];
+
+  const card = document.createElement('div');
+  card.className = 'course-card';
+  card.innerHTML = `
+    <div class="course-thumb" style="background:${col}">
+      ${ico}
+      <div class="overlay"></div>
+      <span class="price-badge ${isFree?'free':'paid'}">${isFree?'مجاني':price+'$'}</span>
+      <span class="status-badge published">منشور ✓</span>
+    </div>
+    <div class="course-body">
+      <div class="course-title">${title}</div>
+      <div class="course-desc">${desc||'لا يوجد وصف'}</div>
+      <div class="enrollments"><span style="color:var(--t3);font-size:.67rem">لا متسجلين بعد</span></div>
+      <div class="course-meta"><span>⏱ ${dur} ساعات</span><span>📹 0 درس</span></div>
+      <div class="course-actions">
+        <button class="ca-btn ca-edit">✏️ تعديل</button>
+        <button class="ca-btn ca-view">👁 عرض</button>
+      </div>
+    </div>`;
+
+  const addCard = document.querySelector('.add-course-card');
+  document.getElementById('coursesGrid').insertBefore(card, addCard);
+  closeModal();
+
+  // Update stats
+  const cur = parseInt(document.getElementById('st1').textContent) || 0;
+  document.getElementById('st1').textContent = cur + 1;
+}
+
+function saveDraft(){
+  closeModal();
+}
+
+// ── Modal ──
+function openModal(){
+  document.getElementById('overlay').classList.add('show');
+}
+function closeModal(){
+  document.getElementById('overlay').classList.remove('show');
+  document.getElementById('m-title').value = '';
+  document.getElementById('m-desc').value = '';
+  document.getElementById('m-price').value = '';
+  document.getElementById('m-dur').value = '';
+  if(isFree) toggleFree();
+}
+function closeOverlay(e){ if(e.target===document.getElementById('overlay')) closeModal(); }
+
+function logout(){
+  localStorage.removeItem('tw_user');
+  window.location.href = '/';
+}
+
+document.querySelectorAll('.bn').forEach(b=>{
+  b.addEventListener('click',()=>{
+    document.querySelectorAll('.bn').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active');
+  });
+});
+</script>
+</body>
+</html>

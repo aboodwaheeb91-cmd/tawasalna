@@ -435,9 +435,9 @@ const typeLabels={emp:{ar:'موظف',en:'Employee'},co:{ar:'شركة',en:'Compan
 const typeIcons={emp:'👤',co:'🏢',edu:'🎓'};
 
 function showDashboard(user){
-  document.getElementById('authWrap').style.display='none';
-  const d=document.getElementById('dashWrap');
-  d.style.display='block';
+  const dest = user.user_type==='co' ? 'company.html' : user.user_type==='edu' ? 'edu.html' : 'home.html';
+  window.location.href = dest;
+  return;
   const l=L[lang];
   const typeKey=user.user_type||'emp';
   const badgeLbl=typeLabels[typeKey]?typeLabels[typeKey][lang]:(lang==='ar'?'موظف':'Employee');
@@ -597,7 +597,8 @@ applyLang('ar');
 /* ── Auto-restore session ── */
 const saved=loadSession();
 if(saved&&saved.id){
-  showDashboard(saved);
+  const dest=saved.user_type==='co'?'company.html':saved.user_type==='edu'?'edu.html':'home.html';
+  window.location.href=dest;
 }
 </script>
 </body>

@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>تواصلنا - الرئيسية</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
+<style>
+:root{--ac:#00c896;--ac2:#2563ff;--bg:#070b18;--card:rgba(255,255,255,.03);--border:rgba(255,255,255,.07);--t:rgba(255,255,255,.85);--t2:rgba(255,255,255,.5);--t3:rgba(255,255,255,.28);}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-height:100vh;}
+
+/* NAV */
+.nav{position:fixed;top:0;left:0;right:0;z-index:100;height:52px;display:flex;align-items:center;gap:8px;padding:0 14px;background:rgba(7,11,24,.93);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);}
+.nav-logo{font-size:1rem;font-weight:900;background:linear-gradient(135deg,var(--ac),var(--ac2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-left:auto;}
+.nav-search{flex:1;max-width:360px;display:flex;align-items:center;gap:7px;background:rgba(255,255,255,.06);border:1px solid var(--border);border-radius:10px;padding:6px 11px;}
+.nav-search input{flex:1;background:transparent;border:none;outline:none;color:var(--t);font-family:'Cairo',sans-serif;font-size:.8rem;direction:rtl;}
+.nav-search input::placeholder{color:var(--t3);}
+.nb{padding:5px 11px;border-radius:8px;border:none;cursor:pointer;font-family:'Cairo',sans-serif;font-size:.73rem;font-weight:700;transition:all .2s;}
+.nb-ghost{background:rgba(255,255,255,.07);color:var(--t2);border:1px solid var(--border);}
+.nb-ghost:hover{background:rgba(255,255,255,.12);color:var(--t);}
+.nb-danger{background:rgba(239,68,68,.1);color:#f87171;border:1px solid rgba(239,68,68,.15);}
+.nb-danger:hover{background:rgba(239,68,68,.18);}
+.nav-ava{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,var(--ac),var(--ac2));display:flex;align-items:center;justify-content:center;font-size:.85rem;cursor:pointer;border:2px solid rgba(0,200,150,.3);}
+
+/* LAYOUT */
+.layout{padding-top:52px;display:grid;grid-template-columns:230px 1fr 270px;max-width:1200px;margin:0 auto;min-height:100vh;}
+
+/* SIDEBAR L */
+.sl{padding:18px 12px;border-left:1px solid var(--border);position:sticky;top:52px;height:calc(100vh - 52px);overflow-y:auto;}
+.user-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:16px;margin-bottom:14px;text-align:center;}
+.user-ava{width:60px;height:60px;border-radius:50%;margin:0 auto 8px;background:linear-gradient(135deg,var(--ac),var(--ac2));display:flex;align-items:center;justify-content:center;font-size:1.5rem;box-shadow:0 4px 16px rgba(0,200,150,.2);}
+.user-name{font-size:.86rem;font-weight:800;margin-bottom:1px;}
+.user-title{font-size:.7rem;color:var(--ac);font-weight:700;margin-bottom:6px;}
+.user-code{font-size:.58rem;color:var(--t3);letter-spacing:.8px;}
+.user-stats{display:flex;margin-top:10px;padding-top:10px;border-top:1px solid var(--border);}
+.stat{flex:1;text-align:center;}
+.sn{font-size:.9rem;font-weight:900;color:var(--ac);}
+.sl-label{font-size:.58rem;color:var(--t3);}
+
+.nav-menu{display:flex;flex-direction:column;gap:2px;}
+.ni{display:flex;align-items:center;gap:8px;padding:8px 11px;border-radius:9px;cursor:pointer;transition:all .2s;color:var(--t2);font-size:.78rem;font-weight:700;text-decoration:none;}
+.ni:hover{background:rgba(255,255,255,.05);color:var(--t);}
+.ni.active{background:rgba(0,200,150,.08);color:var(--ac);border:1px solid rgba(0,200,150,.15);}
+.ni-ico{font-size:.95rem;width:18px;text-align:center;}
+.ni-badge{margin-right:auto;background:var(--ac);color:#fff;border-radius:10px;padding:1px 6px;font-size:.58rem;font-weight:900;}
+
+/* FEED */
+.feed{padding:18px 16px;border-left:1px solid var(--border);}
+
+.ftabs{display:flex;gap:5px;margin-bottom:16px;overflow-x:auto;padding-bottom:3px;}
+.ftab{padding:5px 13px;border-radius:20px;border:1px solid var(--border);background:transparent;color:var(--t2);font-family:'Cairo',sans-serif;font-size:.72rem;font-weight:700;cursor:pointer;transition:all .2s;white-space:nowrap;}
+.ftab:hover{border-color:rgba(0,200,150,.3);color:var(--t);}
+.ftab.active{background:linear-gradient(135deg,var(--ac),var(--ac2));color:#fff;border-color:transparent;}
+
+.sec-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+.sec-hd h2{font-size:.8rem;font-weight:800;}
+.sec-hd a{font-size:.7rem;color:var(--ac);text-decoration:none;font-weight:700;}
+
+/* JOB CARD */
+.jc{background:var(--card);border:1px solid var(--border);border-radius:15px;padding:14px 16px;margin-bottom:10px;transition:all .2s;cursor:pointer;}
+.jc:hover{border-color:rgba(0,200,150,.2);transform:translateY(-1px);}
+.jc.feat{border-color:rgba(0,200,150,.22);background:rgba(0,200,150,.02);}
+.jh{display:flex;align-items:flex-start;gap:10px;margin-bottom:8px;}
+.jlogo{width:42px;height:42px;border-radius:10px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:1.2rem;background:rgba(255,255,255,.06);border:1px solid var(--border);}
+.jt{font-size:.87rem;font-weight:800;margin-bottom:1px;}
+.jc2{font-size:.72rem;color:var(--t2);margin-bottom:2px;}
+.jl{font-size:.68rem;color:var(--t3);display:flex;align-items:center;gap:3px;}
+.jtags{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px;}
+.tag{padding:2px 8px;border-radius:20px;font-size:.64rem;font-weight:700;background:rgba(255,255,255,.06);color:var(--t2);}
+.tag.g{background:rgba(0,200,150,.1);color:var(--ac);}
+.tag.b{background:rgba(37,99,255,.1);color:#60a5fa;}
+.tag.o{background:rgba(249,115,22,.1);color:#fb923c;}
+.jf{display:flex;align-items:center;justify-content:space-between;}
+.jsal{font-size:.74rem;font-weight:800;color:var(--ac);}
+.jdate{font-size:.63rem;color:var(--t3);}
+.apply-btn{padding:6px 13px;border-radius:8px;border:none;background:linear-gradient(135deg,var(--ac),var(--ac2));color:#fff;font-family:'Cairo',sans-serif;font-size:.7rem;font-weight:800;cursor:pointer;transition:all .2s;}
+.apply-btn:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(0,200,150,.35);}
+.feat-badge{padding:2px 7px;border-radius:20px;font-size:.58rem;font-weight:800;background:linear-gradient(135deg,var(--ac),var(--ac2));color:#fff;}
+
+/* COURSE CARD */
+.courses-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px;}
+.cc{background:var(--card);border:1px solid var(--border);border-radius:14px;overflow:hidden;transition:all .2s;cursor:pointer;}
+.cc:hover{border-color:rgba(37,99,255,.25);transform:translateY(-1px);}
+.ct{height:88px;display:flex;align-items:center;justify-content:center;font-size:2.2rem;position:relative;}
+.cprice{position:absolute;top:7px;left:7px;padding:2px 8px;border-radius:20px;font-size:.62rem;font-weight:800;font-family:'Cairo',sans-serif;}
+.pfree{background:rgba(0,200,150,.2);color:var(--ac);border:1px solid rgba(0,200,150,.3);}
+.ppaid{background:rgba(37,99,255,.2);color:#60a5fa;border:1px solid rgba(37,99,255,.3);}
+.cb{padding:10px 12px;}
+.ctit{font-size:.79rem;font-weight:800;margin-bottom:2px;}
+.cprov{font-size:.68rem;color:var(--t2);margin-bottom:5px;}
+.cmeta{display:flex;align-items:center;gap:6px;font-size:.63rem;color:var(--t3);}
+.cenroll{display:block;width:100%;padding:7px;margin-top:8px;background:rgba(255,255,255,.06);border:1px solid var(--border);border-radius:8px;color:var(--t);font-family:'Cairo',sans-serif;font-size:.72rem;font-weight:700;cursor:pointer;transition:all .2s;text-align:center;}
+.cenroll:hover{background:rgba(0,200,150,.1);border-color:rgba(0,200,150,.3);color:var(--ac);}
+
+/* NEWS */
+.nc{background:var(--card);border:1px solid var(--border);border-radius:13px;padding:12px 14px;margin-bottom:8px;display:flex;gap:10px;align-items:flex-start;cursor:pointer;transition:border-color .2s;}
+.nc:hover{border-color:rgba(255,255,255,.12);}
+.nico{width:38px;height:38px;border-radius:9px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:1.1rem;background:rgba(255,255,255,.06);}
+.ntit{font-size:.78rem;font-weight:700;margin-bottom:3px;line-height:1.4;}
+.nmeta{font-size:.64rem;color:var(--t3);display:flex;gap:7px;}
+.ncat{padding:1px 6px;border-radius:20px;font-size:.6rem;font-weight:700;}
+.cat-gov{background:rgba(37,99,255,.1);color:#60a5fa;}
+.cat-int{background:rgba(139,92,246,.1);color:#a78bfa;}
+.cat-loc{background:rgba(0,200,150,.1);color:var(--ac);}
+.cat-tip{background:rgba(249,115,22,.1);color:#fb923c;}
+
+/* SIDEBAR R */
+.sr{padding:18px 12px;}
+.widget{background:var(--card);border:1px solid var(--border);border-radius:15px;padding:14px;margin-bottom:12px;}
+.wtit{font-size:.74rem;font-weight:800;margin-bottom:10px;}
+
+.mi{display:flex;align-items:center;gap:9px;padding:7px 0;border-bottom:1px solid var(--border);cursor:pointer;}
+.mi:last-child{border-bottom:none;}
+.mi:hover{opacity:.8;}
+.mlogo{width:34px;height:34px;border-radius:8px;background:rgba(255,255,255,.06);display:flex;align-items:center;justify-content:center;font-size:.85rem;flex-shrink:0;}
+.minfo{flex:1;}
+.mt{font-size:.72rem;font-weight:700;margin-bottom:1px;}
+.mc{font-size:.64rem;color:var(--t2);}
+.mpct{font-size:.76rem;font-weight:900;color:var(--ac);}
+
+.oi{display:flex;align-items:center;gap:9px;padding:7px 0;border-bottom:1px solid var(--border);cursor:pointer;}
+.oi:last-child{border-bottom:none;}
+.ofl{font-size:1.1rem;}
+.oinfo{flex:1;}
+.ot{font-size:.72rem;font-weight:700;margin-bottom:1px;}
+.ol{font-size:.63rem;color:var(--t2);}
+.obadge{padding:2px 6px;border-radius:20px;font-size:.58rem;font-weight:700;background:rgba(139,92,246,.1);color:#a78bfa;white-space:nowrap;}
+
+.prog-bar{height:5px;background:rgba(255,255,255,.08);border-radius:10px;overflow:hidden;margin:7px 0;}
+.prog-fill{height:100%;border-radius:10px;background:linear-gradient(90deg,var(--ac),var(--ac2));transition:width .5s;}
+.ci{display:flex;align-items:center;gap:6px;padding:4px 0;font-size:.7rem;color:var(--t2);}
+.ci.done{color:var(--ac);}
+.cico{width:15px;height:15px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.58rem;flex-shrink:0;}
+.ci-done{background:rgba(0,200,150,.2);color:var(--ac);}
+.ci-todo{background:rgba(255,255,255,.06);color:var(--t3);}
+
+/* BOTTOM NAV */
+.bnav{display:none;position:fixed;bottom:0;left:0;right:0;z-index:100;background:rgba(7,11,24,.95);backdrop-filter:blur(20px);border-top:1px solid var(--border);padding:8px 0 4px;justify-content:space-around;}
+.bn{display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer;padding:4px 10px;border-radius:9px;transition:all .2s;}
+.bn .bi{font-size:1.15rem;}
+.bn .bl{font-size:.56rem;color:var(--t3);font-weight:700;}
+.bn.active .bl{color:var(--ac);}
+
+@media(max-width:900px){
+  .layout{grid-template-columns:1fr;}
+  .sl,.sr{display:none;}
+  .feed{border-left:none;padding:12px;}
+  .bnav{display:flex;}
+  body{padding-bottom:68px;}
+  .courses-grid{grid-template-columns:1fr;}
+}
+@media(max-width:580px){.nav-search{display:none;}}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-logo">تواصلنا</div>
+  <div class="nav-search">
+    <span style="color:var(--t3)">🔍</span>
+    <input type="text" placeholder="ابحث عن وظيفة، مهارة، شركة...">
+  </div>
+  <button class="nb nb-ghost" id="profileBtn" onclick="goProfile()">ملفي</button>
+  <button class="nb nb-danger" onclick="logout()">خروج</button>
+  <div class="nav-ava" id="navAva">👤</div>
+</nav>
+
+<div class="layout">
+
+  <!-- SIDEBAR L -->
+  <aside class="sl">
+    <div class="user-card">
+      <div class="user-ava" id="uAva">👤</div>
+      <div class="user-name" id="uName">...</div>
+      <div class="user-title" id="uTitle">موظف</div>
+      <div class="user-code" id="uCode">TW-EMP-00000</div>
+      <div class="user-stats">
+        <div class="stat"><div class="sn">0</div><div class="sl-label">مشاهدة</div></div>
+        <div class="stat"><div class="sn">0</div><div class="sl-label">طلب</div></div>
+        <div class="stat"><div class="sn" id="uPct">0%</div><div class="sl-label">اكتمال</div></div>
+      </div>
+    </div>
+    <nav class="nav-menu">
+      <a class="ni active" href="#"><span class="ni-ico">🏠</span>الرئيسية</a>
+      <a class="ni" id="profileLink" href="#" onclick="goProfile()"><span class="ni-ico">👤</span>ملفي الشخصي</a>
+      <a class="ni" href="#"><span class="ni-ico">💼</span>وظائفي<span class="ni-badge">0</span></a>
+      <a class="ni" href="#"><span class="ni-ico">🎓</span>دوراتي</a>
+      <a class="ni" href="#"><span class="ni-ico">🔔</span>الإشعارات<span class="ni-badge">0</span></a>
+      <a class="ni" href="#"><span class="ni-ico">📰</span>الأخبار</a>
+      <a class="ni" href="#"><span class="ni-ico">🌍</span>فرص الخارج</a>
+      <a class="ni" href="#" onclick="logout()" style="color:rgba(239,68,68,.6)"><span class="ni-ico">🚪</span>خروج</a>
+    </nav>
+  </aside>
+
+  <!-- FEED -->
+  <main class="feed">
+    <div class="ftabs">
+      <button class="ftab active" onclick="setTab(this)">الكل</button>
+      <button class="ftab" onclick="setTab(this)">💼 وظائف</button>
+      <button class="ftab" onclick="setTab(this)">🎓 دورات</button>
+      <button class="ftab" onclick="setTab(this)">📰 أخبار</button>
+      <button class="ftab" onclick="setTab(this)">🌍 الخارج</button>
+      <button class="ftab" onclick="setTab(this)">🏛️ حكومي</button>
+    </div>
+
+    <!-- Jobs -->
+    <div class="sec-hd"><h2>💼 وظائف مقترحة لك</h2><a href="#">عرض الكل</a></div>
+
+    <div class="jc feat">
+      <div class="jh">
+        <div class="jlogo">🏢</div>
+        <div style="flex:1">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:1px">
+            <div class="jt">مطور React أول</div>
+            <span class="feat-badge">⭐ مميزة</span>
+          </div>
+          <div class="jc2">شركة تك ستارت · عمان</div>
+          <div class="jl">📍 عمان، الأردن · دوام كامل</div>
+        </div>
+      </div>
+      <div class="jtags"><span class="tag g">React</span><span class="tag g">FastAPI</span><span class="tag b">Remote</span><span class="tag">3-5 سنوات</span></div>
+      <div class="jf"><div><div class="jsal">800 - 1200 دينار/شهر</div><div class="jdate">منذ يومين</div></div><button class="apply-btn">تقديم ←</button></div>
+    </div>
+
+    <div class="jc">
+      <div class="jh">
+        <div class="jlogo">🏭</div>
+        <div><div class="jt">مهندس برمجيات</div><div class="jc2">مجموعة الصناعات · الرياض</div><div class="jl">📍 الرياض، السعودية</div></div>
+      </div>
+      <div class="jtags"><span class="tag g">Python</span><span class="tag g">Django</span><span class="tag o">عاجل</span></div>
+      <div class="jf"><div><div class="jsal">5000 - 7000 ريال/شهر</div><div class="jdate">منذ 3 أيام</div></div><button class="apply-btn">تقديم ←</button></div>
+    </div>
+
+    <div class="jc">
+      <div class="jh">
+        <div class="jlogo">💻</div>
+        <div><div class="jt">مطور Flutter</div><div class="jc2">إبداع للتقنية · دبي</div><div class="jl">📍 دبي، الإمارات · هجين</div></div>
+      </div>
+      <div class="jtags"><span class="tag g">Flutter</span><span class="tag g">Dart</span><span class="tag b">Hybrid</span></div>
+      <div class="jf"><div><div class="jsal">8000 - 12000 درهم/شهر</div><div class="jdate">منذ أسبوع</div></div><button class="apply-btn">تقديم ←</button></div>
+    </div>
+
+    <!-- Courses -->
+    <div class="sec-hd" style="margin-top:4px"><h2>🎓 دورات تدريبية</h2><a href="#">عرض الكل</a></div>
+    <div class="courses-grid">
+      <div class="cc"><div class="ct" style="background:linear-gradient(135deg,#0a1628,#0d1e3a)">🐍<span class="cprice pfree">مجاني</span></div><div class="cb"><div class="ctit">Python للمبتدئين</div><div class="cprov">أكاديمية تواصلنا</div><div class="cmeta"><span>⏱ 8 ساعات</span><span>👥 1.2k</span></div><button class="cenroll">ابدأ الآن</button></div></div>
+      <div class="cc"><div class="ct" style="background:linear-gradient(135deg,#12082a,#1a0f38)">⚛️<span class="cprice ppaid">29$</span></div><div class="cb"><div class="ctit">React المتقدم</div><div class="cprov">Udemy Arabic</div><div class="cmeta"><span>⏱ 24 ساعة</span><span>⭐ 4.8</span></div><button class="cenroll">اشترك</button></div></div>
+      <div class="cc"><div class="ct" style="background:linear-gradient(135deg,#0a1628,#0d2040)">🗄️<span class="cprice pfree">مجاني</span></div><div class="cb"><div class="ctit">SQL وقواعد البيانات</div><div class="cprov">تواصلنا أكاديمي</div><div class="cmeta"><span>⏱ 6 ساعات</span><span>👥 856</span></div><button class="cenroll">ابدأ الآن</button></div></div>
+      <div class="cc"><div class="ct" style="background:linear-gradient(135deg,#1a1205,#2a1e08)">🤖<span class="cprice ppaid">49$</span></div><div class="cb"><div class="ctit">الذكاء الاصطناعي العملي</div><div class="cprov">AI Arabia</div><div class="cmeta"><span>⏱ 32 ساعة</span><span>⭐ 4.9</span></div><button class="cenroll">اشترك</button></div></div>
+    </div>
+
+    <!-- News -->
+    <div class="sec-hd" style="margin-top:4px"><h2>📰 أخبار العمالة</h2><a href="#">عرض الكل</a></div>
+
+    <div class="nc"><div class="nico">🏛️</div><div><div style="display:flex;gap:5px;align-items:center;margin-bottom:3px"><span class="ncat cat-gov">حكومي</span></div><div class="ntit">وزارة العمل تُطلق برنامج دعم التوظيف 2025 بمنح تصل إلى 500 دينار للمنشآت</div><div class="nmeta"><span>منذ ساعتين</span><span>·</span><span>وزارة العمل الأردنية</span></div></div></div>
+
+    <div class="nc"><div class="nico">🌍</div><div><div style="display:flex;gap:5px;align-items:center;margin-bottom:3px"><span class="ncat cat-int">الخارج</span></div><div class="ntit">كندا تفتح باب الهجرة للعمال المهرة في تقنية المعلومات بنظام Express Entry</div><div class="nmeta"><span>منذ 4 ساعات</span><span>·</span><span>Immigration Canada</span></div></div></div>
+
+    <div class="nc"><div class="nico">💡</div><div><div style="display:flex;gap:5px;align-items:center;margin-bottom:3px"><span class="ncat cat-tip">نصيحة</span></div><div class="ntit">5 مهارات يبحث عنها أصحاب العمل في 2025 - React وAI في المقدمة</div><div class="nmeta"><span>منذ يوم</span><span>·</span><span>تواصلنا</span></div></div></div>
+
+    <div class="nc"><div class="nico">📋</div><div><div style="display:flex;gap:5px;align-items:center;margin-bottom:3px"><span class="ncat cat-loc">محلي</span></div><div class="ntit">الحد الأدنى للأجور يرتفع 8% اعتباراً من مطلع العام القادم</div><div class="nmeta"><span>منذ يومين</span><span>·</span><span>الصحيفة الرسمية</span></div></div></div>
+  </main>
+
+  <!-- SIDEBAR R -->
+  <aside class="sr">
+    <div class="widget">
+      <div class="wtit">🎯 أعلى تطابق لك</div>
+      <div class="mi"><div class="mlogo">🏢</div><div class="minfo"><div class="mt">مطور React</div><div class="mc">تك ستارت</div></div><div class="mpct">94%</div></div>
+      <div class="mi"><div class="mlogo">💻</div><div class="minfo"><div class="mt">مهندس Frontend</div><div class="mc">سوفت لاب</div></div><div class="mpct">87%</div></div>
+      <div class="mi"><div class="mlogo">🚀</div><div class="minfo"><div class="mt">مطور Full Stack</div><div class="mc">ديجيتال أرابيا</div></div><div class="mpct">81%</div></div>
+    </div>
+
+    <div class="widget">
+      <div class="wtit">🌍 فرص العمل بالخارج</div>
+      <div class="oi"><span class="ofl">🇨🇦</span><div class="oinfo"><div class="ot">Software Developer</div><div class="ol">Toronto, Canada</div></div><span class="obadge">تأشيرة</span></div>
+      <div class="oi"><span class="ofl">🇩🇪</span><div class="oinfo"><div class="ot">Web Engineer</div><div class="ol">Berlin, Germany</div></div><span class="obadge">إقامة</span></div>
+      <div class="oi"><span class="ofl">🇦🇪</span><div class="oinfo"><div class="ot">React Developer</div><div class="ol">Dubai, UAE</div></div><span class="obadge">عقد</span></div>
+      <div class="oi"><span class="ofl">🇸🇦</span><div class="oinfo"><div class="ot">تقني أول</div><div class="ol">الرياض، السعودية</div></div><span class="obadge">رواتب ↑</span></div>
+    </div>
+
+    <div class="widget">
+      <div class="wtit">📊 اكتمال ملفك</div>
+      <div style="font-size:.7rem;color:var(--ac);font-weight:800;margin-bottom:3px" id="pctLabel">0%</div>
+      <div class="prog-bar"><div class="prog-fill" id="progFill" style="width:0%"></div></div>
+      <div class="ci done"><div class="cico ci-done">✓</div>معلومات أساسية</div>
+      <div class="ci" id="ci-exp"><div class="cico ci-todo">○</div>خبرة عملية</div>
+      <div class="ci" id="ci-edu"><div class="cico ci-todo">○</div>شهادة دراسية</div>
+      <div class="ci" id="ci-pic"><div class="cico ci-todo">○</div>صورة شخصية</div>
+      <div class="ci" id="ci-course"><div class="cico ci-todo">○</div>دورة تدريبية</div>
+    </div>
+  </aside>
+
+</div>
+
+<!-- BOTTOM NAV -->
+<div class="bnav">
+  <div class="bn active"><span class="bi">🏠</span><span class="bl">الرئيسية</span></div>
+  <div class="bn" onclick="goProfile()"><span class="bi">👤</span><span class="bl">ملفي</span></div>
+  <div class="bn"><span class="bi">💼</span><span class="bl">وظائف</span></div>
+  <div class="bn"><span class="bi">🔔</span><span class="bl">إشعارات</span></div>
+  <div class="bn"><span class="bi">📰</span><span class="bl">أخبار</span></div>
+</div>
+
+<script>
+// ── Session ──
+let _user = null;
+try { _user = JSON.parse(localStorage.getItem('tw_user')); } catch(e){}
+
+if(!_user || !_user.id){
+  window.location.href = '/';
+} else {
+  const typeMap = {emp:'موظف',co:'شركة',edu:'تعليمي'};
+  const icoMap  = {emp:'👤',co:'🏢',edu:'🎓'};
+  const type = _user.user_type || 'emp';
+  const ico = icoMap[type] || '👤';
+  const code = 'TW-' + type.toUpperCase() + '-' + String(_user.id).padStart(5,'0');
+
+  document.getElementById('uName').textContent  = _user.full_name || 'مستخدم';
+  document.getElementById('uTitle').textContent = typeMap[type] || 'موظف';
+  document.getElementById('uCode').textContent  = code;
+  document.getElementById('uAva').textContent   = ico;
+  document.getElementById('navAva').textContent = ico;
+
+  // Load full profile for completion stats
+  fetch('/profile/' + _user.id + '/full')
+    .then(r => r.json())
+    .then(d => {
+      const p = d.profile || {};
+      const hasExp    = (p.experience || []).length > 0;
+      const hasEdu    = (p.education  || []).length > 0;
+      const hasCourse = (p.courses    || []).length > 0;
+      const hasPic    = !!p.avatar_url;
+      let pct = 20;
+      if(hasExp)    { pct+=20; markDone('ci-exp'); }
+      if(hasEdu)    { pct+=20; markDone('ci-edu'); }
+      if(hasPic)    { pct+=20; markDone('ci-pic'); }
+      if(hasCourse) { pct+=20; markDone('ci-course'); }
+      document.getElementById('progFill').style.width = pct+'%';
+      document.getElementById('pctLabel').textContent = pct+'%';
+      document.getElementById('uPct').textContent = pct+'%';
+    }).catch(()=>{});
+}
+
+function markDone(id){
+  const el = document.getElementById(id);
+  if(!el) return;
+  el.classList.add('done');
+  el.querySelector('.cico').className = 'cico ci-done';
+  el.querySelector('.cico').textContent = '✓';
+}
+
+function goProfile(){
+  if(_user) window.location.href = 'profile.html?id=' + _user.id;
+  else window.location.href = '/';
+}
+
+function logout(){
+  localStorage.removeItem('tw_user');
+  window.location.href = '/';
+}
+
+function setTab(el){
+  document.querySelectorAll('.ftab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+}
+
+document.querySelectorAll('.bn').forEach(b=>{
+  b.addEventListener('click',()=>{
+    document.querySelectorAll('.bn').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active');
+  });
+});
+</script>
+</body>
+</html>

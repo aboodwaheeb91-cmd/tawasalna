@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>تواصلنا - لوحة الشركة</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
+<style>
+:root{--ac:#2563ff;--ac2:#00c896;--bg:#070b18;--card:rgba(255,255,255,.03);--border:rgba(255,255,255,.07);--t:rgba(255,255,255,.87);--t2:rgba(255,255,255,.5);--t3:rgba(255,255,255,.27);}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-height:100vh;}
+
+/* NAV */
+.nav{position:fixed;top:0;left:0;right:0;z-index:100;height:52px;display:flex;align-items:center;gap:8px;padding:0 14px;background:rgba(7,11,24,.93);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);}
+.nav-logo{font-size:1rem;font-weight:900;background:linear-gradient(135deg,var(--ac),var(--ac2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-left:auto;}
+.co-nm{font-size:.8rem;font-weight:700;color:var(--t2);}
+.nb{padding:5px 11px;border-radius:8px;border:none;cursor:pointer;font-family:'Cairo',sans-serif;font-size:.73rem;font-weight:700;transition:all .2s;}
+.nb-ghost{background:rgba(255,255,255,.07);color:var(--t2);border:1px solid var(--border);}
+.nb-ghost:hover{background:rgba(255,255,255,.12);color:var(--t);}
+.nb-primary{background:linear-gradient(135deg,var(--ac),var(--ac2));color:#fff;}
+.nb-primary:hover{transform:translateY(-1px);box-shadow:0 4px 14px rgba(37,99,255,.35);}
+.nb-danger{background:rgba(239,68,68,.1);color:#f87171;border:1px solid rgba(239,68,68,.15);}
+.nav-ava{width:32px;height:32px;border-radius:10px;background:linear-gradient(135deg,var(--ac),var(--ac2));display:flex;align-items:center;justify-content:center;font-size:.85rem;}
+
+/* LAYOUT */
+.layout{padding-top:52px;display:grid;grid-template-columns:220px 1fr;max-width:1160px;margin:0 auto;min-height:100vh;}
+
+/* SIDEBAR */
+.sidebar{padding:18px 12px;border-left:1px solid var(--border);position:sticky;top:52px;height:calc(100vh - 52px);overflow-y:auto;}
+.co-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:16px;margin-bottom:14px;text-align:center;}
+.co-logo{width:62px;height:62px;border-radius:14px;margin:0 auto 10px;background:linear-gradient(135deg,var(--ac),var(--ac2));display:flex;align-items:center;justify-content:center;font-size:1.6rem;box-shadow:0 4px 16px rgba(37,99,255,.25);}
+.co-name{font-size:.86rem;font-weight:800;margin-bottom:2px;}
+.co-type{font-size:.7rem;color:var(--ac);font-weight:700;margin-bottom:6px;}
+.co-code{font-size:.58rem;color:var(--t3);letter-spacing:.8px;}
+.co-stats{display:flex;margin-top:10px;padding-top:10px;border-top:1px solid var(--border);}
+.cstat{flex:1;text-align:center;}
+.csn{font-size:.9rem;font-weight:900;color:var(--ac);}
+.csl{font-size:.58rem;color:var(--t3);}
+
+.nav-menu{display:flex;flex-direction:column;gap:2px;}
+.ni{display:flex;align-items:center;gap:8px;padding:8px 11px;border-radius:9px;cursor:pointer;transition:all .2s;color:var(--t2);font-size:.78rem;font-weight:700;text-decoration:none;}
+.ni:hover{background:rgba(255,255,255,.05);color:var(--t);}
+.ni.active{background:rgba(37,99,255,.08);color:var(--ac);border:1px solid rgba(37,99,255,.15);}
+.ni-ico{font-size:.95rem;width:18px;text-align:center;}
+.ni-badge{margin-right:auto;background:var(--ac);color:#fff;border-radius:10px;padding:1px 6px;font-size:.58rem;font-weight:900;}
+
+/* MAIN */
+.main{padding:20px 18px;}
+.sec-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
+.sec-hd h2{font-size:.88rem;font-weight:800;}
+
+/* Stats */
+.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:22px;}
+.stat-card{background:var(--card);border:1px solid var(--border);border-radius:15px;padding:16px;display:flex;align-items:center;gap:12px;}
+.stat-icon{width:42px;height:42px;border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:1.2rem;flex-shrink:0;}
+.si-blue{background:rgba(37,99,255,.15);}
+.si-purple{background:rgba(139,92,246,.15);}
+.si-green{background:rgba(0,200,150,.15);}
+.si-orange{background:rgba(249,115,22,.15);}
+.stat-n{font-size:1.3rem;font-weight:900;color:var(--t);margin-bottom:1px;}
+.stat-l{font-size:.66rem;color:var(--t2);}
+
+/* Search */
+.search-box{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:20px;margin-bottom:20px;}
+.search-box h3{font-size:.88rem;font-weight:800;margin-bottom:14px;}
+.search-grid{display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:8px;margin-bottom:12px;}
+.si{width:100%;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:10px;color:var(--t);font-family:'Cairo',sans-serif;font-size:.8rem;outline:none;direction:rtl;transition:border-color .2s;}
+.si:focus{border-color:var(--ac);}
+.si::placeholder{color:var(--t3);}
+.search-btn{padding:9px 20px;border:none;border-radius:10px;background:linear-gradient(135deg,var(--ac),var(--ac2));color:#fff;font-family:'Cairo',sans-serif;font-size:.8rem;font-weight:800;cursor:pointer;transition:all .2s;white-space:nowrap;}
+.search-btn:hover{transform:translateY(-1px);box-shadow:0 4px 14px rgba(37,99,255,.35);}
+.filters{display:flex;gap:6px;flex-wrap:wrap;}
+.ftag{padding:4px 11px;border-radius:20px;border:1px solid var(--border);background:transparent;color:var(--t2);font-family:'Cairo',sans-serif;font-size:.7rem;font-weight:700;cursor:pointer;transition:all .2s;}
+.ftag:hover{border-color:rgba(37,99,255,.3);color:var(--t);}
+.ftag.active{background:rgba(37,99,255,.15);border-color:rgba(37,99,255,.3);color:#60a5fa;}
+
+/* Results */
+.res-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
+.res-count{font-size:.72rem;color:var(--t2);}
+.sort-sel{background:rgba(255,255,255,.06);border:1px solid var(--border);border-radius:8px;padding:5px 9px;color:var(--t2);font-family:'Cairo',sans-serif;font-size:.72rem;outline:none;direction:rtl;}
+
+/* Employee card */
+.emp-card{background:var(--card);border:1px solid var(--border);border-radius:18px;padding:16px;margin-bottom:10px;display:flex;gap:14px;align-items:flex-start;transition:all .2s;cursor:pointer;}
+.emp-card:hover{border-color:rgba(37,99,255,.22);transform:translateY(-1px);box-shadow:0 6px 20px rgba(0,0,0,.25);}
+.emp-ava{width:58px;height:58px;border-radius:14px;background:linear-gradient(135deg,var(--ac),var(--ac2));display:flex;align-items:center;justify-content:center;font-size:1.5rem;flex-shrink:0;box-shadow:0 4px 12px rgba(37,99,255,.2);}
+.emp-body{flex:1;min-width:0;}
+.emp-top{display:flex;align-items:flex-start;gap:8px;margin-bottom:4px;}
+.emp-name{font-size:.9rem;font-weight:800;}
+.v-badge{padding:2px 7px;border-radius:10px;font-size:.6rem;font-weight:800;background:rgba(0,200,150,.1);color:#00c896;border:1px solid rgba(0,200,150,.2);white-space:nowrap;}
+.emp-title{font-size:.76rem;color:var(--ac);font-weight:700;margin-bottom:6px;}
+.emp-tags{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:7px;}
+.etag{padding:2px 8px;border-radius:20px;font-size:.63rem;font-weight:700;background:rgba(255,255,255,.06);color:var(--t2);}
+.etag.g{background:rgba(0,200,150,.1);color:#00c896;}
+.etag.b{background:rgba(37,99,255,.1);color:#60a5fa;}
+.emp-meta{display:flex;gap:12px;font-size:.67rem;color:var(--t3);}
+.emp-actions{display:flex;flex-direction:column;gap:6px;flex-shrink:0;align-items:stretch;min-width:110px;}
+.match-ring{text-align:center;padding:8px;background:rgba(37,99,255,.08);border:1px solid rgba(37,99,255,.2);border-radius:11px;margin-bottom:4px;}
+.match-pct{font-size:1.2rem;font-weight:900;color:var(--ac);line-height:1;}
+.match-lbl{font-size:.6rem;color:var(--t3);font-weight:600;}
+.ea-btn{padding:7px 12px;border-radius:9px;border:none;font-family:'Cairo',sans-serif;font-size:.72rem;font-weight:700;cursor:pointer;transition:all .2s;width:100%;}
+.ea-primary{background:linear-gradient(135deg,var(--ac),var(--ac2));color:#fff;}
+.ea-primary:hover{transform:translateY(-1px);}
+.ea-ghost{background:rgba(255,255,255,.07);color:var(--t2);border:1px solid var(--border);}
+.ea-ghost:hover{background:rgba(255,255,255,.12);color:var(--t);}
+
+/* Empty state */
+.empty{text-align:center;padding:60px 20px;color:var(--t2);}
+.empty .ei{font-size:3.5rem;margin-bottom:14px;}
+.empty .et{font-size:.9rem;font-weight:700;margin-bottom:6px;color:var(--t);}
+.empty .es{font-size:.76rem;}
+
+/* Saved candidates */
+.saved-section{margin-top:22px;}
+.candidate-chip{display:inline-flex;align-items:center;gap:7px;padding:7px 12px;background:var(--card);border:1px solid var(--border);border-radius:30px;font-size:.74rem;font-weight:700;margin-left:6px;margin-bottom:6px;cursor:pointer;transition:all .2s;}
+.candidate-chip:hover{border-color:rgba(37,99,255,.3);background:rgba(37,99,255,.05);}
+.chip-ava{width:22px;height:22px;border-radius:50%;background:linear-gradient(135deg,var(--ac),var(--ac2));display:flex;align-items:center;justify-content:center;font-size:.6rem;}
+
+/* Bottom nav */
+.bnav{display:none;position:fixed;bottom:0;left:0;right:0;z-index:100;background:rgba(7,11,24,.95);backdrop-filter:blur(20px);border-top:1px solid var(--border);padding:8px 0 4px;justify-content:space-around;}
+.bn{display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer;padding:4px 10px;border-radius:9px;}
+.bn .bi{font-size:1.15rem;}
+.bn .bl{font-size:.56rem;color:var(--t3);font-weight:700;}
+.bn.active .bl{color:var(--ac);}
+
+@media(max-width:768px){
+  .layout{grid-template-columns:1fr;}
+  .sidebar{display:none;}
+  .stats-row{grid-template-columns:1fr 1fr;}
+  .search-grid{grid-template-columns:1fr;}
+  .bnav{display:flex;}
+  body{padding-bottom:68px;}
+  .emp-card{flex-wrap:wrap;}
+  .emp-actions{flex-direction:row;min-width:unset;width:100%;}
+}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-logo">تواصلنا</div>
+  <span class="co-nm" id="coName">...</span>
+  <button class="nb nb-primary" onclick="doSearch()">🔍 بحث جديد</button>
+  <button class="nb nb-ghost">إعدادات الشركة</button>
+  <button class="nb nb-danger" onclick="logout()">خروج</button>
+  <div class="nav-ava">🏢</div>
+</nav>
+
+<div class="layout">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="co-card">
+      <div class="co-logo">🏢</div>
+      <div class="co-name" id="sCoName">شركتك</div>
+      <div class="co-type">شركة مسجلة</div>
+      <div class="co-code" id="sCoCode">TW-CO-00001</div>
+      <div class="co-stats">
+        <div class="cstat"><div class="csn">0</div><div class="csl">موظف تم التواصل</div></div>
+        <div class="cstat"><div class="csn">0</div><div class="csl">محفوظ</div></div>
+        <div class="cstat"><div class="csn">0</div><div class="csl">توظيف</div></div>
+      </div>
+    </div>
+
+    <nav class="nav-menu">
+      <a class="ni active" href="#"><span class="ni-ico">🏠</span>الرئيسية</a>
+      <a class="ni" href="#"><span class="ni-ico">🔍</span>بحث موظفين</a>
+      <a class="ni" href="#"><span class="ni-ico">💾</span>المحفوظون<span class="ni-badge">0</span></a>
+      <a class="ni" href="#"><span class="ni-ico">📋</span>الطلبات</a>
+      <a class="ni" href="#"><span class="ni-ico">💬</span>الرسائل<span class="ni-badge">0</span></a>
+      <a class="ni" href="#"><span class="ni-ico">📊</span>تقارير التوظيف</a>
+      <a class="ni" href="#"><span class="ni-ico">⚙️</span>إعدادات الشركة</a>
+      <a class="ni" href="#" onclick="logout()" style="color:rgba(239,68,68,.6)"><span class="ni-ico">🚪</span>خروج</a>
+    </nav>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main">
+
+    <!-- Stats -->
+    <div class="stats-row">
+      <div class="stat-card"><div class="stat-icon si-blue">👥</div><div><div class="stat-n">2,410</div><div class="stat-l">موظف في المنصة</div></div></div>
+      <div class="stat-card"><div class="stat-icon si-green">✅</div><div><div class="stat-n">1,840</div><div class="stat-l">ملف موثق</div></div></div>
+      <div class="stat-card"><div class="stat-icon si-purple">💾</div><div><div class="stat-n">0</div><div class="stat-l">مرشح محفوظ</div></div></div>
+      <div class="stat-card"><div class="stat-icon si-orange">📋</div><div><div class="stat-n">0</div><div class="stat-l">طلب مرسل</div></div></div>
+    </div>
+
+    <!-- Search Box -->
+    <div class="search-box">
+      <h3>🔍 ابحث عن الموظف المناسب</h3>
+      <div class="search-grid">
+        <input class="si" id="q" type="text" placeholder="المسمى الوظيفي، المهارة، التخصص...">
+        <input class="si" id="loc" type="text" placeholder="المدينة أو الدولة">
+        <select class="si" id="exp">
+          <option value="">مستوى الخبرة</option>
+          <option>أقل من سنة</option>
+          <option>1-3 سنوات</option>
+          <option>3-5 سنوات</option>
+          <option>أكثر من 5 سنوات</option>
+        </select>
+        <button class="search-btn" onclick="doSearch()">بحث</button>
+      </div>
+      <div class="filters">
+        <button class="ftag active" onclick="filterBy(this,'all')">الكل</button>
+        <button class="ftag" onclick="filterBy(this,'verified')">موثق ✓</button>
+        <button class="ftag" onclick="filterBy(this,'available')">متاح الآن</button>
+        <button class="ftag" onclick="filterBy(this,'dev')">مطور</button>
+        <button class="ftag" onclick="filterBy(this,'acc')">محاسب</button>
+        <button class="ftag" onclick="filterBy(this,'design')">مصمم</button>
+        <button class="ftag" onclick="filterBy(this,'sales')">مبيعات</button>
+        <button class="ftag" onclick="filterBy(this,'eng')">مهندس</button>
+      </div>
+    </div>
+
+    <!-- Results -->
+    <div class="res-hd">
+      <h2>نتائج البحث</h2>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span class="res-count" id="resCount">ابحث للعثور على موظفين</span>
+        <select class="sort-sel" id="sortSel">
+          <option>الأعلى تطابقاً</option>
+          <option>الأحدث تسجيلاً</option>
+          <option>الأكثر خبرة</option>
+        </select>
+      </div>
+    </div>
+
+    <div id="results">
+      <div class="empty">
+        <div class="ei">🏢</div>
+        <div class="et">ابدأ البحث عن الموظف المناسب</div>
+        <div class="es">استخدم خانة البحث أعلاه للعثور على مرشحين مؤهلين</div>
+      </div>
+    </div>
+
+    <!-- Saved section -->
+    <div class="saved-section">
+      <div class="sec-hd"><h2>💾 المرشحون المحفوظون</h2></div>
+      <div id="savedList" style="color:var(--t3);font-size:.76rem;padding:12px 0">لا يوجد مرشحون محفوظون بعد.</div>
+    </div>
+
+  </main>
+</div>
+
+<!-- BOTTOM NAV -->
+<div class="bnav">
+  <div class="bn active"><span class="bi">🏠</span><span class="bl">الرئيسية</span></div>
+  <div class="bn"><span class="bi">🔍</span><span class="bl">بحث</span></div>
+  <div class="bn"><span class="bi">💾</span><span class="bl">محفوظ</span></div>
+  <div class="bn"><span class="bi">📋</span><span class="bl">طلبات</span></div>
+  <div class="bn"><span class="bi">💬</span><span class="bl">رسائل</span></div>
+</div>
+
+<script>
+// ── Session ──
+let _user = null;
+try { _user = JSON.parse(localStorage.getItem('tw_user')); } catch(e){}
+if(!_user || !_user.id || _user.user_type !== 'co'){
+  window.location.href = '/';
+}
+if(_user){
+  const name = _user.full_name || 'شركة';
+  const code = 'TW-CO-' + String(_user.id).padStart(5,'0');
+  document.getElementById('coName').textContent = name;
+  document.getElementById('sCoName').textContent = name;
+  document.getElementById('sCoCode').textContent = code;
+}
+
+// ── Sample employees data ──
+const EMPLOYEES = [
+  {id:101,name:'أحمد محمد الزعبي',title:'مطور Full Stack',skills:['React','Python','FastAPI','PostgreSQL'],loc:'عمان، الأردن',exp:'3 سنوات',match:94,verified:true,emoji:'👨‍💻'},
+  {id:102,name:'سارة خالد المنصور',title:'مطورة Frontend',skills:['Vue.js','TypeScript','CSS','Figma'],loc:'الرياض، السعودية',exp:'4 سنوات',match:89,verified:true,emoji:'👩‍💻'},
+  {id:103,name:'محمد يوسف البكري',title:'مهندس Backend',skills:['Django','PostgreSQL','Docker','AWS'],loc:'دبي، الإمارات',exp:'5 سنوات',match:84,verified:false,emoji:'👨‍💻'},
+  {id:104,name:'رنا عبدالله الحسن',title:'مصممة UX/UI',skills:['Figma','Adobe XD','Prototyping'],loc:'عمان، الأردن',exp:'2 سنوات',match:78,verified:true,emoji:'👩‍🎨'},
+  {id:105,name:'خالد إبراهيم العمر',title:'محاسب مالي',skills:['Excel','SAP','محاسبة','ضرائب'],loc:'الكويت',exp:'6 سنوات',match:72,verified:true,emoji:'👨‍💼'},
+  {id:106,name:'نور محمد الصالح',title:'مهندسة شبكات',skills:['Cisco','Linux','Network Security','CCNA'],loc:'القاهرة، مصر',exp:'3 سنوات',match:68,verified:false,emoji:'👩‍💻'},
+];
+
+let savedIds = [];
+
+function renderCard(e){
+  return `<div class="emp-card" onclick="viewProfile(${e.id})">
+    <div class="emp-ava">${e.emoji}</div>
+    <div class="emp-body">
+      <div class="emp-top">
+        <div class="emp-name">${e.name}</div>
+        ${e.verified?'<span class="v-badge">✓ موثق</span>':''}
+      </div>
+      <div class="emp-title">${e.title}</div>
+      <div class="emp-tags">${e.skills.slice(0,4).map(s=>`<span class="etag g">${s}</span>`).join('')}</div>
+      <div class="emp-meta"><span>📍 ${e.loc}</span><span>💼 خبرة ${e.exp}</span></div>
+    </div>
+    <div class="emp-actions">
+      <div class="match-ring"><div class="match-pct">${e.match}%</div><div class="match-lbl">تطابق</div></div>
+      <button class="ea-btn ea-primary" onclick="viewProfile(${e.id});event.stopPropagation()">عرض الملف</button>
+      <button class="ea-btn ea-ghost" onclick="saveCandidate(${e.id},event)">${savedIds.includes(e.id)?'✓ محفوظ':'💾 حفظ'}</button>
+    </div>
+  </div>`;
+}
+
+function doSearch(){
+  const q = document.getElementById('q').value.trim().toLowerCase();
+  const loc = document.getElementById('loc').value.trim().toLowerCase();
+  const res = document.getElementById('results');
+
+  res.innerHTML = `<div class="empty"><div class="ei">⏳</div><div class="et">جاري البحث...</div></div>`;
+
+  setTimeout(()=>{
+    let filtered = EMPLOYEES;
+    if(q) filtered = filtered.filter(e =>
+      e.name.toLowerCase().includes(q) ||
+      e.title.toLowerCase().includes(q) ||
+      e.skills.some(s => s.toLowerCase().includes(q))
+    );
+    if(loc) filtered = filtered.filter(e => e.loc.toLowerCase().includes(loc));
+
+    if(filtered.length === 0){
+      res.innerHTML = `<div class="empty"><div class="ei">😔</div><div class="et">لا نتائج</div><div class="es">جرب كلمات مختلفة</div></div>`;
+    } else {
+      res.innerHTML = filtered.map(renderCard).join('');
+    }
+    document.getElementById('resCount').textContent = filtered.length + ' موظف';
+  }, 500);
+}
+
+function filterBy(el, type){
+  document.querySelectorAll('.ftag').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+
+  const res = document.getElementById('results');
+  let filtered = [...EMPLOYEES];
+
+  if(type === 'verified') filtered = filtered.filter(e=>e.verified);
+  else if(type === 'dev') filtered = filtered.filter(e=>e.title.includes('مطور')||e.title.includes('مهندس'));
+  else if(type === 'acc') filtered = filtered.filter(e=>e.title.includes('محاسب'));
+  else if(type === 'design') filtered = filtered.filter(e=>e.title.includes('مصمم'));
+  else if(type === 'sales') filtered = filtered.filter(e=>e.skills.some(s=>s.includes('مبيعات')));
+
+  if(filtered.length === 0){
+    res.innerHTML = `<div class="empty"><div class="ei">😔</div><div class="et">لا نتائج لهذا التصنيف</div></div>`;
+  } else {
+    res.innerHTML = filtered.map(renderCard).join('');
+  }
+  document.getElementById('resCount').textContent = filtered.length + ' موظف';
+}
+
+function saveCandidate(id, e){
+  e.stopPropagation();
+  if(savedIds.includes(id)) return;
+  savedIds.push(id);
+  const emp = EMPLOYEES.find(x=>x.id===id);
+  if(!emp) return;
+
+  const btn = event.target;
+  btn.textContent = '✓ محفوظ';
+  btn.style.color = '#00c896';
+
+  const list = document.getElementById('savedList');
+  if(list.tagName === 'DIV' && list.style.color){
+    list.innerHTML = '';
+    list.style.color = '';
+    list.style.fontSize = '';
+    list.style.padding = '';
+  }
+
+  const chip = document.createElement('div');
+  chip.className = 'candidate-chip';
+  chip.innerHTML = `<div class="chip-ava">${emp.emoji}</div>${emp.name}`;
+  chip.onclick = ()=>viewProfile(id);
+  list.appendChild(chip);
+}
+
+function viewProfile(id){
+  window.open('profile.html?id='+id, '_blank');
+}
+
+function logout(){
+  localStorage.removeItem('tw_user');
+  window.location.href = '/';
+}
+
+document.getElementById('q').addEventListener('keydown',e=>{ if(e.key==='Enter') doSearch(); });
+
+document.querySelectorAll('.bn').forEach(b=>{
+  b.addEventListener('click',()=>{
+    document.querySelectorAll('.bn').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active');
+  });
+});
+
+// Show all employees by default
+setTimeout(()=>filterBy(document.querySelector('.ftag.active'),'all'), 100);
+</script>
+</body>
+</html>
