@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl" id="html">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>تواصلنا - دخول وتسجيل</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;900&display=swap" rel="stylesheet">
+<style>
+:root{--ac:#00c896;--ac2:#2563ff;}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'Cairo',sans-serif;background:#070b18;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:40px 16px;overflow-x:hidden;}
+
+/* BG */
+.bg{position:fixed;inset:0;pointer-events:none;z-index:0;}
+.orb{position:absolute;border-radius:50%;filter:blur(110px);animation:breathe 9s ease-in-out infinite;}
+.o1{width:600px;height:600px;background:#00c896;opacity:.12;top:-200px;right:-160px;}
+.o2{width:500px;height:500px;background:#2563ff;opacity:.11;bottom:-180px;left:-140px;animation-delay:4s;}
+.o3{width:280px;height:280px;background:#8b5cf6;opacity:.07;top:40%;left:30%;animation-delay:2s;}
+@keyframes breathe{0%,100%{transform:scale(1);}50%{transform:scale(1.08) translateY(-18px);}}
+.grid{position:fixed;inset:0;z-index:0;background-image:linear-gradient(rgba(255,255,255,.022) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.022) 1px,transparent 1px);background-size:52px 52px;}
+
+/* WRAP */
+.wrap{position:relative;z-index:10;width:100%;max-width:420px;}
+
+/* LOGO */
+.logo{text-align:center;margin-bottom:28px;}
+.logo-mark{font-size:2.2rem;font-weight:900;background:linear-gradient(135deg,var(--ac),var(--ac2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;line-height:1;}
+.logo-sub{font-size:.7rem;color:rgba(255,255,255,.28);margin-top:3px;}
+
+/* TYPE CARDS - compact */
+.type-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;}
+.type-btn{
+  padding:10px 8px;
+  border-radius:14px;
+  border:2px solid rgba(255,255,255,.1);
+  background:rgba(255,255,255,.04);
+  cursor:pointer;
+  text-align:center;
+  transition:all .25s;
+  font-family:'Cairo',sans-serif;
+  display:flex;
+  align-items:center;
+  gap:8px;
+  justify-content:center;
+}
+.type-btn:hover{border-color:rgba(255,255,255,.2);background:rgba(255,255,255,.07);}
+.type-btn.active{border-color:var(--ac);background:rgba(0,200,150,.08);}
+.type-btn.active.inst{border-color:var(--ac2);background:rgba(37,99,255,.08);}
+.tb-ico{font-size:1.3rem;flex-shrink:0;}
+.tb-name{font-size:.8rem;font-weight:800;color:#fff;}
+.tb-sub{font-size:.62rem;color:rgba(255,255,255,.35);}
+
+/* BUBBLE */
+.bubble{
+  background:linear-gradient(160deg,rgba(20,30,55,.9),rgba(10,18,38,.95));
+  border:1px solid rgba(255,255,255,.09);
+  border-radius:22px;
+  padding:26px 24px;
+  backdrop-filter:blur(24px);
+  box-shadow:0 20px 70px rgba(0,0,0,.6);
+}
+
+/* FORM TITLE */
+.form-title{font-size:.92rem;font-weight:900;color:#fff;margin-bottom:18px;}
+
+/* FIELDS */
+.field{margin-bottom:13px;}
+.field label{display:block;font-size:.71rem;font-weight:700;color:rgba(255,255,255,.4);margin-bottom:5px;}
+.field input,
+.field select{
+  width:100%;
+  padding:11px 14px;
+  background:rgba(255,255,255,.06);
+  border:1.5px solid rgba(255,255,255,.09);
+  border-radius:12px;
+  color:#fff;
+  font-family:'Cairo',sans-serif;
+  font-size:.84rem;
+  outline:none;
+  direction:rtl;
+  transition:border-color .2s;
+  appearance:none;
+}
+.field input:focus,
+.field select:focus{border-color:var(--ac);}
+.field input::placeholder{color:rgba(255,255,255,.28);}
+.field select{cursor:pointer;}
+.field select option{background:#0d1526;color:#fff;}
+
+/* CTA */
+.cta{
+  width:100%;padding:13px;border:none;border-radius:13px;
+  background:linear-gradient(135deg,var(--ac),var(--ac2));
+  color:#fff;font-family:'Cairo',sans-serif;font-size:.9rem;font-weight:900;
+  cursor:pointer;transition:all .25s;margin-top:4px;
+}
+.cta:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,200,150,.35);}
+.cta:disabled{opacity:.6;transform:none;cursor:wait;}
+
+/* SWITCH */
+.switch-link{text-align:center;margin-top:14px;font-size:.73rem;color:rgba(255,255,255,.35);}
+.switch-link span{color:var(--ac);cursor:pointer;font-weight:700;}
+.switch-link span:hover{text-decoration:underline;}
+
+/* HIDDEN */
+.hidden{display:none!important;}
+
+/* TOAST */
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);padding:10px 18px;border-radius:12px;font-size:.78rem;font-weight:700;z-index:9999;transition:transform .3s;pointer-events:none;white-space:nowrap;}
+.toast.show{transform:translateX(-50%) translateY(0);}
+.toast.success{background:#065f46;color:#6ee7b7;border:1px solid rgba(110,231,183,.2);}
+.toast.error{background:#7f1d1d;color:#fca5a5;border:1px solid rgba(252,165,165,.2);}
+</style>
+</head>
+<body>
+<div class="bg"><div class="orb o1"></div><div class="orb o2"></div><div class="orb o3"></div></div>
+<div class="grid"></div>
+
+<div class="wrap">
+  <!-- Logo -->
+  <div class="logo">
+    <div class="logo-mark">تواصلنا</div>
+    <div class="logo-sub">منصة التوظيف والتوثيق العربية</div>
+  </div>
+
+  <!-- Type selector -->
+  <div class="type-row">
+    <div class="type-btn active" id="empBtn" onclick="selectType('emp')">
+      <div class="tb-ico">👤</div>
+      <div><div class="tb-name">موظف</div><div class="tb-sub">باحث عن عمل</div></div>
+    </div>
+    <div class="type-btn" id="instBtn" onclick="selectType('inst')">
+      <div class="tb-ico">🏛️</div>
+      <div><div class="tb-name">جهة مؤسسية</div><div class="tb-sub">شركة، جامعة...</div></div>
+    </div>
+  </div>
+
+  <!-- Form bubble -->
+  <div class="bubble">
+
+    <!-- LOGIN FORM -->
+    <div id="loginSection">
+      <div class="form-title">دخول</div>
+      <div class="field"><label>البريد الإلكتروني</label><input id="lEmail" type="email" placeholder="example@email.com"></div>
+      <div class="field"><label>كلمة المرور</label><input id="lPass" type="password" placeholder="••••••••"></div>
+      <div style="text-align:left;margin-bottom:12px"><span style="font-size:.7rem;color:rgba(255,255,255,.3);cursor:pointer">نسيت كلمة المرور؟</span></div>
+      <button class="cta" id="loginBtn" onclick="doLogin()">دخول</button>
+      <div class="switch-link">مستخدم جديد؟ <span onclick="showRegister()">سجّل الآن</span></div>
+    </div>
+
+    <!-- REGISTER FORM -->
+    <div id="registerSection" class="hidden">
+      <div class="form-title">تسجيل جديد</div>
+
+      <!-- Institution type (only for جهة) -->
+      <div class="field hidden" id="instTypeField">
+        <label>نوع الجهة</label>
+        <select id="instSubtype">
+          <option value="" disabled selected>اختر نوع جهتك...</option>
+          <optgroup label="جهات تجارية">
+            <option value="co|شركة خاصة">🏢 شركة خاصة</option>
+            <option value="co|مصنع">🏭 مصنع</option>
+            <option value="co|بنك / مؤسسة مالية">🏦 بنك / مؤسسة مالية</option>
+            <option value="co|مستشفى / مركز طبي">🏥 مستشفى / مركز طبي</option>
+            <option value="co|جهة حكومية">🏛️ جهة حكومية</option>
+            <option value="co|أخرى">🔧 أخرى</option>
+          </optgroup>
+          <optgroup label="جهات تعليمية">
+            <option value="edu|جامعة / كلية">🎓 جامعة / كلية</option>
+            <option value="edu|مدرسة">🏫 مدرسة</option>
+            <option value="edu|مركز تدريب">📚 مركز تدريب</option>
+          </optgroup>
+        </select>
+      </div>
+
+      <div class="field"><label id="nameLabel">الاسم الكامل</label><input id="rName" placeholder="اكتب اسمك..."></div>
+      <div class="field"><label>البريد الإلكتروني</label><input id="rEmail" type="email" placeholder="example@email.com"></div>
+      <div class="field"><label>كلمة المرور</label><input id="rPass" type="password" placeholder="6 أحرف على الأقل"></div>
+      <button class="cta" id="regBtn" onclick="doRegister()">إنشاء حساب</button>
+      <div class="switch-link">عندك حساب؟ <span onclick="showLogin()">دخول</span></div>
+    </div>
+
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+let curType = 'emp';
+let instUserType = '';
+let instSubtype = '';
+
+// ── Auto redirect ──
+try {
+  const saved = JSON.parse(localStorage.getItem('tw_user'));
+  if(saved && saved.id){
+    redirect(saved);
+  }
+} catch(e){}
+
+function redirect(u){
+  const dest = u.user_type==='co' ? 'company-profile.html?id='+u.id
+             : u.user_type==='edu' ? 'edu.html'
+             : 'home.html';
+  window.location.href = dest;
+}
+
+function selectType(type){
+  curType = type;
+  const empBtn = document.getElementById('empBtn');
+  const instBtn = document.getElementById('instBtn');
+  const instField = document.getElementById('instTypeField');
+  const nameLabel = document.getElementById('nameLabel');
+  const rName = document.getElementById('rName');
+
+  // Always go back to login when switching type
+  showLogin();
+
+  if(type === 'emp'){
+    empBtn.classList.add('active');
+    empBtn.classList.remove('inst');
+    instBtn.classList.remove('active','inst');
+    instField.classList.add('hidden');
+    nameLabel.textContent = 'الاسم الكامل';
+    rName.placeholder = 'اكتب اسمك...';
+  } else {
+    instBtn.classList.add('active','inst');
+    empBtn.classList.remove('active');
+    nameLabel.textContent = 'اسم الجهة / المؤسسة';
+    rName.placeholder = 'اسم شركتك أو مؤسستك...';
+  }
+}
+
+function showRegister(){
+  document.getElementById('loginSection').classList.add('hidden');
+  document.getElementById('registerSection').classList.remove('hidden');
+  // Show inst type if جهة is selected
+  if(curType === 'inst'){
+    document.getElementById('instTypeField').classList.remove('hidden');
+  }
+}
+
+function showLogin(){
+  document.getElementById('registerSection').classList.add('hidden');
+  document.getElementById('instTypeField').classList.add('hidden');
+  document.getElementById('loginSection').classList.remove('hidden');
+}
+
+function toast(msg, type='success'){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = `toast ${type} show`;
+  setTimeout(()=>t.classList.remove('show'), 3200);
+}
+
+async function doLogin(){
+  const email = document.getElementById('lEmail').value.trim();
+  const pass = document.getElementById('lPass').value;
+  if(!email||!pass){ toast('أدخل البريد وكلمة المرور','error'); return; }
+  const btn = document.getElementById('loginBtn');
+  btn.disabled=true; btn.textContent='جاري الدخول...';
+  try{
+    const res = await fetch('/auth/login',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({email, password:pass})
+    });
+    const data = await res.json();
+    if(!res.ok){ toast(data.detail||'بيانات الدخول غير صحيحة','error'); return; }
+    localStorage.setItem('tw_user', JSON.stringify(data.user));
+    toast('مرحباً بك! 👋');
+    setTimeout(()=>redirect(data.user), 600);
+  }catch(e){ toast('تعذّر الاتصال بالخادم','error'); }
+  finally{ btn.disabled=false; btn.textContent='دخول'; }
+}
+
+async function doRegister(){
+  const full_name = document.getElementById('rName').value.trim();
+  const email = document.getElementById('rEmail').value.trim();
+  const password = document.getElementById('rPass').value;
+
+  if(!full_name){ toast('أدخل الاسم','error'); return; }
+  if(!email){ toast('أدخل البريد الإلكتروني','error'); return; }
+  if(password.length<6){ toast('كلمة المرور قصيرة جداً','error'); return; }
+
+  let user_type = 'emp';
+  if(curType === 'inst'){
+    const val = document.getElementById('instSubtype').value;
+    if(!val){ toast('اختر نوع الجهة','error'); return; }
+    const parts = val.split('|');
+    user_type = parts[0];
+    instSubtype = parts[1];
+  }
+
+  const btn = document.getElementById('regBtn');
+  btn.disabled=true; btn.textContent='جاري الإنشاء...';
+  try{
+    const res = await fetch('/auth/register',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({full_name, email, password, user_type})
+    });
+    const data = await res.json();
+    if(!res.ok){ toast(data.detail||'خطأ في التسجيل','error'); return; }
+    const userData = {...data.user, institution_subtype: instSubtype||''};
+    localStorage.setItem('tw_user', JSON.stringify(userData));
+    toast('تم إنشاء حسابك! 🎉');
+    setTimeout(()=>redirect(data.user), 700);
+  }catch(e){ toast('تعذّر الاتصال بالخادم','error'); }
+  finally{ btn.disabled=false; btn.textContent='إنشاء حساب'; }
+}
+
+document.addEventListener('keydown', e => {
+  if(e.key==='Enter'){
+    const login = document.getElementById('loginSection');
+    if(!login.classList.contains('hidden')) doLogin();
+    else doRegister();
+  }
+});
+</script>
+</body>
+</html>
