@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>تواصلنا - الإشعارات</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
+<style>
+:root{--ac:#00c896;--ac2:#2563ff;--bg:#070b18;--card:rgba(255,255,255,.03);--border:rgba(255,255,255,.07);--t:rgba(255,255,255,.87);--t2:rgba(255,255,255,.5);--t3:rgba(255,255,255,.27);}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-height:100vh;}
+
+.nav{position:fixed;top:0;left:0;right:0;z-index:100;height:52px;display:flex;align-items:center;gap:8px;padding:0 14px;background:rgba(7,11,24,.93);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);}
+.nav-logo{font-size:1rem;font-weight:900;background:linear-gradient(135deg,var(--ac),var(--ac2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-left:auto;cursor:pointer;}
+.nb{padding:5px 11px;border-radius:8px;border:none;cursor:pointer;font-family:'Cairo',sans-serif;font-size:.73rem;font-weight:700;transition:all .2s;background:rgba(255,255,255,.07);color:rgba(255,255,255,.6);border:1px solid var(--border);}
+.nb:hover{background:rgba(255,255,255,.12);color:var(--t);}
+
+.main{padding:70px 16px 40px;max-width:680px;margin:0 auto;}
+
+/* Header */
+.page-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;}
+.page-head h1{font-size:1.1rem;font-weight:900;}
+.mark-all{font-size:.74rem;color:var(--ac);cursor:pointer;font-weight:700;}
+.mark-all:hover{opacity:.8;}
+
+/* Filter tabs */
+.ftabs{display:flex;gap:6px;margin-bottom:18px;overflow-x:auto;padding-bottom:3px;}
+.ftab{padding:5px 13px;border-radius:20px;border:1px solid var(--border);background:transparent;color:var(--t2);font-family:'Cairo',sans-serif;font-size:.72rem;font-weight:700;cursor:pointer;transition:all .2s;white-space:nowrap;}
+.ftab:hover{border-color:rgba(0,200,150,.3);color:var(--t);}
+.ftab.active{background:linear-gradient(135deg,var(--ac),var(--ac2));color:#fff;border-color:transparent;}
+
+/* Notification groups */
+.notif-group{margin-bottom:20px;}
+.group-label{font-size:.68rem;font-weight:800;color:var(--t3);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:10px;padding-right:4px;}
+
+/* Notification item */
+.ni{display:flex;gap:12px;padding:14px 16px;background:var(--card);border:1px solid var(--border);border-radius:14px;margin-bottom:8px;cursor:pointer;transition:all .2s;position:relative;}
+.ni:hover{border-color:rgba(255,255,255,.12);background:rgba(255,255,255,.04);}
+.ni.unread{border-color:rgba(0,200,150,.15);background:rgba(0,200,150,.02);}
+.ni.unread::before{content:'';position:absolute;top:16px;right:-1px;width:4px;height:calc(100% - 32px);background:var(--ac);border-radius:0 4px 4px 0;}
+
+.ni-ico{width:44px;height:44px;border-radius:12px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:1.2rem;}
+.ico-job{background:rgba(37,99,255,.12);}
+.ico-training{background:rgba(139,92,246,.12);}
+.ico-verify{background:rgba(0,200,150,.12);}
+.ico-msg{background:rgba(249,115,22,.12);}
+.ico-follow{background:rgba(236,72,153,.12);}
+.ico-interview{background:rgba(234,179,8,.12);}
+.ico-system{background:rgba(255,255,255,.06);}
+
+.ni-body{flex:1;min-width:0;}
+.ni-title{font-size:.8rem;font-weight:700;margin-bottom:3px;line-height:1.4;}
+.ni-title span{color:var(--ac);}
+.ni-sub{font-size:.72rem;color:var(--t2);margin-bottom:5px;line-height:1.4;}
+.ni-time{font-size:.63rem;color:var(--t3);}
+.ni-actions{display:flex;gap:6px;margin-top:8px;}
+.na-btn{padding:5px 12px;border-radius:8px;border:none;font-family:'Cairo',sans-serif;font-size:.7rem;font-weight:700;cursor:pointer;transition:all .2s;}
+.na-primary{background:linear-gradient(135deg,var(--ac),var(--ac2));color:#fff;}
+.na-ghost{background:rgba(255,255,255,.08);color:var(--t2);}
+.na-ghost:hover{background:rgba(255,255,255,.14);color:var(--t);}
+
+/* Interview card */
+.interview-card{background:rgba(234,179,8,.05);border:1px solid rgba(234,179,8,.2);border-radius:12px;padding:12px 14px;margin-top:8px;}
+.ic-title{font-size:.76rem;font-weight:800;color:#eab308;margin-bottom:6px;}
+.ic-details{display:flex;gap:14px;flex-wrap:wrap;}
+.ic-item{font-size:.7rem;color:var(--t2);display:flex;align-items:center;gap:4px;}
+
+/* Empty */
+.empty{text-align:center;padding:60px 20px;}
+.empty .ei{font-size:3rem;margin-bottom:12px;}
+.empty p{font-size:.8rem;color:var(--t2);}
+
+/* Bottom nav */
+.bnav{display:none;position:fixed;bottom:0;left:0;right:0;z-index:100;background:rgba(7,11,24,.95);backdrop-filter:blur(20px);border-top:1px solid var(--border);padding:8px 0 4px;justify-content:space-around;}
+.bn{display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer;padding:4px 10px;}
+.bn .bi{font-size:1.15rem;}
+.bn .bl{font-size:.56rem;color:var(--t3);font-weight:700;}
+.bn.active .bl{color:var(--ac);}
+
+@media(max-width:600px){.bnav{display:flex;}body{padding-bottom:68px;}}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <button class="nb" onclick="goHome()">← رجوع</button>
+  <div class="nav-logo" onclick="goHome()">تواصلنا</div>
+</nav>
+
+<div class="main">
+  <div class="page-head">
+    <h1>🔔 الإشعارات</h1>
+    <span class="mark-all" onclick="markAll()">تحديد الكل كمقروء</span>
+  </div>
+
+  <div class="ftabs">
+    <button class="ftab active" onclick="filterNotifs('all',this)">الكل</button>
+    <button class="ftab" onclick="filterNotifs('job',this)">💼 وظائف</button>
+    <button class="ftab" onclick="filterNotifs('interview',this)">📅 مقابلات</button>
+    <button class="ftab" onclick="filterNotifs('training',this)">🎓 تدريب</button>
+    <button class="ftab" onclick="filterNotifs('verify',this)">✅ توثيق</button>
+    <button class="ftab" onclick="filterNotifs('msg',this)">💬 رسائل</button>
+  </div>
+
+  <!-- TODAY -->
+  <div class="notif-group" id="group-today">
+    <div class="group-label">اليوم</div>
+
+    <!-- Interview -->
+    <div class="ni unread" data-type="interview">
+      <div class="ni-ico ico-interview">📅</div>
+      <div class="ni-body">
+        <div class="ni-title">موعد مقابلة من <span>شركة تك ستارت</span></div>
+        <div class="ni-sub">دعوة لمقابلة عمل لوظيفة مطور Full Stack</div>
+        <div class="interview-card">
+          <div class="ic-title">📅 تفاصيل المقابلة</div>
+          <div class="ic-details">
+            <div class="ic-item">📆 <span>الثلاثاء 20 مايو 2025</span></div>
+            <div class="ic-item">⏰ <span>10:00 صباحاً</span></div>
+            <div class="ic-item">📍 <span>عمان - الدوار الأول</span></div>
+            <div class="ic-item">👤 <span>أحمد المدير</span></div>
+          </div>
+        </div>
+        <div class="ni-actions">
+          <button class="na-btn na-primary">✓ تأكيد الحضور</button>
+          <button class="na-btn na-ghost">إعادة جدولة</button>
+        </div>
+        <div class="ni-time">منذ ساعة</div>
+      </div>
+    </div>
+
+    <!-- Job match -->
+    <div class="ni unread" data-type="job">
+      <div class="ni-ico ico-job">💼</div>
+      <div class="ni-body">
+        <div class="ni-title">وظيفة تناسبك بنسبة <span>94%</span></div>
+        <div class="ni-sub">مطور React أول - شركة تك ستارت - عمان - 1200 دينار/شهر</div>
+        <div class="ni-actions">
+          <button class="na-btn na-primary">عرض الوظيفة</button>
+          <button class="na-btn na-ghost">تجاهل</button>
+        </div>
+        <div class="ni-time">منذ 3 ساعات</div>
+      </div>
+    </div>
+
+    <!-- Message -->
+    <div class="ni unread" data-type="msg">
+      <div class="ni-ico ico-msg">💬</div>
+      <div class="ni-body">
+        <div class="ni-title">رسالة جديدة من <span>شركة إبداع للتقنية</span></div>
+        <div class="ni-sub">مرحباً، نود الاطلاع على ملفك الشخصي للتقدم لوظيفة...</div>
+        <div class="ni-actions">
+          <button class="na-btn na-primary">رد الآن</button>
+        </div>
+        <div class="ni-time">منذ 5 ساعات</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- YESTERDAY -->
+  <div class="notif-group" id="group-yesterday">
+    <div class="group-label">أمس</div>
+
+    <!-- Verification -->
+    <div class="ni" data-type="verify">
+      <div class="ni-ico ico-verify">✅</div>
+      <div class="ni-body">
+        <div class="ni-title">تم توثيق شهادتك من <span>الجامعة الأردنية</span></div>
+        <div class="ni-sub">بكالوريوس هندسة الحاسوب - تظهر الآن موثقة في ملفك</div>
+        <div class="ni-time">أمس - 2:30 م</div>
+      </div>
+    </div>
+
+    <!-- Training -->
+    <div class="ni" data-type="training">
+      <div class="ni-ico ico-training">🎓</div>
+      <div class="ni-body">
+        <div class="ni-title">دورة جديدة من <span>أكاديمية التميز</span></div>
+        <div class="ni-sub">React المتقدم - 24 ساعة - خصم 30% حتى نهاية الشهر</div>
+        <div class="ni-actions">
+          <button class="na-btn na-primary">عرض الدورة</button>
+        </div>
+        <div class="ni-time">أمس - 10:15 ص</div>
+      </div>
+    </div>
+
+    <!-- Follow/Job post -->
+    <div class="ni" data-type="job">
+      <div class="ni-ico ico-job">💼</div>
+      <div class="ni-body">
+        <div class="ni-title"><span>شركة تك ستارت</span> التي تتابعها نشرت وظيفة جديدة</div>
+        <div class="ni-sub">مصمم UX/UI - دوام جزئي - عمان</div>
+        <div class="ni-actions">
+          <button class="na-btn na-primary">عرض الوظيفة</button>
+        </div>
+        <div class="ni-time">أمس - 9:00 ص</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- OLDER -->
+  <div class="notif-group">
+    <div class="group-label">سابقاً</div>
+
+    <div class="ni" data-type="verify">
+      <div class="ni-ico ico-verify">⏳</div>
+      <div class="ni-body">
+        <div class="ni-title">طلب توثيق قيد المراجعة</div>
+        <div class="ni-sub">خبرة العمل في شركة إبداع - تواصلنا يراجع الطلب</div>
+        <div class="ni-time">منذ 3 أيام</div>
+      </div>
+    </div>
+
+    <div class="ni" data-type="training">
+      <div class="ni-ico ico-training">🎓</div>
+      <div class="ni-body">
+        <div class="ni-title">اكتملت دورة <span>Python للمبتدئين</span></div>
+        <div class="ni-sub">تهانينا! شهادتك جاهزة للتحميل وتظهر في ملفك</div>
+        <div class="ni-time">منذ 5 أيام</div>
+      </div>
+    </div>
+
+    <div class="ni" data-type="msg">
+      <div class="ni-ico ico-system">🔔</div>
+      <div class="ni-body">
+        <div class="ni-title">مرحباً بك في تواصلنا!</div>
+        <div class="ni-sub">أكمل ملفك الشخصي للحصول على أفضل فرص العمل</div>
+        <div class="ni-time">منذ أسبوع</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- BOTTOM NAV -->
+<div class="bnav">
+  <div class="bn" onclick="goHome()"><span class="bi">🏠</span><span class="bl">الرئيسية</span></div>
+  <div class="bn"><span class="bi">💼</span><span class="bl">وظائف</span></div>
+  <div class="bn"><span class="bi">👤</span><span class="bl">ملفي</span></div>
+  <div class="bn active"><span class="bi">🔔</span><span class="bl">إشعارات</span></div>
+  <div class="bn"><span class="bi">💬</span><span class="bl">رسائل</span></div>
+</div>
+
+<script>
+let _user = null;
+try { _user = JSON.parse(localStorage.getItem('tw_user')); } catch(e){}
+if(!_user || !_user.id){ window.location.href = '/'; }
+
+function filterNotifs(type, el){
+  document.querySelectorAll('.ftab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  document.querySelectorAll('.ni').forEach(n => {
+    n.style.display = (type === 'all' || n.dataset.type === type) ? '' : 'none';
+  });
+}
+
+function markAll(){
+  document.querySelectorAll('.ni.unread').forEach(n => {
+    n.classList.remove('unread');
+    n.querySelector('::before');
+  });
+  document.querySelectorAll('.ni').forEach(n => n.classList.remove('unread'));
+}
+
+function goHome(){
+  if(!_user){ window.location.href = '/'; return; }
+  const dest = _user.user_type==='co' ? 'company.html' : _user.user_type==='edu' ? 'edu.html' : 'home.html';
+  window.location.href = dest;
+}
+</script>
+</body>
+</html>

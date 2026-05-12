@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>تواصلنا - ملف الشركة</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
+<style>
+:root{--ac:#2563ff;--ac2:#00c896;--bg:#070b18;--card:rgba(255,255,255,.03);--border:rgba(255,255,255,.07);--t:rgba(255,255,255,.87);--t2:rgba(255,255,255,.5);--t3:rgba(255,255,255,.27);}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-height:100vh;}
+
+/* NAV */
+.nav{position:fixed;top:0;left:0;right:0;z-index:100;height:52px;display:flex;align-items:center;gap:8px;padding:0 14px;background:rgba(7,11,24,.93);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);}
+.nav-logo{font-size:1rem;font-weight:900;background:linear-gradient(135deg,var(--ac),var(--ac2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-left:auto;cursor:pointer;}
+.nb{padding:5px 11px;border-radius:8px;border:none;cursor:pointer;font-family:'Cairo',sans-serif;font-size:.73rem;font-weight:700;transition:all .2s;}
+.nb-ghost{background:rgba(255,255,255,.07);color:var(--t2);border:1px solid var(--border);}
+.nb-ghost:hover{background:rgba(255,255,255,.12);color:var(--t);}
+.nb-primary{background:linear-gradient(135deg,var(--ac),var(--ac2));color:#fff;}
+.nb-primary:hover{transform:translateY(-1px);box-shadow:0 4px 14px rgba(37,99,255,.35);}
+.nb-follow{background:rgba(37,99,255,.15);color:#60a5fa;border:1px solid rgba(37,99,255,.3);}
+.nb-follow.following{background:rgba(0,200,150,.15);color:#00c896;border-color:rgba(0,200,150,.3);}
+
+/* HERO */
+.hero{margin-top:52px;position:relative;height:200px;background:linear-gradient(135deg,#0d1526,#1a2540);overflow:hidden;}
+.hero-bg{position:absolute;inset:0;background:linear-gradient(135deg,rgba(37,99,255,.15),rgba(0,200,150,.08));opacity:.8;}
+.hero-orb{position:absolute;border-radius:50%;filter:blur(60px);}
+.ho1{width:300px;height:300px;background:#2563ff;opacity:.1;top:-100px;right:-80px;}
+.ho2{width:200px;height:200px;background:#00c896;opacity:.08;bottom:-60px;left:-40px;}
+
+/* PROFILE HEADER */
+.profile-header{max-width:900px;margin:0 auto;padding:0 16px;position:relative;margin-top:-50px;z-index:10;}
+.ph-card{background:#0d1526;border:1px solid var(--border);border-radius:20px;padding:24px;display:flex;gap:20px;align-items:flex-start;}
+.co-logo{width:90px;height:90px;border-radius:18px;background:linear-gradient(135deg,var(--ac),var(--ac2));display:flex;align-items:center;justify-content:center;font-size:2.5rem;flex-shrink:0;border:3px solid rgba(37,99,255,.3);box-shadow:0 8px 24px rgba(37,99,255,.25);}
+.ph-info{flex:1;min-width:0;}
+.ph-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;flex-wrap:wrap;}
+.co-name{font-size:1.4rem;font-weight:900;margin-bottom:3px;}
+.co-type-badge{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;font-size:.68rem;font-weight:800;background:rgba(37,99,255,.12);color:#60a5fa;border:1px solid rgba(37,99,255,.2);margin-bottom:8px;}
+.co-desc{font-size:.8rem;color:var(--t2);line-height:1.6;margin-bottom:10px;}
+.co-meta{display:flex;gap:14px;flex-wrap:wrap;}
+.co-meta-item{display:flex;align-items:center;gap:5px;font-size:.72rem;color:var(--t3);}
+.ph-actions{display:flex;gap:6px;flex-shrink:0;}
+
+/* STATS BAR */
+.stats-bar{max-width:900px;margin:14px auto;padding:0 16px;}
+.stats-inner{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:14px 20px;display:flex;gap:0;justify-content:space-around;}
+.sbi{text-align:center;flex:1;border-left:1px solid var(--border);}
+.sbi:last-child{border-left:none;}
+.sbi-n{font-size:1.2rem;font-weight:900;color:var(--ac);margin-bottom:2px;}
+.sbi-l{font-size:.65rem;color:var(--t3);}
+
+/* TABS */
+.tabs-wrap{max-width:900px;margin:0 auto;padding:0 16px;margin-bottom:16px;}
+.tabs{display:flex;gap:6px;border-bottom:1px solid var(--border);padding-bottom:0;}
+.tab{padding:10px 16px;font-size:.78rem;font-weight:700;color:var(--t2);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .2s;}
+.tab:hover{color:var(--t);}
+.tab.active{color:var(--ac);border-bottom-color:var(--ac);}
+
+/* MAIN CONTENT */
+.content{max-width:900px;margin:0 auto;padding:0 16px 40px;}
+.grid-2{display:grid;grid-template-columns:1fr 320px;gap:16px;}
+
+/* JOB CARD */
+.job-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:16px 18px;margin-bottom:10px;transition:all .2s;cursor:pointer;}
+.job-card:hover{border-color:rgba(37,99,255,.25);transform:translateY(-1px);}
+.job-title{font-size:.92rem;font-weight:800;margin-bottom:3px;}
+.job-meta{display:flex;gap:10px;font-size:.7rem;color:var(--t2);margin-bottom:8px;}
+.job-tags{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px;}
+.jtag{padding:2px 8px;border-radius:20px;font-size:.64rem;font-weight:700;}
+.jtag-blue{background:rgba(37,99,255,.1);color:#60a5fa;}
+.jtag-green{background:rgba(0,200,150,.1);color:#00c896;}
+.jtag-gray{background:rgba(255,255,255,.06);color:var(--t2);}
+.job-footer{display:flex;align-items:center;justify-content:space-between;}
+.job-salary{font-size:.78rem;font-weight:800;color:var(--ac);}
+.job-date{font-size:.65rem;color:var(--t3);}
+.apply-btn{padding:7px 16px;border-radius:9px;border:none;background:linear-gradient(135deg,var(--ac),var(--ac2));color:#fff;font-family:'Cairo',sans-serif;font-size:.73rem;font-weight:800;cursor:pointer;transition:all .2s;}
+.apply-btn:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(37,99,255,.35);}
+.apply-btn.applied{background:rgba(0,200,150,.15);color:#00c896;border:1px solid rgba(0,200,150,.3);}
+
+/* ABOUT CARD */
+.about-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:18px;}
+.ac-title{font-size:.78rem;font-weight:800;color:var(--t);margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--border);}
+.ac-item{display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);align-items:flex-start;}
+.ac-item:last-child{border-bottom:none;}
+.ac-icon{font-size:1rem;width:20px;flex-shrink:0;margin-top:1px;}
+.ac-key{font-size:.68rem;color:var(--t3);margin-bottom:2px;}
+.ac-val{font-size:.76rem;font-weight:700;color:var(--t);}
+.ac-val a{color:var(--ac);text-decoration:none;}
+
+/* FOLLOWERS */
+.followers-wrap{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:16px;margin-top:14px;}
+.fw-avatars{display:flex;margin-bottom:8px;}
+.fw-ava{width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,var(--ac),var(--ac2));border:2px solid var(--bg);margin-left:-8px;display:flex;align-items:center;justify-content:center;font-size:.7rem;}
+.fw-count{font-size:.74rem;color:var(--t2);font-weight:700;}
+
+/* RATING */
+.rating-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:16px;margin-top:14px;}
+.stars{display:flex;gap:3px;font-size:1.1rem;margin-bottom:6px;}
+.rating-n{font-size:1.6rem;font-weight:900;color:var(--ac);}
+.rating-sub{font-size:.65rem;color:var(--t3);margin-top:2px;}
+.bar-row{display:flex;align-items:center;gap:8px;margin-bottom:4px;}
+.bar-label{font-size:.65rem;color:var(--t3);width:30px;text-align:left;}
+.bar-track{flex:1;height:5px;background:rgba(255,255,255,.08);border-radius:10px;overflow:hidden;}
+.bar-fill{height:100%;border-radius:10px;background:linear-gradient(90deg,var(--ac),var(--ac2));}
+
+/* POST CARD */
+.post-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:16px 18px;margin-bottom:10px;}
+.post-head{display:flex;align-items:center;gap:10px;margin-bottom:12px;}
+.post-ava{width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,var(--ac),var(--ac2));display:flex;align-items:center;justify-content:center;font-size:.9rem;flex-shrink:0;}
+.post-nm{font-size:.78rem;font-weight:800;}
+.post-date{font-size:.63rem;color:var(--t3);}
+.post-body{font-size:.78rem;color:var(--t2);line-height:1.6;margin-bottom:10px;}
+.post-actions{display:flex;gap:12px;}
+.pa{font-size:.7rem;color:var(--t3);cursor:pointer;transition:color .2s;display:flex;align-items:center;gap:4px;}
+.pa:hover{color:var(--ac);}
+
+/* Empty */
+.empty{text-align:center;padding:40px 20px;color:var(--t2);}
+.empty .ei{font-size:2.5rem;margin-bottom:10px;}
+.empty p{font-size:.78rem;}
+
+/* Modal */
+.overlay{position:fixed;inset:0;z-index:2000;background:rgba(0,0,0,.78);display:flex;align-items:center;justify-content:center;padding:16px;opacity:0;pointer-events:none;transition:opacity .2s;}
+.overlay.show{opacity:1;pointer-events:all;}
+.modal{background:#0a0f1e;border:1px solid rgba(255,255,255,.1);border-radius:20px;width:100%;max-width:480px;max-height:88vh;overflow-y:auto;padding:24px;font-family:'Cairo',sans-serif;transform:translateY(12px);transition:transform .2s;}
+.overlay.show .modal{transform:translateY(0);}
+.modal-title{font-size:.95rem;font-weight:800;color:#fff;margin-bottom:18px;}
+.mf{margin-bottom:12px;}
+.mf label{display:block;font-size:.72rem;font-weight:700;color:rgba(255,255,255,.45);margin-bottom:4px;}
+.mf input,.mf textarea,.mf select{width:100%;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:'Cairo',sans-serif;font-size:.82rem;outline:none;transition:border-color .2s;direction:rtl;}
+.mf input:focus,.mf textarea:focus{border-color:var(--ac);}
+.mf textarea{resize:vertical;min-height:80px;}
+.mrow{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.mact{display:flex;gap:8px;margin-top:16px;}
+.mbtn{flex:1;padding:10px;border:none;border-radius:10px;font-family:'Cairo',sans-serif;font-size:.82rem;font-weight:700;cursor:pointer;transition:all .2s;}
+.mbtn-ok{background:linear-gradient(135deg,var(--ac),var(--ac2));color:#fff;}
+.mbtn-no{background:rgba(255,255,255,.07);color:rgba(255,255,255,.55);}
+
+@media(max-width:700px){
+  .grid-2{grid-template-columns:1fr;}
+  .ph-card{flex-direction:column;align-items:center;text-align:center;}
+  .ph-top{justify-content:center;}
+  .co-meta{justify-content:center;}
+  .ph-actions{justify-content:center;}
+  .stats-inner{flex-wrap:wrap;gap:10px;}
+  .sbi{border-left:none;border-top:1px solid var(--border);padding-top:10px;}
+  .sbi:first-child{border-top:none;}
+}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <button class="nb nb-ghost" onclick="history.back()">← رجوع</button>
+  <div class="nav-logo" onclick="goHome()">تواصلنا</div>
+  <div id="ownerActions" style="display:none">
+    <button class="nb nb-primary" onclick="openEditModal()">✏️ تعديل الملف</button>
+  </div>
+</nav>
+
+<!-- HERO -->
+<div class="hero">
+  <div class="hero-bg"></div>
+  <div class="hero-orb ho1"></div>
+  <div class="hero-orb ho2"></div>
+</div>
+
+<!-- PROFILE HEADER -->
+<div class="profile-header">
+  <div class="ph-card">
+    <div class="co-logo" id="coLogo">🏢</div>
+    <div class="ph-info">
+      <div class="ph-top">
+        <div>
+          <div class="co-name" id="coName">اسم الشركة</div>
+          <div class="co-type-badge" id="coTypeBadge">🏢 شركة خاصة</div>
+          <div class="co-desc" id="coDesc">لا يوجد وصف بعد.</div>
+          <div class="co-meta">
+            <div class="co-meta-item" id="coLoc">📍 —</div>
+            <div class="co-meta-item" id="coFounded">📅 —</div>
+            <div class="co-meta-item" id="coSize">👥 —</div>
+            <div class="co-meta-item" id="coWebsite" style="display:none">🌐 <a href="#" id="coWebsiteLink" target="_blank">الموقع</a></div>
+          </div>
+        </div>
+        <div class="ph-actions" id="visitorActions">
+          <button class="nb nb-follow" id="followBtn" onclick="toggleFollow()">+ متابعة</button>
+          <button class="nb nb-ghost" onclick="openContact()">💬 تواصل</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- STATS -->
+<div class="stats-bar">
+  <div class="stats-inner">
+    <div class="sbi"><div class="sbi-n" id="jobsCount">0</div><div class="sbi-l">وظيفة مفتوحة</div></div>
+    <div class="sbi"><div class="sbi-n" id="followersCount">0</div><div class="sbi-l">متابع</div></div>
+    <div class="sbi"><div class="sbi-n" id="ratingAvg">—</div><div class="sbi-l">تقييم موظفين</div></div>
+    <div class="sbi"><div class="sbi-n" id="verifiedCount">0</div><div class="sbi-l">توثيق معتمد</div></div>
+  </div>
+</div>
+
+<!-- TABS -->
+<div class="tabs-wrap">
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab('jobs',this)">💼 الوظائف</div>
+    <div class="tab" onclick="switchTab('posts',this)">📢 المنشورات</div>
+    <div class="tab" onclick="switchTab('about',this)">ℹ️ عن الشركة</div>
+    <div class="tab owner-only" onclick="switchTab('ratings',this)" style="display:none">⭐ التقييمات</div>
+  </div>
+</div>
+
+<!-- CONTENT -->
+<div class="content">
+
+  <!-- JOBS TAB -->
+  <div id="tab-jobs">
+    <div class="grid-2">
+      <div id="jobsList">
+        <div class="job-card">
+          <div class="job-title">مطور Full Stack</div>
+          <div class="job-meta"><span>📍 عمان، الأردن</span><span>⏰ دوام كامل</span><span>🕐 منذ يومين</span></div>
+          <div class="job-tags">
+            <span class="jtag jtag-green">React</span>
+            <span class="jtag jtag-green">Python</span>
+            <span class="jtag jtag-blue">Remote</span>
+            <span class="jtag jtag-gray">3-5 سنوات</span>
+          </div>
+          <div class="job-footer">
+            <div>
+              <div class="job-salary">800 - 1200 دينار/شهر</div>
+              <div class="job-date">آخر تقديم: 30 مايو 2025</div>
+            </div>
+            <button class="apply-btn" onclick="applyJob(this)">تقديم ←</button>
+          </div>
+        </div>
+        <div class="job-card">
+          <div class="job-title">مصمم UX/UI</div>
+          <div class="job-meta"><span>📍 عمان، الأردن</span><span>⏰ دوام جزئي</span><span>🕐 منذ أسبوع</span></div>
+          <div class="job-tags">
+            <span class="jtag jtag-green">Figma</span>
+            <span class="jtag jtag-green">Adobe XD</span>
+            <span class="jtag jtag-gray">2+ سنوات</span>
+          </div>
+          <div class="job-footer">
+            <div>
+              <div class="job-salary">600 - 900 دينار/شهر</div>
+              <div class="job-date">آخر تقديم: 25 مايو 2025</div>
+            </div>
+            <button class="apply-btn" onclick="applyJob(this)">تقديم ←</button>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <!-- About mini -->
+        <div class="about-card">
+          <div class="ac-title">معلومات الشركة</div>
+          <div class="ac-item"><span class="ac-icon">🏢</span><div><div class="ac-key">النوع</div><div class="ac-val" id="acType">شركة خاصة</div></div></div>
+          <div class="ac-item"><span class="ac-icon">📍</span><div><div class="ac-key">الموقع</div><div class="ac-val" id="acLoc">—</div></div></div>
+          <div class="ac-item"><span class="ac-icon">📅</span><div><div class="ac-key">سنة التأسيس</div><div class="ac-val" id="acFounded">—</div></div></div>
+          <div class="ac-item"><span class="ac-icon">👥</span><div><div class="ac-key">حجم الشركة</div><div class="ac-val" id="acSize">—</div></div></div>
+          <div class="ac-item"><span class="ac-icon">🌐</span><div><div class="ac-key">الموقع الإلكتروني</div><div class="ac-val"><a href="#" id="acWeb">—</a></div></div></div>
+        </div>
+
+        <!-- Followers -->
+        <div class="followers-wrap">
+          <div class="ac-title">المتابعون</div>
+          <div class="fw-avatars">
+            <div class="fw-ava">👤</div>
+            <div class="fw-ava">👤</div>
+            <div class="fw-ava">👤</div>
+          </div>
+          <div class="fw-count"><span id="followersCount2">0</span> متابع</div>
+        </div>
+
+        <!-- Rating -->
+        <div class="rating-card">
+          <div class="ac-title">تقييم الموظفين</div>
+          <div class="stars">⭐⭐⭐⭐⭐</div>
+          <div style="display:flex;align-items:baseline;gap:6px">
+            <div class="rating-n">4.2</div>
+            <div class="rating-sub">من 5 — بناءً على 8 تقييمات</div>
+          </div>
+          <div style="margin-top:12px">
+            <div class="bar-row"><span class="bar-label">5 ⭐</span><div class="bar-track"><div class="bar-fill" style="width:60%"></div></div><span style="font-size:.63rem;color:var(--t3);width:24px">60%</span></div>
+            <div class="bar-row"><span class="bar-label">4 ⭐</span><div class="bar-track"><div class="bar-fill" style="width:25%"></div></div><span style="font-size:.63rem;color:var(--t3);width:24px">25%</span></div>
+            <div class="bar-row"><span class="bar-label">3 ⭐</span><div class="bar-track"><div class="bar-fill" style="width:10%"></div></div><span style="font-size:.63rem;color:var(--t3);width:24px">10%</span></div>
+            <div class="bar-row"><span class="bar-label">2 ⭐</span><div class="bar-track"><div class="bar-fill" style="width:5%"></div></div><span style="font-size:.63rem;color:var(--t3);width:24px">5%</span></div>
+            <div class="bar-row"><span class="bar-label">1 ⭐</span><div class="bar-track"><div class="bar-fill" style="width:0%"></div></div><span style="font-size:.63rem;color:var(--t3);width:24px">0%</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- POSTS TAB -->
+  <div id="tab-posts" style="display:none">
+    <div class="post-card">
+      <div class="post-head">
+        <div class="post-ava">🏢</div>
+        <div><div class="post-nm" id="postCoName">الشركة</div><div class="post-date">منذ 3 أيام</div></div>
+      </div>
+      <div class="post-body">نحن نبحث عن مطورين موهوبين للانضمام لفريقنا المتنامي! إذا كنت شغوفاً بالتكنولوجيا وتريد العمل في بيئة ديناميكية، تقدم الآن. 🚀</div>
+      <div class="job-tags">
+        <span class="jtag jtag-blue">توظيف</span>
+        <span class="jtag jtag-green">React</span>
+        <span class="jtag jtag-green">Python</span>
+      </div>
+      <div class="post-actions">
+        <div class="pa">👍 إعجاب <span>12</span></div>
+        <div class="pa">💬 تعليق <span>3</span></div>
+        <div class="pa">↗️ مشاركة</div>
+      </div>
+    </div>
+    <div class="post-card">
+      <div class="post-head">
+        <div class="post-ava">🏢</div>
+        <div><div class="post-nm" id="postCoName2">الشركة</div><div class="post-date">منذ أسبوع</div></div>
+      </div>
+      <div class="post-body">يسعدنا الإعلان عن إطلاق منتجنا الجديد! نشكر فريقنا الرائع على جهودهم المتميزة. 🎉</div>
+      <div class="post-actions">
+        <div class="pa">👍 إعجاب <span>47</span></div>
+        <div class="pa">💬 تعليق <span>8</span></div>
+        <div class="pa">↗️ مشاركة</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ABOUT TAB -->
+  <div id="tab-about" style="display:none">
+    <div class="grid-2">
+      <div class="about-card">
+        <div class="ac-title">عن الشركة</div>
+        <div style="font-size:.8rem;color:var(--t2);line-height:1.7;margin-bottom:16px" id="aboutDesc">لا يوجد وصف مفصل بعد.</div>
+        <div class="ac-item"><span class="ac-icon">🏢</span><div><div class="ac-key">نوع الجهة</div><div class="ac-val" id="aboutType">شركة خاصة</div></div></div>
+        <div class="ac-item"><span class="ac-icon">📍</span><div><div class="ac-key">الموقع</div><div class="ac-val" id="aboutLoc">—</div></div></div>
+        <div class="ac-item"><span class="ac-icon">📅</span><div><div class="ac-key">سنة التأسيس</div><div class="ac-val" id="aboutFounded">—</div></div></div>
+        <div class="ac-item"><span class="ac-icon">👥</span><div><div class="ac-key">حجم الشركة</div><div class="ac-val" id="aboutSize">—</div></div></div>
+        <div class="ac-item"><span class="ac-icon">🌐</span><div><div class="ac-key">الموقع الإلكتروني</div><div class="ac-val"><a href="#" id="aboutWeb" target="_blank">—</a></div></div></div>
+        <div class="ac-item"><span class="ac-icon">📧</span><div><div class="ac-key">البريد الإلكتروني</div><div class="ac-val" id="aboutEmail">—</div></div></div>
+        <div class="ac-item"><span class="ac-icon">📞</span><div><div class="ac-key">الهاتف</div><div class="ac-val" id="aboutPhone">—</div></div></div>
+      </div>
+      <div>
+        <div class="about-card">
+          <div class="ac-title">🏆 الإنجازات والتوثيق</div>
+          <div class="ac-item"><span class="ac-icon">✅</span><div><div class="ac-key">التوثيق</div><div class="ac-val">جهة موثقة من تواصلنا</div></div></div>
+          <div class="ac-item"><span class="ac-icon">📋</span><div><div class="ac-key">عمليات التوثيق</div><div class="ac-val" id="aboutVerified">0 توثيق معتمد</div></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- EDIT MODAL (owner only) -->
+<div class="overlay" id="editOverlay" onclick="closeEdit(event)">
+  <div class="modal">
+    <div class="modal-title">✏️ تعديل ملف الشركة</div>
+    <div class="mf"><label>اسم الشركة</label><input id="e-name" placeholder="اسم الشركة..."></div>
+    <div class="mf"><label>وصف مختصر</label><textarea id="e-desc" placeholder="ماذا تعمل شركتك؟"></textarea></div>
+    <div class="mrow">
+      <div class="mf"><label>نوع الجهة</label>
+        <select id="e-type">
+          <option>شركة خاصة</option>
+          <option>مصنع</option>
+          <option>بنك / مؤسسة مالية</option>
+          <option>جامعة / كلية</option>
+          <option>مدرسة</option>
+          <option>مركز تدريب</option>
+          <option>مستشفى</option>
+          <option>جهة حكومية</option>
+          <option>أخرى</option>
+        </select>
+      </div>
+      <div class="mf"><label>سنة التأسيس</label><input id="e-founded" placeholder="2010" type="number"></div>
+    </div>
+    <div class="mrow">
+      <div class="mf"><label>الموقع</label><input id="e-loc" placeholder="عمان، الأردن"></div>
+      <div class="mf"><label>حجم الشركة</label>
+        <select id="e-size">
+          <option>1-10 موظفين</option>
+          <option>11-50 موظف</option>
+          <option>51-200 موظف</option>
+          <option>201-500 موظف</option>
+          <option>+500 موظف</option>
+        </select>
+      </div>
+    </div>
+    <div class="mf"><label>الموقع الإلكتروني</label><input id="e-web" placeholder="https://..."></div>
+    <div class="mf"><label>البريد الإلكتروني للتواصل</label><input id="e-email" placeholder="info@company.com"></div>
+    <div class="mact">
+      <button class="mbtn mbtn-ok" onclick="saveEdit()">حفظ</button>
+      <button class="mbtn mbtn-no" onclick="document.getElementById('editOverlay').classList.remove('show')">إلغاء</button>
+    </div>
+  </div>
+</div>
+
+<!-- CONTACT MODAL -->
+<div class="overlay" id="contactOverlay" onclick="closeContact(event)">
+  <div class="modal">
+    <div class="modal-title">💬 التواصل مع الشركة</div>
+    <p style="font-size:.8rem;color:var(--t2);margin-bottom:16px">أرسل رسالة للشركة وسيصلها إشعار.</p>
+    <div class="mf"><label>رسالتك</label><textarea id="c-msg" placeholder="اكتب رسالتك هنا..." style="min-height:100px"></textarea></div>
+    <div class="mact">
+      <button class="mbtn mbtn-ok" onclick="sendMsg()">إرسال</button>
+      <button class="mbtn mbtn-no" onclick="document.getElementById('contactOverlay').classList.remove('show')">إلغاء</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let _user = null, _isOwner = false, _following = false;
+let _coData = {name:'', desc:'', type:'شركة خاصة', loc:'', founded:'', size:'', web:'', email:'', phone:''};
+
+try { _user = JSON.parse(localStorage.getItem('tw_user')); } catch(e){}
+
+const urlParams = new URLSearchParams(window.location.search);
+const coId = urlParams.get('id');
+_isOwner = _user && coId && String(coId) === String(_user.id) && _user.user_type === 'co';
+
+if(_isOwner){
+  document.getElementById('ownerActions').style.display = 'flex';
+  document.getElementById('visitorActions').style.display = 'none';
+  document.querySelectorAll('.owner-only').forEach(el => el.style.display = 'flex');
+}
+
+function loadData(){
+  const name = _user && _isOwner ? _user.full_name : 'شركة تك ستارت';
+  _coData.name = name;
+  document.getElementById('coName').textContent = name;
+  document.querySelectorAll('[id^="postCoName"]').forEach(el => el.textContent = name);
+  document.getElementById('jobsCount').textContent = '2';
+  document.getElementById('followersCount').textContent = '47';
+  document.getElementById('followersCount2').textContent = '47';
+  document.getElementById('ratingAvg').textContent = '4.2';
+  document.getElementById('verifiedCount').textContent = '12';
+}
+loadData();
+
+function switchTab(name, el){
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  ['jobs','posts','about','ratings'].forEach(t => {
+    const el2 = document.getElementById('tab-'+t);
+    if(el2) el2.style.display = t === name ? '' : 'none';
+  });
+}
+
+function toggleFollow(){
+  _following = !_following;
+  const btn = document.getElementById('followBtn');
+  btn.textContent = _following ? '✓ متابَع' : '+ متابعة';
+  btn.classList.toggle('following', _following);
+  const cur = parseInt(document.getElementById('followersCount').textContent) || 0;
+  document.getElementById('followersCount').textContent = _following ? cur + 1 : cur - 1;
+  document.getElementById('followersCount2').textContent = document.getElementById('followersCount').textContent;
+}
+
+function applyJob(btn){
+  if(!_user){ window.location.href = '/'; return; }
+  btn.textContent = '✓ تم التقديم';
+  btn.classList.add('applied');
+  btn.disabled = true;
+}
+
+function openEditModal(){
+  document.getElementById('e-name').value = _coData.name;
+  document.getElementById('e-desc').value = _coData.desc;
+  document.getElementById('e-loc').value = _coData.loc;
+  document.getElementById('e-web').value = _coData.web;
+  document.getElementById('e-email').value = _coData.email;
+  document.getElementById('editOverlay').classList.add('show');
+}
+
+function saveEdit(){
+  _coData.name = document.getElementById('e-name').value;
+  _coData.desc = document.getElementById('e-desc').value;
+  _coData.type = document.getElementById('e-type').value;
+  _coData.loc = document.getElementById('e-loc').value;
+  _coData.founded = document.getElementById('e-founded').value;
+  _coData.size = document.getElementById('e-size').value;
+  _coData.web = document.getElementById('e-web').value;
+  _coData.email = document.getElementById('e-email').value;
+  document.getElementById('coName').textContent = _coData.name;
+  document.getElementById('coDesc').textContent = _coData.desc || 'لا يوجد وصف.';
+  document.getElementById('coTypeBadge').textContent = '🏢 ' + _coData.type;
+  document.getElementById('coLoc').textContent = '📍 ' + (_coData.loc || '—');
+  document.getElementById('editOverlay').classList.remove('show');
+}
+
+function openContact(){ document.getElementById('contactOverlay').classList.add('show'); }
+function sendMsg(){
+  alert('تم إرسال رسالتك! ✓');
+  document.getElementById('contactOverlay').classList.remove('show');
+}
+
+function closeEdit(e){ if(e.target===document.getElementById('editOverlay')) document.getElementById('editOverlay').classList.remove('show'); }
+function closeContact(e){ if(e.target===document.getElementById('contactOverlay')) document.getElementById('contactOverlay').classList.remove('show'); }
+
+function goHome(){
+  if(!_user){ window.location.href = '/'; return; }
+  const dest = _user.user_type==='co' ? 'company.html' : _user.user_type==='edu' ? 'edu.html' : 'home.html';
+  window.location.href = dest;
+}
+</script>
+</body>
+</html>
