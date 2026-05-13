@@ -29,6 +29,17 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-heig
 .ho2{width:200px;height:200px;background:#00c896;opacity:.08;bottom:-60px;left:-40px;}
 
 
+
+/* Dropdown */
+.drop-item{
+  display:flex;align-items:center;gap:8px;
+  padding:9px 12px;border-radius:9px;
+  font-family:'Cairo',sans-serif;font-size:.78rem;font-weight:700;
+  color:rgba(255,255,255,.7);text-decoration:none;cursor:pointer;
+  transition:all .15s;white-space:nowrap;
+}
+.drop-item:hover{background:rgba(255,255,255,.06);color:#fff;}
+
 /* Cover upload */
 .cover-upload-btn {
   position:absolute;
@@ -177,19 +188,29 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-heig
 <nav class="nav">
   <div class="nav-logo" onclick="goHome()">تواصلنا</div>
 
-  <!-- Owner actions (shown when logged in as owner) -->
-  <div id="ownerActions" style="display:none;align-items:center;gap:6px;flex-wrap:nowrap">
-    <button class="nb nb-ghost" onclick="location.href='company.html'" style="white-space:nowrap">🔍 موظفين</button>
-    <button class="nb nb-ghost" onclick="location.href='employees-group.html'" style="white-space:nowrap">👥 فريقي</button>
-    <button class="nb nb-ghost" onclick="location.href='messages.html'" style="white-space:nowrap">💬 رسائل</button>
-    <button class="nb nb-primary" onclick="openPostJob()" style="white-space:nowrap">+ نشر وظيفة</button>
-    <button class="nb nb-ghost" onclick="openEditModal()" style="white-space:nowrap">✏️ تعديل</button>
+  <!-- Owner quick actions -->
+  <div id="ownerActions" style="display:none;align-items:center;gap:6px">
+    <button class="nb nb-primary" onclick="openPostJob()">+ نشر وظيفة</button>
+    <button class="nb nb-ghost" onclick="openEditModal()">✏️ تعديل</button>
+    <!-- Dropdown menu -->
+    <div style="position:relative">
+      <button class="nb nb-ghost" onclick="toggleMenu()" id="menuBtn">☰ القائمة</button>
+      <div id="dropMenu" style="display:none;position:absolute;top:42px;right:0;background:#0d1526;border:1px solid var(--border);border-radius:13px;padding:6px;min-width:170px;z-index:500;box-shadow:0 10px 30px rgba(0,0,0,.5)">
+        <a class="drop-item" href="company.html">🔍 بحث عن موظفين</a>
+        <a class="drop-item" href="employees-group.html">👥 موظفو الشركة</a>
+        <a class="drop-item" href="messages.html">💬 الرسائل</a>
+        <a class="drop-item" href="notifications.html">🔔 الإشعارات</a>
+        <a class="drop-item" href="settings.html">⚙️ الإعدادات</a>
+        <div style="height:1px;background:var(--border);margin:4px 0"></div>
+        <a class="drop-item" onclick="doLogout()" style="color:#f87171">🚪 خروج</a>
+      </div>
+    </div>
   </div>
 
   <div style="flex:1"></div>
 
-  <!-- Logout always visible -->
-  <button class="nb" onclick="doLogout()" style="background:rgba(239,68,68,.1);color:#f87171;border:1px solid rgba(239,68,68,.2);white-space:nowrap;flex-shrink:0">خروج</button>
+  <!-- Logout for non-owners -->
+  <button id="visitorLogout" class="nb" onclick="doLogout()" style="background:rgba(239,68,68,.1);color:#f87171;border:1px solid rgba(239,68,68,.2)">خروج</button>
 </nav>
 
 <!-- HERO -->
@@ -463,6 +484,7 @@ _isOwner = _user && _user.user_type === 'co';
 if(_isOwner){
   document.getElementById('ownerActions').style.display = 'flex';
   document.getElementById('visitorActions').style.display = 'none';
+  document.getElementById('visitorLogout').style.display = 'none';
   document.querySelectorAll('.owner-only').forEach(el => el.style.display = 'flex');
   // Show cover upload button
   const uploadBtn = document.getElementById('coverUploadBtn');
