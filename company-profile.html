@@ -28,6 +28,30 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-heig
 .ho1{width:300px;height:300px;background:#2563ff;opacity:.1;top:-100px;right:-80px;}
 .ho2{width:200px;height:200px;background:#00c896;opacity:.08;bottom:-60px;left:-40px;}
 
+
+/* Cover upload */
+.cover-upload-btn {
+  position:absolute;
+  bottom:12px;
+  left:12px;
+  padding:7px 14px;
+  border-radius:10px;
+  background:rgba(0,0,0,.55);
+  color:#fff;
+  font-family:'Cairo',sans-serif;
+  font-size:.74rem;
+  font-weight:700;
+  cursor:pointer;
+  backdrop-filter:blur(8px);
+  border:1px solid rgba(255,255,255,.2);
+  transition:all .2s;
+  z-index:5;
+}
+.cover-upload-btn:hover {
+  background:rgba(0,0,0,.75);
+  border-color:rgba(255,255,255,.4);
+}
+
 /* PROFILE HEADER */
 .profile-header{max-width:900px;margin:0 auto;padding:0 16px;position:relative;margin-top:-50px;z-index:10;}
 .ph-card{background:#0d1526;border:1px solid var(--border);border-radius:20px;padding:24px;display:flex;gap:20px;align-items:flex-start;}
@@ -169,10 +193,16 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-heig
 </nav>
 
 <!-- HERO -->
-<div class="hero">
-  <div class="hero-bg"></div>
+<div class="hero" id="heroSection">
+  <div class="hero-bg" id="heroBg"></div>
   <div class="hero-orb ho1"></div>
   <div class="hero-orb ho2"></div>
+  <img id="coverImg" src="" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:none;opacity:0;transition:opacity .4s">
+  <!-- Upload button (owner only) -->
+  <label id="coverUploadBtn" class="cover-upload-btn" title="رفع صورة الغلاف" style="display:none">
+    <input type="file" accept="image/*" onchange="uploadCover(this)" style="display:none">
+    📷 تغيير صورة الغلاف
+  </label>
 </div>
 
 <!-- PROFILE HEADER -->
@@ -434,6 +464,18 @@ if(_isOwner){
   document.getElementById('ownerActions').style.display = 'flex';
   document.getElementById('visitorActions').style.display = 'none';
   document.querySelectorAll('.owner-only').forEach(el => el.style.display = 'flex');
+  // Show cover upload button
+  const uploadBtn = document.getElementById('coverUploadBtn');
+  if(uploadBtn) uploadBtn.style.display = 'flex';
+  // Load saved cover
+  const savedCover = localStorage.getItem('tw_cover_' + (_user && _user.id));
+  if(savedCover) setCover(savedCover);
+}
+
+// Demo cover image (Unsplash office photo)
+const demoCoverId = 9998;
+if(_user && _user.id == demoCoverId){
+  setCover('https://images.unsplash.com/photo-1497366216548-37526070297c?w=900&q=80');
 }
 
 function loadData(){
