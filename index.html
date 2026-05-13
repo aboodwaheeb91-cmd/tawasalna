@@ -103,6 +103,26 @@ body{font-family:'Cairo',sans-serif;background:#070b18;min-height:100vh;display:
 .switch-link span:hover{text-decoration:underline;}
 
 /* HIDDEN */
+
+/* ── Demo Button ── */
+.demo-bar{
+  display:flex;gap:8px;margin-top:14px;
+}
+.demo-btn{
+  flex:1;padding:10px;border-radius:12px;border:1px solid rgba(255,255,255,.1);
+  background:rgba(255,255,255,.04);color:rgba(255,255,255,.6);
+  font-family:'Cairo',sans-serif;font-size:.76rem;font-weight:700;
+  cursor:pointer;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:6px;
+}
+.demo-btn:hover{background:rgba(255,255,255,.08);color:#fff;border-color:rgba(255,255,255,.2);}
+.demo-divider{
+  display:flex;align-items:center;gap:8px;margin-top:16px;
+  font-size:.66rem;color:rgba(255,255,255,.2);
+}
+.demo-divider::before,.demo-divider::after{
+  content:'';flex:1;height:1px;background:rgba(255,255,255,.08);
+}
+
 .hidden{display:none!important;}
 
 /* TOAST */
@@ -146,6 +166,12 @@ body{font-family:'Cairo',sans-serif;background:#070b18;min-height:100vh;display:
       <div style="text-align:left;margin-bottom:12px"><span style="font-size:.7rem;color:rgba(255,255,255,.3);cursor:pointer">نسيت كلمة المرور؟</span></div>
       <button class="cta" id="loginBtn" onclick="doLogin()">دخول</button>
       <div class="switch-link">مستخدم جديد؟ <span onclick="showRegister()">سجّل الآن</span></div>
+      <div class="demo-divider">دخول تجريبي سريع</div>
+      <div class="demo-bar">
+        <button class="demo-btn" onclick="demoLogin('emp')">👤 موظف</button>
+        <button class="demo-btn" onclick="demoLogin('co')">🏢 شركة</button>
+        <button class="demo-btn" onclick="demoLogin('edu')">🎓 تعليمي</button>
+      </div>
     </div>
 
     <!-- REGISTER FORM -->
@@ -198,10 +224,23 @@ try {
   }
 } catch(e){}
 
+
+function demoLogin(type){
+  const demos = {
+    emp:{ id:9999, full_name:'موظف تجريبي', email:'demo@tawasolna.com', user_type:'emp' },
+    co: { id:9998, full_name:'شركة تجريبية', email:'company@tawasolna.com', user_type:'co' },
+    edu:{ id:9997, full_name:'مركز تجريبي', email:'edu@tawasolna.com', user_type:'edu' }
+  };
+  const user = demos[type];
+  localStorage.setItem('tw_user', JSON.stringify(user));
+  toast('دخول تجريبي كـ ' + user.full_name + ' 🚀');
+  setTimeout(()=>redirect(user), 600);
+}
+
 function redirect(u){
   const dest = u.user_type==='co' ? 'company-profile.html?id='+u.id
              : u.user_type==='edu' ? 'edu.html'
-             : 'home.html';
+             : 'profile.html?id='+u.id;
   window.location.href = dest;
 }
 
