@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl" id="htmlRoot">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>تواصلنا - الملف الشخصي</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;900&family=Tajawal:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+:root { --ac:#00c896; --ac2:#2563ff; --ac-rgb:0,200,150; }
+* { margin:0; padding:0; box-sizing:border-box; }
+
+/* ── TOOLBAR ── */
+.toolbar {
+  position:fixed; top:0; left:0; right:0; z-index:1000;
+  height:50px; display:flex; align-items:center; gap:8px; padding:0 14px;
+  background:rgba(7,11,24,.93); backdrop-filter:blur(20px);
+  border-bottom:1px solid rgba(255,255,255,.06); font-family:'Cairo',sans-serif;
+}
+.tb-logo {
+  font-size:.9rem; font-weight:900;
+  background:linear-gradient(135deg,var(--ac),var(--ac2));
+  -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;
+  margin-left:auto;
+}
+/* RTL: logo left, buttons right → LTR: logo right, buttons left */
+html[dir="ltr"] .tb-logo { margin-left:0; margin-right:auto; }
+
+.tb-btn {
+  display:flex; align-items:center; gap:5px; padding:6px 11px;
+  border-radius:9px; border:none; cursor:pointer;
+  font-family:'Cairo',sans-serif; font-size:.74rem; font-weight:700;
+  transition:all .2s; white-space:nowrap;
+}
+.tb-primary { background:linear-gradient(135deg,var(--ac),var(--ac2)); color:#fff; }
+.tb-primary:hover { transform:translateY(-1px); box-shadow:0 4px 14px rgba(var(--ac-rgb),.35); }
+.tb-ghost { background:rgba(255,255,255,.07); color:rgba(255,255,255,.7); border:1px solid rgba(255,255,255,.1); }
+.tb-ghost:hover { background:rgba(255,255,255,.12); color:#fff; }
+.tb-preview { background:rgba(255,255,255,.07); color:rgba(255,255,255,.65); border:1px solid rgba(255,255,255,.1); }
+.tb-preview.active { background:rgba(var(--ac-rgb),.12); color:var(--ac); border-color:rgba(var(--ac-rgb),.3); }
+
+/* ── SIDE PANEL ── */
+.panel-overlay {
+  position:fixed; inset:0; z-index:900;
+  background:rgba(0,0,0,.5); backdrop-filter:blur(4px);
+  opacity:0; pointer-events:none; transition:opacity .3s;
+}
+.panel-overlay.show { opacity:1; pointer-events:all; }
+.panel {
+  position:fixed; top:0; right:0; bottom:0; z-index:901;
+  width:290px; max-width:90vw;
+  background:#0a0f1e; border-left:1px solid rgba(255,255,255,.08);
+  display:flex; flex-direction:column;
+  transform:translateX(110%); transition:transform .3s cubic-bezier(.4,0,.2,1);
+}
+html[dir="ltr"] .panel { right:auto; left:0; border-left:none; border-right:1px solid rgba(255,255,255,.08); transform:translateX(-110%); }
+.panel-overlay.show .panel { transform:translateX(0); }
+.panel-head { display:flex; align-items:center; justify-content:space-between; padding:14px 16px; border-bottom:1px solid rgba(255,255,255,.07); flex-shrink:0; }
+.panel-head h3 { font-size:.88rem; font-weight:800; color:#fff; }
+.panel-close { width:28px; height:28px; border-radius:8px; border:none; background:rgba(255,255,255,.07); color:rgba(255,255,255,.6); cursor:pointer; font-size:.9rem; display:flex; align-items:center; justify-content:center; transition:all .2s; }
+.panel-close:hover { background:rgba(255,255,255,.12); color:#fff; }
+.panel-body { flex:1; overflow-y:auto; padding:14px; display:flex; flex-direction:column; gap:18px; }
+.panel-sec h4 { font-size:.68rem; font-weight:800; color:rgba(255,255,255,.4); letter-spacing:1.5px; text-transform:uppercase; margin-bottom:8px; }
+
+/* Style opts */
+.style-grid { display:flex; flex-direction:column; gap:5px; }
+.sopt { display:flex; align-items:center; gap:9px; padding:9px 11px; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.07); border-radius:10px; cursor:pointer; transition:all .2s; }
+.sopt:hover { background:rgba(255,255,255,.07); }
+.sopt.active { background:rgba(var(--ac-rgb),.08); border-color:rgba(var(--ac-rgb),.25); }
+.sthumb { width:34px; height:22px; border-radius:5px; flex-shrink:0; border:1px solid rgba(255,255,255,.08); }
+.snm { font-size:.76rem; font-weight:700; color:#fff; }
+.sds { font-size:.61rem; color:rgba(255,255,255,.35); }
+.schk { margin-left:auto; color:var(--ac); font-size:.78rem; flex-shrink:0; }
+html[dir="ltr"] .schk { margin-left:0; margin-right:auto; }
+
+/* Color grid */
+.color-grid { display:grid; grid-template-columns:repeat(6,1fr); gap:6px; }
+.csw { aspect-ratio:1; border-radius:8px; cursor:pointer; border:2px solid transparent; transition:all .2s; }
+.csw:hover { transform:scale(1.15); }
+.csw.active { border-color:rgba(255,255,255,.75); transform:scale(1.08); }
+.csw-custom { aspect-ratio:1; border-radius:8px; cursor:pointer; border:2px dashed rgba(255,255,255,.2); display:flex; align-items:center; justify-content:center; font-size:.85rem; transition:all .2s; }
+.csw-custom:hover { border-color:rgba(255,255,255,.4); }
+
+/* Add section */
+.asec-list { display:flex; flex-direction:column; gap:5px; }
+.asec {
+  display:flex; align-items:center; gap:8px; padding:9px 11px;
+  background:rgba(255,255,255,.04); border:1.5px dashed rgba(255,255,255,.1);
+  border-radius:10px; cursor:pointer; transition:all .2s;
+  color:rgba(255,255,255,.6); font-family:'Cairo',sans-serif; font-size:.76rem; font-weight:700;
+}
+.asec:hover { background:rgba(var(--ac-rgb),.05); border-color:rgba(var(--ac-rgb),.3); color:var(--ac); }
+.asec.added { border-style:solid; border-color:rgba(var(--ac-rgb),.2); color:var(--ac); background:rgba(var(--ac-rgb),.05); cursor:default; }
+.asec-ico { font-size:.95rem; width:20px; text-align:center; }
+.asec-done { margin-left:auto; font-size:.61rem; opacity:.6; }
+html[dir="ltr"] .asec-done { margin-left:0; margin-right:auto; }
+
+#colorIn { position:absolute; opacity:0; width:0; height:0; pointer-events:none; }
+
+/* ── PAGE ── */
+.page { padding-top:50px; min-height:100vh; transition:background .3s; }
+
+/* ── DRAG HANDLE corner ── */
+.section { position:relative; }
+.drag-handle {
+  position:absolute;
+  bottom:10px; right:10px;
+  cursor:grab; color:rgba(255,255,255,.22);
+  font-size:.7rem; line-height:1; letter-spacing:1px;
+  transition:color .2s; display:flex; flex-direction:column;
+  gap:2px; align-items:center; padding:4px;
+  border-radius:6px;
+}
+.drag-handle:hover { color:rgba(255,255,255,.55); background:rgba(255,255,255,.05); }
+.drag-handle span { display:block; width:14px; height:1.5px; background:currentColor; border-radius:2px; }
+.drag-handle span:nth-child(1) { width:10px; }
+.drag-handle span:nth-child(2) { width:14px; }
+.drag-handle span:nth-child(3) { width:8px; }
+
+/* Light styles drag handle */
+body.s2 .drag-handle, body.s4 .drag-handle { color:rgba(0,0,0,.15); }
+body.s2 .drag-handle:hover, body.s4 .drag-handle:hover { color:rgba(0,0,0,.35); background:rgba(0,0,0,.04); }
+
+/* ── STYLE 1: MODERN DARK ── */
+body.s1 .page { background:#070b18; font-family:'Cairo',sans-serif; color:#fff; }
+body.s1 .cv-wrap { max-width:820px; margin:0 auto; padding:32px 14px; }
+body.s1 .cv-head { display:flex; gap:20px; align-items:flex-start; background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.07); border-radius:22px; padding:26px; margin-bottom:16px; position:relative; overflow:hidden; }
+body.s1 .cv-head::before { content:''; position:absolute; top:-50px; right:-50px; width:180px; height:180px; background:var(--ac); opacity:.05; border-radius:50%; filter:blur(40px); }
+body.s1 .avatar { width:86px; height:86px; border-radius:18px; flex-shrink:0; background:linear-gradient(135deg,var(--ac),var(--ac2)); display:flex; align-items:center; justify-content:center; font-size:2.1rem; box-shadow:0 6px 22px rgba(var(--ac-rgb),.25); }
+body.s1 .cv-name { font-size:1.5rem; font-weight:900; color:#fff; margin-bottom:2px; }
+body.s1 .cv-title { color:var(--ac); font-size:.84rem; font-weight:700; margin-bottom:6px; }
+body.s1 .cv-bio { color:rgba(255,255,255,.5); font-size:.79rem; line-height:1.65; }
+body.s1 .cv-loc { display:inline-flex; align-items:center; gap:4px; margin-top:8px; font-size:.71rem; color:rgba(255,255,255,.35); background:rgba(255,255,255,.05); border-radius:20px; padding:3px 9px; }
+body.s1 .cv-code { font-size:.61rem; color:rgba(255,255,255,.17); font-weight:700; letter-spacing:1px; margin-top:5px; }
+body.s1 .sections-list { display:flex; flex-direction:column; gap:14px; }
+body.s1 .section { background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.06); border-radius:20px; padding:20px 22px 28px; }
+body.s1 .sec-header { display:flex; align-items:center; gap:10px; margin-bottom:18px; }
+body.s1 .sec-icon { font-size:1.3rem; }
+body.s1 .sec-title { font-size:1.05rem; font-weight:900; color:#fff; }
+body.s1 .sec-line { flex:1; height:1px; background:linear-gradient(90deg,rgba(255,255,255,.1),transparent); }
+body.s1 .item { padding:11px 0; border-bottom:1px solid rgba(255,255,255,.05); }
+body.s1 .item:last-child { border-bottom:none; padding-bottom:0; }
+body.s1 .item-title { font-size:.85rem; font-weight:700; color:#fff; margin-bottom:2px; }
+body.s1 .item-sub { font-size:.76rem; color:rgba(255,255,255,.4); margin-bottom:3px; }
+body.s1 .item-date { font-size:.68rem; color:var(--ac); font-weight:600; }
+body.s1 .badge { display:inline-flex; align-items:center; gap:3px; background:rgba(var(--ac-rgb),.1); border:1px solid rgba(var(--ac-rgb),.2); border-radius:20px; padding:2px 7px; font-size:.62rem; color:var(--ac); font-weight:700; margin-top:4px; }
+body.s1 .badge.pending { background:rgba(251,146,60,.1); border-color:rgba(251,146,60,.2); color:#fb923c; }
+body.s1 .add-item-btn { display:flex; align-items:center; gap:5px; padding:9px 14px; background:rgba(255,255,255,.03); border:1.5px dashed rgba(255,255,255,.1); border-radius:11px; color:rgba(255,255,255,.35); font-family:'Cairo',sans-serif; font-size:.75rem; font-weight:700; cursor:pointer; width:calc(100% - 30px); justify-content:center; transition:all .2s; margin-top:10px; }
+body.s1 .add-item-btn:hover { background:rgba(var(--ac-rgb),.05); border-color:rgba(var(--ac-rgb),.3); color:var(--ac); }
+
+/* ── STYLE 2: CLEAN LIGHT ── */
+body.s2 .page { background:#f8fafc; font-family:'Tajawal',sans-serif; color:#0f172a; }
+body.s2 .cv-wrap { max-width:820px; margin:0 auto; padding:32px 14px; }
+body.s2 .cv-head { background:#fff; border-radius:18px; padding:26px; margin-bottom:14px; display:flex; gap:18px; align-items:flex-start; box-shadow:0 2px 14px rgba(0,0,0,.06); border-top:4px solid var(--ac); }
+body.s2 .avatar { width:82px; height:82px; border-radius:50%; flex-shrink:0; background:linear-gradient(135deg,var(--ac),var(--ac2)); display:flex; align-items:center; justify-content:center; font-size:2rem; }
+body.s2 .cv-name { font-size:1.4rem; font-weight:700; color:#0f172a; margin-bottom:2px; }
+body.s2 .cv-title { color:var(--ac); font-size:.82rem; font-weight:700; margin-bottom:5px; }
+body.s2 .cv-bio { color:#64748b; font-size:.79rem; line-height:1.65; }
+body.s2 .cv-loc { display:inline-flex; align-items:center; gap:4px; margin-top:6px; font-size:.71rem; color:#94a3b8; }
+body.s2 .cv-code { font-size:.59rem; color:#cbd5e1; font-weight:700; letter-spacing:1px; margin-top:4px; }
+body.s2 .sections-list { display:flex; flex-direction:column; gap:12px; }
+body.s2 .section { background:#fff; border-radius:16px; padding:20px 22px 28px; box-shadow:0 2px 10px rgba(0,0,0,.04); }
+body.s2 .sec-header { display:flex; align-items:center; gap:10px; margin-bottom:16px; padding-bottom:10px; border-bottom:2px solid #f1f5f9; }
+body.s2 .sec-icon { font-size:1.2rem; }
+body.s2 .sec-title { font-size:1.02rem; font-weight:900; color:#0f172a; }
+body.s2 .sec-line { display:none; }
+body.s2 .item { padding:10px 0; border-bottom:1px solid #f1f5f9; }
+body.s2 .item:last-child { border-bottom:none; padding-bottom:0; }
+body.s2 .item-title { font-size:.84rem; font-weight:700; color:#0f172a; margin-bottom:2px; }
+body.s2 .item-sub { font-size:.75rem; color:#64748b; margin-bottom:2px; }
+body.s2 .item-date { font-size:.67rem; color:var(--ac); font-weight:600; }
+body.s2 .badge { display:inline-flex; align-items:center; gap:3px; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:20px; padding:2px 7px; font-size:.62rem; color:#16a34a; font-weight:700; margin-top:3px; }
+body.s2 .badge.pending { background:#fff7ed; border-color:#fed7aa; color:#ea580c; }
+body.s2 .add-item-btn { display:flex; align-items:center; gap:5px; padding:9px 14px; background:#f8fafc; border:1.5px dashed #e2e8f0; border-radius:11px; color:#94a3b8; font-family:'Tajawal',sans-serif; font-size:.75rem; font-weight:700; cursor:pointer; width:calc(100% - 30px); justify-content:center; transition:all .2s; margin-top:10px; }
+body.s2 .add-item-btn:hover { background:#f0fdf4; border-color:#86efac; color:#16a34a; }
+
+/* ── STYLE 3: BOLD ── */
+body.s3 .page { background:#0f172a; font-family:'Cairo',sans-serif; color:#fff; }
+body.s3 .cv-wrap { max-width:820px; margin:0 auto; padding:32px 14px; }
+body.s3 .cv-head { background:linear-gradient(135deg,var(--ac),var(--ac2)); border-radius:22px; padding:30px; margin-bottom:16px; display:flex; gap:18px; align-items:flex-start; position:relative; overflow:hidden; }
+body.s3 .cv-head::before { content:''; position:absolute; top:-40px; left:-40px; width:160px; height:160px; background:rgba(255,255,255,.08); border-radius:50%; }
+body.s3 .avatar { width:82px; height:82px; border-radius:18px; flex-shrink:0; background:rgba(255,255,255,.15); display:flex; align-items:center; justify-content:center; font-size:2rem; border:2px solid rgba(255,255,255,.25); }
+body.s3 .cv-name { font-size:1.55rem; font-weight:900; color:#fff; margin-bottom:2px; }
+body.s3 .cv-title { color:rgba(255,255,255,.85); font-size:.83rem; font-weight:700; margin-bottom:6px; }
+body.s3 .cv-bio { color:rgba(255,255,255,.65); font-size:.79rem; line-height:1.65; }
+body.s3 .cv-loc { display:inline-flex; align-items:center; gap:4px; margin-top:7px; font-size:.71rem; color:rgba(255,255,255,.55); background:rgba(255,255,255,.1); border-radius:20px; padding:3px 9px; }
+body.s3 .cv-code { font-size:.59rem; color:rgba(255,255,255,.3); font-weight:700; letter-spacing:1px; margin-top:6px; }
+body.s3 .sections-list { display:flex; flex-direction:column; gap:14px; }
+body.s3 .section { background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); border-radius:20px; padding:20px 22px 28px; border-right:3px solid var(--ac); }
+body.s3 .sec-header { display:flex; align-items:center; gap:10px; margin-bottom:16px; }
+body.s3 .sec-icon { font-size:1.3rem; }
+body.s3 .sec-title { font-size:1.05rem; font-weight:900; color:#fff; }
+body.s3 .sec-line { flex:1; height:1px; background:linear-gradient(90deg,rgba(255,255,255,.1),transparent); }
+body.s3 .item { padding:11px 0; border-bottom:1px solid rgba(255,255,255,.06); }
+body.s3 .item:last-child { border-bottom:none; padding-bottom:0; }
+body.s3 .item-title { font-size:.85rem; font-weight:700; color:#fff; margin-bottom:2px; }
+body.s3 .item-sub { font-size:.76rem; color:rgba(255,255,255,.4); margin-bottom:2px; }
+body.s3 .item-date { font-size:.68rem; color:var(--ac); font-weight:700; }
+body.s3 .badge { display:inline-flex; align-items:center; gap:3px; background:rgba(var(--ac-rgb),.15); border:1px solid rgba(var(--ac-rgb),.3); border-radius:20px; padding:2px 7px; font-size:.62rem; color:var(--ac); font-weight:700; margin-top:3px; }
+body.s3 .badge.pending { background:rgba(251,146,60,.12); border-color:rgba(251,146,60,.25); color:#fb923c; }
+body.s3 .add-item-btn { display:flex; align-items:center; gap:5px; padding:9px 14px; background:rgba(255,255,255,.03); border:1.5px dashed rgba(255,255,255,.1); border-radius:11px; color:rgba(255,255,255,.35); font-family:'Cairo',sans-serif; font-size:.75rem; font-weight:700; cursor:pointer; width:calc(100% - 30px); justify-content:center; transition:all .2s; margin-top:10px; }
+body.s3 .add-item-btn:hover { border-color:rgba(var(--ac-rgb),.4); color:var(--ac); }
+
+/* ── STYLE 4: MINIMAL ── */
+body.s4 .page { background:#fafafa; font-family:'Tajawal',sans-serif; color:#111827; }
+body.s4 .cv-wrap { max-width:680px; margin:0 auto; padding:46px 14px; }
+body.s4 .cv-head { padding-bottom:26px; margin-bottom:26px; border-bottom:1px solid #e5e7eb; display:flex; gap:16px; align-items:flex-start; }
+body.s4 .avatar { width:66px; height:66px; border-radius:12px; flex-shrink:0; background:linear-gradient(135deg,var(--ac),var(--ac2)); display:flex; align-items:center; justify-content:center; font-size:1.6rem; }
+body.s4 .cv-name { font-size:1.38rem; font-weight:700; color:#111827; margin-bottom:2px; }
+body.s4 .cv-title { color:var(--ac); font-size:.8rem; font-weight:700; margin-bottom:4px; }
+body.s4 .cv-bio { color:#6b7280; font-size:.78rem; line-height:1.7; }
+body.s4 .cv-loc { display:inline-flex; align-items:center; gap:4px; margin-top:6px; font-size:.7rem; color:#9ca3af; }
+body.s4 .cv-code { font-size:.59rem; color:#d1d5db; font-weight:600; letter-spacing:1px; margin-top:4px; }
+body.s4 .sections-list { display:flex; flex-direction:column; gap:24px; }
+body.s4 .section { padding-bottom:8px; }
+body.s4 .sec-header { display:flex; align-items:center; gap:8px; margin-bottom:12px; }
+body.s4 .sec-icon { font-size:1.1rem; }
+body.s4 .sec-title { font-size:1rem; font-weight:900; color:#111827; }
+body.s4 .sec-line { flex:1; height:1px; background:#e5e7eb; }
+body.s4 .item { padding:10px 0; border-bottom:1px solid #f3f4f6; }
+body.s4 .item:last-child { border-bottom:none; }
+body.s4 .item-title { font-size:.83rem; font-weight:600; color:#111827; margin-bottom:2px; }
+body.s4 .item-sub { font-size:.74rem; color:#6b7280; margin-bottom:2px; }
+body.s4 .item-date { font-size:.66rem; color:var(--ac); font-weight:600; }
+body.s4 .badge { display:inline-flex; align-items:center; gap:3px; font-size:.62rem; color:var(--ac); font-weight:700; margin-top:2px; }
+body.s4 .badge.pending { color:#ea580c; }
+body.s4 .add-item-btn { display:flex; align-items:center; gap:5px; padding:8px 12px; background:transparent; border:1.5px dashed #e5e7eb; border-radius:10px; color:#9ca3af; font-family:'Tajawal',sans-serif; font-size:.74rem; font-weight:600; cursor:pointer; width:calc(100% - 30px); justify-content:center; transition:all .2s; margin-top:8px; }
+body.s4 .add-item-btn:hover { border-color:var(--ac); color:var(--ac); }
+
+/* ── STYLE 5: PROFESSIONAL ── */
+body.s5 .page { background:#1a1f2e; font-family:'Cairo',sans-serif; color:#fff; }
+body.s5 .cv-wrap { max-width:860px; margin:0 auto; padding:32px 14px; display:grid; grid-template-columns:250px 1fr; gap:16px; }
+body.s5 .cv-head { background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.07); border-radius:18px; padding:22px; text-align:center; height:fit-content; position:sticky; top:60px; }
+body.s5 .avatar { width:88px; height:88px; border-radius:50%; background:linear-gradient(135deg,var(--ac),var(--ac2)); display:flex; align-items:center; justify-content:center; font-size:2.1rem; margin:0 auto 12px; box-shadow:0 6px 22px rgba(var(--ac-rgb),.3); }
+body.s5 .cv-name { font-size:1.08rem; font-weight:800; color:#fff; margin-bottom:2px; }
+body.s5 .cv-title { color:var(--ac); font-size:.77rem; font-weight:700; margin-bottom:7px; }
+body.s5 .cv-bio { color:rgba(255,255,255,.44); font-size:.72rem; line-height:1.65; text-align:right; }
+body.s5 .cv-loc { display:flex; align-items:center; justify-content:center; gap:4px; margin-top:9px; font-size:.7rem; color:rgba(255,255,255,.34); }
+body.s5 .cv-code { font-size:.57rem; color:rgba(255,255,255,.17); font-weight:700; letter-spacing:1px; margin-top:9px; padding-top:9px; border-top:1px solid rgba(255,255,255,.06); }
+body.s5 .sections-list { display:flex; flex-direction:column; gap:12px; }
+body.s5 .section { background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.07); border-radius:14px; padding:18px 20px 28px; }
+body.s5 .sec-header { display:flex; align-items:center; gap:9px; margin-bottom:14px; }
+body.s5 .sec-icon { font-size:1.2rem; }
+body.s5 .sec-title { font-size:1rem; font-weight:900; color:#fff; }
+body.s5 .sec-line { flex:1; height:1px; background:linear-gradient(90deg,rgba(255,255,255,.08),transparent); }
+body.s5 .item { padding:9px 0; border-bottom:1px solid rgba(255,255,255,.05); }
+body.s5 .item:last-child { border-bottom:none; padding-bottom:0; }
+body.s5 .item-title { font-size:.83rem; font-weight:700; color:#fff; margin-bottom:2px; }
+body.s5 .item-sub { font-size:.73rem; color:rgba(255,255,255,.37); margin-bottom:2px; }
+body.s5 .item-date { font-size:.66rem; color:var(--ac); font-weight:600; }
+body.s5 .badge { display:inline-flex; align-items:center; gap:3px; background:rgba(var(--ac-rgb),.1); border:1px solid rgba(var(--ac-rgb),.2); border-radius:20px; padding:2px 7px; font-size:.6rem; color:var(--ac); font-weight:700; margin-top:3px; }
+body.s5 .badge.pending { background:rgba(251,146,60,.1); border-color:rgba(251,146,60,.2); color:#fb923c; }
+body.s5 .add-item-btn { display:flex; align-items:center; gap:5px; padding:8px 12px; background:rgba(255,255,255,.02); border:1.5px dashed rgba(255,255,255,.08); border-radius:10px; color:rgba(255,255,255,.3); font-family:'Cairo',sans-serif; font-size:.73rem; font-weight:700; cursor:pointer; width:calc(100% - 30px); justify-content:center; transition:all .2s; margin-top:8px; }
+body.s5 .add-item-btn:hover { border-color:rgba(var(--ac-rgb),.35); color:var(--ac); }
+
+/* ── Drag ── */
+.section.drag-over { outline:2px dashed rgba(var(--ac-rgb),.5); outline-offset:2px; opacity:.6; }
+.cv-wrap { transition:opacity .25s,transform .25s; }
+.cv-wrap.fading { opacity:0; transform:translateY(5px); }
+
+/* ── Preview ── */
+body.preview-mode .owner-only { display:none !important; }
+
+/* ── Modal ── */
+.overlay { position:fixed; inset:0; z-index:2000; background:rgba(0,0,0,.75); display:flex; align-items:center; justify-content:center; padding:16px; opacity:0; pointer-events:none; transition:opacity .2s; }
+.overlay.show { opacity:1; pointer-events:all; }
+.modal { background:#0d1526; border:1px solid rgba(255,255,255,.1); border-radius:20px; width:100%; max-width:460px; max-height:88vh; overflow-y:auto; padding:24px; font-family:'Cairo',sans-serif; transform:translateY(14px); transition:transform .2s; }
+.overlay.show .modal { transform:translateY(0); }
+.modal-title { font-size:.95rem; font-weight:800; color:#fff; margin-bottom:18px; }
+.mf { margin-bottom:12px; }
+.mf label { display:block; font-size:.72rem; font-weight:700; color:rgba(255,255,255,.48); margin-bottom:4px; }
+.mf input,.mf textarea,.mf select { width:100%; padding:9px 11px; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.1); border-radius:9px; color:#fff; font-family:'Cairo',sans-serif; font-size:.82rem; outline:none; transition:border-color .2s; direction:rtl; }
+.mf input:focus,.mf textarea:focus { border-color:var(--ac); }
+.mf textarea { resize:vertical; min-height:72px; }
+.mf select option { background:#0d1526; }
+.mact { display:flex; gap:7px; margin-top:16px; }
+.mbtn { flex:1; padding:10px; border:none; border-radius:10px; font-family:'Cairo',sans-serif; font-size:.82rem; font-weight:700; cursor:pointer; transition:all .2s; }
+.mbtn-ok { background:linear-gradient(135deg,var(--ac),var(--ac2)); color:#fff; }
+.mbtn-no { background:rgba(255,255,255,.07); color:rgba(255,255,255,.55); }
+.upload-area { border:2px dashed rgba(255,255,255,.15); border-radius:11px; padding:16px; text-align:center; cursor:pointer; transition:all .2s; color:rgba(255,255,255,.4); font-size:.78rem; }
+.upload-area:hover { border-color:rgba(var(--ac-rgb),.4); color:var(--ac); }
+.upload-area input { display:none; }
+.fn { margin-top:4px; font-size:.7rem; color:var(--ac); }
+
+
+/* ── Top Actions ── */
+.top-actions {
+  max-width:820px;
+  margin:20px auto 14px;
+  padding:0 14px;
+  display:flex;
+  flex-direction:row;
+  gap:10px;
+  align-items:center;
+}
+.top-actions .tb-btn { height:42px; }
+body.preview-mode .top-actions .tb-btn:not(#previewBtn) { display:none !important; }
+body.preview-mode .top-actions { display:flex !important; }
+
+@media(max-width:600px) {
+  body.s5 .cv-wrap { grid-template-columns:1fr; }
+  body.s5 .cv-head { position:static; }
+  .panel { width:85vw; }
+}
+</style>
+</head>
+<body class="s1">
+<input type="color" id="colorIn" value="#00c896">
+
+<!-- ── TOOLBAR: تواصلنا · تعديل · تخصيص · معاينة ── -->
+<div class="toolbar">
+  <div class="tb-logo">تواصلنا</div>
+  <button class="tb-btn tb-ghost" onclick="location.href='home.html'" style="font-size:.73rem">🏠 الإعلانات</button>
+</div>
+
+<!-- ── SIDE PANEL ── -->
+<div class="panel-overlay" id="panelOverlay" onclick="closePanelClick(event)">
+  <div class="panel">
+    <div class="panel-head">
+      <h3>⚙️ تخصيص</h3>
+      <button class="panel-close" onclick="closePanel()">✕</button>
+    </div>
+    <div class="panel-body">
+
+      <div class="panel-sec">
+        <h4>الستايل</h4>
+        <div class="style-grid">
+          <div class="sopt active" id="sopt1" onclick="setStyle(1,this)"><div class="sthumb" style="background:linear-gradient(135deg,#070b18,#1a2540)"></div><div><div class="snm">🌑 Modern Dark</div><div class="sds">داكن عصري</div></div><span class="schk">✓</span></div>
+          <div class="sopt" id="sopt2" onclick="setStyle(2,this)"><div class="sthumb" style="background:linear-gradient(135deg,#f8fafc,#e2e8f0)"></div><div><div class="snm">☀️ Clean Light</div><div class="sds">فاتح نظيف</div></div><span class="schk" style="display:none">✓</span></div>
+          <div class="sopt" id="sopt3" onclick="setStyle(3,this)"><div class="sthumb" style="background:linear-gradient(135deg,#00c896,#2563ff)"></div><div><div class="snm">🔥 Bold</div><div class="sds">جريء وملون</div></div><span class="schk" style="display:none">✓</span></div>
+          <div class="sopt" id="sopt4" onclick="setStyle(4,this)"><div class="sthumb" style="background:linear-gradient(135deg,#fafafa,#f3f4f6)"></div><div><div class="snm">⬜ Minimal</div><div class="sds">بسيط وأنيق</div></div><span class="schk" style="display:none">✓</span></div>
+          <div class="sopt" id="sopt5" onclick="setStyle(5,this)"><div class="sthumb" style="background:linear-gradient(135deg,#1a1f2e,#2d3748)"></div><div><div class="snm">💼 Professional</div><div class="sds">عمودان</div></div><span class="schk" style="display:none">✓</span></div>
+        </div>
+      </div>
+
+      <div class="panel-sec">
+        <h4>اللون الرئيسي</h4>
+        <div class="color-grid">
+          <div class="csw active" style="background:#00c896" onclick="setColor('#00c896',this)"></div>
+          <div class="csw" style="background:#2563ff" onclick="setColor('#2563ff',this)"></div>
+          <div class="csw" style="background:#8b5cf6" onclick="setColor('#8b5cf6',this)"></div>
+          <div class="csw" style="background:#f97316" onclick="setColor('#f97316',this)"></div>
+          <div class="csw" style="background:#ef4444" onclick="setColor('#ef4444',this)"></div>
+          <div class="csw" style="background:#eab308" onclick="setColor('#eab308',this)"></div>
+          <div class="csw" style="background:#06b6d4" onclick="setColor('#06b6d4',this)"></div>
+          <div class="csw" style="background:#ec4899" onclick="setColor('#ec4899',this)"></div>
+          <div class="csw" style="background:#14b8a6" onclick="setColor('#14b8a6',this)"></div>
+          <div class="csw" style="background:#f43f5e" onclick="setColor('#f43f5e',this)"></div>
+          <div class="csw" style="background:#a855f7" onclick="setColor('#a855f7',this)"></div>
+          <div class="csw-custom" onclick="document.getElementById('colorIn').click()">🎨</div>
+        </div>
+      </div>
+
+      <div class="panel-sec">
+        <h4>أقسام الملف</h4>
+        <div class="asec-list">
+          <div class="asec added"><span class="asec-ico">💼</span>الخبرات العملية<span class="asec-done">✓</span></div>
+          <div class="asec added"><span class="asec-ico">🎓</span>الشهادات الدراسية<span class="asec-done">✓</span></div>
+          <div class="asec" id="asec-course" onclick="addSection('course','📚','الدورات التدريبية',this)"><span class="asec-ico">📚</span>دورات تدريبية</div>
+          <div class="asec" id="asec-skills" onclick="addSection('skills','🛠️','المهارات',this)"><span class="asec-ico">🛠️</span>مهارات</div>
+          <div class="asec" id="asec-langs" onclick="addSection('langs','🌍','اللغات',this)"><span class="asec-ico">🌍</span>لغات</div>
+          <div class="asec" onclick="openModal('custom-section');closePanel()"><span class="asec-ico">✏️</span>قسم مخصص</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ── CV ── -->
+<div class="page">
+<div class="cv-wrap" id="cvWrap">
+
+  <div class="top-actions owner-only">
+    <button class="tb-btn tb-primary" onclick="openModal('profile')">✏️ تعديل</button>
+    <button class="tb-btn tb-ghost" onclick="openPanel()">⚙️ تخصيص</button>
+    <button class="tb-btn tb-preview" id="previewBtn" onclick="togglePreview()">👁 معاينة</button>
+  </div>
+
+  <div class="cv-head" id="cvHead">
+    <div class="avatar">👤</div>
+    <div>
+      <div class="cv-name" id="cvName">عبدالله محمد الوهيب</div>
+      <div class="cv-title" id="cvTitle">مطور ويب متكامل</div>
+      <div class="cv-bio" id="cvBio">مطور متخصص في بناء تطبيقات الويب الحديثة باستخدام React وFastAPI.</div>
+      <div class="cv-loc" id="cvLoc">📍 عمان، الأردن</div>
+      <div class="cv-code">TW-EMP-00001</div>
+    </div>
+  </div>
+
+  <div class="cv-main" id="cvMain">
+  <div class="sections-list" id="secList">
+
+    <div class="section" id="sec-exp" draggable="true">
+      <div class="sec-header">
+        <span class="sec-icon">💼</span>
+        <span class="sec-title">الخبرات العملية</span>
+        <div class="sec-line"></div>
+      </div>
+      <div id="exp-list">
+        <div class="item"><div class="item-title">مطور ويب أول</div><div class="item-sub">شركة تك ستارت · الرياض</div><div class="item-date">2022 - 2024</div><span class="badge">✓ موثقة</span></div>
+        <div class="item"><div class="item-title">مطور Frontend</div><div class="item-sub">شركة إبداع للتقنية · عمان</div><div class="item-date">2020 - 2022</div><span class="badge pending">⏳ قيد التوثيق</span></div>
+      </div>
+      <button class="add-item-btn owner-only" onclick="openModal('exp')">+ إضافة خبرة</button>
+      <div class="drag-handle owner-only" title="اسحب لإعادة الترتيب"><span></span><span></span><span></span></div>
+    </div>
+
+    <div class="section" id="sec-edu" draggable="true">
+      <div class="sec-header">
+        <span class="sec-icon">🎓</span>
+        <span class="sec-title">الشهادات الدراسية</span>
+        <div class="sec-line"></div>
+      </div>
+      <div id="edu-list">
+        <div class="item"><div class="item-title">بكالوريوس هندسة الحاسوب</div><div class="item-sub">الجامعة الأردنية</div><div class="item-date">2020</div><span class="badge">✓ موثقة</span></div>
+      </div>
+      <button class="add-item-btn owner-only" onclick="openModal('edu')">+ إضافة شهادة</button>
+      <div class="drag-handle owner-only"><span></span><span></span><span></span></div>
+    </div>
+
+  </div>
+  </div>
+</div>
+</div>
+
+<!-- ── MODAL ── -->
+<div class="overlay" id="overlay" onclick="closeOverlay(event)">
+  <div class="modal" id="modal"></div>
+</div>
+
+<script>
+const isOwner = true;
+let curStyle = 1;
+let previewMode = false;
+let dragSrc = null;
+
+function hexRgb(h){ return [parseInt(h.slice(1,3),16),parseInt(h.slice(3,5),16),parseInt(h.slice(5,7),16)].join(','); }
+
+function applyColor(hex){
+  document.documentElement.style.setProperty('--ac',hex);
+  document.documentElement.style.setProperty('--ac-rgb',hexRgb(hex));
+}
+
+function setColor(hex,el){
+  applyColor(hex);
+  document.querySelectorAll('.csw').forEach(s=>s.classList.remove('active'));
+  el.classList.add('active');
+  // Auto-close panel after picking
+  setTimeout(closePanel,300);
+}
+
+document.getElementById('colorIn').addEventListener('input',e=>{
+  applyColor(e.target.value);
+  document.querySelectorAll('.csw').forEach(s=>s.classList.remove('active'));
+});
+
+function setStyle(n,el){
+  const wrap = document.getElementById('cvWrap');
+  wrap.classList.add('fading');
+  setTimeout(()=>{
+    document.body.className = document.body.className.replace(/s\d/,'').trim();
+    document.body.classList.add('s'+n);
+    if(previewMode) document.body.classList.add('preview-mode');
+    curStyle = n;
+    document.querySelectorAll('.sopt').forEach(o=>{
+      o.classList.remove('active');
+      o.querySelector('.schk').style.display='none';
+    });
+    el.classList.add('active');
+    el.querySelector('.schk').style.display='';
+    const head=document.getElementById('cvHead'), main=document.getElementById('cvMain'), wEl=document.getElementById('cvWrap');
+    if(n===5) wEl.insertBefore(head,main); else wEl.insertBefore(head,wEl.firstChild);
+    wrap.classList.remove('fading');
+    // Auto-close panel after picking
+    setTimeout(closePanel,300);
+  },250);
+}
+
+function openPanel(){ document.getElementById('panelOverlay').classList.add('show'); }
+function closePanel(){ document.getElementById('panelOverlay').classList.remove('show'); }
+function closePanelClick(e){ if(e.target===document.getElementById('panelOverlay')) closePanel(); }
+
+function togglePreview(){
+  previewMode = !previewMode;
+  document.body.classList.toggle('preview-mode',previewMode);
+  const btn = document.getElementById('previewBtn');
+  btn.innerHTML = previewMode ? '← رجوع للتعديل' : '👁 معاينة';
+  btn.classList.toggle('active',previewMode);
+  if(previewMode) closePanel();
+}
+
+function addSection(id,icon,title,el){
+  if(document.getElementById('sec-'+id)) return;
+  const lid=id+'-list';
+  document.getElementById('secList').insertAdjacentHTML('beforeend',`
+    <div class="section" id="sec-${id}" draggable="true">
+      <div class="sec-header"><span class="sec-icon">${icon}</span><span class="sec-title">${title}</span><div class="sec-line"></div></div>
+      <div id="${lid}"></div>
+      <button class="add-item-btn owner-only" onclick="openModal('generic','${lid}','${title}')">+ إضافة</button>
+      <div class="drag-handle owner-only"><span></span><span></span><span></span></div>
+    </div>`);
+  el.classList.add('added');
+  el.onclick=null;
+  el.querySelector('.asec-ico').insertAdjacentHTML('afterend','');
+  el.insertAdjacentHTML('beforeend','<span class="asec-done">✓</span>');
+  setTimeout(closePanel,400);
+}
+
+// Drag & Drop
+const secList=document.getElementById('secList');
+secList.addEventListener('dragstart',e=>{ dragSrc=e.target.closest('.section'); if(dragSrc) setTimeout(()=>dragSrc.style.opacity='.4',0); });
+secList.addEventListener('dragend',e=>{ const s=e.target.closest('.section'); if(s) s.style.opacity='1'; document.querySelectorAll('.section').forEach(x=>x.classList.remove('drag-over')); });
+secList.addEventListener('dragover',e=>{ e.preventDefault(); const ov=e.target.closest('.section'); if(ov&&ov!==dragSrc){ document.querySelectorAll('.section').forEach(x=>x.classList.remove('drag-over')); ov.classList.add('drag-over'); } });
+secList.addEventListener('drop',e=>{ e.preventDefault(); const ov=e.target.closest('.section'); if(ov&&ov!==dragSrc){ const items=[...secList.children]; if(items.indexOf(dragSrc)<items.indexOf(ov)) secList.insertBefore(dragSrc,ov.nextSibling); else secList.insertBefore(dragSrc,ov); ov.classList.remove('drag-over'); } });
+
+// Modals
+function openModal(type,listId,secTitle){
+  let h='';
+  if(type==='profile') h=`<div class="modal-title">✏️ تعديل الملف الشخصي</div>
+    <div class="mf"><label>الاسم الكامل</label><input id="m-name" value="عبدالله محمد الوهيب"></div>
+    <div class="mf"><label>المسمى الوظيفي</label><input id="m-title" value="مطور ويب متكامل"></div>
+    <div class="mf"><label>نبذة مختصرة</label><textarea id="m-bio">مطور متخصص في بناء تطبيقات الويب الحديثة.</textarea></div>
+    <div class="mf"><label>المدينة</label><input id="m-loc" value="عمان، الأردن"></div>
+    <div class="mact"><button class="mbtn mbtn-ok" onclick="saveProfile()">حفظ</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
+  else if(type==='exp') h=`<div class="modal-title">💼 إضافة خبرة عملية</div>
+    <div class="mf"><label>المسمى الوظيفي *</label><input id="m-et" placeholder="مطور ويب..."></div>
+    <div class="mf"><label>جهة العمل *</label><input id="m-ec" placeholder="شركة..."></div>
+    <div class="mf"><label>الموقع</label><input id="m-el" placeholder="عمان"></div>
+    <div class="mf"><label>من</label><input id="m-es" placeholder="2022"></div>
+    <div class="mf"><label>إلى</label><input id="m-ee" placeholder="2024"></div>
+    <div class="mf"><label>وثيقة التوثيق</label><div class="upload-area" onclick="this.querySelector('input').click()"><input type="file" accept="image/*,.pdf" onchange="showFn(this)">📎 ارفع شهادة الخبرة<div class="fn"></div></div></div>
+    <div class="mact"><button class="mbtn mbtn-ok" onclick="saveExp()">إضافة</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
+  else if(type==='edu') h=`<div class="modal-title">🎓 إضافة شهادة دراسية</div>
+    <div class="mf"><label>الشهادة</label><input id="m-ed" placeholder="بكالوريوس..."></div>
+    <div class="mf"><label>المؤسسة *</label><input id="m-ei" placeholder="الجامعة..."></div>
+    <div class="mf"><label>سنة التخرج</label><input id="m-ey" placeholder="2020"></div>
+    <div class="mf"><label>صورة الشهادة</label><div class="upload-area" onclick="this.querySelector('input').click()"><input type="file" accept="image/*,.pdf" onchange="showFn(this)">📎 ارفع صورة الشهادة<div class="fn"></div></div></div>
+    <div class="mact"><button class="mbtn mbtn-ok" onclick="saveEdu()">إضافة</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
+  else if(type==='custom-section') h=`<div class="modal-title">✏️ قسم مخصص</div>
+    <div class="mf"><label>اسم القسم *</label><input id="m-csn" placeholder="مشاريعي، إنجازاتي..."></div>
+    <div class="mf"><label>أيقونة</label><input id="m-csi" placeholder="📌" style="font-size:1.2rem"></div>
+    <div class="mact"><button class="mbtn mbtn-ok" onclick="saveCustomSec()">إضافة</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
+  else if(type==='generic') h=`<div class="modal-title">+ إضافة في ${secTitle||''}</div>
+    <div class="mf"><label>العنوان *</label><input id="m-gt" placeholder="..."></div>
+    <div class="mf"><label>التفاصيل</label><input id="m-gs" placeholder="..."></div>
+    <div class="mf"><label>التاريخ</label><input id="m-gd" placeholder="2024"></div>
+    <div class="mact"><button class="mbtn mbtn-ok" onclick="saveGeneric('${listId}')">إضافة</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
+  document.getElementById('modal').innerHTML=h;
+  document.getElementById('overlay').classList.add('show');
+}
+
+function showFn(input){ const fn=input.parentElement.querySelector('.fn'); if(fn&&input.files[0]) fn.textContent='✓ '+input.files[0].name; }
+function saveProfile(){ document.getElementById('cvName').textContent=document.getElementById('m-name').value; document.getElementById('cvTitle').textContent=document.getElementById('m-title').value; document.getElementById('cvBio').textContent=document.getElementById('m-bio').value; document.getElementById('cvLoc').textContent='📍 '+document.getElementById('m-loc').value; closeModal(); }
+function saveExp(){ const t=document.getElementById('m-et').value.trim(),c=document.getElementById('m-ec').value.trim(); if(!t||!c) return; const s=document.getElementById('m-es').value,e=document.getElementById('m-ee').value,l=document.getElementById('m-el').value; document.getElementById('exp-list').insertAdjacentHTML('afterbegin',`<div class="item"><div class="item-title">${t}</div><div class="item-sub">${c}${l?' · '+l:''}</div><div class="item-date">${s}${e?' - '+e:''}</div><span class="badge pending">⏳ قيد المراجعة</span></div>`); closeModal(); }
+function saveEdu(){ const d=document.getElementById('m-ed').value.trim(),i=document.getElementById('m-ei').value.trim(); if(!i) return; const y=document.getElementById('m-ey').value; document.getElementById('edu-list').insertAdjacentHTML('afterbegin',`<div class="item"><div class="item-title">${d||'شهادة'}</div><div class="item-sub">${i}</div><div class="item-date">${y}</div><span class="badge pending">⏳ قيد المراجعة</span></div>`); closeModal(); }
+function saveCustomSec(){ const nm=document.getElementById('m-csn').value.trim(),ic=document.getElementById('m-csi').value.trim()||'📌'; if(!nm) return; const id='sec-c'+Date.now(),lid='list-c'+Date.now(); document.getElementById('secList').insertAdjacentHTML('beforeend',`<div class="section" id="${id}" draggable="true"><div class="sec-header"><span class="sec-icon">${ic}</span><span class="sec-title">${nm}</span><div class="sec-line"></div></div><div id="${lid}"></div><button class="add-item-btn owner-only" onclick="openModal('generic','${lid}','${nm}')">+ إضافة</button><div class="drag-handle owner-only"><span></span><span></span><span></span></div></div>`); closeModal(); }
+function saveGeneric(lid){ const t=document.getElementById('m-gt').value.trim(); if(!t) return; const s=document.getElementById('m-gs').value,d=document.getElementById('m-gd').value; document.getElementById(lid).insertAdjacentHTML('afterbegin',`<div class="item"><div class="item-title">${t}</div>${s?`<div class="item-sub">${s}</div>`:''}<div class="item-date">${d}</div><span class="badge pending">⏳ قيد المراجعة</span></div>`); closeModal(); }
+function closeModal(){ document.getElementById('overlay').classList.remove('show'); }
+function closeOverlay(e){ if(e.target===document.getElementById('overlay')) closeModal(); }
+
+if(!isOwner) document.querySelectorAll('.owner-only').forEach(el=>el.style.display='none');
+// top-actions needs flex not block
+const ta = document.querySelector('.top-actions');
+if(ta && isOwner) ta.style.display = 'flex';
+applyColor('#00c896');
+</script>
+
+<script>
+// ── Load profile data only ──
+(function(){
+  let user;
+  try { user = JSON.parse(localStorage.getItem('tw_user')); } catch(e){}
+  if(!user || !user.id) return;
+
+  fetch('/profile/' + user.id + '/full')
+    .then(r => r.json())
+    .then(data => {
+      const p = data.profile;
+      if(!p) return;
+      if(p.full_name) document.getElementById('cvName').textContent = p.full_name;
+      if(p.headline)  document.getElementById('cvTitle').textContent = p.headline;
+      if(p.bio)       document.getElementById('cvBio').textContent = p.bio;
+      if(p.location)  document.getElementById('cvLoc').textContent = '📍 ' + p.location;
+      const t = p.user_type || 'emp';
+      document.getElementById('cvCode').textContent = 'TW-' + t.toUpperCase() + '-' + String(p.id).padStart(5,'0');
+      if(p.experience && p.experience.length){
+        document.getElementById('exp-list').innerHTML = '';
+        p.experience.forEach(e => document.getElementById('exp-list').insertAdjacentHTML('beforeend',
+          `<div class="item"><div class="item-title">${e.title}</div><div class="item-sub">${e.company}${e.location?' · '+e.location:''}</div><div class="item-date">${e.start_date||''}${e.end_date?' - '+e.end_date:''}</div><span class="badge pending">⏳ قيد التوثيق</span></div>`));
+      }
+      if(p.education && p.education.length){
+        document.getElementById('edu-list').innerHTML = '';
+        p.education.forEach(e => document.getElementById('edu-list').insertAdjacentHTML('beforeend',
+          `<div class="item"><div class="item-title">${e.degree||'شهادة'}</div><div class="item-sub">${e.institution}</div><div class="item-date">${e.end_year||''}</div><span class="badge pending">⏳ قيد التوثيق</span></div>`));
+      }
+    })
+    .catch(()=>{
+      if(user.full_name) document.getElementById('cvName').textContent = user.full_name;
+    });
+})();
+</script>
+
+</body>
+</html>
