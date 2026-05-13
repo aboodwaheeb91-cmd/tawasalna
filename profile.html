@@ -377,7 +377,16 @@ body.preview-mode .top-actions { display:flex !important; }
   </div>
 
   <div class="cv-head" id="cvHead">
-    <div class="avatar">👤</div>
+    <div style="display:flex;flex-direction:column;align-items:center;gap:10px">
+      <div class="avatar">👤</div>
+      <div class="snap-qr-wrap">
+        <div class="snap-qr-card" onclick="openQROverlay()">
+          <div class="snap-qr-inner">
+            <canvas id="snapCanvas" width="100" height="100"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
     <div>
       <div class="cv-name" id="cvName">عبدالله محمد الوهيب</div>
       <div class="cv-title" id="cvTitle">مطور ويب متكامل</div>
@@ -444,13 +453,14 @@ function setColor(hex,el){
   applyColor(hex);
   document.querySelectorAll('.csw').forEach(s=>s.classList.remove('active'));
   el.classList.add('active');
-  // Auto-close panel after picking
+  redrawQR();
   setTimeout(closePanel,300);
 }
 
 document.getElementById('colorIn').addEventListener('input',e=>{
   applyColor(e.target.value);
   document.querySelectorAll('.csw').forEach(s=>s.classList.remove('active'));
+  redrawQR();
 });
 
 function setStyle(n,el){
@@ -599,5 +609,190 @@ applyColor('#00c896');
 })();
 </script>
 
+
+<!-- QR -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<script>
+let _qrUser = null;
+try { _qrUser = JSON.parse(localStorage.getItem('tw_user')); } catch(e){}
+
+function rrPath(ctx, x, y, w, h, r){
+  ctx.beginPath();
+  ctx.moveTo(x+r, y);
+  ctx.lineTo(x+w-r, y);
+  ctx.quadraticCurveTo(x+w, y, x+w, y+r);
+  ctx.lineTo(x+w, y+h-r);
+  ctx.quadraticCurveTo(x+w, y+h, x+w-r, y+h);
+  ctx.lineTo(x+r, y+h);
+  ctx.quadraticCurveTo(x, y+h, x, y+h-r);
+  ctx.lineTo(x, y+r);
+  ctx.quadraticCurveTo(x, y, x+r, y);
+  ctx.closePath();
+}
+
+function drawSnapQR(canvasId, text, size){
+  const canvas = document.getElementById(canvasId);
+  if(!canvas) return;
+  canvas.width = size; canvas.height = size;
+  const ctx = canvas.getContext('2d');
+
+  // Read current accent colors from CSS variables
+  const st = getComputedStyle(document.documentElement);
+  const ac  = st.getPropertyValue('--ac').trim()  || '#00c896';
+  const ac2 = st.getPropertyValue('--ac2').trim() || '#2563ff';
+
+  // Generate QR matrix
+  const qr = qrcode(0, 'H');
+  qr.addData(text || 'https://tawasolna.com');
+  qr.make();
+  const mc = qr.getModuleCount();
+
+  const pad  = size * 0.07;
+  const qrSz = size - pad * 2;
+  const cs   = qrSz / mc;
+
+  // ── Background: white with accent color border ──
+  // Gradient border using --ac
+  const borderGrad = ctx.createLinearGradient(0, 0, size, size);
+  borderGrad.addColorStop(0, ac);
+  borderGrad.addColorStop(1, ac2);
+  rrPath(ctx, 0, 0, size, size, size * 0.13);
+  ctx.fillStyle = borderGrad;
+  ctx.fill();
+
+  // White inner
+  const border = size * 0.04;
+  rrPath(ctx, border, border, size - border*2, size - border*2, size * 0.11);
+  ctx.fillStyle = '#ffffff';
+  ctx.fill();
+
+  // ── Finder pattern zones (7×7 each corner) ──
+  const fps = [[0,0],[mc-7,0],[0,mc-7]];
+  function inFinder(r, c){
+    for(const [fr,fc] of fps)
+      if(r>=fr&&r<fr+7&&c>=fc&&c<fc+7) return true;
+    return false;
+  }
+
+  // ── Logo zone (center 28%) ──
+  const lz = mc * 0.28;
+  const lzS = Math.floor((mc - lz) / 2);
+  const lzE = Math.ceil((mc + lz) / 2);
+  function inLogo(r, c){ return r>=lzS&&r<lzE&&c>=lzS&&c<lzE; }
+
+  // ── Draw data dots (circles) - dark for readability ──
+  ctx.fillStyle = '#1a1a2e';
+  for(let r=0; r<mc; r++){
+    for(let co=0; co<mc; co++){
+      if(!qr.isDark(r,co)) continue;
+      if(inFinder(r,co)) continue;
+      if(inLogo(r,co)) continue;
+      const x = pad + co*cs + cs/2;
+      const y = pad + r*cs  + cs/2;
+      ctx.beginPath();
+      ctx.arc(x, y, cs*0.41, 0, Math.PI*2);
+      ctx.fill();
+    }
+  }
+
+  // ── Draw custom finder patterns ──
+  function drawFinder(fr, fc){
+    const x = pad + fc*cs;
+    const y = pad + fr*cs;
+    const w = 7*cs;
+    const r1 = cs*1.1;  // outer
+    const r2 = cs*0.85; // mid
+    const r3 = cs*0.65; // inner dot
+
+    // Outer gradient rounded rect
+    const fg = ctx.createLinearGradient(x, y, x+w, y+w);
+    fg.addColorStop(0, ac);
+    fg.addColorStop(1, ac2);
+    ctx.fillStyle = fg;
+    rrPath(ctx, x, y, w, w, r1);
+    ctx.fill();
+
+    // Middle white gap
+    ctx.fillStyle = '#ffffff';
+    rrPath(ctx, x+cs, y+cs, 5*cs, 5*cs, r2);
+    ctx.fill();
+
+    // Inner gradient dot
+    const ig = ctx.createLinearGradient(x+2*cs, y+2*cs, x+5*cs, y+5*cs);
+    ig.addColorStop(0, ac);
+    ig.addColorStop(1, ac2);
+    ctx.fillStyle = ig;
+    rrPath(ctx, x+2*cs, y+2*cs, 3*cs, 3*cs, r3);
+    ctx.fill();
+  }
+
+  for(const [fr,fc] of fps) drawFinder(fr, fc);
+
+  // ── Center logo ──
+  const lsz  = size * 0.2;
+  const lpad = size * 0.03;
+  const lx   = (size - lsz) / 2;
+  const ly   = (size - lsz) / 2;
+
+  // White circle backing (clean)
+  ctx.fillStyle = '#fff';
+  rrPath(ctx, lx-lpad*1.5, ly-lpad*1.5, lsz+lpad*3, lsz+lpad*3, lsz*0.35);
+  ctx.fill();
+
+  // Gradient fill
+  const lg = ctx.createLinearGradient(lx, ly, lx+lsz, ly+lsz);
+  lg.addColorStop(0, ac);
+  lg.addColorStop(1, ac2);
+  ctx.fillStyle = lg;
+  rrPath(ctx, lx, ly, lsz, lsz, lsz*0.24);
+  ctx.fill();
+
+  // Logo placeholder - empty for now
+}
+
+function openQROverlay(){
+  const url = 'https://tawasolna.com/profile?id=' + (_qrUser&&_qrUser.id?_qrUser.id:'0');
+  const name = (document.getElementById('cvName')||{}).textContent || 'تواصلنا';
+
+  const ov = document.createElement('div');
+  ov.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(7,11,24,.92);backdrop-filter:blur(20px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;cursor:pointer';
+  ov.onclick = ()=>ov.remove();
+
+  const cvs = document.createElement('canvas');
+  cvs.id = 'qrBig';
+  cvs.style.cssText = 'border-radius:28px;box-shadow:0 20px 60px rgba(0,200,150,.35)';
+
+  const nameEl = document.createElement('div');
+  nameEl.style.cssText = "font-family:'Cairo',sans-serif;font-size:.95rem;font-weight:800;color:#fff";
+  nameEl.textContent = name;
+
+  const hint = document.createElement('div');
+  hint.style.cssText = "font-family:'Cairo',sans-serif;font-size:.68rem;color:rgba(255,255,255,.35)";
+  hint.textContent = 'اضغط للإغلاق';
+
+  ov.appendChild(cvs);
+  ov.appendChild(nameEl);
+  ov.appendChild(hint);
+  document.body.appendChild(ov);
+
+  drawSnapQR('qrBig', url, 240);
+}
+
+const _qrUrl = 'https://tawasolna.com/profile?id=' + (_qrUser&&_qrUser.id?_qrUser.id:'0');
+
+function redrawQR(){
+  if(typeof qrcode === 'undefined') return;
+  drawSnapQR('snapCanvas', _qrUrl, 68);
+}
+
+function initQR(){
+  if(typeof qrcode === 'undefined'){
+    setTimeout(initQR, 100);
+    return;
+  }
+  drawSnapQR('snapCanvas', _qrUrl, 68);
+}
+window.addEventListener('load', initQR);
+</script>
+
 </body>
-</html>
