@@ -11,7 +11,7 @@
 body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-height:100vh;}
 
 /* NAV */
-.nav{position:fixed;top:0;left:0;right:0;z-index:100;height:52px;display:flex;align-items:center;gap:8px;padding:0 14px;background:rgba(7,11,24,.93);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);}
+.nav{position:fixed;top:0;left:0;right:0;z-index:100;height:52px;display:flex;align-items:center;gap:6px;padding:0 10px;background:rgba(7,11,24,.93);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);overflow:hidden;}
 .nav-logo{font-size:1rem;font-weight:900;background:linear-gradient(135deg,var(--ac),var(--ac2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-left:auto;}
 .nav-search{flex:1;max-width:360px;display:flex;align-items:center;gap:7px;background:rgba(255,255,255,.06);border:1px solid var(--border);border-radius:10px;padding:6px 11px;}
 .nav-search input{flex:1;background:transparent;border:none;outline:none;color:var(--t);font-family:'Cairo',sans-serif;font-size:.8rem;direction:rtl;}
@@ -24,7 +24,7 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-heig
 .nav-ava{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,var(--ac),var(--ac2));display:flex;align-items:center;justify-content:center;font-size:.85rem;cursor:pointer;border:2px solid rgba(0,200,150,.3);}
 
 /* LAYOUT */
-.layout{padding-top:52px;display:grid;grid-template-columns:230px 1fr 270px;max-width:1200px;margin:0 auto;min-height:100vh;}
+.layout{padding-top:52px;display:grid;grid-template-columns:220px 1fr 250px;max-width:1100px;margin:0 auto;min-height:100vh;}
 
 /* SIDEBAR L */
 .sl{padding:18px 12px;border-left:1px solid var(--border);position:sticky;top:52px;height:calc(100vh - 52px);overflow-y:auto;}
@@ -142,7 +142,11 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-heig
 .bn .bl{font-size:.56rem;color:var(--t3);font-weight:700;}
 .bn.active .bl{color:var(--ac);}
 
-@media(max-width:900px){
+@media(max-width:1100px){
+  .layout{grid-template-columns:200px 1fr;}
+  .sr{display:none;}
+}
+@media(max-width:768px){
   .layout{grid-template-columns:1fr;}
   .sl,.sr{display:none;}
   .feed{border-left:none;padding:12px;}
@@ -150,7 +154,10 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-heig
   body{padding-bottom:68px;}
   .courses-grid{grid-template-columns:1fr;}
 }
-@media(max-width:580px){.nav-search{display:none;}}
+@media(max-width:640px){
+  .nav-search{display:none;}
+  .nb{padding:4px 8px;font-size:.68rem;}
+}
 </style>
 </head>
 <body>
@@ -187,8 +194,11 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-heig
       <a class="ni" href="#"><span class="ni-ico">💼</span>وظائفي<span class="ni-badge">0</span></a>
       <a class="ni" href="#"><span class="ni-ico">🎓</span>دوراتي</a>
       <a class="ni" href="#"><span class="ni-ico">🔔</span>الإشعارات<span class="ni-badge">0</span></a>
+      <a class="ni" href="notifications.html"><span class="ni-ico">🔔</span>الإشعارات</a>
+      <a class="ni" href="messages.html"><span class="ni-ico">💬</span>الرسائل</a>
       <a class="ni" href="#"><span class="ni-ico">📰</span>الأخبار</a>
       <a class="ni" href="#"><span class="ni-ico">🌍</span>فرص الخارج</a>
+      <a class="ni" href="settings.html"><span class="ni-ico">⚙️</span>الإعدادات</a>
       <a class="ni" href="#" onclick="logout()" style="color:rgba(239,68,68,.6)"><span class="ni-ico">🚪</span>خروج</a>
     </nav>
   </aside>
@@ -299,7 +309,7 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-heig
   <div class="bn" onclick="goProfile()"><span class="bi">👤</span><span class="bl">ملفي</span></div>
   <div class="bn"><span class="bi">💼</span><span class="bl">وظائف</span></div>
   <div class="bn"><span class="bi">🔔</span><span class="bl">إشعارات</span></div>
-  <div class="bn"><span class="bi">📰</span><span class="bl">أخبار</span></div>
+  <div class="bn" onclick="location.href='notifications.html'"><span class="bi">🔔</span><span class="bl">إشعارات</span></div>
 </div>
 
 <script>
