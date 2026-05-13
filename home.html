@@ -6,6 +6,9 @@
 <title>تواصلنا - الرئيسية</title>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
 <style>
+.tb-btn{display:flex;align-items:center;gap:5px;padding:6px 11px;border-radius:9px;border:none;cursor:pointer;font-family:'Cairo',sans-serif;font-size:.74rem;font-weight:700;transition:all .2s;white-space:nowrap;}
+.tb-ghost{background:rgba(255,255,255,.07);color:rgba(255,255,255,.7);border:1px solid rgba(255,255,255,.1);}
+.tb-ghost:hover{background:rgba(255,255,255,.12);color:#fff;}
 :root{--ac:#00c896;--ac2:#2563ff;--bg:#070b18;--card:rgba(255,255,255,.03);--bdr:rgba(255,255,255,.07);--t:rgba(255,255,255,.87);--t2:rgba(255,255,255,.5);--t3:rgba(255,255,255,.28);}
 *{margin:0;padding:0;box-sizing:border-box;}
 body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-height:100vh;}
@@ -226,11 +229,9 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-heig
 <!-- ══ NAV ══ -->
 <nav class="nav">
   <div class="nav-logo">تواصلنا</div>
-  <div class="nav-search">
-    <span style="color:var(--t3);flex-shrink:0">🔍</span>
-    <input type="text" placeholder="ابحث عن وظيفة أو مهارة...">
-  </div>
-  <div class="nav-ava" id="navAva" onclick="goProfile()">👤</div>
+  <button class="tb-btn tb-ghost" onclick="goProfile()" style="font-size:.73rem">👤 ملفي الشخصي</button>
+  <div style="flex:1"></div>
+  <button class="tb-btn" onclick="logout()" style="background:rgba(239,68,68,.1);color:#f87171;border:1px solid rgba(239,68,68,.2);font-size:.73rem">خروج</button>
 </nav>
 
 <div class="wrap">

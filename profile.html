@@ -309,7 +309,9 @@ body.preview-mode .top-actions { display:flex !important; }
 <!-- ── TOOLBAR: تواصلنا · تعديل · تخصيص · معاينة ── -->
 <div class="toolbar">
   <div class="tb-logo">تواصلنا</div>
-  <button class="tb-btn tb-ghost" onclick="location.href='home.html'" style="font-size:.73rem">🏠 الإعلانات</button>
+  <button class="tb-btn tb-ghost" onclick="location.href='home.html'" style="font-size:.73rem">💼 اعلانات العمل والدراسة</button>
+  <div style="flex:1"></div>
+  <button class="tb-btn" onclick="doLogout()" style="background:rgba(239,68,68,.1);color:#f87171;border:1px solid rgba(239,68,68,.2);font-size:.73rem">خروج</button>
 </div>
 
 <!-- ── SIDE PANEL ── -->
@@ -572,6 +574,7 @@ if(!isOwner) document.querySelectorAll('.owner-only').forEach(el=>el.style.displ
 const ta = document.querySelector('.top-actions');
 if(ta && isOwner) ta.style.display = 'flex';
 applyColor('#00c896');
+function doLogout(){ localStorage.removeItem('tw_user'); location.href='/'; }
 </script>
 
 <script>
