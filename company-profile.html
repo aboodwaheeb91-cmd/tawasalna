@@ -12,7 +12,7 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-heig
 
 /* NAV */
 .nav{position:fixed;top:0;left:0;right:0;z-index:100;height:52px;display:flex;align-items:center;gap:8px;padding:0 14px;background:rgba(7,11,24,.93);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);}
-.nav-logo{font-size:1rem;font-weight:900;background:linear-gradient(135deg,var(--ac),var(--ac2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-left:auto;cursor:pointer;}
+.nav-logo{font-size:1rem;font-weight:900;background:linear-gradient(135deg,var(--ac),var(--ac2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;cursor:pointer;flex-shrink:0;}
 .nb{padding:5px 11px;border-radius:8px;border:none;cursor:pointer;font-family:'Cairo',sans-serif;font-size:.73rem;font-weight:700;transition:all .2s;}
 .nb-ghost{background:rgba(255,255,255,.07);color:var(--t2);border:1px solid var(--border);}
 .nb-ghost:hover{background:rgba(255,255,255,.12);color:var(--t);}
@@ -151,16 +151,21 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-heig
 <body>
 
 <nav class="nav">
-    <div class="nav-logo" onclick="goHome()">تواصلنا</div>
-  <div id="ownerActions" style="display:none;gap:6px;flex-wrap:wrap">
-    <button class="nb nb-ghost" onclick="location.href='company.html'">🔍 موظفين</button>
-    <button class="nb nb-ghost" onclick="location.href='employees-group.html'">👥 فريقي</button>
-    <button class="nb nb-ghost" onclick="location.href='messages.html'">💬 رسائل</button>
-    <button class="nb nb-ghost" onclick="location.href='notifications.html'">🔔 إشعارات</button>
-    <button class="nb nb-ghost" onclick="location.href='settings.html'">⚙️</button>
-    <button class="nb nb-primary" onclick="openPostJob()">+ نشر وظيفة</button>
-    <button class="nb nb-ghost" onclick="openEditModal()">✏️ تعديل</button>
+  <div class="nav-logo" onclick="goHome()">تواصلنا</div>
+
+  <!-- Owner actions (shown when logged in as owner) -->
+  <div id="ownerActions" style="display:none;align-items:center;gap:6px;flex-wrap:nowrap">
+    <button class="nb nb-ghost" onclick="location.href='company.html'" style="white-space:nowrap">🔍 موظفين</button>
+    <button class="nb nb-ghost" onclick="location.href='employees-group.html'" style="white-space:nowrap">👥 فريقي</button>
+    <button class="nb nb-ghost" onclick="location.href='messages.html'" style="white-space:nowrap">💬 رسائل</button>
+    <button class="nb nb-primary" onclick="openPostJob()" style="white-space:nowrap">+ نشر وظيفة</button>
+    <button class="nb nb-ghost" onclick="openEditModal()" style="white-space:nowrap">✏️ تعديل</button>
   </div>
+
+  <div style="flex:1"></div>
+
+  <!-- Logout always visible -->
+  <button class="nb" onclick="doLogout()" style="background:rgba(239,68,68,.1);color:#f87171;border:1px solid rgba(239,68,68,.2);white-space:nowrap;flex-shrink:0">خروج</button>
 </nav>
 
 <!-- HERO -->
@@ -422,8 +427,8 @@ let _coData = {name:'', desc:'', type:'شركة خاصة', loc:'', founded:'', s
 try { _user = JSON.parse(localStorage.getItem('tw_user')); } catch(e){}
 
 const urlParams = new URLSearchParams(window.location.search);
-const coId = urlParams.get('id');
-_isOwner = _user && coId && String(coId) === String(_user.id) && _user.user_type === 'co';
+const coId = urlParams.get('id') || (_user && _user.id);
+_isOwner = _user && _user.user_type === 'co';
 
 if(_isOwner){
   document.getElementById('ownerActions').style.display = 'flex';
