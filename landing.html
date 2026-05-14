@@ -161,8 +161,8 @@ footer{position:relative;z-index:1;border-top:1px solid rgba(255,255,255,.06);pa
     <a class="nav-link" href="#verify">التوثيق</a>
   </div>
   <div class="nav-btns">
-    <a class="btn-ghost" href="index.html">دخول</a>
-    <a class="btn-primary" href="index.html">ابدأ مجاناً</a>
+    <a class="btn-ghost" href="/login">دخول</a>
+    <a class="btn-primary" href="/login">ابدأ مجاناً</a>
   </div>
 </nav>
 
@@ -178,7 +178,7 @@ footer{position:relative;z-index:1;border-top:1px solid rgba(255,255,255,.06);pa
     ابنِ ملفك الشخصي، وثّق خبراتك وشهاداتك، وابحث عن فرصتك المثالية.
   </p>
   <div class="hero-btns">
-    <a class="btn-lg btn-lg-primary" href="index.html">🚀 ابدأ الآن - مجاناً</a>
+    <a class="btn-lg btn-lg-primary" href="/login">🚀 ابدأ الآن - مجاناً</a>
     <a class="btn-lg btn-lg-ghost" href="#how">تعرّف على المنصة</a>
   </div>
   <div class="hero-stats">
@@ -347,12 +347,12 @@ footer{position:relative;z-index:1;border-top:1px solid rgba(255,255,255,.06);pa
       الموظف مجاني دائماً — بدون بطاقة ائتمان.
     </p>
     <div class="cta-btns">
-      <a class="btn-lg btn-lg-primary" href="index.html">🚀 ابدأ الآن مجاناً</a>
+      <a class="btn-lg btn-lg-primary" href="/login">🚀 ابدأ الآن مجاناً</a>
     </div>
     <div class="user-types-row">
-      <a class="utype" href="index.html">👤 أنا موظف</a>
-      <a class="utype" href="index.html">🏢 أنا شركة</a>
-      <a class="utype" href="index.html">🎓 أنا جهة تعليمية</a>
+      <a class="utype" href="/login">👤 أنا موظف</a>
+      <a class="utype" href="/login">🏢 أنا شركة</a>
+      <a class="utype" href="/login">🎓 أنا جهة تعليمية</a>
     </div>
   </div>
 </section>
@@ -361,7 +361,7 @@ footer{position:relative;z-index:1;border-top:1px solid rgba(255,255,255,.06);pa
 <footer>
   <div class="footer-logo">تواصلنا</div>
   <div class="footer-text">منصة التوظيف والتوثيق العربية © 2025</div>
-  <div class="footer-text"><a href="index.html" style="color:var(--ac);text-decoration:none">دخول</a> · <a href="index.html" style="color:var(--ac);text-decoration:none">تسجيل</a></div>
+  <div class="footer-text"><a href="/login" style="color:var(--ac);text-decoration:none">دخول</a> · <a href="/login" style="color:var(--ac);text-decoration:none">تسجيل</a></div>
 </footer>
 
 <script>
@@ -376,7 +376,7 @@ try{
   const u=JSON.parse(localStorage.getItem('tw_user'));
   if(u&&u.id){
     const dest=u.user_type==='co'?'company-profile.html?id='+u.id:u.user_type==='edu'?'edu-profile.html?id='+u.id:'profile.html?id='+u.id;
-    document.querySelectorAll('a[href="index.html"]').forEach(a=>{
+    document.querySelectorAll('a[href="/login"]').forEach(a=>{
       if(a.textContent.includes('ابدأ')||a.textContent.includes('دخول')){
         a.href=dest;
         if(a.textContent.includes('ابدأ الآن')) a.textContent='🏠 الذهاب للوحة التحكم';
