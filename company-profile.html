@@ -192,19 +192,7 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-heig
   <div id="ownerActions" style="display:none;align-items:center;gap:6px">
     <button class="nb nb-primary" onclick="openPostJob()">+ نشر وظيفة</button>
     <button class="nb nb-ghost" onclick="openEditModal()">✏️ تعديل</button>
-    <!-- Dropdown menu -->
-    <div style="position:relative">
-      <button class="nb nb-ghost" onclick="toggleMenu(event)" id="menuBtn">☰ القائمة</button>
-      <div id="dropMenu" style="display:none;position:absolute;top:42px;right:0;background:#0d1526;border:1px solid var(--border);border-radius:13px;padding:6px;min-width:170px;z-index:500;box-shadow:0 10px 30px rgba(0,0,0,.5)">
-        <a class="drop-item" href="company.html">🔍 بحث عن موظفين</a>
-        <a class="drop-item" href="employees-group.html">👥 موظفو الشركة</a>
-        <a class="drop-item" href="messages.html">💬 الرسائل</a>
-        <a class="drop-item" href="notifications.html">🔔 الإشعارات</a>
-        <a class="drop-item" href="settings.html">⚙️ الإعدادات</a>
-        <div style="height:1px;background:var(--border);margin:4px 0"></div>
-        <a class="drop-item" onclick="doLogout()" style="color:#f87171">🚪 خروج</a>
-      </div>
-    </div>
+    <button class="nb nb-ghost" onclick="toggleMenu(event)" id="menuBtn">☰ القائمة</button>
   </div>
 
   <div style="flex:1"></div>
@@ -212,6 +200,17 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-heig
   <!-- Logout for non-owners -->
   <button id="visitorLogout" class="nb" onclick="doLogout()" style="background:rgba(239,68,68,.1);color:#f87171;border:1px solid rgba(239,68,68,.2)">خروج</button>
 </nav>
+
+<!-- Dropdown outside nav (fixes stacking context) -->
+<div id="dropMenu" style="display:none;position:fixed;top:52px;z-index:9999;background:#0d1526;border:1px solid rgba(255,255,255,.1);border-radius:13px;padding:6px;min-width:180px;box-shadow:0 10px 30px rgba(0,0,0,.6)">
+  <a class="drop-item" href="company.html">🔍 بحث عن موظفين</a>
+  <a class="drop-item" href="employees-group.html">👥 موظفو الشركة</a>
+  <a class="drop-item" href="messages.html">💬 الرسائل</a>
+  <a class="drop-item" href="notifications.html">🔔 الإشعارات</a>
+  <a class="drop-item" href="settings.html">⚙️ الإعدادات</a>
+  <div style="height:1px;background:rgba(255,255,255,.08);margin:4px 0"></div>
+  <a class="drop-item" onclick="doLogout()" style="color:#f87171;cursor:pointer">🚪 خروج</a>
+</div>
 
 <!-- HERO -->
 <div class="hero" id="heroSection">
