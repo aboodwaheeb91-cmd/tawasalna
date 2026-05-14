@@ -239,7 +239,7 @@ function demoLogin(type){
 
 function redirect(u){
   const dest = u.user_type==='co' ? 'company-profile.html?id='+u.id
-             : u.user_type==='edu' ? 'edu.html'
+             : u.user_type==='edu' ? 'edu-profile.html?id='+u.id
              : 'profile.html?id='+u.id;
   window.location.href = dest;
 }

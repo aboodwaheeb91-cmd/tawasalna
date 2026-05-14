@@ -69,6 +69,12 @@ def edu(): return read_html("edu.html")
 
 @app.get("/edu.html", response_class=HTMLResponse)
 def edu_html(): return read_html("edu.html")
+
+@app.get("/edu-profile", response_class=HTMLResponse)
+def edu_profile(): return read_html("edu-profile.html")
+
+@app.get("/edu-profile.html", response_class=HTMLResponse)
+def edu_profile_html(): return read_html("edu-profile.html")
 @app.get("/company-profile", response_class=HTMLResponse)
 def company_profile(): return read_html("company-profile.html")
 
