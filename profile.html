@@ -439,7 +439,14 @@ body.preview-mode .top-actions { display:flex !important; }
 </div>
 
 <script>
-const isOwner = true;
+// ── Smart isOwner detection ──
+let _sessionUser = null;
+try { _sessionUser = JSON.parse(localStorage.getItem('tw_user')); } catch(e){}
+const _urlId = new URLSearchParams(window.location.search).get('id');
+const isOwner = _sessionUser && (
+  !_urlId ||  // no id in URL = own profile
+  String(_urlId) === String(_sessionUser.id)
+);
 let curStyle = 1;
 let previewMode = false;
 let dragSrc = null;
@@ -561,9 +568,53 @@ function openModal(type,listId,secTitle){
 }
 
 function showFn(input){ const fn=input.parentElement.querySelector('.fn'); if(fn&&input.files[0]) fn.textContent='✓ '+input.files[0].name; }
-function saveProfile(){ document.getElementById('cvName').textContent=document.getElementById('m-name').value; document.getElementById('cvTitle').textContent=document.getElementById('m-title').value; document.getElementById('cvBio').textContent=document.getElementById('m-bio').value; document.getElementById('cvLoc').textContent='📍 '+document.getElementById('m-loc').value; closeModal(); }
-function saveExp(){ const t=document.getElementById('m-et').value.trim(),c=document.getElementById('m-ec').value.trim(); if(!t||!c) return; const s=document.getElementById('m-es').value,e=document.getElementById('m-ee').value,l=document.getElementById('m-el').value; document.getElementById('exp-list').insertAdjacentHTML('afterbegin',`<div class="item"><div class="item-title">${t}</div><div class="item-sub">${c}${l?' · '+l:''}</div><div class="item-date">${s}${e?' - '+e:''}</div><span class="badge pending">⏳ قيد المراجعة</span></div>`); closeModal(); }
-function saveEdu(){ const d=document.getElementById('m-ed').value.trim(),i=document.getElementById('m-ei').value.trim(); if(!i) return; const y=document.getElementById('m-ey').value; document.getElementById('edu-list').insertAdjacentHTML('afterbegin',`<div class="item"><div class="item-title">${d||'شهادة'}</div><div class="item-sub">${i}</div><div class="item-date">${y}</div><span class="badge pending">⏳ قيد المراجعة</span></div>`); closeModal(); }
+function saveProfile(){
+  const name=document.getElementById('m-name').value.trim();
+  const title=document.getElementById('m-title').value.trim();
+  const bio=document.getElementById('m-bio').value.trim();
+  const loc=document.getElementById('m-loc').value.trim();
+  if(name) document.getElementById('cvName').textContent=name;
+  if(title) document.getElementById('cvTitle').textContent=title;
+  if(bio) document.getElementById('cvBio').textContent=bio;
+  if(loc) document.getElementById('cvLoc').textContent='📍 '+loc;
+  // Save to API
+  if(_sessionUser&&_sessionUser.id){
+    fetch('/profile/'+_sessionUser.id,{method:'PUT',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({headline:title,bio,location:loc})
+    }).catch(()=>{});
+  }
+  closeModal();
+}
+function saveExp(){
+  const t=document.getElementById('m-et').value.trim();
+  const co=document.getElementById('m-ec').value.trim();
+  if(!t||!co) return;
+  const s=document.getElementById('m-es').value;
+  const e=document.getElementById('m-ee').value;
+  const l=document.getElementById('m-el').value;
+  document.getElementById('exp-list').insertAdjacentHTML('afterbegin',
+    `<div class="item"><div class="item-title">${t}</div><div class="item-sub">${co}${l?' · '+l:''}</div><div class="item-date">${s}${e?' - '+e:''}</div><span class="badge pending">⏳ قيد المراجعة</span></div>`);
+  if(_sessionUser&&_sessionUser.id){
+    fetch('/experience/'+_sessionUser.id,{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({title:t,company:co,location:l,start_date:s,end_date:e})
+    }).catch(()=>{});
+  }
+  closeModal();
+}
+function saveEdu(){
+  const d=document.getElementById('m-ed').value.trim();
+  const i=document.getElementById('m-ei').value.trim();
+  if(!i) return;
+  const y=document.getElementById('m-ey').value;
+  document.getElementById('edu-list').insertAdjacentHTML('afterbegin',
+    `<div class="item"><div class="item-title">${d||'شهادة'}</div><div class="item-sub">${i}</div><div class="item-date">${y}</div><span class="badge pending">⏳ قيد المراجعة</span></div>`);
+  if(_sessionUser&&_sessionUser.id){
+    fetch('/education/'+_sessionUser.id,{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({institution:i,degree:d,end_year:parseInt(y)||null})
+    }).catch(()=>{});
+  }
+  closeModal();
+}
 function saveCustomSec(){ const nm=document.getElementById('m-csn').value.trim(),ic=document.getElementById('m-csi').value.trim()||'📌'; if(!nm) return; const id='sec-c'+Date.now(),lid='list-c'+Date.now(); document.getElementById('secList').insertAdjacentHTML('beforeend',`<div class="section" id="${id}" draggable="true"><div class="sec-header"><span class="sec-icon">${ic}</span><span class="sec-title">${nm}</span><div class="sec-line"></div></div><div id="${lid}"></div><button class="add-item-btn owner-only" onclick="openModal('generic','${lid}','${nm}')">+ إضافة</button><div class="drag-handle owner-only"><span></span><span></span><span></span></div></div>`); closeModal(); }
 function saveGeneric(lid){ const t=document.getElementById('m-gt').value.trim(); if(!t) return; const s=document.getElementById('m-gs').value,d=document.getElementById('m-gd').value; document.getElementById(lid).insertAdjacentHTML('afterbegin',`<div class="item"><div class="item-title">${t}</div>${s?`<div class="item-sub">${s}</div>`:''}<div class="item-date">${d}</div><span class="badge pending">⏳ قيد المراجعة</span></div>`); closeModal(); }
 function closeModal(){ document.getElementById('overlay').classList.remove('show'); }
@@ -574,6 +625,14 @@ if(!isOwner) document.querySelectorAll('.owner-only').forEach(el=>el.style.displ
 const ta = document.querySelector('.top-actions');
 if(ta && isOwner) ta.style.display = 'flex';
 applyColor('#00c896');
+// Load saved style
+try{
+  const savedStyle = parseInt(localStorage.getItem('tw_profile_style'))||1;
+  if(savedStyle !== 1){
+    const sopt = document.getElementById('sopt'+savedStyle);
+    if(sopt) setStyle(savedStyle, sopt);
+  }
+}catch(ex){}
 function doLogout(){ localStorage.removeItem('tw_user'); location.href='/'; }
 </script>
 

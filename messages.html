@@ -348,7 +348,14 @@ function openConvProfile(){
 }
 
 function goHome(){
-  if(!_user){ window.location.href='/'; return; }
+  let u=null;
+  try{u=JSON.parse(localStorage.getItem('tw_user'));}catch(e){}
+  if(!u){ window.location.href='/'; return; }
+  const dest = u.user_type==='co' ? 'company-profile.html?id='+u.id
+             : u.user_type==='edu' ? 'edu-profile.html?id='+u.id
+             : 'home.html';
+  window.location.href = dest;
+}
   const dest = _user.user_type==='co'?'company-profile.html?id='+_user.id:_user.user_type==='edu'?'edu.html':'home.html';
   window.location.href = dest;
 }
