@@ -606,6 +606,59 @@ function goHome(){
   const dest = _user.user_type==='co' ? 'company.html' : _user.user_type==='edu' ? 'edu.html' : 'home.html';
   window.location.href = dest;
 }
+
+// ── Logout ──
+function doLogout(){
+  localStorage.removeItem('tw_user');
+  window.location.href = '/';
+}
+
+// ── Dropdown ──
+let _menuOpen = false;
+function toggleMenu(e){
+  e.stopPropagation();
+  _menuOpen = !_menuOpen;
+  const m = document.getElementById('dropMenu');
+  const btn = document.getElementById('menuBtn');
+  if(!m || !btn) return;
+  if(_menuOpen){
+    const r = btn.getBoundingClientRect();
+    m.style.left = r.left + 'px';
+    m.style.display = 'block';
+  } else {
+    m.style.display = 'none';
+  }
+}
+document.addEventListener('click', function(e){
+  const btn = document.getElementById('menuBtn');
+  const m   = document.getElementById('dropMenu');
+  if(_menuOpen && m && btn && !btn.contains(e.target) && !m.contains(e.target)){
+    _menuOpen = false;
+    m.style.display = 'none';
+  }
+});
+
+// ── Cover Photo ──
+function setCover(src){
+  const img  = document.getElementById('coverImg');
+  const bg   = document.getElementById('heroBg');
+  const orbs = document.querySelectorAll('.hero-orb');
+  if(!img) return;
+  img.src = src;
+  img.style.display = 'block';
+  setTimeout(()=>{ img.style.opacity='1'; }, 50);
+  if(bg) bg.style.opacity = '0';
+  orbs.forEach(o=>o.style.display='none');
+}
+function uploadCover(input){
+  if(!input.files[0]) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    setCover(e.target.result);
+    try { localStorage.setItem('tw_cover_'+(_user&&_user.id), e.target.result); } catch(ex){}
+  };
+  reader.readAsDataURL(input.files[0]);
+}
 </script>
 
 <!-- POST JOB MODAL -->
