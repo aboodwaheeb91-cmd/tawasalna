@@ -194,7 +194,7 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-heig
     <button class="nb nb-ghost" onclick="openEditModal()">✏️ تعديل</button>
     <!-- Dropdown menu -->
     <div style="position:relative">
-      <button class="nb nb-ghost" onclick="toggleMenu()" id="menuBtn">☰ القائمة</button>
+      <button class="nb nb-ghost" onclick="toggleMenu(event)" id="menuBtn">☰ القائمة</button>
       <div id="dropMenu" style="display:none;position:absolute;top:42px;right:0;background:#0d1526;border:1px solid var(--border);border-radius:13px;padding:6px;min-width:170px;z-index:500;box-shadow:0 10px 30px rgba(0,0,0,.5)">
         <a class="drop-item" href="company.html">🔍 بحث عن موظفين</a>
         <a class="drop-item" href="employees-group.html">👥 موظفو الشركة</a>
@@ -491,13 +491,13 @@ if(_isOwner){
   if(uploadBtn) uploadBtn.style.display = 'flex';
   // Load saved cover
   const savedCover = localStorage.getItem('tw_cover_' + (_user && _user.id));
-  if(savedCover) setCover(savedCover);
+  if(savedCover) setTimeout(()=>setCover(savedCover),50);
 }
 
 // Demo cover image (Unsplash office photo)
 const demoCoverId = 9998;
 if(_user && _user.id == demoCoverId){
-  setCover('https://images.unsplash.com/photo-1497366216548-37526070297c?w=900&q=80');
+  setTimeout(()=>setCover('https://images.unsplash.com/photo-1497366216548-37526070297c?w=900&q=80'),50);
 }
 
 function loadData(){
