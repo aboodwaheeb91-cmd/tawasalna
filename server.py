@@ -44,6 +44,14 @@ def read_html(name: str) -> str:
 
 @app.get("/", response_class=HTMLResponse)
 def root():
+    return read_html("landing.html")
+
+@app.get("/login", response_class=HTMLResponse)
+def login_page():
+    return read_html("index.html")
+
+@app.get("/login.html", response_class=HTMLResponse)
+def login_html():
     return read_html("index.html")
 
 @app.get("/home", response_class=HTMLResponse)

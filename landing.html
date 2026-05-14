@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>تواصلنا - منصة التوظيف والتوثيق العربية</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;900&display=swap" rel="stylesheet">
+<style>
+:root{--ac:#00c896;--ac2:#2563ff;--bg:#070b18;--t:rgba(255,255,255,.87);--t2:rgba(255,255,255,.5);--t3:rgba(255,255,255,.28);}
+*{margin:0;padding:0;box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--t);overflow-x:hidden;}
+
+/* ══ BG ══ */
+.bg-orbs{position:fixed;inset:0;pointer-events:none;z-index:0;}
+.orb{position:absolute;border-radius:50%;filter:blur(120px);animation:breathe 10s ease-in-out infinite;}
+.o1{width:700px;height:700px;background:#00c896;opacity:.08;top:-200px;right:-200px;}
+.o2{width:600px;height:600px;background:#2563ff;opacity:.07;bottom:-200px;left:-200px;animation-delay:5s;}
+.o3{width:300px;height:300px;background:#8b5cf6;opacity:.06;top:50%;left:40%;animation-delay:2.5s;}
+@keyframes breathe{0%,100%{transform:scale(1);}50%{transform:scale(1.1) translateY(-20px);}}
+.grid-bg{position:fixed;inset:0;z-index:0;background-image:linear-gradient(rgba(255,255,255,.018) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.018) 1px,transparent 1px);background-size:60px 60px;}
+
+/* ══ NAV ══ */
+.nav{position:fixed;top:0;left:0;right:0;z-index:100;height:58px;display:flex;align-items:center;padding:0 5%;background:rgba(7,11,24,.7);backdrop-filter:blur(20px);border-bottom:1px solid rgba(255,255,255,.06);}
+.nav-logo{font-size:1.2rem;font-weight:900;background:linear-gradient(135deg,var(--ac),var(--ac2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+.nav-links{display:flex;gap:24px;margin-right:auto;margin-left:32px;}
+.nav-link{font-size:.8rem;font-weight:600;color:var(--t2);text-decoration:none;transition:color .2s;}
+.nav-link:hover{color:var(--t);}
+.nav-btns{display:flex;gap:8px;margin-right:auto;}
+.btn-ghost{padding:7px 16px;border-radius:10px;border:1px solid rgba(255,255,255,.12);background:transparent;color:var(--t2);font-family:'Cairo',sans-serif;font-size:.78rem;font-weight:700;cursor:pointer;transition:all .2s;text-decoration:none;display:inline-flex;align-items:center;}
+.btn-ghost:hover{border-color:rgba(255,255,255,.25);color:var(--t);}
+.btn-primary{padding:7px 18px;border-radius:10px;border:none;background:linear-gradient(135deg,var(--ac),var(--ac2));color:#fff;font-family:'Cairo',sans-serif;font-size:.78rem;font-weight:800;cursor:pointer;transition:all .2s;text-decoration:none;display:inline-flex;align-items:center;}
+.btn-primary:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(0,200,150,.3);}
+
+/* ══ HERO ══ */
+.hero{position:relative;z-index:1;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:80px 20px 60px;}
+.hero-badge{display:inline-flex;align-items:center;gap:7px;padding:6px 16px;border-radius:30px;border:1px solid rgba(0,200,150,.25);background:rgba(0,200,150,.06);color:var(--ac);font-size:.75rem;font-weight:700;margin-bottom:24px;animation:fadeUp .6s ease both;}
+.hero-title{font-size:clamp(2.2rem,6vw,4rem);font-weight:900;line-height:1.15;margin-bottom:20px;animation:fadeUp .6s ease .1s both;}
+.hero-title span{background:linear-gradient(135deg,var(--ac),var(--ac2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+.hero-sub{font-size:clamp(.95rem,2.5vw,1.18rem);color:var(--t2);max-width:620px;line-height:1.7;margin-bottom:36px;animation:fadeUp .6s ease .2s both;}
+.hero-btns{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;margin-bottom:56px;animation:fadeUp .6s ease .3s both;}
+.btn-lg{padding:13px 28px;border-radius:13px;font-size:.9rem;font-weight:900;cursor:pointer;transition:all .25s;text-decoration:none;display:inline-flex;align-items:center;gap:8px;}
+.btn-lg-primary{border:none;background:linear-gradient(135deg,var(--ac),var(--ac2));color:#fff;}
+.btn-lg-primary:hover{transform:translateY(-3px);box-shadow:0 10px 30px rgba(0,200,150,.35);}
+.btn-lg-ghost{border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.05);color:var(--t);}
+.btn-lg-ghost:hover{border-color:rgba(255,255,255,.3);background:rgba(255,255,255,.09);}
+
+/* Stats */
+.hero-stats{display:flex;gap:32px;flex-wrap:wrap;justify-content:center;animation:fadeUp .6s ease .4s both;}
+.hstat{text-align:center;}
+.hstat-n{font-size:1.6rem;font-weight:900;background:linear-gradient(135deg,var(--ac),var(--ac2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+.hstat-l{font-size:.72rem;color:var(--t3);}
+
+/* ══ SECTIONS ══ */
+section{position:relative;z-index:1;padding:80px 5%;}
+
+/* Who section */
+.who-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;max-width:960px;margin:0 auto;}
+.who-card{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:20px;padding:28px 24px;text-align:center;transition:all .3s;cursor:default;}
+.who-card:hover{transform:translateY(-6px);border-color:rgba(0,200,150,.2);box-shadow:0 16px 40px rgba(0,0,0,.3);}
+.who-ico{font-size:2.8rem;margin-bottom:14px;}
+.who-title{font-size:1rem;font-weight:900;margin-bottom:8px;}
+.who-desc{font-size:.78rem;color:var(--t2);line-height:1.65;}
+.who-card.emp{border-top:2px solid var(--ac);}
+.who-card.co{border-top:2px solid var(--ac2);}
+.who-card.edu{border-top:2px solid #8b5cf6;}
+
+/* Section title */
+.sec-label{font-size:.7rem;font-weight:800;letter-spacing:2px;text-transform:uppercase;color:var(--ac);margin-bottom:10px;}
+.sec-title{font-size:clamp(1.5rem,4vw,2.2rem);font-weight:900;margin-bottom:14px;line-height:1.2;}
+.sec-sub{font-size:.88rem;color:var(--t2);max-width:540px;line-height:1.7;}
+.centered{text-align:center;display:flex;flex-direction:column;align-items:center;}
+
+/* ══ HOW IT WORKS ══ */
+.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;max-width:900px;margin:40px auto 0;position:relative;}
+.steps::before{content:'';position:absolute;top:28px;right:16.6%;left:16.6%;height:1px;background:linear-gradient(90deg,transparent,rgba(0,200,150,.3),transparent);z-index:0;}
+.step{text-align:center;position:relative;z-index:1;}
+.step-num{width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,var(--ac),var(--ac2));display:flex;align-items:center;justify-content:center;font-size:1.2rem;font-weight:900;color:#fff;margin:0 auto 14px;box-shadow:0 6px 20px rgba(0,200,150,.3);}
+.step-title{font-size:.86rem;font-weight:800;margin-bottom:6px;}
+.step-desc{font-size:.74rem;color:var(--t2);line-height:1.6;}
+
+/* ══ FEATURES ══ */
+.features-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;max-width:900px;margin:40px auto 0;}
+.feat-card{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:18px;padding:22px;display:flex;gap:16px;align-items:flex-start;transition:all .25s;}
+.feat-card:hover{border-color:rgba(0,200,150,.18);background:rgba(0,200,150,.02);}
+.feat-ico{width:46px;height:46px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:1.3rem;flex-shrink:0;}
+.fi-green{background:rgba(0,200,150,.12);}
+.fi-blue{background:rgba(37,99,255,.12);}
+.fi-purple{background:rgba(139,92,246,.12);}
+.fi-orange{background:rgba(249,115,22,.12);}
+.fi-pink{background:rgba(236,72,153,.12);}
+.fi-yellow{background:rgba(234,179,8,.12);}
+.feat-title{font-size:.86rem;font-weight:800;margin-bottom:5px;}
+.feat-desc{font-size:.74rem;color:var(--t2);line-height:1.6;}
+
+/* ══ VERIFICATION ══ */
+.verify-flow{max-width:720px;margin:40px auto 0;display:flex;flex-direction:column;gap:12px;}
+.vf-step{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:14px;padding:16px 20px;display:flex;align-items:center;gap:16px;}
+.vf-num{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,var(--ac),var(--ac2));display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:900;color:#fff;flex-shrink:0;}
+.vf-title{font-size:.82rem;font-weight:700;margin-bottom:2px;}
+.vf-desc{font-size:.72rem;color:var(--t2);}
+.vf-badge{margin-right:auto;padding:3px 10px;border-radius:20px;font-size:.64rem;font-weight:800;}
+.vb-green{background:rgba(0,200,150,.1);color:#00c896;border:1px solid rgba(0,200,150,.2);}
+.vb-blue{background:rgba(37,99,255,.1);color:#60a5fa;border:1px solid rgba(37,99,255,.2);}
+.vb-gray{background:rgba(255,255,255,.06);color:var(--t2);}
+
+/* ══ CTA SECTION ══ */
+.cta-section{text-align:center;padding:80px 20px 100px;}
+.cta-box{max-width:700px;margin:0 auto;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:28px;padding:56px 40px;position:relative;overflow:hidden;}
+.cta-box::before{content:'';position:absolute;top:-100px;right:-100px;width:300px;height:300px;background:var(--ac);opacity:.06;border-radius:50%;filter:blur(60px);}
+.cta-box::after{content:'';position:absolute;bottom:-80px;left:-80px;width:250px;height:250px;background:var(--ac2);opacity:.06;border-radius:50%;filter:blur(60px);}
+.cta-title{font-size:clamp(1.5rem,4vw,2rem);font-weight:900;margin-bottom:12px;position:relative;z-index:1;}
+.cta-sub{font-size:.88rem;color:var(--t2);margin-bottom:30px;line-height:1.6;position:relative;z-index:1;}
+.cta-btns{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;position:relative;z-index:1;}
+.user-types-row{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:20px;position:relative;z-index:1;}
+.utype{padding:8px 18px;border-radius:30px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);font-family:'Cairo',sans-serif;font-size:.76rem;font-weight:700;cursor:pointer;color:var(--t2);transition:all .2s;text-decoration:none;}
+.utype:hover{border-color:rgba(0,200,150,.3);color:var(--ac);background:rgba(0,200,150,.06);}
+
+/* ══ FOOTER ══ */
+footer{position:relative;z-index:1;border-top:1px solid rgba(255,255,255,.06);padding:30px 5%;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;}
+.footer-logo{font-size:.95rem;font-weight:900;background:linear-gradient(135deg,var(--ac),var(--ac2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+.footer-text{font-size:.72rem;color:var(--t3);}
+
+/* ══ ANIMATIONS ══ */
+@keyframes fadeUp{from{opacity:0;transform:translateY(24px);}to{opacity:1;transform:translateY(0);}}
+.reveal{opacity:0;transform:translateY(30px);transition:opacity .6s ease,transform .6s ease;}
+.reveal.visible{opacity:1;transform:translateY(0);}
+
+/* ══ RESPONSIVE ══ */
+@media(max-width:768px){
+  .nav-links{display:none;}
+  .who-grid{grid-template-columns:1fr;}
+  .steps{grid-template-columns:1fr;gap:16px;}
+  .steps::before{display:none;}
+  .features-grid{grid-template-columns:1fr;}
+  .hero-stats{gap:20px;}
+  section{padding:60px 5%;}
+  .cta-box{padding:36px 20px;}
+}
+@media(max-width:480px){
+  .nav-btns .btn-ghost{display:none;}
+}
+</style>
+</head>
+<body>
+
+<div class="bg-orbs">
+  <div class="orb o1"></div>
+  <div class="orb o2"></div>
+  <div class="orb o3"></div>
+</div>
+<div class="grid-bg"></div>
+
+<!-- ══ NAV ══ -->
+<nav class="nav">
+  <div class="nav-logo">تواصلنا</div>
+  <div class="nav-links">
+    <a class="nav-link" href="#who">لمن؟</a>
+    <a class="nav-link" href="#how">كيف؟</a>
+    <a class="nav-link" href="#features">المميزات</a>
+    <a class="nav-link" href="#verify">التوثيق</a>
+  </div>
+  <div class="nav-btns">
+    <a class="btn-ghost" href="index.html">دخول</a>
+    <a class="btn-primary" href="index.html">ابدأ مجاناً</a>
+  </div>
+</nav>
+
+<!-- ══ HERO ══ -->
+<section class="hero">
+  <div class="hero-badge">🚀 منصة التوظيف والتوثيق العربية</div>
+  <h1 class="hero-title">
+    وظيفتك تبدأ من<br>
+    <span>ملف موثوق</span>
+  </h1>
+  <p class="hero-sub">
+    تواصلنا تجمع الموظفين والشركات والجهات التعليمية في مكان واحد.
+    ابنِ ملفك الشخصي، وثّق خبراتك وشهاداتك، وابحث عن فرصتك المثالية.
+  </p>
+  <div class="hero-btns">
+    <a class="btn-lg btn-lg-primary" href="index.html">🚀 ابدأ الآن - مجاناً</a>
+    <a class="btn-lg btn-lg-ghost" href="#how">تعرّف على المنصة</a>
+  </div>
+  <div class="hero-stats">
+    <div class="hstat"><div class="hstat-n">3</div><div class="hstat-l">أنواع حسابات</div></div>
+    <div class="hstat"><div class="hstat-n">12</div><div class="hstat-l">صفحة متكاملة</div></div>
+    <div class="hstat"><div class="hstat-n">100%</div><div class="hstat-l">عربي</div></div>
+    <div class="hstat"><div class="hstat-n">مجاني</div><div class="hstat-l">للموظفين دائماً</div></div>
+  </div>
+</section>
+
+<!-- ══ WHO ══ -->
+<section id="who">
+  <div class="centered">
+    <div class="sec-label">لمن تواصلنا؟</div>
+    <h2 class="sec-title">كل طرف يستفيد</h2>
+    <p class="sec-sub">ثلاثة أطراف في منصة واحدة، كل طرف له أدواته وصلاحياته الخاصة</p>
+  </div>
+  <div class="who-grid reveal" style="margin-top:40px">
+    <div class="who-card emp">
+      <div class="who-ico">👤</div>
+      <div class="who-title">الموظف / الباحث عن عمل</div>
+      <div class="who-desc">
+        ابنِ ملفك الشخصي المحترف، وثّق خبراتك وشهاداتك من مصادرها الأصلية،
+        تابع الشركات، وتقدم لوظائف تناسب مهاراتك بدقة.
+      </div>
+    </div>
+    <div class="who-card co">
+      <div class="who-ico">🏢</div>
+      <div class="who-title">الشركة / المؤسسة</div>
+      <div class="who-desc">
+        ابحث عن الموظف المثالي من آلاف الملفات الموثقة،
+        انشر وظائفك، درّب موظفيك، وتواصل معهم مباشرة.
+      </div>
+    </div>
+    <div class="who-card edu">
+      <div class="who-ico">🎓</div>
+      <div class="who-title">الجهة التعليمية</div>
+      <div class="who-desc">
+        انشر دوراتك (أونلاين أو وجاهية)، أصدر شهادات موثقة تظهر
+        تلقائياً في ملفات الموظفين، وعرض خصومات للشركات.
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ HOW ══ -->
+<section id="how" style="background:rgba(255,255,255,.015);border-top:1px solid rgba(255,255,255,.05);border-bottom:1px solid rgba(255,255,255,.05);">
+  <div class="centered">
+    <div class="sec-label">كيف تعمل؟</div>
+    <h2 class="sec-title">ثلاث خطوات فقط</h2>
+    <p class="sec-sub">ابدأ رحلتك في دقائق</p>
+  </div>
+  <div class="steps reveal">
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-title">سجّل حسابك</div>
+      <div class="step-desc">اختر نوع حسابك (موظف أو جهة)، وأدخل بياناتك الأساسية في دقيقة واحدة.</div>
+    </div>
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-title">ابنِ ملفك</div>
+      <div class="step-desc">أضف خبراتك، شهاداتك، مهاراتك، واطلب توثيقها من الجهات المختصة مباشرة.</div>
+    </div>
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-title">انطلق</div>
+      <div class="step-desc">تقدم لوظائف، تابع شركات، سجّل في دورات، وشهاداتك الموثقة تتكلم عنك.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ FEATURES ══ -->
+<section id="features">
+  <div class="centered">
+    <div class="sec-label">المميزات</div>
+    <h2 class="sec-title">كل ما تحتاجه في مكان واحد</h2>
+    <p class="sec-sub">منصة متكاملة تغطي كل رحلة العمل من البداية للنهاية</p>
+  </div>
+  <div class="features-grid reveal">
+    <div class="feat-card">
+      <div class="feat-ico fi-green">✅</div>
+      <div>
+        <div class="feat-title">توثيق فوري من المصدر</div>
+        <div class="feat-desc">خبراتك وشهاداتك تُوثَّق مباشرة من الجهة التي عملت أو درست فيها، مما يجعلها موثوقة 100%.</div>
+      </div>
+    </div>
+    <div class="feat-card">
+      <div class="feat-ico fi-blue">🎨</div>
+      <div>
+        <div class="feat-title">ملف شخصي احترافي</div>
+        <div class="feat-desc">5 ستايلات مختلفة وألوان قابلة للتخصيص. اجعل ملفك يعبر عن شخصيتك المهنية.</div>
+      </div>
+    </div>
+    <div class="feat-card">
+      <div class="feat-ico fi-purple">🎯</div>
+      <div>
+        <div class="feat-title">مطابقة ذكية للوظائف</div>
+        <div class="feat-desc">المنصة تحسب نسبة تطابق ملفك مع كل وظيفة وتقترح عليك الأنسب تلقائياً.</div>
+      </div>
+    </div>
+    <div class="feat-card">
+      <div class="feat-ico fi-orange">📚</div>
+      <div>
+        <div class="feat-title">دورات موثوقة</div>
+        <div class="feat-desc">سجّل في دورات أونلاين أو وجاهية، وعند إكمالها تظهر الشهادة مباشرة في ملفك.</div>
+      </div>
+    </div>
+    <div class="feat-card">
+      <div class="feat-ico fi-pink">💬</div>
+      <div>
+        <div class="feat-title">تواصل مباشر</div>
+        <div class="feat-desc">الشركات تتواصل معك مباشرة، وترسل لك مواعيد مقابلات العمل عبر المنصة.</div>
+      </div>
+    </div>
+    <div class="feat-card">
+      <div class="feat-ico fi-yellow">📊</div>
+      <div>
+        <div class="feat-title">QR Code لملفك</div>
+        <div class="feat-desc">كل ملف شخصي له QR Code فريد. شاركه في CV ورقي أو بطاقة العمل بسهولة.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ VERIFY ══ -->
+<section id="verify" style="background:rgba(255,255,255,.015);border-top:1px solid rgba(255,255,255,.05);border-bottom:1px solid rgba(255,255,255,.05);">
+  <div class="centered">
+    <div class="sec-label">نظام التوثيق</div>
+    <h2 class="sec-title">توثيق من المصدر مباشرة</h2>
+    <p class="sec-sub">لأول مرة في العالم العربي، خبراتك وشهاداتك تُوثَّق من الجهة المختصة بضغطة واحدة</p>
+  </div>
+  <div class="verify-flow reveal">
+    <div class="vf-step">
+      <div class="vf-num">1</div>
+      <div>
+        <div class="vf-title">أضف خبرتك أو شهادتك</div>
+        <div class="vf-desc">أدخل تفاصيل خبرتك أو شهادتك مع رفع وثيقة إثبات اختياري</div>
+      </div>
+      <span class="vf-badge vb-gray">الموظف</span>
+    </div>
+    <div class="vf-step">
+      <div class="vf-num">2</div>
+      <div>
+        <div class="vf-title">يصل طلب التوثيق للجهة</div>
+        <div class="vf-desc">إذا الجهة مسجلة على تواصلنا — يصلها الطلب مباشرة. إذا لا، يراجعه فريق تواصلنا</div>
+      </div>
+      <span class="vf-badge vb-blue">تلقائي</span>
+    </div>
+    <div class="vf-step">
+      <div class="vf-num">3</div>
+      <div>
+        <div class="vf-title">الجهة تؤكد وتوثّق</div>
+        <div class="vf-desc">بضغطة واحدة من الجهة، تظهر الشهادة موثقة في ملفك الشخصي فوراً</div>
+      </div>
+      <span class="vf-badge vb-green">✓ موثق</span>
+    </div>
+  </div>
+</section>
+
+<!-- ══ CTA ══ -->
+<section class="cta-section">
+  <div class="cta-box reveal">
+    <h2 class="cta-title">جاهز تبدأ رحلتك؟</h2>
+    <p class="cta-sub">
+      سجّل الآن مجاناً وابنِ ملفك الشخصي الموثوق.<br>
+      الموظف مجاني دائماً — بدون بطاقة ائتمان.
+    </p>
+    <div class="cta-btns">
+      <a class="btn-lg btn-lg-primary" href="index.html">🚀 ابدأ الآن مجاناً</a>
+    </div>
+    <div class="user-types-row">
+      <a class="utype" href="index.html">👤 أنا موظف</a>
+      <a class="utype" href="index.html">🏢 أنا شركة</a>
+      <a class="utype" href="index.html">🎓 أنا جهة تعليمية</a>
+    </div>
+  </div>
+</section>
+
+<!-- ══ FOOTER ══ -->
+<footer>
+  <div class="footer-logo">تواصلنا</div>
+  <div class="footer-text">منصة التوظيف والتوثيق العربية © 2025</div>
+  <div class="footer-text"><a href="index.html" style="color:var(--ac);text-decoration:none">دخول</a> · <a href="index.html" style="color:var(--ac);text-decoration:none">تسجيل</a></div>
+</footer>
+
+<script>
+// Reveal on scroll
+const observer = new IntersectionObserver(entries=>{
+  entries.forEach(e=>{ if(e.isIntersecting) e.target.classList.add('visible'); });
+},{threshold:0.12});
+document.querySelectorAll('.reveal').forEach(el=>observer.observe(el));
+
+// If already logged in, show "go to dashboard" instead
+try{
+  const u=JSON.parse(localStorage.getItem('tw_user'));
+  if(u&&u.id){
+    const dest=u.user_type==='co'?'company-profile.html?id='+u.id:u.user_type==='edu'?'edu-profile.html?id='+u.id:'profile.html?id='+u.id;
+    document.querySelectorAll('a[href="index.html"]').forEach(a=>{
+      if(a.textContent.includes('ابدأ')||a.textContent.includes('دخول')){
+        a.href=dest;
+        if(a.textContent.includes('ابدأ الآن')) a.textContent='🏠 الذهاب للوحة التحكم';
+      }
+    });
+  }
+}catch(e){}
+</script>
+</body>
+</html>
