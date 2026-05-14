@@ -68,7 +68,7 @@ def init_db():
     try:
         conn.run("""
             CREATE TABLE IF NOT EXISTS users (
-                id SERIAL PRIMARY KEY,
+                id BIGSERIAL PRIMARY KEY,
                 full_name TEXT NOT NULL,
                 email TEXT UNIQUE NOT NULL,
                 password_hash TEXT NOT NULL,
@@ -129,6 +129,11 @@ def init_db():
                 created_at TIMESTAMP DEFAULT NOW()
             )
         """)
+        # Set ID sequence to start from large random-looking number
+        try:
+            conn.run("SELECT setval('users_id_seq', 48000, false) WHERE NOT EXISTS (SELECT 1 FROM users)")
+        except Exception:
+            pass
         conn.run("""
             CREATE TABLE IF NOT EXISTS verify_requests (
                 id SERIAL PRIMARY KEY,
