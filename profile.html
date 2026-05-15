@@ -112,6 +112,50 @@ html[dir="ltr"] .asec-done { margin-left:0; margin-right:auto; }
 /* ── PAGE ── */
 .page { padding-top:50px; min-height:100vh; transition:background .3s; }
 
+
+
+/* ── Avatar upload ── */
+.cv-head-settings {
+  position:absolute;
+  top:-8px;
+  right:-8px;
+  width:26px;
+  height:26px;
+  border-radius:50%;
+  background:rgba(7,11,24,.85);
+  border:1.5px solid rgba(255,255,255,.15);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:.72rem;
+  cursor:pointer;
+  transition:all .2s;
+  z-index:5;
+  backdrop-filter:blur(8px);
+}
+.cv-head-settings:hover {
+  background:rgba(var(--ac-rgb),.2);
+  border-color:rgba(var(--ac-rgb),.4);
+  transform:scale(1.1);
+}
+body.s2 .cv-head-settings,
+body.s4 .cv-head-settings {
+  background:rgba(248,250,252,.9);
+  border-color:rgba(0,0,0,.15);
+}
+#avatarInput { display:none; }
+
+/* ── cv-name auto-shrink ── */
+.cv-name {
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  max-width:100%;
+}
+@container (max-width:300px) {
+  .cv-name { font-size:1.1rem !important; }
+}
+
 /* ── DRAG HANDLE corner ── */
 .section { position:relative; }
 .drag-handle {
@@ -164,7 +208,7 @@ body.s1 .cv-wrap { max-width:820px; margin:0 auto; padding:32px 14px; }
 body.s1 .cv-head { display:flex; gap:20px; align-items:flex-start; background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.07); border-radius:22px; padding:26px; margin-bottom:16px; position:relative; overflow:hidden; }
 body.s1 .cv-head::before { content:''; position:absolute; top:-50px; right:-50px; width:180px; height:180px; background:var(--ac); opacity:.05; border-radius:50%; filter:blur(40px); }
 body.s1 .avatar { width:86px; height:86px; border-radius:18px; flex-shrink:0; background:linear-gradient(135deg,var(--ac),var(--ac2)); display:flex; align-items:center; justify-content:center; font-size:2.1rem; box-shadow:0 6px 22px rgba(var(--ac-rgb),.25); }
-body.s1 .cv-name { font-size:1.5rem; font-weight:900; color:#fff; margin-bottom:2px; }
+body.s1 .cv-name { font-size:1.5rem; font-weight:900; color:#fff; margin-bottom:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%; }
 body.s1 .cv-title { color:var(--ac); font-size:.84rem; font-weight:700; margin-bottom:6px; }
 body.s1 .cv-bio { color:rgba(255,255,255,.5); font-size:.79rem; line-height:1.65; }
 body.s1 .cv-loc { display:inline-flex; align-items:center; gap:4px; margin-top:8px; font-size:.71rem; color:rgba(255,255,255,.35); background:rgba(255,255,255,.05); border-radius:20px; padding:3px 9px; }
@@ -448,6 +492,8 @@ body.s4 .add-sec-shortcut:hover {
 </style>
 </head>
 <body class="s1">
+
+<input type="file" id="avatarInput" accept="image/*" onchange="handleAvatarUpload(this)">
 <input autocomplete="off" type="color" id="colorIn" value="#00c896">
 
 <!-- ── TOOLBAR: تواصلنا · تعديل · تخصيص · معاينة ── -->
@@ -455,7 +501,7 @@ body.s4 .add-sec-shortcut:hover {
   <div class="tb-logo">تواصلنا</div>
   <button class="tb-btn tb-ghost" onclick="location.href='home.html'" title="البحث عن عمل أو دورة" style="font-size:.82rem;padding:6px 10px">🔍</button>
   <div style="flex:1"></div>
-  <button class="tb-btn tb-ghost tb-icon-btn" onclick="doLogout()" title="تسجيل الخروج" style="font-size:.9rem;padding:6px 10px;background:rgba(239,68,68,.07);color:#f87171;border-color:rgba(239,68,68,.15)">🚪</button>
+  <button class="tb-btn tb-ghost tb-icon-btn" onclick="doLogout()" title="تسجيل الخروج" style="font-size:.9rem;padding:6px 10px;background:rgba(239,68,68,.07);color:#f87171;border-color:rgba(239,68,68,.15)">👋</button>
 </div>
 
 <!-- ── SIDE PANEL ── -->
@@ -542,7 +588,10 @@ body.s4 .add-sec-shortcut:hover {
 
   <div class="cv-head" id="cvHead">
     <div style="display:flex;flex-direction:column;align-items:center;gap:10px">
-      <div class="avatar">👤</div>
+      <div style="position:relative">
+      <div class="avatar" id="avatarBtn" style="cursor:pointer" onclick="openAvatarUpload()" title="تغيير الصورة الشخصية">👤</div>
+      <div class="cv-head-settings owner-only" onclick="openModal('profile')" title="تعديل الملف الشخصي">⚙️</div>
+    </div>
       <div class="snap-qr-wrap">
         <div class="snap-qr-card" onclick="openQROverlay()">
           <div class="snap-qr-inner">
@@ -958,20 +1007,56 @@ function openModal(type,listId,secTitle){
     const curTitle=document.getElementById('cvTitle').textContent.replace('المسمى الوظيفي','');
     const curBio=document.getElementById('cvBio').textContent.replace('نبذة مختصرة عنك...','');
     const curLoc=document.getElementById('cvLoc').textContent.replace('📍 موقعك','').replace('📍 ','');
+    // Load saved profile data
+    const uid_p=_sessionUser&&_sessionUser.id?'_'+_sessionUser.id:'';
+    let savedProf={}; try{savedProf=JSON.parse(localStorage.getItem('tw_profile_data'+uid_p)||'{}')}catch(e){}
+    const fn=savedProf.first_name||''; const mn=savedProf.middle_name||''; const ln=savedProf.last_name||'';
+    const dob=savedProf.dob||''; const profAvail=savedProf.avail||'متاح';
+    const profCountry=savedProf.country||''; const profCity=savedProf.city||'';
     h=`<div class="modal-title">✏️ تعديل الملف الشخصي</div>
-    <div class="mf"><label>الاسم الكامل</label><input id="m-name" autocomplete="off" value="${curName}" placeholder="اكتب اسمك..."></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px">
+      <div class="mf" style="margin:0"><label>الاسم الأول *</label><input id="m-fn" autocomplete="off" value="${fn}" placeholder="محمد"></div>
+      <div class="mf" style="margin:0"><label>الاسم الأوسط</label><input id="m-mn" autocomplete="off" value="${mn}" placeholder="عبدالله"></div>
+      <div class="mf" style="margin:0"><label>اسم العائلة *</label><input id="m-ln" autocomplete="off" value="${ln}" placeholder="الأحمد"></div>
+    </div>
     <div class="mf"><label>المسمى الوظيفي</label><input id="m-title" autocomplete="off" value="${curTitle}" placeholder="مسماك الوظيفي..."></div>
     <div class="mf"><label>نبذة مختصرة</label><textarea autocomplete="off" id="m-bio" placeholder="اكتب نبذة مختصرة عنك...">${curBio}</textarea></div>
-    <div class="mf"><label>المدينة</label><input id="m-loc" autocomplete="off" value="${curLoc}" placeholder="مدينتك..."></div>
+    <div class="mf"><label>تاريخ الميلاد</label>
+      <input id="m-dob" autocomplete="off" type="date" value="${dob}" style="width:100%;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:ltr;">
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+      <div class="mf" style="margin:0"><label>البلد</label>
+        <select id="m-prof-country" autocomplete="off" onchange="loadProfileCities()" style="width:100%;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;">
+          <option value="">— اختر —</option>
+          <option value="JO" ${profCountry==='JO'?'selected':''}>🇯🇴 الأردن</option>
+          <option value="SA" ${profCountry==='SA'?'selected':''}>🇸🇦 السعودية</option>
+          <option value="AE" ${profCountry==='AE'?'selected':''}>🇦🇪 الإمارات</option>
+          <option value="KW" ${profCountry==='KW'?'selected':''}>🇰🇼 الكويت</option>
+          <option value="QA" ${profCountry==='QA'?'selected':''}>🇶🇦 قطر</option>
+          <option value="EG" ${profCountry==='EG'?'selected':''}>🇪🇬 مصر</option>
+          <option value="PS" ${profCountry==='PS'?'selected':''}>🇵🇸 فلسطين</option>
+          <option value="LB" ${profCountry==='LB'?'selected':''}>🇱🇧 لبنان</option>
+          <option value="SY" ${profCountry==='SY'?'selected':''}>🇸🇾 سوريا</option>
+          <option value="IQ" ${profCountry==='IQ'?'selected':''}>🇮🇶 العراق</option>
+          <option value="OTHER" ${profCountry==='OTHER'?'selected':''}>🌍 أخرى</option>
+        </select>
+      </div>
+      <div class="mf" style="margin:0"><label>المدينة</label>
+        <select id="m-prof-city" autocomplete="off" style="width:100%;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;">
+          <option value="${profCity}">${profCity||'— اختر البلد أولاً —'}</option>
+        </select>
+      </div>
+    </div>
     <div class="mf"><label>حالة التوظيف</label>
       <select id="m-avail" autocomplete="off" style="width:100%;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;">
-        <option value="متاح">🟢 متاح للعمل</option>
-        <option value="مشغول">🔴 غير متاح حالياً</option>
-        <option value="يفكر">🟡 أفكر في فرص جديدة</option>
-        <option value="عمل حر">💼 أعمل بشكل حر (فريلانس)</option>
+        <option value="متاح" ${profAvail==='متاح'?'selected':''}>🟢 متاح للعمل</option>
+        <option value="مشغول" ${profAvail==='مشغول'?'selected':''}>🔴 غير متاح حالياً</option>
+        <option value="يفكر" ${profAvail==='يفكر'?'selected':''}>🟡 أفكر في فرص جديدة</option>
+        <option value="عمل حر" ${profAvail==='عمل حر'?'selected':''}>💼 فريلانس</option>
       </select>
     </div>
     <div class="mact"><button class="mbtn mbtn-ok" onclick="saveProfile()">حفظ</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
+    setTimeout(()=>loadProfileCities(),50);
 
   } else if(type==='exp'){
     const yearOpts=[...Array(36)].map((_,i)=>{const y=new Date().getFullYear()-i;return '<option value="'+y+'">'+y+'</option>';}).join('');
@@ -1102,15 +1187,49 @@ function openModal(type,listId,secTitle){
   document.getElementById('overlay').classList.add('show');
 }
 function showFn(input){ const fn=input.parentElement.querySelector('.fn'); if(fn&&input.files[0]) fn.textContent='✓ '+input.files[0].name; }
+function loadProfileCities(){
+  const country=document.getElementById('m-prof-country')?.value;
+  const citySelect=document.getElementById('m-prof-city');
+  if(!citySelect||!country||country==='OTHER') return;
+  const cities=CITIES[country]||[];
+  citySelect.innerHTML='<option value="">— اختر المدينة —</option>'+cities.map(city=>`<option value="${city}">${city}</option>`).join('');
+}
+
+function calcAge(dob){
+  if(!dob) return '';
+  const d=new Date(dob), now=new Date();
+  let age=now.getFullYear()-d.getFullYear();
+  if(now.getMonth()<d.getMonth()||(now.getMonth()===d.getMonth()&&now.getDate()<d.getDate())) age--;
+  return age>0?age+' سنة':'';
+}
+
 function saveProfile(){
-  const name=document.getElementById('m-name').value.trim();
+  const fn=document.getElementById('m-fn')?.value.trim()||'';
+  const mn=document.getElementById('m-mn')?.value.trim()||'';
+  const ln=document.getElementById('m-ln')?.value.trim()||'';
+  const name=[fn,mn,ln].filter(Boolean).join(' ');
   const title=document.getElementById('m-title').value.trim();
   const bio=document.getElementById('m-bio').value.trim();
-  const loc=document.getElementById('m-loc').value.trim();
+  const dob=document.getElementById('m-dob')?.value||'';
+  const profCountry=document.getElementById('m-prof-country')?.value||'';
+  const profCity=document.getElementById('m-prof-city')?.value||'';
+  const loc=profCity?(profCity+(profCountry?'، '+getCountryName(profCountry):'')):(profCountry?getCountryName(profCountry):'');
+  if(!fn||!ln){ alert('الاسم الأول واسم العائلة مطلوبان'); return; }
   if(name) document.getElementById('cvName').textContent=name;
   if(title) document.getElementById('cvTitle').textContent=title;
   if(bio) document.getElementById('cvBio').textContent=bio;
   if(loc) document.getElementById('cvLoc').textContent='📍 '+loc;
+  // Show age
+  if(dob){
+    let ageEl=document.getElementById('cvAge');
+    if(!ageEl){
+      ageEl=document.createElement('span');
+      ageEl.id='cvAge';
+      ageEl.style.cssText='font-size:.68rem;color:rgba(255,255,255,.3);margin-right:6px;font-weight:600;';
+      document.getElementById('cvLoc')?.insertAdjacentElement('afterend',ageEl);
+    }
+    ageEl.textContent=calcAge(dob);
+  }
   const avail=document.getElementById('m-avail')?.value;
   if(avail){
     const availEl=document.getElementById('cvAvail');
@@ -1127,9 +1246,17 @@ function saveProfile(){
     const uid=_sessionUser&&_sessionUser.id?'_'+_sessionUser.id:'';
     const prof=JSON.parse(localStorage.getItem('tw_profile_data'+uid)||'{}');
     if(name) prof.full_name=name;
+    if(fn) prof.first_name=fn;
+    if(mn) prof.middle_name=mn;
+    if(ln) prof.last_name=ln;
     if(title) prof.headline=title;
     if(bio) prof.bio=bio;
     if(loc) prof.location=loc;
+    if(dob) prof.dob=dob;
+    if(profCountry) prof.country=profCountry;
+    if(profCity) prof.city=profCity;
+    const avail=document.getElementById('m-avail')?.value;
+    if(avail) prof.avail=avail;
     localStorage.setItem('tw_profile_data'+uid,JSON.stringify(prof));
     if(_sessionUser&&name){ _sessionUser.full_name=name; localStorage.setItem('tw_user',JSON.stringify(_sessionUser)); }
   }catch(ex){}
@@ -1268,6 +1395,41 @@ try{
     if(sopt) setStyle(savedStyle, sopt);
   }
 }catch(ex){}
+
+// ── Avatar upload ──
+function openAvatarUpload(){
+  if(!isOwner) return;
+  document.getElementById('avatarInput').click();
+}
+function handleAvatarUpload(input){
+  if(!input.files[0]) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const avatarEl = document.getElementById('avatarBtn');
+    if(avatarEl){
+      avatarEl.innerHTML = `<img src="${e.target.result}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;">`;
+    }
+    // Save to localStorage
+    try{
+      const uid = _sessionUser&&_sessionUser.id?'_'+_sessionUser.id:'';
+      localStorage.setItem('tw_avatar'+uid, e.target.result);
+    }catch(ex){}
+  };
+  reader.readAsDataURL(input.files[0]);
+}
+
+// Load saved avatar on init
+(function(){
+  let u; try{u=JSON.parse(localStorage.getItem('tw_user'));}catch(e){}
+  if(!u||!u.id) return;
+  const uid='_'+u.id;
+  const saved=localStorage.getItem('tw_avatar'+uid);
+  if(saved){
+    const avatarEl=document.getElementById('avatarBtn');
+    if(avatarEl) avatarEl.innerHTML=`<img src="${saved}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;">`;
+  }
+})();
+
 function doLogout(){ localStorage.removeItem('tw_user'); location.href='/'; }
 </script>
 
@@ -1287,6 +1449,16 @@ function doLogout(){ localStorage.removeItem('tw_user'); location.href='/'; }
   try{
     const prof=JSON.parse(localStorage.getItem('tw_profile_data'+_uid)||'{}');
     if(prof.full_name||user.full_name) document.getElementById('cvName').textContent=prof.full_name||user.full_name;
+    if(prof.dob){
+      let ageEl=document.getElementById('cvAge');
+      if(!ageEl){
+        ageEl=document.createElement('span');
+        ageEl.id='cvAge';
+        ageEl.style.cssText='font-size:.68rem;color:rgba(255,255,255,.3);margin-right:6px;font-weight:600;';
+        document.getElementById('cvLoc')?.insertAdjacentElement('afterend',ageEl);
+      }
+      ageEl.textContent=calcAge(prof.dob);
+    }
     if(prof.headline) document.getElementById('cvTitle').textContent=prof.headline;
     if(prof.bio) document.getElementById('cvBio').textContent=prof.bio;
     if(prof.location) document.getElementById('cvLoc').textContent='📍 '+prof.location;
