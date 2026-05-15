@@ -322,17 +322,30 @@ body.preview-mode .owner-only { display:none !important; }
 
 /* ── Top Actions ── */
 .top-actions {
-  max-width:820px;
-  margin:20px auto 14px;
-  padding:0 14px;
+  position:sticky;
+  top:50px;
+  z-index:99;
+  max-width:100%;
+  margin:0;
+  padding:8px 14px;
   display:flex;
   flex-direction:row;
-  gap:10px;
+  gap:8px;
   align-items:center;
+  background:rgba(7,11,24,.88);
+  backdrop-filter:blur(16px);
+  border-bottom:1px solid rgba(255,255,255,.06);
 }
-.top-actions .tb-btn { height:42px; }
+/* Light styles top-actions bg */
+body.s2 .top-actions,
+body.s4 .top-actions {
+  background:rgba(248,250,252,.92);
+  border-bottom:1px solid rgba(0,0,0,.08);
+}
+.top-actions .tb-btn { height:36px; }
 body.preview-mode .top-actions .tb-btn:not(#previewBtn) { display:none !important; }
 body.preview-mode .top-actions { display:flex !important; }
+body.preview-mode .top-actions #previewBtn { display:flex !important; }
 body.preview-mode .top-actions #previewBtn { display:flex !important; }
 
 @media(max-width:600px) {
@@ -441,12 +454,13 @@ body.preview-mode .top-actions #previewBtn { display:flex !important; }
 
 <!-- ── CV ── -->
 <div class="page">
-<div class="cv-wrap" id="cvWrap">
 
-  <div class="top-actions owner-only">
-    <button class="tb-btn tb-ghost" onclick="openPanel()">⚙️ الإعدادات</button>
-    <button class="tb-btn tb-preview" id="previewBtn" onclick="togglePreview()">👁 معاينة</button>
-  </div>
+<div class="top-actions owner-only">
+  <button class="tb-btn tb-ghost" onclick="openPanel()">⚙️ الإعدادات</button>
+  <button class="tb-btn tb-preview" id="previewBtn" onclick="togglePreview()">👁 معاينة</button>
+</div>
+
+<div class="cv-wrap" id="cvWrap">
 
   <div class="cv-head" id="cvHead">
     <div style="display:flex;flex-direction:column;align-items:center;gap:10px">
