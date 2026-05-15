@@ -73,11 +73,11 @@ html[dir="ltr"] .panel { right:auto; left:0; border-left:none; border-right:1px 
 html[dir="ltr"] .schk { margin-left:0; margin-right:auto; }
 
 /* Color grid */
-.color-grid { display:grid; grid-template-columns:repeat(6,1fr); gap:6px; }
-.csw { aspect-ratio:1; border-radius:8px; cursor:pointer; border:2px solid transparent; transition:all .2s; }
+.color-grid { display:flex; flex-wrap:wrap; gap:7px; padding:4px 2px; }
+.csw { width:26px; height:26px; border-radius:50%; cursor:pointer; border:2px solid transparent; transition:all .2s; }
 .csw:hover { transform:scale(1.15); }
 .csw.active { border-color:rgba(255,255,255,.75); transform:scale(1.08); }
-.csw-custom { aspect-ratio:1; border-radius:8px; cursor:pointer; border:2px dashed rgba(255,255,255,.2); display:flex; align-items:center; justify-content:center; font-size:.85rem; transition:all .2s; }
+.csw-custom { width:26px; height:26px; border-radius:50%; cursor:pointer; border:2px dashed rgba(255,255,255,.2); display:flex; align-items:center; justify-content:center; font-size:.7rem; transition:all .2s; }
 .csw-custom:hover { border-color:rgba(255,255,255,.4); }
 
 /* Add section */
@@ -375,9 +375,9 @@ body.preview-mode .top-actions #previewBtn { display:flex !important; }
 <!-- ── TOOLBAR: تواصلنا · تعديل · تخصيص · معاينة ── -->
 <div class="toolbar">
   <div class="tb-logo">تواصلنا</div>
-  <button class="tb-btn tb-ghost" onclick="location.href='home.html'" style="font-size:.73rem">💼 اعلانات العمل والدراسة</button>
+  <button class="tb-btn tb-ghost" onclick="location.href='home.html'" title="البحث عن عمل أو دورة" style="font-size:.82rem;padding:6px 10px">🔍</button>
   <div style="flex:1"></div>
-  <button class="tb-btn" onclick="doLogout()" style="background:rgba(239,68,68,.1);color:#f87171;border:1px solid rgba(239,68,68,.2);font-size:.73rem">خروج</button>
+  <button class="tb-btn tb-ghost tb-icon-btn" onclick="doLogout()" title="تسجيل الخروج" style="font-size:.9rem;padding:6px 10px;background:rgba(239,68,68,.07);color:#f87171;border-color:rgba(239,68,68,.15)">🚪</button>
 </div>
 
 <!-- ── SIDE PANEL ── -->
@@ -456,8 +456,8 @@ body.preview-mode .top-actions #previewBtn { display:flex !important; }
 <div class="page">
 
 <div class="top-actions owner-only">
-  <button class="tb-btn tb-ghost" onclick="openPanel()">⚙️ الإعدادات</button>
-  <button class="tb-btn tb-preview" id="previewBtn" onclick="togglePreview()">👁 معاينة</button>
+  <button class="tb-btn tb-preview" id="previewBtn" onclick="togglePreview()" title="معاينة" style="font-size:.88rem;padding:6px 10px">👁</button>
+  <button class="tb-btn tb-ghost" onclick="openPanel()" title="الإعدادات" style="font-size:.88rem;padding:6px 10px">⚙️</button>
 </div>
 
 <div class="cv-wrap" id="cvWrap">
@@ -474,10 +474,10 @@ body.preview-mode .top-actions #previewBtn { display:flex !important; }
       </div>
     </div>
     <div>
-      <div class="cv-name" id="cvName">عبدالله محمد الوهيب</div>
-      <div class="cv-title" id="cvTitle">مطور ويب متكامل</div>
-      <div class="cv-bio" id="cvBio">مطور متخصص في بناء تطبيقات الويب الحديثة باستخدام React وFastAPI.</div>
-      <div class="cv-loc" id="cvLoc">📍 عمان، الأردن</div>
+      <div class="cv-name" id="cvName">الاسم الكامل</div>
+      <div class="cv-title" id="cvTitle">المسمى الوظيفي</div>
+      <div class="cv-bio" id="cvBio">نبذة مختصرة عنك...</div>
+      <div class="cv-loc" id="cvLoc">📍 موقعك</div>
       <div class="cv-code" id="cvCode">TW-EMP-00000</div>
     </div>
   </div>
@@ -492,8 +492,7 @@ body.preview-mode .top-actions #previewBtn { display:flex !important; }
         <div class="sec-line"></div>
       </div>
       <div id="exp-list">
-        <div class="item"><div class="item-title">مطور ويب أول</div><div class="item-sub">شركة تك ستارت · الرياض</div><div class="item-date">2022 - 2024</div><span class="badge">✓ موثقة</span></div>
-        <div class="item"><div class="item-title">مطور Frontend</div><div class="item-sub">شركة إبداع للتقنية · عمان</div><div class="item-date">2020 - 2022</div><span class="badge pending">⏳ قيد التوثيق</span></div>
+        <div class="item empty-hint"><div class="item-title" style="opacity:.4;font-size:.8rem">لا توجد خبرات بعد — اضغط + لإضافة أول خبرة</div></div>
       </div>
       <button class="add-item-btn owner-only" onclick="openModal('exp')">+ إضافة خبرة</button>
       <div class="drag-handle owner-only" title="اسحب لإعادة الترتيب"><span></span><span></span><span></span></div>
@@ -506,7 +505,7 @@ body.preview-mode .top-actions #previewBtn { display:flex !important; }
         <div class="sec-line"></div>
       </div>
       <div id="edu-list">
-        <div class="item"><div class="item-title">بكالوريوس هندسة الحاسوب</div><div class="item-sub">الجامعة الأردنية</div><div class="item-date">2020</div><span class="badge">✓ موثقة</span></div>
+        <div class="item empty-hint"><div class="item-title" style="opacity:.4;font-size:.8rem">لا توجد شهادات بعد — اضغط + لإضافة شهادة</div></div>
       </div>
       <button class="add-item-btn owner-only" onclick="openModal('edu')">+ إضافة شهادة</button>
       <div class="drag-handle owner-only"><span></span><span></span><span></span></div>
@@ -632,17 +631,49 @@ const secList=document.getElementById('secList');
 secList.addEventListener('dragstart',e=>{ dragSrc=e.target.closest('.section'); if(dragSrc) setTimeout(()=>dragSrc.style.opacity='.4',0); });
 secList.addEventListener('dragend',e=>{ const s=e.target.closest('.section'); if(s) s.style.opacity='1'; document.querySelectorAll('.section').forEach(x=>x.classList.remove('drag-over')); });
 secList.addEventListener('dragover',e=>{ e.preventDefault(); const ov=e.target.closest('.section'); if(ov&&ov!==dragSrc){ document.querySelectorAll('.section').forEach(x=>x.classList.remove('drag-over')); ov.classList.add('drag-over'); } });
-secList.addEventListener('drop',e=>{ e.preventDefault(); const ov=e.target.closest('.section'); if(ov&&ov!==dragSrc){ const items=[...secList.children]; if(items.indexOf(dragSrc)<items.indexOf(ov)) secList.insertBefore(dragSrc,ov.nextSibling); else secList.insertBefore(dragSrc,ov); ov.classList.remove('drag-over'); } });
+secList.addEventListener('drop',e=>{
+  e.preventDefault();
+  const ov=e.target.closest('.section');
+  if(ov&&ov!==dragSrc){
+    const items=[...secList.children];
+    if(items.indexOf(dragSrc)<items.indexOf(ov)) secList.insertBefore(dragSrc,ov.nextSibling);
+    else secList.insertBefore(dragSrc,ov);
+    ov.classList.remove('drag-over');
+    saveSectionOrder();
+  }
+});
+
+function saveSectionOrder(){
+  const order=[...secList.children].map(s=>s.id);
+  try{ localStorage.setItem('tw_sec_order',JSON.stringify(order)); }catch(ex){}
+}
+
+function loadSectionOrder(){
+  try{
+    const order=JSON.parse(localStorage.getItem('tw_sec_order'));
+    if(!order||!order.length) return;
+    order.forEach(id=>{
+      const el=document.getElementById(id);
+      if(el) secList.appendChild(el);
+    });
+  }catch(ex){}
+}
 
 // Modals
 function openModal(type,listId,secTitle){
   let h='';
-  if(type==='profile') h=`<div class="modal-title">✏️ تعديل الملف الشخصي</div>
-    <div class="mf"><label>الاسم الكامل</label><input id="m-name" autocomplete="off" value="عبدالله محمد الوهيب"></div>
-    <div class="mf"><label>المسمى الوظيفي</label><input id="m-title" autocomplete="off" value="مطور ويب متكامل"></div>
-    <div class="mf"><label>نبذة مختصرة</label><textarea autocomplete="off" id="m-bio">مطور متخصص في بناء تطبيقات الويب الحديثة.</textarea></div>
-    <div class="mf"><label>المدينة</label><input id="m-loc" autocomplete="off" value="عمان، الأردن"></div>
-    <div class="mact"><button class="mbtn mbtn-ok" onclick="saveProfile()">حفظ</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
+  if(type==='profile'){
+    const curName = document.getElementById('cvName').textContent.replace('الاسم الكامل','');
+    const curTitle = document.getElementById('cvTitle').textContent.replace('المسمى الوظيفي','');
+    const curBio = document.getElementById('cvBio').textContent.replace('نبذة مختصرة عنك...','');
+    const curLoc = document.getElementById('cvLoc').textContent.replace('📍 موقعك','').replace('📍 ','');
+    h=`<div class="modal-title">✏️ تعديل الملف الشخصي</div>
+    <div class="mf"><label>الاسم الكامل</label><input id="m-name" autocomplete="off" value="${curName}" placeholder="اكتب اسمك..."></div>
+    <div class="mf"><label>المسمى الوظيفي</label><input id="m-title" autocomplete="off" value="${curTitle}" placeholder="مسماك الوظيفي..."></div>
+    <div class="mf"><label>نبذة مختصرة</label><textarea autocomplete="off" id="m-bio" placeholder="اكتب نبذة مختصرة عنك...">${curBio}</textarea></div>
+    <div class="mf"><label>المدينة</label><input id="m-loc" autocomplete="off" value="${curLoc}" placeholder="مدينتك..."></div>
+    <div class="mact"><button class="mbtn mbtn-ok" onclick="saveProfile()">حفظ</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;}
+    else
   else if(type==='exp') h=`<div class="modal-title">💼 إضافة خبرة عملية</div>
     <div class="mf"><label>المسمى الوظيفي *</label><input id="m-et" autocomplete="off" placeholder="مطور ويب..."></div>
     <div class="mf"><label>جهة العمل *</label><input id="m-ec" autocomplete="off" placeholder="شركة..."></div>
@@ -695,6 +726,7 @@ function saveExp(){
   const s=document.getElementById('m-es').value;
   const e=document.getElementById('m-ee').value;
   const l=document.getElementById('m-el').value;
+  document.getElementById('exp-list').querySelector('.empty-hint')?.remove();
   document.getElementById('exp-list').insertAdjacentHTML('afterbegin',
     `<div class="item"><div class="item-title">${t}</div><div class="item-sub">${co}${l?' · '+l:''}</div><div class="item-date">${s}${e?' - '+e:''}</div><span class="badge pending">⏳ قيد المراجعة</span></div>`);
   if(_sessionUser&&_sessionUser.id){
@@ -709,6 +741,7 @@ function saveEdu(){
   const i=document.getElementById('m-ei').value.trim();
   if(!i) return;
   const y=document.getElementById('m-ey').value;
+  document.getElementById('edu-list').querySelector('.empty-hint')?.remove();
   document.getElementById('edu-list').insertAdjacentHTML('afterbegin',
     `<div class="item"><div class="item-title">${d||'شهادة'}</div><div class="item-sub">${i}</div><div class="item-date">${y}</div><span class="badge pending">⏳ قيد المراجعة</span></div>`);
   if(_sessionUser&&_sessionUser.id){
@@ -724,6 +757,7 @@ function closeModal(){ document.getElementById('overlay').classList.remove('show
 function closeOverlay(e){ if(e.target===document.getElementById('overlay')) closeModal(); }
 
 if(!isOwner) document.querySelectorAll('.owner-only').forEach(el=>el.style.display='none');
+loadSectionOrder();
 // top-actions needs flex not block
 const ta = document.querySelector('.top-actions');
 if(ta && isOwner) ta.style.display = 'flex';
@@ -770,12 +804,12 @@ function doLogout(){ localStorage.removeItem('tw_user'); location.href='/'; }
       const t = p.user_type || 'emp';
       document.getElementById('cvCode').textContent = 'TW-' + t.toUpperCase() + '-' + String(p.id);
       if(p.experience && p.experience.length){
-        document.getElementById('exp-list').innerHTML = '';
+        document.getElementById('exp-list').innerHTML = ''; // clear empty hint
         p.experience.forEach(e => document.getElementById('exp-list').insertAdjacentHTML('beforeend',
           `<div class="item"><div class="item-title">${e.title}</div><div class="item-sub">${e.company}${e.location?' · '+e.location:''}</div><div class="item-date">${e.start_date||''}${e.end_date?' - '+e.end_date:''}</div><span class="badge pending">⏳ قيد التوثيق</span></div>`));
       }
       if(p.education && p.education.length){
-        document.getElementById('edu-list').innerHTML = '';
+        document.getElementById('edu-list').innerHTML = ''; // clear empty hint
         p.education.forEach(e => document.getElementById('edu-list').insertAdjacentHTML('beforeend',
           `<div class="item"><div class="item-title">${e.degree||'شهادة'}</div><div class="item-sub">${e.institution}</div><div class="item-date">${e.end_year||''}</div><span class="badge pending">⏳ قيد التوثيق</span></div>`));
       }
