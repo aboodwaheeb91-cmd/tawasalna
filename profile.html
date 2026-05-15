@@ -96,6 +96,19 @@ html[dir="ltr"] .asec-done { margin-left:0; margin-right:auto; }
 
 #colorIn { position:absolute; opacity:0; width:0; height:0; pointer-events:none; }
 
+/* Panel edit button */
+.panel-edit-btn {
+  width:100%;display:flex;align-items:center;gap:9px;
+  padding:10px 13px;border-radius:11px;
+  background:linear-gradient(135deg,rgba(0,200,150,.12),rgba(37,99,255,.08));
+  border:1px solid rgba(0,200,150,.2);
+  color:rgba(255,255,255,.85);font-family:'Cairo',sans-serif;
+  font-size:.8rem;font-weight:700;cursor:pointer;
+  transition:all .2s;
+}
+.panel-edit-btn:hover{background:linear-gradient(135deg,rgba(0,200,150,.2),rgba(37,99,255,.14));border-color:rgba(0,200,150,.35);color:#fff;}
+
+
 /* ── PAGE ── */
 .page { padding-top:50px; min-height:100vh; transition:background .3s; }
 
@@ -103,22 +116,22 @@ html[dir="ltr"] .asec-done { margin-left:0; margin-right:auto; }
 .section { position:relative; }
 .drag-handle {
   position:absolute;
-  bottom:10px; right:10px;
-  cursor:grab; color:rgba(255,255,255,.22);
-  font-size:.7rem; line-height:1; letter-spacing:1px;
-  transition:color .2s; display:flex; flex-direction:column;
-  gap:2px; align-items:center; padding:4px;
-  border-radius:6px;
+  bottom:8px; left:10px;
+  cursor:grab; color:rgba(255,255,255,.3);
+  transition:all .2s; display:flex; flex-direction:column;
+  gap:3px; align-items:flex-start; padding:5px 6px;
+  border-radius:7px; z-index:2;
 }
-.drag-handle:hover { color:rgba(255,255,255,.55); background:rgba(255,255,255,.05); }
-.drag-handle span { display:block; width:14px; height:1.5px; background:currentColor; border-radius:2px; }
-.drag-handle span:nth-child(1) { width:10px; }
-.drag-handle span:nth-child(2) { width:14px; }
+.drag-handle:hover { color:rgba(255,255,255,.65); background:rgba(255,255,255,.07); }
+.drag-handle:active { cursor:grabbing; }
+.drag-handle span { display:block; height:2px; background:currentColor; border-radius:2px; }
+.drag-handle span:nth-child(1) { width:16px; }
+.drag-handle span:nth-child(2) { width:12px; }
 .drag-handle span:nth-child(3) { width:8px; }
 
 /* Light styles drag handle */
-body.s2 .drag-handle, body.s4 .drag-handle { color:rgba(0,0,0,.15); }
-body.s2 .drag-handle:hover, body.s4 .drag-handle:hover { color:rgba(0,0,0,.35); background:rgba(0,0,0,.04); }
+body.s2 .drag-handle, body.s4 .drag-handle { color:rgba(0,0,0,.2); }
+body.s2 .drag-handle:hover, body.s4 .drag-handle:hover { color:rgba(0,0,0,.45); background:rgba(0,0,0,.05); }
 
 /* ── STYLE 1: MODERN DARK ── */
 body.s1 .page { background:#070b18; font-family:'Cairo',sans-serif; color:#fff; }
@@ -295,6 +308,7 @@ body.preview-mode .owner-only { display:none !important; }
 .top-actions .tb-btn { height:42px; }
 body.preview-mode .top-actions .tb-btn:not(#previewBtn) { display:none !important; }
 body.preview-mode .top-actions { display:flex !important; }
+body.preview-mode .top-actions #previewBtn { display:flex !important; }
 
 @media(max-width:600px) {
   body.s5 .cv-wrap { grid-template-columns:1fr; }
@@ -318,11 +332,34 @@ body.preview-mode .top-actions { display:flex !important; }
 <div class="panel-overlay" id="panelOverlay" onclick="closePanelClick(event)">
   <div class="panel">
     <div class="panel-head">
-      <h3>⚙️ تخصيص</h3>
+      <h3>⚙️ الإعدادات</h3>
       <button class="panel-close" onclick="closePanel()">✕</button>
     </div>
     <div class="panel-body">
 
+      <!-- تعديل الملف الشخصي -->
+      <div class="panel-sec">
+        <h4>الملف الشخصي</h4>
+        <button class="panel-edit-btn" onclick="openModal('profile');closePanel()">
+          <span>✏️</span> تعديل الملف الشخصي
+        </button>
+      </div>
+
+      <!-- أقسام الملف -->
+      <div class="panel-sec">
+        <h4>إضافة قسم</h4>
+        <div class="asec-list">
+          <div class="asec added"><span class="asec-ico">💼</span>الخبرات العملية<span class="asec-done">✓</span></div>
+          <div class="asec added"><span class="asec-ico">🎓</span>الشهادات الدراسية<span class="asec-done">✓</span></div>
+          <div class="asec" id="asec-course" onclick="addSection('course','📚','الدورات التدريبية',this)"><span class="asec-ico">📚</span>دورات تدريبية</div>
+          <div class="asec" id="asec-skills" onclick="addSection('skills','🛠️','المهارات',this)"><span class="asec-ico">🛠️</span>مهارات</div>
+          <div class="asec" id="asec-langs" onclick="addSection('langs','🌍','اللغات',this)"><span class="asec-ico">🌍</span>لغات</div>
+          <div class="asec" id="asec-links" onclick="addSection('links','🔗','روابط التواصل',this)"><span class="asec-ico">🔗</span>روابط التواصل</div>
+          <div class="asec" onclick="openModal('custom-section');closePanel()"><span class="asec-ico">✏️</span>قسم مخصص</div>
+        </div>
+      </div>
+
+      <!-- الستايل -->
       <div class="panel-sec">
         <h4>الستايل</h4>
         <div class="style-grid">
@@ -334,8 +371,9 @@ body.preview-mode .top-actions { display:flex !important; }
         </div>
       </div>
 
+      <!-- اللون -->
       <div class="panel-sec">
-        <h4>اللون الرئيسي</h4>
+        <h4>اللون</h4>
         <div class="color-grid">
           <div class="csw active" style="background:#00c896" onclick="setColor('#00c896',this)"></div>
           <div class="csw" style="background:#2563ff" onclick="setColor('#2563ff',this)"></div>
@@ -352,18 +390,6 @@ body.preview-mode .top-actions { display:flex !important; }
         </div>
       </div>
 
-      <div class="panel-sec">
-        <h4>أقسام الملف</h4>
-        <div class="asec-list">
-          <div class="asec added"><span class="asec-ico">💼</span>الخبرات العملية<span class="asec-done">✓</span></div>
-          <div class="asec added"><span class="asec-ico">🎓</span>الشهادات الدراسية<span class="asec-done">✓</span></div>
-          <div class="asec" id="asec-course" onclick="addSection('course','📚','الدورات التدريبية',this)"><span class="asec-ico">📚</span>دورات تدريبية</div>
-          <div class="asec" id="asec-skills" onclick="addSection('skills','🛠️','المهارات',this)"><span class="asec-ico">🛠️</span>مهارات</div>
-          <div class="asec" id="asec-langs" onclick="addSection('langs','🌍','اللغات',this)"><span class="asec-ico">🌍</span>لغات</div>
-          <div class="asec" onclick="openModal('custom-section');closePanel()"><span class="asec-ico">✏️</span>قسم مخصص</div>
-        </div>
-      </div>
-
     </div>
   </div>
 </div>
@@ -373,8 +399,7 @@ body.preview-mode .top-actions { display:flex !important; }
 <div class="cv-wrap" id="cvWrap">
 
   <div class="top-actions owner-only">
-    <button class="tb-btn tb-primary" onclick="openModal('profile')">✏️ تعديل</button>
-    <button class="tb-btn tb-ghost" onclick="openPanel()">⚙️ تخصيص</button>
+    <button class="tb-btn tb-ghost" onclick="openPanel()">⚙️ الإعدادات</button>
     <button class="tb-btn tb-preview" id="previewBtn" onclick="togglePreview()">👁 معاينة</button>
   </div>
 
@@ -394,7 +419,7 @@ body.preview-mode .top-actions { display:flex !important; }
       <div class="cv-title" id="cvTitle">مطور ويب متكامل</div>
       <div class="cv-bio" id="cvBio">مطور متخصص في بناء تطبيقات الويب الحديثة باستخدام React وFastAPI.</div>
       <div class="cv-loc" id="cvLoc">📍 عمان، الأردن</div>
-      <div class="cv-code">TW-EMP-00001</div>
+      <div class="cv-code" id="cvCode">TW-EMP-00000</div>
     </div>
   </div>
 
@@ -483,10 +508,10 @@ function setStyle(n,el){
     if(previewMode) document.body.classList.add('preview-mode');
     curStyle = n;
     document.querySelectorAll('.sopt').forEach(o=>{
-      o.classList.remove('on');
+      o.classList.remove('active');
       o.querySelector('.schk').style.display='none';
     });
-    el.classList.add('on');
+    el.classList.add('active');
     el.querySelector('.schk').style.display='';
     const head=document.getElementById('cvHead'), main=document.getElementById('cvMain'), wEl=document.getElementById('cvWrap');
     if(n===5) wEl.insertBefore(head,main); else wEl.insertBefore(head,wEl.firstChild);
