@@ -314,6 +314,21 @@ body.preview-mode .owner-only { display:none !important; }
 .mbtn { flex:1; padding:10px; border:none; border-radius:10px; font-family:'Cairo',sans-serif; font-size:.82rem; font-weight:700; cursor:pointer; transition:all .2s; }
 .mbtn-ok { background:linear-gradient(135deg,var(--ac),var(--ac2)); color:#fff; }
 .mbtn-no { background:rgba(255,255,255,.07); color:rgba(255,255,255,.55); }
+
+/* ── Field error ── */
+.field-err{
+  display:none;
+  font-size:.68rem;
+  color:#f87171;
+  margin-top:4px;
+  font-family:'Cairo',sans-serif;
+  font-weight:700;
+}
+.mf input:focus,.mf select:focus{
+  outline:none;
+  border-color:var(--ac);
+}
+
 .upload-area { border:2px dashed rgba(255,255,255,.15); border-radius:11px; padding:16px; text-align:center; cursor:pointer; transition:all .2s; color:rgba(255,255,255,.4); font-size:.78rem; }
 .upload-area:hover { border-color:rgba(var(--ac-rgb),.4); color:var(--ac); }
 .upload-area input { display:none; }
@@ -715,6 +730,62 @@ secList.addEventListener('drop',e=>{
 });
 
 
+
+// ── Field validation helpers ──
+function setFieldErr(inputId, errId, msg){
+  const el=document.getElementById(inputId);
+  const err=document.getElementById(errId);
+  if(el){ el.style.borderColor='#f87171'; el.style.boxShadow='0 0 0 3px rgba(248,113,113,.15)'; }
+  if(err){ err.textContent=msg; err.style.display='block'; }
+}
+function clearFieldErr(inputId, errId){
+  const el=document.getElementById(inputId);
+  const err=document.getElementById(errId);
+  if(el){ el.style.borderColor=''; el.style.boxShadow=''; }
+  if(err){ err.style.display='none'; }
+}
+
+// ── Cities data ──
+const CITIES = {
+  JO:['عمان','إربد','الزرقاء','العقبة','السلط','مادبا','الكرك','معان','جرش','عجلون','الطفيلة'],
+  SA:['الرياض','جدة','مكة المكرمة','المدينة المنورة','الدمام','الخبر','الطائف','أبها','تبوك','القطيف','بريدة'],
+  AE:['دبي','أبوظبي','الشارقة','عجمان','رأس الخيمة','الفجيرة','أم القيوين','العين'],
+  KW:['مدينة الكويت','حولي','الفروانية','الأحمدي','الجهراء','مبارك الكبير'],
+  QA:['الدوحة','الريان','الوكرة','أم صلال','الخور','الشمال'],
+  BH:['المنامة','المحرق','الرفاع','مدينة عيسى','مدينة حمد'],
+  OM:['مسقط','صلالة','نزوى','صحار','السيب','مطرح','البريمي'],
+  EG:['القاهرة','الإسكندرية','الجيزة','شرم الشيخ','الأقصر','أسوان','طنطا','المنصورة','الفيوم','بورسعيد'],
+  IQ:['بغداد','البصرة','الموصل','أربيل','كربلاء','النجف','السليمانية','كركوك'],
+  SY:['دمشق','حلب','حمص','اللاذقية','حماة','دير الزور','الرقة','درعا'],
+  LB:['بيروت','طرابلس','صيدا','صور','جونية','زحلة'],
+  PS:['رام الله','القدس','غزة','نابلس','الخليل','جنين','أريحا','بيت لحم'],
+  YE:['صنعاء','عدن','تعز','الحديدة','إب','ذمار','مأرب'],
+  LY:['طرابلس','بنغازي','مصراتة','الزاوية','البيضاء','سبها'],
+  TN:['تونس','صفاقس','سوسة','بنزرت','قابس','القيروان'],
+  DZ:['الجزائر','وهران','قسنطينة','عنابة','سطيف','تلمسان'],
+  MA:['الرباط','الدار البيضاء','فاس','مراكش','مكناس','أكادير','طنجة'],
+  SD:['الخرطوم','أم درمان','بورتسودان','كسلا','الأبيض'],
+};
+
+function getCountryName(code){
+  const names={JO:'الأردن',SA:'السعودية',AE:'الإمارات',KW:'الكويت',QA:'قطر',
+    BH:'البحرين',OM:'عُمان',EG:'مصر',IQ:'العراق',SY:'سوريا',LB:'لبنان',
+    PS:'فلسطين',YE:'اليمن',LY:'ليبيا',TN:'تونس',DZ:'الجزائر',MA:'المغرب',SD:'السودان'};
+  return names[code]||'';
+}
+
+function loadCities(){
+  const country=document.getElementById('m-country')?.value;
+  const cityWrap=document.getElementById('city-wrap');
+  const citySelect=document.getElementById('m-city');
+  if(!cityWrap||!citySelect) return;
+  if(!country||country==='OTHER'){ cityWrap.style.display='none'; return; }
+  const cities=CITIES[country]||[];
+  citySelect.innerHTML='<option value="">— اختر المدينة —</option>'+
+    cities.map(city=>`<option value="${city}">${city}</option>`).join('');
+  cityWrap.style.display='block';
+}
+
 // ── Render functions with ... menu ──
 function renderExpItem(e){
   const id = e.id||Date.now();
@@ -821,9 +892,9 @@ function openModal(type,listId,secTitle){
     <div class="mf"><label>المدينة</label><input id="m-loc" autocomplete="off" value="${curLoc}" placeholder="مدينتك..."></div>
     <div class="mact"><button class="mbtn mbtn-ok" onclick="saveProfile()">حفظ</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
   } else if(type==='exp') h=`<div class="modal-title">💼 إضافة خبرة عملية</div>
-    <div class="mf"><label>المسمى الوظيفي *</label><input id="m-et" autocomplete="off" placeholder="مطور ويب..."></div>
-    <div class="mf"><label>جهة العمل *</label><input id="m-ec" autocomplete="off" placeholder="شركة..."></div>
-    <div class="mf"><label>الموقع</label><input id="m-el" autocomplete="off" placeholder="عمان"></div>
+    <div class="mf"><label>المسمى الوظيفي *</label><input id="m-et" autocomplete="off" placeholder="مثال: مهندس برمجيات، محاسب، مدير مبيعات..."></div>
+    <div class="mf"><label>جهة العمل *</label><input id="m-ec" autocomplete="off" placeholder="مثال: شركة أرامكو، مستشفى الملك فيصل..."></div>
+    <div class="mf"><label>الموقع</label><input id="m-el" autocomplete="off" placeholder="اختر من القائمة"></div>
     <div class="mf"><label>من</label><input id="m-es" autocomplete="off" placeholder="2022"></div>
     <div class="mf"><label>إلى</label><input id="m-ee" autocomplete="off" placeholder="2024"></div>
     <div class="mf"><label>وثيقة التوثيق</label><div class="upload-area" onclick="this.querySelector('input').click()"><input autocomplete="off" type="file" accept="image/*,.pdf" onchange="showFn(this)">📎 ارفع شهادة الخبرة<div class="fn"></div></div></div>
@@ -879,10 +950,17 @@ function saveProfile(){
 function saveExp(){
   const t=document.getElementById('m-et').value.trim();
   const co=document.getElementById('m-ec').value.trim();
-  if(!t||!co) return;
   const s=document.getElementById('m-es').value;
+  // Validate required fields
+  let valid=true;
+  if(!t){ setFieldErr('m-et','err-et','المسمى الوظيفي مطلوب'); valid=false; } else clearFieldErr('m-et','err-et');
+  if(!co){ setFieldErr('m-ec','err-ec','اسم جهة العمل مطلوب'); valid=false; } else clearFieldErr('m-ec','err-ec');
+  if(!s){ setFieldErr('m-es','err-es','سنة البداية مطلوبة'); valid=false; } else clearFieldErr('m-es','err-es');
+  if(!valid) return;
   const e=document.getElementById('m-ee').value;
-  const l=document.getElementById('m-el').value;
+  const country=document.getElementById('m-country')?.value||'';
+  const city=document.getElementById('m-city')?.value||'';
+  const l=city?(city+(country?'، '+getCountryName(country):'')):(country?getCountryName(country):'');
   document.getElementById('exp-list').querySelector('.empty-hint')?.remove();
   const expId=Date.now();
   document.getElementById('exp-list').insertAdjacentHTML('afterbegin',
