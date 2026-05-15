@@ -355,6 +355,33 @@ body.preview-mode .top-actions #previewBtn { display:flex !important; }
 }
 
 
+
+/* ── Item menu ── */
+.item-menu-wrap{position:relative;flex-shrink:0;}
+.item-menu-btn{
+  width:26px;height:26px;border-radius:7px;border:none;
+  background:rgba(255,255,255,.07);color:rgba(255,255,255,.5);
+  font-size:.85rem;cursor:pointer;display:flex;align-items:center;
+  justify-content:center;transition:all .2s;line-height:1;
+}
+.item-menu-btn:hover{background:rgba(255,255,255,.14);color:#fff;}
+body.s2 .item-menu-btn,body.s4 .item-menu-btn{background:rgba(0,0,0,.06);color:rgba(0,0,0,.3);}
+body.s2 .item-menu-btn:hover,body.s4 .item-menu-btn:hover{background:rgba(0,0,0,.1);color:rgba(0,0,0,.6);}
+.item-menu{
+  display:none;position:absolute;top:30px;left:0;
+  background:#0d1526;border:1px solid rgba(255,255,255,.1);
+  border-radius:10px;padding:5px;min-width:120px;
+  z-index:500;box-shadow:0 8px 24px rgba(0,0,0,.5);
+}
+.item-menu.open{display:block;}
+.item-menu-opt{
+  padding:8px 12px;border-radius:7px;font-size:.76rem;font-weight:700;
+  color:rgba(255,255,255,.7);cursor:pointer;transition:all .15s;
+  font-family:'Cairo',sans-serif;
+}
+.item-menu-opt:hover{background:rgba(255,255,255,.07);color:#fff;}
+.item-menu-opt:first-child:hover{background:rgba(239,68,68,.1);color:#f87171;}
+
 /* ── Add section shortcut ── */
 .add-sec-shortcut {
   width:100%;
@@ -687,6 +714,82 @@ secList.addEventListener('drop',e=>{
   }
 });
 
+
+// ── Render functions with ... menu ──
+function renderExpItem(e){
+  const id = e.id||Date.now();
+  return `<div class="item" id="exp-${id}">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
+      <div style="flex:1">
+        <div class="item-title">${e.title}</div>
+        <div class="item-sub">${e.company}${e.location?' · '+e.location:''}</div>
+        <div class="item-date">${e.start_date||''}${e.end_date?' - '+e.end_date:''}</div>
+        <span class="badge pending">⏳ قيد المراجعة</span>
+      </div>
+      <div class="item-menu-wrap owner-only">
+        <button class="item-menu-btn" onclick="toggleItemMenu('emenu-${id}')">⋯</button>
+        <div class="item-menu" id="emenu-${id}">
+          <div class="item-menu-opt" onclick="deleteExp(${id})">🗑️ حذف</div>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderEduItem(e){
+  const id = e.id||Date.now();
+  return `<div class="item" id="edu-${id}">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
+      <div style="flex:1">
+        <div class="item-title">${e.degree||'شهادة'}</div>
+        <div class="item-sub">${e.institution}</div>
+        <div class="item-date">${e.end_year||''}</div>
+        <span class="badge pending">⏳ قيد المراجعة</span>
+      </div>
+      <div class="item-menu-wrap owner-only">
+        <button class="item-menu-btn" onclick="toggleItemMenu('emenu-${id}')">⋯</button>
+        <div class="item-menu" id="emenu-${id}">
+          <div class="item-menu-opt" onclick="deleteEdu(${id})">🗑️ حذف</div>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function toggleItemMenu(id){
+  // Close all open menus first
+  document.querySelectorAll('.item-menu.open').forEach(m=>{
+    if(m.id!==id) m.classList.remove('open');
+  });
+  const m=document.getElementById(id);
+  if(m) m.classList.toggle('open');
+}
+document.addEventListener('click',e=>{
+  if(!e.target.closest('.item-menu-wrap')){
+    document.querySelectorAll('.item-menu.open').forEach(m=>m.classList.remove('open'));
+  }
+});
+
+function deleteExp(id){
+  document.getElementById('exp-'+id)?.remove();
+  try{
+    const uid=_sessionUser&&_sessionUser.id?'_'+_sessionUser.id:'';
+    const exp=JSON.parse(localStorage.getItem('tw_exp'+uid)||'[]').filter(e=>e.id!==id);
+    localStorage.setItem('tw_exp'+uid,JSON.stringify(exp));
+    if(!exp.length) document.getElementById('exp-list').innerHTML='<div class="item empty-hint"><div class="item-title" style="opacity:.4;font-size:.8rem">لا توجد خبرات بعد — اضغط + لإضافة أول خبرة</div></div>';
+  }catch(ex){}
+}
+
+function deleteEdu(id){
+  document.getElementById('edu-'+id)?.remove();
+  try{
+    const uid=_sessionUser&&_sessionUser.id?'_'+_sessionUser.id:'';
+    const edu=JSON.parse(localStorage.getItem('tw_edu'+uid)||'[]').filter(e=>e.id!==id);
+    localStorage.setItem('tw_edu'+uid,JSON.stringify(edu));
+    if(!edu.length) document.getElementById('edu-list').innerHTML='<div class="item empty-hint"><div class="item-title" style="opacity:.4;font-size:.8rem">لا توجد شهادات بعد — اضغط + لإضافة شهادة</div></div>';
+  }catch(ex){}
+}
+
 function saveSectionOrder(){
   const order=[...secList.children].map(s=>s.id);
   try{ localStorage.setItem('tw_sec_order',JSON.stringify(order)); }catch(ex){}
@@ -756,13 +859,13 @@ function saveProfile(){
   if(loc) document.getElementById('cvLoc').textContent='📍 '+loc;
   // Save to localStorage
   try{
-    const prof=JSON.parse(localStorage.getItem('tw_profile_data')||'{}');
+    const uid=_sessionUser&&_sessionUser.id?'_'+_sessionUser.id:'';
+    const prof=JSON.parse(localStorage.getItem('tw_profile_data'+uid)||'{}');
     if(name) prof.full_name=name;
     if(title) prof.headline=title;
     if(bio) prof.bio=bio;
     if(loc) prof.location=loc;
-    localStorage.setItem('tw_profile_data',JSON.stringify(prof));
-    // Update session user name
+    localStorage.setItem('tw_profile_data'+uid,JSON.stringify(prof));
     if(_sessionUser&&name){ _sessionUser.full_name=name; localStorage.setItem('tw_user',JSON.stringify(_sessionUser)); }
   }catch(ex){}
   // Save to API
@@ -781,13 +884,15 @@ function saveExp(){
   const e=document.getElementById('m-ee').value;
   const l=document.getElementById('m-el').value;
   document.getElementById('exp-list').querySelector('.empty-hint')?.remove();
+  const expId=Date.now();
   document.getElementById('exp-list').insertAdjacentHTML('afterbegin',
-    `<div class="item"><div class="item-title">${t}</div><div class="item-sub">${co}${l?' · '+l:''}</div><div class="item-date">${s}${e?' - '+e:''}</div><span class="badge pending">⏳ قيد المراجعة</span></div>`);
+    renderExpItem({id:expId,title:t,company:co,location:l,start_date:s,end_date:e}));
   // Save to localStorage
   try{
-    const exp=JSON.parse(localStorage.getItem('tw_exp')||'[]');
-    exp.unshift({title:t,company:co,location:l,start_date:s,end_date:e});
-    localStorage.setItem('tw_exp',JSON.stringify(exp));
+    const uid=_sessionUser&&_sessionUser.id?'_'+_sessionUser.id:'';
+    const exp=JSON.parse(localStorage.getItem('tw_exp'+uid)||'[]');
+    exp.unshift({id:Date.now(),title:t,company:co,location:l,start_date:s,end_date:e});
+    localStorage.setItem('tw_exp'+uid,JSON.stringify(exp));
   }catch(ex){}
   // Save to API
   if(_sessionUser&&_sessionUser.id){
@@ -803,13 +908,15 @@ function saveEdu(){
   if(!i) return;
   const y=document.getElementById('m-ey').value;
   document.getElementById('edu-list').querySelector('.empty-hint')?.remove();
+  const eduId=Date.now();
   document.getElementById('edu-list').insertAdjacentHTML('afterbegin',
-    `<div class="item"><div class="item-title">${d||'شهادة'}</div><div class="item-sub">${i}</div><div class="item-date">${y}</div><span class="badge pending">⏳ قيد المراجعة</span></div>`);
+    renderEduItem({id:eduId,degree:d,institution:i,end_year:y}));
   // Save to localStorage
   try{
-    const edu=JSON.parse(localStorage.getItem('tw_edu')||'[]');
-    edu.unshift({degree:d,institution:i,end_year:y});
-    localStorage.setItem('tw_edu',JSON.stringify(edu));
+    const uid=_sessionUser&&_sessionUser.id?'_'+_sessionUser.id:'';
+    const edu=JSON.parse(localStorage.getItem('tw_edu'+uid)||'[]');
+    edu.unshift({id:Date.now(),degree:d,institution:i,end_year:y});
+    localStorage.setItem('tw_edu'+uid,JSON.stringify(edu));
   }catch(ex){}
   // Save to API
   if(_sessionUser&&_sessionUser.id){
@@ -860,13 +967,39 @@ function doLogout(){ localStorage.removeItem('tw_user'); location.href='/'; }
   try { user = JSON.parse(localStorage.getItem('tw_user')); } catch(e){}
   if(!user || !user.id) return;
 
-  // عرض الاسم فوراً من localStorage قبل ما يجي الـ API
-  if(user.full_name){
-    document.getElementById('cvName').textContent = user.full_name;
-  }
+  const _uid = '_' + user.id;
+
+  // ── 1. عرض فوري من localStorage ──
   document.getElementById('cvCode').textContent =
     'TW-' + (user.user_type||'emp').toUpperCase() + '-' + String(user.id);
 
+  try{
+    const prof=JSON.parse(localStorage.getItem('tw_profile_data'+_uid)||'{}');
+    if(prof.full_name||user.full_name) document.getElementById('cvName').textContent=prof.full_name||user.full_name;
+    if(prof.headline) document.getElementById('cvTitle').textContent=prof.headline;
+    if(prof.bio) document.getElementById('cvBio').textContent=prof.bio;
+    if(prof.location) document.getElementById('cvLoc').textContent='📍 '+prof.location;
+  }catch(ex){
+    if(user.full_name) document.getElementById('cvName').textContent=user.full_name;
+  }
+
+  try{
+    const exp=JSON.parse(localStorage.getItem('tw_exp'+_uid)||'[]');
+    if(exp.length){
+      document.getElementById('exp-list').innerHTML='';
+      exp.forEach(e=>document.getElementById('exp-list').insertAdjacentHTML('beforeend',renderExpItem(e)));
+    }
+  }catch(ex){}
+
+  try{
+    const edu=JSON.parse(localStorage.getItem('tw_edu'+_uid)||'[]');
+    if(edu.length){
+      document.getElementById('edu-list').innerHTML='';
+      edu.forEach(e=>document.getElementById('edu-list').insertAdjacentHTML('beforeend',renderEduItem(e)));
+    }
+  }catch(ex){}
+
+  // ── 2. API call ──
   fetch('/profile/' + user.id + '/full')
     .then(r => r.json())
     .then(data => {
