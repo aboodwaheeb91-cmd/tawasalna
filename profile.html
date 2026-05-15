@@ -354,6 +354,42 @@ body.preview-mode .top-actions #previewBtn { display:flex !important; }
   .panel { width:85vw; }
 }
 
+
+/* ── Add section shortcut ── */
+.add-sec-shortcut {
+  width:100%;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  padding:13px;
+  border-radius:14px;
+  border:2px dashed rgba(255,255,255,.1);
+  background:rgba(255,255,255,.02);
+  color:rgba(255,255,255,.35);
+  font-family:'Cairo',sans-serif;
+  font-size:.82rem;
+  font-weight:700;
+  cursor:pointer;
+  transition:all .25s;
+}
+.add-sec-shortcut:hover {
+  border-color:rgba(var(--ac-rgb),.35);
+  color:var(--ac);
+  background:rgba(var(--ac-rgb),.04);
+}
+body.s2 .add-sec-shortcut,
+body.s4 .add-sec-shortcut {
+  border-color:rgba(0,0,0,.1);
+  color:rgba(0,0,0,.3);
+  background:transparent;
+}
+body.s2 .add-sec-shortcut:hover,
+body.s4 .add-sec-shortcut:hover {
+  border-color:var(--ac);
+  color:var(--ac);
+}
+
 /* ── Accordion Panel ── */
 .acc-wrap{margin-bottom:5px;}
 .acc-btn{width:100%;display:flex;align-items:center;gap:10px;padding:11px 13px;border-radius:12px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);color:rgba(255,255,255,.82);font-family:'Cairo',sans-serif;font-size:.8rem;font-weight:700;cursor:pointer;transition:all .2s;margin-bottom:5px;}
@@ -512,6 +548,14 @@ body.preview-mode .top-actions #previewBtn { display:flex !important; }
     </div>
 
   </div>
+
+  <!-- زر إضافة قسم في نهاية الصفحة -->
+  <div style="padding:14px 14px 30px">
+    <button class="add-sec-shortcut owner-only" onclick="openPanel();setTimeout(()=>toggleAcc('acc-sections'),300)">
+      <span>📂</span> إضافة قسم
+    </button>
+  </div>
+
   </div>
 </div>
 </div>
@@ -710,6 +754,17 @@ function saveProfile(){
   if(title) document.getElementById('cvTitle').textContent=title;
   if(bio) document.getElementById('cvBio').textContent=bio;
   if(loc) document.getElementById('cvLoc').textContent='📍 '+loc;
+  // Save to localStorage
+  try{
+    const prof=JSON.parse(localStorage.getItem('tw_profile_data')||'{}');
+    if(name) prof.full_name=name;
+    if(title) prof.headline=title;
+    if(bio) prof.bio=bio;
+    if(loc) prof.location=loc;
+    localStorage.setItem('tw_profile_data',JSON.stringify(prof));
+    // Update session user name
+    if(_sessionUser&&name){ _sessionUser.full_name=name; localStorage.setItem('tw_user',JSON.stringify(_sessionUser)); }
+  }catch(ex){}
   // Save to API
   if(_sessionUser&&_sessionUser.id){
     fetch('/profile/'+_sessionUser.id,{method:'PUT',headers:{'Content-Type':'application/json'},
@@ -728,6 +783,13 @@ function saveExp(){
   document.getElementById('exp-list').querySelector('.empty-hint')?.remove();
   document.getElementById('exp-list').insertAdjacentHTML('afterbegin',
     `<div class="item"><div class="item-title">${t}</div><div class="item-sub">${co}${l?' · '+l:''}</div><div class="item-date">${s}${e?' - '+e:''}</div><span class="badge pending">⏳ قيد المراجعة</span></div>`);
+  // Save to localStorage
+  try{
+    const exp=JSON.parse(localStorage.getItem('tw_exp')||'[]');
+    exp.unshift({title:t,company:co,location:l,start_date:s,end_date:e});
+    localStorage.setItem('tw_exp',JSON.stringify(exp));
+  }catch(ex){}
+  // Save to API
   if(_sessionUser&&_sessionUser.id){
     fetch('/experience/'+_sessionUser.id,{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({title:t,company:co,location:l,start_date:s,end_date:e})
@@ -743,6 +805,13 @@ function saveEdu(){
   document.getElementById('edu-list').querySelector('.empty-hint')?.remove();
   document.getElementById('edu-list').insertAdjacentHTML('afterbegin',
     `<div class="item"><div class="item-title">${d||'شهادة'}</div><div class="item-sub">${i}</div><div class="item-date">${y}</div><span class="badge pending">⏳ قيد المراجعة</span></div>`);
+  // Save to localStorage
+  try{
+    const edu=JSON.parse(localStorage.getItem('tw_edu')||'[]');
+    edu.unshift({degree:d,institution:i,end_year:y});
+    localStorage.setItem('tw_edu',JSON.stringify(edu));
+  }catch(ex){}
+  // Save to API
   if(_sessionUser&&_sessionUser.id){
     fetch('/education/'+_sessionUser.id,{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({institution:i,degree:d,end_year:parseInt(y)||null})
@@ -790,6 +859,13 @@ function doLogout(){ localStorage.removeItem('tw_user'); location.href='/'; }
   let user;
   try { user = JSON.parse(localStorage.getItem('tw_user')); } catch(e){}
   if(!user || !user.id) return;
+
+  // عرض الاسم فوراً من localStorage قبل ما يجي الـ API
+  if(user.full_name){
+    document.getElementById('cvName').textContent = user.full_name;
+  }
+  document.getElementById('cvCode').textContent =
+    'TW-' + (user.user_type||'emp').toUpperCase() + '-' + String(user.id);
 
   fetch('/profile/' + user.id + '/full')
     .then(r => r.json())
