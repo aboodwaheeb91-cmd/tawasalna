@@ -304,7 +304,7 @@ body.preview-mode .top-actions { display:flex !important; }
 </style>
 </head>
 <body class="s1">
-<input type="color" id="colorIn" value="#00c896">
+<input autocomplete="off" type="color" id="colorIn" value="#00c896">
 
 <!-- ── TOOLBAR: تواصلنا · تعديل · تخصيص · معاينة ── -->
 <div class="toolbar">
@@ -478,21 +478,22 @@ function setStyle(n,el){
   const wrap = document.getElementById('cvWrap');
   wrap.classList.add('fading');
   setTimeout(()=>{
-    document.body.className = document.body.className.replace(/s\d/,'').trim();
+    document.body.className = document.body.className.replace(/\bs\d\b/,'').trim();
     document.body.classList.add('s'+n);
     if(previewMode) document.body.classList.add('preview-mode');
     curStyle = n;
     document.querySelectorAll('.sopt').forEach(o=>{
-      o.classList.remove('active');
+      o.classList.remove('on');
       o.querySelector('.schk').style.display='none';
     });
-    el.classList.add('active');
+    el.classList.add('on');
     el.querySelector('.schk').style.display='';
     const head=document.getElementById('cvHead'), main=document.getElementById('cvMain'), wEl=document.getElementById('cvWrap');
     if(n===5) wEl.insertBefore(head,main); else wEl.insertBefore(head,wEl.firstChild);
     wrap.classList.remove('fading');
-    // Auto-close panel after picking
-    setTimeout(closePanel,300);
+    // Save style
+    try{ localStorage.setItem('tw_profile_style', n); }catch(ex){}
+    setTimeout(closePanel, 300);
   },250);
 }
 
@@ -539,7 +540,7 @@ function openModal(type,listId,secTitle){
   if(type==='profile') h=`<div class="modal-title">✏️ تعديل الملف الشخصي</div>
     <div class="mf"><label>الاسم الكامل</label><input id="m-name" autocomplete="off" value="عبدالله محمد الوهيب"></div>
     <div class="mf"><label>المسمى الوظيفي</label><input id="m-title" autocomplete="off" value="مطور ويب متكامل"></div>
-    <div class="mf"><label>نبذة مختصرة</label><textarea id="m-bio">مطور متخصص في بناء تطبيقات الويب الحديثة.</textarea></div>
+    <div class="mf"><label>نبذة مختصرة</label><textarea autocomplete="off" id="m-bio">مطور متخصص في بناء تطبيقات الويب الحديثة.</textarea></div>
     <div class="mf"><label>المدينة</label><input id="m-loc" autocomplete="off" value="عمان، الأردن"></div>
     <div class="mact"><button class="mbtn mbtn-ok" onclick="saveProfile()">حفظ</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
   else if(type==='exp') h=`<div class="modal-title">💼 إضافة خبرة عملية</div>
@@ -548,22 +549,22 @@ function openModal(type,listId,secTitle){
     <div class="mf"><label>الموقع</label><input id="m-el" autocomplete="off" placeholder="عمان"></div>
     <div class="mf"><label>من</label><input id="m-es" autocomplete="off" placeholder="2022"></div>
     <div class="mf"><label>إلى</label><input id="m-ee" autocomplete="off" placeholder="2024"></div>
-    <div class="mf"><label>وثيقة التوثيق</label><div class="upload-area" onclick="this.querySelector('input').click()"><input type="file" accept="image/*,.pdf" onchange="showFn(this)">📎 ارفع شهادة الخبرة<div class="fn"></div></div></div>
+    <div class="mf"><label>وثيقة التوثيق</label><div class="upload-area" onclick="this.querySelector('input').click()"><input autocomplete="off" type="file" accept="image/*,.pdf" onchange="showFn(this)">📎 ارفع شهادة الخبرة<div class="fn"></div></div></div>
     <div class="mact"><button class="mbtn mbtn-ok" onclick="saveExp()">إضافة</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
   else if(type==='edu') h=`<div class="modal-title">🎓 إضافة شهادة دراسية</div>
     <div class="mf"><label>الشهادة</label><input id="m-ed" autocomplete="off" placeholder="بكالوريوس..."></div>
     <div class="mf"><label>المؤسسة *</label><input id="m-ei" autocomplete="off" placeholder="الجامعة..."></div>
     <div class="mf"><label>سنة التخرج</label><input id="m-ey" autocomplete="off" placeholder="2020"></div>
-    <div class="mf"><label>صورة الشهادة</label><div class="upload-area" onclick="this.querySelector('input').click()"><input type="file" accept="image/*,.pdf" onchange="showFn(this)">📎 ارفع صورة الشهادة<div class="fn"></div></div></div>
+    <div class="mf"><label>صورة الشهادة</label><div class="upload-area" onclick="this.querySelector('input').click()"><input autocomplete="off" type="file" accept="image/*,.pdf" onchange="showFn(this)">📎 ارفع صورة الشهادة<div class="fn"></div></div></div>
     <div class="mact"><button class="mbtn mbtn-ok" onclick="saveEdu()">إضافة</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
   else if(type==='custom-section') h=`<div class="modal-title">✏️ قسم مخصص</div>
-    <div class="mf"><label>اسم القسم *</label><input id="m-csn" placeholder="مشاريعي، إنجازاتي..."></div>
-    <div class="mf"><label>أيقونة</label><input id="m-csi" placeholder="📌" style="font-size:1.2rem"></div>
+    <div class="mf"><label>اسم القسم *</label><input autocomplete="off" id="m-csn" placeholder="مشاريعي، إنجازاتي..."></div>
+    <div class="mf"><label>أيقونة</label><input autocomplete="off" id="m-csi" placeholder="📌" style="font-size:1.2rem"></div>
     <div class="mact"><button class="mbtn mbtn-ok" onclick="saveCustomSec()">إضافة</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
   else if(type==='generic') h=`<div class="modal-title">+ إضافة في ${secTitle||''}</div>
-    <div class="mf"><label>العنوان *</label><input id="m-gt" placeholder="..."></div>
-    <div class="mf"><label>التفاصيل</label><input id="m-gs" placeholder="..."></div>
-    <div class="mf"><label>التاريخ</label><input id="m-gd" placeholder="2024"></div>
+    <div class="mf"><label>العنوان *</label><input autocomplete="off" id="m-gt" placeholder="..."></div>
+    <div class="mf"><label>التفاصيل</label><input autocomplete="off" id="m-gs" placeholder="..."></div>
+    <div class="mf"><label>التاريخ</label><input autocomplete="off" id="m-gd" placeholder="2024"></div>
     <div class="mact"><button class="mbtn mbtn-ok" onclick="saveGeneric('${listId}')">إضافة</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
   document.getElementById('modal').innerHTML=h;
   document.getElementById('overlay').classList.add('show');
@@ -642,7 +643,7 @@ try{
 // Load saved style
 try{
   const savedStyle = parseInt(localStorage.getItem('tw_profile_style'))||1;
-  if(savedStyle !== 1){
+  if(savedStyle && savedStyle !== 1){
     const sopt = document.getElementById('sopt'+savedStyle);
     if(sopt) setStyle(savedStyle, sopt);
   }
