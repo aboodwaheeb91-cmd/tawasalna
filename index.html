@@ -161,8 +161,8 @@ body{font-family:'Cairo',sans-serif;background:#070b18;min-height:100vh;display:
     <!-- LOGIN FORM -->
     <div id="loginSection">
       <div class="form-title">دخول</div>
-      <div class="field"><label>البريد الإلكتروني</label><input id="lEmail" type="email" placeholder="example@email.com"></div>
-      <div class="field"><label>كلمة المرور</label><input id="lPass" type="password" placeholder="••••••••"></div>
+      <div class="field"><label>البريد الإلكتروني</label><input id="lEmail" autocomplete="email" type="email" placeholder="example@email.com"></div>
+      <div class="field"><label>كلمة المرور</label><input id="lPass" autocomplete="current-password" type="password" placeholder="••••••••"></div>
       <div style="text-align:left;margin-bottom:12px"><span style="font-size:.7rem;color:rgba(255,255,255,.3);cursor:pointer">نسيت كلمة المرور؟</span></div>
       <button class="cta" id="loginBtn" onclick="doLogin()">دخول</button>
       <div class="switch-link">مستخدم جديد؟ <span onclick="showRegister()">سجّل الآن</span></div>
@@ -199,9 +199,9 @@ body{font-family:'Cairo',sans-serif;background:#070b18;min-height:100vh;display:
         </select>
       </div>
 
-      <div class="field"><label id="nameLabel">الاسم الكامل</label><input id="rName" placeholder="اكتب اسمك..."></div>
-      <div class="field"><label>البريد الإلكتروني</label><input id="rEmail" type="email" placeholder="example@email.com"></div>
-      <div class="field"><label>كلمة المرور</label><input id="rPass" type="password" placeholder="6 أحرف على الأقل"></div>
+      <div class="field"><label id="nameLabel">الاسم الكامل</label><input id="rName" autocomplete="off" placeholder="اكتب اسمك..."></div>
+      <div class="field"><label>البريد الإلكتروني</label><input id="rEmail" autocomplete="off" type="email" placeholder="example@email.com"></div>
+      <div class="field"><label>كلمة المرور</label><input id="rPass" autocomplete="new-password" type="password" placeholder="6 أحرف على الأقل"></div>
       <button class="cta" id="regBtn" onclick="doRegister()">إنشاء حساب</button>
       <div class="switch-link">عندك حساب؟ <span onclick="showLogin()">دخول</span></div>
     </div>

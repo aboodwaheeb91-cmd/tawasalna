@@ -463,6 +463,7 @@ function setColor(hex,el){
   document.querySelectorAll('.csw').forEach(s=>s.classList.remove('active'));
   el.classList.add('active');
   redrawQR();
+  try{ localStorage.setItem('tw_profile_color', hex); }catch(ex){}
   setTimeout(closePanel,300);
 }
 
@@ -470,6 +471,7 @@ document.getElementById('colorIn').addEventListener('input',e=>{
   applyColor(e.target.value);
   document.querySelectorAll('.csw').forEach(s=>s.classList.remove('active'));
   redrawQR();
+  try{ localStorage.setItem('tw_profile_color', e.target.value); }catch(ex){}
 });
 
 function setStyle(n,el){
@@ -535,23 +537,23 @@ secList.addEventListener('drop',e=>{ e.preventDefault(); const ov=e.target.close
 function openModal(type,listId,secTitle){
   let h='';
   if(type==='profile') h=`<div class="modal-title">✏️ تعديل الملف الشخصي</div>
-    <div class="mf"><label>الاسم الكامل</label><input id="m-name" value="عبدالله محمد الوهيب"></div>
-    <div class="mf"><label>المسمى الوظيفي</label><input id="m-title" value="مطور ويب متكامل"></div>
+    <div class="mf"><label>الاسم الكامل</label><input id="m-name" autocomplete="off" value="عبدالله محمد الوهيب"></div>
+    <div class="mf"><label>المسمى الوظيفي</label><input id="m-title" autocomplete="off" value="مطور ويب متكامل"></div>
     <div class="mf"><label>نبذة مختصرة</label><textarea id="m-bio">مطور متخصص في بناء تطبيقات الويب الحديثة.</textarea></div>
-    <div class="mf"><label>المدينة</label><input id="m-loc" value="عمان، الأردن"></div>
+    <div class="mf"><label>المدينة</label><input id="m-loc" autocomplete="off" value="عمان، الأردن"></div>
     <div class="mact"><button class="mbtn mbtn-ok" onclick="saveProfile()">حفظ</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
   else if(type==='exp') h=`<div class="modal-title">💼 إضافة خبرة عملية</div>
-    <div class="mf"><label>المسمى الوظيفي *</label><input id="m-et" placeholder="مطور ويب..."></div>
-    <div class="mf"><label>جهة العمل *</label><input id="m-ec" placeholder="شركة..."></div>
-    <div class="mf"><label>الموقع</label><input id="m-el" placeholder="عمان"></div>
-    <div class="mf"><label>من</label><input id="m-es" placeholder="2022"></div>
-    <div class="mf"><label>إلى</label><input id="m-ee" placeholder="2024"></div>
+    <div class="mf"><label>المسمى الوظيفي *</label><input id="m-et" autocomplete="off" placeholder="مطور ويب..."></div>
+    <div class="mf"><label>جهة العمل *</label><input id="m-ec" autocomplete="off" placeholder="شركة..."></div>
+    <div class="mf"><label>الموقع</label><input id="m-el" autocomplete="off" placeholder="عمان"></div>
+    <div class="mf"><label>من</label><input id="m-es" autocomplete="off" placeholder="2022"></div>
+    <div class="mf"><label>إلى</label><input id="m-ee" autocomplete="off" placeholder="2024"></div>
     <div class="mf"><label>وثيقة التوثيق</label><div class="upload-area" onclick="this.querySelector('input').click()"><input type="file" accept="image/*,.pdf" onchange="showFn(this)">📎 ارفع شهادة الخبرة<div class="fn"></div></div></div>
     <div class="mact"><button class="mbtn mbtn-ok" onclick="saveExp()">إضافة</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
   else if(type==='edu') h=`<div class="modal-title">🎓 إضافة شهادة دراسية</div>
-    <div class="mf"><label>الشهادة</label><input id="m-ed" placeholder="بكالوريوس..."></div>
-    <div class="mf"><label>المؤسسة *</label><input id="m-ei" placeholder="الجامعة..."></div>
-    <div class="mf"><label>سنة التخرج</label><input id="m-ey" placeholder="2020"></div>
+    <div class="mf"><label>الشهادة</label><input id="m-ed" autocomplete="off" placeholder="بكالوريوس..."></div>
+    <div class="mf"><label>المؤسسة *</label><input id="m-ei" autocomplete="off" placeholder="الجامعة..."></div>
+    <div class="mf"><label>سنة التخرج</label><input id="m-ey" autocomplete="off" placeholder="2020"></div>
     <div class="mf"><label>صورة الشهادة</label><div class="upload-area" onclick="this.querySelector('input').click()"><input type="file" accept="image/*,.pdf" onchange="showFn(this)">📎 ارفع صورة الشهادة<div class="fn"></div></div></div>
     <div class="mact"><button class="mbtn mbtn-ok" onclick="saveEdu()">إضافة</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
   else if(type==='custom-section') h=`<div class="modal-title">✏️ قسم مخصص</div>
@@ -624,7 +626,19 @@ if(!isOwner) document.querySelectorAll('.owner-only').forEach(el=>el.style.displ
 // top-actions needs flex not block
 const ta = document.querySelector('.top-actions');
 if(ta && isOwner) ta.style.display = 'flex';
-applyColor('#00c896');
+// Load saved color
+try{
+  const savedColor = localStorage.getItem('tw_profile_color');
+  if(savedColor){
+    applyColor(savedColor);
+    document.querySelectorAll('.csw').forEach(s=>{
+      if(s.style.background === savedColor) s.classList.add('active');
+      else s.classList.remove('active');
+    });
+  } else {
+    applyColor('#00c896');
+  }
+}catch(ex){ applyColor('#00c896'); }
 // Load saved style
 try{
   const savedStyle = parseInt(localStorage.getItem('tw_profile_style'))||1;
@@ -653,7 +667,7 @@ function doLogout(){ localStorage.removeItem('tw_user'); location.href='/'; }
       if(p.bio)       document.getElementById('cvBio').textContent = p.bio;
       if(p.location)  document.getElementById('cvLoc').textContent = '📍 ' + p.location;
       const t = p.user_type || 'emp';
-      document.getElementById('cvCode').textContent = 'TW-' + t.toUpperCase() + '-' + String(p.id).padStart(5,'0');
+      document.getElementById('cvCode').textContent = 'TW-' + t.toUpperCase() + '-' + String(p.id);
       if(p.experience && p.experience.length){
         document.getElementById('exp-list').innerHTML = '';
         p.experience.forEach(e => document.getElementById('exp-list').insertAdjacentHTML('beforeend',
