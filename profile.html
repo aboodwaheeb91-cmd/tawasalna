@@ -954,10 +954,10 @@ function loadSectionOrder(){
 function openModal(type,listId,secTitle){
   let h='';
   if(type==='profile'){
-    const curName = document.getElementById('cvName').textContent.replace('الاسم الكامل','');
-    const curTitle = document.getElementById('cvTitle').textContent.replace('المسمى الوظيفي','');
-    const curBio = document.getElementById('cvBio').textContent.replace('نبذة مختصرة عنك...','');
-    const curLoc = document.getElementById('cvLoc').textContent.replace('📍 موقعك','').replace('📍 ','');
+    const curName=document.getElementById('cvName').textContent.replace('الاسم الكامل','');
+    const curTitle=document.getElementById('cvTitle').textContent.replace('المسمى الوظيفي','');
+    const curBio=document.getElementById('cvBio').textContent.replace('نبذة مختصرة عنك...','');
+    const curLoc=document.getElementById('cvLoc').textContent.replace('📍 موقعك','').replace('📍 ','');
     h=`<div class="modal-title">✏️ تعديل الملف الشخصي</div>
     <div class="mf"><label>الاسم الكامل</label><input id="m-name" autocomplete="off" value="${curName}" placeholder="اكتب اسمك..."></div>
     <div class="mf"><label>المسمى الوظيفي</label><input id="m-title" autocomplete="off" value="${curTitle}" placeholder="مسماك الوظيفي..."></div>
@@ -972,86 +972,73 @@ function openModal(type,listId,secTitle){
       </select>
     </div>
     <div class="mact"><button class="mbtn mbtn-ok" onclick="saveProfile()">حفظ</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
-  } else if(type==='exp') h=`<div class="modal-title">💼 إضافة خبرة عملية</div>
-    <div class="mf">
-      <label>المسمى الوظيفي <span style="color:#f87171">*</span></label>
-      <input id="m-et" autocomplete="off" placeholder="مثال: مهندس برمجيات، محاسب، مدير مبيعات، مصمم جرافيك...">
+
+  } else if(type==='exp'){
+    const yearOpts=[...Array(36)].map((_,i)=>{const y=new Date().getFullYear()-i;return '<option value="'+y+'">'+y+'</option>';}).join('');
+    h=`<div class="modal-title">💼 إضافة خبرة عملية</div>
+    <div class="mf"><label>المسمى الوظيفي <span style="color:#f87171">*</span></label>
+      <input id="m-et" autocomplete="off" placeholder="مثال: مهندس برمجيات، محاسب، مدير مبيعات...">
       <div class="field-err" id="err-et"></div>
     </div>
-    <div class="mf">
-      <label>اسم جهة العمل <span style="color:#f87171">*</span></label>
-      <input id="m-ec" autocomplete="off" placeholder="مثال: شركة STC، مستشفى الملك فيصل، مدرسة الأمل...">
+    <div class="mf"><label>اسم جهة العمل <span style="color:#f87171">*</span></label>
+      <input id="m-ec" autocomplete="off" placeholder="مثال: شركة STC، مستشفى الملك فيصل...">
       <div class="field-err" id="err-ec"></div>
     </div>
-    <div class="mf">
-      <label>البلد</label>
+    <div class="mf"><label>البلد</label>
       <select id="m-country" autocomplete="off" onchange="loadCities()" style="width:100%;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;">
         <option value="">— اختر البلد —</option>
-        <option value="JO">🇯🇴 الأردن</option>
-        <option value="SA">🇸🇦 السعودية</option>
-        <option value="AE">🇦🇪 الإمارات</option>
-        <option value="KW">🇰🇼 الكويت</option>
-        <option value="QA">🇶🇦 قطر</option>
-        <option value="BH">🇧🇭 البحرين</option>
-        <option value="OM">🇴🇲 عُمان</option>
-        <option value="EG">🇪🇬 مصر</option>
-        <option value="IQ">🇮🇶 العراق</option>
-        <option value="SY">🇸🇾 سوريا</option>
-        <option value="LB">🇱🇧 لبنان</option>
-        <option value="PS">🇵🇸 فلسطين</option>
-        <option value="YE">🇾🇪 اليمن</option>
-        <option value="MA">🇲🇦 المغرب</option>
-        <option value="DZ">🇩🇿 الجزائر</option>
-        <option value="TN">🇹🇳 تونس</option>
-        <option value="LY">🇱🇾 ليبيا</option>
-        <option value="SD">🇸🇩 السودان</option>
+        <option value="JO">🇯🇴 الأردن</option><option value="SA">🇸🇦 السعودية</option>
+        <option value="AE">🇦🇪 الإمارات</option><option value="KW">🇰🇼 الكويت</option>
+        <option value="QA">🇶🇦 قطر</option><option value="BH">🇧🇭 البحرين</option>
+        <option value="OM">🇴🇲 عُمان</option><option value="EG">🇪🇬 مصر</option>
+        <option value="IQ">🇮🇶 العراق</option><option value="SY">🇸🇾 سوريا</option>
+        <option value="LB">🇱🇧 لبنان</option><option value="PS">🇵🇸 فلسطين</option>
+        <option value="YE">🇾🇪 اليمن</option><option value="MA">🇲🇦 المغرب</option>
+        <option value="DZ">🇩🇿 الجزائر</option><option value="TN">🇹🇳 تونس</option>
+        <option value="LY">🇱🇾 ليبيا</option><option value="SD">🇸🇩 السودان</option>
         <option value="OTHER">🌍 دولة أخرى</option>
       </select>
     </div>
-    <div class="mf" id="city-wrap" style="display:none">
-      <label>المدينة</label>
+    <div class="mf" id="city-wrap" style="display:none"><label>المدينة</label>
       <select id="m-city" autocomplete="off" style="width:100%;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;">
         <option value="">— اختر المدينة —</option>
       </select>
     </div>
     <div style="display:flex;gap:10px">
-      <div class="mf" style="flex:1">
-        <label>من (سنة) <span style="color:#f87171">*</span></label>
+      <div class="mf" style="flex:1"><label>من (سنة) <span style="color:#f87171">*</span></label>
         <select id="m-es" autocomplete="off" onchange="filterEndYears()" style="width:100%;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;">
-          <option value="">اختر السنة</option>
-          ${[...Array(36)].map((_,i)=>{const y=new Date().getFullYear()-i;return '<option value="'+y+'">'+y+'</option>';}).join('')}
+          <option value="">اختر السنة</option>${yearOpts}
         </select>
         <div class="field-err" id="err-es"></div>
       </div>
-      <div class="mf" style="flex:1">
-        <label>إلى (سنة)</label>
+      <div class="mf" style="flex:1"><label>إلى (سنة)</label>
         <select id="m-ee" autocomplete="off" style="width:100%;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;">
-          <option value="حتى الآن">حتى الآن</option>
-          ${[...Array(36)].map((_,i)=>{const y=new Date().getFullYear()-i;return '<option value="'+y+'">'+y+'</option>';}).join('')}
+          <option value="حتى الآن">حتى الآن</option>${yearOpts}
         </select>
       </div>
     </div>
-    <div class="mf">
-      <label>نوع الدوام <span style="opacity:.5;font-size:.7rem">(اختياري)</span></label>
+    <div class="mf"><label>نوع الدوام <span style="opacity:.5;font-size:.7rem">(اختياري)</span></label>
       <select id="m-etype" autocomplete="off" style="width:100%;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;">
         <option value="">— اختر —</option>
         <option value="دوام كامل">دوام كامل</option>
         <option value="دوام جزئي">دوام جزئي</option>
         <option value="عن بُعد">عن بُعد</option>
-        <option value="هجين">هجين (هايبرد)</option>
+        <option value="هجين">هجين</option>
         <option value="عقد مؤقت">عقد مؤقت</option>
-        <option value="تدريب">تدريب (تدريب عملي)</option>
+        <option value="تدريب">تدريب عملي</option>
       </select>
     </div>
-    <div class="mf">
-      <label>وصف مختصر <span style="opacity:.5;font-size:.7rem">(اختياري)</span></label>
-      <textarea id="m-edesc" autocomplete="off" placeholder="اذكر أبرز مهامك وإنجازاتك في هذا المنصب..." style="width:100%;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:Cairo,sans-serif;font-size:.82rem;outline:none;resize:vertical;min-height:68px;direction:rtl;"></textarea>
+    <div class="mf"><label>وصف مختصر <span style="opacity:.5;font-size:.7rem">(اختياري)</span></label>
+      <textarea id="m-edesc" autocomplete="off" placeholder="أبرز مهامك وإنجازاتك..." style="width:100%;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:Cairo,sans-serif;font-size:.82rem;outline:none;resize:vertical;min-height:60px;direction:rtl;"></textarea>
     </div>
-    <div class="mf"><label>وثيقة التوثيق <span style="opacity:.5;font-size:.7rem">(اختياري)</span></label><div class="upload-area" onclick="this.querySelector('input').click()"><input autocomplete="off" type="file" accept="image/*,.pdf" onchange="showFn(this)">📎 ارفع وثيقة من جهة العمل<div class="fn"></div></div></div>
+    <div class="mf"><label>وثيقة التوثيق <span style="opacity:.5;font-size:.7rem">(اختياري)</span></label>
+      <div class="upload-area" onclick="this.querySelector('input').click()"><input autocomplete="off" type="file" accept="image/*,.pdf" onchange="showFn(this)">📎 ارفع وثيقة<div class="fn"></div></div>
+    </div>
     <div class="mact"><button class="mbtn mbtn-ok" onclick="saveExp()">إضافة الخبرة</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
-  } else if(type==='edu') h=`<div class="modal-title">🎓 إضافة شهادة دراسية</div>
-    <div class="mf">
-      <label>نوع الشهادة <span style="color:#f87171">*</span></label>
+
+  } else if(type==='edu'){
+    h=`<div class="modal-title">🎓 إضافة شهادة دراسية</div>
+    <div class="mf"><label>نوع الشهادة <span style="color:#f87171">*</span></label>
       <select id="m-dtype" autocomplete="off" style="width:100%;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;">
         <option value="">— اختر نوع الشهادة —</option>
         <option value="بكالوريوس">🎓 بكالوريوس</option>
@@ -1064,62 +1051,56 @@ function openModal(type,listId,secTitle){
         <option value="دورة معتمدة">✅ دورة معتمدة</option>
       </select>
     </div>
-    <div class="mf">
-      <label>المؤسسة التعليمية <span style="color:#f87171">*</span></label>
+    <div class="mf"><label>المؤسسة التعليمية <span style="color:#f87171">*</span></label>
       <input id="m-ei" autocomplete="off" placeholder="مثال: الجامعة الأردنية، جامعة الملك عبدالله...">
     </div>
-    <div class="mf">
-      <label>التخصص <span style="opacity:.5;font-size:.7rem">(اختياري)</span></label>
-      <input id="m-ed" autocomplete="off" placeholder="مثال: هندسة حاسوب، محاسبة، طب بشري...">
+    <div class="mf"><label>التخصص <span style="opacity:.5;font-size:.7rem">(اختياري)</span></label>
+      <input id="m-ed" autocomplete="off" placeholder="مثال: هندسة حاسوب، محاسبة...">
     </div>
     <div style="display:flex;gap:10px">
-      <div class="mf" style="flex:1">
-        <label>سنة التخرج</label>
-        <input id="m-ey" autocomplete="off" placeholder="2020" type="number" min="1970" max="2030">
+      <div class="mf" style="flex:1"><label>سنة التخرج</label>
+        <input id="m-ey" autocomplete="off" type="number" min="1970" max="2030" placeholder="2020">
       </div>
-      <div class="mf" style="flex:1">
-        <label>المعدل <span style="opacity:.5;font-size:.7rem">(اختياري)</span></label>
-        <input id="m-egpa" autocomplete="off" placeholder="مثال: 3.8 أو ممتاز">
+      <div class="mf" style="flex:1"><label>المعدل <span style="opacity:.5;font-size:.7rem">(اختياري)</span></label>
+        <input id="m-egpa" autocomplete="off" placeholder="3.8 أو ممتاز">
       </div>
     </div>
-    <div class="mf"><label>صورة الشهادة <span style="opacity:.5;font-size:.7rem">(اختياري)</span></label><div class="upload-area" onclick="this.querySelector('input').click()"><input autocomplete="off" type="file" accept="image/*,.pdf" onchange="showFn(this)">📎 ارفع صورة الشهادة<div class="fn"></div></div></div>
+    <div class="mf"><label>صورة الشهادة <span style="opacity:.5;font-size:.7rem">(اختياري)</span></label>
+      <div class="upload-area" onclick="this.querySelector('input').click()"><input autocomplete="off" type="file" accept="image/*,.pdf" onchange="showFn(this)">📎 ارفع صورة الشهادة<div class="fn"></div></div>
+    </div>
     <div class="mact"><button class="mbtn mbtn-ok" onclick="saveEdu()">إضافة الشهادة</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
-  else if(type==='custom-section') h=`<div class="modal-title">✏️ قسم مخصص</div>
-    <div class="mf"><label>اسم القسم *</label><input autocomplete="off" id="m-csn" placeholder="مشاريعي، إنجازاتي، مهاراتي..."></div>
+
+  } else if(type==='custom-section'){
+    h=`<div class="modal-title">✏️ قسم مخصص</div>
+    <div class="mf"><label>اسم القسم *</label><input autocomplete="off" id="m-csn" placeholder="مشاريعي، إنجازاتي..."></div>
     <div class="mf"><label>أيقونة</label>
       <select id="m-csi" autocomplete="off" style="width:100%;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:Cairo,sans-serif;font-size:.9rem;outline:none;direction:rtl;">
-        <option value="📌">📌 دبوس</option>
-        <option value="🚀">🚀 مشاريع</option>
-        <option value="🏆">🏆 إنجازات</option>
-        <option value="⭐">⭐ مميزات</option>
-        <option value="💡">💡 أفكار</option>
-        <option value="🎯">🎯 أهداف</option>
-        <option value="🛠️">🛠️ مهارات</option>
-        <option value="📚">📚 قراءات</option>
-        <option value="🌍">🌍 لغات</option>
-        <option value="🔗">🔗 روابط</option>
-        <option value="📝">📝 ملاحظات</option>
-        <option value="🤝">🤝 تطوع</option>
-        <option value="🎨">🎨 أعمال</option>
-        <option value="📊">📊 إحصائيات</option>
+        <option value="📌">📌 دبوس</option><option value="🚀">🚀 مشاريع</option>
+        <option value="🏆">🏆 إنجازات</option><option value="⭐">⭐ مميزات</option>
+        <option value="💡">💡 أفكار</option><option value="🎯">🎯 أهداف</option>
+        <option value="🛠️">🛠️ مهارات</option><option value="📚">📚 قراءات</option>
+        <option value="🌍">🌍 لغات</option><option value="🔗">🔗 روابط</option>
+        <option value="🤝">🤝 تطوع</option><option value="🎨">🎨 أعمال</option>
         <option value="💼">💼 أعمال حرة</option>
       </select>
     </div>
     <div class="mact"><button class="mbtn mbtn-ok" onclick="saveCustomSec()">إضافة</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
-  else if(type==='generic') h=`<div class="modal-title">+ إضافة في ${secTitle||''}</div>
+
+  } else if(type==='generic'){
+    const yearOpts2=[...Array(36)].map((_,i)=>{const y=new Date().getFullYear()-i;return '<option value="'+y+'">'+y+'</option>';}).join('');
+    h=`<div class="modal-title">+ إضافة في ${secTitle||''}</div>
     <div class="mf"><label>العنوان *</label><input autocomplete="off" id="m-gt" placeholder="..."></div>
     <div class="mf"><label>التفاصيل</label><input autocomplete="off" id="m-gs" placeholder="..."></div>
     <div class="mf"><label>السنة</label>
       <select id="m-gd" autocomplete="off" style="width:100%;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;">
-        <option value="">— اختر السنة —</option>
-        ${[...Array(36)].map((_,i)=>{const y=new Date().getFullYear()-i;return '<option value="'+y+'">'+y+'</option>';}).join('')}
+        <option value="">— اختر السنة —</option>${yearOpts2}
       </select>
     </div>
     <div class="mact"><button class="mbtn mbtn-ok" onclick="saveGeneric('${listId}')">إضافة</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
+  }
   document.getElementById('modal').innerHTML=h;
   document.getElementById('overlay').classList.add('show');
 }
-
 function showFn(input){ const fn=input.parentElement.querySelector('.fn'); if(fn&&input.files[0]) fn.textContent='✓ '+input.files[0].name; }
 function saveProfile(){
   const name=document.getElementById('m-name').value.trim();
