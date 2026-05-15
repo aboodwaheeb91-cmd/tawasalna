@@ -315,6 +315,20 @@ body.preview-mode .top-actions #previewBtn { display:flex !important; }
   body.s5 .cv-head { position:static; }
   .panel { width:85vw; }
 }
+
+/* ── Accordion Panel ── */
+.acc-wrap{margin-bottom:5px;}
+.acc-btn{width:100%;display:flex;align-items:center;gap:10px;padding:11px 13px;border-radius:12px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);color:rgba(255,255,255,.82);font-family:'Cairo',sans-serif;font-size:.8rem;font-weight:700;cursor:pointer;transition:all .2s;margin-bottom:5px;}
+.acc-btn:hover{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.14);color:#fff;}
+.acc-ico{font-size:1rem;flex-shrink:0;}
+.acc-lbl{flex:1;text-align:right;}
+.acc-arr{font-size:.75rem;color:rgba(255,255,255,.35);transition:transform .25s;flex-shrink:0;}
+.acc-arr.open{transform:rotate(180deg);}
+.acc-body{display:none;padding:8px 4px 4px;animation:accSlide .2s ease;}
+.acc-body.open{display:block;}
+@keyframes accSlide{from{opacity:0;transform:translateY(-6px);}to{opacity:1;transform:translateY(0);}}
+.acc-sub{font-size:.66rem;font-weight:800;color:rgba(255,255,255,.3);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:7px;padding-right:2px;}
+
 </style>
 </head>
 <body class="s1">
@@ -337,18 +351,21 @@ body.preview-mode .top-actions #previewBtn { display:flex !important; }
     </div>
     <div class="panel-body">
 
-      <!-- تعديل الملف الشخصي -->
-      <div class="panel-sec">
-        <h4>الملف الشخصي</h4>
-        <button class="panel-edit-btn" onclick="openModal('profile');closePanel()">
-          <span>✏️</span> تعديل الملف الشخصي
-        </button>
-      </div>
+      <!-- 1. تعديل الملف الشخصي -->
+      <button class="acc-btn" onclick="openModal('profile');closePanel()">
+        <span class="acc-ico">✏️</span>
+        <span class="acc-lbl">تعديل الملف الشخصي</span>
+        <span class="acc-arr">←</span>
+      </button>
 
-      <!-- أقسام الملف -->
-      <div class="panel-sec">
-        <h4>إضافة قسم</h4>
-        <div class="asec-list">
+      <!-- 2. إضافة قسم -->
+      <div class="acc-wrap">
+        <button class="acc-btn" onclick="toggleAcc('acc-sections')">
+          <span class="acc-ico">📂</span>
+          <span class="acc-lbl">إضافة قسم</span>
+          <span class="acc-arr" id="arr-sections">▾</span>
+        </button>
+        <div class="acc-body" id="acc-sections">
           <div class="asec added"><span class="asec-ico">💼</span>الخبرات العملية<span class="asec-done">✓</span></div>
           <div class="asec added"><span class="asec-ico">🎓</span>الشهادات الدراسية<span class="asec-done">✓</span></div>
           <div class="asec" id="asec-course" onclick="addSection('course','📚','الدورات التدريبية',this)"><span class="asec-ico">📚</span>دورات تدريبية</div>
@@ -359,34 +376,37 @@ body.preview-mode .top-actions #previewBtn { display:flex !important; }
         </div>
       </div>
 
-      <!-- الستايل -->
-      <div class="panel-sec">
-        <h4>الستايل</h4>
-        <div class="style-grid">
-          <div class="sopt active" id="sopt1" onclick="setStyle(1,this)"><div class="sthumb" style="background:linear-gradient(135deg,#070b18,#1a2540)"></div><div><div class="snm">🌑 Modern Dark</div><div class="sds">داكن عصري</div></div><span class="schk">✓</span></div>
-          <div class="sopt" id="sopt2" onclick="setStyle(2,this)"><div class="sthumb" style="background:linear-gradient(135deg,#f8fafc,#e2e8f0)"></div><div><div class="snm">☀️ Clean Light</div><div class="sds">فاتح نظيف</div></div><span class="schk" style="display:none">✓</span></div>
-          <div class="sopt" id="sopt3" onclick="setStyle(3,this)"><div class="sthumb" style="background:linear-gradient(135deg,#00c896,#2563ff)"></div><div><div class="snm">🔥 Bold</div><div class="sds">جريء وملون</div></div><span class="schk" style="display:none">✓</span></div>
-          <div class="sopt" id="sopt4" onclick="setStyle(4,this)"><div class="sthumb" style="background:linear-gradient(135deg,#fafafa,#f3f4f6)"></div><div><div class="snm">⬜ Minimal</div><div class="sds">بسيط وأنيق</div></div><span class="schk" style="display:none">✓</span></div>
-          <div class="sopt" id="sopt5" onclick="setStyle(5,this)"><div class="sthumb" style="background:linear-gradient(135deg,#1a1f2e,#2d3748)"></div><div><div class="snm">💼 Professional</div><div class="sds">عمودان</div></div><span class="schk" style="display:none">✓</span></div>
-        </div>
-      </div>
-
-      <!-- اللون -->
-      <div class="panel-sec">
-        <h4>اللون</h4>
-        <div class="color-grid">
-          <div class="csw active" style="background:#00c896" onclick="setColor('#00c896',this)"></div>
-          <div class="csw" style="background:#2563ff" onclick="setColor('#2563ff',this)"></div>
-          <div class="csw" style="background:#8b5cf6" onclick="setColor('#8b5cf6',this)"></div>
-          <div class="csw" style="background:#f97316" onclick="setColor('#f97316',this)"></div>
-          <div class="csw" style="background:#ef4444" onclick="setColor('#ef4444',this)"></div>
-          <div class="csw" style="background:#eab308" onclick="setColor('#eab308',this)"></div>
-          <div class="csw" style="background:#06b6d4" onclick="setColor('#06b6d4',this)"></div>
-          <div class="csw" style="background:#ec4899" onclick="setColor('#ec4899',this)"></div>
-          <div class="csw" style="background:#14b8a6" onclick="setColor('#14b8a6',this)"></div>
-          <div class="csw" style="background:#f43f5e" onclick="setColor('#f43f5e',this)"></div>
-          <div class="csw" style="background:#a855f7" onclick="setColor('#a855f7',this)"></div>
-          <div class="csw-custom" onclick="document.getElementById('colorIn').click()">🎨</div>
+      <!-- 3. تعديل الستايل -->
+      <div class="acc-wrap">
+        <button class="acc-btn" onclick="toggleAcc('acc-style')">
+          <span class="acc-ico">🎨</span>
+          <span class="acc-lbl">تعديل الستايل</span>
+          <span class="acc-arr" id="arr-style">▾</span>
+        </button>
+        <div class="acc-body" id="acc-style">
+          <div class="acc-sub">الستايل</div>
+          <div class="style-grid">
+            <div class="sopt active" id="sopt1" onclick="setStyle(1,this)"><div class="sthumb" style="background:linear-gradient(135deg,#070b18,#1a2540)"></div><div><div class="snm">🌑 Modern Dark</div><div class="sds">داكن عصري</div></div><span class="schk">✓</span></div>
+            <div class="sopt" id="sopt2" onclick="setStyle(2,this)"><div class="sthumb" style="background:linear-gradient(135deg,#f8fafc,#e2e8f0)"></div><div><div class="snm">☀️ Clean Light</div><div class="sds">فاتح نظيف</div></div><span class="schk" style="display:none">✓</span></div>
+            <div class="sopt" id="sopt3" onclick="setStyle(3,this)"><div class="sthumb" style="background:linear-gradient(135deg,#00c896,#2563ff)"></div><div><div class="snm">🔥 Bold</div><div class="sds">جريء وملون</div></div><span class="schk" style="display:none">✓</span></div>
+            <div class="sopt" id="sopt4" onclick="setStyle(4,this)"><div class="sthumb" style="background:linear-gradient(135deg,#fafafa,#f3f4f6)"></div><div><div class="snm">⬜ Minimal</div><div class="sds">بسيط وأنيق</div></div><span class="schk" style="display:none">✓</span></div>
+            <div class="sopt" id="sopt5" onclick="setStyle(5,this)"><div class="sthumb" style="background:linear-gradient(135deg,#1a1f2e,#2d3748)"></div><div><div class="snm">💼 Professional</div><div class="sds">عمودان</div></div><span class="schk" style="display:none">✓</span></div>
+          </div>
+          <div class="acc-sub" style="margin-top:12px">اللون</div>
+          <div class="color-grid">
+            <div class="csw active" style="background:#00c896" onclick="setColor('#00c896',this)"></div>
+            <div class="csw" style="background:#2563ff" onclick="setColor('#2563ff',this)"></div>
+            <div class="csw" style="background:#8b5cf6" onclick="setColor('#8b5cf6',this)"></div>
+            <div class="csw" style="background:#f97316" onclick="setColor('#f97316',this)"></div>
+            <div class="csw" style="background:#ef4444" onclick="setColor('#ef4444',this)"></div>
+            <div class="csw" style="background:#eab308" onclick="setColor('#eab308',this)"></div>
+            <div class="csw" style="background:#06b6d4" onclick="setColor('#06b6d4',this)"></div>
+            <div class="csw" style="background:#ec4899" onclick="setColor('#ec4899',this)"></div>
+            <div class="csw" style="background:#14b8a6" onclick="setColor('#14b8a6',this)"></div>
+            <div class="csw" style="background:#f43f5e" onclick="setColor('#f43f5e',this)"></div>
+            <div class="csw" style="background:#a855f7" onclick="setColor('#a855f7',this)"></div>
+            <div class="csw-custom" onclick="document.getElementById('colorIn').click()">🎨</div>
+          </div>
         </div>
       </div>
 
@@ -520,6 +540,22 @@ function setStyle(n,el){
     try{ localStorage.setItem('tw_profile_style', n); }catch(ex){}
     setTimeout(closePanel, 300);
   },250);
+}
+
+
+function toggleAcc(id){
+  const body = document.getElementById(id);
+  const suffix = id.split('-')[1];
+  const arr = document.getElementById('arr-' + suffix);
+  const isOpen = body.classList.contains('open');
+  // Close all
+  document.querySelectorAll('.acc-body').forEach(b => b.classList.remove('open'));
+  document.querySelectorAll('.acc-arr').forEach(a => a.classList.remove('open'));
+  // Open clicked if was closed
+  if(!isOpen){
+    body.classList.add('open');
+    if(arr) arr.classList.add('open');
+  }
 }
 
 function openPanel(){ document.getElementById('panelOverlay').classList.add('show'); }
