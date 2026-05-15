@@ -129,6 +129,31 @@ html[dir="ltr"] .asec-done { margin-left:0; margin-right:auto; }
 .drag-handle span:nth-child(2) { width:12px; }
 .drag-handle span:nth-child(3) { width:8px; }
 
+
+/* ── Light styles: fix top-actions buttons ── */
+body.s2 .top-actions .tb-btn,
+body.s4 .top-actions .tb-btn {
+  color:#1e293b !important;
+  border-color:rgba(0,0,0,.15) !important;
+  background:rgba(0,0,0,.06) !important;
+}
+body.s2 .top-actions .tb-btn:hover,
+body.s4 .top-actions .tb-btn:hover {
+  background:rgba(0,0,0,.11) !important;
+  border-color:rgba(0,0,0,.25) !important;
+}
+body.s2 .top-actions .tb-primary,
+body.s4 .top-actions .tb-primary {
+  background:linear-gradient(135deg,var(--ac),var(--ac2)) !important;
+  color:#fff !important;
+  border-color:transparent !important;
+}
+body.s2 .top-actions .tb-preview.active,
+body.s4 .top-actions .tb-preview.active {
+  background:rgba(0,0,0,.08) !important;
+  color:var(--ac) !important;
+}
+
 /* Light styles drag handle */
 body.s2 .drag-handle, body.s4 .drag-handle { color:rgba(0,0,0,.2); }
 body.s2 .drag-handle:hover, body.s4 .drag-handle:hover { color:rgba(0,0,0,.45); background:rgba(0,0,0,.05); }
