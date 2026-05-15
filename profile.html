@@ -109,6 +109,71 @@ html[dir="ltr"] .asec-done { margin-left:0; margin-right:auto; }
 .panel-edit-btn:hover{background:linear-gradient(135deg,rgba(0,200,150,.2),rgba(37,99,255,.14));border-color:rgba(0,200,150,.35);color:#fff;}
 
 
+
+/* ── info-edit-btn (corner of info section) ── */
+.info-edit-btn {
+  position:absolute;
+  top:0;
+  left:0;
+  width:24px;
+  height:24px;
+  border-radius:7px;
+  border:1px solid rgba(255,255,255,.12);
+  background:rgba(255,255,255,.07);
+  color:rgba(255,255,255,.55);
+  font-size:.72rem;
+  cursor:pointer;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  transition:all .2s;
+}
+.info-edit-btn:hover {
+  background:rgba(var(--ac-rgb),.15);
+  border-color:rgba(var(--ac-rgb),.3);
+  color:var(--ac);
+}
+body.s2 .info-edit-btn,
+body.s4 .info-edit-btn {
+  background:rgba(0,0,0,.05);
+  border-color:rgba(0,0,0,.12);
+  color:rgba(0,0,0,.3);
+}
+
+/* ── cv-name auto-shrink ── */
+.cv-name {
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  max-width:100%;
+  padding-left:28px; /* space for edit btn */
+}
+
+/* ── cv-meta-row ── */
+.cv-meta-row {
+  display:flex;
+  align-items:center;
+  flex-wrap:wrap;
+  gap:6px;
+  margin-top:6px;
+}
+.cv-age-badge, .cv-exp-badge {
+  display:inline-flex;
+  align-items:center;
+  gap:3px;
+  padding:2px 8px;
+  border-radius:20px;
+  font-size:.65rem;
+  font-weight:700;
+  background:rgba(255,255,255,.06);
+  color:rgba(255,255,255,.4);
+}
+body.s2 .cv-age-badge, body.s4 .cv-age-badge,
+body.s2 .cv-exp-badge, body.s4 .cv-exp-badge {
+  background:rgba(0,0,0,.06);
+  color:rgba(0,0,0,.35);
+}
+
 /* ── PAGE ── */
 .page { padding-top:50px; min-height:100vh; transition:background .3s; }
 
@@ -587,11 +652,12 @@ body.s4 .add-sec-shortcut:hover {
 <div class="cv-wrap" id="cvWrap">
 
   <div class="cv-head" id="cvHead">
-    <div style="display:flex;flex-direction:column;align-items:center;gap:10px">
+
+    <!-- الصورة + QR -->
+    <div style="display:flex;flex-direction:column;align-items:center;gap:10px;flex-shrink:0">
       <div style="position:relative">
-      <div class="avatar" id="avatarBtn" style="cursor:pointer" onclick="openAvatarUpload()" title="تغيير الصورة الشخصية">👤</div>
-      <div class="cv-head-settings owner-only" onclick="openModal('profile')" title="تعديل الملف الشخصي">⚙️</div>
-    </div>
+        <div class="avatar" id="avatarBtn" style="cursor:pointer" onclick="openAvatarUpload()" title="تغيير الصورة الشخصية">👤</div>
+      </div>
       <div class="snap-qr-wrap">
         <div class="snap-qr-card" onclick="openQROverlay()">
           <div class="snap-qr-inner">
@@ -600,14 +666,34 @@ body.s4 .add-sec-shortcut:hover {
         </div>
       </div>
     </div>
-    <div>
+
+    <!-- المعلومات -->
+    <div style="flex:1;min-width:0;position:relative">
+
+      <!-- زر تعديل الملف على زاوية قسم المعلومات -->
+      <button class="info-edit-btn owner-only" onclick="openModal('profile')" title="تعديل الملف الشخصي">⚙️</button>
+
+      <!-- الاسم - يصغر تلقائياً -->
       <div class="cv-name" id="cvName">الاسم الكامل</div>
+
+      <!-- المسمى + حالة التوظيف -->
       <div class="cv-title" id="cvTitle">المسمى الوظيفي</div>
       <div id="cvAvail" style="display:none;margin-top:4px"></div>
+
+      <!-- البيو -->
       <div class="cv-bio" id="cvBio">نبذة مختصرة عنك...</div>
-      <div class="cv-loc" id="cvLoc">📍 موقعك</div>
+
+      <!-- الموقع: البلد - المدينة -->
+      <div class="cv-meta-row">
+        <span class="cv-loc" id="cvLoc">📍 موقعك</span>
+        <span class="cv-age-badge" id="cvAgeBadge" style="display:none"></span>
+        <span class="cv-exp-badge" id="cvExpBadge" style="display:none"></span>
+      </div>
+
+      <!-- الكود -->
       <div class="cv-code" id="cvCode">TW-EMP-00000</div>
     </div>
+
   </div>
 
   <div class="cv-main" id="cvMain">
@@ -970,6 +1056,7 @@ function deleteExp(id){
     const exp=JSON.parse(localStorage.getItem('tw_exp'+uid)||'[]').filter(e=>e.id!==id);
     localStorage.setItem('tw_exp'+uid,JSON.stringify(exp));
     if(!exp.length) document.getElementById('exp-list').innerHTML='<div class="item empty-hint"><div class="item-title" style="opacity:.4;font-size:.8rem">لا توجد خبرات بعد — اضغط + لإضافة أول خبرة</div></div>';
+    updateExpBadge();
   }catch(ex){}
 }
 
@@ -1195,6 +1282,28 @@ function loadProfileCities(){
   citySelect.innerHTML='<option value="">— اختر المدينة —</option>'+cities.map(city=>`<option value="${city}">${city}</option>`).join('');
 }
 
+
+// ── Calculate total experience years ──
+function updateExpBadge(){
+  const uid=_sessionUser&&_sessionUser.id?'_'+_sessionUser.id:'';
+  try{
+    const exp=JSON.parse(localStorage.getItem('tw_exp'+uid)||'[]');
+    let totalMonths=0;
+    const curYear=new Date().getFullYear();
+    exp.forEach(e=>{
+      const from=parseInt(e.start_date)||0;
+      const to=e.end_date==='حتى الآن'?curYear:(parseInt(e.end_date)||curYear);
+      if(from>0) totalMonths+=(to-from)*12;
+    });
+    const years=Math.floor(totalMonths/12);
+    const badge=document.getElementById('cvExpBadge');
+    if(badge&&years>0){
+      badge.textContent='💼 '+years+(years===1?' سنة خبرة':years<11?' سنوات خبرة':' سنة خبرة');
+      badge.style.display='inline-flex';
+    }
+  }catch(ex){}
+}
+
 function calcAge(dob){
   if(!dob) return '';
   const d=new Date(dob), now=new Date();
@@ -1218,17 +1327,17 @@ function saveProfile(){
   if(name) document.getElementById('cvName').textContent=name;
   if(title) document.getElementById('cvTitle').textContent=title;
   if(bio) document.getElementById('cvBio').textContent=bio;
-  if(loc) document.getElementById('cvLoc').textContent='📍 '+loc;
-  // Show age
+  if(loc){
+    const locText = profCity && profCountry ? getCountryName(profCountry)+' - '+profCity : loc;
+    document.getElementById('cvLoc').textContent='📍 '+locText;
+  }
+  // Show age badge
   if(dob){
-    let ageEl=document.getElementById('cvAge');
-    if(!ageEl){
-      ageEl=document.createElement('span');
-      ageEl.id='cvAge';
-      ageEl.style.cssText='font-size:.68rem;color:rgba(255,255,255,.3);margin-right:6px;font-weight:600;';
-      document.getElementById('cvLoc')?.insertAdjacentElement('afterend',ageEl);
+    const ageBadge=document.getElementById('cvAgeBadge');
+    if(ageBadge){
+      const age=calcAge(dob);
+      if(age){ ageBadge.textContent='🎂 '+age; ageBadge.style.display='inline-flex'; }
     }
-    ageEl.textContent=calcAge(dob);
   }
   const avail=document.getElementById('m-avail')?.value;
   if(avail){
@@ -1450,14 +1559,8 @@ function doLogout(){ localStorage.removeItem('tw_user'); location.href='/'; }
     const prof=JSON.parse(localStorage.getItem('tw_profile_data'+_uid)||'{}');
     if(prof.full_name||user.full_name) document.getElementById('cvName').textContent=prof.full_name||user.full_name;
     if(prof.dob){
-      let ageEl=document.getElementById('cvAge');
-      if(!ageEl){
-        ageEl=document.createElement('span');
-        ageEl.id='cvAge';
-        ageEl.style.cssText='font-size:.68rem;color:rgba(255,255,255,.3);margin-right:6px;font-weight:600;';
-        document.getElementById('cvLoc')?.insertAdjacentElement('afterend',ageEl);
-      }
-      ageEl.textContent=calcAge(prof.dob);
+      const ageBadge=document.getElementById('cvAgeBadge');
+      if(ageBadge){ const age=calcAge(prof.dob); if(age){ ageBadge.textContent='🎂 '+age; ageBadge.style.display='inline-flex'; } }
     }
     if(prof.headline) document.getElementById('cvTitle').textContent=prof.headline;
     if(prof.bio) document.getElementById('cvBio').textContent=prof.bio;
