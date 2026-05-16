@@ -553,41 +553,12 @@ body.s2 .item-menu-btn:hover,body.s4 .item-menu-btn:hover{background:rgba(0,0,0,
 }
 body.s2 .add-sec-shortcut,
 body.s4 
-/* ── Image Crop ── */
-.crop-overlay{position:fixed;inset:0;z-index:3000;background:rgba(0,0,0,.92);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:20px;}
-.crop-container{position:relative;width:300px;height:300px;overflow:hidden;border-radius:50%;border:3px solid var(--ac);background:#111;}
-.crop-image{position:absolute;cursor:move;user-select:none;transform-origin:top left;}
-.crop-controls{display:flex;align-items:center;gap:12px;}
-.crop-hint{font-size:.72rem;color:rgba(255,255,255,.4);text-align:center;font-family:'Cairo',sans-serif;}
-.crop-tip{background:rgba(var(--ac-rgb),.08);border:1px solid rgba(var(--ac-rgb),.2);border-radius:12px;padding:10px 14px;font-size:.72rem;color:rgba(255,255,255,.6);font-family:'Cairo',sans-serif;line-height:1.6;max-width:340px;text-align:center;}
-.crop-btns{display:flex;gap:8px;}
-.crop-btn{padding:9px 20px;border-radius:10px;border:none;font-family:'Cairo',sans-serif;font-size:.8rem;font-weight:700;cursor:pointer;}
-.crop-ok{background:linear-gradient(135deg,var(--ac),var(--ac2));color:#fff;}
-.crop-cancel{background:rgba(255,255,255,.08);color:rgba(255,255,255,.6);}
-
-.add-sec-shortcut {
-  border-color:rgba(0,0,0,.1);
-  color:rgba(0,0,0,.3);
-  background:transparent;
-}
 body.s2 .add-sec-shortcut:hover,
 body.s4 .add-sec-shortcut:hover {
   border-color:var(--ac);
   color:var(--ac);
+  background:rgba(var(--ac-rgb),.04);
 }
-
-/* ── Accordion Panel ── */
-.acc-wrap{margin-bottom:5px;}
-.acc-btn{width:100%;display:flex;align-items:center;gap:10px;padding:11px 13px;border-radius:12px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);color:rgba(255,255,255,.82);font-family:'Cairo',sans-serif;font-size:.8rem;font-weight:700;cursor:pointer;transition:all .2s;margin-bottom:5px;}
-.acc-btn:hover{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.14);color:#fff;}
-.acc-ico{font-size:1rem;flex-shrink:0;}
-.acc-lbl{flex:1;text-align:right;}
-.acc-arr{font-size:.75rem;color:rgba(255,255,255,.35);transition:transform .25s;flex-shrink:0;}
-.acc-arr.open{transform:rotate(180deg);}
-.acc-body{display:none;padding:8px 4px 4px;animation:accSlide .2s ease;}
-.acc-body.open{display:block;}
-@keyframes accSlide{from{opacity:0;transform:translateY(-6px);}to{opacity:1;transform:translateY(0);}}
-.acc-sub{font-size:.66rem;font-weight:800;color:rgba(255,255,255,.3);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:7px;padding-right:2px;}
 
 </style>
 </head>
@@ -797,6 +768,13 @@ body.s4 .add-sec-shortcut:hover {
 // ── Smart isOwner detection ──
 let _sessionUser = null;
 try { _sessionUser = JSON.parse(localStorage.getItem('tw_user')); } catch(e){}
+
+
+// ── XSS sanitization ──
+function sanitize(str){
+  if(typeof str !== 'string') return str||'';
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+}
 
 // ── Migrate old localStorage keys to uid-based keys ──
 (function migrateLSKeys(){
