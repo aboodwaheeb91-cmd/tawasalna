@@ -898,13 +898,37 @@ function addSection(id,icon,title,el){
     </div>`);
   // Reload saved data for this section
   loadSavedSection(id, lid);
-  el.classList.add('added');
-  el.onclick=null;
-  el.insertAdjacentHTML('beforeend','<span class="asec-done">✓</span>');
+
+  // Save the section itself to localStorage
+  const _asUid=_sessionUser&&_sessionUser.id?'_'+_sessionUser.id:'';
+  try{
+    let savedSections=JSON.parse(localStorage.getItem('tw_added_sections'+_asUid)||'[]');
+    if(!savedSections.find(s=>s.id===id)){
+      savedSections.push({id,icon,title});
+      localStorage.setItem('tw_added_sections'+_asUid,JSON.stringify(savedSections));
+    }
+  }catch(ex){ console.error(ex); }
+
+  if(el&&el.classList){ el.classList.add('added'); el.onclick=null; }
+  if(el&&el.insertAdjacentHTML) el.insertAdjacentHTML('beforeend','<span class="asec-done">✓</span>');
   setTimeout(closePanel,400);
 }
 
 // Load saved items for a section from localStorage
+
+function restoreSections(){
+  const uid=_sessionUser&&_sessionUser.id?'_'+_sessionUser.id:'';
+  try{
+    const saved=JSON.parse(localStorage.getItem('tw_added_sections'+uid)||'[]');
+    saved.forEach(sec=>{
+      if(document.getElementById('sec-'+sec.id)) return;
+      // Create dummy el so addSection doesn't crash
+      const dummy=document.createElement('div');
+      addSection(sec.id, sec.icon, sec.title, dummy);
+    });
+  }catch(ex){ console.error(ex); }
+}
+
 function loadSavedSection(id, lid){
   const uid=_sessionUser&&_sessionUser.id?'_'+_sessionUser.id:'';
   const keyMap={
@@ -1901,6 +1925,7 @@ function closeOverlay(e){ if(e.target===document.getElementById('overlay')) clos
 
 if(!isOwner) document.querySelectorAll('.owner-only').forEach(el=>el.style.display='none');
 loadSectionOrder();
+  restoreSections();
 // top-actions needs flex not block
 const ta = document.querySelector('.top-actions');
 if(ta && isOwner) ta.style.display = 'flex';
