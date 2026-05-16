@@ -964,6 +964,10 @@ function togglePreview(){
   if(previewMode) closePanel();
 }
 
+const SECTION_MODAL_TYPES = {
+  'course':'course','skills':'skills','langs':'langs','links':'links'
+};
+
 function addSection(id,icon,title,el){
   if(document.getElementById('sec-'+id)) return;
   const lid=id+'-list';
@@ -1074,6 +1078,132 @@ function loadCities(){
     cities.map(city=>`<option value="${city}">${city}</option>`).join('');
   cityWrap.style.display='block';
 }
+
+
+// ── Section Save Functions ──
+function saveSkill(lid){
+  const name=document.getElementById('m-skill-name')?.value.trim();
+  if(!name) return;
+  const level=document.getElementById('m-skill-level')?.value||'';
+  const levelIcon={'مبتدئ':'🟡','متوسط':'🟠','متقدم':'🔵','خبير':'🟢'}[level]||'';
+  const id=Date.now();
+  document.getElementById(lid)?.insertAdjacentHTML('afterbegin',
+    `<div class="item" id="skill-${id}">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <div><div class="item-title">${name}</div>${level?`<div class="item-sub">${levelIcon} ${level}</div>`:''}</div>
+        <div class="item-menu-wrap owner-only">
+          <button class="item-menu-btn" onclick="toggleItemMenu('smenu-${id}')">⋯</button>
+          <div class="item-menu" id="smenu-${id}">
+            <div class="item-menu-opt" onclick="delItem('skill-${id}','${lid}','tw_skills')">🗑️ حذف</div>
+          </div>
+        </div>
+      </div>
+    </div>`);
+  saveToLS('tw_skills', {id,name,level});
+  closeModal();
+}
+
+function saveLang(lid){
+  const name=document.getElementById('m-lang-name')?.value;
+  const level=document.getElementById('m-lang-level')?.value;
+  if(!name||!level) return;
+  const levelIcon={'مبتدئ':'🟡','محادثة':'🟠','جيد':'🔵','طلاقة':'🟢','لغة أم':'⭐'}[level]||'';
+  const id=Date.now();
+  document.getElementById(lid)?.insertAdjacentHTML('afterbegin',
+    `<div class="item" id="lang-${id}">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <div><div class="item-title">${name}</div><div class="item-sub">${levelIcon} ${level}</div></div>
+        <div class="item-menu-wrap owner-only">
+          <button class="item-menu-btn" onclick="toggleItemMenu('lmenu-${id}')">⋯</button>
+          <div class="item-menu" id="lmenu-${id}">
+            <div class="item-menu-opt" onclick="delItem('lang-${id}','${lid}','tw_langs')">🗑️ حذف</div>
+          </div>
+        </div>
+      </div>
+    </div>`);
+  saveToLS('tw_langs', {id,name,level});
+  closeModal();
+}
+
+function saveLink(lid){
+  const url=document.getElementById('m-link-url')?.value.trim();
+  if(!url) return;
+  const type=document.getElementById('m-link-type')?.value||'رابط';
+  const id=Date.now();
+  document.getElementById(lid)?.insertAdjacentHTML('afterbegin',
+    `<div class="item" id="link-${id}">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <div>
+          <div class="item-title">${type}</div>
+          <a href="${url}" target="_blank" class="item-sub" style="color:var(--ac);word-break:break-all">${url}</a>
+        </div>
+        <div class="item-menu-wrap owner-only">
+          <button class="item-menu-btn" onclick="toggleItemMenu('linkmenu-${id}')">⋯</button>
+          <div class="item-menu" id="linkmenu-${id}">
+            <div class="item-menu-opt" onclick="delItem('link-${id}','${lid}','tw_links')">🗑️ حذف</div>
+          </div>
+        </div>
+      </div>
+    </div>`);
+  saveToLS('tw_links', {id,type,url});
+  closeModal();
+}
+
+function saveCourse(lid){
+  const name=document.getElementById('m-course-name')?.value.trim();
+  if(!name) return;
+  const provider=document.getElementById('m-course-provider')?.value.trim()||'';
+  const year=document.getElementById('m-course-year')?.value||'';
+  const url=document.getElementById('m-course-url')?.value.trim()||'';
+  const id=Date.now();
+  document.getElementById(lid)?.insertAdjacentHTML('afterbegin',
+    `<div class="item" id="course-${id}">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between">
+        <div>
+          <div class="item-title">${name}</div>
+          ${provider?`<div class="item-sub">${provider}</div>`:''}
+          <div class="item-date">${year}</div>
+          ${url?`<a href="${url}" target="_blank" style="font-size:.65rem;color:var(--ac)">📜 الشهادة</a>`:''}
+          <span class="badge pending">⏳ قيد المراجعة</span>
+        </div>
+        <div class="item-menu-wrap owner-only">
+          <button class="item-menu-btn" onclick="toggleItemMenu('cmenu-${id}')">⋯</button>
+          <div class="item-menu" id="cmenu-${id}">
+            <div class="item-menu-opt" onclick="delItem('course-${id}','${lid}','tw_courses')">🗑️ حذف</div>
+          </div>
+        </div>
+      </div>
+    </div>`);
+  saveToLS('tw_courses', {id,name,provider,year,url});
+  closeModal();
+}
+
+// ── localStorage helpers ──
+function saveToLS(key, item){
+  try{
+    const uid=_sessionUser&&_sessionUser.id?'_'+_sessionUser.id:'';
+    const arr=JSON.parse(localStorage.getItem(key+uid)||'[]');
+    arr.unshift(item);
+    localStorage.setItem(key+uid, JSON.stringify(arr));
+  }catch(e){}
+}
+
+function delItem(elId, lid, lsKey){
+  document.getElementById(elId)?.remove();
+  try{
+    const uid=_sessionUser&&_sessionUser.id?'_'+_sessionUser.id:'';
+    const id=parseInt(elId.split('-').pop());
+    const arr=JSON.parse(localStorage.getItem(lsKey+uid)||'[]').filter(x=>x.id!==id);
+    localStorage.setItem(lsKey+uid, JSON.stringify(arr));
+    // Show empty hint if needed
+    const list=document.getElementById(lid);
+    if(list&&!list.querySelector('.item:not(.empty-hint)')){
+      list.innerHTML='<div class="item empty-hint"><div class="item-title" style="opacity:.4;font-size:.8rem">لا يوجد عناصر — اضغط + لإضافة</div></div>';
+    }
+  }catch(e){}
+}
+
+// ── Fix saveGeneric with localStorage ──
 
 // ── Render functions with ... menu ──
 function renderExpItem(e){
@@ -1201,6 +1331,28 @@ function deleteEdu(id){
     localStorage.setItem('tw_edu'+uid,JSON.stringify(edu));
     if(!edu.length) document.getElementById('edu-list').innerHTML='<div class="item empty-hint"><div class="item-title" style="opacity:.4;font-size:.8rem">لا توجد شهادات بعد — اضغط + لإضافة شهادة</div></div>';
   }catch(ex){}
+}
+
+
+function loadSectionData(){
+  if(!_sessionUser||!_sessionUser.id) return;
+  const uid='_'+_sessionUser.id;
+  const sections=[
+    {key:'tw_skills'+uid, lid:'skills-list', render:(item)=>`<div class="item" id="skill-${item.id}"><div style="display:flex;align-items:center;justify-content:space-between"><div><div class="item-title">${item.name}</div>${item.level?`<div class="item-sub">${item.level}</div>`:''}</div><div class="item-menu-wrap owner-only"><button class="item-menu-btn" onclick="toggleItemMenu('smenu-${item.id}')">⋯</button><div class="item-menu" id="smenu-${item.id}"><div class="item-menu-opt" onclick="delItem('skill-${item.id}','skills-list','tw_skills')">🗑️ حذف</div></div></div></div></div>`},
+    {key:'tw_langs'+uid, lid:'langs-list', render:(item)=>`<div class="item" id="lang-${item.id}"><div style="display:flex;align-items:center;justify-content:space-between"><div><div class="item-title">${item.name}</div><div class="item-sub">${item.level}</div></div><div class="item-menu-wrap owner-only"><button class="item-menu-btn" onclick="toggleItemMenu('lmenu-${item.id}')">⋯</button><div class="item-menu" id="lmenu-${item.id}"><div class="item-menu-opt" onclick="delItem('lang-${item.id}','langs-list','tw_langs')">🗑️ حذف</div></div></div></div></div>`},
+    {key:'tw_courses'+uid, lid:'course-list', render:(item)=>`<div class="item" id="course-${item.id}"><div class="item-title">${item.name}</div>${item.provider?`<div class="item-sub">${item.provider}</div>`:''}<div class="item-date">${item.year||''}</div></div>`},
+    {key:'tw_links'+uid, lid:'links-list', render:(item)=>`<div class="item" id="link-${item.id}"><div class="item-title">${item.type}</div><a href="${item.url}" target="_blank" class="item-sub" style="color:var(--ac)">${item.url}</a></div>`},
+  ];
+  sections.forEach(({key,lid,render})=>{
+    try{
+      const arr=JSON.parse(localStorage.getItem(key)||'[]');
+      const el=document.getElementById(lid);
+      if(el&&arr.length){
+        el.innerHTML='';
+        arr.forEach(item=>el.insertAdjacentHTML('beforeend',render(item)));
+      }
+    }catch(e){}
+  });
 }
 
 function saveSectionOrder(){
@@ -1425,6 +1577,82 @@ function openModal(type,listId,secTitle){
       </select>
     </div>
     <div class="mact"><button class="mbtn mbtn-ok" onclick="saveCustomSec()">إضافة</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
+
+  } else if(type==='skills'){
+    h=`<div class="modal-title">🛠️ إضافة مهارة</div>
+    <div class="mf"><label>اسم المهارة <span style="color:#f87171">*</span></label>
+      <input id="m-skill-name" autocomplete="off" placeholder="مثال: Python، Photoshop، Excel، React...">
+    </div>
+    <div class="mf"><label>مستوى الإتقان</label>
+      <select id="m-skill-level" style="width:100%;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;">
+        <option value="">— اختر المستوى —</option>
+        <option value="مبتدئ">🟡 مبتدئ</option>
+        <option value="متوسط">🟠 متوسط</option>
+        <option value="متقدم">🔵 متقدم</option>
+        <option value="خبير">🟢 خبير</option>
+      </select>
+    </div>
+    <div class="mact"><button class="mbtn mbtn-ok" onclick="saveSkill('${listId}')">إضافة</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
+
+  } else if(type==='langs'){
+    h=`<div class="modal-title">🌍 إضافة لغة</div>
+    <div class="mf"><label>اللغة <span style="color:#f87171">*</span></label>
+      <select id="m-lang-name" style="width:100%;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;">
+        <option value="">— اختر اللغة —</option>
+        <option>العربية</option><option>الإنجليزية</option><option>الفرنسية</option>
+        <option>الألمانية</option><option>الإسبانية</option><option>الإيطالية</option>
+        <option>الصينية</option><option>التركية</option><option>الفارسية</option>
+        <option>الأردية</option><option>الهندية</option><option>أخرى</option>
+      </select>
+    </div>
+    <div class="mf"><label>المستوى <span style="color:#f87171">*</span></label>
+      <select id="m-lang-level" style="width:100%;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;">
+        <option value="">— اختر المستوى —</option>
+        <option value="مبتدئ">🟡 مبتدئ</option>
+        <option value="محادثة">🟠 محادثة</option>
+        <option value="جيد">🔵 جيد</option>
+        <option value="طلاقة">🟢 طلاقة</option>
+        <option value="لغة أم">⭐ لغة أم</option>
+      </select>
+    </div>
+    <div class="mact"><button class="mbtn mbtn-ok" onclick="saveLang('${listId}')">إضافة</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
+
+  } else if(type==='links'){
+    h=`<div class="modal-title">🔗 إضافة رابط</div>
+    <div class="mf"><label>النوع</label>
+      <select id="m-link-type" style="width:100%;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;">
+        <option value="LinkedIn">💼 LinkedIn</option>
+        <option value="GitHub">💻 GitHub</option>
+        <option value="Behance">🎨 Behance</option>
+        <option value="Dribbble">🏀 Dribbble</option>
+        <option value="موقع شخصي">🌐 موقع شخصي</option>
+        <option value="YouTube">📺 YouTube</option>
+        <option value="أخرى">🔗 أخرى</option>
+      </select>
+    </div>
+    <div class="mf"><label>الرابط <span style="color:#f87171">*</span></label>
+      <input id="m-link-url" autocomplete="off" placeholder="https://..." style="direction:ltr;text-align:left">
+    </div>
+    <div class="mact"><button class="mbtn mbtn-ok" onclick="saveLink('${listId}')">إضافة</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
+
+  } else if(type==='course'){
+    const yearOpts3=[...Array(36)].map((_,i)=>{const y=new Date().getFullYear()-i;return '<option value="'+y+'">'+y+'</option>';}).join('');
+    h=`<div class="modal-title">📚 إضافة دورة تدريبية</div>
+    <div class="mf"><label>اسم الدورة <span style="color:#f87171">*</span></label>
+      <input id="m-course-name" autocomplete="off" placeholder="مثال: React for Beginners، CCNA، PMP...">
+    </div>
+    <div class="mf"><label>الجهة المانحة</label>
+      <input id="m-course-provider" autocomplete="off" placeholder="مثال: Coursera، Udemy، أكاديمية التميز...">
+    </div>
+    <div class="mf"><label>سنة الإتمام</label>
+      <select id="m-course-year" style="width:100%;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;">
+        <option value="">— اختر السنة —</option>${yearOpts3}
+      </select>
+    </div>
+    <div class="mf"><label>رابط الشهادة <span style="opacity:.5;font-size:.7rem">(اختياري)</span></label>
+      <input id="m-course-url" autocomplete="off" placeholder="https://..." style="direction:ltr;text-align:left">
+    </div>
+    <div class="mact"><button class="mbtn mbtn-ok" onclick="saveCourse('${listId}')">إضافة</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
 
   } else if(type==='generic'){
     const yearOpts2=[...Array(36)].map((_,i)=>{const y=new Date().getFullYear()-i;return '<option value="'+y+'">'+y+'</option>';}).join('');
@@ -1782,7 +2010,31 @@ function saveEdu(){
 }
 
 function saveCustomSec(){ const nm=document.getElementById('m-csn').value.trim(),ic=document.getElementById('m-csi').value.trim()||'📌'; if(!nm) return; const id='sec-c'+Date.now(),lid='list-c'+Date.now(); document.getElementById('secList').insertAdjacentHTML('beforeend',`<div class="section" id="${id}" draggable="true"><div class="sec-header"><span class="sec-icon">${ic}</span><span class="sec-title">${nm}</span><div class="sec-line"></div></div><div id="${lid}"></div><button class="add-item-btn owner-only" onclick="openModal('generic','${lid}','${nm}')">+ إضافة</button><div class="drag-handle owner-only"><span></span><span></span><span></span></div></div>`); closeModal(); }
-function saveGeneric(lid){ const t=document.getElementById('m-gt').value.trim(); if(!t) return; const s=document.getElementById('m-gs').value,d=document.getElementById('m-gd').value; document.getElementById(lid).insertAdjacentHTML('afterbegin',`<div class="item"><div class="item-title">${t}</div>${s?`<div class="item-sub">${s}</div>`:''}<div class="item-date">${d}</div><span class="badge pending">⏳ قيد المراجعة</span></div>`); closeModal(); }
+function saveGeneric(lid){
+  const t=document.getElementById('m-gt')?.value.trim();
+  if(!t) return;
+  const s=document.getElementById('m-gs')?.value||'';
+  const d=document.getElementById('m-gd')?.value||'';
+  const id=Date.now();
+  document.getElementById(lid)?.insertAdjacentHTML('afterbegin',
+    `<div class="item" id="gen-${id}">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between">
+        <div>
+          <div class="item-title">${t}</div>
+          ${s?`<div class="item-sub">${s}</div>`:''}
+          ${d?`<div class="item-date">${d}</div>`:''}
+        </div>
+        <div class="item-menu-wrap owner-only">
+          <button class="item-menu-btn" onclick="toggleItemMenu('gmenu-${id}')">⋯</button>
+          <div class="item-menu" id="gmenu-${id}">
+            <div class="item-menu-opt" onclick="delItem('gen-${id}','${lid}','tw_generic_${lid}')">🗑️ حذف</div>
+          </div>
+        </div>
+      </div>
+    </div>`);
+  saveToLS('tw_generic_'+lid, {id,title:t,sub:s,date:d});
+  closeModal();
+}
 function closeModal(){
   const modal=document.getElementById('modal');
   if(modal){ delete modal.dataset.editId; delete modal.dataset.editType; }
