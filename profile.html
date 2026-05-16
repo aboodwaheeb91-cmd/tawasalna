@@ -1158,7 +1158,7 @@ function openModal(type,listId,secTitle){
     </div>
     <div class="mf"><label>التخصص / المسمى الوظيفي</label>
       <select id="m-title-sel" autocomplete="off" onchange="handleSpecialty(this)" style="width:100%;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;margin-bottom:6px">
-        <option value="">— اختر تخصصك —</option>
+        <option value="">— اختر تخصصك (مرتبة حسب المجالات) —</option>
         <optgroup label="💻 تقنية وبرمجة">
           <option>مطور برمجيات</option><option>مطور ويب</option><option>مطور تطبيقات موبايل</option>
           <option>مهندس شبكات</option><option>أمن معلومات</option><option>محلل بيانات</option>
@@ -2034,6 +2034,29 @@ function initQR(){
   drawSnapQR('snapCanvas', _qrUrl, 68);
 }
 window.addEventListener('load', initQR);
+</script>
+
+
+<script>
+window.addEventListener('beforeunload', () => {
+  try {
+    const profileForm = document.querySelector('form');
+    if(profileForm){
+      const data = Object.fromEntries(new FormData(profileForm).entries());
+      localStorage.setItem('tw_profile_backup', JSON.stringify(data));
+    }
+  } catch(e){}
+});
+
+window.addEventListener('DOMContentLoaded', () => {
+  try {
+    const saved = JSON.parse(localStorage.getItem('tw_profile_backup') || '{}');
+    Object.keys(saved).forEach(key => {
+      const el = document.querySelector(`[name="${key}"]`);
+      if(el) el.value = saved[key];
+    });
+  } catch(e){}
+});
 </script>
 
 </body>
