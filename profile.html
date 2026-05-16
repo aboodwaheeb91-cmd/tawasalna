@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>تواصلنا - الملف الشخصي</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;900&family=Tajawal:wght@300;400;500;700&display=swap" rel="stylesheet">
 <style>
 :root { --ac:#00c896; --ac2:#2563ff; --ac-rgb:0,200,150; }
@@ -905,6 +906,7 @@ const CNAMES={JO:'الأردن',SA:'السعودية',AE:'الإمارات',KW:'
 const SPECS={'💻 تقنية وبرمجة':['مطور برمجيات','مطور ويب','مطور تطبيقات موبايل','مهندس شبكات','مهندس أمن معلومات','محلل بيانات','مهندس ذكاء اصطناعي','مصمم UX/UI','دعم تقني'],'⚙️ هندسة':['مهندس مدني','مهندس كهربائي','مهندس ميكانيكي','مهندس إلكترونيات','مهندس كيميائي','مهندس معماري','رسام هندسي'],'💊 صحة وطب':['طبيب عام','طبيب متخصص','طبيب أسنان','صيدلاني','مساعد صيدلاني','ممرض/ممرضة','تقني مختبرات','مساعد تقني مختبرات','أخصائي تغذية','معالج فيزيائي'],'💼 أعمال وإدارة':['محاسب','مدقق حسابات','مدير مشاريع','محلل أعمال','مدير تسويق','مندوب مبيعات','موارد بشرية','مدير عام'],'📚 تعليم وتدريب':['معلم','مدرب','أستاذ جامعي','مرشد تربوي','محاضر'],'🎨 إبداع وتصميم':['مصمم جرافيك','مصمم داخلي','مصور فوتوغرافي','مخرج/مونتاج','كاتب محتوى','مدير وسائل تواصل'],'⚖️ قانون':['محامي','مستشار قانوني','كاتب عدل'],'🔧 مهن وحرف':['كهربائي','مساعد كهربائي','سباك','مساعد سباك','ميكانيكي','مساعد ميكانيكي','نجار','بناء/مقاول','حداد','لحام'],'🚗 لوجستيات':['سائق','مشغل معدات','أمن وحراسة','خدمة عملاء','طاهي/شيف','مساعد طاهي']};
 
 function LS(k){try{return JSON.parse(localStorage.getItem(k)||'[]');}catch(e){return[];}}
+function LSobj(k){try{return JSON.parse(localStorage.getItem(k)||'{}');}catch(e){return{};}}
 function LSset(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}}
 function selStyle(){return 'width:100%;padding:9px 11px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:9px;color:#fff;font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;';}
 function yearOpts(n=36){return[...Array(n)].map((_,i)=>{const y=new Date().getFullYear()-i;return'<option value="'+y+'">'+y+'</option>';}).join('');}
@@ -948,7 +950,7 @@ function openModal(type){
   const modal=document.getElementById('modal');let h='';
   const SS=selStyle();const YO=yearOpts();
   if(type==='profile'){
-    const p=JSON.parse(localStorage.getItem('tw_prof'+_uid)||'{}');
+    const p=LSobj('tw_prof'+_uid);
     h='<div class="modal-title">✏️ تعديل الملف الشخصي</div><div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px"><div><label style="display:block;font-size:.7rem;color:rgba(255,255,255,.45);margin-bottom:4px">الاسم الأول *</label><input id="m-fn" autocomplete="off" value="'+(p.first_name||'')+'" placeholder="محمد" style="'+SS+'"></div><div><label style="display:block;font-size:.7rem;color:rgba(255,255,255,.45);margin-bottom:4px">الأوسط</label><input id="m-mn" autocomplete="off" value="'+(p.middle_name||'')+'" placeholder="عبدالله" style="'+SS+'"></div><div><label style="display:block;font-size:.7rem;color:rgba(255,255,255,.45);margin-bottom:4px">العائلة *</label><input id="m-ln" autocomplete="off" value="'+(p.last_name||'')+'" placeholder="الأحمد" style="'+SS+'"></div></div><div class="mf"><label>التخصص / المسمى الوظيفي</label><div id="specCont"></div></div><div class="mf"><label>نبذة مختصرة</label><textarea id="m-bio" autocomplete="off" placeholder="اكتب نبذة...">'+(p.bio||'')+'</textarea></div><div class="mf"><label>تاريخ الميلاد</label><div style="display:flex;gap:6px"><select id="m-dd" style="'+SS+'flex:1"><option value="">اليوم</option>'+[...Array(31)].map((_,i)=>'<option value="'+String(i+1).padStart(2,'0')+'">'+(i+1)+'</option>').join('')+'</select><select id="m-dm" style="'+SS+'flex:1"><option value="">الشهر</option><option value="01">يناير</option><option value="02">فبراير</option><option value="03">مارس</option><option value="04">أبريل</option><option value="05">مايو</option><option value="06">يونيو</option><option value="07">يوليو</option><option value="08">أغسطس</option><option value="09">سبتمبر</option><option value="10">أكتوبر</option><option value="11">نوفمبر</option><option value="12">ديسمبر</option></select><select id="m-dy" style="'+SS+'flex:1"><option value="">السنة</option>'+[...Array(60)].map((_,i)=>{const y=new Date().getFullYear()-18-i;return'<option value="'+y+'">'+y+'</option>';}).join('')+'</select></div></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px"><div><label style="display:block;font-size:.7rem;color:rgba(255,255,255,.45);margin-bottom:4px">البلد</label>'+countrySelHTML('m-pcountry')+'</div><div><label style="display:block;font-size:.7rem;color:rgba(255,255,255,.45);margin-bottom:4px">المدينة</label>'+citySelHTML('m-pcity')+'</div></div><div class="mf"><label>حالة التوظيف</label><select id="m-avail" style="'+SS+'"><option value="متاح">🟢 متاح للعمل</option><option value="مشغول">🔴 غير متاح</option><option value="يفكر">🟡 يفكر في فرص جديدة</option><option value="عمل حر">💼 فريلانس</option></select></div><div class="mact"><button class="mbtn mbtn-ok" onclick="saveProfile()">حفظ</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>';
     modal.innerHTML=h;document.getElementById('overlay').classList.add('show');
     setTimeout(()=>{buildSpecDropdown('specCont',p.title||'');if(p.dob){const pts=p.dob.split('-');if(pts.length===3){const dd=document.getElementById('m-dd');const dm=document.getElementById('m-dm');const dy=document.getElementById('m-dy');if(dd)dd.value=pts[2];if(dm)dm.value=pts[1];if(dy)dy.value=pts[0];}}if(p.country){document.getElementById('m-pcountry').value=p.country;loadCities('m-pcountry','m-pcity');setTimeout(()=>{const ct=document.getElementById('m-pcity');if(ct)ct.value=p.city||'';},80);}if(p.avail)document.getElementById('m-avail').value=p.avail;},50);return;
@@ -1259,7 +1261,7 @@ function calcAge(dob){
 }
 function showAge(dob){
   const line=document.getElementById('cvAgeLine');if(!line)return;
-  const age=calcAge(dob);if(age){line.textContent='العمر: '+age;line.style.display='block';}
+  const age=calcAge(dob);if(age){line.textContent='العمر: '+age;line.style.cssText='display:block!important;font-size:.72rem;font-weight:600;margin-bottom:5px;';}
 }
 const AVAIL_MAP={
   'متاح':{bg:'rgba(0,200,150,.12)',color:'#00c896',label:'🟢 متاح للعمل'},
@@ -1357,11 +1359,7 @@ function goHome(){
 }
 function doLogout(){localStorage.removeItem('tw_user');location.href='/';}
 
-// Load QR lib
-const qrScript=document.createElement('script');
-qrScript.src='https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';
-qrScript.onload=()=>setTimeout(drawQR,100);
-document.head.appendChild(qrScript);
+// QR loaded in head
 </script>
 
 </body>
