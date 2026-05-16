@@ -1348,21 +1348,29 @@ function loadSectionOrder(){
 function openModal(type,listId,secTitle){
   let h='';
   if(type==='profile'){
-    const curName=document.getElementById('cvName').textContent.replace('الاسم الكامل','');
-    const curTitle=document.getElementById('cvTitle').textContent.replace('المسمى الوظيفي','');
-    const curBio=document.getElementById('cvBio').textContent.replace('نبذة مختصرة عنك...','');
-    const curLoc=document.getElementById('cvLoc').textContent.replace('📍 موقعك','').replace('📍 ','');
-    // Load saved profile data
+    // Always read from localStorage (source of truth)
     const uid_p=_sessionUser&&_sessionUser.id?'_'+_sessionUser.id:'';
     let savedProf={}; try{savedProf=JSON.parse(localStorage.getItem('tw_profile_data'+uid_p)||'{}')}catch(e){}
-    const fn=savedProf.first_name||''; const mn=savedProf.middle_name||''; const ln=savedProf.last_name||'';
-    const dob=savedProf.dob||''; const profAvail=savedProf.avail||'متاح';
-    const profCountry=savedProf.country||''; const profCity=savedProf.city||'';
+    const fn=savedProf.first_name||'';
+    const mn=savedProf.middle_name||'';
+    const ln=savedProf.last_name||'';
+    // Fallback: split DOM name if no saved name parts
+    const _domName=document.getElementById('cvName').textContent.replace('الاسم الكامل','').trim();
+    const _np=_domName.split(' ');
+    const fn2=fn||(_np[0]||'');
+    const mn2=mn||(_np.length>2?_np[1]:'');
+    const ln2=ln||(_np.length>1?_np[_np.length-1]:'');
+    const curTitle=savedProf.headline||savedProf.title||document.getElementById('cvTitle').textContent.replace('المسمى الوظيفي','').trim();
+    const curBio=savedProf.bio||document.getElementById('cvBio').textContent.replace('نبذة مختصرة عنك...','').trim();
+    const dob=savedProf.dob||'';
+    const profAvail=savedProf.avail||'متاح';
+    const profCountry=savedProf.country||'';
+    const profCity=savedProf.city||'';
     h=`<div class="modal-title">✏️ تعديل الملف الشخصي</div>
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px">
-      <div class="mf" style="margin:0"><label>الاسم الأول *</label><input id="m-fn" autocomplete="off" value="${fn}" placeholder="محمد"></div>
-      <div class="mf" style="margin:0"><label>الاسم الأوسط</label><input id="m-mn" autocomplete="off" value="${mn}" placeholder="عبدالله"></div>
-      <div class="mf" style="margin:0"><label>اسم العائلة *</label><input id="m-ln" autocomplete="off" value="${ln}" placeholder="الأحمد"></div>
+      <div class="mf" style="margin:0"><label>الاسم الأول *</label><input id="m-fn" autocomplete="off" value="${fn2}" placeholder="محمد"></div>
+      <div class="mf" style="margin:0"><label>الاسم الأوسط</label><input id="m-mn" autocomplete="off" value="${mn2}" placeholder="عبدالله"></div>
+      <div class="mf" style="margin:0"><label>اسم العائلة *</label><input id="m-ln" autocomplete="off" value="${ln2}" placeholder="الأحمد"></div>
     </div>
     <div class="mf"><label>التخصص / المسمى الوظيفي</label>
       <select id="m-title-sel" autocomplete="off" onchange="handleSpecialty(this)" style="width:100%;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;margin-bottom:6px">
@@ -1799,13 +1807,15 @@ function saveProfile(){
   try{
     const uid=_sessionUser&&_sessionUser.id?'_'+_sessionUser.id:'';
     const prof=JSON.parse(localStorage.getItem('tw_profile_data'+uid)||'{}');
-    if(name) prof.full_name=name;
-    if(fn) prof.first_name=fn;
-    if(mn) prof.middle_name=mn;
-    if(ln) prof.last_name=ln;
-    if(title) prof.headline=title;
-    if(bio) prof.bio=bio;
-    if(loc) prof.location=loc;
+    // Always save all fields (overwrite with current values)
+    prof.full_name=name||prof.full_name||'';
+    prof.first_name=fn||prof.first_name||'';
+    prof.middle_name=mn||'';
+    prof.last_name=ln||prof.last_name||'';
+    prof.headline=title||'';
+    prof.title=title||'';
+    prof.bio=bio||'';
+    prof.location=loc||prof.location||'';
     if(dob) prof.dob=dob;
     if(profCountry) prof.country=profCountry;
     if(profCity) prof.city=profCity;
