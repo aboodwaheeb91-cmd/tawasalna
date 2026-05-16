@@ -1796,7 +1796,6 @@ function saveProfile(){
     if(dob) prof.dob=dob;
     if(profCountry) prof.country=profCountry;
     if(profCity) prof.city=profCity;
-    const avail=document.getElementById('m-avail')?.value;
     if(avail) prof.avail=avail;
     localStorage.setItem('tw_profile_data'+uid,JSON.stringify(prof));
     if(_sessionUser&&name){ _sessionUser.full_name=name; localStorage.setItem('tw_user',JSON.stringify(_sessionUser)); }
@@ -2087,7 +2086,8 @@ function doLogout(){ localStorage.removeItem('tw_user'); location.href='/'; }
   try{
     const _profUid=_sessionUser&&_sessionUser.id?'_'+_sessionUser.id:(user&&user.id?'_'+user.id:'');
     const prof=JSON.parse(localStorage.getItem('tw_profile_data'+_profUid)||'{}');
-    if(prof.full_name||user.full_name) document.getElementById('cvName').textContent=prof.full_name||user.full_name;
+    const displayName = prof.full_name || [prof.first_name, prof.middle_name, prof.last_name].filter(Boolean).join(' ') || user.full_name || '';
+    if(displayName) document.getElementById('cvName').textContent=displayName;
     if(prof.headline||prof.title) document.getElementById('cvTitle').textContent=prof.headline||prof.title;
     if(prof.dob){
       const ageLine=document.getElementById('cvAgeLine');
@@ -2096,7 +2096,10 @@ function doLogout(){ localStorage.removeItem('tw_user'); location.href='/'; }
     if(prof.headline) document.getElementById('cvTitle').textContent=prof.headline;
     if(prof.bio) document.getElementById('cvBio').textContent=prof.bio;
     if(prof.avail){ showAvailBadge(prof.avail); }
-    if(prof.location||prof.loc){ document.getElementById('cvLoc').textContent='📍 '+(prof.location||prof.loc); }
+    if(prof.location||prof.loc){
+      const locText=prof.location||prof.loc;
+      document.getElementById('cvLoc').textContent='📍 '+locText;
+    }
     if(prof.location){
       // Rebuild from saved country+city if available
       const cn=getCountryName(prof.country||'');
