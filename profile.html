@@ -1760,14 +1760,7 @@ function saveProfile(){
     if(ageLine){ const age=calcAge(dob); if(age){ ageLine.textContent='العمر: '+age; ageLine.style.display='block'; } }
   }
   const avail=document.getElementById('m-avail')?.value;
-  if(avail){
-    const availEl=document.getElementById('cvAvail');
-    if(availEl){
-      const colors={'متاح':'rgba(0,200,150,.15)','مشغول':'rgba(239,68,68,.12)','يفكر':'rgba(234,179,8,.12)','عمل حر':'rgba(139,92,246,.12)'};
-      const txts={'متاح':'#00c896','مشغول':'#f87171','يفكر':'#eab308','عمل حر':'#a78bfa'};
-      const labels={'متاح':'🟢 متاح للعمل','مشغول':'🔴 غير متاح','يفكر':'🟡 يفكر في فرص','عمل حر':'💼 فريلانس'};
-      availEl.innerHTML=`<span style="display:inline-flex;align-items:center;padding:2px 9px;border-radius:20px;font-size:.68rem;font-weight:700;background:${colors[avail]||''};color:${txts[avail]||'var(--ac)'};">${labels[avail]||avail}</span>`;
-      availEl.style.display='block';
+  if(avail){ showAvailBadge(avail);
     }
   }
   // Save to localStorage
@@ -1891,7 +1884,19 @@ function saveEdu(){
 }
 
 function saveCustomSec(){ const nm=document.getElementById('m-csn').value.trim(),ic=document.getElementById('m-csi').value.trim()||'📌'; if(!nm) return; const id='sec-c'+Date.now(),lid='list-c'+Date.now(); document.getElementById('secList').insertAdjacentHTML('beforeend',`<div class="section" id="${id}" draggable="true"><div class="sec-header"><span class="sec-icon">${ic}</span><span class="sec-title">${nm}</span><div class="sec-line"></div></div><div id="${lid}"></div><button class="add-item-btn owner-only" onclick="openModal('generic','${lid}','${nm}')">+ إضافة</button><div class="drag-handle owner-only"><span></span><span></span><span></span></div></div>`); closeModal(); }
-function saveGeneric(lid){ const t=document.getElementById('m-gt').value.trim(); if(!t) return; const s=document.getElementById('m-gs').value,d=document.getElementById('m-gd').value; document.getElementById(lid).insertAdjacentHTML('afterbegin',`<div class="item"><div class="item-title">${t}</div>${s?`<div class="item-sub">${s}</div>`:''}<div class="item-date">${d}</div><span class="badge pending">⏳ قيد المراجعة</span></div>`); closeModal(); }
+function saveGeneric(lid){ const t=document.getElementById('m-gt').value.trim(); if(!t) return; const s=document.getElementById('m-gs').value,d=document.getElementById('m-gd').value; document.getElementById(lid).insertAdjacentHTML('afterbegin',`<div class="item"><div class="item-title">${t}</div>${s?`<div class="item-sub">${s}</div>`:''}<div class="item-date">${d}</div><span class="badge pending">⏳ قيد المراجعة</span></div>`); closeModal();
+}
+
+function showAvailBadge(avail){
+  const availEl=document.getElementById('cvAvail');
+  if(!availEl||!avail) return;
+  const colors={'متاح':'rgba(0,200,150,.15)','مشغول':'rgba(239,68,68,.12)','يفكر':'rgba(234,179,8,.12)','عمل حر':'rgba(139,92,246,.12)'};
+  const txts={'متاح':'#00c896','مشغول':'#f87171','يفكر':'#eab308','عمل حر':'#a78bfa'};
+  const labels={'متاح':'🟢 متاح للعمل','مشغول':'🔴 غير متاح','يفكر':'🟡 يفكر في فرص جديدة','عمل حر':'💼 فريلانس'};
+  availEl.innerHTML=`<span style="display:inline-flex;align-items:center;padding:2px 9px;border-radius:20px;font-size:.68rem;font-weight:700;background:${colors[avail]||'rgba(255,255,255,.08)'};color:${txts[avail]||'var(--ac)'};">${labels[avail]||avail}</span>`;
+  availEl.style.display='block';
+}
+
 function closeModal(){
   const modal=document.getElementById('modal');
   if(modal){ delete modal.dataset.editId; delete modal.dataset.editType; }
@@ -2070,6 +2075,8 @@ function doLogout(){ localStorage.removeItem('tw_user'); location.href='/'; }
     }
     if(prof.headline) document.getElementById('cvTitle').textContent=prof.headline;
     if(prof.bio) document.getElementById('cvBio').textContent=prof.bio;
+    if(prof.avail){ showAvailBadge(prof.avail); }
+    if(prof.location||prof.loc){ document.getElementById('cvLoc').textContent='📍 '+(prof.location||prof.loc); }
     if(prof.location){
       // Rebuild from saved country+city if available
       const cn=getCountryName(prof.country||'');
