@@ -776,6 +776,15 @@ function sanitize(str){
   return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
 }
 
+
+// ── Centralized UID getter ──
+function getUID(){
+  try{
+    const u=JSON.parse(localStorage.getItem('tw_user'));
+    return u&&u.id?'_'+u.id:'';
+  }catch(e){ return ''; }
+}
+
 // ── Migrate old localStorage keys to uid-based keys ──
 (function migrateLSKeys(){
   let u; try{u=JSON.parse(localStorage.getItem('tw_user'));}catch(e){}
@@ -784,9 +793,9 @@ function sanitize(str){
   const keys=['tw_exp','tw_edu','tw_profile_data','tw_avatar','tw_style','tw_color','tw_sec_order','tw_skills','tw_langs','tw_links','tw_courses'];
   keys.forEach(key=>{
     const oldVal=localStorage.getItem(key);
-    const newVal=localStorage.getItem(key+uid);
+    const newVal=localStorage.getItem(key+getUID());
     if(oldVal && !newVal){
-      localStorage.setItem(key+uid, oldVal);
+      localStorage.setItem(key+getUID(), oldVal);
       // Don't remove old - keep as backup
       console.log('Migrated:', key, '→', key+uid);
     }
@@ -814,7 +823,7 @@ function setColor(hex,el){
   document.querySelectorAll('.csw').forEach(s=>s.classList.remove('active'));
   el.classList.add('active');
   redrawQR();
-  try{ localStorage.setItem('tw_profile_color', hex); }catch(ex){}
+  try{ localStorage.setItem('tw_profile_color'+getUID(), hex); }catch(ex){}
   setTimeout(closePanel,300);
 }
 
@@ -822,7 +831,7 @@ document.getElementById('colorIn').addEventListener('input',e=>{
   applyColor(e.target.value);
   document.querySelectorAll('.csw').forEach(s=>s.classList.remove('active'));
   redrawQR();
-  try{ localStorage.setItem('tw_profile_color', e.target.value); }catch(ex){}
+  try{ localStorage.setItem('tw_profile_color'+getUID(), e.target.value); }catch(ex){}
 });
 
 function setStyle(n,el){
@@ -843,7 +852,7 @@ function setStyle(n,el){
     if(n===5) wEl.insertBefore(head,main); else wEl.insertBefore(head,wEl.firstChild);
     wrap.classList.remove('fading');
     // Save style
-    try{ localStorage.setItem('tw_profile_style', n); }catch(ex){}
+    try{ localStorage.setItem('tw_profile_style'+getUID(), n); }catch(ex){}
     setTimeout(closePanel, 300);
   },250);
 }
@@ -900,12 +909,11 @@ function addSection(id,icon,title,el){
   loadSavedSection(id, lid);
 
   // Save the section itself to localStorage
-  const _asUid=_sessionUser&&_sessionUser.id?'_'+_sessionUser.id:'';
   try{
-    let savedSections=JSON.parse(localStorage.getItem('tw_added_sections'+_asUid)||'[]');
+    let savedSections=JSON.parse(localStorage.getItem('tw_added_sections'+getUID())||'[]');
     if(!savedSections.find(s=>s.id===id)){
       savedSections.push({id,icon,title});
-      localStorage.setItem('tw_added_sections'+_asUid,JSON.stringify(savedSections));
+      localStorage.setItem('tw_added_sections'+getUID(),JSON.stringify(savedSections));
     }
   }catch(ex){ console.error(ex); }
 
@@ -917,9 +925,8 @@ function addSection(id,icon,title,el){
 // Load saved items for a section from localStorage
 
 function restoreSections(){
-  const uid=_sessionUser&&_sessionUser.id?'_'+_sessionUser.id:'';
   try{
-    const saved=JSON.parse(localStorage.getItem('tw_added_sections'+uid)||'[]');
+    const saved=JSON.parse(localStorage.getItem('tw_added_sections'+getUID())||'[]');
     saved.forEach(sec=>{
       if(document.getElementById('sec-'+sec.id)) return;
       // Create dummy el so addSection doesn't crash
@@ -930,7 +937,6 @@ function restoreSections(){
 }
 
 function loadSavedSection(id, lid){
-  const uid=_sessionUser&&_sessionUser.id?'_'+_sessionUser.id:'';
   const keyMap={
     'skills':'tw_skills','langs':'tw_langs','links':'tw_links','course':'tw_courses'
   };
@@ -1045,10 +1051,9 @@ function toggleItemMenuG(btn){
 
 function delSectionItem(elId, lsKeyBase, lid, itemId){
   document.getElementById(elId)?.remove();
-  const uid=_sessionUser&&_sessionUser.id?'_'+_sessionUser.id:'';
   try{
-    const key=lsKeyBase+uid;
-    const arr=JSON.parse(localStorage.getItem(key)||'[]').filter(x=>x.id!==itemId);
+    const key=lsKeyBase+getUID();
+    const arr=JSON.parse(localStorage.getItem(key+getUID())||'[]').filter(x=>x.id!==itemId);
     localStorage.setItem(key,JSON.stringify(arr));
     const list=document.getElementById(lid);
     if(list&&!list.querySelector('.item:not(.empty-hint)')){
@@ -1059,10 +1064,9 @@ function delSectionItem(elId, lsKeyBase, lid, itemId){
 
 // ── Save section items ──
 function saveSectionItem(lsKey, item, lid, renderFn){
-  const uid=_sessionUser&&_sessionUser.id?'_'+_sessionUser.id:'';
   const key=lsKey+uid;
   try{
-    const arr=JSON.parse(localStorage.getItem(key)||'[]');
+    const arr=JSON.parse(localStorage.getItem(key+getUID())||'[]');
     arr.unshift(item);
     localStorage.setItem(key,JSON.stringify(arr));
   }catch(ex){}
@@ -1259,9 +1263,8 @@ document.addEventListener('click',e=>{
 
 
 function editExp(id){
-  const uid=_sessionUser&&_sessionUser.id?'_'+_sessionUser.id:'';
   try{
-    const exp=JSON.parse(localStorage.getItem('tw_exp'+uid)||'[]');
+    const exp=JSON.parse(localStorage.getItem('tw_exp'+getUID())||'[]');
     const item=exp.find(e=>e.id===id);
     if(!item) return;
     // Open modal pre-filled
@@ -1285,9 +1288,8 @@ function editExp(id){
 }
 
 function editEdu(id){
-  const uid=_sessionUser&&_sessionUser.id?'_'+_sessionUser.id:'';
   try{
-    const edu=JSON.parse(localStorage.getItem('tw_edu'+uid)||'[]');
+    const edu=JSON.parse(localStorage.getItem('tw_edu'+getUID())||'[]');
     const item=edu.find(e=>e.id===id);
     if(!item) return;
     openModal('edu');
@@ -1308,9 +1310,8 @@ function editEdu(id){
 function deleteExp(id){
   document.getElementById('exp-'+id)?.remove();
   try{
-    const uid=_sessionUser&&_sessionUser.id?'_'+_sessionUser.id:'';
-    const exp=JSON.parse(localStorage.getItem('tw_exp'+uid)||'[]').filter(e=>e.id!==id);
-    localStorage.setItem('tw_exp'+uid,JSON.stringify(exp));
+      const exp=JSON.parse(localStorage.getItem('tw_exp'+getUID())||'[]').filter(e=>e.id!==id);
+    localStorage.setItem('tw_exp'+getUID(),JSON.stringify(exp));
     if(!exp.length) document.getElementById('exp-list').innerHTML='<div class="item empty-hint"><div class="item-title" style="opacity:.4;font-size:.8rem">لا توجد خبرات بعد — اضغط + لإضافة أول خبرة</div></div>';
     updateExpBadge();
   }catch(ex){}
@@ -1319,23 +1320,20 @@ function deleteExp(id){
 function deleteEdu(id){
   document.getElementById('edu-'+id)?.remove();
   try{
-    const uid=_sessionUser&&_sessionUser.id?'_'+_sessionUser.id:'';
-    const edu=JSON.parse(localStorage.getItem('tw_edu'+uid)||'[]').filter(e=>e.id!==id);
-    localStorage.setItem('tw_edu'+uid,JSON.stringify(edu));
+      const edu=JSON.parse(localStorage.getItem('tw_edu'+getUID())||'[]').filter(e=>e.id!==id);
+    localStorage.setItem('tw_edu'+getUID(),JSON.stringify(edu));
     if(!edu.length) document.getElementById('edu-list').innerHTML='<div class="item empty-hint"><div class="item-title" style="opacity:.4;font-size:.8rem">لا توجد شهادات بعد — اضغط + لإضافة شهادة</div></div>';
   }catch(ex){}
 }
 
 function saveSectionOrder(){
   const order=[...secList.children].map(s=>s.id);
-  const _suid=_sessionUser&&_sessionUser.id?'_'+_sessionUser.id:'';
-  try{ localStorage.setItem('tw_sec_order'+_suid,JSON.stringify(order)); }catch(ex){}
+  try{ localStorage.setItem('tw_sec_order'+getUID(),JSON.stringify(order)); }catch(ex){}
 }
 
 function loadSectionOrder(){
   try{
-    const _suid2=_sessionUser&&_sessionUser.id?'_'+_sessionUser.id:'';
-    const order=JSON.parse(localStorage.getItem('tw_sec_order'+_suid2));
+    const order=JSON.parse(localStorage.getItem('tw_sec_order'+getUID()));
     if(!order||!order.length) return;
     order.forEach(id=>{
       const el=document.getElementById(id);
@@ -1350,7 +1348,7 @@ function openModal(type,listId,secTitle){
   if(type==='profile'){
     // Always read from localStorage (source of truth)
     const uid_p=_sessionUser&&_sessionUser.id?'_'+_sessionUser.id:'';
-    let savedProf={}; try{savedProf=JSON.parse(localStorage.getItem('tw_profile_data'+uid_p)||'{}')}catch(e){}
+    let savedProf={}; try{savedProf=JSON.parse(localStorage.getItem('tw_profile_data'+getUID())||'{}')}catch(e){}
     const fn=savedProf.first_name||'';
     const mn=savedProf.middle_name||'';
     const ln=savedProf.last_name||'';
@@ -1741,9 +1739,8 @@ function loadProfileCities(){
 
 // ── Calculate total experience years ──
 function updateExpBadge(){
-  const uid=_sessionUser&&_sessionUser.id?'_'+_sessionUser.id:'';
   try{
-    const exp=JSON.parse(localStorage.getItem('tw_exp'+uid)||'[]');
+    const exp=JSON.parse(localStorage.getItem('tw_exp'+getUID())||'[]');
     let totalMonths=0;
     const curYear=new Date().getFullYear();
     exp.forEach(e=>{
@@ -1805,8 +1802,7 @@ function saveProfile(){
 
   // Save to localStorage
   try{
-    const uid=_sessionUser&&_sessionUser.id?'_'+_sessionUser.id:'';
-    const prof=JSON.parse(localStorage.getItem('tw_profile_data'+uid)||'{}');
+      const prof=JSON.parse(localStorage.getItem('tw_profile_data'+getUID())||'{}');
     // Always save all fields (overwrite with current values)
     prof.full_name=name||prof.full_name||'';
     prof.first_name=fn||prof.first_name||'';
@@ -1820,7 +1816,7 @@ function saveProfile(){
     if(profCountry) prof.country=profCountry;
     if(profCity) prof.city=profCity;
     if(avail) prof.avail=avail;
-    localStorage.setItem('tw_profile_data'+uid,JSON.stringify(prof));
+    localStorage.setItem('tw_profile_data'+getUID(),JSON.stringify(prof));
     if(_sessionUser&&name){ _sessionUser.full_name=name; localStorage.setItem('tw_user',JSON.stringify(_sessionUser)); }
   }catch(ex){}
   // Save to API
@@ -1845,16 +1841,15 @@ function saveExp(){
   const city=document.getElementById('m-city')?.value||'';
   const countryNameExp=getCountryName(country)||'';
   const l=countryNameExp&&city ? countryNameExp+' - '+city : (countryNameExp||city||'');
-  const uid=_sessionUser&&_sessionUser.id?'_'+_sessionUser.id:'';
   const modal=document.getElementById('modal');
   const editId=modal.dataset.editId?parseInt(modal.dataset.editId):null;
 
   if(editId){
     // تعديل خبرة موجودة
     try{
-      const exp=JSON.parse(localStorage.getItem('tw_exp'+uid)||'[]');
+      const exp=JSON.parse(localStorage.getItem('tw_exp'+getUID())||'[]');
       const idx2=exp.findIndex(x=>x.id===editId);
-      if(idx2>-1){ exp[idx2]={id:editId,title:t,company:co,location:l,start_date:s,end_date:e}; localStorage.setItem('tw_exp'+uid,JSON.stringify(exp)); }
+      if(idx2>-1){ exp[idx2]={id:editId,title:t,company:co,location:l,start_date:s,end_date:e,work_type:wtype2||exp[idx2].work_type||'',desc:edesc2||exp[idx2].desc||''}; localStorage.setItem('tw_exp'+getUID(),JSON.stringify(exp)); }
     }catch(ex){}
     const el=document.getElementById('exp-'+editId);
     const wtype2=document.getElementById('m-etype')?.value||'';
@@ -1869,9 +1864,9 @@ function saveExp(){
     document.getElementById('exp-list').insertAdjacentHTML('afterbegin',
       renderExpItem({id:expId,title:t,company:co,location:l,start_date:s,end_date:e,work_type:wtype,desc:edesc}));
     try{
-      const exp=JSON.parse(localStorage.getItem('tw_exp'+uid)||'[]');
+      const exp=JSON.parse(localStorage.getItem('tw_exp'+getUID())||'[]');
       exp.unshift({id:expId,title:t,company:co,location:l,start_date:s,end_date:e,work_type:wtype||'',desc:edesc||''});
-      localStorage.setItem('tw_exp'+uid,JSON.stringify(exp));
+      localStorage.setItem('tw_exp'+getUID(),JSON.stringify(exp));
     }catch(ex){}
     if(_sessionUser&&_sessionUser.id){
       fetch('/experience/'+_sessionUser.id,{method:'POST',headers:{'Content-Type':'application/json'},
@@ -1887,16 +1882,15 @@ function saveEdu(){
   const i=document.getElementById('m-ei').value.trim();
   if(!i) return;
   const y=document.getElementById('m-ey').value;
-  const uid=_sessionUser&&_sessionUser.id?'_'+_sessionUser.id:'';
   const modal=document.getElementById('modal');
   const editId=modal.dataset.editId?parseInt(modal.dataset.editId):null;
 
   if(editId){
     // تعديل شهادة موجودة
     try{
-      const edu=JSON.parse(localStorage.getItem('tw_edu'+uid)||'[]');
+      const edu=JSON.parse(localStorage.getItem('tw_edu'+getUID())||'[]');
       const idx2=edu.findIndex(x=>x.id===editId);
-      if(idx2>-1){ edu[idx2]={id:editId,degree:d,institution:i,end_year:y}; localStorage.setItem('tw_edu'+uid,JSON.stringify(edu)); }
+      if(idx2>-1){ edu[idx2]={id:editId,degree:d,institution:i,end_year:y}; localStorage.setItem('tw_edu'+getUID(),JSON.stringify(edu)); }
     }catch(ex){}
     const el=document.getElementById('edu-'+editId);
     const dtype2=document.getElementById('m-dtype')?.value||'';
@@ -1911,9 +1905,9 @@ function saveEdu(){
     document.getElementById('edu-list').insertAdjacentHTML('afterbegin',
       renderEduItem({id:eduId,degree:d,institution:i,end_year:y,degree_type:dtype,gpa:gpa}));
     try{
-      const edu=JSON.parse(localStorage.getItem('tw_edu'+uid)||'[]');
+      const edu=JSON.parse(localStorage.getItem('tw_edu'+getUID())||'[]');
       edu.unshift({id:eduId,degree:d,institution:i,end_year:y,degree_type:dtype,gpa:gpa});
-      localStorage.setItem('tw_edu'+uid,JSON.stringify(edu));
+      localStorage.setItem('tw_edu'+getUID(),JSON.stringify(edu));
     }catch(ex){}
     if(_sessionUser&&_sessionUser.id){
       fetch('/education/'+_sessionUser.id,{method:'POST',headers:{'Content-Type':'application/json'},
@@ -1953,7 +1947,7 @@ const ta = document.querySelector('.top-actions');
 if(ta && isOwner) ta.style.display = 'flex';
 // Load saved color
 try{
-  const savedColor = localStorage.getItem('tw_profile_color');
+  const savedColor = localStorage.getItem('tw_profile_color'+getUID());
   if(savedColor){
     applyColor(savedColor);
     document.querySelectorAll('.csw').forEach(s=>{
@@ -1966,7 +1960,7 @@ try{
 }catch(ex){ applyColor('#00c896'); }
 // Load saved style
 try{
-  const savedStyle = parseInt(localStorage.getItem('tw_profile_style'))||1;
+  const savedStyle = parseInt(localStorage.getItem('tw_profile_style'+getUID()))||1;
   if(savedStyle && savedStyle !== 1){
     const sopt = document.getElementById('sopt'+savedStyle);
     if(sopt) setStyle(savedStyle, sopt);
@@ -2067,8 +2061,7 @@ function saveCrop(){
   const avatarEl=document.getElementById('avatarBtn');
   if(avatarEl) avatarEl.innerHTML=`<img src="${dataUrl}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;">`;
   try{
-    const uid=_sessionUser&&_sessionUser.id?'_'+_sessionUser.id:'';
-    localStorage.setItem('tw_avatar'+uid, dataUrl);
+      localStorage.setItem('tw_avatar'+getUID(), dataUrl);
   }catch(ex){}
   document.getElementById('cropOv')?.remove();
   // Cleanup events
@@ -2083,7 +2076,7 @@ function saveCrop(){
   let u; try{u=JSON.parse(localStorage.getItem('tw_user'));}catch(e){}
   if(!u||!u.id) return;
   const uid='_'+u.id;
-  const saved=localStorage.getItem('tw_avatar'+uid);
+  const saved=localStorage.getItem('tw_avatar'+getUID());
   if(saved){
     const avatarEl=document.getElementById('avatarBtn');
     if(avatarEl) avatarEl.innerHTML=`<img src="${saved}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;">`;
@@ -2107,8 +2100,7 @@ function doLogout(){ localStorage.removeItem('tw_user'); location.href='/'; }
     'TW-' + (user.user_type||'emp').toUpperCase() + '-' + String(user.id);
 
   try{
-    const _profUid=_sessionUser&&_sessionUser.id?'_'+_sessionUser.id:(user&&user.id?'_'+user.id:'');
-    const prof=JSON.parse(localStorage.getItem('tw_profile_data'+_profUid)||'{}');
+    const prof=JSON.parse(localStorage.getItem('tw_profile_data'+getUID())||'{}');
     const displayName = prof.full_name || [prof.first_name, prof.middle_name, prof.last_name].filter(Boolean).join(' ') || user.full_name || '';
     if(displayName) document.getElementById('cvName').textContent=displayName;
     if(prof.headline||prof.title) document.getElementById('cvTitle').textContent=prof.headline||prof.title;
@@ -2135,7 +2127,7 @@ function doLogout(){ localStorage.removeItem('tw_user'); location.href='/'; }
   }
 
   try{
-    const exp=JSON.parse(localStorage.getItem('tw_exp'+_uid)||'[]');
+    const exp=JSON.parse(localStorage.getItem('tw_exp'+getUID())||'[]');
     if(exp.length){
       document.getElementById('exp-list').innerHTML='';
       exp.forEach(e=>document.getElementById('exp-list').insertAdjacentHTML('beforeend',renderExpItem(e)));
@@ -2143,7 +2135,7 @@ function doLogout(){ localStorage.removeItem('tw_user'); location.href='/'; }
   }catch(ex){}
 
   try{
-    const edu=JSON.parse(localStorage.getItem('tw_edu'+_uid)||'[]');
+    const edu=JSON.parse(localStorage.getItem('tw_edu'+getUID())||'[]');
     if(edu.length){
       document.getElementById('edu-list').innerHTML='';
       edu.forEach(e=>document.getElementById('edu-list').insertAdjacentHTML('beforeend',renderEduItem(e)));
