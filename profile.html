@@ -797,6 +797,24 @@ body.s4 .add-sec-shortcut:hover {
 // ── Smart isOwner detection ──
 let _sessionUser = null;
 try { _sessionUser = JSON.parse(localStorage.getItem('tw_user')); } catch(e){}
+
+// ── Migrate old localStorage keys to uid-based keys ──
+(function migrateLSKeys(){
+  let u; try{u=JSON.parse(localStorage.getItem('tw_user'));}catch(e){}
+  if(!u||!u.id) return;
+  const uid='_'+u.id;
+  const keys=['tw_exp','tw_edu','tw_profile_data','tw_avatar','tw_style','tw_color','tw_sec_order','tw_skills','tw_langs','tw_links','tw_courses'];
+  keys.forEach(key=>{
+    const oldVal=localStorage.getItem(key);
+    const newVal=localStorage.getItem(key+uid);
+    if(oldVal && !newVal){
+      localStorage.setItem(key+uid, oldVal);
+      // Don't remove old - keep as backup
+      console.log('Migrated:', key, '→', key+uid);
+    }
+  });
+})();
+
 const _urlId = new URLSearchParams(window.location.search).get('id');
 const isOwner = _sessionUser && (
   !_urlId ||  // no id in URL = own profile
