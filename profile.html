@@ -1479,7 +1479,19 @@ function openModal(type,listId,secTitle){
     </div>
     <div class="mact"><button class="mbtn mbtn-ok" onclick="saveProfile()">حفظ</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
     setTimeout(()=>{
-    loadProfileCities();
+    // Prefill specialty/title
+    const titleSel=document.getElementById('m-title-sel');
+    if(titleSel){
+      const savedTitle=savedProf.headline||savedProf.title||curTitle||'';
+      // Try to match saved value to an option
+      const opts=[...titleSel.options];
+      const match=opts.find(o=>o.value===savedTitle||o.text===savedTitle);
+      if(match) titleSel.value=match.value;
+    }
+    // Prefill availability
+    const availSel=document.getElementById('m-avail');
+    if(availSel&&profAvail) availSel.value=profAvail;
+    // Prefill DOB
     if(dob){
       const parts=dob.split('-');
       if(parts.length===3){
@@ -1488,6 +1500,7 @@ function openModal(type,listId,secTitle){
         const dy=document.getElementById('m-dob-y'); if(dy) dy.value=parts[0];
       }
     }
+    // Prefill country/city
     if(profCountry){
       loadProfileCities();
       setTimeout(()=>{ const c2=document.getElementById('m-prof-city'); if(c2) c2.value=profCity; },100);
