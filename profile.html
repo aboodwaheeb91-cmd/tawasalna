@@ -881,21 +881,207 @@ function togglePreview(){
   if(previewMode) closePanel();
 }
 
+// Map section id → modal type
+const SECTION_MODAL={
+  'course':'course','skills':'skills','langs':'langs','links':'links'
+};
+
 function addSection(id,icon,title,el){
   if(document.getElementById('sec-'+id)) return;
   const lid=id+'-list';
+  const modalType=SECTION_MODAL[id]||'generic';
+  const btnOnclick=modalType==='generic'
+    ? `openModal('generic','${lid}','${title}')`
+    : `openModal('${modalType}','${lid}','${title}')`;
   document.getElementById('secList').insertAdjacentHTML('beforeend',`
     <div class="section" id="sec-${id}" draggable="true">
       <div class="sec-header"><span class="sec-icon">${icon}</span><span class="sec-title">${title}</span><div class="sec-line"></div></div>
-      <div id="${lid}"></div>
-      <button class="add-item-btn owner-only" onclick="openModal('generic','${lid}','${title}')">+ إضافة</button>
+      <div id="${lid}"><div class="item empty-hint"><div class="item-title" style="opacity:.4;font-size:.8rem">لا توجد عناصر — اضغط + لإضافة</div></div></div>
+      <button class="add-item-btn owner-only" onclick="${btnOnclick}">+ إضافة</button>
       <div class="drag-handle owner-only"><span></span><span></span><span></span></div>
     </div>`);
+  // Reload saved data for this section
+  loadSavedSection(id, lid);
   el.classList.add('added');
   el.onclick=null;
-  el.querySelector('.asec-ico').insertAdjacentHTML('afterend','');
   el.insertAdjacentHTML('beforeend','<span class="asec-done">✓</span>');
   setTimeout(closePanel,400);
+}
+
+// Load saved items for a section from localStorage
+function loadSavedSection(id, lid){
+  const uid=_sessionUser&&_sessionUser.id?'_'+_sessionUser.id:'';
+  const keyMap={
+    'skills':'tw_skills','langs':'tw_langs','links':'tw_links','course':'tw_courses'
+  };
+  const lsKey=(keyMap[id]||('tw_gen_'+id))+uid;
+  try{
+    const items=JSON.parse(localStorage.getItem(lsKey)||'[]');
+    if(!items.length) return;
+    const el=document.getElementById(lid);
+    if(!el) return;
+    el.innerHTML='';
+    items.forEach(item=>{
+      const renderMap={
+        'skills':renderSkillItem,'langs':renderLangItem,
+        'links':renderLinkItem,'course':renderCourseItem
+      };
+      const renderFn=renderMap[id]||renderGenericItem;
+      el.insertAdjacentHTML('beforeend',renderFn(item,lid));
+    });
+  }catch(ex){}
+}
+
+
+// ── Render helpers ──
+function renderSkillItem(e,lid){
+  const id=e.id||Date.now();const lvl=e.level||'';
+  const lvlColor={'مبتدئ':'🟡','متوسط':'🟠','محترف':'🔵','خبير':'🟢'}[lvl]||'';
+  return `<div class="item" id="skill-item-${id}">
+    <div style="display:flex;align-items:center;justify-content:space-between">
+      <div><div class="item-title">${e.name}</div>${lvl?`<div class="item-sub">${lvlColor} ${lvl}</div>`:''}</div>
+      <div class="item-menu-wrap owner-only">
+        <button class="item-menu-btn" onclick="toggleItemMenuG(this)">⋯</button>
+        <div class="item-menu">
+          <div class="item-menu-opt" onclick="delSectionItem('skill-item-${id}','tw_skills','${lid}',${id})">🗑️ حذف</div>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderLangItem(e,lid){
+  const id=e.id||Date.now();const lvl=e.level||'';
+  const lvlColor={'مبتدئ':'🟡','محادثة':'🟠','جيد':'🔵','طلاقة':'🟢','لغة أم':'⭐'}[lvl]||'';
+  return `<div class="item" id="lang-item-${id}">
+    <div style="display:flex;align-items:center;justify-content:space-between">
+      <div><div class="item-title">${e.name}</div><div class="item-sub">${lvlColor} ${lvl}</div></div>
+      <div class="item-menu-wrap owner-only">
+        <button class="item-menu-btn" onclick="toggleItemMenuG(this)">⋯</button>
+        <div class="item-menu">
+          <div class="item-menu-opt" onclick="delSectionItem('lang-item-${id}','tw_langs','${lid}',${id})">🗑️ حذف</div>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderLinkItem(e,lid){
+  const id=e.id||Date.now();
+  return `<div class="item" id="link-item-${id}">
+    <div style="display:flex;align-items:center;justify-content:space-between">
+      <div><div class="item-title">${e.type}</div><a href="${e.url}" target="_blank" class="item-sub" style="color:var(--ac);word-break:break-all">${e.url}</a></div>
+      <div class="item-menu-wrap owner-only">
+        <button class="item-menu-btn" onclick="toggleItemMenuG(this)">⋯</button>
+        <div class="item-menu">
+          <div class="item-menu-opt" onclick="delSectionItem('link-item-${id}','tw_links','${lid}',${id})">🗑️ حذف</div>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderCourseItem(e,lid){
+  const id=e.id||Date.now();
+  return `<div class="item" id="course-item-${id}">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between">
+      <div>
+        <div class="item-title">${e.name}</div>
+        ${e.provider?`<div class="item-sub">${e.provider}</div>`:''}
+        <div class="item-date">${e.year||''}</div>
+        ${e.url?`<a href="${e.url}" target="_blank" style="font-size:.65rem;color:var(--ac)">📜 الشهادة</a>`:''}
+        <span class="badge pending">⏳ قيد المراجعة</span>
+      </div>
+      <div class="item-menu-wrap owner-only">
+        <button class="item-menu-btn" onclick="toggleItemMenuG(this)">⋯</button>
+        <div class="item-menu">
+          <div class="item-menu-opt" onclick="delSectionItem('course-item-${id}','tw_courses','${lid}',${id})">🗑️ حذف</div>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderGenericItem(e,lid){
+  const id=e.id||Date.now();
+  return `<div class="item" id="gen-item-${id}">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between">
+      <div><div class="item-title">${e.title}</div>${e.sub?`<div class="item-sub">${e.sub}</div>`:''}<div class="item-date">${e.date||''}</div></div>
+      <div class="item-menu-wrap owner-only">
+        <button class="item-menu-btn" onclick="toggleItemMenuG(this)">⋯</button>
+        <div class="item-menu">
+          <div class="item-menu-opt" onclick="delSectionItem('gen-item-${id}','tw_gen_'+('${lid}'),'${lid}',${id})">🗑️ حذف</div>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function toggleItemMenuG(btn){
+  const menu=btn.nextElementSibling;
+  document.querySelectorAll('.item-menu.open').forEach(m=>{ if(m!==menu) m.classList.remove('open'); });
+  menu?.classList.toggle('open');
+}
+
+function delSectionItem(elId, lsKeyBase, lid, itemId){
+  document.getElementById(elId)?.remove();
+  const uid=_sessionUser&&_sessionUser.id?'_'+_sessionUser.id:'';
+  try{
+    const key=lsKeyBase+uid;
+    const arr=JSON.parse(localStorage.getItem(key)||'[]').filter(x=>x.id!==itemId);
+    localStorage.setItem(key,JSON.stringify(arr));
+    const list=document.getElementById(lid);
+    if(list&&!list.querySelector('.item:not(.empty-hint)')){
+      list.innerHTML='<div class="item empty-hint"><div class="item-title" style="opacity:.4;font-size:.8rem">لا توجد عناصر — اضغط + لإضافة</div></div>';
+    }
+  }catch(ex){}
+}
+
+// ── Save section items ──
+function saveSectionItem(lsKey, item, lid, renderFn){
+  const uid=_sessionUser&&_sessionUser.id?'_'+_sessionUser.id:'';
+  const key=lsKey+uid;
+  try{
+    const arr=JSON.parse(localStorage.getItem(key)||'[]');
+    arr.unshift(item);
+    localStorage.setItem(key,JSON.stringify(arr));
+  }catch(ex){}
+  const el=document.getElementById(lid);
+  if(el){
+    el.querySelector('.empty-hint')?.remove();
+    el.insertAdjacentHTML('afterbegin',renderFn(item,lid));
+  }
+  closeModal();
+}
+
+function saveSkillItem(lid){
+  const name=document.getElementById('m-skill-name')?.value.trim();
+  if(!name){alert('أدخل اسم المهارة');return;}
+  const level=document.getElementById('m-skill-level')?.value||'';
+  saveSectionItem('tw_skills',{id:Date.now(),name,level},lid,renderSkillItem);
+}
+
+function saveLangItem(lid){
+  const name=document.getElementById('m-lang-name')?.value;
+  const level=document.getElementById('m-lang-level')?.value;
+  if(!name||!level){alert('اختر اللغة والمستوى');return;}
+  saveSectionItem('tw_langs',{id:Date.now(),name,level},lid,renderLangItem);
+}
+
+function saveLinkItem(lid){
+  const url=document.getElementById('m-link-url')?.value.trim();
+  if(!url){alert('أدخل الرابط');return;}
+  const type=document.getElementById('m-link-type')?.value||'رابط';
+  saveSectionItem('tw_links',{id:Date.now(),type,url},lid,renderLinkItem);
+}
+
+function saveCourseItem(lid){
+  const name=document.getElementById('m-course-name')?.value.trim();
+  if(!name){alert('أدخل اسم الدورة');return;}
+  const provider=document.getElementById('m-course-provider')?.value.trim()||'';
+  const year=document.getElementById('m-course-year')?.value||'';
+  const url=document.getElementById('m-course-url')?.value.trim()||'';
+  saveSectionItem('tw_courses',{id:Date.now(),name,provider,year,url},lid,renderCourseItem);
 }
 
 // Drag & Drop
@@ -1122,12 +1308,14 @@ function deleteEdu(id){
 
 function saveSectionOrder(){
   const order=[...secList.children].map(s=>s.id);
-  try{ localStorage.setItem('tw_sec_order',JSON.stringify(order)); }catch(ex){}
+  const _suid=_sessionUser&&_sessionUser.id?'_'+_sessionUser.id:'';
+  try{ localStorage.setItem('tw_sec_order'+_suid,JSON.stringify(order)); }catch(ex){}
 }
 
 function loadSectionOrder(){
   try{
-    const order=JSON.parse(localStorage.getItem('tw_sec_order'));
+    const _suid2=_sessionUser&&_sessionUser.id?'_'+_sessionUser.id:'';
+    const order=JSON.parse(localStorage.getItem('tw_sec_order'+_suid2));
     if(!order||!order.length) return;
     order.forEach(id=>{
       const el=document.getElementById(id);
@@ -1158,7 +1346,7 @@ function openModal(type,listId,secTitle){
     </div>
     <div class="mf"><label>التخصص / المسمى الوظيفي</label>
       <select id="m-title-sel" autocomplete="off" onchange="handleSpecialty(this)" style="width:100%;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;margin-bottom:6px">
-        <option value="">— اختر تخصصك (مرتبة حسب المجالات) —</option>
+        <option value="">— اختر تخصصك —</option>
         <optgroup label="💻 تقنية وبرمجة">
           <option>مطور برمجيات</option><option>مطور ويب</option><option>مطور تطبيقات موبايل</option>
           <option>مهندس شبكات</option><option>أمن معلومات</option><option>محلل بيانات</option>
@@ -1187,19 +1375,34 @@ function openModal(type,listId,secTitle){
           <option>مصمم جرافيك</option><option>مصور فوتوغرافي</option><option>مخرج فيديو</option>
           <option>كاتب محتوى</option><option>مدير وسائل تواصل</option>
         </optgroup>
-        <optgroup label="⚖️ قانون">
-          <option>محامي</option><option>مستشار قانوني</option><option>قاضي</option>
+        <optgroup label="⚖️ قانون وإدارة">
+          <option>محامي</option><option>مستشار قانوني</option>
+          <option>مساعد إداري</option><option>موظف إداري</option>
         </optgroup>
         <optgroup label="🔧 مهن وحرف">
-          <option>كهربائي</option><option>سباك</option><option>ميكانيكي</option>
-          <option>نجار</option><option>بناء</option>
+          <option>كهربائي</option><option>مساعد كهربائي</option>
+          <option>سباك</option><option>مساعد سباك</option>
+          <option>ميكانيكي</option><option>مساعد ميكانيكي</option>
+          <option>نجار</option><option>مساعد نجار</option>
+          <option>حداد</option><option>مساعد حداد</option>
+          <option>بناء/مقاول</option><option>لحام</option>
+          <option>فني تكييف وتبريد</option><option>مساعد فني تكييف</option>
+          <option>فني صيانة</option><option>مساعد فني صيانة</option>
         </optgroup>
-        <optgroup label="🏛️ حكومي وعسكري">
-          <option>موظف حكومي</option><option>ضابط</option><option>شرطي</option>
+        <optgroup label="💼 أعمال وإدارة - مساعدون">
+          <option>مساعد محاسب</option><option>مساعد مدير</option>
+          <option>مساعد مندوب مبيعات</option><option>مساعد موارد بشرية</option>
         </optgroup>
-        <option value="other">✏️ أخرى (اكتب يدوياً)</option>
+        <optgroup label="🍳 خدمات وضيافة">
+          <option>طاهي / شيف</option><option>مساعد طباخ</option>
+          <option>موظف استقبال</option><option>خدمة عملاء</option>
+          <option>سائق</option>
+        </optgroup>
+        <optgroup label="💊 صحة - مساعدون">
+          <option>مساعد صيدلاني</option><option>مساعد طبيب أسنان</option>
+          <option>مساعد تقني مختبرات</option>
+        </optgroup>
       </select>
-      <input id="m-title" autocomplete="off" value="${curTitle}" placeholder="أو اكتب مسماك الوظيفي..." style="display:${curTitle?'block':'none'}">
     </div>
     <div class="mf"><label>نبذة مختصرة</label><textarea autocomplete="off" id="m-bio" placeholder="اكتب نبذة مختصرة عنك...">${curBio}</textarea></div>
     <div class="mf"><label>تاريخ الميلاد</label>
@@ -1384,6 +1587,79 @@ function openModal(type,listId,secTitle){
     </div>
     <div class="mact"><button class="mbtn mbtn-ok" onclick="saveCustomSec()">إضافة</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
 
+  } else if(type==='skills'){
+    h=`<div class="modal-title">🛠️ إضافة مهارة</div>
+    <div class="mf"><label>اسم المهارة <span style="color:#f87171">*</span></label>
+      <input id="m-skill-name" autocomplete="off" placeholder="مثال: Python، Excel، Photoshop، إدارة مشاريع...">
+    </div>
+    <div class="mf"><label>مستوى الإتقان</label>
+      <select id="m-skill-level" style="width:100%;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;">
+        <option value="">— اختر المستوى —</option>
+        <option value="مبتدئ">🟡 مبتدئ</option>
+        <option value="متوسط">🟠 متوسط</option>
+        <option value="محترف">🔵 محترف</option>
+        <option value="خبير">🟢 خبير</option>
+      </select>
+    </div>
+    <div class="mact"><button class="mbtn mbtn-ok" onclick="saveSkillItem('${listId}')">إضافة</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
+
+  } else if(type==='langs'){
+    h=`<div class="modal-title">🌍 إضافة لغة</div>
+    <div class="mf"><label>اللغة <span style="color:#f87171">*</span></label>
+      <select id="m-lang-name" style="width:100%;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;">
+        <option value="">— اختر اللغة —</option>
+        <option>العربية</option><option>الإنجليزية</option><option>الفرنسية</option>
+        <option>الألمانية</option><option>الإسبانية</option><option>الإيطالية</option>
+        <option>الصينية</option><option>التركية</option><option>الفارسية</option>
+        <option>الأردية</option><option>أخرى</option>
+      </select>
+    </div>
+    <div class="mf"><label>المستوى <span style="color:#f87171">*</span></label>
+      <select id="m-lang-level" style="width:100%;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;">
+        <option value="">— اختر المستوى —</option>
+        <option value="مبتدئ">🟡 مبتدئ</option>
+        <option value="محادثة">🟠 محادثة</option>
+        <option value="جيد">🔵 جيد</option>
+        <option value="طلاقة">🟢 طلاقة</option>
+        <option value="لغة أم">⭐ لغة أم</option>
+      </select>
+    </div>
+    <div class="mact"><button class="mbtn mbtn-ok" onclick="saveLangItem('${listId}')">إضافة</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
+
+  } else if(type==='links'){
+    h=`<div class="modal-title">🔗 إضافة رابط</div>
+    <div class="mf"><label>نوع الرابط</label>
+      <select id="m-link-type" style="width:100%;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;">
+        <option>💼 LinkedIn</option><option>💻 GitHub</option>
+        <option>🎨 Behance</option><option>🏀 Dribbble</option>
+        <option>🌐 موقع شخصي</option><option>📺 YouTube</option>
+        <option>🔗 أخرى</option>
+      </select>
+    </div>
+    <div class="mf"><label>الرابط <span style="color:#f87171">*</span></label>
+      <input id="m-link-url" autocomplete="off" placeholder="https://..." style="direction:ltr;text-align:left">
+    </div>
+    <div class="mact"><button class="mbtn mbtn-ok" onclick="saveLinkItem('${listId}')">إضافة</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
+
+  } else if(type==='course'){
+    const yearOpts=[...Array(36)].map((_,i)=>{const y=new Date().getFullYear()-i;return '<option value="'+y+'">'+y+'</option>';}).join('');
+    h=`<div class="modal-title">📚 إضافة دورة تدريبية</div>
+    <div class="mf"><label>اسم الدورة <span style="color:#f87171">*</span></label>
+      <input id="m-course-name" autocomplete="off" placeholder="مثال: React Basics، CCNA، PMP...">
+    </div>
+    <div class="mf"><label>الجهة المقدِّمة</label>
+      <input id="m-course-provider" autocomplete="off" placeholder="مثال: Coursera، Udemy، أكاديمية تواصلنا...">
+    </div>
+    <div class="mf"><label>سنة الإتمام</label>
+      <select id="m-course-year" style="width:100%;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;">
+        <option value="">— اختر السنة —</option>${yearOpts}
+      </select>
+    </div>
+    <div class="mf"><label>رابط الشهادة <span style="opacity:.5;font-size:.7rem">(اختياري)</span></label>
+      <input id="m-course-url" autocomplete="off" placeholder="https://..." style="direction:ltr;text-align:left">
+    </div>
+    <div class="mact"><button class="mbtn mbtn-ok" onclick="saveCourseItem('${listId}')">إضافة</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
+
   } else if(type==='generic'){
     const yearOpts2=[...Array(36)].map((_,i)=>{const y=new Date().getFullYear()-i;return '<option value="'+y+'">'+y+'</option>';}).join('');
     h=`<div class="modal-title">+ إضافة في ${secTitle||''}</div>
@@ -1461,7 +1737,7 @@ function saveProfile(){
   const mn=document.getElementById('m-mn')?.value.trim()||'';
   const ln=document.getElementById('m-ln')?.value.trim()||'';
   const name=[fn,mn,ln].filter(Boolean).join(' ');
-  const title=document.getElementById('m-title').value.trim();
+  const title=document.getElementById('m-title-sel')?.value||'';
   const bio=document.getElementById('m-bio').value.trim();
   const dobD=document.getElementById('m-dob-d')?.value||'';
   const dobM=document.getElementById('m-dob-m')?.value||'';
@@ -2034,29 +2310,6 @@ function initQR(){
   drawSnapQR('snapCanvas', _qrUrl, 68);
 }
 window.addEventListener('load', initQR);
-</script>
-
-
-<script>
-window.addEventListener('beforeunload', () => {
-  try {
-    const profileForm = document.querySelector('form');
-    if(profileForm){
-      const data = Object.fromEntries(new FormData(profileForm).entries());
-      localStorage.setItem('tw_profile_backup', JSON.stringify(data));
-    }
-  } catch(e){}
-});
-
-window.addEventListener('DOMContentLoaded', () => {
-  try {
-    const saved = JSON.parse(localStorage.getItem('tw_profile_backup') || '{}');
-    Object.keys(saved).forEach(key => {
-      const el = document.querySelector(`[name="${key}"]`);
-      if(el) el.value = saved[key];
-    });
-  } catch(e){}
-});
 </script>
 
 </body>
