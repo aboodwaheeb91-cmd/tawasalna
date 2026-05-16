@@ -872,1237 +872,425 @@ body.s4 .add-sec-shortcut:hover {
 </div>
 
 <!-- ── MODAL ── -->
-<div class="overlay" id="overlay" onclick="closeOverlay(event)">
+<div class="overlay" id="overlay" onclick="if(event.target===this)closeModal()">
   <div class="modal" id="modal"></div>
 </div>
 
+
+<!-- QR Big -->
+<div id="qrOverlay" style="position:fixed;inset:0;z-index:3000;background:rgba(0,0,0,.88);display:none;align-items:center;justify-content:center;flex-direction:column;gap:12px;cursor:pointer" onclick="this.style.display='none'">
+  <div style="background:#fff;border-radius:20px;padding:20px"><canvas id="qrBigCanvas" width="200" height="200"></canvas></div>
+  <div style="color:rgba(255,255,255,.4);font-size:.75rem;font-family:Cairo,sans-serif">اضغط للإغلاق</div>
+</div>
+
+<input type="color" id="colorIn" oninput="handleColorPick(this.value)" style="position:absolute;opacity:0;width:0;height:0;">
+<input type="file" id="avatarInput" accept="image/*" onchange="handleAvatarUpload(this)" style="display:none">
+
 <script>
-// ── Smart isOwner detection ──
-let _sessionUser = null;
-try { _sessionUser = JSON.parse(localStorage.getItem('tw_user')); } catch(e){}
-const _urlId = new URLSearchParams(window.location.search).get('id');
-const isOwner = _sessionUser && (
-  !_urlId ||  // no id in URL = own profile
-  String(_urlId) === String(_sessionUser.id)
-);
-let curStyle = 1;
-let previewMode = false;
-let dragSrc = null;
 
-function hexRgb(h){ return [parseInt(h.slice(1,3),16),parseInt(h.slice(3,5),16),parseInt(h.slice(5,7),16)].join(','); }
+'use strict';
 
-function applyColor(hex){
-  document.documentElement.style.setProperty('--ac',hex);
-  document.documentElement.style.setProperty('--ac-rgb',hexRgb(hex));
-}
+// ── STATE ──
+let _user=null;
+try{_user=JSON.parse(localStorage.getItem('tw_user'));}catch(e){}
+const _urlId=new URLSearchParams(location.search).get('id');
+const isOwner=!!(_user&&(!_urlId||String(_urlId)===String(_user.id)));
+const _uid=_user&&_user.id?'_'+_user.id:'';
+let _previewMode=false,_specValue='',_dragSrc=null;
+let _cx=0,_cy=0,_cs=1,_cd=false,_clx=0,_cly=0;
+if(!isOwner) document.querySelectorAll('.owner-only').forEach(el=>el.style.display='none');
 
-function setColor(hex,el){
-  applyColor(hex);
-  document.querySelectorAll('.csw').forEach(s=>s.classList.remove('active'));
-  el.classList.add('active');
-  redrawQR();
-  try{ localStorage.setItem('tw_profile_color', hex); }catch(ex){}
-  setTimeout(closePanel,300);
-}
+const CITIES={JO:['عمان','إربد','الزرقاء','العقبة','السلط','مادبا','الكرك','معان','جرش'],SA:['الرياض','جدة','مكة المكرمة','المدينة المنورة','الدمام','الخبر','الطائف','أبها'],AE:['دبي','أبوظبي','الشارقة','عجمان','رأس الخيمة'],KW:['مدينة الكويت','حولي','الفروانية','الأحمدي'],QA:['الدوحة','الريان'],EG:['القاهرة','الإسكندرية','الجيزة','شرم الشيخ'],IQ:['بغداد','البصرة','الموصل','أربيل'],SY:['دمشق','حلب','حمص','اللاذقية'],LB:['بيروت','طرابلس'],PS:['رام الله','القدس','غزة','نابلس'],MA:['الرباط','الدار البيضاء','فاس'],DZ:['الجزائر','وهران'],TN:['تونس','صفاقس']};
+const CNAMES={JO:'الأردن',SA:'السعودية',AE:'الإمارات',KW:'الكويت',QA:'قطر',EG:'مصر',IQ:'العراق',SY:'سوريا',LB:'لبنان',PS:'فلسطين',MA:'المغرب',DZ:'الجزائر',TN:'تونس'};
+const SPECS={'💻 تقنية وبرمجة':['مطور برمجيات','مطور ويب','مطور تطبيقات موبايل','مهندس شبكات','مهندس أمن معلومات','محلل بيانات','مهندس ذكاء اصطناعي','مصمم UX/UI','دعم تقني'],'⚙️ هندسة':['مهندس مدني','مهندس كهربائي','مهندس ميكانيكي','مهندس إلكترونيات','مهندس كيميائي','مهندس معماري','رسام هندسي'],'💊 صحة وطب':['طبيب عام','طبيب متخصص','طبيب أسنان','صيدلاني','مساعد صيدلاني','ممرض/ممرضة','تقني مختبرات','مساعد تقني مختبرات','أخصائي تغذية','معالج فيزيائي'],'💼 أعمال وإدارة':['محاسب','مدقق حسابات','مدير مشاريع','محلل أعمال','مدير تسويق','مندوب مبيعات','موارد بشرية','مدير عام'],'📚 تعليم وتدريب':['معلم','مدرب','أستاذ جامعي','مرشد تربوي','محاضر'],'🎨 إبداع وتصميم':['مصمم جرافيك','مصمم داخلي','مصور فوتوغرافي','مخرج/مونتاج','كاتب محتوى','مدير وسائل تواصل'],'⚖️ قانون':['محامي','مستشار قانوني','كاتب عدل'],'🔧 مهن وحرف':['كهربائي','مساعد كهربائي','سباك','مساعد سباك','ميكانيكي','مساعد ميكانيكي','نجار','بناء/مقاول','حداد','لحام'],'🚗 لوجستيات':['سائق','مشغل معدات','أمن وحراسة','خدمة عملاء','طاهي/شيف','مساعد طاهي']};
 
-document.getElementById('colorIn').addEventListener('input',e=>{
-  applyColor(e.target.value);
-  document.querySelectorAll('.csw').forEach(s=>s.classList.remove('active'));
-  redrawQR();
-  try{ localStorage.setItem('tw_profile_color', e.target.value); }catch(ex){}
-});
+function LS(k){try{return JSON.parse(localStorage.getItem(k)||'[]');}catch(e){return[];}}
+function LSset(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}}
+function selStyle(){return 'width:100%;padding:9px 11px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:9px;color:#fff;font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;';}
+function yearOpts(n=36){return[...Array(n)].map((_,i)=>{const y=new Date().getFullYear()-i;return'<option value="'+y+'">'+y+'</option>';}).join('');}
+function countrySelHTML(id){return'<select id="'+id+'" style="'+selStyle()+'" onchange="loadCities(\''+id+'\',\''+id.replace('country','city')+'\')"><option value="">— اختر البلد —</option>'+Object.entries(CNAMES).map(([k,v])=>'<option value="'+k+'">'+v+'</option>').join('')+'<option value="OTHER">🌍 أخرى</option></select>';}
+function citySelHTML(id){return'<select id="'+id+'" style="'+selStyle()+'"><option value="">— اختر المدينة —</option></select>';}
+function loadCities(cid,lid){const cc=document.getElementById(cid)?.value;const cs=document.getElementById(lid);if(!cs)return;cs.innerHTML='<option value="">— اختر المدينة —</option>'+(CITIES[cc]||[]).map(c=>'<option>'+c+'</option>').join('');}
 
-function setStyle(n,el){
-  const wrap = document.getElementById('cvWrap');
-  wrap.classList.add('fading');
-  setTimeout(()=>{
-    document.body.className = document.body.className.replace(/\bs\d\b/,'').trim();
-    document.body.classList.add('s'+n);
-    if(previewMode) document.body.classList.add('preview-mode');
-    curStyle = n;
-    document.querySelectorAll('.sopt').forEach(o=>{
-      o.classList.remove('active');
-      o.querySelector('.schk').style.display='none';
-    });
-    el.classList.add('active');
-    el.querySelector('.schk').style.display='';
-    const head=document.getElementById('cvHead'), main=document.getElementById('cvMain'), wEl=document.getElementById('cvWrap');
-    if(n===5) wEl.insertBefore(head,main); else wEl.insertBefore(head,wEl.firstChild);
-    wrap.classList.remove('fading');
-    // Save style
-    try{ localStorage.setItem('tw_profile_style', n); }catch(ex){}
-    setTimeout(closePanel, 300);
-  },250);
-}
+(function init(){
+  if(!_user||!_user.id)return;
+  document.getElementById('cvCode').textContent='TW-'+((_user.user_type||'emp').toUpperCase())+'-'+_user.id;
+  try{const p=JSON.parse(localStorage.getItem('tw_prof'+_uid)||'{}');if(p.name||_user.full_name)document.getElementById('cvName').textContent=p.name||_user.full_name;if(p.title)document.getElementById('cvTitle').textContent=p.title;if(p.bio)document.getElementById('cvBio').textContent=p.bio;if(p.loc)document.getElementById('cvLoc').textContent='📍 '+p.loc;if(p.avail)showAvail(p.avail);if(p.dob)showAge(p.dob);}catch(e){}
+  loadIntoList('tw_exp'+_uid,'exp-list',renderExpItem);
+  loadIntoList('tw_edu'+_uid,'edu-list',renderEduItem);
+  loadSectionData();loadSectionOrder();updateExpBadge();
+  const av=localStorage.getItem('tw_avatar'+_uid);if(av)setAvatarImg(av);
+  const sc=localStorage.getItem('tw_color'+_uid)||'#00c896';
+  const ss=parseInt(localStorage.getItem('tw_style'+_uid))||1;
+  applyColor(sc);if(ss!==1)applyStyleN(ss);
+  document.querySelectorAll('.csw').forEach(s=>{if(s.style.background===sc)s.classList.add('active');else s.classList.remove('active');});
+  setTimeout(drawQR,300);
+  fetch('/profile/'+_user.id+'/full').then(r=>r.json()).then(data=>{const p=data.profile;if(!p)return;const prof=JSON.parse(localStorage.getItem('tw_prof'+_uid)||'{}');if(p.full_name){prof.name=p.full_name;document.getElementById('cvName').textContent=p.full_name;}if(p.headline){prof.title=p.headline;document.getElementById('cvTitle').textContent=p.headline;}if(p.bio){prof.bio=p.bio;document.getElementById('cvBio').textContent=p.bio;}if(p.location){prof.loc=p.location;document.getElementById('cvLoc').textContent='📍 '+p.location;}LSset('tw_prof'+_uid,prof);}).catch(()=>{});
+})();
 
+function loadIntoList(key,listId,renderFn){try{const items=LS(key);const el=document.getElementById(listId);if(!el||!items.length)return;el.innerHTML='';items.forEach(item=>el.insertAdjacentHTML('beforeend',renderFn(item)));}catch(e){}}
+function applyColor(hex){document.documentElement.style.setProperty('--ac',hex);const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);document.documentElement.style.setProperty('--acr',r+','+g+','+b);drawQR();}
+function setColor(hex,el){applyColor(hex);document.querySelectorAll('.csw').forEach(s=>s.classList.remove('active'));el.classList.add('active');LSset('tw_color'+_uid,hex);}
+function handleColorPick(hex){applyColor(hex);document.querySelectorAll('.csw').forEach(s=>s.classList.remove('active'));LSset('tw_color'+_uid,hex);}
+function applyStyleN(n){document.body.className='s'+n;if(_previewMode)document.body.classList.add('preview-mode');document.querySelectorAll('.sopt').forEach(o=>{o.classList.remove('active');o.querySelector('.schk').style.display='none';});const el=document.getElementById('sopt'+n);if(el){el.classList.add('active');el.querySelector('.schk').style.display='';}const head=document.getElementById('cvHead'),main=document.getElementById('secList'),wrap=document.getElementById('cvWrap');if(n===5)wrap.insertBefore(head,main);else if(wrap.firstChild!==head)wrap.insertBefore(head,wrap.firstChild);}
+function setStyle(n,el){const wrap=document.getElementById('cvWrap');wrap.classList.add('fading');setTimeout(()=>{applyStyleN(n);wrap.classList.remove('fading');LSset('tw_style'+_uid,n);setTimeout(closePanel,300);},200);}
+function openPanel(){document.getElementById('panelOverlay').classList.add('show');}
+function closePanel(){document.getElementById('panelOverlay').classList.remove('show');}
+function toggleAcc(id){const body=document.getElementById(id);const arr=document.getElementById('arr-'+id);const wasOpen=body.classList.contains('open');document.querySelectorAll('.acc-body').forEach(b=>b.classList.remove('open'));document.querySelectorAll('.acc-arr').forEach(a=>a.classList.remove('open'));if(!wasOpen){body.classList.add('open');if(arr)arr.classList.add('open');}}
+function togglePreview(){_previewMode=!_previewMode;document.body.classList.toggle('preview-mode',_previewMode);const btn=document.getElementById('previewBtn');btn.classList.toggle('active',_previewMode);btn.textContent=_previewMode?'← رجوع':'👁';}
+function buildSpecDropdown(containerId,currentVal){_specValue=currentVal||'';const wrap=document.getElementById(containerId);if(!wrap)return;const allOpts=Object.values(SPECS).flat();const isCustom=currentVal&&!allOpts.includes(currentVal);wrap.innerHTML='<div class="spec-wrap"><button type="button" class="spec-trigger" id="specTrigger" onclick="toggleSpec()"><span id="specLabel">'+(currentVal||'— اختر تخصصك —')+'</span><span class="spec-arrow">▾</span></button><div class="spec-dropdown" id="specDropdown">'+Object.entries(SPECS).map(([g,opts])=>'<div class="spec-group">'+g+'</div>'+opts.map(o=>'<div class="spec-opt'+(o===currentVal?' sel':'')+'" onclick="selectSpec(\''+o.replace(/'/g,"\'")+'\')">'+o+'</div>').join('')).join('')+'<div class="spec-group">✏️ أخرى</div><div class="spec-opt" onclick="selectSpec(\'other\')">اكتب تخصصك يدوياً...</div></div><input class="spec-other'+(isCustom?' show':'')+'" id="specOtherInput" placeholder="اكتب تخصصك..." value="'+(isCustom?currentVal:'')+'" oninput="_specValue=this.value" autocomplete="off"></div>';}
+function toggleSpec(){document.getElementById('specTrigger').classList.toggle('open');document.getElementById('specDropdown').classList.toggle('open');}
+function selectSpec(val){if(val==='other'){_specValue='';document.getElementById('specLabel').textContent='اكتب تخصصك...';document.getElementById('specOtherInput').classList.add('show');document.getElementById('specOtherInput').focus();}else{_specValue=val;document.getElementById('specLabel').textContent=val;document.getElementById('specLabel').style.color='#fff';document.querySelectorAll('.spec-opt').forEach(o=>o.classList.toggle('sel',o.textContent===val));document.getElementById('specOtherInput')?.classList.remove('show');}document.getElementById('specTrigger')?.classList.remove('open');document.getElementById('specDropdown')?.classList.remove('open');}
+function getSpecValue(){const other=document.getElementById('specOtherInput');if(other&&other.classList.contains('show'))return other.value.trim();return _specValue;}
+document.addEventListener('click',e=>{if(!e.target.closest('.spec-wrap')){document.querySelectorAll('.spec-trigger.open').forEach(t=>t.classList.remove('open'));document.querySelectorAll('.spec-dropdown.open').forEach(d=>d.classList.remove('open'));}});
 
-function toggleAcc(id){
-  const body = document.getElementById(id);
-  const suffix = id.split('-')[1];
-  const arr = document.getElementById('arr-' + suffix);
-  const isOpen = body.classList.contains('open');
-  // Close all
-  document.querySelectorAll('.acc-body').forEach(b => b.classList.remove('open'));
-  document.querySelectorAll('.acc-arr').forEach(a => a.classList.remove('open'));
-  // Open clicked if was closed
-  if(!isOpen){
-    body.classList.add('open');
-    if(arr) arr.classList.add('open');
-  }
-}
-
-function openPanel(){ document.getElementById('panelOverlay').classList.add('show'); }
-function closePanel(){ document.getElementById('panelOverlay').classList.remove('show'); }
-function closePanelClick(e){ if(e.target===document.getElementById('panelOverlay')) closePanel(); }
-
-function togglePreview(){
-  previewMode = !previewMode;
-  document.body.classList.toggle('preview-mode',previewMode);
-  const btn = document.getElementById('previewBtn');
-  btn.innerHTML = previewMode ? '← رجوع للتعديل' : '👁 معاينة';
-  btn.classList.toggle('active',previewMode);
-  if(previewMode) closePanel();
-}
-
-const SECTION_MODAL_TYPES = {
-  'course':'course',
-  'skills':'skills',
-  'langs':'langs',
-  'links':'links'
-};
-
-function addSection(id,icon,title,el){
-  if(document.getElementById('sec-'+id)) return;
-  const lid=id+'-list';
-  document.getElementById('secList').insertAdjacentHTML('beforeend',`
-    <div class="section" id="sec-${id}" draggable="true">
-      <div class="sec-header"><span class="sec-icon">${icon}</span><span class="sec-title">${title}</span><div class="sec-line"></div></div>
-      <div id="${lid}"></div>
-      <button class="add-item-btn owner-only" onclick="openModal(SECTION_MODAL_TYPES['${id}']||'generic','${lid}','${title}')">+ إضافة</button>
-      <div class="drag-handle owner-only"><span></span><span></span><span></span></div>
-    </div>`);
-  el.classList.add('added');
-  el.onclick=null;
-  el.querySelector('.asec-ico').insertAdjacentHTML('afterend','');
-  el.insertAdjacentHTML('beforeend','<span class="asec-done">✓</span>');
-  setTimeout(closePanel,400);
-}
-
-// Drag & Drop
-const secList=document.getElementById('secList');
-secList.addEventListener('dragstart',e=>{ dragSrc=e.target.closest('.section'); if(dragSrc) setTimeout(()=>dragSrc.style.opacity='.4',0); });
-secList.addEventListener('dragend',e=>{ const s=e.target.closest('.section'); if(s) s.style.opacity='1'; document.querySelectorAll('.section').forEach(x=>x.classList.remove('drag-over')); });
-secList.addEventListener('dragover',e=>{ e.preventDefault(); const ov=e.target.closest('.section'); if(ov&&ov!==dragSrc){ document.querySelectorAll('.section').forEach(x=>x.classList.remove('drag-over')); ov.classList.add('drag-over'); } });
-secList.addEventListener('drop',e=>{
-  e.preventDefault();
-  const ov=e.target.closest('.section');
-  if(ov&&ov!==dragSrc){
-    const items=[...secList.children];
-    if(items.indexOf(dragSrc)<items.indexOf(ov)) secList.insertBefore(dragSrc,ov.nextSibling);
-    else secList.insertBefore(dragSrc,ov);
-    ov.classList.remove('drag-over');
-    saveSectionOrder();
-  }
-});
-
-
-
-// ── Field validation helpers ──
-function setFieldErr(inputId, errId, msg){
-  const el=document.getElementById(inputId);
-  const err=document.getElementById(errId);
-  if(el){ el.style.borderColor='#f87171'; el.style.boxShadow='0 0 0 3px rgba(248,113,113,.15)'; }
-  if(err){ err.textContent=msg; err.style.display='block'; }
-}
-function clearFieldErr(inputId, errId){
-  const el=document.getElementById(inputId);
-  const err=document.getElementById(errId);
-  if(el){ el.style.borderColor=''; el.style.boxShadow=''; }
-  if(err){ err.style.display='none'; }
-}
-
-// ── Cities data ──
-const CITIES = {
-  JO:['عمان','إربد','الزرقاء','العقبة','السلط','مادبا','الكرك','معان','جرش','عجلون','الطفيلة'],
-  SA:['الرياض','جدة','مكة المكرمة','المدينة المنورة','الدمام','الخبر','الطائف','أبها','تبوك','القطيف','بريدة'],
-  AE:['دبي','أبوظبي','الشارقة','عجمان','رأس الخيمة','الفجيرة','أم القيوين','العين'],
-  KW:['مدينة الكويت','حولي','الفروانية','الأحمدي','الجهراء','مبارك الكبير'],
-  QA:['الدوحة','الريان','الوكرة','أم صلال','الخور','الشمال'],
-  BH:['المنامة','المحرق','الرفاع','مدينة عيسى','مدينة حمد'],
-  OM:['مسقط','صلالة','نزوى','صحار','السيب','مطرح','البريمي'],
-  EG:['القاهرة','الإسكندرية','الجيزة','شرم الشيخ','الأقصر','أسوان','طنطا','المنصورة','الفيوم','بورسعيد'],
-  IQ:['بغداد','البصرة','الموصل','أربيل','كربلاء','النجف','السليمانية','كركوك'],
-  SY:['دمشق','حلب','حمص','اللاذقية','حماة','دير الزور','الرقة','درعا'],
-  LB:['بيروت','طرابلس','صيدا','صور','جونية','زحلة'],
-  PS:['رام الله','القدس','غزة','نابلس','الخليل','جنين','أريحا','بيت لحم'],
-  YE:['صنعاء','عدن','تعز','الحديدة','إب','ذمار','مأرب'],
-  LY:['طرابلس','بنغازي','مصراتة','الزاوية','البيضاء','سبها'],
-  TN:['تونس','صفاقس','سوسة','بنزرت','قابس','القيروان'],
-  DZ:['الجزائر','وهران','قسنطينة','عنابة','سطيف','تلمسان'],
-  MA:['الرباط','الدار البيضاء','فاس','مراكش','مكناس','أكادير','طنجة'],
-  SD:['الخرطوم','أم درمان','بورتسودان','كسلا','الأبيض'],
-};
-
-function getCountryName(code){
-  const names={JO:'الأردن',SA:'السعودية',AE:'الإمارات',KW:'الكويت',QA:'قطر',
-    BH:'البحرين',OM:'عُمان',EG:'مصر',IQ:'العراق',SY:'سوريا',LB:'لبنان',
-    PS:'فلسطين',YE:'اليمن',LY:'ليبيا',TN:'تونس',DZ:'الجزائر',MA:'المغرب',SD:'السودان'};
-  return names[code]||'';
-}
-
-
-function filterEndYears(){
-  const startYear = parseInt(document.getElementById('m-es')?.value)||0;
-  const endSel = document.getElementById('m-ee');
-  if(!endSel||!startYear) return;
-  const current = endSel.value;
-  const maxYear = new Date().getFullYear();
-  let html = '<option value="حتى الآن">حتى الآن</option>';
-  for(let y=maxYear; y>=startYear; y--){
-    html += `<option value="${y}">${y}</option>`;
-  }
-  endSel.innerHTML = html;
-  // Restore selection if still valid
-  if(current && current !== 'حتى الآن' && parseInt(current) >= startYear){
-    endSel.value = current;
-  } else {
-    endSel.value = 'حتى الآن';
-  }
-}
-
-function loadCities(){
-  const country=document.getElementById('m-country')?.value;
-  const cityWrap=document.getElementById('city-wrap');
-  const citySelect=document.getElementById('m-city');
-  if(!cityWrap||!citySelect) return;
-  if(!country||country==='OTHER'){ cityWrap.style.display='none'; return; }
-  const cities=CITIES[country]||[];
-  citySelect.innerHTML='<option value="">— اختر المدينة —</option>'+
-    cities.map(city=>`<option value="${city}">${city}</option>`).join('');
-  cityWrap.style.display='block';
-}
-
-
-// ── Section Save Functions ──
-function saveSkill(lid){
-  const name=document.getElementById('m-skill-name')?.value.trim();
-  if(!name) return;
-  const level=document.getElementById('m-skill-level')?.value||'';
-  const levelIcon={'مبتدئ':'🟡','متوسط':'🟠','متقدم':'🔵','خبير':'🟢'}[level]||'';
-  const id=Date.now();
-  document.getElementById(lid)?.insertAdjacentHTML('afterbegin',
-    `<div class="item" id="skill-${id}">
-      <div style="display:flex;align-items:center;justify-content:space-between">
-        <div><div class="item-title">${name}</div>${level?`<div class="item-sub">${levelIcon} ${level}</div>`:''}</div>
-        <div class="item-menu-wrap owner-only">
-          <button class="item-menu-btn" onclick="toggleItemMenu('smenu-${id}')">⋯</button>
-          <div class="item-menu" id="smenu-${id}">
-            <div class="item-menu-opt" onclick="delItem('skill-${id}','${lid}','tw_skills')">🗑️ حذف</div>
-          </div>
-        </div>
-      </div>
-    </div>`);
-  saveToLS('tw_skills', {id,name,level});
-  closeModal();
-}
-
-function saveLang(lid){
-  const name=document.getElementById('m-lang-name')?.value;
-  const level=document.getElementById('m-lang-level')?.value;
-  if(!name||!level) return;
-  const levelIcon={'مبتدئ':'🟡','محادثة':'🟠','جيد':'🔵','طلاقة':'🟢','لغة أم':'⭐'}[level]||'';
-  const id=Date.now();
-  document.getElementById(lid)?.insertAdjacentHTML('afterbegin',
-    `<div class="item" id="lang-${id}">
-      <div style="display:flex;align-items:center;justify-content:space-between">
-        <div><div class="item-title">${name}</div><div class="item-sub">${levelIcon} ${level}</div></div>
-        <div class="item-menu-wrap owner-only">
-          <button class="item-menu-btn" onclick="toggleItemMenu('lmenu-${id}')">⋯</button>
-          <div class="item-menu" id="lmenu-${id}">
-            <div class="item-menu-opt" onclick="delItem('lang-${id}','${lid}','tw_langs')">🗑️ حذف</div>
-          </div>
-        </div>
-      </div>
-    </div>`);
-  saveToLS('tw_langs', {id,name,level});
-  closeModal();
-}
-
-function saveLink(lid){
-  const url=document.getElementById('m-link-url')?.value.trim();
-  if(!url) return;
-  const type=document.getElementById('m-link-type')?.value||'رابط';
-  const id=Date.now();
-  document.getElementById(lid)?.insertAdjacentHTML('afterbegin',
-    `<div class="item" id="link-${id}">
-      <div style="display:flex;align-items:center;justify-content:space-between">
-        <div>
-          <div class="item-title">${type}</div>
-          <a href="${url}" target="_blank" class="item-sub" style="color:var(--ac);word-break:break-all">${url}</a>
-        </div>
-        <div class="item-menu-wrap owner-only">
-          <button class="item-menu-btn" onclick="toggleItemMenu('linkmenu-${id}')">⋯</button>
-          <div class="item-menu" id="linkmenu-${id}">
-            <div class="item-menu-opt" onclick="delItem('link-${id}','${lid}','tw_links')">🗑️ حذف</div>
-          </div>
-        </div>
-      </div>
-    </div>`);
-  saveToLS('tw_links', {id,type,url});
-  closeModal();
-}
-
-function saveCourse(lid){
-  const name=document.getElementById('m-course-name')?.value.trim();
-  if(!name) return;
-  const provider=document.getElementById('m-course-provider')?.value.trim()||'';
-  const year=document.getElementById('m-course-year')?.value||'';
-  const url=document.getElementById('m-course-url')?.value.trim()||'';
-  const id=Date.now();
-  document.getElementById(lid)?.insertAdjacentHTML('afterbegin',
-    `<div class="item" id="course-${id}">
-      <div style="display:flex;align-items:flex-start;justify-content:space-between">
-        <div>
-          <div class="item-title">${name}</div>
-          ${provider?`<div class="item-sub">${provider}</div>`:''}
-          <div class="item-date">${year}</div>
-          ${url?`<a href="${url}" target="_blank" style="font-size:.65rem;color:var(--ac)">📜 الشهادة</a>`:''}
-          <span class="badge pending">⏳ قيد المراجعة</span>
-        </div>
-        <div class="item-menu-wrap owner-only">
-          <button class="item-menu-btn" onclick="toggleItemMenu('cmenu-${id}')">⋯</button>
-          <div class="item-menu" id="cmenu-${id}">
-            <div class="item-menu-opt" onclick="delItem('course-${id}','${lid}','tw_courses')">🗑️ حذف</div>
-          </div>
-        </div>
-      </div>
-    </div>`);
-  saveToLS('tw_courses', {id,name,provider,year,url});
-  closeModal();
-}
-
-// ── localStorage helpers ──
-function saveToLS(key, item){
-  try{
-    const uid=_sessionUser&&_sessionUser.id?'_'+_sessionUser.id:'';
-    const arr=JSON.parse(localStorage.getItem(key+uid)||'[]');
-    arr.unshift(item);
-    localStorage.setItem(key+uid, JSON.stringify(arr));
-  }catch(e){}
-}
-
-function delItem(elId, lid, lsKey){
-  document.getElementById(elId)?.remove();
-  try{
-    const uid=_sessionUser&&_sessionUser.id?'_'+_sessionUser.id:'';
-    const id=parseInt(elId.split('-').pop());
-    const arr=JSON.parse(localStorage.getItem(lsKey+uid)||'[]').filter(x=>x.id!==id);
-    localStorage.setItem(lsKey+uid, JSON.stringify(arr));
-    // Show empty hint if needed
-    const list=document.getElementById(lid);
-    if(list&&!list.querySelector('.item:not(.empty-hint)')){
-      list.innerHTML='<div class="item empty-hint"><div class="item-title" style="opacity:.4;font-size:.8rem">لا يوجد عناصر — اضغط + لإضافة</div></div>';
-    }
-  }catch(e){}
-}
-
-// ── Fix saveGeneric with localStorage ──
-
-// ── Render functions with ... menu ──
-function renderExpItem(e){
-  const id = e.id||Date.now();
-  return `<div class="item" id="exp-${id}">
-    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
-      <div style="flex:1">
-        <div class="item-title">${e.title}</div>
-        <div class="item-sub">${e.company}${e.location?' · '+e.location:''}${e.work_type?' · '+e.work_type:''}</div>
-        <div class="item-date">${e.start_date||''}${e.end_date?' - '+e.end_date:''}</div>
-        ${e.desc?`<div style="font-size:.73rem;color:rgba(255,255,255,.4);margin-top:4px;line-height:1.5">${e.desc}</div>`:''}
-        <span class="badge pending">⏳ قيد المراجعة</span>
-      </div>
-      <div class="item-menu-wrap owner-only">
-        <button class="item-menu-btn" onclick="toggleItemMenu('emenu-${id}')">⋯</button>
-        <div class="item-menu" id="emenu-${id}">
-          <div class="item-menu-opt" onclick="editExp(${id})">✏️ تعديل</div>
-          <div class="item-menu-opt" onclick="deleteExp(${id})">🗑️ حذف</div>
-        </div>
-      </div>
-    </div>
-  </div>`;
-}
-
-function renderEduItem(e){
-  const id = e.id||Date.now();
-  const degreeTitle = e.degree_type?(e.degree_type+(e.degree?' - '+e.degree:'')):(e.degree||'شهادة');
-  return `<div class="item" id="edu-${id}">
-    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
-      <div style="flex:1">
-        <div class="item-title">${degreeTitle}</div>
-        <div class="item-sub">${e.institution}${e.gpa?' · المعدل: '+e.gpa:''}</div>
-        <div class="item-date">${e.end_year||''}</div>
-        <span class="badge pending">⏳ قيد المراجعة</span>
-      </div>
-      <div class="item-menu-wrap owner-only">
-        <button class="item-menu-btn" onclick="toggleItemMenu('emenu-${id}')">⋯</button>
-        <div class="item-menu" id="emenu-${id}">
-          <div class="item-menu-opt" onclick="editEdu(${id})">✏️ تعديل</div>
-          <div class="item-menu-opt" onclick="deleteEdu(${id})">🗑️ حذف</div>
-        </div>
-      </div>
-    </div>
-  </div>`;
-}
-
-function toggleItemMenu(id){
-  // Close all open menus first
-  document.querySelectorAll('.item-menu.open').forEach(m=>{
-    if(m.id!==id) m.classList.remove('open');
-  });
-  const m=document.getElementById(id);
-  if(m) m.classList.toggle('open');
-}
-document.addEventListener('click',e=>{
-  if(!e.target.closest('.item-menu-wrap')){
-    document.querySelectorAll('.item-menu.open').forEach(m=>m.classList.remove('open'));
-  }
-});
-
-
-function editExp(id){
-  const uid=_sessionUser&&_sessionUser.id?'_'+_sessionUser.id:'';
-  try{
-    const exp=JSON.parse(localStorage.getItem('tw_exp'+uid)||'[]');
-    const item=exp.find(e=>e.id===id);
-    if(!item) return;
-    // Open modal pre-filled
-    openModal('exp');
-    // After modal opens, fill values
-    setTimeout(()=>{
-      const et=document.getElementById('m-et'); if(et) et.value=item.title||'';
-      const ec=document.getElementById('m-ec'); if(ec) ec.value=item.company||'';
-      const es=document.getElementById('m-es'); if(es) es.value=item.start_date||'';
-      const ee=document.getElementById('m-ee'); if(ee) ee.value=item.end_date||'حتى الآن';
-      const etype=document.getElementById('m-etype'); if(etype) etype.value=item.work_type||'';
-      const ed2=document.getElementById('m-edesc'); if(ed2) ed2.value=item.desc||'';
-      // Store edit ID so saveExp knows to update not add
-      document.getElementById('modal').dataset.editId=id;
-      document.getElementById('modal').dataset.editType='exp';
-      // Change button text
-      const okBtn=document.querySelector('.mbtn-ok');
-      if(okBtn) okBtn.textContent='حفظ التعديل';
-    },50);
-  }catch(ex){}
-}
-
-function editEdu(id){
-  const uid=_sessionUser&&_sessionUser.id?'_'+_sessionUser.id:'';
-  try{
-    const edu=JSON.parse(localStorage.getItem('tw_edu'+uid)||'[]');
-    const item=edu.find(e=>e.id===id);
-    if(!item) return;
-    openModal('edu');
-    setTimeout(()=>{
-      const ed=document.getElementById('m-ed'); if(ed) ed.value=item.degree||'';
-      const ei=document.getElementById('m-ei'); if(ei) ei.value=item.institution||'';
-      const ey=document.getElementById('m-ey'); if(ey) ey.value=item.end_year||'';
-      const dt=document.getElementById('m-dtype'); if(dt) dt.value=item.degree_type||'';
-      const gp=document.getElementById('m-egpa'); if(gp) gp.value=item.gpa||'';
-      document.getElementById('modal').dataset.editId=id;
-      document.getElementById('modal').dataset.editType='edu';
-      const okBtn=document.querySelector('.mbtn-ok');
-      if(okBtn) okBtn.textContent='حفظ التعديل';
-    },50);
-  }catch(ex){}
-}
-
-function deleteExp(id){
-  document.getElementById('exp-'+id)?.remove();
-  try{
-    const uid=_sessionUser&&_sessionUser.id?'_'+_sessionUser.id:'';
-    const exp=JSON.parse(localStorage.getItem('tw_exp'+uid)||'[]').filter(e=>e.id!==id);
-    localStorage.setItem('tw_exp'+uid,JSON.stringify(exp));
-    if(!exp.length) document.getElementById('exp-list').innerHTML='<div class="item empty-hint"><div class="item-title" style="opacity:.4;font-size:.8rem">لا توجد خبرات بعد — اضغط + لإضافة أول خبرة</div></div>';
-    updateExpBadge();
-  }catch(ex){}
-}
-
-function deleteEdu(id){
-  document.getElementById('edu-'+id)?.remove();
-  try{
-    const uid=_sessionUser&&_sessionUser.id?'_'+_sessionUser.id:'';
-    const edu=JSON.parse(localStorage.getItem('tw_edu'+uid)||'[]').filter(e=>e.id!==id);
-    localStorage.setItem('tw_edu'+uid,JSON.stringify(edu));
-    if(!edu.length) document.getElementById('edu-list').innerHTML='<div class="item empty-hint"><div class="item-title" style="opacity:.4;font-size:.8rem">لا توجد شهادات بعد — اضغط + لإضافة شهادة</div></div>';
-  }catch(ex){}
-}
-
-
-function loadSectionData(){
-  if(!_sessionUser||!_sessionUser.id) return;
-  const uid='_'+_sessionUser.id;
-  const sections=[
-    {key:'tw_skills'+uid, lid:'skills-list', render:(item)=>`<div class="item" id="skill-${item.id}"><div style="display:flex;align-items:center;justify-content:space-between"><div><div class="item-title">${item.name}</div>${item.level?`<div class="item-sub">${item.level}</div>`:''}</div><div class="item-menu-wrap owner-only"><button class="item-menu-btn" onclick="toggleItemMenu('smenu-${item.id}')">⋯</button><div class="item-menu" id="smenu-${item.id}"><div class="item-menu-opt" onclick="delItem('skill-${item.id}','skills-list','tw_skills')">🗑️ حذف</div></div></div></div></div>`},
-    {key:'tw_langs'+uid, lid:'langs-list', render:(item)=>`<div class="item" id="lang-${item.id}"><div style="display:flex;align-items:center;justify-content:space-between"><div><div class="item-title">${item.name}</div><div class="item-sub">${item.level}</div></div><div class="item-menu-wrap owner-only"><button class="item-menu-btn" onclick="toggleItemMenu('lmenu-${item.id}')">⋯</button><div class="item-menu" id="lmenu-${item.id}"><div class="item-menu-opt" onclick="delItem('lang-${item.id}','langs-list','tw_langs')">🗑️ حذف</div></div></div></div></div>`},
-    {key:'tw_courses'+uid, lid:'course-list', render:(item)=>`<div class="item" id="course-${item.id}"><div class="item-title">${item.name}</div>${item.provider?`<div class="item-sub">${item.provider}</div>`:''}<div class="item-date">${item.year||''}</div></div>`},
-    {key:'tw_links'+uid, lid:'links-list', render:(item)=>`<div class="item" id="link-${item.id}"><div class="item-title">${item.type}</div><a href="${item.url}" target="_blank" class="item-sub" style="color:var(--ac)">${item.url}</a></div>`},
-  ];
-  sections.forEach(({key,lid,render})=>{
-    try{
-      const arr=JSON.parse(localStorage.getItem(key)||'[]');
-      const el=document.getElementById(lid);
-      if(el&&arr.length){
-        el.innerHTML='';
-        arr.forEach(item=>el.insertAdjacentHTML('beforeend',render(item)));
-      }
-    }catch(e){}
-  });
-}
-
-function saveSectionOrder(){
-  const order=[...secList.children].map(s=>s.id);
-  try{ localStorage.setItem('tw_sec_order',JSON.stringify(order)); }catch(ex){}
-}
-
-function loadSectionOrder(){
-  try{
-    const order=JSON.parse(localStorage.getItem('tw_sec_order'));
-    if(!order||!order.length) return;
-    order.forEach(id=>{
-      const el=document.getElementById(id);
-      if(el) secList.appendChild(el);
-    });
-  }catch(ex){}
-}
-
-// Modals
-function openModal(type,listId,secTitle){
-  let h='';
+function openModal(type){
+  const modal=document.getElementById('modal');let h='';
+  const SS=selStyle();const YO=yearOpts();
   if(type==='profile'){
-    const curName=document.getElementById('cvName').textContent.replace('الاسم الكامل','');
-    const curTitle=document.getElementById('cvTitle').textContent.replace('المسمى الوظيفي','');
-    const curBio=document.getElementById('cvBio').textContent.replace('نبذة مختصرة عنك...','');
-    const curLoc=document.getElementById('cvLoc').textContent.replace('📍 موقعك','').replace('📍 ','');
-    // Load saved profile data
-    const uid_p=_sessionUser&&_sessionUser.id?'_'+_sessionUser.id:'';
-    let savedProf={}; try{savedProf=JSON.parse(localStorage.getItem('tw_profile_data'+uid_p)||'{}')}catch(e){}
-    const fn=savedProf.first_name||''; const mn=savedProf.middle_name||''; const ln=savedProf.last_name||'';
-    const dob=savedProf.dob||''; const profAvail=savedProf.avail||'متاح';
-    const profCountry=savedProf.country||''; const profCity=savedProf.city||'';
-    h=`<div class="modal-title">✏️ تعديل الملف الشخصي</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px">
-      <div class="mf" style="margin:0"><label>الاسم الأول *</label><input id="m-fn" autocomplete="off" value="${fn}" placeholder="محمد"></div>
-      <div class="mf" style="margin:0"><label>الاسم الأوسط</label><input id="m-mn" autocomplete="off" value="${mn}" placeholder="عبدالله"></div>
-      <div class="mf" style="margin:0"><label>اسم العائلة *</label><input id="m-ln" autocomplete="off" value="${ln}" placeholder="الأحمد"></div>
-    </div>
-    <div class="mf"><label>التخصص / المسمى الوظيفي</label>
-      <div id="specContainer"></div>
-    </div>
-    <div class="mf"><label>نبذة مختصرة</label><textarea autocomplete="off" id="m-bio" placeholder="اكتب نبذة مختصرة عنك...">${curBio}</textarea></div>
-    <div class="mf"><label>تاريخ الميلاد</label>
-      <div style="display:flex;gap:8px">
-      <select id="m-dob-d" autocomplete="off" style="flex:1;padding:9px 10px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;">
-        <option value="">اليوم</option>
-        ${[...Array(31)].map((_,i)=>`<option value="${String(i+1).padStart(2,'0')}">${i+1}</option>`).join('')}
-      </select>
-      <select id="m-dob-m" autocomplete="off" style="flex:1;padding:9px 10px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;">
-        <option value="">الشهر</option>
-        <option value="01">يناير</option><option value="02">فبراير</option>
-        <option value="03">مارس</option><option value="04">أبريل</option>
-        <option value="05">مايو</option><option value="06">يونيو</option>
-        <option value="07">يوليو</option><option value="08">أغسطس</option>
-        <option value="09">سبتمبر</option><option value="10">أكتوبر</option>
-        <option value="11">نوفمبر</option><option value="12">ديسمبر</option>
-      </select>
-      <select id="m-dob-y" autocomplete="off" style="flex:1;padding:9px 10px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;">
-        <option value="">السنة</option>
-        ${[...Array(60)].map((_,i)=>{const y=new Date().getFullYear()-18-i;return `<option value="${y}">${y}</option>`;}).join('')}
-      </select>
-    </div>
-    </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
-      <div class="mf" style="margin:0"><label>البلد</label>
-        <select id="m-prof-country" autocomplete="off" onchange="loadProfileCities()" style="width:100%;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;">
-          <option value="">— اختر —</option>
-          <option value="JO" ${profCountry==='JO'?'selected':''}>🇯🇴 الأردن</option>
-          <option value="SA" ${profCountry==='SA'?'selected':''}>🇸🇦 السعودية</option>
-          <option value="AE" ${profCountry==='AE'?'selected':''}>🇦🇪 الإمارات</option>
-          <option value="KW" ${profCountry==='KW'?'selected':''}>🇰🇼 الكويت</option>
-          <option value="QA" ${profCountry==='QA'?'selected':''}>🇶🇦 قطر</option>
-          <option value="EG" ${profCountry==='EG'?'selected':''}>🇪🇬 مصر</option>
-          <option value="PS" ${profCountry==='PS'?'selected':''}>🇵🇸 فلسطين</option>
-          <option value="LB" ${profCountry==='LB'?'selected':''}>🇱🇧 لبنان</option>
-          <option value="SY" ${profCountry==='SY'?'selected':''}>🇸🇾 سوريا</option>
-          <option value="IQ" ${profCountry==='IQ'?'selected':''}>🇮🇶 العراق</option>
-          <option value="OTHER" ${profCountry==='OTHER'?'selected':''}>🌍 أخرى</option>
-        </select>
-      </div>
-      <div class="mf" style="margin:0"><label>المدينة</label>
-        <select id="m-prof-city" autocomplete="off" style="width:100%;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;">
-          <option value="${profCity}">${profCity||'— اختر البلد أولاً —'}</option>
-        </select>
-      </div>
-    </div>
-    <div class="mf"><label>حالة التوظيف</label>
-      <select id="m-avail" autocomplete="off" style="width:100%;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;">
-        <option value="متاح" ${profAvail==='متاح'?'selected':''}>🟢 متاح للعمل</option>
-        <option value="مشغول" ${profAvail==='مشغول'?'selected':''}>🔴 غير متاح حالياً</option>
-        <option value="يفكر" ${profAvail==='يفكر'?'selected':''}>🟡 أفكر في فرص جديدة</option>
-        <option value="عمل حر" ${profAvail==='عمل حر'?'selected':''}>💼 فريلانس</option>
-      </select>
-    </div>
-    <div class="mact"><button class="mbtn mbtn-ok" onclick="saveProfile()">حفظ</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
-    setTimeout(()=>{
-    buildSpecDropdown('specContainer', curTitle);
-    loadProfileCities();
-    if(dob){
-      const parts=dob.split('-');
-      if(parts.length===3){
-        const dd=document.getElementById('m-dob-d'); if(dd) dd.value=parts[2];
-        const dm=document.getElementById('m-dob-m'); if(dm) dm.value=parts[1];
-        const dy=document.getElementById('m-dob-y'); if(dy) dy.value=parts[0];
-      }
-    }
-    if(profCountry){
-      loadProfileCities();
-      setTimeout(()=>{ const c2=document.getElementById('m-prof-city'); if(c2) c2.value=profCity; },100);
-    }
-  },50);
-
-  } else if(type==='exp'){
-    const yearOpts=[...Array(36)].map((_,i)=>{const y=new Date().getFullYear()-i;return '<option value="'+y+'">'+y+'</option>';}).join('');
-    h=`<div class="modal-title">💼 إضافة خبرة عملية</div>
-    <div class="mf"><label>المسمى الوظيفي <span style="color:#f87171">*</span></label>
-      <input id="m-et" autocomplete="off" placeholder="مثال: مهندس برمجيات، محاسب، مدير مبيعات...">
-      <div class="field-err" id="err-et"></div>
-    </div>
-    <div class="mf"><label>اسم جهة العمل <span style="color:#f87171">*</span></label>
-      <input id="m-ec" autocomplete="off" placeholder="مثال: شركة STC، مستشفى الملك فيصل...">
-      <div class="field-err" id="err-ec"></div>
-    </div>
-    <div class="mf"><label>البلد</label>
-      <select id="m-country" autocomplete="off" onchange="loadCities()" style="width:100%;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;">
-        <option value="">— اختر البلد —</option>
-        <option value="JO">🇯🇴 الأردن</option><option value="SA">🇸🇦 السعودية</option>
-        <option value="AE">🇦🇪 الإمارات</option><option value="KW">🇰🇼 الكويت</option>
-        <option value="QA">🇶🇦 قطر</option><option value="BH">🇧🇭 البحرين</option>
-        <option value="OM">🇴🇲 عُمان</option><option value="EG">🇪🇬 مصر</option>
-        <option value="IQ">🇮🇶 العراق</option><option value="SY">🇸🇾 سوريا</option>
-        <option value="LB">🇱🇧 لبنان</option><option value="PS">🇵🇸 فلسطين</option>
-        <option value="YE">🇾🇪 اليمن</option><option value="MA">🇲🇦 المغرب</option>
-        <option value="DZ">🇩🇿 الجزائر</option><option value="TN">🇹🇳 تونس</option>
-        <option value="LY">🇱🇾 ليبيا</option><option value="SD">🇸🇩 السودان</option>
-        <option value="OTHER">🌍 دولة أخرى</option>
-      </select>
-    </div>
-    <div class="mf" id="city-wrap" style="display:none"><label>المدينة</label>
-      <select id="m-city" autocomplete="off" style="width:100%;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;">
-        <option value="">— اختر المدينة —</option>
-      </select>
-    </div>
-    <div style="display:flex;gap:10px">
-      <div class="mf" style="flex:1"><label>من (سنة) <span style="color:#f87171">*</span></label>
-        <select id="m-es" autocomplete="off" onchange="filterEndYears()" style="width:100%;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;">
-          <option value="">اختر السنة</option>${yearOpts}
-        </select>
-        <div class="field-err" id="err-es"></div>
-      </div>
-      <div class="mf" style="flex:1"><label>إلى (سنة)</label>
-        <select id="m-ee" autocomplete="off" style="width:100%;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;">
-          <option value="حتى الآن">حتى الآن</option>${yearOpts}
-        </select>
-      </div>
-    </div>
-    <div class="mf"><label>نوع الدوام <span style="opacity:.5;font-size:.7rem">(اختياري)</span></label>
-      <select id="m-etype" autocomplete="off" style="width:100%;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;">
-        <option value="">— اختر —</option>
-        <option value="دوام كامل">دوام كامل</option>
-        <option value="دوام جزئي">دوام جزئي</option>
-        <option value="عن بُعد">عن بُعد</option>
-        <option value="هجين">هجين</option>
-        <option value="عقد مؤقت">عقد مؤقت</option>
-        <option value="تدريب">تدريب عملي</option>
-      </select>
-    </div>
-    <div class="mf"><label>وصف مختصر <span style="opacity:.5;font-size:.7rem">(اختياري)</span></label>
-      <textarea id="m-edesc" autocomplete="off" placeholder="أبرز مهامك وإنجازاتك..." style="width:100%;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:Cairo,sans-serif;font-size:.82rem;outline:none;resize:vertical;min-height:60px;direction:rtl;"></textarea>
-    </div>
-    <div class="mf"><label>وثيقة التوثيق <span style="opacity:.5;font-size:.7rem">(اختياري)</span></label>
-      <div class="upload-area" onclick="this.querySelector('input').click()"><input autocomplete="off" type="file" accept="image/*,.pdf" onchange="showFn(this)">📎 ارفع وثيقة<div class="fn"></div></div>
-    </div>
-    <div class="mact"><button class="mbtn mbtn-ok" onclick="saveExp()">إضافة الخبرة</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
-
-  } else if(type==='edu'){
-    h=`<div class="modal-title">🎓 إضافة شهادة دراسية</div>
-    <div class="mf"><label>نوع الشهادة <span style="color:#f87171">*</span></label>
-      <select id="m-dtype" autocomplete="off" style="width:100%;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;">
-        <option value="">— اختر نوع الشهادة —</option>
-        <option value="بكالوريوس">🎓 بكالوريوس</option>
-        <option value="ماجستير">🎓 ماجستير</option>
-        <option value="دكتوراه">🎓 دكتوراه</option>
-        <option value="دبلوم">📜 دبلوم</option>
-        <option value="دبلوم عالي">📜 دبلوم عالي</option>
-        <option value="ثانوية عامة">📋 ثانوية عامة</option>
-        <option value="شهادة مهنية">🏅 شهادة مهنية</option>
-        <option value="دورة معتمدة">✅ دورة معتمدة</option>
-      </select>
-    </div>
-    <div class="mf"><label>المؤسسة التعليمية <span style="color:#f87171">*</span></label>
-      <input id="m-ei" autocomplete="off" placeholder="مثال: الجامعة الأردنية، جامعة الملك عبدالله...">
-    </div>
-    <div class="mf"><label>التخصص <span style="opacity:.5;font-size:.7rem">(اختياري)</span></label>
-      <input id="m-ed" autocomplete="off" placeholder="مثال: هندسة حاسوب، محاسبة...">
-    </div>
-    <div style="display:flex;gap:10px">
-      <div class="mf" style="flex:1"><label>سنة التخرج</label>
-        <input id="m-ey" autocomplete="off" type="number" min="1970" max="2030" placeholder="2020">
-      </div>
-      <div class="mf" style="flex:1"><label>المعدل <span style="opacity:.5;font-size:.7rem">(اختياري)</span></label>
-        <input id="m-egpa" autocomplete="off" placeholder="3.8 أو ممتاز">
-      </div>
-    </div>
-    <div class="mf"><label>صورة الشهادة <span style="opacity:.5;font-size:.7rem">(اختياري)</span></label>
-      <div class="upload-area" onclick="this.querySelector('input').click()"><input autocomplete="off" type="file" accept="image/*,.pdf" onchange="showFn(this)">📎 ارفع صورة الشهادة<div class="fn"></div></div>
-    </div>
-    <div class="mact"><button class="mbtn mbtn-ok" onclick="saveEdu()">إضافة الشهادة</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
-
-  } else if(type==='custom-section'){
-    h=`<div class="modal-title">✏️ قسم مخصص</div>
-    <div class="mf"><label>اسم القسم *</label><input autocomplete="off" id="m-csn" placeholder="مشاريعي، إنجازاتي..."></div>
-    <div class="mf"><label>أيقونة</label>
-      <select id="m-csi" autocomplete="off" style="width:100%;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:Cairo,sans-serif;font-size:.9rem;outline:none;direction:rtl;">
-        <option value="📌">📌 دبوس</option><option value="🚀">🚀 مشاريع</option>
-        <option value="🏆">🏆 إنجازات</option><option value="⭐">⭐ مميزات</option>
-        <option value="💡">💡 أفكار</option><option value="🎯">🎯 أهداف</option>
-        <option value="🛠️">🛠️ مهارات</option><option value="📚">📚 قراءات</option>
-        <option value="🌍">🌍 لغات</option><option value="🔗">🔗 روابط</option>
-        <option value="🤝">🤝 تطوع</option><option value="🎨">🎨 أعمال</option>
-        <option value="💼">💼 أعمال حرة</option>
-      </select>
-    </div>
-    <div class="mact"><button class="mbtn mbtn-ok" onclick="saveCustomSec()">إضافة</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
-
-  } else if(type==='skills'){
-    h=`<div class="modal-title">🛠️ إضافة مهارة</div>
-    <div class="mf"><label>اسم المهارة <span style="color:#f87171">*</span></label>
-      <input id="m-skill-name" autocomplete="off" placeholder="مثال: Python، Photoshop، Excel، React...">
-    </div>
-    <div class="mf"><label>مستوى الإتقان</label>
-      <select id="m-skill-level" style="width:100%;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;">
-        <option value="">— اختر المستوى —</option>
-        <option value="مبتدئ">🟡 مبتدئ</option>
-        <option value="متوسط">🟠 متوسط</option>
-        <option value="متقدم">🔵 متقدم</option>
-        <option value="خبير">🟢 خبير</option>
-      </select>
-    </div>
-    <div class="mact"><button class="mbtn mbtn-ok" onclick="saveSkill('${listId}')">إضافة</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
-
-  } else if(type==='langs'){
-    h=`<div class="modal-title">🌍 إضافة لغة</div>
-    <div class="mf"><label>اللغة <span style="color:#f87171">*</span></label>
-      <select id="m-lang-name" style="width:100%;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;">
-        <option value="">— اختر اللغة —</option>
-        <option>العربية</option><option>الإنجليزية</option><option>الفرنسية</option>
-        <option>الألمانية</option><option>الإسبانية</option><option>الإيطالية</option>
-        <option>الصينية</option><option>التركية</option><option>الفارسية</option>
-        <option>الأردية</option><option>الهندية</option><option>أخرى</option>
-      </select>
-    </div>
-    <div class="mf"><label>المستوى <span style="color:#f87171">*</span></label>
-      <select id="m-lang-level" style="width:100%;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;">
-        <option value="">— اختر المستوى —</option>
-        <option value="مبتدئ">🟡 مبتدئ</option>
-        <option value="محادثة">🟠 محادثة</option>
-        <option value="جيد">🔵 جيد</option>
-        <option value="طلاقة">🟢 طلاقة</option>
-        <option value="لغة أم">⭐ لغة أم</option>
-      </select>
-    </div>
-    <div class="mact"><button class="mbtn mbtn-ok" onclick="saveLang('${listId}')">إضافة</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
-
-  } else if(type==='links'){
-    h=`<div class="modal-title">🔗 إضافة رابط</div>
-    <div class="mf"><label>النوع</label>
-      <select id="m-link-type" style="width:100%;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;">
-        <option value="LinkedIn">💼 LinkedIn</option>
-        <option value="GitHub">💻 GitHub</option>
-        <option value="Behance">🎨 Behance</option>
-        <option value="Dribbble">🏀 Dribbble</option>
-        <option value="موقع شخصي">🌐 موقع شخصي</option>
-        <option value="YouTube">📺 YouTube</option>
-        <option value="أخرى">🔗 أخرى</option>
-      </select>
-    </div>
-    <div class="mf"><label>الرابط <span style="color:#f87171">*</span></label>
-      <input id="m-link-url" autocomplete="off" placeholder="https://..." style="direction:ltr;text-align:left">
-    </div>
-    <div class="mact"><button class="mbtn mbtn-ok" onclick="saveLink('${listId}')">إضافة</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
-
-  } else if(type==='course'){
-    const yearOpts3=[...Array(36)].map((_,i)=>{const y=new Date().getFullYear()-i;return '<option value="'+y+'">'+y+'</option>';}).join('');
-    h=`<div class="modal-title">📚 إضافة دورة تدريبية</div>
-    <div class="mf"><label>اسم الدورة <span style="color:#f87171">*</span></label>
-      <input id="m-course-name" autocomplete="off" placeholder="مثال: React for Beginners، CCNA، PMP...">
-    </div>
-    <div class="mf"><label>الجهة المانحة</label>
-      <input id="m-course-provider" autocomplete="off" placeholder="مثال: Coursera، Udemy، أكاديمية التميز...">
-    </div>
-    <div class="mf"><label>سنة الإتمام</label>
-      <select id="m-course-year" style="width:100%;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;">
-        <option value="">— اختر السنة —</option>${yearOpts3}
-      </select>
-    </div>
-    <div class="mf"><label>رابط الشهادة <span style="opacity:.5;font-size:.7rem">(اختياري)</span></label>
-      <input id="m-course-url" autocomplete="off" placeholder="https://..." style="direction:ltr;text-align:left">
-    </div>
-    <div class="mact"><button class="mbtn mbtn-ok" onclick="saveCourse('${listId}')">إضافة</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
-
-  } else if(type==='generic'){
-    const yearOpts2=[...Array(36)].map((_,i)=>{const y=new Date().getFullYear()-i;return '<option value="'+y+'">'+y+'</option>';}).join('');
-    h=`<div class="modal-title">+ إضافة في ${secTitle||''}</div>
-    <div class="mf"><label>العنوان *</label><input autocomplete="off" id="m-gt" placeholder="..."></div>
-    <div class="mf"><label>التفاصيل</label><input autocomplete="off" id="m-gs" placeholder="..."></div>
-    <div class="mf"><label>السنة</label>
-      <select id="m-gd" autocomplete="off" style="width:100%;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;">
-        <option value="">— اختر السنة —</option>${yearOpts2}
-      </select>
-    </div>
-    <div class="mact"><button class="mbtn mbtn-ok" onclick="saveGeneric('${listId}')">إضافة</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
+    const p=JSON.parse(localStorage.getItem('tw_prof'+_uid)||'{}');
+    h='<div class="modal-title">✏️ تعديل الملف الشخصي</div><div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px"><div><label style="display:block;font-size:.7rem;color:rgba(255,255,255,.45);margin-bottom:4px">الاسم الأول *</label><input id="m-fn" autocomplete="off" value="'+(p.first_name||'')+'" placeholder="محمد" style="'+SS+'"></div><div><label style="display:block;font-size:.7rem;color:rgba(255,255,255,.45);margin-bottom:4px">الأوسط</label><input id="m-mn" autocomplete="off" value="'+(p.middle_name||'')+'" placeholder="عبدالله" style="'+SS+'"></div><div><label style="display:block;font-size:.7rem;color:rgba(255,255,255,.45);margin-bottom:4px">العائلة *</label><input id="m-ln" autocomplete="off" value="'+(p.last_name||'')+'" placeholder="الأحمد" style="'+SS+'"></div></div><div class="mf"><label>التخصص / المسمى الوظيفي</label><div id="specCont"></div></div><div class="mf"><label>نبذة مختصرة</label><textarea id="m-bio" autocomplete="off" placeholder="اكتب نبذة...">'+(p.bio||'')+'</textarea></div><div class="mf"><label>تاريخ الميلاد</label><div style="display:flex;gap:6px"><select id="m-dd" style="'+SS+'flex:1"><option value="">اليوم</option>'+[...Array(31)].map((_,i)=>'<option value="'+String(i+1).padStart(2,'0')+'">'+(i+1)+'</option>').join('')+'</select><select id="m-dm" style="'+SS+'flex:1"><option value="">الشهر</option><option value="01">يناير</option><option value="02">فبراير</option><option value="03">مارس</option><option value="04">أبريل</option><option value="05">مايو</option><option value="06">يونيو</option><option value="07">يوليو</option><option value="08">أغسطس</option><option value="09">سبتمبر</option><option value="10">أكتوبر</option><option value="11">نوفمبر</option><option value="12">ديسمبر</option></select><select id="m-dy" style="'+SS+'flex:1"><option value="">السنة</option>'+[...Array(60)].map((_,i)=>{const y=new Date().getFullYear()-18-i;return'<option value="'+y+'">'+y+'</option>';}).join('')+'</select></div></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px"><div><label style="display:block;font-size:.7rem;color:rgba(255,255,255,.45);margin-bottom:4px">البلد</label>'+countrySelHTML('m-pcountry')+'</div><div><label style="display:block;font-size:.7rem;color:rgba(255,255,255,.45);margin-bottom:4px">المدينة</label>'+citySelHTML('m-pcity')+'</div></div><div class="mf"><label>حالة التوظيف</label><select id="m-avail" style="'+SS+'"><option value="متاح">🟢 متاح للعمل</option><option value="مشغول">🔴 غير متاح</option><option value="يفكر">🟡 يفكر في فرص جديدة</option><option value="عمل حر">💼 فريلانس</option></select></div><div class="mact"><button class="mbtn mbtn-ok" onclick="saveProfile()">حفظ</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>';
+    modal.innerHTML=h;document.getElementById('overlay').classList.add('show');
+    setTimeout(()=>{buildSpecDropdown('specCont',p.title||'');if(p.dob){const pts=p.dob.split('-');if(pts.length===3){const dd=document.getElementById('m-dd');const dm=document.getElementById('m-dm');const dy=document.getElementById('m-dy');if(dd)dd.value=pts[2];if(dm)dm.value=pts[1];if(dy)dy.value=pts[0];}}if(p.country){document.getElementById('m-pcountry').value=p.country;loadCities('m-pcountry','m-pcity');setTimeout(()=>{const ct=document.getElementById('m-pcity');if(ct)ct.value=p.city||'';},80);}if(p.avail)document.getElementById('m-avail').value=p.avail;},50);return;
   }
-  document.getElementById('modal').innerHTML=h;
-  document.getElementById('overlay').classList.add('show');
+  if(type==='exp'){h='<div class="modal-title">💼 إضافة خبرة عملية</div><div class="mf"><label>المسمى الوظيفي <span style="color:#f87171">*</span></label><input id="m-et" autocomplete="off" placeholder="مثال: مهندس برمجيات، محاسب..."><div class="field-err" id="err-et"></div></div><div class="mf"><label>اسم جهة العمل <span style="color:#f87171">*</span></label><input id="m-ec" autocomplete="off" placeholder="مثال: شركة STC، مستشفى الملك فيصل..."><div class="field-err" id="err-ec"></div></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px"><div><label style="display:block;font-size:.7rem;color:rgba(255,255,255,.45);margin-bottom:4px">البلد</label>'+countrySelHTML('m-ecountry')+'</div><div><label style="display:block;font-size:.7rem;color:rgba(255,255,255,.45);margin-bottom:4px">المدينة</label>'+citySelHTML('m-ecity')+'</div></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px"><div><label style="display:block;font-size:.7rem;color:rgba(255,255,255,.45);margin-bottom:4px">من <span style="color:#f87171">*</span></label><select id="m-es" style="'+SS+'" onchange="filterEndYears()"><option value="">السنة</option>'+YO+'</select><div class="field-err" id="err-es"></div></div><div><label style="display:block;font-size:.7rem;color:rgba(255,255,255,.45);margin-bottom:4px">إلى</label><select id="m-ee" style="'+SS+'"><option value="حتى الآن">حتى الآن</option>'+YO+'</select></div></div><div class="mf"><label>نوع الدوام <span style="opacity:.5;font-size:.7rem">(اختياري)</span></label><select id="m-etype" style="'+SS+'"><option value="">— اختر —</option><option>دوام كامل</option><option>دوام جزئي</option><option>عن بُعد</option><option>هجين</option><option>عقد مؤقت</option><option>تدريب عملي</option></select></div><div class="mf"><label>وصف مختصر <span style="opacity:.5;font-size:.7rem">(اختياري)</span></label><textarea id="m-edesc" autocomplete="off" placeholder="أبرز مهامك..."></textarea></div><div class="mact"><button class="mbtn mbtn-ok" onclick="saveExp()">إضافة</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>';
+  }else if(type==='edu'){h='<div class="modal-title">🎓 إضافة شهادة دراسية</div><div class="mf"><label>نوع الشهادة <span style="color:#f87171">*</span></label><select id="m-dtype" style="'+SS+'"><option value="">— اختر —</option><option>🎓 بكالوريوس</option><option>🎓 ماجستير</option><option>🎓 دكتوراه</option><option>📜 دبلوم</option><option>📜 دبلوم عالي</option><option>📋 ثانوية عامة</option><option>🏅 شهادة مهنية</option><option>✅ دورة معتمدة</option></select><div class="field-err" id="err-dtype"></div></div><div class="mf"><label>المؤسسة التعليمية <span style="color:#f87171">*</span></label><input id="m-ei" autocomplete="off" placeholder="مثال: الجامعة الأردنية..."><div class="field-err" id="err-ei"></div></div><div class="mf"><label>التخصص <span style="opacity:.5;font-size:.7rem">(اختياري)</span></label><input id="m-ed" autocomplete="off" placeholder="مثال: هندسة حاسوب، محاسبة..."></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px"><div><label style="display:block;font-size:.7rem;color:rgba(255,255,255,.45);margin-bottom:4px">سنة التخرج</label><input id="m-ey" autocomplete="off" type="number" min="1970" max="2030" placeholder="2020" style="'+SS+'"></div><div><label style="display:block;font-size:.7rem;color:rgba(255,255,255,.45);margin-bottom:4px">المعدل <span style="opacity:.5">(اختياري)</span></label><input id="m-egpa" autocomplete="off" placeholder="3.8 أو ممتاز" style="'+SS+'"></div></div><div class="mact"><button class="mbtn mbtn-ok" onclick="saveEdu()">إضافة</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>';
+  }else if(type==='skills'){h='<div class="modal-title">🛠️ إضافة مهارة</div><div class="mf"><label>اسم المهارة <span style="color:#f87171">*</span></label><input id="m-skill" autocomplete="off" placeholder="مثال: Python، Photoshop، Excel..."></div><div class="mf"><label>مستوى الإتقان</label><select id="m-slevel" style="'+SS+'"><option value="">— اختر —</option><option value="مبتدئ">🟡 مبتدئ</option><option value="متوسط">🟠 متوسط</option><option value="متقدم">🔵 متقدم</option><option value="خبير">🟢 خبير</option></select></div><div class="mact"><button class="mbtn mbtn-ok" onclick="saveSkill()">إضافة</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>';
+  }else if(type==='langs'){h='<div class="modal-title">🌍 إضافة لغة</div><div class="mf"><label>اللغة <span style="color:#f87171">*</span></label><select id="m-lang" style="'+SS+'"><option value="">— اختر —</option><option>العربية</option><option>الإنجليزية</option><option>الفرنسية</option><option>الألمانية</option><option>الإسبانية</option><option>الصينية</option><option>التركية</option><option>الأردية</option><option>أخرى</option></select></div><div class="mf"><label>المستوى <span style="color:#f87171">*</span></label><select id="m-llevel" style="'+SS+'"><option value="">— اختر —</option><option value="مبتدئ">🟡 مبتدئ</option><option value="محادثة">🟠 محادثة</option><option value="جيد">🔵 جيد</option><option value="طلاقة">🟢 طلاقة</option><option value="لغة أم">⭐ لغة أم</option></select></div><div class="mact"><button class="mbtn mbtn-ok" onclick="saveLang()">إضافة</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>';
+  }else if(type==='links'){h='<div class="modal-title">🔗 إضافة رابط</div><div class="mf"><label>النوع</label><select id="m-ltype" style="'+SS+'"><option>💼 LinkedIn</option><option>💻 GitHub</option><option>🎨 Behance</option><option>🌐 موقع شخصي</option><option>📺 YouTube</option><option>🔗 أخرى</option></select></div><div class="mf"><label>الرابط <span style="color:#f87171">*</span></label><input id="m-lurl" autocomplete="off" placeholder="https://..." style="direction:ltr;text-align:left"></div><div class="mact"><button class="mbtn mbtn-ok" onclick="saveLink()">إضافة</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>';
+  }else if(type==='course'){h='<div class="modal-title">📚 إضافة دورة تدريبية</div><div class="mf"><label>اسم الدورة <span style="color:#f87171">*</span></label><input id="m-cname" autocomplete="off" placeholder="مثال: React for Beginners، CCNA..."></div><div class="mf"><label>الجهة المانحة</label><input id="m-cprov" autocomplete="off" placeholder="مثال: Coursera، أكاديمية التميز..."></div><div class="mf"><label>سنة الإتمام</label><select id="m-cyear" style="'+SS+'"><option value="">— اختر السنة —</option>'+YO+'</select></div><div class="mf"><label>رابط الشهادة <span style="opacity:.5;font-size:.7rem">(اختياري)</span></label><input id="m-curl" autocomplete="off" placeholder="https://..." style="direction:ltr;text-align:left"></div><div class="mact"><button class="mbtn mbtn-ok" onclick="saveCourse()">إضافة</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>';
+  }else if(type==='custom'){h='<div class="modal-title">✏️ قسم مخصص</div><div class="mf"><label>اسم القسم <span style="color:#f87171">*</span></label><input id="m-csn" autocomplete="off" placeholder="مشاريعي، إنجازاتي..."></div><div class="mf"><label>الأيقونة</label><select id="m-csi" style="'+SS+'"><option value="📌">📌 دبوس</option><option value="🚀">🚀 مشاريع</option><option value="🏆">🏆 إنجازات</option><option value="⭐">⭐ مميزات</option><option value="💡">💡 أفكار</option><option value="🎯">🎯 أهداف</option><option value="🛠️">🛠️ مهارات</option><option value="🤝">🤝 تطوع</option><option value="🎨">🎨 أعمال</option><option value="💼">💼 أعمال حرة</option></select></div><div class="mact"><button class="mbtn mbtn-ok" onclick="saveCustomSec()">إضافة</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>';
+  }else if(type==='generic'){h='<div class="modal-title">+ إضافة عنصر</div><div class="mf"><label>العنوان <span style="color:#f87171">*</span></label><input id="m-gt" autocomplete="off" placeholder="..."></div><div class="mf"><label>التفاصيل <span style="opacity:.5;font-size:.7rem">(اختياري)</span></label><input id="m-gs" autocomplete="off" placeholder="..."></div><div class="mf"><label>السنة</label><select id="m-gd" style="'+SS+'"><option value="">— اختر السنة —</option>'+YO+'</select></div><div class="mact"><button class="mbtn mbtn-ok" onclick="saveGeneric()">إضافة</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>';}
+  modal.innerHTML=h;document.getElementById('overlay').classList.add('show');
 }
-function showFn(input){ const fn=input.parentElement.querySelector('.fn'); if(fn&&input.files[0]) fn.textContent='✓ '+input.files[0].name; }
-
-
-// ── Specialty Dropdown ──
-const SPECS = {
-  '💻 تقنية وبرمجة': [
-    'مطور برمجيات','مطور ويب','مطور تطبيقات موبايل',
-    'مهندس شبكات','مهندس أمن معلومات',
-    'محلل بيانات','مهندس ذكاء اصطناعي',
-    'مصمم UX/UI','دعم تقني','مبرمج CNC',
-  ],
-  '⚙️ هندسة': [
-    'مهندس مدني','مهندس كهربائي','مهندس ميكانيكي',
-    'مهندس إلكترونيات','مهندس كيميائي',
-    'مهندس معماري','مهندس صناعي',
-    'مساح أراضي','رسام هندسي',
-  ],
-  '💊 صحة وطب': [
-    'طبيب عام','طبيب متخصص','طبيب أسنان',
-    'صيدلاني','مساعد صيدلاني',
-    'ممرض/ممرضة','مساعد طبيب أسنان',
-    'تقني مختبرات','مساعد تقني مختبرات',
-    'أخصائي تغذية','معالج فيزيائي','مساعد معالج',
-  ],
-  '💼 أعمال وإدارة': [
-    'محاسب','مدقق حسابات',
-    'مدير مشاريع','محلل أعمال',
-    'مدير تسويق','مندوب مبيعات',
-    'موارد بشرية','سكرتير تنفيذي',
-    'مدير عام','مستشار أعمال',
-  ],
-  '📚 تعليم وتدريب': [
-    'معلم','مدرب','أستاذ جامعي',
-    'مرشد تربوي','محاضر','معلم خصوصي',
-  ],
-  '🎨 إبداع وتصميم': [
-    'مصمم جرافيك','مصمم داخلي',
-    'مصور فوتوغرافي','مخرج/مونتاج',
-    'كاتب محتوى','مدير وسائل تواصل',
-    'رسام/فنان',
-  ],
-  '⚖️ قانون': [
-    'محامي','مستشار قانوني','كاتب عدل',
-  ],
-  '🔧 مهن وحرف': [
-    'كهربائي','مساعد كهربائي',
-    'سباك','مساعد سباك',
-    'ميكانيكي','مساعد ميكانيكي',
-    'نجار','مساعد نجار',
-    'بناء/مقاول','حداد','لحام',
-    'مشغل معدات ثقيلة',
-  ],
-  '🚗 لوجستيات وخدمات': [
-    'سائق','سائق مركبات ثقيلة',
-    'أمن وحراسة','خدمة عملاء',
-    'موظف استقبال','طاهي/شيف',
-    'مساعد طاهي',
-  ],
-};
-
-let _specValue = '';
-
-function buildSpecDropdown(containerId, currentVal){
-  const wrap = document.getElementById(containerId);
-  if(!wrap) return;
-  _specValue = currentVal || '';
-
-  const displayVal = currentVal || '— اختر تخصصك —';
-  wrap.innerHTML = `
-    <div class="spec-wrap">
-      <button type="button" class="spec-trigger" onclick="toggleSpec(this)" id="specTrigger">
-        <span id="specLabel">${displayVal}</span>
-        <span class="arrow">▾</span>
-      </button>
-      <div class="spec-dropdown" id="specDropdown">
-        ${Object.entries(SPECS).map(([group, opts]) => `
-          <div class="spec-group-title">${group}</div>
-          ${opts.map(opt => `<div class="spec-option${opt===currentVal?' selected':''}" onclick="selectSpec('${opt}')">${opt}</div>`).join('')}
-        `).join('')}
-        <div class="spec-group-title">✏️ أخرى</div>
-        <div class="spec-option" onclick="selectSpec('other')">اكتب تخصصك يدوياً...</div>
-      </div>
-      <input class="spec-other-input${currentVal&&!Object.values(SPECS).flat().includes(currentVal)?' show':''}"
-             id="specOtherInput" placeholder="اكتب تخصصك..."
-             value="${currentVal&&!Object.values(SPECS).flat().includes(currentVal)?currentVal:''}"
-             oninput="_specValue=this.value">
-    </div>`;
-}
-
-function toggleSpec(btn){
-  btn.classList.toggle('open');
-  document.getElementById('specDropdown').classList.toggle('open');
-}
-
-function selectSpec(val){
-  if(val==='other'){
-    _specValue='';
-    document.getElementById('specLabel').textContent='اكتب تخصصك...';
-    document.getElementById('specOtherInput').classList.add('show');
-    document.getElementById('specOtherInput').focus();
-  } else {
-    _specValue=val;
-    document.getElementById('specLabel').textContent=val;
-    document.getElementById('specLabel').style.color='#fff';
-    document.getElementById('specOtherInput').classList.remove('show');
-    document.querySelectorAll('.spec-option').forEach(o=>{
-      o.classList.toggle('selected', o.textContent===val);
-    });
-  }
-  document.getElementById('specTrigger').classList.remove('open');
-  document.getElementById('specDropdown').classList.remove('open');
-}
-
-function getSpecValue(){
-  const other = document.getElementById('specOtherInput');
-  if(other && other.classList.contains('show')) return other.value.trim();
-  return _specValue;
-}
-
-// Close dropdown on outside click
-document.addEventListener('click', e=>{
-  if(!e.target.closest('.spec-wrap')){
-    document.querySelectorAll('.spec-trigger.open').forEach(t=>t.classList.remove('open'));
-    document.querySelectorAll('.spec-dropdown.open').forEach(d=>d.classList.remove('open'));
-  }
-});
-
-function handleSpecialty(sel){
-  const input=document.getElementById('m-title');
-  if(!input) return;
-  if(sel.value==='other'||sel.value===''){
-    input.style.display='block';
-    if(sel.value==='other') input.value='';
-  } else {
-    input.style.display='block';
-    input.value=sel.value;
-  }
-}
-
-function loadProfileCities(){
-  const country=document.getElementById('m-prof-country')?.value;
-  const citySelect=document.getElementById('m-prof-city');
-  if(!citySelect||!country||country==='OTHER') return;
-  const cities=CITIES[country]||[];
-  citySelect.innerHTML='<option value="">— اختر المدينة —</option>'+cities.map(city=>`<option value="${city}">${city}</option>`).join('');
-}
-
-
-// ── Calculate total experience years ──
-function updateExpBadge(){
-  const uid=_sessionUser&&_sessionUser.id?'_'+_sessionUser.id:'';
-  try{
-    const exp=JSON.parse(localStorage.getItem('tw_exp'+uid)||'[]');
-    let totalMonths=0;
-    const curYear=new Date().getFullYear();
-    exp.forEach(e=>{
-      const from=parseInt(e.start_date)||0;
-      const to=e.end_date==='حتى الآن'?curYear:(parseInt(e.end_date)||curYear);
-      if(from>0) totalMonths+=(to-from)*12;
-    });
-    const years=Math.floor(totalMonths/12);
-    const badge=document.getElementById('cvExpBadge');
-    if(badge&&years>0){
-      badge.textContent='💼 '+years+(years===1?' سنة خبرة':years<11?' سنوات خبرة':' سنة خبرة');
-      badge.style.display='inline-flex';
-    }
-  }catch(ex){}
-}
-
-function calcAge(dob){
-  if(!dob) return '';
-  try{
-    const parts=dob.split('-');
-    const d=new Date(parseInt(parts[0]),parseInt(parts[1])-1,parseInt(parts[2]));
-    if(isNaN(d.getTime())) return '';
-    const now=new Date();
-    let age=now.getFullYear()-d.getFullYear();
-    if(now.getMonth()<d.getMonth()||(now.getMonth()===d.getMonth()&&now.getDate()<d.getDate())) age--;
-    return age>0&&age<100?age+' سنة':'';
-  }catch(e){ return ''; }
-}
+function closeModal(){document.getElementById('overlay').classList.remove('show');window._currentListId=null;}
+function setErr(id,errId,msg){const el=document.getElementById(id);const er=document.getElementById(errId);if(el)el.style.borderColor='#f87171';if(er){er.textContent=msg;er.style.display='block';}}
+function clrErr(id,errId){const el=document.getElementById(id);const er=document.getElementById(errId);if(el)el.style.borderColor='';if(er)er.style.display='none';}
 
 function saveProfile(){
-  const fn=document.getElementById('m-fn')?.value.trim()||'';
-  const mn=document.getElementById('m-mn')?.value.trim()||'';
-  const ln=document.getElementById('m-ln')?.value.trim()||'';
-  const name=[fn,mn,ln].filter(Boolean).join(' ');
-  const title=getSpecValue()||document.getElementById('m-title')?.value?.trim()||'';
-  const bio=document.getElementById('m-bio').value.trim();
-  const dobD=document.getElementById('m-dob-d')?.value||'';
-  const dobM=document.getElementById('m-dob-m')?.value||'';
-  const dobY=document.getElementById('m-dob-y')?.value||'';
-  const dob=(dobD&&dobM&&dobY)?(dobY+'-'+dobM+'-'+dobD):'';
-  const profCountry=document.getElementById('m-prof-country')?.value||'';
-  const profCity=document.getElementById('m-prof-city')?.value||'';
-  const countryName=getCountryName(profCountry)||'';
-  const loc=countryName&&profCity ? countryName+' - '+profCity : (countryName||profCity||'');
-  if(!fn||!ln){ alert('الاسم الأول واسم العائلة مطلوبان'); return; }
-  if(name) document.getElementById('cvName').textContent=name;
-  if(title) document.getElementById('cvTitle').textContent=title;
-  if(bio) document.getElementById('cvBio').textContent=bio;
-  if(loc){
-    document.getElementById('cvLoc').textContent='📍 '+loc;
-  }
-  // Show age badge
-  if(dob){
-    const ageLine=document.getElementById('cvAgeLine');
-    if(ageLine){ const age=calcAge(dob); if(age){ ageLine.textContent='العمر: '+age; ageLine.style.display='block'; } }
-  }
-  const avail=document.getElementById('m-avail')?.value;
-  if(avail){
-    const availEl=document.getElementById('cvAvail');
-    if(availEl){
-      const colors={'متاح':'rgba(0,200,150,.15)','مشغول':'rgba(239,68,68,.12)','يفكر':'rgba(234,179,8,.12)','عمل حر':'rgba(139,92,246,.12)'};
-      const txts={'متاح':'#00c896','مشغول':'#f87171','يفكر':'#eab308','عمل حر':'#a78bfa'};
-      const labels={'متاح':'🟢 متاح للعمل','مشغول':'🔴 غير متاح','يفكر':'🟡 يفكر في فرص','عمل حر':'💼 فريلانس'};
-      availEl.innerHTML=`<span style="display:inline-flex;align-items:center;padding:2px 9px;border-radius:20px;font-size:.68rem;font-weight:700;background:${colors[avail]||''};color:${txts[avail]||'var(--ac)'};">${labels[avail]||avail}</span>`;
-      availEl.style.display='block';
-    }
-  }
-  // Save to localStorage
-  try{
-    const uid=_sessionUser&&_sessionUser.id?'_'+_sessionUser.id:'';
-    const prof=JSON.parse(localStorage.getItem('tw_profile_data'+uid)||'{}');
-    if(name) prof.full_name=name;
-    if(fn) prof.first_name=fn;
-    if(mn) prof.middle_name=mn;
-    if(ln) prof.last_name=ln;
-    if(title) prof.headline=title;
-    if(bio) prof.bio=bio;
-    if(loc) prof.location=loc;
-    if(dob) prof.dob=dob;
-    if(profCountry) prof.country=profCountry;
-    if(profCity) prof.city=profCity;
-    const avail=document.getElementById('m-avail')?.value;
-    if(avail) prof.avail=avail;
-    localStorage.setItem('tw_profile_data'+uid,JSON.stringify(prof));
-    if(_sessionUser&&name){ _sessionUser.full_name=name; localStorage.setItem('tw_user',JSON.stringify(_sessionUser)); }
-  }catch(ex){}
-  // Save to API
-  if(_sessionUser&&_sessionUser.id){
-    fetch('/profile/'+_sessionUser.id,{method:'PUT',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({headline:title,bio,location:loc})
-    }).catch(()=>{});
-  }
-  closeModal();
+  const fn=document.getElementById('m-fn')?.value.trim()||'';const mn=document.getElementById('m-mn')?.value.trim()||'';const ln=document.getElementById('m-ln')?.value.trim()||'';
+  if(!fn||!ln){alert('الاسم الأول واسم العائلة مطلوبان');return;}
+  const name=[fn,mn,ln].filter(Boolean).join(' ');const title=getSpecValue()||'';const bio=document.getElementById('m-bio')?.value.trim()||'';
+  const dd=document.getElementById('m-dd')?.value||'';const dm=document.getElementById('m-dm')?.value||'';const dy=document.getElementById('m-dy')?.value||'';const dob=(dd&&dm&&dy)?(dy+'-'+dm+'-'+dd):'';
+  const country=document.getElementById('m-pcountry')?.value||'';const city=document.getElementById('m-pcity')?.value||'';const avail=document.getElementById('m-avail')?.value||'';
+  const cn=CNAMES[country]||'';const loc=(cn&&city)?(cn+' - '+city):(cn||city||'');
+  document.getElementById('cvName').textContent=name;if(title)document.getElementById('cvTitle').textContent=title;if(bio)document.getElementById('cvBio').textContent=bio;if(loc)document.getElementById('cvLoc').textContent='📍 '+loc;if(avail)showAvail(avail);if(dob)showAge(dob);
+  const prof={name,first_name:fn,middle_name:mn,last_name:ln,title,bio,loc,dob,country,city,avail};LSset('tw_prof'+_uid,prof);
+  if(_user&&fn){_user.full_name=name;LSset('tw_user',_user);}
+  if(_user?.id){fetch('/profile/'+_user.id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({headline:title,bio,location:loc})}).catch(()=>{});}
+  updateExpBadge();drawQR();closeModal();
 }
+function filterEndYears(){const s=parseInt(document.getElementById('m-es')?.value)||0;const ee=document.getElementById('m-ee');if(!ee||!s)return;const cur=ee.value;const max=new Date().getFullYear();ee.innerHTML='<option value="حتى الآن">حتى الآن</option>'+[...Array(max-s+1)].map((_,i)=>{const y=max-i;return'<option value="'+y+'">'+y+'</option>';}).join('');if(cur&&cur!=='حتى الآن'&&parseInt(cur)>=s)ee.value=cur;}
 function saveExp(){
-  const t=document.getElementById('m-et').value.trim();
-  const co=document.getElementById('m-ec').value.trim();
-  const s=document.getElementById('m-es').value;
-  let valid=true;
-  if(!t){ setFieldErr('m-et','err-et','المسمى الوظيفي مطلوب'); valid=false; } else clearFieldErr('m-et','err-et');
-  if(!co){ setFieldErr('m-ec','err-ec','اسم جهة العمل مطلوب'); valid=false; } else clearFieldErr('m-ec','err-ec');
-  if(!s){ setFieldErr('m-es','err-es','سنة البداية مطلوبة'); valid=false; } else clearFieldErr('m-es','err-es');
-  if(!valid) return;
-  const e=document.getElementById('m-ee').value;
-  const country=document.getElementById('m-country')?.value||'';
-  const city=document.getElementById('m-city')?.value||'';
-  const countryNameExp=getCountryName(country)||'';
-  const l=countryNameExp&&city ? countryNameExp+' - '+city : (countryNameExp||city||'');
-  const uid=_sessionUser&&_sessionUser.id?'_'+_sessionUser.id:'';
-  const modal=document.getElementById('modal');
-  const editId=modal.dataset.editId?parseInt(modal.dataset.editId):null;
-
-  if(editId){
-    // تعديل خبرة موجودة
-    try{
-      const exp=JSON.parse(localStorage.getItem('tw_exp'+uid)||'[]');
-      const idx2=exp.findIndex(x=>x.id===editId);
-      if(idx2>-1){ exp[idx2]={id:editId,title:t,company:co,location:l,start_date:s,end_date:e}; localStorage.setItem('tw_exp'+uid,JSON.stringify(exp)); }
-    }catch(ex){}
-    const el=document.getElementById('exp-'+editId);
-    const wtype2=document.getElementById('m-etype')?.value||'';
-      const edesc2=document.getElementById('m-edesc')?.value.trim()||'';
-      if(el) el.outerHTML=renderExpItem({id:editId,title:t,company:co,location:l,start_date:s,end_date:e,work_type:wtype2,desc:edesc2});
-  } else {
-    // إضافة خبرة جديدة
-    document.getElementById('exp-list').querySelector('.empty-hint')?.remove();
-    const expId=Date.now();
-    const wtype=document.getElementById('m-etype')?.value||'';
-    const edesc=document.getElementById('m-edesc')?.value.trim()||'';
-    document.getElementById('exp-list').insertAdjacentHTML('afterbegin',
-      renderExpItem({id:expId,title:t,company:co,location:l,start_date:s,end_date:e,work_type:wtype,desc:edesc}));
-    try{
-      const exp=JSON.parse(localStorage.getItem('tw_exp'+uid)||'[]');
-      exp.unshift({id:expId,title:t,company:co,location:l,start_date:s,end_date:e,work_type:wtype||'',desc:edesc||''});
-      localStorage.setItem('tw_exp'+uid,JSON.stringify(exp));
-    }catch(ex){}
-    if(_sessionUser&&_sessionUser.id){
-      fetch('/experience/'+_sessionUser.id,{method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({title:t,company:co,location:l,start_date:s,end_date:e})
-      }).catch(()=>{});
-    }
-  }
+  const t=document.getElementById('m-et')?.value.trim();const co=document.getElementById('m-ec')?.value.trim();const s=document.getElementById('m-es')?.value;
+  let ok=true;if(!t){setErr('m-et','err-et','مطلوب');ok=false;}else clrErr('m-et','err-et');if(!co){setErr('m-ec','err-ec','مطلوب');ok=false;}else clrErr('m-ec','err-ec');if(!s){setErr('m-es','err-es','مطلوب');ok=false;}else clrErr('m-es','err-es');if(!ok)return;
+  const e=document.getElementById('m-ee')?.value||'حتى الآن';const country=document.getElementById('m-ecountry')?.value||'';const city=document.getElementById('m-ecity')?.value||'';const cn=CNAMES[country]||'';const loc=(cn&&city)?(cn+' - '+city):(cn||city||'');const wtype=document.getElementById('m-etype')?.value||'';const desc=document.getElementById('m-edesc')?.value.trim()||'';
+  const id=Date.now();const item={id,title:t,company:co,location:loc,start_date:s,end_date:e,work_type:wtype,desc};
+  addToList('tw_exp'+_uid,'exp-list',item,renderExpItem);updateExpBadge();
+  if(_user?.id){fetch('/experience/'+_user.id,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:t,company:co,location:loc,start_date:s,end_date:e})}).catch(()=>{});}
   closeModal();
 }
-
 function saveEdu(){
-  const d=document.getElementById('m-ed').value.trim();
-  const i=document.getElementById('m-ei').value.trim();
-  if(!i) return;
-  const y=document.getElementById('m-ey').value;
-  const uid=_sessionUser&&_sessionUser.id?'_'+_sessionUser.id:'';
-  const modal=document.getElementById('modal');
-  const editId=modal.dataset.editId?parseInt(modal.dataset.editId):null;
-
-  if(editId){
-    // تعديل شهادة موجودة
-    try{
-      const edu=JSON.parse(localStorage.getItem('tw_edu'+uid)||'[]');
-      const idx2=edu.findIndex(x=>x.id===editId);
-      if(idx2>-1){ edu[idx2]={id:editId,degree:d,institution:i,end_year:y}; localStorage.setItem('tw_edu'+uid,JSON.stringify(edu)); }
-    }catch(ex){}
-    const el=document.getElementById('edu-'+editId);
-    const dtype2=document.getElementById('m-dtype')?.value||'';
-      const gpa2=document.getElementById('m-egpa')?.value.trim()||'';
-      if(el) el.outerHTML=renderEduItem({id:editId,degree:d,institution:i,end_year:y,degree_type:dtype2,gpa:gpa2});
-  } else {
-    // إضافة شهادة جديدة
-    const dtype=document.getElementById('m-dtype')?.value||'';
-    const gpa=document.getElementById('m-egpa')?.value.trim()||'';
-    document.getElementById('edu-list').querySelector('.empty-hint')?.remove();
-    const eduId=Date.now();
-    document.getElementById('edu-list').insertAdjacentHTML('afterbegin',
-      renderEduItem({id:eduId,degree:d,institution:i,end_year:y,degree_type:dtype,gpa:gpa}));
-    try{
-      const edu=JSON.parse(localStorage.getItem('tw_edu'+uid)||'[]');
-      edu.unshift({id:eduId,degree:d,institution:i,end_year:y,degree_type:dtype,gpa:gpa});
-      localStorage.setItem('tw_edu'+uid,JSON.stringify(edu));
-    }catch(ex){}
-    if(_sessionUser&&_sessionUser.id){
-      fetch('/education/'+_sessionUser.id,{method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({institution:i,degree:d,end_year:parseInt(y)||null})
-      }).catch(()=>{});
-    }
-  }
+  const dtype=document.getElementById('m-dtype')?.value;const inst=document.getElementById('m-ei')?.value.trim();
+  let ok=true;if(!dtype){setErr('m-dtype','err-dtype','مطلوب');ok=false;}else clrErr('m-dtype','err-dtype');if(!inst){setErr('m-ei','err-ei','مطلوب');ok=false;}else clrErr('m-ei','err-ei');if(!ok)return;
+  const field=document.getElementById('m-ed')?.value.trim()||'';const year=document.getElementById('m-ey')?.value||'';const gpa=document.getElementById('m-egpa')?.value.trim()||'';
+  const id=Date.now();const item={id,degree_type:dtype,institution:inst,degree:field,end_year:year,gpa};
+  addToList('tw_edu'+_uid,'edu-list',item,renderEduItem);
+  if(_user?.id){fetch('/education/'+_user.id,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({institution:inst,degree:dtype+(field?' - '+field:''),end_year:parseInt(year)||null})}).catch(()=>{});}
   closeModal();
 }
 
-function saveCustomSec(){ const nm=document.getElementById('m-csn').value.trim(),ic=document.getElementById('m-csi').value.trim()||'📌'; if(!nm) return; const id='sec-c'+Date.now(),lid='list-c'+Date.now(); document.getElementById('secList').insertAdjacentHTML('beforeend',`<div class="section" id="${id}" draggable="true"><div class="sec-header"><span class="sec-icon">${ic}</span><span class="sec-title">${nm}</span><div class="sec-line"></div></div><div id="${lid}"></div><button class="add-item-btn owner-only" onclick="openModal('generic','${lid}','${nm}')">+ إضافة</button><div class="drag-handle owner-only"><span></span><span></span><span></span></div></div>`); closeModal(); }
-function saveGeneric(lid){
+function saveSkill(){
+  const name=document.getElementById('m-skill')?.value.trim();
+  if(!name){alert('أدخل اسم المهارة');return;}
+  const level=document.getElementById('m-slevel')?.value||'';
+  const id=Date.now();
+  addToList('tw_skills'+_uid,'skills-list',{id,name,level},renderSkillItem);
+  closeModal();
+}
+
+function saveLang(){
+  const name=document.getElementById('m-lang')?.value;
+  const level=document.getElementById('m-llevel')?.value;
+  if(!name||!level){alert('اختر اللغة والمستوى');return;}
+  const id=Date.now();
+  addToList('tw_langs'+_uid,'langs-list',{id,name,level},renderLangItem);
+  closeModal();
+}
+
+function saveLink(){
+  const url=document.getElementById('m-lurl')?.value.trim();
+  if(!url){alert('أدخل الرابط');return;}
+  const type=document.getElementById('m-ltype')?.value||'رابط';
+  const id=Date.now();
+  addToList('tw_links'+_uid,'links-list',{id,type,url},renderLinkItem);
+  closeModal();
+}
+
+function saveCourse(){
+  const name=document.getElementById('m-cname')?.value.trim();
+  if(!name){alert('أدخل اسم الدورة');return;}
+  const prov=document.getElementById('m-cprov')?.value.trim()||'';
+  const year=document.getElementById('m-cyear')?.value||'';
+  const url=document.getElementById('m-curl')?.value.trim()||'';
+  const id=Date.now();
+  addToList('tw_courses'+_uid,'course-list',{id,name,provider:prov,year,url},renderCourseItem);
+  closeModal();
+}
+
+function saveGeneric(){
+  const lid=window._currentListId||'';
+  if(!lid){closeModal();return;}
   const t=document.getElementById('m-gt')?.value.trim();
-  if(!t) return;
+  if(!t){alert('أدخل العنوان');return;}
   const s=document.getElementById('m-gs')?.value||'';
   const d=document.getElementById('m-gd')?.value||'';
   const id=Date.now();
-  document.getElementById(lid)?.insertAdjacentHTML('afterbegin',
-    `<div class="item" id="gen-${id}">
-      <div style="display:flex;align-items:flex-start;justify-content:space-between">
-        <div>
-          <div class="item-title">${t}</div>
-          ${s?`<div class="item-sub">${s}</div>`:''}
-          ${d?`<div class="item-date">${d}</div>`:''}
-        </div>
-        <div class="item-menu-wrap owner-only">
-          <button class="item-menu-btn" onclick="toggleItemMenu('gmenu-${id}')">⋯</button>
-          <div class="item-menu" id="gmenu-${id}">
-            <div class="item-menu-opt" onclick="delItem('gen-${id}','${lid}','tw_generic_${lid}')">🗑️ حذف</div>
-          </div>
-        </div>
-      </div>
-    </div>`);
-  saveToLS('tw_generic_'+lid, {id,title:t,sub:s,date:d});
+  addToList('tw_gen_'+lid+_uid,lid,{id,title:t,sub:s,date:d},renderGenericItem);
   closeModal();
 }
-function closeModal(){
-  const modal=document.getElementById('modal');
-  if(modal){ delete modal.dataset.editId; delete modal.dataset.editType; }
-  document.getElementById('overlay').classList.remove('show');
-}
-function closeOverlay(e){ if(e.target===document.getElementById('overlay')) closeModal(); }
 
-if(!isOwner) document.querySelectorAll('.owner-only').forEach(el=>el.style.display='none');
-loadSectionOrder();
-
-// Load saved color
-try{
-  const savedColor = localStorage.getItem('tw_profile_color');
-  if(savedColor){
-    applyColor(savedColor);
-    document.querySelectorAll('.csw').forEach(s=>{
-      if(s.style.background === savedColor) s.classList.add('active');
-      else s.classList.remove('active');
-    });
-  } else {
-    applyColor('#00c896');
-  }
-}catch(ex){ applyColor('#00c896'); }
-// Load saved style
-try{
-  const savedStyle = parseInt(localStorage.getItem('tw_profile_style'))||1;
-  if(savedStyle && savedStyle !== 1){
-    const sopt = document.getElementById('sopt'+savedStyle);
-    if(sopt) setStyle(savedStyle, sopt);
-  }
-}catch(ex){}
-
-// ── Avatar upload with crop ──
-let _cropImg=null, _cropX=0, _cropY=0, _cropScale=1, _cropDragging=false, _cropLX=0, _cropLY=0;
-
-function openAvatarUpload(){
-  if(!isOwner) return;
-  document.getElementById('avatarInput').click();
+function saveCustomSec(){
+  const nm=document.getElementById('m-csn')?.value.trim();
+  if(!nm){alert('أدخل اسم القسم');return;}
+  const ic=document.getElementById('m-csi')?.value||'📌';
+  const sid='sec-c'+Date.now();
+  const lid='list-c'+Date.now();
+  document.getElementById('secList').insertAdjacentHTML('beforeend',
+    `<div class="section" id="${sid}" draggable="true">
+      <div class="sec-header"><span class="sec-icon">${ic}</span><span class="sec-title">${nm}</span><div class="sec-line"></div></div>
+      <div id="${lid}"><div class="item empty-hint"><div class="item-title" style="opacity:.4;font-size:.8rem">لا توجد عناصر — اضغط + لإضافة</div></div></div>
+      <button class="add-item-btn owner-only" onclick="window._currentListId='${lid}';openModal('generic')">+ إضافة</button>
+      <div class="drag-handle owner-only"><span></span><span></span><span></span></div>
+    </div>`);
+  setupDrag();saveSectionOrder();closeModal();
 }
 
+// ── LIST HELPERS ──
+function addToList(key,listId,item,renderFn){
+  const el=document.getElementById(listId);
+  if(!el)return;
+  el.querySelector('.empty-hint')?.remove();
+  el.insertAdjacentHTML('afterbegin',renderFn(item));
+  try{const arr=LS(key);arr.unshift(item);LSset(key,arr);}catch(e){}
+}
+
+function delItem(elId,key,itemId){
+  document.getElementById(elId)?.remove();
+  try{const arr=LS(key).filter(x=>x.id!==itemId);LSset(key,arr);}catch(e){}
+  updateExpBadge();
+}
+
+function menuToggle(id){
+  document.querySelectorAll('.item-menu.open').forEach(m=>{if(m.id!=='imenu-'+id)m.classList.remove('open');});
+  document.getElementById('imenu-'+id)?.classList.toggle('open');
+}
+document.addEventListener('click',e=>{
+  if(!e.target.closest('.item-menu-wrap')) document.querySelectorAll('.item-menu.open').forEach(m=>m.classList.remove('open'));
+});
+
+// ── RENDER FUNCTIONS ──
+function menuHTML(id,key){
+  return`<div class="item-menu-wrap owner-only">
+    <button class="item-menu-btn" onclick="menuToggle(${id})">⋯</button>
+    <div class="item-menu" id="imenu-${id}">
+      <div class="item-menu-opt del" onclick="delItem('item-${id}','${key}',${id})">🗑️ حذف</div>
+    </div>
+  </div>`;}
+
+function wrapItem(id,key,inner){
+  return`<div class="item" id="item-${id}">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
+      <div style="flex:1;min-width:0">${inner}</div>
+      ${menuHTML(id,key)}
+    </div>
+  </div>`;}
+
+function renderExpItem(e){
+  const id=e.id||Date.now();
+  const key='tw_exp'+_uid;
+  const inner=`<div class="item-title">${e.title}</div>
+    <div class="item-sub">${e.company}${e.location?' · '+e.location:''}${e.work_type?' · '+e.work_type:''}</div>
+    <div class="item-date">${e.start_date||''}${e.end_date?' - '+e.end_date:''}</div>
+    ${e.desc?`<div style="font-size:.72rem;color:rgba(255,255,255,.35);margin-top:4px;line-height:1.5">${e.desc}</div>`:''}
+    <span class="badge pending">⏳ قيد المراجعة</span>`;
+  return wrapItem(id,key,inner);
+}
+
+function renderEduItem(e){
+  const id=e.id||Date.now();
+  const key='tw_edu'+_uid;
+  const title=(e.degree_type||'')+(e.degree?' - '+e.degree:'');
+  const inner=`<div class="item-title">${title||'شهادة'}</div>
+    <div class="item-sub">${e.institution}${e.gpa?' · المعدل: '+e.gpa:''}</div>
+    <div class="item-date">${e.end_year||''}</div>
+    <span class="badge pending">⏳ قيد المراجعة</span>`;
+  return wrapItem(id,key,inner);
+}
+
+function renderSkillItem(e){
+  const id=e.id||Date.now();
+  const lvl={'مبتدئ':'🟡','متوسط':'🟠','متقدم':'🔵','خبير':'🟢'}[e.level]||'';
+  const inner=`<div class="item-title">${e.name}</div>${e.level?`<div class="item-sub">${lvl} ${e.level}</div>`:''}`;
+  return wrapItem(id,'tw_skills'+_uid,inner);
+}
+
+function renderLangItem(e){
+  const id=e.id||Date.now();
+  const lvl={'مبتدئ':'🟡','محادثة':'🟠','جيد':'🔵','طلاقة':'🟢','لغة أم':'⭐'}[e.level]||'';
+  const inner=`<div class="item-title">${e.name}</div><div class="item-sub">${lvl} ${e.level}</div>`;
+  return wrapItem(id,'tw_langs'+_uid,inner);
+}
+
+function renderLinkItem(e){
+  const id=e.id||Date.now();
+  const inner=`<div class="item-title">${e.type}</div><a href="${e.url}" target="_blank" style="font-size:.72rem;color:var(--ac);word-break:break-all">${e.url}</a>`;
+  return wrapItem(id,'tw_links'+_uid,inner);
+}
+
+function renderCourseItem(e){
+  const id=e.id||Date.now();
+  const inner=`<div class="item-title">${e.name}</div>
+    ${e.provider?`<div class="item-sub">${e.provider}</div>`:''}
+    <div class="item-date">${e.year||''}</div>
+    ${e.url?`<a href="${e.url}" target="_blank" style="font-size:.65rem;color:var(--ac)">📜 الشهادة</a>`:''}
+    <span class="badge pending">⏳ قيد المراجعة</span>`;
+  return wrapItem(id,'tw_courses'+_uid,inner);
+}
+
+function renderGenericItem(e){
+  const id=e.id||Date.now();
+  const inner=`<div class="item-title">${e.title}</div>${e.sub?`<div class="item-sub">${e.sub}</div>`:''}<div class="item-date">${e.date||''}</div>`;
+  return wrapItem(id,'',inner);
+}
+
+// ── SECTIONS ──
+const SEC_CONF={
+  course:{modal:'course',listId:'course-list',render:renderCourseItem,key:'tw_courses',icon:'📚',title:'الدورات التدريبية'},
+  skills:{modal:'skills',listId:'skills-list',render:renderSkillItem,key:'tw_skills',icon:'🛠️',title:'المهارات'},
+  langs:{modal:'langs',listId:'langs-list',render:renderLangItem,key:'tw_langs',icon:'🌍',title:'اللغات'},
+  links:{modal:'links',listId:'links-list',render:renderLinkItem,key:'tw_links',icon:'🔗',title:'روابط التواصل'},
+};
+
+function addSection(id,icon,title,el){
+  if(document.getElementById('sec-'+id))return;
+  if(el){el.classList.add('added');if(!el.querySelector('.asec-done'))el.insertAdjacentHTML('beforeend','<span class="asec-done">✓</span>');}
+  const conf=SEC_CONF[id];
+  const lid=conf?conf.listId:(id+'-list');
+  const btnClick=conf?`openModal('${conf.modal}')`:`window._currentListId='${lid}';openModal('generic')`;
+  document.getElementById('secList').insertAdjacentHTML('beforeend',
+    `<div class="section" id="sec-${id}" draggable="true">
+      <div class="sec-header"><span class="sec-icon">${icon}</span><span class="sec-title">${title}</span><div class="sec-line"></div></div>
+      <div id="${lid}"><div class="item empty-hint"><div class="item-title" style="opacity:.4;font-size:.8rem">لا توجد عناصر — اضغط + لإضافة</div></div></div>
+      <button class="add-item-btn owner-only" onclick="${btnClick}">+ إضافة</button>
+      <div class="drag-handle owner-only"><span></span><span></span><span></span></div>
+    </div>`);
+  setupDrag();saveSectionOrder();closePanel();
+}
+
+function loadSectionData(){
+  Object.entries(SEC_CONF).forEach(([id,conf])=>{
+    const items=LS(conf.key+_uid);
+    if(!items.length)return;
+    if(!document.getElementById('sec-'+id)){
+      const asecEl=document.getElementById('asec-'+id);
+      if(asecEl){asecEl.classList.add('added');if(!asecEl.querySelector('.asec-done'))asecEl.insertAdjacentHTML('beforeend','<span class="asec-done">✓</span>');}
+      document.getElementById('secList').insertAdjacentHTML('beforeend',
+        `<div class="section" id="sec-${id}" draggable="true">
+          <div class="sec-header"><span class="sec-icon">${conf.icon}</span><span class="sec-title">${conf.title}</span><div class="sec-line"></div></div>
+          <div id="${conf.listId}"></div>
+          <button class="add-item-btn owner-only" onclick="openModal('${conf.modal}')">+ إضافة</button>
+          <div class="drag-handle owner-only"><span></span><span></span><span></span></div>
+        </div>`);
+    }
+    const el=document.getElementById(conf.listId);
+    if(el){el.innerHTML='';items.forEach(item=>el.insertAdjacentHTML('beforeend',conf.render(item)));}
+  });
+  setupDrag();
+}
+
+// ── DRAG & DROP ──
+function setupDrag(){
+  const secList=document.getElementById('secList');
+  secList.querySelectorAll('.section[draggable]').forEach(sec=>{
+    sec.ondragstart=e=>{_dragSrc=sec;setTimeout(()=>sec.style.opacity='.5',0);};
+    sec.ondragend=()=>{sec.style.opacity='1';_dragSrc=null;};
+    sec.ondragover=e=>{e.preventDefault();sec.classList.add('drag-over');};
+    sec.ondragleave=()=>sec.classList.remove('drag-over');
+    sec.ondrop=e=>{
+      e.preventDefault();sec.classList.remove('drag-over');
+      if(!_dragSrc||_dragSrc===sec)return;
+      const kids=[...secList.children];
+      if(kids.indexOf(_dragSrc)<kids.indexOf(sec)) secList.insertBefore(_dragSrc,sec.nextSibling);
+      else secList.insertBefore(_dragSrc,sec);
+      saveSectionOrder();
+    };
+  });
+}
+function saveSectionOrder(){
+  const order=[...document.getElementById('secList').children].map(s=>s.id);
+  LSset('tw_sec_order'+_uid,order);
+}
+function loadSectionOrder(){
+  try{
+    const order=LS('tw_sec_order'+_uid);
+    if(!order.length)return;
+    const secList=document.getElementById('secList');
+    order.forEach(id=>{const el=document.getElementById(id);if(el)secList.appendChild(el);});
+  }catch(e){}
+}
+setupDrag();
+
+// ── EXP BADGE ──
+function updateExpBadge(){
+  try{
+    const exp=LS('tw_exp'+_uid);
+    let total=0;const cur=new Date().getFullYear();
+    exp.forEach(e=>{const f=parseInt(e.start_date)||0;const t=e.end_date==='حتى الآن'?cur:(parseInt(e.end_date)||cur);if(f>0)total+=t-f;});
+    const badge=document.getElementById('cvExpBadge');
+    if(badge&&total>0){badge.textContent='💼 '+total+(total===1?' سنة خبرة':total<11?' سنوات خبرة':' سنة خبرة');badge.style.display='inline-flex';}
+    else if(badge) badge.style.display='none';
+  }catch(e){}
+}
+
+// ── AGE & AVAIL ──
+function calcAge(dob){
+  try{const p=dob.split('-');const d=new Date(+p[0],+p[1]-1,+p[2]);const n=new Date();let a=n.getFullYear()-d.getFullYear();if(n.getMonth()<d.getMonth()||(n.getMonth()===d.getMonth()&&n.getDate()<d.getDate()))a--;return a>0&&a<100?a+' سنة':'';}catch(e){return '';}
+}
+function showAge(dob){
+  const line=document.getElementById('cvAgeLine');if(!line)return;
+  const age=calcAge(dob);if(age){line.textContent='العمر: '+age;line.style.display='block';}
+}
+const AVAIL_MAP={
+  'متاح':{bg:'rgba(0,200,150,.12)',color:'#00c896',label:'🟢 متاح للعمل'},
+  'مشغول':{bg:'rgba(239,68,68,.1)',color:'#f87171',label:'🔴 غير متاح'},
+  'يفكر':{bg:'rgba(234,179,8,.1)',color:'#eab308',label:'🟡 يفكر في فرص'},
+  'عمل حر':{bg:'rgba(139,92,246,.1)',color:'#a78bfa',label:'💼 فريلانس'},
+};
+function showAvail(avail){
+  const el=document.getElementById('cvAvail');if(!el||!avail)return;
+  const s=AVAIL_MAP[avail];if(!s)return;
+  el.innerHTML=`<span style="display:inline-flex;align-items:center;padding:2px 9px;border-radius:20px;font-size:.68rem;font-weight:700;background:${s.bg};color:${s.color}">${s.label}</span>`;
+}
+
+// ── AVATAR & CROP ──
+function openAvatarUpload(){document.getElementById('avatarInput').click();}
+function setAvatarImg(src){const el=document.getElementById('cvAvatar');if(el)el.innerHTML=`<img src="${src}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;">`;}
 function handleAvatarUpload(input){
-  if(!input.files[0]) return;
-  const reader=new FileReader();
-  reader.onload=e=>openCropModal(e.target.result);
-  reader.readAsDataURL(input.files[0]);
+  if(!input.files[0])return;
+  const r=new FileReader();r.onload=e=>openCropModal(e.target.result);r.readAsDataURL(input.files[0]);
+  input.value='';
 }
-
 function openCropModal(src){
-  // Remove existing crop overlay if any
   document.getElementById('cropOv')?.remove();
-  const ov=document.createElement('div');
-  ov.id='cropOv'; ov.className='crop-overlay';
+  const ov=document.createElement('div');ov.id='cropOv';ov.className='crop-overlay';
   ov.innerHTML=`
-    <div class="crop-tip">
-      💡 <strong>نصيحة:</strong> اختر صورة واضحة لوجهك بخلفية فاضية أو بسيطة.<br>
-      تجنب الصور الجماعية أو ذات الخلفيات المشتتة.
-    </div>
-    <div class="crop-container" id="cropCont">
-      <img id="cropImg" class="crop-image" src="${src}" draggable="false">
-    </div>
-    <div class="crop-hint">اسحب الصورة لتحديد المنطقة المناسبة</div>
-    <div class="crop-controls">
-      <span style="font-size:.75rem;color:rgba(255,255,255,.4)">-</span>
-      <input type="range" id="cropZoom" min="0.5" max="3" step="0.05" value="1"
-        style="width:140px;accent-color:var(--ac);" oninput="updateCropScale(this.value)">
+    <div class="crop-tip">💡 <strong>نصيحة:</strong> اختر صورة واضحة لوجهك بخلفية بسيطة أو فاضية.</div>
+    <div class="crop-container" id="cropCont"><img id="cropImg" class="crop-image" src="${src}" draggable="false"></div>
+    <div style="color:rgba(255,255,255,.4);font-size:.72rem;font-family:Cairo,sans-serif">اسحب الصورة لتحديد المنطقة المناسبة</div>
+    <div style="display:flex;align-items:center;gap:10px">
+      <span style="font-size:.75rem;color:rgba(255,255,255,.4)">−</span>
+      <input type="range" id="cropZoom" min="0.3" max="3" step="0.05" value="1" style="width:140px;accent-color:var(--ac)" oninput="updateCropScale(this.value)">
       <span style="font-size:.75rem;color:rgba(255,255,255,.4)">+</span>
     </div>
     <div class="crop-btns">
@@ -2110,348 +1298,71 @@ function openCropModal(src){
       <button class="crop-btn crop-cancel" onclick="document.getElementById('cropOv').remove()">إلغاء</button>
     </div>`;
   document.body.appendChild(ov);
-  // Init crop
-  _cropX=0; _cropY=0; _cropScale=1;
+  _cx=0;_cy=0;_cs=1;
   const img=document.getElementById('cropImg');
   img.onload=()=>{
-    const cw=300, ch=300;
-    _cropScale=Math.max(cw/img.naturalWidth, ch/img.naturalHeight);
-    document.getElementById('cropZoom').value=_cropScale;
-    updateCropScale(_cropScale);
-    _cropX=(cw-img.naturalWidth*_cropScale)/2;
-    _cropY=(ch-img.naturalHeight*_cropScale)/2;
-    updateCropPos();
+    _cs=Math.max(280/img.naturalWidth,280/img.naturalHeight);
+    document.getElementById('cropZoom').value=_cs;
+    updateCropScale(_cs);
+    _cx=(280-img.naturalWidth*_cs)/2;_cy=(280-img.naturalHeight*_cs)/2;updateCropPos();
   };
-  img.addEventListener('mousedown',startDrag);
-  img.addEventListener('touchstart',startDrag,{passive:true});
-  document.addEventListener('mousemove',doDrag);
-  document.addEventListener('touchmove',doDrag,{passive:false});
-  document.addEventListener('mouseup',stopDrag);
-  document.addEventListener('touchend',stopDrag);
+  img.addEventListener('mousedown',cropSD);img.addEventListener('touchstart',cropSD,{passive:true});
+  document.addEventListener('mousemove',cropDD);document.addEventListener('touchmove',cropTD,{passive:false});
+  document.addEventListener('mouseup',cropED);document.addEventListener('touchend',cropED);
 }
-
-function startDrag(e){
-  _cropDragging=true;
-  const pt=e.touches?e.touches[0]:e;
-  _cropLX=pt.clientX-_cropX; _cropLY=pt.clientY-_cropY;
-}
-function doDrag(e){
-  if(!_cropDragging) return;
-  if(e.cancelable) e.preventDefault();
-  const pt=e.touches?e.touches[0]:e;
-  _cropX=pt.clientX-_cropLX; _cropY=pt.clientY-_cropLY;
-  updateCropPos();
-}
-function stopDrag(){ _cropDragging=false; }
-function updateCropScale(v){
-  _cropScale=parseFloat(v);
-  const img=document.getElementById('cropImg');
-  if(img){ img.style.width=img.naturalWidth*_cropScale+'px'; img.style.height=img.naturalHeight*_cropScale+'px'; updateCropPos(); }
-}
-function updateCropPos(){
-  const img=document.getElementById('cropImg');
-  if(img){ img.style.left=_cropX+'px'; img.style.top=_cropY+'px'; }
-}
-
+function cropSD(e){_cd=true;const p=e.touches?e.touches[0]:e;_clx=p.clientX-_cx;_cly=p.clientY-_cy;}
+function cropDD(e){if(!_cd)return;_cx=e.clientX-_clx;_cy=e.clientY-_cly;updateCropPos();}
+function cropTD(e){if(!_cd||!e.cancelable)return;e.preventDefault();_cx=e.touches[0].clientX-_clx;_cy=e.touches[0].clientY-_cly;updateCropPos();}
+function cropED(){_cd=false;}
+function updateCropScale(v){_cs=parseFloat(v);const img=document.getElementById('cropImg');if(img){img.style.width=img.naturalWidth*_cs+'px';img.style.height=img.naturalHeight*_cs+'px';updateCropPos();}}
+function updateCropPos(){const img=document.getElementById('cropImg');if(img){img.style.left=_cx+'px';img.style.top=_cy+'px';}}
 function saveCrop(){
-  const img=document.getElementById('cropImg');
-  if(!img) return;
-  const canvas=document.createElement('canvas');
-  canvas.width=300; canvas.height=300;
-  const ctx=canvas.getContext('2d');
-  ctx.drawImage(img.naturalWidth?img:img, -_cropX/_cropScale, -_cropY/_cropScale, 300/_cropScale, 300/_cropScale, 0, 0, 300, 300);
-  const dataUrl=canvas.toDataURL('image/jpeg',0.85);
-  const avatarEl=document.getElementById('avatarBtn');
-  if(avatarEl) avatarEl.innerHTML=`<img src="${dataUrl}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;">`;
-  try{
-    const uid=_sessionUser&&_sessionUser.id?'_'+_sessionUser.id:'';
-    localStorage.setItem('tw_avatar'+uid, dataUrl);
-  }catch(ex){}
+  const img=document.getElementById('cropImg');if(!img)return;
+  const canvas=document.createElement('canvas');canvas.width=280;canvas.height=280;
+  canvas.getContext('2d').drawImage(img,-_cx/_cs,-_cy/_cs,280/_cs,280/_cs,0,0,280,280);
+  const data=canvas.toDataURL('image/jpeg',.85);
+  setAvatarImg(data);
+  try{localStorage.setItem('tw_avatar'+_uid,data);}catch(e){}
   document.getElementById('cropOv')?.remove();
-  // Cleanup events
-  document.removeEventListener('mousemove',doDrag);
-  document.removeEventListener('touchmove',doDrag);
-  document.removeEventListener('mouseup',stopDrag);
-  document.removeEventListener('touchend',stopDrag);
+  document.removeEventListener('mousemove',cropDD);document.removeEventListener('touchmove',cropTD);
+  document.removeEventListener('mouseup',cropED);document.removeEventListener('touchend',cropED);
 }
 
-// Load saved avatar on init
-(function(){
-  let u; try{u=JSON.parse(localStorage.getItem('tw_user'));}catch(e){}
-  if(!u||!u.id) return;
-  const uid='_'+u.id;
-  const saved=localStorage.getItem('tw_avatar'+uid);
-  if(saved){
-    const avatarEl=document.getElementById('avatarBtn');
-    if(avatarEl) avatarEl.innerHTML=`<img src="${saved}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;">`;
-  }
-})();
-
-function doLogout(){ localStorage.removeItem('tw_user'); location.href='/'; }
-</script>
-
-<script>
-// ── Load profile data only ──
-(function(){
-  let user;
-  try { user = JSON.parse(localStorage.getItem('tw_user')); } catch(e){}
-  if(!user || !user.id) return;
-
-  const _uid = '_' + user.id;
-
-  // ── 1. عرض فوري من localStorage ──
-  document.getElementById('cvCode').textContent =
-    'TW-' + (user.user_type||'emp').toUpperCase() + '-' + String(user.id);
-
-  try{
-    const prof=JSON.parse(localStorage.getItem('tw_profile_data'+_uid)||'{}');
-    if(prof.full_name||user.full_name) document.getElementById('cvName').textContent=prof.full_name||user.full_name;
-    if(prof.dob){
-      const ageLine=document.getElementById('cvAgeLine');
-      if(ageLine){ const age=calcAge(prof.dob); if(age){ ageLine.textContent='العمر: '+age; ageLine.style.display='block'; } }
-    }
-    if(prof.headline) document.getElementById('cvTitle').textContent=prof.headline;
-    if(prof.bio) document.getElementById('cvBio').textContent=prof.bio;
-    if(prof.location){
-      // Rebuild from saved country+city if available
-      const cn=getCountryName(prof.country||'');
-      const ct=prof.city||'';
-      const locTxt=cn&&ct?cn+' - '+ct:(cn||ct||prof.location);
-      document.getElementById('cvLoc').textContent='📍 '+locTxt;
-    }
-  }catch(ex){
-    if(user.full_name) document.getElementById('cvName').textContent=user.full_name;
-  }
-
-  try{
-    const exp=JSON.parse(localStorage.getItem('tw_exp'+_uid)||'[]');
-    if(exp.length){
-      document.getElementById('exp-list').innerHTML='';
-      exp.forEach(e=>document.getElementById('exp-list').insertAdjacentHTML('beforeend',renderExpItem(e)));
-    }
-  }catch(ex){}
-
-  try{
-    const edu=JSON.parse(localStorage.getItem('tw_edu'+_uid)||'[]');
-    if(edu.length){
-      document.getElementById('edu-list').innerHTML='';
-      edu.forEach(e=>document.getElementById('edu-list').insertAdjacentHTML('beforeend',renderEduItem(e)));
-    }
-  }catch(ex){}
-
-  // ── 2. API call ──
-  fetch('/profile/' + user.id + '/full')
-    .then(r => r.json())
-    .then(data => {
-      const p = data.profile;
-      if(!p) return;
-      if(p.full_name) document.getElementById('cvName').textContent = p.full_name;
-      if(p.headline)  document.getElementById('cvTitle').textContent = p.headline;
-      if(p.bio)       document.getElementById('cvBio').textContent = p.bio;
-      if(p.location)  document.getElementById('cvLoc').textContent = '📍 ' + p.location;
-      const t = p.user_type || 'emp';
-      document.getElementById('cvCode').textContent = 'TW-' + t.toUpperCase() + '-' + String(p.id);
-      if(p.experience && p.experience.length){
-        document.getElementById('exp-list').innerHTML = ''; // clear empty hint
-        p.experience.forEach(e => document.getElementById('exp-list').insertAdjacentHTML('beforeend',
-          `<div class="item"><div class="item-title">${e.title}</div><div class="item-sub">${e.company}${e.location?' · '+e.location:''}</div><div class="item-date">${e.start_date||''}${e.end_date?' - '+e.end_date:''}</div><span class="badge pending">⏳ قيد التوثيق</span></div>`));
-      }
-      if(p.education && p.education.length){
-        document.getElementById('edu-list').innerHTML = ''; // clear empty hint
-        p.education.forEach(e => document.getElementById('edu-list').insertAdjacentHTML('beforeend',
-          `<div class="item"><div class="item-title">${e.degree||'شهادة'}</div><div class="item-sub">${e.institution}</div><div class="item-date">${e.end_year||''}</div><span class="badge pending">⏳ قيد التوثيق</span></div>`));
-      }
-    })
-    .catch(()=>{
-      if(user.full_name) document.getElementById('cvName').textContent = user.full_name;
-    });
-})();
-</script>
-
-
-<!-- QR -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
-<script>
-let _qrUser = null;
-try { _qrUser = JSON.parse(localStorage.getItem('tw_user')); } catch(e){}
-
-function rrPath(ctx, x, y, w, h, r){
-  ctx.beginPath();
-  ctx.moveTo(x+r, y);
-  ctx.lineTo(x+w-r, y);
-  ctx.quadraticCurveTo(x+w, y, x+w, y+r);
-  ctx.lineTo(x+w, y+h-r);
-  ctx.quadraticCurveTo(x+w, y+h, x+w-r, y+h);
-  ctx.lineTo(x+r, y+h);
-  ctx.quadraticCurveTo(x, y+h, x, y+h-r);
-  ctx.lineTo(x, y+r);
-  ctx.quadraticCurveTo(x, y, x+r, y);
-  ctx.closePath();
+// ── QR ──
+let _qrLib=false;
+function drawQR(){
+  const url=location.origin+'/profile.html'+(_user?.id?'?id='+_user.id:'');
+  const hex=getComputedStyle(document.documentElement).getPropertyValue('--ac').trim()||'#00c896';
+  [['snapCanvas',80],['qrBigCanvas',200]].forEach(([cid,sz])=>{
+    const cv=document.getElementById(cid);if(!cv)return;
+    try{
+      const tmp=document.createElement('div');
+      new QRCode(tmp,{text:url,width:sz,height:sz,colorDark:hex,colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.M});
+      const src=tmp.querySelector('img')?.src||tmp.querySelector('canvas')?.toDataURL();
+      if(src){cv.width=sz;cv.height=sz;const i=new Image();i.onload=()=>cv.getContext('2d').drawImage(i,0,0,sz,sz);i.src=src;}
+    }catch(e){}
+  });
 }
-
-function drawSnapQR(canvasId, text, size){
-  const canvas = document.getElementById(canvasId);
-  if(!canvas) return;
-  canvas.width = size; canvas.height = size;
-  const ctx = canvas.getContext('2d');
-
-  // Read current accent colors from CSS variables
-  const st = getComputedStyle(document.documentElement);
-  const ac  = st.getPropertyValue('--ac').trim()  || '#00c896';
-  const ac2 = st.getPropertyValue('--ac2').trim() || '#2563ff';
-
-  // Generate QR matrix
-  const qr = qrcode(0, 'H');
-  qr.addData(text || 'https://tawasolna.com');
-  qr.make();
-  const mc = qr.getModuleCount();
-
-  const pad  = size * 0.07;
-  const qrSz = size - pad * 2;
-  const cs   = qrSz / mc;
-
-  // ── Background: white with accent color border ──
-  // Gradient border using --ac
-  const borderGrad = ctx.createLinearGradient(0, 0, size, size);
-  borderGrad.addColorStop(0, ac);
-  borderGrad.addColorStop(1, ac2);
-  rrPath(ctx, 0, 0, size, size, size * 0.13);
-  ctx.fillStyle = borderGrad;
-  ctx.fill();
-
-  // White inner
-  const border = size * 0.04;
-  rrPath(ctx, border, border, size - border*2, size - border*2, size * 0.11);
-  ctx.fillStyle = '#ffffff';
-  ctx.fill();
-
-  // ── Finder pattern zones (7×7 each corner) ──
-  const fps = [[0,0],[mc-7,0],[0,mc-7]];
-  function inFinder(r, c){
-    for(const [fr,fc] of fps)
-      if(r>=fr&&r<fr+7&&c>=fc&&c<fc+7) return true;
-    return false;
-  }
-
-  // ── Logo zone (center 28%) ──
-  const lz = mc * 0.28;
-  const lzS = Math.floor((mc - lz) / 2);
-  const lzE = Math.ceil((mc + lz) / 2);
-  function inLogo(r, c){ return r>=lzS&&r<lzE&&c>=lzS&&c<lzE; }
-
-  // ── Draw data dots (circles) - dark for readability ──
-  ctx.fillStyle = '#1a1a2e';
-  for(let r=0; r<mc; r++){
-    for(let co=0; co<mc; co++){
-      if(!qr.isDark(r,co)) continue;
-      if(inFinder(r,co)) continue;
-      if(inLogo(r,co)) continue;
-      const x = pad + co*cs + cs/2;
-      const y = pad + r*cs  + cs/2;
-      ctx.beginPath();
-      ctx.arc(x, y, cs*0.41, 0, Math.PI*2);
-      ctx.fill();
-    }
-  }
-
-  // ── Draw custom finder patterns ──
-  function drawFinder(fr, fc){
-    const x = pad + fc*cs;
-    const y = pad + fr*cs;
-    const w = 7*cs;
-    const r1 = cs*1.1;  // outer
-    const r2 = cs*0.85; // mid
-    const r3 = cs*0.65; // inner dot
-
-    // Outer gradient rounded rect
-    const fg = ctx.createLinearGradient(x, y, x+w, y+w);
-    fg.addColorStop(0, ac);
-    fg.addColorStop(1, ac2);
-    ctx.fillStyle = fg;
-    rrPath(ctx, x, y, w, w, r1);
-    ctx.fill();
-
-    // Middle white gap
-    ctx.fillStyle = '#ffffff';
-    rrPath(ctx, x+cs, y+cs, 5*cs, 5*cs, r2);
-    ctx.fill();
-
-    // Inner gradient dot
-    const ig = ctx.createLinearGradient(x+2*cs, y+2*cs, x+5*cs, y+5*cs);
-    ig.addColorStop(0, ac);
-    ig.addColorStop(1, ac2);
-    ctx.fillStyle = ig;
-    rrPath(ctx, x+2*cs, y+2*cs, 3*cs, 3*cs, r3);
-    ctx.fill();
-  }
-
-  for(const [fr,fc] of fps) drawFinder(fr, fc);
-
-  // ── Center logo ──
-  const lsz  = size * 0.2;
-  const lpad = size * 0.03;
-  const lx   = (size - lsz) / 2;
-  const ly   = (size - lsz) / 2;
-
-  // White circle backing (clean)
-  ctx.fillStyle = '#fff';
-  rrPath(ctx, lx-lpad*1.5, ly-lpad*1.5, lsz+lpad*3, lsz+lpad*3, lsz*0.35);
-  ctx.fill();
-
-  // Gradient fill
-  const lg = ctx.createLinearGradient(lx, ly, lx+lsz, ly+lsz);
-  lg.addColorStop(0, ac);
-  lg.addColorStop(1, ac2);
-  ctx.fillStyle = lg;
-  rrPath(ctx, lx, ly, lsz, lsz, lsz*0.24);
-  ctx.fill();
-
-  // Logo placeholder - empty for now
-}
-
 function openQROverlay(){
-  const url = 'https://tawasolna.com/profile?id=' + (_qrUser&&_qrUser.id?_qrUser.id:'0');
-  const name = (document.getElementById('cvName')||{}).textContent || 'تواصلنا';
-
-  const ov = document.createElement('div');
-  ov.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(7,11,24,.92);backdrop-filter:blur(20px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;cursor:pointer';
-  ov.onclick = ()=>ov.remove();
-
-  const cvs = document.createElement('canvas');
-  cvs.id = 'qrBig';
-  cvs.style.cssText = 'border-radius:28px;box-shadow:0 20px 60px rgba(0,200,150,.35)';
-
-  const nameEl = document.createElement('div');
-  nameEl.style.cssText = "font-family:'Cairo',sans-serif;font-size:.95rem;font-weight:800;color:#fff";
-  nameEl.textContent = name;
-
-  const hint = document.createElement('div');
-  hint.style.cssText = "font-family:'Cairo',sans-serif;font-size:.68rem;color:rgba(255,255,255,.35)";
-  hint.textContent = 'اضغط للإغلاق';
-
-  ov.appendChild(cvs);
-  ov.appendChild(nameEl);
-  ov.appendChild(hint);
-  document.body.appendChild(ov);
-
-  drawSnapQR('qrBig', url, 240);
+  drawQR();
+  const ov=document.getElementById('qrOverlay');
+  if(ov) ov.style.display='flex';
 }
 
-const _qrUrl = 'https://tawasolna.com/profile?id=' + (_qrUser&&_qrUser.id?_qrUser.id:'0');
-
-function redrawQR(){
-  if(typeof qrcode === 'undefined') return;
-  drawSnapQR('snapCanvas', _qrUrl, 68);
+// ── NAVIGATION ──
+function goHome(){
+  if(!_user){location.href='/';return;}
+  const dest=_user.user_type==='co'?'company-profile.html?id='+_user.id:_user.user_type==='edu'?'edu-profile.html?id='+_user.id:'home.html';
+  location.href=dest;
 }
+function doLogout(){localStorage.removeItem('tw_user');location.href='/';}
 
-function initQR(){
-  if(typeof qrcode === 'undefined'){
-    setTimeout(initQR, 100);
-    return;
-  }
-  drawSnapQR('snapCanvas', _qrUrl, 68);
-}
-window.addEventListener('load', initQR);
+// Load QR lib
+const qrScript=document.createElement('script');
+qrScript.src='https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';
+qrScript.onload=()=>setTimeout(drawQR,100);
+document.head.appendChild(qrScript);
 </script>
 
 </body>
+</html>
