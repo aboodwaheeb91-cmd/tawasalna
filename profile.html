@@ -1784,8 +1784,10 @@ function doLogout(){ localStorage.removeItem('tw_user'); location.href='/'; }
     'TW-' + (user.user_type||'emp').toUpperCase() + '-' + String(user.id);
 
   try{
-    const prof=JSON.parse(localStorage.getItem('tw_profile_data'+_uid)||'{}');
+    const _profUid=_sessionUser&&_sessionUser.id?'_'+_sessionUser.id:(user&&user.id?'_'+user.id:'');
+    const prof=JSON.parse(localStorage.getItem('tw_profile_data'+_profUid)||'{}');
     if(prof.full_name||user.full_name) document.getElementById('cvName').textContent=prof.full_name||user.full_name;
+    if(prof.headline||prof.title) document.getElementById('cvTitle').textContent=prof.headline||prof.title;
     if(prof.dob){
       const ageLine=document.getElementById('cvAgeLine');
       if(ageLine){ const age=calcAge(prof.dob); if(age){ ageLine.textContent='العمر: '+age; ageLine.style.display='block'; } }
