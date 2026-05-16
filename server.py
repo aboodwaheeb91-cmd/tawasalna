@@ -2,7 +2,7 @@
 تواصلنا - Arabic Employment Platform
 """
 
-from fastapi import FastAPI, HTTPException, Request as _Req, Response
+from fastapi import FastAPI, HTTPException, Request as _Req
 from fastapi.responses import RedirectResponse
 import secrets as sec_lib
 admin_sessions = set()  # Active admin session tokens
@@ -352,9 +352,7 @@ def stats():
     return {"total_matches": count_lines("matches.jsonl"), "total_feedback_signals": count_lines("training_signals.jsonl"), "jobs_count": len(jobs)}
 
 # ── Admin Auth ──
-admin_sessions = set()
 ADMIN_SECRET_URL = 'kPuOWhpIYjdLQXmh'
-ADMIN_PASSWORD = 'tw@admin2025'
 
 
 class AdminLogin(BaseModel):
