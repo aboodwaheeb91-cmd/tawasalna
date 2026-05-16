@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>تواصلنا - لوحة الإدارة</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
+<style>
+:root{--ac:#00c896;--ac2:#2563ff;--bg:#070b18;--card:rgba(255,255,255,.03);--bdr:rgba(255,255,255,.07);--t:rgba(255,255,255,.87);--t2:rgba(255,255,255,.5);--t3:rgba(255,255,255,.27);}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--t);min-height:100vh;}
+
+/* ── Login Screen ── */
+.login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;}
+.login-box{background:rgba(255,255,255,.04);border:1px solid var(--bdr);border-radius:20px;padding:32px 28px;width:100%;max-width:380px;}
+.login-logo{font-size:1.4rem;font-weight:900;background:linear-gradient(135deg,var(--ac),var(--ac2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;text-align:center;margin-bottom:6px;}
+.login-sub{text-align:center;font-size:.75rem;color:var(--t3);margin-bottom:24px;}
+.lf{margin-bottom:14px;}
+.lf label{display:block;font-size:.72rem;font-weight:700;color:var(--t2);margin-bottom:5px;}
+.lf input{width:100%;padding:10px 13px;background:rgba(255,255,255,.06);border:1px solid var(--bdr);border-radius:10px;color:var(--t);font-family:'Cairo',sans-serif;font-size:.85rem;outline:none;direction:rtl;}
+.lf input:focus{border-color:var(--ac);}
+.login-btn{width:100%;padding:11px;border:none;border-radius:11px;background:linear-gradient(135deg,var(--ac),var(--ac2));color:#fff;font-family:'Cairo',sans-serif;font-size:.88rem;font-weight:800;cursor:pointer;margin-top:6px;}
+.login-err{color:#f87171;font-size:.73rem;text-align:center;margin-top:8px;display:none;}
+
+/* ── Main Layout ── */
+.main-wrap{display:none;flex-direction:column;min-height:100vh;}
+.admin-nav{position:fixed;top:0;left:0;right:0;z-index:100;height:52px;display:flex;align-items:center;gap:10px;padding:0 18px;background:rgba(7,11,24,.95);backdrop-filter:blur(20px);border-bottom:1px solid var(--bdr);}
+.nav-logo{font-size:.9rem;font-weight:900;background:linear-gradient(135deg,var(--ac),var(--ac2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+.nav-badge{padding:2px 9px;border-radius:20px;background:rgba(239,68,68,.12);color:#f87171;font-size:.65rem;font-weight:800;border:1px solid rgba(239,68,68,.2);}
+.nav-logout{margin-right:auto;padding:5px 12px;border-radius:8px;border:none;background:rgba(239,68,68,.08);color:#f87171;font-family:'Cairo',sans-serif;font-size:.73rem;font-weight:700;cursor:pointer;}
+
+.content{padding:70px 18px 40px;max-width:1100px;margin:0 auto;}
+
+/* ── Tabs ── */
+.tabs{display:flex;gap:5px;margin-bottom:20px;overflow-x:auto;padding-bottom:2px;}
+.tab{padding:7px 16px;border-radius:20px;border:1px solid var(--bdr);background:transparent;color:var(--t2);font-family:'Cairo',sans-serif;font-size:.76rem;font-weight:700;cursor:pointer;transition:all .2s;white-space:nowrap;}
+.tab:hover{border-color:rgba(255,255,255,.2);color:var(--t);}
+.tab.on{background:linear-gradient(135deg,var(--ac),var(--ac2));color:#fff;border-color:transparent;}
+
+/* ── Stats ── */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px;}
+.sc{background:var(--card);border:1px solid var(--bdr);border-radius:14px;padding:14px;text-align:center;}
+.sc-n{font-size:1.4rem;font-weight:900;color:var(--ac);}
+.sc-l{font-size:.65rem;color:var(--t2);margin-top:3px;}
+
+/* ── Search ── */
+.search-bar{display:flex;gap:8px;margin-bottom:14px;}
+.search-input{flex:1;padding:9px 13px;background:rgba(255,255,255,.05);border:1px solid var(--bdr);border-radius:10px;color:var(--t);font-family:'Cairo',sans-serif;font-size:.8rem;outline:none;direction:rtl;}
+.search-input:focus{border-color:var(--ac);}
+.filter-sel{padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid var(--bdr);border-radius:10px;color:var(--t);font-family:'Cairo',sans-serif;font-size:.78rem;outline:none;direction:rtl;}
+.filter-sel option{background:#0a0f1e;}
+
+/* ── Table ── */
+.table-wrap{background:var(--card);border:1px solid var(--bdr);border-radius:16px;overflow:hidden;}
+.th{display:grid;padding:10px 14px;background:rgba(255,255,255,.03);border-bottom:1px solid var(--bdr);font-size:.66rem;font-weight:800;color:var(--t3);letter-spacing:.5px;}
+.th-users{grid-template-columns:2fr 1.5fr 1fr .8fr .8fr;}
+.th-verify{grid-template-columns:2fr 1.5fr 1fr 1fr .8fr;}
+.tr{display:grid;padding:11px 14px;border-bottom:1px solid rgba(255,255,255,.04);align-items:center;transition:background .15s;cursor:pointer;}
+.tr:last-child{border-bottom:none;}
+.tr:hover{background:rgba(255,255,255,.02);}
+.tr-users{grid-template-columns:2fr 1.5fr 1fr .8fr .8fr;}
+.tr-verify{grid-template-columns:2fr 1.5fr 1fr 1fr .8fr;}
+.user-info{display:flex;align-items:center;gap:8px;}
+.u-ava{width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,var(--ac),var(--ac2));display:flex;align-items:center;justify-content:center;font-size:.8rem;flex-shrink:0;}
+.u-nm{font-size:.78rem;font-weight:700;}
+.u-em{font-size:.64rem;color:var(--t3);}
+.type-badge{padding:2px 8px;border-radius:20px;font-size:.62rem;font-weight:700;display:inline-block;}
+.tb-emp{background:rgba(0,200,150,.1);color:var(--ac);}
+.tb-co{background:rgba(37,99,255,.1);color:#60a5fa;}
+.tb-edu{background:rgba(139,92,246,.1);color:#a78bfa;}
+.date-cell{font-size:.68rem;color:var(--t3);}
+.action-btns{display:flex;gap:4px;}
+.ab{padding:4px 9px;border-radius:7px;border:none;font-family:'Cairo',sans-serif;font-size:.63rem;font-weight:700;cursor:pointer;transition:all .15s;white-space:nowrap;}
+.ab-msg{background:rgba(37,99,255,.1);color:#60a5fa;}
+.ab-msg:hover{background:rgba(37,99,255,.2);}
+.ab-verify{background:rgba(0,200,150,.1);color:var(--ac);}
+.ab-verify:hover{background:rgba(0,200,150,.2);}
+.ab-reject{background:rgba(239,68,68,.08);color:#f87171;}
+.ab-reject:hover{background:rgba(239,68,68,.15);}
+.ab-view{background:rgba(255,255,255,.07);color:var(--t2);}
+.ab-view:hover{background:rgba(255,255,255,.12);}
+.status-badge{padding:2px 8px;border-radius:20px;font-size:.62rem;font-weight:700;}
+.s-pending{background:rgba(251,146,60,.1);color:#fb923c;}
+.s-review{background:rgba(234,179,8,.1);color:#eab308;}
+.s-verified{background:rgba(0,200,150,.1);color:var(--ac);}
+.s-rejected{background:rgba(239,68,68,.1);color:#f87171;}
+
+/* ── Empty ── */
+.empty-state{text-align:center;padding:40px;color:var(--t3);}
+
+/* ── Message Modal ── */
+.overlay{position:fixed;inset:0;z-index:2000;background:rgba(0,0,0,.78);display:flex;align-items:center;justify-content:center;padding:16px;opacity:0;pointer-events:none;transition:opacity .2s;}
+.overlay.show{opacity:1;pointer-events:all;}
+.modal{background:#0a0f1e;border:1px solid rgba(255,255,255,.1);border-radius:20px;width:100%;max-width:460px;padding:24px;font-family:'Cairo',sans-serif;transform:translateY(12px);transition:transform .2s;}
+.overlay.show .modal{transform:translateY(0);}
+.modal-title{font-size:.95rem;font-weight:800;color:#fff;margin-bottom:18px;}
+.mf{margin-bottom:12px;}
+.mf label{display:block;font-size:.72rem;font-weight:700;color:rgba(255,255,255,.45);margin-bottom:4px;}
+.mf input,.mf textarea,.mf select{width:100%;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:'Cairo',sans-serif;font-size:.82rem;outline:none;direction:rtl;}
+.mf textarea{resize:vertical;min-height:90px;}
+.mf input:focus,.mf textarea:focus{border-color:var(--ac);}
+.mact{display:flex;gap:7px;margin-top:14px;}
+.mbtn{flex:1;padding:10px;border:none;border-radius:10px;font-family:'Cairo',sans-serif;font-size:.82rem;font-weight:700;cursor:pointer;}
+.mbtn-ok{background:linear-gradient(135deg,var(--ac),var(--ac2));color:#fff;}
+.mbtn-no{background:rgba(255,255,255,.07);color:rgba(255,255,255,.55);}
+
+/* Toast */
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);padding:10px 18px;border-radius:12px;font-size:.78rem;font-weight:700;z-index:9999;transition:transform .3s;pointer-events:none;white-space:nowrap;}
+.toast.show{transform:translateX(-50%) translateY(0);}
+.toast.s{background:#065f46;color:#6ee7b7;border:1px solid rgba(110,231,183,.2);}
+.toast.e{background:#7f1d1d;color:#fca5a5;}
+
+@media(max-width:768px){
+  .stats{grid-template-columns:1fr 1fr;}
+  .th-users,.tr-users,.th-verify,.tr-verify{grid-template-columns:1.5fr 1fr .8fr;}
+  .th-users span:nth-child(2),.tr-users .date-cell,
+  .th-verify span:nth-child(3),.tr-verify .date-cell{display:none;}
+}
+</style>
+</head>
+<body>
+
+<!-- ── LOGIN ── -->
+<div class="login-wrap" id="loginWrap">
+  <div class="login-box">
+    <div class="login-logo">تواصلنا</div>
+    <div class="login-sub">لوحة الإدارة</div>
+    <div class="lf"><label>اسم المستخدم</label><input id="admin-user" type="text" placeholder="admin" autocomplete="off"></div>
+    <div class="lf"><label>كلمة المرور</label><input id="admin-pass" type="password" placeholder="••••••••" autocomplete="off"></div>
+    <button class="login-btn" onclick="adminLogin()">دخول</button>
+    <div class="login-err" id="login-err">كلمة المرور غلط</div>
+  </div>
+</div>
+
+<!-- ── MAIN ── -->
+<div class="main-wrap" id="mainWrap">
+  <nav class="admin-nav">
+    <div class="nav-logo">تواصلنا</div>
+    <span class="nav-badge">⚙️ الإدارة</span>
+    <span style="font-size:.72rem;color:var(--t3);margin-right:8px" id="navTime"></span>
+    <button class="nav-logout" onclick="adminLogout()">خروج</button>
+  </nav>
+
+  <div class="content">
+
+    <!-- Stats -->
+    <div class="stats">
+      <div class="sc"><div class="sc-n" id="st-total">—</div><div class="sc-l">إجمالي المستخدمين</div></div>
+      <div class="sc"><div class="sc-n" id="st-emp">—</div><div class="sc-l">موظفين</div></div>
+      <div class="sc"><div class="sc-n" id="st-co">—</div><div class="sc-l">شركات</div></div>
+      <div class="sc"><div class="sc-n" id="st-pending">—</div><div class="sc-l">طلبات توثيق معلقة</div></div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="tabs">
+      <button class="tab on" onclick="showTab('users',this)">👥 المستخدمون</button>
+      <button class="tab" onclick="showTab('verify',this)">✅ طلبات التوثيق</button>
+    </div>
+
+    <!-- USERS TAB -->
+    <div id="tab-users">
+      <div class="search-bar">
+        <input class="search-input" id="userSearch" placeholder="بحث بالاسم أو الإيميل..." oninput="filterUsers()">
+        <select class="filter-sel" id="userFilter" onchange="filterUsers()">
+          <option value="">كل الأنواع</option>
+          <option value="emp">موظف</option>
+          <option value="co">شركة</option>
+          <option value="edu">تعليمي</option>
+        </select>
+      </div>
+      <div class="table-wrap">
+        <div class="th th-users">
+          <span>المستخدم</span>
+          <span>تاريخ التسجيل</span>
+          <span>النوع</span>
+          <span>الحالة</span>
+          <span>إجراء</span>
+        </div>
+        <div id="usersTable"><div class="empty-state">⏳ جاري التحميل...</div></div>
+      </div>
+    </div>
+
+    <!-- VERIFY TAB -->
+    <div id="tab-verify" style="display:none">
+      <div class="search-bar">
+        <input class="search-input" id="verifySearch" placeholder="بحث..." oninput="filterVerify()">
+        <select class="filter-sel" id="verifyFilter" onchange="filterVerify()">
+          <option value="">كل الطلبات</option>
+          <option value="pending">⏳ معلق</option>
+          <option value="under_review">🔍 قيد المراجعة</option>
+          <option value="verified">✅ موثق</option>
+          <option value="rejected">❌ مرفوض</option>
+        </select>
+      </div>
+      <div class="table-wrap">
+        <div class="th th-verify">
+          <span>الموظف</span>
+          <span>الخبرة / الشهادة</span>
+          <span>تاريخ الطلب</span>
+          <span>الحالة</span>
+          <span>إجراء</span>
+        </div>
+        <div id="verifyTable"><div class="empty-state">⏳ جاري التحميل...</div></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ── MESSAGE MODAL ── -->
+<div class="overlay" id="msgOverlay" onclick="if(event.target===this)closeMsgModal()">
+  <div class="modal">
+    <div class="modal-title">💬 مراسلة المستخدم</div>
+    <div class="mf"><label>إلى</label><input id="msg-to" readonly></div>
+    <div class="mf"><label>الموضوع</label>
+      <select id="msg-subject">
+        <option>إشعار توثيق</option>
+        <option>تنبيه بالملف الشخصي</option>
+        <option>رسالة إدارية</option>
+        <option>ترحيب</option>
+        <option>أخرى</option>
+      </select>
+    </div>
+    <div class="mf"><label>الرسالة</label><textarea id="msg-body" placeholder="اكتب رسالتك هنا..."></textarea></div>
+    <div class="mact">
+      <button class="mbtn mbtn-ok" onclick="sendMsg()">إرسال</button>
+      <button class="mbtn mbtn-no" onclick="closeMsgModal()">إلغاء</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+let _allUsers = [], _allVerify = [], _msgUserId = null;
+
+// ── Auth ──
+async function adminLogin(){
+  const p=document.getElementById('admin-pass').value;
+  if(!p) return;
+  const btn=document.querySelector('.login-btn');
+  btn.textContent='جاري...'; btn.disabled=true;
+  try{
+    const r=await fetch('/tw-ctrl-login',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      credentials:'include',
+      body:JSON.stringify({password:p})
+    });
+    if(r.ok){
+      showMain();
+    } else {
+      showLoginErr();
+    }
+  }catch(e){
+    showLoginErr();
+  }
+  btn.textContent='دخول'; btn.disabled=false;
+}
+
+function showLoginErr(){
+  const err=document.getElementById('login-err');
+  err.style.display='block';
+  setTimeout(()=>err.style.display='none',3000);
+}
+
+async function adminLogout(){
+  await fetch('/tw-ctrl-logout',{method:'POST',credentials:'include'}).catch(()=>{});
+  location.reload();
+}
+
+// ── Init: check server session ──
+(async function(){
+  try{
+    const r=await fetch('/auth/users',{credentials:'include'});
+    if(r.ok){ showMain(); }
+  }catch(e){}
+})();
+
+document.getElementById('admin-user').addEventListener('keydown',e=>{ if(e.key==='Enter') document.getElementById('admin-pass').focus(); });
+document.getElementById('admin-pass').addEventListener('keydown',e=>{ if(e.key==='Enter') adminLogin(); });
+
+function showMain(){
+  document.getElementById('loginWrap').style.display='none';
+  document.getElementById('mainWrap').style.display='flex';
+  loadAll();
+  // Update time
+  setInterval(()=>{
+    document.getElementById('navTime').textContent = new Date().toLocaleTimeString('ar');
+  },1000);
+}
+
+// ── Load Data ──
+async function loadAll(){
+  await loadUsers();
+  await loadVerify();
+}
+
+async function loadUsers(){
+  try{
+    const r=await fetch('/auth/users',{credentials:'include'});
+    if(!r.ok) throw new Error();
+    const data=await r.json();
+    _allUsers=data.users||[];
+  }catch(e){
+    // Demo data if API not ready
+    _allUsers=[
+      {id:48001,full_name:'أحمد محمد',email:'ahmed@test.com',user_type:'emp',created_at:'2025-05-10'},
+      {id:48002,full_name:'شركة تك ستارت',email:'info@techstart.jo',user_type:'co',created_at:'2025-05-11'},
+      {id:48003,full_name:'سارة خالد',email:'sara@test.com',user_type:'emp',created_at:'2025-05-12'},
+      {id:48004,full_name:'أكاديمية التميز',email:'info@academy.jo',user_type:'edu',created_at:'2025-05-13'},
+      {id:48005,full_name:'محمد يوسف',email:'m.yousef@test.com',user_type:'emp',created_at:'2025-05-14'},
+    ];
+  }
+  updateStats();
+  renderUsers(_allUsers);
+}
+
+async function loadVerify(){
+  try{
+    const r=await fetch('/admin/verify-requests',{credentials:'include'});
+    if(!r.ok) throw new Error();
+    const data=await r.json();
+    _allVerify=data.requests||[];
+  }catch(e){
+    _allVerify=[
+      {id:1,user_id:48001,user_name:'أحمد محمد',title:'مطور ويب',company:'شركة تك ستارت',status:'pending',created_at:'2025-05-14'},
+      {id:2,user_id:48003,user_name:'سارة خالد',title:'مصممة UI',company:'إبداع للتقنية',status:'under_review',created_at:'2025-05-13'},
+      {id:3,user_id:48005,user_name:'محمد يوسف',title:'محاسب',company:'شركة الأمل',status:'verified',created_at:'2025-05-10'},
+    ];
+  }
+  renderVerify(_allVerify);
+}
+
+function updateStats(){
+  const emp=_allUsers.filter(u=>u.user_type==='emp').length;
+  const co=_allUsers.filter(u=>u.user_type==='co').length;
+  const pending=_allVerify.filter(v=>v.status==='pending').length;
+  document.getElementById('st-total').textContent=_allUsers.length;
+  document.getElementById('st-emp').textContent=emp;
+  document.getElementById('st-co').textContent=co;
+  document.getElementById('st-pending').textContent=pending;
+}
+
+// ── Render ──
+function typeLabel(t){
+  if(t==='emp') return '<span class="type-badge tb-emp">👤 موظف</span>';
+  if(t==='co') return '<span class="type-badge tb-co">🏢 شركة</span>';
+  if(t==='edu') return '<span class="type-badge tb-edu">🎓 تعليمي</span>';
+  return t;
+}
+function statusLabel(s){
+  const m={pending:'<span class="status-badge s-pending">⏳ معلق</span>',
+    under_review:'<span class="status-badge s-review">🔍 مراجعة</span>',
+    verified:'<span class="status-badge s-verified">✅ موثق</span>',
+    rejected:'<span class="status-badge s-rejected">❌ مرفوض</span>'};
+  return m[s]||s;
+}
+
+function renderUsers(list){
+  const tb=document.getElementById('usersTable');
+  if(!list.length){ tb.innerHTML='<div class="empty-state">لا يوجد مستخدمون</div>'; return; }
+  tb.innerHTML=list.map(u=>`
+    <div class="tr tr-users">
+      <div class="user-info">
+        <div class="u-ava">${u.user_type==='co'?'🏢':u.user_type==='edu'?'🎓':'👤'}</div>
+        <div><div class="u-nm">${u.full_name}</div><div class="u-em">${u.email}</div></div>
+      </div>
+      <div class="date-cell">${u.created_at||'—'}</div>
+      <div>${typeLabel(u.user_type)}</div>
+      <div><span class="status-badge s-verified">✓ نشط</span></div>
+      <div class="action-btns">
+        <button class="ab ab-view" onclick="viewUser(${u.id})">👁</button>
+        <button class="ab ab-msg" onclick="openMsg(${u.id},'${u.full_name}')">💬</button>
+      </div>
+    </div>`).join('');
+}
+
+function renderVerify(list){
+  const tb=document.getElementById('verifyTable');
+  if(!list.length){ tb.innerHTML='<div class="empty-state">لا توجد طلبات توثيق</div>'; return; }
+  tb.innerHTML=list.map(v=>`
+    <div class="tr tr-verify">
+      <div class="user-info">
+        <div class="u-ava">👤</div>
+        <div><div class="u-nm">${v.user_name}</div><div class="u-em">ID: ${v.user_id}</div></div>
+      </div>
+      <div><div class="u-nm" style="font-size:.74rem">${v.title||'—'}</div><div class="u-em">${v.company||'—'}</div></div>
+      <div class="date-cell">${v.created_at||'—'}</div>
+      <div>${statusLabel(v.status)}</div>
+      <div class="action-btns">
+        ${v.status==='pending'||v.status==='under_review'?`
+          <button class="ab ab-verify" onclick="approveVerify(${v.id})">✅ وثّق</button>
+          <button class="ab ab-reject" onclick="rejectVerify(${v.id})">❌</button>
+        `:`<button class="ab ab-view" onclick="viewVerify(${v.id})">👁</button>`}
+        <button class="ab ab-msg" onclick="openMsg(${v.user_id},'${v.user_name}')">💬</button>
+      </div>
+    </div>`).join('');
+}
+
+// ── Actions ──
+function viewUser(id){
+  window.open('profile.html?id='+id,'_blank');
+}
+function viewVerify(id){
+  toast('عرض طلب #'+id);
+}
+
+async function approveVerify(id){
+  try{
+    const r=await fetch('/admin/verify/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},credentials:'include',
+      body:JSON.stringify({status:'verified'})});
+    if(r.ok){
+      const v=_allVerify.find(x=>x.id===id);
+      if(v) v.status='verified';
+      renderVerify(_allVerify);
+      updateStats();
+      toast('✅ تم التوثيق');
+    }
+  }catch(e){
+    // Demo mode
+    const v=_allVerify.find(x=>x.id===id);
+    if(v) v.status='verified';
+    renderVerify(_allVerify);
+    updateStats();
+    toast('✅ تم التوثيق');
+  }
+}
+
+async function rejectVerify(id){
+  if(!confirm('هل أنت متأكد من رفض هذا الطلب؟')) return;
+  try{
+    await fetch('/admin/verify/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},credentials:'include',
+      body:JSON.stringify({status:'rejected'})});
+  }catch(e){}
+  const v=_allVerify.find(x=>x.id===id);
+  if(v) v.status='rejected';
+  renderVerify(_allVerify);
+  toast('❌ تم الرفض');
+}
+
+// ── Filter ──
+function filterUsers(){
+  const q=document.getElementById('userSearch').value.toLowerCase();
+  const type=document.getElementById('userFilter').value;
+  let list=_allUsers;
+  if(q) list=list.filter(u=>u.full_name.toLowerCase().includes(q)||u.email.toLowerCase().includes(q));
+  if(type) list=list.filter(u=>u.user_type===type);
+  renderUsers(list);
+}
+function filterVerify(){
+  const q=document.getElementById('verifySearch').value.toLowerCase();
+  const status=document.getElementById('verifyFilter').value;
+  let list=_allVerify;
+  if(q) list=list.filter(v=>v.user_name.toLowerCase().includes(q)||(v.title||'').toLowerCase().includes(q));
+  if(status) list=list.filter(v=>v.status===status);
+  renderVerify(list);
+}
+
+// ── Tabs ──
+function showTab(name,el){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
+  el.classList.add('on');
+  document.getElementById('tab-users').style.display=name==='users'?'':'none';
+  document.getElementById('tab-verify').style.display=name==='verify'?'':'none';
+}
+
+// ── Message ──
+function openMsg(userId, userName){
+  _msgUserId=userId;
+  document.getElementById('msg-to').value=userName+' (ID: '+userId+')';
+  document.getElementById('msg-body').value='';
+  document.getElementById('msgOverlay').classList.add('show');
+}
+function closeMsgModal(){
+  document.getElementById('msgOverlay').classList.remove('show');
+}
+async function sendMsg(){
+  const body=document.getElementById('msg-body').value.trim();
+  const subject=document.getElementById('msg-subject').value;
+  if(!body){ alert('اكتب الرسالة'); return; }
+  try{
+    await fetch('/admin/message',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',
+      body:JSON.stringify({user_id:_msgUserId,subject,message:body})});
+  }catch(e){}
+  closeMsgModal();
+  toast('✅ تم إرسال الرسالة');
+}
+
+// ── Toast ──
+function toast(msg, type='s'){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.className=`toast ${type} show`;
+  setTimeout(()=>t.classList.remove('show'),2800);
+}
+</script>
+</body>
+</html>

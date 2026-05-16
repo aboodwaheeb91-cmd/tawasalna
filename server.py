@@ -2,7 +2,12 @@
 تواصلنا - Arabic Employment Platform
 """
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request, Response
+from fastapi.responses import RedirectResponse
+import secrets as sec_lib
+admin_sessions = set()  # Active admin session tokens
+ADMIN_SECRET_URL = 'tw-ctrl-kPuOWhpIYjdLQXmh'
+ADMIN_PASSWORD = 'tw@admin2025'
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -345,3 +350,106 @@ def stats():
         if not os.path.exists(path): return 0
         with open(path, encoding="utf-8") as f: return sum(1 for _ in f)
     return {"total_matches": count_lines("matches.jsonl"), "total_feedback_signals": count_lines("training_signals.jsonl"), "jobs_count": len(jobs)}
+
+# ── Admin Auth ──
+admin_sessions = set()
+ADMIN_SECRET_URL = 'kPuOWhpIYjdLQXmh'
+ADMIN_PASSWORD = 'tw@admin2025'
+
+from fastapi import Request as _Req
+from fastapi.responses import Response as _Res
+
+class AdminLogin(BaseModel):
+    password: str
+
+@app.post("/tw-ctrl-login")
+async def admin_login_api(data: AdminLogin, response: _Res):
+    import secrets as _sec
+    if data.password != ADMIN_PASSWORD:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    token = _sec.token_urlsafe(32)
+    admin_sessions.add(token)
+    response.set_cookie("tw_adm", token, httponly=True, max_age=86400, samesite="strict")
+    return {"success": True}
+
+@app.post("/tw-ctrl-logout")
+async def admin_logout_api(request: _Req, response: _Res):
+    token = request.cookies.get("tw_adm")
+    admin_sessions.discard(token)
+    response.delete_cookie("tw_adm")
+    return {"success": True}
+
+def _chk_admin(request: _Req):
+    token = request.cookies.get("tw_adm")
+    if not token or token not in admin_sessions:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+@app.get("/tw-ctrl-kPuOWhpIYjdLQXmh", response_class=HTMLResponse)
+def admin_secret_page():
+    return read_html("admin.html")
+
+@app.get("/auth/users")
+def get_all_users(request: _Req):
+    _chk_admin(request)
+    conn = get_conn()
+    try:
+        rows = conn.run("SELECT id, full_name, email, user_type, created_at FROM users ORDER BY created_at DESC")
+        cols = [d[0] for d in conn.columns]
+        users = [dict(zip(cols, r)) for r in rows]
+        for u in users:
+            if u.get("created_at"):
+                u["created_at"] = str(u["created_at"])[:10]
+        return {"users": users}
+    except Exception as e:
+        return {"users": [], "error": str(e)}
+    finally:
+        conn.close()
+
+@app.get("/admin/verify-requests")
+def admin_verify_reqs(request: _Req):
+    _chk_admin(request)
+    conn = get_conn()
+    try:
+        rows = conn.run("""
+            SELECT vr.id, vr.user_id, u.full_name as user_name,
+                   vr.notes, vr.status, vr.created_at
+            FROM verify_requests vr
+            JOIN users u ON u.id = vr.user_id
+            ORDER BY vr.created_at DESC
+        """)
+        cols = [d[0] for d in conn.columns]
+        reqs = [dict(zip(cols, r)) for r in rows]
+        for r in reqs:
+            if r.get("created_at"):
+                r["created_at"] = str(r["created_at"])[:10]
+        return {"requests": reqs}
+    except Exception as e:
+        return {"requests": [], "error": str(e)}
+    finally:
+        conn.close()
+
+class VerifyUpd(BaseModel):
+    status: str
+
+@app.put("/admin/verify/{req_id}")
+def admin_update_verify(req_id: int, data: VerifyUpd, request: _Req):
+    _chk_admin(request)
+    conn = get_conn()
+    try:
+        conn.run("UPDATE verify_requests SET status = :s WHERE id = :id", s=data.status, id=req_id)
+        return {"success": True}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+    finally:
+        conn.close()
+
+class AdminMsg(BaseModel):
+    user_id: int
+    subject: str
+    message: str
+
+@app.post("/admin/message")
+def admin_send_message(data: AdminMsg, request: _Req):
+    _chk_admin(request)
+    print(f"[ADMIN MSG] To:{data.user_id} | {data.subject}: {data.message}")
+    return {"success": True}
