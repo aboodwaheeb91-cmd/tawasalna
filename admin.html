@@ -232,78 +232,86 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--t);min-heig
 <div class="toast" id="toast"></div>
 
 <script>
+let _adminToken = '';
 let _allUsers = [], _allVerify = [], _msgUserId = null;
 
 // ── Auth ──
 async function adminLogin(){
-  const p=document.getElementById('admin-pass').value;
+  const p = document.getElementById('admin-pass').value;
   if(!p) return;
-  const btn=document.querySelector('.login-btn');
-  btn.textContent='جاري...'; btn.disabled=true;
-  try{
-    const r=await fetch('/tw-ctrl-login',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      credentials:'include',
-      body:JSON.stringify({password:p})
+  const btn = document.querySelector('.login-btn');
+  btn.textContent = 'جاري...'; btn.disabled = true;
+  try {
+    const r = await fetch('/tw-ctrl-login', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({password: p})
     });
-    if(r.ok){
+    const data = await r.json();
+    if(r.ok && data.token) {
+      _adminToken = data.token;
+      sessionStorage.setItem('tw_adm_token', _adminToken);
       showMain();
     } else {
       showLoginErr();
     }
-  }catch(e){
+  } catch(e) {
     showLoginErr();
   }
-  btn.textContent='دخول'; btn.disabled=false;
+  btn.textContent = 'دخول'; btn.disabled = false;
 }
 
-
-function showSessionExpired(){
-  document.getElementById('mainWrap').style.display='none';
-  document.getElementById('loginWrap').style.display='flex';
-  sessionStorage.removeItem('tw_admin');
-  toast('انتهت الجلسة - سجل دخول مجدداً','e');
+function adminHeaders(){
+  return {
+    'Content-Type': 'application/json',
+    'X-Admin-Token': _adminToken
+  };
 }
 
 function showLoginErr(){
-  const err=document.getElementById('login-err');
-  err.style.display='block';
-  setTimeout(()=>err.style.display='none',3000);
+  const err = document.getElementById('login-err');
+  err.style.display = 'block';
+  setTimeout(() => err.style.display = 'none', 3000);
 }
 
-async function adminLogout(){
-  await fetch('/tw-ctrl-logout',{method:'POST',credentials:'include'}).catch(()=>{});
+function showSessionExpired(){
+  _adminToken = '';
+  sessionStorage.removeItem('tw_adm_token');
+  document.getElementById('mainWrap').style.display = 'none';
+  document.getElementById('loginWrap').style.display = 'flex';
+  toast('انتهت الجلسة - سجل دخول مجدداً', 'e');
+}
+
+function adminLogout(){
+  _adminToken = '';
+  sessionStorage.removeItem('tw_adm_token');
   location.reload();
 }
 
-// ── Init: check server session ──
+// ── Init ──
 (async function(){
-  try{
-    const r=await fetch('/auth/users',{credentials:'include'});
-    if(r.ok){
-      showMain();
-    } else if(r.status===403){
-      // Not logged in - show login form
-    } else {
-      console.log('Server error:', r.status);
-    }
-  }catch(e){
-    console.log('Connection error:', e.message);
+  const saved = sessionStorage.getItem('tw_adm_token');
+  if(saved){
+    _adminToken = saved;
+    // Verify token still works
+    try {
+      const r = await fetch('/auth/users', {headers: adminHeaders()});
+      if(r.ok){ showMain(); return; }
+    } catch(e) {}
+    _adminToken = '';
+    sessionStorage.removeItem('tw_adm_token');
   }
 })();
 
-document.getElementById('admin-user').addEventListener('keydown',e=>{ if(e.key==='Enter') document.getElementById('admin-pass').focus(); });
-document.getElementById('admin-pass').addEventListener('keydown',e=>{ if(e.key==='Enter') adminLogin(); });
+document.getElementById('admin-user').addEventListener('keydown', e => { if(e.key==='Enter') document.getElementById('admin-pass').focus(); });
+document.getElementById('admin-pass').addEventListener('keydown', e => { if(e.key==='Enter') adminLogin(); });
 
+// ── Show Main ──
 function showMain(){
-  document.getElementById('loginWrap').style.display='none';
-  document.getElementById('mainWrap').style.display='flex';
+  document.getElementById('loginWrap').style.display = 'none';
+  document.getElementById('mainWrap').style.display = 'flex';
   loadAll();
-  // Update time
-  setInterval(()=>{
-    document.getElementById('navTime').textContent = new Date().toLocaleTimeString('ar');
-  },1000);
+  setInterval(() => { document.getElementById('navTime').textContent = new Date().toLocaleTimeString('ar'); }, 1000);
 }
 
 // ── Load Data ──
@@ -313,15 +321,15 @@ async function loadAll(){
 }
 
 async function loadUsers(){
-  try{
-    const r=await fetch('/auth/users',{credentials:'include'});
-    if(r.status===403){ showSessionExpired(); return; }
-    if(!r.ok) throw new Error('HTTP '+r.status);
-    const data=await r.json();
+  try {
+    const r = await fetch('/auth/users', {headers: adminHeaders()});
+    if(r.status === 403){ showSessionExpired(); return; }
+    if(!r.ok) throw new Error('HTTP ' + r.status);
+    const data = await r.json();
     if(data.error) throw new Error(data.error);
-    _allUsers=data.users||[];
-  }catch(e){
-    document.getElementById('usersTable').innerHTML=`<div class="empty-state" style="color:#f87171">⚠️ خطأ: ${e.message}<br><small>تأكد من تسجيل الدخول وأن الـ DB متصل</small></div>`;
+    _allUsers = data.users || [];
+  } catch(e) {
+    document.getElementById('usersTable').innerHTML = `<div class="empty-state" style="color:#f87171">⚠️ خطأ: ${e.message}</div>`;
     return;
   }
   updateStats();
@@ -329,15 +337,15 @@ async function loadUsers(){
 }
 
 async function loadVerify(){
-  try{
-    const r=await fetch('/admin/verify-requests',{credentials:'include'});
-    if(r.status===403){ return; }
-    if(!r.ok) throw new Error('HTTP '+r.status);
-    const data=await r.json();
+  try {
+    const r = await fetch('/admin/verify-requests', {headers: adminHeaders()});
+    if(r.status === 403){ return; }
+    if(!r.ok) throw new Error('HTTP ' + r.status);
+    const data = await r.json();
     if(data.error) throw new Error(data.error);
-    _allVerify=data.requests||[];
-  }catch(e){
-    document.getElementById('verifyTable').innerHTML=`<div class="empty-state" style="color:#f87171">⚠️ خطأ في تحميل طلبات التوثيق: ${e.message}</div>`;
+    _allVerify = data.requests || [];
+  } catch(e) {
+    document.getElementById('verifyTable').innerHTML = `<div class="empty-state" style="color:#f87171">⚠️ خطأ: ${e.message}</div>`;
     return;
   }
   renderVerify(_allVerify);
@@ -345,34 +353,36 @@ async function loadVerify(){
 }
 
 function updateStats(){
-  const emp=_allUsers.filter(u=>u.user_type==='emp').length;
-  const co=_allUsers.filter(u=>u.user_type==='co').length;
-  const pending=_allVerify.filter(v=>v.status==='pending').length;
-  document.getElementById('st-total').textContent=_allUsers.length;
-  document.getElementById('st-emp').textContent=emp;
-  document.getElementById('st-co').textContent=co;
-  document.getElementById('st-pending').textContent=pending;
+  const emp = _allUsers.filter(u => u.user_type==='emp').length;
+  const co  = _allUsers.filter(u => u.user_type==='co').length;
+  const pending = _allVerify.filter(v => v.status==='pending').length;
+  document.getElementById('st-total').textContent = _allUsers.length;
+  document.getElementById('st-emp').textContent = emp;
+  document.getElementById('st-co').textContent = co;
+  document.getElementById('st-pending').textContent = pending;
 }
 
 // ── Render ──
 function typeLabel(t){
   if(t==='emp') return '<span class="type-badge tb-emp">👤 موظف</span>';
-  if(t==='co') return '<span class="type-badge tb-co">🏢 شركة</span>';
+  if(t==='co')  return '<span class="type-badge tb-co">🏢 شركة</span>';
   if(t==='edu') return '<span class="type-badge tb-edu">🎓 تعليمي</span>';
   return t;
 }
 function statusLabel(s){
-  const m={pending:'<span class="status-badge s-pending">⏳ معلق</span>',
-    under_review:'<span class="status-badge s-review">🔍 مراجعة</span>',
-    verified:'<span class="status-badge s-verified">✅ موثق</span>',
-    rejected:'<span class="status-badge s-rejected">❌ مرفوض</span>'};
-  return m[s]||s;
+  const m = {
+    pending:      '<span class="status-badge s-pending">⏳ معلق</span>',
+    under_review: '<span class="status-badge s-review">🔍 مراجعة</span>',
+    verified:     '<span class="status-badge s-verified">✅ موثق</span>',
+    rejected:     '<span class="status-badge s-rejected">❌ مرفوض</span>'
+  };
+  return m[s] || s;
 }
 
 function renderUsers(list){
-  const tb=document.getElementById('usersTable');
-  if(!list.length){ tb.innerHTML='<div class="empty-state">لا يوجد مستخدمون</div>'; return; }
-  tb.innerHTML=list.map(u=>`
+  const tb = document.getElementById('usersTable');
+  if(!list.length){ tb.innerHTML = '<div class="empty-state">لا يوجد مستخدمون</div>'; return; }
+  tb.innerHTML = list.map(u => `
     <div class="tr tr-users">
       <div class="user-info">
         <div class="u-ava">${u.user_type==='co'?'🏢':u.user_type==='edu'?'🎓':'👤'}</div>
@@ -382,136 +392,123 @@ function renderUsers(list){
       <div>${typeLabel(u.user_type)}</div>
       <div><span class="status-badge s-verified">✓ نشط</span></div>
       <div class="action-btns">
-        <button class="ab ab-view" onclick="viewUser(${u.id})">👁 ملف</button>
+        <button class="ab ab-view" onclick="window.open('/profile.html?id=${u.id}','_blank')">👁 ملف</button>
         <button class="ab ab-msg" onclick="openMsg(${u.id},'${u.full_name}')">💬</button>
       </div>
     </div>`).join('');
 }
 
 function renderVerify(list){
-  const tb=document.getElementById('verifyTable');
-  if(!list.length){ tb.innerHTML='<div class="empty-state">لا توجد طلبات توثيق</div>'; return; }
-  tb.innerHTML=list.map(v=>`
+  const tb = document.getElementById('verifyTable');
+  if(!list.length){ tb.innerHTML = '<div class="empty-state">لا توجد طلبات توثيق</div>'; return; }
+  tb.innerHTML = list.map(v => `
     <div class="tr tr-verify">
       <div class="user-info">
         <div class="u-ava">👤</div>
         <div><div class="u-nm">${v.user_name}</div><div class="u-em">ID: ${v.user_id}</div></div>
       </div>
-      <div><div class="u-nm" style="font-size:.74rem">${v.title||'—'}</div><div class="u-em">${v.company||'—'}</div></div>
+      <div><div class="u-nm" style="font-size:.74rem">${v.notes||'—'}</div></div>
       <div class="date-cell">${v.created_at||'—'}</div>
       <div>${statusLabel(v.status)}</div>
       <div class="action-btns">
-        ${v.status==='pending'||v.status==='under_review'?`
+        ${v.status==='pending'||v.status==='under_review' ? `
           <button class="ab ab-verify" onclick="approveVerify(${v.id})">✅ وثّق</button>
           <button class="ab ab-reject" onclick="rejectVerify(${v.id})">❌</button>
-        `:`<button class="ab ab-view" onclick="viewVerify(${v.id})">👁</button>`}
+        ` : `<button class="ab ab-view" onclick="toast('طلب #${v.id} - ${v.status}')">👁</button>`}
         <button class="ab ab-msg" onclick="openMsg(${v.user_id},'${v.user_name}')">💬</button>
       </div>
     </div>`).join('');
 }
 
 // ── Actions ──
-function viewUser(id){
-  window.open('/profile.html?id='+id,'_blank');
-}
-async function viewUserDetail(id){
-  try{
-    const r=await fetch('/admin/profile/'+id,{credentials:'include'});
-    const data=await r.json();
-    if(data.error) throw new Error(data.error);
-    openUserModal(data);
-  }catch(e){ toast('خطأ: '+e.message,'e'); }
-}
-function viewVerify(id){
-  toast('عرض طلب #'+id);
-}
-
 async function approveVerify(id){
-  try{
-    const r=await fetch('/admin/verify/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},credentials:'include',
-      body:JSON.stringify({status:'verified'})});
-    if(r.ok){
-      const v=_allVerify.find(x=>x.id===id);
-      if(v) v.status='verified';
-      renderVerify(_allVerify);
-      updateStats();
-      toast('✅ تم التوثيق');
-    }
-  }catch(e){
-    // Demo mode
-    const v=_allVerify.find(x=>x.id===id);
-    if(v) v.status='verified';
+  try {
+    const r = await fetch('/admin/verify/'+id, {
+      method: 'PUT',
+      headers: adminHeaders(),
+      body: JSON.stringify({status:'verified'})
+    });
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const v = _allVerify.find(x => x.id===id);
+    if(v) v.status = 'verified';
     renderVerify(_allVerify);
     updateStats();
     toast('✅ تم التوثيق');
-  }
+  } catch(e) { toast('خطأ: '+e.message,'e'); }
 }
 
 async function rejectVerify(id){
   if(!confirm('هل أنت متأكد من رفض هذا الطلب؟')) return;
-  try{
-    await fetch('/admin/verify/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},credentials:'include',
-      body:JSON.stringify({status:'rejected'})});
-  }catch(e){}
-  const v=_allVerify.find(x=>x.id===id);
-  if(v) v.status='rejected';
-  renderVerify(_allVerify);
-  toast('❌ تم الرفض');
+  try {
+    await fetch('/admin/verify/'+id, {
+      method: 'PUT',
+      headers: adminHeaders(),
+      body: JSON.stringify({status:'rejected'})
+    });
+    const v = _allVerify.find(x => x.id===id);
+    if(v) v.status = 'rejected';
+    renderVerify(_allVerify);
+    toast('تم الرفض');
+  } catch(e) { toast('خطأ: '+e.message,'e'); }
 }
 
 // ── Filter ──
 function filterUsers(){
-  const q=document.getElementById('userSearch').value.toLowerCase();
-  const type=document.getElementById('userFilter').value;
-  let list=_allUsers;
-  if(q) list=list.filter(u=>u.full_name.toLowerCase().includes(q)||u.email.toLowerCase().includes(q));
-  if(type) list=list.filter(u=>u.user_type===type);
+  const q = document.getElementById('userSearch').value.toLowerCase();
+  const type = document.getElementById('userFilter').value;
+  let list = _allUsers;
+  if(q) list = list.filter(u => u.full_name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q));
+  if(type) list = list.filter(u => u.user_type===type);
   renderUsers(list);
 }
 function filterVerify(){
-  const q=document.getElementById('verifySearch').value.toLowerCase();
-  const status=document.getElementById('verifyFilter').value;
-  let list=_allVerify;
-  if(q) list=list.filter(v=>v.user_name.toLowerCase().includes(q)||(v.title||'').toLowerCase().includes(q));
-  if(status) list=list.filter(v=>v.status===status);
+  const q = document.getElementById('verifySearch').value.toLowerCase();
+  const status = document.getElementById('verifyFilter').value;
+  let list = _allVerify;
+  if(q) list = list.filter(v => v.user_name.toLowerCase().includes(q));
+  if(status) list = list.filter(v => v.status===status);
   renderVerify(list);
 }
 
 // ── Tabs ──
-function showTab(name,el){
-  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
+function showTab(name, el){
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('on'));
   el.classList.add('on');
-  document.getElementById('tab-users').style.display=name==='users'?'':'none';
-  document.getElementById('tab-verify').style.display=name==='verify'?'':'none';
+  document.getElementById('tab-users').style.display = name==='users' ? '' : 'none';
+  document.getElementById('tab-verify').style.display = name==='verify' ? '' : 'none';
 }
 
 // ── Message ──
 function openMsg(userId, userName){
-  _msgUserId=userId;
-  document.getElementById('msg-to').value=userName+' (ID: '+userId+')';
-  document.getElementById('msg-body').value='';
+  _msgUserId = userId;
+  document.getElementById('msg-to').value = userName + ' (ID: '+userId+')';
+  document.getElementById('msg-body').value = '';
   document.getElementById('msgOverlay').classList.add('show');
 }
 function closeMsgModal(){
   document.getElementById('msgOverlay').classList.remove('show');
 }
 async function sendMsg(){
-  const body=document.getElementById('msg-body').value.trim();
-  const subject=document.getElementById('msg-subject').value;
+  const body = document.getElementById('msg-body').value.trim();
+  const subject = document.getElementById('msg-subject').value;
   if(!body){ alert('اكتب الرسالة'); return; }
-  try{
-    await fetch('/admin/message',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',
-      body:JSON.stringify({user_id:_msgUserId,subject,message:body})});
-  }catch(e){}
+  try {
+    await fetch('/admin/message', {
+      method: 'POST',
+      headers: adminHeaders(),
+      body: JSON.stringify({user_id: _msgUserId, subject, message: body})
+    });
+  } catch(e) {}
   closeMsgModal();
   toast('✅ تم إرسال الرسالة');
 }
 
 // ── Toast ──
 function toast(msg, type='s'){
-  const t=document.getElementById('toast');
-  t.textContent=msg; t.className=`toast ${type} show`;
-  setTimeout(()=>t.classList.remove('show'),2800);
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = `toast ${type} show`;
+  setTimeout(() => t.classList.remove('show'), 2800);
 }
 </script>
 </body>

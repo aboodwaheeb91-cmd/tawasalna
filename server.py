@@ -2,16 +2,14 @@
 تواصلنا - Arabic Employment Platform
 """
 
-# ── Imports ──
-from fastapi import FastAPI, HTTPException, Request, Response
+from fastapi import FastAPI, HTTPException, Request, Response, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime
-import secrets
-import json
-import os
+import hashlib, secrets, json, os
 
 from auth import (
     init_db, get_conn,
@@ -19,6 +17,12 @@ from auth import (
     get_public_profile, get_full_profile, update_profile,
     add_experience, add_education, add_course, create_verify_request
 )
+
+# ── Config ──
+ADMIN_PASSWORD = "tw@admin2025"
+ADMIN_URL_TOKEN = "kPuOWhpIYjdLQXmh"
+# Stable token derived from password - no server storage needed
+ADMIN_TOKEN = hashlib.sha256(ADMIN_PASSWORD.encode()).hexdigest()
 
 # ── App ──
 app = FastAPI(title="تواصلنا API", version="1.0.0")
@@ -28,13 +32,8 @@ app.add_middleware(
     allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
-    allow_credentials=True,
+    allow_credentials=False,  # Must be False with allow_origins=["*"]
 )
-
-# ── Admin Session ──
-admin_sessions: set = set()
-ADMIN_PASSWORD = "tw@admin2025"
-ADMIN_URL_TOKEN = "kPuOWhpIYjdLQXmh"
 
 # ── Startup ──
 @app.on_event("startup")
@@ -45,13 +44,19 @@ def on_startup():
     except Exception as e:
         print(f"⚠️ DB init failed: {e}")
 
-# ── HTML Helper ──
+# ── Helpers ──
 def read_html(name: str) -> str:
     try:
         with open(name, "r", encoding="utf-8") as f:
             return f.read()
     except FileNotFoundError:
         return f"<h1>الصفحة غير موجودة: {name}</h1>"
+
+def check_admin(request: Request):
+    """Check admin token from header X-Admin-Token"""
+    token = request.headers.get("X-Admin-Token", "")
+    if token != ADMIN_TOKEN:
+        raise HTTPException(status_code=403, detail="Forbidden")
 
 # ══════════════════════════════════════════
 # HTML Pages
@@ -131,7 +136,6 @@ def settings(): return read_html("settings.html")
 @app.get("/settings.html", response_class=HTMLResponse)
 def settings_html(): return read_html("settings.html")
 
-# ── Admin Pages ──
 @app.get("/tw-ctrl-" + ADMIN_URL_TOKEN, response_class=HTMLResponse)
 def admin_page(): return read_html("admin.html")
 
@@ -230,12 +234,12 @@ def register(data: RegisterInput):
         raise HTTPException(400, detail="نوع الحساب غير صحيح")
     try:
         user = create_user(data.full_name, data.email, data.password, data.user_type)
-        return {"status": "success", "message": "تم إنشاء الحساب بنجاح", "user": user}
+        return {"status": "success", "user": user}
     except ValueError as e:
         raise HTTPException(409, detail=str(e))
     except Exception as e:
         print(f"Register error: {e}")
-        raise HTTPException(500, detail="خطأ في الخادم، حاول لاحقاً")
+        raise HTTPException(500, detail="خطأ في الخادم")
 
 @app.post("/auth/login")
 def login(data: LoginInput):
@@ -244,7 +248,7 @@ def login(data: LoginInput):
     user = authenticate_user(data.email, data.password)
     if not user:
         raise HTTPException(401, detail="البريد الإلكتروني أو كلمة المرور غير صحيحة")
-    return {"status": "success", "message": "تم تسجيل الدخول بنجاح", "user": user}
+    return {"status": "success", "user": user}
 
 @app.get("/auth/user/{user_id}")
 def get_user(user_id: int):
@@ -274,7 +278,7 @@ def full_profile(user_id: int):
 def update_user_profile(user_id: int, data: ProfileUpdateInput):
     try:
         profile = update_profile(user_id, data.dict())
-        return {"status": "success", "message": "تم تحديث الملف الشخصي", "profile": profile}
+        return {"status": "success", "profile": profile}
     except ValueError as e:
         raise HTTPException(404, detail=str(e))
     except Exception as e:
@@ -344,15 +348,13 @@ def match_cv(cv: CVInput):
     if not cv.cv_text.strip():
         raise HTTPException(400, detail="cv_text لا يمكن أن يكون فارغاً")
     query = cv.cv_text.lower()
-    results = []
-    for job in JOBS:
-        score = sum(1 for word in query.split() if word in job["text"].lower())
-        results.append({
-            "job_id": job["id"], "title": job["title"],
-            "company": job["company"], "location": job["location"],
-            "score": score, "match_percent": min(score * 10, 100)
-        })
-    results = sorted(results, key=lambda x: x["score"], reverse=True)[:cv.top_k or 5]
+    results = sorted([
+        {"job_id": j["id"], "title": j["title"], "company": j["company"],
+         "location": j["location"],
+         "score": sum(1 for w in query.split() if w in j["text"].lower()),
+         "match_percent": min(sum(1 for w in query.split() if w in j["text"].lower()) * 10, 100)}
+        for j in JOBS
+    ], key=lambda x: x["score"], reverse=True)[:cv.top_k or 5]
     return {"status": "success", "matches": results}
 
 @app.post("/feedback")
@@ -364,37 +366,17 @@ def stats():
     return {"jobs_count": len(JOBS)}
 
 # ══════════════════════════════════════════
-# Admin Auth
+# Admin Login - returns token
 # ══════════════════════════════════════════
-def check_admin(request: Request):
-    token = request.cookies.get("tw_adm")
-    if not token or token not in admin_sessions:
-        raise HTTPException(status_code=403, detail="Forbidden")
-
 @app.post("/tw-ctrl-login")
-def admin_login(data: AdminLoginInput, response: Response):
+def admin_login(data: AdminLoginInput):
     if data.password != ADMIN_PASSWORD:
         raise HTTPException(status_code=401, detail="Unauthorized")
-    token = secrets.token_urlsafe(32)
-    admin_sessions.add(token)
-    response.set_cookie(
-        key="tw_adm",
-        value=token,
-        httponly=True,
-        max_age=86400,
-        samesite="lax"
-    )
-    return {"success": True}
-
-@app.post("/tw-ctrl-logout")
-def admin_logout(request: Request, response: Response):
-    token = request.cookies.get("tw_adm")
-    admin_sessions.discard(token)
-    response.delete_cookie("tw_adm")
-    return {"success": True}
+    # Return stable token (derived from password - no server storage)
+    return {"success": True, "token": ADMIN_TOKEN}
 
 # ══════════════════════════════════════════
-# Admin API
+# Admin API - all require X-Admin-Token header
 # ══════════════════════════════════════════
 @app.get("/auth/users")
 def get_all_users(request: Request):
@@ -460,8 +442,7 @@ def admin_update_verify(req_id: int, data: VerifyUpdateInput, request: Request):
 def admin_get_profile(user_id: int, request: Request):
     check_admin(request)
     try:
-        profile = get_full_profile(user_id)
-        return profile or {"error": "لا يوجد ملف"}
+        return get_full_profile(user_id) or {"error": "لا يوجد ملف"}
     except Exception as e:
         print(f"admin_get_profile error: {e}")
         raise HTTPException(500, detail=str(e))
