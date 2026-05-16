@@ -965,7 +965,10 @@ function togglePreview(){
 }
 
 const SECTION_MODAL_TYPES = {
-  'course':'course','skills':'skills','langs':'langs','links':'links'
+  'course':'course',
+  'skills':'skills',
+  'langs':'langs',
+  'links':'links'
 };
 
 function addSection(id,icon,title,el){
@@ -975,7 +978,7 @@ function addSection(id,icon,title,el){
     <div class="section" id="sec-${id}" draggable="true">
       <div class="sec-header"><span class="sec-icon">${icon}</span><span class="sec-title">${title}</span><div class="sec-line"></div></div>
       <div id="${lid}"></div>
-      <button class="add-item-btn owner-only" onclick="openModal('generic','${lid}','${title}')">+ إضافة</button>
+      <button class="add-item-btn owner-only" onclick="openModal(SECTION_MODAL_TYPES['${id}']||'generic','${lid}','${title}')">+ إضافة</button>
       <div class="drag-handle owner-only"><span></span><span></span><span></span></div>
     </div>`);
   el.classList.add('added');
