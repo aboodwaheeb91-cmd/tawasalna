@@ -1756,9 +1756,8 @@ function saveProfile(){
     if(ageLine){ const age=calcAge(dob); if(age){ ageLine.textContent='العمر: '+age; ageLine.style.display='block'; } }
   }
   const avail=document.getElementById('m-avail')?.value;
-  if(avail){ showAvailBadge(avail);
-    }
-  }
+  if(avail){ showAvailBadge(avail); }
+
   // Save to localStorage
   try{
     const uid=_sessionUser&&_sessionUser.id?'_'+_sessionUser.id:'';
