@@ -413,8 +413,11 @@ body.s5 .add-item-btn:hover { border-color:rgba(var(--ac-rgb),.35); color:var(--
 .cv-wrap { transition:opacity .25s,transform .25s; }
 .cv-wrap.fading { opacity:0; transform:translateY(5px); }
 
-/* ── Preview ── */
+
+/* ── Preview Mode ── */
 body.preview-mode .owner-only { display:none !important; }
+body.preview-mode #previewBtn { display:flex !important; }
+
 
 /* ── Modal ── */
 .overlay { position:fixed; inset:0; z-index:2000; background:rgba(0,0,0,.75); display:flex; align-items:center; justify-content:center; padding:16px; opacity:0; pointer-events:none; transition:opacity .2s; }
@@ -454,31 +457,7 @@ body.preview-mode .owner-only { display:none !important; }
 
 
 /* ── Top Actions ── */
-.top-actions {
-  position:sticky;
-  top:50px;
-  z-index:99;
-  max-width:100%;
-  margin:0;
-  padding:8px 14px;
-  display:flex;
-  flex-direction:row;
-  gap:8px;
-  align-items:center;
-  background:rgba(7,11,24,.88);
-  backdrop-filter:blur(16px);
-  border-bottom:1px solid rgba(255,255,255,.06);
-}
-/* Light styles top-actions bg */
-body.s2 .top-actions,
-body.s4 .top-actions {
-  background:rgba(248,250,252,.92);
-  border-bottom:1px solid rgba(0,0,0,.08);
-}
-.top-actions .tb-btn { height:36px; }
-body.preview-mode .top-actions .tb-btn:not(#previewBtn) { display:none !important; }
-body.preview-mode .top-actions { display:flex !important; }
-body.preview-mode .top-actions #previewBtn { display:flex !important; }
+/* top-actions removed - preview/settings now in toolbar */
 body.preview-mode .top-actions #previewBtn { display:flex !important; }
 
 @media(max-width:600px) {
@@ -601,6 +580,7 @@ body.s4 .add-sec-shortcut:hover {
   <div class="tb-logo">تواصلنا</div>
   <button class="tb-btn tb-ghost" onclick="location.href='home.html'" title="البحث عن عمل أو دورة" style="font-size:.82rem;padding:6px 10px">🔍</button>
   <div style="flex:1"></div>
+  <button class="tb-btn tb-preview" id="previewBtn" onclick="togglePreview()" title="معاينة" style="font-size:.82rem;padding:6px 10px">👁</button>
   <button class="tb-btn tb-ghost" onclick="openPanel()" title="الإعدادات" style="font-size:.82rem;padding:6px 10px">⚙️</button>
 </div>
 
@@ -691,11 +671,6 @@ body.s4 .add-sec-shortcut:hover {
 
 <!-- ── CV ── -->
 <div class="page">
-
-<div class="top-actions owner-only">
-  <button class="tb-btn tb-preview" id="previewBtn" onclick="togglePreview()" title="معاينة" style="font-size:.88rem;padding:6px 10px">👁</button>
-  <button class="tb-btn tb-ghost" onclick="openPanel()" title="الإعدادات" style="font-size:.88rem;padding:6px 10px">⚙️</button>
-</div>
 
 <div class="cv-wrap" id="cvWrap">
 
@@ -1625,9 +1600,7 @@ function closeOverlay(e){ if(e.target===document.getElementById('overlay')) clos
 
 if(!isOwner) document.querySelectorAll('.owner-only').forEach(el=>el.style.display='none');
 loadSectionOrder();
-// top-actions needs flex not block
-const ta = document.querySelector('.top-actions');
-if(ta && isOwner) ta.style.display = 'flex';
+
 // Load saved color
 try{
   const savedColor = localStorage.getItem('tw_profile_color');
