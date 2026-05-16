@@ -2,22 +2,20 @@
 تواصلنا - Arabic Employment Platform
 """
 
-from fastapi import FastAPI, HTTPException, Request as _Req
-from fastapi.responses import RedirectResponse
-import secrets as sec_lib
-admin_sessions = set()  # Active admin session tokens
-ADMIN_SECRET_URL = 'tw-ctrl-kPuOWhpIYjdLQXmh'
-ADMIN_PASSWORD = 'tw@admin2025'
+# ── Imports ──
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, FileResponse, Response as _Res
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
+from typing import List, Optional
+from datetime import datetime
+import secrets
 import json
 import os
-from datetime import datetime
-from typing import List, Optional
+
 from auth import (
-    init_db, create_user, authenticate_user, get_user_by_id,
+    init_db, get_conn,
+    create_user, authenticate_user, get_user_by_id,
     get_public_profile, get_full_profile, update_profile,
     add_experience, add_education, add_course, create_verify_request
 )
@@ -30,16 +28,24 @@ app.add_middleware(
     allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
+    allow_credentials=True,
 )
 
+# ── Admin Session ──
+admin_sessions: set = set()
+ADMIN_PASSWORD = "tw@admin2025"
+ADMIN_URL_TOKEN = "kPuOWhpIYjdLQXmh"
+
+# ── Startup ──
 @app.on_event("startup")
 def on_startup():
     try:
         init_db()
+        print("✅ DB initialized")
     except Exception as e:
         print(f"⚠️ DB init failed: {e}")
 
-# ── HTML Pages ──
+# ── HTML Helper ──
 def read_html(name: str) -> str:
     try:
         with open(name, "r", encoding="utf-8") as f:
@@ -47,17 +53,17 @@ def read_html(name: str) -> str:
     except FileNotFoundError:
         return f"<h1>الصفحة غير موجودة: {name}</h1>"
 
+# ══════════════════════════════════════════
+# HTML Pages
+# ══════════════════════════════════════════
 @app.get("/", response_class=HTMLResponse)
-def root():
-    return read_html("landing.html")
+def root(): return read_html("landing.html")
 
 @app.get("/login", response_class=HTMLResponse)
-def login_page():
-    return read_html("index.html")
+def login_page(): return read_html("index.html")
 
 @app.get("/login.html", response_class=HTMLResponse)
-def login_html():
-    return read_html("index.html")
+def login_html(): return read_html("index.html")
 
 @app.get("/home", response_class=HTMLResponse)
 def home(): return read_html("home.html")
@@ -77,6 +83,12 @@ def company(): return read_html("company.html")
 @app.get("/company.html", response_class=HTMLResponse)
 def company_html(): return read_html("company.html")
 
+@app.get("/company-profile", response_class=HTMLResponse)
+def company_profile(): return read_html("company-profile.html")
+
+@app.get("/company-profile.html", response_class=HTMLResponse)
+def company_profile_html(): return read_html("company-profile.html")
+
 @app.get("/edu", response_class=HTMLResponse)
 def edu(): return read_html("edu.html")
 
@@ -88,19 +100,12 @@ def edu_profile(): return read_html("edu-profile.html")
 
 @app.get("/edu-profile.html", response_class=HTMLResponse)
 def edu_profile_html(): return read_html("edu-profile.html")
-@app.get("/company-profile", response_class=HTMLResponse)
-def company_profile(): return read_html("company-profile.html")
-
-@app.get("/company-profile.html", response_class=HTMLResponse)
-def company_profile_html(): return read_html("company-profile.html")
 
 @app.get("/notifications", response_class=HTMLResponse)
 def notifications(): return read_html("notifications.html")
 
 @app.get("/notifications.html", response_class=HTMLResponse)
 def notifications_html(): return read_html("notifications.html")
-
-
 
 @app.get("/messages", response_class=HTMLResponse)
 def messages(): return read_html("messages.html")
@@ -126,39 +131,13 @@ def settings(): return read_html("settings.html")
 @app.get("/settings.html", response_class=HTMLResponse)
 def settings_html(): return read_html("settings.html")
 
-# ── Jobs ──
-JOBS_FILE = "jobs.json"
+# ── Admin Pages ──
+@app.get("/tw-ctrl-" + ADMIN_URL_TOKEN, response_class=HTMLResponse)
+def admin_page(): return read_html("admin.html")
 
-def load_jobs():
-    if os.path.exists(JOBS_FILE):
-        with open(JOBS_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    return [
-        {"id":1,"title":"محاسب","company":"شركة المال والأعمال","location":"عمان","text":"نبحث عن محاسب لديه خبرة في Excel والمالية والضرائب"},
-        {"id":2,"title":"مطور ويب","company":"تك ستارت","location":"الرياض","text":"مطلوب مطور React و FastAPI خبرة 3 سنوات على الأقل"},
-        {"id":3,"title":"فني تكييف","company":"برودة للتكييف","location":"دبي","text":"خبرة في صيانة أجهزة التكييف والتبريد وإصلاح الأعطال"},
-        {"id":4,"title":"مدير مبيعات","company":"نجوم التجارة","location":"القاهرة","text":"خبرة في المبيعات وإدارة فريق العمل وتحقيق الأهداف"},
-        {"id":5,"title":"مصمم جرافيك","company":"إبداع ستوديو","location":"بيروت","text":"إتقان Photoshop وIllustrator وخبرة في الهوية البصرية"},
-        {"id":6,"title":"ممرض/ة","company":"مستشفى الشفاء","location":"عمان","text":"شهادة تمريض خبرة في الرعاية الصحية والتعامل مع المرضى"},
-        {"id":7,"title":"سائق توصيل","company":"سريع للتوصيل","location":"الرياض","text":"رخصة قيادة سارية خبرة في التوصيل ومعرفة بشوارع المدينة"},
-        {"id":8,"title":"معلم رياضيات","company":"مدارس المستقبل","location":"دبي","text":"شهادة تعليم خبرة في تدريس الرياضيات للمرحلة الثانوية"},
-    ]
-
-jobs = load_jobs()
-
-# ── Schemas ──
-class CVInput(BaseModel):
-    cv_text: str
-    user_id: Optional[str] = None
-    top_k: Optional[int] = 5
-
-class FeedbackInput(BaseModel):
-    cv_text: str
-    job_id: int
-    score: float
-    action: str
-    user_id: Optional[str] = None
-
+# ══════════════════════════════════════════
+# Schemas
+# ══════════════════════════════════════════
 class RegisterInput(BaseModel):
     full_name: str
     email: str
@@ -206,18 +185,39 @@ class VerifyRequestInput(BaseModel):
     document_url: Optional[str] = None
     notes: Optional[str] = None
 
-# ── Logging ──
-def log_event(filename: str, data: dict):
-    os.makedirs("logs", exist_ok=True)
-    with open(f"logs/{filename}", "a", encoding="utf-8") as f:
-        f.write(json.dumps(data, ensure_ascii=False) + "\n")
+class CVInput(BaseModel):
+    cv_text: str
+    user_id: Optional[str] = None
+    top_k: Optional[int] = 5
 
-# ── Health ──
+class FeedbackInput(BaseModel):
+    cv_text: str
+    job_id: int
+    score: float
+    action: str
+    user_id: Optional[str] = None
+
+class AdminLoginInput(BaseModel):
+    password: str
+
+class VerifyUpdateInput(BaseModel):
+    status: str
+
+class AdminMessageInput(BaseModel):
+    user_id: int
+    subject: str
+    message: str
+
+# ══════════════════════════════════════════
+# Health
+# ══════════════════════════════════════════
 @app.get("/health")
 def health():
-    return {"status": "ok", "jobs_count": len(jobs)}
+    return {"status": "ok", "timestamp": datetime.now().isoformat()}
 
-# ── Auth ──
+# ══════════════════════════════════════════
+# Auth
+# ══════════════════════════════════════════
 @app.post("/auth/register")
 def register(data: RegisterInput):
     if not data.full_name.strip():
@@ -233,7 +233,8 @@ def register(data: RegisterInput):
         return {"status": "success", "message": "تم إنشاء الحساب بنجاح", "user": user}
     except ValueError as e:
         raise HTTPException(409, detail=str(e))
-    except Exception:
+    except Exception as e:
+        print(f"Register error: {e}")
         raise HTTPException(500, detail="خطأ في الخادم، حاول لاحقاً")
 
 @app.post("/auth/login")
@@ -252,7 +253,9 @@ def get_user(user_id: int):
         raise HTTPException(404, detail="المستخدم غير موجود")
     return {"user": user}
 
-# ── Profile ──
+# ══════════════════════════════════════════
+# Profile
+# ══════════════════════════════════════════
 @app.get("/profile/{user_id}")
 def public_profile(user_id: int):
     profile = get_public_profile(user_id)
@@ -274,17 +277,18 @@ def update_user_profile(user_id: int, data: ProfileUpdateInput):
         return {"status": "success", "message": "تم تحديث الملف الشخصي", "profile": profile}
     except ValueError as e:
         raise HTTPException(404, detail=str(e))
-    except Exception:
-        raise HTTPException(500, detail="خطأ في الخادم، حاول لاحقاً")
+    except Exception as e:
+        print(f"Profile update error: {e}")
+        raise HTTPException(500, detail="خطأ في الخادم")
 
-# ── Experience / Education / Course ──
 @app.post("/experience/{user_id}")
 def add_user_experience(user_id: int, data: ExperienceInput):
     if not data.title.strip() or not data.company.strip():
         raise HTTPException(400, detail="المسمى الوظيفي وجهة العمل مطلوبان")
     try:
-        return {"status":"success","message":"تمت إضافة الخبرة","experience":add_experience(user_id,data.dict())}
-    except Exception:
+        return {"status": "success", "experience": add_experience(user_id, data.dict())}
+    except Exception as e:
+        print(f"Experience error: {e}")
         raise HTTPException(500, detail="خطأ في الخادم")
 
 @app.post("/education/{user_id}")
@@ -292,8 +296,9 @@ def add_user_education(user_id: int, data: EducationInput):
     if not data.institution.strip():
         raise HTTPException(400, detail="اسم المؤسسة التعليمية مطلوب")
     try:
-        return {"status":"success","message":"تمت إضافة التعليم","education":add_education(user_id,data.dict())}
-    except Exception:
+        return {"status": "success", "education": add_education(user_id, data.dict())}
+    except Exception as e:
+        print(f"Education error: {e}")
         raise HTTPException(500, detail="خطأ في الخادم")
 
 @app.post("/course/{user_id}")
@@ -301,28 +306,46 @@ def add_user_course(user_id: int, data: CourseInput):
     if not data.title.strip():
         raise HTTPException(400, detail="اسم الدورة مطلوب")
     try:
-        return {"status":"success","message":"تمت إضافة الدورة","course":add_course(user_id,data.dict())}
-    except Exception:
+        return {"status": "success", "course": add_course(user_id, data.dict())}
+    except Exception as e:
+        print(f"Course error: {e}")
         raise HTTPException(500, detail="خطأ في الخادم")
 
 @app.post("/verify-request")
 def request_verification(data: VerifyRequestInput):
     try:
         req = create_verify_request(data.user_id, data.dict())
-        return {"status":"success","message":"تم إرسال طلب التحقق","request":req}
+        return {"status": "success", "request": req}
     except ValueError as e:
         raise HTTPException(404, detail=str(e))
-    except Exception:
+    except Exception as e:
+        print(f"Verify request error: {e}")
         raise HTTPException(500, detail="خطأ في الخادم")
 
-# ── Match ──
+# ══════════════════════════════════════════
+# Jobs & Match
+# ══════════════════════════════════════════
+JOBS = [
+    {"id":1,"title":"محاسب","company":"شركة المال والأعمال","location":"عمان","text":"نبحث عن محاسب لديه خبرة في Excel والمالية والضرائب"},
+    {"id":2,"title":"مطور ويب","company":"تك ستارت","location":"الرياض","text":"مطلوب مطور React و FastAPI خبرة 3 سنوات على الأقل"},
+    {"id":3,"title":"فني تكييف","company":"برودة للتكييف","location":"دبي","text":"خبرة في صيانة أجهزة التكييف والتبريد وإصلاح الأعطال"},
+    {"id":4,"title":"مدير مبيعات","company":"نجوم التجارة","location":"القاهرة","text":"خبرة في المبيعات وإدارة فريق العمل وتحقيق الأهداف"},
+    {"id":5,"title":"مصمم جرافيك","company":"إبداع ستوديو","location":"بيروت","text":"إتقان Photoshop وIllustrator وخبرة في الهوية البصرية"},
+    {"id":6,"title":"ممرض/ة","company":"مستشفى الشفاء","location":"عمان","text":"شهادة تمريض خبرة في الرعاية الصحية والتعامل مع المرضى"},
+    {"id":7,"title":"معلم رياضيات","company":"مدارس المستقبل","location":"دبي","text":"شهادة تعليم خبرة في تدريس الرياضيات للمرحلة الثانوية"},
+]
+
+@app.get("/jobs")
+def list_jobs():
+    return {"jobs": JOBS, "count": len(JOBS)}
+
 @app.post("/match")
 def match_cv(cv: CVInput):
     if not cv.cv_text.strip():
         raise HTTPException(400, detail="cv_text لا يمكن أن يكون فارغاً")
     query = cv.cv_text.lower()
     results = []
-    for job in jobs:
+    for job in JOBS:
         score = sum(1 for word in query.split() if word in job["text"].lower())
         results.append({
             "job_id": job["id"], "title": job["title"],
@@ -330,84 +353,76 @@ def match_cv(cv: CVInput):
             "score": score, "match_percent": min(score * 10, 100)
         })
     results = sorted(results, key=lambda x: x["score"], reverse=True)[:cv.top_k or 5]
-    log_event("matches.jsonl", {"timestamp": datetime.now().isoformat(), "user_id": cv.user_id, "cv_text": cv.cv_text, "results": results})
     return {"status": "success", "matches": results}
 
 @app.post("/feedback")
 def log_feedback(data: FeedbackInput):
-    signal = {"timestamp": datetime.now().isoformat(), "user_id": data.user_id, "cv_text": data.cv_text, "job_id": data.job_id, "score": data.score, "action": data.action, "label": 1 if data.action in ["applied","hired"] else 0}
-    log_event("training_signals.jsonl", signal)
-    return {"status":"logged","signal_type":"positive" if signal["label"]==1 else "negative"}
-
-@app.get("/jobs")
-def list_jobs():
-    return {"jobs": jobs, "count": len(jobs)}
+    return {"status": "logged"}
 
 @app.get("/stats")
 def stats():
-    def count_lines(filename):
-        path = f"logs/{filename}"
-        if not os.path.exists(path): return 0
-        with open(path, encoding="utf-8") as f: return sum(1 for _ in f)
-    return {"total_matches": count_lines("matches.jsonl"), "total_feedback_signals": count_lines("training_signals.jsonl"), "jobs_count": len(jobs)}
+    return {"jobs_count": len(JOBS)}
 
-# ── Admin Auth ──
-ADMIN_SECRET_URL = 'kPuOWhpIYjdLQXmh'
-
-
-class AdminLogin(BaseModel):
-    password: str
+# ══════════════════════════════════════════
+# Admin Auth
+# ══════════════════════════════════════════
+def check_admin(request: Request):
+    token = request.cookies.get("tw_adm")
+    if not token or token not in admin_sessions:
+        raise HTTPException(status_code=403, detail="Forbidden")
 
 @app.post("/tw-ctrl-login")
-async def admin_login_api(data: AdminLogin, response: _Res):
-    import secrets as _sec
+def admin_login(data: AdminLoginInput, response: Response):
     if data.password != ADMIN_PASSWORD:
         raise HTTPException(status_code=401, detail="Unauthorized")
-    token = _sec.token_urlsafe(32)
+    token = secrets.token_urlsafe(32)
     admin_sessions.add(token)
-    response.set_cookie("tw_adm", token, httponly=True, max_age=86400, samesite="lax")
+    response.set_cookie(
+        key="tw_adm",
+        value=token,
+        httponly=True,
+        max_age=86400,
+        samesite="lax"
+    )
     return {"success": True}
 
 @app.post("/tw-ctrl-logout")
-async def admin_logout_api(request: _Req, response: _Res):
+def admin_logout(request: Request, response: Response):
     token = request.cookies.get("tw_adm")
     admin_sessions.discard(token)
     response.delete_cookie("tw_adm")
     return {"success": True}
 
-def _chk_admin(request: _Req):
-    token = request.cookies.get("tw_adm")
-    if not token or token not in admin_sessions:
-        raise HTTPException(status_code=403, detail="Forbidden")
-
-@app.get("/tw-ctrl-kPuOWhpIYjdLQXmh", response_class=HTMLResponse)
-def admin_secret_page():
-    return read_html("admin.html")
-
+# ══════════════════════════════════════════
+# Admin API
+# ══════════════════════════════════════════
 @app.get("/auth/users")
-def get_all_users(request: _Req):
-    _chk_admin(request)
+def get_all_users(request: Request):
+    check_admin(request)
     conn = get_conn()
     try:
-        rows = conn.run("SELECT id, full_name, email, user_type, created_at FROM users ORDER BY created_at DESC")
+        rows = conn.run(
+            "SELECT id, full_name, email, user_type, created_at FROM users ORDER BY created_at DESC"
+        )
         cols = [d[0] for d in conn.columns]
         users = [dict(zip(cols, r)) for r in rows]
         for u in users:
             if u.get("created_at"):
                 u["created_at"] = str(u["created_at"])[:10]
-        return {"users": users}
+        return {"users": users, "total": len(users)}
     except Exception as e:
-        return {"users": [], "error": str(e)}
+        print(f"get_all_users error: {e}")
+        raise HTTPException(500, detail=str(e))
     finally:
         conn.close()
 
 @app.get("/admin/verify-requests")
-def admin_verify_reqs(request: _Req):
-    _chk_admin(request)
+def admin_verify_requests(request: Request):
+    check_admin(request)
     conn = get_conn()
     try:
         rows = conn.run("""
-            SELECT vr.id, vr.user_id, u.full_name as user_name,
+            SELECT vr.id, vr.user_id, u.full_name AS user_name,
                    vr.notes, vr.status, vr.created_at
             FROM verify_requests vr
             JOIN users u ON u.id = vr.user_id
@@ -418,44 +433,41 @@ def admin_verify_reqs(request: _Req):
         for r in reqs:
             if r.get("created_at"):
                 r["created_at"] = str(r["created_at"])[:10]
-        return {"requests": reqs}
+        return {"requests": reqs, "total": len(reqs)}
     except Exception as e:
-        return {"requests": [], "error": str(e)}
+        print(f"verify_requests error: {e}")
+        raise HTTPException(500, detail=str(e))
     finally:
         conn.close()
-
-class VerifyUpd(BaseModel):
-    status: str
 
 @app.put("/admin/verify/{req_id}")
-def admin_update_verify(req_id: int, data: VerifyUpd, request: _Req):
-    _chk_admin(request)
+def admin_update_verify(req_id: int, data: VerifyUpdateInput, request: Request):
+    check_admin(request)
     conn = get_conn()
     try:
-        conn.run("UPDATE verify_requests SET status = :s WHERE id = :id", s=data.status, id=req_id)
+        conn.run(
+            "UPDATE verify_requests SET status = :s WHERE id = :id",
+            s=data.status, id=req_id
+        )
         return {"success": True}
     except Exception as e:
-        return {"success": False, "error": str(e)}
+        print(f"update_verify error: {e}")
+        raise HTTPException(500, detail=str(e))
     finally:
         conn.close()
 
-class AdminMsg(BaseModel):
-    user_id: int
-    subject: str
-    message: str
-
-
 @app.get("/admin/profile/{user_id}")
-def admin_get_profile(user_id: int, request: _Req):
-    _chk_admin(request)
+def admin_get_profile(user_id: int, request: Request):
+    check_admin(request)
     try:
         profile = get_full_profile(user_id)
-        return profile
+        return profile or {"error": "لا يوجد ملف"}
     except Exception as e:
-        return {"error": str(e)}
+        print(f"admin_get_profile error: {e}")
+        raise HTTPException(500, detail=str(e))
 
 @app.post("/admin/message")
-def admin_send_message(data: AdminMsg, request: _Req):
-    _chk_admin(request)
+def admin_send_message(data: AdminMessageInput, request: Request):
+    check_admin(request)
     print(f"[ADMIN MSG] To:{data.user_id} | {data.subject}: {data.message}")
     return {"success": True}
