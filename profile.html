@@ -496,6 +496,60 @@ body.s2 .item-menu-btn:hover,body.s4 .item-menu-btn:hover{background:rgba(0,0,0,
 
 /* ── Add section shortcut ── */
 
+
+/* ── Custom Specialty Dropdown ── */
+.spec-wrap { position:relative; }
+.spec-trigger {
+  width:100%; padding:9px 13px;
+  background:rgba(255,255,255,.05);
+  border:1px solid rgba(255,255,255,.1);
+  border-radius:10px; color:rgba(255,255,255,.75);
+  font-family:'Cairo',sans-serif; font-size:.82rem;
+  cursor:pointer; text-align:right;
+  display:flex; align-items:center; justify-content:space-between;
+  transition:border-color .2s;
+}
+.spec-trigger:hover, .spec-trigger.open { border-color:rgba(var(--ac-rgb),.4); }
+.spec-trigger .arrow { font-size:.7rem; color:rgba(255,255,255,.3); transition:transform .2s; }
+.spec-trigger.open .arrow { transform:rotate(180deg); }
+.spec-dropdown {
+  display:none; position:absolute; top:calc(100% + 4px);
+  left:0; right:0; z-index:999;
+  background:#0d1526; border:1px solid rgba(255,255,255,.1);
+  border-radius:12px; overflow:hidden;
+  box-shadow:0 12px 32px rgba(0,0,0,.6);
+  max-height:280px; overflow-y:auto;
+}
+.spec-dropdown.open { display:block; }
+.spec-dropdown::-webkit-scrollbar { width:4px; }
+.spec-dropdown::-webkit-scrollbar-track { background:transparent; }
+.spec-dropdown::-webkit-scrollbar-thumb { background:rgba(255,255,255,.1); border-radius:4px; }
+.spec-group-title {
+  padding:9px 13px 5px;
+  font-size:.65rem; font-weight:900;
+  letter-spacing:1.2px; text-transform:uppercase;
+  color:var(--ac); background:rgba(0,200,150,.04);
+  border-bottom:1px solid rgba(255,255,255,.05);
+  border-top:1px solid rgba(255,255,255,.05);
+  margin-top:2px;
+}
+.spec-group-title:first-child { margin-top:0; border-top:none; }
+.spec-option {
+  padding:9px 16px; font-size:.8rem; color:rgba(255,255,255,.7);
+  cursor:pointer; font-family:'Cairo',sans-serif;
+  transition:background .12s;
+}
+.spec-option:hover { background:rgba(255,255,255,.07); color:#fff; }
+.spec-option.selected { color:var(--ac); background:rgba(0,200,150,.06); }
+.spec-other-input {
+  width:100%; padding:8px 13px; margin-top:6px;
+  background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.1);
+  border-radius:10px; color:#fff; font-family:'Cairo',sans-serif;
+  font-size:.82rem; outline:none; direction:rtl; display:none;
+}
+.spec-other-input:focus { border-color:var(--ac); }
+.spec-other-input.show { display:block; }
+
 /* ── Image Crop ── */
 .crop-overlay{position:fixed;inset:0;z-index:3000;background:rgba(0,0,0,.92);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:20px;}
 .crop-container{position:relative;width:300px;height:300px;overflow:hidden;border-radius:50%;border:3px solid var(--ac);background:#111;}
@@ -532,6 +586,60 @@ body.s2 .item-menu-btn:hover,body.s4 .item-menu-btn:hover{background:rgba(0,0,0,
 }
 body.s2 .add-sec-shortcut,
 body.s4 
+
+/* ── Custom Specialty Dropdown ── */
+.spec-wrap { position:relative; }
+.spec-trigger {
+  width:100%; padding:9px 13px;
+  background:rgba(255,255,255,.05);
+  border:1px solid rgba(255,255,255,.1);
+  border-radius:10px; color:rgba(255,255,255,.75);
+  font-family:'Cairo',sans-serif; font-size:.82rem;
+  cursor:pointer; text-align:right;
+  display:flex; align-items:center; justify-content:space-between;
+  transition:border-color .2s;
+}
+.spec-trigger:hover, .spec-trigger.open { border-color:rgba(var(--ac-rgb),.4); }
+.spec-trigger .arrow { font-size:.7rem; color:rgba(255,255,255,.3); transition:transform .2s; }
+.spec-trigger.open .arrow { transform:rotate(180deg); }
+.spec-dropdown {
+  display:none; position:absolute; top:calc(100% + 4px);
+  left:0; right:0; z-index:999;
+  background:#0d1526; border:1px solid rgba(255,255,255,.1);
+  border-radius:12px; overflow:hidden;
+  box-shadow:0 12px 32px rgba(0,0,0,.6);
+  max-height:280px; overflow-y:auto;
+}
+.spec-dropdown.open { display:block; }
+.spec-dropdown::-webkit-scrollbar { width:4px; }
+.spec-dropdown::-webkit-scrollbar-track { background:transparent; }
+.spec-dropdown::-webkit-scrollbar-thumb { background:rgba(255,255,255,.1); border-radius:4px; }
+.spec-group-title {
+  padding:9px 13px 5px;
+  font-size:.65rem; font-weight:900;
+  letter-spacing:1.2px; text-transform:uppercase;
+  color:var(--ac); background:rgba(0,200,150,.04);
+  border-bottom:1px solid rgba(255,255,255,.05);
+  border-top:1px solid rgba(255,255,255,.05);
+  margin-top:2px;
+}
+.spec-group-title:first-child { margin-top:0; border-top:none; }
+.spec-option {
+  padding:9px 16px; font-size:.8rem; color:rgba(255,255,255,.7);
+  cursor:pointer; font-family:'Cairo',sans-serif;
+  transition:background .12s;
+}
+.spec-option:hover { background:rgba(255,255,255,.07); color:#fff; }
+.spec-option.selected { color:var(--ac); background:rgba(0,200,150,.06); }
+.spec-other-input {
+  width:100%; padding:8px 13px; margin-top:6px;
+  background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.1);
+  border-radius:10px; color:#fff; font-family:'Cairo',sans-serif;
+  font-size:.82rem; outline:none; direction:rtl; display:none;
+}
+.spec-other-input:focus { border-color:var(--ac); }
+.spec-other-input.show { display:block; }
+
 /* ── Image Crop ── */
 .crop-overlay{position:fixed;inset:0;z-index:3000;background:rgba(0,0,0,.92);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:20px;}
 .crop-container{position:relative;width:300px;height:300px;overflow:hidden;border-radius:50%;border:3px solid var(--ac);background:#111;}
@@ -1132,49 +1240,7 @@ function openModal(type,listId,secTitle){
       <div class="mf" style="margin:0"><label>اسم العائلة *</label><input id="m-ln" autocomplete="off" value="${ln}" placeholder="الأحمد"></div>
     </div>
     <div class="mf"><label>التخصص / المسمى الوظيفي</label>
-      <select id="m-title-sel" autocomplete="off" onchange="handleSpecialty(this)" style="width:100%;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;margin-bottom:6px">
-        <option value="">— اختر تخصصك —</option>
-        <optgroup label="💻 تقنية وبرمجة">
-          <option>مطور برمجيات</option><option>مطور ويب</option><option>مطور تطبيقات موبايل</option>
-          <option>مهندس شبكات</option><option>أمن معلومات</option><option>محلل بيانات</option>
-          <option>مهندس ذكاء اصطناعي</option><option>مصمم UX/UI</option>
-        </optgroup>
-        <optgroup label="⚙️ هندسة">
-          <option>مهندس مدني</option><option>مهندس كهربائي</option><option>مهندس ميكانيكي</option>
-          <option>مهندس إلكترونيات</option><option>مهندس كيميائي</option><option>مهندس صناعي</option>
-          <option>مهندس معماري</option>
-        </optgroup>
-        <optgroup label="💊 صحة وطب">
-          <option>طبيب عام</option><option>طبيب متخصص</option><option>صيدلاني</option>
-          <option>ممرض</option><option>تقني مختبرات</option><option>أخصائي تغذية</option>
-          <option>معالج فيزيائي</option>
-        </optgroup>
-        <optgroup label="💼 أعمال وإدارة">
-          <option>محاسب</option><option>مدير مشاريع</option><option>محلل أعمال</option>
-          <option>مدير تسويق</option><option>مندوب مبيعات</option><option>موارد بشرية</option>
-          <option>مدير عام</option>
-        </optgroup>
-        <optgroup label="📚 تعليم">
-          <option>معلم</option><option>مدرب</option><option>أستاذ جامعي</option>
-          <option>مرشد تربوي</option><option>محاضر</option>
-        </optgroup>
-        <optgroup label="🎨 إبداع وتصميم">
-          <option>مصمم جرافيك</option><option>مصور فوتوغرافي</option><option>مخرج فيديو</option>
-          <option>كاتب محتوى</option><option>مدير وسائل تواصل</option>
-        </optgroup>
-        <optgroup label="⚖️ قانون">
-          <option>محامي</option><option>مستشار قانوني</option><option>قاضي</option>
-        </optgroup>
-        <optgroup label="🔧 مهن وحرف">
-          <option>كهربائي</option><option>سباك</option><option>ميكانيكي</option>
-          <option>نجار</option><option>بناء</option>
-        </optgroup>
-        <optgroup label="🏛️ حكومي وعسكري">
-          <option>موظف حكومي</option><option>ضابط</option><option>شرطي</option>
-        </optgroup>
-        <option value="other">✏️ أخرى (اكتب يدوياً)</option>
-      </select>
-      <input id="m-title" autocomplete="off" value="${curTitle}" placeholder="أو اكتب مسماك الوظيفي..." style="display:${curTitle?'block':'none'}">
+      <div id="specContainer"></div>
     </div>
     <div class="mf"><label>نبذة مختصرة</label><textarea autocomplete="off" id="m-bio" placeholder="اكتب نبذة مختصرة عنك...">${curBio}</textarea></div>
     <div class="mf"><label>تاريخ الميلاد</label>
@@ -1231,6 +1297,7 @@ function openModal(type,listId,secTitle){
     </div>
     <div class="mact"><button class="mbtn mbtn-ok" onclick="saveProfile()">حفظ</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
     setTimeout(()=>{
+    buildSpecDropdown('specContainer', curTitle);
     loadProfileCities();
     if(dob){
       const parts=dob.split('-');
@@ -1376,6 +1443,131 @@ function openModal(type,listId,secTitle){
 }
 function showFn(input){ const fn=input.parentElement.querySelector('.fn'); if(fn&&input.files[0]) fn.textContent='✓ '+input.files[0].name; }
 
+
+// ── Specialty Dropdown ──
+const SPECS = {
+  '💻 تقنية وبرمجة': [
+    'مطور برمجيات','مطور ويب','مطور تطبيقات موبايل',
+    'مهندس شبكات','مهندس أمن معلومات',
+    'محلل بيانات','مهندس ذكاء اصطناعي',
+    'مصمم UX/UI','دعم تقني','مبرمج CNC',
+  ],
+  '⚙️ هندسة': [
+    'مهندس مدني','مهندس كهربائي','مهندس ميكانيكي',
+    'مهندس إلكترونيات','مهندس كيميائي',
+    'مهندس معماري','مهندس صناعي',
+    'مساح أراضي','رسام هندسي',
+  ],
+  '💊 صحة وطب': [
+    'طبيب عام','طبيب متخصص','طبيب أسنان',
+    'صيدلاني','مساعد صيدلاني',
+    'ممرض/ممرضة','مساعد طبيب أسنان',
+    'تقني مختبرات','مساعد تقني مختبرات',
+    'أخصائي تغذية','معالج فيزيائي','مساعد معالج',
+  ],
+  '💼 أعمال وإدارة': [
+    'محاسب','مدقق حسابات',
+    'مدير مشاريع','محلل أعمال',
+    'مدير تسويق','مندوب مبيعات',
+    'موارد بشرية','سكرتير تنفيذي',
+    'مدير عام','مستشار أعمال',
+  ],
+  '📚 تعليم وتدريب': [
+    'معلم','مدرب','أستاذ جامعي',
+    'مرشد تربوي','محاضر','معلم خصوصي',
+  ],
+  '🎨 إبداع وتصميم': [
+    'مصمم جرافيك','مصمم داخلي',
+    'مصور فوتوغرافي','مخرج/مونتاج',
+    'كاتب محتوى','مدير وسائل تواصل',
+    'رسام/فنان',
+  ],
+  '⚖️ قانون': [
+    'محامي','مستشار قانوني','كاتب عدل',
+  ],
+  '🔧 مهن وحرف': [
+    'كهربائي','مساعد كهربائي',
+    'سباك','مساعد سباك',
+    'ميكانيكي','مساعد ميكانيكي',
+    'نجار','مساعد نجار',
+    'بناء/مقاول','حداد','لحام',
+    'مشغل معدات ثقيلة',
+  ],
+  '🚗 لوجستيات وخدمات': [
+    'سائق','سائق مركبات ثقيلة',
+    'أمن وحراسة','خدمة عملاء',
+    'موظف استقبال','طاهي/شيف',
+    'مساعد طاهي',
+  ],
+};
+
+let _specValue = '';
+
+function buildSpecDropdown(containerId, currentVal){
+  const wrap = document.getElementById(containerId);
+  if(!wrap) return;
+  _specValue = currentVal || '';
+
+  const displayVal = currentVal || '— اختر تخصصك —';
+  wrap.innerHTML = `
+    <div class="spec-wrap">
+      <button type="button" class="spec-trigger" onclick="toggleSpec(this)" id="specTrigger">
+        <span id="specLabel">${displayVal}</span>
+        <span class="arrow">▾</span>
+      </button>
+      <div class="spec-dropdown" id="specDropdown">
+        ${Object.entries(SPECS).map(([group, opts]) => `
+          <div class="spec-group-title">${group}</div>
+          ${opts.map(opt => `<div class="spec-option${opt===currentVal?' selected':''}" onclick="selectSpec('${opt}')">${opt}</div>`).join('')}
+        `).join('')}
+        <div class="spec-group-title">✏️ أخرى</div>
+        <div class="spec-option" onclick="selectSpec('other')">اكتب تخصصك يدوياً...</div>
+      </div>
+      <input class="spec-other-input${currentVal&&!Object.values(SPECS).flat().includes(currentVal)?' show':''}"
+             id="specOtherInput" placeholder="اكتب تخصصك..."
+             value="${currentVal&&!Object.values(SPECS).flat().includes(currentVal)?currentVal:''}"
+             oninput="_specValue=this.value">
+    </div>`;
+}
+
+function toggleSpec(btn){
+  btn.classList.toggle('open');
+  document.getElementById('specDropdown').classList.toggle('open');
+}
+
+function selectSpec(val){
+  if(val==='other'){
+    _specValue='';
+    document.getElementById('specLabel').textContent='اكتب تخصصك...';
+    document.getElementById('specOtherInput').classList.add('show');
+    document.getElementById('specOtherInput').focus();
+  } else {
+    _specValue=val;
+    document.getElementById('specLabel').textContent=val;
+    document.getElementById('specLabel').style.color='#fff';
+    document.getElementById('specOtherInput').classList.remove('show');
+    document.querySelectorAll('.spec-option').forEach(o=>{
+      o.classList.toggle('selected', o.textContent===val);
+    });
+  }
+  document.getElementById('specTrigger').classList.remove('open');
+  document.getElementById('specDropdown').classList.remove('open');
+}
+
+function getSpecValue(){
+  const other = document.getElementById('specOtherInput');
+  if(other && other.classList.contains('show')) return other.value.trim();
+  return _specValue;
+}
+
+// Close dropdown on outside click
+document.addEventListener('click', e=>{
+  if(!e.target.closest('.spec-wrap')){
+    document.querySelectorAll('.spec-trigger.open').forEach(t=>t.classList.remove('open'));
+    document.querySelectorAll('.spec-dropdown.open').forEach(d=>d.classList.remove('open'));
+  }
+});
+
 function handleSpecialty(sel){
   const input=document.getElementById('m-title');
   if(!input) return;
@@ -1436,7 +1628,7 @@ function saveProfile(){
   const mn=document.getElementById('m-mn')?.value.trim()||'';
   const ln=document.getElementById('m-ln')?.value.trim()||'';
   const name=[fn,mn,ln].filter(Boolean).join(' ');
-  const title=document.getElementById('m-title').value.trim();
+  const title=getSpecValue()||document.getElementById('m-title')?.value?.trim()||'';
   const bio=document.getElementById('m-bio').value.trim();
   const dobD=document.getElementById('m-dob-d')?.value||'';
   const dobM=document.getElementById('m-dob-m')?.value||'';

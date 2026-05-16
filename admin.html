@@ -258,6 +258,14 @@ async function adminLogin(){
   btn.textContent='دخول'; btn.disabled=false;
 }
 
+
+function showSessionExpired(){
+  document.getElementById('mainWrap').style.display='none';
+  document.getElementById('loginWrap').style.display='flex';
+  sessionStorage.removeItem('tw_admin');
+  toast('انتهت الجلسة - سجل دخول مجدداً','e');
+}
+
 function showLoginErr(){
   const err=document.getElementById('login-err');
   err.style.display='block';
@@ -273,8 +281,16 @@ async function adminLogout(){
 (async function(){
   try{
     const r=await fetch('/auth/users',{credentials:'include'});
-    if(r.ok){ showMain(); }
-  }catch(e){}
+    if(r.ok){
+      showMain();
+    } else if(r.status===403){
+      // Not logged in - show login form
+    } else {
+      console.log('Server error:', r.status);
+    }
+  }catch(e){
+    console.log('Connection error:', e.message);
+  }
 })();
 
 document.getElementById('admin-user').addEventListener('keydown',e=>{ if(e.key==='Enter') document.getElementById('admin-pass').focus(); });
@@ -299,18 +315,14 @@ async function loadAll(){
 async function loadUsers(){
   try{
     const r=await fetch('/auth/users',{credentials:'include'});
-    if(!r.ok) throw new Error();
+    if(r.status===403){ showSessionExpired(); return; }
+    if(!r.ok) throw new Error('HTTP '+r.status);
     const data=await r.json();
+    if(data.error) throw new Error(data.error);
     _allUsers=data.users||[];
   }catch(e){
-    // Demo data if API not ready
-    _allUsers=[
-      {id:48001,full_name:'أحمد محمد',email:'ahmed@test.com',user_type:'emp',created_at:'2025-05-10'},
-      {id:48002,full_name:'شركة تك ستارت',email:'info@techstart.jo',user_type:'co',created_at:'2025-05-11'},
-      {id:48003,full_name:'سارة خالد',email:'sara@test.com',user_type:'emp',created_at:'2025-05-12'},
-      {id:48004,full_name:'أكاديمية التميز',email:'info@academy.jo',user_type:'edu',created_at:'2025-05-13'},
-      {id:48005,full_name:'محمد يوسف',email:'m.yousef@test.com',user_type:'emp',created_at:'2025-05-14'},
-    ];
+    document.getElementById('usersTable').innerHTML=`<div class="empty-state" style="color:#f87171">⚠️ خطأ: ${e.message}<br><small>تأكد من تسجيل الدخول وأن الـ DB متصل</small></div>`;
+    return;
   }
   updateStats();
   renderUsers(_allUsers);
@@ -319,17 +331,17 @@ async function loadUsers(){
 async function loadVerify(){
   try{
     const r=await fetch('/admin/verify-requests',{credentials:'include'});
-    if(!r.ok) throw new Error();
+    if(r.status===403){ return; }
+    if(!r.ok) throw new Error('HTTP '+r.status);
     const data=await r.json();
+    if(data.error) throw new Error(data.error);
     _allVerify=data.requests||[];
   }catch(e){
-    _allVerify=[
-      {id:1,user_id:48001,user_name:'أحمد محمد',title:'مطور ويب',company:'شركة تك ستارت',status:'pending',created_at:'2025-05-14'},
-      {id:2,user_id:48003,user_name:'سارة خالد',title:'مصممة UI',company:'إبداع للتقنية',status:'under_review',created_at:'2025-05-13'},
-      {id:3,user_id:48005,user_name:'محمد يوسف',title:'محاسب',company:'شركة الأمل',status:'verified',created_at:'2025-05-10'},
-    ];
+    document.getElementById('verifyTable').innerHTML=`<div class="empty-state" style="color:#f87171">⚠️ خطأ في تحميل طلبات التوثيق: ${e.message}</div>`;
+    return;
   }
   renderVerify(_allVerify);
+  updateStats();
 }
 
 function updateStats(){
@@ -370,7 +382,7 @@ function renderUsers(list){
       <div>${typeLabel(u.user_type)}</div>
       <div><span class="status-badge s-verified">✓ نشط</span></div>
       <div class="action-btns">
-        <button class="ab ab-view" onclick="viewUser(${u.id})">👁</button>
+        <button class="ab ab-view" onclick="viewUser(${u.id})">👁 ملف</button>
         <button class="ab ab-msg" onclick="openMsg(${u.id},'${u.full_name}')">💬</button>
       </div>
     </div>`).join('');
@@ -400,7 +412,15 @@ function renderVerify(list){
 
 // ── Actions ──
 function viewUser(id){
-  window.open('profile.html?id='+id,'_blank');
+  window.open('/profile.html?id='+id,'_blank');
+}
+async function viewUserDetail(id){
+  try{
+    const r=await fetch('/admin/profile/'+id,{credentials:'include'});
+    const data=await r.json();
+    if(data.error) throw new Error(data.error);
+    openUserModal(data);
+  }catch(e){ toast('خطأ: '+e.message,'e'); }
 }
 function viewVerify(id){
   toast('عرض طلب #'+id);

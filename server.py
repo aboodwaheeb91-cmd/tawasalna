@@ -2,14 +2,14 @@
 تواصلنا - Arabic Employment Platform
 """
 
-from fastapi import FastAPI, HTTPException, Request, Response
+from fastapi import FastAPI, HTTPException, Request as _Req, Response
 from fastapi.responses import RedirectResponse
 import secrets as sec_lib
 admin_sessions = set()  # Active admin session tokens
 ADMIN_SECRET_URL = 'tw-ctrl-kPuOWhpIYjdLQXmh'
 ADMIN_PASSWORD = 'tw@admin2025'
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, FileResponse
+from fastapi.responses import HTMLResponse, FileResponse, Response as _Res
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 import json
@@ -356,8 +356,6 @@ admin_sessions = set()
 ADMIN_SECRET_URL = 'kPuOWhpIYjdLQXmh'
 ADMIN_PASSWORD = 'tw@admin2025'
 
-from fastapi import Request as _Req
-from fastapi.responses import Response as _Res
 
 class AdminLogin(BaseModel):
     password: str
@@ -369,7 +367,7 @@ async def admin_login_api(data: AdminLogin, response: _Res):
         raise HTTPException(status_code=401, detail="Unauthorized")
     token = _sec.token_urlsafe(32)
     admin_sessions.add(token)
-    response.set_cookie("tw_adm", token, httponly=True, max_age=86400, samesite="strict")
+    response.set_cookie("tw_adm", token, httponly=True, max_age=86400, samesite="lax")
     return {"success": True}
 
 @app.post("/tw-ctrl-logout")
@@ -447,6 +445,16 @@ class AdminMsg(BaseModel):
     user_id: int
     subject: str
     message: str
+
+
+@app.get("/admin/profile/{user_id}")
+def admin_get_profile(user_id: int, request: _Req):
+    _chk_admin(request)
+    try:
+        profile = get_full_profile(user_id)
+        return profile
+    except Exception as e:
+        return {"error": str(e)}
 
 @app.post("/admin/message")
 def admin_send_message(data: AdminMsg, request: _Req):
