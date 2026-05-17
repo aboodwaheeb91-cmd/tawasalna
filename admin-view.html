@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>تواصلنا - عرض المستخدم</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
+<style>
+:root{--ac:#00c896;--ac2:#2563ff;--acr:0,200,150;--bg:#070b18;--card:rgba(255,255,255,.03);--bdr:rgba(255,255,255,.07);}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg);color:#fff;font-family:'Cairo',sans-serif;min-height:100vh;}
+
+/* ── NAV ── */
+.nav{position:fixed;top:0;left:0;right:0;z-index:100;height:52px;display:flex;align-items:center;gap:10px;padding:0 18px;background:rgba(7,11,24,.95);backdrop-filter:blur(20px);border-bottom:1px solid var(--bdr);}
+.nav-logo{font-size:.9rem;font-weight:900;background:linear-gradient(135deg,var(--ac),var(--ac2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+.nav-badge{font-size:.65rem;font-weight:700;background:rgba(239,68,68,.15);color:#f87171;border:1px solid rgba(239,68,68,.25);border-radius:20px;padding:2px 9px;}
+.nav-back{margin-right:auto;padding:6px 13px;border-radius:9px;background:rgba(255,255,255,.07);border:1px solid var(--bdr);color:rgba(255,255,255,.65);font-family:'Cairo',sans-serif;font-size:.75rem;font-weight:700;cursor:pointer;transition:all .2s;}
+.nav-back:hover{background:rgba(255,255,255,.12);color:#fff;}
+
+/* ── LAYOUT ── */
+.page{padding:72px 16px 60px;max-width:900px;margin:0 auto;}
+.grid{display:grid;grid-template-columns:300px 1fr;gap:16px;align-items:start;}
+@media(max-width:700px){.grid{grid-template-columns:1fr;}}
+
+/* ── SIDEBAR ── */
+.sidebar{display:flex;flex-direction:column;gap:12px;position:sticky;top:68px;}
+.user-card{background:linear-gradient(145deg,rgba(0,200,150,.08),rgba(37,99,255,.05));border:1px solid rgba(var(--acr),.15);border-radius:20px;padding:24px;text-align:center;}
+.user-avatar{width:90px;height:90px;border-radius:50%;background:linear-gradient(135deg,var(--ac),var(--ac2));display:flex;align-items:center;justify-content:center;font-size:2.2rem;margin:0 auto 14px;box-shadow:0 8px 28px rgba(var(--acr),.25);}
+.user-name{font-size:1.05rem;font-weight:900;margin-bottom:4px;}
+.user-email{font-size:.72rem;color:rgba(255,255,255,.4);margin-bottom:10px;word-break:break-all;}
+.user-type-badge{display:inline-flex;align-items:center;gap:5px;padding:4px 12px;border-radius:20px;font-size:.68rem;font-weight:800;}
+.type-emp{background:rgba(0,200,150,.12);color:var(--ac);border:1px solid rgba(var(--acr),.2);}
+.type-co{background:rgba(37,99,255,.12);color:#60a5fa;border:1px solid rgba(37,99,255,.2);}
+.type-edu{background:rgba(139,92,246,.12);color:#a78bfa;border:1px solid rgba(139,92,246,.2);}
+.user-id{font-size:.58rem;color:rgba(255,255,255,.18);letter-spacing:1px;margin-top:10px;padding-top:10px;border-top:1px solid var(--bdr);}
+.user-since{font-size:.65rem;color:rgba(255,255,255,.3);margin-top:4px;}
+
+/* ── ACTION CARDS ── */
+.action-card{background:var(--card);border:1px solid var(--bdr);border-radius:16px;padding:16px;}
+.action-title{font-size:.7rem;font-weight:800;color:rgba(255,255,255,.3);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:12px;}
+.action-btn{width:100%;display:flex;align-items:center;gap:9px;padding:10px 13px;border-radius:11px;border:1px solid var(--bdr);background:rgba(255,255,255,.03);color:rgba(255,255,255,.75);font-family:'Cairo',sans-serif;font-size:.78rem;font-weight:700;cursor:pointer;transition:all .2s;margin-bottom:6px;}
+.action-btn:last-child{margin-bottom:0;}
+.action-btn:hover{background:rgba(255,255,255,.07);color:#fff;}
+.action-btn.verify{border-color:rgba(var(--acr),.2);color:var(--ac);}
+.action-btn.verify:hover{background:rgba(var(--acr),.08);}
+.action-btn.danger{border-color:rgba(239,68,68,.2);color:#f87171;}
+.action-btn.danger:hover{background:rgba(239,68,68,.08);}
+.action-btn .ab-ico{font-size:1rem;flex-shrink:0;}
+
+/* ── TYPE SELECTOR ── */
+.type-sel{width:100%;padding:8px 11px;background:rgba(255,255,255,.05);border:1px solid var(--bdr);border-radius:9px;color:#fff;font-family:'Cairo',sans-serif;font-size:.78rem;outline:none;direction:rtl;margin-bottom:8px;}
+.type-sel option{background:#0d1526;}
+.save-type-btn{width:100%;padding:8px;background:linear-gradient(135deg,var(--ac),var(--ac2));border:none;border-radius:9px;color:#fff;font-family:'Cairo',sans-serif;font-size:.78rem;font-weight:700;cursor:pointer;transition:opacity .2s;}
+.save-type-btn:hover{opacity:.9;}
+
+/* ── MAIN CONTENT ── */
+.main-col{display:flex;flex-direction:column;gap:14px;}
+
+/* ── SECTION CARD ── */
+.sec-card{background:var(--card);border:1px solid var(--bdr);border-radius:18px;padding:20px 22px;}
+.sec-head{display:flex;align-items:center;gap:10px;margin-bottom:16px;}
+.sec-ico{font-size:1.2rem;}
+.sec-label{font-size:.95rem;font-weight:900;}
+.sec-count{margin-right:auto;font-size:.65rem;color:rgba(255,255,255,.3);background:rgba(255,255,255,.05);border-radius:20px;padding:2px 8px;}
+
+/* ── EDITABLE FIELD ── */
+.field-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.04);}
+.field-row:last-child{border-bottom:none;padding-bottom:0;}
+.field-lbl{font-size:.7rem;color:rgba(255,255,255,.35);width:100px;flex-shrink:0;}
+.field-val{flex:1;font-size:.82rem;font-weight:600;}
+.field-inp{flex:1;padding:7px 10px;background:rgba(255,255,255,.05);border:1px solid rgba(var(--acr),.3);border-radius:8px;color:#fff;font-family:'Cairo',sans-serif;font-size:.82rem;outline:none;}
+.field-edit-btn{padding:5px 10px;border-radius:7px;border:1px solid var(--bdr);background:rgba(255,255,255,.04);color:rgba(255,255,255,.45);font-family:'Cairo',sans-serif;font-size:.65rem;cursor:pointer;transition:all .2s;flex-shrink:0;}
+.field-edit-btn:hover{background:rgba(var(--acr),.1);color:var(--ac);border-color:rgba(var(--acr),.25);}
+.field-save-btn{padding:5px 10px;border-radius:7px;border:none;background:linear-gradient(135deg,var(--ac),var(--ac2));color:#fff;font-family:'Cairo',sans-serif;font-size:.65rem;cursor:pointer;flex-shrink:0;}
+
+/* ── EXPERIENCE / EDU ITEMS ── */
+.item{padding:12px 0;border-bottom:1px solid rgba(255,255,255,.04);}
+.item:last-child{border-bottom:none;padding-bottom:0;}
+.item-top{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;}
+.item-title{font-size:.85rem;font-weight:700;margin-bottom:2px;}
+.item-sub{font-size:.74rem;color:rgba(255,255,255,.45);margin-bottom:2px;}
+.item-date{font-size:.66rem;color:var(--ac);font-weight:600;}
+.item-del{padding:4px 9px;border-radius:7px;border:1px solid rgba(239,68,68,.2);background:rgba(239,68,68,.06);color:#f87171;font-family:'Cairo',sans-serif;font-size:.65rem;cursor:pointer;transition:all .2s;flex-shrink:0;}
+.item-del:hover{background:rgba(239,68,68,.15);}
+.badge-v{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:20px;font-size:.6rem;font-weight:700;}
+.badge-pending{background:rgba(251,146,60,.1);border:1px solid rgba(251,146,60,.2);color:#fb923c;}
+.badge-verified{background:rgba(var(--acr),.1);border:1px solid rgba(var(--acr),.2);color:var(--ac);}
+
+/* ── EMPTY STATE ── */
+.empty{text-align:center;padding:28px;color:rgba(255,255,255,.2);font-size:.8rem;}
+.empty-ico{font-size:2rem;display:block;margin-bottom:8px;}
+
+/* ── VERIFY BADGE ── */
+.verify-status{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;font-size:.65rem;font-weight:800;}
+.vs-verified{background:rgba(var(--acr),.12);color:var(--ac);}
+.vs-unverified{background:rgba(255,255,255,.05);color:rgba(255,255,255,.35);}
+
+/* ── LOADING ── */
+.loading{display:flex;align-items:center;justify-content:center;padding:60px;color:rgba(255,255,255,.3);font-size:.85rem;gap:10px;}
+.spin{width:20px;height:20px;border:2px solid rgba(255,255,255,.1);border-top-color:var(--ac);border-radius:50%;animation:spin .7s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+/* ── TOAST ── */
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);padding:10px 20px;border-radius:12px;font-size:.78rem;font-weight:700;z-index:9999;transition:transform .3s,opacity .3s;pointer-events:none;opacity:0;white-space:nowrap;}
+.toast.show{transform:translateX(-50%) translateY(0);opacity:1;}
+.toast.s{background:#064e3b;color:#6ee7b7;border:1px solid rgba(110,231,183,.2);}
+.toast.e{background:#7f1d1d;color:#fca5a5;border:1px solid rgba(252,165,165,.2);}
+
+/* ── MODAL ── */
+.overlay{position:fixed;inset:0;z-index:2000;background:rgba(0,0,0,.78);display:flex;align-items:center;justify-content:center;padding:16px;opacity:0;pointer-events:none;transition:opacity .2s;}
+.overlay.show{opacity:1;pointer-events:all;}
+.modal{background:#0a0f1e;border:1px solid rgba(255,255,255,.1);border-radius:20px;width:100%;max-width:420px;padding:24px;}
+.modal-title{font-size:.95rem;font-weight:800;margin-bottom:16px;}
+.mf{margin-bottom:12px;}
+.mf label{display:block;font-size:.7rem;color:rgba(255,255,255,.4);margin-bottom:4px;font-weight:700;}
+.mf input,.mf textarea{width:100%;padding:9px 11px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:'Cairo',sans-serif;font-size:.82rem;outline:none;}
+.mact{display:flex;gap:8px;margin-top:14px;}
+.mbtn{flex:1;padding:10px;border:none;border-radius:10px;font-family:'Cairo',sans-serif;font-size:.82rem;font-weight:700;cursor:pointer;}
+.mbtn-ok{background:linear-gradient(135deg,var(--ac),var(--ac2));color:#fff;}
+.mbtn-danger{background:rgba(239,68,68,.15);color:#f87171;border:1px solid rgba(239,68,68,.25);}
+.mbtn-no{background:rgba(255,255,255,.07);color:rgba(255,255,255,.5);}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-logo">تواصلنا</div>
+  <span class="nav-badge">🔐 لوحة الإدارة</span>
+  <button class="nav-back" onclick="goBack()">← رجوع للإدارة</button>
+</nav>
+
+<div class="page">
+  <div id="loadingState" class="loading">
+    <div class="spin"></div> جاري تحميل بيانات المستخدم...
+  </div>
+
+  <div id="mainContent" style="display:none">
+    <div class="grid">
+
+      <!-- ── SIDEBAR ── -->
+      <div class="sidebar">
+
+        <!-- بطاقة المستخدم -->
+        <div class="user-card">
+          <div class="user-avatar" id="uAvatar">👤</div>
+          <div class="user-name" id="uName">—</div>
+          <div class="user-email" id="uEmail">—</div>
+          <div id="uTypeBadge"></div>
+          <div class="user-id" id="uId">—</div>
+          <div class="user-since" id="uSince">—</div>
+        </div>
+
+        <!-- إجراءات سريعة -->
+        <div class="action-card">
+          <div class="action-title">إجراءات سريعة</div>
+
+          <!-- تغيير نوع الحساب -->
+          <select class="type-sel" id="typeSelector">
+            <option value="emp">👤 موظف</option>
+            <option value="co">🏢 شركة</option>
+            <option value="edu">🎓 مؤسسة تعليمية</option>
+          </select>
+          <button class="save-type-btn" onclick="saveType()">💾 تغيير نوع الحساب</button>
+
+          <div style="height:8px"></div>
+
+          <button class="action-btn verify" id="verifyBtn" onclick="toggleVerify()">
+            <span class="ab-ico">✅</span> توثيق الحساب
+          </button>
+          <button class="action-btn" onclick="openResetPassword()">
+            <span class="ab-ico">🔒</span> إعادة تعيين كلمة المرور
+          </button>
+          <button class="action-btn" onclick="openSendMsg()">
+            <span class="ab-ico">💬</span> مراسلة المستخدم
+          </button>
+          <button class="action-btn danger" onclick="confirmDelete()">
+            <span class="ab-ico">🗑️</span> حذف الحساب نهائياً
+          </button>
+        </div>
+
+      </div>
+
+      <!-- ── MAIN CONTENT ── -->
+      <div class="main-col">
+
+        <!-- المعلومات الأساسية -->
+        <div class="sec-card">
+          <div class="sec-head">
+            <span class="sec-ico">👤</span>
+            <span class="sec-label">المعلومات الأساسية</span>
+          </div>
+          <div class="field-row">
+            <span class="field-lbl">الاسم الكامل</span>
+            <span class="field-val" id="fName">—</span>
+            <button class="field-edit-btn" onclick="editField('name')">✏️ تعديل</button>
+          </div>
+          <div class="field-row">
+            <span class="field-lbl">البريد الإلكتروني</span>
+            <span class="field-val" id="fEmail">—</span>
+          </div>
+          <div class="field-row">
+            <span class="field-lbl">التخصص</span>
+            <span class="field-val" id="fHeadline">—</span>
+            <button class="field-edit-btn" onclick="editField('headline')">✏️ تعديل</button>
+          </div>
+          <div class="field-row">
+            <span class="field-lbl">الموقع</span>
+            <span class="field-val" id="fLocation">—</span>
+            <button class="field-edit-btn" onclick="editField('location')">✏️ تعديل</button>
+          </div>
+          <div class="field-row">
+            <span class="field-lbl">نبذة</span>
+            <span class="field-val" id="fBio" style="color:rgba(255,255,255,.5);font-size:.75rem">—</span>
+            <button class="field-edit-btn" onclick="editField('bio')">✏️ تعديل</button>
+          </div>
+          <div class="field-row">
+            <span class="field-lbl">التوثيق</span>
+            <span class="field-val" id="fVerified">—</span>
+          </div>
+          <div class="field-row">
+            <span class="field-lbl">المعرّف</span>
+            <span class="field-val" id="fTwId" style="font-size:.68rem;color:rgba(255,255,255,.3);letter-spacing:.5px">—</span>
+          </div>
+          <div class="field-row">
+            <span class="field-lbl">تاريخ التسجيل</span>
+            <span class="field-val" id="fCreated">—</span>
+          </div>
+        </div>
+
+        <!-- الخبرات العملية -->
+        <div class="sec-card">
+          <div class="sec-head">
+            <span class="sec-ico">💼</span>
+            <span class="sec-label">الخبرات العملية</span>
+            <span class="sec-count" id="expCount">0</span>
+          </div>
+          <div id="expList"><div class="empty"><span class="empty-ico">📋</span>لا توجد خبرات مسجلة</div></div>
+        </div>
+
+        <!-- الشهادات الدراسية -->
+        <div class="sec-card">
+          <div class="sec-head">
+            <span class="sec-ico">🎓</span>
+            <span class="sec-label">الشهادات الدراسية</span>
+            <span class="sec-count" id="eduCount">0</span>
+          </div>
+          <div id="eduList"><div class="empty"><span class="empty-ico">📚</span>لا توجد شهادات مسجلة</div></div>
+        </div>
+
+        <!-- الدورات التدريبية -->
+        <div class="sec-card">
+          <div class="sec-head">
+            <span class="sec-ico">📚</span>
+            <span class="sec-label">الدورات التدريبية</span>
+            <span class="sec-count" id="courseCount">0</span>
+          </div>
+          <div id="courseList"><div class="empty"><span class="empty-ico">🏆</span>لا توجد دورات مسجلة</div></div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── MODALS ── -->
+<div class="overlay" id="overlay" onclick="if(event.target===this)closeModal()">
+  <div class="modal" id="modal"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+'use strict';
+
+// ── State ──
+const _urlParams = new URLSearchParams(window.location.search);
+const _userId = _urlParams.get('id');
+const _adminToken = sessionStorage.getItem('tw_adm_token') || '';
+let _profile = null;
+
+if(!_adminToken){ window.location.href = '/tw-ctrl-kPuOWhpIYjdLQXmh'; }
+if(!_userId){ window.location.href = '/admin.html'; }
+
+// ── Admin headers ──
+function adminHeaders(){ return {'Content-Type':'application/json','X-Admin-Token':_adminToken}; }
+
+// ── Load Profile ──
+async function loadProfile(){
+  try{
+    const r = await fetch('/admin/profile/'+_userId, {headers: adminHeaders()});
+    if(r.status===403){ window.location.href='/tw-ctrl-kPuOWhpIYjdLQXmh'; return; }
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const data = await r.json();
+    _profile = data.profile || data;
+    renderProfile();
+  }catch(e){
+    document.getElementById('loadingState').innerHTML = `<div style="color:#f87171;text-align:center">⚠️ خطأ في تحميل البيانات<br><small style="color:rgba(255,100,100,.5)">${e.message}</small></div>`;
+  }
+}
+
+// ── Render ──
+function renderProfile(){
+  const p = _profile;
+  if(!p) return;
+
+  document.getElementById('loadingState').style.display='none';
+  document.getElementById('mainContent').style.display='block';
+
+  // Avatar emoji by type
+  const avatarMap = {emp:'👤', co:'🏢', edu:'🎓'};
+  document.getElementById('uAvatar').textContent = avatarMap[p.user_type]||'👤';
+
+  // User card
+  document.getElementById('uName').textContent = p.full_name||'—';
+  document.getElementById('uEmail').textContent = p.email||'—';
+  document.getElementById('uId').textContent = p.tw_id||('TW-'+(p.user_type||'emp').toUpperCase()+'-'+p.id);
+  document.getElementById('uSince').textContent = '📅 انضم ' + (p.created_at||'').split('T')[0];
+
+  // Type badge
+  const typeMap = {emp:['type-emp','👤 موظف'], co:['type-co','🏢 شركة'], edu:['type-edu','🎓 تعليمي']};
+  const [cls, lbl] = typeMap[p.user_type]||['type-emp','موظف'];
+  document.getElementById('uTypeBadge').innerHTML = `<span class="user-type-badge ${cls}">${lbl}</span>`;
+
+  // Type selector
+  document.getElementById('typeSelector').value = p.user_type||'emp';
+
+  // Main fields
+  document.getElementById('fName').textContent = p.full_name||'—';
+  document.getElementById('fEmail').textContent = p.email||'—';
+  document.getElementById('fHeadline').textContent = p.headline||'لم يُضف بعد';
+  document.getElementById('fLocation').textContent = p.location||'لم يُضف بعد';
+  document.getElementById('fBio').textContent = p.bio||'لم يُضف بعد';
+  document.getElementById('fTwId').textContent = p.tw_id||'—';
+  document.getElementById('fCreated').textContent = (p.created_at||'').split('T')[0]||'—';
+
+  // Verified
+  const isV = p.is_verified;
+  document.getElementById('fVerified').innerHTML = isV
+    ? '<span class="verify-status vs-verified">✅ موثق</span>'
+    : '<span class="verify-status vs-unverified">⏳ غير موثق</span>';
+  document.getElementById('verifyBtn').innerHTML = isV
+    ? '<span class="ab-ico">❌</span> إلغاء التوثيق'
+    : '<span class="ab-ico">✅</span> توثيق الحساب';
+
+  // Experience
+  const exp = p.experience||[];
+  document.getElementById('expCount').textContent = exp.length;
+  document.getElementById('expList').innerHTML = exp.length ? exp.map(e=>`
+    <div class="item">
+      <div class="item-top">
+        <div>
+          <div class="item-title">${e.title||'—'}</div>
+          <div class="item-sub">${e.company||'—'} ${e.location?'· '+e.location:''}</div>
+          <div class="item-date">${e.start_date||''} ${e.end_date?'← '+e.end_date:''}</div>
+          ${e.description?`<div style="font-size:.72rem;color:rgba(255,255,255,.35);margin-top:4px">${e.description}</div>`:''}
+        </div>
+        <button class="item-del" onclick="deleteExp(${e.id})">🗑️ حذف</button>
+      </div>
+    </div>`).join('') : '<div class="empty"><span class="empty-ico">📋</span>لا توجد خبرات</div>';
+
+  // Education
+  const edu = p.education||[];
+  document.getElementById('eduCount').textContent = edu.length;
+  document.getElementById('eduList').innerHTML = edu.length ? edu.map(e=>`
+    <div class="item">
+      <div class="item-top">
+        <div>
+          <div class="item-title">${e.degree||''} ${e.field?'- '+e.field:''}</div>
+          <div class="item-sub">${e.institution||'—'}</div>
+          <div class="item-date">${e.end_year||''}</div>
+        </div>
+        <button class="item-del" onclick="deleteEdu(${e.id})">🗑️ حذف</button>
+      </div>
+    </div>`).join('') : '<div class="empty"><span class="empty-ico">📚</span>لا توجد شهادات</div>';
+
+  // Courses
+  const courses = p.courses||[];
+  document.getElementById('courseCount').textContent = courses.length;
+  document.getElementById('courseList').innerHTML = courses.length ? courses.map(c=>`
+    <div class="item">
+      <div class="item-top">
+        <div>
+          <div class="item-title">${c.title||'—'}</div>
+          <div class="item-sub">${c.provider||''}</div>
+          <div class="item-date">${c.completion_date||''}</div>
+        </div>
+        <button class="item-del" onclick="deleteCourse(${c.id})">🗑️ حذف</button>
+      </div>
+    </div>`).join('') : '<div class="empty"><span class="empty-ico">🏆</span>لا توجد دورات</div>';
+}
+
+// ── Edit Field ──
+function editField(field){
+  const fieldMap = {
+    name: ['الاسم الكامل', _profile?.full_name||'', 'text'],
+    headline: ['التخصص / المسمى الوظيفي', _profile?.headline||'', 'text'],
+    location: ['الموقع', _profile?.location||'', 'text'],
+    bio: ['نبذة مختصرة', _profile?.bio||'', 'textarea'],
+  };
+  const [label, val, type] = fieldMap[field]||[];
+  if(!label) return;
+
+  const inputEl = type==='textarea'
+    ? `<textarea id="m-val" style="width:100%;padding:9px 11px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:Cairo,sans-serif;font-size:.82rem;outline:none;resize:vertical;min-height:80px">${val}</textarea>`
+    : `<input id="m-val" type="text" value="${val}" autocomplete="off" style="width:100%;padding:9px 11px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:Cairo,sans-serif;font-size:.82rem;outline:none;">`;
+
+  document.getElementById('modal').innerHTML = `
+    <div class="modal-title">✏️ تعديل ${label}</div>
+    <div class="mf"><label>${label}</label>${inputEl}</div>
+    <div class="mact">
+      <button class="mbtn mbtn-ok" onclick="saveField('${field}')">حفظ</button>
+      <button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button>
+    </div>`;
+  document.getElementById('overlay').classList.add('show');
+  setTimeout(()=>document.getElementById('m-val')?.focus(),100);
+}
+
+async function saveField(field){
+  const val = document.getElementById('m-val')?.value.trim();
+  if(!val) return;
+
+  const bodyMap = {
+    name: {full_name: val},
+    headline: {headline: val},
+    location: {location: val},
+    bio: {bio: val},
+  };
+  const body = bodyMap[field];
+
+  try{
+    const r = await fetch('/profile/'+_userId, {
+      method:'PUT', headers: adminHeaders(),
+      body: JSON.stringify(body)
+    });
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    closeModal();
+    await loadProfile();
+    toast('تم الحفظ ✓');
+  }catch(e){
+    toast('خطأ: '+e.message, 'e');
+  }
+}
+
+// ── Change Type ──
+async function saveType(){
+  const newType = document.getElementById('typeSelector').value;
+  if(newType === _profile?.user_type){ toast('النوع لم يتغير'); return; }
+  try{
+    const r = await fetch('/admin/user/'+_userId+'/type', {
+      method:'PUT', headers: adminHeaders(),
+      body: JSON.stringify({user_type: newType})
+    });
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    await loadProfile();
+    toast('تم تغيير نوع الحساب ✓');
+  }catch(e){
+    toast('خطأ: '+e.message,'e');
+  }
+}
+
+// ── Toggle Verify ──
+async function toggleVerify(){
+  const newStatus = !_profile?.is_verified;
+  try{
+    const r = await fetch('/admin/user/'+_userId+'/verify', {
+      method:'PUT', headers: adminHeaders(),
+      body: JSON.stringify({is_verified: newStatus})
+    });
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    await loadProfile();
+    toast(newStatus ? 'تم توثيق الحساب ✓' : 'تم إلغاء التوثيق');
+  }catch(e){
+    toast('خطأ: '+e.message,'e');
+  }
+}
+
+// ── Reset Password ──
+function openResetPassword(){
+  document.getElementById('modal').innerHTML = `
+    <div class="modal-title">🔒 إعادة تعيين كلمة المرور</div>
+    <div class="mf"><label>كلمة المرور الجديدة</label>
+      <input id="m-pw" type="password" autocomplete="off" placeholder="أدخل كلمة مرور جديدة" style="width:100%;padding:9px 11px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:Cairo,sans-serif;font-size:.82rem;outline:none;">
+    </div>
+    <div class="mact">
+      <button class="mbtn mbtn-ok" onclick="saveResetPassword()">تعيين</button>
+      <button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button>
+    </div>`;
+  document.getElementById('overlay').classList.add('show');
+}
+
+async function saveResetPassword(){
+  const pw = document.getElementById('m-pw')?.value;
+  if(!pw||pw.length<6){ toast('كلمة المرور يجب 6 أحرف على الأقل','e'); return; }
+  try{
+    const r = await fetch('/admin/user/'+_userId+'/password', {
+      method:'PUT', headers: adminHeaders(),
+      body: JSON.stringify({password: pw})
+    });
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    closeModal(); toast('تم إعادة تعيين كلمة المرور ✓');
+  }catch(e){
+    toast('خطأ: '+e.message,'e');
+  }
+}
+
+// ── Send Message ──
+function openSendMsg(){
+  document.getElementById('modal').innerHTML = `
+    <div class="modal-title">💬 مراسلة المستخدم</div>
+    <div class="mf"><label>إلى</label>
+      <input value="${_profile?.email||''}" disabled style="width:100%;padding:9px 11px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:10px;color:rgba(255,255,255,.4);font-family:Cairo,sans-serif;font-size:.82rem;outline:none;">
+    </div>
+    <div class="mf"><label>الموضوع</label>
+      <select id="m-sub" style="width:100%;padding:9px 11px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;">
+        <option>إشعار توثيق</option><option>تنبيه بالملف الشخصي</option>
+        <option>رسالة إدارية</option><option>ترحيب</option><option>أخرى</option>
+      </select>
+    </div>
+    <div class="mf"><label>الرسالة</label>
+      <textarea id="m-msg" placeholder="اكتب رسالتك هنا..." style="width:100%;padding:9px 11px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:Cairo,sans-serif;font-size:.82rem;outline:none;resize:vertical;min-height:100px"></textarea>
+    </div>
+    <div class="mact">
+      <button class="mbtn mbtn-ok" onclick="sendMsg()">إرسال</button>
+      <button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button>
+    </div>`;
+  document.getElementById('overlay').classList.add('show');
+}
+
+async function sendMsg(){
+  const msg = document.getElementById('m-msg')?.value.trim();
+  const sub = document.getElementById('m-sub')?.value;
+  if(!msg){ toast('أدخل الرسالة','e'); return; }
+  try{
+    const r = await fetch('/admin/message', {
+      method:'POST', headers: adminHeaders(),
+      body: JSON.stringify({user_id: parseInt(_userId), subject: sub, message: msg})
+    });
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    closeModal(); toast('تم إرسال الرسالة ✓');
+  }catch(e){
+    toast('خطأ: '+e.message,'e');
+  }
+}
+
+// ── Delete User ──
+function confirmDelete(){
+  document.getElementById('modal').innerHTML = `
+    <div class="modal-title" style="color:#f87171">⚠️ حذف الحساب نهائياً</div>
+    <p style="font-size:.78rem;color:rgba(255,255,255,.45);margin-bottom:16px;line-height:1.7">سيتم حذف جميع بيانات هذا المستخدم بشكل دائم لا يمكن التراجع عنه.</p>
+    <div class="mact">
+      <button class="mbtn mbtn-danger" onclick="deleteUser()">حذف نهائي</button>
+      <button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button>
+    </div>`;
+  document.getElementById('overlay').classList.add('show');
+}
+
+async function deleteUser(){
+  try{
+    const r = await fetch('/admin/user/'+_userId, {method:'DELETE', headers: adminHeaders()});
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    toast('تم حذف الحساب ✓');
+    setTimeout(()=> window.location.href='/admin.html', 1500);
+  }catch(e){
+    toast('خطأ: '+e.message,'e');
+  }
+}
+
+// ── Delete Items ──
+async function deleteExp(id){
+  if(!confirm('حذف هذه الخبرة؟')) return;
+  try{
+    await fetch('/admin/experience/'+id, {method:'DELETE', headers: adminHeaders()});
+    await loadProfile(); toast('تم الحذف ✓');
+  }catch(e){ toast('خطأ','e'); }
+}
+
+async function deleteEdu(id){
+  if(!confirm('حذف هذه الشهادة؟')) return;
+  try{
+    await fetch('/admin/education/'+id, {method:'DELETE', headers: adminHeaders()});
+    await loadProfile(); toast('تم الحذف ✓');
+  }catch(e){ toast('خطأ','e'); }
+}
+
+async function deleteCourse(id){
+  if(!confirm('حذف هذه الدورة؟')) return;
+  try{
+    await fetch('/admin/course/'+id, {method:'DELETE', headers: adminHeaders()});
+    await loadProfile(); toast('تم الحذف ✓');
+  }catch(e){ toast('خطأ','e'); }
+}
+
+// ── Utils ──
+function closeModal(){ document.getElementById('overlay').classList.remove('show'); }
+function goBack(){ window.location.href='/admin.html'; }
+function toast(msg, type='s'){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.className='toast '+type+' show';
+  clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove('show'),2800);
+}
+
+// ── Init ──
+loadProfile();
+</script>
+</body>
+</html>

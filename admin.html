@@ -38,7 +38,7 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--t);min-heig
 .tab.on{background:linear-gradient(135deg,var(--ac),var(--ac2));color:#fff;border-color:transparent;}
 
 /* ── Stats ── */
-.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px;}
+.stats{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:20px;}
 .sc{background:var(--card);border:1px solid var(--bdr);border-radius:14px;padding:14px;text-align:center;}
 .sc-n{font-size:1.4rem;font-weight:900;color:var(--ac);}
 .sc-l{font-size:.65rem;color:var(--t2);margin-top:3px;}
@@ -148,6 +148,7 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--t);min-heig
       <div class="sc"><div class="sc-n" id="st-total">—</div><div class="sc-l">إجمالي المستخدمين</div></div>
       <div class="sc"><div class="sc-n" id="st-emp">—</div><div class="sc-l">موظفين</div></div>
       <div class="sc"><div class="sc-n" id="st-co">—</div><div class="sc-l">شركات</div></div>
+      <div class="sc"><div class="sc-n" id="st-edu">—</div><div class="sc-l">مؤسسات تعليمية</div></div>
       <div class="sc"><div class="sc-n" id="st-pending">—</div><div class="sc-l">طلبات توثيق معلقة</div></div>
     </div>
 
@@ -365,10 +366,12 @@ async function loadVerify(){
 function updateStats(){
   const emp = _allUsers.filter(u => u.user_type==='emp').length;
   const co  = _allUsers.filter(u => u.user_type==='co').length;
+  const edu = _allUsers.filter(u => u.user_type==='edu').length;
   const pending = _allVerify.filter(v => v.status==='pending').length;
   document.getElementById('st-total').textContent = _allUsers.length;
   document.getElementById('st-emp').textContent = emp;
   document.getElementById('st-co').textContent = co;
+  document.getElementById('st-edu').textContent = edu;
   document.getElementById('st-pending').textContent = pending;
 }
 
@@ -402,7 +405,8 @@ function renderUsers(list){
       <div>${typeLabel(u.user_type)}</div>
       <div><span class="status-badge s-verified">✓ نشط</span></div>
       <div class="action-btns">
-        <button class="ab ab-view" onclick="window.open('/profile.html?id=${u.tw_id||u.id}','_blank')">👁 ملف</button>
+        <button class="ab ab-view" onclick="window.open('/admin-view.html?id=${u.id}','_blank')">👁 ملف</button>
+        <button class="ab ab-del" onclick="deleteUser(${u.id},'${u.full_name}')">🗑️</button>
         <button class="ab ab-msg" onclick="openMsg(${u.id},'${u.full_name}')">💬</button>
       </div>
     </div>`).join('');
@@ -486,6 +490,16 @@ function showTab(name, el){
   el.classList.add('on');
   document.getElementById('tab-users').style.display = name==='users' ? '' : 'none';
   document.getElementById('tab-verify').style.display = name==='verify' ? '' : 'none';
+}
+
+// ── Delete User ──
+function deleteUser(id, name){
+  if(!confirm('حذف حساب ' + name + '؟\nهذا الإجراء نهائي.')) return;
+  fetch('/admin/user/'+id, {method:'DELETE', headers: adminHeaders()})
+  .then(r => {
+    if(r.ok){ _allUsers=_allUsers.filter(u=>u.id!==id); renderUsers(_allUsers); updateStats(); toast('تم حذف الحساب ✓'); }
+    else toast('خطأ في الحذف','e');
+  }).catch(()=>toast('خطأ في الاتصال','e'));
 }
 
 // ── Message ──
