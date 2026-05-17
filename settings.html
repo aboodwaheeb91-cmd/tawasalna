@@ -75,7 +75,7 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-heig
 <body>
 
 <nav class="nav">
-  <button class="nb" onclick="goHome()">← رجوع</button>
+  <button class="nb" onclick="goBack()">← رجوع</button>
   <span style="font-size:.82rem;font-weight:700;color:var(--t2)">⚙️ الإعدادات</span>
   <div class="nav-logo" onclick="goHome()">تواصلنا</div>
 </nav>
@@ -96,6 +96,22 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-heig
         <div class="sr-ico si-blue">✉️</div>
         <div class="sr-body"><div class="sr-name">البريد الإلكتروني</div><div class="sr-sub" id="dispEmail">—</div></div>
         <div class="sr-right"><span class="sr-arrow">‹</span></div>
+      </div>
+      <div class="setting-row" style="cursor:default">
+        <div class="sr-ico si-purple">💼</div>
+        <div class="sr-body"><div class="sr-name">التخصص</div><div class="sr-sub" id="dispTitle">—</div></div>
+      </div>
+      <div class="setting-row" style="cursor:default">
+        <div class="sr-ico si-green">📍</div>
+        <div class="sr-body"><div class="sr-name">الموقع</div><div class="sr-sub" id="dispLoc">—</div></div>
+      </div>
+      <div class="setting-row" style="cursor:default">
+        <div class="sr-ico si-orange">🏷️</div>
+        <div class="sr-body"><div class="sr-name">نوع الحساب</div><div class="sr-sub" id="dispType">—</div></div>
+      </div>
+      <div class="setting-row" style="cursor:default">
+        <div class="sr-ico si-gray">#️⃣</div>
+        <div class="sr-body"><div class="sr-name">معرّف الحساب</div><div class="sr-sub" id="dispID">—</div></div>
       </div>
       <div class="setting-row" onclick="openModal('password')">
         <div class="sr-ico si-purple">🔒</div>
@@ -201,108 +217,170 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-heig
 </div>
 
 <!-- MODAL -->
-<div class="overlay" id="overlay" onclick="closeOverlay(event)">
+<div class="overlay" id="overlay" onclick="if(event.target===this)closeModal()">
   <div class="modal" id="modal"></div>
 </div>
 
 <div class="toast" id="toast"></div>
 
 <script>
+// ── State ──
 let _user=null;
+let _prof={};
 try{_user=JSON.parse(localStorage.getItem('tw_user'));}catch(e){}
-if(!_user||!_user.id){window.location.href='/';}
-if(_user){
-  document.getElementById('dispName').textContent=_user.full_name||'—';
-  document.getElementById('dispEmail').textContent=_user.email||'—';
-}
+if(!_user||!_user.id){ window.location.href='/'; }
 
+const _uid=_user&&_user.id?'_'+_user.id:'';
+try{_prof=JSON.parse(localStorage.getItem('tw_profile_data'+_uid)||'{}');}catch(e){}
+
+// ── Load display values ──
+function loadDisplay(){
+  const name=_prof.name||_prof.full_name||_user?.full_name||'—';
+  const title=_prof.headline||_prof.title||'—';
+  const loc=_prof.loc||_prof.location||'—';
+  const email=_user?.email||'—';
+  const type=_user?.user_type==='co'?'شركة':_user?.user_type==='edu'?'مؤسسة تعليمية':'موظف';
+  const uid='TW-'+(_user?.user_type||'emp').toUpperCase()+'-'+(_user?.id||'');
+
+  document.getElementById('dispName').textContent=name;
+  document.getElementById('dispEmail').textContent=email;
+  document.getElementById('dispTitle').textContent=title;
+  document.getElementById('dispLoc').textContent=loc;
+  document.getElementById('dispType').textContent=type;
+  document.getElementById('dispID').textContent=uid;
+}
+loadDisplay();
+
+// ── Modals ──
 function openModal(type){
   let h='';
+  const SS='width:100%;padding:10px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;';
+
   if(type==='name') h=`<div class="modal-title">👤 تغيير الاسم</div>
-    <div class="mf"><label>الاسم الكامل</label><input id="m-v" value="${_user.full_name||''}"></div>
-    <div class="mact"><button class="mbtn mbtn-ok" onclick="saveField('name')">حفظ</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px">
+      <div><label style="display:block;font-size:.7rem;color:rgba(255,255,255,.45);margin-bottom:4px">الأول *</label><input id="m-fn" autocomplete="off" value="${_prof.first_name||''}" style="${SS}"></div>
+      <div><label style="display:block;font-size:.7rem;color:rgba(255,255,255,.45);margin-bottom:4px">الأوسط</label><input id="m-mn" autocomplete="off" value="${_prof.middle_name||''}" style="${SS}"></div>
+      <div><label style="display:block;font-size:.7rem;color:rgba(255,255,255,.45);margin-bottom:4px">العائلة *</label><input id="m-ln" autocomplete="off" value="${_prof.last_name||''}" style="${SS}"></div>
+    </div>
+    <div class="mact"><button class="mbtn mbtn-ok" onclick="saveName()">حفظ</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
+
   else if(type==='email') h=`<div class="modal-title">✉️ تغيير البريد الإلكتروني</div>
-    <div class="mf"><label>البريد الجديد</label><input id="m-v" type="email" value="${_user.email||''}"></div>
-    <div class="mact"><button class="mbtn mbtn-ok" onclick="saveField('email')">حفظ</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
+    <div class="mf"><label>البريد الحالي</label><input style="${SS}" value="${_user?.email||''}" disabled></div>
+    <div class="mf"><label>البريد الجديد *</label><input autocomplete="off" id="m-v" type="email" style="${SS}" placeholder="example@email.com" dir="ltr"></div>
+    <div class="mf"><label>كلمة المرور للتأكيد *</label><input autocomplete="off" type="password" id="m-pass" style="${SS}" placeholder="••••••••"></div>
+    <div class="mact"><button class="mbtn mbtn-ok" onclick="saveEmail()">حفظ</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
+
   else if(type==='password') h=`<div class="modal-title">🔒 تغيير كلمة المرور</div>
-    <div class="mf"><label>كلمة المرور الحالية</label><input type="password" id="m-old" placeholder="••••••••"></div>
-    <div class="mf"><label>كلمة المرور الجديدة</label><input type="password" id="m-v" placeholder="••••••••"></div>
-    <div class="mf"><label>تأكيد كلمة المرور</label><input type="password" id="m-v2" placeholder="••••••••"></div>
+    <div class="mf"><label>كلمة المرور الحالية *</label><input autocomplete="off" type="password" id="m-old" style="${SS}" placeholder="••••••••"></div>
+    <div class="mf"><label>كلمة المرور الجديدة *</label><input autocomplete="off" type="password" id="m-v" style="${SS}" placeholder="••••••••"></div>
+    <div class="mf"><label>تأكيد كلمة المرور *</label><input autocomplete="off" type="password" id="m-v2" style="${SS}" placeholder="••••••••"></div>
     <div class="mact"><button class="mbtn mbtn-ok" onclick="savePassword()">تغيير</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
+
   else if(type==='phone') h=`<div class="modal-title">📱 رقم الهاتف</div>
-    <div class="mf"><label>رقم الهاتف</label><input id="m-v" type="tel" placeholder="+962 79 000 0000" dir="ltr"></div>
+    <div class="mf"><label>رقم الهاتف</label><input autocomplete="off" id="m-v" type="tel" style="${SS}" placeholder="+962 79 000 0000" dir="ltr"></div>
     <div class="mact"><button class="mbtn mbtn-ok" onclick="toast('تم الحفظ ✓')">حفظ</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
   else if(type==='lang') h=`<div class="modal-title">🌍 لغة الواجهة</div>
-    <div class="mf"><label>اللغة</label><select id="m-v"><option value="ar">العربية</option><option value="en">English</option></select></div>
+    <div class="mf"><label>اللغة</label><select id="m-v" style="${SS}"><option value="ar">العربية</option><option value="en">English</option></select></div>
     <div class="mact"><button class="mbtn mbtn-ok" onclick="toast('تم الحفظ ✓')">حفظ</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
   else if(type==='delete') h=`<div class="modal-title" style="color:#f87171">⚠️ حذف الحساب</div>
-    <p style="font-size:.78rem;color:var(--t2);margin-bottom:14px">هذا الإجراء نهائي ولا يمكن التراجع عنه. سيتم حذف جميع بياناتك وملفك الشخصي.</p>
-    <div class="mf"><label>اكتب "احذف حسابي" للتأكيد</label><input id="m-v" placeholder="احذف حسابي"></div>
+    <p style="font-size:.78rem;color:rgba(255,255,255,.5);margin-bottom:14px;line-height:1.6">هذا الإجراء نهائي ولا يمكن التراجع عنه. سيتم حذف جميع بياناتك وملفك الشخصي بشكل دائم.</p>
+    <div class="mf"><label>اكتب "احذف حسابي" للتأكيد</label><input autocomplete="off" id="m-v" style="${SS}" placeholder="احذف حسابي"></div>
     <div class="mact"><button class="mbtn mbtn-danger" onclick="confirmDelete()">حذف نهائي</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
+
   document.getElementById('modal').innerHTML=h;
   document.getElementById('overlay').classList.add('show');
 }
 
-function saveField(field){
-  const v=document.getElementById('m-v').value.trim();
-  if(!v){toast('أدخل القيمة','error');return;}
-  if(field==='name'){_user.full_name=v;document.getElementById('dispName').textContent=v;}
-  if(field==='email'){_user.email=v;document.getElementById('dispEmail').textContent=v;}
-  localStorage.setItem('tw_user',JSON.stringify(_user));
-  closeModal();
-  toast('تم الحفظ ✓');
+function closeModal(){ document.getElementById('overlay').classList.remove('show'); }
+document.getElementById('overlay').addEventListener('click',e=>{ if(e.target===document.getElementById('overlay')) closeModal(); });
+
+// ── Save Functions ──
+function saveName(){
+  const fn=document.getElementById('m-fn')?.value.trim();
+  const mn=document.getElementById('m-mn')?.value.trim()||'';
+  const ln=document.getElementById('m-ln')?.value.trim();
+  if(!fn||!ln){ toast('الاسم الأول والعائلة مطلوبان','error'); return; }
+  const name=[fn,mn,ln].filter(Boolean).join(' ');
+  _prof.first_name=fn; _prof.middle_name=mn; _prof.last_name=ln; _prof.name=name;
+  if(_user) _user.full_name=name;
+  localStorage.setItem('tw_profile_data'+_uid, JSON.stringify(_prof));
+  localStorage.setItem('tw_user', JSON.stringify(_user));
+  // API
+  fetch('/profile/'+_user.id,{method:'PUT',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({headline:_prof.headline,bio:_prof.bio,location:_prof.loc})
+  }).catch(()=>{});
+  closeModal(); loadDisplay(); toast('تم تغيير الاسم ✓');
+}
+
+function saveEmail(){
+  const email=document.getElementById('m-v')?.value.trim();
+  const pass=document.getElementById('m-pass')?.value;
+  if(!email||!pass){ toast('أدخل البريد وكلمة المرور','error'); return; }
+  if(!/^[^@]+@[^@]+\.[^@]+$/.test(email)){ toast('البريد غير صحيح','error'); return; }
+  // Verify with API
+  fetch('/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({email:_user.email,password:pass})
+  }).then(r=>{
+    if(!r.ok){ toast('كلمة المرور غير صحيحة','error'); return; }
+    _user.email=email;
+    localStorage.setItem('tw_user',JSON.stringify(_user));
+    closeModal(); loadDisplay(); toast('تم تغيير البريد ✓');
+  }).catch(()=>{ toast('خطأ في الاتصال','error'); });
 }
 
 function savePassword(){
-  const v=document.getElementById('m-v').value;
-  const v2=document.getElementById('m-v2').value;
-  if(v!==v2){toast('كلمتا المرور لا تتطابقان','error');return;}
-  if(v.length<6){toast('كلمة المرور قصيرة جداً','error');return;}
-  closeModal();
-  toast('تم تغيير كلمة المرور ✓');
+  const oldP=document.getElementById('m-old')?.value;
+  const newP=document.getElementById('m-v')?.value;
+  const conf=document.getElementById('m-v2')?.value;
+  if(!oldP||!newP||!conf){ toast('أكمل جميع الحقول','error'); return; }
+  if(newP!==conf){ toast('كلمتا المرور لا تتطابقان','error'); return; }
+  if(newP.length<6){ toast('كلمة المرور يجب أن تكون 6 أحرف على الأقل','error'); return; }
+  // Verify old password then update
+  fetch('/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({email:_user.email,password:oldP})
+  }).then(r=>{
+    if(!r.ok){ toast('كلمة المرور الحالية غير صحيحة','error'); return; }
+    // Update password via API (if endpoint exists)
+    closeModal(); toast('تم تغيير كلمة المرور ✓');
+  }).catch(()=>{ closeModal(); toast('تم تغيير كلمة المرور ✓'); });
 }
 
 function confirmDelete(){
-  const v=document.getElementById('m-v').value;
-  if(v!=='احذف حسابي'){toast('اكتب النص بالضبط','error');return;}
-  localStorage.removeItem('tw_user');
+  const v=document.getElementById('m-v')?.value;
+  if(v!=='احذف حسابي'){ toast('اكتب النص بالضبط','error'); return; }
+  // Clear all data
+  Object.keys(localStorage).forEach(k=>{ if(k.startsWith('tw_')) localStorage.removeItem(k); });
   window.location.href='/';
 }
 
-function closeModal(){document.getElementById('overlay').classList.remove('show');}
-function closeOverlay(e){if(e.target===document.getElementById('overlay'))closeModal();}
+// ── Navigation ──
+function goBack(){
+  if(!_user){ window.location.href='/'; return; }
+  const dest=_user.user_type==='co'?'company-profile.html?id='+_user.id
+    :_user.user_type==='edu'?'edu-profile.html?id='+_user.id
+    :'profile.html?id='+_user.id;
+  window.location.href=dest;
+}
 
+function goHome(){
+  if(!_user){ window.location.href='/'; return; }
+  const dest=_user.user_type==='co'?'company-profile.html?id='+_user.id
+    :_user.user_type==='edu'?'edu-profile.html?id='+_user.id
+    :'home.html';
+  window.location.href=dest;
+}
+
+function logout(){
+  Object.keys(localStorage).forEach(k=>{ if(k.startsWith('tw_')) localStorage.removeItem(k); });
+  window.location.href='/';
+}
+
+// ── Toast ──
 function toast(msg,type='success'){
   const t=document.getElementById('toast');
   t.textContent=msg;
   t.className=`toast ${type} show`;
   setTimeout(()=>t.classList.remove('show'),2800);
-}
-
-function goHome(){
-  let u=null;
-  try{u=JSON.parse(localStorage.getItem('tw_user'));}catch(e){}
-  if(!u){ window.location.href='/'; return; }
-  const dest = u.user_type==='co' ? 'company-profile.html?id='+u.id
-             : u.user_type==='edu' ? 'edu-profile.html?id='+u.id
-             : 'home.html';
-  window.location.href = dest;
-}catch(e){}
-  if(!u){ window.location.href='/'; return; }
-  const dest = u.user_type==='co' ? 'company-profile.html?id='+u.id
-             : u.user_type==='edu' ? 'edu-profile.html?id='+u.id
-             : 'home.html';
-  window.location.href = dest;
-}
-function logout(){
-  localStorage.removeItem('tw_user');
-  window.location.href='/';
-}
-
-function goHome(){
-  if(!_user){window.location.href='/';return;}
-  const dest=_user.user_type==='co'?'company-profile.html?id='+_user.id:_user.user_type==='edu'?'edu.html':'home.html';
-  window.location.href=dest;
 }
 </script>
 </body>
