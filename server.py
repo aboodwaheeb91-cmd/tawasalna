@@ -179,6 +179,9 @@ def settings(): return read_html("settings.html")
 @app.get("/settings.html", response_class=HTMLResponse)
 def settings_html(): return read_html("settings.html")
 
+@app.get("/admin.html", response_class=HTMLResponse)
+def admin_html(): return read_html("admin.html")
+
 @app.get("/tw-ctrl-" + ADMIN_URL_TOKEN, response_class=HTMLResponse)
 def admin_page(): return read_html("admin.html")
 
