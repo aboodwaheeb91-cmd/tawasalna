@@ -294,7 +294,14 @@ async function loadProfile(){
     _profile = data.profile || data;
     renderProfile();
   }catch(e){
-    document.getElementById('loadingState').innerHTML = `<div style="color:#f87171;text-align:center">⚠️ خطأ في تحميل البيانات<br><small style="color:rgba(255,100,100,.5)">${e.message}</small></div>`;
+    // Try to get server error message
+    let errMsg = e.message;
+    try {
+      const errR = await fetch('/admin/profile/'+_userId, {headers: adminHeaders()});
+      const errData = await errR.json();
+      errMsg = errData.detail || errData.error || e.message;
+    } catch(e2) {}
+    document.getElementById('loadingState').innerHTML = `<div style="color:#f87171;text-align:center">⚠️ خطأ في تحميل البيانات<br><small style="color:rgba(255,100,100,.5)">${errMsg}</small></div>`;
   }
 }
 

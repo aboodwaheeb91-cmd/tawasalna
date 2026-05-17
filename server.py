@@ -537,7 +537,10 @@ def admin_get_profile(user_id: int, request: Request):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(500, str(e))
+        import traceback
+        err = traceback.format_exc()
+        print(f"admin_get_profile error: {err}")
+        raise HTTPException(500, detail=f"خطأ: {str(e)}")
 
 @app.delete("/admin/user/{user_id}")
 def delete_user(user_id: int, request: Request):
