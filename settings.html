@@ -86,32 +86,37 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-heig
   <!-- ACCOUNT -->
   <div class="settings-group">
     <div class="sg-title">الحساب</div>
+    <div style="margin-bottom:10px">
+      <button onclick="goProfile()" style="width:100%;padding:12px 16px;background:rgba(var(--ac-rgb),.1);border:1px solid rgba(var(--ac-rgb),.25);border-radius:12px;color:var(--ac);font-family:'Cairo',sans-serif;font-size:.82rem;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:8px;justify-content:center;transition:all .2s;">
+        ✏️ تعديل الملف الشخصي الكامل
+      </button>
+    </div>
     <div class="sg-card">
-      <div class="setting-row" onclick="openModal('name')">
-        <div class="sr-ico si-green">👤</div>
-        <div class="sr-body"><div class="sr-name">الاسم الكامل</div><div class="sr-sub" id="dispName">—</div></div>
-        <div class="sr-right"><span class="sr-arrow">‹</span></div>
-      </div>
+
       <div class="setting-row" onclick="openModal('email')">
         <div class="sr-ico si-blue">✉️</div>
         <div class="sr-body"><div class="sr-name">البريد الإلكتروني</div><div class="sr-sub" id="dispEmail">—</div></div>
         <div class="sr-right"><span class="sr-arrow">‹</span></div>
       </div>
-      <div class="setting-row" style="cursor:default">
+      <div class="setting-row" onclick="showProfileHint()" style="opacity:.7">
         <div class="sr-ico si-purple">💼</div>
         <div class="sr-body"><div class="sr-name">التخصص</div><div class="sr-sub" id="dispTitle">—</div></div>
+        <div class="sr-right"><span style="font-size:.65rem;color:rgba(255,255,255,.3)">🔗 من البروفايل</span></div>
       </div>
-      <div class="setting-row" style="cursor:default">
+      <div class="setting-row" onclick="showProfileHint()" style="opacity:.7">
         <div class="sr-ico si-green">📍</div>
         <div class="sr-body"><div class="sr-name">الموقع</div><div class="sr-sub" id="dispLoc">—</div></div>
+        <div class="sr-right"><span style="font-size:.65rem;color:rgba(255,255,255,.3)">🔗 من البروفايل</span></div>
       </div>
-      <div class="setting-row" style="cursor:default">
+      <div class="setting-row" style="cursor:default;opacity:.65">
         <div class="sr-ico si-orange">🏷️</div>
         <div class="sr-body"><div class="sr-name">نوع الحساب</div><div class="sr-sub" id="dispType">—</div></div>
+        <div class="sr-right"><span style="font-size:.65rem;color:rgba(255,255,255,.25)">🔒</span></div>
       </div>
-      <div class="setting-row" style="cursor:default">
+      <div class="setting-row" style="cursor:default;opacity:.65">
         <div class="sr-ico si-gray">#️⃣</div>
         <div class="sr-body"><div class="sr-name">معرّف الحساب</div><div class="sr-sub" id="dispID">—</div></div>
+        <div class="sr-right"><span style="font-size:.65rem;color:rgba(255,255,255,.25)">🔒</span></div>
       </div>
       <div class="setting-row" onclick="openModal('password')">
         <div class="sr-ico si-purple">🔒</div>
@@ -242,7 +247,7 @@ function loadDisplay(){
   const type=_user?.user_type==='co'?'شركة':_user?.user_type==='edu'?'مؤسسة تعليمية':'موظف';
   const uid='TW-'+(_user?.user_type||'emp').toUpperCase()+'-'+(_user?.id||'');
 
-  document.getElementById('dispName').textContent=name;
+  // dispName removed from UI - shown via profile page
   document.getElementById('dispEmail').textContent=email;
   document.getElementById('dispTitle').textContent=title;
   document.getElementById('dispLoc').textContent=loc;
@@ -277,8 +282,8 @@ function openModal(type){
     <div class="mact"><button class="mbtn mbtn-ok" onclick="savePassword()">تغيير</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
 
   else if(type==='phone') h=`<div class="modal-title">📱 رقم الهاتف</div>
-    <div class="mf"><label>رقم الهاتف</label><input autocomplete="off" id="m-v" type="tel" style="${SS}" placeholder="+962 79 000 0000" dir="ltr"></div>
-    <div class="mact"><button class="mbtn mbtn-ok" onclick="toast('تم الحفظ ✓')">حفظ</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
+    <div class="mf"><label>رقم الهاتف</label><input autocomplete="off" id="m-v" type="tel" style="${SS}" value="${_prof.phone||''}" placeholder="+962 79 000 0000" dir="ltr"></div>
+    <div class="mact"><button class="mbtn mbtn-ok" onclick="savePhone()">حفظ</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
   else if(type==='lang') h=`<div class="modal-title">🌍 لغة الواجهة</div>
     <div class="mf"><label>اللغة</label><select id="m-v" style="${SS}"><option value="ar">العربية</option><option value="en">English</option></select></div>
     <div class="mact"><button class="mbtn mbtn-ok" onclick="toast('تم الحفظ ✓')">حفظ</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
@@ -295,6 +300,14 @@ function closeModal(){ document.getElementById('overlay').classList.remove('show
 document.getElementById('overlay').addEventListener('click',e=>{ if(e.target===document.getElementById('overlay')) closeModal(); });
 
 // ── Save Functions ──
+function savePhone(){
+  const v=document.getElementById('m-v')?.value.trim();
+  if(!v){ toast('أدخل رقم الهاتف','error'); return; }
+  _prof.phone=v;
+  localStorage.setItem('tw_profile_data'+_uid, JSON.stringify(_prof));
+  closeModal(); toast('تم حفظ رقم الهاتف ✓');
+}
+
 function saveName(){
   const fn=document.getElementById('m-fn')?.value.trim();
   const mn=document.getElementById('m-mn')?.value.trim()||'';
@@ -354,6 +367,15 @@ function confirmDelete(){
 }
 
 // ── Navigation ──
+function goProfile(){
+  if(!_user){ window.location.href='/'; return; }
+  window.location.href='profile.html?id='+_user.id;
+}
+
+function showProfileHint(){
+  toast('يمكن تعديل هذه المعلومات من صفحة البروفايل ← تعديل الملف الشخصي');
+}
+
 function goBack(){
   if(!_user){ window.location.href='/'; return; }
   const dest=_user.user_type==='co'?'company-profile.html?id='+_user.id
