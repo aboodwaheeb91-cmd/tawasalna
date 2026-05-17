@@ -912,8 +912,9 @@ function getUID(){
 
 const _urlId = new URLSearchParams(window.location.search).get('id');
 const isOwner = _sessionUser && (
-  !_urlId ||  // no id in URL = own profile
-  String(_urlId) === String(_sessionUser.id)
+  !_urlId ||
+  String(_urlId) === String(_sessionUser.id) ||
+  String(_urlId) === String(_sessionUser.tw_id)
 );
 let curStyle = 1;
 let previewMode = false;
