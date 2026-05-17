@@ -531,6 +531,111 @@ def admin_get_profile(user_id: int, request: Request):
         print(f"admin_get_profile error: {e}")
         raise HTTPException(500, detail=str(e))
 
+@app.delete("/admin/user/{user_id}")
+def delete_user(user_id: int, request: Request):
+    check_admin(request)
+    conn = get_conn()
+    try:
+        rows = conn.run("SELECT id FROM users WHERE id = :uid", uid=user_id)
+        if not rows:
+            raise HTTPException(404, "المستخدم غير موجود")
+        conn.run("DELETE FROM users WHERE id = :uid", uid=user_id)
+        return {"success": True, "message": "تم حذف الحساب"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, str(e))
+    finally:
+        conn.close()
+
+@app.put("/admin/user/{user_id}/type")
+async def change_user_type(user_id: int, request: Request):
+    check_admin(request)
+    data = await request.json()
+    new_type = data.get("user_type","emp")
+    if new_type not in ("emp","co","edu"):
+        raise HTTPException(400, "نوع حساب غير صحيح")
+    conn = get_conn()
+    try:
+        conn.run("UPDATE users SET user_type = :utype WHERE id = :uid", utype=new_type, uid=user_id)
+        return {"success": True}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+    finally:
+        conn.close()
+
+@app.put("/admin/user/{user_id}/verify")
+async def verify_user(user_id: int, request: Request):
+    check_admin(request)
+    data = await request.json()
+    is_v = data.get("is_verified", True)
+    conn = get_conn()
+    try:
+        rows = conn.run("SELECT id FROM profiles WHERE user_id = :uid", uid=user_id)
+        if rows:
+            conn.run("UPDATE profiles SET is_verified = :v WHERE user_id = :uid", v=is_v, uid=user_id)
+        else:
+            conn.run("INSERT INTO profiles (user_id, is_verified) VALUES (:uid, :v)", uid=user_id, v=is_v)
+        return {"success": True}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+    finally:
+        conn.close()
+
+@app.put("/admin/user/{user_id}/password")
+async def admin_reset_password(user_id: int, request: Request):
+    check_admin(request)
+    data = await request.json()
+    pw = data.get("password","").strip()
+    if not pw or len(pw) < 6:
+        raise HTTPException(400, "كلمة المرور قصيرة جداً")
+    from auth import hash_password
+    conn = get_conn()
+    try:
+        conn.run("UPDATE users SET password_hash = :pw WHERE id = :uid",
+                 pw=hash_password(pw), uid=user_id)
+        return {"success": True}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+    finally:
+        conn.close()
+
+@app.delete("/admin/experience/{exp_id}")
+def admin_delete_exp(exp_id: int, request: Request):
+    check_admin(request)
+    conn = get_conn()
+    try:
+        conn.run("DELETE FROM experience WHERE id = :id", id=exp_id)
+        return {"success": True}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+    finally:
+        conn.close()
+
+@app.delete("/admin/education/{edu_id}")
+def admin_delete_edu(edu_id: int, request: Request):
+    check_admin(request)
+    conn = get_conn()
+    try:
+        conn.run("DELETE FROM education WHERE id = :id", id=edu_id)
+        return {"success": True}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+    finally:
+        conn.close()
+
+@app.delete("/admin/course/{course_id}")
+def admin_delete_course(course_id: int, request: Request):
+    check_admin(request)
+    conn = get_conn()
+    try:
+        conn.run("DELETE FROM courses WHERE id = :id", id=course_id)
+        return {"success": True}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+    finally:
+        conn.close()
+
 @app.post("/admin/message")
 def admin_send_message(data: AdminMessageInput, request: Request):
     check_admin(request)
