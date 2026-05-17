@@ -232,6 +232,10 @@ class CourseInput(BaseModel):
 
 class VerifyRequestInput(BaseModel):
     user_id: int
+    item_type: Optional[str] = None   # exp / edu / course
+    item_id: Optional[int] = None
+    item_title: Optional[str] = None
+    item_company: Optional[str] = None
     document_url: Optional[str] = None
     notes: Optional[str] = None
 
@@ -496,6 +500,7 @@ def admin_verify_requests(request: Request):
     try:
         rows = conn.run("""
             SELECT vr.id, vr.user_id, u.full_name AS user_name,
+                   vr.item_type, vr.item_id, vr.item_title, vr.item_company,
                    vr.notes, vr.status, vr.created_at
             FROM verify_requests vr
             JOIN users u ON u.id = vr.user_id

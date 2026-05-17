@@ -415,125 +415,27 @@ function renderUsers(list){
 function renderVerify(list){
   const tb = document.getElementById('verifyTable');
   if(!list.length){ tb.innerHTML = '<div class="empty-state">لا توجد طلبات توثيق</div>'; return; }
+  const typeLabel = t => t==='exp'?'💼 خبرة':t==='edu'?'🎓 شهادة':t==='course'?'📚 دورة':'📋 عام';
   tb.innerHTML = list.map(v => `
     <div class="tr tr-verify">
       <div class="user-info">
         <div class="u-ava">👤</div>
-        <div><div class="u-nm">${v.user_name}</div><div class="u-em">ID: ${v.user_id}</div></div>
+        <div>
+          <div class="u-nm">${v.user_name}</div>
+          <div class="u-em">ID: ${v.user_id}</div>
+        </div>
       </div>
-      <div><div class="u-nm" style="font-size:.74rem">${v.notes||'—'}</div></div>
-      <div class="date-cell">${v.created_at||'—'}</div>
+      <div>
+        <div style="font-size:.82rem;font-weight:700">${typeLabel(v.item_type)} ${v.item_title||v.notes||'—'}</div>
+        <div style="font-size:.72rem;color:var(--t3)">${v.item_company||''}</div>
+      </div>
+      <div class="u-em">${v.created_at||'—'}</div>
       <div>${statusLabel(v.status)}</div>
-      <div class="action-btns">
-        ${v.status==='pending'||v.status==='under_review' ? `
-          <button class="ab ab-verify" onclick="approveVerify(${v.id})">✅ وثّق</button>
-          <button class="ab ab-reject" onclick="rejectVerify(${v.id})">❌</button>
-        ` : `<button class="ab ab-view" onclick="toast('طلب #${v.id} - ${v.status}')">👁</button>`}
-        <button class="ab ab-msg" onclick="openMsg(${v.user_id},'${v.user_name}')">💬</button>
+      <div style="display:flex;gap:6px">
+        <button class="ab ab-view" onclick="approveVerify(${v.id})">✅ قبول</button>
+        <button class="ab" style="background:rgba(239,68,68,.1);color:#f87171;border-color:rgba(239,68,68,.2)" onclick="rejectVerify(${v.id})">❌ رفض</button>
       </div>
     </div>`).join('');
 }
 
-// ── Actions ──
-async function approveVerify(id){
-  try {
-    const r = await fetch('/admin/verify/'+id, {
-      method: 'PUT',
-      headers: adminHeaders(),
-      body: JSON.stringify({status:'verified'})
-    });
-    if(!r.ok) throw new Error('HTTP '+r.status);
-    const v = _allVerify.find(x => x.id===id);
-    if(v) v.status = 'verified';
-    renderVerify(_allVerify);
-    updateStats();
-    toast('✅ تم التوثيق');
-  } catch(e) { toast('خطأ: '+e.message,'e'); }
-}
 
-async function rejectVerify(id){
-  if(!confirm('هل أنت متأكد من رفض هذا الطلب؟')) return;
-  try {
-    await fetch('/admin/verify/'+id, {
-      method: 'PUT',
-      headers: adminHeaders(),
-      body: JSON.stringify({status:'rejected'})
-    });
-    const v = _allVerify.find(x => x.id===id);
-    if(v) v.status = 'rejected';
-    renderVerify(_allVerify);
-    toast('تم الرفض');
-  } catch(e) { toast('خطأ: '+e.message,'e'); }
-}
-
-// ── Filter ──
-function filterUsers(){
-  const q = document.getElementById('userSearch').value.toLowerCase();
-  const type = document.getElementById('userFilter').value;
-  let list = _allUsers;
-  if(q) list = list.filter(u => u.full_name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q));
-  if(type) list = list.filter(u => u.user_type===type);
-  renderUsers(list);
-}
-function filterVerify(){
-  const q = document.getElementById('verifySearch').value.toLowerCase();
-  const status = document.getElementById('verifyFilter').value;
-  let list = _allVerify;
-  if(q) list = list.filter(v => v.user_name.toLowerCase().includes(q));
-  if(status) list = list.filter(v => v.status===status);
-  renderVerify(list);
-}
-
-// ── Tabs ──
-function showTab(name, el){
-  document.querySelectorAll('.tab').forEach(t => t.classList.remove('on'));
-  el.classList.add('on');
-  document.getElementById('tab-users').style.display = name==='users' ? '' : 'none';
-  document.getElementById('tab-verify').style.display = name==='verify' ? '' : 'none';
-}
-
-// ── Delete User ──
-function deleteUser(id, name){
-  if(!confirm('حذف حساب ' + name + '؟\nهذا الإجراء نهائي.')) return;
-  fetch('/admin/user/'+id, {method:'DELETE', headers: adminHeaders()})
-  .then(r => {
-    if(r.ok){ _allUsers=_allUsers.filter(u=>u.id!==id); renderUsers(_allUsers); updateStats(); toast('تم حذف الحساب ✓'); }
-    else toast('خطأ في الحذف','e');
-  }).catch(()=>toast('خطأ في الاتصال','e'));
-}
-
-// ── Message ──
-function openMsg(userId, userName){
-  _msgUserId = userId;
-  document.getElementById('msg-to').value = userName + ' (ID: '+userId+')';
-  document.getElementById('msg-body').value = '';
-  document.getElementById('msgOverlay').classList.add('show');
-}
-function closeMsgModal(){
-  document.getElementById('msgOverlay').classList.remove('show');
-}
-async function sendMsg(){
-  const body = document.getElementById('msg-body').value.trim();
-  const subject = document.getElementById('msg-subject').value;
-  if(!body){ alert('اكتب الرسالة'); return; }
-  try {
-    await fetch('/admin/message', {
-      method: 'POST',
-      headers: adminHeaders(),
-      body: JSON.stringify({user_id: _msgUserId, subject, message: body})
-    });
-  } catch(e) {}
-  closeMsgModal();
-  toast('✅ تم إرسال الرسالة');
-}
-
-// ── Toast ──
-function toast(msg, type='s'){
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.className = `toast ${type} show`;
-  setTimeout(() => t.classList.remove('show'), 2800);
-}
-</script>
-</body>
-</html>

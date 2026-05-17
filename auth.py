@@ -170,11 +170,24 @@ def init_db():
             CREATE TABLE IF NOT EXISTS verify_requests (
                 id SERIAL PRIMARY KEY,
                 user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                item_type TEXT,
+                item_id INTEGER,
+                item_title TEXT,
+                item_company TEXT,
                 document_url TEXT, notes TEXT,
                 status TEXT NOT NULL DEFAULT 'pending',
                 created_at TIMESTAMP DEFAULT NOW()
             )
         """)
+        # Migration: add new columns if not exist
+        for col in [
+            "ALTER TABLE verify_requests ADD COLUMN IF NOT EXISTS item_type TEXT",
+            "ALTER TABLE verify_requests ADD COLUMN IF NOT EXISTS item_id INTEGER",
+            "ALTER TABLE verify_requests ADD COLUMN IF NOT EXISTS item_title TEXT",
+            "ALTER TABLE verify_requests ADD COLUMN IF NOT EXISTS item_company TEXT",
+        ]:
+            try: conn.run(col)
+            except: pass
         print("✅ Database ready.")
     finally:
         conn.close()
