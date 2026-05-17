@@ -2515,7 +2515,9 @@ function doLogout(){ localStorage.removeItem('tw_user'); location.href='/'; }
       document.getElementById('cvLoc').textContent='📍 '+locTxt;
     }
   }catch(ex){
-    if(user.full_name) document.getElementById('cvName').textContent=user.full_name;
+    // Only use DB name if no localStorage data
+    const _lsCheck=JSON.parse(localStorage.getItem('tw_profile_data'+getUID())||'{}');
+    if(user.full_name && !_lsCheck.full_name) document.getElementById('cvName').textContent=user.full_name;
   }
 
   try{
@@ -2567,7 +2569,9 @@ function doLogout(){ localStorage.removeItem('tw_user'); location.href='/'; }
       }
     })
     .catch(()=>{
-      if(user.full_name) document.getElementById('cvName').textContent = user.full_name;
+      // Only use DB name if no localStorage data
+      const _lsCheck2=JSON.parse(localStorage.getItem('tw_profile_data'+getUID())||'{}');
+      if(user.full_name && !_lsCheck2.full_name) document.getElementById('cvName').textContent = user.full_name;
     });
 })();
 </script>
