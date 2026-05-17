@@ -646,8 +646,8 @@ body.s4 .add-sec-shortcut:hover {
           <span class="acc-arr" id="arr-sections">▾</span>
         </button>
         <div class="acc-body" id="acc-sections">
-          <div class="asec added"><span class="asec-ico">💼</span>الخبرات العملية<span class="asec-done">✓</span></div>
-          <div class="asec added"><span class="asec-ico">🎓</span>الشهادات الدراسية<span class="asec-done">✓</span></div>
+          <div class="asec" id="asec-exp" onclick="toggleDefaultSection('exp','sec-exp',this)"><span class="asec-ico">💼</span>الخبرات العملية</div>
+          <div class="asec" id="asec-edu" onclick="toggleDefaultSection('edu','sec-edu',this)"><span class="asec-ico">🎓</span>الشهادات الدراسية</div>
           <div class="asec" id="asec-course" onclick="addSection('course','📚','الدورات التدريبية',this)"><span class="asec-ico">📚</span>دورات تدريبية</div>
           <div class="asec" id="asec-skills" onclick="addSection('skills','🛠️','المهارات',this)"><span class="asec-ico">🛠️</span>مهارات</div>
           <div class="asec" id="asec-langs" onclick="addSection('langs','🌍','اللغات',this)"><span class="asec-ico">🌍</span>لغات</div>
@@ -811,6 +811,39 @@ let _sessionUser = null;
 try { _sessionUser = JSON.parse(localStorage.getItem('tw_user')); } catch(e){}
 
 
+
+
+function toggleDefaultSection(type, secId, el){
+  const sec = document.getElementById(secId);
+  if(!sec) return;
+  const isHidden = sec.style.display === 'none';
+  if(isHidden){
+    // Show section
+    sec.style.display = '';
+    el.classList.add('added');
+    if(!el.querySelector('.asec-done')) el.insertAdjacentHTML('beforeend','<span class="asec-done">✓</span>');
+    el.onclick = null; // can't re-hide from panel (must delete items)
+  }
+}
+
+
+// Update panel asec state based on actual data
+function updatePanelState(){
+  const exp = JSON.parse(localStorage.getItem('tw_exp'+getUID())||'[]');
+  const edu = JSON.parse(localStorage.getItem('tw_edu'+getUID())||'[]');
+  const asecExp = document.getElementById('asec-exp');
+  const asecEdu = document.getElementById('asec-edu');
+  if(asecExp && exp.length){
+    asecExp.classList.add('added');
+    if(!asecExp.querySelector('.asec-done')) asecExp.insertAdjacentHTML('beforeend','<span class="asec-done">✓</span>');
+    asecExp.onclick = null;
+  }
+  if(asecEdu && edu.length){
+    asecEdu.classList.add('added');
+    if(!asecEdu.querySelector('.asec-done')) asecEdu.insertAdjacentHTML('beforeend','<span class="asec-done">✓</span>');
+    asecEdu.onclick = null;
+  }
+}
 
 // ── History API - Back button support ──
 function pushModalState(type){
@@ -2286,6 +2319,7 @@ if(!isOwner){
 }
 restoreSections();
   loadSectionOrder();
+  updatePanelState();
 // top-actions needs flex not block
 const ta = document.querySelector('.top-actions');
 if(ta && isOwner) ta.style.display = 'flex';
