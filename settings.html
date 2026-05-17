@@ -203,7 +203,7 @@ function loadDisplay() {
   // Always read fresh
   try { _user = JSON.parse(localStorage.getItem('tw_user')); } catch(e) {}
   try { _prof = JSON.parse(localStorage.getItem('tw_profile_data'+getUID()) || '{}'); } catch(e) {}
-  const name = _prof.name || _prof.full_name || _user?.full_name || '—';
+  const name = _prof.full_name || _prof.name || _user?.full_name || '—';
   const email = _user?.email || '—';
   const phone = _prof.phone || '';
   const type = _user?.user_type === 'co' ? 'حساب شركة'
