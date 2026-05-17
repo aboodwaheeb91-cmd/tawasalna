@@ -138,9 +138,10 @@ body.s5 .info-edit-btn {
   left: auto;
   right: 10px;
   top: 10px;
-  background: rgba(255,255,255,.1);
-  border-color: rgba(255,255,255,.2);
-  color: rgba(255,255,255,.7);
+  z-index: 20;
+  background: rgba(255,255,255,.12);
+  border-color: rgba(255,255,255,.25);
+  color: rgba(255,255,255,.8);
 }
 body.s2 .info-edit-btn,
 body.s4 .info-edit-btn {
@@ -394,7 +395,7 @@ body.s4 .add-item-btn:hover { border-color:var(--ac); color:var(--ac); }
 /* ── STYLE 5: PROFESSIONAL ── */
 body.s5 .page { background:#1a1f2e; font-family:'Cairo',sans-serif; color:#fff; }
 body.s5 .cv-wrap { max-width:860px; margin:0 auto; padding:32px 14px; display:grid; grid-template-columns:250px 1fr; gap:16px; }
-body.s5 .cv-head { position:relative; overflow:visible; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.07); border-radius:18px; padding:22px; text-align:center; height:fit-content; position:sticky; top:60px; }
+body.s5 .cv-head { position:sticky; top:60px; overflow:visible; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.07); border-radius:18px; padding:22px; text-align:center; height:fit-content; }
 body.s5 .avatar { width:88px; height:88px; border-radius:50%; background:linear-gradient(135deg,var(--ac),var(--ac2)); display:flex; align-items:center; justify-content:center; font-size:2.1rem; margin:0 auto 12px; box-shadow:0 6px 22px rgba(var(--ac-rgb),.3); }
 body.s5 .cv-name { font-size:clamp(.85rem,2vw,1.05rem); font-weight:800; color:#fff; margin-bottom:2px; padding-top:4px; }
 body.s5 .cv-title { color:var(--ac); font-size:.77rem; font-weight:700; margin-bottom:7px; }
@@ -524,40 +525,9 @@ body.s2 .item-menu-btn:hover,body.s4 .item-menu-btn:hover{background:rgba(0,0,0,
 .crop-ok{background:linear-gradient(135deg,var(--ac),var(--ac2));color:#fff;}
 .crop-cancel{background:rgba(255,255,255,.08);color:rgba(255,255,255,.6);}
 
-.add-sec-shortcut {
-  width:100%;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  gap:8px;
-  padding:13px;
-  border-radius:14px;
-  border:2px dashed rgba(255,255,255,.1);
-  background:rgba(255,255,255,.02);
-  color:rgba(255,255,255,.35);
-  font-family:'Cairo',sans-serif;
-  font-size:.82rem;
-  font-weight:700;
-  cursor:pointer;
-  transition:all .25s;
-}
-.add-sec-shortcut:hover {
-  border-color:rgba(var(--ac-rgb),.35);
-  color:var(--ac);
-  background:rgba(var(--ac-rgb),.04);
-}
-body.s2 .add-sec-shortcut,
-body.s4 
-body.s2 .add-sec-shortcut:hover,
-body.s4 .add-sec-shortcut:hover {
-  border-color:var(--ac);
-  color:var(--ac);
-  background:rgba(var(--ac-rgb),.04);
-}
 
 
-/* ── Accordion ── */
-.acc-body{display:none;padding:6px 2px;}
+
 .acc-body.open{display:block;}
 .acc-arr{transition:transform .25s;}
 .acc-arr.open{transform:rotate(180deg);}
@@ -615,14 +585,52 @@ body.s4 .add-sec-shortcut:hover {
 .csw-custom:hover{border-color:var(--ac);}
 
 
-/* ── s5 sidebar layout fix ── */
-body.s5 #cvHead > div[style*="display:flex"] {
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
+/* ── Add Section Shortcut ── */
+.add-sec-shortcut {
+  width:100%;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  padding:14px;
+  border-radius:14px;
+  border:2px dashed rgba(255,255,255,.22);
+  background:rgba(255,255,255,.04);
+  color:rgba(255,255,255,.55);
+  font-family:'Cairo',sans-serif;
+  font-size:.84rem;
+  font-weight:800;
+  cursor:pointer;
+  transition:all .25s;
+  margin-top:14px;
 }
-body.s5 #cvHead > div[style*="display:flex"] > div:last-child {
+.add-sec-shortcut:hover {
+  border-color:rgba(var(--ac-rgb),.5);
+  color:var(--ac);
+  background:rgba(var(--ac-rgb),.06);
+}
+body.s2 .add-sec-shortcut,
+body.s4 .add-sec-shortcut {
+  border-color:rgba(0,0,0,.2);
+  color:rgba(0,0,0,.5);
+  background:rgba(0,0,0,.02);
+}
+body.s2 .add-sec-shortcut:hover,
+body.s4 .add-sec-shortcut:hover {
+  border-color:var(--ac);
+  color:var(--ac);
+  background:rgba(var(--ac-rgb),.04);
+}
+
+
+/* ── s5 sidebar: column layout ── */
+body.s5 #cvHead {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center;
+  gap: 12px;
+}
+body.s5 #cvHead > div {
   width: 100%;
   text-align: center;
 }
@@ -630,11 +638,27 @@ body.s5 .cv-name {
   padding-left: 0 !important;
   white-space: normal !important;
   text-align: center;
-  font-size: clamp(.85rem,2vw,1.05rem);
+  font-size: clamp(.85rem,2vw,1.05rem) !important;
 }
+body.s5 .cv-title,
+body.s5 .cv-bio,
+body.s5 .cv-code,
+body.s5 .cv-avail { text-align: center; }
 body.s5 .cv-meta-row { justify-content: center; }
-body.s5 .cv-code { text-align: center; }
+body.s5 .cv-loc { justify-content: center; }
 
+
+/* ── s5: column sidebar layout ── */
+body.s5 #cvHead {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+body.s5 #cvHead > div { width:100%; text-align:center; }
+body.s5 .cv-name { padding-left:0 !important; white-space:normal !important; text-align:center; }
+body.s5 .cv-meta-row { justify-content:center; }
+body.s5 .cv-loc { justify-content:center; }
 </style>
 </head>
 <body class="s1">
@@ -743,7 +767,6 @@ body.s5 .cv-code { text-align: center; }
 
   <div class="cv-head" id="cvHead">
     <button class="info-edit-btn owner-only" onclick="openModal('profile')" title="تعديل الملف الشخصي">⚙️</button>
-
     <!-- الصورة + QR -->
     <div style="display:flex;flex-direction:column;align-items:center;gap:10px;flex-shrink:0">
       <div style="position:relative">
