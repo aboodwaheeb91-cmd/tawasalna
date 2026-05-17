@@ -998,17 +998,42 @@ function restoreSections(){
     const keyMap={'skills':'tw_skills','langs':'tw_langs','links':'tw_links','course':'tw_courses'};
     const remaining=[];
     saved.forEach(sec=>{
-      // Check if this section has actual data
+      // ── Custom sections ──
+      if(sec.type==='custom'){
+        const lsKey='tw_gen_'+sec.lid+getUID();
+        const items=JSON.parse(localStorage.getItem(lsKey)||'[]');
+        if(!items.length) return; // skip empty
+        remaining.push(sec);
+        if(document.getElementById(sec.id)) return;
+        // Rebuild custom section
+        document.getElementById('secList').insertAdjacentHTML('beforeend',
+          `<div class="section" id="${sec.id}" draggable="true">
+            <div class="sec-header"><span class="sec-icon">${sec.icon}</span><span class="sec-title">${sec.title}</span><div class="sec-line"></div></div>
+            <div id="${sec.lid}"></div>
+            <button class="add-item-btn owner-only" onclick="window._currentLid='${sec.lid}';openModal('generic','${sec.lid}','${sec.title}')">+ إضافة</button>
+            <div class="drag-handle owner-only"><span></span><span></span><span></span></div>
+          </div>`);
+        // Load its items
+        const el=document.getElementById(sec.lid);
+        if(el&&items.length){
+          el.innerHTML='';
+          items.forEach(item=>{
+            el.insertAdjacentHTML('beforeend',renderGenericItem(item,sec.lid));
+          });
+        }
+        return;
+      }
+      // ── Built-in sections (skills/langs/etc) ──
       const lsKey=(keyMap[sec.id]||('tw_gen_'+sec.id))+getUID();
       const items=JSON.parse(localStorage.getItem(lsKey)||'[]');
-      if(!items.length) return; // skip empty sections
+      if(!items.length) return;
       remaining.push(sec);
       if(document.getElementById('sec-'+sec.id)) return;
       const dummy=document.createElement('div');
       addSection(sec.id, sec.icon, sec.title, dummy);
     });
-    // Update saved list to only keep sections with data
     localStorage.setItem('tw_added_sections'+getUID(), JSON.stringify(remaining));
+    setupDragDrop();
   }catch(ex){ console.error(ex); }
 }
 
@@ -2173,7 +2198,32 @@ function saveEdu(){
   closeModal();
 }
 
-function saveCustomSec(){ const nm=document.getElementById('m-csn').value.trim(),ic=document.getElementById('m-csi').value.trim()||'📌'; if(!nm) return; const id='sec-c'+Date.now(),lid='list-c'+Date.now(); document.getElementById('secList').insertAdjacentHTML('beforeend',`<div class="section" id="${id}" draggable="true"><div class="sec-header"><span class="sec-icon">${ic}</span><span class="sec-title">${nm}</span><div class="sec-line"></div></div><div id="${lid}"></div><button class="add-item-btn owner-only" onclick="openModal('generic','${lid}','${nm}')">+ إضافة</button><div class="drag-handle owner-only"><span></span><span></span><span></span></div></div>`); closeModal(); }
+function saveCustomSec(){
+  const nm=document.getElementById('m-csn')?.value.trim();
+  const ic=document.getElementById('m-csi')?.value||'📌';
+  if(!nm) return;
+  // Use stable timestamp-based id
+  const ts=Date.now();
+  const secId='sec-c'+ts;
+  const lid='list-c'+ts;
+  // Build section HTML
+  document.getElementById('secList').insertAdjacentHTML('beforeend',
+    `<div class="section" id="${secId}" draggable="true">
+      <div class="sec-header"><span class="sec-icon">${ic}</span><span class="sec-title">${nm}</span><div class="sec-line"></div></div>
+      <div id="${lid}"><div class="item empty-hint"><div class="item-title" style="opacity:.4;font-size:.8rem">لا توجد عناصر — اضغط + لإضافة</div></div></div>
+      <button class="add-item-btn owner-only" onclick="window._currentLid='${lid}';openModal('generic','${lid}','${nm}')">+ إضافة</button>
+      <div class="drag-handle owner-only"><span></span><span></span><span></span></div>
+    </div>`);
+  // Save to tw_added_sections as custom type
+  try{
+    const saved=JSON.parse(localStorage.getItem('tw_added_sections'+getUID())||'[]');
+    saved.push({id:secId, lid:lid, icon:ic, title:nm, type:'custom'});
+    localStorage.setItem('tw_added_sections'+getUID(), JSON.stringify(saved));
+  }catch(ex){}
+  saveSectionOrder();
+  setupDragDrop();
+  closeModal();
+}
 function saveGeneric(lid){
   if(!lid) lid=window._currentLid||document.getElementById('modal')?.dataset?.listId||'';
   if(!lid) return;
