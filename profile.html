@@ -952,7 +952,7 @@ const SECTION_MODAL={
   'course':'course','skills':'skills','langs':'langs','links':'links'
 };
 
-function addSection(id,icon,title,el){
+function addSection(id,icon,title,el,skipOrderSave=false){
   if(document.getElementById('sec-'+id)) return;
   const lid=id+'-list';
   const modalType=SECTION_MODAL[id]||'generic';
@@ -986,7 +986,7 @@ function addSection(id,icon,title,el){
     if(!panelEl.querySelector('.asec-done')) panelEl.insertAdjacentHTML('beforeend','<span class="asec-done">✓</span>');
   }
   // Save the new order including this section
-  saveSectionOrder();
+  if(!skipOrderSave) saveSectionOrder();
   setTimeout(closePanel,400);
 }
 
@@ -1030,7 +1030,7 @@ function restoreSections(){
       remaining.push(sec);
       if(document.getElementById('sec-'+sec.id)) return;
       const dummy=document.createElement('div');
-      addSection(sec.id, sec.icon, sec.title, dummy);
+      addSection(sec.id, sec.icon, sec.title, dummy, true);
     });
     localStorage.setItem('tw_added_sections'+getUID(), JSON.stringify(remaining));
   }catch(ex){ console.error(ex); }
