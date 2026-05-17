@@ -39,59 +39,18 @@ html[dir="ltr"] .tb-logo { margin-left:0; margin-right:auto; }
 .tb-preview.active { background:rgba(var(--ac-rgb),.12); color:var(--ac); border-color:rgba(var(--ac-rgb),.3); }
 
 /* ── SIDE PANEL ── */
-.panel-overlay {
-  position:fixed; inset:0; z-index:900;
-  background:rgba(0,0,0,.5); backdrop-filter:blur(4px);
-  opacity:0; pointer-events:none; transition:opacity .3s;
 }
-.panel-overlay.show { opacity:1; pointer-events:all; }
-.panel {
-  position:fixed; top:0; right:0; bottom:0; z-index:901;
-  width:290px; max-width:90vw;
-  background:#0a0f1e; border-left:1px solid rgba(255,255,255,.08);
-  display:flex; flex-direction:column;
-  transform:translateX(110%); transition:transform .3s cubic-bezier(.4,0,.2,1);
 }
 html[dir="ltr"] .panel { right:auto; left:0; border-left:none; border-right:1px solid rgba(255,255,255,.08); transform:translateX(-110%); }
-.panel-overlay.show .panel { transform:translateX(0); }
-.panel-head { display:flex; align-items:center; justify-content:space-between; padding:14px 16px; border-bottom:1px solid rgba(255,255,255,.07); flex-shrink:0; }
-.panel-head h3 { font-size:.88rem; font-weight:800; color:#fff; }
-.panel-close { width:28px; height:28px; border-radius:8px; border:none; background:rgba(255,255,255,.07); color:rgba(255,255,255,.6); cursor:pointer; font-size:.9rem; display:flex; align-items:center; justify-content:center; transition:all .2s; }
-.panel-close:hover { background:rgba(255,255,255,.12); color:#fff; }
-.panel-body { flex:1; overflow-y:auto; padding:14px; display:flex; flex-direction:column; gap:18px; }
 .panel-sec h4 { font-size:.68rem; font-weight:800; color:rgba(255,255,255,.4); letter-spacing:1.5px; text-transform:uppercase; margin-bottom:8px; }
 
 /* Style opts */
-.style-grid { display:flex; flex-direction:column; gap:5px; }
-.sopt { display:flex; align-items:center; gap:9px; padding:9px 11px; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.07); border-radius:10px; cursor:pointer; transition:all .2s; }
-.sopt:hover { background:rgba(255,255,255,.07); }
-.sopt.active { background:rgba(var(--ac-rgb),.08); border-color:rgba(var(--ac-rgb),.25); }
-.sthumb { width:34px; height:22px; border-radius:5px; flex-shrink:0; border:1px solid rgba(255,255,255,.08); }
-.snm { font-size:.76rem; font-weight:700; color:#fff; }
-.sds { font-size:.61rem; color:rgba(255,255,255,.35); }
-.schk { margin-left:auto; color:var(--ac); font-size:.78rem; flex-shrink:0; }
 html[dir="ltr"] .schk { margin-left:0; margin-right:auto; }
 
 /* Color grid */
-.color-grid { display:flex; flex-wrap:wrap; gap:7px; padding:4px 2px; }
-.csw { width:26px; height:26px; border-radius:50%; cursor:pointer; border:2px solid transparent; transition:all .2s; }
-.csw:hover { transform:scale(1.15); }
-.csw.active { border-color:rgba(255,255,255,.75); transform:scale(1.08); }
-.csw-custom { width:26px; height:26px; border-radius:50%; cursor:pointer; border:2px dashed rgba(255,255,255,.2); display:flex; align-items:center; justify-content:center; font-size:.7rem; transition:all .2s; }
-.csw-custom:hover { border-color:rgba(255,255,255,.4); }
-
 /* Add section */
 .asec-list { display:flex; flex-direction:column; gap:5px; }
-.asec {
-  display:flex; align-items:center; gap:8px; padding:9px 11px;
-  background:rgba(255,255,255,.04); border:1.5px dashed rgba(255,255,255,.1);
-  border-radius:10px; cursor:pointer; transition:all .2s;
-  color:rgba(255,255,255,.6); font-family:'Cairo',sans-serif; font-size:.76rem; font-weight:700;
 }
-.asec:hover { background:rgba(var(--ac-rgb),.05); border-color:rgba(var(--ac-rgb),.3); color:var(--ac); }
-.asec.added { border-style:solid; border-color:rgba(var(--ac-rgb),.2); color:var(--ac); background:rgba(var(--ac-rgb),.05); cursor:default; }
-.asec-ico { font-size:.95rem; width:20px; text-align:center; }
-.asec-done { margin-left:auto; font-size:.61rem; opacity:.6; }
 html[dir="ltr"] .asec-done { margin-left:0; margin-right:auto; }
 
 #colorIn { position:absolute; opacity:0; width:0; height:0; pointer-events:none; }
@@ -141,12 +100,6 @@ body.s4 .info-edit-btn {
 }
 
 /* ── cv-name auto-shrink ── */
-.cv-name {
-  overflow:hidden;
-  text-overflow:ellipsis;
-  white-space:nowrap;
-  max-width:100%;
-  padding-left:28px; /* space for edit btn */
 }
 
 /* ── cv-meta-row ── */
@@ -436,10 +389,7 @@ body.s4 .top-actions {
 body.preview-mode .top-actions .tb-btn:not(#previewBtn) { display:none !important; }
 body.preview-mode .top-actions { display:flex !important; }
 body.preview-mode .top-actions #previewBtn { display:flex !important; }
-body.preview-mode .top-actions #previewBtn { display:flex !important; }
 
-@media(max-width:600px) {
-      .panel { width:85vw; }
 }
 
 /* ── Item menu ── */
@@ -481,10 +431,6 @@ body.s2 .item-menu-btn:hover,body.s4 .item-menu-btn:hover{background:rgba(0,0,0,
 .crop-btn{padding:9px 20px;border-radius:10px;border:none;font-family:'Cairo',sans-serif;font-size:.8rem;font-weight:700;cursor:pointer;}
 .crop-ok{background:linear-gradient(135deg,var(--ac),var(--ac2));color:#fff;}
 .crop-cancel{background:rgba(255,255,255,.08);color:rgba(255,255,255,.6);}
-
-.acc-body.open{display:block;}
-.acc-arr{transition:transform .25s;}
-.acc-arr.open{transform:rotate(180deg);}
 
 /* ══ PANEL CSS ══ */
 .panel-overlay{position:fixed;inset:0;z-index:900;background:rgba(0,0,0,.55);backdrop-filter:blur(4px);opacity:0;pointer-events:none;transition:opacity .3s;}
@@ -1163,7 +1109,7 @@ function loadSavedSection(id, lid){
 // ── Edit section items ──
 function editSkillItem(id, lid){
   const uid=getUID();
-  const arr=JSON.parse(localStorage.getItem('tw_skills'+uid)||'[]');
+  const arr=JSON.parse(localStorage.getItem('tw_skills'+getUID())||'[]');
   const item=arr.find(x=>x.id===id);
   if(!item) return;
   const SS='width:100%;padding:9px 11px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:9px;color:#fff;font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;';
@@ -1195,7 +1141,7 @@ function updateSkillItem(id, lid){
   if(!name) return;
   const level=document.getElementById('m-skill-level')?.value||'';
   const uid=getUID();
-  const key='tw_skills'+uid;
+  const key='tw_skills'+getUID();
   const arr=JSON.parse(localStorage.getItem(key)||'[]');
   const idx=arr.findIndex(x=>x.id===id);
   if(idx>-1){ arr[idx]={id,name,level}; localStorage.setItem(key,JSON.stringify(arr)); }
@@ -1206,7 +1152,7 @@ function updateSkillItem(id, lid){
 
 function editLangItem(id, lid){
   const uid=getUID();
-  const arr=JSON.parse(localStorage.getItem('tw_langs'+uid)||'[]');
+  const arr=JSON.parse(localStorage.getItem('tw_langs'+getUID())||'[]');
   const item=arr.find(x=>x.id===id);
   if(!item) return;
   const SS='width:100%;padding:9px 11px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:9px;color:#fff;font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;';
@@ -1238,7 +1184,7 @@ function updateLangItem(id, lid){
   const level=document.getElementById('m-lang-level')?.value;
   if(!name||!level) return;
   const uid=getUID();
-  const key='tw_langs'+uid;
+  const key='tw_langs'+getUID();
   const arr=JSON.parse(localStorage.getItem(key)||'[]');
   const idx=arr.findIndex(x=>x.id===id);
   if(idx>-1){ arr[idx]={id,name,level}; localStorage.setItem(key,JSON.stringify(arr)); }
@@ -1249,7 +1195,7 @@ function updateLangItem(id, lid){
 
 function editCourseItem(id, lid){
   const uid=getUID();
-  const arr=JSON.parse(localStorage.getItem('tw_courses'+uid)||'[]');
+  const arr=JSON.parse(localStorage.getItem('tw_courses'+getUID())||'[]');
   const item=arr.find(x=>x.id===id);
   if(!item) return;
   const SS='width:100%;padding:9px 11px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:9px;color:#fff;font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;';
@@ -1278,7 +1224,7 @@ function updateCourseItem(id, lid){
   const year=document.getElementById('m-course-year')?.value||'';
   const url=document.getElementById('m-course-url')?.value.trim()||'';
   const uid=getUID();
-  const key='tw_courses'+uid;
+  const key='tw_courses'+getUID();
   const arr=JSON.parse(localStorage.getItem(key)||'[]');
   const idx=arr.findIndex(x=>x.id===id);
   if(idx>-1){ arr[idx]={id,name,provider,year,url}; localStorage.setItem(key,JSON.stringify(arr)); }
@@ -1940,7 +1886,7 @@ function openModal(type,listId,secTitle){
   } else if(type==='edu'){
     h=`<div class="modal-title">🎓 إضافة شهادة دراسية</div>
     <div class="mf"><label>نوع الشهادة <span style="color:rgba(255,255,255,.3);font-size:.65rem"> مطلوب</span></label>
-      <select id="m-dtype" autocomplete="off" style="width:100%;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;">
+      <select id="m-dtype" onchange="clearFieldErr('m-dtype','err-dtype')" autocomplete="off" style="width:100%;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;">
         <option value="">— اختر نوع الشهادة —</option>
         <option value="بكالوريوس">🎓 بكالوريوس</option>
         <option value="ماجستير">🎓 ماجستير</option>
