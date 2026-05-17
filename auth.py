@@ -4,10 +4,34 @@ Using pg8000 (pure Python, no system dependencies)
 """
 
 import os
+import random
 import bcrypt
 import pg8000.native
 from datetime import datetime
 from typing import Optional
+
+
+# ── Country codes ──
+COUNTRY_CODES = {
+    'JO': '9620', 'SA': '9660', 'AE': '9710', 'KW': '9650',
+    'QA': '9740', 'BH': '9730', 'OM': '9680', 'EG': '2000',
+    'IQ': '9640', 'SY': '9630', 'LB': '9610', 'PS': '9720',
+    'YE': '9670', 'MA': '2120', 'DZ': '2130', 'TN': '2160',
+    'LY': '2180', 'SD': '2490', 'DEFAULT': '0000'
+}
+
+TYPE_PREFIX = {'emp': 'U', 'co': 'C', 'edu': 'T'}
+
+
+def generate_tw_id(user_type: str, country_code: str = 'DEFAULT') -> str:
+    """
+    Generate professional ID: {TYPE}{COUNTRY_CODE}{8_RANDOM_DIGITS}
+    Example: U96204839205 (Jordanian employee)
+    """
+    prefix = TYPE_PREFIX.get(user_type, 'U')
+    cc = COUNTRY_CODES.get(country_code, COUNTRY_CODES['DEFAULT'])
+    rand = ''.join([str(random.randint(0, 9)) for _ in range(8)])
+    return f"{prefix}{cc}{rand}"
 
 
 # ─────────────────────────────────────────
@@ -66,16 +90,43 @@ def verify_password(plain: str, hashed: str) -> bool:
 def init_db():
     conn = get_conn()
     try:
+        # Users table - with tw_id column
         conn.run("""
             CREATE TABLE IF NOT EXISTS users (
                 id BIGSERIAL PRIMARY KEY,
+                tw_id TEXT UNIQUE,
                 full_name TEXT NOT NULL,
                 email TEXT UNIQUE NOT NULL,
                 password_hash TEXT NOT NULL,
                 user_type TEXT NOT NULL DEFAULT 'emp',
+                country_code TEXT DEFAULT 'DEFAULT',
                 created_at TIMESTAMP DEFAULT NOW()
             )
         """)
+
+        # Add tw_id column if it doesn't exist (migration)
+        try:
+            conn.run("ALTER TABLE users ADD COLUMN IF NOT EXISTS tw_id TEXT UNIQUE")
+            conn.run("ALTER TABLE users ADD COLUMN IF NOT EXISTS country_code TEXT DEFAULT 'DEFAULT'")
+        except Exception:
+            pass
+
+        # Generate tw_id for existing users that don't have one
+        try:
+            rows = conn.run("SELECT id, user_type, country_code FROM users WHERE tw_id IS NULL")
+            for row in rows:
+                uid, utype, cc = row[0], row[1], row[2] or 'DEFAULT'
+                tw_id = generate_tw_id(utype, cc)
+                # Ensure uniqueness
+                while True:
+                    existing = conn.run("SELECT id FROM users WHERE tw_id = :tw_id", tw_id=tw_id)
+                    if not existing:
+                        break
+                    tw_id = generate_tw_id(utype, cc)
+                conn.run("UPDATE users SET tw_id = :tw_id WHERE id = :uid", tw_id=tw_id, uid=uid)
+        except Exception as e:
+            print(f"Migration note: {e}")
+
         conn.run("""
             CREATE TABLE IF NOT EXISTS profiles (
                 id SERIAL PRIMARY KEY,
@@ -129,11 +180,6 @@ def init_db():
                 created_at TIMESTAMP DEFAULT NOW()
             )
         """)
-        # Set ID sequence to start from large random-looking number
-        try:
-            conn.run("SELECT setval('users_id_seq', 48000, false) WHERE NOT EXISTS (SELECT 1 FROM users)")
-        except Exception:
-            pass
         conn.run("""
             CREATE TABLE IF NOT EXISTS verify_requests (
                 id SERIAL PRIMARY KEY,
@@ -152,15 +198,23 @@ def init_db():
 # ─────────────────────────────────────────
 # Users
 # ─────────────────────────────────────────
-def create_user(full_name: str, email: str, password: str, user_type: str) -> dict:
+def create_user(full_name: str, email: str, password: str, user_type: str, country_code: str = 'DEFAULT') -> dict:
     conn = get_conn()
     try:
+        # Generate unique tw_id
+        tw_id = generate_tw_id(user_type, country_code)
+        while True:
+            existing = conn.run("SELECT id FROM users WHERE tw_id = :tw_id", tw_id=tw_id)
+            if not existing:
+                break
+            tw_id = generate_tw_id(user_type, country_code)
+
         rows = conn.run(
-            "INSERT INTO users (full_name, email, password_hash, user_type) "
-            "VALUES (:name, :email, :pw, :utype) "
-            "RETURNING id, full_name, email, user_type, created_at",
-            name=full_name, email=email.lower().strip(),
-            pw=hash_password(password), utype=user_type
+            "INSERT INTO users (tw_id, full_name, email, password_hash, user_type, country_code) "
+            "VALUES (:tw_id, :name, :email, :pw, :utype, :cc) "
+            "RETURNING id, tw_id, full_name, email, user_type, created_at",
+            tw_id=tw_id, name=full_name, email=email.lower().strip(),
+            pw=hash_password(password), utype=user_type, cc=country_code
         )
         cols = [c["name"] for c in conn.columns]
         return _serialize(_row_to_dict(cols, rows[0]))
@@ -176,7 +230,7 @@ def authenticate_user(email: str, password: str) -> Optional[dict]:
     conn = get_conn()
     try:
         rows = conn.run(
-            "SELECT id, full_name, email, password_hash, user_type, created_at "
+            "SELECT id, tw_id, full_name, email, password_hash, user_type, created_at "
             "FROM users WHERE email = :email",
             email=email.lower().strip()
         )
@@ -196,7 +250,7 @@ def get_user_by_id(user_id: int) -> Optional[dict]:
     conn = get_conn()
     try:
         rows = conn.run(
-            "SELECT id, full_name, email, user_type, created_at FROM users WHERE id = :uid",
+            "SELECT id, tw_id, full_name, email, user_type, created_at FROM users WHERE id = :uid",
             uid=user_id
         )
         if not rows:
@@ -245,7 +299,7 @@ def get_public_profile(user_id: int) -> Optional[dict]:
     conn = get_conn()
     try:
         rows = conn.run(
-            "SELECT id, full_name, user_type, created_at FROM users WHERE id = :uid",
+            "SELECT id, tw_id, full_name, user_type, created_at FROM users WHERE id = :uid",
             uid=user_id
         )
         if not rows:
@@ -271,7 +325,7 @@ def get_full_profile(user_id: int) -> Optional[dict]:
     conn = get_conn()
     try:
         rows = conn.run(
-            "SELECT id, full_name, email, user_type, created_at FROM users WHERE id = :uid",
+            "SELECT id, tw_id, full_name, email, user_type, created_at FROM users WHERE id = :uid",
             uid=user_id
         )
         if not rows:
