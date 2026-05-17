@@ -1137,8 +1137,8 @@ function setFieldErr(inputId, errId, msg){
 function clearFieldErr(inputId, errId){
   const el=document.getElementById(inputId);
   const err=document.getElementById(errId);
-  if(el){ el.style.borderColor=''; el.style.boxShadow=''; }
-  if(err){ err.style.display='none'; }
+  if(el){ el.style.borderColor='rgba(255,255,255,.1)'; el.style.boxShadow=''; }
+  if(err){ err.textContent=''; err.style.display='none'; }
 }
 
 // ── Cities data ──
@@ -1517,11 +1517,11 @@ function openModal(type,listId,secTitle){
     const yearOpts=[...Array(36)].map((_,i)=>{const y=new Date().getFullYear()-i;return '<option value="'+y+'">'+y+'</option>';}).join('');
     h=`<div class="modal-title">💼 إضافة خبرة عملية</div>
     <div class="mf"><label>المسمى الوظيفي <span style="color:#f87171">*</span></label>
-      <input id="m-et" autocomplete="off" placeholder="مثال: مهندس برمجيات، محاسب، مدير مبيعات...">
+      <input id="m-et" autocomplete="off" placeholder="مثال: مهندس برمجيات، محاسب، مدير مبيعات..." oninput="clearFieldErr('m-et','err-et')">
       <div class="field-err" id="err-et"></div>
     </div>
     <div class="mf"><label>اسم جهة العمل <span style="color:#f87171">*</span></label>
-      <input id="m-ec" autocomplete="off" placeholder="مثال: شركة STC، مستشفى الملك فيصل...">
+      <input id="m-ec" autocomplete="off" placeholder="مثال: شركة STC، مستشفى الملك فيصل..." oninput="clearFieldErr('m-ec','err-ec')">
       <div class="field-err" id="err-ec"></div>
     </div>
     <div class="mf"><label>البلد</label>
@@ -1844,23 +1844,24 @@ function saveExp(){
   const modal=document.getElementById('modal');
   const editId=modal.dataset.editId?parseInt(modal.dataset.editId):null;
 
+  const wtype=document.getElementById('m-etype')?.value||'';
+  const edesc=document.getElementById('m-edesc')?.value.trim()||'';
+
   if(editId){
-    // تعديل خبرة موجودة
     try{
       const exp=JSON.parse(localStorage.getItem('tw_exp'+getUID())||'[]');
       const idx2=exp.findIndex(x=>x.id===editId);
-      if(idx2>-1){ exp[idx2]={id:editId,title:t,company:co,location:l,start_date:s,end_date:e,work_type:wtype2||exp[idx2].work_type||'',desc:edesc2||exp[idx2].desc||''}; localStorage.setItem('tw_exp'+getUID(),JSON.stringify(exp)); }
+      if(idx2>-1){
+        exp[idx2]={id:editId,title:t,company:co,location:l,start_date:s,end_date:e,work_type:wtype,desc:edesc};
+        localStorage.setItem('tw_exp'+getUID(),JSON.stringify(exp));
+      }
     }catch(ex){}
     const el=document.getElementById('exp-'+editId);
-    const wtype2=document.getElementById('m-etype')?.value||'';
-      const edesc2=document.getElementById('m-edesc')?.value.trim()||'';
-      if(el) el.outerHTML=renderExpItem({id:editId,title:t,company:co,location:l,start_date:s,end_date:e,work_type:wtype2,desc:edesc2});
+    if(el) el.outerHTML=renderExpItem({id:editId,title:t,company:co,location:l,start_date:s,end_date:e,work_type:wtype,desc:edesc});
   } else {
     // إضافة خبرة جديدة
     document.getElementById('exp-list').querySelector('.empty-hint')?.remove();
     const expId=Date.now();
-    const wtype=document.getElementById('m-etype')?.value||'';
-    const edesc=document.getElementById('m-edesc')?.value.trim()||'';
     document.getElementById('exp-list').insertAdjacentHTML('afterbegin',
       renderExpItem({id:expId,title:t,company:co,location:l,start_date:s,end_date:e,work_type:wtype,desc:edesc}));
     try{
