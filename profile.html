@@ -618,7 +618,7 @@ body.s4 .add-sec-shortcut:hover {
   <div class="tb-logo">تواصلنا</div>
   <button class="tb-btn tb-ghost" onclick="location.href='home.html'" title="البحث عن عمل أو دورة" style="font-size:.82rem;padding:6px 10px">🔍</button>
   <div style="flex:1"></div>
-  <button class="tb-btn tb-preview owner-only" id="previewBtn" onclick="togglePreview()" title="معاينة" style="font-size:.82rem;padding:6px 10px">👁 معاينة</button>
+  <button class="tb-btn tb-preview" id="previewBtn" onclick="togglePreview()" title="معاينة" style="font-size:.82rem;padding:6px 10px;display:none">👁 معاينة</button>
   <button class="tb-btn tb-ghost" onclick="openPanel()" title="الإعدادات" style="font-size:.82rem;padding:6px 10px">⚙️ إعدادات</button>
 </div>
 
@@ -942,8 +942,10 @@ function togglePreview(){
   previewMode = !previewMode;
   document.body.classList.toggle('preview-mode',previewMode);
   const btn = document.getElementById('previewBtn');
-  btn.innerHTML = previewMode ? '← رجوع للتعديل' : '👁 معاينة';
+  btn.innerHTML = previewMode ? '← رجوع' : '👁 معاينة';
   btn.classList.toggle('active',previewMode);
+  // Always keep previewBtn visible
+  btn.style.display = '';
   if(previewMode) closePanel();
 }
 
@@ -1571,7 +1573,10 @@ function deleteExp(id){
   try{
       const exp=JSON.parse(localStorage.getItem('tw_exp'+getUID())||'[]').filter(e=>e.id!==id);
     localStorage.setItem('tw_exp'+getUID(),JSON.stringify(exp));
-    if(!exp.length) document.getElementById('exp-list').innerHTML='<div class="item empty-hint"><div class="item-title" style="opacity:.4;font-size:.8rem">لا توجد خبرات بعد — اضغط + لإضافة أول خبرة</div></div>';
+    if(!exp.length){
+      const expSec=document.getElementById('sec-exp');
+      if(expSec) expSec.style.display='none';
+    }
     updateExpBadge();
   }catch(ex){}
 }
@@ -1581,7 +1586,10 @@ function deleteEdu(id){
   try{
       const edu=JSON.parse(localStorage.getItem('tw_edu'+getUID())||'[]').filter(e=>e.id!==id);
     localStorage.setItem('tw_edu'+getUID(),JSON.stringify(edu));
-    if(!edu.length) document.getElementById('edu-list').innerHTML='<div class="item empty-hint"><div class="item-title" style="opacity:.4;font-size:.8rem">لا توجد شهادات بعد — اضغط + لإضافة شهادة</div></div>';
+    if(!edu.length){
+      const eduSec=document.getElementById('sec-edu');
+      if(eduSec) eduSec.style.display='none';
+    }
   }catch(ex){}
 }
 
@@ -2270,7 +2278,12 @@ function closeModal(){
 }
 function closeOverlay(e){ if(e.target===document.getElementById('overlay')) closeModal(); }
 
-if(!isOwner) document.querySelectorAll('.owner-only').forEach(el=>el.style.display='none');
+if(!isOwner){
+  document.querySelectorAll('.owner-only').forEach(el=>el.style.display='none');
+} else {
+  // Show preview button for owners
+  document.getElementById('previewBtn').style.display='';
+}
 restoreSections();
   loadSectionOrder();
 // top-actions needs flex not block
@@ -2462,6 +2475,10 @@ function doLogout(){ localStorage.removeItem('tw_user'); location.href='/'; }
     if(exp.length){
       document.getElementById('exp-list').innerHTML='';
       exp.forEach(e=>document.getElementById('exp-list').insertAdjacentHTML('beforeend',renderExpItem(e)));
+    } else {
+      // Hide section if no data
+      const expSec=document.getElementById('sec-exp');
+      if(expSec) expSec.style.display='none';
     }
   }catch(ex){}
 
@@ -2470,6 +2487,9 @@ function doLogout(){ localStorage.removeItem('tw_user'); location.href='/'; }
     if(edu.length){
       document.getElementById('edu-list').innerHTML='';
       edu.forEach(e=>document.getElementById('edu-list').insertAdjacentHTML('beforeend',renderEduItem(e)));
+    } else {
+      const eduSec=document.getElementById('sec-edu');
+      if(eduSec) eduSec.style.display='none';
     }
   }catch(ex){}
 
