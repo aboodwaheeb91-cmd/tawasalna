@@ -329,7 +329,17 @@ async function loadUsers(){
     if(data.error) throw new Error(data.error);
     _allUsers = data.users || [];
   } catch(e) {
-    document.getElementById('usersTable').innerHTML = `<div class="empty-state" style="color:#f87171">⚠️ خطأ: ${e.message}</div>`;
+    // Try to get actual error from server
+    let errDetail = e.message;
+    try {
+      const errR = await fetch('/auth/users', {headers: adminHeaders()});
+      const errData = await errR.json();
+      errDetail = errData.detail || e.message;
+    } catch(e2) {}
+    document.getElementById('usersTable').innerHTML = `<div class="empty-state" style="color:#f87171">
+      ⚠️ خطأ: ${errDetail}<br>
+      <small style="color:rgba(255,100,100,.6)">${e.message}</small>
+    </div>`;
     return;
   }
   updateStats();
@@ -392,7 +402,7 @@ function renderUsers(list){
       <div>${typeLabel(u.user_type)}</div>
       <div><span class="status-badge s-verified">✓ نشط</span></div>
       <div class="action-btns">
-        <button class="ab ab-view" onclick="window.open('/profile.html?id=${u.id}','_blank')">👁 ملف</button>
+        <button class="ab ab-view" onclick="window.open('/profile.html?id=${u.tw_id||u.id}','_blank')">👁 ملف</button>
         <button class="ab ab-msg" onclick="openMsg(${u.id},'${u.full_name}')">💬</button>
       </div>
     </div>`).join('');
