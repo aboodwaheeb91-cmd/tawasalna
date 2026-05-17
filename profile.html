@@ -958,8 +958,13 @@ function addSection(id,icon,title,el){
     }
   }catch(ex){ console.error(ex); }
 
-  if(el&&el.classList){ el.classList.add('added'); el.onclick=null; }
-  if(el&&el.insertAdjacentHTML) el.insertAdjacentHTML('beforeend','<span class="asec-done">✓</span>');
+  // Mark the panel asec item as added (works for both user click and restore)
+  const panelEl=document.getElementById('asec-'+id)||el;
+  if(panelEl&&panelEl.classList){
+    panelEl.classList.add('added');
+    panelEl.onclick=null;
+    if(!panelEl.querySelector('.asec-done')) panelEl.insertAdjacentHTML('beforeend','<span class="asec-done">✓</span>');
+  }
   setTimeout(closePanel,400);
 }
 
