@@ -811,6 +811,26 @@ let _sessionUser = null;
 try { _sessionUser = JSON.parse(localStorage.getItem('tw_user')); } catch(e){}
 
 
+
+// ── History API - Back button support ──
+function pushModalState(type){
+  history.pushState({modal:type}, '', location.href);
+}
+function pushPanelState(){
+  history.pushState({panel:true}, '', location.href);
+}
+
+window.addEventListener('popstate', function(e){
+  if(e.state && e.state.modal){
+    // Back pressed while modal open → just close modal
+    closeModal();
+  } else if(e.state && e.state.panel){
+    // Back pressed while panel open → close panel
+    closePanel();
+  }
+  // Otherwise browser handles normal back navigation
+});
+
 // ── XSS sanitization ──
 function sanitize(str){
   if(typeof str !== 'string') return str||'';
@@ -1797,6 +1817,7 @@ function openModal(type,listId,secTitle){
   window._currentLid=listId||'';
   if(listId) document.getElementById('modal').dataset.listId=listId;
   document.getElementById('overlay').classList.add('show');
+  pushModalState(type);
 }
 function showFn(input){ const fn=input.parentElement.querySelector('.fn'); if(fn&&input.files[0]) fn.textContent='✓ '+input.files[0].name; }
 
