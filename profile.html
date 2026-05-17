@@ -340,6 +340,7 @@ body.s4 .add-item-btn:hover { border-color:var(--ac); color:var(--ac); }
 
 /* ── Preview ── */
 body.preview-mode .owner-only { display:none !important; }
+body.preview-mode #previewBtn { display:flex !important; }
 
 /* ── Modal ── */
 .overlay { position:fixed; inset:0; z-index:2000; background:rgba(0,0,0,.75); display:flex; align-items:center; justify-content:center; padding:16px; opacity:0; pointer-events:none; transition:opacity .2s; }
@@ -638,7 +639,7 @@ body.s5 .add-item-btn:hover { border-color:rgba(var(--ac-rgb),.35); color:var(--
   <div class="tb-logo">تواصلنا</div>
   <button class="tb-btn tb-ghost" onclick="location.href='home.html'" title="البحث عن عمل أو دورة" style="font-size:.82rem;padding:6px 10px">🔍</button>
   <div style="flex:1"></div>
-  <button class="tb-btn tb-preview" id="previewBtn" onclick="togglePreview()" title="معاينة" style="font-size:.82rem;padding:6px 10px;display:none">👁 معاينة</button>
+  <button class="tb-btn tb-preview owner-only" id="previewBtn" onclick="togglePreview()" title="معاينة" style="font-size:.82rem;padding:6px 10px">👁 معاينة</button>
   <button class="tb-btn tb-ghost" onclick="openPanel()" title="الإعدادات" style="font-size:.82rem;padding:6px 10px">⚙️ إعدادات</button>
 </div>
 
