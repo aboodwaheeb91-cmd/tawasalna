@@ -1283,7 +1283,7 @@ function editExp(id){
         if(lparts.length>=2){
           const CNAMES_REV={'الأردن':'JO','السعودية':'SA','الإمارات':'AE','الكويت':'KW','قطر':'QA','البحرين':'BH','عُمان':'OM','مصر':'EG','العراق':'IQ','سوريا':'SY','لبنان':'LB','فلسطين':'PS','اليمن':'YE','المغرب':'MA','الجزائر':'DZ','تونس':'TN','ليبيا':'LY','السودان':'SD'};
           const cc=CNAMES_REV[lparts[0]]||'';
-          const cityName=parts.slice(1).join(' - ')||'';
+          const cityName=lparts.slice(1).join(' - ')||'';
           const countryEl=document.getElementById('m-country');
           if(countryEl&&cc){ countryEl.value=cc; loadCities(); }
           setTimeout(()=>{ const cityEl=document.getElementById('m-city'); if(cityEl&&cityName) cityEl.value=cityName; },120);
