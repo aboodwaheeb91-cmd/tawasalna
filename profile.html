@@ -2480,14 +2480,15 @@ function doLogout(){ localStorage.removeItem('tw_user'); location.href='/'; }
 
   const _uid = '_' + user.id;
 
-  // ── 1. عرض فوري من localStorage (فقط لو صاحب الحساب) ──
-  document.getElementById('cvCode').textContent =
-    user.tw_id || ('TW-' + (user.user_type||'emp').toUpperCase() + '-' + String(user.id));
-
-  // Only show own data from localStorage if viewing own profile
+  // تحقق إذا كان الزائر هو صاحب الحساب
   const _isOwnProfile = !_urlId ||
-    String(_urlId) === String(_sessionUser?.id) ||
-    String(_urlId) === String(_sessionUser?.tw_id);
+    String(_urlId) === String(user.id) ||
+    String(_urlId) === String(user.tw_id);
+
+  // عرض فوري من localStorage فقط لو صاحب الحساب
+  if(_isOwnProfile){
+    document.getElementById('cvCode').textContent =
+      user.tw_id || ('TW-' + (user.user_type||'emp').toUpperCase() + '-' + String(user.id));
 
   try{
     const prof=JSON.parse(localStorage.getItem('tw_profile_data'+getUID())||'{}');
@@ -2539,8 +2540,9 @@ function doLogout(){ localStorage.removeItem('tw_user'); location.href='/'; }
       if(eduSec) eduSec.style.display='none';
     }
   }catch(ex){}
+  } // end _isOwnProfile
 
-  // ── 2. API call ──
+  // ── 2. API call ── (always runs for any profile)
   fetch('/profile/' + (_urlId||user.id) + '/full')
     .then(r => r.json())
     .then(data => {
