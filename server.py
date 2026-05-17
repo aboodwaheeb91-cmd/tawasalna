@@ -169,6 +169,10 @@ def job_detail(): return read_html("job-detail.html")
 @app.get("/job-detail.html", response_class=HTMLResponse)
 def job_detail_html(): return read_html("job-detail.html")
 
+@app.get("/admin-view", response_class=HTMLResponse)
+@app.get("/admin-view.html", response_class=HTMLResponse)
+def admin_view(): return read_html("admin-view.html")
+
 @app.get("/settings", response_class=HTMLResponse)
 def settings(): return read_html("settings.html")
 
