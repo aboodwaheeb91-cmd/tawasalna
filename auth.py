@@ -1,44 +1,48 @@
 """
 Authentication module - Supabase PostgreSQL
-Using pg8000 (pure Python, no system dependencies)
+تواصلنا - نظام المصادقة وقاعدة البيانات
 """
 
 import os
+import uuid
 import bcrypt
 import pg8000.native
 from datetime import datetime
 from typing import Optional
 
 
-# ── Country codes ──
+# ══ نظام الـ IDs ══
+# الشكل: {PREFIX}{COUNTRY_CODE}{UUID_10_CHARS}
+# مثال: U96204a8f3c9b2e (موظف أردني)
+
+TYPE_PREFIX = {
+    'emp': 'U',   # User (موظف)
+    'co':  'C',   # Company (شركة)
+    'edu': 'T',   # Training/Education (مؤسسة تعليمية)
+}
+
 COUNTRY_CODES = {
     'JO': '9620', 'SA': '9660', 'AE': '9710', 'KW': '9650',
     'QA': '9740', 'BH': '9730', 'OM': '9680', 'EG': '2000',
     'IQ': '9640', 'SY': '9630', 'LB': '9610', 'PS': '9720',
     'YE': '9670', 'MA': '2120', 'DZ': '2130', 'TN': '2160',
-    'LY': '2180', 'SD': '2490', 'DEFAULT': '0000'
+    'LY': '2180', 'SD': '2490', 'DEFAULT': '0000',
 }
-
-TYPE_PREFIX = {'emp': 'U', 'co': 'C', 'edu': 'T'}
 
 
 def generate_tw_id(user_type: str, country_code: str = 'DEFAULT') -> str:
     """
-    Generate professional ID: {TYPE}{COUNTRY_CODE}{10_UNIQUE_CHARS}
-    Uses UUID4 to guarantee uniqueness.
-    Example: U96204a8f3c9b2e (Jordanian employee)
+    يولّد معرف احترافي فريد للحساب.
+    الشكل: {U/C/T}{كود_الدولة}{10_أحرف_عشوائية}
+    مثال: U9620ec95e9c5ca
     """
-    import uuid
     prefix = TYPE_PREFIX.get(user_type, 'U')
     cc = COUNTRY_CODES.get(country_code, COUNTRY_CODES['DEFAULT'])
-    # Use uuid4 hex - first 10 chars = 16^10 = 1 trillion+ combinations
     rand = uuid.uuid4().hex[:10]
     return f"{prefix}{cc}{rand}"
 
 
-# ─────────────────────────────────────────
-# Connection
-# ─────────────────────────────────────────
+# ══ الاتصال بقاعدة البيانات ══
 def get_conn():
     url = os.environ.get("SUPABASE_DB_URL")
     if not url:
@@ -56,14 +60,11 @@ def get_conn():
         host, port = host_port, 5432
     return pg8000.native.Connection(
         host=host, port=port, user=username,
-        password=password, database=dbname,
-        ssl_context=True
+        password=password, database=dbname, ssl_context=True
     )
 
 
-# ─────────────────────────────────────────
-# Helpers
-# ─────────────────────────────────────────
+# ══ مساعدات ══
 def _row_to_dict(columns, row):
     return dict(zip(columns, row))
 
@@ -86,13 +87,10 @@ def verify_password(plain: str, hashed: str) -> bool:
     return bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
 
 
-# ─────────────────────────────────────────
-# Init DB
-# ─────────────────────────────────────────
+# ══ تهيئة قاعدة البيانات ══
 def init_db():
     conn = get_conn()
     try:
-        # Users table - with tw_id column
         conn.run("""
             CREATE TABLE IF NOT EXISTS users (
                 id BIGSERIAL PRIMARY KEY,
@@ -105,27 +103,28 @@ def init_db():
                 created_at TIMESTAMP DEFAULT NOW()
             )
         """)
+        # Migration: أضف الأعمدة الجديدة لو ما موجودة
+        for col_sql in [
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS tw_id TEXT UNIQUE",
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS country_code TEXT DEFAULT 'DEFAULT'",
+        ]:
+            try:
+                conn.run(col_sql)
+            except Exception:
+                pass
 
-        # Add tw_id column if it doesn't exist (migration)
+        # Migration: ولّد tw_id للحسابات القديمة
         try:
-            conn.run("ALTER TABLE users ADD COLUMN IF NOT EXISTS tw_id TEXT UNIQUE")
-            conn.run("ALTER TABLE users ADD COLUMN IF NOT EXISTS country_code TEXT DEFAULT 'DEFAULT'")
-        except Exception:
-            pass
-
-        # Generate tw_id for existing users that don't have one
-        try:
-            rows = conn.run("SELECT id, user_type, country_code FROM users WHERE tw_id IS NULL")
-            for row in rows:
-                uid, utype, cc = row[0], row[1], row[2] or 'DEFAULT'
-                tw_id = generate_tw_id(utype, cc)
-                # Ensure uniqueness
-                while True:
-                    existing = conn.run("SELECT id FROM users WHERE tw_id = :tw_id", tw_id=tw_id)
-                    if not existing:
-                        break
-                    tw_id = generate_tw_id(utype, cc)
-                conn.run("UPDATE users SET tw_id = :tw_id WHERE id = :uid", tw_id=tw_id, uid=uid)
+            old_users = conn.run(
+                "SELECT id, user_type, country_code FROM users WHERE tw_id IS NULL"
+            )
+            for row in (old_users or []):
+                uid, utype, cc = row[0], row[1] or 'emp', row[2] or 'DEFAULT'
+                tw_id = _unique_tw_id(conn, utype, cc)
+                conn.run(
+                    "UPDATE users SET tw_id = :tw_id WHERE id = :uid",
+                    tw_id=tw_id, uid=uid
+                )
         except Exception as e:
             print(f"Migration note: {e}")
 
@@ -133,12 +132,8 @@ def init_db():
             CREATE TABLE IF NOT EXISTS profiles (
                 id SERIAL PRIMARY KEY,
                 user_id INTEGER UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                headline TEXT,
-                bio TEXT,
-                location TEXT,
-                skills TEXT[],
-                avatar_url TEXT,
-                website TEXT,
+                headline TEXT, bio TEXT, location TEXT,
+                skills TEXT[], avatar_url TEXT, website TEXT,
                 is_verified BOOLEAN DEFAULT FALSE,
                 updated_at TIMESTAMP DEFAULT NOW()
             )
@@ -147,13 +142,9 @@ def init_db():
             CREATE TABLE IF NOT EXISTS experience (
                 id SERIAL PRIMARY KEY,
                 user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                title TEXT NOT NULL,
-                company TEXT NOT NULL,
-                location TEXT,
-                start_date TEXT,
-                end_date TEXT,
-                is_current BOOLEAN DEFAULT FALSE,
-                description TEXT,
+                title TEXT NOT NULL, company TEXT NOT NULL,
+                location TEXT, start_date TEXT, end_date TEXT,
+                is_current BOOLEAN DEFAULT FALSE, description TEXT,
                 created_at TIMESTAMP DEFAULT NOW()
             )
         """)
@@ -161,12 +152,8 @@ def init_db():
             CREATE TABLE IF NOT EXISTS education (
                 id SERIAL PRIMARY KEY,
                 user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                institution TEXT NOT NULL,
-                degree TEXT,
-                field TEXT,
-                start_year INTEGER,
-                end_year INTEGER,
-                description TEXT,
+                institution TEXT NOT NULL, degree TEXT, field TEXT,
+                start_year INTEGER, end_year INTEGER, description TEXT,
                 created_at TIMESTAMP DEFAULT NOW()
             )
         """)
@@ -174,11 +161,8 @@ def init_db():
             CREATE TABLE IF NOT EXISTS courses (
                 id SERIAL PRIMARY KEY,
                 user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                title TEXT NOT NULL,
-                provider TEXT,
-                completion_date TEXT,
-                certificate_url TEXT,
-                description TEXT,
+                title TEXT NOT NULL, provider TEXT,
+                completion_date TEXT, certificate_url TEXT, description TEXT,
                 created_at TIMESTAMP DEFAULT NOW()
             )
         """)
@@ -186,37 +170,43 @@ def init_db():
             CREATE TABLE IF NOT EXISTS verify_requests (
                 id SERIAL PRIMARY KEY,
                 user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                document_url TEXT,
-                notes TEXT,
+                document_url TEXT, notes TEXT,
                 status TEXT NOT NULL DEFAULT 'pending',
                 created_at TIMESTAMP DEFAULT NOW()
             )
         """)
-        print("✅ All tables ready.")
+        print("✅ Database ready.")
     finally:
         conn.close()
 
 
-# ─────────────────────────────────────────
-# Users
-# ─────────────────────────────────────────
-def create_user(full_name: str, email: str, password: str, user_type: str, country_code: str = 'DEFAULT') -> dict:
+def _unique_tw_id(conn, user_type: str, country_code: str) -> str:
+    """يولّد tw_id فريد مع التحقق من عدم التكرار."""
+    while True:
+        tw_id = generate_tw_id(user_type, country_code)
+        existing = conn.run(
+            "SELECT id FROM users WHERE tw_id = :tw_id", tw_id=tw_id
+        )
+        if not existing:
+            return tw_id
+
+
+# ══ المستخدمون ══
+def create_user(
+    full_name: str, email: str, password: str,
+    user_type: str, country_code: str = 'DEFAULT'
+) -> dict:
     conn = get_conn()
     try:
-        # Generate unique tw_id
-        tw_id = generate_tw_id(user_type, country_code)
-        while True:
-            existing = conn.run("SELECT id FROM users WHERE tw_id = :tw_id", tw_id=tw_id)
-            if not existing:
-                break
-            tw_id = generate_tw_id(user_type, country_code)
-
+        tw_id = _unique_tw_id(conn, user_type, country_code)
         rows = conn.run(
             "INSERT INTO users (tw_id, full_name, email, password_hash, user_type, country_code) "
             "VALUES (:tw_id, :name, :email, :pw, :utype, :cc) "
             "RETURNING id, tw_id, full_name, email, user_type, created_at",
-            tw_id=tw_id, name=full_name, email=email.lower().strip(),
-            pw=hash_password(password), utype=user_type, cc=country_code
+            tw_id=tw_id, name=full_name,
+            email=email.lower().strip(),
+            pw=hash_password(password),
+            utype=user_type, cc=country_code
         )
         cols = [c["name"] for c in conn.columns]
         return _serialize(_row_to_dict(cols, rows[0]))
@@ -232,7 +222,7 @@ def authenticate_user(email: str, password: str) -> Optional[dict]:
     conn = get_conn()
     try:
         rows = conn.run(
-            "SELECT id, tw_id, full_name, email, password_hash, user_type, created_at "
+            "SELECT id, tw_id, full_name, email, password_hash, user_type, country_code, created_at "
             "FROM users WHERE email = :email",
             email=email.lower().strip()
         )
@@ -243,15 +233,9 @@ def authenticate_user(email: str, password: str) -> Optional[dict]:
         if not verify_password(password, user["password_hash"]):
             return None
         user.pop("password_hash")
-        # Generate tw_id if missing
+        # ولّد tw_id لو ما عنده (حسابات قديمة)
         if not user.get("tw_id"):
-            from auth import generate_tw_id, COUNTRY_CODES
-            tw_id = generate_tw_id(user.get("user_type","emp"), "DEFAULT")
-            while True:
-                existing = conn.run("SELECT id FROM users WHERE tw_id = :tw_id", tw_id=tw_id)
-                if not existing:
-                    break
-                tw_id = generate_tw_id(user.get("user_type","emp"), "DEFAULT")
+            tw_id = _unique_tw_id(conn, user.get("user_type", "emp"), user.get("country_code", "DEFAULT"))
             conn.run("UPDATE users SET tw_id = :tw_id WHERE id = :uid", tw_id=tw_id, uid=user["id"])
             user["tw_id"] = tw_id
         return _serialize(user)
@@ -274,30 +258,25 @@ def get_user_by_id(user_id: int) -> Optional[dict]:
         conn.close()
 
 
-# ─────────────────────────────────────────
-# Profile Extras
-# ─────────────────────────────────────────
-def _get_profile_extras(conn, user_id: int) -> dict:
+# ══ الملفات الشخصية ══
+def _get_extras(conn, user_id: int) -> dict:
     rows = conn.run(
         "SELECT id, title, company, location, start_date, end_date, is_current, description, created_at "
-        "FROM experience WHERE user_id = :uid ORDER BY id DESC",
-        uid=user_id
+        "FROM experience WHERE user_id = :uid ORDER BY id DESC", uid=user_id
     )
     cols = [c["name"] for c in conn.columns]
     experience = [_serialize(_row_to_dict(cols, r)) for r in rows]
 
     rows = conn.run(
         "SELECT id, institution, degree, field, start_year, end_year, description, created_at "
-        "FROM education WHERE user_id = :uid ORDER BY id DESC",
-        uid=user_id
+        "FROM education WHERE user_id = :uid ORDER BY id DESC", uid=user_id
     )
     cols = [c["name"] for c in conn.columns]
     education = [_serialize(_row_to_dict(cols, r)) for r in rows]
 
     rows = conn.run(
         "SELECT id, title, provider, completion_date, certificate_url, description, created_at "
-        "FROM courses WHERE user_id = :uid ORDER BY id DESC",
-        uid=user_id
+        "FROM courses WHERE user_id = :uid ORDER BY id DESC", uid=user_id
     )
     cols = [c["name"] for c in conn.columns]
     courses = [_serialize(_row_to_dict(cols, r)) for r in rows]
@@ -305,9 +284,6 @@ def _get_profile_extras(conn, user_id: int) -> dict:
     return {"experience": experience, "education": education, "courses": courses}
 
 
-# ─────────────────────────────────────────
-# Profiles
-# ─────────────────────────────────────────
 def get_public_profile(user_id: int) -> Optional[dict]:
     conn = get_conn()
     try:
@@ -322,14 +298,12 @@ def get_public_profile(user_id: int) -> Optional[dict]:
 
         rows = conn.run(
             "SELECT headline, bio, location, skills, avatar_url, website, is_verified "
-            "FROM profiles WHERE user_id = :uid",
-            uid=user_id
+            "FROM profiles WHERE user_id = :uid", uid=user_id
         )
         cols = [c["name"] for c in conn.columns]
         profile = _serialize(_row_to_dict(cols, rows[0])) if rows else {}
 
-        extras = _get_profile_extras(conn, user_id)
-        return {**user, **profile, **extras}
+        return {**user, **profile, **_get_extras(conn, user_id)}
     finally:
         conn.close()
 
@@ -348,22 +322,19 @@ def get_full_profile(user_id: int) -> Optional[dict]:
 
         rows = conn.run(
             "SELECT headline, bio, location, skills, avatar_url, website, is_verified, updated_at "
-            "FROM profiles WHERE user_id = :uid",
-            uid=user_id
+            "FROM profiles WHERE user_id = :uid", uid=user_id
         )
         cols = [c["name"] for c in conn.columns]
         profile = _serialize(_row_to_dict(cols, rows[0])) if rows else {}
 
         rows = conn.run(
             "SELECT id, status, created_at FROM verify_requests "
-            "WHERE user_id = :uid ORDER BY id DESC LIMIT 1",
-            uid=user_id
+            "WHERE user_id = :uid ORDER BY id DESC LIMIT 1", uid=user_id
         )
         cols = [c["name"] for c in conn.columns]
-        verify_request = _serialize(_row_to_dict(cols, rows[0])) if rows else None
+        verify_req = _serialize(_row_to_dict(cols, rows[0])) if rows else None
 
-        extras = _get_profile_extras(conn, user_id)
-        return {**user, **profile, **extras, "verify_request": verify_request}
+        return {**user, **profile, **_get_extras(conn, user_id), "verify_request": verify_req}
     finally:
         conn.close()
 
@@ -371,17 +342,18 @@ def get_full_profile(user_id: int) -> Optional[dict]:
 def update_profile(user_id: int, data: dict) -> dict:
     conn = get_conn()
     try:
-        rows = conn.run("SELECT id FROM users WHERE id = :uid", uid=user_id)
-        if not rows:
-            raise ValueError("المستخدم غير موجود")
-
-        rows = conn.run("SELECT id FROM profiles WHERE user_id = :uid", uid=user_id)
-        exists = bool(rows)
+        # Update full_name in users table if provided
+        if data.get("full_name"):
+            conn.run(
+                "UPDATE users SET full_name = :name WHERE id = :uid",
+                name=data["full_name"], uid=user_id
+            )
 
         allowed = ["headline", "bio", "location", "skills", "avatar_url", "website"]
         fields = {k: v for k, v in data.items() if k in allowed and v is not None}
 
-        if exists:
+        rows = conn.run("SELECT id FROM profiles WHERE user_id = :uid", uid=user_id)
+        if rows:
             if fields:
                 set_clause = ", ".join(f"{k} = :{k}" for k in fields)
                 conn.run(
@@ -400,9 +372,7 @@ def update_profile(user_id: int, data: dict) -> dict:
     return get_full_profile(user_id)
 
 
-# ─────────────────────────────────────────
-# Experience
-# ─────────────────────────────────────────
+# ══ الخبرات ══
 def add_experience(user_id: int, data: dict) -> dict:
     conn = get_conn()
     try:
@@ -421,9 +391,7 @@ def add_experience(user_id: int, data: dict) -> dict:
         conn.close()
 
 
-# ─────────────────────────────────────────
-# Education
-# ─────────────────────────────────────────
+# ══ الشهادات ══
 def add_education(user_id: int, data: dict) -> dict:
     conn = get_conn()
     try:
@@ -442,9 +410,7 @@ def add_education(user_id: int, data: dict) -> dict:
         conn.close()
 
 
-# ─────────────────────────────────────────
-# Courses
-# ─────────────────────────────────────────
+# ══ الدورات ══
 def add_course(user_id: int, data: dict) -> dict:
     conn = get_conn()
     try:
@@ -452,8 +418,7 @@ def add_course(user_id: int, data: dict) -> dict:
             "INSERT INTO courses (user_id, title, provider, completion_date, certificate_url, description) "
             "VALUES (:uid, :title, :provider, :completion_date, :certificate_url, :description) "
             "RETURNING id, user_id, title, provider, completion_date, certificate_url, description, created_at",
-            uid=user_id, title=data["title"],
-            provider=data.get("provider"),
+            uid=user_id, title=data["title"], provider=data.get("provider"),
             completion_date=data.get("completion_date"),
             certificate_url=data.get("certificate_url"),
             description=data.get("description")
@@ -464,22 +429,15 @@ def add_course(user_id: int, data: dict) -> dict:
         conn.close()
 
 
-# ─────────────────────────────────────────
-# Verify Requests
-# ─────────────────────────────────────────
+# ══ طلبات التحقق ══
 def create_verify_request(user_id: int, data: dict) -> dict:
     conn = get_conn()
     try:
-        rows = conn.run("SELECT id FROM users WHERE id = :uid", uid=user_id)
-        if not rows:
-            raise ValueError("المستخدم غير موجود")
         rows = conn.run(
             "INSERT INTO verify_requests (user_id, document_url, notes, status) "
             "VALUES (:uid, :doc_url, :notes, 'pending') "
             "RETURNING id, user_id, document_url, notes, status, created_at",
-            uid=user_id,
-            doc_url=data.get("document_url"),
-            notes=data.get("notes")
+            uid=user_id, doc_url=data.get("document_url"), notes=data.get("notes")
         )
         cols = [c["name"] for c in conn.columns]
         return _serialize(_row_to_dict(cols, rows[0]))
