@@ -485,3 +485,25 @@ def create_verify_request(user_id: int, data: dict) -> dict:
         return _serialize(_row_to_dict(cols, rows[0]))
     finally:
         conn.close()
+
+def get_profile_by_tw_id(tw_id: str) -> Optional[dict]:
+    conn = get_conn()
+    try:
+        rows = conn.run("SELECT id FROM users WHERE tw_id = :tw_id", tw_id=tw_id)
+        if not rows:
+            return None
+        return get_public_profile(rows[0][0])
+    finally:
+        conn.close()
+
+
+def get_full_profile_by_tw_id(tw_id: str) -> Optional[dict]:
+    conn = get_conn()
+    try:
+        rows = conn.run("SELECT id FROM users WHERE tw_id = :tw_id", tw_id=tw_id)
+        if not rows:
+            return None
+        return get_full_profile(rows[0][0])
+    finally:
+        conn.close()
+
