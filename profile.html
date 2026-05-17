@@ -2175,6 +2175,8 @@ function saveEdu(){
 
 function saveCustomSec(){ const nm=document.getElementById('m-csn').value.trim(),ic=document.getElementById('m-csi').value.trim()||'📌'; if(!nm) return; const id='sec-c'+Date.now(),lid='list-c'+Date.now(); document.getElementById('secList').insertAdjacentHTML('beforeend',`<div class="section" id="${id}" draggable="true"><div class="sec-header"><span class="sec-icon">${ic}</span><span class="sec-title">${nm}</span><div class="sec-line"></div></div><div id="${lid}"></div><button class="add-item-btn owner-only" onclick="openModal('generic','${lid}','${nm}')">+ إضافة</button><div class="drag-handle owner-only"><span></span><span></span><span></span></div></div>`); closeModal(); }
 function saveGeneric(lid){
+  if(!lid) lid=window._currentLid||document.getElementById('modal')?.dataset?.listId||'';
+  if(!lid) return;
   const t=document.getElementById('m-gt')?.value.trim();
   if(!t){ const el=document.getElementById('m-gt'); if(el) el.style.borderColor='#f87171'; return; }
   const s=document.getElementById('m-gs')?.value||'';
