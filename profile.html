@@ -340,7 +340,6 @@ body.s4 .add-item-btn:hover { border-color:var(--ac); color:var(--ac); }
 
 /* ── Preview ── */
 body.preview-mode .owner-only { display:none !important; }
-body.preview-mode #previewBtn { display:flex !important; }
 
 /* ── Modal ── */
 .overlay { position:fixed; inset:0; z-index:2000; background:rgba(0,0,0,.75); display:flex; align-items:center; justify-content:center; padding:16px; opacity:0; pointer-events:none; transition:opacity .2s; }
@@ -639,7 +638,7 @@ body.s5 .add-item-btn:hover { border-color:rgba(var(--ac-rgb),.35); color:var(--
   <div class="tb-logo">تواصلنا</div>
   <button class="tb-btn tb-ghost" onclick="location.href='home.html'" title="البحث عن عمل أو دورة" style="font-size:.82rem;padding:6px 10px">🔍</button>
   <div style="flex:1"></div>
-  <button class="tb-btn tb-preview owner-only" id="previewBtn" onclick="togglePreview()" title="معاينة" style="font-size:.82rem;padding:6px 10px">👁 معاينة</button>
+  <button class="tb-btn tb-preview" id="previewBtn" onclick="togglePreview()" title="معاينة" style="font-size:.82rem;padding:6px 10px;display:none">👁 معاينة</button>
   <button class="tb-btn tb-ghost" onclick="openPanel()" title="الإعدادات" style="font-size:.82rem;padding:6px 10px">⚙️ إعدادات</button>
 </div>
 
@@ -2146,7 +2145,7 @@ function saveProfile(){
   // Save to API
   if(_sessionUser&&_sessionUser.id){
     fetch('/profile/'+_sessionUser.id,{method:'PUT',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({headline:title,bio,location:loc,full_name:name})
+      body:JSON.stringify({headline:title,bio,location:loc})
     }).catch(()=>{});
   }
   closeModal();
@@ -2468,7 +2467,7 @@ function saveCrop(){
   }
 })();
 
-function doLogout(){ localStorage.removeItem('tw_user'); location.href='/login.html'; }
+function doLogout(){ localStorage.removeItem('tw_user'); location.href='/'; }
 </script>
 
 <script>
@@ -2482,7 +2481,7 @@ function doLogout(){ localStorage.removeItem('tw_user'); location.href='/login.h
 
   // ── 1. عرض فوري من localStorage ──
   document.getElementById('cvCode').textContent =
-    user.tw_id || ('TW-' + (user.user_type||'emp').toUpperCase() + '-' + String(user.id));
+    'TW-' + (user.user_type||'emp').toUpperCase() + '-' + String(user.id);
 
   try{
     const prof=JSON.parse(localStorage.getItem('tw_profile_data'+getUID())||'{}');
@@ -2508,8 +2507,7 @@ function doLogout(){ localStorage.removeItem('tw_user'); location.href='/login.h
       document.getElementById('cvLoc').textContent='📍 '+locTxt;
     }
   }catch(ex){
-    const _lsCheck=JSON.parse(localStorage.getItem('tw_profile_data'+getUID())||'{}');
-    if(user.full_name && !_lsCheck.full_name) document.getElementById('cvName').textContent=user.full_name;
+    if(user.full_name) document.getElementById('cvName').textContent=user.full_name;
   }
 
   try{
@@ -2541,13 +2539,12 @@ function doLogout(){ localStorage.removeItem('tw_user'); location.href='/login.h
     .then(data => {
       const p = data.profile;
       if(!p) return;
-      const _lsProf=JSON.parse(localStorage.getItem('tw_profile_data'+getUID())||'{}');
-      if(p.full_name && !_lsProf.full_name) document.getElementById('cvName').textContent = p.full_name;
-      if(p.headline && !_lsProf.headline)   document.getElementById('cvTitle').textContent = p.headline;
+      if(p.full_name) document.getElementById('cvName').textContent = p.full_name;
+      if(p.headline)  document.getElementById('cvTitle').textContent = p.headline;
       if(p.bio)       document.getElementById('cvBio').textContent = p.bio;
       if(p.location)  document.getElementById('cvLoc').textContent = '📍 ' + p.location;
       const t = p.user_type || 'emp';
-      document.getElementById('cvCode').textContent = p.tw_id || ('TW-' + t.toUpperCase() + '-' + String(p.id));
+      document.getElementById('cvCode').textContent = 'TW-' + t.toUpperCase() + '-' + String(p.id);
       if(p.experience && p.experience.length){
         document.getElementById('exp-list').innerHTML = ''; // clear empty hint
         p.experience.forEach(e => document.getElementById('exp-list').insertAdjacentHTML('beforeend',
@@ -2560,8 +2557,7 @@ function doLogout(){ localStorage.removeItem('tw_user'); location.href='/login.h
       }
     })
     .catch(()=>{
-      const _lsCheck2=JSON.parse(localStorage.getItem('tw_profile_data'+getUID())||'{}');
-      if(user.full_name && !_lsCheck2.full_name) document.getElementById('cvName').textContent = user.full_name;
+      if(user.full_name) document.getElementById('cvName').textContent = user.full_name;
     });
 })();
 </script>
