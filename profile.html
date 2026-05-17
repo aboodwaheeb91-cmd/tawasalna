@@ -940,7 +940,7 @@ function loadSavedSection(id, lid){
   const keyMap={
     'skills':'tw_skills','langs':'tw_langs','links':'tw_links','course':'tw_courses'
   };
-  const lsKey=(keyMap[id]||('tw_gen_'+id))+uid;
+  const lsKey=(keyMap[id]||('tw_gen_'+id))+getUID();
   try{
     const items=JSON.parse(localStorage.getItem(lsKey)||'[]');
     if(!items.length) return;
@@ -1079,7 +1079,7 @@ function saveSectionItem(lsKey, item, lid, renderFn){
 }
 
 function saveSkillItem(){
-  const lid=document.getElementById('modal')?.dataset?.listId||'';
+  const lid=window._currentLid||document.getElementById('modal')?.dataset?.listId||'';
   if(!lid) return;
   const name=document.getElementById('m-skill-name')?.value.trim();
   const level=document.getElementById('m-skill-level')?.value||'';
@@ -1089,7 +1089,7 @@ function saveSkillItem(){
 }
 
 function saveLangItem(){
-  const lid=document.getElementById('modal')?.dataset?.listId||'';
+  const lid=window._currentLid||document.getElementById('modal')?.dataset?.listId||'';
   if(!lid) return;
   const name=document.getElementById('m-lang-name')?.value;
   const level=document.getElementById('m-lang-level')?.value;
@@ -1101,7 +1101,7 @@ function saveLangItem(){
 }
 
 function saveLinkItem(){
-  const lid=document.getElementById('modal')?.dataset?.listId||'';
+  const lid=window._currentLid||document.getElementById('modal')?.dataset?.listId||'';
   if(!lid) return;
   const url=document.getElementById('m-link-url')?.value.trim();
   const type=document.getElementById('m-link-type')?.value||'رابط';
@@ -1113,7 +1113,7 @@ function saveLinkItem(){
 }
 
 function saveCourseItem(){
-  const lid=document.getElementById('modal')?.dataset?.listId||'';
+  const lid=window._currentLid||document.getElementById('modal')?.dataset?.listId||'';
   if(!lid) return;
   const name=document.getElementById('m-course-name')?.value.trim();
   const provider=document.getElementById('m-course-provider')?.value.trim()||'';
@@ -1740,6 +1740,7 @@ function openModal(type,listId,secTitle){
     <div class="mact"><button class="mbtn mbtn-ok" onclick="saveGeneric('${listId}')">إضافة</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
   }
   document.getElementById('modal').innerHTML=h;
+  window._currentLid=listId||'';
   if(listId) document.getElementById('modal').dataset.listId=listId;
   document.getElementById('overlay').classList.add('show');
 }
