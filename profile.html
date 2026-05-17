@@ -2535,7 +2535,7 @@ function doLogout(){ localStorage.removeItem('tw_user'); location.href='/'; }
   }catch(ex){}
 
   // ── 2. API call ──
-  fetch('/profile/' + user.id + '/full')
+  fetch('/profile/' + (_urlId||user.id) + '/full')
     .then(r => r.json())
     .then(data => {
       const p = data.profile;

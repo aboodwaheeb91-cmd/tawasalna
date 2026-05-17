@@ -443,3 +443,25 @@ def create_verify_request(user_id: int, data: dict) -> dict:
         return _serialize(_row_to_dict(cols, rows[0]))
     finally:
         conn.close()
+
+
+def get_user_id_by_tw_id(tw_id: str) -> Optional[int]:
+    """يرجع الـ id الرقمي من الـ tw_id."""
+    conn = get_conn()
+    try:
+        rows = conn.run("SELECT id FROM users WHERE tw_id = :tw_id", tw_id=tw_id)
+        return rows[0][0] if rows else None
+    finally:
+        conn.close()
+
+
+def get_profile_by_tw_id(tw_id: str) -> Optional[dict]:
+    """يجيب الملف الشخصي العام بالـ tw_id."""
+    uid = get_user_id_by_tw_id(tw_id)
+    return get_public_profile(uid) if uid else None
+
+
+def get_full_profile_by_tw_id(tw_id: str) -> Optional[dict]:
+    """يجيب الملف الشخصي الكامل بالـ tw_id."""
+    uid = get_user_id_by_tw_id(tw_id)
+    return get_full_profile(uid) if uid else None
