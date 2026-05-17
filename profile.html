@@ -1033,7 +1033,6 @@ function restoreSections(){
       addSection(sec.id, sec.icon, sec.title, dummy);
     });
     localStorage.setItem('tw_added_sections'+getUID(), JSON.stringify(remaining));
-    setupDragDrop();
   }catch(ex){ console.error(ex); }
 }
 
@@ -2221,7 +2220,6 @@ function saveCustomSec(){
     localStorage.setItem('tw_added_sections'+getUID(), JSON.stringify(saved));
   }catch(ex){}
   saveSectionOrder();
-  setupDragDrop();
   closeModal();
 }
 function saveGeneric(lid){
