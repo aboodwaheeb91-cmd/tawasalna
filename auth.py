@@ -241,6 +241,17 @@ def authenticate_user(email: str, password: str) -> Optional[dict]:
         if not verify_password(password, user["password_hash"]):
             return None
         user.pop("password_hash")
+        # Generate tw_id if missing
+        if not user.get("tw_id"):
+            from auth import generate_tw_id, COUNTRY_CODES
+            tw_id = generate_tw_id(user.get("user_type","emp"), "DEFAULT")
+            while True:
+                existing = conn.run("SELECT id FROM users WHERE tw_id = :tw_id", tw_id=tw_id)
+                if not existing:
+                    break
+                tw_id = generate_tw_id(user.get("user_type","emp"), "DEFAULT")
+            conn.run("UPDATE users SET tw_id = :tw_id WHERE id = :uid", tw_id=tw_id, uid=user["id"])
+            user["tw_id"] = tw_id
         return _serialize(user)
     finally:
         conn.close()

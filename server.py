@@ -11,6 +11,44 @@ from typing import List, Optional
 from datetime import datetime
 import hashlib, secrets, json, os
 
+import urllib.request
+
+# ── IP to country code ──
+IP_TO_COUNTRY_CACHE = {}
+
+def get_country_from_ip(ip: str) -> str:
+    if not ip or ip in ('127.0.0.1', '::1', 'localhost'):
+        return 'DEFAULT'
+    if ip in IP_TO_COUNTRY_CACHE:
+        return IP_TO_COUNTRY_CACHE[ip]
+    COUNTRY_MAP = {
+        'JO':'JO','SA':'SA','AE':'AE','KW':'KW','QA':'QA',
+        'BH':'BH','OM':'OM','EG':'EG','IQ':'IQ','SY':'SY',
+        'LB':'LB','PS':'PS','YE':'YE','MA':'MA','DZ':'DZ',
+        'TN':'TN','LY':'LY','SD':'SD',
+    }
+    try:
+        url = f'http://ip-api.com/json/{ip}?fields=countryCode'
+        req = urllib.request.Request(url, headers={'User-Agent':'Mozilla/5.0'})
+        with urllib.request.urlopen(req, timeout=3) as r:
+            data = json.loads(r.read())
+        code = data.get('countryCode','DEFAULT')
+        result = COUNTRY_MAP.get(code,'DEFAULT')
+        IP_TO_COUNTRY_CACHE[ip] = result
+        return result
+    except Exception:
+        return 'DEFAULT'
+
+def get_client_ip(request) -> str:
+    forwarded = request.headers.get('X-Forwarded-For')
+    if forwarded:
+        return forwarded.split(',')[0].strip()
+    real_ip = request.headers.get('X-Real-IP')
+    if real_ip:
+        return real_ip.strip()
+    return request.client.host if request.client else '127.0.0.1'
+
+
 from auth import (
     init_db, get_conn,
     create_user, authenticate_user, get_user_by_id,
@@ -223,7 +261,7 @@ def health():
 # Auth
 # ══════════════════════════════════════════
 @app.post("/auth/register")
-def register(data: RegisterInput):
+def register(data: RegisterInput, request: Request):
     if not data.full_name.strip():
         raise HTTPException(400, detail="الاسم الكامل مطلوب")
     if not data.email.strip():
@@ -233,7 +271,9 @@ def register(data: RegisterInput):
     if data.user_type not in ("emp", "co", "edu"):
         raise HTTPException(400, detail="نوع الحساب غير صحيح")
     try:
-        user = create_user(data.full_name, data.email, data.password, data.user_type)
+        client_ip = get_client_ip(request)
+        country_code = get_country_from_ip(client_ip)
+        user = create_user(data.full_name, data.email, data.password, data.user_type, country_code)
         return {"status": "success", "user": user}
     except ValueError as e:
         raise HTTPException(409, detail=str(e))
