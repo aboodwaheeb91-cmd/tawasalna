@@ -530,10 +530,14 @@ def admin_update_verify(req_id: int, data: VerifyUpdateInput, request: Request):
 def admin_get_profile(user_id: int, request: Request):
     check_admin(request)
     try:
-        return get_full_profile(user_id) or {"error": "لا يوجد ملف"}
+        profile = get_full_profile(user_id)
+        if not profile:
+            raise HTTPException(404, "المستخدم غير موجود")
+        return {"status": "success", "profile": profile}
+    except HTTPException:
+        raise
     except Exception as e:
-        print(f"admin_get_profile error: {e}")
-        raise HTTPException(500, detail=str(e))
+        raise HTTPException(500, str(e))
 
 @app.delete("/admin/user/{user_id}")
 def delete_user(user_id: int, request: Request):
