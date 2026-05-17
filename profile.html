@@ -2480,13 +2480,18 @@ function doLogout(){ localStorage.removeItem('tw_user'); location.href='/'; }
 
   const _uid = '_' + user.id;
 
-  // ── 1. عرض فوري من localStorage ──
+  // ── 1. عرض فوري من localStorage (فقط لو صاحب الحساب) ──
   document.getElementById('cvCode').textContent =
     user.tw_id || ('TW-' + (user.user_type||'emp').toUpperCase() + '-' + String(user.id));
 
+  // Only show own data from localStorage if viewing own profile
+  const _isOwnProfile = !_urlId ||
+    String(_urlId) === String(_sessionUser?.id) ||
+    String(_urlId) === String(_sessionUser?.tw_id);
+
   try{
     const prof=JSON.parse(localStorage.getItem('tw_profile_data'+getUID())||'{}');
-    const displayName = prof.full_name || [prof.first_name, prof.middle_name, prof.last_name].filter(Boolean).join(' ') || user.full_name || '';
+    const displayName = _isOwnProfile ? (prof.full_name || [prof.first_name, prof.middle_name, prof.last_name].filter(Boolean).join(' ') || user.full_name || '') : (user.full_name || '');
     if(displayName) document.getElementById('cvName').textContent=displayName;
     if(prof.headline||prof.title) document.getElementById('cvTitle').textContent=prof.headline||prof.title;
     if(prof.dob){
