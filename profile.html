@@ -2456,10 +2456,14 @@ function saveCrop(){
   document.removeEventListener('touchend',stopDrag);
 }
 
-// Load saved avatar on init
+// Load saved avatar on init (only for own profile)
 (function(){
   let u; try{u=JSON.parse(localStorage.getItem('tw_user'));}catch(e){}
   if(!u||!u.id) return;
+  // Skip if viewing someone else's profile
+  const _avUrlId=new URLSearchParams(window.location.search).get('id');
+  const _isOwnAv=!_avUrlId||String(_avUrlId)===String(u.id)||String(_avUrlId)===String(u.tw_id);
+  if(!_isOwnAv) return;
   const uid='_'+u.id;
   const saved=localStorage.getItem('tw_avatar'+getUID());
   if(saved){
