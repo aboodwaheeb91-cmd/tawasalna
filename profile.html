@@ -611,6 +611,27 @@ body.s4 .add-sec-shortcut:hover {
 .csw-custom{width:28px;height:28px;border-radius:50%;cursor:pointer;border:2px dashed rgba(255,255,255,.25);display:flex;align-items:center;justify-content:center;font-size:.72rem;transition:all .2s;}
 .csw-custom:hover{border-color:var(--ac);}
 
+
+/* ── s5 sidebar layout fix ── */
+body.s5 #cvHead > div[style*="display:flex"] {
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+body.s5 #cvHead > div[style*="display:flex"] > div:last-child {
+  width: 100%;
+  text-align: center;
+}
+body.s5 .cv-name {
+  padding-left: 0 !important;
+  white-space: normal !important;
+  text-align: center;
+  font-size: clamp(.85rem,2vw,1.05rem);
+}
+body.s5 .cv-meta-row { justify-content: center; }
+body.s5 .cv-code { text-align: center; }
+
 </style>
 </head>
 <body class="s1">
