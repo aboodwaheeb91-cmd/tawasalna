@@ -2048,8 +2048,8 @@ function closeModal(){
 function closeOverlay(e){ if(e.target===document.getElementById('overlay')) closeModal(); }
 
 if(!isOwner) document.querySelectorAll('.owner-only').forEach(el=>el.style.display='none');
-loadSectionOrder();
-  restoreSections();
+restoreSections();
+  loadSectionOrder();
 // top-actions needs flex not block
 const ta = document.querySelector('.top-actions');
 if(ta && isOwner) ta.style.display = 'flex';
