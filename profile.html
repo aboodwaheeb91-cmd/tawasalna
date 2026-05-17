@@ -1162,7 +1162,7 @@ function editLangItem(id, lid){
     <div class="mf"><label>اللغة</label>
       <select id="m-lang-name" style="${SS}">
         <option value="">— اختر —</option>
-        ${['العربية','الإنجليزية','الفرنسية','الألمانية','الإسبانية','الصينية','التركية','الأردية','أخرى'].map(l=>`<option${item.name===l?' selected':''}>${l}</option>`).join('')}
+        ${['العربية', 'الإنجليزية', 'الفرنسية', 'الإسبانية', 'الصينية المندرين', 'الهندية', 'الروسية', 'البرتغالية', 'الألمانية', 'اليابانية', 'الكورية', 'الإيطالية', 'التركية', 'الفارسية', 'الأردية', 'البنغالية', 'الإندونيسية', 'الملايوية', 'الفلبينية (تاغالوغ)', 'التايلاندية', 'الفيتنامية', 'السواحيلية', 'العبرية', 'الهولندية', 'البولندية', 'الأوكرانية', 'الرومانية', 'اليونانية', 'السويدية', 'النرويجية', 'الدنماركية', 'الفنلندية', 'الكردية', 'الأمهرية', 'الصومالية', 'الزولو', 'لغة الإشارة', 'أخرى'].map(l=>`<option${item.name===l?" selected":""}>${l}</option>`).join("")}
       </select>
     </div>
     <div class="mf"><label>المستوى</label>
@@ -1955,10 +1955,114 @@ function openModal(type,listId,secTitle){
     <div class="mf"><label>اللغة <span style="color:rgba(255,255,255,.3);font-size:.65rem"> مطلوب</span></label>
       <select id="m-lang-name" style="width:100%;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;">
         <option value="">— اختر اللغة —</option>
-        <option>العربية</option><option>الإنجليزية</option><option>الفرنسية</option>
-        <option>الألمانية</option><option>الإسبانية</option><option>الإيطالية</option>
-        <option>الصينية</option><option>التركية</option><option>الفارسية</option>
-        <option>الأردية</option><option>أخرى</option>
+        <optgroup label="🌍 اللغات الأكثر انتشاراً">
+          <option>العربية</option>
+          <option>الإنجليزية</option>
+          <option>الفرنسية</option>
+          <option>الإسبانية</option>
+          <option>الصينية المندرين</option>
+          <option>الهندية</option>
+          <option>الروسية</option>
+          <option>البرتغالية</option>
+          <option>الألمانية</option>
+          <option>اليابانية</option>
+          <option>الكورية</option>
+          <option>الإيطالية</option>
+          <option>التركية</option>
+        </optgroup>
+        <optgroup label="🌏 آسيا">
+          <option>الفارسية</option>
+          <option>الأردية</option>
+          <option>البنغالية</option>
+          <option>الإندونيسية</option>
+          <option>الملايوية</option>
+          <option>الفلبينية (تاغالوغ)</option>
+          <option>التايلاندية</option>
+          <option>الفيتنامية</option>
+          <option>البنجابية</option>
+          <option>التاميلية</option>
+          <option>التيلوغو</option>
+          <option>الغوجاراتية</option>
+          <option>المراثية</option>
+          <option>الكانادا</option>
+          <option>المالايالامية</option>
+          <option>السنهالية</option>
+          <option>البورمية</option>
+          <option>الخميرية</option>
+          <option>النيبالية</option>
+          <option>الأوزبكية</option>
+          <option>الكازاخية</option>
+          <option>الآذربيجانية</option>
+          <option>الجورجية</option>
+          <option>الأرمينية</option>
+          <option>الكردية</option>
+          <option>البشتونية</option>
+          <option>الدارية</option>
+          <option>التبتية</option>
+          <option>المنغولية</option>
+        </optgroup>
+        <optgroup label="🌍 أفريقيا">
+          <option>السواحيلية</option>
+          <option>الأمهرية</option>
+          <option>الهوسا</option>
+          <option>اليوروبا</option>
+          <option>الإيغبو</option>
+          <option>الزولو</option>
+          <option>الشونا</option>
+          <option>السومالية</option>
+          <option>الأفريكانية</option>
+          <option>الماداغشقرية</option>
+          <option>الولوف</option>
+          <option>الفولانية</option>
+        </optgroup>
+        <optgroup label="🌍 الشرق الأوسط">
+          <option>العبرية</option>
+          <option>الأمازيغية</option>
+          <option>الصومالية</option>
+        </optgroup>
+        <optgroup label="🌎 أمريكا اللاتينية">
+          <option>الكيشوا</option>
+          <option>الغوارانية</option>
+          <option>الأيمارا</option>
+          <option>الهايتية الكريولية</option>
+        </optgroup>
+        <optgroup label="🌍 أوروبا">
+          <option>الهولندية</option>
+          <option>البولندية</option>
+          <option>الأوكرانية</option>
+          <option>الرومانية</option>
+          <option>الهنغارية</option>
+          <option>التشيكية</option>
+          <option>السلوفاكية</option>
+          <option>البلغارية</option>
+          <option>الكرواتية</option>
+          <option>الصربية</option>
+          <option>السلوفينية</option>
+          <option>اليونانية</option>
+          <option>السويدية</option>
+          <option>النرويجية</option>
+          <option>الدنماركية</option>
+          <option>الفنلندية</option>
+          <option>البرتغالية البرازيلية</option>
+          <option>الكاتالانية</option>
+          <option>الباسكية</option>
+          <option>الغاليكية</option>
+          <option>الألبانية</option>
+          <option>المقدونية</option>
+          <option>الليتوانية</option>
+          <option>اللاتفية</option>
+          <option>الإستونية</option>
+          <option>البيلاروسية</option>
+          <option>الأيرلندية</option>
+          <option>الويلزية</option>
+          <option>الفلمنكية</option>
+          <option>الإسبرانتو</option>
+          <option>اللاتينية</option>
+        </optgroup>
+        <optgroup label="📝 أخرى">
+          <option>لغة الإشارة</option>
+          <option>أخرى</option>
+        </optgroup>
       </select>
     </div>
     <div class="mf"><label>المستوى <span style="color:rgba(255,255,255,.3);font-size:.65rem"> مطلوب</span></label>
