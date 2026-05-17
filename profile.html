@@ -1528,11 +1528,11 @@ function openModal(type,listId,secTitle){
   } else if(type==='exp'){
     const yearOpts=[...Array(36)].map((_,i)=>{const y=new Date().getFullYear()-i;return '<option value="'+y+'">'+y+'</option>';}).join('');
     h=`<div class="modal-title">💼 إضافة خبرة عملية</div>
-    <div class="mf"><label>المسمى الوظيفي <span style="color:#f87171">*</span></label>
+    <div class="mf"><label>المسمى الوظيفي <span style="color:rgba(255,255,255,.3);font-size:.65rem"> مطلوب</span></label>
       <input id="m-et" autocomplete="off" placeholder="مثال: مهندس برمجيات، محاسب، مدير مبيعات..." oninput="clearFieldErr('m-et','err-et')">
       <div class="field-err" id="err-et"></div>
     </div>
-    <div class="mf"><label>اسم جهة العمل <span style="color:#f87171">*</span></label>
+    <div class="mf"><label>اسم جهة العمل <span style="color:rgba(255,255,255,.3);font-size:.65rem"> مطلوب</span></label>
       <input id="m-ec" autocomplete="off" placeholder="مثال: شركة STC، مستشفى الملك فيصل..." oninput="clearFieldErr('m-ec','err-ec')">
       <div class="field-err" id="err-ec"></div>
     </div>
@@ -1557,8 +1557,8 @@ function openModal(type,listId,secTitle){
       </select>
     </div>
     <div style="display:flex;gap:10px">
-      <div class="mf" style="flex:1"><label>من (سنة) <span style="color:#f87171">*</span></label>
-        <select id="m-es" autocomplete="off" onchange="filterEndYears()" style="width:100%;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;">
+      <div class="mf" style="flex:1"><label>من (سنة) <span style="color:rgba(255,255,255,.3);font-size:.65rem"> مطلوب</span></label>
+        <select id="m-es" autocomplete="off" onchange="filterEndYears();clearFieldErr('m-es','err-es')" style="width:100%;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;">
           <option value="">اختر السنة</option>${yearOpts}
         </select>
         <div class="field-err" id="err-es"></div>
@@ -1590,7 +1590,7 @@ function openModal(type,listId,secTitle){
 
   } else if(type==='edu'){
     h=`<div class="modal-title">🎓 إضافة شهادة دراسية</div>
-    <div class="mf"><label>نوع الشهادة <span style="color:#f87171">*</span></label>
+    <div class="mf"><label>نوع الشهادة <span style="color:rgba(255,255,255,.3);font-size:.65rem"> مطلوب</span></label>
       <select id="m-dtype" autocomplete="off" style="width:100%;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;">
         <option value="">— اختر نوع الشهادة —</option>
         <option value="بكالوريوس">🎓 بكالوريوس</option>
@@ -1603,7 +1603,7 @@ function openModal(type,listId,secTitle){
         <option value="دورة معتمدة">✅ دورة معتمدة</option>
       </select>
     </div>
-    <div class="mf"><label>المؤسسة التعليمية <span style="color:#f87171">*</span></label>
+    <div class="mf"><label>المؤسسة التعليمية <span style="color:rgba(255,255,255,.3);font-size:.65rem"> مطلوب</span></label>
       <input id="m-ei" autocomplete="off" placeholder="مثال: الجامعة الأردنية، جامعة الملك عبدالله...">
     </div>
     <div class="mf"><label>التخصص <span style="opacity:.5;font-size:.7rem">(اختياري)</span></label>
@@ -1640,7 +1640,7 @@ function openModal(type,listId,secTitle){
 
   } else if(type==='skills'){
     h=`<div class="modal-title">🛠️ إضافة مهارة</div>
-    <div class="mf"><label>اسم المهارة <span style="color:#f87171">*</span></label>
+    <div class="mf"><label>اسم المهارة <span style="color:rgba(255,255,255,.3);font-size:.65rem"> مطلوب</span></label>
       <input id="m-skill-name" autocomplete="off" placeholder="مثال: Python، Excel، Photoshop، إدارة مشاريع...">
     </div>
     <div class="mf"><label>مستوى الإتقان</label>
@@ -1656,7 +1656,7 @@ function openModal(type,listId,secTitle){
 
   } else if(type==='langs'){
     h=`<div class="modal-title">🌍 إضافة لغة</div>
-    <div class="mf"><label>اللغة <span style="color:#f87171">*</span></label>
+    <div class="mf"><label>اللغة <span style="color:rgba(255,255,255,.3);font-size:.65rem"> مطلوب</span></label>
       <select id="m-lang-name" style="width:100%;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;">
         <option value="">— اختر اللغة —</option>
         <option>العربية</option><option>الإنجليزية</option><option>الفرنسية</option>
@@ -1665,7 +1665,7 @@ function openModal(type,listId,secTitle){
         <option>الأردية</option><option>أخرى</option>
       </select>
     </div>
-    <div class="mf"><label>المستوى <span style="color:#f87171">*</span></label>
+    <div class="mf"><label>المستوى <span style="color:rgba(255,255,255,.3);font-size:.65rem"> مطلوب</span></label>
       <select id="m-lang-level" style="width:100%;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;">
         <option value="">— اختر المستوى —</option>
         <option value="مبتدئ">🟡 مبتدئ</option>
@@ -1687,7 +1687,7 @@ function openModal(type,listId,secTitle){
         <option>🔗 أخرى</option>
       </select>
     </div>
-    <div class="mf"><label>الرابط <span style="color:#f87171">*</span></label>
+    <div class="mf"><label>الرابط <span style="color:rgba(255,255,255,.3);font-size:.65rem"> مطلوب</span></label>
       <input id="m-link-url" autocomplete="off" placeholder="https://..." style="direction:ltr;text-align:left">
     </div>
     <div class="mact"><button class="mbtn mbtn-ok" onclick="saveLinkItem('${listId}')">إضافة</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
@@ -1695,7 +1695,7 @@ function openModal(type,listId,secTitle){
   } else if(type==='course'){
     const yearOpts=[...Array(36)].map((_,i)=>{const y=new Date().getFullYear()-i;return '<option value="'+y+'">'+y+'</option>';}).join('');
     h=`<div class="modal-title">📚 إضافة دورة تدريبية</div>
-    <div class="mf"><label>اسم الدورة <span style="color:#f87171">*</span></label>
+    <div class="mf"><label>اسم الدورة <span style="color:rgba(255,255,255,.3);font-size:.65rem"> مطلوب</span></label>
       <input id="m-course-name" autocomplete="off" placeholder="مثال: React Basics، CCNA، PMP...">
     </div>
     <div class="mf"><label>الجهة المقدِّمة</label>
