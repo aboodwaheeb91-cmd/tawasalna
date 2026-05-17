@@ -53,7 +53,6 @@ from auth import (
     init_db, get_conn,
     create_user, authenticate_user, get_user_by_id,
     get_public_profile, get_full_profile, update_profile,
-    get_profile_by_tw_id, get_full_profile_by_tw_id,
     add_experience, add_education, add_course, create_verify_request
 )
 
@@ -321,25 +320,15 @@ def get_user(user_id: int):
 # Profile
 # ══════════════════════════════════════════
 @app.get("/profile/{user_id}")
-def public_profile(user_id: str):
-    # Support both numeric id and tw_id
-    try:
-        uid = int(user_id)
-        profile = get_public_profile(uid)
-    except ValueError:
-        # tw_id string - lookup by tw_id
-        profile = get_profile_by_tw_id(user_id)
+def public_profile(user_id: int):
+    profile = get_public_profile(user_id)
     if not profile:
         raise HTTPException(404, detail="الملف الشخصي غير موجود")
     return {"status": "success", "profile": profile}
 
 @app.get("/profile/{user_id}/full")
-def full_profile(user_id: str):
-    try:
-        uid = int(user_id)
-        profile = get_full_profile(uid)
-    except ValueError:
-        profile = get_full_profile_by_tw_id(user_id)
+def full_profile(user_id: int):
+    profile = get_full_profile(user_id)
     if not profile:
         raise HTTPException(404, detail="الملف الشخصي غير موجود")
     return {"status": "success", "profile": profile}
