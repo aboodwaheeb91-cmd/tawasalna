@@ -1080,31 +1080,39 @@ function saveSectionItem(lsKey, item, lid, renderFn){
 
 function saveSkillItem(lid){
   const name=document.getElementById('m-skill-name')?.value.trim();
-  if(!name){alert('أدخل اسم المهارة');return;}
   const level=document.getElementById('m-skill-level')?.value||'';
+  if(!name){ document.getElementById('m-skill-name').style.borderColor='#f87171'; return; }
+  document.getElementById('m-skill-name').style.borderColor='';
   saveSectionItem('tw_skills',{id:Date.now(),name,level},lid,renderSkillItem);
 }
 
 function saveLangItem(lid){
   const name=document.getElementById('m-lang-name')?.value;
   const level=document.getElementById('m-lang-level')?.value;
-  if(!name||!level){alert('اختر اللغة والمستوى');return;}
+  if(!name){ document.getElementById('m-lang-name').style.borderColor='#f87171'; return; }
+  if(!level){ document.getElementById('m-lang-level').style.borderColor='#f87171'; return; }
+  document.getElementById('m-lang-name').style.borderColor='';
+  document.getElementById('m-lang-level').style.borderColor='';
   saveSectionItem('tw_langs',{id:Date.now(),name,level},lid,renderLangItem);
 }
 
 function saveLinkItem(lid){
   const url=document.getElementById('m-link-url')?.value.trim();
-  if(!url){alert('أدخل الرابط');return;}
   const type=document.getElementById('m-link-type')?.value||'رابط';
-  saveSectionItem('tw_links',{id:Date.now(),type,url},lid,renderLinkItem);
+  if(!url){ document.getElementById('m-link-url').style.borderColor='#f87171'; return; }
+  document.getElementById('m-link-url').style.borderColor='';
+  // Add https if missing
+  const finalUrl=url.startsWith('http')?url:'https://'+url;
+  saveSectionItem('tw_links',{id:Date.now(),type,url:finalUrl},lid,renderLinkItem);
 }
 
 function saveCourseItem(lid){
   const name=document.getElementById('m-course-name')?.value.trim();
-  if(!name){alert('أدخل اسم الدورة');return;}
   const provider=document.getElementById('m-course-provider')?.value.trim()||'';
   const year=document.getElementById('m-course-year')?.value||'';
   const url=document.getElementById('m-course-url')?.value.trim()||'';
+  if(!name){ document.getElementById('m-course-name').style.borderColor='#f87171'; return; }
+  document.getElementById('m-course-name').style.borderColor='';
   saveSectionItem('tw_courses',{id:Date.now(),name,provider,year,url},lid,renderCourseItem);
 }
 
@@ -1604,7 +1612,7 @@ function openModal(type,listId,secTitle){
       </select>
     </div>
     <div class="mf"><label>المؤسسة التعليمية <span style="color:rgba(255,255,255,.3);font-size:.65rem"> مطلوب</span></label>
-      <input id="m-ei" autocomplete="off" placeholder="مثال: الجامعة الأردنية، جامعة الملك عبدالله...">
+      <input id="m-ei" autocomplete="off" placeholder="مثال: الجامعة الأردنية، جامعة الملك عبدالله..." oninput="clearFieldErr('m-ei','err-ei')">
     </div>
     <div class="mf"><label>التخصص <span style="opacity:.5;font-size:.7rem">(اختياري)</span></label>
       <input id="m-ed" autocomplete="off" placeholder="مثال: هندسة حاسوب، محاسبة...">
@@ -1893,26 +1901,28 @@ function saveExp(){
 function saveEdu(){
   const d=document.getElementById('m-ed').value.trim();
   const i=document.getElementById('m-ei').value.trim();
-  if(!i) return;
+  const dtype_check=document.getElementById('m-dtype')?.value||'';
+  if(!dtype_check){ setFieldErr('m-dtype','err-dtype','نوع الشهادة مطلوب'); return; } else clearFieldErr('m-dtype','err-dtype');
+  if(!i){ setFieldErr('m-ei','err-ei','اسم المؤسسة مطلوب'); return; } else clearFieldErr('m-ei','err-ei');
   const y=document.getElementById('m-ey').value;
   const modal=document.getElementById('modal');
   const editId=modal.dataset.editId?parseInt(modal.dataset.editId):null;
 
+  const dtype=document.getElementById('m-dtype')?.value||'';
+  const gpa=document.getElementById('m-egpa')?.value.trim()||'';
+
   if(editId){
-    // تعديل شهادة موجودة
     try{
       const edu=JSON.parse(localStorage.getItem('tw_edu'+getUID())||'[]');
       const idx2=edu.findIndex(x=>x.id===editId);
-      if(idx2>-1){ edu[idx2]={id:editId,degree:d,institution:i,end_year:y}; localStorage.setItem('tw_edu'+getUID(),JSON.stringify(edu)); }
+      if(idx2>-1){
+        edu[idx2]={id:editId,degree:d,institution:i,end_year:y,degree_type:dtype,gpa:gpa};
+        localStorage.setItem('tw_edu'+getUID(),JSON.stringify(edu));
+      }
     }catch(ex){}
     const el=document.getElementById('edu-'+editId);
-    const dtype2=document.getElementById('m-dtype')?.value||'';
-      const gpa2=document.getElementById('m-egpa')?.value.trim()||'';
-      if(el) el.outerHTML=renderEduItem({id:editId,degree:d,institution:i,end_year:y,degree_type:dtype2,gpa:gpa2});
+    if(el) el.outerHTML=renderEduItem({id:editId,degree:d,institution:i,end_year:y,degree_type:dtype,gpa:gpa});
   } else {
-    // إضافة شهادة جديدة
-    const dtype=document.getElementById('m-dtype')?.value||'';
-    const gpa=document.getElementById('m-egpa')?.value.trim()||'';
     document.getElementById('edu-list').querySelector('.empty-hint')?.remove();
     const eduId=Date.now();
     document.getElementById('edu-list').insertAdjacentHTML('afterbegin',
@@ -1932,7 +1942,33 @@ function saveEdu(){
 }
 
 function saveCustomSec(){ const nm=document.getElementById('m-csn').value.trim(),ic=document.getElementById('m-csi').value.trim()||'📌'; if(!nm) return; const id='sec-c'+Date.now(),lid='list-c'+Date.now(); document.getElementById('secList').insertAdjacentHTML('beforeend',`<div class="section" id="${id}" draggable="true"><div class="sec-header"><span class="sec-icon">${ic}</span><span class="sec-title">${nm}</span><div class="sec-line"></div></div><div id="${lid}"></div><button class="add-item-btn owner-only" onclick="openModal('generic','${lid}','${nm}')">+ إضافة</button><div class="drag-handle owner-only"><span></span><span></span><span></span></div></div>`); closeModal(); }
-function saveGeneric(lid){ const t=document.getElementById('m-gt').value.trim(); if(!t) return; const s=document.getElementById('m-gs').value,d=document.getElementById('m-gd').value; document.getElementById(lid).insertAdjacentHTML('afterbegin',`<div class="item"><div class="item-title">${t}</div>${s?`<div class="item-sub">${s}</div>`:''}<div class="item-date">${d}</div><span class="badge pending">⏳ قيد المراجعة</span></div>`); closeModal();
+function saveGeneric(lid){
+  const t=document.getElementById('m-gt')?.value.trim();
+  if(!t){ const el=document.getElementById('m-gt'); if(el) el.style.borderColor='#f87171'; return; }
+  const s=document.getElementById('m-gs')?.value||'';
+  const d=document.getElementById('m-gd')?.value||'';
+  const id=Date.now();
+  const el=document.getElementById(lid);
+  if(el){
+    el.querySelector('.empty-hint')?.remove();
+    el.insertAdjacentHTML('afterbegin',`<div class="item" id="gen-${id}">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between">
+        <div><div class="item-title">${t}</div>${s?`<div class="item-sub">${s}</div>`:''}<div class="item-date">${d}</div></div>
+        <div class="item-menu-wrap owner-only">
+          <button class="item-menu-btn" onclick="toggleItemMenuG(this)">⋯</button>
+          <div class="item-menu"><div class="item-menu-opt" onclick="delSectionItem('gen-${id}','tw_gen_${lid}','${lid}',${id})">🗑️ حذف</div></div>
+        </div>
+      </div>
+    </div>`);
+  }
+  // Save to localStorage
+  try{
+    const key='tw_gen_'+lid+getUID();
+    const arr=JSON.parse(localStorage.getItem(key)||'[]');
+    arr.unshift({id,title:t,sub:s,date:d});
+    localStorage.setItem(key,JSON.stringify(arr));
+  }catch(ex){}
+  closeModal();
 }
 
 function showAvailBadge(avail){
