@@ -113,12 +113,13 @@ html[dir="ltr"] .asec-done { margin-left:0; margin-right:auto; }
 /* ── info-edit-btn (corner of info section) ── */
 .info-edit-btn {
   position:absolute;
-  top:0;
-  left:0;
-  width:24px;
-  height:24px;
-  border-radius:7px;
-  border:1px solid rgba(255,255,255,.12);
+  top:10px;
+  left:10px;
+  width:30px;
+  height:30px;
+  border-radius:9px;
+  z-index:10;
+  border:1px solid rgba(255,255,255,.15);
   background:rgba(255,255,255,.07);
   color:rgba(255,255,255,.55);
   font-size:.72rem;
@@ -712,6 +713,7 @@ body.s4 .add-sec-shortcut:hover {
 <div class="cv-wrap" id="cvWrap">
 
   <div class="cv-head" id="cvHead">
+    <button class="info-edit-btn owner-only" onclick="openModal('profile')" title="تعديل الملف الشخصي">⚙️</button>
 
     <!-- الصورة + QR -->
     <div style="display:flex;flex-direction:column;align-items:center;gap:10px;flex-shrink:0">
@@ -731,9 +733,7 @@ body.s4 .add-sec-shortcut:hover {
     <div style="flex:1;min-width:0;position:relative">
 
       <!-- زر تعديل الملف على زاوية قسم المعلومات -->
-      <button class="info-edit-btn owner-only" onclick="openModal('profile')" title="تعديل الملف الشخصي">⚙️</button>
-
-      <!-- الاسم - يصغر تلقائياً -->
+       <!-- الاسم - يصغر تلقائياً -->
       <div class="cv-name" id="cvName">الاسم الكامل</div>
 
       <!-- المسمى + حالة التوظيف -->
@@ -1035,6 +1035,134 @@ function loadSavedSection(id, lid){
 }
 
 
+
+// ── Edit section items ──
+function editSkillItem(id, lid){
+  const uid=getUID();
+  const arr=JSON.parse(localStorage.getItem('tw_skills'+uid)||'[]');
+  const item=arr.find(x=>x.id===id);
+  if(!item) return;
+  const SS='width:100%;padding:9px 11px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:9px;color:#fff;font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;';
+  document.getElementById('modal').innerHTML=`
+    <div class="modal-title">🛠️ تعديل مهارة</div>
+    <div class="mf"><label>اسم المهارة</label>
+      <input id="m-skill-name" value="${item.name}" autocomplete="off" style="${SS}">
+    </div>
+    <div class="mf"><label>مستوى الإتقان</label>
+      <select id="m-skill-level" style="${SS}">
+        <option value="">— اختر —</option>
+        <option value="مبتدئ"${item.level==='مبتدئ'?' selected':''}>🟡 مبتدئ</option>
+        <option value="متوسط"${item.level==='متوسط'?' selected':''}>🟠 متوسط</option>
+        <option value="محترف"${item.level==='محترف'?' selected':''}>🔵 محترف</option>
+        <option value="خبير"${item.level==='خبير'?' selected':''}>🟢 خبير</option>
+      </select>
+    </div>
+    <div class="mact">
+      <button class="mbtn mbtn-ok" onclick="updateSkillItem(${id},'${lid}')">حفظ</button>
+      <button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button>
+    </div>`;
+  window._currentLid=lid;
+  document.getElementById('overlay').classList.add('show');
+  history.pushState({modal:'edit-skill'},'',location.href);
+}
+
+function updateSkillItem(id, lid){
+  const name=document.getElementById('m-skill-name')?.value.trim();
+  if(!name) return;
+  const level=document.getElementById('m-skill-level')?.value||'';
+  const uid=getUID();
+  const key='tw_skills'+uid;
+  const arr=JSON.parse(localStorage.getItem(key)||'[]');
+  const idx=arr.findIndex(x=>x.id===id);
+  if(idx>-1){ arr[idx]={id,name,level}; localStorage.setItem(key,JSON.stringify(arr)); }
+  const el=document.getElementById('skill-item-'+id);
+  if(el) el.outerHTML=renderSkillItem({id,name,level},lid);
+  closeModal();
+}
+
+function editLangItem(id, lid){
+  const uid=getUID();
+  const arr=JSON.parse(localStorage.getItem('tw_langs'+uid)||'[]');
+  const item=arr.find(x=>x.id===id);
+  if(!item) return;
+  const SS='width:100%;padding:9px 11px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:9px;color:#fff;font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;';
+  document.getElementById('modal').innerHTML=`
+    <div class="modal-title">🌍 تعديل لغة</div>
+    <div class="mf"><label>اللغة</label>
+      <select id="m-lang-name" style="${SS}">
+        <option value="">— اختر —</option>
+        ${['العربية','الإنجليزية','الفرنسية','الألمانية','الإسبانية','الصينية','التركية','الأردية','أخرى'].map(l=>`<option${item.name===l?' selected':''}>${l}</option>`).join('')}
+      </select>
+    </div>
+    <div class="mf"><label>المستوى</label>
+      <select id="m-lang-level" style="${SS}">
+        <option value="">— اختر —</option>
+        ${[['مبتدئ','🟡'],['محادثة','🟠'],['جيد','🔵'],['طلاقة','🟢'],['لغة أم','⭐']].map(([v,i])=>`<option value="${v}"${item.level===v?' selected':''}>${i} ${v}</option>`).join('')}
+      </select>
+    </div>
+    <div class="mact">
+      <button class="mbtn mbtn-ok" onclick="updateLangItem(${id},'${lid}')">حفظ</button>
+      <button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button>
+    </div>`;
+  window._currentLid=lid;
+  document.getElementById('overlay').classList.add('show');
+  history.pushState({modal:'edit-lang'},'',location.href);
+}
+
+function updateLangItem(id, lid){
+  const name=document.getElementById('m-lang-name')?.value;
+  const level=document.getElementById('m-lang-level')?.value;
+  if(!name||!level) return;
+  const uid=getUID();
+  const key='tw_langs'+uid;
+  const arr=JSON.parse(localStorage.getItem(key)||'[]');
+  const idx=arr.findIndex(x=>x.id===id);
+  if(idx>-1){ arr[idx]={id,name,level}; localStorage.setItem(key,JSON.stringify(arr)); }
+  const el=document.getElementById('lang-item-'+id);
+  if(el) el.outerHTML=renderLangItem({id,name,level},lid);
+  closeModal();
+}
+
+function editCourseItem(id, lid){
+  const uid=getUID();
+  const arr=JSON.parse(localStorage.getItem('tw_courses'+uid)||'[]');
+  const item=arr.find(x=>x.id===id);
+  if(!item) return;
+  const SS='width:100%;padding:9px 11px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:9px;color:#fff;font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;';
+  const yearOpts=[...Array(36)].map((_,i)=>{const y=new Date().getFullYear()-i;return `<option value="${y}"${item.year==y?' selected':''}>${y}</option>`;}).join('');
+  document.getElementById('modal').innerHTML=`
+    <div class="modal-title">📚 تعديل دورة</div>
+    <div class="mf"><label>اسم الدورة</label><input id="m-course-name" value="${item.name||''}" autocomplete="off" style="${SS}"></div>
+    <div class="mf"><label>الجهة المقدِّمة</label><input id="m-course-provider" value="${item.provider||''}" autocomplete="off" style="${SS}"></div>
+    <div class="mf"><label>سنة الإتمام</label>
+      <select id="m-course-year" style="${SS}"><option value="">— اختر —</option>${yearOpts}</select>
+    </div>
+    <div class="mf"><label>رابط الشهادة</label><input id="m-course-url" value="${item.url||''}" autocomplete="off" style="direction:ltr;text-align:left;${SS}"></div>
+    <div class="mact">
+      <button class="mbtn mbtn-ok" onclick="updateCourseItem(${id},'${lid}')">حفظ</button>
+      <button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button>
+    </div>`;
+  window._currentLid=lid;
+  document.getElementById('overlay').classList.add('show');
+  history.pushState({modal:'edit-course'},'',location.href);
+}
+
+function updateCourseItem(id, lid){
+  const name=document.getElementById('m-course-name')?.value.trim();
+  if(!name) return;
+  const provider=document.getElementById('m-course-provider')?.value.trim()||'';
+  const year=document.getElementById('m-course-year')?.value||'';
+  const url=document.getElementById('m-course-url')?.value.trim()||'';
+  const uid=getUID();
+  const key='tw_courses'+uid;
+  const arr=JSON.parse(localStorage.getItem(key)||'[]');
+  const idx=arr.findIndex(x=>x.id===id);
+  if(idx>-1){ arr[idx]={id,name,provider,year,url}; localStorage.setItem(key,JSON.stringify(arr)); }
+  const el=document.getElementById('course-item-'+id);
+  if(el) el.outerHTML=renderCourseItem({id,name,provider,year,url},lid);
+  closeModal();
+}
+
 // ── Render helpers ──
 function renderSkillItem(e,lid){
   const id=e.id||Date.now();const lvl=e.level||'';
@@ -1045,7 +1173,8 @@ function renderSkillItem(e,lid){
       <div class="item-menu-wrap owner-only">
         <button class="item-menu-btn" onclick="toggleItemMenuG(this)">⋯</button>
         <div class="item-menu">
-          <div class="item-menu-opt" onclick="delSectionItem('skill-item-${id}','tw_skills','${lid}',${id})">🗑️ حذف</div>
+          <div class="item-menu-opt" onclick="editSkillItem(${id},'${lid}')">✏️ تعديل</div>
+          <div class="item-menu-opt del" onclick="delSectionItem('skill-item-${id}','tw_skills','${lid}',${id})">🗑️ حذف</div>
         </div>
       </div>
     </div>
@@ -1061,7 +1190,8 @@ function renderLangItem(e,lid){
       <div class="item-menu-wrap owner-only">
         <button class="item-menu-btn" onclick="toggleItemMenuG(this)">⋯</button>
         <div class="item-menu">
-          <div class="item-menu-opt" onclick="delSectionItem('lang-item-${id}','tw_langs','${lid}',${id})">🗑️ حذف</div>
+          <div class="item-menu-opt" onclick="editLangItem(${id},'${lid}')">✏️ تعديل</div>
+          <div class="item-menu-opt del" onclick="delSectionItem('lang-item-${id}','tw_langs','${lid}',${id})">🗑️ حذف</div>
         </div>
       </div>
     </div>
@@ -1097,7 +1227,8 @@ function renderCourseItem(e,lid){
       <div class="item-menu-wrap owner-only">
         <button class="item-menu-btn" onclick="toggleItemMenuG(this)">⋯</button>
         <div class="item-menu">
-          <div class="item-menu-opt" onclick="delSectionItem('course-item-${id}','tw_courses','${lid}',${id})">🗑️ حذف</div>
+          <div class="item-menu-opt" onclick="editCourseItem(${id},'${lid}')">✏️ تعديل</div>
+          <div class="item-menu-opt del" onclick="delSectionItem('course-item-${id}','tw_courses','${lid}',${id})">🗑️ حذف</div>
         </div>
       </div>
     </div>
@@ -1803,17 +1934,31 @@ function openModal(type,listId,secTitle){
     </div>
     <div class="mact"><button class="mbtn mbtn-ok" onclick="saveCourseItem('${listId}')">إضافة</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
 
-  } else if(type==='generic'){
+  }   else if(type==='generic'){
     const yearOpts2=[...Array(36)].map((_,i)=>{const y=new Date().getFullYear()-i;return '<option value="'+y+'">'+y+'</option>';}).join('');
-    h=`<div class="modal-title">+ إضافة في ${secTitle||''}</div>
-    <div class="mf"><label>العنوان *</label><input autocomplete="off" id="m-gt" placeholder="..."></div>
-    <div class="mf"><label>التفاصيل</label><input autocomplete="off" id="m-gs" placeholder="..."></div>
-    <div class="mf"><label>السنة</label>
+    const sectionName=secTitle||'القسم';
+    h=`<div class="modal-title">+ إضافة في ${sectionName}</div>
+    <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:10px;padding:10px 12px;margin-bottom:14px;font-size:.74rem;color:rgba(255,255,255,.45);line-height:1.7">
+      💡 مثال لو القسم <strong style="color:rgba(255,255,255,.65)">"${sectionName}"</strong>:<br>
+      الاسم: اكتب اسم العنصر الرئيسي<br>
+      الوصف: تفاصيل إضافية أو وصف مختصر<br>
+      السنة: تاريخ أو سنة الإنجاز
+    </div>
+    <div class="mf">
+      <label>الاسم <span style="color:rgba(255,255,255,.3);font-size:.65rem"> مطلوب</span></label>
+      <input autocomplete="off" id="m-gt" placeholder="مثال: اسم المشروع، الشهادة، الإنجاز..." oninput="this.style.borderColor=''">
+    </div>
+    <div class="mf">
+      <label>الوصف <span style="opacity:.4;font-size:.65rem">(اختياري)</span></label>
+      <textarea autocomplete="off" id="m-gs" placeholder="وصف مختصر، تفاصيل، أو ملاحظات..." style="resize:vertical;min-height:60px"></textarea>
+    </div>
+    <div class="mf">
+      <label>السنة <span style="opacity:.4;font-size:.65rem">(اختياري)</span></label>
       <select id="m-gd" autocomplete="off" style="width:100%;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;">
         <option value="">— اختر السنة —</option>${yearOpts2}
       </select>
     </div>
-    <div class="mact"><button class="mbtn mbtn-ok" onclick="saveGeneric('${listId}')">إضافة</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
+    <div class="mact"><button class="mbtn mbtn-ok" onclick="saveGeneric()">إضافة</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
   }
   document.getElementById('modal').innerHTML=h;
   window._currentLid=listId||'';
