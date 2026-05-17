@@ -2144,9 +2144,17 @@ function saveProfile(){
   }catch(ex){}
   // Save to API
   if(_sessionUser&&_sessionUser.id){
-    fetch('/profile/'+_sessionUser.id,{method:'PUT',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({headline:title,bio,location:loc})
+    // Update profile data
+fetch('/profile/'+_sessionUser.id,{method:'PUT',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({headline:title,bio,location:loc,full_name:name})
     }).catch(()=>{});
+    // Update user name in DB
+    if(name && name!==(_sessionUser.full_name||'')){
+      fetch('/auth/user/'+_sessionUser.id+'/name',{method:'PUT',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({full_name:name})
+      }).catch(()=>{});
+    }
   }
   closeModal();
 }

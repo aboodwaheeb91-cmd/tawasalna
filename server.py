@@ -250,6 +250,25 @@ def login(data: LoginInput):
         raise HTTPException(401, detail="البريد الإلكتروني أو كلمة المرور غير صحيحة")
     return {"status": "success", "user": user}
 
+@app.put("/auth/user/{user_id}/name")
+async def update_user_name(user_id: int, request: Request):
+    try:
+        data = await request.json()
+        full_name = data.get("full_name","").strip()
+        if not full_name:
+            raise HTTPException(400, "الاسم مطلوب")
+        conn = auth.get_conn()
+        try:
+            conn.run("UPDATE users SET full_name=:name WHERE id=:uid",
+                     name=full_name, uid=user_id)
+        finally:
+            conn.close()
+        return {"success": True}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
 @app.get("/auth/user/{user_id}")
 def get_user(user_id: int):
     user = get_user_by_id(user_id)
