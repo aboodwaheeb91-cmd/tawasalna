@@ -2489,7 +2489,7 @@ function doLogout(){ localStorage.removeItem('tw_user'); location.href='/'; }
 
   // ── 1. عرض فوري من localStorage ──
   document.getElementById('cvCode').textContent =
-    'TW-' + (user.user_type||'emp').toUpperCase() + '-' + String(user.id);
+    user.tw_id || ('TW-' + (user.user_type||'emp').toUpperCase() + '-' + String(user.id));
 
   try{
     const prof=JSON.parse(localStorage.getItem('tw_profile_data'+getUID())||'{}');
@@ -2556,7 +2556,7 @@ function doLogout(){ localStorage.removeItem('tw_user'); location.href='/'; }
       if(p.bio)       document.getElementById('cvBio').textContent = p.bio;
       if(p.location)  document.getElementById('cvLoc').textContent = '📍 ' + p.location;
       const t = p.user_type || 'emp';
-      document.getElementById('cvCode').textContent = 'TW-' + t.toUpperCase() + '-' + String(p.id);
+      document.getElementById('cvCode').textContent = p.tw_id || ('TW-' + t.toUpperCase() + '-' + String(p.id));
       if(p.experience && p.experience.length){
         document.getElementById('exp-list').innerHTML = ''; // clear empty hint
         p.experience.forEach(e => document.getElementById('exp-list').insertAdjacentHTML('beforeend',

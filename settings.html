@@ -209,7 +209,7 @@ function loadDisplay() {
   const type = _user?.user_type === 'co' ? 'حساب شركة'
               : _user?.user_type === 'edu' ? 'حساب مؤسسة تعليمية'
               : 'حساب موظف';
-  const uid = 'TW-' + (_user?.user_type || 'emp').toUpperCase() + '-' + (_user?.id || '');
+  const uid = _user?.tw_id || ('TW-' + (_user?.user_type || 'emp').toUpperCase() + '-' + (_user?.id || ''));
 
   document.getElementById('dispName').textContent = name;
   document.getElementById('dispEmail').textContent = email;
@@ -385,9 +385,10 @@ function confirmDelete() {
 // ── Navigation ──
 function goBack() {
   if (!_user) { window.location.href = '/'; return; }
-  const dest = _user.user_type === 'co' ? 'company-profile.html?id=' + _user.id
-             : _user.user_type === 'edu' ? 'edu-profile.html?id=' + _user.id
-             : 'profile.html?id=' + _user.id;
+  const _pid = _user.tw_id || _user.id;
+  const dest = _user.user_type === 'co' ? 'company-profile.html?id=' + _pid
+             : _user.user_type === 'edu' ? 'edu-profile.html?id=' + _pid
+             : 'profile.html?id=' + _pid;
   window.location.href = dest;
 }
 
