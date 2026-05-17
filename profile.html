@@ -2507,7 +2507,8 @@ function doLogout(){ localStorage.removeItem('tw_user'); location.href='/'; }
       document.getElementById('cvLoc').textContent='📍 '+locTxt;
     }
   }catch(ex){
-    if(user.full_name) document.getElementById('cvName').textContent=user.full_name;
+    const _lsCheck=JSON.parse(localStorage.getItem('tw_profile_data'+getUID())||'{}');
+    if(user.full_name && !_lsCheck.full_name) document.getElementById('cvName').textContent=user.full_name;
   }
 
   try{
@@ -2539,8 +2540,9 @@ function doLogout(){ localStorage.removeItem('tw_user'); location.href='/'; }
     .then(data => {
       const p = data.profile;
       if(!p) return;
-      if(p.full_name) document.getElementById('cvName').textContent = p.full_name;
-      if(p.headline)  document.getElementById('cvTitle').textContent = p.headline;
+      const _lsProf=JSON.parse(localStorage.getItem('tw_profile_data'+getUID())||'{}');
+      if(p.full_name && !_lsProf.full_name) document.getElementById('cvName').textContent = p.full_name;
+      if(p.headline && !_lsProf.headline)   document.getElementById('cvTitle').textContent = p.headline;
       if(p.bio)       document.getElementById('cvBio').textContent = p.bio;
       if(p.location)  document.getElementById('cvLoc').textContent = '📍 ' + p.location;
       const t = p.user_type || 'emp';
@@ -2557,7 +2559,8 @@ function doLogout(){ localStorage.removeItem('tw_user'); location.href='/'; }
       }
     })
     .catch(()=>{
-      if(user.full_name) document.getElementById('cvName').textContent = user.full_name;
+      const _lsCheck2=JSON.parse(localStorage.getItem('tw_profile_data'+getUID())||'{}');
+      if(user.full_name && !_lsCheck2.full_name) document.getElementById('cvName').textContent = user.full_name;
     });
 })();
 </script>
