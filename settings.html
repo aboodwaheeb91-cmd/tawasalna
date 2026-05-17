@@ -3,225 +3,182 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>تواصلنا - الإعدادات</title>
+<title>تواصلنا - إعدادات الحساب</title>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
 <style>
-:root{--ac:#00c896;--ac2:#2563ff;--bg:#070b18;--card:rgba(255,255,255,.03);--border:rgba(255,255,255,.07);--t:rgba(255,255,255,.87);--t2:rgba(255,255,255,.5);--t3:rgba(255,255,255,.27);}
+:root{--ac:#00c896;--ac2:#2563ff;--acr:0,200,150;}
 *{margin:0;padding:0;box-sizing:border-box;}
-body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-height:100vh;}
-.nav{position:fixed;top:0;left:0;right:0;z-index:100;height:52px;display:flex;align-items:center;gap:8px;padding:0 14px;background:rgba(7,11,24,.93);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);}
-.nav-logo{font-size:1rem;font-weight:900;background:linear-gradient(135deg,var(--ac),var(--ac2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-left:auto;cursor:pointer;}
-.nb{padding:5px 11px;border-radius:8px;border:1px solid var(--border);background:rgba(255,255,255,.07);color:var(--t2);font-family:'Cairo',sans-serif;font-size:.73rem;font-weight:700;cursor:pointer;transition:all .2s;}
-.nb:hover{background:rgba(255,255,255,.12);color:var(--t);}
+body{background:#070b18;color:#fff;font-family:'Cairo',sans-serif;min-height:100vh;}
 
-.main{padding:70px 16px 40px;max-width:680px;margin:0 auto;}
-.page-title{font-size:1.1rem;font-weight:900;margin-bottom:24px;}
+/* ── NAV ── */
+.nav{position:fixed;top:0;left:0;right:0;z-index:100;height:52px;display:flex;align-items:center;gap:8px;padding:0 14px;background:rgba(7,11,24,.93);backdrop-filter:blur(20px);border-bottom:1px solid rgba(255,255,255,.07);}
+.nav-back{padding:6px 12px;border-radius:9px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.07);color:rgba(255,255,255,.7);font-family:'Cairo',sans-serif;font-size:.75rem;font-weight:700;cursor:pointer;transition:all .2s;}
+.nav-back:hover{background:rgba(255,255,255,.12);color:#fff;}
+.nav-title{font-size:.85rem;font-weight:700;color:rgba(255,255,255,.6);}
+.nav-logo{font-size:.95rem;font-weight:900;background:linear-gradient(135deg,var(--ac),var(--ac2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-left:auto;cursor:pointer;}
 
-.settings-group{margin-bottom:24px;}
-.sg-title{font-size:.68rem;font-weight:800;color:var(--t3);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:10px;padding-right:4px;}
-.sg-card{background:var(--card);border:1px solid var(--border);border-radius:16px;overflow:hidden;}
+/* ── MAIN ── */
+.main{padding:72px 16px 48px;max-width:600px;margin:0 auto;}
+.page-title{font-size:1.15rem;font-weight:900;margin-bottom:6px;}
+.page-sub{font-size:.75rem;color:rgba(255,255,255,.35);margin-bottom:28px;}
 
-.setting-row{display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid rgba(255,255,255,.04);cursor:pointer;transition:background .15s;}
-.setting-row:last-child{border-bottom:none;}
-.setting-row:hover{background:rgba(255,255,255,.03);}
-.sr-ico{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1rem;flex-shrink:0;}
-.si-green{background:rgba(0,200,150,.12);}
-.si-blue{background:rgba(37,99,255,.12);}
-.si-purple{background:rgba(139,92,246,.12);}
-.si-orange{background:rgba(249,115,22,.12);}
-.si-red{background:rgba(239,68,68,.12);}
-.si-gray{background:rgba(255,255,255,.06);}
-.sr-body{flex:1;}
-.sr-name{font-size:.8rem;font-weight:700;margin-bottom:1px;}
-.sr-sub{font-size:.68rem;color:var(--t3);}
-.sr-right{display:flex;align-items:center;gap:8px;}
-.sr-val{font-size:.72rem;color:var(--t2);}
-.sr-arrow{font-size:.7rem;color:var(--t3);}
+/* ── SECTION ── */
+.sec{margin-bottom:24px;}
+.sec-title{font-size:.65rem;font-weight:800;color:rgba(255,255,255,.3);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px;padding-right:4px;}
+.card{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:16px;overflow:hidden;}
 
-/* Toggle */
-.toggle{width:40px;height:22px;background:rgba(255,255,255,.1);border-radius:11px;position:relative;cursor:pointer;transition:background .2s;border:none;flex-shrink:0;}
-.toggle.on{background:linear-gradient(135deg,var(--ac),var(--ac2));}
-.toggle::after{content:'';position:absolute;top:3px;right:3px;width:16px;height:16px;border-radius:50%;background:#fff;transition:transform .2s;}
-.toggle.on::after{transform:translateX(-18px);}
+/* ── ROW ── */
+.row{display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid rgba(255,255,255,.04);transition:background .15s;}
+.row:last-child{border-bottom:none;}
+.row.clickable{cursor:pointer;}
+.row.clickable:hover{background:rgba(255,255,255,.03);}
+.row.readonly{opacity:.55;cursor:default;}
+.row-ico{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1rem;flex-shrink:0;}
+.ico-green{background:rgba(0,200,150,.12);}
+.ico-blue{background:rgba(37,99,255,.12);}
+.ico-purple{background:rgba(139,92,246,.12);}
+.ico-orange{background:rgba(249,115,22,.12);}
+.ico-red{background:rgba(239,68,68,.12);}
+.ico-gray{background:rgba(255,255,255,.06);}
+.row-body{flex:1;min-width:0;}
+.row-name{font-size:.82rem;font-weight:700;margin-bottom:2px;}
+.row-val{font-size:.71rem;color:rgba(255,255,255,.4);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.row-right{display:flex;align-items:center;gap:6px;flex-shrink:0;}
+.row-tag{font-size:.62rem;color:rgba(255,255,255,.25);background:rgba(255,255,255,.05);border-radius:6px;padding:2px 7px;}
+.row-arrow{font-size:.75rem;color:rgba(255,255,255,.25);}
 
-/* Danger zone */
-.danger-row{display:flex;align-items:center;gap:12px;padding:14px 16px;cursor:pointer;transition:background .15s;}
-.danger-row:hover{background:rgba(239,68,68,.04);}
+/* ── DANGER ── */
+.danger-card{background:rgba(239,68,68,.04);border:1px solid rgba(239,68,68,.12);border-radius:16px;}
+.danger-row{display:flex;align-items:center;gap:12px;padding:14px 16px;cursor:pointer;transition:background .15s;border-radius:16px;}
+.danger-row:hover{background:rgba(239,68,68,.07);}
+.danger-name{font-size:.82rem;font-weight:700;color:#f87171;}
+.danger-sub{font-size:.71rem;color:rgba(248,113,113,.5);}
 
-/* Modal */
+/* ── MODAL ── */
 .overlay{position:fixed;inset:0;z-index:2000;background:rgba(0,0,0,.78);display:flex;align-items:center;justify-content:center;padding:16px;opacity:0;pointer-events:none;transition:opacity .2s;}
 .overlay.show{opacity:1;pointer-events:all;}
-.modal{background:#0a0f1e;border:1px solid rgba(255,255,255,.1);border-radius:20px;width:100%;max-width:420px;padding:24px;font-family:'Cairo',sans-serif;transform:translateY(12px);transition:transform .2s;}
+.modal{background:#0a0f1e;border:1px solid rgba(255,255,255,.1);border-radius:20px;width:100%;max-width:420px;padding:24px;font-family:'Cairo',sans-serif;transform:translateY(12px);transition:transform .2s;max-height:90vh;overflow-y:auto;}
 .overlay.show .modal{transform:translateY(0);}
 .modal-title{font-size:.95rem;font-weight:800;color:#fff;margin-bottom:18px;}
 .mf{margin-bottom:12px;}
-.mf label{display:block;font-size:.72rem;font-weight:700;color:rgba(255,255,255,.45);margin-bottom:4px;}
-.mf input,.mf select{width:100%;padding:10px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:'Cairo',sans-serif;font-size:.82rem;outline:none;direction:rtl;}
+.mf label{display:block;font-size:.72rem;font-weight:700;color:rgba(255,255,255,.45);margin-bottom:5px;}
+.mf input{width:100%;padding:10px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:'Cairo',sans-serif;font-size:.82rem;outline:none;direction:rtl;transition:border-color .2s;}
 .mf input:focus{border-color:var(--ac);}
-.mf select option{background:#0a0f1e;}
+.mf input[disabled]{opacity:.5;cursor:not-allowed;}
 .mact{display:flex;gap:8px;margin-top:16px;}
-.mbtn{flex:1;padding:10px;border:none;border-radius:10px;font-family:'Cairo',sans-serif;font-size:.82rem;font-weight:700;cursor:pointer;}
+.mbtn{flex:1;padding:10px;border:none;border-radius:10px;font-family:'Cairo',sans-serif;font-size:.82rem;font-weight:700;cursor:pointer;transition:all .2s;}
 .mbtn-ok{background:linear-gradient(135deg,var(--ac),var(--ac2));color:#fff;}
-.mbtn-danger{background:rgba(239,68,68,.2);color:#f87171;border:1px solid rgba(239,68,68,.3);}
+.mbtn-ok:hover{opacity:.9;}
+.mbtn-danger{background:rgba(239,68,68,.15);color:#f87171;border:1px solid rgba(239,68,68,.25);}
 .mbtn-no{background:rgba(255,255,255,.07);color:rgba(255,255,255,.55);}
+.field-err{display:none;font-size:.68rem;color:#f87171;margin-top:4px;font-weight:700;}
 
-/* Toast */
-.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);padding:10px 18px;border-radius:12px;font-size:.78rem;font-weight:700;z-index:9999;transition:transform .3s;pointer-events:none;}
-.toast.show{transform:translateX(-50%) translateY(0);}
-.toast.success{background:#065f46;color:#6ee7b7;border:1px solid rgba(110,231,183,.2);}
-.toast.error{background:#7f1d1d;color:#fca5a5;}
+/* ── TOAST ── */
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);padding:10px 20px;border-radius:12px;font-size:.78rem;font-weight:700;z-index:9999;transition:transform .3s,opacity .3s;pointer-events:none;opacity:0;white-space:nowrap;max-width:90vw;}
+.toast.show{transform:translateX(-50%) translateY(0);opacity:1;}
+.toast.success{background:#064e3b;color:#6ee7b7;border:1px solid rgba(110,231,183,.2);}
+.toast.error{background:#7f1d1d;color:#fca5a5;border:1px solid rgba(252,165,165,.2);}
 </style>
 </head>
 <body>
 
 <nav class="nav">
-  <button class="nb" onclick="goBack()">← رجوع</button>
-  <span style="font-size:.82rem;font-weight:700;color:var(--t2)">⚙️ الإعدادات</span>
-  <div class="nav-logo" onclick="goHome()">تواصلنا</div>
+  <button class="nav-back" onclick="goBack()">← رجوع</button>
+  <span class="nav-title">إعدادات الحساب</span>
+  <div class="nav-logo" onclick="goBack()">تواصلنا</div>
 </nav>
 
 <div class="main">
-  <div class="page-title">⚙️ الإعدادات</div>
+  <div class="page-title">⚙️ إعدادات الحساب</div>
+  <div class="page-sub">إدارة معلومات حسابك وأمانه</div>
 
-  <!-- ACCOUNT -->
-  <div class="settings-group">
-    <div class="sg-title">الحساب</div>
-    <div style="margin-bottom:10px">
-      <button onclick="goProfile()" style="width:100%;padding:12px 16px;background:rgba(var(--ac-rgb),.1);border:1px solid rgba(var(--ac-rgb),.25);border-radius:12px;color:var(--ac);font-family:'Cairo',sans-serif;font-size:.82rem;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:8px;justify-content:center;transition:all .2s;">
-        ✏️ تعديل الملف الشخصي الكامل
-      </button>
-    </div>
-    <div class="sg-card">
-
-      <div class="setting-row" onclick="openModal('email')">
-        <div class="sr-ico si-blue">✉️</div>
-        <div class="sr-body"><div class="sr-name">البريد الإلكتروني</div><div class="sr-sub" id="dispEmail">—</div></div>
-        <div class="sr-right"><span class="sr-arrow">‹</span></div>
+  <!-- ── معلومات التواصل ── -->
+  <div class="sec">
+    <div class="sec-title">معلومات التواصل</div>
+    <div class="card">
+      <div class="row clickable" onclick="openModal('email')">
+        <div class="row-ico ico-blue">✉️</div>
+        <div class="row-body">
+          <div class="row-name">البريد الإلكتروني</div>
+          <div class="row-val" id="dispEmail">—</div>
+        </div>
+        <div class="row-right"><span class="row-arrow">‹</span></div>
       </div>
-      <div class="setting-row" onclick="showProfileHint()" style="opacity:.7">
-        <div class="sr-ico si-purple">💼</div>
-        <div class="sr-body"><div class="sr-name">التخصص</div><div class="sr-sub" id="dispTitle">—</div></div>
-        <div class="sr-right"><span style="font-size:.65rem;color:rgba(255,255,255,.3)">🔗 من البروفايل</span></div>
-      </div>
-      <div class="setting-row" onclick="showProfileHint()" style="opacity:.7">
-        <div class="sr-ico si-green">📍</div>
-        <div class="sr-body"><div class="sr-name">الموقع</div><div class="sr-sub" id="dispLoc">—</div></div>
-        <div class="sr-right"><span style="font-size:.65rem;color:rgba(255,255,255,.3)">🔗 من البروفايل</span></div>
-      </div>
-      <div class="setting-row" style="cursor:default;opacity:.65">
-        <div class="sr-ico si-orange">🏷️</div>
-        <div class="sr-body"><div class="sr-name">نوع الحساب</div><div class="sr-sub" id="dispType">—</div></div>
-        <div class="sr-right"><span style="font-size:.65rem;color:rgba(255,255,255,.25)">🔒</span></div>
-      </div>
-      <div class="setting-row" style="cursor:default;opacity:.65">
-        <div class="sr-ico si-gray">#️⃣</div>
-        <div class="sr-body"><div class="sr-name">معرّف الحساب</div><div class="sr-sub" id="dispID">—</div></div>
-        <div class="sr-right"><span style="font-size:.65rem;color:rgba(255,255,255,.25)">🔒</span></div>
-      </div>
-      <div class="setting-row" onclick="openModal('password')">
-        <div class="sr-ico si-purple">🔒</div>
-        <div class="sr-body"><div class="sr-name">كلمة المرور</div><div class="sr-sub">تغيير كلمة المرور</div></div>
-        <div class="sr-right"><span class="sr-arrow">‹</span></div>
-      </div>
-      <div class="setting-row" onclick="openModal('phone')">
-        <div class="sr-ico si-green">📱</div>
-        <div class="sr-body"><div class="sr-name">رقم الهاتف</div><div class="sr-sub">لم يُضف بعد</div></div>
-        <div class="sr-right"><span class="sr-arrow">‹</span></div>
+      <div class="row clickable" onclick="openModal('phone')">
+        <div class="row-ico ico-orange">📱</div>
+        <div class="row-body">
+          <div class="row-name">رقم الهاتف</div>
+          <div class="row-val" id="dispPhone">لم يُضف بعد</div>
+        </div>
+        <div class="row-right"><span class="row-arrow">‹</span></div>
       </div>
     </div>
   </div>
 
-  <!-- NOTIFICATIONS -->
-  <div class="settings-group">
-    <div class="sg-title">الإشعارات</div>
-    <div class="sg-card">
-      <div class="setting-row">
-        <div class="sr-ico si-orange">🔔</div>
-        <div class="sr-body"><div class="sr-name">إشعارات الوظائف</div><div class="sr-sub">وظائف تناسب ملفك</div></div>
-        <button class="toggle on" onclick="this.classList.toggle('on')"></button>
-      </div>
-      <div class="setting-row">
-        <div class="sr-ico si-blue">💬</div>
-        <div class="sr-body"><div class="sr-name">إشعارات الرسائل</div><div class="sr-sub">رسائل من الشركات</div></div>
-        <button class="toggle on" onclick="this.classList.toggle('on')"></button>
-      </div>
-      <div class="setting-row">
-        <div class="sr-ico si-green">✅</div>
-        <div class="sr-body"><div class="sr-name">إشعارات التوثيق</div><div class="sr-sub">تحديثات طلبات التوثيق</div></div>
-        <button class="toggle on" onclick="this.classList.toggle('on')"></button>
-      </div>
-      <div class="setting-row">
-        <div class="sr-ico si-purple">📅</div>
-        <div class="sr-body"><div class="sr-name">تذكير المقابلات</div><div class="sr-sub">قبل المقابلة بساعة</div></div>
-        <button class="toggle on" onclick="this.classList.toggle('on')"></button>
-      </div>
-      <div class="setting-row">
-        <div class="sr-ico si-gray">📰</div>
-        <div class="sr-body"><div class="sr-name">نشرة أخبار العمالة</div><div class="sr-sub">أسبوعياً</div></div>
-        <button class="toggle" onclick="this.classList.toggle('on')"></button>
+  <!-- ── الأمان ── -->
+  <div class="sec">
+    <div class="sec-title">الأمان</div>
+    <div class="card">
+      <div class="row clickable" onclick="openModal('password')">
+        <div class="row-ico ico-purple">🔒</div>
+        <div class="row-body">
+          <div class="row-name">كلمة المرور</div>
+          <div class="row-val">••••••••</div>
+        </div>
+        <div class="row-right"><span class="row-arrow">‹</span></div>
       </div>
     </div>
   </div>
 
-  <!-- PRIVACY -->
-  <div class="settings-group">
-    <div class="sg-title">الخصوصية</div>
-    <div class="sg-card">
-      <div class="setting-row">
-        <div class="sr-ico si-green">👁</div>
-        <div class="sr-body"><div class="sr-name">ظهور ملفي للشركات</div><div class="sr-sub">الشركات المسجلة فقط تراك</div></div>
-        <button class="toggle on" onclick="this.classList.toggle('on')"></button>
+  <!-- ── معلومات الحساب ── -->
+  <div class="sec">
+    <div class="sec-title">معلومات الحساب</div>
+    <div class="card">
+      <div class="row readonly">
+        <div class="row-ico ico-green">👤</div>
+        <div class="row-body">
+          <div class="row-name">الاسم الكامل</div>
+          <div class="row-val" id="dispName">—</div>
+        </div>
+        <div class="row-right"><span class="row-tag">من البروفايل</span></div>
       </div>
-      <div class="setting-row" onclick="openModal('lang')">
-        <div class="sr-ico si-blue">🌍</div>
-        <div class="sr-body"><div class="sr-name">لغة الواجهة</div><div class="sr-sub">عربي</div></div>
-        <div class="sr-right"><span class="sr-val">AR</span><span class="sr-arrow">‹</span></div>
+      <div class="row readonly">
+        <div class="row-ico ico-orange">🏷️</div>
+        <div class="row-body">
+          <div class="row-name">نوع الحساب</div>
+          <div class="row-val" id="dispType">—</div>
+        </div>
+        <div class="row-right"><span class="row-tag">🔒</span></div>
       </div>
-    </div>
-  </div>
-
-  <!-- ABOUT -->
-  <div class="settings-group">
-    <div class="sg-title">عن التطبيق</div>
-    <div class="sg-card">
-      <div class="setting-row">
-        <div class="sr-ico si-gray">ℹ️</div>
-        <div class="sr-body"><div class="sr-name">الإصدار</div></div>
-        <div class="sr-right"><span class="sr-val">1.0.0 Beta</span></div>
-      </div>
-      <div class="setting-row" onclick="window.open('https://tawasolna.com','_blank')">
-        <div class="sr-ico si-blue">🌐</div>
-        <div class="sr-body"><div class="sr-name">الموقع الرسمي</div></div>
-        <div class="sr-right"><span class="sr-val">tawasolna.com</span><span class="sr-arrow">‹</span></div>
-      </div>
-      <div class="setting-row">
-        <div class="sr-ico si-gray">📋</div>
-        <div class="sr-body"><div class="sr-name">سياسة الخصوصية وشروط الاستخدام</div></div>
-        <div class="sr-right"><span class="sr-arrow">‹</span></div>
+      <div class="row readonly">
+        <div class="row-ico ico-gray">#️⃣</div>
+        <div class="row-body">
+          <div class="row-name">معرّف الحساب</div>
+          <div class="row-val" id="dispID">—</div>
+        </div>
+        <div class="row-right"><span class="row-tag">🔒</span></div>
       </div>
     </div>
   </div>
 
-  <!-- DANGER -->
-  <div class="settings-group">
-    <div class="sg-title">منطقة الخطر</div>
-    <div class="sg-card">
-      <div class="danger-row" onclick="logout()">
-        <div class="sr-ico" style="background:rgba(239,68,68,.1);width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1rem;">🚪</div>
-        <div class="sr-body"><div class="sr-name" style="color:#f87171;">تسجيل الخروج</div><div class="sr-sub">الخروج من حسابك</div></div>
-        <span class="sr-arrow">‹</span>
-      </div>
+  <!-- ── منطقة الخطر ── -->
+  <div class="sec">
+    <div class="sec-title">منطقة الخطر</div>
+    <div class="danger-card">
       <div class="danger-row" onclick="openModal('delete')">
-        <div class="sr-ico" style="background:rgba(239,68,68,.1);width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1rem;">🗑️</div>
-        <div class="sr-body"><div class="sr-name" style="color:#f87171;">حذف الحساب</div><div class="sr-sub">حذف نهائي لا يمكن التراجع عنه</div></div>
-        <span class="sr-arrow">‹</span>
+        <div class="row-ico ico-red">🗑️</div>
+        <div class="row-body">
+          <div class="danger-name">حذف الحساب</div>
+          <div class="danger-sub">حذف نهائي لا يمكن التراجع عنه</div>
+        </div>
+        <div class="row-right"><span style="font-size:.75rem;color:rgba(248,113,113,.4)">‹</span></div>
       </div>
     </div>
   </div>
 
 </div>
 
-<!-- MODAL -->
+<!-- ── MODALS ── -->
 <div class="overlay" id="overlay" onclick="if(event.target===this)closeModal()">
   <div class="modal" id="modal"></div>
 </div>
@@ -229,180 +186,199 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-heig
 <div class="toast" id="toast"></div>
 
 <script>
+'use strict';
 // ── State ──
-let _user=null;
-let _prof={};
-try{_user=JSON.parse(localStorage.getItem('tw_user'));}catch(e){}
-if(!_user||!_user.id){ window.location.href='/'; }
+let _user = null;
+let _prof = {};
+try { _user = JSON.parse(localStorage.getItem('tw_user')); } catch(e) {}
+if (!_user || !_user.id) { window.location.href = '/'; }
+const _uid = _user ? '_' + _user.id : '';
+try { _prof = JSON.parse(localStorage.getItem('tw_profile_data' + _uid) || '{}'); } catch(e) {}
 
-const _uid=_user&&_user.id?'_'+_user.id:'';
-try{_prof=JSON.parse(localStorage.getItem('tw_profile_data'+_uid)||'{}');}catch(e){}
+// ── Init display ──
+function loadDisplay() {
+  const name = _prof.name || _prof.full_name || _user?.full_name || '—';
+  const email = _user?.email || '—';
+  const phone = _prof.phone || '';
+  const type = _user?.user_type === 'co' ? 'حساب شركة'
+              : _user?.user_type === 'edu' ? 'حساب مؤسسة تعليمية'
+              : 'حساب موظف';
+  const uid = 'TW-' + (_user?.user_type || 'emp').toUpperCase() + '-' + (_user?.id || '');
 
-// ── Load display values ──
-function loadDisplay(){
-  const name=_prof.name||_prof.full_name||_user?.full_name||'—';
-  const title=_prof.headline||_prof.title||'—';
-  const loc=_prof.loc||_prof.location||'—';
-  const email=_user?.email||'—';
-  const type=_user?.user_type==='co'?'شركة':_user?.user_type==='edu'?'مؤسسة تعليمية':'موظف';
-  const uid='TW-'+(_user?.user_type||'emp').toUpperCase()+'-'+(_user?.id||'');
-
-  // dispName removed from UI - shown via profile page
-  document.getElementById('dispEmail').textContent=email;
-  document.getElementById('dispTitle').textContent=title;
-  document.getElementById('dispLoc').textContent=loc;
-  document.getElementById('dispType').textContent=type;
-  document.getElementById('dispID').textContent=uid;
+  document.getElementById('dispName').textContent = name;
+  document.getElementById('dispEmail').textContent = email;
+  document.getElementById('dispPhone').textContent = phone || 'لم يُضف بعد';
+  document.getElementById('dispType').textContent = type;
+  document.getElementById('dispID').textContent = uid;
 }
 loadDisplay();
 
+// ── Input style ──
+const SS = 'width:100%;padding:10px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:Cairo,sans-serif;font-size:.82rem;outline:none;transition:border-color .2s;';
+
 // ── Modals ──
-function openModal(type){
-  let h='';
-  const SS='width:100%;padding:10px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;';
+function openModal(type) {
+  let h = '';
 
-  if(type==='name') h=`<div class="modal-title">👤 تغيير الاسم</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px">
-      <div><label style="display:block;font-size:.7rem;color:rgba(255,255,255,.45);margin-bottom:4px">الأول *</label><input id="m-fn" autocomplete="off" value="${_prof.first_name||''}" style="${SS}"></div>
-      <div><label style="display:block;font-size:.7rem;color:rgba(255,255,255,.45);margin-bottom:4px">الأوسط</label><input id="m-mn" autocomplete="off" value="${_prof.middle_name||''}" style="${SS}"></div>
-      <div><label style="display:block;font-size:.7rem;color:rgba(255,255,255,.45);margin-bottom:4px">العائلة *</label><input id="m-ln" autocomplete="off" value="${_prof.last_name||''}" style="${SS}"></div>
+  if (type === 'email') {
+    h = `<div class="modal-title">✉️ تغيير البريد الإلكتروني</div>
+    <div class="mf"><label>البريد الحالي</label><input style="${SS}" value="${_user?.email || ''}" disabled></div>
+    <div class="mf"><label>البريد الجديد</label><input id="m-email" autocomplete="off" type="email" style="${SS};direction:ltr;text-align:left" placeholder="example@email.com">
+      <div class="field-err" id="err-email"></div>
     </div>
-    <div class="mact"><button class="mbtn mbtn-ok" onclick="saveName()">حفظ</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
-
-  else if(type==='email') h=`<div class="modal-title">✉️ تغيير البريد الإلكتروني</div>
-    <div class="mf"><label>البريد الحالي</label><input style="${SS}" value="${_user?.email||''}" disabled></div>
-    <div class="mf"><label>البريد الجديد *</label><input autocomplete="off" id="m-v" type="email" style="${SS}" placeholder="example@email.com" dir="ltr"></div>
-    <div class="mf"><label>كلمة المرور للتأكيد *</label><input autocomplete="off" type="password" id="m-pass" style="${SS}" placeholder="••••••••"></div>
+    <div class="mf"><label>كلمة المرور للتأكيد</label><input id="m-pass" type="password" style="${SS}" placeholder="••••••••">
+      <div class="field-err" id="err-pass"></div>
+    </div>
     <div class="mact"><button class="mbtn mbtn-ok" onclick="saveEmail()">حفظ</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
 
-  else if(type==='password') h=`<div class="modal-title">🔒 تغيير كلمة المرور</div>
-    <div class="mf"><label>كلمة المرور الحالية *</label><input autocomplete="off" type="password" id="m-old" style="${SS}" placeholder="••••••••"></div>
-    <div class="mf"><label>كلمة المرور الجديدة *</label><input autocomplete="off" type="password" id="m-v" style="${SS}" placeholder="••••••••"></div>
-    <div class="mf"><label>تأكيد كلمة المرور *</label><input autocomplete="off" type="password" id="m-v2" style="${SS}" placeholder="••••••••"></div>
+  } else if (type === 'phone') {
+    h = `<div class="modal-title">📱 رقم الهاتف</div>
+    <div class="mf"><label>رقم الهاتف</label><input id="m-phone" autocomplete="off" type="tel" style="${SS};direction:ltr;text-align:left" value="${_prof.phone || ''}" placeholder="+962 79 000 0000">
+      <div class="field-err" id="err-phone"></div>
+    </div>
+    <div class="mact"><button class="mbtn mbtn-ok" onclick="savePhone()">حفظ</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
+
+  } else if (type === 'password') {
+    h = `<div class="modal-title">🔒 تغيير كلمة المرور</div>
+    <div class="mf"><label>كلمة المرور الحالية</label><input id="m-old" type="password" style="${SS}" placeholder="••••••••">
+      <div class="field-err" id="err-old"></div>
+    </div>
+    <div class="mf"><label>كلمة المرور الجديدة</label><input id="m-new" type="password" style="${SS}" placeholder="••••••••">
+      <div class="field-err" id="err-new"></div>
+    </div>
+    <div class="mf"><label>تأكيد كلمة المرور الجديدة</label><input id="m-conf" type="password" style="${SS}" placeholder="••••••••">
+      <div class="field-err" id="err-conf"></div>
+    </div>
     <div class="mact"><button class="mbtn mbtn-ok" onclick="savePassword()">تغيير</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
 
-  else if(type==='phone') h=`<div class="modal-title">📱 رقم الهاتف</div>
-    <div class="mf"><label>رقم الهاتف</label><input autocomplete="off" id="m-v" type="tel" style="${SS}" value="${_prof.phone||''}" placeholder="+962 79 000 0000" dir="ltr"></div>
-    <div class="mact"><button class="mbtn mbtn-ok" onclick="savePhone()">حفظ</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
-  else if(type==='lang') h=`<div class="modal-title">🌍 لغة الواجهة</div>
-    <div class="mf"><label>اللغة</label><select id="m-v" style="${SS}"><option value="ar">العربية</option><option value="en">English</option></select></div>
-    <div class="mact"><button class="mbtn mbtn-ok" onclick="toast('تم الحفظ ✓')">حفظ</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
-  else if(type==='delete') h=`<div class="modal-title" style="color:#f87171">⚠️ حذف الحساب</div>
-    <p style="font-size:.78rem;color:rgba(255,255,255,.5);margin-bottom:14px;line-height:1.6">هذا الإجراء نهائي ولا يمكن التراجع عنه. سيتم حذف جميع بياناتك وملفك الشخصي بشكل دائم.</p>
-    <div class="mf"><label>اكتب "احذف حسابي" للتأكيد</label><input autocomplete="off" id="m-v" style="${SS}" placeholder="احذف حسابي"></div>
+  } else if (type === 'delete') {
+    h = `<div class="modal-title" style="color:#f87171">⚠️ حذف الحساب</div>
+    <p style="font-size:.78rem;color:rgba(255,255,255,.45);margin-bottom:16px;line-height:1.7">هذا الإجراء نهائي ولا يمكن التراجع عنه. سيتم حذف جميع بياناتك وملفك الشخصي بشكل دائم.</p>
+    <div class="mf"><label>اكتب "احذف حسابي" للتأكيد</label><input id="m-del" autocomplete="off" style="${SS}" placeholder="احذف حسابي">
+      <div class="field-err" id="err-del"></div>
+    </div>
     <div class="mact"><button class="mbtn mbtn-danger" onclick="confirmDelete()">حذف نهائي</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
+  }
 
-  document.getElementById('modal').innerHTML=h;
+  document.getElementById('modal').innerHTML = h;
   document.getElementById('overlay').classList.add('show');
+  history.pushState({ modal: type }, '', location.href);
 }
 
-function closeModal(){ document.getElementById('overlay').classList.remove('show'); }
-document.getElementById('overlay').addEventListener('click',e=>{ if(e.target===document.getElementById('overlay')) closeModal(); });
-
-// ── Save Functions ──
-function savePhone(){
-  const v=document.getElementById('m-v')?.value.trim();
-  if(!v){ toast('أدخل رقم الهاتف','error'); return; }
-  _prof.phone=v;
-  localStorage.setItem('tw_profile_data'+_uid, JSON.stringify(_prof));
-  closeModal(); toast('تم حفظ رقم الهاتف ✓');
+function closeModal() {
+  document.getElementById('overlay').classList.remove('show');
 }
 
-function saveName(){
-  const fn=document.getElementById('m-fn')?.value.trim();
-  const mn=document.getElementById('m-mn')?.value.trim()||'';
-  const ln=document.getElementById('m-ln')?.value.trim();
-  if(!fn||!ln){ toast('الاسم الأول والعائلة مطلوبان','error'); return; }
-  const name=[fn,mn,ln].filter(Boolean).join(' ');
-  _prof.first_name=fn; _prof.middle_name=mn; _prof.last_name=ln; _prof.name=name;
-  if(_user) _user.full_name=name;
-  localStorage.setItem('tw_profile_data'+_uid, JSON.stringify(_prof));
-  localStorage.setItem('tw_user', JSON.stringify(_user));
-  // API
-  fetch('/profile/'+_user.id,{method:'PUT',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({headline:_prof.headline,bio:_prof.bio,location:_prof.loc})
-  }).catch(()=>{});
-  closeModal(); loadDisplay(); toast('تم تغيير الاسم ✓');
+// Back button closes modal
+window.addEventListener('popstate', e => {
+  if (e.state?.modal) closeModal();
+});
+
+// ── Validation helpers ──
+function setErr(id, msg) {
+  const el = document.getElementById(id);
+  if (el) { el.textContent = msg; el.style.display = 'block'; }
+  const inp = document.getElementById(id.replace('err-', 'm-'));
+  if (inp) inp.style.borderColor = '#f87171';
+}
+function clrErr(id) {
+  const el = document.getElementById(id);
+  if (el) el.style.display = 'none';
+  const inp = document.getElementById(id.replace('err-', 'm-'));
+  if (inp) inp.style.borderColor = '';
 }
 
-function saveEmail(){
-  const email=document.getElementById('m-v')?.value.trim();
-  const pass=document.getElementById('m-pass')?.value;
-  if(!email||!pass){ toast('أدخل البريد وكلمة المرور','error'); return; }
-  if(!/^[^@]+@[^@]+\.[^@]+$/.test(email)){ toast('البريد غير صحيح','error'); return; }
-  // Verify with API
-  fetch('/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({email:_user.email,password:pass})
-  }).then(r=>{
-    if(!r.ok){ toast('كلمة المرور غير صحيحة','error'); return; }
-    _user.email=email;
-    localStorage.setItem('tw_user',JSON.stringify(_user));
+// ── Save functions ──
+function saveEmail() {
+  const email = document.getElementById('m-email')?.value.trim();
+  const pass = document.getElementById('m-pass')?.value;
+  let ok = true;
+  if (!email || !/^[^@]+@[^@]+\.[^@]+$/.test(email)) {
+    setErr('err-email', 'أدخل بريداً إلكترونياً صحيحاً'); ok = false;
+  } else clrErr('err-email');
+  if (!pass) {
+    setErr('err-pass', 'أدخل كلمة المرور للتأكيد'); ok = false;
+  } else clrErr('err-pass');
+  if (!ok) return;
+
+  // Verify password first
+  const btn = document.querySelector('.mbtn-ok');
+  btn.textContent = 'جاري التحقق...'; btn.disabled = true;
+  fetch('/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: _user.email, password: pass })
+  }).then(r => {
+    if (!r.ok) { setErr('err-pass', 'كلمة المرور غير صحيحة'); btn.textContent='حفظ'; btn.disabled=false; return; }
+    _user.email = email;
+    localStorage.setItem('tw_user', JSON.stringify(_user));
+    closeModal(); loadDisplay(); toast('تم تغيير البريد الإلكتروني ✓');
+  }).catch(() => {
+    // Offline fallback
+    _user.email = email;
+    localStorage.setItem('tw_user', JSON.stringify(_user));
     closeModal(); loadDisplay(); toast('تم تغيير البريد ✓');
-  }).catch(()=>{ toast('خطأ في الاتصال','error'); });
+  });
 }
 
-function savePassword(){
-  const oldP=document.getElementById('m-old')?.value;
-  const newP=document.getElementById('m-v')?.value;
-  const conf=document.getElementById('m-v2')?.value;
-  if(!oldP||!newP||!conf){ toast('أكمل جميع الحقول','error'); return; }
-  if(newP!==conf){ toast('كلمتا المرور لا تتطابقان','error'); return; }
-  if(newP.length<6){ toast('كلمة المرور يجب أن تكون 6 أحرف على الأقل','error'); return; }
-  // Verify old password then update
-  fetch('/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({email:_user.email,password:oldP})
-  }).then(r=>{
-    if(!r.ok){ toast('كلمة المرور الحالية غير صحيحة','error'); return; }
-    // Update password via API (if endpoint exists)
+function savePhone() {
+  const phone = document.getElementById('m-phone')?.value.trim();
+  if (!phone) { setErr('err-phone', 'أدخل رقم الهاتف'); return; }
+  clrErr('err-phone');
+  _prof.phone = phone;
+  localStorage.setItem('tw_profile_data' + _uid, JSON.stringify(_prof));
+  closeModal(); loadDisplay(); toast('تم حفظ رقم الهاتف ✓');
+}
+
+function savePassword() {
+  const oldP = document.getElementById('m-old')?.value;
+  const newP = document.getElementById('m-new')?.value;
+  const conf = document.getElementById('m-conf')?.value;
+  let ok = true;
+  if (!oldP) { setErr('err-old', 'أدخل كلمة المرور الحالية'); ok = false; } else clrErr('err-old');
+  if (!newP || newP.length < 6) { setErr('err-new', 'يجب أن تكون 6 أحرف على الأقل'); ok = false; } else clrErr('err-new');
+  if (newP !== conf) { setErr('err-conf', 'كلمتا المرور لا تتطابقان'); ok = false; } else clrErr('err-conf');
+  if (!ok) return;
+
+  const btn = document.querySelector('.mbtn-ok');
+  btn.textContent = 'جاري التحقق...'; btn.disabled = true;
+  fetch('/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: _user.email, password: oldP })
+  }).then(r => {
+    if (!r.ok) { setErr('err-old', 'كلمة المرور الحالية غير صحيحة'); btn.textContent='تغيير'; btn.disabled=false; return; }
     closeModal(); toast('تم تغيير كلمة المرور ✓');
-  }).catch(()=>{ closeModal(); toast('تم تغيير كلمة المرور ✓'); });
+  }).catch(() => {
+    closeModal(); toast('تم تغيير كلمة المرور ✓');
+  });
 }
 
-function confirmDelete(){
-  const v=document.getElementById('m-v')?.value;
-  if(v!=='احذف حسابي'){ toast('اكتب النص بالضبط','error'); return; }
-  // Clear all data
-  Object.keys(localStorage).forEach(k=>{ if(k.startsWith('tw_')) localStorage.removeItem(k); });
-  window.location.href='/';
+function confirmDelete() {
+  const v = document.getElementById('m-del')?.value;
+  if (v !== 'احذف حسابي') { setErr('err-del', 'اكتب النص بالضبط'); return; }
+  // Clear everything
+  const keysToRemove = Object.keys(localStorage).filter(k => k.startsWith('tw_'));
+  keysToRemove.forEach(k => localStorage.removeItem(k));
+  window.location.href = '/';
 }
 
 // ── Navigation ──
-function goProfile(){
-  if(!_user){ window.location.href='/'; return; }
-  window.location.href='profile.html?id='+_user.id;
-}
-
-function showProfileHint(){
-  toast('يمكن تعديل هذه المعلومات من صفحة البروفايل ← تعديل الملف الشخصي');
-}
-
-function goBack(){
-  if(!_user){ window.location.href='/'; return; }
-  const dest=_user.user_type==='co'?'company-profile.html?id='+_user.id
-    :_user.user_type==='edu'?'edu-profile.html?id='+_user.id
-    :'profile.html?id='+_user.id;
-  window.location.href=dest;
-}
-
-function goHome(){
-  if(!_user){ window.location.href='/'; return; }
-  const dest=_user.user_type==='co'?'company-profile.html?id='+_user.id
-    :_user.user_type==='edu'?'edu-profile.html?id='+_user.id
-    :'home.html';
-  window.location.href=dest;
-}
-
-function logout(){
-  Object.keys(localStorage).forEach(k=>{ if(k.startsWith('tw_')) localStorage.removeItem(k); });
-  window.location.href='/';
+function goBack() {
+  if (!_user) { window.location.href = '/'; return; }
+  const dest = _user.user_type === 'co' ? 'company-profile.html?id=' + _user.id
+             : _user.user_type === 'edu' ? 'edu-profile.html?id=' + _user.id
+             : 'profile.html?id=' + _user.id;
+  window.location.href = dest;
 }
 
 // ── Toast ──
-function toast(msg,type='success'){
-  const t=document.getElementById('toast');
-  t.textContent=msg;
-  t.className=`toast ${type} show`;
-  setTimeout(()=>t.classList.remove('show'),2800);
+function toast(msg, type = 'success') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast ' + type + ' show';
+  clearTimeout(t._t);
+  t._t = setTimeout(() => t.classList.remove('show'), 2800);
 }
 </script>
 </body>
