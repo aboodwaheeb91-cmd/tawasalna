@@ -431,7 +431,23 @@ def log_feedback(data: FeedbackInput):
 
 @app.get("/stats")
 def stats():
-    return {"jobs_count": len(JOBS)}
+    conn = get_conn()
+    try:
+        users_count = conn.run("SELECT COUNT(*) FROM users")[0][0]
+        emp_count = conn.run("SELECT COUNT(*) FROM users WHERE user_type='emp'")[0][0]
+        co_count = conn.run("SELECT COUNT(*) FROM users WHERE user_type='co'")[0][0]
+        edu_count = conn.run("SELECT COUNT(*) FROM users WHERE user_type='edu'")[0][0]
+        return {
+            "users_count": users_count,
+            "emp_count": emp_count,
+            "co_count": co_count,
+            "edu_count": edu_count,
+            "jobs_count": len(JOBS)
+        }
+    except Exception as e:
+        raise HTTPException(500, str(e))
+    finally:
+        conn.close()
 
 # ══════════════════════════════════════════
 # Admin Login - returns token
@@ -454,7 +470,7 @@ def get_all_users(request: Request):
         rows = conn.run(
             "SELECT id, full_name, email, user_type, created_at FROM users ORDER BY created_at DESC"
         )
-        cols = [d[0] for d in conn.columns]
+        cols = [d["name"] if isinstance(d, dict) else d[0] for d in conn.columns]
         users = [dict(zip(cols, r)) for r in rows]
         for u in users:
             if u.get("created_at"):
@@ -478,7 +494,7 @@ def admin_verify_requests(request: Request):
             JOIN users u ON u.id = vr.user_id
             ORDER BY vr.created_at DESC
         """)
-        cols = [d[0] for d in conn.columns]
+        cols = [d["name"] if isinstance(d, dict) else d[0] for d in conn.columns]
         reqs = [dict(zip(cols, r)) for r in rows]
         for r in reqs:
             if r.get("created_at"):
