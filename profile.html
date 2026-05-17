@@ -2144,17 +2144,9 @@ function saveProfile(){
   }catch(ex){}
   // Save to API
   if(_sessionUser&&_sessionUser.id){
-    // Update profile data
-fetch('/profile/'+_sessionUser.id,{method:'PUT',headers:{'Content-Type':'application/json'},
+    fetch('/profile/'+_sessionUser.id,{method:'PUT',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({headline:title,bio,location:loc,full_name:name})
     }).catch(()=>{});
-    // Update user name in DB
-    if(name && name!==(_sessionUser.full_name||'')){
-      fetch('/auth/user/'+_sessionUser.id+'/name',{method:'PUT',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({full_name:name})
-      }).catch(()=>{});
-    }
   }
   closeModal();
 }
@@ -2515,7 +2507,6 @@ function doLogout(){ localStorage.removeItem('tw_user'); location.href='/login.h
       document.getElementById('cvLoc').textContent='📍 '+locTxt;
     }
   }catch(ex){
-    // Only use DB name if no localStorage data
     const _lsCheck=JSON.parse(localStorage.getItem('tw_profile_data'+getUID())||'{}');
     if(user.full_name && !_lsCheck.full_name) document.getElementById('cvName').textContent=user.full_name;
   }
@@ -2549,7 +2540,6 @@ function doLogout(){ localStorage.removeItem('tw_user'); location.href='/login.h
     .then(data => {
       const p = data.profile;
       if(!p) return;
-      // localStorage is source of truth - only use API if no local data
       const _lsProf=JSON.parse(localStorage.getItem('tw_profile_data'+getUID())||'{}');
       if(p.full_name && !_lsProf.full_name) document.getElementById('cvName').textContent = p.full_name;
       if(p.headline && !_lsProf.headline)   document.getElementById('cvTitle').textContent = p.headline;
@@ -2569,7 +2559,6 @@ function doLogout(){ localStorage.removeItem('tw_user'); location.href='/login.h
       }
     })
     .catch(()=>{
-      // Only use DB name if no localStorage data
       const _lsCheck2=JSON.parse(localStorage.getItem('tw_profile_data'+getUID())||'{}');
       if(user.full_name && !_lsCheck2.full_name) document.getElementById('cvName').textContent = user.full_name;
     });
