@@ -192,11 +192,17 @@ let _user = null;
 let _prof = {};
 try { _user = JSON.parse(localStorage.getItem('tw_user')); } catch(e) {}
 if (!_user || !_user.id) { window.location.href = '/'; }
-const _uid = _user ? '_' + _user.id : '';
-try { _prof = JSON.parse(localStorage.getItem('tw_profile_data' + _uid) || '{}'); } catch(e) {}
+function getUID(){
+  try{ const u=JSON.parse(localStorage.getItem('tw_user')); return u&&u.id?'_'+u.id:''; }catch(e){ return ''; }
+}
+const _uid = getUID();
+try { _prof = JSON.parse(localStorage.getItem('tw_profile_data'+getUID()) || '{}'); } catch(e) {}
 
 // ── Init display ──
 function loadDisplay() {
+  // Always read fresh
+  try { _user = JSON.parse(localStorage.getItem('tw_user')); } catch(e) {}
+  try { _prof = JSON.parse(localStorage.getItem('tw_profile_data'+getUID()) || '{}'); } catch(e) {}
   const name = _prof.name || _prof.full_name || _user?.full_name || '—';
   const email = _user?.email || '—';
   const phone = _prof.phone || '';
@@ -213,21 +219,18 @@ function loadDisplay() {
 }
 loadDisplay();
 
-// Reload data when user comes back to this tab/page
-document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible') {
-    try { _user = JSON.parse(localStorage.getItem('tw_user')); } catch(e) {}
-    try { _prof = JSON.parse(localStorage.getItem('tw_profile_data' + _uid) || '{}'); } catch(e) {}
-    loadDisplay();
-  }
-});
-
-// Also reload when page gets focus
-window.addEventListener('focus', () => {
+// Reload when user returns to page
+function reloadData(){
   try { _user = JSON.parse(localStorage.getItem('tw_user')); } catch(e) {}
-  try { _prof = JSON.parse(localStorage.getItem('tw_profile_data' + _uid) || '{}'); } catch(e) {}
+  try { _prof = JSON.parse(localStorage.getItem('tw_profile_data'+getUID()) || '{}'); } catch(e) {}
+  // Also read full_name from tw_user directly
+  if(_user?.full_name && !_prof.name) _prof.name = _user.full_name;
   loadDisplay();
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') reloadData();
 });
+window.addEventListener('focus', reloadData);
 
 // ── Input style ──
 const SS = 'width:100%;padding:10px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:Cairo,sans-serif;font-size:.82rem;outline:none;transition:border-color .2s;';
@@ -342,7 +345,7 @@ function savePhone() {
   if (!phone) { setErr('err-phone', 'أدخل رقم الهاتف'); return; }
   clrErr('err-phone');
   _prof.phone = phone;
-  localStorage.setItem('tw_profile_data' + _uid, JSON.stringify(_prof));
+  localStorage.setItem('tw_profile_data'+getUID(), JSON.stringify(_prof));
   closeModal(); loadDisplay(); toast('تم حفظ رقم الهاتف ✓');
 }
 
