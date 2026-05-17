@@ -213,6 +213,22 @@ function loadDisplay() {
 }
 loadDisplay();
 
+// Reload data when user comes back to this tab/page
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') {
+    try { _user = JSON.parse(localStorage.getItem('tw_user')); } catch(e) {}
+    try { _prof = JSON.parse(localStorage.getItem('tw_profile_data' + _uid) || '{}'); } catch(e) {}
+    loadDisplay();
+  }
+});
+
+// Also reload when page gets focus
+window.addEventListener('focus', () => {
+  try { _user = JSON.parse(localStorage.getItem('tw_user')); } catch(e) {}
+  try { _prof = JSON.parse(localStorage.getItem('tw_profile_data' + _uid) || '{}'); } catch(e) {}
+  loadDisplay();
+});
+
 // ── Input style ──
 const SS = 'width:100%;padding:10px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:Cairo,sans-serif;font-size:.82rem;outline:none;transition:border-color .2s;';
 
