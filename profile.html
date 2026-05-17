@@ -1064,9 +1064,9 @@ function delSectionItem(elId, lsKeyBase, lid, itemId){
 
 // ── Save section items ──
 function saveSectionItem(lsKey, item, lid, renderFn){
-  const key=lsKey+uid;
+  const key=lsKey+getUID();
   try{
-    const arr=JSON.parse(localStorage.getItem(key+getUID())||'[]');
+    const arr=JSON.parse(localStorage.getItem(key)||'[]');
     arr.unshift(item);
     localStorage.setItem(key,JSON.stringify(arr));
   }catch(ex){}
@@ -1078,7 +1078,9 @@ function saveSectionItem(lsKey, item, lid, renderFn){
   closeModal();
 }
 
-function saveSkillItem(lid){
+function saveSkillItem(){
+  const lid=document.getElementById('modal')?.dataset?.listId||'';
+  if(!lid) return;
   const name=document.getElementById('m-skill-name')?.value.trim();
   const level=document.getElementById('m-skill-level')?.value||'';
   if(!name){ document.getElementById('m-skill-name').style.borderColor='#f87171'; return; }
@@ -1086,7 +1088,9 @@ function saveSkillItem(lid){
   saveSectionItem('tw_skills',{id:Date.now(),name,level},lid,renderSkillItem);
 }
 
-function saveLangItem(lid){
+function saveLangItem(){
+  const lid=document.getElementById('modal')?.dataset?.listId||'';
+  if(!lid) return;
   const name=document.getElementById('m-lang-name')?.value;
   const level=document.getElementById('m-lang-level')?.value;
   if(!name){ document.getElementById('m-lang-name').style.borderColor='#f87171'; return; }
@@ -1096,7 +1100,9 @@ function saveLangItem(lid){
   saveSectionItem('tw_langs',{id:Date.now(),name,level},lid,renderLangItem);
 }
 
-function saveLinkItem(lid){
+function saveLinkItem(){
+  const lid=document.getElementById('modal')?.dataset?.listId||'';
+  if(!lid) return;
   const url=document.getElementById('m-link-url')?.value.trim();
   const type=document.getElementById('m-link-type')?.value||'رابط';
   if(!url){ document.getElementById('m-link-url').style.borderColor='#f87171'; return; }
@@ -1106,7 +1112,9 @@ function saveLinkItem(lid){
   saveSectionItem('tw_links',{id:Date.now(),type,url:finalUrl},lid,renderLinkItem);
 }
 
-function saveCourseItem(lid){
+function saveCourseItem(){
+  const lid=document.getElementById('modal')?.dataset?.listId||'';
+  if(!lid) return;
   const name=document.getElementById('m-course-name')?.value.trim();
   const provider=document.getElementById('m-course-provider')?.value.trim()||'';
   const year=document.getElementById('m-course-year')?.value||'';
@@ -1732,6 +1740,7 @@ function openModal(type,listId,secTitle){
     <div class="mact"><button class="mbtn mbtn-ok" onclick="saveGeneric('${listId}')">إضافة</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
   }
   document.getElementById('modal').innerHTML=h;
+  if(listId) document.getElementById('modal').dataset.listId=listId;
   document.getElementById('overlay').classList.add('show');
 }
 function showFn(input){ const fn=input.parentElement.querySelector('.fn'); if(fn&&input.files[0]) fn.textContent='✓ '+input.files[0].name; }
