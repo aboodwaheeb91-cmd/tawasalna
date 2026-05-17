@@ -2663,12 +2663,12 @@ function doLogout(){ localStorage.removeItem('tw_user'); location.href='/'; }
       if(p.location)  document.getElementById('cvLoc').textContent = '📍 ' + p.location;
       const t = p.user_type || 'emp';
       document.getElementById('cvCode').textContent = data.tw_id || p.tw_id || ('TW-' + t.toUpperCase() + '-' + String(p.id));
-      if(p.experience && p.experience.length){
+      if(!_isOwnProfile && p.experience && p.experience.length){
         document.getElementById('exp-list').innerHTML = ''; // clear empty hint
         p.experience.forEach(e => document.getElementById('exp-list').insertAdjacentHTML('beforeend',
           `<div class="item"><div class="item-title">${e.title}</div><div class="item-sub">${e.company}${e.location?' · '+e.location:''}</div><div class="item-date">${e.start_date||''}${e.end_date?' - '+e.end_date:''}</div><span class="badge pending">⏳ قيد التوثيق</span></div>`));
       }
-      if(p.education && p.education.length){
+      if(!_isOwnProfile && p.education && p.education.length){
         document.getElementById('edu-list').innerHTML = ''; // clear empty hint
         p.education.forEach(e => document.getElementById('edu-list').insertAdjacentHTML('beforeend',
           `<div class="item"><div class="item-title">${e.degree||'شهادة'}</div><div class="item-sub">${e.institution}</div><div class="item-date">${e.end_year||''}</div><span class="badge pending">⏳ قيد التوثيق</span></div>`));
