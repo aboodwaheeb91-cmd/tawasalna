@@ -445,24 +445,26 @@ def add_course(user_id: int, data: dict) -> dict:
 # ══ طلبات التحقق ══
 def upsert_verify_request(user_id: int, item_type: str, item_id: int, item_title: str, item_company: str = None) -> dict:
     """
-    Creates or updates a pending verify request for a specific item.
-    If a pending request exists for same user+type+item → updates it.
-    Otherwise → creates new.
+    Creates or updates a pending verify request.
+    Deduplication by: user_id + item_type + item_title (handles timestamp ids)
     """
     conn = get_conn()
     try:
-        # Check for existing pending request
+        # Search by title (more reliable than id which might be timestamp)
         existing = conn.run(
-            "SELECT id FROM verify_requests WHERE user_id=:uid AND item_type=:itype AND item_id=:iid AND status='pending'",
-            uid=user_id, itype=item_type, iid=item_id
+            "SELECT id FROM verify_requests "
+            "WHERE user_id=:uid AND item_type=:itype AND item_title=:ititle AND status='pending'",
+            uid=user_id, itype=item_type, ititle=item_title
         )
         if existing:
+            # Update existing
             conn.run(
-                "UPDATE verify_requests SET item_title=:ititle, item_company=:icompany, created_at=NOW() WHERE id=:rid",
-                ititle=item_title, icompany=item_company or '', rid=existing[0][0]
+                "UPDATE verify_requests SET item_id=:iid, item_company=:icompany, created_at=NOW() WHERE id=:rid",
+                iid=item_id, icompany=item_company or '', rid=existing[0][0]
             )
             return {"id": existing[0][0], "action": "updated"}
         else:
+            # Create new
             rows = conn.run(
                 "INSERT INTO verify_requests (user_id, item_type, item_id, item_title, item_company, status) "
                 "VALUES (:uid, :itype, :iid, :ititle, :icompany, 'pending') "
