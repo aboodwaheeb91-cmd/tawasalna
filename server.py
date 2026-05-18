@@ -63,17 +63,6 @@ ADMIN_URL_TOKEN = "kPuOWhpIYjdLQXmh"
 # Stable token derived from password - no server storage needed
 ADMIN_TOKEN = hashlib.sha256(ADMIN_PASSWORD.encode()).hexdigest()
 
-from contextlib import asynccontextmanager
-
-@asynccontextmanager
-async def lifespan(app):
-    try:
-        init_db()
-        print("✅ DB initialized")
-    except Exception as e:
-        print(f"⚠️ DB init failed: {e}")
-    yield
-
 # ── Helpers ──
 def read_html(name: str) -> str:
     try:
@@ -93,7 +82,15 @@ def check_admin(request: Request):
 # ══════════════════════════════════════════
 
 # ── App ──
-app = FastAPI(lifespan=lifespan, title="تواصلنا API", version="1.0.0")
+app = FastAPI(title="تواصلنا API", version="1.0.0")
+
+@app.on_event("startup")
+def on_startup():
+    try:
+        init_db()
+        print("✅ DB initialized")
+    except Exception as e:
+        print(f"⚠️ DB init failed: {e}")
 
 app.add_middleware(
     CORSMiddleware,
