@@ -194,6 +194,36 @@ def init_db():
             )
         """)
         conn.run("""
+            CREATE TABLE IF NOT EXISTS jobs (
+                id SERIAL PRIMARY KEY,
+                company_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                title TEXT NOT NULL,
+                description TEXT,
+                location TEXT,
+                job_type TEXT DEFAULT 'full_time',
+                salary_min INTEGER,
+                salary_max INTEGER,
+                currency TEXT DEFAULT 'USD',
+                experience_years INTEGER DEFAULT 0,
+                skills TEXT[],
+                status TEXT DEFAULT 'active',
+                views INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT NOW(),
+                expires_at TIMESTAMP
+            )
+        """)
+        conn.run("""
+            CREATE TABLE IF NOT EXISTS job_applications (
+                id SERIAL PRIMARY KEY,
+                job_id INTEGER NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                status TEXT DEFAULT 'pending',
+                cover_letter TEXT,
+                applied_at TIMESTAMP DEFAULT NOW(),
+                UNIQUE(job_id, user_id)
+            )
+        """)
+        conn.run("""
             CREATE TABLE IF NOT EXISTS verify_requests (
                 id SERIAL PRIMARY KEY,
                 user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -404,7 +434,7 @@ def update_profile(user_id: int, data: dict) -> dict:
                 name=data["full_name"], uid=user_id
             )
 
-        allowed = ["headline", "bio", "location", "skills", "avatar_url", "website"]
+        allowed = ["headline", "bio", "location", "skills", "avatar_url", "website", "phone", "sections_order", "custom_sections", "dob", "country", "city", "avail"]
         fields = {k: v for k, v in data.items() if k in allowed and v is not None}
 
         rows = conn.run("SELECT id FROM profiles WHERE user_id = :uid", uid=user_id)
@@ -520,3 +550,141 @@ def get_full_profile_by_tw_id(tw_id: str) -> Optional[dict]:
     """يجيب الملف الشخصي الكامل بالـ tw_id."""
     uid = get_user_id_by_tw_id(tw_id)
     return get_full_profile(uid) if uid else None
+
+
+# ══ الوظائف ══
+
+def add_job(company_id: int, data: dict) -> dict:
+    conn = get_conn()
+    try:
+        skills = data.get("skills") or []
+        rows = conn.run(
+            "INSERT INTO jobs (company_id, title, description, location, job_type, "
+            "salary_min, salary_max, currency, experience_years, skills, status) "
+            "VALUES (:cid, :title, :desc, :loc, :jtype, :smin, :smax, :cur, :exp, :skills, 'active') "
+            "RETURNING id, company_id, title, description, location, job_type, "
+            "salary_min, salary_max, currency, experience_years, skills, status, created_at",
+            cid=company_id, title=data.get("title",""),
+            desc=data.get("description",""), loc=data.get("location",""),
+            jtype=data.get("job_type","full_time"),
+            smin=data.get("salary_min"), smax=data.get("salary_max"),
+            cur=data.get("currency","USD"),
+            exp=data.get("experience_years",0),
+            skills=skills if skills else None
+        )
+        cols = [c["name"] for c in conn.columns]
+        return _serialize(_row_to_dict(cols, rows[0]))
+    finally:
+        conn.close()
+
+def get_jobs(filters: dict = None) -> list:
+    conn = get_conn()
+    try:
+        where = "WHERE j.status='active'"
+        params = {}
+        if filters:
+            if filters.get("search"):
+                where += " AND (j.title ILIKE :search OR j.description ILIKE :search)"
+                params["search"] = f"%{filters['search']}%"
+            if filters.get("location"):
+                where += " AND j.location ILIKE :loc"
+                params["loc"] = f"%{filters['location']}%"
+            if filters.get("job_type"):
+                where += " AND j.job_type = :jtype"
+                params["jtype"] = filters["job_type"]
+            if filters.get("company_id"):
+                where += " AND j.company_id = :cid"
+                params["cid"] = filters["company_id"]
+        rows = conn.run(
+            f"SELECT j.id, j.company_id, j.title, j.description, j.location, "
+            f"j.job_type, j.salary_min, j.salary_max, j.currency, "
+            f"j.experience_years, j.skills, j.status, j.views, j.created_at, "
+            f"u.full_name AS company_name "
+            f"FROM jobs j JOIN users u ON u.id=j.company_id "
+            f"{where} ORDER BY j.created_at DESC LIMIT 50",
+            **params
+        )
+        cols = [c["name"] for c in conn.columns]
+        return [_serialize(_row_to_dict(cols, r)) for r in rows]
+    finally:
+        conn.close()
+
+def get_job(job_id: int) -> dict:
+    conn = get_conn()
+    try:
+        conn.run("UPDATE jobs SET views=views+1 WHERE id=:id", id=job_id)
+        rows = conn.run(
+            "SELECT j.*, u.full_name AS company_name "
+            "FROM jobs j JOIN users u ON u.id=j.company_id "
+            "WHERE j.id=:id", id=job_id
+        )
+        if not rows: return None
+        cols = [c["name"] for c in conn.columns]
+        return _serialize(_row_to_dict(cols, rows[0]))
+    finally:
+        conn.close()
+
+def apply_job(job_id: int, user_id: int, cover_letter: str = "") -> dict:
+    conn = get_conn()
+    try:
+        rows = conn.run(
+            "INSERT INTO job_applications (job_id, user_id, cover_letter) "
+            "VALUES (:jid, :uid, :cl) "
+            "ON CONFLICT (job_id, user_id) DO NOTHING "
+            "RETURNING id, job_id, user_id, status, applied_at",
+            jid=job_id, uid=user_id, cl=cover_letter
+        )
+        if not rows:
+            return {"already_applied": True}
+        cols = [c["name"] for c in conn.columns]
+        return _serialize(_row_to_dict(cols, rows[0]))
+    finally:
+        conn.close()
+
+def get_job_applicants(job_id: int) -> list:
+    conn = get_conn()
+    try:
+        rows = conn.run(
+            "SELECT ja.id, ja.job_id, ja.user_id, ja.status, ja.cover_letter, ja.applied_at, "
+            "u.full_name, u.email, u.user_type "
+            "FROM job_applications ja JOIN users u ON u.id=ja.user_id "
+            "WHERE ja.job_id=:jid ORDER BY ja.applied_at DESC",
+            jid=job_id
+        )
+        cols = [c["name"] for c in conn.columns]
+        return [_serialize(_row_to_dict(cols, r)) for r in rows]
+    finally:
+        conn.close()
+
+def get_user_applications(user_id: int) -> list:
+    conn = get_conn()
+    try:
+        rows = conn.run(
+            "SELECT ja.id, ja.job_id, ja.status, ja.applied_at, "
+            "j.title, j.location, j.company_id, u.full_name AS company_name "
+            "FROM job_applications ja "
+            "JOIN jobs j ON j.id=ja.job_id "
+            "JOIN users u ON u.id=j.company_id "
+            "WHERE ja.user_id=:uid ORDER BY ja.applied_at DESC",
+            uid=user_id
+        )
+        cols = [c["name"] for c in conn.columns]
+        return [_serialize(_row_to_dict(cols, r)) for r in rows]
+    finally:
+        conn.close()
+
+def update_application_status(app_id: int, status: str) -> dict:
+    conn = get_conn()
+    try:
+        conn.run("UPDATE job_applications SET status=:s WHERE id=:id", s=status, id=app_id)
+        return {"success": True}
+    finally:
+        conn.close()
+
+def delete_job(job_id: int, company_id: int) -> bool:
+    conn = get_conn()
+    try:
+        conn.run("DELETE FROM jobs WHERE id=:id AND company_id=:cid", id=job_id, cid=company_id)
+        return True
+    finally:
+        conn.close()
