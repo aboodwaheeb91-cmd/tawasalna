@@ -223,6 +223,8 @@ loadDisplay();
 function reloadData(){
   try { _user = JSON.parse(localStorage.getItem('tw_user')); } catch(e) {}
   try { _prof = JSON.parse(localStorage.getItem('tw_profile_data'+getUID()) || '{}'); } catch(e) {}
+  try { _user = JSON.parse(localStorage.getItem('tw_user')); } catch(e) {}
+  try { _prof = JSON.parse(localStorage.getItem('tw_profile_data'+getUID()) || '{}'); } catch(e) {}
   // Also read full_name from tw_user directly
   if(_user?.full_name && !_prof.name) _prof.name = _user.full_name;
   loadDisplay();
@@ -344,9 +346,14 @@ function savePhone() {
   const phone = document.getElementById('m-phone')?.value.trim();
   if (!phone) { setErr('err-phone', 'أدخل رقم الهاتف'); return; }
   clrErr('err-phone');
-  _prof.phone = phone;
-  localStorage.setItem('tw_profile_data'+getUID(), JSON.stringify(_prof));
-  closeModal(); loadDisplay(); toast('تم حفظ رقم الهاتف ✓');
+  fetch('/profile/'+_user.id, {
+    method:'PUT', headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({phone:phone})
+  }).finally(()=>{
+    _prof.phone = phone;
+    localStorage.setItem('tw_profile_data'+getUID(), JSON.stringify(_prof));
+    closeModal(); loadDisplay(); toast('تم حفظ رقم الهاتف ✓');
+  });
 }
 
 function savePassword() {
@@ -376,10 +383,11 @@ function savePassword() {
 function confirmDelete() {
   const v = document.getElementById('m-del')?.value;
   if (v !== 'احذف حسابي') { setErr('err-del', 'اكتب النص بالضبط'); return; }
-  // Clear everything
-  const keysToRemove = Object.keys(localStorage).filter(k => k.startsWith('tw_'));
-  keysToRemove.forEach(k => localStorage.removeItem(k));
-  window.location.href = '/login.html';
+  // Delete from DB then clear local
+  fetch('/auth/user/'+_user.id+'/delete', {method:'DELETE'}).finally(()=>{
+    Object.keys(localStorage).filter(k=>k.startsWith('tw_')).forEach(k=>localStorage.removeItem(k));
+    window.location.href = '/login.html';
+  });
 }
 
 // ── Navigation ──
