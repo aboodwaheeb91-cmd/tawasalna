@@ -63,6 +63,26 @@ ADMIN_URL_TOKEN = "kPuOWhpIYjdLQXmh"
 # Stable token derived from password - no server storage needed
 ADMIN_TOKEN = hashlib.sha256(ADMIN_PASSWORD.encode()).hexdigest()
 
+# ── App ──
+app = FastAPI(title="تواصلنا API", version="1.0.0")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+    allow_credentials=False,  # Must be False with allow_origins=["*"]
+)
+
+# ── Startup ──
+@app.on_event("startup")
+def on_startup():
+    try:
+        init_db()
+        print("✅ DB initialized")
+    except Exception as e:
+        print(f"⚠️ DB init failed: {e}")
+
 # ── Helpers ──
 def read_html(name: str) -> str:
     try:
@@ -80,27 +100,6 @@ def check_admin(request: Request):
 # ══════════════════════════════════════════
 # HTML Pages
 # ══════════════════════════════════════════
-
-# ── App ──
-app = FastAPI(title="تواصلنا API", version="1.0.0")
-
-@app.on_event("startup")
-def on_startup():
-    try:
-        init_db()
-        print("✅ DB initialized")
-    except Exception as e:
-        print(f"⚠️ DB init failed: {e}")
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-    allow_credentials=False,  # Must be False with allow_origins=["*"]
-)
-
-# ── Startup ──
 @app.get("/", response_class=HTMLResponse)
 def root(): return read_html("landing.html")
 
@@ -233,7 +232,7 @@ class CourseInput(BaseModel):
 
 class VerifyRequestInput(BaseModel):
     user_id: int
-    item_type: Optional[str] = None   # exp / edu / course
+    item_type: Optional[str] = None
     item_id: Optional[int] = None
     item_title: Optional[str] = None
     item_company: Optional[str] = None
@@ -403,8 +402,8 @@ def request_verification(data: VerifyRequestInput):
         result = upsert_verify_request(
             user_id=data.user_id,
             item_type=data.item_type,
-            item_id=data.item_id,
-            item_title=data.item_title,
+            item_id=data.item_id or 0,
+            item_title=data.item_title or "",
             item_company=data.item_company or ""
         )
         return {"status": "success", **result}
