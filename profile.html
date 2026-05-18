@@ -2307,11 +2307,19 @@ function saveExp(){
       fetch('/experience/'+_sessionUser.id,{method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({title:t,company:co,location:l,start_date:s,end_date:e,description:edesc})
       }).then(r=>r.json()).then(data=>{
-        const expId = data?.experience?.id || data?.id;
-        if(expId){
-          // Send verify request for this experience
+        const dbId = data?.experience?.id || data?.id;
+        if(dbId){
+          // Update localStorage with real DB id
+          try{
+            const exps=JSON.parse(localStorage.getItem('tw_exp'+getUID())||'[]');
+            const fi=exps.findIndex(x=>x.id===expId);
+            if(fi>-1){ exps[fi].id=dbId; localStorage.setItem('tw_exp'+getUID(),JSON.stringify(exps)); }
+            const el=document.getElementById('exp-'+expId);
+            if(el) el.id='exp-'+dbId;
+          }catch(ex){}
+          // Send verify request with real DB id
           fetch('/verify-request',{method:'POST',headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({user_id:_sessionUser.id,item_type:'exp',item_id:expId,item_title:t,item_company:co})
+            body:JSON.stringify({user_id:_sessionUser.id,item_type:'exp',item_id:dbId,item_title:t,item_company:co})
           }).catch(()=>{});
         }
       }).catch(()=>{});
@@ -2364,10 +2372,17 @@ function saveEdu(){
       fetch('/education/'+_sessionUser.id,{method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({institution:i,degree:d,end_year:parseInt(y)||null})
       }).then(r=>r.json()).then(data=>{
-        const eduId = data?.education?.id || data?.id;
-        if(eduId){
+        const dbId = data?.education?.id || data?.id;
+        if(dbId){
+          try{
+            const edus=JSON.parse(localStorage.getItem('tw_edu'+getUID())||'[]');
+            const fi=edus.findIndex(x=>x.id===eduId);
+            if(fi>-1){ edus[fi].id=dbId; localStorage.setItem('tw_edu'+getUID(),JSON.stringify(edus)); }
+            const el=document.getElementById('edu-'+eduId);
+            if(el) el.id='edu-'+dbId;
+          }catch(ex){}
           fetch('/verify-request',{method:'POST',headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({user_id:_sessionUser.id,item_type:'edu',item_id:eduId,item_title:d,item_company:i})
+            body:JSON.stringify({user_id:_sessionUser.id,item_type:'edu',item_id:dbId,item_title:d,item_company:i})
           }).catch(()=>{});
         }
       }).catch(()=>{});

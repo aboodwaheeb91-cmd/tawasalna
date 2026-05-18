@@ -447,10 +447,17 @@ def create_verify_request(user_id: int, data: dict) -> dict:
     conn = get_conn()
     try:
         rows = conn.run(
-            "INSERT INTO verify_requests (user_id, document_url, notes, status) "
-            "VALUES (:uid, :doc_url, :notes, 'pending') "
-            "RETURNING id, user_id, document_url, notes, status, created_at",
-            uid=user_id, doc_url=data.get("document_url"), notes=data.get("notes")
+            "INSERT INTO verify_requests "
+            "(user_id, item_type, item_id, item_title, item_company, document_url, notes, status) "
+            "VALUES (:uid, :itype, :iid, :ititle, :icompany, :doc_url, :notes, 'pending') "
+            "RETURNING id, user_id, item_type, item_id, item_title, item_company, status, created_at",
+            uid=user_id,
+            itype=data.get("item_type"),
+            iid=data.get("item_id"),
+            ititle=data.get("item_title"),
+            icompany=data.get("item_company"),
+            doc_url=data.get("document_url"),
+            notes=data.get("notes")
         )
         cols = [c["name"] for c in conn.columns]
         return _serialize(_row_to_dict(cols, rows[0]))
