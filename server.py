@@ -397,8 +397,8 @@ def add_user_course(user_id: int, data: CourseInput):
 @app.post("/verify-request")
 def request_verification(data: VerifyRequestInput):
     try:
-        if not data.item_type or not data.item_id or not data.item_title:
-            raise HTTPException(400, "item_type, item_id, item_title مطلوبة")
+        if not data.item_type or not data.user_id:
+            raise HTTPException(400, "item_type و user_id مطلوبان")
         result = upsert_verify_request(
             user_id=data.user_id,
             item_type=data.item_type,

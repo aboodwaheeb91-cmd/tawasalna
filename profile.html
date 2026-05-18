@@ -2261,18 +2261,23 @@ function saveProfile(){
 
 // ── Helper: Send verify request ──
 function sendVerifyRequest(itemType, itemId, itemTitle, itemCompany){
-  if(!_sessionUser||!_sessionUser.id||!itemId) return;
+  if(!_sessionUser||!_sessionUser.id) return;
+  if(!itemType||!itemTitle) return;
+  const payload = {
+    user_id: _sessionUser.id,
+    item_type: itemType,
+    item_id: itemId||0,
+    item_title: itemTitle||'',
+    item_company: itemCompany||''
+  };
   fetch('/verify-request',{
     method:'POST',
     headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({
-      user_id: _sessionUser.id,
-      item_type: itemType,
-      item_id: itemId,
-      item_title: itemTitle||'',
-      item_company: itemCompany||''
-    })
-  }).catch(()=>{}); // silent fail - user experience not affected
+    body:JSON.stringify(payload)
+  }).then(r=>r.json()).then(d=>{
+    if(d.status==='success') console.log('✅ Verify request sent:', d);
+    else console.warn('⚠️ Verify issue:', d);
+  }).catch(e=>console.error('❌ Verify failed:', e));
 }
 
 function saveExp(){
