@@ -443,48 +443,19 @@ def add_course(user_id: int, data: dict) -> dict:
 
 
 # ══ طلبات التحقق ══
-def upsert_verify_request(user_id: int, item_type: str, item_id: int, item_title: str, item_company: str = None) -> dict:
-    """
-    Creates or updates a pending verify request.
-    Deduplication by: user_id + item_type + item_title (handles timestamp ids)
-    """
+def create_verify_request(user_id: int, data: dict) -> dict:
     conn = get_conn()
     try:
-        # Search by title (more reliable than id which might be timestamp)
-        existing = conn.run(
-            "SELECT id FROM verify_requests "
-            "WHERE user_id=:uid AND item_type=:itype AND item_title=:ititle AND status='pending'",
-            uid=user_id, itype=item_type, ititle=item_title
+        rows = conn.run(
+            "INSERT INTO verify_requests (user_id, document_url, notes, status) "
+            "VALUES (:uid, :doc_url, :notes, 'pending') "
+            "RETURNING id, user_id, document_url, notes, status, created_at",
+            uid=user_id, doc_url=data.get("document_url"), notes=data.get("notes")
         )
-        if existing:
-            # Update existing
-            conn.run(
-                "UPDATE verify_requests SET item_id=:iid, item_company=:icompany, created_at=NOW() WHERE id=:rid",
-                iid=item_id, icompany=item_company or '', rid=existing[0][0]
-            )
-            return {"id": existing[0][0], "action": "updated"}
-        else:
-            # Create new
-            rows = conn.run(
-                "INSERT INTO verify_requests (user_id, item_type, item_id, item_title, item_company, status) "
-                "VALUES (:uid, :itype, :iid, :ititle, :icompany, 'pending') "
-                "RETURNING id",
-                uid=user_id, itype=item_type, iid=item_id,
-                ititle=item_title, icompany=item_company or ''
-            )
-            return {"id": rows[0][0], "action": "created"}
+        cols = [c["name"] for c in conn.columns]
+        return _serialize(_row_to_dict(cols, rows[0]))
     finally:
         conn.close()
-
-# Keep old name as alias for compatibility
-def create_verify_request(user_id: int, data: dict) -> dict:
-    return upsert_verify_request(
-        user_id=user_id,
-        item_type=data.get("item_type", ""),
-        item_id=data.get("item_id", 0),
-        item_title=data.get("item_title", ""),
-        item_company=data.get("item_company", "")
-    )
 
 
 def get_user_id_by_tw_id(tw_id: str) -> Optional[int]:

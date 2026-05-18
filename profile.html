@@ -1653,9 +1653,6 @@ function loadSectionOrder(){
 // Modals
 function openModal(type,listId,secTitle){
   let h='';
-  // Clear any previous edit state
-  const _modal=document.getElementById('modal');
-  if(_modal){ delete _modal.dataset.editId; delete _modal.dataset.editType; }
   if(type==='profile'){
     // Always read from localStorage (source of truth)
     const uid_p=_sessionUser&&_sessionUser.id?'_'+_sessionUser.id:'';
@@ -2258,28 +2255,6 @@ function saveProfile(){
   }
   closeModal();
 }
-
-// ── Helper: Send verify request ──
-function sendVerifyRequest(itemType, itemId, itemTitle, itemCompany){
-  if(!_sessionUser||!_sessionUser.id) return;
-  if(!itemType||!itemTitle) return;
-  const payload = {
-    user_id: _sessionUser.id,
-    item_type: itemType,
-    item_id: itemId||0,
-    item_title: itemTitle||'',
-    item_company: itemCompany||''
-  };
-  fetch('/verify-request',{
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify(payload)
-  }).then(r=>r.json()).then(d=>{
-    if(d.status==='success') console.log('✅ Verify request sent:', d);
-    else console.warn('⚠️ Verify issue:', d);
-  }).catch(e=>console.error('❌ Verify failed:', e));
-}
-
 function saveExp(){
   const t=document.getElementById('m-et').value.trim();
   const co=document.getElementById('m-ec').value.trim();
@@ -2307,10 +2282,14 @@ function saveExp(){
       if(idx2>-1){
         exp[idx2]={id:editId,title:t,company:co,location:l,start_date:s,end_date:e,work_type:wtype,desc:edesc};
         localStorage.setItem('tw_exp'+getUID(),JSON.stringify(exp));
+        // Send new verify request on edit
+        if(_sessionUser){
+          fetch('/verify-request',{method:'POST',headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({user_id:_sessionUser.id,item_type:'exp',item_id:editId,item_title:t,item_company:co})
+          }).catch(()=>{});
+        }
       }
     }catch(ex){}
-    // Send verify request on edit
-    sendVerifyRequest('exp', editId, t, co);
     const el=document.getElementById('exp-'+editId);
     if(el) el.outerHTML=renderExpItem({id:editId,title:t,company:co,location:l,start_date:s,end_date:e,work_type:wtype,desc:edesc});
   } else {
@@ -2327,22 +2306,14 @@ function saveExp(){
     if(_sessionUser&&_sessionUser.id){
       fetch('/experience/'+_sessionUser.id,{method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({title:t,company:co,location:l,start_date:s,end_date:e,description:edesc})
-      }).then(r=>{
-        if(!r.ok) throw new Error('exp API failed');
-        return r.json();
-      }).then(data=>{
-        const dbId = data?.experience?.id || data?.id;
-        if(dbId){
-          try{
-            const exps=JSON.parse(localStorage.getItem('tw_exp'+getUID())||'[]');
-            const fi=exps.findIndex(x=>x.id===expId);
-            if(fi>-1){ exps[fi].id=dbId; localStorage.setItem('tw_exp'+getUID(),JSON.stringify(exps)); }
-            const el=document.getElementById('exp-'+expId);
-            if(el) el.id='exp-'+dbId;
-          }catch(ex){}
-          sendVerifyRequest('exp', dbId, t, co);
+      }).then(r=>r.json()).then(data=>{
+        if(data&&data.id){
+          // Send verify request for this experience
+          fetch('/verify-request',{method:'POST',headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({user_id:_sessionUser.id,item_type:'exp',item_id:data.id,item_title:t,item_company:co})
+          }).catch(()=>{});
         }
-      }).catch(e=>console.error('exp error:',e));
+      }).catch(()=>{});
     }
   }
   closeModal();
@@ -2368,10 +2339,14 @@ function saveEdu(){
       if(idx2>-1){
         edu[idx2]={id:editId,degree:d,institution:i,end_year:y,degree_type:dtype,gpa:gpa};
         localStorage.setItem('tw_edu'+getUID(),JSON.stringify(edu));
+        // Send new verify request on edit
+        if(_sessionUser){
+          fetch('/verify-request',{method:'POST',headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({user_id:_sessionUser.id,item_type:'edu',item_id:editId,item_title:d,item_company:i})
+          }).catch(()=>{});
+        }
       }
     }catch(ex){}
-    // Send verify request on edit
-    sendVerifyRequest('edu', editId, d, i);
     const el=document.getElementById('edu-'+editId);
     if(el) el.outerHTML=renderEduItem({id:editId,degree:d,institution:i,end_year:y,degree_type:dtype,gpa:gpa});
   } else {
@@ -2388,16 +2363,10 @@ function saveEdu(){
       fetch('/education/'+_sessionUser.id,{method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({institution:i,degree:d,end_year:parseInt(y)||null})
       }).then(r=>r.json()).then(data=>{
-        const dbId = data?.education?.id || data?.id;
-        if(dbId){
-          try{
-            const edus=JSON.parse(localStorage.getItem('tw_edu'+getUID())||'[]');
-            const fi=edus.findIndex(x=>x.id===eduId);
-            if(fi>-1){ edus[fi].id=dbId; localStorage.setItem('tw_edu'+getUID(),JSON.stringify(edus)); }
-            const el=document.getElementById('edu-'+eduId);
-            if(el) el.id='edu-'+dbId;
-          }catch(ex){}
-          sendVerifyRequest('edu', dbId, d, i);
+        if(data&&data.id){
+          fetch('/verify-request',{method:'POST',headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({user_id:_sessionUser.id,item_type:'edu',item_id:data.id,item_title:d,item_company:i})
+          }).catch(()=>{});
         }
       }).catch(()=>{});
     }

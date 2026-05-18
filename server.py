@@ -232,7 +232,7 @@ class CourseInput(BaseModel):
 
 class VerifyRequestInput(BaseModel):
     user_id: int
-    item_type: Optional[str] = None
+    item_type: Optional[str] = None   # exp / edu / course
     item_id: Optional[int] = None
     item_title: Optional[str] = None
     item_company: Optional[str] = None
@@ -397,21 +397,13 @@ def add_user_course(user_id: int, data: CourseInput):
 @app.post("/verify-request")
 def request_verification(data: VerifyRequestInput):
     try:
-        if not data.item_type or not data.user_id:
-            raise HTTPException(400, "item_type و user_id مطلوبان")
-        result = upsert_verify_request(
-            user_id=data.user_id,
-            item_type=data.item_type,
-            item_id=data.item_id or 0,
-            item_title=data.item_title or "",
-            item_company=data.item_company or ""
-        )
-        return {"status": "success", **result}
-    except HTTPException:
-        raise
+        req = create_verify_request(data.user_id, data.dict())
+        return {"status": "success", "request": req}
+    except ValueError as e:
+        raise HTTPException(404, detail=str(e))
     except Exception as e:
         print(f"Verify request error: {e}")
-        raise HTTPException(500, detail=str(e))
+        raise HTTPException(500, detail="خطأ في الخادم")
 
 # ══════════════════════════════════════════
 # Jobs & Match
