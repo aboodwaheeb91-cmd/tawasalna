@@ -400,10 +400,13 @@ def request_verification(data: VerifyRequestInput):
         conn = get_conn()
         try:
             # Check if pending request exists for same item
-            existing = conn.run(
-                "SELECT id FROM verify_requests WHERE user_id=:uid AND item_type=:itype AND item_id=:iid AND status='pending'",
-                uid=data.user_id, itype=data.item_type, iid=data.item_id
-            )
+            if data.item_id:
+                existing = conn.run(
+                    "SELECT id FROM verify_requests WHERE user_id=:uid AND item_type=:itype AND item_id=:iid AND status='pending'",
+                    uid=data.user_id, itype=data.item_type, iid=data.item_id
+                )
+            else:
+                existing = []
             if existing:
                 # Update existing pending request with new title
                 conn.run(
