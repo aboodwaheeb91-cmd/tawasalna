@@ -158,6 +158,33 @@ def init_db():
             )
         """)
         conn.run("""
+            CREATE TABLE IF NOT EXISTS user_skills (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                skill TEXT NOT NULL,
+                level TEXT,
+                created_at TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        conn.run("""
+            CREATE TABLE IF NOT EXISTS user_langs (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                language TEXT NOT NULL,
+                level TEXT,
+                created_at TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        conn.run("""
+            CREATE TABLE IF NOT EXISTS user_links (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                link_type TEXT,
+                url TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        conn.run("""
             CREATE TABLE IF NOT EXISTS courses (
                 id SERIAL PRIMARY KEY,
                 user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -347,7 +374,22 @@ def get_full_profile(user_id: int) -> Optional[dict]:
         cols = [c["name"] for c in conn.columns]
         verify_req = _serialize(_row_to_dict(cols, rows[0])) if rows else None
 
-        return {**user, **profile, **_get_extras(conn, user_id), "verify_request": verify_req}
+        # Get skills, langs, links
+        rows = conn.run("SELECT id, skill, level FROM user_skills WHERE user_id=:uid ORDER BY id", uid=user_id)
+        cols = [c["name"] for c in conn.columns]
+        skills = [_row_to_dict(cols, r) for r in rows]
+
+        rows = conn.run("SELECT id, language, level FROM user_langs WHERE user_id=:uid ORDER BY id", uid=user_id)
+        cols = [c["name"] for c in conn.columns]
+        langs = [_row_to_dict(cols, r) for r in rows]
+
+        rows = conn.run("SELECT id, link_type, url FROM user_links WHERE user_id=:uid ORDER BY id", uid=user_id)
+        cols = [c["name"] for c in conn.columns]
+        links = [_row_to_dict(cols, r) for r in rows]
+
+        return {**user, **profile, **_get_extras(conn, user_id),
+                "skills": skills, "langs": langs, "links": links,
+                "verify_request": verify_req}
     finally:
         conn.close()
 
