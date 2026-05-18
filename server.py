@@ -397,13 +397,28 @@ def add_user_course(user_id: int, data: CourseInput):
 @app.post("/verify-request")
 def request_verification(data: VerifyRequestInput):
     try:
-        req = create_verify_request(data.user_id, data.dict())
-        return {"status": "success", "request": req}
-    except ValueError as e:
-        raise HTTPException(404, detail=str(e))
+        conn = get_conn()
+        try:
+            # Check if pending request exists for same item
+            existing = conn.run(
+                "SELECT id FROM verify_requests WHERE user_id=:uid AND item_type=:itype AND item_id=:iid AND status='pending'",
+                uid=data.user_id, itype=data.item_type, iid=data.item_id
+            )
+            if existing:
+                # Update existing pending request with new title
+                conn.run(
+                    "UPDATE verify_requests SET item_title=:ititle, item_company=:icompany, created_at=NOW() WHERE id=:rid",
+                    ititle=data.item_title, icompany=data.item_company, rid=existing[0][0]
+                )
+                return {"status": "success", "updated": True}
+            else:
+                req = create_verify_request(data.user_id, data.dict())
+                return {"status": "success", "request": req}
+        finally:
+            conn.close()
     except Exception as e:
         print(f"Verify request error: {e}")
-        raise HTTPException(500, detail="خطأ في الخادم")
+        raise HTTPException(500, detail=str(e))
 
 # ══════════════════════════════════════════
 # Jobs & Match
