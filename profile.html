@@ -2307,10 +2307,11 @@ function saveExp(){
       fetch('/experience/'+_sessionUser.id,{method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({title:t,company:co,location:l,start_date:s,end_date:e,description:edesc})
       }).then(r=>r.json()).then(data=>{
-        if(data&&data.id){
+        const expId = data?.experience?.id || data?.id;
+        if(expId){
           // Send verify request for this experience
           fetch('/verify-request',{method:'POST',headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({user_id:_sessionUser.id,item_type:'exp',item_id:data.id,item_title:t,item_company:co})
+            body:JSON.stringify({user_id:_sessionUser.id,item_type:'exp',item_id:expId,item_title:t,item_company:co})
           }).catch(()=>{});
         }
       }).catch(()=>{});
@@ -2363,9 +2364,10 @@ function saveEdu(){
       fetch('/education/'+_sessionUser.id,{method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({institution:i,degree:d,end_year:parseInt(y)||null})
       }).then(r=>r.json()).then(data=>{
-        if(data&&data.id){
+        const eduId = data?.education?.id || data?.id;
+        if(eduId){
           fetch('/verify-request',{method:'POST',headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({user_id:_sessionUser.id,item_type:'edu',item_id:data.id,item_title:d,item_company:i})
+            body:JSON.stringify({user_id:_sessionUser.id,item_type:'edu',item_id:eduId,item_title:d,item_company:i})
           }).catch(()=>{});
         }
       }).catch(()=>{});
