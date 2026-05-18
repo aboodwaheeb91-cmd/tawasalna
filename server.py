@@ -63,18 +63,6 @@ ADMIN_URL_TOKEN = "kPuOWhpIYjdLQXmh"
 # Stable token derived from password - no server storage needed
 ADMIN_TOKEN = hashlib.sha256(ADMIN_PASSWORD.encode()).hexdigest()
 
-# ── App ──
-app = FastAPI(lifespan=lifespan, title="تواصلنا API", version="1.0.0")
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-    allow_credentials=False,  # Must be False with allow_origins=["*"]
-)
-
-# ── Startup ──
 from contextlib import asynccontextmanager
 
 @asynccontextmanager
@@ -103,6 +91,19 @@ def check_admin(request: Request):
 # ══════════════════════════════════════════
 # HTML Pages
 # ══════════════════════════════════════════
+
+# ── App ──
+app = FastAPI(lifespan=lifespan, title="تواصلنا API", version="1.0.0")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+    allow_credentials=False,  # Must be False with allow_origins=["*"]
+)
+
+# ── Startup ──
 @app.get("/", response_class=HTMLResponse)
 def root(): return read_html("landing.html")
 
