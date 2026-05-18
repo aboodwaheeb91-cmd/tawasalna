@@ -429,47 +429,71 @@ function showTab(name, el){
 
 function renderVerify(list){
   const tb = document.getElementById('verifyTable');
-  if(!list.length){ tb.innerHTML = '<div class="empty-state">لا توجد طلبات توثيق</div>'; return; }
-  const typeIco = t => t==='exp'?'💼':t==='edu'?'🎓':t==='course'?'📚':'📋';
-  const typeLbl = t => t==='exp'?'خبرة عملية':t==='edu'?'شهادة دراسية':t==='course'?'دورة تدريبية':'طلب عام';
-  tb.innerHTML = list.map(v => `
-    <div class="tr tr-verify" style="display:flex;flex-direction:column;gap:10px;padding:14px 16px;border-bottom:1px solid var(--bdr)">
-      <div style="display:flex;align-items:center;gap:12px">
-        <div class="u-ava">${typeIco(v.item_type)}</div>
+  if(!list || !list.length){
+    tb.innerHTML = '<div class="empty-state">✅ لا توجد طلبات توثيق معلقة</div>';
+    return;
+  }
+  const typeIco = t => ({exp:'💼', edu:'🎓', course:'📚'}[t] || '📋');
+  const typeLbl = t => ({exp:'خبرة عملية', edu:'شهادة دراسية', course:'دورة تدريبية'}[t] || 'طلب عام');
+  tb.innerHTML = list.map(v => {
+    const isPending = v.status === 'pending';
+    return `
+    <div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.06);border-radius:14px;margin-bottom:10px;overflow:hidden;">
+      <!-- Header -->
+      <div style="display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid rgba(255,255,255,.05)">
+        <div style="font-size:1.2rem">${typeIco(v.item_type)}</div>
         <div style="flex:1">
-          <div class="u-nm">${v.user_name} <span style="font-size:.65rem;color:var(--t3)">· ${v.user_id}</span></div>
-          <div style="font-size:.7rem;color:var(--t3)">${typeLbl(v.item_type)}</div>
+          <div style="font-size:.82rem;font-weight:800">${v.user_name||'—'}</div>
+          <div style="font-size:.68rem;color:var(--t3)">${typeLbl(v.item_type)} · ${v.created_at||''}</div>
         </div>
-        <div style="font-size:.68rem;color:var(--t3)">${v.created_at||''}</div>
-        <div>${statusLabel(v.status)}</div>
+        ${statusLabel(v.status)}
       </div>
-      <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:10px;padding:10px 14px">
-        <div style="font-size:.85rem;font-weight:700;margin-bottom:3px">${v.item_title||'—'}</div>
-        <div style="font-size:.74rem;color:var(--t3)">${v.item_company||''}</div>
+      <!-- Content -->
+      <div style="padding:12px 16px">
+        <div style="font-size:.88rem;font-weight:700;margin-bottom:3px">${v.item_title||'—'}</div>
+        <div style="font-size:.75rem;color:var(--t3)">${v.item_company||''}</div>
       </div>
-      <div style="display:flex;gap:8px">
-        <button class="ab ab-view" onclick="approveVerify(${v.id})" style="flex:1;justify-content:center">✅ قبول وتوثيق</button>
-        <button class="ab" style="flex:1;justify-content:center;background:rgba(239,68,68,.1);color:#f87171;border-color:rgba(239,68,68,.2)" onclick="rejectVerify(${v.id})">❌ رفض</button>
-      </div>
-    </div>`).join('');
+      <!-- Actions (pending only) -->
+      ${isPending ? `
+      <div style="display:flex;gap:8px;padding:10px 16px;border-top:1px solid rgba(255,255,255,.05)">
+        <button onclick="approveVerify(${v.id})" style="flex:1;padding:8px;border-radius:9px;border:none;background:linear-gradient(135deg,var(--ac),var(--ac2));color:#fff;font-family:Cairo,sans-serif;font-size:.78rem;font-weight:700;cursor:pointer">✅ قبول وتوثيق</button>
+        <button onclick="rejectVerify(${v.id})" style="flex:1;padding:8px;border-radius:9px;border:1px solid rgba(239,68,68,.25);background:rgba(239,68,68,.08);color:#f87171;font-family:Cairo,sans-serif;font-size:.78rem;font-weight:700;cursor:pointer">❌ رفض</button>
+      </div>` : ''}
+    </div>`;
+  }).join('');
 }
 
 
 // ── Verify Actions ──
 async function approveVerify(id){
+  const btn = event.target;
+  btn.textContent='...'; btn.disabled=true;
   try{
-    const r = await fetch('/admin/verify/'+id, {method:'PUT', headers: adminHeaders(), body: JSON.stringify({status:'verified'})});
+    const r = await fetch('/admin/verify/'+id, {
+      method:'PUT', headers: adminHeaders(),
+      body: JSON.stringify({status:'verified'})
+    });
     if(!r.ok) throw new Error('HTTP '+r.status);
-    await loadVerify(); updateStats(); toast('تم التوثيق ✓');
-  }catch(e){ toast('خطأ: '+e.message,'e'); }
+    // Update locally without full reload
+    _allVerify = _allVerify.map(v => v.id===id ? {...v, status:'verified'} : v);
+    renderVerify(_allVerify); updateStats();
+    toast('✅ تم التوثيق');
+  }catch(e){ toast('خطأ: '+e.message,'e'); btn.textContent='✅ قبول'; btn.disabled=false; }
 }
 
 async function rejectVerify(id){
+  const btn = event.target;
+  btn.textContent='...'; btn.disabled=true;
   try{
-    const r = await fetch('/admin/verify/'+id, {method:'PUT', headers: adminHeaders(), body: JSON.stringify({status:'rejected'})});
+    const r = await fetch('/admin/verify/'+id, {
+      method:'PUT', headers: adminHeaders(),
+      body: JSON.stringify({status:'rejected'})
+    });
     if(!r.ok) throw new Error('HTTP '+r.status);
-    await loadVerify(); updateStats(); toast('تم الرفض');
-  }catch(e){ toast('خطأ: '+e.message,'e'); }
+    _allVerify = _allVerify.map(v => v.id===id ? {...v, status:'rejected'} : v);
+    renderVerify(_allVerify); updateStats();
+    toast('تم الرفض');
+  }catch(e){ toast('خطأ: '+e.message,'e'); btn.textContent='❌ رفض'; btn.disabled=false; }
 }
 
 // ── Filter ──

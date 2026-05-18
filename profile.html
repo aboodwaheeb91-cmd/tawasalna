@@ -2258,6 +2258,23 @@ function saveProfile(){
   }
   closeModal();
 }
+
+// ── Helper: Send verify request ──
+function sendVerifyRequest(itemType, itemId, itemTitle, itemCompany){
+  if(!_sessionUser||!_sessionUser.id||!itemId) return;
+  fetch('/verify-request',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({
+      user_id: _sessionUser.id,
+      item_type: itemType,
+      item_id: itemId,
+      item_title: itemTitle||'',
+      item_company: itemCompany||''
+    })
+  }).catch(()=>{}); // silent fail - user experience not affected
+}
+
 function saveExp(){
   const t=document.getElementById('m-et').value.trim();
   const co=document.getElementById('m-ec').value.trim();
@@ -2288,11 +2305,7 @@ function saveExp(){
       }
     }catch(ex){}
     // Send verify request on edit
-    if(_sessionUser&&_sessionUser.id&&editId){
-      fetch('/verify-request',{method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({user_id:_sessionUser.id,item_type:'exp',item_id:editId,item_title:t,item_company:co})
-      }).catch(()=>{});
-    }
+    sendVerifyRequest('exp', editId, t, co);
     const el=document.getElementById('exp-'+editId);
     if(el) el.outerHTML=renderExpItem({id:editId,title:t,company:co,location:l,start_date:s,end_date:e,work_type:wtype,desc:edesc});
   } else {
@@ -2322,9 +2335,7 @@ function saveExp(){
             const el=document.getElementById('exp-'+expId);
             if(el) el.id='exp-'+dbId;
           }catch(ex){}
-          fetch('/verify-request',{method:'POST',headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({user_id:_sessionUser.id,item_type:'exp',item_id:dbId,item_title:t,item_company:co})
-          }).then(r2=>r2.json()).then(d=>console.log('verify sent:',d)).catch(e=>console.error('verify err:',e));
+          sendVerifyRequest('exp', dbId, t, co);
         }
       }).catch(e=>console.error('exp error:',e));
     }
@@ -2355,11 +2366,7 @@ function saveEdu(){
       }
     }catch(ex){}
     // Send verify request on edit
-    if(_sessionUser&&_sessionUser.id&&editId){
-      fetch('/verify-request',{method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({user_id:_sessionUser.id,item_type:'edu',item_id:editId,item_title:d,item_company:i})
-      }).catch(()=>{});
-    }
+    sendVerifyRequest('edu', editId, d, i);
     const el=document.getElementById('edu-'+editId);
     if(el) el.outerHTML=renderEduItem({id:editId,degree:d,institution:i,end_year:y,degree_type:dtype,gpa:gpa});
   } else {
@@ -2385,9 +2392,7 @@ function saveEdu(){
             const el=document.getElementById('edu-'+eduId);
             if(el) el.id='edu-'+dbId;
           }catch(ex){}
-          fetch('/verify-request',{method:'POST',headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({user_id:_sessionUser.id,item_type:'edu',item_id:dbId,item_title:d,item_company:i})
-          }).catch(()=>{});
+          sendVerifyRequest('edu', dbId, d, i);
         }
       }).catch(()=>{});
     }

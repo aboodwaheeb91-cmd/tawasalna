@@ -443,26 +443,46 @@ def add_course(user_id: int, data: dict) -> dict:
 
 
 # ══ طلبات التحقق ══
-def create_verify_request(user_id: int, data: dict) -> dict:
+def upsert_verify_request(user_id: int, item_type: str, item_id: int, item_title: str, item_company: str = None) -> dict:
+    """
+    Creates or updates a pending verify request for a specific item.
+    If a pending request exists for same user+type+item → updates it.
+    Otherwise → creates new.
+    """
     conn = get_conn()
     try:
-        rows = conn.run(
-            "INSERT INTO verify_requests "
-            "(user_id, item_type, item_id, item_title, item_company, document_url, notes, status) "
-            "VALUES (:uid, :itype, :iid, :ititle, :icompany, :doc_url, :notes, 'pending') "
-            "RETURNING id, user_id, item_type, item_id, item_title, item_company, status, created_at",
-            uid=user_id,
-            itype=data.get("item_type"),
-            iid=data.get("item_id"),
-            ititle=data.get("item_title"),
-            icompany=data.get("item_company"),
-            doc_url=data.get("document_url"),
-            notes=data.get("notes")
+        # Check for existing pending request
+        existing = conn.run(
+            "SELECT id FROM verify_requests WHERE user_id=:uid AND item_type=:itype AND item_id=:iid AND status='pending'",
+            uid=user_id, itype=item_type, iid=item_id
         )
-        cols = [c["name"] for c in conn.columns]
-        return _serialize(_row_to_dict(cols, rows[0]))
+        if existing:
+            conn.run(
+                "UPDATE verify_requests SET item_title=:ititle, item_company=:icompany, created_at=NOW() WHERE id=:rid",
+                ititle=item_title, icompany=item_company or '', rid=existing[0][0]
+            )
+            return {"id": existing[0][0], "action": "updated"}
+        else:
+            rows = conn.run(
+                "INSERT INTO verify_requests (user_id, item_type, item_id, item_title, item_company, status) "
+                "VALUES (:uid, :itype, :iid, :ititle, :icompany, 'pending') "
+                "RETURNING id",
+                uid=user_id, itype=item_type, iid=item_id,
+                ititle=item_title, icompany=item_company or ''
+            )
+            return {"id": rows[0][0], "action": "created"}
     finally:
         conn.close()
+
+# Keep old name as alias for compatibility
+def create_verify_request(user_id: int, data: dict) -> dict:
+    return upsert_verify_request(
+        user_id=user_id,
+        item_type=data.get("item_type", ""),
+        item_id=data.get("item_id", 0),
+        item_title=data.get("item_title", ""),
+        item_company=data.get("item_company", "")
+    )
 
 
 def get_user_id_by_tw_id(tw_id: str) -> Optional[int]:
