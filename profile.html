@@ -2282,14 +2282,14 @@ function saveExp(){
       if(idx2>-1){
         exp[idx2]={id:editId,title:t,company:co,location:l,start_date:s,end_date:e,work_type:wtype,desc:edesc};
         localStorage.setItem('tw_exp'+getUID(),JSON.stringify(exp));
-        // Send new verify request on edit
-        if(_sessionUser){
-          fetch('/verify-request',{method:'POST',headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({user_id:_sessionUser.id,item_type:'exp',item_id:editId,item_title:t,item_company:co})
-          }).catch(()=>{});
-        }
       }
     }catch(ex){}
+    // Send verify request on edit
+    if(_sessionUser&&_sessionUser.id&&editId){
+      fetch('/verify-request',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({user_id:_sessionUser.id,item_type:'exp',item_id:editId,item_title:t,item_company:co})
+      }).catch(()=>{});
+    }
     const el=document.getElementById('exp-'+editId);
     if(el) el.outerHTML=renderExpItem({id:editId,title:t,company:co,location:l,start_date:s,end_date:e,work_type:wtype,desc:edesc});
   } else {
@@ -2340,14 +2340,14 @@ function saveEdu(){
       if(idx2>-1){
         edu[idx2]={id:editId,degree:d,institution:i,end_year:y,degree_type:dtype,gpa:gpa};
         localStorage.setItem('tw_edu'+getUID(),JSON.stringify(edu));
-        // Send new verify request on edit
-        if(_sessionUser){
-          fetch('/verify-request',{method:'POST',headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({user_id:_sessionUser.id,item_type:'edu',item_id:editId,item_title:d,item_company:i})
-          }).catch(()=>{});
-        }
       }
     }catch(ex){}
+    // Send verify request on edit
+    if(_sessionUser&&_sessionUser.id&&editId){
+      fetch('/verify-request',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({user_id:_sessionUser.id,item_type:'edu',item_id:editId,item_title:d,item_company:i})
+      }).catch(()=>{});
+    }
     const el=document.getElementById('edu-'+editId);
     if(el) el.outerHTML=renderEduItem({id:editId,degree:d,institution:i,end_year:y,degree_type:dtype,gpa:gpa});
   } else {
