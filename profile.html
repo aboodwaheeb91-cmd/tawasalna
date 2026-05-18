@@ -2306,10 +2306,12 @@ function saveExp(){
     if(_sessionUser&&_sessionUser.id){
       fetch('/experience/'+_sessionUser.id,{method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({title:t,company:co,location:l,start_date:s,end_date:e,description:edesc})
-      }).then(r=>r.json()).then(data=>{
+      }).then(r=>{
+        if(!r.ok) throw new Error('exp API failed');
+        return r.json();
+      }).then(data=>{
         const dbId = data?.experience?.id || data?.id;
         if(dbId){
-          // Update localStorage with real DB id
           try{
             const exps=JSON.parse(localStorage.getItem('tw_exp'+getUID())||'[]');
             const fi=exps.findIndex(x=>x.id===expId);
@@ -2317,12 +2319,11 @@ function saveExp(){
             const el=document.getElementById('exp-'+expId);
             if(el) el.id='exp-'+dbId;
           }catch(ex){}
-          // Send verify request with real DB id
           fetch('/verify-request',{method:'POST',headers:{'Content-Type':'application/json'},
             body:JSON.stringify({user_id:_sessionUser.id,item_type:'exp',item_id:dbId,item_title:t,item_company:co})
-          }).catch(()=>{});
+          }).then(r2=>r2.json()).then(d=>console.log('verify sent:',d)).catch(e=>console.error('verify err:',e));
         }
-      }).catch(()=>{});
+      }).catch(e=>console.error('exp error:',e));
     }
   }
   closeModal();
