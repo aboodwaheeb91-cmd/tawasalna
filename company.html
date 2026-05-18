@@ -170,6 +170,33 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-heig
   .emp-actions{flex-direction:row;min-width:unset;width:100%;}
   .stats-row{grid-template-columns:1fr 1fr;}
 }
+
+
+/* ══ ITQAN - Shared Utilities ══ */
+@keyframes tw-shimmer{0%{background-position:-1000px 0}100%{background-position:1000px 0}}
+@keyframes tw-spin{to{transform:translateY(-50%) rotate(360deg);}}
+@keyframes tw-fadein{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:none;}}
+@keyframes tw-verified{0%,100%{box-shadow:0 0 0 0 rgba(0,200,150,0);}50%{box-shadow:0 0 0 5px rgba(0,200,150,.15);}}
+.tw-toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(20px);background:rgba(7,11,24,.97);border:1px solid rgba(255,255,255,.1);backdrop-filter:blur(20px);border-radius:14px;padding:12px 20px;display:flex;align-items:center;gap:10px;font-size:.82rem;font-family:Cairo,sans-serif;color:rgba(255,255,255,.92);opacity:0;transition:all .3s cubic-bezier(.34,1.56,.64,1);z-index:9999;white-space:nowrap;min-width:180px;justify-content:center;box-shadow:0 8px 32px rgba(0,0,0,.4);}
+.tw-toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+.tw-toast.success{border-color:rgba(0,200,150,.3);}
+.tw-toast.error{border-color:rgba(239,68,68,.3);}
+.tw-toast.info{border-color:rgba(37,99,255,.3);}
+.tw-skeleton{background:linear-gradient(90deg,rgba(255,255,255,.04) 25%,rgba(255,255,255,.09) 50%,rgba(255,255,255,.04) 75%);background-size:2000px 100%;animation:tw-shimmer 1.5s infinite linear;border-radius:8px;}
+.tw-btn-loading{position:relative;pointer-events:none;opacity:.8;}
+.tw-btn-loading::after{content:'';position:absolute;width:14px;height:14px;border-radius:50%;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;animation:tw-spin .7s linear infinite;right:12px;top:50%;transform:translateY(-50%);}
+.tw-scroll-prog{position:fixed;top:0;left:0;height:2px;z-index:999;background:linear-gradient(90deg,var(--ac,#00c896),var(--ac2,#2563ff));transition:width .1s;width:0%;}
+.tw-fab{position:fixed;bottom:80px;left:18px;width:50px;height:50px;border-radius:50%;border:none;font-size:1.4rem;background:linear-gradient(135deg,var(--ac,#00c896),var(--ac2,#2563ff));color:#fff;cursor:pointer;box-shadow:0 4px 20px rgba(0,200,150,.35);transition:all .25s cubic-bezier(.34,1.56,.64,1);z-index:50;display:flex;align-items:center;justify-content:center;}
+.tw-fab:hover{transform:scale(1.12) rotate(90deg);}
+.tw-empty{text-align:center;padding:50px 20px;}
+.tw-empty-ico{font-size:2.5rem;margin-bottom:12px;opacity:.7;display:block;}
+.tw-empty-title{font-size:.95rem;font-weight:800;margin-bottom:6px;}
+.tw-empty-sub{font-size:.78rem;color:rgba(255,255,255,.35);margin-bottom:18px;line-height:1.6;}
+.tw-empty-btn{padding:10px 22px;border-radius:12px;background:linear-gradient(135deg,var(--ac,#00c896),var(--ac2,#2563ff));border:none;color:#fff;font-family:Cairo,sans-serif;font-weight:700;font-size:.8rem;cursor:pointer;}
+.tw-card-lift{transition:transform .2s,box-shadow .2s;}
+.tw-card-lift:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.3);}
+.tw-verified{animation:tw-verified 2.5s ease-in-out infinite;}
+
 </style>
 </head>
 <body>
@@ -213,7 +240,7 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-heig
   <div class="side-menu">
     <a class="sm-item" onclick="goProfile()" style="cursor:pointer"><span class="sm-ico">🏢</span>ملف شركتي</a>
     <a class="sm-item on" href="#"><span class="sm-ico">🔍</span>بحث موظفين</a>
-    <a class="sm-item" href="employees-group.html"><span class="sm-ico">👥</span>موظفو الشركة</a>
+    <a class="sm-item" href="#"><span class="sm-ico">👥</span>موظفو الشركة</a>
     <a class="sm-item" href="messages.html"><span class="sm-ico">💬</span>الرسائل<span class="sm-badge">0</span></a>
     <a class="sm-item" href="notifications.html"><span class="sm-ico">🔔</span>الإشعارات<span class="sm-badge">0</span></a>
     <a class="sm-item" href="settings.html"><span class="sm-ico">⚙️</span>الإعدادات</a>
@@ -283,27 +310,10 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-heig
   <div class="jobs-sec">
     <div class="jobs-sec-hd">
       <h3>💼 وظائفي المنشورة</h3>
-      <button class="nb nb-primary" style="font-size:.7rem" onclick="location.href='company-profile.html'">+ نشر وظيفة</button>
+      <button class="nb nb-primary" style="font-size:.7rem" onclick="openPostJob()">+ نشر وظيفة</button>
     </div>
-    <div class="job-row">
-      <div class="jr-info">
-        <div class="jr-title">مطور Full Stack</div>
-        <div class="jr-meta"><span>📍 عمان</span><span>🕐 منذ يومين</span></div>
-      </div>
-      <div style="display:flex;align-items:center;gap:8px">
-        <span class="jr-status js-open">نشطة</span>
-        <span class="jr-count">0 طلب</span>
-      </div>
-    </div>
-    <div class="job-row">
-      <div class="jr-info">
-        <div class="jr-title">مصمم UX/UI</div>
-        <div class="jr-meta"><span>📍 عمان</span><span>🕐 منذ أسبوع</span></div>
-      </div>
-      <div style="display:flex;align-items:center;gap:8px">
-        <span class="jr-status js-open">نشطة</span>
-        <span class="jr-count">0 طلب</span>
-      </div>
+    <div id="companyJobsList">
+      <div style="text-align:center;padding:20px;color:var(--t3);font-size:.8rem">جاري التحميل...</div>
     </div>
   </div>
 
@@ -320,7 +330,7 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-heig
 <div class="bnav">
   <div class="bn" onclick="goProfile()"><span class="bi">🏢</span><span class="bl">ملفي</span></div>
   <div class="bn on"><span class="bi">🔍</span><span class="bl">بحث</span></div>
-  <div class="bn" onclick="location.href='employees-group.html'"><span class="bi">👥</span><span class="bl">موظفوي</span></div>
+  <div class="bn" onclick="location.href='#'"><span class="bi">👥</span><span class="bl">موظفوي</span></div>
   <div class="bn" onclick="location.href='messages.html'"><span class="bi">💬</span><span class="bl">رسائل</span></div>
   <div class="bn" onclick="location.href='notifications.html'"><span class="bi">🔔</span><span class="bl">إشعارات</span></div>
 </div>
@@ -455,6 +465,152 @@ document.getElementById('loc').addEventListener('keydown',e=>{if(e.key==='Enter'
 
 // Show all by default
 setTimeout(()=>showResults([...EMPLOYEES]),100);
+
+
+// ── Job Management ──
+function openPostJob(){
+  document.getElementById('postJobOverlay').style.display='flex';
+}
+function closePostJob(){
+  document.getElementById('postJobOverlay').style.display='none';
+}
+
+function submitPostJob(){
+  const title = document.getElementById('pj-title').value.trim();
+  if(!title){ alert('المسمى الوظيفي مطلوب'); return; }
+  const skills = document.getElementById('pj-skills').value.split(',').map(s=>s.trim()).filter(Boolean);
+  fetch('/company/jobs',{
+    method:'POST',
+    headers:{'Content-Type':'application/json','X-User-Id': (_u?.id||'')},
+    body:JSON.stringify({
+      title,
+      description: document.getElementById('pj-desc').value,
+      location: document.getElementById('pj-location').value,
+      job_type: document.getElementById('pj-type').value,
+      salary_min: parseInt(document.getElementById('pj-smin').value)||null,
+      salary_max: parseInt(document.getElementById('pj-smax').value)||null,
+      skills
+    })
+  }).then(r=>r.json()).then(data=>{
+    if(data.status==='success'){
+      closePostJob();
+      loadCompanyJobs();
+      alert('✅ تم نشر الوظيفة بنجاح');
+    }
+  }).catch(()=>alert('خطأ في نشر الوظيفة'));
+}
+
+function loadCompanyJobs(){
+  if(!_u||!_u.id) return;
+  fetch('/company/jobs',{headers:{'X-User-Id':_u.id}})
+  .then(r=>r.json()).then(data=>{
+    const jobs = data.jobs||[];
+    const container = document.getElementById('companyJobsList');
+    if(!container) return;
+    if(!jobs.length){
+      container.innerHTML='<div class="tw-empty"><span class="tw-empty-ico">💼</span><div class="tw-empty-title">لم تنشر أي وظيفة بعد</div><div class="tw-empty-sub">انشر أول وظيفة لاستقطاب المواهب</div><button class="tw-empty-btn" onclick="openPostJob()">+ نشر وظيفة</button></div>';
+      return;
+    }
+    container.innerHTML = jobs.map(j=>`
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.05)">
+        <div>
+          <div style="font-weight:700;font-size:.85rem">${j.title}</div>
+          <div style="font-size:.72rem;color:var(--t3)">${j.location||''} · ${j.views||0} مشاهدة</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:.68rem;padding:2px 8px;border-radius:20px;background:rgba(0,200,150,.1);color:var(--ac)">${j.status==='active'?'نشطة':'مغلقة'}</span>
+          <button onclick="deleteCompanyJob(${j.id})" style="background:rgba(239,68,68,.1);color:#f87171;border:none;border-radius:8px;padding:4px 8px;cursor:pointer;font-size:.7rem">حذف</button>
+        </div>
+      </div>`).join('');
+  }).catch(()=>{});
+}
+
+function deleteCompanyJob(jobId){
+  if(!confirm('حذف هذه الوظيفة؟')) return;
+  fetch('/company/jobs/'+jobId,{method:'DELETE',headers:{'X-User-Id':(_u?.id||'')}})
+  .then(()=>loadCompanyJobs()).catch(()=>{});
+}
+
+// Load company jobs on page load
+loadCompanyJobs();
+
+
+// ══ ITQAN Utilities ══
+var _twToast=null;
+function showToast(msg,type,dur){
+  type=type||'success';dur=dur||2800;
+  if(_twToast){_twToast.remove();}
+  var t=document.createElement('div');
+  t.className='tw-toast '+type;
+  var ico=type==='success'?'✅':type==='error'?'❌':'ℹ️';
+  t.innerHTML='<span>'+ico+'</span><span>'+msg+'</span>';
+  document.body.appendChild(t);
+  _twToast=t;
+  requestAnimationFrame(function(){requestAnimationFrame(function(){t.classList.add('show');});});
+  setTimeout(function(){t.classList.remove('show');setTimeout(function(){if(t.parentNode)t.remove();},350);},dur);
+}
+function setBtnLoad(btn,loading){
+  if(!btn)return;
+  if(loading){btn.classList.add('tw-btn-loading');btn._orig=btn.textContent;btn.textContent='';btn.disabled=true;}
+  else{btn.classList.remove('tw-btn-loading');btn.textContent=btn._orig||'حفظ';btn.disabled=false;}
+}
+function twNavigate(url){
+  document.body.style.cssText='opacity:0;transform:translateY(-6px);transition:all .2s ease;';
+  setTimeout(function(){window.location.href=url;},180);
+}
+function initScrollProg(){
+  var p=document.createElement('div');p.className='tw-scroll-prog';
+  document.body.prepend(p);
+  window.addEventListener('scroll',function(){
+    var pct=window.scrollY/(document.body.scrollHeight-window.innerHeight)*100;
+    p.style.width=Math.min(pct,100)+'%';
+  });
+}
+document.addEventListener('keydown',function(e){
+  if(e.key==='Escape'){
+    var fn=window.closeModal||window.closeEdit||window.closePostJob||window.closeMsgModal;
+    if(typeof fn==='function')fn();
+  }
+  if(e.key==='/'&&!['INPUT','TEXTAREA'].includes(e.target.tagName)){
+    e.preventDefault();
+    var s=document.getElementById('searchInput')||document.getElementById('userSearch')||document.getElementById('jobSearch');
+    if(s)s.focus();
+  }
+});
+document.documentElement.style.opacity='0';
+window.addEventListener('load',function(){
+  document.documentElement.style.transition='opacity .25s ease';
+  document.documentElement.style.opacity='1';
+});
+
 </script>
+
+
+<!-- ══ Post Job Modal ══ -->
+<div class="overlay" id="postJobOverlay" onclick="if(event.target===this)closePostJob()" style="display:none;position:fixed;inset:0;z-index:2000;background:rgba(0,0,0,.8);align-items:center;justify-content:center;padding:16px">
+  <div style="background:#0d1a2e;border-radius:20px;width:100%;max-width:480px;padding:24px;max-height:90vh;overflow-y:auto">
+    <div style="font-weight:800;font-size:1rem;margin-bottom:16px">💼 نشر وظيفة جديدة</div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <input id="pj-title" placeholder="المسمى الوظيفي *" style="padding:10px 14px;border-radius:10px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);color:#fff;font-family:Cairo,sans-serif;width:100%">
+      <textarea id="pj-desc" placeholder="وصف الوظيفة" rows="3" style="padding:10px 14px;border-radius:10px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);color:#fff;font-family:Cairo,sans-serif;width:100%;resize:vertical"></textarea>
+      <input id="pj-location" placeholder="الموقع" style="padding:10px 14px;border-radius:10px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);color:#fff;font-family:Cairo,sans-serif;width:100%">
+      <select id="pj-type" style="padding:10px 14px;border-radius:10px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);color:#fff;font-family:Cairo,sans-serif;width:100%">
+        <option value="full_time">دوام كامل</option>
+        <option value="part_time">دوام جزئي</option>
+        <option value="remote">عن بعد</option>
+        <option value="contract">عقد</option>
+      </select>
+      <div style="display:flex;gap:8px">
+        <input id="pj-smin" type="number" placeholder="الراتب من" style="padding:10px 14px;border-radius:10px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);color:#fff;font-family:Cairo,sans-serif;flex:1">
+        <input id="pj-smax" type="number" placeholder="الراتب إلى" style="padding:10px 14px;border-radius:10px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);color:#fff;font-family:Cairo,sans-serif;flex:1">
+      </div>
+      <input id="pj-skills" placeholder="المهارات المطلوبة (افصل بفاصلة)" style="padding:10px 14px;border-radius:10px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);color:#fff;font-family:Cairo,sans-serif;width:100%">
+      <div style="display:flex;gap:8px;margin-top:4px">
+        <button onclick="closePostJob()" style="flex:1;padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,.1);background:transparent;color:rgba(255,255,255,.5);font-family:Cairo,sans-serif;cursor:pointer">إلغاء</button>
+        <button onclick="submitPostJob()" style="flex:1;padding:10px;border-radius:10px;border:none;background:linear-gradient(135deg,#00c896,#2563ff);color:#fff;font-family:Cairo,sans-serif;font-weight:700;cursor:pointer">نشر الوظيفة</button>
+      </div>
+    </div>
+  </div>
+</div>
 </body>
 </html>

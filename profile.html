@@ -626,6 +626,33 @@ body.s5 .add-item-btn:hover { border-color:rgba(var(--ac-rgb),.35); color:var(--
   body.s5 .cv-head { position:relative; top:0; }
 }
 
+
+
+/* ══ ITQAN - Shared Utilities ══ */
+@keyframes tw-shimmer{0%{background-position:-1000px 0}100%{background-position:1000px 0}}
+@keyframes tw-spin{to{transform:translateY(-50%) rotate(360deg);}}
+@keyframes tw-fadein{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:none;}}
+@keyframes tw-verified{0%,100%{box-shadow:0 0 0 0 rgba(0,200,150,0);}50%{box-shadow:0 0 0 5px rgba(0,200,150,.15);}}
+.tw-toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(20px);background:rgba(7,11,24,.97);border:1px solid rgba(255,255,255,.1);backdrop-filter:blur(20px);border-radius:14px;padding:12px 20px;display:flex;align-items:center;gap:10px;font-size:.82rem;font-family:Cairo,sans-serif;color:rgba(255,255,255,.92);opacity:0;transition:all .3s cubic-bezier(.34,1.56,.64,1);z-index:9999;white-space:nowrap;min-width:180px;justify-content:center;box-shadow:0 8px 32px rgba(0,0,0,.4);}
+.tw-toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+.tw-toast.success{border-color:rgba(0,200,150,.3);}
+.tw-toast.error{border-color:rgba(239,68,68,.3);}
+.tw-toast.info{border-color:rgba(37,99,255,.3);}
+.tw-skeleton{background:linear-gradient(90deg,rgba(255,255,255,.04) 25%,rgba(255,255,255,.09) 50%,rgba(255,255,255,.04) 75%);background-size:2000px 100%;animation:tw-shimmer 1.5s infinite linear;border-radius:8px;}
+.tw-btn-loading{position:relative;pointer-events:none;opacity:.8;}
+.tw-btn-loading::after{content:'';position:absolute;width:14px;height:14px;border-radius:50%;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;animation:tw-spin .7s linear infinite;right:12px;top:50%;transform:translateY(-50%);}
+.tw-scroll-prog{position:fixed;top:0;left:0;height:2px;z-index:999;background:linear-gradient(90deg,var(--ac,#00c896),var(--ac2,#2563ff));transition:width .1s;width:0%;}
+.tw-fab{position:fixed;bottom:80px;left:18px;width:50px;height:50px;border-radius:50%;border:none;font-size:1.4rem;background:linear-gradient(135deg,var(--ac,#00c896),var(--ac2,#2563ff));color:#fff;cursor:pointer;box-shadow:0 4px 20px rgba(0,200,150,.35);transition:all .25s cubic-bezier(.34,1.56,.64,1);z-index:50;display:flex;align-items:center;justify-content:center;}
+.tw-fab:hover{transform:scale(1.12) rotate(90deg);}
+.tw-empty{text-align:center;padding:50px 20px;}
+.tw-empty-ico{font-size:2.5rem;margin-bottom:12px;opacity:.7;display:block;}
+.tw-empty-title{font-size:.95rem;font-weight:800;margin-bottom:6px;}
+.tw-empty-sub{font-size:.78rem;color:rgba(255,255,255,.35);margin-bottom:18px;line-height:1.6;}
+.tw-empty-btn{padding:10px 22px;border-radius:12px;background:linear-gradient(135deg,var(--ac,#00c896),var(--ac2,#2563ff));border:none;color:#fff;font-family:Cairo,sans-serif;font-weight:700;font-size:.8rem;cursor:pointer;}
+.tw-card-lift{transition:transform .2s,box-shadow .2s;}
+.tw-card-lift:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.3);}
+.tw-verified{animation:tw-verified 2.5s ease-in-out infinite;}
+
 </style>
 </head>
 <body class="s1">
@@ -753,7 +780,10 @@ body.s5 .add-item-btn:hover { border-color:rgba(var(--ac-rgb),.35); color:var(--
 
       <!-- زر تعديل الملف على زاوية قسم المعلومات -->
        <!-- الاسم - يصغر تلقائياً -->
-      <div class="cv-name" id="cvName"></div>
+      <div style="display:flex;align-items:center;gap:6px;justify-content:center">
+        <div class="cv-name" id="cvName"></div>
+        <span id="profileVerifiedBadge" class="tw-verified" style="display:none;background:linear-gradient(135deg,#00c896,#2563ff);color:#fff;border-radius:20px;padding:2px 8px;font-size:.62rem;font-weight:700;flex-shrink:0">✅ موثق</span>
+      </div>
 
       <!-- المسمى + حالة التوظيف -->
       <div class="cv-title" id="cvTitle"></div>
@@ -1363,7 +1393,16 @@ function saveSkillItem(){
   const level=document.getElementById('m-skill-level')?.value||'';
   if(!name){ document.getElementById('m-skill-name').style.borderColor='#f87171'; return; }
   document.getElementById('m-skill-name').style.borderColor='';
-  saveSectionItem('tw_skills',{id:Date.now(),name,level},lid,renderSkillItem);
+  const localId=Date.now();
+  saveSectionItem('tw_skills',{id:localId,name,level},lid,renderSkillItem);
+  if(_sessionUser&&_sessionUser.id){
+    fetch('/skills/'+_sessionUser.id,{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({skill:name,level})
+    }).then(r=>r.json()).then(data=>{
+      const dbId=data?.skill?.id;
+      if(dbId){try{const arr=JSON.parse(localStorage.getItem('tw_skills'+getUID())||'[]');const fi=arr.findIndex(x=>x.id===localId);if(fi>-1){arr[fi].id=dbId;localStorage.setItem('tw_skills'+getUID(),JSON.stringify(arr));}}catch(ex){}}
+    }).catch(()=>{});
+  }
 }
 
 function saveLangItem(){
@@ -1375,7 +1414,16 @@ function saveLangItem(){
   if(!level){ document.getElementById('m-lang-level').style.borderColor='#f87171'; return; }
   document.getElementById('m-lang-name').style.borderColor='';
   document.getElementById('m-lang-level').style.borderColor='';
-  saveSectionItem('tw_langs',{id:Date.now(),name,level},lid,renderLangItem);
+  const localId=Date.now();
+  saveSectionItem('tw_langs',{id:localId,name,level},lid,renderLangItem);
+  if(_sessionUser&&_sessionUser.id){
+    fetch('/langs/'+_sessionUser.id,{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({language:name,level})
+    }).then(r=>r.json()).then(data=>{
+      const dbId=data?.lang?.id;
+      if(dbId){try{const arr=JSON.parse(localStorage.getItem('tw_langs'+getUID())||'[]');const fi=arr.findIndex(x=>x.id===localId);if(fi>-1){arr[fi].id=dbId;localStorage.setItem('tw_langs'+getUID(),JSON.stringify(arr));}}catch(ex){}}
+    }).catch(()=>{});
+  }
 }
 
 function saveLinkItem(){
@@ -1385,9 +1433,17 @@ function saveLinkItem(){
   const type=document.getElementById('m-link-type')?.value||'رابط';
   if(!url){ document.getElementById('m-link-url').style.borderColor='#f87171'; return; }
   document.getElementById('m-link-url').style.borderColor='';
-  // Add https if missing
   const finalUrl=url.startsWith('http')?url:'https://'+url;
-  saveSectionItem('tw_links',{id:Date.now(),type,url:finalUrl},lid,renderLinkItem);
+  const localId=Date.now();
+  saveSectionItem('tw_links',{id:localId,type,url:finalUrl},lid,renderLinkItem);
+  if(_sessionUser&&_sessionUser.id){
+    fetch('/links/'+_sessionUser.id,{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({link_type:type,url:finalUrl})
+    }).then(r=>r.json()).then(data=>{
+      const dbId=data?.link?.id;
+      if(dbId){try{const arr=JSON.parse(localStorage.getItem('tw_links'+getUID())||'[]');const fi=arr.findIndex(x=>x.id===localId);if(fi>-1){arr[fi].id=dbId;localStorage.setItem('tw_links'+getUID(),JSON.stringify(arr));}}catch(ex){}}
+    }).catch(()=>{});
+  }
 }
 
 function saveCourseItem(){
@@ -1399,27 +1455,18 @@ function saveCourseItem(){
   const url=document.getElementById('m-course-url')?.value.trim()||'';
   if(!name){ document.getElementById('m-course-name').style.borderColor='#f87171'; return; }
   document.getElementById('m-course-name').style.borderColor='';
-  saveSectionItem('tw_courses',{id:Date.now(),name,provider,year,url},lid,renderCourseItem);
+  const localId=Date.now();
+  saveSectionItem('tw_courses',{id:localId,name,provider,year,url},lid,renderCourseItem);
+  if(_sessionUser&&_sessionUser.id){
+    fetch('/course/'+_sessionUser.id,{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({title:name,provider,completion_date:year,certificate_url:url})
+    }).then(r=>r.json()).then(data=>{
+      const dbId=data?.course?.id||data?.id;
+      if(dbId){try{const arr=JSON.parse(localStorage.getItem('tw_courses'+getUID())||'[]');const fi=arr.findIndex(x=>x.id===localId);if(fi>-1){arr[fi].id=dbId;localStorage.setItem('tw_courses'+getUID(),JSON.stringify(arr));}}catch(ex){}}
+    }).catch(()=>{});
+  }
 }
 
-// Drag & Drop
-const secList=document.getElementById('secList');
-secList.addEventListener('dragstart',e=>{ dragSrc=e.target.closest('.section'); if(dragSrc) setTimeout(()=>dragSrc.style.opacity='.4',0); });
-secList.addEventListener('dragend',e=>{ const s=e.target.closest('.section'); if(s) s.style.opacity='1'; document.querySelectorAll('.section').forEach(x=>x.classList.remove('drag-over')); });
-secList.addEventListener('dragover',e=>{ e.preventDefault(); const ov=e.target.closest('.section'); if(ov&&ov!==dragSrc){ document.querySelectorAll('.section').forEach(x=>x.classList.remove('drag-over')); ov.classList.add('drag-over'); } });
-secList.addEventListener('drop',e=>{
-  e.preventDefault();
-  const ov=e.target.closest('.section');
-  if(ov&&ov!==dragSrc){
-    const items=[...secList.children];
-    if(items.indexOf(dragSrc)<items.indexOf(ov)) secList.insertBefore(dragSrc,ov.nextSibling);
-    else secList.insertBefore(dragSrc,ov);
-    ov.classList.remove('drag-over');
-    saveSectionOrder();
-  }
-});
-
-// ── Field validation helpers ──
 function setFieldErr(inputId, errId, msg){
   const el=document.getElementById(inputId);
   const err=document.getElementById(errId);
@@ -1637,6 +1684,14 @@ function deleteEdu(id){
 function saveSectionOrder(){
   const order=[...secList.children].map(s=>s.id);
   try{ localStorage.setItem('tw_sec_order'+getUID(),JSON.stringify(order)); }catch(ex){}
+  // Save to DB
+  if(_sessionUser&&_sessionUser.id){
+    fetch('/profile/'+_sessionUser.id,{
+      method:'PUT',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({sections_order:JSON.stringify(order)})
+    }).catch(()=>{});
+  }
 }
 
 function loadSectionOrder(){
@@ -1653,6 +1708,8 @@ function loadSectionOrder(){
 // Modals
 function openModal(type,listId,secTitle){
   let h='';
+  const _m=document.getElementById('modal');
+  if(_m){delete _m.dataset.editId;delete _m.dataset.editType;}
   if(type==='profile'){
     // Always read from localStorage (source of truth)
     const uid_p=_sessionUser&&_sessionUser.id?'_'+_sessionUser.id:'';
@@ -2250,11 +2307,37 @@ function saveProfile(){
   // Save to API
   if(_sessionUser&&_sessionUser.id){
     fetch('/profile/'+_sessionUser.id,{method:'PUT',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({headline:title,bio,location:loc})
+      body:JSON.stringify({headline:title,bio,location:loc,full_name:name})
     }).catch(()=>{});
+    // Update name in users table
+    if(name&&name!==(_sessionUser.full_name||'')){
+      fetch('/auth/user/'+_sessionUser.id+'/name',{method:'PUT',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({full_name:name})
+      }).catch(()=>{});
+    }
   }
   closeModal();
 }
+
+// ── Helper: Send verify request to DB ──
+function sendVerifyRequest(itemType, itemId, itemTitle, itemCompany){
+  if(!_sessionUser||!_sessionUser.id||!itemType||!itemTitle) return;
+  fetch('/verify-request',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({
+      user_id:_sessionUser.id,
+      item_type:itemType,
+      item_id:itemId||0,
+      item_title:itemTitle||'',
+      item_company:itemCompany||''
+    })
+  }).then(r=>r.json()).then(d=>{
+    if(d.status==='success') console.log('✅ Verify sent:', d.action||'ok');
+  }).catch(e=>console.error('Verify failed:', e));
+}
+
 function saveExp(){
   const t=document.getElementById('m-et').value.trim();
   const co=document.getElementById('m-ec').value.trim();
@@ -2290,6 +2373,7 @@ function saveExp(){
         }
       }
     }catch(ex){}
+    sendVerifyRequest('exp',editId,t,co);
     const el=document.getElementById('exp-'+editId);
     if(el) el.outerHTML=renderExpItem({id:editId,title:t,company:co,location:l,start_date:s,end_date:e,work_type:wtype,desc:edesc});
   } else {
@@ -2347,6 +2431,7 @@ function saveEdu(){
         }
       }
     }catch(ex){}
+    sendVerifyRequest('edu',editId,d,i);
     const el=document.getElementById('edu-'+editId);
     if(el) el.outerHTML=renderEduItem({id:editId,degree:d,institution:i,end_year:y,degree_type:dtype,gpa:gpa});
   } else {
@@ -2374,6 +2459,25 @@ function saveEdu(){
   closeModal();
 }
 
+
+// ── Save all custom sections config to DB ──
+function _saveSectionsConfig(){
+  if(!_sessionUser||!_sessionUser.id) return;
+  try{
+    const sections=JSON.parse(localStorage.getItem('tw_added_sections'+getUID())||'[]');
+    // Build sections data with items
+    const sectionsData=sections.map(sec=>{
+      const items=JSON.parse(localStorage.getItem('tw_gen_'+sec.lid+getUID())||'[]');
+      return {...sec, items};
+    });
+    fetch('/profile/'+_sessionUser.id,{
+      method:'PUT',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({custom_sections:JSON.stringify(sectionsData)})
+    }).catch(()=>{});
+  }catch(ex){}
+}
+
 function saveCustomSec(){
   const nm=document.getElementById('m-csn')?.value.trim();
   const ic=document.getElementById('m-csi')?.value||'📌';
@@ -2390,13 +2494,15 @@ function saveCustomSec(){
       <button class="add-item-btn owner-only" onclick="window._currentLid='${lid}';openModal('generic','${lid}','${nm}')">+ إضافة</button>
       <div class="drag-handle owner-only"><span></span><span></span><span></span></div>
     </div>`);
-  // Save to tw_added_sections as custom type
+  // Save to localStorage
   try{
     const saved=JSON.parse(localStorage.getItem('tw_added_sections'+getUID())||'[]');
     saved.push({id:secId, lid:lid, icon:ic, title:nm, type:'custom'});
     localStorage.setItem('tw_added_sections'+getUID(), JSON.stringify(saved));
   }catch(ex){}
   saveSectionOrder();
+  // Save sections config to DB
+  _saveSectionsConfig();
   closeModal();
 }
 function saveGeneric(lid){
@@ -2420,15 +2526,17 @@ function saveGeneric(lid){
       </div>
     </div>`);
   }
-  // Save to localStorage
   try{
     const key='tw_gen_'+lid+getUID();
     const arr=JSON.parse(localStorage.getItem(key)||'[]');
     arr.unshift({id,title:t,sub:s,date:d});
     localStorage.setItem(key,JSON.stringify(arr));
   }catch(ex){}
+  // Save generic items to DB
+  _saveSectionsConfig();
   closeModal();
 }
+
 
 function showAvailBadge(avail){
   const availEl=document.getElementById('cvAvail');
@@ -2570,19 +2678,50 @@ function saveCrop(){
   const canvas=document.createElement('canvas');
   canvas.width=300; canvas.height=300;
   const ctx=canvas.getContext('2d');
-  ctx.drawImage(img.naturalWidth?img:img, -_cropX/_cropScale, -_cropY/_cropScale, 300/_cropScale, 300/_cropScale, 0, 0, 300, 300);
-  const dataUrl=canvas.toDataURL('image/jpeg',0.85);
+  ctx.drawImage(img, -_cropX/_cropScale, -_cropY/_cropScale, 300/_cropScale, 300/_cropScale, 0, 0, 300, 300);
+  const dataUrl=canvas.toDataURL('image/jpeg',0.82);
   const avatarEl=document.getElementById('avatarBtn');
-  if(avatarEl) avatarEl.innerHTML=`<img src="${dataUrl}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;">`;
-  try{
-      localStorage.setItem('tw_avatar'+getUID(), dataUrl);
-  }catch(ex){}
+  if(avatarEl) avatarEl.innerHTML='<img src="'+dataUrl+'" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;">';
+  // Show immediately from localStorage
+  try{ localStorage.setItem('tw_avatar'+getUID(), dataUrl); }catch(ex){}
   document.getElementById('cropOv')?.remove();
-  // Cleanup events
   document.removeEventListener('mousemove',doDrag);
   document.removeEventListener('touchmove',doDrag);
   document.removeEventListener('mouseup',stopDrag);
   document.removeEventListener('touchend',stopDrag);
+  // Upload to Supabase Storage via server
+  if(_sessionUser&&_sessionUser.id){
+    fetch('/upload/image',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        user_id:_sessionUser.id,
+        bucket:'avatars',
+        filename:'avatar',
+        data_url:dataUrl
+      })
+    }).then(function(r){return r.json();}).then(function(data){
+      if(data.status==='success'&&data.url){
+        const avatarUrl=data.url;
+        // Update DB with real URL (or data URL in dev mode)
+        fetch('/profile/'+_sessionUser.id,{
+          method:'PUT',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({avatar_url:avatarUrl})
+        }).then(function(){
+          if(!data.dev_mode) try{ localStorage.setItem('tw_avatar'+getUID(), avatarUrl); }catch(ex){}
+          showToast('تم حفظ الصورة ✅');
+        }).catch(function(){});
+      }
+    }).catch(function(){
+      // Fallback: save data URL directly
+      fetch('/profile/'+_sessionUser.id,{
+        method:'PUT',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({avatar_url:dataUrl})
+      }).catch(function(){});
+    });
+  }
 }
 
 // Load saved avatar on init (only for own profile)
@@ -2598,10 +2737,23 @@ function saveCrop(){
   if(saved){
     const avatarEl=document.getElementById('avatarBtn');
     if(avatarEl) avatarEl.innerHTML=`<img src="${saved}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;">`;
+  } else {
+    // Try loading from DB
+    if(u&&u.id){
+      fetch('/profile/'+u.id+'/full').then(r=>r.json()).then(data=>{
+        const avatarUrl=data?.profile?.avatar_url;
+        if(avatarUrl){
+          try{ localStorage.setItem('tw_avatar'+getUID(), avatarUrl); }catch(ex){}
+          const avatarEl=document.getElementById('avatarBtn');
+          if(avatarEl) avatarEl.innerHTML=`<img src="${avatarUrl}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;">`;
+        }
+      }).catch(()=>{});
+    }
   }
 })();
 
 function doLogout(){ localStorage.removeItem('tw_user'); location.href='/'; }
+initScrollProg();
 </script>
 
 <script>
@@ -2675,6 +2827,52 @@ function doLogout(){ localStorage.removeItem('tw_user'); location.href='/'; }
   }catch(ex){}
   } // end _isOwnProfile
 
+  // ── 1.5 Load skills/langs/links from DB into localStorage ──
+  if(_isOwnProfile && _sessionUser && _sessionUser.id){
+    fetch('/profile/' + _sessionUser.id + '/full')
+      .then(r => r.json())
+      .then(data => {
+        const pr = data.profile;
+        if(!pr) return;
+        // Sync skills
+        if(pr.skills && pr.skills.length){
+          const lsSkills = JSON.parse(localStorage.getItem('tw_skills'+getUID())||'[]');
+          if(!lsSkills.length){
+            const mapped = pr.skills.map(s=>({id:s.id,name:s.skill,level:s.level||''}));
+            localStorage.setItem('tw_skills'+getUID(), JSON.stringify(mapped));
+          }
+        }
+        // Sync langs
+        if(pr.langs && pr.langs.length){
+          const lsLangs = JSON.parse(localStorage.getItem('tw_langs'+getUID())||'[]');
+          if(!lsLangs.length){
+            const mapped = pr.langs.map(l=>({id:l.id,name:l.language,level:l.level||''}));
+            localStorage.setItem('tw_langs'+getUID(), JSON.stringify(mapped));
+          }
+        }
+        // Sync links
+        if(pr.links && pr.links.length){
+          const lsLinks = JSON.parse(localStorage.getItem('tw_links'+getUID())||'[]');
+          if(!lsLinks.length){
+            const mapped = pr.links.map(l=>({id:l.id,type:l.link_type||'رابط',url:l.url}));
+            localStorage.setItem('tw_links'+getUID(), JSON.stringify(mapped));
+          }
+        }
+        // Sync custom sections
+        if(pr.custom_sections && !_isOwnProfile){
+          // For visitors - will show from API data
+        } else if(pr.custom_sections){
+          try{
+            const lsSecs=localStorage.getItem('tw_added_sections'+getUID());
+            if(!lsSecs || JSON.parse(lsSecs).length===0){
+              const dbSecs=JSON.parse(pr.custom_sections);
+              localStorage.setItem('tw_added_sections'+getUID(), JSON.stringify(dbSecs));
+            }
+          }catch(ex){}
+        }
+      }).catch(()=>{});
+  }
+
   // ── 2. API call ── (always runs for any profile)
   fetch('/profile/' + (_urlId||user.id) + '/full')
     .then(r => r.json())
@@ -2697,6 +2895,35 @@ function doLogout(){ localStorage.removeItem('tw_user'); location.href='/'; }
         document.getElementById('edu-list').innerHTML = ''; // clear empty hint
         p.education.forEach(e => document.getElementById('edu-list').insertAdjacentHTML('beforeend',
           `<div class="item"><div class="item-title">${e.degree||'شهادة'}</div><div class="item-sub">${e.institution}</div><div class="item-date">${e.end_year||''}</div><span class="badge pending">⏳ قيد التوثيق</span></div>`));
+      }
+      // ── Load skills/langs/links/courses from API for all profiles ──
+      if(p.skills && p.skills.length){
+        try{
+          const lsSkills=JSON.parse(localStorage.getItem('tw_skills'+getUID())||'[]');
+          if(!lsSkills.length || !_isOwnProfile){
+            // Restore skills section from DB
+            p.skills.forEach(s=>{
+              const skillData={id:s.id,name:s.skill,level:s.level||''};
+              const existing=localStorage.getItem('tw_skills'+getUID());
+              if(!existing||!_isOwnProfile){
+                // Will be handled by restoreSections on next load
+              }
+            });
+            if(!_isOwnProfile){
+              // Show skills for visitor
+              const skillSec=document.getElementById('sec-skills');
+              if(!skillSec){
+                // Add skills section for visitor view
+                const sl=document.getElementById('secList');
+                if(sl) sl.insertAdjacentHTML('beforeend',
+                  `<div class="section" id="sec-skills-v">
+                    <div class="sec-header"><span class="sec-icon">🛠️</span><span class="sec-title">المهارات</span><div class="sec-line"></div></div>
+                    <div id="skills-list-v">${p.skills.map(s=>`<div class="item"><div class="item-title">${s.skill}</div><div class="item-sub">${s.level||''}</div></div>`).join('')}</div>
+                  </div>`);
+              }
+            }
+          }
+        }catch(ex){}
       }
     })
     .catch(()=>{
@@ -2889,6 +3116,67 @@ function initQR(){
   drawSnapQR('snapCanvas', _qrUrl, 68);
 }
 window.addEventListener('load', initQR);
+
+
+// ══ ITQAN Utilities ══
+var _twToast=null;
+function showToast(msg,type,dur){
+  type=type||'success';dur=dur||2800;
+  if(_twToast){_twToast.remove();}
+  var t=document.createElement('div');
+  t.className='tw-toast '+type;
+  var ico=type==='success'?'✅':type==='error'?'❌':'ℹ️';
+  t.innerHTML='<span>'+ico+'</span><span>'+msg+'</span>';
+  document.body.appendChild(t);
+  _twToast=t;
+  requestAnimationFrame(function(){requestAnimationFrame(function(){t.classList.add('show');});});
+  setTimeout(function(){t.classList.remove('show');setTimeout(function(){if(t.parentNode)t.remove();},350);},dur);
+}
+function setBtnLoad(btn,loading){
+  if(!btn)return;
+  if(loading){btn.classList.add('tw-btn-loading');btn._orig=btn.textContent;btn.textContent='';btn.disabled=true;}
+  else{btn.classList.remove('tw-btn-loading');btn.textContent=btn._orig||'حفظ';btn.disabled=false;}
+}
+function twNavigate(url){
+  document.body.style.cssText='opacity:0;transform:translateY(-6px);transition:all .2s ease;';
+  setTimeout(function(){window.location.href=url;},180);
+}
+function initScrollProg(){
+  var p=document.createElement('div');p.className='tw-scroll-prog';
+  document.body.prepend(p);
+  window.addEventListener('scroll',function(){
+    var pct=window.scrollY/(document.body.scrollHeight-window.innerHeight)*100;
+    p.style.width=Math.min(pct,100)+'%';
+  });
+}
+document.addEventListener('keydown',function(e){
+  if(e.key==='Escape'){
+    var fn=window.closeModal||window.closeEdit||window.closePostJob||window.closeMsgModal;
+    if(typeof fn==='function')fn();
+  }
+  if(e.key==='/'&&!['INPUT','TEXTAREA'].includes(e.target.tagName)){
+    e.preventDefault();
+    var s=document.getElementById('searchInput')||document.getElementById('userSearch')||document.getElementById('jobSearch');
+    if(s)s.focus();
+  }
+});
+document.documentElement.style.opacity='0';
+window.addEventListener('load',function(){
+  document.documentElement.style.transition='opacity .25s ease';
+  document.documentElement.style.opacity='1';
+});
+
+
+// Check KYC status
+if(_sessionUser && _sessionUser.id){
+  fetch('/kyc/status/'+_sessionUser.id).then(function(r){return r.json();}).then(function(data){
+    var kyc=data.kyc||{};
+    var badge=document.getElementById('profileVerifiedBadge');
+    if(kyc.status==='approved' && badge){
+      badge.style.display='inline-block';
+    }
+  }).catch(function(){});
+}
 </script>
 
 </body>

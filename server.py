@@ -2,11 +2,13 @@
 تواصلنا - Arabic Employment Platform
 """
 
+import os
 from fastapi import FastAPI, HTTPException, Request, Response, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
+import base64, mimetypes
 from typing import List, Optional
 from datetime import datetime
 import hashlib, secrets, json, os
@@ -54,7 +56,13 @@ from auth import (
     create_user, authenticate_user, get_user_by_id,
     get_public_profile, get_full_profile, update_profile,
     get_profile_by_tw_id, get_full_profile_by_tw_id, get_user_id_by_tw_id,
-    add_experience, add_education, add_course, create_verify_request
+    add_experience, add_education, add_course, create_verify_request,
+    add_job, get_jobs, get_job, apply_job,
+    start_kyc, send_email_code, verify_email_code,
+    send_phone_code, verify_phone_code, upload_kyc_docs,
+    get_kyc_status, admin_approve_kyc, admin_reject_kyc, get_all_kyc_submissions,
+    get_job_applicants, get_user_applications,
+    update_application_status, delete_job
 )
 
 # ── Config ──
@@ -163,6 +171,9 @@ def employees_group(): return read_html("employees-group.html")
 @app.get("/employees-group.html", response_class=HTMLResponse)
 def employees_group_html(): return read_html("employees-group.html")
 
+@app.get("/jobs.html", response_class=HTMLResponse)
+def jobs_page(): return read_html("jobs.html")
+
 @app.get("/job-detail", response_class=HTMLResponse)
 def job_detail(): return read_html("job-detail.html")
 
@@ -205,6 +216,14 @@ class ProfileUpdateInput(BaseModel):
     skills: Optional[List[str]] = None
     avatar_url: Optional[str] = None
     website: Optional[str] = None
+    full_name: Optional[str] = None
+    phone: Optional[str] = None
+    sections_order: Optional[str] = None
+    custom_sections: Optional[str] = None
+    dob: Optional[str] = None
+    country: Optional[str] = None
+    city: Optional[str] = None
+    avail: Optional[str] = None
 
 class ExperienceInput(BaseModel):
     title: str
@@ -222,6 +241,62 @@ class EducationInput(BaseModel):
     start_year: Optional[int] = None
     end_year: Optional[int] = None
     description: Optional[str] = None
+
+class ImageUploadInput(BaseModel):
+    user_id: int
+    bucket: str
+    filename: str
+    data_url: str
+
+class KYCEmailInput(BaseModel):
+    user_id: int
+    email: str
+
+class KYCCodeInput(BaseModel):
+    user_id: int
+    code: str
+
+class KYCPhoneInput(BaseModel):
+    user_id: int
+    phone: str
+
+class KYCDocsInput(BaseModel):
+    user_id: int
+    id_front_url: str
+    selfie_url: Optional[str] = None
+
+class KYCAdminInput(BaseModel):
+    note: Optional[str] = ""
+
+class JobInput(BaseModel):
+    title: str
+    description: Optional[str] = None
+    location: Optional[str] = None
+    job_type: Optional[str] = "full_time"
+    salary_min: Optional[int] = None
+    salary_max: Optional[int] = None
+    currency: Optional[str] = "USD"
+    experience_years: Optional[int] = 0
+    skills: Optional[List[str]] = None
+
+class JobApplyInput(BaseModel):
+    user_id: int
+    cover_letter: Optional[str] = ""
+
+class AppStatusInput(BaseModel):
+    status: str  # pending, viewed, accepted, rejected
+
+class SkillInput(BaseModel):
+    skill: str
+    level: Optional[str] = None
+
+class LangInput(BaseModel):
+    language: str
+    level: Optional[str] = None
+
+class LinkInput(BaseModel):
+    link_type: Optional[str] = None
+    url: str
 
 class CourseInput(BaseModel):
     title: str
@@ -394,6 +469,244 @@ def add_user_course(user_id: int, data: CourseInput):
         print(f"Course error: {e}")
         raise HTTPException(500, detail="خطأ في الخادم")
 
+@app.post("/skills/{user_id}")
+def add_user_skill(user_id: int, data: SkillInput):
+    try:
+        conn = get_conn()
+        try:
+            rows = conn.run(
+                "INSERT INTO user_skills (user_id, skill, level) VALUES (:uid, :skill, :level) RETURNING id, user_id, skill, level",
+                uid=user_id, skill=data.skill, level=data.level
+            )
+            cols = [d["name"] if isinstance(d, dict) else d[0] for d in conn.columns]
+            return {"status": "success", "skill": dict(zip(cols, rows[0]))}
+        finally:
+            conn.close()
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+@app.delete("/skills/{skill_id}")
+def delete_user_skill(skill_id: int):
+    try:
+        conn = get_conn()
+        try:
+            conn.run("DELETE FROM user_skills WHERE id = :id", id=skill_id)
+            return {"success": True}
+        finally:
+            conn.close()
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+@app.post("/langs/{user_id}")
+def add_user_lang(user_id: int, data: LangInput):
+    try:
+        conn = get_conn()
+        try:
+            rows = conn.run(
+                "INSERT INTO user_langs (user_id, language, level) VALUES (:uid, :lang, :level) RETURNING id, user_id, language, level",
+                uid=user_id, lang=data.language, level=data.level
+            )
+            cols = [d["name"] if isinstance(d, dict) else d[0] for d in conn.columns]
+            return {"status": "success", "lang": dict(zip(cols, rows[0]))}
+        finally:
+            conn.close()
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+@app.delete("/langs/{lang_id}")
+def delete_user_lang(lang_id: int):
+    try:
+        conn = get_conn()
+        try:
+            conn.run("DELETE FROM user_langs WHERE id = :id", id=lang_id)
+            return {"success": True}
+        finally:
+            conn.close()
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+@app.post("/links/{user_id}")
+def add_user_link(user_id: int, data: LinkInput):
+    try:
+        conn = get_conn()
+        try:
+            rows = conn.run(
+                "INSERT INTO user_links (user_id, link_type, url) VALUES (:uid, :ltype, :url) RETURNING id, user_id, link_type, url",
+                uid=user_id, ltype=data.link_type, url=data.url
+            )
+            cols = [d["name"] if isinstance(d, dict) else d[0] for d in conn.columns]
+            return {"status": "success", "link": dict(zip(cols, rows[0]))}
+        finally:
+            conn.close()
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+@app.delete("/links/{link_id}")
+def delete_user_link(link_id: int):
+    try:
+        conn = get_conn()
+        try:
+            conn.run("DELETE FROM user_links WHERE id = :id", id=link_id)
+            return {"success": True}
+        finally:
+            conn.close()
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+# ══ Storage Upload ══
+
+@app.post("/upload/image")
+async def upload_image(data: ImageUploadInput):
+    """Upload image to Supabase Storage and return public URL"""
+    import httpx
+    try:
+        # Parse data URL: "data:image/jpeg;base64,/9j/4AAQ..."
+        if ',' not in data.data_url:
+            raise HTTPException(400, "Invalid data URL")
+
+        header, b64data = data.data_url.split(',', 1)
+        # Get mime type: "data:image/jpeg;base64"
+        mime = header.split(':')[1].split(';')[0]
+        ext = mimetypes.guess_extension(mime) or '.jpg'
+        if ext == '.jpe': ext = '.jpg'
+
+        file_bytes = base64.b64decode(b64data)
+
+        # Check size - max 5MB
+        if len(file_bytes) > 5 * 1024 * 1024:
+            raise HTTPException(400, "الصورة كبيرة جداً - الحد الأقصى 5MB")
+
+        supabase_url = os.environ.get("SUPABASE_URL")
+        supabase_key = os.environ.get("SUPABASE_SERVICE_KEY")
+
+        if not supabase_url or not supabase_key:
+            # Fallback: return data URL as-is (dev mode)
+            return {"status": "success", "url": data.data_url, "dev_mode": True}
+
+        bucket = data.bucket
+        filename = f"{data.user_id}_{data.filename}{ext}"
+        storage_url = f"{supabase_url}/storage/v1/object/{bucket}/{filename}"
+
+        async with httpx.AsyncClient() as client:
+            r = await client.post(
+                storage_url,
+                content=file_bytes,
+                headers={
+                    "Authorization": f"Bearer {supabase_key}",
+                    "Content-Type": mime,
+                    "x-upsert": "true"
+                }
+            )
+            if r.status_code not in (200, 201):
+                # Fallback to data URL
+                return {"status": "success", "url": data.data_url, "dev_mode": True}
+
+        public_url = f"{supabase_url}/storage/v1/object/public/{bucket}/{filename}"
+        return {"status": "success", "url": public_url}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Upload error: {e}")
+        # Fallback: return data URL
+        return {"status": "success", "url": data.data_url, "dev_mode": True}
+
+# ══ KYC Endpoints ══
+
+@app.post("/kyc/start")
+def kyc_start(user_id: int):
+    try:
+        result = start_kyc(user_id)
+        return {"status": "success", "kyc": result}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+@app.get("/kyc/status/{user_id}")
+def kyc_status(user_id: int):
+    try:
+        result = get_kyc_status(user_id)
+        return {"status": "success", "kyc": result}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+@app.post("/kyc/email/send")
+def kyc_send_email(data: KYCEmailInput):
+    try:
+        start_kyc(data.user_id)
+        code = send_email_code(data.user_id, data.email)
+        print(f"[KYC] Email code for user {data.user_id}: {code}")  # In prod: send via email
+        return {"status": "success", "message": "تم إرسال الرمز على بريدك الإلكتروني", "dev_code": code}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+@app.post("/kyc/email/verify")
+def kyc_verify_email(data: KYCCodeInput):
+    try:
+        ok = verify_email_code(data.user_id, data.code)
+        if not ok:
+            raise HTTPException(400, "الرمز غير صحيح أو منتهي الصلاحية")
+        return {"status": "success", "message": "تم تأكيد البريد الإلكتروني ✅"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+@app.post("/kyc/phone/send")
+def kyc_send_phone(data: KYCPhoneInput):
+    try:
+        code = send_phone_code(data.user_id, data.phone)
+        print(f"[KYC] Phone code for user {data.user_id}: {code}")  # In prod: send via SMS
+        return {"status": "success", "message": "تم إرسال الرمز على هاتفك", "dev_code": code}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+@app.post("/kyc/phone/verify")
+def kyc_verify_phone(data: KYCCodeInput):
+    try:
+        ok = verify_phone_code(data.user_id, data.code)
+        if not ok:
+            raise HTTPException(400, "الرمز غير صحيح")
+        return {"status": "success", "message": "تم تأكيد رقم الهاتف ✅"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+@app.post("/kyc/docs")
+def kyc_upload_docs(data: KYCDocsInput):
+    try:
+        result = upload_kyc_docs(data.user_id, data.id_front_url, data.selfie_url)
+        return {"status": "success", **result}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+@app.get("/admin/kyc")
+def admin_get_kyc(request: Request):
+    check_admin(request)
+    try:
+        submissions = get_all_kyc_submissions()
+        return {"status": "success", "submissions": submissions, "count": len(submissions)}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+@app.put("/admin/kyc/{user_id}/approve")
+def admin_kyc_approve(user_id: int, data: KYCAdminInput, request: Request):
+    check_admin(request)
+    try:
+        result = admin_approve_kyc(user_id, data.note)
+        return {"status": "success", **result}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+@app.put("/admin/kyc/{user_id}/reject")
+def admin_kyc_reject(user_id: int, data: KYCAdminInput, request: Request):
+    check_admin(request)
+    try:
+        result = admin_reject_kyc(user_id, data.note)
+        return {"status": "success", **result}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
 @app.post("/verify-request")
 def request_verification(data: VerifyRequestInput):
     try:
@@ -408,19 +721,97 @@ def request_verification(data: VerifyRequestInput):
 # ══════════════════════════════════════════
 # Jobs & Match
 # ══════════════════════════════════════════
-JOBS = [
-    {"id":1,"title":"محاسب","company":"شركة المال والأعمال","location":"عمان","text":"نبحث عن محاسب لديه خبرة في Excel والمالية والضرائب"},
-    {"id":2,"title":"مطور ويب","company":"تك ستارت","location":"الرياض","text":"مطلوب مطور React و FastAPI خبرة 3 سنوات على الأقل"},
-    {"id":3,"title":"فني تكييف","company":"برودة للتكييف","location":"دبي","text":"خبرة في صيانة أجهزة التكييف والتبريد وإصلاح الأعطال"},
-    {"id":4,"title":"مدير مبيعات","company":"نجوم التجارة","location":"القاهرة","text":"خبرة في المبيعات وإدارة فريق العمل وتحقيق الأهداف"},
-    {"id":5,"title":"مصمم جرافيك","company":"إبداع ستوديو","location":"بيروت","text":"إتقان Photoshop وIllustrator وخبرة في الهوية البصرية"},
-    {"id":6,"title":"ممرض/ة","company":"مستشفى الشفاء","location":"عمان","text":"شهادة تمريض خبرة في الرعاية الصحية والتعامل مع المرضى"},
-    {"id":7,"title":"معلم رياضيات","company":"مدارس المستقبل","location":"دبي","text":"شهادة تعليم خبرة في تدريس الرياضيات للمرحلة الثانوية"},
-]
 
 @app.get("/jobs")
-def list_jobs():
-    return {"jobs": JOBS, "count": len(JOBS)}
+def list_jobs(search: str = None, location: str = None,
+               job_type: str = None, company_id: int = None):
+    filters = {"search":search,"location":location,"job_type":job_type,"company_id":company_id}
+    jobs = get_jobs({k:v for k,v in filters.items() if v})
+    return {"jobs": jobs, "count": len(jobs)}
+
+@app.get("/jobs/{job_id}")
+def get_job_detail(job_id: int):
+    job = get_job(job_id)
+    if not job: raise HTTPException(404, "الوظيفة غير موجودة")
+    return {"status": "success", "job": job}
+
+@app.post("/company/jobs")
+def post_job(data: JobInput, request: Request):
+    user_id = int(request.headers.get("X-User-Id", 0))
+    if not user_id: raise HTTPException(401, "غير مصرح")
+    job = add_job(user_id, data.dict())
+    return {"status": "success", "job": job}
+
+@app.put("/company/jobs/{job_id}")
+def update_job_endpoint(job_id: int, data: JobInput, request: Request):
+    user_id = int(request.headers.get("X-User-Id", 0))
+    if not user_id: raise HTTPException(401, "غير مصرح")
+    conn = get_conn()
+    try:
+        fields = {k:v for k,v in data.dict().items() if v is not None}
+        if fields:
+            set_clause = ", ".join(f"{k}=:{k}" for k in fields)
+            conn.run(f"UPDATE jobs SET {set_clause} WHERE id=:id AND company_id=:cid",
+                     id=job_id, cid=user_id, **fields)
+        return {"status": "success"}
+    finally:
+        conn.close()
+
+@app.delete("/company/jobs/{job_id}")
+def remove_job(job_id: int, request: Request):
+    user_id = int(request.headers.get("X-User-Id", 0))
+    if not user_id: raise HTTPException(401, "غير مصرح")
+    delete_job(job_id, user_id)
+    return {"success": True}
+
+@app.get("/company/jobs")
+def get_company_jobs(request: Request):
+    user_id = int(request.headers.get("X-User-Id", 0))
+    if not user_id: raise HTTPException(401, "غير مصرح")
+    jobs = get_jobs({"company_id": user_id})
+    return {"jobs": jobs, "count": len(jobs)}
+
+@app.post("/jobs/{job_id}/apply")
+def apply_to_job(job_id: int, data: JobApplyInput):
+    result = apply_job(job_id, data.user_id, data.cover_letter or "")
+    return {"status": "success", **result}
+
+@app.get("/jobs/{job_id}/applicants")
+def job_applicants(job_id: int, request: Request):
+    user_id = int(request.headers.get("X-User-Id", 0))
+    if not user_id: raise HTTPException(401, "غير مصرح")
+    applicants = get_job_applicants(job_id)
+    return {"applicants": applicants, "count": len(applicants)}
+
+@app.get("/my/applications")
+def my_applications(request: Request):
+    user_id = int(request.headers.get("X-User-Id", 0))
+    if not user_id: raise HTTPException(401, "غير مصرح")
+    apps = get_user_applications(user_id)
+    return {"applications": apps, "count": len(apps)}
+
+@app.put("/jobs/applications/{app_id}/status")
+def update_app_status(app_id: int, data: AppStatusInput, request: Request):
+    user_id = int(request.headers.get("X-User-Id", 0))
+    if not user_id: raise HTTPException(401, "غير مصرح")
+    result = update_application_status(app_id, data.status)
+    return result
+
+@app.get("/admin/jobs")
+def admin_list_jobs(request: Request):
+    check_admin(request)
+    jobs = get_jobs({})
+    return {"jobs": jobs, "count": len(jobs)}
+
+@app.delete("/admin/jobs/{job_id}")
+def admin_delete_job(job_id: int, request: Request):
+    check_admin(request)
+    conn = get_conn()
+    try:
+        conn.run("DELETE FROM jobs WHERE id=:id", id=job_id)
+        return {"success": True}
+    finally:
+        conn.close()
 
 @app.post("/match")
 def match_cv(cv: CVInput):
@@ -549,6 +940,18 @@ def admin_get_profile(user_id: int, request: Request):
         err = traceback.format_exc()
         print(f"admin_get_profile error: {err}")
         raise HTTPException(500, detail=f"خطأ: {str(e)}")
+
+@app.delete("/auth/user/{user_id}/delete")
+def delete_own_account(user_id: int, request: Request):
+    """User deletes their own account"""
+    conn = get_conn()
+    try:
+        conn.run("DELETE FROM users WHERE id = :uid", uid=user_id)
+        return {"success": True}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+    finally:
+        conn.close()
 
 @app.delete("/admin/user/{user_id}")
 def delete_user(user_id: int, request: Request):

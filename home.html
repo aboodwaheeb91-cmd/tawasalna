@@ -222,6 +222,46 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-heig
   .nav-search{display:none;}
   .cg{grid-template-columns:1fr;}
 }
+
+.jcard{background:var(--card);border:1px solid var(--bdr);border-radius:16px;padding:16px;margin-bottom:12px;cursor:pointer;transition:border-color .2s}
+.jcard:hover{border-color:var(--ac)}
+.jcard-top{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.jcard-ico{width:40px;height:40px;border-radius:12px;background:rgba(0,200,150,.1);display:flex;align-items:center;justify-content:center;font-size:1.2rem}
+.jcard-info{flex:1}
+.jcard-title{font-weight:800;font-size:.9rem}
+.jcard-sub{font-size:.74rem;color:var(--t3)}
+.jcard-ago{font-size:.65rem;color:var(--t3)}
+.jcard-tags{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px}
+.jcard-desc{font-size:.75rem;color:var(--t3);line-height:1.5}
+.jsk{background:rgba(0,200,150,.1);color:var(--ac);border-radius:20px;padding:2px 9px;font-size:.68rem}
+.jtag{background:rgba(255,255,255,.05);border-radius:20px;padding:2px 9px;font-size:.68rem;color:var(--t2)}
+
+
+/* ══ ITQAN - Shared Utilities ══ */
+@keyframes tw-shimmer{0%{background-position:-1000px 0}100%{background-position:1000px 0}}
+@keyframes tw-spin{to{transform:translateY(-50%) rotate(360deg);}}
+@keyframes tw-fadein{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:none;}}
+@keyframes tw-verified{0%,100%{box-shadow:0 0 0 0 rgba(0,200,150,0);}50%{box-shadow:0 0 0 5px rgba(0,200,150,.15);}}
+.tw-toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(20px);background:rgba(7,11,24,.97);border:1px solid rgba(255,255,255,.1);backdrop-filter:blur(20px);border-radius:14px;padding:12px 20px;display:flex;align-items:center;gap:10px;font-size:.82rem;font-family:Cairo,sans-serif;color:rgba(255,255,255,.92);opacity:0;transition:all .3s cubic-bezier(.34,1.56,.64,1);z-index:9999;white-space:nowrap;min-width:180px;justify-content:center;box-shadow:0 8px 32px rgba(0,0,0,.4);}
+.tw-toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+.tw-toast.success{border-color:rgba(0,200,150,.3);}
+.tw-toast.error{border-color:rgba(239,68,68,.3);}
+.tw-toast.info{border-color:rgba(37,99,255,.3);}
+.tw-skeleton{background:linear-gradient(90deg,rgba(255,255,255,.04) 25%,rgba(255,255,255,.09) 50%,rgba(255,255,255,.04) 75%);background-size:2000px 100%;animation:tw-shimmer 1.5s infinite linear;border-radius:8px;}
+.tw-btn-loading{position:relative;pointer-events:none;opacity:.8;}
+.tw-btn-loading::after{content:'';position:absolute;width:14px;height:14px;border-radius:50%;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;animation:tw-spin .7s linear infinite;right:12px;top:50%;transform:translateY(-50%);}
+.tw-scroll-prog{position:fixed;top:0;left:0;height:2px;z-index:999;background:linear-gradient(90deg,var(--ac,#00c896),var(--ac2,#2563ff));transition:width .1s;width:0%;}
+.tw-fab{position:fixed;bottom:80px;left:18px;width:50px;height:50px;border-radius:50%;border:none;font-size:1.4rem;background:linear-gradient(135deg,var(--ac,#00c896),var(--ac2,#2563ff));color:#fff;cursor:pointer;box-shadow:0 4px 20px rgba(0,200,150,.35);transition:all .25s cubic-bezier(.34,1.56,.64,1);z-index:50;display:flex;align-items:center;justify-content:center;}
+.tw-fab:hover{transform:scale(1.12) rotate(90deg);}
+.tw-empty{text-align:center;padding:50px 20px;}
+.tw-empty-ico{font-size:2.5rem;margin-bottom:12px;opacity:.7;display:block;}
+.tw-empty-title{font-size:.95rem;font-weight:800;margin-bottom:6px;}
+.tw-empty-sub{font-size:.78rem;color:rgba(255,255,255,.35);margin-bottom:18px;line-height:1.6;}
+.tw-empty-btn{padding:10px 22px;border-radius:12px;background:linear-gradient(135deg,var(--ac,#00c896),var(--ac2,#2563ff));border:none;color:#fff;font-family:Cairo,sans-serif;font-weight:700;font-size:.8rem;cursor:pointer;}
+.tw-card-lift{transition:transform .2s,box-shadow .2s;}
+.tw-card-lift:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.3);}
+.tw-verified{animation:tw-verified 2.5s ease-in-out infinite;}
+
 </style>
 </head>
 <body>
@@ -229,7 +269,7 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-heig
 <!-- ══ NAV ══ -->
 <nav class="nav">
   <div class="nav-logo">تواصلنا</div>
-  <button class="tb-btn tb-ghost" onclick="goProfile()" style="font-size:.73rem">👤 ملفي الشخصي</button>
+  <button class="tb-btn tb-ghost" onclick="goProfile()" style="font-size:.73rem;display:flex;align-items:center;gap:6px"><span id="navAva">👤</span> ملفي الشخصي</button>
   <div style="flex:1"></div>
   <button class="tb-btn" onclick="logout()" style="background:rgba(239,68,68,.1);color:#f87171;border:1px solid rgba(239,68,68,.2);font-size:.73rem">خروج</button>
 </nav>
@@ -274,57 +314,14 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-heig
   </div>
 
   <!-- وظائف -->
-  <div class="sec-hd"><h2>💼 وظائف مقترحة لك</h2><a href="#">عرض الكل</a></div>
-
-  <div class="jc feat">
-    <div class="jh">
-      <div class="jico">🏢</div>
-      <div style="flex:1">
-        <div style="display:flex;align-items:center;gap:6px;margin-bottom:1px">
-          <div class="jt">مطور React أول</div>
-          <span class="feat-b">⭐ مميزة</span>
-        </div>
-        <div class="jc2">شركة تك ستارت · عمان</div>
-        <div class="jl">📍 عمان، الأردن · دوام كامل</div>
-      </div>
+  <div class="sec-hd"><h2>💼 وظائف مقترحة لك</h2><a href="jobs.html">عرض الكل</a></div>
+  <div id="jobsFeed">
+    <div style="text-align:center;padding:30px;color:var(--t3)">
+      <div style="font-size:1.5rem">⏳</div>
+      <div style="font-size:.82rem;margin-top:8px">جاري تحميل الوظائف...</div>
     </div>
-    <div class="jtags"><span class="tag tg">React</span><span class="tag tg">FastAPI</span><span class="tag tb">Remote</span><span class="tag">3-5 سنوات</span></div>
-    <div class="jf"><div><div class="jsal">800 - 1200 دينار/شهر</div><div class="jdate">منذ يومين</div></div><button class="jbtn">تقديم ←</button></div>
   </div>
 
-  <div class="jc">
-    <div class="jh">
-      <div class="jico">🏭</div>
-      <div><div class="jt">مهندس برمجيات</div><div class="jc2">مجموعة الصناعات · الرياض</div><div class="jl">📍 الرياض، السعودية</div></div>
-    </div>
-    <div class="jtags"><span class="tag tg">Python</span><span class="tag tg">Django</span><span class="tag to">عاجل</span></div>
-    <div class="jf"><div><div class="jsal">5000 - 7000 ريال/شهر</div><div class="jdate">منذ 3 أيام</div></div><button class="jbtn">تقديم ←</button></div>
-  </div>
-
-  <div class="jc">
-    <div class="jh">
-      <div class="jico">💻</div>
-      <div><div class="jt">مطور Flutter</div><div class="jc2">إبداع للتقنية · دبي</div><div class="jl">📍 دبي، الإمارات · هجين</div></div>
-    </div>
-    <div class="jtags"><span class="tag tg">Flutter</span><span class="tag tg">Dart</span><span class="tag tb">Hybrid</span></div>
-    <div class="jf"><div><div class="jsal">8000 - 12000 درهم/شهر</div><div class="jdate">منذ أسبوع</div></div><button class="jbtn">تقديم ←</button></div>
-  </div>
-
-  <!-- دورات -->
-  <div class="sec-hd" style="margin-top:6px"><h2>🎓 دورات تدريبية</h2><a href="#">عرض الكل</a></div>
-  <div class="cg">
-    <div class="cc"><div class="ct" style="background:linear-gradient(135deg,#0a1628,#0d1e3a)">🐍<span class="cp free">مجاني</span></div><div class="cb"><div class="cn">Python للمبتدئين</div><div class="cpv">أكاديمية تواصلنا</div><div class="cm"><span>⏱ 8 ساعات</span><span>👥 1.2k</span></div><button class="ce">ابدأ الآن</button></div></div>
-    <div class="cc"><div class="ct" style="background:linear-gradient(135deg,#12082a,#1a0f38)">⚛️<span class="cp paid">29$</span></div><div class="cb"><div class="cn">React المتقدم</div><div class="cpv">Udemy Arabic</div><div class="cm"><span>⏱ 24 ساعة</span><span>⭐ 4.8</span></div><button class="ce">اشترك</button></div></div>
-    <div class="cc"><div class="ct" style="background:linear-gradient(135deg,#0a1628,#0d2040)">🗄️<span class="cp free">مجاني</span></div><div class="cb"><div class="cn">SQL وقواعد البيانات</div><div class="cpv">تواصلنا أكاديمي</div><div class="cm"><span>⏱ 6 ساعات</span><span>👥 856</span></div><button class="ce">ابدأ الآن</button></div></div>
-    <div class="cc"><div class="ct" style="background:linear-gradient(135deg,#1a1205,#2a1e08)">🤖<span class="cp paid">49$</span></div><div class="cb"><div class="cn">الذكاء الاصطناعي</div><div class="cpv">AI Arabia</div><div class="cm"><span>⏱ 32 ساعة</span><span>⭐ 4.9</span></div><button class="ce">اشترك</button></div></div>
-  </div>
-
-  <!-- أخبار -->
-  <div class="sec-hd" style="margin-top:4px"><h2>📰 أخبار العمالة</h2><a href="#">عرض الكل</a></div>
-  <div class="nc"><div class="ni2">🏛️</div><div><div style="margin-bottom:3px"><span class="ncat cg-b">حكومي</span></div><div class="ntit">وزارة العمل تُطلق برنامج دعم التوظيف 2025 بمنح تصل إلى 500 دينار</div><div class="nmeta"><span>منذ ساعتين</span><span>·</span><span>وزارة العمل الأردنية</span></div></div></div>
-  <div class="nc"><div class="ni2">🌍</div><div><div style="margin-bottom:3px"><span class="ncat cg-p">الخارج</span></div><div class="ntit">كندا تفتح باب الهجرة للعمال المهرة في تقنية المعلومات</div><div class="nmeta"><span>منذ 4 ساعات</span><span>·</span><span>Immigration Canada</span></div></div></div>
-  <div class="nc"><div class="ni2">💡</div><div><div style="margin-bottom:3px"><span class="ncat cg-o">نصيحة</span></div><div class="ntit">5 مهارات يبحث عنها أصحاب العمل في 2025 - React وAI في المقدمة</div><div class="nmeta"><span>منذ يوم</span><span>·</span><span>تواصلنا</span></div></div></div>
-  <div class="nc"><div class="ni2">📋</div><div><div style="margin-bottom:3px"><span class="ncat cg-g">محلي</span></div><div class="ntit">الحد الأدنى للأجور يرتفع 8% اعتباراً من مطلع العام القادم</div><div class="nmeta"><span>منذ يومين</span><span>·</span><span>الصحيفة الرسمية</span></div></div></div>
 </main>
 
 <!-- ══ SIDEBAR RIGHT ══ -->
@@ -351,6 +348,10 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-heig
     <div class="ci" id="ci-edu"><div class="cico ctodo">○</div>شهادة دراسية</div>
     <div class="ci" id="ci-pic"><div class="cico ctodo">○</div>صورة شخصية</div>
     <div class="ci" id="ci-course"><div class="cico ctodo">○</div>دورة تدريبية</div>
+    <div class="ci" id="ci-skills"><div class="cico ctodo">○</div>مهارات</div>
+    <div class="ci" id="ci-langs"><div class="cico ctodo">○</div>لغات</div>
+    <div class="ci" id="ci-phone"><div class="cico ctodo">○</div>رقم الهاتف</div>
+    <div class="ci" id="ci-headline"><div class="cico ctodo">○</div>التخصص</div>
   </div>
 </aside>
 
@@ -375,21 +376,32 @@ else{
   const t=_u.user_type||'emp';
   document.getElementById('uName').textContent=_u.full_name||'مستخدم';
   document.getElementById('uSub').textContent=typeMap[t]||'موظف';
-  document.getElementById('uCode').textContent='TW-'+t.toUpperCase()+'-'+String(_u.id).padStart(5,'0');
+  document.getElementById('uCode').textContent=_u.tw_id||('TW-'+t.toUpperCase()+'-'+String(_u.id).padStart(5,'0'));
   document.getElementById('uAva').textContent=icoMap[t]||'👤';
   document.getElementById('navAva').textContent=icoMap[t]||'👤';
 
-  fetch('/profile/'+_u.id+'/full').then(r=>r.json()).then(d=>{
+  fetch('/profile/'+(_u.tw_id||_u.id)+'/full').then(r=>r.json()).then(d=>{
     const p=d.profile||{};
     const hasExp=(p.experience||[]).length>0;
     const hasEdu=(p.education||[]).length>0;
     const hasCourse=(p.courses||[]).length>0;
     const hasPic=!!p.avatar_url;
-    let pct=20;
-    if(hasExp){pct+=20;markDone('ci-exp');}
-    if(hasEdu){pct+=20;markDone('ci-edu');}
-    if(hasPic){pct+=20;markDone('ci-pic');}
-    if(hasCourse){pct+=20;markDone('ci-course');}
+    const hasSkills=(p.skills||[]).length>0;
+    const hasLangs=(p.langs||[]).length>0;
+    const hasPhone=!!p.phone;
+    const hasHeadline=!!p.headline;
+    // 8 items × 12.5% = 100%
+    const items=[hasExp,hasEdu,hasCourse,hasPic,hasSkills,hasLangs,hasPhone,hasHeadline];
+    const doneCount=items.filter(Boolean).length;
+    const pct=Math.round(doneCount/items.length*100);
+    if(hasExp){markDone('ci-exp');}
+    if(hasEdu){markDone('ci-edu');}
+    if(hasPic){markDone('ci-pic');}
+    if(hasCourse){markDone('ci-course');}
+    if(hasSkills){markDone('ci-skills');}
+    if(hasLangs){markDone('ci-langs');}
+    if(hasPhone){markDone('ci-phone');}
+    if(hasHeadline){markDone('ci-headline');}
     document.getElementById('progFill').style.width=pct+'%';
     document.getElementById('pctLbl').textContent=pct+'%';
     document.getElementById('uPct').textContent=pct+'%';
@@ -405,7 +417,7 @@ function markDone(id){
 }
 
 function goProfile(){
-  if(_u)window.location.href='profile.html?id='+_u.id;
+  if(_u)window.location.href='profile.html?id='+(_u.tw_id||_u.id);
 }
 function logout(){
   localStorage.removeItem('tw_user');
@@ -414,6 +426,13 @@ function logout(){
 function setTab(el){
   document.querySelectorAll('.ftab').forEach(t=>t.classList.remove('on'));
   el.classList.add('on');
+  // Filter jobs based on tab
+  const tabText = el.textContent.trim();
+  if(tabText.includes('وظائف') || tabText === 'الكل'){
+    document.getElementById('jobsFeed')?.style && (document.getElementById('jobsFeed').style.display='block');
+    if(tabText === 'الكل') loadJobs();
+    else loadJobs('full_time');
+  }
 }
 document.querySelectorAll('.bn').forEach(b=>{
   b.addEventListener('click',()=>{
@@ -421,6 +440,102 @@ document.querySelectorAll('.bn').forEach(b=>{
     b.classList.add('on');
   });
 });
+
+// ── Load jobs from DB ──
+function renderJobCard(j){
+  const typeMap = {full_time:"دوام كامل",part_time:"دوام جزئي",remote:"عن بعد",contract:"عقد"};
+  const sal = j.salary_min ? j.salary_min.toLocaleString()+(j.salary_max?"–"+j.salary_max.toLocaleString():"")+" "+(j.currency||"") : "";
+  const diff = Math.floor((Date.now()-new Date(j.created_at))/86400000);
+  const ago = diff===0?"اليوم":diff===1?"أمس":"منذ "+diff+" يوم";
+  const sk = (j.skills||[]).slice(0,3).map(function(s){return '<span class="jsk">'+s+"</span>";}).join("");
+  var out = '<div class="jcard" data-jobid="'+j.id+'">';
+  out += '<div class="jcard-top"><div class="jcard-ico">🏢</div>';
+  out += '<div class="jcard-info"><div class="jcard-title">'+(j.title||"")+"</div>";
+  out += '<div class="jcard-sub">'+(j.company_name||"")+" · "+(j.location||"")+"</div></div>";
+  out += '<div class="jcard-ago">'+ago+"</div></div>";
+  out += '<div class="jcard-tags">'+sk;
+  if(j.job_type) out += '<span class="jtag">'+(typeMap[j.job_type]||j.job_type)+"</span>";
+  if(sal) out += '<span class="jtag">💰 '+sal+"</span>";
+  out += "</div>";
+  if(j.description) out += '<div class="jcard-desc">'+j.description.slice(0,100)+(j.description.length>100?"...":"")+"</div>";
+  out += "</div>";
+  return out;
+}
+
+
+function loadJobs(jobType){
+  const container=document.getElementById('jobsFeed');
+  if(!container) return;
+  container.innerHTML='<div style="padding:4px"><div class="tw-skeleton" style="height:90px;margin-bottom:12px"></div><div class="tw-skeleton" style="height:90px;margin-bottom:12px"></div><div class="tw-skeleton" style="height:90px;margin-bottom:12px"></div></div>';
+  const url=jobType&&jobType!=='all'?'/jobs?job_type='+jobType:'/jobs';
+  fetch(url).then(function(r){return r.json();}).then(function(data){
+    const jobs=data.jobs||[];
+    if(!jobs.length){
+      container.innerHTML='<div class="tw-empty"><span class="tw-empty-ico">💼</span><div class="tw-empty-title">لا توجد وظائف بعد</div><div class="tw-empty-sub">كن أول من ينشر وظيفة على المنصة</div></div>';
+      return;
+    }
+    container.innerHTML=jobs.map(renderJobCard).join('');
+    container.querySelectorAll('.jcard').forEach(function(el){
+      el.addEventListener('click',function(){
+        window.location.href='job-detail.html?id='+el.getAttribute('data-jobid');
+      });
+    });
+  }).catch(function(){
+    container.innerHTML='<div style="text-align:center;padding:20px;color:var(--t3)">تعذر تحميل الوظائف</div>';
+  });
+}
+
+loadJobs();
+
+
+// ══ ITQAN Utilities ══
+var _twToast=null;
+function showToast(msg,type,dur){
+  type=type||'success';dur=dur||2800;
+  if(_twToast){_twToast.remove();}
+  var t=document.createElement('div');
+  t.className='tw-toast '+type;
+  var ico=type==='success'?'✅':type==='error'?'❌':'ℹ️';
+  t.innerHTML='<span>'+ico+'</span><span>'+msg+'</span>';
+  document.body.appendChild(t);
+  _twToast=t;
+  requestAnimationFrame(function(){requestAnimationFrame(function(){t.classList.add('show');});});
+  setTimeout(function(){t.classList.remove('show');setTimeout(function(){if(t.parentNode)t.remove();},350);},dur);
+}
+function setBtnLoad(btn,loading){
+  if(!btn)return;
+  if(loading){btn.classList.add('tw-btn-loading');btn._orig=btn.textContent;btn.textContent='';btn.disabled=true;}
+  else{btn.classList.remove('tw-btn-loading');btn.textContent=btn._orig||'حفظ';btn.disabled=false;}
+}
+function twNavigate(url){
+  document.body.style.cssText='opacity:0;transform:translateY(-6px);transition:all .2s ease;';
+  setTimeout(function(){window.location.href=url;},180);
+}
+function initScrollProg(){
+  var p=document.createElement('div');p.className='tw-scroll-prog';
+  document.body.prepend(p);
+  window.addEventListener('scroll',function(){
+    var pct=window.scrollY/(document.body.scrollHeight-window.innerHeight)*100;
+    p.style.width=Math.min(pct,100)+'%';
+  });
+}
+document.addEventListener('keydown',function(e){
+  if(e.key==='Escape'){
+    var fn=window.closeModal||window.closeEdit||window.closePostJob||window.closeMsgModal;
+    if(typeof fn==='function')fn();
+  }
+  if(e.key==='/'&&!['INPUT','TEXTAREA'].includes(e.target.tagName)){
+    e.preventDefault();
+    var s=document.getElementById('searchInput')||document.getElementById('userSearch')||document.getElementById('jobSearch');
+    if(s)s.focus();
+  }
+});
+document.documentElement.style.opacity='0';
+window.addEventListener('load',function(){
+  document.documentElement.style.transition='opacity .25s ease';
+  document.documentElement.style.opacity='1';
+});
+
 </script>
 </body>
 </html>

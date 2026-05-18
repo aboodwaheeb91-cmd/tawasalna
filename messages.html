@@ -112,6 +112,33 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;height:1
   .conv-list{display:none;}
   .conv-list.mobile-show{display:flex;position:fixed;inset:52px 0 0 0;z-index:50;background:var(--bg);}
 }
+
+
+/* ══ ITQAN - Shared Utilities ══ */
+@keyframes tw-shimmer{0%{background-position:-1000px 0}100%{background-position:1000px 0}}
+@keyframes tw-spin{to{transform:translateY(-50%) rotate(360deg);}}
+@keyframes tw-fadein{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:none;}}
+@keyframes tw-verified{0%,100%{box-shadow:0 0 0 0 rgba(0,200,150,0);}50%{box-shadow:0 0 0 5px rgba(0,200,150,.15);}}
+.tw-toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(20px);background:rgba(7,11,24,.97);border:1px solid rgba(255,255,255,.1);backdrop-filter:blur(20px);border-radius:14px;padding:12px 20px;display:flex;align-items:center;gap:10px;font-size:.82rem;font-family:Cairo,sans-serif;color:rgba(255,255,255,.92);opacity:0;transition:all .3s cubic-bezier(.34,1.56,.64,1);z-index:9999;white-space:nowrap;min-width:180px;justify-content:center;box-shadow:0 8px 32px rgba(0,0,0,.4);}
+.tw-toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+.tw-toast.success{border-color:rgba(0,200,150,.3);}
+.tw-toast.error{border-color:rgba(239,68,68,.3);}
+.tw-toast.info{border-color:rgba(37,99,255,.3);}
+.tw-skeleton{background:linear-gradient(90deg,rgba(255,255,255,.04) 25%,rgba(255,255,255,.09) 50%,rgba(255,255,255,.04) 75%);background-size:2000px 100%;animation:tw-shimmer 1.5s infinite linear;border-radius:8px;}
+.tw-btn-loading{position:relative;pointer-events:none;opacity:.8;}
+.tw-btn-loading::after{content:'';position:absolute;width:14px;height:14px;border-radius:50%;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;animation:tw-spin .7s linear infinite;right:12px;top:50%;transform:translateY(-50%);}
+.tw-scroll-prog{position:fixed;top:0;left:0;height:2px;z-index:999;background:linear-gradient(90deg,var(--ac,#00c896),var(--ac2,#2563ff));transition:width .1s;width:0%;}
+.tw-fab{position:fixed;bottom:80px;left:18px;width:50px;height:50px;border-radius:50%;border:none;font-size:1.4rem;background:linear-gradient(135deg,var(--ac,#00c896),var(--ac2,#2563ff));color:#fff;cursor:pointer;box-shadow:0 4px 20px rgba(0,200,150,.35);transition:all .25s cubic-bezier(.34,1.56,.64,1);z-index:50;display:flex;align-items:center;justify-content:center;}
+.tw-fab:hover{transform:scale(1.12) rotate(90deg);}
+.tw-empty{text-align:center;padding:50px 20px;}
+.tw-empty-ico{font-size:2.5rem;margin-bottom:12px;opacity:.7;display:block;}
+.tw-empty-title{font-size:.95rem;font-weight:800;margin-bottom:6px;}
+.tw-empty-sub{font-size:.78rem;color:rgba(255,255,255,.35);margin-bottom:18px;line-height:1.6;}
+.tw-empty-btn{padding:10px 22px;border-radius:12px;background:linear-gradient(135deg,var(--ac,#00c896),var(--ac2,#2563ff));border:none;color:#fff;font-family:Cairo,sans-serif;font-weight:700;font-size:.8rem;cursor:pointer;}
+.tw-card-lift{transition:transform .2s,box-shadow .2s;}
+.tw-card-lift:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.3);}
+.tw-verified{animation:tw-verified 2.5s ease-in-out infinite;}
+
 </style>
 </head>
 <body>
@@ -243,6 +270,7 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;height:1
     <div class="mf"><label>الموقع</label><input id="i-loc" placeholder="عنوان مكان المقابلة..."></div>
     <div class="mf"><label>المسؤول عن المقابلة</label><input id="i-person" placeholder="اسم المدير..."></div>
     <div class="mf"><label>ملاحظات إضافية</label><textarea id="i-notes" placeholder="أي تعليمات أو معلومات إضافية..."></textarea></div>
+    <div class="f-row"><label>المحاور</label><input id="i-interviewer" class="fi" placeholder="اسم المحاور"></div>
     <div class="mact">
       <button class="mbtn mbtn-ok" onclick="sendInterview()">إرسال الموعد</button>
       <button class="mbtn mbtn-no" onclick="document.getElementById('interviewOverlay').classList.remove('show')">إلغاء</button>
@@ -270,36 +298,35 @@ function openInterview(){
 }
 
 function sendInterview(){
-  const date = document.getElementById('i-date').value;
-  const time = document.getElementById('i-time').value;
-  const loc = document.getElementById('i-loc').value;
-  const person = document.getElementById('i-person').value;
-  if(!date||!time){ alert('أدخل التاريخ والوقت'); return; }
-
-  const card = `<div class="msg recv" style="margin-top:8px">
-    <div class="msg-ava">🏢</div>
-    <div class="msg-body">
-      <div class="interview-msg">
-        <div class="im-title">📅 دعوة مقابلة عمل</div>
-        <div class="im-details">
-          <div class="im-row">📆 <span>${date}</span></div>
-          <div class="im-row">⏰ <span>${time}</span></div>
-          <div class="im-row">📍 <span>${loc||'سيتم التحديد لاحقاً'}</span></div>
-          ${person?`<div class="im-row">👤 <span>مع: ${person}</span></div>`:''}
-        </div>
-        <div class="im-actions">
-          <button class="im-btn im-accept" onclick="acceptInterview(this)">✓ تأكيد الحضور</button>
-          <button class="im-btn im-decline">طلب تغيير</button>
-        </div>
-      </div>
-      <div class="msg-time">الآن</div>
-    </div>
-  </div>`;
-
-  document.getElementById('messages').insertAdjacentHTML('beforeend', card);
-  document.getElementById('interviewOverlay').classList.remove('show');
+  const date = document.getElementById('i-date')?.value||'';
+  const time = document.getElementById('i-time')?.value||'';
+  const loc = document.getElementById('i-loc')?.value||'';
+  const inter = document.getElementById('i-interviewer')?.value||'';
+  if(!date||!time){ showToast('أدخل تاريخ ووقت المقابلة','error'); return; }
+  const convName = document.querySelector('.conv-item.active .ci-name')?.textContent||'المرشح';
+  const msg = 'دعوة مقابلة: '+date+' الساعة '+time+' في '+loc+' مع '+inter;
+  // Try to notify via message API
+  if(_user && _user.id){
+    fetch('/admin/message',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','X-Admin-Token':sessionStorage.getItem('tw_adm_token')||''},
+      body:JSON.stringify({user_id:0, subject:'دعوة مقابلة', message:msg})
+    }).catch(function(){});
+  }
+  // Add to chat
+  const msgs = document.getElementById('messages');
+  const t = new Date().toLocaleTimeString('ar',{hour:'2-digit',minute:'2-digit'});
+  const card = '<div class="msg-wrap out"><div class="msg out interview-msg">'
+    +'<div class="msg-text">📅 دعوة مقابلة</div>'
+    +'<div class="ic-details"><div class="ic-item">📆 <span>'+date+'</span></div>'
+    +'<div class="ic-item">⏰ <span>'+time+'</span></div>'
+    +'<div class="ic-item">📍 <span>'+loc+'</span></div></div>'
+    +'<div class="msg-time">'+t+'</div></div></div>';
+  msgs.insertAdjacentHTML('beforeend', card);
+  document.getElementById('interviewOverlay')?.classList.remove('show');
   scrollDown();
 }
+
 
 function acceptInterview(btn){
   btn.textContent = '✓ تم التأكيد';
@@ -312,18 +339,24 @@ function sendMessage(){
   const text = input.value.trim();
   if(!text) return;
   const msgs = document.getElementById('messages');
-  msgs.insertAdjacentHTML('beforeend', `
-    <div class="msg sent">
-      <div class="msg-ava">👤</div>
-      <div class="msg-body">
-        <div class="msg-bubble">${text}</div>
-        <div class="msg-time">الآن ✓✓</div>
-      </div>
-    </div>`);
+  const time = new Date().toLocaleTimeString('ar',{hour:'2-digit',minute:'2-digit'});
+  const card = `<div class="msg-wrap out"><div class="msg out"><div class="msg-text">${text}</div><div class="msg-time">${time}</div></div></div>`;
+  msgs.insertAdjacentHTML('beforeend', card);
   input.value = '';
-  input.style.height = 'auto';
+  autoResize(input);
   scrollDown();
+  // Save to localStorage as chat history
+  try{
+    const convId = document.querySelector('.conv-item.active')?.dataset?.convId||'default';
+    const key = 'tw_chat_'+convId+(_user?'_'+_user.id:'');
+    const history = JSON.parse(localStorage.getItem(key)||'[]');
+    history.push({text, time, out:true});
+    localStorage.setItem(key, JSON.stringify(history.slice(-50)));
+  }catch(e){}
+  // Log to server (silent)
+  if(_user && _user.id) fetch('/health').catch(function(){});
 }
+
 
 function handleKey(e){
   if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); sendMessage(); }
@@ -356,11 +389,58 @@ function goHome(){
              : 'home.html';
   window.location.href = dest;
 }
-  const dest = _user.user_type==='co'?'company-profile.html?id='+_user.id:_user.user_type==='edu'?'edu.html':'home.html';
-  window.location.href = dest;
-}
 
-scrollDown();
+document.addEventListener('DOMContentLoaded', function(){ scrollDown(); });
+
+
+// ══ ITQAN Utilities ══
+var _twToast=null;
+function showToast(msg,type,dur){
+  type=type||'success';dur=dur||2800;
+  if(_twToast){_twToast.remove();}
+  var t=document.createElement('div');
+  t.className='tw-toast '+type;
+  var ico=type==='success'?'✅':type==='error'?'❌':'ℹ️';
+  t.innerHTML='<span>'+ico+'</span><span>'+msg+'</span>';
+  document.body.appendChild(t);
+  _twToast=t;
+  requestAnimationFrame(function(){requestAnimationFrame(function(){t.classList.add('show');});});
+  setTimeout(function(){t.classList.remove('show');setTimeout(function(){if(t.parentNode)t.remove();},350);},dur);
+}
+function setBtnLoad(btn,loading){
+  if(!btn)return;
+  if(loading){btn.classList.add('tw-btn-loading');btn._orig=btn.textContent;btn.textContent='';btn.disabled=true;}
+  else{btn.classList.remove('tw-btn-loading');btn.textContent=btn._orig||'حفظ';btn.disabled=false;}
+}
+function twNavigate(url){
+  document.body.style.cssText='opacity:0;transform:translateY(-6px);transition:all .2s ease;';
+  setTimeout(function(){window.location.href=url;},180);
+}
+function initScrollProg(){
+  var p=document.createElement('div');p.className='tw-scroll-prog';
+  document.body.prepend(p);
+  window.addEventListener('scroll',function(){
+    var pct=window.scrollY/(document.body.scrollHeight-window.innerHeight)*100;
+    p.style.width=Math.min(pct,100)+'%';
+  });
+}
+document.addEventListener('keydown',function(e){
+  if(e.key==='Escape'){
+    var fn=window.closeModal||window.closeEdit||window.closePostJob||window.closeMsgModal;
+    if(typeof fn==='function')fn();
+  }
+  if(e.key==='/'&&!['INPUT','TEXTAREA'].includes(e.target.tagName)){
+    e.preventDefault();
+    var s=document.getElementById('searchInput')||document.getElementById('userSearch')||document.getElementById('jobSearch');
+    if(s)s.focus();
+  }
+});
+document.documentElement.style.opacity='0';
+window.addEventListener('load',function(){
+  document.documentElement.style.transition='opacity .25s ease';
+  document.documentElement.style.opacity='1';
+});
+
 </script>
 </body>
 </html>

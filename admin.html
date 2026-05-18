@@ -116,6 +116,33 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--t);min-heig
   .th-users span:nth-child(2),.tr-users .date-cell,
   .th-verify span:nth-child(3),.tr-verify .date-cell{display:none;}
 }
+
+
+/* ══ ITQAN - Shared Utilities ══ */
+@keyframes tw-shimmer{0%{background-position:-1000px 0}100%{background-position:1000px 0}}
+@keyframes tw-spin{to{transform:translateY(-50%) rotate(360deg);}}
+@keyframes tw-fadein{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:none;}}
+@keyframes tw-verified{0%,100%{box-shadow:0 0 0 0 rgba(0,200,150,0);}50%{box-shadow:0 0 0 5px rgba(0,200,150,.15);}}
+.tw-toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(20px);background:rgba(7,11,24,.97);border:1px solid rgba(255,255,255,.1);backdrop-filter:blur(20px);border-radius:14px;padding:12px 20px;display:flex;align-items:center;gap:10px;font-size:.82rem;font-family:Cairo,sans-serif;color:rgba(255,255,255,.92);opacity:0;transition:all .3s cubic-bezier(.34,1.56,.64,1);z-index:9999;white-space:nowrap;min-width:180px;justify-content:center;box-shadow:0 8px 32px rgba(0,0,0,.4);}
+.tw-toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+.tw-toast.success{border-color:rgba(0,200,150,.3);}
+.tw-toast.error{border-color:rgba(239,68,68,.3);}
+.tw-toast.info{border-color:rgba(37,99,255,.3);}
+.tw-skeleton{background:linear-gradient(90deg,rgba(255,255,255,.04) 25%,rgba(255,255,255,.09) 50%,rgba(255,255,255,.04) 75%);background-size:2000px 100%;animation:tw-shimmer 1.5s infinite linear;border-radius:8px;}
+.tw-btn-loading{position:relative;pointer-events:none;opacity:.8;}
+.tw-btn-loading::after{content:'';position:absolute;width:14px;height:14px;border-radius:50%;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;animation:tw-spin .7s linear infinite;right:12px;top:50%;transform:translateY(-50%);}
+.tw-scroll-prog{position:fixed;top:0;left:0;height:2px;z-index:999;background:linear-gradient(90deg,var(--ac,#00c896),var(--ac2,#2563ff));transition:width .1s;width:0%;}
+.tw-fab{position:fixed;bottom:80px;left:18px;width:50px;height:50px;border-radius:50%;border:none;font-size:1.4rem;background:linear-gradient(135deg,var(--ac,#00c896),var(--ac2,#2563ff));color:#fff;cursor:pointer;box-shadow:0 4px 20px rgba(0,200,150,.35);transition:all .25s cubic-bezier(.34,1.56,.64,1);z-index:50;display:flex;align-items:center;justify-content:center;}
+.tw-fab:hover{transform:scale(1.12) rotate(90deg);}
+.tw-empty{text-align:center;padding:50px 20px;}
+.tw-empty-ico{font-size:2.5rem;margin-bottom:12px;opacity:.7;display:block;}
+.tw-empty-title{font-size:.95rem;font-weight:800;margin-bottom:6px;}
+.tw-empty-sub{font-size:.78rem;color:rgba(255,255,255,.35);margin-bottom:18px;line-height:1.6;}
+.tw-empty-btn{padding:10px 22px;border-radius:12px;background:linear-gradient(135deg,var(--ac,#00c896),var(--ac2,#2563ff));border:none;color:#fff;font-family:Cairo,sans-serif;font-weight:700;font-size:.8rem;cursor:pointer;}
+.tw-card-lift{transition:transform .2s,box-shadow .2s;}
+.tw-card-lift:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.3);}
+.tw-verified{animation:tw-verified 2.5s ease-in-out infinite;}
+
 </style>
 </head>
 <body>
@@ -205,6 +232,31 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--t);min-heig
       </div>
     </div>
 
+    <!-- KYC TAB -->
+    <div id="tab-kyc" style="display:none">
+      <div id="kycTable"><div style="text-align:center;padding:30px;color:var(--t3)">جاري التحميل...</div></div>
+    </div>
+
+    <!-- JOBS TAB -->
+    <div id="tab-jobs" style="display:none">
+      <div class="search-bar">
+        <input class="search-input" id="jobSearch" placeholder="بحث بالعنوان أو الشركة..." oninput="filterJobs()">
+        <select class="filter-sel" id="jobFilter" onchange="filterJobs()">
+          <option value="">كل الأنواع</option>
+          <option value="full_time">دوام كامل</option>
+          <option value="part_time">دوام جزئي</option>
+          <option value="remote">عن بعد</option>
+          <option value="contract">عقد</option>
+        </select>
+        <select class="filter-sel" id="jobStatus" onchange="filterJobs()">
+          <option value="">كل الحالات</option>
+          <option value="active">نشطة</option>
+          <option value="closed">مغلقة</option>
+        </select>
+      </div>
+      <div id="jobsTable"></div>
+    </div>
+
   </div>
 </div>
 
@@ -280,7 +332,7 @@ function showSessionExpired(){
   sessionStorage.removeItem('tw_adm_token');
   document.getElementById('mainWrap').style.display = 'none';
   document.getElementById('loginWrap').style.display = 'flex';
-  toast('انتهت الجلسة - سجل دخول مجدداً', 'e');
+  adminToast('انتهت الجلسة - سجل دخول مجدداً', 'e');
 }
 
 function adminLogout(){
@@ -417,8 +469,12 @@ function renderUsers(list){
 function showTab(name, el){
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('on'));
   el.classList.add('on');
-  document.getElementById('tab-users').style.display = name==='users' ? 'block' : 'none';
+  document.getElementById('tab-users').style.display  = name==='users'  ? 'block' : 'none';
   document.getElementById('tab-verify').style.display = name==='verify' ? 'block' : 'none';
+  document.getElementById('tab-jobs').style.display   = name==='jobs'   ? 'block' : 'none';
+  document.getElementById('tab-kyc').style.display    = name==='kyc'    ? 'block' : 'none';
+  if(name==='jobs' && !_allJobs.length) loadJobs();
+  if(name==='kyc') loadKYC();
 }
 
 function renderVerify(list){
@@ -452,16 +508,16 @@ async function approveVerify(id){
   try{
     const r = await fetch('/admin/verify/'+id, {method:'PUT', headers: adminHeaders(), body: JSON.stringify({status:'verified'})});
     if(!r.ok) throw new Error('HTTP '+r.status);
-    await loadVerify(); updateStats(); toast('تم التوثيق ✓');
-  }catch(e){ toast('خطأ: '+e.message,'e'); }
+    await loadVerify(); updateStats(); adminToast('تم التوثيق ✓');
+  }catch(e){ adminToast('خطأ: '+e.message,'e'); }
 }
 
 async function rejectVerify(id){
   try{
     const r = await fetch('/admin/verify/'+id, {method:'PUT', headers: adminHeaders(), body: JSON.stringify({status:'rejected'})});
     if(!r.ok) throw new Error('HTTP '+r.status);
-    await loadVerify(); updateStats(); toast('تم الرفض');
-  }catch(e){ toast('خطأ: '+e.message,'e'); }
+    await loadVerify(); updateStats(); adminToast('تم الرفض');
+  }catch(e){ adminToast('خطأ: '+e.message,'e'); }
 }
 
 // ── Filter ──
@@ -488,9 +544,9 @@ function deleteUser(id, name){
   if(!confirm('حذف حساب ' + name + '؟\nهذا الإجراء نهائي.')) return;
   fetch('/admin/user/'+id, {method:'DELETE', headers: adminHeaders()})
   .then(r => {
-    if(r.ok){ _allUsers=_allUsers.filter(u=>u.id!==id); renderUsers(_allUsers); updateStats(); toast('تم حذف الحساب ✓'); }
-    else toast('خطأ في الحذف','e');
-  }).catch(()=>toast('خطأ في الاتصال','e'));
+    if(r.ok){ _allUsers=_allUsers.filter(u=>u.id!==id); renderUsers(_allUsers); updateStats(); adminToast('تم حذف الحساب ✓'); }
+    else adminToast('خطأ في الحذف','e');
+  }).catch(()=>adminToast('خطأ في الاتصال','e'));
 }
 
 // ── Message ──
@@ -507,17 +563,76 @@ function closeMsgModal(){
 async function sendMsg(){
   const subject = document.getElementById('msg-subject').value;
   const body = document.getElementById('msg-body').value.trim();
-  if(!body){ toast('أدخل الرسالة','e'); return; }
+  if(!body){ adminToast('أدخل الرسالة','e'); return; }
   try{
     const r = await fetch('/admin/message', {method:'POST', headers: adminHeaders(),
       body: JSON.stringify({user_id: _msgUserId, subject, message: body})});
     if(!r.ok) throw new Error('HTTP '+r.status);
-    closeMsgModal(); toast('تم إرسال الرسالة ✓');
-  }catch(e){ toast('خطأ: '+e.message,'e'); }
+    closeMsgModal(); adminToast('تم إرسال الرسالة ✓');
+  }catch(e){ adminToast('خطأ: '+e.message,'e'); }
+}
+
+// ── Jobs ──
+async function loadJobs(){
+  try{
+    const r = await fetch('/admin/jobs', {headers: adminHeaders()});
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const data = await r.json();
+    _allJobs = data.jobs || [];
+    renderJobs(_allJobs);
+  }catch(e){ console.error('loadJobs:', e); }
+}
+
+function renderJobs(list){
+  const tb = document.getElementById('jobsTable');
+  if(!list||!list.length){
+    tb.innerHTML='<div class="empty-state">لا توجد وظائف</div>';
+    return;
+  }
+  const typeMap={full_time:'دوام كامل',part_time:'دوام جزئي',remote:'عن بعد',contract:'عقد'};
+  tb.innerHTML=list.map(j=>`
+    <div class="tr" style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--bdr)">
+      <div style="flex:1">
+        <div style="font-weight:800;font-size:.85rem">${j.title}</div>
+        <div style="font-size:.72rem;color:var(--t3)">${j.company_name||''} · ${j.location||''} · ${typeMap[j.job_type]||j.job_type||''}</div>
+      </div>
+      <div style="font-size:.72rem;color:var(--t3)">${j.views||0} مشاهدة</div>
+      <div>
+        <span style="padding:3px 10px;border-radius:20px;font-size:.68rem;${j.status==='active'?'background:rgba(0,200,150,.1);color:var(--ac)':'background:rgba(239,68,68,.1);color:#f87171'}">
+          ${j.status==='active'?'نشطة':'مغلقة'}
+        </span>
+      </div>
+      <div style="display:flex;gap:6px">
+        <button class="ab ab-view" onclick="window.open('job-detail.html?id=${j.id}','_blank')">👁 عرض</button>
+        <button class="ab" style="background:rgba(239,68,68,.08);color:#f87171;border-color:rgba(239,68,68,.2)" onclick="adminDeleteJob(${j.id})">🗑️</button>
+      </div>
+    </div>`).join('');
+}
+
+function filterJobs(){
+  const q=(document.getElementById('jobSearch')?.value||'').toLowerCase();
+  const type=document.getElementById('jobFilter')?.value||'';
+  const status=document.getElementById('jobStatus')?.value||'';
+  renderJobs(_allJobs.filter(j=>
+    (!q||(j.title||'').toLowerCase().includes(q)||(j.company_name||'').toLowerCase().includes(q))&&
+    (!type||j.job_type===type)&&
+    (!status||j.status===status)
+  ));
+}
+
+async function adminDeleteJob(id){
+  if(!confirm('حذف هذه الوظيفة؟')) return;
+  try{
+    const r=await fetch('/admin/jobs/'+id,{method:'DELETE',headers:adminHeaders()});
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    _allJobs=_allJobs.filter(j=>j.id!==id);
+    renderJobs(_allJobs);
+    adminToast('تم حذف الوظيفة ✓');
+  }catch(e){ adminToast('خطأ: '+e.message,'e'); }
 }
 
 // ── Toast ──
-function toast(msg, type='s'){
+function adminToast(msg, type){type=type||'s';
   const t = document.getElementById('toast');
   t.textContent = msg;
   t.className = 'toast ' + type + ' show';
@@ -525,6 +640,121 @@ function toast(msg, type='s'){
   t._t = setTimeout(()=>t.classList.remove('show'), 2800);
 }
 
+
+
+// ══ ITQAN Utilities ══
+var _twToast=null;
+function showToast(msg,type,dur){
+  type=type||'success';dur=dur||2800;
+  if(_twToast){_twToast.remove();}
+  var t=document.createElement('div');
+  t.className='tw-toast '+type;
+  var ico=type==='success'?'✅':type==='error'?'❌':'ℹ️';
+  t.innerHTML='<span>'+ico+'</span><span>'+msg+'</span>';
+  document.body.appendChild(t);
+  _twToast=t;
+  requestAnimationFrame(function(){requestAnimationFrame(function(){t.classList.add('show');});});
+  setTimeout(function(){t.classList.remove('show');setTimeout(function(){if(t.parentNode)t.remove();},350);},dur);
+}
+function setBtnLoad(btn,loading){
+  if(!btn)return;
+  if(loading){btn.classList.add('tw-btn-loading');btn._orig=btn.textContent;btn.textContent='';btn.disabled=true;}
+  else{btn.classList.remove('tw-btn-loading');btn.textContent=btn._orig||'حفظ';btn.disabled=false;}
+}
+function twNavigate(url){
+  document.body.style.cssText='opacity:0;transform:translateY(-6px);transition:all .2s ease;';
+  setTimeout(function(){window.location.href=url;},180);
+}
+function initScrollProg(){
+  var p=document.createElement('div');p.className='tw-scroll-prog';
+  document.body.prepend(p);
+  window.addEventListener('scroll',function(){
+    var pct=window.scrollY/(document.body.scrollHeight-window.innerHeight)*100;
+    p.style.width=Math.min(pct,100)+'%';
+  });
+}
+document.addEventListener('keydown',function(e){
+  if(e.key==='Escape'){
+    var fn=window.closeModal||window.closeEdit||window.closePostJob||window.closeMsgModal;
+    if(typeof fn==='function')fn();
+  }
+  if(e.key==='/'&&!['INPUT','TEXTAREA'].includes(e.target.tagName)){
+    e.preventDefault();
+    var s=document.getElementById('searchInput')||document.getElementById('userSearch')||document.getElementById('jobSearch');
+    if(s)s.focus();
+  }
+});
+document.documentElement.style.opacity='0';
+window.addEventListener('load',function(){
+  document.documentElement.style.transition='opacity .25s ease';
+  document.documentElement.style.opacity='1';
+});
+
+
+// ── KYC Admin ──
+var _allKYC = [];
+async function loadKYC(){
+  try{
+    const r=await fetch('/admin/kyc',{headers:adminHeaders()});
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const data=await r.json();
+    _allKYC=data.submissions||[];
+    renderKYC(_allKYC);
+    const pending=_allKYC.filter(function(k){return k.step==='review';}).length;
+    const badge=document.getElementById('kycPendingBadge');
+    if(badge&&pending>0){badge.textContent=pending;badge.style.display='inline-block';}
+  }catch(e){console.error(e);}
+}
+
+function renderKYC(list){
+  const tb=document.getElementById('kycTable');
+  if(!list||!list.length){
+    tb.innerHTML='<div class="tw-empty"><span class="tw-empty-ico">🪪</span><div class="tw-empty-title">لا توجد طلبات توثيق</div></div>';
+    return;
+  }
+  const stepMap={none:'لم يبدأ',email:'التحقق من الإيميل',phone:'التحقق من الهاتف',id_upload:'رفع الهوية',review:'قيد المراجعة',approved:'موثق ✅',rejected:'مرفوض ❌'};
+  const stepColor={review:'rgba(37,99,255,.1)',approved:'rgba(0,200,150,.1)',rejected:'rgba(239,68,68,.1)'};
+  tb.innerHTML=list.map(function(k){
+    var isPending=k.step==='review';
+    return '<div class="tr" style="display:flex;align-items:flex-start;gap:12px;padding:14px 16px;border-bottom:1px solid var(--bdr)">'
+      +'<div style="flex:1">'
+      +'<div style="font-weight:800;font-size:.85rem">'+k.full_name+'</div>'
+      +'<div style="font-size:.72rem;color:var(--t3)">'+k.email+'</div>'
+      +'<div style="font-size:.72rem;margin-top:4px">'
+      +'<span>📧 '+(k.email_verified?'✅':'❌')+'</span>'
+      +' <span>📱 '+(k.phone_verified?'✅ '+k.phone:'❌')+'</span>'
+      +'</div>'
+      +(k.id_front_url&&k.step!=='none'?'<a href="'+k.id_front_url+'" target="_blank" style="font-size:.68rem;color:var(--ac);display:block;margin-top:4px">🪪 عرض الهوية</a>':'')
+      +'</div>'
+      +'<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">'
+      +'<span style="font-size:.68rem;padding:3px 10px;border-radius:20px;background:'+(stepColor[k.step]||'rgba(255,255,255,.05)')+'">'+stepMap[k.step]+'</span>'
+      +(isPending?'<div style="display:flex;gap:6px">'
+        +'<button class="ab" style="background:rgba(0,200,150,.1);color:#00c896;border-color:rgba(0,200,150,.2)" onclick="approveKYC('+k.user_id+')">✅ قبول</button>'
+        +'<button class="ab" style="background:rgba(239,68,68,.08);color:#f87171;border-color:rgba(239,68,68,.2)" onclick="rejectKYC('+k.user_id+')">❌ رفض</button>'
+        +'</div>':'')
+      +'</div></div>';
+  }).join('');
+}
+
+async function approveKYC(userId){
+  if(!confirm('الموافقة على توثيق هذا المستخدم؟')) return;
+  try{
+    const r=await fetch('/admin/kyc/'+userId+'/approve',{method:'PUT',headers:{...adminHeaders(),'Content-Type':'application/json'},body:JSON.stringify({note:'تم الموافقة'})});
+    if(!r.ok) throw new Error();
+    showToast('تم الموافقة على التوثيق ✅');
+    loadKYC();
+  }catch(e){showToast('خطأ في الموافقة','error');}
+}
+
+async function rejectKYC(userId){
+  const note=prompt('سبب الرفض (اختياري):','')||'';
+  try{
+    const r=await fetch('/admin/kyc/'+userId+'/reject',{method:'PUT',headers:{...adminHeaders(),'Content-Type':'application/json'},body:JSON.stringify({note})});
+    if(!r.ok) throw new Error();
+    showToast('تم الرفض');
+    loadKYC();
+  }catch(e){showToast('خطأ','error');}
+}
 </script>
 </body>
 </html>

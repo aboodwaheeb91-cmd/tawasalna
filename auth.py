@@ -223,6 +223,36 @@ def init_db():
                 UNIQUE(job_id, user_id)
             )
         """)
+        # KYC table
+        conn.run("""
+            CREATE TABLE IF NOT EXISTS kyc_submissions (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                step TEXT NOT NULL,
+                status TEXT DEFAULT 'pending',
+                email_code TEXT,
+                email_verified BOOLEAN DEFAULT FALSE,
+                phone TEXT,
+                phone_code TEXT,
+                phone_verified BOOLEAN DEFAULT FALSE,
+                id_front_url TEXT,
+                selfie_url TEXT,
+                admin_note TEXT,
+                submitted_at TIMESTAMP DEFAULT NOW(),
+                reviewed_at TIMESTAMP,
+                UNIQUE(user_id)
+            )
+        """)
+        # Add KYC fields to users if not exist
+        for col in [
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_verified BOOLEAN DEFAULT FALSE",
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS kyc_step TEXT DEFAULT 'none'",
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN DEFAULT FALSE",
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS phone_verified BOOLEAN DEFAULT FALSE",
+        ]:
+            try: conn.run(col)
+            except: pass
+
         conn.run("""
             CREATE TABLE IF NOT EXISTS verify_requests (
                 id SERIAL PRIMARY KEY,
@@ -434,7 +464,7 @@ def update_profile(user_id: int, data: dict) -> dict:
                 name=data["full_name"], uid=user_id
             )
 
-        allowed = ["headline", "bio", "location", "skills", "avatar_url", "website", "phone", "sections_order", "custom_sections", "dob", "country", "city", "avail"]
+        allowed = ["full_name", "headline", "bio", "location", "skills", "avatar_url", "website", "phone", "sections_order", "custom_sections", "dob", "country", "city", "avail"]
         fields = {k: v for k, v in data.items() if k in allowed and v is not None}
 
         rows = conn.run("SELECT id FROM profiles WHERE user_id = :uid", uid=user_id)
@@ -686,5 +716,166 @@ def delete_job(job_id: int, company_id: int) -> bool:
     try:
         conn.run("DELETE FROM jobs WHERE id=:id AND company_id=:cid", id=job_id, cid=company_id)
         return True
+    finally:
+        conn.close()
+
+
+# ══ KYC System ══
+import random, string
+
+def generate_code(length=6):
+    return ''.join(random.choices(string.digits, k=length))
+
+def start_kyc(user_id: int) -> dict:
+    """Start or get KYC submission"""
+    conn = get_conn()
+    try:
+        rows = conn.run("SELECT * FROM kyc_submissions WHERE user_id=:uid", uid=user_id)
+        if rows:
+            cols = [c["name"] for c in conn.columns]
+            return _serialize(_row_to_dict(cols, rows[0]))
+        # Create new
+        rows = conn.run(
+            "INSERT INTO kyc_submissions (user_id, step) VALUES (:uid, 'email') RETURNING *",
+            uid=user_id
+        )
+        cols = [c["name"] for c in conn.columns]
+        return _serialize(_row_to_dict(cols, rows[0]))
+    finally:
+        conn.close()
+
+def send_email_code(user_id: int, email: str) -> str:
+    """Generate email verification code"""
+    code = generate_code()
+    conn = get_conn()
+    try:
+        conn.run(
+            "UPDATE kyc_submissions SET email_code=:code WHERE user_id=:uid",
+            code=code, uid=user_id
+        )
+        return code  # In production: send via email API
+    finally:
+        conn.close()
+
+def verify_email_code(user_id: int, code: str) -> bool:
+    """Verify email code"""
+    conn = get_conn()
+    try:
+        rows = conn.run(
+            "SELECT email_code FROM kyc_submissions WHERE user_id=:uid",
+            uid=user_id
+        )
+        if not rows or rows[0][0] != code:
+            return False
+        conn.run(
+            "UPDATE kyc_submissions SET email_verified=TRUE, step='phone' WHERE user_id=:uid",
+            uid=user_id
+        )
+        conn.run("UPDATE users SET email_verified=TRUE WHERE id=:uid", uid=user_id)
+        return True
+    finally:
+        conn.close()
+
+def send_phone_code(user_id: int, phone: str) -> str:
+    """Generate phone verification code"""
+    code = generate_code()
+    conn = get_conn()
+    try:
+        conn.run(
+            "UPDATE kyc_submissions SET phone=:phone, phone_code=:code WHERE user_id=:uid",
+            phone=phone, code=code, uid=user_id
+        )
+        return code  # In production: send via SMS API
+    finally:
+        conn.close()
+
+def verify_phone_code(user_id: int, code: str) -> bool:
+    """Verify phone code"""
+    conn = get_conn()
+    try:
+        rows = conn.run(
+            "SELECT phone_code FROM kyc_submissions WHERE user_id=:uid",
+            uid=user_id
+        )
+        if not rows or rows[0][0] != code:
+            return False
+        conn.run(
+            "UPDATE kyc_submissions SET phone_verified=TRUE, step='id_upload' WHERE user_id=:uid",
+            uid=user_id
+        )
+        conn.run("UPDATE users SET phone_verified=TRUE WHERE id=:uid", uid=user_id)
+        return True
+    finally:
+        conn.close()
+
+def upload_kyc_docs(user_id: int, id_url: str, selfie_url: str = None) -> dict:
+    """Save uploaded ID and selfie"""
+    conn = get_conn()
+    try:
+        conn.run(
+            "UPDATE kyc_submissions SET id_front_url=:id_url, selfie_url=:selfie, step='review', submitted_at=NOW() WHERE user_id=:uid",
+            id_url=id_url, selfie=selfie_url, uid=user_id
+        )
+        # Create admin review request
+        rows = conn.run(
+            "SELECT u.full_name FROM users u WHERE u.id=:uid",
+            uid=user_id
+        )
+        return {"status": "submitted", "step": "review"}
+    finally:
+        conn.close()
+
+def get_kyc_status(user_id: int) -> dict:
+    """Get current KYC status"""
+    conn = get_conn()
+    try:
+        rows = conn.run(
+            "SELECT ks.*, u.is_verified, u.email_verified, u.phone_verified "
+            "FROM kyc_submissions ks JOIN users u ON u.id=ks.user_id WHERE ks.user_id=:uid",
+            uid=user_id
+        )
+        if not rows:
+            return {"step": "none", "status": "not_started"}
+        cols = [c["name"] for c in conn.columns]
+        return _serialize(_row_to_dict(cols, rows[0]))
+    finally:
+        conn.close()
+
+def admin_approve_kyc(user_id: int, note: str = "") -> dict:
+    """Admin approves KYC"""
+    conn = get_conn()
+    try:
+        conn.run(
+            "UPDATE kyc_submissions SET status='approved', admin_note=:note, reviewed_at=NOW() WHERE user_id=:uid",
+            note=note, uid=user_id
+        )
+        conn.run("UPDATE users SET is_verified=TRUE WHERE id=:uid", uid=user_id)
+        return {"success": True}
+    finally:
+        conn.close()
+
+def admin_reject_kyc(user_id: int, note: str = "") -> dict:
+    """Admin rejects KYC"""
+    conn = get_conn()
+    try:
+        conn.run(
+            "UPDATE kyc_submissions SET status='rejected', step='rejected', admin_note=:note, reviewed_at=NOW() WHERE user_id=:uid",
+            note=note, uid=user_id
+        )
+        return {"success": True}
+    finally:
+        conn.close()
+
+def get_all_kyc_submissions() -> list:
+    """Get all KYC submissions for admin"""
+    conn = get_conn()
+    try:
+        rows = conn.run(
+            "SELECT ks.*, u.full_name, u.email, u.user_type "
+            "FROM kyc_submissions ks JOIN users u ON u.id=ks.user_id "
+            "ORDER BY ks.submitted_at DESC"
+        )
+        cols = [c["name"] for c in conn.columns]
+        return [_serialize(_row_to_dict(cols, r)) for r in rows]
     finally:
         conn.close()
