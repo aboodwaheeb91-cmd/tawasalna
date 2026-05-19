@@ -2,7 +2,16 @@
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+  <link rel="dns-prefetch" href="https://fonts.gstatic.com">
+  <link rel="dns-prefetch" href="https://tawasolna.com">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#00c896">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="تواصلنا">
+  <link rel="apple-touch-icon" href="/icon-192.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>تواصلنا - لوحة الإدارة</title>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
 <style>
@@ -123,7 +132,7 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--t);min-heig
 @keyframes tw-spin{to{transform:translateY(-50%) rotate(360deg);}}
 @keyframes tw-fadein{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:none;}}
 @keyframes tw-verified{0%,100%{box-shadow:0 0 0 0 rgba(0,200,150,0);}50%{box-shadow:0 0 0 5px rgba(0,200,150,.15);}}
-.tw-toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(20px);background:rgba(7,11,24,.97);border:1px solid rgba(255,255,255,.1);backdrop-filter:blur(20px);border-radius:14px;padding:12px 20px;display:flex;align-items:center;gap:10px;font-size:.82rem;font-family:Cairo,sans-serif;color:rgba(255,255,255,.92);opacity:0;transition:all .3s cubic-bezier(.34,1.56,.64,1);z-index:9999;white-space:nowrap;min-width:180px;justify-content:center;box-shadow:0 8px 32px rgba(0,0,0,.4);}
+.tw-toast[aria-live="polite"]{position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(20px);background:rgba(7,11,24,.97);border:1px solid rgba(255,255,255,.1);backdrop-filter:blur(20px);border-radius:14px;padding:12px 20px;display:flex;align-items:center;gap:10px;font-size:.82rem;font-family:Cairo,sans-serif;color:rgba(255,255,255,.92);opacity:0;transition:all .3s cubic-bezier(.34,1.56,.64,1);z-index:9999;white-space:nowrap;min-width:180px;justify-content:center;box-shadow:0 8px 32px rgba(0,0,0,.4);}
 .tw-toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
 .tw-toast.success{border-color:rgba(0,200,150,.3);}
 .tw-toast.error{border-color:rgba(239,68,68,.3);}
@@ -143,8 +152,17 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--t);min-heig
 .tw-card-lift:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.3);}
 .tw-verified{animation:tw-verified 2.5s ease-in-out infinite;}
 
+
+/* Pagination */
+.tw-pag{display:flex;align-items:center;justify-content:center;gap:8px;padding:16px 0;flex-wrap:wrap;}
+.tw-pag-btn{padding:6px 12px;border-radius:8px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);color:rgba(255,255,255,.6);font-family:Cairo,sans-serif;font-size:.75rem;cursor:pointer;transition:all .2s;}
+.tw-pag-btn:hover{border-color:var(--ac,#00c896);color:var(--ac,#00c896);}
+.tw-pag-btn.active{background:rgba(0,200,150,.15);border-color:var(--ac,#00c896);color:var(--ac,#00c896);font-weight:700;}
+.tw-pag-btn:disabled{opacity:.3;cursor:not-allowed;}
+.tw-pag-info{font-size:.72rem;color:rgba(255,255,255,.35);}
+
 </style>
-</head>
+<style>.skip-link{position:absolute;top:-40px;right:0;background:var(--ac,#00c896);color:#0d1a2e;padding:8px 16px;border-radius:0 0 8px 0;font-family:Cairo,sans-serif;font-size:.8rem;font-weight:700;text-decoration:none;transition:top .2s;z-index:10000}.skip-link:focus{top:0}</style><a href="#main-content" class="skip-link">تخطى للمحتوى الرئيسي</a></head>
 <body>
 
 <!-- ── LOGIN ── -->
@@ -180,7 +198,28 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--t);min-heig
     </div>
 
     <!-- Tabs -->
-    <div class="tabs">
+
+  <!-- ══ Stats Dashboard ══ -->
+  <div id="statsRow" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px">
+    <div style="background:rgba(0,200,150,.08);border:1px solid rgba(0,200,150,.2);border-radius:14px;padding:16px;text-align:center">
+      <div style="font-size:1.6rem;font-weight:900;color:var(--ac)" id="statTotalUsers">--</div>
+      <div style="font-size:.72rem;color:var(--t3)">إجمالي المستخدمين</div>
+    </div>
+    <div style="background:rgba(37,99,255,.08);border:1px solid rgba(37,99,255,.2);border-radius:14px;padding:16px;text-align:center">
+      <div style="font-size:1.6rem;font-weight:900;color:#60a5fa" id="statTotalJobs">--</div>
+      <div style="font-size:.72rem;color:var(--t3)">الوظائف المنشورة</div>
+    </div>
+    <div style="background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.2);border-radius:14px;padding:16px;text-align:center">
+      <div style="font-size:1.6rem;font-weight:900;color:#fbbf24" id="statPendingVerify">--</div>
+      <div style="font-size:.72rem;color:var(--t3)">طلبات التوثيق</div>
+    </div>
+    <div style="background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);border-radius:14px;padding:16px;text-align:center">
+      <div style="font-size:1.6rem;font-weight:900;color:#f87171" id="statPendingKYC">--</div>
+      <div style="font-size:.72rem;color:var(--t3)">طلبات KYC</div>
+    </div>
+  </div>
+
+        <div class="tabs">
       <button class="tab on" onclick="showTab('users',this)">👥 المستخدمون</button>
       <button class="tab" onclick="showTab('verify',this)">✅ طلبات التوثيق</button>
     </div>
@@ -232,9 +271,14 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--t);min-heig
       </div>
     </div>
 
+    <!-- ERRORS TAB -->
+    <div id="tab-errors" style="display:none">
+      <div id="errorsTable"><div style="text-align:center;padding:30px;color:var(--t3)">جاري التحميل...</div></div>
+    </div>
+
     <!-- KYC TAB -->
     <div id="tab-kyc" style="display:none">
-      <div id="kycTable"><div style="text-align:center;padding:30px;color:var(--t3)">جاري التحميل...</div></div>
+      <div id="kycTable"></div><div id="kycPag"></div>
     </div>
 
     <!-- JOBS TAB -->
@@ -254,7 +298,7 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--t);min-heig
           <option value="closed">مغلقة</option>
         </select>
       </div>
-      <div id="jobsTable"></div>
+      <div id="jobsTable"></div><div id="jobsPag"></div>
     </div>
 
   </div>
@@ -284,6 +328,7 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--t);min-heig
 
 <div class="toast" id="toast"></div>
 
+<script src="/tw_shared.js"></script>
 <script>
 let _adminToken = '';
 let _allUsers = [], _allVerify = [], _msgUserId = null;
@@ -368,6 +413,27 @@ function showMain(){
 }
 
 // ── Load Data ──
+
+// ── Admin Stats ──
+function loadAdminStats(){
+  Promise.all([
+    fetch('/auth/users',{headers:adminHeaders()}).then(function(r){return r.json();}),
+    fetch('/admin/jobs',{headers:adminHeaders()}).then(function(r){return r.json();}),
+    fetch('/admin/verify-requests',{headers:adminHeaders()}).then(function(r){return r.json();}),
+    fetch('/admin/kyc',{headers:adminHeaders()}).then(function(r){return r.json();})
+  ]).then(function(results){
+    var users=results[0].users||[];
+    var jobs=results[1].jobs||[];
+    var verifies=results[2].requests||[];
+    var kycs=results[3].submissions||[];
+    var el=function(id){return document.getElementById(id);};
+    if(el('statTotalUsers')) el('statTotalUsers').textContent=users.length;
+    if(el('statTotalJobs')) el('statTotalJobs').textContent=jobs.length;
+    if(el('statPendingVerify')) el('statPendingVerify').textContent=verifies.filter(function(v){return v.status==='pending';}).length;
+    if(el('statPendingKYC')) el('statPendingKYC').textContent=kycs.filter(function(k){return k.step==='review';}).length;
+  }).catch(function(){});
+}
+
 async function loadAll(){
   await loadUsers();
   await loadVerify();
@@ -446,8 +512,10 @@ function statusLabel(s){
 
 function renderUsers(list){
   const tb = document.getElementById('usersTable');
-  if(!list.length){ tb.innerHTML = '<div class="empty-state">لا يوجد مستخدمون</div>'; return; }
-  tb.innerHTML = list.map(u => `
+  if(!list||!list.length){ tb.innerHTML = '<div class="tw-empty"><span class="tw-empty-ico">👥</span><div class="tw-empty-title">لا يوجد مستخدمون</div></div>'; renderPagination('usersPag',0,1,PAG_SIZE,'goUsersPage'); return; }
+  var paged=paginate(list,_usersPage);
+  renderPagination('usersPag',list.length,_usersPage,PAG_SIZE,'goUsersPage');
+  tb.innerHTML = paged.map(u => `
     <div class="tr tr-users">
       <div class="user-info">
         <div class="u-ava">${u.user_type==='co'?'🏢':u.user_type==='edu'?'🎓':'👤'}</div>
@@ -473,6 +541,8 @@ function showTab(name, el){
   document.getElementById('tab-verify').style.display = name==='verify' ? 'block' : 'none';
   document.getElementById('tab-jobs').style.display   = name==='jobs'   ? 'block' : 'none';
   document.getElementById('tab-kyc').style.display    = name==='kyc'    ? 'block' : 'none';
+  document.getElementById('tab-errors').style.display  = name==='errors'  ? 'block' : 'none';
+  if(name==='errors') loadErrors();
   if(name==='jobs' && !_allJobs.length) loadJobs();
   if(name==='kyc') loadKYC();
 }
@@ -521,7 +591,7 @@ async function rejectVerify(id){
 }
 
 // ── Filter ──
-function filterUsers(){
+function filterUsers(){ _usersPage=1;
   const q = document.getElementById('userSearch').value.toLowerCase();
   const f = document.getElementById('userFilter').value;
   renderUsers(_allUsers.filter(u =>
@@ -609,7 +679,7 @@ function renderJobs(list){
     </div>`).join('');
 }
 
-function filterJobs(){
+function filterJobs(){ _jobsPage=1;
   const q=(document.getElementById('jobSearch')?.value||'').toLowerCase();
   const type=document.getElementById('jobFilter')?.value||'';
   const status=document.getElementById('jobStatus')?.value||'';
@@ -629,6 +699,68 @@ async function adminDeleteJob(id){
     renderJobs(_allJobs);
     adminToast('تم حذف الوظيفة ✓');
   }catch(e){ adminToast('خطأ: '+e.message,'e'); }
+}
+
+
+// ══ Pagination ══
+const PAG_SIZE = 10;
+var _usersPage = 1, _jobsPage = 1, _verifyPage = 1, _kycPage = 1;
+
+function paginate(list, page, size){
+  size=size||PAG_SIZE;
+  var start=(page-1)*size;
+  return list.slice(start,start+size);
+}
+
+function renderPagination(container_id, total, page, size, onPage){
+  size=size||PAG_SIZE;
+  var pages=Math.ceil(total/size);
+  if(pages<=1){ var el=document.getElementById(container_id); if(el)el.innerHTML=''; return; }
+  var el=document.getElementById(container_id); if(!el) return;
+  var html='<div class="tw-pag">';
+  html+='<button class="tw-pag-btn" '+(page===1?'disabled':'')+' onclick="('+onPage+')('+Math.max(1,page-1)+')">‹ السابق</button>';
+  var start=Math.max(1,page-2), end=Math.min(pages,page+2);
+  if(start>1) html+='<button class="tw-pag-btn" onclick="('+onPage+')(1)">1</button>'+(start>2?'<span class="tw-pag-info">...</span>':'');
+  for(var i=start;i<=end;i++){
+    html+='<button class="tw-pag-btn'+(i===page?' active':'')+'" onclick="('+onPage+')('+i+')">'+i+'</button>';
+  }
+  if(end<pages) html+=(end<pages-1?'<span class="tw-pag-info">...</span>':'')+'<button class="tw-pag-btn" onclick="('+onPage+')('+pages+')">'+pages+'</button>';
+  html+='<button class="tw-pag-btn" '+(page===pages?'disabled':'')+' onclick="('+onPage+')('+Math.min(pages,page+1)+')">التالي ›</button>';
+  html+='<span class="tw-pag-info">'+((page-1)*size+1)+'-'+Math.min(page*size,total)+' من '+total+'</span>';
+  html+='</div>';
+  el.innerHTML=html;
+}
+
+function goUsersPage(p){ _usersPage=p; renderUsers(filterUsersList()); }
+function goJobsPage(p){ _jobsPage=p; renderJobs(filterJobsList()); }
+function goVerifyPage(p){ _verifyPage=p; renderVerify(filterVerifyList()); }
+function goKYCPage(p){ _kycPage=p; renderKYC(filterKYCList()); }
+
+function filterUsersList(){
+  var q=(document.getElementById('userSearch')?.value||'').toLowerCase();
+  var f=document.getElementById('userFilter')?.value||'';
+  return _allUsers.filter(function(u){
+    return (!q||u.full_name?.toLowerCase().includes(q)||u.email?.toLowerCase().includes(q))
+        && (!f||u.user_type===f);
+  });
+}
+function filterJobsList(){
+  var q=(document.getElementById('jobSearch')?.value||'').toLowerCase();
+  var type=document.getElementById('jobFilter')?.value||'';
+  return _allJobs.filter(function(j){
+    return (!q||(j.title||'').toLowerCase().includes(q)||(j.company_name||'').toLowerCase().includes(q))
+        && (!type||j.job_type===type);
+  });
+}
+function filterVerifyList(){
+  var q=(document.getElementById('verifySearch')?.value||'').toLowerCase();
+  var f=document.getElementById('verifyFilter')?.value||'';
+  return _allVerify.filter(function(v){
+    return (!q||(v.full_name||'').toLowerCase().includes(q))&&(!f||v.status===f);
+  });
+}
+function filterKYCList(){
+  return _allKYC;
 }
 
 // ── Toast ──
@@ -673,22 +805,6 @@ function initScrollProg(){
     p.style.width=Math.min(pct,100)+'%';
   });
 }
-document.addEventListener('keydown',function(e){
-  if(e.key==='Escape'){
-    var fn=window.closeModal||window.closeEdit||window.closePostJob||window.closeMsgModal;
-    if(typeof fn==='function')fn();
-  }
-  if(e.key==='/'&&!['INPUT','TEXTAREA'].includes(e.target.tagName)){
-    e.preventDefault();
-    var s=document.getElementById('searchInput')||document.getElementById('userSearch')||document.getElementById('jobSearch');
-    if(s)s.focus();
-  }
-});
-document.documentElement.style.opacity='0';
-window.addEventListener('load',function(){
-  document.documentElement.style.transition='opacity .25s ease';
-  document.documentElement.style.opacity='1';
-});
 
 
 // ── KYC Admin ──
@@ -754,6 +870,30 @@ async function rejectKYC(userId){
     showToast('تم الرفض');
     loadKYC();
   }catch(e){showToast('خطأ','error');}
+}
+
+
+// ── Client Errors ──
+async function loadErrors(){
+  try{
+    const r=await fetch('/admin/errors',{headers:adminHeaders()});
+    const data=await r.json();
+    const tb=document.getElementById('errorsTable');
+    if(!data.errors||!data.errors.length){
+      tb.innerHTML='<div class="tw-empty"><span class="tw-empty-ico">✅</span><div class="tw-empty-title">لا أخطاء مسجلة</div></div>';
+      return;
+    }
+    tb.innerHTML='<div style="font-size:.75rem;color:var(--t3);margin-bottom:8px">آخر '+data.count+' خطأ</div>'+
+      data.errors.map(function(e){
+        return '<div style="padding:10px 14px;border-bottom:1px solid var(--bdr);font-size:.75rem">'
+          +'<span style="color:#f87171">'+e.type+'</span> · '
+          +'<span style="color:var(--t2)">'+e.page+'</span>'
+          +(e.line?' · line '+e.line:'')
+          +'<div style="color:var(--t3);margin-top:2px">'+e.msg+'</div>'
+          +'<div style="color:rgba(255,255,255,.2);font-size:.65rem">'+e.ts+'</div>'
+          +'</div>';
+      }).join('');
+  }catch(e){console.error(e);}
 }
 </script>
 </body>

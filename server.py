@@ -61,6 +61,8 @@ from auth import (
     start_kyc, send_email_code, verify_email_code,
     send_phone_code, verify_phone_code, upload_kyc_docs,
     get_kyc_status, admin_approve_kyc, admin_reject_kyc, get_all_kyc_submissions,
+    send_message, get_conversations, get_messages, get_unread_count,
+    create_notification, get_notifications, mark_notifications_read, get_unread_notifications,
     get_job_applicants, get_user_applications,
     update_application_status, delete_job
 )
@@ -71,8 +73,99 @@ ADMIN_URL_TOKEN = "kPuOWhpIYjdLQXmh"
 # Stable token derived from password - no server storage needed
 ADMIN_TOKEN = hashlib.sha256(ADMIN_PASSWORD.encode()).hexdigest()
 
+
+# ── JWT (stdlib only - no extra deps) ──
+import hmac, base64 as _b64
+
+def _jwt_encode(payload: dict) -> str:
+    import json, time
+    payload['iat'] = int(time.time())
+    payload['exp'] = int(time.time()) + 86400 * 7  # 7 days
+    header = _b64.urlsafe_b64encode(b'{"alg":"HS256","typ":"JWT"}').rstrip(b'=').decode()
+    body = _b64.urlsafe_b64encode(json.dumps(payload).encode()).rstrip(b'=').decode()
+    sig = _b64.urlsafe_b64encode(
+        hmac.new(ADMIN_TOKEN[:32].encode(), f"{header}.{body}".encode(), 'sha256').digest()
+    ).rstrip(b'=').decode()
+    return f"{header}.{body}.{sig}"
+
+def _jwt_decode(token: str) -> dict:
+    import json, time
+    try:
+        parts = token.split('.')
+        if len(parts) != 3: return {}
+        body = parts[1] + '=='
+        payload = json.loads(_b64.urlsafe_b64decode(body.encode()))
+        if payload.get('exp', 0) < time.time(): return {}
+        return payload
+    except: return {}
+
+
 # ── App ──
 app = FastAPI(title="تواصلنا API", version="1.0.0")
+
+
+# ── Redis-Ready Cache (auto-detects Redis) ──
+import os as _os
+_redis_client = None
+try:
+    import redis as _redis
+    _redis_url = _os.environ.get("REDIS_URL")
+    if _redis_url:
+        _redis_client = _redis.from_url(_redis_url, decode_responses=True)
+        _redis_client.ping()
+        print("[Cache] Redis connected ✅")
+    else:
+        print("[Cache] No REDIS_URL - using in-memory cache")
+except ImportError:
+    print("[Cache] redis not installed - using in-memory cache")
+except Exception as e:
+    print(f"[Cache] Redis failed ({e}) - using in-memory cache")
+
+
+# ── Global Error Handlers ──
+from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
+from starlette.exceptions import HTTPException as StarletteHTTPException
+
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request, exc):
+    return JSONResponse(status_code=exc.status_code, content={"error": str(exc.detail)})
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request, exc):
+    return JSONResponse(status_code=422, content={"error": "بيانات غير صحيحة", "details": str(exc)})
+
+@app.exception_handler(Exception)
+async def general_exception_handler(request, exc):
+    print(f"[ERROR] {request.url}: {exc}")
+    return JSONResponse(status_code=500, content={"error": "خطأ في السيرفر"})
+
+# ── Security Headers ──
+@app.middleware("http")
+async def security_headers(request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "SAMEORIGIN"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    return response
+
+# ── Simple Rate Limiting ──
+from collections import defaultdict
+import time as _time
+_rate_store = defaultdict(list)
+_RATE_LIMIT = 60  # requests per minute
+
+@app.middleware("http")
+async def rate_limit_middleware(request, call_next):
+    # Only rate limit auth endpoints
+    if request.url.path in ["/auth/login", "/auth/register", "/kyc/email/send", "/kyc/phone/send"]:
+        ip = request.headers.get("X-Forwarded-For", request.client.host if request.client else "unknown").split(",")[0].strip()
+        now = _time.time()
+        _rate_store[ip] = [t for t in _rate_store[ip] if now - t < 60]
+        if len(_rate_store[ip]) >= _RATE_LIMIT:
+            return JSONResponse(status_code=429, content={"error": "طلبات كثيرة جداً، حاول بعد دقيقة"})
+        _rate_store[ip].append(now)
+    return await call_next(request)
 
 app.add_middleware(
     CORSMiddleware,
@@ -92,10 +185,16 @@ def on_startup():
         print(f"⚠️ DB init failed: {e}")
 
 # ── Helpers ──
+_html_cache = {}
+
 def read_html(name: str) -> str:
+    if name in _html_cache:
+        return _html_cache[name]
     try:
         with open(name, "r", encoding="utf-8") as f:
-            return f.read()
+            content = f.read()
+        _html_cache[name] = content
+        return content
     except FileNotFoundError:
         return f"<h1>الصفحة غير موجودة: {name}</h1>"
 
@@ -110,6 +209,14 @@ def check_admin(request: Request):
 # ══════════════════════════════════════════
 @app.get("/", response_class=HTMLResponse)
 def root(): return read_html("landing.html")
+
+@app.get("/", response_class=HTMLResponse)
+def landing():
+    content = read_html("landing.html")
+    return HTMLResponse(content=content, headers={"Cache-Control": "public, max-age=300"})
+
+@app.get("/landing.html", response_class=HTMLResponse)
+def landing_html(): return read_html("landing.html")
 
 @app.get("/login", response_class=HTMLResponse)
 def login_page(): return read_html("index.html")
@@ -248,6 +355,20 @@ class ImageUploadInput(BaseModel):
     filename: str
     data_url: str
 
+class ErrorLogInput(BaseModel):
+    msg: Optional[str] = None
+    file: Optional[str] = None
+    line: Optional[int] = None
+    page: Optional[str] = None
+    ua: Optional[str] = None
+    type: Optional[str] = None
+    ts: Optional[str] = None
+
+class MessageInput(BaseModel):
+    sender_id: int
+    receiver_id: int
+    content: str
+
 class KYCEmailInput(BaseModel):
     user_id: int
     email: str
@@ -314,8 +435,7 @@ class VerifyRequestInput(BaseModel):
     document_url: Optional[str] = None
     notes: Optional[str] = None
 
-class CVInput(BaseModel):
-    cv_text: str
+
     user_id: Optional[str] = None
     top_k: Optional[int] = 5
 
@@ -340,9 +460,237 @@ class AdminMessageInput(BaseModel):
 # ══════════════════════════════════════════
 # Health
 # ══════════════════════════════════════════
+
+@app.get("/jobs/match/{user_id}")
+def match_jobs_for_user(user_id: int):
+    """Match jobs based on user skills"""
+    try:
+        profile = get_full_profile(user_id)
+        if not profile:
+            return {"jobs": [], "count": 0}
+        user_skills = set(s.lower() for s in (profile.get("skills") or []))
+        all_jobs = get_jobs({"status": "active"})
+        scored = []
+        for job in all_jobs:
+            job_skills = set(s.lower() for s in (job.get("skills") or []))
+            if not job_skills:
+                score = 10
+            else:
+                common = user_skills & job_skills
+                score = int(len(common) / len(job_skills) * 100) if job_skills else 0
+            job["match_score"] = score
+            scored.append(job)
+        scored.sort(key=lambda x: x["match_score"], reverse=True)
+        return {"jobs": scored[:20], "count": len(scored)}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+@app.get("/sitemap.xml")
+def sitemap():
+    urls = [
+        "https://tawasolna.com/",
+        "https://tawasolna.com/jobs.html",
+        "https://tawasolna.com/index.html",
+    ]
+    xml = '<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
+    for url in urls:
+        xml += f'<url><loc>{url}</loc><changefreq>daily</changefreq><priority>0.8</priority></url>'
+    xml += '</urlset>'
+    return Response(content=xml, media_type="application/xml")
+
+@app.get("/robots.txt")
+def robots():
+    return Response(content="User-agent: *\nAllow: /\nSitemap: https://tawasolna.com/sitemap.xml\n",
+                   media_type="text/plain")
+
+@app.get("/tw_shared.js")
+def tw_shared_js():
+    try:
+        with open("tw_shared.js","r") as f: content=f.read()
+        return Response(content=content, media_type="application/javascript",
+                       headers={"Cache-Control":"public, max-age=3600"})
+    except:
+        return Response(content="", media_type="application/javascript")
+
+@app.get("/sw.js")
+def service_worker():
+    try:
+        with open("sw.js", "r") as f:
+            content = f.read()
+        return Response(content=content, media_type="application/javascript",
+                       headers={"Cache-Control": "no-cache, no-store, must-revalidate",
+                                "Service-Worker-Allowed": "/"})
+    except:
+        return Response(content="", media_type="application/javascript")
+
+@app.get("/manifest.json")
+def manifest():
+    try:
+        with open("manifest.json", "r") as f:
+            content = f.read()
+        return Response(content=content, media_type="application/json",
+                       headers={"Cache-Control": "public, max-age=86400"})
+    except:
+        return Response(content="{}", media_type="application/json")
+
+@app.get("/icon-192.png")
+@app.get("/icon-512.png")
+def icon():
+    # Return a simple placeholder - replace with real icons
+    import base64
+    # 1x1 green pixel PNG
+    png_b64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+    return Response(content=base64.b64decode(png_b64), media_type="image/png",
+                   headers={"Cache-Control": "public, max-age=604800"})
+
+
+# ── WebSocket Real-time Messages ──
+from fastapi import WebSocket, WebSocketDisconnect
+from typing import Dict
+
+class ConnectionManager:
+    def __init__(self):
+        self.active: Dict[int, list] = {}
+
+    async def connect(self, user_id: int, ws: WebSocket):
+        await ws.accept()
+        if user_id not in self.active:
+            self.active[user_id] = []
+        self.active[user_id].append(ws)
+
+    def disconnect(self, user_id: int, ws: WebSocket):
+        if user_id in self.active:
+            self.active[user_id] = [w for w in self.active[user_id] if w != ws]
+
+    async def send_to_user(self, user_id: int, data: dict):
+        import json
+        if user_id in self.active:
+            dead = []
+            for ws in self.active[user_id]:
+                try: await ws.send_text(json.dumps(data))
+                except: dead.append(ws)
+            for d in dead: self.active[user_id].remove(d)
+
+ws_manager = ConnectionManager()
+
+@app.websocket("/ws/{user_id}")
+async def websocket_endpoint(websocket: WebSocket, user_id: int):
+    await ws_manager.connect(user_id, websocket)
+    try:
+        while True:
+            data = await websocket.receive_text()
+            import json
+            try:
+                msg = json.loads(data)
+                receiver_id = msg.get("receiver_id")
+                content = msg.get("content","")
+                if receiver_id and content:
+                    # Save to DB
+                    saved = send_message(user_id, receiver_id, content)
+                    # Send to receiver if online
+                    await ws_manager.send_to_user(receiver_id, {
+                        "type": "message",
+                        "from": user_id,
+                        "content": content,
+                        "created_at": saved.get("created_at","")
+                    })
+                    # Confirm to sender
+                    await websocket.send_text(json.dumps({"type": "sent", "id": saved.get("id")}))
+            except Exception as e:
+                print(f"[WS] Error: {e}")
+    except WebSocketDisconnect:
+        ws_manager.disconnect(user_id, websocket)
+
+
+# In-memory error log (last 100 errors)
+_error_log = []
+
+@app.post("/log/error")
+async def log_client_error(data: ErrorLogInput):
+    err = {"page": data.page, "msg": data.msg, "line": data.line, "ts": data.ts, "type": data.type or "js"}
+    _error_log.append(err)
+    if len(_error_log) > 100: _error_log.pop(0)
+    print(f"[CLIENT ERROR] {data.page} | {data.msg} | line:{data.line}")
+    return {"ok": True}
+
+@app.get("/admin/errors")
+def admin_errors(request: Request):
+    check_admin(request)
+    return {"errors": list(reversed(_error_log)), "count": len(_error_log)}
+
+@app.post("/auth/verify-token")
+def verify_token(request: Request):
+    auth = request.headers.get("Authorization","")
+    token = auth.replace("Bearer ","") if auth.startswith("Bearer ") else ""
+    payload = _jwt_decode(token) if token else {}
+    if not payload: raise HTTPException(401, "Token invalid or expired")
+    return {"valid": True, "user_id": payload.get("user_id"), "user_type": payload.get("user_type")}
+
+
+@app.get("/profile/{user_id}/score")
+def profile_score(user_id: int):
+    """Calculate profile completion score"""
+    try:
+        profile = get_full_profile(user_id)
+        if not profile: raise HTTPException(404, "Profile not found")
+        score = 0
+        tips = []
+        checks = [
+            (bool(profile.get("avatar_url")),      10, "أضف صورة شخصية"),
+            (bool(profile.get("title")),            10, "أضف مسماك الوظيفي"),
+            (bool(profile.get("bio")),              10, "أضف نبذة عنك"),
+            (bool(profile.get("phone")),             5, "أضف رقم هاتفك"),
+            (bool(profile.get("location")),          5, "أضف موقعك"),
+            (len(profile.get("experience") or []) > 0, 20, "أضف خبرة عملية"),
+            (len(profile.get("education") or []) > 0,  15, "أضف شهاداتك"),
+            (len(profile.get("skills") or []) >= 3,    15, "أضف 3 مهارات على الأقل"),
+            (len(profile.get("links") or []) > 0,       5, "أضف رابط LinkedIn أو GitHub"),
+            (bool(profile.get("is_verified")),           5, "وثّق هويتك"),
+        ]
+        for ok, pts, tip in checks:
+            if ok: score += pts
+            else: tips.append({"tip": tip, "points": pts})
+        tips.sort(key=lambda x: -x["points"])
+        return {"score": score, "tips": tips[:3], "level": "ممتاز" if score>=90 else "جيد" if score>=70 else "متوسط" if score>=50 else "يحتاج تحسين"}
+    except HTTPException: raise
+    except Exception as e: raise HTTPException(500, str(e))
+
+
+@app.put("/admin/user/{user_id}/password")
+def admin_reset_password(user_id: int, data: dict, request: Request):
+    check_admin(request)
+    try:
+        from auth import hash_password
+        new_hash = hash_password(data.get("password",""))
+        conn = get_conn()
+        conn.run("UPDATE users SET password_hash=:h WHERE id=:id", h=new_hash, id=user_id)
+        release_conn(conn)
+        return {"status": "success"}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
 @app.get("/health")
 def health():
-    return {"status": "ok", "timestamp": datetime.now().isoformat()}
+    # Test DB connection
+    db_ok = False
+    try:
+        conn = get_conn()
+        conn.run("SELECT 1")
+        release_conn(conn)
+        db_ok = True
+    except: pass
+    status = "ok" if db_ok else "degraded"
+    return {
+        "status": status,
+        "db": "ok" if db_ok else "error",
+        "timestamp": datetime.now().isoformat(),
+        "version": "2.0",
+        "uptime": "running"
+    }
+
+@app.get("/ping")
+def ping():
+    return "pong"
 
 # ══════════════════════════════════════════
 # Auth
@@ -361,7 +709,8 @@ def register(data: RegisterInput, request: Request):
         client_ip = get_client_ip(request)
         country_code = get_country_from_ip(client_ip)
         user = create_user(data.full_name, data.email, data.password, data.user_type, country_code)
-        return {"status": "success", "user": user}
+        token = _jwt_encode({"user_id": user.get("id"), "user_type": user.get("user_type"), "tw_id": user.get("tw_id","")})
+        return {"status": "success", "user": user, "token": token}
     except ValueError as e:
         raise HTTPException(409, detail=str(e))
     except Exception as e:
@@ -375,7 +724,8 @@ def login(data: LoginInput):
     user = authenticate_user(data.email, data.password)
     if not user:
         raise HTTPException(401, detail="البريد الإلكتروني أو كلمة المرور غير صحيحة")
-    return {"status": "success", "user": user}
+    token = _jwt_encode({"user_id": user.get("id"), "user_type": user.get("user_type"), "tw_id": user.get("tw_id","")})
+    return {"status": "success", "user": user, "token": token}
 
 @app.put("/auth/user/{user_id}/name")
 async def update_user_name(user_id: int, request: Request):
@@ -550,6 +900,57 @@ def delete_user_link(link_id: int):
             return {"success": True}
         finally:
             conn.close()
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+# ══ Messages & Notifications ══
+
+@app.post("/messages/send")
+def send_msg(data: MessageInput):
+    try:
+        msg = send_message(data.sender_id, data.receiver_id, data.content)
+        return {"status": "success", "message": msg}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+@app.get("/messages/conversations/{user_id}")
+def get_convs(user_id: int):
+    try:
+        convs = get_conversations(user_id)
+        return {"status": "success", "conversations": convs}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+@app.get("/messages/{user_id}/{other_id}")
+def get_msgs(user_id: int, other_id: int):
+    try:
+        msgs = get_messages(user_id, other_id)
+        return {"status": "success", "messages": msgs}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+@app.get("/messages/unread/{user_id}")
+def unread_msgs(user_id: int):
+    try:
+        count = get_unread_count(user_id)
+        return {"status": "success", "count": count}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+@app.get("/notifications/{user_id}")
+def user_notifications(user_id: int):
+    try:
+        notifs = get_notifications(user_id)
+        unread = get_unread_notifications(user_id)
+        return {"status": "success", "notifications": notifs, "unread": unread}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+@app.put("/notifications/{user_id}/read")
+def read_notifications(user_id: int):
+    try:
+        mark_notifications_read(user_id)
+        return {"status": "success"}
     except Exception as e:
         raise HTTPException(500, str(e))
 
@@ -813,19 +1214,6 @@ def admin_delete_job(job_id: int, request: Request):
     finally:
         conn.close()
 
-@app.post("/match")
-def match_cv(cv: CVInput):
-    if not cv.cv_text.strip():
-        raise HTTPException(400, detail="cv_text لا يمكن أن يكون فارغاً")
-    query = cv.cv_text.lower()
-    results = sorted([
-        {"job_id": j["id"], "title": j["title"], "company": j["company"],
-         "location": j["location"],
-         "score": sum(1 for w in query.split() if w in j["text"].lower()),
-         "match_percent": min(sum(1 for w in query.split() if w in j["text"].lower()) * 10, 100)}
-        for j in JOBS
-    ], key=lambda x: x["score"], reverse=True)[:cv.top_k or 5]
-    return {"status": "success", "matches": results}
 
 @app.post("/feedback")
 def log_feedback(data: FeedbackInput):

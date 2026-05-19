@@ -43,25 +43,94 @@ def generate_tw_id(user_type: str, country_code: str = 'DEFAULT') -> str:
 
 
 # ══ الاتصال بقاعدة البيانات ══
-def get_conn():
-    url = os.environ.get("SUPABASE_DB_URL")
-    if not url:
-        raise RuntimeError("SUPABASE_DB_URL is not set")
-    url = url.strip().replace(" ", "")
-    without_scheme = url.split("://", 1)[1]
-    userinfo, hostinfo = without_scheme.split("@", 1)
-    username, password = userinfo.split(":", 1)
-    host_port, dbname = hostinfo.split("/", 1)
+# ── Connection Pool ──
+_pool = []
+_pool_lock = None
+_MAX_POOL = 5
+_db_params = {}
+
+def _parse_db_url():
+    global _db_params
+    if _db_params: return
+    url = os.environ.get("SUPABASE_DB_URL","").strip().replace(" ","")
+    if not url: raise RuntimeError("SUPABASE_DB_URL is not set")
+    without_scheme = url.split("://",1)[1]
+    userinfo, hostinfo = without_scheme.split("@",1)
+    username, password = userinfo.split(":",1)
+    host_port, dbname = hostinfo.split("/",1)
     dbname = dbname.split("?")[0]
-    if ":" in host_port:
-        host, port = host_port.rsplit(":", 1)
-        port = int(port)
-    else:
-        host, port = host_port, 5432
-    return pg8000.native.Connection(
-        host=host, port=port, user=username,
-        password=password, database=dbname, ssl_context=True
-    )
+    host, port = (host_port.rsplit(":",1) if ":" in host_port else (host_port, "5432"))
+    _db_params = dict(host=host, port=int(port), user=username, password=password, database=dbname, ssl_context=True)
+
+
+# ── Query Cache (Redis-ready) ──
+import time as _time_mod, json as _json_mod
+_query_cache = {}
+_CACHE_TTL = 60  # seconds
+
+def _cache_get(key):
+    # Try Redis first
+    try:
+        from server import _redis_client
+        if _redis_client:
+            val = _redis_client.get(key)
+            return _json_mod.loads(val) if val else None
+    except: pass
+    # Fallback: in-memory
+    if key in _query_cache:
+        val, ts = _query_cache[key]
+        if _time_mod.time() - ts < _CACHE_TTL:
+            return val
+        del _query_cache[key]
+    return None
+
+def _cache_set(key, val):
+    # Try Redis first
+    try:
+        from server import _redis_client
+        if _redis_client:
+            _redis_client.setex(key, _CACHE_TTL, _json_mod.dumps(val, default=str))
+            return
+    except: pass
+    # Fallback: in-memory
+    _query_cache[key] = (val, _time_mod.time())
+
+def _cache_del(prefix):
+    # Try Redis first
+    try:
+        from server import _redis_client
+        if _redis_client:
+            keys = _redis_client.keys(prefix + '*')
+            if keys: _redis_client.delete(*keys)
+            return
+    except: pass
+    # Fallback: in-memory
+    for k in list(_query_cache.keys()):
+        if k.startswith(prefix):
+            del _query_cache[k]
+
+def get_conn():
+    _parse_db_url()
+    global _pool
+    if _pool:
+        try:
+            conn = _pool.pop()
+            conn.run("SELECT 1")
+            return conn
+        except Exception:
+            pass
+    return pg8000.native.Connection(**_db_params)
+
+def release_conn(conn):
+    global _pool
+    if len(_pool) < _MAX_POOL:
+        try:
+            _pool.append(conn)
+            return
+        except Exception:
+            pass
+    try: conn.close()
+    except: pass
 
 
 # ══ مساعدات ══
@@ -253,6 +322,30 @@ def init_db():
             try: conn.run(col)
             except: pass
 
+        # Messages table
+        conn.run("""
+            CREATE TABLE IF NOT EXISTS messages (
+                id SERIAL PRIMARY KEY,
+                sender_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                receiver_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                content TEXT NOT NULL,
+                is_read BOOLEAN DEFAULT FALSE,
+                created_at TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        # Notifications table
+        conn.run("""
+            CREATE TABLE IF NOT EXISTS notifications (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                type TEXT NOT NULL,
+                title TEXT,
+                body TEXT,
+                link TEXT,
+                is_read BOOLEAN DEFAULT FALSE,
+                created_at TIMESTAMP DEFAULT NOW()
+            )
+        """)
         conn.run("""
             CREATE TABLE IF NOT EXISTS verify_requests (
                 id SERIAL PRIMARY KEY,
@@ -277,7 +370,7 @@ def init_db():
             except: pass
         print("✅ Database ready.")
     finally:
-        conn.close()
+        release_conn(conn)
 
 
 def _unique_tw_id(conn, user_type: str, country_code: str) -> str:
@@ -315,7 +408,7 @@ def create_user(
             raise ValueError("البريد الإلكتروني مسجل مسبقاً")
         raise
     finally:
-        conn.close()
+        release_conn(conn)
 
 
 def authenticate_user(email: str, password: str) -> Optional[dict]:
@@ -340,7 +433,7 @@ def authenticate_user(email: str, password: str) -> Optional[dict]:
             user["tw_id"] = tw_id
         return _serialize(user)
     finally:
-        conn.close()
+        release_conn(conn)
 
 
 def get_user_by_id(user_id: int) -> Optional[dict]:
@@ -355,7 +448,7 @@ def get_user_by_id(user_id: int) -> Optional[dict]:
         cols = [c["name"] for c in conn.columns]
         return _serialize(_row_to_dict(cols, rows[0]))
     finally:
-        conn.close()
+        release_conn(conn)
 
 
 # ══ الملفات الشخصية ══
@@ -405,10 +498,12 @@ def get_public_profile(user_id: int) -> Optional[dict]:
 
         return {**user, **profile, **_get_extras(conn, user_id)}
     finally:
-        conn.close()
+        release_conn(conn)
 
 
 def get_full_profile(user_id: int) -> Optional[dict]:
+    cached = _cache_get('profile:'+str(user_id))
+    if cached is not None: return cached
     conn = get_conn()
     try:
         rows = conn.run(
@@ -451,10 +546,11 @@ def get_full_profile(user_id: int) -> Optional[dict]:
                 "skills": skills, "langs": langs, "links": links,
                 "verify_request": verify_req}
     finally:
-        conn.close()
+        release_conn(conn)
 
 
 def update_profile(user_id: int, data: dict) -> dict:
+    _cache_del('profile:'+str(user_id))
     conn = get_conn()
     try:
         # Update full_name in users table if provided
@@ -483,7 +579,7 @@ def update_profile(user_id: int, data: dict) -> dict:
                 user_id=user_id, **fields
             )
     finally:
-        conn.close()
+        release_conn(conn)
     return get_full_profile(user_id)
 
 
@@ -503,7 +599,7 @@ def add_experience(user_id: int, data: dict) -> dict:
         cols = [c["name"] for c in conn.columns]
         return _serialize(_row_to_dict(cols, rows[0]))
     finally:
-        conn.close()
+        release_conn(conn)
 
 
 # ══ الشهادات ══
@@ -522,7 +618,7 @@ def add_education(user_id: int, data: dict) -> dict:
         cols = [c["name"] for c in conn.columns]
         return _serialize(_row_to_dict(cols, rows[0]))
     finally:
-        conn.close()
+        release_conn(conn)
 
 
 # ══ الدورات ══
@@ -541,7 +637,7 @@ def add_course(user_id: int, data: dict) -> dict:
         cols = [c["name"] for c in conn.columns]
         return _serialize(_row_to_dict(cols, rows[0]))
     finally:
-        conn.close()
+        release_conn(conn)
 
 
 # ══ طلبات التحقق ══
@@ -557,7 +653,7 @@ def create_verify_request(user_id: int, data: dict) -> dict:
         cols = [c["name"] for c in conn.columns]
         return _serialize(_row_to_dict(cols, rows[0]))
     finally:
-        conn.close()
+        release_conn(conn)
 
 
 def get_user_id_by_tw_id(tw_id: str) -> Optional[int]:
@@ -567,7 +663,7 @@ def get_user_id_by_tw_id(tw_id: str) -> Optional[int]:
         rows = conn.run("SELECT id FROM users WHERE tw_id = :tw_id", tw_id=tw_id)
         return rows[0][0] if rows else None
     finally:
-        conn.close()
+        release_conn(conn)
 
 
 def get_profile_by_tw_id(tw_id: str) -> Optional[dict]:
@@ -585,6 +681,7 @@ def get_full_profile_by_tw_id(tw_id: str) -> Optional[dict]:
 # ══ الوظائف ══
 
 def add_job(company_id: int, data: dict) -> dict:
+    _cache_del('jobs:')
     conn = get_conn()
     try:
         skills = data.get("skills") or []
@@ -605,9 +702,12 @@ def add_job(company_id: int, data: dict) -> dict:
         cols = [c["name"] for c in conn.columns]
         return _serialize(_row_to_dict(cols, rows[0]))
     finally:
-        conn.close()
+        release_conn(conn)
 
 def get_jobs(filters: dict = None) -> list:
+    cache_key = 'jobs:' + str(sorted((filters or {}).items()))
+    cached = _cache_get(cache_key)
+    if cached is not None: return cached
     conn = get_conn()
     try:
         where = "WHERE j.status='active'"
@@ -635,9 +735,11 @@ def get_jobs(filters: dict = None) -> list:
             **params
         )
         cols = [c["name"] for c in conn.columns]
-        return [_serialize(_row_to_dict(cols, r)) for r in rows]
+        result = [_serialize(_row_to_dict(cols, r)) for r in rows]
+        _cache_set(cache_key, result)
+        return result
     finally:
-        conn.close()
+        release_conn(conn)
 
 def get_job(job_id: int) -> dict:
     conn = get_conn()
@@ -652,7 +754,7 @@ def get_job(job_id: int) -> dict:
         cols = [c["name"] for c in conn.columns]
         return _serialize(_row_to_dict(cols, rows[0]))
     finally:
-        conn.close()
+        release_conn(conn)
 
 def apply_job(job_id: int, user_id: int, cover_letter: str = "") -> dict:
     conn = get_conn()
@@ -669,7 +771,7 @@ def apply_job(job_id: int, user_id: int, cover_letter: str = "") -> dict:
         cols = [c["name"] for c in conn.columns]
         return _serialize(_row_to_dict(cols, rows[0]))
     finally:
-        conn.close()
+        release_conn(conn)
 
 def get_job_applicants(job_id: int) -> list:
     conn = get_conn()
@@ -684,7 +786,7 @@ def get_job_applicants(job_id: int) -> list:
         cols = [c["name"] for c in conn.columns]
         return [_serialize(_row_to_dict(cols, r)) for r in rows]
     finally:
-        conn.close()
+        release_conn(conn)
 
 def get_user_applications(user_id: int) -> list:
     conn = get_conn()
@@ -701,7 +803,7 @@ def get_user_applications(user_id: int) -> list:
         cols = [c["name"] for c in conn.columns]
         return [_serialize(_row_to_dict(cols, r)) for r in rows]
     finally:
-        conn.close()
+        release_conn(conn)
 
 def update_application_status(app_id: int, status: str) -> dict:
     conn = get_conn()
@@ -709,7 +811,7 @@ def update_application_status(app_id: int, status: str) -> dict:
         conn.run("UPDATE job_applications SET status=:s WHERE id=:id", s=status, id=app_id)
         return {"success": True}
     finally:
-        conn.close()
+        release_conn(conn)
 
 def delete_job(job_id: int, company_id: int) -> bool:
     conn = get_conn()
@@ -717,7 +819,7 @@ def delete_job(job_id: int, company_id: int) -> bool:
         conn.run("DELETE FROM jobs WHERE id=:id AND company_id=:cid", id=job_id, cid=company_id)
         return True
     finally:
-        conn.close()
+        release_conn(conn)
 
 
 # ══ KYC System ══
@@ -742,7 +844,7 @@ def start_kyc(user_id: int) -> dict:
         cols = [c["name"] for c in conn.columns]
         return _serialize(_row_to_dict(cols, rows[0]))
     finally:
-        conn.close()
+        release_conn(conn)
 
 def send_email_code(user_id: int, email: str) -> str:
     """Generate email verification code"""
@@ -755,7 +857,7 @@ def send_email_code(user_id: int, email: str) -> str:
         )
         return code  # In production: send via email API
     finally:
-        conn.close()
+        release_conn(conn)
 
 def verify_email_code(user_id: int, code: str) -> bool:
     """Verify email code"""
@@ -774,7 +876,7 @@ def verify_email_code(user_id: int, code: str) -> bool:
         conn.run("UPDATE users SET email_verified=TRUE WHERE id=:uid", uid=user_id)
         return True
     finally:
-        conn.close()
+        release_conn(conn)
 
 def send_phone_code(user_id: int, phone: str) -> str:
     """Generate phone verification code"""
@@ -787,7 +889,7 @@ def send_phone_code(user_id: int, phone: str) -> str:
         )
         return code  # In production: send via SMS API
     finally:
-        conn.close()
+        release_conn(conn)
 
 def verify_phone_code(user_id: int, code: str) -> bool:
     """Verify phone code"""
@@ -806,7 +908,7 @@ def verify_phone_code(user_id: int, code: str) -> bool:
         conn.run("UPDATE users SET phone_verified=TRUE WHERE id=:uid", uid=user_id)
         return True
     finally:
-        conn.close()
+        release_conn(conn)
 
 def upload_kyc_docs(user_id: int, id_url: str, selfie_url: str = None) -> dict:
     """Save uploaded ID and selfie"""
@@ -823,7 +925,7 @@ def upload_kyc_docs(user_id: int, id_url: str, selfie_url: str = None) -> dict:
         )
         return {"status": "submitted", "step": "review"}
     finally:
-        conn.close()
+        release_conn(conn)
 
 def get_kyc_status(user_id: int) -> dict:
     """Get current KYC status"""
@@ -839,7 +941,7 @@ def get_kyc_status(user_id: int) -> dict:
         cols = [c["name"] for c in conn.columns]
         return _serialize(_row_to_dict(cols, rows[0]))
     finally:
-        conn.close()
+        release_conn(conn)
 
 def admin_approve_kyc(user_id: int, note: str = "") -> dict:
     """Admin approves KYC"""
@@ -852,7 +954,7 @@ def admin_approve_kyc(user_id: int, note: str = "") -> dict:
         conn.run("UPDATE users SET is_verified=TRUE WHERE id=:uid", uid=user_id)
         return {"success": True}
     finally:
-        conn.close()
+        release_conn(conn)
 
 def admin_reject_kyc(user_id: int, note: str = "") -> dict:
     """Admin rejects KYC"""
@@ -864,7 +966,7 @@ def admin_reject_kyc(user_id: int, note: str = "") -> dict:
         )
         return {"success": True}
     finally:
-        conn.close()
+        release_conn(conn)
 
 def get_all_kyc_submissions() -> list:
     """Get all KYC submissions for admin"""
@@ -878,4 +980,125 @@ def get_all_kyc_submissions() -> list:
         cols = [c["name"] for c in conn.columns]
         return [_serialize(_row_to_dict(cols, r)) for r in rows]
     finally:
-        conn.close()
+        release_conn(conn)
+
+
+# ══ Messages System ══
+
+def send_message(sender_id: int, receiver_id: int, content: str) -> dict:
+    conn = get_conn()
+    try:
+        rows = conn.run(
+            "INSERT INTO messages (sender_id, receiver_id, content) "
+            "VALUES (:sid, :rid, :content) RETURNING id, sender_id, receiver_id, content, is_read, created_at",
+            sid=sender_id, rid=receiver_id, content=content
+        )
+        cols = [c["name"] for c in conn.columns]
+        msg = _serialize(_row_to_dict(cols, rows[0]))
+        # Create notification for receiver
+        create_notification(receiver_id, 'message', 'رسالة جديدة', content[:60], '/messages.html')
+        return msg
+    finally:
+        release_conn(conn)
+
+def get_conversations(user_id: int) -> list:
+    """Get all unique conversations for a user"""
+    conn = get_conn()
+    try:
+        rows = conn.run(
+            "SELECT DISTINCT ON (other_id) "
+            "CASE WHEN sender_id=:uid THEN receiver_id ELSE sender_id END AS other_id, "
+            "content, created_at, is_read, sender_id, "
+            "u.full_name, u.user_type "
+            "FROM messages m "
+            "JOIN users u ON u.id = CASE WHEN m.sender_id=:uid THEN m.receiver_id ELSE m.sender_id END "
+            "WHERE sender_id=:uid OR receiver_id=:uid "
+            "ORDER BY other_id, created_at DESC",
+            uid=user_id
+        )
+        cols = [c["name"] for c in conn.columns]
+        return [_serialize(_row_to_dict(cols, r)) for r in rows]
+    finally:
+        release_conn(conn)
+
+def get_messages(user_id: int, other_id: int) -> list:
+    """Get messages between two users"""
+    conn = get_conn()
+    try:
+        rows = conn.run(
+            "SELECT m.*, u.full_name as sender_name "
+            "FROM messages m JOIN users u ON u.id=m.sender_id "
+            "WHERE (sender_id=:uid AND receiver_id=:oid) "
+            "OR (sender_id=:oid AND receiver_id=:uid) "
+            "ORDER BY created_at ASC LIMIT 100",
+            uid=user_id, oid=other_id
+        )
+        cols = [c["name"] for c in conn.columns]
+        # Mark as read
+        conn.run(
+            "UPDATE messages SET is_read=TRUE "
+            "WHERE receiver_id=:uid AND sender_id=:oid AND is_read=FALSE",
+            uid=user_id, oid=other_id
+        )
+        return [_serialize(_row_to_dict(cols, r)) for r in rows]
+    finally:
+        release_conn(conn)
+
+def get_unread_count(user_id: int) -> int:
+    """Get count of unread messages"""
+    conn = get_conn()
+    try:
+        rows = conn.run(
+            "SELECT COUNT(*) FROM messages WHERE receiver_id=:uid AND is_read=FALSE",
+            uid=user_id
+        )
+        return rows[0][0] if rows else 0
+    finally:
+        release_conn(conn)
+
+# ══ Notifications System ══
+
+def create_notification(user_id: int, type_: str, title: str, body: str, link: str = "") -> dict:
+    conn = get_conn()
+    try:
+        rows = conn.run(
+            "INSERT INTO notifications (user_id, type, title, body, link) "
+            "VALUES (:uid, :type, :title, :body, :link) RETURNING id, user_id, type, title, body, link, is_read, created_at",
+            uid=user_id, type=type_, title=title, body=body, link=link
+        )
+        cols = [c["name"] for c in conn.columns]
+        return _serialize(_row_to_dict(cols, rows[0]))
+    finally:
+        release_conn(conn)
+
+def get_notifications(user_id: int, limit: int = 50) -> list:
+    conn = get_conn()
+    try:
+        rows = conn.run(
+            "SELECT * FROM notifications WHERE user_id=:uid "
+            "ORDER BY created_at DESC LIMIT :lim",
+            uid=user_id, lim=limit
+        )
+        cols = [c["name"] for c in conn.columns]
+        return [_serialize(_row_to_dict(cols, r)) for r in rows]
+    finally:
+        release_conn(conn)
+
+def mark_notifications_read(user_id: int) -> bool:
+    conn = get_conn()
+    try:
+        conn.run("UPDATE notifications SET is_read=TRUE WHERE user_id=:uid", uid=user_id)
+        return True
+    finally:
+        release_conn(conn)
+
+def get_unread_notifications(user_id: int) -> int:
+    conn = get_conn()
+    try:
+        rows = conn.run(
+            "SELECT COUNT(*) FROM notifications WHERE user_id=:uid AND is_read=FALSE",
+            uid=user_id
+        )
+        return rows[0][0] if rows else 0
+    finally:
+        release_conn(conn)

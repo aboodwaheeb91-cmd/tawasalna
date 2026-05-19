@@ -2,7 +2,16 @@
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+  <link rel="dns-prefetch" href="https://fonts.gstatic.com">
+  <link rel="dns-prefetch" href="https://tawasolna.com">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#00c896">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="تواصلنا">
+  <link rel="apple-touch-icon" href="/icon-192.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>تواصلنا - الإشعارات</title>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
 <style>
@@ -85,7 +94,7 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-heig
 @keyframes tw-spin{to{transform:translateY(-50%) rotate(360deg);}}
 @keyframes tw-fadein{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:none;}}
 @keyframes tw-verified{0%,100%{box-shadow:0 0 0 0 rgba(0,200,150,0);}50%{box-shadow:0 0 0 5px rgba(0,200,150,.15);}}
-.tw-toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(20px);background:rgba(7,11,24,.97);border:1px solid rgba(255,255,255,.1);backdrop-filter:blur(20px);border-radius:14px;padding:12px 20px;display:flex;align-items:center;gap:10px;font-size:.82rem;font-family:Cairo,sans-serif;color:rgba(255,255,255,.92);opacity:0;transition:all .3s cubic-bezier(.34,1.56,.64,1);z-index:9999;white-space:nowrap;min-width:180px;justify-content:center;box-shadow:0 8px 32px rgba(0,0,0,.4);}
+.tw-toast[aria-live="polite"]{position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(20px);background:rgba(7,11,24,.97);border:1px solid rgba(255,255,255,.1);backdrop-filter:blur(20px);border-radius:14px;padding:12px 20px;display:flex;align-items:center;gap:10px;font-size:.82rem;font-family:Cairo,sans-serif;color:rgba(255,255,255,.92);opacity:0;transition:all .3s cubic-bezier(.34,1.56,.64,1);z-index:9999;white-space:nowrap;min-width:180px;justify-content:center;box-shadow:0 8px 32px rgba(0,0,0,.4);}
 .tw-toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
 .tw-toast.success{border-color:rgba(0,200,150,.3);}
 .tw-toast.error{border-color:rgba(239,68,68,.3);}
@@ -106,7 +115,7 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-heig
 .tw-verified{animation:tw-verified 2.5s ease-in-out infinite;}
 
 </style>
-</head>
+<style>.skip-link{position:absolute;top:-40px;right:0;background:var(--ac,#00c896);color:#0d1a2e;padding:8px 16px;border-radius:0 0 8px 0;font-family:Cairo,sans-serif;font-size:.8rem;font-weight:700;text-decoration:none;transition:top .2s;z-index:10000}.skip-link:focus{top:0}</style><a href="#main-content" class="skip-link">تخطى للمحتوى الرئيسي</a></head>
 <body>
 
 <nav class="nav">
@@ -114,7 +123,7 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-heig
   <div class="nav-logo" onclick="goHome()">تواصلنا</div>
 </nav>
 
-<div class="main">
+<div class="main" role="main" id="main-content">
   <div class="page-head">
     <h1>🔔 الإشعارات</h1>
     <span class="mark-all" onclick="markAll()">تحديد الكل كمقروء</span>
@@ -272,6 +281,7 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-heig
   <div class="bn"><span class="bi">💬</span><span class="bl">رسائل</span></div>
 </div>
 
+<script src="/tw_shared.js"></script>
 <script>
 let _user = null;
 try { _user = JSON.parse(localStorage.getItem('tw_user')); } catch(e){}
@@ -280,6 +290,14 @@ if(!_user || !_user.id){ window.location.href = '/'; }
 function filterNotifs(type, el){
   document.querySelectorAll('.ftab').forEach(t => t.classList.remove('active'));
   el.classList.add('active');
+  // Filter notif items
+  document.querySelectorAll('.ni').forEach(function(ni){
+    if(type==='all'||ni.dataset.type===type){
+      ni.style.display='';
+    } else {
+      ni.style.display='none';
+    }
+  });
   document.querySelectorAll('.ni').forEach(n => {
     n.style.display = (type === 'all' || n.dataset.type === type) ? '' : 'none';
   });
@@ -362,22 +380,109 @@ function initScrollProg(){
     p.style.width=Math.min(pct,100)+'%';
   });
 }
-document.addEventListener('keydown',function(e){
-  if(e.key==='Escape'){
-    var fn=window.closeModal||window.closeEdit||window.closePostJob||window.closeMsgModal;
-    if(typeof fn==='function')fn();
+
+
+// ══ Real Notifications System ══
+function loadRealNotifications(){
+  if(!_user||!_user.id) return;
+  var dyn=document.getElementById('dynamicNotifs');
+  if(dyn) dyn.innerHTML='<div class="tw-skeleton" style="height:64px;margin-bottom:8px"></div><div class="tw-skeleton" style="height:64px"></div>';
+
+  fetch('/notifications/'+_user.id)
+  .then(function(r){return r.json();}).then(function(data){
+    var notifs=data.notifications||[];
+    var unread=data.unread||0;
+    var container=document.getElementById('dynamicNotifs');
+    if(!container) return;
+
+    if(!notifs.length){
+      container.innerHTML='';
+      return;
+    }
+
+    var typeMap={
+      message:{ico:'💬',color:'rgba(37,99,255,.1)',label:'رسالة'},
+      job:{ico:'💼',color:'rgba(0,200,150,.1)',label:'وظيفة'},
+      verify:{ico:'✅',color:'rgba(0,200,150,.1)',label:'توثيق'},
+      kyc:{ico:'🪪',color:'rgba(0,200,150,.1)',label:'KYC'},
+      system:{ico:'🔔',color:'rgba(255,255,255,.05)',label:'إشعار'}
+    };
+
+    var html='<div class="group-label">الإشعارات الحديثة'+(unread>0?' ('+unread+' جديد)':'')+'</div>';
+    html+=notifs.slice(0,10).map(function(n){
+      var t=typeMap[n.type]||typeMap.system;
+      var ago=Math.floor((Date.now()-new Date(n.created_at))/60000);
+      var agoStr=ago<1?'الآن':ago<60?ago+' د':ago<1440?Math.floor(ago/60)+' س':Math.floor(ago/1440)+' ي';
+      return '<div class="ni '+(n.is_read?'':'unread')+'" data-type="'+n.type+'" style="border-right:3px solid '+(n.is_read?'transparent':'var(--ac)')+'">'+
+        '<div class="ni-ico" style="background:'+t.color+'">'+t.ico+'</div>'+
+        '<div class="ni-body">'+
+        '<div class="ni-title">'+(n.title||t.label)+'</div>'+
+        '<div class="ni-sub">'+(n.body||'').slice(0,50)+' · '+agoStr+'</div>'+
+        '</div></div>';
+    }).join('');
+
+    container.innerHTML=html;
+
+    // Mark as read
+    if(unread>0){
+      fetch('/notifications/'+_user.id+'/read',{method:'PUT'}).catch(function(){});
+    }
+  }).catch(function(){});
+}
+
+// Also load job applications as before
+function loadJobApplications(){
+  if(!_user||!_user.id) return;
+  fetch('/my/applications',{headers:{'X-User-Id':_user.id}})
+  .then(function(r){return r.json();}).then(function(data){
+    var apps=data.applications||[];
+    if(!apps.length) return;
+    var container=document.getElementById('dynamicNotifs');
+    if(!container) return;
+    var statusMap={pending:'⏳ قيد المراجعة',viewed:'👁 تم عرض طلبك',accepted:'✅ تم قبولك',rejected:'❌ تم رفض طلبك'};
+    var existing=container.innerHTML;
+    var appsHtml=apps.slice(0,5).map(function(a){
+      var isNew=a.status!=='pending';
+      return '<div class="ni '+(isNew?'unread':'')+'" data-type="job" style="border-right:3px solid '+(isNew?'var(--ac)':'transparent')+'">'
+        +'<div class="ni-ico" style="background:rgba(0,200,150,.1)">💼</div>'
+        +'<div class="ni-body">'
+        +'<div class="ni-title">'+(statusMap[a.status]||a.status)+' - '+(a.title||'وظيفة')+'</div>'
+        +'<div class="ni-sub">'+(a.company_name||'')+' · '+(a.applied_at||'').slice(0,10)+'</div>'
+        +'</div></div>';
+    }).join('');
+    container.innerHTML=existing+appsHtml;
+  }).catch(function(){});
+}
+
+// Override markAll to use API
+function markAll(){
+  if(_user&&_user.id){
+    fetch('/notifications/'+_user.id+'/read',{method:'PUT'}).then(function(){
+      document.querySelectorAll('.ni.unread').forEach(function(el){
+        el.classList.remove('unread');
+        el.style.borderRightColor='transparent';
+      });
+      showToast('تم تحديد الكل كمقروء ✅');
+    }).catch(function(){
+      showToast('تم التحديد ✅');
+    });
   }
-  if(e.key==='/'&&!['INPUT','TEXTAREA'].includes(e.target.tagName)){
-    e.preventDefault();
-    var s=document.getElementById('searchInput')||document.getElementById('userSearch')||document.getElementById('jobSearch');
-    if(s)s.focus();
+}
+
+// Load on start
+loadRealNotifications();
+loadJobApplications();
+
+
+// Add empty state if no notifs
+setTimeout(function(){
+  var dyn=document.getElementById('dynamicNotifs');
+  var groups=document.querySelectorAll('.notif-group,.group-label');
+  var hasContent=dyn&&dyn.textContent.trim().length>10;
+  if(!hasContent&&groups.length===0){
+    if(dyn) dyn.innerHTML='<div class="tw-empty"><span class="tw-empty-ico">🔔</span><div class="tw-empty-title">لا إشعارات جديدة</div><div class="tw-empty-sub">ستظهر هنا إشعاراتك عند توفرها</div></div>';
   }
-});
-document.documentElement.style.opacity='0';
-window.addEventListener('load',function(){
-  document.documentElement.style.transition='opacity .25s ease';
-  document.documentElement.style.opacity='1';
-});
+},2000);
 
 </script>
 </body>

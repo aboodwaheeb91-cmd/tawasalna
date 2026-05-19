@@ -14,7 +14,16 @@
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+  <link rel="dns-prefetch" href="https://fonts.gstatic.com">
+  <link rel="dns-prefetch" href="https://tawasolna.com">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#00c896">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="تواصلنا">
+  <link rel="apple-touch-icon" href="/icon-192.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>تواصلنا - عرض المستخدم</title>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
 <style>
@@ -138,7 +147,7 @@ body{background:var(--bg);color:#fff;font-family:'Cairo',sans-serif;min-height:1
 @keyframes tw-spin{to{transform:translateY(-50%) rotate(360deg);}}
 @keyframes tw-fadein{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:none;}}
 @keyframes tw-verified{0%,100%{box-shadow:0 0 0 0 rgba(0,200,150,0);}50%{box-shadow:0 0 0 5px rgba(0,200,150,.15);}}
-.tw-toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(20px);background:rgba(7,11,24,.97);border:1px solid rgba(255,255,255,.1);backdrop-filter:blur(20px);border-radius:14px;padding:12px 20px;display:flex;align-items:center;gap:10px;font-size:.82rem;font-family:Cairo,sans-serif;color:rgba(255,255,255,.92);opacity:0;transition:all .3s cubic-bezier(.34,1.56,.64,1);z-index:9999;white-space:nowrap;min-width:180px;justify-content:center;box-shadow:0 8px 32px rgba(0,0,0,.4);}
+.tw-toast[aria-live="polite"]{position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(20px);background:rgba(7,11,24,.97);border:1px solid rgba(255,255,255,.1);backdrop-filter:blur(20px);border-radius:14px;padding:12px 20px;display:flex;align-items:center;gap:10px;font-size:.82rem;font-family:Cairo,sans-serif;color:rgba(255,255,255,.92);opacity:0;transition:all .3s cubic-bezier(.34,1.56,.64,1);z-index:9999;white-space:nowrap;min-width:180px;justify-content:center;box-shadow:0 8px 32px rgba(0,0,0,.4);}
 .tw-toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
 .tw-toast.success{border-color:rgba(0,200,150,.3);}
 .tw-toast.error{border-color:rgba(239,68,68,.3);}
@@ -159,7 +168,13 @@ body{background:var(--bg);color:#fff;font-family:'Cairo',sans-serif;min-height:1
 .tw-verified{animation:tw-verified 2.5s ease-in-out infinite;}
 
 </style>
-</head>
+<style>.skip-link{position:absolute;top:-40px;right:0;background:var(--ac,#00c896);color:#0d1a2e;padding:8px 16px;border-radius:0 0 8px 0;font-family:Cairo,sans-serif;font-size:.8rem;font-weight:700;text-decoration:none;transition:top .2s;z-index:10000}.skip-link:focus{top:0}
+.qa-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px;}
+.qa-btn{padding:8px 14px;border-radius:10px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);color:rgba(255,255,255,.7);font-family:Cairo,sans-serif;font-size:.75rem;cursor:pointer;transition:all .2s;}
+.qa-btn:hover{border-color:var(--ac,#00c896);color:var(--ac,#00c896);}
+.qa-btn.danger{border-color:rgba(239,68,68,.3);color:#f87171;}
+.qa-btn.danger:hover{background:rgba(239,68,68,.1);}
+</style><a href="#main-content" class="skip-link">تخطى للمحتوى الرئيسي</a></head>
 <body>
 
 <nav class="nav">
@@ -223,7 +238,15 @@ body{background:var(--bg);color:#fff;font-family:'Cairo',sans-serif;min-height:1
       <div class="main-col">
 
         <!-- المعلومات الأساسية -->
-        <div class="sec-card">
+        
+  <!-- Quick Actions -->
+  <div class="qa-row" id="qaRow" style="display:none">
+    <button class="qa-btn" onclick="adminVerifyUser()">✅ توثيق الحساب</button>
+    <button class="qa-btn" onclick="adminSendMsg()">💬 إرسال رسالة</button>
+    <button class="qa-btn" onclick="adminResetPass()">🔑 إعادة تعيين كلمة المرور</button>
+    <button class="qa-btn danger" onclick="adminDeleteUser()">🗑️ حذف الحساب</button>
+  </div>
+<div class="sec-card">
           <div class="sec-head">
             <span class="sec-ico">👤</span>
             <span class="sec-label">المعلومات الأساسية</span>
@@ -308,6 +331,7 @@ body{background:var(--bg);color:#fff;font-family:'Cairo',sans-serif;min-height:1
 
 <div class="toast" id="toast"></div>
 
+<script src="/tw_shared.js"></script>
 <script>
 'use strict';
 
@@ -318,7 +342,7 @@ const _adminToken = sessionStorage.getItem('tw_adm_token') || '';
 let _profile = null;
 
 if(!_adminToken){ window.location.href = '/tw-ctrl-kPuOWhpIYjdLQXmh'; }
-if(!_userId){ window.location.href = '/admin.html'; }
+if(!_userId){ window.location.href = 'admin.html'; }
 
 // ── Admin headers ──
 function adminHeaders(){ return {'Content-Type':'application/json','X-Admin-Token':_adminToken}; }
@@ -481,6 +505,7 @@ async function saveField(field){
     if(!r.ok) throw new Error('HTTP '+r.status);
     closeModal();
     await loadProfile();
+initScrollProg();
     toast('تم الحفظ ✓');
   }catch(e){
     toast('خطأ: '+e.message, 'e');
@@ -498,6 +523,7 @@ async function saveType(){
     });
     if(!r.ok) throw new Error('HTTP '+r.status);
     await loadProfile();
+initScrollProg();
     toast('تم تغيير نوع الحساب ✓');
   }catch(e){
     toast('خطأ: '+e.message,'e');
@@ -514,6 +540,7 @@ async function toggleVerify(){
     });
     if(!r.ok) throw new Error('HTTP '+r.status);
     await loadProfile();
+initScrollProg();
     toast(newStatus ? 'تم توثيق الحساب ✓' : 'تم إلغاء التوثيق');
   }catch(e){
     toast('خطأ: '+e.message,'e');
@@ -605,7 +632,7 @@ async function deleteUser(){
     const r = await fetch('/admin/user/'+_userId, {method:'DELETE', headers: adminHeaders()});
     if(!r.ok) throw new Error('HTTP '+r.status);
     toast('تم حذف الحساب ✓');
-    setTimeout(()=> window.location.href='/admin.html', 1500);
+    setTimeout(()=> window.location.href='admin.html', 1500);
   }catch(e){
     toast('خطأ: '+e.message,'e');
   }
@@ -616,7 +643,8 @@ async function deleteExp(id){
   if(!confirm('حذف هذه الخبرة؟')) return;
   try{
     await fetch('/admin/experience/'+id, {method:'DELETE', headers: adminHeaders()});
-    await loadProfile(); toast('تم الحذف ✓');
+    await loadProfile();
+initScrollProg(); toast('تم الحذف ✓');
   }catch(e){ toast('خطأ','e'); }
 }
 
@@ -624,7 +652,8 @@ async function deleteEdu(id){
   if(!confirm('حذف هذه الشهادة؟')) return;
   try{
     await fetch('/admin/education/'+id, {method:'DELETE', headers: adminHeaders()});
-    await loadProfile(); toast('تم الحذف ✓');
+    await loadProfile();
+initScrollProg(); toast('تم الحذف ✓');
   }catch(e){ toast('خطأ','e'); }
 }
 
@@ -632,13 +661,14 @@ async function deleteCourse(id){
   if(!confirm('حذف هذه الدورة؟')) return;
   try{
     await fetch('/admin/course/'+id, {method:'DELETE', headers: adminHeaders()});
-    await loadProfile(); toast('تم الحذف ✓');
+    await loadProfile();
+initScrollProg(); toast('تم الحذف ✓');
   }catch(e){ toast('خطأ','e'); }
 }
 
 // ── Utils ──
 function closeModal(){ document.getElementById('overlay').classList.remove('show'); }
-function goBack(){ window.location.href='/admin.html'; }
+function goBack(){ window.location.href='admin.html'; }
 function toast(msg, type='s'){
   const t=document.getElementById('toast');
   t.textContent=msg; t.className='toast '+type+' show';
@@ -647,6 +677,7 @@ function toast(msg, type='s'){
 
 // ── Init ──
 loadProfile();
+initScrollProg();
 
 // ── Job Applications ──
 async function loadUserApplications(userId){
@@ -725,23 +756,61 @@ function initScrollProg(){
     p.style.width=Math.min(pct,100)+'%';
   });
 }
-document.addEventListener('keydown',function(e){
-  if(e.key==='Escape'){
-    var fn=window.closeModal||window.closeEdit||window.closePostJob||window.closeMsgModal;
-    if(typeof fn==='function')fn();
-  }
-  if(e.key==='/'&&!['INPUT','TEXTAREA'].includes(e.target.tagName)){
-    e.preventDefault();
-    var s=document.getElementById('searchInput')||document.getElementById('userSearch')||document.getElementById('jobSearch');
-    if(s)s.focus();
-  }
-});
-document.documentElement.style.opacity='0';
-window.addEventListener('load',function(){
-  document.documentElement.style.transition='opacity .25s ease';
-  document.documentElement.style.opacity='1';
-});
 
+
+// Show quick actions when profile loaded
+function showQuickActions(){
+  var qa=document.getElementById('qaRow');
+  if(qa) qa.style.display='flex';
+}
+
+
+// ── Quick Action Functions ──
+async function adminVerifyUser(){
+  if(!_userId||!confirm('توثيق هذا الحساب؟')) return;
+  try{
+    const r=await fetch('/admin/user/'+_userId+'/verify',{method:'PUT',headers:{...adminHeaders(),'Content-Type':'application/json'},body:JSON.stringify({verified:true})});
+    if(!r.ok) throw new Error();
+    showToast('تم توثيق الحساب ✅');
+    loadProfile();
+  }catch(e){showToast('خطأ في التوثيق','error');}
+}
+
+async function adminSendMsg(){
+  var msg=prompt('نص الرسالة:','');
+  if(!msg||!_userId) return;
+  try{
+    const r=await fetch('/admin/message',{method:'POST',headers:{...adminHeaders(),'Content-Type':'application/json'},body:JSON.stringify({user_id:parseInt(_userId),subject:'رسالة من الأدمن',message:msg})});
+    if(!r.ok) throw new Error();
+    showToast('تم إرسال الرسالة ✅');
+  }catch(e){showToast('خطأ في الإرسال','error');}
+}
+
+async function adminResetPass(){
+  var newPass=prompt('كلمة المرور الجديدة (6 أحرف على الأقل):','');
+  if(!newPass||newPass.length<6){showToast('كلمة مرور قصيرة','error');return;}
+  if(!_userId) return;
+  try{
+    const r=await fetch('/admin/user/'+_userId+'/password',{method:'PUT',headers:{...adminHeaders(),'Content-Type':'application/json'},body:JSON.stringify({password:newPass})});
+    if(!r.ok) throw new Error();
+    showToast('تم تغيير كلمة المرور ✅');
+  }catch(e){showToast('خطأ','error');}
+}
+
+async function adminDeleteUser(){
+  if(!_userId||!confirm('حذف هذا المستخدم نهائياً؟ هذا الإجراء لا يمكن التراجع عنه!')) return;
+  try{
+    const r=await fetch('/admin/user/'+_userId,{method:'DELETE',headers:adminHeaders()});
+    if(!r.ok) throw new Error();
+    showToast('تم حذف المستخدم');
+    setTimeout(function(){window.location.href='admin.html';},1500);
+  }catch(e){showToast('خطأ في الحذف','error');}
+}
+
+function showQuickActions(){
+  var qa=document.getElementById('qaRow');
+  if(qa) qa.style.display='flex';
+}
 </script>
 </body>
 </html>

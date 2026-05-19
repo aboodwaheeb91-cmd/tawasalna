@@ -2,8 +2,28 @@
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>الوظائف - تواصلنا</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+  <link rel="dns-prefetch" href="https://fonts.gstatic.com">
+  <link rel="dns-prefetch" href="https://tawasolna.com">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#00c896">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="تواصلنا">
+  <link rel="apple-touch-icon" href="/icon-192.png">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+<title>الوظائف المتاحة - تواصلنا</title>
+  <meta name="description" content="تصفح أحدث الوظائف في الأردن، السعودية، الإمارات والعالم العربي. وظائف موثقة وشركات حقيقية.">
+  <meta property="og:title" content="الوظائف المتاحة - تواصلنا">
+  <meta property="og:description" content="تصفح أحدث الوظائف في الأردن، السعودية، الإمارات والعالم العربي. وظائف موثقة وشركات حقيقية.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://tawasolna.com">
+  <meta property="og:locale" content="ar_AR">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="الوظائف المتاحة - تواصلنا">
+  <meta name="twitter:description" content="تصفح أحدث الوظائف في الأردن، السعودية، الإمارات والعالم العربي. وظائف موثقة وشركات حقيقية.">
+  <meta name="robots" content="index, follow">
+  <link rel="canonical" href="https://tawasolna.com">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>
@@ -43,7 +63,7 @@ body{background:var(--bg);color:var(--t);font-family:Cairo,sans-serif;min-height
 @keyframes tw-spin{to{transform:translateY(-50%) rotate(360deg);}}
 @keyframes tw-fadein{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:none;}}
 @keyframes tw-verified{0%,100%{box-shadow:0 0 0 0 rgba(0,200,150,0);}50%{box-shadow:0 0 0 5px rgba(0,200,150,.15);}}
-.tw-toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(20px);background:rgba(7,11,24,.97);border:1px solid rgba(255,255,255,.1);backdrop-filter:blur(20px);border-radius:14px;padding:12px 20px;display:flex;align-items:center;gap:10px;font-size:.82rem;font-family:Cairo,sans-serif;color:rgba(255,255,255,.92);opacity:0;transition:all .3s cubic-bezier(.34,1.56,.64,1);z-index:9999;white-space:nowrap;min-width:180px;justify-content:center;box-shadow:0 8px 32px rgba(0,0,0,.4);}
+.tw-toast[aria-live="polite"]{position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(20px);background:rgba(7,11,24,.97);border:1px solid rgba(255,255,255,.1);backdrop-filter:blur(20px);border-radius:14px;padding:12px 20px;display:flex;align-items:center;gap:10px;font-size:.82rem;font-family:Cairo,sans-serif;color:rgba(255,255,255,.92);opacity:0;transition:all .3s cubic-bezier(.34,1.56,.64,1);z-index:9999;white-space:nowrap;min-width:180px;justify-content:center;box-shadow:0 8px 32px rgba(0,0,0,.4);}
 .tw-toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
 .tw-toast.success{border-color:rgba(0,200,150,.3);}
 .tw-toast.error{border-color:rgba(239,68,68,.3);}
@@ -63,12 +83,17 @@ body{background:var(--bg);color:var(--t);font-family:Cairo,sans-serif;min-height
 .tw-card-lift:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.3);}
 .tw-verified{animation:tw-verified 2.5s ease-in-out infinite;}
 
+
+#loadMoreTrigger{height:40px;display:flex;align-items:center;justify-content:center;}
+.load-more-spinner{width:24px;height:24px;border-radius:50%;border:2px solid rgba(255,255,255,.1);border-top-color:var(--ac,#00c896);animation:tw-spin .7s linear infinite;display:none;}
+#loadMoreTrigger.loading .load-more-spinner{display:block;}
+
 </style>
-</head>
+<style>.skip-link{position:absolute;top:-40px;right:0;background:var(--ac,#00c896);color:#0d1a2e;padding:8px 16px;border-radius:0 0 8px 0;font-family:Cairo,sans-serif;font-size:.8rem;font-weight:700;text-decoration:none;transition:top .2s;z-index:10000}.skip-link:focus{top:0}</style><a href="#main-content" class="skip-link">تخطى للمحتوى الرئيسي</a></head>
 <body>
 
-<nav class="nav">
-  <button class="nb" onclick="history.back()">← رجوع</button>
+<nav class="nav" role="navigation" aria-label="القائمة الرئيسية">
+  <button class="nb" onclick="history.back()" aria-label="رجوع">← رجوع</button>
   <div class="nav-logo" onclick="goHome()">تواصلنا</div>
 </nav>
 
@@ -77,7 +102,7 @@ body{background:var(--bg);color:var(--t);font-family:Cairo,sans-serif;min-height
 
   <div class="filters">
     <div class="search-wrap">
-      <input id="searchInput" placeholder="بحث عن وظيفة..." oninput="filterJobs()">
+      <input id="searchInput" aria-label="بحث عن وظيفة" placeholder="بحث عن وظيفة..." oninput="filterJobs()" onkeydown="if(event.key==='Enter')filterJobs()">
     </div>
     <select class="fi" id="typeFilter" onchange="filterJobs()">
       <option value="">كل الأنواع</option>
@@ -102,8 +127,10 @@ body{background:var(--bg);color:var(--t);font-family:Cairo,sans-serif;min-height
   <div class="tw-skeleton" style="height:110px;margin-bottom:12px"></div>
   <div class="tw-skeleton" style="height:110px;margin-bottom:12px"></div>
 </div></div>
+  <div id="loadMoreTrigger"><div class="load-more-spinner"></div></div>
 </div>
 
+<script src="/tw_shared.js"></script>
 <script>
 let _user=null, _allJobs=[];
 try{_user=JSON.parse(localStorage.getItem('tw_user'));}catch(e){}
@@ -150,25 +177,68 @@ var _jSearchTimer;
 function filterJobs(){
   clearTimeout(_jSearchTimer);
   _jSearchTimer=setTimeout(function(){
-    var q=(document.getElementById('searchInput').value||'').toLowerCase();
-    var type=document.getElementById('typeFilter').value;
-    var loc=document.getElementById('locFilter').value;
-    renderJobs(_allJobs.filter(function(j){
-      return (!q||(j.title||'').toLowerCase().includes(q)||(j.company_name||'').toLowerCase().includes(q))
-          && (!type||j.job_type===type)
-          && (!loc||(j.location||'').includes(loc));
-    }));
-  },250);
+    _jobsPage=0; _jobsAll=false; _allJobs=[];
+    loadMoreJobs();
+  },300);
 }
 
-// Load jobs
+// ── Infinite Scroll ──
 initScrollProg();
-fetch('/jobs').then(function(r){return r.json();}).then(function(data){
-  _allJobs=data.jobs||[];
-  renderJobs(_allJobs);
-}).catch(function(){
-  document.getElementById('jobsFeed').innerHTML='<div class="empty"><span class="empty-ico">⚠️</span>تعذر تحميل الوظائف</div>';
-});
+var _jobsPage=0,_jobsLoading=false,_jobsAll=false,_jobsPerPage=8;
+
+function loadMoreJobs(){
+  if(_jobsLoading||_jobsAll) return;
+  _jobsLoading=true;
+  var trigger=document.getElementById('loadMoreTrigger');
+  if(trigger) trigger.classList.add('loading');
+  var type=document.getElementById('typeFilter').value;
+  var loc=document.getElementById('locFilter').value;
+  var url='/jobs';
+  if(type) url+='?job_type='+type;
+  fetch(url).then(function(r){return r.json();}).then(function(data){
+    _jobsLoading=false;
+    if(trigger) trigger.classList.remove('loading');
+    var all=data.jobs||[];
+    var q=(document.getElementById('searchInput').value||'').toLowerCase();
+    if(q) all=all.filter(function(j){return (j.title||'').toLowerCase().includes(q)||(j.company_name||'').toLowerCase().includes(q);});
+    if(loc) all=all.filter(function(j){return (j.location||'').includes(loc);});
+    _allJobs=all;
+    var page=_jobsPage++;
+    var batch=all.slice(page*_jobsPerPage,(page+1)*_jobsPerPage);
+    if(batch.length<_jobsPerPage) _jobsAll=true;
+    if(page===0){
+      document.getElementById('jobCount').textContent=all.length+' وظيفة';
+      if(!all.length){
+        document.getElementById('jobsFeed').innerHTML='<div class="tw-empty"><span class="tw-empty-ico">🔍</span><div class="tw-empty-title">لا نتائج</div><div class="tw-empty-sub">جرب كلمات بحث مختلفة</div></div>';
+        return;
+      }
+      document.getElementById('jobsFeed').innerHTML='';
+    }
+    var frag=document.createElement('div');
+    batch.forEach(function(job){
+      var div=document.createElement('div');
+      div.innerHTML=renderJob(job);
+      var card=div.firstChild;
+      if(card){
+        card.addEventListener('click',function(){window.location.href='job-detail.html?id='+job.id;});
+        frag.appendChild(card);
+      }
+    });
+    document.getElementById('jobsFeed').appendChild(frag);
+  }).catch(function(){
+    _jobsLoading=false;
+    if(_jobsPage===0) document.getElementById('jobsFeed').innerHTML='<div class="tw-empty"><span class="tw-empty-ico">⚠️</span><div class="tw-empty-title">تعذر التحميل</div></div>';
+  });
+}
+
+// IntersectionObserver for infinite scroll
+var _scrollObs=new IntersectionObserver(function(entries){
+  if(entries[0].isIntersecting) loadMoreJobs();
+},{threshold:0.1});
+var _trigger=document.getElementById('loadMoreTrigger');
+if(_trigger) _scrollObs.observe(_trigger);
+
+loadMoreJobs();
 
 
 // ══ ITQAN Utilities ══
@@ -202,22 +272,7 @@ function initScrollProg(){
     p.style.width=Math.min(pct,100)+'%';
   });
 }
-document.addEventListener('keydown',function(e){
-  if(e.key==='Escape'){
-    var fn=window.closeModal||window.closeEdit||window.closePostJob||window.closeMsgModal;
-    if(typeof fn==='function')fn();
-  }
-  if(e.key==='/'&&!['INPUT','TEXTAREA'].includes(e.target.tagName)){
-    e.preventDefault();
-    var s=document.getElementById('searchInput')||document.getElementById('userSearch')||document.getElementById('jobSearch');
-    if(s)s.focus();
-  }
-});
-document.documentElement.style.opacity='0';
-window.addEventListener('load',function(){
-  document.documentElement.style.transition='opacity .25s ease';
-  document.documentElement.style.opacity='1';
-});
+
 
 </script>
 </body>

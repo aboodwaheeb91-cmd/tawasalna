@@ -2,7 +2,16 @@
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+  <link rel="dns-prefetch" href="https://fonts.gstatic.com">
+  <link rel="dns-prefetch" href="https://tawasolna.com">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#00c896">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="تواصلنا">
+  <link rel="apple-touch-icon" href="/icon-192.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>تواصلنا - تفاصيل الوظيفة</title>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
 <style>
@@ -98,7 +107,7 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-heig
 @keyframes tw-spin{to{transform:translateY(-50%) rotate(360deg);}}
 @keyframes tw-fadein{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:none;}}
 @keyframes tw-verified{0%,100%{box-shadow:0 0 0 0 rgba(0,200,150,0);}50%{box-shadow:0 0 0 5px rgba(0,200,150,.15);}}
-.tw-toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(20px);background:rgba(7,11,24,.97);border:1px solid rgba(255,255,255,.1);backdrop-filter:blur(20px);border-radius:14px;padding:12px 20px;display:flex;align-items:center;gap:10px;font-size:.82rem;font-family:Cairo,sans-serif;color:rgba(255,255,255,.92);opacity:0;transition:all .3s cubic-bezier(.34,1.56,.64,1);z-index:9999;white-space:nowrap;min-width:180px;justify-content:center;box-shadow:0 8px 32px rgba(0,0,0,.4);}
+.tw-toast[aria-live="polite"]{position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(20px);background:rgba(7,11,24,.97);border:1px solid rgba(255,255,255,.1);backdrop-filter:blur(20px);border-radius:14px;padding:12px 20px;display:flex;align-items:center;gap:10px;font-size:.82rem;font-family:Cairo,sans-serif;color:rgba(255,255,255,.92);opacity:0;transition:all .3s cubic-bezier(.34,1.56,.64,1);z-index:9999;white-space:nowrap;min-width:180px;justify-content:center;box-shadow:0 8px 32px rgba(0,0,0,.4);}
 .tw-toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
 .tw-toast.success{border-color:rgba(0,200,150,.3);}
 .tw-toast.error{border-color:rgba(239,68,68,.3);}
@@ -119,15 +128,15 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-heig
 .tw-verified{animation:tw-verified 2.5s ease-in-out infinite;}
 
 </style>
-</head>
+<style>.skip-link{position:absolute;top:-40px;right:0;background:var(--ac,#00c896);color:#0d1a2e;padding:8px 16px;border-radius:0 0 8px 0;font-family:Cairo,sans-serif;font-size:.8rem;font-weight:700;text-decoration:none;transition:top .2s;z-index:10000}.skip-link:focus{top:0}</style><a href="#main-content" class="skip-link">تخطى للمحتوى الرئيسي</a></head>
 <body>
 
-<nav class="nav">
-  <button class="nb nb-ghost" onclick="history.back()">← رجوع</button>
+<nav class="nav" role="navigation" aria-label="القائمة الرئيسية">
+  <button class="nb nb-ghost" onclick="history.back()" aria-label="رجوع">← رجوع</button>
   <div class="nav-logo" onclick="goHome()">تواصلنا</div>
 </nav>
 
-<div class="main">
+<div class="main" role="main" id="main-content">
 
   <!-- Header -->
   <div class="job-header">
@@ -224,9 +233,13 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-heig
       <div class="apply-card">
         <div class="apply-title">هل أنت مهتم؟</div>
         <div class="apply-sub">آخر موعد للتقديم: 30 مايو 2025</div>
-        <button class="apply-btn" id="applyBtn" onclick="openApply()">تقديم الآن ←</button>
-        <button class="save-btn" id="saveBtn" onclick="saveJob(this)">💾 حفظ الوظيفة</button>
+        <button type="button" class="apply-btn" id="applyBtn" onclick="openApply()">تقديم الآن ←</button>
+        <button type="button" class="save-btn" id="saveBtn" onclick="saveJob(this)">💾 حفظ الوظيفة</button>
         <div class="deadline">⏰ تبقى 12 يوم على انتهاء التقديم</div>
+  <!-- Share button -->
+  <button onclick="shareJob()" style="display:flex;align-items:center;gap:6px;padding:10px 16px;border-radius:12px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);color:rgba(255,255,255,.6);font-family:Cairo,sans-serif;font-size:.78rem;cursor:pointer;margin-top:8px">
+    🔗 مشاركة الوظيفة
+  </button>
       </div>
 
       <!-- Job info -->
@@ -272,12 +285,13 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-heig
       <textarea id="coverLetter" placeholder="أخبر الشركة لماذا أنت مناسب لهذه الوظيفة..."></textarea>
     </div>
     <div class="mact">
-      <button class="mbtn mbtn-ok" onclick="confirmApply()">إرسال الطلب ✓</button>
-      <button class="mbtn mbtn-no" onclick="document.getElementById('applyOverlay').classList.remove('show')">إلغاء</button>
+      <button type="button" class="mbtn mbtn-ok" onclick="confirmApply()">إرسال الطلب ✓</button>
+      <button type="button" class="mbtn mbtn-no" onclick="document.getElementById('applyOverlay').classList.remove('show')">إلغاء</button>
     </div>
   </div>
 </div>
 
+<script src="/tw_shared.js"></script>
 <script>
 let _user=null;
 try{_user=JSON.parse(localStorage.getItem('tw_user'));}catch(e){}
@@ -354,22 +368,43 @@ function initScrollProg(){
     p.style.width=Math.min(pct,100)+'%';
   });
 }
-document.addEventListener('keydown',function(e){
-  if(e.key==='Escape'){
-    var fn=window.closeModal||window.closeEdit||window.closePostJob||window.closeMsgModal;
-    if(typeof fn==='function')fn();
+
+
+function shareJob(){
+  var title=document.getElementById('jTitle')?.textContent||'وظيفة';
+  var url=window.location.href;
+  if(navigator.share){
+    navigator.share({title:title,url:url}).catch(function(){});
+  } else {
+    navigator.clipboard?.writeText(url).then(function(){
+      showToast('تم نسخ رابط الوظيفة ✅');
+    }).catch(function(){
+      showToast('رابط الوظيفة: '+url,'info');
+    });
   }
-  if(e.key==='/'&&!['INPUT','TEXTAREA'].includes(e.target.tagName)){
-    e.preventDefault();
-    var s=document.getElementById('searchInput')||document.getElementById('userSearch')||document.getElementById('jobSearch');
-    if(s)s.focus();
-  }
-});
-document.documentElement.style.opacity='0';
-window.addEventListener('load',function(){
-  document.documentElement.style.transition='opacity .25s ease';
-  document.documentElement.style.opacity='1';
-});
+}
+
+// ── Similar Jobs ──
+(function(){
+  var params=new URLSearchParams(window.location.search);
+  var jobId=params.get('id');
+  if(!jobId) return;
+  setTimeout(function(){
+    fetch('/jobs').then(function(r){return r.json();}).then(function(data){
+      var jobs=(data.jobs||[]).filter(function(j){return String(j.id)!==String(jobId);}).slice(0,2);
+      var container=document.getElementById('similarJobs');
+      if(!container||!jobs.length){if(container)container.innerHTML='';return;}
+      container.innerHTML=jobs.map(function(j){
+        var d='<div style="display:flex;align-items:center;gap:10px;padding:10px;border-radius:12px;border:1px solid rgba(255,255,255,.06);margin-bottom:8px;cursor:pointer" data-sid="'+j.id+'">';
+        d+='<div style="width:36px;height:36px;border-radius:10px;background:rgba(0,200,150,.1);display:flex;align-items:center;justify-content:center;font-weight:800;color:var(--ac)">'+(j.company_name?j.company_name[0].toUpperCase():'🏢')+'</div>';
+        d+='<div><div style="font-size:.82rem;font-weight:700">'+j.title+'</div>';
+        d+='<div style="font-size:.7rem;color:rgba(255,255,255,.4)">'+(j.location||'')+'</div></div></div>';
+        return d;
+      }).join('');
+    container.querySelectorAll('[data-sid]').forEach(function(el){el.addEventListener('click',function(){window.location.href='job-detail.html?id='+el.getAttribute('data-sid');});});
+    }).catch(function(){document.getElementById('similarJobs').innerHTML='';});
+  },500);
+})();
 
 </script>
 </body>

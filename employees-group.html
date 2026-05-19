@@ -2,7 +2,16 @@
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+  <link rel="dns-prefetch" href="https://fonts.gstatic.com">
+  <link rel="dns-prefetch" href="https://tawasolna.com">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#00c896">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="تواصلنا">
+  <link rel="apple-touch-icon" href="/icon-192.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>تواصلنا - موظفو الشركة</title>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
 <style>
@@ -130,6 +139,34 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-heig
   .table-head span:nth-child(3),.table-row .tr-join,
   .table-head span:nth-child(4),.table-row .tr-course{display:none;}
 }
+
+/* ══ ITQAN Utilities ══ */
+@keyframes tw-shimmer{0%{background-position:-1000px 0}100%{background-position:1000px 0}}
+@keyframes tw-spin{to{transform:translateY(-50%) rotate(360deg);}}
+.tw-toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(20px);background:rgba(7,11,24,.97);border:1px solid rgba(255,255,255,.1);backdrop-filter:blur(20px);border-radius:14px;padding:12px 20px;display:flex;align-items:center;gap:10px;font-size:.82rem;font-family:Cairo,sans-serif;color:rgba(255,255,255,.92);opacity:0;transition:all .3s cubic-bezier(.34,1.56,.64,1);z-index:9999;white-space:nowrap;min-width:180px;justify-content:center;box-shadow:0 8px 32px rgba(0,0,0,.4);}
+.tw-toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+.tw-toast.success{border-color:rgba(0,200,150,.3);}
+.tw-toast.error{border-color:rgba(239,68,68,.3);}
+.tw-empty{text-align:center;padding:50px 20px;}
+.tw-empty-ico{font-size:2.5rem;margin-bottom:12px;opacity:.7;display:block;}
+.tw-empty-title{font-size:.95rem;font-weight:800;margin-bottom:6px;}
+.tw-empty-sub{font-size:.78rem;color:rgba(255,255,255,.35);line-height:1.6;}
+
+
+/* ══ ITQAN ══ */
+@keyframes tw-shimmer{0%{background-position:-1000px 0}100%{background-position:1000px 0}}
+@keyframes tw-fadein{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+.tw-skeleton{background:linear-gradient(90deg,rgba(255,255,255,.04) 25%,rgba(255,255,255,.09) 50%,rgba(255,255,255,.04) 75%);background-size:2000px 100%;animation:tw-shimmer 1.5s infinite linear;border-radius:8px;}
+.tw-empty{text-align:center;padding:40px 20px;}
+.tw-empty-ico{font-size:2rem;display:block;margin-bottom:10px;opacity:.7;}
+.tw-empty-title{font-size:.9rem;font-weight:800;margin-bottom:6px;}
+.tw-empty-sub{font-size:.75rem;color:rgba(255,255,255,.35);line-height:1.6;}
+.tw-card-lift{transition:transform .2s,box-shadow .2s;}
+.tw-card-lift:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.3);}
+.tw-toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(20px);background:rgba(7,11,24,.97);border:1px solid rgba(255,255,255,.1);backdrop-filter:blur(20px);border-radius:14px;padding:12px 20px;display:flex;align-items:center;gap:10px;font-size:.82rem;font-family:Cairo,sans-serif;color:rgba(255,255,255,.92);opacity:0;transition:all .3s;z-index:9999;white-space:nowrap;}
+.tw-toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+.tw-toast.success{border-color:rgba(0,200,150,.3);}
+.tw-toast.error{border-color:rgba(239,68,68,.3);}
 </style>
 </head>
 <body>
@@ -194,12 +231,12 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-heig
         <div class="gc-name">كل الموظفين</div>
         <div class="gc-count">5 موظفين</div>
       </div>
-      <div class="group-card" onclick="filterGroup('dev',this)">
+      <div class="group-card tw-card-lift" onclick="filterGroup('dev',this)">
         <div class="gc-icon">💻</div>
         <div class="gc-name">قسم التطوير</div>
         <div class="gc-count">3 موظفين</div>
       </div>
-      <div class="group-card" onclick="filterGroup('design',this)">
+      <div class="group-card tw-card-lift" onclick="filterGroup('design',this)">
         <div class="gc-icon">🎨</div>
         <div class="gc-name">قسم التصميم</div>
         <div class="gc-count">2 موظفين</div>
@@ -336,6 +373,7 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-heig
   </div>
 </div>
 
+<script src="/tw_shared.js"></script>
 <script>
 let _user=null;
 try{_user=JSON.parse(localStorage.getItem('tw_user'));}catch(e){}
@@ -365,7 +403,7 @@ function openAddEmp(){document.getElementById('addEmpOverlay').classList.add('sh
 function confirmAddEmp(){
   const emp=document.getElementById('m-emp').value.trim();
   const dept=document.getElementById('m-dept').value;
-  if(!emp){alert('أدخل كود الموظف');return;}
+  if(!emp){showToast('أدخل كود الموظف');return;}
   const table=document.getElementById('empTable');
   table.insertAdjacentHTML('afterbegin',`
     <div class="table-row" data-group="all">
@@ -390,7 +428,7 @@ function confirmAddGroup(){
   if(!nm)return;
   const addCard=document.querySelector('.add-group-card');
   addCard.insertAdjacentHTML('beforebegin',`
-    <div class="group-card" onclick="filterGroup('${nm}',this)">
+    <div class="group-card tw-card-lift" onclick="filterGroup('${nm}',this)">
       <div class="gc-icon">${ico}</div>
       <div class="gc-name">${nm}</div>
       <div class="gc-count">0 موظفين</div>
@@ -407,14 +445,43 @@ function selectCourse(el){
 }
 
 function assignCourse(){
-  alert('تم تعيين الدورة للموظفين المحددين! ✓');
+  showToast('تم تعيين الدورة للموظفين المحددين! ✓');
   document.getElementById('courseOverlay').classList.remove('show');
 }
 
-function viewEmp(){window.open('profile.html','_blank');}
+function viewEmp(twId){
+  var url=twId?'profile.html?id='+twId:'profile.html';
+  window.open(url,'_blank');
+}
 function msgEmp(){window.location.href='messages.html';}
 function closeOverlay(e){if(e.target.classList.contains('overlay'))e.target.classList.remove('show');}
 function goBack(){window.location.href='company-profile.html?id='+(_user?_user.id:'');}
+
+// ══ ITQAN Utilities ══
+var _twToast=null;
+function showToast(msg,type,dur){
+  type=type||'success';dur=dur||2800;
+  if(_twToast){_twToast.remove();}
+  var t=document.createElement('div');t.className='tw-toast '+type;
+  t.innerHTML='<span>'+(type==='success'?'✅':type==='error'?'❌':'ℹ️')+'</span><span>'+msg+'</span>';
+  document.body.appendChild(t);_twToast=t;
+  requestAnimationFrame(function(){requestAnimationFrame(function(){t.classList.add('show');});});
+  setTimeout(function(){t.classList.remove('show');setTimeout(function(){if(t.parentNode)t.remove();},350);},dur);
+}
+function setBtnLoad(btn,loading){
+  if(!btn)return;
+  if(loading){btn.classList.add('tw-btn-loading');btn._orig=btn.textContent;btn.textContent='';btn.disabled=true;}
+  else{btn.classList.remove('tw-btn-loading');btn.textContent=btn._orig||'حفظ';btn.disabled=false;}
+}
+
+
+// ══ ITQAN ══
+var _twT=null;
+function showToast(msg,type,dur){type=type||'success';dur=dur||2800;if(_twT){_twT.remove();}var t=document.createElement('div');t.className='tw-toast '+type;t.innerHTML='<span>'+(type==='success'?'✅':'❌')+'</span><span>'+msg+'</span>';document.body.appendChild(t);_twT=t;requestAnimationFrame(function(){requestAnimationFrame(function(){t.classList.add('show');});});setTimeout(function(){t.classList.remove('show');setTimeout(function(){if(t.parentNode)t.remove();},350);},dur);}
+function setBtnLoad(btn,loading){if(!btn)return;if(loading){btn._orig=btn.textContent;btn.textContent='⏳';btn.disabled=true;}else{btn.textContent=btn._orig||'حفظ';btn.disabled=false;}}
+document.documentElement.style.opacity='0';
+window.addEventListener('load',function(){document.documentElement.style.transition='opacity .25s';document.documentElement.style.opacity='1';});
+
 </script>
 </body>
 </html>

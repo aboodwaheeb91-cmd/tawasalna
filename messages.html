@@ -2,7 +2,16 @@
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+  <link rel="dns-prefetch" href="https://fonts.gstatic.com">
+  <link rel="dns-prefetch" href="https://tawasolna.com">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#00c896">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="تواصلنا">
+  <link rel="apple-touch-icon" href="/icon-192.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>تواصلنا - الرسائل</title>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
 <style>
@@ -119,7 +128,7 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;height:1
 @keyframes tw-spin{to{transform:translateY(-50%) rotate(360deg);}}
 @keyframes tw-fadein{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:none;}}
 @keyframes tw-verified{0%,100%{box-shadow:0 0 0 0 rgba(0,200,150,0);}50%{box-shadow:0 0 0 5px rgba(0,200,150,.15);}}
-.tw-toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(20px);background:rgba(7,11,24,.97);border:1px solid rgba(255,255,255,.1);backdrop-filter:blur(20px);border-radius:14px;padding:12px 20px;display:flex;align-items:center;gap:10px;font-size:.82rem;font-family:Cairo,sans-serif;color:rgba(255,255,255,.92);opacity:0;transition:all .3s cubic-bezier(.34,1.56,.64,1);z-index:9999;white-space:nowrap;min-width:180px;justify-content:center;box-shadow:0 8px 32px rgba(0,0,0,.4);}
+.tw-toast[aria-live="polite"]{position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(20px);background:rgba(7,11,24,.97);border:1px solid rgba(255,255,255,.1);backdrop-filter:blur(20px);border-radius:14px;padding:12px 20px;display:flex;align-items:center;gap:10px;font-size:.82rem;font-family:Cairo,sans-serif;color:rgba(255,255,255,.92);opacity:0;transition:all .3s cubic-bezier(.34,1.56,.64,1);z-index:9999;white-space:nowrap;min-width:180px;justify-content:center;box-shadow:0 8px 32px rgba(0,0,0,.4);}
 .tw-toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
 .tw-toast.success{border-color:rgba(0,200,150,.3);}
 .tw-toast.error{border-color:rgba(239,68,68,.3);}
@@ -140,7 +149,7 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;height:1
 .tw-verified{animation:tw-verified 2.5s ease-in-out infinite;}
 
 </style>
-</head>
+<style>.skip-link{position:absolute;top:-40px;right:0;background:var(--ac,#00c896);color:#0d1a2e;padding:8px 16px;border-radius:0 0 8px 0;font-family:Cairo,sans-serif;font-size:.8rem;font-weight:700;text-decoration:none;transition:top .2s;z-index:10000}.skip-link:focus{top:0}</style><a href="#main-content" class="skip-link">تخطى للمحتوى الرئيسي</a></head>
 <body>
 
 <nav class="nav">
@@ -278,6 +287,7 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;height:1
   </div>
 </div>
 
+<script src="/tw_shared.js"></script>
 <script>
 let _user = null;
 try { _user = JSON.parse(localStorage.getItem('tw_user')); } catch(e){}
@@ -424,23 +434,189 @@ function initScrollProg(){
     p.style.width=Math.min(pct,100)+'%';
   });
 }
-document.addEventListener('keydown',function(e){
-  if(e.key==='Escape'){
-    var fn=window.closeModal||window.closeEdit||window.closePostJob||window.closeMsgModal;
-    if(typeof fn==='function')fn();
-  }
-  if(e.key==='/'&&!['INPUT','TEXTAREA'].includes(e.target.tagName)){
-    e.preventDefault();
-    var s=document.getElementById('searchInput')||document.getElementById('userSearch')||document.getElementById('jobSearch');
-    if(s)s.focus();
-  }
-});
-document.documentElement.style.opacity='0';
-window.addEventListener('load',function(){
-  document.documentElement.style.transition='opacity .25s ease';
-  document.documentElement.style.opacity='1';
-});
 
+
+// ══ Real Messaging System ══
+var _currentConvId = null;
+
+// Load conversations from DB
+function loadConversations(){
+  if(!_user||!_user.id) return;
+  fetch('/messages/conversations/'+_user.id)
+  .then(function(r){return r.json();}).then(function(data){
+    var convs=data.conversations||[];
+    var list=document.querySelector('.conv-list');
+    if(!list) return;
+    if(!convs.length) return; // Keep static UI if no real convs
+    var frag='';
+    convs.forEach(function(c){
+      var typeIco=c.user_type==='co'?'🏢':c.user_type==='edu'?'🎓':'👤';
+      var name=c.full_name||'مستخدم';
+      var last=(c.content||'').slice(0,40);
+      var unread=(!c.is_read&&c.sender_id!==_user.id)?'<div class="ci-badge">1</div>':'';
+      var div='<div class="conv-item" data-uid="'+c.other_id+'">'
+        +'<div class="ci-ava">'+typeIco+'</div>'
+        +'<div class="ci-body"><div class="ci-name">'+name+'</div>'
+        +'<div class="ci-last">'+last+'</div></div>'+unread+'</div>';
+      frag+=div;
+    });
+    list.innerHTML=frag;
+    list.querySelectorAll('.conv-item').forEach(function(el){
+      var uid=parseInt(el.getAttribute('data-uid'));
+      var name=el.querySelector('.ci-name')?.textContent||'';
+      var ava=el.querySelector('.ci-ava')?.textContent||'👤';
+      el.addEventListener('click',function(){openRealConv(el,uid,name,ava);});
+    });  }).catch(function(){});
+}
+
+function openRealConv(el, otherId, name, ava){
+  _currentConvId = otherId;
+  document.querySelectorAll('.conv-item').forEach(function(i){i.classList.remove('active');});
+  el.classList.add('active');
+  var badge=el.querySelector('.ci-badge'); if(badge) badge.remove();
+  document.querySelector('.chat-name').textContent=name;
+  document.querySelector('.chat-sub').textContent='';
+  var msgs=document.getElementById('messages');
+  msgs.innerHTML='<div style="text-align:center;padding:20px;color:var(--t3);font-size:.8rem">⏳</div>';
+  fetch('/messages/'+_user.id+'/'+otherId)
+  .then(function(r){return r.json();}).then(function(data){
+    var list=data.messages||[];
+    if(!list.length){msgs.innerHTML='<div style="text-align:center;padding:30px;color:var(--t3);font-size:.8rem">ابدأ المحادثة</div>';return;}
+    var lastDate='';
+    msgs.innerHTML=list.map(function(msg){
+      var isMe=msg.sender_id===_user.id;
+      var d=new Date(msg.created_at);
+      var t=d.toLocaleTimeString('ar',{hour:'2-digit',minute:'2-digit'});
+      var dateStr=d.toLocaleDateString('ar',{weekday:'long',month:'short',day:'numeric'});
+      var dateDiv='';
+      if(dateStr!==lastDate){
+        lastDate=dateStr;
+        dateDiv='<div style="text-align:center;font-size:.65rem;color:rgba(255,255,255,.3);padding:8px 0">'+dateStr+'</div>';
+      }
+      var readIcon=isMe?(msg.is_read?'✓✓':'✓'):'';
+      return dateDiv+'<div class="msg-wrap '+(isMe?'out':'in')+'">'+
+        '<div class="msg '+(isMe?'out':'in')+'">'+
+        '<div class="msg-text">'+msg.content+'</div>'+
+        '<div class="msg-time">'+t+' <span style="font-size:.6rem;opacity:.7">'+readIcon+'</span></div>'+
+        '</div></div>';
+    }).join('');
+    scrollDown();
+  }).catch(function(){msgs.innerHTML='<div style="text-align:center;color:var(--t3)">تعذر تحميل الرسائل</div>';});
+}
+
+// Override sendMessage to save to DB
+var _origSendMessage = sendMessage;
+function sendMessage(){
+  var input=document.getElementById('msgInput');
+  var text=input?.value?.trim();
+  if(!text) return;
+  if(_currentConvId&&_user&&_user.id){
+    fetch('/messages/send',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({sender_id:_user.id,receiver_id:_currentConvId,content:text})
+    }).catch(function(){});
+  }
+  // Still show locally
+  var msgs=document.getElementById('messages');
+  var t=new Date().toLocaleTimeString('ar',{hour:'2-digit',minute:'2-digit'});
+  msgs.insertAdjacentHTML('beforeend',
+    '<div class="msg-wrap out"><div class="msg out"><div class="msg-text">'+text+'</div><div class="msg-time">'+t+'</div></div></div>'
+  );
+  input.value=''; autoResize(input); scrollDown();
+}
+
+// Load unread count for nav badge
+function loadUnreadCount(){
+  if(!_user||!_user.id) return;
+  fetch('/messages/unread/'+_user.id)
+  .then(function(r){return r.json();}).then(function(data){
+    var count=data.count||0;
+    // Update bottom nav badge if any
+    if(count>0){
+      var msgBn=document.querySelector('.bn:last-child .bi');
+      if(msgBn) msgBn.textContent='💬';
+    }
+  }).catch(function(){});
+}
+
+// Init
+loadConversations();
+loadUnreadCount();
+// WebSocket handles real-time - polling as fallback
+setInterval(function(){if(!_ws||_ws.readyState!==WebSocket.OPEN) loadConversations();},30000);
+
+
+
+// ── WebSocket Real-time ──
+var _ws = null;
+var _wsRetries = 0;
+
+function connectWS(){
+  if(!_user||!_user.id) return;
+  var protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  var wsUrl = protocol + '//' + window.location.host + '/ws/' + _user.id;
+  try{
+    _ws = new WebSocket(wsUrl);
+    _ws.onopen = function(){
+      _wsRetries = 0;
+      console.log('[WS] Connected');
+    };
+    _ws.onmessage = function(e){
+      try{
+        var data = JSON.parse(e.data);
+        if(data.type === 'message' && data.from === _currentConvId){
+          var msgs = document.getElementById('messages');
+          var t = new Date().toLocaleTimeString('ar',{hour:'2-digit',minute:'2-digit'});
+          msgs.insertAdjacentHTML('beforeend',
+            '<div class="msg-wrap in"><div class="msg in"><div class="msg-text">'+data.content+'</div><div class="msg-time">'+t+'</div></div></div>'
+          );
+          scrollDown();
+        }
+        // Update conversation list
+        if(data.type === 'message') loadConversations();
+      }catch(e){}
+    };
+    _ws.onclose = function(){
+      // Reconnect with backoff
+      if(_wsRetries < 5){
+        _wsRetries++;
+        setTimeout(connectWS, _wsRetries * 2000);
+      }
+    };
+    _ws.onerror = function(){ _ws.close(); };
+  }catch(e){ console.log('[WS] Not supported, using polling'); }
+}
+
+// Override sendMessage to use WebSocket when available
+var _origSend = sendMessage;
+function sendMessage(){
+  var input = document.getElementById('msgInput');
+  var text = input?.value?.trim();
+  if(!text) return;
+  var sent = false;
+  if(_ws && _ws.readyState === WebSocket.OPEN && _currentConvId){
+    _ws.send(JSON.stringify({receiver_id: _currentConvId, content: text}));
+    sent = true;
+  }
+  if(!sent && _currentConvId && _user){
+    // Fallback to HTTP
+    fetch('/messages/send',{
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({sender_id:_user.id, receiver_id:_currentConvId, content:text})
+    }).catch(function(){});
+  }
+  // Show locally
+  var msgs = document.getElementById('messages');
+  var t = new Date().toLocaleTimeString('ar',{hour:'2-digit',minute:'2-digit'});
+  msgs.insertAdjacentHTML('beforeend',
+    '<div class="msg-wrap out"><div class="msg out"><div class="msg-text">'+text+'</div><div class="msg-time">'+t+' ✓</div></div></div>'
+  );
+  input.value = ''; autoResize(input); scrollDown();
+}
+
+// Connect WebSocket on load
+connectWS();
 </script>
 </body>
 </html>

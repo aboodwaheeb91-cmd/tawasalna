@@ -1,0 +1,21 @@
+{
+  "name": "تواصلنا",
+  "short_name": "تواصلنا",
+  "description": "منصة التوظيف والتوثيق العربية",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#070b18",
+  "theme_color": "#00c896",
+  "orientation": "portrait",
+  "lang": "ar",
+  "dir": "rtl",
+  "icons": [
+    {"src": "/icon-192.png", "sizes": "192x192", "type": "image/png"},
+    {"src": "/icon-512.png", "sizes": "512x512", "type": "image/png"}
+  ],
+  "categories": ["business", "productivity"],
+  "shortcuts": [
+    {"name": "الوظائف", "url": "/jobs.html", "description": "تصفح الوظائف"},
+    {"name": "ملفي", "url": "/profile.html", "description": "ملفي الشخصي"}
+  ]
+}

@@ -2,7 +2,16 @@
 <html lang="ar" dir="rtl" id="htmlRoot">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+  <link rel="dns-prefetch" href="https://fonts.gstatic.com">
+  <link rel="dns-prefetch" href="https://tawasolna.com">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#00c896">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="تواصلنا">
+  <link rel="apple-touch-icon" href="/icon-192.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>تواصلنا - الملف الشخصي</title>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;900&family=Tajawal:wght@300;400;500;700&display=swap" rel="stylesheet">
 <style>
@@ -633,7 +642,7 @@ body.s5 .add-item-btn:hover { border-color:rgba(var(--ac-rgb),.35); color:var(--
 @keyframes tw-spin{to{transform:translateY(-50%) rotate(360deg);}}
 @keyframes tw-fadein{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:none;}}
 @keyframes tw-verified{0%,100%{box-shadow:0 0 0 0 rgba(0,200,150,0);}50%{box-shadow:0 0 0 5px rgba(0,200,150,.15);}}
-.tw-toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(20px);background:rgba(7,11,24,.97);border:1px solid rgba(255,255,255,.1);backdrop-filter:blur(20px);border-radius:14px;padding:12px 20px;display:flex;align-items:center;gap:10px;font-size:.82rem;font-family:Cairo,sans-serif;color:rgba(255,255,255,.92);opacity:0;transition:all .3s cubic-bezier(.34,1.56,.64,1);z-index:9999;white-space:nowrap;min-width:180px;justify-content:center;box-shadow:0 8px 32px rgba(0,0,0,.4);}
+.tw-toast[aria-live="polite"]{position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(20px);background:rgba(7,11,24,.97);border:1px solid rgba(255,255,255,.1);backdrop-filter:blur(20px);border-radius:14px;padding:12px 20px;display:flex;align-items:center;gap:10px;font-size:.82rem;font-family:Cairo,sans-serif;color:rgba(255,255,255,.92);opacity:0;transition:all .3s cubic-bezier(.34,1.56,.64,1);z-index:9999;white-space:nowrap;min-width:180px;justify-content:center;box-shadow:0 8px 32px rgba(0,0,0,.4);}
 .tw-toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
 .tw-toast.success{border-color:rgba(0,200,150,.3);}
 .tw-toast.error{border-color:rgba(239,68,68,.3);}
@@ -654,7 +663,10 @@ body.s5 .add-item-btn:hover { border-color:rgba(var(--ac-rgb),.35); color:var(--
 .tw-verified{animation:tw-verified 2.5s ease-in-out infinite;}
 
 </style>
-</head>
+<style>.skip-link{position:absolute;top:-40px;right:0;background:var(--ac,#00c896);color:#0d1a2e;padding:8px 16px;border-radius:0 0 8px 0;font-family:Cairo,sans-serif;font-size:.8rem;font-weight:700;text-decoration:none;transition:top .2s;z-index:10000}.skip-link:focus{top:0}
+.sec-card{transition:transform .2s,box-shadow .2s;}
+.sec-card:hover{transform:translateY(-1px);box-shadow:0 8px 32px rgba(0,0,0,.3);}
+</style><a href="#main-content" class="skip-link">تخطى للمحتوى الرئيسي</a></head>
 <body class="s1">
 
 <input type="file" id="avatarInput" accept="image/*" onchange="handleAvatarUpload(this)">
@@ -663,10 +675,10 @@ body.s5 .add-item-btn:hover { border-color:rgba(var(--ac-rgb),.35); color:var(--
 <!-- ── TOOLBAR: تواصلنا · تعديل · تخصيص · معاينة ── -->
 <div class="toolbar">
   <div class="tb-logo">تواصلنا</div>
-  <button class="tb-btn tb-ghost" onclick="location.href='home.html'" title="البحث عن عمل أو دورة" style="font-size:.82rem;padding:6px 10px">🔍</button>
+  <button type="button" class="tb-btn tb-ghost" onclick="location.href='home.html'" title="البحث عن عمل أو دورة" style="font-size:.82rem;padding:6px 10px">🔍</button>
   <div style="flex:1"></div>
-  <button class="tb-btn tb-preview" id="previewBtn" onclick="togglePreview()" title="معاينة" style="font-size:.82rem;padding:6px 10px;display:none">👁 معاينة</button>
-  <button class="tb-btn tb-ghost" onclick="openPanel()" title="الإعدادات" style="font-size:.82rem;padding:6px 10px">⚙️ إعدادات</button>
+  <button type="button" class="tb-btn tb-preview" id="previewBtn" onclick="togglePreview()" title="معاينة" style="font-size:.82rem;padding:6px 10px;display:none">👁 معاينة</button>
+  <button type="button" class="tb-btn tb-ghost" onclick="openPanel()" title="الإعدادات" style="font-size:.82rem;padding:6px 10px">⚙️ إعدادات</button>
 </div>
 
 <!-- ── SIDE PANEL ── -->
@@ -679,7 +691,7 @@ body.s5 .add-item-btn:hover { border-color:rgba(var(--ac-rgb),.35); color:var(--
     <div class="panel-body">
 
       <!-- 1. تعديل الملف الشخصي -->
-      <button class="acc-btn" onclick="openModal('profile');closePanel()">
+      <button type="button" class="acc-btn" onclick="openModal('profile');closePanel()">
         <span class="acc-ico">✏️</span>
         <span class="acc-lbl">تعديل الملف الشخصي</span>
         <span class="acc-arr">←</span>
@@ -687,7 +699,7 @@ body.s5 .add-item-btn:hover { border-color:rgba(var(--ac-rgb),.35); color:var(--
 
       <!-- 2. إضافة قسم -->
       <div class="acc-wrap">
-        <button class="acc-btn" onclick="toggleAcc('acc-sections')">
+        <button type="button" class="acc-btn" onclick="toggleAcc('acc-sections')">
           <span class="acc-ico">📂</span>
           <span class="acc-lbl">إضافة قسم</span>
           <span class="acc-arr" id="arr-sections">▾</span>
@@ -705,7 +717,7 @@ body.s5 .add-item-btn:hover { border-color:rgba(var(--ac-rgb),.35); color:var(--
 
       <!-- 3. تعديل الستايل -->
       <div class="acc-wrap">
-        <button class="acc-btn" onclick="toggleAcc('acc-style')">
+        <button type="button" class="acc-btn" onclick="toggleAcc('acc-style')">
           <span class="acc-ico">🎨</span>
           <span class="acc-lbl">تعديل الستايل</span>
           <span class="acc-arr" id="arr-style">▾</span>
@@ -744,7 +756,7 @@ body.s5 .add-item-btn:hover { border-color:rgba(var(--ac-rgb),.35); color:var(--
           <span class="acc-lbl">الإعدادات العامة</span>
           <span class="acc-arr">←</span>
         </a>
-        <button class="acc-btn" onclick="doLogout()" style="background:rgba(239,68,68,.06);border-color:rgba(239,68,68,.15);color:#f87171;">
+        <button type="button" class="acc-btn" onclick="doLogout()" style="background:rgba(239,68,68,.06);border-color:rgba(239,68,68,.15);color:#f87171;">
           <span class="acc-ico">🚪</span>
           <span class="acc-lbl">تسجيل الخروج</span>
         </button>
@@ -760,7 +772,7 @@ body.s5 .add-item-btn:hover { border-color:rgba(var(--ac-rgb),.35); color:var(--
 <div class="cv-wrap" id="cvWrap">
 
   <div class="cv-head" id="cvHead">
-    <button class="info-edit-btn owner-only" onclick="openModal('profile')" title="تعديل الملف الشخصي">⚙️</button>
+    <button type="button" class="info-edit-btn owner-only" onclick="openModal('profile')" title="تعديل الملف الشخصي">⚙️</button>
     <!-- الصورة + QR -->
     <div style="display:flex;flex-direction:column;align-items:center;gap:10px;flex-shrink:0">
       <div style="position:relative">
@@ -782,7 +794,7 @@ body.s5 .add-item-btn:hover { border-color:rgba(var(--ac-rgb),.35); color:var(--
        <!-- الاسم - يصغر تلقائياً -->
       <div style="display:flex;align-items:center;gap:6px;justify-content:center">
         <div class="cv-name" id="cvName"></div>
-        <span id="profileVerifiedBadge" class="tw-verified" style="display:none;background:linear-gradient(135deg,#00c896,#2563ff);color:#fff;border-radius:20px;padding:2px 8px;font-size:.62rem;font-weight:700;flex-shrink:0">✅ موثق</span>
+        <span id="profileVerifiedBadge" class="tw-verified" class="tw-verified" style="display:none;background:linear-gradient(135deg,#00c896,#2563ff);color:#fff;border-radius:20px;padding:2px 8px;font-size:.62rem;font-weight:700;flex-shrink:0">✅ موثق</span>
       </div>
 
       <!-- المسمى + حالة التوظيف -->
@@ -819,7 +831,7 @@ body.s5 .add-item-btn:hover { border-color:rgba(var(--ac-rgb),.35); color:var(--
       <div id="exp-list">
         <div class="item empty-hint"><div class="item-title" style="opacity:.4;font-size:.8rem">لا توجد خبرات بعد — اضغط + لإضافة أول خبرة</div></div>
       </div>
-      <button class="add-item-btn owner-only" onclick="openModal('exp')">+ إضافة خبرة</button>
+      <button type="button" class="add-item-btn owner-only" onclick="openModal('exp')">+ إضافة خبرة</button>
       <div class="drag-handle owner-only" title="اسحب لإعادة الترتيب"><span></span><span></span><span></span></div>
     </div>
 
@@ -832,7 +844,7 @@ body.s5 .add-item-btn:hover { border-color:rgba(var(--ac-rgb),.35); color:var(--
       <div id="edu-list">
         <div class="item empty-hint"><div class="item-title" style="opacity:.4;font-size:.8rem">لا توجد شهادات بعد — اضغط + لإضافة شهادة</div></div>
       </div>
-      <button class="add-item-btn owner-only" onclick="openModal('edu')">+ إضافة شهادة</button>
+      <button type="button" class="add-item-btn owner-only" onclick="openModal('edu')">+ إضافة شهادة</button>
       <div class="drag-handle owner-only"><span></span><span></span><span></span></div>
     </div>
 
@@ -1042,7 +1054,7 @@ function addSection(id,icon,title,el,skipOrderSave=false){
     <div class="section" id="sec-${id}" draggable="true">
       <div class="sec-header"><span class="sec-icon">${icon}</span><span class="sec-title">${title}</span><div class="sec-line"></div></div>
       <div id="${lid}"><div class="item empty-hint"><div class="item-title" style="opacity:.4;font-size:.8rem">لا توجد عناصر — اضغط + لإضافة</div></div></div>
-      <button class="add-item-btn owner-only" onclick="${btnOnclick}">+ إضافة</button>
+      <button type="button" class="add-item-btn owner-only" onclick="${btnOnclick}">+ إضافة</button>
       <div class="drag-handle owner-only"><span></span><span></span><span></span></div>
     </div>`);
   // Reload saved data for this section
@@ -1089,7 +1101,7 @@ function restoreSections(){
           `<div class="section" id="${sec.id}" draggable="true">
             <div class="sec-header"><span class="sec-icon">${sec.icon}</span><span class="sec-title">${sec.title}</span><div class="sec-line"></div></div>
             <div id="${sec.lid}"></div>
-            <button class="add-item-btn owner-only" onclick="window._currentLid='${sec.lid}';openModal('generic','${sec.lid}','${sec.title}')">+ إضافة</button>
+            <button type="button" class="add-item-btn owner-only" onclick="window._currentLid='${sec.lid}';openModal('generic','${sec.lid}','${sec.title}')">+ إضافة</button>
             <div class="drag-handle owner-only"><span></span><span></span><span></span></div>
           </div>`);
         // Load its items
@@ -1159,8 +1171,8 @@ function editSkillItem(id, lid){
       </select>
     </div>
     <div class="mact">
-      <button class="mbtn mbtn-ok" onclick="updateSkillItem(${id},'${lid}')">حفظ</button>
-      <button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button>
+      <button type="button" class="mbtn mbtn-ok" onclick="updateSkillItem(${id},'${lid}')">حفظ</button>
+      <button type="button" class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button>
     </div>`;
   window._currentLid=lid;
   document.getElementById('overlay').classList.add('show');
@@ -1202,8 +1214,8 @@ function editLangItem(id, lid){
       </select>
     </div>
     <div class="mact">
-      <button class="mbtn mbtn-ok" onclick="updateLangItem(${id},'${lid}')">حفظ</button>
-      <button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button>
+      <button type="button" class="mbtn mbtn-ok" onclick="updateLangItem(${id},'${lid}')">حفظ</button>
+      <button type="button" class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button>
     </div>`;
   window._currentLid=lid;
   document.getElementById('overlay').classList.add('show');
@@ -1240,8 +1252,8 @@ function editCourseItem(id, lid){
     </div>
     <div class="mf"><label>رابط الشهادة</label><input id="m-course-url" value="${item.url||''}" autocomplete="off" style="direction:ltr;text-align:left;${SS}"></div>
     <div class="mact">
-      <button class="mbtn mbtn-ok" onclick="updateCourseItem(${id},'${lid}')">حفظ</button>
-      <button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button>
+      <button type="button" class="mbtn mbtn-ok" onclick="updateCourseItem(${id},'${lid}')">حفظ</button>
+      <button type="button" class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button>
     </div>`;
   window._currentLid=lid;
   document.getElementById('overlay').classList.add('show');
@@ -1272,7 +1284,7 @@ function renderSkillItem(e,lid){
     <div style="display:flex;align-items:center;justify-content:space-between">
       <div><div class="item-title">${e.name}</div>${lvl?`<div class="item-sub">${lvlColor} ${lvl}</div>`:''}</div>
       <div class="item-menu-wrap owner-only">
-        <button class="item-menu-btn" onclick="toggleItemMenuG(this)">⋯</button>
+        <button type="button" class="item-menu-btn" onclick="toggleItemMenuG(this)">⋯</button>
         <div class="item-menu">
           <div class="item-menu-opt" onclick="editSkillItem(${id},'${lid}')">✏️ تعديل</div>
           <div class="item-menu-opt del" onclick="delSectionItem('skill-item-${id}','tw_skills','${lid}',${id})">🗑️ حذف</div>
@@ -1289,7 +1301,7 @@ function renderLangItem(e,lid){
     <div style="display:flex;align-items:center;justify-content:space-between">
       <div><div class="item-title">${e.name}</div><div class="item-sub">${lvlColor} ${lvl}</div></div>
       <div class="item-menu-wrap owner-only">
-        <button class="item-menu-btn" onclick="toggleItemMenuG(this)">⋯</button>
+        <button type="button" class="item-menu-btn" onclick="toggleItemMenuG(this)">⋯</button>
         <div class="item-menu">
           <div class="item-menu-opt" onclick="editLangItem(${id},'${lid}')">✏️ تعديل</div>
           <div class="item-menu-opt del" onclick="delSectionItem('lang-item-${id}','tw_langs','${lid}',${id})">🗑️ حذف</div>
@@ -1305,7 +1317,7 @@ function renderLinkItem(e,lid){
     <div style="display:flex;align-items:center;justify-content:space-between">
       <div><div class="item-title">${e.type}</div><a href="${e.url}" target="_blank" class="item-sub" style="color:var(--ac);word-break:break-all">${e.url}</a></div>
       <div class="item-menu-wrap owner-only">
-        <button class="item-menu-btn" onclick="toggleItemMenuG(this)">⋯</button>
+        <button type="button" class="item-menu-btn" onclick="toggleItemMenuG(this)">⋯</button>
         <div class="item-menu">
           <div class="item-menu-opt" onclick="delSectionItem('link-item-${id}','tw_links','${lid}',${id})">🗑️ حذف</div>
         </div>
@@ -1326,7 +1338,7 @@ function renderCourseItem(e,lid){
         <span class="badge pending">⏳ قيد المراجعة</span>
       </div>
       <div class="item-menu-wrap owner-only">
-        <button class="item-menu-btn" onclick="toggleItemMenuG(this)">⋯</button>
+        <button type="button" class="item-menu-btn" onclick="toggleItemMenuG(this)">⋯</button>
         <div class="item-menu">
           <div class="item-menu-opt" onclick="editCourseItem(${id},'${lid}')">✏️ تعديل</div>
           <div class="item-menu-opt del" onclick="delSectionItem('course-item-${id}','tw_courses','${lid}',${id})">🗑️ حذف</div>
@@ -1342,7 +1354,7 @@ function renderGenericItem(e,lid){
     <div style="display:flex;align-items:flex-start;justify-content:space-between">
       <div><div class="item-title">${e.title}</div>${e.sub?`<div class="item-sub">${e.sub}</div>`:''}<div class="item-date">${e.date||''}</div></div>
       <div class="item-menu-wrap owner-only">
-        <button class="item-menu-btn" onclick="toggleItemMenuG(this)">⋯</button>
+        <button type="button" class="item-menu-btn" onclick="toggleItemMenuG(this)">⋯</button>
         <div class="item-menu">
           <div class="item-menu-opt" onclick="delSectionItem('gen-item-${id}','tw_gen_'+('${lid}'),'${lid}',${id})">🗑️ حذف</div>
         </div>
@@ -1553,7 +1565,7 @@ function renderExpItem(e){
         <span class="badge pending">⏳ قيد المراجعة</span>
       </div>
       <div class="item-menu-wrap owner-only">
-        <button class="item-menu-btn" onclick="toggleItemMenu('emenu-${id}')">⋯</button>
+        <button type="button" class="item-menu-btn" onclick="toggleItemMenu('emenu-${id}')">⋯</button>
         <div class="item-menu" id="emenu-${id}">
           <div class="item-menu-opt" onclick="editExp(${id})">✏️ تعديل</div>
           <div class="item-menu-opt" onclick="deleteExp(${id})">🗑️ حذف</div>
@@ -1575,7 +1587,7 @@ function renderEduItem(e){
         <span class="badge pending">⏳ قيد المراجعة</span>
       </div>
       <div class="item-menu-wrap owner-only">
-        <button class="item-menu-btn" onclick="toggleItemMenu('emenu-${id}')">⋯</button>
+        <button type="button" class="item-menu-btn" onclick="toggleItemMenu('emenu-${id}')">⋯</button>
         <div class="item-menu" id="emenu-${id}">
           <div class="item-menu-opt" onclick="editEdu(${id})">✏️ تعديل</div>
           <div class="item-menu-opt" onclick="deleteEdu(${id})">🗑️ حذف</div>
@@ -1848,7 +1860,7 @@ function openModal(type,listId,secTitle){
         <option value="عمل حر" ${profAvail==='عمل حر'?'selected':''}>💼 فريلانس</option>
       </select>
     </div>
-    <div class="mact"><button class="mbtn mbtn-ok" onclick="saveProfile()">حفظ</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
+    <div class="mact"><button type="button" class="mbtn mbtn-ok" onclick="saveProfile()">حفظ</button><button type="button" class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
     setTimeout(()=>{
     // Prefill specialty/title
     const titleSel=document.getElementById('m-title-sel');
@@ -1939,7 +1951,7 @@ function openModal(type,listId,secTitle){
     <div class="mf"><label>وثيقة التوثيق <span style="opacity:.5;font-size:.7rem">(اختياري)</span></label>
       <div class="upload-area" onclick="this.querySelector('input').click()"><input autocomplete="off" type="file" accept="image/*,.pdf" onchange="showFn(this)">📎 ارفع وثيقة<div class="fn"></div></div>
     </div>
-    <div class="mact"><button class="mbtn mbtn-ok" onclick="saveExp()">إضافة الخبرة</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
+    <div class="mact"><button type="button" class="mbtn mbtn-ok" onclick="saveExp()">إضافة الخبرة</button><button type="button" class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
 
   } else if(type==='edu'){
     h=`<div class="modal-title">🎓 إضافة شهادة دراسية</div>
@@ -1973,7 +1985,7 @@ function openModal(type,listId,secTitle){
     <div class="mf"><label>صورة الشهادة <span style="opacity:.5;font-size:.7rem">(اختياري)</span></label>
       <div class="upload-area" onclick="this.querySelector('input').click()"><input autocomplete="off" type="file" accept="image/*,.pdf" onchange="showFn(this)">📎 ارفع صورة الشهادة<div class="fn"></div></div>
     </div>
-    <div class="mact"><button class="mbtn mbtn-ok" onclick="saveEdu()">إضافة الشهادة</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
+    <div class="mact"><button type="button" class="mbtn mbtn-ok" onclick="saveEdu()">إضافة الشهادة</button><button type="button" class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
 
   } else if(type==='custom-section'){
     h=`<div class="modal-title">✏️ قسم مخصص</div>
@@ -1989,7 +2001,7 @@ function openModal(type,listId,secTitle){
         <option value="💼">💼 أعمال حرة</option>
       </select>
     </div>
-    <div class="mact"><button class="mbtn mbtn-ok" onclick="saveCustomSec()">إضافة</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
+    <div class="mact"><button type="button" class="mbtn mbtn-ok" onclick="saveCustomSec()">إضافة</button><button type="button" class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
 
   } else if(type==='skills'){
     h=`<div class="modal-title">🛠️ إضافة مهارة</div>
@@ -2005,7 +2017,7 @@ function openModal(type,listId,secTitle){
         <option value="خبير">🟢 خبير</option>
       </select>
     </div>
-    <div class="mact"><button class="mbtn mbtn-ok" onclick="saveSkillItem('${listId}')">إضافة</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
+    <div class="mact"><button type="button" class="mbtn mbtn-ok" onclick="saveSkillItem('${listId}')">إضافة</button><button type="button" class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
 
   } else if(type==='langs'){
     h=`<div class="modal-title">🌍 إضافة لغة</div>
@@ -2132,7 +2144,7 @@ function openModal(type,listId,secTitle){
         <option value="لغة أم">⭐ لغة أم</option>
       </select>
     </div>
-    <div class="mact"><button class="mbtn mbtn-ok" onclick="saveLangItem('${listId}')">إضافة</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
+    <div class="mact"><button type="button" class="mbtn mbtn-ok" onclick="saveLangItem('${listId}')">إضافة</button><button type="button" class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
 
   } else if(type==='links'){
     h=`<div class="modal-title">🔗 إضافة رابط</div>
@@ -2147,7 +2159,7 @@ function openModal(type,listId,secTitle){
     <div class="mf"><label>الرابط <span style="color:rgba(255,255,255,.3);font-size:.65rem"> مطلوب</span></label>
       <input id="m-link-url" autocomplete="off" placeholder="https://..." style="direction:ltr;text-align:left">
     </div>
-    <div class="mact"><button class="mbtn mbtn-ok" onclick="saveLinkItem('${listId}')">إضافة</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
+    <div class="mact"><button type="button" class="mbtn mbtn-ok" onclick="saveLinkItem('${listId}')">إضافة</button><button type="button" class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
 
   } else if(type==='course'){
     const yearOpts=[...Array(36)].map((_,i)=>{const y=new Date().getFullYear()-i;return '<option value="'+y+'">'+y+'</option>';}).join('');
@@ -2166,7 +2178,7 @@ function openModal(type,listId,secTitle){
     <div class="mf"><label>رابط الشهادة <span style="opacity:.5;font-size:.7rem">(اختياري)</span></label>
       <input id="m-course-url" autocomplete="off" placeholder="https://..." style="direction:ltr;text-align:left">
     </div>
-    <div class="mact"><button class="mbtn mbtn-ok" onclick="saveCourseItem('${listId}')">إضافة</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
+    <div class="mact"><button type="button" class="mbtn mbtn-ok" onclick="saveCourseItem('${listId}')">إضافة</button><button type="button" class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
 
   }   else if(type==='generic'){
     const yearOpts2=[...Array(36)].map((_,i)=>{const y=new Date().getFullYear()-i;return '<option value="'+y+'">'+y+'</option>';}).join('');
@@ -2192,7 +2204,7 @@ function openModal(type,listId,secTitle){
         <option value="">— اختر السنة —</option>${yearOpts2}
       </select>
     </div>
-    <div class="mact"><button class="mbtn mbtn-ok" onclick="saveGeneric()">إضافة</button><button class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
+    <div class="mact"><button type="button" class="mbtn mbtn-ok" onclick="saveGeneric()">إضافة</button><button type="button" class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button></div>`;
   }
   document.getElementById('modal').innerHTML=h;
   window._currentLid=listId||'';
@@ -2491,7 +2503,7 @@ function saveCustomSec(){
     `<div class="section" id="${secId}" draggable="true">
       <div class="sec-header"><span class="sec-icon">${ic}</span><span class="sec-title">${nm}</span><div class="sec-line"></div></div>
       <div id="${lid}"><div class="item empty-hint"><div class="item-title" style="opacity:.4;font-size:.8rem">لا توجد عناصر — اضغط + لإضافة</div></div></div>
-      <button class="add-item-btn owner-only" onclick="window._currentLid='${lid}';openModal('generic','${lid}','${nm}')">+ إضافة</button>
+      <button type="button" class="add-item-btn owner-only" onclick="window._currentLid='${lid}';openModal('generic','${lid}','${nm}')">+ إضافة</button>
       <div class="drag-handle owner-only"><span></span><span></span><span></span></div>
     </div>`);
   // Save to localStorage
@@ -2520,7 +2532,7 @@ function saveGeneric(lid){
       <div style="display:flex;align-items:flex-start;justify-content:space-between">
         <div><div class="item-title">${t}</div>${s?`<div class="item-sub">${s}</div>`:''}<div class="item-date">${d}</div></div>
         <div class="item-menu-wrap owner-only">
-          <button class="item-menu-btn" onclick="toggleItemMenuG(this)">⋯</button>
+          <button type="button" class="item-menu-btn" onclick="toggleItemMenuG(this)">⋯</button>
           <div class="item-menu"><div class="item-menu-opt" onclick="delSectionItem('gen-${id}','tw_gen_${lid}','${lid}',${id})">🗑️ حذف</div></div>
         </div>
       </div>
@@ -2615,7 +2627,7 @@ function openCropModal(src){
       تجنب الصور الجماعية أو ذات الخلفيات المشتتة.
     </div>
     <div class="crop-container" id="cropCont">
-      <img id="cropImg" class="crop-image" src="${src}" draggable="false">
+      <img loading="lazy" id="cropImg" class="crop-image" src="${src}" draggable="false">
     </div>
     <div class="crop-hint">اسحب الصورة لتحديد المنطقة المناسبة</div>
     <div class="crop-controls">
@@ -2625,8 +2637,8 @@ function openCropModal(src){
       <span style="font-size:.75rem;color:rgba(255,255,255,.4)">+</span>
     </div>
     <div class="crop-btns">
-      <button class="crop-btn crop-ok" onclick="saveCrop()">✓ حفظ</button>
-      <button class="crop-btn crop-cancel" onclick="document.getElementById('cropOv').remove()">إلغاء</button>
+      <button type="button" class="crop-btn crop-ok" onclick="saveCrop()">✓ حفظ</button>
+      <button type="button" class="crop-btn crop-cancel" onclick="document.getElementById('cropOv').remove()">إلغاء</button>
     </div>`;
   document.body.appendChild(ov);
   // Init crop
@@ -2681,7 +2693,7 @@ function saveCrop(){
   ctx.drawImage(img, -_cropX/_cropScale, -_cropY/_cropScale, 300/_cropScale, 300/_cropScale, 0, 0, 300, 300);
   const dataUrl=canvas.toDataURL('image/jpeg',0.82);
   const avatarEl=document.getElementById('avatarBtn');
-  if(avatarEl) avatarEl.innerHTML='<img src="'+dataUrl+'" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;">';
+  if(avatarEl) avatarEl.innerHTML='<img loading="lazy" src="'+dataUrl+'" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;">';
   // Show immediately from localStorage
   try{ localStorage.setItem('tw_avatar'+getUID(), dataUrl); }catch(ex){}
   document.getElementById('cropOv')?.remove();
@@ -2736,7 +2748,7 @@ function saveCrop(){
   const saved=localStorage.getItem('tw_avatar'+getUID());
   if(saved){
     const avatarEl=document.getElementById('avatarBtn');
-    if(avatarEl) avatarEl.innerHTML=`<img src="${saved}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;">`;
+    if(avatarEl) avatarEl.innerHTML=`<img loading="lazy" src="${saved}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;">`;
   } else {
     // Try loading from DB
     if(u&&u.id){
@@ -2745,7 +2757,7 @@ function saveCrop(){
         if(avatarUrl){
           try{ localStorage.setItem('tw_avatar'+getUID(), avatarUrl); }catch(ex){}
           const avatarEl=document.getElementById('avatarBtn');
-          if(avatarEl) avatarEl.innerHTML=`<img src="${avatarUrl}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;">`;
+          if(avatarEl) avatarEl.innerHTML=`<img loading="lazy" src="${avatarUrl}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;">`;
         }
       }).catch(()=>{});
     }
@@ -2754,6 +2766,8 @@ function saveCrop(){
 
 function doLogout(){ localStorage.removeItem('tw_user'); location.href='/'; }
 initScrollProg();
+loadApplications();
+loadProfileScore();
 </script>
 
 <script>
@@ -2935,6 +2949,16 @@ initScrollProg();
 
 <!-- QR -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+
+<!-- ══ طلبات التوظيف ══ -->
+<div class="sec-card" id="secApplications" style="display:none">
+  <div class="sec-title">📋 طلبات التوظيف</div>
+  <div id="appTrackList">
+    <div class="tw-skeleton" style="height:60px;margin-bottom:8px"></div>
+    <div class="tw-skeleton" style="height:60px"></div>
+  </div>
+</div>
+
 <script>
 let _qrUser = null;
 try { _qrUser = JSON.parse(localStorage.getItem('tw_user')); } catch(e){}
@@ -3118,53 +3142,6 @@ function initQR(){
 window.addEventListener('load', initQR);
 
 
-// ══ ITQAN Utilities ══
-var _twToast=null;
-function showToast(msg,type,dur){
-  type=type||'success';dur=dur||2800;
-  if(_twToast){_twToast.remove();}
-  var t=document.createElement('div');
-  t.className='tw-toast '+type;
-  var ico=type==='success'?'✅':type==='error'?'❌':'ℹ️';
-  t.innerHTML='<span>'+ico+'</span><span>'+msg+'</span>';
-  document.body.appendChild(t);
-  _twToast=t;
-  requestAnimationFrame(function(){requestAnimationFrame(function(){t.classList.add('show');});});
-  setTimeout(function(){t.classList.remove('show');setTimeout(function(){if(t.parentNode)t.remove();},350);},dur);
-}
-function setBtnLoad(btn,loading){
-  if(!btn)return;
-  if(loading){btn.classList.add('tw-btn-loading');btn._orig=btn.textContent;btn.textContent='';btn.disabled=true;}
-  else{btn.classList.remove('tw-btn-loading');btn.textContent=btn._orig||'حفظ';btn.disabled=false;}
-}
-function twNavigate(url){
-  document.body.style.cssText='opacity:0;transform:translateY(-6px);transition:all .2s ease;';
-  setTimeout(function(){window.location.href=url;},180);
-}
-function initScrollProg(){
-  var p=document.createElement('div');p.className='tw-scroll-prog';
-  document.body.prepend(p);
-  window.addEventListener('scroll',function(){
-    var pct=window.scrollY/(document.body.scrollHeight-window.innerHeight)*100;
-    p.style.width=Math.min(pct,100)+'%';
-  });
-}
-document.addEventListener('keydown',function(e){
-  if(e.key==='Escape'){
-    var fn=window.closeModal||window.closeEdit||window.closePostJob||window.closeMsgModal;
-    if(typeof fn==='function')fn();
-  }
-  if(e.key==='/'&&!['INPUT','TEXTAREA'].includes(e.target.tagName)){
-    e.preventDefault();
-    var s=document.getElementById('searchInput')||document.getElementById('userSearch')||document.getElementById('jobSearch');
-    if(s)s.focus();
-  }
-});
-document.documentElement.style.opacity='0';
-window.addEventListener('load',function(){
-  document.documentElement.style.transition='opacity .25s ease';
-  document.documentElement.style.opacity='1';
-});
 
 
 // Check KYC status
@@ -3177,6 +3154,78 @@ if(_sessionUser && _sessionUser.id){
     }
   }).catch(function(){});
 }
+
+
+// ── Apply Tracking ──
+function loadApplications(){
+  if(!_sessionUser||!_sessionUser.id) return;
+  if(_sessionUser.user_type!=='emp') return;
+  fetch('/my/applications',{headers:{'X-User-Id':_sessionUser.id}})
+  .then(function(r){return r.json();}).then(function(data){
+    var apps=data.applications||[];
+    var sec=document.getElementById('secApplications');
+    var list=document.getElementById('appTrackList');
+    if(!sec||!list) return;
+    if(!apps.length){sec.style.display='none';return;}
+    sec.style.display='block';
+    var statusColor={pending:'rgba(255,255,255,.1)',viewed:'rgba(37,99,255,.15)',accepted:'rgba(0,200,150,.15)',rejected:'rgba(239,68,68,.15)'};
+    var statusLabel={pending:'⏳ قيد المراجعة',viewed:'👁 تم العرض',accepted:'✅ مقبول',rejected:'❌ مرفوض'};
+    list.innerHTML=apps.map(function(a){
+      var d='<div style="display:flex;align-items:center;gap:10px;padding:10px;border-radius:10px;margin-bottom:8px;background:'+statusColor[a.status]+'" data-jid="'+a.job_id+'">';
+      d+='<div style="flex:1"><div style="font-size:.82rem;font-weight:700">'+(a.title||'وظيفة')+'</div>';
+      d+='<div style="font-size:.7rem;color:rgba(255,255,255,.4)">'+(a.company_name||'')+' · '+(a.applied_at||'').slice(0,10)+'</div></div>';
+      d+='<div style="font-size:.7rem">'+statusLabel[a.status]+'</div></div>';
+      return d;
+    }).join('');
+    list.querySelectorAll('[data-jid]').forEach(function(el){
+      el.style.cursor='pointer';
+      el.addEventListener('click',function(){window.location.href='job-detail.html?id='+el.getAttribute('data-jid');});
+    });
+  }).catch(function(){});
+}
+
+// ── Profile Score ──
+function loadProfileScore(){
+  var uid=_sessionUser&&_sessionUser.id;
+  if(!uid) return;
+  fetch('/profile/'+uid+'/score').then(function(r){return r.json();}).then(function(data){
+    var num=document.getElementById('scoreNum');
+    var bar=document.getElementById('scoreBar');
+    var tips=document.getElementById('scoreTips');
+    if(!num) return;
+    // Animate counter
+    var count=0,target=data.score||0;
+    var t=setInterval(function(){
+      count=Math.min(count+2,target);
+      num.textContent=count+'%';
+      if(count>=target)clearInterval(t);
+    },20);
+    if(bar) setTimeout(function(){bar.style.width=(data.score||0)+'%';},100);
+    // Color by level
+    var colors={ممتاز:'#00c896',جيد:'#22c55e',متوسط:'#eab308','يحتاج تحسين':'#f87171'};
+    if(num) num.style.color=colors[data.level]||'var(--ac)';
+    // Tips
+    if(tips&&data.tips&&data.tips.length){
+      tips.innerHTML=data.tips.map(function(t){
+        return '<div style="font-size:.72rem;color:rgba(255,255,255,.5);display:flex;align-items:center;gap:6px">'
+          +'<span style="color:var(--ac)">+'+t.points+'</span> '+t.tip+'</div>';
+      }).join('');
+    }
+  }).catch(function(){});
+}
 </script>
 
-</body>
+</body
+<!-- ══ Profile Completion Score ══ -->
+<div class="sec-card" id="secScore" style="background:linear-gradient(135deg,rgba(0,200,150,.06),rgba(37,99,255,.06));border-color:rgba(0,200,150,.2)">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+    <div style="font-weight:800;font-size:.88rem">اكتمال الملف الشخصي</div>
+    <div style="font-size:1.2rem;font-weight:900;color:var(--ac)" id="scoreNum">--</div>
+  </div>
+  <div style="height:6px;border-radius:4px;background:rgba(255,255,255,.08);margin-bottom:10px">
+    <div id="scoreBar" style="height:100%;border-radius:4px;background:linear-gradient(90deg,var(--ac),#2563ff);width:0%;transition:width 1s ease"></div>
+  </div>
+  <div id="scoreTips" style="display:flex;flex-direction:column;gap:6px"></div>
+</div>
+
+>

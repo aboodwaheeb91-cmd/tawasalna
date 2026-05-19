@@ -2,7 +2,16 @@
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+  <link rel="dns-prefetch" href="https://fonts.gstatic.com">
+  <link rel="dns-prefetch" href="https://tawasolna.com">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#00c896">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="تواصلنا">
+  <link rel="apple-touch-icon" href="/icon-192.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>تواصلنا - الرئيسية</title>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
 <style>
@@ -242,7 +251,7 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-heig
 @keyframes tw-spin{to{transform:translateY(-50%) rotate(360deg);}}
 @keyframes tw-fadein{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:none;}}
 @keyframes tw-verified{0%,100%{box-shadow:0 0 0 0 rgba(0,200,150,0);}50%{box-shadow:0 0 0 5px rgba(0,200,150,.15);}}
-.tw-toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(20px);background:rgba(7,11,24,.97);border:1px solid rgba(255,255,255,.1);backdrop-filter:blur(20px);border-radius:14px;padding:12px 20px;display:flex;align-items:center;gap:10px;font-size:.82rem;font-family:Cairo,sans-serif;color:rgba(255,255,255,.92);opacity:0;transition:all .3s cubic-bezier(.34,1.56,.64,1);z-index:9999;white-space:nowrap;min-width:180px;justify-content:center;box-shadow:0 8px 32px rgba(0,0,0,.4);}
+.tw-toast[aria-live="polite"]{position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(20px);background:rgba(7,11,24,.97);border:1px solid rgba(255,255,255,.1);backdrop-filter:blur(20px);border-radius:14px;padding:12px 20px;display:flex;align-items:center;gap:10px;font-size:.82rem;font-family:Cairo,sans-serif;color:rgba(255,255,255,.92);opacity:0;transition:all .3s cubic-bezier(.34,1.56,.64,1);z-index:9999;white-space:nowrap;min-width:180px;justify-content:center;box-shadow:0 8px 32px rgba(0,0,0,.4);}
 .tw-toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
 .tw-toast.success{border-color:rgba(0,200,150,.3);}
 .tw-toast.error{border-color:rgba(239,68,68,.3);}
@@ -263,15 +272,15 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-heig
 .tw-verified{animation:tw-verified 2.5s ease-in-out infinite;}
 
 </style>
-</head>
+<style>.skip-link{position:absolute;top:-40px;right:0;background:var(--ac,#00c896);color:#0d1a2e;padding:8px 16px;border-radius:0 0 8px 0;font-family:Cairo,sans-serif;font-size:.8rem;font-weight:700;text-decoration:none;transition:top .2s;z-index:10000}.skip-link:focus{top:0}</style><a href="#main-content" class="skip-link">تخطى للمحتوى الرئيسي</a></head>
 <body>
 
 <!-- ══ NAV ══ -->
-<nav class="nav">
+<nav class="nav" role="navigation" aria-label="القائمة الرئيسية">
   <div class="nav-logo">تواصلنا</div>
-  <button class="tb-btn tb-ghost" onclick="goProfile()" style="font-size:.73rem;display:flex;align-items:center;gap:6px"><span id="navAva">👤</span> ملفي الشخصي</button>
+  <button type="button" class="tb-btn tb-ghost" onclick="goProfile()" style="font-size:.73rem;display:flex;align-items:center;gap:6px"><span id="navAva">👤</span> ملفي الشخصي</button>
   <div style="flex:1"></div>
-  <button class="tb-btn" onclick="logout()" style="background:rgba(239,68,68,.1);color:#f87171;border:1px solid rgba(239,68,68,.2);font-size:.73rem">خروج</button>
+  <button type="button" class="tb-btn" onclick="logout()" style="background:rgba(239,68,68,.1);color:#f87171;border:1px solid rgba(239,68,68,.2);font-size:.73rem">خروج</button>
 </nav>
 
 <div class="wrap">
@@ -303,7 +312,7 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-heig
 </aside>
 
 <!-- ══ FEED ══ -->
-<main class="feed">
+<main class="feed" role="main" id="main-content">
   <div class="ftabs">
     <button class="ftab on" onclick="setTab(this)">الكل</button>
     <button class="ftab" onclick="setTab(this)">💼 وظائف</button>
@@ -366,6 +375,7 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-heig
   <div class="bn" onclick="location.href='messages.html'"><span class="bi">💬</span><span class="bl">رسائل</span></div>
 </div>
 
+<script src="/tw_shared.js"></script>
 <script>
 let _u=null;
 try{_u=JSON.parse(localStorage.getItem('tw_user'));}catch(e){}
@@ -467,7 +477,10 @@ function loadJobs(jobType){
   const container=document.getElementById('jobsFeed');
   if(!container) return;
   container.innerHTML='<div style="padding:4px"><div class="tw-skeleton" style="height:90px;margin-bottom:12px"></div><div class="tw-skeleton" style="height:90px;margin-bottom:12px"></div><div class="tw-skeleton" style="height:90px;margin-bottom:12px"></div></div>';
-  const url=jobType&&jobType!=='all'?'/jobs?job_type='+jobType:'/jobs';
+  var url;
+  if(jobType&&jobType!=='all') url='/jobs?job_type='+jobType;
+  else if(_u&&_u.id) url='/jobs/match/'+_u.id;
+  else url='/jobs';
   fetch(url).then(function(r){return r.json();}).then(function(data){
     const jobs=data.jobs||[];
     if(!jobs.length){
@@ -519,23 +532,120 @@ function initScrollProg(){
     p.style.width=Math.min(pct,100)+'%';
   });
 }
-document.addEventListener('keydown',function(e){
-  if(e.key==='Escape'){
-    var fn=window.closeModal||window.closeEdit||window.closePostJob||window.closeMsgModal;
-    if(typeof fn==='function')fn();
-  }
-  if(e.key==='/'&&!['INPUT','TEXTAREA'].includes(e.target.tagName)){
-    e.preventDefault();
-    var s=document.getElementById('searchInput')||document.getElementById('userSearch')||document.getElementById('jobSearch');
-    if(s)s.focus();
-  }
-});
-document.documentElement.style.opacity='0';
-window.addEventListener('load',function(){
-  document.documentElement.style.transition='opacity .25s ease';
-  document.documentElement.style.opacity='1';
-});
 
+
+// ── Pull to Refresh ──
+var _ptrStart=0,_ptrActive=false;
+document.addEventListener('touchstart',function(e){
+  if(window.scrollY===0) _ptrStart=e.touches[0].clientY;
+},{passive:true});
+document.addEventListener('touchend',function(e){
+  if(_ptrActive){
+    _ptrActive=false;
+    var ind=document.getElementById('ptr-indicator');
+    if(ind) ind.style.display='none';
+    loadJobs();
+    loadProfile();
+  }
+},{passive:true});
+document.addEventListener('touchmove',function(e){
+  if(window.scrollY===0&&_ptrStart>0){
+    var diff=e.touches[0].clientY-_ptrStart;
+    if(diff>60&&!_ptrActive){
+      _ptrActive=true;
+      var ind=document.getElementById('ptr-indicator');
+      if(ind) ind.style.display='flex';
+    }
+  }
+},{passive:true});
+
+
+// ── Onboarding ──
+function nextOnboard(step){
+  document.getElementById('obStep1').style.display='none';
+  document.getElementById('obStep'+step).style.display='block';
+}
+function closeOnboard(){
+  document.getElementById('onboardingOverlay').style.display='none';
+  localStorage.setItem('tw_onboarded','1');
+}
+(function(){
+  if(!localStorage.getItem('tw_onboarded')&&_u){
+    setTimeout(function(){
+      document.getElementById('onboardingOverlay').style.display='flex';
+    },1500);
+  }
+})();
+
+// ── Notification Badge on Nav ──
+(function(){
+  if(!_u||!_u.id) return;
+  fetch('/notifications/'+_u.id).then(function(r){return r.json();}).then(function(data){
+    var unread=data.unread||0;
+    if(unread>0){
+      var navNotif=document.querySelector('a[href="notifications.html"] .bi, a[href="notifications.html"]');
+      if(navNotif){
+        var badge=document.createElement('span');
+        badge.style.cssText='position:absolute;top:-4px;right:-4px;background:#f87171;color:#fff;border-radius:50%;width:16px;height:16px;font-size:.55rem;display:flex;align-items:center;justify-content:center;font-weight:700';
+        badge.textContent=unread>9?'9+':unread;
+        navNotif.style.position='relative';
+        navNotif.appendChild(badge);
+      }
+    }
+  }).catch(function(){});
+  // Unread messages badge
+  fetch('/messages/unread/'+_u.id).then(function(r){return r.json();}).then(function(data){
+    var unread=data.count||0;
+    if(unread>0){
+      var navMsg=document.querySelector('a[href="messages.html"] .bi, a[href="messages.html"]');
+      if(navMsg){
+        var badge=document.createElement('span');
+        badge.style.cssText='position:absolute;top:-4px;right:-4px;background:#2563ff;color:#fff;border-radius:50%;width:16px;height:16px;font-size:.55rem;display:flex;align-items:center;justify-content:center;font-weight:700';
+        badge.textContent=unread>9?'9+':unread;
+        navMsg.style.position='relative';
+        navMsg.appendChild(badge);
+      }
+    }
+  }).catch(function(){});
+})();
 </script>
+<div id="ptr-indicator" style="display:none;position:fixed;top:52px;left:50%;transform:translateX(-50%);background:rgba(0,200,150,.15);color:var(--ac);border-radius:20px;padding:6px 16px;font-size:.75rem;z-index:999;align-items:center;gap:8px">↓ اسحب للتحديث</div>
+
+<!-- ══ Onboarding ══ -->
+<div id="onboardingOverlay" style="display:none;position:fixed;inset:0;z-index:3000;background:rgba(0,0,0,.9);align-items:center;justify-content:center;padding:20px">
+  <div style="background:#0d1a2e;border-radius:24px;width:100%;max-width:380px;padding:28px;text-align:center;border:1px solid rgba(255,255,255,.08)">
+    <div id="obStep1">
+      <div style="font-size:3rem;margin-bottom:12px">👋</div>
+      <div style="font-size:1.1rem;font-weight:900;margin-bottom:8px">مرحباً بك في تواصلنا!</div>
+      <div style="font-size:.8rem;color:rgba(255,255,255,.5);line-height:1.7;margin-bottom:20px">منصتك للتوظيف والتوثيق في العالم العربي</div>
+      <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:20px">
+        <div style="display:flex;align-items:center;gap:12px;padding:12px;border-radius:12px;background:rgba(0,200,150,.08);border:1px solid rgba(0,200,150,.15)">
+          <span style="font-size:1.3rem">💼</span>
+          <div style="text-align:right"><div style="font-size:.82rem;font-weight:700">ابحث عن وظيفة</div><div style="font-size:.7rem;color:rgba(255,255,255,.4)">وظائف حقيقية من شركات موثقة</div></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;padding:12px;border-radius:12px;background:rgba(37,99,255,.08);border:1px solid rgba(37,99,255,.15)">
+          <span style="font-size:1.3rem">🪪</span>
+          <div style="text-align:right"><div style="font-size:.82rem;font-weight:700">وثّق هويتك</div><div style="font-size:.7rem;color:rgba(255,255,255,.4)">ملف موثق = فرص أكثر</div></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;padding:12px;border-radius:12px;background:rgba(124,58,237,.08);border:1px solid rgba(124,58,237,.15)">
+          <span style="font-size:1.3rem">✅</span>
+          <div style="text-align:right"><div style="font-size:.82rem;font-weight:700">أكمل ملفك</div><div style="font-size:.7rem;color:rgba(255,255,255,.4)">ملف مكتمل = ظهور أعلى</div></div>
+        </div>
+      </div>
+      <button onclick="nextOnboard(2)" style="width:100%;padding:13px;border-radius:14px;border:none;background:linear-gradient(135deg,#00c896,#2563ff);color:#fff;font-family:Cairo,sans-serif;font-weight:800;font-size:.9rem;cursor:pointer">ابدأ الآن ←</button>
+    </div>
+    <div id="obStep2" style="display:none">
+      <div style="font-size:3rem;margin-bottom:12px">📋</div>
+      <div style="font-size:1.1rem;font-weight:900;margin-bottom:8px">أكمل ملفك الشخصي</div>
+      <div style="font-size:.8rem;color:rgba(255,255,255,.5);line-height:1.7;margin-bottom:20px">ابدأ بإضافة خبراتك وشهاداتك للحصول على أفضل الفرص</div>
+      <div style="display:flex;gap:8px">
+        <button onclick="closeOnboard()" style="flex:1;padding:12px;border-radius:12px;border:1px solid rgba(255,255,255,.1);background:transparent;color:rgba(255,255,255,.5);font-family:Cairo,sans-serif;cursor:pointer">لاحقاً</button>
+        <button onclick="goProfile();closeOnboard();" style="flex:1;padding:12px;border-radius:12px;border:none;background:linear-gradient(135deg,#00c896,#2563ff);color:#fff;font-family:Cairo,sans-serif;font-weight:700;cursor:pointer">اكمل الملف</button>
+      </div>
+    </div>
+    <button onclick="closeOnboard()" style="margin-top:14px;background:none;border:none;color:rgba(255,255,255,.3);font-family:Cairo,sans-serif;font-size:.72rem;cursor:pointer">تخطي</button>
+  </div>
+</div>
+
 </body>
 </html>
