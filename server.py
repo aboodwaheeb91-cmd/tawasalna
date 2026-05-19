@@ -144,9 +144,12 @@ async def general_exception_handler(request, exc):
 @app.middleware("http")
 async def security_headers(request, call_next):
     response = await call_next(request)
-    response.headers["X-Content-Type-Options"] = "nosniff"
-    response.headers["X-Frame-Options"] = "SAMEORIGIN"
-    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    try:
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "SAMEORIGIN"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    except Exception:
+        pass
     return response
 
 # ── Simple Rate Limiting ──
@@ -163,7 +166,8 @@ async def rate_limit_middleware(request, call_next):
         now = _time.time()
         _rate_store[ip] = [t for t in _rate_store[ip] if now - t < 60]
         if len(_rate_store[ip]) >= _RATE_LIMIT:
-            return JSONResponse(status_code=429, content={"error": "طلبات كثيرة جداً، حاول بعد دقيقة"})
+            from fastapi.responses import JSONResponse as _JR
+            return _JR(status_code=429, content={"error": "طلبات كثيرة جداً، حاول بعد دقيقة"})
         _rate_store[ip].append(now)
     return await call_next(request)
 
