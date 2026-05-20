@@ -2766,9 +2766,13 @@ function saveCrop(){
 })();
 
 function doLogout(){ localStorage.removeItem('tw_user'); location.href='/'; }
+// Init calls - after all functions defined
+(function(){
+  initScrollProg();
+  loadApplications();
+  loadProfileScore();
+})();
 initScrollProg();
-loadApplications();
-loadProfileScore();
 </script>
 
 <script>

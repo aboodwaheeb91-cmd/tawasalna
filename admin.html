@@ -38,7 +38,7 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--t);min-heig
 .nav-badge{padding:2px 9px;border-radius:20px;background:rgba(239,68,68,.12);color:#f87171;font-size:.65rem;font-weight:800;border:1px solid rgba(239,68,68,.2);}
 .nav-logout{margin-right:auto;padding:5px 12px;border-radius:8px;border:none;background:rgba(239,68,68,.08);color:#f87171;font-family:'Cairo',sans-serif;font-size:.73rem;font-weight:700;cursor:pointer;}
 
-.content{padding:70px 18px 40px;max-width:1100px;margin:0 auto;}
+.content{padding:70px 14px 40px;max-width:1100px;margin:0 auto;width:100%;box-sizing:border-box;}
 
 /* ── Tabs ── */
 .tabs{display:flex;gap:5px;margin-bottom:20px;overflow-x:auto;padding-bottom:2px;}
@@ -162,7 +162,22 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--t);min-heig
 .tw-pag-info{font-size:.72rem;color:rgba(255,255,255,.35);}
 
 </style>
-<style>.skip-link{position:absolute;top:-40px;right:0;background:var(--ac,#00c896);color:#0d1a2e;padding:8px 16px;border-radius:0 0 8px 0;font-family:Cairo,sans-serif;font-size:.8rem;font-weight:700;text-decoration:none;transition:top .2s;z-index:10000}.skip-link:focus{top:0}</style><a href="#main-content" class="skip-link">تخطى للمحتوى الرئيسي</a></head>
+<style>.skip-link{position:absolute;top:-40px;right:0;background:var(--ac,#00c896);color:#0d1a2e;padding:8px 16px;border-radius:0 0 8px 0;font-family:Cairo,sans-serif;font-size:.8rem;font-weight:700;text-decoration:none;transition:top .2s;z-index:10000}.skip-link:focus{top:0}
+/* ══ Admin Mobile ══ */
+@media(max-width:600px){
+  .tabs{display:flex;flex-wrap:wrap;gap:4px;padding:8px;}
+  .tab{font-size:.7rem;padding:6px 10px;}
+  .tr{flex-wrap:wrap;}
+  #statsRow{grid-template-columns:1fr 1fr;gap:8px;}
+  .u-name{font-size:.82rem;}
+}
+
+/* Modal mobile fix */
+.overlay-box, .modal-box, div[style*="max-width:500px"], div[style*="max-width:420px"]{
+  max-width:calc(100vw - 32px) !important;
+  width:100% !important;
+}
+</style><a href="#main-content" class="skip-link">تخطى للمحتوى الرئيسي</a></head>
 <body>
 
 <!-- ── LOGIN ── -->
@@ -334,7 +349,7 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--t);min-heig
 <script src="/tw_shared.js"></script>
 <script>
 let _adminToken = '';
-let _allUsers = [], _allVerify = [], _msgUserId = null;
+let _allUsers = [], _allVerify = [], _allJobs = [], _msgUserId = null;
 
 // ── Auth ──
 async function adminLogin(){
@@ -420,10 +435,10 @@ function showMain(){
 // ── Admin Stats ──
 function loadAdminStats(){
   Promise.all([
-    fetch('/auth/users',{headers:adminHeaders()}).then(function(r){return r.json();}),
-    fetch('/admin/jobs',{headers:adminHeaders()}).then(function(r){return r.json();}),
-    fetch('/admin/verify-requests',{headers:adminHeaders()}).then(function(r){return r.json();}),
-    fetch('/admin/kyc',{headers:adminHeaders()}).then(function(r){return r.json();})
+    fetch('/auth/users',{headers:adminHeaders()}).then(function(r){return r.ok?r.json():{users:[]};}).catch(function(){return {users:[]};}),
+    fetch('/jobs').then(function(r){return r.ok?r.json():{jobs:[]};}).catch(function(){return {jobs:[]};}),
+    fetch('/admin/verify-requests',{headers:adminHeaders()}).then(function(r){return r.ok?r.json():{requests:[]};}).catch(function(){return {requests:[]};}),
+    fetch('/admin/kyc',{headers:adminHeaders()}).then(function(r){return r.ok?r.json():{submissions:[]};}).catch(function(){return {submissions:[]};})
   ]).then(function(results){
     var users=results[0].users||[];
     var jobs=results[1].jobs||[];
@@ -897,6 +912,22 @@ async function loadErrors(){
           +'</div>';
       }).join('');
   }catch(e){console.error(e);}
+}
+
+// ── Message Templates ──
+var _msgTemplates = {
+  welcome: 'أهلاً وسهلاً بك في تواصلنا! نحن سعداء بانضمامك إلى منصتنا. لا تتردد في إكمال ملفك الشخصي للحصول على أفضل الفرص.',
+  verify: 'تمت مراجعة طلب توثيق هويتك. يرجى مراجعة الإشعارات لمعرفة النتيجة.',
+  warning: 'نود تنبيهك أن بعض محتوى حسابك يخالف سياسات المنصة. يرجى مراجعة شروط الاستخدام.',
+  interview: 'تهانينا! تم اختيارك للمرحلة التالية. سيتواصل معك صاحب العمل قريباً.'
+};
+function setMsgTemplate(type){
+  var input=document.getElementById('msgText')||document.getElementById('msgBody');
+  if(input&&_msgTemplates[type]){
+    input.value=_msgTemplates[type];
+    input.style.height='auto';
+    input.style.height=input.scrollHeight+'px';
+  }
 }
 </script>
 </body>

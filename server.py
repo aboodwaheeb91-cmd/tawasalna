@@ -660,16 +660,22 @@ def profile_score(user_id: int):
     except Exception as e: raise HTTPException(500, str(e))
 
 
+class ResetPasswordInput(BaseModel):
+    password: str
+
 @app.put("/admin/user/{user_id}/password")
-def admin_reset_password(user_id: int, data: dict, request: Request):
+def admin_reset_password(user_id: int, data: ResetPasswordInput, request: Request):
     check_admin(request)
     try:
+        if len(data.password) < 6:
+            raise HTTPException(400, "كلمة المرور قصيرة جداً")
         from auth import hash_password
-        new_hash = hash_password(data.get("password",""))
+        new_hash = hash_password(data.password)
         conn = get_conn()
         conn.run("UPDATE users SET password_hash=:h WHERE id=:id", h=new_hash, id=user_id)
         release_conn(conn)
         return {"status": "success"}
+    except HTTPException: raise
     except Exception as e:
         raise HTTPException(500, str(e))
 
