@@ -820,11 +820,7 @@ body.s5 .add-item-btn:hover { border-color:rgba(var(--ac-rgb),.35); color:var(--
   </div>
 
   <div class="cv-main" id="cvMain">
-<div class="sec-card" id="secScore" style="display:none;background:linear-gradient(135deg,rgba(0,200,150,.06),rgba(37,99,255,.06));border-color:rgba(0,200,150,.2)">
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-    <div style="font-weight:800;font-size:.88rem">اكتمال الملف الشخصي</div>
-    <div style="font-size:1.2rem;font-weight:900;color:var(--ac)" id="scoreNum">--</div>
-  </div>
+
   <div style="height:6px;border-radius:4px;background:rgba(255,255,255,.08);margin-bottom:10px">
     <div id="scoreBar" style="height:100%;border-radius:4px;background:linear-gradient(90deg,var(--ac),#2563ff);width:0%;transition:width 1s ease"></div>
   </div>
@@ -834,6 +830,10 @@ body.s5 .add-item-btn:hover { border-color:rgba(var(--ac-rgb),.35); color:var(--
 >
 
   <div class="sections-list" id="secList">
+
+
+
+
 
 
 
@@ -3211,6 +3211,16 @@ function loadApplications(){
 
 // ── Profile Score ──
 function loadProfileScore(){
+  if(!document.getElementById('secScore')){
+    var sl=document.getElementById('secList');
+    if(sl){
+      var d=document.createElement('div');
+      d.id='secScore'; d.className='sec-card';
+      d.style.cssText='display:none;background:linear-gradient(135deg,rgba(0,200,150,.06),rgba(37,99,255,.06));border-color:rgba(0,200,150,.2);margin-bottom:14px';
+      d.innerHTML='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px"><div style="font-weight:800;font-size:.88rem">اكتمال الملف الشخصي</div><div style="font-size:1.2rem;font-weight:900;color:var(--ac)" id="scoreNum">--</div></div><div style="height:6px;border-radius:4px;background:rgba(255,255,255,.08);margin-bottom:10px"><div id="scoreBar" style="height:100%;border-radius:4px;background:linear-gradient(90deg,var(--ac),#2563ff);width:0%;transition:width 1s ease"></div></div><div id="scoreTips" style="display:flex;flex-direction:column;gap:6px"></div>';
+      sl.insertBefore(d,sl.firstChild);
+    }
+  }
   var uid=_sessionUser&&_sessionUser.id;
   if(!uid) return;
   fetch('/profile/'+uid+'/score').then(function(r){return r.json();}).then(function(data){
@@ -5630,6 +5640,16 @@ function loadApplications(){
 
 // ── Profile Score ──
 function loadProfileScore(){
+  if(!document.getElementById('secScore')){
+    var sl=document.getElementById('secList');
+    if(sl){
+      var d=document.createElement('div');
+      d.id='secScore'; d.className='sec-card';
+      d.style.cssText='display:none;background:linear-gradient(135deg,rgba(0,200,150,.06),rgba(37,99,255,.06));border-color:rgba(0,200,150,.2);margin-bottom:14px';
+      d.innerHTML='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px"><div style="font-weight:800;font-size:.88rem">اكتمال الملف الشخصي</div><div style="font-size:1.2rem;font-weight:900;color:var(--ac)" id="scoreNum">--</div></div><div style="height:6px;border-radius:4px;background:rgba(255,255,255,.08);margin-bottom:10px"><div id="scoreBar" style="height:100%;border-radius:4px;background:linear-gradient(90deg,var(--ac),#2563ff);width:0%;transition:width 1s ease"></div></div><div id="scoreTips" style="display:flex;flex-direction:column;gap:6px"></div>';
+      sl.insertBefore(d,sl.firstChild);
+    }
+  }
   var uid=_sessionUser&&_sessionUser.id;
   if(!uid) return;
   fetch('/profile/'+uid+'/score').then(function(r){return r.json();}).then(function(data){
