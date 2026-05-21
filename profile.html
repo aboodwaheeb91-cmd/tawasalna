@@ -670,6 +670,7 @@ body.s5 .add-item-btn:hover { border-color:rgba(var(--ac-rgb),.35); color:var(--
 /* ══ Item Drag & Drop ══ */
 .item[draggable="true"]{cursor:grab;}
 .item[draggable="true"]:active{cursor:grabbing;}
+.item-drag-handle{touch-action:none;}
 .item.drag-over{border:2px dashed var(--ac,#00c896);opacity:.7;}
 .item-drag-handle{
   color:rgba(255,255,255,.25);font-size:.8rem;cursor:grab;
@@ -685,7 +686,7 @@ body.s5 .add-item-btn:hover { border-color:rgba(var(--ac-rgb),.35); color:var(--
 
 <!-- ── TOOLBAR: تواصلنا · تعديل · تخصيص · معاينة ── -->
 <div class="toolbar">
-  <div class="tb-logo">تواصلنا</div>
+  <div class="tb-logo" data-logo="1">تواصلنا</div>
   <button type="button" class="tb-btn tb-ghost" onclick="location.href='home.html'" title="الرئيسية" style="font-size:.82rem;padding:6px 10px">🏠</button>
   <div style="flex:1"></div>
   <button type="button" class="tb-btn tb-preview" id="previewBtn" onclick="togglePreview()" title="معاينة" style="font-size:1rem;padding:6px 10px;display:none">👁</button>
@@ -3439,17 +3440,21 @@ function initTouchDrag(){
     var touch = e.changedTouches[0];
     var el = document.elementFromPoint(touch.clientX, touch.clientY);
     var target = el && el.closest('.item[draggable]');
+    var reordered = false;
     if(target && target !== _dragItem){
       var list = target.closest('.items-list, [id$="-list"]');
       if(list){
         var items = Array.from(list.querySelectorAll('.item:not(.empty-hint)'));
         var dragIdx = items.indexOf(_dragItem);
         var targetIdx = items.indexOf(target);
-        if(dragIdx < targetIdx) list.insertBefore(_dragItem, target.nextSibling);
-        else list.insertBefore(_dragItem, target);
-        showToast('تم إعادة الترتيب ✅');
+        if(dragIdx !== -1 && targetIdx !== -1 && dragIdx !== targetIdx){
+          if(dragIdx < targetIdx) list.insertBefore(_dragItem, target.nextSibling);
+          else list.insertBefore(_dragItem, target);
+          reordered = true;
+        }
       }
     }
+    if(reordered) showToast('تم إعادة الترتيب ✅');
     _dragItem.style.opacity = '';
     document.querySelectorAll('.item.drag-over').forEach(function(i){i.classList.remove('drag-over');});
     _dragItem = null;
