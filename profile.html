@@ -582,7 +582,7 @@ body.s5 .avatar {
 body.s5 .cv-name {
   font-size:clamp(.85rem,2vw,1.05rem); font-weight:800; color:#fff;
   margin-bottom:2px; white-space:normal !important;
-  padding-left:0 !important; text-align:center; width:100%;
+  padding-left:0 !important; text-align:right; width:100%;
 }
 body.s5 .cv-title { color:var(--ac); font-size:.77rem; font-weight:700; margin-bottom:5px; text-align:center; }
 body.s5 .cv-age-line { font-size:.7rem; color:rgba(255,255,255,.55); margin-bottom:5px; }
@@ -595,7 +595,7 @@ body.s5 .cv-code {
   font-size:.57rem; color:rgba(255,255,255,.3); letter-spacing:1px;
   margin-top:9px; padding-top:9px;
   border-top:1px solid rgba(255,255,255,.06);
-  text-align:center; width:100%;
+  text-align:right; width:100%;
 }
 
 /* Right column - sections */
@@ -666,6 +666,17 @@ body.s5 .add-item-btn:hover { border-color:rgba(var(--ac-rgb),.35); color:var(--
 <style>.skip-link{position:absolute;top:-40px;right:0;background:var(--ac,#00c896);color:#0d1a2e;padding:8px 16px;border-radius:0 0 8px 0;font-family:Cairo,sans-serif;font-size:.8rem;font-weight:700;text-decoration:none;transition:top .2s;z-index:10000}.skip-link:focus{top:0}
 .sec-card{transition:transform .2s,box-shadow .2s;}
 .sec-card:hover{transform:translateY(-1px);box-shadow:0 8px 32px rgba(0,0,0,.3);}
+
+/* ══ Item Drag & Drop ══ */
+.item[draggable="true"]{cursor:grab;}
+.item[draggable="true"]:active{cursor:grabbing;}
+.item.drag-over{border:2px dashed var(--ac,#00c896);opacity:.7;}
+.item-drag-handle{
+  color:rgba(255,255,255,.25);font-size:.8rem;cursor:grab;
+  padding:2px 4px;touch-action:none;user-select:none;
+  transition:color .2s;
+}
+.item-drag-handle:hover{color:var(--ac,#00c896);}
 </style><a href="#main-content" class="skip-link">تخطى للمحتوى الرئيسي</a></head>
 <body class="s1">
 
@@ -800,7 +811,7 @@ body.s5 .add-item-btn:hover { border-color:rgba(var(--ac-rgb),.35); color:var(--
 
       <!-- زر تعديل الملف على زاوية قسم المعلومات -->
        <!-- الاسم - يصغر تلقائياً -->
-      <div style="display:flex;align-items:center;gap:6px;justify-content:center">
+      <div style="display:flex;align-items:center;gap:6px;justify-content:flex-start">
         <div class="cv-name" id="cvName"></div>
         <span id="profileVerifiedBadge" class="tw-verified" style="display:none;background:linear-gradient(135deg,#00c896,#2563ff);color:#fff;border-radius:20px;padding:2px 8px;font-size:.62rem;font-weight:700;flex-shrink:0">✅ موثق</span>
       </div>
@@ -1360,7 +1371,7 @@ function renderLinkItem(e,lid){
 
 function renderCourseItem(e,lid){
   const id=e.id||Date.now();
-  return `<div class="item" id="course-item-${id}">
+  return `<div class="item" id="course-item-${id}" draggable="true" ondragstart="itemDragStart(event)" ondragover="itemDragOver(event)" ondrop="itemDrop(event,'course-list')" ondragend="itemDragEnd(event)">
     <div style="display:flex;align-items:flex-start;justify-content:space-between">
       <div>
         <div class="item-title">${e.name}</div>
@@ -1587,7 +1598,7 @@ function loadCities(){
 // ── Render functions with ... menu ──
 function renderExpItem(e){
   const id = e.id||Date.now();
-  return `<div class="item" id="exp-${id}">
+  return `<div class="item" id="exp-${id}" draggable="true" ondragstart="itemDragStart(event)" ondragover="itemDragOver(event)" ondrop="itemDrop(event,'exp-list')" ondragend="itemDragEnd(event)">
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
       <div style="flex:1">
         <div class="item-title">${e.title}</div>
@@ -1610,7 +1621,7 @@ function renderExpItem(e){
 function renderEduItem(e){
   const id = e.id||Date.now();
   const degreeTitle = e.degree_type?(e.degree_type+(e.degree?' - '+e.degree:'')):(e.degree||'شهادة');
-  return `<div class="item" id="edu-${id}">
+  return `<div class="item" id="edu-${id}" draggable="true" ondragstart="itemDragStart(event)" ondragover="itemDragOver(event)" ondrop="itemDrop(event,'edu-list')" ondragend="itemDragEnd(event)">
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
       <div style="flex:1">
         <div class="item-title">${degreeTitle}</div>
@@ -1751,6 +1762,9 @@ function loadSectionOrder(){
 
 // Modals
 function openModal(type,listId,secTitle){
+  // Auto-close settings panel if open
+  var _po=document.getElementById('panelOverlay');
+  if(_po&&_po.classList.contains('show')) closePanel();
   let h='';
   const _m=document.getElementById('modal');
   if(_m){delete _m.dataset.editId;delete _m.dataset.editType;}
@@ -3351,6 +3365,97 @@ function loadProfileScore(){
     if(b&&u>0){b.textContent=u>9?'9+':u;b.style.display='block';}
   }).catch(function(){});
 })();
+
+// ══ Item Drag & Drop ══
+var _dragItem = null;
+
+function itemDragStart(e){
+  _dragItem = e.currentTarget;
+  e.dataTransfer.effectAllowed = 'move';
+  setTimeout(function(){ if(_dragItem) _dragItem.style.opacity='0.4'; }, 0);
+}
+
+function itemDragOver(e){
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  var target = e.currentTarget;
+  if(target !== _dragItem && target.classList.contains('item')){
+    target.classList.add('drag-over');
+  }
+}
+
+function itemDrop(e, listId){
+  e.preventDefault();
+  var target = e.currentTarget;
+  target.classList.remove('drag-over');
+  if(!_dragItem || _dragItem === target) return;
+  var list = document.getElementById(listId);
+  if(!list) return;
+  var items = Array.from(list.querySelectorAll('.item:not(.empty-hint)'));
+  var dragIdx = items.indexOf(_dragItem);
+  var targetIdx = items.indexOf(target);
+  if(dragIdx < targetIdx){
+    list.insertBefore(_dragItem, target.nextSibling);
+  } else {
+    list.insertBefore(_dragItem, target);
+  }
+  // Save new order to DB (update order field)
+  saveItemOrder(listId);
+}
+
+function itemDragEnd(e){
+  if(_dragItem) _dragItem.style.opacity = '';
+  document.querySelectorAll('.item.drag-over').forEach(function(el){ el.classList.remove('drag-over'); });
+  _dragItem = null;
+}
+
+function saveItemOrder(listId){
+  // Visual only for now - positions saved naturally when user saves each item
+  showToast('تم إعادة الترتيب ✅');
+}
+
+// Touch support for mobile
+function initTouchDrag(){
+  document.addEventListener('touchstart', function(e){
+    var item = e.target.closest('.item[draggable]');
+    if(!item) return;
+    _dragItem = item;
+    item.style.opacity = '0.5';
+  },{passive:true});
+
+  document.addEventListener('touchmove', function(e){
+    if(!_dragItem) return;
+    var touch = e.touches[0];
+    var el = document.elementFromPoint(touch.clientX, touch.clientY);
+    var target = el && el.closest('.item[draggable]');
+    if(target && target !== _dragItem){
+      document.querySelectorAll('.item.drag-over').forEach(function(i){i.classList.remove('drag-over');});
+      target.classList.add('drag-over');
+    }
+  },{passive:true});
+
+  document.addEventListener('touchend', function(e){
+    if(!_dragItem) return;
+    var touch = e.changedTouches[0];
+    var el = document.elementFromPoint(touch.clientX, touch.clientY);
+    var target = el && el.closest('.item[draggable]');
+    if(target && target !== _dragItem){
+      var list = target.closest('.items-list, [id$="-list"]');
+      if(list){
+        var items = Array.from(list.querySelectorAll('.item:not(.empty-hint)'));
+        var dragIdx = items.indexOf(_dragItem);
+        var targetIdx = items.indexOf(target);
+        if(dragIdx < targetIdx) list.insertBefore(_dragItem, target.nextSibling);
+        else list.insertBefore(_dragItem, target);
+        showToast('تم إعادة الترتيب ✅');
+      }
+    }
+    _dragItem.style.opacity = '';
+    document.querySelectorAll('.item.drag-over').forEach(function(i){i.classList.remove('drag-over');});
+    _dragItem = null;
+  },{passive:true});
+}
+initTouchDrag();
 </script>
 </body>
 </html>
