@@ -1,7 +1,6 @@
 """
 تواصلنا - Arabic Employment Platform
 """
-
 import os
 from fastapi import FastAPI, HTTPException, Request, Response, Depends
 from fastapi.middleware.cors import CORSMiddleware
