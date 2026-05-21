@@ -122,3 +122,40 @@ function safeText(el, text){
   if(!el) return;
   el.textContent = text || '';
 }
+
+// ══ Logo from Admin ══
+function applyLogosToPage(){
+  var l1=localStorage.getItem('tw_logo1');
+  var l2=localStorage.getItem('tw_logo2');
+  if(!l1&&!l2) return;
+  
+  // Get page-specific size
+  var sizes = JSON.parse(localStorage.getItem('tw_logo_sizes')||'{}');
+  var path = window.location.pathname.replace('/','').replace('.html','') || 'home';
+  // Match page key
+  var pageKey = 'home';
+  if(path.includes('profile')) pageKey='profile';
+  else if(path.includes('landing')||path==='') pageKey='landing';
+  else if(path.includes('job')) pageKey='jobs';
+  else if(path.includes('settings')) pageKey='settings';
+  else if(path.includes('message')) pageKey='messages';
+  else if(path.includes('notif')) pageKey='notifications';
+  else if(path.includes('admin')) pageKey='admin';
+  
+  var size = (sizes[pageKey]||44)+'px';
+  
+  document.querySelectorAll('.nav-logo,.login-logo,.tb-logo,.nav-brand').forEach(function(el){
+    var html='';
+    if(l1) html+='<img src="'+l1+'" style="height:'+size+';max-height:'+size+';object-fit:contain;vertical-align:middle">';
+    if(l2) html+='<img src="'+l2+'" style="height:'+size+';max-height:'+size+';object-fit:contain;margin-right:6px;vertical-align:middle">';
+    if(html) el.innerHTML=html;
+    el.style.cssText=(el.style.cssText||'')+';display:flex;align-items:center;gap:6px;height:100%;padding:2px 0';
+  });
+}
+
+// Apply on DOM ready
+if(document.readyState==='loading'){
+  document.addEventListener('DOMContentLoaded', applyLogosToPage);
+} else {
+  applyLogosToPage();
+}

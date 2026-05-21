@@ -259,6 +259,70 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--t);min-heig
           </div>
         </div>
       </div>
+
+      <!-- Logo Size Per Page -->
+      <div style="margin-top:14px;border-top:1px solid rgba(255,255,255,.06);padding-top:12px">
+        <div style="font-size:.75rem;font-weight:700;color:rgba(255,255,255,.6);margin-bottom:10px">📐 حجم الشعار لكل صفحة</div>
+        <div style="display:flex;flex-direction:column;gap:10px">
+
+          <div style="display:flex;align-items:center;gap:10px">
+            <div style="font-size:.72rem;color:rgba(255,255,255,.5);min-width:80px">البروفايل</div>
+            <input type="range" id="logoSize_profile" min="24" max="60" value="44"
+              style="flex:1;accent-color:var(--ac)"
+              oninput="updateLogoSize('profile',this.value)">
+            <div style="font-size:.7rem;color:var(--ac);min-width:32px" id="logoSizeVal_profile">44px</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <div style="font-size:.72rem;color:rgba(255,255,255,.5);min-width:80px">الرئيسية</div>
+            <input type="range" id="logoSize_home" min="24" max="60" value="44"
+              style="flex:1;accent-color:var(--ac)"
+              oninput="updateLogoSize('home',this.value)">
+            <div style="font-size:.7rem;color:var(--ac);min-width:32px" id="logoSizeVal_home">44px</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <div style="font-size:.72rem;color:rgba(255,255,255,.5);min-width:80px">الهبوط</div>
+            <input type="range" id="logoSize_landing" min="24" max="60" value="44"
+              style="flex:1;accent-color:var(--ac)"
+              oninput="updateLogoSize('landing',this.value)">
+            <div style="font-size:.7rem;color:var(--ac);min-width:32px" id="logoSizeVal_landing">44px</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <div style="font-size:.72rem;color:rgba(255,255,255,.5);min-width:80px">الوظائف</div>
+            <input type="range" id="logoSize_jobs" min="24" max="60" value="44"
+              style="flex:1;accent-color:var(--ac)"
+              oninput="updateLogoSize('jobs',this.value)">
+            <div style="font-size:.7rem;color:var(--ac);min-width:32px" id="logoSizeVal_jobs">44px</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <div style="font-size:.72rem;color:rgba(255,255,255,.5);min-width:80px">الإعدادات</div>
+            <input type="range" id="logoSize_settings" min="24" max="60" value="44"
+              style="flex:1;accent-color:var(--ac)"
+              oninput="updateLogoSize('settings',this.value)">
+            <div style="font-size:.7rem;color:var(--ac);min-width:32px" id="logoSizeVal_settings">44px</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <div style="font-size:.72rem;color:rgba(255,255,255,.5);min-width:80px">الرسائل</div>
+            <input type="range" id="logoSize_messages" min="24" max="60" value="44"
+              style="flex:1;accent-color:var(--ac)"
+              oninput="updateLogoSize('messages',this.value)">
+            <div style="font-size:.7rem;color:var(--ac);min-width:32px" id="logoSizeVal_messages">44px</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <div style="font-size:.72rem;color:rgba(255,255,255,.5);min-width:80px">الإشعارات</div>
+            <input type="range" id="logoSize_notifications" min="24" max="60" value="44"
+              style="flex:1;accent-color:var(--ac)"
+              oninput="updateLogoSize('notifications',this.value)">
+            <div style="font-size:.7rem;color:var(--ac);min-width:32px" id="logoSizeVal_notifications">44px</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <div style="font-size:.72rem;color:rgba(255,255,255,.5);min-width:80px">الإدارة</div>
+            <input type="range" id="logoSize_admin" min="24" max="60" value="44"
+              style="flex:1;accent-color:var(--ac)"
+              oninput="updateLogoSize('admin',this.value)">
+            <div style="font-size:.7rem;color:var(--ac);min-width:32px" id="logoSizeVal_admin">44px</div>
+          </div>
+        </div>
+      </div>
       <button id="logoSaveBtn" onclick="saveBothLogos(this)" style="width:100%;margin-top:12px;padding:10px;border-radius:10px;border:none;background:linear-gradient(135deg,var(--ac),#2563ff);color:#fff;font-family:Cairo,sans-serif;font-size:.78rem;font-weight:700;cursor:pointer">💾 حفظ الشعارين</button>
       <div style="font-size:.65rem;color:rgba(255,255,255,.3);margin-top:6px;text-align:center">PNG, JPG, SVG, WebP</div>
     </div>
@@ -1046,6 +1110,26 @@ function applyLogosToPage(){
   var l2=localStorage.getItem('tw_logo2');
   if(p1&&l1) p1.innerHTML='<img src="'+l1+'" style="height:42px;object-fit:contain">';
   if(p2&&l2) p2.innerHTML='<img src="'+l2+'" style="height:42px;object-fit:contain">';
+})();
+
+// ── Logo Size Per Page ──
+var _logoSizes = JSON.parse(localStorage.getItem('tw_logo_sizes')||'{}');
+
+function updateLogoSize(page, val){
+  document.getElementById('logoSizeVal_'+page).textContent = val+'px';
+  _logoSizes[page] = val;
+  localStorage.setItem('tw_logo_sizes', JSON.stringify(_logoSizes));
+}
+
+// Load saved sizes into sliders
+(function(){
+  var saved = JSON.parse(localStorage.getItem('tw_logo_sizes')||'{}');
+  Object.keys(saved).forEach(function(page){
+    var slider = document.getElementById('logoSize_'+page);
+    var label = document.getElementById('logoSizeVal_'+page);
+    if(slider){ slider.value = saved[page]; }
+    if(label){ label.textContent = saved[page]+'px'; }
+  });
 })();
 </script>
 </body>
