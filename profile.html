@@ -3415,10 +3415,13 @@ function saveItemOrder(listId){
   showToast('تم إعادة الترتيب ✅');
 }
 
-// Touch support for mobile
+// Touch support for mobile - ONLY via drag handle
 function initTouchDrag(){
   document.addEventListener('touchstart', function(e){
-    var item = e.target.closest('.item[draggable]');
+    // Only activate if touching the drag handle ⠿
+    var handle = e.target.closest('.item-drag-handle');
+    if(!handle) return;
+    var item = handle.closest('.item[draggable]');
     if(!item) return;
     _dragItem = item;
     item.style.opacity = '0.5';
