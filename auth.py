@@ -1125,3 +1125,17 @@ def set_site_setting(key: str, value: str):
         print(f"[Settings] Error: {e}")
         return False
 
+def ensure_site_settings_table():
+    try:
+        conn = get_conn()
+        conn.run('''
+            CREATE TABLE IF NOT EXISTS site_settings (
+                key TEXT PRIMARY KEY,
+                value TEXT,
+                updated_at TIMESTAMPTZ DEFAULT NOW()
+            )
+        ''')
+        release_conn(conn)
+    except Exception as e:
+        print(f"[DB] site_settings: {e}")
+
