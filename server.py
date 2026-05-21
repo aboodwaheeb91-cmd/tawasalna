@@ -1,6 +1,7 @@
 """
 تواصلنا - Arabic Employment Platform
 """
+
 import os
 from fastapi import FastAPI, HTTPException, Request, Response, Depends
 from fastapi.middleware.cors import CORSMiddleware
@@ -59,7 +60,7 @@ from auth import (
     add_job, get_jobs, get_job, apply_job,
     start_kyc, send_email_code, verify_email_code,
     send_phone_code, verify_phone_code, upload_kyc_docs,
-    get_kyc_status, admin_approve_kyc, admin_reject_kyc, get_all_kyc_submissions,
+    get_kyc_status, admin_approve_kyc, admin_reject_kyc, get_all_kyc_submissions, ensure_site_settings_table,
     send_message, get_conversations, get_messages, get_unread_count,
     create_notification, get_notifications, mark_notifications_read, get_unread_notifications,
     get_job_applicants, get_user_applications,
@@ -681,39 +682,85 @@ def admin_reset_password(user_id: int, data: ResetPasswordInput, request: Reques
 
 @app.post("/admin/logo")
 async def upload_logo(data: ImageUploadInput, request: Request):
-    """Upload site logo"""
+    """Upload site logo - filename: logo1 or logo2"""
     check_admin(request)
     try:
-        # Store logo URL in a simple file
-        logo_url = data.data_url  # Use data URL directly for simplicity
-        # Try Supabase Storage
-        import httpx, base64 as _b64, mimetypes
-        supabase_url = os.environ.get("SUPABASE_URL")
-        supabase_key = os.environ.get("SUPABASE_SERVICE_KEY")
-        if supabase_url and supabase_key and ',' in data.data_url:
-            header, b64data = data.data_url.split(',', 1)
-            mime = header.split(':')[1].split(';')[0]
-            ext = mimetypes.guess_extension(mime) or '.png'
-            file_bytes = _b64.b64decode(b64data)
-            async with httpx.AsyncClient() as client:
-                r = await client.post(
-                    f"{supabase_url}/storage/v1/object/site/logo{ext}",
-                    content=file_bytes,
-                    headers={"Authorization": f"Bearer {supabase_key}",
-                            "Content-Type": mime, "x-upsert": "true"}
-                )
-                if r.status_code in (200,201):
-                    logo_url = f"{supabase_url}/storage/v1/object/public/site/logo{ext}"
-        # Save to a simple cache
-        _html_cache['site_logo'] = logo_url
+        filename = data.filename or "logo1"
+        logo_data = data.data_url
+        # Try Supabase Storage first
+        import httpx, base64 as _b64
+        supabase_url_env = os.environ.get("SUPABASE_URL","")
+        supabase_key = os.environ.get("SUPABASE_SERVICE_KEY","")
+        logo_url = logo_data  # fallback = data URL
+        if supabase_url_env and supabase_key and ',' in logo_data:
+            try:
+                header, b64data = logo_data.split(',', 1)
+                mime = header.split(':')[1].split(';')[0]
+                ext = ".png" if "png" in mime else ".jpg" if "jpg" in mime else ".svg" if "svg" in mime else ".png"
+                fname = filename + ext
+                file_bytes = _b64.b64decode(b64data)
+                async with httpx.AsyncClient(timeout=15) as client:
+                    r = await client.post(
+                        f"{supabase_url_env}/storage/v1/object/site/{fname}",
+                        content=file_bytes,
+                        headers={"Authorization": f"Bearer {supabase_key}",
+                                "Content-Type": mime, "x-upsert": "true"}
+                    )
+                    if r.status_code in (200, 201):
+                        logo_url = f"{supabase_url_env}/storage/v1/object/public/site/{fname}"
+                        print(f"[Logo] Saved to Supabase: {logo_url}")
+                    else:
+                        print(f"[Logo] Supabase failed {r.status_code}, using data URL")
+            except Exception as e:
+                print(f"[Logo] Supabase error: {e}, using data URL")
+        # Save to DB (always - as fallback)
+        set_site_setting(f'logo_{filename}', logo_url)
+        # Also cache in memory
+        _html_cache[f'site_{filename}'] = logo_url
         return {"status": "success", "url": logo_url}
     except Exception as e:
         raise HTTPException(500, str(e))
 
 @app.get("/admin/logo")
-def get_logo(request: Request):
-    logo = _html_cache.get('site_logo', '')
-    return {"url": logo}
+def get_logos():
+    """Get both logos and sizes - no auth needed (public)"""
+    # Check memory cache first
+    l1 = _html_cache.get('site_logo1','')
+    l2 = _html_cache.get('site_logo2','')
+    sz = _html_cache.get('site_logo_sizes',{})
+    # Fall back to DB if cache empty (after restart)
+    if not l1:
+        l1 = get_site_setting('logo_logo1')
+        if l1: _html_cache['site_logo1'] = l1
+    if not l2:
+        l2 = get_site_setting('logo_logo2')
+        if l2: _html_cache['site_logo2'] = l2
+    if not sz:
+        import json
+        sz_str = get_site_setting('logo_sizes')
+        if sz_str:
+            try: sz = json.loads(sz_str)
+            except: sz = {}
+        _html_cache['site_logo_sizes'] = sz
+    sl_str = get_site_setting('logo_select')
+    sl = {}
+    if sl_str:
+        try: sl = json.loads(sl_str)
+        except: sl = {}
+    return {"logo1": l1, "logo2": l2, "sizes": sz, "select": sl}
+
+@app.post("/admin/logo-sizes")
+async def save_logo_sizes(data: dict, request: Request):
+    """Save per-page logo sizes and selection"""
+    check_admin(request)
+    import json
+    sizes = data.get('sizes', {})
+    select = data.get('select', {})
+    _html_cache['site_logo_sizes'] = sizes
+    _html_cache['site_logo_select'] = select
+    set_site_setting('logo_sizes', json.dumps(sizes))
+    set_site_setting('logo_select', json.dumps(select))
+    return {"status": "success"}
 
 @app.get("/health")
 def health():

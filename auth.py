@@ -1102,3 +1102,26 @@ def get_unread_notifications(user_id: int) -> int:
         return rows[0][0] if rows else 0
     finally:
         release_conn(conn)
+
+# ── Site Settings (logos, sizes) ──
+def get_site_setting(key: str) -> str:
+    try:
+        conn = get_conn()
+        rows = conn.run("SELECT value FROM site_settings WHERE key=:k LIMIT 1", k=key)
+        release_conn(conn)
+        return rows[0][0] if rows else ''
+    except: return ''
+
+def set_site_setting(key: str, value: str):
+    try:
+        conn = get_conn()
+        conn.run("""
+            INSERT INTO site_settings(key,value) VALUES(:k,:v)
+            ON CONFLICT(key) DO UPDATE SET value=:v, updated_at=NOW()
+        """, k=key, v=value)
+        release_conn(conn)
+        return True
+    except Exception as e:
+        print(f"[Settings] Error: {e}")
+        return False
+
