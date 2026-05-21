@@ -675,10 +675,18 @@ body.s5 .add-item-btn:hover { border-color:rgba(var(--ac-rgb),.35); color:var(--
 <!-- ── TOOLBAR: تواصلنا · تعديل · تخصيص · معاينة ── -->
 <div class="toolbar">
   <div class="tb-logo">تواصلنا</div>
-  <button type="button" class="tb-btn tb-ghost" onclick="location.href='home.html'" title="البحث عن عمل أو دورة" style="font-size:.82rem;padding:6px 10px">🔍</button>
+  <button type="button" class="tb-btn tb-ghost" onclick="location.href='home.html'" title="الرئيسية" style="font-size:.82rem;padding:6px 10px">🏠</button>
   <div style="flex:1"></div>
-  <button type="button" class="tb-btn tb-preview" id="previewBtn" onclick="togglePreview()" title="معاينة" style="font-size:.82rem;padding:6px 10px;display:none">👁 معاينة</button>
-  <button type="button" class="tb-btn tb-ghost" onclick="openPanel()" title="الإعدادات" style="font-size:.82rem;padding:6px 10px">⚙️ إعدادات</button>
+  <button type="button" class="tb-btn tb-preview" id="previewBtn" onclick="togglePreview()" title="معاينة" style="font-size:1rem;padding:6px 10px;display:none">👁</button>
+  <div style="position:relative;display:inline-flex">
+    <button type="button" class="tb-btn tb-ghost" onclick="location.href='notifications.html'" title="الإشعارات" style="font-size:1rem;padding:6px 10px">🔔</button>
+    <span id="tbNotifBadge" style="display:none;position:absolute;top:4px;right:4px;background:#f87171;color:#fff;border-radius:50%;width:14px;height:14px;font-size:.5rem;font-weight:700;line-height:14px;text-align:center"></span>
+  </div>
+  <div style="position:relative;display:inline-flex">
+    <button type="button" class="tb-btn tb-ghost" onclick="location.href='messages.html'" title="الرسائل" style="font-size:1rem;padding:6px 10px">💬</button>
+    <span id="tbMsgBadge" style="display:none;position:absolute;top:4px;right:4px;background:#2563ff;color:#fff;border-radius:50%;width:14px;height:14px;font-size:.5rem;font-weight:700;line-height:14px;text-align:center"></span>
+  </div>
+  <button type="button" class="tb-btn tb-ghost" onclick="openPanel()" title="الإعدادات" style="font-size:1rem;padding:6px 10px">⚙️</button>
 </div>
 
 <!-- ── SIDE PANEL ── -->
@@ -1063,6 +1071,12 @@ const SECTION_MODAL={
 
 function addSection(id,icon,title,el,skipOrderSave=false){
   if(document.getElementById('sec-'+id)) return;
+  // Auto-close panel and scroll to new section
+  setTimeout(function(){
+    closePanel();
+    var newSec=document.getElementById('sec-'+id);
+    if(newSec) newSec.scrollIntoView({behavior:'smooth',block:'start'});
+  },300);
   const lid=id+'-list';
   const modalType=SECTION_MODAL[id]||'generic';
   const btnOnclick=modalType==='generic'
@@ -3120,32 +3134,106 @@ function drawSnapQR(canvasId, text, size){
 }
 
 function openQROverlay(){
-  const url = 'https://tawasolna.com/profile?id=' + (_qrUser&&_qrUser.id?_qrUser.id:'0');
+  const uid = _qrUser&&_qrUser.id?_qrUser.id:'0';
+  const url = 'https://tawasolna.com/profile?id=' + uid;
   const name = (document.getElementById('cvName')||{}).textContent || 'تواصلنا';
 
   const ov = document.createElement('div');
-  ov.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(7,11,24,.92);backdrop-filter:blur(20px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;cursor:pointer';
-  ov.onclick = ()=>ov.remove();
+  ov.id = 'qrOverlayDiv';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(7,11,24,.96);backdrop-filter:blur(20px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;';
+
+  // Push state for back button fix
+  history.pushState({qrOpen:true},'QR','#qr');
+  
+  // Close on back
+  var _qrPopState = function(e){
+    if(!e.state||!e.state.qrOpen) closeQROverlay();
+    window.removeEventListener('popstate',_qrPopState);
+  };
+  window.addEventListener('popstate',_qrPopState);
+  
+  function closeQROverlay(){
+    ov.remove();
+    if(location.hash==='#qr') history.back();
+  }
 
   const cvs = document.createElement('canvas');
   cvs.id = 'qrBig';
-  cvs.style.cssText = 'border-radius:28px;box-shadow:0 20px 60px rgba(0,200,150,.35)';
+  cvs.style.cssText = 'border-radius:28px;background:#fff;padding:16px;';
 
   const nameEl = document.createElement('div');
-  nameEl.style.cssText = "font-family:'Cairo',sans-serif;font-size:.95rem;font-weight:800;color:#fff";
+  nameEl.style.cssText = 'font-size:1rem;font-weight:800;color:#fff;';
   nameEl.textContent = name;
 
-  const hint = document.createElement('div');
-  hint.style.cssText = "font-family:'Cairo',sans-serif;font-size:.68rem;color:rgba(255,255,255,.35)";
-  hint.textContent = 'اضغط للإغلاق';
+  // Share buttons row
+  const shareRow = document.createElement('div');
+  shareRow.style.cssText = 'display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-top:4px;';
+  
+  var shareMsg=encodeURIComponent(name+' - '+url);
+  var shareApps = [
+    {name:'واتساب',color:'#25D366',link:'https://wa.me/?text='+shareMsg},
+    {name:'تيليجرام',color:'#0088cc',link:'https://t.me/share/url?url='+encodeURIComponent(url)+'&text='+encodeURIComponent(name)},
+    {name:'فيسبوك',color:'#1877f2',link:'https://www.facebook.com/sharer/sharer.php?u='+encodeURIComponent(url)},
+  ];
+  shareApps.forEach(function(app){
+    var btn=document.createElement('a');
+    btn.href=app.link; btn.target='_blank';
+    btn.style.cssText='padding:8px 16px;border-radius:12px;background:'+app.color+';color:#fff;font-family:Cairo,sans-serif;font-size:.75rem;font-weight:700;text-decoration:none;';
+    btn.textContent=app.name;
+    shareRow.appendChild(btn);
+  });
+
+  // Share as image button
+  var shareImgBtn=document.createElement('button');
+  shareImgBtn.style.cssText='padding:8px 16px;border-radius:12px;background:rgba(255,255,255,.1);color:#fff;font-family:Cairo,sans-serif;font-size:.75rem;font-weight:700;border:1px solid rgba(255,255,255,.2);cursor:pointer;';
+  shareImgBtn.textContent='📤 مشاركة كصورة';
+  shareImgBtn.onclick=function(e){
+    e.stopPropagation();
+    var shareCanvas=document.createElement('canvas');
+    shareCanvas.width=400; shareCanvas.height=500;
+    var ctx=shareCanvas.getContext('2d');
+    ctx.fillStyle='#070b18';
+    ctx.fillRect(0,0,400,500);
+    ctx.fillStyle='#00c896';
+    ctx.font='bold 24px Cairo,sans-serif';
+    ctx.textAlign='center';
+    ctx.fillText('تواصلنا',200,50);
+    ctx.fillStyle='#fff';
+    ctx.font='18px Cairo,sans-serif';
+    ctx.fillText(name,200,90);
+    ctx.font='14px Cairo,sans-serif';
+    ctx.fillStyle='rgba(255,255,255,.5)';
+    ctx.fillText('امسح الكود وشاهد السيرة الذاتية',200,460);
+    ctx.fillText(url,200,490);
+    // Draw QR
+    var qrImg=cvs;
+    ctx.drawImage(qrImg,100,110,200,200);
+    shareCanvas.toBlob(function(blob){
+      var shareUrl=URL.createObjectURL(blob);
+      if(navigator.share){
+        navigator.share({title:'سيرتي الذاتية - '+name,url:url}).catch(function(){});
+      } else {
+        var a=document.createElement('a');
+        a.href=shareUrl; a.download='my-cv-qr.png'; a.click();
+      }
+    });
+  };
+
+  var closeBtn=document.createElement('button');
+  closeBtn.style.cssText='padding:8px 20px;border-radius:12px;border:1px solid rgba(255,255,255,.15);background:transparent;color:rgba(255,255,255,.5);font-family:Cairo,sans-serif;font-size:.8rem;cursor:pointer;margin-top:4px;';
+  closeBtn.textContent='✕ إغلاق';
+  closeBtn.onclick=function(e){e.stopPropagation();closeQROverlay();};
 
   ov.appendChild(cvs);
   ov.appendChild(nameEl);
-  ov.appendChild(hint);
+  ov.appendChild(shareRow);
+  ov.appendChild(shareImgBtn);
+  ov.appendChild(closeBtn);
   document.body.appendChild(ov);
 
   drawSnapQR('qrBig', url, 240);
 }
+
 
 const _qrUrl = 'https://tawasolna.com/profile?id=' + (_qrUser&&_qrUser.id?_qrUser.id:'0');
 
@@ -3248,6 +3336,21 @@ function loadProfileScore(){
     }
   }).catch(function(){});
 }
+
+// ── Toolbar Badges ──
+(function(){
+  if(!_sessionUser||!_sessionUser.id) return;
+  fetch('/notifications/'+_sessionUser.id).then(function(r){return r.json();}).then(function(d){
+    var u=d.unread||0;
+    var b=document.getElementById('tbNotifBadge');
+    if(b&&u>0){b.textContent=u>9?'9+':u;b.style.display='block';}
+  }).catch(function(){});
+  fetch('/messages/unread/'+_sessionUser.id).then(function(r){return r.json();}).then(function(d){
+    var u=d.count||0;
+    var b=document.getElementById('tbMsgBadge');
+    if(b&&u>0){b.textContent=u>9?'9+':u;b.style.display='block';}
+  }).catch(function(){});
+})();
 </script>
 </body>
 </html>
