@@ -41,10 +41,19 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--t);min-heig
 .content{padding:70px 14px 40px;max-width:1100px;margin:0 auto;width:100%;box-sizing:border-box;}
 
 /* ── Tabs ── */
-.tabs{display:flex;gap:5px;margin-bottom:20px;overflow-x:auto;padding-bottom:2px;}
-.tab{padding:7px 16px;border-radius:20px;border:1px solid var(--bdr);background:transparent;color:var(--t2);font-family:'Cairo',sans-serif;font-size:.76rem;font-weight:700;cursor:pointer;transition:all .2s;white-space:nowrap;}
-.tab:hover{border-color:rgba(255,255,255,.2);color:var(--t);}
-.tab.on{background:linear-gradient(135deg,var(--ac),var(--ac2));color:#fff;border-color:transparent;}
+
+/* ══ Card Tabs ══ */
+.tabs{display:grid;grid-template-columns:repeat(auto-fit,minmax(80px,1fr));gap:8px;margin-bottom:16px;}
+.tab{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
+  padding:12px 8px;border-radius:14px;border:1px solid rgba(255,255,255,.08);
+  background:rgba(255,255,255,.04);color:rgba(255,255,255,.6);
+  font-family:Cairo,sans-serif;font-size:.7rem;font-weight:600;cursor:pointer;
+  transition:all .2s;text-align:center;min-height:60px;position:relative;}
+.tab:hover{border-color:rgba(0,200,150,.3);color:rgba(255,255,255,.9);background:rgba(0,200,150,.06);}
+.tab.on{background:rgba(0,200,150,.12);border-color:rgba(0,200,150,.4);color:var(--ac);font-weight:700;}
+.tab .tab-ico{font-size:1.3rem;display:block;}
+.tab .tab-lbl{display:block;font-size:.65rem;}
+
 
 /* ── Stats ── */
 .stats{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:20px;}
@@ -177,6 +186,12 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--t);min-heig
   max-width:calc(100vw - 32px) !important;
   width:100% !important;
 }
+
+/* ── Password Eye Icon ── */
+.pass-wrap{position:relative;display:flex;align-items:center;}
+.pass-wrap input{width:100%;padding-left:36px!important;}
+.pass-eye{position:absolute;left:10px;cursor:pointer;font-size:1rem;opacity:.5;user-select:none;transition:opacity .2s;}
+.pass-eye:hover{opacity:.9;}
 </style><a href="#main-content" class="skip-link">تخطى للمحتوى الرئيسي</a></head>
 <body>
 
@@ -215,7 +230,21 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--t);min-heig
     <!-- Tabs -->
 
   <!-- ══ Stats Dashboard ══ -->
-  <div id="statsRow" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px">
+  
+    <!-- Logo Upload Section -->
+    <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:16px;margin-bottom:16px">
+      <div style="font-weight:800;font-size:.85rem;margin-bottom:12px">🖼️ شعار الموقع</div>
+      <div style="display:flex;align-items:center;gap:12px">
+        <div id="logoPreview" style="width:60px;height:60px;border-radius:12px;background:rgba(255,255,255,.05);border:1px dashed rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;font-size:1.5rem;overflow:hidden">🏢</div>
+        <div style="flex:1">
+          <input type="file" id="logoFile" accept="image/png,image/jpg,image/jpeg,image/svg+xml" style="display:none" onchange="previewLogo(this)">
+          <button onclick="document.getElementById('logoFile').click()" style="padding:8px 16px;border-radius:10px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);color:rgba(255,255,255,.7);font-family:Cairo,sans-serif;font-size:.75rem;cursor:pointer;display:block;margin-bottom:6px">📂 اختر شعار</button>
+          <button id="logoSaveBtn" onclick="saveLogo(this)" style="padding:8px 16px;border-radius:10px;border:none;background:linear-gradient(135deg,var(--ac),#2563ff);color:#fff;font-family:Cairo,sans-serif;font-size:.75rem;cursor:pointer;display:none">💾 حفظ الشعار</button>
+          <div style="font-size:.65rem;color:rgba(255,255,255,.3);margin-top:4px">PNG, JPG, SVG</div>
+        </div>
+      </div>
+    </div>
+<div id="statsRow" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px">
     <div style="background:rgba(0,200,150,.08);border:1px solid rgba(0,200,150,.2);border-radius:14px;padding:16px;text-align:center">
       <div style="font-size:1.6rem;font-weight:900;color:var(--ac)" id="statTotalUsers">--</div>
       <div style="font-size:.72rem;color:var(--t3)">إجمالي المستخدمين</div>
@@ -235,11 +264,11 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--t);min-heig
   </div>
 
         <div class="tabs">
-      <button class="tab on" onclick="showTab('users',this)">👥 المستخدمون</button>
-      <button class="tab" onclick="showTab('verify',this)">✅ طلبات التوثيق</button>
-      <button class="tab" onclick="showTab('jobs',this)">💼 وظائف</button>
-      <button class="tab" onclick="showTab('errors',this)">⚠️ أخطاء</button>
-      <button class="tab" onclick="showTab('kyc',this)">🪪 KYC <span id="kycPendingBadge" style="display:none;background:#f87171;color:#fff;border-radius:20px;padding:1px 7px;font-size:.65rem;margin-right:4px"></span></button>
+      <button class="tab on" onclick="showTab('users',this)"><span class="tab-ico">👥</span><span class="tab-lbl">المستخدمون</span></button>
+      <button class="tab" onclick="showTab('verify',this)"><span class="tab-ico">✅</span><span class="tab-lbl">توثيق</span></button>
+      <button class="tab" onclick="showTab('jobs',this)"><span class="tab-ico">💼</span><span class="tab-lbl">وظائف</span></button>
+      <button class="tab" onclick="showTab('errors',this)"><span class="tab-ico">⚠️</span><span class="tab-lbl">أخطاء</span></button>
+      <button class="tab" onclick="showTab('kyc',this)"><span class="tab-ico">🪪</span><span class="tab-lbl">KYC <span id="kycPendingBadge" style="display:none;background:#f87171;color:#fff;border-radius:10px;padding:0 5px;font-size:.55rem;position:absolute;top:6px;left:6px"></span></span></button>
     </div>
 
     <!-- USERS TAB -->
@@ -534,13 +563,13 @@ function renderUsers(list){
   var paged=paginate(list,_usersPage);
   renderPagination('usersPag',list.length,_usersPage,PAG_SIZE,'goUsersPage');
   tb.innerHTML = paged.map(u => `
-    <div class="tr tr-users">
+    <div class="tr tr-users" style="${u.user_type==='co'?'border-right:3px solid rgba(37,99,255,.5);background:rgba(37,99,255,.04)':u.user_type==='edu'?'border-right:3px solid rgba(124,58,237,.5);background:rgba(124,58,237,.04)':''}">
       <div class="user-info">
         <div class="u-ava">${u.user_type==='co'?'🏢':u.user_type==='edu'?'🎓':'👤'}</div>
         <div><div class="u-nm">${u.full_name}</div><div class="u-em">${u.email}</div></div>
       </div>
       <div class="date-cell">${u.created_at||'—'}</div>
-      <div>${typeLabel(u.user_type)}</div>
+      <div><span style="${u.user_type==='co'?'background:rgba(37,99,255,.15);color:#60a5fa':u.user_type==='edu'?'background:rgba(124,58,237,.15);color:#a78bfa':'background:rgba(255,255,255,.08);color:rgba(255,255,255,.6)'};padding:2px 8px;border-radius:20px;font-size:.68rem">${typeLabel(u.user_type)}</span></div>
       <div><span class="status-badge s-verified">✓ نشط</span></div>
       <div class="action-btns">
         <button class="ab ab-view" onclick="window.open('/admin-view.html?id=${u.id}','_blank')">👁 ملف</button>
@@ -567,7 +596,24 @@ function showTab(name, el){
 
 function renderVerify(list){
   const tb = document.getElementById('verifyTable');
-  if(!list.length){ tb.innerHTML = '<div class="empty-state">لا توجد طلبات توثيق</div>'; return; }
+  // Also show pending KYC submissions
+  var kycPending = _allKYC.filter(function(k){ return k.step==='review' && k.status==='pending'; });
+  var kycHtml = '';
+  if(kycPending.length){
+    kycHtml = '<div style="margin-bottom:12px"><div style="font-size:.75rem;font-weight:700;color:var(--ac);margin-bottom:8px">🪪 طلبات KYC قيد المراجعة ('+kycPending.length+')</div>'
+      + kycPending.map(function(k){
+          return '<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:12px;border:1px solid rgba(0,200,150,.2);margin-bottom:6px;background:rgba(0,200,150,.04)">'
+            +'<div style="flex:1"><div style="font-size:.82rem;font-weight:700">'+k.full_name+'</div>'
+            +'<div style="font-size:.7rem;color:var(--t3)">'+k.email+'</div></div>'
+            +'<div style="display:flex;gap:6px">'
+            +'<button class="ab" style="background:rgba(0,200,150,.1);color:#00c896;border-color:rgba(0,200,150,.2);font-size:.7rem" onclick="approveKYC('+k.user_id+')">✅ قبول</button>'
+            +'<button class="ab" style="background:rgba(239,68,68,.08);color:#f87171;border-color:rgba(239,68,68,.2);font-size:.7rem" onclick="rejectKYC('+k.user_id+')">❌ رفض</button>'
+            +'</div></div>';
+        }).join('') + '</div>';
+  }
+  if(!list.length && !kycPending.length){ tb.innerHTML = kycHtml + '<div class="tw-empty"><span class="tw-empty-ico">📋</span><div class="tw-empty-title">لا توجد طلبات توثيق</div></div>'; return; }
+  tb.innerHTML = kycHtml;
+  if(!list.length) return;
   const typeLabel = t => t==='exp'?'💼 خبرة':t==='edu'?'🎓 شهادة':t==='course'?'📚 دورة':'📋 عام';
   tb.innerHTML = list.map(v => `
     <div class="tr tr-verify">
@@ -929,6 +975,46 @@ function setMsgTemplate(type){
     input.style.height=input.scrollHeight+'px';
   }
 }
+
+// ── Logo Upload ──
+var _logob64 = '';
+function previewLogo(input){
+  if(!input.files||!input.files[0]) return;
+  var reader=new FileReader();
+  reader.onload=function(e){
+    _logob64=e.target.result;
+    var prev=document.getElementById('logoPreview');
+    if(prev) prev.innerHTML='<img src="'+e.target.result+'" style="width:100%;height:100%;object-fit:cover">';
+    var btn=document.getElementById('logoSaveBtn');
+    if(btn) btn.style.display='block';
+  };
+  reader.readAsDataURL(input.files[0]);
+}
+async function saveLogo(btn){
+  if(!_logob64){showToast('اختر شعاراً أولاً','error');return;}
+  setBtnLoad(btn,true);
+  try{
+    var r=await fetch('/admin/logo',{method:'POST',headers:{...adminHeaders(),'Content-Type':'application/json'},body:JSON.stringify({user_id:0,bucket:'site',filename:'logo',data_url:_logob64})});
+    var data=await r.json();
+    if(data.status==='success'){
+      showToast('تم حفظ الشعار ✅');
+      // Update all logos on page
+      document.querySelectorAll('.nav-logo,.login-logo').forEach(function(el){
+        if(data.url) el.innerHTML='<img src="'+data.url+'" style="height:28px;object-fit:contain">';
+      });
+    }
+  }catch(e){showToast('خطأ في الحفظ','error');}
+  setBtnLoad(btn,false);
+}
+// Load current logo on init
+(function(){
+  fetch('/admin/logo',{headers:adminHeaders()}).then(function(r){return r.json();}).then(function(d){
+    if(d.url){
+      var prev=document.getElementById('logoPreview');
+      if(prev) prev.innerHTML='<img src="'+d.url+'" style="width:100%;height:100%;object-fit:cover">';
+    }
+  }).catch(function(){});
+})();
 </script>
 </body>
 </html>

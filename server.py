@@ -1,6 +1,7 @@
 """
 تواصلنا - Arabic Employment Platform
 """
+
 import os
 from fastapi import FastAPI, HTTPException, Request, Response, Depends
 from fastapi.middleware.cors import CORSMiddleware
@@ -677,6 +678,43 @@ def admin_reset_password(user_id: int, data: ResetPasswordInput, request: Reques
     except HTTPException: raise
     except Exception as e:
         raise HTTPException(500, str(e))
+
+
+@app.post("/admin/logo")
+async def upload_logo(data: ImageUploadInput, request: Request):
+    """Upload site logo"""
+    check_admin(request)
+    try:
+        # Store logo URL in a simple file
+        logo_url = data.data_url  # Use data URL directly for simplicity
+        # Try Supabase Storage
+        import httpx, base64 as _b64, mimetypes
+        supabase_url = os.environ.get("SUPABASE_URL")
+        supabase_key = os.environ.get("SUPABASE_SERVICE_KEY")
+        if supabase_url and supabase_key and ',' in data.data_url:
+            header, b64data = data.data_url.split(',', 1)
+            mime = header.split(':')[1].split(';')[0]
+            ext = mimetypes.guess_extension(mime) or '.png'
+            file_bytes = _b64.b64decode(b64data)
+            async with httpx.AsyncClient() as client:
+                r = await client.post(
+                    f"{supabase_url}/storage/v1/object/site/logo{ext}",
+                    content=file_bytes,
+                    headers={"Authorization": f"Bearer {supabase_key}",
+                            "Content-Type": mime, "x-upsert": "true"}
+                )
+                if r.status_code in (200,201):
+                    logo_url = f"{supabase_url}/storage/v1/object/public/site/logo{ext}"
+        # Save to a simple cache
+        _html_cache['site_logo'] = logo_url
+        return {"status": "success", "url": logo_url}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+@app.get("/admin/logo")
+def get_logo(request: Request):
+    logo = _html_cache.get('site_logo', '')
+    return {"url": logo}
 
 @app.get("/health")
 def health():
@@ -1460,6 +1498,3 @@ def admin_send_message(data: AdminMessageInput, request: Request):
     check_admin(request)
     print(f"[ADMIN MSG] To:{data.user_id} | {data.subject}: {data.message}")
     return {"success": True}
-
-
-   
