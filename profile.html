@@ -2615,18 +2615,13 @@ function closeModal(){
 function closeOverlay(e){ if(e.target===document.getElementById('overlay')) closeModal(); }
 
 if(!isOwner){
-  document.querySelectorAll('.owner-only').forEach(el=>el.style.display='none');
+  // OWNER - show all editing tools
+  document.querySelectorAll('.owner-only').forEach(el=>el.style.display='');
+  document.getElementById('previewBtn').style.display='';
 } else {
-  // PUBLIC VIEW - visitor mode
-  // Hide toolbar action buttons
+  // PUBLIC VIEW - visitor, hide all editing tools
+  document.querySelectorAll('.owner-only').forEach(el=>el.style.display='none');
   document.querySelectorAll('.tb-btn').forEach(function(btn){ btn.style.display='none'; });
-  // Hide toolbar itself except logo
-  var toolbar = document.querySelector('.toolbar');
-  if(toolbar){
-    toolbar.style.background = 'rgba(7,11,24,.98)';
-    toolbar.style.justifyContent = 'flex-start';
-  }
-  // Show CTA banner
   showPublicBanner();
 }
 restoreSections();
