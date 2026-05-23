@@ -3045,59 +3045,56 @@ function drawSnapQR(canvasId, text, size){
   qr.make();
   var mc = qr.getModuleCount();
 
-  var borderW = size * 0.06;   // gradient border width
-  var pad     = size * 0.08;   // inner padding
+  var borderW = size * 0.055;
+  var pad     = size * 0.09;
   var qrSz    = size - pad * 2;
   var cs      = qrSz / mc;
+  var cornerR = size * 0.1; // rounded corners
 
-  // ── 1. White background ──
+  // ── 1. Clip entire canvas to rounded rect ──
+  ctx.save();
+  ctx.beginPath();
+  roundRectPath(ctx, 0, 0, size, size, cornerR);
+  ctx.closePath();
+  ctx.clip();
+
+  // ── 2. White background ──
   ctx.fillStyle = '#ffffff';
   ctx.fillRect(0, 0, size, size);
 
-  // ── 2. Gradient border (rounded) ──
+  // ── 3. Gradient border ──
   var grad = ctx.createLinearGradient(0, 0, size, size);
-  grad.addColorStop(0, ac2);   // blue
-  grad.addColorStop(1, ac);    // green
-  
-  // Draw border as 4 rects (top, bottom, left, right)
+  grad.addColorStop(0, ac2);
+  grad.addColorStop(1, ac);
+
+  // Outer border
   ctx.fillStyle = grad;
-  // Full rounded rect outer
-  ctx.beginPath();
-  var r = size * 0.08;
-  ctx.moveTo(r, 0);
-  ctx.lineTo(size-r, 0);
-  ctx.arcTo(size, 0, size, r, r);
-  ctx.lineTo(size, size-r);
-  ctx.arcTo(size, size, size-r, size, r);
-  ctx.lineTo(r, size);
-  ctx.arcTo(0, size, 0, size-r, r);
-  ctx.lineTo(0, r);
-  ctx.arcTo(0, 0, r, 0, r);
-  ctx.closePath();
-  ctx.fill();
+  ctx.fillRect(0, 0, size, borderW); // top
+  ctx.fillRect(0, size-borderW, size, borderW); // bottom
+  ctx.fillRect(0, 0, borderW, size); // left
+  ctx.fillRect(size-borderW, 0, borderW, size); // right
 
-  // White inner
-  var ir = size * 0.05;
-  ctx.fillStyle = '#ffffff';
-  ctx.beginPath();
-  var b = borderW;
-  ctx.moveTo(b+ir, b);
-  ctx.lineTo(size-b-ir, b);
-  ctx.arcTo(size-b, b, size-b, b+ir, ir);
-  ctx.lineTo(size-b, size-b-ir);
-  ctx.arcTo(size-b, size-b, size-b-ir, size-b, ir);
-  ctx.lineTo(b+ir, size-b);
-  ctx.arcTo(b, size-b, b, size-b-ir, ir);
-  ctx.lineTo(b, b+ir);
-  ctx.arcTo(b, b, b+ir, b, ir);
-  ctx.closePath();
-  ctx.fill();
-
-  // ── 3. Draw QR dots (black circles) ──
+  // ── 4. QR dots (black rounded) ──
   ctx.fillStyle = '#111111';
+  var fps = [[0,0],[mc-7,0],[0,mc-7]];
+  function inFinder(r,c){
+    for(var i=0;i<fps.length;i++){
+      var fr=fps[i][0], fc=fps[i][1];
+      if(r>=fr&&r<fr+7&&c>=fc&&c<fc+7) return true;
+    }
+    return false;
+  }
+  var lzHalf = mc * 0.15;
+  var lzMid = mc / 2;
+  function inLogo(r,c){
+    return Math.abs(r-lzMid)<lzHalf && Math.abs(c-lzMid)<lzHalf;
+  }
+
   for(var row=0; row<mc; row++){
     for(var col=0; col<mc; col++){
       if(!qr.isDark(row,col)) continue;
+      if(inFinder(row,col)) continue;
+      if(inLogo(row,col)) continue;
       var x = pad + col*cs + cs/2;
       var y = pad + row*cs + cs/2;
       ctx.beginPath();
@@ -3106,31 +3103,47 @@ function drawSnapQR(canvasId, text, size){
     }
   }
 
-  // ── 4. Finder patterns (3 corners) - gradient squares ──
-  var fps = [[0,0],[mc-7,0],[0,mc-7]];
+  // ── 5. Finder patterns ──
   fps.forEach(function(fp){
-    var fr = fp[0], fc = fp[1];
+    var fr=fp[0], fc=fp[1];
     var x = pad + fc*cs;
     var y = pad + fr*cs;
     var w = 7*cs;
-    var fg = ctx.createLinearGradient(x, y, x+w, y+w);
+    var fg = ctx.createLinearGradient(x,y,x+w,y+w);
     fg.addColorStop(0, ac2);
     fg.addColorStop(1, ac);
-    
-    // Outer
     ctx.fillStyle = fg;
-    roundRect(ctx, x, y, w, w, cs*0.8);
-    // White gap
+    roundRect(ctx, x, y, w, w, cs*0.9);
     ctx.fillStyle = '#fff';
-    roundRect(ctx, x+cs, y+cs, 5*cs, 5*cs, cs*0.5);
-    // Inner dot
+    roundRect(ctx, x+cs, y+cs, 5*cs, 5*cs, cs*0.6);
     ctx.fillStyle = fg;
     roundRect(ctx, x+2*cs, y+2*cs, 3*cs, 3*cs, cs*0.4);
   });
+
+  ctx.restore();
+
+  // ── 6. Center logo (drawn after clip restore) ──
+  var lsz = size * 0.22;
+  var lx = (size - lsz) / 2;
+  var ly = (size - lsz) / 2;
+
+  // White rounded backing
+  ctx.save();
+  ctx.fillStyle = '#ffffff';
+  roundRect(ctx, lx - 4, ly - 4, lsz + 8, lsz + 8, lsz * 0.25);
+  ctx.restore();
+
+  // Draw logo SVG
+  var logoImg = new Image();
+  logoImg.crossOrigin = 'anonymous';
+  logoImg.onload = function(){
+    ctx.drawImage(logoImg, lx, ly, lsz, lsz);
+  };
+  logoImg.src = 'https://wrxvmdmknhoufoeprpoc.supabase.co/storage/v1/object/public/site/LogoQR.svg';
 }
 
-function roundRect(ctx, x, y, w, h, r){
-  ctx.beginPath();
+
+function roundRectPath(ctx, x, y, w, h, r){
   ctx.moveTo(x+r, y);
   ctx.lineTo(x+w-r, y);
   ctx.arcTo(x+w, y, x+w, y+r, r);
@@ -3140,9 +3153,16 @@ function roundRect(ctx, x, y, w, h, r){
   ctx.arcTo(x, y+h, x, y+h-r, r);
   ctx.lineTo(x, y+r);
   ctx.arcTo(x, y, x+r, y, r);
+}
+
+function roundRect(ctx, x, y, w, h, r){
+  ctx.beginPath();
+  roundRectPath(ctx, x, y, w, h, r);
   ctx.closePath();
   ctx.fill();
 }
+
+
 
 
 function openQROverlay(){
