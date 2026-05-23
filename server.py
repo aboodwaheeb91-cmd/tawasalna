@@ -213,15 +213,15 @@ def check_admin(request: Request):
 # HTML Pages
 # ══════════════════════════════════════════
 @app.get("/", response_class=HTMLResponse)
-def root(): return read_html("landing.html")
-
-@app.get("/", response_class=HTMLResponse)
 def landing():
     content = read_html("landing.html")
     return HTMLResponse(content=content, headers={"Cache-Control": "public, max-age=300"})
 
 @app.get("/landing.html", response_class=HTMLResponse)
 def landing_html(): return read_html("landing.html")
+
+@app.get("/index.html", response_class=HTMLResponse)
+def index_html(): return read_html("index.html")
 
 @app.get("/login", response_class=HTMLResponse)
 def login_page(): return read_html("index.html")
