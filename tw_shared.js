@@ -128,9 +128,15 @@ var _twLogoWide = 'https://wrxvmdmknhoufoeprpoc.supabase.co/storage/v1/object/pu
 
 function applyNavLogo(){
   if(!_twLogoWide) return;
+  // Update existing img src if present
+  document.querySelectorAll('.nav-logo img,.tb-logo img,.login-logo img,.nav-brand img').forEach(function(img){
+    img.src = _twLogoWide;
+  });
+  // If no img found, inject it
   document.querySelectorAll('.nav-logo,.tb-logo,.login-logo,.nav-brand').forEach(function(el){
-    el.innerHTML = '<img src="'+_twLogoWide+'" style="height:34px;width:auto;object-fit:contain;display:block;max-width:160px">';
-    el.style.cssText = (el.style.cssText||'')+';display:flex;align-items:center;height:100%;padding:2px 0;min-width:unset';
+    if(!el.querySelector('img')){
+      el.innerHTML = '<img src="'+_twLogoWide+'" style="height:36px;width:auto;object-fit:contain;display:block">';
+    }
   });
 }
 
