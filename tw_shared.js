@@ -135,9 +135,12 @@ function applyNavLogo(){
 }
 
 function loadAndApplyLogos(){
-  // Apply immediately with default/cached logo
+  // Apply immediately
   applyNavLogo();
-  // Then fetch from server for any updates
+  // Retry after short delay (for dynamically rendered navbars)
+  setTimeout(applyNavLogo, 200);
+  setTimeout(applyNavLogo, 800);
+  // Fetch from server for any updates
   fetch('/admin/logo').then(function(r){return r.json();}).then(function(d){
     if(d.logo_wide) _twLogoWide = d.logo_wide;
     applyNavLogo();
