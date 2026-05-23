@@ -2617,8 +2617,17 @@ function closeOverlay(e){ if(e.target===document.getElementById('overlay')) clos
 if(!isOwner){
   document.querySelectorAll('.owner-only').forEach(el=>el.style.display='none');
 } else {
-  // Show preview button for owners
-  document.getElementById('previewBtn').style.display='';
+  // PUBLIC VIEW - visitor mode
+  // Hide toolbar action buttons
+  document.querySelectorAll('.tb-btn').forEach(function(btn){ btn.style.display='none'; });
+  // Hide toolbar itself except logo
+  var toolbar = document.querySelector('.toolbar');
+  if(toolbar){
+    toolbar.style.background = 'rgba(7,11,24,.98)';
+    toolbar.style.justifyContent = 'flex-start';
+  }
+  // Show CTA banner
+  showPublicBanner();
 }
 restoreSections();
   loadSectionOrder();
@@ -3553,6 +3562,46 @@ function initTouchDrag(){
   },{passive:true});
 }
 initTouchDrag();
+
+// ── Public View Banner ──
+function showPublicBanner(){
+  var existing = document.getElementById('publicBanner');
+  if(existing) return;
+  
+  var banner = document.createElement('div');
+  banner.id = 'publicBanner';
+  banner.style.cssText = [
+    'position:fixed;bottom:0;left:0;right:0;z-index:500',
+    'background:linear-gradient(135deg,#070b18,#0d1e35)',
+    'border-top:1px solid rgba(0,200,150,.3)',
+    'padding:14px 16px',
+    'display:flex;align-items:center;gap:12px',
+    'font-family:Cairo,sans-serif'
+  ].join(';');
+
+  banner.innerHTML = [
+    '<div style="flex:1">',
+      '<div style="font-size:.82rem;font-weight:800;color:#fff;margin-bottom:2px">',
+        '✨ أنشئ سيرتك الذاتية مجاناً',
+      '</div>',
+      '<div style="font-size:.68rem;color:rgba(255,255,255,.5)">',
+        'ابحث عن عمل ودورات تعليمية في تواصلنا',
+      '</div>',
+    '</div>',
+    '<a href="/index.html" style="',
+      'padding:9px 18px;border-radius:10px;',
+      'background:linear-gradient(135deg,#00c896,#2563ff);',
+      'color:#fff;font-family:Cairo,sans-serif;font-size:.78rem;',
+      'font-weight:700;text-decoration:none;white-space:nowrap;',
+      'flex-shrink:0',
+    '">ابدأ مجاناً</a>'
+  ].join('');
+
+  document.body.appendChild(banner);
+  
+  // Add bottom padding to page so content not hidden
+  document.body.style.paddingBottom = '80px';
+}
 </script>
 </body>
 </html>
