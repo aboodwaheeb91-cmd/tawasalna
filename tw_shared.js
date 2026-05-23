@@ -124,38 +124,24 @@ function safeText(el, text){
 }
 
 // ══ Logo from Admin ══
-var _twLogoWide = '', _twLogoTall = '';
+var _twLogoWide = '';
 
 function applyNavLogo(){
   if(!_twLogoWide) return;
-  document.querySelectorAll('.nav-logo,.tb-logo,.admin-nav .nav-logo,.login-logo').forEach(function(el){
-    el.innerHTML = '<img src="'+_twLogoWide+'" style="height:100%;max-height:100%;width:auto;object-fit:contain;display:block">';
-    el.style.cssText = (el.style.cssText||'')+';display:flex;align-items:center;height:100%;padding:0';
-  });
-}
-
-function applyTallLogo(){
-  if(!_twLogoTall) return;
-  document.querySelectorAll('.logo-tall-area').forEach(function(el){
-    el.innerHTML = '<img src="'+_twLogoTall+'" style="max-height:120px;width:auto;object-fit:contain">';
+  document.querySelectorAll('.nav-logo,.tb-logo,.login-logo,.nav-brand').forEach(function(el){
+    el.innerHTML = '<img src="'+_twLogoWide+'" style="height:34px;width:auto;object-fit:contain;display:block;max-width:160px">';
+    el.style.cssText = (el.style.cssText||'')+';display:flex;align-items:center;height:100%;padding:2px 0;min-width:unset';
   });
 }
 
 function loadAndApplyLogos(){
   fetch('/admin/logo').then(function(r){return r.json();}).then(function(d){
     _twLogoWide = d.logo_wide||'';
-    _twLogoTall = d.logo_tall||'';
-    applyNavLogo();
-    applyTallLogo();
-    setTimeout(function(){applyNavLogo();applyTallLogo();},800);
+    if(_twLogoWide){
+      applyNavLogo();
+      setTimeout(applyNavLogo, 600);
+    }
   }).catch(function(){});
-}
-
-// Load logos on page load
-if(document.readyState==='complete'){
-  loadAndApplyLogos();
-} else {
-  window.addEventListener('load', loadAndApplyLogos);
 }
 
 
