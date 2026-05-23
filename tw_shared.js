@@ -124,7 +124,7 @@ function safeText(el, text){
 }
 
 // ══ Logo from Admin ══
-var _twLogoWide = '';
+var _twLogoWide = 'https://wrxvmdmknhoufoeprpoc.supabase.co/storage/v1/object/public/site/Logo.svg';
 
 function applyNavLogo(){
   if(!_twLogoWide) return;
@@ -135,12 +135,12 @@ function applyNavLogo(){
 }
 
 function loadAndApplyLogos(){
+  // Apply immediately with default/cached logo
+  applyNavLogo();
+  // Then fetch from server for any updates
   fetch('/admin/logo').then(function(r){return r.json();}).then(function(d){
-    _twLogoWide = d.logo_wide||'';
-    if(_twLogoWide){
-      applyNavLogo();
-      setTimeout(applyNavLogo, 600);
-    }
+    if(d.logo_wide) _twLogoWide = d.logo_wide;
+    applyNavLogo();
   }).catch(function(){});
 }
 
