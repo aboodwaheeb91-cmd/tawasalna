@@ -3029,112 +3029,121 @@ function rrPath(ctx, x, y, w, h, r){
 }
 
 function drawSnapQR(canvasId, text, size){
-  const canvas = document.getElementById(canvasId);
+  var canvas = document.getElementById(canvasId);
   if(!canvas) return;
   canvas.width = size; canvas.height = size;
-  const ctx = canvas.getContext('2d');
+  var ctx = canvas.getContext('2d');
 
-  // Read current accent colors from CSS variables
-  const st = getComputedStyle(document.documentElement);
-  const ac  = st.getPropertyValue('--ac').trim()  || '#00c896';
-  const ac2 = st.getPropertyValue('--ac2').trim() || '#2563ff';
+  // Get CSS accent colors
+  var st = getComputedStyle(document.documentElement);
+  var ac  = st.getPropertyValue('--ac').trim()  || '#00c896';
+  var ac2 = st.getPropertyValue('--ac2').trim() || '#2563ff';
 
   // Generate QR matrix
-  const qr = qrcode(0, 'H');
+  var qr = qrcode(0, 'H');
   qr.addData(text || 'https://tawasolna.com');
   qr.make();
-  const mc = qr.getModuleCount();
+  var mc = qr.getModuleCount();
 
-  const pad  = size * 0.07;
-  const qrSz = size - pad * 2;
-  const cs   = qrSz / mc;
+  var borderW = size * 0.06;   // gradient border width
+  var pad     = size * 0.08;   // inner padding
+  var qrSz    = size - pad * 2;
+  var cs      = qrSz / mc;
 
-  // Dark background - no white borders
-  const border = size * 0;
-  rrPath(ctx, 0, 0, size, size, size * 0.1);
-  ctx.fillStyle = '#0d1e35';
+  // ── 1. White background ──
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, size, size);
+
+  // ── 2. Gradient border (rounded) ──
+  var grad = ctx.createLinearGradient(0, 0, size, size);
+  grad.addColorStop(0, ac2);   // blue
+  grad.addColorStop(1, ac);    // green
+  
+  // Draw border as 4 rects (top, bottom, left, right)
+  ctx.fillStyle = grad;
+  // Full rounded rect outer
+  ctx.beginPath();
+  var r = size * 0.08;
+  ctx.moveTo(r, 0);
+  ctx.lineTo(size-r, 0);
+  ctx.arcTo(size, 0, size, r, r);
+  ctx.lineTo(size, size-r);
+  ctx.arcTo(size, size, size-r, size, r);
+  ctx.lineTo(r, size);
+  ctx.arcTo(0, size, 0, size-r, r);
+  ctx.lineTo(0, r);
+  ctx.arcTo(0, 0, r, 0, r);
+  ctx.closePath();
   ctx.fill();
 
-  // ── Finder pattern zones (7×7 each corner) ──
-  const fps = [[0,0],[mc-7,0],[0,mc-7]];
-  function inFinder(r, c){
-    for(const [fr,fc] of fps)
-      if(r>=fr&&r<fr+7&&c>=fc&&c<fc+7) return true;
-    return false;
-  }
+  // White inner
+  var ir = size * 0.05;
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  var b = borderW;
+  ctx.moveTo(b+ir, b);
+  ctx.lineTo(size-b-ir, b);
+  ctx.arcTo(size-b, b, size-b, b+ir, ir);
+  ctx.lineTo(size-b, size-b-ir);
+  ctx.arcTo(size-b, size-b, size-b-ir, size-b, ir);
+  ctx.lineTo(b+ir, size-b);
+  ctx.arcTo(b, size-b, b, size-b-ir, ir);
+  ctx.lineTo(b, b+ir);
+  ctx.arcTo(b, b, b+ir, b, ir);
+  ctx.closePath();
+  ctx.fill();
 
-  // ── Logo zone (center 28%) ──
-  const lz = mc * 0.28;
-  const lzS = Math.floor((mc - lz) / 2);
-  const lzE = Math.ceil((mc + lz) / 2);
-  function inLogo(r, c){ return r>=lzS&&r<lzE&&c>=lzS&&c<lzE; }
-
-  // ── Draw data dots (circles) - dark for readability ──
-  ctx.fillStyle = '#e8f4f0';
-  for(let r=0; r<mc; r++){
-    for(let co=0; co<mc; co++){
-      if(!qr.isDark(r,co)) continue;
-      if(inFinder(r,co)) continue;
-      if(inLogo(r,co)) continue;
-      const x = pad + co*cs + cs/2;
-      const y = pad + r*cs  + cs/2;
+  // ── 3. Draw QR dots (black circles) ──
+  ctx.fillStyle = '#111111';
+  for(var row=0; row<mc; row++){
+    for(var col=0; col<mc; col++){
+      if(!qr.isDark(row,col)) continue;
+      var x = pad + col*cs + cs/2;
+      var y = pad + row*cs + cs/2;
       ctx.beginPath();
-      ctx.arc(x, y, cs*0.41, 0, Math.PI*2);
+      ctx.arc(x, y, cs*0.38, 0, Math.PI*2);
       ctx.fill();
     }
   }
 
-  // ── Draw custom finder patterns ──
-  function drawFinder(fr, fc){
-    const x = pad + fc*cs;
-    const y = pad + fr*cs;
-    const w = 7*cs;
-    const r1 = cs*1.1;  // outer
-    const r2 = cs*0.85; // mid
-    const r3 = cs*0.65; // inner dot
-
-    // Outer gradient rounded rect
-    const fg = ctx.createLinearGradient(x, y, x+w, y+w);
-    fg.addColorStop(0, ac);
-    fg.addColorStop(1, ac2);
+  // ── 4. Finder patterns (3 corners) - gradient squares ──
+  var fps = [[0,0],[mc-7,0],[0,mc-7]];
+  fps.forEach(function(fp){
+    var fr = fp[0], fc = fp[1];
+    var x = pad + fc*cs;
+    var y = pad + fr*cs;
+    var w = 7*cs;
+    var fg = ctx.createLinearGradient(x, y, x+w, y+w);
+    fg.addColorStop(0, ac2);
+    fg.addColorStop(1, ac);
+    
+    // Outer
     ctx.fillStyle = fg;
-    rrPath(ctx, x, y, w, w, r1);
-    ctx.fill();
-
-    // Middle dark gap
-    ctx.fillStyle = '#0d1e35';
-    rrPath(ctx, x+cs, y+cs, 5*cs, 5*cs, r2);
-    ctx.fill();
-
-    // Inner gradient dot
-    const ig = ctx.createLinearGradient(x+2*cs, y+2*cs, x+5*cs, y+5*cs);
-    ig.addColorStop(0, ac);
-    ig.addColorStop(1, ac2);
-    ctx.fillStyle = ig;
-    rrPath(ctx, x+2*cs, y+2*cs, 3*cs, 3*cs, r3);
-    ctx.fill();
-  }
-
-  for(const [fr,fc] of fps) drawFinder(fr, fc);
-
-  // ── Center logo ──
-  const lsz  = size * 0.2;
-  const lpad = size * 0.03;
-  const lx   = (size - lsz) / 2;
-  const ly   = (size - lsz) / 2;
-
-  // Dark backing for logo
-
-  // Gradient fill
-  const lg = ctx.createLinearGradient(lx, ly, lx+lsz, ly+lsz);
-  lg.addColorStop(0, ac);
-  lg.addColorStop(1, ac2);
-  ctx.fillStyle = lg;
-  rrPath(ctx, lx, ly, lsz, lsz, lsz*0.24);
-  ctx.fill();
-
-  // Logo placeholder - empty for now
+    roundRect(ctx, x, y, w, w, cs*0.8);
+    // White gap
+    ctx.fillStyle = '#fff';
+    roundRect(ctx, x+cs, y+cs, 5*cs, 5*cs, cs*0.5);
+    // Inner dot
+    ctx.fillStyle = fg;
+    roundRect(ctx, x+2*cs, y+2*cs, 3*cs, 3*cs, cs*0.4);
+  });
 }
+
+function roundRect(ctx, x, y, w, h, r){
+  ctx.beginPath();
+  ctx.moveTo(x+r, y);
+  ctx.lineTo(x+w-r, y);
+  ctx.arcTo(x+w, y, x+w, y+r, r);
+  ctx.lineTo(x+w, y+h-r);
+  ctx.arcTo(x+w, y+h, x+w-r, y+h, r);
+  ctx.lineTo(x+r, y+h);
+  ctx.arcTo(x, y+h, x, y+h-r, r);
+  ctx.lineTo(x, y+r);
+  ctx.arcTo(x, y, x+r, y, r);
+  ctx.closePath();
+  ctx.fill();
+}
+
 
 function openQROverlay(){
   var uid = _qrUser&&_qrUser.id?_qrUser.id:'0';
@@ -3155,7 +3164,7 @@ function openQROverlay(){
   // QR Canvas (no white border)
   var cvs = document.createElement('canvas');
   cvs.id = 'qrBig';
-  cvs.style.cssText = 'border-radius:16px;display:block;';
+  cvs.style.cssText = 'border-radius:12px;display:block;box-shadow:0 4px 24px rgba(0,0,0,.3)';
 
   // Name label
   var nameEl = document.createElement('div');
@@ -3194,94 +3203,110 @@ function openQROverlay(){
   document.body.appendChild(ov);
 
   // Draw QR without white border
-  drawSnapQR('qrBig', url, 260);
+  drawSnapQR('qrBig', url, 300);
 }
 
 // ── Share QR as Image ──
 function shareQR(platform, name, url, qrCanvas){
-  // Build composite image: dark bg + QR + text
-  var W = 400, H = 500;
+  var QW = qrCanvas.width || 300;
+  var PAD = 20;
+  var W = QW + PAD*2;
+  var LOGO_H = 36;
+  var NAME_H = 24;
+  var MSG_H = 36;
+  var H = PAD + LOGO_H + 12 + QW + 12 + NAME_H + 6 + MSG_H + PAD;
+
   var out = document.createElement('canvas');
   out.width = W; out.height = H;
   var ctx = out.getContext('2d');
 
-  // Dark background gradient
-  var grad = ctx.createLinearGradient(0,0,W,H);
-  grad.addColorStop(0,'#070b18');
-  grad.addColorStop(1,'#0d1e35');
-  ctx.fillStyle = grad;
-  ctx.fillRect(0,0,W,H);
+  function drawComposite(){
+    // White background
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, W, H);
 
-  // Accent border top
-  ctx.fillStyle = '#00c896';
-  ctx.fillRect(0,0,W,4);
+    // Gradient top bar
+    var grad = ctx.createLinearGradient(0,0,W,0);
+    grad.addColorStop(0,'#2563ff');
+    grad.addColorStop(1,'#00c896');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, W, 4);
+    ctx.fillRect(0, H-4, W, 4);
 
-  // Logo text
-  ctx.fillStyle = '#00c896';
-  ctx.font = 'bold 22px Cairo, Arial';
-  ctx.textAlign = 'center';
-  ctx.fillText('تواصلنا', W/2, 50);
+    var y = PAD;
 
-  // CV label
-  ctx.fillStyle = 'rgba(255,255,255,.5)';
-  ctx.font = '14px Cairo, Arial';
-  ctx.fillText('السيرة الذاتية', W/2, 76);
+    // Logo
+    if(logoImg && logoImg.complete && logoImg.naturalWidth){
+      var lR = logoImg.naturalWidth/logoImg.naturalHeight;
+      var lW = LOGO_H * lR;
+      ctx.drawImage(logoImg, (W-lW)/2, y, lW, LOGO_H);
+    } else {
+      ctx.fillStyle = '#00c896';
+      ctx.font = 'bold 20px Cairo,Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText('تواصلنا', W/2, y + 24);
+    }
+    y += LOGO_H + 12;
 
-  // QR image (centered, no extra padding)
-  var qrSize = 220;
-  var qrX = (W - qrSize) / 2;
-  var qrY = 95;
-  ctx.drawImage(qrCanvas, qrX, qrY, qrSize, qrSize);
+    // QR
+    ctx.drawImage(qrCanvas, PAD, y, QW, QW);
+    y += QW + 12;
 
-  // Name
-  ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold 18px Cairo, Arial';
-  ctx.textAlign = 'center';
-  ctx.fillText('CV - ' + name, W/2, qrY + qrSize + 30);
+    // Name
+    ctx.fillStyle = '#111111';
+    ctx.font = 'bold 14px Cairo,Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText(name, W/2, y + 16);
+    y += NAME_H + 6;
 
-  // URL
-  ctx.fillStyle = 'rgba(255,255,255,.35)';
-  ctx.font = '11px Arial';
-  ctx.fillText('tawasolna.com', W/2, qrY + qrSize + 52);
+    // CTA message
+    ctx.fillStyle = '#555555';
+    ctx.font = '10px Cairo,Arial';
+    ctx.fillText('يمكنكم إنشاء CV والبحث عن عمل ودورات تعليمية مجاناً', W/2, y+12);
+    ctx.fillStyle = '#00c896';
+    ctx.font = 'bold 10px Cairo,Arial';
+    ctx.fillText('في موقع تواصلنا', W/2, y+26);
 
-  // Scan hint
-  ctx.fillStyle = 'rgba(0,200,150,.7)';
-  ctx.font = '12px Cairo, Arial';
-  ctx.fillText('امسح الكود لعرض السيرة الذاتية', W/2, H - 20);
+    doShare(platform, name, url, out);
+  }
 
-  // Convert to blob
-  out.toBlob(function(blob){
-    var file = new File([blob], 'cv-qr-'+name+'.png', {type:'image/png'});
-    
+  var logoImg = new Image();
+  logoImg.crossOrigin = 'anonymous';
+  logoImg.onload = drawComposite;
+  logoImg.onerror = drawComposite;
+  logoImg.src = 'https://wrxvmdmknhoufoeprpoc.supabase.co/storage/v1/object/public/site/Logo.svg';
+}
+
+
+function doShare(platform, name, url, canvas){
+  canvas.toBlob(function(blob){
+    var file = new File([blob], 'cv-'+name+'.png', {type:'image/png'});
+
     if(platform === 'تنزيل'){
       var a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
-      a.download = 'cv-qr-'+name+'.png';
+      a.download = 'cv-'+name+'.png';
       a.click();
       return;
     }
 
-    // Try native share with image
     if(navigator.share && navigator.canShare && navigator.canShare({files:[file]})){
       navigator.share({
         files: [file],
         title: 'CV - ' + name,
         text: 'شاهد سيرتي الذاتية على تواصلنا'
-      }).catch(function(){
-        // Fallback to link share
-        shareLink(platform, url, name);
-      });
+      }).catch(function(){ shareLink(platform, url, name); });
     } else {
-      // Fallback: download image then open platform
+      // Download then open platform
       var a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
-      a.download = 'cv-qr-'+name+'.png';
+      a.download = 'cv-'+name+'.png';
       a.click();
-      // Open platform after 800ms
-      setTimeout(function(){ shareLink(platform, url, name); }, 800);
+      setTimeout(function(){ shareLink(platform, url, name); }, 600);
     }
   }, 'image/png');
 }
+
 
 function shareLink(platform, url, name){
   var msg = encodeURIComponent(name + ' - شاهد سيرتي الذاتية: ' + url);
