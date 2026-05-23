@@ -623,6 +623,7 @@ class ReportInput(BaseModel):
 async def submit_report(data: ReportInput, request: Request):
     """Submit a report against a user or content"""
     try:
+        ensure_reports_table()
         # Get reporter from JWT
         auth = request.headers.get("Authorization","")
         token = auth.replace("Bearer ","") if auth.startswith("Bearer ") else ""
@@ -653,28 +654,33 @@ def admin_get_reports(request: Request):
     """Get all reports"""
     check_admin(request)
     try:
+        # Ensure table exists
+        ensure_reports_table()
         conn = get_conn()
-        rows = conn.run("""
-            SELECT r.id, r.reporter_id, r.reported_id, r.reported_type,
-                   r.report_type, r.reason, r.target_url, r.status, r.created_at,
-                   u1.full_name as reporter_name,
-                   u2.full_name as reported_name
-            FROM reports r
-            LEFT JOIN users u1 ON r.reporter_id = u1.id
-            LEFT JOIN users u2 ON r.reported_id = u2.id
-            ORDER BY r.created_at DESC
-        """)
-        cols = ['id','reporter_id','reported_id','reported_type','report_type',
-                'reason','target_url','status','created_at','reporter_name','reported_name']
-        reports = [dict(zip(cols,row)) for row in rows]
-        # Serialize dates
-        for rep in reports:
-            if rep.get('created_at'):
-                rep['created_at'] = str(rep['created_at'])
-        release_conn(conn)
+        try:
+            rows = conn.run("""
+                SELECT r.id, r.reporter_id, r.reported_id, r.reported_type,
+                       r.report_type, r.reason, r.target_url, r.status, r.created_at,
+                       u1.full_name as reporter_name,
+                       u2.full_name as reported_name
+                FROM reports r
+                LEFT JOIN users u1 ON r.reporter_id = u1.id
+                LEFT JOIN users u2 ON r.reported_id = u2.id
+                ORDER BY r.created_at DESC
+            """)
+            cols = ['id','reporter_id','reported_id','reported_type','report_type',
+                    'reason','target_url','status','created_at','reporter_name','reported_name']
+            reports = [dict(zip(cols,row)) for row in rows]
+            for rep in reports:
+                if rep.get('created_at'):
+                    rep['created_at'] = str(rep['created_at'])
+        finally:
+            release_conn(conn)
         return {"reports": reports, "count": len(reports)}
     except Exception as e:
-        raise HTTPException(500, str(e))
+        print(f"[Reports] Error: {e}")
+        # Return empty if table doesn't exist yet
+        return {"reports": [], "count": 0}
 
 @app.put("/admin/reports/{report_id}/resolve")
 def resolve_report(report_id: int, request: Request):
@@ -682,8 +688,10 @@ def resolve_report(report_id: int, request: Request):
     check_admin(request)
     try:
         conn = get_conn()
-        conn.run("UPDATE reports SET status='resolved' WHERE id=:id", id=report_id)
-        release_conn(conn)
+        try:
+            conn.run("UPDATE reports SET status='resolved' WHERE id=:id", id=report_id)
+        finally:
+            release_conn(conn)
         return {"status": "success"}
     except Exception as e:
         raise HTTPException(500, str(e))
