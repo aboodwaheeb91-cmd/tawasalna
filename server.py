@@ -682,85 +682,54 @@ def admin_reset_password(user_id: int, data: ResetPasswordInput, request: Reques
 
 @app.post("/admin/logo")
 async def upload_logo(data: ImageUploadInput, request: Request):
-    """Upload site logo - filename: logo1 or logo2"""
+    """Upload logo - filename: logo_wide or logo_tall"""
     check_admin(request)
     try:
-        filename = data.filename or "logo1"
-        logo_data = data.data_url
-        # Try Supabase Storage first
+        filename = data.filename or "logo_wide"
+        logo_url = data.data_url
         import httpx, base64 as _b64
-        supabase_url_env = os.environ.get("SUPABASE_URL","")
-        supabase_key = os.environ.get("SUPABASE_SERVICE_KEY","")
-        logo_url = logo_data  # fallback = data URL
-        if supabase_url_env and supabase_key and ',' in logo_data:
+        s_url = os.environ.get("SUPABASE_URL","")
+        s_key = os.environ.get("SUPABASE_SERVICE_KEY","")
+        if s_url and s_key and ',' in data.data_url:
             try:
-                header, b64data = logo_data.split(',', 1)
+                header, b64data = data.data_url.split(',', 1)
                 mime = header.split(':')[1].split(';')[0]
                 ext = ".png" if "png" in mime else ".jpg" if "jpg" in mime else ".svg" if "svg" in mime else ".png"
                 fname = filename + ext
                 file_bytes = _b64.b64decode(b64data)
                 async with httpx.AsyncClient(timeout=15) as client:
                     r = await client.post(
-                        f"{supabase_url_env}/storage/v1/object/site/{fname}",
+                        f"{s_url}/storage/v1/object/site/{fname}",
                         content=file_bytes,
-                        headers={"Authorization": f"Bearer {supabase_key}",
+                        headers={"Authorization": f"Bearer {s_key}",
                                 "Content-Type": mime, "x-upsert": "true"}
                     )
                     if r.status_code in (200, 201):
-                        logo_url = f"{supabase_url_env}/storage/v1/object/public/site/{fname}"
-                        print(f"[Logo] Saved to Supabase: {logo_url}")
-                    else:
-                        print(f"[Logo] Supabase failed {r.status_code}, using data URL")
+                        logo_url = f"{s_url}/storage/v1/object/public/site/{fname}"
+                        print(f"[Logo] Saved: {logo_url}")
             except Exception as e:
-                print(f"[Logo] Supabase error: {e}, using data URL")
-        # Save to DB (always - as fallback)
-        set_site_setting(f'logo_{filename}', logo_url)
-        # Also cache in memory
-        _html_cache[f'site_{filename}'] = logo_url
+                print(f"[Logo] Supabase failed: {e}")
+        set_site_setting(filename, logo_url)
+        _html_cache[filename] = logo_url
         return {"status": "success", "url": logo_url}
     except Exception as e:
         raise HTTPException(500, str(e))
 
 @app.get("/admin/logo")
 def get_logos():
-    """Get both logos and sizes - no auth needed (public)"""
-    # Check memory cache first
-    l1 = _html_cache.get('site_logo1','')
-    l2 = _html_cache.get('site_logo2','')
-    sz = _html_cache.get('site_logo_sizes',{})
-    # Fall back to DB if cache empty (after restart)
-    if not l1:
-        l1 = get_site_setting('logo_logo1')
-        if l1: _html_cache['site_logo1'] = l1
-    if not l2:
-        l2 = get_site_setting('logo_logo2')
-        if l2: _html_cache['site_logo2'] = l2
-    if not sz:
-        import json
-        sz_str = get_site_setting('logo_sizes')
-        if sz_str:
-            try: sz = json.loads(sz_str)
-            except: sz = {}
-        _html_cache['site_logo_sizes'] = sz
-    sl_str = get_site_setting('logo_select')
-    sl = {}
-    if sl_str:
-        try: sl = json.loads(sl_str)
-        except: sl = {}
-    return {"logo1": l1, "logo2": l2, "sizes": sz, "select": sl}
+    """Get both logos - public endpoint"""
+    def _get(key):
+        v = _html_cache.get(key,'')
+        if not v:
+            v = get_site_setting(key)
+            if v: _html_cache[key] = v
+        return v
+    return {"logo_wide": _get("logo_wide"), "logo_tall": _get("logo_tall")}
 
 @app.post("/admin/logo-sizes")
 async def save_logo_sizes(data: dict, request: Request):
-    """Save per-page logo sizes and selection"""
     check_admin(request)
-    import json
-    sizes = data.get('sizes', {})
-    select = data.get('select', {})
-    _html_cache['site_logo_sizes'] = sizes
-    _html_cache['site_logo_select'] = select
-    set_site_setting('logo_sizes', json.dumps(sizes))
-    set_site_setting('logo_select', json.dumps(select))
-    return {"status": "success"}
+    return {"status": "ok"}
 
 @app.get("/health")
 def health():

@@ -218,210 +218,8 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--t);min-heig
 
   <div class="content">
 
-    <!-- Stats -->
-    <div class="stats">
-      <div class="sc"><div class="sc-n" id="st-total">—</div><div class="sc-l">إجمالي المستخدمين</div></div>
-      <div class="sc"><div class="sc-n" id="st-emp">—</div><div class="sc-l">موظفين</div></div>
-      <div class="sc"><div class="sc-n" id="st-co">—</div><div class="sc-l">شركات</div></div>
-      <div class="sc"><div class="sc-n" id="st-edu">—</div><div class="sc-l">مؤسسات تعليمية</div></div>
-      <div class="sc"><div class="sc-n" id="st-pending">—</div><div class="sc-l">طلبات توثيق معلقة</div></div>
-    </div>
-
-    <!-- Tabs -->
-
-  <!-- ══ Stats Dashboard ══ -->
-  
-    <!-- Logo Upload Section -->
-    <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:16px;margin-bottom:16px">
-      <div style="font-weight:800;font-size:.85rem;margin-bottom:4px">🖼️ شعارات الموقع</div>
-      <div style="font-size:.7rem;color:rgba(255,255,255,.35);margin-bottom:12px">يظهران جنب بعض في الشريط العلوي بكل الصفحات</div>
-      <div style="display:flex;gap:12px;flex-wrap:wrap">
-        <!-- Logo 1 -->
-        <div style="flex:1;min-width:140px">
-          <div style="font-size:.72rem;color:rgba(255,255,255,.5);margin-bottom:6px">الشعار الأول</div>
-          <div style="display:flex;align-items:center;gap:10px">
-            <div id="logoPreview1" style="height:50px;min-width:50px;border-radius:10px;background:rgba(255,255,255,.05);border:1px dashed rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;font-size:1.3rem;overflow:hidden;padding:4px">🏢</div>
-            <div>
-              <input type="file" id="logoFile1" accept="image/png,image/jpg,image/jpeg,image/svg+xml,image/webp" style="display:none" onchange="previewLogoN(this,1)">
-              <button onclick="document.getElementById('logoFile1').click()" style="padding:6px 12px;border-radius:8px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);color:rgba(255,255,255,.7);font-family:Cairo,sans-serif;font-size:.7rem;cursor:pointer;display:block;margin-bottom:4px">📂 اختر</button>
-            </div>
-          </div>
-        </div>
-        <!-- Logo 2 -->
-        <div style="flex:1;min-width:140px">
-          <div style="font-size:.72rem;color:rgba(255,255,255,.5);margin-bottom:6px">الشعار الثاني</div>
-          <div style="display:flex;align-items:center;gap:10px">
-            <div id="logoPreview2" style="height:50px;min-width:50px;border-radius:10px;background:rgba(255,255,255,.05);border:1px dashed rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;font-size:1.3rem;overflow:hidden;padding:4px">🏢</div>
-            <div>
-              <input type="file" id="logoFile2" accept="image/png,image/jpg,image/jpeg,image/svg+xml,image/webp" style="display:none" onchange="previewLogoN(this,2)">
-              <button onclick="document.getElementById('logoFile2').click()" style="padding:6px 12px;border-radius:8px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);color:rgba(255,255,255,.7);font-family:Cairo,sans-serif;font-size:.7rem;cursor:pointer;display:block;margin-bottom:4px">📂 اختر</button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Logo Size Per Page -->
-      <div style="margin-top:14px;border-top:1px solid rgba(255,255,255,.06);padding-top:12px">
-        <div style="font-size:.75rem;font-weight:700;color:rgba(255,255,255,.6);margin-bottom:10px">📐 حجم الشعار لكل صفحة</div>
-        <div style="display:flex;flex-direction:column;gap:10px">
-
-          <div style="display:flex;align-items:center;gap:10px">
-            <div style="font-size:.72rem;color:rgba(255,255,255,.5);min-width:80px">البروفايل</div>
-            <input type="range" id="logoSize_profile" min="24" max="60" value="44"
-              style="flex:1;accent-color:var(--ac)"
-              oninput="updateLogoSize('profile',this.value)">
-            <div style="font-size:.7rem;color:var(--ac);min-width:32px" id="logoSizeVal_profile">44px</div>
-          </div>
-          <div style="display:flex;align-items:center;gap:10px">
-            <div style="font-size:.72rem;color:rgba(255,255,255,.5);min-width:80px">الرئيسية</div>
-            <input type="range" id="logoSize_home" min="24" max="60" value="44"
-              style="flex:1;accent-color:var(--ac)"
-              oninput="updateLogoSize('home',this.value)">
-            <div style="font-size:.7rem;color:var(--ac);min-width:32px" id="logoSizeVal_home">44px</div>
-          </div>
-          <div style="display:flex;align-items:center;gap:10px">
-            <div style="font-size:.72rem;color:rgba(255,255,255,.5);min-width:80px">الهبوط</div>
-            <input type="range" id="logoSize_landing" min="24" max="60" value="44"
-              style="flex:1;accent-color:var(--ac)"
-              oninput="updateLogoSize('landing',this.value)">
-            <div style="font-size:.7rem;color:var(--ac);min-width:32px" id="logoSizeVal_landing">44px</div>
-          </div>
-          <div style="display:flex;align-items:center;gap:10px">
-            <div style="font-size:.72rem;color:rgba(255,255,255,.5);min-width:80px">الوظائف</div>
-            <input type="range" id="logoSize_jobs" min="24" max="60" value="44"
-              style="flex:1;accent-color:var(--ac)"
-              oninput="updateLogoSize('jobs',this.value)">
-            <div style="font-size:.7rem;color:var(--ac);min-width:32px" id="logoSizeVal_jobs">44px</div>
-          </div>
-          <div style="display:flex;align-items:center;gap:10px">
-            <div style="font-size:.72rem;color:rgba(255,255,255,.5);min-width:80px">الإعدادات</div>
-            <input type="range" id="logoSize_settings" min="24" max="60" value="44"
-              style="flex:1;accent-color:var(--ac)"
-              oninput="updateLogoSize('settings',this.value)">
-            <div style="font-size:.7rem;color:var(--ac);min-width:32px" id="logoSizeVal_settings">44px</div>
-          </div>
-          <div style="display:flex;align-items:center;gap:10px">
-            <div style="font-size:.72rem;color:rgba(255,255,255,.5);min-width:80px">الرسائل</div>
-            <input type="range" id="logoSize_messages" min="24" max="60" value="44"
-              style="flex:1;accent-color:var(--ac)"
-              oninput="updateLogoSize('messages',this.value)">
-            <div style="font-size:.7rem;color:var(--ac);min-width:32px" id="logoSizeVal_messages">44px</div>
-          </div>
-          <div style="display:flex;align-items:center;gap:10px">
-            <div style="font-size:.72rem;color:rgba(255,255,255,.5);min-width:80px">الإشعارات</div>
-            <input type="range" id="logoSize_notifications" min="24" max="60" value="44"
-              style="flex:1;accent-color:var(--ac)"
-              oninput="updateLogoSize('notifications',this.value)">
-            <div style="font-size:.7rem;color:var(--ac);min-width:32px" id="logoSizeVal_notifications">44px</div>
-          </div>
-          <div style="display:flex;align-items:center;gap:10px">
-            <div style="font-size:.72rem;color:rgba(255,255,255,.5);min-width:80px">الإدارة</div>
-            <input type="range" id="logoSize_admin" min="24" max="60" value="44"
-              style="flex:1;accent-color:var(--ac)"
-              oninput="updateLogoSize('admin',this.value)">
-            <div style="font-size:.7rem;color:var(--ac);min-width:32px" id="logoSizeVal_admin">44px</div>
-          </div>
-        </div>
-      </div>
-      
-      <!-- Per-page config -->
-      <div style="border-top:1px solid rgba(255,255,255,.06);padding-top:10px;margin-top:10px">
-        <div style="font-size:.73rem;font-weight:700;color:rgba(255,255,255,.4);margin-bottom:8px">📐 إعداد كل صفحة</div>
-        
-          <div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.04)">
-            <div style="font-size:.72rem;color:rgba(255,255,255,.5);min-width:88px">البروفايل</div>
-            <select id="logoSel1_profile" onchange="saveSizes()" style="flex:1;padding:4px 6px;border-radius:8px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);color:rgba(255,255,255,.6);font-family:Cairo,sans-serif;font-size:.66rem">
-              <option value="both">الشعاران</option>
-              <option value="logo1">الأول فقط</option>
-              <option value="logo2">الثاني فقط</option>
-              <option value="none">بدون شعار</option>
-            </select>
-            <input type="range" id="logoSize_profile" min="24" max="60" value="44" oninput="document.getElementById('logoSizeVal_profile').textContent=this.value+'px';saveSizes()" style="width:60px;accent-color:var(--ac)">
-            <div style="font-size:.66rem;color:var(--ac);min-width:28px" id="logoSizeVal_profile">44px</div>
-          </div>
-          <div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.04)">
-            <div style="font-size:.72rem;color:rgba(255,255,255,.5);min-width:88px">الرئيسية</div>
-            <select id="logoSel1_home" onchange="saveSizes()" style="flex:1;padding:4px 6px;border-radius:8px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);color:rgba(255,255,255,.6);font-family:Cairo,sans-serif;font-size:.66rem">
-              <option value="both">الشعاران</option>
-              <option value="logo1">الأول فقط</option>
-              <option value="logo2">الثاني فقط</option>
-              <option value="none">بدون شعار</option>
-            </select>
-            <input type="range" id="logoSize_home" min="24" max="60" value="44" oninput="document.getElementById('logoSizeVal_home').textContent=this.value+'px';saveSizes()" style="width:60px;accent-color:var(--ac)">
-            <div style="font-size:.66rem;color:var(--ac);min-width:28px" id="logoSizeVal_home">44px</div>
-          </div>
-          <div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.04)">
-            <div style="font-size:.72rem;color:rgba(255,255,255,.5);min-width:88px">صفحة الهبوط</div>
-            <select id="logoSel1_landing" onchange="saveSizes()" style="flex:1;padding:4px 6px;border-radius:8px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);color:rgba(255,255,255,.6);font-family:Cairo,sans-serif;font-size:.66rem">
-              <option value="both">الشعاران</option>
-              <option value="logo1">الأول فقط</option>
-              <option value="logo2">الثاني فقط</option>
-              <option value="none">بدون شعار</option>
-            </select>
-            <input type="range" id="logoSize_landing" min="24" max="60" value="44" oninput="document.getElementById('logoSizeVal_landing').textContent=this.value+'px';saveSizes()" style="width:60px;accent-color:var(--ac)">
-            <div style="font-size:.66rem;color:var(--ac);min-width:28px" id="logoSizeVal_landing">44px</div>
-          </div>
-          <div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.04)">
-            <div style="font-size:.72rem;color:rgba(255,255,255,.5);min-width:88px">الوظائف</div>
-            <select id="logoSel1_jobs" onchange="saveSizes()" style="flex:1;padding:4px 6px;border-radius:8px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);color:rgba(255,255,255,.6);font-family:Cairo,sans-serif;font-size:.66rem">
-              <option value="both">الشعاران</option>
-              <option value="logo1">الأول فقط</option>
-              <option value="logo2">الثاني فقط</option>
-              <option value="none">بدون شعار</option>
-            </select>
-            <input type="range" id="logoSize_jobs" min="24" max="60" value="44" oninput="document.getElementById('logoSizeVal_jobs').textContent=this.value+'px';saveSizes()" style="width:60px;accent-color:var(--ac)">
-            <div style="font-size:.66rem;color:var(--ac);min-width:28px" id="logoSizeVal_jobs">44px</div>
-          </div>
-          <div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.04)">
-            <div style="font-size:.72rem;color:rgba(255,255,255,.5);min-width:88px">الرسائل</div>
-            <select id="logoSel1_messages" onchange="saveSizes()" style="flex:1;padding:4px 6px;border-radius:8px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);color:rgba(255,255,255,.6);font-family:Cairo,sans-serif;font-size:.66rem">
-              <option value="both">الشعاران</option>
-              <option value="logo1">الأول فقط</option>
-              <option value="logo2">الثاني فقط</option>
-              <option value="none">بدون شعار</option>
-            </select>
-            <input type="range" id="logoSize_messages" min="24" max="60" value="44" oninput="document.getElementById('logoSizeVal_messages').textContent=this.value+'px';saveSizes()" style="width:60px;accent-color:var(--ac)">
-            <div style="font-size:.66rem;color:var(--ac);min-width:28px" id="logoSizeVal_messages">44px</div>
-          </div>
-          <div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.04)">
-            <div style="font-size:.72rem;color:rgba(255,255,255,.5);min-width:88px">الإشعارات</div>
-            <select id="logoSel1_notifications" onchange="saveSizes()" style="flex:1;padding:4px 6px;border-radius:8px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);color:rgba(255,255,255,.6);font-family:Cairo,sans-serif;font-size:.66rem">
-              <option value="both">الشعاران</option>
-              <option value="logo1">الأول فقط</option>
-              <option value="logo2">الثاني فقط</option>
-              <option value="none">بدون شعار</option>
-            </select>
-            <input type="range" id="logoSize_notifications" min="24" max="60" value="44" oninput="document.getElementById('logoSizeVal_notifications').textContent=this.value+'px';saveSizes()" style="width:60px;accent-color:var(--ac)">
-            <div style="font-size:.66rem;color:var(--ac);min-width:28px" id="logoSizeVal_notifications">44px</div>
-          </div>
-          <div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.04)">
-            <div style="font-size:.72rem;color:rgba(255,255,255,.5);min-width:88px">الإعدادات</div>
-            <select id="logoSel1_settings" onchange="saveSizes()" style="flex:1;padding:4px 6px;border-radius:8px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);color:rgba(255,255,255,.6);font-family:Cairo,sans-serif;font-size:.66rem">
-              <option value="both">الشعاران</option>
-              <option value="logo1">الأول فقط</option>
-              <option value="logo2">الثاني فقط</option>
-              <option value="none">بدون شعار</option>
-            </select>
-            <input type="range" id="logoSize_settings" min="24" max="60" value="44" oninput="document.getElementById('logoSizeVal_settings').textContent=this.value+'px';saveSizes()" style="width:60px;accent-color:var(--ac)">
-            <div style="font-size:.66rem;color:var(--ac);min-width:28px" id="logoSizeVal_settings">44px</div>
-          </div>
-          <div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.04)">
-            <div style="font-size:.72rem;color:rgba(255,255,255,.5);min-width:88px">الإدارة</div>
-            <select id="logoSel1_admin" onchange="saveSizes()" style="flex:1;padding:4px 6px;border-radius:8px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);color:rgba(255,255,255,.6);font-family:Cairo,sans-serif;font-size:.66rem">
-              <option value="both">الشعاران</option>
-              <option value="logo1">الأول فقط</option>
-              <option value="logo2">الثاني فقط</option>
-              <option value="none">بدون شعار</option>
-            </select>
-            <input type="range" id="logoSize_admin" min="24" max="60" value="44" oninput="document.getElementById('logoSizeVal_admin').textContent=this.value+'px';saveSizes()" style="width:60px;accent-color:var(--ac)">
-            <div style="font-size:.66rem;color:var(--ac);min-width:28px" id="logoSizeVal_admin">44px</div>
-          </div>
-        <button onclick="saveSizes()" style="width:100%;margin-top:10px;padding:8px;border-radius:10px;border:none;background:rgba(0,200,150,.1);color:var(--ac);font-family:Cairo,sans-serif;font-size:.72rem;cursor:pointer;border:1px solid rgba(0,200,150,.2)">💾 حفظ الإعدادات</button>
-      </div>
-      <button id="logoSaveBtn" onclick="saveBothLogos(this)" style="width:100%;margin-top:12px;padding:10px;border-radius:10px;border:none;background:linear-gradient(135deg,var(--ac),#2563ff);color:#fff;font-family:Cairo,sans-serif;font-size:.78rem;font-weight:700;cursor:pointer">💾 حفظ الشعارين</button>
-      <div style="font-size:.65rem;color:rgba(255,255,255,.3);margin-top:6px;text-align:center">PNG, JPG, SVG, WebP</div>
-    </div>
-<div id="statsRow" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px">
+  <!-- Stats Dashboard -->
+  <div id="statsRow" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px">
     <div style="background:rgba(0,200,150,.08);border:1px solid rgba(0,200,150,.2);border-radius:14px;padding:16px;text-align:center">
       <div style="font-size:1.6rem;font-weight:900;color:var(--ac)" id="statTotalUsers">--</div>
       <div style="font-size:.72rem;color:var(--t3)">إجمالي المستخدمين</div>
@@ -431,16 +229,39 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--t);min-heig
       <div style="font-size:.72rem;color:var(--t3)">الوظائف المنشورة</div>
     </div>
     <div style="background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.2);border-radius:14px;padding:16px;text-align:center">
-      <div style="font-size:1.6rem;font-weight:900;color:#fbbf24" id="statPendingVerify">--</div>
-      <div style="font-size:.72rem;color:var(--t3)">طلبات التوثيق</div>
+      <div style="font-size:1.6rem;font-weight:900;color:#fbbf24" id="statPending">--</div>
+      <div style="font-size:.72rem;color:var(--t3)">طلبات توثيق</div>
     </div>
-    <div style="background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);border-radius:14px;padding:16px;text-align:center">
-      <div style="font-size:1.6rem;font-weight:900;color:#f87171" id="statPendingKYC">--</div>
-      <div style="font-size:.72rem;color:var(--t3)">طلبات KYC</div>
+    <div style="background:rgba(124,58,237,.08);border:1px solid rgba(124,58,237,.2);border-radius:14px;padding:16px;text-align:center">
+      <div style="font-size:1.6rem;font-weight:900;color:#a78bfa" id="statKYC">--</div>
+      <div style="font-size:.72rem;color:var(--t3)">KYC قيد المراجعة</div>
     </div>
   </div>
 
-        <div class="tabs">
+  <!-- Logo Upload -->
+  <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:16px;margin-bottom:16px">
+    <div style="font-weight:800;font-size:.85rem;margin-bottom:4px">🖼️ شعارات الموقع</div>
+    <div style="font-size:.68rem;color:rgba(255,255,255,.3);margin-bottom:14px">الشعار الأفقي للشريط العلوي · الشعار العمودي لصفحات الدخول والهبوط</div>
+    <div style="display:flex;gap:10px;margin-bottom:12px">
+      <!-- Wide Logo -->
+      <div style="flex:1;text-align:center">
+        <div style="font-size:.68rem;color:rgba(255,255,255,.5);margin-bottom:6px">🔲 أفقي (للشريط)</div>
+        <div id="prevWide" onclick="document.getElementById('fileWide').click()" style="height:50px;border-radius:10px;background:rgba(255,255,255,.04);border:1px dashed rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;cursor:pointer;overflow:hidden;margin-bottom:6px;font-size:1.5rem;opacity:.4">+</div>
+        <input type="file" id="fileWide" accept="image/*" style="display:none" onchange="prevLogo(this,'wide')">
+        <button onclick="uploadLogo('wide',this)" style="width:100%;padding:6px;border-radius:8px;border:none;background:linear-gradient(135deg,var(--ac),#2563ff);color:#fff;font-family:Cairo,sans-serif;font-size:.68rem;cursor:pointer">⬆️ رفع</button>
+      </div>
+      <!-- Tall Logo -->
+      <div style="flex:1;text-align:center">
+        <div style="font-size:.68rem;color:rgba(255,255,255,.5);margin-bottom:6px">📱 عمودي (للدخول)</div>
+        <div id="prevTall" onclick="document.getElementById('fileTall').click()" style="height:80px;border-radius:10px;background:rgba(255,255,255,.04);border:1px dashed rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;cursor:pointer;overflow:hidden;margin-bottom:6px;font-size:1.5rem;opacity:.4">+</div>
+        <input type="file" id="fileTall" accept="image/*" style="display:none" onchange="prevLogo(this,'tall')">
+        <button onclick="uploadLogo('tall',this)" style="width:100%;padding:6px;border-radius:8px;border:none;background:linear-gradient(135deg,#7c3aed,#2563ff);color:#fff;font-family:Cairo,sans-serif;font-size:.68rem;cursor:pointer">⬆️ رفع</button>
+      </div>
+    </div>
+    <div style="font-size:.62rem;color:rgba(255,255,255,.2);text-align:center">PNG · JPG · SVG · WebP</div>
+  </div>
+
+<div class="tabs">
       <button class="tab on" onclick="showTab('users',this)"><span class="tab-ico">👥</span><span class="tab-lbl">المستخدمون</span></button>
       <button class="tab" onclick="showTab('verify',this)"><span class="tab-ico">✅</span><span class="tab-lbl">توثيق</span></button>
       <button class="tab" onclick="showTab('jobs',this)"><span class="tab-ico">💼</span><span class="tab-lbl">وظائف</span></button>
@@ -1154,68 +975,50 @@ function setMsgTemplate(type){
 }
 
 // ── Logo System ──
-var _logo1b64='', _logo2b64='';
-var _logoSizes={}, _logoSelect={};
+var _logoWideB64='', _logoTallB64='';
 
-function previewLogoN(input,n){
+function prevLogo(input, type){
   if(!input.files||!input.files[0]) return;
   var reader=new FileReader();
   reader.onload=function(e){
-    if(n===1) _logo1b64=e.target.result;
-    else _logo2b64=e.target.result;
-    var prev=document.getElementById('logoPreview'+n);
-    if(prev) prev.innerHTML='<img src="'+e.target.result+'" style="height:44px;object-fit:contain">';
+    if(type==='wide') _logoWideB64=e.target.result;
+    else _logoTallB64=e.target.result;
+    var prev=document.getElementById('prev'+(type==='wide'?'Wide':'Tall'));
+    if(prev){
+      prev.innerHTML='<img src="'+e.target.result+'" style="max-height:100%;max-width:100%;object-fit:contain">';
+      prev.style.opacity='1';
+    }
   };
   reader.readAsDataURL(input.files[0]);
 }
 
-function saveSizes(){
-  var pages=['profile','home','landing','jobs','messages','notifications','settings','admin'];
-  pages.forEach(function(pg){
-    var sl=document.getElementById('logoSize_'+pg);
-    var se=document.getElementById('logoSel1_'+pg);
-    if(sl) _logoSizes[pg]=parseInt(sl.value);
-    if(se) _logoSelect[pg]=se.value;
-  });
-  fetch('/admin/logo-sizes',{method:'POST',
-    headers:{...adminHeaders(),'Content-Type':'application/json'},
-    body:JSON.stringify({sizes:_logoSizes,select:_logoSelect})
-  }).then(function(){showToast('تم حفظ الإعدادات ✅');}).catch(function(){});
-}
-
-async function saveBothLogos(btn){
-  if(!_logo1b64&&!_logo2b64){showToast('اختر شعاراً على الأقل','error');return;}
+async function uploadLogo(type, btn){
+  var b64 = type==='wide'?_logoWideB64:_logoTallB64;
+  if(!b64){showToast('اختر صورة أولاً','error');return;}
   setBtnLoad(btn,true);
   try{
-    var calls=[];
-    if(_logo1b64) calls.push(fetch('/admin/logo',{method:'POST',
+    var r=await fetch('/admin/logo',{method:'POST',
       headers:{...adminHeaders(),'Content-Type':'application/json'},
-      body:JSON.stringify({user_id:0,bucket:'site',filename:'logo1',data_url:_logo1b64})
-    }).then(function(r){return r.json();}));
-    if(_logo2b64) calls.push(fetch('/admin/logo',{method:'POST',
-      headers:{...adminHeaders(),'Content-Type':'application/json'},
-      body:JSON.stringify({user_id:0,bucket:'site',filename:'logo2',data_url:_logo2b64})
-    }).then(function(r){return r.json();}));
-    await Promise.all(calls);
-    saveSizes();
-    showToast('تم رفع الشعارين ✅');
-  }catch(e){showToast('خطأ','error');}
+      body:JSON.stringify({user_id:0,bucket:'site',filename:'logo_'+type,data_url:b64})
+    });
+    var d=await r.json();
+    if(d.status==='success') showToast('تم رفع الشعار ✅');
+    else throw new Error();
+  }catch(e){showToast('خطأ في الرفع','error');}
   setBtnLoad(btn,false);
 }
 
-// Load existing on init
+// Load existing logos
 (function(){
   fetch('/admin/logo').then(function(r){return r.json();}).then(function(d){
-    if(d.logo1){var p=document.getElementById('logoPreview1');if(p)p.innerHTML='<img src="'+d.logo1+'" style="height:44px;object-fit:contain">';}
-    if(d.logo2){var p=document.getElementById('logoPreview2');if(p)p.innerHTML='<img src="'+d.logo2+'" style="height:44px;object-fit:contain">';}
-    var sizes=d.sizes||{}, selects=d.select||{};
-    ['profile','home','landing','jobs','messages','notifications','settings','admin'].forEach(function(pg){
-      var sl=document.getElementById('logoSize_'+pg);
-      var lb=document.getElementById('logoSizeVal_'+pg);
-      var se=document.getElementById('logoSel1_'+pg);
-      if(sl&&sizes[pg]){sl.value=sizes[pg];if(lb)lb.textContent=sizes[pg]+'px';}
-      if(se&&selects[pg]) se.value=selects[pg];
-    });
+    if(d.logo_wide){
+      var p=document.getElementById('prevWide');
+      if(p){p.innerHTML='<img src="'+d.logo_wide+'" style="max-height:46px;max-width:100%;object-fit:contain">';p.style.opacity='1';}
+    }
+    if(d.logo_tall){
+      var p=document.getElementById('prevTall');
+      if(p){p.innerHTML='<img src="'+d.logo_tall+'" style="max-height:76px;max-width:100%;object-fit:contain">';p.style.opacity='1';}
+    }
   }).catch(function(){});
 })();
 

@@ -124,55 +124,38 @@ function safeText(el, text){
 }
 
 // ══ Logo from Admin ══
-var _twLogos = {logo1:'', logo2:'', sizes:{}, select:{}};
+var _twLogoWide = '', _twLogoTall = '';
 
-function applyLogosToPage(){
-  var path = window.location.pathname;
-  var pageKey = 'home';
-  if(path.includes('profile')) pageKey='profile';
-  else if(path.includes('landing')||path==='/'||path==='') pageKey='landing';
-  else if(path.includes('jobs')) pageKey='jobs';
-  else if(path.includes('settings')) pageKey='settings';
-  else if(path.includes('message')) pageKey='messages';
-  else if(path.includes('notif')) pageKey='notifications';
-  else if(path.includes('admin')) pageKey='admin';
+function applyNavLogo(){
+  if(!_twLogoWide) return;
+  document.querySelectorAll('.nav-logo,.tb-logo,.admin-nav .nav-logo,.login-logo').forEach(function(el){
+    el.innerHTML = '<img src="'+_twLogoWide+'" style="height:100%;max-height:100%;width:auto;object-fit:contain;display:block">';
+    el.style.cssText = (el.style.cssText||'')+';display:flex;align-items:center;height:100%;padding:0';
+  });
+}
 
-  var size = (_twLogos.sizes[pageKey]||44)+'px';
-  var sel = _twLogos.select[pageKey]||'both';
-  var l1 = sel==='logo2'?'':_twLogos.logo1;
-  var l2 = sel==='logo1'?'':_twLogos.logo2;
-  if(sel==='none') return; // no logo for this page
-
-  var targets=document.querySelectorAll('.nav-logo,.login-logo,.tb-logo,.nav-brand');
-  targets.forEach(function(el){
-    var html='';
-    if(l1) html+='<img src="'+l1+'" style="height:'+size+';max-height:'+size+';object-fit:contain;display:block">';
-    if(l2) html+='<img src="'+l2+'" style="height:'+size+';max-height:'+size+';object-fit:contain;display:block;margin-right:4px">';
-    if(html){
-      el.innerHTML=html;
-      el.style.cssText=(el.style.cssText||'')+';display:flex;align-items:center;gap:4px;height:100%;padding:3px 0';
-    }
+function applyTallLogo(){
+  if(!_twLogoTall) return;
+  document.querySelectorAll('.logo-tall-area').forEach(function(el){
+    el.innerHTML = '<img src="'+_twLogoTall+'" style="max-height:120px;width:auto;object-fit:contain">';
   });
 }
 
 function loadAndApplyLogos(){
   fetch('/admin/logo').then(function(r){return r.json();}).then(function(d){
-    _twLogos.logo1=d.logo1||'';
-    _twLogos.logo2=d.logo2||'';
-    _twLogos.sizes=d.sizes||{};
-    _twLogos.select=d.select||{};
-    if(_twLogos.logo1||_twLogos.logo2){
-      applyLogosToPage();
-      setTimeout(applyLogosToPage,600);
-    }
+    _twLogoWide = d.logo_wide||'';
+    _twLogoTall = d.logo_tall||'';
+    applyNavLogo();
+    applyTallLogo();
+    setTimeout(function(){applyNavLogo();applyTallLogo();},800);
   }).catch(function(){});
 }
 
-// Load logos from server on page load
+// Load logos on page load
 if(document.readyState==='complete'){
   loadAndApplyLogos();
 } else {
-  window.addEventListener('load',loadAndApplyLogos);
+  window.addEventListener('load', loadAndApplyLogos);
 }
 
 
