@@ -348,7 +348,7 @@ body.s4 .add-item-btn:hover { border-color:var(--ac); color:var(--ac); }
 .cv-wrap.fading { opacity:0; transform:translateY(5px); }
 
 /* ── Preview ── */
-body.preview-mode .owner-only { display:none !important; }
+body.preview-mode /* owner-only: shown by default, hidden for visitors */
 
 /* ── Modal ── */
 .overlay { position:fixed; inset:0; z-index:2000; background:rgba(0,0,0,.75); display:flex; align-items:center; justify-content:center; padding:16px; opacity:0; pointer-events:none; transition:opacity .2s; }
@@ -2615,13 +2615,15 @@ function closeModal(){
 function closeOverlay(e){ if(e.target===document.getElementById('overlay')) closeModal(); }
 
 if(!isOwner){
-  // OWNER - show all editing tools
-  document.querySelectorAll('.owner-only').forEach(el=>el.style.display='');
-  document.getElementById('previewBtn').style.display='';
+  // OWNER - everything already visible, just show preview btn
+  var pb = document.getElementById('previewBtn');
+  if(pb) pb.style.display='';
 } else {
-  // PUBLIC VIEW - visitor, hide all editing tools
-  document.querySelectorAll('.owner-only').forEach(el=>el.style.display='none');
+  // VISITOR - hide owner-only elements
+  document.querySelectorAll('.owner-only').forEach(function(el){ el.style.display='none'; });
+  // Hide toolbar action buttons except logo
   document.querySelectorAll('.tb-btn').forEach(function(btn){ btn.style.display='none'; });
+  // Show public CTA banner
   showPublicBanner();
 }
 restoreSections();
