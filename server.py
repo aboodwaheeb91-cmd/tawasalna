@@ -60,7 +60,7 @@ from auth import (
     add_job, get_jobs, get_job, apply_job,
     start_kyc, send_email_code, verify_email_code,
     send_phone_code, verify_phone_code, upload_kyc_docs,
-    get_kyc_status, admin_approve_kyc, admin_reject_kyc, get_all_kyc_submissions, ensure_site_settings_table,
+    get_kyc_status, admin_approve_kyc, admin_reject_kyc, get_all_kyc_submissions, ensure_site_settings_table, ensure_reports_table,
     send_message, get_conversations, get_messages, get_unread_count,
     create_notification, get_notifications, mark_notifications_read, get_unread_notifications,
     get_job_applicants, get_user_applications,
@@ -609,6 +609,85 @@ async def websocket_endpoint(websocket: WebSocket, user_id: int):
 
 # In-memory error log (last 100 errors)
 _error_log = []
+
+
+# ══ Reports System ══
+class ReportInput(BaseModel):
+    reported_id: int
+    reported_type: str  # user, job, company
+    report_type: str    # sexual, fraud, harassment, spam, other
+    reason: str
+    target_url: Optional[str] = None
+
+@app.post("/reports/submit")
+async def submit_report(data: ReportInput, request: Request):
+    """Submit a report against a user or content"""
+    try:
+        # Get reporter from JWT
+        auth = request.headers.get("Authorization","")
+        token = auth.replace("Bearer ","") if auth.startswith("Bearer ") else ""
+        reporter_id = None
+        if token:
+            payload = _jwt_decode(token)
+            reporter_id = payload.get("user_id")
+        
+        conn = get_conn()
+        conn.run("""
+            INSERT INTO reports (reporter_id, reported_id, reported_type, report_type, reason, target_url, status)
+            VALUES (:rid, :tid, :rtype, :rpt, :reason, :url, 'pending')
+        """, rid=reporter_id, tid=data.reported_id, rtype=data.reported_type,
+            rpt=data.report_type, reason=data.reason, url=data.target_url)
+        release_conn(conn)
+        
+        # Create notification for admin
+        try:
+            create_notification(1, f"بلاغ جديد: {data.report_type}", "report")
+        except: pass
+        
+        return {"status": "success", "message": "تم إرسال البلاغ"}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+@app.get("/admin/reports")
+def admin_get_reports(request: Request):
+    """Get all reports"""
+    check_admin(request)
+    try:
+        conn = get_conn()
+        rows = conn.run("""
+            SELECT r.id, r.reporter_id, r.reported_id, r.reported_type,
+                   r.report_type, r.reason, r.target_url, r.status, r.created_at,
+                   u1.full_name as reporter_name,
+                   u2.full_name as reported_name
+            FROM reports r
+            LEFT JOIN users u1 ON r.reporter_id = u1.id
+            LEFT JOIN users u2 ON r.reported_id = u2.id
+            ORDER BY r.created_at DESC
+        """)
+        cols = ['id','reporter_id','reported_id','reported_type','report_type',
+                'reason','target_url','status','created_at','reporter_name','reported_name']
+        reports = [dict(zip(cols,row)) for row in rows]
+        # Serialize dates
+        for rep in reports:
+            if rep.get('created_at'):
+                rep['created_at'] = str(rep['created_at'])
+        release_conn(conn)
+        return {"reports": reports, "count": len(reports)}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+@app.put("/admin/reports/{report_id}/resolve")
+def resolve_report(report_id: int, request: Request):
+    """Mark report as resolved"""
+    check_admin(request)
+    try:
+        conn = get_conn()
+        conn.run("UPDATE reports SET status='resolved' WHERE id=:id", id=report_id)
+        release_conn(conn)
+        return {"status": "success"}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
 
 @app.post("/log/error")
 async def log_client_error(data: ErrorLogInput):

@@ -137,22 +137,24 @@ body{font-family:Cairo,sans-serif;background:var(--bg);color:#fff;min-height:100
     <!-- ═══ القسم 1: إحصائيات المستخدمين ═══ -->
     <div style="margin-bottom:10px">
       <div class="sec-hdr">👥 المستخدمون</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
-        <div class="stat-card" style="background:rgba(0,200,150,.08);border:1px solid rgba(0,200,150,.2)">
-          <div class="stat-num" style="color:var(--ac)" id="statTotalUsers">--</div>
-          <div class="stat-lbl">إجمالي المستخدمين</div>
-        </div>
+      <!-- إجمالي - عرض كامل -->
+      <div class="stat-card" style="background:linear-gradient(135deg,rgba(0,200,150,.12),rgba(37,99,255,.08));border:1px solid rgba(0,200,150,.25);margin-bottom:6px;padding:12px">
+        <div class="stat-num" style="color:var(--ac);font-size:2rem" id="statTotalUsers">--</div>
+        <div class="stat-lbl" style="font-size:.7rem">إجمالي المستخدمين</div>
+      </div>
+      <!-- الثلاثة الباقيين -->
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">
         <div class="stat-card" style="background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.2)">
           <div class="stat-num" style="color:#34d399" id="statEmployees">--</div>
-          <div class="stat-lbl">الموظفون</div>
+          <div class="stat-lbl">موظفون</div>
         </div>
         <div class="stat-card" style="background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.2)">
           <div class="stat-num" style="color:#93c5fd" id="statCompanies">--</div>
-          <div class="stat-lbl">الشركات</div>
+          <div class="stat-lbl">شركات</div>
         </div>
-        <div class="stat-card" style="background:rgba(124,58,237,.08);border:1px solid rgba(124,58,237,.2)">
-          <div class="stat-num" style="color:#a78bfa" id="statEdu">--</div>
-          <div class="stat-lbl">المؤسسات التعليمية</div>
+        <div class="stat-card" style="background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.2)">
+          <div class="stat-num" style="color:#fbbf24" id="statEdu">--</div>
+          <div class="stat-lbl">تعليمية</div>
         </div>
       </div>
     </div>
@@ -185,10 +187,11 @@ body{font-family:Cairo,sans-serif;background:var(--bg);color:#fff;min-height:100
     </div>
 
     <!-- ═══ التبويبات ═══ -->
-    <div class="tabs">
-      <button class="tab on" onclick="showTab('users',this)"><span class="tab-ico">👥</span><span>المستخدمون</span></button>
+    <div class="tabs" style="grid-template-columns:repeat(6,1fr)">
+      <button class="tab on" onclick="showTab('users',this)"><span class="tab-ico">👥</span><span>مستخدمون</span></button>
       <button class="tab" onclick="showTab('verify',this)"><span class="tab-ico">✅</span><span>توثيق</span></button>
       <button class="tab" onclick="showTab('jobs',this)"><span class="tab-ico">💼</span><span>وظائف</span></button>
+      <button class="tab" onclick="showTab('reports',this)"><span class="tab-ico">🚨</span><span>بلاغات <span id="reportsBadge" style="display:none;background:#f87171;color:#fff;border-radius:10px;padding:0 4px;font-size:.5rem;position:absolute;top:4px;right:4px"></span></span></button>
       <button class="tab" onclick="showTab('kyc',this)"><span class="tab-ico">🪪</span><span>KYC <span id="kycPendingBadge" style="display:none;background:#f87171;color:#fff;border-radius:10px;padding:0 4px;font-size:.5rem;position:absolute;top:4px;right:4px"></span></span></button>
       <button class="tab" onclick="showTab('errors',this)"><span class="tab-ico">⚠️</span><span>أخطاء</span></button>
     </div>
@@ -220,6 +223,11 @@ body{font-family:Cairo,sans-serif;background:var(--bg);color:#fff;min-height:100
       </div>
       <div id="jobsTable"><div class="tw-empty"><span class="tw-empty-ico">⏳</span><div class="tw-empty-title">جاري التحميل...</div></div></div>
       <div id="jobsPag" class="pag"></div>
+    </div>
+
+    <!-- REPORTS TAB -->
+    <div id="tab-reports" style="display:none">
+      <div id="reportsTable"><div class="tw-empty"><span class="tw-empty-ico">⏳</span><div class="tw-empty-title">جاري التحميل...</div></div></div>
     </div>
 
     <!-- KYC TAB -->
@@ -343,11 +351,12 @@ async function uploadLogo(btn){
 function showTab(name,btn){
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
   if(btn) btn.classList.add('on');
-  ['users','verify','jobs','kyc','errors'].forEach(t=>{
+  ['users','verify','jobs','reports','kyc','errors'].forEach(t=>{
     document.getElementById('tab-'+t).style.display = t===name?'block':'none';
   });
   if(name==='verify') renderVerify(_allVerify);
   if(name==='jobs' && !_allJobs.length) loadJobs();
+  if(name==='reports') loadReports();
   if(name==='kyc' && !_allKYC.length) loadKYC();
   if(name==='errors') loadErrors();
 }
@@ -531,6 +540,65 @@ function renderKYC(list){
         <button class="ab" style="color:#f87171" onclick="rejectKYC(${k.user_id})">❌</button>
       </div>
     </div>`).join('');
+}
+
+// ── Reports ──
+async function loadReports(){
+  try{
+    const r=await fetch('/admin/reports',{headers:adminHeaders()});
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const data=await r.json();
+    const tb=document.getElementById('reportsTable');
+    const reports=data.reports||[];
+    // Update badge
+    const badge=document.getElementById('reportsBadge');
+    if(badge&&reports.filter(r=>r.status==='pending').length>0){
+      badge.textContent=reports.filter(r=>r.status==='pending').length;
+      badge.style.display='inline';
+    }
+    if(!reports.length){
+      tb.innerHTML='<div class="tw-empty"><span class="tw-empty-ico">✅</span><div class="tw-empty-title">لا توجد بلاغات</div></div>';
+      return;
+    }
+    tb.innerHTML=reports.map(rep=>`
+      <div class="tr" style="grid-template-columns:1fr auto;gap:8px;border-radius:10px;margin-bottom:5px;border:1px solid var(--bdr);${rep.status==='pending'?'border-color:rgba(239,68,68,.2);background:rgba(239,68,68,.03)':''}">
+        <div>
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">
+            <span style="font-size:.7rem;font-weight:700;color:#f87171">🚨 ${rep.report_type||'بلاغ'}</span>
+            <span style="font-size:.62rem;color:var(--t3)">${rep.created_at?.substring(0,10)||''}</span>
+            ${rep.status==='resolved'?'<span style="font-size:.6rem;background:rgba(0,200,150,.1);color:var(--ac);padding:1px 6px;border-radius:10px">محلول</span>':'<span style="font-size:.6rem;background:rgba(239,68,68,.1);color:#f87171;padding:1px 6px;border-radius:10px">جديد</span>'}
+          </div>
+          <div style="font-size:.75rem;font-weight:700">${rep.reported_name||'مجهول'}</div>
+          <div style="font-size:.68rem;color:var(--t3);margin-top:1px">${rep.reason||'—'}</div>
+          <div style="font-size:.65rem;color:rgba(255,255,255,.25);margin-top:2px">بلاغ من: ${rep.reporter_name||'مجهول'}</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:5px">
+          ${rep.target_url?`<a href="${rep.target_url}" target="_blank" class="ab" style="font-size:.65rem;text-decoration:none;text-align:center">👁 عرض</a>`:''}
+          <button class="ab" style="color:#f87171;font-size:.65rem" onclick="deleteReportedUser(${rep.reported_id})">🗑 حذف</button>
+          ${rep.status==='pending'?`<button class="ab" style="color:#00c896;font-size:.65rem" onclick="resolveReport(${rep.id})">✅ حل</button>`:''}
+        </div>
+      </div>`).join('');
+  }catch(e){
+    document.getElementById('reportsTable').innerHTML='<div class="tw-empty"><span class="tw-empty-ico">⚠️</span><div class="tw-empty-title">خطأ في تحميل البلاغات</div></div>';
+    console.error('loadReports:',e);
+  }
+}
+
+async function resolveReport(id){
+  try{
+    await fetch('/admin/reports/'+id+'/resolve',{method:'PUT',headers:adminHeaders()});
+    showToast('تم حل البلاغ ✅');
+    loadReports();
+  }catch(e){showToast('خطأ','error');}
+}
+
+async function deleteReportedUser(userId){
+  if(!confirm('حذف هذا المستخدم نهائياً؟')) return;
+  try{
+    await fetch('/admin/user/'+userId,{method:'DELETE',headers:adminHeaders()});
+    showToast('تم حذف المستخدم');
+    loadReports();
+  }catch(e){showToast('خطأ','error');}
 }
 
 // ── Errors ──

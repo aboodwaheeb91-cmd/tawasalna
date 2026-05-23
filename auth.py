@@ -1139,3 +1139,23 @@ def ensure_site_settings_table():
     except Exception as e:
         print(f"[DB] site_settings: {e}")
 
+def ensure_reports_table():
+    try:
+        conn = get_conn()
+        conn.run('''
+            CREATE TABLE IF NOT EXISTS reports (
+                id SERIAL PRIMARY KEY,
+                reporter_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                reported_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                reported_type TEXT DEFAULT 'user',
+                report_type TEXT NOT NULL,
+                reason TEXT,
+                target_url TEXT,
+                status TEXT DEFAULT 'pending',
+                created_at TIMESTAMPTZ DEFAULT NOW()
+            )
+        ''')
+        release_conn(conn)
+    except Exception as e:
+        print(f"[DB] reports table: {e}")
+
