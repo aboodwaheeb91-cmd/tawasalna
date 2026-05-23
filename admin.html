@@ -474,8 +474,8 @@ function loadAdminStats(){
     var el=function(id){return document.getElementById(id);};
     if(el('statTotalUsers')) el('statTotalUsers').textContent=users.length;
     if(el('statTotalJobs')) el('statTotalJobs').textContent=jobs.length;
-    if(el('statPendingVerify')) el('statPendingVerify').textContent=verifies.filter(function(v){return v.status==='pending';}).length;
-    if(el('statPendingKYC')) el('statPendingKYC').textContent=kycs.filter(function(k){return k.step==='review';}).length;
+    if(el('statPending')) el('statPending').textContent=verifies.filter(function(v){return v.status==='pending';}).length;
+    if(el('statKYC')) el('statKYC').textContent=kycs.filter(function(k){return k.step==='review';}).length;
   }).catch(function(){});
 }
 
@@ -531,11 +531,11 @@ function updateStats(){
   const co  = _allUsers.filter(u => u.user_type==='co').length;
   const edu = _allUsers.filter(u => u.user_type==='edu').length;
   const pending = _allVerify.filter(v => v.status==='pending').length;
-  document.getElementById('st-total').textContent = _allUsers.length;
-  document.getElementById('st-emp').textContent = emp;
-  document.getElementById('st-co').textContent = co;
-  document.getElementById('st-edu').textContent = edu;
-  document.getElementById('st-pending').textContent = pending;
+  document.getElementById('statTotalUsers').textContent = _allUsers.length;
+  null.textContent = emp;
+  null.textContent = co;
+  null.textContent = edu;
+  document.getElementById('statPending').textContent = pending;
 }
 
 // ── Render ──
