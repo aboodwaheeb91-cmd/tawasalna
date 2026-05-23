@@ -859,7 +859,7 @@ body.s5 .add-item-btn:hover { border-color:rgba(var(--ac-rgb),.35); color:var(--
 <!-- ══ Profile Completion Score ══ -->
 
 
-    <div class="section" id="sec-exp" draggable="true">
+    <div class="section" id="sec-exp" draggable="true" style="display:none">
       <div class="sec-header">
         <span class="sec-icon">💼</span>
         <span class="sec-title">الخبرات العملية</span>
@@ -872,7 +872,7 @@ body.s5 .add-item-btn:hover { border-color:rgba(var(--ac-rgb),.35); color:var(--
       <div class="drag-handle owner-only" title="اسحب لإعادة الترتيب"><span></span><span></span><span></span></div>
     </div>
 
-    <div class="section" id="sec-edu" draggable="true">
+    <div class="section" id="sec-edu" draggable="true" style="display:none">
       <div class="sec-header">
         <span class="sec-icon">🎓</span>
         <span class="sec-title">الشهادات الدراسية</span>
@@ -2615,9 +2615,14 @@ function closeModal(){
 function closeOverlay(e){ if(e.target===document.getElementById('overlay')) closeModal(); }
 
 if(isOwner){
-  // OWNER - show editing tools
+  // OWNER - show editing tools + show all sections
   var pb = document.getElementById('previewBtn');
   if(pb) pb.style.display='';
+  // Show all sections for owner
+  ['sec-exp','sec-edu','sec-course','sec-skills','sec-langs'].forEach(function(sid){
+    var sec = document.getElementById(sid);
+    if(sec) sec.style.display = '';
+  });
 } else {
   // VISITOR - hide owner-only elements
   document.querySelectorAll('.owner-only').forEach(function(el){ el.style.display='none'; });
@@ -2959,11 +2964,15 @@ initScrollProg();
       const t = p.user_type || 'emp';
       document.getElementById('cvCode').textContent = data.tw_id || p.tw_id || ('TW-' + t.toUpperCase() + '-' + String(p.id));
       if(!_isOwnProfile && p.experience && p.experience.length){
+        var secExp = document.getElementById('sec-exp');
+        if(secExp) secExp.style.display = '';
         document.getElementById('exp-list').innerHTML = ''; // clear empty hint
         p.experience.forEach(e => document.getElementById('exp-list').insertAdjacentHTML('beforeend',
           `<div class="item"><div class="item-title">${e.title}</div><div class="item-sub">${e.company}${e.location?' · '+e.location:''}</div><div class="item-date">${e.start_date||''}${e.end_date?' - '+e.end_date:''}</div><span class="badge pending">⏳ قيد التوثيق</span></div>`));
       }
       if(!_isOwnProfile && p.education && p.education.length){
+        var secEdu = document.getElementById('sec-edu');
+        if(secEdu) secEdu.style.display = '';
         document.getElementById('edu-list').innerHTML = ''; // clear empty hint
         p.education.forEach(e => document.getElementById('edu-list').insertAdjacentHTML('beforeend',
           `<div class="item"><div class="item-title">${e.degree||'شهادة'}</div><div class="item-sub">${e.institution}</div><div class="item-date">${e.end_year||''}</div><span class="badge pending">⏳ قيد التوثيق</span></div>`));
