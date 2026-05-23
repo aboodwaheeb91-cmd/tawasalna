@@ -219,18 +219,32 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--t);min-heig
   <div class="content">
 
   <!-- Stats Dashboard -->
-  <div id="statsRow" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px">
-    <div style="background:rgba(0,200,150,.08);border:1px solid rgba(0,200,150,.2);border-radius:14px;padding:16px;text-align:center">
-      <div style="font-size:1.6rem;font-weight:900;color:var(--ac)" id="statTotalUsers">--</div>
-      <div style="font-size:.72rem;color:var(--t3)">إجمالي المستخدمين</div>
+  <div id="statsRow" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:16px">
+    <div style="background:rgba(0,200,150,.08);border:1px solid rgba(0,200,150,.2);border-radius:14px;padding:14px;text-align:center">
+      <div style="font-size:1.4rem;font-weight:900;color:var(--ac)" id="statTotalUsers">--</div>
+      <div style="font-size:.66rem;color:var(--t3)">إجمالي المستخدمين</div>
     </div>
-    <div style="background:rgba(37,99,255,.08);border:1px solid rgba(37,99,255,.2);border-radius:14px;padding:16px;text-align:center">
-      <div style="font-size:1.6rem;font-weight:900;color:#60a5fa" id="statTotalJobs">--</div>
-      <div style="font-size:.72rem;color:var(--t3)">الوظائف المنشورة</div>
+    <div style="background:rgba(37,99,255,.08);border:1px solid rgba(37,99,255,.2);border-radius:14px;padding:14px;text-align:center">
+      <div style="font-size:1.4rem;font-weight:900;color:#60a5fa" id="statTotalJobs">--</div>
+      <div style="font-size:.66rem;color:var(--t3)">الوظائف المنشورة</div>
     </div>
-    <div style="background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.2);border-radius:14px;padding:16px;text-align:center">
-      <div style="font-size:1.6rem;font-weight:900;color:#fbbf24" id="statPending">--</div>
-      <div style="font-size:.72rem;color:var(--t3)">طلبات توثيق</div>
+    <div style="background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.2);border-radius:14px;padding:14px;text-align:center">
+      <div style="font-size:1.4rem;font-weight:900;color:#fbbf24" id="statPending">--</div>
+      <div style="font-size:.66rem;color:var(--t3)">طلبات توثيق</div>
+    </div>
+    <div style="background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.2);border-radius:14px;padding:14px;text-align:center">
+      <div style="font-size:1.4rem;font-weight:900;color:#34d399" id="statEmployees">--</div>
+      <div style="font-size:.66rem;color:var(--t3)">إجمالي الموظفين</div>
+    </div>
+    <div style="background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.2);border-radius:14px;padding:14px;text-align:center">
+      <div style="font-size:1.4rem;font-weight:900;color:#93c5fd" id="statCompanies">--</div>
+      <div style="font-size:.66rem;color:var(--t3)">إجمالي الشركات</div>
+    </div>
+    <div style="background:rgba(124,58,237,.08);border:1px solid rgba(124,58,237,.2);border-radius:14px;padding:14px;text-align:center">
+      <div style="font-size:1.4rem;font-weight:900;color:#a78bfa" id="statEdu">--</div>
+      <div style="font-size:.66rem;color:var(--t3)">المؤسسات التعليمية</div>
+    </div>
+  </div>
     </div>
     <div style="background:rgba(124,58,237,.08);border:1px solid rgba(124,58,237,.2);border-radius:14px;padding:16px;text-align:center">
       <div style="font-size:1.6rem;font-weight:900;color:#a78bfa" id="statKYC">--</div>
@@ -529,6 +543,9 @@ function updateStats(){
   el('statTotalJobs').textContent = _allJobs.length;
   el('statPending').textContent = _allVerify.filter(function(v){return v.status==='pending';}).length;
   el('statKYC').textContent = _allKYC.filter(function(k){return k.step==='review';}).length;
+  el('statEmployees').textContent = _allUsers.filter(function(u){return u.user_type==='emp';}).length;
+  el('statCompanies').textContent = _allUsers.filter(function(u){return u.user_type==='co';}).length;
+  el('statEdu').textContent = _allUsers.filter(function(u){return u.user_type==='edu';}).length;
 }
 
 // ── Render ──
@@ -705,6 +722,7 @@ async function loadJobs(){
     const data = await r.json();
     _allJobs = data.jobs || [];
     renderJobs(_allJobs);
+    updateStats();
   }catch(e){ console.error('loadJobs:', e); }
 }
 
