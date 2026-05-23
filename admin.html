@@ -524,15 +524,11 @@ async function loadVerify(){
 }
 
 function updateStats(){
-  const emp = _allUsers.filter(u => u.user_type==='emp').length;
-  const co  = _allUsers.filter(u => u.user_type==='co').length;
-  const edu = _allUsers.filter(u => u.user_type==='edu').length;
-  const pending = _allVerify.filter(v => v.status==='pending').length;
-  document.getElementById('statTotalUsers').textContent = _allUsers.length;
-  null.textContent = emp;
-  null.textContent = co;
-  null.textContent = edu;
-  document.getElementById('statPending').textContent = pending;
+  var el=function(id){var e=document.getElementById(id);return e?e:{textContent:''};};
+  el('statTotalUsers').textContent = _allUsers.length;
+  el('statTotalJobs').textContent = _allJobs.length;
+  el('statPending').textContent = _allVerify.filter(function(v){return v.status==='pending';}).length;
+  el('statKYC').textContent = _allKYC.filter(function(k){return k.step==='review';}).length;
 }
 
 // ── Render ──
