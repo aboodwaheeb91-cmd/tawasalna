@@ -3049,19 +3049,10 @@ function drawSnapQR(canvasId, text, size){
   const qrSz = size - pad * 2;
   const cs   = qrSz / mc;
 
-  // ── Background: white with accent color border ──
-  // Gradient border using --ac
-  const borderGrad = ctx.createLinearGradient(0, 0, size, size);
-  borderGrad.addColorStop(0, ac);
-  borderGrad.addColorStop(1, ac2);
-  rrPath(ctx, 0, 0, size, size, size * 0.13);
-  ctx.fillStyle = borderGrad;
-  ctx.fill();
-
-  // White inner
-  const border = size * 0.04;
-  rrPath(ctx, border, border, size - border*2, size - border*2, size * 0.11);
-  ctx.fillStyle = '#ffffff';
+  // Dark background - no white borders
+  const border = size * 0;
+  rrPath(ctx, 0, 0, size, size, size * 0.1);
+  ctx.fillStyle = '#0d1e35';
   ctx.fill();
 
   // ── Finder pattern zones (7×7 each corner) ──
@@ -3079,7 +3070,7 @@ function drawSnapQR(canvasId, text, size){
   function inLogo(r, c){ return r>=lzS&&r<lzE&&c>=lzS&&c<lzE; }
 
   // ── Draw data dots (circles) - dark for readability ──
-  ctx.fillStyle = '#1a1a2e';
+  ctx.fillStyle = '#e8f4f0';
   for(let r=0; r<mc; r++){
     for(let co=0; co<mc; co++){
       if(!qr.isDark(r,co)) continue;
@@ -3110,8 +3101,8 @@ function drawSnapQR(canvasId, text, size){
     rrPath(ctx, x, y, w, w, r1);
     ctx.fill();
 
-    // Middle white gap
-    ctx.fillStyle = '#ffffff';
+    // Middle dark gap
+    ctx.fillStyle = '#0d1e35';
     rrPath(ctx, x+cs, y+cs, 5*cs, 5*cs, r2);
     ctx.fill();
 
@@ -3132,10 +3123,7 @@ function drawSnapQR(canvasId, text, size){
   const lx   = (size - lsz) / 2;
   const ly   = (size - lsz) / 2;
 
-  // White circle backing (clean)
-  ctx.fillStyle = '#fff';
-  rrPath(ctx, lx-lpad*1.5, ly-lpad*1.5, lsz+lpad*3, lsz+lpad*3, lsz*0.35);
-  ctx.fill();
+  // Dark backing for logo
 
   // Gradient fill
   const lg = ctx.createLinearGradient(lx, ly, lx+lsz, ly+lsz);
@@ -3149,104 +3137,160 @@ function drawSnapQR(canvasId, text, size){
 }
 
 function openQROverlay(){
-  const uid = _qrUser&&_qrUser.id?_qrUser.id:'0';
-  const url = 'https://tawasolna.com/profile?id=' + uid;
-  const name = (document.getElementById('cvName')||{}).textContent || 'تواصلنا';
+  var uid = _qrUser&&_qrUser.id?_qrUser.id:'0';
+  var url = 'https://tawasolna.com/profile?id=' + uid;
+  var name = (document.getElementById('cvName')||{}).textContent || 'مستخدم';
 
-  const ov = document.createElement('div');
+  var ov = document.createElement('div');
   ov.id = 'qrOverlayDiv';
-  ov.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(7,11,24,.96);backdrop-filter:blur(20px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(7,11,24,.97);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px';
 
-  // Push state for back button fix
+  // Push state for back button
   history.pushState({qrOpen:true},'QR','#qr');
-  
-  // Close on back
-  var _qrPopState = function(e){
-    if(!e.state||!e.state.qrOpen) closeQROverlay();
-    window.removeEventListener('popstate',_qrPopState);
-  };
-  window.addEventListener('popstate',_qrPopState);
-  
-  function closeQROverlay(){
-    ov.remove();
-    if(location.hash==='#qr') history.back();
-  }
+  window.addEventListener('popstate', function _pop(e){
+    if(!e.state||!e.state.qrOpen){ var d=document.getElementById('qrOverlayDiv'); if(d)d.remove(); }
+    window.removeEventListener('popstate',_pop);
+  });
 
-  const cvs = document.createElement('canvas');
+  // QR Canvas (no white border)
+  var cvs = document.createElement('canvas');
   cvs.id = 'qrBig';
-  cvs.style.cssText = 'border-radius:28px;background:#fff;padding:16px;';
+  cvs.style.cssText = 'border-radius:16px;display:block;';
 
-  const nameEl = document.createElement('div');
-  nameEl.style.cssText = 'font-size:1rem;font-weight:800;color:#fff;';
-  nameEl.textContent = name;
+  // Name label
+  var nameEl = document.createElement('div');
+  nameEl.style.cssText = 'font-size:1rem;font-weight:800;color:#fff;font-family:Cairo,sans-serif;text-align:center';
+  nameEl.textContent = 'CV - ' + name;
 
-  // Share buttons row
-  const shareRow = document.createElement('div');
-  shareRow.style.cssText = 'display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-top:4px;';
-  
-  var shareMsg=encodeURIComponent(name+' - '+url);
-  var shareApps = [
-    {name:'واتساب',color:'#25D366',link:'https://wa.me/?text='+shareMsg},
-    {name:'تيليجرام',color:'#0088cc',link:'https://t.me/share/url?url='+encodeURIComponent(url)+'&text='+encodeURIComponent(name)},
-    {name:'فيسبوك',color:'#1877f2',link:'https://www.facebook.com/sharer/sharer.php?u='+encodeURIComponent(url)},
+  // Share buttons
+  var shareRow = document.createElement('div');
+  shareRow.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;justify-content:center';
+
+  var apps = [
+    {n:'واتساب',c:'#25D366'},
+    {n:'تيليجرام',c:'#0088cc'},
+    {n:'فيسبوك',c:'#1877f2'},
+    {n:'تنزيل',c:'rgba(255,255,255,.15)'}
   ];
-  shareApps.forEach(function(app){
-    var btn=document.createElement('a');
-    btn.href=app.link; btn.target='_blank';
-    btn.style.cssText='padding:8px 16px;border-radius:12px;background:'+app.color+';color:#fff;font-family:Cairo,sans-serif;font-size:.75rem;font-weight:700;text-decoration:none;';
-    btn.textContent=app.name;
+
+  apps.forEach(function(app){
+    var btn = document.createElement('button');
+    btn.textContent = app.n;
+    btn.style.cssText = 'padding:8px 14px;border-radius:10px;border:none;background:'+app.c+';color:#fff;font-family:Cairo,sans-serif;font-size:.75rem;font-weight:700;cursor:pointer';
+    btn.onclick = function(){ shareQR(app.n, name, url, cvs); };
     shareRow.appendChild(btn);
   });
 
-  // Share as image button
-  var shareImgBtn=document.createElement('button');
-  shareImgBtn.style.cssText='padding:8px 16px;border-radius:12px;background:rgba(255,255,255,.1);color:#fff;font-family:Cairo,sans-serif;font-size:.75rem;font-weight:700;border:1px solid rgba(255,255,255,.2);cursor:pointer;';
-  shareImgBtn.textContent='📤 مشاركة كصورة';
-  shareImgBtn.onclick=function(e){
-    e.stopPropagation();
-    var shareCanvas=document.createElement('canvas');
-    shareCanvas.width=400; shareCanvas.height=500;
-    var ctx=shareCanvas.getContext('2d');
-    ctx.fillStyle='#070b18';
-    ctx.fillRect(0,0,400,500);
-    ctx.fillStyle='#00c896';
-    ctx.font='bold 24px Cairo,sans-serif';
-    ctx.textAlign='center';
-    ctx.fillText('تواصلنا',200,50);
-    ctx.fillStyle='#fff';
-    ctx.font='18px Cairo,sans-serif';
-    ctx.fillText(name,200,90);
-    ctx.font='14px Cairo,sans-serif';
-    ctx.fillStyle='rgba(255,255,255,.5)';
-    ctx.fillText('امسح الكود وشاهد السيرة الذاتية',200,460);
-    ctx.fillText(url,200,490);
-    // Draw QR
-    var qrImg=cvs;
-    ctx.drawImage(qrImg,100,110,200,200);
-    shareCanvas.toBlob(function(blob){
-      var shareUrl=URL.createObjectURL(blob);
-      if(navigator.share){
-        navigator.share({title:'سيرتي الذاتية - '+name,url:url}).catch(function(){});
-      } else {
-        var a=document.createElement('a');
-        a.href=shareUrl; a.download='my-cv-qr.png'; a.click();
-      }
-    });
-  };
-
-  var closeBtn=document.createElement('button');
-  closeBtn.style.cssText='padding:8px 20px;border-radius:12px;border:1px solid rgba(255,255,255,.15);background:transparent;color:rgba(255,255,255,.5);font-family:Cairo,sans-serif;font-size:.8rem;cursor:pointer;margin-top:4px;';
-  closeBtn.textContent='✕ إغلاق';
-  closeBtn.onclick=function(e){e.stopPropagation();closeQROverlay();};
+  // Close
+  var closeBtn = document.createElement('button');
+  closeBtn.textContent = '✕ إغلاق';
+  closeBtn.style.cssText = 'padding:8px 20px;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:transparent;color:rgba(255,255,255,.5);font-family:Cairo,sans-serif;font-size:.78rem;cursor:pointer';
+  closeBtn.onclick = function(){ ov.remove(); if(location.hash==='#qr') history.back(); };
 
   ov.appendChild(cvs);
   ov.appendChild(nameEl);
   ov.appendChild(shareRow);
-  ov.appendChild(shareImgBtn);
   ov.appendChild(closeBtn);
   document.body.appendChild(ov);
 
-  drawSnapQR('qrBig', url, 240);
+  // Draw QR without white border
+  drawSnapQR('qrBig', url, 260);
+}
+
+// ── Share QR as Image ──
+function shareQR(platform, name, url, qrCanvas){
+  // Build composite image: dark bg + QR + text
+  var W = 400, H = 500;
+  var out = document.createElement('canvas');
+  out.width = W; out.height = H;
+  var ctx = out.getContext('2d');
+
+  // Dark background gradient
+  var grad = ctx.createLinearGradient(0,0,W,H);
+  grad.addColorStop(0,'#070b18');
+  grad.addColorStop(1,'#0d1e35');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0,0,W,H);
+
+  // Accent border top
+  ctx.fillStyle = '#00c896';
+  ctx.fillRect(0,0,W,4);
+
+  // Logo text
+  ctx.fillStyle = '#00c896';
+  ctx.font = 'bold 22px Cairo, Arial';
+  ctx.textAlign = 'center';
+  ctx.fillText('تواصلنا', W/2, 50);
+
+  // CV label
+  ctx.fillStyle = 'rgba(255,255,255,.5)';
+  ctx.font = '14px Cairo, Arial';
+  ctx.fillText('السيرة الذاتية', W/2, 76);
+
+  // QR image (centered, no extra padding)
+  var qrSize = 220;
+  var qrX = (W - qrSize) / 2;
+  var qrY = 95;
+  ctx.drawImage(qrCanvas, qrX, qrY, qrSize, qrSize);
+
+  // Name
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 18px Cairo, Arial';
+  ctx.textAlign = 'center';
+  ctx.fillText('CV - ' + name, W/2, qrY + qrSize + 30);
+
+  // URL
+  ctx.fillStyle = 'rgba(255,255,255,.35)';
+  ctx.font = '11px Arial';
+  ctx.fillText('tawasolna.com', W/2, qrY + qrSize + 52);
+
+  // Scan hint
+  ctx.fillStyle = 'rgba(0,200,150,.7)';
+  ctx.font = '12px Cairo, Arial';
+  ctx.fillText('امسح الكود لعرض السيرة الذاتية', W/2, H - 20);
+
+  // Convert to blob
+  out.toBlob(function(blob){
+    var file = new File([blob], 'cv-qr-'+name+'.png', {type:'image/png'});
+    
+    if(platform === 'تنزيل'){
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'cv-qr-'+name+'.png';
+      a.click();
+      return;
+    }
+
+    // Try native share with image
+    if(navigator.share && navigator.canShare && navigator.canShare({files:[file]})){
+      navigator.share({
+        files: [file],
+        title: 'CV - ' + name,
+        text: 'شاهد سيرتي الذاتية على تواصلنا'
+      }).catch(function(){
+        // Fallback to link share
+        shareLink(platform, url, name);
+      });
+    } else {
+      // Fallback: download image then open platform
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'cv-qr-'+name+'.png';
+      a.click();
+      // Open platform after 800ms
+      setTimeout(function(){ shareLink(platform, url, name); }, 800);
+    }
+  }, 'image/png');
+}
+
+function shareLink(platform, url, name){
+  var msg = encodeURIComponent(name + ' - شاهد سيرتي الذاتية: ' + url);
+  var links = {
+    'واتساب': 'https://wa.me/?text=' + msg,
+    'تيليجرام': 'https://t.me/share/url?url=' + encodeURIComponent(url) + '&text=' + encodeURIComponent('CV - '+name),
+    'فيسبوك': 'https://www.facebook.com/sharer/sharer.php?u=' + encodeURIComponent(url)
+  };
+  if(links[platform]) window.open(links[platform], '_blank');
 }
 
 
