@@ -709,10 +709,17 @@ async def upload_logo(data: ImageUploadInput, request: Request):
                         print(f"[Logo] Saved: {logo_url}")
             except Exception as e:
                 print(f"[Logo] Supabase failed: {e}")
-        set_site_setting(filename, logo_url)
+        # Always cache in memory
         _html_cache[filename] = logo_url
+        # Try save to DB (table may not exist yet)
+        try:
+            ensure_site_settings_table()
+            set_site_setting(filename, logo_url)
+        except Exception as db_err:
+            print(f"[Logo] DB save failed: {db_err} - cached in memory only")
         return {"status": "success", "url": logo_url}
     except Exception as e:
+        print(f"[Logo] Error: {e}")
         raise HTTPException(500, str(e))
 
 @app.get("/admin/logo")
@@ -721,8 +728,10 @@ def get_logos():
     def _get(key):
         v = _html_cache.get(key,'')
         if not v:
-            v = get_site_setting(key)
-            if v: _html_cache[key] = v
+            try:
+                v = get_site_setting(key)
+                if v: _html_cache[key] = v
+            except: pass
         return v
     return {"logo_wide": _get("logo_wide"), "logo_tall": _get("logo_tall")}
 
@@ -731,7 +740,7 @@ async def save_logo_sizes(data: dict, request: Request):
     check_admin(request)
     return {"status": "ok"}
 
-@app.get("/health")
+@app.api_route("/health", methods=["GET","HEAD"])
 def health():
     # Test DB connection
     db_ok = False

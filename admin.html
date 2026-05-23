@@ -480,8 +480,11 @@ function loadAdminStats(){
 }
 
 async function loadAll(){
+  loadAdminStats();
   await loadUsers();
   await loadVerify();
+  loadJobs();
+  loadKYC();
 }
 
 async function loadUsers(){
