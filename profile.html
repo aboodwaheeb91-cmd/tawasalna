@@ -2832,14 +2832,15 @@ initScrollProg();
 (function(){
   let user;
   try { user = JSON.parse(localStorage.getItem('tw_user')); } catch(e){}
-  if(!user || !user.id) return;
+  // Allow visitors to view profile (don't return early)
+  const _isVisitor = !user || !user.id;
 
-  const _uid = '_' + user.id;
+  const _uid = user ? '_' + user.id : '_0';
 
   // تحقق إذا كان الزائر هو صاحب الحساب
-  const _isOwnProfile = !_urlId ||
-    String(_urlId) === String(user.id) ||
-    String(_urlId) === String(user.tw_id);
+  const _isOwnProfile = !_isVisitor && _sessionUser && (!_urlId ||
+    String(_urlId) === String(_sessionUser.id) ||
+    String(_urlId) === String(_sessionUser.tw_id));
 
   // عرض فوري من localStorage فقط لو صاحب الحساب
   if(_isOwnProfile){
@@ -2945,7 +2946,7 @@ initScrollProg();
   }
 
   // ── 2. API call ── (always runs for any profile)
-  fetch('/profile/' + (_urlId||user.id) + '/full')
+  fetch('/profile/' + (_urlId||(_sessionUser&&_sessionUser.id)||'0') + '/full')
     .then(r => r.json())
     .then(data => {
       const p = data.profile;
