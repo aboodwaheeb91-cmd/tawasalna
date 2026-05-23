@@ -2614,14 +2614,14 @@ function closeModal(){
 }
 function closeOverlay(e){ if(e.target===document.getElementById('overlay')) closeModal(); }
 
-if(!isOwner){
-  // OWNER - everything already visible, just show preview btn
+if(isOwner){
+  // OWNER - show editing tools
   var pb = document.getElementById('previewBtn');
   if(pb) pb.style.display='';
 } else {
   // VISITOR - hide owner-only elements
   document.querySelectorAll('.owner-only').forEach(function(el){ el.style.display='none'; });
-  // Hide toolbar action buttons except logo
+  // Hide toolbar action buttons
   document.querySelectorAll('.tb-btn').forEach(function(btn){ btn.style.display='none'; });
   // Show public CTA banner
   showPublicBanner();
