@@ -351,10 +351,18 @@ body.s4 .add-item-btn:hover { border-color:var(--ac); color:var(--ac); }
 body.preview-mode /* owner-only: shown by default, hidden for visitors */
 
 /* ── Modal ── */
-.overlay { position:fixed; inset:0; z-index:3000; background:rgba(0,0,0,.75); display:flex; align-items:flex-end; justify-content:center; padding:0; opacity:0; pointer-events:none; transition:opacity .2s; }
-.overlay.show { opacity:1; pointer-events:all; }
+.overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  z-index: 9000;
+  background: rgba(0,0,0,.75);
+  display: none;
+  align-items: flex-end;
+  justify-content: center;
+}
+.overlay.show { display:flex; }
 .modal { background:#0d1526; border:1px solid rgba(255,255,255,.1); border-radius:20px 20px 0 0; width:100%; max-width:480px; max-height:88vh; overflow-y:auto; padding:20px 16px 30px; font-family:'Cairo',sans-serif; transform:translateY(14px); transition:transform .2s; }
-.overlay .modal { transform:translateY(100%); transition:transform .3s ease; }
+.overlay .modal { transform:translateY(0); }
 .overlay.show .modal { transform:translateY(0); }
 .modal-title { font-size:.95rem; font-weight:800; color:#fff; margin-bottom:18px; }
 .mf { margin-bottom:12px; }
