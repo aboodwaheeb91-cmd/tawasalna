@@ -2139,13 +2139,13 @@ function renderCourseItem(e,lid){
   return `<div class="item" id="course-item-${id}" draggable="true" ondragstart="itemDragStart(event)" ondragover="itemDragOver(event)" ondrop="itemDrop(event,'course-list')" ondragend="itemDragEnd(event)">
     <div style="display:flex;align-items:flex-start;justify-content:space-between">
       <div>
-        <div class="item-title">${e.name}</div>
+        <div style="display:flex;align-items:center;gap:4px"><span class="item-drag-handle owner-only" style="color:rgba(255,255,255,.25);cursor:grab;font-size:1rem;margin-left:6px;line-height:1" title="اسحب لإعادة الترتيب">⠿</span><div class="item-title" style="flex:1">${e.name}</div></div>
         ${e.provider?`<div class="item-sub">${e.provider}</div>`:''}
         <div class="item-date">${e.year||''}</div>
         ${e.url?`<a href="${e.url}" target="_blank" style="font-size:.65rem;color:var(--ac)">📜 الشهادة</a>`:''}
         <span class="badge pending">⏳ قيد المراجعة</span>
       </div>
-      <span class="item-drag-handle owner-only" style="color:rgba(255,255,255,.25);cursor:grab;padding:4px 6px;font-size:.9rem" title="اسحب لإعادة الترتيب">⠿</span><div class="item-menu-wrap owner-only">
+      <div class="item-menu-wrap owner-only">
         <button type="button" class="item-menu-btn" onclick="toggleItemMenuG(this)">⋯</button>
         <div class="item-menu">
           <div class="item-menu-opt" onclick="editCourseItem(${id},'${lid}')">✏️ تعديل</div>
@@ -2366,13 +2366,13 @@ function renderExpItem(e){
   return `<div class="item" id="exp-${id}" draggable="true" ondragstart="itemDragStart(event)" ondragover="itemDragOver(event)" ondrop="itemDrop(event,'exp-list')" ondragend="itemDragEnd(event)">
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
       <div style="flex:1">
-        <div class="item-title">${e.title}</div>
+        <div style="display:flex;align-items:center;gap:4px"><span class="item-drag-handle owner-only" style="color:rgba(255,255,255,.25);cursor:grab;font-size:1rem;margin-left:6px;line-height:1" title="اسحب لإعادة الترتيب">⠿</span><div class="item-title" style="flex:1">${e.title}</div></div>
         <div class="item-sub">${e.company}${e.location?' · '+e.location:''}${e.work_type?' · '+e.work_type:''}</div>
         <div class="item-date">${e.start_date||''}${e.end_date?' - '+e.end_date:''}</div>
         ${e.desc?`<div style="font-size:.73rem;color:rgba(255,255,255,.4);margin-top:4px;line-height:1.5">${e.desc}</div>`:''}
         <span class="badge pending">⏳ قيد المراجعة</span>
       </div>
-      <span class="item-drag-handle owner-only" style="color:rgba(255,255,255,.25);cursor:grab;padding:4px 6px;font-size:.9rem" title="اسحب لإعادة الترتيب">⠿</span><div class="item-menu-wrap owner-only">
+      <div class="item-menu-wrap owner-only">
         <button type="button" class="item-menu-btn" onclick="toggleItemMenu('emenu-${id}')">⋯</button>
         <div class="item-menu" id="emenu-${id}">
           <div class="item-menu-opt" onclick="editExp(${id})">✏️ تعديل</div>
@@ -2389,12 +2389,12 @@ function renderEduItem(e){
   return `<div class="item" id="edu-${id}" draggable="true" ondragstart="itemDragStart(event)" ondragover="itemDragOver(event)" ondrop="itemDrop(event,'edu-list')" ondragend="itemDragEnd(event)">
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
       <div style="flex:1">
-        <div class="item-title">${degreeTitle}</div>
+        <div style="display:flex;align-items:center;gap:4px"><span class="item-drag-handle owner-only" style="color:rgba(255,255,255,.25);cursor:grab;font-size:1rem;margin-left:6px;line-height:1" title="اسحب لإعادة الترتيب">⠿</span><div class="item-title" style="flex:1">${degreeTitle}</div></div>
         <div class="item-sub">${e.institution}${e.gpa?' · المعدل: '+e.gpa:''}</div>
         <div class="item-date">${e.end_year||''}</div>
         <span class="badge pending">⏳ قيد المراجعة</span>
       </div>
-      <span class="item-drag-handle owner-only" style="color:rgba(255,255,255,.25);cursor:grab;padding:4px 6px;font-size:.9rem" title="اسحب لإعادة الترتيب">⠿</span><div class="item-menu-wrap owner-only">
+      <div class="item-menu-wrap owner-only">
         <button type="button" class="item-menu-btn" onclick="toggleItemMenu('emenu-${id}')">⋯</button>
         <div class="item-menu" id="emenu-${id}">
           <div class="item-menu-opt" onclick="editEdu(${id})">✏️ تعديل</div>
@@ -3391,6 +3391,7 @@ if(isOwner){
   document.querySelectorAll('.owner-only').forEach(function(el){ el.style.display='none'; });
 }
 restoreSections();
+  setTimeout(function(){ _initSectionDrag(); _initSectionTouch(); }, 200);
   loadSectionOrder();
   updatePanelState();
   
@@ -4338,6 +4339,150 @@ function showPublicBanner(){}
 
 
 
+
+// ══ Section Drag & Drop ══
+var _secDragSrc = null;
+
+function _secDragStart(e){
+  if(!isOwner) return;
+  _secDragSrc = this;
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', this.id);
+  setTimeout(function(){ if(_secDragSrc) _secDragSrc.style.opacity='0.4'; }, 0);
+}
+
+function _secDragOver(e){
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  var target = e.currentTarget;
+  if(target !== _secDragSrc){
+    target.style.borderTop = '2px solid var(--ac)';
+  }
+}
+
+function _secDragLeave(e){
+  e.currentTarget.style.borderTop = '';
+}
+
+function _secDrop(e){
+  e.preventDefault();
+  e.stopPropagation();
+  var target = e.currentTarget;
+  target.style.borderTop = '';
+  if(!_secDragSrc || _secDragSrc === target) return;
+  var list = document.getElementById('secList');
+  if(!list) return;
+  // Insert before or after
+  var srcRect = _secDragSrc.getBoundingClientRect();
+  var tgtRect = target.getBoundingClientRect();
+  if(e.clientY < tgtRect.top + tgtRect.height/2){
+    list.insertBefore(_secDragSrc, target);
+  } else {
+    list.insertBefore(_secDragSrc, target.nextSibling);
+  }
+  saveSectionOrder();
+}
+
+function _secDragEnd(e){
+  if(_secDragSrc) _secDragSrc.style.opacity = '';
+  _secDragSrc = null;
+  document.querySelectorAll('.section').forEach(function(s){
+    s.style.borderTop = '';
+  });
+}
+
+function _initSectionDrag(){
+  document.querySelectorAll('#secList > .section').forEach(function(sec){
+    sec.removeEventListener('dragstart', _secDragStart);
+    sec.removeEventListener('dragover', _secDragOver);
+    sec.removeEventListener('dragleave', _secDragLeave);
+    sec.removeEventListener('drop', _secDrop);
+    sec.removeEventListener('dragend', _secDragEnd);
+    sec.addEventListener('dragstart', _secDragStart);
+    sec.addEventListener('dragover', _secDragOver);
+    sec.addEventListener('dragleave', _secDragLeave);
+    sec.addEventListener('drop', _secDrop);
+    sec.addEventListener('dragend', _secDragEnd);
+  });
+}
+
+// ── Section Touch Drag (mobile) ──
+var _secTouchDrag = null, _secTouchClone = null, _secTouchY = 0;
+
+function _secTouchStart(e){
+  if(!isOwner) return;
+  // Only activate from drag-handle area or sec-header
+  var handle = e.target.closest('.drag-handle, .sec-header');
+  if(!handle) return;
+  _secTouchDrag = this;
+  _secTouchY = e.touches[0].clientY;
+  var clone = this.cloneNode(true);
+  clone.style.cssText = 'position:fixed;width:'+this.offsetWidth+'px;opacity:.8;pointer-events:none;z-index:9999;top:'+this.getBoundingClientRect().top+'px;left:'+this.getBoundingClientRect().left+'px;';
+  document.body.appendChild(clone);
+  _secTouchClone = clone;
+  this.style.opacity = '0.3';
+  e.preventDefault();
+}
+
+function _secTouchMove(e){
+  if(!_secTouchDrag || !_secTouchClone) return;
+  e.preventDefault();
+  var touch = e.touches[0];
+  _secTouchClone.style.top = (touch.clientY - 30) + 'px';
+  // Find target section
+  _secTouchClone.style.display = 'none';
+  var el = document.elementFromPoint(touch.clientX, touch.clientY);
+  _secTouchClone.style.display = '';
+  var targetSec = el ? el.closest('#secList > .section') : null;
+  document.querySelectorAll('.section').forEach(function(s){ s.style.borderTop = ''; });
+  if(targetSec && targetSec !== _secTouchDrag){
+    targetSec.style.borderTop = '2px solid var(--ac)';
+  }
+}
+
+function _secTouchEnd(e){
+  if(!_secTouchDrag) return;
+  var touch = e.changedTouches[0];
+  if(_secTouchClone){ _secTouchClone.remove(); _secTouchClone = null; }
+  _secTouchDrag.style.opacity = '';
+  document.querySelectorAll('.section').forEach(function(s){ s.style.borderTop = ''; });
+  // Find drop target
+  var el = document.elementFromPoint(touch.clientX, touch.clientY);
+  var targetSec = el ? el.closest('#secList > .section') : null;
+  if(targetSec && targetSec !== _secTouchDrag){
+    var list = document.getElementById('secList');
+    var tgtRect = targetSec.getBoundingClientRect();
+    if(touch.clientY < tgtRect.top + tgtRect.height/2){
+      list.insertBefore(_secTouchDrag, targetSec);
+    } else {
+      list.insertBefore(_secTouchDrag, targetSec.nextSibling);
+    }
+    saveSectionOrder();
+  }
+  _secTouchDrag = null;
+}
+
+function _initSectionTouch(){
+  document.querySelectorAll('#secList > .section').forEach(function(sec){
+    sec.removeEventListener('touchstart', _secTouchStart);
+    sec.removeEventListener('touchmove', _secTouchMove);
+    sec.removeEventListener('touchend', _secTouchEnd);
+    sec.addEventListener('touchstart', _secTouchStart, {passive:false});
+    sec.addEventListener('touchmove', _secTouchMove, {passive:false});
+    sec.addEventListener('touchend', _secTouchEnd);
+  });
+}
+
+
+// Re-init section drag when new sections added
+if(typeof MutationObserver !== 'undefined'){
+  var _secObserver = new MutationObserver(function(){
+    _initSectionDrag();
+    _initSectionTouch();
+  });
+  var _secList = document.getElementById('secList');
+  if(_secList) _secObserver.observe(_secList, {childList:true});
+}
 </script>
 
 
