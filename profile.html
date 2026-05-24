@@ -4261,6 +4261,11 @@ function itemDrop(e, listId){
   if(!_dragItem || _dragItem === target) return;
   var list = document.getElementById(listId);
   if(!list) return;
+  // ── منع الانتقال بين الأقسام ──
+  if(_dragItem.parentElement !== list){
+    showToast('⚠️ لا يمكن نقل العنصر لقسم آخر','error');
+    return;
+  }
   var items = Array.from(list.querySelectorAll('.item:not(.empty-hint)'));
   var dragIdx = items.indexOf(_dragItem);
   var targetIdx = items.indexOf(target);
