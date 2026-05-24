@@ -822,6 +822,15 @@ body.s5 .add-item-btn:hover { border-color:rgba(var(--ac-rgb),.35); color:var(--
 <div class="cv-wrap" id="cvWrap">
 
   <!-- ── Profile Header Section ── -->
+
+<!-- ██ Skeleton Loader ██ -->
+<div id="profileSkeleton" style="padding:20px;text-align:center">
+  <div style="width:80px;height:80px;border-radius:50%;margin:0 auto 12px;background:linear-gradient(90deg,rgba(255,255,255,.06) 25%,rgba(255,255,255,.1) 50%,rgba(255,255,255,.06) 75%);background-size:200% 100%;animation:sk-wave 1.5s infinite"></div>
+  <div style="height:18px;width:55%;margin:0 auto 8px;border-radius:8px;background:linear-gradient(90deg,rgba(255,255,255,.06) 25%,rgba(255,255,255,.1) 50%,rgba(255,255,255,.06) 75%);background-size:200% 100%;animation:sk-wave 1.5s infinite"></div>
+  <div style="height:13px;width:38%;margin:0 auto 16px;border-radius:8px;background:linear-gradient(90deg,rgba(255,255,255,.06) 25%,rgba(255,255,255,.1) 50%,rgba(255,255,255,.06) 75%);background-size:200% 100%;animation:sk-wave 1.5s infinite"></div>
+  <div style="height:11px;width:80%;margin:0 auto 6px;border-radius:6px;background:linear-gradient(90deg,rgba(255,255,255,.06) 25%,rgba(255,255,255,.1) 50%,rgba(255,255,255,.06) 75%);background-size:200% 100%;animation:sk-wave 1.5s infinite"></div>
+  <div style="height:11px;width:60%;margin:0 auto;border-radius:6px;background:linear-gradient(90deg,rgba(255,255,255,.06) 25%,rgba(255,255,255,.1) 50%,rgba(255,255,255,.06) 75%);background-size:200% 100%;animation:sk-wave 1.5s infinite"></div>
+</div>
 <div class="cv-head" id="cvHead">
     <button type="button" class="info-edit-btn owner-only" onclick="openModal('profile')" title="تعديل الملف الشخصي">⚙️</button>
     <!-- الصورة + QR -->
@@ -3071,11 +3080,60 @@ initScrollProg();
 </script>
 
 <!-- QR -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js">
+document.addEventListener('keydown',function(e){
+  if(e.key==='Escape'){
+    var ov=document.getElementById('panelOverlay');
+    if(ov&&ov.classList.contains('show')) closePanel();
+    var rm=document.getElementById('reportModal');
+    if(rm&&rm.style.display!=='none') closeReportModal();
+    closeModal();
+  }
+});
+
+// ── Report System ──
+var _reportTargetId=null, _reportTargetType='user', _reportTargetUrl='';
+
+function openReportModal(targetId,targetType,targetUrl){
+  _reportTargetId=targetId;
+  _reportTargetType=targetType||'user';
+  _reportTargetUrl=targetUrl||window.location.href;
+  var rm=document.getElementById('reportModal');
+  if(rm) rm.style.display='flex';
+  var ta=document.getElementById('reportReason');
+  if(ta) ta.value='';
+}
+
+function closeReportModal(){
+  var rm=document.getElementById('reportModal');
+  if(rm) rm.style.display='none';
+}
+
+async function submitReport(){
+  var type=document.getElementById('reportType').value;
+  var reason=(document.getElementById('reportReason').value||'').trim();
+  if(!reason){showToast('اكتب سبب البلاغ','error');return;}
+  var btn=document.getElementById('reportSubmitBtn');
+  if(btn){btn.disabled=true;btn.textContent='جاري الإرسال...';}
+  try{
+    var jwt=localStorage.getItem('tw_jwt')||'';
+    var r=await fetch('/reports/submit',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+jwt},
+      body:JSON.stringify({reported_id:_reportTargetId,reported_type:_reportTargetType,
+        report_type:type,reason:reason,target_url:_reportTargetUrl})
+    });
+    if(r.ok){showToast('تم إرسال البلاغ ✅');closeReportModal();}
+    else throw new Error();
+  }catch(e){showToast('خطأ في إرسال البلاغ','error');}
+  if(btn){btn.disabled=false;btn.textContent='🚨 إرسال البلاغ';}
+}
+</script>
 
 
 <script>
 let _qrUser = null;
+var _qrCache = {};
 try { _qrUser = JSON.parse(localStorage.getItem('tw_user')); } catch(e){}
 
 function rrPath(ctx, x, y, w, h, r){
@@ -3497,6 +3555,7 @@ function loadProfileScore(){
   fetch('/profile/'+uid+'/score').then(function(r){return r.json();}).then(function(data){
     var num=document.getElementById('scoreNum');
     var bar=document.getElementById('scoreBar');
+    if(bar) bar.style.transition='width 1s ease';
     // Animate score bar
     if(bar){bar.style.transition='width 1s ease';}
     var tips=document.getElementById('scoreTips');
@@ -3642,6 +3701,9 @@ initTouchDrag();
 function showPublicBanner(){}
 
 
+</script>
+
+
 <!-- ██ Report Modal ██ -->
 <div id="reportModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:3000;align-items:flex-end;justify-content:center">
   <div style="background:#0d1426;border-radius:20px 20px 0 0;padding:20px;width:100%;max-width:480px">
@@ -3666,4 +3728,5 @@ function showPublicBanner(){}
     </div>
   </div>
 </div>
->
+</body>
+</html>
