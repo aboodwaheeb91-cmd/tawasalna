@@ -145,7 +145,7 @@ body.s2 .cv-exp-badge, body.s4 .cv-exp-badge {
 }
 
 /* ── PAGE ── */
-.page { padding-top:50px; min-height:100vh; transition:background .3s; }
+.page { padding-top:50px; transition:background .3s; padding-bottom:20px; }
 
 /* ── Avatar upload ── */
 .cv-head-settings {
@@ -689,7 +689,7 @@ body.s5 .add-item-btn:hover { border-color:rgba(var(--ac-rgb),.35); color:var(--
 .sk-line.short{width:60%;}
 #profileSkeleton{text-align:center;padding:20px 0;}
 </style><a href="#main-content" class="skip-link">تخطى للمحتوى الرئيسي</a></head>
-<body class="s1" style="background:#070b18;min-height:100vh">
+<body class="s1">
 
 <input type="file" id="avatarInput" accept="image/*" onchange="handleAvatarUpload(this)">
 <input autocomplete="off" type="color" id="colorIn" value="#00c896">
@@ -3650,7 +3650,7 @@ function showPublicBanner(){
   document.body.appendChild(banner);
   
   // Add bottom padding to page so content not hidden
-  var _cvw = document.getElementById('cvWrap'); if(_cvw) _cvw.style.paddingBottom='80px';
+  // Banner is fixed - no body padding needed
 }
 </script>
 </body>
