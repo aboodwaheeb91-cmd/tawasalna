@@ -404,9 +404,21 @@ body.s4 .top-actions {
   border-bottom:1px solid rgba(0,0,0,.08);
 }
 .top-actions .tb-btn { height:36px; }
-body.preview-mode .top-actions .tb-btn:not(#previewBtn) { display:none !important; }
-body.preview-mode .top-actions { display:flex !important; }
-body.preview-mode .top-actions #previewBtn { display:flex !important; }
+/* Preview mode: show only logo + back button */
+body.preview-mode .toolbar .tb-btn:not(#previewBtn) { display:none !important; }
+body.preview-mode .toolbar .tb-logo { display:flex !important; }
+body.preview-mode #previewBtn { 
+  display:flex !important; 
+  position:fixed;
+  bottom:20px;
+  left:50%;
+  transform:translateX(-50%);
+  background:rgba(7,11,24,.95);
+  border:1px solid rgba(255,255,255,.15);
+  border-radius:20px;
+  padding:8px 20px;
+  z-index:1001;
+}
 
 }
 
@@ -1091,9 +1103,21 @@ body.s4 .top-actions {
   border-bottom:1px solid rgba(0,0,0,.08);
 }
 .top-actions .tb-btn { height:36px; }
-body.preview-mode .top-actions .tb-btn:not(#previewBtn) { display:none !important; }
-body.preview-mode .top-actions { display:flex !important; }
-body.preview-mode .top-actions #previewBtn { display:flex !important; }
+/* Preview mode: show only logo + back button */
+body.preview-mode .toolbar .tb-btn:not(#previewBtn) { display:none !important; }
+body.preview-mode .toolbar .tb-logo { display:flex !important; }
+body.preview-mode #previewBtn { 
+  display:flex !important; 
+  position:fixed;
+  bottom:20px;
+  left:50%;
+  transform:translateX(-50%);
+  background:rgba(7,11,24,.95);
+  border:1px solid rgba(255,255,255,.15);
+  border-radius:20px;
+  padding:8px 20px;
+  z-index:1001;
+}
 
 }
 
@@ -1751,6 +1775,10 @@ function getUID(){
 })();
 
 const _urlId = new URLSearchParams(window.location.search).get('id');
+// Scroll to top on load
+window.scrollTo(0,0);
+history.scrollRestoration = 'manual';
+
 // Simple auth: must be logged in
 if(!_sessionUser || !_sessionUser.id){
   location.href = '/login';
@@ -1833,7 +1861,7 @@ function togglePreview(){
   previewMode = !previewMode;
   document.body.classList.toggle('preview-mode',previewMode);
   const btn = document.getElementById('previewBtn');
-  btn.innerHTML = previewMode ? '← رجوع' : '👁 معاينة';
+  btn.innerHTML = previewMode ? '← رجوع للتعديل' : '👁 معاينة';
   btn.classList.toggle('active',previewMode);
   // Always keep previewBtn visible
   btn.style.display = '';
@@ -3465,6 +3493,16 @@ if(ta && isOwner) ta.style.display = 'flex';
       if(codeEl) codeEl.textContent = user.tw_id;
     }
     
+    // Age from localStorage
+    var dob = lsProf.dob || '';
+    if(dob && typeof calcAge === 'function') {
+      var age = calcAge(dob);
+      if(age) {
+        var ageLine = document.getElementById('cvAgeLine');
+        if(ageLine) { ageLine.textContent = 'العمر: ' + age; ageLine.style.display = 'block'; }
+      }
+    }
+    
     // Hide skeleton immediately if we have data
     if(fullName || title) {
       var sk = document.getElementById('profileSkeleton');
@@ -3499,8 +3537,14 @@ if(ta && isOwner) ta.style.display = 'flex';
     var apiLoc = prof.location || '';
     if(apiLoc) { var locEl = document.getElementById('cvLoc'); if(locEl) locEl.textContent = '📍 ' + apiLoc; }
     
-    // TW ID
+    // TW ID + Age
     if(data.tw_id) { var codeEl = document.getElementById('cvCode'); if(codeEl) codeEl.textContent = data.tw_id; }
+    
+    var apiDob = prof.dob || '';
+    if(apiDob && typeof calcAge === 'function'){
+      var apiAge = calcAge(apiDob);
+      if(apiAge){ var al=document.getElementById('cvAgeLine'); if(al){al.textContent='العمر: '+apiAge; al.style.display='block';} }
+    }
     
     // User type badge
     var t = prof.user_type || (_sessionUser && _sessionUser.user_type) || 'emp';
@@ -4182,20 +4226,19 @@ function loadProfileScore(){
     if(sl){
       var d=document.createElement('div');
       d.id='secScore'; d.className='sec-card';
-      d.style.cssText='display:none;background:linear-gradient(135deg,rgba(0,200,150,.06),rgba(37,99,255,.06));border-color:rgba(0,200,150,.2);margin-bottom:14px';
+      d.style.cssText='display:none;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:10px;padding:10px 12px;margin-bottom:10px;';
       d.innerHTML=`
-<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
-  <div style="font-size:1.5rem">📊</div>
-  <div style="flex:1">
-    <div style="font-weight:800;font-size:.82rem;margin-bottom:2px">اكتمال الملف الشخصي</div>
-    <div style="font-size:.68rem;color:rgba(255,255,255,.4)">اكمل ملفك لتحسين فرص حصولك على عمل</div>
-  </div>
-  <div id="scoreNum" style="font-size:1.6rem;font-weight:900;color:var(--ac);line-height:1">--</div>
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+  <span style="font-size:.75rem;font-weight:700;color:rgba(255,255,255,.5)">اكتمال الملف</span>
+  <span id="scoreNum" style="font-size:.85rem;font-weight:900;color:var(--ac)">--%</span>
 </div>
-<div style="background:rgba(255,255,255,.06);border-radius:8px;height:8px;overflow:hidden;margin-bottom:10px">
-  <div id="scoreBar" style="height:100%;width:0%;background:linear-gradient(90deg,var(--ac),var(--ac2));border-radius:8px;transition:width 1s ease"></div>
+<div style="background:rgba(255,255,255,.06);border-radius:6px;height:5px;overflow:hidden;margin-bottom:8px">
+  <div id="scoreBar" style="height:100%;width:0%;background:linear-gradient(90deg,var(--ac),var(--ac2));border-radius:6px;transition:width 1s ease"></div>
 </div>
-<div id="scoreTips" style="display:flex;flex-direction:column;gap:5px"></div>
+<div id="scoreTips" style="display:flex;flex-direction:column;gap:4px"></div>
+<div style="margin-top:8px;text-align:left">
+  <button onclick="dismissScore()" style="font-size:.65rem;color:rgba(255,255,255,.3);background:none;border:none;cursor:pointer;font-family:Cairo,sans-serif">لاحقاً</button>
+</div>
 `;
       sl.insertBefore
       sl.insertBefore(d,sl.firstChild);
@@ -4213,7 +4256,7 @@ function loadProfileScore(){
     if(!num) return;
     // Show the widget
     var widget=document.getElementById('secScore');
-    if(widget) widget.style.display='block';
+    if(widget && shouldShowScore()) widget.style.display='block';
     // Animate counter
     var count=0,target=data.score||0;
     var t=setInterval(function(){
@@ -4228,10 +4271,12 @@ function loadProfileScore(){
     // Tips
     if(tips&&data.tips&&data.tips.length){
       tips.innerHTML=data.tips.map(function(t){
-        return '<div style="display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.03);border-radius:8px;padding:6px 10px">'+
-          '<span style="color:var(--ac);font-size:.75rem;font-weight:700;background:rgba(0,200,150,.1);padding:2px 7px;border-radius:20px">+'+t.points+'%</span>'+
-          '<span style="font-size:.72rem;color:rgba(255,255,255,.6)">'+t.tip+'</span>'+
-          '</div>';
+        var act = t.tip.indexOf('صور')>-1?'avatar':t.tip.indexOf('خبر')>-1?'sec-exp':t.tip.indexOf('شهاد')>-1?'sec-edu':t.tip.indexOf('مهار')>-1?'sec-skills':t.tip.indexOf('رابط')>-1?'sec-links':'profile';
+        return '<div onclick="highlightSection(\'' + act + '\')" style="display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.03);border-radius:8px;padding:6px 10px;cursor:pointer">'
+          + '<span style="color:var(--ac);font-size:.7rem;font-weight:700;background:rgba(0,200,150,.1);padding:2px 6px;border-radius:20px">+' + t.points + '%</span>'
+          + '<span style="font-size:.7rem;color:rgba(255,255,255,.55);flex:1">' + t.tip + '</span>'
+          + '<span style="font-size:.65rem;color:rgba(255,255,255,.2)">&#8592;</span>'
+          + '</div>';
       }).join('');
     }
   }).catch(function(){});
@@ -4520,6 +4565,48 @@ if(typeof MutationObserver !== 'undefined'){
   });
   var _secList = document.getElementById('secList');
   if(_secList) _secObserver.observe(_secList, {childList:true});
+}
+
+// ── Score Dismiss (لاحقاً) ──
+function dismissScore(){
+  var key = 'tw_score_dismiss' + getUID();
+  localStorage.setItem(key, Date.now().toString());
+  var w = document.getElementById('secScore');
+  if(w){ w.style.opacity='0'; w.style.transition='opacity .3s'; setTimeout(function(){ w.style.display='none'; }, 300); }
+}
+
+function shouldShowScore(){
+  var key = 'tw_score_dismiss' + getUID();
+  var ts = parseInt(localStorage.getItem(key)||'0');
+  if(!ts) return true;
+  return (Date.now() - ts) > 24*60*60*1000; // 24 hours
+}
+
+// ── Highlight section from score tip ──
+function highlightSection(target){
+  if(!target) return;
+  var el = null;
+  if(target === 'avatar'){
+    el = document.getElementById('avatarBtn');
+    if(el) el.click();
+    return;
+  } else if(target === 'kyc'){
+    location.href = '/settings.html';
+    return;
+  } else if(target === 'profile'){
+    var editBtn = document.querySelector('.info-edit-btn');
+    if(editBtn){ editBtn.click(); return; }
+  } else {
+    el = document.getElementById(target);
+    if(el) el.style.display = '';
+  }
+  if(!el) return;
+  el.scrollIntoView({behavior:'smooth', block:'center'});
+  // Flash highlight
+  var old = el.style.boxShadow;
+  el.style.boxShadow = '0 0 0 2px var(--ac)';
+  el.style.transition = 'box-shadow .3s';
+  setTimeout(function(){ el.style.boxShadow = old; }, 2000);
 }
 </script>
 

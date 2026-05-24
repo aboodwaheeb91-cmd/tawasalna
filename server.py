@@ -731,7 +731,7 @@ def profile_score(user_id: int):
             (bool(profile.get("avatar_url") or (profile.get("profile") or {}).get("avatar_url")), 10, "أضف صورة شخصية"),
             (bool(profile.get("headline") or profile.get("title")),  10, "أضف مسماك الوظيفي"),
             (bool(profile.get("bio")),              10, "أضف نبذة عنك"),
-            (bool(profile.get("phone")),             5, "أضف رقم هاتفك"),
+            # phone removed from score tips
             (bool(profile.get("location")),          5, "أضف موقعك"),
             (len(profile.get("experience") or []) > 0, 20, "أضف خبرة عملية"),
             (len(profile.get("education") or []) > 0,  15, "أضف شهاداتك"),
