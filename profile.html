@@ -2881,7 +2881,10 @@ function doLogout(){ localStorage.removeItem('tw_user'); location.href='/login';
 // Init calls - after all functions defined
 (function(){
   initScrollProg();
-  loadApplications();
+  // loadApplications called after all scripts load
+  window.addEventListener('load', function(){
+    if(typeof loadApplications === 'function') loadApplications();
+  });
   loadProfileScore();
 })();
 initScrollProg();
