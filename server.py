@@ -828,6 +828,31 @@ async def save_logo_sizes(data: dict, request: Request):
     check_admin(request)
     return {"status": "ok"}
 
+
+# ══ Static Files (CSS/JS/Assets) ══
+import mimetypes as _mimetypes
+
+@app.get("/static/{filename:path}")
+def serve_static(filename: str):
+    """Serve static files: CSS, JS, images"""
+    import os
+    # Security: prevent directory traversal
+    safe_filename = os.path.basename(filename)
+    # Allowed extensions
+    allowed = {'.css','.js','.svg','.png','.jpg','.jpeg','.webp','.ico','.woff','.woff2'}
+    ext = os.path.splitext(safe_filename)[1].lower()
+    if ext not in allowed:
+        raise HTTPException(404, "Not found")
+    # Look in current directory
+    filepath = os.path.join(os.path.dirname(__file__), safe_filename)
+    if not os.path.exists(filepath):
+        raise HTTPException(404, f"Static file not found: {safe_filename}")
+    mime = _mimetypes.guess_type(filepath)[0] or 'application/octet-stream'
+    with open(filepath, 'rb') as f:
+        content = f.read()
+    return Response(content=content, media_type=mime,
+                   headers={"Cache-Control": "public, max-age=86400"})
+
 @app.api_route("/health", methods=["GET","HEAD"])
 def health():
     # Test DB connection

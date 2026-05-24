@@ -89,18 +89,30 @@ body{background:var(--bg);color:var(--t);font-family:Cairo,sans-serif;min-height
 #loadMoreTrigger.loading .load-more-spinner{display:block;}
 
 </style>
-<style>.skip-link{position:absolute;top:-40px;right:0;background:var(--ac,#00c896);color:#0d1a2e;padding:8px 16px;border-radius:0 0 8px 0;font-family:Cairo,sans-serif;font-size:.8rem;font-weight:700;text-decoration:none;transition:top .2s;z-index:10000}.skip-link:focus{top:0}</style><a href="#main-content" class="skip-link">تخطى للمحتوى الرئيسي</a></head>
+<style>.skip-link{position:absolute;top:-40px;right:0;background:var(--ac,#00c896);color:#0d1a2e;padding:8px 16px;border-radius:0 0 8px 0;font-family:Cairo,sans-serif;font-size:.8rem;font-weight:700;text-decoration:none;transition:top .2s;z-index:10000}.skip-link:focus{top:0}</style><a href="#main-content" class="skip-link">تخطى للمحتوى الرئيسي</a><link rel="stylesheet" href="/static/tw_shared.css">
+</head>
 <body>
+<!--
+╔══════════════════════════════════════════════╗
+║  TAWASALNA - JOBS                            ║
+║  Architecture: Hybrid                        ║
+║  Last Modified: 2026-05                      ║
+║  DO NOT EDIT outside designated sections     ║
+╚══════════════════════════════════════════════╝
+-->
 
+
+<!-- ██ NAVBAR SECTION ██ -->
 <nav class="nav" role="navigation" aria-label="القائمة الرئيسية">
   <button class="nb" onclick="history.back()" aria-label="رجوع">← رجوع</button>
-  <div class="nav-logo" onclick="goHome()">تواصلنا</div>
+  <div class="nav-logo"><img src="https://wrxvmdmknhoufoeprpoc.supabase.co/storage/v1/object/public/site/Logo.svg" alt="تواصلنا" style="height:36px;width:auto;object-fit:contain;display:block"></div>
 </nav>
 
 <div class="page">
   <div class="page-title">💼 الوظائف المتاحة</div>
 
-  <div class="filters">
+  <!-- ── Filters Section ── -->
+<div class="filters">
     <div class="search-wrap">
       <input id="searchInput" aria-label="بحث عن وظيفة" placeholder="بحث عن وظيفة..." oninput="filterJobs()" onkeydown="if(event.key==='Enter')filterJobs()">
     </div>

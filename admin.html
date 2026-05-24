@@ -108,10 +108,21 @@ body{font-family:Cairo,sans-serif;background:var(--bg);color:#fff;min-height:100
   .tr{grid-template-columns:1fr auto;}
 }
 </style>
+<link rel="stylesheet" href="/static/tw_shared.css">
 </head>
 <body>
+<!--
+╔══════════════════════════════════════════════╗
+║  TAWASALNA - ADMIN                           ║
+║  Architecture: Hybrid                        ║
+║  Last Modified: 2026-05                      ║
+║  DO NOT EDIT outside designated sections     ║
+╚══════════════════════════════════════════════╝
+-->
+
 
 <!-- LOGIN -->
+<!-- ██ ADMIN LOGIN ██ -->
 <div class="login-wrap" id="loginWrap">
   <div class="login-box">
     <div class="login-logo"><img src="https://wrxvmdmknhoufoeprpoc.supabase.co/storage/v1/object/public/site/Logo.svg" alt="تواصلنا" style="height:36px;width:auto;object-fit:contain;display:block"></div>
@@ -124,6 +135,7 @@ body{font-family:Cairo,sans-serif;background:var(--bg);color:#fff;min-height:100
 </div>
 
 <!-- MAIN -->
+<!-- ██ ADMIN MAIN ██ -->
 <div class="main-wrap" id="mainWrap">
   <nav class="admin-nav">
     <div class="nav-logo"><img src="https://wrxvmdmknhoufoeprpoc.supabase.co/storage/v1/object/public/site/Logo.svg" alt="تواصلنا" style="height:36px;width:auto;object-fit:contain;display:block"></div>
@@ -132,7 +144,8 @@ body{font-family:Cairo,sans-serif;background:var(--bg);color:#fff;min-height:100
     <button class="nav-logout" onclick="adminLogout()">خروج</button>
   </nav>
 
-  <div class="content">
+  <!-- ── Admin Content ── -->
+<div class="content">
 
     <!-- ═══ القسم 1: إحصائيات المستخدمين ═══ -->
     <div style="margin-bottom:10px">
@@ -187,7 +200,8 @@ body{font-family:Cairo,sans-serif;background:var(--bg);color:#fff;min-height:100
     </div>
 
     <!-- ═══ التبويبات ═══ -->
-    <div class="tabs" style="grid-template-columns:repeat(6,1fr)">
+    <!-- ── Navigation Tabs ── -->
+<div class="tabs" style="grid-template-columns:repeat(6,1fr)">
       <button class="tab on" onclick="showTab('users',this)"><span class="tab-ico">👥</span><span>مستخدمون</span></button>
       <button class="tab" onclick="showTab('verify',this)"><span class="tab-ico">✅</span><span>توثيق</span></button>
       <button class="tab" onclick="showTab('jobs',this)"><span class="tab-ico">💼</span><span>وظائف</span></button>
@@ -197,7 +211,8 @@ body{font-family:Cairo,sans-serif;background:var(--bg);color:#fff;min-height:100
     </div>
 
     <!-- USERS TAB -->
-    <div id="tab-users">
+    <!-- ── Users Tab ── -->
+<div id="tab-users">
       <div class="search-bar">
         <input class="search-input" id="userSearch" placeholder="بحث بالاسم أو الإيميل..." oninput="filterUsers()">
         <select class="filter-sel" id="userFilter" onchange="filterUsers()">
@@ -212,12 +227,14 @@ body{font-family:Cairo,sans-serif;background:var(--bg);color:#fff;min-height:100
     </div>
 
     <!-- VERIFY TAB -->
-    <div id="tab-verify" style="display:none">
+    <!-- ── Verify Tab ── -->
+<div id="tab-verify" style="display:none">
       <div id="verifyTable"><div class="tw-empty"><span class="tw-empty-ico">⏳</span><div class="tw-empty-title">جاري التحميل...</div></div></div>
     </div>
 
     <!-- JOBS TAB -->
-    <div id="tab-jobs" style="display:none">
+    <!-- ── Jobs Tab ── -->
+<div id="tab-jobs" style="display:none">
       <div class="search-bar">
         <input class="search-input" id="jobSearch" placeholder="بحث في الوظائف..." oninput="filterJobs()">
       </div>
@@ -226,17 +243,20 @@ body{font-family:Cairo,sans-serif;background:var(--bg);color:#fff;min-height:100
     </div>
 
     <!-- REPORTS TAB -->
-    <div id="tab-reports" style="display:none">
+    <!-- ── Reports Tab ── -->
+<div id="tab-reports" style="display:none">
       <div id="reportsTable"><div class="tw-empty"><span class="tw-empty-ico">⏳</span><div class="tw-empty-title">جاري التحميل...</div></div></div>
     </div>
 
     <!-- KYC TAB -->
-    <div id="tab-kyc" style="display:none">
+    <!-- ── KYC Tab ── -->
+<div id="tab-kyc" style="display:none">
       <div id="kycTable"><div class="tw-empty"><span class="tw-empty-ico">⏳</span><div class="tw-empty-title">جاري التحميل...</div></div></div>
     </div>
 
     <!-- ERRORS TAB -->
-    <div id="tab-errors" style="display:none">
+    <!-- ── Errors Tab ── -->
+<div id="tab-errors" style="display:none">
       <div id="errorsTable"><div class="tw-empty"><span class="tw-empty-ico">⏳</span><div class="tw-empty-title">جاري التحميل...</div></div></div>
     </div>
 
