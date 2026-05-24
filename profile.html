@@ -678,8 +678,18 @@ body.s5 .add-item-btn:hover { border-color:rgba(var(--ac-rgb),.35); color:var(--
   transition:color .2s;
 }
 .item-drag-handle:hover{color:var(--ac,#00c896);}
+
+/* ── Skeleton Loader ── */
+.sk{background:linear-gradient(90deg,rgba(255,255,255,.06) 25%,rgba(255,255,255,.1) 50%,rgba(255,255,255,.06) 75%);background-size:200% 100%;animation:sk-wave 1.5s infinite;border-radius:8px;}
+@keyframes sk-wave{0%{background-position:200% 0}100%{background-position:-200% 0}}
+.sk-avatar{width:80px;height:80px;border-radius:50%;}
+.sk-name{height:20px;width:60%;margin:10px auto;}
+.sk-title{height:14px;width:40%;margin:6px auto;}
+.sk-line{height:12px;width:90%;margin:5px auto;}
+.sk-line.short{width:60%;}
+#profileSkeleton{text-align:center;padding:20px 0;}
 </style><a href="#main-content" class="skip-link">تخطى للمحتوى الرئيسي</a></head>
-<body class="s1">
+<body class="s1" style="background:#070b18;min-height:100vh">
 
 <input type="file" id="avatarInput" accept="image/*" onchange="handleAvatarUpload(this)">
 <input autocomplete="off" type="color" id="colorIn" value="#00c896">
@@ -908,6 +918,8 @@ body.s5 .add-item-btn:hover { border-color:rgba(var(--ac-rgb),.35); color:var(--
 // ── Smart isOwner detection ──
 let _sessionUser = null;
 try { _sessionUser = JSON.parse(localStorage.getItem('tw_user')); } catch(e){}
+var _profileCache = null; // cache to avoid multiple fetches
+
 
 function toggleDefaultSection(type, secId, el){
   const sec = document.getElementById(secId);
@@ -1203,10 +1215,10 @@ function editSkillItem(id, lid){
   document.getElementById('modal').innerHTML=`
     <div class="modal-title">🛠️ تعديل مهارة</div>
     <div class="mf"><label>اسم المهارة</label>
-      <input id="m-skill-name" value="${item.name}" autocomplete="off" style="${SS}">
+      <input id="m-skill-name-edit" value="${item.name}" autocomplete="off" style="${SS}">
     </div>
     <div class="mf"><label>مستوى الإتقان</label>
-      <select id="m-skill-level" style="${SS}">
+      <select id="m-skill-level-edit" style="${SS}">
         <option value="">— اختر —</option>
         <option value="مبتدئ"${item.level==='مبتدئ'?' selected':''}>🟡 مبتدئ</option>
         <option value="متوسط"${item.level==='متوسط'?' selected':''}>🟠 متوسط</option>
@@ -1246,13 +1258,13 @@ function editLangItem(id, lid){
   document.getElementById('modal').innerHTML=`
     <div class="modal-title">🌍 تعديل لغة</div>
     <div class="mf"><label>اللغة</label>
-      <select id="m-lang-name" style="${SS}">
+      <select id="m-lang-name-edit" style="${SS}">
         <option value="">— اختر —</option>
         ${['العربية', 'الإنجليزية', 'الفرنسية', 'الإسبانية', 'الصينية المندرين', 'الهندية', 'الروسية', 'البرتغالية', 'الألمانية', 'اليابانية', 'الكورية', 'الإيطالية', 'التركية', 'الفارسية', 'الأردية', 'البنغالية', 'الإندونيسية', 'الملايوية', 'الفلبينية (تاغالوغ)', 'التايلاندية', 'الفيتنامية', 'السواحيلية', 'العبرية', 'الهولندية', 'البولندية', 'الأوكرانية', 'الرومانية', 'اليونانية', 'السويدية', 'النرويجية', 'الدنماركية', 'الفنلندية', 'الكردية', 'الأمهرية', 'الصومالية', 'الزولو', 'لغة الإشارة', 'أخرى'].map(l=>`<option${item.name===l?" selected":""}>${l}</option>`).join("")}
       </select>
     </div>
     <div class="mf"><label>المستوى</label>
-      <select id="m-lang-level" style="${SS}">
+      <select id="m-lang-level-edit" style="${SS}">
         <option value="">— اختر —</option>
         ${[['مبتدئ','🟡'],['محادثة','🟠'],['جيد','🔵'],['طلاقة','🟢'],['لغة أم','⭐']].map(([v,i])=>`<option value="${v}"${item.level===v?' selected':''}>${i} ${v}</option>`).join('')}
       </select>
@@ -1289,12 +1301,12 @@ function editCourseItem(id, lid){
   const yearOpts=[...Array(36)].map((_,i)=>{const y=new Date().getFullYear()-i;return `<option value="${y}"${item.year==y?' selected':''}>${y}</option>`;}).join('');
   document.getElementById('modal').innerHTML=`
     <div class="modal-title">📚 تعديل دورة</div>
-    <div class="mf"><label>اسم الدورة</label><input id="m-course-name" value="${item.name||''}" autocomplete="off" style="${SS}"></div>
-    <div class="mf"><label>الجهة المقدِّمة</label><input id="m-course-provider" value="${item.provider||''}" autocomplete="off" style="${SS}"></div>
+    <div class="mf"><label>اسم الدورة</label><input id="m-course-name-edit" value="${item.name||''}" autocomplete="off" style="${SS}"></div>
+    <div class="mf"><label>الجهة المقدِّمة</label><input id="m-course-provider-edit" value="${item.provider||''}" autocomplete="off" style="${SS}"></div>
     <div class="mf"><label>سنة الإتمام</label>
-      <select id="m-course-year" style="${SS}"><option value="">— اختر —</option>${yearOpts}</select>
+      <select id="m-course-year-edit" style="${SS}"><option value="">— اختر —</option>${yearOpts}</select>
     </div>
-    <div class="mf"><label>رابط الشهادة</label><input id="m-course-url" value="${item.url||''}" autocomplete="off" style="direction:ltr;text-align:left;${SS}"></div>
+    <div class="mf"><label>رابط الشهادة</label><input id="m-course-url-edit" value="${item.url||''}" autocomplete="off" style="direction:ltr;text-align:left;${SS}"></div>
     <div class="mact">
       <button type="button" class="mbtn mbtn-ok" onclick="updateCourseItem(${id},'${lid}')">حفظ</button>
       <button type="button" class="mbtn mbtn-no" onclick="closeModal()">إلغاء</button>
@@ -1381,7 +1393,7 @@ function renderCourseItem(e,lid){
         ${e.url?`<a href="${e.url}" target="_blank" style="font-size:.65rem;color:var(--ac)">📜 الشهادة</a>`:''}
         <span class="badge pending">⏳ قيد المراجعة</span>
       </div>
-      <div class="item-menu-wrap owner-only">
+      <span class="item-drag-handle owner-only" style="color:rgba(255,255,255,.25);cursor:grab;padding:4px 6px;font-size:.9rem" title="اسحب لإعادة الترتيب">⠿</span><div class="item-menu-wrap owner-only">
         <button type="button" class="item-menu-btn" onclick="toggleItemMenuG(this)">⋯</button>
         <div class="item-menu">
           <div class="item-menu-opt" onclick="editCourseItem(${id},'${lid}')">✏️ تعديل</div>
@@ -1608,7 +1620,7 @@ function renderExpItem(e){
         ${e.desc?`<div style="font-size:.73rem;color:rgba(255,255,255,.4);margin-top:4px;line-height:1.5">${e.desc}</div>`:''}
         <span class="badge pending">⏳ قيد المراجعة</span>
       </div>
-      <div class="item-menu-wrap owner-only">
+      <span class="item-drag-handle owner-only" style="color:rgba(255,255,255,.25);cursor:grab;padding:4px 6px;font-size:.9rem" title="اسحب لإعادة الترتيب">⠿</span><div class="item-menu-wrap owner-only">
         <button type="button" class="item-menu-btn" onclick="toggleItemMenu('emenu-${id}')">⋯</button>
         <div class="item-menu" id="emenu-${id}">
           <div class="item-menu-opt" onclick="editExp(${id})">✏️ تعديل</div>
@@ -1630,7 +1642,7 @@ function renderEduItem(e){
         <div class="item-date">${e.end_year||''}</div>
         <span class="badge pending">⏳ قيد المراجعة</span>
       </div>
-      <div class="item-menu-wrap owner-only">
+      <span class="item-drag-handle owner-only" style="color:rgba(255,255,255,.25);cursor:grab;padding:4px 6px;font-size:.9rem" title="اسحب لإعادة الترتيب">⠿</span><div class="item-menu-wrap owner-only">
         <button type="button" class="item-menu-btn" onclick="toggleItemMenu('emenu-${id}')">⋯</button>
         <div class="item-menu" id="emenu-${id}">
           <div class="item-menu-opt" onclick="editEdu(${id})">✏️ تعديل</div>
@@ -1746,7 +1758,7 @@ function saveSectionOrder(){
       method:'PUT',
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({sections_order:JSON.stringify(order)})
-    }).catch(()=>{});
+    }).then(function(){showToast('تم حفظ الترتيب ✅');}).catch(()=>{});
   }
 }
 
@@ -2367,7 +2379,7 @@ function saveProfile(){
   if(_sessionUser&&_sessionUser.id){
     fetch('/profile/'+_sessionUser.id,{method:'PUT',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({headline:title,bio,location:loc,full_name:name})
-    }).catch(()=>{});
+    }).then(function(){showToast('تم الحفظ ✅');}).catch(function(){showToast('خطأ في الحفظ','error');});
     // Update name in users table
     if(name&&name!==(_sessionUser.full_name||'')){
       fetch('/auth/user/'+_sessionUser.id+'/name',{method:'PUT',
@@ -2628,8 +2640,8 @@ if(isOwner){
   document.querySelectorAll('.owner-only').forEach(function(el){ el.style.display='none'; });
   // Hide toolbar action buttons
   document.querySelectorAll('.tb-btn').forEach(function(btn){ btn.style.display='none'; });
-  // Show public CTA banner
-  showPublicBanner();
+  // Show CTA banner after 2s delay
+  setTimeout(showPublicBanner, 2000);
 }
 restoreSections();
   loadSectionOrder();
@@ -2810,7 +2822,8 @@ function saveCrop(){
   } else {
     // Try loading from DB
     if(u&&u.id){
-      fetch('/profile/'+u.id+'/full').then(r=>r.json()).then(data=>{
+      // Use cached profile if available
+Promise.resolve(_profileCache || fetch('/profile/'+u.id+'/full').then(r=>r.json()).then(d=>{_profileCache=d;return d;})).then(data=>{
         const avatarUrl=data?.profile?.avatar_url;
         if(avatarUrl){
           try{ localStorage.setItem('tw_avatar'+getUID(), avatarUrl); }catch(ex){}
@@ -2822,7 +2835,7 @@ function saveCrop(){
   }
 })();
 
-function doLogout(){ localStorage.removeItem('tw_user'); location.href='/'; }
+function doLogout(){ localStorage.removeItem('tw_user'); location.href='/login'; }
 // Init calls - after all functions defined
 (function(){
   initScrollProg();
@@ -2849,6 +2862,11 @@ initScrollProg();
 
   // عرض فوري من localStorage فقط لو صاحب الحساب
   if(_isOwnProfile){
+    // Owner: hide skeleton immediately (data from localStorage)
+    var _sk = document.getElementById('profileSkeleton');
+    var _card = document.getElementById('cvCard');
+    if(_sk) _sk.style.display='none';
+    if(_card) _card.style.display='';
     document.getElementById('cvCode').textContent =
       user.tw_id || ('TW-' + (user.user_type||'emp').toUpperCase() + '-' + String(user.id));
 
@@ -2906,8 +2924,7 @@ initScrollProg();
 
   // ── 1.5 Load skills/langs/links from DB into localStorage ──
   if(_isOwnProfile && _sessionUser && _sessionUser.id){
-    fetch('/profile/' + _sessionUser.id + '/full')
-      .then(r => r.json())
+    Promise.resolve(_profileCache || fetch('/profile/' + _sessionUser.id + '/full').then(r=>r.json()).then(d=>{_profileCache=d;return d;}))
       .then(data => {
         const pr = data.profile;
         if(!pr) return;
@@ -2953,7 +2970,13 @@ initScrollProg();
   // ── 2. API call ── (always runs for any profile)
   fetch('/profile/' + (_urlId||(_sessionUser&&_sessionUser.id)||'0') + '/full')
     .then(r => r.json())
-    .then(data => {
+    .then(data => { 
+    _profileCache = data;
+    // Hide skeleton, show card
+    var sk=document.getElementById('profileSkeleton');
+    var card=document.getElementById('cvCard');
+    if(sk) sk.style.display='none';
+    if(card) card.style.display='';
       const p = data.profile;
       if(!p) return;
       const _lsP=JSON.parse(localStorage.getItem('tw_profile_data'+getUID())||'{}');
@@ -3045,6 +3068,15 @@ function rrPath(ctx, x, y, w, h, r){
 }
 
 function drawSnapQR(canvasId, text, size){
+  // Use cached QR if same URL
+  if(_qrCache[text] && _qrCache[text].size === size){
+    var canvas = document.getElementById(canvasId);
+    if(canvas){
+      canvas.width = size; canvas.height = size;
+      canvas.getContext('2d').drawImage(_qrCache[text].img, 0, 0);
+      return;
+    }
+  }
   var canvas = document.getElementById(canvasId);
   if(!canvas) return;
   canvas.width = size; canvas.height = size;
@@ -3156,6 +3188,15 @@ function drawSnapQR(canvasId, text, size){
     ctx.drawImage(logoImg, lx, ly, lsz, lsz);
   };
   logoImg.src = 'https://wrxvmdmknhoufoeprpoc.supabase.co/storage/v1/object/public/site/LogoQR.svg';
+  // Save to cache
+  setTimeout(function(){
+    var c = document.getElementById(canvasId);
+    if(c && text){
+      var img = new Image();
+      img.src = c.toDataURL();
+      _qrCache[text] = {img: img, size: size};
+    }
+  }, 500);
 }
 
 
@@ -3431,6 +3472,8 @@ function loadProfileScore(){
   fetch('/profile/'+uid+'/score').then(function(r){return r.json();}).then(function(data){
     var num=document.getElementById('scoreNum');
     var bar=document.getElementById('scoreBar');
+    // Animate score bar
+    if(bar){bar.style.transition='width 1s ease';}
     var tips=document.getElementById('scoreTips');
     if(!num) return;
     // Show the widget
@@ -3607,7 +3650,7 @@ function showPublicBanner(){
   document.body.appendChild(banner);
   
   // Add bottom padding to page so content not hidden
-  document.body.style.paddingBottom = '80px';
+  var _cvw = document.getElementById('cvWrap'); if(_cvw) _cvw.style.paddingBottom='80px';
 }
 </script>
 </body>
