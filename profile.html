@@ -1597,7 +1597,7 @@ body.s5 .add-item-btn:hover { border-color:rgba(var(--ac-rgb),.35); color:var(--
 <!-- ══ Profile Completion Score ══ -->
 
 
-    <div class="section" id="sec-exp" draggable="true" style="display:none">
+    <div class="section" id="sec-exp" draggable="false" style="display:none">
       <div class="sec-header">
         <span class="sec-icon">💼</span>
         <span class="sec-title">الخبرات العملية</span>
@@ -1610,7 +1610,7 @@ body.s5 .add-item-btn:hover { border-color:rgba(var(--ac-rgb),.35); color:var(--
       <div class="drag-handle owner-only" title="اسحب لإعادة الترتيب"><span></span><span></span><span></span></div>
     </div>
 
-    <div class="section" id="sec-edu" draggable="true" style="display:none">
+    <div class="section" id="sec-edu" draggable="false" style="display:none">
       <div class="sec-header">
         <span class="sec-icon">🎓</span>
         <span class="sec-title">الشهادات الدراسية</span>
@@ -1859,7 +1859,7 @@ function addSection(id,icon,title,el,skipOrderSave=false){
     ? `openModal('generic','${lid}','${title}')`
     : `openModal('${modalType}','${lid}','${title}')`;
   document.getElementById('secList').insertAdjacentHTML('beforeend',`
-    <div class="section" id="sec-${id}" draggable="true">
+    <div class="section" id="sec-${id}" draggable="false">
       <div class="sec-header"><span class="sec-icon">${icon}</span><span class="sec-title">${title}</span><div class="sec-line"></div></div>
       <div id="${lid}"><div class="item empty-hint"><div class="item-title" style="opacity:.4;font-size:.8rem">لا توجد عناصر — اضغط + لإضافة</div></div></div>
       <button type="button" class="add-item-btn owner-only" onclick="${btnOnclick}">+ إضافة</button>
@@ -4384,7 +4384,10 @@ function _secDrop(e){
 }
 
 function _secDragEnd(e){
-  if(_secDragSrc) _secDragSrc.style.opacity = '';
+  if(_secDragSrc){
+    _secDragSrc.style.opacity = '';
+    _secDragSrc.setAttribute('draggable','false');
+  }
   _secDragSrc = null;
   document.querySelectorAll('.section').forEach(function(s){
     s.style.borderTop = '';
@@ -4393,6 +4396,16 @@ function _secDragEnd(e){
 
 function _initSectionDrag(){
   document.querySelectorAll('#secList > .section').forEach(function(sec){
+    // Enable draggable only when mousedown on .drag-handle
+    var handle = sec.querySelector('.drag-handle');
+    if(handle){
+      handle.addEventListener('mousedown', function(){
+        sec.setAttribute('draggable','true');
+      });
+      handle.addEventListener('mouseleave', function(){
+        // Don't disable here - let dragend handle it
+      });
+    }
     sec.removeEventListener('dragstart', _secDragStart);
     sec.removeEventListener('dragover', _secDragOver);
     sec.removeEventListener('dragleave', _secDragLeave);
@@ -4411,8 +4424,8 @@ var _secTouchDrag = null, _secTouchClone = null, _secTouchY = 0;
 
 function _secTouchStart(e){
   if(!isOwner) return;
-  // Only activate from drag-handle area or sec-header
-  var handle = e.target.closest('.drag-handle, .sec-header');
+  // Only activate from .drag-handle
+  var handle = e.target.closest('.drag-handle');
   if(!handle) return;
   _secTouchDrag = this;
   _secTouchY = e.touches[0].clientY;
