@@ -728,8 +728,8 @@ def profile_score(user_id: int):
         score = 0
         tips = []
         checks = [
-            (bool(profile.get("avatar_url")),      10, "أضف صورة شخصية"),
-            (bool(profile.get("title")),            10, "أضف مسماك الوظيفي"),
+            (bool(profile.get("avatar_url") or (profile.get("profile") or {}).get("avatar_url")), 10, "أضف صورة شخصية"),
+            (bool(profile.get("headline") or profile.get("title")),  10, "أضف مسماك الوظيفي"),
             (bool(profile.get("bio")),              10, "أضف نبذة عنك"),
             (bool(profile.get("phone")),             5, "أضف رقم هاتفك"),
             (bool(profile.get("location")),          5, "أضف موقعك"),

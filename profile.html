@@ -4183,7 +4183,21 @@ function loadProfileScore(){
       var d=document.createElement('div');
       d.id='secScore'; d.className='sec-card';
       d.style.cssText='display:none;background:linear-gradient(135deg,rgba(0,200,150,.06),rgba(37,99,255,.06));border-color:rgba(0,200,150,.2);margin-bottom:14px';
-      d.innerHTML='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px"><div style="font-weight:800;font-size:.88rem">اكتمال الملف الشخصي</div><div style="font-size:1.2rem;font-weight:900;color:var(--ac)" id="scoreNum">--</div></div><div style="height:6px;border-radius:4px;background:rgba(255,255,255,.08);margin-bottom:10px"><div id="scoreBar" style="height:100%;border-radius:4px;background:linear-gradient(90deg,var(--ac),#2563ff);width:0%;transition:width 1s ease"></div></div><div id="scoreTips" style="display:flex;flex-direction:column;gap:6px"></div>';
+      d.innerHTML=`
+<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+  <div style="font-size:1.5rem">📊</div>
+  <div style="flex:1">
+    <div style="font-weight:800;font-size:.82rem;margin-bottom:2px">اكتمال الملف الشخصي</div>
+    <div style="font-size:.68rem;color:rgba(255,255,255,.4)">اكمل ملفك لتحسين فرص حصولك على عمل</div>
+  </div>
+  <div id="scoreNum" style="font-size:1.6rem;font-weight:900;color:var(--ac);line-height:1">--</div>
+</div>
+<div style="background:rgba(255,255,255,.06);border-radius:8px;height:8px;overflow:hidden;margin-bottom:10px">
+  <div id="scoreBar" style="height:100%;width:0%;background:linear-gradient(90deg,var(--ac),var(--ac2));border-radius:8px;transition:width 1s ease"></div>
+</div>
+<div id="scoreTips" style="display:flex;flex-direction:column;gap:5px"></div>
+`;
+      sl.insertBefore
       sl.insertBefore(d,sl.firstChild);
     }
   }
@@ -4214,8 +4228,10 @@ function loadProfileScore(){
     // Tips
     if(tips&&data.tips&&data.tips.length){
       tips.innerHTML=data.tips.map(function(t){
-        return '<div style="font-size:.72rem;color:rgba(255,255,255,.5);display:flex;align-items:center;gap:6px">'
-          +'<span style="color:var(--ac)">+'+t.points+'</span> '+t.tip+'</div>';
+        return '<div style="display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.03);border-radius:8px;padding:6px 10px">'+
+          '<span style="color:var(--ac);font-size:.75rem;font-weight:700;background:rgba(0,200,150,.1);padding:2px 7px;border-radius:20px">+'+t.points+'%</span>'+
+          '<span style="font-size:.72rem;color:rgba(255,255,255,.6)">'+t.tip+'</span>'+
+          '</div>';
       }).join('');
     }
   }).catch(function(){});
@@ -4240,6 +4256,7 @@ function loadProfileScore(){
 var _dragItem = null;
 
 function itemDragStart(e){
+  e.stopPropagation(); // منع تحريك القسم
   _dragItem = e.currentTarget;
   e.dataTransfer.effectAllowed = 'move';
   setTimeout(function(){ if(_dragItem) _dragItem.style.opacity='0.4'; }, 0);
@@ -4247,6 +4264,7 @@ function itemDragStart(e){
 
 function itemDragOver(e){
   e.preventDefault();
+  e.stopPropagation();
   e.dataTransfer.dropEffect = 'move';
   var target = e.currentTarget;
   if(target !== _dragItem && target.classList.contains('item')){
@@ -4256,6 +4274,7 @@ function itemDragOver(e){
 
 function itemDrop(e, listId){
   e.preventDefault();
+  e.stopPropagation();
   var target = e.currentTarget;
   target.classList.remove('drag-over');
   if(!_dragItem || _dragItem === target) return;
@@ -4350,6 +4369,7 @@ var _secDragSrc = null;
 
 function _secDragStart(e){
   if(!isOwner) return;
+  if(_dragItem) { e.preventDefault(); return; } // item drag active - ignore section drag
   _secDragSrc = this;
   e.dataTransfer.effectAllowed = 'move';
   e.dataTransfer.setData('text/plain', this.id);
