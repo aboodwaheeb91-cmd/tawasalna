@@ -913,6 +913,14 @@ body.s5 .add-item-btn:hover { border-color:rgba(var(--ac-rgb),.35); color:var(--
   </div>
 
   <!-- زر إضافة قسم في نهاية الصفحة -->
+<!-- ══ طلبات التوظيف ══ -->
+<div class="sec-card" id="secApplications" style="display:none">
+  <div class="sec-title">📋 طلبات التوظيف</div>
+  <div id="appTrackList">
+    <div class="tw-skeleton" style="height:60px;margin-bottom:8px"></div>
+    <div class="tw-skeleton" style="height:60px"></div>
+  </div>
+</div>
   <div style="padding:14px 14px 30px" class="owner-only">
     <button class="add-sec-shortcut" onclick="openPanel();setTimeout(()=>toggleAcc('acc-sections'),300)">
       <span>📂</span> إضافة قسم
@@ -3055,14 +3063,6 @@ initScrollProg();
 <!-- QR -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
 
-<!-- ══ طلبات التوظيف ══ -->
-<div class="sec-card" id="secApplications" style="display:none">
-  <div class="sec-title">📋 طلبات التوظيف</div>
-  <div id="appTrackList">
-    <div class="tw-skeleton" style="height:60px;margin-bottom:8px"></div>
-    <div class="tw-skeleton" style="height:60px"></div>
-  </div>
-</div>
 
 <script>
 let _qrUser = null;
