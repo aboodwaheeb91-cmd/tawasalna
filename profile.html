@@ -865,10 +865,6 @@ body.s5 .add-item-btn:hover { border-color:rgba(var(--ac-rgb),.35); color:var(--
 
   <div class="cv-main" id="cvMain">
 
-  <div style="height:6px;border-radius:4px;background:rgba(255,255,255,.08);margin-bottom:10px">
-        <div class="score-tips-static" style="display:flex;flex-direction:column;gap:6px"></div>
-</div>
-
 
   <!-- ── Profile Sections List ── -->
 <div class="sections-list" id="secList">
@@ -910,17 +906,18 @@ body.s5 .add-item-btn:hover { border-color:rgba(var(--ac-rgb),.35); color:var(--
       <div class="drag-handle owner-only"><span></span><span></span><span></span></div>
     </div>
 
+  <!-- ══ طلبات التوظيف (داخل secList) ══ -->
+  <div class="sec-card" id="secApplications" style="display:none">
+    <div class="sec-title">📋 طلبات التوظيف</div>
+    <div id="appTrackList">
+      <div class="tw-skeleton" style="height:60px;margin-bottom:8px"></div>
+      <div class="tw-skeleton" style="height:60px"></div>
+    </div>
+  </div>
+
   </div>
 
   <!-- زر إضافة قسم في نهاية الصفحة -->
-<!-- ══ طلبات التوظيف ══ -->
-<div class="sec-card" id="secApplications" style="display:none">
-  <div class="sec-title">📋 طلبات التوظيف</div>
-  <div id="appTrackList">
-    <div class="tw-skeleton" style="height:60px;margin-bottom:8px"></div>
-    <div class="tw-skeleton" style="height:60px"></div>
-  </div>
-</div>
   <div style="padding:14px 14px 30px" class="owner-only">
     <button class="add-sec-shortcut" onclick="openPanel();setTimeout(()=>toggleAcc('acc-sections'),300)">
       <span>📂</span> إضافة قسم
