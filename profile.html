@@ -348,7 +348,7 @@ body.s4 .add-item-btn:hover { border-color:var(--ac); color:var(--ac); }
 .cv-wrap.fading { opacity:0; transform:translateY(5px); }
 
 /* ── Preview ── */
-body.preview-mode /* owner-only: shown by default, hidden for visitors */
+body.preview-mode .owner-only { display:none !important; }
 
 /* ── Modal ── */
 .overlay {
@@ -1043,7 +1043,7 @@ body.s4 .add-item-btn:hover { border-color:var(--ac); color:var(--ac); }
 .cv-wrap.fading { opacity:0; transform:translateY(5px); }
 
 /* ── Preview ── */
-body.preview-mode /* owner-only: shown by default, hidden for visitors */
+body.preview-mode .owner-only { display:none !important; }
 
 /* ── Modal ── */
 .overlay{position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,.75);display:none;align-items:flex-end;justify-content:center;}
@@ -3393,6 +3393,44 @@ if(isOwner){
 restoreSections();
   loadSectionOrder();
   updatePanelState();
+  
+  // ══ Render exp/edu from localStorage immediately ══
+  if(isOwner){
+    // Show sections always for owner
+    ['sec-exp','sec-edu'].forEach(function(sid){
+      var s=document.getElementById(sid); if(s) s.style.display='';
+    });
+    
+    // Render exp items
+    try{
+      var expItems=JSON.parse(localStorage.getItem('tw_exp'+getUID())||'[]');
+      if(expItems.length){
+        var expList=document.getElementById('exp-list');
+        if(expList){
+          expList.innerHTML='';
+          expItems.forEach(function(e){
+            if(typeof renderExpItem==='function')
+              expList.insertAdjacentHTML('beforeend',renderExpItem(e));
+          });
+        }
+      }
+    }catch(ex){}
+    
+    // Render edu items
+    try{
+      var eduItems=JSON.parse(localStorage.getItem('tw_edu'+getUID())||'[]');
+      if(eduItems.length){
+        var eduList=document.getElementById('edu-list');
+        if(eduList){
+          eduList.innerHTML='';
+          eduItems.forEach(function(e){
+            if(typeof renderEduItem==='function')
+              eduList.insertAdjacentHTML('beforeend',renderEduItem(e));
+          });
+        }
+      }
+    }catch(ex){}
+  }
 // top-actions needs flex not block
 const ta = document.querySelector('.top-actions');
 if(ta && isOwner) ta.style.display = 'flex';
@@ -3438,7 +3476,9 @@ if(ta && isOwner) ta.style.display = 'flex';
   // Step 2: Sync from API and update if different
   var uid = (_urlId || (_sessionUser && _sessionUser.id) || '0');
   Promise.resolve(_profileCache || 
-    fetch('/profile/' + uid + '/full')
+    fetch('/profile/' + uid + '/full', {
+      headers: {'Authorization': 'Bearer ' + (localStorage.getItem('tw_jwt')||'')}
+    })
       .then(function(r){ return r.json(); })
       .then(function(d){ _profileCache = d; return d; })
   ).then(function(data){
