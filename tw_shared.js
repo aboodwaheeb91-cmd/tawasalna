@@ -1,3 +1,12 @@
+
+// ══ Auth Headers Helper ══
+function getAuthHeaders(json){
+  var jwt = localStorage.getItem('tw_jwt')||'';
+  var h = {'Authorization':'Bearer '+jwt};
+  if(json) h['Content-Type']='application/json';
+  return h;
+}
+
 // ══ tw_shared.js - Shared Utilities ══
 // تواصلنا - Shared JavaScript Utilities
 
