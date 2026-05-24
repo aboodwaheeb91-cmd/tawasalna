@@ -2656,8 +2656,7 @@ if(isOwner){
   document.querySelectorAll('.owner-only').forEach(function(el){ el.style.display='none'; });
   // Hide toolbar action buttons
   document.querySelectorAll('.tb-btn').forEach(function(btn){ btn.style.display='none'; });
-  // Show CTA banner after 2s delay
-  setTimeout(showPublicBanner, 2000);
+
 }
 restoreSections();
   loadSectionOrder();
@@ -3629,46 +3628,7 @@ function initTouchDrag(){
 }
 initTouchDrag();
 
-// ── Public View Banner ──
-function showPublicBanner(){
-  if(document.getElementById('publicBanner')) return;
-  
-  // Add inline banner at bottom of cvWrap (not fixed)
-  var cvWrap = document.getElementById('cvWrap');
-  if(!cvWrap) return;
-
-  var banner = document.createElement('div');
-  banner.id = 'publicBanner';
-  banner.style.cssText = [
-    'background:linear-gradient(135deg,rgba(0,200,150,.1),rgba(37,99,255,.08))',
-    'border:1px solid rgba(0,200,150,.25)',
-    'border-radius:16px',
-    'padding:16px',
-    'margin-top:16px',
-    'display:flex',
-    'align-items:center',
-    'gap:12px',
-    'font-family:Cairo,sans-serif'
-  ].join(';');
-
-  banner.innerHTML = [
-    '<div style="flex:1">',
-      '<div style="font-size:.85rem;font-weight:800;color:#fff;margin-bottom:3px">',
-        '✨ أنشئ سيرتك الذاتية مجاناً',
-      '</div>',
-      '<div style="font-size:.7rem;color:rgba(255,255,255,.45)">',
-        'ابحث عن عمل ودورات تعليمية في تواصلنا',
-      '</div>',
-    '</div>',
-    '<a href="/login" style="',
-      'padding:9px 18px;border-radius:10px;',
-      'background:linear-gradient(135deg,#00c896,#2563ff);',
-      'color:#fff;font-family:Cairo,sans-serif;font-size:.78rem;',
-      'font-weight:700;text-decoration:none;white-space:nowrap;flex-shrink:0',
-    '">ابدأ مجاناً</a>'
-  ].join('');
-
-  cvWrap.appendChild(banner);
-}
+// ── Public View Banner (removed) ──
+function showPublicBanner(){}
 
 >
