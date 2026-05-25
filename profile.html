@@ -1417,7 +1417,7 @@ function updateCourseItem(id, lid){
 function renderSkillItem(e,lid){
   const id=e.id||Date.now();const lvl=e.level||'';
   const lvlColor={'مبتدئ':'🟡','متوسط':'🟠','محترف':'🔵','خبير':'🟢'}[lvl]||'';
-  return `<div class="item" id="skill-item-${id}" draggable="false">
+  return `<div class="item" id="skill-item-${id}" draggable="true" ondragstart="itemDragStart(event)" ondragover="itemDragOver(event)" ondrop="itemDrop(event,'skills-list')" ondragend="itemDragEnd(event)">
     <div style="display:flex;align-items:center;justify-content:space-between">
       <div style="display:flex;align-items:center;gap:4px">
         <span class="item-drag-handle owner-only" style="color:rgba(255,255,255,.25);cursor:grab;font-size:1rem;line-height:1" title="اسحب">⠿</span>
@@ -1441,7 +1441,7 @@ function renderSkillItem(e,lid){
 function renderLangItem(e,lid){
   const id=e.id||Date.now();const lvl=e.level||'';
   const lvlColor={'مبتدئ':'🟡','محادثة':'🟠','جيد':'🔵','طلاقة':'🟢','لغة أم':'⭐'}[lvl]||'';
-  return `<div class="item" id="lang-item-${id}" draggable="false">
+  return `<div class="item" id="lang-item-${id}" draggable="true" ondragstart="itemDragStart(event)" ondragover="itemDragOver(event)" ondrop="itemDrop(event,'langs-list')" ondragend="itemDragEnd(event)">
     <div style="display:flex;align-items:center;justify-content:space-between">
       <div style="display:flex;align-items:center;gap:4px">
         <span class="item-drag-handle owner-only" style="color:rgba(255,255,255,.25);cursor:grab;font-size:1rem;line-height:1" title="اسحب لإعادة الترتيب">⠿</span>
@@ -1463,7 +1463,7 @@ function renderLangItem(e,lid){
 
 function renderLinkItem(e,lid){
   const id=e.id||Date.now();
-  return `<div class="item" id="link-item-${id}" draggable="false">
+  return `<div class="item" id="link-item-${id}" draggable="true" ondragstart="itemDragStart(event)" ondragover="itemDragOver(event)" ondrop="itemDrop(event,'links-list')" ondragend="itemDragEnd(event)">
     <div style="display:flex;align-items:center;justify-content:space-between">
       <div style="display:flex;align-items:center;gap:4px">
         <span class="item-drag-handle owner-only" style="color:rgba(255,255,255,.25);cursor:grab;font-size:1rem;line-height:1" title="اسحب لإعادة الترتيب">⠿</span>
@@ -1484,7 +1484,7 @@ function renderLinkItem(e,lid){
 
 function renderCourseItem(e,lid){
   const id=e.id||Date.now();
-  return `<div class="item" id="course-item-${id}" draggable="false" ondragover="itemDragOver(event)" ondrop="itemDrop(event,'course-list')" ondragend="itemDragEnd(event)">
+  return `<div class="item" id="course-item-${id}" draggable="true" ondragstart="itemDragStart(event)" ondragover="itemDragOver(event)" ondrop="itemDrop(event,'course-list')" ondragend="itemDragEnd(event)" ondragover="itemDragOver(event)" ondrop="itemDrop(event,'course-list')" ondragend="itemDragEnd(event)">
     <div style="display:flex;align-items:flex-start;justify-content:space-between">
       <div>
         <div style="display:flex;align-items:center;gap:4px"><span class="item-drag-handle owner-only" style="color:rgba(255,255,255,.25);cursor:grab;font-size:1rem;margin-left:6px;line-height:1" title="اسحب لإعادة الترتيب">⠿</span><div class="item-title" style="flex:1">${e.name}</div></div>
@@ -1506,7 +1506,7 @@ function renderCourseItem(e,lid){
 
 function renderGenericItem(e,lid){
   const id=e.id||Date.now();
-  return `<div class="item" id="gen-item-${id}" draggable="false">
+  return `<div class="item" id="gen-item-${id}" draggable="true" ondragstart="itemDragStart(event)" ondragover="itemDragOver(event)" ondrop="itemDrop(event,lid)" ondragend="itemDragEnd(event)">
     <div style="display:flex;align-items:flex-start;justify-content:space-between">
       <div style="flex:1">
         <div style="display:flex;align-items:center;gap:4px">
@@ -1718,7 +1718,7 @@ function loadCities(){
 // ── Render functions with ... menu ──
 function renderExpItem(e){
   const id = e.id||Date.now();
-  return `<div class="item" id="exp-${id}" draggable="false" ondragover="itemDragOver(event)" ondrop="itemDrop(event,'exp-list')" ondragend="itemDragEnd(event)">
+  return `<div class="item" id="exp-${id}" draggable="true" ondragstart="itemDragStart(event)" ondragover="itemDragOver(event)" ondrop="itemDrop(event,'exp-list')" ondragend="itemDragEnd(event)" ondragover="itemDragOver(event)" ondrop="itemDrop(event,'exp-list')" ondragend="itemDragEnd(event)">
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
       <div style="flex:1">
         <div style="display:flex;align-items:center;gap:4px"><span class="item-drag-handle owner-only" style="color:rgba(255,255,255,.25);cursor:grab;font-size:1rem;margin-left:6px;line-height:1" title="اسحب لإعادة الترتيب">⠿</span><div class="item-title" style="flex:1">${e.title}</div></div>
@@ -1741,7 +1741,7 @@ function renderExpItem(e){
 function renderEduItem(e){
   const id = e.id||Date.now();
   const degreeTitle = e.degree_type?(e.degree_type+(e.degree?' - '+e.degree:'')):(e.degree||'شهادة');
-  return `<div class="item" id="edu-${id}" draggable="false" ondragover="itemDragOver(event)" ondrop="itemDrop(event,'edu-list')" ondragend="itemDragEnd(event)">
+  return `<div class="item" id="edu-${id}" draggable="true" ondragstart="itemDragStart(event)" ondragover="itemDragOver(event)" ondrop="itemDrop(event,'edu-list')" ondragend="itemDragEnd(event)" ondragover="itemDragOver(event)" ondrop="itemDrop(event,'edu-list')" ondragend="itemDragEnd(event)">
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
       <div style="flex:1">
         <div style="display:flex;align-items:center;gap:4px"><span class="item-drag-handle owner-only" style="color:rgba(255,255,255,.25);cursor:grab;font-size:1rem;margin-left:6px;line-height:1" title="اسحب لإعادة الترتيب">⠿</span><div class="item-title" style="flex:1">${degreeTitle}</div></div>
