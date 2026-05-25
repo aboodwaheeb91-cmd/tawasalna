@@ -3380,29 +3380,29 @@ function shareQR(platform, name, url, qrCanvas){
   var PAD = 24;
   var W = QW + PAD*2;
 
-  // Heights
-  var LOGO_H = 60;    // شعار أكبر
-  var QR_GAP = 16;
-  var NAME_H = 32;
-  var URL_H  = 22;
-  var SEP_H  = 16;    // فاصل
-  var BRAND_H = 30;   // تواصلنا — منصة...
-  var TAG1_H  = 22;   // اعمل CV وطوّر مهاراتك
-  var TAG2_H  = 22;   // وابحث عن فرصتك
-  var BOT_PAD = 24;
+  var LOGO_H  = 60;
+  var QR_GAP  = 16;
+  var NAME_H  = 32;
+  var URL_H   = 22;
+  var SEP     = 14;
+  var BRAND_H = 32;
+  var L1_H    = 22;
+  var L2_H    = 22;
+  var L3_H    = 22;
+  var BOT     = 26;
 
-  var H = PAD + LOGO_H + QR_GAP + QW + QR_GAP + NAME_H + URL_H + SEP_H + BRAND_H + TAG1_H + TAG2_H + BOT_PAD;
+  var H = PAD + LOGO_H + QR_GAP + QW + QR_GAP + NAME_H + URL_H + SEP + BRAND_H + L1_H + L2_H + L3_H + BOT;
 
   var out = document.createElement('canvas');
   out.width = W; out.height = H;
   var ctx = out.getContext('2d');
 
   function drawComposite(){
-    // Background
+    // ── خلفية بيضاء ──
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, W, H);
 
-    // Gradient bars
+    // ── شريط علوي + سفلي ──
     var grad = ctx.createLinearGradient(0,0,W,0);
     grad.addColorStop(0,'#2563ff');
     grad.addColorStop(1,'#00c896');
@@ -3412,18 +3412,18 @@ function shareQR(platform, name, url, qrCanvas){
 
     var y = PAD;
 
-    // ── شعار بعرض الـ QR كامل ──
+    // ── شعار بعرض QR كامل ──
     if(logoImg && logoImg.complete && logoImg.naturalWidth){
       var lR = logoImg.naturalWidth / logoImg.naturalHeight;
-      var lW = QW; // نفس عرض QR
+      var lW = QW;
       var lH = lW / lR;
-      if(lH > LOGO_H){ lW = LOGO_H * lR; lH = LOGO_H; } // max height
-      ctx.drawImage(logoImg, (W - lW)/2, y + (LOGO_H - lH)/2, lW, lH);
+      if(lH > LOGO_H){ lW = LOGO_H * lR; lH = LOGO_H; }
+      ctx.drawImage(logoImg, (W-lW)/2, y + (LOGO_H-lH)/2, lW, lH);
     } else {
       ctx.fillStyle = '#00c896';
       ctx.font = 'bold 28px Cairo,Arial';
       ctx.textAlign = 'center';
-      ctx.fillText('تواصلنا', W/2, y + 40);
+      ctx.fillText('تواصلنا', W/2, y+40);
     }
     y += LOGO_H + QR_GAP;
 
@@ -3435,27 +3435,37 @@ function shareQR(platform, name, url, qrCanvas){
     ctx.fillStyle = '#111111';
     ctx.font = 'bold 18px Cairo,Arial';
     ctx.textAlign = 'center';
-    ctx.fillText(name, W/2, y + 22);
+    ctx.fillText(name, W/2, y+22);
     y += NAME_H;
 
     // ── الرابط ──
     ctx.fillStyle = '#888888';
     ctx.font = '13px Arial';
-    ctx.fillText('tawasolna.com', W/2, y + 15);
-    y += URL_H + SEP_H;
+    ctx.fillText('tawasolna.com', W/2, y+15);
+    y += URL_H;
 
-    // ── Brand line (أخضر، كبير) ──
+    // ── فاصل ──
+    ctx.strokeStyle = 'rgba(0,0,0,.08)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(PAD, y+7); ctx.lineTo(W-PAD, y+7);
+    ctx.stroke();
+    y += SEP;
+
+    // ── Brand (أخضر، كبير، واضح) ──
     ctx.fillStyle = '#00c896';
-    ctx.font = 'bold 15px Cairo,Arial';
-    ctx.fillText('تواصلنا — منصة تربط المواهب بالفرص', W/2, y + 22);
+    ctx.font = 'bold 16px Cairo,Arial';
+    ctx.fillText('تواصلنا — منصة تربط المواهب بالفرص', W/2, y+24);
     y += BRAND_H;
 
-    // ── Tagline: سطرين منفصلين ──
-    ctx.fillStyle = '#555555';
+    // ── 3 سطور tagline ──
+    ctx.fillStyle = '#444444';
     ctx.font = '12px Cairo,Arial';
-    ctx.fillText('اعمل CV وطوّر مهاراتك', W/2, y + 14);
-    y += TAG1_H;
-    ctx.fillText('وابحث عن فرصتك', W/2, y + 14);
+    ctx.fillText('اعمل CV مجاناً', W/2, y+14);
+    y += L1_H;
+    ctx.fillText('طوّر مهاراتك عبر الدورات التعليمية', W/2, y+14);
+    y += L2_H;
+    ctx.fillText('واحصل على فرصتك الوظيفية', W/2, y+14);
 
     doShare(platform, name, url, out);
   }
