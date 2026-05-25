@@ -2891,7 +2891,7 @@ if(ta && isOwner) ta.style.display = 'flex';
       }
     }
     
-    // Only save to localStorage if own profile
+    // Save to localStorage + render sections from API
     if(isOwner) {
       try{
         var lsKey = 'tw_profile_data' + getUID();
@@ -2902,6 +2902,51 @@ if(ta && isOwner) ta.style.display = 'flex';
         if(apiLoc) existing.location = apiLoc;
         localStorage.setItem(lsKey, JSON.stringify(existing));
       } catch(ex) {}
+      
+      // Render exp from API if localStorage is empty
+      if(prof.experience && prof.experience.length){
+        var lsExpCheck = JSON.parse(localStorage.getItem('tw_exp'+getUID())||'[]');
+        if(!lsExpCheck.length){
+          // Save to localStorage
+          try{ localStorage.setItem('tw_exp'+getUID(), JSON.stringify(prof.experience)); }catch(ex){}
+          // Render
+          var expList2 = document.getElementById('exp-list');
+          if(expList2 && typeof renderExpItem === 'function'){
+            expList2.innerHTML = '';
+            prof.experience.forEach(function(e){ expList2.insertAdjacentHTML('beforeend', renderExpItem(e)); });
+          }
+        }
+      }
+      
+      // Render edu from API if localStorage is empty
+      if(prof.education && prof.education.length){
+        var lsEduCheck = JSON.parse(localStorage.getItem('tw_edu'+getUID())||'[]');
+        if(!lsEduCheck.length){
+          try{ localStorage.setItem('tw_edu'+getUID(), JSON.stringify(prof.education)); }catch(ex){}
+          var eduList2 = document.getElementById('edu-list');
+          if(eduList2 && typeof renderEduItem === 'function'){
+            eduList2.innerHTML = '';
+            prof.education.forEach(function(e){ eduList2.insertAdjacentHTML('beforeend', renderEduItem(e)); });
+          }
+        }
+      }
+      
+      // Sync skills/langs/links from API if localStorage empty
+      if(prof.skills && prof.skills.length){
+        if(!JSON.parse(localStorage.getItem('tw_skills'+getUID())||'[]').length){
+          try{ localStorage.setItem('tw_skills'+getUID(), JSON.stringify(prof.skills)); }catch(ex){}
+        }
+      }
+      if(prof.langs && prof.langs.length){
+        if(!JSON.parse(localStorage.getItem('tw_langs'+getUID())||'[]').length){
+          try{ localStorage.setItem('tw_langs'+getUID(), JSON.stringify(prof.langs)); }catch(ex){}
+        }
+      }
+      if(prof.links && prof.links.length){
+        if(!JSON.parse(localStorage.getItem('tw_links'+getUID())||'[]').length){
+          try{ localStorage.setItem('tw_links'+getUID(), JSON.stringify(prof.links)); }catch(ex){}
+        }
+      }
     }
     
     // Render sections from API if not in localStorage
