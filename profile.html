@@ -1418,6 +1418,12 @@ body.s5 .add-item-btn:hover { border-color:rgba(var(--ac-rgb),.35); color:var(--
 #profileSkeleton{text-align:center;padding:20px 0;}
 
 </style>
+<script>
+// Prevent scroll restore - must be in head before body renders
+if(history.scrollRestoration) history.scrollRestoration = 'manual';
+window.addEventListener('load', function(){ window.scrollTo(0,0); });
+window.addEventListener('beforeunload', function(){ window.scrollTo(0,0); });
+</script>
 </head>
 <body class="s1">
 <!--
@@ -1775,10 +1781,6 @@ function getUID(){
 })();
 
 const _urlId = new URLSearchParams(window.location.search).get('id');
-// Scroll to top on load
-window.scrollTo(0,0);
-history.scrollRestoration = 'manual';
-
 // Simple auth: must be logged in
 if(!_sessionUser || !_sessionUser.id){
   location.href = '/login';
