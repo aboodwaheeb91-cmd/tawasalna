@@ -145,7 +145,7 @@ body.s2 .cv-exp-badge, body.s4 .cv-exp-badge {
 }
 
 /* ── PAGE ── */
-.page {overflow-y:auto; padding-top:50px; transition:background .3s; padding-bottom:20px; }
+.page {overflow-y:auto; padding-top:50px; transition:background .3s; padding-bottom:20px; overscroll-behavior:none; }
 
 /* ── Avatar upload ── */
 .cv-head-settings {
@@ -1419,13 +1419,31 @@ body.s5 .add-item-btn:hover { border-color:rgba(var(--ac-rgb),.35); color:var(--
 
 </style>
 <script>
-// Prevent scroll restore
+// ── Scroll to top fix (Android + all browsers) ──
 if(history.scrollRestoration) history.scrollRestoration = 'manual';
-window.addEventListener('load', function(){
-  // Scroll both window AND .page container to top
+
+// Clean any hash from URL immediately
+if(location.hash && location.hash !== '') {
+  history.replaceState(null, '', location.pathname + location.search);
+}
+
+function _forceScrollTop(){
   window.scrollTo(0,0);
+  document.documentElement.scrollTop = 0;
+  document.body.scrollTop = 0;
   var page = document.querySelector('.page');
   if(page) page.scrollTop = 0;
+}
+
+// Run immediately, on DOMContentLoaded, and on load
+_forceScrollTop();
+document.addEventListener('DOMContentLoaded', _forceScrollTop);
+window.addEventListener('load', function(){
+  _forceScrollTop();
+  // Extra insurance for Android Chrome (runs after browser restores scroll)
+  setTimeout(_forceScrollTop, 0);
+  setTimeout(_forceScrollTop, 100);
+  setTimeout(_forceScrollTop, 300);
 });
 </script>
 </head>
@@ -4002,7 +4020,7 @@ function openQROverlay(){
   ov.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(7,11,24,.97);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px';
 
   // Push state for back button
-  history.pushState({qrOpen:true},'QR','#qr');
+  history.pushState({qrOpen:true},'QR', location.pathname + location.search);
   window.addEventListener('popstate', function _pop(e){
     if(!e.state||!e.state.qrOpen){ var d=document.getElementById('qrOverlayDiv'); if(d)d.remove(); }
     window.removeEventListener('popstate',_pop);
@@ -4041,7 +4059,7 @@ function openQROverlay(){
   var closeBtn = document.createElement('button');
   closeBtn.textContent = '✕ إغلاق';
   closeBtn.style.cssText = 'padding:8px 20px;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:transparent;color:rgba(255,255,255,.5);font-family:Cairo,sans-serif;font-size:.78rem;cursor:pointer';
-  closeBtn.onclick = function(){ ov.remove(); if(location.hash==='#qr') history.back(); };
+  closeBtn.onclick = function(){ ov.remove(); };
 
   ov.appendChild(cvs);
   ov.appendChild(nameEl);
