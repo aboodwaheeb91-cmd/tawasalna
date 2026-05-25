@@ -2784,205 +2784,193 @@ if(isOwner){
 // top-actions needs flex not block
 const ta = document.querySelector('.top-actions');
 if(ta && isOwner) ta.style.display = 'flex';
-// ══ Instant Profile Load (localStorage → API) ══
+// ══ Instant Profile Load - API is source of truth ══
 (function(){
-  // Step 1: Show from localStorage ONLY for own profile
-  if(isOwner){
-  try{
-    var lsKey = 'tw_profile_data' + getUID();
-    var lsProf = JSON.parse(localStorage.getItem(lsKey)||'{}');
-    var user = _sessionUser;
-    
-    // Name: from localStorage or _sessionUser
-    var fullName = lsProf.full_name || (user && user.full_name) || '';
-    if(!fullName && lsProf.first_name) {
-      fullName = [lsProf.first_name, lsProf.middle_name, lsProf.last_name].filter(Boolean).join(' ');
-    }
-    if(fullName) document.getElementById('cvName').textContent = fullName;
-    
-    // Title/Bio/Location
-    var title = lsProf.headline || lsProf.title || '';
-    var bio = lsProf.bio || '';
-    var loc = lsProf.location || '';
-    
-    if(title) document.getElementById('cvTitle').textContent = title;
-    if(bio) document.getElementById('cvBio').textContent = bio;
-    if(loc) { var locEl = document.getElementById('cvLoc'); if(locEl) locEl.textContent = '📍 ' + loc; }
-    
-    // TW ID
-    if(user && user.tw_id) {
-      var codeEl = document.getElementById('cvCode');
-      if(codeEl) codeEl.textContent = user.tw_id;
-    }
-    
-    // Age from localStorage
-    var dob = lsProf.dob || '';
-    if(dob && typeof calcAge === 'function') {
-      var age = calcAge(dob);
-      if(age) {
-        var ageLine = document.getElementById('cvAgeLine');
-        if(ageLine) { ageLine.textContent = 'العمر: ' + age; ageLine.style.display = 'block'; }
-      }
-    }
-    
-    // Hide skeleton immediately if we have data
-    if(fullName || title) {
-      var sk = document.getElementById('profileSkeleton');
-      var cv = document.getElementById('cvCard');
-      if(sk) sk.style.display = 'none';
-      if(cv) cv.style.display = '';
-    }
-  } catch(ex) {}
-  } // end isOwner Step 1
-  
-  // Step 2: Sync from API and update if different
   var uid = (_urlId || (_sessionUser && _sessionUser.id) || '0');
-  Promise.resolve(_profileCache || 
-    fetch('/profile/' + uid + '/full', {
-      headers: {'Authorization': 'Bearer ' + (localStorage.getItem('tw_jwt')||'')}
-    })
-      .then(function(r){ return r.json(); })
-      .then(function(d){ _profileCache = d; return d; })
-  ).then(function(data){
-    if(!data || !data.profile) return;
+  var isViewingOwn = !_urlId ||
+    String(_urlId) === String(_sessionUser.id) ||
+    String(_urlId) === String(_sessionUser.tw_id);
+
+  // ── Step 1: Show from localStorage immediately (performance only) ──
+  if(isViewingOwn){
+    try{
+      var lsKey = 'tw_profile_data' + getUID();
+      var lsProf = JSON.parse(localStorage.getItem(lsKey)||'{}');
+      var fullName = lsProf.full_name || (_sessionUser&&_sessionUser.full_name) || '';
+      if(!fullName && lsProf.first_name)
+        fullName = [lsProf.first_name,lsProf.middle_name,lsProf.last_name].filter(Boolean).join(' ');
+      if(fullName) document.getElementById('cvName').textContent = fullName;
+      if(lsProf.headline||lsProf.title) document.getElementById('cvTitle').textContent = lsProf.headline||lsProf.title;
+      if(lsProf.bio) document.getElementById('cvBio').textContent = lsProf.bio;
+      if(lsProf.location){ var loc=document.getElementById('cvLoc'); if(loc) loc.textContent='📍 '+lsProf.location; }
+      if(lsProf.dob && typeof calcAge==='function'){
+        var age=calcAge(lsProf.dob);
+        if(age){ var al=document.getElementById('cvAgeLine'); if(al){al.textContent='العمر: '+age;al.style.display='block';} }
+      }
+      // TW ID
+      if(_sessionUser&&_sessionUser.tw_id){
+        var codeEl=document.getElementById('cvCode');
+        if(codeEl) codeEl.textContent=_sessionUser.tw_id;
+      }
+      // Hide skeleton if we have data
+      if(fullName||lsProf.headline){
+        var sk=document.getElementById('profileSkeleton');
+        var cv=document.getElementById('cvCard');
+        if(sk) sk.style.display='none';
+        if(cv) cv.style.display='';
+      }
+    }catch(ex){}
+  }
+
+  // ── Step 2: ALWAYS load from API (source of truth) ──
+  fetch('/profile/'+uid+'/full',{
+    headers:{'Authorization':'Bearer '+(localStorage.getItem('tw_jwt')||'')}
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(data){
+    if(!data||!data.profile) return;
     var prof = data.profile;
-    
-    // Update fields from API
-    var apiName = prof.full_name || data.full_name || '';
+
+    // ── Basic info ──
+    var apiName = prof.full_name||data.full_name||'';
     if(apiName) document.getElementById('cvName').textContent = apiName;
-    
-    var apiTitle = prof.headline || prof.title || '';
+    var apiTitle = prof.headline||prof.title||'';
     if(apiTitle) document.getElementById('cvTitle').textContent = apiTitle;
-    
-    var apiBio = prof.bio || '';
-    if(apiBio) document.getElementById('cvBio').textContent = apiBio;
-    
-    var apiLoc = prof.location || '';
-    if(apiLoc) { var locEl = document.getElementById('cvLoc'); if(locEl) locEl.textContent = '📍 ' + apiLoc; }
-    
-    // TW ID + Age
-    if(data.tw_id) { var codeEl = document.getElementById('cvCode'); if(codeEl) codeEl.textContent = data.tw_id; }
-    
-    var apiDob = prof.dob || '';
-    if(apiDob && typeof calcAge === 'function'){
-      var apiAge = calcAge(apiDob);
-      if(apiAge){ var al=document.getElementById('cvAgeLine'); if(al){al.textContent='العمر: '+apiAge; al.style.display='block';} }
+    if(prof.bio) document.getElementById('cvBio').textContent = prof.bio;
+    if(prof.location){ var lEl=document.getElementById('cvLoc'); if(lEl) lEl.textContent='📍 '+prof.location; }
+    // TW ID + Code
+    var codeEl2=document.getElementById('cvCode');
+    if(codeEl2) codeEl2.textContent=data.tw_id||prof.tw_id||('TW-'+(prof.user_type||'EMP').toUpperCase()+'-'+String(prof.id||uid));
+    // Age
+    if(prof.dob && typeof calcAge==='function'){
+      var age2=calcAge(prof.dob);
+      if(age2){ var al2=document.getElementById('cvAgeLine'); if(al2){al2.textContent='العمر: '+age2;al2.style.display='block';} }
     }
-    
-    // User type badge
-    var t = prof.user_type || (_sessionUser && _sessionUser.user_type) || 'emp';
-    document.getElementById('cvCode').textContent = data.tw_id || prof.tw_id || ('TW-' + t.toUpperCase() + '-' + String(prof.id));
-    
-    // Avatar - show always, but only save to localStorage if own profile
-    if(prof.avatar_url) {
-      var avatarEl = document.getElementById('avatarBtn');
-      if(avatarEl) avatarEl.innerHTML = '<img loading="lazy" src="' + prof.avatar_url + '" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;">';
-      // Only save to localStorage if viewing OWN profile
-      if(isOwner) {
-        try { localStorage.setItem('tw_avatar'+getUID(), prof.avatar_url); } catch(ex) {}
-      }
-    }
-    
-    // Save to localStorage + render sections from API
-    if(isOwner) {
-      try{
-        var lsKey = 'tw_profile_data' + getUID();
-        var existing = JSON.parse(localStorage.getItem(lsKey)||'{}');
-        if(apiName) existing.full_name = apiName;
-        if(apiTitle) { existing.headline = apiTitle; existing.title = apiTitle; }
-        if(apiBio) existing.bio = apiBio;
-        if(apiLoc) existing.location = apiLoc;
-        localStorage.setItem(lsKey, JSON.stringify(existing));
-      } catch(ex) {}
-      
-      // Render exp from API if localStorage is empty
-      if(prof.experience && prof.experience.length){
-        var lsExpCheck = JSON.parse(localStorage.getItem('tw_exp'+getUID())||'[]');
-        if(!lsExpCheck.length){
-          // Save to localStorage
-          try{ localStorage.setItem('tw_exp'+getUID(), JSON.stringify(prof.experience)); }catch(ex){}
-          // Render
-          var expList2 = document.getElementById('exp-list');
-          if(expList2 && typeof renderExpItem === 'function'){
-            expList2.innerHTML = '';
-            prof.experience.forEach(function(e){ expList2.insertAdjacentHTML('beforeend', renderExpItem(e)); });
-          }
-        }
-      }
-      
-      // Render edu from API if localStorage is empty
-      if(prof.education && prof.education.length){
-        var lsEduCheck = JSON.parse(localStorage.getItem('tw_edu'+getUID())||'[]');
-        if(!lsEduCheck.length){
-          try{ localStorage.setItem('tw_edu'+getUID(), JSON.stringify(prof.education)); }catch(ex){}
-          var eduList2 = document.getElementById('edu-list');
-          if(eduList2 && typeof renderEduItem === 'function'){
-            eduList2.innerHTML = '';
-            prof.education.forEach(function(e){ eduList2.insertAdjacentHTML('beforeend', renderEduItem(e)); });
-          }
-        }
-      }
-      
-      // Sync skills/langs/links from API if localStorage empty
-      if(prof.skills && prof.skills.length){
-        if(!JSON.parse(localStorage.getItem('tw_skills'+getUID())||'[]').length){
-          try{ localStorage.setItem('tw_skills'+getUID(), JSON.stringify(prof.skills)); }catch(ex){}
-        }
-      }
-      if(prof.langs && prof.langs.length){
-        if(!JSON.parse(localStorage.getItem('tw_langs'+getUID())||'[]').length){
-          try{ localStorage.setItem('tw_langs'+getUID(), JSON.stringify(prof.langs)); }catch(ex){}
-        }
-      }
-      if(prof.links && prof.links.length){
-        if(!JSON.parse(localStorage.getItem('tw_links'+getUID())||'[]').length){
-          try{ localStorage.setItem('tw_links'+getUID(), JSON.stringify(prof.links)); }catch(ex){}
-        }
-      }
-    }
-    
-    // Render sections from API if not in localStorage
-    if(!_isOwnProfile && prof.experience && prof.experience.length){
-      var secExp = document.getElementById('sec-exp');
-      if(secExp) secExp.style.display = '';
-      var expList = document.getElementById('exp-list');
-      if(expList) expList.innerHTML = '';
-      prof.experience.forEach(function(e){
-        if(expList && typeof renderExpItem === 'function')
-          expList.insertAdjacentHTML('beforeend', renderExpItem(e));
-      });
-    }
-    
-    if(!_isOwnProfile && prof.education && prof.education.length){
-      var secEdu = document.getElementById('sec-edu');
-      if(secEdu) secEdu.style.display = '';
-      var eduList = document.getElementById('edu-list');
-      if(eduList) eduList.innerHTML = '';
-      prof.education.forEach(function(e){
-        if(eduList && typeof renderEduItem === 'function')
-          eduList.insertAdjacentHTML('beforeend', renderEduItem(e));
-      });
-    }
-    
-    // Hide skeleton
-    var sk = document.getElementById('profileSkeleton');
-    var cv = document.getElementById('cvCard');
-    if(sk) sk.style.display = 'none';
-    if(cv) cv.style.display = '';
-    
     // KYC badge
-    if(prof.kyc_verified) {
-      var badge = document.getElementById('profileVerifiedBadge');
-      if(badge) badge.style.display = 'inline-flex';
+    if(prof.kyc_verified||prof.is_verified){
+      var badge=document.getElementById('profileVerifiedBadge');
+      if(badge) badge.style.display='inline-flex';
     }
-    
-  }).catch(function(err){
-    console.error('[Profile] Load error:', err);
-    // Still hide skeleton even on error
-    var sk = document.getElementById('profileSkeleton');
-    var cv = document.getElementById('cvCard');
-    if(sk) sk.style.display = 'none';
-    if(cv) cv.style.display = '';
+    // Avatar
+    if(prof.avatar_url){
+      var avatarEl=document.getElementById('avatarBtn');
+      if(avatarEl) avatarEl.innerHTML='<img loading="lazy" src="'+prof.avatar_url+'" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;">';
+      if(isViewingOwn){ try{ localStorage.setItem('tw_avatar'+getUID(),prof.avatar_url); }catch(ex){} }
+    }
+
+    // ── Experience ──
+    if(prof.experience && prof.experience.length){
+      var secExp=document.getElementById('sec-exp');
+      if(secExp) secExp.style.display='';
+      var expList=document.getElementById('exp-list');
+      if(expList && typeof renderExpItem==='function'){
+        expList.innerHTML='';
+        prof.experience.forEach(function(e){ expList.insertAdjacentHTML('beforeend',renderExpItem(e)); });
+      }
+      if(isViewingOwn){ try{ localStorage.setItem('tw_exp'+getUID(),JSON.stringify(prof.experience)); }catch(ex){} }
+    }
+
+    // ── Education ──
+    if(prof.education && prof.education.length){
+      var secEdu=document.getElementById('sec-edu');
+      if(secEdu) secEdu.style.display='';
+      var eduList=document.getElementById('edu-list');
+      if(eduList && typeof renderEduItem==='function'){
+        eduList.innerHTML='';
+        prof.education.forEach(function(e){ eduList.insertAdjacentHTML('beforeend',renderEduItem(e)); });
+      }
+      if(isViewingOwn){ try{ localStorage.setItem('tw_edu'+getUID(),JSON.stringify(prof.education)); }catch(ex){} }
+    }
+
+    // ── Skills ──
+    if(prof.skills && prof.skills.length){
+      var skillItems=prof.skills.map(function(s){return {id:s.id,name:s.skill||s.name,level:s.level};});
+      var secSkills=document.getElementById('sec-skills');
+      var skillsList=document.getElementById('skills-list');
+      if(skillsList && typeof renderSkillItem==='function' && secSkills){
+        secSkills.style.display='';
+        skillsList.innerHTML='';
+        skillItems.forEach(function(s){ skillsList.insertAdjacentHTML('beforeend',renderSkillItem(s,'skills-list')); });
+      }
+      if(isViewingOwn){ try{ localStorage.setItem('tw_skills'+getUID(),JSON.stringify(skillItems)); }catch(ex){} }
+    }
+
+    // ── Languages ──
+    if(prof.langs && prof.langs.length){
+      var langItems=prof.langs.map(function(l){return {id:l.id,name:l.language||l.name,level:l.level};});
+      var secLangs=document.getElementById('sec-langs');
+      var langsList=document.getElementById('langs-list');
+      if(langsList && typeof renderLangItem==='function' && secLangs){
+        secLangs.style.display='';
+        langsList.innerHTML='';
+        langItems.forEach(function(l){ langsList.insertAdjacentHTML('beforeend',renderLangItem(l,'langs-list')); });
+      }
+      if(isViewingOwn){ try{ localStorage.setItem('tw_langs'+getUID(),JSON.stringify(langItems)); }catch(ex){} }
+    }
+
+    // ── Links ──
+    if(prof.links && prof.links.length){
+      var linkItems=prof.links.map(function(l){return {id:l.id,type:l.link_type||l.type,url:l.url};});
+      var secLinks=document.getElementById('sec-links');
+      var linksList=document.getElementById('links-list');
+      if(linksList && typeof renderLinkItem==='function' && secLinks){
+        secLinks.style.display='';
+        linksList.innerHTML='';
+        linkItems.forEach(function(l){ linksList.insertAdjacentHTML('beforeend',renderLinkItem(l,'links-list')); });
+      }
+      if(isViewingOwn){ try{ localStorage.setItem('tw_links'+getUID(),JSON.stringify(linkItems)); }catch(ex){} }
+    }
+
+    // ── Courses ──
+    if(prof.courses && prof.courses.length){
+      var courseItems=prof.courses.map(function(c){return {id:c.id,name:c.title||c.name,provider:c.provider,year:c.completion_date,url:c.certificate_url,description:c.description};});
+      var secCourse=document.getElementById('sec-course');
+      var courseList=document.getElementById('course-list');
+      if(courseList && typeof renderCourseItem==='function' && secCourse){
+        secCourse.style.display='';
+        courseList.innerHTML='';
+        courseItems.forEach(function(c){ courseList.insertAdjacentHTML('beforeend',renderCourseItem(c,'course-list')); });
+      }
+      if(isViewingOwn){ try{ localStorage.setItem('tw_courses'+getUID(),JSON.stringify(courseItems)); }catch(ex){} }
+    }
+
+    // ── Custom sections ──
+    if(prof.custom_sections && isViewingOwn){
+      try{
+        var customSecs = typeof prof.custom_sections==='string'
+          ? JSON.parse(prof.custom_sections) : prof.custom_sections;
+        if(Array.isArray(customSecs)){
+          localStorage.setItem('tw_added_sections'+getUID(), JSON.stringify(customSecs));
+        }
+      }catch(ex){}
+    }
+
+    // ── Save profile data to localStorage ──
+    if(isViewingOwn){
+      try{
+        var lsKey2='tw_profile_data'+getUID();
+        var toSave={full_name:apiName,headline:apiTitle,title:apiTitle,bio:prof.bio||'',location:prof.location||'',dob:prof.dob||''};
+        localStorage.setItem(lsKey2, JSON.stringify(toSave));
+      }catch(ex){}
+    }
+
+    // ── Hide skeleton ──
+    var sk2=document.getElementById('profileSkeleton');
+    var cv2=document.getElementById('cvCard');
+    if(sk2) sk2.style.display='none';
+    if(cv2) cv2.style.display='';
+
+    // ── Re-init drag for newly rendered items ──
+    if(typeof _initSectionDrag==='function') setTimeout(_initSectionDrag, 100);
+
+  })
+  .catch(function(err){
+    console.error('[Profile] API error:', err);
+    // Fallback: show cached data
+    var sk3=document.getElementById('profileSkeleton');
+    var cv3=document.getElementById('cvCard');
+    if(sk3) sk3.style.display='none';
+    if(cv3) cv3.style.display='';
   });
 })();
 
