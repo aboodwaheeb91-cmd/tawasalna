@@ -3686,8 +3686,56 @@ function itemDragEnd(e){
 }
 
 function saveItemOrder(listId){
-  // Visual only for now - positions saved naturally when user saves each item
-  showToast('تم إعادة الترتيب ✅');
+  if(!listId) return;
+  var list = document.getElementById(listId);
+  if(!list) return;
+  
+  // Get current DOM order of items
+  var items = Array.from(list.querySelectorAll('.item:not(.empty-hint)'));
+  if(!items.length) return;
+  
+  // Determine localStorage key from listId
+  var lsKeyMap = {
+    'exp-list':    'tw_exp',
+    'edu-list':    'tw_edu',
+    'course-list': 'tw_courses',
+    'skills-list': 'tw_skills',
+    'langs-list':  'tw_langs',
+    'links-list':  'tw_links',
+  };
+  
+  var lsKey = lsKeyMap[listId] || ('tw_gen_' + listId);
+  var uid = getUID();
+  
+  try{
+    var saved = JSON.parse(localStorage.getItem(lsKey + uid) || '[]');
+    if(!saved.length) return;
+    
+    // Reorder saved array based on DOM order
+    var orderedIds = items.map(function(el){
+      // Extract id from element id (e.g. "exp-123" → 123)
+      var parts = el.id.split('-');
+      return parseInt(parts[parts.length-1]);
+    });
+    
+    var reordered = [];
+    orderedIds.forEach(function(id){
+      var found = saved.find(function(s){ return (s.id||0) == id; });
+      if(found) reordered.push(found);
+    });
+    
+    // Add any items not found (safety)
+    saved.forEach(function(s){
+      if(!reordered.find(function(r){ return r.id == s.id; })){
+        reordered.push(s);
+      }
+    });
+    
+    localStorage.setItem(lsKey + uid, JSON.stringify(reordered));
+    showToast('تم حفظ الترتيب ✅');
+  } catch(ex){
+    showToast('تم الترتيب ✅');
+  }
 }
 
 // Touch support for mobile - ONLY via drag handle
