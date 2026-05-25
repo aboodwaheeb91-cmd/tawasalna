@@ -1130,6 +1130,12 @@ function setColor(hex,el){
   el.classList.add('active');
   redrawQR();
   try{ localStorage.setItem('tw_profile_color'+getUID(), hex); }catch(ex){}
+  if(_sessionUser&&_sessionUser.id){
+    fetch('/profile/'+_sessionUser.id,{method:'PUT',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+(localStorage.getItem('tw_jwt')||'')},
+      body:JSON.stringify({profile_color:hex})
+    }).catch(function(){});
+  }
   setTimeout(closePanel,300);
 }
 
@@ -1159,6 +1165,13 @@ function setStyle(n,el){
     wrap.classList.remove('fading');
     // Save style
     try{ localStorage.setItem('tw_profile_style'+getUID(), n); }catch(ex){}
+    // Save to API
+    if(_sessionUser&&_sessionUser.id){
+      fetch('/profile/'+_sessionUser.id,{method:'PUT',
+        headers:{'Content-Type':'application/json','Authorization':'Bearer '+(localStorage.getItem('tw_jwt')||'')},
+        body:JSON.stringify({profile_style:n})
+      }).catch(function(){});
+    }
     setTimeout(closePanel, 300);
   },250);
 }
@@ -1559,14 +1572,28 @@ function toggleItemMenuG(btn){
 function delSectionItem(elId, lsKeyBase, lid, itemId){
   document.getElementById(elId)?.remove();
   try{
-    const key=lsKeyBase+getUID();
-    const arr=JSON.parse(localStorage.getItem(key+getUID())||'[]').filter(x=>x.id!==itemId);
+    var key=lsKeyBase+getUID();
+    var arr=JSON.parse(localStorage.getItem(key)||'[]').filter(function(x){return x.id!==itemId;});
     localStorage.setItem(key,JSON.stringify(arr));
-    const list=document.getElementById(lid);
+    var list=document.getElementById(lid);
     if(list&&!list.querySelector('.item:not(.empty-hint)')){
       list.innerHTML='<div class="item empty-hint"><div class="item-title" style="opacity:.4;font-size:.8rem">لا توجد عناصر — اضغط + لإضافة</div></div>';
     }
   }catch(ex){}
+  // Delete from API based on key type
+  if(itemId && _sessionUser){
+    var jwt=localStorage.getItem('tw_jwt')||'';
+    var endpoint='';
+    if(lsKeyBase==='tw_skills') endpoint='/skills/'+itemId;
+    else if(lsKeyBase==='tw_langs') endpoint='/langs/'+itemId;
+    else if(lsKeyBase==='tw_links') endpoint='/links/'+itemId;
+    else if(lsKeyBase==='tw_courses') endpoint='/course/'+itemId;
+    if(endpoint){
+      fetch(endpoint,{method:'DELETE',
+        headers:{'Authorization':'Bearer '+jwt}
+      }).catch(function(){});
+    }
+  }
 }
 
 // ── Save section items ──
@@ -1866,8 +1893,11 @@ function deleteExp(id){
     }
     updateExpBadge();
   }catch(ex){}
-}
 
+  if(id && _sessionUser){
+    fetch('/experience/'+id,{method:'DELETE',headers:{'Authorization':'Bearer '+(localStorage.getItem('tw_jwt')||'')}}).catch(function(){});
+  }
+}
 function deleteEdu(id){
   document.getElementById('edu-'+id)?.remove();
   try{
@@ -1878,8 +1908,11 @@ function deleteEdu(id){
       if(eduSec) eduSec.style.display='none';
     }
   }catch(ex){}
-}
 
+  if(id && _sessionUser){
+    fetch('/education/'+id,{method:'DELETE',headers:{'Authorization':'Bearer '+(localStorage.getItem('tw_jwt')||'')}}).catch(function(){});
+  }
+}
 function saveSectionOrder(){
   const order=[...secList.children].map(s=>s.id);
   try{ localStorage.setItem('tw_sec_order'+getUID(),JSON.stringify(order)); }catch(ex){}
@@ -3066,6 +3099,25 @@ var SECTION_CONFIG = {
     var cv2=document.getElementById('cvCard');
     if(sk2) sk2.style.display='none';
     if(cv2) cv2.style.display='';
+
+    // ── Apply color/style from DB ──
+    if(prof.profile_color && isViewingOwn){
+      try{
+        localStorage.setItem('tw_profile_color'+getUID(), prof.profile_color);
+        applyColor(prof.profile_color);
+      }catch(ex){}
+    }
+    if(prof.profile_style && isViewingOwn){
+      try{
+        var styleN = parseInt(prof.profile_style)||1;
+        localStorage.setItem('tw_profile_style'+getUID(), styleN);
+        if(styleN !== curStyle){
+          document.body.className = document.body.className.replace(/\bs\d\b/,'').trim();
+          document.body.classList.add('s'+styleN);
+          curStyle = styleN;
+        }
+      }catch(ex){}
+    }
 
     // ── Apply sections_order from DB ──
     if(prof.sections_order && isViewingOwn){

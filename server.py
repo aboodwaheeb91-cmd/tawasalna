@@ -1645,3 +1645,46 @@ def admin_send_message(data: AdminMessageInput, request: Request):
     check_admin(request)
     print(f"[ADMIN MSG] To:{data.user_id} | {data.subject}: {data.message}")
     return {"success": True}
+
+@app.delete("/experience/{exp_id}")
+def delete_experience(exp_id: int, token=Depends(verify_token)):
+    try:
+        conn = get_conn()
+        try:
+            conn.run("DELETE FROM experience WHERE id = :id AND user_id = :uid",
+                    id=exp_id, uid=token['user_id'])
+            _cache_del('profile:'+str(token['user_id']))
+            return {"success": True}
+        finally:
+            release_conn(conn)
+    except Exception as e:
+        raise HTTPException(500, detail=str(e))
+
+@app.delete("/education/{edu_id}")
+def delete_education(edu_id: int, token=Depends(verify_token)):
+    try:
+        conn = get_conn()
+        try:
+            conn.run("DELETE FROM education WHERE id = :id AND user_id = :uid",
+                    id=edu_id, uid=token['user_id'])
+            _cache_del('profile:'+str(token['user_id']))
+            return {"success": True}
+        finally:
+            release_conn(conn)
+    except Exception as e:
+        raise HTTPException(500, detail=str(e))
+
+@app.delete("/course/{course_id}")
+def delete_course(course_id: int, token=Depends(verify_token)):
+    try:
+        conn = get_conn()
+        try:
+            conn.run("DELETE FROM courses WHERE id = :id AND user_id = :uid",
+                    id=course_id, uid=token['user_id'])
+            _cache_del('profile:'+str(token['user_id']))
+            return {"success": True}
+        finally:
+            release_conn(conn)
+    except Exception as e:
+        raise HTTPException(500, detail=str(e))
+

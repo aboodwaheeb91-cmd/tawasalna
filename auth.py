@@ -551,7 +551,8 @@ def get_full_profile(user_id: int) -> Optional[dict]:
 
         rows = conn.run(
             "SELECT headline, bio, location, skills, avatar_url, website, is_verified, "
-            "updated_at, dob, phone, country, city, avail, title, sections_order, custom_sections "
+            "updated_at, dob, phone, country, city, avail, title, sections_order, custom_sections, "
+            "profile_color, profile_style "
             "FROM profiles WHERE user_id = :uid", uid=user_id
         )
         cols = [c["name"] for c in conn.columns]
@@ -595,7 +596,7 @@ def update_profile(user_id: int, data: dict) -> dict:
                 name=data["full_name"], uid=user_id
             )
 
-        allowed = ["headline", "bio", "location", "skills", "avatar_url", "website", "phone", "sections_order", "custom_sections", "dob", "country", "city", "avail"]
+        allowed = ["headline", "bio", "location", "skills", "avatar_url", "website", "phone", "sections_order", "custom_sections", "dob", "country", "city", "avail", "profile_color", "profile_style"]
         fields = {k: v for k, v in data.items() if k in allowed and v is not None}
 
         rows = conn.run("SELECT id FROM profiles WHERE user_id = :uid", uid=user_id)
