@@ -1487,9 +1487,16 @@ function renderCourseItem(e,lid){
 
 function renderGenericItem(e,lid){
   const id=e.id||Date.now();
-  return `<div class="item" id="gen-item-${id}">
+  return `<div class="item" id="gen-item-${id}" draggable="false">
     <div style="display:flex;align-items:flex-start;justify-content:space-between">
-      <div><div class="item-title">${e.title}</div>${e.sub?`<div class="item-sub">${e.sub}</div>`:''}<div class="item-date">${e.date||''}</div></div>
+      <div style="flex:1">
+        <div style="display:flex;align-items:center;gap:4px">
+          <span class="item-drag-handle owner-only" style="color:rgba(255,255,255,.25);cursor:grab;font-size:1rem;margin-left:4px;line-height:1" title="اسحب لإعادة الترتيب">⠿</span>
+          <div class="item-title" style="flex:1">${e.title}</div>
+        </div>
+        ${e.sub?`<div class="item-sub">${e.sub}</div>`:''}
+        <div class="item-date">${e.date||''}</div>
+      </div>
       <div class="item-menu-wrap owner-only">
         <button type="button" class="item-menu-btn" onclick="toggleItemMenuG(this)">⋯</button>
         <div class="item-menu">
