@@ -848,13 +848,10 @@ window.addEventListener('load', function(){
 
   <!-- ── Profile Header Section ── -->
 
-<!-- ██ Skeleton Loader ██ -->
-<div id="profileSkeleton" style="padding:20px;text-align:center">
-  <div style="width:80px;height:80px;border-radius:50%;margin:0 auto 12px;background:linear-gradient(90deg,rgba(255,255,255,.06) 25%,rgba(255,255,255,.1) 50%,rgba(255,255,255,.06) 75%);background-size:200% 100%;animation:sk-wave 1.5s infinite"></div>
-  <div style="height:18px;width:55%;margin:0 auto 8px;border-radius:8px;background:linear-gradient(90deg,rgba(255,255,255,.06) 25%,rgba(255,255,255,.1) 50%,rgba(255,255,255,.06) 75%);background-size:200% 100%;animation:sk-wave 1.5s infinite"></div>
-  <div style="height:13px;width:38%;margin:0 auto 16px;border-radius:8px;background:linear-gradient(90deg,rgba(255,255,255,.06) 25%,rgba(255,255,255,.1) 50%,rgba(255,255,255,.06) 75%);background-size:200% 100%;animation:sk-wave 1.5s infinite"></div>
-  <div style="height:11px;width:80%;margin:0 auto 6px;border-radius:6px;background:linear-gradient(90deg,rgba(255,255,255,.06) 25%,rgba(255,255,255,.1) 50%,rgba(255,255,255,.06) 75%);background-size:200% 100%;animation:sk-wave 1.5s infinite"></div>
-  <div style="height:11px;width:60%;margin:0 auto;border-radius:6px;background:linear-gradient(90deg,rgba(255,255,255,.06) 25%,rgba(255,255,255,.1) 50%,rgba(255,255,255,.06) 75%);background-size:200% 100%;animation:sk-wave 1.5s infinite"></div>
+<!-- ██ Loading Spinner ██ -->
+<div id="profileSkeleton" style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 20px;gap:16px">
+  <div style="width:40px;height:40px;border:3px solid rgba(255,255,255,.1);border-top-color:var(--ac,#00c896);border-radius:50%;animation:tw-spin .7s linear infinite"></div>
+  <div style="font-size:.78rem;color:rgba(255,255,255,.35);font-family:Cairo,sans-serif">جاري التحميل...</div>
 </div>
 <div class="cv-head" id="cvHead">
     <button type="button" class="info-edit-btn owner-only" onclick="openModal('profile')" title="تعديل الملف الشخصي">⚙️</button>
