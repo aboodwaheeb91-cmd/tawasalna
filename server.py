@@ -94,9 +94,15 @@ def _jwt_decode(token: str) -> dict:
     try:
         parts = token.split('.')
         if len(parts) != 3: return {}
+        # Verify signature first
+        expected_sig = _b64.urlsafe_b64encode(
+            hmac.new(ADMIN_TOKEN[:32].encode(), f"{parts[0]}.{parts[1]}".encode(), 'sha256').digest()
+        ).rstrip(b'=').decode()
+        if parts[2] != expected_sig: return {}  # Invalid signature
+        # Decode payload
         body = parts[1] + '=='
         payload = json.loads(_b64.urlsafe_b64decode(body.encode()))
-        if payload.get('exp', 0) < time.time(): return {}
+        if payload.get('exp', 0) < time.time(): return {}  # Expired
         return payload
     except: return {}
 
@@ -1020,11 +1026,13 @@ def add_user_skill(user_id: int, data: SkillInput, token=Depends(verify_token)):
         raise HTTPException(500, str(e))
 
 @app.delete("/skills/{skill_id}")
-def delete_user_skill(skill_id: int):
+def delete_user_skill(skill_id: int, token=Depends(verify_token)):
     try:
         conn = get_conn()
         try:
-            conn.run("DELETE FROM user_skills WHERE id = :id", id=skill_id)
+            # Only delete if belongs to the token user
+            conn.run("DELETE FROM user_skills WHERE id = :id AND user_id = :uid",
+                    id=skill_id, uid=token['user_id'])
             return {"success": True}
         finally:
             conn.close()
@@ -1048,11 +1056,12 @@ def add_user_lang(user_id: int, data: LangInput, token=Depends(verify_token)):
         raise HTTPException(500, str(e))
 
 @app.delete("/langs/{lang_id}")
-def delete_user_lang(lang_id: int):
+def delete_user_lang(lang_id: int, token=Depends(verify_token)):
     try:
         conn = get_conn()
         try:
-            conn.run("DELETE FROM user_langs WHERE id = :id", id=lang_id)
+            conn.run("DELETE FROM user_langs WHERE id = :id AND user_id = :uid",
+                    id=lang_id, uid=token['user_id'])
             return {"success": True}
         finally:
             conn.close()
@@ -1076,11 +1085,12 @@ def add_user_link(user_id: int, data: LinkInput, token=Depends(verify_token)):
         raise HTTPException(500, str(e))
 
 @app.delete("/links/{link_id}")
-def delete_user_link(link_id: int):
+def delete_user_link(link_id: int, token=Depends(verify_token)):
     try:
         conn = get_conn()
         try:
-            conn.run("DELETE FROM user_links WHERE id = :id", id=link_id)
+            conn.run("DELETE FROM user_links WHERE id = :id AND user_id = :uid",
+                    id=link_id, uid=token['user_id'])
             return {"success": True}
         finally:
             conn.close()
@@ -1090,7 +1100,7 @@ def delete_user_link(link_id: int):
 # ══ Messages & Notifications ══
 
 @app.post("/messages/send")
-def send_msg(data: MessageInput):
+def send_msg(data: MessageInput, token=Depends(verify_token)):
     try:
         msg = send_message(data.sender_id, data.receiver_id, data.content)
         return {"status": "success", "message": msg}
@@ -1514,7 +1524,7 @@ def admin_get_profile(user_id: int, request: Request):
         raise HTTPException(500, detail=f"خطأ: {str(e)}")
 
 @app.delete("/auth/user/{user_id}/delete")
-def delete_own_account(user_id: int, request: Request):
+def delete_own_account(user_id: int, request: Request, token=Depends(verify_token)):
     """User deletes their own account"""
     conn = get_conn()
     try:
