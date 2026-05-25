@@ -3933,11 +3933,26 @@ function highlightSection(target){
     if(editBtn){ editBtn.click(); return; }
   } else {
     el = document.getElementById(target);
-    if(el) el.style.display = '';
+    // Section exists and visible
+    if(el && el.style.display !== 'none' && el.offsetParent !== null){
+      el.scrollIntoView({behavior:'smooth', block:'center'});
+      // Flash highlight
+      var old = el.style.boxShadow;
+      el.style.boxShadow = '0 0 0 2px var(--ac)';
+      el.style.transition = 'box-shadow .3s';
+      setTimeout(function(){ el.style.boxShadow = old; }, 2000);
+      return;
+    }
+    // Section doesn't exist → open panel to add it
+    showToast('افتح لوحة الإعدادات لإضافة القسم');
+    setTimeout(function(){
+      openPanel();
+      setTimeout(function(){ toggleAcc('acc-sections'); }, 300);
+    }, 500);
+    return;
   }
   if(!el) return;
   el.scrollIntoView({behavior:'smooth', block:'center'});
-  // Flash highlight
   var old = el.style.boxShadow;
   el.style.boxShadow = '0 0 0 2px var(--ac)';
   el.style.transition = 'box-shadow .3s';
