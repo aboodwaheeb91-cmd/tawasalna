@@ -1563,7 +1563,7 @@ function saveSkillItem(){
   const localId=Date.now();
   saveSectionItem('tw_skills',{id:localId,name,level},lid,renderSkillItem);
   if(_sessionUser&&_sessionUser.id){
-    fetch('/skills/'+_sessionUser.id,{method:'POST',headers:{'Content-Type':'application/json'},
+    fetch('/skills/'+_sessionUser.id,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+(localStorage.getItem('tw_jwt')||'')},
       body:JSON.stringify({skill:name,level})
     }).then(r=>r.json()).then(data=>{
       const dbId=data?.skill?.id;
@@ -1584,7 +1584,7 @@ function saveLangItem(){
   const localId=Date.now();
   saveSectionItem('tw_langs',{id:localId,name,level},lid,renderLangItem);
   if(_sessionUser&&_sessionUser.id){
-    fetch('/langs/'+_sessionUser.id,{method:'POST',headers:{'Content-Type':'application/json'},
+    fetch('/langs/'+_sessionUser.id,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+(localStorage.getItem('tw_jwt')||'')},
       body:JSON.stringify({language:name,level})
     }).then(r=>r.json()).then(data=>{
       const dbId=data?.lang?.id;
@@ -1604,7 +1604,7 @@ function saveLinkItem(){
   const localId=Date.now();
   saveSectionItem('tw_links',{id:localId,type,url:finalUrl},lid,renderLinkItem);
   if(_sessionUser&&_sessionUser.id){
-    fetch('/links/'+_sessionUser.id,{method:'POST',headers:{'Content-Type':'application/json'},
+    fetch('/links/'+_sessionUser.id,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+(localStorage.getItem('tw_jwt')||'')},
       body:JSON.stringify({link_type:type,url:finalUrl})
     }).then(r=>r.json()).then(data=>{
       const dbId=data?.link?.id;
@@ -1625,7 +1625,7 @@ function saveCourseItem(){
   const localId=Date.now();
   saveSectionItem('tw_courses',{id:localId,name,provider,year,url},lid,renderCourseItem);
   if(_sessionUser&&_sessionUser.id){
-    fetch('/course/'+_sessionUser.id,{method:'POST',headers:{'Content-Type':'application/json'},
+    fetch('/course/'+_sessionUser.id,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+(localStorage.getItem('tw_jwt')||'')},
       body:JSON.stringify({title:name,provider,completion_date:year,certificate_url:url})
     }).then(r=>r.json()).then(data=>{
       const dbId=data?.course?.id||data?.id;
@@ -1855,7 +1855,7 @@ function saveSectionOrder(){
   if(_sessionUser&&_sessionUser.id){
     fetch('/profile/'+_sessionUser.id,{
       method:'PUT',
-      headers:{'Content-Type':'application/json'},
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+(localStorage.getItem('tw_jwt')||'')},
       body:JSON.stringify({sections_order:JSON.stringify(order)})
     }).then(function(){showToast('تم حفظ الترتيب ✅');}).catch(()=>{});
   }
@@ -2476,7 +2476,7 @@ function saveProfile(){
   }catch(ex){}
   // Save to API
   if(_sessionUser&&_sessionUser.id){
-    fetch('/profile/'+_sessionUser.id,{method:'PUT',headers:{'Content-Type':'application/json'},
+    fetch('/profile/'+_sessionUser.id,{method:'PUT',headers:{'Content-Type':'application/json','Authorization':'Bearer '+(localStorage.getItem('tw_jwt')||'')},
       body:JSON.stringify({headline:title,bio,location:loc,full_name:name})
     }).then(function(){showToast('تم الحفظ ✅');}).catch(function(){showToast('خطأ في الحفظ','error');});
     // Update name in users table
@@ -2558,16 +2558,27 @@ function saveExp(){
       localStorage.setItem('tw_exp'+getUID(),JSON.stringify(exp));
     }catch(ex){}
     if(_sessionUser&&_sessionUser.id){
-      fetch('/experience/'+_sessionUser.id,{method:'POST',headers:{'Content-Type':'application/json'},
+      var jwt=localStorage.getItem('tw_jwt')||'';
+      fetch('/experience/'+_sessionUser.id,{method:'POST',
+        headers:{'Content-Type':'application/json','Authorization':'Bearer '+jwt},
         body:JSON.stringify({title:t,company:co,location:l,start_date:s,end_date:e,description:edesc})
       }).then(r=>r.json()).then(data=>{
-        if(data&&data.id){
-          // Send verify request for this experience
+        if(data&&data.experience&&data.experience.id){
+          // Update localStorage with real DB id
+          try{
+            var exp2=JSON.parse(localStorage.getItem('tw_exp'+getUID())||'[]');
+            var idx3=exp2.findIndex(function(x){return x.id===expId;});
+            if(idx3>-1){ exp2[idx3].id=data.experience.id; localStorage.setItem('tw_exp'+getUID(),JSON.stringify(exp2)); }
+          }catch(ex){}
+          // Update DOM id
+          var newEl=document.getElementById('exp-'+expId);
+          if(newEl) newEl.id='exp-'+data.experience.id;
+          // Verify request
           fetch('/verify-request',{method:'POST',headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({user_id:_sessionUser.id,item_type:'exp',item_id:data.id,item_title:t,item_company:co})
+            body:JSON.stringify({user_id:_sessionUser.id,item_type:'exp',item_id:data.experience.id,item_title:t,item_company:co})
           }).catch(()=>{});
         }
-      }).catch(()=>{});
+      }).catch(()=>{showToast('خطأ في حفظ الخبرة','error');});
     }
   }
   closeModal();
@@ -2615,10 +2626,23 @@ function saveEdu(){
       localStorage.setItem('tw_edu'+getUID(),JSON.stringify(edu));
     }catch(ex){}
     if(_sessionUser&&_sessionUser.id){
-      fetch('/education/'+_sessionUser.id,{method:'POST',headers:{'Content-Type':'application/json'},
+      var jwt2=localStorage.getItem('tw_jwt')||'';
+      fetch('/education/'+_sessionUser.id,{method:'POST',
+        headers:{'Content-Type':'application/json','Authorization':'Bearer '+jwt2},
         body:JSON.stringify({institution:i,degree:d,end_year:parseInt(y)||null})
       }).then(r=>r.json()).then(data=>{
-        if(data&&data.id){
+        var eduDbId = (data&&data.education&&data.education.id) ? data.education.id : (data&&data.id ? data.id : null);
+        if(eduDbId){
+          // Update localStorage with real DB id
+          try{
+            var edu2=JSON.parse(localStorage.getItem('tw_edu'+getUID())||'[]');
+            var ei=edu2.findIndex(function(x){return x.id===eduId;});
+            if(ei>-1){ edu2[ei].id=eduDbId; localStorage.setItem('tw_edu'+getUID(),JSON.stringify(edu2)); }
+          }catch(ex){}
+          var eduEl=document.getElementById('edu-'+eduId);
+          if(eduEl) eduEl.id='edu-'+eduDbId;
+        }
+        if(eduDbId){
           fetch('/verify-request',{method:'POST',headers:{'Content-Type':'application/json'},
             body:JSON.stringify({user_id:_sessionUser.id,item_type:'edu',item_id:data.id,item_title:d,item_company:i})
           }).catch(()=>{});
@@ -2642,7 +2666,7 @@ function _saveSectionsConfig(){
     });
     fetch('/profile/'+_sessionUser.id,{
       method:'PUT',
-      headers:{'Content-Type':'application/json'},
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+(localStorage.getItem('tw_jwt')||'')},
       body:JSON.stringify({custom_sections:JSON.stringify(sectionsData)})
     }).catch(()=>{});
   }catch(ex){}

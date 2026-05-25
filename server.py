@@ -963,7 +963,7 @@ def full_profile(user_id: str):
     return {"status": "success", "profile": profile}
 
 @app.put("/profile/{user_id}")
-def update_user_profile(user_id: int, data: ProfileUpdateInput):
+def update_user_profile(user_id: int, data: ProfileUpdateInput, token=Depends(verify_token)):
     try:
         profile = update_profile(user_id, data.dict())
         return {"status": "success", "profile": profile}
@@ -974,7 +974,7 @@ def update_user_profile(user_id: int, data: ProfileUpdateInput):
         raise HTTPException(500, detail="خطأ في الخادم")
 
 @app.post("/experience/{user_id}")
-def add_user_experience(user_id: int, data: ExperienceInput):
+def add_user_experience(user_id: int, data: ExperienceInput, token=Depends(verify_token)):
     if not data.title.strip() or not data.company.strip():
         raise HTTPException(400, detail="المسمى الوظيفي وجهة العمل مطلوبان")
     try:
@@ -984,7 +984,7 @@ def add_user_experience(user_id: int, data: ExperienceInput):
         raise HTTPException(500, detail="خطأ في الخادم")
 
 @app.post("/education/{user_id}")
-def add_user_education(user_id: int, data: EducationInput):
+def add_user_education(user_id: int, data: EducationInput, token=Depends(verify_token)):
     if not data.institution.strip():
         raise HTTPException(400, detail="اسم المؤسسة التعليمية مطلوب")
     try:
@@ -994,7 +994,7 @@ def add_user_education(user_id: int, data: EducationInput):
         raise HTTPException(500, detail="خطأ في الخادم")
 
 @app.post("/course/{user_id}")
-def add_user_course(user_id: int, data: CourseInput):
+def add_user_course(user_id: int, data: CourseInput, token=Depends(verify_token)):
     if not data.title.strip():
         raise HTTPException(400, detail="اسم الدورة مطلوب")
     try:
@@ -1004,7 +1004,7 @@ def add_user_course(user_id: int, data: CourseInput):
         raise HTTPException(500, detail="خطأ في الخادم")
 
 @app.post("/skills/{user_id}")
-def add_user_skill(user_id: int, data: SkillInput):
+def add_user_skill(user_id: int, data: SkillInput, token=Depends(verify_token)):
     try:
         conn = get_conn()
         try:
@@ -1032,7 +1032,7 @@ def delete_user_skill(skill_id: int):
         raise HTTPException(500, str(e))
 
 @app.post("/langs/{user_id}")
-def add_user_lang(user_id: int, data: LangInput):
+def add_user_lang(user_id: int, data: LangInput, token=Depends(verify_token)):
     try:
         conn = get_conn()
         try:
@@ -1060,7 +1060,7 @@ def delete_user_lang(lang_id: int):
         raise HTTPException(500, str(e))
 
 @app.post("/links/{user_id}")
-def add_user_link(user_id: int, data: LinkInput):
+def add_user_link(user_id: int, data: LinkInput, token=Depends(verify_token)):
     try:
         conn = get_conn()
         try:
