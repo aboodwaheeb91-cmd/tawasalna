@@ -66,7 +66,7 @@ def _parse_db_url():
 # ── Query Cache (Redis-ready) ──
 import time as _time_mod, json as _json_mod
 _query_cache = {}
-_CACHE_TTL = 60  # seconds
+_CACHE_TTL = 300  # seconds (5 min)
 
 def _cache_get(key):
     # Try Redis first
@@ -453,6 +453,7 @@ def get_user_by_id(user_id: int) -> Optional[dict]:
 
 # ══ الملفات الشخصية ══
 def _get_extras(conn, user_id: int) -> dict:
+    # Experience
     rows = conn.run(
         "SELECT id, title, company, location, start_date, end_date, is_current, description, created_at "
         "FROM experience WHERE user_id = :uid ORDER BY id DESC", uid=user_id
@@ -460,6 +461,7 @@ def _get_extras(conn, user_id: int) -> dict:
     cols = [c["name"] for c in conn.columns]
     experience = [_serialize(_row_to_dict(cols, r)) for r in rows]
 
+    # Education
     rows = conn.run(
         "SELECT id, institution, degree, field, start_year, end_year, description, created_at "
         "FROM education WHERE user_id = :uid ORDER BY id DESC", uid=user_id
@@ -467,6 +469,7 @@ def _get_extras(conn, user_id: int) -> dict:
     cols = [c["name"] for c in conn.columns]
     education = [_serialize(_row_to_dict(cols, r)) for r in rows]
 
+    # Courses
     rows = conn.run(
         "SELECT id, title, provider, completion_date, certificate_url, description, created_at "
         "FROM courses WHERE user_id = :uid ORDER BY id DESC", uid=user_id
@@ -474,6 +477,7 @@ def _get_extras(conn, user_id: int) -> dict:
     cols = [c["name"] for c in conn.columns]
     courses = [_serialize(_row_to_dict(cols, r)) for r in rows]
 
+    # Skills
     rows = conn.run(
         "SELECT id, skill, level FROM user_skills WHERE user_id = :uid ORDER BY id",
         uid=user_id
@@ -481,6 +485,7 @@ def _get_extras(conn, user_id: int) -> dict:
     cols = [c["name"] for c in conn.columns]
     skills = [_serialize(_row_to_dict(cols, r)) for r in rows]
 
+    # Langs
     rows = conn.run(
         "SELECT id, language, level FROM user_langs WHERE user_id = :uid ORDER BY id",
         uid=user_id
@@ -488,6 +493,7 @@ def _get_extras(conn, user_id: int) -> dict:
     cols = [c["name"] for c in conn.columns]
     langs = [_serialize(_row_to_dict(cols, r)) for r in rows]
 
+    # Links
     rows = conn.run(
         "SELECT id, link_type, url FROM user_links WHERE user_id = :uid ORDER BY id",
         uid=user_id

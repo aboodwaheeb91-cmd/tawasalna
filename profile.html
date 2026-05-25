@@ -2872,17 +2872,20 @@ var SECTION_CONFIG = {
       String(_urlId) === String(_sessionUser.tw_id)
     ));
 
-  // ── Step 0: Show name from session immediately (zero wait) ──
-  if(_sessionUser && (!_urlId || isViewingOwn)){
-    var quickName = _sessionUser.full_name || '';
-    if(quickName){
-      document.getElementById('cvName').textContent = quickName;
-      var sk0=document.getElementById('profileSkeleton');
-      var cv0=document.getElementById('cvCard');
-      if(sk0) sk0.style.display='none';
-      if(cv0) cv0.style.display='';
+  // ── Step 0: Show card immediately (zero wait) ──
+  // Always show the card structure, hide skeleton
+  (function(){
+    var sk0=document.getElementById('profileSkeleton');
+    var cv0=document.getElementById('cvCard');
+    if(sk0) sk0.style.display='none';
+    if(cv0) cv0.style.display='';
+    // Show name from session immediately
+    if(_sessionUser && _sessionUser.full_name){
+      var nameEl=document.getElementById('cvName');
+      if(nameEl && nameEl.textContent.trim()==='الاسم الكامل')
+        nameEl.textContent = _sessionUser.full_name;
     }
-  }
+  })();
 
   // ── Step 1: Show from localStorage immediately (performance only) ──
   if(isViewingOwn){
