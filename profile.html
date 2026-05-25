@@ -997,6 +997,41 @@ let _sessionUser = null;
 try { _sessionUser = JSON.parse(localStorage.getItem('tw_user')); } catch(e){}
 var _profileCache = null; // cache to avoid multiple fetches
 
+// ── Safety Layer: validate session integrity ──
+(function(){
+  if(!_sessionUser || !_sessionUser.id) return;
+  // Validate stored user matches JWT
+  var jwt = localStorage.getItem('tw_jwt')||'';
+  if(!jwt){
+    // No JWT but have user - inconsistent state, clear
+    Object.keys(localStorage).filter(function(k){return k.startsWith('tw_');})
+      .forEach(function(k){localStorage.removeItem(k);});
+    _sessionUser = null;
+    return;
+  }
+  // Decode JWT (basic check - server validates fully)
+  try{
+    var parts = jwt.split('.');
+    if(parts.length === 3){
+      var payload = JSON.parse(atob(parts[1] + '=='));
+      // If JWT user_id doesn't match stored user → clear
+      if(payload.user_id && String(payload.user_id) !== String(_sessionUser.id)){
+        Object.keys(localStorage).filter(function(k){return k.startsWith('tw_');})
+          .forEach(function(k){localStorage.removeItem(k);});
+        _sessionUser = null;
+        location.href = '/login';
+      }
+      // If JWT expired → clear
+      if(payload.exp && payload.exp < Math.floor(Date.now()/1000)){
+        Object.keys(localStorage).filter(function(k){return k.startsWith('tw_');})
+          .forEach(function(k){localStorage.removeItem(k);});
+        _sessionUser = null;
+        location.href = '/login';
+      }
+    }
+  }catch(ex){}
+})();
+
 
 function toggleDefaultSection(type, secId, el){
   const sec = document.getElementById(secId);
@@ -2537,7 +2572,7 @@ function saveExp(){
         localStorage.setItem('tw_exp'+getUID(),JSON.stringify(exp));
         // Send new verify request on edit
         if(_sessionUser){
-          fetch('/verify-request',{method:'POST',headers:{'Content-Type':'application/json'},
+          fetch('/verify-request',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+(localStorage.getItem('tw_jwt')||'')},
             body:JSON.stringify({user_id:_sessionUser.id,item_type:'exp',item_id:editId,item_title:t,item_company:co})
           }).catch(()=>{});
         }
@@ -2574,7 +2609,7 @@ function saveExp(){
           var newEl=document.getElementById('exp-'+expId);
           if(newEl) newEl.id='exp-'+data.experience.id;
           // Verify request
-          fetch('/verify-request',{method:'POST',headers:{'Content-Type':'application/json'},
+          fetch('/verify-request',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+(localStorage.getItem('tw_jwt')||'')},
             body:JSON.stringify({user_id:_sessionUser.id,item_type:'exp',item_id:data.experience.id,item_title:t,item_company:co})
           }).catch(()=>{});
         }
@@ -2606,7 +2641,7 @@ function saveEdu(){
         localStorage.setItem('tw_edu'+getUID(),JSON.stringify(edu));
         // Send new verify request on edit
         if(_sessionUser){
-          fetch('/verify-request',{method:'POST',headers:{'Content-Type':'application/json'},
+          fetch('/verify-request',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+(localStorage.getItem('tw_jwt')||'')},
             body:JSON.stringify({user_id:_sessionUser.id,item_type:'edu',item_id:editId,item_title:d,item_company:i})
           }).catch(()=>{});
         }
@@ -2643,7 +2678,7 @@ function saveEdu(){
           if(eduEl) eduEl.id='edu-'+eduDbId;
         }
         if(eduDbId){
-          fetch('/verify-request',{method:'POST',headers:{'Content-Type':'application/json'},
+          fetch('/verify-request',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+(localStorage.getItem('tw_jwt')||'')},
             body:JSON.stringify({user_id:_sessionUser.id,item_type:'edu',item_id:data.id,item_title:d,item_company:i})
           }).catch(()=>{});
         }
@@ -3223,11 +3258,21 @@ function saveCrop(){
 })();
 
 function doLogout(){
-  // Clear ALL profile data on logout to prevent cross-account data leaks
-  var keysToCheck = Object.keys(localStorage);
-  keysToCheck.forEach(function(k){
-    if(k.startsWith('tw_')) localStorage.removeItem(k);
-  });
+  // Clear ALL data on logout - prevents cross-account leaks
+  try{
+    // Remove all tw_ prefixed keys
+    Object.keys(localStorage)
+      .filter(function(k){ return k.startsWith('tw_'); })
+      .forEach(function(k){ localStorage.removeItem(k); });
+    // Clear session storage too
+    sessionStorage.clear();
+  }catch(ex){}
+  // Unregister service worker to prevent stale cache
+  if('serviceWorker' in navigator){
+    navigator.serviceWorker.getRegistrations().then(function(regs){
+      regs.forEach(function(r){ r.unregister(); });
+    });
+  }
   location.href='/login';
 }
 // Init calls - after all functions defined

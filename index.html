@@ -368,6 +368,10 @@ async function doLogin(){
     });
     const data = await res.json();
     if(!res.ok){ toast(data.detail||'بيانات الدخول غير صحيحة','error'); return; }
+    // Clear old user data before storing new user (prevents cross-account leaks)
+    Object.keys(localStorage)
+      .filter(function(k){ return k.startsWith('tw_'); })
+      .forEach(function(k){ localStorage.removeItem(k); });
     localStorage.setItem('tw_user', JSON.stringify(data.user));
         if(data.token) localStorage.setItem('tw_jwt', data.token);
     toast('مرحباً بك! 👋');
