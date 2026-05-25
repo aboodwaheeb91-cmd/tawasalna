@@ -1417,9 +1417,15 @@ function updateCourseItem(id, lid){
 function renderSkillItem(e,lid){
   const id=e.id||Date.now();const lvl=e.level||'';
   const lvlColor={'مبتدئ':'🟡','متوسط':'🟠','محترف':'🔵','خبير':'🟢'}[lvl]||'';
-  return `<div class="item" id="skill-item-${id}">
+  return `<div class="item" id="skill-item-${id}" draggable="false">
     <div style="display:flex;align-items:center;justify-content:space-between">
-      <div style="display:flex;align-items:center;gap:4px"><span class="item-drag-handle owner-only" style="color:rgba(255,255,255,.25);cursor:grab;font-size:1rem;margin-left:4px;line-height:1" title="اسحب لإعادة الترتيب">⠿</span><div style="flex:1"><div class="item-title">${lvl?`<div class="item-sub">${lvlColor} ${lvl}</div>`:''}</div></div>
+      <div style="display:flex;align-items:center;gap:4px">
+        <span class="item-drag-handle owner-only" style="color:rgba(255,255,255,.25);cursor:grab;font-size:1rem;line-height:1" title="اسحب">⠿</span>
+        <div>
+          <div class="item-title">${e.name}</div>
+          ${lvl?`<div class="item-sub">${lvlColor} ${lvl}</div>`:''}
+        </div>
+      </div>
       <div class="item-menu-wrap owner-only">
         <button type="button" class="item-menu-btn" onclick="toggleItemMenuG(this)">⋯</button>
         <div class="item-menu">
@@ -1431,12 +1437,19 @@ function renderSkillItem(e,lid){
   </div>`;
 }
 
+
 function renderLangItem(e,lid){
   const id=e.id||Date.now();const lvl=e.level||'';
   const lvlColor={'مبتدئ':'🟡','محادثة':'🟠','جيد':'🔵','طلاقة':'🟢','لغة أم':'⭐'}[lvl]||'';
-  return `<div class="item" id="lang-item-${id}">
+  return `<div class="item" id="lang-item-${id}" draggable="false">
     <div style="display:flex;align-items:center;justify-content:space-between">
-      <div style="display:flex;align-items:center;gap:4px"><span class="item-drag-handle owner-only" style="color:rgba(255,255,255,.25);cursor:grab;font-size:1rem;margin-left:4px;line-height:1" title="اسحب لإعادة الترتيب">⠿</span><div style="flex:1"><div class="item-title"><div class="item-sub">${lvlColor} ${lvl}</div></div></div>
+      <div style="display:flex;align-items:center;gap:4px">
+        <span class="item-drag-handle owner-only" style="color:rgba(255,255,255,.25);cursor:grab;font-size:1rem;line-height:1" title="اسحب لإعادة الترتيب">⠿</span>
+        <div>
+          <div class="item-title">${e.name}</div>
+          ${lvl?`<div class="item-sub">${lvlColor} ${lvl}</div>`:''}
+        </div>
+      </div>
       <div class="item-menu-wrap owner-only">
         <button type="button" class="item-menu-btn" onclick="toggleItemMenuG(this)">⋯</button>
         <div class="item-menu">
@@ -1450,9 +1463,15 @@ function renderLangItem(e,lid){
 
 function renderLinkItem(e,lid){
   const id=e.id||Date.now();
-  return `<div class="item" id="link-item-${id}">
+  return `<div class="item" id="link-item-${id}" draggable="false">
     <div style="display:flex;align-items:center;justify-content:space-between">
-      <div style="display:flex;align-items:center;gap:4px"><span class="item-drag-handle owner-only" style="color:rgba(255,255,255,.25);cursor:grab;font-size:1rem;margin-left:4px;line-height:1" title="اسحب لإعادة الترتيب">⠿</span><div style="flex:1"><div class="item-title"><a href="${e.url}" target="_blank" class="item-sub" style="color:var(--ac);word-break:break-all">${e.url}</a></div>
+      <div style="display:flex;align-items:center;gap:4px">
+        <span class="item-drag-handle owner-only" style="color:rgba(255,255,255,.25);cursor:grab;font-size:1rem;line-height:1" title="اسحب لإعادة الترتيب">⠿</span>
+        <div>
+          <div class="item-title">${e.type||'رابط'}</div>
+          <a href="${e.url}" target="_blank" class="item-sub" style="color:var(--ac);word-break:break-all;font-size:.7rem">${e.url}</a>
+        </div>
+      </div>
       <div class="item-menu-wrap owner-only">
         <button type="button" class="item-menu-btn" onclick="toggleItemMenuG(this)">⋯</button>
         <div class="item-menu">
