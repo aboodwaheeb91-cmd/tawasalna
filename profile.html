@@ -1000,36 +1000,36 @@ var _profileCache = null; // cache to avoid multiple fetches
 // ── Safety Layer: validate session integrity ──
 (function(){
   if(!_sessionUser || !_sessionUser.id) return;
-  // Validate stored user matches JWT
   var jwt = localStorage.getItem('tw_jwt')||'';
-  if(!jwt){
-    // No JWT but have user - inconsistent state, clear
-    Object.keys(localStorage).filter(function(k){return k.startsWith('tw_');})
-      .forEach(function(k){localStorage.removeItem(k);});
-    _sessionUser = null;
-    return;
-  }
-  // Decode JWT (basic check - server validates fully)
+  // No JWT → require login
+  if(!jwt){ location.href='/login'; return; }
+  // Decode JWT safely
   try{
     var parts = jwt.split('.');
-    if(parts.length === 3){
-      var payload = JSON.parse(atob(parts[1] + '=='));
-      // If JWT user_id doesn't match stored user → clear
-      if(payload.user_id && String(payload.user_id) !== String(_sessionUser.id)){
-        Object.keys(localStorage).filter(function(k){return k.startsWith('tw_');})
-          .forEach(function(k){localStorage.removeItem(k);});
-        _sessionUser = null;
-        location.href = '/login';
-      }
-      // If JWT expired → clear
-      if(payload.exp && payload.exp < Math.floor(Date.now()/1000)){
-        Object.keys(localStorage).filter(function(k){return k.startsWith('tw_');})
-          .forEach(function(k){localStorage.removeItem(k);});
-        _sessionUser = null;
-        location.href = '/login';
-      }
+    if(parts.length !== 3) return; // can't validate, allow through
+    // Fix base64url padding
+    var b64 = parts[1].replace(/-/g,'+').replace(/_/g,'/');
+    while(b64.length % 4) b64 += '=';
+    var payload = JSON.parse(atob(b64));
+    // Check expiry
+    if(payload.exp && payload.exp < Math.floor(Date.now()/1000)){
+      // Token expired - clear and redirect
+      Object.keys(localStorage).filter(function(k){return k.startsWith('tw_');})
+        .forEach(function(k){localStorage.removeItem(k);});
+      location.href='/login';
+      return;
     }
-  }catch(ex){}
+    // Check user_id matches - ONLY clear if definitive mismatch
+    if(payload.user_id && _sessionUser.id &&
+       String(payload.user_id) !== String(_sessionUser.id)){
+      Object.keys(localStorage).filter(function(k){return k.startsWith('tw_');})
+        .forEach(function(k){localStorage.removeItem(k);});
+      location.href='/login';
+    }
+    // Otherwise: all good, continue
+  }catch(ex){
+    // Parse error → don't block, just continue (server will validate)
+  }
 })();
 
 
