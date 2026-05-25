@@ -3431,9 +3431,13 @@ function closeModal(){
 function closeOverlay(e){ if(e.target===document.getElementById('overlay')) closeModal(); }
 
 if(isOwner){
-  // OWNER - show all editing tools
+  // OWNER - show all editing tools + owner-only elements
   var pb = document.getElementById('previewBtn');
   if(pb) pb.style.display='';
+  // Show all owner-only elements explicitly
+  document.querySelectorAll('.owner-only').forEach(function(el){
+    el.style.display='';
+  });
   ['sec-exp','sec-edu','sec-course','sec-skills','sec-langs'].forEach(function(sid){
     var sec = document.getElementById(sid);
     if(sec) sec.style.display = '';
