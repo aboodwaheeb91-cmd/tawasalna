@@ -1419,10 +1419,14 @@ body.s5 .add-item-btn:hover { border-color:rgba(var(--ac-rgb),.35); color:var(--
 
 </style>
 <script>
-// Prevent scroll restore - must be in head before body renders
+// Prevent scroll restore
 if(history.scrollRestoration) history.scrollRestoration = 'manual';
-window.addEventListener('load', function(){ window.scrollTo(0,0); });
-window.addEventListener('beforeunload', function(){ window.scrollTo(0,0); });
+window.addEventListener('load', function(){
+  // Scroll both window AND .page container to top
+  window.scrollTo(0,0);
+  var page = document.querySelector('.page');
+  if(page) page.scrollTop = 0;
+});
 </script>
 </head>
 <body class="s1">
