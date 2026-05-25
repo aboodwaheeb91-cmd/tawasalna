@@ -2745,10 +2745,12 @@ if(isOwner){
   // VIEWING ANOTHER PROFILE - read only
   document.querySelectorAll('.owner-only').forEach(function(el){ el.style.display='none'; });
 }
-if(isOwner) restoreSections();
+if(isOwner){
+    restoreSections();
+    loadSectionOrder();
+    updatePanelState();
+  }
   setTimeout(function(){ _initSectionDrag(); _initSectionTouch(); }, 200);
-  loadSectionOrder();
-  updatePanelState();
   
   // ══ Render exp/edu from localStorage immediately ══
   if(isOwner){
