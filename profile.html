@@ -2792,7 +2792,8 @@ const ta = document.querySelector('.top-actions');
 if(ta && isOwner) ta.style.display = 'flex';
 // ══ Instant Profile Load (localStorage → API) ══
 (function(){
-  // Step 1: Show from localStorage immediately (zero wait)
+  // Step 1: Show from localStorage ONLY for own profile
+  if(isOwner){
   try{
     var lsKey = 'tw_profile_data' + getUID();
     var lsProf = JSON.parse(localStorage.getItem(lsKey)||'{}');
@@ -2838,6 +2839,7 @@ if(ta && isOwner) ta.style.display = 'flex';
       if(cv) cv.style.display = '';
     }
   } catch(ex) {}
+  } // end isOwner Step 1
   
   // Step 2: Sync from API and update if different
   var uid = (_urlId || (_sessionUser && _sessionUser.id) || '0');
