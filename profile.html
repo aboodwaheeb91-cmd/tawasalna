@@ -2745,7 +2745,7 @@ if(isOwner){
   // VIEWING ANOTHER PROFILE - read only
   document.querySelectorAll('.owner-only').forEach(function(el){ el.style.display='none'; });
 }
-restoreSections();
+if(isOwner) restoreSections();
   setTimeout(function(){ _initSectionDrag(); _initSectionTouch(); }, 200);
   loadSectionOrder();
   updatePanelState();
@@ -3119,14 +3119,18 @@ function saveCrop(){
     // Try loading from DB
     if(u&&u.id){
       // Use cached profile if available
-Promise.resolve(_profileCache || fetch('/profile/'+u.id+'/full').then(r=>r.json()).then(d=>{_profileCache=d;return d;})).then(data=>{
-        const avatarUrl=data?.profile?.avatar_url;
-        if(avatarUrl){
-          try{ localStorage.setItem('tw_avatar'+getUID(), avatarUrl); }catch(ex){}
-          const avatarEl=document.getElementById('avatarBtn');
-          if(avatarEl) avatarEl.innerHTML=`<img loading="lazy" src="${avatarUrl}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;">`;
-        }
-      }).catch(()=>{});
+// Only load avatar for own profile
+      var _avSelfCheck = !new URLSearchParams(window.location.search).get('id') ||
+        String(new URLSearchParams(window.location.search).get('id'))===String(u.id)||
+        String(new URLSearchParams(window.location.search).get('id'))===String(u.tw_id);
+      Promise.resolve(_profileCache || fetch('/profile/'+u.id+'/full').then(r=>r.json()).then(d=>{_profileCache=d;return d;})).then(data=>{
+          const avatarUrl=data?.profile?.avatar_url;
+          if(avatarUrl){
+            if(_avSelfCheck) { try{ localStorage.setItem('tw_avatar'+getUID(), avatarUrl); }catch(ex){} }
+            const avatarEl=document.getElementById('avatarBtn');
+            if(avatarEl) avatarEl.innerHTML=`<img loading="lazy" src="${avatarUrl}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;">`;
+          }
+        }).catch(()=>{});
     }
   }
 })();
