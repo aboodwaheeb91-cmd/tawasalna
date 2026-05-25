@@ -474,7 +474,35 @@ def _get_extras(conn, user_id: int) -> dict:
     cols = [c["name"] for c in conn.columns]
     courses = [_serialize(_row_to_dict(cols, r)) for r in rows]
 
-    return {"experience": experience, "education": education, "courses": courses}
+    rows = conn.run(
+        "SELECT id, skill, level FROM user_skills WHERE user_id = :uid ORDER BY id",
+        uid=user_id
+    )
+    cols = [c["name"] for c in conn.columns]
+    skills = [_serialize(_row_to_dict(cols, r)) for r in rows]
+
+    rows = conn.run(
+        "SELECT id, language, level FROM user_langs WHERE user_id = :uid ORDER BY id",
+        uid=user_id
+    )
+    cols = [c["name"] for c in conn.columns]
+    langs = [_serialize(_row_to_dict(cols, r)) for r in rows]
+
+    rows = conn.run(
+        "SELECT id, link_type, url FROM user_links WHERE user_id = :uid ORDER BY id",
+        uid=user_id
+    )
+    cols = [c["name"] for c in conn.columns]
+    links = [_serialize(_row_to_dict(cols, r)) for r in rows]
+
+    return {
+        "experience": experience,
+        "education": education,
+        "courses": courses,
+        "skills": skills,
+        "langs": langs,
+        "links": links,
+    }
 
 
 def get_public_profile(user_id: int) -> Optional[dict]:

@@ -2909,7 +2909,7 @@ var SECTION_CONFIG = {
       var expList=document.getElementById('exp-list');
       if(expList && typeof renderExpItem==='function'){
         expList.innerHTML='';
-        prof.experience.forEach(function(e){ expList.insertAdjacentHTML('beforeend',renderExpItem(e)); });
+        prof.experience.forEach(function(e){ expList.insertAdjacentHTML('beforeend',renderExpItem({id:e.id,title:e.title,company:e.company,location:e.location||'',start_date:e.start_date||'',end_date:e.end_date||'',desc:e.description||''})); });
       }
       if(isViewingOwn){ try{ localStorage.setItem('tw_exp'+getUID(),JSON.stringify(prof.experience)); }catch(ex){} }
     }
@@ -2921,14 +2921,24 @@ var SECTION_CONFIG = {
       var eduList=document.getElementById('edu-list');
       if(eduList && typeof renderEduItem==='function'){
         eduList.innerHTML='';
-        prof.education.forEach(function(e){ eduList.insertAdjacentHTML('beforeend',renderEduItem(e)); });
+        prof.education.forEach(function(e){
+          eduList.insertAdjacentHTML('beforeend',renderEduItem({
+            id:e.id,
+            institution:e.institution,
+            degree:e.degree||'',
+            field:e.field||'',
+            start_year:e.start_year||'',
+            end_year:e.end_year||'',
+            description:e.description||''
+          }));
+        });
       }
       if(isViewingOwn){ try{ localStorage.setItem('tw_edu'+getUID(),JSON.stringify(prof.education)); }catch(ex){} }
     }
 
     // ── Skills ──
     if(prof.skills && prof.skills.length){
-      var skillItems=prof.skills.map(function(s){return {id:s.id,name:s.skill||s.name,level:s.level};});
+      var skillItems=prof.skills.map(function(s){return {id:s.id,name:s.skill,level:s.level||''};});
       ensureSection('skills','🛠️','المهارات');
       var secSkills=document.getElementById('sec-skills');
       var skillsList=document.getElementById('skills-list');
@@ -2937,12 +2947,12 @@ var SECTION_CONFIG = {
         skillsList.innerHTML='';
         skillItems.forEach(function(s){ skillsList.insertAdjacentHTML('beforeend',renderSkillItem(s,'skills-list')); });
       }
-      if(isViewingOwn){ try{ localStorage.setItem('tw_skills'+getUID(),JSON.stringify(skillItems)); }catch(ex){} }
+      if(isViewingOwn){ try{ localStorage.setItem('tw_skills'+getUID(),JSON.stringify(skillItems)); }catch(ex){} } // {id,name,level}
     }
 
     // ── Languages ──
     if(prof.langs && prof.langs.length){
-      var langItems=prof.langs.map(function(l){return {id:l.id,name:l.language||l.name,level:l.level};});
+      var langItems=prof.langs.map(function(l){return {id:l.id,name:l.language,level:l.level||''};});
       ensureSection('langs','🌍','اللغات');
       var secLangs=document.getElementById('sec-langs');
       var langsList=document.getElementById('langs-list');
@@ -2956,7 +2966,7 @@ var SECTION_CONFIG = {
 
     // ── Links ──
     if(prof.links && prof.links.length){
-      var linkItems=prof.links.map(function(l){return {id:l.id,type:l.link_type||l.type,url:l.url};});
+      var linkItems=prof.links.map(function(l){return {id:l.id,type:l.link_type,url:l.url};});
       ensureSection('links','🔗','روابط التواصل');
       var secLinks=document.getElementById('sec-links');
       var linksList=document.getElementById('links-list');
@@ -2970,7 +2980,7 @@ var SECTION_CONFIG = {
 
     // ── Courses ──
     if(prof.courses && prof.courses.length){
-      var courseItems=prof.courses.map(function(c){return {id:c.id,name:c.title||c.name,provider:c.provider,year:c.completion_date,url:c.certificate_url,description:c.description};});
+      var courseItems=prof.courses.map(function(c){return {id:c.id,name:c.title,provider:c.provider||'',year:c.completion_date||'',url:c.certificate_url||'',description:c.description||''};});
       ensureSection('course','📚','الدورات التدريبية');
       var secCourse=document.getElementById('sec-course');
       var courseList=document.getElementById('course-list');
