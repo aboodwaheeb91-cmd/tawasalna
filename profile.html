@@ -1465,7 +1465,7 @@ function renderLinkItem(e,lid){
 
 function renderCourseItem(e,lid){
   const id=e.id||Date.now();
-  return `<div class="item" id="course-item-${id}" draggable="true" ondragstart="itemDragStart(event)" ondragover="itemDragOver(event)" ondrop="itemDrop(event,'course-list')" ondragend="itemDragEnd(event)">
+  return `<div class="item" id="course-item-${id}" draggable="false" ondragover="itemDragOver(event)" ondrop="itemDrop(event,'course-list')" ondragend="itemDragEnd(event)">
     <div style="display:flex;align-items:flex-start;justify-content:space-between">
       <div>
         <div style="display:flex;align-items:center;gap:4px"><span class="item-drag-handle owner-only" style="color:rgba(255,255,255,.25);cursor:grab;font-size:1rem;margin-left:6px;line-height:1" title="اسحب لإعادة الترتيب">⠿</span><div class="item-title" style="flex:1">${e.name}</div></div>
@@ -1692,7 +1692,7 @@ function loadCities(){
 // ── Render functions with ... menu ──
 function renderExpItem(e){
   const id = e.id||Date.now();
-  return `<div class="item" id="exp-${id}" draggable="true" ondragstart="itemDragStart(event)" ondragover="itemDragOver(event)" ondrop="itemDrop(event,'exp-list')" ondragend="itemDragEnd(event)">
+  return `<div class="item" id="exp-${id}" draggable="false" ondragover="itemDragOver(event)" ondrop="itemDrop(event,'exp-list')" ondragend="itemDragEnd(event)">
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
       <div style="flex:1">
         <div style="display:flex;align-items:center;gap:4px"><span class="item-drag-handle owner-only" style="color:rgba(255,255,255,.25);cursor:grab;font-size:1rem;margin-left:6px;line-height:1" title="اسحب لإعادة الترتيب">⠿</span><div class="item-title" style="flex:1">${e.title}</div></div>
@@ -1715,7 +1715,7 @@ function renderExpItem(e){
 function renderEduItem(e){
   const id = e.id||Date.now();
   const degreeTitle = e.degree_type?(e.degree_type+(e.degree?' - '+e.degree:'')):(e.degree||'شهادة');
-  return `<div class="item" id="edu-${id}" draggable="true" ondragstart="itemDragStart(event)" ondragover="itemDragOver(event)" ondrop="itemDrop(event,'edu-list')" ondragend="itemDragEnd(event)">
+  return `<div class="item" id="edu-${id}" draggable="false" ondragover="itemDragOver(event)" ondrop="itemDrop(event,'edu-list')" ondragend="itemDragEnd(event)">
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
       <div style="flex:1">
         <div style="display:flex;align-items:center;gap:4px"><span class="item-drag-handle owner-only" style="color:rgba(255,255,255,.25);cursor:grab;font-size:1rem;margin-left:6px;line-height:1" title="اسحب لإعادة الترتيب">⠿</span><div class="item-title" style="flex:1">${degreeTitle}</div></div>
@@ -3557,7 +3557,15 @@ function loadProfileScore(){
     if(!num) return;
     // Show the widget
     var widget=document.getElementById('secScore');
-    if(widget && shouldShowScore()) widget.style.display='block';
+    if(widget && shouldShowScore() && (data.score||0) < 100) widget.style.display='block';
+    // If 100% - show celebration briefly then hide
+    if((data.score||0) >= 100){
+      if(widget){ 
+        widget.style.display='block';
+        widget.querySelector('#scoreTips').innerHTML = '<div style="text-align:center;color:var(--ac);font-size:.8rem;padding:4px">🎉 ملفك مكتمل!</div>';
+        setTimeout(function(){ widget.style.display='none'; }, 3000);
+      }
+    }
     // Animate counter
     var count=0,target=data.score||0;
     var t=setInterval(function(){
@@ -3571,14 +3579,16 @@ function loadProfileScore(){
     if(num) num.style.color=colors[data.level]||'var(--ac)';
     // Tips
     if(tips&&data.tips&&data.tips.length){
-      tips.innerHTML=data.tips.map(function(t){
+      // Filter to show max 3 tips
+      var shownTips = (data.tips||[]).slice(0,3);
+      tips.innerHTML = shownTips.length ? shownTips.map(function(t){
         var act = t.tip.indexOf('صور')>-1?'avatar':t.tip.indexOf('خبر')>-1?'sec-exp':t.tip.indexOf('شهاد')>-1?'sec-edu':t.tip.indexOf('مهار')>-1?'sec-skills':t.tip.indexOf('رابط')>-1?'sec-links':'profile';
         return '<div onclick="highlightSection(\'' + act + '\')" style="display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.03);border-radius:8px;padding:6px 10px;cursor:pointer">'
           + '<span style="color:var(--ac);font-size:.7rem;font-weight:700;background:rgba(0,200,150,.1);padding:2px 6px;border-radius:20px">+' + t.points + '%</span>'
           + '<span style="font-size:.7rem;color:rgba(255,255,255,.55);flex:1">' + t.tip + '</span>'
           + '<span style="font-size:.65rem;color:rgba(255,255,255,.2)">&#8592;</span>'
           + '</div>';
-      }).join('');
+      }).join('') : '<div style="text-align:center;font-size:.72rem;color:rgba(255,255,255,.3);padding:4px">ممتاز! ملفك في حالة جيدة</div>';
     }
   }).catch(function(){});
 }
@@ -3766,6 +3776,30 @@ function _secDragEnd(e){
 }
 
 function _initSectionDrag(){
+  // Also init item drag handles
+  document.querySelectorAll('.item').forEach(function(item){
+    var handle = item.querySelector('.item-drag-handle');
+    if(handle){
+      handle.addEventListener('mousedown', function(e){
+        e.stopPropagation();
+        item.setAttribute('draggable','true');
+        item.ondragstart = itemDragStart;
+        item.ondragover = function(ev){ ev.preventDefault(); ev.stopPropagation(); };
+        item.ondrop = function(ev){
+          var lid = item.parentElement ? item.parentElement.id : '';
+          itemDrop(ev, lid);
+        };
+        item.ondragend = function(ev){
+          item.setAttribute('draggable','false');
+          itemDragEnd(ev);
+        };
+      });
+      handle.addEventListener('touchstart', function(e){
+        e.stopPropagation();
+      }, {passive:true});
+    }
+  });
+
   document.querySelectorAll('#secList > .section').forEach(function(sec){
     // Enable draggable only when mousedown on .drag-handle
     var handle = sec.querySelector('.drag-handle');
