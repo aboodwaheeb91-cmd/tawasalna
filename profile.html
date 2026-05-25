@@ -2808,6 +2808,26 @@ if(isOwner){
 // top-actions needs flex not block
 const ta = document.querySelector('.top-actions');
 if(ta && isOwner) ta.style.display = 'flex';
+
+// ── Ensure section exists in DOM before populating ──
+function ensureSection(id, icon, title){
+  if(document.getElementById('sec-'+id)) return true;
+  // Create the section
+  if(typeof addSection === 'function'){
+    addSection(id, icon, title, null, true); // skipOrderSave=true
+    return !!document.getElementById('sec-'+id);
+  }
+  return false;
+}
+
+// Section config map
+var SECTION_CONFIG = {
+  'skills': {icon:'🛠️', title:'المهارات',     listId:'skills-list'},
+  'langs':  {icon:'🌍', title:'اللغات',       listId:'langs-list'},
+  'links':  {icon:'🔗', title:'روابط التواصل', listId:'links-list'},
+  'course': {icon:'📚', title:'الدورات التدريبية', listId:'course-list'},
+};
+
 // ══ Instant Profile Load - API is source of truth ══
 (function(){
   var uid = (_urlId || (_sessionUser && _sessionUser.id) || '0');
@@ -2909,10 +2929,11 @@ if(ta && isOwner) ta.style.display = 'flex';
     // ── Skills ──
     if(prof.skills && prof.skills.length){
       var skillItems=prof.skills.map(function(s){return {id:s.id,name:s.skill||s.name,level:s.level};});
+      ensureSection('skills','🛠️','المهارات');
       var secSkills=document.getElementById('sec-skills');
       var skillsList=document.getElementById('skills-list');
-      if(skillsList && typeof renderSkillItem==='function' && secSkills){
-        secSkills.style.display='';
+      if(secSkills){ secSkills.style.display=''; }
+      if(skillsList && typeof renderSkillItem==='function'){
         skillsList.innerHTML='';
         skillItems.forEach(function(s){ skillsList.insertAdjacentHTML('beforeend',renderSkillItem(s,'skills-list')); });
       }
@@ -2922,10 +2943,11 @@ if(ta && isOwner) ta.style.display = 'flex';
     // ── Languages ──
     if(prof.langs && prof.langs.length){
       var langItems=prof.langs.map(function(l){return {id:l.id,name:l.language||l.name,level:l.level};});
+      ensureSection('langs','🌍','اللغات');
       var secLangs=document.getElementById('sec-langs');
       var langsList=document.getElementById('langs-list');
-      if(langsList && typeof renderLangItem==='function' && secLangs){
-        secLangs.style.display='';
+      if(secLangs){ secLangs.style.display=''; }
+      if(langsList && typeof renderLangItem==='function'){
         langsList.innerHTML='';
         langItems.forEach(function(l){ langsList.insertAdjacentHTML('beforeend',renderLangItem(l,'langs-list')); });
       }
@@ -2935,10 +2957,11 @@ if(ta && isOwner) ta.style.display = 'flex';
     // ── Links ──
     if(prof.links && prof.links.length){
       var linkItems=prof.links.map(function(l){return {id:l.id,type:l.link_type||l.type,url:l.url};});
+      ensureSection('links','🔗','روابط التواصل');
       var secLinks=document.getElementById('sec-links');
       var linksList=document.getElementById('links-list');
-      if(linksList && typeof renderLinkItem==='function' && secLinks){
-        secLinks.style.display='';
+      if(secLinks){ secLinks.style.display=''; }
+      if(linksList && typeof renderLinkItem==='function'){
         linksList.innerHTML='';
         linkItems.forEach(function(l){ linksList.insertAdjacentHTML('beforeend',renderLinkItem(l,'links-list')); });
       }
@@ -2948,10 +2971,11 @@ if(ta && isOwner) ta.style.display = 'flex';
     // ── Courses ──
     if(prof.courses && prof.courses.length){
       var courseItems=prof.courses.map(function(c){return {id:c.id,name:c.title||c.name,provider:c.provider,year:c.completion_date,url:c.certificate_url,description:c.description};});
+      ensureSection('course','📚','الدورات التدريبية');
       var secCourse=document.getElementById('sec-course');
       var courseList=document.getElementById('course-list');
-      if(courseList && typeof renderCourseItem==='function' && secCourse){
-        secCourse.style.display='';
+      if(secCourse){ secCourse.style.display=''; }
+      if(courseList && typeof renderCourseItem==='function'){
         courseList.innerHTML='';
         courseItems.forEach(function(c){ courseList.insertAdjacentHTML('beforeend',renderCourseItem(c,'course-list')); });
       }
