@@ -2867,8 +2867,22 @@ var SECTION_CONFIG = {
 (function(){
   var uid = (_urlId || (_sessionUser && _sessionUser.id) || '0');
   var isViewingOwn = !_urlId ||
-    String(_urlId) === String(_sessionUser.id) ||
-    String(_urlId) === String(_sessionUser.tw_id);
+    (_sessionUser && (
+      String(_urlId) === String(_sessionUser.id) ||
+      String(_urlId) === String(_sessionUser.tw_id)
+    ));
+
+  // ── Step 0: Show name from session immediately (zero wait) ──
+  if(_sessionUser && (!_urlId || isViewingOwn)){
+    var quickName = _sessionUser.full_name || '';
+    if(quickName){
+      document.getElementById('cvName').textContent = quickName;
+      var sk0=document.getElementById('profileSkeleton');
+      var cv0=document.getElementById('cvCard');
+      if(sk0) sk0.style.display='none';
+      if(cv0) cv0.style.display='';
+    }
+  }
 
   // ── Step 1: Show from localStorage immediately (performance only) ──
   if(isViewingOwn){
@@ -3052,6 +3066,42 @@ var SECTION_CONFIG = {
     var cv2=document.getElementById('cvCard');
     if(sk2) sk2.style.display='none';
     if(cv2) cv2.style.display='';
+
+    // ── Apply sections_order from DB ──
+    if(prof.sections_order && isViewingOwn){
+      try{
+        var order = typeof prof.sections_order === 'string'
+          ? JSON.parse(prof.sections_order) : prof.sections_order;
+        if(Array.isArray(order) && order.length){
+          var secList = document.getElementById('secList');
+          if(secList){
+            order.forEach(function(secId){
+              var sec = document.getElementById(secId);
+              if(sec) secList.appendChild(sec); // reorder DOM
+            });
+          }
+          // Save to localStorage
+          try{ localStorage.setItem('tw_sec_order'+getUID(), JSON.stringify(order)); }catch(ex){}
+        }
+      }catch(ex){}
+    }
+
+    // ── Apply additional profile fields from API ──
+    if(prof.dob && typeof calcAge==='function'){
+      var age3=calcAge(prof.dob);
+      if(age3){ var al3=document.getElementById('cvAgeLine'); if(al3){al3.textContent='العمر: '+age3;al3.style.display='block';} }
+    }
+    if(isViewingOwn && prof.dob){
+      try{
+        var lsK=localStorage.getItem('tw_profile_data'+getUID());
+        var lsO=lsK?JSON.parse(lsK):{};
+        lsO.dob=prof.dob;
+        if(prof.phone) lsO.phone=prof.phone;
+        if(prof.avail) lsO.avail=prof.avail;
+        if(prof.title) lsO.title=prof.title;
+        localStorage.setItem('tw_profile_data'+getUID(), JSON.stringify(lsO));
+      }catch(ex){}
+    }
 
     // ── Re-init drag for newly rendered items ──
     if(typeof _initSectionDrag==='function') setTimeout(_initSectionDrag, 100);

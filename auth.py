@@ -544,7 +544,8 @@ def get_full_profile(user_id: int) -> Optional[dict]:
         user = _serialize(_row_to_dict(cols, rows[0]))
 
         rows = conn.run(
-            "SELECT headline, bio, location, skills, avatar_url, website, is_verified, updated_at "
+            "SELECT headline, bio, location, skills, avatar_url, website, is_verified, "
+            "updated_at, dob, phone, country, city, avail, title, sections_order, custom_sections "
             "FROM profiles WHERE user_id = :uid", uid=user_id
         )
         cols = [c["name"] for c in conn.columns]
