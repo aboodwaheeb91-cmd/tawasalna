@@ -565,22 +565,10 @@ def get_full_profile(user_id: int) -> Optional[dict]:
         cols = [c["name"] for c in conn.columns]
         verify_req = _serialize(_row_to_dict(cols, rows[0])) if rows else None
 
-        # Get skills, langs, links
-        rows = conn.run("SELECT id, skill, level FROM user_skills WHERE user_id=:uid ORDER BY id", uid=user_id)
-        cols = [c["name"] for c in conn.columns]
-        skills = [_row_to_dict(cols, r) for r in rows]
-
-        rows = conn.run("SELECT id, language, level FROM user_langs WHERE user_id=:uid ORDER BY id", uid=user_id)
-        cols = [c["name"] for c in conn.columns]
-        langs = [_row_to_dict(cols, r) for r in rows]
-
-        rows = conn.run("SELECT id, link_type, url FROM user_links WHERE user_id=:uid ORDER BY id", uid=user_id)
-        cols = [c["name"] for c in conn.columns]
-        links = [_row_to_dict(cols, r) for r in rows]
-
-        return {**user, **profile, **_get_extras(conn, user_id),
-                "skills": skills, "langs": langs, "links": links,
-                "verify_request": verify_req}
+        extras = _get_extras(conn, user_id)
+        result = {**user, **profile, **extras, "verify_request": verify_req}
+        _cache_set('profile:'+str(user_id), result)
+        return result
     finally:
         release_conn(conn)
 
