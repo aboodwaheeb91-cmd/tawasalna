@@ -549,12 +549,20 @@ def get_full_profile(user_id: int) -> Optional[dict]:
         cols = [c["name"] for c in conn.columns]
         user = _serialize(_row_to_dict(cols, rows[0]))
 
-        rows = conn.run(
-            "SELECT headline, bio, location, skills, avatar_url, website, is_verified, "
-            "updated_at, dob, phone, country, city, avail, title, sections_order, custom_sections, "
-            "profile_color, profile_style "
-            "FROM profiles WHERE user_id = :uid", uid=user_id
-        )
+        # Try full query first, fallback to basic if columns missing
+        try:
+            rows = conn.run(
+                "SELECT headline, bio, location, skills, avatar_url, website, is_verified, "
+                "updated_at, dob, phone, country, city, avail, title, sections_order, custom_sections, "
+                "profile_color, profile_style "
+                "FROM profiles WHERE user_id = :uid", uid=user_id
+            )
+        except Exception:
+            # Fallback: basic columns only
+            rows = conn.run(
+                "SELECT headline, bio, location, skills, avatar_url, website, is_verified, updated_at "
+                "FROM profiles WHERE user_id = :uid", uid=user_id
+            )
         cols = [c["name"] for c in conn.columns]
         profile = _serialize(_row_to_dict(cols, rows[0])) if rows else {}
 
