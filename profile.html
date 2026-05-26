@@ -1026,39 +1026,28 @@ let _sessionUser = null;
 try { _sessionUser = JSON.parse(localStorage.getItem('tw_user')); } catch(e){}
 var _profileCache = null; // cache to avoid multiple fetches
 
-// ── Safety Layer: validate session integrity ──
+// ── Safety Layer: basic session check ──
 (function(){
   if(!_sessionUser || !_sessionUser.id) return;
   var jwt = localStorage.getItem('tw_jwt')||'';
-  // No JWT → require login
-  if(!jwt){ location.href='/login'; return; }
-  // Decode JWT safely
+  if(!jwt) return; // no jwt - API will reject, no need to redirect here
+  // Silently decode and check - never redirect, let server validate
   try{
     var parts = jwt.split('.');
-    if(parts.length !== 3) return; // can't validate, allow through
-    // Fix base64url padding
+    if(parts.length !== 3) return;
     var b64 = parts[1].replace(/-/g,'+').replace(/_/g,'/');
     while(b64.length % 4) b64 += '=';
     var payload = JSON.parse(atob(b64));
-    // Check expiry
-    if(payload.exp && payload.exp < Math.floor(Date.now()/1000)){
-      // Token expired - clear and redirect
-      Object.keys(localStorage).filter(function(k){return k.startsWith('tw_');})
-        .forEach(function(k){localStorage.removeItem(k);});
-      location.href='/login';
-      return;
-    }
-    // Check user_id matches - ONLY clear if definitive mismatch
+    // Only act on definitive user mismatch (different account on same device)
     if(payload.user_id && _sessionUser.id &&
        String(payload.user_id) !== String(_sessionUser.id)){
-      Object.keys(localStorage).filter(function(k){return k.startsWith('tw_');})
-        .forEach(function(k){localStorage.removeItem(k);});
-      location.href='/login';
+      // Different user logged in - clear only profile cache, not all data
+      var uid = '_' + _sessionUser.id;
+      Object.keys(localStorage)
+        .filter(function(k){ return k.startsWith('tw_') && !k.startsWith('tw_user') && !k.startsWith('tw_jwt'); })
+        .forEach(function(k){ localStorage.removeItem(k); });
     }
-    // Otherwise: all good, continue
-  }catch(ex){
-    // Parse error → don't block, just continue (server will validate)
-  }
+  }catch(ex){}
 })();
 
 
@@ -1138,7 +1127,7 @@ function getUID(){
 const _urlId = new URLSearchParams(window.location.search).get('id');
 // Simple auth: must be logged in
 if(!_sessionUser || !_sessionUser.id){
-  location.href = '/login';
+  location.href = '/index.html';
   throw new Error('Not authenticated');
 }
 // Owner check (viewing own profile vs someone else's)
@@ -3407,7 +3396,7 @@ function doLogout(){
       regs.forEach(function(r){ r.unregister(); });
     });
   }
-  location.href='/login';
+  location.href='/index.html';
 }
 // Init calls - after all functions defined
 (function(){
