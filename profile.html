@@ -2916,12 +2916,29 @@ var SECTION_CONFIG = {
 
 // ══ Instant Profile Load - API is source of truth ══
 (function(){
+  // ── Debug trace ──
+  var _dbg = function(step, data){
+    console.log('[Profile]', step, data || '');
+    var el = document.getElementById('_dbgEl');
+    if(el) el.textContent = step;
+  };
+  
   var uid = (_urlId || (_sessionUser && _sessionUser.id) || '0');
+  _dbg('uid', uid);
+  
+  if(!uid || uid === '0'){
+    _dbg('ERROR: no uid');
+    var sk=document.getElementById('profileSkeleton');
+    if(sk) sk.innerHTML='<div style="padding:40px;text-align:center;color:rgba(255,255,255,.4);font-size:.8rem">تعذّر تحميل البيانات — يرجى تسجيل الدخول</div>';
+    return;
+  }
+  
   var isViewingOwn = !_urlId ||
     (_sessionUser && (
       String(_urlId) === String(_sessionUser.id) ||
       String(_urlId) === String(_sessionUser.tw_id)
     ));
+  _dbg('isViewingOwn', isViewingOwn);
 
   // ── Step 0: Show name from session if available ──
   // Only hide skeleton if we have real data to show
@@ -2975,8 +2992,15 @@ var SECTION_CONFIG = {
   })
   .then(function(r){ return r.json(); })
   .then(function(data){
-    if(!data||!data.profile) return;
+    _dbg('API response status', data && data.status);
+    if(!data || !data.profile){
+      _dbg('ERROR: no profile data', JSON.stringify(data||{}).slice(0,100));
+      var skE=document.getElementById('profileSkeleton');
+      if(skE) skE.innerHTML='<div style="padding:40px;text-align:center;color:rgba(255,255,255,.4);font-size:.8rem;font-family:Cairo,sans-serif">تعذّر تحميل البيانات<br><button onclick="location.reload()" style="margin-top:12px;padding:8px 20px;border-radius:20px;background:var(--ac);border:none;color:#0d1a2e;font-family:Cairo,sans-serif;cursor:pointer">إعادة المحاولة</button></div>';
+      return;
+    }
     var prof = data.profile;
+    _dbg('profile loaded', prof.full_name);
 
     // ── Basic info ──
     var apiName = prof.full_name||data.full_name||'';
@@ -3182,11 +3206,8 @@ var SECTION_CONFIG = {
   })
   .catch(function(err){
     console.error('[Profile] API error:', err);
-    // Fallback: show cached data
-    var sk3=document.getElementById('profileSkeleton');
-    var cv3=document.getElementById('cvCard');
-    if(sk3) sk3.style.display='none';
-    if(cv3) cv3.style.display='';
+    var skF=document.getElementById('profileSkeleton');
+    if(skF) skF.innerHTML='<div style="padding:40px;text-align:center;color:rgba(255,255,255,.4);font-size:.8rem;font-family:Cairo,sans-serif">خطأ في الاتصال<br><button onclick="location.reload()" style="margin-top:12px;padding:8px 20px;border-radius:20px;background:var(--ac);border:none;color:#0d1a2e;font-family:Cairo,sans-serif;cursor:pointer">إعادة المحاولة</button></div>';
   });
 })();
 
