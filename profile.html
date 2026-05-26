@@ -848,10 +848,42 @@ window.addEventListener('load', function(){
 
   <!-- ── Profile Header Section ── -->
 
-<!-- ██ Loading Spinner ██ -->
-<div id="profileSkeleton" style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 20px;gap:16px">
-  <div style="width:40px;height:40px;border:3px solid rgba(255,255,255,.1);border-top-color:var(--ac,#00c896);border-radius:50%;animation:tw-spin .7s linear infinite"></div>
-  <div style="font-size:.78rem;color:rgba(255,255,255,.35);font-family:Cairo,sans-serif">جاري التحميل...</div>
+<!-- ██ Skeleton Loader ██ -->
+<div id="profileSkeleton">
+<style>
+@keyframes sk-shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+.sk{background:linear-gradient(90deg,rgba(255,255,255,.05) 25%,rgba(255,255,255,.1) 50%,rgba(255,255,255,.05) 75%);background-size:200% 100%;animation:sk-shimmer 1.5s infinite;border-radius:8px}
+</style>
+<!-- Avatar + name area -->
+<div style="display:flex;flex-direction:column;align-items:center;padding:24px 16px 16px;gap:12px">
+  <div class="sk" style="width:88px;height:88px;border-radius:50%"></div>
+  <div class="sk" style="width:140px;height:18px"></div>
+  <div class="sk" style="width:100px;height:13px"></div>
+  <div class="sk" style="width:180px;height:11px;margin-top:4px"></div>
+</div>
+<!-- Stats row -->
+<div style="display:flex;gap:8px;padding:0 16px 16px">
+  <div class="sk" style="flex:1;height:52px;border-radius:12px"></div>
+  <div class="sk" style="flex:1;height:52px;border-radius:12px"></div>
+  <div class="sk" style="flex:1;height:52px;border-radius:12px"></div>
+</div>
+<!-- Section card 1 -->
+<div style="margin:0 16px 12px;border-radius:14px;overflow:hidden">
+  <div class="sk" style="height:48px;border-radius:14px 14px 0 0"></div>
+  <div style="padding:12px;background:rgba(255,255,255,.03);display:flex;flex-direction:column;gap:8px">
+    <div class="sk" style="width:80%;height:13px"></div>
+    <div class="sk" style="width:55%;height:11px"></div>
+    <div class="sk" style="width:65%;height:11px"></div>
+  </div>
+</div>
+<!-- Section card 2 -->
+<div style="margin:0 16px 12px;border-radius:14px;overflow:hidden">
+  <div class="sk" style="height:48px;border-radius:14px 14px 0 0"></div>
+  <div style="padding:12px;background:rgba(255,255,255,.03);display:flex;flex-direction:column;gap:8px">
+    <div class="sk" style="width:70%;height:13px"></div>
+    <div class="sk" style="width:45%;height:11px"></div>
+  </div>
+</div>
 </div>
 <div class="cv-head" id="cvHead">
     <button type="button" class="info-edit-btn owner-only" onclick="openModal('profile')" title="تعديل الملف الشخصي">⚙️</button>
