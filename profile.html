@@ -724,7 +724,7 @@ window.addEventListener('load', function(){
 });
 </script>
 </head>
-<div id="_dbgBar" style="position:fixed;top:0;left:0;right:0;z-index:99999;background:#1a0a00;color:#ff9500;font-size:11px;padding:4px 10px;font-family:monospace;direction:ltr;display:block">loading...</div>
+
 <body class="s1">
 <!--
 ╔══════════════════════════════════════════════╗
@@ -2920,12 +2920,8 @@ var SECTION_CONFIG = {
 (function(){
   // ── Debug trace ──
   var _dbg = function(step, data){
-    console.log('[Profile]', step, data || '');
-    var bar = document.getElementById('_dbgBar');
-    if(bar) bar.textContent = '[' + step + '] ' + (data||'');
+    console.log('[Profile]', step, data||'');
   };
-  // Hide debug bar after 10s
-  setTimeout(function(){ var b=document.getElementById('_dbgBar'); if(b) b.style.display='none'; }, 10000);
   
   var uid = (_urlId || (_sessionUser && _sessionUser.id) || '0');
   _dbg('uid', uid);
