@@ -342,6 +342,9 @@ class ProfileUpdateInput(BaseModel):
     country: Optional[str] = None
     city: Optional[str] = None
     avail: Optional[str] = None
+    title: Optional[str] = None
+    profile_color: Optional[str] = None
+    profile_style: Optional[str] = None
 
 class ExperienceInput(BaseModel):
     title: str

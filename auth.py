@@ -207,6 +207,21 @@ def init_db():
                 updated_at TIMESTAMP DEFAULT NOW()
             )
         """)
+        # Migration: add missing columns to profiles
+        for col_sql in [
+            "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS dob TEXT",
+            "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS phone TEXT",
+            "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS country TEXT",
+            "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS city TEXT",
+            "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS avail TEXT",
+            "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS title TEXT",
+            "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS sections_order TEXT",
+            "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS custom_sections TEXT",
+            "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS profile_color TEXT",
+            "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS profile_style TEXT",
+        ]:
+            try: conn.run(col_sql)
+            except Exception: pass
         conn.run("""
             CREATE TABLE IF NOT EXISTS experience (
                 id SERIAL PRIMARY KEY,

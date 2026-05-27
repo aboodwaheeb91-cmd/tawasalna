@@ -2564,7 +2564,16 @@ function saveProfile(){
   // Save to API
   if(_sessionUser&&_sessionUser.id){
     fetch('/profile/'+_sessionUser.id,{method:'PUT',headers:{'Content-Type':'application/json','Authorization':'Bearer '+(localStorage.getItem('tw_jwt')||'')},
-      body:JSON.stringify({headline:title,bio,location:loc,full_name:name})
+      body:JSON.stringify({
+        headline:title,
+        bio:bio,
+        location:loc,
+        full_name:name,
+        dob:dob||'',
+        country:profCountry||'',
+        city:profCity||'',
+        avail:avail||''
+      })
     }).then(function(){showToast('تم الحفظ ✅');}).catch(function(){showToast('خطأ في الحفظ','error');});
     // Update name in users table
     if(name&&name!==(_sessionUser.full_name||'')){
