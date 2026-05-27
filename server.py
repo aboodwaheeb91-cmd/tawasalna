@@ -629,6 +629,15 @@ class ReportInput(BaseModel):
     reason: str
     target_url: Optional[str] = None
 
+
+def verify_token(request: Request):
+    auth = request.headers.get("Authorization","")
+    token = auth.replace("Bearer ","") if auth.startswith("Bearer ") else ""
+    payload = _jwt_decode(token) if token else {}
+    if not payload: raise HTTPException(401, "Token invalid or expired")
+    return {"valid": True, "user_id": payload.get("user_id"), "user_type": payload.get("user_type")}
+
+
 @app.post("/reports/submit")
 async def submit_report(data: ReportInput, request: Request, token=Depends(verify_token)):
     """Submit a report against a user or content"""
@@ -724,13 +733,6 @@ def admin_errors(request: Request):
     return {"errors": list(reversed(_error_log)), "count": len(_error_log)}
 
 @app.post("/auth/verify-token")
-def verify_token(request: Request):
-    auth = request.headers.get("Authorization","")
-    token = auth.replace("Bearer ","") if auth.startswith("Bearer ") else ""
-    payload = _jwt_decode(token) if token else {}
-    if not payload: raise HTTPException(401, "Token invalid or expired")
-    return {"valid": True, "user_id": payload.get("user_id"), "user_type": payload.get("user_type")}
-
 
 @app.get("/profile/{user_id}/score")
 def profile_score(user_id: int):
