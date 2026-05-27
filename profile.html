@@ -887,7 +887,10 @@ window.addEventListener('load', function(){
 </div>
 </div>
 <div class="cv-head" id="cvHead">
-    <button type="button" class="info-edit-btn owner-only" onclick="openModal('profile')" title="تعديل الملف الشخصي">⚙️</button>
+    <div style="display:flex;align-items:center;gap:6px">
+      <button type="button" class="info-edit-btn owner-only" onclick="openModal('profile')" title="تعديل الملف الشخصي">⚙️</button>
+      <span id="profileVerifiedBadge" class="tw-verified" style="display:none;background:linear-gradient(135deg,#00c896,#2563ff);color:#fff;border-radius:20px;padding:2px 8px;font-size:.62rem;font-weight:700;flex-shrink:0">✅ موثق</span>
+    </div>
     <!-- الصورة + QR -->
     <div style="display:flex;flex-direction:column;align-items:center;gap:10px;flex-shrink:0">
       <div style="position:relative">
@@ -910,7 +913,6 @@ window.addEventListener('load', function(){
        <!-- الاسم - يصغر تلقائياً -->
       <div style="display:flex;align-items:center;gap:6px;justify-content:flex-start">
         <div class="cv-name" id="cvName"></div>
-        <span id="profileVerifiedBadge" class="tw-verified" style="display:none;background:linear-gradient(135deg,#00c896,#2563ff);color:#fff;border-radius:20px;padding:2px 8px;font-size:.62rem;font-weight:700;flex-shrink:0">✅ موثق</span>
       </div>
 
       <!-- المسمى + حالة التوظيف -->
