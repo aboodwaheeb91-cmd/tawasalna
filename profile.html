@@ -420,7 +420,7 @@ body.preview-mode #previewBtn {
 /* ── Item menu ── */
 .item-menu-wrap{position:relative;flex-shrink:0;}
 .item-menu-btn{
-  width:26px;height:26px;border-radius:7px;border:none;
+  width:32px;height:32px;border-radius:7px;border:none;
   background:rgba(255,255,255,.07);color:rgba(255,255,255,.5);
   font-size:.85rem;cursor:pointer;display:flex;align-items:center;
   justify-content:center;transition:all .2s;line-height:1;
@@ -1039,6 +1039,14 @@ var _profileCache = null; // cache to avoid multiple fetches
     var b64 = parts[1].replace(/-/g,'+').replace(/_/g,'/');
     while(b64.length % 4) b64 += '=';
     var payload = JSON.parse(atob(b64));
+    // Check JWT expiry
+    if(payload.exp && payload.exp < Math.floor(Date.now()/1000)){
+      // Token expired - clear and go to login
+      Object.keys(localStorage).filter(function(k){return k.startsWith('tw_');})
+        .forEach(function(k){localStorage.removeItem(k);});
+      location.href='/index.html';
+      return;
+    }
     // Only act on definitive user mismatch (different account on same device)
     if(payload.user_id && _sessionUser.id &&
        String(payload.user_id) !== String(_sessionUser.id)){
@@ -1486,10 +1494,10 @@ function renderSkillItem(e,lid){
         </div>
       </div>
       <div class="item-menu-wrap owner-only">
-        <button type="button" class="item-menu-btn" onclick="toggleItemMenuG(this)">⋯</button>
+        <button type="button" class="item-menu-btn" onclick="event.stopPropagation();toggleItemMenuG(this)">⋯</button>
         <div class="item-menu">
-          <div class="item-menu-opt" onclick="editSkillItem(${id},'${lid}')">✏️ تعديل</div>
-          <div class="item-menu-opt del" onclick="delSectionItem('skill-item-${id}','tw_skills','${lid}',${id})">🗑️ حذف</div>
+          <div class="item-menu-opt" onclick="event.stopPropagation();editSkillItem(${id},'${lid}')">✏️ تعديل</div>
+          <div class="item-menu-opt del" onclick="event.stopPropagation();delSectionItem('skill-item-${id}','tw_skills','${lid}',${id})">🗑️ حذف</div>
         </div>
       </div>
     </div>
@@ -1510,10 +1518,10 @@ function renderLangItem(e,lid){
         </div>
       </div>
       <div class="item-menu-wrap owner-only">
-        <button type="button" class="item-menu-btn" onclick="toggleItemMenuG(this)">⋯</button>
+        <button type="button" class="item-menu-btn" onclick="event.stopPropagation();toggleItemMenuG(this)">⋯</button>
         <div class="item-menu">
-          <div class="item-menu-opt" onclick="editLangItem(${id},'${lid}')">✏️ تعديل</div>
-          <div class="item-menu-opt del" onclick="delSectionItem('lang-item-${id}','tw_langs','${lid}',${id})">🗑️ حذف</div>
+          <div class="item-menu-opt" onclick="event.stopPropagation();editLangItem(${id},'${lid}')">✏️ تعديل</div>
+          <div class="item-menu-opt del" onclick="event.stopPropagation();delSectionItem('lang-item-${id}','tw_langs','${lid}',${id})">🗑️ حذف</div>
         </div>
       </div>
     </div>
@@ -1532,9 +1540,9 @@ function renderLinkItem(e,lid){
         </div>
       </div>
       <div class="item-menu-wrap owner-only">
-        <button type="button" class="item-menu-btn" onclick="toggleItemMenuG(this)">⋯</button>
+        <button type="button" class="item-menu-btn" onclick="event.stopPropagation();toggleItemMenuG(this)">⋯</button>
         <div class="item-menu">
-          <div class="item-menu-opt" onclick="delSectionItem('link-item-${id}','tw_links','${lid}',${id})">🗑️ حذف</div>
+          <div class="item-menu-opt" onclick="event.stopPropagation();delSectionItem('link-item-${id}','tw_links','${lid}',${id})">🗑️ حذف</div>
         </div>
       </div>
     </div>
@@ -1553,10 +1561,10 @@ function renderCourseItem(e,lid){
         <span class="badge pending">⏳ قيد المراجعة</span>
       </div>
       <div class="item-menu-wrap owner-only">
-        <button type="button" class="item-menu-btn" onclick="toggleItemMenuG(this)">⋯</button>
+        <button type="button" class="item-menu-btn" onclick="event.stopPropagation();toggleItemMenuG(this)">⋯</button>
         <div class="item-menu">
           <div class="item-menu-opt" onclick="editCourseItem(${id},'${lid}')">✏️ تعديل</div>
-          <div class="item-menu-opt del" onclick="delSectionItem('course-item-${id}','tw_courses','${lid}',${id})">🗑️ حذف</div>
+          <div class="item-menu-opt del" onclick="event.stopPropagation();delSectionItem('course-item-${id}','tw_courses','${lid}',${id})">🗑️ حذف</div>
         </div>
       </div>
     </div>
@@ -1576,9 +1584,9 @@ function renderGenericItem(e,lid){
         <div class="item-date">${e.date||''}</div>
       </div>
       <div class="item-menu-wrap owner-only">
-        <button type="button" class="item-menu-btn" onclick="toggleItemMenuG(this)">⋯</button>
+        <button type="button" class="item-menu-btn" onclick="event.stopPropagation();toggleItemMenuG(this)">⋯</button>
         <div class="item-menu">
-          <div class="item-menu-opt" onclick="delSectionItem('gen-item-${id}','tw_gen_'+('${lid}'),'${lid}',${id})">🗑️ حذف</div>
+          <div class="item-menu-opt" onclick="event.stopPropagation();delSectionItem('gen-item-${id}','tw_gen_'+('${lid}'),'${lid}',${id})">🗑️ حذف</div>
         </div>
       </div>
     </div>
@@ -1801,10 +1809,10 @@ function renderExpItem(e){
         <span class="badge pending">⏳ قيد المراجعة</span>
       </div>
       <div class="item-menu-wrap owner-only">
-        <button type="button" class="item-menu-btn" onclick="toggleItemMenu('emenu-${id}')">⋯</button>
+        <button type="button" class="item-menu-btn" onclick="event.stopPropagation();toggleItemMenu('emenu-${id}')">⋯</button>
         <div class="item-menu" id="emenu-${id}">
-          <div class="item-menu-opt" onclick="editExp(${id})">✏️ تعديل</div>
-          <div class="item-menu-opt" onclick="deleteExp(${id})">🗑️ حذف</div>
+          <div class="item-menu-opt" onclick="event.stopPropagation();editExp(${id})">✏️ تعديل</div>
+          <div class="item-menu-opt" onclick="event.stopPropagation();deleteExp(${id})">🗑️ حذف</div>
         </div>
       </div>
     </div>
@@ -1823,7 +1831,7 @@ function renderEduItem(e){
         <span class="badge pending">⏳ قيد المراجعة</span>
       </div>
       <div class="item-menu-wrap owner-only">
-        <button type="button" class="item-menu-btn" onclick="toggleItemMenu('emenu-${id}')">⋯</button>
+        <button type="button" class="item-menu-btn" onclick="event.stopPropagation();toggleItemMenu('emenu-${id}')">⋯</button>
         <div class="item-menu" id="emenu-${id}">
           <div class="item-menu-opt" onclick="editEdu(${id})">✏️ تعديل</div>
           <div class="item-menu-opt" onclick="deleteEdu(${id})">🗑️ حذف</div>
@@ -2810,8 +2818,8 @@ function saveGeneric(lid){
       <div style="display:flex;align-items:flex-start;justify-content:space-between">
         <div><div class="item-title">${t}</div>${s?`<div class="item-sub">${s}</div>`:''}<div class="item-date">${d}</div></div>
         <div class="item-menu-wrap owner-only">
-          <button type="button" class="item-menu-btn" onclick="toggleItemMenuG(this)">⋯</button>
-          <div class="item-menu"><div class="item-menu-opt" onclick="delSectionItem('gen-${id}','tw_gen_${lid}','${lid}',${id})">🗑️ حذف</div></div>
+          <button type="button" class="item-menu-btn" onclick="event.stopPropagation();toggleItemMenuG(this)">⋯</button>
+          <div class="item-menu"><div class="item-menu-opt" onclick="event.stopPropagation();delSectionItem('gen-${id}','tw_gen_${lid}','${lid}',${id})">🗑️ حذف</div></div>
         </div>
       </div>
     </div>`);
@@ -3228,7 +3236,16 @@ var SECTION_CONFIG = {
   .catch(function(err){
     console.error('[Profile] API error:', err);
     var skF=document.getElementById('profileSkeleton');
-    if(skF) skF.innerHTML='<div style="padding:40px;text-align:center;color:rgba(255,255,255,.4);font-size:.8rem;font-family:Cairo,sans-serif">خطأ في الاتصال<br><button onclick="location.reload()" style="margin-top:12px;padding:8px 20px;border-radius:20px;background:var(--ac);border:none;color:#0d1a2e;font-family:Cairo,sans-serif;cursor:pointer">إعادة المحاولة</button></div>';
+    if(skF){
+      skF.style.display='';
+      skF.innerHTML='<div style="padding:40px;text-align:center"><div style="font-size:2rem;margin-bottom:12px">⚠️</div><div style="color:rgba(255,255,255,.5);font-size:.82rem;font-family:Cairo,sans-serif;margin-bottom:16px">تعذّر تحميل البيانات</div><button onclick="location.reload()" style="padding:10px 24px;border-radius:20px;background:var(--ac);border:none;color:#0d1a2e;font-family:Cairo,sans-serif;font-size:.82rem;cursor:pointer;font-weight:700">إعادة المحاولة</button></div>';
+    }
+    // Hide skeleton if we have cached data
+    var sk2=document.getElementById('profileSkeleton');
+    var cv2=document.getElementById('cvHead');
+    if(cv2 && cv2.querySelector('#cvName') && document.getElementById('cvName').textContent.trim()){
+      if(sk2) sk2.style.display='none';
+    }
   });
 })();
 
@@ -3358,7 +3375,7 @@ function saveCrop(){
   if(_sessionUser&&_sessionUser.id){
     fetch('/upload/image',{
       method:'POST',
-      headers:{'Content-Type':'application/json'},
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+(localStorage.getItem('tw_jwt')||'')},
       body:JSON.stringify({
         user_id:_sessionUser.id,
         bucket:'avatars',
@@ -3416,7 +3433,8 @@ function saveCrop(){
       var _avSelfCheck = !new URLSearchParams(window.location.search).get('id') ||
         String(new URLSearchParams(window.location.search).get('id'))===String(u.id)||
         String(new URLSearchParams(window.location.search).get('id'))===String(u.tw_id);
-      Promise.resolve(_profileCache || fetch('/profile/'+u.id+'/full').then(r=>r.json()).then(d=>{_profileCache=d;return d;})).then(data=>{
+      // Use existing cache or fetch - avoids duplicate profile fetch
+      Promise.resolve(_profileCache || fetch('/profile/'+u.id+'/full',{headers:{'Authorization':'Bearer '+(localStorage.getItem('tw_jwt')||'')}}).then(r=>r.json()).then(d=>{_profileCache=d;return d;})).then(data=>{
           const avatarUrl=data?.profile?.avatar_url;
           if(avatarUrl){
             if(_avSelfCheck) { try{ localStorage.setItem('tw_avatar'+getUID(), avatarUrl); }catch(ex){} }
@@ -3430,6 +3448,7 @@ function saveCrop(){
 
 function doLogout(){
   // Clear ALL data on logout - prevents cross-account leaks
+  _profileCache = null;
   try{
     // Remove all tw_ prefixed keys
     Object.keys(localStorage)
