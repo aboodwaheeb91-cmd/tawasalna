@@ -889,7 +889,7 @@ window.addEventListener('load', function(){
   </div>
 </div>
 </div>
-<div class="cv-head" id="cvHead" data-cvcard="true" style="display:flex;flex-direction:column;padding:16px 14px 8px">
+<div class="cv-head" id="cvHead" data-cvcard="true" style="display:none;flex-direction:column;padding:16px 14px 8px">
 
     <!-- ── Top bar: badge + settings ── -->
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
@@ -935,7 +935,7 @@ window.addEventListener('load', function(){
     </div><!-- end avatar+info row -->
   </div><!-- end cvHead -->
 
-  <div class="cv-main" id="cvMain">
+  <div class="cv-main" id="cvMain" style="display:none">
 
   <div style="height:6px;border-radius:4px;background:rgba(255,255,255,.08);margin-bottom:10px">
         <div class="score-tips-static" style="display:flex;flex-direction:column;gap:6px"></div>
@@ -2589,7 +2589,7 @@ function saveProfile(){
   if(_sessionUser&&_sessionUser.id){
     var _profileSaveBody = {
       headline:title, bio:bio, location:loc, full_name:name,
-      dob:dob||'', country:countryName||profCountry||'', city:profCity||'', avail:avail||''
+      dob:dob||'', country:profCountry||'', city:profCity||'', avail:avail||''
     };
     var _jwt = localStorage.getItem('tw_jwt')||'';
     // Sequential: name first, then profile
@@ -3008,8 +3008,15 @@ var SECTION_CONFIG = {
       if(fullName||lsProf.headline){
         var sk=document.getElementById('profileSkeleton');
         var cv=document.getElementById('cvHead');
-        if(sk) sk.style.display='none';
-        if(cv) cv.style.display='';
+        // Only hide skeleton if we have meaningful data (name + at least bio or location)
+        var hasEnoughData = !!(fullName && (lsProf.bio || lsProf.headline || lsProf.country || lsProf.dob));
+        if(hasEnoughData){
+          if(sk) sk.style.display='none';
+          if(cv) cv.style.display='';
+          var mainEl0=document.getElementById('cvMain');
+          if(mainEl0) mainEl0.style.display='';
+        }
+        // If not enough data: keep skeleton, API will fill and hide
       }
     }catch(ex){}
   }
@@ -3036,10 +3043,12 @@ var SECTION_CONFIG = {
     var apiTitle = prof.headline||prof.title||'';
     if(apiTitle) document.getElementById('cvTitle').textContent = apiTitle;
     if(prof.bio) document.getElementById('cvBio').textContent = prof.bio;
-    // Location: prefer country+city, fallback to location field
+    // Location: convert country code to name for display
     var locStr = '';
     if(prof.country || prof.city){
-      locStr = [prof.country, prof.city].filter(Boolean).join(' - ');
+      var countryDisplay = (typeof getCountryName === 'function') ? 
+        (getCountryName(prof.country) || prof.country) : prof.country;
+      locStr = [countryDisplay, prof.city].filter(Boolean).join(' - ');
     } else if(prof.location){
       locStr = prof.location;
     }
@@ -3164,6 +3173,14 @@ var SECTION_CONFIG = {
           ? JSON.parse(prof.custom_sections) : prof.custom_sections;
         if(Array.isArray(customSecs)){
           localStorage.setItem('tw_added_sections'+getUID(), JSON.stringify(customSecs));
+          // Also save each section's items to their localStorage keys
+          customSecs.forEach(function(sec){
+            if(sec.type==='custom' && sec.lid && Array.isArray(sec.items) && sec.items.length){
+              try{
+                localStorage.setItem('tw_gen_'+sec.lid+getUID(), JSON.stringify(sec.items));
+              }catch(ex){}
+            }
+          });
         }
       }catch(ex){}
     }
@@ -3193,7 +3210,9 @@ var SECTION_CONFIG = {
     var sk2=document.getElementById('profileSkeleton');
     var cv2=document.getElementById('cvHead');
     if(sk2) sk2.style.display='none';
-    if(cv2) cv2.style.display='';
+    if(cv2) cv2.style.display=''; // show header
+    var mainEl = document.getElementById('cvMain');
+    if(mainEl) mainEl.style.display=''; // show content
 
     // ── Apply color/style from DB ──
     if(prof.profile_color && isViewingOwn){
