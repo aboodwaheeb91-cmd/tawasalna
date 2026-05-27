@@ -886,57 +886,45 @@ window.addEventListener('load', function(){
   </div>
 </div>
 </div>
-<div class="cv-head" id="cvHead">
-    <div style="display:flex;align-items:center;gap:6px">
+<div class="cv-head" id="cvHead" style="display:flex;flex-direction:column;padding:16px 14px 8px">
+
+    <!-- ── Top bar: badge + settings ── -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <span id="profileVerifiedBadge" class="tw-verified" style="display:none;background:linear-gradient(135deg,#00c896,#2563ff);color:#fff;border-radius:20px;padding:2px 10px;font-size:.62rem;font-weight:700">✅ موثق</span>
+      <span style="flex:1"></span>
       <button type="button" class="info-edit-btn owner-only" onclick="openModal('profile')" title="تعديل الملف الشخصي">⚙️</button>
-      <span id="profileVerifiedBadge" class="tw-verified" style="display:none;background:linear-gradient(135deg,#00c896,#2563ff);color:#fff;border-radius:20px;padding:2px 8px;font-size:.62rem;font-weight:700;flex-shrink:0">✅ موثق</span>
     </div>
-    <!-- الصورة + QR -->
-    <div style="display:flex;flex-direction:column;align-items:center;gap:10px;flex-shrink:0">
-      <div style="position:relative">
-        <div class="avatar" id="avatarBtn" style="cursor:pointer" onclick="openAvatarUpload()" title="تغيير الصورة الشخصية">👤</div>
-      </div>
-      <!-- ── QR Share Widget ── -->
-<div class="snap-qr-wrap">
-        <div class="snap-qr-card" onclick="openQROverlay()">
-          <div class="snap-qr-inner">
-            <canvas id="snapCanvas" width="100" height="100"></canvas>
+
+    <!-- ── Avatar + info row ── -->
+    <div style="display:flex;align-items:flex-start;gap:14px">
+
+      <!-- الصورة + QR -->
+      <div style="display:flex;flex-direction:column;align-items:center;gap:8px;flex-shrink:0">
+        <div style="position:relative">
+          <div class="avatar" id="avatarBtn" style="cursor:pointer" onclick="openAvatarUpload()" title="تغيير الصورة الشخصية">👤</div>
+        </div>
+        <div class="snap-qr-wrap">
+          <div class="snap-qr-card" onclick="openQROverlay()">
+            <div class="snap-qr-inner">
+              <canvas id="snapCanvas" width="100" height="100"></canvas>
+            </div>
           </div>
         </div>
       </div>
-    </div>
 
-    <!-- المعلومات -->
-    <div style="flex:1;min-width:0;position:relative">
-
-      <!-- زر تعديل الملف على زاوية قسم المعلومات -->
-       <!-- الاسم - يصغر تلقائياً -->
-      <div style="display:flex;align-items:center;gap:6px;justify-content:flex-start">
+      <!-- المعلومات -->
+      <div style="flex:1;min-width:0">
         <div class="cv-name" id="cvName"></div>
-      </div>
-
-      <!-- المسمى + حالة التوظيف -->
-      <div class="cv-title" id="cvTitle"></div>
-      <div id="cvAvail" style="display:none;margin-top:3px"></div>
+        <div class="cv-title" id="cvTitle"></div>
+        <div id="cvAvail" style="display:none;margin-top:3px"></div>
 
       <!-- العمر - بين المسمى والنبذة -->
       <div id="cvAgeLine" style="display:none;font-size:.72rem;font-weight:600;color:rgba(255,255,255,.35);margin-top:3px"></div>
 
       <!-- البيو -->
       <div class="cv-bio" id="cvBio"></div>
-
-      <!-- الموقع: البلد - المدينة -->
-      <div class="cv-meta-row">
-        <span class="cv-loc" id="cvLoc"></span>
-        <span class="cv-exp-badge" id="cvExpBadge" style="display:none"></span>
-      </div>
-
-      <!-- الكود -->
-      <div class="cv-code" id="cvCode"></div>
-    </div>
-
-  </div>
-
+      </div><!-- end info div -->
+    </div><!-- end avatar+info row -->
   <div class="cv-main" id="cvMain">
 
   <div style="height:6px;border-radius:4px;background:rgba(255,255,255,.08);margin-bottom:10px">
