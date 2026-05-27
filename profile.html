@@ -711,7 +711,7 @@ body.s5 .add-item-btn:hover { border-color:rgba(var(--ac-rgb),.35); color:var(--
 #profileSkeleton{text-align:center;padding:20px 0;}
 </style><link rel="stylesheet" href="/static/tw_shared.css">
 
-<link rel="stylesheet" href="/static/tw_shared.css">
+
 <!-- duplicate CSS removed -->
 <script>
 // Scroll to top on load
@@ -923,6 +923,9 @@ window.addEventListener('load', function(){
 
       <!-- البيو -->
       <div class="cv-bio" id="cvBio"></div>
+      <div class="cv-loc" id="cvLoc" style="font-size:.72rem;color:rgba(255,255,255,.45);margin-top:3px;display:none"></div>
+      <div class="cv-code" id="cvCode" style="font-size:.65rem;color:rgba(255,255,255,.25);margin-top:2px;display:none"></div>
+      <span id="cvExpBadge" style="display:none;font-size:.65rem;color:var(--ac);font-weight:700;margin-top:3px"></span>
       </div><!-- end info div -->
     </div><!-- end avatar+info row -->
   </div><!-- end cvHead -->
@@ -1368,9 +1371,9 @@ function editSkillItem(id, lid){
 }
 
 function updateSkillItem(id, lid){
-  const name=document.getElementById('m-skill-name')?.value.trim();
+  const name=(document.getElementById('m-skill-name-edit')||document.getElementById('m-skill-name'))?.value.trim();
   if(!name) return;
-  const level=document.getElementById('m-skill-level')?.value||'';
+  const level=(document.getElementById('m-skill-level-edit')||document.getElementById('m-skill-level'))?.value||'';
   const uid=getUID();
   const key='tw_skills'+getUID();
   const arr=JSON.parse(localStorage.getItem(key)||'[]');
@@ -1411,8 +1414,8 @@ function editLangItem(id, lid){
 }
 
 function updateLangItem(id, lid){
-  const name=document.getElementById('m-lang-name')?.value;
-  const level=document.getElementById('m-lang-level')?.value;
+  const name=(document.getElementById('m-lang-name-edit')||document.getElementById('m-lang-name'))?.value;
+  const level=(document.getElementById('m-lang-level-edit')||document.getElementById('m-lang-level'))?.value;
   if(!name||!level) return;
   const uid=getUID();
   const key='tw_langs'+getUID();
@@ -1449,11 +1452,11 @@ function editCourseItem(id, lid){
 }
 
 function updateCourseItem(id, lid){
-  const name=document.getElementById('m-course-name')?.value.trim();
+  const name=(document.getElementById('m-course-name-edit')||document.getElementById('m-course-name'))?.value.trim();
   if(!name) return;
-  const provider=document.getElementById('m-course-provider')?.value.trim()||'';
-  const year=document.getElementById('m-course-year')?.value||'';
-  const url=document.getElementById('m-course-url')?.value.trim()||'';
+  const provider=(document.getElementById('m-course-provider-edit')||document.getElementById('m-course-provider'))?.value.trim()||'';
+  const year=(document.getElementById('m-course-year-edit')||document.getElementById('m-course-year'))?.value||'';
+  const url=(document.getElementById('m-course-url-edit')||document.getElementById('m-course-url'))?.value.trim()||'';
   const uid=getUID();
   const key='tw_courses'+getUID();
   const arr=JSON.parse(localStorage.getItem(key)||'[]');
