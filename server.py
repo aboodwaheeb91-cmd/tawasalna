@@ -73,6 +73,7 @@ ADMIN_PASSWORD = "tw@admin2025"
 ADMIN_URL_TOKEN = "kPuOWhpIYjdLQXmh"
 # Stable token derived from password - no server storage needed
 ADMIN_TOKEN = hashlib.sha256(ADMIN_PASSWORD.encode()).hexdigest()
+JWT_SECRET = os.environ.get("JWT_SECRET") or ADMIN_TOKEN[:32]
 
 
 # ── JWT (stdlib only - no extra deps) ──
@@ -85,7 +86,7 @@ def _jwt_encode(payload: dict) -> str:
     header = _b64.urlsafe_b64encode(b'{"alg":"HS256","typ":"JWT"}').rstrip(b'=').decode()
     body = _b64.urlsafe_b64encode(json.dumps(payload).encode()).rstrip(b'=').decode()
     sig = _b64.urlsafe_b64encode(
-        hmac.new(ADMIN_TOKEN[:32].encode(), f"{header}.{body}".encode(), 'sha256').digest()
+        hmac.new(JWT_SECRET.encode(), f"{header}.{body}".encode(), 'sha256').digest()
     ).rstrip(b'=').decode()
     return f"{header}.{body}.{sig}"
 
@@ -96,7 +97,7 @@ def _jwt_decode(token: str) -> dict:
         if len(parts) != 3: return {}
         # Verify signature first
         expected_sig = _b64.urlsafe_b64encode(
-            hmac.new(ADMIN_TOKEN[:32].encode(), f"{parts[0]}.{parts[1]}".encode(), 'sha256').digest()
+            hmac.new(JWT_SECRET.encode(), f"{parts[0]}.{parts[1]}".encode(), 'sha256').digest()
         ).rstrip(b'=').decode()
         if parts[2] != expected_sig: return {}  # Invalid signature
         # Decode payload
@@ -651,7 +652,10 @@ async def submit_report(data: ReportInput, request: Request):
         
         # Create notification for admin
         try:
-            create_notification(1, f"بلاغ جديد: {data.report_type}", "report")
+            create_notification(
+            data.reported_user_id if hasattr(data,'reported_user_id') else 1,
+            f"بلاغ جديد: {data.report_type}", "report"
+        )
         except: pass
         
         return {"status": "success", "message": "تم إرسال البلاغ"}
@@ -759,22 +763,6 @@ def profile_score(user_id: int):
 
 class ResetPasswordInput(BaseModel):
     password: str
-
-@app.put("/admin/user/{user_id}/password")
-def admin_reset_password(user_id: int, data: ResetPasswordInput, request: Request):
-    check_admin(request)
-    try:
-        if len(data.password) < 6:
-            raise HTTPException(400, "كلمة المرور قصيرة جداً")
-        from auth import hash_password
-        new_hash = hash_password(data.password)
-        conn = get_conn()
-        conn.run("UPDATE users SET password_hash=:h WHERE id=:id", h=new_hash, id=user_id)
-        release_conn(conn)
-        return {"status": "success"}
-    except HTTPException: raise
-    except Exception as e:
-        raise HTTPException(500, str(e))
 
 
 @app.post("/admin/logo")
@@ -932,7 +920,7 @@ async def update_user_name(user_id: int, request: Request):
             conn.run("UPDATE users SET full_name=:name WHERE id=:uid",
                      name=full_name, uid=user_id)
         finally:
-            conn.close()
+            release_conn(conn)
         return {"success": True}
     except HTTPException:
         raise
@@ -1024,7 +1012,7 @@ def add_user_skill(user_id: int, data: SkillInput, token=Depends(verify_token)):
             cols = [d["name"] if isinstance(d, dict) else d[0] for d in conn.columns]
             return {"status": "success", "skill": dict(zip(cols, rows[0]))}
         finally:
-            conn.close()
+            release_conn(conn)
     except Exception as e:
         raise HTTPException(500, str(e))
 
@@ -1038,7 +1026,7 @@ def delete_user_skill(skill_id: int, token=Depends(verify_token)):
                     id=skill_id, uid=token['user_id'])
             return {"success": True}
         finally:
-            conn.close()
+            release_conn(conn)
     except Exception as e:
         raise HTTPException(500, str(e))
 
@@ -1054,7 +1042,7 @@ def add_user_lang(user_id: int, data: LangInput, token=Depends(verify_token)):
             cols = [d["name"] if isinstance(d, dict) else d[0] for d in conn.columns]
             return {"status": "success", "lang": dict(zip(cols, rows[0]))}
         finally:
-            conn.close()
+            release_conn(conn)
     except Exception as e:
         raise HTTPException(500, str(e))
 
@@ -1067,7 +1055,7 @@ def delete_user_lang(lang_id: int, token=Depends(verify_token)):
                     id=lang_id, uid=token['user_id'])
             return {"success": True}
         finally:
-            conn.close()
+            release_conn(conn)
     except Exception as e:
         raise HTTPException(500, str(e))
 
@@ -1083,7 +1071,7 @@ def add_user_link(user_id: int, data: LinkInput, token=Depends(verify_token)):
             cols = [d["name"] if isinstance(d, dict) else d[0] for d in conn.columns]
             return {"status": "success", "link": dict(zip(cols, rows[0]))}
         finally:
-            conn.close()
+            release_conn(conn)
     except Exception as e:
         raise HTTPException(500, str(e))
 
@@ -1096,7 +1084,7 @@ def delete_user_link(link_id: int, token=Depends(verify_token)):
                     id=link_id, uid=token['user_id'])
             return {"success": True}
         finally:
-            conn.close()
+            release_conn(conn)
     except Exception as e:
         raise HTTPException(500, str(e))
 
@@ -1353,7 +1341,7 @@ def update_job_endpoint(job_id: int, data: JobInput, request: Request):
                      id=job_id, cid=user_id, **fields)
         return {"status": "success"}
     finally:
-        conn.close()
+        release_conn(conn)
 
 @app.delete("/company/jobs/{job_id}")
 def remove_job(job_id: int, request: Request):
@@ -1409,7 +1397,7 @@ def admin_delete_job(job_id: int, request: Request):
         conn.run("DELETE FROM jobs WHERE id=:id", id=job_id)
         return {"success": True}
     finally:
-        conn.close()
+        release_conn(conn)
 
 
 @app.post("/feedback")
@@ -1429,12 +1417,12 @@ def stats():
             "emp_count": emp_count,
             "co_count": co_count,
             "edu_count": edu_count,
-            "jobs_count": len(JOBS)
+            "jobs_count": conn.run("SELECT COUNT(*) FROM jobs WHERE status='active'")[0][0] if True else 0
         }
     except Exception as e:
         raise HTTPException(500, str(e))
     finally:
-        conn.close()
+        release_conn(conn)
 
 # ══════════════════════════════════════════
 # Admin Login - returns token
@@ -1467,7 +1455,7 @@ def get_all_users(request: Request):
         print(f"get_all_users error: {e}")
         raise HTTPException(500, detail=str(e))
     finally:
-        conn.close()
+        release_conn(conn)
 
 @app.get("/admin/verify-requests")
 def admin_verify_requests(request: Request):
@@ -1492,7 +1480,7 @@ def admin_verify_requests(request: Request):
         print(f"verify_requests error: {e}")
         raise HTTPException(500, detail=str(e))
     finally:
-        conn.close()
+        release_conn(conn)
 
 @app.put("/admin/verify/{req_id}")
 def admin_update_verify(req_id: int, data: VerifyUpdateInput, request: Request):
@@ -1508,7 +1496,7 @@ def admin_update_verify(req_id: int, data: VerifyUpdateInput, request: Request):
         print(f"update_verify error: {e}")
         raise HTTPException(500, detail=str(e))
     finally:
-        conn.close()
+        release_conn(conn)
 
 @app.get("/admin/profile/{user_id}")
 def admin_get_profile(user_id: int, request: Request):
@@ -1536,7 +1524,7 @@ def delete_own_account(user_id: int, request: Request, token=Depends(verify_toke
     except Exception as e:
         raise HTTPException(500, str(e))
     finally:
-        conn.close()
+        release_conn(conn)
 
 @app.delete("/admin/user/{user_id}")
 def delete_user(user_id: int, request: Request):
@@ -1553,7 +1541,7 @@ def delete_user(user_id: int, request: Request):
     except Exception as e:
         raise HTTPException(500, str(e))
     finally:
-        conn.close()
+        release_conn(conn)
 
 @app.put("/admin/user/{user_id}/type")
 async def change_user_type(user_id: int, request: Request):
@@ -1569,7 +1557,7 @@ async def change_user_type(user_id: int, request: Request):
     except Exception as e:
         raise HTTPException(500, str(e))
     finally:
-        conn.close()
+        release_conn(conn)
 
 @app.put("/admin/user/{user_id}/verify")
 async def verify_user(user_id: int, request: Request):
@@ -1587,7 +1575,7 @@ async def verify_user(user_id: int, request: Request):
     except Exception as e:
         raise HTTPException(500, str(e))
     finally:
-        conn.close()
+        release_conn(conn)
 
 @app.put("/admin/user/{user_id}/password")
 async def admin_reset_password(user_id: int, request: Request):
@@ -1605,7 +1593,7 @@ async def admin_reset_password(user_id: int, request: Request):
     except Exception as e:
         raise HTTPException(500, str(e))
     finally:
-        conn.close()
+        release_conn(conn)
 
 @app.delete("/admin/experience/{exp_id}")
 def admin_delete_exp(exp_id: int, request: Request):
@@ -1617,7 +1605,7 @@ def admin_delete_exp(exp_id: int, request: Request):
     except Exception as e:
         raise HTTPException(500, str(e))
     finally:
-        conn.close()
+        release_conn(conn)
 
 @app.delete("/admin/education/{edu_id}")
 def admin_delete_edu(edu_id: int, request: Request):
@@ -1629,7 +1617,7 @@ def admin_delete_edu(edu_id: int, request: Request):
     except Exception as e:
         raise HTTPException(500, str(e))
     finally:
-        conn.close()
+        release_conn(conn)
 
 @app.delete("/admin/course/{course_id}")
 def admin_delete_course(course_id: int, request: Request):
@@ -1641,7 +1629,7 @@ def admin_delete_course(course_id: int, request: Request):
     except Exception as e:
         raise HTTPException(500, str(e))
     finally:
-        conn.close()
+        release_conn(conn)
 
 @app.post("/admin/message")
 def admin_send_message(data: AdminMessageInput, request: Request):

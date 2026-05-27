@@ -886,7 +886,7 @@ window.addEventListener('load', function(){
   </div>
 </div>
 </div>
-<div class="cv-head" id="cvHead" style="display:flex;flex-direction:column;padding:16px 14px 8px">
+<div class="cv-head" id="cvHead" data-cvcard="true" style="display:flex;flex-direction:column;padding:16px 14px 8px">
 
     <!-- ── Top bar: badge + settings ── -->
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
@@ -1523,7 +1523,7 @@ function renderLinkItem(e,lid){
         <span class="item-drag-handle owner-only" style="color:rgba(255,255,255,.25);cursor:grab;font-size:1rem;line-height:1" title="اسحب لإعادة الترتيب">⠿</span>
         <div>
           <div class="item-title">${e.type||'رابط'}</div>
-          <a href="${e.url}" target="_blank" class="item-sub" style="color:var(--ac);word-break:break-all;font-size:.7rem">${e.url}</a>
+          <a href="${safeUrl(e.url)}" target="_blank" class="item-sub" style="color:var(--ac);word-break:break-all;font-size:.7rem">${e.url}</a>
         </div>
       </div>
       <div class="item-menu-wrap owner-only">
@@ -1544,7 +1544,7 @@ function renderCourseItem(e,lid){
         <div style="display:flex;align-items:center;gap:4px"><span class="item-drag-handle owner-only" style="color:rgba(255,255,255,.25);cursor:grab;font-size:1rem;margin-left:6px;line-height:1" title="اسحب لإعادة الترتيب">⠿</span><div class="item-title" style="flex:1">${e.name}</div></div>
         ${e.provider?`<div class="item-sub">${e.provider}</div>`:''}
         <div class="item-date">${e.year||''}</div>
-        ${e.url?`<a href="${e.url}" target="_blank" style="font-size:.65rem;color:var(--ac)">📜 الشهادة</a>`:''}
+        ${e.url?`<a href="${safeUrl(e.url)}" target="_blank" style="font-size:.65rem;color:var(--ac)">📜 الشهادة</a>`:''}
         <span class="badge pending">⏳ قيد المراجعة</span>
       </div>
       <div class="item-menu-wrap owner-only">
@@ -1789,10 +1789,10 @@ function renderExpItem(e){
   return `<div class="item" id="exp-${id}" draggable="true" ondragstart="itemDragStart(event)" ondragover="itemDragOver(event)" ondrop="itemDrop(event,'exp-list')" ondragend="itemDragEnd(event)" ondragover="itemDragOver(event)" ondrop="itemDrop(event,'exp-list')" ondragend="itemDragEnd(event)">
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
       <div style="flex:1">
-        <div style="display:flex;align-items:center;gap:4px"><span class="item-drag-handle owner-only" style="color:rgba(255,255,255,.25);cursor:grab;font-size:1rem;margin-left:6px;line-height:1" title="اسحب لإعادة الترتيب">⠿</span><div class="item-title" style="flex:1">${e.title}</div></div>
-        <div class="item-sub">${e.company}${e.location?' · '+e.location:''}${e.work_type?' · '+e.work_type:''}</div>
+        <div style="display:flex;align-items:center;gap:4px"><span class="item-drag-handle owner-only" style="color:rgba(255,255,255,.25);cursor:grab;font-size:1rem;margin-left:6px;line-height:1" title="اسحب لإعادة الترتيب">⠿</span><div class="item-title" style="flex:1">${sanitize(e.title)}</div></div>
+        <div class="item-sub">${sanitize(e.company)}${e.location?' · '+e.location:''}${e.work_type?' · '+e.work_type:''}</div>
         <div class="item-date">${e.start_date||''}${e.end_date?' - '+e.end_date:''}</div>
-        ${e.desc?`<div style="font-size:.73rem;color:rgba(255,255,255,.4);margin-top:4px;line-height:1.5">${e.desc}</div>`:''}
+        ${e.desc?`<div style="font-size:.73rem;color:rgba(255,255,255,.4);margin-top:4px;line-height:1.5">${sanitize(e.desc)}</div>`:''}
         <span class="badge pending">⏳ قيد المراجعة</span>
       </div>
       <div class="item-menu-wrap owner-only">
@@ -1812,8 +1812,8 @@ function renderEduItem(e){
   return `<div class="item" id="edu-${id}" draggable="true" ondragstart="itemDragStart(event)" ondragover="itemDragOver(event)" ondrop="itemDrop(event,'edu-list')" ondragend="itemDragEnd(event)" ondragover="itemDragOver(event)" ondrop="itemDrop(event,'edu-list')" ondragend="itemDragEnd(event)">
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
       <div style="flex:1">
-        <div style="display:flex;align-items:center;gap:4px"><span class="item-drag-handle owner-only" style="color:rgba(255,255,255,.25);cursor:grab;font-size:1rem;margin-left:6px;line-height:1" title="اسحب لإعادة الترتيب">⠿</span><div class="item-title" style="flex:1">${degreeTitle}</div></div>
-        <div class="item-sub">${e.institution}${e.gpa?' · المعدل: '+e.gpa:''}</div>
+        <div style="display:flex;align-items:center;gap:4px"><span class="item-drag-handle owner-only" style="color:rgba(255,255,255,.25);cursor:grab;font-size:1rem;margin-left:6px;line-height:1" title="اسحب لإعادة الترتيب">⠿</span><div class="item-title" style="flex:1">${sanitize(degreeTitle)}</div></div>
+        <div class="item-sub">${sanitize(e.institution)}${e.gpa?' · المعدل: '+e.gpa:''}</div>
         <div class="item-date">${e.end_year||''}</div>
         <span class="badge pending">⏳ قيد المراجعة</span>
       </div>
@@ -2973,7 +2973,7 @@ var SECTION_CONFIG = {
       // Hide skeleton if we have data
       if(fullName||lsProf.headline){
         var sk=document.getElementById('profileSkeleton');
-        var cv=document.getElementById('cvCard');
+        var cv=document.getElementById('cvHead');
         if(sk) sk.style.display='none';
         if(cv) cv.style.display='';
       }
@@ -3002,7 +3002,17 @@ var SECTION_CONFIG = {
     var apiTitle = prof.headline||prof.title||'';
     if(apiTitle) document.getElementById('cvTitle').textContent = apiTitle;
     if(prof.bio) document.getElementById('cvBio').textContent = prof.bio;
-    if(prof.location){ var lEl=document.getElementById('cvLoc'); if(lEl) lEl.textContent='📍 '+prof.location; }
+    // Location: prefer country+city, fallback to location field
+    var locStr = '';
+    if(prof.country || prof.city){
+      locStr = [prof.country, prof.city].filter(Boolean).join(' - ');
+    } else if(prof.location){
+      locStr = prof.location;
+    }
+    if(locStr){ var lEl=document.getElementById('cvLoc'); if(lEl){ lEl.textContent='📍 '+locStr; lEl.style.display='block'; } }
+
+    // Avail badge
+    if(prof.avail && typeof showAvailBadge==='function'){ showAvailBadge(prof.avail); }
     // TW ID + Code
     var codeEl2=document.getElementById('cvCode');
     if(codeEl2) codeEl2.textContent=data.tw_id||prof.tw_id||('TW-'+(prof.user_type||'EMP').toUpperCase()+'-'+String(prof.id||uid));
@@ -3128,14 +3138,26 @@ var SECTION_CONFIG = {
     if(isViewingOwn){
       try{
         var lsKey2='tw_profile_data'+getUID();
-        var toSave={full_name:apiName,headline:apiTitle,title:apiTitle,bio:prof.bio||'',location:prof.location||'',dob:prof.dob||''};
+        var oldData={}; try{oldData=JSON.parse(localStorage.getItem(lsKey2)||'{}');}catch(e){}
+        var toSave=Object.assign(oldData,{
+          full_name:apiName,
+          headline:apiTitle,
+          title:apiTitle,
+          bio:prof.bio||'',
+          location:prof.location||'',
+          dob:prof.dob||oldData.dob||'',
+          country:prof.country||oldData.country||'',
+          city:prof.city||oldData.city||'',
+          avail:prof.avail||oldData.avail||'',
+          phone:prof.phone||oldData.phone||'',
+        });
         localStorage.setItem(lsKey2, JSON.stringify(toSave));
       }catch(ex){}
     }
 
     // ── Hide skeleton ──
     var sk2=document.getElementById('profileSkeleton');
-    var cv2=document.getElementById('cvCard');
+    var cv2=document.getElementById('cvHead');
     if(sk2) sk2.style.display='none';
     if(cv2) cv2.style.display='';
 
@@ -3600,7 +3622,7 @@ function roundRect(ctx, x, y, w, h, r){
 
 
 function openQROverlay(){
-  var uid = _qrUser&&_qrUser.id?_qrUser.id:'0';
+  var uid = _urlId||(_qrUser&&_qrUser.id?_qrUser.id:'0');
   var url = 'https://tawasolna.com/profile?id=' + uid;
   var name = (document.getElementById('cvName')||{}).textContent || 'مستخدم';
 
@@ -3885,7 +3907,7 @@ function loadProfileScore(){
   <button onclick="dismissScore()" style="font-size:.65rem;color:rgba(255,255,255,.3);background:none;border:none;cursor:pointer;font-family:Cairo,sans-serif">لاحقاً</button>
 </div>
 `;
-      sl.insertBefore
+
       sl.insertBefore(d,sl.firstChild);
     }
   }
@@ -4391,6 +4413,12 @@ document.addEventListener("DOMContentLoaded", function(){
     if(pg) pg.scrollTop = 0;
   }, 50);
 });
+
+function safeUrl(url){
+  if(!url) return '#';
+  var u = String(url).trim();
+  return (u.startsWith('http://') || u.startsWith('https://')) ? u : '#';
+}
 </script>
 </body>
 </html>

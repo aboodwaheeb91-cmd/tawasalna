@@ -45,7 +45,8 @@ def generate_tw_id(user_type: str, country_code: str = 'DEFAULT') -> str:
 # ══ الاتصال بقاعدة البيانات ══
 # ── Connection Pool ──
 _pool = []
-_pool_lock = None
+import threading as _threading
+_pool_lock = _threading.Lock()
 _MAX_POOL = 5
 _db_params = {}
 
@@ -112,23 +113,25 @@ def _cache_del(prefix):
 def get_conn():
     _parse_db_url()
     global _pool
-    if _pool:
-        try:
-            conn = _pool.pop()
-            conn.run("SELECT 1")
-            return conn
-        except Exception:
-            pass
+    with _pool_lock:
+        if _pool:
+            try:
+                conn = _pool.pop()
+                conn.run("SELECT 1")
+                return conn
+            except Exception:
+                pass
     return pg8000.native.Connection(**_db_params)
 
 def release_conn(conn):
     global _pool
-    if len(_pool) < _MAX_POOL:
-        try:
-            _pool.append(conn)
-            return
-        except Exception:
-            pass
+    with _pool_lock:
+        if len(_pool) < _MAX_POOL:
+            try:
+                _pool.append(conn)
+                return
+            except Exception:
+                pass
     try: conn.close()
     except: pass
 
@@ -564,7 +567,8 @@ def get_full_profile(user_id: int) -> Optional[dict]:
         cols = [c["name"] for c in conn.columns]
         user = _serialize(_row_to_dict(cols, rows[0]))
 
-        # Try full query first, fallback to basic if columns missing
+        # Full query with all columns
+        # Columns are created in init_db migrations
         try:
             rows = conn.run(
                 "SELECT headline, bio, location, skills, avatar_url, website, is_verified, "
@@ -572,12 +576,36 @@ def get_full_profile(user_id: int) -> Optional[dict]:
                 "profile_color, profile_style "
                 "FROM profiles WHERE user_id = :uid", uid=user_id
             )
-        except Exception:
-            # Fallback: basic columns only
-            rows = conn.run(
-                "SELECT headline, bio, location, skills, avatar_url, website, is_verified, updated_at "
-                "FROM profiles WHERE user_id = :uid", uid=user_id
-            )
+        except Exception as e:
+            print(f"[Profile query error] {e} - trying to add missing columns")
+            # Add missing columns and retry
+            for col_sql in [
+                "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS dob TEXT",
+                "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS phone TEXT",
+                "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS country TEXT",
+                "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS city TEXT",
+                "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS avail TEXT",
+                "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS title TEXT",
+                "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS sections_order TEXT",
+                "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS custom_sections TEXT",
+                "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS profile_color TEXT",
+                "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS profile_style TEXT",
+            ]:
+                try: conn.run(col_sql)
+                except Exception: pass
+            # Retry with full query
+            try:
+                rows = conn.run(
+                    "SELECT headline, bio, location, skills, avatar_url, website, is_verified, "
+                    "updated_at, dob, phone, country, city, avail, title, sections_order, custom_sections, "
+                    "profile_color, profile_style "
+                    "FROM profiles WHERE user_id = :uid", uid=user_id
+                )
+            except Exception:
+                rows = conn.run(
+                    "SELECT headline, bio, location, skills, avatar_url, website, is_verified, updated_at "
+                    "FROM profiles WHERE user_id = :uid", uid=user_id
+                )
         cols = [c["name"] for c in conn.columns]
         profile = _serialize(_row_to_dict(cols, rows[0])) if rows else {}
 
