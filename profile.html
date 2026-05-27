@@ -180,10 +180,13 @@ body.s4 .cv-head-settings {
 
 /* ── cv-name auto-shrink ── */
 .cv-name {
+  font-size:1.2rem;
+  font-weight:800;
   white-space:nowrap;
   overflow:hidden;
   text-overflow:ellipsis;
-  max-width:100%;
+  width:100%;
+  display:block;
 }
 @container (max-width:300px) {
   .cv-name { font-size:1.1rem !important; }
@@ -901,7 +904,9 @@ window.addEventListener('load', function(){
       <!-- الصورة + QR -->
       <div style="display:flex;flex-direction:column;align-items:center;gap:8px;flex-shrink:0">
         <div style="position:relative">
-          <div class="avatar" id="avatarBtn" style="cursor:pointer" onclick="openAvatarUpload()" title="تغيير الصورة الشخصية">👤</div>
+          <!-- glow behind avatar -->
+          <div id="avatarGlow" style="position:absolute;inset:-8px;border-radius:26px;background:linear-gradient(135deg,var(--ac),var(--ac2));opacity:.15;filter:blur(12px);z-index:0;pointer-events:none"></div>
+          <div class="avatar" id="avatarBtn" style="cursor:pointer;position:relative;z-index:1" onclick="openAvatarUpload()" title="تغيير الصورة الشخصية">👤</div>
         </div>
         <div class="snap-qr-wrap">
           <div class="snap-qr-card" onclick="openQROverlay()">
@@ -924,7 +929,7 @@ window.addEventListener('load', function(){
       <!-- البيو -->
       <div class="cv-bio" id="cvBio"></div>
       <div class="cv-loc" id="cvLoc" style="font-size:.72rem;color:rgba(255,255,255,.45);margin-top:3px;display:none"></div>
-      <div class="cv-code" id="cvCode" style="font-size:.65rem;color:rgba(255,255,255,.25);margin-top:2px;display:none"></div>
+      <div class="cv-code" id="cvCode" style="font-size:.65rem;color:rgba(255,255,255,.25);margin-top:3px;letter-spacing:.5px"></div>
       <span id="cvExpBadge" style="display:none;font-size:.65rem;color:var(--ac);font-weight:700;margin-top:3px"></span>
       </div><!-- end info div -->
     </div><!-- end avatar+info row -->
@@ -2565,7 +2570,7 @@ function saveProfile(){
         location:loc,
         full_name:name,
         dob:dob||'',
-        country:profCountry||'',
+        country:countryName||profCountry||'',
         city:profCity||'',
         avail:avail||''
       })
@@ -3908,7 +3913,13 @@ function loadProfileScore(){
 </div>
 `;
 
-      sl.insertBefore(d,sl.firstChild);
+      // Insert after cvHead (fixed position, not in secList)
+      var cvHeadEl = document.getElementById('cvHead');
+      if(cvHeadEl && cvHeadEl.parentNode){
+        cvHeadEl.parentNode.insertBefore(d, cvHeadEl.nextSibling);
+      } else {
+        sl.insertBefore(d,sl.firstChild);
+      }
     }
   }
   var uid=_sessionUser&&_sessionUser.id;
