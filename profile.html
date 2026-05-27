@@ -1026,6 +1026,10 @@ window.addEventListener('load', function(){
 let _sessionUser = null;
 try { _sessionUser = JSON.parse(localStorage.getItem('tw_user')); } catch(e){}
 var _profileCache = null; // cache to avoid multiple fetches
+// Clear cache if page was refreshed (new load)
+if(performance.navigation && performance.navigation.type === 1){
+  _profileCache = null; // force fresh on refresh
+}
 
 // ── Safety Layer: basic session check ──
 (function(){
@@ -1093,10 +1097,10 @@ function updatePanelState(){
 
 // ── History API - Back button support ──
 function pushModalState(type){
-  history.pushState({modal:type}, '', location.href);
+  history.replaceState({modal:type}, '', location.href);
 }
 function pushPanelState(){
-  history.pushState({panel:true}, '', location.href);
+  history.replaceState({panel:true}, '', location.href);
 }
 
 window.addEventListener('popstate', function(e){
@@ -1169,11 +1173,23 @@ function setColor(hex,el){
   setTimeout(closePanel,300);
 }
 
-document.getElementById('colorIn').addEventListener('input',e=>{
-  applyColor(e.target.value);
-  document.querySelectorAll('.csw').forEach(s=>s.classList.remove('active'));
-  redrawQR();
-  try{ localStorage.setItem('tw_profile_color'+getUID(), e.target.value); }catch(ex){}
+var _colorDebounceTimer = null;
+document.getElementById('colorIn').addEventListener('input',function(e){
+  var hex = e.target.value;
+  applyColor(hex); // immediate visual feedback
+  clearTimeout(_colorDebounceTimer);
+  _colorDebounceTimer = setTimeout(function(){
+    document.querySelectorAll('.csw').forEach(function(s){ s.classList.remove('active'); });
+    redrawQR();
+    try{ localStorage.setItem('tw_profile_color'+getUID(), hex); }catch(ex){}
+    // Save to API (debounced - 500ms after last change)
+    if(_sessionUser&&_sessionUser.id){
+      fetch('/profile/'+_sessionUser.id,{method:'PUT',
+        headers:{'Content-Type':'application/json','Authorization':'Bearer '+(localStorage.getItem('tw_jwt')||'')},
+        body:JSON.stringify({profile_color:hex})
+      }).catch(function(){});
+    }
+  }, 500);
 });
 
 function setStyle(n,el){
@@ -1380,7 +1396,7 @@ function editSkillItem(id, lid){
     </div>`;
   window._currentLid=lid;
   document.getElementById('overlay').classList.add('show');
-  history.pushState({modal:'edit-skill'},'',location.href);
+  history.replaceState({modal:'edit-skill'},'',location.href);
 }
 
 function updateSkillItem(id, lid){
@@ -1423,7 +1439,7 @@ function editLangItem(id, lid){
     </div>`;
   window._currentLid=lid;
   document.getElementById('overlay').classList.add('show');
-  history.pushState({modal:'edit-lang'},'',location.href);
+  history.replaceState({modal:'edit-lang'},'',location.href);
 }
 
 function updateLangItem(id, lid){
@@ -1461,7 +1477,7 @@ function editCourseItem(id, lid){
     </div>`;
   window._currentLid=lid;
   document.getElementById('overlay').classList.add('show');
-  history.pushState({modal:'edit-course'},'',location.href);
+  history.replaceState({modal:'edit-course'},'',location.href);
 }
 
 function updateCourseItem(id, lid){
@@ -1482,15 +1498,15 @@ function updateCourseItem(id, lid){
 
 // ── Render helpers ──
 function renderSkillItem(e,lid){
-  const id=e.id||Date.now();const lvl=e.level||'';
+  const id=e.id||_genId();const lvl=e.level||'';
   const lvlColor={'مبتدئ':'🟡','متوسط':'🟠','محترف':'🔵','خبير':'🟢'}[lvl]||'';
   return `<div class="item" id="skill-item-${id}" draggable="true" ondragstart="itemDragStart(event)" ondragover="itemDragOver(event)" ondrop="itemDrop(event,'skills-list')" ondragend="itemDragEnd(event)">
     <div style="display:flex;align-items:center;justify-content:space-between">
       <div style="display:flex;align-items:center;gap:4px">
         <span class="item-drag-handle owner-only" style="color:rgba(255,255,255,.25);cursor:grab;font-size:1rem;line-height:1" title="اسحب">⠿</span>
         <div>
-          <div class="item-title">${e.name}</div>
-          ${lvl?`<div class="item-sub">${lvlColor} ${lvl}</div>`:''}
+          <div class="item-title">${sanitize(e.name||'')}</div>
+          ${lvl?`<div class="item-sub">${sanitize(lvlColor)} ${sanitize(lvl)}</div>`:''}
         </div>
       </div>
       <div class="item-menu-wrap owner-only">
@@ -1506,14 +1522,14 @@ function renderSkillItem(e,lid){
 
 
 function renderLangItem(e,lid){
-  const id=e.id||Date.now();const lvl=e.level||'';
+  const id=e.id||_genId();const lvl=e.level||'';
   const lvlColor={'مبتدئ':'🟡','محادثة':'🟠','جيد':'🔵','طلاقة':'🟢','لغة أم':'⭐'}[lvl]||'';
   return `<div class="item" id="lang-item-${id}" draggable="true" ondragstart="itemDragStart(event)" ondragover="itemDragOver(event)" ondrop="itemDrop(event,'langs-list')" ondragend="itemDragEnd(event)">
     <div style="display:flex;align-items:center;justify-content:space-between">
       <div style="display:flex;align-items:center;gap:4px">
         <span class="item-drag-handle owner-only" style="color:rgba(255,255,255,.25);cursor:grab;font-size:1rem;line-height:1" title="اسحب لإعادة الترتيب">⠿</span>
         <div>
-          <div class="item-title">${e.name}</div>
+          <div class="item-title">${sanitize(e.name||'')}</div>
           ${lvl?`<div class="item-sub">${lvlColor} ${lvl}</div>`:''}
         </div>
       </div>
@@ -1529,14 +1545,14 @@ function renderLangItem(e,lid){
 }
 
 function renderLinkItem(e,lid){
-  const id=e.id||Date.now();
+  const id=e.id||_genId();
   return `<div class="item" id="link-item-${id}" draggable="true" ondragstart="itemDragStart(event)" ondragover="itemDragOver(event)" ondrop="itemDrop(event,'links-list')" ondragend="itemDragEnd(event)">
     <div style="display:flex;align-items:center;justify-content:space-between">
       <div style="display:flex;align-items:center;gap:4px">
         <span class="item-drag-handle owner-only" style="color:rgba(255,255,255,.25);cursor:grab;font-size:1rem;line-height:1" title="اسحب لإعادة الترتيب">⠿</span>
         <div>
           <div class="item-title">${e.type||'رابط'}</div>
-          <a href="${safeUrl(e.url)}" target="_blank" class="item-sub" style="color:var(--ac);word-break:break-all;font-size:.7rem">${e.url}</a>
+          <a href="${safeUrl(e.url)}" target="_blank" rel="noopener noreferrer" class="item-sub" style="color:var(--ac);word-break:break-all;font-size:.7rem">${e.url}</a>
         </div>
       </div>
       <div class="item-menu-wrap owner-only">
@@ -1550,13 +1566,13 @@ function renderLinkItem(e,lid){
 }
 
 function renderCourseItem(e,lid){
-  const id=e.id||Date.now();
+  const id=e.id||_genId();
   return `<div class="item" id="course-item-${id}" draggable="true" ondragstart="itemDragStart(event)" ondragover="itemDragOver(event)" ondrop="itemDrop(event,'course-list')" ondragend="itemDragEnd(event)" ondragover="itemDragOver(event)" ondrop="itemDrop(event,'course-list')" ondragend="itemDragEnd(event)">
     <div style="display:flex;align-items:flex-start;justify-content:space-between">
       <div>
-        <div style="display:flex;align-items:center;gap:4px"><span class="item-drag-handle owner-only" style="color:rgba(255,255,255,.25);cursor:grab;font-size:1rem;margin-left:6px;line-height:1" title="اسحب لإعادة الترتيب">⠿</span><div class="item-title" style="flex:1">${e.name}</div></div>
+        <div style="display:flex;align-items:center;gap:4px"><span class="item-drag-handle owner-only" style="color:rgba(255,255,255,.25);cursor:grab;font-size:1rem;margin-left:6px;line-height:1" title="اسحب لإعادة الترتيب">⠿</span><div class="item-title" style="flex:1">${sanitize(e.name||'')}</div></div>
         ${e.provider?`<div class="item-sub">${e.provider}</div>`:''}
-        <div class="item-date">${e.year||''}</div>
+        <div class="item-date">${sanitize(String(e.year||''))}</div>
         ${e.url?`<a href="${safeUrl(e.url)}" target="_blank" style="font-size:.65rem;color:var(--ac)">📜 الشهادة</a>`:''}
         <span class="badge pending">⏳ قيد المراجعة</span>
       </div>
@@ -1578,10 +1594,10 @@ function renderGenericItem(e,lid){
       <div style="flex:1">
         <div style="display:flex;align-items:center;gap:4px">
           <span class="item-drag-handle owner-only" style="color:rgba(255,255,255,.25);cursor:grab;font-size:1rem;margin-left:4px;line-height:1" title="اسحب لإعادة الترتيب">⠿</span>
-          <div class="item-title" style="flex:1">${e.title}</div>
+          <div class="item-title" style="flex:1">${sanitize(e.title||'')}</div>
         </div>
-        ${e.sub?`<div class="item-sub">${e.sub}</div>`:''}
-        <div class="item-date">${e.date||''}</div>
+        ${e.sub?`<div class="item-sub">${sanitize(e.sub||'')}</div>`:''}
+        <div class="item-date">${sanitize(e.date||'')}</div>
       </div>
       <div class="item-menu-wrap owner-only">
         <button type="button" class="item-menu-btn" onclick="event.stopPropagation();toggleItemMenuG(this)">⋯</button>
@@ -1649,7 +1665,7 @@ function saveSkillItem(){
   const level=document.getElementById('m-skill-level')?.value||'';
   if(!name){ document.getElementById('m-skill-name').style.borderColor='#f87171'; return; }
   document.getElementById('m-skill-name').style.borderColor='';
-  const localId=Date.now();
+  const localId=_genId();
   saveSectionItem('tw_skills',{id:localId,name,level},lid,renderSkillItem);
   if(_sessionUser&&_sessionUser.id){
     fetch('/skills/'+_sessionUser.id,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+(localStorage.getItem('tw_jwt')||'')},
@@ -1670,7 +1686,7 @@ function saveLangItem(){
   if(!level){ document.getElementById('m-lang-level').style.borderColor='#f87171'; return; }
   document.getElementById('m-lang-name').style.borderColor='';
   document.getElementById('m-lang-level').style.borderColor='';
-  const localId=Date.now();
+  const localId=_genId();
   saveSectionItem('tw_langs',{id:localId,name,level},lid,renderLangItem);
   if(_sessionUser&&_sessionUser.id){
     fetch('/langs/'+_sessionUser.id,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+(localStorage.getItem('tw_jwt')||'')},
@@ -1690,7 +1706,7 @@ function saveLinkItem(){
   if(!url){ document.getElementById('m-link-url').style.borderColor='#f87171'; return; }
   document.getElementById('m-link-url').style.borderColor='';
   const finalUrl=url.startsWith('http')?url:'https://'+url;
-  const localId=Date.now();
+  const localId=_genId();
   saveSectionItem('tw_links',{id:localId,type,url:finalUrl},lid,renderLinkItem);
   if(_sessionUser&&_sessionUser.id){
     fetch('/links/'+_sessionUser.id,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+(localStorage.getItem('tw_jwt')||'')},
@@ -1711,7 +1727,7 @@ function saveCourseItem(){
   const url=document.getElementById('m-course-url')?.value.trim()||'';
   if(!name){ document.getElementById('m-course-name').style.borderColor='#f87171'; return; }
   document.getElementById('m-course-name').style.borderColor='';
-  const localId=Date.now();
+  const localId=_genId();
   saveSectionItem('tw_courses',{id:localId,name,provider,year,url},lid,renderCourseItem);
   if(_sessionUser&&_sessionUser.id){
     fetch('/course/'+_sessionUser.id,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+(localStorage.getItem('tw_jwt')||'')},
@@ -1803,8 +1819,8 @@ function renderExpItem(e){
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
       <div style="flex:1">
         <div style="display:flex;align-items:center;gap:4px"><span class="item-drag-handle owner-only" style="color:rgba(255,255,255,.25);cursor:grab;font-size:1rem;margin-left:6px;line-height:1" title="اسحب لإعادة الترتيب">⠿</span><div class="item-title" style="flex:1">${sanitize(e.title)}</div></div>
-        <div class="item-sub">${sanitize(e.company)}${e.location?' · '+e.location:''}${e.work_type?' · '+e.work_type:''}</div>
-        <div class="item-date">${e.start_date||''}${e.end_date?' - '+e.end_date:''}</div>
+        <div class="item-sub">${sanitize(e.company)}${e.location?' · '+sanitize(e.location):''}${e.work_type?' · '+sanitize(e.work_type):''}</div>
+        <div class="item-date">${sanitize(e.start_date||'')}${e.end_date?' - '+sanitize(e.end_date):''}</div>
         ${e.desc?`<div style="font-size:.73rem;color:rgba(255,255,255,.4);margin-top:4px;line-height:1.5">${sanitize(e.desc)}</div>`:''}
         <span class="badge pending">⏳ قيد المراجعة</span>
       </div>
@@ -1826,8 +1842,8 @@ function renderEduItem(e){
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
       <div style="flex:1">
         <div style="display:flex;align-items:center;gap:4px"><span class="item-drag-handle owner-only" style="color:rgba(255,255,255,.25);cursor:grab;font-size:1rem;margin-left:6px;line-height:1" title="اسحب لإعادة الترتيب">⠿</span><div class="item-title" style="flex:1">${sanitize(degreeTitle)}</div></div>
-        <div class="item-sub">${sanitize(e.institution)}${e.gpa?' · المعدل: '+e.gpa:''}</div>
-        <div class="item-date">${e.end_year||''}</div>
+        <div class="item-sub">${sanitize(e.institution)}${e.gpa?' · المعدل: '+sanitize(String(e.gpa)):''}</div>
+        <div class="item-date">${sanitize(String(e.end_year||''))}</div>
         <span class="badge pending">⏳ قيد المراجعة</span>
       </div>
       <div class="item-menu-wrap owner-only">
@@ -2571,20 +2587,23 @@ function saveProfile(){
   }catch(ex){}
   // Save to API
   if(_sessionUser&&_sessionUser.id){
-    fetch('/profile/'+_sessionUser.id,{method:'PUT',headers:{'Content-Type':'application/json','Authorization':'Bearer '+(localStorage.getItem('tw_jwt')||'')},
-      body:JSON.stringify({
-        headline:title,
-        bio:bio,
-        location:loc,
-        full_name:name,
-        dob:dob||'',
-        country:countryName||profCountry||'',
-        city:profCity||'',
-        avail:avail||''
-      })
+    var _profileSaveBody = {
+      headline:title, bio:bio, location:loc, full_name:name,
+      dob:dob||'', country:countryName||profCountry||'', city:profCity||'', avail:avail||''
+    };
+    var _jwt = localStorage.getItem('tw_jwt')||'';
+    // Sequential: name first, then profile
+    var _namePromise = (name && name!==(_sessionUser.full_name||'')) ?
+      fetch('/auth/user/'+_sessionUser.id+'/name',{method:'PUT',
+        headers:{'Content-Type':'application/json','Authorization':'Bearer '+_jwt},
+        body:JSON.stringify({full_name:name})}).catch(function(){})
+      : Promise.resolve();
+    _namePromise.then(function(){
+      return fetch('/profile/'+_sessionUser.id,{method:'PUT',
+        headers:{'Content-Type':'application/json','Authorization':'Bearer '+_jwt},
+        body:JSON.stringify(_profileSaveBody)});
     }).then(function(){showToast('تم الحفظ ✅');}).catch(function(){showToast('خطأ في الحفظ','error');});
-    // Update name in users table
-    if(name&&name!==(_sessionUser.full_name||'')){
+    if(false&&name&&name!==(_sessionUser.full_name||'')){
       fetch('/auth/user/'+_sessionUser.id+'/name',{method:'PUT',
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify({full_name:name})
@@ -2613,6 +2632,8 @@ function sendVerifyRequest(itemType, itemId, itemTitle, itemCompany){
 }
 
 function saveExp(){
+  if(window._savingExp) return; window._savingExp=true;
+  const mbtnOk=document.querySelector("#modal .mbtn-ok"); if(mbtnOk) mbtnOk.disabled=true;
   const t=document.getElementById('m-et').value.trim();
   const co=document.getElementById('m-ec').value.trim();
   const s=document.getElementById('m-es').value;
@@ -2810,7 +2831,7 @@ function saveGeneric(lid){
   if(!t){ const el=document.getElementById('m-gt'); if(el) el.style.borderColor='#f87171'; return; }
   const s=document.getElementById('m-gs')?.value||'';
   const d=document.getElementById('m-gd')?.value||'';
-  const id=Date.now();
+  const id=_genId();
   const el=document.getElementById(lid);
   if(el){
     el.querySelector('.empty-hint')?.remove();
@@ -3281,9 +3302,23 @@ function openAvatarUpload(){
 
 function handleAvatarUpload(input){
   if(!input.files[0]) return;
+  const file = input.files[0];
+  // Validate file type
+  const allowedTypes = ['image/jpeg','image/jpg','image/png','image/webp','image/gif'];
+  if(!allowedTypes.includes(file.type)){
+    showToast('يرجى اختيار صورة بصيغة JPG أو PNG أو WebP فقط','error');
+    input.value = '';
+    return;
+  }
+  // Validate file size (max 5MB)
+  if(file.size > 5 * 1024 * 1024){
+    showToast('حجم الصورة يجب أن يكون أقل من 5MB','error');
+    input.value = '';
+    return;
+  }
   const reader=new FileReader();
   reader.onload=e=>openCropModal(e.target.result);
-  reader.readAsDataURL(input.files[0]);
+  reader.readAsDataURL(file);
 }
 
 function openCropModal(src){
@@ -3326,6 +3361,9 @@ function openCropModal(src){
   img.addEventListener('mousedown',startDrag);
   img.addEventListener('touchstart',startDrag,{passive:true});
   document.addEventListener('mousemove',doDrag);
+  // ESC to close crop
+  function _escCrop(e){ if(e.key==='Escape'){ document.getElementById('cropOv')?.remove(); document.removeEventListener('keydown',_escCrop); document.removeEventListener('mousemove',doDrag); document.removeEventListener('mouseup',stopDrag); document.removeEventListener('touchmove',doDrag); document.removeEventListener('touchend',stopDrag); } }
+  document.addEventListener('keydown',_escCrop);
   document.addEventListener('touchmove',doDrag,{passive:false});
   document.addEventListener('mouseup',stopDrag);
   document.addEventListener('touchend',stopDrag);
@@ -3362,6 +3400,9 @@ function saveCrop(){
   const ctx=canvas.getContext('2d');
   ctx.drawImage(img, -_cropX/_cropScale, -_cropY/_cropScale, 300/_cropScale, 300/_cropScale, 0, 0, 300, 300);
   const dataUrl=canvas.toDataURL('image/jpeg',0.82);
+  // Cleanup canvas to free memory
+  canvas.width=1; canvas.height=1;
+  const cropCtx2=canvas.getContext('2d'); if(cropCtx2) cropCtx2.clearRect(0,0,1,1);
   const avatarEl=document.getElementById('avatarBtn');
   if(avatarEl) avatarEl.innerHTML='<img loading="lazy" src="'+dataUrl+'" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;">';
   // Show immediately from localStorage
@@ -3480,6 +3521,12 @@ function doLogout(){
 
 let _qrUser = null;
 var _qrCache = {};
+var _QR_CACHE_MAX = 10; // max cached QR entries
+function _qrCacheSet(key, val){
+  var keys = Object.keys(_qrCache);
+  if(keys.length >= _QR_CACHE_MAX){ delete _qrCache[keys[0]]; } // LRU evict oldest
+  _qrCache[key] = val;
+}
 try { _qrUser = JSON.parse(localStorage.getItem('tw_user')); } catch(e){}
 
 function rrPath(ctx, x, y, w, h, r){
@@ -3661,7 +3708,7 @@ function openQROverlay(){
   ov.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(7,11,24,.97);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px';
 
   // Push state for back button
-  history.pushState({qrOpen:true},'QR','#qr');
+  history.replaceState({qrOpen:true},'QR','#qr');
   window.addEventListener('popstate', function _pop(e){
     if(!e.state||!e.state.qrOpen){ var d=document.getElementById('qrOverlayDiv'); if(d)d.remove(); }
     window.removeEventListener('popstate',_pop);
@@ -3864,11 +3911,19 @@ function redrawQR(){
   drawSnapQR('snapCanvas', _qrUrl, 68);
 }
 
+var _qrRetries = 0;
 function initQR(){
   if(typeof qrcode === 'undefined'){
-    setTimeout(initQR, 100);
+    if(_qrRetries++ < 50){ // max 5 seconds
+      setTimeout(initQR, 100);
+    } else {
+      console.warn('[QR] Library failed to load after 5s');
+      var canvas = document.getElementById('snapCanvas');
+      if(canvas){ var ctx=canvas.getContext('2d'); ctx.fillStyle='rgba(255,255,255,.1)'; ctx.fillRect(0,0,100,100); }
+    }
     return;
   }
+  _qrRetries = 0;
   drawSnapQR('snapCanvas', _qrUrl, 68);
 }
 window.addEventListener('load', initQR);
@@ -4225,9 +4280,14 @@ function _secDragEnd(e){
   });
 }
 
+var _initializedItems = new WeakSet();
+var _initializedSections = new WeakSet();
+
 function _initSectionDrag(){
   // Also init item drag handles
   document.querySelectorAll('.item').forEach(function(item){
+    if(_initializedItems.has(item)) return; // skip already initialized
+    _initializedItems.add(item);
     var handle = item.querySelector('.item-drag-handle');
     if(handle){
       handle.addEventListener('mousedown', function(e){
@@ -4251,6 +4311,8 @@ function _initSectionDrag(){
   });
 
   document.querySelectorAll('#secList > .section').forEach(function(sec){
+    if(_initializedSections.has(sec)) return; // skip already initialized
+    _initializedSections.add(sec);
     // Enable draggable only when mousedown on .drag-handle
     var handle = sec.querySelector('.drag-handle');
     if(handle){
@@ -4350,6 +4412,10 @@ if(typeof MutationObserver !== 'undefined'){
   });
   var _secList = document.getElementById('secList');
   if(_secList) _secObserver.observe(_secList, {childList:true});
+  // Cleanup on page unload
+  window.addEventListener('beforeunload', function(){
+    if(_secObserver) _secObserver.disconnect();
+  }, {once:true});
 }
 
 // ── Score Dismiss (لاحقاً) ──
@@ -4450,6 +4516,9 @@ document.addEventListener("DOMContentLoaded", function(){
   }, 50);
 });
 
+function _genId(){
+  return Date.now()+'_'+Math.random().toString(36).slice(2,9);
+}
 function safeUrl(url){
   if(!url) return '#';
   var u = String(url).trim();

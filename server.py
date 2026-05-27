@@ -630,7 +630,7 @@ class ReportInput(BaseModel):
     target_url: Optional[str] = None
 
 @app.post("/reports/submit")
-async def submit_report(data: ReportInput, request: Request):
+async def submit_report(data: ReportInput, request: Request, token=Depends(verify_token)):
     """Submit a report against a user or content"""
     try:
         ensure_reports_table()
@@ -909,7 +909,10 @@ def login(data: LoginInput):
     return {"status": "success", "user": user, "token": token}
 
 @app.put("/auth/user/{user_id}/name")
-async def update_user_name(user_id: int, request: Request):
+async def update_user_name(user_id: int, request: Request, token=Depends(verify_token)):
+    # User can only update their own name
+    if str(token.get('user_id','')) != str(user_id):
+        raise HTTPException(403, "Unauthorized")
     try:
         data = await request.json()
         full_name = data.get("full_name","").strip()
@@ -1132,7 +1135,7 @@ def user_notifications(user_id: int):
         raise HTTPException(500, str(e))
 
 @app.put("/notifications/{user_id}/read")
-def read_notifications(user_id: int):
+def read_notifications(user_id: int, token=Depends(verify_token)):
     try:
         mark_notifications_read(user_id)
         return {"status": "success"}
@@ -1142,7 +1145,7 @@ def read_notifications(user_id: int):
 # ══ Storage Upload ══
 
 @app.post("/upload/image")
-async def upload_image(data: ImageUploadInput):
+async def upload_image(data: ImageUploadInput, token=Depends(verify_token)):
     """Upload image to Supabase Storage and return public URL"""
     import httpx
     try:
@@ -1200,7 +1203,7 @@ async def upload_image(data: ImageUploadInput):
 # ══ KYC Endpoints ══
 
 @app.post("/kyc/start")
-def kyc_start(user_id: int):
+def kyc_start(user_id: int, token=Depends(verify_token)):
     try:
         result = start_kyc(user_id)
         return {"status": "success", "kyc": result}
@@ -1216,7 +1219,7 @@ def kyc_status(user_id: int):
         raise HTTPException(500, str(e))
 
 @app.post("/kyc/email/send")
-def kyc_send_email(data: KYCEmailInput):
+def kyc_send_email(data: KYCEmailInput, token=Depends(verify_token)):
     try:
         start_kyc(data.user_id)
         code = send_email_code(data.user_id, data.email)
@@ -1226,7 +1229,7 @@ def kyc_send_email(data: KYCEmailInput):
         raise HTTPException(500, str(e))
 
 @app.post("/kyc/email/verify")
-def kyc_verify_email(data: KYCCodeInput):
+def kyc_verify_email(data: KYCCodeInput, token=Depends(verify_token)):
     try:
         ok = verify_email_code(data.user_id, data.code)
         if not ok:
@@ -1238,7 +1241,7 @@ def kyc_verify_email(data: KYCCodeInput):
         raise HTTPException(500, str(e))
 
 @app.post("/kyc/phone/send")
-def kyc_send_phone(data: KYCPhoneInput):
+def kyc_send_phone(data: KYCPhoneInput, token=Depends(verify_token)):
     try:
         code = send_phone_code(data.user_id, data.phone)
         print(f"[KYC] Phone code for user {data.user_id}: {code}")  # In prod: send via SMS
@@ -1247,7 +1250,7 @@ def kyc_send_phone(data: KYCPhoneInput):
         raise HTTPException(500, str(e))
 
 @app.post("/kyc/phone/verify")
-def kyc_verify_phone(data: KYCCodeInput):
+def kyc_verify_phone(data: KYCCodeInput, token=Depends(verify_token)):
     try:
         ok = verify_phone_code(data.user_id, data.code)
         if not ok:
@@ -1259,7 +1262,7 @@ def kyc_verify_phone(data: KYCCodeInput):
         raise HTTPException(500, str(e))
 
 @app.post("/kyc/docs")
-def kyc_upload_docs(data: KYCDocsInput):
+def kyc_upload_docs(data: KYCDocsInput, token=Depends(verify_token)):
     try:
         result = upload_kyc_docs(data.user_id, data.id_front_url, data.selfie_url)
         return {"status": "success", **result}
@@ -1294,7 +1297,7 @@ def admin_kyc_reject(user_id: int, data: KYCAdminInput, request: Request):
         raise HTTPException(500, str(e))
 
 @app.post("/verify-request")
-def request_verification(data: VerifyRequestInput):
+def request_verification(data: VerifyRequestInput, token=Depends(verify_token)):
     try:
         req = create_verify_request(data.user_id, data.dict())
         return {"status": "success", "request": req}
@@ -1358,7 +1361,7 @@ def get_company_jobs(request: Request):
     return {"jobs": jobs, "count": len(jobs)}
 
 @app.post("/jobs/{job_id}/apply")
-def apply_to_job(job_id: int, data: JobApplyInput):
+def apply_to_job(job_id: int, data: JobApplyInput, token=Depends(verify_token)):
     result = apply_job(job_id, data.user_id, data.cover_letter or "")
     return {"status": "success", **result}
 
@@ -1401,7 +1404,7 @@ def admin_delete_job(job_id: int, request: Request):
 
 
 @app.post("/feedback")
-def log_feedback(data: FeedbackInput):
+def log_feedback(data: FeedbackInput, token=Depends(verify_token)):
     return {"status": "logged"}
 
 @app.get("/stats")
