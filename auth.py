@@ -624,6 +624,17 @@ def get_full_profile(user_id: int) -> Optional[dict]:
 
 def update_profile(user_id: int, data: dict) -> dict:
     _cache_del('profile:'+str(user_id))
+    # Also clear tw_id cache (used when accessing profile by URL ?id=tw_id)
+    try:
+        tw_conn = get_conn()
+        try:
+            tw_rows = tw_conn.run("SELECT tw_id FROM users WHERE id = :uid", uid=user_id)
+            if tw_rows and tw_rows[0][0]:
+                _cache_del('profile_tw:'+str(tw_rows[0][0]))
+        finally:
+            release_conn(tw_conn)
+    except Exception:
+        pass
     conn = get_conn()
     try:
         # Update full_name in users table if provided
