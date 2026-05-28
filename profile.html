@@ -1298,8 +1298,9 @@ function addSection(id,icon,title,el,skipOrderSave=false){
   }
   // Save the new order including this section
   if(!skipOrderSave) saveSectionOrder();
-  // C-1 FIX: persist section structure to DB immediately (not just LS)
-  _saveSectionsConfig();
+  // Fix 3: only persist custom sections to DB (not built-ins with own save flow)
+  var _builtins=['course','skills','langs','links','exp','edu'];
+  if(_builtins.indexOf(id)===-1) _saveSectionsConfig();
   setTimeout(closePanel,400);
 }
 
@@ -1972,17 +1973,34 @@ function deleteEdu(id){
     fetch('/education/'+id,{method:'DELETE',headers:{'Authorization':'Bearer '+(localStorage.getItem('tw_jwt')||'')}}).catch(function(){});
   }
 }
+var _ssoDebounceTimer=null;
 function saveSectionOrder(){
   const order=[...secList.children].map(s=>s.id);
   try{ localStorage.setItem('tw_sec_order'+getUID(),JSON.stringify(order)); }catch(ex){}
-  // Save to DB
+  // Fix 3: Debounce — prevents rapid calls from firing multiple PUTs
+  clearTimeout(_ssoDebounceTimer);
+  _ssoDebounceTimer=setTimeout(function(){
   if(_sessionUser&&_sessionUser.id){
+    // Fix 1: include custom_sections in same PUT — single coordinated save
+    var _customSecs=(function(){
+      try{
+        var _secs=JSON.parse(localStorage.getItem('tw_added_sections'+getUID())||'[]');
+        var _cust=_secs.filter(function(s){return s.type==='custom';}).map(function(s){
+          var _items=JSON.parse(localStorage.getItem('tw_gen_'+s.lid+getUID())||'[]');
+          return Object.assign({},s,{items:_items});
+        });
+        return JSON.stringify(_cust);
+      }catch(ex){return null;}
+    })();
+    var _ssoPayload={sections_order:JSON.stringify(order)};
+    if(_customSecs!==null) _ssoPayload.custom_sections=_customSecs;
     fetch('/profile/'+_sessionUser.id,{
       method:'PUT',
       headers:{'Content-Type':'application/json','Authorization':'Bearer '+(localStorage.getItem('tw_jwt')||'')},
-      body:JSON.stringify({sections_order:JSON.stringify(order)})
-    }).then(function(){showToast('تم حفظ الترتيب ✅');}).catch(()=>{});
+      body:JSON.stringify(_ssoPayload)
+    }).then(function(){showToast('تم حفظ الترتيب ✅');}).catch(function(){ console.error('[saveSectionOrder] fail'); });
   }
+  },50); // end debounce
 }
 
 function loadSectionOrder(){
@@ -2828,17 +2846,14 @@ function _saveSectionsConfig(){
   try{
     const sections=JSON.parse(localStorage.getItem('tw_added_sections'+getUID())||'[]');
     // Build sections data with items
-    const sectionsData=sections.map(sec=>{
+    // Fix O-1: only 'custom' type sections belong in custom_sections column
+    const sectionsData=sections.filter(sec=>sec.type==='custom').map(sec=>{
       const items=JSON.parse(localStorage.getItem('tw_gen_'+sec.lid+getUID())||'[]');
       return {...sec, items};
     });
-    fetch('/profile/'+_sessionUser.id,{
-      method:'PUT',
-      headers:{'Content-Type':'application/json','Authorization':'Bearer '+(localStorage.getItem('tw_jwt')||'')},
-      body:JSON.stringify({custom_sections:JSON.stringify(sectionsData)})
-    }).then(function(r){
-      if(!r.ok){ console.error('[Sections] DB save failed:', r.status); showToast('تعذّر حفظ الأقسام','error'); }
-    }).catch(function(e){ console.error('[Sections] Network error:', e); showToast('خطأ في الاتصال','error'); });
+    // Fix 1b: saveSectionOrder owns PUT /profile — delegates to it
+    // saveSectionOrder already reads custom_sections from LS and sends both in one PUT
+    saveSectionOrder();
   }catch(ex){}
 }
 
@@ -2864,8 +2879,7 @@ function saveCustomSec(){
     saved.push({id:secId, lid:lid, icon:ic, title:nm, type:'custom'});
     localStorage.setItem('tw_added_sections'+getUID(), JSON.stringify(saved));
   }catch(ex){}
-  saveSectionOrder();
-  // Save sections config to DB
+  // Fix 1c: _saveSectionsConfig owns the save (it calls saveSectionOrder internally)
   _saveSectionsConfig();
   closeModal();
 }
