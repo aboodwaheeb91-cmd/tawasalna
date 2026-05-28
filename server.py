@@ -966,8 +966,17 @@ def full_profile(user_id: str):
 
 @app.put("/profile/{user_id}")
 def update_user_profile(user_id: int, data: ProfileUpdateInput, token=Depends(verify_token)):
+    # Ownership check
+    tok_uid = token.get('user_id')
+    if str(tok_uid) != str(user_id):
+        print(f"[PUT /profile] MISMATCH: token={tok_uid} url={user_id}")
+        raise HTTPException(403, "Unauthorized")
     try:
-        profile = update_profile(user_id, data.dict())
+        profile = update_profile(user_id, data.dict(exclude_none=True))
+        if not profile:
+            print(f"[PUT /profile] update_profile returned None for user {user_id}")
+            raise HTTPException(500, "Profile update failed")
+        print(f"[PUT /profile] ✅ Updated user {user_id}: {list(data.dict(exclude_none=True).keys())}")
         return {"status": "success", "profile": profile}
     except ValueError as e:
         raise HTTPException(404, detail=str(e))
