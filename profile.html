@@ -2597,8 +2597,6 @@ function saveProfile(){
     }).then(function(r){
         return r.json().then(function(d){
           if(d && d.status === 'success'){
-            window._savingProfile=false;
-            showToast('تم الحفظ ✅');
             // CR-2 FIX: Apply returned profile data to LS and DOM immediately
             var prof = d.profile;
             if(prof && isOwner){
@@ -2634,6 +2632,9 @@ function saveProfile(){
               // H-2 FIX: Invalidate frontend cache
               _profileCache = null;
             }
+            // Toast fires LAST — after DB, refetch, LS, DOM, cache all done
+            window._savingProfile=false;
+            showToast('تم الحفظ ✅');
           } else {
             window._savingProfile=false;
             var errMsg = d&&d.detail||'خطأ غير معروف';
