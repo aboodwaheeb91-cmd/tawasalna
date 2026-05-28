@@ -650,6 +650,7 @@ def update_profile(user_id: int, data: dict) -> dict:
             except Exception: pass
 
         fields = {k: v for k, v in data.items() if k in allowed and v is not None}
+        print(f"[update_profile] user={user_id} saving fields: {list(fields.keys())}")
 
         rows = conn.run("SELECT id FROM profiles WHERE user_id = :uid", uid=user_id)
         if rows:
@@ -659,6 +660,7 @@ def update_profile(user_id: int, data: dict) -> dict:
                     f"UPDATE profiles SET {set_clause}, updated_at = NOW() WHERE user_id = :uid",
                     uid=user_id, **fields
                 )
+                print(f"[update_profile] ✅ DB UPDATE success for user {user_id}")
         else:
             cols_list = ["user_id"] + list(fields.keys())
             placeholders = ", ".join(f":{c}" for c in cols_list)

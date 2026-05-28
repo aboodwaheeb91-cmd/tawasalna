@@ -2575,24 +2575,7 @@ function saveProfile(){
   if(avail){ showAvailBadge(avail); }
 
   // Save to localStorage
-  try{
-      const prof=JSON.parse(localStorage.getItem('tw_profile_data'+getUID())||'{}');
-    // Always save all fields (overwrite with current values)
-    prof.full_name=name||prof.full_name||'';
-    prof.first_name=fn||prof.first_name||'';
-    prof.middle_name=mn||'';
-    prof.last_name=ln||prof.last_name||'';
-    prof.headline=title||'';
-    prof.title=title||'';
-    prof.bio=bio||'';
-    prof.location=loc||prof.location||'';
-    if(dob) prof.dob=dob;
-    if(profCountry) prof.country=profCountry;
-    if(profCity) prof.city=profCity;
-    if(avail) prof.avail=avail;
-    localStorage.setItem('tw_profile_data'+getUID(),JSON.stringify(prof));
-    if(_sessionUser&&name){ _sessionUser.full_name=name; localStorage.setItem('tw_user',JSON.stringify(_sessionUser)); }
-  }catch(ex){}
+  // name updated in .then() after API confirms
   // Save to API
   if(_sessionUser&&_sessionUser.id){
     var _profileSaveBody = {
@@ -2610,7 +2593,51 @@ function saveProfile(){
       return fetch('/profile/'+_sessionUser.id,{method:'PUT',
         headers:{'Content-Type':'application/json','Authorization':'Bearer '+_jwt},
         body:JSON.stringify(_profileSaveBody)});
-    }).then(function(){showToast('تم الحفظ ✅');}).catch(function(){showToast('خطأ في الحفظ','error');});
+    }).then(function(r){
+        return r.json().then(function(d){
+          if(d && d.status === 'success'){
+            showToast('تم الحفظ ✅');
+            // CR-2 FIX: Apply returned profile data to LS and DOM immediately
+            var prof = d.profile;
+            if(prof && isViewingOwn){
+              try{
+                // Update localStorage with confirmed data from DB
+                var lsKey = 'tw_profile_data'+getUID();
+                var oldLS = {};
+                try{ oldLS = JSON.parse(localStorage.getItem(lsKey)||'{}'); }catch(e){}
+                var merged = Object.assign(oldLS, {
+                  full_name: prof.full_name || oldLS.full_name || '',
+                  first_name: prof.first_name || oldLS.first_name || '',
+                  headline: prof.headline || oldLS.headline || '',
+                  title: prof.headline || oldLS.title || '',
+                  bio: prof.bio || oldLS.bio || '',
+                  location: prof.location || oldLS.location || '',
+                  dob: prof.dob !== undefined ? (prof.dob||'') : (oldLS.dob||''),
+                  country: prof.country !== undefined ? (prof.country||'') : (oldLS.country||''),
+                  city: prof.city !== undefined ? (prof.city||'') : (oldLS.city||''),
+                  avail: prof.avail !== undefined ? (prof.avail||'') : (oldLS.avail||''),
+                });
+                localStorage.setItem(lsKey, JSON.stringify(merged));
+              }catch(ex){}
+              // Update DOM immediately without refresh
+              if(prof.full_name){ var ne=document.getElementById('cvName'); if(ne) ne.textContent=prof.full_name; }
+              if(prof.headline){ var te=document.getElementById('cvTitle'); if(te) te.textContent=prof.headline; }
+              if(prof.bio){ var be=document.getElementById('cvBio'); if(be) be.textContent=prof.bio; }
+              if(prof.avail && typeof showAvailBadge==='function'){ showAvailBadge(prof.avail); }
+              // Update location display
+              if(prof.country || prof.city){
+                var locStr = [(typeof getCountryName==='function'?getCountryName(prof.country):prof.country), prof.city].filter(Boolean).join(' - ');
+                var le=document.getElementById('cvLoc'); if(le&&locStr){ le.textContent='📍 '+locStr; le.style.display='block'; }
+              }
+              // H-2 FIX: Invalidate frontend cache
+              _profileCache = null;
+            }
+          } else {
+            showToast('لم يتم الحفظ — ' + (d&&d.detail||'خطأ غير معروف'), 'error');
+            console.error('[Save] ❌ API returned:', d);
+          }
+        });
+      }).catch(function(e){showToast('خطأ في الحفظ','error'); console.error('[Save] ❌ Error:', e);});
   }
   closeModal();
 }
