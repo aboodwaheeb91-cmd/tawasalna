@@ -1659,6 +1659,8 @@ function saveSectionItem(lsKey, item, lid, renderFn){
 }
 
 function saveSkillItem(){
+  if(window._savingSkill) return; window._savingSkill=true;
+
   const lid=window._currentLid||document.getElementById('modal')?.dataset?.listId||'';
   if(!lid) return;
   const name=document.getElementById('m-skill-name')?.value.trim();
@@ -1670,7 +1672,7 @@ function saveSkillItem(){
   if(_sessionUser&&_sessionUser.id){
     fetch('/skills/'+_sessionUser.id,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+(localStorage.getItem('tw_jwt')||'')},
       body:JSON.stringify({skill:name,level})
-    }).then(r=>r.json()).then(data=>{
+    }).then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); }).then(function(data){
       const dbId=data?.skill?.id;
       if(dbId){try{const arr=JSON.parse(localStorage.getItem('tw_skills'+getUID())||'[]');const fi=arr.findIndex(x=>x.id===localId);if(fi>-1){arr[fi].id=dbId;localStorage.setItem('tw_skills'+getUID(),JSON.stringify(arr));}}catch(ex){}}
     }).catch(()=>{});
@@ -1678,6 +1680,8 @@ function saveSkillItem(){
 }
 
 function saveLangItem(){
+  if(window._savingLang) return; window._savingLang=true;
+
   const lid=window._currentLid||document.getElementById('modal')?.dataset?.listId||'';
   if(!lid) return;
   const name=document.getElementById('m-lang-name')?.value;
@@ -1691,7 +1695,7 @@ function saveLangItem(){
   if(_sessionUser&&_sessionUser.id){
     fetch('/langs/'+_sessionUser.id,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+(localStorage.getItem('tw_jwt')||'')},
       body:JSON.stringify({language:name,level})
-    }).then(r=>r.json()).then(data=>{
+    }).then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); }).then(function(data){
       const dbId=data?.lang?.id;
       if(dbId){try{const arr=JSON.parse(localStorage.getItem('tw_langs'+getUID())||'[]');const fi=arr.findIndex(x=>x.id===localId);if(fi>-1){arr[fi].id=dbId;localStorage.setItem('tw_langs'+getUID(),JSON.stringify(arr));}}catch(ex){}}
     }).catch(()=>{});
@@ -1699,6 +1703,8 @@ function saveLangItem(){
 }
 
 function saveLinkItem(){
+  if(window._savingLink) return; window._savingLink=true;
+
   const lid=window._currentLid||document.getElementById('modal')?.dataset?.listId||'';
   if(!lid) return;
   const url=document.getElementById('m-link-url')?.value.trim();
@@ -1711,7 +1717,7 @@ function saveLinkItem(){
   if(_sessionUser&&_sessionUser.id){
     fetch('/links/'+_sessionUser.id,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+(localStorage.getItem('tw_jwt')||'')},
       body:JSON.stringify({link_type:type,url:finalUrl})
-    }).then(r=>r.json()).then(data=>{
+    }).then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); }).then(function(data){
       const dbId=data?.link?.id;
       if(dbId){try{const arr=JSON.parse(localStorage.getItem('tw_links'+getUID())||'[]');const fi=arr.findIndex(x=>x.id===localId);if(fi>-1){arr[fi].id=dbId;localStorage.setItem('tw_links'+getUID(),JSON.stringify(arr));}}catch(ex){}}
     }).catch(()=>{});
@@ -1719,6 +1725,8 @@ function saveLinkItem(){
 }
 
 function saveCourseItem(){
+  if(window._savingCourse) return; window._savingCourse=true;
+
   const lid=window._currentLid||document.getElementById('modal')?.dataset?.listId||'';
   if(!lid) return;
   const name=document.getElementById('m-course-name')?.value.trim();
@@ -1732,7 +1740,7 @@ function saveCourseItem(){
   if(_sessionUser&&_sessionUser.id){
     fetch('/course/'+_sessionUser.id,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+(localStorage.getItem('tw_jwt')||'')},
       body:JSON.stringify({title:name,provider,completion_date:year,certificate_url:url})
-    }).then(r=>r.json()).then(data=>{
+    }).then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); }).then(function(data){
       const dbId=data?.course?.id||data?.id;
       if(dbId){try{const arr=JSON.parse(localStorage.getItem('tw_courses'+getUID())||'[]');const fi=arr.findIndex(x=>x.id===localId);if(fi>-1){arr[fi].id=dbId;localStorage.setItem('tw_courses'+getUID(),JSON.stringify(arr));}}catch(ex){}}
     }).catch(()=>{});
@@ -2603,12 +2611,6 @@ function saveProfile(){
         headers:{'Content-Type':'application/json','Authorization':'Bearer '+_jwt},
         body:JSON.stringify(_profileSaveBody)});
     }).then(function(){showToast('تم الحفظ ✅');}).catch(function(){showToast('خطأ في الحفظ','error');});
-    if(false&&name&&name!==(_sessionUser.full_name||'')){
-      fetch('/auth/user/'+_sessionUser.id+'/name',{method:'PUT',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({full_name:name})
-      }).catch(()=>{});
-    }
   }
   closeModal();
 }
@@ -2687,7 +2689,10 @@ function saveExp(){
       fetch('/experience/'+_sessionUser.id,{method:'POST',
         headers:{'Content-Type':'application/json','Authorization':'Bearer '+jwt},
         body:JSON.stringify({title:t,company:co,location:l,start_date:s,end_date:e,description:edesc})
-      }).then(r=>r.json()).then(data=>{
+      }).then(function(r){
+        if(!r.ok) throw new Error('HTTP '+r.status);
+        return r.json();
+      }).then(function(data){
         if(data&&data.experience&&data.experience.id){
           // Update localStorage with real DB id
           try{
@@ -2871,6 +2876,10 @@ function closeModal(){
   const modal=document.getElementById('modal');
   if(modal){ delete modal.dataset.editId; delete modal.dataset.editType; }
   document.getElementById('overlay').classList.remove('show');
+  // Reset all saving flags
+  window._savingExp=false; window._savingEdu=false;
+  window._savingSkill=false; window._savingLang=false;
+  window._savingLink=false; window._savingCourse=false;
 }
 function closeOverlay(e){ if(e.target===document.getElementById('overlay')) closeModal(); }
 
@@ -3196,11 +3205,11 @@ var SECTION_CONFIG = {
           title:apiTitle,
           bio:prof.bio||'',
           location:prof.location||'',
-          dob:prof.dob||oldData.dob||'',
-          country:prof.country||oldData.country||'',
-          city:prof.city||oldData.city||'',
-          avail:prof.avail||oldData.avail||'',
-          phone:prof.phone||oldData.phone||'',
+          dob:(prof.dob!==undefined&&prof.dob!==null)?prof.dob:(oldData.dob||''),
+          country:(prof.country!==undefined&&prof.country!==null)?prof.country:(oldData.country||''),
+          city:(prof.city!==undefined&&prof.city!==null)?prof.city:(oldData.city||''),
+          avail:(prof.avail!==undefined&&prof.avail!==null)?prof.avail:(oldData.avail||''),
+          phone:(prof.phone!==undefined&&prof.phone!==null)?prof.phone:(oldData.phone||''),
         });
         localStorage.setItem(lsKey2, JSON.stringify(toSave));
       }catch(ex){}

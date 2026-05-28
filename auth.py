@@ -542,7 +542,7 @@ def get_public_profile(user_id: int) -> Optional[dict]:
         user = _serialize(_row_to_dict(cols, rows[0]))
 
         rows = conn.run(
-            "SELECT headline, bio, location, skills, avatar_url, website, is_verified "
+            "SELECT headline, bio, location, skills, avatar_url, website, is_verified, dob, phone, country, city, avail, title, sections_order, custom_sections, profile_color, profile_style "
             "FROM profiles WHERE user_id = :uid", uid=user_id
         )
         cols = [c["name"] for c in conn.columns]
@@ -601,11 +601,9 @@ def get_full_profile(user_id: int) -> Optional[dict]:
                     "profile_color, profile_style "
                     "FROM profiles WHERE user_id = :uid", uid=user_id
                 )
-            except Exception:
-                rows = conn.run(
-                    "SELECT headline, bio, location, skills, avatar_url, website, is_verified, updated_at "
-                    "FROM profiles WHERE user_id = :uid", uid=user_id
-                )
+            except Exception as e2:
+                print(f"[Profile query FATAL] {e2}")
+                raise e2  # Don't return partial data
         cols = [c["name"] for c in conn.columns]
         profile = _serialize(_row_to_dict(cols, rows[0])) if rows else {}
 
@@ -636,6 +634,21 @@ def update_profile(user_id: int, data: dict) -> dict:
             )
 
         allowed = ["headline", "bio", "location", "skills", "avatar_url", "website", "phone", "sections_order", "custom_sections", "dob", "country", "city", "avail", "title", "profile_color", "profile_style"]
+        # Ensure profile columns exist (in case migrations didn't run)
+        for col_sql in [
+            "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS dob TEXT",
+            "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS country TEXT",
+            "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS city TEXT",
+            "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS avail TEXT",
+            "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS title TEXT",
+            "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS sections_order TEXT",
+            "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS custom_sections TEXT",
+            "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS profile_color TEXT",
+            "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS profile_style TEXT",
+        ]:
+            try: conn.run(col_sql)
+            except Exception: pass
+
         fields = {k: v for k, v in data.items() if k in allowed and v is not None}
 
         rows = conn.run("SELECT id FROM profiles WHERE user_id = :uid", uid=user_id)

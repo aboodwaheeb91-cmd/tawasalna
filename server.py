@@ -977,6 +977,8 @@ def update_user_profile(user_id: int, data: ProfileUpdateInput, token=Depends(ve
 
 @app.post("/experience/{user_id}")
 def add_user_experience(user_id: int, data: ExperienceInput, token=Depends(verify_token)):
+    if str(token.get('user_id','')) != str(user_id):
+        raise HTTPException(403, "Unauthorized")
     if not data.title.strip() or not data.company.strip():
         raise HTTPException(400, detail="المسمى الوظيفي وجهة العمل مطلوبان")
     try:
@@ -1007,11 +1009,13 @@ def add_user_course(user_id: int, data: CourseInput, token=Depends(verify_token)
 
 @app.post("/skills/{user_id}")
 def add_user_skill(user_id: int, data: SkillInput, token=Depends(verify_token)):
+    if str(token.get('user_id','')) != str(user_id):
+        raise HTTPException(403, "Unauthorized")
     try:
         conn = get_conn()
         try:
             rows = conn.run(
-                "INSERT INTO user_skills (user_id, skill, level) VALUES (:uid, :skill, :level) RETURNING id, user_id, skill, level",
+                "INSERT INTO user_skills (user_id, skill, level) VALUES (:uid, :skill, :level) ON CONFLICT (user_id, skill) DO UPDATE SET level=EXCLUDED.level RETURNING id, user_id, skill, level",
                 uid=user_id, skill=data.skill, level=data.level
             )
             cols = [d["name"] if isinstance(d, dict) else d[0] for d in conn.columns]
@@ -1037,11 +1041,13 @@ def delete_user_skill(skill_id: int, token=Depends(verify_token)):
 
 @app.post("/langs/{user_id}")
 def add_user_lang(user_id: int, data: LangInput, token=Depends(verify_token)):
+    if str(token.get('user_id','')) != str(user_id):
+        raise HTTPException(403, "Unauthorized")
     try:
         conn = get_conn()
         try:
             rows = conn.run(
-                "INSERT INTO user_langs (user_id, language, level) VALUES (:uid, :lang, :level) RETURNING id, user_id, language, level",
+                "INSERT INTO user_langs (user_id, language, level) VALUES (:uid, :lang, :level) ON CONFLICT (user_id, language) DO UPDATE SET level=EXCLUDED.level RETURNING id, user_id, language, level",
                 uid=user_id, lang=data.language, level=data.level
             )
             cols = [d["name"] if isinstance(d, dict) else d[0] for d in conn.columns]
@@ -1066,11 +1072,13 @@ def delete_user_lang(lang_id: int, token=Depends(verify_token)):
 
 @app.post("/links/{user_id}")
 def add_user_link(user_id: int, data: LinkInput, token=Depends(verify_token)):
+    if str(token.get('user_id','')) != str(user_id):
+        raise HTTPException(403, "Unauthorized")
     try:
         conn = get_conn()
         try:
             rows = conn.run(
-                "INSERT INTO user_links (user_id, link_type, url) VALUES (:uid, :ltype, :url) RETURNING id, user_id, link_type, url",
+                "INSERT INTO user_links (user_id, link_type, url) VALUES (:uid, :ltype, :url) ON CONFLICT (user_id, link_type) DO UPDATE SET url=EXCLUDED.url RETURNING id, user_id, link_type, url",
                 uid=user_id, ltype=data.link_type, url=data.url
             )
             cols = [d["name"] if isinstance(d, dict) else d[0] for d in conn.columns]
