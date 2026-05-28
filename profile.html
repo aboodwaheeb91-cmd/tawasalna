@@ -1530,7 +1530,7 @@ function renderLangItem(e,lid){
         <span class="item-drag-handle owner-only" style="color:rgba(255,255,255,.25);cursor:grab;font-size:1rem;line-height:1" title="اسحب لإعادة الترتيب">⠿</span>
         <div>
           <div class="item-title">${sanitize(e.name||'')}</div>
-          ${lvl?`<div class="item-sub">${lvlColor} ${lvl}</div>`:''}
+          ${lvl?`<div class="item-sub">${sanitize(lvlColor)} ${sanitize(lvl)}</div>`:''}
         </div>
       </div>
       <div class="item-menu-wrap owner-only">
@@ -2545,6 +2545,7 @@ function calcAge(dob){
 }
 
 function saveProfile(){
+  if(window._savingProfile) return; window._savingProfile=true;
   const fn=document.getElementById('m-fn')?.value.trim()||'';
   const mn=document.getElementById('m-mn')?.value.trim()||'';
   const ln=document.getElementById('m-ln')?.value.trim()||'';
@@ -2596,10 +2597,11 @@ function saveProfile(){
     }).then(function(r){
         return r.json().then(function(d){
           if(d && d.status === 'success'){
+            window._savingProfile=false;
             showToast('تم الحفظ ✅');
             // CR-2 FIX: Apply returned profile data to LS and DOM immediately
             var prof = d.profile;
-            if(prof && isViewingOwn){
+            if(prof && isOwner){
               try{
                 // Update localStorage with confirmed data from DB
                 var lsKey = 'tw_profile_data'+getUID();
@@ -2633,11 +2635,17 @@ function saveProfile(){
               _profileCache = null;
             }
           } else {
-            showToast('لم يتم الحفظ — ' + (d&&d.detail||'خطأ غير معروف'), 'error');
+            window._savingProfile=false;
+            var errMsg = d&&d.detail||'خطأ غير معروف';
+            showToast('لم يتم الحفظ — ' + errMsg, 'error');
+            // Redirect on token expiry
+            if(errMsg && (errMsg.indexOf('Token invalid') > -1 || errMsg.indexOf('expired') > -1)){
+              setTimeout(function(){ location.href='/index.html'; }, 1500);
+            }
             console.error('[Save] ❌ API returned:', d);
           }
         });
-      }).catch(function(e){showToast('خطأ في الحفظ','error'); console.error('[Save] ❌ Error:', e);});
+      }).catch(function(e){ window._savingProfile=false; showToast('خطأ في الحفظ','error'); console.error('[Save] ❌ Error:', e);});
   }
   closeModal();
 }
@@ -2743,6 +2751,7 @@ function saveExp(){
 
 function saveEdu(){
   const d=document.getElementById('m-ed').value.trim();
+  if(window._savingEdu) return; window._savingEdu=true;
   const i=document.getElementById('m-ei').value.trim();
   const dtype_check=document.getElementById('m-dtype')?.value||'';
   if(!dtype_check){ setFieldErr('m-dtype','err-dtype','نوع الشهادة مطلوب'); return; } else clearFieldErr('m-dtype','err-dtype');
@@ -2907,6 +2916,7 @@ function closeModal(){
   window._savingExp=false; window._savingEdu=false;
   window._savingSkill=false; window._savingLang=false;
   window._savingLink=false; window._savingCourse=false;
+  window._savingProfile=false;
 }
 function closeOverlay(e){ if(e.target===document.getElementById('overlay')) closeModal(); }
 
@@ -3545,6 +3555,7 @@ function saveCrop(){
 function doLogout(){
   // Clear ALL data on logout - prevents cross-account leaks
   _profileCache = null;
+  _sessionUser = null;
   try{
     // Remove all tw_ prefixed keys
     Object.keys(localStorage)

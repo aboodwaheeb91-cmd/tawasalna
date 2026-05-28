@@ -67,7 +67,7 @@ def _parse_db_url():
 # ── Query Cache (Redis-ready) ──
 import time as _time_mod, json as _json_mod
 _query_cache = {}
-_CACHE_TTL = 300  # seconds (5 min)
+_CACHE_TTL = 60  # Reduced from 300s for cross-device consistency  # seconds (5 min)
 
 def _cache_get(key):
     # Try Redis first
@@ -656,11 +656,14 @@ def update_profile(user_id: int, data: dict) -> dict:
         if rows:
             if fields:
                 set_clause = ", ".join(f"{k} = :{k}" for k in fields)
-                conn.run(
-                    f"UPDATE profiles SET {set_clause}, updated_at = NOW() WHERE user_id = :uid",
+                update_rows = conn.run(
+                    f"UPDATE profiles SET {set_clause}, updated_at = NOW() WHERE user_id = :uid RETURNING id",
                     uid=user_id, **fields
                 )
-                print(f"[update_profile] ✅ DB UPDATE success for user {user_id}")
+                if not update_rows:
+                    print(f"[update_profile] ⚠️ UPDATE returned 0 rows for user {user_id} — running INSERT")
+                    raise ValueError("no_profile_row")
+                print(f"[update_profile] ✅ DB UPDATE success for user {user_id}, rows={len(update_rows)}")
         else:
             cols_list = ["user_id"] + list(fields.keys())
             placeholders = ", ".join(f":{c}" for c in cols_list)

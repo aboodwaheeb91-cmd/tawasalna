@@ -998,6 +998,8 @@ def add_user_experience(user_id: int, data: ExperienceInput, token=Depends(verif
 
 @app.post("/education/{user_id}")
 def add_user_education(user_id: int, data: EducationInput, token=Depends(verify_token)):
+    if str(token.get('user_id','')) != str(user_id):
+        raise HTTPException(403, "Unauthorized")
     if not data.institution.strip():
         raise HTTPException(400, detail="اسم المؤسسة التعليمية مطلوب")
     try:
@@ -1008,6 +1010,8 @@ def add_user_education(user_id: int, data: EducationInput, token=Depends(verify_
 
 @app.post("/course/{user_id}")
 def add_user_course(user_id: int, data: CourseInput, token=Depends(verify_token)):
+    if str(token.get('user_id','')) != str(user_id):
+        raise HTTPException(403, "Unauthorized")
     if not data.title.strip():
         raise HTTPException(400, detail="اسم الدورة مطلوب")
     try:
