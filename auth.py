@@ -635,7 +635,7 @@ def update_profile(user_id: int, data: dict) -> dict:
                 name=data["full_name"], uid=user_id
             )
 
-        allowed = ["headline", "bio", "location", "skills", "avatar_url", "website", "phone", "sections_order", "custom_sections", "dob", "country", "city", "avail", "profile_color", "profile_style"]
+        allowed = ["headline", "bio", "location", "skills", "avatar_url", "website", "phone", "sections_order", "custom_sections", "dob", "country", "city", "avail", "title", "profile_color", "profile_style"]
         fields = {k: v for k, v in data.items() if k in allowed and v is not None}
 
         rows = conn.run("SELECT id FROM profiles WHERE user_id = :uid", uid=user_id)
@@ -749,8 +749,12 @@ def get_profile_by_tw_id(tw_id: str) -> Optional[dict]:
 
 def get_full_profile_by_tw_id(tw_id: str) -> Optional[dict]:
     """يجيب الملف الشخصي الكامل بالـ tw_id."""
+    cached = _cache_get('profile_tw:'+str(tw_id))
+    if cached: return cached
     uid = get_user_id_by_tw_id(tw_id)
-    return get_full_profile(uid) if uid else None
+    result = get_full_profile(uid) if uid else None
+    if result: _cache_set('profile_tw:'+str(tw_id), result)
+    return result
 
 
 # ══ الوظائف ══
