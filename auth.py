@@ -253,6 +253,9 @@ def init_db():
                 created_at TIMESTAMP DEFAULT NOW()
             )
         """)
+        try:
+            conn.run("ALTER TABLE user_skills ADD CONSTRAINT IF NOT EXISTS user_skills_uid_skill_uq UNIQUE (user_id, skill)")
+        except Exception: pass
         conn.run("""
             CREATE TABLE IF NOT EXISTS user_langs (
                 id SERIAL PRIMARY KEY,
@@ -262,6 +265,9 @@ def init_db():
                 created_at TIMESTAMP DEFAULT NOW()
             )
         """)
+        try:
+            conn.run("ALTER TABLE user_langs ADD CONSTRAINT IF NOT EXISTS user_langs_uid_lang_uq UNIQUE (user_id, language)")
+        except Exception: pass
         conn.run("""
             CREATE TABLE IF NOT EXISTS user_links (
                 id SERIAL PRIMARY KEY,
@@ -271,6 +277,9 @@ def init_db():
                 created_at TIMESTAMP DEFAULT NOW()
             )
         """)
+        try:
+            conn.run("ALTER TABLE user_links ADD CONSTRAINT IF NOT EXISTS user_links_uid_link_uq UNIQUE (user_id, link_type)")
+        except Exception: pass
         conn.run("""
             CREATE TABLE IF NOT EXISTS courses (
                 id SERIAL PRIMARY KEY,
@@ -725,11 +734,6 @@ def add_education(user_id: int, data: dict) -> dict:
 def add_course(user_id: int, data: dict) -> dict:
     conn = get_conn()
     try:
-        # Fix legacy 'name' column constraint (older DB schema)
-        try: conn.run("ALTER TABLE courses ALTER COLUMN name DROP NOT NULL")
-        except Exception: pass
-        try: conn.run("ALTER TABLE courses ADD COLUMN IF NOT EXISTS title TEXT")
-        except Exception: pass
         title_val = data.get("title") or data.get("name") or ""
         # Try inserting with 'title' column first, fallback to 'name' column
         try:
