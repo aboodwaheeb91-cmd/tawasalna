@@ -624,17 +624,7 @@ def get_full_profile(user_id: int) -> Optional[dict]:
 
 def update_profile(user_id: int, data: dict) -> dict:
     _cache_del('profile:'+str(user_id))
-    # Also clear tw_id cache (used when accessing profile by URL ?id=tw_id)
-    try:
-        tw_conn = get_conn()
-        try:
-            tw_rows = tw_conn.run("SELECT tw_id FROM users WHERE id = :uid", uid=user_id)
-            if tw_rows and tw_rows[0][0]:
-                _cache_del('profile_tw:'+str(tw_rows[0][0]))
-        finally:
-            release_conn(tw_conn)
-    except Exception:
-        pass
+
     conn = get_conn()
     try:
         # Update full_name in users table if provided
@@ -729,11 +719,17 @@ def add_education(user_id: int, data: dict) -> dict:
 def add_course(user_id: int, data: dict) -> dict:
     conn = get_conn()
     try:
+        # Fix legacy 'name' column constraint (older DB schema)
+        try: conn.run("ALTER TABLE courses ALTER COLUMN name DROP NOT NULL")
+        except Exception: pass
+        try: conn.run("ALTER TABLE courses ADD COLUMN IF NOT EXISTS title TEXT")
+        except Exception: pass
+        title_val = data.get("title") or data.get("name") or ""
         rows = conn.run(
             "INSERT INTO courses (user_id, title, provider, completion_date, certificate_url, description) "
             "VALUES (:uid, :title, :provider, :completion_date, :certificate_url, :description) "
             "RETURNING id, user_id, title, provider, completion_date, certificate_url, description, created_at",
-            uid=user_id, title=data["title"], provider=data.get("provider"),
+            uid=user_id, title=title_val, provider=data.get("provider"),
             completion_date=data.get("completion_date"),
             certificate_url=data.get("certificate_url"),
             description=data.get("description")
@@ -777,13 +773,9 @@ def get_profile_by_tw_id(tw_id: str) -> Optional[dict]:
 
 
 def get_full_profile_by_tw_id(tw_id: str) -> Optional[dict]:
-    """يجيب الملف الشخصي الكامل بالـ tw_id."""
-    cached = _cache_get('profile_tw:'+str(tw_id))
-    if cached: return cached
     uid = get_user_id_by_tw_id(tw_id)
-    result = get_full_profile(uid) if uid else None
-    if result: _cache_set('profile_tw:'+str(tw_id), result)
-    return result
+    if not uid: return None
+    return get_full_profile(uid)
 
 
 # ══ الوظائف ══
