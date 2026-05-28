@@ -1748,7 +1748,10 @@ function saveCourseItem(){
       body:JSON.stringify({title:name,provider,completion_date:year,certificate_url:url})
     }).then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); }).then(function(data){
       const dbId=data?.course?.id||data?.id;
-      if(dbId){try{const arr=JSON.parse(localStorage.getItem('tw_courses'+getUID())||'[]');const fi=arr.findIndex(x=>x.id===localId);if(fi>-1){arr[fi].id=dbId;localStorage.setItem('tw_courses'+getUID(),JSON.stringify(arr));}}catch(ex){}}
+      if(dbId){
+        try{const arr=JSON.parse(localStorage.getItem('tw_courses'+getUID())||'[]');const fi=arr.findIndex(x=>x.id===localId);if(fi>-1){arr[fi].id=dbId;localStorage.setItem('tw_courses'+getUID(),JSON.stringify(arr));}}catch(ex){}
+        showToast('تم الحفظ ✅');
+      }
     }).catch(function(e){ console.error('[saveCourseItem]',e); showToast('خطأ في الحفظ','error'); });
   }
 }

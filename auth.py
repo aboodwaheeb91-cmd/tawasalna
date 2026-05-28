@@ -280,6 +280,12 @@ def init_db():
                 created_at TIMESTAMP DEFAULT NOW()
             )
         """)
+        try:
+            conn.run("ALTER TABLE courses ALTER COLUMN name DROP NOT NULL")
+        except Exception: pass
+        try:
+            conn.run("ALTER TABLE courses ADD COLUMN IF NOT EXISTS title TEXT")
+        except Exception: pass
         conn.run("""
             CREATE TABLE IF NOT EXISTS jobs (
                 id SERIAL PRIMARY KEY,
@@ -725,17 +731,34 @@ def add_course(user_id: int, data: dict) -> dict:
         try: conn.run("ALTER TABLE courses ADD COLUMN IF NOT EXISTS title TEXT")
         except Exception: pass
         title_val = data.get("title") or data.get("name") or ""
-        rows = conn.run(
-            "INSERT INTO courses (user_id, title, provider, completion_date, certificate_url, description) "
-            "VALUES (:uid, :title, :provider, :completion_date, :certificate_url, :description) "
-            "RETURNING id, user_id, title, provider, completion_date, certificate_url, description, created_at",
-            uid=user_id, title=title_val, provider=data.get("provider"),
-            completion_date=data.get("completion_date"),
-            certificate_url=data.get("certificate_url"),
-            description=data.get("description")
-        )
+        # Try inserting with 'title' column first, fallback to 'name' column
+        try:
+            rows = conn.run(
+                "INSERT INTO courses (user_id, title, provider, completion_date, certificate_url, description) "
+                "VALUES (:uid, :title, :provider, :completion_date, :certificate_url, :description) "
+                "RETURNING id, user_id, title, provider, completion_date, certificate_url, description, created_at",
+                uid=user_id, title=title_val, provider=data.get("provider"),
+                completion_date=data.get("completion_date"),
+                certificate_url=data.get("certificate_url"),
+                description=data.get("description")
+            )
+        except Exception:
+            # Fallback: DB uses 'name' column instead of 'title'
+            rows = conn.run(
+                "INSERT INTO courses (user_id, name, provider, completion_date, certificate_url, description) "
+                "VALUES (:uid, :name, :provider, :completion_date, :certificate_url, :description) "
+                "RETURNING id, user_id, name, provider, completion_date, certificate_url, description, created_at",
+                uid=user_id, name=title_val, provider=data.get("provider"),
+                completion_date=data.get("completion_date"),
+                certificate_url=data.get("certificate_url"),
+                description=data.get("description")
+            )
         cols = [c["name"] for c in conn.columns]
-        return _serialize(_row_to_dict(cols, rows[0]))
+        result = _serialize(_row_to_dict(cols, rows[0]))
+        # Normalize: always return 'title' key regardless of column name
+        if "name" in result and "title" not in result:
+            result["title"] = result["name"]
+        return result
     finally:
         release_conn(conn)
 
