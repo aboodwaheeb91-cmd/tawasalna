@@ -1040,12 +1040,14 @@ def add_user_skill(user_id: int, data: SkillInput, token=Depends(verify_token)):
 
 @app.delete("/skills/{skill_id}")
 def delete_user_skill(skill_id: int, token=Depends(verify_token)):
+    uid = token.get('user_id')
+    if not uid: raise HTTPException(401, "Unauthorized")
     try:
         conn = get_conn()
         try:
             # Only delete if belongs to the token user
             conn.run("DELETE FROM user_skills WHERE id = :id AND user_id = :uid",
-                    id=skill_id, uid=token['user_id'])
+                    id=skill_id, uid=uid)
             return {"success": True}
         finally:
             release_conn(conn)
@@ -1072,11 +1074,13 @@ def add_user_lang(user_id: int, data: LangInput, token=Depends(verify_token)):
 
 @app.delete("/langs/{lang_id}")
 def delete_user_lang(lang_id: int, token=Depends(verify_token)):
+    uid = token.get('user_id')
+    if not uid: raise HTTPException(401, "Unauthorized")
     try:
         conn = get_conn()
         try:
             conn.run("DELETE FROM user_langs WHERE id = :id AND user_id = :uid",
-                    id=lang_id, uid=token['user_id'])
+                    id=lang_id, uid=uid)
             return {"success": True}
         finally:
             release_conn(conn)
@@ -1103,11 +1107,13 @@ def add_user_link(user_id: int, data: LinkInput, token=Depends(verify_token)):
 
 @app.delete("/links/{link_id}")
 def delete_user_link(link_id: int, token=Depends(verify_token)):
+    uid = token.get('user_id')
+    if not uid: raise HTTPException(401, "Unauthorized")
     try:
         conn = get_conn()
         try:
             conn.run("DELETE FROM user_links WHERE id = :id AND user_id = :uid",
-                    id=link_id, uid=token['user_id'])
+                    id=link_id, uid=uid)
             return {"success": True}
         finally:
             release_conn(conn)
@@ -1665,43 +1671,52 @@ def admin_send_message(data: AdminMessageInput, request: Request):
 
 @app.delete("/experience/{exp_id}")
 def delete_experience(exp_id: int, token=Depends(verify_token)):
+    uid = token.get('user_id')
+    if not uid: raise HTTPException(401, "Unauthorized")
     try:
         conn = get_conn()
         try:
             conn.run("DELETE FROM experience WHERE id = :id AND user_id = :uid",
-                    id=exp_id, uid=token['user_id'])
-            _cache_del('profile:'+str(token['user_id']))
+                    id=exp_id, uid=uid)
+            _cache_del('profile:'+str(uid))
             return {"success": True}
         finally:
             release_conn(conn)
     except Exception as e:
+        print(f"[delete_experience] error: {e}")
         raise HTTPException(500, detail=str(e))
 
 @app.delete("/education/{edu_id}")
 def delete_education(edu_id: int, token=Depends(verify_token)):
+    uid = token.get('user_id')
+    if not uid: raise HTTPException(401, "Unauthorized")
     try:
         conn = get_conn()
         try:
             conn.run("DELETE FROM education WHERE id = :id AND user_id = :uid",
-                    id=edu_id, uid=token['user_id'])
-            _cache_del('profile:'+str(token['user_id']))
+                    id=edu_id, uid=uid)
+            _cache_del('profile:'+str(uid))
             return {"success": True}
         finally:
             release_conn(conn)
     except Exception as e:
+        print(f"[delete_education] error: {e}")
         raise HTTPException(500, detail=str(e))
 
 @app.delete("/course/{course_id}")
 def delete_course(course_id: int, token=Depends(verify_token)):
+    uid = token.get('user_id')
+    if not uid: raise HTTPException(401, "Unauthorized")
     try:
         conn = get_conn()
         try:
             conn.run("DELETE FROM courses WHERE id = :id AND user_id = :uid",
-                    id=course_id, uid=token['user_id'])
-            _cache_del('profile:'+str(token['user_id']))
+                    id=course_id, uid=uid)
+            _cache_del('profile:'+str(uid))
             return {"success": True}
         finally:
             release_conn(conn)
     except Exception as e:
+        print(f"[delete_course] error: {e}")
         raise HTTPException(500, detail=str(e))
 

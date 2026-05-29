@@ -403,6 +403,51 @@ def init_db():
             except: pass
         print("✅ Database ready.")
     finally:
+        
+        # ── Comprehensive column migrations (idempotent) ──
+        _migrations = [
+            # experience
+            "ALTER TABLE experience ADD COLUMN IF NOT EXISTS is_current BOOLEAN DEFAULT FALSE",
+            "ALTER TABLE experience ADD COLUMN IF NOT EXISTS description TEXT",
+            "ALTER TABLE experience ADD COLUMN IF NOT EXISTS start_date TEXT",
+            "ALTER TABLE experience ADD COLUMN IF NOT EXISTS end_date TEXT",
+            # education
+            "ALTER TABLE education ADD COLUMN IF NOT EXISTS field TEXT",
+            "ALTER TABLE education ADD COLUMN IF NOT EXISTS start_year INTEGER",
+            "ALTER TABLE education ADD COLUMN IF NOT EXISTS end_year INTEGER",
+            "ALTER TABLE education ADD COLUMN IF NOT EXISTS description TEXT",
+            # courses
+            "ALTER TABLE courses ADD COLUMN IF NOT EXISTS title TEXT",
+            "ALTER TABLE courses ADD COLUMN IF NOT EXISTS description TEXT",
+            "ALTER TABLE courses ADD COLUMN IF NOT EXISTS certificate_url TEXT",
+            # profiles (all extended fields)
+            "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS dob TEXT",
+            "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS phone TEXT",
+            "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS country TEXT",
+            "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS city TEXT",
+            "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS avail TEXT",
+            "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS title TEXT",
+            "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS sections_order TEXT",
+            "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS custom_sections TEXT",
+            "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS profile_color TEXT",
+            "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS profile_style TEXT",
+        ]
+        for _m in _migrations:
+            try: conn.run(_m)
+            except Exception: pass
+        # courses: make name nullable (old schema compat)
+        try: conn.run("ALTER TABLE courses ALTER COLUMN name DROP NOT NULL")
+        except Exception: pass
+        # Add UNIQUE constraints (using DO $$ for idempotency)
+        _constraints = [
+            ("user_langs", "user_id, language"),
+            ("user_skills", "user_id, skill"),
+            ("user_links", "user_id, link_type"),
+        ]
+        for _tbl, _cols in _constraints:
+            try:
+                conn.run(f"ALTER TABLE {_tbl} ADD CONSTRAINT {_tbl}_unique_uq UNIQUE ({_cols})")
+            except Exception: pass  # already exists
         release_conn(conn)
 
 
@@ -485,62 +530,39 @@ def get_user_by_id(user_id: int) -> Optional[dict]:
 
 
 # ══ الملفات الشخصية ══
+def _safe_query(conn, sql, uid):
+    """Run a SELECT query safely — returns [] if table/column missing."""
+    try:
+        rows = conn.run(sql, uid=uid)
+        cols = [c["name"] for c in conn.columns]
+        return [_serialize(_row_to_dict(cols, r)) for r in rows]
+    except Exception as e:
+        print(f"[_get_extras] query failed: {e} | sql={sql[:60]}")
+        return []
+
 def _get_extras(conn, user_id: int) -> dict:
-    # Experience
-    rows = conn.run(
-        "SELECT id, title, company, location, start_date, end_date, is_current, description, created_at "
-        "FROM experience WHERE user_id = :uid ORDER BY id DESC", uid=user_id
-    )
-    cols = [c["name"] for c in conn.columns]
-    experience = [_serialize(_row_to_dict(cols, r)) for r in rows]
-
-    # Education
-    rows = conn.run(
-        "SELECT id, institution, degree, field, start_year, end_year, description, created_at "
-        "FROM education WHERE user_id = :uid ORDER BY id DESC", uid=user_id
-    )
-    cols = [c["name"] for c in conn.columns]
-    education = [_serialize(_row_to_dict(cols, r)) for r in rows]
-
-    # Courses
-    rows = conn.run(
-        "SELECT id, title, provider, completion_date, certificate_url, description, created_at "
-        "FROM courses WHERE user_id = :uid ORDER BY id DESC", uid=user_id
-    )
-    cols = [c["name"] for c in conn.columns]
-    courses = [_serialize(_row_to_dict(cols, r)) for r in rows]
-
-    # Skills
-    rows = conn.run(
-        "SELECT id, skill, level FROM user_skills WHERE user_id = :uid ORDER BY id",
-        uid=user_id
-    )
-    cols = [c["name"] for c in conn.columns]
-    skills = [_serialize(_row_to_dict(cols, r)) for r in rows]
-
-    # Langs
-    rows = conn.run(
-        "SELECT id, language, level FROM user_langs WHERE user_id = :uid ORDER BY id",
-        uid=user_id
-    )
-    cols = [c["name"] for c in conn.columns]
-    langs = [_serialize(_row_to_dict(cols, r)) for r in rows]
-
-    # Links
-    rows = conn.run(
-        "SELECT id, link_type, url FROM user_links WHERE user_id = :uid ORDER BY id",
-        uid=user_id
-    )
-    cols = [c["name"] for c in conn.columns]
-    links = [_serialize(_row_to_dict(cols, r)) for r in rows]
-
     return {
-        "experience": experience,
-        "education": education,
-        "courses": courses,
-        "skills": skills,
-        "langs": langs,
-        "links": links,
+        "experience": _safe_query(conn,
+            "SELECT id, title, company, location, start_date, end_date, "
+            "is_current, description, created_at "
+            "FROM experience WHERE user_id = :uid ORDER BY id DESC", user_id),
+        "education": _safe_query(conn,
+            "SELECT id, institution, degree, field, start_year, end_year, "
+            "description, created_at "
+            "FROM education WHERE user_id = :uid ORDER BY id DESC", user_id),
+        "courses": _safe_query(conn,
+            "SELECT id, title, provider, completion_date, certificate_url, "
+            "description, created_at "
+            "FROM courses WHERE user_id = :uid ORDER BY id DESC", user_id),
+        "skills": _safe_query(conn,
+            "SELECT id, skill, level FROM user_skills "
+            "WHERE user_id = :uid ORDER BY id", user_id),
+        "langs": _safe_query(conn,
+            "SELECT id, language, level FROM user_langs "
+            "WHERE user_id = :uid ORDER BY id", user_id),
+        "links": _safe_query(conn,
+            "SELECT id, link_type, url FROM user_links "
+            "WHERE user_id = :uid ORDER BY id", user_id),
     }
 
 
@@ -732,37 +754,21 @@ def add_education(user_id: int, data: dict) -> dict:
 
 # ══ الدورات ══
 def add_course(user_id: int, data: dict) -> dict:
+    """Insert course. init_db ensures 'title' column exists."""
     conn = get_conn()
     try:
         title_val = data.get("title") or data.get("name") or ""
-        # Try inserting with 'title' column first, fallback to 'name' column
-        try:
-            rows = conn.run(
-                "INSERT INTO courses (user_id, title, provider, completion_date, certificate_url, description) "
-                "VALUES (:uid, :title, :provider, :completion_date, :certificate_url, :description) "
-                "RETURNING id, user_id, title, provider, completion_date, certificate_url, description, created_at",
-                uid=user_id, title=title_val, provider=data.get("provider"),
-                completion_date=data.get("completion_date"),
-                certificate_url=data.get("certificate_url"),
-                description=data.get("description")
-            )
-        except Exception:
-            # Fallback: DB uses 'name' column instead of 'title'
-            rows = conn.run(
-                "INSERT INTO courses (user_id, name, provider, completion_date, certificate_url, description) "
-                "VALUES (:uid, :name, :provider, :completion_date, :certificate_url, :description) "
-                "RETURNING id, user_id, name, provider, completion_date, certificate_url, description, created_at",
-                uid=user_id, name=title_val, provider=data.get("provider"),
-                completion_date=data.get("completion_date"),
-                certificate_url=data.get("certificate_url"),
-                description=data.get("description")
-            )
+        rows = conn.run(
+            "INSERT INTO courses (user_id, title, provider, completion_date, certificate_url, description) "
+            "VALUES (:uid, :title, :provider, :completion_date, :certificate_url, :description) "
+            "RETURNING id, user_id, title, provider, completion_date, certificate_url, description, created_at",
+            uid=user_id, title=title_val, provider=data.get("provider"),
+            completion_date=data.get("completion_date"),
+            certificate_url=data.get("certificate_url"),
+            description=data.get("description")
+        )
         cols = [c["name"] for c in conn.columns]
-        result = _serialize(_row_to_dict(cols, rows[0]))
-        # Normalize: always return 'title' key regardless of column name
-        if "name" in result and "title" not in result:
-            result["title"] = result["name"]
-        return result
+        return _serialize(_row_to_dict(cols, rows[0]))
     finally:
         release_conn(conn)
 
