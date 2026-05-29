@@ -3406,6 +3406,9 @@ var SECTION_CONFIG = {
     // ── Re-init drag for newly rendered items ──
     if(typeof _initSectionDrag==='function') setTimeout(_initSectionDrag, 100);
 
+    // ── Bootstrap Gate: fire deferred requests after auth confirmed ──
+    if(typeof window._triggerBadges==='function') window._triggerBadges();
+
   })
   .catch(function(err){
     console.error('[Profile] API error:', err);
@@ -4204,20 +4207,27 @@ function loadProfileScore(){
   }).catch(function(){});
 }
 
-// ── Toolbar Badges ──
-(function(){
+// ── Toolbar Badges — deferred until after Step 2 resolves ──
+// Set by Step 2 after profile is fully loaded
+window._triggerBadges = function(){
   if(!_sessionUser||!_sessionUser.id) return;
-  fetch('/notifications/'+_sessionUser.id).then(function(r){return r.json();}).then(function(d){
-    var u=d.unread||0;
-    var b=document.getElementById('tbNotifBadge');
-    if(b&&u>0){b.textContent=u>9?'9+':u;b.style.display='block';}
-  }).catch(function(){});
-  fetch('/messages/unread/'+_sessionUser.id).then(function(r){return r.json();}).then(function(d){
-    var u=d.count||0;
-    var b=document.getElementById('tbMsgBadge');
-    if(b&&u>0){b.textContent=u>9?'9+':u;b.style.display='block';}
-  }).catch(function(){});
-})();
+  var jwt = localStorage.getItem('tw_jwt')||'';
+  if(!jwt) return; // no auth → skip
+  fetch('/notifications/'+_sessionUser.id,{headers:{'Authorization':'Bearer '+jwt}})
+    .then(function(r){return r.json();})
+    .then(function(d){
+      var u=d.unread||0;
+      var b=document.getElementById('tbNotifBadge');
+      if(b&&u>0){b.textContent=u>9?'9+':u;b.style.display='block';}
+    }).catch(function(){});
+  fetch('/messages/unread/'+_sessionUser.id,{headers:{'Authorization':'Bearer '+jwt}})
+    .then(function(r){return r.json();})
+    .then(function(d){
+      var u=d.count||0;
+      var b=document.getElementById('tbMsgBadge');
+      if(b&&u>0){b.textContent=u>9?'9+':u;b.style.display='block';}
+    }).catch(function(){});
+};
 
 // ══ Item Drag & Drop ══
 var _dragItem = null;

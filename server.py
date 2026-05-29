@@ -737,23 +737,40 @@ def admin_errors(request: Request):
 
 @app.get("/profile/{user_id}/score")
 def profile_score(user_id: int):
-    """Calculate profile completion score"""
+    """Calculate profile completion score from lightweight DB query.
+    Does NOT call get_full_profile — avoids duplicate /profile/full fetch.
+    Reads only the minimal fields needed for scoring.
+    """
     try:
-        profile = get_full_profile(user_id)
-        if not profile: raise HTTPException(404, "Profile not found")
+        conn = get_conn()
+        try:
+            # Profiles table: headline/bio/avatar/location/is_verified
+            rows = conn.run(
+                "SELECT headline, bio, avatar_url, location, title, is_verified "
+                "FROM profiles WHERE user_id=:uid", uid=user_id)
+            if not rows: raise HTTPException(404, "Profile not found")
+            cols = [c["name"] if isinstance(c,dict) else c[0] for c in conn.columns]
+            prof = dict(zip(cols, rows[0]))
+            # Counts from child tables
+            exp_count = (conn.run("SELECT COUNT(*) FROM experience WHERE user_id=:uid", uid=user_id) or [[0]])[0][0]
+            edu_count = (conn.run("SELECT COUNT(*) FROM education WHERE user_id=:uid", uid=user_id) or [[0]])[0][0]
+            skill_count = (conn.run("SELECT COUNT(*) FROM user_skills WHERE user_id=:uid", uid=user_id) or [[0]])[0][0]
+            link_count = (conn.run("SELECT COUNT(*) FROM user_links WHERE user_id=:uid", uid=user_id) or [[0]])[0][0]
+        finally:
+            release_conn(conn)
+
         score = 0
         tips = []
         checks = [
-            (bool(profile.get("avatar_url") or (profile.get("profile") or {}).get("avatar_url")), 10, "أضف صورة شخصية"),
-            (bool(profile.get("headline") or profile.get("title")),  10, "أضف مسماك الوظيفي"),
-            (bool(profile.get("bio")),              10, "أضف نبذة عنك"),
-            # phone removed from score tips
-            (bool(profile.get("location")),          5, "أضف موقعك"),
-            (len(profile.get("experience") or []) > 0, 20, "أضف خبرة عملية"),
-            (len(profile.get("education") or []) > 0,  15, "أضف شهاداتك"),
-            (len(profile.get("skills") or []) >= 3,    15, "أضف 3 مهارات على الأقل"),
-            (len(profile.get("links") or []) > 0,       5, "أضف رابط LinkedIn أو GitHub"),
-            (bool(profile.get("is_verified")),           5, "وثّق هويتك"),
+            (bool(prof.get("avatar_url")),           10, "أضف صورة شخصية"),
+            (bool(prof.get("headline") or prof.get("title")), 10, "أضف مسماك الوظيفي"),
+            (bool(prof.get("bio")),                  10, "أضف نبذة عنك"),
+            (bool(prof.get("location")),              5, "أضف موقعك"),
+            (exp_count > 0,                          20, "أضف خبرة عملية"),
+            (edu_count > 0,                          15, "أضف شهاداتك"),
+            (skill_count >= 3,                       15, "أضف 3 مهارات على الأقل"),
+            (link_count > 0,                          5, "أضف رابط LinkedIn أو GitHub"),
+            (bool(prof.get("is_verified")),           5, "وثّق هويتك"),
         ]
         for ok, pts, tip in checks:
             if ok: score += pts
@@ -1139,6 +1156,14 @@ def get_convs(user_id: int):
     except Exception as e:
         raise HTTPException(500, str(e))
 
+@app.get("/messages/unread/{user_id}")
+def unread_msgs(user_id: int):
+    try:
+        count = get_unread_count(user_id)
+        return {"status": "success", "count": count}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
 @app.get("/messages/{user_id}/{other_id}")
 def get_msgs(user_id: int, other_id: int):
     try:
@@ -1147,13 +1172,7 @@ def get_msgs(user_id: int, other_id: int):
     except Exception as e:
         raise HTTPException(500, str(e))
 
-@app.get("/messages/unread/{user_id}")
-def unread_msgs(user_id: int):
-    try:
-        count = get_unread_count(user_id)
-        return {"status": "success", "count": count}
-    except Exception as e:
-        raise HTTPException(500, str(e))
+
 
 @app.get("/notifications/{user_id}")
 def user_notifications(user_id: int):
