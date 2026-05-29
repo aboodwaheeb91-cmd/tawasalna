@@ -407,20 +407,25 @@ def init_db():
         # ── Comprehensive column migrations (idempotent) ──
         _migrations = [
             # experience
+            "ALTER TABLE experience ADD COLUMN IF NOT EXISTS company TEXT",
+            "ALTER TABLE experience ADD COLUMN IF NOT EXISTS location TEXT",
             "ALTER TABLE experience ADD COLUMN IF NOT EXISTS is_current BOOLEAN DEFAULT FALSE",
             "ALTER TABLE experience ADD COLUMN IF NOT EXISTS description TEXT",
             "ALTER TABLE experience ADD COLUMN IF NOT EXISTS start_date TEXT",
             "ALTER TABLE experience ADD COLUMN IF NOT EXISTS end_date TEXT",
             # education
+            "ALTER TABLE education ADD COLUMN IF NOT EXISTS degree TEXT",
             "ALTER TABLE education ADD COLUMN IF NOT EXISTS field TEXT",
             "ALTER TABLE education ADD COLUMN IF NOT EXISTS start_year INTEGER",
             "ALTER TABLE education ADD COLUMN IF NOT EXISTS end_year INTEGER",
             "ALTER TABLE education ADD COLUMN IF NOT EXISTS description TEXT",
             # courses
             "ALTER TABLE courses ADD COLUMN IF NOT EXISTS title TEXT",
+            "ALTER TABLE courses ADD COLUMN IF NOT EXISTS provider TEXT",
+            "ALTER TABLE courses ADD COLUMN IF NOT EXISTS completion_date TEXT",
             "ALTER TABLE courses ADD COLUMN IF NOT EXISTS description TEXT",
             "ALTER TABLE courses ADD COLUMN IF NOT EXISTS certificate_url TEXT",
-            # profiles (all extended fields)
+            # profiles
             "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS dob TEXT",
             "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS phone TEXT",
             "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS country TEXT",
@@ -531,14 +536,42 @@ def get_user_by_id(user_id: int) -> Optional[dict]:
 
 # ══ الملفات الشخصية ══
 def _safe_query(conn, sql, uid):
-    """Run a SELECT query safely — returns [] if table/column missing."""
+    """
+    EMPTY RESULT vs QUERY FAILURE — explicit separation.
+
+    EMPTY RESULT  → rows=[] → returns [] → UI shows empty section (correct)
+    QUERY FAILURE → exception → logs [SCHEMA_ERROR] + tries fallback
+                  → fallback returns row count so UI does NOT hide real data
+                  → logs [SCHEMA_FALLBACK] "run migrations!" for operator
+
+    Prevents SQL schema exceptions from becoming hidden UI sections.
+    """
     try:
         rows = conn.run(sql, uid=uid)
         cols = [c["name"] for c in conn.columns]
         return [_serialize(_row_to_dict(cols, r)) for r in rows]
     except Exception as e:
-        print(f"[_get_extras] query failed: {e} | sql={sql[:60]}")
+        err = str(e)
+        import re as _re
+        tbl_m = _re.search("FROM ([a-z_]+)", sql)
+        tbl = tbl_m.group(1) if tbl_m else "unknown"
+        print("[SCHEMA_ERROR] table=%s error=%s" % (tbl, err[:100]))
+        # Schema mismatch (column missing) — retry with minimal columns
+        if any(k in err for k in ("UndefinedColumn", "column", "does not exist")):
+            try:
+                rows2 = conn.run(
+                    "SELECT id, user_id FROM " + tbl + " WHERE user_id = :uid ORDER BY id DESC",
+                    uid=uid
+                )
+                cols2 = [c["name"] for c in conn.columns]
+                result = [_serialize(_row_to_dict(cols2, r)) for r in rows2]
+                print("[SCHEMA_FALLBACK] %s: returned %d rows — run migrations!" % (tbl, len(result)))
+                return result
+            except Exception as e2:
+                print("[SCHEMA_FALLBACK_FAIL] %s: %s" % (tbl, str(e2)))
+        print("[QUERY_FAILURE] %s: returning [] — data may be hidden! Check migrations." % tbl)
         return []
+
 
 def _get_extras(conn, user_id: int) -> dict:
     return {
