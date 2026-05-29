@@ -1297,7 +1297,7 @@ function addSection(id,icon,title,el,skipOrderSave=false){
     if(!panelEl.querySelector('.asec-done')) panelEl.insertAdjacentHTML('beforeend','<span class="asec-done">✓</span>');
   }
   // Save the new order including this section
-  if(!skipOrderSave) saveSectionOrder();
+  if(!skipOrderSave) saveSectionOrder(true); // silent — not a user drag action
   // Fix 3: only persist custom sections to DB (not built-ins with own save flow)
   var _builtins=['course','skills','langs','links','exp','edu'];
   if(_builtins.indexOf(id)===-1) _saveSectionsConfig();
@@ -1680,7 +1680,9 @@ function saveSkillItem(){
       body:JSON.stringify({skill:name,level})
     }).then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); }).then(function(data){
       const dbId=data?.skill?.id;
-      if(dbId){try{const arr=JSON.parse(localStorage.getItem('tw_skills'+getUID())||'[]');const fi=arr.findIndex(x=>x.id===localId);if(fi>-1){arr[fi].id=dbId;localStorage.setItem('tw_skills'+getUID(),JSON.stringify(arr));}}catch(ex){}}
+      if(dbId){
+        showToast('تم الحفظ ✅');
+        try{const arr=JSON.parse(localStorage.getItem('tw_skills'+getUID())||'[]');const fi=arr.findIndex(x=>x.id===localId);if(fi>-1){arr[fi].id=dbId;localStorage.setItem('tw_skills'+getUID(),JSON.stringify(arr));}}catch(ex){}}
     }).catch(function(e){ console.error('[saveSkillItem]',e); showToast('خطأ في الحفظ','error'); });
   }
 }
@@ -1703,7 +1705,9 @@ function saveLangItem(){
       body:JSON.stringify({language:name,level})
     }).then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); }).then(function(data){
       const dbId=data?.lang?.id;
-      if(dbId){try{const arr=JSON.parse(localStorage.getItem('tw_langs'+getUID())||'[]');const fi=arr.findIndex(x=>x.id===localId);if(fi>-1){arr[fi].id=dbId;localStorage.setItem('tw_langs'+getUID(),JSON.stringify(arr));}}catch(ex){}}
+      if(dbId){
+        showToast('تم الحفظ ✅');
+        try{const arr=JSON.parse(localStorage.getItem('tw_langs'+getUID())||'[]');const fi=arr.findIndex(x=>x.id===localId);if(fi>-1){arr[fi].id=dbId;localStorage.setItem('tw_langs'+getUID(),JSON.stringify(arr));}}catch(ex){}}
     }).catch(function(e){ console.error('[saveLangItem]',e); showToast('خطأ في الحفظ','error'); });
   }
 }
@@ -1977,7 +1981,7 @@ function deleteEdu(id){
   }
 }
 var _ssoDebounceTimer=null;
-function saveSectionOrder(){
+function saveSectionOrder(silent){
   const order=[...secList.children].map(s=>s.id);
   try{ localStorage.setItem('tw_sec_order'+getUID(),JSON.stringify(order)); }catch(ex){}
   // Fix 3: Debounce — prevents rapid calls from firing multiple PUTs
@@ -2001,7 +2005,7 @@ function saveSectionOrder(){
       method:'PUT',
       headers:{'Content-Type':'application/json','Authorization':'Bearer '+(localStorage.getItem('tw_jwt')||'')},
       body:JSON.stringify(_ssoPayload)
-    }).then(function(){showToast('تم حفظ الترتيب ✅');}).catch(function(){ console.error('[saveSectionOrder] fail'); });
+    }).then(function(){ if(!silent) showToast('تم حفظ الترتيب ✅'); }).catch(function(){ console.error('[saveSectionOrder] fail'); });
   }
   },50); // end debounce
 }
@@ -2756,6 +2760,7 @@ function saveExp(){
         return r.json();
       }).then(function(data){
         if(data&&data.experience&&data.experience.id){
+          showToast('تم الحفظ ✅');
           // Update localStorage with real DB id
           try{
             var exp2=JSON.parse(localStorage.getItem('tw_exp'+getUID())||'[]');
@@ -2770,7 +2775,15 @@ function saveExp(){
             body:JSON.stringify({user_id:_sessionUser.id,item_type:'exp',item_id:data.experience.id,item_title:t,item_company:co})
           }).catch(()=>{});
         }
-      }).catch(()=>{showToast('خطأ في حفظ الخبرة','error');});
+      }).catch(function(e){
+        console.error('[saveExp]',e);
+        try{
+          var arr=JSON.parse(localStorage.getItem('tw_exp'+getUID())||'[]');
+          localStorage.setItem('tw_exp'+getUID(),JSON.stringify(arr.filter(function(x){return x.id!==expId;})));
+        }catch(ex2){}
+        window._savingExp=false;
+        showToast('خطأ في حفظ الخبرة','error');
+      });
     }
   }
   closeModal();
@@ -2856,7 +2869,7 @@ function _saveSectionsConfig(){
     });
     // Fix 1b: saveSectionOrder owns PUT /profile — delegates to it
     // saveSectionOrder already reads custom_sections from LS and sends both in one PUT
-    saveSectionOrder();
+    saveSectionOrder(true); // silent — user didn't explicitly reorder
   }catch(ex){}
 }
 
