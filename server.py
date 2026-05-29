@@ -201,6 +201,16 @@ app.add_middleware(
     allow_credentials=False,  # Must be False with allow_origins=["*"]
 )
 
+@app.get("/favicon.ico", include_in_schema=False)
+def favicon():
+    from fastapi.responses import Response
+    svg = ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">'
+           '<circle cx="16" cy="16" r="16" fill="#2563ff"/>'
+           '<text x="16" y="22" font-size="18" text-anchor="middle" fill="#fff" font-family="sans-serif">ت</text>'
+           '</svg>')
+    return Response(content=svg, media_type="image/svg+xml",
+                    headers={"Cache-Control": "public, max-age=86400"})
+
 # ── Startup ──
 @app.on_event("startup")
 def on_startup():
