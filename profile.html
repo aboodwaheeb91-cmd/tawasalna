@@ -417,6 +417,15 @@ body.preview-mode #previewBtn {
 
 }
 
+/* ── Profile loading gate — sections invisible until Step 2 completes ── */
+body.profile-loading .section {
+  visibility: hidden;
+  pointer-events: none;
+}
+body.profile-loading #profileSkeleton {
+  display: block !important;
+}
+
 /* ── Item menu ── */
 .item-menu-wrap{position:relative;flex-shrink:0;display:inline-block;}
 .item-menu-btn{
@@ -729,7 +738,7 @@ window.addEventListener('load', function(){
 </script>
 </head>
 
-<body class="s1">
+<body class="profile-loading s1">
 <!--
 ╔══════════════════════════════════════════════╗
 ║  TAWASALNA - PROFILE                         ║
@@ -3410,6 +3419,9 @@ var SECTION_CONFIG = {
 
     // ── Bootstrap Gate: fire deferred requests after auth confirmed ──
     if(typeof window._triggerBadges==='function') window._triggerBadges();
+
+    // ── Release visibility gate — Step 2 is the single owner of section visibility ──
+    document.body.classList.remove('profile-loading');
 
   })
   .catch(function(err){
