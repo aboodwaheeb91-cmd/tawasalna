@@ -65,7 +65,8 @@ from auth import (
     create_notification, get_notifications, mark_notifications_read, get_unread_notifications,
     get_job_applicants, get_user_applications,
     update_application_status, delete_job,
-    get_site_setting, set_site_setting, release_conn
+    get_site_setting, set_site_setting, release_conn,
+    _cache_del
 )
 
 # ── Config ──
