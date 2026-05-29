@@ -915,7 +915,7 @@ window.addEventListener('load', function(){
       <div style="display:flex;flex-direction:column;align-items:center;gap:8px;flex-shrink:0">
         <div style="position:relative;padding:10px">
           <!-- glow behind avatar -->
-          <div id="avatarGlow" style="position:absolute;inset:0;border-radius:22px;background:var(--ac2,#2563ff);opacity:.12;filter:blur(18px);z-index:0;pointer-events:none"></div>
+          <div id="avatarGlow" style="position:absolute;inset:-20px;border-radius:50%;background:radial-gradient(ellipse at center,var(--ac2,#2563ff) 0%,transparent 70%);opacity:.35;z-index:0;pointer-events:none;will-change:opacity;transform:translateZ(0)"></div>
           <div class="avatar" id="avatarBtn" style="cursor:pointer;position:relative;z-index:1" onclick="openAvatarUpload()" title="تغيير الصورة الشخصية">👤</div>
         </div>
         <div class="snap-qr-wrap">
