@@ -1269,12 +1269,12 @@ const SECTION_MODAL={
 
 function addSection(id,icon,title,el,skipOrderSave=false){
   if(document.getElementById('sec-'+id)) return;
-  // Auto-close panel and scroll to new section
+  // Unified after-add: close panel + scroll to new section
   setTimeout(function(){
     closePanel();
     var newSec=document.getElementById('sec-'+id);
-    // scrollIntoView removed - only on user action
-  },300);
+    if(newSec) newSec.scrollIntoView({behavior:'smooth',block:'start'});
+  },350);
   const lid=id+'-list';
   const modalType=SECTION_MODAL[id]||'generic';
   const btnOnclick=modalType==='generic'
@@ -1311,7 +1311,7 @@ function addSection(id,icon,title,el,skipOrderSave=false){
   // Fix 3: only persist custom sections to DB (not built-ins with own save flow)
   var _builtins=['course','skills','langs','links','exp','edu'];
   if(_builtins.indexOf(id)===-1) _saveSectionsConfig();
-  setTimeout(closePanel,400);
+  // closePanel already called in setTimeout above — no duplicate needed
 }
 
 // Load saved items for a section from localStorage
@@ -2925,7 +2925,13 @@ function saveCustomSec(){
   }catch(ex){}
   // Fix 1c: _saveSectionsConfig owns the save (it calls saveSectionOrder internally)
   _saveSectionsConfig();
+  // Unified after-add behavior: close panel + scroll (same as built-in sections)
   closeModal();
+  setTimeout(function(){
+    closePanel();
+    var newSec=document.getElementById('sec-'+secId);
+    if(newSec) newSec.scrollIntoView({behavior:'smooth',block:'start'});
+  },350);
 }
 function saveGeneric(lid){
   if(!lid) lid=window._currentLid||document.getElementById('modal')?.dataset?.listId||'';
