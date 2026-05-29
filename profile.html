@@ -1647,6 +1647,24 @@ function delSectionItem(elId, lsKeyBase, lid, itemId){
       _saveSectionsConfig();
     }
   }
+  // Fix 3: hide built-in section immediately if list is now empty
+  (function(){
+    var _lsToSec={
+      'tw_exp':'sec-exp','tw_edu':'sec-edu',
+      'tw_skills':'sec-skills','tw_langs':'sec-langs',
+      'tw_links':'sec-links','tw_courses':'sec-course'
+    };
+    var _secId=_lsToSec[lsKeyBase];
+    if(_secId){
+      try{
+        var _remaining=JSON.parse(localStorage.getItem(lsKeyBase+getUID())||'[]');
+        if(!_remaining.length){
+          var _el=document.getElementById(_secId);
+          if(_el) _el.style.display='none';
+        }
+      }catch(ex){}
+    }
+  })();
 }
 
 // ── Save section items ──
@@ -2959,10 +2977,8 @@ if(isOwner){
   // OWNER - show all editing tools
   var pb = document.getElementById('previewBtn');
   if(pb) pb.style.display='';
-  ['sec-exp','sec-edu','sec-course','sec-skills','sec-langs'].forEach(function(sid){
-    var sec = document.getElementById(sid);
-    if(sec) sec.style.display = '';
-  });
+  // Visibility of built-in sections is controlled by Step 2 (DB data only)
+  // NOT by isOwner — removing this avoids showing empty sections
 } else {
   // VIEWING ANOTHER PROFILE - read only
   document.querySelectorAll('.owner-only').forEach(function(el){ el.style.display='none'; });
@@ -3167,7 +3183,11 @@ var SECTION_CONFIG = {
         prof.experience.forEach(function(e){ expList.insertAdjacentHTML('beforeend',renderExpItem({id:e.id,title:e.title,company:e.company,location:e.location||'',start_date:e.start_date||'',end_date:e.end_date||'',desc:e.description||''})); });
       }
       if(isViewingOwn){ try{ localStorage.setItem('tw_exp'+getUID(),JSON.stringify(prof.experience)); }catch(ex){} }
+       } else {
+      var _s=document.getElementById('sec-exp');
+      if(_s) _s.style.display='none';
     }
+
 
     // ── Education ──
     if(prof.education && prof.education.length){
@@ -3189,7 +3209,11 @@ var SECTION_CONFIG = {
         });
       }
       if(isViewingOwn){ try{ localStorage.setItem('tw_edu'+getUID(),JSON.stringify(prof.education)); }catch(ex){} }
+       } else {
+      var _s=document.getElementById('sec-edu');
+      if(_s) _s.style.display='none';
     }
+
 
     // ── Skills ──
     if(prof.skills && prof.skills.length){
@@ -3217,7 +3241,11 @@ var SECTION_CONFIG = {
         langItems.forEach(function(l){ langsList.insertAdjacentHTML('beforeend',renderLangItem(l,'langs-list')); });
       }
       if(isViewingOwn){ try{ localStorage.setItem('tw_langs'+getUID(),JSON.stringify(langItems)); }catch(ex){} }
+       } else {
+      var _s=document.getElementById('sec-langs');
+      if(_s) _s.style.display='none';
     }
+
 
     // ── Links ──
     if(prof.links && prof.links.length){
@@ -3231,7 +3259,11 @@ var SECTION_CONFIG = {
         linkItems.forEach(function(l){ linksList.insertAdjacentHTML('beforeend',renderLinkItem(l,'links-list')); });
       }
       if(isViewingOwn){ try{ localStorage.setItem('tw_links'+getUID(),JSON.stringify(linkItems)); }catch(ex){} }
+       } else {
+      var _s=document.getElementById('sec-links');
+      if(_s) _s.style.display='none';
     }
+
 
     // ── Courses ──
     if(prof.courses && prof.courses.length){
@@ -3247,9 +3279,10 @@ var SECTION_CONFIG = {
       // Sync LS from DB — ensures edit modal reads fresh data
       if(isOwner){ try{ localStorage.setItem('tw_courses'+getUID(),JSON.stringify(courseItems)); }catch(ex){} }
       if(isViewingOwn){ try{ localStorage.setItem('tw_courses'+getUID(),JSON.stringify(courseItems)); }catch(ex){} }
-    }
+   
 
-    // ── Custom sections ──
+        }
+// ── Custom sections ──
     if(prof.custom_sections && isViewingOwn){
       try{
         var customSecs = typeof prof.custom_sections==='string'
@@ -3351,6 +3384,24 @@ var SECTION_CONFIG = {
         localStorage.setItem('tw_profile_data'+getUID(), JSON.stringify(lsO));
       }catch(ex){}
     }
+
+    // ── Unified visibility: DB is the single owner ──
+    // Show section if data exists, hide if empty — covers all 6 built-in sections
+    (function(){
+      var _vis = {
+        'sec-exp':    prof.experience && prof.experience.length > 0,
+        'sec-edu':    prof.education  && prof.education.length  > 0,
+        'sec-skills': prof.skills     && prof.skills.length     > 0,
+        'sec-langs':  prof.langs      && prof.langs.length      > 0,
+        'sec-links':  prof.links      && prof.links.length      > 0,
+        'sec-course': prof.courses    && prof.courses.length    > 0,
+      };
+      Object.keys(_vis).forEach(function(sid){
+        var el = document.getElementById(sid);
+        if(!el) return;
+        el.style.display = _vis[sid] ? '' : 'none';
+      });
+    })();
 
     // ── Re-init drag for newly rendered items ──
     if(typeof _initSectionDrag==='function') setTimeout(_initSectionDrag, 100);
