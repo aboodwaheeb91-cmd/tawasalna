@@ -254,7 +254,7 @@ body.s1 .sec-header { display:flex; align-items:center; gap:10px; margin-bottom:
 body.s1 .sec-icon { font-size:1.3rem; }
 body.s1 .sec-title { font-size:1.05rem; font-weight:900; color:#fff; }
 body.s1 .sec-line { flex:1; height:1px; background:linear-gradient(90deg,rgba(255,255,255,.1),transparent); }
-body.s1 .item { padding:11px 0; border-bottom:1px solid rgba(255,255,255,.05); position:relative; }
+body.s1 .item { padding:11px 0; border-bottom:1px solid rgba(255,255,255,.05); }
 body.s1 .item:last-child { border-bottom:none; padding-bottom:0; }
 body.s1 .item-title { font-size:.85rem; font-weight:700; color:#fff; margin-bottom:2px; }
 body.s1 .item-sub { font-size:.76rem; color:rgba(255,255,255,.4); margin-bottom:3px; }
@@ -418,7 +418,7 @@ body.preview-mode #previewBtn {
 }
 
 /* ── Item menu ── */
-.item-menu-wrap{position:relative;flex-shrink:0;}
+.item-menu-wrap{position:relative;flex-shrink:0;display:inline-block;}
 .item-menu-btn{
   width:32px;height:32px;border-radius:7px;border:none;
   background:rgba(255,255,255,.07);color:rgba(255,255,255,.5);
