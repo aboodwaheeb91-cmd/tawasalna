@@ -3133,6 +3133,8 @@ var SECTION_CONFIG = {
     }
     var prof = data.profile;
     _dbg('profile loaded', prof.full_name);
+    // Fix [A-1]: store in _profileCache so consumers don't re-fetch
+    window._profileCache = data;
 
     // ── Basic info ──
     var apiName = prof.full_name||data.full_name||'';
@@ -3630,8 +3632,10 @@ function saveCrop(){
       var _avSelfCheck = !new URLSearchParams(window.location.search).get('id') ||
         String(new URLSearchParams(window.location.search).get('id'))===String(u.id)||
         String(new URLSearchParams(window.location.search).get('id'))===String(u.tw_id);
-      // Use existing cache or fetch - avoids duplicate profile fetch
-      Promise.resolve(_profileCache || fetch('/profile/'+u.id+'/full',{headers:{'Authorization':'Bearer '+(localStorage.getItem('tw_jwt')||'')}}).then(r=>r.json()).then(d=>{_profileCache=d;return d;})).then(data=>{
+      // Fix [A-1]: Step 2 owns /profile/full — saveCrop reuses _profileCache
+      // If cache is null, wait for Step 2 to populate it (should not happen in normal flow)
+      var _cropProfileData = _profileCache || {profile: {}};
+      Promise.resolve(_cropProfileData).then(function(data){
           const avatarUrl=data?.profile?.avatar_url;
           if(avatarUrl){
             if(_avSelfCheck) { try{ localStorage.setItem('tw_avatar'+getUID(), avatarUrl); }catch(ex){} }

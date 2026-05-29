@@ -112,6 +112,19 @@ def _jwt_decode(token: str) -> dict:
 # ── App ──
 app = FastAPI(title="تواصلنا API", version="1.0.0")
 
+# Fix [A-4]: Prevent browser HTTP cache from serving stale .html/.js files
+# This is the correct architectural fix — works for every page, not just profile
+from starlette.middleware.base import BaseHTTPMiddleware
+class NoCacheMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        response = await call_next(request)
+        path = request.url.path
+        if any(path.endswith(ext) for ext in ['.html', '.js', '.css']):
+            response.headers['Cache-Control'] = 'no-cache, must-revalidate'
+            response.headers['Pragma'] = 'no-cache'
+        return response
+app.add_middleware(NoCacheMiddleware)
+
 
 # ── Redis-Ready Cache (auto-detects Redis) ──
 import os as _os

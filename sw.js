@@ -1,5 +1,8 @@
 
-const CACHE_NAME = 'tawasolna-v3'; // bumped version to bust old cache
+// Fix [A-2]: Version includes build timestamp
+// Update this BUILD_TIME on every deploy to bust old caches
+const BUILD_TIME = '20260529_1341';
+const CACHE_NAME = 'tawasolna-v4-' + BUILD_TIME; // bumped version to bust old cache
 
 const STATIC_ASSETS = [
   '/landing.html',
@@ -9,6 +12,8 @@ const STATIC_ASSETS = [
 
 // URLs that should NEVER be cached (always network)
 const NO_CACHE = [
+  // Fix [A-4]: JS files always from network — prevents stale code after deploy
+  '.js',
   '/profile',
   '/auth/',
   '/experience',
