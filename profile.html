@@ -3243,6 +3243,8 @@ var SECTION_CONFIG = {
         courseList.innerHTML='';
         courseItems.forEach(function(c){ courseList.insertAdjacentHTML('beforeend',renderCourseItem(c,'course-list')); });
       }
+      // Sync LS from DB — ensures edit modal reads fresh data
+      if(isOwner){ try{ localStorage.setItem('tw_courses'+getUID(),JSON.stringify(courseItems)); }catch(ex){} }
       if(isViewingOwn){ try{ localStorage.setItem('tw_courses'+getUID(),JSON.stringify(courseItems)); }catch(ex){} }
     }
 
