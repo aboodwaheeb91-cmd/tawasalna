@@ -276,6 +276,8 @@ body.s2 .cv-name { font-size:clamp(.9rem,2.5vw,1.35rem); font-weight:700; color:
 body.s2 .cv-title { color:var(--ac); font-size:.82rem; font-weight:700; margin-bottom:5px; }
 body.s2 .cv-bio { color:#64748b; font-size:.79rem; line-height:1.65; }
 body.s2 .cv-loc { display:inline-flex; align-items:center; gap:4px; margin-top:6px; font-size:.71rem; color:var(--ui-muted); }
+body.s2 .cv-age-line, body.s4 .cv-age-line { color:var(--ui-muted); }
+body.s1 .cv-age-line, body.s3 .cv-age-line { color:rgba(255,255,255,.55); }
 body.s2 .cv-code { font-size:.59rem; color:var(--ui-muted); font-weight:700; letter-spacing:1px; margin-top:4px; }
 body.s2 .sections-list { display:flex; flex-direction:column; gap:12px; }
 body.s2 .section { background:#fff; border-radius:16px; padding:20px 22px 28px; box-shadow:0 2px 10px rgba(0,0,0,.04); }
@@ -983,12 +985,12 @@ window.addEventListener('load', function(){
         <div id="cvAvail" style="display:none;margin-top:3px"></div>
 
       <!-- العمر - بين المسمى والنبذة -->
-      <div id="cvAgeLine" style="display:none;font-size:.72rem;font-weight:600;color:rgba(255,255,255,.35);margin-top:3px"></div>
+      <div id="cvAgeLine" style="display:none;font-size:.72rem;font-weight:600;margin-top:3px" class="cv-age-line"></div>
 
       <!-- البيو -->
       <div class="cv-bio" id="cvBio"></div>
-      <div class="cv-loc" id="cvLoc" style="font-size:.72rem;color:rgba(255,255,255,.45);margin-top:3px;display:none"></div>
-      <div class="cv-code" id="cvCode" style="font-size:.65rem;color:rgba(255,255,255,.25);margin-top:3px;letter-spacing:.5px"></div>
+      <div class="cv-loc" id="cvLoc" style="font-size:.72rem;margin-top:3px;display:none"></div>
+      <div class="cv-code" id="cvCode" style="font-size:.65rem;margin-top:3px;letter-spacing:.5px"></div>
       <span id="cvExpBadge" style="display:none;font-size:.65rem;color:var(--ac);font-weight:700;margin-top:3px"></span>
       </div><!-- end info div -->
     </div><!-- end avatar+info row -->
