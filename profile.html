@@ -439,11 +439,10 @@ body.profile-loading #profileSkeleton {
 body.s2 .item-menu-btn,body.s4 .item-menu-btn{background:rgba(0,0,0,.06);color:rgba(0,0,0,.3);}
 body.s2 .item-menu-btn:hover,body.s4 .item-menu-btn:hover{background:rgba(0,0,0,.1);color:rgba(0,0,0,.6);}
 .item-menu{
-  display:none;position:absolute;top:100%;right:0;left:auto;
+  display:none;position:fixed;
   background:#0d1526;border:1px solid rgba(255,255,255,.1);
-  border-radius:10px;padding:5px;min-width:140px;
-  z-index:1000;box-shadow:0 8px 24px rgba(0,0,0,.5);
-  margin-top:4px;
+  border-radius:10px;padding:5px;min-width:140px;max-width:180px;
+  z-index:2000;box-shadow:0 8px 24px rgba(0,0,0,.5);
 }
 .item-menu.open{display:block;}
 .item-menu-opt{
@@ -1628,7 +1627,19 @@ function renderGenericItem(e,lid){
 function toggleItemMenuG(btn){
   const menu=btn.nextElementSibling;
   document.querySelectorAll('.item-menu.open').forEach(m=>{ if(m!==menu) m.classList.remove('open'); });
-  menu?.classList.toggle('open');
+  if(!menu) return;
+  menu.classList.toggle('open');
+  if(menu.classList.contains('open')){
+    const r=btn.getBoundingClientRect();
+    const mw=menu.offsetWidth||160;
+    // Position below the button, aligned right, clamped inside viewport
+    var top=r.bottom+4;
+    var left=r.right-mw;
+    if(left<8) left=8;
+    if(left+mw>window.innerWidth-8) left=window.innerWidth-mw-8;
+    menu.style.top=top+'px';
+    menu.style.left=left+'px';
+  }
 }
 
 function delSectionItem(elId, lsKeyBase, lid, itemId){
