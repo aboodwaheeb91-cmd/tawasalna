@@ -694,7 +694,14 @@ def get_full_profile(user_id: int) -> Optional[dict]:
 
 def update_profile(user_id: int, data: dict) -> dict:
     _cache_del('profile:'+str(user_id))
-
+    # Clear SSR theme cache so next page load reflects new theme immediately
+    try:
+        _conn = get_conn()
+        try:
+            _tw = _conn.run("SELECT tw_id FROM users WHERE id=:uid", uid=user_id)
+            if _tw and _tw[0][0]: _cache_del('theme:'+str(_tw[0][0]))
+        finally: release_conn(_conn)
+    except Exception: pass
     conn = get_conn()
     try:
         # Update full_name in users table if provided
@@ -1221,6 +1228,33 @@ def get_unread_count(user_id: int) -> int:
         return rows[0][0] if rows else 0
     finally:
         release_conn(conn)
+
+def get_profile_style(tw_id: str) -> str:
+    """Lightweight: get only profile_style for a given tw_id. Used for SSR theme injection.
+    Uses _cache to avoid re-querying on repeated page views (TTL 60s).
+    """
+    cache_key = f"theme:{tw_id}"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return str(cached)
+    try:
+        conn = get_conn()
+        try:
+            rows = conn.run(
+                "SELECT p.profile_style FROM profiles p "
+                "JOIN users u ON u.id = p.user_id "
+                "WHERE u.tw_id = :tw_id",
+                tw_id=tw_id
+            )
+            style = str(rows[0][0]) if rows and rows[0][0] else "1"
+            _cache_set(cache_key, style, ttl=60)
+            return style
+        finally:
+            release_conn(conn)
+    except Exception:
+        pass
+    return "1"
+
 
 # ══ Notifications System ══
 

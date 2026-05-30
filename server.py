@@ -68,7 +68,7 @@ from auth import (
     get_job_applicants, get_user_applications,
     update_application_status, delete_job,
     get_site_setting, set_site_setting, release_conn,
-    _cache_del
+    _cache_del, get_profile_style
 )
 
 # ── Config ──
@@ -269,10 +269,36 @@ def home(): return read_html("home.html")
 def home_html(): return read_html("home.html")
 
 @app.get("/profile", response_class=HTMLResponse)
-def profile(): return read_html("profile.html")
+def profile(id: str = ""):
+    """Serve profile.html with SSR theme injection to prevent FOUC.
+    read_html() uses cache — we modify after reading (cache stores base HTML).
+    """
+    html = read_html("profile.html")  # base HTML from cache
+    if id:
+        style = get_profile_style(id)  # 1 lightweight DB query
+        # True fast path: only inject if non-default theme
+        # s1 = default, already in base HTML → no replacement needed
+        if style not in ("1", "", None):
+            html = html.replace(
+                'class="profile-loading"',
+                f'class="profile-loading s{style}"',
+                1
+            )
+    return html
 
 @app.get("/profile.html", response_class=HTMLResponse)
-def profile_html(): return read_html("profile.html")
+def profile_html(id: str = ""):
+    """Serve profile.html with SSR theme injection to prevent FOUC."""
+    html = read_html("profile.html")
+    if id:
+        style = get_profile_style(id)
+        if style not in ("1", "", None):
+            html = html.replace(
+                'class="profile-loading"',
+                f'class="profile-loading s{style}"',
+                1
+            )
+    return html
 
 @app.get("/company", response_class=HTMLResponse)
 def company(): return read_html("company.html")
