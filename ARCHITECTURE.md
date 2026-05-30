@@ -1,496 +1,155 @@
-# تواصلنا — Project Architecture Doctrine
+# تواصلنا — Architecture Doctrine
 
-> هذا الملف هو المرجع المعماري الرسمي للمشروع.
-> أي تطوير جديد يجب أن يلتزم بهذه القواعد.
+> **Single Source of Truth** للمعمارية.  
+> أي تطوير جديد يلتزم بهذا الملف. أي استثناء يُسجَّل هنا قبل التطبيق.
 
 ---
 
-## 1. API = المصدر النهائي للصلاحيات
+## قائمة القواعد السريعة
+
+| # | القاعدة | Priority |
+|---|---------|----------|
+| 1 | API = المصدر النهائي للصلاحيات | **P0** |
+| 2 | View Mode ثلاثي | **P1** |
+| 3 | CSS = عرض فقط | **P2** |
+| 4 | JS = سلوك فقط | **P2** |
+| 5 | صفحة واحدة + View Mode | **P1** |
+| 6 | Unified Components | **P2** |
+| 7 | قواعد الإضافات المستقبلية | **P2** |
+| 8 | Single Source of State | **P1** |
+| 9 | Rendering Order | **P2** |
+| 10 | Bootstrap Idempotency | **P1** |
+| 11 | Controlled Exceptions | **P0** |
+| 12 | Theme Ownership | **P1** |
+| 13 | Theme System | **P2** |
+| 14 | Script Integrity | **P0** |
+
+---
+
+# A — ARCHITECTURE CORE
+
+> **P0/P1:** غير قابل للكسر. أي تجاوز يتطلب Exception مسجّل.
+
+---
+
+## [P0] 1. API = المصدر النهائي للصلاحيات
 
 ```python
 # كل endpoint يتحقق من الصلاحية server-side
-if str(token.get('user_id')) != str(resource_owner_id):
+if str(token.get("user_id")) != str(resource_owner_id):
     raise HTTPException(403, "Unauthorized")
 ```
 
-- UI checks هي UX فقط، ليست حماية.
-- لا تعتمد على frontend لمنع عمليات غير مصرح بها.
+- UI checks هي UX فقط — ليست حماية.
 - أي mutation (POST/PUT/DELETE) يتحقق من token ownership.
+- لا تعتمد على frontend لمنع عمليات غير مصرح بها.
 
 ---
 
-## 2. View Mode — ثلاث حالات واضحة
+## [P0] 11. Controlled Exceptions Rule
+
+أي استثناء مسموح **فقط** بالشروط الثلاثة معاً:
+
+1. **موثّق في هذا الملف** — لا استثناءات ضمنية.
+2. **سبب تقني واضح** — performance / UX / platform limitation.
+3. **لا يتجاوز الـ security model** — صلاحيات / state / auth.
+
+**صيغة التسجيل:**
+```markdown
+Exception [N]: [اسم]
+- القاعدة: Rule #X
+- السبب: [تقني واضح]
+- الحد: [ما يُسمح به بالضبط]
+- أمان: لا يوجد / [وصف]
+```
+
+---
+
+## [P0] 14. Script Integrity
+
+- كل `<script>` له `</script>` مطابق — العدد دائماً متساوٍ.
+- لا `</script>` يدوي خارج block.
+- لا debug strings داخل `innerHTML` أو template literals.
+
+**Invariant قبل كل deploy:**
+```bash
+opens=$(grep -c "<script" profile.html)
+closes=$(grep -c "</script>" profile.html)
+[ "$opens" = "$closes" ] || { echo "❌ Script tag mismatch!"; exit 1; }
+```
+
+---
+
+## [P1] 2. View Mode — ثلاث حالات واضحة
 
 ```javascript
-// تُحدد مرة واحدة عند page init
-const viewMode = isOwner ? 'owner' : _sessionUser ? 'public-user' : 'guest';
+const viewMode = isOwner ? "owner" : _sessionUser ? "public-user" : "guest";
 ```
 
 | Mode | من | CSS class | يرى |
 |------|-----|-----------|-----|
-| `owner` | صاحب البروفايل | — | App Shell + أدوات الإدارة كاملة |
-| `public-user` | مستخدم مسجّل يشوف غيره | `public-view` | Public Header + محتوى البروفايل |
-| `guest` | زائر غير مسجّل | `public-view` | Public Header + محتوى + CTA login |
+| `owner` | صاحب البروفايل | — | App Shell + أدوات الإدارة |
+| `public-user` | مسجّل يشوف غيره | `public-view` | Public Header + محتوى |
+| `guest` | غير مسجّل | `public-view` | Public Header + CTA login |
 
----
-
-## 3. CSS = عرض فقط
-
-```css
-/* صح */
-body.public-view .owner-only { display: none; }
-
-/* غلط — CSS لا يحمي، يخفي فقط */
-/* لا تعتمد عليه لحماية بيانات حساسة */
-```
-
----
-
-## 4. JavaScript = سلوك فقط
-
+**تطبيق Feature جديدة لـ owner:**
 ```javascript
-// كل owner action يبدأ بـ guard
-function saveProfile() {
-    if (!isOwner) return;           // JS behavior guard
-    if (!_sessionUser?.id) return;  // auth guard
-    // ... rest of logic
-}
+// 1. HTML
+class="owner-only"
+// 2. CSS
+body.public-view .my-widget { display:none }
+// 3. JS
+function myAction() { if(!isOwner) return; ... }
+// 4. API
+if token.user_id != resource.user_id → 403
 ```
-
-- لا تضع business logic داخل CSS.
-- لا تستخدم DOM manipulation لإخفاء بيانات حساسة.
 
 ---
 
-## 5. صفحة واحدة + View Mode (لا نسخ)
+## [P1] 5. صفحة واحدة + View Mode
 
 ```
 ✅ profile.html + viewMode switch
 ❌ profile.html + profile-public.html (نسختان)
 ```
 
-- استخدم View Mode بدل صفحات منفصلة.
-- استثناء: إذا الصفحتان مختلفتان جذرياً في البنية.
+استثناء: إذا الصفحتان مختلفتان جذرياً في البنية.
 
 ---
 
-## 6. Unified Components (لا تكرار)
+## [P1] 8. Single Source of State
 
 ```javascript
-// صح — component واحد مع isOwner
-function renderSkillItem(item, lid) {
-    const controls = isOwner ? `
-        <div class="item-menu-wrap">...</div>
-    ` : '';
-    return `<div class="item">${content}${controls}</div>`;
-}
-
-// غلط — نسختان
-function renderSkillItem_owner(item) { ... }
-function renderSkillItem_public(item) { ... }
-```
-
----
-
-## 7. قواعد الإضافات المستقبلية
-
-### Feature جديدة خاصة بالـ owner:
-1. HTML: `class="owner-only"` على العنصر
-2. CSS: `body.public-view .my-widget { display:none }`
-3. JS: `if(!isOwner) return;` في بداية الـ handler
-4. API: ownership check في الـ endpoint
-
-### Component جديد:
-1. مكوّن واحد يقبل `isOwner` أو يقرأ `window.isOwner`
-2. يُخرج HTML مختلف بناءً على الـ mode
-3. لا نسخ منفصلة
-
-### Migration للكود القديم:
-- اكتشفت عنصراً يظهر في public-view بشكل خاطئ؟
-  → `body.public-view #elementId { display:none }` + `if(!isOwner) return;`
-- لا تعيد بناء الصفحة، فقط أضف الـ guard.
-
----
-
-## Schema Drift Prevention
-
-```python
-# كل column تستخدمه في SELECT يجب أن يكون في _migrations list
-_migrations = [
-    "ALTER TABLE experience ADD COLUMN IF NOT EXISTS company TEXT",
-    # ... أضف هنا أي column جديد قبل استخدامه
-]
-```
-
-- لا تضيف column في الكود بدون migration مقابل.
-- `_safe_query` تفرق بين EMPTY RESULT و QUERY FAILURE.
-- أي `[SCHEMA_ERROR]` في الـ logs = migration ناقصة.
-
----
-
-## ملخص: ماذا يفعل كل طرف
-
-```
-CSS   → متى يظهر العنصر (display/visibility)
-JS    → ماذا يفعل العنصر (behavior/logic)
-API   → هل مسموح بالعملية (authorization)
-```
-
----
-
-## 8. Single Source of State
-
-```javascript
-// ✅ State comes from Backend response only
+// ✅ State من Backend فقط
 const isOwner = profile.user_id === token.user_id;  // server-verified
 
-// ❌ Never derive state from DOM, URL, or localStorage alone
-const isOwner = window.location.href.includes(userId);  // wrong
-const isOwner = localStorage.getItem('isOwner');         // wrong
+// ❌ ممنوع
+const isOwner = window.location.href.includes(userId);  // DOM/URL
+const isOwner = localStorage.getItem("isOwner");         // LS
 ```
 
-**القاعدة:**
-- `isOwner`, `_sessionUser`, `viewMode` تُحدَّد من Backend response فقط.
-- `localStorage` مرآة للـ state فقط — ليست مصدره.
+- `localStorage` مرآة مؤقتة فقط — تُعاد بناؤها من API في كل Step 2.
 - URL params و DOM state هي hints، ليست source of truth.
 
-**التطبيق الحالي:**
-```javascript
-// profile.html — Step 2
-const prof = data.profile;
-const isOwner = String(_urlId) === String(prof.tw_id) && !!_sessionUser;
-// _sessionUser مأخوذ من JWT token verify في الـ backend
-```
-
 ---
 
-## 9. Rendering Order Rule
-
-ترتيب التنفيذ ثابت ولا يتغير:
-
-```
-1. viewMode detection   → من Backend response
-2. global flags         → isOwner, _sessionUser, viewMode
-3. layout render        → CSS class switch (public-view / owner)
-4. event listeners      → bind بعد render فقط
-5. async data fetch     → Step 2 يجلب البيانات
-6. DOM update           → من API response فقط
-```
-
-**لماذا هذا الترتيب؟**
-- Steps 1-3 sync → لا flicker
-- Step 4 بعد render → لا event on non-existent elements
-- Steps 5-6 async → لا blocking للـ UI
-
-**anti-patterns:**
-```javascript
-// ❌ render قبل تحديد viewMode
-renderLayout();
-if(isOwner) { ... }  // too late
-
-// ❌ event listener قبل DOM element
-document.getElementById('btn').addEventListener(...);  // btn not yet rendered
-document.body.classList.add('public-view');  // after listener — flicker!
-
-// ✅ الترتيب الصحيح
-document.body.classList.add('public-view');  // 3. layout
-document.getElementById('btn').addEventListener(...);  // 4. listeners
-fetch('/profile/full').then(render);  // 5-6. async
-```
-
----
-
-## 10. Bootstrap Idempotency
-
-كل initialization يجب أن يكون **مرة واحدة فقط**:
+## [P1] 10. Bootstrap Idempotency
 
 ```javascript
-// ✅ Bootstrap guard — في بداية كل IIFE أو init function
 window.__profileBooted = window.__profileBooted || false;
 if (window.__profileBooted) {
-    document.body.classList.remove('profile-loading');
-    return;  // skip — already initialized
+    document.body.classList.remove("profile-loading");
+    return;
 }
 window.__profileBooted = true;
 // ... rest of init
 ```
 
-**القاعدة:**
-- كل صفحة تملك `window.__[pageName]Booted` flag.
-- أي إعادة تشغيل (SW update, back navigation, tab focus) يُمنع بهذا الـ guard.
-- Guard يُعاد في حالة حقيقية واحدة فقط: تسجيل الخروج وإعادة الدخول (new window context).
-
-**أمثلة:**
-```javascript
-// profile.html
-window.__profileBooted = window.__profileBooted || false;
-if (window.__profileBooted) return;
-window.__profileBooted = true;
-
-// home.html (مستقبلاً)
-window.__homeBooted = window.__homeBooted || false;
-if (window.__homeBooted) return;
-window.__homeBooted = true;
-```
+كل صفحة تملك `window.__[pageName]Booted` flag يمنع double render.
 
 ---
 
-## 11. Controlled Exceptions Rule
-
-أي استثناء لقاعدة في هذا الملف مسموح **فقط** بالشروط الثلاثة معاً:
-
-### الشروط
-
-**1. موثّق في ARCHITECTURE.md**
-الاستثناء يُسجَّل هنا بشكل صريح — لا استثناءات ضمنية أو غير مرئية.
-
-**2. له سبب تقني واضح**
-```
-مقبول:   performance / UX / platform limitation / third-party constraint
-غير مقبول: "أسرع في التطوير" / "مؤقت" / "سأصلحه لاحقاً"
-```
-
-**3. لا يتجاوز الـ security model**
-الاستثناء لا يؤثر على:
-- صلاحيات API
-- state ownership
-- authentication / authorization flow
-
----
-
-### صيغة تسجيل الاستثناء
-
-```markdown
-**Exception [رقم]: [اسم مختصر]**
-- القاعدة المستثناة: Rule #[رقم]
-- السبب: [سبب تقني واضح]
-- الحد: [ما يُسمح به بالضبط]
-- التأثير على الأمان: لا يوجد / [وصف إن وجد]
-- تاريخ الإضافة: [YYYY-MM-DD]
-```
-
----
-
-### استثناءات مسجّلة حالياً
-
-**Exception 01: localStorage كـ session cache**
-- القاعدة المستثناة: Rule #8 (Single Source of State)
-- السبب: تجنب re-fetch عند كل page navigation — UX performance
-- الحد: `localStorage` مرآة مؤقتة فقط، تُعاد بناؤها من API في كل Step 2
-- التأثير على الأمان: لا يوجد — API يتحقق من JWT في كل request
-- تاريخ الإضافة: 2025-05-25
-
-**Exception 02: CSS يخفي owner elements (public-view)**
-- القاعدة المستثناة: Rule #3 (CSS = عرض فقط)
-- السبب: atomic reveal بدون flicker — لا JS delay في إخفاء عناصر الـ owner
-- الحد: CSS للإخفاء البصري فقط، JS guard (`if(!isOwner) return`) مطلوب أيضاً لكل owner action
-- التأثير على الأمان: لا يوجد — API هو المصدر النهائي للصلاحيات
-- تاريخ الإضافة: 2025-05-25
-
----
-
-### ما لا يُعدّ استثناءً مقبولاً
-
-```
-❌ "مؤقت" بدون تاريخ انتهاء
-❌ bypass للـ API auth check
-❌ قراءة state من DOM أو URL بدون verify
-❌ double bootstrap بدون __booted guard
-❌ استثناء غير مسجّل في هذا الملف
-```
-
----
-
-## 12. Theme System Rule
-
-الثيمات تعمل عبر CSS Variables فقط — لا overrides على العناصر.
-
-### المتغيرات الرسمية
-
-```css
-/* كل ثيم يعرّف هذه المتغيرات فقط */
-body.sX {
-  --text-color:  /* النص الأساسي */
-  --muted-text:  /* النص الثانوي / hints / labels */
-  --drag-color:  /* drag handles */
-  --surface:     /* خلفية الكروت */
-  --border:      /* الحدود */
-}
-```
-
-### ثيم جديد = 5 متغيرات فقط
-
-```css
-/* مثال: ثيم بنفسجي */
-body.s5 {
-  --text-color: #1e1b4b;
-  --muted-text: #6d28d9;
-  --drag-color: rgba(109,40,217,.3);
-  --surface:    #faf5ff;
-  --border:     #e9d5ff;
-}
-```
-
-لا لمس لأي component — يرث التغيير تلقائياً.
-
-### القواعد
-
-```javascript
-// ✅ صح — render functions تستخدم var()
-`<span style="color:var(--muted-text)">${label}</span>`
-`<div style="color:var(--drag-color)" draggable="true">⠿</div>`
-
-// ❌ غلط — rgba/hex مباشرة في JS
-`<span style="color:rgba(255,255,255,.5)">${label}</span>`
-`<div style="color:#fff" draggable="true">⠿</div>`
-```
-
-### المتغيرات الحالية والثيمات
-
-| Variable | s1 dark | s2 white | s3 navy | s4 clean |
-|----------|---------|----------|---------|----------|
-| `--text-color` | `#fff` | `#0f172a` | `#fff` | `#111827` |
-| `--muted-text` | `rgba(255,255,255,.55)` | `#64748b` | `rgba(255,255,255,.55)` | `#6b7280` |
-| `--drag-color` | `rgba(255,255,255,.25)` | `rgba(0,0,0,.2)` | `rgba(255,255,255,.25)` | `rgba(0,0,0,.2)` |
-| `--surface` | `rgba(255,255,255,.06)` | `#f8fafc` | `rgba(255,255,255,.06)` | `#f9fafb` |
-| `--border` | `rgba(255,255,255,.09)` | `#e2e8f0` | `rgba(255,255,255,.09)` | `#e5e7eb` |
-
-### Migration Rule (تدريجي)
-
-- ملف يتم تعديله → حوّل ألوانه إلى var()
-- لا refactor شامل دفعة واحدة
-- CSS هيكلية قديمة تُترك حتى تُعدَّل طبيعياً
-
----
-
-### ⛔ Hard Ban — ممنوع منعاً باتاً
-
-هذه الأنماط ممنوعة داخل:
-- `render functions` (renderExpItem, renderSkillItem, ...)
-- `inline styles` داخل JS
-- `components` الأساسية
-
-```css
-/* ❌ ممنوع */
-color: #fff
-color: #000
-color: rgba(255, 255, 255, .X)
-color: rgba(0, 0, 0, .X)
-color: white
-color: black
-```
-
-```css
-/* ✅ البديل الوحيد المقبول */
-color: var(--text-color)
-color: var(--muted-text)
-color: var(--drag-color)
-color: var(--ac)        /* accent color */
-color: var(--ac2)       /* secondary accent */
-```
-
-**الاستثناءات المقبولة** (موثّقة في Exception List):
-- ألوان ثابتة بطبيعتها: أيقونات status (أخضر نجاح، أحمر خطأ، برتقالي تحذير)
-- عناصر UI لا تتأثر بالثيم: badges الوظيفي، KYC status colors
-- تُسجَّل كـ Exception في ARCHITECTURE.md قبل الاستخدام
-
----
-
-## الحالة النهائية المعتمدة — Theme System (2025-05-25)
-
-### Theme Persistence — مصدر واحد
-
-```
-DB (profiles.profile_style)
-  ↓ GET /profile/:id/full
-Step 2 → prof.profile_style
-  ↓ document.body.className = 's' + styleN
-UI (body.s1 / s2 / s3 / s4)
-```
-
-**القواعد:**
-- Owner changes theme → `setStyle(n)` → saves to LS + API simultaneously
-- Non-owner views profile → Step 2 applies owner's theme → NO LS write
-- On refresh → Step 2 re-reads from API → theme always matches DB
-
-**ممنوع:**
-```javascript
-// ❌ هذا كان المشكلة — ثيم المشاهد يطغى على ثيم البروفايل
-if(prof.profile_style && isViewingOwn) { applyTheme() }
-
-// ✅ الصحيح — ثيم البروفايل دائماً من صاحبه
-if(prof.profile_style) {
-  applyTheme();
-  if(isOwner) saveToLS();  // write only for owner
-}
-```
-
----
-
-### Text Visibility — CSS Variables فقط
-
-**الحالة المعتمدة:**
-- `rgba(255,255,255,.X)` في JS: **0** — كلها تحولت لـ `var(--muted-text)`
-- `#fff` في JS: **4 فقط** — موثّقة كـ intentional exceptions
-
-**Exception 02 (محدّث):**
-الـ 4 حالات المتبقية من `#fff` في JS:
-1. أزرار primary (أبيض على أزرق) — fixed by design
-2. QR overlay text — always dark background
-3. Status badges (success/error) — semantic colors, not theme-sensitive
-- **لا تمس** — موثّقة هنا وفي Exception List
-
-**القاعدة النهائية:**
-```
-أي color في render function أو inline JS style
-يجب أن يكون var(--X) فقط
-الاستثناء: semantic colors موثّقة في ARCHITECTURE.md
-```
-
----
-
-## Exception 03: Init — CSS Only, No Mutations (2026-05-30)
-
-**المشكلة التي حدثت:**
-```
-Init reads localStorage → calls setStyle(n)
-setStyle(n) → PUT /profile/{id} {profile_style: 2}  ← integer
-Backend: Optional[str] → Pydantic rejects int → 422
-User sees: theme not saving → refreshes repeatedly → duplicate loads
-```
-
-**القاعدة المستخلصة:**
-
-```
-Init phase = READ ONLY
-  ✅ CSS class apply
-  ✅ localStorage read
-  ❌ API calls (PUT/POST/DELETE)
-  ❌ Pydantic mutations
-```
-
-**التطبيق:**
-```javascript
-// ❌ قبل — init يستدعي setStyle (يطلق PUT)
-if(savedStyle) setStyle(savedStyle, sopt);
-
-// ✅ بعد — CSS فقط، بدون mutation
-document.body.classList.add('s' + savedStyle);
-// Step 2 يطبق القيمة الحقيقية من DB لاحقاً
-```
-
-**قاعدة type safety للـ API:**
-```javascript
-// ✅ دائماً أرسل strings للـ Optional[str] fields
-body: JSON.stringify({ profile_style: String(n) })
-
-// ❌ Pydantic v2 لا يقبل int حيث str متوقع
-body: JSON.stringify({ profile_style: n })  // n = integer
-```
-
----
-
-## 13. Theme Ownership Rule
+## [P1] 12. Theme Ownership
 
 **المبدأ:** الثيم ملك صاحب البروفايل — لا المشاهد.
 
@@ -498,42 +157,392 @@ body: JSON.stringify({ profile_style: n })  // n = integer
 DB (profiles.profile_style) → API → Step 2 → body.sX
 ```
 
-### Ownership Matrix
+| من يفتح | مصدر الثيم | يكتب LS؟ | يكتب DB؟ |
+|---------|-----------|---------|---------|
+| Owner | DB → API | ✅ | ✅ عند تغيير |
+| Non-owner | DB → API | ❌ | ❌ |
+| Guest | DB → API | ❌ | ❌ |
 
-| من يفتح البروفايل | مصدر الثيم | يكتب في LS؟ | يكتب في DB؟ |
-|------------------|-----------|------------|------------|
-| Owner            | DB → API  | ✅ نعم     | ✅ عند تغيير |
-| Logged-in non-owner | DB → API | ❌ لا   | ❌ لا       |
-| Guest            | DB → API  | ❌ لا      | ❌ لا       |
-
-### القواعد
-
-**1. DB = مصدر الثيم الوحيد عند فتح البروفايل**
+**Init rule:**
 ```javascript
-// ✅ Step 2 — يطبق ثيم صاحب البروفايل دائماً
-if(prof.profile_style){
-    applyTheme(prof.profile_style);       // للجميع
-    if(isOwner) saveToLS(prof.profile_style); // للـ owner فقط
-}
+// ✅ Owner فقط يقرأ LS theme
+if(isOwner) { apply LS theme + curStyle = savedStyle }
+// Non-owner: body stays as SSR class until Step 2
 ```
 
-**2. localStorage = preference cache للـ owner فقط**
-```javascript
-// ✅ مقبول — owner يرى ثيمه المحفوظ فوراً قبل Step 2
-// ❌ ممنوع — قراءة LS لتحديد ثيم بروفايل شخص آخر
-```
-
-**3. Init = CSS فقط، بدون API call**
-```javascript
-// ✅ تطبيق CSS مؤقت من LS حتى يصل Step 2
-document.body.classList.add('s' + savedStyle);
-// ❌ ممنوع — setStyle() في init (يطلق PUT → 422)
-```
-
-**4. Type safety**
+**Type safety:**
 ```javascript
 // ✅ دائماً string للـ API
 { profile_style: String(n) }
-// ❌ integer يسبب 422 مع Pydantic
-{ profile_style: n }
+// ❌ int → Pydantic v2 يرفض → 422
+```
+
+---
+
+# B — CODING STANDARDS
+
+> **P2/P3:** يُطبَّق على كل كود جديد. تغييره يتطلب مناقشة.
+
+---
+
+## [P2] 3. CSS = عرض فقط
+
+```css
+/* ✅ CSS للإظهار/الإخفاء */
+body.public-view .owner-only { display: none; }
+
+/* ❌ CSS لا يحمي — يخفي فقط */
+```
+
+---
+
+## [P2] 4. JS = سلوك فقط
+
+```javascript
+// ✅ كل owner action يبدأ بـ guard
+function saveProfile() {
+    if (!isOwner) return;
+    if (!_sessionUser?.id) return;
+    // ... logic
+}
+```
+
+---
+
+## [P2] 6. Unified Components
+
+```javascript
+// ✅ Component واحد مع isOwner
+function renderSkillItem(item) {
+    const controls = isOwner ? `<div class="item-menu-wrap">...</div>` : "";
+    return `<div class="item">${content}${controls}</div>`;
+}
+
+// ❌ نسختان منفصلتان
+function renderSkillItem_owner(item) { ... }
+function renderSkillItem_public(item) { ... }
+```
+
+---
+
+## [P2] 7. قواعد الإضافات المستقبلية
+
+**Component جديد:**
+- مكوّن واحد يقرأ `isOwner` أو `window.isOwner`.
+- لا نسخ منفصلة.
+
+**Migration للكود القديم:**
+```javascript
+// عنصر يظهر خطأ في public-view:
+body.public-view #elementId { display:none }  // CSS
+if(!isOwner) return;                           // JS
+```
+
+---
+
+## [P2] 9. Rendering Order
+
+```
+1. viewMode detection   → من Backend response
+2. global flags         → isOwner, _sessionUser
+3. layout render        → CSS class switch
+4. event listeners      → bind بعد render
+5. async data fetch     → Step 2
+6. DOM update           → من API فقط
+```
+
+- Steps 1-3 sync → لا flicker.
+- Steps 5-6 async → لا blocking.
+
+---
+
+## [P2] 13. Theme System
+
+### المتغيرات الرسمية
+
+```css
+body.sX {
+    --text-color:  /* النص الأساسي */
+    --muted-text:  /* النص الثانوي */
+    --drag-color:  /* drag handles */
+    --surface:     /* خلفية الكروت */
+    --border:      /* الحدود */
+    /* UI Controls tokens */
+    --ui-muted:    /* #64748b في light */
+    --ui-soft:     /* #94a3b8 في light */
+    --ui-border:   /* #555 في light */
+    --ui-strong:   /* #1f2937 في light */
+}
+```
+
+### ثيم جديد = 9 متغيرات فقط، لا لمس لأي component.
+
+### Hard Ban
+
+```css
+/* ❌ ممنوع في render functions / inline JS */
+color: #fff;  color: rgba(255,255,255,.X);  color: white;
+color: rgba(0,0,0,.X)  /* بدون var() */
+
+/* ✅ البديل */
+color: var(--text-color);  color: var(--muted-text);
+color: var(--ui-muted);    color: var(--ui-soft);
+```
+
+### Render Function Separation
+
+```javascript
+// ✅ Logic أعلى، Template أسفل
+function renderItem(item) {
+    const escaped = sanitize(item.name);
+    const badge = item.level || "";
+    return `<div>${escaped}<span>${badge}</span></div>`;
+}
+
+// ❌ Logic + HTML + debug مخلوطين
+```
+
+---
+
+## [P3] Schema Drift Prevention
+
+```python
+# كل column في SELECT يجب أن يكون في _migrations
+_migrations = [
+    "ALTER TABLE experience ADD COLUMN IF NOT EXISTS company TEXT",
+]
+```
+
+- `_safe_query` تفرق بين EMPTY RESULT و QUERY FAILURE.
+- `[SCHEMA_ERROR]` في logs = migration ناقصة.
+
+---
+
+# C — EXCEPTIONS LOG
+
+> الاستثناءات الموثّقة. أي استثناء جديد يُضاف هنا **قبل** التطبيق.
+
+---
+
+### Exception 01 — localStorage كـ session cache
+- **القاعدة:** Rule #8 (Single Source of State)
+- **السبب:** تجنب re-fetch عند كل page navigation — UX performance
+- **الحد:** LS مرآة مؤقتة فقط، تُعاد من API في كل Step 2
+- **أمان:** لا يوجد — API يتحقق من JWT في كل request
+
+### Exception 02 — CSS يخفي owner elements
+- **القاعدة:** Rule #3 (CSS = عرض فقط)
+- **السبب:** atomic reveal بدون flicker
+- **الحد:** CSS للإخفاء البصري فقط؛ JS guard مطلوب أيضاً لكل owner action
+- **أمان:** لا يوجد — API هو المصدر النهائي
+
+### Exception 03 — Init: CSS Only, No Mutations
+- **القاعدة:** Rule #9 (Rendering Order)
+- **السبب:** عدم استدعاء setStyle في init يمنع 422 من Pydantic type mismatch
+- **الحد:** Init يطبق CSS class فقط؛ Step 2 يطبق القيمة الحقيقية من DB
+- **أمان:** لا يوجد
+
+---
+
+## الحالة النهائية المعتمدة (2026-05-30)
+
+```
+CSS   → متى يظهر العنصر (display/visibility)
+JS    → ماذا يفعل العنصر (behavior/logic)
+API   → هل مسموح بالعملية (authorization)
+```
+
+**Theme:**
+- `profile_style` و `profile_color` يُطبَّقان لجميع المشاهدين من DB
+- LS write للـ owner فقط
+- SSR injection يمنع FOUC — cache يُمسح عند تغيير الثيم
+
+**Schema:**
+- EMPTY RESULT ≠ QUERY FAILURE — `_safe_query` تفرق بينهما
+- `[SCHEMA_ERROR]` في logs = ارتفع على الفور ونفّذ migration
+
+---
+
+## الحالة المعتمدة — View Mode & CSS Classes (2026-05-30)
+
+### النظام الحالي (مستقر — لا تغيّر)
+
+```
+viewMode (JS)     →  body CSS class     →  UI rendering
+─────────────────────────────────────────────────────
+"owner"           →  (no class)         →  full app shell
+"public-user"     →  public-view        →  public header only
+"guest"           →  public-view        →  public header + CTA
+"owner+preview"   →  public-view        →  simulates public-user
+```
+
+**`public-view` = derived CSS alias من viewMode، وليس state مستقل.**
+
+لا يُقرأ منه الـ state — يُكتب إليه فقط من:
+```javascript
+document.body.classList.add('public-view');        // non-owner init
+document.body.classList.toggle('public-view', previewMode); // preview
+```
+
+**`preview-mode` = sync trigger فقط:**
+```javascript
+// togglePreview يعمل شيئاً واحداً فقط:
+document.body.classList.toggle('preview-mode', previewMode);
+document.body.classList.toggle('public-view', previewMode);
+// لا يغيّر viewMode — لا يحفظ state — trigger فقط
+```
+
+---
+
+### Future Optimization (مؤجّل — ليس أولوية)
+
+**اقتراح:** rename إلى `view-owner` / `view-public-user` / `view-guest`  
+**السبب:** cleaner semantics، single class per state  
+**الحالة:** مؤجّل — refactor كبير بدون فائدة وظيفية فورية  
+**متى يُنفَّذ:** عند بناء صفحة جديدة من الصفر أو عند وجود فريق  
+**شرط التنفيذ:** يُسجَّل كـ Exception هنا قبل البدء
+
+---
+
+## 15. Card Clipping Pattern — Background Clip vs Glow Escape
+
+**المشكلة:** `overflow:hidden + border-radius` على card container يقص
+كل الـ visual effects على العناصر الداخلية (box-shadow, filter:drop-shadow).
+
+### النمط الرسمي للـ Cards التي تحتاج:
+- قص الخلفية عند الـ border-radius ✅
+- السماح لـ glow/shadow الداخلية بالخروج ✅
+
+```css
+/* ❌ المشكلة */
+.card {
+  overflow: hidden;        /* يقص الخلفية ✅ لكن يقص glow أيضاً ❌ */
+  border-radius: 22px;
+}
+
+/* ✅ الحل المعتمد */
+.card {
+  overflow: visible;                  /* glow يخرج بحرية */
+  border-radius: 22px;                /* بصري فقط */
+  clip-path: inset(0 round 22px);    /* يقص الخلفية بنفس الشكل */
+}
+```
+
+### لماذا يعمل:
+- `clip-path` يقص الـ painted result للعنصر نفسه → gradient يبقى داخل الحدود ✅
+- `clip-path` لا يقص filter output على الأبناء → glow يخرج بحرية ✅
+- `overflow:visible` يمنع المتصفح من إنشاء clip region تلقائي ✅
+
+### متى تستخدم هذا النمط:
+- Card بـ gradient background + avatar/icon بـ glow
+- Card بـ colored background + shadow effects داخلية
+- أي container يحتاج border-radius clipping لكن لا يريد قص الـ children effects
+
+### التوافق مع باقي properties:
+```css
+.card {
+  overflow: visible;
+  clip-path: inset(0 round 22px);
+  isolation: isolate;    /* ✅ يعمل — لـ z-index stacking */
+  border-radius: 22px;   /* ✅ يبقى للـ visual reference */
+}
+```
+
+### تطبيق حالي في المشروع:
+```css
+/* S3 cv-head — gradient card + avatar glow */
+body.s3 .cv-head {
+  overflow: visible;
+  clip-path: inset(0 round 22px);
+  isolation: isolate;
+  border-radius: 22px;
+}
+```
+
+---
+
+## 16. Flex Media Container Rule
+
+أي عنصر يحتوي **صورة أو media** داخل flex container → **يجب** أن يكون له حجم ثابت.
+
+```html
+<!-- ❌ غلط — wrapper يتمدد ويكبر الصورة معه -->
+<div style="position:relative; padding:10px">
+  <img ...>
+</div>
+
+<!-- ✅ صح — حجم ثابت يمنع التمدد -->
+<div style="position:relative; padding:10px; flex-shrink:0">
+  <img ...>
+</div>
+
+<!-- أو بـ width ثابت -->
+<div style="position:relative; padding:10px; width:102px">
+  <img ...>
+</div>
+```
+
+**القاعدة:**
+```css
+/* أي wrapper لـ avatar أو media داخل flex */
+.avatar-wrapper,
+.media-wrapper {
+  flex-shrink: 0;  /* لا يتمدد */
+  /* أو: width: Xpx (ثابت) */
+}
+```
+
+**لماذا:** flex items بدون `flex-shrink:0` أو `width` ثابت تتمدد/تنكمش بناءً على المساحة المتاحة — خصوصاً عند وجود `overflow:visible` على الـ parent.
+
+**ينطبق على:** avatar، thumbnail، icon wrapper، QR code، أي صورة داخل flex row.
+
+---
+
+## 17. Back Button Navigation Contract
+
+### القواعد النهائية (غير قابلة للكسر)
+
+```
+replaceState  → مرة واحدة فقط عند bootstrap
+pushState     → فقط لفتح UI layer (modal/panel/overlay/QR)
+popstate      → UI close stack فقط (A→B→C)
+/system       → خارج النظام بالكامل (لا قراءة ولا كتابة)
+```
+
+### popstate Contract
+
+```javascript
+window.addEventListener('popstate', function(e){
+  // A: close overlay (QR/crop)
+  // B: close modal
+  // C: close panel
+  // No UI open → STRICT NO-OP (browser handles naturally)
+});
+```
+
+**ممنوع داخل popstate:**
+```javascript
+// ❌
+history.pushState(...)     // re-anchor
+history.replaceState(...)  // re-anchor
+location.href = '...'      // redirect
+if(e.state.profilePage)    // routing logic on marker
+```
+
+### profilePage:true = marker فقط
+
+```javascript
+// ✅ صح — marker للـ UI stack root
+history.replaceState({profilePage:true}, '', location.href)
+history.pushState({modal:'exp', profilePage:true}, '', location.href)
+
+// ❌ غلط — routing logic على الـ marker
+if(e.state && e.state.profilePage){ history.pushState(...) }
+```
+
+### Back Button Flow
+
+```
+UI مفتوح:   Back → popstate → close UI layer (no navigation)
+لا UI:       Back → browser handles naturally (may leave profile — OK)
 ```
