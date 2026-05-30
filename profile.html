@@ -1890,7 +1890,7 @@ function renderExpItem(e){
         <span class="badge pending">⏳ قيد المراجعة</span>
       </div>
       <div class="item-menu-wrap owner-only">
-        <button type="button" class="item-menu-btn" onclick="event.stopPropagation();toggleItemMenu('emenu-${id}')">⋯</button>
+        <button type="button" class="item-menu-btn" onclick="event.stopPropagation();toggleItemMenu('emenu-${id}',this)">⋯</button>
         <div class="item-menu" id="emenu-${id}">
           <div class="item-menu-opt" onclick="event.stopPropagation();editExp(${id})">✏️ تعديل</div>
           <div class="item-menu-opt" onclick="event.stopPropagation();deleteExp(${id})">🗑️ حذف</div>
@@ -1912,7 +1912,7 @@ function renderEduItem(e){
         <span class="badge pending">⏳ قيد المراجعة</span>
       </div>
       <div class="item-menu-wrap owner-only">
-        <button type="button" class="item-menu-btn" onclick="event.stopPropagation();toggleItemMenu('emenu-${id}')">⋯</button>
+        <button type="button" class="item-menu-btn" onclick="event.stopPropagation();toggleItemMenu('emenu-${id}',this)">⋯</button>
         <div class="item-menu" id="emenu-${id}">
           <div class="item-menu-opt" onclick="editEdu(${id})">✏️ تعديل</div>
           <div class="item-menu-opt" onclick="deleteEdu(${id})">🗑️ حذف</div>
@@ -1922,8 +1922,10 @@ function renderEduItem(e){
   </div>`;
 }
 
-function toggleItemMenu(id){
-  // Close all open menus first
+function toggleItemMenu(id, btn){
+  // Unified: delegate to toggleItemMenuG if btn available (new path)
+  // or fall back to id-based for legacy callers
+  if(btn){ toggleItemMenuG(btn); return; }
   document.querySelectorAll('.item-menu.open').forEach(m=>{
     if(m.id!==id) m.classList.remove('open');
   });
