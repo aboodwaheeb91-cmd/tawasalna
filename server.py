@@ -316,12 +316,32 @@ def company_profile_html(): return read_html("company-profile.html")
 
 # ══ Company Profile API — Rule #20 ══
 @app.get("/company/profile/{company_id}")
-def get_company_profile(company_id: int, request: Request):
+def get_company_profile(company_id: str, request: Request):
     """
     GET /company/profile/{id}
     Rule #20: Optional JWT — public read.
+    Accepts both numeric id and tw_id (TW-CO-XXXXX).
     Returns: profile + company + stats + viewer_type + is_owner + permissions
     """
+    # ── Resolve numeric company id (supports tw_id or numeric) ──
+    resolved_id: int = None
+    conn0 = get_conn()
+    try:
+        if company_id.isdigit():
+            resolved_id = int(company_id)
+        else:
+            # tw_id lookup
+            rows0 = conn0.run(
+                "SELECT id FROM users WHERE tw_id = :tw AND user_type IN ('co','edu')",
+                tw=company_id)
+            if rows0:
+                resolved_id = rows0[0][0]
+    finally:
+        release_conn(conn0)
+
+    if not resolved_id:
+        raise HTTPException(404, "الشركة غير موجودة")
+
     # ── Determine viewer_type from JWT (optional) ──
     viewer_type = "guest"
     is_owner    = False
@@ -335,11 +355,17 @@ def get_company_profile(company_id: int, request: Request):
         if payload:
             token_uid   = payload.get("user_id")
             token_utype = payload.get("user_type")
-            if token_uid and int(token_uid) == company_id:
+            print(f"[DEBUG /company/profile] token.user_id={token_uid} | token.user_type={token_utype} | resolved_id={resolved_id}")
+            if token_uid and int(token_uid) == resolved_id:
                 viewer_type = "owner"
                 is_owner    = True
             else:
                 viewer_type = "public-user"
+            print(f"[DEBUG /company/profile] viewer_type={viewer_type} | is_owner={is_owner}")
+        else:
+            print(f"[DEBUG /company/profile] JWT invalid or missing — guest")
+    else:
+        print(f"[DEBUG /company/profile] No Authorization header — guest")
 
     # ── Permissions per viewer_type (Rule #20) ──
     permissions = {
@@ -358,7 +384,7 @@ def get_company_profile(company_id: int, request: Request):
             "FROM users u "
             "LEFT JOIN profiles p ON p.user_id = u.id "
             "WHERE u.id = :uid AND u.user_type IN ('co','edu')",
-            uid=company_id
+            uid=resolved_id
         )
         if not rows:
             raise HTTPException(404, "الشركة غير موجودة")
@@ -369,7 +395,7 @@ def get_company_profile(company_id: int, request: Request):
         # ── jobs_count from DB (Rule #19: no hardcoded) ──
         j_rows = conn.run(
             "SELECT COUNT(*) FROM jobs WHERE company_id = :cid AND status = 'active'",
-            cid=company_id
+            cid=resolved_id
         )
         jobs_count = j_rows[0][0] if j_rows else 0
 
