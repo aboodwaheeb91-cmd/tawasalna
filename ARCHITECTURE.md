@@ -487,3 +487,53 @@ body: JSON.stringify({ profile_style: String(n) })
 // ❌ Pydantic v2 لا يقبل int حيث str متوقع
 body: JSON.stringify({ profile_style: n })  // n = integer
 ```
+
+---
+
+## 13. Theme Ownership Rule
+
+**المبدأ:** الثيم ملك صاحب البروفايل — لا المشاهد.
+
+```
+DB (profiles.profile_style) → API → Step 2 → body.sX
+```
+
+### Ownership Matrix
+
+| من يفتح البروفايل | مصدر الثيم | يكتب في LS؟ | يكتب في DB؟ |
+|------------------|-----------|------------|------------|
+| Owner            | DB → API  | ✅ نعم     | ✅ عند تغيير |
+| Logged-in non-owner | DB → API | ❌ لا   | ❌ لا       |
+| Guest            | DB → API  | ❌ لا      | ❌ لا       |
+
+### القواعد
+
+**1. DB = مصدر الثيم الوحيد عند فتح البروفايل**
+```javascript
+// ✅ Step 2 — يطبق ثيم صاحب البروفايل دائماً
+if(prof.profile_style){
+    applyTheme(prof.profile_style);       // للجميع
+    if(isOwner) saveToLS(prof.profile_style); // للـ owner فقط
+}
+```
+
+**2. localStorage = preference cache للـ owner فقط**
+```javascript
+// ✅ مقبول — owner يرى ثيمه المحفوظ فوراً قبل Step 2
+// ❌ ممنوع — قراءة LS لتحديد ثيم بروفايل شخص آخر
+```
+
+**3. Init = CSS فقط، بدون API call**
+```javascript
+// ✅ تطبيق CSS مؤقت من LS حتى يصل Step 2
+document.body.classList.add('s' + savedStyle);
+// ❌ ممنوع — setStyle() في init (يطلق PUT → 422)
+```
+
+**4. Type safety**
+```javascript
+// ✅ دائماً string للـ API
+{ profile_style: String(n) }
+// ❌ integer يسبب 422 مع Pydantic
+{ profile_style: n }
+```
