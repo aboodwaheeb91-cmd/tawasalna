@@ -706,6 +706,16 @@ def tw_shared_js():
     except:
         return Response(content="", media_type="application/javascript")
 
+@app.get("/company-profile.js")
+def company_profile_js():
+    """Serve company-profile.js action layer — Rule #21"""
+    try:
+        with open("company-profile.js","r") as f: content=f.read()
+        return Response(content=content, media_type="application/javascript",
+                       headers={"Cache-Control":"no-cache, must-revalidate"})
+    except:
+        return Response(content="// company-profile.js not found", media_type="application/javascript")
+
 @app.get("/sw.js")
 def service_worker():
     try:
