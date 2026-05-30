@@ -3573,7 +3573,9 @@ var SECTION_CONFIG = {
         '<b>③ LS tw_profile_style (by tw_id):</b> ' + (_lsStyle2||'null') + '<br>' +
         '<b>④ profile_style (API):</b> ' + (prof.profile_style || '—') + '<br>' +
         '<b>⑤ body.className (final):</b> <span style="color:' + (_bodyClass===('public-view s'+(prof.profile_style||'1'))||_bodyClass===('s'+(prof.profile_style||'1'))?'#4ade80':'#f87171') + '">' + _bodyClass + '</span><br>' +
-        '<b>Match API?:</b> ' + (_bodyClass.includes('s'+(prof.profile_style||'1')) ? '✅ YES' : '❌ NO — mismatch!') + '<br>' +
+        '<b>Match API?:</b> <span style="color:' + (_bodyClass.includes('s'+(prof.profile_style||'1'))?'#4ade80':'#f87171') + ';font-size:14px;font-weight:900">' + (_bodyClass.includes('s'+(prof.profile_style||'1')) ? '✅ YES — FIXED!' : '❌ NO — still broken') + '</span><br>' +
+        '<b>LS key used:</b> tw_profile_style' + getUID() + ' = ' + (localStorage.getItem('tw_profile_style'+getUID())||'null') + '<br>' +
+        '<b>curStyle at render:</b> ' + (typeof curStyle !== 'undefined' ? curStyle : '?') + '<br>' +
         '<hr style="border-color:#333;margin:6px 0">' +
         '<hr style="border-color:#333;margin:6px 0">' +
         '<b>Class changes:</b><br>' +
