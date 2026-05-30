@@ -546,3 +546,290 @@ if(e.state && e.state.profilePage){ history.pushState(...) }
 UI مفتوح:   Back → popstate → close UI layer (no navigation)
 لا UI:       Back → browser handles naturally (may leave profile — OK)
 ```
+
+---
+
+# D — COMPANY PROFILE SYSTEM
+
+> قواعد خاصة بـ Company Profile System.
+> أي تغيير يتطلب تحديث هذا الملف أولاً.
+
+---
+
+## [P0] 18. Data Ownership — Company Profile
+
+### Schema Contract (ثابت — لا يتغير بدون تحديث Doctrine)
+
+**profiles table** — بيانات مشتركة بين جميع user_types:
+```
+display_name      → users.full_name (source)
+avatar_url        → شعار الشركة / صورة الموظف
+location          → الموقع الجغرافي
+website           → الموقع الإلكتروني
+verification_status → is_verified
+bio               → وصف مختصر
+phone             → رقم الهاتف
+```
+
+**company_profiles table** — حصراً للشركات (user_type = 'co' | 'edu'):
+```
+cover_url         → صورة الغلاف
+founded_year      → سنة التأسيس
+company_size      → حجم الشركة
+industry          → القطاع / المجال
+description       → وصف مفصّل (يختلف عن bio)
+headquarters      → المقر الرئيسي
+contact_email     → بريد التواصل التجاري
+company_type      → نوع الجهة (private/gov/edu/...)
+verified_co       → توثيق الشركة كجهة
+```
+
+**القاعدة الصارمة:**
+```
+❌ ممنوع نقل أي field من profiles → company_profiles أو العكس
+   بدون:
+   1. تحديث هذا الملف أولاً
+   2. كتابة migration script
+   3. تحديث كل endpoints تتعامل مع هذا الـ field
+   4. تحديث Frontend State Contract
+
+❌ ممنوع إضافة company-specific field في profiles table
+❌ ممنوع إضافة employee-specific field في company_profiles table
+```
+
+**جداول مستقبلية (Phase 3+):**
+```
+company_follows   → follower_id, company_id, created_at
+company_ratings   → rater_id, company_id, score, comment, created_at
+company_posts     → company_id, content, media_url, created_at
+```
+
+---
+
+## [P0] 19. Company State Contract
+
+### Single Source of Truth — Frontend
+
+```javascript
+// الـ State الرسمي الوحيد للـ Company Profile
+window.companyState = {
+  profile: {},      // من profiles table (bio, location, website, avatar_url)
+  company: {},      // من company_profiles table (cover_url, founded_year, ...)
+  jobs: [],         // من jobs table
+  stats: {          // محسوب من DB — لا hardcoded
+    jobs_count: 0,
+    followers_count: 0,
+    rating_avg: null,
+    verified_count: 0
+  },
+  permissions: {    // من API response فقط
+    is_owner: false,
+    can_edit: false,
+    can_post_jobs: false
+  },
+  viewMode: ""      // "owner" | "public-user" | "guest"
+};
+```
+
+### قواعد الـ State (غير قابلة للكسر):
+
+```
+✅ UI يقرأ من companyState فقط
+✅ API response يحدّث companyState فقط
+✅ كل render function تأخذ data كـ parameter — لا تقرأ من DOM
+
+❌ DOM ليس مصدر بيانات
+❌ localStorage ليس مصدر بيانات (للـ jwt فقط — وليس بيانات الشركة)
+❌ hidden inputs ليست مصدر بيانات
+❌ dataset attributes ليست مصدر بيانات
+❌ URL params ليست مصدر بيانات (hints فقط للـ routing)
+❌ hardcoded values ممنوعة في أي render function
+```
+
+### State Update Flow:
+```
+API response
+    ↓
+_mergeCompanyState(data)   ← دالة واحدة تحدّث الـ state
+    ↓
+renderAll()                ← يقرأ من companyState فقط
+    ↓
+DOM                        ← output فقط، ليس input
+```
+
+### _mergeCompanyState Contract:
+```javascript
+function _mergeCompanyState(apiResponse) {
+  // الدالة الوحيدة المسموح لها بتحديث companyState
+  // كل شيء آخر يقرأ فقط
+  companyState.profile     = apiResponse.profile     || {};
+  companyState.company     = apiResponse.company     || {};
+  companyState.jobs        = apiResponse.jobs        || [];
+  companyState.stats       = apiResponse.stats       || {};
+  companyState.permissions = apiResponse.permissions || {};
+  companyState.viewMode    = apiResponse.viewer_type || "guest";
+}
+```
+
+---
+
+## [P0] 20. Company API Security Contract
+
+### Authentication:
+```
+كل mutating request: Authorization: Bearer {jwt}
+❌ X-User-Id header: ممنوع كـ auth mechanism
+✅ verify_token: Depends(verify_token) على كل POST/PUT/DELETE
+```
+
+### Authorization per Endpoint:
+```
+GET  /company/profile/{id}   → Optional JWT | Public read
+PUT  /company/profile/{id}   → JWT + token.user_id == id + user_type=='co'
+POST /company/jobs           → JWT + user_type=='co'
+PUT  /company/jobs/{job_id}  → JWT + token.user_id == jobs.company_id
+DELETE /company/jobs/{job_id}→ JWT + token.user_id == jobs.company_id
+POST /company/{id}/follow    → JWT + user_type=='emp'
+```
+
+### viewMode Response Contract:
+```json
+{
+  "viewer_type": "owner | public-user | guest",
+  "is_owner": true,
+  "permissions": {
+    "can_edit": true,
+    "can_post_jobs": true,
+    "can_follow": false
+  }
+}
+```
+
+---
+
+## [P1] Controlled Exceptions — Company Profile
+
+### Exception 04 — Hybrid Schema
+- **القاعدة:** Rule #8 (Single Source of State)
+- **السبب:** profiles تبقى للبيانات المشتركة؛ company_profiles للخاصة — backward compatible
+- **الحد:** profiles لا تحتوي company-only fields بعد اليوم
+- **أمان:** لا يوجد أثر أمني
+
+### Exception 05 — X-User-Id في /company/jobs (مؤقت)
+- **القاعدة:** Rule #1 (API Authorization)
+- **السبب:** migration تدريجية
+- **الحد:** يُزال في Phase 1 قبل أي deploy لـ production
+- **أمان:** ⚠️ قابل للتزوير — مقبول في dev فقط
+
+---
+
+## Phase Roadmap — Company Profile
+
+```
+Phase 1 — Security Foundation (الحالي):
+  ✅ JWT ownership validation
+  ✅ API authorization (Depends verify_token)
+  ✅ viewMode system من API
+  ✅ CSS visibility system
+  ✅ Bootstrap idempotency
+  ✅ Duplicate request prevention
+
+Phase 2 — Schema + Real Data:
+  company_profiles table migration
+  Real data: jobs_count, verified_count من DB
+  Skeleton loader
+  إخفاء hardcoded sections
+
+Phase 3 — Social Features:
+  company_follows table + endpoints
+  company_ratings table + endpoints
+  follow/unfollow real
+  rating display real
+
+Phase 4 — Polish:
+  Back button (Rule #17)
+  Render functions موحدة
+  State deduplication
+
+ممنوع الانتقال لـ Phase التالية قبل إغلاق الحالية واختبارها.
+```
+
+---
+
+## [P0] 21. Company Frontend — Step 3 Implementation Contract
+
+### Render Pipeline (ثابت — لا يتغير بدون Doctrine update)
+
+```
+initCompanyProfile()     ← __companyBooted guard
+_applyLoadingState(true) ← CSS class فقط
+loadData()               ← fetch + AbortController
+_mergeCompanyState(data) ← ONLY state writer
+_applyViewMode()         ← CSS class من viewMode
+renderAll()              ← reads companyState only
+  renderProfile()
+  renderStats()
+  renderJobs()
+_applyLoadingState(false)
+bindEvents()             ← بعد render فقط
+```
+
+### _mergeCompanyState() — Sole State Writer
+
+```javascript
+// الدالة الوحيدة المسموح لها بتعديل companyState
+function _mergeCompanyState(apiResponse) {
+  if (!apiResponse || apiResponse.status !== "success") return;
+  companyState.profile     = apiResponse.profile     || {};
+  companyState.company     = apiResponse.company     || {};
+  companyState.jobs        = apiResponse.jobs        || [];
+  companyState.stats       = apiResponse.stats       || companyState.stats;
+  companyState.permissions = apiResponse.permissions || {};
+  companyState.viewMode    = apiResponse.viewer_type || "guest";
+}
+```
+
+### _applyViewMode() — CSS Setter Only
+
+```javascript
+function _applyViewMode() {
+  const vm = companyState.viewMode;
+  document.body.classList.remove('view-owner','public-view','view-guest');
+  if      (vm === 'owner')       document.body.classList.add('view-owner');
+  else if (vm === 'public-user') document.body.classList.add('public-view');
+  else                           document.body.classList.add('view-guest');
+}
+// تُستدعى مرة واحدة فقط — لا من event handlers
+```
+
+### Event Boundary Contract
+
+```
+UI event → permission guard → API call → _mergeCompanyState → renderAll()
+```
+
+```javascript
+// ✅ صح
+function saveEdit() {
+  if (!companyState.permissions.can_edit) return;
+  fetch(PUT, JWT) → _mergeCompanyState → renderAll();
+}
+
+// ❌ غلط
+function saveEdit() {
+  _coData.name = input.value;  // state mutation outside contract
+  document.getElementById('coName').textContent = _coData.name; // DOM as output
+}
+```
+
+### Forbidden Patterns (Step 3+)
+
+```javascript
+❌ if (_isOwner) {}                          // local flag
+❌ if (_user.user_type === 'co') {}          // localStorage
+❌ el.style.display = is_owner ? '' : 'none' // JS visibility
+❌ hardcoded: '47', '4.2', '12'             // fake stats
+❌ _coData.x = value                         // old state object
+❌ state mutation outside _mergeCompanyState
+❌ DOM read for data decisions
+```

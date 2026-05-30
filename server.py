@@ -312,6 +312,107 @@ def company_profile(): return read_html("company-profile.html")
 @app.get("/company-profile.html", response_class=HTMLResponse)
 def company_profile_html(): return read_html("company-profile.html")
 
+
+
+# ══ Company Profile API — Rule #20 ══
+@app.get("/company/profile/{company_id}")
+def get_company_profile(company_id: int, request: Request):
+    """
+    GET /company/profile/{id}
+    Rule #20: Optional JWT — public read.
+    Returns: profile + company + stats + viewer_type + is_owner + permissions
+    """
+    # ── Determine viewer_type from JWT (optional) ──
+    viewer_type = "guest"
+    is_owner    = False
+    token_uid   = None
+    token_utype = None
+
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        raw = auth_header[7:]
+        payload = _jwt_decode(raw) if raw else {}
+        if payload:
+            token_uid   = payload.get("user_id")
+            token_utype = payload.get("user_type")
+            if token_uid and int(token_uid) == company_id:
+                viewer_type = "owner"
+                is_owner    = True
+            else:
+                viewer_type = "public-user"
+
+    # ── Permissions per viewer_type (Rule #20) ──
+    permissions = {
+        "can_edit":      is_owner,
+        "can_post_jobs": is_owner,
+        "can_follow":    viewer_type == "public-user",
+        "can_rate":      False,  # Phase 3: enabled for ex-employees only
+    }
+
+    # ── Fetch company base profile (lightweight — no extras) ──
+    conn = get_conn()
+    try:
+        rows = conn.run(
+            "SELECT u.id, u.tw_id, u.full_name, u.email, u.user_type, u.created_at, "
+            "p.bio, p.location, p.avatar_url, p.website, p.is_verified, p.phone "
+            "FROM users u "
+            "LEFT JOIN profiles p ON p.user_id = u.id "
+            "WHERE u.id = :uid AND u.user_type IN ('co','edu')",
+            uid=company_id
+        )
+        if not rows:
+            raise HTTPException(404, "الشركة غير موجودة")
+
+        cols = [c["name"] if isinstance(c, dict) else c[0] for c in conn.columns]
+        profile = dict(zip(cols, rows[0]))
+
+        # ── jobs_count from DB (Rule #19: no hardcoded) ──
+        j_rows = conn.run(
+            "SELECT COUNT(*) FROM jobs WHERE company_id = :cid AND status = 'active'",
+            cid=company_id
+        )
+        jobs_count = j_rows[0][0] if j_rows else 0
+
+        # ── verified_count from DB ──
+        v_rows = conn.run(
+            "SELECT COUNT(*) FROM verify_requests "
+            "WHERE item_company = :name AND status = 'verified'",
+            name=profile.get("full_name", "")
+        )
+        verified_count = v_rows[0][0] if v_rows else 0
+
+    finally:
+        release_conn(conn)
+
+    # ── company_profiles fields (Phase 2: populated when table created) ──
+    company = {
+        "company_type": None,
+        "founded_year":  None,
+        "company_size":  None,
+        "cover_url":     None,
+        "industry":      None,
+        "headquarters":  None,
+        "contact_email": None,
+    }
+
+    # ── Stats (Rule #19: no hardcoded values) ──
+    stats = {
+        "jobs_count":       jobs_count,
+        "followers_count":  0,    # Phase 3: company_follows table
+        "verified_count":   verified_count,
+        "rating_avg":       None, # Phase 3: company_ratings table
+    }
+
+    return {
+        "status":      "success",
+        "profile":     profile,
+        "company":     company,
+        "stats":       stats,
+        "viewer_type": viewer_type,
+        "is_owner":    is_owner,
+        "permissions": permissions,
+    }
+
 @app.get("/edu", response_class=HTMLResponse)
 def edu(): return read_html("edu.html")
 
@@ -1425,39 +1526,78 @@ def get_job_detail(job_id: int):
     return {"status": "success", "job": job}
 
 @app.post("/company/jobs")
-def post_job(data: JobInput, request: Request):
-    user_id = int(request.headers.get("X-User-Id", 0))
-    if not user_id: raise HTTPException(401, "غير مصرح")
-    job = add_job(user_id, data.dict())
+def post_job(data: JobInput, token=Depends(verify_token)):
+    # Rule #1, #20: JWT only — X-User-Id removed
+    user_id   = token.get("user_id")
+    user_type = token.get("user_type")
+    if not user_id:
+        print(f"[SECURITY] INVALID_TOKEN: POST /company/jobs")
+        raise HTTPException(401, "رمز غير صالح")
+    if user_type not in ("co", "edu"):
+        print(f"[SECURITY] COMPANY_OWNERSHIP_FAILED: user_type={user_type} tried POST /company/jobs")
+        raise HTTPException(403, "شركات وجهات فقط")
+    job = add_job(int(user_id), data.dict())
     return {"status": "success", "job": job}
 
 @app.put("/company/jobs/{job_id}")
-def update_job_endpoint(job_id: int, data: JobInput, request: Request):
-    user_id = int(request.headers.get("X-User-Id", 0))
-    if not user_id: raise HTTPException(401, "غير مصرح")
+def update_job_endpoint(job_id: int, data: JobInput, token=Depends(verify_token)):
+    # Rule #1, #20: JWT + DB ownership check
+    user_id   = token.get("user_id")
+    user_type = token.get("user_type")
+    if not user_id:
+        print(f"[SECURITY] INVALID_TOKEN: PUT /company/jobs/{job_id}")
+        raise HTTPException(401, "رمز غير صالح")
+    if user_type not in ("co", "edu"):
+        print(f"[SECURITY] COMPANY_OWNERSHIP_FAILED: user_type={user_type} tried PUT /company/jobs/{job_id}")
+        raise HTTPException(403, "شركات وجهات فقط")
+    cid = int(user_id)
     conn = get_conn()
     try:
         fields = {k:v for k,v in data.dict().items() if v is not None}
         if fields:
             set_clause = ", ".join(f"{k}=:{k}" for k in fields)
-            conn.run(f"UPDATE jobs SET {set_clause} WHERE id=:id AND company_id=:cid",
-                     id=job_id, cid=user_id, **fields)
+            # DB ownership check: WHERE company_id=cid ensures only owner can update
+            affected = conn.run(
+                f"UPDATE jobs SET {set_clause} WHERE id=:id AND company_id=:cid",
+                id=job_id, cid=cid, **fields)
+            if not affected:
+                print(f"[SECURITY] JOB_OWNERSHIP_FAILED: user={cid} tried PUT job={job_id}")
+                raise HTTPException(403, "ليست وظيفتك أو غير موجودة")
         return {"status": "success"}
     finally:
         release_conn(conn)
 
 @app.delete("/company/jobs/{job_id}")
-def remove_job(job_id: int, request: Request):
-    user_id = int(request.headers.get("X-User-Id", 0))
-    if not user_id: raise HTTPException(401, "غير مصرح")
-    delete_job(job_id, user_id)
+def remove_job(job_id: int, token=Depends(verify_token)):
+    # Rule #1, #20: JWT + DB ownership via delete_job WHERE
+    user_id   = token.get("user_id")
+    user_type = token.get("user_type")
+    if not user_id:
+        print(f"[SECURITY] INVALID_TOKEN: DELETE /company/jobs/{job_id}")
+        raise HTTPException(401, "رمز غير صالح")
+    if user_type not in ("co", "edu"):
+        print(f"[SECURITY] COMPANY_OWNERSHIP_FAILED: user_type={user_type} tried DELETE /company/jobs/{job_id}")
+        raise HTTPException(403, "شركات وجهات فقط")
+    cid = int(user_id)
+    deleted = delete_job(job_id, cid)
+    # delete_job uses WHERE id=job_id AND company_id=cid → DB ownership check
+    if not deleted:
+        print(f"[SECURITY] JOB_OWNERSHIP_FAILED: user={cid} tried DELETE job={job_id}")
+        raise HTTPException(403, "ليست وظيفتك أو غير موجودة")
     return {"success": True}
 
 @app.get("/company/jobs")
-def get_company_jobs(request: Request):
-    user_id = int(request.headers.get("X-User-Id", 0))
-    if not user_id: raise HTTPException(401, "غير مصرح")
-    jobs = get_jobs({"company_id": user_id})
+def get_company_jobs(token=Depends(verify_token)):
+    # Rule #1, #20: JWT only — owner sees their own jobs
+    user_id   = token.get("user_id")
+    user_type = token.get("user_type")
+    if not user_id:
+        print(f"[SECURITY] INVALID_TOKEN: GET /company/jobs")
+        raise HTTPException(401, "رمز غير صالح")
+    if user_type not in ("co", "edu"):
+        print(f"[SECURITY] COMPANY_OWNERSHIP_FAILED: user_type={user_type} tried GET /company/jobs")
+        raise HTTPException(403, "شركات وجهات فقط")
+    jobs = get_jobs({"company_id": int(user_id)})
     return {"jobs": jobs, "count": len(jobs)}
 
 @app.post("/jobs/{job_id}/apply")

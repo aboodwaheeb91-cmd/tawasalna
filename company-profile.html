@@ -520,381 +520,255 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-heig
 
 <script src="/tw_shared.js"></script>
 <script>
-let _user = null, _isOwner = false, _following = false;
-let _coData = {name:'', desc:'', type:'شركة خاصة', loc:'', founded:'', size:'', web:'', email:'', phone:''};
+// ════════════════════════════════════════════════════════════
+// COMPANY PROFILE — Core Engine
+// Rule #19: companyState is the Single Source of Truth
+// Rule #21: API → State → Render → Events (strict pipeline)
+// ════════════════════════════════════════════════════════════
 
-try { _user = JSON.parse(localStorage.getItem('tw_user')); } catch(e){}
+// ── Bootstrap guard (Rule #10) ──
+window.__companyBooted = false;
 
-const urlParams = new URLSearchParams(window.location.search);
-const coId = urlParams.get('id') || (_user && _user.id);
-_isOwner = _user && _user.user_type === 'co';
+// ── AbortController for duplicate request prevention ──
+let _loadController = null;
 
-if(_isOwner){
-  document.getElementById('ownerActions').style.display = 'flex';
-  document.getElementById('visitorActions').style.display = 'none';
-  document.getElementById('visitorLogout').style.display = 'none';
-  document.querySelectorAll('.owner-only').forEach(el => el.style.display = 'flex');
-  // Show cover upload button
-  const uploadBtn = document.getElementById('coverUploadBtn');
-  if(uploadBtn) uploadBtn.style.display = 'flex';
-  // Load saved cover
-  const savedCover = localStorage.getItem('tw_cover_' + (_user && _user.id));
-  if(savedCover) setTimeout(()=>setCover(savedCover),50);
+// ── companyState — initial shape (Rule #19) ──
+window.companyState = {
+  profile: {
+    id: null, tw_id: null, full_name: null, user_type: null,
+    bio: null, location: null, avatar_url: null,
+    website: null, phone: null, is_verified: false,
+  },
+  company: {
+    company_type: null, founded_year: null, company_size: null,
+    cover_url: null, industry: null, headquarters: null, contact_email: null,
+  },
+  jobs: [],
+  stats: { jobs_count: 0, followers_count: 0, verified_count: 0, rating_avg: null },
+  permissions: {
+    is_owner: false, can_edit: false, can_post_jobs: false,
+    can_follow: false, can_rate: false,
+  },
+  viewMode: 'guest',
+};
+
+// ════════════════════════════════════════════════════════════
+// STATE LAYER — _mergeCompanyState (atomic replacement)
+// ════════════════════════════════════════════════════════════
+function _mergeCompanyState(apiResponse) {
+  // Atomic: replaces top-level keys entirely — no partial updates
+  // Called ONLY from loadData() — never from UI events
+  if (!apiResponse || apiResponse.status !== 'success') return;
+  companyState.profile     = apiResponse.profile     || {};
+  companyState.company     = apiResponse.company     || {};
+  companyState.jobs        = apiResponse.jobs        || [];
+  companyState.stats       = apiResponse.stats       || companyState.stats;
+  companyState.permissions = apiResponse.permissions || {};
+  companyState.viewMode    = apiResponse.viewer_type || 'guest';
 }
 
-// Demo cover image (Unsplash office photo)
-const demoCoverId = 9998;
-if(_user && _user.id == demoCoverId){
-  setTimeout(()=>setCover('https://images.unsplash.com/photo-1497366216548-37526070297c?w=900&q=80'),50);
+// ════════════════════════════════════════════════════════════
+// VIEW MODE — _applyViewMode (CSS setter only)
+// ════════════════════════════════════════════════════════════
+function _applyViewMode() {
+  // Pure CSS class setter — no logic, no DOM reads
+  // Called once after _mergeCompanyState — never from events
+  const vm = companyState.viewMode;
+  document.body.classList.remove('view-owner', 'public-view', 'view-guest');
+  if      (vm === 'owner')       document.body.classList.add('view-owner');
+  else if (vm === 'public-user') document.body.classList.add('public-view');
+  else                           document.body.classList.add('view-guest');
 }
 
-function loadData(){
-  const name = _user && _isOwner ? _user.full_name : 'شركة';
-  _coData.name = name;
-  document.getElementById('coName').textContent = name;
+// ════════════════════════════════════════════════════════════
+// RENDER LAYER — pure functions, read companyState only
+// ════════════════════════════════════════════════════════════
+
+function renderProfile() {
+  // Pure: reads companyState.profile → writes DOM. No API, no state mutation.
+  const p = companyState.profile;
+  const name = p.full_name || '—';
+
+  _setText('coName', name);
+  _setText('coDesc', p.bio || 'لا يوجد وصف بعد.');
+  _setText('coLoc',  p.location ? '📍 ' + p.location : '📍 —');
   document.querySelectorAll('[id^="postCoName"]').forEach(el => el.textContent = name);
 
-  // Load profile from API
-  const urlId = new URLSearchParams(window.location.search).get('id');
-  const uid = urlId || (_user && _user.id);
-  if(uid){
-    fetch('/profile/'+uid+'/full').then(function(r){return r.json();}).then(function(data){
-      const p = data.profile || {};
-      if(p.full_name){
-        _coData.name = p.full_name;
-        document.getElementById('coName').textContent = p.full_name;
-        document.querySelectorAll('[id^="postCoName"]').forEach(function(el){el.textContent = p.full_name;});
-      }
-      if(p.bio) { _coData.desc = p.bio; const el=document.getElementById('coDesc'); if(el) el.textContent=p.bio; }
-      if(p.location) { const el=document.getElementById('coLoc'); if(el) el.textContent='📍 '+p.location; }
-      if(p.website) { _coData.web = p.website; }
-      // Load jobs count
-      return fetch('/jobs?company_id='+uid);
-    }).then(function(r){if(r)return r.json();}).then(function(jdata){
-      if(jdata && jdata.jobs){
-        const el=document.getElementById('jobsCount'); if(el) el.textContent=jdata.jobs.length;
-        // Render jobs
-        const jobsList=document.getElementById('jobsList');
-        if(jobsList && jdata.jobs.length){
-          var jrows=jdata.jobs.map(function(j){
-            var jrow='<div class="job-row tw-card-lift" data-jid="'+j.id+'" style="cursor:pointer">';
-            jrow+='<div class="jr-info"><div class="jr-title">'+j.title+'</div>';
-            jrow+='<div class="jr-meta"><span>📍 '+(j.location||'')+'</span></div></div>';
-            jrow+='<div><span class="jr-status js-open">نشطة</span></div></div>';
-            return jrow;
-          });
-          jobsList.innerHTML=jrows.join('');
-          jobsList.querySelectorAll('[data-jid]').forEach(function(el){
-            el.addEventListener('click',function(){window.location.href='job-detail.html?id='+el.getAttribute('data-jid');});
-          });
-        }
-      }
-    }).catch(function(){});
+  // Logo
+  const logoEl = document.getElementById('coLogo');
+  if (logoEl && p.avatar_url) {
+    logoEl.innerHTML = '<img src="' + p.avatar_url +
+      '" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">';
   }
-  document.getElementById('followersCount2').textContent = '47';
-  document.getElementById('ratingAvg').textContent = '4.2';
-  document.getElementById('verifiedCount').textContent = '12';
-}
-loadData();
-initScrollProg();
 
-function switchTab(name, el){
-  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-  el.classList.add('active');
-  ['jobs','posts','about','ratings'].forEach(t => {
-    const el2 = document.getElementById('tab-'+t);
-    if(el2) el2.style.display = t === name ? '' : 'none';
+  // Verification badge
+  const badge = document.getElementById('coTypeBadge');
+  if (badge) badge.textContent = '🏢 ' + (companyState.company.company_type || 'شركة');
+}
+
+function renderStats() {
+  // Pure: reads companyState.stats → writes DOM. No hardcoded values.
+  const s = companyState.stats;
+  _setText('jobsCount',       s.jobs_count      ?? '—');
+  _setText('followersCount',  s.followers_count ?? '—');
+  _setText('followersCount2', s.followers_count ?? '—');
+  _setText('ratingAvg',       s.rating_avg      ?? '—');
+  _setText('verifiedCount',   s.verified_count  ?? '—');
+}
+
+function renderJobs() {
+  // Pure: reads companyState.jobs → writes DOM.
+  const jobsList = document.getElementById('jobsList');
+  if (!jobsList) return;
+
+  if (!companyState.jobs.length) {
+    jobsList.innerHTML =
+      '<div class="tw-empty"><span class="tw-empty-ico">💼</span>' +
+      '<div class="tw-empty-title">لا توجد وظائف مفتوحة</div></div>';
+    return;
+  }
+
+  jobsList.innerHTML = companyState.jobs.map(j => {
+    const canApply = companyState.viewMode !== 'owner';
+    return '<div class="job-card tw-card-lift" data-jid="' + j.id + '">' +
+      '<div class="job-title">' + _esc(j.title) + '</div>' +
+      '<div class="job-meta"><span>📍 ' + _esc(j.location || '—') + '</span>' +
+      '<span>⏰ ' + _esc(j.job_type || '—') + '</span></div>' +
+      '<div class="job-footer">' +
+      (j.salary_min ? '<div class="job-salary">' + j.salary_min +
+        (j.salary_max ? ' - ' + j.salary_max : '') + '</div>' : '<div></div>') +
+      (canApply
+        ? '<button class="apply-btn" data-jid="' + j.id + '">تقديم ←</button>'
+        : '<span style="font-size:.7rem;color:var(--t3)">وظيفتك</span>') +
+      '</div></div>';
+  }).join('');
+}
+
+function renderAll() {
+  // Orchestrator: calls all render functions in order.
+  // Pure pipeline — no API calls, no state mutation.
+  renderProfile();
+  renderStats();
+  renderJobs();
+}
+
+// ════════════════════════════════════════════════════════════
+// EVENTS — bindEvents (idempotent)
+// ════════════════════════════════════════════════════════════
+function bindEvents() {
+  // Idempotent: uses data-bound attribute to prevent double binding.
+  // Called after renderAll() — never before.
+  const jobsList = document.getElementById('jobsList');
+  if (jobsList && !jobsList.dataset.bound) {
+    jobsList.dataset.bound = '1';
+    jobsList.addEventListener('click', function(e) {
+      // Job card navigation
+      const card = e.target.closest('[data-jid]');
+      if (!card) return;
+      // Apply button
+      if (e.target.classList.contains('apply-btn')) {
+        e.stopPropagation();
+        _applyJob(e.target, card.dataset.jid);
+        return;
+      }
+      // Card click → job detail
+      window.location.href = 'job-detail.html?id=' + card.dataset.jid;
+    });
+  }
+}
+
+// ════════════════════════════════════════════════════════════
+// FETCH LAYER — loadData (AbortController + JWT)
+// ════════════════════════════════════════════════════════════
+function loadData() {
+  // Abort any in-flight request before starting new one
+  if (_loadController) _loadController.abort();
+  _loadController = new AbortController();
+
+  const urlParams  = new URLSearchParams(window.location.search);
+  const coId       = urlParams.get('id');
+  const jwt        = localStorage.getItem('tw_jwt') || '';
+  const headers    = { 'Content-Type': 'application/json' };
+  if (jwt) headers['Authorization'] = 'Bearer ' + jwt;
+
+  if (!coId) {
+    console.warn('[Company] No company id in URL');
+    return;
+  }
+
+  fetch('/company/profile/' + coId, {
+    headers: headers,
+    signal:  _loadController.signal,
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    // PIPELINE: merge → viewMode → render → events
+    _mergeCompanyState(data);
+    _applyViewMode();
+    renderAll();
+    bindEvents();
+    _applyLoadingState(false);
+    _loadController = null;
+  })
+  .catch(function(err) {
+    if (err.name === 'AbortError') return; // intentional abort — no action
+    console.error('[Company] loadData error:', err);
+    _applyLoadingState(false);
+    _loadController = null;
   });
 }
 
-function toggleFollow(){
-  _following = !_following;
-  const btn = document.getElementById('followBtn');
-  btn.textContent = _following ? '✓ متابَع' : '+ متابعة';
-  btn.classList.toggle('following', _following);
-  const cur = parseInt(document.getElementById('followersCount').textContent) || 0;
-  document.getElementById('followersCount').textContent = _following ? cur + 1 : cur - 1;
-  document.getElementById('followersCount2').textContent = document.getElementById('followersCount').textContent;
+// ════════════════════════════════════════════════════════════
+// BOOTSTRAP — initCompanyProfile (idempotent)
+// ════════════════════════════════════════════════════════════
+function initCompanyProfile() {
+  // Rule #10: Bootstrap Idempotency — runs exactly once
+  if (window.__companyBooted) return;
+  window.__companyBooted = true;
+
+  _applyLoadingState(true);
+  loadData();
 }
 
-function applyJob(btn){
-  if(!_user){ window.location.href = '/'; return; }
-  const jobId = btn.getAttribute('data-jobid') || btn.closest('[data-jid]')?.getAttribute('data-jid');
-  if(!jobId){ btn.textContent='✓ تم التقديم'; btn.disabled=true; return; }
-  btn.disabled=true; btn.textContent='جاري...';
-  fetch('/jobs/'+jobId+'/apply',{
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({user_id:_user.id, cover_letter:''})
-  }).then(function(r){return r.json();}).then(function(data){
+// ════════════════════════════════════════════════════════════
+// HELPERS
+// ════════════════════════════════════════════════════════════
+function _applyLoadingState(loading) {
+  document.body.classList.toggle('co-loading', loading);
+}
+
+function _setText(id, value) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = value;
+}
+
+function _esc(str) {
+  return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function _jwt() {
+  return localStorage.getItem('tw_jwt') || '';
+}
+
+function _applyJob(btn, jobId) {
+  if (!jobId) return;
+  if (!_jwt()) { window.location.href = '/'; return; }
+  btn.disabled = true; btn.textContent = 'جاري...';
+  fetch('/jobs/' + jobId + '/apply', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + _jwt() },
+    body: JSON.stringify({ cover_letter: '' }),
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
     btn.textContent = data.already_applied ? '✓ قدّمت مسبقاً' : '✓ تم التقديم';
     btn.classList.add('applied');
-  }).catch(function(){
-    btn.textContent='✓ تم التقديم';
-    btn.classList.add('applied');
+  })
+  .catch(function() {
+    btn.disabled = false; btn.textContent = 'تقديم ←';
   });
 }
 
-function openEditModal(){
-  document.getElementById('e-name').value = _coData.name;
-  document.getElementById('e-desc').value = _coData.desc;
-  document.getElementById('e-loc').value = _coData.loc;
-  document.getElementById('e-web').value = _coData.web;
-  document.getElementById('e-email').value = _coData.email;
-  document.getElementById('editOverlay').classList.add('show');
-}
-
-function saveEdit(){
-  _coData.name = document.getElementById('e-name').value;
-  _coData.desc = document.getElementById('e-desc').value;
-  _coData.type = document.getElementById('e-type').value;
-  _coData.loc = document.getElementById('e-loc').value;
-  _coData.founded = document.getElementById('e-founded').value;
-  _coData.size = document.getElementById('e-size').value;
-  _coData.web = document.getElementById('e-web').value;
-  _coData.email = document.getElementById('e-email').value;
-  // Update UI
-  document.getElementById('coName').textContent = _coData.name;
-  document.getElementById('coDesc').textContent = _coData.desc || 'لا يوجد وصف.';
-  document.getElementById('coTypeBadge').textContent = '🏢 ' + _coData.type;
-  document.getElementById('coLoc').textContent = '📍 ' + (_coData.loc || '—');
-  document.getElementById('editOverlay').classList.remove('show');
-  // Save to DB
-  if(_user && _user.id && _isOwner){
-    fetch('/profile/'+_user.id, {
-      method:'PUT', headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({
-        full_name: _coData.name,
-        bio: _coData.desc,
-        location: _coData.loc,
-        website: _coData.web
-      })
-    }).catch(function(){});
-    if(_user.full_name !== _coData.name){
-      fetch('/auth/user/'+_user.id+'/name', {
-        method:'PUT', headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({full_name: _coData.name})
-      }).catch(function(){});
-      _user.full_name = _coData.name;
-      localStorage.setItem('tw_user', JSON.stringify(_user));
-    }
-  }
-}
-
-function openContact(){ document.getElementById('contactOverlay').classList.add('show'); }
-function sendMsg(){
-  const subject = document.getElementById('msg-subject')?.value||'رسالة جديدة';
-  const body = document.getElementById('msg-body')?.value?.trim();
-  if(!body){ alert('أدخل الرسالة'); return; }
-  const urlId = new URLSearchParams(window.location.search).get('id');
-  if(urlId && _user){
-    fetch('/admin/message',{
-      method:'POST',
-      headers:{'Content-Type':'application/json','X-Admin-Token':sessionStorage.getItem('tw_adm_token')||''},
-      body:JSON.stringify({user_id:parseInt(urlId)||0, subject, message:body})
-    }).catch(function(){});
-  }
-  alert('تم إرسال رسالتك! ✓');
-  document.getElementById('contactOverlay').classList.remove('show');
-}
-
-function closeEdit(e){ if(e.target===document.getElementById('editOverlay')) document.getElementById('editOverlay').classList.remove('show'); }
-function closeContact(e){ if(e.target===document.getElementById('contactOverlay')) document.getElementById('contactOverlay').classList.remove('show'); }
-
-function openPostJob(){document.getElementById('postJobOverlay').classList.add('show');}
-
-function publishJob(){
-  if(!_user || !_isOwner){ showToast('غير مصرح','error'); return; }
-  const title = document.getElementById('j-title').value.trim();
-  if(!title){ showToast('أدخل المسمى الوظيفي','error'); return; }
-  const type = document.getElementById('j-type').value;
-  const loc = document.getElementById('j-loc').value||'';
-  const s1 = parseInt(document.getElementById('j-sal1').value)||null;
-  const s2 = parseInt(document.getElementById('j-sal2').value)||null;
-  const desc = document.getElementById('j-desc')?.value||'';
-  fetch('/company/jobs', {
-    method:'POST',
-    headers:{'Content-Type':'application/json','X-User-Id':_user.id},
-    body:JSON.stringify({title, description:desc, location:loc, job_type:type, salary_min:s1, salary_max:s2})
-  }).then(function(r){return r.json();}).then(function(data){
-    if(data.status==='success'){
-      document.getElementById('postJobOverlay').classList.remove('show');
-      showToast('✅ تم نشر الوظيفة بنجاح');
-      loadData();
-    }
-  }).catch(function(){ showToast('خطأ في نشر الوظيفة','error'); });
-}
-
-
-function goHome(){
-  if(!_user){ window.location.href = '/'; return; }
-  const dest = _user.user_type==='co' ? 'company.html' : _user.user_type==='edu' ? 'edu.html' : 'home.html';
-  window.location.href = dest;
-}
-
-// ── Logout ──
-function doLogout(){
-  localStorage.removeItem('tw_user');
-  window.location.href = '/';
-}
-
-// ── Dropdown ──
-let _menuOpen = false;
-function toggleMenu(e){
-  e.stopPropagation();
-  _menuOpen = !_menuOpen;
-  const m = document.getElementById('dropMenu');
-  const btn = document.getElementById('menuBtn');
-  if(!m || !btn) return;
-  if(_menuOpen){
-    const r = btn.getBoundingClientRect();
-    m.style.left = r.left + 'px';
-    m.style.display = 'block';
-  } else {
-    m.style.display = 'none';
-  }
-}
-document.addEventListener('click', function(e){
-  const btn = document.getElementById('menuBtn');
-  const m   = document.getElementById('dropMenu');
-  if(_menuOpen && m && btn && !btn.contains(e.target) && !m.contains(e.target)){
-    _menuOpen = false;
-    m.style.display = 'none';
-  }
-});
-
-// ── Cover Photo ──
-function setCover(src){
-  const img  = document.getElementById('coverImg');
-  const bg   = document.getElementById('heroBg');
-  const orbs = document.querySelectorAll('.hero-orb');
-  if(!img) return;
-  img.src = src;
-  img.style.display = 'block';
-  setTimeout(()=>{ img.style.opacity='1'; }, 50);
-  if(bg) bg.style.opacity = '0';
-  orbs.forEach(o=>o.style.display='none');
-}
-function uploadCover(input){
-  if(!input.files[0]) return;
-  const reader = new FileReader();
-  reader.onload = e => {
-    setCover(e.target.result);
-    try { localStorage.setItem('tw_cover_'+(_user&&_user.id), e.target.result); } catch(ex){}
-  };
-  reader.readAsDataURL(input.files[0]);
-}
-
-
-// ══ ITQAN Utilities ══
-var _twToast=null;
-function showToast(msg,type,dur){
-  type=type||'success';dur=dur||2800;
-  if(_twToast){_twToast.remove();}
-  var t=document.createElement('div');
-  t.className='tw-toast '+type;
-  var ico=type==='success'?'✅':type==='error'?'❌':'ℹ️';
-  t.innerHTML='<span>'+ico+'</span><span>'+msg+'</span>';
-  document.body.appendChild(t);
-  _twToast=t;
-  requestAnimationFrame(function(){requestAnimationFrame(function(){t.classList.add('show');});});
-  setTimeout(function(){t.classList.remove('show');setTimeout(function(){if(t.parentNode)t.remove();},350);},dur);
-}
-function setBtnLoad(btn,loading){
-  if(!btn)return;
-  if(loading){btn.classList.add('tw-btn-loading');btn._orig=btn.textContent;btn.textContent='';btn.disabled=true;}
-  else{btn.classList.remove('tw-btn-loading');btn.textContent=btn._orig||'حفظ';btn.disabled=false;}
-}
-function twNavigate(url){
-  document.body.style.cssText='opacity:0;transform:translateY(-6px);transition:all .2s ease;';
-  setTimeout(function(){window.location.href=url;},180);
-}
-function initScrollProg(){
-  var p=document.createElement('div');p.className='tw-scroll-prog';
-  document.body.prepend(p);
-  window.addEventListener('scroll',function(){
-    var pct=window.scrollY/(document.body.scrollHeight-window.innerHeight)*100;
-    p.style.width=Math.min(pct,100)+'%';
-  });
-}
-
-
-// ── Pull to Refresh ──
-var _ptr2Start=0,_ptr2Active=false;
-document.addEventListener('touchstart',function(e){if(window.scrollY===0)_ptr2Start=e.touches[0].clientY;},{passive:true});
-document.addEventListener('touchend',function(e){if(_ptr2Active){_ptr2Active=false;loadData?loadData():location.reload();}},{passive:true});
-document.addEventListener('touchmove',function(e){if(window.scrollY===0&&_ptr2Start>0){var diff=e.touches[0].clientY-_ptr2Start;if(diff>70&&!_ptr2Active){_ptr2Active=true;showToast('جاري التحديث...','info',1500);}}},{passive:true});
-
-
-// ── Report System ──
-var _reportTargetId = null;
-var _reportTargetType = 'user';
-var _reportTargetUrl = '';
-
-function openReportModal(targetId, targetType, targetUrl){
-  _reportTargetId = targetId;
-  _reportTargetType = targetType || 'user';
-  _reportTargetUrl = targetUrl || window.location.href;
-  document.getElementById('reportModal').style.display = 'flex';
-  document.getElementById('reportReason').value = '';
-}
-
-function closeReportModal(){
-  document.getElementById('reportModal').style.display = 'none';
-}
-
-async function submitReport(){
-  var type = document.getElementById('reportType').value;
-  var reason = document.getElementById('reportReason').value.trim();
-  if(!reason){ showToast('اكتب سبب البلاغ', 'error'); return; }
-  if(!_reportTargetId){ showToast('خطأ في البلاغ', 'error'); return; }
-  
-  var btn = document.getElementById('reportSubmitBtn');
-  btn.disabled = true; btn.textContent = 'جاري الإرسال...';
-  
-  try{
-    var user = JSON.parse(localStorage.getItem('tw_user')||'{}');
-    var jwt = localStorage.getItem('tw_jwt')||'';
-    var r = await fetch('/reports/submit', {
-      method: 'POST',
-      headers: {'Content-Type':'application/json', 'Authorization': 'Bearer '+jwt},
-      body: JSON.stringify({
-        reported_id: _reportTargetId,
-        reported_type: _reportTargetType,
-        report_type: type,
-        reason: reason,
-        target_url: _reportTargetUrl
-      })
-    });
-    if(r.ok){
-      showToast('تم إرسال البلاغ ✅');
-      closeReportModal();
-    } else {
-      throw new Error();
-    }
-  }catch(e){
-    showToast('خطأ في إرسال البلاغ', 'error');
-  }
-  btn.disabled = false; btn.textContent = '🚨 إرسال البلاغ';
-}
-
-// Add report button
-(function(){
-  setTimeout(function(){
-    var header = document.querySelector('.cp-header, .profile-header, .co-header');
-    if(header){
-      var btn = document.createElement('button');
-      btn.innerHTML = '🚨';
-      btn.title = 'إبلاغ';
-      btn.style.cssText = 'padding:6px 10px;border-radius:8px;border:1px solid rgba(239,68,68,.2);background:rgba(239,68,68,.06);color:#f87171;font-size:.8rem;cursor:pointer;margin-right:6px';
-      btn.onclick = function(){
-        var uid = new URLSearchParams(location.search).get('id');
-        openReportModal(parseInt(uid),'company',location.href);
-      };
-      header.appendChild(btn);
-    }
-  }, 800);
-})();
 </script>
 
 <!-- POST JOB MODAL -->
@@ -949,5 +823,31 @@ async function submitReport(){
   </div>
 </div>
 
+
+<script>
+// ── Bootstrap call (Rule #10) ──
+document.addEventListener('DOMContentLoaded', function() {
+  initScrollProg();
+  initCompanyProfile();
+});
+
+// ── Pull-to-refresh → loadData (not initCompanyProfile) ──
+var _ptr2Start = 0, _ptr2Active = false;
+document.addEventListener('touchstart', function(e) {
+  if (window.scrollY === 0) _ptr2Start = e.touches[0].clientY;
+}, { passive: true });
+document.addEventListener('touchend', function() {
+  if (_ptr2Active) { _ptr2Active = false; loadData(); }
+}, { passive: true });
+document.addEventListener('touchmove', function(e) {
+  if (window.scrollY === 0 && _ptr2Start > 0) {
+    var diff = e.touches[0].clientY - _ptr2Start;
+    if (diff > 70 && !_ptr2Active) {
+      _ptr2Active = true;
+      showToast('جاري التحديث...', 'info', 1500);
+    }
+  }
+}, { passive: true });
+</script>
 </body>
 </html>
