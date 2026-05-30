@@ -3157,6 +3157,28 @@ var SECTION_CONFIG = {
     return;
   }
   window.__profileBooted = true;
+
+  // ── THEME DIAGNOSTIC: catch every body.className change ──
+  (function(){
+    var _lastClass = document.body.className;
+    var _observer = new MutationObserver(function(muts){
+      muts.forEach(function(m){
+        if(m.attributeName === 'class'){
+          var now = document.body.className;
+          if(now !== _lastClass){
+            var ts = Date.now() - window._pageStart;
+            console.warn('[THEME_CHANGE] +' + ts + 'ms: "' + _lastClass + '" → "' + now + '"');
+            console.trace('[THEME_CHANGE] stack:');
+            _lastClass = now;
+          }
+        }
+      });
+    });
+    _observer.observe(document.body, {attributes:true, attributeFilter:['class']});
+    window._themeObserver = _observer;
+  })();
+  window._pageStart = Date.now();
+
   // scroll diagnostics removed — root cause found and fixed
   // ── Debug trace ──
   var _dbg = function(step, data){
