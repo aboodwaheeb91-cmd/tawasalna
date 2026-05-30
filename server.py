@@ -1,3 +1,5 @@
+# See ARCHITECTURE.md for system architecture rules
+
 """
 تواصلنا - Arabic Employment Platform
 """

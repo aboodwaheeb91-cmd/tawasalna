@@ -419,6 +419,9 @@ body.preview-mode #previewBtn {
 }
 
 /* ── Header layout switching ── */
+/* Disable interactive owner actions in public view */
+body.public-view #avatarBtn { cursor:default !important; pointer-events:none; }
+body.public-view .csw { pointer-events:none; }
 .public-header{
   display:none; /* shown via JS */
   align-items:center;gap:8px;
@@ -430,8 +433,13 @@ body.preview-mode #previewBtn {
 }
 .public-header.active{ display:flex; }
 
+/* See ARCHITECTURE.md for system architecture rules */
+
 /* ── Public layout — hide app shell for non-owners ── */
 body.public-view #secScore { display:none !important; }
+body.public-view .item-menu-wrap { display:none !important; }
+body.public-view .add-item-btn { display:none !important; }
+body.public-view .item-drag-handle { display:none !important; }
 body.public-view .app-shell { display:none !important; }
 body.public-view #panelOverlay { display:none !important; }
 
