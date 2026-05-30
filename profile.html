@@ -3158,17 +3158,41 @@ var SECTION_CONFIG = {
   }
   window.__profileBooted = true;
 
-  // ── THEME DIAGNOSTIC: catch every body.className change ──
+  // ── THEME DIAGNOSTIC: show on screen (mobile-visible) ──
+  window._pageStart = Date.now();
   (function(){
+    var _log = [];
     var _lastClass = document.body.className;
+    // create overlay panel
+    var _panel = document.createElement('div');
+    _panel.id = '_themeDiag';
+    _panel.style.cssText = 'position:fixed;bottom:0;left:0;right:0;max-height:40vh;overflow-y:auto;background:rgba(0,0,0,.92);color:#0f0;font:11px/1.4 monospace;z-index:99999;padding:8px;border-top:2px solid #0f0';
+    _panel.innerHTML = '<b style="color:#ff0">📍 THEME DIAGNOSTIC — tap to close</b><br>';
+    _panel.onclick = function(){ _panel.style.display='none'; };
+    document.body.appendChild(_panel);
+
+    function _addLog(msg, color){
+      var line = document.createElement('div');
+      line.style.color = color || '#0f0';
+      line.textContent = msg;
+      _panel.appendChild(line);
+      _panel.scrollTop = _panel.scrollHeight;
+    }
+
     var _observer = new MutationObserver(function(muts){
       muts.forEach(function(m){
         if(m.attributeName === 'class'){
           var now = document.body.className;
           if(now !== _lastClass){
             var ts = Date.now() - window._pageStart;
-            console.warn('[THEME_CHANGE] +' + ts + 'ms: "' + _lastClass + '" → "' + now + '"');
-            console.trace('[THEME_CHANGE] stack:');
+            // get caller info via Error stack
+            var stack = '';
+            try { throw new Error(); } catch(e) {
+              var lines = e.stack.split('\n');
+              stack = lines[3] ? lines[3].trim().replace(/.*\//,'') : '?';
+            }
+            _addLog('+' + ts + 'ms: ' + JSON.stringify(_lastClass) + ' → ' + JSON.stringify(now), '#ff0');
+            _addLog('  ↳ ' + stack, '#aaa');
             _lastClass = now;
           }
         }
@@ -3176,8 +3200,8 @@ var SECTION_CONFIG = {
     });
     _observer.observe(document.body, {attributes:true, attributeFilter:['class']});
     window._themeObserver = _observer;
+    _addLog('watching className changes...', '#888');
   })();
-  window._pageStart = Date.now();
 
   // scroll diagnostics removed — root cause found and fixed
   // ── Debug trace ──
