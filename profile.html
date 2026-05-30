@@ -1173,22 +1173,16 @@ function updatePanelState(){
 
 // ── History API - Back button support ──
 function pushModalState(type){
-  history.replaceState({modal:type}, '', location.href);
+  // pushState (not replaceState) so back button closes modal and stays on profile
+  history.pushState({modal:type, profilePage:true}, '', location.href);
 }
 function pushPanelState(){
-  history.replaceState({panel:true}, '', location.href);
+  history.pushState({panel:true, profilePage:true}, '', location.href);
 }
 
-window.addEventListener('popstate', function(e){
-  if(e.state && e.state.modal){
-    // Back pressed while modal open → just close modal
-    closeModal();
-  } else if(e.state && e.state.panel){
-    // Back pressed while panel open → close panel
-    closePanel();
-  }
-  // Otherwise browser handles normal back navigation
-});
+
+
+
 
 // ── XSS sanitization ──
 function sanitize(str){
@@ -1479,7 +1473,7 @@ function editSkillItem(id, lid){
     </div>`;
   window._currentLid=lid;
   document.getElementById('overlay').classList.add('show');
-  history.replaceState({modal:'edit-skill'},'',location.href);
+  history.pushState({modal:'edit-skill', profilePage:true},'',location.href);
 }
 
 function updateSkillItem(id, lid){
@@ -1522,7 +1516,7 @@ function editLangItem(id, lid){
     </div>`;
   window._currentLid=lid;
   document.getElementById('overlay').classList.add('show');
-  history.replaceState({modal:'edit-lang'},'',location.href);
+  history.pushState({modal:'edit-lang', profilePage:true},'',location.href);
 }
 
 function updateLangItem(id, lid){
@@ -1560,7 +1554,7 @@ function editCourseItem(id, lid){
     </div>`;
   window._currentLid=lid;
   document.getElementById('overlay').classList.add('show');
-  history.replaceState({modal:'edit-course'},'',location.href);
+  history.pushState({modal:'edit-course', profilePage:true},'',location.href);
 }
 
 function updateCourseItem(id, lid){
@@ -3180,6 +3174,66 @@ var SECTION_CONFIG = {
 
 
 
+  // ══ UNIFIED NAVIGATION SYSTEM ══
+  // Single source of truth for all back-button behavior.
+  // Rule: pushState for every UI layer open, popstate closes them step-by-step.
+
+  // 1. Anchor profile page in history (once, on load)
+  history.replaceState({profilePage:true}, '', location.href);
+
+  /**
+   * Navigation Kernel Rule #17 — Unified History System
+   *
+   * replaceState  → bootstrap فقط (مرة واحدة عند تحميل الصفحة)
+   * pushState     → فقط لطبقات UI (modal / panel / overlay / QR / crop)
+   * popstate      → مسؤول فقط عن إغلاق UI stack بالتدرج:
+   *                 A → إغلاق overlays (QR / crop)
+   *                 B → إغلاق modals
+   *                 C → إغلاق panels
+   *
+   * no UI open    → STRICT NO-OP (لا fallback, لا routing, لا re-anchor)
+   *
+   * /system       → خارج نطاق النظام بالكامل (ممنوع استخدامه في back navigation)
+   *
+   * profilePage   → marker فقط لتحديد scope، وليس له أي دور في routing logic
+   *
+   * IMPORTANT:
+   * أي مطور يضيف UI layer جديد يجب أن يستخدم pushState فقط،
+   * وسيتم التعامل معه تلقائياً من خلال popstate handler الموحد.
+   */
+  // 2. Unified popstate handler — UI close stack only
+  // CONTRACT:
+  //   - Only closes UI layers (overlay → modal → panel)
+  //   - profilePage:true is a marker only, NOT used for routing
+  //   - If no UI layer open → strict no-op (browser navigates naturally)
+  //   - NO redirect, NO re-anchor, NO fallback routing inside the app
+  //   - /system is outside this system entirely
+  window.addEventListener('popstate', function(e){
+
+    // Step A: close QR/crop overlay if open
+    var qrOv = document.getElementById('qrOverlayDiv');
+    if(qrOv){ qrOv.remove(); return; }
+    var cropOv = document.getElementById('cropOv');
+    if(cropOv){ cropOv.remove(); return; }
+
+    // Step B: close modal if open
+    var overlay = document.getElementById('overlay');
+    if(overlay && overlay.classList.contains('show')){
+      closeModal();
+      return;
+    }
+
+    // Step C: close panel if open
+    var panel = document.getElementById('panelOverlay');
+    if(panel && panel.classList.contains('show')){
+      closePanel();
+      return;
+    }
+
+    // No UI layer open → STRICT NO-OP
+    // Browser handles history navigation naturally. No app logic here.
+  });
+
   // scroll diagnostics removed — root cause found and fixed
   // ── Debug trace ──
   var _dbg = function(step, data){
@@ -4022,7 +4076,7 @@ function openQROverlay(){
   ov.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(7,11,24,.97);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px';
 
   // Push state for back button
-  history.replaceState({qrOpen:true},'QR','#qr');
+  history.pushState({modal:'qr', profilePage:true},'',location.href);
   window.addEventListener('popstate', function _pop(e){
     if(!e.state||!e.state.qrOpen){ var d=document.getElementById('qrOverlayDiv'); if(d)d.remove(); }
     window.removeEventListener('popstate',_pop);
