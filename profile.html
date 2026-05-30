@@ -418,7 +418,19 @@ body.preview-mode #previewBtn {
 
 }
 
-/* ── Public layout — hide app shell when not logged in ── */
+/* ── Header layout switching ── */
+.public-header{
+  display:none; /* shown via JS */
+  align-items:center;gap:8px;
+  padding:0 14px;height:52px;
+  background:rgba(7,11,24,.95);
+  border-bottom:1px solid rgba(255,255,255,.07);
+  backdrop-filter:blur(12px);
+  position:sticky;top:0;z-index:800;
+}
+.public-header.active{ display:flex; }
+
+/* ── Public layout — hide app shell for non-owners ── */
 body.public-view .app-shell { display:none !important; }
 body.public-view #panelOverlay { display:none !important; }
 
@@ -774,6 +786,17 @@ window.addEventListener('load', function(){
   </div>
   <button type="button" class="tb-btn tb-ghost" onclick="openPanel()" title="الإعدادات" style="font-size:1rem;padding:6px 10px">⚙️</button>
 </div>
+<!-- ── Public Header — shown for non-owner visitors ── -->
+<div class="public-header" id="publicHeader" style="display:none">
+  <div class="tb-logo">
+    <img src="https://wrxvmdmknhoufoeprpoc.supabase.co/storage/v1/object/public/site/Logo.svg" alt="تواصلنا" style="height:36px;width:auto;object-fit:contain;display:block">
+  </div>
+  <div style="flex:1"></div>
+  <div id="publicHeaderActions">
+    <!-- Filled by JS: login button (guest) or back link (logged-in non-owner) -->
+  </div>
+</div>
+
 
 <!-- ── SIDE PANEL ── -->
 <div class="panel-overlay" id="panelOverlay" onclick="closePanelClick(event)">
@@ -3017,11 +3040,24 @@ if(isOwner){
   // Visibility of built-in sections is controlled by Step 2 (DB data only)
   // NOT by isOwner — removing this avoids showing empty sections
 } else {
-  // VIEWING ANOTHER PROFILE - read only
+  // ── NON-OWNER: switch to Public Header ──
   document.querySelectorAll('.owner-only').forEach(function(el){ el.style.display='none'; });
-  // Public visitor (not logged in) → hide entire app shell
-  if(!_sessionUser){
-    document.body.classList.add('public-view');
+
+  // Hide App Shell, show Public Header for ALL non-owners
+  document.body.classList.add('public-view');
+
+  var ph = document.getElementById('publicHeader');
+  var actions = document.getElementById('publicHeaderActions');
+  if(ph){ ph.classList.add('active'); }
+
+  if(actions){
+    if(_sessionUser && _sessionUser.id){
+      // Logged-in visiting someone else → show "back" link
+      actions.innerHTML = '<button type="button" onclick="history.back()" style="font-size:.82rem;padding:5px 12px;border-radius:8px;border:1px solid rgba(255,255,255,.15);background:transparent;color:rgba(255,255,255,.7);cursor:pointer;font-family:Cairo,sans-serif">← رجوع</button>';
+    } else {
+      // Guest → show login button
+      actions.innerHTML = "<button type='button' onclick='location.href=\"index.html\"' style='font-size:.82rem;padding:5px 14px;border-radius:8px;border:none;background:#2563ff;color:#fff;cursor:pointer;font-weight:700;font-family:Cairo,sans-serif'>تسجيل الدخول</button>";
+    }
   }
 }
 if(isOwner){
