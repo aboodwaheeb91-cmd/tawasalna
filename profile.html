@@ -3445,10 +3445,13 @@ var SECTION_CONFIG = {
         applyColor(prof.profile_color);
       }catch(ex){}
     }
-    if(prof.profile_style && isViewingOwn){
+    if(prof.profile_style){
       try{
         var styleN = parseInt(prof.profile_style)||1;
-        localStorage.setItem('tw_profile_style'+getUID(), styleN);
+        // Write to LS only for owner — viewer's own theme is separate
+        if(isViewingOwn){
+          localStorage.setItem('tw_profile_style'+getUID(), styleN);
+        }
         if(styleN !== curStyle){
           document.body.className = document.body.className.replace(/\bs\d\b/,'').trim();
           document.body.classList.add('s'+styleN);
