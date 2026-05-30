@@ -450,10 +450,15 @@ body.public-view .csw { pointer-events:none; }
 
 /* ── Public layout — hide app shell for non-owners ── */
 body.public-view #secScore { display:none !important; }
+body.preview-mode #secScore { display:none !important; }
+body.preview-mode .profile-completion { display:none !important; }
 body.public-view .item-menu-wrap { display:none !important; }
 body.public-view .add-item-btn { display:none !important; }
 body.public-view .item-drag-handle { display:none !important; }
 body.public-view .app-shell { display:none !important; }
+/* Preview button stays visible for owner in preview mode */
+body.preview-mode .app-shell { display:none !important; }
+body.preview-mode #previewBtn { display:inline-flex !important; }
 body.public-view #panelOverlay { display:none !important; }
 
 /* ── Profile loading gate — sections invisible until Step 2 completes ── */
@@ -1305,11 +1310,15 @@ function closePanelClick(e){ if(e.target===document.getElementById('panelOverlay
 function togglePreview(){
   previewMode = !previewMode;
   document.body.classList.toggle('preview-mode',previewMode);
+  // preview-mode simulates public-view — apply same CSS rules
+  document.body.classList.toggle('public-view',previewMode);
   const btn = document.getElementById('previewBtn');
   btn.innerHTML = previewMode ? '← رجوع للتعديل' : '👁 معاينة';
   btn.classList.toggle('active',previewMode);
-  // Always keep previewBtn visible
+  // Always keep previewBtn visible (owner-only but visible in preview)
   btn.style.display = '';
+  // Show/hide preview button itself in public-view: keep visible for owner
+  btn.style.setProperty('display','','important');
   if(previewMode) closePanel();
 }
 
@@ -4270,6 +4279,8 @@ function loadApplications(){
 
 // ── Profile Score ──
 function loadProfileScore(){
+  // Never show score in preview or public view
+  if(previewMode || document.body.classList.contains('public-view')) return;
   if(!document.getElementById('secScore')){
     var sl=document.getElementById('secList');
     if(sl){
