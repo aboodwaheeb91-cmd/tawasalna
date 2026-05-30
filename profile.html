@@ -369,7 +369,7 @@ body.preview-mode .owner-only { display:none !important; }
 .modal-title { font-size:.95rem; font-weight:800; color:#fff; margin-bottom:18px; }
 .mf { margin-bottom:12px; }
 .mf label { display:block; font-size:.72rem; font-weight:700; color:rgba(255,255,255,.48); margin-bottom:4px; }
-.mf input,.mf textarea,.mf select { width:100%; padding:9px 11px; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.1); border-radius:9px; color:#fff; font-family:'Cairo',sans-serif; font-size:.82rem; outline:none; transition:border-color .2s; direction:rtl; }
+.mf input,.mf textarea,.mf select { width:100%; padding:9px 11px; background:#0d1a2e; border:1px solid rgba(255,255,255,.15); border-radius:9px; color:#fff; -webkit-text-fill-color:#fff; font-family:'Cairo',sans-serif; font-size:.82rem; outline:none; transition:border-color .2s; direction:rtl; }
 .mf input:focus,.mf textarea:focus { border-color:var(--ac); }
 .mf textarea { resize:vertical; min-height:72px; }
 .mf select option { background:#0d1526; }
@@ -1441,7 +1441,7 @@ function editSkillItem(id, lid){
   const arr=JSON.parse(localStorage.getItem('tw_skills'+getUID())||'[]');
   const item=arr.find(x=>x.id===id);
   if(!item) return;
-  const SS='width:100%;padding:9px 11px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:9px;color:var(--text-color);font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;';
+  const SS='width:100%;padding:9px 11px;background:#0d1a2e;border:1px solid rgba(255,255,255,.1);border-radius:9px;color:var(--text-color);font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;';
   document.getElementById('modal').innerHTML=`
     <div class="modal-title">🛠️ تعديل مهارة</div>
     <div class="mf"><label>اسم المهارة</label>
@@ -2150,7 +2150,7 @@ function openModal(type,listId,secTitle){
       <div class="mf" style="margin:0"><label>اسم العائلة *</label><input id="m-ln" autocomplete="off" value="${ln2}" placeholder="الأحمد"></div>
     </div>
     <div class="mf"><label>التخصص / المسمى الوظيفي</label>
-      <select id="m-title-sel" autocomplete="off" onchange="handleSpecialty(this)" style="width:100%;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:var(--text-color);font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;margin-bottom:6px">
+      <select id="m-title-sel" autocomplete="off" onchange="handleSpecialty(this)" style="width:100%;padding:9px 12px;background:#0d1a2e;border:1px solid rgba(255,255,255,.1);border-radius:10px;color:var(--text-color);font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;margin-bottom:6px">
         <option value="">— اختر تخصصك —</option>
         <optgroup label="💻 تقنية وبرمجة">
           <option>مطور برمجيات</option><option>مطور ويب</option><option>مطور تطبيقات موبايل</option>
@@ -2212,11 +2212,11 @@ function openModal(type,listId,secTitle){
     <div class="mf"><label>نبذة مختصرة</label><textarea autocomplete="off" id="m-bio" placeholder="اكتب نبذة مختصرة عنك...">${curBio}</textarea></div>
     <div class="mf"><label>تاريخ الميلاد</label>
       <div style="display:flex;gap:8px">
-      <select id="m-dob-d" autocomplete="off" style="flex:1;padding:9px 10px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:var(--text-color);font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;">
+      <select id="m-dob-d" autocomplete="off" style="flex:1;padding:9px 10px;background:#0d1a2e;border:1px solid rgba(255,255,255,.1);border-radius:10px;color:var(--text-color);font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;">
         <option value="">اليوم</option>
         ${[...Array(31)].map((_,i)=>`<option value="${String(i+1).padStart(2,'0')}">${i+1}</option>`).join('')}
       </select>
-      <select id="m-dob-m" autocomplete="off" style="flex:1;padding:9px 10px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:var(--text-color);font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;">
+      <select id="m-dob-m" autocomplete="off" style="flex:1;padding:9px 10px;background:#0d1a2e;border:1px solid rgba(255,255,255,.1);border-radius:10px;color:var(--text-color);font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;">
         <option value="">الشهر</option>
         <option value="01">يناير</option><option value="02">فبراير</option>
         <option value="03">مارس</option><option value="04">أبريل</option>
@@ -2225,7 +2225,7 @@ function openModal(type,listId,secTitle){
         <option value="09">سبتمبر</option><option value="10">أكتوبر</option>
         <option value="11">نوفمبر</option><option value="12">ديسمبر</option>
       </select>
-      <select id="m-dob-y" autocomplete="off" style="flex:1;padding:9px 10px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:var(--text-color);font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;">
+      <select id="m-dob-y" autocomplete="off" style="flex:1;padding:9px 10px;background:#0d1a2e;border:1px solid rgba(255,255,255,.1);border-radius:10px;color:var(--text-color);font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;">
         <option value="">السنة</option>
         ${[...Array(60)].map((_,i)=>{const y=new Date().getFullYear()-18-i;return `<option value="${y}">${y}</option>`;}).join('')}
       </select>
@@ -2233,7 +2233,7 @@ function openModal(type,listId,secTitle){
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
       <div class="mf" style="margin:0"><label>البلد</label>
-        <select id="m-prof-country" autocomplete="off" onchange="loadProfileCities()" style="width:auto;min-width:120px;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:var(--text-color);font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;">
+        <select id="m-prof-country" autocomplete="off" onchange="loadProfileCities()" style="width:auto;min-width:120px;padding:9px 12px;background:#0d1a2e;border:1px solid rgba(255,255,255,.1);border-radius:10px;color:var(--text-color);font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;">
           <option value="">— اختر —</option>
           <option value="JO" ${profCountry==='JO'?'selected':''}>🇯🇴 الأردن</option>
           <option value="SA" ${profCountry==='SA'?'selected':''}>🇸🇦 السعودية</option>
@@ -2249,13 +2249,13 @@ function openModal(type,listId,secTitle){
         </select>
       </div>
       <div class="mf" style="margin:0"><label>المدينة</label>
-        <select id="m-prof-city" autocomplete="off" style="width:auto;min-width:120px;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:var(--text-color);font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;">
+        <select id="m-prof-city" autocomplete="off" style="width:auto;min-width:120px;padding:9px 12px;background:#0d1a2e;border:1px solid rgba(255,255,255,.1);border-radius:10px;color:var(--text-color);font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;">
           <option value="${profCity}">${profCity||'— اختر البلد أولاً —'}</option>
         </select>
       </div>
     </div>
     <div class="mf"><label>حالة التوظيف</label>
-      <select id="m-avail" autocomplete="off" style="width:auto;min-width:120px;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:var(--text-color);font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;">
+      <select id="m-avail" autocomplete="off" style="width:auto;min-width:120px;padding:9px 12px;background:#0d1a2e;border:1px solid rgba(255,255,255,.1);border-radius:10px;color:var(--text-color);font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;">
         <option value="متاح" ${profAvail==='متاح'?'selected':''}>🟢 متاح للعمل</option>
         <option value="مشغول" ${profAvail==='مشغول'?'selected':''}>🔴 غير متاح حالياً</option>
         <option value="يفكر" ${profAvail==='يفكر'?'selected':''}>🟡 أفكر في فرص جديدة</option>
@@ -2304,7 +2304,7 @@ function openModal(type,listId,secTitle){
       <div class="field-err" id="err-ec"></div>
     </div>
     <div class="mf"><label>البلد</label>
-      <select id="m-country" autocomplete="off" onchange="loadCities()" style="width:auto;min-width:120px;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:var(--text-color);font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;">
+      <select id="m-country" autocomplete="off" onchange="loadCities()" style="width:auto;min-width:120px;padding:9px 12px;background:#0d1a2e;border:1px solid rgba(255,255,255,.1);border-radius:10px;color:var(--text-color);font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;">
         <option value="">— اختر البلد —</option>
         <option value="JO">🇯🇴 الأردن</option><option value="SA">🇸🇦 السعودية</option>
         <option value="AE">🇦🇪 الإمارات</option><option value="KW">🇰🇼 الكويت</option>
@@ -2319,25 +2319,25 @@ function openModal(type,listId,secTitle){
       </select>
     </div>
     <div class="mf" id="city-wrap" style="display:none"><label>المدينة</label>
-      <select id="m-city" autocomplete="off" style="width:auto;min-width:120px;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:var(--text-color);font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;">
+      <select id="m-city" autocomplete="off" style="width:auto;min-width:120px;padding:9px 12px;background:#0d1a2e;border:1px solid rgba(255,255,255,.1);border-radius:10px;color:var(--text-color);font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;">
         <option value="">— اختر المدينة —</option>
       </select>
     </div>
     <div style="display:flex;gap:10px">
       <div class="mf" style="flex:1"><label>من (سنة) <span style="color:var(--muted-text);font-size:.65rem"> مطلوب</span></label>
-        <select id="m-es" autocomplete="off" onchange="filterEndYears();clearFieldErr('m-es','err-es')" style="width:auto;min-width:120px;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:var(--text-color);font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;">
+        <select id="m-es" autocomplete="off" onchange="filterEndYears();clearFieldErr('m-es','err-es')" style="width:auto;min-width:120px;padding:9px 12px;background:#0d1a2e;border:1px solid rgba(255,255,255,.1);border-radius:10px;color:var(--text-color);font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;">
           <option value="">اختر السنة</option>${yearOpts}
         </select>
         <div class="field-err" id="err-es"></div>
       </div>
       <div class="mf" style="flex:1"><label>إلى (سنة)</label>
-        <select id="m-ee" autocomplete="off" style="width:auto;min-width:120px;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:var(--text-color);font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;">
+        <select id="m-ee" autocomplete="off" style="width:auto;min-width:120px;padding:9px 12px;background:#0d1a2e;border:1px solid rgba(255,255,255,.1);border-radius:10px;color:var(--text-color);font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;">
           <option value="حتى الآن">حتى الآن</option>${yearOpts}
         </select>
       </div>
     </div>
     <div class="mf"><label>نوع الدوام <span style="opacity:.5;font-size:.7rem">(اختياري)</span></label>
-      <select id="m-etype" autocomplete="off" style="width:auto;min-width:120px;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:var(--text-color);font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;">
+      <select id="m-etype" autocomplete="off" style="width:auto;min-width:120px;padding:9px 12px;background:#0d1a2e;border:1px solid rgba(255,255,255,.1);border-radius:10px;color:var(--text-color);font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;">
         <option value="">— اختر —</option>
         <option value="دوام كامل">دوام كامل</option>
         <option value="دوام جزئي">دوام جزئي</option>
@@ -2358,7 +2358,7 @@ function openModal(type,listId,secTitle){
   } else if(type==='edu'){
     h=`<div class="modal-title">🎓 إضافة شهادة دراسية</div>
     <div class="mf"><label>نوع الشهادة <span style="color:var(--muted-text);font-size:.65rem"> مطلوب</span></label>
-      <select id="m-dtype" onchange="clearFieldErr('m-dtype','err-dtype')" autocomplete="off" style="width:auto;min-width:120px;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:var(--text-color);font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;">
+      <select id="m-dtype" onchange="clearFieldErr('m-dtype','err-dtype')" autocomplete="off" style="width:auto;min-width:120px;padding:9px 12px;background:#0d1a2e;border:1px solid rgba(255,255,255,.1);border-radius:10px;color:var(--text-color);font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;">
         <option value="">— اختر نوع الشهادة —</option>
         <option value="بكالوريوس">🎓 بكالوريوس</option>
         <option value="ماجستير">🎓 ماجستير</option>
@@ -2393,7 +2393,7 @@ function openModal(type,listId,secTitle){
     h=`<div class="modal-title">✏️ قسم مخصص</div>
     <div class="mf"><label>اسم القسم *</label><input autocomplete="off" id="m-csn" placeholder="مشاريعي، إنجازاتي..."></div>
     <div class="mf"><label>أيقونة</label>
-      <select id="m-csi" autocomplete="off" style="width:100%;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:Cairo,sans-serif;font-size:.9rem;outline:none;direction:rtl;">
+      <select id="m-csi" autocomplete="off" style="width:100%;padding:9px 12px;background:#0d1a2e;border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:Cairo,sans-serif;font-size:.9rem;outline:none;direction:rtl;">
         <option value="📌">📌 دبوس</option><option value="🚀">🚀 مشاريع</option>
         <option value="🏆">🏆 إنجازات</option><option value="⭐">⭐ مميزات</option>
         <option value="💡">💡 أفكار</option><option value="🎯">🎯 أهداف</option>
@@ -2411,7 +2411,7 @@ function openModal(type,listId,secTitle){
       <input id="m-skill-name" autocomplete="off" placeholder="مثال: Python، Excel، Photoshop، إدارة مشاريع...">
     </div>
     <div class="mf"><label>مستوى الإتقان</label>
-      <select id="m-skill-level" style="width:auto;min-width:120px;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:var(--text-color);font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;">
+      <select id="m-skill-level" style="width:auto;min-width:120px;padding:9px 12px;background:#0d1a2e;border:1px solid rgba(255,255,255,.1);border-radius:10px;color:var(--text-color);font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;">
         <option value="">— اختر المستوى —</option>
         <option value="مبتدئ">🟡 مبتدئ</option>
         <option value="متوسط">🟠 متوسط</option>
@@ -2424,7 +2424,7 @@ function openModal(type,listId,secTitle){
   } else if(type==='langs'){
     h=`<div class="modal-title">🌍 إضافة لغة</div>
     <div class="mf"><label>اللغة <span style="color:var(--muted-text);font-size:.65rem"> مطلوب</span></label>
-      <select id="m-lang-name" style="width:auto;min-width:120px;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:var(--text-color);font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;">
+      <select id="m-lang-name" style="width:auto;min-width:120px;padding:9px 12px;background:#0d1a2e;border:1px solid rgba(255,255,255,.1);border-radius:10px;color:var(--text-color);font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;">
         <option value="">— اختر اللغة —</option>
         <optgroup label="🌍 اللغات الأكثر انتشاراً">
           <option>العربية</option>
@@ -2537,7 +2537,7 @@ function openModal(type,listId,secTitle){
       </select>
     </div>
     <div class="mf"><label>المستوى <span style="color:var(--muted-text);font-size:.65rem"> مطلوب</span></label>
-      <select id="m-lang-level" style="width:auto;min-width:120px;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:var(--text-color);font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;">
+      <select id="m-lang-level" style="width:auto;min-width:120px;padding:9px 12px;background:#0d1a2e;border:1px solid rgba(255,255,255,.1);border-radius:10px;color:var(--text-color);font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;">
         <option value="">— اختر المستوى —</option>
         <option value="مبتدئ">🟡 مبتدئ</option>
         <option value="محادثة">🟠 محادثة</option>
@@ -2551,7 +2551,7 @@ function openModal(type,listId,secTitle){
   } else if(type==='links'){
     h=`<div class="modal-title">🔗 إضافة رابط</div>
     <div class="mf"><label>نوع الرابط</label>
-      <select id="m-link-type" style="width:auto;min-width:120px;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:var(--text-color);font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;">
+      <select id="m-link-type" style="width:auto;min-width:120px;padding:9px 12px;background:#0d1a2e;border:1px solid rgba(255,255,255,.1);border-radius:10px;color:var(--text-color);font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;">
         <option>💼 LinkedIn</option><option>💻 GitHub</option>
         <option>🎨 Behance</option><option>🏀 Dribbble</option>
         <option>🌐 موقع شخصي</option><option>📺 YouTube</option>
@@ -2573,7 +2573,7 @@ function openModal(type,listId,secTitle){
       <input id="m-course-provider" autocomplete="off" placeholder="مثال: Coursera، Udemy، أكاديمية تواصلنا...">
     </div>
     <div class="mf"><label>سنة الإتمام</label>
-      <select id="m-course-year" style="width:auto;min-width:120px;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:var(--text-color);font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;">
+      <select id="m-course-year" style="width:auto;min-width:120px;padding:9px 12px;background:#0d1a2e;border:1px solid rgba(255,255,255,.1);border-radius:10px;color:var(--text-color);font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;">
         <option value="">— اختر السنة —</option>${yearOpts}
       </select>
     </div>
@@ -2602,7 +2602,7 @@ function openModal(type,listId,secTitle){
     </div>
     <div class="mf">
       <label>السنة <span style="opacity:.4;font-size:.65rem">(اختياري)</span></label>
-      <select id="m-gd" autocomplete="off" style="width:auto;min-width:120px;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:var(--text-color);font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;">
+      <select id="m-gd" autocomplete="off" style="width:auto;min-width:120px;padding:9px 12px;background:#0d1a2e;border:1px solid rgba(255,255,255,.1);border-radius:10px;color:var(--text-color);font-family:Cairo,sans-serif;font-size:.82rem;outline:none;direction:rtl;">
         <option value="">— اختر السنة —</option>${yearOpts2}
       </select>
     </div>
@@ -4788,7 +4788,7 @@ function highlightSection(target){
     <div style="font-weight:800;font-size:.9rem;margin-bottom:12px">🚨 إبلاغ عن محتوى مخالف</div>
     <div style="margin-bottom:10px">
       <div style="font-size:.72rem;color:rgba(255,255,255,.4);margin-bottom:6px">نوع البلاغ</div>
-      <select id="reportType" style="width:100%;padding:9px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.05);color:#fff;font-family:Cairo,sans-serif;font-size:.78rem">
+      <select id="reportType" style="width:100%;padding:9px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.08);background:#0d1a2e;color:#fff;font-family:Cairo,sans-serif;font-size:.78rem">
         <option value="sexual">محتوى جنسي</option>
         <option value="fraud">احتيال أو نصب</option>
         <option value="harassment">تحرش أو مضايقة</option>
