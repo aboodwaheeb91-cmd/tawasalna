@@ -3607,6 +3607,11 @@ var SECTION_CONFIG = {
     // Reveal NOW so user sees correct state in one paint.
     document.body.classList.remove('profile-loading');
 
+    // ── DOM Ready: fire score after cvHead is confirmed in DOM ──
+    if(!previewMode && !document.body.classList.contains('public-view')){
+      loadProfileScore();
+    }
+
     // ── Bootstrap Gate: fire deferred requests after auth confirmed ──
     if(typeof window._triggerBadges==='function') window._triggerBadges();
 
@@ -3645,14 +3650,23 @@ try{
 // This prevents viewer's own saved style from overriding the profile's theme
 try{
   if(isOwner){
+    // Single source of truth: read saved theme → apply → sync UI atomically
     const savedStyle = parseInt(localStorage.getItem('tw_profile_style'+getUID()))||1;
-    if(savedStyle && savedStyle !== 1){
-      document.body.classList.remove('s1','s2','s3','s4','s5');
-      document.body.classList.add('s'+savedStyle);
-      curStyle = savedStyle; // keep curStyle in sync so Step 2 comparison works
-      document.querySelectorAll('.sopt').forEach(s=>s.classList.remove('active'));
-      const sopt = document.getElementById('sopt'+savedStyle);
-      if(sopt) sopt.classList.add('active');
+    // Apply to all values including s1 (no exclusion)
+    document.body.classList.remove('s1','s2','s3','s4','s5');
+    document.body.classList.add('s'+savedStyle);
+    curStyle = savedStyle;
+    // Sync full UI state: active class + checkmark on correct sopt
+    document.querySelectorAll('.sopt').forEach(s=>{
+      s.classList.remove('active');
+      const chk = s.querySelector('.schk');
+      if(chk) chk.style.display='none';
+    });
+    const sopt = document.getElementById('sopt'+savedStyle);
+    if(sopt){
+      sopt.classList.add('active');
+      const chk = sopt.querySelector('.schk');
+      if(chk) chk.style.display='';
     }
   }
   // Non-owner: body stays as SSR class until Step 2 applies DB theme
@@ -3880,10 +3894,7 @@ function doLogout(){
   // Init after load
   window.addEventListener('load', function(){
     if(typeof loadApplications === 'function') loadApplications();
-    // Score widget: owner only — don't show on public profile view
-    if(typeof loadProfileScore === 'function' && !document.body.classList.contains('public-view')){
-      loadProfileScore();
-    }
+    // Score widget: called after DOM ready (see ensureSection → _domReady flag)
   });
 })();
 
