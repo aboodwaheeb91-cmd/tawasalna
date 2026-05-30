@@ -303,7 +303,7 @@ body.s3 .cv-head { background:linear-gradient(135deg,var(--ac),var(--ac2)); bord
 body.s3 .cv-head::before { content:''; position:absolute; top:0; left:-20px; width:140px; height:140px; background:rgba(255,255,255,.06); border-radius:50%; overflow:hidden; }
 body.s3 .cv-head::after { content:''; position:absolute; inset:0; background:rgba(7,11,24,.22); border-radius:inherit; pointer-events:none; z-index:0; }
 body.s3 .cv-head > * { position:relative; z-index:1; }
-body.s3 .avatar { width:82px; height:82px; border-radius:18px; flex-shrink:0; background:rgba(255,255,255,.15); display:flex; align-items:center; justify-content:center; font-size:2rem; border:2px solid rgba(255,255,255,.25); filter:drop-shadow(0 0 16px rgba(37,99,255,.7)) drop-shadow(0 0 32px rgba(0,200,150,.4)); }
+body.s3 .avatar { width:82px; height:82px; border-radius:18px; flex-shrink:0; background:rgba(255,255,255,.15); display:flex; align-items:center; justify-content:center; font-size:2rem; border:2px solid rgba(255,255,255,.25); filter:drop-shadow(0 0 8px rgba(37,99,255,.6)) drop-shadow(0 0 14px rgba(0,200,150,.35)); }
 body.s3 .cv-name { font-size:clamp(.95rem,2.5vw,1.45rem); font-weight:900; color:#fff; margin-bottom:2px; }
 body.s3 .cv-title { color:rgba(255,255,255,.85); font-size:.83rem; font-weight:700; margin-bottom:6px; }
 body.s3 .cv-bio { color:var(--muted-text); font-size:.79rem; line-height:1.65; }
@@ -4854,46 +4854,7 @@ function safeUrl(url){
 
 
 
-<!-- ── TEMP DIAGNOSTIC: remove after testing ── -->
-<div id="_glowDiag" style="position:fixed;bottom:80px;left:50%;transform:translateX(-50%);z-index:9999;display:flex;gap:8px;flex-direction:column;align-items:center">
-  <div style="background:rgba(0,0,0,.85);color:#0f0;font:11px monospace;padding:6px 12px;border-radius:8px;text-align:center" id="_glowStatus">
-    Mode: CURRENT (clip-path ON)
-  </div>
-  <button onclick="(function(){
-    var h = document.querySelector('.cv-head');
-    if(!h) return;
-    var on = h.style.clipPath === 'none';
-    if(on){
-      h.style.overflow='visible';
-      h.style.clipPath='inset(0 round 22px)';
-      document.getElementById('_glowStatus').textContent='Mode: clip-path ON';
-    } else {
-      h.style.overflow='visible';
-      h.style.clipPath='none';
-      document.getElementById('_glowStatus').textContent='Mode: NO clip-path (glow free?)';
-    }
-  })()" style="padding:10px 20px;background:#2563ff;color:#fff;border:none;border-radius:20px;font-size:13px;cursor:pointer">
-    Toggle clip-path
-  </button>
-  <button onclick="(function(){
-    var h = document.querySelector('.cv-head');
-    if(!h) return;
-    var on = h.style.overflow === 'hidden';
-    if(on){
-      h.style.overflow='visible';
-      document.getElementById('_glowStatus').textContent='Mode: overflow VISIBLE';
-    } else {
-      h.style.overflow='hidden';
-      document.getElementById('_glowStatus').textContent='Mode: overflow HIDDEN';
-    }
-  })()" style="padding:10px 20px;background:#dc2626;color:#fff;border:none;border-radius:20px;font-size:13px;cursor:pointer">
-    Toggle overflow
-  </button>
-  <button onclick="document.getElementById('_glowDiag').remove()" style="padding:6px 14px;background:rgba(255,255,255,.15);color:#fff;border:none;border-radius:20px;font-size:11px;cursor:pointer">
-    إزالة
-  </button>
-</div>
-<!-- ── END DIAGNOSTIC ── -->
+
 
 </body>
 </html>
