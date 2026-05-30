@@ -441,13 +441,19 @@ body.public-view .add-item-btn { display:none !important; }
 body.public-view .item-drag-handle { display:none !important; }
 body.public-view .app-shell { display:none !important; }
 
-/* ── Preview Mode: selective hiding only — app-shell stays as layout container ── */
-/* owner-only elements hidden, navigation/layout preserved */
-body.preview-mode .owner-only { display:none !important; }
-body.preview-mode #secScore { display:none !important; }
+/* ── Preview Mode: mirrors public-view visibility without hiding app-shell ── */
+/* app-shell stays visible so previewBtn (exit control) remains accessible */
+body.preview-mode .owner-only    { display:none !important; }
+body.preview-mode #secScore      { display:none !important; }
 body.preview-mode .profile-completion { display:none !important; }
-/* previewBtn always visible — it's the exit control */
-body.preview-mode #previewBtn { display:inline-flex !important; }
+body.preview-mode .item-menu-wrap    { display:none !important; }
+body.preview-mode .add-item-btn      { display:none !important; }
+body.preview-mode .item-drag-handle  { display:none !important; }
+body.preview-mode #panelOverlay      { display:none !important; }
+body.preview-mode #avatarBtn         { cursor:default !important; pointer-events:none; }
+body.preview-mode .csw               { pointer-events:none; }
+/* previewBtn: always visible — it's the only owner control in preview */
+body.preview-mode #previewBtn        { display:inline-flex !important; }
 body.public-view #panelOverlay { display:none !important; }
 
 /* ── Profile loading gate — sections invisible until Step 2 completes ── */
@@ -1298,16 +1304,13 @@ function closePanelClick(e){ if(e.target===document.getElementById('panelOverlay
 
 function togglePreview(){
   previewMode = !previewMode;
-  document.body.classList.toggle('preview-mode',previewMode);
-  // preview-mode simulates public-view — apply same CSS rules
-  document.body.classList.toggle('public-view',previewMode);
+  // preview-mode is mutually exclusive with public-view
+  // never add public-view — it hides app-shell which blocks previewBtn
+  document.body.classList.toggle('preview-mode', previewMode);
+  document.body.classList.remove('public-view'); // ensure no conflict
   const btn = document.getElementById('previewBtn');
   btn.innerHTML = previewMode ? '← رجوع للتعديل' : '👁 معاينة';
-  btn.classList.toggle('active',previewMode);
-  // Always keep previewBtn visible (owner-only but visible in preview)
-  btn.style.display = '';
-  // Show/hide preview button itself in public-view: keep visible for owner
-  btn.style.setProperty('display','','important');
+  btn.classList.toggle('active', previewMode);
   if(previewMode) closePanel();
 }
 
