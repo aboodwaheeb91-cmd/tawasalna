@@ -298,3 +298,98 @@ window.__homeBooted = true;
 ❌ double bootstrap بدون __booted guard
 ❌ استثناء غير مسجّل في هذا الملف
 ```
+
+---
+
+## 12. Theme System Rule
+
+الثيمات تعمل عبر CSS Variables فقط — لا overrides على العناصر.
+
+### المتغيرات الرسمية
+
+```css
+/* كل ثيم يعرّف هذه المتغيرات فقط */
+body.sX {
+  --text-color:  /* النص الأساسي */
+  --muted-text:  /* النص الثانوي / hints / labels */
+  --drag-color:  /* drag handles */
+  --surface:     /* خلفية الكروت */
+  --border:      /* الحدود */
+}
+```
+
+### ثيم جديد = 5 متغيرات فقط
+
+```css
+/* مثال: ثيم بنفسجي */
+body.s5 {
+  --text-color: #1e1b4b;
+  --muted-text: #6d28d9;
+  --drag-color: rgba(109,40,217,.3);
+  --surface:    #faf5ff;
+  --border:     #e9d5ff;
+}
+```
+
+لا لمس لأي component — يرث التغيير تلقائياً.
+
+### القواعد
+
+```javascript
+// ✅ صح — render functions تستخدم var()
+`<span style="color:var(--muted-text)">${label}</span>`
+`<div style="color:var(--drag-color)" draggable="true">⠿</div>`
+
+// ❌ غلط — rgba/hex مباشرة في JS
+`<span style="color:rgba(255,255,255,.5)">${label}</span>`
+`<div style="color:#fff" draggable="true">⠿</div>`
+```
+
+### المتغيرات الحالية والثيمات
+
+| Variable | s1 dark | s2 white | s3 navy | s4 clean |
+|----------|---------|----------|---------|----------|
+| `--text-color` | `#fff` | `#0f172a` | `#fff` | `#111827` |
+| `--muted-text` | `rgba(255,255,255,.55)` | `#64748b` | `rgba(255,255,255,.55)` | `#6b7280` |
+| `--drag-color` | `rgba(255,255,255,.25)` | `rgba(0,0,0,.2)` | `rgba(255,255,255,.25)` | `rgba(0,0,0,.2)` |
+| `--surface` | `rgba(255,255,255,.06)` | `#f8fafc` | `rgba(255,255,255,.06)` | `#f9fafb` |
+| `--border` | `rgba(255,255,255,.09)` | `#e2e8f0` | `rgba(255,255,255,.09)` | `#e5e7eb` |
+
+### Migration Rule (تدريجي)
+
+- ملف يتم تعديله → حوّل ألوانه إلى var()
+- لا refactor شامل دفعة واحدة
+- CSS هيكلية قديمة تُترك حتى تُعدَّل طبيعياً
+
+---
+
+### ⛔ Hard Ban — ممنوع منعاً باتاً
+
+هذه الأنماط ممنوعة داخل:
+- `render functions` (renderExpItem, renderSkillItem, ...)
+- `inline styles` داخل JS
+- `components` الأساسية
+
+```css
+/* ❌ ممنوع */
+color: #fff
+color: #000
+color: rgba(255, 255, 255, .X)
+color: rgba(0, 0, 0, .X)
+color: white
+color: black
+```
+
+```css
+/* ✅ البديل الوحيد المقبول */
+color: var(--text-color)
+color: var(--muted-text)
+color: var(--drag-color)
+color: var(--ac)        /* accent color */
+color: var(--ac2)       /* secondary accent */
+```
+
+**الاستثناءات المقبولة** (موثّقة في Exception List):
+- ألوان ثابتة بطبيعتها: أيقونات status (أخضر نجاح، أحمر خطأ، برتقالي تحذير)
+- عناصر UI لا تتأثر بالثيم: badges الوظيفي، KYC status colors
+- تُسجَّل كـ Exception في ARCHITECTURE.md قبل الاستخدام
