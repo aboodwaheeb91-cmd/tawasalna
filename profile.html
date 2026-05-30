@@ -3439,10 +3439,14 @@ var SECTION_CONFIG = {
     if(mainEl) mainEl.style.display=''; // show content
 
     // ── Apply color/style from DB ──
-    if(prof.profile_color && isViewingOwn){
+    if(prof.profile_color){
       try{
-        localStorage.setItem('tw_profile_color'+getUID(), prof.profile_color);
+        // Apply profile owner's color for ALL viewers
         applyColor(prof.profile_color);
+        // Write to LS only for owner
+        if(isViewingOwn){
+          localStorage.setItem('tw_profile_color'+getUID(), prof.profile_color);
+        }
       }catch(ex){}
     }
     if(prof.profile_style){
@@ -3542,10 +3546,10 @@ var SECTION_CONFIG = {
   });
 })();
 
-// Load saved color
+// Load saved color — only for owner view (non-owner gets color from Step 2)
 try{
   const savedColor = localStorage.getItem('tw_profile_color'+getUID());
-  if(savedColor){
+  if(savedColor && (!_urlId || _urlId === String((_sessionUser||{}).id) || _urlId === String((_sessionUser||{}).tw_id))){
     applyColor(savedColor);
     document.querySelectorAll('.csw').forEach(s=>{
       if(s.style.background === savedColor) s.classList.add('active');
