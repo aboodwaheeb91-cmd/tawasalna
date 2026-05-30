@@ -431,6 +431,7 @@ body.preview-mode #previewBtn {
 .public-header.active{ display:flex; }
 
 /* ── Public layout — hide app shell for non-owners ── */
+body.public-view #secScore { display:none !important; }
 body.public-view .app-shell { display:none !important; }
 body.public-view #panelOverlay { display:none !important; }
 
@@ -787,7 +788,7 @@ window.addEventListener('load', function(){
   <button type="button" class="tb-btn tb-ghost" onclick="openPanel()" title="الإعدادات" style="font-size:1rem;padding:6px 10px">⚙️</button>
 </div>
 <!-- ── Public Header — shown for non-owner visitors ── -->
-<div class="public-header" id="publicHeader" style="display:none">
+<div class="public-header" id="publicHeader">
   <div class="tb-logo">
     <img src="https://wrxvmdmknhoufoeprpoc.supabase.co/storage/v1/object/public/site/Logo.svg" alt="تواصلنا" style="height:36px;width:auto;object-fit:contain;display:block">
   </div>
@@ -1025,7 +1026,7 @@ window.addEventListener('load', function(){
 
   <!-- زر إضافة قسم في نهاية الصفحة -->
 <!-- ══ طلبات التوظيف ══ -->
-<div class="sec-card" id="secApplications" style="display:none">
+<div class="sec-card" id="secApplications" class="owner-only" style="display:none">
   <div class="sec-title">📋 طلبات التوظيف</div>
   <div id="appTrackList">
     <div class="tw-skeleton" style="height:60px;margin-bottom:8px"></div>
@@ -3763,7 +3764,10 @@ function doLogout(){
   // Init after load
   window.addEventListener('load', function(){
     if(typeof loadApplications === 'function') loadApplications();
-    if(typeof loadProfileScore === 'function') loadProfileScore();
+    // Score widget: owner only — don't show on public profile view
+    if(typeof loadProfileScore === 'function' && !document.body.classList.contains('public-view')){
+      loadProfileScore();
+    }
   });
 })();
 
