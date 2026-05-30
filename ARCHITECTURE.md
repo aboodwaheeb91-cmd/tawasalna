@@ -393,3 +393,56 @@ color: var(--ac2)       /* secondary accent */
 - ألوان ثابتة بطبيعتها: أيقونات status (أخضر نجاح، أحمر خطأ، برتقالي تحذير)
 - عناصر UI لا تتأثر بالثيم: badges الوظيفي، KYC status colors
 - تُسجَّل كـ Exception في ARCHITECTURE.md قبل الاستخدام
+
+---
+
+## الحالة النهائية المعتمدة — Theme System (2025-05-25)
+
+### Theme Persistence — مصدر واحد
+
+```
+DB (profiles.profile_style)
+  ↓ GET /profile/:id/full
+Step 2 → prof.profile_style
+  ↓ document.body.className = 's' + styleN
+UI (body.s1 / s2 / s3 / s4)
+```
+
+**القواعد:**
+- Owner changes theme → `setStyle(n)` → saves to LS + API simultaneously
+- Non-owner views profile → Step 2 applies owner's theme → NO LS write
+- On refresh → Step 2 re-reads from API → theme always matches DB
+
+**ممنوع:**
+```javascript
+// ❌ هذا كان المشكلة — ثيم المشاهد يطغى على ثيم البروفايل
+if(prof.profile_style && isViewingOwn) { applyTheme() }
+
+// ✅ الصحيح — ثيم البروفايل دائماً من صاحبه
+if(prof.profile_style) {
+  applyTheme();
+  if(isOwner) saveToLS();  // write only for owner
+}
+```
+
+---
+
+### Text Visibility — CSS Variables فقط
+
+**الحالة المعتمدة:**
+- `rgba(255,255,255,.X)` في JS: **0** — كلها تحولت لـ `var(--muted-text)`
+- `#fff` في JS: **4 فقط** — موثّقة كـ intentional exceptions
+
+**Exception 02 (محدّث):**
+الـ 4 حالات المتبقية من `#fff` في JS:
+1. أزرار primary (أبيض على أزرق) — fixed by design
+2. QR overlay text — always dark background
+3. Status badges (success/error) — semantic colors, not theme-sensitive
+- **لا تمس** — موثّقة هنا وفي Exception List
+
+**القاعدة النهائية:**
+```
+أي color في render function أو inline JS style
+يجب أن يكون var(--X) فقط
+الاستثناء: semantic colors موثّقة في ARCHITECTURE.md
+```
