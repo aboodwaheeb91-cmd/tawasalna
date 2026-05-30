@@ -243,7 +243,7 @@ body.s1 { --text-color:#fff; --muted-text:rgba(255,255,255,.55); --surface:rgba(
 body.s1 .page { background:#070b18; font-family:'Cairo',sans-serif; color:#fff; }
 body.s1 .cv-wrap { max-width:820px; margin:0 auto; padding:32px 14px; }
 body.s1 .cv-head { display:flex; gap:20px; align-items:flex-start; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.1); border-radius:22px; padding:26px; margin-bottom:16px; position:relative; overflow:visible; }
-body.s1 .cv-head::before { content:''; position:absolute; top:10px; right:10px; width:160px; height:160px; background:var(--ac); opacity:.1; border-radius:50%; filter:blur(35px); }
+body.s1 
 body.s1 .avatar { width:86px; height:86px; border-radius:18px; flex-shrink:0; background:linear-gradient(135deg,var(--ac),var(--ac2)); display:flex; align-items:center; justify-content:center; font-size:2.1rem; box-shadow:0 6px 22px rgba(var(--ac-rgb),.25); }
 body.s1 .cv-name { font-size:clamp(.95rem,2.5vw,1.4rem); font-weight:900; color:#fff; margin-bottom:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%; }
 body.s1 .cv-title { color:var(--ac); font-size:.84rem; font-weight:700; margin-bottom:6px; }
@@ -300,10 +300,10 @@ body.s3 { --text-color:#fff; --muted-text:rgba(255,255,255,.55); --surface:rgba(
 body.s3 .page { background:#0f172a; font-family:'Cairo',sans-serif; color:#fff; }
 body.s3 .cv-wrap { max-width:820px; margin:0 auto; padding:32px 14px; }
 body.s3 .cv-head { background:linear-gradient(135deg,var(--ac),var(--ac2)); border-radius:22px; padding:30px; margin-bottom:16px; display:flex; gap:18px; align-items:flex-start; position:relative; overflow:visible; clip-path:inset(0 round 22px); isolation:isolate; }
-body.s3 .cv-head::before { content:''; position:absolute; top:10px; left:10px; width:140px; height:140px; background:rgba(255,255,255,.06); border-radius:50%; overflow:hidden; }
+
 body.s3 .cv-head::after { content:''; position:absolute; inset:0; background:rgba(7,11,24,.22); border-radius:inherit; pointer-events:none; z-index:0; }
 body.s3 .cv-head > * { position:relative; z-index:1; }
-body.s3 .avatar { width:82px; height:82px; border-radius:18px; flex-shrink:0; background:rgba(255,255,255,.15); display:flex; align-items:center; justify-content:center; font-size:2rem; border:2px solid rgba(255,255,255,.25); filter:drop-shadow(0 0 8px rgba(37,99,255,.6)) drop-shadow(0 0 14px rgba(0,200,150,.35)); }
+body.s3 .avatar { width:82px; height:82px; border-radius:18px; flex-shrink:0; background:rgba(255,255,255,.15); display:flex; align-items:center; justify-content:center; font-size:2rem; border:2px solid rgba(255,255,255,.25); }
 body.s3 .cv-name { font-size:clamp(.95rem,2.5vw,1.45rem); font-weight:900; color:#fff; margin-bottom:2px; }
 body.s3 .cv-title { color:rgba(255,255,255,.85); font-size:.83rem; font-weight:700; margin-bottom:6px; }
 body.s3 .cv-bio { color:var(--muted-text); font-size:.79rem; line-height:1.65; }
