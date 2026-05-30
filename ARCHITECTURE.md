@@ -446,3 +446,44 @@ if(prof.profile_style) {
 يجب أن يكون var(--X) فقط
 الاستثناء: semantic colors موثّقة في ARCHITECTURE.md
 ```
+
+---
+
+## Exception 03: Init — CSS Only, No Mutations (2026-05-30)
+
+**المشكلة التي حدثت:**
+```
+Init reads localStorage → calls setStyle(n)
+setStyle(n) → PUT /profile/{id} {profile_style: 2}  ← integer
+Backend: Optional[str] → Pydantic rejects int → 422
+User sees: theme not saving → refreshes repeatedly → duplicate loads
+```
+
+**القاعدة المستخلصة:**
+
+```
+Init phase = READ ONLY
+  ✅ CSS class apply
+  ✅ localStorage read
+  ❌ API calls (PUT/POST/DELETE)
+  ❌ Pydantic mutations
+```
+
+**التطبيق:**
+```javascript
+// ❌ قبل — init يستدعي setStyle (يطلق PUT)
+if(savedStyle) setStyle(savedStyle, sopt);
+
+// ✅ بعد — CSS فقط، بدون mutation
+document.body.classList.add('s' + savedStyle);
+// Step 2 يطبق القيمة الحقيقية من DB لاحقاً
+```
+
+**قاعدة type safety للـ API:**
+```javascript
+// ✅ دائماً أرسل strings للـ Optional[str] fields
+body: JSON.stringify({ profile_style: String(n) })
+
+// ❌ Pydantic v2 لا يقبل int حيث str متوقع
+body: JSON.stringify({ profile_style: n })  // n = integer
+```

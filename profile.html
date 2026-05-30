@@ -1274,7 +1274,7 @@ function setStyle(n,el){
     if(_sessionUser&&_sessionUser.id){
       fetch('/profile/'+_sessionUser.id,{method:'PUT',
         headers:{'Content-Type':'application/json','Authorization':'Bearer '+(localStorage.getItem('tw_jwt')||'')},
-        body:JSON.stringify({profile_style:n})
+        body:JSON.stringify({profile_style:String(n)})
       }).catch(function(){});
     }
     setTimeout(closePanel, 300);
@@ -3555,12 +3555,17 @@ try{
     applyColor('#00c896');
   }
 }catch(ex){ applyColor('#00c896'); }
-// Load saved style
+// Load saved style — CSS only at init (no API call)
+// Step 2 will apply the authoritative theme from DB
 try{
   const savedStyle = parseInt(localStorage.getItem('tw_profile_style'+getUID()))||1;
   if(savedStyle && savedStyle !== 1){
+    document.body.classList.remove('s1','s2','s3','s4','s5');
+    document.body.classList.add('s'+savedStyle);
+    // Update sopt active state without triggering API save
+    document.querySelectorAll('.sopt').forEach(s=>s.classList.remove('active'));
     const sopt = document.getElementById('sopt'+savedStyle);
-    if(sopt) setStyle(savedStyle, sopt);
+    if(sopt) sopt.classList.add('active');
   }
 }catch(ex){}
 
