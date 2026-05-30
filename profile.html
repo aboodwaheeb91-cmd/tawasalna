@@ -3557,16 +3557,23 @@ var SECTION_CONFIG = {
       _db.style.cssText = 'position:fixed;top:60px;left:8px;right:8px;background:rgba(0,0,0,.92);color:#fff;font:12px/1.6 monospace;padding:12px;border-radius:10px;z-index:99999;border:2px solid #2563ff;max-height:60vh;overflow-y:auto';
       var _bodyClass = document.body.className;
       var _mode = isOwner ? 'OWNER' : (_sessionUser ? 'Public-User' : 'Guest');
+      var _lsStyle = localStorage.getItem('tw_profile_style'+((_sessionUser||{}).id||''));
+      var _lsStyle2 = localStorage.getItem('tw_profile_style'+((_sessionUser||{}).tw_id||''));
       _db.innerHTML =
-        '<b style="color:#2563ff;font-size:13px">🔍 Profile Debug</b><br>' +
+        '<b style="color:#2563ff;font-size:13px">🔍 Profile Debug v2</b><br>' +
         '<hr style="border-color:#333;margin:6px 0">' +
-        '<b>Profile ID:</b> ' + (_urlId || '—') + '<br>' +
+        '<b>Profile ID (URL):</b> ' + (_urlId || '—') + '<br>' +
         '<b>My UID:</b> ' + ((_sessionUser||{}).id || 'not logged in') + '<br>' +
+        '<b>My tw_id:</b> ' + ((_sessionUser||{}).tw_id || '—') + '<br>' +
         '<b>View Mode:</b> <span style="color:' + (isOwner?'#4ade80':(_sessionUser?'#facc15':'#f87171')) + '">' + _mode + '</span><br>' +
         '<hr style="border-color:#333;margin:6px 0">' +
-        '<b>profile_style (API):</b> ' + (prof.profile_style || '—') + '<br>' +
-        '<b>profile_color (API):</b> ' + (prof.profile_color || '—') + '<br>' +
-        '<b>body.className:</b> <span style="color:#4ade80">' + _bodyClass + '</span><br>' +
+        '<b style="color:#facc15">SOURCE ANALYSIS:</b><br>' +
+        '<b>① HTML body class (SSR):</b> <span style="color:#4ade80">' + (window._initBodyClass||'not captured') + '</span><br>' +
+        '<b>② LS tw_profile_style (by id):</b> ' + (_lsStyle||'null') + '<br>' +
+        '<b>③ LS tw_profile_style (by tw_id):</b> ' + (_lsStyle2||'null') + '<br>' +
+        '<b>④ profile_style (API):</b> ' + (prof.profile_style || '—') + '<br>' +
+        '<b>⑤ body.className (final):</b> <span style="color:' + (_bodyClass===('public-view s'+(prof.profile_style||'1'))||_bodyClass===('s'+(prof.profile_style||'1'))?'#4ade80':'#f87171') + '">' + _bodyClass + '</span><br>' +
+        '<b>Match API?:</b> ' + (_bodyClass.includes('s'+(prof.profile_style||'1')) ? '✅ YES' : '❌ NO — mismatch!') + '<br>' +
         '<hr style="border-color:#333;margin:6px 0">' +
         '<hr style="border-color:#333;margin:6px 0">' +
         '<b>Class changes:</b><br>' +
