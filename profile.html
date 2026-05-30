@@ -1390,7 +1390,10 @@ function restoreSections(){
       if(sec.type==='custom'){
         const lsKey='tw_gen_'+sec.lid+getUID();
         const items=JSON.parse(localStorage.getItem(lsKey)||'[]');
-        // C-2 FIX: render section even if empty (don't skip — items may be in DB)
+        // Auto-delete empty custom section on refresh (consistent with built-in sections)
+        // By this point ensureSection already loaded DB data into localStorage
+        // so if items is empty here → section is truly empty → remove it
+        if(!items.length){ _saveSectionsConfig(); return; }
         remaining.push(sec);
         if(document.getElementById(sec.id)) return;
         // Rebuild custom section
