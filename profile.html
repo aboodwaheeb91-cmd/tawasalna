@@ -3557,8 +3557,8 @@ var SECTION_CONFIG = {
       _db.style.cssText = 'position:fixed;top:60px;left:8px;right:8px;background:rgba(0,0,0,.92);color:#fff;font:12px/1.6 monospace;padding:12px;border-radius:10px;z-index:99999;border:2px solid #2563ff;max-height:60vh;overflow-y:auto';
       var _bodyClass = document.body.className;
       var _mode = isOwner ? 'OWNER' : (_sessionUser ? 'Public-User' : 'Guest');
-      var _lsStyle = localStorage.getItem('tw_profile_style'+((_sessionUser||{}).id||''));
-      var _lsStyle2 = localStorage.getItem('tw_profile_style'+((_sessionUser||{}).tw_id||''));
+      var _lsStyle = localStorage.getItem('tw_profile_style'+'_'+((_sessionUser||{}).id||''));
+      var _lsStyle2 = localStorage.getItem('tw_profile_style'+getUID());
       _db.innerHTML =
         '<b style="color:#2563ff;font-size:13px">🔍 Profile Debug v2</b><br>' +
         '<hr style="border-color:#333;margin:6px 0">' +
@@ -3616,18 +3616,22 @@ try{
     applyColor('#00c896');
   }
 }catch(ex){ applyColor('#00c896'); }
-// Load saved style — CSS only at init (no API call)
-// Step 2 will apply the authoritative theme from DB
+// Load saved style — CSS only at init, OWNER ONLY
+// Non-owner: skip entirely — Step 2 applies profile owner's theme from DB
+// This prevents viewer's own saved style from overriding the profile's theme
 try{
-  const savedStyle = parseInt(localStorage.getItem('tw_profile_style'+getUID()))||1;
-  if(savedStyle && savedStyle !== 1){
-    document.body.classList.remove('s1','s2','s3','s4','s5');
-    document.body.classList.add('s'+savedStyle);
-    // Update sopt active state without triggering API save
-    document.querySelectorAll('.sopt').forEach(s=>s.classList.remove('active'));
-    const sopt = document.getElementById('sopt'+savedStyle);
-    if(sopt) sopt.classList.add('active');
+  if(isOwner){
+    const savedStyle = parseInt(localStorage.getItem('tw_profile_style'+getUID()))||1;
+    if(savedStyle && savedStyle !== 1){
+      document.body.classList.remove('s1','s2','s3','s4','s5');
+      document.body.classList.add('s'+savedStyle);
+      curStyle = savedStyle; // keep curStyle in sync so Step 2 comparison works
+      document.querySelectorAll('.sopt').forEach(s=>s.classList.remove('active'));
+      const sopt = document.getElementById('sopt'+savedStyle);
+      if(sopt) sopt.classList.add('active');
+    }
   }
+  // Non-owner: body stays as SSR class until Step 2 applies DB theme
 }catch(ex){}
 
 // ── Avatar upload with crop ──
