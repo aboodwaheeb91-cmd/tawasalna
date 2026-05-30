@@ -3532,6 +3532,28 @@ var SECTION_CONFIG = {
     // ── Bootstrap Gate: fire deferred requests after auth confirmed ──
     if(typeof window._triggerBadges==='function') window._triggerBadges();
 
+    // ── Debug Box — visible only when URL has ?debug=1 ──
+    if(new URLSearchParams(window.location.search).get('debug') === '1'){
+      var _db = document.createElement('div');
+      _db.style.cssText = 'position:fixed;top:60px;left:8px;right:8px;background:rgba(0,0,0,.92);color:#fff;font:12px/1.6 monospace;padding:12px;border-radius:10px;z-index:99999;border:2px solid #2563ff;max-height:60vh;overflow-y:auto';
+      var _bodyClass = document.body.className;
+      var _mode = isOwner ? 'OWNER' : (_sessionUser ? 'Public-User' : 'Guest');
+      _db.innerHTML =
+        '<b style="color:#2563ff;font-size:13px">🔍 Profile Debug</b><br>' +
+        '<hr style="border-color:#333;margin:6px 0">' +
+        '<b>Profile ID:</b> ' + (_urlId || '—') + '<br>' +
+        '<b>My UID:</b> ' + ((_sessionUser||{}).id || 'not logged in') + '<br>' +
+        '<b>View Mode:</b> <span style="color:' + (isOwner?'#4ade80':(_sessionUser?'#facc15':'#f87171')) + '">' + _mode + '</span><br>' +
+        '<hr style="border-color:#333;margin:6px 0">' +
+        '<b>profile_style (API):</b> ' + (prof.profile_style || '—') + '<br>' +
+        '<b>profile_color (API):</b> ' + (prof.profile_color || '—') + '<br>' +
+        '<b>body.className:</b> <span style="color:#4ade80">' + _bodyClass + '</span><br>' +
+        '<hr style="border-color:#333;margin:6px 0">' +
+        '<b style="color:#888;font-size:11px">tap to close</b>';
+      _db.onclick = function(){ _db.remove(); };
+      document.body.appendChild(_db);
+    }
+
   })
   .catch(function(err){
     console.error('[Profile] API error:', err);
