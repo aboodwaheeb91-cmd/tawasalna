@@ -3478,11 +3478,11 @@ var SECTION_CONFIG = {
         if(isViewingOwn){
           localStorage.setItem('tw_profile_style'+getUID(), styleN);
         }
-        if(styleN !== curStyle){
-          document.body.className = document.body.className.replace(/\bs\d\b/,'').trim();
-          document.body.classList.add('s'+styleN);
-          curStyle = styleN;
-        }
+        // Always apply DB theme — remove curStyle guard
+        // s1 must be applied explicitly (curStyle=1 default was blocking it)
+        document.body.className = document.body.className.replace(/\bs\d\b/g,'').trim();
+        document.body.classList.add('s'+styleN);
+        curStyle = styleN;
       }catch(ex){}
     }
 
