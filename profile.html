@@ -418,6 +418,10 @@ body.preview-mode #previewBtn {
 
 }
 
+/* ── Public layout — hide app shell when not logged in ── */
+body.public-view .app-shell { display:none !important; }
+body.public-view #panelOverlay { display:none !important; }
+
 /* ── Profile loading gate — sections invisible until Step 2 completes ── */
 body.profile-loading .section {
   visibility: hidden;
@@ -755,7 +759,7 @@ window.addEventListener('load', function(){
 <input autocomplete="off" type="color" id="colorIn" value="#00c896">
 
 <!-- ── TOOLBAR: تواصلنا · تعديل · تخصيص · معاينة ── -->
-<div class="toolbar">
+<div class="toolbar app-shell">
   <div class="tb-logo"><img src="https://wrxvmdmknhoufoeprpoc.supabase.co/storage/v1/object/public/site/Logo.svg" alt="تواصلنا" style="height:36px;width:auto;object-fit:contain;display:block"></div>
   <button type="button" class="tb-btn tb-ghost" onclick="location.href='home.html'" title="الرئيسية" style="font-size:.82rem;padding:6px 10px">🏠</button>
   <div style="flex:1"></div>
@@ -3015,6 +3019,10 @@ if(isOwner){
 } else {
   // VIEWING ANOTHER PROFILE - read only
   document.querySelectorAll('.owner-only').forEach(function(el){ el.style.display='none'; });
+  // Public visitor (not logged in) → hide entire app shell
+  if(!_sessionUser){
+    document.body.classList.add('public-view');
+  }
 }
 if(isOwner){
     restoreSections();
