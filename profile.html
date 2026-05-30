@@ -358,7 +358,6 @@ body.s4 .add-item-btn:hover { border-color:var(--ac); color:var(--ac); }
 .cv-wrap.fading { opacity:0; transform:translateY(5px); }
 
 /* ── Preview ── */
-body.preview-mode .owner-only { display:none !important; }
 
 /* ── Modal ── */
 .overlay{position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,.8);display:none;align-items:center;justify-content:center;padding:16px;}
@@ -407,20 +406,6 @@ body.s4 .top-actions {
 }
 .top-actions .tb-btn { height:36px; }
 /* Preview mode: show only logo + back button */
-body.preview-mode .toolbar .tb-btn:not(#previewBtn) { display:none !important; }
-body.preview-mode .toolbar .tb-logo { display:flex !important; }
-body.preview-mode #previewBtn { 
-  display:flex !important; 
-  position:fixed;
-  bottom:20px;
-  left:50%;
-  transform:translateX(-50%);
-  background:rgba(7,11,24,.95);
-  border:1px solid rgba(255,255,255,.15);
-  border-radius:20px;
-  padding:8px 20px;
-  z-index:1001;
-}
 
 }
 
@@ -449,15 +434,19 @@ body.public-view .csw { pointer-events:none; }
 .item-edit-input  { color:var(--text-color); font-family:Cairo,sans-serif; font-size:.82rem; outline:none; background:transparent; border:none; width:100%; }
 
 /* ── Public layout — hide app shell for non-owners ── */
+body.public-view .owner-only { display:none !important; }
 body.public-view #secScore { display:none !important; }
-body.preview-mode #secScore { display:none !important; }
-body.preview-mode .profile-completion { display:none !important; }
 body.public-view .item-menu-wrap { display:none !important; }
 body.public-view .add-item-btn { display:none !important; }
 body.public-view .item-drag-handle { display:none !important; }
 body.public-view .app-shell { display:none !important; }
-/* Preview button stays visible for owner in preview mode */
-body.preview-mode .app-shell { display:none !important; }
+
+/* ── Preview Mode: selective hiding only — app-shell stays as layout container ── */
+/* owner-only elements hidden, navigation/layout preserved */
+body.preview-mode .owner-only { display:none !important; }
+body.preview-mode #secScore { display:none !important; }
+body.preview-mode .profile-completion { display:none !important; }
+/* previewBtn always visible — it's the exit control */
 body.preview-mode #previewBtn { display:inline-flex !important; }
 body.public-view #panelOverlay { display:none !important; }
 
