@@ -441,8 +441,26 @@ body.public-view .add-item-btn { display:none !important; }
 body.public-view .item-drag-handle { display:none !important; }
 body.public-view .app-shell { display:none !important; }
 
+/* ── previewBtn visibility: CSS-only, no inline display ── */
+/* Hidden for non-owner (public-view hides app-shell which contains it) */
+/* Shown for owner — no rule needed, default visible */
+/* Shown in preview-mode explicitly */
+
 /* ── Preview Mode: mirrors public-view visibility without hiding app-shell ── */
 /* app-shell stays visible so previewBtn (exit control) remains accessible */
+/* previewBtn: icon-only, label appears as tooltip/title only */
+/* Active state: highlight to indicate preview is on */
+#previewBtn { transition: background .2s, color .2s; }
+#previewBtn.active {
+  background: rgba(0,200,150,.15) !important;
+  border-color: var(--ac) !important;
+  color: var(--ac) !important;
+}
+/* In preview-mode: show previewBtn, fixed position so always accessible */
+body.preview-mode #previewBtn {
+  display: inline-flex !important;
+}
+
 body.preview-mode .owner-only    { display:none !important; }
 body.preview-mode #secScore      { display:none !important; }
 body.preview-mode .profile-completion { display:none !important; }
@@ -797,7 +815,7 @@ window.addEventListener('load', function(){
   <div class="tb-logo"><img src="https://wrxvmdmknhoufoeprpoc.supabase.co/storage/v1/object/public/site/Logo.svg" alt="تواصلنا" style="height:36px;width:auto;object-fit:contain;display:block"></div>
   <button type="button" class="tb-btn tb-ghost" onclick="location.href='home.html'" title="الرئيسية" style="font-size:.82rem;padding:6px 10px">🏠</button>
   <div style="flex:1"></div>
-  <button type="button" class="tb-btn tb-preview" id="previewBtn" onclick="togglePreview()" title="معاينة" style="font-size:1rem;padding:6px 10px;display:none">👁</button>
+  <button type="button" class="tb-btn tb-preview" id="previewBtn" onclick="togglePreview()" title="معاينة" style="font-size:1rem;padding:6px 10px">👁</button>
   <div style="position:relative;display:inline-flex">
     <button type="button" class="tb-btn tb-ghost" onclick="location.href='notifications.html'" title="الإشعارات" style="font-size:1rem;padding:6px 10px">🔔</button>
     <span id="tbNotifBadge" style="display:none;position:absolute;top:4px;right:4px;background:#f87171;color:#fff;border-radius:50%;width:14px;height:14px;font-size:.5rem;font-weight:700;line-height:14px;text-align:center"></span>
@@ -1304,13 +1322,14 @@ function closePanelClick(e){ if(e.target===document.getElementById('panelOverlay
 
 function togglePreview(){
   previewMode = !previewMode;
-  // preview-mode is mutually exclusive with public-view
-  // never add public-view — it hides app-shell which blocks previewBtn
+  // Mutually exclusive: preview-mode never coexists with public-view
   document.body.classList.toggle('preview-mode', previewMode);
-  document.body.classList.remove('public-view'); // ensure no conflict
+  document.body.classList.remove('public-view');
+  // No innerHTML change — icon stays as '👁', label via CSS ::after
+  // No display manipulation — CSS handles visibility entirely
   const btn = document.getElementById('previewBtn');
-  btn.innerHTML = previewMode ? '← رجوع للتعديل' : '👁 معاينة';
   btn.classList.toggle('active', previewMode);
+  btn.title = previewMode ? 'رجوع للتعديل' : 'معاينة';
   if(previewMode) closePanel();
 }
 
