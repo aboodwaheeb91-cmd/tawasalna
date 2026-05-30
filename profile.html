@@ -1270,12 +1270,14 @@ const SECTION_MODAL={
 
 function addSection(id,icon,title,el,skipOrderSave=false){
   if(document.getElementById('sec-'+id)) return;
-  // Unified after-add: close panel + scroll to new section
-  setTimeout(function(){
-    closePanel();
-    var newSec=document.getElementById('sec-'+id);
-    if(newSec) newSec.scrollIntoView({behavior:'smooth',block:'start'});
-  },350);
+  // Unified after-add: close panel + scroll — only on user action (not Step 2 restore)
+  if(!skipOrderSave){
+    setTimeout(function(){
+      closePanel();
+      var newSec=document.getElementById('sec-'+id);
+      if(newSec) newSec.scrollIntoView({behavior:'smooth',block:'start'});
+    },350);
+  }
   const lid=id+'-list';
   const modalType=SECTION_MODAL[id]||'generic';
   const btnOnclick=modalType==='generic'
@@ -3076,20 +3078,7 @@ var SECTION_CONFIG = {
     return;
   }
   window.__profileBooted = true;
-  // SCROLL DIAG: track first scroll event
-  window._scrollFirst = false;
-  window.addEventListener('scroll', function _sw(){
-    if(!window._scrollFirst && window.scrollY > 10){
-      window._scrollFirst = true;
-      var t = Date.now() - window._pageStart;
-      var d = document.createElement('div');
-      d.innerHTML = '📍 scrollY=' + window.scrollY + ' after ' + t + 'ms';
-      d.style.cssText = 'position:fixed;bottom:60px;right:10px;background:#f00;color:#fff;padding:6px 10px;border-radius:8px;font-size:12px;z-index:99999;font-family:monospace';
-      document.body.appendChild(d);
-      setTimeout(function(){ d.remove(); }, 5000);
-    }
-  });
-  window._pageStart = Date.now();
+  // scroll diagnostics removed — root cause found and fixed
   // ── Debug trace ──
   var _dbg = function(step, data){
     console.log('[Profile]', step, data||'');
@@ -3449,17 +3438,7 @@ var SECTION_CONFIG = {
     // ── Release visibility gate — atomic: runs immediately after enforcer ──
     // Sections are already in final state from enforcer above.
     // Reveal NOW so user sees correct state in one paint.
-    // SCROLL DIAG: show before/after reveal
-    var _bY = window.scrollY, _bH = document.body.scrollHeight;
     document.body.classList.remove('profile-loading');
-    requestAnimationFrame(function(){
-      var _aY = window.scrollY, _aH = document.body.scrollHeight;
-      var d = document.createElement('div');
-      d.innerHTML = 'Before: Y=' + _bY + ' H=' + _bH + '<br>After: Y=' + _aY + ' H=' + _aH;
-      d.style.cssText = 'position:fixed;top:60px;right:10px;background:#000;color:#0f0;padding:8px 12px;border-radius:8px;font-size:11px;z-index:99999;font-family:monospace;line-height:1.6';
-      document.body.appendChild(d);
-      setTimeout(function(){ d.remove(); }, 6000);
-    });
 
     // ── Bootstrap Gate: fire deferred requests after auth confirmed ──
     if(typeof window._triggerBadges==='function') window._triggerBadges();
