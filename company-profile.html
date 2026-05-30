@@ -825,6 +825,220 @@ function _applyJob(btn, jobId) {
 
 
 <script>
+
+// ════════════════════════════════════════════════════════════
+// ACTION FUNCTIONS — UI handlers (read companyState, call API)
+// ════════════════════════════════════════════════════════════
+
+// ── Navigation ──
+function switchTab(name, el) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  ['jobs','posts','about','ratings'].forEach(function(t) {
+    var el2 = document.getElementById('tab-' + t);
+    if (el2) el2.style.display = t === name ? '' : 'none';
+  });
+}
+
+function doLogout() {
+  localStorage.removeItem('tw_user');
+  localStorage.removeItem('tw_jwt');
+  window.location.href = '/';
+}
+
+// ── Dropdown menu ──
+var _menuOpen = false;
+function toggleMenu(e) {
+  e.stopPropagation();
+  _menuOpen = !_menuOpen;
+  var m   = document.getElementById('dropMenu');
+  var btn = document.getElementById('menuBtn');
+  if (!m || !btn) return;
+  if (_menuOpen) {
+    var r = btn.getBoundingClientRect();
+    m.style.left    = r.left + 'px';
+    m.style.display = 'block';
+  } else {
+    m.style.display = 'none';
+  }
+}
+document.addEventListener('click', function(e) {
+  var btn = document.getElementById('menuBtn');
+  var m   = document.getElementById('dropMenu');
+  if (_menuOpen && m && btn && !btn.contains(e.target) && !m.contains(e.target)) {
+    _menuOpen = false;
+    m.style.display = 'none';
+  }
+});
+
+// ── Follow (Phase 3: will call API) ──
+var _following = false;
+function toggleFollow() {
+  if (!_jwt()) { window.location.href = '/'; return; }
+  if (!companyState.permissions.can_follow) return;
+  _following = !_following;
+  var btn = document.getElementById('followBtn');
+  if (btn) {
+    btn.textContent = _following ? '✓ متابَع' : '+ متابعة';
+    btn.classList.toggle('following', _following);
+  }
+  // Phase 3: fetch POST /company/{id}/follow
+}
+
+// ── Contact modal ──
+function openContact() {
+  document.getElementById('contactOverlay').classList.add('show');
+  history.pushState({ modal: 'contact' }, '', location.href);
+}
+function closeContact(e) {
+  if (!e || e.target === document.getElementById('contactOverlay'))
+    document.getElementById('contactOverlay').classList.remove('show');
+}
+function sendMsg() {
+  var subject = (document.getElementById('msg-subject') || {}).value || 'رسالة جديدة';
+  var body    = ((document.getElementById('msg-body') || {}).value || '').trim();
+  if (!body) { showToast('أدخل الرسالة', 'error'); return; }
+  var coId = new URLSearchParams(location.search).get('id');
+  if (coId && _jwt()) {
+    fetch('/admin/message', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + _jwt() },
+      body: JSON.stringify({ user_id: parseInt(coId) || 0, subject: subject, message: body }),
+    }).catch(function() {});
+  }
+  showToast('تم إرسال رسالتك ✓');
+  closeContact();
+}
+
+// ── Edit modal (owner only) ──
+function openEditModal() {
+  if (!companyState.permissions.can_edit) return;
+  var p = companyState.profile;
+  document.getElementById('e-name').value  = p.full_name  || '';
+  document.getElementById('e-desc').value  = p.bio        || '';
+  document.getElementById('e-loc').value   = p.location   || '';
+  document.getElementById('e-web').value   = p.website    || '';
+  document.getElementById('e-email').value = (companyState.company || {}).contact_email || '';
+  document.getElementById('editOverlay').classList.add('show');
+  history.pushState({ modal: 'edit' }, '', location.href);
+}
+function closeEdit(e) {
+  if (!e || e.target === document.getElementById('editOverlay'))
+    document.getElementById('editOverlay').classList.remove('show');
+}
+function saveEdit() {
+  if (!companyState.permissions.can_edit) return;
+  var name  = document.getElementById('e-name').value.trim();
+  var desc  = document.getElementById('e-desc').value.trim();
+  var loc   = document.getElementById('e-loc').value.trim();
+  var web   = document.getElementById('e-web').value.trim();
+  if (!name) { showToast('أدخل اسم الشركة', 'error'); return; }
+  var coId  = companyState.profile.id;
+  document.getElementById('editOverlay').classList.remove('show');
+  fetch('/profile/' + coId, {
+    method:  'PUT',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + _jwt() },
+    body:    JSON.stringify({ full_name: name, bio: desc, location: loc, website: web }),
+  })
+  .then(function(r) { return r.json(); })
+  .then(function() {
+    showToast('تم الحفظ ✓');
+    loadData(); // rehydrate from API → companyState → renderAll
+  })
+  .catch(function() { showToast('خطأ في الحفظ', 'error'); });
+}
+
+// ── Post Job modal (owner only) ──
+function openPostJob() {
+  if (!companyState.permissions.can_post_jobs) return;
+  document.getElementById('postJobOverlay').classList.add('show');
+  history.pushState({ modal: 'postJob' }, '', location.href);
+}
+function publishJob() {
+  if (!companyState.permissions.can_post_jobs) { showToast('غير مصرح', 'error'); return; }
+  var title = (document.getElementById('j-title') || {}).value || '';
+  title = title.trim();
+  if (!title) { showToast('أدخل المسمى الوظيفي', 'error'); return; }
+  var type  = (document.getElementById('j-type')  || {}).value || '';
+  var loc   = (document.getElementById('j-loc')   || {}).value || '';
+  var s1    = parseInt((document.getElementById('j-sal1') || {}).value) || null;
+  var s2    = parseInt((document.getElementById('j-sal2') || {}).value) || null;
+  var desc  = (document.getElementById('j-desc')  || {}).value || '';
+  fetch('/company/jobs', {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + _jwt() },
+    body:    JSON.stringify({ title: title, description: desc, location: loc, job_type: type, salary_min: s1, salary_max: s2 }),
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (data.status === 'success') {
+      document.getElementById('postJobOverlay').classList.remove('show');
+      showToast('تم نشر الوظيفة ✓');
+      loadData();
+    }
+  })
+  .catch(function() { showToast('خطأ في نشر الوظيفة', 'error'); });
+}
+
+// ── Cover photo (Phase 2: will save to DB) ──
+function setCover(src) {
+  var img  = document.getElementById('coverImg');
+  var bg   = document.getElementById('heroBg');
+  var orbs = document.querySelectorAll('.hero-orb');
+  if (!img) return;
+  img.src = src; img.style.display = 'block';
+  setTimeout(function() { img.style.opacity = '1'; }, 50);
+  if (bg) bg.style.opacity = '0';
+  orbs.forEach(function(o) { o.style.display = 'none'; });
+}
+function uploadCover(input) {
+  if (!input.files[0]) return;
+  var reader = new FileReader();
+  reader.onload = function(e) { setCover(e.target.result); };
+  reader.readAsDataURL(input.files[0]);
+}
+
+// ── applyJob (HTML onclick wrapper → _applyJob) ──
+function applyJob(btn) {
+  var card = btn.closest('[data-jid]');
+  var jobId = card ? card.dataset.jid : btn.getAttribute('data-jobid');
+  _applyJob(btn, jobId);
+}
+
+// ── Report system ──
+var _reportTargetId = null, _reportTargetType = 'company', _reportTargetUrl = '';
+function openReportModal(targetId, targetType, targetUrl) {
+  _reportTargetId   = targetId;
+  _reportTargetType = targetType || 'company';
+  _reportTargetUrl  = targetUrl  || location.href;
+  document.getElementById('reportModal').style.display = 'flex';
+  document.getElementById('reportReason').value = '';
+}
+function closeReportModal() {
+  document.getElementById('reportModal').style.display = 'none';
+}
+async function submitReport() {
+  var type   = document.getElementById('reportType').value;
+  var reason = document.getElementById('reportReason').value.trim();
+  if (!reason) { showToast('اكتب سبب البلاغ', 'error'); return; }
+  if (!_reportTargetId) { showToast('خطأ في البلاغ', 'error'); return; }
+  var btn = document.getElementById('reportSubmitBtn');
+  btn.disabled = true; btn.textContent = 'جاري الإرسال...';
+  try {
+    var r = await fetch('/reports/submit', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + _jwt() },
+      body:    JSON.stringify({ reported_id: _reportTargetId, reported_type: _reportTargetType,
+                                report_type: type, reason: reason, target_url: _reportTargetUrl }),
+    });
+    if (r.ok) { showToast('تم إرسال البلاغ ✓'); closeReportModal(); }
+    else throw new Error();
+  } catch(e) { showToast('خطأ في إرسال البلاغ', 'error'); }
+  btn.disabled = false; btn.textContent = '🚨 إرسال البلاغ';
+}
+
+</script>
+<script>
 // ── Bootstrap call (Rule #10) ──
 document.addEventListener('DOMContentLoaded', function() {
   initScrollProg();
