@@ -727,53 +727,18 @@ function loadData() {
   .then(function(r) { return r.json(); })
   .then(function(data) {
     // ── DIAGNOSTIC LOGS (requested) ──
-    console.log('[1] API response:', data);
     _mergeCompanyState(data);
-    console.log('[2] companyState after merge:', companyState);
-    console.log('[3] viewMode:', companyState.viewMode);
-    console.log('[3] permissions:', companyState.permissions);
-    console.log('[3] is_owner:', companyState.permissions.is_owner);
-    console.log('[4] body.className BEFORE applyViewMode:', document.body.className);
-    _applyViewMode();
-    console.log('[4] body.className AFTER applyViewMode:', document.body.className);
     // PIPELINE: merge → viewMode → render → events
-    // ── RUNTIME PROBE after _applyViewMode (requested) ──
-    (function() {
-      var oa = document.getElementById('ownerActions');
-      var va = document.getElementById('visitorActions');
-      console.log('=== AFTER applyViewMode ===');
-      console.log('BODY=', document.body.className);
-      console.log('OWNER_DISPLAY=', oa ? getComputedStyle(oa).display : 'missing');
-      console.log('VISITOR_DISPLAY=', va ? getComputedStyle(va).display : 'missing');
-    })();
+    _applyViewMode();
     renderAll();
-    // ── RUNTIME PROBE after renderAll (requested) ──
-    (function() {
-      var oa = document.getElementById('ownerActions');
-      var va = document.getElementById('visitorActions');
-      console.log('=== AFTER renderAll ===');
-      console.log('BODY=', document.body.className);
-      console.log('OWNER_DISPLAY=', oa ? getComputedStyle(oa).display : 'missing');
-      console.log('VISITOR_DISPLAY=', va ? getComputedStyle(va).display : 'missing');
-      console.log('OWNER_RECT=', oa ? oa.getBoundingClientRect() : null);
-      console.log('VISITOR_RECT=', va ? va.getBoundingClientRect() : null);
-      console.log('OWNER_HTML=', oa ? oa.outerHTML : 'missing');
-      var p = oa;
-      while (p) {
-        var cs = getComputedStyle(p);
-        console.log('PARENT:', p.tagName, p.id, p.className, '|',
-                    'display=' + cs.display, 'visibility=' + cs.visibility, 'opacity=' + cs.opacity);
-        p = p.parentElement;
-      }
-    })();
     bindEvents();
-    _applyLoadingState(false);
-    console.log('[5] body.className FINAL (after loading off):', document.body.className);
-    _loadController = null;
   })
   .catch(function(err) {
     if (err.name === 'AbortError') return; // intentional abort — no action
     console.error('[Company] loadData error:', err);
+  })
+  .finally(function() {
+    // Always clear loading — even if render throws (prevents stuck co-loading)
     _applyLoadingState(false);
     _loadController = null;
   });
