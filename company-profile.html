@@ -520,6 +520,8 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-heig
 
 <script src="/tw_shared.js"></script>
 <script>
+(function() {
+
 // ════════════════════════════════════════════════════════════
 // COMPANY PROFILE — Core Engine
 // Rule #19: companyState is the Single Source of Truth
@@ -769,6 +771,20 @@ function _applyJob(btn, jobId) {
   });
 }
 
+
+
+// ── Expose pipeline to window (for company-profile.js access) ──
+window.loadData           = loadData;
+window.renderAll          = renderAll;
+window._mergeCompanyState = _mergeCompanyState;
+window._applyViewMode     = _applyViewMode;
+window._applyLoadingState = _applyLoadingState;
+window._jwt               = _jwt;
+window._setText           = _setText;
+window._esc               = _esc;
+window._applyJob          = _applyJob;
+window.initCompanyProfile = initCompanyProfile;
+})();
 </script>
 
 <!-- POST JOB MODAL -->
@@ -826,10 +842,11 @@ function _applyJob(btn, jobId) {
 
 <script src="/company-profile.js"></script>
 <script>
+(function() {
 // ── Bootstrap call (Rule #10) ──
 document.addEventListener('DOMContentLoaded', function() {
-  initScrollProg();
-  initCompanyProfile();
+  if (window.initScrollProg) initScrollProg();
+  if (window.initCompanyProfile) initCompanyProfile();
 });
 
 // ── Pull-to-refresh → loadData (not initCompanyProfile) ──
@@ -849,6 +866,8 @@ document.addEventListener('touchmove', function(e) {
     }
   }
 }, { passive: true });
+
+})();
 </script>
 </body>
 </html>
