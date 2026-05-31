@@ -448,57 +448,6 @@ def get_company_profile(company_id: str, request: Request):
     }
 
 
-# ══ Phase 2 Step 4: Company social endpoints (follow / rate) ══
-@app.post("/company/follow/{company_id}")
-def company_follow(company_id: str, token=Depends(verify_token)):
-    user_id   = token.get("user_id")
-    user_type = token.get("user_type")
-    if not user_id:
-        print("[SECURITY] INVALID_TOKEN: POST /company/follow")
-        raise HTTPException(401, "رمز غير صالح")
-    if user_type != "emp":
-        print(f"[SECURITY] FOLLOW_FORBIDDEN: user_type={user_type} tried follow")
-        raise HTTPException(403, "الموظفون فقط يمكنهم المتابعة")
-    resolved_id = _resolve_company_id(company_id)
-    if int(user_id) == resolved_id:
-        print(f"[SECURITY] SELF_FOLLOW: user={user_id}")
-        raise HTTPException(400, "لا يمكنك متابعة نفسك")
-    count = follow_company(int(user_id), resolved_id)
-    return {"status": "success", "following": True, "followers_count": count}
-
-
-@app.delete("/company/follow/{company_id}")
-def company_unfollow(company_id: str, token=Depends(verify_token)):
-    user_id = token.get("user_id")
-    if not user_id:
-        print("[SECURITY] INVALID_TOKEN: DELETE /company/follow")
-        raise HTTPException(401, "رمز غير صالح")
-    resolved_id = _resolve_company_id(company_id)
-    count = unfollow_company(int(user_id), resolved_id)
-    return {"status": "success", "following": False, "followers_count": count}
-
-
-@app.post("/company/rate/{company_id}")
-def company_rate(company_id: str, data: CompanyRateInput, token=Depends(verify_token)):
-    user_id   = token.get("user_id")
-    user_type = token.get("user_type")
-    if not user_id:
-        print("[SECURITY] INVALID_TOKEN: POST /company/rate")
-        raise HTTPException(401, "رمز غير صالح")
-    if user_type != "emp":
-        print(f"[SECURITY] RATE_FORBIDDEN: user_type={user_type} tried rate")
-        raise HTTPException(403, "الموظفون فقط يمكنهم التقييم")
-    if data.score < 1 or data.score > 5:
-        print(f"[SECURITY] INVALID_SCORE: score={data.score}")
-        raise HTTPException(400, "التقييم يجب أن يكون بين 1 و 5")
-    resolved_id = _resolve_company_id(company_id)
-    if int(user_id) == resolved_id:
-        print(f"[SECURITY] SELF_RATE: user={user_id}")
-        raise HTTPException(400, "لا يمكنك تقييم نفسك")
-    result = rate_company(int(user_id), resolved_id, data.score, data.comment)
-    return {"status": "success", "rating_avg": result["rating_avg"],
-            "rating_count": result["rating_count"], "my_score": data.score}
-
 
 @app.get("/edu", response_class=HTMLResponse)
 def edu(): return read_html("edu.html")
@@ -891,6 +840,58 @@ def verify_token(request: Request):
     if not payload: raise HTTPException(401, "Token invalid or expired")
     return {"valid": True, "user_id": payload.get("user_id"), "user_type": payload.get("user_type")}
 
+
+
+# ══ Phase 2 Step 4: Company social endpoints (follow / rate) ══
+@app.post("/company/follow/{company_id}")
+def company_follow(company_id: str, token=Depends(verify_token)):
+    user_id   = token.get("user_id")
+    user_type = token.get("user_type")
+    if not user_id:
+        print("[SECURITY] INVALID_TOKEN: POST /company/follow")
+        raise HTTPException(401, "رمز غير صالح")
+    if user_type != "emp":
+        print(f"[SECURITY] FOLLOW_FORBIDDEN: user_type={user_type} tried follow")
+        raise HTTPException(403, "الموظفون فقط يمكنهم المتابعة")
+    resolved_id = _resolve_company_id(company_id)
+    if int(user_id) == resolved_id:
+        print(f"[SECURITY] SELF_FOLLOW: user={user_id}")
+        raise HTTPException(400, "لا يمكنك متابعة نفسك")
+    count = follow_company(int(user_id), resolved_id)
+    return {"status": "success", "following": True, "followers_count": count}
+
+
+@app.delete("/company/follow/{company_id}")
+def company_unfollow(company_id: str, token=Depends(verify_token)):
+    user_id = token.get("user_id")
+    if not user_id:
+        print("[SECURITY] INVALID_TOKEN: DELETE /company/follow")
+        raise HTTPException(401, "رمز غير صالح")
+    resolved_id = _resolve_company_id(company_id)
+    count = unfollow_company(int(user_id), resolved_id)
+    return {"status": "success", "following": False, "followers_count": count}
+
+
+@app.post("/company/rate/{company_id}")
+def company_rate(company_id: str, data: CompanyRateInput, token=Depends(verify_token)):
+    user_id   = token.get("user_id")
+    user_type = token.get("user_type")
+    if not user_id:
+        print("[SECURITY] INVALID_TOKEN: POST /company/rate")
+        raise HTTPException(401, "رمز غير صالح")
+    if user_type != "emp":
+        print(f"[SECURITY] RATE_FORBIDDEN: user_type={user_type} tried rate")
+        raise HTTPException(403, "الموظفون فقط يمكنهم التقييم")
+    if data.score < 1 or data.score > 5:
+        print(f"[SECURITY] INVALID_SCORE: score={data.score}")
+        raise HTTPException(400, "التقييم يجب أن يكون بين 1 و 5")
+    resolved_id = _resolve_company_id(company_id)
+    if int(user_id) == resolved_id:
+        print(f"[SECURITY] SELF_RATE: user={user_id}")
+        raise HTTPException(400, "لا يمكنك تقييم نفسك")
+    result = rate_company(int(user_id), resolved_id, data.score, data.comment)
+    return {"status": "success", "rating_avg": result["rating_avg"],
+            "rating_count": result["rating_count"], "my_score": data.score}
 
 @app.post("/reports/submit")
 async def submit_report(data: ReportInput, request: Request, token=Depends(verify_token)):
