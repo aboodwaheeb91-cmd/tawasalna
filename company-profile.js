@@ -116,6 +116,113 @@ function toggleFollow() {
   });
 }
 
+// ── Rating system (Step 5b: display from state + interactive) ──
+var isRateLoading = false;
+
+function _starsString(score, filled, empty) {
+  // Build a 5-char star string for given score (rounded)
+  var n = Math.round(score || 0);
+  var s = '';
+  for (var i = 1; i <= 5; i++) s += (i <= n ? filled : empty);
+  return s;
+}
+
+function renderRating() {
+  // Pure: reads companyState.stats + permissions → updates rating UI
+  if (!window.companyState) return;
+  var avg   = companyState.stats.rating_avg;
+  var count = companyState.stats.rating_count || 0;
+  var mine  = companyState.permissions ? companyState.permissions.my_rating : null;
+
+  // Display average
+  var disp = document.getElementById('ratingStarsDisplay');
+  if (disp) disp.textContent = avg ? _starsString(avg, '⭐', '☆') : '☆☆☆☆☆';
+  var num = document.getElementById('ratingNum');
+  if (num) num.textContent = (avg != null) ? avg : '—';
+  var sub = document.getElementById('ratingSub');
+  if (sub) {
+    sub.textContent = count > 0
+      ? ('من 5 — بناءً على ' + count + ' تقييم' + (count > 10 ? '' : 'ات'))
+      : 'لا تقييمات بعد';
+  }
+
+  // Interactive stars reflect my_rating (if rated before)
+  _paintRateStars(mine || 0);
+  var prompt = document.getElementById('ratePrompt');
+  if (prompt) prompt.textContent = mine ? ('تقييمك: ' + mine + ' من 5 (اضغط للتعديل)') : 'قيّم هذه الشركة:';
+}
+
+function _paintRateStars(score) {
+  var stars = document.querySelectorAll('#rateStars span');
+  stars.forEach(function(s) {
+    var v = parseInt(s.getAttribute('data-score'));
+    s.textContent = (v <= score) ? '⭐' : '☆';
+  });
+}
+
+function submitRating(score) {
+  if (!window._jwt || !_jwt()) { window.location.href = '/'; return; }
+  if (!window.companyState) return;
+  if (isRateLoading) return;
+
+  var companyId = new URLSearchParams(location.search).get('id');
+  if (!companyId) return;
+
+  // Snapshot for rollback
+  var prevMine  = companyState.permissions.my_rating;
+  var prevAvg   = companyState.stats.rating_avg;
+  var prevCount = companyState.stats.rating_count || 0;
+
+  // Optimistic: paint selected stars
+  companyState.permissions.my_rating = score;
+  _paintRateStars(score);
+
+  isRateLoading = true;
+  fetch('/company/rate/' + companyId, {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + _jwt() },
+    body:    JSON.stringify({ score: score }),
+  })
+  .then(function(r) {
+    if (!r.ok) throw new Error('rate failed: ' + r.status);
+    return r.json();
+  })
+  .then(function(data) {
+    // Re-sync from server (authoritative)
+    if (typeof data.rating_avg === 'number' || data.rating_avg === null)
+      companyState.stats.rating_avg = data.rating_avg;
+    if (typeof data.rating_count === 'number')
+      companyState.stats.rating_count = data.rating_count;
+    if (typeof data.my_score === 'number')
+      companyState.permissions.my_rating = data.my_score;
+    renderRating();
+    if (window.showToast) showToast('تم حفظ تقييمك ✓');
+  })
+  .catch(function() {
+    // Rollback
+    companyState.permissions.my_rating = prevMine;
+    companyState.stats.rating_avg      = prevAvg;
+    companyState.stats.rating_count    = prevCount;
+    renderRating();
+    if (window.showToast) showToast('تعذّر حفظ التقييم', 'error');
+  })
+  .finally(function() {
+    isRateLoading = false;
+  });
+}
+
+function bindRateStars() {
+  // Idempotent: bind click on interactive stars once
+  var box = document.getElementById('rateStars');
+  if (!box || box.dataset.bound) return;
+  box.dataset.bound = '1';
+  box.addEventListener('click', function(e) {
+    var span = e.target.closest('span[data-score]');
+    if (!span) return;
+    submitRating(parseInt(span.getAttribute('data-score')));
+  });
+}
+
 // ── Contact modal ──
 function openContact() {
   var el = document.getElementById('contactOverlay');

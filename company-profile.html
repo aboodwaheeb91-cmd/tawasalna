@@ -411,17 +411,18 @@ body.co-loading .visitor-only { display: none !important; }
         <!-- Rating -->
         <div class="rating-card">
           <div class="ac-title">تقييم الموظفين</div>
-          <div class="stars">⭐⭐⭐⭐⭐</div>
+          <!-- Display (Phase 1: from companyState.stats) -->
+          <div class="stars" id="ratingStarsDisplay">☆☆☆☆☆</div>
           <div style="display:flex;align-items:baseline;gap:6px">
-            <div class="rating-n">4.2</div>
-            <div class="rating-sub">من 5 — بناءً على 8 تقييمات</div>
+            <div class="rating-n" id="ratingNum">—</div>
+            <div class="rating-sub" id="ratingSub">لا تقييمات بعد</div>
           </div>
-          <div style="margin-top:12px">
-            <div class="bar-row"><span class="bar-label">5 ⭐</span><div class="bar-track"><div class="bar-fill" style="width:60%"></div></div><span style="font-size:.63rem;color:var(--t3);width:24px">60%</span></div>
-            <div class="bar-row"><span class="bar-label">4 ⭐</span><div class="bar-track"><div class="bar-fill" style="width:25%"></div></div><span style="font-size:.63rem;color:var(--t3);width:24px">25%</span></div>
-            <div class="bar-row"><span class="bar-label">3 ⭐</span><div class="bar-track"><div class="bar-fill" style="width:10%"></div></div><span style="font-size:.63rem;color:var(--t3);width:24px">10%</span></div>
-            <div class="bar-row"><span class="bar-label">2 ⭐</span><div class="bar-track"><div class="bar-fill" style="width:5%"></div></div><span style="font-size:.63rem;color:var(--t3);width:24px">5%</span></div>
-            <div class="bar-row"><span class="bar-label">1 ⭐</span><div class="bar-track"><div class="bar-fill" style="width:0%"></div></div><span style="font-size:.63rem;color:var(--t3);width:24px">0%</span></div>
+          <!-- Interactive (Phase 2: emp rates — visitor-only) -->
+          <div class="rate-interactive visitor-only" id="rateBox" style="margin-top:14px;border-top:1px solid var(--bd);padding-top:12px">
+            <div style="font-size:.72rem;color:var(--t2);margin-bottom:6px" id="ratePrompt">قيّم هذه الشركة:</div>
+            <div class="rate-stars" id="rateStars" style="display:flex;gap:4px;font-size:1.6rem;cursor:pointer;direction:ltr">
+              <span data-score="1">☆</span><span data-score="2">☆</span><span data-score="3">☆</span><span data-score="4">☆</span><span data-score="5">☆</span>
+            </div>
           </div>
         </div>
       </div>
@@ -680,6 +681,8 @@ function renderAll() {
   renderJobs();
   // Step 5a: sync follow button from companyState (defined in company-profile.js)
   if (window.renderFollowBtn) renderFollowBtn();
+  // Step 5b: sync rating display from companyState
+  if (window.renderRating) renderRating();
 }
 
 // ════════════════════════════════════════════════════════════
@@ -705,6 +708,8 @@ function bindEvents() {
       window.location.href = 'job-detail.html?id=' + card.dataset.jid;
     });
   }
+  // Step 5b: bind interactive rating stars (idempotent)
+  if (window.bindRateStars) bindRateStars();
 }
 
 // ════════════════════════════════════════════════════════════
