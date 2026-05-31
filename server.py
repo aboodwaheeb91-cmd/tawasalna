@@ -363,17 +363,11 @@ def get_company_profile(company_id: str, request: Request):
         if payload:
             token_uid   = payload.get("user_id")
             token_utype = payload.get("user_type")
-            print(f"[DEBUG /company/profile] token.user_id={token_uid} | token.user_type={token_utype} | resolved_id={resolved_id}")
             if token_uid and int(token_uid) == resolved_id:
                 viewer_type = "owner"
                 is_owner    = True
             else:
                 viewer_type = "public-user"
-            print(f"[DEBUG /company/profile] viewer_type={viewer_type} | is_owner={is_owner}")
-        else:
-            print(f"[DEBUG /company/profile] JWT invalid or missing — guest")
-    else:
-        print(f"[DEBUG /company/profile] No Authorization header — guest")
 
     # ── Permissions per viewer_type (Rule #20) ──
     permissions = {
