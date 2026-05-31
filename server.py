@@ -430,6 +430,11 @@ def get_company_profile(company_id: str, request: Request):
     permissions["is_following"] = extras["is_following"]
     permissions["my_rating"]    = extras["my_rating"]
 
+    # ── TEMP DEBUG (Step 3 verification — remove after) ──
+    print(f"[DEBUG Step3] company={company}")
+    print(f"[DEBUG Step3] stats={stats}")
+    print(f"[DEBUG Step3] permissions={permissions}")
+
     return {
         "status":      "success",
         "profile":     profile,
