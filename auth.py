@@ -454,6 +454,8 @@ def init_db():
                 conn.run(f"ALTER TABLE {_tbl} ADD CONSTRAINT {_tbl}_unique_uq UNIQUE ({_cols})")
             except Exception: pass  # already exists
         release_conn(conn)
+    # Phase 2: company tables
+    ensure_company_tables()
 
 
 def _unique_tw_id(conn, user_type: str, country_code: str) -> str:
@@ -1358,4 +1360,63 @@ def ensure_reports_table():
         release_conn(conn)
     except Exception as e:
         print(f"[DB] reports table: {e}")
+
+
+# ══ Phase 2: Company Profile System Tables (Rule #18) ══
+def ensure_company_tables():
+    """
+    Creates company_profiles, company_follows, company_ratings.
+    Safe migration: CREATE TABLE IF NOT EXISTS only — no changes to
+    existing tables (users/jobs/profiles untouched). Rule: backward compatible.
+    company identity = users.id everywhere (consistent with jobs.company_id).
+    """
+    try:
+        conn = get_conn()
+        # ── company_profiles — 1:1 with users (user_id = PK + FK) ──
+        conn.run("""
+            CREATE TABLE IF NOT EXISTS company_profiles (
+                user_id       INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+                company_type  TEXT DEFAULT 'private',
+                founded_year  INTEGER,
+                company_size  TEXT,
+                industry      TEXT,
+                description   TEXT,
+                headquarters  TEXT,
+                contact_email TEXT,
+                cover_url     TEXT,
+                verified_co   BOOLEAN NOT NULL DEFAULT FALSE,
+                created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+        """)
+        # ── company_follows — M:M, UNIQUE prevents double-follow at DB level ──
+        conn.run("""
+            CREATE TABLE IF NOT EXISTS company_follows (
+                id          SERIAL PRIMARY KEY,
+                company_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                follower_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                CONSTRAINT uq_follow UNIQUE (company_id, follower_id)
+            )
+        """)
+        conn.run("CREATE INDEX IF NOT EXISTS idx_follows_company  ON company_follows(company_id)")
+        conn.run("CREATE INDEX IF NOT EXISTS idx_follows_follower ON company_follows(follower_id)")
+        # ── company_ratings — M:M, one rating per (company, rater), score 1-5 ──
+        conn.run("""
+            CREATE TABLE IF NOT EXISTS company_ratings (
+                id          SERIAL PRIMARY KEY,
+                company_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                rater_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                score       INTEGER NOT NULL CHECK (score BETWEEN 1 AND 5),
+                comment     TEXT,
+                created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                CONSTRAINT uq_rating UNIQUE (company_id, rater_id)
+            )
+        """)
+        conn.run("CREATE INDEX IF NOT EXISTS idx_ratings_company ON company_ratings(company_id)")
+        release_conn(conn)
+        print("✅ company tables ready")
+    except Exception as e:
+        print(f"[DB] company tables: {e}")
 

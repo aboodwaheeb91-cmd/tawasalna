@@ -833,3 +833,31 @@ function saveEdit() {
 ❌ state mutation outside _mergeCompanyState
 ❌ DOM read for data decisions
 ```
+
+---
+
+## [P1] Controlled Exception 06 — Rating eligibility (Phase 2)
+
+- **القاعدة الأصلية:** التقييم من موظف سابق فقط (verified employment via hired status)
+- **الوضع المؤقت (Phase 2):** أي مستخدم user_type='emp' يستطيع التقييم
+- **السبب:** قيد "موظف سابق" يحتاج job_applications مع status='hired' flow — غير جاهز في Phase 2
+- **الحد:** Phase 3 يضيف القيد. الحقل permissions.can_rate يبقى محكوماً من backend فقط
+- **الأمان:** لا أثر أمني — مجرد قيد business يُضيَّق لاحقاً
+- **الإزالة:** عند بناء hired-status flow في Phase 3
+
+## Phase 2 Schema — company tables (مثبّت)
+
+```
+company_profiles: user_id PK+FK (1:1، لا id مستقل)
+  → company_type, founded_year, company_size, industry,
+    description, headquarters, contact_email, cover_url, verified_co
+
+company_follows: id PK، UNIQUE(company_id, follower_id)
+  → idx_follows_company, idx_follows_follower
+
+company_ratings: id PK، UNIQUE(company_id, rater_id), CHECK(score 1-5)
+  → idx_ratings_company
+
+كل company identity = users.id (متسق مع jobs.company_id).
+البيانات المشتقة (followers_count, rating_avg) لا تُخزَّن — COUNT/AVG عند الطلب.
+```
