@@ -678,6 +678,8 @@ function renderAll() {
   renderProfile();
   renderStats();
   renderJobs();
+  // Step 5a: sync follow button from companyState (defined in company-profile.js)
+  if (window.renderFollowBtn) renderFollowBtn();
 }
 
 // ════════════════════════════════════════════════════════════

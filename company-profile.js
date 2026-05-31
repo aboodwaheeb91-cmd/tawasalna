@@ -48,18 +48,72 @@ document.addEventListener('click', function(e) {
   }
 });
 
-// ── Follow (Phase 3: will call API) ──
-var _following = false;
+// ── Follow system (Step 5a: server state, SSOT = companyState) ──
+// No local _following. Source of truth: companyState.permissions.is_following
+var isFollowLoading = false;
+
+function renderFollowBtn() {
+  // Pure: reads companyState.permissions.is_following → updates #followBtn
+  var btn = document.getElementById('followBtn');
+  if (!btn || !window.companyState) return;
+  var following = !!companyState.permissions.is_following;
+  btn.textContent = following ? '✓ متابَع' : '+ متابعة';
+  btn.classList.toggle('following', following);
+}
+
 function toggleFollow() {
   if (!window._jwt || !_jwt()) { window.location.href = '/'; return; }
   if (!window.companyState || !companyState.permissions.can_follow) return;
-  _following = !_following;
+  if (isFollowLoading) return;  // prevent double-click
+
+  var companyId = new URLSearchParams(location.search).get('id');
+  if (!companyId) return;
+
+  // Snapshot previous state for rollback
+  var prevFollowing = !!companyState.permissions.is_following;
+  var prevCount     = companyState.stats.followers_count || 0;
+
+  // Optimistic update
+  var willFollow = !prevFollowing;
+  companyState.permissions.is_following = willFollow;
+  companyState.stats.followers_count    = prevCount + (willFollow ? 1 : -1);
+  if (companyState.stats.followers_count < 0) companyState.stats.followers_count = 0;
+  renderFollowBtn();
+  if (window.renderStats) renderStats();
+
+  // Lock
+  isFollowLoading = true;
   var btn = document.getElementById('followBtn');
-  if (btn) {
-    btn.textContent = _following ? '✓ متابَع' : '+ متابعة';
-    btn.classList.toggle('following', _following);
-  }
-  // Phase 3: fetch POST /company/{id}/follow
+  if (btn) btn.disabled = true;
+
+  fetch('/company/follow/' + companyId, {
+    method:  willFollow ? 'POST' : 'DELETE',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + _jwt() },
+  })
+  .then(function(r) {
+    if (!r.ok) throw new Error('follow failed: ' + r.status);
+    return r.json();
+  })
+  .then(function(data) {
+    // Re-sync from server response (authoritative)
+    companyState.permissions.is_following = !!data.following;
+    if (typeof data.followers_count === 'number')
+      companyState.stats.followers_count = data.followers_count;
+    renderFollowBtn();
+    if (window.renderStats) renderStats();
+  })
+  .catch(function() {
+    // Rollback to previous state
+    companyState.permissions.is_following = prevFollowing;
+    companyState.stats.followers_count    = prevCount;
+    renderFollowBtn();
+    if (window.renderStats) renderStats();
+    if (window.showToast) showToast('تعذّر تحديث المتابعة', 'error');
+  })
+  .finally(function() {
+    isFollowLoading = false;
+    if (btn) btn.disabled = false;
+  });
 }
 
 // ── Contact modal ──
