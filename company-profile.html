@@ -15,7 +15,8 @@
 <title>تواصلنا - ملف الشركة</title>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
 <style>
-:root{--ac:#2563ff;--ac2:#00c896;--bg:#070b18;--card:rgba(255,255,255,.03);--border:rgba(255,255,255,.07);--t:rgba(255,255,255,.87);--t2:rgba(255,255,255,.5);--t3:rgba(255,255,255,.27);}
+:root{
+  --default-cover: url("https://wrxvmdmknhoufoeprpoc.supabase.co/storage/v1/object/public/site/Shareka1.svg");--ac:#2563ff;--ac2:#00c896;--bg:#070b18;--card:rgba(255,255,255,.03);--border:rgba(255,255,255,.07);--t:rgba(255,255,255,.87);--t2:rgba(255,255,255,.5);--t3:rgba(255,255,255,.27);}
 *{margin:0;padding:0;box-sizing:border-box;}
 body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-height:100vh;}
 
@@ -31,7 +32,10 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-heig
 .nb-follow.following{background:rgba(0,200,150,.15);color:#00c896;border-color:rgba(0,200,150,.3);}
 
 /* HERO */
-.hero{margin-top:52px;position:relative;height:200px;background:linear-gradient(135deg,#0d1526,#1a2540);overflow:hidden;}
+.hero{margin-top:52px;position:relative;height:200px;overflow:hidden;
+  background:linear-gradient(135deg,#0d1526,#1a2540);
+  background-image:var(--default-cover);
+  background-size:cover;background-position:center;background-repeat:no-repeat;}
 .hero-bg{position:absolute;inset:0;background:linear-gradient(135deg,rgba(37,99,255,.15),rgba(0,200,150,.08));opacity:.8;}
 .hero-orb{position:absolute;border-radius:50%;filter:blur(60px);}
 .ho1{width:300px;height:300px;background:#2563ff;opacity:.1;top:-100px;right:-80px;}
