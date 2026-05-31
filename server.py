@@ -69,7 +69,8 @@ from auth import (
     update_application_status, delete_job,
     get_site_setting, set_site_setting, release_conn,
     _cache_del, get_profile_style,
-    get_company_profile_row, get_company_extras
+    get_company_profile_row, get_company_extras,
+    follow_company, unfollow_company, rate_company
 )
 
 # ── Config ──
@@ -316,6 +317,28 @@ def company_profile_html(): return read_html("company-profile.html")
 
 
 # ══ Company Profile API — Rule #20 ══
+# ══ Phase 2 Step 4: shared company id resolver (refactor — same behavior) ══
+def _resolve_company_id(company_id: str) -> int:
+    """Resolve tw_id or numeric → numeric users.id. Raises 404 if not found.
+    Extracted from GET /company/profile (identical logic, no behavior change)."""
+    resolved_id = None
+    conn0 = get_conn()
+    try:
+        if company_id.isdigit():
+            resolved_id = int(company_id)
+        else:
+            rows0 = conn0.run(
+                "SELECT id FROM users WHERE tw_id = :tw AND user_type IN ('co','edu')",
+                tw=company_id)
+            if rows0:
+                resolved_id = rows0[0][0]
+    finally:
+        release_conn(conn0)
+    if not resolved_id:
+        raise HTTPException(404, "الشركة غير موجودة")
+    return resolved_id
+
+
 @app.get("/company/profile/{company_id}")
 def get_company_profile(company_id: str, request: Request):
     """
@@ -324,24 +347,8 @@ def get_company_profile(company_id: str, request: Request):
     Accepts both numeric id and tw_id (TW-CO-XXXXX).
     Returns: profile + company + stats + viewer_type + is_owner + permissions
     """
-    # ── Resolve numeric company id (supports tw_id or numeric) ──
-    resolved_id: int = None
-    conn0 = get_conn()
-    try:
-        if company_id.isdigit():
-            resolved_id = int(company_id)
-        else:
-            # tw_id lookup
-            rows0 = conn0.run(
-                "SELECT id FROM users WHERE tw_id = :tw AND user_type IN ('co','edu')",
-                tw=company_id)
-            if rows0:
-                resolved_id = rows0[0][0]
-    finally:
-        release_conn(conn0)
-
-    if not resolved_id:
-        raise HTTPException(404, "الشركة غير موجودة")
+    # ── Resolve numeric company id (shared resolver — Step 4 refactor) ──
+    resolved_id = _resolve_company_id(company_id)
 
     # ── Determine viewer_type from JWT (optional) ──
     viewer_type = "guest"
@@ -430,11 +437,6 @@ def get_company_profile(company_id: str, request: Request):
     permissions["is_following"] = extras["is_following"]
     permissions["my_rating"]    = extras["my_rating"]
 
-    # ── TEMP DEBUG (Step 3 verification — remove after) ──
-    print(f"[DEBUG Step3] company={company}")
-    print(f"[DEBUG Step3] stats={stats}")
-    print(f"[DEBUG Step3] permissions={permissions}")
-
     return {
         "status":      "success",
         "profile":     profile,
@@ -444,6 +446,59 @@ def get_company_profile(company_id: str, request: Request):
         "is_owner":    is_owner,
         "permissions": permissions,
     }
+
+
+# ══ Phase 2 Step 4: Company social endpoints (follow / rate) ══
+@app.post("/company/follow/{company_id}")
+def company_follow(company_id: str, token=Depends(verify_token)):
+    user_id   = token.get("user_id")
+    user_type = token.get("user_type")
+    if not user_id:
+        print("[SECURITY] INVALID_TOKEN: POST /company/follow")
+        raise HTTPException(401, "رمز غير صالح")
+    if user_type != "emp":
+        print(f"[SECURITY] FOLLOW_FORBIDDEN: user_type={user_type} tried follow")
+        raise HTTPException(403, "الموظفون فقط يمكنهم المتابعة")
+    resolved_id = _resolve_company_id(company_id)
+    if int(user_id) == resolved_id:
+        print(f"[SECURITY] SELF_FOLLOW: user={user_id}")
+        raise HTTPException(400, "لا يمكنك متابعة نفسك")
+    count = follow_company(int(user_id), resolved_id)
+    return {"status": "success", "following": True, "followers_count": count}
+
+
+@app.delete("/company/follow/{company_id}")
+def company_unfollow(company_id: str, token=Depends(verify_token)):
+    user_id = token.get("user_id")
+    if not user_id:
+        print("[SECURITY] INVALID_TOKEN: DELETE /company/follow")
+        raise HTTPException(401, "رمز غير صالح")
+    resolved_id = _resolve_company_id(company_id)
+    count = unfollow_company(int(user_id), resolved_id)
+    return {"status": "success", "following": False, "followers_count": count}
+
+
+@app.post("/company/rate/{company_id}")
+def company_rate(company_id: str, data: CompanyRateInput, token=Depends(verify_token)):
+    user_id   = token.get("user_id")
+    user_type = token.get("user_type")
+    if not user_id:
+        print("[SECURITY] INVALID_TOKEN: POST /company/rate")
+        raise HTTPException(401, "رمز غير صالح")
+    if user_type != "emp":
+        print(f"[SECURITY] RATE_FORBIDDEN: user_type={user_type} tried rate")
+        raise HTTPException(403, "الموظفون فقط يمكنهم التقييم")
+    if data.score < 1 or data.score > 5:
+        print(f"[SECURITY] INVALID_SCORE: score={data.score}")
+        raise HTTPException(400, "التقييم يجب أن يكون بين 1 و 5")
+    resolved_id = _resolve_company_id(company_id)
+    if int(user_id) == resolved_id:
+        print(f"[SECURITY] SELF_RATE: user={user_id}")
+        raise HTTPException(400, "لا يمكنك تقييم نفسك")
+    result = rate_company(int(user_id), resolved_id, data.score, data.comment)
+    return {"status": "success", "rating_avg": result["rating_avg"],
+            "rating_count": result["rating_count"], "my_score": data.score}
+
 
 @app.get("/edu", response_class=HTMLResponse)
 def edu(): return read_html("edu.html")
@@ -588,6 +643,10 @@ class KYCDocsInput(BaseModel):
 
 class KYCAdminInput(BaseModel):
     note: Optional[str] = ""
+
+class CompanyRateInput(BaseModel):
+    score: int
+    comment: Optional[str] = None
 
 class JobInput(BaseModel):
     title: str
