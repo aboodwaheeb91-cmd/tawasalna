@@ -68,7 +68,8 @@ from auth import (
     get_job_applicants, get_user_applications,
     update_application_status, delete_job,
     get_site_setting, set_site_setting, release_conn,
-    _cache_del, get_profile_style
+    _cache_del, get_profile_style,
+    get_company_profile_row, get_company_extras
 )
 
 # ── Config ──
@@ -410,24 +411,24 @@ def get_company_profile(company_id: str, request: Request):
     finally:
         release_conn(conn)
 
-    # ── company_profiles fields (Phase 2: populated when table created) ──
-    company = {
-        "company_type": None,
-        "founded_year":  None,
-        "company_size":  None,
-        "cover_url":     None,
-        "industry":      None,
-        "headquarters":  None,
-        "contact_email": None,
-    }
+    # ── company_profiles fields (Phase 2: from company_profiles table) ──
+    company = get_company_profile_row(resolved_id)
 
-    # ── Stats (Rule #19: no hardcoded values) ──
+    # ── Company extras: followers, rating, viewer flags (Phase 2) ──
+    extras = get_company_extras(resolved_id, token_uid)
+
+    # ── Stats (Rule #19: real values from DB) ──
     stats = {
         "jobs_count":       jobs_count,
-        "followers_count":  0,    # Phase 3: company_follows table
+        "followers_count":  extras["followers_count"],
         "verified_count":   verified_count,
-        "rating_avg":       None, # Phase 3: company_ratings table
+        "rating_avg":       extras["rating_avg"],
+        "rating_count":     extras["rating_count"],
     }
+
+    # ── Viewer-specific flags into permissions (Phase 2, in-scope) ──
+    permissions["is_following"] = extras["is_following"]
+    permissions["my_rating"]    = extras["my_rating"]
 
     return {
         "status":      "success",
