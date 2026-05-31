@@ -217,6 +217,28 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-heig
 .tw-card-lift:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.3);}
 .tw-verified{animation:tw-verified 2.5s ease-in-out infinite;}
 
+
+/* ══ View Mode Visibility System — Rule #21 ══ */
+/* Default (no body class yet): hide everything role-specific to prevent flash */
+.owner-only   { display: none !important; }
+.visitor-only { display: none !important; }
+.guest-cta    { display: none !important; }
+
+/* Owner view: show owner controls only */
+body.view-owner  .owner-only   { display: flex !important; }
+body.view-owner  .owner-only.tab { display: inline-flex !important; }
+
+/* Public-user view: show visitor controls */
+body.public-view .visitor-only { display: flex !important; }
+
+/* Guest view: show visitor controls + login CTA */
+body.view-guest  .visitor-only { display: flex !important; }
+body.view-guest  .guest-cta    { display: flex !important; }
+
+/* Loading state: hide actions until viewMode resolved */
+body.co-loading .owner-only,
+body.co-loading .visitor-only { display: none !important; }
+
 </style>
 <style>.skip-link{position:absolute;top:-40px;right:0;background:var(--ac,#00c896);color:#0d1a2e;padding:8px 16px;border-radius:0 0 8px 0;font-family:Cairo,sans-serif;font-size:.8rem;font-weight:700;text-decoration:none;transition:top .2s;z-index:10000}.skip-link:focus{top:0}</style><a href="#main-content" class="skip-link">تخطى للمحتوى الرئيسي</a><link rel="stylesheet" href="/static/tw_shared.css">
 </head>
@@ -236,7 +258,7 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-heig
   <div class="nav-logo"><img src="https://wrxvmdmknhoufoeprpoc.supabase.co/storage/v1/object/public/site/Logo.svg" alt="تواصلنا" style="height:36px;width:auto;object-fit:contain;display:block"></div>
 
   <!-- Owner quick actions -->
-  <div id="ownerActions" style="display:none;align-items:center;gap:6px">
+  <div id="ownerActions" class="owner-only" style="align-items:center;gap:6px">
     <button class="nb nb-primary" onclick="openPostJob()">+ نشر وظيفة</button>
     <button class="nb nb-ghost" onclick="openEditModal()">✏️ تعديل</button>
     <button class="nb nb-ghost" onclick="toggleMenu(event)" id="menuBtn">☰ القائمة</button>
@@ -266,7 +288,7 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-heig
   <div class="hero-orb ho2"></div>
   <img loading="lazy" id="coverImg" src="" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:none;opacity:0;transition:opacity .4s">
   <!-- Upload button (owner only) -->
-  <label id="coverUploadBtn" class="cover-upload-btn" title="رفع صورة الغلاف" style="display:none">
+  <label id="coverUploadBtn" class="cover-upload-btn owner-only" title="رفع صورة الغلاف">
     <input type="file" accept="image/*" onchange="uploadCover(this)" style="display:none">
     📷 تغيير صورة الغلاف
   </label>
@@ -289,7 +311,7 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-heig
             <div class="co-meta-item" id="coWebsite" style="display:none">🌐 <a href="#" id="coWebsiteLink" target="_blank">الموقع</a></div>
           </div>
         </div>
-        <div class="ph-actions" id="visitorActions">
+        <div class="ph-actions visitor-only" id="visitorActions">
           <button class="nb nb-follow" id="followBtn" onclick="toggleFollow()">+ متابعة</button>
           <button class="nb nb-ghost" onclick="openContact()">💬 تواصل</button>
         </div>
@@ -704,12 +726,49 @@ function loadData() {
   })
   .then(function(r) { return r.json(); })
   .then(function(data) {
-    // PIPELINE: merge → viewMode → render → events
+    // ── DIAGNOSTIC LOGS (requested) ──
+    console.log('[1] API response:', data);
     _mergeCompanyState(data);
+    console.log('[2] companyState after merge:', companyState);
+    console.log('[3] viewMode:', companyState.viewMode);
+    console.log('[3] permissions:', companyState.permissions);
+    console.log('[3] is_owner:', companyState.permissions.is_owner);
+    console.log('[4] body.className BEFORE applyViewMode:', document.body.className);
     _applyViewMode();
+    console.log('[4] body.className AFTER applyViewMode:', document.body.className);
+    // PIPELINE: merge → viewMode → render → events
+    // ── RUNTIME PROBE after _applyViewMode (requested) ──
+    (function() {
+      var oa = document.getElementById('ownerActions');
+      var va = document.getElementById('visitorActions');
+      console.log('=== AFTER applyViewMode ===');
+      console.log('BODY=', document.body.className);
+      console.log('OWNER_DISPLAY=', oa ? getComputedStyle(oa).display : 'missing');
+      console.log('VISITOR_DISPLAY=', va ? getComputedStyle(va).display : 'missing');
+    })();
     renderAll();
+    // ── RUNTIME PROBE after renderAll (requested) ──
+    (function() {
+      var oa = document.getElementById('ownerActions');
+      var va = document.getElementById('visitorActions');
+      console.log('=== AFTER renderAll ===');
+      console.log('BODY=', document.body.className);
+      console.log('OWNER_DISPLAY=', oa ? getComputedStyle(oa).display : 'missing');
+      console.log('VISITOR_DISPLAY=', va ? getComputedStyle(va).display : 'missing');
+      console.log('OWNER_RECT=', oa ? oa.getBoundingClientRect() : null);
+      console.log('VISITOR_RECT=', va ? va.getBoundingClientRect() : null);
+      console.log('OWNER_HTML=', oa ? oa.outerHTML : 'missing');
+      var p = oa;
+      while (p) {
+        var cs = getComputedStyle(p);
+        console.log('PARENT:', p.tagName, p.id, p.className, '|',
+                    'display=' + cs.display, 'visibility=' + cs.visibility, 'opacity=' + cs.opacity);
+        p = p.parentElement;
+      }
+    })();
     bindEvents();
     _applyLoadingState(false);
+    console.log('[5] body.className FINAL (after loading off):', document.body.className);
     _loadController = null;
   })
   .catch(function(err) {
