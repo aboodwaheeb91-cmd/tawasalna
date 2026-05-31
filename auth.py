@@ -1420,3 +1420,154 @@ def ensure_company_tables():
     except Exception as e:
         print(f"[DB] company tables: {e}")
 
+
+# ══ Phase 2: Company Profile Data Layer (Rule #5,#6 — Single Source) ══
+# All helpers are pure data layer. No authorization here (that lives in server.py).
+# company identity = users.id everywhere.
+
+def ensure_company_profile(user_id: int) -> None:
+    """Insert default company_profiles row if missing. Idempotent."""
+    conn = get_conn()
+    try:
+        conn.run(
+            "INSERT INTO company_profiles (user_id) VALUES (:uid) "
+            "ON CONFLICT (user_id) DO NOTHING",
+            uid=user_id
+        )
+    finally:
+        release_conn(conn)
+
+
+def get_company_profile_row(company_id: int) -> dict:
+    """Return company_profiles row as dict, or defaults if none exists."""
+    conn = get_conn()
+    try:
+        rows = conn.run(
+            "SELECT company_type, founded_year, company_size, industry, "
+            "description, headquarters, contact_email, cover_url, verified_co "
+            "FROM company_profiles WHERE user_id = :uid",
+            uid=company_id
+        )
+        if not rows:
+            return {
+                "company_type": None, "founded_year": None, "company_size": None,
+                "industry": None, "description": None, "headquarters": None,
+                "contact_email": None, "cover_url": None, "verified_co": False,
+            }
+        cols = [c["name"] for c in conn.columns]
+        return _serialize(_row_to_dict(cols, rows[0]))
+    finally:
+        release_conn(conn)
+
+
+def get_company_extras(company_id: int, viewer_id: int = None) -> dict:
+    """
+    Aggregated company data: profile + derived stats + viewer-specific flags.
+    Derived values (followers_count, rating_avg) computed on demand — not stored.
+    """
+    conn = get_conn()
+    try:
+        # followers count — uses idx_follows_company
+        fc = conn.run("SELECT COUNT(*) FROM company_follows WHERE company_id = :cid",
+                      cid=company_id)
+        followers_count = fc[0][0] if fc else 0
+
+        # rating avg + count — uses idx_ratings_company
+        rt = conn.run(
+            "SELECT AVG(score), COUNT(*) FROM company_ratings WHERE company_id = :cid",
+            cid=company_id)
+        rating_avg   = round(float(rt[0][0]), 1) if rt and rt[0][0] is not None else None
+        rating_count = rt[0][1] if rt else 0
+
+        # viewer-specific: is_following + my_rating (composite indexes)
+        is_following = False
+        my_rating    = None
+        if viewer_id:
+            f = conn.run(
+                "SELECT 1 FROM company_follows WHERE company_id = :cid AND follower_id = :vid",
+                cid=company_id, vid=viewer_id)
+            is_following = bool(f)
+            r = conn.run(
+                "SELECT score FROM company_ratings WHERE company_id = :cid AND rater_id = :vid",
+                cid=company_id, vid=viewer_id)
+            my_rating = r[0][0] if r else None
+
+        return {
+            "followers_count": followers_count,
+            "rating_avg":      rating_avg,
+            "rating_count":    rating_count,
+            "is_following":    is_following,
+            "my_rating":       my_rating,
+        }
+    finally:
+        release_conn(conn)
+
+
+def update_company_profile(user_id: int, fields: dict) -> bool:
+    """Update company_profiles for owner. Ensures row exists first."""
+    allowed = {"company_type","founded_year","company_size","industry",
+               "description","headquarters","contact_email","cover_url"}
+    clean = {k: v for k, v in fields.items() if k in allowed}
+    if not clean:
+        return False
+    ensure_company_profile(user_id)
+    conn = get_conn()
+    try:
+        set_clause = ", ".join(f"{k} = :{k}" for k in clean)
+        conn.run(
+            f"UPDATE company_profiles SET {set_clause}, updated_at = NOW() WHERE user_id = :uid",
+            uid=user_id, **clean)
+        return True
+    finally:
+        release_conn(conn)
+
+
+def follow_company(follower_id: int, company_id: int) -> int:
+    """Follow (idempotent). Returns new followers_count."""
+    conn = get_conn()
+    try:
+        conn.run(
+            "INSERT INTO company_follows (company_id, follower_id) VALUES (:cid, :fid) "
+            "ON CONFLICT (company_id, follower_id) DO NOTHING",
+            cid=company_id, fid=follower_id)
+        fc = conn.run("SELECT COUNT(*) FROM company_follows WHERE company_id = :cid",
+                      cid=company_id)
+        return fc[0][0] if fc else 0
+    finally:
+        release_conn(conn)
+
+
+def unfollow_company(follower_id: int, company_id: int) -> int:
+    """Unfollow (idempotent). Returns new followers_count."""
+    conn = get_conn()
+    try:
+        conn.run(
+            "DELETE FROM company_follows WHERE company_id = :cid AND follower_id = :fid",
+            cid=company_id, fid=follower_id)
+        fc = conn.run("SELECT COUNT(*) FROM company_follows WHERE company_id = :cid",
+                      cid=company_id)
+        return fc[0][0] if fc else 0
+    finally:
+        release_conn(conn)
+
+
+def rate_company(rater_id: int, company_id: int, score: int, comment: str = None) -> dict:
+    """Rate (UPSERT — one rating per user). Returns new avg + count."""
+    conn = get_conn()
+    try:
+        conn.run(
+            "INSERT INTO company_ratings (company_id, rater_id, score, comment) "
+            "VALUES (:cid, :rid, :score, :comment) "
+            "ON CONFLICT (company_id, rater_id) "
+            "DO UPDATE SET score = :score, comment = :comment, updated_at = NOW()",
+            cid=company_id, rid=rater_id, score=score, comment=comment)
+        rt = conn.run(
+            "SELECT AVG(score), COUNT(*) FROM company_ratings WHERE company_id = :cid",
+            cid=company_id)
+        return {
+            "rating_avg":   round(float(rt[0][0]), 1) if rt and rt[0][0] is not None else None,
+            "rating_count": rt[0][1] if rt else 0,
+        }
+    finally:
+        release_conn(conn)
+
