@@ -1583,3 +1583,55 @@ def rate_company(rater_id: int, company_id: int, score: int, comment: str = None
     finally:
         release_conn(conn)
 
+
+# ══ Phase 3: Company Posts Data Layer (Rule #5,#6 — Single Source) ══
+# Pure data layer. No authorization (that lives in server.py). company_id = users.id.
+
+def get_company_posts(company_id: int) -> list:
+    """Return all posts for a company, newest first. Uses idx_posts_company."""
+    conn = get_conn()
+    try:
+        rows = conn.run(
+            "SELECT id, body, tags, created_at FROM company_posts "
+            "WHERE company_id = :cid ORDER BY created_at DESC",
+            cid=company_id)
+        cols = ["id", "body", "tags", "created_at"]
+        return [_serialize(_row_to_dict(cols, r)) for r in rows]
+    finally:
+        release_conn(conn)
+
+
+def create_company_post(company_id: int, body: str, tags=None) -> dict:
+    """Insert a post. Returns the created row. body required (non-empty)."""
+    conn = get_conn()
+    try:
+        rows = conn.run(
+            "INSERT INTO company_posts (company_id, body, tags) "
+            "VALUES (:cid, :body, :tags) RETURNING id, body, tags, created_at",
+            cid=company_id, body=body, tags=(tags if tags else None))
+        cols = ["id", "body", "tags", "created_at"]
+        return _serialize(_row_to_dict(cols, rows[0])) if rows else {}
+    finally:
+        release_conn(conn)
+
+
+def get_post_owner(post_id: int):
+    """Return company_id (owner) of a post, or None if not found.
+    Used by server.py for ownership check before delete."""
+    conn = get_conn()
+    try:
+        rows = conn.run("SELECT company_id FROM company_posts WHERE id = :pid", pid=post_id)
+        return rows[0][0] if rows else None
+    finally:
+        release_conn(conn)
+
+
+def delete_company_post(post_id: int) -> bool:
+    """Delete a post by id. Returns True if a row was deleted."""
+    conn = get_conn()
+    try:
+        rows = conn.run("DELETE FROM company_posts WHERE id = :pid RETURNING id", pid=post_id)
+        return bool(rows)
+    finally:
+        release_conn(conn)
+
