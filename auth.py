@@ -1415,6 +1415,18 @@ def ensure_company_tables():
             )
         """)
         conn.run("CREATE INDEX IF NOT EXISTS idx_ratings_company ON company_ratings(company_id)")
+        # ── company_posts — M posts per company (Phase 3) ──
+        conn.run("""
+            CREATE TABLE IF NOT EXISTS company_posts (
+                id          SERIAL PRIMARY KEY,
+                company_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                body        TEXT NOT NULL,
+                tags        TEXT[],
+                created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+        """)
+        conn.run("CREATE INDEX IF NOT EXISTS idx_posts_company ON company_posts(company_id)")
         release_conn(conn)
         print("✅ company tables ready")
     except Exception as e:
