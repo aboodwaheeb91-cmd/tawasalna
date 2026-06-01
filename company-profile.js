@@ -15,6 +15,25 @@ function switchTab(name, el) {
     var el2 = document.getElementById('tab-' + t);
     if (el2) el2.style.display = t === name ? '' : 'none';
   });
+  // Phase 3: lazy load posts on first open of posts tab
+  if (name === 'posts') _postsDebug('TAB clicked | loadPosts=' + (typeof window.loadPosts));
+  if (name === 'posts' && window.loadPosts) loadPosts();
+}
+
+function _postsDebug(msg) {
+  var box = document.getElementById('_pdbg');
+  if (!box) {
+    box = document.createElement('div');
+    box.id = '_pdbg';
+    box.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:999999;background:#000;color:#0f0;font:12px monospace;padding:10px;direction:ltr;text-align:left;border-bottom:2px solid #0f0;white-space:pre-wrap';
+    var btn = document.createElement('button');
+    btn.textContent = '✕';
+    btn.style.cssText = 'float:right;background:#f00;color:#fff;border:none;padding:2px 8px;border-radius:3px';
+    btn.onclick = function(){ box.remove(); };
+    box.appendChild(btn);
+    document.body.appendChild(box);
+  }
+  box.appendChild(document.createTextNode(msg + '\n'));
 }
 
 function doLogout() {
@@ -221,6 +240,86 @@ function bindRateStars() {
     if (!span) return;
     submitRating(parseInt(span.getAttribute('data-score')));
   });
+}
+
+// ── Posts system (Phase 3 Step 4: render from API, lazy load) ──
+var _postsLoaded = false;
+var _postsLoading = false;
+
+function _escapeHtml(s) {
+  var d = document.createElement('div');
+  d.textContent = s == null ? '' : String(s);
+  return d.innerHTML;
+}
+
+function _relativeTime(iso) {
+  // Convert ISO date to Arabic relative time
+  if (!iso) return '';
+  var then = new Date(iso).getTime();
+  if (isNaN(then)) return '';
+  var diff = Math.floor((Date.now() - then) / 1000);
+  if (diff < 60)    return 'الآن';
+  if (diff < 3600)  return 'منذ ' + Math.floor(diff/60) + ' دقيقة';
+  if (diff < 86400) return 'منذ ' + Math.floor(diff/3600) + ' ساعة';
+  if (diff < 604800) return 'منذ ' + Math.floor(diff/86400) + ' يوم';
+  if (diff < 2592000) return 'منذ ' + Math.floor(diff/604800) + ' أسبوع';
+  return new Date(iso).toLocaleDateString('ar');
+}
+
+function _postCardHtml(post) {
+  var coName = (window.companyState && companyState.profile)
+    ? (companyState.profile.full_name || 'الشركة') : 'الشركة';
+  var tagsHtml = '';
+  if (post.tags && post.tags.length) {
+    tagsHtml = '<div class="job-tags">' + post.tags.map(function(t) {
+      return '<span class="jtag jtag-green">' + _escapeHtml(t) + '</span>';
+    }).join('') + '</div>';
+  }
+  return '<div class="post-card">' +
+    '<div class="post-head">' +
+      '<div class="post-ava">🏢</div>' +
+      '<div><div class="post-nm">' + _escapeHtml(coName) + '</div>' +
+      '<div class="post-date">' + _relativeTime(post.created_at) + '</div></div>' +
+    '</div>' +
+    '<div class="post-body">' + _escapeHtml(post.body) + '</div>' +
+    tagsHtml +
+  '</div>';
+}
+
+function renderPosts(posts) {
+  // Pure: renders posts array into #postsList
+  var list  = document.getElementById('postsList');
+  var empty = document.getElementById('postsEmpty');
+  if (!list) return;
+  if (!posts || !posts.length) {
+    list.innerHTML = '';
+    if (empty) empty.style.display = 'block';
+    return;
+  }
+  if (empty) empty.style.display = 'none';
+  list.innerHTML = posts.map(_postCardHtml).join('');
+}
+
+function loadPosts(force) {
+  // Lazy: fetch posts once (or force reload after create/delete)
+  _postsDebug('loadPosts called');
+  if (_postsLoading) return;
+  if (_postsLoaded && !force) return;
+  var companyId = new URLSearchParams(location.search).get('id');
+  _postsDebug('companyId=' + companyId);
+  if (!companyId) return;
+  _postsDebug('fetching /company/posts/' + companyId);
+  _postsLoading = true;
+  fetch('/company/posts/' + companyId)
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      _postsLoaded = true;
+      renderPosts(data.posts || []);
+    })
+    .catch(function() {
+      if (window.showToast) showToast('تعذّر تحميل المنشورات', 'error');
+    })
+    .finally(function() { _postsLoading = false; });
 }
 
 // ── Contact modal ──
