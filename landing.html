@@ -446,6 +446,8 @@ footer{position:relative;z-index:1;border-top:1px solid rgba(255,255,255,.06);pa
 
 <script src="/tw_shared.js"></script>
 <script>
+(function(){
+
 // Reveal on scroll
 const observer = new IntersectionObserver(entries=>{
   entries.forEach(e=>{ if(e.isIntersecting) e.target.classList.add('visible'); });
@@ -465,9 +467,13 @@ try{
     });
   }
 }catch(e){}
+
+})();
 </script>
 
 <script>
+(function(){
+
 // ── ITQAN Utilities ──
 var _twToast=null;
 function showToast(msg,type,dur){
@@ -540,6 +546,8 @@ window.addEventListener('scroll',function(){
   if(nav) nav.classList.toggle('scrolled',window.scrollY>50);
 });
 
+
+})();
 </script>
 
 </body>
