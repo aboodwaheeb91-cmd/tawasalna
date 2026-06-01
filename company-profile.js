@@ -16,24 +16,7 @@ function switchTab(name, el) {
     if (el2) el2.style.display = t === name ? '' : 'none';
   });
   // Phase 3: lazy load posts on first open of posts tab
-  if (name === 'posts') _postsDebug('TAB clicked | loadPosts=' + (typeof window.loadPosts));
   if (name === 'posts' && window.loadPosts) loadPosts();
-}
-
-function _postsDebug(msg) {
-  var box = document.getElementById('_pdbg');
-  if (!box) {
-    box = document.createElement('div');
-    box.id = '_pdbg';
-    box.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:999999;background:#000;color:#0f0;font:12px monospace;padding:10px;direction:ltr;text-align:left;border-bottom:2px solid #0f0;white-space:pre-wrap';
-    var btn = document.createElement('button');
-    btn.textContent = '✕';
-    btn.style.cssText = 'float:right;background:#f00;color:#fff;border:none;padding:2px 8px;border-radius:3px';
-    btn.onclick = function(){ box.remove(); };
-    box.appendChild(btn);
-    document.body.appendChild(box);
-  }
-  box.appendChild(document.createTextNode(msg + '\n'));
 }
 
 function doLogout() {
@@ -302,13 +285,10 @@ function renderPosts(posts) {
 
 function loadPosts(force) {
   // Lazy: fetch posts once (or force reload after create/delete)
-  _postsDebug('loadPosts called');
   if (_postsLoading) return;
   if (_postsLoaded && !force) return;
   var companyId = new URLSearchParams(location.search).get('id');
-  _postsDebug('companyId=' + companyId);
   if (!companyId) return;
-  _postsDebug('fetching /company/posts/' + companyId);
   _postsLoading = true;
   fetch('/company/posts/' + companyId)
     .then(function(r) { return r.json(); })
