@@ -70,7 +70,8 @@ from auth import (
     get_site_setting, set_site_setting, release_conn,
     _cache_del, get_profile_style,
     get_company_profile_row, get_company_extras,
-    follow_company, unfollow_company, rate_company
+    follow_company, unfollow_company, rate_company,
+    get_company_posts, create_company_post, get_post_owner, delete_company_post
 )
 
 # ── Config ──
@@ -591,6 +592,10 @@ class CompanyRateInput(BaseModel):
     score: int
     comment: Optional[str] = None
 
+class CompanyPostInput(BaseModel):
+    body: str
+    tags: Optional[list] = None
+
 class JobInput(BaseModel):
     title: str
     description: Optional[str] = None
@@ -886,6 +891,48 @@ def company_rate(company_id: str, data: CompanyRateInput, token=Depends(verify_t
     result = rate_company(int(user_id), resolved_id, data.score, data.comment)
     return {"status": "success", "rating_avg": result["rating_avg"],
             "rating_count": result["rating_count"], "my_score": data.score}
+
+
+# ══ Phase 3: Company Posts endpoints ══
+@app.get("/company/posts/{company_id}")
+def company_posts_list(company_id: str):
+    # Public read — lazy loaded when posts tab opened
+    resolved_id = _resolve_company_id(company_id)
+    posts = get_company_posts(resolved_id)
+    return {"status": "success", "posts": posts}
+
+
+@app.post("/company/posts")
+def company_post_create(data: CompanyPostInput, token=Depends(verify_token)):
+    user_id   = token.get("user_id")
+    user_type = token.get("user_type")
+    if not user_id:
+        print("[SECURITY] INVALID_TOKEN: POST /company/posts")
+        raise HTTPException(401, "رمز غير صالح")
+    if user_type not in ("co", "edu"):
+        print(f"[SECURITY] POST_FORBIDDEN: user_type={user_type} tried create post")
+        raise HTTPException(403, "الشركات فقط يمكنها النشر")
+    body = (data.body or "").strip()
+    if not body:
+        raise HTTPException(400, "المنشور فارغ")
+    post = create_company_post(int(user_id), body, data.tags)
+    return {"status": "success", "post": post}
+
+
+@app.delete("/company/posts/{post_id}")
+def company_post_delete(post_id: int, token=Depends(verify_token)):
+    user_id = token.get("user_id")
+    if not user_id:
+        print("[SECURITY] INVALID_TOKEN: DELETE /company/posts")
+        raise HTTPException(401, "رمز غير صالح")
+    owner = get_post_owner(post_id)
+    if owner is None:
+        raise HTTPException(404, "المنشور غير موجود")
+    if int(user_id) != owner:
+        print(f"[SECURITY] POST_DELETE_FORBIDDEN: user={user_id} tried delete post {post_id} owned by {owner}")
+        raise HTTPException(403, "غير مصرح بحذف هذا المنشور")
+    delete_company_post(post_id)
+    return {"status": "success"}
 
 @app.post("/reports/submit")
 async def submit_report(data: ReportInput, request: Request, token=Depends(verify_token)):
