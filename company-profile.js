@@ -307,7 +307,9 @@ function loadJobs() {
     .then(function(data) {
       if (window.companyState) {
         companyState.jobs = (data && data.jobs) ? data.jobs : [];
-        if (window.renderJobs) renderJobs();  // empty-state handled inside
+        // renderJobs is local to the inline IIFE (not on window).
+        // renderAll IS exposed and calls renderJobs internally → use it.
+        if (window.renderAll) renderAll();
       }
     })
     .catch(function() {
