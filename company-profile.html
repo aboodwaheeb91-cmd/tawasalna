@@ -721,6 +721,8 @@ function loadData() {
     _applyViewMode();
     renderAll();
     bindEvents();
+    // Jobs: separate endpoint (Option B) — fills companyState.jobs then re-renders
+    if (window.loadJobs) loadJobs();
   })
   .catch(function(err) {
     if (err.name === 'AbortError') return; // intentional abort — no action

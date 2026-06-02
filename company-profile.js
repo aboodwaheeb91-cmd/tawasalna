@@ -290,6 +290,29 @@ function renderPosts(posts) {
   list.innerHTML = posts.map(_postCardHtml).join('');
 }
 
+// ── Jobs loader (separate endpoint, initial load — Option B) ──
+var _jobsLoading = false;
+
+function loadJobs() {
+  // Fetch company jobs from public endpoint, fill companyState.jobs, render
+  if (_jobsLoading) return;  // prevent duplicate requests
+  var companyId = new URLSearchParams(location.search).get('id');
+  if (!companyId) return;
+  _jobsLoading = true;
+  fetch('/jobs?company_id=' + encodeURIComponent(companyId))
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (window.companyState) {
+        companyState.jobs = (data && data.jobs) ? data.jobs : [];
+        if (window.renderJobs) renderJobs();  // empty-state handled inside
+      }
+    })
+    .catch(function() {
+      if (window.showToast) showToast('تعذّر تحميل الوظائف', 'error');
+    })
+    .finally(function() { _jobsLoading = false; });
+}
+
 function loadPosts(force) {
   // Lazy: fetch posts once (or force reload after create/delete)
   if (_postsLoading) return;
