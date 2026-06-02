@@ -315,6 +315,12 @@ def company_profile(): return read_html("company-profile.html")
 @app.get("/company-profile.html", response_class=HTMLResponse)
 def company_profile_html(): return read_html("company-profile.html")
 
+@app.get("/profile-showcase", response_class=HTMLResponse)
+def profile_showcase(): return read_html("profile-showcase.html")
+
+@app.get("/profile-showcase.html", response_class=HTMLResponse)
+def profile_showcase_html(): return read_html("profile-showcase.html")
+
 
 
 # ══ Company Profile API — Rule #20 ══
