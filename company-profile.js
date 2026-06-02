@@ -302,6 +302,57 @@ function loadPosts(force) {
     .finally(function() { _postsLoading = false; });
 }
 
+
+// ── Step 5-1: Create post (owner-only) ──
+var isPostCreating = false;
+
+function openPostModal() {
+  if (!window.companyState || !companyState.permissions.can_edit) return;
+  var ov = document.getElementById('postOverlay');
+  if (ov) ov.classList.add('show');
+  if (window.history) history.pushState({ modal: 'post' }, '', location.href);
+}
+
+function createPost() {
+  if (!window._jwt || !_jwt()) { window.location.href = '/'; return; }
+  if (!window.companyState || !companyState.permissions.can_edit) {
+    if (window.showToast) showToast('غير مصرح', 'error'); return;
+  }
+  if (isPostCreating) return;
+
+  var bodyEl = document.getElementById('p-body');
+  var tagsEl = document.getElementById('p-tags');
+  var body = (bodyEl ? bodyEl.value : '').trim();
+  if (!body) { if (window.showToast) showToast('اكتب محتوى المنشور', 'error'); return; }
+
+  var tags = (tagsEl ? tagsEl.value : '')
+    .split(',').map(function(t){ return t.trim(); }).filter(Boolean);
+
+  isPostCreating = true;
+  fetch('/company/posts', {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + _jwt() },
+    body:    JSON.stringify({ body: body, tags: tags.length ? tags : null }),
+  })
+  .then(function(r) {
+    if (!r.ok) throw new Error('create failed: ' + r.status);
+    return r.json();
+  })
+  .then(function() {
+    // Close modal, clear inputs, reload list
+    var ov = document.getElementById('postOverlay');
+    if (ov) ov.classList.remove('show');
+    if (bodyEl) bodyEl.value = '';
+    if (tagsEl) tagsEl.value = '';
+    loadPosts(true);  // force reload
+    if (window.showToast) showToast('تم نشر المنشور ✓');
+  })
+  .catch(function() {
+    if (window.showToast) showToast('تعذّر نشر المنشور', 'error');
+  })
+  .finally(function() { isPostCreating = false; });
+}
+
 // ── Contact modal ──
 function openContact() {
   var el = document.getElementById('contactOverlay');

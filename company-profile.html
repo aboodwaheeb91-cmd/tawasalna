@@ -431,6 +431,10 @@ body.co-loading .visitor-only { display: none !important; }
 
   <!-- POSTS TAB -->
   <div id="tab-posts" style="display:none">
+    <!-- Step 5-1: create post button (owner-only) -->
+    <div class="owner-only" style="margin-bottom:14px">
+      <button class="nb nb-primary" onclick="openPostModal()">📢 نشر منشور</button>
+    </div>
     <!-- Posts rendered from API by renderPosts() (Phase 3) -->
     <div id="postsList"></div>
     <div id="postsEmpty" style="display:none;text-align:center;color:var(--t3);padding:30px 0">لا منشورات بعد</div>
@@ -818,6 +822,24 @@ window.initCompanyProfile = initCompanyProfile;
     <div class="mact">
       <button class="mbtn mbtn-ok" onclick="publishJob()">نشر الوظيفة</button>
       <button class="mbtn mbtn-no" onclick="document.getElementById('postJobOverlay').classList.remove('show')">إلغاء</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- Step 5-1: Create Post Modal (pattern from postJobOverlay) -->
+<div class="overlay" id="postOverlay" onclick="if(event.target===this)this.classList.remove('show')">
+  <div class="modal" style="max-width:520px">
+    <div class="modal-title">📢 نشر منشور جديد</div>
+    <div class="mf"><label>المحتوى *</label>
+      <textarea id="p-body" rows="4" placeholder="اكتب منشورك هنا..." style="width:100%;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:'Cairo',sans-serif;font-size:.82rem;outline:none;direction:rtl;resize:vertical"></textarea>
+    </div>
+    <div class="mf"><label>وسوم (افصل بفاصلة)</label>
+      <input id="p-tags" placeholder="توظيف, خبر, إعلان...">
+    </div>
+    <div class="modal-btns">
+      <button class="mbtn mbtn-yes" onclick="createPost()">نشر</button>
+      <button class="mbtn mbtn-no" onclick="document.getElementById('postOverlay').classList.remove('show')">إلغاء</button>
     </div>
   </div>
 </div>
