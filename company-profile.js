@@ -258,11 +258,18 @@ function _postCardHtml(post) {
       return '<span class="jtag jtag-green">' + _escapeHtml(t) + '</span>';
     }).join('') + '</div>';
   }
+  // Step 5-2: owner-only delete button (can_edit)
+  var canEdit = window.companyState && companyState.permissions && companyState.permissions.can_edit;
+  var delBtn = canEdit
+    ? '<button class="post-del" onclick="deletePost(' + post.id + ')" title="حذف" ' +
+      'style="margin-right:auto;background:none;border:none;color:var(--t3);cursor:pointer;font-size:1rem">🗑</button>'
+    : '';
   return '<div class="post-card">' +
     '<div class="post-head">' +
       '<div class="post-ava">🏢</div>' +
-      '<div><div class="post-nm">' + _escapeHtml(coName) + '</div>' +
+      '<div style="flex:1"><div class="post-nm">' + _escapeHtml(coName) + '</div>' +
       '<div class="post-date">' + _relativeTime(post.created_at) + '</div></div>' +
+      delBtn +
     '</div>' +
     '<div class="post-body">' + _escapeHtml(post.body) + '</div>' +
     tagsHtml +
@@ -351,6 +358,37 @@ function createPost() {
     if (window.showToast) showToast('تعذّر نشر المنشور', 'error');
   })
   .finally(function() { isPostCreating = false; });
+}
+
+
+// ── Step 5-2: Delete post (owner-only, confirm, no optimistic) ──
+var isPostDeleting = false;
+
+function deletePost(postId) {
+  if (!window._jwt || !_jwt()) { window.location.href = '/'; return; }
+  if (!window.companyState || !companyState.permissions.can_edit) {
+    if (window.showToast) showToast('غير مصرح', 'error'); return;
+  }
+  if (isPostDeleting) return;
+  if (!confirm('هل تريد حذف هذا المنشور؟')) return;
+
+  isPostDeleting = true;
+  fetch('/company/posts/' + postId, {
+    method:  'DELETE',
+    headers: { 'Authorization': 'Bearer ' + _jwt() },
+  })
+  .then(function(r) {
+    if (!r.ok) throw new Error('delete failed: ' + r.status);
+    return r.json();
+  })
+  .then(function() {
+    loadPosts(true);  // reload from server (no optimistic)
+    if (window.showToast) showToast('تم حذف المنشور ✓');
+  })
+  .catch(function() {
+    if (window.showToast) showToast('تعذّر حذف المنشور', 'error');
+  })
+  .finally(function() { isPostDeleting = false; });
 }
 
 // ── Contact modal ──
