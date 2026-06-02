@@ -293,6 +293,7 @@ function renderPosts(posts) {
 // ── Jobs loader (separate endpoint, initial load — Option B) ──
 var _jobsLoading = false;
 
+
 function loadJobs() {
   // Fetch company jobs from public endpoint, fill companyState.jobs, render
   // Uses NUMERIC id (companyState.profile.id) — /jobs expects int, not tw_id

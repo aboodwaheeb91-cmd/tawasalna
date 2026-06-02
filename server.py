@@ -1660,6 +1660,15 @@ def list_jobs(search: str = None, location: str = None,
                job_type: str = None, company_id: int = None):
     filters = {"search":search,"location":location,"job_type":job_type,"company_id":company_id}
     jobs = get_jobs({k:v for k,v in filters.items() if v})
+    print(f"[DEBUG /jobs] company_id={company_id} | filters={ {k:v for k,v in filters.items() if v} } | jobs_count={len(jobs)}")
+    if company_id:
+        # Diagnostic: count ALL jobs for this company (any status)
+        _c = get_conn()
+        try:
+            allj = _c.run("SELECT id, company_id, status FROM jobs WHERE company_id = :cid", cid=company_id)
+            print(f"[DEBUG /jobs] ALL jobs for company {company_id} (any status): {[(r[0], r[1], r[2]) for r in allj]}")
+        finally:
+            release_conn(_c)
     return {"jobs": jobs, "count": len(jobs)}
 
 @app.get("/jobs/{job_id}")
