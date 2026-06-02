@@ -295,11 +295,13 @@ var _jobsLoading = false;
 
 function loadJobs() {
   // Fetch company jobs from public endpoint, fill companyState.jobs, render
+  // Uses NUMERIC id (companyState.profile.id) — /jobs expects int, not tw_id
   if (_jobsLoading) return;  // prevent duplicate requests
-  var companyId = new URLSearchParams(location.search).get('id');
-  if (!companyId) return;
+  if (!window.companyState || !companyState.profile) return;
+  var numericId = companyState.profile.id;
+  if (!numericId) return;
   _jobsLoading = true;
-  fetch('/jobs?company_id=' + encodeURIComponent(companyId))
+  fetch('/jobs?company_id=' + encodeURIComponent(numericId))
     .then(function(r) { return r.json(); })
     .then(function(data) {
       if (window.companyState) {
