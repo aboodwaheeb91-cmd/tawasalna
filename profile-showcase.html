@@ -173,11 +173,53 @@
         }
         // Cover stays default gradient (no cover_url for employee profiles)
 
+        // ── Step 3: Stats (experience + skills counts; score loaded separately) ──
+        var skills = Array.isArray(p.skills) ? p.skills : [];
+        var exp    = Array.isArray(p.experience) ? p.experience : [];
+        setText('scStatExp', exp.length);
+        setText('scStatSkills', skills.length);
+
+        // ── Top skills (first 6; hide section if none) ──
+        var skillsCard = document.getElementById('scSkills');
+        var skillsWrap = skillsCard ? skillsCard.closest('.sc-card') : null;
+        if (skills.length && skillsCard) {
+          skillsCard.innerHTML = skills.slice(0, 6).map(function(s) {
+            var label = (s && typeof s === 'object') ? (s.skill || '') : s;
+            return '<span class="sc-skill">' + esc(label) + '</span>';
+          }).join('');
+        } else if (skillsWrap) {
+          skillsWrap.style.display = 'none';
+        }
+
+        // ── Latest experience (newest 3; hide section if none) ──
+        var expList = document.getElementById('scLatestExp');
+        var expWrap = expList ? expList.closest('.sc-card') : null;
+        if (exp.length && expList) {
+          expList.innerHTML = exp.slice(0, 3).map(function(e) {
+            var t = esc(e.title || '');
+            var c = esc(e.company || '');
+            return '<div class="sc-item">' +
+              '<div class="sc-item-t">' + t + '</div>' +
+              (c ? '<div class="sc-item-s">' + c + '</div>' : '') +
+            '</div>';
+          }).join('');
+        } else if (expWrap) {
+          expWrap.style.display = 'none';
+        }
+
         // Reveal content, hide loading
         var ld = document.getElementById('scLoading');
         var ct = document.getElementById('scContent');
         if (ld) ld.style.display = 'none';
         if (ct) ct.style.display = 'block';
+
+        // ── Score: independent parallel fetch (failure must NOT break page) ──
+        fetch('/profile/' + encodeURIComponent(id) + '/score')
+          .then(function(r) { return r.ok ? r.json() : null; })
+          .then(function(sc) {
+            if (sc && typeof sc.score !== 'undefined') setText('scStatScore', sc.score);
+          })
+          .catch(function() { /* score stays '—' — page already shown */ });
       })
       .catch(function() {
         var ld = document.getElementById('scLoading');
