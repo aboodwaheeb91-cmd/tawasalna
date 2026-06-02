@@ -122,7 +122,68 @@
     </div>
   </div>
 
-  <!-- Step 1: structure only. Step 2 adds data fetching. -->
   <script src="/tw_shared.js"></script>
+  <script>
+  (function() {
+    // ── Step 2: fetch + basic data (escape user content; no backend changes) ──
+    function esc(s) {
+      var d = document.createElement('div');
+      d.textContent = s == null ? '' : String(s);
+      return d.innerHTML;
+    }
+    function setText(id, val) {
+      var el = document.getElementById(id);
+      if (el) el.textContent = val == null ? '' : val;
+    }
+
+    var id = new URLSearchParams(location.search).get('id');
+    if (!id) {
+      var ld = document.getElementById('scLoading');
+      if (ld) ld.textContent = 'لا يوجد معرّف ملف';
+      return;
+    }
+
+    fetch('/profile/' + encodeURIComponent(id))
+      .then(function(r) {
+        if (!r.ok) throw new Error('profile fetch failed: ' + r.status);
+        return r.json();
+      })
+      .then(function(res) {
+        var p = (res && res.profile) ? res.profile : {};
+        // Basic identity
+        setText('scName', p.full_name || '—');
+        setText('scTitle', p.headline || p.title || '');
+        setText('scBio', p.bio || '');
+
+        // Location (optional)
+        if (p.location) {
+          var t = document.getElementById('scTitle');
+          if (t && (p.headline || p.title)) {
+            t.textContent = (p.headline || p.title) + ' · 📍 ' + p.location;
+          } else if (t) {
+            t.textContent = '📍 ' + p.location;
+          }
+        }
+
+        // Avatar (image if available, else emoji placeholder)
+        var av = document.getElementById('scAvatar');
+        if (av && p.avatar_url) {
+          av.innerHTML = '<img src="' + esc(p.avatar_url) + '" alt="" ' +
+            'style="width:100%;height:100%;border-radius:50%;object-fit:cover">';
+        }
+        // Cover stays default gradient (no cover_url for employee profiles)
+
+        // Reveal content, hide loading
+        var ld = document.getElementById('scLoading');
+        var ct = document.getElementById('scContent');
+        if (ld) ld.style.display = 'none';
+        if (ct) ct.style.display = 'block';
+      })
+      .catch(function() {
+        var ld = document.getElementById('scLoading');
+        if (ld) ld.textContent = 'تعذّر تحميل الملف';
+      });
+  })();
+  </script>
 </body>
 </html>
