@@ -91,11 +91,11 @@
         <div class="sc-bio" id="scBio"></div>
       </div>
 
-      <!-- Actions -->
+      <!-- Actions (Step 4: only "full profile" is wired; others hidden — no backing system yet) -->
       <div class="sc-actions">
-        <button class="sc-btn sc-btn-primary" id="scContactBtn">💬 تواصل</button>
-        <button class="sc-btn sc-btn-ghost" id="scCvBtn">📄 السيرة الذاتية</button>
-        <button class="sc-btn sc-btn-ghost" id="scFollowBtn">+ متابعة</button>
+        <button class="sc-btn sc-btn-primary" id="scContactBtn" style="display:none">💬 تواصل</button>
+        <button class="sc-btn sc-btn-ghost" id="scCvBtn" style="display:none">📄 السيرة الذاتية</button>
+        <button class="sc-btn sc-btn-ghost" id="scFollowBtn" style="display:none">+ متابعة</button>
       </div>
 
       <!-- Stats -->
@@ -205,6 +205,12 @@
           }).join('');
         } else if (expWrap) {
           expWrap.style.display = 'none';
+        }
+
+        // ── Step 4: wire "full profile" button → Details (profile.html) ──
+        var fullBtn = document.getElementById('scFullBtn');
+        if (fullBtn) {
+          fullBtn.href = '/profile.html?id=' + encodeURIComponent(id);
         }
 
         // Reveal content, hide loading
