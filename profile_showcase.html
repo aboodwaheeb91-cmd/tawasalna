@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Tawasolna Profile Showcase V2</title>
+<style>
+:root{
+--ac:#00c896;--ac2:#2563ff;--bg:#070b18;--bg2:#0d1426;--t1:#fff;--t2:rgba(255,255,255,.7);--bdr:rgba(255,255,255,.08);
+}
+body{margin:0;background:var(--bg);color:var(--t1);font-family:Arial,sans-serif}
+.header{position:sticky;top:0;background:rgba(7,11,24,.95);padding:14px 16px;border-bottom:1px solid var(--bdr);display:flex;justify-content:space-between}
+.hero{margin:16px;border:1px solid var(--bdr);border-radius:24px;overflow:hidden;background:var(--bg2)}
+.cover{height:180px;background:linear-gradient(135deg,var(--ac2),var(--ac));}
+.profile{text-align:center;padding:0 20px 20px}
+.avatar{width:120px;height:120px;border-radius:50%;background:#222;border:4px solid var(--bg);margin:-60px auto 12px}
+.name{font-size:28px;font-weight:bold}
+.title{color:var(--ac);margin:8px 0}
+.actions{display:flex;gap:10px;justify-content:center;margin:18px 0}
+.btn{padding:10px 18px;border-radius:12px;border:none}
+.primary{background:linear-gradient(135deg,var(--ac),var(--ac2));color:white}
+.ghost{background:transparent;border:1px solid var(--bdr);color:white}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:16px}
+.stat{background:rgba(255,255,255,.04);padding:12px;border-radius:14px;text-align:center}
+.section{margin:16px;border:1px solid var(--bdr);border-radius:18px;padding:16px;background:rgba(255,255,255,.03)}
+.skills{display:flex;flex-wrap:wrap;gap:8px}
+.skill{background:rgba(0,200,150,.1);padding:8px 12px;border-radius:999px}
+</style>
+</head>
+<body>
+<div class="header"><span>☰</span><strong>تواصلنا</strong><span>🔔</span></div>
+
+<div class="hero">
+<div class="cover"></div>
+<div class="profile">
+<div class="avatar"></div>
+<div class="name">عبدالله فوزي وهيب ✓</div>
+<div class="title">Full Stack Developer</div>
+<div>📍 عمان - الأردن</div>
+
+<div class="actions">
+<button class="btn primary">متابعة</button>
+<button class="btn ghost">تواصل معي</button>
+<button class="btn ghost">حفظ</button>
+</div>
+</div>
+
+<div class="stats">
+<div class="stat"><b>95</b><br>التقييم</div>
+<div class="stat"><b>8</b><br>الخبرات</div>
+<div class="stat"><b>12</b><br>الشهادات</div>
+<div class="stat"><b>24</b><br>المهارات</div>
+</div>
+</div>
+
+<div class="section">
+<h3>نبذة</h3>
+<p>نبذة احترافية مختصرة عن المستخدم.</p>
+</div>
+
+<div class="section">
+<h3>المهارات</h3>
+<div class="skills">
+<span class="skill">React</span>
+<span class="skill">Node.js</span>
+<span class="skill">Python</span>
+<span class="skill">UI/UX</span>
+</div>
+</div>
+
+<div class="section">
+<h3>الخبرات</h3>
+<p>Senior Developer - ABC Company</p>
+<p>Full Stack Developer - XYZ Company</p>
+</div>
+
+</body>
+</html>
