@@ -4,6 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>تواصلنا — البطاقة التعريفية</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Alexandria:wght@400;500;600;700;800&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/tw_shared.css">
   <script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
   <style>
@@ -13,24 +16,33 @@
     .ico-lg { width:40px; height:40px; stroke-width:1.5; }
     [data-lucide] { color:inherit; }
     * { margin:0; padding:0; box-sizing:border-box; }
+    /* ── Typography system ── */
+    /* Headings & names → Alexandria (Premium display) */
+    .sc-logo, .sc-name, .sc-title, .sc-card-title, .sc-stat-n, .sc-item-t {
+      font-family:'Alexandria',sans-serif;
+    }
+    /* Body & content → IBM Plex Sans Arabic (already body default) */
+    .sc-bio, .sc-bio-text, .sc-item-s, .sc-item-d, .sc-loc, .sc-skill, .sc-tab, .sc-stat-l {
+      font-family:'IBM Plex Sans Arabic',sans-serif;
+    }
     body {
-      font-family:'Cairo',sans-serif; background:var(--bg,#0a0e14); color:var(--t1,#fff);
+      font-family:'IBM Plex Sans Arabic',sans-serif; background:var(--bg,#0a0e14); color:var(--t1,#fff);
       direction:rtl; min-height:100vh;
     }
 
     /* ── Header ── */
     .sc-header {
       display:flex; align-items:center; justify-content:space-between;
-      padding:12px 16px; position:sticky; top:0; z-index:50;
+      padding:7px 16px; position:sticky; top:0; z-index:50;
       background:rgba(10,14,20,.85); backdrop-filter:blur(12px);
-      border-bottom:1px solid rgba(255,255,255,.06);
     }
     .sc-hicon {
-      width:40px; height:40px; border-radius:12px; border:none; cursor:pointer;
-      background:rgba(255,255,255,.06); color:var(--t1,#fff); font-size:1.1rem;
+      width:34px; height:34px; border-radius:10px; border:none; cursor:pointer;
+      background:rgba(255,255,255,.06); color:var(--t1,#fff); font-size:1rem;
       display:flex; align-items:center; justify-content:center;
     }
-    .sc-logo { font-weight:800; font-size:1.1rem;
+    .sc-hicon-bare { background:none !important; border:none !important; }
+    .sc-logo { font-weight:800; font-size:1.15rem; letter-spacing:-.3px;
       background:linear-gradient(135deg,var(--ac,#00c896),var(--ac2,#2563ff));
       -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
 
@@ -68,25 +80,26 @@
       box-shadow:0 8px 24px rgba(0,0,0,.4);
     }
     .sc-qr {
-      width:90px; height:90px; border-radius:14px; background:#fff; padding:6px;
+      width:78px; height:78px; border-radius:12px; background:#fff; padding:6px;
       display:flex; align-items:center; justify-content:center;
       box-shadow:0 4px 12px rgba(0,0,0,.25);
     }
     .sc-qr img { width:100%; height:100%; }
 
     .sc-info { flex:1; padding-top:50px; padding-right:14px; }
-    .sc-name { font-size:1.3rem; font-weight:800; line-height:1.2; }
-    .sc-title { color:var(--ac,#00c896); font-size:.86rem; margin-top:4px; font-weight:600; }
-    .sc-loc { color:var(--t3,#6b7686); font-size:.78rem; margin-top:4px; }
+    .sc-name { font-size:1.15rem; font-weight:800; line-height:1.25; letter-spacing:-.4px; }
+    .sc-title { color:var(--ac,#00c896); font-size:.78rem; margin-top:4px; font-weight:600; }
+    .sc-loc { color:var(--t3,#6b7686); font-size:.72rem; margin-top:4px; }
 
     /* Bio under row */
     .sc-bio { color:var(--t2,#9aa5b4); font-size:.84rem; line-height:1.7; padding:14px 20px 0; }
 
     /* Action buttons */
-    .sc-actions { display:flex; gap:8px; padding:16px 20px; flex-wrap:wrap; justify-content:center; }
+    .sc-actions { display:flex; gap:8px; padding:16px 20px; flex-wrap:nowrap; justify-content:center; }
     .sc-btn {
-      padding:9px 16px; border-radius:12px; border:none; cursor:pointer;
-      font-family:inherit; font-size:.8rem; font-weight:700; transition:transform .15s, opacity .15s;
+      padding:11px 12px; border-radius:11px; border:none; cursor:pointer;
+      font-family:inherit; font-size:.74rem; font-weight:700; transition:transform .15s, opacity .15s;
+      flex:1; white-space:nowrap;
     }
     .sc-btn:active { transform:scale(.96); }
     .sc-btn { display:flex; align-items:center; justify-content:center; gap:6px; }
@@ -96,12 +109,19 @@
 
     /* Stats row */
     .sc-stats {
-      display:flex; justify-content:space-around; margin:4px 20px 0; padding:16px 0;
-      border-top:1px solid rgba(255,255,255,.06); border-bottom:1px solid rgba(255,255,255,.06);
+      display:flex; margin:8px 20px 0; padding:0;
+      background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.08);
+      border-radius:16px; overflow:hidden;
     }
-    .sc-stat { text-align:center; flex:1; }
-    .sc-stat-n { font-size:1.25rem; font-weight:800; color:var(--ac,#00c896); }
-    .sc-stat-l { font-size:.68rem; color:var(--t3,#6b7686); margin-top:3px; display:flex; align-items:center; justify-content:center; gap:3px; }
+    .sc-stat {
+      flex:1; text-align:center; padding:14px 6px;
+      display:flex; flex-direction:column; align-items:center; gap:5px;
+      border-left:1px solid rgba(255,255,255,.07);
+    }
+    .sc-stat:last-child { border-left:none; }
+    .sc-stat-i { color:var(--ac,#00c896); width:20px; height:20px; }
+    .sc-stat-n { font-size:1.2rem; font-weight:800; color:var(--t1,#fff); line-height:1; }
+    .sc-stat-l { font-size:.66rem; color:var(--t3,#6b7686); }
 
     /* Tabs */
     .sc-tabs { display:flex; gap:14px; padding:14px 20px 0; overflow-x:auto; border-bottom:1px solid rgba(255,255,255,.06); }
@@ -149,7 +169,7 @@
   <div class="sc-header">
     <button class="sc-hicon" id="scHomeBtn" title="الرئيسية"><i data-lucide="home" class="ico"></i></button>
     <div class="sc-logo">تواصلنا</div>
-    <button class="sc-hicon" onclick="history.back()" title="رجوع"><i data-lucide="menu" class="ico"></i></button>
+    <button class="sc-hicon sc-hicon-bare" onclick="history.back()" title="رجوع"><i data-lucide="menu" class="ico"></i></button>
   </div>
 
   <div class="sc-wrap">
@@ -183,12 +203,28 @@
           <button class="sc-btn sc-btn-ghost" id="scFullBtn"><i data-lucide="file-text" class="ico-sm"></i> الملف الكامل</button>
         </div>
 
-        <!-- Stats -->
+        <!-- Stats: one rectangle, thin dividers, each cell icon→number→label -->
         <div class="sc-stats">
-          <div class="sc-stat"><div class="sc-stat-n" id="scStatScore">—</div><div class="sc-stat-l"><i data-lucide="trending-up" class="ico-sm"></i> القوة</div></div>
-          <div class="sc-stat"><div class="sc-stat-n" id="scStatExp">—</div><div class="sc-stat-l"><i data-lucide="briefcase" class="ico-sm"></i> الخبرات</div></div>
-          <div class="sc-stat"><div class="sc-stat-n" id="scStatSkills">—</div><div class="sc-stat-l"><i data-lucide="zap" class="ico-sm"></i> المهارات</div></div>
-          <div class="sc-stat"><div class="sc-stat-n" id="scStatEdu">—</div><div class="sc-stat-l"><i data-lucide="graduation-cap" class="ico-sm"></i> الشهادات</div></div>
+          <div class="sc-stat">
+            <i data-lucide="trending-up" class="ico sc-stat-i"></i>
+            <div class="sc-stat-n" id="scStatScore">—</div>
+            <div class="sc-stat-l">القوة</div>
+          </div>
+          <div class="sc-stat">
+            <i data-lucide="briefcase" class="ico sc-stat-i"></i>
+            <div class="sc-stat-n" id="scStatExp">—</div>
+            <div class="sc-stat-l">الخبرات</div>
+          </div>
+          <div class="sc-stat">
+            <i data-lucide="zap" class="ico sc-stat-i"></i>
+            <div class="sc-stat-n" id="scStatSkills">—</div>
+            <div class="sc-stat-l">المهارات</div>
+          </div>
+          <div class="sc-stat">
+            <i data-lucide="graduation-cap" class="ico sc-stat-i"></i>
+            <div class="sc-stat-n" id="scStatEdu">—</div>
+            <div class="sc-stat-l">الشهادات</div>
+          </div>
         </div>
 
         <!-- Tabs -->
@@ -274,7 +310,7 @@
         var qr=document.getElementById('scQr');
         if(qr){
           var showcaseUrl = location.origin + '/profile-showcase?id=' + encodeURIComponent(id);
-          qr.innerHTML='<img src="https://api.qrserver.com/v1/create-qr-code/?size=120x120&data='
+          qr.innerHTML='<img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data='
             + encodeURIComponent(showcaseUrl) + '" alt="QR">';
         }
 
