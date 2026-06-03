@@ -5,632 +5,352 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>تواصلنا — البطاقة التعريفية</title>
   <link rel="stylesheet" href="/static/tw_shared.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/lucide/0.460.0/lucide.min.js"></script>
   <style>
-    *{margin:0;padding:0;box-sizing:border-box}
-    body{
-      font-family:'Cairo',sans-serif;
-      background:
-        radial-gradient(circle at 20% 0%, rgba(37,99,255,.18), transparent 34%),
-        radial-gradient(circle at 80% 10%, rgba(0,200,150,.15), transparent 32%),
-        var(--bg,#070b18);
-      color:var(--t1,#fff);
-      min-height:100vh;
-      direction:rtl;
+    /* Unified Lucide icon sizing + stroke + theme color */
+    .ico { width:18px; height:18px; stroke-width:2; vertical-align:middle; flex-shrink:0; }
+    .ico-sm { width:15px; height:15px; stroke-width:2; }
+    .ico-lg { width:40px; height:40px; stroke-width:1.5; }
+    [data-lucide] { color:inherit; }
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body {
+      font-family:'Cairo',sans-serif; background:var(--bg,#0a0e14); color:var(--t1,#fff);
+      direction:rtl; min-height:100vh;
     }
 
-    .sc-loading{
-      min-height:100vh;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      color:var(--t3,rgba(255,255,255,.4));
-      font-weight:800;
+    /* ── Header ── */
+    .sc-header {
+      display:flex; align-items:center; justify-content:space-between;
+      padding:12px 16px; position:sticky; top:0; z-index:50;
+      background:rgba(10,14,20,.85); backdrop-filter:blur(12px);
+      border-bottom:1px solid rgba(255,255,255,.06);
     }
-
-    .sc-page{
-      max-width:620px;
-      margin:0 auto;
-      padding:0 14px 34px;
+    .sc-hicon {
+      width:40px; height:40px; border-radius:12px; border:none; cursor:pointer;
+      background:rgba(255,255,255,.06); color:var(--t1,#fff); font-size:1.1rem;
+      display:flex; align-items:center; justify-content:center;
     }
-
-    /* Top logo space */
-    .sc-logo-space{
-      height:86px;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      text-align:center;
-    }
-    .sc-logo{
-      font-size:1.55rem;
-      font-weight:950;
-      letter-spacing:.5px;
+    .sc-logo { font-weight:800; font-size:1.1rem;
       background:linear-gradient(135deg,var(--ac,#00c896),var(--ac2,#2563ff));
-      -webkit-background-clip:text;
-      background-clip:text;
-      color:transparent;
-      line-height:1.1;
-    }
-    .sc-logo small{
-      display:block;
-      color:var(--t2,rgba(255,255,255,.7));
-      font-size:.58rem;
-      letter-spacing:2px;
-      margin-top:3px;
-      font-weight:800;
+      -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
+
+    /* ── Main wrap ── */
+    .sc-wrap { max-width:600px; margin:0 auto; padding:16px; }
+
+    /* ── ONE big card ── */
+    .sc-main-card {
+      background:var(--bg2,#141a24); border-radius:24px; overflow:hidden;
+      border:1px solid rgba(255,255,255,.06);
+      box-shadow:0 20px 60px rgba(0,0,0,.35);
     }
 
-    /* One long premium card */
-    .sc-card-main{
-      border:1px solid rgba(255,255,255,.10);
-      border-radius:28px;
-      overflow:hidden;
-      background:
-        linear-gradient(180deg,rgba(255,255,255,.055),rgba(255,255,255,.025)),
-        var(--bg2,#0d1426);
-      box-shadow:0 22px 65px rgba(0,0,0,.34);
+    /* Cover — thin */
+    .sc-cover {
+      height:110px; position:relative;
+      background:linear-gradient(135deg,#0f2027,#203a43,#2c5364);
+      background-size:cover; background-position:center;
+    }
+    .sc-cover::after {
+      content:''; position:absolute; inset:0;
+      background:linear-gradient(180deg,transparent,rgba(20,26,36,.6));
     }
 
-    .sc-cover{
-      height:124px;
-      position:relative;
-      background:
-        radial-gradient(circle at 15% 25%, rgba(255,255,255,.22), transparent 13%),
-        linear-gradient(135deg,var(--ac,#00c896),var(--ac2,#2563ff) 60%, #7c3aed);
-      overflow:hidden;
-    }
-    .sc-cover:before{
-      content:"";
-      position:absolute;inset:0;
-      background:
-        linear-gradient(120deg,transparent 0 44%,rgba(255,255,255,.17) 45%,transparent 48%),
-        radial-gradient(circle at 80% 20%,rgba(255,255,255,.15),transparent 18%);
-      opacity:.75;
-    }
-
-    .sc-hero{
-      display:flex;
+    /* Header row: avatar (right) + info (left) */
+    .sc-prof-row {
+      display:flex; gap:16px; padding:0 20px; margin-top:-44px; position:relative; z-index:2;
       align-items:flex-start;
-      gap:16px;
-      padding:18px;
-      border-bottom:1px solid rgba(255,255,255,.08);
     }
+    .sc-ava-col { display:flex; flex-direction:column; align-items:center; gap:8px; flex-shrink:0; }
+    .sc-avatar {
+      width:96px; height:96px; border-radius:24px; border:4px solid var(--bg2,#141a24);
+      background:var(--bg,#0a0e14); object-fit:cover; display:flex;
+      align-items:center; justify-content:center; font-size:2.2rem; overflow:hidden;
+    }
+    .sc-qr {
+      width:54px; height:54px; border-radius:10px; background:#fff; padding:4px;
+      display:flex; align-items:center; justify-content:center;
+    }
+    .sc-qr img { width:100%; height:100%; }
 
-    .sc-side{
-      width:112px;
-      flex-shrink:0;
-      position:relative;
-    }
+    .sc-info { flex:1; padding-top:52px; padding-right:6px; }
+    .sc-name { font-size:1.3rem; font-weight:800; line-height:1.2; }
+    .sc-title { color:var(--ac,#00c896); font-size:.86rem; margin-top:4px; font-weight:600; }
+    .sc-loc { color:var(--t3,#6b7686); font-size:.78rem; margin-top:4px; }
 
-    .sc-avatar{
-      width:112px;
-      height:112px;
-      border-radius:50%;
-      border:4px solid var(--bg,#070b18);
-      background:var(--bg2,#0d1426);
-      margin-top:-74px;
-      overflow:hidden;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      font-size:2.4rem;
-      box-shadow:0 16px 34px rgba(0,0,0,.32);
-      position:relative;
-      z-index:2;
-    }
-    .sc-avatar img{width:100%;height:100%;object-fit:cover;display:block}
+    /* Bio under row */
+    .sc-bio { color:var(--t2,#9aa5b4); font-size:.84rem; line-height:1.7; padding:14px 20px 0; }
 
-    .sc-qr{
-      margin-top:10px;
-      width:112px;
-      height:112px;
-      border-radius:18px;
-      background:#fff;
-      padding:9px;
-      display:grid;
-      grid-template-columns:repeat(5,1fr);
-      gap:3px;
-      box-shadow:0 14px 28px rgba(0,0,0,.22);
-      border:1px solid rgba(255,255,255,.10);
+    /* Action buttons */
+    .sc-actions { display:flex; gap:8px; padding:16px 20px; flex-wrap:wrap; }
+    .sc-btn {
+      flex:1; min-width:90px; padding:11px 14px; border-radius:14px; border:none; cursor:pointer;
+      font-family:inherit; font-size:.8rem; font-weight:700; transition:transform .15s, opacity .15s;
     }
-    .sc-qr span{
-      background:#111827;
-      border-radius:2px;
-      min-height:10px;
-    }
-    .sc-qr span:nth-child(2n){background:#e5e7eb}
-    .sc-qr span:nth-child(3n){background:#111827}
-    .sc-qr span:nth-child(7),
-    .sc-qr span:nth-child(19),
-    .sc-qr span:nth-child(23){background:var(--ac,#00c896)}
+    .sc-btn:active { transform:scale(.96); }
+    .sc-btn { display:flex; align-items:center; justify-content:center; gap:6px; }
+    .sc-loc { display:flex; align-items:center; gap:4px; }
+    .sc-btn-primary { background:linear-gradient(135deg,var(--ac,#00c896),var(--ac2,#2563ff)); color:#fff; }
+    .sc-btn-ghost { background:rgba(255,255,255,.06); color:var(--t1,#fff); border:1px solid rgba(255,255,255,.1); }
 
-    .sc-info{
-      flex:1;
-      min-width:0;
-      padding-top:4px;
+    /* Stats row */
+    .sc-stats {
+      display:flex; justify-content:space-around; margin:4px 20px 0; padding:16px 0;
+      border-top:1px solid rgba(255,255,255,.06); border-bottom:1px solid rgba(255,255,255,.06);
     }
-    .sc-name-row{
-      display:flex;
-      align-items:center;
-      gap:7px;
-      flex-wrap:wrap;
-    }
-    .sc-name{
-      font-size:1.34rem;
-      font-weight:950;
-      line-height:1.35;
-      letter-spacing:-.02em;
-    }
-    .sc-verified{
-      width:20px;height:20px;border-radius:50%;
-      display:inline-flex;
-      align-items:center;
-      justify-content:center;
-      background:linear-gradient(135deg,var(--ac,#00c896),var(--ac2,#2563ff));
-      color:#fff;
-      font-size:.72rem;
-      font-weight:950;
-      flex-shrink:0;
-    }
+    .sc-stat { text-align:center; flex:1; }
+    .sc-stat-n { font-size:1.25rem; font-weight:800; color:var(--ac,#00c896); }
+    .sc-stat-l { font-size:.68rem; color:var(--t3,#6b7686); margin-top:3px; display:flex; align-items:center; justify-content:center; gap:3px; }
 
-    .sc-title{
-      color:var(--ac,#00c896);
-      font-size:.88rem;
-      font-weight:850;
-      margin-top:6px;
-      line-height:1.5;
-    }
-    .sc-meta{
-      color:var(--t2,rgba(255,255,255,.7));
-      font-size:.76rem;
-      margin-top:6px;
-      line-height:1.6;
-    }
-    .sc-bio{
-      color:var(--t2,rgba(255,255,255,.7));
-      font-size:.80rem;
-      line-height:1.85;
-      margin-top:10px;
-      display:-webkit-box;
-      -webkit-line-clamp:3;
-      -webkit-box-orient:vertical;
-      overflow:hidden;
-    }
-
-    .sc-actions{
-      display:flex;
-      flex-wrap:wrap;
-      gap:8px;
-      margin-top:14px;
-    }
-    .sc-btn{
-      border:none;
-      border-radius:13px;
-      padding:9px 12px;
+    /* Tabs */
+    .sc-tabs { display:flex; gap:4px; padding:14px 20px 0; overflow-x:auto; }
+    .sc-tab {
+      padding:8px 14px; border-radius:10px; cursor:pointer; white-space:nowrap;
+      font-size:.8rem; font-weight:600; color:var(--t3,#6b7686); background:transparent; border:none;
       font-family:inherit;
-      font-weight:900;
-      font-size:.74rem;
-      cursor:pointer;
-      min-height:38px;
     }
-    .sc-btn-primary{
-      background:linear-gradient(135deg,var(--ac,#00c896),var(--ac2,#2563ff));
-      color:#fff;
-      box-shadow:0 10px 24px rgba(0,200,150,.14);
-    }
-    .sc-btn-ghost{
-      background:rgba(255,255,255,.055);
-      color:var(--t1,#fff);
-      border:1px solid rgba(255,255,255,.10);
-    }
-    .sc-full{
-      text-decoration:none;
-      display:inline-flex;
-      align-items:center;
-      justify-content:center;
-    }
+    .sc-tab.active { background:rgba(0,200,150,.12); color:var(--ac,#00c896); }
+    .sc-tab { display:inline-flex; align-items:center; gap:5px; }
 
-    .sc-stats{
-      display:grid;
-      grid-template-columns:repeat(4,1fr);
-      gap:9px;
-      padding:15px 16px;
-      border-bottom:1px solid rgba(255,255,255,.08);
-    }
-    .sc-stat{
-      text-align:center;
-      background:rgba(255,255,255,.045);
-      border:1px solid rgba(255,255,255,.07);
-      border-radius:16px;
-      padding:11px 5px;
-    }
-    .sc-stat-n{
-      font-size:1.16rem;
-      line-height:1;
-      font-weight:950;
-      color:var(--ac,#00c896);
-    }
-    .sc-stat-l{
-      color:var(--t3,rgba(255,255,255,.4));
-      font-size:.62rem;
-      margin-top:6px;
-      font-weight:800;
-    }
+    /* Tab content */
+    .sc-content { padding:16px 20px 24px; min-height:80px; }
+    .sc-pane { display:none; }
+    .sc-pane.active { display:block; animation:fade .25s; }
+    @keyframes fade { from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:none;} }
 
-    .sc-tabs{
-      display:flex;
-      gap:4px;
-      padding:12px 14px 0;
-      overflow-x:auto;
-      scrollbar-width:none;
-    }
-    .sc-tabs::-webkit-scrollbar{display:none}
-    .sc-tab{
-      border:none;
-      background:transparent;
-      color:var(--t2,rgba(255,255,255,.7));
-      font-family:inherit;
-      font-size:.78rem;
-      font-weight:900;
-      padding:10px 12px;
-      border-bottom:2px solid transparent;
-      white-space:nowrap;
-    }
-    .sc-tab.active{
-      color:var(--ac,#00c896);
-      border-bottom-color:var(--ac,#00c896);
-    }
+    .sc-skills { display:flex; flex-wrap:wrap; gap:8px; }
+    .sc-skill { padding:7px 13px; border-radius:20px; background:rgba(0,200,150,.1);
+      color:var(--ac,#00c896); font-size:.78rem; }
 
-    .sc-content{
-      padding:16px;
-    }
-    .sc-panel{
-      display:none;
-      animation:fadeIn .18s ease-out;
-    }
-    .sc-panel.active{display:block}
-    @keyframes fadeIn{from{opacity:.55;transform:translateY(3px)}to{opacity:1;transform:none}}
+    .sc-item { padding:12px 0; border-bottom:1px solid rgba(255,255,255,.05); }
+    .sc-item:last-child { border-bottom:none; }
+    .sc-item-t { font-weight:700; font-size:.88rem; }
+    .sc-item-s { color:var(--t3,#6b7686); font-size:.76rem; margin-top:3px; }
+    .sc-item-d { color:var(--t4,#4a5568); font-size:.72rem; margin-top:2px; }
 
-    .sc-section{
-      background:rgba(255,255,255,.04);
-      border:1px solid rgba(255,255,255,.08);
-      border-radius:20px;
-      padding:15px;
-    }
-    .sc-section-title{
-      font-size:.98rem;
-      font-weight:950;
-      margin-bottom:12px;
-      display:flex;
-      align-items:center;
-      gap:8px;
-    }
-    .sc-section-title:before{
-      content:"";
-      width:9px;height:9px;border-radius:50%;
-      background:var(--ac,#00c896);
-      box-shadow:0 0 0 5px rgba(0,200,150,.12);
-    }
+    .sc-empty { text-align:center; color:var(--t4,#4a5568); padding:24px 0; font-size:.82rem; }
+    .sc-bio-text { color:var(--t2,#9aa5b4); font-size:.86rem; line-height:1.8; }
 
-    .sc-about{
-      color:var(--t2,rgba(255,255,255,.7));
-      line-height:1.9;
-      font-size:.86rem;
-    }
+    .sc-loading { text-align:center; padding:80px 20px; color:var(--t3,#6b7686); }
 
-    .sc-skills{
-      display:flex;
-      flex-wrap:wrap;
-      gap:9px;
+    /* Toast */
+    .sc-toast {
+      position:fixed; bottom:24px; right:50%; transform:translateX(50%) translateY(20px);
+      background:var(--bg2,#141a24); color:var(--t1,#fff); padding:12px 22px; border-radius:14px;
+      border:1px solid rgba(255,255,255,.12); font-size:.84rem; font-weight:600;
+      opacity:0; transition:.3s; z-index:100; box-shadow:0 10px 30px rgba(0,0,0,.4); pointer-events:none;
     }
-    .sc-skill{
-      padding:8px 12px;
-      border-radius:999px;
-      color:#dfffee;
-      background:rgba(0,200,150,.12);
-      border:1px solid rgba(0,200,150,.18);
-      font-size:.76rem;
-      font-weight:850;
-    }
-
-    .sc-list{
-      display:flex;
-      flex-direction:column;
-      gap:10px;
-    }
-    .sc-item{
-      padding:13px;
-      border-radius:16px;
-      background:rgba(255,255,255,.045);
-      border:1px solid rgba(255,255,255,.07);
-    }
-    .sc-item-t{
-      font-size:.88rem;
-      font-weight:950;
-      line-height:1.55;
-    }
-    .sc-item-s{
-      color:var(--t3,rgba(255,255,255,.4));
-      font-size:.74rem;
-      margin-top:3px;
-      font-weight:750;
-    }
-    .sc-empty{
-      color:var(--t3,rgba(255,255,255,.4));
-      font-size:.82rem;
-      line-height:1.7;
-    }
-
-    .sc-toast{
-      position:fixed;
-      bottom:20px;
-      left:50%;
-      transform:translateX(-50%) translateY(12px);
-      opacity:0;
-      pointer-events:none;
-      background:rgba(7,11,24,.97);
-      border:1px solid rgba(255,255,255,.10);
-      border-radius:14px;
-      padding:10px 14px;
-      color:#fff;
-      font-size:.78rem;
-      font-weight:900;
-      transition:.22s;
-      z-index:999;
-      white-space:nowrap;
-    }
-    .sc-toast.show{
-      opacity:1;
-      transform:translateX(-50%) translateY(0);
-    }
-
-    @media (max-width:430px){
-      .sc-page{padding:0 10px 28px}
-      .sc-logo-space{height:76px}
-      .sc-card-main{border-radius:24px}
-      .sc-cover{height:112px}
-      .sc-hero{gap:12px;padding:16px 14px}
-      .sc-side{width:94px}
-      .sc-avatar{width:94px;height:94px;margin-top:-62px;border-width:3px}
-      .sc-qr{width:94px;height:94px;border-radius:15px;padding:8px;gap:2px}
-      .sc-name{font-size:1.12rem}
-      .sc-title{font-size:.78rem}
-      .sc-meta{font-size:.69rem}
-      .sc-bio{font-size:.74rem;-webkit-line-clamp:2}
-      .sc-actions{gap:6px}
-      .sc-btn{font-size:.68rem;padding:8px 9px;border-radius:11px}
-      .sc-stats{grid-template-columns:repeat(4,1fr);gap:6px;padding:12px}
-      .sc-stat{padding:10px 3px;border-radius:13px}
-      .sc-stat-n{font-size:1rem}
-      .sc-stat-l{font-size:.56rem}
-      .sc-tab{font-size:.72rem;padding:9px 10px}
-      .sc-content{padding:13px}
-    }
+    .sc-toast.show { opacity:1; transform:translateX(50%) translateY(0); }
   </style>
 </head>
 <body>
-  <div id="scLoading" class="sc-loading">جاري التحميل…</div>
+  <!-- Header -->
+  <div class="sc-header">
+    <button class="sc-hicon" onclick="history.back()" title="رجوع"><i data-lucide="menu" class="ico"></i></button>
+    <div class="sc-logo">تواصلنا</div>
+    <button class="sc-hicon" id="scHomeBtn" title="الرئيسية"><i data-lucide="home" class="ico"></i></button>
+  </div>
 
-  <main id="scContent" class="sc-page" style="display:none">
-    <div class="sc-logo-space">
-      <div class="sc-logo">تواصلنا<small>TAWASOLNA</small></div>
-    </div>
+  <div class="sc-wrap">
+    <div id="scLoading" class="sc-loading">جاري التحميل…</div>
 
-    <section class="sc-card-main">
-      <div class="sc-cover" id="scCover"></div>
+    <div id="scContent" style="display:none">
+      <div class="sc-main-card">
+        <!-- Cover -->
+        <div class="sc-cover" id="scCover"></div>
 
-      <div class="sc-hero">
-        <div class="sc-side">
-          <div class="sc-avatar" id="scAvatar">👤</div>
-          <div class="sc-qr" id="scQr" aria-label="QR">
-            <span></span><span></span><span></span><span></span><span></span>
-            <span></span><span></span><span></span><span></span><span></span>
-            <span></span><span></span><span></span><span></span><span></span>
-            <span></span><span></span><span></span><span></span><span></span>
-            <span></span><span></span><span></span><span></span><span></span>
+        <!-- Profile row: avatar+QR (right) | info (left) -->
+        <div class="sc-prof-row">
+          <div class="sc-ava-col">
+            <div class="sc-avatar" id="scAvatar"><i data-lucide="user" class="ico-lg"></i></div>
+            <div class="sc-qr" id="scQr"></div>
           </div>
-        </div>
-
-        <div class="sc-info">
-          <div class="sc-name-row">
+          <div class="sc-info">
             <div class="sc-name" id="scName">—</div>
-            <span class="sc-verified" id="scVerified" style="display:none">✓</span>
+            <div class="sc-title" id="scTitle"></div>
+            <div class="sc-loc" id="scLoc"></div>
           </div>
-          <div class="sc-title" id="scTitle">—</div>
-          <div class="sc-meta" id="scMeta"></div>
-          <div class="sc-bio" id="scBio"></div>
+        </div>
 
-          <div class="sc-actions">
-            <button class="sc-btn sc-btn-primary" id="scFollowBtn" type="button">متابعة</button>
-            <button class="sc-btn sc-btn-ghost" id="scContactBtn" type="button">تواصل معي</button>
-            <a class="sc-btn sc-btn-ghost sc-full" id="scFullBtn">الملف الكامل</a>
-          </div>
+        <!-- Bio -->
+        <div class="sc-bio" id="scBio"></div>
+
+        <!-- Actions -->
+        <div class="sc-actions">
+          <button class="sc-btn sc-btn-primary" id="scFollowBtn"><i data-lucide="user-plus" class="ico-sm"></i> متابعة</button>
+          <button class="sc-btn sc-btn-ghost" id="scContactBtn"><i data-lucide="message-circle" class="ico-sm"></i> تواصل معي</button>
+          <button class="sc-btn sc-btn-ghost" id="scFullBtn"><i data-lucide="file-text" class="ico-sm"></i> الملف الكامل</button>
+        </div>
+
+        <!-- Stats -->
+        <div class="sc-stats">
+          <div class="sc-stat"><div class="sc-stat-n" id="scStatScore">—</div><div class="sc-stat-l"><i data-lucide="trending-up" class="ico-sm"></i> القوة</div></div>
+          <div class="sc-stat"><div class="sc-stat-n" id="scStatExp">—</div><div class="sc-stat-l"><i data-lucide="briefcase" class="ico-sm"></i> الخبرات</div></div>
+          <div class="sc-stat"><div class="sc-stat-n" id="scStatSkills">—</div><div class="sc-stat-l"><i data-lucide="zap" class="ico-sm"></i> المهارات</div></div>
+          <div class="sc-stat"><div class="sc-stat-n" id="scStatEdu">—</div><div class="sc-stat-l"><i data-lucide="graduation-cap" class="ico-sm"></i> الشهادات</div></div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="sc-tabs">
+          <button class="sc-tab active" data-tab="about" onclick="scTab('about',this)"><i data-lucide="user-round" class="ico-sm"></i> نبذة عني</button>
+          <button class="sc-tab" data-tab="skills" onclick="scTab('skills',this)"><i data-lucide="zap" class="ico-sm"></i> المهارات</button>
+          <button class="sc-tab" data-tab="exp" onclick="scTab('exp',this)"><i data-lucide="briefcase" class="ico-sm"></i> الخبرات</button>
+          <button class="sc-tab" data-tab="edu" onclick="scTab('edu',this)"><i data-lucide="graduation-cap" class="ico-sm"></i> الشهادات</button>
+        </div>
+
+        <!-- Tab content -->
+        <div class="sc-content">
+          <div class="sc-pane active" id="pane-about"><div class="sc-bio-text" id="scAboutText"></div></div>
+          <div class="sc-pane" id="pane-skills"><div class="sc-skills" id="scSkillsPane"></div></div>
+          <div class="sc-pane" id="pane-exp"><div id="scExpPane"></div></div>
+          <div class="sc-pane" id="pane-edu"><div id="scEduPane"></div></div>
         </div>
       </div>
+    </div>
+  </div>
 
-      <div class="sc-stats">
-        <div class="sc-stat"><div class="sc-stat-n" id="scStatScore">—</div><div class="sc-stat-l">القوة</div></div>
-        <div class="sc-stat"><div class="sc-stat-n" id="scStatExp">—</div><div class="sc-stat-l">خبرات</div></div>
-        <div class="sc-stat"><div class="sc-stat-n" id="scStatSkills">—</div><div class="sc-stat-l">مهارات</div></div>
-        <div class="sc-stat"><div class="sc-stat-n" id="scStatCerts">—</div><div class="sc-stat-l">شهادات</div></div>
-      </div>
-
-      <div class="sc-tabs" role="tablist">
-        <button class="sc-tab active" data-tab="about" type="button">نبذة</button>
-        <button class="sc-tab" data-tab="skills" type="button">مهارات</button>
-        <button class="sc-tab" data-tab="exp" type="button">خبرات</button>
-        <button class="sc-tab" data-tab="certs" type="button">شهادات</button>
-      </div>
-
-      <div class="sc-content">
-        <div class="sc-panel active" id="tab-about">
-          <div class="sc-section">
-            <div class="sc-section-title">نبذة عني</div>
-            <div class="sc-about" id="scAbout">—</div>
-          </div>
-        </div>
-
-        <div class="sc-panel" id="tab-skills">
-          <div class="sc-section">
-            <div class="sc-section-title">أهم المهارات</div>
-            <div class="sc-skills" id="scSkills"></div>
-          </div>
-        </div>
-
-        <div class="sc-panel" id="tab-exp">
-          <div class="sc-section">
-            <div class="sc-section-title">أحدث الخبرات</div>
-            <div class="sc-list" id="scLatestExp"></div>
-          </div>
-        </div>
-
-        <div class="sc-panel" id="tab-certs">
-          <div class="sc-section">
-            <div class="sc-section-title">الشهادات</div>
-            <div class="sc-list" id="scCerts"></div>
-          </div>
-        </div>
-      </div>
-    </section>
-  </main>
-
-  <div class="sc-toast" id="scToast">قريباً</div>
+  <div class="sc-toast" id="scToast"></div>
 
   <script src="/tw_shared.js"></script>
   <script>
   (function() {
-    function esc(s) {
-      var d = document.createElement('div');
-      d.textContent = s == null ? '' : String(s);
-      return d.innerHTML;
-    }
-    function setText(id, val) {
-      var el = document.getElementById(id);
-      if (el) el.textContent = val == null ? '' : String(val);
-    }
-    function toast(msg) {
-      var t = document.getElementById('scToast');
-      if (!t) return;
-      t.textContent = msg || 'قريباً';
-      t.classList.add('show');
-      clearTimeout(window.__scToastTimer);
-      window.__scToastTimer = setTimeout(function(){ t.classList.remove('show'); }, 1500);
-    }
-    function bindTabs() {
-      document.querySelectorAll('.sc-tab').forEach(function(btn){
-        btn.addEventListener('click', function(){
-          var tab = btn.getAttribute('data-tab');
-          document.querySelectorAll('.sc-tab').forEach(function(b){ b.classList.remove('active'); });
-          document.querySelectorAll('.sc-panel').forEach(function(p){ p.classList.remove('active'); });
-          btn.classList.add('active');
-          var panel = document.getElementById('tab-' + tab);
-          if (panel) panel.classList.add('active');
-        });
-      });
+    function esc(s){ var d=document.createElement('div'); d.textContent=s==null?'':String(s); return d.innerHTML; }
+    function setText(id,v){ var el=document.getElementById(id); if(el) el.textContent=v==null?'':v; }
+    function toast(msg){
+      var t=document.getElementById('scToast'); if(!t) return;
+      t.textContent=msg; t.classList.add('show');
+      setTimeout(function(){ t.classList.remove('show'); },2200);
     }
 
-    bindTabs();
+    // Tab switching (local, no fetch — data already loaded)
+    window.scTab = function(name, el){
+      var tabs=document.querySelectorAll('.sc-tab');
+      for(var i=0;i<tabs.length;i++) tabs[i].classList.remove('active');
+      if(el) el.classList.add('active');
+      var panes=document.querySelectorAll('.sc-pane');
+      for(var j=0;j<panes.length;j++) panes[j].classList.remove('active');
+      var pane=document.getElementById('pane-'+name);
+      if(pane) pane.classList.add('active');
+      if(window.lucide && lucide.createIcons) lucide.createIcons();
+    };
 
     var id = new URLSearchParams(location.search).get('id');
-    if (!id) {
-      setText('scLoading', 'لا يوجد معرّف ملف');
+
+    // Home button
+    var homeBtn=document.getElementById('scHomeBtn');
+    if(homeBtn) homeBtn.onclick=function(){ window.location.href='/home'; };
+
+    if(!id){
+      var ld=document.getElementById('scLoading');
+      if(ld) ld.textContent='لا يوجد معرّف ملف';
       return;
     }
 
     fetch('/profile/' + encodeURIComponent(id))
-      .then(function(r) {
-        if (!r.ok) throw new Error('profile fetch failed: ' + r.status);
-        return r.json();
-      })
-      .then(function(res) {
+      .then(function(r){ if(!r.ok) throw new Error('profile '+r.status); return r.json(); })
+      .then(function(res){
         var p = (res && res.profile) ? res.profile : {};
-        var headline = p.headline || p.title || '';
-        var skills = Array.isArray(p.skills) ? p.skills : [];
-        var exp = Array.isArray(p.experience) ? p.experience : [];
-        var certs = Array.isArray(p.education) ? p.education : [];
-        var loc = p.location || [p.city, p.country].filter(Boolean).join(' - ');
 
+        // Identity
         setText('scName', p.full_name || '—');
-        setText('scTitle', headline || '—');
-        setText('scMeta', loc ? '📍 ' + loc : '');
+        setText('scTitle', p.headline || p.title || '');
+        var locEl=document.getElementById('scLoc');
+        if(locEl) locEl.innerHTML = p.location ? ('<i data-lucide="map-pin" class="ico-sm"></i> ' + esc(p.location)) : '';
         setText('scBio', p.bio || '');
-        setText('scAbout', p.bio || 'لم تتم إضافة نبذة بعد.');
+
+        // Avatar
+        var av=document.getElementById('scAvatar');
+        if(av && p.avatar_url){
+          av.innerHTML='<img src="'+esc(p.avatar_url)+'" alt="" style="width:100%;height:100%;object-fit:cover">';
+        }
+
+        // QR (uses public QR service pointing to this showcase URL — no backend)
+        var qr=document.getElementById('scQr');
+        if(qr){
+          var showcaseUrl = location.origin + '/profile-showcase?id=' + encodeURIComponent(id);
+          qr.innerHTML='<img src="https://api.qrserver.com/v1/create-qr-code/?size=80x80&data='
+            + encodeURIComponent(showcaseUrl) + '" alt="QR">';
+        }
+
+        // Data arrays
+        var skills = Array.isArray(p.skills) ? p.skills : [];
+        var exp    = Array.isArray(p.experience) ? p.experience : [];
+        var edu    = Array.isArray(p.education) ? p.education : [];
+
+        // Stats
         setText('scStatExp', exp.length);
         setText('scStatSkills', skills.length);
-        setText('scStatCerts', certs.length);
+        setText('scStatEdu', edu.length);
 
-        var verified = document.getElementById('scVerified');
-        if (verified && (p.is_verified || p.verification_status === 'verified')) verified.style.display = 'inline-flex';
+        // Tab: About
+        var aboutEl=document.getElementById('scAboutText');
+        if(aboutEl) aboutEl.textContent = p.bio || 'لا توجد نبذة بعد';
 
-        var av = document.getElementById('scAvatar');
-        if (av && p.avatar_url) {
-          av.innerHTML = '<img src="' + esc(p.avatar_url) + '" alt="">';
+        // Tab: Skills
+        var skEl=document.getElementById('scSkillsPane');
+        if(skEl){
+          skEl.innerHTML = skills.length
+            ? skills.map(function(s){
+                var label=(s&&typeof s==='object')?(s.skill||''):s;
+                return '<span class="sc-skill">'+esc(label)+'</span>';
+              }).join('')
+            : '<div class="sc-empty">لا توجد مهارات بعد</div>';
         }
 
-        var skillsEl = document.getElementById('scSkills');
-        if (skillsEl) {
-          if (skills.length) {
-            skillsEl.innerHTML = skills.slice(0, 10).map(function(s) {
-              var label = (s && typeof s === 'object') ? (s.skill || '') : s;
-              return label ? '<span class="sc-skill">' + esc(label) + '</span>' : '';
-            }).join('');
-          } else {
-            skillsEl.innerHTML = '<div class="sc-empty">لا توجد مهارات بعد.</div>';
-          }
+        // Tab: Experience
+        var expEl=document.getElementById('scExpPane');
+        if(expEl){
+          expEl.innerHTML = exp.length
+            ? exp.map(function(e){
+                var t=esc(e.title||''); var c=esc(e.company||'');
+                var loc=e.location?(' · '+esc(e.location)):'';
+                return '<div class="sc-item"><div class="sc-item-t">'+t+'</div>'+
+                  (c?'<div class="sc-item-s">'+c+loc+'</div>':'')+'</div>';
+              }).join('')
+            : '<div class="sc-empty">لا توجد خبرات بعد</div>';
         }
 
-        var expEl = document.getElementById('scLatestExp');
-        if (expEl) {
-          if (exp.length) {
-            expEl.innerHTML = exp.slice(0, 4).map(function(e) {
-              var title = esc(e.title || 'خبرة');
-              var company = esc(e.company || '');
-              return '<div class="sc-item"><div class="sc-item-t">' + title + '</div>' +
-                (company ? '<div class="sc-item-s">' + company + '</div>' : '') + '</div>';
-            }).join('');
-          } else {
-            expEl.innerHTML = '<div class="sc-empty">لا توجد خبرات بعد.</div>';
-          }
+        // Tab: Education
+        var eduEl=document.getElementById('scEduPane');
+        if(eduEl){
+          eduEl.innerHTML = edu.length
+            ? edu.map(function(d){
+                var inst=esc(d.institution||''); var deg=esc(d.degree||'');
+                var fld=d.field?(' · '+esc(d.field)):'';
+                return '<div class="sc-item"><div class="sc-item-t">'+inst+'</div>'+
+                  ((deg||fld)?'<div class="sc-item-s">'+deg+fld+'</div>':'')+'</div>';
+              }).join('')
+            : '<div class="sc-empty">لا توجد شهادات بعد</div>';
         }
 
-        var certsEl = document.getElementById('scCerts');
-        if (certsEl) {
-          if (certs.length) {
-            certsEl.innerHTML = certs.slice(0, 4).map(function(c) {
-              var title = esc(c.degree || c.title || c.school || 'شهادة');
-              var sub = esc(c.school || c.institution || '');
-              return '<div class="sc-item"><div class="sc-item-t">' + title + '</div>' +
-                (sub ? '<div class="sc-item-s">' + sub + '</div>' : '') + '</div>';
-            }).join('');
-          } else {
-            certsEl.innerHTML = '<div class="sc-empty">لا توجد شهادات بعد.</div>';
-          }
-        }
+        // Full profile button → Details (profile.html accepts tw_id)
+        var fullBtn=document.getElementById('scFullBtn');
+        if(fullBtn) fullBtn.onclick=function(){ window.location.href='/profile.html?id='+encodeURIComponent(id); };
 
-        var fullBtn = document.getElementById('scFullBtn');
-        if (fullBtn) fullBtn.href = '/profile.html?id=' + encodeURIComponent(id);
+        // Follow + Contact: UI only (no backend yet) → "soon" toast
+        var followBtn=document.getElementById('scFollowBtn');
+        if(followBtn) followBtn.onclick=function(){ toast('ميزة المتابعة قريباً'); };
+        var contactBtn=document.getElementById('scContactBtn');
+        if(contactBtn) contactBtn.onclick=function(){ toast('ميزة التواصل قريباً'); };
 
-        var contactBtn = document.getElementById('scContactBtn');
-        if (contactBtn) contactBtn.addEventListener('click', function(){ toast('ميزة التواصل قريباً'); });
+        // Reveal
+        var ld=document.getElementById('scLoading');
+        var ct=document.getElementById('scContent');
+        if(ld) ld.style.display='none';
+        if(ct) ct.style.display='block';
 
-        var followBtn = document.getElementById('scFollowBtn');
-        if (followBtn) followBtn.addEventListener('click', function(){ toast('ميزة المتابعة قريباً'); });
+        // Render all Lucide icons (header + card + dynamic location)
+        if(window.lucide && lucide.createIcons) lucide.createIcons();
 
-        var ld = document.getElementById('scLoading');
-        var ct = document.getElementById('scContent');
-        if (ld) ld.style.display = 'none';
-        if (ct) ct.style.display = 'block';
-
+        // Score: independent parallel fetch — NUMERIC p.id (not tw_id), failure isolated
         var numId = (p.id != null) ? p.id : id;
         fetch('/profile/' + encodeURIComponent(numId) + '/score')
-          .then(function(r) { return r.ok ? r.json() : null; })
-          .then(function(sc) {
-            if (sc && typeof sc.score !== 'undefined') setText('scStatScore', sc.score);
-          })
-          .catch(function() {});
+          .then(function(r){ return r.ok ? r.json() : null; })
+          .then(function(sc){ if(sc && typeof sc.score!=='undefined') setText('scStatScore', sc.score); })
+          .catch(function(){ /* score stays — */ });
       })
-      .catch(function() {
-        setText('scLoading', 'تعذّر تحميل الملف');
+      .catch(function(){
+        var ld=document.getElementById('scLoading');
+        if(ld) ld.textContent='تعذّر تحميل الملف';
       });
   })();
   </script>
