@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>تواصلنا — البطاقة التعريفية</title>
   <link rel="stylesheet" href="/static/tw_shared.css">
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/lucide/0.460.0/lucide.min.js"></script>
+  <script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
   <style>
     /* Unified Lucide icon sizing + stroke + theme color */
     .ico { width:18px; height:18px; stroke-width:2; vertical-align:middle; flex-shrink:0; }
@@ -215,6 +215,10 @@
   (function() {
     function esc(s){ var d=document.createElement('div'); d.textContent=s==null?'':String(s); return d.innerHTML; }
     function setText(id,v){ var el=document.getElementById(id); if(el) el.textContent=v==null?'':v; }
+    function renderIcons(){
+      if(window.lucide && lucide.createIcons){ lucide.createIcons(); return true; }
+      return false;
+    }
     function toast(msg){
       var t=document.getElementById('scToast'); if(!t) return;
       t.textContent=msg; t.classList.add('show');
@@ -232,6 +236,7 @@
       if(pane) pane.classList.add('active');
       if(window.lucide && lucide.createIcons) lucide.createIcons();
     };
+    window._renderIcons = function(){ if(window.lucide && lucide.createIcons) lucide.createIcons(); };
 
     var id = new URLSearchParams(location.search).get('id');
 
@@ -338,8 +343,12 @@
         if(ld) ld.style.display='none';
         if(ct) ct.style.display='block';
 
-        // Render all Lucide icons (header + card + dynamic location)
-        if(window.lucide && lucide.createIcons) lucide.createIcons();
+        // Render all Lucide icons (retry if CDN still loading)
+        if(!renderIcons()){
+          var tries=0, iv=setInterval(function(){
+            if(renderIcons() || ++tries>20) clearInterval(iv);
+          },150);
+        }
 
         // Score: independent parallel fetch — NUMERIC p.id (not tw_id), failure isolated
         var numId = (p.id != null) ? p.id : id;
