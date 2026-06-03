@@ -46,7 +46,7 @@
 
     /* Cover — thin */
     .sc-cover {
-      height:150px; position:relative;
+      height:220px; position:relative;
       background:linear-gradient(135deg,#0f2027,#203a43,#2c5364);
       background-size:cover; background-position:center;
     }
@@ -57,22 +57,24 @@
 
     /* Header row: avatar (right) + info (left) */
     .sc-prof-row {
-      display:flex; gap:16px; padding:0 20px; margin-top:-48px; position:relative; z-index:2;
+      display:flex; gap:16px; padding:0 20px; margin-top:-75px; position:relative; z-index:2;
       align-items:flex-start;
     }
     .sc-ava-col { display:flex; flex-direction:column; align-items:center; gap:8px; flex-shrink:0; }
     .sc-avatar {
-      width:104px; height:104px; border-radius:50%; border:4px solid var(--bg2,#141a24);
+      width:150px; height:150px; border-radius:50%; border:5px solid var(--bg2,#141a24);
       background:var(--bg,#0a0e14); object-fit:cover; display:flex;
-      align-items:center; justify-content:center; font-size:2.2rem; overflow:hidden;
+      align-items:center; justify-content:center; font-size:3rem; overflow:hidden;
+      box-shadow:0 8px 24px rgba(0,0,0,.4);
     }
     .sc-qr {
-      width:54px; height:54px; border-radius:10px; background:#fff; padding:4px;
+      width:90px; height:90px; border-radius:14px; background:#fff; padding:6px;
       display:flex; align-items:center; justify-content:center;
+      box-shadow:0 4px 12px rgba(0,0,0,.25);
     }
     .sc-qr img { width:100%; height:100%; }
 
-    .sc-info { flex:1; padding-top:56px; padding-right:6px; }
+    .sc-info { flex:1; padding-top:82px; padding-right:14px; }
     .sc-name { font-size:1.3rem; font-weight:800; line-height:1.2; }
     .sc-title { color:var(--ac,#00c896); font-size:.86rem; margin-top:4px; font-weight:600; }
     .sc-loc { color:var(--t3,#6b7686); font-size:.78rem; margin-top:4px; }
@@ -272,7 +274,7 @@
         var qr=document.getElementById('scQr');
         if(qr){
           var showcaseUrl = location.origin + '/profile-showcase?id=' + encodeURIComponent(id);
-          qr.innerHTML='<img src="https://api.qrserver.com/v1/create-qr-code/?size=80x80&data='
+          qr.innerHTML='<img src="https://api.qrserver.com/v1/create-qr-code/?size=120x120&data='
             + encodeURIComponent(showcaseUrl) + '" alt="QR">';
         }
 
