@@ -46,7 +46,7 @@
 
     /* Cover — thin */
     .sc-cover {
-      height:110px; position:relative;
+      height:150px; position:relative;
       background:linear-gradient(135deg,#0f2027,#203a43,#2c5364);
       background-size:cover; background-position:center;
     }
@@ -57,12 +57,12 @@
 
     /* Header row: avatar (right) + info (left) */
     .sc-prof-row {
-      display:flex; gap:16px; padding:0 20px; margin-top:-44px; position:relative; z-index:2;
+      display:flex; gap:16px; padding:0 20px; margin-top:-48px; position:relative; z-index:2;
       align-items:flex-start;
     }
     .sc-ava-col { display:flex; flex-direction:column; align-items:center; gap:8px; flex-shrink:0; }
     .sc-avatar {
-      width:96px; height:96px; border-radius:24px; border:4px solid var(--bg2,#141a24);
+      width:104px; height:104px; border-radius:50%; border:4px solid var(--bg2,#141a24);
       background:var(--bg,#0a0e14); object-fit:cover; display:flex;
       align-items:center; justify-content:center; font-size:2.2rem; overflow:hidden;
     }
@@ -72,7 +72,7 @@
     }
     .sc-qr img { width:100%; height:100%; }
 
-    .sc-info { flex:1; padding-top:52px; padding-right:6px; }
+    .sc-info { flex:1; padding-top:56px; padding-right:6px; }
     .sc-name { font-size:1.3rem; font-weight:800; line-height:1.2; }
     .sc-title { color:var(--ac,#00c896); font-size:.86rem; margin-top:4px; font-weight:600; }
     .sc-loc { color:var(--t3,#6b7686); font-size:.78rem; margin-top:4px; }
@@ -81,9 +81,9 @@
     .sc-bio { color:var(--t2,#9aa5b4); font-size:.84rem; line-height:1.7; padding:14px 20px 0; }
 
     /* Action buttons */
-    .sc-actions { display:flex; gap:8px; padding:16px 20px; flex-wrap:wrap; }
+    .sc-actions { display:flex; gap:8px; padding:16px 20px; flex-wrap:wrap; justify-content:center; }
     .sc-btn {
-      flex:1; min-width:90px; padding:11px 14px; border-radius:14px; border:none; cursor:pointer;
+      padding:9px 16px; border-radius:12px; border:none; cursor:pointer;
       font-family:inherit; font-size:.8rem; font-weight:700; transition:transform .15s, opacity .15s;
     }
     .sc-btn:active { transform:scale(.96); }
@@ -102,14 +102,14 @@
     .sc-stat-l { font-size:.68rem; color:var(--t3,#6b7686); margin-top:3px; display:flex; align-items:center; justify-content:center; gap:3px; }
 
     /* Tabs */
-    .sc-tabs { display:flex; gap:4px; padding:14px 20px 0; overflow-x:auto; }
+    .sc-tabs { display:flex; gap:14px; padding:14px 20px 0; overflow-x:auto; border-bottom:1px solid rgba(255,255,255,.06); }
     .sc-tab {
-      padding:8px 14px; border-radius:10px; cursor:pointer; white-space:nowrap;
-      font-size:.8rem; font-weight:600; color:var(--t3,#6b7686); background:transparent; border:none;
-      font-family:inherit;
+      padding:10px 6px; cursor:pointer; white-space:nowrap;
+      font-size:.8rem; font-weight:600; color:var(--t3,#6b7686); background:transparent;
+      border:none; border-bottom:2px solid transparent; font-family:inherit;
+      display:inline-flex; align-items:center; gap:5px; transition:color .2s, border-color .2s;
     }
-    .sc-tab.active { background:rgba(0,200,150,.12); color:var(--ac,#00c896); }
-    .sc-tab { display:inline-flex; align-items:center; gap:5px; }
+    .sc-tab.active { color:var(--ac,#00c896); border-bottom-color:var(--ac,#00c896); }
 
     /* Tab content */
     .sc-content { padding:16px 20px 24px; min-height:80px; }
@@ -145,9 +145,9 @@
 <body>
   <!-- Header -->
   <div class="sc-header">
-    <button class="sc-hicon" onclick="history.back()" title="رجوع"><i data-lucide="menu" class="ico"></i></button>
-    <div class="sc-logo">تواصلنا</div>
     <button class="sc-hicon" id="scHomeBtn" title="الرئيسية"><i data-lucide="home" class="ico"></i></button>
+    <div class="sc-logo">تواصلنا</div>
+    <button class="sc-hicon" onclick="history.back()" title="رجوع"><i data-lucide="menu" class="ico"></i></button>
   </div>
 
   <div class="sc-wrap">
