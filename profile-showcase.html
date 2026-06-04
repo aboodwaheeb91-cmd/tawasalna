@@ -83,44 +83,30 @@
       align-items:flex-start;
     }
     .sc-ava-col { display:flex; flex-direction:column; align-items:center; gap:8px; flex-shrink:0; }
-    /* ── Premium multi-layer avatar ── */
+    /* ── Single glass ring avatar (ring centered on image edge) ── */
     .sc-avatar-wrap {
       position:relative; width:106px; height:106px; flex-shrink:0;
       display:flex; align-items:center; justify-content:center;
     }
-    /* Outer glass ring (semi-transparent, blurred backdrop) */
-    .sc-avatar-glass {
-      position:absolute; inset:0; border-radius:50%;
-      background:linear-gradient(135deg, rgba(255,255,255,.15), rgba(255,255,255,.05));
-      border:1.5px solid rgba(255,255,255,.12);
-      backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
-      box-shadow:0 8px 28px rgba(0,0,0,.35);
-    }
-    /* Soft ambient glow (dynamic color set via JS var --av-glow) */
-    .sc-avatar-wrap::before {
-      content:''; position:absolute; inset:-6px; border-radius:50%; z-index:-1;
-      background:radial-gradient(circle, var(--av-glow, rgba(0,200,150,.1)), transparent 70%);
-      filter:blur(8px); opacity:.25;
-    }
-    /* Inner glass ring (thin, semi-transparent — image edges show through) */
-    .sc-avatar-ring {
-      position:absolute; inset:3px; border-radius:50%; padding:0;
-      border:1.5px solid rgba(255,255,255,.18);
-      background:transparent;
-    }
-    /* The image itself */
+    /* The image */
     .sc-avatar {
       width:100%; height:100%; border-radius:50%;
-      border:none;
-      background:var(--bg,#0a0e14); object-fit:cover; display:flex;
-      align-items:center; justify-content:center; font-size:2.6rem; overflow:hidden;
+      border:none; background:var(--bg,#0a0e14);
+      object-fit:cover; display:flex; align-items:center; justify-content:center;
+      font-size:2.6rem; overflow:hidden;
     }
-    /* Top light reflection (glassy sheen) */
+    /* Single glass ring, centered on the image edge (50% in / 50% out)
+       via outline (sits ON the border-box edge) + subtle glass tint */
     .sc-avatar-wrap::after {
-      content:''; position:absolute; top:6px; left:18%; width:64%; height:32%;
-      border-radius:50%; pointer-events:none; z-index:3;
-      background:linear-gradient(180deg, rgba(255,255,255,.22), transparent);
-      filter:blur(2px);
+      content:''; position:absolute; inset:0; border-radius:50%;
+      border:3px solid rgba(255,255,255,.14);
+      box-shadow:0 0 0 .5px rgba(255,255,255,.06),
+                 inset 0 0 0 .5px rgba(255,255,255,.06);
+      backdrop-filter:blur(2px); -webkit-backdrop-filter:blur(2px);
+      pointer-events:none;
+      /* pull ring outward by half its width so it straddles the edge */
+      margin:-1.5px;
+      width:calc(100% + 3px); height:calc(100% + 3px);
     }
     .sc-qr {
       width:62px; height:62px; border-radius:11px; background:#fff; padding:6px;
@@ -246,10 +232,7 @@
         <div class="sc-prof-row">
           <div class="sc-ava-col">
             <div class="sc-avatar-wrap" id="scAvatarWrap">
-              <div class="sc-avatar-glass"></div>
-              <div class="sc-avatar-ring">
-                <div class="sc-avatar" id="scAvatar"><i data-lucide="user" class="ico-lg"></i></div>
-              </div>
+              <div class="sc-avatar" id="scAvatar"><i data-lucide="user" class="ico-lg"></i></div>
             </div>
             <div class="sc-qr" id="scQr"></div>
           </div>
@@ -332,48 +315,6 @@
       var t=document.getElementById('scToast'); if(!t) return;
       t.textContent=msg; t.classList.add('show');
       setTimeout(function(){ t.classList.remove('show'); },2200);
-    }
-
-    // ── Avatar dynamic colors (extract from image edges; fallback to theme) ──
-    function applyAvatarFallback(){
-      var wrap=document.getElementById('scAvatarWrap');
-      if(!wrap) return;
-      // Use theme colors --ac / --ac2 (read from CSS, with safe defaults)
-      var cs=getComputedStyle(document.documentElement);
-      var c1=(cs.getPropertyValue('--ac')||'#00c896').trim();
-      var c2=(cs.getPropertyValue('--ac2')||'#2563ff').trim();
-      wrap.style.setProperty('--av-c1', c1);
-      wrap.style.setProperty('--av-c2', c2);
-      wrap.style.setProperty('--av-glow', 'rgba(0,200,150,.1)');
-    }
-
-    function extractAvatarColors(img){
-      var wrap=document.getElementById('scAvatarWrap');
-      if(!wrap) return;
-      try {
-        var s=24; // tiny canvas for performance
-        var cv=document.createElement('canvas');
-        cv.width=s; cv.height=s;
-        var ctx=cv.getContext('2d');
-        ctx.drawImage(img, 0, 0, s, s);
-        var data=ctx.getImageData(0,0,s,s).data; // throws if CORS-tainted
-        // Sample edge pixels (top, bottom, left, right strips)
-        var rs=0,gs=0,bs=0,n=0;
-        function add(x,y){ var i=(y*s+x)*4; rs+=data[i]; gs+=data[i+1]; bs+=data[i+2]; n++; }
-        for(var x=0;x<s;x++){ add(x,0); add(x,s-1); }
-        for(var y=0;y<s;y++){ add(0,y); add(s-1,y); }
-        var r=Math.round(rs/n), g=Math.round(gs/n), b=Math.round(bs/n);
-        // Build two tones from the averaged edge color
-        function clamp(v){ return Math.max(0,Math.min(255,v)); }
-        var c1='rgb('+r+','+g+','+b+')';
-        var c2='rgb('+clamp(r+40)+','+clamp(g+40)+','+clamp(b+60)+')';
-        wrap.style.setProperty('--av-c1', c1);
-        wrap.style.setProperty('--av-c2', c2);
-        wrap.style.setProperty('--av-glow', 'rgba('+r+','+g+','+b+',.12)');
-      } catch(e){
-        // CORS-tainted or any failure → theme fallback
-        applyAvatarFallback();
-      }
     }
 
     // Auto-fit name to one line by measuring real rendered width.
@@ -475,24 +416,14 @@
           }
         }
 
-        // Avatar (with crossOrigin for color extraction)
+        // Avatar image
         var av=document.getElementById('scAvatar');
         if(av && p.avatar_url){
           var img=new Image();
-          img.crossOrigin='anonymous';
           img.alt='';
           img.style.cssText='width:100%;height:100%;object-fit:cover;border-radius:50%';
-          img.onload=function(){
-            av.innerHTML=''; av.appendChild(img);
-            extractAvatarColors(img);  // dynamic border/glow (fallback inside)
-          };
-          img.onerror=function(){
-            // image failed → keep placeholder, theme fallback colors
-            applyAvatarFallback();
-          };
+          img.onload=function(){ av.innerHTML=''; av.appendChild(img); };
           img.src=esc(p.avatar_url);
-        } else {
-          applyAvatarFallback();
         }
 
         // QR (uses public QR service pointing to this showcase URL — no backend)
