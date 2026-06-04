@@ -2,8 +2,28 @@
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+  <link rel="dns-prefetch" href="https://fonts.gstatic.com">
+  <link rel="dns-prefetch" href="https://tawasolna.com">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#00c896">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="تواصلنا">
+  <link rel="apple-touch-icon" href="/icon-192.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>تواصلنا - منصة التوظيف والتوثيق العربية</title>
+  <meta name="description" content="ابنِ ملفك الشخصي، وثّق خبراتك، وابحث عن وظيفتك المثالية. منصة تواصلنا تجمع الموظفين والشركات والجهات التعليمية.">
+  <meta property="og:title" content="تواصلنا - منصة التوظيف والتوثيق العربية">
+  <meta property="og:description" content="ابنِ ملفك الشخصي، وثّق خبراتك، وابحث عن وظيفتك المثالية. منصة تواصلنا تجمع الموظفين والشركات والجهات التعليمية.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://tawasolna.com">
+  <meta property="og:locale" content="ar_AR">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="تواصلنا - منصة التوظيف والتوثيق العربية">
+  <meta name="twitter:description" content="ابنِ ملفك الشخصي، وثّق خبراتك، وابحث عن وظيفتك المثالية. منصة تواصلنا تجمع الموظفين والشركات والجهات التعليمية.">
+  <meta name="robots" content="index, follow">
+  <link rel="canonical" href="https://tawasolna.com">
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;900&display=swap" rel="stylesheet">
 <style>
 :root{--ac:#00c896;--ac2:#2563ff;--bg:#070b18;--t:rgba(255,255,255,.87);--t2:rgba(255,255,255,.5);--t3:rgba(255,255,255,.28);}
@@ -140,9 +160,29 @@ footer{position:relative;z-index:1;border-top:1px solid rgba(255,255,255,.06);pa
 @media(max-width:480px){
   .nav-btns .btn-ghost{display:none;}
 }
+
+/* ══ ITQAN Utilities ══ */
+@keyframes tw-fadein{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:none;}}
+.tw-toast[aria-live="polite"]{position:fixed;bottom:30px;left:50%;transform:translateX(-50%) translateY(20px);background:rgba(7,11,24,.97);border:1px solid rgba(255,255,255,.1);backdrop-filter:blur(20px);border-radius:14px;padding:12px 20px;display:flex;align-items:center;gap:10px;font-size:.82rem;font-family:Cairo,sans-serif;color:rgba(255,255,255,.92);opacity:0;transition:all .3s cubic-bezier(.34,1.56,.64,1);z-index:9999;white-space:nowrap;}
+.tw-toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+.tw-toast.success{border-color:rgba(0,200,150,.3);}
+
+
+.nav.scrolled{background:rgba(7,11,24,.98);box-shadow:0 4px 24px rgba(0,0,0,.3);}
+
 </style>
+<style>.skip-link{position:absolute;top:-40px;right:0;background:var(--ac,#00c896);color:#0d1a2e;padding:8px 16px;border-radius:0 0 8px 0;font-family:Cairo,sans-serif;font-size:.8rem;font-weight:700;text-decoration:none;transition:top .2s;z-index:10000}.skip-link:focus{top:0}</style><a href="#main-content" class="skip-link">تخطى للمحتوى الرئيسي</a><link rel="stylesheet" href="/static/tw_shared.css">
 </head>
 <body>
+<!--
+╔══════════════════════════════════════════════╗
+║  TAWASALNA - LANDING                         ║
+║  Architecture: Hybrid                        ║
+║  Last Modified: 2026-05                      ║
+║  DO NOT EDIT outside designated sections     ║
+╚══════════════════════════════════════════════╝
+-->
+
 
 <div class="bg-orbs">
   <div class="orb o1"></div>
@@ -152,8 +192,9 @@ footer{position:relative;z-index:1;border-top:1px solid rgba(255,255,255,.06);pa
 <div class="grid-bg"></div>
 
 <!-- ══ NAV ══ -->
+<!-- ██ NAVBAR SECTION ██ -->
 <nav class="nav">
-  <div class="nav-logo">تواصلنا</div>
+  <div class="nav-logo"><img src="https://wrxvmdmknhoufoeprpoc.supabase.co/storage/v1/object/public/site/Logo.svg" alt="تواصلنا" style="height:36px;width:auto;object-fit:contain;display:block"></div>
   <div class="nav-links">
     <a class="nav-link" href="#who">لمن؟</a>
     <a class="nav-link" href="#how">كيف؟</a>
@@ -161,14 +202,17 @@ footer{position:relative;z-index:1;border-top:1px solid rgba(255,255,255,.06);pa
     <a class="nav-link" href="#verify">التوثيق</a>
   </div>
   <div class="nav-btns">
-    <a class="btn-ghost" href="/login">دخول</a>
-    <a class="btn-primary" href="/login">ابدأ مجاناً</a>
+    <a class="btn-ghost" href="index.html">دخول</a>
+    <a class="btn-primary" href="index.html">ابدأ مجاناً</a>
   </div>
 </nav>
 
 <!-- ══ HERO ══ -->
+<!-- ██ HERO SECTION ██ -->
+<!-- ── Content Section ── -->
 <section class="hero">
   <div class="hero-badge">🚀 منصة التوظيف والتوثيق العربية</div>
+  
   <h1 class="hero-title">
     وظيفتك تبدأ من<br>
     <span>ملف موثوق</span>
@@ -178,12 +222,12 @@ footer{position:relative;z-index:1;border-top:1px solid rgba(255,255,255,.06);pa
     ابنِ ملفك الشخصي، وثّق خبراتك وشهاداتك، وابحث عن فرصتك المثالية.
   </p>
   <div class="hero-btns">
-    <a class="btn-lg btn-lg-primary" href="/login">🚀 ابدأ الآن - مجاناً</a>
+    <a class="btn-lg btn-lg-primary" href="index.html">🚀 ابدأ الآن - مجاناً</a>
     <a class="btn-lg btn-lg-ghost" href="#how">تعرّف على المنصة</a>
   </div>
   <div class="hero-stats">
-    <div class="hstat"><div class="hstat-n">3</div><div class="hstat-l">أنواع حسابات</div></div>
-    <div class="hstat"><div class="hstat-n">12</div><div class="hstat-l">صفحة متكاملة</div></div>
+    <div class="hstat"><div class="hstat-n" id="statJobs">--</div><div class="hstat-l">وظيفة متاحة</div></div>
+    <div class="hstat"><div class="hstat-n" id="statUsers">--</div><div class="hstat-l">مستخدم مسجل</div></div>
     <div class="hstat"><div class="hstat-n">100%</div><div class="hstat-l">عربي</div></div>
     <div class="hstat"><div class="hstat-n">مجاني</div><div class="hstat-l">للموظفين دائماً</div></div>
   </div>
@@ -339,6 +383,41 @@ footer{position:relative;z-index:1;border-top:1px solid rgba(255,255,255,.06);pa
 </section>
 
 <!-- ══ CTA ══ -->
+
+<!-- ══ Social Proof ══ -->
+<section id="testimonials" style="padding:60px 5%">
+  <div style="text-align:center;margin-bottom:40px">
+    <h2 style="font-size:1.6rem;font-weight:900;margin-bottom:8px">ماذا يقول مستخدمونا</h2>
+    <p style="color:rgba(255,255,255,.4);font-size:.85rem">آراء حقيقية من مجتمعنا</p>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;max-width:900px;margin:0 auto">
+    <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:16px;padding:20px">
+      <div style="font-size:1.1rem;margin-bottom:12px">⭐⭐⭐⭐⭐</div>
+      <p style="font-size:.82rem;color:rgba(255,255,255,.7);line-height:1.8;margin-bottom:14px">"وجدت وظيفتي خلال أسبوعين من التسجيل. الملف الشخصي الموثق كان الفرق الكبير."</p>
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,#00c896,#2563ff);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:.85rem">أ</div>
+        <div><div style="font-size:.8rem;font-weight:700">أحمد العمري</div><div style="font-size:.7rem;color:rgba(255,255,255,.4)">مطور ويب · عمان</div></div>
+      </div>
+    </div>
+    <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:16px;padding:20px">
+      <div style="font-size:1.1rem;margin-bottom:12px">⭐⭐⭐⭐⭐</div>
+      <p style="font-size:.82rem;color:rgba(255,255,255,.7);line-height:1.8;margin-bottom:14px">"المنصة سهّلت علينا إيجاد الكفاءات. نشرنا 5 وظائف وملأناها في وقت قياسي."</p>
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,#2563ff,#00c896);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:.85rem">س</div>
+        <div><div style="font-size:.8rem;font-weight:700">سارة التميمي</div><div style="font-size:.7rem;color:rgba(255,255,255,.4)">مدير HR · الرياض</div></div>
+      </div>
+    </div>
+    <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:16px;padding:20px">
+      <div style="font-size:1.1rem;margin-bottom:12px">⭐⭐⭐⭐⭐</div>
+      <p style="font-size:.82rem;color:rgba(255,255,255,.7);line-height:1.8;margin-bottom:14px">"ربطنا طلابنا بالشركات مباشرة. نظام التوثيق أضاف مصداقية لشهاداتنا."</p>
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,#7c3aed,#00c896);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:.85rem">م</div>
+        <div><div style="font-size:.8rem;font-weight:700">د. محمد الرشيد</div><div style="font-size:.7rem;color:rgba(255,255,255,.4)">مدير أكاديمية · دبي</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
 <section class="cta-section">
   <div class="cta-box reveal">
     <h2 class="cta-title">جاهز تبدأ رحلتك؟</h2>
@@ -347,24 +426,28 @@ footer{position:relative;z-index:1;border-top:1px solid rgba(255,255,255,.06);pa
       الموظف مجاني دائماً — بدون بطاقة ائتمان.
     </p>
     <div class="cta-btns">
-      <a class="btn-lg btn-lg-primary" href="/login">🚀 ابدأ الآن مجاناً</a>
+      <a class="btn-lg btn-lg-primary" href="index.html">🚀 ابدأ الآن مجاناً</a>
     </div>
     <div class="user-types-row">
-      <a class="utype" href="/login">👤 أنا موظف</a>
-      <a class="utype" href="/login">🏢 أنا شركة</a>
-      <a class="utype" href="/login">🎓 أنا جهة تعليمية</a>
+      <a class="utype" href="index.html">👤 أنا موظف</a>
+      <a class="utype" href="index.html">🏢 أنا شركة</a>
+      <a class="utype" href="index.html">🎓 أنا جهة تعليمية</a>
     </div>
   </div>
 </section>
 
 <!-- ══ FOOTER ══ -->
+<!-- ██ FOOTER SECTION ██ -->
 <footer>
   <div class="footer-logo">تواصلنا</div>
   <div class="footer-text">منصة التوظيف والتوثيق العربية © 2025</div>
-  <div class="footer-text"><a href="/login" style="color:var(--ac);text-decoration:none">دخول</a> · <a href="/login" style="color:var(--ac);text-decoration:none">تسجيل</a></div>
+  <div class="footer-text"><a href="index.html" style="color:var(--ac);text-decoration:none">دخول</a> · <a href="index.html" style="color:var(--ac);text-decoration:none">تسجيل</a></div>
 </footer>
 
+<script src="/tw_shared.js"></script>
 <script>
+(function(){
+
 // Reveal on scroll
 const observer = new IntersectionObserver(entries=>{
   entries.forEach(e=>{ if(e.isIntersecting) e.target.classList.add('visible'); });
@@ -376,7 +459,7 @@ try{
   const u=JSON.parse(localStorage.getItem('tw_user'));
   if(u&&u.id){
     const dest=u.user_type==='co'?'company-profile.html?id='+u.id:u.user_type==='edu'?'edu-profile.html?id='+u.id:'profile.html?id='+u.id;
-    document.querySelectorAll('a[href="/login"]').forEach(a=>{
+    document.querySelectorAll('a[href="index.html"]').forEach(a=>{
       if(a.textContent.includes('ابدأ')||a.textContent.includes('دخول')){
         a.href=dest;
         if(a.textContent.includes('ابدأ الآن')) a.textContent='🏠 الذهاب للوحة التحكم';
@@ -384,6 +467,88 @@ try{
     });
   }
 }catch(e){}
+
+})();
 </script>
+
+<script>
+(function(){
+
+// ── ITQAN Utilities ──
+var _twToast=null;
+function showToast(msg,type,dur){
+  type=type||'success';dur=dur||2800;
+  if(_twToast){_twToast.remove();}
+  var t=document.createElement('div');
+  t.className='tw-toast '+type;
+  t.innerHTML='<span>'+(type==='success'?'✅':type==='error'?'❌':'ℹ️')+'</span><span>'+msg+'</span>';
+  document.body.appendChild(t);_twToast=t;
+  requestAnimationFrame(function(){requestAnimationFrame(function(){t.classList.add('show');});});
+  setTimeout(function(){t.classList.remove('show');setTimeout(function(){if(t.parentNode)t.remove();},350);},dur);
+}
+
+// Page fade in
+document.documentElement.style.opacity='0';
+window.addEventListener('load',function(){
+  document.documentElement.style.transition='opacity .3s ease';
+  document.documentElement.style.opacity='1';
+});
+
+// Smooth scroll for nav links
+document.querySelectorAll('a[href^="#"]').forEach(function(a){
+  a.addEventListener('click',function(e){
+    var target=document.querySelector(a.getAttribute('href'));
+    if(target){e.preventDefault();target.scrollIntoView({behavior:'smooth',block:'start'});}
+  });
+});
+
+// Animated counters
+function animateCounter(el, target, suffix){
+  suffix=suffix||'';
+  var count=0, step=Math.max(1,Math.ceil(target/60));
+  var timer=setInterval(function(){
+    count=Math.min(count+step,target);
+    el.textContent=count.toLocaleString('ar')+suffix;
+    if(count>=target) clearInterval(timer);
+  },25);
+}
+
+// Load real stats from API
+fetch('/jobs').then(function(r){return r.json();}).then(function(data){
+  var jobCount=data.count||0;
+  var el=document.getElementById('statJobs');
+  if(el&&jobCount>0) animateCounter(el,jobCount,'+');
+}).catch(function(){});
+
+fetch('/auth/users').then(function(r){return r.json();}).then(function(data){
+  var userCount=(data.users||[]).length;
+  var el=document.getElementById('statUsers');
+  if(el&&userCount>0) animateCounter(el,userCount,'+');
+}).catch(function(){});
+
+// Intersection Observer for animations
+var observer=new IntersectionObserver(function(entries){
+  entries.forEach(function(e){
+    if(e.isIntersecting){
+      e.target.style.animation='tw-fadein .5s ease forwards';
+      observer.unobserve(e.target);
+    }
+  });
+},{threshold:0.1});
+document.querySelectorAll('.feature-card,.step,.stat-box,.who-card').forEach(function(el){
+  el.style.opacity='0';
+  observer.observe(el);
+});
+
+// Nav scroll effect
+window.addEventListener('scroll',function(){
+  var nav=document.querySelector('.nav');
+  if(nav) nav.classList.toggle('scrolled',window.scrollY>50);
+});
+
+
+})();
+</script>
+
 </body>
 </html>

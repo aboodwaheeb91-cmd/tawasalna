@@ -1,0 +1,486 @@
+/*
+╔══════════════════════════════════════════════════╗
+║  TAWASALNA - Shared CSS (tw_shared.css)          ║
+║  المرحلة 4: CSS المشترك بين كل الصفحات           ║
+║  ⚠️  لا تعدّل CSS خاص بصفحة معينة هنا           ║
+╚══════════════════════════════════════════════════╝
+*/
+
+/* ══════════════════════════════════════
+   1. CSS Variables (الألوان الأساسية)
+   ══════════════════════════════════════ */
+:root {
+  --ac:    #00c896;
+  --ac2:   #2563ff;
+  --ac-rgb: 0,200,150;
+  --bg:    #070b18;
+  --bg2:   #0d1426;
+  --bdr:   rgba(255,255,255,.08);
+  --t1:    #ffffff;
+  --t2:    rgba(255,255,255,.7);
+  --t3:    rgba(255,255,255,.4);
+  --t4:    rgba(255,255,255,.2);
+  --danger: #f87171;
+  --warning: #fbbf24;
+  --success: #34d399;
+}
+
+/* ══════════════════════════════════════
+   2. Reset & Base
+   ══════════════════════════════════════ */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Cairo', sans-serif;
+  background: var(--bg);
+  color: var(--t1);
+  direction: rtl;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ══════════════════════════════════════
+   3. Navbar (مشترك بين الصفحات)
+   ══════════════════════════════════════ */
+.tw-nav {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 200;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px;
+  background: rgba(7,11,24,.95);
+  backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--bdr);
+}
+
+.tw-nav-logo {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  padding: 4px 0;
+}
+
+.tw-nav-logo img {
+  height: 34px;
+  width: auto;
+  object-fit: contain;
+}
+
+/* ══════════════════════════════════════
+   4. Buttons (الأزرار)
+   ══════════════════════════════════════ */
+
+/* Primary Button */
+.tw-btn {
+  padding: 9px 18px;
+  border-radius: 10px;
+  border: none;
+  background: linear-gradient(135deg, var(--ac), var(--ac2));
+  color: #fff;
+  font-family: 'Cairo', sans-serif;
+  font-size: .82rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity .2s, transform .1s;
+  white-space: nowrap;
+}
+
+.tw-btn:hover  { opacity: .9; }
+.tw-btn:active { transform: scale(.97); }
+.tw-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+/* Ghost Button */
+.tw-btn-ghost {
+  padding: 8px 16px;
+  border-radius: 10px;
+  border: 1px solid var(--bdr);
+  background: rgba(255,255,255,.04);
+  color: var(--t2);
+  font-family: 'Cairo', sans-serif;
+  font-size: .8rem;
+  cursor: pointer;
+  transition: border-color .2s, color .2s;
+}
+
+.tw-btn-ghost:hover {
+  border-color: rgba(0,200,150,.3);
+  color: var(--ac);
+}
+
+/* Danger Button */
+.tw-btn-danger {
+  padding: 7px 14px;
+  border-radius: 8px;
+  border: 1px solid rgba(239,68,68,.2);
+  background: rgba(239,68,68,.08);
+  color: var(--danger);
+  font-family: 'Cairo', sans-serif;
+  font-size: .75rem;
+  cursor: pointer;
+}
+
+/* Small Action Button */
+.tw-ab {
+  padding: 5px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--bdr);
+  background: rgba(255,255,255,.04);
+  color: var(--t3);
+  font-family: 'Cairo', sans-serif;
+  font-size: .68rem;
+  cursor: pointer;
+  transition: border-color .2s, color .2s;
+}
+.tw-ab:hover { border-color: rgba(0,200,150,.3); color: var(--ac); }
+
+/* ══════════════════════════════════════
+   5. Inputs & Forms
+   ══════════════════════════════════════ */
+.tw-input {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--bdr);
+  background: rgba(255,255,255,.05);
+  color: var(--t1);
+  font-family: 'Cairo', sans-serif;
+  font-size: .82rem;
+  transition: border-color .2s;
+}
+
+.tw-input:focus {
+  outline: none;
+  border-color: rgba(0,200,150,.4);
+}
+
+.tw-input::placeholder { color: var(--t4); }
+
+.tw-select {
+  width: 100%;
+  padding: 9px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--bdr);
+  background: rgba(255,255,255,.05);
+  color: var(--t2);
+  font-family: 'Cairo', sans-serif;
+  font-size: .8rem;
+  cursor: pointer;
+}
+
+.tw-textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--bdr);
+  background: rgba(255,255,255,.05);
+  color: var(--t1);
+  font-family: 'Cairo', sans-serif;
+  font-size: .82rem;
+  resize: vertical;
+  min-height: 80px;
+}
+
+/* Form Field Wrapper */
+.tw-field {
+  margin-bottom: 14px;
+}
+.tw-field label {
+  display: block;
+  font-size: .72rem;
+  color: var(--t3);
+  margin-bottom: 5px;
+}
+
+/* ══════════════════════════════════════
+   6. Cards (البطاقات)
+   ══════════════════════════════════════ */
+.tw-card {
+  background: rgba(255,255,255,.04);
+  border: 1px solid var(--bdr);
+  border-radius: 16px;
+  padding: 16px;
+}
+
+.tw-card-sm {
+  background: rgba(255,255,255,.04);
+  border: 1px solid var(--bdr);
+  border-radius: 12px;
+  padding: 12px;
+}
+
+/* Accent Card */
+.tw-card-accent {
+  background: rgba(0,200,150,.06);
+  border: 1px solid rgba(0,200,150,.15);
+  border-radius: 14px;
+  padding: 14px;
+}
+
+/* ══════════════════════════════════════
+   7. Modal (النوافذ المنبثقة)
+   ══════════════════════════════════════ */
+.tw-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  background: rgba(0,0,0,.7);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.tw-modal-box {
+  background: #0d1426;
+  border-radius: 20px 20px 0 0;
+  padding: 20px;
+  width: 100%;
+  max-width: 480px;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.tw-modal-title {
+  font-weight: 800;
+  font-size: .95rem;
+  margin-bottom: 14px;
+}
+
+/* ══════════════════════════════════════
+   8. Toast Notifications
+   ══════════════════════════════════════ */
+.tw-toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  opacity: 0;
+  background: rgba(7,11,24,.97);
+  border: 1px solid var(--bdr);
+  border-radius: 14px;
+  padding: 10px 16px;
+  font-size: .78rem;
+  font-weight: 700;
+  font-family: 'Cairo', sans-serif;
+  z-index: 9999;
+  transition: all .3s;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.tw-toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+.tw-toast.success { border-color: rgba(0,200,150,.3); }
+.tw-toast.error   { border-color: rgba(239,68,68,.3); }
+.tw-toast.info    { border-color: rgba(37,99,255,.3); }
+
+/* ══════════════════════════════════════
+   9. Status Badges
+   ══════════════════════════════════════ */
+.tw-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: .65rem;
+  font-weight: 700;
+}
+
+.tw-badge-success {
+  background: rgba(0,200,150,.1);
+  color: var(--ac);
+  border: 1px solid rgba(0,200,150,.2);
+}
+
+.tw-badge-warning {
+  background: rgba(251,191,36,.1);
+  color: var(--warning);
+  border: 1px solid rgba(251,191,36,.2);
+}
+
+.tw-badge-danger {
+  background: rgba(239,68,68,.1);
+  color: var(--danger);
+  border: 1px solid rgba(239,68,68,.2);
+}
+
+.tw-badge-blue {
+  background: rgba(37,99,255,.1);
+  color: #60a5fa;
+  border: 1px solid rgba(37,99,255,.2);
+}
+
+/* ══════════════════════════════════════
+   10. Loading States
+   ══════════════════════════════════════ */
+.tw-skeleton {
+  background: linear-gradient(
+    90deg,
+    rgba(255,255,255,.06) 25%,
+    rgba(255,255,255,.1) 50%,
+    rgba(255,255,255,.06) 75%
+  );
+  background-size: 200% 100%;
+  animation: tw-skeleton-wave 1.5s infinite;
+  border-radius: 8px;
+}
+
+@keyframes tw-skeleton-wave {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.tw-spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(255,255,255,.1);
+  border-top-color: var(--ac);
+  border-radius: 50%;
+  animation: tw-spin .7s linear infinite;
+}
+
+@keyframes tw-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ══════════════════════════════════════
+   11. Empty States
+   ══════════════════════════════════════ */
+.tw-empty {
+  text-align: center;
+  padding: 30px 20px;
+  color: var(--t3);
+}
+
+.tw-empty-icon {
+  font-size: 2rem;
+  display: block;
+  margin-bottom: 8px;
+  opacity: .6;
+}
+
+.tw-empty-title {
+  font-size: .85rem;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.tw-empty-sub {
+  font-size: .72rem;
+  color: var(--t4);
+}
+
+/* ══════════════════════════════════════
+   12. Pagination
+   ══════════════════════════════════════ */
+.tw-pag {
+  display: flex;
+  gap: 5px;
+  justify-content: center;
+  padding: 12px 0;
+  flex-wrap: wrap;
+}
+
+.tw-pag-btn {
+  padding: 5px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--bdr);
+  background: rgba(255,255,255,.04);
+  color: var(--t3);
+  font-family: 'Cairo', sans-serif;
+  font-size: .72rem;
+  cursor: pointer;
+  transition: all .2s;
+}
+
+.tw-pag-btn.active,
+.tw-pag-btn:hover {
+  background: rgba(0,200,150,.1);
+  color: var(--ac);
+  border-color: rgba(0,200,150,.3);
+}
+
+/* ══════════════════════════════════════
+   13. Responsive Utilities
+   ══════════════════════════════════════ */
+.tw-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.tw-grid-3 {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+}
+
+@media (max-width: 480px) {
+  .tw-grid-3 { grid-template-columns: 1fr 1fr; }
+}
+
+@media (max-width: 360px) {
+  .tw-grid-2, .tw-grid-3 { grid-template-columns: 1fr; }
+}
+
+/* ══════════════════════════════════════
+   14. Verified Badge
+   ══════════════════════════════════════ */
+.tw-verified {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--ac);
+  font-size: .7rem;
+  font-weight: 700;
+}
+
+.tw-verified::before {
+  content: '✓';
+  background: var(--ac);
+  color: var(--bg);
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: .55rem;
+}
+
+/* ══════════════════════════════════════
+   15. Dividers
+   ══════════════════════════════════════ */
+.tw-divider {
+  height: 1px;
+  background: var(--bdr);
+  margin: 12px 0;
+}
+
+.tw-divider-accent {
+  height: 2px;
+  background: linear-gradient(90deg, var(--ac), var(--ac2));
+  border-radius: 2px;
+  margin: 14px 0;
+}
+
+/*
+  ══════════════════════════════════════
+  ⚠️  ملاحظة مهمة:
+  هذا الملف يحتوي CSS المشترك فقط.
+  CSS خاص بكل صفحة يبقى داخل <style> في الصفحة.
+  لا تضف هنا CSS خاص بصفحة واحدة.
+  ══════════════════════════════════════
+*/

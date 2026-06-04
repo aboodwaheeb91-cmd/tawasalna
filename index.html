@@ -2,8 +2,28 @@
 <html lang="ar" dir="rtl" id="html">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>تواصلنا - دخول وتسجيل</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+  <link rel="dns-prefetch" href="https://fonts.gstatic.com">
+  <link rel="dns-prefetch" href="https://tawasolna.com">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#00c896">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="تواصلنا">
+  <link rel="apple-touch-icon" href="/icon-192.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>تسجيل الدخول - تواصلنا</title>
+  <meta name="description" content="سجّل دخولك أو أنشئ حسابك في تواصلنا - منصة التوظيف والتوثيق العربية.">
+  <meta property="og:title" content="تسجيل الدخول - تواصلنا">
+  <meta property="og:description" content="سجّل دخولك أو أنشئ حسابك في تواصلنا - منصة التوظيف والتوثيق العربية.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://tawasolna.com">
+  <meta property="og:locale" content="ar_AR">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="تسجيل الدخول - تواصلنا">
+  <meta name="twitter:description" content="سجّل دخولك أو أنشئ حسابك في تواصلنا - منصة التوظيف والتوثيق العربية.">
+  <meta name="robots" content="index, follow">
+  <link rel="canonical" href="https://tawasolna.com">
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;900&display=swap" rel="stylesheet">
 <style>
 :root{--ac:#00c896;--ac2:#2563ff;}
@@ -111,16 +131,59 @@ body{font-family:'Cairo',sans-serif;background:#070b18;min-height:100vh;display:
 .toast.show{transform:translateX(-50%) translateY(0);}
 .toast.success{background:#065f46;color:#6ee7b7;border:1px solid rgba(110,231,183,.2);}
 .toast.error{background:#7f1d1d;color:#fca5a5;border:1px solid rgba(252,165,165,.2);}
+
+
+/* ══ ITQAN - Shared Utilities ══ */
+@keyframes tw-shimmer{0%{background-position:-1000px 0}100%{background-position:1000px 0}}
+@keyframes tw-spin{to{transform:translateY(-50%) rotate(360deg);}}
+@keyframes tw-fadein{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:none;}}
+@keyframes tw-verified{0%,100%{box-shadow:0 0 0 0 rgba(0,200,150,0);}50%{box-shadow:0 0 0 5px rgba(0,200,150,.15);}}
+.tw-toast[aria-live="polite"]{position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(20px);background:rgba(7,11,24,.97);border:1px solid rgba(255,255,255,.1);backdrop-filter:blur(20px);border-radius:14px;padding:12px 20px;display:flex;align-items:center;gap:10px;font-size:.82rem;font-family:Cairo,sans-serif;color:rgba(255,255,255,.92);opacity:0;transition:all .3s cubic-bezier(.34,1.56,.64,1);z-index:9999;white-space:nowrap;min-width:180px;justify-content:center;box-shadow:0 8px 32px rgba(0,0,0,.4);}
+.tw-toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+.tw-toast.success{border-color:rgba(0,200,150,.3);}
+.tw-toast.error{border-color:rgba(239,68,68,.3);}
+.tw-toast.info{border-color:rgba(37,99,255,.3);}
+.tw-skeleton{background:linear-gradient(90deg,rgba(255,255,255,.04) 25%,rgba(255,255,255,.09) 50%,rgba(255,255,255,.04) 75%);background-size:2000px 100%;animation:tw-shimmer 1.5s infinite linear;border-radius:8px;}
+.tw-btn-loading{position:relative;pointer-events:none;opacity:.8;}
+.tw-btn-loading::after{content:'';position:absolute;width:14px;height:14px;border-radius:50%;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;animation:tw-spin .7s linear infinite;right:12px;top:50%;transform:translateY(-50%);}
+.tw-scroll-prog{position:fixed;top:0;left:0;height:2px;z-index:999;background:linear-gradient(90deg,var(--ac,#00c896),var(--ac2,#2563ff));transition:width .1s;width:0%;}
+.tw-fab{position:fixed;bottom:80px;left:18px;width:50px;height:50px;border-radius:50%;border:none;font-size:1.4rem;background:linear-gradient(135deg,var(--ac,#00c896),var(--ac2,#2563ff));color:#fff;cursor:pointer;box-shadow:0 4px 20px rgba(0,200,150,.35);transition:all .25s cubic-bezier(.34,1.56,.64,1);z-index:50;display:flex;align-items:center;justify-content:center;}
+.tw-fab:hover{transform:scale(1.12) rotate(90deg);}
+.tw-empty{text-align:center;padding:50px 20px;}
+.tw-empty-ico{font-size:2.5rem;margin-bottom:12px;opacity:.7;display:block;}
+.tw-empty-title{font-size:.95rem;font-weight:800;margin-bottom:6px;}
+.tw-empty-sub{font-size:.78rem;color:rgba(255,255,255,.35);margin-bottom:18px;line-height:1.6;}
+.tw-empty-btn{padding:10px 22px;border-radius:12px;background:linear-gradient(135deg,var(--ac,#00c896),var(--ac2,#2563ff));border:none;color:#fff;font-family:Cairo,sans-serif;font-weight:700;font-size:.8rem;cursor:pointer;}
+.tw-card-lift{transition:transform .2s,box-shadow .2s;}
+.tw-card-lift:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.3);}
+.tw-verified{animation:tw-verified 2.5s ease-in-out infinite;}
+
 </style>
+<style>.skip-link{position:absolute;top:-40px;right:0;background:var(--ac,#00c896);color:#0d1a2e;padding:8px 16px;border-radius:0 0 8px 0;font-family:Cairo,sans-serif;font-size:.8rem;font-weight:700;text-decoration:none;transition:top .2s;z-index:10000}.skip-link:focus{top:0}
+/* ── Password Eye Icon ── */
+.pass-wrap{position:relative;display:flex;align-items:center;}
+.pass-wrap input{width:100%;padding-left:36px!important;}
+.pass-eye{position:absolute;left:10px;cursor:pointer;font-size:1rem;opacity:.5;user-select:none;transition:opacity .2s;}
+.pass-eye:hover{opacity:.9;}
+</style><a href="#main-content" class="skip-link">تخطى للمحتوى الرئيسي</a><link rel="stylesheet" href="/static/tw_shared.css">
 </head>
 <body>
+<!--
+╔══════════════════════════════════════════════╗
+║  TAWASALNA - INDEX                           ║
+║  Architecture: Hybrid                        ║
+║  Last Modified: 2026-05                      ║
+║  DO NOT EDIT outside designated sections     ║
+╚══════════════════════════════════════════════╝
+-->
+
 <div class="bg"><div class="orb o1"></div><div class="orb o2"></div><div class="orb o3"></div></div>
 <div class="grid"></div>
 
 <div class="wrap">
   <!-- Logo -->
   <div class="logo">
-    <div class="logo-mark">تواصلنا</div>
+    <div class="logo-mark nav-logo"><img src="https://wrxvmdmknhoufoeprpoc.supabase.co/storage/v1/object/public/site/Logo.svg" alt="تواصلنا" style="height:36px;width:auto;object-fit:contain;display:block"></div>
     <div class="logo-sub">منصة التوظيف والتوثيق العربية</div>
   </div>
 
@@ -150,7 +213,16 @@ body{font-family:'Cairo',sans-serif;background:#070b18;min-height:100vh;display:
 
     </div>
 
-    <!-- REGISTER FORM -->
+    
+  <div style="margin-top:16px;display:flex;align-items:center;gap:10px">
+    <div style="flex:1;height:1px;background:rgba(255,255,255,.08)"></div>
+    <span style="font-size:.7rem;color:rgba(255,255,255,.3)">أو</span>
+    <div style="flex:1;height:1px;background:rgba(255,255,255,.08)"></div>
+  </div>
+  <button onclick="showToast('قريباً - تسجيل بـ Google','info')" style="width:100%;margin-top:12px;padding:11px;border-radius:12px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);color:rgba(255,255,255,.6);font-family:Cairo,sans-serif;font-size:.82rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px">
+    🌐 متابعة بـ Google
+  </button>
+  <!-- REGISTER FORM -->
     <div id="registerSection" class="hidden">
       <div class="form-title">تسجيل جديد</div>
 
@@ -177,7 +249,11 @@ body{font-family:'Cairo',sans-serif;background:#070b18;min-height:100vh;display:
 
       <div class="field"><label id="nameLabel">الاسم الكامل</label><input id="rName" autocomplete="off" placeholder="اكتب اسمك..."></div>
       <div class="field"><label>البريد الإلكتروني</label><input id="rEmail" autocomplete="off" type="email" placeholder="example@email.com"></div>
-      <div class="field"><label>كلمة المرور</label><input id="rPass" autocomplete="new-password" type="password" placeholder="6 أحرف على الأقل"></div>
+      <div class="field"><label>كلمة المرور</label><input id="rPass" autocomplete="new-password" type="password" placeholder="6 أحرف على الأقل" oninput="checkPassStrength(this.value)"></div>
+      <div id="passStrengthBar" style="height:3px;border-radius:2px;background:rgba(255,255,255,.08);margin-top:6px;transition:all .3s;display:none">
+        <div id="passStrengthFill" style="height:100%;border-radius:2px;width:0%;transition:all .3s"></div>
+      </div>
+      <div id="passStrengthLabel" style="font-size:.65rem;color:rgba(255,255,255,.4);margin-top:3px;display:none"></div>
       <button class="cta" id="regBtn" onclick="doRegister()">إنشاء حساب</button>
       <div class="switch-link">عندك حساب؟ <span onclick="showLogin()">دخول</span></div>
     </div>
@@ -187,7 +263,29 @@ body{font-family:'Cairo',sans-serif;background:#070b18;min-height:100vh;display:
 
 <div class="toast" id="toast"></div>
 
-<script>
+<script src="/tw_shared.js"></script>
+<script>// Redirect if already logged in
+try{
+  var _lu=JSON.parse(localStorage.getItem('tw_user'));
+  if(_lu&&_lu.id){
+    var dest=_lu.user_type==='co'?'company-profile.html?id='+(_lu.tw_id||_lu.id)
+            :_lu.user_type==='edu'?'edu-profile.html?id='+(_lu.tw_id||_lu.id)
+            :'profile.html?id='+(_lu.tw_id||_lu.id);
+    window.location.href=dest;
+  }
+}catch(e){}
+
+// Redirect if already logged in
+try{
+  const _lu=JSON.parse(localStorage.getItem('tw_user'));
+  if(_lu&&_lu.id){
+    const dest=_lu.user_type==='co'?'company-profile.html?id='+(_lu.tw_id||_lu.id)
+              :_lu.user_type==='edu'?'edu-profile.html?id='+(_lu.tw_id||_lu.id)
+              :'profile.html?id='+(_lu.tw_id||_lu.id);
+    window.location.href=dest;
+  }
+}catch(e){}
+
 let curType = 'emp';
 let instUserType = '';
 let instSubtype = '';
@@ -261,7 +359,7 @@ async function doLogin(){
   const pass = document.getElementById('lPass').value;
   if(!email||!pass){ toast('أدخل البريد وكلمة المرور','error'); return; }
   const btn = document.getElementById('loginBtn');
-  btn.disabled=true; btn.textContent='جاري الدخول...';
+  setBtnLoad(btn, true);
   try{
     const res = await fetch('/auth/login',{
       method:'POST',
@@ -270,7 +368,12 @@ async function doLogin(){
     });
     const data = await res.json();
     if(!res.ok){ toast(data.detail||'بيانات الدخول غير صحيحة','error'); return; }
+    // Clear old user data before storing new user (prevents cross-account leaks)
+    Object.keys(localStorage)
+      .filter(function(k){ return k.startsWith('tw_'); })
+      .forEach(function(k){ localStorage.removeItem(k); });
     localStorage.setItem('tw_user', JSON.stringify(data.user));
+        if(data.token) localStorage.setItem('tw_jwt', data.token);
     toast('مرحباً بك! 👋');
     setTimeout(()=>redirect(data.user), 600);
   }catch(e){ toast('تعذّر الاتصال بالخادم','error'); }
@@ -307,6 +410,7 @@ async function doRegister(){
     if(!res.ok){ toast(data.detail||'خطأ في التسجيل','error'); return; }
     const userData = {...data.user, institution_subtype: instSubtype||''};
     localStorage.setItem('tw_user', JSON.stringify(userData));
+        if(data.token) localStorage.setItem('tw_jwt', data.token);
     toast('تم إنشاء حسابك! 🎉');
     setTimeout(()=>redirect(data.user), 700);
   }catch(e){ toast('تعذّر الاتصال بالخادم','error'); }
@@ -320,6 +424,66 @@ document.addEventListener('keydown', e => {
     else doRegister();
   }
 });
+
+
+// ── Password Strength ──
+function checkPassStrength(val){
+  var bar=document.getElementById('passStrengthBar');
+  var fill=document.getElementById('passStrengthFill');
+  var label=document.getElementById('passStrengthLabel');
+  if(!bar||!val){if(bar)bar.style.display='none';return;}
+  bar.style.display='block';label.style.display='block';
+  var score=0;
+  if(val.length>=8) score++;
+  if(val.length>=12) score++;
+  if(/[A-Z]/.test(val)) score++;
+  if(/[0-9]/.test(val)) score++;
+  if(/[^A-Za-z0-9]/.test(val)) score++;
+  var levels=[
+    {w:'20%',c:'#ef4444',t:'ضعيف جداً'},
+    {w:'40%',c:'#f97316',t:'ضعيف'},
+    {w:'60%',c:'#eab308',t:'متوسط'},
+    {w:'80%',c:'#22c55e',t:'قوي'},
+    {w:'100%',c:'#00c896',t:'قوي جداً'}
+  ];
+  var level=levels[Math.min(score,4)];
+  fill.style.width=level.w;fill.style.background=level.c;
+  label.textContent=level.t;label.style.color=level.c;
+}
+
+// ══ ITQAN Utilities ══
+var _twToast=null;
+function showToast(msg,type,dur){
+  type=type||'success';dur=dur||2800;
+  if(_twToast){_twToast.remove();}
+  var t=document.createElement('div');
+  t.className='tw-toast '+type;
+  var ico=type==='success'?'✅':type==='error'?'❌':'ℹ️';
+  t.innerHTML='<span>'+ico+'</span><span>'+msg+'</span>';
+  document.body.appendChild(t);
+  _twToast=t;
+  requestAnimationFrame(function(){requestAnimationFrame(function(){t.classList.add('show');});});
+  setTimeout(function(){t.classList.remove('show');setTimeout(function(){if(t.parentNode)t.remove();},350);},dur);
+}
+function setBtnLoad(btn,loading){
+  if(!btn)return;
+  if(loading){btn.classList.add('tw-btn-loading');btn._orig=btn.textContent;btn.textContent='';btn.disabled=true;}
+  else{btn.classList.remove('tw-btn-loading');btn.textContent=btn._orig||'حفظ';btn.disabled=false;}
+}
+function twNavigate(url){
+  document.body.style.cssText='opacity:0;transform:translateY(-6px);transition:all .2s ease;';
+  setTimeout(function(){window.location.href=url;},180);
+}
+function initScrollProg(){
+  var p=document.createElement('div');p.className='tw-scroll-prog';
+  document.body.prepend(p);
+  window.addEventListener('scroll',function(){
+    var pct=window.scrollY/(document.body.scrollHeight-window.innerHeight)*100;
+    p.style.width=Math.min(pct,100)+'%';
+  });
+}
+
+
 </script>
 </body>
 </html>

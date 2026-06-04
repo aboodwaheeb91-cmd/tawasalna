@@ -2,7 +2,16 @@
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+  <link rel="dns-prefetch" href="https://fonts.gstatic.com">
+  <link rel="dns-prefetch" href="https://tawasolna.com">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#00c896">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="تواصلنا">
+  <link rel="apple-touch-icon" href="/icon-192.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>تواصلنا - المركز التعليمي</title>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
 <style>
@@ -204,13 +213,41 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-heig
   .courses-grid{grid-template-columns:1fr;}
   .stats-row{grid-template-columns:1fr 1fr;}
 }
+
+
+/* ══ ITQAN - Shared Utilities ══ */
+@keyframes tw-shimmer{0%{background-position:-1000px 0}100%{background-position:1000px 0}}
+@keyframes tw-spin{to{transform:translateY(-50%) rotate(360deg);}}
+@keyframes tw-fadein{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:none;}}
+@keyframes tw-verified{0%,100%{box-shadow:0 0 0 0 rgba(0,200,150,0);}50%{box-shadow:0 0 0 5px rgba(0,200,150,.15);}}
+.tw-toast[aria-live="polite"]{position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(20px);background:rgba(7,11,24,.97);border:1px solid rgba(255,255,255,.1);backdrop-filter:blur(20px);border-radius:14px;padding:12px 20px;display:flex;align-items:center;gap:10px;font-size:.82rem;font-family:Cairo,sans-serif;color:rgba(255,255,255,.92);opacity:0;transition:all .3s cubic-bezier(.34,1.56,.64,1);z-index:9999;white-space:nowrap;min-width:180px;justify-content:center;box-shadow:0 8px 32px rgba(0,0,0,.4);}
+.tw-toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+.tw-toast.success{border-color:rgba(0,200,150,.3);}
+.tw-toast.error{border-color:rgba(239,68,68,.3);}
+.tw-toast.info{border-color:rgba(37,99,255,.3);}
+.tw-skeleton{background:linear-gradient(90deg,rgba(255,255,255,.04) 25%,rgba(255,255,255,.09) 50%,rgba(255,255,255,.04) 75%);background-size:2000px 100%;animation:tw-shimmer 1.5s infinite linear;border-radius:8px;}
+.tw-btn-loading{position:relative;pointer-events:none;opacity:.8;}
+.tw-btn-loading::after{content:'';position:absolute;width:14px;height:14px;border-radius:50%;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;animation:tw-spin .7s linear infinite;right:12px;top:50%;transform:translateY(-50%);}
+.tw-scroll-prog{position:fixed;top:0;left:0;height:2px;z-index:999;background:linear-gradient(90deg,var(--ac,#00c896),var(--ac2,#2563ff));transition:width .1s;width:0%;}
+.tw-fab{position:fixed;bottom:80px;left:18px;width:50px;height:50px;border-radius:50%;border:none;font-size:1.4rem;background:linear-gradient(135deg,var(--ac,#00c896),var(--ac2,#2563ff));color:#fff;cursor:pointer;box-shadow:0 4px 20px rgba(0,200,150,.35);transition:all .25s cubic-bezier(.34,1.56,.64,1);z-index:50;display:flex;align-items:center;justify-content:center;}
+.tw-fab:hover{transform:scale(1.12) rotate(90deg);}
+.tw-empty{text-align:center;padding:50px 20px;}
+.tw-empty-ico{font-size:2.5rem;margin-bottom:12px;opacity:.7;display:block;}
+.tw-empty-title{font-size:.95rem;font-weight:800;margin-bottom:6px;}
+.tw-empty-sub{font-size:.78rem;color:rgba(255,255,255,.35);margin-bottom:18px;line-height:1.6;}
+.tw-empty-btn{padding:10px 22px;border-radius:12px;background:linear-gradient(135deg,var(--ac,#00c896),var(--ac2,#2563ff));border:none;color:#fff;font-family:Cairo,sans-serif;font-weight:700;font-size:.8rem;cursor:pointer;}
+.tw-card-lift{transition:transform .2s,box-shadow .2s;}
+.tw-card-lift:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.3);}
+.tw-verified{animation:tw-verified 2.5s ease-in-out infinite;}
+
 </style>
+<style>.skip-link{position:absolute;top:-40px;right:0;background:var(--ac,#00c896);color:#0d1a2e;padding:8px 16px;border-radius:0 0 8px 0;font-family:Cairo,sans-serif;font-size:.8rem;font-weight:700;text-decoration:none;transition:top .2s;z-index:10000}.skip-link:focus{top:0}</style><a href="#main-content" class="skip-link">تخطى للمحتوى الرئيسي</a><link rel="stylesheet" href="/static/tw_shared.css">
 </head>
 <body>
 
 <!-- ══ NAV ══ -->
 <nav class="nav">
-  <div class="nav-logo">تواصلنا</div>
+  <div class="nav-logo"><img src="https://wrxvmdmknhoufoeprpoc.supabase.co/storage/v1/object/public/site/Logo.svg" alt="تواصلنا" style="height:36px;width:auto;object-fit:contain;display:block"></div>
   <button class="nb nb-primary" onclick="openModal()">+ إضافة دورة</button>
   <div style="flex:1"></div>
   <button class="nb nb-danger" onclick="logout()">خروج</button>
@@ -270,7 +307,7 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-heig
 
   <div class="courses-grid" id="coursesGrid">
 
-    <div class="course-card" data-status="published">
+    <div class="course-card tw-card-lift" data-status="published">
       <div class="course-thumb" style="background:linear-gradient(135deg,#1a0a2e,#2d1b69)">
         🐍
         <div class="ct-overlay"></div>
@@ -294,7 +331,7 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-heig
       </div>
     </div>
 
-    <div class="course-card" data-status="published">
+    <div class="course-card tw-card-lift" data-status="published">
       <div class="course-thumb" style="background:linear-gradient(135deg,#0a1628,#1a2f4a)">
         ⚛️
         <div class="ct-overlay"></div>
@@ -318,7 +355,7 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-heig
       </div>
     </div>
 
-    <div class="course-card" data-status="draft">
+    <div class="course-card tw-card-lift" data-status="draft">
       <div class="course-thumb" style="background:linear-gradient(135deg,#1a1205,#2a2010)">
         🤖
         <div class="ct-overlay"></div>
@@ -540,6 +577,7 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-heig
 
 <div class="toast" id="toast"></div>
 
+<script src="/tw_shared.js"></script>
 <script>
 // ── Session ──
 let _user = null;
@@ -554,7 +592,7 @@ if(_user){
 }
 
 // ── Toast ──
-function toast(msg){
+function eduToast(msg){
   const t = document.getElementById('toast');
   t.textContent = msg;
   t.className = 'toast success show';
@@ -627,7 +665,7 @@ function addCourse(publish){
 
   const n = parseInt(document.getElementById('st1').textContent)||0;
   if(publish) document.getElementById('st1').textContent = n+1;
-  toast(publish ? 'تم نشر الدورة ✓' : 'تم حفظ المسودة ✓');
+  eduToast(publish ? 'تم نشر الدورة ✓' : 'تم حفظ المسودة ✓');
 
   // Add to offer select
   const sel = document.getElementById('offerCourse');
@@ -639,19 +677,21 @@ function addCourse(publish){
 // ── Publish draft ──
 function publishCourse(btn){
   const card = btn.closest('.course-card');
+  const title = card.querySelector('.course-title')?.textContent||'دورة';
+  if(_user && _user.id){
+    fetch('/company/jobs',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','X-User-Id':_user.id},
+      body:JSON.stringify({title:title, job_type:'contract', description:'دورة تدريبية'})
+    }).catch(function(){});
+  }
   card.dataset.status = 'published';
-  card.querySelector('.status-badge').className = 'status-badge s-pub';
-  card.querySelector('.status-badge').textContent = 'منشور ✓';
-  btn.className = 'ca-btn ca-verify';
-  btn.textContent = '✅ توثيق';
-  btn.onclick = ()=>openVerify(card.querySelector('.course-title').textContent);
-  const n = parseInt(document.getElementById('st1').textContent)||0;
-  document.getElementById('st1').textContent = n+1;
-  toast('تم نشر الدورة ✓');
+  const badge = card.querySelector('.status-badge');
+  if(badge){ badge.className='status-badge s-pub'; badge.textContent='منشورة'; }
+  eduToast('تم نشر الدورة ✓');
 }
 
-// ── Verify ──
-let _verifyCourse = '';
+
 function openVerify(courseName){
   _verifyCourse = courseName;
   document.getElementById('verifyInfo').textContent = `ستصدر شهادة إكمال دورة "${courseName}" لجميع المتسجلين المكتملين. الشهادة تظهر موثقة في ملفاتهم تلقائياً.`;
@@ -667,24 +707,35 @@ function openVerifyStudent(name, course){
 }
 
 function confirmVerify(){
-  toast(`تم إصدار الشهادة الموثقة ✅`);
+  if(_user && _user.id){
+    fetch('/verify-request',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({user_id:_user.id, item_type:'course', item_id:0, item_title:'شهادة', item_company:''})
+    }).catch(function(){});
+  }
+  eduToast('تم إصدار الشهادة الموثقة ✅');
   closeModal('verify');
 }
 
-// ── Send Offer ──
+
 function sendOffer(){
-  const course = document.getElementById('offerCourse').value;
-  const discount = document.getElementById('offerDiscount').value;
-  const company = document.getElementById('offerCompany').value.trim();
-  if(!course){ alert('اختر الدورة'); return; }
-  if(!discount){ alert('أدخل نسبة الخصم'); return; }
-  if(!company){ alert('أدخل اسم الشركة'); return; }
-  toast(`تم إرسال العرض لـ ${company} ✓`);
-  document.getElementById('offerDiscount').value = '';
-  document.getElementById('offerCompany').value = '';
+  const course = document.getElementById('offerCourse')?.value||'';
+  const discount = document.getElementById('offerDiscount')?.value||'';
+  const company = document.getElementById('offerCompany')?.value||'';
+  const msg = 'عرض شراكة: دورة '+course+' بخصم '+discount+'% لشركة '+company;
+  if(_user && _user.id){
+    fetch('/admin/message',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','X-Admin-Token':''},
+      body:JSON.stringify({user_id:0, subject:'عرض شراكة', message:msg})
+    }).catch(function(){});
+  }
+  eduToast('تم إرسال العرض ✓');
+  closeModal('offer');
 }
 
-// ── Modal ──
+
 function openModal(){ document.getElementById('addOverlay').classList.add('show'); }
 function closeModal(which){
   if(which==='add'){
@@ -705,7 +756,48 @@ document.querySelectorAll('.bn').forEach(b=>{
   });
 });
 
-function logout(){ localStorage.removeItem('tw_user'); window.location.href='/'; }
+function logout(){ localStorage.removeItem('tw_user'); window.location.href='/login'; }
+
+
+// ══ ITQAN Utilities ══
+var _twToast=null;
+function showToast(msg,type,dur){
+  type=type||'success';dur=dur||2800;
+  if(_twToast){_twToast.remove();}
+  var t=document.createElement('div');
+  t.className='tw-toast '+type;
+  var ico=type==='success'?'✅':type==='error'?'❌':'ℹ️';
+  t.innerHTML='<span>'+ico+'</span><span>'+msg+'</span>';
+  document.body.appendChild(t);
+  _twToast=t;
+  requestAnimationFrame(function(){requestAnimationFrame(function(){t.classList.add('show');});});
+  setTimeout(function(){t.classList.remove('show');setTimeout(function(){if(t.parentNode)t.remove();},350);},dur);
+}
+function setBtnLoad(btn,loading){
+  if(!btn)return;
+  if(loading){btn.classList.add('tw-btn-loading');btn._orig=btn.textContent;btn.textContent='';btn.disabled=true;}
+  else{btn.classList.remove('tw-btn-loading');btn.textContent=btn._orig||'حفظ';btn.disabled=false;}
+}
+function twNavigate(url){
+  document.body.style.cssText='opacity:0;transform:translateY(-6px);transition:all .2s ease;';
+  setTimeout(function(){window.location.href=url;},180);
+}
+function initScrollProg(){
+  var p=document.createElement('div');p.className='tw-scroll-prog';
+  document.body.prepend(p);
+  window.addEventListener('scroll',function(){
+    var pct=window.scrollY/(document.body.scrollHeight-window.innerHeight)*100;
+    p.style.width=Math.min(pct,100)+'%';
+  });
+}
+
+
+// ── Pull to Refresh ──
+var _ptrE=0,_ptrEA=false;
+document.addEventListener('touchstart',function(e){if(window.scrollY===0)_ptrE=e.touches[0].clientY;},{passive:true});
+document.addEventListener('touchend',function(e){if(_ptrEA){_ptrEA=false;location.reload();}},{passive:true});
+document.addEventListener('touchmove',function(e){if(window.scrollY===0&&_ptrE>0){var d=e.touches[0].clientY-_ptrE;if(d>70&&!_ptrEA){_ptrEA=true;showToast?showToast('جاري التحديث...','info',1500):null;}}},{passive:true});
+
 </script>
 </body>
 </html>

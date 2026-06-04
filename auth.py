@@ -43,25 +43,97 @@ def generate_tw_id(user_type: str, country_code: str = 'DEFAULT') -> str:
 
 
 # ══ الاتصال بقاعدة البيانات ══
-def get_conn():
-    url = os.environ.get("SUPABASE_DB_URL")
-    if not url:
-        raise RuntimeError("SUPABASE_DB_URL is not set")
-    url = url.strip().replace(" ", "")
-    without_scheme = url.split("://", 1)[1]
-    userinfo, hostinfo = without_scheme.split("@", 1)
-    username, password = userinfo.split(":", 1)
-    host_port, dbname = hostinfo.split("/", 1)
+# ── Connection Pool ──
+_pool = []
+import threading as _threading
+_pool_lock = _threading.Lock()
+_MAX_POOL = 5
+_db_params = {}
+
+def _parse_db_url():
+    global _db_params
+    if _db_params: return
+    url = os.environ.get("SUPABASE_DB_URL","").strip().replace(" ","")
+    if not url: raise RuntimeError("SUPABASE_DB_URL is not set")
+    without_scheme = url.split("://",1)[1]
+    userinfo, hostinfo = without_scheme.split("@",1)
+    username, password = userinfo.split(":",1)
+    host_port, dbname = hostinfo.split("/",1)
     dbname = dbname.split("?")[0]
-    if ":" in host_port:
-        host, port = host_port.rsplit(":", 1)
-        port = int(port)
-    else:
-        host, port = host_port, 5432
-    return pg8000.native.Connection(
-        host=host, port=port, user=username,
-        password=password, database=dbname, ssl_context=True
-    )
+    host, port = (host_port.rsplit(":",1) if ":" in host_port else (host_port, "5432"))
+    _db_params = dict(host=host, port=int(port), user=username, password=password, database=dbname, ssl_context=True)
+
+
+# ── Query Cache (Redis-ready) ──
+import time as _time_mod, json as _json_mod
+_query_cache = {}
+_CACHE_TTL = 60  # Reduced from 300s for cross-device consistency  # seconds (5 min)
+
+def _cache_get(key):
+    # Try Redis first
+    try:
+        from server import _redis_client
+        if _redis_client:
+            val = _redis_client.get(key)
+            return _json_mod.loads(val) if val else None
+    except: pass
+    # Fallback: in-memory
+    if key in _query_cache:
+        val, ts = _query_cache[key]
+        if _time_mod.time() - ts < _CACHE_TTL:
+            return val
+        del _query_cache[key]
+    return None
+
+def _cache_set(key, val):
+    # Try Redis first
+    try:
+        from server import _redis_client
+        if _redis_client:
+            _redis_client.setex(key, _CACHE_TTL, _json_mod.dumps(val, default=str))
+            return
+    except: pass
+    # Fallback: in-memory
+    _query_cache[key] = (val, _time_mod.time())
+
+def _cache_del(prefix):
+    # Try Redis first
+    try:
+        from server import _redis_client
+        if _redis_client:
+            keys = _redis_client.keys(prefix + '*')
+            if keys: _redis_client.delete(*keys)
+            return
+    except: pass
+    # Fallback: in-memory
+    for k in list(_query_cache.keys()):
+        if k.startswith(prefix):
+            del _query_cache[k]
+
+def get_conn():
+    _parse_db_url()
+    global _pool
+    with _pool_lock:
+        if _pool:
+            try:
+                conn = _pool.pop()
+                conn.run("SELECT 1")
+                return conn
+            except Exception:
+                pass
+    return pg8000.native.Connection(**_db_params)
+
+def release_conn(conn):
+    global _pool
+    with _pool_lock:
+        if len(_pool) < _MAX_POOL:
+            try:
+                _pool.append(conn)
+                return
+            except Exception:
+                pass
+    try: conn.close()
+    except: pass
 
 
 # ══ مساعدات ══
@@ -138,6 +210,21 @@ def init_db():
                 updated_at TIMESTAMP DEFAULT NOW()
             )
         """)
+        # Migration: add missing columns to profiles
+        for col_sql in [
+            "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS dob TEXT",
+            "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS phone TEXT",
+            "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS country TEXT",
+            "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS city TEXT",
+            "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS avail TEXT",
+            "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS title TEXT",
+            "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS sections_order TEXT",
+            "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS custom_sections TEXT",
+            "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS profile_color TEXT",
+            "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS profile_style TEXT",
+        ]:
+            try: conn.run(col_sql)
+            except Exception: pass
         conn.run("""
             CREATE TABLE IF NOT EXISTS experience (
                 id SERIAL PRIMARY KEY,
@@ -166,6 +253,9 @@ def init_db():
                 created_at TIMESTAMP DEFAULT NOW()
             )
         """)
+        try:
+            conn.run("ALTER TABLE user_skills ADD CONSTRAINT IF NOT EXISTS user_skills_uid_skill_uq UNIQUE (user_id, skill)")
+        except Exception: pass
         conn.run("""
             CREATE TABLE IF NOT EXISTS user_langs (
                 id SERIAL PRIMARY KEY,
@@ -175,6 +265,9 @@ def init_db():
                 created_at TIMESTAMP DEFAULT NOW()
             )
         """)
+        try:
+            conn.run("ALTER TABLE user_langs ADD CONSTRAINT IF NOT EXISTS user_langs_uid_lang_uq UNIQUE (user_id, language)")
+        except Exception: pass
         conn.run("""
             CREATE TABLE IF NOT EXISTS user_links (
                 id SERIAL PRIMARY KEY,
@@ -184,6 +277,9 @@ def init_db():
                 created_at TIMESTAMP DEFAULT NOW()
             )
         """)
+        try:
+            conn.run("ALTER TABLE user_links ADD CONSTRAINT IF NOT EXISTS user_links_uid_link_uq UNIQUE (user_id, link_type)")
+        except Exception: pass
         conn.run("""
             CREATE TABLE IF NOT EXISTS courses (
                 id SERIAL PRIMARY KEY,
@@ -193,6 +289,12 @@ def init_db():
                 created_at TIMESTAMP DEFAULT NOW()
             )
         """)
+        try:
+            conn.run("ALTER TABLE courses ALTER COLUMN name DROP NOT NULL")
+        except Exception: pass
+        try:
+            conn.run("ALTER TABLE courses ADD COLUMN IF NOT EXISTS title TEXT")
+        except Exception: pass
         conn.run("""
             CREATE TABLE IF NOT EXISTS jobs (
                 id SERIAL PRIMARY KEY,
@@ -223,6 +325,60 @@ def init_db():
                 UNIQUE(job_id, user_id)
             )
         """)
+        # KYC table
+        conn.run("""
+            CREATE TABLE IF NOT EXISTS kyc_submissions (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                step TEXT NOT NULL,
+                status TEXT DEFAULT 'pending',
+                email_code TEXT,
+                email_verified BOOLEAN DEFAULT FALSE,
+                phone TEXT,
+                phone_code TEXT,
+                phone_verified BOOLEAN DEFAULT FALSE,
+                id_front_url TEXT,
+                selfie_url TEXT,
+                admin_note TEXT,
+                submitted_at TIMESTAMP DEFAULT NOW(),
+                reviewed_at TIMESTAMP,
+                UNIQUE(user_id)
+            )
+        """)
+        # Add KYC fields to users if not exist
+        for col in [
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_verified BOOLEAN DEFAULT FALSE",
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS kyc_step TEXT DEFAULT 'none'",
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN DEFAULT FALSE",
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS phone_verified BOOLEAN DEFAULT FALSE",
+        ]:
+            try: conn.run(col)
+            except: pass
+
+        # Messages table
+        conn.run("""
+            CREATE TABLE IF NOT EXISTS messages (
+                id SERIAL PRIMARY KEY,
+                sender_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                receiver_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                content TEXT NOT NULL,
+                is_read BOOLEAN DEFAULT FALSE,
+                created_at TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        # Notifications table
+        conn.run("""
+            CREATE TABLE IF NOT EXISTS notifications (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                type TEXT NOT NULL,
+                title TEXT,
+                body TEXT,
+                link TEXT,
+                is_read BOOLEAN DEFAULT FALSE,
+                created_at TIMESTAMP DEFAULT NOW()
+            )
+        """)
         conn.run("""
             CREATE TABLE IF NOT EXISTS verify_requests (
                 id SERIAL PRIMARY KEY,
@@ -247,7 +403,59 @@ def init_db():
             except: pass
         print("✅ Database ready.")
     finally:
-        conn.close()
+        
+        # ── Comprehensive column migrations (idempotent) ──
+        _migrations = [
+            # experience
+            "ALTER TABLE experience ADD COLUMN IF NOT EXISTS company TEXT",
+            "ALTER TABLE experience ADD COLUMN IF NOT EXISTS location TEXT",
+            "ALTER TABLE experience ADD COLUMN IF NOT EXISTS is_current BOOLEAN DEFAULT FALSE",
+            "ALTER TABLE experience ADD COLUMN IF NOT EXISTS description TEXT",
+            "ALTER TABLE experience ADD COLUMN IF NOT EXISTS start_date TEXT",
+            "ALTER TABLE experience ADD COLUMN IF NOT EXISTS end_date TEXT",
+            # education
+            "ALTER TABLE education ADD COLUMN IF NOT EXISTS degree TEXT",
+            "ALTER TABLE education ADD COLUMN IF NOT EXISTS field TEXT",
+            "ALTER TABLE education ADD COLUMN IF NOT EXISTS start_year INTEGER",
+            "ALTER TABLE education ADD COLUMN IF NOT EXISTS end_year INTEGER",
+            "ALTER TABLE education ADD COLUMN IF NOT EXISTS description TEXT",
+            # courses
+            "ALTER TABLE courses ADD COLUMN IF NOT EXISTS title TEXT",
+            "ALTER TABLE courses ADD COLUMN IF NOT EXISTS provider TEXT",
+            "ALTER TABLE courses ADD COLUMN IF NOT EXISTS completion_date TEXT",
+            "ALTER TABLE courses ADD COLUMN IF NOT EXISTS description TEXT",
+            "ALTER TABLE courses ADD COLUMN IF NOT EXISTS certificate_url TEXT",
+            # profiles
+            "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS dob TEXT",
+            "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS phone TEXT",
+            "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS country TEXT",
+            "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS city TEXT",
+            "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS avail TEXT",
+            "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS title TEXT",
+            "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS sections_order TEXT",
+            "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS custom_sections TEXT",
+            "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS profile_color TEXT",
+            "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS profile_style TEXT",
+        ]
+        for _m in _migrations:
+            try: conn.run(_m)
+            except Exception: pass
+        # courses: make name nullable (old schema compat)
+        try: conn.run("ALTER TABLE courses ALTER COLUMN name DROP NOT NULL")
+        except Exception: pass
+        # Add UNIQUE constraints (using DO $$ for idempotency)
+        _constraints = [
+            ("user_langs", "user_id, language"),
+            ("user_skills", "user_id, skill"),
+            ("user_links", "user_id, link_type"),
+        ]
+        for _tbl, _cols in _constraints:
+            try:
+                conn.run(f"ALTER TABLE {_tbl} ADD CONSTRAINT {_tbl}_unique_uq UNIQUE ({_cols})")
+            except Exception: pass  # already exists
+        release_conn(conn)
+    # Phase 2: company tables
+    ensure_company_tables()
 
 
 def _unique_tw_id(conn, user_type: str, country_code: str) -> str:
@@ -285,7 +493,7 @@ def create_user(
             raise ValueError("البريد الإلكتروني مسجل مسبقاً")
         raise
     finally:
-        conn.close()
+        release_conn(conn)
 
 
 def authenticate_user(email: str, password: str) -> Optional[dict]:
@@ -310,7 +518,7 @@ def authenticate_user(email: str, password: str) -> Optional[dict]:
             user["tw_id"] = tw_id
         return _serialize(user)
     finally:
-        conn.close()
+        release_conn(conn)
 
 
 def get_user_by_id(user_id: int) -> Optional[dict]:
@@ -325,33 +533,72 @@ def get_user_by_id(user_id: int) -> Optional[dict]:
         cols = [c["name"] for c in conn.columns]
         return _serialize(_row_to_dict(cols, rows[0]))
     finally:
-        conn.close()
+        release_conn(conn)
 
 
 # ══ الملفات الشخصية ══
+def _safe_query(conn, sql, uid):
+    """
+    EMPTY RESULT vs QUERY FAILURE — explicit separation.
+
+    EMPTY RESULT  → rows=[] → returns [] → UI shows empty section (correct)
+    QUERY FAILURE → exception → logs [SCHEMA_ERROR] + tries fallback
+                  → fallback returns row count so UI does NOT hide real data
+                  → logs [SCHEMA_FALLBACK] "run migrations!" for operator
+
+    Prevents SQL schema exceptions from becoming hidden UI sections.
+    """
+    try:
+        rows = conn.run(sql, uid=uid)
+        cols = [c["name"] for c in conn.columns]
+        return [_serialize(_row_to_dict(cols, r)) for r in rows]
+    except Exception as e:
+        err = str(e)
+        import re as _re
+        tbl_m = _re.search("FROM ([a-z_]+)", sql)
+        tbl = tbl_m.group(1) if tbl_m else "unknown"
+        print("[SCHEMA_ERROR] table=%s error=%s" % (tbl, err[:100]))
+        # Schema mismatch (column missing) — retry with minimal columns
+        if any(k in err for k in ("UndefinedColumn", "column", "does not exist")):
+            try:
+                rows2 = conn.run(
+                    "SELECT id, user_id FROM " + tbl + " WHERE user_id = :uid ORDER BY id DESC",
+                    uid=uid
+                )
+                cols2 = [c["name"] for c in conn.columns]
+                result = [_serialize(_row_to_dict(cols2, r)) for r in rows2]
+                print("[SCHEMA_FALLBACK] %s: returned %d rows — run migrations!" % (tbl, len(result)))
+                return result
+            except Exception as e2:
+                print("[SCHEMA_FALLBACK_FAIL] %s: %s" % (tbl, str(e2)))
+        print("[QUERY_FAILURE] %s: returning [] — data may be hidden! Check migrations." % tbl)
+        return []
+
+
 def _get_extras(conn, user_id: int) -> dict:
-    rows = conn.run(
-        "SELECT id, title, company, location, start_date, end_date, is_current, description, created_at "
-        "FROM experience WHERE user_id = :uid ORDER BY id DESC", uid=user_id
-    )
-    cols = [c["name"] for c in conn.columns]
-    experience = [_serialize(_row_to_dict(cols, r)) for r in rows]
-
-    rows = conn.run(
-        "SELECT id, institution, degree, field, start_year, end_year, description, created_at "
-        "FROM education WHERE user_id = :uid ORDER BY id DESC", uid=user_id
-    )
-    cols = [c["name"] for c in conn.columns]
-    education = [_serialize(_row_to_dict(cols, r)) for r in rows]
-
-    rows = conn.run(
-        "SELECT id, title, provider, completion_date, certificate_url, description, created_at "
-        "FROM courses WHERE user_id = :uid ORDER BY id DESC", uid=user_id
-    )
-    cols = [c["name"] for c in conn.columns]
-    courses = [_serialize(_row_to_dict(cols, r)) for r in rows]
-
-    return {"experience": experience, "education": education, "courses": courses}
+    return {
+        "experience": _safe_query(conn,
+            "SELECT id, title, company, location, start_date, end_date, "
+            "is_current, description, created_at "
+            "FROM experience WHERE user_id = :uid ORDER BY id DESC", user_id),
+        "education": _safe_query(conn,
+            "SELECT id, institution, degree, field, start_year, end_year, "
+            "description, created_at "
+            "FROM education WHERE user_id = :uid ORDER BY id DESC", user_id),
+        "courses": _safe_query(conn,
+            "SELECT id, title, provider, completion_date, certificate_url, "
+            "description, created_at "
+            "FROM courses WHERE user_id = :uid ORDER BY id DESC", user_id),
+        "skills": _safe_query(conn,
+            "SELECT id, skill, level FROM user_skills "
+            "WHERE user_id = :uid ORDER BY id", user_id),
+        "langs": _safe_query(conn,
+            "SELECT id, language, level FROM user_langs "
+            "WHERE user_id = :uid ORDER BY id", user_id),
+        "links": _safe_query(conn,
+            "SELECT id, link_type, url FROM user_links "
+            "WHERE user_id = :uid ORDER BY id", user_id),
+    }
 
 
 def get_public_profile(user_id: int) -> Optional[dict]:
@@ -367,7 +614,7 @@ def get_public_profile(user_id: int) -> Optional[dict]:
         user = _serialize(_row_to_dict(cols, rows[0]))
 
         rows = conn.run(
-            "SELECT headline, bio, location, skills, avatar_url, website, is_verified "
+            "SELECT headline, bio, location, skills, avatar_url, website, is_verified, dob, phone, country, city, avail, title, sections_order, custom_sections, profile_color, profile_style "
             "FROM profiles WHERE user_id = :uid", uid=user_id
         )
         cols = [c["name"] for c in conn.columns]
@@ -375,10 +622,12 @@ def get_public_profile(user_id: int) -> Optional[dict]:
 
         return {**user, **profile, **_get_extras(conn, user_id)}
     finally:
-        conn.close()
+        release_conn(conn)
 
 
 def get_full_profile(user_id: int) -> Optional[dict]:
+    cached = _cache_get('profile:'+str(user_id))
+    if cached is not None: return cached
     conn = get_conn()
     try:
         rows = conn.run(
@@ -390,10 +639,43 @@ def get_full_profile(user_id: int) -> Optional[dict]:
         cols = [c["name"] for c in conn.columns]
         user = _serialize(_row_to_dict(cols, rows[0]))
 
-        rows = conn.run(
-            "SELECT headline, bio, location, skills, avatar_url, website, is_verified, updated_at "
-            "FROM profiles WHERE user_id = :uid", uid=user_id
-        )
+        # Full query with all columns
+        # Columns are created in init_db migrations
+        try:
+            rows = conn.run(
+                "SELECT headline, bio, location, skills, avatar_url, website, is_verified, "
+                "updated_at, dob, phone, country, city, avail, title, sections_order, custom_sections, "
+                "profile_color, profile_style "
+                "FROM profiles WHERE user_id = :uid", uid=user_id
+            )
+        except Exception as e:
+            print(f"[Profile query error] {e} - trying to add missing columns")
+            # Add missing columns and retry
+            for col_sql in [
+                "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS dob TEXT",
+                "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS phone TEXT",
+                "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS country TEXT",
+                "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS city TEXT",
+                "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS avail TEXT",
+                "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS title TEXT",
+                "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS sections_order TEXT",
+                "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS custom_sections TEXT",
+                "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS profile_color TEXT",
+                "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS profile_style TEXT",
+            ]:
+                try: conn.run(col_sql)
+                except Exception: pass
+            # Retry with full query
+            try:
+                rows = conn.run(
+                    "SELECT headline, bio, location, skills, avatar_url, website, is_verified, "
+                    "updated_at, dob, phone, country, city, avail, title, sections_order, custom_sections, "
+                    "profile_color, profile_style "
+                    "FROM profiles WHERE user_id = :uid", uid=user_id
+                )
+            except Exception as e2:
+                print(f"[Profile query FATAL] {e2}")
+                raise e2  # Don't return partial data
         cols = [c["name"] for c in conn.columns]
         profile = _serialize(_row_to_dict(cols, rows[0])) if rows else {}
 
@@ -404,27 +686,24 @@ def get_full_profile(user_id: int) -> Optional[dict]:
         cols = [c["name"] for c in conn.columns]
         verify_req = _serialize(_row_to_dict(cols, rows[0])) if rows else None
 
-        # Get skills, langs, links
-        rows = conn.run("SELECT id, skill, level FROM user_skills WHERE user_id=:uid ORDER BY id", uid=user_id)
-        cols = [c["name"] for c in conn.columns]
-        skills = [_row_to_dict(cols, r) for r in rows]
-
-        rows = conn.run("SELECT id, language, level FROM user_langs WHERE user_id=:uid ORDER BY id", uid=user_id)
-        cols = [c["name"] for c in conn.columns]
-        langs = [_row_to_dict(cols, r) for r in rows]
-
-        rows = conn.run("SELECT id, link_type, url FROM user_links WHERE user_id=:uid ORDER BY id", uid=user_id)
-        cols = [c["name"] for c in conn.columns]
-        links = [_row_to_dict(cols, r) for r in rows]
-
-        return {**user, **profile, **_get_extras(conn, user_id),
-                "skills": skills, "langs": langs, "links": links,
-                "verify_request": verify_req}
+        extras = _get_extras(conn, user_id)
+        result = {**user, **profile, **extras, "verify_request": verify_req}
+        _cache_set('profile:'+str(user_id), result)
+        return result
     finally:
-        conn.close()
+        release_conn(conn)
 
 
 def update_profile(user_id: int, data: dict) -> dict:
+    _cache_del('profile:'+str(user_id))
+    # Clear SSR theme cache so next page load reflects new theme immediately
+    try:
+        _conn = get_conn()
+        try:
+            _tw = _conn.run("SELECT tw_id FROM users WHERE id=:uid", uid=user_id)
+            if _tw and _tw[0][0]: _cache_del('theme:'+str(_tw[0][0]))
+        finally: release_conn(_conn)
+    except Exception: pass
     conn = get_conn()
     try:
         # Update full_name in users table if provided
@@ -434,17 +713,37 @@ def update_profile(user_id: int, data: dict) -> dict:
                 name=data["full_name"], uid=user_id
             )
 
-        allowed = ["headline", "bio", "location", "skills", "avatar_url", "website", "phone", "sections_order", "custom_sections", "dob", "country", "city", "avail"]
+        allowed = ["headline", "bio", "location", "skills", "avatar_url", "website", "phone", "sections_order", "custom_sections", "dob", "country", "city", "avail", "title", "profile_color", "profile_style"]
+        # Ensure profile columns exist (in case migrations didn't run)
+        for col_sql in [
+            "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS dob TEXT",
+            "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS country TEXT",
+            "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS city TEXT",
+            "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS avail TEXT",
+            "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS title TEXT",
+            "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS sections_order TEXT",
+            "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS custom_sections TEXT",
+            "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS profile_color TEXT",
+            "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS profile_style TEXT",
+        ]:
+            try: conn.run(col_sql)
+            except Exception: pass
+
         fields = {k: v for k, v in data.items() if k in allowed and v is not None}
+        print(f"[update_profile] user={user_id} saving fields: {list(fields.keys())}")
 
         rows = conn.run("SELECT id FROM profiles WHERE user_id = :uid", uid=user_id)
         if rows:
             if fields:
                 set_clause = ", ".join(f"{k} = :{k}" for k in fields)
-                conn.run(
-                    f"UPDATE profiles SET {set_clause}, updated_at = NOW() WHERE user_id = :uid",
+                update_rows = conn.run(
+                    f"UPDATE profiles SET {set_clause}, updated_at = NOW() WHERE user_id = :uid RETURNING id",
                     uid=user_id, **fields
                 )
+                if not update_rows:
+                    print(f"[update_profile] ⚠️ UPDATE returned 0 rows for user {user_id} — running INSERT")
+                    raise ValueError("no_profile_row")
+                print(f"[update_profile] ✅ DB UPDATE success for user {user_id}, rows={len(update_rows)}")
         else:
             cols_list = ["user_id"] + list(fields.keys())
             placeholders = ", ".join(f":{c}" for c in cols_list)
@@ -453,7 +752,7 @@ def update_profile(user_id: int, data: dict) -> dict:
                 user_id=user_id, **fields
             )
     finally:
-        conn.close()
+        release_conn(conn)
     return get_full_profile(user_id)
 
 
@@ -473,7 +772,7 @@ def add_experience(user_id: int, data: dict) -> dict:
         cols = [c["name"] for c in conn.columns]
         return _serialize(_row_to_dict(cols, rows[0]))
     finally:
-        conn.close()
+        release_conn(conn)
 
 
 # ══ الشهادات ══
@@ -492,18 +791,20 @@ def add_education(user_id: int, data: dict) -> dict:
         cols = [c["name"] for c in conn.columns]
         return _serialize(_row_to_dict(cols, rows[0]))
     finally:
-        conn.close()
+        release_conn(conn)
 
 
 # ══ الدورات ══
 def add_course(user_id: int, data: dict) -> dict:
+    """Insert course. init_db ensures 'title' column exists."""
     conn = get_conn()
     try:
+        title_val = data.get("title") or data.get("name") or ""
         rows = conn.run(
             "INSERT INTO courses (user_id, title, provider, completion_date, certificate_url, description) "
             "VALUES (:uid, :title, :provider, :completion_date, :certificate_url, :description) "
             "RETURNING id, user_id, title, provider, completion_date, certificate_url, description, created_at",
-            uid=user_id, title=data["title"], provider=data.get("provider"),
+            uid=user_id, title=title_val, provider=data.get("provider"),
             completion_date=data.get("completion_date"),
             certificate_url=data.get("certificate_url"),
             description=data.get("description")
@@ -511,7 +812,7 @@ def add_course(user_id: int, data: dict) -> dict:
         cols = [c["name"] for c in conn.columns]
         return _serialize(_row_to_dict(cols, rows[0]))
     finally:
-        conn.close()
+        release_conn(conn)
 
 
 # ══ طلبات التحقق ══
@@ -527,7 +828,7 @@ def create_verify_request(user_id: int, data: dict) -> dict:
         cols = [c["name"] for c in conn.columns]
         return _serialize(_row_to_dict(cols, rows[0]))
     finally:
-        conn.close()
+        release_conn(conn)
 
 
 def get_user_id_by_tw_id(tw_id: str) -> Optional[int]:
@@ -537,7 +838,7 @@ def get_user_id_by_tw_id(tw_id: str) -> Optional[int]:
         rows = conn.run("SELECT id FROM users WHERE tw_id = :tw_id", tw_id=tw_id)
         return rows[0][0] if rows else None
     finally:
-        conn.close()
+        release_conn(conn)
 
 
 def get_profile_by_tw_id(tw_id: str) -> Optional[dict]:
@@ -547,14 +848,15 @@ def get_profile_by_tw_id(tw_id: str) -> Optional[dict]:
 
 
 def get_full_profile_by_tw_id(tw_id: str) -> Optional[dict]:
-    """يجيب الملف الشخصي الكامل بالـ tw_id."""
     uid = get_user_id_by_tw_id(tw_id)
-    return get_full_profile(uid) if uid else None
+    if not uid: return None
+    return get_full_profile(uid)
 
 
 # ══ الوظائف ══
 
 def add_job(company_id: int, data: dict) -> dict:
+    _cache_del('jobs:')
     conn = get_conn()
     try:
         skills = data.get("skills") or []
@@ -575,9 +877,12 @@ def add_job(company_id: int, data: dict) -> dict:
         cols = [c["name"] for c in conn.columns]
         return _serialize(_row_to_dict(cols, rows[0]))
     finally:
-        conn.close()
+        release_conn(conn)
 
 def get_jobs(filters: dict = None) -> list:
+    cache_key = 'jobs:' + str(sorted((filters or {}).items()))
+    cached = _cache_get(cache_key)
+    if cached is not None: return cached
     conn = get_conn()
     try:
         where = "WHERE j.status='active'"
@@ -605,9 +910,11 @@ def get_jobs(filters: dict = None) -> list:
             **params
         )
         cols = [c["name"] for c in conn.columns]
-        return [_serialize(_row_to_dict(cols, r)) for r in rows]
+        result = [_serialize(_row_to_dict(cols, r)) for r in rows]
+        _cache_set(cache_key, result)
+        return result
     finally:
-        conn.close()
+        release_conn(conn)
 
 def get_job(job_id: int) -> dict:
     conn = get_conn()
@@ -622,7 +929,7 @@ def get_job(job_id: int) -> dict:
         cols = [c["name"] for c in conn.columns]
         return _serialize(_row_to_dict(cols, rows[0]))
     finally:
-        conn.close()
+        release_conn(conn)
 
 def apply_job(job_id: int, user_id: int, cover_letter: str = "") -> dict:
     conn = get_conn()
@@ -639,7 +946,7 @@ def apply_job(job_id: int, user_id: int, cover_letter: str = "") -> dict:
         cols = [c["name"] for c in conn.columns]
         return _serialize(_row_to_dict(cols, rows[0]))
     finally:
-        conn.close()
+        release_conn(conn)
 
 def get_job_applicants(job_id: int) -> list:
     conn = get_conn()
@@ -654,7 +961,7 @@ def get_job_applicants(job_id: int) -> list:
         cols = [c["name"] for c in conn.columns]
         return [_serialize(_row_to_dict(cols, r)) for r in rows]
     finally:
-        conn.close()
+        release_conn(conn)
 
 def get_user_applications(user_id: int) -> list:
     conn = get_conn()
@@ -671,7 +978,7 @@ def get_user_applications(user_id: int) -> list:
         cols = [c["name"] for c in conn.columns]
         return [_serialize(_row_to_dict(cols, r)) for r in rows]
     finally:
-        conn.close()
+        release_conn(conn)
 
 def update_application_status(app_id: int, status: str) -> dict:
     conn = get_conn()
@@ -679,7 +986,7 @@ def update_application_status(app_id: int, status: str) -> dict:
         conn.run("UPDATE job_applications SET status=:s WHERE id=:id", s=status, id=app_id)
         return {"success": True}
     finally:
-        conn.close()
+        release_conn(conn)
 
 def delete_job(job_id: int, company_id: int) -> bool:
     conn = get_conn()
@@ -687,4 +994,644 @@ def delete_job(job_id: int, company_id: int) -> bool:
         conn.run("DELETE FROM jobs WHERE id=:id AND company_id=:cid", id=job_id, cid=company_id)
         return True
     finally:
-        conn.close()
+        release_conn(conn)
+
+
+# ══ KYC System ══
+import random, string
+
+def generate_code(length=6):
+    return ''.join(random.choices(string.digits, k=length))
+
+def start_kyc(user_id: int) -> dict:
+    """Start or get KYC submission"""
+    conn = get_conn()
+    try:
+        rows = conn.run("SELECT * FROM kyc_submissions WHERE user_id=:uid", uid=user_id)
+        if rows:
+            cols = [c["name"] for c in conn.columns]
+            return _serialize(_row_to_dict(cols, rows[0]))
+        # Create new
+        rows = conn.run(
+            "INSERT INTO kyc_submissions (user_id, step) VALUES (:uid, 'email') RETURNING *",
+            uid=user_id
+        )
+        cols = [c["name"] for c in conn.columns]
+        return _serialize(_row_to_dict(cols, rows[0]))
+    finally:
+        release_conn(conn)
+
+def send_email_code(user_id: int, email: str) -> str:
+    """Generate email verification code"""
+    code = generate_code()
+    conn = get_conn()
+    try:
+        conn.run(
+            "UPDATE kyc_submissions SET email_code=:code WHERE user_id=:uid",
+            code=code, uid=user_id
+        )
+        return code  # In production: send via email API
+    finally:
+        release_conn(conn)
+
+def verify_email_code(user_id: int, code: str) -> bool:
+    """Verify email code"""
+    conn = get_conn()
+    try:
+        rows = conn.run(
+            "SELECT email_code FROM kyc_submissions WHERE user_id=:uid",
+            uid=user_id
+        )
+        if not rows or rows[0][0] != code:
+            return False
+        conn.run(
+            "UPDATE kyc_submissions SET email_verified=TRUE, step='phone' WHERE user_id=:uid",
+            uid=user_id
+        )
+        conn.run("UPDATE users SET email_verified=TRUE WHERE id=:uid", uid=user_id)
+        return True
+    finally:
+        release_conn(conn)
+
+def send_phone_code(user_id: int, phone: str) -> str:
+    """Generate phone verification code"""
+    code = generate_code()
+    conn = get_conn()
+    try:
+        conn.run(
+            "UPDATE kyc_submissions SET phone=:phone, phone_code=:code WHERE user_id=:uid",
+            phone=phone, code=code, uid=user_id
+        )
+        return code  # In production: send via SMS API
+    finally:
+        release_conn(conn)
+
+def verify_phone_code(user_id: int, code: str) -> bool:
+    """Verify phone code"""
+    conn = get_conn()
+    try:
+        rows = conn.run(
+            "SELECT phone_code FROM kyc_submissions WHERE user_id=:uid",
+            uid=user_id
+        )
+        if not rows or rows[0][0] != code:
+            return False
+        conn.run(
+            "UPDATE kyc_submissions SET phone_verified=TRUE, step='id_upload' WHERE user_id=:uid",
+            uid=user_id
+        )
+        conn.run("UPDATE users SET phone_verified=TRUE WHERE id=:uid", uid=user_id)
+        return True
+    finally:
+        release_conn(conn)
+
+def upload_kyc_docs(user_id: int, id_url: str, selfie_url: str = None) -> dict:
+    """Save uploaded ID and selfie"""
+    conn = get_conn()
+    try:
+        conn.run(
+            "UPDATE kyc_submissions SET id_front_url=:id_url, selfie_url=:selfie, step='review', submitted_at=NOW() WHERE user_id=:uid",
+            id_url=id_url, selfie=selfie_url, uid=user_id
+        )
+        # Create admin review request
+        rows = conn.run(
+            "SELECT u.full_name FROM users u WHERE u.id=:uid",
+            uid=user_id
+        )
+        return {"status": "submitted", "step": "review"}
+    finally:
+        release_conn(conn)
+
+def get_kyc_status(user_id: int) -> dict:
+    """Get current KYC status"""
+    conn = get_conn()
+    try:
+        rows = conn.run(
+            "SELECT ks.*, u.is_verified, u.email_verified, u.phone_verified "
+            "FROM kyc_submissions ks JOIN users u ON u.id=ks.user_id WHERE ks.user_id=:uid",
+            uid=user_id
+        )
+        if not rows:
+            return {"step": "none", "status": "not_started"}
+        cols = [c["name"] for c in conn.columns]
+        return _serialize(_row_to_dict(cols, rows[0]))
+    finally:
+        release_conn(conn)
+
+def admin_approve_kyc(user_id: int, note: str = "") -> dict:
+    """Admin approves KYC"""
+    conn = get_conn()
+    try:
+        conn.run(
+            "UPDATE kyc_submissions SET status='approved', admin_note=:note, reviewed_at=NOW() WHERE user_id=:uid",
+            note=note, uid=user_id
+        )
+        conn.run("UPDATE users SET is_verified=TRUE WHERE id=:uid", uid=user_id)
+        return {"success": True}
+    finally:
+        release_conn(conn)
+
+def admin_reject_kyc(user_id: int, note: str = "") -> dict:
+    """Admin rejects KYC"""
+    conn = get_conn()
+    try:
+        conn.run(
+            "UPDATE kyc_submissions SET status='rejected', step='rejected', admin_note=:note, reviewed_at=NOW() WHERE user_id=:uid",
+            note=note, uid=user_id
+        )
+        return {"success": True}
+    finally:
+        release_conn(conn)
+
+def get_all_kyc_submissions() -> list:
+    """Get all KYC submissions for admin"""
+    conn = get_conn()
+    try:
+        rows = conn.run(
+            "SELECT ks.*, u.full_name, u.email, u.user_type "
+            "FROM kyc_submissions ks JOIN users u ON u.id=ks.user_id "
+            "ORDER BY ks.submitted_at DESC"
+        )
+        cols = [c["name"] for c in conn.columns]
+        return [_serialize(_row_to_dict(cols, r)) for r in rows]
+    finally:
+        release_conn(conn)
+
+
+# ══ Messages System ══
+
+def send_message(sender_id: int, receiver_id: int, content: str) -> dict:
+    conn = get_conn()
+    try:
+        rows = conn.run(
+            "INSERT INTO messages (sender_id, receiver_id, content) "
+            "VALUES (:sid, :rid, :content) RETURNING id, sender_id, receiver_id, content, is_read, created_at",
+            sid=sender_id, rid=receiver_id, content=content
+        )
+        cols = [c["name"] for c in conn.columns]
+        msg = _serialize(_row_to_dict(cols, rows[0]))
+        # Create notification for receiver
+        create_notification(receiver_id, 'message', 'رسالة جديدة', content[:60], '/messages.html')
+        return msg
+    finally:
+        release_conn(conn)
+
+def get_conversations(user_id: int) -> list:
+    """Get all unique conversations for a user"""
+    conn = get_conn()
+    try:
+        rows = conn.run(
+            "SELECT DISTINCT ON (other_id) "
+            "CASE WHEN sender_id=:uid THEN receiver_id ELSE sender_id END AS other_id, "
+            "content, created_at, is_read, sender_id, "
+            "u.full_name, u.user_type "
+            "FROM messages m "
+            "JOIN users u ON u.id = CASE WHEN m.sender_id=:uid THEN m.receiver_id ELSE m.sender_id END "
+            "WHERE sender_id=:uid OR receiver_id=:uid "
+            "ORDER BY other_id, created_at DESC",
+            uid=user_id
+        )
+        cols = [c["name"] for c in conn.columns]
+        return [_serialize(_row_to_dict(cols, r)) for r in rows]
+    finally:
+        release_conn(conn)
+
+def get_messages(user_id: int, other_id: int) -> list:
+    """Get messages between two users"""
+    conn = get_conn()
+    try:
+        rows = conn.run(
+            "SELECT m.*, u.full_name as sender_name "
+            "FROM messages m JOIN users u ON u.id=m.sender_id "
+            "WHERE (sender_id=:uid AND receiver_id=:oid) "
+            "OR (sender_id=:oid AND receiver_id=:uid) "
+            "ORDER BY created_at ASC LIMIT 100",
+            uid=user_id, oid=other_id
+        )
+        cols = [c["name"] for c in conn.columns]
+        # Mark as read
+        conn.run(
+            "UPDATE messages SET is_read=TRUE "
+            "WHERE receiver_id=:uid AND sender_id=:oid AND is_read=FALSE",
+            uid=user_id, oid=other_id
+        )
+        return [_serialize(_row_to_dict(cols, r)) for r in rows]
+    finally:
+        release_conn(conn)
+
+def get_unread_count(user_id: int) -> int:
+    """Get count of unread messages"""
+    conn = get_conn()
+    try:
+        rows = conn.run(
+            "SELECT COUNT(*) FROM messages WHERE receiver_id=:uid AND is_read=FALSE",
+            uid=user_id
+        )
+        return rows[0][0] if rows else 0
+    finally:
+        release_conn(conn)
+
+def get_profile_style(tw_id: str) -> str:
+    """Lightweight: get only profile_style for a given tw_id. Used for SSR theme injection.
+    Uses _cache to avoid re-querying on repeated page views (TTL 60s).
+    """
+    cache_key = f"theme:{tw_id}"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return str(cached)
+    try:
+        conn = get_conn()
+        try:
+            rows = conn.run(
+                "SELECT p.profile_style FROM profiles p "
+                "JOIN users u ON u.id = p.user_id "
+                "WHERE u.tw_id = :tw_id",
+                tw_id=tw_id
+            )
+            style = str(rows[0][0]) if rows and rows[0][0] else "1"
+            _cache_set(cache_key, style, ttl=60)
+            return style
+        finally:
+            release_conn(conn)
+    except Exception:
+        pass
+    return "1"
+
+
+# ══ Notifications System ══
+
+def create_notification(user_id: int, type_: str, title: str, body: str, link: str = "") -> dict:
+    conn = get_conn()
+    try:
+        rows = conn.run(
+            "INSERT INTO notifications (user_id, type, title, body, link) "
+            "VALUES (:uid, :type, :title, :body, :link) RETURNING id, user_id, type, title, body, link, is_read, created_at",
+            uid=user_id, type=type_, title=title, body=body, link=link
+        )
+        cols = [c["name"] for c in conn.columns]
+        return _serialize(_row_to_dict(cols, rows[0]))
+    finally:
+        release_conn(conn)
+
+def get_notifications(user_id: int, limit: int = 50) -> list:
+    conn = get_conn()
+    try:
+        rows = conn.run(
+            "SELECT * FROM notifications WHERE user_id=:uid "
+            "ORDER BY created_at DESC LIMIT :lim",
+            uid=user_id, lim=limit
+        )
+        cols = [c["name"] for c in conn.columns]
+        return [_serialize(_row_to_dict(cols, r)) for r in rows]
+    finally:
+        release_conn(conn)
+
+def mark_notifications_read(user_id: int) -> bool:
+    conn = get_conn()
+    try:
+        conn.run("UPDATE notifications SET is_read=TRUE WHERE user_id=:uid", uid=user_id)
+        return True
+    finally:
+        release_conn(conn)
+
+def get_unread_notifications(user_id: int) -> int:
+    conn = get_conn()
+    try:
+        rows = conn.run(
+            "SELECT COUNT(*) FROM notifications WHERE user_id=:uid AND is_read=FALSE",
+            uid=user_id
+        )
+        return rows[0][0] if rows else 0
+    finally:
+        release_conn(conn)
+
+# ── Site Settings (logos, sizes) ──
+def get_site_setting(key: str) -> str:
+    try:
+        conn = get_conn()
+        rows = conn.run("SELECT value FROM site_settings WHERE key=:k LIMIT 1", k=key)
+        release_conn(conn)
+        return rows[0][0] if rows else ''
+    except: return ''
+
+def set_site_setting(key: str, value: str):
+    try:
+        conn = get_conn()
+        conn.run("""
+            INSERT INTO site_settings(key,value) VALUES(:k,:v)
+            ON CONFLICT(key) DO UPDATE SET value=:v, updated_at=NOW()
+        """, k=key, v=value)
+        release_conn(conn)
+        return True
+    except Exception as e:
+        print(f"[Settings] Error: {e}")
+        return False
+
+def ensure_site_settings_table():
+    try:
+        conn = get_conn()
+        conn.run('''
+            CREATE TABLE IF NOT EXISTS site_settings (
+                key TEXT PRIMARY KEY,
+                value TEXT,
+                updated_at TIMESTAMPTZ DEFAULT NOW()
+            )
+        ''')
+        release_conn(conn)
+    except Exception as e:
+        print(f"[DB] site_settings: {e}")
+
+def ensure_reports_table():
+    try:
+        conn = get_conn()
+        conn.run('''
+            CREATE TABLE IF NOT EXISTS reports (
+                id SERIAL PRIMARY KEY,
+                reporter_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                reported_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                reported_type TEXT DEFAULT 'user',
+                report_type TEXT NOT NULL,
+                reason TEXT,
+                target_url TEXT,
+                status TEXT DEFAULT 'pending',
+                created_at TIMESTAMPTZ DEFAULT NOW()
+            )
+        ''')
+        release_conn(conn)
+    except Exception as e:
+        print(f"[DB] reports table: {e}")
+
+
+# ══ Phase 2: Company Profile System Tables (Rule #18) ══
+def ensure_company_tables():
+    """
+    Creates company_profiles, company_follows, company_ratings.
+    Safe migration: CREATE TABLE IF NOT EXISTS only — no changes to
+    existing tables (users/jobs/profiles untouched). Rule: backward compatible.
+    company identity = users.id everywhere (consistent with jobs.company_id).
+    """
+    try:
+        conn = get_conn()
+        # ── company_profiles — 1:1 with users (user_id = PK + FK) ──
+        conn.run("""
+            CREATE TABLE IF NOT EXISTS company_profiles (
+                user_id       INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+                company_type  TEXT DEFAULT 'private',
+                founded_year  INTEGER,
+                company_size  TEXT,
+                industry      TEXT,
+                description   TEXT,
+                headquarters  TEXT,
+                contact_email TEXT,
+                cover_url     TEXT,
+                verified_co   BOOLEAN NOT NULL DEFAULT FALSE,
+                created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+        """)
+        # ── company_follows — M:M, UNIQUE prevents double-follow at DB level ──
+        conn.run("""
+            CREATE TABLE IF NOT EXISTS company_follows (
+                id          SERIAL PRIMARY KEY,
+                company_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                follower_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                CONSTRAINT uq_follow UNIQUE (company_id, follower_id)
+            )
+        """)
+        conn.run("CREATE INDEX IF NOT EXISTS idx_follows_company  ON company_follows(company_id)")
+        conn.run("CREATE INDEX IF NOT EXISTS idx_follows_follower ON company_follows(follower_id)")
+        # ── company_ratings — M:M, one rating per (company, rater), score 1-5 ──
+        conn.run("""
+            CREATE TABLE IF NOT EXISTS company_ratings (
+                id          SERIAL PRIMARY KEY,
+                company_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                rater_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                score       INTEGER NOT NULL CHECK (score BETWEEN 1 AND 5),
+                comment     TEXT,
+                created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                CONSTRAINT uq_rating UNIQUE (company_id, rater_id)
+            )
+        """)
+        conn.run("CREATE INDEX IF NOT EXISTS idx_ratings_company ON company_ratings(company_id)")
+        # ── company_posts — M posts per company (Phase 3) ──
+        conn.run("""
+            CREATE TABLE IF NOT EXISTS company_posts (
+                id          SERIAL PRIMARY KEY,
+                company_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                body        TEXT NOT NULL,
+                tags        TEXT[],
+                created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+        """)
+        conn.run("CREATE INDEX IF NOT EXISTS idx_posts_company ON company_posts(company_id)")
+        release_conn(conn)
+        print("✅ company tables ready")
+    except Exception as e:
+        print(f"[DB] company tables: {e}")
+
+
+# ══ Phase 2: Company Profile Data Layer (Rule #5,#6 — Single Source) ══
+# All helpers are pure data layer. No authorization here (that lives in server.py).
+# company identity = users.id everywhere.
+
+def ensure_company_profile(user_id: int) -> None:
+    """Insert default company_profiles row if missing. Idempotent."""
+    conn = get_conn()
+    try:
+        conn.run(
+            "INSERT INTO company_profiles (user_id) VALUES (:uid) "
+            "ON CONFLICT (user_id) DO NOTHING",
+            uid=user_id
+        )
+    finally:
+        release_conn(conn)
+
+
+def get_company_profile_row(company_id: int) -> dict:
+    """Return company_profiles row as dict, or defaults if none exists."""
+    conn = get_conn()
+    try:
+        rows = conn.run(
+            "SELECT company_type, founded_year, company_size, industry, "
+            "description, headquarters, contact_email, cover_url, verified_co "
+            "FROM company_profiles WHERE user_id = :uid",
+            uid=company_id
+        )
+        if not rows:
+            return {
+                "company_type": None, "founded_year": None, "company_size": None,
+                "industry": None, "description": None, "headquarters": None,
+                "contact_email": None, "cover_url": None, "verified_co": False,
+            }
+        cols = [c["name"] for c in conn.columns]
+        return _serialize(_row_to_dict(cols, rows[0]))
+    finally:
+        release_conn(conn)
+
+
+def get_company_extras(company_id: int, viewer_id: int = None) -> dict:
+    """
+    Aggregated company data: profile + derived stats + viewer-specific flags.
+    Derived values (followers_count, rating_avg) computed on demand — not stored.
+    """
+    conn = get_conn()
+    try:
+        # followers count — uses idx_follows_company
+        fc = conn.run("SELECT COUNT(*) FROM company_follows WHERE company_id = :cid",
+                      cid=company_id)
+        followers_count = fc[0][0] if fc else 0
+
+        # rating avg + count — uses idx_ratings_company
+        rt = conn.run(
+            "SELECT AVG(score), COUNT(*) FROM company_ratings WHERE company_id = :cid",
+            cid=company_id)
+        rating_avg   = round(float(rt[0][0]), 1) if rt and rt[0][0] is not None else None
+        rating_count = rt[0][1] if rt else 0
+
+        # viewer-specific: is_following + my_rating (composite indexes)
+        is_following = False
+        my_rating    = None
+        if viewer_id:
+            f = conn.run(
+                "SELECT 1 FROM company_follows WHERE company_id = :cid AND follower_id = :vid",
+                cid=company_id, vid=viewer_id)
+            is_following = bool(f)
+            r = conn.run(
+                "SELECT score FROM company_ratings WHERE company_id = :cid AND rater_id = :vid",
+                cid=company_id, vid=viewer_id)
+            my_rating = r[0][0] if r else None
+
+        return {
+            "followers_count": followers_count,
+            "rating_avg":      rating_avg,
+            "rating_count":    rating_count,
+            "is_following":    is_following,
+            "my_rating":       my_rating,
+        }
+    finally:
+        release_conn(conn)
+
+
+def update_company_profile(user_id: int, fields: dict) -> bool:
+    """Update company_profiles for owner. Ensures row exists first."""
+    allowed = {"company_type","founded_year","company_size","industry",
+               "description","headquarters","contact_email","cover_url"}
+    clean = {k: v for k, v in fields.items() if k in allowed}
+    if not clean:
+        return False
+    ensure_company_profile(user_id)
+    conn = get_conn()
+    try:
+        set_clause = ", ".join(f"{k} = :{k}" for k in clean)
+        conn.run(
+            f"UPDATE company_profiles SET {set_clause}, updated_at = NOW() WHERE user_id = :uid",
+            uid=user_id, **clean)
+        return True
+    finally:
+        release_conn(conn)
+
+
+def follow_company(follower_id: int, company_id: int) -> int:
+    """Follow (idempotent). Returns new followers_count."""
+    conn = get_conn()
+    try:
+        conn.run(
+            "INSERT INTO company_follows (company_id, follower_id) VALUES (:cid, :fid) "
+            "ON CONFLICT (company_id, follower_id) DO NOTHING",
+            cid=company_id, fid=follower_id)
+        fc = conn.run("SELECT COUNT(*) FROM company_follows WHERE company_id = :cid",
+                      cid=company_id)
+        return fc[0][0] if fc else 0
+    finally:
+        release_conn(conn)
+
+
+def unfollow_company(follower_id: int, company_id: int) -> int:
+    """Unfollow (idempotent). Returns new followers_count."""
+    conn = get_conn()
+    try:
+        conn.run(
+            "DELETE FROM company_follows WHERE company_id = :cid AND follower_id = :fid",
+            cid=company_id, fid=follower_id)
+        fc = conn.run("SELECT COUNT(*) FROM company_follows WHERE company_id = :cid",
+                      cid=company_id)
+        return fc[0][0] if fc else 0
+    finally:
+        release_conn(conn)
+
+
+def rate_company(rater_id: int, company_id: int, score: int, comment: str = None) -> dict:
+    """Rate (UPSERT — one rating per user). Returns new avg + count."""
+    conn = get_conn()
+    try:
+        conn.run(
+            "INSERT INTO company_ratings (company_id, rater_id, score, comment) "
+            "VALUES (:cid, :rid, :score, :comment) "
+            "ON CONFLICT (company_id, rater_id) "
+            "DO UPDATE SET score = :score, comment = :comment, updated_at = NOW()",
+            cid=company_id, rid=rater_id, score=score, comment=comment)
+        rt = conn.run(
+            "SELECT AVG(score), COUNT(*) FROM company_ratings WHERE company_id = :cid",
+            cid=company_id)
+        return {
+            "rating_avg":   round(float(rt[0][0]), 1) if rt and rt[0][0] is not None else None,
+            "rating_count": rt[0][1] if rt else 0,
+        }
+    finally:
+        release_conn(conn)
+
+
+# ══ Phase 3: Company Posts Data Layer (Rule #5,#6 — Single Source) ══
+# Pure data layer. No authorization (that lives in server.py). company_id = users.id.
+
+def get_company_posts(company_id: int) -> list:
+    """Return all posts for a company, newest first. Uses idx_posts_company."""
+    conn = get_conn()
+    try:
+        rows = conn.run(
+            "SELECT id, body, tags, created_at FROM company_posts "
+            "WHERE company_id = :cid ORDER BY created_at DESC",
+            cid=company_id)
+        cols = ["id", "body", "tags", "created_at"]
+        return [_serialize(_row_to_dict(cols, r)) for r in rows]
+    finally:
+        release_conn(conn)
+
+
+def create_company_post(company_id: int, body: str, tags=None) -> dict:
+    """Insert a post. Returns the created row. body required (non-empty)."""
+    conn = get_conn()
+    try:
+        rows = conn.run(
+            "INSERT INTO company_posts (company_id, body, tags) "
+            "VALUES (:cid, :body, :tags) RETURNING id, body, tags, created_at",
+            cid=company_id, body=body, tags=(tags if tags else None))
+        cols = ["id", "body", "tags", "created_at"]
+        return _serialize(_row_to_dict(cols, rows[0])) if rows else {}
+    finally:
+        release_conn(conn)
+
+
+def get_post_owner(post_id: int):
+    """Return company_id (owner) of a post, or None if not found.
+    Used by server.py for ownership check before delete."""
+    conn = get_conn()
+    try:
+        rows = conn.run("SELECT company_id FROM company_posts WHERE id = :pid", pid=post_id)
+        return rows[0][0] if rows else None
+    finally:
+        release_conn(conn)
+
+
+def delete_company_post(post_id: int) -> bool:
+    """Delete a post by id. Returns True if a row was deleted."""
+    conn = get_conn()
+    try:
+        rows = conn.run("DELETE FROM company_posts WHERE id = :pid RETURNING id", pid=post_id)
+        return bool(rows)
+    finally:
+        release_conn(conn)
+

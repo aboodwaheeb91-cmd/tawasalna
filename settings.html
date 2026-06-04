@@ -2,7 +2,16 @@
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+  <link rel="dns-prefetch" href="https://fonts.gstatic.com">
+  <link rel="dns-prefetch" href="https://tawasolna.com">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#00c896">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="تواصلنا">
+  <link rel="apple-touch-icon" href="/icon-192.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>تواصلنا - إعدادات الحساب</title>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
 <style>
@@ -78,17 +87,70 @@ body{background:#070b18;color:#fff;font-family:'Cairo',sans-serif;min-height:100
 .toast.show{transform:translateX(-50%) translateY(0);opacity:1;}
 .toast.success{background:#064e3b;color:#6ee7b7;border:1px solid rgba(110,231,183,.2);}
 .toast.error{background:#7f1d1d;color:#fca5a5;border:1px solid rgba(252,165,165,.2);}
+
+
+/* ══ ITQAN - Shared Utilities ══ */
+@keyframes tw-shimmer{0%{background-position:-1000px 0}100%{background-position:1000px 0}}
+@keyframes tw-spin{to{transform:translateY(-50%) rotate(360deg);}}
+@keyframes tw-fadein{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:none;}}
+@keyframes tw-verified{0%,100%{box-shadow:0 0 0 0 rgba(0,200,150,0);}50%{box-shadow:0 0 0 5px rgba(0,200,150,.15);}}
+.tw-toast[aria-live="polite"]{position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(20px);background:rgba(7,11,24,.97);border:1px solid rgba(255,255,255,.1);backdrop-filter:blur(20px);border-radius:14px;padding:12px 20px;display:flex;align-items:center;gap:10px;font-size:.82rem;font-family:Cairo,sans-serif;color:rgba(255,255,255,.92);opacity:0;transition:all .3s cubic-bezier(.34,1.56,.64,1);z-index:9999;white-space:nowrap;min-width:180px;justify-content:center;box-shadow:0 8px 32px rgba(0,0,0,.4);}
+.tw-toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+.tw-toast.success{border-color:rgba(0,200,150,.3);}
+.tw-toast.error{border-color:rgba(239,68,68,.3);}
+.tw-toast.info{border-color:rgba(37,99,255,.3);}
+.tw-skeleton{background:linear-gradient(90deg,rgba(255,255,255,.04) 25%,rgba(255,255,255,.09) 50%,rgba(255,255,255,.04) 75%);background-size:2000px 100%;animation:tw-shimmer 1.5s infinite linear;border-radius:8px;}
+.tw-btn-loading{position:relative;pointer-events:none;opacity:.8;}
+.tw-btn-loading::after{content:'';position:absolute;width:14px;height:14px;border-radius:50%;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;animation:tw-spin .7s linear infinite;right:12px;top:50%;transform:translateY(-50%);}
+.tw-scroll-prog{position:fixed;top:0;left:0;height:2px;z-index:999;background:linear-gradient(90deg,var(--ac,#00c896),var(--ac2,#2563ff));transition:width .1s;width:0%;}
+.tw-fab{position:fixed;bottom:80px;left:18px;width:50px;height:50px;border-radius:50%;border:none;font-size:1.4rem;background:linear-gradient(135deg,var(--ac,#00c896),var(--ac2,#2563ff));color:#fff;cursor:pointer;box-shadow:0 4px 20px rgba(0,200,150,.35);transition:all .25s cubic-bezier(.34,1.56,.64,1);z-index:50;display:flex;align-items:center;justify-content:center;}
+.tw-fab:hover{transform:scale(1.12) rotate(90deg);}
+.tw-empty{text-align:center;padding:50px 20px;}
+.tw-empty-ico{font-size:2.5rem;margin-bottom:12px;opacity:.7;display:block;}
+.tw-empty-title{font-size:.95rem;font-weight:800;margin-bottom:6px;}
+.tw-empty-sub{font-size:.78rem;color:rgba(255,255,255,.35);margin-bottom:18px;line-height:1.6;}
+.tw-empty-btn{padding:10px 22px;border-radius:12px;background:linear-gradient(135deg,var(--ac,#00c896),var(--ac2,#2563ff));border:none;color:#fff;font-family:Cairo,sans-serif;font-weight:700;font-size:.8rem;cursor:pointer;}
+.tw-card-lift{transition:transform .2s,box-shadow .2s;}
+.tw-card-lift:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.3);}
+.tw-verified{animation:tw-verified 2.5s ease-in-out infinite;}
+
+
+.kyc-step-dot{width:28px;height:28px;border-radius:50%;border:2px solid rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;font-size:.7rem;color:rgba(255,255,255,.4);flex-shrink:0;transition:all .3s;}
+.kyc-step-dot.active{border-color:#00c896;color:#00c896;background:rgba(0,200,150,.1);}
+.kyc-step-dot.done{border-color:#00c896;color:#fff;background:#00c896;}
+.kyc-step-line{flex:1;height:2px;background:rgba(255,255,255,.08);}
+
 </style>
+<style>.skip-link{position:absolute;top:-40px;right:0;background:var(--ac,#00c896);color:#0d1a2e;padding:8px 16px;border-radius:0 0 8px 0;font-family:Cairo,sans-serif;font-size:.8rem;font-weight:700;text-decoration:none;transition:top .2s;z-index:10000}.skip-link:focus{top:0}
+.sec-title{display:flex;align-items:center;justify-content:space-between;}
+.sec-saved{font-size:.65rem;color:var(--ac,#00c896);opacity:0;transition:opacity .3s;}
+.sec-saved.show{opacity:1;}
+
+/* ── Password Eye Icon ── */
+.pass-wrap{position:relative;display:flex;align-items:center;}
+.pass-wrap input{width:100%;padding-left:36px!important;}
+.pass-eye{position:absolute;left:10px;cursor:pointer;font-size:1rem;opacity:.5;user-select:none;transition:opacity .2s;}
+.pass-eye:hover{opacity:.9;}
+</style><a href="#main-content" class="skip-link">تخطى للمحتوى الرئيسي</a><link rel="stylesheet" href="/static/tw_shared.css">
 </head>
 <body>
+<!--
+╔══════════════════════════════════════════════╗
+║  TAWASALNA - SETTINGS                        ║
+║  Architecture: Hybrid                        ║
+║  Last Modified: 2026-05                      ║
+║  DO NOT EDIT outside designated sections     ║
+╚══════════════════════════════════════════════╝
+-->
+
 
 <nav class="nav">
   <button class="nav-back" onclick="goBack()">← رجوع</button>
   <span class="nav-title">إعدادات الحساب</span>
-  <div class="nav-logo" onclick="goBack()">تواصلنا</div>
+  <div class="nav-logo"><img src="https://wrxvmdmknhoufoeprpoc.supabase.co/storage/v1/object/public/site/Logo.svg" alt="تواصلنا" style="height:36px;width:auto;object-fit:contain;display:block"></div>
 </nav>
 
-<div class="main">
+<div class="main" role="main" id="main-content">
   <div class="page-title">⚙️ إعدادات الحساب</div>
   <div class="page-sub">إدارة معلومات حسابك وأمانه</div>
 
@@ -185,6 +247,7 @@ body{background:#070b18;color:#fff;font-family:'Cairo',sans-serif;min-height:100
 
 <div class="toast" id="toast"></div>
 
+<script src="/tw_shared.js"></script>
 <script>
 'use strict';
 // ── State ──
@@ -333,12 +396,12 @@ function saveEmail() {
     if (!r.ok) { setErr('err-pass', 'كلمة المرور غير صحيحة'); btn.textContent='حفظ'; btn.disabled=false; return; }
     _user.email = email;
     localStorage.setItem('tw_user', JSON.stringify(_user));
-    closeModal(); loadDisplay(); toast('تم تغيير البريد الإلكتروني ✓');
+    closeModal(); loadDisplay(); showToast('تم تغيير البريد الإلكتروني ✓');
   }).catch(() => {
     // Offline fallback
     _user.email = email;
     localStorage.setItem('tw_user', JSON.stringify(_user));
-    closeModal(); loadDisplay(); toast('تم تغيير البريد ✓');
+    closeModal(); loadDisplay(); showToast('تم تغيير البريد ✓');
   });
 }
 
@@ -352,7 +415,7 @@ function savePhone() {
   }).finally(()=>{
     _prof.phone = phone;
     localStorage.setItem('tw_profile_data'+getUID(), JSON.stringify(_prof));
-    closeModal(); loadDisplay(); toast('تم حفظ رقم الهاتف ✓');
+    closeModal(); loadDisplay(); showToast('تم حفظ رقم الهاتف ✓');
   });
 }
 
@@ -374,9 +437,9 @@ function savePassword() {
     body: JSON.stringify({ email: _user.email, password: oldP })
   }).then(r => {
     if (!r.ok) { setErr('err-old', 'كلمة المرور الحالية غير صحيحة'); btn.textContent='تغيير'; btn.disabled=false; return; }
-    closeModal(); toast('تم تغيير كلمة المرور ✓');
+    closeModal(); showToast('تم تغيير كلمة المرور ✓');
   }).catch(() => {
-    closeModal(); toast('تم تغيير كلمة المرور ✓');
+    closeModal(); showToast('تم تغيير كلمة المرور ✓');
   });
 }
 
@@ -386,7 +449,7 @@ function confirmDelete() {
   // Delete from DB then clear local
   fetch('/auth/user/'+_user.id+'/delete', {method:'DELETE'}).finally(()=>{
     Object.keys(localStorage).filter(k=>k.startsWith('tw_')).forEach(k=>localStorage.removeItem(k));
-    window.location.href = '/login.html';
+    window.location.href = '/';
   });
 }
 
@@ -408,6 +471,304 @@ function toast(msg, type = 'success') {
   clearTimeout(t._t);
   t._t = setTimeout(() => t.classList.remove('show'), 2800);
 }
+
+
+// ══ ITQAN Utilities ══
+var _twToast=null;
+function showToast(msg,type,dur){
+  type=type||'success';dur=dur||2800;
+  if(_twToast){_twToast.remove();}
+  var t=document.createElement('div');
+  t.className='tw-toast '+type;
+  var ico=type==='success'?'✅':type==='error'?'❌':'ℹ️';
+  t.innerHTML='<span>'+ico+'</span><span>'+msg+'</span>';
+  document.body.appendChild(t);
+  _twToast=t;
+  requestAnimationFrame(function(){requestAnimationFrame(function(){t.classList.add('show');});});
+  setTimeout(function(){t.classList.remove('show');setTimeout(function(){if(t.parentNode)t.remove();},350);},dur);
+}
+function setBtnLoad(btn,loading){
+  if(!btn)return;
+  if(loading){btn.classList.add('tw-btn-loading');btn._orig=btn.textContent;btn.textContent='';btn.disabled=true;}
+  else{btn.classList.remove('tw-btn-loading');btn.textContent=btn._orig||'حفظ';btn.disabled=false;}
+}
+function twNavigate(url){
+  document.body.style.cssText='opacity:0;transform:translateY(-6px);transition:all .2s ease;';
+  setTimeout(function(){window.location.href=url;},180);
+}
+function initScrollProg(){
+  var p=document.createElement('div');p.className='tw-scroll-prog';
+  document.body.prepend(p);
+  window.addEventListener('scroll',function(){
+    var pct=window.scrollY/(document.body.scrollHeight-window.innerHeight)*100;
+    p.style.width=Math.min(pct,100)+'%';
+  });
+}
+
+
+// ══ KYC System ══
+var _kycStep=1,_kycIdB64='',_kycSelfieB64='';
+
+function openKYC(){
+  if(!_user||!_user.id) return;
+  document.getElementById('kycOverlay').style.display='flex';
+  fetch('/kyc/status/'+_user.id).then(function(r){return r.json();}).then(function(data){
+    var kyc=data.kyc||{};
+    var step=kyc.step||'none';
+    if(step==='none'||step==='email'){ showKYCStep(1); if(_user.email) document.getElementById('kyc-email').value=_user.email; }
+    else if(step==='phone') showKYCStep(2);
+    else if(step==='id_upload') showKYCStep(3);
+    else if(step==='review') showKYCStep(4);
+    else if(kyc.status==='approved') showKYCApproved();
+    else if(kyc.status==='rejected') showKYCRejected(kyc.admin_note);
+  }).catch(function(){ showKYCStep(1); if(_user.email) document.getElementById('kyc-email').value=_user.email||''; });
+}
+
+function closeKYC(){ document.getElementById('kycOverlay').style.display='none'; }
+
+function showKYCStep(n){
+  _kycStep=n;
+  ['kycStep1','kycStep2','kycStep3','kycStep4','kycApproved','kycRejected'].forEach(function(id){
+    var el=document.getElementById(id); if(el) el.style.display='none';
+  });
+  var el=document.getElementById('kycStep'+n); if(el) el.style.display='block';
+  for(var i=1;i<=4;i++){
+    var d=document.getElementById('dot'+i); if(!d) continue;
+    d.classList.remove('active','done');
+    if(i<n) d.classList.add('done'); else if(i===n) d.classList.add('active');
+  }
+}
+
+function showKYCApproved(){
+  ['kycStep1','kycStep2','kycStep3','kycStep4','kycRejected'].forEach(function(id){var el=document.getElementById(id);if(el)el.style.display='none';});
+  document.getElementById('kycApproved').style.display='block';
+  document.getElementById('kycBadge').style.display='inline-block';
+  document.getElementById('kycStatus').textContent='✅ موثق';
+  document.getElementById('kycArrow').textContent='';
+}
+
+function showKYCRejected(note){
+  ['kycStep1','kycStep2','kycStep3','kycStep4','kycApproved'].forEach(function(id){var el=document.getElementById(id);if(el)el.style.display='none';});
+  document.getElementById('kycRejected').style.display='block';
+  if(note) document.getElementById('kycRejectNote').textContent=note;
+}
+
+function resetKYC(){
+  _kycIdB64=''; _kycSelfieB64='';
+  fetch('/kyc/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:_user.id})}).then(function(){showKYCStep(1);}).catch(function(){showKYCStep(1);});
+}
+
+function kycSendEmail(btn){
+  var email=document.getElementById('kyc-email').value.trim();
+  if(!email){showToast('أدخل البريد الإلكتروني','error');return;}
+  setBtnLoad(btn,true);
+  fetch('/kyc/email/send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:_user.id,email:email})})
+  .then(function(r){return r.json();}).then(function(data){
+    setBtnLoad(btn,false);
+    if(data.status==='success'){
+      document.getElementById('kyc-email-code-wrap').style.display='block';
+      showToast('تم إرسال الرمز ✅');
+      if(data.dev_code) console.log('[KYC] Email code:',data.dev_code);
+    }
+  }).catch(function(){setBtnLoad(btn,false);showToast('خطأ','error');});
+}
+
+function kycVerifyEmail(btn){
+  var code=document.getElementById('kyc-email-code').value.trim();
+  if(code.length!==6){showToast('الرمز 6 أرقام','error');return;}
+  setBtnLoad(btn,true);
+  fetch('/kyc/email/verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:_user.id,code:code})})
+  .then(function(r){return r.json();}).then(function(data){
+    setBtnLoad(btn,false);
+    if(data.status==='success'){showToast('✅ تم تأكيد البريد');setTimeout(function(){showKYCStep(2);},700);}
+    else showToast('رمز خاطئ','error');
+  }).catch(function(){setBtnLoad(btn,false);showToast('خطأ','error');});
+}
+
+function kycSendPhone(btn){
+  var phone=document.getElementById('kyc-phone').value.trim();
+  if(!phone){showToast('أدخل رقم الهاتف','error');return;}
+  setBtnLoad(btn,true);
+  fetch('/kyc/phone/send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:_user.id,phone:phone})})
+  .then(function(r){return r.json();}).then(function(data){
+    setBtnLoad(btn,false);
+    if(data.status==='success'){
+      document.getElementById('kyc-phone-code-wrap').style.display='block';
+      showToast('تم إرسال الرمز ✅');
+      if(data.dev_code) console.log('[KYC] Phone code:',data.dev_code);
+    }
+  }).catch(function(){setBtnLoad(btn,false);showToast('خطأ','error');});
+}
+
+function kycVerifyPhone(btn){
+  var code=document.getElementById('kyc-phone-code').value.trim();
+  if(!code){showToast('أدخل الرمز','error');return;}
+  setBtnLoad(btn,true);
+  fetch('/kyc/phone/verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:_user.id,code:code})})
+  .then(function(r){return r.json();}).then(function(data){
+    setBtnLoad(btn,false);
+    if(data.status==='success'){showToast('✅ تم تأكيد الهاتف');setTimeout(function(){showKYCStep(3);},700);}
+    else showToast('رمز خاطئ','error');
+  }).catch(function(){setBtnLoad(btn,false);showToast('خطأ','error');});
+}
+
+function kycPreviewID(input){
+  if(!input.files||!input.files[0]) return;
+  var reader=new FileReader();
+  reader.onload=function(e){
+    _kycIdB64=e.target.result;
+    document.getElementById('kyc-id-preview').innerHTML='<img src="'+e.target.result+'" style="width:80px;height:60px;object-fit:cover;border-radius:8px">';
+  };
+  reader.readAsDataURL(input.files[0]);
+}
+
+function kycPreviewSelfie(input){
+  if(!input.files||!input.files[0]) return;
+  var reader=new FileReader();
+  reader.onload=function(e){
+    _kycSelfieB64=e.target.result;
+    document.getElementById('kyc-selfie-preview').innerHTML='<img src="'+e.target.result+'" style="width:80px;height:80px;object-fit:cover;border-radius:50%">';
+  };
+  reader.readAsDataURL(input.files[0]);
+}
+
+function kycSubmitDocs(btn){
+  if(!_kycIdB64){showToast('ارفع صورة الهوية أولاً','error');return;}
+  setBtnLoad(btn,true);
+  showToast('جاري رفع المستندات...','info',5000);
+  // Upload ID to storage first
+  Promise.all([
+    fetch('/upload/image',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({user_id:_user.id,bucket:'kyc-docs',filename:'id_front',data_url:_kycIdB64})
+    }).then(function(r){return r.json();}),
+    _kycSelfieB64 ? fetch('/upload/image',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({user_id:_user.id,bucket:'kyc-docs',filename:'selfie',data_url:_kycSelfieB64})
+    }).then(function(r){return r.json();}) : Promise.resolve({url:null})
+  ]).then(function(results){
+    var idUrl=results[0].url||_kycIdB64;
+    var selfieUrl=results[1]?results[1].url:null;
+    return fetch('/kyc/docs',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({user_id:_user.id,id_front_url:idUrl,selfie_url:selfieUrl})
+    }).then(function(r){return r.json();});
+  }).then(function(data){
+    setBtnLoad(btn,false);
+    if(data.status==='success'){
+      showToast('✅ تم إرسال طلب التوثيق');
+      document.getElementById('kycStatus').textContent='⏳ قيد المراجعة';
+      setTimeout(function(){showKYCStep(4);},700);
+    }
+  }).catch(function(){
+    setBtnLoad(btn,false);
+    showToast('خطأ في الإرسال','error');
+  });
+}
+
+(function(){
+  if(!_user||!_user.id) return;
+  fetch('/kyc/status/'+_user.id).then(function(r){return r.json();}).then(function(data){
+    var kyc=data.kyc||{};
+    if(kyc.status==='approved'){
+      document.getElementById('kycBadge').style.display='inline-block';
+      document.getElementById('kycStatus').textContent='✅ موثق';
+      document.getElementById('kycArrow').textContent='';
+    } else if(kyc.step==='review'){
+      document.getElementById('kycStatus').textContent='⏳ قيد المراجعة';
+    } else if(kyc.step&&kyc.step!=='none'){
+      document.getElementById('kycStatus').textContent='أكمل التوثيق ◀';
+    }
+  }).catch(function(){});
+})();
+
+
+// ── Save feedback ──
+function showSaved(sectionId){
+  var label=document.getElementById('saved_'+sectionId);
+  if(label){label.classList.add('show');setTimeout(function(){label.classList.remove('show');},2000);}
+}
+
 </script>
+
+<!-- ══ KYC Modal ══ -->
+<div class="overlay" id="kycOverlay" onclick="if(event.target===this)closeKYC()" style="display:none;position:fixed;inset:0;z-index:2000;background:rgba(0,0,0,.85);align-items:center;justify-content:center;padding:16px">
+  <div style="background:#0d1a2e;border-radius:20px;width:100%;max-width:420px;padding:24px;max-height:90vh;overflow-y:auto;border:1px solid rgba(255,255,255,.08)">
+
+    <!-- Steps indicator -->
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:20px">
+      <div class="kyc-step-dot active" id="dot1">1</div>
+      <div class="kyc-step-line"></div>
+      <div class="kyc-step-dot" id="dot2">2</div>
+      <div class="kyc-step-line"></div>
+      <div class="kyc-step-dot" id="dot3">3</div>
+      <div class="kyc-step-line"></div>
+      <div class="kyc-step-dot" id="dot4">4</div>
+    </div>
+
+    <!-- Step 1: Email ✉️ -->
+    <div id="kycStep1">
+      <div style="font-weight:800;font-size:1rem;margin-bottom:6px">✉️ تأكيد البريد الإلكتروني</div>
+      <div style="font-size:.78rem;color:rgba(255,255,255,.4);margin-bottom:16px">سنرسل رمز تحقق على بريدك</div>
+      <input id="kyc-email" type="email" placeholder="بريدك الإلكتروني" style="width:100%;padding:11px 14px;border-radius:12px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);color:#fff;font-family:Cairo,sans-serif;font-size:.85rem;margin-bottom:10px">
+      <button onclick="kycSendEmail(this)" style="width:100%;padding:12px;border-radius:12px;border:none;background:linear-gradient(135deg,#00c896,#2563ff);color:#fff;font-family:Cairo,sans-serif;font-weight:700;cursor:pointer;font-size:.85rem">إرسال الرمز</button>
+      <div id="kyc-email-code-wrap" style="display:none;margin-top:10px">
+        <input id="kyc-email-code" placeholder="أدخل الرمز (6 أرقام)" style="width:100%;padding:11px 14px;border-radius:12px;border:1px solid rgba(0,200,150,.3);background:rgba(255,255,255,.05);color:#fff;font-family:Cairo,sans-serif;text-align:center;font-size:1.2rem;letter-spacing:6px;margin-bottom:10px">
+        <button onclick="kycVerifyEmail(this)" style="width:100%;padding:12px;border-radius:12px;border:none;background:rgba(0,200,150,.2);color:#00c896;font-family:Cairo,sans-serif;font-weight:700;cursor:pointer">تأكيد الرمز</button>
+      </div>
+    </div>
+
+    <!-- Step 2: Phone 📱 -->
+    <div id="kycStep2" style="display:none">
+      <div style="font-weight:800;font-size:1rem;margin-bottom:6px">📱 تأكيد رقم الهاتف</div>
+      <div style="font-size:.78rem;color:rgba(255,255,255,.4);margin-bottom:16px">سنرسل رمز SMS على هاتفك</div>
+      <input id="kyc-phone" type="tel" placeholder="+962791234567" style="width:100%;padding:11px 14px;border-radius:12px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);color:#fff;font-family:Cairo,sans-serif;font-size:.85rem;margin-bottom:10px;direction:ltr;text-align:left">
+      <button onclick="kycSendPhone(this)" style="width:100%;padding:12px;border-radius:12px;border:none;background:linear-gradient(135deg,#00c896,#2563ff);color:#fff;font-family:Cairo,sans-serif;font-weight:700;cursor:pointer;font-size:.85rem">إرسال الرمز</button>
+      <div id="kyc-phone-code-wrap" style="display:none;margin-top:10px">
+        <input id="kyc-phone-code" placeholder="أدخل الرمز" style="width:100%;padding:11px 14px;border-radius:12px;border:1px solid rgba(0,200,150,.3);background:rgba(255,255,255,.05);color:#fff;font-family:Cairo,sans-serif;text-align:center;font-size:1.2rem;letter-spacing:6px;margin-bottom:10px">
+        <button onclick="kycVerifyPhone(this)" style="width:100%;padding:12px;border-radius:12px;border:none;background:rgba(0,200,150,.2);color:#00c896;font-family:Cairo,sans-serif;font-weight:700;cursor:pointer">تأكيد الرمز</button>
+      </div>
+    </div>
+
+    <!-- Step 3: ID Upload 🪪 -->
+    <div id="kycStep3" style="display:none">
+      <div style="font-weight:800;font-size:1rem;margin-bottom:6px">🪪 صورة الهوية والسيلفي</div>
+      <div style="font-size:.78rem;color:rgba(255,255,255,.4);margin-bottom:16px">ارفع صورة واضحة من هويتك الوطنية</div>
+      <div style="border:2px dashed rgba(255,255,255,.15);border-radius:14px;padding:20px;text-align:center;margin-bottom:10px;cursor:pointer" onclick="document.getElementById('kyc-id-file').click()">
+        <div id="kyc-id-preview" style="font-size:2rem;margin-bottom:8px">🪪</div>
+        <div style="font-size:.78rem;color:rgba(255,255,255,.4)">صورة الهوية الوطنية</div>
+        <input id="kyc-id-file" type="file" accept="image/*" style="display:none" onchange="kycPreviewID(this)">
+      </div>
+      <div style="border:2px dashed rgba(255,255,255,.15);border-radius:14px;padding:20px;text-align:center;margin-bottom:14px;cursor:pointer" onclick="document.getElementById('kyc-selfie-file').click()">
+        <div id="kyc-selfie-preview" style="font-size:2rem;margin-bottom:8px">🤳</div>
+        <div style="font-size:.78rem;color:rgba(255,255,255,.4)">سيلفي مع الهوية (اختياري)</div>
+        <input id="kyc-selfie-file" type="file" accept="image/*" style="display:none" onchange="kycPreviewSelfie(this)">
+      </div>
+      <button onclick="kycSubmitDocs(this)" style="width:100%;padding:12px;border-radius:12px;border:none;background:linear-gradient(135deg,#00c896,#2563ff);color:#fff;font-family:Cairo,sans-serif;font-weight:700;cursor:pointer;font-size:.85rem">إرسال للمراجعة</button>
+    </div>
+
+    <!-- Step 4: Review ⏳ -->
+    <div id="kycStep4" style="display:none;text-align:center;padding:20px 0">
+      <div style="font-size:3rem;margin-bottom:12px">⏳</div>
+      <div style="font-weight:800;font-size:1rem;margin-bottom:8px">طلبك قيد المراجعة</div>
+      <div style="font-size:.78rem;color:rgba(255,255,255,.4);line-height:1.7">سيتم مراجعة هويتك خلال 24-48 ساعة<br>وستصلك إشعار بالنتيجة</div>
+    </div>
+
+    <!-- Approved -->
+    <div id="kycApproved" style="display:none;text-align:center;padding:20px 0">
+      <div style="font-size:3rem;margin-bottom:12px">✅</div>
+      <div style="font-weight:800;font-size:1rem;margin-bottom:8px;color:#00c896">تم توثيق هويتك</div>
+      <div style="font-size:.78rem;color:rgba(255,255,255,.4)">حسابك موثق ومعتمد على تواصلنا</div>
+    </div>
+
+    <!-- Rejected -->
+    <div id="kycRejected" style="display:none;text-align:center;padding:20px 0">
+      <div style="font-size:3rem;margin-bottom:12px">❌</div>
+      <div style="font-weight:800;font-size:1rem;margin-bottom:8px;color:#f87171">تم رفض الطلب</div>
+      <div style="font-size:.78rem;color:rgba(255,255,255,.4);margin-bottom:14px" id="kycRejectNote">يرجى المحاولة مرة أخرى</div>
+      <button onclick="resetKYC()" style="padding:10px 24px;border-radius:12px;border:1px solid rgba(255,255,255,.1);background:transparent;color:rgba(255,255,255,.6);font-family:Cairo,sans-serif;cursor:pointer">إعادة المحاولة</button>
+    </div>
+
+    <button onclick="closeKYC()" style="width:100%;margin-top:14px;padding:10px;border-radius:12px;border:1px solid rgba(255,255,255,.08);background:transparent;color:rgba(255,255,255,.4);font-family:Cairo,sans-serif;cursor:pointer;font-size:.8rem">إغلاق</button>
+  </div>
+</div>
+
 </body>
 </html>

@@ -1,8 +1,29 @@
-<!DOCTYPE html>
+<!DOC
+
+  <!-- Job Applications -->
+  <div class="sec-card" id="secApplications" style="display:none">
+    <div class="sec-title">📋 طلبات التوظيف</div>
+    <div id="appsList"><div class="empty">جاري التحميل...</div></div>
+  </div>
+
+  <!-- Posted Jobs -->
+  <div class="sec-card" id="secPostedJobs" style="display:none">
+    <div class="sec-title">💼 الوظائف المنشورة</div>
+    <div id="postedJobsList"><div class="empty">جاري التحميل...</div></div>
+  </div>TYPE html>
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+  <link rel="dns-prefetch" href="https://fonts.gstatic.com">
+  <link rel="dns-prefetch" href="https://tawasolna.com">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#00c896">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="تواصلنا">
+  <link rel="apple-touch-icon" href="/icon-192.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>تواصلنا - عرض المستخدم</title>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
 <style>
@@ -119,17 +140,57 @@ body{background:var(--bg);color:#fff;font-family:'Cairo',sans-serif;min-height:1
 .mbtn-ok{background:linear-gradient(135deg,var(--ac),var(--ac2));color:#fff;}
 .mbtn-danger{background:rgba(239,68,68,.15);color:#f87171;border:1px solid rgba(239,68,68,.25);}
 .mbtn-no{background:rgba(255,255,255,.07);color:rgba(255,255,255,.5);}
+
+
+/* ══ ITQAN - Shared Utilities ══ */
+@keyframes tw-shimmer{0%{background-position:-1000px 0}100%{background-position:1000px 0}}
+@keyframes tw-spin{to{transform:translateY(-50%) rotate(360deg);}}
+@keyframes tw-fadein{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:none;}}
+@keyframes tw-verified{0%,100%{box-shadow:0 0 0 0 rgba(0,200,150,0);}50%{box-shadow:0 0 0 5px rgba(0,200,150,.15);}}
+.tw-toast[aria-live="polite"]{position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(20px);background:rgba(7,11,24,.97);border:1px solid rgba(255,255,255,.1);backdrop-filter:blur(20px);border-radius:14px;padding:12px 20px;display:flex;align-items:center;gap:10px;font-size:.82rem;font-family:Cairo,sans-serif;color:rgba(255,255,255,.92);opacity:0;transition:all .3s cubic-bezier(.34,1.56,.64,1);z-index:9999;white-space:nowrap;min-width:180px;justify-content:center;box-shadow:0 8px 32px rgba(0,0,0,.4);}
+.tw-toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+.tw-toast.success{border-color:rgba(0,200,150,.3);}
+.tw-toast.error{border-color:rgba(239,68,68,.3);}
+.tw-toast.info{border-color:rgba(37,99,255,.3);}
+.tw-skeleton{background:linear-gradient(90deg,rgba(255,255,255,.04) 25%,rgba(255,255,255,.09) 50%,rgba(255,255,255,.04) 75%);background-size:2000px 100%;animation:tw-shimmer 1.5s infinite linear;border-radius:8px;}
+.tw-btn-loading{position:relative;pointer-events:none;opacity:.8;}
+.tw-btn-loading::after{content:'';position:absolute;width:14px;height:14px;border-radius:50%;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;animation:tw-spin .7s linear infinite;right:12px;top:50%;transform:translateY(-50%);}
+.tw-scroll-prog{position:fixed;top:0;left:0;height:2px;z-index:999;background:linear-gradient(90deg,var(--ac,#00c896),var(--ac2,#2563ff));transition:width .1s;width:0%;}
+.tw-fab{position:fixed;bottom:80px;left:18px;width:50px;height:50px;border-radius:50%;border:none;font-size:1.4rem;background:linear-gradient(135deg,var(--ac,#00c896),var(--ac2,#2563ff));color:#fff;cursor:pointer;box-shadow:0 4px 20px rgba(0,200,150,.35);transition:all .25s cubic-bezier(.34,1.56,.64,1);z-index:50;display:flex;align-items:center;justify-content:center;}
+.tw-fab:hover{transform:scale(1.12) rotate(90deg);}
+.tw-empty{text-align:center;padding:50px 20px;}
+.tw-empty-ico{font-size:2.5rem;margin-bottom:12px;opacity:.7;display:block;}
+.tw-empty-title{font-size:.95rem;font-weight:800;margin-bottom:6px;}
+.tw-empty-sub{font-size:.78rem;color:rgba(255,255,255,.35);margin-bottom:18px;line-height:1.6;}
+.tw-empty-btn{padding:10px 22px;border-radius:12px;background:linear-gradient(135deg,var(--ac,#00c896),var(--ac2,#2563ff));border:none;color:#fff;font-family:Cairo,sans-serif;font-weight:700;font-size:.8rem;cursor:pointer;}
+.tw-card-lift{transition:transform .2s,box-shadow .2s;}
+.tw-card-lift:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.3);}
+.tw-verified{animation:tw-verified 2.5s ease-in-out infinite;}
+
 </style>
+<style>.skip-link{position:absolute;top:-40px;right:0;background:var(--ac,#00c896);color:#0d1a2e;padding:8px 16px;border-radius:0 0 8px 0;font-family:Cairo,sans-serif;font-size:.8rem;font-weight:700;text-decoration:none;transition:top .2s;z-index:10000}.skip-link:focus{top:0}
+.qa-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px;}
+.qa-btn{padding:8px 14px;border-radius:10px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);color:rgba(255,255,255,.7);font-family:Cairo,sans-serif;font-size:.75rem;cursor:pointer;transition:all .2s;}
+.qa-btn:hover{border-color:var(--ac,#00c896);color:var(--ac,#00c896);}
+.qa-btn.danger{border-color:rgba(239,68,68,.3);color:#f87171;}
+.qa-btn.danger:hover{background:rgba(239,68,68,.1);}
+
+/* ── Password Eye Icon ── */
+.pass-wrap{position:relative;display:flex;align-items:center;}
+.pass-wrap input{width:100%;padding-left:36px!important;}
+.pass-eye{position:absolute;left:10px;cursor:pointer;font-size:1rem;opacity:.5;user-select:none;transition:opacity .2s;}
+.pass-eye:hover{opacity:.9;}
+</style><a href="#main-content" class="skip-link">تخطى للمحتوى الرئيسي</a><link rel="stylesheet" href="/static/tw_shared.css">
 </head>
 <body>
 
 <nav class="nav">
-  <div class="nav-logo">تواصلنا</div>
+  <div class="nav-logo"><img src="https://wrxvmdmknhoufoeprpoc.supabase.co/storage/v1/object/public/site/Logo.svg" alt="تواصلنا" style="height:36px;width:auto;object-fit:contain;display:block"></div>
   <span class="nav-badge">🔐 لوحة الإدارة</span>
   <button class="nav-back" onclick="goBack()">← رجوع للإدارة</button>
 </nav>
 
-<div class="page">
+<div class="page" role="main">
   <div id="loadingState" class="loading">
     <div class="spin"></div> جاري تحميل بيانات المستخدم...
   </div>
@@ -184,7 +245,15 @@ body{background:var(--bg);color:#fff;font-family:'Cairo',sans-serif;min-height:1
       <div class="main-col">
 
         <!-- المعلومات الأساسية -->
-        <div class="sec-card">
+        
+  <!-- Quick Actions -->
+  <div class="qa-row" id="qaRow" style="display:none">
+    <button class="qa-btn" onclick="adminVerifyUser()">✅ توثيق الحساب</button>
+    <button class="qa-btn" onclick="adminSendMsg()">💬 إرسال رسالة</button>
+    <button class="qa-btn" onclick="adminResetPass()">🔑 إعادة تعيين كلمة المرور</button>
+    <button class="qa-btn danger" onclick="adminDeleteUser()">🗑️ حذف الحساب</button>
+  </div>
+<div class="sec-card">
           <div class="sec-head">
             <span class="sec-ico">👤</span>
             <span class="sec-label">المعلومات الأساسية</span>
@@ -269,6 +338,7 @@ body{background:var(--bg);color:#fff;font-family:'Cairo',sans-serif;min-height:1
 
 <div class="toast" id="toast"></div>
 
+<script src="/tw_shared.js"></script>
 <script>
 'use strict';
 
@@ -279,7 +349,7 @@ const _adminToken = sessionStorage.getItem('tw_adm_token') || '';
 let _profile = null;
 
 if(!_adminToken){ window.location.href = '/tw-ctrl-kPuOWhpIYjdLQXmh'; }
-if(!_userId){ window.location.href = '/admin.html'; }
+if(!_userId){ window.location.href = 'admin.html'; }
 
 // ── Admin headers ──
 function adminHeaders(){ return {'Content-Type':'application/json','X-Admin-Token':_adminToken}; }
@@ -442,6 +512,7 @@ async function saveField(field){
     if(!r.ok) throw new Error('HTTP '+r.status);
     closeModal();
     await loadProfile();
+initScrollProg();
     toast('تم الحفظ ✓');
   }catch(e){
     toast('خطأ: '+e.message, 'e');
@@ -459,6 +530,7 @@ async function saveType(){
     });
     if(!r.ok) throw new Error('HTTP '+r.status);
     await loadProfile();
+initScrollProg();
     toast('تم تغيير نوع الحساب ✓');
   }catch(e){
     toast('خطأ: '+e.message,'e');
@@ -475,6 +547,7 @@ async function toggleVerify(){
     });
     if(!r.ok) throw new Error('HTTP '+r.status);
     await loadProfile();
+initScrollProg();
     toast(newStatus ? 'تم توثيق الحساب ✓' : 'تم إلغاء التوثيق');
   }catch(e){
     toast('خطأ: '+e.message,'e');
@@ -566,7 +639,7 @@ async function deleteUser(){
     const r = await fetch('/admin/user/'+_userId, {method:'DELETE', headers: adminHeaders()});
     if(!r.ok) throw new Error('HTTP '+r.status);
     toast('تم حذف الحساب ✓');
-    setTimeout(()=> window.location.href='/admin.html', 1500);
+    setTimeout(()=> window.location.href='admin.html', 1500);
   }catch(e){
     toast('خطأ: '+e.message,'e');
   }
@@ -577,7 +650,8 @@ async function deleteExp(id){
   if(!confirm('حذف هذه الخبرة؟')) return;
   try{
     await fetch('/admin/experience/'+id, {method:'DELETE', headers: adminHeaders()});
-    await loadProfile(); toast('تم الحذف ✓');
+    await loadProfile();
+initScrollProg(); toast('تم الحذف ✓');
   }catch(e){ toast('خطأ','e'); }
 }
 
@@ -585,7 +659,8 @@ async function deleteEdu(id){
   if(!confirm('حذف هذه الشهادة؟')) return;
   try{
     await fetch('/admin/education/'+id, {method:'DELETE', headers: adminHeaders()});
-    await loadProfile(); toast('تم الحذف ✓');
+    await loadProfile();
+initScrollProg(); toast('تم الحذف ✓');
   }catch(e){ toast('خطأ','e'); }
 }
 
@@ -593,13 +668,14 @@ async function deleteCourse(id){
   if(!confirm('حذف هذه الدورة؟')) return;
   try{
     await fetch('/admin/course/'+id, {method:'DELETE', headers: adminHeaders()});
-    await loadProfile(); toast('تم الحذف ✓');
+    await loadProfile();
+initScrollProg(); toast('تم الحذف ✓');
   }catch(e){ toast('خطأ','e'); }
 }
 
 // ── Utils ──
 function closeModal(){ document.getElementById('overlay').classList.remove('show'); }
-function goBack(){ window.location.href='/admin.html'; }
+function goBack(){ window.location.href='admin.html'; }
 function toast(msg, type='s'){
   const t=document.getElementById('toast');
   t.textContent=msg; t.className='toast '+type+' show';
@@ -608,6 +684,140 @@ function toast(msg, type='s'){
 
 // ── Init ──
 loadProfile();
+initScrollProg();
+
+// ── Job Applications ──
+async function loadUserApplications(userId){
+  try{
+    const r = await fetch('/my/applications', {headers: {'X-User-Id': userId, ...adminHeaders()}});
+    if(!r.ok) return;
+    const data = await r.json();
+    const apps = data.applications || [];
+    const sec = document.getElementById('secApplications');
+    const list = document.getElementById('appsList');
+    if(sec) sec.style.display='block';
+    if(!apps.length){ list.innerHTML='<div class="empty">لا توجد طلبات</div>'; return; }
+    const statusMap={pending:'⏳ معلق',viewed:'👁 تم العرض',accepted:'✅ مقبول',rejected:'❌ مرفوض'};
+    list.innerHTML=apps.map(a=>`
+      <div class="sec-item">
+        <div style="flex:1">
+          <div class="si-title">${a.title||'وظيفة'}</div>
+          <div class="si-sub">${a.company_name||''} · ${statusMap[a.status]||a.status}</div>
+        </div>
+        <div style="font-size:.68rem;color:var(--t3)">${(a.applied_at||'').slice(0,10)}</div>
+      </div>`).join('');
+  }catch(e){ console.error(e); }
+}
+
+async function loadCompanyJobs(userId){
+  try{
+    const r = await fetch('/jobs?company_id='+userId, {headers: adminHeaders()});
+    if(!r.ok) return;
+    const data = await r.json();
+    const jobs = data.jobs || [];
+    const sec = document.getElementById('secPostedJobs');
+    const list = document.getElementById('postedJobsList');
+    if(sec) sec.style.display='block';
+    if(!jobs.length){ list.innerHTML='<div class="empty">لا توجد وظائف منشورة</div>'; return; }
+    list.innerHTML=jobs.map(j=>`
+      <div class="sec-item">
+        <div style="flex:1">
+          <div class="si-title">${j.title}</div>
+          <div class="si-sub">${j.location||''} · ${j.views||0} مشاهدة</div>
+        </div>
+        <span style="font-size:.68rem;padding:2px 8px;border-radius:20px;${j.status==='active'?'background:rgba(0,200,150,.1);color:var(--ac)':'background:rgba(239,68,68,.1);color:#f87171'}">${j.status==='active'?'نشطة':'مغلقة'}</span>
+      </div>`).join('');
+  }catch(e){ console.error(e); }
+}
+
+
+
+// ══ ITQAN Utilities ══
+var _twToast=null;
+function showToast(msg,type,dur){
+  type=type||'success';dur=dur||2800;
+  if(_twToast){_twToast.remove();}
+  var t=document.createElement('div');
+  t.className='tw-toast '+type;
+  var ico=type==='success'?'✅':type==='error'?'❌':'ℹ️';
+  t.innerHTML='<span>'+ico+'</span><span>'+msg+'</span>';
+  document.body.appendChild(t);
+  _twToast=t;
+  requestAnimationFrame(function(){requestAnimationFrame(function(){t.classList.add('show');});});
+  setTimeout(function(){t.classList.remove('show');setTimeout(function(){if(t.parentNode)t.remove();},350);},dur);
+}
+function setBtnLoad(btn,loading){
+  if(!btn)return;
+  if(loading){btn.classList.add('tw-btn-loading');btn._orig=btn.textContent;btn.textContent='';btn.disabled=true;}
+  else{btn.classList.remove('tw-btn-loading');btn.textContent=btn._orig||'حفظ';btn.disabled=false;}
+}
+function twNavigate(url){
+  document.body.style.cssText='opacity:0;transform:translateY(-6px);transition:all .2s ease;';
+  setTimeout(function(){window.location.href=url;},180);
+}
+function initScrollProg(){
+  var p=document.createElement('div');p.className='tw-scroll-prog';
+  document.body.prepend(p);
+  window.addEventListener('scroll',function(){
+    var pct=window.scrollY/(document.body.scrollHeight-window.innerHeight)*100;
+    p.style.width=Math.min(pct,100)+'%';
+  });
+}
+
+
+// Show quick actions when profile loaded
+function showQuickActions(){
+  var qa=document.getElementById('qaRow');
+  if(qa) qa.style.display='flex';
+}
+
+
+// ── Quick Action Functions ──
+async function adminVerifyUser(){
+  if(!_userId||!confirm('توثيق هذا الحساب؟')) return;
+  try{
+    const r=await fetch('/admin/user/'+_userId+'/verify',{method:'PUT',headers:{...adminHeaders(),'Content-Type':'application/json'},body:JSON.stringify({verified:true})});
+    if(!r.ok) throw new Error();
+    showToast('تم توثيق الحساب ✅');
+    loadProfile();
+  }catch(e){showToast('خطأ في التوثيق','error');}
+}
+
+async function adminSendMsg(){
+  var msg=prompt('نص الرسالة:','');
+  if(!msg||!_userId) return;
+  try{
+    const r=await fetch('/admin/message',{method:'POST',headers:{...adminHeaders(),'Content-Type':'application/json'},body:JSON.stringify({user_id:parseInt(_userId),subject:'رسالة من الأدمن',message:msg})});
+    if(!r.ok) throw new Error();
+    showToast('تم إرسال الرسالة ✅');
+  }catch(e){showToast('خطأ في الإرسال','error');}
+}
+
+async function adminResetPass(){
+  var newPass=prompt('كلمة المرور الجديدة (6 أحرف على الأقل):','');
+  if(!newPass||newPass.length<6){showToast('كلمة مرور قصيرة','error');return;}
+  if(!_userId) return;
+  try{
+    const r=await fetch('/admin/user/'+_userId+'/password',{method:'PUT',headers:{...adminHeaders(),'Content-Type':'application/json'},body:JSON.stringify({password:newPass})});
+    if(!r.ok) throw new Error();
+    showToast('تم تغيير كلمة المرور ✅');
+  }catch(e){showToast('خطأ','error');}
+}
+
+async function adminDeleteUser(){
+  if(!_userId||!confirm('حذف هذا المستخدم نهائياً؟ هذا الإجراء لا يمكن التراجع عنه!')) return;
+  try{
+    const r=await fetch('/admin/user/'+_userId,{method:'DELETE',headers:adminHeaders()});
+    if(!r.ok) throw new Error();
+    showToast('تم حذف المستخدم');
+    setTimeout(function(){window.location.href='admin.html';},1500);
+  }catch(e){showToast('خطأ في الحذف','error');}
+}
+
+function showQuickActions(){
+  var qa=document.getElementById('qaRow');
+  if(qa) qa.style.display='flex';
+}
 </script>
 </body>
 </html>

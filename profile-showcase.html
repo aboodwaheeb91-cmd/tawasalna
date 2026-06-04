@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>تواصلنا — البطاقة التعريفية</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/tw_shared.css">
+  <script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
+  <style>
+    /* Unified Lucide icon sizing + stroke + theme color */
+    .ico { width:18px; height:18px; stroke-width:2; vertical-align:middle; flex-shrink:0; }
+    .ico-sm { width:15px; height:15px; stroke-width:2; }
+    .ico-lg { width:40px; height:40px; stroke-width:1.5; }
+    [data-lucide] { color:inherit; }
+    * { margin:0; padding:0; box-sizing:border-box; }
+    /* ── Typography system ── */    body {
+      font-family:'Cairo',sans-serif; background:var(--bg,#0a0e14); color:var(--t1,#fff);
+      direction:rtl; min-height:100vh;
+    }
+
+    /* ── Header ── */
+    .sc-header {
+      display:flex; align-items:center; justify-content:space-between;
+      padding:7px 16px; position:sticky; top:0; z-index:50;
+      background:rgba(10,14,20,.85); backdrop-filter:blur(12px);
+    }
+    .sc-header .sc-logo {
+      position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
+      pointer-events:none;
+    }
+    .sc-hicon {
+      width:34px; height:34px; border-radius:10px; border:none; cursor:pointer;
+      background:rgba(255,255,255,.06); color:var(--t1,#fff); font-size:1rem;
+      display:flex; align-items:center; justify-content:center;
+    }
+    .sc-hicon-bare { background:none !important; border:none !important; }
+        .sc-head-icons { display:flex; align-items:center; gap:8px; }
+    .sc-head-icons .sc-hicon-bare { width:auto; height:auto; padding:4px; }
+    .sc-head-icons .ico { width:20px; height:20px; }
+    .sc-hgroup { display:flex; align-items:center; gap:10px; }
+    .sc-home-pill {
+      display:inline-flex; align-items:center; gap:4px;
+      padding:4px 11px; border-radius:16px; cursor:pointer;
+      background:var(--ac,#00c896);
+      border:1px solid rgba(255,255,255,.18);
+      color:#fff; font-family:inherit; font-size:.62rem; font-weight:700;
+      white-space:nowrap; transition:transform .15s, opacity .2s;
+      box-shadow:0 2px 6px rgba(0,200,150,.12);
+    }
+    .sc-home-pill:active { transform:scale(.95); opacity:.9; }
+    .sc-home-pill .ico-sm { width:12px; height:12px; }
+                .sc-logo { font-weight:800; font-size:1.15rem; letter-spacing:-.3px;
+      background:linear-gradient(135deg,var(--ac,#00c896),var(--ac2,#2563ff));
+      -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
+
+    /* ── Main wrap ── */
+    .sc-wrap { max-width:600px; margin:0 auto; padding:8px 16px 16px; }
+
+    /* ── ONE big card ── */
+    .sc-main-card {
+      background:var(--bg2,#141a24); border-radius:13px; overflow:hidden;
+      border:1px solid rgba(255,255,255,.06);
+      box-shadow:0 20px 60px rgba(0,0,0,.35);
+    }
+
+    /* Cover — thin */
+    .sc-cover {
+      height:80px; position:relative;
+      background:url('https://wrxvmdmknhoufoeprpoc.supabase.co/storage/v1/object/public/site/5a94336e02115ab59aa3c38f28ffb20a%20(1).jpg') center/cover no-repeat, linear-gradient(135deg,#0f2027,#203a43,#2c5364);
+      background-size:cover; background-position:center;
+    }
+    .sc-cover::after {
+      content:''; position:absolute; inset:0;
+      background:linear-gradient(180deg,transparent,rgba(20,26,36,.6));
+    }
+
+    /* Header row: avatar (right) + info (left) */
+    .sc-prof-row {
+      display:flex; gap:16px; padding:0 20px; margin-top:-40px; position:relative; z-index:2;
+      align-items:flex-start;
+    }
+    .sc-ava-col { display:flex; flex-direction:column; align-items:center; gap:8px; flex-shrink:0; }
+    /* ── Single glass ring avatar (ring centered on image edge) ── */
+    .sc-avatar-wrap {
+      position:relative; width:106px; height:106px; flex-shrink:0;
+      display:flex; align-items:center; justify-content:center;
+    }
+    /* The image */
+    .sc-avatar {
+      width:100%; height:100%; border-radius:50%;
+      border:none; background:var(--bg,#0a0e14);
+      object-fit:cover; display:flex; align-items:center; justify-content:center;
+      font-size:2.6rem; overflow:hidden;
+    }
+    /* Single glass ring, centered on the image edge (50% in / 50% out)
+       via outline (sits ON the border-box edge) + subtle glass tint */
+    /* Single glass ring around avatar (only border source) */
+    .sc-avatar-wrap::after {
+      content:''; position:absolute; inset:0; border-radius:50%;
+      border:3px solid rgba(225,230,240,.55);
+      pointer-events:none;
+      margin:-1.5px;
+      width:calc(100% + 3px); height:calc(100% + 3px);
+    }
+    .sc-qr {
+      width:62px; height:62px; border-radius:11px; background:#fff; padding:6px;
+      display:flex; align-items:center; justify-content:center;
+      box-shadow:0 4px 12px rgba(0,0,0,.25);
+    }
+    .sc-qr img { width:100%; height:100%; }
+
+    /* Invisible container: groups name + all info as one unit (transparent) */
+    .sc-info { flex:1; min-width:0; padding-top:50px; padding-right:14px;
+      background:transparent; border:none; }
+    .sc-name-row { display:flex; align-items:center; gap:.3em; min-width:0; }
+    .sc-verified {
+      color:var(--ac,#00c896); display:inline-flex; align-items:center;
+      flex-shrink:0; font-size:inherit;
+    }
+    /* Badge scales with name: 0.85em (~85% of text height) */
+    .sc-verified .ico-sm { width:.85em; height:.85em; }
+    .sc-meta-row { display:flex; align-items:center; gap:14px; margin-top:8px; flex-wrap:wrap; }
+    .sc-age { color:var(--t3,#6b7686); font-size:.64rem; display:flex; align-items:center; gap:4px; }
+    .sc-name {
+      font-size:20px; font-weight:800; line-height:1.2;
+      white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+      max-width:100%; min-width:0;
+    }
+    .sc-title { color:var(--ac,#00c896); font-size:.74rem; margin-top:3px; font-weight:600; }
+    .sc-loc { color:var(--t3,#6b7686); font-size:.64rem; }
+
+    /* Bio under row */
+    .sc-bio { color:var(--t2,#9aa5b4); font-size:.7rem; line-height:1.5; margin-top:6px; }
+
+    /* Action buttons */
+    .sc-actions { display:flex; align-items:center; gap:9px; padding:16px 20px; }
+    .sc-btn {
+      height:45px; padding:0 12px; border-radius:14px; border:none; cursor:pointer;
+      font-family:inherit; font-size:13px; font-weight:700;
+      transition:transform .15s, opacity .15s;
+      min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+      display:flex; align-items:center; justify-content:center; gap:6px;
+    }
+    .sc-btn:active { transform:scale(.96); }
+    .sc-btn .ico-sm { width:16px; height:16px; stroke-width:2; flex-shrink:0; }
+    .sc-loc { display:flex; align-items:center; gap:4px; }
+    .sc-btn-primary {
+      background:linear-gradient(135deg, #00c896, #00a878);
+      color:#fff; flex:1.4;
+      box-shadow:0 4px 14px rgba(0,200,150,.3);
+    }
+    .sc-btn-ghost { background:rgba(255,255,255,.07); color:var(--t1,#fff); border:1px solid rgba(255,255,255,.10); flex:1; }
+    .sc-btn-icon {
+      width:45px; height:45px; flex:none; padding:0;
+      background:rgba(255,255,255,.07); color:var(--t1,#fff);
+      border:1px solid rgba(255,255,255,.10); border-radius:14px;
+      display:flex; align-items:center; justify-content:center;
+      cursor:pointer; transition:transform .15s, opacity .15s;
+    }
+    .sc-btn-icon:active { transform:scale(.96); }
+
+    /* Stats row */
+    .sc-stats {
+      display:flex; margin:8px 20px 0; padding:0;
+      background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.08);
+      border-radius:16px; overflow:hidden;
+    }
+    .sc-stat {
+      flex:1; text-align:center; padding:14px 6px;
+      display:flex; flex-direction:column; align-items:center; gap:5px;
+      border-left:1px solid rgba(255,255,255,.07);
+    }
+    .sc-stat:last-child { border-left:none; }
+    .sc-stat-i { color:var(--ac,#00c896); width:20px; height:20px; }
+    .sc-stat-n { font-size:1.2rem; font-weight:800; color:var(--t1,#fff); line-height:1; }
+    .sc-stat-l { font-size:.66rem; color:var(--t3,#6b7686); }
+
+    /* Tabs */
+    .sc-tabs { display:flex; gap:14px; padding:14px 20px 0; overflow-x:auto; border-bottom:1px solid rgba(255,255,255,.06); }
+    .sc-tab {
+      padding:10px 6px; cursor:pointer; white-space:nowrap;
+      font-size:.8rem; font-weight:600; color:var(--t3,#6b7686); background:transparent;
+      border:none; border-bottom:2px solid transparent; font-family:inherit;
+      display:inline-flex; align-items:center; gap:5px; transition:color .2s, border-color .2s;
+    }
+    .sc-tab.active { color:var(--ac,#00c896); border-bottom-color:var(--ac,#00c896); }
+
+    /* Tab content */
+    .sc-content { padding:16px 20px 24px; min-height:80px; }
+    .sc-pane { display:none; }
+    .sc-pane.active { display:block; animation:fade .25s; }
+    @keyframes fade { from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:none;} }
+
+    .sc-skills { display:flex; flex-wrap:wrap; gap:8px; }
+    .sc-skill { padding:7px 13px; border-radius:20px; background:rgba(0,200,150,.1);
+      color:var(--ac,#00c896); font-size:.78rem; }
+
+    .sc-item { padding:12px 0; border-bottom:1px solid rgba(255,255,255,.05); }
+    .sc-item:last-child { border-bottom:none; }
+    .sc-item-t { font-weight:700; font-size:.88rem; }
+    .sc-item-s { color:var(--t3,#6b7686); font-size:.76rem; margin-top:3px; }
+    .sc-item-d { color:var(--t4,#4a5568); font-size:.72rem; margin-top:2px; }
+
+    .sc-empty { text-align:center; color:var(--t4,#4a5568); padding:24px 0; font-size:.82rem; }
+    .sc-bio-text { color:var(--t2,#9aa5b4); font-size:.86rem; line-height:1.8; }
+
+    .sc-loading { text-align:center; padding:80px 20px; color:var(--t3,#6b7686); }
+
+    /* Toast */
+    .sc-toast {
+      position:fixed; bottom:24px; right:50%; transform:translateX(50%) translateY(20px);
+      background:var(--bg2,#141a24); color:var(--t1,#fff); padding:12px 22px; border-radius:14px;
+      border:1px solid rgba(255,255,255,.12); font-size:.84rem; font-weight:600;
+      opacity:0; transition:.3s; z-index:100; box-shadow:0 10px 30px rgba(0,0,0,.4); pointer-events:none;
+    }
+    .sc-toast.show { opacity:1; transform:translateX(50%) translateY(0); }
+  </style>
+</head>
+<body>
+  <!-- Header -->
+  <div class="sc-header">
+    <button class="sc-home-pill" id="scHomeBtn"><i data-lucide="home" class="ico-sm"></i> الرئيسية</button>
+    <div class="sc-logo">تواصلنا</div>
+    <div class="sc-head-icons">
+      <button class="sc-hicon sc-hicon-bare" id="scBellBtn" title="الإشعارات"><i data-lucide="bell" class="ico"></i></button>
+      <button class="sc-hicon sc-hicon-bare" id="scMsgBtn" title="الرسائل"><i data-lucide="message-circle-more" class="ico"></i></button>
+      <button class="sc-hicon sc-hicon-bare" id="scMenuBtn" title="القائمة"><i data-lucide="menu" class="ico"></i></button>
+    </div>
+  </div>
+
+  <div class="sc-wrap">
+    <div id="scLoading" class="sc-loading">جاري التحميل…</div>
+
+    <div id="scContent" style="display:none">
+      <div class="sc-main-card">
+        <!-- Cover -->
+        <div class="sc-cover" id="scCover"></div>
+
+        <!-- Profile row: avatar+QR (right) | info (left) -->
+        <div class="sc-prof-row">
+          <div class="sc-ava-col">
+            <div class="sc-avatar-wrap" id="scAvatarWrap">
+              <div class="sc-avatar" id="scAvatar"><i data-lucide="user" class="ico-lg"></i></div>
+            </div>
+            <div class="sc-qr" id="scQr"></div>
+          </div>
+          <div class="sc-info">
+            <div class="sc-name-row">
+              <span class="sc-verified" id="scVerified" style="display:none"><i data-lucide="badge-check" class="ico-sm"></i></span>
+              <span class="sc-name" id="scName">—</span>
+            </div>
+            <div class="sc-title" id="scTitle"></div>
+            <div class="sc-bio" id="scBio"></div>
+            <div class="sc-meta-row">
+              <span class="sc-loc" id="scLoc"></span>
+              <span class="sc-age" id="scAge" style="display:none"></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="sc-actions">
+          <button class="sc-btn sc-btn-primary" id="scFollowBtn"><i data-lucide="user-plus" class="ico-sm"></i> + متابعة</button>
+          <button class="sc-btn sc-btn-ghost" id="scDownloadBtn"><i data-lucide="download" class="ico-sm"></i> تحميل السيرة</button>
+          <button class="sc-btn sc-btn-ghost" id="scContactBtn"><i data-lucide="message-circle" class="ico-sm"></i> تواصل معي</button>
+          <button class="sc-btn-icon" id="scSaveBtn" title="حفظ"><i data-lucide="bookmark" class="ico-sm"></i></button>
+        </div>
+
+        <!-- Stats: one rectangle, thin dividers, each cell icon→number→label -->
+        <div class="sc-stats">
+          <div class="sc-stat">
+            <i data-lucide="trending-up" class="ico sc-stat-i"></i>
+            <div class="sc-stat-n" id="scStatScore">—</div>
+            <div class="sc-stat-l">القوة</div>
+          </div>
+          <div class="sc-stat">
+            <i data-lucide="briefcase" class="ico sc-stat-i"></i>
+            <div class="sc-stat-n" id="scStatExp">—</div>
+            <div class="sc-stat-l">الخبرات</div>
+          </div>
+          <div class="sc-stat">
+            <i data-lucide="zap" class="ico sc-stat-i"></i>
+            <div class="sc-stat-n" id="scStatSkills">—</div>
+            <div class="sc-stat-l">المهارات</div>
+          </div>
+          <div class="sc-stat">
+            <i data-lucide="graduation-cap" class="ico sc-stat-i"></i>
+            <div class="sc-stat-n" id="scStatEdu">—</div>
+            <div class="sc-stat-l">الشهادات</div>
+          </div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="sc-tabs">
+          <button class="sc-tab active" data-tab="about" onclick="scTab('about',this)"><i data-lucide="user-round" class="ico-sm"></i> نبذة عني</button>
+          <button class="sc-tab" data-tab="skills" onclick="scTab('skills',this)"><i data-lucide="zap" class="ico-sm"></i> المهارات</button>
+          <button class="sc-tab" data-tab="exp" onclick="scTab('exp',this)"><i data-lucide="briefcase" class="ico-sm"></i> الخبرات</button>
+          <button class="sc-tab" data-tab="edu" onclick="scTab('edu',this)"><i data-lucide="graduation-cap" class="ico-sm"></i> الشهادات</button>
+        </div>
+
+        <!-- Tab content -->
+        <div class="sc-content">
+          <div class="sc-pane active" id="pane-about"><div class="sc-bio-text" id="scAboutText"></div></div>
+          <div class="sc-pane" id="pane-skills"><div class="sc-skills" id="scSkillsPane"></div></div>
+          <div class="sc-pane" id="pane-exp"><div id="scExpPane"></div></div>
+          <div class="sc-pane" id="pane-edu"><div id="scEduPane"></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sc-toast" id="scToast"></div>
+
+  <script src="/tw_shared.js"></script>
+  <script>
+  (function() {
+    function esc(s){ var d=document.createElement('div'); d.textContent=s==null?'':String(s); return d.innerHTML; }
+    function setText(id,v){ var el=document.getElementById(id); if(el) el.textContent=v==null?'':v; }
+    function renderIcons(){
+      if(window.lucide && lucide.createIcons){ lucide.createIcons(); return true; }
+      return false;
+    }
+    function toast(msg){
+      var t=document.getElementById('scToast'); if(!t) return;
+      t.textContent=msg; t.classList.add('show');
+      setTimeout(function(){ t.classList.remove('show'); },2200);
+    }
+
+    // Auto-fit name to one line by measuring real rendered width.
+    // Scales font-size between MIN and MAX; badge follows via em units.
+    function fitName(){
+      var nameEl=document.getElementById('scName');
+      var row=document.querySelector('.sc-name-row');
+      if(!nameEl || !row) return;
+      var MAX=24, MIN=16;
+      // Measure against the name-row's own container width (the box the name lives in)
+      var boxW=row.clientWidth;
+      if(boxW<=0) return;
+      var badge=document.getElementById('scVerified');
+      var badgeVisible = badge && badge.style.display!=='none';
+
+      nameEl.style.textOverflow='clip';
+      var size=MAX;
+      nameEl.style.fontSize=size+'px';
+      // Reserve space for badge + gap when visible (badge is .85em + .3em gap)
+      function reserve(){ return badgeVisible ? (size*0.85 + size*0.3 + 4) : 0; }
+      // Shrink font until the name's natural width fits its container box
+      while(size>MIN && nameEl.scrollWidth > (boxW - reserve())){
+        size-=1; nameEl.style.fontSize=size+'px';
+      }
+      nameEl.style.textOverflow='ellipsis';
+    }
+    window._fitName=fitName;
+
+    // Tab switching (local, no fetch — data already loaded)
+    window.scTab = function(name, el){
+      var tabs=document.querySelectorAll('.sc-tab');
+      for(var i=0;i<tabs.length;i++) tabs[i].classList.remove('active');
+      if(el) el.classList.add('active');
+      var panes=document.querySelectorAll('.sc-pane');
+      for(var j=0;j<panes.length;j++) panes[j].classList.remove('active');
+      var pane=document.getElementById('pane-'+name);
+      if(pane) pane.classList.add('active');
+      if(window.lucide && lucide.createIcons) lucide.createIcons();
+    };
+    window._renderIcons = function(){ if(window.lucide && lucide.createIcons) lucide.createIcons(); };
+
+    var id = new URLSearchParams(location.search).get('id');
+    window.addEventListener('resize', function(){ if(window._fitName) _fitName(); });
+
+    // Header buttons
+    var homeBtn=document.getElementById('scHomeBtn');
+    if(homeBtn) homeBtn.onclick=function(){ window.location.href='/home'; };
+    var bellBtn=document.getElementById('scBellBtn');
+    if(bellBtn) bellBtn.onclick=function(){ window.location.href='/notifications'; };
+    var msgBtn=document.getElementById('scMsgBtn');
+    if(msgBtn) msgBtn.onclick=function(){ window.location.href='/messages'; };
+    var menuBtn=document.getElementById('scMenuBtn');
+    if(menuBtn) menuBtn.onclick=function(){ history.back(); };
+
+    if(!id){
+      var ld=document.getElementById('scLoading');
+      if(ld) ld.textContent='لا يوجد معرّف ملف';
+      return;
+    }
+
+    fetch('/profile/' + encodeURIComponent(id))
+      .then(function(r){ if(!r.ok) throw new Error('profile '+r.status); return r.json(); })
+      .then(function(res){
+        var p = (res && res.profile) ? res.profile : {};
+
+        // Identity
+        setText('scName', p.full_name || '—');
+        setText('scTitle', p.headline || p.title || '');
+        setText('scBio', p.bio || '');
+
+        // Verified badge (only if verified)
+        if(p.is_verified){
+          var vEl=document.getElementById('scVerified');
+          if(vEl) vEl.style.display='inline-flex';
+        }
+
+        // Location (with map-pin icon)
+        var locEl=document.getElementById('scLoc');
+        if(locEl && p.location){
+          locEl.innerHTML = '<i data-lucide="map-pin" class="ico-sm"></i> ' + esc(p.location);
+          locEl.style.display='inline-flex';
+          locEl.style.alignItems='center';
+          locEl.style.gap='4px';
+        }
+
+        // Age (computed from dob; hide if absent)
+        if(p.dob){
+          var birth=new Date(p.dob);
+          if(!isNaN(birth.getTime())){
+            var diff=Date.now()-birth.getTime();
+            var age=Math.floor(diff/(365.25*24*3600*1000));
+            if(age>0 && age<150){
+              var ageEl=document.getElementById('scAge');
+              if(ageEl){
+                ageEl.innerHTML='<i data-lucide="cake" class="ico-sm"></i> ' + age + ' سنة';
+                ageEl.style.display='flex';
+              }
+            }
+          }
+        }
+
+        // Avatar image
+        var av=document.getElementById('scAvatar');
+        if(av && p.avatar_url){
+          var img=new Image();
+          img.alt='';
+          img.style.cssText='width:100%;height:100%;object-fit:cover;border-radius:50%';
+          img.onload=function(){ av.innerHTML=''; av.appendChild(img); };
+          img.src=esc(p.avatar_url);
+        }
+
+        // QR (uses public QR service pointing to this showcase URL — no backend)
+        var qr=document.getElementById('scQr');
+        if(qr){
+          var showcaseUrl = location.origin + '/profile-showcase?id=' + encodeURIComponent(id);
+          qr.innerHTML='<img src="https://api.qrserver.com/v1/create-qr-code/?size=90x90&data='
+            + encodeURIComponent(showcaseUrl) + '" alt="QR">';
+        }
+
+        // Data arrays
+        var skills = Array.isArray(p.skills) ? p.skills : [];
+        var exp    = Array.isArray(p.experience) ? p.experience : [];
+        var edu    = Array.isArray(p.education) ? p.education : [];
+
+        // Stats
+        setText('scStatExp', exp.length);
+        setText('scStatSkills', skills.length);
+        setText('scStatEdu', edu.length);
+
+        // Tab: About
+        var aboutEl=document.getElementById('scAboutText');
+        if(aboutEl) aboutEl.textContent = p.bio || 'لا توجد نبذة بعد';
+
+        // Tab: Skills
+        var skEl=document.getElementById('scSkillsPane');
+        if(skEl){
+          skEl.innerHTML = skills.length
+            ? skills.map(function(s){
+                var label=(s&&typeof s==='object')?(s.skill||''):s;
+                return '<span class="sc-skill">'+esc(label)+'</span>';
+              }).join('')
+            : '<div class="sc-empty">لا توجد مهارات بعد</div>';
+        }
+
+        // Tab: Experience
+        var expEl=document.getElementById('scExpPane');
+        if(expEl){
+          expEl.innerHTML = exp.length
+            ? exp.map(function(e){
+                var t=esc(e.title||''); var c=esc(e.company||'');
+                var loc=e.location?(' · '+esc(e.location)):'';
+                return '<div class="sc-item"><div class="sc-item-t">'+t+'</div>'+
+                  (c?'<div class="sc-item-s">'+c+loc+'</div>':'')+'</div>';
+              }).join('')
+            : '<div class="sc-empty">لا توجد خبرات بعد</div>';
+        }
+
+        // Tab: Education
+        var eduEl=document.getElementById('scEduPane');
+        if(eduEl){
+          eduEl.innerHTML = edu.length
+            ? edu.map(function(d){
+                var inst=esc(d.institution||''); var deg=esc(d.degree||'');
+                var fld=d.field?(' · '+esc(d.field)):'';
+                return '<div class="sc-item"><div class="sc-item-t">'+inst+'</div>'+
+                  ((deg||fld)?'<div class="sc-item-s">'+deg+fld+'</div>':'')+'</div>';
+              }).join('')
+            : '<div class="sc-empty">لا توجد شهادات بعد</div>';
+        }
+
+        // Full profile button → Details (profile.html accepts tw_id)
+        var fullBtn=document.getElementById('scFullBtn');
+        if(fullBtn) fullBtn.onclick=function(){ window.location.href='/profile.html?id='+encodeURIComponent(id); };
+
+        // Follow + Contact: UI only (no backend yet) → "soon" toast
+        var followBtn=document.getElementById('scFollowBtn');
+        if(followBtn) followBtn.onclick=function(){ toast('ميزة المتابعة قريباً'); };
+        var contactBtn=document.getElementById('scContactBtn');
+        if(contactBtn) contactBtn.onclick=function(){ toast('ميزة التواصل قريباً'); };
+
+        // Reveal
+        var ld=document.getElementById('scLoading');
+        var ct=document.getElementById('scContent');
+        if(ld) ld.style.display='none';
+        if(ct) ct.style.display='block';
+
+        // Render all Lucide icons (retry if CDN still loading)
+        if(!renderIcons()){
+          var tries=0, iv=setInterval(function(){
+            if(renderIcons() || ++tries>20) clearInterval(iv);
+          },150);
+        }
+
+        // Auto-fit name to one line (after layout settled)
+        requestAnimationFrame(function(){ fitName(); setTimeout(fitName,50); });
+
+        // Score: independent parallel fetch — NUMERIC p.id (not tw_id), failure isolated
+        var numId = (p.id != null) ? p.id : id;
+        fetch('/profile/' + encodeURIComponent(numId) + '/score')
+          .then(function(r){ return r.ok ? r.json() : null; })
+          .then(function(sc){ if(sc && typeof sc.score!=='undefined') setText('scStatScore', sc.score); })
+          .catch(function(){ /* score stays — */ });
+      })
+      .catch(function(){
+        var ld=document.getElementById('scLoading');
+        if(ld) ld.textContent='تعذّر تحميل الملف';
+      });
+  })();
+  </script>
+</body>
+</html>

@@ -2,7 +2,16 @@
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+  <link rel="dns-prefetch" href="https://fonts.gstatic.com">
+  <link rel="dns-prefetch" href="https://tawasolna.com">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#00c896">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="تواصلنا">
+  <link rel="apple-touch-icon" href="/icon-192.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>تواصلنا - ملف الجهة التعليمية</title>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
 <style>
@@ -140,13 +149,41 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-heig
   .cc-inner{flex-direction:column;}
   .cc-thumb{width:100%;height:80px;}
 }
+
+
+/* ══ ITQAN - Shared Utilities ══ */
+@keyframes tw-shimmer{0%{background-position:-1000px 0}100%{background-position:1000px 0}}
+@keyframes tw-spin{to{transform:translateY(-50%) rotate(360deg);}}
+@keyframes tw-fadein{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:none;}}
+@keyframes tw-verified{0%,100%{box-shadow:0 0 0 0 rgba(0,200,150,0);}50%{box-shadow:0 0 0 5px rgba(0,200,150,.15);}}
+.tw-toast[aria-live="polite"]{position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(20px);background:rgba(7,11,24,.97);border:1px solid rgba(255,255,255,.1);backdrop-filter:blur(20px);border-radius:14px;padding:12px 20px;display:flex;align-items:center;gap:10px;font-size:.82rem;font-family:Cairo,sans-serif;color:rgba(255,255,255,.92);opacity:0;transition:all .3s cubic-bezier(.34,1.56,.64,1);z-index:9999;white-space:nowrap;min-width:180px;justify-content:center;box-shadow:0 8px 32px rgba(0,0,0,.4);}
+.tw-toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+.tw-toast.success{border-color:rgba(0,200,150,.3);}
+.tw-toast.error{border-color:rgba(239,68,68,.3);}
+.tw-toast.info{border-color:rgba(37,99,255,.3);}
+.tw-skeleton{background:linear-gradient(90deg,rgba(255,255,255,.04) 25%,rgba(255,255,255,.09) 50%,rgba(255,255,255,.04) 75%);background-size:2000px 100%;animation:tw-shimmer 1.5s infinite linear;border-radius:8px;}
+.tw-btn-loading{position:relative;pointer-events:none;opacity:.8;}
+.tw-btn-loading::after{content:'';position:absolute;width:14px;height:14px;border-radius:50%;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;animation:tw-spin .7s linear infinite;right:12px;top:50%;transform:translateY(-50%);}
+.tw-scroll-prog{position:fixed;top:0;left:0;height:2px;z-index:999;background:linear-gradient(90deg,var(--ac,#00c896),var(--ac2,#2563ff));transition:width .1s;width:0%;}
+.tw-fab{position:fixed;bottom:80px;left:18px;width:50px;height:50px;border-radius:50%;border:none;font-size:1.4rem;background:linear-gradient(135deg,var(--ac,#00c896),var(--ac2,#2563ff));color:#fff;cursor:pointer;box-shadow:0 4px 20px rgba(0,200,150,.35);transition:all .25s cubic-bezier(.34,1.56,.64,1);z-index:50;display:flex;align-items:center;justify-content:center;}
+.tw-fab:hover{transform:scale(1.12) rotate(90deg);}
+.tw-empty{text-align:center;padding:50px 20px;}
+.tw-empty-ico{font-size:2.5rem;margin-bottom:12px;opacity:.7;display:block;}
+.tw-empty-title{font-size:.95rem;font-weight:800;margin-bottom:6px;}
+.tw-empty-sub{font-size:.78rem;color:rgba(255,255,255,.35);margin-bottom:18px;line-height:1.6;}
+.tw-empty-btn{padding:10px 22px;border-radius:12px;background:linear-gradient(135deg,var(--ac,#00c896),var(--ac2,#2563ff));border:none;color:#fff;font-family:Cairo,sans-serif;font-weight:700;font-size:.8rem;cursor:pointer;}
+.tw-card-lift{transition:transform .2s,box-shadow .2s;}
+.tw-card-lift:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.3);}
+.tw-verified{animation:tw-verified 2.5s ease-in-out infinite;}
+
 </style>
+<style>.skip-link{position:absolute;top:-40px;right:0;background:var(--ac,#00c896);color:#0d1a2e;padding:8px 16px;border-radius:0 0 8px 0;font-family:Cairo,sans-serif;font-size:.8rem;font-weight:700;text-decoration:none;transition:top .2s;z-index:10000}.skip-link:focus{top:0}</style><a href="#main-content" class="skip-link">تخطى للمحتوى الرئيسي</a><link rel="stylesheet" href="/static/tw_shared.css">
 </head>
 <body>
 
 <!-- ══ NAV ══ -->
 <nav class="nav">
-  <div class="nav-logo" onclick="goHome()">تواصلنا</div>
+  <div class="nav-logo"><img src="https://wrxvmdmknhoufoeprpoc.supabase.co/storage/v1/object/public/site/Logo.svg" alt="تواصلنا" style="height:36px;width:auto;object-fit:contain;display:block"></div>
 
   <!-- Owner actions -->
   <div id="ownerActions" style="display:none;align-items:center;gap:6px">
@@ -174,7 +211,7 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-heig
   <div class="hero-bg" id="heroBg"></div>
   <div class="hero-orb ho1"></div>
   <div class="hero-orb ho2"></div>
-  <img id="coverImg" alt="">
+  <img loading="lazy" id="coverImg" alt="">
   <label id="coverUploadBtn" class="cover-upload-btn" title="رفع صورة الغلاف">
     <input type="file" accept="image/*" onchange="uploadCover(this)" style="display:none">
     📷 تغيير صورة الغلاف
@@ -231,7 +268,7 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-heig
   <div id="tab-courses">
     <div class="grid-2">
       <div>
-        <div class="course-card">
+        <div class="course-card tw-card-lift">
           <div class="cc-inner">
             <div class="cc-thumb" style="background:linear-gradient(135deg,#1a0a2e,#2d1b69)">🐍</div>
             <div class="cc-body">
@@ -242,7 +279,7 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-heig
             <button class="enroll-btn">سجّل الآن</button>
           </div>
         </div>
-        <div class="course-card">
+        <div class="course-card tw-card-lift">
           <div class="cc-inner">
             <div class="cc-thumb" style="background:linear-gradient(135deg,#0a1628,#1a2f4a)">⚛️</div>
             <div class="cc-body">
@@ -253,7 +290,7 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-heig
             <button class="enroll-btn">سجّل الآن</button>
           </div>
         </div>
-        <div class="course-card">
+        <div class="course-card tw-card-lift">
           <div class="cc-inner">
             <div class="cc-thumb" style="background:linear-gradient(135deg,#1a1205,#2a2010)">🤖</div>
             <div class="cc-body">
@@ -384,6 +421,7 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-heig
   </div>
 </div>
 
+<script src="/tw_shared.js"></script>
 <script>
 let _user=null, _isOwner=false, _following=false;
 let _data={name:'',desc:'',type:'مركز تدريب',loc:'',founded:'',web:'',email:''};
@@ -465,24 +503,42 @@ function openEditModal(){
 function saveEdit(){
   _data.name=document.getElementById('e-name').value.trim()||_data.name;
   _data.desc=document.getElementById('e-desc').value.trim();
-  _data.type=document.getElementById('e-type').value;
-  _data.loc=document.getElementById('e-loc').value.trim();
-  _data.founded=document.getElementById('e-founded').value.trim();
-  _data.web=document.getElementById('e-web').value.trim();
-  _data.email=document.getElementById('e-email').value.trim();
+  _data.type=document.getElementById('e-type')?.value||_data.type;
+  _data.loc=document.getElementById('e-loc')?.value||_data.loc;
+  _data.web=document.getElementById('e-web')?.value||_data.web;
   updateDisplay();
   document.getElementById('editOverlay').classList.remove('show');
-  // Save to API
-  if(_user&&_user.id){
-    fetch('/profile/'+_user.id,{method:'PUT',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({headline:_data.type,bio:_data.desc,location:_data.loc})
-    }).catch(()=>{});
+  // Save to DB
+  if(_user && _user.id && _isOwner){
+    fetch('/profile/'+_user.id, {
+      method:'PUT', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({full_name:_data.name, bio:_data.desc, location:_data.loc, website:_data.web})
+    }).catch(function(){});
+    if(_user.full_name !== _data.name){
+      fetch('/auth/user/'+_user.id+'/name', {
+        method:'PUT', headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({full_name:_data.name})
+      }).catch(function(){});
+      _user.full_name = _data.name;
+      localStorage.setItem('tw_user', JSON.stringify(_user));
+    }
   }
 }
 
+
 function openContact(){document.getElementById('contactOverlay').classList.add('show');}
 function sendContact(){
-  alert('تم إرسال رسالتك! ✓');
+  const msg = document.getElementById('c-msg')?.value?.trim();
+  if(!msg){ showToast('أدخل رسالتك','error'); return; }
+  const urlId = new URLSearchParams(window.location.search).get('id');
+  if(urlId){
+    fetch('/admin/message',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','X-Admin-Token':sessionStorage.getItem('tw_adm_token')||''},
+      body:JSON.stringify({user_id:parseInt(urlId)||0, subject:'تواصل', message:msg})
+    }).catch(function(){});
+  }
+  showToast('تم إرسال رسالتك ✓');
   document.getElementById('contactOverlay').classList.remove('show');
 }
 
@@ -541,6 +597,61 @@ function goHome(){
 const style=document.createElement('style');
 style.textContent=`.drop-item{display:flex;align-items:center;gap:8px;padding:9px 12px;border-radius:9px;font-family:'Cairo',sans-serif;font-size:.78rem;font-weight:700;color:rgba(255,255,255,.7);text-decoration:none;cursor:pointer;transition:all .15s;white-space:nowrap;}.drop-item:hover{background:rgba(255,255,255,.06);color:#fff;}`;
 document.head.appendChild(style);
+
+// ── Load profile from API ──
+(function(){
+  var urlId = new URLSearchParams(window.location.search).get('id');
+  var uid = urlId || (_user && _user.id);
+  if(!uid) return;
+  fetch('/profile/'+uid+'/full').then(function(r){return r.json();}).then(function(data){
+    var p = data.profile || {};
+    if(p.full_name){ _data.name = p.full_name; updateDisplay(); }
+    if(p.bio){ _data.desc = p.bio; updateDisplay(); }
+    if(p.location){ _data.loc = p.location; updateDisplay(); }
+  }).catch(function(){});
+})();
+
+
+
+// ══ ITQAN Utilities ══
+var _twToast=null;
+function showToast(msg,type,dur){
+  type=type||'success';dur=dur||2800;
+  if(_twToast){_twToast.remove();}
+  var t=document.createElement('div');
+  t.className='tw-toast '+type;
+  var ico=type==='success'?'✅':type==='error'?'❌':'ℹ️';
+  t.innerHTML='<span>'+ico+'</span><span>'+msg+'</span>';
+  document.body.appendChild(t);
+  _twToast=t;
+  requestAnimationFrame(function(){requestAnimationFrame(function(){t.classList.add('show');});});
+  setTimeout(function(){t.classList.remove('show');setTimeout(function(){if(t.parentNode)t.remove();},350);},dur);
+}
+function setBtnLoad(btn,loading){
+  if(!btn)return;
+  if(loading){btn.classList.add('tw-btn-loading');btn._orig=btn.textContent;btn.textContent='';btn.disabled=true;}
+  else{btn.classList.remove('tw-btn-loading');btn.textContent=btn._orig||'حفظ';btn.disabled=false;}
+}
+function twNavigate(url){
+  document.body.style.cssText='opacity:0;transform:translateY(-6px);transition:all .2s ease;';
+  setTimeout(function(){window.location.href=url;},180);
+}
+function initScrollProg(){
+  var p=document.createElement('div');p.className='tw-scroll-prog';
+  document.body.prepend(p);
+  window.addEventListener('scroll',function(){
+    var pct=window.scrollY/(document.body.scrollHeight-window.innerHeight)*100;
+    p.style.width=Math.min(pct,100)+'%';
+  });
+}
+
+
+// ── Pull to Refresh ──
+var _ptrE=0,_ptrEA=false;
+document.addEventListener('touchstart',function(e){if(window.scrollY===0)_ptrE=e.touches[0].clientY;},{passive:true});
+document.addEventListener('touchend',function(e){if(_ptrEA){_ptrEA=false;location.reload();}},{passive:true});
+document.addEventListener('touchmove',function(e){if(window.scrollY===0&&_ptrE>0){var d=e.touches[0].clientY-_ptrE;if(d>70&&!_ptrEA){_ptrEA=true;showToast?showToast('جاري التحديث...','info',1500):null;}}},{passive:true});
+
 </script>
 </body>
 </html>

@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Profile Showcase V2</title>
+<style>
+body{margin:0;background:#0a0e14;color:#fff;font-family:Arial,sans-serif}
+.logo-bar{text-align:center;padding:24px 0;font-size:28px;font-weight:800}
+.wrap{max-width:700px;margin:auto;padding:12px}
+.card{background:#141a24;border:1px solid rgba(255,255,255,.08);border-radius:24px;overflow:hidden}
+.cover{height:120px;background:linear-gradient(135deg,#00c896,#2563ff)}
+.hero{display:flex;gap:20px;padding:20px;align-items:flex-start}
+.side{width:120px;flex-shrink:0}
+.avatar{width:120px;height:120px;border-radius:50%;background:#222;border:4px solid #0a0e14;margin-top:-70px}
+.qr{margin-top:10px;height:120px;border-radius:16px;background:#fff;color:#000;display:flex;align-items:center;justify-content:center}
+.info{flex:1}
+.name{font-size:28px;font-weight:800}
+.title{color:#00c896;margin-top:8px}
+.loc{opacity:.8;margin-top:6px}
+.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
+.btn{padding:10px 16px;border-radius:12px;border:none}
+.btn1{background:linear-gradient(135deg,#00c896,#2563ff);color:#fff}
+.btn2{background:#1f2937;color:#fff}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:20px}
+.stat{background:rgba(255,255,255,.05);padding:12px;border-radius:14px;text-align:center}
+.tabs{display:flex;justify-content:space-around;padding:14px;border-top:1px solid rgba(255,255,255,.08);border-bottom:1px solid rgba(255,255,255,.08)}
+.section{padding:20px}
+@media(max-width:600px){
+.hero{gap:12px}
+.side{width:95px}
+.avatar{width:95px;height:95px}
+.qr{height:95px}
+.name{font-size:22px}
+.stats{grid-template-columns:repeat(2,1fr)}
+}
+</style>
+</head>
+<body>
+<div class="logo-bar">تواصلنا</div>
+<div class="wrap">
+<div class="card">
+<div class="cover"></div>
+
+<div class="hero">
+<div class="side">
+<div class="avatar"></div>
+<div class="qr">QR</div>
+</div>
+
+<div class="info">
+<div class="name">عبدالله فوزي وهيب ✓</div>
+<div class="title">Full Stack Developer</div>
+<div class="loc">عمان - الأردن</div>
+
+<div class="actions">
+<button class="btn btn1">متابعة</button>
+<button class="btn btn2">تواصل معي</button>
+<button class="btn btn2">الملف الكامل</button>
+</div>
+</div>
+</div>
+
+<div class="stats">
+<div class="stat"><b>95</b><br>القوة</div>
+<div class="stat"><b>8</b><br>الخبرات</div>
+<div class="stat"><b>24</b><br>المهارات</div>
+<div class="stat"><b>12</b><br>الشهادات</div>
+</div>
+
+<div class="tabs">
+<span>نبذة</span>
+<span>مهارات</span>
+<span>خبرات</span>
+<span>شهادات</span>
+</div>
+
+<div class="section">
+<h3>نبذة</h3>
+<p>هنا محتوى النبذة.</p>
+</div>
+</div>
+</div>
+</body>
+</html>
