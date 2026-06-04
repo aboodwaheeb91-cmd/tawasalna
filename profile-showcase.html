@@ -78,12 +78,20 @@
     .sc-qr img { width:100%; height:100%; }
 
     .sc-info { flex:1; padding-top:50px; padding-right:14px; }
-    .sc-name-row { display:flex; align-items:center; gap:6px; }
-    .sc-verified { color:var(--ac,#00c896); display:inline-flex; align-items:center; }
-    .sc-verified .ico-sm { width:18px; height:18px; }
+    .sc-name-row { display:flex; align-items:center; gap:.3em; min-width:0; }
+    .sc-verified {
+      color:var(--ac,#00c896); display:inline-flex; align-items:center;
+      flex-shrink:0; font-size:inherit;
+    }
+    /* Badge scales with name: 0.85em (~85% of text height) */
+    .sc-verified .ico-sm { width:.85em; height:.85em; }
     .sc-meta-row { display:flex; align-items:center; gap:14px; margin-top:8px; flex-wrap:wrap; }
     .sc-age { color:var(--t3,#6b7686); font-size:.72rem; display:flex; align-items:center; gap:4px; }
-    .sc-name { font-size:20px; font-weight:800; line-height:1.25; }
+    .sc-name {
+      font-size:24px; font-weight:800; line-height:1.2;
+      white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+      max-width:100%;
+    }
     .sc-title { color:var(--ac,#00c896); font-size:.78rem; margin-top:4px; font-weight:600; }
     .sc-loc { color:var(--t3,#6b7686); font-size:.72rem; margin-top:4px; }
 
@@ -263,6 +271,34 @@
       setTimeout(function(){ t.classList.remove('show'); },2200);
     }
 
+    // Auto-fit name to one line by measuring real rendered width.
+    // Scales font-size between MIN and MAX; badge follows via em units.
+    function fitName(){
+      var nameEl=document.getElementById('scName');
+      var row=document.querySelector('.sc-name-row');
+      if(!nameEl || !row) return;
+      var MAX=28, MIN=18;
+      // Available width = row inner width minus badge (badge is em-based, ~1em + gap)
+      var rowW=row.clientWidth;
+      if(rowW<=0) return;
+      var badge=document.getElementById('scVerified');
+      var badgeVisible = badge && badge.style.display!=='none';
+      // Binary-like step down from MAX until text fits on one line
+      var size=MAX;
+      nameEl.style.fontSize=size+'px';
+      // reserve space for badge (~0.85em) + gap (~0.3em) when visible
+      function avail(){
+        var reserve = badgeVisible ? (size*1.15) : 0;
+        return rowW - reserve - 2;
+      }
+      // scrollWidth > clientWidth means overflow → shrink
+      while(size>MIN && nameEl.scrollWidth > nameEl.clientWidth){
+        size-=1; nameEl.style.fontSize=size+'px';
+      }
+      // If still overflowing at MIN, ellipsis (CSS) handles it.
+    }
+    window._fitName=fitName;
+
     // Tab switching (local, no fetch — data already loaded)
     window.scTab = function(name, el){
       var tabs=document.querySelectorAll('.sc-tab');
@@ -277,6 +313,7 @@
     window._renderIcons = function(){ if(window.lucide && lucide.createIcons) lucide.createIcons(); };
 
     var id = new URLSearchParams(location.search).get('id');
+    window.addEventListener('resize', function(){ if(window._fitName) _fitName(); });
 
     // Home button
     var homeBtn=document.getElementById('scHomeBtn');
@@ -416,6 +453,9 @@
             if(renderIcons() || ++tries>20) clearInterval(iv);
           },150);
         }
+
+        // Auto-fit name to one line (after layout settled)
+        requestAnimationFrame(function(){ fitName(); setTimeout(fitName,50); });
 
         // Score: independent parallel fetch — NUMERIC p.id (not tw_id), failure isolated
         var numId = (p.id != null) ? p.id : id;
