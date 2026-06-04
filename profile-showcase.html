@@ -136,16 +136,16 @@
     .sc-bio { color:var(--t2,#9aa5b4); font-size:.7rem; line-height:1.5; margin-top:6px; }
 
     /* Action buttons */
-    .sc-actions { display:flex; gap:11px; padding:16px 20px; flex-wrap:nowrap; justify-content:center; }
+    .sc-actions { display:grid; grid-template-columns:repeat(3,1fr); gap:9px; padding:16px 20px; }
     .sc-btn {
-      height:46px; padding:0 17px; border-radius:15px; border:none; cursor:pointer;
-      font-family:inherit; font-size:14.5px; font-weight:700;
+      height:45px; padding:0 8px; border-radius:14px; border:none; cursor:pointer;
+      font-family:inherit; font-size:13px; font-weight:700;
       transition:transform .15s, opacity .15s;
-      flex:1; white-space:nowrap;
-      display:flex; align-items:center; justify-content:center; gap:7px;
+      min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+      display:flex; align-items:center; justify-content:center; gap:6px;
     }
     .sc-btn:active { transform:scale(.96); }
-    .sc-btn .ico-sm { width:18px; height:18px; stroke-width:2; }
+    .sc-btn .ico-sm { width:16px; height:16px; stroke-width:2; flex-shrink:0; }
     .sc-btn { display:flex; align-items:center; justify-content:center; gap:6px; }
     .sc-loc { display:flex; align-items:center; gap:4px; }
     .sc-btn-primary { background:linear-gradient(135deg, #12d6b0, #149eea); color:#fff; }
