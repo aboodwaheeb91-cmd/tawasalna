@@ -99,12 +99,11 @@
        via outline (sits ON the border-box edge) + subtle glass tint */
     .sc-avatar-wrap::after {
       content:''; position:absolute; inset:0; border-radius:50%;
-      border:3px solid rgba(255,255,255,.14);
-      box-shadow:0 0 0 .5px rgba(255,255,255,.06),
-                 inset 0 0 0 .5px rgba(255,255,255,.06);
-      backdrop-filter:blur(2px); -webkit-backdrop-filter:blur(2px);
+      border:3px solid rgba(255,255,255,.18);
+      box-shadow:0 0 0 .5px rgba(255,255,255,.08),
+                 inset 0 0 0 .5px rgba(255,255,255,.08);
       pointer-events:none;
-      /* pull ring outward by half its width so it straddles the edge */
+      /* straddle the edge: pull outward by half the border width */
       margin:-1.5px;
       width:calc(100% + 3px); height:calc(100% + 3px);
     }
