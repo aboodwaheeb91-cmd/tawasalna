@@ -49,7 +49,7 @@
 
     /* Cover — thin */
     .sc-cover {
-      height:100px; position:relative;
+      height:75px; position:relative;
       background:linear-gradient(135deg,#0f2027,#203a43,#2c5364);
       background-size:cover; background-position:center;
     }
@@ -60,24 +60,26 @@
 
     /* Header row: avatar (right) + info (left) */
     .sc-prof-row {
-      display:flex; gap:16px; padding:0 20px; margin-top:-45px; position:relative; z-index:2;
+      display:flex; gap:16px; padding:0 20px; margin-top:-40px; position:relative; z-index:2;
       align-items:flex-start;
     }
     .sc-ava-col { display:flex; flex-direction:column; align-items:center; gap:8px; flex-shrink:0; }
     .sc-avatar {
-      width:110px; height:110px; border-radius:50%; border:5px solid var(--bg2,#141a24);
+      width:105px; height:105px; border-radius:50%; border:5px solid var(--bg2,#141a24);
       background:var(--bg,#0a0e14); object-fit:cover; display:flex;
       align-items:center; justify-content:center; font-size:3rem; overflow:hidden;
       box-shadow:0 8px 24px rgba(0,0,0,.4);
     }
     .sc-qr {
-      width:78px; height:78px; border-radius:12px; background:#fff; padding:6px;
+      width:62px; height:62px; border-radius:11px; background:#fff; padding:6px;
       display:flex; align-items:center; justify-content:center;
       box-shadow:0 4px 12px rgba(0,0,0,.25);
     }
     .sc-qr img { width:100%; height:100%; }
 
-    .sc-info { flex:1; padding-top:50px; padding-right:14px; }
+    /* Invisible container: groups name + all info as one unit (transparent) */
+    .sc-info { flex:1; min-width:0; padding-top:50px; padding-right:14px;
+      background:transparent; border:none; }
     .sc-name-row { display:flex; align-items:center; gap:.3em; min-width:0; }
     .sc-verified {
       color:var(--ac,#00c896); display:inline-flex; align-items:center;
@@ -86,23 +88,23 @@
     /* Badge scales with name: 0.85em (~85% of text height) */
     .sc-verified .ico-sm { width:.85em; height:.85em; }
     .sc-meta-row { display:flex; align-items:center; gap:14px; margin-top:8px; flex-wrap:wrap; }
-    .sc-age { color:var(--t3,#6b7686); font-size:.72rem; display:flex; align-items:center; gap:4px; }
+    .sc-age { color:var(--t3,#6b7686); font-size:.64rem; display:flex; align-items:center; gap:4px; }
     .sc-name {
-      font-size:24px; font-weight:800; line-height:1.2;
+      font-size:20px; font-weight:800; line-height:1.2;
       white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-      max-width:100%;
+      max-width:100%; min-width:0;
     }
-    .sc-title { color:var(--ac,#00c896); font-size:.78rem; margin-top:4px; font-weight:600; }
-    .sc-loc { color:var(--t3,#6b7686); font-size:.72rem; margin-top:4px; }
+    .sc-title { color:var(--ac,#00c896); font-size:.74rem; margin-top:3px; font-weight:600; }
+    .sc-loc { color:var(--t3,#6b7686); font-size:.64rem; }
 
     /* Bio under row */
-    .sc-bio { color:var(--t2,#9aa5b4); font-size:.82rem; line-height:1.6; margin-top:8px; }
+    .sc-bio { color:var(--t2,#9aa5b4); font-size:.7rem; line-height:1.5; margin-top:6px; }
 
     /* Action buttons */
     .sc-actions { display:flex; gap:8px; padding:16px 20px; flex-wrap:nowrap; justify-content:center; }
     .sc-btn {
-      padding:11px 12px; border-radius:11px; border:none; cursor:pointer;
-      font-family:inherit; font-size:.74rem; font-weight:700; transition:transform .15s, opacity .15s;
+      padding:10px 12px; border-radius:11px; border:none; cursor:pointer;
+      font-family:inherit; font-size:.7rem; font-weight:700; transition:transform .15s, opacity .15s;
       flex:1; white-space:nowrap;
     }
     .sc-btn:active { transform:scale(.96); }
@@ -276,26 +278,26 @@
     function fitName(){
       var nameEl=document.getElementById('scName');
       var row=document.querySelector('.sc-name-row');
-      if(!nameEl || !row) return;
-      var MAX=28, MIN=18;
-      // Available width = row inner width minus badge (badge is em-based, ~1em + gap)
-      var rowW=row.clientWidth;
-      if(rowW<=0) return;
+      var info=document.querySelector('.sc-info');
+      if(!nameEl || !row || !info) return;
+      var MAX=24, MIN=16;
+      // Available width = the info column width (the real constraint)
+      var availW=info.clientWidth;
+      if(availW<=0) return;
       var badge=document.getElementById('scVerified');
       var badgeVisible = badge && badge.style.display!=='none';
-      // Binary-like step down from MAX until text fits on one line
+
+      // Temporarily remove clamp to measure natural text width
+      nameEl.style.textOverflow='clip';
       var size=MAX;
       nameEl.style.fontSize=size+'px';
-      // reserve space for badge (~0.85em) + gap (~0.3em) when visible
-      function avail(){
-        var reserve = badgeVisible ? (size*1.15) : 0;
-        return rowW - reserve - 2;
-      }
-      // scrollWidth > clientWidth means overflow → shrink
-      while(size>MIN && nameEl.scrollWidth > nameEl.clientWidth){
+      // Reserve for badge (~size*0.85 + gap) when visible
+      function reserve(){ return badgeVisible ? (size*0.85 + size*0.3 + 4) : 0; }
+      // Shrink until natural width fits available - reserve
+      while(size>MIN && nameEl.scrollWidth > (availW - reserve())){
         size-=1; nameEl.style.fontSize=size+'px';
       }
-      // If still overflowing at MIN, ellipsis (CSS) handles it.
+      nameEl.style.textOverflow='ellipsis';
     }
     window._fitName=fitName;
 
@@ -376,7 +378,7 @@
         var qr=document.getElementById('scQr');
         if(qr){
           var showcaseUrl = location.origin + '/profile-showcase?id=' + encodeURIComponent(id);
-          qr.innerHTML='<img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data='
+          qr.innerHTML='<img src="https://api.qrserver.com/v1/create-qr-code/?size=90x90&data='
             + encodeURIComponent(showcaseUrl) + '" alt="QR">';
         }
 
