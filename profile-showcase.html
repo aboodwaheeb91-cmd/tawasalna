@@ -99,17 +99,10 @@
        via outline (sits ON the border-box edge) + subtle glass tint */
     .sc-avatar-wrap::after {
       content:''; position:absolute; inset:0; border-radius:50%;
-      /* True glass material: grayish-white, more transparent so the
-         background shows through (lighter over light, darker over dark).
-         Linear-gradient gives the translucent border a subtle glassy depth
-         without adding a separate highlight layer. */
-      border:3px solid transparent;
-      background:linear-gradient(135deg,
-                 rgba(220,225,235,.28),
-                 rgba(180,188,200,.16)) border-box;
-      -webkit-mask:linear-gradient(#000 0 0) padding-box,
-                   linear-gradient(#000 0 0);
-      -webkit-mask-composite:xor; mask-composite:exclude;
+      /* Real glass border: translucent grayish-white. Lower alpha = the
+         background genuinely shows through, so it reads lighter over light
+         areas and darker over dark areas. Plain border = full browser support. */
+      border:3px solid rgba(210,216,228,.32);
       pointer-events:none;
       margin:-1.5px;
       width:calc(100% + 3px); height:calc(100% + 3px);
