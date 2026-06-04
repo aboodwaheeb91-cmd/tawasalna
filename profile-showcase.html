@@ -27,6 +27,10 @@
       padding:7px 16px; position:sticky; top:0; z-index:50;
       background:rgba(10,14,20,.85); backdrop-filter:blur(12px);
     }
+    .sc-header .sc-logo {
+      position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
+      pointer-events:none;
+    }
     .sc-hicon {
       width:34px; height:34px; border-radius:10px; border:none; cursor:pointer;
       background:rgba(255,255,255,.06); color:var(--t1,#fff); font-size:1rem;
@@ -35,12 +39,13 @@
     .sc-hicon-bare { background:none !important; border:none !important; }
     .sc-hgroup { display:flex; align-items:center; gap:10px; }
     .sc-home-pill {
-      display:inline-flex; align-items:center; gap:5px;
-      padding:5px 12px; border-radius:20px; cursor:pointer;
+      display:inline-flex; align-items:center; gap:4px;
+      padding:4px 9px; border-radius:16px; cursor:pointer;
       background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.1);
-      color:var(--t1,#fff); font-family:inherit; font-size:.68rem; font-weight:600;
+      color:var(--t1,#fff); font-family:inherit; font-size:.6rem; font-weight:600;
+      white-space:nowrap;
     }
-    .sc-home-pill .ico-sm { width:13px; height:13px; }
+    .sc-home-pill .ico-sm { width:11px; height:11px; }
                 .sc-logo { font-weight:800; font-size:1.15rem; letter-spacing:-.3px;
       background:linear-gradient(135deg,var(--ac,#00c896),var(--ac2,#2563ff));
       -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
@@ -72,11 +77,43 @@
       align-items:flex-start;
     }
     .sc-ava-col { display:flex; flex-direction:column; align-items:center; gap:8px; flex-shrink:0; }
+    /* ── Premium multi-layer avatar ── */
+    .sc-avatar-wrap {
+      position:relative; width:118px; height:118px; flex-shrink:0;
+      display:flex; align-items:center; justify-content:center;
+    }
+    /* Outer glass ring (semi-transparent, blurred backdrop) */
+    .sc-avatar-glass {
+      position:absolute; inset:0; border-radius:50%;
+      background:linear-gradient(135deg, rgba(255,255,255,.15), rgba(255,255,255,.05));
+      border:1.5px solid rgba(255,255,255,.12);
+      backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
+      box-shadow:0 8px 28px rgba(0,0,0,.35);
+    }
+    /* Soft ambient glow (dynamic color set via JS var --av-glow) */
+    .sc-avatar-wrap::before {
+      content:''; position:absolute; inset:-6px; border-radius:50%; z-index:-1;
+      background:radial-gradient(circle, var(--av-glow, rgba(0,200,150,.25)), transparent 70%);
+      filter:blur(8px); opacity:.6;
+    }
+    /* Inner gradient ring (dynamic colors via --av-c1/--av-c2) */
+    .sc-avatar-ring {
+      position:absolute; inset:4px; border-radius:50%; padding:2px;
+      background:linear-gradient(135deg, var(--av-c1, var(--ac,#00c896)), var(--av-c2, var(--ac2,#2563ff)));
+    }
+    /* The image itself */
     .sc-avatar {
-      width:107px; height:107px; border-radius:50%; border:5px solid var(--bg2,#141a24);
+      width:100%; height:100%; border-radius:50%;
+      border:3px solid var(--bg2,#141a24);
       background:var(--bg,#0a0e14); object-fit:cover; display:flex;
-      align-items:center; justify-content:center; font-size:3rem; overflow:hidden;
-      box-shadow:0 8px 24px rgba(0,0,0,.4);
+      align-items:center; justify-content:center; font-size:2.8rem; overflow:hidden;
+    }
+    /* Top light reflection (glassy sheen) */
+    .sc-avatar-wrap::after {
+      content:''; position:absolute; top:6px; left:18%; width:64%; height:32%;
+      border-radius:50%; pointer-events:none; z-index:3;
+      background:linear-gradient(180deg, rgba(255,255,255,.22), transparent);
+      filter:blur(2px);
     }
     .sc-qr {
       width:62px; height:62px; border-radius:11px; background:#fff; padding:6px;
@@ -197,7 +234,12 @@
         <!-- Profile row: avatar+QR (right) | info (left) -->
         <div class="sc-prof-row">
           <div class="sc-ava-col">
-            <div class="sc-avatar" id="scAvatar"><i data-lucide="user" class="ico-lg"></i></div>
+            <div class="sc-avatar-wrap" id="scAvatarWrap">
+              <div class="sc-avatar-glass"></div>
+              <div class="sc-avatar-ring">
+                <div class="sc-avatar" id="scAvatar"><i data-lucide="user" class="ico-lg"></i></div>
+              </div>
+            </div>
             <div class="sc-qr" id="scQr"></div>
           </div>
           <div class="sc-info">
@@ -279,6 +321,48 @@
       var t=document.getElementById('scToast'); if(!t) return;
       t.textContent=msg; t.classList.add('show');
       setTimeout(function(){ t.classList.remove('show'); },2200);
+    }
+
+    // ── Avatar dynamic colors (extract from image edges; fallback to theme) ──
+    function applyAvatarFallback(){
+      var wrap=document.getElementById('scAvatarWrap');
+      if(!wrap) return;
+      // Use theme colors --ac / --ac2 (read from CSS, with safe defaults)
+      var cs=getComputedStyle(document.documentElement);
+      var c1=(cs.getPropertyValue('--ac')||'#00c896').trim();
+      var c2=(cs.getPropertyValue('--ac2')||'#2563ff').trim();
+      wrap.style.setProperty('--av-c1', c1);
+      wrap.style.setProperty('--av-c2', c2);
+      wrap.style.setProperty('--av-glow', 'rgba(0,200,150,.22)');
+    }
+
+    function extractAvatarColors(img){
+      var wrap=document.getElementById('scAvatarWrap');
+      if(!wrap) return;
+      try {
+        var s=24; // tiny canvas for performance
+        var cv=document.createElement('canvas');
+        cv.width=s; cv.height=s;
+        var ctx=cv.getContext('2d');
+        ctx.drawImage(img, 0, 0, s, s);
+        var data=ctx.getImageData(0,0,s,s).data; // throws if CORS-tainted
+        // Sample edge pixels (top, bottom, left, right strips)
+        var rs=0,gs=0,bs=0,n=0;
+        function add(x,y){ var i=(y*s+x)*4; rs+=data[i]; gs+=data[i+1]; bs+=data[i+2]; n++; }
+        for(var x=0;x<s;x++){ add(x,0); add(x,s-1); }
+        for(var y=0;y<s;y++){ add(0,y); add(s-1,y); }
+        var r=Math.round(rs/n), g=Math.round(gs/n), b=Math.round(bs/n);
+        // Build two tones from the averaged edge color
+        function clamp(v){ return Math.max(0,Math.min(255,v)); }
+        var c1='rgb('+r+','+g+','+b+')';
+        var c2='rgb('+clamp(r+40)+','+clamp(g+40)+','+clamp(b+60)+')';
+        wrap.style.setProperty('--av-c1', c1);
+        wrap.style.setProperty('--av-c2', c2);
+        wrap.style.setProperty('--av-glow', 'rgba('+r+','+g+','+b+',.28)');
+      } catch(e){
+        // CORS-tainted or any failure → theme fallback
+        applyAvatarFallback();
+      }
     }
 
     // Auto-fit name to one line by measuring real rendered width.
@@ -374,10 +458,24 @@
           }
         }
 
-        // Avatar
+        // Avatar (with crossOrigin for color extraction)
         var av=document.getElementById('scAvatar');
         if(av && p.avatar_url){
-          av.innerHTML='<img src="'+esc(p.avatar_url)+'" alt="" style="width:100%;height:100%;object-fit:cover">';
+          var img=new Image();
+          img.crossOrigin='anonymous';
+          img.alt='';
+          img.style.cssText='width:100%;height:100%;object-fit:cover;border-radius:50%';
+          img.onload=function(){
+            av.innerHTML=''; av.appendChild(img);
+            extractAvatarColors(img);  // dynamic border/glow (fallback inside)
+          };
+          img.onerror=function(){
+            // image failed → keep placeholder, theme fallback colors
+            applyAvatarFallback();
+          };
+          img.src=esc(p.avatar_url);
+        } else {
+          applyAvatarFallback();
         }
 
         // QR (uses public QR service pointing to this showcase URL — no backend)
