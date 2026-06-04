@@ -37,15 +37,19 @@
       display:flex; align-items:center; justify-content:center;
     }
     .sc-hicon-bare { background:none !important; border:none !important; }
+    .sc-head-icons { display:flex; align-items:center; gap:4px; }
     .sc-hgroup { display:flex; align-items:center; gap:10px; }
     .sc-home-pill {
-      display:inline-flex; align-items:center; gap:4px;
-      padding:4px 9px; border-radius:16px; cursor:pointer;
-      background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.1);
-      color:var(--t1,#fff); font-family:inherit; font-size:.6rem; font-weight:600;
-      white-space:nowrap;
+      display:inline-flex; align-items:center; gap:5px;
+      padding:6px 13px; border-radius:18px; cursor:pointer;
+      background:linear-gradient(135deg, rgba(255,255,255,.1), rgba(255,255,255,.04));
+      border:1px solid rgba(255,255,255,.14);
+      color:var(--t1,#fff); font-family:inherit; font-size:.66rem; font-weight:700;
+      white-space:nowrap; transition:transform .15s, background .2s;
+      box-shadow:0 2px 8px rgba(0,0,0,.15);
     }
-    .sc-home-pill .ico-sm { width:11px; height:11px; }
+    .sc-home-pill:active { transform:scale(.95); }
+    .sc-home-pill .ico-sm { width:13px; height:13px; }
                 .sc-logo { font-weight:800; font-size:1.15rem; letter-spacing:-.3px;
       background:linear-gradient(135deg,var(--ac,#00c896),var(--ac2,#2563ff));
       -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
@@ -218,9 +222,13 @@
 <body>
   <!-- Header -->
   <div class="sc-header">
-    <button class="sc-home-pill" id="scHomeBtn"><i data-lucide="home" class="ico-sm"></i> الصفحة الرئيسية</button>
+    <button class="sc-home-pill" id="scHomeBtn"><i data-lucide="home" class="ico-sm"></i> الرئيسية</button>
     <div class="sc-logo">تواصلنا</div>
-    <button class="sc-hicon sc-hicon-bare" onclick="history.back()" title="رجوع"><i data-lucide="menu" class="ico"></i></button>
+    <div class="sc-head-icons">
+      <button class="sc-hicon sc-hicon-bare" id="scBellBtn" title="الإشعارات"><i data-lucide="bell" class="ico"></i></button>
+      <button class="sc-hicon sc-hicon-bare" id="scMsgBtn" title="الرسائل"><i data-lucide="message-circle" class="ico"></i></button>
+      <button class="sc-hicon sc-hicon-bare" id="scMenuBtn" title="القائمة"><i data-lucide="menu" class="ico"></i></button>
+    </div>
   </div>
 
   <div class="sc-wrap">
@@ -407,9 +415,15 @@
     var id = new URLSearchParams(location.search).get('id');
     window.addEventListener('resize', function(){ if(window._fitName) _fitName(); });
 
-    // Home button
+    // Header buttons
     var homeBtn=document.getElementById('scHomeBtn');
     if(homeBtn) homeBtn.onclick=function(){ window.location.href='/home'; };
+    var bellBtn=document.getElementById('scBellBtn');
+    if(bellBtn) bellBtn.onclick=function(){ window.location.href='/notifications'; };
+    var msgBtn=document.getElementById('scMsgBtn');
+    if(msgBtn) msgBtn.onclick=function(){ window.location.href='/messages'; };
+    var menuBtn=document.getElementById('scMenuBtn');
+    if(menuBtn) menuBtn.onclick=function(){ history.back(); };
 
     if(!id){
       var ld=document.getElementById('scLoading');
