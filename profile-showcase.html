@@ -97,12 +97,10 @@
     }
     /* Single glass ring, centered on the image edge (50% in / 50% out)
        via outline (sits ON the border-box edge) + subtle glass tint */
+    /* Single glass ring around avatar (only border source) */
     .sc-avatar-wrap::after {
       content:''; position:absolute; inset:0; border-radius:50%;
-      /* Real glass border: translucent grayish-white. Lower alpha = the
-         background genuinely shows through, so it reads lighter over light
-         areas and darker over dark areas. Plain border = full browser support. */
-      border:3px solid rgba(210,216,228,.32);
+      border:3px solid rgba(225,230,240,.55);
       pointer-events:none;
       margin:-1.5px;
       width:calc(100% + 3px); height:calc(100% + 3px);
@@ -208,6 +206,7 @@
   </style>
 </head>
 <body>
+  <!-- SHOWCASE_VERSION_AVATAR_TEST_001 -->
   <!-- Header -->
   <div class="sc-header">
     <button class="sc-home-pill" id="scHomeBtn"><i data-lucide="home" class="ico-sm"></i> الرئيسية</button>
@@ -304,6 +303,8 @@
   <script src="/tw_shared.js"></script>
   <script>
   (function() {
+    window.SHOWCASE_VERSION = "avatar-test-001";
+    console.log("SHOWCASE_VERSION:", window.SHOWCASE_VERSION);
     function esc(s){ var d=document.createElement('div'); d.textContent=s==null?'':String(s); return d.innerHTML; }
     function setText(id,v){ var el=document.getElementById(id); if(el) el.textContent=v==null?'':v; }
     function renderIcons(){
