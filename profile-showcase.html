@@ -41,21 +41,12 @@
       color:var(--t1,#fff); font-family:inherit; font-size:.68rem; font-weight:600;
     }
     .sc-home-pill .ico-sm { width:13px; height:13px; }
-    .sc-head-right { display:flex; align-items:center; gap:12px; }
-    .sc-home-btn {
-      display:inline-flex; align-items:center; gap:5px;
-      padding:5px 12px; border-radius:8px; cursor:pointer; font-family:inherit;
-      font-size:.68rem; font-weight:600; white-space:nowrap;
-      background:rgba(255,255,255,.06); color:var(--t1,#fff);
-      border:1px solid rgba(255,255,255,.1);
-    }
-    .sc-home-btn .ico-sm { width:14px; height:14px; }
-    .sc-logo { font-weight:800; font-size:1.15rem; letter-spacing:-.3px;
+                .sc-logo { font-weight:800; font-size:1.15rem; letter-spacing:-.3px;
       background:linear-gradient(135deg,var(--ac,#00c896),var(--ac2,#2563ff));
       -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
 
     /* ── Main wrap ── */
-    .sc-wrap { max-width:600px; margin:0 auto; padding:16px; }
+    .sc-wrap { max-width:600px; margin:0 auto; padding:8px 16px 16px; }
 
     /* ── ONE big card ── */
     .sc-main-card {
@@ -190,10 +181,8 @@
 <body>
   <!-- Header -->
   <div class="sc-header">
-    <div class="sc-head-right">
-      <div class="sc-logo">تواصلنا</div>
-      <button class="sc-home-btn" id="scHomeBtn"><i data-lucide="home" class="ico-sm"></i> الصفحة الرئيسية</button>
-    </div>
+    <button class="sc-home-pill" id="scHomeBtn"><i data-lucide="home" class="ico-sm"></i> الصفحة الرئيسية</button>
+    <div class="sc-logo">تواصلنا</div>
     <button class="sc-hicon sc-hicon-bare" onclick="history.back()" title="رجوع"><i data-lucide="menu" class="ico"></i></button>
   </div>
 
