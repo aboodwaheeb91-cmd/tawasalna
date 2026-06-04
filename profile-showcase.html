@@ -33,6 +33,23 @@
       display:flex; align-items:center; justify-content:center;
     }
     .sc-hicon-bare { background:none !important; border:none !important; }
+    .sc-hgroup { display:flex; align-items:center; gap:10px; }
+    .sc-home-pill {
+      display:inline-flex; align-items:center; gap:5px;
+      padding:5px 12px; border-radius:20px; cursor:pointer;
+      background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.1);
+      color:var(--t1,#fff); font-family:inherit; font-size:.68rem; font-weight:600;
+    }
+    .sc-home-pill .ico-sm { width:13px; height:13px; }
+    .sc-head-right { display:flex; align-items:center; gap:12px; }
+    .sc-home-btn {
+      display:inline-flex; align-items:center; gap:5px;
+      padding:5px 12px; border-radius:8px; cursor:pointer; font-family:inherit;
+      font-size:.68rem; font-weight:600; white-space:nowrap;
+      background:rgba(255,255,255,.06); color:var(--t1,#fff);
+      border:1px solid rgba(255,255,255,.1);
+    }
+    .sc-home-btn .ico-sm { width:14px; height:14px; }
     .sc-logo { font-weight:800; font-size:1.15rem; letter-spacing:-.3px;
       background:linear-gradient(135deg,var(--ac,#00c896),var(--ac2,#2563ff));
       -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
@@ -49,7 +66,7 @@
 
     /* Cover — thin */
     .sc-cover {
-      height:75px; position:relative;
+      height:80px; position:relative;
       background:linear-gradient(135deg,#0f2027,#203a43,#2c5364);
       background-size:cover; background-position:center;
     }
@@ -65,7 +82,7 @@
     }
     .sc-ava-col { display:flex; flex-direction:column; align-items:center; gap:8px; flex-shrink:0; }
     .sc-avatar {
-      width:105px; height:105px; border-radius:50%; border:5px solid var(--bg2,#141a24);
+      width:107px; height:107px; border-radius:50%; border:5px solid var(--bg2,#141a24);
       background:var(--bg,#0a0e14); object-fit:cover; display:flex;
       align-items:center; justify-content:center; font-size:3rem; overflow:hidden;
       box-shadow:0 8px 24px rgba(0,0,0,.4);
@@ -103,8 +120,8 @@
     /* Action buttons */
     .sc-actions { display:flex; gap:8px; padding:16px 20px; flex-wrap:nowrap; justify-content:center; }
     .sc-btn {
-      padding:10px 12px; border-radius:11px; border:none; cursor:pointer;
-      font-family:inherit; font-size:.7rem; font-weight:700; transition:transform .15s, opacity .15s;
+      padding:7px 10px; border-radius:9px; border:none; cursor:pointer;
+      font-family:inherit; font-size:.66rem; font-weight:700; transition:transform .15s, opacity .15s;
       flex:1; white-space:nowrap;
     }
     .sc-btn:active { transform:scale(.96); }
@@ -173,8 +190,10 @@
 <body>
   <!-- Header -->
   <div class="sc-header">
-    <button class="sc-hicon" id="scHomeBtn" title="الرئيسية"><i data-lucide="home" class="ico"></i></button>
-    <div class="sc-logo">تواصلنا</div>
+    <div class="sc-head-right">
+      <div class="sc-logo">تواصلنا</div>
+      <button class="sc-home-btn" id="scHomeBtn"><i data-lucide="home" class="ico-sm"></i> الصفحة الرئيسية</button>
+    </div>
     <button class="sc-hicon sc-hicon-bare" onclick="history.back()" title="رجوع"><i data-lucide="menu" class="ico"></i></button>
   </div>
 
@@ -278,23 +297,21 @@
     function fitName(){
       var nameEl=document.getElementById('scName');
       var row=document.querySelector('.sc-name-row');
-      var info=document.querySelector('.sc-info');
-      if(!nameEl || !row || !info) return;
+      if(!nameEl || !row) return;
       var MAX=24, MIN=16;
-      // Available width = the info column width (the real constraint)
-      var availW=info.clientWidth;
-      if(availW<=0) return;
+      // Measure against the name-row's own container width (the box the name lives in)
+      var boxW=row.clientWidth;
+      if(boxW<=0) return;
       var badge=document.getElementById('scVerified');
       var badgeVisible = badge && badge.style.display!=='none';
 
-      // Temporarily remove clamp to measure natural text width
       nameEl.style.textOverflow='clip';
       var size=MAX;
       nameEl.style.fontSize=size+'px';
-      // Reserve for badge (~size*0.85 + gap) when visible
+      // Reserve space for badge + gap when visible (badge is .85em + .3em gap)
       function reserve(){ return badgeVisible ? (size*0.85 + size*0.3 + 4) : 0; }
-      // Shrink until natural width fits available - reserve
-      while(size>MIN && nameEl.scrollWidth > (availW - reserve())){
+      // Shrink font until the name's natural width fits its container box
+      while(size>MIN && nameEl.scrollWidth > (boxW - reserve())){
         size-=1; nameEl.style.fontSize=size+'px';
       }
       nameEl.style.textOverflow='ellipsis';
