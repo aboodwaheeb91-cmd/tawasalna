@@ -102,10 +102,11 @@
       background:radial-gradient(circle, var(--av-glow, rgba(0,200,150,.1)), transparent 70%);
       filter:blur(8px); opacity:.25;
     }
-    /* Inner gradient ring (dynamic colors via --av-c1/--av-c2) */
+    /* Inner glass ring (thin, semi-transparent — image edges show through) */
     .sc-avatar-ring {
-      position:absolute; inset:3px; border-radius:50%; padding:1.5px;
-      background:linear-gradient(135deg, var(--av-c1, var(--ac,#00c896)), var(--av-c2, var(--ac2,#2563ff)));
+      position:absolute; inset:3px; border-radius:50%; padding:0;
+      border:1.5px solid rgba(255,255,255,.18);
+      background:transparent;
     }
     /* The image itself */
     .sc-avatar {
