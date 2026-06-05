@@ -134,8 +134,8 @@
 
     /* Bio under row */
     .sc-bio {
-      color:var(--t2,#9aa5b4); font-size:13px; line-height:1.7; margin-top:6px; word-break:break-word;
-      display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden;
+      color:var(--t2,#9aa5b4); font-size:8px; line-height:2; margin-top:2px; word-break:break-word;
+      display:-webkit-box; -webkit-line-clamp:4; -webkit-box-orient:vertical; overflow:hidden;
     }
     .sc-bio.expanded { display:block; overflow:visible; }
     .sc-bio-more {
@@ -214,7 +214,7 @@
     .sc-item-d { color:var(--t4,#4a5568); font-size:.72rem; margin-top:2px; }
 
     .sc-empty { text-align:center; color:var(--t4,#4a5568); padding:24px 0; font-size:.82rem; }
-    .sc-bio-text { color:var(--t2,#9aa5b4); font-size:14px; line-height:1.8; }
+    .sc-bio-text { color:var(--t2,#9aa5b4); font-size:8px; line-height:2; }
 
     /* About card */
     .sc-about-card {
@@ -582,54 +582,6 @@
   };
   </script>
 
-  <!-- ── Bio Tuner (TEMPORARY) ── -->
-  <div id="bioTuner" style="position:fixed;bottom:0;left:0;right:0;z-index:999;background:#0f1520;border-top:1px solid rgba(0,200,150,.3);padding:10px 16px 14px;font-family:'Cairo',sans-serif;direction:ltr;">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
-      <span style="color:#00c896;font-size:12px;font-weight:700;">⚙️ Bio Text Tuner</span>
-      <button onclick="document.getElementById('bioTuner').style.display='none'" style="background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);color:#fff;border-radius:8px;padding:2px 10px;font-size:11px;cursor:pointer;">Hide</button>
-    </div>
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px 12px;">
-      <label style="color:#9aa5b4;font-size:10.5px;">font-size (px)<br><input type="number" id="bFontSize" value="13" min="8" max="20" step="0.5" oninput="applyBioTuner()" style="width:100%;margin-top:3px;background:#1a2234;border:1px solid rgba(255,255,255,.12);color:#fff;border-radius:7px;padding:5px 8px;font-size:12px;"></label>
-      <label style="color:#9aa5b4;font-size:10.5px;">line-height<br><input type="number" id="bLineHeight" value="1.7" min="1" max="2.5" step="0.05" oninput="applyBioTuner()" style="width:100%;margin-top:3px;background:#1a2234;border:1px solid rgba(255,255,255,.12);color:#fff;border-radius:7px;padding:5px 8px;font-size:12px;"></label>
-      <label style="color:#9aa5b4;font-size:10.5px;">line-clamp<br><input type="number" id="bLineClamp" value="3" min="1" max="10" step="1" oninput="applyBioTuner()" style="width:100%;margin-top:3px;background:#1a2234;border:1px solid rgba(255,255,255,.12);color:#fff;border-radius:7px;padding:5px 8px;font-size:12px;"></label>
-      <label style="color:#9aa5b4;font-size:10.5px;">margin-top (px)<br><input type="number" id="bMarginTop" value="6" min="0" max="24" step="1" oninput="applyBioTuner()" style="width:100%;margin-top:3px;background:#1a2234;border:1px solid rgba(255,255,255,.12);color:#fff;border-radius:7px;padding:5px 8px;font-size:12px;"></label>
-      <label style="color:#9aa5b4;font-size:10.5px;">opacity (0-1)<br><input type="number" id="bOpacity" value="1" min="0.2" max="1" step="0.05" oninput="applyBioTuner()" style="width:100%;margin-top:3px;background:#1a2234;border:1px solid rgba(255,255,255,.12);color:#fff;border-radius:7px;padding:5px 8px;font-size:12px;"></label>
-      <label style="color:#9aa5b4;font-size:10.5px;">letter-spacing (px)<br><input type="number" id="bLetterSpacing" value="0" min="-1" max="3" step="0.1" oninput="applyBioTuner()" style="width:100%;margin-top:3px;background:#1a2234;border:1px solid rgba(255,255,255,.12);color:#fff;border-radius:7px;padding:5px 8px;font-size:12px;"></label>
-    </div>
-    <button onclick="copyBioValues()" style="margin-top:10px;width:100%;height:36px;background:linear-gradient(135deg,#00c896,#00a878);color:#fff;border:none;border-radius:10px;font-family:inherit;font-weight:700;font-size:12px;cursor:pointer;">Copy Current Values</button>
-    <div id="bCopied" style="display:none;margin-top:8px;background:#1a2234;border:1px solid rgba(0,200,150,.3);border-radius:9px;padding:8px 12px;font-size:11px;color:#00c896;white-space:pre;line-height:1.8;"></div>
-  </div>
-
-  <script>
-  function applyBioTuner(){
-    var fs   = document.getElementById('bFontSize').value;
-    var lh   = document.getElementById('bLineHeight').value;
-    var lc   = document.getElementById('bLineClamp').value;
-    var mt   = document.getElementById('bMarginTop').value;
-    var op   = document.getElementById('bOpacity').value;
-    var ls   = document.getElementById('bLetterSpacing').value;
-    var bio  = document.getElementById('scBio');
-    if(!bio) return;
-    bio.style.fontSize        = fs + 'px';
-    bio.style.lineHeight      = lh;
-    bio.style.webkitLineClamp = lc;
-    bio.style.marginTop       = mt + 'px';
-    bio.style.opacity         = op;
-    bio.style.letterSpacing   = ls + 'px';
-  }
-  function copyBioValues(){
-    var v = 'Bio Text Final Values:\n'
-      + 'font-size:      ' + document.getElementById('bFontSize').value     + 'px\n'
-      + 'line-height:    ' + document.getElementById('bLineHeight').value   + '\n'
-      + 'line-clamp:     ' + document.getElementById('bLineClamp').value    + '\n'
-      + 'margin-top:     ' + document.getElementById('bMarginTop').value    + 'px\n'
-      + 'opacity:        ' + document.getElementById('bOpacity').value      + '\n'
-      + 'letter-spacing: ' + document.getElementById('bLetterSpacing').value + 'px';
-    var box = document.getElementById('bCopied');
-    box.textContent = v; box.style.display = 'block';
-    if(navigator.clipboard) navigator.clipboard.writeText(v);
-  }
-  </script>
 
 </body>
 </html>
