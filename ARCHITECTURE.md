@@ -866,6 +866,7 @@ company_ratings: id PK، UNIQUE(company_id, rater_id), CHECK(score 1-5)
 
 # E — PROFILE V2 SYSTEM
 
+
 > نظام البروفايل الجديد يُبنى في `profile-showcase.html`.  
 > `profile.html` القديم **Read-only** — لا يُلمس حتى يكتمل V2 ويُعتمد.  
 > أي قرار في هذا القسم يسري على V2 ويصبح جزءاً من النظام النهائي.
@@ -882,8 +883,9 @@ GET /profile/{user_id}
 ### Authentication
 - JWT اختياري — يُرسَل في `Authorization: Bearer <token>`
 - بدون JWT: `viewer_type = "guest"`
-- مع JWT صاحب البروفايل: `viewer_type = "owner"`
-- مع JWT مستخدم آخر: `viewer_type = "public-user"`
+
+- JWT لصاحب البروفايل: `viewer_type = "owner"`, `is_owner = true`
+- JWT لمستخدم آخر: `viewer_type = "public-user"`, `is_owner = false`
 
 ### Response Contract (additive — لا يُحذف أي field قديم)
 ```json
@@ -911,6 +913,7 @@ GET /profile/{user_id}
 | can_save | ❌ | ✅ | ❌ |
 | can_report | ❌ | ✅ | ❌ |
 
+
 ### قواعد الأمان
 - المصدر الوحيد لـ `viewer_type` هو الـ JWT المُحقَّق server-side
 - `localStorage` لا يُستخدم لتحديد الصلاحيات — يُستخدم فقط لتمرير JWT
@@ -919,6 +922,7 @@ GET /profile/{user_id}
 ---
 
 ## [P1] 23. Profile V2 — View Mode & Body Classes
+
 
 ### المصدر
 `viewer_type` من API response فقط — لا من localStorage ولا URL.
@@ -960,6 +964,7 @@ fetch('/profile/' + id, _fetchOpts)
 ---
 
 ## [P1] 24. Profile V2 — Preview Mode
+
 
 ### الهدف
 يتيح لصاحب البروفايل (owner) معاينة كيف يبدو بروفايله لمستخدم مسجل أو لزائر، بدون تغيير البيانات أو استدعاء API جديد.
@@ -1003,6 +1008,7 @@ body.view-owner .sc-eye-wrap { display: flex; }
 
 ## [P2] 25. Profile V2 — Owner-Only Elements
 
+
 ### المبدأ
 كل عنصر مخصص لصاحب البروفايل فقط (أدوات تعديل/إدارة) يحمل class موحد:
 ```html
@@ -1014,6 +1020,7 @@ class="owner-only"
 body.preview-public-user .owner-only,
 body.preview-guest       .owner-only { display: none !important; }
 ```
+
 
 ### أمثلة على عناصر owner-only
 - زر تعديل صورة البروفايل
@@ -1056,6 +1063,7 @@ CSS rule جاهز من الآن — لا تأثير حتى يوجد owner-only.
 ## [P1] 26. Profile V2 — Rendering Order
 
 ```
+
 1. قراءة JWT من localStorage ('tw_jwt')
 2. fetch('/profile/{id}', {Authorization: Bearer jwt})
 3. تطبيق body class من viewer_type (view-owner / public-view / view-guest)
@@ -1070,9 +1078,33 @@ CSS rule جاهز من الآن — لا تأثير حتى يوجد owner-only.
 
 ---
 
+## [P2] 27. Profession Icons System
+
+### المصدر الوحيد للأيقونة
+```
+profession_categories.icon → API → profile.profession.icon → frontend
+```
+
+### تطبيق في profile-showcase.html
+```javascript
+var profIcon = (p.profession && p.profession.icon) ? p.profession.icon : 'briefcase';
+```
+
+### القواعد
+```
+✅ الأيقونة من backend فقط — لا تخمين من النص
+✅ fallback = briefcase (أيقونة مهنية)
+❌ ممنوع: user, user-round, person لتمثيل التخصص
+```
+
+### أي تخصص جديد في profession_categories يجب أن يملك icon رسمي.
+
+---
+
 ## [P0] الممنوعات الصارمة — Profile V2
 
 ```
+
 ❌ تعديل profile.html (Read-only حتى اكتمال V2)
 ❌ viewer_type من localStorage
 ❌ is_owner من URL أو DOM
@@ -1080,4 +1112,5 @@ CSS rule جاهز من الآن — لا تأثير حتى يوجد owner-only.
 ❌ owner action بدون permission guard في JS
 ❌ mutation API بدون JWT
 ❌ hardcoded viewer state
+❌ تخمين profession icon من النص
 ```
