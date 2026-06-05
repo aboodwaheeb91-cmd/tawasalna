@@ -52,7 +52,8 @@
     }
     .sc-home-pill:active { transform:scale(.95); opacity:.9; }
     .sc-home-pill .ico-sm { width:14px; height:14px; }
-                .sc-logo { font-weight:800; font-size:1.15rem; letter-spacing:-.3px;
+    .sc-logo img { height:38px; width:auto; max-width:140px; object-fit:contain; display:block; }
+    .sc-logo-fallback { font-weight:800; font-size:1rem; letter-spacing:-.3px;
       background:linear-gradient(135deg,var(--ac,#00c896),var(--ac2,#2563ff));
       -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
 
@@ -247,7 +248,12 @@
   <!-- Header -->
   <div class="sc-header">
     <button class="sc-home-pill" id="scHomeBtn"><i data-lucide="home" class="ico-sm"></i> الرئيسية</button>
-    <div class="sc-logo">تواصلنا</div>
+    <div class="sc-logo">
+      <img src="https://wrxvmdmknhoufoeprpoc.supabase.co/storage/v1/object/public/site/Logo.svg"
+           alt="تواصلنا"
+           onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
+      <span class="sc-logo-fallback" style="display:none">تواصلنا</span>
+    </div>
     <div class="sc-head-icons">
       <button class="sc-hicon sc-hicon-bare" id="scBellBtn" title="الإشعارات"><i data-lucide="bell" class="ico"></i></button>
       <button class="sc-hicon sc-hicon-bare" id="scMsgBtn" title="الرسائل"><i data-lucide="message-circle-more" class="ico"></i></button>
