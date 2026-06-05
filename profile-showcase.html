@@ -133,7 +133,15 @@
     .sc-loc { color:var(--t3,#6b7686); font-size:.64rem; }
 
     /* Bio under row */
-    .sc-bio { color:var(--t2,#9aa5b4); font-size:13px; line-height:1.7; margin-top:6px; word-break:break-word; }
+    .sc-bio {
+      color:var(--t2,#9aa5b4); font-size:13px; line-height:1.7; margin-top:6px; word-break:break-word;
+      display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden;
+    }
+    .sc-bio.expanded { display:block; overflow:visible; }
+    .sc-bio-more {
+      color:var(--ac,#00c896); font-size:12px; font-weight:600; cursor:pointer;
+      background:none; border:none; padding:4px 0 0; font-family:inherit; display:inline-block;
+    }
 
     /* Action buttons */
     .sc-actions {
@@ -267,6 +275,7 @@
             </div>
             <div class="sc-title" id="scTitle"></div>
             <div class="sc-bio" id="scBio"></div>
+            <button class="sc-bio-more" id="scBioMore" style="display:none" onclick="toggleBio()">عرض المزيد ▾</button>
             <div class="sc-meta-row">
               <span class="sc-loc" id="scLoc"></span>
               <span class="sc-age" id="scAge" style="display:none"></span>
@@ -473,6 +482,15 @@
         setText('scStatSkills', skills.length);
         setText('scStatEdu', edu.length);
 
+        // Bio header: show "عرض المزيد" if text overflows 3 lines
+        requestAnimationFrame(function(){
+          var bioEl=document.getElementById('scBio');
+          var moreBtn=document.getElementById('scBioMore');
+          if(bioEl && moreBtn && bioEl.scrollHeight > bioEl.clientHeight + 2){
+            moreBtn.style.display='inline-block';
+          }
+        });
+
         // Tab: About
         var aboutEl=document.getElementById('scAboutText');
         if(aboutEl) aboutEl.textContent = p.bio || 'لا توجد نبذة بعد';
@@ -554,6 +572,63 @@
         if(ld) ld.textContent='تعذّر تحميل الملف';
       });
   })();
+
+  window.toggleBio = function(){
+    var bio=document.getElementById('scBio');
+    var btn=document.getElementById('scBioMore');
+    if(!bio || !btn) return;
+    var expanded = bio.classList.toggle('expanded');
+    btn.textContent = expanded ? 'عرض أقل ▴' : 'عرض المزيد ▾';
+  };
+  </script>
+
+  <!-- ── Bio Tuner (TEMPORARY) ── -->
+  <div id="bioTuner" style="position:fixed;bottom:0;left:0;right:0;z-index:999;background:#0f1520;border-top:1px solid rgba(0,200,150,.3);padding:10px 16px 14px;font-family:'Cairo',sans-serif;direction:ltr;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+      <span style="color:#00c896;font-size:12px;font-weight:700;">⚙️ Bio Text Tuner</span>
+      <button onclick="document.getElementById('bioTuner').style.display='none'" style="background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);color:#fff;border-radius:8px;padding:2px 10px;font-size:11px;cursor:pointer;">Hide</button>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px 12px;">
+      <label style="color:#9aa5b4;font-size:10.5px;">font-size (px)<br><input type="number" id="bFontSize" value="13" min="8" max="20" step="0.5" oninput="applyBioTuner()" style="width:100%;margin-top:3px;background:#1a2234;border:1px solid rgba(255,255,255,.12);color:#fff;border-radius:7px;padding:5px 8px;font-size:12px;"></label>
+      <label style="color:#9aa5b4;font-size:10.5px;">line-height<br><input type="number" id="bLineHeight" value="1.7" min="1" max="2.5" step="0.05" oninput="applyBioTuner()" style="width:100%;margin-top:3px;background:#1a2234;border:1px solid rgba(255,255,255,.12);color:#fff;border-radius:7px;padding:5px 8px;font-size:12px;"></label>
+      <label style="color:#9aa5b4;font-size:10.5px;">line-clamp<br><input type="number" id="bLineClamp" value="3" min="1" max="10" step="1" oninput="applyBioTuner()" style="width:100%;margin-top:3px;background:#1a2234;border:1px solid rgba(255,255,255,.12);color:#fff;border-radius:7px;padding:5px 8px;font-size:12px;"></label>
+      <label style="color:#9aa5b4;font-size:10.5px;">margin-top (px)<br><input type="number" id="bMarginTop" value="6" min="0" max="24" step="1" oninput="applyBioTuner()" style="width:100%;margin-top:3px;background:#1a2234;border:1px solid rgba(255,255,255,.12);color:#fff;border-radius:7px;padding:5px 8px;font-size:12px;"></label>
+      <label style="color:#9aa5b4;font-size:10.5px;">opacity (0-1)<br><input type="number" id="bOpacity" value="1" min="0.2" max="1" step="0.05" oninput="applyBioTuner()" style="width:100%;margin-top:3px;background:#1a2234;border:1px solid rgba(255,255,255,.12);color:#fff;border-radius:7px;padding:5px 8px;font-size:12px;"></label>
+      <label style="color:#9aa5b4;font-size:10.5px;">letter-spacing (px)<br><input type="number" id="bLetterSpacing" value="0" min="-1" max="3" step="0.1" oninput="applyBioTuner()" style="width:100%;margin-top:3px;background:#1a2234;border:1px solid rgba(255,255,255,.12);color:#fff;border-radius:7px;padding:5px 8px;font-size:12px;"></label>
+    </div>
+    <button onclick="copyBioValues()" style="margin-top:10px;width:100%;height:36px;background:linear-gradient(135deg,#00c896,#00a878);color:#fff;border:none;border-radius:10px;font-family:inherit;font-weight:700;font-size:12px;cursor:pointer;">Copy Current Values</button>
+    <div id="bCopied" style="display:none;margin-top:8px;background:#1a2234;border:1px solid rgba(0,200,150,.3);border-radius:9px;padding:8px 12px;font-size:11px;color:#00c896;white-space:pre;line-height:1.8;"></div>
+  </div>
+
+  <script>
+  function applyBioTuner(){
+    var fs   = document.getElementById('bFontSize').value;
+    var lh   = document.getElementById('bLineHeight').value;
+    var lc   = document.getElementById('bLineClamp').value;
+    var mt   = document.getElementById('bMarginTop').value;
+    var op   = document.getElementById('bOpacity').value;
+    var ls   = document.getElementById('bLetterSpacing').value;
+    var bio  = document.getElementById('scBio');
+    if(!bio) return;
+    bio.style.fontSize        = fs + 'px';
+    bio.style.lineHeight      = lh;
+    bio.style.webkitLineClamp = lc;
+    bio.style.marginTop       = mt + 'px';
+    bio.style.opacity         = op;
+    bio.style.letterSpacing   = ls + 'px';
+  }
+  function copyBioValues(){
+    var v = 'Bio Text Final Values:\n'
+      + 'font-size:      ' + document.getElementById('bFontSize').value     + 'px\n'
+      + 'line-height:    ' + document.getElementById('bLineHeight').value   + '\n'
+      + 'line-clamp:     ' + document.getElementById('bLineClamp').value    + '\n'
+      + 'margin-top:     ' + document.getElementById('bMarginTop').value    + 'px\n'
+      + 'opacity:        ' + document.getElementById('bOpacity').value      + '\n'
+      + 'letter-spacing: ' + document.getElementById('bLetterSpacing').value + 'px';
+    var box = document.getElementById('bCopied');
+    box.textContent = v; box.style.display = 'block';
+    if(navigator.clipboard) navigator.clipboard.writeText(v);
+  }
   </script>
 
 </body>
