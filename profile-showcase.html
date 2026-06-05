@@ -180,9 +180,12 @@
     .sc-stat {
       flex:1; text-align:center; padding:12px 2px;
       display:flex; flex-direction:column; align-items:center; gap:4px;
-      border-left:1px solid rgba(255,255,255,.07);
+      position:relative;
     }
-    .sc-stat:last-child { border-left:none; }
+    .sc-stat + .sc-stat::before {
+      content:''; position:absolute; right:0; top:50%; transform:translateY(-50%);
+      width:1px; height:50%; background:rgba(255,255,255,.07);
+    }
     .sc-stat-i { width:18px; height:18px; }
     .sc-stat-n { font-size:1rem; font-weight:800; color:var(--t1,#fff); line-height:1; }
     .sc-stat-l { font-size:.58rem; color:var(--t3,#6b7686); }
