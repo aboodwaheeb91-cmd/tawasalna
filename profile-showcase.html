@@ -136,9 +136,9 @@
     .sc-bio { color:var(--t2,#9aa5b4); font-size:.7rem; line-height:1.5; margin-top:6px; }
 
     /* Action buttons */
-    .sc-actions { display:grid; grid-template-columns:repeat(3,1fr); gap:9px; padding:16px 20px; }
+    .sc-actions { display:flex; align-items:center; gap:9px; padding:16px 20px; }
     .sc-btn {
-      height:45px; padding:0 8px; border-radius:14px; border:none; cursor:pointer;
+      height:45px; padding:0 12px; border-radius:14px; border:none; cursor:pointer;
       font-family:inherit; font-size:13px; font-weight:700;
       transition:transform .15s, opacity .15s;
       min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
@@ -146,10 +146,21 @@
     }
     .sc-btn:active { transform:scale(.96); }
     .sc-btn .ico-sm { width:16px; height:16px; stroke-width:2; flex-shrink:0; }
-    .sc-btn { display:flex; align-items:center; justify-content:center; gap:6px; }
     .sc-loc { display:flex; align-items:center; gap:4px; }
-    .sc-btn-primary { background:linear-gradient(135deg, #12d6b0, #149eea); color:#fff; }
-    .sc-btn-ghost { background:rgba(255,255,255,.055); color:var(--t1,#fff); border:1px solid rgba(255,255,255,.10); }
+    .sc-btn-primary {
+      background:linear-gradient(135deg, #00c896, #00a878);
+      color:#fff; flex:1.4;
+      box-shadow:0 4px 14px rgba(0,200,150,.3);
+    }
+    .sc-btn-ghost { background:rgba(255,255,255,.07); color:var(--t1,#fff); border:1px solid rgba(255,255,255,.10); flex:1; }
+    .sc-btn-icon {
+      width:45px; height:45px; flex:none; padding:0;
+      background:rgba(255,255,255,.07); color:var(--t1,#fff);
+      border:1px solid rgba(255,255,255,.10); border-radius:14px;
+      display:flex; align-items:center; justify-content:center;
+      cursor:pointer; transition:transform .15s, opacity .15s;
+    }
+    .sc-btn-icon:active { transform:scale(.96); }
 
     /* Stats row */
     .sc-stats {
@@ -252,9 +263,10 @@
 
         <!-- Actions -->
         <div class="sc-actions">
-          <button class="sc-btn sc-btn-primary" id="scFollowBtn"><i data-lucide="user-plus" class="ico-sm"></i> متابعة</button>
+          <button class="sc-btn sc-btn-primary" id="scFollowBtn"><i data-lucide="user-plus" class="ico-sm"></i> + متابعة</button>
+          <button class="sc-btn sc-btn-ghost" id="scDownloadBtn"><i data-lucide="download" class="ico-sm"></i> تحميل السيرة</button>
           <button class="sc-btn sc-btn-ghost" id="scContactBtn"><i data-lucide="message-circle" class="ico-sm"></i> تواصل معي</button>
-          <button class="sc-btn sc-btn-ghost" id="scFullBtn"><i data-lucide="file-text" class="ico-sm"></i> الملف الكامل</button>
+          <button class="sc-btn-icon" id="scSaveBtn" title="حفظ"><i data-lucide="bookmark" class="ico-sm"></i></button>
         </div>
 
         <!-- Stats: one rectangle, thin dividers, each cell icon→number→label -->
