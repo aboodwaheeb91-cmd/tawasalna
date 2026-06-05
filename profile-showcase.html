@@ -138,17 +138,17 @@
     /* Action buttons */
     .sc-actions {
       display:flex; flex-direction:row; align-items:center; justify-content:center;
-      flex-wrap:nowrap; gap:7px; padding:6px 20px 13px;
+      flex-wrap:nowrap; gap:10px; padding:6px 20px 13px;
     }
     .sc-btn {
-      height:35px; border-radius:12px; border:none; cursor:pointer;
-      font-family:inherit; font-size:11.5px; font-weight:700;
+      height:25px; border-radius:9px; border:none; cursor:pointer;
+      font-family:inherit; font-size:8px; font-weight:700;
       transition:transform .15s, opacity .15s;
       white-space:nowrap; flex-shrink:0;
       display:inline-flex; align-items:center; justify-content:center; gap:5px;
     }
-    .sc-btn-primary { padding:0 12px; }
-    .sc-btn-ghost   { padding:0 10px; }
+    .sc-btn-primary { padding:0 20px; font-size:11px; }
+    .sc-btn-ghost   { padding:0 20px; }
     .sc-btn:active { transform:scale(.96); }
     .sc-btn .ico-sm { width:14px; height:14px; stroke-width:1.8; flex-shrink:0; }
     .sc-loc { display:flex; align-items:center; gap:4px; }
@@ -539,123 +539,8 @@
   })();
   </script>
 
-  <!-- ── Action Buttons Tuner (TEMPORARY — delete after finalizing values) ── -->
-  <div id="btnTuner" style="
-    position:fixed; bottom:0; left:0; right:0; z-index:999;
-    background:#0f1520; border-top:1px solid rgba(0,200,150,.3);
-    padding:10px 16px 14px; font-family:'Cairo',sans-serif; direction:ltr;
-  ">
-    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
-      <span style="color:#00c896; font-size:12px; font-weight:700;">⚙️ Action Buttons Tuner</span>
-      <button onclick="document.getElementById('btnTuner').style.display='none'"
-        style="background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.15); color:#fff;
-               border-radius:8px; padding:2px 10px; font-size:11px; cursor:pointer;">Hide</button>
-    </div>
-    <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:8px 12px;">
-
-      <label style="color:#9aa5b4; font-size:10.5px;">
-        font-size (px)<br>
-        <input type="number" id="tFontSize" value="11.5" min="8" max="18" step="0.5"
-          style="width:100%; margin-top:3px; background:#1a2234; border:1px solid rgba(255,255,255,.12);
-                 color:#fff; border-radius:7px; padding:5px 8px; font-size:12px;">
-      </label>
-
-      <label style="color:#9aa5b4; font-size:10.5px;">
-        height (px)<br>
-        <input type="number" id="tHeight" value="35" min="28" max="56" step="1"
-          style="width:100%; margin-top:3px; background:#1a2234; border:1px solid rgba(255,255,255,.12);
-                 color:#fff; border-radius:7px; padding:5px 8px; font-size:12px;">
-      </label>
-
-      <label style="color:#9aa5b4; font-size:10.5px;">
-        padding-x (px)<br>
-        <input type="number" id="tPaddingX" value="12" min="4" max="32" step="1"
-          style="width:100%; margin-top:3px; background:#1a2234; border:1px solid rgba(255,255,255,.12);
-                 color:#fff; border-radius:7px; padding:5px 8px; font-size:12px;">
-      </label>
-
-      <label style="color:#9aa5b4; font-size:10.5px;">
-        border-radius (px)<br>
-        <input type="number" id="tRadius" value="12" min="4" max="28" step="1"
-          style="width:100%; margin-top:3px; background:#1a2234; border:1px solid rgba(255,255,255,.12);
-                 color:#fff; border-radius:7px; padding:5px 8px; font-size:12px;">
-      </label>
-
-      <label style="color:#9aa5b4; font-size:10.5px;">
-        icon-size (px)<br>
-        <input type="number" id="tIconSize" value="14" min="10" max="22" step="1"
-          style="width:100%; margin-top:3px; background:#1a2234; border:1px solid rgba(255,255,255,.12);
-                 color:#fff; border-radius:7px; padding:5px 8px; font-size:12px;">
-      </label>
-
-      <label style="color:#9aa5b4; font-size:10.5px;">
-        gap (px)<br>
-        <input type="number" id="tGap" value="7" min="2" max="20" step="1"
-          style="width:100%; margin-top:3px; background:#1a2234; border:1px solid rgba(255,255,255,.12);
-                 color:#fff; border-radius:7px; padding:5px 8px; font-size:12px;">
-      </label>
-
-    </div>
-
-    <button onclick="copyValues()" style="
-      margin-top:10px; width:100%; height:36px; background:linear-gradient(135deg,#00c896,#00a878);
-      color:#fff; border:none; border-radius:10px; font-family:inherit; font-weight:700;
-      font-size:12px; cursor:pointer;
-    ">Copy Current Values</button>
-
-    <div id="tCopied" style="display:none; margin-top:8px; background:#1a2234;
-      border:1px solid rgba(0,200,150,.3); border-radius:9px; padding:8px 12px;
-      font-size:11px; color:#00c896; white-space:pre; line-height:1.8;"></div>
-  </div>
-
-  <script>
-  (function(){
-    var ids = ['tFontSize','tHeight','tPaddingX','tRadius','tIconSize','tGap'];
-    function applyTuner(){
-      var fs  = document.getElementById('tFontSize').value;
-      var h   = document.getElementById('tHeight').value;
-      var px  = document.getElementById('tPaddingX').value;
-      var r   = document.getElementById('tRadius').value;
-      var ico = document.getElementById('tIconSize').value;
-      var gap = document.getElementById('tGap').value;
-
-      var btns = document.querySelectorAll('.sc-actions .sc-btn');
-      btns.forEach(function(b){
-        b.style.height      = h + 'px';
-        b.style.fontSize    = fs + 'px';
-        b.style.padding     = '0 ' + px + 'px';
-        b.style.borderRadius= r + 'px';
-      });
-      var icons = document.querySelectorAll('.sc-actions .ico-sm');
-      icons.forEach(function(i){
-        i.style.width  = ico + 'px';
-        i.style.height = ico + 'px';
-      });
-      document.querySelector('.sc-actions').style.gap = gap + 'px';
-    }
-
-    ids.forEach(function(id){
-      document.getElementById(id).addEventListener('input', applyTuner);
-    });
-
-    window.copyValues = function(){
-      var vals =
-        'Action Buttons Final Values:\n' +
-        'font-size:     ' + document.getElementById('tFontSize').value + 'px\n' +
-        'height:        ' + document.getElementById('tHeight').value   + 'px\n' +
-        'padding-x:     ' + document.getElementById('tPaddingX').value + 'px\n' +
-        'border-radius: ' + document.getElementById('tRadius').value   + 'px\n' +
-        'icon-size:     ' + document.getElementById('tIconSize').value + 'px\n' +
-        'gap:           ' + document.getElementById('tGap').value      + 'px';
-
-      var box = document.getElementById('tCopied');
-      box.textContent = vals;
-      box.style.display = 'block';
-
-      if(navigator.clipboard){ navigator.clipboard.writeText(vals); }
-    };
-  })();
-  </script>
+</body>
+</html>
 
 </body>
 </html>
