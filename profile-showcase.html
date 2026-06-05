@@ -133,7 +133,15 @@
     .sc-loc { color:var(--t3,#6b7686); font-size:.64rem; }
 
     /* Bio under row */
-    .sc-bio { color:var(--t2,#9aa5b4); font-size:13px; line-height:1.7; margin-top:6px; word-break:break-word; }
+    .sc-bio {
+      color:var(--t2,#9aa5b4); font-size:13px; line-height:1.7; margin-top:6px; word-break:break-word;
+      display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden;
+    }
+    .sc-bio.expanded { display:block; overflow:visible; }
+    .sc-bio-more {
+      color:var(--ac,#00c896); font-size:12px; font-weight:600; cursor:pointer;
+      background:none; border:none; padding:4px 0 0; font-family:inherit; display:inline-block;
+    }
 
     /* Action buttons */
     .sc-actions {
@@ -267,6 +275,7 @@
             </div>
             <div class="sc-title" id="scTitle"></div>
             <div class="sc-bio" id="scBio"></div>
+            <button class="sc-bio-more" id="scBioMore" style="display:none" onclick="toggleBio()">عرض المزيد ▾</button>
             <div class="sc-meta-row">
               <span class="sc-loc" id="scLoc"></span>
               <span class="sc-age" id="scAge" style="display:none"></span>
@@ -473,6 +482,15 @@
         setText('scStatSkills', skills.length);
         setText('scStatEdu', edu.length);
 
+        // Bio header: show "عرض المزيد" if text overflows 3 lines
+        requestAnimationFrame(function(){
+          var bioEl=document.getElementById('scBio');
+          var moreBtn=document.getElementById('scBioMore');
+          if(bioEl && moreBtn && bioEl.scrollHeight > bioEl.clientHeight + 2){
+            moreBtn.style.display='inline-block';
+          }
+        });
+
         // Tab: About
         var aboutEl=document.getElementById('scAboutText');
         if(aboutEl) aboutEl.textContent = p.bio || 'لا توجد نبذة بعد';
@@ -554,6 +572,14 @@
         if(ld) ld.textContent='تعذّر تحميل الملف';
       });
   })();
+
+  window.toggleBio = function(){
+    var bio=document.getElementById('scBio');
+    var btn=document.getElementById('scBioMore');
+    if(!bio || !btn) return;
+    var expanded = bio.classList.toggle('expanded');
+    btn.textContent = expanded ? 'عرض أقل ▴' : 'عرض المزيد ▾';
+  };
   </script>
 
 </body>
