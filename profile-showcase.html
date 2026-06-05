@@ -107,11 +107,26 @@
       width:calc(100% + 3px); height:calc(100% + 3px);
     }
     .sc-qr {
-      width:62px; height:62px; border-radius:11px; background:#fff; padding:6px;
-      display:flex; align-items:center; justify-content:center;
-      box-shadow:0 4px 12px rgba(0,0,0,.25);
+      width:74px; border-radius:14px;
+      background:#0a0f1a;
+      padding:7px 7px 5px;
+      display:flex; flex-direction:column; align-items:center; gap:5px;
+      box-shadow:0 0 0 1px rgba(0,200,150,.35), 0 0 18px rgba(0,200,150,.13), 0 0 0 2px rgba(0,200,150,.06);
     }
-    .sc-qr img { width:100%; height:100%; }
+    .sc-qr-wrap { position:relative; width:100%; }
+    .sc-qr-wrap img { width:100%; height:auto; display:block; border-radius:5px; }
+    .sc-qr-center {
+      position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+      width:18px; height:18px; border-radius:50%;
+      background:linear-gradient(135deg,#00c896,#2563ff);
+      display:flex; align-items:center; justify-content:center;
+      box-shadow:0 0 0 2px #fff, 0 0 6px rgba(0,200,150,.4);
+    }
+    .sc-qr-center img { width:11px; height:11px; object-fit:contain; filter:brightness(10); }
+    .sc-qr-label {
+      font-size:.48rem; font-weight:700; color:rgba(255,255,255,.45);
+      letter-spacing:.04em; white-space:nowrap;
+    }
 
     /* Invisible container: groups name + all info as one unit (transparent) */
     .sc-info { flex:1; min-width:0; padding-top:50px; padding-right:14px;
@@ -482,8 +497,12 @@
         var qr=document.getElementById('scQr');
         if(qr){
           var showcaseUrl = location.origin + '/profile-showcase?id=' + encodeURIComponent(id);
-          qr.innerHTML='<img src="https://api.qrserver.com/v1/create-qr-code/?size=90x90&data='
-            + encodeURIComponent(showcaseUrl) + '" alt="QR">';
+          qr.innerHTML = '<div class="sc-qr-wrap">'
+            + '<img src="https://api.qrserver.com/v1/create-qr-code/?size=140x140&qzone=1&data='
+            + encodeURIComponent(showcaseUrl) + '" alt="QR">'
+            + '<div class="sc-qr-center"><img src="https://wrxvmdmknhoufoeprpoc.supabase.co/storage/v1/object/public/site/Logo.svg" alt=""></div>'
+            + '</div>'
+            + '<div class="sc-qr-label">تواصلنا</div>';
         }
 
         // Data arrays
