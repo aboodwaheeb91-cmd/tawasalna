@@ -861,3 +861,206 @@ company_ratings: id PK، UNIQUE(company_id, rater_id), CHECK(score 1-5)
 كل company identity = users.id (متسق مع jobs.company_id).
 البيانات المشتقة (followers_count, rating_avg) لا تُخزَّن — COUNT/AVG عند الطلب.
 ```
+
+---
+
+# E — PROFILE V2 SYSTEM
+
+> نظام البروفايل الجديد يُبنى في `profile-showcase.html`.  
+> `profile.html` القديم **Read-only** — لا يُلمس حتى يكتمل V2 ويُعتمد.  
+> أي قرار في هذا القسم يسري على V2 ويصبح جزءاً من النظام النهائي.
+
+---
+
+## [P0] 22. Profile V2 — API Security Contract
+
+### Endpoint
+```
+GET /profile/{user_id}
+```
+
+### Authentication
+- JWT اختياري — يُرسَل في `Authorization: Bearer <token>`
+- بدون JWT: `viewer_type = "guest"`
+- مع JWT صاحب البروفايل: `viewer_type = "owner"`
+- مع JWT مستخدم آخر: `viewer_type = "public-user"`
+
+### Response Contract (additive — لا يُحذف أي field قديم)
+```json
+{
+  "status": "success",
+  "profile": { ... },
+  "viewer_type": "owner | public-user | guest",
+  "is_owner": true,
+  "permissions": {
+    "can_edit":    true,
+    "can_follow":  false,
+    "can_message": false,
+    "can_save":    false,
+    "can_report":  false
+  }
+}
+```
+
+### Permissions per viewer_type
+| Permission | owner | public-user | guest |
+|-----------|-------|-------------|-------|
+| can_edit | ✅ | ❌ | ❌ |
+| can_follow | ❌ | ✅ | ❌ |
+| can_message | ❌ | ✅ | ❌ |
+| can_save | ❌ | ✅ | ❌ |
+| can_report | ❌ | ✅ | ❌ |
+
+### قواعد الأمان
+- المصدر الوحيد لـ `viewer_type` هو الـ JWT المُحقَّق server-side
+- `localStorage` لا يُستخدم لتحديد الصلاحيات — يُستخدم فقط لتمرير JWT
+- أي mutation (PUT/POST/DELETE) يتحقق من ownership بشكل مستقل
+
+---
+
+## [P1] 23. Profile V2 — View Mode & Body Classes
+
+### المصدر
+`viewer_type` من API response فقط — لا من localStorage ولا URL.
+
+### Body Classes
+```
+viewMode (API)   →  body CSS class   →  ما يراه المستخدم
+────────────────────────────────────────────────────────
+"owner"          →  view-owner       →  كامل + أدوات الإدارة
+"public-user"    →  public-view      →  محتوى البروفايل فقط
+"guest"          →  view-guest       →  محتوى + CTA تسجيل دخول
+```
+
+### تطبيق الـ Classes (frontend)
+```javascript
+// في profile-showcase.html — بعد API response مباشرة
+var _vt = res.viewer_type || 'guest';
+document.body.classList.remove('view-owner', 'public-view', 'view-guest');
+if      (_vt === 'owner')       document.body.classList.add('view-owner');
+else if (_vt === 'public-user') document.body.classList.add('public-view');
+else                            document.body.classList.add('view-guest');
+```
+
+### إرسال JWT
+```javascript
+var _jwt = localStorage.getItem('tw_jwt') || '';
+var _fetchOpts = _jwt ? { headers: { 'Authorization': 'Bearer ' + _jwt } } : {};
+fetch('/profile/' + id, _fetchOpts)
+```
+
+### ممنوعات
+```
+❌ body class من localStorage
+❌ body class من URL params
+❌ إعادة قراءة الـ class من DOM لقرارات منطقية
+❌ تغيير body class خارج نقطة التطبيق الواحدة
+```
+
+---
+
+## [P1] 24. Profile V2 — Preview Mode
+
+### الهدف
+يتيح لصاحب البروفايل (owner) معاينة كيف يبدو بروفايله لمستخدم مسجل أو لزائر، بدون تغيير البيانات أو استدعاء API جديد.
+
+### Preview Classes (تُضاف على body فوق view-owner)
+```
+body.view-owner                          → الوضع الطبيعي للمالك
+body.view-owner.preview-public-user      → معاينة كمستخدم مسجل
+body.view-owner.preview-guest            → معاينة كزائر
+```
+
+**القاعدة:** `view-owner` يبقى دائماً — preview تُضاف فوقه ولا تحذفه.
+
+### زر العين — Preview Eye Button
+- يظهر فقط عند `body.view-owner` (CSS فقط — لا JS)
+- أيقونة: `eye-off` في الوضع العادي، `eye` (خضراء) عند تفعيل preview
+- يفتح قائمة بثلاثة خيارات:
+  1. معاينة كمستخدم مسجل → يضيف `preview-public-user`، يحذف `preview-guest`
+  2. معاينة كزائر → يضيف `preview-guest`، يحذف `preview-public-user`
+  3. إنهاء المعاينة → يحذف `preview-public-user` و`preview-guest`
+
+### CSS لإظهار/إخفاء الزر
+```css
+.sc-eye-wrap { display: none; }
+body.view-owner .sc-eye-wrap { display: flex; }
+```
+
+### قواعد Preview Mode
+```
+✅ Preview = CSS class على body فقط
+✅ البيانات لا تتغير
+✅ لا API calls جديدة
+✅ لا reload
+✅ زر العين يبقى ظاهراً دائماً أثناء المعاينة
+❌ preview لا تغيّر viewer_type
+❌ preview لا تغيّر permissions
+❌ preview لا تحفظ state في localStorage أو DB
+```
+
+---
+
+## [P2] 25. Profile V2 — Owner-Only Elements
+
+### المبدأ
+كل عنصر مخصص لصاحب البروفايل فقط (أدوات تعديل/إدارة) يحمل class موحد:
+```html
+class="owner-only"
+```
+
+### إخفاء owner-only في Preview
+```css
+body.preview-public-user .owner-only,
+body.preview-guest       .owner-only { display: none !important; }
+```
+
+### أمثلة على عناصر owner-only
+- زر تعديل صورة البروفايل
+- زر تعديل صورة الغلاف
+- زر إضافة خبرة / شهادة / مهارة
+- قوائم التعديل (ثلاث نقاط) على كل بند
+- أزرار الحفظ / الحذف
+- أي input أو form خاص بصاحب الحساب
+
+### ممنوعات
+```
+❌ owner-only على عناصر المحتوى (النصوص، الصور، البيانات)
+❌ owner-only على أزرار الزوار (متابعة، تواصل)
+❌ JS للإخفاء — CSS فقط عبر body class
+```
+
+### ملاحظة الحالة الراهنة
+profile-showcase.html لا تحتوي حالياً على أي عنصر owner-only (الصفحة showcase فقط).
+عند إضافة أي أداة تعديل في المراحل القادمة، تُضاف إليها `owner-only` مباشرة.
+
+---
+
+## [P1] 26. Profile V2 — Rendering Order
+
+```
+1. قراءة JWT من localStorage ('tw_jwt')
+2. fetch('/profile/{id}', {Authorization: Bearer jwt})
+3. تطبيق body class من viewer_type (view-owner / public-view / view-guest)
+4. تطبيق CSS للـ owner-only elements
+5. render البيانات (profile fields)
+6. ربط event listeners (بعد render)
+7. fetch مستقل للـ score (non-blocking)
+```
+
+**Steps 1-4:** sync بعد API response — لا flicker.  
+**Step 7:** async — لا يُعطَّل الـ render.
+
+---
+
+## [P0] الممنوعات الصارمة — Profile V2
+
+```
+❌ تعديل profile.html (Read-only حتى اكتمال V2)
+❌ viewer_type من localStorage
+❌ is_owner من URL أو DOM
+❌ preview class تحذف view-owner
+❌ owner action بدون permission guard في JS
+❌ mutation API بدون JWT
+❌ hardcoded viewer state
+```
