@@ -106,27 +106,38 @@
       margin:-1.5px;
       width:calc(100% + 3px); height:calc(100% + 3px);
     }
+    /* QR Card */
     .sc-qr {
-      width:74px; border-radius:14px;
-      background:#0a0f1a;
-      padding:7px 7px 5px;
+      width:92px; border-radius:20px;
+      background:rgba(10,18,32,.70);
+      backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px);
+      padding:9px 9px 7px;
       display:flex; flex-direction:column; align-items:center; gap:5px;
-      box-shadow:0 0 0 1px rgba(0,200,150,.35), 0 0 18px rgba(0,200,150,.13), 0 0 0 2px rgba(0,200,150,.06);
+      border:1px solid rgba(255,255,255,.14);
+      box-shadow:0 0 0 1px rgba(20,214,176,.25), 0 0 18px rgba(20,158,234,.18), 0 10px 25px rgba(0,0,0,.25);
     }
-    .sc-qr-wrap { position:relative; width:100%; }
-    .sc-qr-wrap img { width:100%; height:auto; display:block; border-radius:5px; }
+    .sc-qr-inner {
+      background:#fff; border-radius:13px; padding:5px;
+      position:relative; width:100%;
+      display:flex; align-items:center; justify-content:center;
+    }
+    .sc-qr-inner img { width:100%; height:auto; display:block; border-radius:8px; }
     .sc-qr-center {
       position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
-      width:18px; height:18px; border-radius:50%;
-      background:linear-gradient(135deg,#00c896,#2563ff);
+      width:22%; height:22%; min-width:14px; min-height:14px;
+      border-radius:50%;
+      background:linear-gradient(135deg,#00d4b4,#2563ff);
       display:flex; align-items:center; justify-content:center;
-      box-shadow:0 0 0 2px #fff, 0 0 6px rgba(0,200,150,.4);
+      box-shadow:0 0 0 2px #fff, 0 1px 4px rgba(0,0,0,.2);
+      overflow:hidden;
     }
-    .sc-qr-center img { width:11px; height:11px; object-fit:contain; filter:brightness(10); }
+    .sc-qr-center img { width:65%; height:65%; object-fit:contain; filter:brightness(0) invert(1); }
     .sc-qr-label {
-      font-size:.48rem; font-weight:700; color:rgba(255,255,255,.45);
-      letter-spacing:.04em; white-space:nowrap;
+      font-size:10px; font-weight:600; color:rgba(255,255,255,.70);
+      text-align:center; white-space:nowrap;
+      display:flex; align-items:center; gap:4px; direction:ltr;
     }
+    .sc-qr-deco { color:rgba(20,214,176,.65); font-size:7px; letter-spacing:1px; }
 
     /* Invisible container: groups name + all info as one unit (transparent) */
     .sc-info { flex:1; min-width:0; padding-top:50px; padding-right:14px;
@@ -497,12 +508,12 @@
         var qr=document.getElementById('scQr');
         if(qr){
           var showcaseUrl = location.origin + '/profile-showcase?id=' + encodeURIComponent(id);
-          qr.innerHTML = '<div class="sc-qr-wrap">'
-            + '<img src="https://api.qrserver.com/v1/create-qr-code/?size=140x140&qzone=1&data='
+          qr.innerHTML = '<div class="sc-qr-inner">'
+            + '<img src="https://api.qrserver.com/v1/create-qr-code/?size=160x160&qzone=1&data='
             + encodeURIComponent(showcaseUrl) + '" alt="QR">'
             + '<div class="sc-qr-center"><img src="https://wrxvmdmknhoufoeprpoc.supabase.co/storage/v1/object/public/site/Logo.svg" alt=""></div>'
             + '</div>'
-            + '<div class="sc-qr-label">تواصلنا</div>';
+            + '<div class="sc-qr-label"><span class="sc-qr-deco">— —</span> QR البروفايل <span class="sc-qr-deco">— —</span></div>';
         }
 
         // Data arrays
