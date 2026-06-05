@@ -173,19 +173,19 @@
 
     /* Stats row */
     .sc-stats {
-      display:flex; margin:8px 20px 0; padding:0;
-      background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.08);
-      border-radius:16px; overflow:hidden;
+      display:flex; margin:10px 20px 0; padding:0;
+      background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.09);
+      border-radius:14px; overflow:hidden;
     }
     .sc-stat {
-      flex:1; text-align:center; padding:14px 6px;
-      display:flex; flex-direction:column; align-items:center; gap:5px;
+      flex:1; text-align:center; padding:12px 2px;
+      display:flex; flex-direction:column; align-items:center; gap:4px;
       border-left:1px solid rgba(255,255,255,.07);
     }
     .sc-stat:last-child { border-left:none; }
-    .sc-stat-i { color:var(--ac,#00c896); width:20px; height:20px; }
-    .sc-stat-n { font-size:1.2rem; font-weight:800; color:var(--t1,#fff); line-height:1; }
-    .sc-stat-l { font-size:.66rem; color:var(--t3,#6b7686); }
+    .sc-stat-i { width:18px; height:18px; }
+    .sc-stat-n { font-size:1rem; font-weight:800; color:var(--t1,#fff); line-height:1; }
+    .sc-stat-l { font-size:.58rem; color:var(--t3,#6b7686); }
 
     /* Tabs */
     .sc-tabs { display:flex; gap:14px; padding:14px 20px 0; overflow-x:auto; border-bottom:1px solid rgba(255,255,255,.06); }
@@ -290,27 +290,32 @@
           <button class="sc-btn sc-btn-ghost" id="scFullBtn"><i data-lucide="file-text" class="ico-sm"></i> الملف</button>
         </div>
 
-        <!-- Stats: one rectangle, thin dividers, each cell icon→number→label -->
+        <!-- Stats: 5 cells RTL order: الشهادات ← القوة ← المشاهدات ← المتابعون ← الخبرات -->
         <div class="sc-stats">
           <div class="sc-stat">
-            <i data-lucide="trending-up" class="ico sc-stat-i"></i>
+            <i data-lucide="graduation-cap" class="ico sc-stat-i" style="color:#f59e0b"></i>
+            <div class="sc-stat-n" id="scStatEdu">—</div>
+            <div class="sc-stat-l">الشهادات</div>
+          </div>
+          <div class="sc-stat">
+            <i data-lucide="trending-up" class="ico sc-stat-i" style="color:#00c896"></i>
             <div class="sc-stat-n" id="scStatScore">—</div>
             <div class="sc-stat-l">القوة</div>
           </div>
           <div class="sc-stat">
-            <i data-lucide="briefcase" class="ico sc-stat-i"></i>
+            <i data-lucide="eye" class="ico sc-stat-i" style="color:#2563ff"></i>
+            <div class="sc-stat-n" id="scStatViews">—</div>
+            <div class="sc-stat-l">المشاهدات</div>
+          </div>
+          <div class="sc-stat">
+            <i data-lucide="users" class="ico sc-stat-i" style="color:#8b5cf6"></i>
+            <div class="sc-stat-n" id="scStatFollowers">—</div>
+            <div class="sc-stat-l">المتابعون</div>
+          </div>
+          <div class="sc-stat">
+            <i data-lucide="briefcase" class="ico sc-stat-i" style="color:#f97316"></i>
             <div class="sc-stat-n" id="scStatExp">—</div>
             <div class="sc-stat-l">الخبرات</div>
-          </div>
-          <div class="sc-stat">
-            <i data-lucide="zap" class="ico sc-stat-i"></i>
-            <div class="sc-stat-n" id="scStatSkills">—</div>
-            <div class="sc-stat-l">المهارات</div>
-          </div>
-          <div class="sc-stat">
-            <i data-lucide="graduation-cap" class="ico sc-stat-i"></i>
-            <div class="sc-stat-n" id="scStatEdu">—</div>
-            <div class="sc-stat-l">الشهادات</div>
           </div>
         </div>
 
@@ -478,9 +483,9 @@
         var edu    = Array.isArray(p.education) ? p.education : [];
 
         // Stats
-        setText('scStatExp', exp.length);
-        setText('scStatSkills', skills.length);
         setText('scStatEdu', edu.length);
+        setText('scStatExp', exp.length);
+        // scStatViews and scStatFollowers stay — (no API)
 
         // Bio header: show "عرض المزيد" if text overflows 3 lines
         requestAnimationFrame(function(){
