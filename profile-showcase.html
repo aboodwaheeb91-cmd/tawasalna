@@ -138,15 +138,17 @@
     /* Action buttons */
     .sc-actions {
       display:flex; flex-direction:row; align-items:center; justify-content:center;
-      flex-wrap:nowrap; gap:7px; padding:13px 20px;
+      flex-wrap:nowrap; gap:7px; padding:6px 20px 13px;
     }
     .sc-btn {
-      height:39px; padding:0 14px; border-radius:13px; border:none; cursor:pointer;
+      height:37px; border-radius:13px; border:none; cursor:pointer;
       font-family:inherit; font-size:12px; font-weight:700;
       transition:transform .15s, opacity .15s;
       white-space:nowrap; flex-shrink:0;
       display:inline-flex; align-items:center; justify-content:center; gap:5px;
     }
+    .sc-btn-primary { padding:0 14px; }
+    .sc-btn-ghost   { padding:0 12px; }
     .sc-btn:active { transform:scale(.96); }
     .sc-btn .ico-sm { width:14px; height:14px; stroke-width:2; flex-shrink:0; }
     .sc-loc { display:flex; align-items:center; gap:4px; }
