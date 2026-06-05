@@ -136,17 +136,19 @@
     .sc-bio { color:var(--t2,#9aa5b4); font-size:.7rem; line-height:1.5; margin-top:6px; }
 
     /* Action buttons */
-    .sc-actions { display:flex; align-items:center; gap:8px; padding:14px 20px; flex-wrap:wrap; }
+    .sc-actions {
+      display:flex; flex-direction:row; align-items:center; justify-content:center;
+      flex-wrap:nowrap; gap:7px; padding:13px 20px;
+    }
     .sc-btn {
-      height:44px; padding:0 18px; border-radius:12px; border:none; cursor:pointer;
-      font-family:inherit; font-size:13px; font-weight:700;
+      height:39px; padding:0 14px; border-radius:13px; border:none; cursor:pointer;
+      font-family:inherit; font-size:12px; font-weight:700;
       transition:transform .15s, opacity .15s;
-      white-space:nowrap;
-      display:inline-flex; align-items:center; justify-content:center; gap:6px;
-      flex-shrink:0;
+      white-space:nowrap; flex-shrink:0;
+      display:inline-flex; align-items:center; justify-content:center; gap:5px;
     }
     .sc-btn:active { transform:scale(.96); }
-    .sc-btn .ico-sm { width:15px; height:15px; stroke-width:2; flex-shrink:0; }
+    .sc-btn .ico-sm { width:14px; height:14px; stroke-width:2; flex-shrink:0; }
     .sc-loc { display:flex; align-items:center; gap:4px; }
     .sc-btn-primary {
       background:linear-gradient(135deg, #00c896, #00b386);
@@ -262,7 +264,7 @@
         <div class="sc-actions">
           <button class="sc-btn sc-btn-primary" id="scFollowBtn"><i data-lucide="user-plus" class="ico-sm"></i> متابعة</button>
           <button class="sc-btn sc-btn-ghost" id="scContactBtn"><i data-lucide="message-circle" class="ico-sm"></i> تواصل معي</button>
-          <button class="sc-btn sc-btn-ghost" id="scFullBtn"><i data-lucide="file-text" class="ico-sm"></i> الملف الكامل</button>
+          <button class="sc-btn sc-btn-ghost" id="scFullBtn"><i data-lucide="file-text" class="ico-sm"></i> الملف</button>
         </div>
 
         <!-- Stats: one rectangle, thin dividers, each cell icon→number→label -->
