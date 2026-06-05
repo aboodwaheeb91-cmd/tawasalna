@@ -150,7 +150,7 @@
       white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
       max-width:100%; min-width:0;
     }
-    .sc-title { color:var(--ac,#00c896); font-size:.74rem; margin-top:3px; font-weight:600; }
+    .sc-title { color:var(--ac,#00c896); font-size:.74rem; margin-top:3px; font-weight:600; display:inline-flex; align-items:center; gap:4px; }
     .sc-loc { color:var(--t3,#6b7686); font-size:.64rem; }
 
     /* Bio under row */
@@ -454,8 +454,21 @@
 
         // Identity
         setText('scName', p.full_name || '—');
-        setText('scTitle', p.headline || p.title || '');
         setText('scBio', p.bio || '');
+
+        // Title + profession icon (Step 4)
+        var titleEl = document.getElementById('scTitle');
+        if(titleEl){
+          var profIcon = (p.profession && p.profession.icon) ? p.profession.icon : 'user-round';
+          var titleText = (p.profession && p.profession.name_ar)
+            ? p.profession.name_ar
+            : (p.headline || p.title || '');
+          if(titleText){
+            titleEl.innerHTML = '<i data-lucide="' + profIcon + '" class="ico-sm"></i> ' + esc(titleText);
+          } else {
+            titleEl.textContent = '';
+          }
+        }
 
         // Verified badge (only if verified)
         if(p.is_verified){

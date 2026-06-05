@@ -225,6 +225,95 @@ def init_db():
         ]:
             try: conn.run(col_sql)
             except Exception: pass
+
+        # ── Profession Categories System ──
+        conn.run("""
+            CREATE TABLE IF NOT EXISTS profession_categories (
+                id             SERIAL PRIMARY KEY,
+                name_ar        VARCHAR(100) NOT NULL,
+                name_en        VARCHAR(100) NOT NULL,
+                slug           VARCHAR(100) NOT NULL UNIQUE,
+                icon           VARCHAR(60)  NOT NULL DEFAULT 'user-round',
+                category_group VARCHAR(60),
+                is_active      BOOLEAN DEFAULT TRUE,
+                sort_order     SMALLINT DEFAULT 0,
+                created_at     TIMESTAMPTZ DEFAULT NOW(),
+                updated_at     TIMESTAMPTZ DEFAULT NOW()
+            )
+        """)
+        try:
+            conn.run("CREATE INDEX IF NOT EXISTS idx_prof_slug  ON profession_categories(slug)")
+            conn.run("CREATE INDEX IF NOT EXISTS idx_prof_group ON profession_categories(category_group)")
+        except Exception: pass
+        try:
+            conn.run("ALTER TABLE profiles ADD COLUMN IF NOT EXISTS profession_id INTEGER REFERENCES profession_categories(id) ON DELETE SET NULL")
+        except Exception: pass
+        try:
+            conn.run("""
+                INSERT INTO profession_categories (name_ar,name_en,slug,icon,category_group,sort_order) VALUES
+                ('مطور برمجيات','Software Developer','software-developer','code-2','tech',10),
+                ('مطور ويب','Web Developer','web-developer','globe','tech',11),
+                ('مطور تطبيقات','Mobile Developer','mobile-developer','smartphone','tech',12),
+                ('مهندس بيانات','Data Engineer','data-engineer','database','tech',13),
+                ('عالم بيانات','Data Scientist','data-scientist','brain-circuit','tech',14),
+                ('مهندس DevOps','DevOps Engineer','devops-engineer','server','tech',15),
+                ('مصمم UI/UX','UI/UX Designer','ui-ux-designer','layout-dashboard','tech',16),
+                ('محلل أنظمة','Systems Analyst','systems-analyst','monitor','tech',17),
+                ('أمن المعلومات','Cybersecurity Specialist','cybersecurity','shield-check','tech',18),
+                ('مدير تقنية','Tech Lead / CTO','tech-lead','cpu','tech',19),
+                ('معلم','Teacher','teacher','book-open','education',20),
+                ('أستاذ جامعي','University Professor','professor','graduation-cap','education',21),
+                ('مدرب','Trainer','trainer','presentation','education',22),
+                ('مستشار تعليمي','Education Consultant','education-consultant','lightbulb','education',23),
+                ('طبيب','Doctor','doctor','stethoscope','health',30),
+                ('ممرض','Nurse','nurse','heart-pulse','health',31),
+                ('صيدلاني','Pharmacist','pharmacist','pill','health',32),
+                ('معالج نفسي','Therapist','therapist','brain','health',33),
+                ('طبيب أسنان','Dentist','dentist','smile','health',34),
+                ('مهندس مدني','Civil Engineer','civil-engineer','hard-hat','engineering',40),
+                ('مهندس كهربائي','Electrical Engineer','electrical-engineer','zap','engineering',41),
+                ('مهندس ميكانيكي','Mechanical Engineer','mechanical-engineer','settings','engineering',42),
+                ('مهندس معماري','Architect','architect','pencil-ruler','engineering',43),
+                ('مهندس كيميائي','Chemical Engineer','chemical-engineer','flask-conical','engineering',44),
+                ('محاسب','Accountant','accountant','calculator','finance',50),
+                ('محلل مالي','Financial Analyst','financial-analyst','bar-chart-2','finance',51),
+                ('مدقق حسابات','Auditor','auditor','scan-search','finance',52),
+                ('مستشار مالي','Financial Advisor','financial-advisor','trending-up','finance',53),
+                ('مصمم جرافيك','Graphic Designer','graphic-designer','palette','design',60),
+                ('مصمم داخلي','Interior Designer','interior-designer','home','design',61),
+                ('مصمم أزياء','Fashion Designer','fashion-designer','shirt','design',62),
+                ('مسوّق رقمي','Digital Marketer','digital-marketer','megaphone','marketing',70),
+                ('مندوب مبيعات','Sales Representative','sales-rep','handshake','marketing',71),
+                ('مدير تسويق','Marketing Manager','marketing-manager','target','marketing',72),
+                ('متخصص SEO','SEO Specialist','seo-specialist','search','marketing',73),
+                ('منشئ محتوى','Content Creator','content-creator','pen-tool','marketing',74),
+                ('محامي','Lawyer','lawyer','scale','legal',80),
+                ('مستشار قانوني','Legal Consultant','legal-consultant','file-text','legal',81),
+                ('كهربائي','Electrician','electrician','plug','trades',90),
+                ('سباك','Plumber','plumber','wrench','trades',91),
+                ('نجار','Carpenter','carpenter','hammer','trades',92),
+                ('ميكانيكي سيارات','Car Mechanic','car-mechanic','wrench','trades',93),
+                ('سائق','Driver','driver','car','transport',100),
+                ('طيار','Pilot','pilot','plane','transport',101),
+                ('سائق شاحنة','Truck Driver','truck-driver','truck','transport',102),
+                ('طباخ / شيف','Chef','chef','chef-hat','hospitality',110),
+                ('نادل','Waiter','waiter','utensils','hospitality',111),
+                ('مدير فندق','Hotel Manager','hotel-manager','hotel','hospitality',112),
+                ('مدير عام','General Manager / CEO','ceo','briefcase','management',120),
+                ('مدير موارد بشرية','HR Manager','hr-manager','users','management',121),
+                ('مدير مشاريع','Project Manager','project-manager','clipboard-list','management',122),
+                ('مدير تشغيل','Operations Manager','operations-manager','settings-2','management',123),
+                ('حارس أمن','Security Guard','security-guard','shield','security',130),
+                ('مصور','Photographer','photographer','camera','media',140),
+                ('صحفي','Journalist','journalist','newspaper','media',141),
+                ('منتج فيديو','Video Producer','video-producer','video','media',142),
+                ('مذيع','Presenter / Broadcaster','presenter','mic','media',143),
+                ('مؤثر / يوتيوبر','Influencer / YouTuber','influencer','star','media',144)
+                ON CONFLICT (slug) DO NOTHING
+            """)
+        except Exception as e:
+            print(f"[Seed professions] {e}")
+
         conn.run("""
             CREATE TABLE IF NOT EXISTS experience (
                 id SERIAL PRIMARY KEY,
@@ -613,12 +702,38 @@ def get_public_profile(user_id: int) -> Optional[dict]:
         cols = [c["name"] for c in conn.columns]
         user = _serialize(_row_to_dict(cols, rows[0]))
 
-        rows = conn.run(
-            "SELECT headline, bio, location, skills, avatar_url, website, is_verified, dob, phone, country, city, avail, title, sections_order, custom_sections, profile_color, profile_style "
-            "FROM profiles WHERE user_id = :uid", uid=user_id
-        )
+        try:
+            rows = conn.run(
+                "SELECT p.headline, p.bio, p.location, p.skills, p.avatar_url, p.website, p.is_verified, "
+                "p.dob, p.phone, p.country, p.city, p.avail, p.title, p.sections_order, p.custom_sections, "
+                "p.profile_color, p.profile_style, p.profession_id, "
+                "pc.id AS pc_id, pc.name_ar AS pc_name_ar, pc.name_en AS pc_name_en, "
+                "pc.slug AS pc_slug, pc.icon AS pc_icon, pc.category_group AS pc_category_group "
+                "FROM profiles p LEFT JOIN profession_categories pc ON p.profession_id = pc.id "
+                "WHERE p.user_id = :uid", uid=user_id
+            )
+        except Exception:
+            rows = conn.run(
+                "SELECT headline, bio, location, skills, avatar_url, website, is_verified, "
+                "dob, phone, country, city, avail, title, sections_order, custom_sections, "
+                "profile_color, profile_style "
+                "FROM profiles WHERE user_id = :uid", uid=user_id
+            )
         cols = [c["name"] for c in conn.columns]
         profile = _serialize(_row_to_dict(cols, rows[0])) if rows else {}
+        profession = None
+        if profile.get('pc_id') is not None:
+            profession = {
+                'id':             profile.get('pc_id'),
+                'name_ar':        profile.get('pc_name_ar'),
+                'name_en':        profile.get('pc_name_en'),
+                'slug':           profile.get('pc_slug'),
+                'icon':           profile.get('pc_icon'),
+                'category_group': profile.get('pc_category_group'),
+            }
+        for k in ('pc_id','pc_name_ar','pc_name_en','pc_slug','pc_icon','pc_category_group'):
+            profile.pop(k, None)
+        profile['profession'] = profession
 
         return {**user, **profile, **_get_extras(conn, user_id)}
     finally:
@@ -678,6 +793,21 @@ def get_full_profile(user_id: int) -> Optional[dict]:
                 raise e2  # Don't return partial data
         cols = [c["name"] for c in conn.columns]
         profile = _serialize(_row_to_dict(cols, rows[0])) if rows else {}
+
+        # Profession lookup (lightweight PK query)
+        profession = None
+        prof_id = profile.get('profession_id')
+        if prof_id:
+            try:
+                prows = conn.run(
+                    "SELECT id,name_ar,name_en,slug,icon,category_group FROM profession_categories WHERE id=:pid",
+                    pid=prof_id
+                )
+                if prows:
+                    pcols = [c["name"] for c in conn.columns]
+                    profession = _serialize(_row_to_dict(pcols, prows[0]))
+            except Exception: pass
+        profile['profession'] = profession
 
         rows = conn.run(
             "SELECT id, status, created_at FROM verify_requests "
