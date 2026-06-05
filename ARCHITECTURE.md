@@ -1030,9 +1030,26 @@ body.preview-guest       .owner-only { display: none !important; }
 ❌ JS للإخفاء — CSS فقط عبر body class
 ```
 
-### ملاحظة الحالة الراهنة
-profile-showcase.html لا تحتوي حالياً على أي عنصر owner-only (الصفحة showcase فقط).
-عند إضافة أي أداة تعديل في المراحل القادمة، تُضاف إليها `owner-only` مباشرة.
+### عناصر عامة — لا تحمل owner-only أبداً
+العناصر التالية هي محتوى عام أو أزرار زوار — لا تتأثر بـ preview:
+```
+الاسم، التخصص، النبذة، الأفاتار، الكفر
+الإحصائيات (stats)، التبويبات (tabs)
+QR card، الموقع، العمر
+زر متابعة، زر تواصل، زر الملف الكامل
+```
+
+### قاعدة Preview Mode
+```
+Preview mode يخفي أدوات الإدارة فقط — لا يخفي المحتوى العام.
+أي أداة owner مستقبلية تحمل owner-only فور إضافتها.
+CSS rule جاهز من الآن — لا تأثير حتى يوجد owner-only.
+```
+
+### الحالة الراهنة
+- CSS foundation مُضاف في profile-showcase.html (لا تأثير حالياً)
+- profile-showcase.html لا تحتوي على أي عنصر owner-only بعد
+- عند إضافة أي أداة تعديل في V2، تُضاف إليها `owner-only` مباشرة
 
 ---
 

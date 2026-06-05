@@ -296,6 +296,12 @@
     .sc-eye-item.sc-eye-end .ico-sm { color:#f87171; }
     .sc-eye-item.sc-eye-end { color:var(--t2,#9aa5b4); }
     .sc-eye-sep { height:1px; background:rgba(255,255,255,.08); margin:4px 8px; }
+
+    /* ── Owner-only foundation — Doctrine §25 ──
+       أي عنصر owner-only يختفي تلقائياً في preview mode.
+       لا تأثير الآن (لا يوجد owner-only بعد) — جاهز للأدوات القادمة. */
+    body.preview-public-user .owner-only,
+    body.preview-guest       .owner-only { display: none !important; }
   </style>
 </head>
 <body>
