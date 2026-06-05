@@ -206,19 +206,13 @@
     .sc-item-d { color:var(--t4,#4a5568); font-size:.72rem; margin-top:2px; }
 
     .sc-empty { text-align:center; color:var(--t4,#4a5568); padding:24px 0; font-size:.82rem; }
-    .sc-bio-text { color:var(--t2,#9aa5b4); font-size:14px; line-height:1.8; }
-
-    /* About card */
-    .sc-about-card {
-      background:rgba(255,255,255,.045); border:1px solid rgba(255,255,255,.08);
-      border-radius:17px; padding:18px 20px;
-    }
+    .sc-bio-text { color:var(--t2,#9aa5b4); font-size:14px; line-height:1.75; word-break:break-word; }
     .sc-about-title {
-      display:flex; align-items:center; gap:7px;
-      font-size:.82rem; font-weight:700; color:var(--t1,#fff);
-      margin-bottom:12px;
+      display:flex; align-items:center; gap:6px;
+      font-size:.74rem; font-weight:600; color:var(--t3,#6b7686);
+      margin-bottom:10px;
     }
-    .sc-about-title .ico-sm { color:var(--ac,#00c896); }
+    .sc-about-title .ico-sm { color:var(--t3,#6b7686); width:13px; height:13px; }
 
     .sc-loading { text-align:center; padding:80px 20px; color:var(--t3,#6b7686); }
 
@@ -316,10 +310,8 @@
         <!-- Tab content -->
         <div class="sc-content">
           <div class="sc-pane active" id="pane-about">
-            <div class="sc-about-card">
-              <div class="sc-about-title"><i data-lucide="user-round" class="ico-sm"></i> نبذة عني</div>
-              <div class="sc-bio-text" id="scAboutText"></div>
-            </div>
+            <div class="sc-about-title"><i data-lucide="user-round" class="ico-sm"></i> نبذة عني</div>
+            <div class="sc-bio-text" id="scAboutText"></div>
           </div>
           <div class="sc-pane" id="pane-skills"><div class="sc-skills" id="scSkillsPane"></div></div>
           <div class="sc-pane" id="pane-exp"><div id="scExpPane"></div></div>
