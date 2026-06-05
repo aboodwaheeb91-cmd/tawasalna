@@ -1262,7 +1262,7 @@ def get_user(user_id: int):
 # Profile
 # ══════════════════════════════════════════
 @app.get("/profile/{user_id}")
-def public_profile(user_id: str):
+def public_profile(user_id: str, request: Request):
     try:
         uid = int(user_id)
         profile = get_public_profile(uid)
@@ -1270,7 +1270,55 @@ def public_profile(user_id: str):
         profile = get_profile_by_tw_id(user_id)
     if not profile:
         raise HTTPException(404, detail="الملف الشخصي غير موجود")
-    return {"status": "success", "profile": profile}
+
+    # Optional JWT — determines viewer_type (same pattern as /company/profile)
+    viewer_type = "guest"
+    is_owner    = False
+
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        raw     = auth_header[7:]
+        payload = _jwt_decode(raw) if raw else {}
+        if payload:
+            token_uid = payload.get("user_id")
+            if token_uid and int(token_uid) == profile["id"]:
+                viewer_type = "owner"
+                is_owner    = True
+            else:
+                viewer_type = "public-user"
+
+    if viewer_type == "owner":
+        permissions = {
+            "can_edit":    True,
+            "can_follow":  False,
+            "can_message": False,
+            "can_save":    False,
+            "can_report":  False,
+        }
+    elif viewer_type == "public-user":
+        permissions = {
+            "can_edit":    False,
+            "can_follow":  True,
+            "can_message": True,
+            "can_save":    True,
+            "can_report":  True,
+        }
+    else:
+        permissions = {
+            "can_edit":    False,
+            "can_follow":  False,
+            "can_message": False,
+            "can_save":    False,
+            "can_report":  False,
+        }
+
+    return {
+        "status":      "success",
+        "profile":     profile,
+        "viewer_type": viewer_type,
+        "is_owner":    is_owner,
+        "permissions": permissions,
+    }
 
 @app.get("/profile/{user_id}/full")
 def full_profile(user_id: str):
