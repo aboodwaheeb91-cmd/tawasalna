@@ -282,16 +282,24 @@
     }
     .sc-toast.show { opacity:1; transform:translateX(50%) translateY(0); }
 
+
+    /* ── Profile link row ── */
+    .sc-link-row { display:none; align-items:center; gap:5px; margin-top:6px; max-width:100%; overflow:hidden; }
+    .sc-link-row .ico-sm { color:var(--t3,#6b7686); flex-shrink:0; }
+    .sc-link-text { color:var(--t3,#6b7686); font-size:.6rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; min-width:0; }
+    .sc-link-copy { flex-shrink:0; background:none; border:none; cursor:pointer; color:var(--t3,#6b7686); padding:2px; display:flex; align-items:center; border-radius:5px; transition:color .15s; }
+    .sc-link-copy:hover { color:var(--ac,#00c896); }
+    .sc-link-copy .ico-sm { width:13px; height:13px; }
+
     /* ── Preview Eye Button — owner only ── */
     .sc-eye-wrap { position:relative; display:none; }
     body.view-owner .sc-eye-wrap { display:flex; }
-
-    /* icon state: off by default, on when preview active */
     .sc-eye-icon-on { display:none; }
     body.preview-public-user .sc-eye-icon-off,
     body.preview-guest       .sc-eye-icon-off { display:none; }
     body.preview-public-user .sc-eye-icon-on,
     body.preview-guest       .sc-eye-icon-on  { display:block; color:var(--ac,#00c896); }
+
 
     /* dropdown */
     .sc-eye-menu {
@@ -316,6 +324,7 @@
     .sc-eye-item.sc-eye-end { color:var(--t2,#9aa5b4); }
     .sc-eye-sep { height:1px; background:rgba(255,255,255,.08); margin:4px 8px; }
 
+
     /* ── Owner-only foundation — Doctrine §25 ──
        أي عنصر owner-only يختفي تلقائياً في preview mode.
        لا تأثير الآن (لا يوجد owner-only بعد) — جاهز للأدوات القادمة. */
@@ -334,6 +343,7 @@
       <span class="sc-logo-fallback" style="display:none">تواصلنا</span>
     </div>
     <div class="sc-head-icons">
+
       <!-- Eye preview button — owner only (hidden via CSS until body.view-owner) -->
       <div class="sc-eye-wrap" id="scEyeWrap">
         <button class="sc-hicon sc-hicon-bare" id="scEyeBtn" title="معاينة البروفايل">
@@ -341,6 +351,7 @@
           <i data-lucide="eye"     class="ico sc-eye-icon-on"></i>
         </button>
         <div class="sc-eye-menu" id="scEyeMenu">
+
           <button class="sc-eye-item" id="scPreviewPublic">
             <i data-lucide="user-round" class="ico-sm"></i>
             معاينة كمستخدم مسجل
@@ -393,6 +404,7 @@
             <div class="sc-link-row" id="scLinkRow">
               <i data-lucide="link" class="ico-sm"></i>
               <span class="sc-link-text" id="scLinkText"></span>
+
               <button class="sc-link-copy" id="scLinkCopy" title="نسخ الرابط">
                 <i data-lucide="copy" class="ico-sm"></i>
               </button>
@@ -543,6 +555,7 @@
       .then(function(res){
         var p = (res && res.profile) ? res.profile : {};
 
+
         // Viewer state — set body class from server-verified JWT (Architecture Doctrine §2)
         var _vt = res.viewer_type || 'guest';
         document.body.classList.remove('view-owner', 'public-view', 'view-guest');
@@ -557,7 +570,7 @@
         // Title + profession icon (Step 4)
         var titleEl = document.getElementById('scTitle');
         if(titleEl){
-          var profIcon = (p.profession && p.profession.icon) ? p.profession.icon : 'user-round';
+          var profIcon = (p.profession && p.profession.icon) ? p.profession.icon : 'briefcase';
           var titleText = (p.profession && p.profession.name_ar)
             ? p.profession.name_ar
             : (p.headline || p.title || '');
@@ -609,6 +622,7 @@
           img.src=esc(p.avatar_url);
         }
 
+
         // Profile link row — canonical URL uses /profile (not /profile-showcase)
         var _profileUrl = location.origin + '/profile?id=' + encodeURIComponent(p.tw_id || id);
         var linkRow  = document.getElementById('scLinkRow');
@@ -622,6 +636,7 @@
               navigator.clipboard.writeText(_profileUrl)
                 .then(function(){ toast('تم نسخ رابط البروفايل'); })
                 .catch(function(){ toast('تعذّر نسخ الرابط'); });
+
             } else {
               toast('تعذّر نسخ الرابط');
             }
@@ -750,6 +765,7 @@
 
   // ── Preview Eye Button ──
   (function(){
+
     var eyeWrap  = document.getElementById('scEyeWrap');
     var eyeBtn   = document.getElementById('scEyeBtn');
     var eyeMenu  = document.getElementById('scEyeMenu');
@@ -768,6 +784,7 @@
       eyeMenu.classList.remove('open');
     });
 
+
     // Preview as guest
     document.getElementById('scPreviewGuest').addEventListener('click', function(){
       document.body.classList.remove('preview-public-user');
@@ -775,11 +792,13 @@
       eyeMenu.classList.remove('open');
     });
 
+
     // End preview
     document.getElementById('scPreviewEnd').addEventListener('click', function(){
       document.body.classList.remove('preview-public-user', 'preview-guest');
       eyeMenu.classList.remove('open');
     });
+
 
     // Close on outside click
     document.addEventListener('click', function(e){
