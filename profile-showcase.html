@@ -153,6 +153,25 @@
     .sc-title { color:var(--ac,#00c896); font-size:.74rem; margin-top:3px; font-weight:600; display:inline-flex; align-items:center; gap:4px; }
     .sc-loc { color:var(--t3,#6b7686); font-size:.64rem; }
 
+    /* Profile link row */
+    .sc-link-row {
+      display:none; align-items:center; gap:5px; margin-top:6px;
+      max-width:100%; overflow:hidden;
+    }
+    .sc-link-row .ico-sm { color:var(--t3,#6b7686); flex-shrink:0; }
+    .sc-link-text {
+      color:var(--t3,#6b7686); font-size:.6rem;
+      overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+      flex:1; min-width:0;
+    }
+    .sc-link-copy {
+      flex-shrink:0; background:none; border:none; cursor:pointer;
+      color:var(--t3,#6b7686); padding:2px; display:flex;
+      align-items:center; border-radius:5px; transition:color .15s;
+    }
+    .sc-link-copy:hover { color:var(--ac,#00c896); }
+    .sc-link-copy .ico-sm { width:13px; height:13px; }
+
     /* Bio under row */
     .sc-bio {
       color:var(--t2,#9aa5b4); font-size:8px; line-height:2; margin-top:2px; word-break:break-word;
@@ -296,6 +315,12 @@
     .sc-eye-item.sc-eye-end .ico-sm { color:#f87171; }
     .sc-eye-item.sc-eye-end { color:var(--t2,#9aa5b4); }
     .sc-eye-sep { height:1px; background:rgba(255,255,255,.08); margin:4px 8px; }
+
+    /* ── Owner-only foundation — Doctrine §25 ──
+       أي عنصر owner-only يختفي تلقائياً في preview mode.
+       لا تأثير الآن (لا يوجد owner-only بعد) — جاهز للأدوات القادمة. */
+    body.preview-public-user .owner-only,
+    body.preview-guest       .owner-only { display: none !important; }
   </style>
 </head>
 <body>
@@ -364,6 +389,13 @@
             <div class="sc-meta-row">
               <span class="sc-loc" id="scLoc"></span>
               <span class="sc-age" id="scAge" style="display:none"></span>
+            </div>
+            <div class="sc-link-row" id="scLinkRow">
+              <i data-lucide="link" class="ico-sm"></i>
+              <span class="sc-link-text" id="scLinkText"></span>
+              <button class="sc-link-copy" id="scLinkCopy" title="نسخ الرابط">
+                <i data-lucide="copy" class="ico-sm"></i>
+              </button>
             </div>
           </div>
         </div>
@@ -575,6 +607,25 @@
           img.style.cssText='width:100%;height:100%;object-fit:cover;border-radius:50%';
           img.onload=function(){ av.innerHTML=''; av.appendChild(img); };
           img.src=esc(p.avatar_url);
+        }
+
+        // Profile link row — canonical URL uses /profile (not /profile-showcase)
+        var _profileUrl = location.origin + '/profile?id=' + encodeURIComponent(p.tw_id || id);
+        var linkRow  = document.getElementById('scLinkRow');
+        var linkText = document.getElementById('scLinkText');
+        var linkCopy = document.getElementById('scLinkCopy');
+        if(linkRow && linkText && linkCopy){
+          linkText.textContent = _profileUrl;
+          linkRow.style.display = 'flex';
+          linkCopy.addEventListener('click', function(){
+            if(navigator.clipboard && navigator.clipboard.writeText){
+              navigator.clipboard.writeText(_profileUrl)
+                .then(function(){ toast('تم نسخ رابط البروفايل'); })
+                .catch(function(){ toast('تعذّر نسخ الرابط'); });
+            } else {
+              toast('تعذّر نسخ الرابط');
+            }
+          });
         }
 
         // QR (uses public QR service pointing to this showcase URL — no backend)
