@@ -42,16 +42,16 @@
     .sc-head-icons .ico { width:20px; height:20px; }
     .sc-hgroup { display:flex; align-items:center; gap:10px; }
     .sc-home-pill {
-      display:inline-flex; align-items:center; gap:4px;
-      padding:4px 11px; border-radius:16px; cursor:pointer;
+      display:inline-flex; align-items:center; gap:5px;
+      padding:0 18px; height:27px; border-radius:9px; cursor:pointer;
       background:var(--ac,#00c896);
       border:1px solid rgba(255,255,255,.18);
-      color:#fff; font-family:inherit; font-size:.62rem; font-weight:700;
+      color:#fff; font-family:inherit; font-size:11px; font-weight:700;
       white-space:nowrap; transition:transform .15s, opacity .2s;
       box-shadow:0 2px 6px rgba(0,200,150,.12);
     }
     .sc-home-pill:active { transform:scale(.95); opacity:.9; }
-    .sc-home-pill .ico-sm { width:12px; height:12px; }
+    .sc-home-pill .ico-sm { width:14px; height:14px; }
                 .sc-logo { font-weight:800; font-size:1.15rem; letter-spacing:-.3px;
       background:linear-gradient(135deg,var(--ac,#00c896),var(--ac2,#2563ff));
       -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
@@ -151,7 +151,6 @@
     .sc-btn-ghost   { padding:0 18px; }
     .sc-btn:active { transform:scale(.96); }
     .sc-btn .ico-sm { width:14px; height:14px; stroke-width:1.8; flex-shrink:0; }
-    .sc-cover-btn { position:absolute; top:10px; right:10px; z-index:5; }
     .sc-loc { display:flex; align-items:center; gap:4px; }
     .sc-btn-primary {
       background:linear-gradient(135deg, #00c896, #00b386);
@@ -251,9 +250,7 @@
     <div id="scContent" style="display:none">
       <div class="sc-main-card">
         <!-- Cover -->
-        <div class="sc-cover" id="scCover">
-          <button class="sc-btn sc-btn-primary sc-cover-btn" id="scMainBtn"><i data-lucide="layout-dashboard" class="ico-sm"></i> الرئيسي</button>
-        </div>
+        <div class="sc-cover" id="scCover"></div>
 
         <!-- Profile row: avatar+QR (right) | info (left) -->
         <div class="sc-prof-row">
@@ -528,8 +525,6 @@
         if(contactBtn) contactBtn.onclick=function(){ window.location.href='/messages'; };
         var fullBtn=document.getElementById('scFullBtn');
         if(fullBtn) fullBtn.onclick=function(){ window.location.href='/profile?id='+encodeURIComponent(id); };
-        var mainBtn=document.getElementById('scMainBtn');
-        if(mainBtn) mainBtn.onclick=function(){ window.location.href='/home'; };
 
         // Reveal
         var ld=document.getElementById('scLoading');
