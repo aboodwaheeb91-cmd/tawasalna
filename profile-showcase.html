@@ -262,6 +262,40 @@
       opacity:0; transition:.3s; z-index:100; box-shadow:0 10px 30px rgba(0,0,0,.4); pointer-events:none;
     }
     .sc-toast.show { opacity:1; transform:translateX(50%) translateY(0); }
+
+    /* ── Preview Eye Button — owner only ── */
+    .sc-eye-wrap { position:relative; display:none; }
+    body.view-owner .sc-eye-wrap { display:flex; }
+
+    /* icon state: off by default, on when preview active */
+    .sc-eye-icon-on { display:none; }
+    body.preview-public-user .sc-eye-icon-off,
+    body.preview-guest       .sc-eye-icon-off { display:none; }
+    body.preview-public-user .sc-eye-icon-on,
+    body.preview-guest       .sc-eye-icon-on  { display:block; color:var(--ac,#00c896); }
+
+    /* dropdown */
+    .sc-eye-menu {
+      display:none; position:absolute; top:calc(100% + 8px); left:0;
+      min-width:190px;
+      background:rgba(10,14,24,.95); border:1px solid rgba(255,255,255,.13);
+      border-radius:13px; padding:5px; z-index:200;
+      backdrop-filter:blur(18px); -webkit-backdrop-filter:blur(18px);
+      box-shadow:0 10px 30px rgba(0,0,0,.45);
+    }
+    .sc-eye-menu.open { display:block; }
+    .sc-eye-item {
+      display:flex; align-items:center; gap:9px; width:100%;
+      padding:9px 12px; border:none; background:none;
+      color:var(--t1,#fff); font-family:inherit; font-size:12px; font-weight:600;
+      border-radius:8px; cursor:pointer; text-align:right;
+      transition:background .15s;
+    }
+    .sc-eye-item:hover { background:rgba(255,255,255,.07); }
+    .sc-eye-item .ico-sm { color:var(--ac,#00c896); flex-shrink:0; }
+    .sc-eye-item.sc-eye-end .ico-sm { color:#f87171; }
+    .sc-eye-item.sc-eye-end { color:var(--t2,#9aa5b4); }
+    .sc-eye-sep { height:1px; background:rgba(255,255,255,.08); margin:4px 8px; }
   </style>
 </head>
 <body>
@@ -275,6 +309,28 @@
       <span class="sc-logo-fallback" style="display:none">تواصلنا</span>
     </div>
     <div class="sc-head-icons">
+      <!-- Eye preview button — owner only (hidden via CSS until body.view-owner) -->
+      <div class="sc-eye-wrap" id="scEyeWrap">
+        <button class="sc-hicon sc-hicon-bare" id="scEyeBtn" title="معاينة البروفايل">
+          <i data-lucide="eye-off" class="ico sc-eye-icon-off"></i>
+          <i data-lucide="eye"     class="ico sc-eye-icon-on"></i>
+        </button>
+        <div class="sc-eye-menu" id="scEyeMenu">
+          <button class="sc-eye-item" id="scPreviewPublic">
+            <i data-lucide="user-round" class="ico-sm"></i>
+            معاينة كمستخدم مسجل
+          </button>
+          <button class="sc-eye-item" id="scPreviewGuest">
+            <i data-lucide="user-x" class="ico-sm"></i>
+            معاينة كزائر
+          </button>
+          <div class="sc-eye-sep"></div>
+          <button class="sc-eye-item sc-eye-end" id="scPreviewEnd">
+            <i data-lucide="x-circle" class="ico-sm"></i>
+            إنهاء المعاينة
+          </button>
+        </div>
+      </div>
       <button class="sc-hicon sc-hicon-bare" id="scBellBtn" title="الإشعارات"><i data-lucide="bell" class="ico"></i></button>
       <button class="sc-hicon sc-hicon-bare" id="scMsgBtn" title="الرسائل"><i data-lucide="message-circle-more" class="ico"></i></button>
       <button class="sc-hicon sc-hicon-bare" id="scMenuBtn" title="القائمة"><i data-lucide="menu" class="ico"></i></button>
@@ -640,6 +696,45 @@
     var expanded = bio.classList.toggle('expanded');
     btn.textContent = expanded ? 'عرض أقل ▴' : 'عرض المزيد ▾';
   };
+
+  // ── Preview Eye Button ──
+  (function(){
+    var eyeWrap  = document.getElementById('scEyeWrap');
+    var eyeBtn   = document.getElementById('scEyeBtn');
+    var eyeMenu  = document.getElementById('scEyeMenu');
+    if(!eyeBtn || !eyeMenu) return;
+
+    // Toggle dropdown
+    eyeBtn.addEventListener('click', function(e){
+      e.stopPropagation();
+      eyeMenu.classList.toggle('open');
+    });
+
+    // Preview as logged-in user
+    document.getElementById('scPreviewPublic').addEventListener('click', function(){
+      document.body.classList.remove('preview-guest');
+      document.body.classList.add('preview-public-user');
+      eyeMenu.classList.remove('open');
+    });
+
+    // Preview as guest
+    document.getElementById('scPreviewGuest').addEventListener('click', function(){
+      document.body.classList.remove('preview-public-user');
+      document.body.classList.add('preview-guest');
+      eyeMenu.classList.remove('open');
+    });
+
+    // End preview
+    document.getElementById('scPreviewEnd').addEventListener('click', function(){
+      document.body.classList.remove('preview-public-user', 'preview-guest');
+      eyeMenu.classList.remove('open');
+    });
+
+    // Close on outside click
+    document.addEventListener('click', function(e){
+      if(eyeWrap && !eyeWrap.contains(e.target)) eyeMenu.classList.remove('open');
+    });
+  })();
   </script>
 
 
