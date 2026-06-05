@@ -455,10 +455,12 @@
       .then(function(res){
         var p = (res && res.profile) ? res.profile : {};
 
-        // Viewer state — set body class from server-verified JWT
+        // Viewer state — set body class from server-verified JWT (Architecture Doctrine §2)
         var _vt = res.viewer_type || 'guest';
-        document.body.classList.remove('viewer-owner', 'viewer-logged-in-viewer', 'viewer-guest');
-        document.body.classList.add('viewer-' + _vt);
+        document.body.classList.remove('view-owner', 'public-view', 'view-guest');
+        if      (_vt === 'owner')       document.body.classList.add('view-owner');
+        else if (_vt === 'public-user') document.body.classList.add('public-view');
+        else                            document.body.classList.add('view-guest');
 
         // Identity
         setText('scName', p.full_name || '—');

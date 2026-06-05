@@ -1285,7 +1285,7 @@ def public_profile(user_id: str, request: Request):
                 viewer_type = "owner"
                 is_owner    = True
             else:
-                viewer_type = "logged_in_viewer"
+                viewer_type = "public-user"
 
     if viewer_type == "owner":
         permissions = {
@@ -1295,7 +1295,7 @@ def public_profile(user_id: str, request: Request):
             "can_save":    False,
             "can_report":  False,
         }
-    elif viewer_type == "logged_in_viewer":
+    elif viewer_type == "public-user":
         permissions = {
             "can_edit":    False,
             "can_follow":  True,
