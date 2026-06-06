@@ -197,8 +197,8 @@ window.renderProfile = function renderProfile(res){
     },150);
   }
 
-  // fitName after layout settled
-  requestAnimationFrame(function(){ fitName(); setTimeout(fitName,50); });
+  // fitName: rAF → 50ms → 300ms (font may still be loading at rAF)
+  requestAnimationFrame(function(){ fitName(); setTimeout(fitName,50); setTimeout(fitName,300); });
 
   // Score fetch (parallel, non-blocking)
   var numId = (p.id != null) ? p.id : _scProfileId;

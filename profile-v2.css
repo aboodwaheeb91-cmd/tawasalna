@@ -135,7 +135,7 @@
 .sc-age { color:var(--t3,#6b7686); font-size:.64rem; display:flex; align-items:center; gap:4px; }
 .sc-name {
   font-size:20px; font-weight:800; line-height:1.2;
-  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  white-space:nowrap; overflow:hidden; text-overflow:clip;
   max-width:100%; min-width:0;
 }
 .sc-title { color:var(--ac,#00c896); font-size:.74rem; margin-top:3px; font-weight:600; display:inline-flex; align-items:center; gap:4px; }

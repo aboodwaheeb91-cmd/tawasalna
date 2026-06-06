@@ -16,12 +16,12 @@ function toast(msg){
 }
 window.toast = toast;
 
-// Auto-fit name to one line by measuring real rendered width.
+// Auto-fit name to one line — shrink font before resorting to ellipsis.
 function fitName(){
   var nameEl=document.getElementById('scName');
   var row=document.querySelector('.sc-name-row');
   if(!nameEl || !row) return;
-  var MAX=24, MIN=16;
+  var MAX=20, MIN=13;
   var boxW=row.clientWidth;
   if(boxW<=0) return;
   var badge=document.getElementById('scVerified');
@@ -29,13 +29,19 @@ function fitName(){
   nameEl.style.textOverflow='clip';
   var size=MAX;
   nameEl.style.fontSize=size+'px';
-  function reserve(){ return badgeVisible ? (size*0.85 + size*0.3 + 4) : 0; }
+  function reserve(){ return badgeVisible ? (size*0.85 + size*0.3 + 6) : 0; }
   while(size>MIN && nameEl.scrollWidth > (boxW - reserve())){
     size-=1; nameEl.style.fontSize=size+'px';
   }
-  nameEl.style.textOverflow='ellipsis';
+  // ellipsis only as last resort — when still doesn't fit at MIN
+  nameEl.style.textOverflow = (nameEl.scrollWidth > (boxW - reserve())) ? 'ellipsis' : 'clip';
 }
 window._fitName = fitName;
+
+// Re-run after Cairo font loads (avoids wrong measurement with fallback font)
+if(document.fonts && document.fonts.ready){
+  document.fonts.ready.then(function(){ fitName(); });
+}
 
 window.toggleBio = function(){
   var bio=document.getElementById('scBio');

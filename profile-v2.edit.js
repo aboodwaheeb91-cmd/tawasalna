@@ -88,6 +88,7 @@
       var nameEl = document.getElementById('scName');
       if(nameEl) nameEl.textContent = payload.full_name;
       if(window._scProfile) window._scProfile.full_name = payload.full_name;
+      requestAnimationFrame(function(){ if(window._fitName) window._fitName(); });
     }
 
     // Bio
