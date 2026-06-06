@@ -866,16 +866,16 @@ def get_full_profile(user_id: int) -> Optional[dict]:
 def update_profile(user_id: int, data: dict) -> dict:
     _t0 = _time_mod.time()
     _cache_del('profile:'+str(user_id))
-    # Clear SSR theme cache so next page load reflects new theme immediately
-    try:
-        _conn = get_conn()
-        try:
-            _tw = _conn.run("SELECT tw_id FROM users WHERE id=:uid", uid=user_id)
-            if _tw and _tw[0][0]: _cache_del('theme:'+str(_tw[0][0]))
-        finally: release_conn(_conn)
-    except Exception: pass
+    _THEME_FIELDS = {"profile_color", "profile_style"}
     conn = get_conn()
     try:
+        # Clear theme cache only when theme fields change — saves SELECT round-trip on normal saves
+        if _THEME_FIELDS & set(data.keys()):
+            try:
+                _tw = conn.run("SELECT tw_id FROM users WHERE id=:uid", uid=user_id)
+                if _tw and _tw[0][0]: _cache_del('theme:'+str(_tw[0][0]))
+            except Exception: pass
+
         # Update full_name in users table if provided
         if data.get("full_name"):
             conn.run(
@@ -883,9 +883,8 @@ def update_profile(user_id: int, data: dict) -> dict:
                 name=data["full_name"], uid=user_id
             )
 
-        allowed = ["headline", "bio", "location", "skills", "avatar_url", "website", "phone", "sections_order", "custom_sections", "dob", "country", "city", "avail", "title", "profile_color", "profile_style", "profession_id"]
         # Schema guaranteed by init_db — no runtime ALTER TABLE needed
-
+        allowed = ["headline", "bio", "location", "skills", "avatar_url", "website", "phone", "sections_order", "custom_sections", "dob", "country", "city", "avail", "title", "profile_color", "profile_style", "profession_id"]
         fields = {k: v for k, v in data.items() if k in allowed and v is not None}
         print(f"[update_profile] user={user_id} saving fields: {list(fields.keys())}")
 
@@ -910,7 +909,6 @@ def update_profile(user_id: int, data: dict) -> dict:
             )
     finally:
         release_conn(conn)
-    # Lightweight response — schema guaranteed by init_db, no re-fetch needed
     resp = {"id": user_id, "updated": True}
     resp.update(fields)
     if data.get("full_name"):

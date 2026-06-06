@@ -1393,32 +1393,25 @@ def suggest_profession(data: ProfessionSuggestionInput, token=Depends(verify_tok
 
 @app.put("/profile/{user_id}")
 def update_user_profile(user_id: int, data: ProfileUpdateInput, token=Depends(verify_token)):
-    # Ownership check
+    _t0 = _time.time()
     tok_uid = token.get('user_id')
     if str(tok_uid) != str(user_id):
         print(f"[PUT /profile] MISMATCH: token={tok_uid} url={user_id}")
         raise HTTPException(403, "Unauthorized")
-    # Validate profession_id if provided
     payload = data.dict(exclude_none=True)
     if "profession_id" in payload:
         conn = get_conn()
         try:
-            rows = conn.run(
-                "SELECT id FROM profession_categories WHERE id = :pid AND is_active = TRUE",
-                pid=payload["profession_id"]
-            )
-            if not rows:
-                raise HTTPException(400, detail="التخصص غير موجود أو غير فعال")
+            rows = conn.run("SELECT id FROM profession_categories WHERE id = :pid AND is_active = TRUE", pid=payload["profession_id"])
+            if not rows: raise HTTPException(400, detail="التخصص غير موجود أو غير فعال")
         finally:
             release_conn(conn)
     try:
-        _t0 = _time.time()
         profile = update_profile(user_id, payload)
         if not profile:
-            print(f"[PUT /profile] update_profile returned None for user {user_id}")
             raise HTTPException(500, "Profile update failed")
         updated_keys = list(payload.keys())
-        print(f"[PUT /profile] ✅ Updated user {user_id}: {updated_keys} — {_time.time()-_t0:.3f}s total")
+        print(f"[PUT /profile] ✅ user={user_id} fields={updated_keys} — {_time.time()-_t0:.3f}s total")
         return {"status": "success", "profile": profile, "updated_fields": updated_keys}
     except ValueError as e:
         raise HTTPException(404, detail=str(e))
