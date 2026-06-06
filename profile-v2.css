@@ -369,6 +369,56 @@ body.preview-guest       .owner-only { display: none !important; }
 }
 .ep-note .ico-sm { color:#2563ff; flex-shrink:0; margin-top:1px; }
 
+/* ── Cover edit button (owner only) ── */
+.cv-edit-btn {
+  display:none; position:absolute; top:8px; left:8px; z-index:4;
+  align-items:center; gap:6px;
+  padding:5px 12px; border-radius:20px; border:none; cursor:pointer;
+  background:rgba(0,0,0,.55); backdrop-filter:blur(8px);
+  color:#fff; font-family:inherit; font-size:.75rem; font-weight:600;
+  transition:background .15s;
+}
+.cv-edit-btn svg { width:13px; height:13px; stroke:#fff; flex-shrink:0; }
+.cv-edit-btn:hover { background:rgba(0,0,0,.75); }
+body.view-owner .cv-edit-btn { display:flex; }
+
+/* ── Cover crop overlay ── */
+.cv-crop-overlay {
+  display:none; position:fixed; inset:0; z-index:1100;
+  background:rgba(7,11,24,.93); align-items:center; justify-content:center;
+  flex-direction:column; gap:14px;
+}
+.cv-crop-overlay.open { display:flex; }
+.cv-crop-card {
+  background:#0f1420; border:1px solid rgba(255,255,255,.1);
+  border-radius:18px; padding:20px; display:flex; flex-direction:column;
+  align-items:center; gap:14px; max-width:560px; width:95%;
+}
+.cv-crop-title { color:#fff; font-size:.95rem; font-weight:700; align-self:flex-start; }
+#cvCropCanvas {
+  width:100%; aspect-ratio:6/1; cursor:grab; touch-action:none;
+  border-radius:8px; border:2px solid rgba(0,200,150,.35); display:block;
+}
+#cvCropCanvas:active { cursor:grabbing; }
+.cv-zoom-row {
+  display:flex; align-items:center; gap:10px; width:100%;
+}
+.cv-zoom-row svg { width:16px; height:16px; color:#9aa5b4; flex-shrink:0; }
+#cvZoomSlider { flex:1; accent-color:#00c896; cursor:pointer; }
+.cv-crop-actions { display:flex; gap:10px; width:100%; }
+.cv-crop-save {
+  flex:1; height:40px; border-radius:10px; border:none; cursor:pointer;
+  background:linear-gradient(135deg,#00c896,#00b386);
+  color:#fff; font-family:inherit; font-size:.88rem; font-weight:700;
+  transition:opacity .15s;
+}
+.cv-crop-save:disabled { opacity:.5; cursor:not-allowed; }
+.cv-crop-cancel {
+  height:40px; padding:0 18px; border-radius:10px;
+  border:1px solid rgba(255,255,255,.12); background:none;
+  color:#9aa5b4; font-family:inherit; font-size:.88rem; cursor:pointer;
+}
+
 /* ── Avatar camera button (owner only) ── */
 .av-cam-btn {
   display:none; position:absolute; bottom:2px; left:2px;

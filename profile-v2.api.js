@@ -24,6 +24,14 @@ function updateProfile(uid, payload){
   }).then(function(r){ return r.json().then(function(d){ return {ok: r.ok, data: d}; }); });
 }
 
+function uploadCover(userId, dataUrl, jwt){
+  return fetch('/upload/image', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (jwt || _jwt || '') },
+    body: JSON.stringify({ user_id: userId, bucket: 'covers', filename: 'cover', data_url: dataUrl })
+  }).then(function(r){ return r.json().then(function(d){ return { ok: r.ok, data: d }; }); });
+}
+
 function uploadAvatar(userId, dataUrl, jwt){
   return fetch('/upload/image', {
     method: 'POST',
@@ -37,3 +45,4 @@ window.getScore       = getScore;
 window.getProfessions = getProfessions;
 window.updateProfile  = updateProfile;
 window.uploadAvatar   = uploadAvatar;
+window.uploadCover    = uploadCover;
