@@ -1299,3 +1299,192 @@ profile-showcase.html       ← HTML skeleton + <link>/<script> فقط. لا sty
 ✅ GET /score يعمل
 ✅ زر التعديل لا ينكسر
 ```
+
+---
+
+# F — DEPLOYMENT VERIFICATION CONTRACT
+
+> **P0 — غير قابل للكسر.**
+> لا يُعتبر أي تعديل "منتهياً" إلا بعد اجتياز جميع الخطوات أدناه بشكل صريح.
+> ممنوع قول "تم" دون تقرير نشر كامل.
+
+---
+
+## [P0] 31. Deployment Verification Contract
+
+### القاعدة الأساسية
+
+```
+committed + pushed + merged + deployed + live verified
+```
+
+كل خطوة واجبة. أي خطوة مفقودة = التعديل لم يصل للمستخدم.
+
+---
+
+### نموذج تقرير النشر الإلزامي
+
+بعد أي تعديل، يجب إعطاء التقرير التالي بهذا الترتيب:
+
+#### 1. الملفات المتغيرة
+```
+- اسم الملف: profile-showcase.html | النوع: frontend
+- اسم الملف: server.py              | النوع: backend
+- اسم الملف: ARCHITECTURE.md       | النوع: docs
+```
+
+#### 2. Git Status قبل الـ commit
+```bash
+git status --short
+# يجب أن يظهر الملف المعدّل
+```
+
+#### 3. Commit
+```
+SHA:     c8913b9
+Message: fix: وصف واضح لما تغيّر ولماذا
+Files:   profile-showcase.html
+```
+
+#### 4. Push
+```
+تم push: نعم / لا
+Branch:  claude/add-claude-documentation-giKNS
+```
+
+#### 5. Pull Request
+```
+رقم PR:      #33
+رابط PR:     https://github.com/.../pull/33
+يحتوي التعديل: نعم / لا
+Conflicts:   لا يوجد / يوجد
+أمام main:   نعم / لا
+```
+
+#### 6. Merge
+```
+تم merge: نعم / لا / في انتظار الموافقة
+Merge SHA: (بعد الدمج)
+```
+
+#### 7. Deploy
+```
+بدأ deploy:  نعم / لا
+انتهى deploy: نعم / لا
+```
+> **ملاحظة:** إذا المنصة (Heroku/Railway/...) تعمل auto-deploy عند merge،
+> يكفي تأكيد merge + انتظار deploy. لا تقل "غالباً deployed".
+
+#### 8. Live Verification
+```bash
+# اختبر الملفات المعدّلة مباشرة من الموقع الحي
+curl -I https://tawasalna.com/profile-showcase?id=3
+curl -I https://tawasalna.com/static/profile-v2.edit.js?v=edit-modal-fix-v1
+# المتوقع: HTTP 200
+```
+
+#### 9. Version Marker
+كل تعديل frontend مهم يجب أن يحمل version marker يمكن التحقق منه في المتصفح:
+
+```js
+// في profile-v2.state.js أو الملف المعدّل
+window.PROFILE_SHOWCASE_VERSION = "edit-modal-fix-v1";
+```
+
+أو عبر query string في الـ script tags:
+```html
+<script src="/static/profile-v2.edit.js?v=edit-modal-fix-v1"></script>
+```
+
+---
+
+### حالات التقرير الصريحة
+
+| الحالة | ما يجب قوله |
+|--------|------------|
+| التعديل موجود محلياً فقط | **"التعديل محلي فقط ولم يُرفع بعد"** |
+| تم push لكن لم يُدمج | **"التعديل مرفوع على PR فقط ولم يصل للموقع الحي"** |
+| تم merge لكن لم ينتشر | **"merged لكن لم يتم deploy بعد"** |
+| تم deploy | **"deployed — تأكيد حي: GET /file → 200"** |
+
+---
+
+### ممنوعات صريحة
+
+```
+❌ قول "تم" بدون commit SHA
+❌ قول "تم رفع" بدون تأكيد branch و push output
+❌ قول "deployed" بدون دليل من لوج أو HTTP 200 من الموقع الحي
+❌ البدء باختبار من المتصفح قبل: committed + pushed + merged + deployed
+❌ قول "غالباً وصل" أو "يجب أن يكون"
+```
+
+---
+
+### سبب هذا القرار (2026-06-06)
+
+تكررت مشكلة "قلت إنه تم لكن لم يصل للموقع":
+- PR #32 (modularization): أُعلن عنه كـ "تم" قبل أن يُدمج فعلاً
+- Fix زر القلم (`c8913b9`): أُعلن عنه كـ "تم" في جلسة سابقة لكن المستخدم لم يتأكد من وصوله
+
+هذا العقد يمنع تكرار المشكلة.
+
+---
+
+# G — PERFORMANCE CONTRACTS
+
+---
+
+## [P1] 32. PUT /profile Fast Save Contract
+
+### المبدأ
+
+```
+PUT /profile = حفظ فقط → response خفيف
+GET /profile = قراءة كاملة → يُستدعى من frontend عند الحاجة
+```
+
+### ما يفعله PUT /profile
+1. يتحقق من ownership (JWT)
+2. يُنفِّذ UPDATE واحد فقط على جدول `profiles`
+3. يرجع response خفيف فوراً
+
+### Response الرسمي
+```json
+{
+  "status": "success",
+  "profile": { "id": ..., "updated": true, "<saved_fields>": "..." },
+  "updated_fields": ["bio", "profession_id"]
+}
+```
+
+**`profile` في الـ response:** يحتوي فقط الحقول التي تم حفظها + `id` + `updated`.
+لا يُنفذ `get_full_profile` داخل PUT.
+
+### Backward Compatibility
+- `profile.html` يقرأ `d.profile.bio`, `d.profile.headline`, إلخ. بعد الحفظ.
+  هذه الحقول موجودة في الـ response الخفيف لأنها نفس الحقول التي أُرسلت في الـ payload.
+- باقي الصفحات تتجاهل `response.profile` — آمن تماماً.
+
+### قاعدة Schema Migrations
+```
+❌ ALTER TABLE داخل update_profile (يعمل على كل PUT)
+✅ ALTER TABLE داخل init_db فقط (يعمل مرة عند startup)
+```
+
+كل أعمدة `profiles` مضمونة في `init_db`:
+`dob, country, city, avail, title, sections_order, custom_sections, profile_color, profile_style, profession_id`
+
+### Timing Logging
+كل PUT يطبع:
+```
+[update_profile] ✅ DB UPDATE success for user X, rows=1 — 0.123s
+[update_profile] ⏱ total: 0.125s
+[PUT /profile] ✅ Updated user X: ['bio', 'profession_id'] — 0.126s total
+```
+
+### الوفر المتوقع
+| قبل | بعد |
+|-----|-----|
+| 10 ALTER TABLE + get_full_profile (10 queries) | UPDATE واحد |
+| 6-7 ثواني | < 500ms |

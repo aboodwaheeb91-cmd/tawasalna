@@ -864,6 +864,7 @@ def get_full_profile(user_id: int) -> Optional[dict]:
 
 
 def update_profile(user_id: int, data: dict) -> dict:
+    _t0 = _time_mod.time()
     _cache_del('profile:'+str(user_id))
     # Clear SSR theme cache so next page load reflects new theme immediately
     try:
@@ -883,21 +884,7 @@ def update_profile(user_id: int, data: dict) -> dict:
             )
 
         allowed = ["headline", "bio", "location", "skills", "avatar_url", "website", "phone", "sections_order", "custom_sections", "dob", "country", "city", "avail", "title", "profile_color", "profile_style", "profession_id"]
-        # Ensure profile columns exist (in case migrations didn't run)
-        for col_sql in [
-            "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS dob TEXT",
-            "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS country TEXT",
-            "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS city TEXT",
-            "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS avail TEXT",
-            "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS title TEXT",
-            "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS sections_order TEXT",
-            "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS custom_sections TEXT",
-            "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS profile_color TEXT",
-            "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS profile_style TEXT",
-            "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS profession_id INTEGER",
-        ]:
-            try: conn.run(col_sql)
-            except Exception: pass
+        # Schema guaranteed by init_db — no runtime ALTER TABLE needed
 
         fields = {k: v for k, v in data.items() if k in allowed and v is not None}
         print(f"[update_profile] user={user_id} saving fields: {list(fields.keys())}")
@@ -913,7 +900,7 @@ def update_profile(user_id: int, data: dict) -> dict:
                 if not update_rows:
                     print(f"[update_profile] ⚠️ UPDATE returned 0 rows for user {user_id} — running INSERT")
                     raise ValueError("no_profile_row")
-                print(f"[update_profile] ✅ DB UPDATE success for user {user_id}, rows={len(update_rows)}")
+                print(f"[update_profile] ✅ DB UPDATE success for user {user_id}, rows={len(update_rows)} — {_time_mod.time()-_t0:.3f}s")
         else:
             cols_list = ["user_id"] + list(fields.keys())
             placeholders = ", ".join(f":{c}" for c in cols_list)
@@ -923,7 +910,13 @@ def update_profile(user_id: int, data: dict) -> dict:
             )
     finally:
         release_conn(conn)
-    return get_full_profile(user_id)
+    # Lightweight response — schema guaranteed by init_db, no re-fetch needed
+    resp = {"id": user_id, "updated": True}
+    resp.update(fields)
+    if data.get("full_name"):
+        resp["full_name"] = data["full_name"]
+    print(f"[update_profile] ⏱ total: {_time_mod.time()-_t0:.3f}s")
+    return resp
 
 
 # ══ الخبرات ══
