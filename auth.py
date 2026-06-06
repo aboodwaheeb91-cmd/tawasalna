@@ -225,6 +225,7 @@ def init_db():
             "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS first_name TEXT",
             "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS middle_name TEXT",
             "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS last_name TEXT",
+            "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS cover_url TEXT",
         ]:
             try: conn.run(col_sql)
             except Exception: pass
@@ -732,7 +733,7 @@ def get_public_profile(user_id: int) -> Optional[dict]:
             rows = conn.run(
                 "SELECT p.headline, p.bio, p.location, p.skills, p.avatar_url, p.website, p.is_verified, "
                 "p.dob, p.phone, p.country, p.city, p.avail, p.title, p.sections_order, p.custom_sections, "
-                "p.profile_color, p.profile_style, p.profession_id, "
+                "p.profile_color, p.profile_style, p.profession_id, p.cover_url, "
                 "pc.id AS pc_id, pc.name_ar AS pc_name_ar, pc.name_en AS pc_name_en, "
                 "pc.slug AS pc_slug, pc.icon AS pc_icon, pc.category_group AS pc_category_group "
                 "FROM profiles p LEFT JOIN profession_categories pc ON p.profession_id = pc.id "
@@ -744,10 +745,13 @@ def get_public_profile(user_id: int) -> Optional[dict]:
                 conn.run("ALTER TABLE profiles ADD COLUMN IF NOT EXISTS profession_id INTEGER")
             except Exception: pass
             try:
+                conn.run("ALTER TABLE profiles ADD COLUMN IF NOT EXISTS cover_url TEXT")
+            except Exception: pass
+            try:
                 rows = conn.run(
                     "SELECT p.headline, p.bio, p.location, p.skills, p.avatar_url, p.website, p.is_verified, "
                     "p.dob, p.phone, p.country, p.city, p.avail, p.title, p.sections_order, p.custom_sections, "
-                    "p.profile_color, p.profile_style, p.profession_id, "
+                    "p.profile_color, p.profile_style, p.profession_id, p.cover_url, "
                     "pc.id AS pc_id, pc.name_ar AS pc_name_ar, pc.name_en AS pc_name_en, "
                     "pc.slug AS pc_slug, pc.icon AS pc_icon, pc.category_group AS pc_category_group "
                     "FROM profiles p LEFT JOIN profession_categories pc ON p.profession_id = pc.id "
@@ -757,7 +761,7 @@ def get_public_profile(user_id: int) -> Optional[dict]:
                 rows = conn.run(
                     "SELECT headline, bio, location, skills, avatar_url, website, is_verified, "
                     "dob, phone, country, city, avail, title, sections_order, custom_sections, "
-                    "profile_color, profile_style "
+                    "profile_color, profile_style, cover_url "
                     "FROM profiles WHERE user_id = :uid", uid=user_id
                 )
         cols = [c["name"] for c in conn.columns]
@@ -801,7 +805,7 @@ def get_full_profile(user_id: int) -> Optional[dict]:
             rows = conn.run(
                 "SELECT headline, bio, location, skills, avatar_url, website, is_verified, "
                 "updated_at, dob, phone, country, city, avail, title, sections_order, custom_sections, "
-                "profile_color, profile_style, profession_id "
+                "profile_color, profile_style, profession_id, cover_url "
                 "FROM profiles WHERE user_id = :uid", uid=user_id
             )
         except Exception as e:
@@ -819,6 +823,7 @@ def get_full_profile(user_id: int) -> Optional[dict]:
                 "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS profile_color TEXT",
                 "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS profile_style TEXT",
                 "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS profession_id INTEGER",
+                "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS cover_url TEXT",
             ]:
                 try: conn.run(col_sql)
                 except Exception: pass
@@ -827,7 +832,7 @@ def get_full_profile(user_id: int) -> Optional[dict]:
                 rows = conn.run(
                     "SELECT headline, bio, location, skills, avatar_url, website, is_verified, "
                     "updated_at, dob, phone, country, city, avail, title, sections_order, custom_sections, "
-                    "profile_color, profile_style, profession_id "
+                    "profile_color, profile_style, profession_id, cover_url "
                     "FROM profiles WHERE user_id = :uid", uid=user_id
                 )
             except Exception as e2:
@@ -888,7 +893,7 @@ def update_profile(user_id: int, data: dict) -> dict:
             conn.run("UPDATE users SET full_name = :name WHERE id = :uid", name=data["full_name"], uid=user_id)
 
         # Schema guaranteed by init_db — no runtime ALTER TABLE needed
-        allowed = ["headline", "bio", "location", "skills", "avatar_url", "website", "phone", "sections_order", "custom_sections", "dob", "country", "city", "avail", "title", "profile_color", "profile_style", "profession_id", "first_name", "middle_name", "last_name"]
+        allowed = ["headline", "bio", "location", "skills", "avatar_url", "website", "phone", "sections_order", "custom_sections", "dob", "country", "city", "avail", "title", "profile_color", "profile_style", "profession_id", "first_name", "middle_name", "last_name", "cover_url"]
         fields = {k: v for k, v in data.items() if k in allowed and v is not None}
         print(f"[update_profile] user={user_id} saving fields: {list(fields.keys())}")
 

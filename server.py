@@ -540,6 +540,7 @@ class ProfileUpdateInput(BaseModel):
     first_name: Optional[str] = None
     middle_name: Optional[str] = None
     last_name: Optional[str] = None
+    cover_url: Optional[str] = None
 
 class ExperienceInput(BaseModel):
     title: str

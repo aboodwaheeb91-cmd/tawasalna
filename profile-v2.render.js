@@ -83,6 +83,15 @@ window.renderProfile = function renderProfile(res){
     }
   }
 
+  // Cover image — use cover_url from API if available, else keep CSS default
+  var coverEl = document.getElementById('scCover');
+  if(coverEl){
+    if(p.cover_url){
+      coverEl.style.backgroundImage = 'url(' + esc(p.cover_url) + ')';
+    }
+    // if no cover_url: CSS default (Cover.png) remains untouched
+  }
+
   // Avatar image
   var av=document.getElementById('scAvatar');
   if(av && p.avatar_url){
