@@ -1,0 +1,59 @@
+// profile-v2.utils.js — helpers: esc, setText, toast, renderIcons, fitName, toggleBio, scTab
+
+function esc(s){ var d=document.createElement('div'); d.textContent=s==null?'':String(s); return d.innerHTML; }
+function setText(id,v){ var el=document.getElementById(id); if(el) el.textContent=v==null?'':v; }
+
+function renderIcons(){
+  if(window.lucide && lucide.createIcons){ lucide.createIcons(); return true; }
+  return false;
+}
+window._renderIcons = function(){ if(window.lucide && lucide.createIcons) lucide.createIcons(); };
+
+function toast(msg){
+  var t=document.getElementById('scToast'); if(!t) return;
+  t.textContent=msg; t.classList.add('show');
+  setTimeout(function(){ t.classList.remove('show'); },2200);
+}
+window.toast = toast;
+
+// Auto-fit name to one line by measuring real rendered width.
+function fitName(){
+  var nameEl=document.getElementById('scName');
+  var row=document.querySelector('.sc-name-row');
+  if(!nameEl || !row) return;
+  var MAX=24, MIN=16;
+  var boxW=row.clientWidth;
+  if(boxW<=0) return;
+  var badge=document.getElementById('scVerified');
+  var badgeVisible = badge && badge.style.display!=='none';
+  nameEl.style.textOverflow='clip';
+  var size=MAX;
+  nameEl.style.fontSize=size+'px';
+  function reserve(){ return badgeVisible ? (size*0.85 + size*0.3 + 4) : 0; }
+  while(size>MIN && nameEl.scrollWidth > (boxW - reserve())){
+    size-=1; nameEl.style.fontSize=size+'px';
+  }
+  nameEl.style.textOverflow='ellipsis';
+}
+window._fitName = fitName;
+
+window.toggleBio = function(){
+  var bio=document.getElementById('scBio');
+  var btn=document.getElementById('scBioMore');
+  if(!bio || !btn) return;
+  var expanded = bio.classList.toggle('expanded');
+  btn.textContent = expanded ? 'عرض أقل ▴' : 'عرض المزيد ▾';
+};
+
+window.scTab = function(name, el){
+  var tabs=document.querySelectorAll('.sc-tab');
+  for(var i=0;i<tabs.length;i++) tabs[i].classList.remove('active');
+  if(el) el.classList.add('active');
+  var panes=document.querySelectorAll('.sc-pane');
+  for(var j=0;j<panes.length;j++) panes[j].classList.remove('active');
+  var pane=document.getElementById('pane-'+name);
+  if(pane) pane.classList.add('active');
+  if(window.lucide && lucide.createIcons) lucide.createIcons();
+};
+
+window.addEventListener('resize', function(){ if(window._fitName) fitName(); });
