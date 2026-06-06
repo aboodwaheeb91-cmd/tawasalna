@@ -58,7 +58,7 @@ from auth import (
     create_user, authenticate_user, get_user_by_id,
     get_public_profile, get_full_profile, update_profile,
     get_profile_by_tw_id, get_full_profile_by_tw_id, get_user_id_by_tw_id,
-    add_experience, add_education, add_course, create_verify_request,
+    add_experience, update_experience, add_education, add_course, create_verify_request,
     add_job, get_jobs, get_job, apply_job,
     start_kyc, send_email_code, verify_email_code,
     send_phone_code, verify_phone_code, upload_kyc_docs,
@@ -549,6 +549,15 @@ class ExperienceInput(BaseModel):
     start_date: Optional[str] = None
     end_date: Optional[str] = None
     is_current: Optional[bool] = False
+    description: Optional[str] = None
+
+class ExperienceUpdateInput(BaseModel):
+    title: Optional[str] = None
+    company: Optional[str] = None
+    location: Optional[str] = None
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+    is_current: Optional[bool] = None
     description: Optional[str] = None
 
 class EducationInput(BaseModel):
@@ -1433,6 +1442,20 @@ def add_user_experience(user_id: int, data: ExperienceInput, token=Depends(verif
         return {"status": "success", "experience": add_experience(user_id, data.dict())}
     except Exception as e:
         print(f"Experience error: {e}")
+        raise HTTPException(500, detail="خطأ في الخادم")
+
+@app.put("/experience/{exp_id}")
+def update_user_experience(exp_id: int, data: ExperienceUpdateInput, token=Depends(verify_token)):
+    uid = token.get('user_id')
+    if not uid:
+        raise HTTPException(401, "Unauthorized")
+    try:
+        result = update_experience(exp_id, uid, data.dict())
+        return {"status": "success", "experience": result}
+    except ValueError as e:
+        raise HTTPException(404, detail=str(e))
+    except Exception as e:
+        print(f"[update_experience] error: {e}")
         raise HTTPException(500, detail="خطأ في الخادم")
 
 @app.post("/education/{user_id}")

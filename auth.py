@@ -945,6 +945,32 @@ def add_experience(user_id: int, data: dict) -> dict:
         release_conn(conn)
 
 
+def update_experience(exp_id: int, user_id: int, data: dict) -> dict:
+    conn = get_conn()
+    try:
+        allowed = {"title", "company", "location", "start_date", "end_date", "is_current", "description"}
+        fields = {k: data[k] for k in allowed if k in data and data[k] is not None}
+        # clear end_date when is_current becomes True
+        if fields.get('is_current') is True:
+            fields['end_date'] = None
+        if not fields:
+            raise ValueError("لا توجد حقول للتحديث")
+        set_parts = [f"{k} = :{k}" for k in fields]
+        sql = (
+            "UPDATE experience SET " + ", ".join(set_parts) +
+            " WHERE id = :exp_id AND user_id = :user_id "
+            "RETURNING id, user_id, title, company, location, start_date, end_date, is_current, description, created_at"
+        )
+        rows = conn.run(sql, exp_id=exp_id, user_id=user_id, **fields)
+        if not rows:
+            raise ValueError("الخبرة غير موجودة أو غير مصرح بتعديلها")
+        cols = [c["name"] for c in conn.columns]
+        _cache_del('profile:' + str(user_id))
+        return _serialize(_row_to_dict(cols, rows[0]))
+    finally:
+        release_conn(conn)
+
+
 # ══ الشهادات ══
 def add_education(user_id: int, data: dict) -> dict:
     conn = get_conn()
