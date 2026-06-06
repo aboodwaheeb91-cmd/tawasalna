@@ -158,15 +158,8 @@
 
   <div class="sc-toast" id="scToast"></div>
 
-  <script src="/tw_shared.js"></script>
-  <script src="/static/profile-v2.state.js?v=modular-v1"></script>
-  <script src="/static/profile-v2.utils.js?v=modular-v1"></script>
-  <script src="/static/profile-v2.api.js?v=modular-v1"></script>
-  <script src="/static/profile-v2.qr.js?v=modular-v1"></script>
-  <script src="/static/profile-v2.render.js?v=modular-v1"></script>
-  <script src="/static/profile-v2.edit.js?v=modular-v1"></script>
-
   <!-- Edit Profile Modal — Phase 1: profession + bio -->
+  <!-- Must be in DOM before profile-v2.edit.js runs -->
   <div class="ep-overlay" id="epOverlay">
     <div class="ep-sheet">
       <div class="ep-head">
@@ -192,6 +185,14 @@
       </div>
     </div>
   </div>
+
+  <script src="/tw_shared.js"></script>
+  <script src="/static/profile-v2.state.js?v=modular-v1"></script>
+  <script src="/static/profile-v2.utils.js?v=modular-v1"></script>
+  <script src="/static/profile-v2.api.js?v=modular-v1"></script>
+  <script src="/static/profile-v2.qr.js?v=modular-v1"></script>
+  <script src="/static/profile-v2.render.js?v=modular-v1"></script>
+  <script src="/static/profile-v2.edit.js?v=modular-v1"></script>
 
 </body>
 </html>
