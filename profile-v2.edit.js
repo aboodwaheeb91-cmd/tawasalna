@@ -83,13 +83,16 @@
           if(errEl){ errEl.textContent = msg; errEl.style.display = 'block'; }
           return;
         }
+        // PUT succeeded — close + toast immediately, don't block on re-fetch
         closeModal();
         if(window.toast) window.toast('تم حفظ التغييرات بنجاح');
-        return getProfile(_scProfileKey)
+        // detached: no return — re-fetch runs in background, .finally fires now
+        getProfile(_scProfileKey)
           .then(function(freshRes){
             if(freshRes && window.renderProfile) window.renderProfile(freshRes);
             if(window.lucide && lucide.createIcons) lucide.createIcons();
-          });
+          })
+          .catch(function(){ /* silent — UI still shows saved state, user can refresh */ });
       })
       .catch(function(){ if(errEl){ errEl.textContent = 'خطأ في الاتصال بالخادم'; errEl.style.display = 'block'; } })
       .finally(function(){ saveBtn.disabled = false; saveBtn.textContent = 'حفظ التغييرات'; });
