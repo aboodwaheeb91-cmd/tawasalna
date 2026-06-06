@@ -16,12 +16,13 @@
 // ── Experience HTML builder (shared with profile-v2.exp.js) ──
 window._buildExpHTML = function(exp, isOwner){
   var addBtn = isOwner
-    ? '<button class="sc-section-add" onclick="window._expOpenAdd()">'
+    ? '<button class="sc-section-add owner-only" onclick="window._expOpenAdd()">'
       + '<svg class="ico-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>'
       + ' إضافة خبرة</button>'
     : '';
   if(!exp.length) return addBtn + '<div class="sc-empty">لا توجد خبرات بعد</div>';
-  return addBtn + exp.map(function(e){
+  var n = exp.length;
+  return addBtn + exp.map(function(e, i){
     var t   = esc(e.title   || '');
     var c   = esc(e.company || '');
     var loc = e.location ? ' · ' + esc(e.location) : '';
@@ -29,8 +30,21 @@ window._buildExpHTML = function(exp, isOwner){
     if(e.start_date){
       dates = esc(e.start_date) + (e.is_current ? ' — حتى الآن' : (e.end_date ? ' — ' + esc(e.end_date) : ''));
     }
+    var sortBtns = '';
+    if(isOwner && n > 1){
+      var upDis = (i === 0)     ? ' disabled' : '';
+      var dnDis = (i === n - 1) ? ' disabled' : '';
+      sortBtns =
+        '<button class="sc-item-btn sc-item-btn-ord"'+upDis+' data-exp-id="'+e.id+'" onclick="if(!this.disabled)window._expMoveUp(this.dataset.expId)" title="تحريك لأعلى">'
+        +'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="18 15 12 9 6 15"/></svg>'
+        +'</button>'
+        +'<button class="sc-item-btn sc-item-btn-ord"'+dnDis+' data-exp-id="'+e.id+'" onclick="if(!this.disabled)window._expMoveDown(this.dataset.expId)" title="تحريك لأسفل">'
+        +'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>'
+        +'</button>';
+    }
     var actions = isOwner
-      ? '<div class="sc-item-actions">'
+      ? '<div class="sc-item-actions owner-only">'
+        + sortBtns
         + '<button class="sc-item-btn" data-exp-id="'+e.id+'" onclick="window._expOpenEdit(this.dataset.expId)" title="تعديل">'
         + '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>'
         + '</button>'

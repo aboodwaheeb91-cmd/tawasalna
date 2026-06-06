@@ -229,6 +229,9 @@ def init_db():
         ]:
             try: conn.run(col_sql)
             except Exception: pass
+        # Migration: sort_order for experience
+        try: conn.run("ALTER TABLE experience ADD COLUMN IF NOT EXISTS sort_order INTEGER DEFAULT 0")
+        except Exception: pass
 
         # ── Profession Categories System ──
         conn.run("""
@@ -695,8 +698,8 @@ def _get_extras(conn, user_id: int) -> dict:
     return {
         "experience": _safe_query(conn,
             "SELECT id, title, company, location, start_date, end_date, "
-            "is_current, description, created_at "
-            "FROM experience WHERE user_id = :uid ORDER BY id DESC", user_id),
+            "is_current, description, created_at, sort_order "
+            "FROM experience WHERE user_id = :uid ORDER BY sort_order ASC, id DESC", user_id),
         "education": _safe_query(conn,
             "SELECT id, institution, degree, field, start_year, end_year, "
             "description, created_at "
@@ -967,6 +970,33 @@ def update_experience(exp_id: int, user_id: int, data: dict) -> dict:
         cols = [c["name"] for c in conn.columns]
         _cache_del('profile:' + str(user_id))
         return _serialize(_row_to_dict(cols, rows[0]))
+    finally:
+        release_conn(conn)
+
+
+def reorder_experience(user_id: int, ordered_ids: list) -> bool:
+    if not ordered_ids:
+        return True
+    conn = get_conn()
+    try:
+        # Verify ALL ids belong to this user before any UPDATE
+        placeholders = ', '.join([':id' + str(i) for i in range(len(ordered_ids))])
+        params = {'uid': user_id}
+        for i, eid in enumerate(ordered_ids):
+            params['id' + str(i)] = int(eid)
+        rows = conn.run(
+            f"SELECT id FROM experience WHERE user_id = :uid AND id IN ({placeholders})",
+            **params
+        )
+        if len(rows) != len(ordered_ids):
+            raise ValueError("بعض الخبرات غير موجودة أو غير مصرح بترتيبها")
+        for pos, eid in enumerate(ordered_ids):
+            conn.run(
+                "UPDATE experience SET sort_order = :pos WHERE id = :id AND user_id = :uid",
+                pos=pos, id=int(eid), uid=user_id
+            )
+        _cache_del('profile:' + str(user_id))
+        return True
     finally:
         release_conn(conn)
 

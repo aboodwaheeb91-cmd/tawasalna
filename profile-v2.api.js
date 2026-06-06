@@ -24,6 +24,14 @@ function updateProfile(uid, payload){
   }).then(function(r){ return r.json().then(function(d){ return {ok: r.ok, data: d}; }); });
 }
 
+function reorderExperience(orderedIds){
+  return fetch('/experience/reorder', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (_jwt || '') },
+    body: JSON.stringify({ ordered_ids: orderedIds })
+  }).then(function(r){ return r.json().then(function(d){ return { ok: r.ok, data: d }; }); });
+}
+
 function addExperience(userId, payload){
   return fetch('/experience/' + userId, {
     method: 'POST',
