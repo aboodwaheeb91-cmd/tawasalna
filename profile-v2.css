@@ -59,7 +59,7 @@
 /* Cover — aspect-ratio 6:1 matches the 480×80 image exactly, so cover never crops or distorts */
 .sc-cover {
   width:100%; aspect-ratio:6/1; height:auto; position:relative;
-  background:url('https://wrxvmdmknhoufoeprpoc.supabase.co/storage/v1/object/public/site/cavar.png') center/cover no-repeat, linear-gradient(135deg,#0f2027,#203a43,#2c5364);
+  background:url('https://wrxvmdmknhoufoeprpoc.supabase.co/storage/v1/object/public/site/Cover.png') center/cover no-repeat, linear-gradient(135deg,#0f2027,#203a43,#2c5364);
 }
 .sc-cover::after {
   content:''; position:absolute; inset:0;
