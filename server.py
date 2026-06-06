@@ -1398,7 +1398,6 @@ def update_user_profile(user_id: int, data: ProfileUpdateInput, token=Depends(ve
     if str(tok_uid) != str(user_id):
         print(f"[PUT /profile] MISMATCH: token={tok_uid} url={user_id}")
         raise HTTPException(403, "Unauthorized")
-
     # Validate profession_id if provided
     payload = data.dict(exclude_none=True)
     if "profession_id" in payload:
@@ -1412,7 +1411,6 @@ def update_user_profile(user_id: int, data: ProfileUpdateInput, token=Depends(ve
                 raise HTTPException(400, detail="التخصص غير موجود أو غير فعال")
         finally:
             release_conn(conn)
-
     try:
         profile = update_profile(user_id, payload)
         if not profile:
