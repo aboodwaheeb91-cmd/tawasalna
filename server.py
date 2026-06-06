@@ -537,6 +537,9 @@ class ProfileUpdateInput(BaseModel):
     profile_color: Optional[str] = None
     profile_style: Optional[str] = None
     profession_id: Optional[int] = None
+    first_name: Optional[str] = None
+    middle_name: Optional[str] = None
+    last_name: Optional[str] = None
 
 class ExperienceInput(BaseModel):
     title: str

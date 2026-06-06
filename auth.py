@@ -222,6 +222,9 @@ def init_db():
             "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS custom_sections TEXT",
             "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS profile_color TEXT",
             "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS profile_style TEXT",
+            "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS first_name TEXT",
+            "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS middle_name TEXT",
+            "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS last_name TEXT",
         ]:
             try: conn.run(col_sql)
             except Exception: pass
@@ -876,15 +879,16 @@ def update_profile(user_id: int, data: dict) -> dict:
                 if _tw and _tw[0][0]: _cache_del('theme:'+str(_tw[0][0]))
             except Exception: pass
 
-        # Update full_name in users table if provided
-        if data.get("full_name"):
-            conn.run(
-                "UPDATE users SET full_name = :name WHERE id = :uid",
-                name=data["full_name"], uid=user_id
-            )
+        # Build full_name from name parts if provided (Profile V2 flow)
+        _name_parts = [data.get("first_name"), data.get("middle_name"), data.get("last_name")]
+        _built_name = " ".join(p for p in _name_parts if p and p.strip())
+        if _built_name:
+            conn.run("UPDATE users SET full_name = :name WHERE id = :uid", name=_built_name, uid=user_id)
+        elif data.get("full_name"):
+            conn.run("UPDATE users SET full_name = :name WHERE id = :uid", name=data["full_name"], uid=user_id)
 
         # Schema guaranteed by init_db — no runtime ALTER TABLE needed
-        allowed = ["headline", "bio", "location", "skills", "avatar_url", "website", "phone", "sections_order", "custom_sections", "dob", "country", "city", "avail", "title", "profile_color", "profile_style", "profession_id"]
+        allowed = ["headline", "bio", "location", "skills", "avatar_url", "website", "phone", "sections_order", "custom_sections", "dob", "country", "city", "avail", "title", "profile_color", "profile_style", "profession_id", "first_name", "middle_name", "last_name"]
         fields = {k: v for k, v in data.items() if k in allowed and v is not None}
         print(f"[update_profile] user={user_id} saving fields: {list(fields.keys())}")
 
