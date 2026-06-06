@@ -1214,3 +1214,88 @@ Rules:
 ❌ profession_id يتغير تلقائياً بعد الاقتراح
 ❌ duplicate suggestions — normalized_name يمنعها
 ```
+
+---
+
+## [P1] 30. Profile V2 — Modular Architecture
+
+> **هذا Refactor فقط — ليس Feature work.**
+> لا تغيير في التصميم أو السلوك أو API contracts.
+> أي ميزة جديدة تُبنى فوق هذا الهيكل — لا داخله.
+
+### قاعدة المسؤولية الواحدة
+كل ملف له مسؤولية واحدة فقط — لا يخلط logic مع rendering، ولا API مع state.
+
+---
+
+### هيكل الملفات
+
+```
+profile-showcase.html       ← HTML skeleton + <link>/<script> فقط. لا style. لا logic.
+
+/home/user/tawasalna/ (يُخدَّم عبر /static/)
+  profile-v2.css            ← كل CSS الخاص بـ Profile V2. لا logic.
+  profile-v2.state.js       ← globals: _jwt, _fetchOpts, _scProfileId, _scProfileKey, _scUserId
+  profile-v2.utils.js       ← esc, setText, toast, renderIcons, fitName, toggleBio, scTab
+  profile-v2.api.js         ← getProfile(), getScore(), getProfessions(), updateProfile()
+  profile-v2.qr.js          ← renderQR(el, showcaseUrl)
+  profile-v2.render.js      ← renderProfile(), header wiring, initial fetch, eye button
+  profile-v2.edit.js        ← Edit Modal IIFE (profession + bio)
+```
+
+### ترتيب التحميل (ثابت — لا يتغير)
+
+```html
+<script src="/tw_shared.js"></script>
+<script src="/static/profile-v2.state.js"></script>   <!-- no deps -->
+<script src="/static/profile-v2.utils.js"></script>   <!-- no deps -->
+<script src="/static/profile-v2.api.js"></script>     <!-- needs: state (_jwt, _fetchOpts) -->
+<script src="/static/profile-v2.qr.js"></script>      <!-- no deps -->
+<script src="/static/profile-v2.render.js"></script>  <!-- needs: state, utils, api, qr -->
+<script src="/static/profile-v2.edit.js"></script>    <!-- needs: state, api, render -->
+```
+
+**القاعدة:** كل ملف يعتمد فقط على ملفات تُحمَّل قبله في الترتيب أعلاه.
+
+---
+
+### مسؤولية كل ملف وممنوعاته
+
+| الملف | يحتوي | ممنوع فيه |
+|-------|-------|----------|
+| `profile-v2.css` | CSS كامل للصفحة | أي JS أو logic |
+| `profile-v2.state.js` | globals مشتركة (`_jwt`, `_fetchOpts`, `_scProfileKey`, `_scUserId`) | DOM manipulation، fetch |
+| `profile-v2.utils.js` | دوال مساعدة: `esc`, `setText`, `toast`, `renderIcons`, `fitName`, `scTab`, `toggleBio` | fetch مباشر، تعديل state |
+| `profile-v2.api.js` | wrapper functions لكل fetch: `getProfile`, `getScore`, `getProfessions`, `updateProfile` | DOM rendering، window.* غير API |
+| `profile-v2.qr.js` | `renderQR(el, showcaseUrl)` فقط | أي fetch غير QR external service |
+| `profile-v2.render.js` | `renderProfile()`, header wiring، initial fetch، Eye Button IIFE | fetch مباشر (يستدعي api.js)، Edit Modal logic |
+| `profile-v2.edit.js` | Edit Modal IIFE كاملاً | business permissions من localStorage، DOM manipulation خارج المودال |
+
+---
+
+### ممنوعات عامة (Profile V2 Modular)
+
+```
+❌ API داخل render functions مباشرة — استخدم api.js
+❌ DOM rendering داخل api.js
+❌ business permissions من localStorage
+❌ تعديل profile.html القديم (Read-only حتى اكتمال V2)
+❌ إضافة features جديدة داخل ملفات الـ refactor
+❌ تغيير أسماء CSS classes
+❌ تغيير API contracts أو endpoints
+❌ خلط Modularization مع Feature development
+```
+
+### التحقق بعد كل Phase
+
+```
+✅ الصفحة تفتح بدون console errors
+✅ البيانات تظهر (الاسم، التخصص، الأيقونة)
+✅ QR يظهر
+✅ Stats تظهر
+✅ Tabs تعمل
+✅ Toast يعمل
+✅ GET /profile يعمل
+✅ GET /score يعمل
+✅ زر التعديل لا ينكسر
+```
