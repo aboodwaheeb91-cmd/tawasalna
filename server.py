@@ -1346,6 +1346,51 @@ def list_professions():
     finally:
         release_conn(conn)
 
+class ProfessionSuggestionInput(BaseModel):
+    suggested_name_ar: str
+    suggested_name_en: Optional[str] = None
+
+@app.post("/profession-suggestions")
+def suggest_profession(data: ProfessionSuggestionInput, token=Depends(verify_token)):
+    name_ar = data.suggested_name_ar.strip()
+    if len(name_ar) < 2:
+        raise HTTPException(400, detail="الاسم قصير جداً — أدخل اسم تخصص واضح")
+    if len(name_ar) > 100:
+        raise HTTPException(400, detail="الاسم طويل جداً — 100 حرف كحد أقصى")
+
+    # Normalize: lowercase, collapse spaces (Arabic-safe, no transliteration)
+    import unicodedata
+    normalized = " ".join(
+        unicodedata.normalize("NFKC", name_ar).lower().split()
+    )
+
+    user_id = int(token.get("user_id"))
+    conn = get_conn()
+    try:
+        # Return existing pending suggestion if same normalized name for this user
+        existing = conn.run(
+            "SELECT id, suggested_name_ar, suggested_name_en, normalized_name, status, created_at "
+            "FROM profession_suggestions "
+            "WHERE user_id = :uid AND normalized_name = :norm AND status = 'pending'",
+            uid=user_id, norm=normalized
+        )
+        if existing:
+            cols = ["id","suggested_name_ar","suggested_name_en","normalized_name","status","created_at"]
+            return {"status": "exists", "suggestion": dict(zip(cols, existing[0]))}
+
+        name_en = data.suggested_name_en.strip() if data.suggested_name_en else None
+        rows = conn.run(
+            "INSERT INTO profession_suggestions "
+            "(user_id, suggested_name_ar, suggested_name_en, normalized_name, status) "
+            "VALUES (:uid, :ar, :en, :norm, 'pending') "
+            "RETURNING id, suggested_name_ar, suggested_name_en, normalized_name, status, created_at",
+            uid=user_id, ar=name_ar, en=name_en, norm=normalized
+        )
+        cols = ["id","suggested_name_ar","suggested_name_en","normalized_name","status","created_at"]
+        return {"status": "created", "suggestion": dict(zip(cols, rows[0]))}
+    finally:
+        release_conn(conn)
+
 @app.put("/profile/{user_id}")
 def update_user_profile(user_id: int, data: ProfileUpdateInput, token=Depends(verify_token)):
     # Ownership check

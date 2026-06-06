@@ -1135,3 +1135,82 @@ briefcase + headline                      → fallback إذا لا يوجد
 
 ❌ profession list hardcoded في frontend
 ```
+
+---
+
+## [P2] 29. Profession Suggestion System
+
+### المبدأ
+التخصصات الرسمية فقط تأتي من `profession_categories`. أي تخصص غير موجود يذهب كاقتراح للمراجعة.
+
+### الجدول
+```sql
+profession_suggestions (
+    id               SERIAL PRIMARY KEY,
+    user_id          INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    suggested_name_ar TEXT NOT NULL,
+    suggested_name_en TEXT,
+    normalized_name   TEXT,       -- lowercase + collapsed spaces لمنع التكرار
+    status           VARCHAR(20) DEFAULT 'pending',
+    reviewed_by      INTEGER REFERENCES users(id),
+    reviewed_at      TIMESTAMPTZ,
+    review_note      TEXT,
+    created_at       TIMESTAMPTZ DEFAULT NOW(),
+    updated_at       TIMESTAMPTZ DEFAULT NOW()
+)
+```
+
+### Status values
+```
+pending  → اقتراح جديد ينتظر المراجعة
+approved → تمت الموافقة — يُنشأ تخصص رسمي في profession_categories
+rejected → مرفوض
+merged   → مدمج مع تخصص رسمي موجود
+```
+
+### Endpoint
+```
+POST /profession-suggestions
+Auth: JWT مطلوب
+Body: { suggested_name_ar: str, suggested_name_en?: str }
+
+Rules:
+- suggested_name_ar: 2–100 حرف
+- normalized_name = lowercase + collapse spaces
+- إذا pending موجود بنفس normalized_name لنفس المستخدم → return existing (no duplicate)
+- لا يضاف إلى profession_categories تلقائياً
+```
+
+### Edit Modal Flow
+```
+1. select profession:
+   ├── التخصصات الرسمية (من GET /professions)
+   └── "تخصصي غير موجود في القائمة"
+
+2. عند اختيار "غير موجود":
+   → يظهر: input عربي (مطلوب) + input إنجليزي (اختياري)
+
+3. عند الحفظ:
+   أ. POST /profession-suggestions  → يحفظ الاقتراح
+   ب. PUT /profile  → { profession_id: null, headline: suggested_name_ar }
+
+4. عرض مؤقت في البروفايل:
+   headline + briefcase icon (fallback path في Doctrine §27)
+```
+
+### Admin Review (Phase لاحق)
+```
+1. Admin يرى profession_suggestions حيث status='pending'
+2. إذا approved: يضيف تخصص رسمي في profession_categories مع icon رسمي
+3. يربط يدوياً المستخدمين المقترِحين بـ profession_id الجديد
+4. يحدّث status → 'approved' مع reviewed_by و reviewed_at
+```
+
+### ممنوعات
+```
+❌ أي نص حر يدخل profession_categories مباشرة
+❌ frontend يُنشئ profession رسمياً
+❌ frontend يخمن profession icon
+❌ profession_id يتغير تلقائياً بعد الاقتراح
+❌ duplicate suggestions — normalized_name يمنعها
+```
