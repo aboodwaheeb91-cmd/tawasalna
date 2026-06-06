@@ -1428,3 +1428,63 @@ window.PROFILE_SHOWCASE_VERSION = "edit-modal-fix-v1";
 - Fix زر القلم (`c8913b9`): أُعلن عنه كـ "تم" في جلسة سابقة لكن المستخدم لم يتأكد من وصوله
 
 هذا العقد يمنع تكرار المشكلة.
+
+---
+
+# G — PERFORMANCE CONTRACTS
+
+---
+
+## [P1] 32. PUT /profile Fast Save Contract
+
+### المبدأ
+
+```
+PUT /profile = حفظ فقط → response خفيف
+GET /profile = قراءة كاملة → يُستدعى من frontend عند الحاجة
+```
+
+### ما يفعله PUT /profile
+1. يتحقق من ownership (JWT)
+2. يُنفِّذ UPDATE واحد فقط على جدول `profiles`
+3. يرجع response خفيف فوراً
+
+### Response الرسمي
+```json
+{
+  "status": "success",
+  "profile": { "id": ..., "updated": true, "<saved_fields>": "..." },
+  "updated_fields": ["bio", "profession_id"]
+}
+```
+
+**`profile` في الـ response:** يحتوي فقط الحقول التي تم حفظها + `id` + `updated`.
+لا يُنفذ `get_full_profile` داخل PUT.
+
+### Backward Compatibility
+- `profile.html` يقرأ `d.profile.bio`, `d.profile.headline`, إلخ. بعد الحفظ.
+  هذه الحقول موجودة في الـ response الخفيف لأنها نفس الحقول التي أُرسلت في الـ payload.
+- باقي الصفحات تتجاهل `response.profile` — آمن تماماً.
+
+### قاعدة Schema Migrations
+```
+❌ ALTER TABLE داخل update_profile (يعمل على كل PUT)
+✅ ALTER TABLE داخل init_db فقط (يعمل مرة عند startup)
+```
+
+كل أعمدة `profiles` مضمونة في `init_db`:
+`dob, country, city, avail, title, sections_order, custom_sections, profile_color, profile_style, profession_id`
+
+### Timing Logging
+كل PUT يطبع:
+```
+[update_profile] ✅ DB UPDATE success for user X, rows=1 — 0.123s
+[update_profile] ⏱ total: 0.125s
+[PUT /profile] ✅ Updated user X: ['bio', 'profession_id'] — 0.126s total
+```
+
+### الوفر المتوقع
+| قبل | بعد |
+|-----|-----|
+| 10 ALTER TABLE + get_full_profile (10 queries) | UPDATE واحد |
+| 6-7 ثواني | < 500ms |

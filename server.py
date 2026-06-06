@@ -1412,12 +1412,14 @@ def update_user_profile(user_id: int, data: ProfileUpdateInput, token=Depends(ve
         finally:
             release_conn(conn)
     try:
+        _t0 = _time.time()
         profile = update_profile(user_id, payload)
         if not profile:
             print(f"[PUT /profile] update_profile returned None for user {user_id}")
             raise HTTPException(500, "Profile update failed")
-        print(f"[PUT /profile] ✅ Updated user {user_id}: {list(payload.keys())}")
-        return {"status": "success", "profile": profile}
+        updated_keys = list(payload.keys())
+        print(f"[PUT /profile] ✅ Updated user {user_id}: {updated_keys} — {_time.time()-_t0:.3f}s total")
+        return {"status": "success", "profile": profile, "updated_fields": updated_keys}
     except ValueError as e:
         raise HTTPException(404, detail=str(e))
     except Exception as e:
