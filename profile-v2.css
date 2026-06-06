@@ -368,3 +368,53 @@ body.preview-guest       .owner-only { display: none !important; }
   color:var(--t2,#9aa5b4); font-size:.76rem; line-height:1.6;
 }
 .ep-note .ico-sm { color:#2563ff; flex-shrink:0; margin-top:1px; }
+
+/* ── Avatar camera button (owner only) ── */
+.av-cam-btn {
+  display:none; position:absolute; bottom:2px; left:2px;
+  width:28px; height:28px; border-radius:50%; border:2px solid #070b18;
+  background:#00c896; align-items:center; justify-content:center;
+  cursor:pointer; z-index:3; transition:transform .15s;
+}
+.av-cam-btn svg { width:14px; height:14px; color:#fff; stroke:#fff; }
+.av-cam-btn:hover { transform:scale(1.12); }
+body.view-owner .av-cam-btn { display:flex; }
+
+/* ── Crop overlay ── */
+.av-crop-overlay {
+  display:none; position:fixed; inset:0; z-index:1100;
+  background:rgba(7,11,24,.92); align-items:center; justify-content:center;
+  flex-direction:column; gap:16px;
+}
+.av-crop-overlay.open { display:flex; }
+.av-crop-card {
+  background:#0f1420; border:1px solid rgba(255,255,255,.1);
+  border-radius:18px; padding:20px; display:flex; flex-direction:column;
+  align-items:center; gap:14px; max-width:340px; width:90%;
+}
+.av-crop-title { color:#fff; font-size:.95rem; font-weight:700; }
+#avCropCanvas {
+  border-radius:50%; cursor:grab; touch-action:none;
+  border:2px solid rgba(0,200,150,.4);
+}
+#avCropCanvas:active { cursor:grabbing; }
+.av-zoom-row {
+  display:flex; align-items:center; gap:10px; width:100%;
+}
+.av-zoom-row svg { width:16px; height:16px; color:#9aa5b4; flex-shrink:0; }
+#avZoomSlider {
+  flex:1; accent-color:#00c896; cursor:pointer;
+}
+.av-crop-actions { display:flex; gap:10px; width:100%; }
+.av-crop-save {
+  flex:1; height:40px; border-radius:10px; border:none; cursor:pointer;
+  background:linear-gradient(135deg,#00c896,#00b386);
+  color:#fff; font-family:inherit; font-size:.88rem; font-weight:700;
+  transition:opacity .15s;
+}
+.av-crop-save:disabled { opacity:.5; cursor:not-allowed; }
+.av-crop-cancel {
+  height:40px; padding:0 18px; border-radius:10px;
+  border:1px solid rgba(255,255,255,.12); background:none;
+  color:#9aa5b4; font-family:inherit; font-size:.88rem; cursor:pointer;
+}

@@ -24,7 +24,16 @@ function updateProfile(uid, payload){
   }).then(function(r){ return r.json().then(function(d){ return {ok: r.ok, data: d}; }); });
 }
 
+function uploadAvatar(userId, dataUrl, jwt){
+  return fetch('/upload/image', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (jwt || _jwt || '') },
+    body: JSON.stringify({ user_id: userId, bucket: 'avatars', filename: 'avatar', data_url: dataUrl })
+  }).then(function(r){ return r.json().then(function(d){ return { ok: r.ok, data: d }; }); });
+}
+
 window.getProfile     = getProfile;
 window.getScore       = getScore;
 window.getProfessions = getProfessions;
 window.updateProfile  = updateProfile;
+window.uploadAvatar   = uploadAvatar;
