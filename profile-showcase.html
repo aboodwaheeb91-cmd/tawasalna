@@ -160,6 +160,7 @@
 
   <script src="/tw_shared.js"></script>
   <script src="/static/profile-v2.utils.js"></script>
+  <script src="/static/profile-v2.api.js"></script>
   <script>
   window.PROFILE_SHOWCASE_VERSION = "edit-modal-profession-v1";
   // Script-level globals — also defined in profile-v2.state.js (Phase 4)
@@ -409,15 +410,13 @@
 
         // Score: independent parallel fetch — NUMERIC p.id (not tw_id), failure isolated
         var numId = (p.id != null) ? p.id : id;
-        fetch('/profile/' + encodeURIComponent(numId) + '/score')
-          .then(function(r){ return r.ok ? r.json() : null; })
+        getScore(numId)
           .then(function(sc){ if(sc && typeof sc.score!=='undefined') setText('scStatScore', sc.score); })
           .catch(function(){ /* score stays — */ });
     } // end renderProfile
 
     // Initial load — sends JWT for server-side viewer_type (Doctrine §22)
-    fetch('/profile/' + encodeURIComponent(id), _fetchOpts)
-      .then(function(r){ if(!r.ok) throw new Error('profile '+r.status); return r.json(); })
+    getProfile(id)
       .then(window.renderProfile)
       .catch(function(){
         var ld=document.getElementById('scLoading');
@@ -499,8 +498,7 @@
       var profEl = document.getElementById('epProfession');
       if(profEl){
         profEl.innerHTML = '<option value="">جاري التحميل…</option>';
-        fetch('/professions')
-          .then(function(r){ return r.ok ? r.json() : []; })
+        getProfessions()
           .then(function(list){
             var groups = {};
             list.forEach(function(pr){
@@ -554,12 +552,7 @@
       saveBtn.disabled = true;
       saveBtn.textContent = 'جاري الحفظ…';
 
-      fetch('/profile/' + uid, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (_jwt || '') },
-        body: JSON.stringify(payload)
-      })
-      .then(function(r){ return r.json().then(function(d){ return {ok:r.ok, data:d}; }); })
+      updateProfile(uid, payload)
       .then(function(res){
         if(!res.ok){
           var msg = (res.data && res.data.detail) ? res.data.detail : 'حدث خطأ أثناء الحفظ';
@@ -568,9 +561,7 @@
         }
         closeModal();
         if(window.toast) window.toast('تم حفظ التغييرات بنجاح');
-        // Re-fetch using the original URL key (_scProfileKey) with JWT
-        return fetch('/profile/' + encodeURIComponent(_scProfileKey), _fetchOpts)
-          .then(function(r){ return r.ok ? r.json() : null; })
+        return getProfile(_scProfileKey)
           .then(function(freshRes){
             if(freshRes && window.renderProfile) window.renderProfile(freshRes);
             if(window.lucide && lucide.createIcons) lucide.createIcons();
