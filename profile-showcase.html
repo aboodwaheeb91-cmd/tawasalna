@@ -158,7 +158,7 @@
 
   <div class="sc-toast" id="scToast"></div>
 
-  <!-- Edit Profile Modal — Phase 1: profession + bio -->
+  <!-- Edit Profile Modal — Phase 2: name, dob, country/city, avail, profession, bio -->
   <!-- Must be in DOM before profile-v2.edit.js runs -->
   <div class="ep-overlay" id="epOverlay">
     <div class="ep-sheet">
@@ -167,16 +167,88 @@
         <button class="ep-close" id="epClose"><i data-lucide="x" class="ico-sm"></i></button>
       </div>
       <div class="ep-body">
+
+        <div class="ep-field">
+          <label class="ep-label">الاسم</label>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+            <input class="ep-input" id="epFirstName" placeholder="الأول" autocomplete="off">
+            <input class="ep-input" id="epMidName"   placeholder="الأوسط" autocomplete="off">
+            <input class="ep-input" id="epLastName"  placeholder="العائلة" autocomplete="off">
+          </div>
+        </div>
+
+        <div class="ep-field">
+          <label class="ep-label">تاريخ الميلاد</label>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+            <select class="ep-select" id="epDobD"><option value="">اليوم</option></select>
+            <select class="ep-select" id="epDobM">
+              <option value="">الشهر</option>
+              <option value="01">يناير</option><option value="02">فبراير</option>
+              <option value="03">مارس</option><option value="04">أبريل</option>
+              <option value="05">مايو</option><option value="06">يونيو</option>
+              <option value="07">يوليو</option><option value="08">أغسطس</option>
+              <option value="09">سبتمبر</option><option value="10">أكتوبر</option>
+              <option value="11">نوفمبر</option><option value="12">ديسمبر</option>
+            </select>
+            <select class="ep-select" id="epDobY"><option value="">السنة</option></select>
+          </div>
+        </div>
+
+        <div class="ep-field">
+          <label class="ep-label">البلد</label>
+          <select class="ep-select" id="epCountry" onchange="epLoadCities()">
+            <option value="">— اختر البلد —</option>
+            <option value="JO">🇯🇴 الأردن</option>
+            <option value="SA">🇸🇦 السعودية</option>
+            <option value="AE">🇦🇪 الإمارات</option>
+            <option value="KW">🇰🇼 الكويت</option>
+            <option value="QA">🇶🇦 قطر</option>
+            <option value="BH">🇧🇭 البحرين</option>
+            <option value="OM">🇴🇲 عُمان</option>
+            <option value="EG">🇪🇬 مصر</option>
+            <option value="IQ">🇮🇶 العراق</option>
+            <option value="SY">🇸🇾 سوريا</option>
+            <option value="LB">🇱🇧 لبنان</option>
+            <option value="PS">🇵🇸 فلسطين</option>
+            <option value="YE">🇾🇪 اليمن</option>
+            <option value="MA">🇲🇦 المغرب</option>
+            <option value="DZ">🇩🇿 الجزائر</option>
+            <option value="TN">🇹🇳 تونس</option>
+            <option value="LY">🇱🇾 ليبيا</option>
+            <option value="SD">🇸🇩 السودان</option>
+          </select>
+        </div>
+
+        <div class="ep-field" id="epCityWrap" style="display:none">
+          <label class="ep-label">المدينة</label>
+          <select class="ep-select" id="epCity">
+            <option value="">— اختر المدينة —</option>
+          </select>
+        </div>
+
+        <div class="ep-field">
+          <label class="ep-label">حالة التوظيف</label>
+          <select class="ep-select" id="epAvail">
+            <option value="">— اختر —</option>
+            <option value="open">متاح للعمل</option>
+            <option value="employed">غير متاح حالياً</option>
+            <option value="freelance">فريلانس</option>
+            <option value="closed">غير متاح</option>
+          </select>
+        </div>
+
         <div class="ep-field">
           <label class="ep-label">التخصص المهني</label>
           <select class="ep-select" id="epProfession">
             <option value="">جاري التحميل…</option>
           </select>
         </div>
+
         <div class="ep-field">
           <label class="ep-label">نبذة تعريفية</label>
           <textarea class="ep-textarea" id="epBio" placeholder="اكتب نبذة عن نفسك…" maxlength="600"></textarea>
         </div>
+
         <div class="ep-err" id="epErr"></div>
       </div>
       <div class="ep-footer">
