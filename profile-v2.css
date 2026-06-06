@@ -59,7 +59,7 @@
 /* Cover — thin */
 .sc-cover {
   height:80px; position:relative;
-  background:url('https://wrxvmdmknhoufoeprpoc.supabase.co/storage/v1/object/public/site/5a94336e02115ab59aa3c38f28ffb20a%20(1).jpg') center/cover no-repeat, linear-gradient(135deg,#0f2027,#203a43,#2c5364);
+  background:url('https://wrxvmdmknhoufoeprpoc.supabase.co/storage/v1/object/public/site/file_00000000bb4071f4afa45a439182ad8c.png') center/cover no-repeat, linear-gradient(135deg,#0f2027,#203a43,#2c5364);
   background-size:cover; background-position:center;
 }
 .sc-cover::after {
