@@ -223,11 +223,15 @@
         <div class="ep-row2">
           <div class="ep-field">
             <label class="ep-label">سنة البداية</label>
-            <input class="ep-input" id="exStart" placeholder="2020" maxlength="4" autocomplete="off">
+            <select class="ep-select" id="exStart">
+              <option value="">— اختر —</option>
+            </select>
           </div>
           <div class="ep-field" id="exEndWrap">
             <label class="ep-label">سنة الانتهاء</label>
-            <input class="ep-input" id="exEnd" placeholder="2024" maxlength="4" autocomplete="off">
+            <select class="ep-select" id="exEnd">
+              <option value="">— اختر —</option>
+            </select>
           </div>
         </div>
         <div class="ep-field">
@@ -237,8 +241,34 @@
           </label>
         </div>
         <div class="ep-field">
-          <label class="ep-label">الموقع (اختياري)</label>
-          <input class="ep-input" id="exLocation" placeholder="مثال: الأردن - عمان" autocomplete="off">
+          <label class="ep-label">الدولة (اختياري)</label>
+          <select class="ep-select" id="exCountry">
+            <option value="">— اختر الدولة —</option>
+            <option value="JO">الأردن</option>
+            <option value="SA">السعودية</option>
+            <option value="AE">الإمارات</option>
+            <option value="KW">الكويت</option>
+            <option value="QA">قطر</option>
+            <option value="BH">البحرين</option>
+            <option value="OM">عُمان</option>
+            <option value="EG">مصر</option>
+            <option value="IQ">العراق</option>
+            <option value="SY">سوريا</option>
+            <option value="LB">لبنان</option>
+            <option value="PS">فلسطين</option>
+            <option value="YE">اليمن</option>
+            <option value="MA">المغرب</option>
+            <option value="DZ">الجزائر</option>
+            <option value="TN">تونس</option>
+            <option value="LY">ليبيا</option>
+            <option value="SD">السودان</option>
+          </select>
+        </div>
+        <div class="ep-field" id="exCityWrap" style="display:none">
+          <label class="ep-label">المدينة (اختياري)</label>
+          <select class="ep-select" id="exCity">
+            <option value="">— اختر المدينة —</option>
+          </select>
         </div>
         <div class="ep-field">
           <label class="ep-label">الوصف (اختياري)</label>

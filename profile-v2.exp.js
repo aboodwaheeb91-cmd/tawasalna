@@ -17,7 +17,101 @@
   function f(id){ return document.getElementById(id); }
   function fv(id){ return ((f(id)||{}).value||'').trim(); }
 
-  // Toggle end year visibility based on is_current
+  // ── Country → Arabic name map (for building location string) ──
+  var EXP_COUNTRIES = {
+    JO:'الأردن', SA:'السعودية', AE:'الإمارات', KW:'الكويت',
+    QA:'قطر',    BH:'البحرين', OM:'عُمان',    EG:'مصر',
+    IQ:'العراق', SY:'سوريا',  LB:'لبنان',    PS:'فلسطين',
+    YE:'اليمن',  MA:'المغرب', DZ:'الجزائر',  TN:'تونس',
+    LY:'ليبيا',  SD:'السودان'
+  };
+
+  // ── City lists by country code ──
+  var EXP_CITIES = {
+    JO:['عمان','إربد','الزرقاء','العقبة','السلط','مادبا','الكرك','معان','جرش','عجلون','الطفيلة'],
+    SA:['الرياض','جدة','مكة المكرمة','المدينة المنورة','الدمام','الخبر','الطائف','أبها','تبوك','بريدة'],
+    AE:['دبي','أبوظبي','الشارقة','عجمان','رأس الخيمة','الفجيرة','أم القيوين','العين'],
+    KW:['مدينة الكويت','حولي','الفروانية','الأحمدي','الجهراء','مبارك الكبير'],
+    QA:['الدوحة','الريان','الوكرة','أم صلال','الخور'],
+    BH:['المنامة','المحرق','الرفاع','مدينة عيسى','مدينة حمد'],
+    OM:['مسقط','صلالة','نزوى','صحار','السيب','مطرح'],
+    EG:['القاهرة','الإسكندرية','الجيزة','شرم الشيخ','الأقصر','أسوان','طنطا','المنصورة','بورسعيد'],
+    IQ:['بغداد','البصرة','الموصل','أربيل','كربلاء','النجف','السليمانية','كركوك'],
+    SY:['دمشق','حلب','حمص','اللاذقية','حماة','دير الزور'],
+    LB:['بيروت','طرابلس','صيدا','صور','جونية','زحلة'],
+    PS:['رام الله','القدس','غزة','نابلس','الخليل','جنين','أريحا','بيت لحم'],
+    YE:['صنعاء','عدن','تعز','الحديدة','إب','ذمار'],
+    LY:['طرابلس','بنغازي','مصراتة','الزاوية','البيضاء'],
+    TN:['تونس','صفاقس','سوسة','بنزرت','قابس','القيروان'],
+    DZ:['الجزائر','وهران','قسنطينة','عنابة','سطيف','تلمسان'],
+    MA:['الرباط','الدار البيضاء','فاس','مراكش','مكناس','أكادير','طنجة'],
+    SD:['الخرطوم','أم درمان','بورتسودان','كسلا','الأبيض']
+  };
+
+  var CUR_YEAR = new Date().getFullYear();
+
+  // ── Populate start year select (newest first) ──
+  (function(){
+    var sel = f('exStart');
+    if(!sel) return;
+    for(var y = CUR_YEAR; y >= 1980; y--){
+      var o = document.createElement('option');
+      o.value = y; o.text = y;
+      sel.appendChild(o);
+    }
+  })();
+
+  // ── Populate / refresh end year select from a minimum year ──
+  function _populateEndYear(fromYear, selectedVal){
+    var sel = f('exEnd');
+    if(!sel) return;
+    var min = parseInt(fromYear, 10) || 1980;
+    sel.innerHTML = '<option value="">— اختر —</option>';
+    for(var y = CUR_YEAR; y >= min; y--){
+      var o = document.createElement('option');
+      o.value = y; o.text = y;
+      if(selectedVal && parseInt(selectedVal, 10) === y) o.selected = true;
+      sel.appendChild(o);
+    }
+  }
+
+  _populateEndYear(1980, '');
+
+  // Start year change → refresh end year (keep current end value if still valid)
+  var startSel = f('exStart');
+  if(startSel){
+    startSel.addEventListener('change', function(){
+      var curEnd = fv('exEnd');
+      _populateEndYear(this.value || 1980, curEnd);
+    });
+  }
+
+  // ── City loader ──
+  function _expLoadCities(selectedCity){
+    var cc      = fv('exCountry');
+    var cityWrap= f('exCityWrap');
+    var cityEl  = f('exCity');
+    if(!cityEl) return;
+    var cities = EXP_CITIES[cc] || [];
+    if(!cities.length){
+      if(cityWrap) cityWrap.style.display = 'none';
+      cityEl.innerHTML = '<option value="">— اختر المدينة —</option>';
+      return;
+    }
+    cityEl.innerHTML = '<option value="">— اختر المدينة —</option>';
+    cities.forEach(function(c){
+      var o = document.createElement('option');
+      o.value = c; o.text = c;
+      if(selectedCity && c === selectedCity) o.selected = true;
+      cityEl.appendChild(o);
+    });
+    if(cityWrap) cityWrap.style.display = 'block';
+  }
+
+  var countrySel = f('exCountry');
+  if(countrySel) countrySel.addEventListener('change', function(){ _expLoadCities(''); });
+
+  // ── is_current toggle ──
   var curChk = f('exCurrent');
   if(curChk){
     curChk.addEventListener('change', function(){
@@ -26,18 +120,49 @@
     });
   }
 
+  // ── Build location string from country+city selects ──
+  function _buildLocation(){
+    var cc   = fv('exCountry');
+    var city = fv('exCity');
+    if(!cc) return null;
+    var name = EXP_COUNTRIES[cc] || cc;
+    return city ? (name + ' - ' + city) : name;
+  }
+
+  // ── Prefill location selects from stored location string ──
+  function _prefillLocation(loc){
+    if(!loc) return;
+    var parts = loc.split(' - ');
+    var countryName = parts[0].trim();
+    var cityName    = parts.length > 1 ? parts[1].trim() : '';
+    var code = '';
+    for(var cc in EXP_COUNTRIES){
+      if(EXP_COUNTRIES[cc] === countryName){ code = cc; break; }
+    }
+    if(f('exCountry')) f('exCountry').value = code;
+    _expLoadCities(cityName);
+  }
+
+  // ── Reset all form fields ──
+  function _resetForm(){
+    if(f('exTitle'))   f('exTitle').value   = '';
+    if(f('exCompany')) f('exCompany').value = '';
+    if(f('exDesc'))    f('exDesc').value    = '';
+    if(f('exStart'))   f('exStart').value   = '';
+    if(f('exCountry')) f('exCountry').value = '';
+    var cw = f('exCityWrap'); if(cw) cw.style.display = 'none';
+    if(f('exCity'))    f('exCity').innerHTML = '<option value="">— اختر المدينة —</option>';
+    if(curChk)         curChk.checked = false;
+    var wrap = f('exEndWrap'); if(wrap) wrap.style.display = 'block';
+    _populateEndYear(1980, '');
+    if(errEl) errEl.style.display = 'none';
+  }
+
   // ── Open Add ──
   window._expOpenAdd = function(){
     _mode = 'add'; _editId = null;
     if(titleEl) titleEl.textContent = 'إضافة خبرة';
-    var form = f('exForm');
-    if(form){
-      var inputs = form.querySelectorAll('input,textarea');
-      for(var i=0; i<inputs.length; i++) inputs[i].value = '';
-    }
-    if(curChk) curChk.checked = false;
-    var wrap = f('exEndWrap'); if(wrap) wrap.style.display = 'block';
-    if(errEl) errEl.style.display = 'none';
+    _resetForm();
     overlay.classList.add('open');
     if(window.lucide && lucide.createIcons) lucide.createIcons();
   };
@@ -53,16 +178,25 @@
 
     _mode = 'edit'; _editId = id;
     if(titleEl) titleEl.textContent = 'تعديل الخبرة';
-    if(f('exTitle'))    f('exTitle').value    = e.title       || '';
-    if(f('exCompany'))  f('exCompany').value  = e.company     || '';
-    if(f('exStart'))    f('exStart').value    = e.start_date  || '';
-    if(f('exEnd'))      f('exEnd').value      = e.end_date    || '';
-    if(f('exLocation')) f('exLocation').value = e.location    || '';
-    if(f('exDesc'))     f('exDesc').value     = e.description || '';
+    _resetForm();
+
+    if(f('exTitle'))   f('exTitle').value   = e.title       || '';
+    if(f('exCompany')) f('exCompany').value = e.company     || '';
+    if(f('exDesc'))    f('exDesc').value    = e.description || '';
+
+    // Start year then refresh end year options from that start
+    var startY = e.start_date ? String(parseInt(e.start_date, 10)) : '';
+    if(f('exStart')) f('exStart').value = startY;
+    _populateEndYear(startY || 1980, e.end_date || '');
+
+    // is_current
     var isCurr = !!e.is_current;
     if(curChk) curChk.checked = isCurr;
     var wrap = f('exEndWrap'); if(wrap) wrap.style.display = isCurr ? 'none' : 'block';
-    if(errEl) errEl.style.display = 'none';
+
+    // Location → parse into country+city selects
+    _prefillLocation(e.location || '');
+
     overlay.classList.add('open');
     if(window.lucide && lucide.createIcons) lucide.createIcons();
   };
@@ -74,8 +208,6 @@
   };
 
   function _doDelete(id){
-    var uid = window._scUserId;
-    if(!uid){ toast('خطأ: لم يتم التعرف على المستخدم'); return; }
     deleteExperience(id)
       .then(function(res){
         if(!res.ok){ toast('حدث خطأ أثناء الحذف'); return; }
@@ -109,11 +241,11 @@
     var payload = {
       title:       title,
       company:     company,
-      location:    fv('exLocation') || null,
-      start_date:  fv('exStart')    || null,
+      location:    _buildLocation(),
+      start_date:  fv('exStart') || null,
       end_date:    isCurr ? null : (fv('exEnd') || null),
       is_current:  isCurr,
-      description: fv('exDesc')     || null
+      description: fv('exDesc') || null
     };
 
     if(errEl) errEl.style.display = 'none';
@@ -176,7 +308,7 @@
       .catch(function(){});
   }
 
-  // ── Simple confirm dialog (no alert) ──
+  // ── Simple confirm dialog ──
   window.scConfirm = function(msg, onYes){
     var old = document.getElementById('_scConfirmBox');
     if(old) old.remove();
