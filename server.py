@@ -58,7 +58,7 @@ from auth import (
     create_user, authenticate_user, get_user_by_id,
     get_public_profile, get_full_profile, update_profile,
     get_profile_by_tw_id, get_full_profile_by_tw_id, get_user_id_by_tw_id,
-    add_experience, update_experience, add_education, add_course, create_verify_request,
+    add_experience, update_experience, reorder_experience, add_education, add_course, create_verify_request,
     add_job, get_jobs, get_job, apply_job,
     start_kyc, send_email_code, verify_email_code,
     send_phone_code, verify_phone_code, upload_kyc_docs,
@@ -550,6 +550,9 @@ class ExperienceInput(BaseModel):
     end_date: Optional[str] = None
     is_current: Optional[bool] = False
     description: Optional[str] = None
+
+class ExperienceReorderInput(BaseModel):
+    ordered_ids: List[int]
 
 class ExperienceUpdateInput(BaseModel):
     title: Optional[str] = None
@@ -1442,6 +1445,22 @@ def add_user_experience(user_id: int, data: ExperienceInput, token=Depends(verif
         return {"status": "success", "experience": add_experience(user_id, data.dict())}
     except Exception as e:
         print(f"Experience error: {e}")
+        raise HTTPException(500, detail="خطأ في الخادم")
+
+@app.put("/experience/reorder")
+def reorder_user_experience(data: ExperienceReorderInput, token=Depends(verify_token)):
+    uid = token.get('user_id')
+    if not uid:
+        raise HTTPException(401, "Unauthorized")
+    if not data.ordered_ids:
+        raise HTTPException(400, detail="ordered_ids مطلوب")
+    try:
+        reorder_experience(uid, data.ordered_ids)
+        return {"status": "success"}
+    except ValueError as e:
+        raise HTTPException(403, detail=str(e))
+    except Exception as e:
+        print(f"[reorder_experience] error: {e}")
         raise HTTPException(500, detail="خطأ في الخادم")
 
 @app.put("/experience/{exp_id}")

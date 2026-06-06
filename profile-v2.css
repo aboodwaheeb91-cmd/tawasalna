@@ -393,6 +393,9 @@ body.preview-guest       .owner-only { display: none !important; }
 .sc-item-btn:hover { background:rgba(255,255,255,.1); }
 .sc-item-btn-del svg { stroke:#f87171; }
 .sc-item-btn-del:hover { background:rgba(248,113,113,.12); }
+.sc-item-btn-ord svg { stroke:var(--t3,#6b7686); }
+.sc-item-btn-ord[disabled] { opacity:.28; cursor:default; }
+.sc-item-btn-ord[disabled]:hover { background:rgba(255,255,255,.04); }
 
 /* ── Cover edit button (owner only) ── */
 .cv-edit-btn {

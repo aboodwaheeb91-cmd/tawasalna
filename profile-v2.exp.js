@@ -308,6 +308,54 @@
       .catch(function(){});
   }
 
+  // ── Experience sort order ──
+  function _saveExperienceOrder(oldOrder){
+    var list = (window._scProfile && Array.isArray(window._scProfile.experience))
+      ? window._scProfile.experience : [];
+    var ids = list.map(function(e){ return e.id; });
+    reorderExperience(ids)
+      .then(function(res){
+        if(!res.ok){
+          if(window._scProfile) window._scProfile.experience = oldOrder;
+          _reRenderExp();
+          toast('فشل حفظ الترتيب');
+          return;
+        }
+        _bgRefetch();
+      })
+      .catch(function(){
+        if(window._scProfile) window._scProfile.experience = oldOrder;
+        _reRenderExp();
+        toast('خطأ في حفظ الترتيب');
+      });
+  }
+
+  window._expMoveUp = function(expId){
+    var id   = parseInt(expId, 10);
+    var list = (window._scProfile && Array.isArray(window._scProfile.experience))
+      ? window._scProfile.experience : [];
+    var idx  = -1;
+    for(var i = 0; i < list.length; i++){ if(list[i].id === id){ idx = i; break; } }
+    if(idx <= 0) return;
+    var oldOrder = list.slice();
+    var tmp = list[idx]; list[idx] = list[idx - 1]; list[idx - 1] = tmp;
+    _reRenderExp();
+    _saveExperienceOrder(oldOrder);
+  };
+
+  window._expMoveDown = function(expId){
+    var id   = parseInt(expId, 10);
+    var list = (window._scProfile && Array.isArray(window._scProfile.experience))
+      ? window._scProfile.experience : [];
+    var idx  = -1;
+    for(var i = 0; i < list.length; i++){ if(list[i].id === id){ idx = i; break; } }
+    if(idx < 0 || idx >= list.length - 1) return;
+    var oldOrder = list.slice();
+    var tmp = list[idx]; list[idx] = list[idx + 1]; list[idx + 1] = tmp;
+    _reRenderExp();
+    _saveExperienceOrder(oldOrder);
+  };
+
   // ── Simple confirm dialog ──
   window.scConfirm = function(msg, onYes){
     var old = document.getElementById('_scConfirmBox');
