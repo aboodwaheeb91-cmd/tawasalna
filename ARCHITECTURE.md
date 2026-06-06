@@ -884,8 +884,8 @@ GET /profile/{user_id}
 - JWT اختياري — يُرسَل في `Authorization: Bearer <token>`
 - بدون JWT: `viewer_type = "guest"`
 
-- JWT لصاحب البروفايل: `viewer_type = "owner"`, `is_owner = true`
-- JWT لمستخدم آخر: `viewer_type = "public-user"`, `is_owner = false`
+- مع JWT صاحب البروفايل: `viewer_type = "owner"`, `is_owner = true`
+- مع JWT مستخدم آخر: `viewer_type = "public-user"`, `is_owner = false`
 
 ### Response Contract (additive — لا يُحذف أي field قديم)
 ```json
@@ -903,15 +903,6 @@ GET /profile/{user_id}
   }
 }
 ```
-
-### Permissions per viewer_type
-| Permission | owner | public-user | guest |
-|-----------|-------|-------------|-------|
-| can_edit | ✅ | ❌ | ❌ |
-| can_follow | ❌ | ✅ | ❌ |
-| can_message | ❌ | ✅ | ❌ |
-| can_save | ❌ | ✅ | ❌ |
-| can_report | ❌ | ✅ | ❌ |
 
 
 ### قواعد الأمان
@@ -938,7 +929,7 @@ viewMode (API)   →  body CSS class   →  ما يراه المستخدم
 
 ### تطبيق الـ Classes (frontend)
 ```javascript
-// في profile-showcase.html — بعد API response مباشرة
+
 var _vt = res.viewer_type || 'guest';
 document.body.classList.remove('view-owner', 'public-view', 'view-guest');
 if      (_vt === 'owner')       document.body.classList.add('view-owner');
@@ -986,11 +977,6 @@ body.view-owner.preview-guest            → معاينة كزائر
   2. معاينة كزائر → يضيف `preview-guest`، يحذف `preview-public-user`
   3. إنهاء المعاينة → يحذف `preview-public-user` و`preview-guest`
 
-### CSS لإظهار/إخفاء الزر
-```css
-.sc-eye-wrap { display: none; }
-body.view-owner .sc-eye-wrap { display: flex; }
-```
 
 ### قواعد Preview Mode
 ```
@@ -1023,40 +1009,17 @@ body.preview-guest       .owner-only { display: none !important; }
 
 
 ### أمثلة على عناصر owner-only
-- زر تعديل صورة البروفايل
-- زر تعديل صورة الغلاف
-- زر إضافة خبرة / شهادة / مهارة
+- زر تعديل الملف الشخصي (scEditBtn)
+- زر تعديل صورة البروفايل / الغلاف
+- أزرار إضافة خبرة / شهادة / مهارة
 - قوائم التعديل (ثلاث نقاط) على كل بند
-- أزرار الحفظ / الحذف
-- أي input أو form خاص بصاحب الحساب
-
-### ممنوعات
-```
-❌ owner-only على عناصر المحتوى (النصوص، الصور، البيانات)
-❌ owner-only على أزرار الزوار (متابعة، تواصل)
-❌ JS للإخفاء — CSS فقط عبر body class
-```
 
 ### عناصر عامة — لا تحمل owner-only أبداً
-العناصر التالية هي محتوى عام أو أزرار زوار — لا تتأثر بـ preview:
 ```
 الاسم، التخصص، النبذة، الأفاتار، الكفر
-الإحصائيات (stats)، التبويبات (tabs)
-QR card، الموقع، العمر
-زر متابعة، زر تواصل، زر الملف الكامل
+Stats، Tabs، QR، الموقع، العمر
+زر متابعة، تواصل، الملف الكامل، رابط البروفايل
 ```
-
-### قاعدة Preview Mode
-```
-Preview mode يخفي أدوات الإدارة فقط — لا يخفي المحتوى العام.
-أي أداة owner مستقبلية تحمل owner-only فور إضافتها.
-CSS rule جاهز من الآن — لا تأثير حتى يوجد owner-only.
-```
-
-### الحالة الراهنة
-- CSS foundation مُضاف في profile-showcase.html (لا تأثير حالياً)
-- profile-showcase.html لا تحتوي على أي عنصر owner-only بعد
-- عند إضافة أي أداة تعديل في V2، تُضاف إليها `owner-only` مباشرة
 
 ---
 
@@ -1064,17 +1027,20 @@ CSS rule جاهز من الآن — لا تأثير حتى يوجد owner-only.
 
 ```
 
-1. قراءة JWT من localStorage ('tw_jwt')
+1. قراءة JWT من localStorage ('tw_jwt') — script level
 2. fetch('/profile/{id}', {Authorization: Bearer jwt})
 3. تطبيق body class من viewer_type (view-owner / public-view / view-guest)
-4. تطبيق CSS للـ owner-only elements
+4. عرض زر التعديل إذا owner
 5. render البيانات (profile fields)
 6. ربط event listeners (بعد render)
 7. fetch مستقل للـ score (non-blocking)
 ```
 
-**Steps 1-4:** sync بعد API response — لا flicker.  
+
+**Steps 1-5:** sync بعد API response — لا flicker.  
 **Step 7:** async — لا يُعطَّل الـ render.
+
+**بعد حفظ Edit Modal:** re-fetch GET /profile/{id} → استدعاء renderProfile مجدداً.
 
 ---
 
@@ -1101,10 +1067,63 @@ var profIcon = (p.profession && p.profession.icon) ? p.profession.icon : 'briefc
 
 ---
 
+
+## [P2] 28. Profession Selection System
+
+### المبدأ
+التخصص يُحدَّد بـ `profession_id` (FK → profession_categories) وليس بنص حر.
+
+### مصدر قائمة التخصصات
+```
+GET /professions
+← profession_categories WHERE is_active = TRUE
+ORDER BY category_group, sort_order, name_ar
+```
+
+القائمة تُجلَب من API — لا hardcoded داخل frontend.
+
+### تحديث التخصص
+```
+PUT /profile/{user_id}  { profession_id: <int> }
+```
+
+Backend يتحقق:
+- `profession_id` موجود في `profession_categories`
+- `is_active = TRUE`
+- خطأ 400 إذا فشل التحقق
+
+### عرض التخصص في V2
+```
+profession.icon + profession.name_ar      → إذا يوجد profession
+briefcase + headline                      → fallback إذا لا يوجد
+```
+
+### headline
+- يبقى موجوداً كحقل نصي اختياري / fallback
+- ليس المصدر الرئيسي للتخصص في V2
+
+### Edit Modal — flow
+```
+1. openModal() → fetch('/professions') → يبني <select> مع optgroup
+2. pre-select من window._scProfile.profession.id
+3. onSave() → PUT /profile/{id} + JWT
+4. onSuccess() → closeModal → re-fetch GET /profile → renderProfile()
+```
+
+### ممنوعات
+```
+❌ قائمة التخصصات hardcoded في frontend
+❌ التخصص كـ text input حر فقط
+❌ تخمين profession icon من النص
+❌ حفظ profession_id بدون التحقق من is_active
+❌ تلمس profile.html القديم
+```
+
+---
+
 ## [P0] الممنوعات الصارمة — Profile V2
 
 ```
-
 ❌ تعديل profile.html (Read-only حتى اكتمال V2)
 ❌ viewer_type من localStorage
 ❌ is_owner من URL أو DOM
@@ -1113,4 +1132,6 @@ var profIcon = (p.profession && p.profession.icon) ? p.profession.icon : 'briefc
 ❌ mutation API بدون JWT
 ❌ hardcoded viewer state
 ❌ تخمين profession icon من النص
+
+❌ profession list hardcoded في frontend
 ```

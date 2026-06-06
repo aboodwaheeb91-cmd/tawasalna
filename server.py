@@ -536,6 +536,7 @@ class ProfileUpdateInput(BaseModel):
     title: Optional[str] = None
     profile_color: Optional[str] = None
     profile_style: Optional[str] = None
+    profession_id: Optional[int] = None
 
 class ExperienceInput(BaseModel):
     title: str
@@ -1331,6 +1332,20 @@ def full_profile(user_id: str):
         raise HTTPException(404, detail="الملف الشخصي غير موجود")
     return {"status": "success", "profile": profile}
 
+@app.get("/professions")
+def list_professions():
+    conn = get_conn()
+    try:
+        rows = conn.run(
+            "SELECT id, name_ar, name_en, slug, icon, category_group "
+            "FROM profession_categories WHERE is_active = TRUE "
+            "ORDER BY category_group, sort_order, name_ar"
+        )
+        cols = ["id","name_ar","name_en","slug","icon","category_group"]
+        return [dict(zip(cols, r)) for r in rows]
+    finally:
+        release_conn(conn)
+
 @app.put("/profile/{user_id}")
 def update_user_profile(user_id: int, data: ProfileUpdateInput, token=Depends(verify_token)):
     # Ownership check
@@ -1338,12 +1353,27 @@ def update_user_profile(user_id: int, data: ProfileUpdateInput, token=Depends(ve
     if str(tok_uid) != str(user_id):
         print(f"[PUT /profile] MISMATCH: token={tok_uid} url={user_id}")
         raise HTTPException(403, "Unauthorized")
+
+    # Validate profession_id if provided
+    payload = data.dict(exclude_none=True)
+    if "profession_id" in payload:
+        conn = get_conn()
+        try:
+            rows = conn.run(
+                "SELECT id FROM profession_categories WHERE id = :pid AND is_active = TRUE",
+                pid=payload["profession_id"]
+            )
+            if not rows:
+                raise HTTPException(400, detail="التخصص غير موجود أو غير فعال")
+        finally:
+            release_conn(conn)
+
     try:
-        profile = update_profile(user_id, data.dict(exclude_none=True))
+        profile = update_profile(user_id, payload)
         if not profile:
             print(f"[PUT /profile] update_profile returned None for user {user_id}")
             raise HTTPException(500, "Profile update failed")
-        print(f"[PUT /profile] ✅ Updated user {user_id}: {list(data.dict(exclude_none=True).keys())}")
+        print(f"[PUT /profile] ✅ Updated user {user_id}: {list(payload.keys())}")
         return {"status": "success", "profile": profile}
     except ValueError as e:
         raise HTTPException(404, detail=str(e))

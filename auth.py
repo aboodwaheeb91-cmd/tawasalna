@@ -843,7 +843,7 @@ def update_profile(user_id: int, data: dict) -> dict:
                 name=data["full_name"], uid=user_id
             )
 
-        allowed = ["headline", "bio", "location", "skills", "avatar_url", "website", "phone", "sections_order", "custom_sections", "dob", "country", "city", "avail", "title", "profile_color", "profile_style"]
+        allowed = ["headline", "bio", "location", "skills", "avatar_url", "website", "phone", "sections_order", "custom_sections", "dob", "country", "city", "avail", "title", "profile_color", "profile_style", "profession_id"]
         # Ensure profile columns exist (in case migrations didn't run)
         for col_sql in [
             "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS dob TEXT",
