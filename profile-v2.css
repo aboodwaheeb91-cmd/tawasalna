@@ -369,6 +369,31 @@ body.preview-guest       .owner-only { display: none !important; }
 }
 .ep-note .ico-sm { color:#2563ff; flex-shrink:0; margin-top:1px; }
 
+/* ── Experience card owner controls ── */
+.sc-section-add {
+  display:flex; align-items:center; gap:6px; margin-bottom:10px;
+  padding:6px 14px; border-radius:20px; border:1px solid rgba(0,200,150,.35);
+  background:rgba(0,200,150,.07); color:#00c896;
+  font-family:inherit; font-size:.8rem; font-weight:700; cursor:pointer;
+  transition:background .15s;
+}
+.sc-section-add:hover { background:rgba(0,200,150,.15); }
+.sc-item-exp { display:flex; align-items:flex-start; justify-content:space-between; gap:8px; }
+.sc-item-main { flex:1; min-width:0; }
+.sc-item-d {
+  font-size:.72rem; color:var(--t3,#6b7280); margin-top:2px;
+}
+.sc-item-actions { display:flex; gap:4px; flex-shrink:0; padding-top:2px; }
+.sc-item-btn {
+  width:28px; height:28px; border-radius:8px; border:1px solid rgba(255,255,255,.1);
+  background:rgba(255,255,255,.04); cursor:pointer; display:flex;
+  align-items:center; justify-content:center; transition:background .15s;
+}
+.sc-item-btn svg { width:13px; height:13px; stroke:var(--t2,#9aa5b4); }
+.sc-item-btn:hover { background:rgba(255,255,255,.1); }
+.sc-item-btn-del svg { stroke:#f87171; }
+.sc-item-btn-del:hover { background:rgba(248,113,113,.12); }
+
 /* ── Cover edit button (owner only) ── */
 .cv-edit-btn {
   display:none; position:absolute; top:8px; right:8px; z-index:4;

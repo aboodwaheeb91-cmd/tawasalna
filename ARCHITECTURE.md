@@ -1550,3 +1550,59 @@ body.view-owner .cv-edit-btn { display:flex; }
 
 ### profile.html القديم
 Read-only — لا يُعدَّل نهائياً.
+
+---
+
+## Profile V2 — Experience Module
+
+### الملفات
+| الملف | المسؤولية |
+|-------|-----------|
+| `profile-v2.exp.js` | كامل منطق add / edit / delete + confirm modal |
+| `profile-v2.api.js` | `addExperience()`, `updateExperience()`, `deleteExperience()` |
+| `profile-v2.render.js` | `_buildExpHTML(exp, isOwner)` — HTML builder مشترك |
+| `profile-v2.css` | `.sc-section-add`, `.sc-item-exp`, `.sc-item-btn`, `.sc-item-btn-del` |
+| `profile-showcase.html` | Experience Modal HTML (يعيد استخدام ep-* classes) |
+
+### Endpoints
+| Method | Path | وصف |
+|--------|------|-----|
+| POST | `/experience/{user_id}` | إضافة خبرة |
+| PUT | `/experience/{exp_id}` | تعديل خبرة — يتحقق JWT + ownership |
+| DELETE | `/experience/{exp_id}` | حذف خبرة — يتحقق JWT + ownership |
+
+### Owner-only controls
+```css
+/* أزرار تعديل/حذف تظهر فقط للمالك عبر _vt === 'owner' في _buildExpHTML */
+/* لا تُضاف عناصر للـ DOM للزوار */
+```
+
+### Add / Update / Delete Flow
+```
+1. owner يضغط "إضافة خبرة" أو قلم التعديل
+2. modal يُفتح مع بيانات مملوءة مسبقاً (edit) أو فارغة (add)
+3. validation: title + company مطلوبان
+4. POST أو PUT → رد يحتوي experience object
+5. _scProfile.experience يُحدَّث في الذاكرة فوراً
+6. _reRenderExp() يعيد رسم الـ tab
+7. toast نجاح + re-fetch بالخلفية
+
+للحذف:
+1. زر الحذف → scConfirm() modal (لا alert)
+2. بعد تأكيد المستخدم → DELETE /experience/{id}
+3. تحديث _scProfile.experience + إعادة رسم + toast
+```
+
+### Delete Confirmation
+`window.scConfirm(msg, onYes)` — modal مبني ديناميكياً بـ JS بدون HTML مسبق.
+لا `alert()`, لا `confirm()`.
+
+### `_buildExpHTML`
+`window._buildExpHTML(exp, isOwner)` — دالة مشتركة في render.js:
+- render.js تستخدمها عند التحميل الأول
+- exp.js تستخدمها عند `_reRenderExp()`
+- isOwner = true → تُضاف أزرار التعديل والحذف
+- isOwner = false → cards بدون أي أدوات
+
+### profile.html القديم
+Read-only — لا يُعدَّل نهائياً.

@@ -204,6 +204,55 @@
     </div>
   </div>
 
+  <!-- Experience Modal -->
+  <div class="ep-overlay" id="exOverlay">
+    <div class="ep-sheet">
+      <div class="ep-head">
+        <span class="ep-title" id="exModalTitle">إضافة خبرة</span>
+        <button class="ep-close" id="exClose"><i data-lucide="x" class="ico-sm"></i></button>
+      </div>
+      <div class="ep-body" id="exForm">
+        <div class="ep-field">
+          <label class="ep-label">المسمى الوظيفي *</label>
+          <input class="ep-input" id="exTitle" placeholder="مثال: مطور ويب" autocomplete="off">
+        </div>
+        <div class="ep-field">
+          <label class="ep-label">اسم الشركة / جهة العمل *</label>
+          <input class="ep-input" id="exCompany" placeholder="مثال: شركة تقنية" autocomplete="off">
+        </div>
+        <div class="ep-row2">
+          <div class="ep-field">
+            <label class="ep-label">سنة البداية</label>
+            <input class="ep-input" id="exStart" placeholder="2020" maxlength="4" autocomplete="off">
+          </div>
+          <div class="ep-field" id="exEndWrap">
+            <label class="ep-label">سنة الانتهاء</label>
+            <input class="ep-input" id="exEnd" placeholder="2024" maxlength="4" autocomplete="off">
+          </div>
+        </div>
+        <div class="ep-field">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;color:var(--t2,#9aa5b4);font-size:.83rem">
+            <input type="checkbox" id="exCurrent" style="width:16px;height:16px;accent-color:#00c896">
+            ما زلت أعمل هنا
+          </label>
+        </div>
+        <div class="ep-field">
+          <label class="ep-label">الموقع (اختياري)</label>
+          <input class="ep-input" id="exLocation" placeholder="مثال: الأردن - عمان" autocomplete="off">
+        </div>
+        <div class="ep-field">
+          <label class="ep-label">الوصف (اختياري)</label>
+          <textarea class="ep-textarea" id="exDesc" placeholder="نبذة عن مهامك وإنجازاتك…" maxlength="600"></textarea>
+        </div>
+        <div class="ep-err" id="exErr"></div>
+      </div>
+      <div class="ep-footer">
+        <button class="ep-cancel" id="exCancelBtn">إلغاء</button>
+        <button class="ep-save" id="exSaveBtn">حفظ</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Edit Profile Modal — Phase 2: name, dob, country/city, avail, profession, bio -->
   <!-- Must be in DOM before profile-v2.edit.js runs -->
   <div class="ep-overlay" id="epOverlay">
@@ -311,6 +360,7 @@
   <script src="/static/profile-v2.qr.js?v=modular-v1"></script>
   <script src="/static/profile-v2.render.js?v=modular-v1"></script>
   <script src="/static/profile-v2.edit.js?v=modular-v1"></script>
+  <script src="/static/profile-v2.exp.js?v=modular-v1"></script>
   <script src="/static/profile-v2.cover.js?v=modular-v1"></script>
   <script src="/static/profile-v2.avatar.js?v=modular-v1"></script>
 

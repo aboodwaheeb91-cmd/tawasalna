@@ -13,6 +13,43 @@
   if(menuBtn) menuBtn.onclick=function(){ history.back(); };
 })();
 
+// ── Experience HTML builder (shared with profile-v2.exp.js) ──
+window._buildExpHTML = function(exp, isOwner){
+  var addBtn = isOwner
+    ? '<button class="sc-section-add" onclick="window._expOpenAdd()">'
+      + '<svg class="ico-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>'
+      + ' إضافة خبرة</button>'
+    : '';
+  if(!exp.length) return addBtn + '<div class="sc-empty">لا توجد خبرات بعد</div>';
+  return addBtn + exp.map(function(e){
+    var t   = esc(e.title   || '');
+    var c   = esc(e.company || '');
+    var loc = e.location ? ' · ' + esc(e.location) : '';
+    var dates = '';
+    if(e.start_date){
+      dates = esc(e.start_date) + (e.is_current ? ' — حتى الآن' : (e.end_date ? ' — ' + esc(e.end_date) : ''));
+    }
+    var actions = isOwner
+      ? '<div class="sc-item-actions">'
+        + '<button class="sc-item-btn" data-exp-id="'+e.id+'" onclick="window._expOpenEdit(this.dataset.expId)" title="تعديل">'
+        + '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>'
+        + '</button>'
+        + '<button class="sc-item-btn sc-item-btn-del" data-exp-id="'+e.id+'" onclick="window._expConfirmDelete(this.dataset.expId)" title="حذف">'
+        + '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>'
+        + '</button>'
+        + '</div>'
+      : '';
+    return '<div class="sc-item sc-item-exp">'
+      + '<div class="sc-item-main">'
+      + '<div class="sc-item-t">'+t+'</div>'
+      + (c ? '<div class="sc-item-s">'+c+loc+'</div>' : '')
+      + (dates ? '<div class="sc-item-d">'+dates+'</div>' : '')
+      + '</div>'
+      + actions
+      + '</div>';
+  }).join('');
+};
+
 // ── Main render function (Doctrine §26) ──
 window.renderProfile = function renderProfile(res){
   var p = (res && res.profile) ? res.profile : {};
@@ -26,6 +63,9 @@ window.renderProfile = function renderProfile(res){
 
   // numeric user id for Edit Modal — never use URL param directly
   window._scUserId = (p.id != null) ? p.id : null;
+
+  // expose viewer type for other modules (exp, edu, etc.)
+  window._scViewerType = _vt;
 
   // edit button — owner only, server-verified
   var editBtn = document.getElementById('scEditProfileBtn');
@@ -161,16 +201,7 @@ window.renderProfile = function renderProfile(res){
 
   // Tab: Experience
   var expEl=document.getElementById('scExpPane');
-  if(expEl){
-    expEl.innerHTML = exp.length
-      ? exp.map(function(e){
-          var t=esc(e.title||''); var c=esc(e.company||'');
-          var loc=e.location?(' · '+esc(e.location)):'';
-          return '<div class="sc-item"><div class="sc-item-t">'+t+'</div>'+
-            (c?'<div class="sc-item-s">'+c+loc+'</div>':'')+'</div>';
-        }).join('')
-      : '<div class="sc-empty">لا توجد خبرات بعد</div>';
-  }
+  if(expEl){ expEl.innerHTML = _buildExpHTML(exp, _vt === 'owner'); }
 
   // Tab: Education
   var eduEl=document.getElementById('scEduPane');
