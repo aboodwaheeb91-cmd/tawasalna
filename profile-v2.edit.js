@@ -83,11 +83,18 @@
 
   // ── Confirmed Local Update — runs immediately after PUT succeeds ──
   function applyLocalUpdate(payload){
-    // Name
-    if(payload.full_name){
+    // Name — update from parts (backend builds full_name, we mirror it locally)
+    var _builtName = [payload.first_name, payload.middle_name, payload.last_name]
+      .filter(function(x){ return x && x.trim(); }).join(' ');
+    if(_builtName){
       var nameEl = document.getElementById('scName');
-      if(nameEl) nameEl.textContent = payload.full_name;
-      if(window._scProfile) window._scProfile.full_name = payload.full_name;
+      if(nameEl) nameEl.textContent = _builtName;
+      if(window._scProfile){
+        window._scProfile.full_name   = _builtName;
+        window._scProfile.first_name  = payload.first_name  || '';
+        window._scProfile.middle_name = payload.middle_name || '';
+        window._scProfile.last_name   = payload.last_name   || '';
+      }
       requestAnimationFrame(function(){ if(window._fitName) window._fitName(); });
     }
 
@@ -140,14 +147,20 @@
   function openModal(){
     var p = window._scProfile || {};
 
-    // Name: split full_name into first / mid / last
-    var parts = (p.full_name || '').trim().split(/\s+/).filter(Boolean);
+    // Name: use stored name parts if available, split only as legacy fallback
     var fn = document.getElementById('epFirstName');
     var mn = document.getElementById('epMidName');
     var ln = document.getElementById('epLastName');
-    if(fn) fn.value = parts[0] || '';
-    if(ln) ln.value = parts.length > 1 ? parts[parts.length-1] : '';
-    if(mn) mn.value = parts.length > 2 ? parts.slice(1,-1).join(' ') : '';
+    if(p.first_name){
+      if(fn) fn.value = p.first_name;
+      if(mn) mn.value = p.middle_name || '';
+      if(ln) ln.value = p.last_name   || '';
+    } else {
+      var parts = (p.full_name || '').trim().split(/\s+/).filter(Boolean);
+      if(fn) fn.value = parts[0] || '';
+      if(ln) ln.value = parts.length > 1 ? parts[parts.length-1] : '';
+      if(mn) mn.value = parts.length > 2 ? parts.slice(1,-1).join(' ') : '';
+    }
 
     // DOB
     var dob = p.dob || '';
@@ -236,12 +249,15 @@
     var bioVal  = ((document.getElementById('epBio')       ||{}).value||'').trim();
 
     var payload = { bio: bioVal };
-    if(fullName) payload.full_name     = fullName;
-    if(dob)      payload.dob           = dob;
-    if(country)  payload.country       = country;
-    if(city)     payload.city          = city;
-    if(avail)    payload.avail         = avail;
-    if(profVal)  payload.profession_id = parseInt(profVal, 10);
+    // Send name parts — backend builds full_name automatically
+    payload.first_name  = first;
+    payload.middle_name = mid;
+    payload.last_name   = last;
+    if(dob)     payload.dob           = dob;
+    if(country) payload.country       = country;
+    if(city)    payload.city          = city;
+    if(avail)   payload.avail         = avail;
+    if(profVal) payload.profession_id = parseInt(profVal, 10);
 
     if(errEl) errEl.style.display = 'none';
     saveBtn.disabled = true;
