@@ -371,15 +371,14 @@ body.preview-guest       .owner-only { display: none !important; }
 
 /* ── Cover edit button (owner only) ── */
 .cv-edit-btn {
-  display:none; position:absolute; top:8px; left:8px; z-index:4;
-  align-items:center; gap:6px;
-  padding:5px 12px; border-radius:20px; border:none; cursor:pointer;
-  background:rgba(0,0,0,.55); backdrop-filter:blur(8px);
-  color:#fff; font-family:inherit; font-size:.75rem; font-weight:600;
-  transition:background .15s;
+  display:none; position:absolute; top:8px; right:8px; z-index:4;
+  width:30px; height:30px; border-radius:50%; border:2px solid rgba(255,255,255,.25);
+  cursor:pointer; align-items:center; justify-content:center;
+  background:rgba(0,0,0,.45); backdrop-filter:blur(8px);
+  transition:background .15s, transform .15s;
 }
-.cv-edit-btn svg { width:13px; height:13px; stroke:#fff; flex-shrink:0; }
-.cv-edit-btn:hover { background:rgba(0,0,0,.75); }
+.cv-edit-btn svg { width:14px; height:14px; stroke:#fff; flex-shrink:0; }
+.cv-edit-btn:hover { background:rgba(0,0,0,.7); transform:scale(1.1); }
 body.view-owner .cv-edit-btn { display:flex; }
 
 /* ── Cover crop overlay ── */
