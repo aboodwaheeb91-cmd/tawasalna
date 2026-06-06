@@ -430,8 +430,8 @@
         </div>
       </div>
 
-      <!-- Edit button — owner only -->
-      <button class="sc-hicon sc-hicon-bare owner-only" id="scEditBtn" title="تعديل الملف الشخصي" style="display:none">
+      <!-- Edit button — owner only, shown by renderProfile when viewer_type=owner -->
+      <button class="sc-hicon sc-hicon-bare owner-only" id="scEditProfileBtn" title="تعديل الملف الشخصي" style="display:none">
         <i data-lucide="pencil" class="ico"></i>
       </button>
       <button class="sc-hicon sc-hicon-bare" id="scBellBtn" title="الإشعارات"><i data-lucide="bell" class="ico"></i></button>
@@ -546,7 +546,9 @@
   // Script-level: accessible by all IIFEs below
   var _jwt = localStorage.getItem('tw_jwt') || '';
   var _fetchOpts = _jwt ? { headers: { 'Authorization': 'Bearer ' + _jwt } } : {};
-  var _scProfileId = new URLSearchParams(location.search).get('id');
+  var _scProfileId  = new URLSearchParams(location.search).get('id');
+  var _scProfileKey = _scProfileId;   // URL param (may be tw_id or numeric id)
+  var _scUserId     = null;           // numeric user id — set by renderProfile from p.id
 
   (function() {
     function esc(s){ var d=document.createElement('div'); d.textContent=s==null?'':String(s); return d.innerHTML; }
@@ -633,8 +635,11 @@
         else                            document.body.classList.add('view-guest');
 
 
-        // Show edit button for owner
-        var editBtn = document.getElementById('scEditBtn');
+        // Store numeric user id for Edit Modal save (never use URL param directly)
+        window._scUserId = (p.id != null) ? p.id : null;
+
+        // Show edit button for owner — from server-verified viewer_type only
+        var editBtn = document.getElementById('scEditProfileBtn');
         if(editBtn) editBtn.style.display = (_vt === 'owner') ? 'flex' : 'none';
 
         // Identity
@@ -906,77 +911,28 @@
   })();
 
 
-  // ── Edit Profile Modal (Doctrine §28) ──
+  // ── Edit Profile Modal — Phase 1: profession + bio only ──
   (function(){
-    var EP_CITIES = {
-      JO:['عمان','إربد','الزرقاء','العقبة','السلط','مادبا','الكرك','معان','جرش','عجلون','الطفيلة'],
-      SA:['الرياض','جدة','مكة المكرمة','المدينة المنورة','الدمام','الخبر','الطائف','أبها','تبوك','القطيف','بريدة'],
-      AE:['دبي','أبوظبي','الشارقة','عجمان','رأس الخيمة','الفجيرة','أم القيوين','العين'],
-      KW:['مدينة الكويت','حولي','الفروانية','الأحمدي','الجهراء','مبارك الكبير'],
-      QA:['الدوحة','الريان','الوكرة','أم صلال','الخور','الشمال'],
-      BH:['المنامة','المحرق','الرفاع','مدينة عيسى','مدينة حمد'],
-      OM:['مسقط','صلالة','نزوى','صحار','السيب','مطرح','البريمي'],
-      EG:['القاهرة','الإسكندرية','الجيزة','شرم الشيخ','الأقصر','أسوان','طنطا','المنصورة','الفيوم','بورسعيد'],
-      IQ:['بغداد','البصرة','الموصل','أربيل','كربلاء','النجف','السليمانية','كركوك'],
-      SY:['دمشق','حلب','حمص','اللاذقية','حماة','دير الزور','الرقة','درعا'],
-      LB:['بيروت','طرابلس','صيدا','صور','جونية','زحلة'],
-      PS:['رام الله','القدس','غزة','نابلس','الخليل','جنين','أريحا','بيت لحم'],
-      YE:['صنعاء','عدن','تعز','الحديدة','إب','ذمار','مأرب'],
-      LY:['طرابلس','بنغازي','مصراتة','الزاوية','البيضاء','سبها'],
-      TN:['تونس','صفاقس','سوسة','بنزرت','قابس','القيروان'],
-      DZ:['الجزائر','وهران','قسنطينة','عنابة','سطيف','تلمسان'],
-      MA:['الرباط','الدار البيضاء','فاس','مراكش','مكناس','أكادير','طنجة'],
-      SD:['الخرطوم','أم درمان','بورتسودان','كسلا','الأبيض'],
-    };
-
     var overlay   = document.getElementById('epOverlay');
     var closeBtn  = document.getElementById('epClose');
     var cancelBtn = document.getElementById('epCancelBtn');
     var saveBtn   = document.getElementById('epSaveBtn');
-    var editBtn   = document.getElementById('scEditBtn');
+    var editBtn   = document.getElementById('scEditProfileBtn');
     var errEl     = document.getElementById('epErr');
 
     if(!overlay || !editBtn) return;
 
-    // Cities helper
-    window.epLoadCities = function(){
-      var country = document.getElementById('epCountry').value;
-      var cityEl  = document.getElementById('epCity');
-      if(!cityEl) return;
-      var cities = EP_CITIES[country] || [];
-      cityEl.innerHTML = cities.length
-        ? '<option value="">— اختر المدينة —</option>' + cities.map(function(c){ return '<option value="'+c+'">'+c+'</option>'; }).join('')
-        : '<option value="">لا توجد مدن متاحة</option>';
-    };
-
     function openModal(){
       var p = window._scProfile || {};
 
-      // Set DOB max = today
-      var dobEl = document.getElementById('epDob');
-      if(dobEl) dobEl.max = new Date().toISOString().split('T')[0];
-
-      // Pre-populate fields
+      // Pre-populate bio
       var bioEl = document.getElementById('epBio');
       if(bioEl) bioEl.value = p.bio || '';
 
-      var countryEl = document.getElementById('epCountry');
-      if(countryEl){ countryEl.value = p.country || ''; epLoadCities(); }
-
-      var cityEl = document.getElementById('epCity');
-      if(cityEl) cityEl.value = p.city || '';
-
-      var availEl = document.getElementById('epAvail');
-      if(availEl) availEl.value = p.avail || '';
-
-      if(dobEl) dobEl.value = p.dob ? p.dob.split('T')[0] : '';
-
-      // Fetch professions from API — adds "not_found" option at end (Doctrine §28, §29)
+      // Fetch professions — pre-select current if any
       var profEl = document.getElementById('epProfession');
       if(profEl){
         profEl.innerHTML = '<option value="">جاري التحميل…</option>';
-        var suggestWrap = document.getElementById('epSuggestWrap');
-        if(suggestWrap) suggestWrap.style.display = 'none';
         fetch('/professions')
           .then(function(r){ return r.ok ? r.json() : []; })
           .then(function(list){
@@ -988,15 +944,15 @@
             });
             var html = '<option value="">— اختر التخصص —</option>';
             Object.keys(groups).forEach(function(g){
-              html += '<optgroup label="'+g+'">';
+              html += '<optgroup label="' + g + '">';
               groups[g].forEach(function(pr){
                 var sel = (p.profession && p.profession.id === pr.id) ? ' selected' : '';
-                html += '<option value="'+pr.id+'"'+sel+'>'+pr.name_ar+'</option>';
+                html += '<option value="' + pr.id + '"' + sel + '>' + pr.name_ar + '</option>';
               });
               html += '</optgroup>';
             });
-            html += '<optgroup label="──────────"><option value="not_found">تخصصي غير موجود في القائمة</option></optgroup>';
             profEl.innerHTML = html;
+            if(window.lucide && lucide.createIcons) lucide.createIcons();
           })
           .catch(function(){ profEl.innerHTML = '<option value="">تعذّر تحميل التخصصات</option>'; });
       }
@@ -1006,23 +962,8 @@
       if(window.lucide && lucide.createIcons) lucide.createIcons();
     }
 
-    // Show/hide suggestion fields based on profession select value
-    window.epOnProfessionChange = function(){
-      var val = document.getElementById('epProfession').value;
-      var wrap = document.getElementById('epSuggestWrap');
-      if(wrap) wrap.style.display = (val === 'not_found') ? 'block' : 'none';
-      if(window.lucide && lucide.createIcons) lucide.createIcons();
-    };
-
     function closeModal(){
       overlay.classList.remove('open');
-      // Reset suggestion fields
-      var wrap = document.getElementById('epSuggestWrap');
-      if(wrap) wrap.style.display = 'none';
-      var arEl = document.getElementById('epSuggestAr');
-      if(arEl) arEl.value = '';
-      var enEl = document.getElementById('epSuggestEn');
-      if(enEl) enEl.value = '';
     }
 
     editBtn.addEventListener('click', openModal);
@@ -1031,79 +972,26 @@
     overlay.addEventListener('click', function(e){ if(e.target === overlay) closeModal(); });
 
     saveBtn.addEventListener('click', function(){
-      var _u = JSON.parse(localStorage.getItem('tawasalna_user') || 'null');
-      if(!_u || !_u.id){ toast('يرجى تسجيل الدخول أولاً'); return; }
+      // Use numeric user id from API response — never trust URL param alone
+      var uid = window._scUserId;
+      if(!uid){ if(errEl){ errEl.textContent = 'خطأ: لم يتم التعرف على المستخدم'; errEl.style.display = 'block'; } return; }
 
-      var profVal  = document.getElementById('epProfession').value;
-      var isSuggest = (profVal === 'not_found');
-
-      // Validate suggestion fields
-      if(isSuggest){
-        var arVal = (document.getElementById('epSuggestAr').value || '').trim();
-        if(arVal.length < 2){
-          if(errEl){ errEl.textContent = 'يرجى كتابة اسم التخصص المقترح (حرفان على الأقل)'; errEl.style.display = 'block'; }
-          return;
-        }
-        if(arVal.length > 100){
-          if(errEl){ errEl.textContent = 'اسم التخصص طويل جداً (100 حرف كحد أقصى)'; errEl.style.display = 'block'; }
-          return;
-        }
-      }
+      var profEl = document.getElementById('epProfession');
+      var profVal = profEl ? profEl.value : '';
+      var bioVal  = (document.getElementById('epBio').value || '').trim();
 
       var payload = {};
-      if(profVal && !isSuggest) payload.profession_id = parseInt(profVal, 10);
-      if(isSuggest) payload.profession_id = null; // explicit null clears any old profession
-
-      var bioVal = document.getElementById('epBio').value.trim();
-      if(bioVal !== undefined) payload.bio = bioVal;
-
-      var countryVal = document.getElementById('epCountry').value;
-      if(countryVal) payload.country = countryVal;
-
-      var cityVal = document.getElementById('epCity').value;
-      if(cityVal) payload.city = cityVal;
-
-      var availVal = document.getElementById('epAvail').value;
-      if(availVal) payload.avail = availVal;
-
-      var dobVal = document.getElementById('epDob').value;
-      if(dobVal) payload.dob = dobVal;
+      if(profVal) payload.profession_id = parseInt(profVal, 10);
+      payload.bio = bioVal;
 
       if(errEl) errEl.style.display = 'none';
       saveBtn.disabled = true;
       saveBtn.textContent = 'جاري الحفظ…';
 
-      // Build promise chain: suggestion first (if needed), then profile update
-      var chain = Promise.resolve();
-      if(isSuggest){
-        var suggestAr = document.getElementById('epSuggestAr').value.trim();
-        var suggestEn = (document.getElementById('epSuggestEn').value || '').trim();
-        payload.headline = suggestAr; // temporary display while pending (Doctrine §29)
-        chain = fetch('/profession-suggestions', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer ' + (_jwt || '')
-          },
-          body: JSON.stringify({ suggested_name_ar: suggestAr, suggested_name_en: suggestEn || undefined })
-        }).then(function(r){ return r.json().then(function(d){ return {ok:r.ok, data:d}; }); })
-          .then(function(res){
-            if(!res.ok){
-              var msg = (res.data && res.data.detail) ? res.data.detail : 'تعذّر حفظ الاقتراح';
-              throw new Error(msg);
-            }
-          });
-      }
-
-      chain.then(function(){
-        return fetch('/profile/' + _u.id, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer ' + (_jwt || '')
-          },
-          body: JSON.stringify(payload)
-        });
+      fetch('/profile/' + uid, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (_jwt || '') },
+        body: JSON.stringify(payload)
       })
       .then(function(r){ return r.json().then(function(d){ return {ok:r.ok, data:d}; }); })
       .then(function(res){
@@ -1113,22 +1001,22 @@
           return;
         }
         closeModal();
-        toast(isSuggest ? 'تم إرسال اقتراحك وسيظهر تخصصك مؤقتاً في البروفايل' : 'تم حفظ التغييرات بنجاح');
-        // Re-fetch full profile to get updated profession object (Doctrine §26)
-        return fetch('/profile/' + encodeURIComponent(_scProfileId), _fetchOpts)
+        if(window.toast) window.toast('تم حفظ التغييرات بنجاح');
+        // Re-fetch using the original URL key (_scProfileKey) with JWT
+        return fetch('/profile/' + encodeURIComponent(_scProfileKey), _fetchOpts)
           .then(function(r){ return r.ok ? r.json() : null; })
           .then(function(freshRes){
-            if(freshRes) window.renderProfile(freshRes);
+            if(freshRes && window.renderProfile) window.renderProfile(freshRes);
             if(window.lucide && lucide.createIcons) lucide.createIcons();
           });
       })
-      .catch(function(){ if(errEl){ errEl.textContent = 'خطأ في الاتصال بالخادم'; errEl.style.display='block'; } })
-      .finally(function(){ saveBtn.disabled=false; saveBtn.textContent='حفظ التغييرات'; });
+      .catch(function(){ if(errEl){ errEl.textContent = 'خطأ في الاتصال بالخادم'; errEl.style.display = 'block'; } })
+      .finally(function(){ saveBtn.disabled = false; saveBtn.textContent = 'حفظ التغييرات'; });
     });
   })();
   </script>
 
-  <!-- Edit Profile Modal -->
+  <!-- Edit Profile Modal — Phase 1: profession + bio -->
   <div class="ep-overlay" id="epOverlay">
     <div class="ep-sheet">
       <div class="ep-head">
@@ -1136,83 +1024,15 @@
         <button class="ep-close" id="epClose"><i data-lucide="x" class="ico-sm"></i></button>
       </div>
       <div class="ep-body">
-        <!-- Profession -->
         <div class="ep-field">
           <label class="ep-label">التخصص المهني</label>
-          <select class="ep-select" id="epProfession" onchange="epOnProfessionChange()">
+          <select class="ep-select" id="epProfession">
             <option value="">جاري التحميل…</option>
           </select>
         </div>
-        <!-- Suggestion fields — shown only when "not_found" selected -->
-        <div id="epSuggestWrap" style="display:none">
-          <div class="ep-field">
-            <label class="ep-label">اسم التخصص بالعربي <span style="color:#f87171">*</span></label>
-            <input type="text" class="ep-input" id="epSuggestAr" placeholder="مثال: مهندس ذكاء اصطناعي" maxlength="100">
-          </div>
-          <div class="ep-field">
-            <label class="ep-label">اسم التخصص بالإنجليزي (اختياري)</label>
-            <input type="text" class="ep-input" id="epSuggestEn" placeholder="AI Engineer" maxlength="100" dir="ltr">
-          </div>
-          <div class="ep-note" id="epSuggestNote">
-            <i data-lucide="info" class="ico-sm"></i>
-            سيظهر تخصصك مؤقتاً في بروفايلك ريثما تراجعه الإدارة وتعتمده رسمياً.
-          </div>
-        </div>
-        <!-- Bio -->
         <div class="ep-field">
           <label class="ep-label">نبذة تعريفية</label>
           <textarea class="ep-textarea" id="epBio" placeholder="اكتب نبذة عن نفسك…" maxlength="600"></textarea>
-        </div>
-        <!-- Country + City -->
-        <div class="ep-row2">
-          <div class="ep-field">
-            <label class="ep-label">البلد</label>
-            <select class="ep-select" id="epCountry" onchange="epLoadCities()">
-              <option value="">— اختر البلد —</option>
-              <option value="JO">🇯🇴 الأردن</option>
-              <option value="SA">🇸🇦 السعودية</option>
-              <option value="AE">🇦🇪 الإمارات</option>
-              <option value="KW">🇰🇼 الكويت</option>
-              <option value="QA">🇶🇦 قطر</option>
-              <option value="BH">🇧🇭 البحرين</option>
-              <option value="OM">🇴🇲 عُمان</option>
-              <option value="EG">🇪🇬 مصر</option>
-              <option value="IQ">🇮🇶 العراق</option>
-              <option value="SY">🇸🇾 سوريا</option>
-              <option value="LB">🇱🇧 لبنان</option>
-              <option value="PS">🇵🇸 فلسطين</option>
-              <option value="YE">🇾🇪 اليمن</option>
-              <option value="MA">🇲🇦 المغرب</option>
-              <option value="DZ">🇩🇿 الجزائر</option>
-              <option value="TN">🇹🇳 تونس</option>
-              <option value="LY">🇱🇾 ليبيا</option>
-              <option value="SD">🇸🇩 السودان</option>
-              <option value="OTHER">🌍 دولة أخرى</option>
-            </select>
-          </div>
-          <div class="ep-field">
-            <label class="ep-label">المدينة</label>
-            <select class="ep-select" id="epCity">
-              <option value="">— اختر البلد أولاً —</option>
-            </select>
-          </div>
-        </div>
-        <!-- Availability + DOB -->
-        <div class="ep-row2">
-          <div class="ep-field">
-            <label class="ep-label">حالة التوظيف</label>
-            <select class="ep-select" id="epAvail">
-              <option value="">— اختر —</option>
-              <option value="متاح">متاح للعمل</option>
-              <option value="مشغول">مشغول حالياً</option>
-              <option value="يفكر">يفكر في الانتقال</option>
-              <option value="عمل حر">عمل حر</option>
-            </select>
-          </div>
-          <div class="ep-field">
-            <label class="ep-label">تاريخ الميلاد</label>
-            <input type="date" class="ep-input" id="epDob" max="">
-          </div>
         </div>
         <div class="ep-err" id="epErr"></div>
       </div>
