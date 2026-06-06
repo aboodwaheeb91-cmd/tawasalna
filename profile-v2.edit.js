@@ -1,8 +1,5 @@
-// profile-v2.edit.js — Edit Profile Modal (Phase 2: name, dob, country/city, avail, profession, bio)
-// Depends on: profile-v2.state.js (_jwt, _scUserId, _scProfileKey, _scProfile)
-//             profile-v2.api.js (getProfessions, updateProfile, getProfile)
-//             profile-v2.render.js (window.renderProfile)
-//             profile-v2.utils.js (window.toast)
+// profile-v2.edit.js — Edit Profile Modal (Phase 2 + Confirmed Local Update)
+// Depends on: profile-v2.state.js, profile-v2.api.js, profile-v2.render.js, profile-v2.utils.js
 
 (function(){
   var overlay   = document.getElementById('epOverlay');
@@ -36,14 +33,16 @@
     SD:['الخرطوم','أم درمان','بورتسودان','كسلا','الأبيض']
   };
 
+  // cached professions list — set on open, used in applyLocalUpdate
+  var _profList = [];
+
   // ── Populate DOB day options ──
   (function(){
     var d = document.getElementById('epDobD');
     if(!d) return;
     for(var i=1; i<=31; i++){
       var o = document.createElement('option');
-      o.value = String(i).padStart(2,'0');
-      o.text  = i;
+      o.value = String(i).padStart(2,'0'); o.text = i;
       d.appendChild(o);
     }
   })();
@@ -55,15 +54,14 @@
     var cur = new Date().getFullYear();
     for(var i=cur-15; i>=1940; i--){
       var o = document.createElement('option');
-      o.value = i;
-      o.text  = i;
+      o.value = i; o.text = i;
       y.appendChild(o);
     }
   })();
 
   // ── City loader — global so onchange="epLoadCities()" works ──
   window.epLoadCities = function(selectedCity){
-    var cc       = (document.getElementById('epCountry') || {}).value || '';
+    var cc       = (document.getElementById('epCountry')||{}).value || '';
     var cityWrap = document.getElementById('epCityWrap');
     var cityEl   = document.getElementById('epCity');
     if(!cityEl) return;
@@ -83,6 +81,60 @@
     if(cityWrap) cityWrap.style.display = 'block';
   };
 
+  // ── Confirmed Local Update — runs immediately after PUT succeeds ──
+  function applyLocalUpdate(payload){
+    // Name
+    if(payload.full_name){
+      var nameEl = document.getElementById('scName');
+      if(nameEl) nameEl.textContent = payload.full_name;
+      if(window._scProfile) window._scProfile.full_name = payload.full_name;
+    }
+
+    // Bio
+    if(payload.bio !== undefined){
+      var bioEl = document.getElementById('scBio');
+      if(bioEl) bioEl.textContent = payload.bio;
+      if(window._scProfile) window._scProfile.bio = payload.bio;
+    }
+
+    // DOB → compute and display age
+    if(payload.dob){
+      var birth = new Date(payload.dob);
+      if(!isNaN(birth.getTime())){
+        var age = Math.floor((Date.now() - birth.getTime()) / (365.25*24*3600*1000));
+        if(age > 0 && age < 150){
+          var ageEl = document.getElementById('scAge');
+          if(ageEl){
+            ageEl.innerHTML = '<i data-lucide="cake" class="ico-sm"></i> ' + age + ' سنة';
+            ageEl.style.display = 'flex';
+          }
+        }
+      }
+      if(window._scProfile) window._scProfile.dob = payload.dob;
+    }
+
+    // Country / city — update cache only (scLoc uses p.location, a separate field)
+    if(payload.country && window._scProfile) window._scProfile.country = payload.country;
+    if(payload.city    && window._scProfile) window._scProfile.city    = payload.city;
+    if(payload.avail   && window._scProfile) window._scProfile.avail   = payload.avail;
+
+    // Profession — look up from cached list to get name_ar + icon
+    if(payload.profession_id && _profList.length){
+      var prof = null;
+      for(var i=0; i<_profList.length; i++){
+        if(_profList[i].id === payload.profession_id){ prof = _profList[i]; break; }
+      }
+      if(prof){
+        var titleEl = document.getElementById('scTitle');
+        if(titleEl){
+          titleEl.innerHTML = '<i data-lucide="' + (prof.icon || 'briefcase') + '" class="ico-sm"></i> ' + prof.name_ar;
+        }
+        if(window._scProfile) window._scProfile.profession = prof;
+        if(window.lucide && lucide.createIcons) lucide.createIcons();
+      }
+    }
+  }
+
   // ── Open Modal — prefill all fields ──
   function openModal(){
     var p = window._scProfile || {};
@@ -96,7 +148,7 @@
     if(ln) ln.value = parts.length > 1 ? parts[parts.length-1] : '';
     if(mn) mn.value = parts.length > 2 ? parts.slice(1,-1).join(' ') : '';
 
-    // DOB: parse YYYY-MM-DD
+    // DOB
     var dob = p.dob || '';
     if(dob && dob.length === 10){
       var dp = dob.split('-');
@@ -114,12 +166,13 @@
     var avEl = document.getElementById('epAvail');
     if(avEl) avEl.value = p.avail || '';
 
-    // Profession
+    // Profession — load list and cache it
     var profEl = document.getElementById('epProfession');
     if(profEl){
       profEl.innerHTML = '<option value="">جاري التحميل…</option>';
       getProfessions()
         .then(function(list){
+          _profList = list;
           var groups = {};
           list.forEach(function(pr){
             var g = pr.category_group || 'أخرى';
@@ -150,9 +203,7 @@
     if(window.lucide && lucide.createIcons) lucide.createIcons();
   }
 
-  function closeModal(){
-    overlay.classList.remove('open');
-  }
+  function closeModal(){ overlay.classList.remove('open'); }
 
   editBtn.addEventListener('click', openModal);
   closeBtn.addEventListener('click', closeModal);
@@ -172,16 +223,16 @@
     var last  = ((document.getElementById('epLastName') ||{}).value||'').trim();
     var fullName = [first, mid, last].filter(Boolean).join(' ');
 
-    var dobY  = ((document.getElementById('epDobY')||{}).value||'').trim();
-    var dobM  = ((document.getElementById('epDobM')||{}).value||'').trim();
-    var dobD  = ((document.getElementById('epDobD')||{}).value||'').trim();
-    var dob   = (dobY && dobM && dobD) ? (dobY + '-' + dobM + '-' + dobD) : '';
+    var dobY = ((document.getElementById('epDobY')||{}).value||'').trim();
+    var dobM = ((document.getElementById('epDobM')||{}).value||'').trim();
+    var dobD = ((document.getElementById('epDobD')||{}).value||'').trim();
+    var dob  = (dobY && dobM && dobD) ? (dobY + '-' + dobM + '-' + dobD) : '';
 
-    var country = ((document.getElementById('epCountry')||{}).value||'').trim();
-    var city    = ((document.getElementById('epCity')   ||{}).value||'').trim();
-    var avail   = ((document.getElementById('epAvail')  ||{}).value||'').trim();
+    var country = ((document.getElementById('epCountry')   ||{}).value||'').trim();
+    var city    = ((document.getElementById('epCity')      ||{}).value||'').trim();
+    var avail   = ((document.getElementById('epAvail')     ||{}).value||'').trim();
     var profVal = ((document.getElementById('epProfession')||{}).value||'').trim();
-    var bioVal  = ((document.getElementById('epBio')    ||{}).value||'').trim();
+    var bioVal  = ((document.getElementById('epBio')       ||{}).value||'').trim();
 
     var payload = { bio: bioVal };
     if(fullName) payload.full_name     = fullName;
@@ -202,14 +253,18 @@
           if(errEl){ errEl.textContent = msg; errEl.style.display = 'block'; }
           return;
         }
+        // 1. Close modal + toast immediately
         closeModal();
         if(window.toast) window.toast('تم حفظ التغييرات بنجاح');
+        // 2. Confirmed Local Update — no waiting for re-fetch
+        applyLocalUpdate(payload);
+        // 3. Background re-fetch for full sync (score not included, runs separately)
         getProfile(_scProfileKey)
           .then(function(freshRes){
             if(freshRes && window.renderProfile) window.renderProfile(freshRes);
             if(window.lucide && lucide.createIcons) lucide.createIcons();
           })
-          .catch(function(){ /* silent — user can refresh */ });
+          .catch(function(){ /* silent — local update already applied */ });
       })
       .catch(function(){
         if(errEl){ errEl.textContent = 'خطأ في الاتصال بالخادم'; errEl.style.display = 'block'; }
