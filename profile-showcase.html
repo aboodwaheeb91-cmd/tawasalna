@@ -282,6 +282,15 @@
     }
     .sc-toast.show { opacity:1; transform:translateX(50%) translateY(0); }
 
+
+    /* ── Profile link row ── */
+    .sc-link-row { display:none; align-items:center; gap:5px; margin-top:6px; max-width:100%; overflow:hidden; }
+    .sc-link-row .ico-sm { color:var(--t3,#6b7686); flex-shrink:0; }
+    .sc-link-text { color:var(--t3,#6b7686); font-size:.6rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; min-width:0; }
+    .sc-link-copy { flex-shrink:0; background:none; border:none; cursor:pointer; color:var(--t3,#6b7686); padding:2px; display:flex; align-items:center; border-radius:5px; transition:color .15s; }
+    .sc-link-copy:hover { color:var(--ac,#00c896); }
+    .sc-link-copy .ico-sm { width:13px; height:13px; }
+
     /* ── Preview Eye Button — owner only ── */
     .sc-eye-wrap { position:relative; display:none; }
     body.view-owner .sc-eye-wrap { display:flex; }
@@ -291,11 +300,8 @@
     body.preview-public-user .sc-eye-icon-on,
     body.preview-guest       .sc-eye-icon-on  { display:block; color:var(--ac,#00c896); }
 
-
-    /* dropdown */
     .sc-eye-menu {
-      display:none; position:absolute; top:calc(100% + 8px); left:0;
-      min-width:190px;
+      display:none; position:absolute; top:calc(100% + 8px); left:0; min-width:190px;
       background:rgba(10,14,24,.95); border:1px solid rgba(255,255,255,.13);
       border-radius:13px; padding:5px; z-index:200;
       backdrop-filter:blur(18px); -webkit-backdrop-filter:blur(18px);
@@ -321,6 +327,71 @@
        لا تأثير الآن (لا يوجد owner-only بعد) — جاهز للأدوات القادمة. */
     body.preview-public-user .owner-only,
     body.preview-guest       .owner-only { display: none !important; }
+
+
+    /* ── Edit Profile Modal ── */
+    .ep-overlay {
+      display:none; position:fixed; inset:0; z-index:300;
+      background:rgba(0,0,0,.65); backdrop-filter:blur(4px);
+      align-items:flex-end; justify-content:center;
+    }
+    .ep-overlay.open { display:flex; }
+    .ep-sheet {
+      background:#0f1420; border-radius:22px 22px 0 0;
+      border:1px solid rgba(255,255,255,.1); border-bottom:none;
+      width:100%; max-width:560px; max-height:92vh;
+      display:flex; flex-direction:column; overflow:hidden;
+      animation:slideUp .25s ease;
+    }
+    @keyframes slideUp { from{transform:translateY(40px);opacity:0;} to{transform:translateY(0);opacity:1;} }
+    .ep-head {
+      display:flex; align-items:center; justify-content:space-between;
+      padding:16px 20px 12px; border-bottom:1px solid rgba(255,255,255,.08);
+      flex-shrink:0;
+    }
+    .ep-title { font-size:.95rem; font-weight:700; }
+    .ep-close {
+      width:30px; height:30px; border-radius:50%; border:none; cursor:pointer;
+      background:rgba(255,255,255,.08); color:var(--t1,#fff);
+      display:flex; align-items:center; justify-content:center;
+    }
+    .ep-body { flex:1; overflow-y:auto; padding:18px 20px 24px; }
+    .ep-field { margin-bottom:16px; }
+    .ep-label { display:block; font-size:.76rem; font-weight:600; color:var(--t3,#6b7686); margin-bottom:6px; }
+    .ep-input, .ep-select, .ep-textarea {
+      width:100%; background:rgba(255,255,255,.05);
+      border:1px solid rgba(255,255,255,.1); border-radius:10px;
+      color:var(--t1,#fff); font-family:inherit; font-size:.84rem; padding:10px 13px;
+      outline:none; transition:border-color .15s;
+    }
+    .ep-input:focus, .ep-select:focus, .ep-textarea:focus { border-color:var(--ac,#00c896); }
+    .ep-select option { background:#0f1420; }
+    .ep-textarea { resize:vertical; min-height:80px; line-height:1.7; }
+    .ep-row2 { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+    .ep-footer {
+      display:flex; gap:10px; padding:14px 20px;
+      border-top:1px solid rgba(255,255,255,.08); flex-shrink:0;
+    }
+    .ep-save {
+      flex:1; height:42px; border-radius:11px; border:none; cursor:pointer;
+      background:linear-gradient(135deg,#00c896,#00b386);
+      color:#fff; font-family:inherit; font-size:.9rem; font-weight:700;
+      transition:opacity .15s;
+    }
+    .ep-save:disabled { opacity:.5; cursor:not-allowed; }
+    .ep-cancel {
+      height:42px; padding:0 22px; border-radius:11px; border:1px solid rgba(255,255,255,.12);
+      background:none; color:var(--t2,#9aa5b4); cursor:pointer;
+      font-family:inherit; font-size:.9rem; font-weight:600;
+    }
+    .ep-err  { color:#f87171; font-size:.78rem; margin-top:4px; display:none; }
+    .ep-note {
+      display:flex; align-items:flex-start; gap:7px;
+      background:rgba(37,99,255,.08); border:1px solid rgba(37,99,255,.2);
+      border-radius:9px; padding:10px 12px; margin-bottom:4px;
+      color:var(--t2,#9aa5b4); font-size:.76rem; line-height:1.6;
+    }
+    .ep-note .ico-sm { color:#2563ff; flex-shrink:0; margin-top:1px; }
   </style>
 </head>
 <body>
@@ -358,6 +429,11 @@
           </button>
         </div>
       </div>
+
+      <!-- Edit button — owner only -->
+      <button class="sc-hicon sc-hicon-bare owner-only" id="scEditBtn" title="تعديل الملف الشخصي" style="display:none">
+        <i data-lucide="pencil" class="ico"></i>
+      </button>
       <button class="sc-hicon sc-hicon-bare" id="scBellBtn" title="الإشعارات"><i data-lucide="bell" class="ico"></i></button>
       <button class="sc-hicon sc-hicon-bare" id="scMsgBtn" title="الرسائل"><i data-lucide="message-circle-more" class="ico"></i></button>
       <button class="sc-hicon sc-hicon-bare" id="scMenuBtn" title="القائمة"><i data-lucide="menu" class="ico"></i></button>
@@ -467,6 +543,11 @@
 
   <script src="/tw_shared.js"></script>
   <script>
+  // Script-level: accessible by all IIFEs below
+  var _jwt = localStorage.getItem('tw_jwt') || '';
+  var _fetchOpts = _jwt ? { headers: { 'Authorization': 'Bearer ' + _jwt } } : {};
+  var _scProfileId = new URLSearchParams(location.search).get('id');
+
   (function() {
     function esc(s){ var d=document.createElement('div'); d.textContent=s==null?'':String(s); return d.innerHTML; }
     function setText(id,v){ var el=document.getElementById(id); if(el) el.textContent=v==null?'':v; }
@@ -479,6 +560,7 @@
       t.textContent=msg; t.classList.add('show');
       setTimeout(function(){ t.classList.remove('show'); },2200);
     }
+    window.toast = toast;
 
     // Auto-fit name to one line by measuring real rendered width.
     // Scales font-size between MIN and MAX; badge follows via em units.
@@ -519,7 +601,7 @@
     };
     window._renderIcons = function(){ if(window.lucide && lucide.createIcons) lucide.createIcons(); };
 
-    var id = new URLSearchParams(location.search).get('id');
+    var id = _scProfileId;
     window.addEventListener('resize', function(){ if(window._fitName) _fitName(); });
 
     // Header buttons
@@ -538,27 +620,28 @@
       return;
     }
 
-    var _jwt = localStorage.getItem('tw_jwt') || '';
-    var _fetchOpts = _jwt ? { headers: { 'Authorization': 'Bearer ' + _jwt } } : {};
 
-    fetch('/profile/' + encodeURIComponent(id), _fetchOpts)
-      .then(function(r){ if(!r.ok) throw new Error('profile '+r.status); return r.json(); })
-      .then(function(res){
+    // Shared re-render function — called on load and after Edit save (Doctrine §26)
+    window.renderProfile = function renderProfile(res){
         var p = (res && res.profile) ? res.profile : {};
 
-
-        // Viewer state — set body class from server-verified JWT (Architecture Doctrine §2)
+        // Viewer state — set body class from server-verified JWT (Architecture Doctrine §22, §23)
         var _vt = res.viewer_type || 'guest';
         document.body.classList.remove('view-owner', 'public-view', 'view-guest');
         if      (_vt === 'owner')       document.body.classList.add('view-owner');
         else if (_vt === 'public-user') document.body.classList.add('public-view');
         else                            document.body.classList.add('view-guest');
 
+
+        // Show edit button for owner
+        var editBtn = document.getElementById('scEditBtn');
+        if(editBtn) editBtn.style.display = (_vt === 'owner') ? 'flex' : 'none';
+
         // Identity
         setText('scName', p.full_name || '—');
         setText('scBio', p.bio || '');
 
-        // Title + profession icon (Step 4)
+        // Title + profession icon — fallback = briefcase (Doctrine §27)
         var titleEl = document.getElementById('scTitle');
         if(titleEl){
           var profIcon = (p.profession && p.profession.icon) ? p.profession.icon : 'briefcase';
@@ -571,6 +654,26 @@
             titleEl.textContent = '';
           }
         }
+
+        // Profile link row — canonical /profile URL (Doctrine §28)
+        var _profileUrl = location.origin + '/profile?id=' + encodeURIComponent(p.tw_id || id);
+        var linkRow  = document.getElementById('scLinkRow');
+        var linkText = document.getElementById('scLinkText');
+        var linkCopy = document.getElementById('scLinkCopy');
+        if(linkRow && linkText && linkCopy){
+          linkText.textContent = _profileUrl;
+          linkRow.style.display = 'flex';
+          linkCopy.onclick = function(){
+            if(navigator.clipboard && navigator.clipboard.writeText){
+              navigator.clipboard.writeText(_profileUrl)
+                .then(function(){ toast('تم نسخ رابط البروفايل'); })
+                .catch(function(){ toast('تعذّر نسخ الرابط'); });
+            } else { toast('تعذّر نسخ الرابط'); }
+          };
+        }
+
+        // Store profile data for Edit Modal pre-population
+        window._scProfile = p;
 
         // Verified badge (only if verified)
         if(p.is_verified){
@@ -739,7 +842,12 @@
           .then(function(r){ return r.ok ? r.json() : null; })
           .then(function(sc){ if(sc && typeof sc.score!=='undefined') setText('scStatScore', sc.score); })
           .catch(function(){ /* score stays — */ });
-      })
+    } // end renderProfile
+
+    // Initial load — sends JWT for server-side viewer_type (Doctrine §22)
+    fetch('/profile/' + encodeURIComponent(id), _fetchOpts)
+      .then(function(r){ if(!r.ok) throw new Error('profile '+r.status); return r.json(); })
+      .then(window.renderProfile)
       .catch(function(){
         var ld=document.getElementById('scLoading');
         if(ld) ld.textContent='تعذّر تحميل الملف';
@@ -754,12 +862,12 @@
     btn.textContent = expanded ? 'عرض أقل ▴' : 'عرض المزيد ▾';
   };
 
-  // ── Preview Eye Button ──
-  (function(){
 
-    var eyeWrap  = document.getElementById('scEyeWrap');
-    var eyeBtn   = document.getElementById('scEyeBtn');
-    var eyeMenu  = document.getElementById('scEyeMenu');
+  // ── Preview Eye Button (Doctrine §24) ──
+  (function(){
+    var eyeWrap = document.getElementById('scEyeWrap');
+    var eyeBtn  = document.getElementById('scEyeBtn');
+    var eyeMenu = document.getElementById('scEyeMenu');
     if(!eyeBtn || !eyeMenu) return;
 
     // Toggle dropdown
@@ -796,8 +904,324 @@
       if(eyeWrap && !eyeWrap.contains(e.target)) eyeMenu.classList.remove('open');
     });
   })();
+
+
+  // ── Edit Profile Modal (Doctrine §28) ──
+  (function(){
+    var EP_CITIES = {
+      JO:['عمان','إربد','الزرقاء','العقبة','السلط','مادبا','الكرك','معان','جرش','عجلون','الطفيلة'],
+      SA:['الرياض','جدة','مكة المكرمة','المدينة المنورة','الدمام','الخبر','الطائف','أبها','تبوك','القطيف','بريدة'],
+      AE:['دبي','أبوظبي','الشارقة','عجمان','رأس الخيمة','الفجيرة','أم القيوين','العين'],
+      KW:['مدينة الكويت','حولي','الفروانية','الأحمدي','الجهراء','مبارك الكبير'],
+      QA:['الدوحة','الريان','الوكرة','أم صلال','الخور','الشمال'],
+      BH:['المنامة','المحرق','الرفاع','مدينة عيسى','مدينة حمد'],
+      OM:['مسقط','صلالة','نزوى','صحار','السيب','مطرح','البريمي'],
+      EG:['القاهرة','الإسكندرية','الجيزة','شرم الشيخ','الأقصر','أسوان','طنطا','المنصورة','الفيوم','بورسعيد'],
+      IQ:['بغداد','البصرة','الموصل','أربيل','كربلاء','النجف','السليمانية','كركوك'],
+      SY:['دمشق','حلب','حمص','اللاذقية','حماة','دير الزور','الرقة','درعا'],
+      LB:['بيروت','طرابلس','صيدا','صور','جونية','زحلة'],
+      PS:['رام الله','القدس','غزة','نابلس','الخليل','جنين','أريحا','بيت لحم'],
+      YE:['صنعاء','عدن','تعز','الحديدة','إب','ذمار','مأرب'],
+      LY:['طرابلس','بنغازي','مصراتة','الزاوية','البيضاء','سبها'],
+      TN:['تونس','صفاقس','سوسة','بنزرت','قابس','القيروان'],
+      DZ:['الجزائر','وهران','قسنطينة','عنابة','سطيف','تلمسان'],
+      MA:['الرباط','الدار البيضاء','فاس','مراكش','مكناس','أكادير','طنجة'],
+      SD:['الخرطوم','أم درمان','بورتسودان','كسلا','الأبيض'],
+    };
+
+    var overlay   = document.getElementById('epOverlay');
+    var closeBtn  = document.getElementById('epClose');
+    var cancelBtn = document.getElementById('epCancelBtn');
+    var saveBtn   = document.getElementById('epSaveBtn');
+    var editBtn   = document.getElementById('scEditBtn');
+    var errEl     = document.getElementById('epErr');
+
+    if(!overlay || !editBtn) return;
+
+    // Cities helper
+    window.epLoadCities = function(){
+      var country = document.getElementById('epCountry').value;
+      var cityEl  = document.getElementById('epCity');
+      if(!cityEl) return;
+      var cities = EP_CITIES[country] || [];
+      cityEl.innerHTML = cities.length
+        ? '<option value="">— اختر المدينة —</option>' + cities.map(function(c){ return '<option value="'+c+'">'+c+'</option>'; }).join('')
+        : '<option value="">لا توجد مدن متاحة</option>';
+    };
+
+    function openModal(){
+      var p = window._scProfile || {};
+
+      // Set DOB max = today
+      var dobEl = document.getElementById('epDob');
+      if(dobEl) dobEl.max = new Date().toISOString().split('T')[0];
+
+      // Pre-populate fields
+      var bioEl = document.getElementById('epBio');
+      if(bioEl) bioEl.value = p.bio || '';
+
+      var countryEl = document.getElementById('epCountry');
+      if(countryEl){ countryEl.value = p.country || ''; epLoadCities(); }
+
+      var cityEl = document.getElementById('epCity');
+      if(cityEl) cityEl.value = p.city || '';
+
+      var availEl = document.getElementById('epAvail');
+      if(availEl) availEl.value = p.avail || '';
+
+      if(dobEl) dobEl.value = p.dob ? p.dob.split('T')[0] : '';
+
+      // Fetch professions from API — adds "not_found" option at end (Doctrine §28, §29)
+      var profEl = document.getElementById('epProfession');
+      if(profEl){
+        profEl.innerHTML = '<option value="">جاري التحميل…</option>';
+        var suggestWrap = document.getElementById('epSuggestWrap');
+        if(suggestWrap) suggestWrap.style.display = 'none';
+        fetch('/professions')
+          .then(function(r){ return r.ok ? r.json() : []; })
+          .then(function(list){
+            var groups = {};
+            list.forEach(function(pr){
+              var g = pr.category_group || 'أخرى';
+              if(!groups[g]) groups[g] = [];
+              groups[g].push(pr);
+            });
+            var html = '<option value="">— اختر التخصص —</option>';
+            Object.keys(groups).forEach(function(g){
+              html += '<optgroup label="'+g+'">';
+              groups[g].forEach(function(pr){
+                var sel = (p.profession && p.profession.id === pr.id) ? ' selected' : '';
+                html += '<option value="'+pr.id+'"'+sel+'>'+pr.name_ar+'</option>';
+              });
+              html += '</optgroup>';
+            });
+            html += '<optgroup label="──────────"><option value="not_found">تخصصي غير موجود في القائمة</option></optgroup>';
+            profEl.innerHTML = html;
+          })
+          .catch(function(){ profEl.innerHTML = '<option value="">تعذّر تحميل التخصصات</option>'; });
+      }
+
+      if(errEl) errEl.style.display = 'none';
+      overlay.classList.add('open');
+      if(window.lucide && lucide.createIcons) lucide.createIcons();
+    }
+
+    // Show/hide suggestion fields based on profession select value
+    window.epOnProfessionChange = function(){
+      var val = document.getElementById('epProfession').value;
+      var wrap = document.getElementById('epSuggestWrap');
+      if(wrap) wrap.style.display = (val === 'not_found') ? 'block' : 'none';
+      if(window.lucide && lucide.createIcons) lucide.createIcons();
+    };
+
+    function closeModal(){
+      overlay.classList.remove('open');
+      // Reset suggestion fields
+      var wrap = document.getElementById('epSuggestWrap');
+      if(wrap) wrap.style.display = 'none';
+      var arEl = document.getElementById('epSuggestAr');
+      if(arEl) arEl.value = '';
+      var enEl = document.getElementById('epSuggestEn');
+      if(enEl) enEl.value = '';
+    }
+
+    editBtn.addEventListener('click', openModal);
+    closeBtn.addEventListener('click', closeModal);
+    cancelBtn.addEventListener('click', closeModal);
+    overlay.addEventListener('click', function(e){ if(e.target === overlay) closeModal(); });
+
+    saveBtn.addEventListener('click', function(){
+      var _u = JSON.parse(localStorage.getItem('tawasalna_user') || 'null');
+      if(!_u || !_u.id){ toast('يرجى تسجيل الدخول أولاً'); return; }
+
+      var profVal  = document.getElementById('epProfession').value;
+      var isSuggest = (profVal === 'not_found');
+
+      // Validate suggestion fields
+      if(isSuggest){
+        var arVal = (document.getElementById('epSuggestAr').value || '').trim();
+        if(arVal.length < 2){
+          if(errEl){ errEl.textContent = 'يرجى كتابة اسم التخصص المقترح (حرفان على الأقل)'; errEl.style.display = 'block'; }
+          return;
+        }
+        if(arVal.length > 100){
+          if(errEl){ errEl.textContent = 'اسم التخصص طويل جداً (100 حرف كحد أقصى)'; errEl.style.display = 'block'; }
+          return;
+        }
+      }
+
+      var payload = {};
+      if(profVal && !isSuggest) payload.profession_id = parseInt(profVal, 10);
+      if(isSuggest) payload.profession_id = null; // explicit null clears any old profession
+
+      var bioVal = document.getElementById('epBio').value.trim();
+      if(bioVal !== undefined) payload.bio = bioVal;
+
+      var countryVal = document.getElementById('epCountry').value;
+      if(countryVal) payload.country = countryVal;
+
+      var cityVal = document.getElementById('epCity').value;
+      if(cityVal) payload.city = cityVal;
+
+      var availVal = document.getElementById('epAvail').value;
+      if(availVal) payload.avail = availVal;
+
+      var dobVal = document.getElementById('epDob').value;
+      if(dobVal) payload.dob = dobVal;
+
+      if(errEl) errEl.style.display = 'none';
+      saveBtn.disabled = true;
+      saveBtn.textContent = 'جاري الحفظ…';
+
+      // Build promise chain: suggestion first (if needed), then profile update
+      var chain = Promise.resolve();
+      if(isSuggest){
+        var suggestAr = document.getElementById('epSuggestAr').value.trim();
+        var suggestEn = (document.getElementById('epSuggestEn').value || '').trim();
+        payload.headline = suggestAr; // temporary display while pending (Doctrine §29)
+        chain = fetch('/profession-suggestions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + (_jwt || '')
+          },
+          body: JSON.stringify({ suggested_name_ar: suggestAr, suggested_name_en: suggestEn || undefined })
+        }).then(function(r){ return r.json().then(function(d){ return {ok:r.ok, data:d}; }); })
+          .then(function(res){
+            if(!res.ok){
+              var msg = (res.data && res.data.detail) ? res.data.detail : 'تعذّر حفظ الاقتراح';
+              throw new Error(msg);
+            }
+          });
+      }
+
+      chain.then(function(){
+        return fetch('/profile/' + _u.id, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + (_jwt || '')
+          },
+          body: JSON.stringify(payload)
+        });
+      })
+      .then(function(r){ return r.json().then(function(d){ return {ok:r.ok, data:d}; }); })
+      .then(function(res){
+        if(!res.ok){
+          var msg = (res.data && res.data.detail) ? res.data.detail : 'حدث خطأ أثناء الحفظ';
+          if(errEl){ errEl.textContent = msg; errEl.style.display = 'block'; }
+          return;
+        }
+        closeModal();
+        toast(isSuggest ? 'تم إرسال اقتراحك وسيظهر تخصصك مؤقتاً في البروفايل' : 'تم حفظ التغييرات بنجاح');
+        // Re-fetch full profile to get updated profession object (Doctrine §26)
+        return fetch('/profile/' + encodeURIComponent(_scProfileId), _fetchOpts)
+          .then(function(r){ return r.ok ? r.json() : null; })
+          .then(function(freshRes){
+            if(freshRes) window.renderProfile(freshRes);
+            if(window.lucide && lucide.createIcons) lucide.createIcons();
+          });
+      })
+      .catch(function(){ if(errEl){ errEl.textContent = 'خطأ في الاتصال بالخادم'; errEl.style.display='block'; } })
+      .finally(function(){ saveBtn.disabled=false; saveBtn.textContent='حفظ التغييرات'; });
+    });
+  })();
   </script>
 
+  <!-- Edit Profile Modal -->
+  <div class="ep-overlay" id="epOverlay">
+    <div class="ep-sheet">
+      <div class="ep-head">
+        <span class="ep-title"><i data-lucide="pencil" class="ico-sm" style="color:var(--ac,#00c896);vertical-align:middle;margin-left:6px"></i> تعديل الملف الشخصي</span>
+        <button class="ep-close" id="epClose"><i data-lucide="x" class="ico-sm"></i></button>
+      </div>
+      <div class="ep-body">
+        <!-- Profession -->
+        <div class="ep-field">
+          <label class="ep-label">التخصص المهني</label>
+          <select class="ep-select" id="epProfession" onchange="epOnProfessionChange()">
+            <option value="">جاري التحميل…</option>
+          </select>
+        </div>
+        <!-- Suggestion fields — shown only when "not_found" selected -->
+        <div id="epSuggestWrap" style="display:none">
+          <div class="ep-field">
+            <label class="ep-label">اسم التخصص بالعربي <span style="color:#f87171">*</span></label>
+            <input type="text" class="ep-input" id="epSuggestAr" placeholder="مثال: مهندس ذكاء اصطناعي" maxlength="100">
+          </div>
+          <div class="ep-field">
+            <label class="ep-label">اسم التخصص بالإنجليزي (اختياري)</label>
+            <input type="text" class="ep-input" id="epSuggestEn" placeholder="AI Engineer" maxlength="100" dir="ltr">
+          </div>
+          <div class="ep-note" id="epSuggestNote">
+            <i data-lucide="info" class="ico-sm"></i>
+            سيظهر تخصصك مؤقتاً في بروفايلك ريثما تراجعه الإدارة وتعتمده رسمياً.
+          </div>
+        </div>
+        <!-- Bio -->
+        <div class="ep-field">
+          <label class="ep-label">نبذة تعريفية</label>
+          <textarea class="ep-textarea" id="epBio" placeholder="اكتب نبذة عن نفسك…" maxlength="600"></textarea>
+        </div>
+        <!-- Country + City -->
+        <div class="ep-row2">
+          <div class="ep-field">
+            <label class="ep-label">البلد</label>
+            <select class="ep-select" id="epCountry" onchange="epLoadCities()">
+              <option value="">— اختر البلد —</option>
+              <option value="JO">🇯🇴 الأردن</option>
+              <option value="SA">🇸🇦 السعودية</option>
+              <option value="AE">🇦🇪 الإمارات</option>
+              <option value="KW">🇰🇼 الكويت</option>
+              <option value="QA">🇶🇦 قطر</option>
+              <option value="BH">🇧🇭 البحرين</option>
+              <option value="OM">🇴🇲 عُمان</option>
+              <option value="EG">🇪🇬 مصر</option>
+              <option value="IQ">🇮🇶 العراق</option>
+              <option value="SY">🇸🇾 سوريا</option>
+              <option value="LB">🇱🇧 لبنان</option>
+              <option value="PS">🇵🇸 فلسطين</option>
+              <option value="YE">🇾🇪 اليمن</option>
+              <option value="MA">🇲🇦 المغرب</option>
+              <option value="DZ">🇩🇿 الجزائر</option>
+              <option value="TN">🇹🇳 تونس</option>
+              <option value="LY">🇱🇾 ليبيا</option>
+              <option value="SD">🇸🇩 السودان</option>
+              <option value="OTHER">🌍 دولة أخرى</option>
+            </select>
+          </div>
+          <div class="ep-field">
+            <label class="ep-label">المدينة</label>
+            <select class="ep-select" id="epCity">
+              <option value="">— اختر البلد أولاً —</option>
+            </select>
+          </div>
+        </div>
+        <!-- Availability + DOB -->
+        <div class="ep-row2">
+          <div class="ep-field">
+            <label class="ep-label">حالة التوظيف</label>
+            <select class="ep-select" id="epAvail">
+              <option value="">— اختر —</option>
+              <option value="متاح">متاح للعمل</option>
+              <option value="مشغول">مشغول حالياً</option>
+              <option value="يفكر">يفكر في الانتقال</option>
+              <option value="عمل حر">عمل حر</option>
+            </select>
+          </div>
+          <div class="ep-field">
+            <label class="ep-label">تاريخ الميلاد</label>
+            <input type="date" class="ep-input" id="epDob" max="">
+          </div>
+        </div>
+        <div class="ep-err" id="epErr"></div>
+      </div>
+      <div class="ep-footer">
+        <button class="ep-cancel" id="epCancelBtn">إلغاء</button>
+        <button class="ep-save" id="epSaveBtn">حفظ التغييرات</button>
+      </div>
+    </div>
+  </div>
 
 </body>
 </html>

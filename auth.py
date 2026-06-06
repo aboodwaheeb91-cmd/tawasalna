@@ -250,6 +250,29 @@ def init_db():
         except Exception: pass
         try:
             conn.run("""
+                CREATE TABLE IF NOT EXISTS profession_suggestions (
+                    id               SERIAL PRIMARY KEY,
+                    user_id          INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    suggested_name_ar TEXT NOT NULL,
+                    suggested_name_en TEXT,
+                    normalized_name   TEXT,
+                    status           VARCHAR(20) DEFAULT 'pending',
+                    reviewed_by      INTEGER REFERENCES users(id),
+                    reviewed_at      TIMESTAMPTZ,
+                    review_note      TEXT,
+                    created_at       TIMESTAMPTZ DEFAULT NOW(),
+                    updated_at       TIMESTAMPTZ DEFAULT NOW()
+                )
+            """)
+        except Exception: pass
+        try:
+            conn.run("CREATE INDEX IF NOT EXISTS idx_prof_sugg_user ON profession_suggestions(user_id)")
+        except Exception: pass
+        try:
+            conn.run("CREATE INDEX IF NOT EXISTS idx_prof_sugg_status ON profession_suggestions(status)")
+        except Exception: pass
+        try:
+            conn.run("""
                 INSERT INTO profession_categories (name_ar,name_en,slug,icon,category_group,sort_order) VALUES
                 ('مطور برمجيات','Software Developer','software-developer','code-2','tech',10),
                 ('مطور ويب','Web Developer','web-developer','globe','tech',11),
@@ -843,7 +866,7 @@ def update_profile(user_id: int, data: dict) -> dict:
                 name=data["full_name"], uid=user_id
             )
 
-        allowed = ["headline", "bio", "location", "skills", "avatar_url", "website", "phone", "sections_order", "custom_sections", "dob", "country", "city", "avail", "title", "profile_color", "profile_style"]
+        allowed = ["headline", "bio", "location", "skills", "avatar_url", "website", "phone", "sections_order", "custom_sections", "dob", "country", "city", "avail", "title", "profile_color", "profile_style", "profession_id"]
         # Ensure profile columns exist (in case migrations didn't run)
         for col_sql in [
             "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS dob TEXT",
