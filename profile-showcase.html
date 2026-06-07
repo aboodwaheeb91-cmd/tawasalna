@@ -47,10 +47,6 @@
         </div>
       </div>
 
-      <!-- Edit button — owner only, shown by renderProfile when viewer_type=owner -->
-      <button class="sc-hicon sc-hicon-bare owner-only" id="scEditProfileBtn" title="تعديل الملف الشخصي" style="display:none">
-        <i data-lucide="pencil" class="ico"></i>
-      </button>
       <button class="sc-hicon sc-hicon-bare" id="scBellBtn" title="الإشعارات"><i data-lucide="bell" class="ico"></i></button>
       <button class="sc-hicon sc-hicon-bare" id="scMsgBtn" title="الرسائل"><i data-lucide="message-circle-more" class="ico"></i></button>
       <button class="sc-hicon sc-hicon-bare" id="scMenuBtn" title="القائمة"><i data-lucide="menu" class="ico"></i></button>
@@ -103,6 +99,10 @@
               </button>
             </div>
           </div>
+          <!-- Floating profile edit button: owner only, between cover and name, left side -->
+          <button class="sc-prof-edit-btn owner-only" id="scEditProfileBtn" title="تعديل الملف الشخصي" style="display:none">
+            <i data-lucide="pencil" class="ico-sm"></i>
+          </button>
         </div>
 
         <!-- Actions -->
