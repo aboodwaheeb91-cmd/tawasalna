@@ -1378,8 +1378,8 @@ Merge SHA: (بعد الدمج)
 #### 8. Live Verification
 ```bash
 # اختبر الملفات المعدّلة مباشرة من الموقع الحي
-curl -I https://tawasalna.com/profile-showcase?id=3
-curl -I https://tawasalna.com/static/profile-v2.edit.js?v=edit-modal-fix-v1
+curl -o /dev/null -sw "%{http_code}" https://tawasolna.com/profile-showcase?id=3
+curl -o /dev/null -sw "%{http_code}" https://tawasolna.com/static/profile-v2.edit.js
 # المتوقع: HTTP 200
 ```
 
@@ -1428,6 +1428,100 @@ window.PROFILE_SHOWCASE_VERSION = "edit-modal-fix-v1";
 - Fix زر القلم (`c8913b9`): أُعلن عنه كـ "تم" في جلسة سابقة لكن المستخدم لم يتأكد من وصوله
 
 هذا العقد يمنع تكرار المشكلة.
+
+---
+
+## [P0] 34. Official Development Workflow (2026-06-07)
+
+### الدومين الحي
+```
+https://tawasolna.com                                          ← الصحيح
+❌ https://tawasalna.com                                       ← خاطئ — لا تستخدم
+```
+
+### روابط حية مرجعية
+```
+صفحة البروفايل:    https://tawasolna.com/profile.html?id=U0000db005c71b0
+Profile Showcase:  https://tawasolna.com/profile-showcase?id=U0000db005c71b0
+```
+يُستخدم في كل live verification بعد deploy.
+
+### دورة العمل الرسمية
+
+```
+1. Claude: كود + commit + push + PR + تحديث ARCHITECTURE.md
+2. Claude: ملخص تقني + صيغة مختصرة (تم رفع / رقم PR / الحالة)
+3. المستخدم: يقرر الـ merge
+4. بعد merge + deploy: Claude يُشغّل live verification عبر curl
+5. إذا احتاج الفحص متصفح أو بصري: المستخدم يختبر ويُرسل النتيجة
+```
+
+### Live Verification Routine (بعد كل deploy)
+
+```bash
+# 1. الصفحة الرئيسية
+curl -o /dev/null -sw "%{http_code}" https://tawasolna.com/
+
+# 2. Profile (الحالي)
+curl -o /dev/null -sw "%{http_code}" "https://tawasolna.com/profile.html?id=U0000db005c71b0"
+
+# 3. Static JS files
+curl -o /dev/null -sw "%{http_code}" https://tawasolna.com/static/profile-v2.exp.js
+curl -o /dev/null -sw "%{http_code}" https://tawasolna.com/static/profile-v2.render.js
+curl -o /dev/null -sw "%{http_code}" https://tawasolna.com/static/profile-v2.css
+
+# 4. التأكد من وجود function في الملف الحي
+curl -s https://tawasolna.com/static/profile-v2.exp.js | grep -c "_expMenuToggle"
+curl -s https://tawasolna.com/static/profile-v2.exp.js | grep -c "_expMoveUp"
+
+# 5. API endpoint أساسي
+curl -o /dev/null -sw "%{http_code}" https://tawasolna.com/stats
+```
+المتوقع: كل شيء يرجع 200.
+
+### قواعد التوثيق التلقائي
+
+| الحالة | الإجراء |
+|--------|---------|
+| Feature مكتملة + merged + لا اعتراض | توثيق كـ `Done / Stable` في ARCHITECTURE.md |
+| Fix مهم + merged | توثيق كـ `Done / Stable` |
+| مرفوع فقط (لم يُدمج) | توثيق كـ `Pending merge` |
+| يوجد خطأ مفتوح | توثيق كـ `Needs testing` أو لا توثيق |
+| المستخدم انتقل لموضوع جديد بدون اعتراض | = implicit approval → توثيق كـ Stable |
+
+### تقسيم المسؤوليات (نهائي)
+
+| المهمة | المسؤول |
+|--------|---------|
+| قراءة الكود + تعديل الملفات + commit + push + PR | Claude |
+| تحديث ARCHITECTURE.md | Claude (تلقائي) |
+| curl verification بعد deploy | Claude |
+| merge إلى main | المستخدم فقط |
+| deploy (إذا احتاج إجراء يدوي) | المستخدم |
+| فحص المتصفح بصرياً | المستخدم |
+| Supabase / Heroku / Railway / DNS / Gmail | المستخدم |
+
+### إذا احتجت logs أو Console أو DB
+Claude لا يطلب tokens أو secrets إلا لسبب ضروري محدد.
+بدلاً من ذلك: Claude يُخبر المستخدم بالضبط ماذا يفحص ويرسل النتيجة.
+
+```
+مثال:
+Claude: "افتح Heroku logs وابحث عن السطر الذي يحتوي [reorder_experience]"
+Claude: "شغّل هذا الـ SQL في Supabase: SELECT sort_order FROM experience LIMIT 5"
+Claude: "افتح Console في المتصفح وأرسل لي أي خطأ يظهر باللون الأحمر"
+```
+
+### ممنوعات صريحة (نهائي)
+
+```
+❌ merge إلى main بدون موافقة صريحة من المستخدم
+❌ deploy مباشر بدون PR
+❌ قول "تم" بدون commit SHA + push output
+❌ قول "deployed" بدون curl 200 من tawasolna.com
+❌ توثيق كـ Stable إذا يوجد خطأ مفتوح
+❌ طلب tokens أو secrets بدون سبب ضروري محدد
+```
 
 ---
 
@@ -1601,8 +1695,141 @@ Read-only — لا يُعدَّل نهائياً.
 `window._buildExpHTML(exp, isOwner)` — دالة مشتركة في render.js:
 - render.js تستخدمها عند التحميل الأول
 - exp.js تستخدمها عند `_reRenderExp()`
-- isOwner = true → تُضاف أزرار التعديل والحذف
+- isOwner = true → تُضاف زر ⋮ + قائمة الإجراءات
 - isOwner = false → cards بدون أي أدوات
 
 ### profile.html القديم
 Read-only — لا يُعدَّل نهائياً.
+
+---
+
+## Profile V2 — Experience Sort Order
+
+**الحالة:** Done / Stable — PR #48
+
+### الملفات المتغيرة
+| الملف | التغيير |
+|-------|---------|
+| `auth.py` | migration: `sort_order INTEGER DEFAULT 0`، ORDER BY في `_get_extras`، `reorder_experience()` |
+| `server.py` | `ExperienceReorderInput` model، `PUT /experience/reorder` endpoint |
+| `profile-v2.api.js` | `reorderExperience(orderedIds)` — wrapper للـ endpoint |
+| `profile-v2.exp.js` | `_expMoveUp`, `_expMoveDown`, `_saveExperienceOrder` |
+| `profile-v2.render.js` | يمرر `i` و`n` لـ `_buildExpHTML` لتحديد disabled state |
+| `profile-v2.css` | `.sc-item-btn-ord[disabled]` — opacity للأزرار المعطّلة |
+
+### Endpoint
+```
+PUT /experience/reorder
+Auth: JWT مطلوب
+Body: { ordered_ids: [int, ...] }
+```
+**مهم:** يجب أن يكون هذا الـ endpoint قبل `PUT /experience/{exp_id}` في server.py لتجنب تفسير "reorder" كـ `exp_id`.
+
+### Pattern المعتمد — Optimistic Update + Rollback
+```
+1. snapshot = list.slice()             ← نسخ الترتيب القديم قبل التغيير
+2. swap في _scProfile.experience       ← تحديث state فوراً
+3. _reRenderExp()                      ← إعادة رسم UI فوراً
+4. PUT /experience/reorder             ← API في الخلفية
+5a. نجاح → _bgRefetch() صامت
+5b. فشل  → _scProfile.experience = snapshot → _reRenderExp() + toast
+```
+
+### Security
+- Backend يتحقق من ownership لكل id قبل أي UPDATE
+- إذا `len(rows) != len(ordered_ids)` → رفض كامل (لا partial update)
+
+### Schema
+```sql
+ALTER TABLE experience ADD COLUMN IF NOT EXISTS sort_order INTEGER DEFAULT 0;
+-- SELECT ORDER BY sort_order ASC, id DESC
+```
+
+---
+
+## Profile V2 — Experience Three-Dots Action Menu
+
+**الحالة:** Done / Stable — PR #49 + #50
+
+### المشكلة المحلولة
+4 أزرار مستقلة (تعديل، حذف، رفع، إنزال) على كل بطاقة = ازدحام بصري يخرب شكل الكارد.
+
+### الحل
+زر ⋮ واحد لكل بطاقة → قائمة منسدلة بالإجراءات الأربعة.
+
+### الملفات المتغيرة
+| الملف | التغيير |
+|-------|---------|
+| `profile-v2.render.js` | استبدال 4 أزرار بـ `sc-exp-menu-wrap` + `sc-exp-menu` في `_buildExpHTML` |
+| `profile-v2.exp.js` | `_expMenuToggle(btn)`, `_expMenuClose()`, document click listener |
+| `profile-v2.css` | `.sc-exp-menu-wrap`, `.sc-exp-menu`, `.sc-exp-menu-item` styles |
+
+### HTML Pattern
+```html
+<div class="sc-exp-menu-wrap owner-only">
+  <button class="sc-exp-menu-btn" onclick="window._expMenuToggle(this)">⋮</button>
+  <div class="sc-exp-menu">
+    <button class="sc-exp-menu-item" data-exp-id="..." onclick="...تعديل...">تعديل</button>
+    <button class="sc-exp-menu-item sc-exp-menu-move" [disabled?] ...>رفع للأعلى</button>
+    <button class="sc-exp-menu-item sc-exp-menu-move" [disabled?] ...>إنزال للأسفل</button>
+    <div class="sc-exp-menu-sep"></div>
+    <button class="sc-exp-menu-item sc-exp-menu-del" ...>حذف</button>
+  </div>
+</div>
+```
+
+### Owner-only
+- `owner-only` class على `sc-exp-menu-wrap` ← يختفي في preview mode تلقائياً
+- لا يُضاف للـ DOM أصلاً للزوار (شرط `isOwner` في `_buildExpHTML`)
+
+### Disabled State (محسوب في HTML مباشرة)
+- رفع للأعلى: `disabled` عند `i === 0`
+- إنزال للأسفل: `disabled` عند `i === n-1`
+
+---
+
+## [P2] 33. Dropdown Overflow Pattern — position:fixed Escape
+
+**المشكلة:** أي dropdown داخل container بـ `overflow:hidden` يُقص ولا يظهر كاملاً.
+**السبب الحالي:** `.sc-main-card { overflow:hidden }` يقص كل `position:absolute`.
+
+### القاعدة المعتمدة
+
+أي dropdown داخل container بـ `overflow:hidden` يستخدم `position:fixed` مع إحداثيات من `getBoundingClientRect()`.
+
+```javascript
+window._myMenuToggle = function(btn){
+  var menu = btn.nextElementSibling;
+  var rect  = btn.getBoundingClientRect();
+  var menuW = 156, menuH = 172;
+  var spaceBelow = window.innerHeight - rect.bottom;
+  var leftPos = Math.max(4, Math.min(rect.left, window.innerWidth - menuW - 4));
+
+  menu.style.position = 'fixed';
+  menu.style.width    = menuW + 'px';
+  menu.style.left     = leftPos + 'px';
+  menu.style.right    = 'auto';
+
+  if(spaceBelow >= menuH + 8){
+    menu.style.top    = (rect.bottom + 5) + 'px';   // أسفل
+    menu.style.bottom = 'auto';
+  } else {
+    menu.style.top    = 'auto';
+    menu.style.bottom = (window.innerHeight - rect.top + 5) + 'px'; // أعلى
+  }
+  menu.classList.add('open');
+};
+```
+
+```css
+.my-menu { display:none; position:fixed; z-index:500; }
+.my-menu.open { display:block; }
+```
+
+### لماذا `position:fixed`
+- تتموضع نسبةً للـ viewport → تهرب من `overflow:hidden`
+- `z-index:500` يضمن ظهورها فوق كل شيء
+- الاتجاه (أعلى/أسفل) يُحدَّد بـ `spaceBelow` عند كل فتح
+
+### ينطبق على
+أي dropdown/tooltip/popover داخل `.sc-main-card` أو أي container بـ `overflow:hidden`.
