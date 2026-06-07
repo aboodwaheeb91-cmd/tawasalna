@@ -66,6 +66,13 @@
           <input type="file" id="cvFileInput" accept="image/jpeg,image/png,image/webp" style="display:none">
         </div>
 
+        <!-- Zero-height anchor: positions edit button just below the cover edge, not inside it -->
+        <div class="sc-edit-anchor">
+          <button class="sc-prof-edit-btn owner-only" id="scEditProfileBtn" title="تعديل الملف الشخصي" style="display:none">
+            <i data-lucide="pencil" class="ico-sm"></i>
+          </button>
+        </div>
+
         <!-- Profile row: avatar+QR (right) | info (left) -->
         <div class="sc-prof-row">
           <div class="sc-ava-col">
@@ -99,10 +106,6 @@
               </button>
             </div>
           </div>
-          <!-- Floating profile edit button: owner only, between cover and name, left side -->
-          <button class="sc-prof-edit-btn owner-only" id="scEditProfileBtn" title="تعديل الملف الشخصي" style="display:none">
-            <i data-lucide="pencil" class="ico-sm"></i>
-          </button>
         </div>
 
         <!-- Actions -->
