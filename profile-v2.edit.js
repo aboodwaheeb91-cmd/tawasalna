@@ -249,14 +249,19 @@
 
   // Auto-clear name row when user edits and removes emoji
   function _checkNameErr(){
+    // Clear border on each individual field that is now emoji-free
+    ['epFirstName','epMidName','epLastName'].forEach(function(id){
+      var el = document.getElementById(id);
+      if(el && el.classList.contains('ep-input-err') && !(window.hasEmoji && window.hasEmoji(el.value))){
+        el.classList.remove('ep-input-err');
+      }
+    });
+    // Hide the shared error message only when ALL three are clean
     var anyEmoji = ['epFirstName','epMidName','epLastName'].some(function(id){
       var el = document.getElementById(id);
       return el && window.hasEmoji && window.hasEmoji(el.value);
     });
     if(!anyEmoji){
-      ['epFirstName','epMidName','epLastName'].forEach(function(id){
-        var el = document.getElementById(id); if(el) el.classList.remove('ep-input-err');
-      });
       var div = document.getElementById('epNameErr');
       if(div){ div.textContent=''; div.classList.remove('show'); }
     }
@@ -319,7 +324,9 @@
     if(avail)   payload.avail         = avail;
     if(profVal) payload.profession_id = parseInt(profVal, 10);
 
-    // Emoji guard — must match backend validate_no_emoji()
+    // Emoji guard — clear previous state, then mark ALL offending fields
+    _clearAllFieldErrs();
+    var _emojiErr = false;
     var _emojiFields = [
       {v: first,  inputId: 'epFirstName', errId: 'epNameErr'},
       {v: mid,    inputId: 'epMidName',   errId: 'epNameErr'},
@@ -329,10 +336,18 @@
     for(var _ei=0; _ei<_emojiFields.length; _ei++){
       var _ef = _emojiFields[_ei];
       if(window.hasEmoji && window.hasEmoji(_ef.v)){
-        _showFieldErr(document.getElementById(_ef.inputId), _ef.errId);
-        if(window.toast) window.toast(_EMOJI_MSG);
-        return;
+        var _inp = document.getElementById(_ef.inputId);
+        if(_inp) _inp.classList.add('ep-input-err');
+        var _div = document.getElementById(_ef.errId);
+        if(_div){ _div.textContent = _EMOJI_MSG; _div.classList.add('show'); }
+        _emojiErr = true;
       }
+    }
+    if(_emojiErr){
+      var _fe = document.querySelector('#epOverlay .ep-field-err.show');
+      if(_fe) _fe.scrollIntoView({behavior:'smooth', block:'nearest'});
+      if(window.toast) window.toast(_EMOJI_MSG);
+      return;
     }
 
     if(errEl) errEl.style.display = 'none';
