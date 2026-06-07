@@ -243,14 +243,18 @@
 
     // Emoji guard — must match backend validate_no_emoji()
     var _emojiCheck = [
-      {v: title,   n: 'المسمى الوظيفي'},
-      {v: company, n: 'اسم الشركة'},
-      {v: _loc,    n: 'الموقع'},
-      {v: _desc,   n: 'الوصف'}
+      {v: title,   n: 'المسمى الوظيفي', id: 'exTitle'},
+      {v: company, n: 'اسم الشركة',     id: 'exCompany'},
+      {v: _loc,    n: 'الموقع',         id: null},
+      {v: _desc,   n: 'الوصف',          id: 'exDesc'}
     ];
     for(var _ei=0; _ei<_emojiCheck.length; _ei++){
-      if(window.hasEmoji && window.hasEmoji(_emojiCheck[_ei].v)){
-        showErr('لا يسمح باستخدام الرموز التعبيرية في حقل "'+_emojiCheck[_ei].n+'"');
+      var _ec = _emojiCheck[_ei];
+      if(window.hasEmoji && window.hasEmoji(_ec.v)){
+        var _emsg = 'لا يسمح باستخدام الرموز التعبيرية داخل هذا الحقل';
+        showErr(_emsg);
+        if(window.toast) window.toast(_emsg);
+        if(_ec.id){ var _fld = document.getElementById(_ec.id); if(_fld) _fld.focus(); }
         return;
       }
     }
@@ -275,7 +279,12 @@
 
     req.then(function(res){
         if(!res.ok){
-          showErr((res.data && res.data.detail) || 'حدث خطأ أثناء الحفظ');
+          var _det = res.data && res.data.detail;
+          var _msg = (_det && typeof _det === 'object' && _det.message)
+            ? _det.message
+            : (typeof _det === 'string' ? _det : 'حدث خطأ أثناء الحفظ');
+          showErr(_msg);
+          if(window.toast) window.toast(_msg);
           return;
         }
         var entry = res.data.experience;
@@ -293,7 +302,11 @@
         _reRenderExp();
         _bgRefetch();
       })
-      .catch(function(){ showErr('خطأ في الاتصال بالخادم'); })
+      .catch(function(){
+        var _msg = 'خطأ في الاتصال بالخادم';
+        showErr(_msg);
+        if(window.toast) window.toast(_msg);
+      })
       .finally(function(){
         saveBtn.disabled    = false;
         saveBtn.textContent = 'حفظ';
