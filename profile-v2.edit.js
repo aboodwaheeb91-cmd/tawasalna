@@ -197,8 +197,9 @@
           Object.keys(groups).forEach(function(g){
             html += '<optgroup label="' + g + '">';
             groups[g].forEach(function(pr){
-              var sel = (p.profession && p.profession.id === pr.id) ? ' selected' : '';
-              html += '<option value="' + pr.id + '"' + sel + '>' + pr.name_ar + '</option>';
+              var sel  = (p.profession && p.profession.id === pr.id) ? ' selected' : '';
+              var icon = (pr.icon || 'briefcase').replace(/"/g,'');
+              html += '<option value="' + pr.id + '"' + sel + ' data-icon="' + icon + '">' + pr.name_ar + '</option>';
             });
             html += '</optgroup>';
           });
