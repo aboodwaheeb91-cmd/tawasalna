@@ -407,6 +407,36 @@ body.preview-guest       .owner-only { display: none !important; }
   transition:background .15s;
 }
 .sc-section-add:hover { background:rgba(0,200,150,.15); }
+
+/* ── Experience cards ── */
+.sc-exp-list { display:flex; flex-direction:column; gap:8px; }
+.sc-exp-card {
+  padding:11px 13px; border-radius:10px;
+  background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.07);
+  transition:border-color .18s;
+}
+.sc-exp-card:hover { border-color:rgba(255,255,255,.13); }
+.sc-exp-head { display:flex; align-items:flex-start; gap:8px; }
+.sc-exp-body { flex:1; min-width:0; }
+.sc-exp-title { font-weight:700; font-size:.86rem; color:var(--t1,#f1f5f9); line-height:1.35; }
+.sc-exp-company { color:var(--t2,#9aa5b4); font-size:.76rem; margin-top:3px; }
+.sc-exp-meta {
+  display:flex; align-items:center; flex-wrap:wrap; gap:8px; margin-top:5px;
+}
+.sc-exp-meta-item {
+  display:inline-flex; align-items:center; gap:3px;
+  color:var(--t3,#6b7686); font-size:.70rem;
+}
+.sc-exp-ico { width:11px; height:11px; stroke:currentColor; flex-shrink:0; fill:none; }
+.sc-exp-current {
+  display:inline-flex; align-items:center; padding:1px 7px; border-radius:10px;
+  background:rgba(0,200,150,.1); color:#00c896; font-size:.68rem; font-weight:700;
+}
+.sc-exp-desc {
+  margin-top:6px; font-size:.74rem; color:var(--t3,#6b7686); line-height:1.55;
+  display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
+}
+
 .sc-item-exp { display:flex; align-items:flex-start; justify-content:space-between; gap:8px; }
 .sc-item-main { flex:1; min-width:0; }
 .sc-item-d {

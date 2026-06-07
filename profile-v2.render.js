@@ -22,13 +22,23 @@ window._buildExpHTML = function(exp, isOwner){
     : '';
   if(!exp.length) return addBtn + '<div class="sc-empty">لا توجد خبرات بعد</div>';
   var n = exp.length;
-  return addBtn + exp.map(function(e, i){
-    var t   = esc(e.title   || '');
-    var c   = esc(e.company || '');
-    var loc = e.location ? ' · ' + esc(e.location) : '';
-    var dates = '';
-    if(e.start_date){
-      dates = esc(e.start_date) + (e.is_current ? ' — حتى الآن' : (e.end_date ? ' — ' + esc(e.end_date) : ''));
+  var icoPin = '<svg class="sc-exp-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>';
+  var icoCal = '<svg class="sc-exp-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>';
+  return addBtn + '<div class="sc-exp-list">' + exp.map(function(e, i){
+    var t    = esc(e.title   || '');
+    var c    = esc(e.company || '');
+    var loc  = e.location ? esc(e.location) : '';
+    var dateStr = e.start_date
+      ? esc(e.start_date) + (!e.is_current && e.end_date ? ' — ' + esc(e.end_date) : '')
+      : '';
+    var desc = e.description ? esc(e.description) : '';
+    var meta = '';
+    if(loc || dateStr || e.is_current){
+      meta = '<div class="sc-exp-meta">';
+      if(loc)          meta += '<span class="sc-exp-meta-item">'+icoPin+loc+'</span>';
+      if(dateStr)      meta += '<span class="sc-exp-meta-item">'+icoCal+dateStr+'</span>';
+      if(e.is_current) meta += '<span class="sc-exp-current">حتى الآن</span>';
+      meta += '</div>';
     }
     var upDis = (i === 0)     ? ' disabled' : '';
     var dnDis = (i === n - 1) ? ' disabled' : '';
@@ -54,15 +64,18 @@ window._buildExpHTML = function(exp, isOwner){
         +'</div>'
         +'</div>'
       : '';
-    return '<div class="sc-item sc-item-exp">'
-      + '<div class="sc-item-main">'
-      + '<div class="sc-item-t">'+t+'</div>'
-      + (c ? '<div class="sc-item-s">'+c+loc+'</div>' : '')
-      + (dates ? '<div class="sc-item-d">'+dates+'</div>' : '')
+    return '<div class="sc-exp-card">'
+      + '<div class="sc-exp-head">'
+      + '<div class="sc-exp-body">'
+      + '<div class="sc-exp-title">'+t+'</div>'
+      + (c    ? '<div class="sc-exp-company">'+c+'</div>' : '')
+      + meta
+      + (desc ? '<div class="sc-exp-desc">'+desc+'</div>' : '')
       + '</div>'
       + actions
+      + '</div>'
       + '</div>';
-  }).join('');
+  }).join('') + '</div>';
 };
 
 // ── Main render function (Doctrine §26) ──
