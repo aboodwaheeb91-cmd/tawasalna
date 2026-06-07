@@ -661,3 +661,109 @@ body.view-owner .av-cam-btn { display:flex; }
   border:1px solid rgba(255,255,255,.12); background:none;
   color:#9aa5b4; font-family:inherit; font-size:.88rem; cursor:pointer;
 }
+
+/* ═══════════════════════════════════════════════
+   Section Modules: Education / Courses / Skills / Languages / Links
+   ═══════════════════════════════════════════════ */
+
+/* ── Skills chip view (owner with delete X) ── */
+.sc-skills-wrap { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:8px; }
+.sc-skill-chip {
+  display:inline-flex; align-items:center; gap:5px; padding:6px 12px;
+  border-radius:20px; background:rgba(0,200,150,.1);
+  color:var(--ac,#00c896); font-size:.78rem; font-weight:600;
+}
+.sc-skill-level { font-size:.68rem; opacity:.7; font-style:normal; }
+.sc-skill-del {
+  cursor:pointer; opacity:.5; font-size:1rem; line-height:1;
+  margin-right:2px; transition:opacity .15s;
+}
+.sc-skill-del:hover { opacity:1; }
+
+/* ── Links list ── */
+.sc-links-list { display:flex; flex-direction:column; gap:10px; }
+.sc-link-item {
+  display:flex; align-items:center; gap:12px;
+  background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.07);
+  border-radius:11px; padding:12px 14px;
+}
+.sc-link-icon {
+  width:34px; height:34px; border-radius:9px; flex-shrink:0;
+  background:rgba(37,99,255,.12); display:flex; align-items:center;
+  justify-content:center; color:var(--ac2,#2563ff);
+}
+.sc-link-info { flex:1; min-width:0; }
+.sc-link-type { font-size:.76rem; font-weight:700; color:var(--t1,#fff); }
+.sc-link-url {
+  font-size:.68rem; color:var(--t3,#6b7686); display:block;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  text-decoration:none; margin-top:2px;
+}
+.sc-link-url:hover { color:var(--ac,#00c896); }
+
+/* ── Course certificate link ── */
+.sc-cert-link {
+  display:inline-flex; align-items:center; gap:5px;
+  color:var(--ac,#00c896); font-size:.72rem; font-weight:600;
+  text-decoration:none; margin-top:6px;
+}
+.sc-cert-link:hover { text-decoration:underline; }
+
+/* ── Language level badge ── */
+.sc-lang-level { color:var(--ac2,#2563ff) !important; }
+
+/* ── Section modal overlay ── */
+.sc-modal-overlay {
+  position:fixed; inset:0; z-index:200;
+  background:rgba(0,0,0,.65); backdrop-filter:blur(4px);
+  display:none; align-items:flex-end; justify-content:center;
+}
+.sc-modal-overlay.open { display:flex; animation:scFadeIn .2s; }
+@keyframes scFadeIn { from{opacity:0} to{opacity:1} }
+.sc-modal {
+  background:#151c28; border-radius:20px 20px 0 0;
+  border:1px solid rgba(255,255,255,.1); border-bottom:none;
+  padding:24px 20px 32px; width:100%; max-width:560px;
+  max-height:85vh; overflow-y:auto;
+}
+.sc-modal-head {
+  display:flex; align-items:center; justify-content:space-between;
+  margin-bottom:20px;
+}
+.sc-modal-title-inp {
+  background:none; border:none; outline:none; color:var(--t1,#fff);
+  font-family:inherit; font-size:1rem; font-weight:800;
+  padding:0; pointer-events:none; cursor:default;
+}
+.sc-modal-close {
+  width:30px; height:30px; border-radius:8px; border:none; cursor:pointer;
+  background:rgba(255,255,255,.07); color:var(--t1,#fff);
+  display:flex; align-items:center; justify-content:center; font-size:1.1rem;
+}
+.sc-modal-close:hover { background:rgba(255,255,255,.14); }
+.sc-form-group { margin-bottom:14px; }
+.sc-form-group label { display:block; font-size:.78rem; font-weight:600; margin-bottom:5px; color:var(--t2,#9aa5b4); }
+.sc-form-group input, .sc-form-group select, .sc-form-group textarea {
+  width:100%; padding:10px 12px; border-radius:10px;
+  background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.1);
+  color:var(--t1,#fff); font-family:inherit; font-size:.84rem;
+  outline:none; transition:border-color .2s;
+}
+.sc-form-group input:focus, .sc-form-group select:focus, .sc-form-group textarea:focus { border-color:rgba(0,200,150,.5); }
+.sc-form-group select option { background:#151c28; }
+.sc-form-group textarea { resize:vertical; min-height:80px; line-height:1.6; }
+.sc-form-row { display:flex; gap:10px; }
+.sc-form-row .sc-form-group { flex:1; }
+.sc-modal-actions { display:flex; gap:10px; margin-top:20px; }
+.sc-modal-save {
+  flex:1; padding:12px; border-radius:12px; border:none; cursor:pointer;
+  background:var(--ac,#00c896); color:#fff; font-family:inherit;
+  font-size:.9rem; font-weight:700; transition:opacity .2s;
+}
+.sc-modal-save:hover { opacity:.9; }
+.sc-modal-save:disabled { opacity:.5; cursor:not-allowed; }
+.sc-modal-cancel {
+  padding:12px 20px; border-radius:12px; border:1px solid rgba(255,255,255,.1);
+  cursor:pointer; background:rgba(255,255,255,.04); color:var(--t2,#9aa5b4);
+  font-family:inherit; font-size:.9rem;
+}

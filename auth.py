@@ -1087,6 +1087,43 @@ def add_course(user_id: int, data: dict) -> dict:
         release_conn(conn)
 
 
+def update_education(edu_id: int, user_id: int, data: dict):
+    conn = get_conn()
+    try:
+        rows = conn.run(
+            "UPDATE education SET institution=:inst, degree=:deg, field=:fld, "
+            "start_year=:sy, end_year=:ey, description=:desc "
+            "WHERE id=:id AND user_id=:uid "
+            "RETURNING id, user_id, institution, degree, field, start_year, end_year, description, created_at",
+            inst=data.get("institution"), deg=data.get("degree"), fld=data.get("field"),
+            sy=data.get("start_year"), ey=data.get("end_year"), desc=data.get("description"),
+            id=edu_id, uid=user_id
+        )
+        cols = [c["name"] for c in conn.columns]
+        return _serialize(_row_to_dict(cols, rows[0])) if rows else None
+    finally:
+        release_conn(conn)
+
+
+def update_course(course_id: int, user_id: int, data: dict):
+    conn = get_conn()
+    try:
+        title_val = data.get("title") or data.get("name") or ""
+        rows = conn.run(
+            "UPDATE courses SET title=:title, provider=:provider, completion_date=:cd, "
+            "certificate_url=:curl, description=:desc "
+            "WHERE id=:id AND user_id=:uid "
+            "RETURNING id, user_id, title, provider, completion_date, certificate_url, description, created_at",
+            title=title_val, provider=data.get("provider"), cd=data.get("completion_date"),
+            curl=data.get("certificate_url"), desc=data.get("description"),
+            id=course_id, uid=user_id
+        )
+        cols = [c["name"] for c in conn.columns]
+        return _serialize(_row_to_dict(cols, rows[0])) if rows else None
+    finally:
+        release_conn(conn)
+
+
 # ══ طلبات التحقق ══
 def create_verify_request(user_id: int, data: dict) -> dict:
     conn = get_conn()

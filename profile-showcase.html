@@ -151,6 +151,9 @@
             <button class="sc-tab" data-tab="skills" onclick="scTab('skills',this)"><i data-lucide="zap" class="ico-sm"></i> المهارات</button>
             <button class="sc-tab" data-tab="exp" onclick="scTab('exp',this)"><i data-lucide="briefcase" class="ico-sm"></i> الخبرات</button>
             <button class="sc-tab" data-tab="edu" onclick="scTab('edu',this)"><i data-lucide="graduation-cap" class="ico-sm"></i> الشهادات</button>
+            <button class="sc-tab" data-tab="courses" onclick="scTab('courses',this)"><i data-lucide="book-open" class="ico-sm"></i> الدورات</button>
+            <button class="sc-tab" data-tab="langs" onclick="scTab('langs',this)"><i data-lucide="languages" class="ico-sm"></i> اللغات</button>
+            <button class="sc-tab" data-tab="links" onclick="scTab('links',this)"><i data-lucide="link-2" class="ico-sm"></i> الروابط</button>
           </div>
         </div>
 
@@ -165,6 +168,9 @@
           <div class="sc-pane" id="pane-skills"><div class="sc-skills" id="scSkillsPane"></div></div>
           <div class="sc-pane" id="pane-exp"><div id="scExpPane"></div></div>
           <div class="sc-pane" id="pane-edu"><div id="scEduPane"></div></div>
+          <div class="sc-pane" id="pane-courses"><div id="scCoursesPane"></div></div>
+          <div class="sc-pane" id="pane-langs"><div id="scLangsPane"></div></div>
+          <div class="sc-pane" id="pane-links"><div id="scLinksPane"></div></div>
         </div>
       </div>
     </div>
@@ -393,6 +399,171 @@
     </div>
   </div>
 
+
+  <!-- ── Education modal ── -->
+  <div class="sc-modal-overlay" id="eduOverlay">
+    <div class="sc-modal">
+      <div class="sc-modal-head">
+        <input type="text" class="sc-modal-title-inp" id="eduMTitle" readonly value="إضافة شهادة">
+        <button class="sc-modal-close" id="eduClose">×</button>
+      </div>
+      <div class="sc-form-group">
+        <label>المؤسسة التعليمية *</label>
+        <input type="text" id="eduInst" placeholder="اسم الجامعة أو المدرسة">
+      </div>
+      <div class="sc-form-row">
+        <div class="sc-form-group">
+          <label>الدرجة العلمية</label>
+          <input type="text" id="eduDeg" placeholder="بكالوريوس، ماجستير...">
+        </div>
+        <div class="sc-form-group">
+          <label>التخصص</label>
+          <input type="text" id="eduField" placeholder="علوم الحاسوب...">
+        </div>
+      </div>
+      <div class="sc-form-row">
+        <div class="sc-form-group">
+          <label>سنة البداية</label>
+          <input type="number" id="eduSY" placeholder="2018" min="1950" max="2100">
+        </div>
+        <div class="sc-form-group">
+          <label>سنة التخرج</label>
+          <input type="number" id="eduEY" placeholder="2022" min="1950" max="2100">
+        </div>
+      </div>
+      <div class="sc-form-group">
+        <label>وصف إضافي</label>
+        <textarea id="eduDesc" placeholder="أي معلومات إضافية..."></textarea>
+      </div>
+      <div class="sc-modal-actions">
+        <button class="sc-modal-save" id="eduSaveBtn">حفظ</button>
+        <button class="sc-modal-cancel" id="eduCancelBtn">إلغاء</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Courses modal ── -->
+  <div class="sc-modal-overlay" id="courseOverlay">
+    <div class="sc-modal">
+      <div class="sc-modal-head">
+        <input type="text" class="sc-modal-title-inp" id="courseMTitle" readonly value="إضافة دورة">
+        <button class="sc-modal-close" id="courseClose">×</button>
+      </div>
+      <div class="sc-form-group">
+        <label>اسم الدورة *</label>
+        <input type="text" id="courseTitle" placeholder="اسم الدورة أو البرنامج التدريبي">
+      </div>
+      <div class="sc-form-group">
+        <label>الجهة المانحة</label>
+        <input type="text" id="courseProv" placeholder="Coursera، Udemy، LinkedIn Learning...">
+      </div>
+      <div class="sc-form-group">
+        <label>تاريخ الإتمام</label>
+        <input type="date" id="courseCD">
+      </div>
+      <div class="sc-form-group">
+        <label>رابط الشهادة</label>
+        <input type="url" id="courseCurl" placeholder="https://..." dir="ltr">
+      </div>
+      <div class="sc-form-group">
+        <label>وصف</label>
+        <textarea id="courseDesc" placeholder="مختصر عن محتوى الدورة..."></textarea>
+      </div>
+      <div class="sc-modal-actions">
+        <button class="sc-modal-save" id="courseSaveBtn">حفظ</button>
+        <button class="sc-modal-cancel" id="courseCancelBtn">إلغاء</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Skills modal ── -->
+  <div class="sc-modal-overlay" id="skillOverlay">
+    <div class="sc-modal">
+      <div class="sc-modal-head">
+        <span style="font-size:1rem;font-weight:800;color:#fff">إضافة مهارة</span>
+        <button class="sc-modal-close" id="skillClose">×</button>
+      </div>
+      <div class="sc-form-group">
+        <label>اسم المهارة *</label>
+        <input type="text" id="skillName" placeholder="JavaScript، Photoshop، إدارة المشاريع...">
+      </div>
+      <div class="sc-form-group">
+        <label>المستوى (اختياري)</label>
+        <select id="skillLevel">
+          <option value="">— اختر المستوى —</option>
+          <option value="مبتدئ">مبتدئ</option>
+          <option value="متوسط">متوسط</option>
+          <option value="متقدم">متقدم</option>
+          <option value="خبير">خبير</option>
+        </select>
+      </div>
+      <div class="sc-modal-actions">
+        <button class="sc-modal-save" id="skillSaveBtn">حفظ</button>
+        <button class="sc-modal-cancel" id="skillCancelBtn">إلغاء</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Languages modal ── -->
+  <div class="sc-modal-overlay" id="langOverlay">
+    <div class="sc-modal">
+      <div class="sc-modal-head">
+        <span style="font-size:1rem;font-weight:800;color:#fff">إضافة لغة</span>
+        <button class="sc-modal-close" id="langClose">×</button>
+      </div>
+      <div class="sc-form-group">
+        <label>اللغة *</label>
+        <input type="text" id="langName" placeholder="العربية، الإنجليزية، الفرنسية...">
+      </div>
+      <div class="sc-form-group">
+        <label>مستوى الإتقان (اختياري)</label>
+        <select id="langLevel">
+          <option value="">— اختر المستوى —</option>
+          <option value="مبتدئ">مبتدئ</option>
+          <option value="متوسط">متوسط</option>
+          <option value="متقدم">متقدم</option>
+          <option value="بطلاقة">بطلاقة</option>
+          <option value="اللغة الأم">اللغة الأم</option>
+        </select>
+      </div>
+      <div class="sc-modal-actions">
+        <button class="sc-modal-save" id="langSaveBtn">حفظ</button>
+        <button class="sc-modal-cancel" id="langCancelBtn">إلغاء</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Links modal ── -->
+  <div class="sc-modal-overlay" id="linkOverlay">
+    <div class="sc-modal">
+      <div class="sc-modal-head">
+        <span style="font-size:1rem;font-weight:800;color:#fff">إضافة رابط</span>
+        <button class="sc-modal-close" id="linkClose">×</button>
+      </div>
+      <div class="sc-form-group">
+        <label>نوع الرابط</label>
+        <select id="linkType">
+          <option value="linkedin">LinkedIn</option>
+          <option value="github">GitHub</option>
+          <option value="website">الموقع الشخصي</option>
+          <option value="twitter">Twitter / X</option>
+          <option value="instagram">Instagram</option>
+          <option value="behance">Behance</option>
+          <option value="portfolio">Portfolio</option>
+          <option value="other">رابط آخر</option>
+        </select>
+      </div>
+      <div class="sc-form-group">
+        <label>الرابط *</label>
+        <input type="url" id="linkUrl" placeholder="https://..." dir="ltr">
+      </div>
+      <div class="sc-modal-actions">
+        <button class="sc-modal-save" id="linkSaveBtn">حفظ</button>
+        <button class="sc-modal-cancel" id="linkCancelBtn">إلغاء</button>
+      </div>
+    </div>
+  </div>
+
   <script src="/static/profile-v2.state.js?v=modular-v1"></script>
   <script src="/static/profile-v2.utils.js?v=modular-v1"></script>
   <script src="/static/profile-v2.api.js?v=modular-v1"></script>
@@ -403,6 +574,11 @@
   <script src="/static/profile-v2.cover.js?v=modular-v1"></script>
   <script src="/static/profile-v2.avatar.js?v=modular-v1"></script>
   <script src="/static/profile-v2.select.js?v=modular-v1"></script>
+  <script src="/static/profile-v2.edu.js"></script>
+  <script src="/static/profile-v2.courses.js"></script>
+  <script src="/static/profile-v2.skills.js"></script>
+  <script src="/static/profile-v2.langs.js"></script>
+  <script src="/static/profile-v2.links.js"></script>
 
 </body>
 </html>
