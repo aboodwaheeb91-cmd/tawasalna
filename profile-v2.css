@@ -295,7 +295,7 @@
   position:fixed; bottom:24px; right:50%; transform:translateX(50%) translateY(20px);
   background:var(--bg2,#141a24); color:var(--t1,#fff); padding:12px 22px; border-radius:14px;
   border:1px solid rgba(255,255,255,.12); font-size:.84rem; font-weight:600;
-  opacity:0; transition:.3s; z-index:100; box-shadow:0 10px 30px rgba(0,0,0,.4); pointer-events:none;
+  opacity:0; transition:.3s; z-index:9999; box-shadow:0 10px 30px rgba(0,0,0,.4); pointer-events:none;
 }
 .sc-toast.show { opacity:1; transform:translateX(50%) translateY(0); }
 
