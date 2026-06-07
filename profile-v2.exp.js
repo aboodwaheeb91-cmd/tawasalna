@@ -276,7 +276,9 @@
     var _loc  = _buildLocation();
     var _desc = fv('exDesc') || null;
 
-    // Emoji guard — must match backend validate_no_emoji()
+    // Emoji guard — clear previous state, then mark ALL offending fields
+    _clearAllFieldErrs();
+    var _emojiErr = false;
     var _emojiCheck = [
       {v: title,   inputId: 'exTitle',   errId: 'exTitleErr'},
       {v: company, inputId: 'exCompany', errId: 'exCompanyErr'},
@@ -285,10 +287,18 @@
     for(var _ei=0; _ei<_emojiCheck.length; _ei++){
       var _ec = _emojiCheck[_ei];
       if(window.hasEmoji && window.hasEmoji(_ec.v)){
-        _showFieldErr(document.getElementById(_ec.inputId), _ec.errId);
-        if(window.toast) window.toast(_EMOJI_MSG);
-        return;
+        var _inp = document.getElementById(_ec.inputId);
+        if(_inp) _inp.classList.add('ep-input-err');
+        var _div = document.getElementById(_ec.errId);
+        if(_div){ _div.textContent = _EMOJI_MSG; _div.classList.add('show'); }
+        _emojiErr = true;
       }
+    }
+    if(_emojiErr){
+      var _fe = document.querySelector('#exOverlay .ep-field-err.show');
+      if(_fe) _fe.scrollIntoView({behavior:'smooth', block:'nearest'});
+      if(window.toast) window.toast(_EMOJI_MSG);
+      return;
     }
 
     var payload = {
