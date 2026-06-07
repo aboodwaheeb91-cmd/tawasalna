@@ -78,6 +78,24 @@ window._buildExpHTML = function(exp, isOwner){
   }).join('') + '</div>';
 };
 
+// ── Country code → Arabic name (shared with edit modal) ──
+window._SC_COUNTRIES = {
+  JO:'الأردن', SA:'السعودية', AE:'الإمارات', KW:'الكويت',
+  QA:'قطر',    BH:'البحرين', OM:'عُمان',    EG:'مصر',
+  IQ:'العراق', SY:'سوريا',   LB:'لبنان',   PS:'فلسطين',
+  YE:'اليمن',  MA:'المغرب',  DZ:'الجزائر', TN:'تونس',
+  LY:'ليبيا',  SD:'السودان'
+};
+
+// Build display location: "البلد - المدينة", or "البلد", or fallback text
+window._buildLocText = function(country, city, fallback){
+  if(country && window._SC_COUNTRIES[country]){
+    var name = window._SC_COUNTRIES[country];
+    return city ? (name + ' - ' + city) : name;
+  }
+  return fallback || '';
+};
+
 // ── Main render function (Doctrine §26) ──
 window.renderProfile = function renderProfile(res){
   var p = (res && res.profile) ? res.profile : {};
@@ -126,13 +144,19 @@ window.renderProfile = function renderProfile(res){
     if(vEl) vEl.style.display='inline-flex';
   }
 
-  // Location
+  // Location — prefer country/city (structured), fall back to p.location (legacy text)
   var locEl=document.getElementById('scLoc');
-  if(locEl && p.location){
-    locEl.innerHTML = '<i data-lucide="map-pin" class="ico-sm"></i> ' + esc(p.location);
-    locEl.style.display='inline-flex';
-    locEl.style.alignItems='center';
-    locEl.style.gap='4px';
+  if(locEl){
+    var _locText = window._buildLocText(p.country, p.city, p.location);
+    if(_locText){
+      locEl.innerHTML = '<i data-lucide="map-pin" class="ico-sm"></i> ' + esc(_locText);
+      locEl.style.display='inline-flex';
+      locEl.style.alignItems='center';
+      locEl.style.gap='4px';
+    } else {
+      locEl.innerHTML = '';
+      locEl.style.display = '';
+    }
   }
 
   // Age from dob
