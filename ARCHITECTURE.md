@@ -1489,7 +1489,30 @@ curl -o /dev/null -sw "%{http_code}" https://tawasolna.com/stats
 | يوجد خطأ مفتوح | توثيق كـ `Needs testing` أو لا توثيق |
 | المستخدم انتقل لموضوع جديد بدون اعتراض | = implicit approval → توثيق كـ Stable |
 
-### ممنوعات صريحة (مُحدَّثة)
+### تقسيم المسؤوليات (نهائي)
+
+| المهمة | المسؤول |
+|--------|---------|
+| قراءة الكود + تعديل الملفات + commit + push + PR | Claude |
+| تحديث ARCHITECTURE.md | Claude (تلقائي) |
+| curl verification بعد deploy | Claude |
+| merge إلى main | المستخدم فقط |
+| deploy (إذا احتاج إجراء يدوي) | المستخدم |
+| فحص المتصفح بصرياً | المستخدم |
+| Supabase / Heroku / Railway / DNS / Gmail | المستخدم |
+
+### إذا احتجت logs أو Console أو DB
+Claude لا يطلب tokens أو secrets إلا لسبب ضروري محدد.
+بدلاً من ذلك: Claude يُخبر المستخدم بالضبط ماذا يفحص ويرسل النتيجة.
+
+```
+مثال:
+Claude: "افتح Heroku logs وابحث عن السطر الذي يحتوي [reorder_experience]"
+Claude: "شغّل هذا الـ SQL في Supabase: SELECT sort_order FROM experience LIMIT 5"
+Claude: "افتح Console في المتصفح وأرسل لي أي خطأ يظهر باللون الأحمر"
+```
+
+### ممنوعات صريحة (نهائي)
 
 ```
 ❌ merge إلى main بدون موافقة صريحة من المستخدم
@@ -1497,6 +1520,7 @@ curl -o /dev/null -sw "%{http_code}" https://tawasolna.com/stats
 ❌ قول "تم" بدون commit SHA + push output
 ❌ قول "deployed" بدون curl 200 من tawasolna.com
 ❌ توثيق كـ Stable إذا يوجد خطأ مفتوح
+❌ طلب tokens أو secrets بدون سبب ضروري محدد
 ```
 
 ---
