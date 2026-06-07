@@ -397,6 +397,9 @@
     }
   });
 
+  // close on any scroll anywhere (capture=true catches non-bubbling scroll events)
+  window.addEventListener('scroll', window._expMenuClose, true);
+
   // ── Simple confirm dialog ──
   window.scConfirm = function(msg, onYes){
     var old = document.getElementById('_scConfirmBox');
