@@ -59,7 +59,34 @@ window.scTab = function(name, el){
   for(var j=0;j<panes.length;j++) panes[j].classList.remove('active');
   var pane=document.getElementById('pane-'+name);
   if(pane) pane.classList.add('active');
+  if(el) el.scrollIntoView({behavior:'smooth',inline:'center',block:'nearest'});
   if(window.lucide && lucide.createIcons) lucide.createIcons();
 };
 
 window.addEventListener('resize', function(){ if(window._fitName) fitName(); });
+
+// Tab edge fade — shows gradient when tabs overflow horizontally
+(function(){
+  function _initTabFade(){
+    var wrap = document.querySelector('.sc-tabs-wrap');
+    var cont = document.querySelector('.sc-tabs');
+    if(!wrap || !cont) return;
+    function _upd(){
+      var btns = cont.querySelectorAll('.sc-tab');
+      if(!btns.length || cont.scrollWidth <= cont.clientWidth + 2){
+        wrap.classList.remove('fade-left','fade-right'); return;
+      }
+      var cr = cont.getBoundingClientRect();
+      // In RTL: first button is rightmost, last button is leftmost
+      var fr = btns[0].getBoundingClientRect();
+      var lr = btns[btns.length-1].getBoundingClientRect();
+      wrap.classList.toggle('fade-right', fr.right > cr.right + 2);
+      wrap.classList.toggle('fade-left',  lr.left  < cr.left  - 2);
+    }
+    cont.addEventListener('scroll', _upd, {passive:true});
+    window.addEventListener('resize', _upd, {passive:true});
+    _upd();
+  }
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _initTabFade);
+  else _initTabFade();
+})();

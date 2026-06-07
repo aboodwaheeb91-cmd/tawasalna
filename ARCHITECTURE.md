@@ -1241,6 +1241,10 @@ profile-showcase.html       ← HTML skeleton + <link>/<script> فقط. لا sty
   profile-v2.qr.js          ← renderQR(el, showcaseUrl)
   profile-v2.render.js      ← renderProfile(), header wiring, initial fetch, eye button
   profile-v2.edit.js        ← Edit Modal IIFE (profession + bio)
+  profile-v2.exp.js         ← Experience Module: add/edit/delete/reorder + three-dots menu
+  profile-v2.cover.js       ← Cover Upload + Crop 6:1 (720×120 JPEG)
+  profile-v2.avatar.js      ← Avatar Upload + Crop 1:1 (circular)
+  profile-v2.select.js      ← Custom Select: dark-themed dropdown لكل modal selects
 ```
 
 ### ترتيب التحميل (ثابت — لا يتغير)
@@ -1253,6 +1257,10 @@ profile-showcase.html       ← HTML skeleton + <link>/<script> فقط. لا sty
 <script src="/static/profile-v2.qr.js"></script>      <!-- no deps -->
 <script src="/static/profile-v2.render.js"></script>  <!-- needs: state, utils, api, qr -->
 <script src="/static/profile-v2.edit.js"></script>    <!-- needs: state, api, render -->
+<script src="/static/profile-v2.exp.js"></script>     <!-- needs: state, api, render -->
+<script src="/static/profile-v2.cover.js"></script>   <!-- needs: state, api -->
+<script src="/static/profile-v2.avatar.js"></script>  <!-- needs: state, api -->
+<script src="/static/profile-v2.select.js"></script>  <!-- LAST: reads all .ep-select -->
 ```
 
 **القاعدة:** كل ملف يعتمد فقط على ملفات تُحمَّل قبله في الترتيب أعلاه.
@@ -1270,6 +1278,10 @@ profile-showcase.html       ← HTML skeleton + <link>/<script> فقط. لا sty
 | `profile-v2.qr.js` | `renderQR(el, showcaseUrl)` فقط | أي fetch غير QR external service |
 | `profile-v2.render.js` | `renderProfile()`, header wiring، initial fetch، Eye Button IIFE | fetch مباشر (يستدعي api.js)، Edit Modal logic |
 | `profile-v2.edit.js` | Edit Modal IIFE كاملاً | business permissions من localStorage، DOM manipulation خارج المودال |
+| `profile-v2.exp.js` | Experience: add/edit/delete/reorder + three-dots menu IIFE | fetch مباشر (يستدعي api.js)، تعديل state خارج IIFE |
+| `profile-v2.cover.js` | Cover upload + crop 6:1 IIFE | fetch مباشر (يستدعي api.js)، DOM خارج cover scope |
+| `profile-v2.avatar.js` | Avatar upload + crop 1:1 IIFE | fetch مباشر (يستدعي api.js)، DOM خارج avatar scope |
+| `profile-v2.select.js` | Custom Select IIFE: يستبدل كل `.ep-select` بـ dark dropdown | fetch، direct DOM mutations خارج scope |
 
 ---
 
@@ -1788,48 +1800,325 @@ ALTER TABLE experience ADD COLUMN IF NOT EXISTS sort_order INTEGER DEFAULT 0;
 
 ---
 
-## [P2] 33. Dropdown Overflow Pattern — position:fixed Escape
+## [P2] 33. Dropdown Overflow Patterns — Two Official Approaches
 
-**المشكلة:** أي dropdown داخل container بـ `overflow:hidden` يُقص ولا يظهر كاملاً.
-**السبب الحالي:** `.sc-main-card { overflow:hidden }` يقص كل `position:absolute`.
+**الحالة:** محدّث — PR #49+#50 (exp menu → position:absolute) + PR #53 (custom select → portal)
 
-### القاعدة المعتمدة
+### النمط 1 — position:absolute (قائمة ⋮ داخل البطاقة)
 
-أي dropdown داخل container بـ `overflow:hidden` يستخدم `position:fixed` مع إحداثيات من `getBoundingClientRect()`.
+يُستخدم بعد تحويل `.sc-main-card` من `overflow:hidden` إلى `overflow:visible`.
+
+```css
+/* parent: overflow:visible بدلاً من overflow:hidden */
+.sc-main-card { overflow: visible; }
+/* قص الـ cover فقط بـ border-radius مستقل */
+.sc-cover { border-radius: 13px 13px 0 0; overflow: hidden; }
+
+.sc-exp-menu {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 4px);
+  min-width: 156px;
+  z-index: 500;
+}
+.sc-exp-menu.open-up { top: auto; bottom: calc(100% + 4px); }
+```
 
 ```javascript
-window._myMenuToggle = function(btn){
+window._expMenuToggle = function(btn){
   var menu = btn.nextElementSibling;
-  var rect  = btn.getBoundingClientRect();
-  var menuW = 156, menuH = 172;
-  var spaceBelow = window.innerHeight - rect.bottom;
-  var leftPos = Math.max(4, Math.min(rect.left, window.innerWidth - menuW - 4));
-
-  menu.style.position = 'fixed';
-  menu.style.width    = menuW + 'px';
-  menu.style.left     = leftPos + 'px';
-  menu.style.right    = 'auto';
-
-  if(spaceBelow >= menuH + 8){
-    menu.style.top    = (rect.bottom + 5) + 'px';   // أسفل
-    menu.style.bottom = 'auto';
-  } else {
-    menu.style.top    = 'auto';
-    menu.style.bottom = (window.innerHeight - rect.top + 5) + 'px'; // أعلى
+  if(!menu) return;
+  var isOpen = menu.classList.contains('open');
+  window._expMenuClose();
+  if(!isOpen){
+    var rect = btn.getBoundingClientRect();
+    menu.classList.add('open');
+    if(window.innerHeight - rect.bottom < 180) menu.classList.add('open-up');
   }
-  menu.classList.add('open');
 };
 ```
 
-```css
-.my-menu { display:none; position:fixed; z-index:500; }
-.my-menu.open { display:block; }
+**متى:** الـ container يمكن تحويله لـ `overflow:visible` + القائمة صغيرة.
+
+---
+
+### النمط 2 — position:fixed Portal (Custom Select داخل Modal)
+
+يُستخدم عندما الـ parent هو `overflow:auto` ولا يمكن تغييره (مثل `.ep-body`).
+
+```javascript
+// الـ dropdown يُلحق بـ document.body — خارج الـ modal DOM تماماً
+document.body.appendChild(drop);
+
+var rect = trg.getBoundingClientRect();
+drop.style.position = 'fixed';
+drop.style.left     = rect.left + 'px';
+drop.style.top      = (rect.bottom + 3) + 'px';
+drop.style.zIndex   = '600';  // فوق modal z-index:300
 ```
 
-### لماذا `position:fixed`
-- تتموضع نسبةً للـ viewport → تهرب من `overflow:hidden`
-- `z-index:500` يضمن ظهورها فوق كل شيء
-- الاتجاه (أعلى/أسفل) يُحدَّد بـ `spaceBelow` عند كل فتح
+**لماذا portal:**
+- `.ep-body { overflow-y:auto }` يقص `position:absolute` المرتبط بالـ modal
+- portal على `document.body` يتموضع نسبةً للـ viewport مباشرة
+- `z-index:600` يضمن ظهوره فوق modal (`z-index:300`)
 
-### ينطبق على
-أي dropdown/tooltip/popover داخل `.sc-main-card` أو أي container بـ `overflow:hidden`.
+**متى:** داخل modal أو scroll container — لا يمكن تغيير `overflow`.
+
+---
+
+### قاعدة الاختيار
+
+| الحالة | النمط |
+|--------|-------|
+| parent يمكن `overflow:visible` | النمط 1 (position:absolute) |
+| داخل modal / overflow:auto | النمط 2 (position:fixed portal) |
+
+---
+
+## Profile V2 — Avatar Module
+
+### الملفات
+| الملف | المسؤولية |
+|-------|-----------|
+| `profile-v2.avatar.js` | كامل منطق avatar upload + crop |
+| `profile-v2.api.js` | `uploadAvatar()` — POST /upload/image bucket=avatars |
+| `profile-v2.css` | `.av-edit-btn` + `.av-crop-overlay` styles |
+| `profile-showcase.html` | HTML: زر + file input + crop overlay |
+
+### قاعدة البيانات
+```sql
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS avatar_url TEXT;
+```
+
+### Bucket
+```
+bucket: "avatars"  |  filename: "avatar"  |  endpoint: POST /upload/image
+```
+
+### Crop
+- نسبة العرض/الارتفاع: **1:1** (دائرية في العرض — مستطيل في التصدير)
+- drag ✓  zoom ✓  touch ✓  |  Export: JPEG quality 0.88
+
+### Save Flow
+```
+owner يضغط زر الصورة → file input → validation (jpeg/png/webp ≤ 5MB)
+→ crop overlay 1:1 → export canvas → POST /upload/image → url
+→ PUT /profile { avatar_url } → تحديث DOM فوري + toast → re-fetch صامت
+```
+
+### Owner-only
+```css
+body.view-owner .av-edit-btn { display:flex; }
+```
+
+---
+
+## Profile V2 — Edit Profile Modal
+
+**الحالة:** Done / Stable
+
+### الملف
+`profile-v2.edit.js` — IIFE مستقل
+
+### حقول المودال
+
+| الحقل | النوع | الإرسال |
+|-------|-------|---------|
+| الاسم الأول | text input | `first_name` |
+| الاسم الأوسط | text input | `middle_name` (اختياري) |
+| الاسم الأخير | text input | `last_name` |
+| تاريخ الميلاد | 3 selects (يوم/شهر/سنة) | `dob` بصيغة `YYYY-MM-DD` |
+| الدولة | select (18 دولة عربية) | `country` |
+| المدينة | select ديناميكي من `EP_CITIES` | `city` |
+| الإتاحة | select | `avail` |
+| التخصص | select مع optgroups + data-icon | `profession_id` |
+| النبذة | textarea | `bio` |
+
+### Name Architecture
+```
+PUT /profile { first_name, middle_name, last_name }
+← backend يبني full_name تلقائياً
+← applyLocalUpdate يبني full_name محلياً فوراً بدون re-fetch
+← openModal يقرأ الأجزاء من window._scProfile مباشرة
+```
+
+### Profession Dropdown
+```
+1. openModal() → fetch('/professions')
+2. بناء <optgroup> لكل category_group
+3. كل <option> يحمل data-icon = profession.icon
+4. Custom Select يقرأ data-icon ويعرض الأيقونة في الـ trigger
+5. onSave() → profession_id في payload
+```
+
+### Confirmed Local Update Pattern
+```
+PUT → onSuccess():
+  1. closeModal() + toast فوراً
+  2. applyLocalUpdate(payload) → تحديث name/bio/age/profession في DOM فوراً
+  3. getProfile() في الخلفية → renderProfile() صامت
+```
+
+### ممنوعات
+```
+❌ profession list hardcoded في edit.js
+❌ full_name كـ text input واحد (يجب 3 أجزاء منفصلة)
+❌ re-fetch قبل إغلاق المودال
+❌ DOM manipulation خارج المودال من edit.js
+```
+
+---
+
+## [P2] 35. Custom Select System — Profile V2
+
+**الحالة:** Done / Stable — PR #53 + PR #54
+
+### المشكلة المحلولة
+Native `<select>` على الموبايل يفتح بستايل النظام (أبيض) خارج تصميم الموقع.
+
+### Architecture
+```
+native <select class="ep-select">
+  → مخفي: display:none + data-sc-sel="1"
+  → .sc-sel wrapper (position:relative)
+  → .sc-sel-trg button (visible trigger)
+  → portal .sc-sel-drop → appended to document.body, position:fixed
+```
+
+### MutationObserver Per Select
+```javascript
+new MutationObserver(function(){
+  _syncTrigger(wrap, native);
+  // إذا dropdown مفتوح → أغلق وأعد فتحه بالـ options الجديدة
+}).observe(native, {childList:true, subtree:true});
+```
+يُحدَّث trigger label تلقائياً عند تغيير options (cities، professions).
+
+### Modal Open Observer
+```javascript
+// يتزامن جميع triggers 80ms بعد فتح .ep-overlay
+// يلتقط select.value = x البرمجي الذي لا يُطلق change event
+new MutationObserver(function(muts){
+  if(ov.classList.contains('open')){ setTimeout(_syncAll, 80); }
+}).observe(ov, {attributes:true, attributeFilter:['class']});
+```
+
+### Scroll Fix (PR #54)
+```javascript
+window.addEventListener('scroll', function(e){
+  if(_cur && _cur.drop.contains(e.target)) return;  // لا تغلق scroll داخل dropdown
+  _close();
+}, true);
+```
+
+### z-index Stack
+```
+modal (.ep-overlay)     → z-index: 300
+dropdown (.sc-sel-drop) → z-index: 600  ← فوق المودال
+```
+
+### Loading Order Rule
+```
+profile-v2.select.js يجب أن يُحمَّل LAST
+← بعد edit.js (يبني DOB day/year options)
+← بعد exp.js (يبني experience year options)
+← window.scSelectInit() يعمل مرة عند load
+```
+
+### Supported Selects (11 total)
+```
+Edit Profile Modal:  epCountry, epCity, epAvail, epDobD, epDobM, epDobY, epProfession
+Experience Modal:    exCountry, exCity, exStart, exEnd
+```
+
+### ممنوعات
+```
+❌ تحميل select.js قبل أي script يبني options
+❌ إضافة native <select> جديد بدون class="ep-select"
+❌ تغيير native.value بدون إطلاق change event أو فتح/إغلاق modal
+```
+
+---
+
+# H — PROFILE V2 PHASE 1 MILESTONE
+
+> **الحالة:** مكتمل ومستقر — 2026-06-07
+> هذه المرحلة تُعدّ نقلة جوهرية في شكل وتجربة بروفايل تواصلنا.
+> كل مكوّن اختُبر على الموقع الحي وأصبح جزءاً من النظام النهائي.
+
+---
+
+## ملخص المكوّنات المكتملة
+
+| المكوّن | الملف | الحالة | PR |
+|---------|-------|--------|----|
+| Profile V2 Modularization (8 ملفات) | render.js + state.js + utils.js + api.js + qr.js | ✅ Stable | #32 |
+| View Mode ثلاثي (owner/public-user/guest) | render.js | ✅ Stable | #32 |
+| Owner-only elements (.owner-only + CSS) | profile-v2.css | ✅ Stable | #32 |
+| Edit Profile Modal | profile-v2.edit.js | ✅ Stable | #32 |
+| الاسم المفصل (first/middle/last) | edit.js | ✅ Stable | — |
+| التخصص الرسمي (profession_id + icon) | edit.js + api.js | ✅ Stable | — |
+| Avatar Upload + Crop 1:1 | profile-v2.avatar.js | ✅ Stable | — |
+| Cover Upload + Crop 6:1 | profile-v2.cover.js | ✅ Stable | — |
+| Experience Module (add/edit/delete) | profile-v2.exp.js | ✅ Stable | #44 |
+| Experience Sort Order (reorder ↑↓) | exp.js + server.py | ✅ Stable | #48 |
+| Three-dots Action Menu (⋮) | exp.js + render.js | ✅ Stable | #49+#50 |
+| Custom Select System (11 selects) | profile-v2.select.js | ✅ Stable | #53 |
+| Custom Select Scroll Fix | profile-v2.select.js | ✅ Stable | #54 |
+
+---
+
+## القرارات المعمارية المستقرة (Phase 1)
+
+### Name Architecture
+```
+PUT /profile { first_name, middle_name, last_name }
+backend يبني full_name ← frontend يعرض 3 حقول منفصلة
+Confirmed Local Update يبني full_name محلياً من الأجزاء
+```
+
+### Profession Architecture
+```
+profession_id (FK → profession_categories)
+icon من backend (profession.icon) ← fallback: briefcase
+قائمة من GET /professions مع optgroups
+data-icon attribute في <option> لدعم Custom Select
+```
+
+### Dropdown Position Architecture
+```
+قائمة ⋮ داخل البطاقة  →  position:absolute + overflow:visible على parent
+Modal selects           →  position:fixed portal على document.body
+```
+
+### Confirmed Local Update Pattern
+```
+PUT /profile → onSuccess:
+  1. closeModal() + toast فوراً
+  2. applyLocalUpdate(payload) ← تحديث DOM بلا انتظار
+  3. getProfile() ← re-fetch صامت في الخلفية
+```
+
+### Custom Select Load Order
+```
+select.js يُحمَّل LAST ← يحتاج جميع options مبنية مسبقاً
+MutationObserver يتابع التغييرات ← لا حاجة لاستدعاء يدوي عند تغيير options
+```
+
+---
+
+## ما تغيّر في المشروع (before → after Phase 1)
+
+| قبل | بعد |
+|-----|-----|
+| profile.html كبير ومتشابك (147KB) | 12 ملف منفصل، كل له مسؤولية واحدة |
+| لا تحكم في View Mode | نظام صلاحيات server-verified كامل |
+| selects بستايل النظام (أبيض) | custom dark-themed selects موحدة |
+| 4 أزرار على كل بطاقة خبرة | قائمة ⋮ واحدة نظيفة |
+| لا ترتيب للخبرات | ترتيب بأزرار ↑↓ مع Optimistic Update + Rollback |
+| لا رفع صور | upload + crop للـ avatar (1:1) والـ cover (6:1) |
+| لا Edit Modal كامل | Edit Modal بـ 9 حقول + Confirmed Local Update |
+
+---
+
+> Phase 2 تُبنى فوق هذا الأساس — لا تعيد بناءه.
