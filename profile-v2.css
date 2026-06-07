@@ -572,9 +572,12 @@ body.view-owner .cv-edit-btn { display:flex; }
 .av-cam-btn:hover { transform:scale(1.12); }
 body.view-owner .av-cam-btn { display:flex; }
 
-/* ── Floating profile edit button (owner only) — positioned between cover bottom and name ── */
+/* ── Zero-height anchor after cover: provides positioning context below cover edge ── */
+.sc-edit-anchor { position:relative; height:0; overflow:visible; z-index:3; }
+
+/* ── Floating profile edit button (owner only) — 6px below cover, left side ── */
 .sc-prof-edit-btn {
-  position:absolute; top:10px; left:12px; z-index:5;
+  position:absolute; top:6px; left:12px; z-index:5;
   width:30px; height:30px; border-radius:50%;
   border:2px solid rgba(255,255,255,.22); cursor:pointer;
   align-items:center; justify-content:center;
