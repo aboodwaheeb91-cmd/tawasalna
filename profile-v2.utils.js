@@ -29,7 +29,7 @@ function fitName(){
   nameEl.style.textOverflow='clip';
   var size=MAX;
   nameEl.style.fontSize=size+'px';
-  function reserve(){ return badgeVisible ? (size*0.85 + size*0.3 + 6) : 0; }
+  function reserve(){ return badgeVisible ? (size*1.55 + size*0.3 + 6) : 0; }
   while(size>MIN && nameEl.scrollWidth > (boxW - reserve())){
     size-=1; nameEl.style.fontSize=size+'px';
   }
