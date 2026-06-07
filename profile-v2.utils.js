@@ -1,4 +1,11 @@
-// profile-v2.utils.js — helpers: esc, setText, toast, renderIcons, fitName, toggleBio, scTab
+// profile-v2.utils.js — helpers: esc, setText, toast, renderIcons, fitName, toggleBio, scTab, hasEmoji
+
+// Emoji guard — blocks pictographic symbols in professional text fields.
+// Shared by all V2 edit panels. Backend enforces the same rule via validate_no_emoji().
+window.hasEmoji = (function(){
+  var _re = /[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FAFF}\u{2702}-\u{27B0}\u{2600}-\u{26FF}\u{1F1E0}-\u{1F1FF}️‍]/u;
+  return function(str){ return str != null && _re.test(String(str)); };
+})();
 
 function esc(s){ var d=document.createElement('div'); d.textContent=s==null?'':String(s); return d.innerHTML; }
 function setText(id,v){ var el=document.getElementById(id); if(el) el.textContent=v==null?'':v; }

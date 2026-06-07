@@ -260,6 +260,20 @@
     if(avail)   payload.avail         = avail;
     if(profVal) payload.profession_id = parseInt(profVal, 10);
 
+    // Emoji guard — must match backend validate_no_emoji()
+    var _emojiFields = [
+      {v: first,   n: 'الاسم الأول'},
+      {v: mid,     n: 'الاسم الأوسط'},
+      {v: last,    n: 'الاسم الأخير'},
+      {v: bioVal,  n: 'النبذة التعريفية'}
+    ];
+    for(var _ei=0; _ei<_emojiFields.length; _ei++){
+      if(window.hasEmoji && window.hasEmoji(_emojiFields[_ei].v)){
+        if(errEl){ errEl.textContent = 'لا يسمح باستخدام الرموز التعبيرية في حقل "'+_emojiFields[_ei].n+'"'; errEl.style.display = 'block'; }
+        return;
+      }
+    }
+
     if(errEl) errEl.style.display = 'none';
     saveBtn.disabled = true;
     saveBtn.textContent = 'جاري الحفظ…';
