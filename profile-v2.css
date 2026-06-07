@@ -402,10 +402,10 @@ body.preview-guest       .owner-only { display: none !important; }
 
 /* ── Experience card owner controls ── */
 .sc-section-add {
-  display:flex; align-items:center; gap:6px; margin-bottom:10px;
-  padding:6px 14px; border-radius:20px; border:1px solid rgba(0,200,150,.35);
+  display:flex; align-items:center; gap:5px; margin-bottom:10px;
+  padding:4px 10px; border-radius:20px; border:1px solid rgba(0,200,150,.35);
   background:rgba(0,200,150,.07); color:#00c896;
-  font-family:inherit; font-size:.8rem; font-weight:700; cursor:pointer;
+  font-family:inherit; font-size:.76rem; font-weight:700; cursor:pointer;
   transition:background .15s;
 }
 .sc-section-add:hover { background:rgba(0,200,150,.15); }
