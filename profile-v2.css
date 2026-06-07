@@ -221,7 +221,22 @@
 .sc-stat-l { font-size:.58rem; color:var(--t3,#6b7686); }
 
 /* Tabs */
-.sc-tabs { display:flex; gap:14px; padding:14px 20px 0; overflow-x:auto; border-bottom:1px solid rgba(255,255,255,.06); }
+.sc-tabs-wrap { position:relative; }
+.sc-tabs-wrap::before,
+.sc-tabs-wrap::after {
+  content:''; position:absolute; top:0; bottom:0; width:36px;
+  z-index:2; pointer-events:none; opacity:0; transition:opacity .2s;
+}
+.sc-tabs-wrap::before { right:0; background:linear-gradient(to left,#070b18 20%,transparent); }
+.sc-tabs-wrap::after  { left:0;  background:linear-gradient(to right,#070b18 20%,transparent); }
+.sc-tabs-wrap.fade-right::before { opacity:1; }
+.sc-tabs-wrap.fade-left::after   { opacity:1; }
+.sc-tabs {
+  display:flex; gap:14px; padding:14px 20px 0;
+  overflow-x:auto; border-bottom:1px solid rgba(255,255,255,.06);
+  scroll-behavior:smooth; scrollbar-width:none; -ms-overflow-style:none;
+}
+.sc-tabs::-webkit-scrollbar { display:none; }
 .sc-tab {
   padding:10px 6px; cursor:pointer; white-space:nowrap;
   font-size:.8rem; font-weight:600; color:var(--t3,#6b7686); background:transparent;
