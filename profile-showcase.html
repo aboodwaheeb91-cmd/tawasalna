@@ -220,10 +220,12 @@
         <div class="ep-field">
           <label class="ep-label">المسمى الوظيفي *</label>
           <input class="ep-input" id="exTitle" placeholder="مثال: مطور ويب" autocomplete="off">
+          <div class="ep-field-err" id="exTitleErr"></div>
         </div>
         <div class="ep-field">
           <label class="ep-label">اسم الشركة / جهة العمل *</label>
           <input class="ep-input" id="exCompany" placeholder="مثال: شركة تقنية" autocomplete="off">
+          <div class="ep-field-err" id="exCompanyErr"></div>
         </div>
         <div class="ep-row2">
           <div class="ep-field">
@@ -278,6 +280,7 @@
         <div class="ep-field">
           <label class="ep-label">الوصف (اختياري)</label>
           <textarea class="ep-textarea" id="exDesc" placeholder="نبذة عن مهامك وإنجازاتك…" maxlength="600"></textarea>
+          <div class="ep-field-err" id="exDescErr"></div>
         </div>
         <div class="ep-err" id="exErr"></div>
       </div>
@@ -305,6 +308,7 @@
             <input class="ep-input" id="epMidName"   placeholder="الأوسط" autocomplete="off">
             <input class="ep-input" id="epLastName"  placeholder="العائلة" autocomplete="off">
           </div>
+          <div class="ep-field-err" id="epNameErr"></div>
         </div>
 
         <div class="ep-field">
@@ -377,6 +381,7 @@
         <div class="ep-field">
           <label class="ep-label">نبذة تعريفية</label>
           <textarea class="ep-textarea" id="epBio" placeholder="اكتب نبذة عن نفسك…" maxlength="600"></textarea>
+          <div class="ep-field-err" id="epBioErr"></div>
         </div>
 
         <div class="ep-err" id="epErr"></div>

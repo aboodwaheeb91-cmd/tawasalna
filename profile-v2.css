@@ -390,6 +390,15 @@ body.preview-guest       .owner-only { display: none !important; }
   font-family:inherit; font-size:.9rem; font-weight:600;
 }
 .ep-err  { color:#f87171; font-size:.78rem; margin-top:4px; display:none; }
+
+/* Inline field-level error — shown under the specific offending input */
+.ep-field-err { color:#f87171; font-size:.74rem; margin-top:5px; display:none; line-height:1.4; }
+.ep-field-err.show { display:block; }
+.ep-input.ep-input-err,
+.ep-textarea.ep-input-err {
+  border-color:rgba(248,113,113,.55) !important;
+  box-shadow:0 0 0 2px rgba(248,113,113,.1);
+}
 .ep-note {
   display:flex; align-items:flex-start; gap:7px;
   background:rgba(37,99,255,.08); border:1px solid rgba(37,99,255,.2);
