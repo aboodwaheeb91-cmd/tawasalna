@@ -221,8 +221,43 @@
       .catch(function(){ toast('خطأ في الاتصال بالخادم'); });
   }
 
+  // ── Inline field-error helpers ──
+  var _EMOJI_MSG = 'لا يسمح باستخدام الرموز التعبيرية داخل هذا الحقل';
+
+  function _showFieldErr(inputEl, errId){
+    var div = document.getElementById(errId);
+    if(inputEl) inputEl.classList.add('ep-input-err');
+    if(div){ div.textContent = _EMOJI_MSG; div.classList.add('show'); }
+    if(div) div.scrollIntoView({behavior:'smooth', block:'nearest'});
+  }
+
+  function _clearFieldErr(inputEl, errId){
+    var div = document.getElementById(errId);
+    if(inputEl) inputEl.classList.remove('ep-input-err');
+    if(div){ div.textContent = ''; div.classList.remove('show'); }
+  }
+
+  function _clearAllFieldErrs(){
+    [['exTitle','exTitleErr'],['exCompany','exCompanyErr'],['exDesc','exDescErr']].forEach(function(p){
+      var inp = document.getElementById(p[0]); if(inp) inp.classList.remove('ep-input-err');
+      var div = document.getElementById(p[1]); if(div){ div.textContent=''; div.classList.remove('show'); }
+    });
+  }
+
+  // Auto-clear on input
+  [['exTitle','exTitleErr'],['exCompany','exCompanyErr'],['exDesc','exDescErr']].forEach(function(p){
+    var el = document.getElementById(p[0]);
+    if(el) el.addEventListener('input', function(){
+      if(!window.hasEmoji || !window.hasEmoji(el.value)) _clearFieldErr(el, p[1]);
+    });
+  });
+
   // ── Close ──
-  function closeModal(){ overlay.classList.remove('open'); }
+  function closeModal(){
+    overlay.classList.remove('open');
+    _clearAllFieldErrs();
+    if(errEl) errEl.style.display = 'none';
+  }
   closeBtn.addEventListener('click', closeModal);
   cancelBtn.addEventListener('click', closeModal);
   overlay.addEventListener('click', function(e){ if(e.target === overlay) closeModal(); });
@@ -243,18 +278,15 @@
 
     // Emoji guard — must match backend validate_no_emoji()
     var _emojiCheck = [
-      {v: title,   n: 'المسمى الوظيفي', id: 'exTitle'},
-      {v: company, n: 'اسم الشركة',     id: 'exCompany'},
-      {v: _loc,    n: 'الموقع',         id: null},
-      {v: _desc,   n: 'الوصف',          id: 'exDesc'}
+      {v: title,   inputId: 'exTitle',   errId: 'exTitleErr'},
+      {v: company, inputId: 'exCompany', errId: 'exCompanyErr'},
+      {v: _desc,   inputId: 'exDesc',    errId: 'exDescErr'}
     ];
     for(var _ei=0; _ei<_emojiCheck.length; _ei++){
       var _ec = _emojiCheck[_ei];
       if(window.hasEmoji && window.hasEmoji(_ec.v)){
-        var _emsg = 'لا يسمح باستخدام الرموز التعبيرية داخل هذا الحقل';
-        showErr(_emsg);
-        if(window.toast) window.toast(_emsg);
-        if(_ec.id){ var _fld = document.getElementById(_ec.id); if(_fld) _fld.focus(); }
+        _showFieldErr(document.getElementById(_ec.inputId), _ec.errId);
+        if(window.toast) window.toast(_EMOJI_MSG);
         return;
       }
     }

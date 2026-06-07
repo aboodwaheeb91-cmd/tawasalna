@@ -218,7 +218,66 @@
     if(window.lucide && lucide.createIcons) lucide.createIcons();
   }
 
-  function closeModal(){ overlay.classList.remove('open'); }
+  // ── Inline field-error helpers ──
+  var _EMOJI_MSG = 'لا يسمح باستخدام الرموز التعبيرية داخل هذا الحقل';
+
+  function _showFieldErr(inputEl, errId){
+    var div = document.getElementById(errId);
+    if(inputEl) inputEl.classList.add('ep-input-err');
+    if(div){ div.textContent = _EMOJI_MSG; div.classList.add('show'); }
+    // scroll the error into view without triggering keyboard (no focus)
+    if(div) div.scrollIntoView({behavior:'smooth', block:'nearest'});
+  }
+
+  function _clearFieldErr(inputEl, errId){
+    var div = document.getElementById(errId);
+    if(inputEl) inputEl.classList.remove('ep-input-err');
+    if(div){ div.textContent = ''; div.classList.remove('show'); }
+  }
+
+  function _clearAllFieldErrs(){
+    ['epFirstName','epMidName','epLastName'].forEach(function(id){
+      var el = document.getElementById(id); if(el) el.classList.remove('ep-input-err');
+    });
+    ['epNameErr','epBioErr'].forEach(function(id){
+      var div = document.getElementById(id);
+      if(div){ div.textContent=''; div.classList.remove('show'); }
+    });
+    var bio = document.getElementById('epBio');
+    if(bio) bio.classList.remove('ep-input-err');
+  }
+
+  // Auto-clear name row when user edits and removes emoji
+  function _checkNameErr(){
+    var anyEmoji = ['epFirstName','epMidName','epLastName'].some(function(id){
+      var el = document.getElementById(id);
+      return el && window.hasEmoji && window.hasEmoji(el.value);
+    });
+    if(!anyEmoji){
+      ['epFirstName','epMidName','epLastName'].forEach(function(id){
+        var el = document.getElementById(id); if(el) el.classList.remove('ep-input-err');
+      });
+      var div = document.getElementById('epNameErr');
+      if(div){ div.textContent=''; div.classList.remove('show'); }
+    }
+  }
+  ['epFirstName','epMidName','epLastName'].forEach(function(id){
+    var el = document.getElementById(id);
+    if(el) el.addEventListener('input', _checkNameErr);
+  });
+
+  // Auto-clear bio error
+  var _epBioInput = document.getElementById('epBio');
+  if(_epBioInput) _epBioInput.addEventListener('input', function(){
+    if(!window.hasEmoji || !window.hasEmoji(_epBioInput.value))
+      _clearFieldErr(_epBioInput, 'epBioErr');
+  });
+
+  function closeModal(){
+    overlay.classList.remove('open');
+    _clearAllFieldErrs();
+    if(errEl) errEl.style.display = 'none';
+  }
 
   editBtn.addEventListener('click', openModal);
   closeBtn.addEventListener('click', closeModal);
@@ -262,19 +321,16 @@
 
     // Emoji guard — must match backend validate_no_emoji()
     var _emojiFields = [
-      {v: first,   n: 'الاسم الأول',     id: 'epFirstName'},
-      {v: mid,     n: 'الاسم الأوسط',    id: 'epMidName'},
-      {v: last,    n: 'الاسم الأخير',    id: 'epLastName'},
-      {v: bioVal,  n: 'النبذة التعريفية', id: 'epBio'}
+      {v: first,  inputId: 'epFirstName', errId: 'epNameErr'},
+      {v: mid,    inputId: 'epMidName',   errId: 'epNameErr'},
+      {v: last,   inputId: 'epLastName',  errId: 'epNameErr'},
+      {v: bioVal, inputId: 'epBio',       errId: 'epBioErr'}
     ];
     for(var _ei=0; _ei<_emojiFields.length; _ei++){
       var _ef = _emojiFields[_ei];
       if(window.hasEmoji && window.hasEmoji(_ef.v)){
-        var _emsg = 'لا يسمح باستخدام الرموز التعبيرية داخل هذا الحقل';
-        if(window.toast) window.toast(_emsg);
-        if(errEl){ errEl.textContent = _emsg; errEl.style.display = 'block'; }
-        var _fld = document.getElementById(_ef.id);
-        if(_fld) _fld.focus();
+        _showFieldErr(document.getElementById(_ef.inputId), _ef.errId);
+        if(window.toast) window.toast(_EMOJI_MSG);
         return;
       }
     }
