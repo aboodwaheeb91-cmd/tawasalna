@@ -262,14 +262,19 @@
 
     // Emoji guard — must match backend validate_no_emoji()
     var _emojiFields = [
-      {v: first,   n: 'الاسم الأول'},
-      {v: mid,     n: 'الاسم الأوسط'},
-      {v: last,    n: 'الاسم الأخير'},
-      {v: bioVal,  n: 'النبذة التعريفية'}
+      {v: first,   n: 'الاسم الأول',     id: 'epFirstName'},
+      {v: mid,     n: 'الاسم الأوسط',    id: 'epMidName'},
+      {v: last,    n: 'الاسم الأخير',    id: 'epLastName'},
+      {v: bioVal,  n: 'النبذة التعريفية', id: 'epBio'}
     ];
     for(var _ei=0; _ei<_emojiFields.length; _ei++){
-      if(window.hasEmoji && window.hasEmoji(_emojiFields[_ei].v)){
-        if(errEl){ errEl.textContent = 'لا يسمح باستخدام الرموز التعبيرية في حقل "'+_emojiFields[_ei].n+'"'; errEl.style.display = 'block'; }
+      var _ef = _emojiFields[_ei];
+      if(window.hasEmoji && window.hasEmoji(_ef.v)){
+        var _emsg = 'لا يسمح باستخدام الرموز التعبيرية داخل هذا الحقل';
+        if(window.toast) window.toast(_emsg);
+        if(errEl){ errEl.textContent = _emsg; errEl.style.display = 'block'; }
+        var _fld = document.getElementById(_ef.id);
+        if(_fld) _fld.focus();
         return;
       }
     }
@@ -281,7 +286,11 @@
     updateProfile(uid, payload)
       .then(function(res){
         if(!res.ok){
-          var msg = (res.data && res.data.detail) ? res.data.detail : 'حدث خطأ أثناء الحفظ';
+          var _det = res.data && res.data.detail;
+          var msg = (_det && typeof _det === 'object' && _det.message)
+            ? _det.message
+            : (typeof _det === 'string' ? _det : 'حدث خطأ أثناء الحفظ');
+          if(window.toast) window.toast(msg);
           if(errEl){ errEl.textContent = msg; errEl.style.display = 'block'; }
           return;
         }
@@ -299,7 +308,9 @@
           .catch(function(){ /* silent — local update already applied */ });
       })
       .catch(function(){
-        if(errEl){ errEl.textContent = 'خطأ في الاتصال بالخادم'; errEl.style.display = 'block'; }
+        var _msg = 'خطأ في الاتصال بالخادم';
+        if(window.toast) window.toast(_msg);
+        if(errEl){ errEl.textContent = _msg; errEl.style.display = 'block'; }
       })
       .finally(function(){
         saveBtn.disabled = false;
