@@ -28,7 +28,11 @@
   }
 
   // ── Global close triggers ──
-  window.addEventListener('scroll', _close, true);
+  // capture:true catches all scrolls — skip if scroll is inside the open dropdown itself
+  window.addEventListener('scroll', function(e){
+    if(_cur && _cur.drop.contains(e.target)) return;
+    _close();
+  }, true);
   document.addEventListener('mousedown', function(e){
     if(_cur && !_cur.wrap.contains(e.target) && !_cur.drop.contains(e.target)) _close();
   });
