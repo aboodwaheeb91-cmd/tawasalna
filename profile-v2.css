@@ -575,17 +575,16 @@ body.view-owner .av-cam-btn { display:flex; }
 /* ── Zero-height anchor after cover: provides positioning context below cover edge ── */
 .sc-edit-anchor { position:relative; height:0; overflow:visible; z-index:3; }
 
-/* ── Floating profile edit button (owner only) — 6px below cover, left side ── */
+/* ── Floating profile edit button (owner only) — icon only, far left corner ── */
 .sc-prof-edit-btn {
-  position:absolute; top:6px; left:12px; z-index:5;
-  width:30px; height:30px; border-radius:50%;
-  border:2px solid rgba(255,255,255,.22); cursor:pointer;
-  align-items:center; justify-content:center;
-  background:rgba(0,0,0,.42); backdrop-filter:blur(8px);
-  color:#fff; transition:background .15s, transform .15s;
+  position:absolute; top:8px; left:4px; z-index:5;
+  width:22px; height:22px; padding:0; border:none; background:none;
+  cursor:pointer; display:flex; align-items:center; justify-content:center;
+  color:rgba(255,255,255,.5); transition:color .15s, transform .15s;
+  filter:drop-shadow(0 1px 2px rgba(0,0,0,.5));
 }
-.sc-prof-edit-btn .ico-sm { width:14px; height:14px; flex-shrink:0; }
-.sc-prof-edit-btn:hover { background:rgba(0,0,0,.7); transform:scale(1.1); }
+.sc-prof-edit-btn .ico-sm { width:13px; height:13px; flex-shrink:0; }
+.sc-prof-edit-btn:hover { color:rgba(255,255,255,.9); transform:scale(1.15); }
 
 /* ── Crop overlay ── */
 .av-crop-overlay {
