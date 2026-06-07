@@ -913,7 +913,7 @@ def get_full_profile(user_id: int) -> Optional[dict]:
 
 def update_profile(user_id: int, data: dict) -> dict:
     # Validate all user-visible text fields for emoji
-    _TEXT_FIELDS = ("full_name", "bio", "headline", "title", "location", "phone", "website")
+    _TEXT_FIELDS = ("full_name", "first_name", "middle_name", "last_name", "bio", "headline", "title", "location", "phone", "website")
     for _f in _TEXT_FIELDS:
         validate_no_emoji(data.get(_f), _f)
 
@@ -993,6 +993,8 @@ def add_experience(user_id: int, data: dict) -> dict:
 
 
 def update_experience(exp_id: int, user_id: int, data: dict) -> dict:
+    for _f in ("title", "company", "location", "description"):
+        validate_no_emoji(data.get(_f), _f)
     conn = get_conn()
     try:
         allowed = {"title", "company", "location", "start_date", "end_date", "is_current", "description"}

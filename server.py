@@ -1476,6 +1476,8 @@ def update_user_experience(exp_id: int, data: ExperienceUpdateInput, token=Depen
     try:
         result = update_experience(exp_id, uid, data.dict())
         return {"status": "success", "experience": result}
+    except EmojiError as e:
+        raise HTTPException(422, detail={"status": "error", "message": "لا يسمح باستخدام الرموز التعبيرية داخل هذا الحقل", "field": e.field})
     except ValueError as e:
         raise HTTPException(404, detail=str(e))
     except Exception as e:
