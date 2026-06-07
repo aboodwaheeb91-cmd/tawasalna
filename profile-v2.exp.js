@@ -357,13 +357,33 @@
   };
 
   // ── Three-dots menu toggle / close ──
+  // Uses position:fixed + getBoundingClientRect to escape overflow:hidden on .sc-main-card.
+  // Decides up/down based on available viewport space.
   window._expMenuToggle = function(btn){
     var menu = btn.nextElementSibling;
     if(!menu) return;
     var isOpen = menu.classList.contains('open');
     var all = document.querySelectorAll('.sc-exp-menu.open');
     for(var i = 0; i < all.length; i++) all[i].classList.remove('open');
-    if(!isOpen) menu.classList.add('open');
+    if(!isOpen){
+      var rect     = btn.getBoundingClientRect();
+      var menuW    = 156;
+      var menuH    = 172;
+      var spaceBelow = window.innerHeight - rect.bottom;
+      var leftPos  = Math.max(4, Math.min(rect.left, window.innerWidth - menuW - 4));
+      menu.style.position = 'fixed';
+      menu.style.width    = menuW + 'px';
+      menu.style.left     = leftPos + 'px';
+      menu.style.right    = 'auto';
+      if(spaceBelow >= menuH + 8){
+        menu.style.top    = (rect.bottom + 5) + 'px';
+        menu.style.bottom = 'auto';
+      } else {
+        menu.style.top    = 'auto';
+        menu.style.bottom = (window.innerHeight - rect.top + 5) + 'px';
+      }
+      menu.classList.add('open');
+    }
   };
 
   window._expMenuClose = function(){

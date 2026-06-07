@@ -407,8 +407,7 @@ body.preview-guest       .owner-only { display: none !important; }
 .sc-exp-menu-btn svg { width:15px; height:15px; stroke:var(--t3,#6b7686); }
 .sc-exp-menu-btn:hover { background:rgba(255,255,255,.1); }
 .sc-exp-menu {
-  display:none; position:absolute; top:calc(100% + 5px); left:0;
-  min-width:152px; z-index:80;
+  display:none; position:fixed; z-index:500;
   background:rgba(10,14,24,.97); border:1px solid rgba(255,255,255,.12);
   border-radius:11px; padding:4px;
   backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px);
