@@ -238,11 +238,11 @@
 .sc-tabs-wrap { position:relative; }
 .sc-tabs-wrap::before,
 .sc-tabs-wrap::after {
-  content:''; position:absolute; top:0; bottom:0; width:36px;
+  content:''; position:absolute; top:0; bottom:0; width:16px;
   z-index:2; pointer-events:none; opacity:0; transition:opacity .2s;
 }
-.sc-tabs-wrap::before { right:0; background:linear-gradient(to left,#070b18 20%,transparent); }
-.sc-tabs-wrap::after  { left:0;  background:linear-gradient(to right,#070b18 20%,transparent); }
+.sc-tabs-wrap::before { right:0; background:linear-gradient(to left,rgba(7,11,24,.5),transparent); }
+.sc-tabs-wrap::after  { left:0;  background:linear-gradient(to right,rgba(7,11,24,.5),transparent); }
 .sc-tabs-wrap.fade-right::before { opacity:1; }
 .sc-tabs-wrap.fade-left::after   { opacity:1; }
 .sc-tabs {
