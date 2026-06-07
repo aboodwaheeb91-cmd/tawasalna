@@ -1378,8 +1378,8 @@ Merge SHA: (بعد الدمج)
 #### 8. Live Verification
 ```bash
 # اختبر الملفات المعدّلة مباشرة من الموقع الحي
-curl -I https://tawasalna.com/profile-showcase?id=3
-curl -I https://tawasalna.com/static/profile-v2.edit.js?v=edit-modal-fix-v1
+curl -o /dev/null -sw "%{http_code}" https://tawasolna.com/profile-showcase?id=3
+curl -o /dev/null -sw "%{http_code}" https://tawasolna.com/static/profile-v2.edit.js
 # المتوقع: HTTP 200
 ```
 
@@ -1435,7 +1435,14 @@ window.PROFILE_SHOWCASE_VERSION = "edit-modal-fix-v1";
 
 ### الدومين الحي
 ```
-https://tawasolna.com
+https://tawasolna.com                                          ← الصحيح
+❌ https://tawasalna.com                                       ← خاطئ — لا تستخدم
+```
+
+### روابط حية مرجعية
+```
+صفحة البروفايل:    https://tawasolna.com/profile.html?id=U0000db005c71b0
+Profile Showcase:  https://tawasolna.com/profile-showcase?id=U0000db005c71b0
 ```
 يُستخدم في كل live verification بعد deploy.
 
@@ -1455,15 +1462,17 @@ https://tawasolna.com
 # 1. الصفحة الرئيسية
 curl -o /dev/null -sw "%{http_code}" https://tawasolna.com/
 
-# 2. Profile Showcase
-curl -o /dev/null -sw "%{http_code}" https://tawasolna.com/profile-showcase?id=1
+# 2. Profile (الحالي)
+curl -o /dev/null -sw "%{http_code}" "https://tawasolna.com/profile.html?id=U0000db005c71b0"
 
-# 3. Static JS files (مثال)
+# 3. Static JS files
 curl -o /dev/null -sw "%{http_code}" https://tawasolna.com/static/profile-v2.exp.js
 curl -o /dev/null -sw "%{http_code}" https://tawasolna.com/static/profile-v2.render.js
+curl -o /dev/null -sw "%{http_code}" https://tawasolna.com/static/profile-v2.css
 
-# 4. التأكد من وجود function/marker في الملف الحي
+# 4. التأكد من وجود function في الملف الحي
 curl -s https://tawasolna.com/static/profile-v2.exp.js | grep -c "_expMenuToggle"
+curl -s https://tawasolna.com/static/profile-v2.exp.js | grep -c "_expMoveUp"
 
 # 5. API endpoint أساسي
 curl -o /dev/null -sw "%{http_code}" https://tawasolna.com/stats
