@@ -30,28 +30,29 @@ window._buildExpHTML = function(exp, isOwner){
     if(e.start_date){
       dates = esc(e.start_date) + (e.is_current ? ' — حتى الآن' : (e.end_date ? ' — ' + esc(e.end_date) : ''));
     }
-    var sortBtns = '';
-    if(isOwner && n > 1){
-      var upDis = (i === 0)     ? ' disabled' : '';
-      var dnDis = (i === n - 1) ? ' disabled' : '';
-      sortBtns =
-        '<button class="sc-item-btn sc-item-btn-ord"'+upDis+' data-exp-id="'+e.id+'" onclick="if(!this.disabled)window._expMoveUp(this.dataset.expId)" title="تحريك لأعلى">'
-        +'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="18 15 12 9 6 15"/></svg>'
-        +'</button>'
-        +'<button class="sc-item-btn sc-item-btn-ord"'+dnDis+' data-exp-id="'+e.id+'" onclick="if(!this.disabled)window._expMoveDown(this.dataset.expId)" title="تحريك لأسفل">'
-        +'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>'
-        +'</button>';
-    }
+    var upDis = (i === 0)     ? ' disabled' : '';
+    var dnDis = (i === n - 1) ? ' disabled' : '';
     var actions = isOwner
-      ? '<div class="sc-item-actions owner-only">'
-        + sortBtns
-        + '<button class="sc-item-btn" data-exp-id="'+e.id+'" onclick="window._expOpenEdit(this.dataset.expId)" title="تعديل">'
-        + '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>'
-        + '</button>'
-        + '<button class="sc-item-btn sc-item-btn-del" data-exp-id="'+e.id+'" onclick="window._expConfirmDelete(this.dataset.expId)" title="حذف">'
-        + '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>'
-        + '</button>'
-        + '</div>'
+      ? '<div class="sc-exp-menu-wrap owner-only">'
+        +'<button class="sc-exp-menu-btn" onclick="window._expMenuToggle(this)" title="خيارات">'
+        +'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>'
+        +'</button>'
+        +'<div class="sc-exp-menu">'
+        +'<button class="sc-exp-menu-item" data-exp-id="'+e.id+'" onclick="window._expOpenEdit(this.dataset.expId);window._expMenuClose()">'
+        +'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>'
+        +' تعديل</button>'
+        +'<button class="sc-exp-menu-item sc-exp-menu-move"'+upDis+' data-exp-id="'+e.id+'" onclick="if(!this.disabled){window._expMoveUp(this.dataset.expId);window._expMenuClose()}">'
+        +'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="18 15 12 9 6 15"/></svg>'
+        +' رفع للأعلى</button>'
+        +'<button class="sc-exp-menu-item sc-exp-menu-move"'+dnDis+' data-exp-id="'+e.id+'" onclick="if(!this.disabled){window._expMoveDown(this.dataset.expId);window._expMenuClose()}">'
+        +'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>'
+        +' إنزال للأسفل</button>'
+        +'<div class="sc-exp-menu-sep"></div>'
+        +'<button class="sc-exp-menu-item sc-exp-menu-del" data-exp-id="'+e.id+'" onclick="window._expConfirmDelete(this.dataset.expId);window._expMenuClose()">'
+        +'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>'
+        +' حذف</button>'
+        +'</div>'
+        +'</div>'
       : '';
     return '<div class="sc-item sc-item-exp">'
       + '<div class="sc-item-main">'
