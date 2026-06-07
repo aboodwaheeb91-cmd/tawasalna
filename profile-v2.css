@@ -397,6 +397,39 @@ body.preview-guest       .owner-only { display: none !important; }
 .sc-item-btn-ord[disabled] { opacity:.28; cursor:default; }
 .sc-item-btn-ord[disabled]:hover { background:rgba(255,255,255,.04); }
 
+/* ── Experience three-dots menu ── */
+.sc-exp-menu-wrap { position:relative; flex-shrink:0; }
+.sc-exp-menu-btn {
+  width:28px; height:28px; border-radius:8px; border:1px solid rgba(255,255,255,.1);
+  background:rgba(255,255,255,.04); cursor:pointer;
+  display:flex; align-items:center; justify-content:center; transition:background .15s;
+}
+.sc-exp-menu-btn svg { width:15px; height:15px; stroke:var(--t3,#6b7686); }
+.sc-exp-menu-btn:hover { background:rgba(255,255,255,.1); }
+.sc-exp-menu {
+  display:none; position:absolute; top:calc(100% + 5px); left:0;
+  min-width:152px; z-index:80;
+  background:rgba(10,14,24,.97); border:1px solid rgba(255,255,255,.12);
+  border-radius:11px; padding:4px;
+  backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px);
+  box-shadow:0 8px 24px rgba(0,0,0,.45);
+}
+.sc-exp-menu.open { display:block; }
+.sc-exp-menu-item {
+  display:flex; align-items:center; gap:8px; width:100%;
+  padding:8px 10px; border:none; background:none;
+  color:var(--t1,#fff); font-family:inherit; font-size:.8rem; font-weight:600;
+  border-radius:7px; cursor:pointer; text-align:right; direction:rtl;
+  transition:background .15s;
+}
+.sc-exp-menu-item svg { width:14px; height:14px; stroke:var(--t3,#6b7686); flex-shrink:0; }
+.sc-exp-menu-item:hover:not([disabled]) { background:rgba(255,255,255,.07); }
+.sc-exp-menu-item[disabled] { opacity:.35; cursor:default; }
+.sc-exp-menu-sep { height:1px; background:rgba(255,255,255,.08); margin:3px 6px; }
+.sc-exp-menu-del { color:#f87171; }
+.sc-exp-menu-del svg { stroke:#f87171; }
+.sc-exp-menu-del:hover:not([disabled]) { background:rgba(248,113,113,.1); }
+
 /* ── Cover edit button (owner only) ── */
 .cv-edit-btn {
   display:none; position:absolute; top:8px; right:8px; z-index:4;

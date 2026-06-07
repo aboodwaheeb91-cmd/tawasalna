@@ -356,6 +356,27 @@
     _saveExperienceOrder(oldOrder);
   };
 
+  // ── Three-dots menu toggle / close ──
+  window._expMenuToggle = function(btn){
+    var menu = btn.nextElementSibling;
+    if(!menu) return;
+    var isOpen = menu.classList.contains('open');
+    var all = document.querySelectorAll('.sc-exp-menu.open');
+    for(var i = 0; i < all.length; i++) all[i].classList.remove('open');
+    if(!isOpen) menu.classList.add('open');
+  };
+
+  window._expMenuClose = function(){
+    var all = document.querySelectorAll('.sc-exp-menu.open');
+    for(var i = 0; i < all.length; i++) all[i].classList.remove('open');
+  };
+
+  document.addEventListener('click', function(e){
+    if(!e.target.closest || !e.target.closest('.sc-exp-menu-wrap')){
+      window._expMenuClose();
+    }
+  });
+
   // ── Simple confirm dialog ──
   window.scConfirm = function(msg, onYes){
     var old = document.getElementById('_scConfirmBox');
