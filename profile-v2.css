@@ -128,11 +128,25 @@
   background:transparent; border:none; }
 .sc-name-row { display:flex; align-items:center; gap:.3em; min-width:0; }
 .sc-verified {
-  color:var(--ac,#00c896); display:inline-flex; align-items:center;
-  flex-shrink:0; font-size:inherit;
+  position:relative; color:var(--ac,#00c896); display:inline-flex;
+  align-items:center; justify-content:center; flex-shrink:0;
+  width:1.55em; height:1.55em; border-radius:50%;
+  background:rgba(0,200,150,.1);
+  box-shadow:0 0 7px rgba(0,200,150,.3);
+  cursor:default; outline:none;
 }
-/* Badge scales with name: 0.85em (~85% of text height) */
-.sc-verified .ico-sm { width:.85em; height:.85em; }
+.sc-verified .ico-sm { width:1em; height:1em; }
+.sc-verified::after {
+  content:attr(data-tooltip); position:absolute;
+  bottom:calc(100% + 7px); left:50%; transform:translateX(-50%);
+  background:rgba(8,13,24,.95); border:1px solid rgba(0,200,150,.22);
+  color:#e2e8f0; font-size:11px; font-family:inherit; font-weight:500;
+  white-space:nowrap; padding:4px 10px; border-radius:7px;
+  pointer-events:none; opacity:0; transition:opacity .18s;
+  direction:rtl; z-index:10;
+}
+.sc-verified:hover::after,
+.sc-verified:focus-visible::after { opacity:1; }
 .sc-meta-row { display:flex; align-items:center; gap:14px; margin-top:8px; flex-wrap:wrap; }
 .sc-age { color:var(--t3,#6b7686); font-size:.64rem; display:flex; align-items:center; gap:4px; }
 .sc-name {
