@@ -1431,6 +1431,67 @@ window.PROFILE_SHOWCASE_VERSION = "edit-modal-fix-v1";
 
 ---
 
+## [P0] 34. Official Development Workflow (2026-06-07)
+
+### الدومين الحي
+```
+https://tawasolna.com
+```
+يُستخدم في كل live verification بعد deploy.
+
+### دورة العمل الرسمية
+
+```
+1. Claude: كود + commit + push + PR + تحديث ARCHITECTURE.md
+2. Claude: ملخص تقني + صيغة مختصرة (تم رفع / رقم PR / الحالة)
+3. المستخدم: يقرر الـ merge
+4. بعد merge + deploy: Claude يُشغّل live verification عبر curl
+5. إذا احتاج الفحص متصفح أو بصري: المستخدم يختبر ويُرسل النتيجة
+```
+
+### Live Verification Routine (بعد كل deploy)
+
+```bash
+# 1. الصفحة الرئيسية
+curl -o /dev/null -sw "%{http_code}" https://tawasolna.com/
+
+# 2. Profile Showcase
+curl -o /dev/null -sw "%{http_code}" https://tawasolna.com/profile-showcase?id=1
+
+# 3. Static JS files (مثال)
+curl -o /dev/null -sw "%{http_code}" https://tawasolna.com/static/profile-v2.exp.js
+curl -o /dev/null -sw "%{http_code}" https://tawasolna.com/static/profile-v2.render.js
+
+# 4. التأكد من وجود function/marker في الملف الحي
+curl -s https://tawasolna.com/static/profile-v2.exp.js | grep -c "_expMenuToggle"
+
+# 5. API endpoint أساسي
+curl -o /dev/null -sw "%{http_code}" https://tawasolna.com/stats
+```
+المتوقع: كل شيء يرجع 200.
+
+### قواعد التوثيق التلقائي
+
+| الحالة | الإجراء |
+|--------|---------|
+| Feature مكتملة + merged + لا اعتراض | توثيق كـ `Done / Stable` في ARCHITECTURE.md |
+| Fix مهم + merged | توثيق كـ `Done / Stable` |
+| مرفوع فقط (لم يُدمج) | توثيق كـ `Pending merge` |
+| يوجد خطأ مفتوح | توثيق كـ `Needs testing` أو لا توثيق |
+| المستخدم انتقل لموضوع جديد بدون اعتراض | = implicit approval → توثيق كـ Stable |
+
+### ممنوعات صريحة (مُحدَّثة)
+
+```
+❌ merge إلى main بدون موافقة صريحة من المستخدم
+❌ deploy مباشر بدون PR
+❌ قول "تم" بدون commit SHA + push output
+❌ قول "deployed" بدون curl 200 من tawasolna.com
+❌ توثيق كـ Stable إذا يوجد خطأ مفتوح
+```
+
+---
+
 # G — PERFORMANCE CONTRACTS
 
 ---
