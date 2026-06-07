@@ -98,10 +98,18 @@
       requestAnimationFrame(function(){ if(window._fitName) window._fitName(); });
     }
 
-    // Bio
+    // Bio — update header bio, about tab, and overflow button
     if(payload.bio !== undefined){
       var bioEl = document.getElementById('scBio');
       if(bioEl) bioEl.textContent = payload.bio;
+      var aboutEl = document.getElementById('scAboutText');
+      if(aboutEl) aboutEl.textContent = payload.bio || 'لا توجد نبذة بعد';
+      requestAnimationFrame(function(){
+        if(bioEl){
+          var moreBtn = document.getElementById('scBioMore');
+          if(moreBtn) moreBtn.style.display = bioEl.scrollHeight > bioEl.clientHeight + 2 ? 'inline-block' : 'none';
+        }
+      });
       if(window._scProfile) window._scProfile.bio = payload.bio;
     }
 
@@ -121,10 +129,26 @@
       if(window._scProfile) window._scProfile.dob = payload.dob;
     }
 
-    // Country / city — update cache only (scLoc uses p.location, a separate field)
-    if(payload.country && window._scProfile) window._scProfile.country = payload.country;
-    if(payload.city    && window._scProfile) window._scProfile.city    = payload.city;
-    if(payload.avail   && window._scProfile) window._scProfile.avail   = payload.avail;
+    // Country / city — update cache then refresh scLoc DOM immediately
+    if('country' in payload && window._scProfile) window._scProfile.country = payload.country || '';
+    if('city'    in payload && window._scProfile) window._scProfile.city    = payload.city    || '';
+    if(payload.avail !== undefined && window._scProfile) window._scProfile.avail = payload.avail;
+    (function(){
+      var _p   = window._scProfile || {};
+      var _loc = document.getElementById('scLoc');
+      if(!_loc || !window._buildLocText) return;
+      var _lt = window._buildLocText(_p.country || '', _p.city || '', _p.location || '');
+      if(_lt){
+        _loc.innerHTML = '<i data-lucide="map-pin" class="ico-sm"></i> ' + esc(_lt);
+        _loc.style.display = 'inline-flex';
+        _loc.style.alignItems = 'center';
+        _loc.style.gap = '4px';
+      } else {
+        _loc.innerHTML = '';
+        _loc.style.display = '';
+      }
+      if(window.lucide && lucide.createIcons) lucide.createIcons();
+    })();
 
     // Profession — look up from cached list to get name_ar + icon
     if(payload.profession_id && _profList.length){
