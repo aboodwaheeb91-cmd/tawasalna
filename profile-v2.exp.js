@@ -238,14 +238,31 @@
     if(!company) { showErr('اسم الشركة مطلوب'); return; }
 
     var isCurr = !!(curChk && curChk.checked);
+    var _loc  = _buildLocation();
+    var _desc = fv('exDesc') || null;
+
+    // Emoji guard — must match backend validate_no_emoji()
+    var _emojiCheck = [
+      {v: title,   n: 'المسمى الوظيفي'},
+      {v: company, n: 'اسم الشركة'},
+      {v: _loc,    n: 'الموقع'},
+      {v: _desc,   n: 'الوصف'}
+    ];
+    for(var _ei=0; _ei<_emojiCheck.length; _ei++){
+      if(window.hasEmoji && window.hasEmoji(_emojiCheck[_ei].v)){
+        showErr('لا يسمح باستخدام الرموز التعبيرية في حقل "'+_emojiCheck[_ei].n+'"');
+        return;
+      }
+    }
+
     var payload = {
       title:       title,
       company:     company,
-      location:    _buildLocation(),
+      location:    _loc,
       start_date:  fv('exStart') || null,
       end_date:    isCurr ? null : (fv('exEnd') || null),
       is_current:  isCurr,
-      description: fv('exDesc') || null
+      description: _desc
     };
 
     if(errEl) errEl.style.display = 'none';

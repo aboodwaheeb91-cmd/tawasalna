@@ -4,11 +4,41 @@ Authentication module - Supabase PostgreSQL
 """
 
 import os
+import re
 import uuid
 import bcrypt
 import pg8000.native
 from datetime import datetime
 from typing import Optional
+
+# ══ Emoji / symbol prevention ══
+_EMOJI_RE = re.compile(
+    "[\U0001F600-\U0001F64F"   # emoticons
+    "\U0001F300-\U0001F5FF"    # misc symbols & pictographs
+    "\U0001F680-\U0001F6FF"    # transport & map
+    "\U0001F900-\U0001F9FF"    # supplemental symbols
+    "\U0001FA00-\U0001FAFF"    # extended-A
+    "\U00002702-\U000027B0"    # dingbats
+    "\U00002600-\U000026FF"    # misc symbols
+    "\U0001F1E0-\U0001F1FF"    # flags
+    "\U0000FE0F"               # variation selector-16
+    "\U0000200D"               # zero-width joiner
+    "]+",
+    re.UNICODE
+)
+
+
+class EmojiError(ValueError):
+    """Raised when a text field contains emoji / pictographic symbols."""
+    def __init__(self, field: str):
+        super().__init__(field)
+        self.field = field
+
+
+def validate_no_emoji(value, field: str = "هذا الحقل") -> None:
+    """Raise EmojiError if value contains emoji. Reusable across all text fields."""
+    if value and _EMOJI_RE.search(str(value)):
+        raise EmojiError(field)
 
 
 # ══ نظام الـ IDs ══
@@ -882,6 +912,11 @@ def get_full_profile(user_id: int) -> Optional[dict]:
 
 
 def update_profile(user_id: int, data: dict) -> dict:
+    # Validate all user-visible text fields for emoji
+    _TEXT_FIELDS = ("full_name", "bio", "headline", "title", "location", "phone", "website")
+    for _f in _TEXT_FIELDS:
+        validate_no_emoji(data.get(_f), _f)
+
     _t0 = _time_mod.time()
     _cache_del('profile:'+str(user_id))
     _THEME_FIELDS = {"profile_color", "profile_style"}
@@ -938,6 +973,8 @@ def update_profile(user_id: int, data: dict) -> dict:
 
 # ══ الخبرات ══
 def add_experience(user_id: int, data: dict) -> dict:
+    for _f in ("title", "company", "location", "description"):
+        validate_no_emoji(data.get(_f), _f)
     conn = get_conn()
     try:
         rows = conn.run(

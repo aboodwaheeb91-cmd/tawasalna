@@ -23,6 +23,7 @@
 | 12 | Theme Ownership | **P1** |
 | 13 | Theme System | **P2** |
 | 14 | Script Integrity | **P0** |
+| 22 | No Emoji in Professional Data | **P0** |
 
 ---
 
@@ -315,6 +316,61 @@ _migrations = [
 
 - `_safe_query` تفرق بين EMPTY RESULT و QUERY FAILURE.
 - `[SCHEMA_ERROR]` في logs = migration ناقصة.
+
+---
+
+---
+
+## [P0] 22. No Emoji in Professional Data
+
+الرموز التعبيرية (emoji / pictographs) ممنوعة في جميع حقول النصوص المهنية.
+
+### النطاق الحالي
+
+| Scope | الحقول |
+|-------|--------|
+| Profile | `full_name`, `bio`, `headline`, `title`, `location`, `phone`, `website` |
+| Experience | `title`, `company`, `location`, `description` |
+| Future | education, courses, skills, languages, links, company profiles, jobs |
+
+### التطبيق (طبقتان)
+
+**Backend (الحماية الأساسية — `auth.py`):**
+```python
+# دالة مشتركة لجميع الحقول
+validate_no_emoji(value, field)  # raises EmojiError(field)
+```
+
+**Frontend (UX — `profile-showcase.html` → window.hasEmoji):**
+```javascript
+if (window.hasEmoji(inputValue)) {
+    showError('لا يسمح باستخدام الرموز التعبيرية');
+    return;
+}
+```
+
+### صيغة الـ Error Response (422)
+
+```json
+{
+  "detail": {
+    "status": "error",
+    "message": "لا يسمح باستخدام الرموز التعبيرية داخل هذا الحقل",
+    "field": "<field_name>"
+  }
+}
+```
+
+### القواعد الصارمة
+
+```
+✅ Backend يرفض أي قيمة تحتوي emoji في الحقول المحددة
+✅ Frontend يمنع الإرسال قبل الوصول للـ API (UX فقط)
+✅ validate_no_emoji تُستدعى قبل أي DB operation
+❌ لا تعديل على البيانات الموجودة في DB بدون موافقة صريحة
+❌ لا silent stripping — الرفض الصريح فقط
+❌ لا bypass للـ backend validation عبر API مباشرة
+```
 
 ---
 

@@ -73,6 +73,7 @@ from auth import (
     follow_company, unfollow_company, rate_company,
     get_company_posts, create_company_post, get_post_owner, delete_company_post
 )
+from auth import EmojiError
 
 # ── Config ──
 ADMIN_PASSWORD = "tw@admin2025"
@@ -1429,6 +1430,8 @@ def update_user_profile(user_id: int, data: ProfileUpdateInput, token=Depends(ve
         updated_keys = list(payload.keys())
         print(f"[PUT /profile] ✅ user={user_id} fields={updated_keys} — {_time.time()-_t0:.3f}s total")
         return {"status": "success", "profile": profile, "updated_fields": updated_keys}
+    except EmojiError as e:
+        raise HTTPException(422, detail={"status": "error", "message": "لا يسمح باستخدام الرموز التعبيرية داخل هذا الحقل", "field": e.field})
     except ValueError as e:
         raise HTTPException(404, detail=str(e))
     except Exception as e:
@@ -1443,6 +1446,8 @@ def add_user_experience(user_id: int, data: ExperienceInput, token=Depends(verif
         raise HTTPException(400, detail="المسمى الوظيفي وجهة العمل مطلوبان")
     try:
         return {"status": "success", "experience": add_experience(user_id, data.dict())}
+    except EmojiError as e:
+        raise HTTPException(422, detail={"status": "error", "message": "لا يسمح باستخدام الرموز التعبيرية داخل هذا الحقل", "field": e.field})
     except Exception as e:
         print(f"Experience error: {e}")
         raise HTTPException(500, detail="خطأ في الخادم")
