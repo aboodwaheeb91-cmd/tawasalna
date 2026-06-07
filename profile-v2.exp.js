@@ -331,6 +331,7 @@
   }
 
   window._expMoveUp = function(expId){
+    window._expMenuClose();
     var id   = parseInt(expId, 10);
     var list = (window._scProfile && Array.isArray(window._scProfile.experience))
       ? window._scProfile.experience : [];
@@ -344,6 +345,7 @@
   };
 
   window._expMoveDown = function(expId){
+    window._expMenuClose();
     var id   = parseInt(expId, 10);
     var list = (window._scProfile && Array.isArray(window._scProfile.experience))
       ? window._scProfile.experience : [];
@@ -357,38 +359,26 @@
   };
 
   // ── Three-dots menu toggle / close ──
-  // Uses position:fixed + getBoundingClientRect to escape overflow:hidden on .sc-main-card.
-  // Decides up/down based on available viewport space.
+  // position:absolute relative to .sc-exp-menu-wrap (position:relative).
+  // .open-up class added when space below is insufficient — CSS handles the flip.
   window._expMenuToggle = function(btn){
     var menu = btn.nextElementSibling;
     if(!menu) return;
     var isOpen = menu.classList.contains('open');
-    var all = document.querySelectorAll('.sc-exp-menu.open');
-    for(var i = 0; i < all.length; i++) all[i].classList.remove('open');
+    window._expMenuClose();
     if(!isOpen){
-      var rect     = btn.getBoundingClientRect();
-      var menuW    = 156;
-      var menuH    = 172;
-      var spaceBelow = window.innerHeight - rect.bottom;
-      var leftPos  = Math.max(4, Math.min(rect.left, window.innerWidth - menuW - 4));
-      menu.style.position = 'fixed';
-      menu.style.width    = menuW + 'px';
-      menu.style.left     = leftPos + 'px';
-      menu.style.right    = 'auto';
-      if(spaceBelow >= menuH + 8){
-        menu.style.top    = (rect.bottom + 5) + 'px';
-        menu.style.bottom = 'auto';
-      } else {
-        menu.style.top    = 'auto';
-        menu.style.bottom = (window.innerHeight - rect.top + 5) + 'px';
-      }
+      var rect = btn.getBoundingClientRect();
       menu.classList.add('open');
+      if(window.innerHeight - rect.bottom < 180) menu.classList.add('open-up');
     }
   };
 
   window._expMenuClose = function(){
     var all = document.querySelectorAll('.sc-exp-menu.open');
-    for(var i = 0; i < all.length; i++) all[i].classList.remove('open');
+    for(var i = 0; i < all.length; i++){
+      all[i].classList.remove('open', 'open-up');
+      all[i].removeAttribute('style');
+    }
   };
 
   document.addEventListener('click', function(e){

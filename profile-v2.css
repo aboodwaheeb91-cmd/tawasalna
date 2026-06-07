@@ -51,14 +51,16 @@
 
 /* ── ONE big card ── */
 .sc-main-card {
-  background:var(--bg2,#141a24); border-radius:13px; overflow:hidden;
+  background:var(--bg2,#141a24); border-radius:13px; overflow:visible;
   border:1px solid rgba(255,255,255,.06);
   box-shadow:0 20px 60px rgba(0,0,0,.35);
 }
 
 /* Cover — aspect-ratio 6:1 matches the 480×80 image exactly, so cover never crops or distorts */
+/* overflow:hidden clips the cover to the card's top rounded corners (now that .sc-main-card is overflow:visible) */
 .sc-cover {
   width:100%; aspect-ratio:6/1; height:auto; position:relative;
+  border-radius:13px 13px 0 0; overflow:hidden;
   background:url('https://wrxvmdmknhoufoeprpoc.supabase.co/storage/v1/object/public/site/Cover.png') center/cover no-repeat, linear-gradient(135deg,#0f2027,#203a43,#2c5364);
 }
 .sc-cover::after {
@@ -407,13 +409,14 @@ body.preview-guest       .owner-only { display: none !important; }
 .sc-exp-menu-btn svg { width:15px; height:15px; stroke:var(--t3,#6b7686); }
 .sc-exp-menu-btn:hover { background:rgba(255,255,255,.1); }
 .sc-exp-menu {
-  display:none; position:fixed; z-index:500;
+  display:none; position:absolute; left:0; top:calc(100% + 4px); min-width:156px; z-index:500;
   background:rgba(10,14,24,.97); border:1px solid rgba(255,255,255,.12);
   border-radius:11px; padding:4px;
   backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px);
   box-shadow:0 8px 24px rgba(0,0,0,.45);
 }
 .sc-exp-menu.open { display:block; }
+.sc-exp-menu.open-up { top:auto; bottom:calc(100% + 4px); }
 .sc-exp-menu-item {
   display:flex; align-items:center; gap:8px; width:100%;
   padding:8px 10px; border:none; background:none;
