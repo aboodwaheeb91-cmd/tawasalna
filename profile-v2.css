@@ -133,7 +133,7 @@
   cursor:default; outline:none;
   filter:drop-shadow(0 0 4px rgba(0,200,150,.45));
 }
-.sc-verified .ico-sm { width:1.1em; height:1.1em; }
+.sc-verified-ico { width:1.1em; height:1.1em; flex-shrink:0; }
 .sc-verified::after {
   content:attr(data-tooltip); position:absolute;
   bottom:calc(100% + 7px); left:50%; transform:translateX(-50%);
