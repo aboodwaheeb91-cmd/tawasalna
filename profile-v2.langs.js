@@ -85,7 +85,7 @@
         + '</div>';
     }).join('') + '</div>';
 
-    return rows + addBtn;
+    return addBtn + rows;
   };
 
   function _reRenderLangs(){

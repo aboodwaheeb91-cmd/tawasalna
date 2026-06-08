@@ -2375,6 +2375,49 @@ edu.js → courses.js → skills.js → langs.js → links.js
 
 ---
 
+## Add Button — القاعدة الموحّدة
+
+### Class المعتمد: `.sc-section-add`
+
+```css
+.sc-section-add {
+  display:flex; align-items:center; gap:5px; margin-bottom:10px;
+  padding:4px 10px; border-radius:20px; border:1px solid rgba(0,200,150,.35);
+  background:rgba(0,200,150,.07); color:#00c896;
+  font-family:inherit; font-size:.76rem; font-weight:700; cursor:pointer;
+  transition:background .15s;
+}
+```
+
+### قواعد ثابتة
+
+```
+✅ يظهر دائماً في أعلى القسم (قبل الـ list — addBtn + rows)
+✅ يحمل class="sc-section-add owner-only" دائماً
+✅ الأيقونة: + SVG مع class="ico-sm"
+✅ يُخفى لغير المالك عبر CSS (.owner-only) + body:not(.view-owner)
+❌ ممنوع return rows + addBtn (الزر يكون أسفل = خطأ)
+❌ ممنوع تغيير الـ padding أو الـ border-radius أو اللون لأي قسم
+❌ لا section له زر بحجم أو ستايل مختلف
+```
+
+### النمط المعتمد لكل section module
+
+```javascript
+window._buildXxxHTML = function(data, isOwner){
+  var addBtn = isOwner
+    ? '<button class="sc-section-add owner-only" onclick="window._xxxOpenAdd()">'
+      + '<svg class="ico-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>'
+      + ' إضافة ...</button>'
+    : '';
+  if(!data || !data.length) return addBtn + '<div class="sc-empty">...</div>';
+  var rows = '...';
+  return addBtn + rows;  // ← الزر دائماً أعلى
+};
+```
+
+---
+
 ## Owner Detection
 
 ```
