@@ -1049,6 +1049,8 @@ def reorder_experience(user_id: int, ordered_ids: list) -> bool:
 
 # ══ الشهادات ══
 def add_education(user_id: int, data: dict) -> dict:
+    for _f in ("institution", "degree", "field", "description"):
+        validate_no_emoji(data.get(_f), _f)
     conn = get_conn()
     try:
         rows = conn.run(
@@ -1068,7 +1070,8 @@ def add_education(user_id: int, data: dict) -> dict:
 
 # ══ الدورات ══
 def add_course(user_id: int, data: dict) -> dict:
-    """Insert course. init_db ensures 'title' column exists."""
+    for _f in ("title", "provider", "description"):
+        validate_no_emoji(data.get(_f), _f)
     conn = get_conn()
     try:
         title_val = data.get("title") or data.get("name") or ""
@@ -1083,6 +1086,47 @@ def add_course(user_id: int, data: dict) -> dict:
         )
         cols = [c["name"] for c in conn.columns]
         return _serialize(_row_to_dict(cols, rows[0]))
+    finally:
+        release_conn(conn)
+
+
+def update_education(edu_id: int, user_id: int, data: dict):
+    for _f in ("institution", "degree", "field", "description"):
+        validate_no_emoji(data.get(_f), _f)
+    conn = get_conn()
+    try:
+        rows = conn.run(
+            "UPDATE education SET institution=:inst, degree=:deg, field=:fld, "
+            "start_year=:sy, end_year=:ey, description=:desc "
+            "WHERE id=:id AND user_id=:uid "
+            "RETURNING id, user_id, institution, degree, field, start_year, end_year, description, created_at",
+            inst=data.get("institution"), deg=data.get("degree"), fld=data.get("field"),
+            sy=data.get("start_year"), ey=data.get("end_year"), desc=data.get("description"),
+            id=edu_id, uid=user_id
+        )
+        cols = [c["name"] for c in conn.columns]
+        return _serialize(_row_to_dict(cols, rows[0])) if rows else None
+    finally:
+        release_conn(conn)
+
+
+def update_course(course_id: int, user_id: int, data: dict):
+    for _f in ("title", "provider", "description"):
+        validate_no_emoji(data.get(_f), _f)
+    conn = get_conn()
+    try:
+        title_val = data.get("title") or data.get("name") or ""
+        rows = conn.run(
+            "UPDATE courses SET title=:title, provider=:provider, completion_date=:cd, "
+            "certificate_url=:curl, description=:desc "
+            "WHERE id=:id AND user_id=:uid "
+            "RETURNING id, user_id, title, provider, completion_date, certificate_url, description, created_at",
+            title=title_val, provider=data.get("provider"), cd=data.get("completion_date"),
+            curl=data.get("certificate_url"), desc=data.get("description"),
+            id=course_id, uid=user_id
+        )
+        cols = [c["name"] for c in conn.columns]
+        return _serialize(_row_to_dict(cols, rows[0])) if rows else None
     finally:
         release_conn(conn)
 

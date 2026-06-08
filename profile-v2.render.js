@@ -243,12 +243,18 @@ window.renderProfile = function renderProfile(res){
   // Tab: Skills
   var skEl=document.getElementById('scSkillsPane');
   if(skEl){
-    skEl.innerHTML = skills.length
-      ? skills.map(function(s){
-          var label=(s&&typeof s==='object')?(s.skill||''):s;
-          return '<span class="sc-skill">'+esc(label)+'</span>';
-        }).join('')
-      : '<div class="sc-empty">لا توجد مهارات بعد</div>';
+    var _skOwner = (_vt === 'owner');
+    if(window._buildSkillsHTML){
+      var _skillsNorm = skills.map(function(s){ return typeof s==='object' ? s : {skill:s}; });
+      skEl.innerHTML = window._buildSkillsHTML(_skillsNorm, _skOwner);
+    } else {
+      skEl.innerHTML = skills.length
+        ? skills.map(function(s){
+            var label=(s&&typeof s==='object')?(s.skill||''):s;
+            return '<span class="sc-skill">'+esc(label)+'</span>';
+          }).join('')
+        : '<div class="sc-empty">لا توجد مهارات بعد</div>';
+    }
   }
 
   // Tab: Experience
@@ -256,17 +262,48 @@ window.renderProfile = function renderProfile(res){
   if(expEl){ expEl.innerHTML = _buildExpHTML(exp, _vt === 'owner'); }
 
   // Tab: Education
+  var isOwner = (_vt === 'owner');
   var eduEl=document.getElementById('scEduPane');
   if(eduEl){
-    eduEl.innerHTML = edu.length
-      ? edu.map(function(d){
-          var inst=esc(d.institution||''); var deg=esc(d.degree||'');
-          var fld=d.field?(' · '+esc(d.field)):'';
-          return '<div class="sc-item"><div class="sc-item-t">'+inst+'</div>'+
-            ((deg||fld)?'<div class="sc-item-s">'+deg+fld+'</div>':'')+'</div>';
-        }).join('')
-      : '<div class="sc-empty">لا توجد شهادات بعد</div>';
+    if(window._buildEduHTML){
+      eduEl.innerHTML = window._buildEduHTML(edu, isOwner);
+    } else {
+      eduEl.innerHTML = edu.length
+        ? edu.map(function(d){
+            var inst=esc(d.institution||''); var deg=esc(d.degree||'');
+            var fld=d.field?(' · '+esc(d.field)):'';
+            return '<div class="sc-item"><div class="sc-item-t">'+inst+'</div>'+
+              ((deg||fld)?'<div class="sc-item-s">'+deg+fld+'</div>':'')+'</div>';
+          }).join('')
+        : '<div class="sc-empty">لا توجد شهادات بعد</div>';
+    }
   }
+
+  // Tab: Courses
+  var coursesEl=document.getElementById('scCoursesPane');
+  if(coursesEl){
+    if(window._buildCoursesHTML) coursesEl.innerHTML = window._buildCoursesHTML(p.courses||[], isOwner);
+    else coursesEl.innerHTML = '<div class="sc-empty">لا توجد دورات بعد</div>';
+  }
+
+  // Tab: Languages
+  var langsEl=document.getElementById('scLangsPane');
+  if(langsEl){
+    if(window._buildLangsHTML) langsEl.innerHTML = window._buildLangsHTML(p.langs||[], isOwner);
+    else langsEl.innerHTML = '<div class="sc-empty">لا توجد لغات بعد</div>';
+  }
+
+  // Tab: Links
+  var linksEl=document.getElementById('scLinksPane');
+  if(linksEl){
+    if(window._buildLinksHTML) linksEl.innerHTML = window._buildLinksHTML(p.links||[], isOwner);
+    else linksEl.innerHTML = '<div class="sc-empty">لا توجد روابط بعد</div>';
+  }
+
+  // Global state for section modules
+  window._scProfile    = p;
+  window._scViewerType = _vt;
+  window._scUserId     = p.id;
 
   // Action buttons — onclick overwrites safely on each re-render
   var followBtn=document.getElementById('scFollowBtn');

@@ -80,3 +80,29 @@ window.getProfessions = getProfessions;
 window.updateProfile  = updateProfile;
 window.uploadAvatar   = uploadAvatar;
 window.uploadCover    = uploadCover;
+
+// ── Section CRUD helpers (Education, Courses, Skills, Languages, Links) ──
+
+function _scApiCall(method, path, body){
+  var opts = { method:method, headers:{'Content-Type':'application/json', 'Authorization': 'Bearer ' + (_jwt||'')} };
+  if(body != null) opts.body = JSON.stringify(body);
+  return fetch(path, opts)
+    .then(function(r){ return r.json().then(function(d){ return {ok:r.ok, data:d}; }); });
+}
+
+function addEdu(userId, payload)    { return _scApiCall('POST',  '/education/'+userId, payload); }
+function updateEdu(id, payload)     { return _scApiCall('PUT',   '/education/'+id,     payload); }
+function deleteEdu(id)              { return _scApiCall('DELETE', '/education/'+id,     null);    }
+
+function addCourse(userId, payload) { return _scApiCall('POST',  '/course/'+userId, payload); }
+function updateCourse(id, payload)  { return _scApiCall('PUT',   '/course/'+id,     payload); }
+function deleteCourse(id)           { return _scApiCall('DELETE', '/course/'+id,     null);    }
+
+function addSkill(userId, payload)  { return _scApiCall('POST',  '/skills/'+userId, payload); }
+function deleteSkill(id)            { return _scApiCall('DELETE', '/skills/'+id,     null);    }
+
+function addLang(userId, payload)   { return _scApiCall('POST',  '/langs/'+userId, payload); }
+function deleteLang(id)             { return _scApiCall('DELETE', '/langs/'+id,     null);    }
+
+function addLink(userId, payload)   { return _scApiCall('POST',  '/links/'+userId, payload); }
+function deleteLink(id)             { return _scApiCall('DELETE', '/links/'+id,     null);    }

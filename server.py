@@ -58,7 +58,7 @@ from auth import (
     create_user, authenticate_user, get_user_by_id,
     get_public_profile, get_full_profile, update_profile,
     get_profile_by_tw_id, get_full_profile_by_tw_id, get_user_id_by_tw_id,
-    add_experience, update_experience, reorder_experience, add_education, add_course, create_verify_request,
+    add_experience, update_experience, reorder_experience, add_education, add_course, update_education, update_course, create_verify_request,
     add_job, get_jobs, get_job, apply_job,
     start_kyc, send_email_code, verify_email_code,
     send_phone_code, verify_phone_code, upload_kyc_docs,
@@ -73,7 +73,7 @@ from auth import (
     follow_company, unfollow_company, rate_company,
     get_company_posts, create_company_post, get_post_owner, delete_company_post
 )
-from auth import EmojiError
+from auth import EmojiError, validate_no_emoji
 
 # ── Config ──
 ADMIN_PASSWORD = "tw@admin2025"
@@ -1492,6 +1492,8 @@ def add_user_education(user_id: int, data: EducationInput, token=Depends(verify_
         raise HTTPException(400, detail="اسم المؤسسة التعليمية مطلوب")
     try:
         return {"status": "success", "education": add_education(user_id, data.dict())}
+    except EmojiError as e:
+        raise HTTPException(422, detail={"status": "error", "message": "لا يسمح باستخدام الرموز التعبيرية", "field": e.field})
     except Exception as e:
         print(f"Education error: {e}")
         raise HTTPException(500, detail="خطأ في الخادم")
@@ -1504,6 +1506,8 @@ def add_user_course(user_id: int, data: CourseInput, token=Depends(verify_token)
         raise HTTPException(400, detail="اسم الدورة مطلوب")
     try:
         return {"status": "success", "course": add_course(user_id, data.dict())}
+    except EmojiError as e:
+        raise HTTPException(422, detail={"status": "error", "message": "لا يسمح باستخدام الرموز التعبيرية", "field": e.field})
     except Exception as e:
         print(f"Course error: {e}")
         raise HTTPException(500, detail="خطأ في الخادم")
@@ -1512,6 +1516,12 @@ def add_user_course(user_id: int, data: CourseInput, token=Depends(verify_token)
 def add_user_skill(user_id: int, data: SkillInput, token=Depends(verify_token)):
     if str(token.get('user_id','')) != str(user_id):
         raise HTTPException(403, "Unauthorized")
+    if not data.skill or not data.skill.strip():
+        raise HTTPException(400, detail="اسم المهارة مطلوب")
+    try:
+        validate_no_emoji(data.skill, "skill")
+    except EmojiError as e:
+        raise HTTPException(422, detail={"status": "error", "message": "لا يسمح باستخدام الرموز التعبيرية", "field": e.field})
     try:
         conn = get_conn()
         try:
@@ -1546,6 +1556,12 @@ def delete_user_skill(skill_id: int, token=Depends(verify_token)):
 def add_user_lang(user_id: int, data: LangInput, token=Depends(verify_token)):
     if str(token.get('user_id','')) != str(user_id):
         raise HTTPException(403, "Unauthorized")
+    if not data.language or not data.language.strip():
+        raise HTTPException(400, detail="اسم اللغة مطلوب")
+    try:
+        validate_no_emoji(data.language, "language")
+    except EmojiError as e:
+        raise HTTPException(422, detail={"status": "error", "message": "لا يسمح باستخدام الرموز التعبيرية", "field": e.field})
     try:
         conn = get_conn()
         try:
@@ -2215,6 +2231,24 @@ def delete_experience(exp_id: int, token=Depends(verify_token)):
         print(f"[delete_experience] error: {e}")
         raise HTTPException(500, detail=str(e))
 
+@app.put("/education/{edu_id}")
+def update_education_entry(edu_id: int, data: EducationInput, token=Depends(verify_token)):
+    uid = token.get('user_id')
+    if not uid: raise HTTPException(401, "Unauthorized")
+    try:
+        result = update_education(edu_id, uid, data.dict())
+        if not result:
+            raise HTTPException(404, "لم يتم العثور على الشهادة")
+        _cache_del('profile:'+str(uid))
+        return {"status": "success", "education": result}
+    except HTTPException:
+        raise
+    except EmojiError as e:
+        raise HTTPException(422, detail={"status": "error", "message": "لا يسمح باستخدام الرموز التعبيرية", "field": e.field})
+    except Exception as e:
+        print(f"[update_education] error: {e}")
+        raise HTTPException(500, "خطأ في الخادم")
+
 @app.delete("/education/{edu_id}")
 def delete_education(edu_id: int, token=Depends(verify_token)):
     uid = token.get('user_id')
@@ -2231,6 +2265,24 @@ def delete_education(edu_id: int, token=Depends(verify_token)):
     except Exception as e:
         print(f"[delete_education] error: {e}")
         raise HTTPException(500, detail=str(e))
+
+@app.put("/course/{course_id}")
+def update_course_entry(course_id: int, data: CourseInput, token=Depends(verify_token)):
+    uid = token.get('user_id')
+    if not uid: raise HTTPException(401, "Unauthorized")
+    try:
+        result = update_course(course_id, uid, data.dict())
+        if not result:
+            raise HTTPException(404, "لم يتم العثور على الدورة")
+        _cache_del('profile:'+str(uid))
+        return {"status": "success", "course": result}
+    except HTTPException:
+        raise
+    except EmojiError as e:
+        raise HTTPException(422, detail={"status": "error", "message": "لا يسمح باستخدام الرموز التعبيرية", "field": e.field})
+    except Exception as e:
+        print(f"[update_course] error: {e}")
+        raise HTTPException(500, "خطأ في الخادم")
 
 @app.delete("/course/{course_id}")
 def delete_course(course_id: int, token=Depends(verify_token)):
