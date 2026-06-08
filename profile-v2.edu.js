@@ -45,6 +45,10 @@
   if(saveBtn) saveBtn.onclick = function(){
     var inst = fv('eduInst');
     if(!inst){ toast('اسم المؤسسة مطلوب'); return; }
+    var _emojiFields = [inst, fv('eduDeg'), fv('eduField'), fv('eduDesc')];
+    for(var _i=0; _i<_emojiFields.length; _i++){
+      if(_emojiFields[_i] && typeof hasEmoji==='function' && hasEmoji(_emojiFields[_i])){ toast('لا يسمح باستخدام الرموز التعبيرية'); return; }
+    }
     var payload = {
       institution:  inst,
       degree:       fv('eduDeg')   || null,

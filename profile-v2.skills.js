@@ -27,6 +27,7 @@
   if(saveBtn) saveBtn.onclick = function(){
     var skill = fv('skillName');
     if(!skill){ toast('اسم المهارة مطلوب'); return; }
+    if(typeof hasEmoji==='function' && hasEmoji(skill)){ toast('لا يسمح باستخدام الرموز التعبيرية'); return; }
     var payload = { skill: skill, level: fv('skillLevel') || null };
     saveBtn.disabled=true;
     addSkill(_scUserId, payload).then(function(res){

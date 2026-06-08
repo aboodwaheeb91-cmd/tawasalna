@@ -332,7 +332,11 @@ _migrations = [
 |-------|--------|
 | Profile | `full_name`, `bio`, `headline`, `title`, `location`, `phone`, `website` |
 | Experience | `title`, `company`, `location`, `description` |
-| Future | education, courses, skills, languages, links, company profiles, jobs |
+| Education | `institution`, `degree`, `field`, `description` |
+| Courses | `title`, `provider`, `description` |
+| Skills | `skill` |
+| Languages | `language` |
+| Future | links (URL fields — not applicable), company profiles, jobs |
 
 ### التطبيق (طبقتان)
 
@@ -2283,3 +2287,110 @@ requestAnimationFrame(function(){ /* re-check scBioMore overflow */ });
 ❌ إضافة حقل جديد دون تحديث كل DOM elements المرتبطة به
 ❌ _buildLocText في render فقط بدون نفس المنطق في applyLocalUpdate
 ```
+
+---
+
+# E — PROFILE V2 MODULAR ARCHITECTURE
+
+> `profile-showcase.html` — الصفحة العامة / صاحب البروفايل.
+> كل قسم (section) لديه ملف JS مستقل.
+
+---
+
+## Script Load Order (ثابت — لا تغيّر)
+
+```
+state.js → utils.js → api.js → qr.js → render.js → edit.js →
+exp.js → cover.js → avatar.js → select.js →
+edu.js → courses.js → skills.js → langs.js → links.js
+```
+
+**القاعدة:** كل module يعتمد على state.js/utils.js/api.js بشكل ضمني.
+`exp.js` يجب أن يحمّل قبل edu/courses/langs/links لأنه يعرّف `_expMenuToggle` / `_expMenuClose`.
+
+---
+
+## Globals المعتمدة (تُعيَّن من render.js بعد profile load)
+
+| المتغير | المعيّن من | الغرض |
+|---------|-----------|-------|
+| `window._scProfile` | render.js | cache كامل للـ profile data |
+| `window._scViewerType` | render.js | `'owner'` / `'public-user'` / `'guest'` |
+| `window._scUserId` | render.js | numeric user ID للـ API calls |
+
+**القاعدة:** Section modules تقرأ هذه الـ globals فقط بعد user interaction (click) — أي بعد اكتمال render.js.
+
+---
+
+## Pattern قياسي لكل Section Module
+
+```javascript
+// كل module يتبع هذا النمط
+(function(){
+  // 1. Guard — يوقف إذا الـ overlay غير موجودة
+  var overlay = document.getElementById('XxxOverlay');
+  if(!overlay) return;
+
+  // 2. Save handler — يتحقق + emoji + API call + cache update + re-render
+  saveBtn.onclick = function(){
+    var val = fv('XxxField');
+    if(!val){ toast('الحقل مطلوب'); return; }
+    if(typeof hasEmoji==='function' && hasEmoji(val)){ toast('لا يسمح باستخدام الرموز التعبيرية'); return; }
+    // ... API call
+    // ... update window._scProfile cache
+    // ... _reRenderXxx()
+  };
+
+  // 3. Build HTML — function نقية، تأخذ data + isOwner
+  window._buildXxxHTML = function(data, isOwner){ /* ... */ };
+
+  // 4. Re-render — يقرأ من window._scProfile
+  window._reRenderXxx = function(){
+    var el = document.getElementById('scXxxPane');
+    if(!el) return;
+    el.innerHTML = window._buildXxxHTML(window._scProfile.xxx, window._scViewerType === 'owner');
+  };
+
+  // 5. Public API
+  window._xxxOpenAdd = function(){ /* open modal */ };
+  window._xxxConfirmDelete = function(id){ /* confirm + delete + re-render */ };
+})();
+```
+
+---
+
+## Sections المكتملة (CRUD كامل)
+
+| Section | Module | Add | Edit | Delete | Emoji FE | Emoji BE |
+|---------|--------|-----|------|--------|----------|----------|
+| Experience | profile-v2.exp.js | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Education | profile-v2.edu.js | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Courses | profile-v2.courses.js | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Skills | profile-v2.skills.js | ✅ | — | ✅ | ✅ | ✅ |
+| Languages | profile-v2.langs.js | ✅ | — | ✅ | ✅ | ✅ |
+| Links | profile-v2.links.js | ✅ | — | ✅ | N/A | N/A |
+
+**ملاحظة Skills/Languages/Links:** لا edit (add يُحدّث ON CONFLICT — يعني add يعمل كـ upsert).
+**ملاحظة Links:** حقول URL فقط — emoji غير قابل للتطبيق على URLs.
+
+---
+
+## Owner Detection
+
+```
+GET /profile/{user_id}  →  Authorization: Bearer {jwt}
+  response.viewer_type  →  'owner' | 'public-user' | 'guest'
+render.js               →  window._scViewerType = res.viewer_type
+                        →  body.classList.toggle('view-owner', res.viewer_type === 'owner')
+CSS: body.view-owner .owner-only { display: ... }
+```
+
+---
+
+## Cache Invalidation Contract
+
+بعد كل mutation (POST/PUT/DELETE) في section modules:
+1. **Backend:** `_cache_del('profile:'+str(uid))` مباشرة في الـ endpoint
+2. **Frontend:** تحديث `window._scProfile` يدوياً (no re-fetch) ثم `_reRenderXxx()`
+
+هذا يضمن Rule #36 (Immediate UI Update) بدون انتظار API fetch.

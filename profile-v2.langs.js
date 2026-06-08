@@ -27,6 +27,7 @@
   if(saveBtn) saveBtn.onclick = function(){
     var lang = fv('langName');
     if(!lang){ toast('اسم اللغة مطلوب'); return; }
+    if(typeof hasEmoji==='function' && hasEmoji(lang)){ toast('لا يسمح باستخدام الرموز التعبيرية'); return; }
     var payload = { language: lang, level: fv('langLevel') || null };
     saveBtn.disabled=true;
     addLang(_scUserId, payload).then(function(res){

@@ -243,12 +243,18 @@ window.renderProfile = function renderProfile(res){
   // Tab: Skills
   var skEl=document.getElementById('scSkillsPane');
   if(skEl){
-    skEl.innerHTML = skills.length
-      ? skills.map(function(s){
-          var label=(s&&typeof s==='object')?(s.skill||''):s;
-          return '<span class="sc-skill">'+esc(label)+'</span>';
-        }).join('')
-      : '<div class="sc-empty">لا توجد مهارات بعد</div>';
+    var _skOwner = (_vt === 'owner');
+    if(window._buildSkillsHTML){
+      var _skillsNorm = skills.map(function(s){ return typeof s==='object' ? s : {skill:s}; });
+      skEl.innerHTML = window._buildSkillsHTML(_skillsNorm, _skOwner);
+    } else {
+      skEl.innerHTML = skills.length
+        ? skills.map(function(s){
+            var label=(s&&typeof s==='object')?(s.skill||''):s;
+            return '<span class="sc-skill">'+esc(label)+'</span>';
+          }).join('')
+        : '<div class="sc-empty">لا توجد مهارات بعد</div>';
+    }
   }
 
   // Tab: Experience
@@ -292,13 +298,6 @@ window.renderProfile = function renderProfile(res){
   if(linksEl){
     if(window._buildLinksHTML) linksEl.innerHTML = window._buildLinksHTML(p.links||[], isOwner);
     else linksEl.innerHTML = '<div class="sc-empty">لا توجد روابط بعد</div>';
-  }
-
-  // Tab: Skills — update to use module if available
-  if(window._buildSkillsHTML){
-    var skills2 = skills.map(function(s){ return typeof s==='object' ? s : {skill:s}; });
-    var skEl2=document.getElementById('scSkillsPane');
-    if(skEl2) skEl2.innerHTML = window._buildSkillsHTML(skills2, isOwner);
   }
 
   // Global state for section modules

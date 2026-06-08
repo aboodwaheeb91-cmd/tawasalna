@@ -44,6 +44,10 @@
   if(saveBtn) saveBtn.onclick = function(){
     var title = fv('courseTitle');
     if(!title){ toast('اسم الدورة مطلوب'); return; }
+    var _emojiFields = [title, fv('courseProv'), fv('courseDesc')];
+    for(var _i=0; _i<_emojiFields.length; _i++){
+      if(_emojiFields[_i] && typeof hasEmoji==='function' && hasEmoji(_emojiFields[_i])){ toast('لا يسمح باستخدام الرموز التعبيرية'); return; }
+    }
     var payload = {
       title:            title,
       provider:         fv('courseProv')  || null,

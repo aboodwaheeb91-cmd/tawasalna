@@ -1049,6 +1049,8 @@ def reorder_experience(user_id: int, ordered_ids: list) -> bool:
 
 # ══ الشهادات ══
 def add_education(user_id: int, data: dict) -> dict:
+    for _f in ("institution", "degree", "field", "description"):
+        validate_no_emoji(data.get(_f), _f)
     conn = get_conn()
     try:
         rows = conn.run(
@@ -1068,7 +1070,8 @@ def add_education(user_id: int, data: dict) -> dict:
 
 # ══ الدورات ══
 def add_course(user_id: int, data: dict) -> dict:
-    """Insert course. init_db ensures 'title' column exists."""
+    for _f in ("title", "provider", "description"):
+        validate_no_emoji(data.get(_f), _f)
     conn = get_conn()
     try:
         title_val = data.get("title") or data.get("name") or ""
@@ -1088,6 +1091,8 @@ def add_course(user_id: int, data: dict) -> dict:
 
 
 def update_education(edu_id: int, user_id: int, data: dict):
+    for _f in ("institution", "degree", "field", "description"):
+        validate_no_emoji(data.get(_f), _f)
     conn = get_conn()
     try:
         rows = conn.run(
@@ -1106,6 +1111,8 @@ def update_education(edu_id: int, user_id: int, data: dict):
 
 
 def update_course(course_id: int, user_id: int, data: dict):
+    for _f in ("title", "provider", "description"):
+        validate_no_emoji(data.get(_f), _f)
     conn = get_conn()
     try:
         title_val = data.get("title") or data.get("name") or ""
