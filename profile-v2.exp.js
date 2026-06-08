@@ -379,6 +379,7 @@
       })
       .catch(function(){});
   }
+  window._bgRefetch = _bgRefetch;
 
   // ── Experience sort order ──
   function _saveExperienceOrder(oldOrder){
