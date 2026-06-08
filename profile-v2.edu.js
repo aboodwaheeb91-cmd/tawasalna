@@ -14,6 +14,17 @@
 
   var _editId = null;
 
+  // Populate year selects once — runs at module init
+  (function _populateEduYears(){
+    var selSY = f('eduSY'), selEY = f('eduEY');
+    if(!selSY || selSY.options.length > 1) return;
+    var now = new Date().getFullYear();
+    var opts = '<option value="">— اختر —</option>';
+    for(var y = now + 2; y >= 1950; y--) opts += '<option value="'+y+'">'+y+'</option>';
+    selSY.innerHTML = opts;
+    selEY.innerHTML = opts;
+  })();
+
   function openAdd(){
     _editId = null;
     sv('eduMTitle','إضافة شهادة');
@@ -29,8 +40,8 @@
     sv('eduInst',  entry.institution   || '');
     sv('eduDeg',   entry.degree        || '');
     sv('eduField', entry.field         || '');
-    sv('eduSY',    entry.start_year    || '');
-    sv('eduEY',    entry.end_year      || '');
+    sv('eduSY',    entry.start_year    ? String(entry.start_year) : '');
+    sv('eduEY',    entry.end_year      ? String(entry.end_year)   : '');
     sv('eduDesc',  entry.description   || '');
     overlay.classList.add('open');
     var inp=f('eduInst'); if(inp) setTimeout(function(){ inp.focus(); },120);

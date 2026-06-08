@@ -14,6 +14,16 @@
 
   var _editId = null;
 
+  // Populate year select once — runs at module init
+  (function _populateCourseYears(){
+    var sel = f('courseCD');
+    if(!sel || sel.options.length > 1) return;
+    var now = new Date().getFullYear();
+    var opts = '<option value="">— اختر السنة —</option>';
+    for(var y = now; y >= 1990; y--) opts += '<option value="'+y+'">'+y+'</option>';
+    sel.innerHTML = opts;
+  })();
+
   function openAdd(){
     _editId = null;
     sv('courseMTitle','إضافة دورة');
@@ -26,11 +36,13 @@
   function openEdit(entry){
     _editId = entry.id;
     sv('courseMTitle','تعديل الدورة');
-    sv('courseTitle', entry.title            || '');
-    sv('courseProv',  entry.provider         || '');
-    sv('courseCD',    entry.completion_date  || '');
-    sv('courseCurl',  entry.certificate_url  || '');
-    sv('courseDesc',  entry.description      || '');
+    sv('courseTitle', entry.title           || '');
+    sv('courseProv',  entry.provider        || '');
+    // completion_date may be stored as "YYYY-MM-DD" or "YYYY" — extract year only
+    var cdYear = (entry.completion_date || '').split('-')[0] || '';
+    sv('courseCD', cdYear);
+    sv('courseCurl',  entry.certificate_url || '');
+    sv('courseDesc',  entry.description     || '');
     overlay.classList.add('open');
     var inp=f('courseTitle'); if(inp) setTimeout(function(){ inp.focus(); },120);
   }
