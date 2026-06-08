@@ -39,10 +39,15 @@
     var url = fv('linkUrl');
     if(!url){ toast('الرابط مطلوب'); return; }
     var payload = { link_type: fv('linkType') || 'other', url: url };
-    saveBtn.disabled=true;
+    saveBtn.disabled    = true;
+    saveBtn.textContent = 'جاري الحفظ…';
     addLink(_scUserId, payload).then(function(res){
-      saveBtn.disabled=false;
-      if(!res.ok){ toast((res.data && res.data.detail) || 'حدث خطأ'); return; }
+      if(!res.ok){
+        var _det = res.data && res.data.detail;
+        var _msg = (_det && typeof _det === 'object' && _det.message) ? _det.message : (typeof _det === 'string' ? _det : 'حدث خطأ');
+        toast(_msg);
+        return;
+      }
       var entry = res.data.link;
       var cache = window._scProfile;
       if(cache){
@@ -50,13 +55,19 @@
         if(existing){
           cache.links = (cache.links||[]).map(function(l){ return l.link_type===entry.link_type ? entry : l; });
         } else {
-          cache.links = (cache.links||[]).concat([entry]);
+          cache.links = [entry].concat(cache.links||[]);
         }
       }
-      _reRenderLinks();
       closeModal();
       toast('تمت الإضافة');
-    }).catch(function(){ saveBtn.disabled=false; toast('حدث خطأ'); });
+      _reRenderLinks();
+      if(window._bgRefetch) window._bgRefetch();
+    }).catch(function(){
+      toast('خطأ في الاتصال بالخادم');
+    }).finally(function(){
+      saveBtn.disabled    = false;
+      saveBtn.textContent = 'حفظ';
+    });
   };
 
   // ── Build Links HTML ──
@@ -113,14 +124,16 @@
   window._linkOpenAdd = function(){ openModal(); };
   window._linkConfirmDelete = function(id){
     id = parseInt(id);
-    if(!confirm('هل تريد حذف هذا الرابط؟')) return;
-    deleteLink(id).then(function(res){
-      if(!res.ok){ toast('حدث خطأ'); return; }
-      var cache = window._scProfile;
-      if(cache) cache.links = (cache.links||[]).filter(function(l){ return l.id!==id; });
-      _reRenderLinks();
-      toast('تم الحذف');
-    }).catch(function(){ toast('حدث خطأ'); });
+    scConfirm('هل أنت متأكد من حذف هذا الرابط؟', function(){
+      deleteLink(id).then(function(res){
+        if(!res.ok){ toast('حدث خطأ أثناء الحذف'); return; }
+        var cache = window._scProfile;
+        if(cache) cache.links = (cache.links||[]).filter(function(l){ return l.id!==id; });
+        _reRenderLinks();
+        toast('تم حذف الرابط');
+        if(window._bgRefetch) window._bgRefetch();
+      }).catch(function(){ toast('خطأ في الاتصال بالخادم'); });
+    });
   };
 
 })();

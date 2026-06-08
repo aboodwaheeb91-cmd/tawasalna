@@ -26,12 +26,16 @@
   if(saveBtn) saveBtn.onclick = function(){
     var lang = fv('langName');
     if(!lang){ toast('اسم اللغة مطلوب'); return; }
-    if(typeof hasEmoji==='function' && hasEmoji(lang)){ toast('لا يسمح باستخدام الرموز التعبيرية'); return; }
     var payload = { language: lang, level: fv('langLevel') || null };
-    saveBtn.disabled=true;
+    saveBtn.disabled    = true;
+    saveBtn.textContent = 'جاري الحفظ…';
     addLang(_scUserId, payload).then(function(res){
-      saveBtn.disabled=false;
-      if(!res.ok){ toast((res.data && res.data.detail) || 'حدث خطأ'); return; }
+      if(!res.ok){
+        var _det = res.data && res.data.detail;
+        var _msg = (_det && typeof _det === 'object' && _det.message) ? _det.message : (typeof _det === 'string' ? _det : 'حدث خطأ');
+        toast(_msg);
+        return;
+      }
       var entry = res.data.lang;
       var cache = window._scProfile;
       if(cache){
@@ -39,13 +43,19 @@
         if(existing){
           cache.langs = (cache.langs||[]).map(function(l){ return l.language===entry.language ? entry : l; });
         } else {
-          cache.langs = (cache.langs||[]).concat([entry]);
+          cache.langs = [entry].concat(cache.langs||[]);
         }
       }
-      _reRenderLangs();
       closeModal();
       toast('تمت الإضافة');
-    }).catch(function(){ saveBtn.disabled=false; toast('حدث خطأ'); });
+      _reRenderLangs();
+      if(window._bgRefetch) window._bgRefetch();
+    }).catch(function(){
+      toast('خطأ في الاتصال بالخادم');
+    }).finally(function(){
+      saveBtn.disabled    = false;
+      saveBtn.textContent = 'حفظ';
+    });
   };
 
   // ── Build Languages HTML ──
@@ -101,14 +111,16 @@
   window._langOpenAdd = function(){ openModal(); };
   window._langConfirmDelete = function(id){
     id = parseInt(id);
-    if(!confirm('هل تريد حذف هذه اللغة؟')) return;
-    deleteLang(id).then(function(res){
-      if(!res.ok){ toast('حدث خطأ'); return; }
-      var cache = window._scProfile;
-      if(cache) cache.langs = (cache.langs||[]).filter(function(l){ return l.id!==id; });
-      _reRenderLangs();
-      toast('تم الحذف');
-    }).catch(function(){ toast('حدث خطأ'); });
+    scConfirm('هل أنت متأكد من حذف هذه اللغة؟', function(){
+      deleteLang(id).then(function(res){
+        if(!res.ok){ toast('حدث خطأ أثناء الحذف'); return; }
+        var cache = window._scProfile;
+        if(cache) cache.langs = (cache.langs||[]).filter(function(l){ return l.id!==id; });
+        _reRenderLangs();
+        toast('تم حذف اللغة');
+        if(window._bgRefetch) window._bgRefetch();
+      }).catch(function(){ toast('خطأ في الاتصال بالخادم'); });
+    });
   };
 
 })();

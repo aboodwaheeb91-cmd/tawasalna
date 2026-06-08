@@ -29,10 +29,15 @@
     if(!skill){ toast('اسم المهارة مطلوب'); return; }
     if(typeof hasEmoji==='function' && hasEmoji(skill)){ toast('لا يسمح باستخدام الرموز التعبيرية'); return; }
     var payload = { skill: skill, level: fv('skillLevel') || null };
-    saveBtn.disabled=true;
+    saveBtn.disabled    = true;
+    saveBtn.textContent = 'جاري الحفظ…';
     addSkill(_scUserId, payload).then(function(res){
-      saveBtn.disabled=false;
-      if(!res.ok){ toast((res.data && res.data.detail) || 'حدث خطأ'); return; }
+      if(!res.ok){
+        var _det = res.data && res.data.detail;
+        var _msg = (_det && typeof _det === 'object' && _det.message) ? _det.message : (typeof _det === 'string' ? _det : 'حدث خطأ');
+        toast(_msg);
+        return;
+      }
       var entry = res.data.skill;
       var cache = window._scProfile;
       if(cache){
@@ -40,13 +45,19 @@
         if(existing){
           cache.skills = (cache.skills||[]).map(function(s){ return s.skill===entry.skill ? entry : s; });
         } else {
-          cache.skills = (cache.skills||[]).concat([entry]);
+          cache.skills = [entry].concat(cache.skills||[]);
         }
       }
-      _reRenderSkills();
       closeModal();
       toast('تمت الإضافة');
-    }).catch(function(){ saveBtn.disabled=false; toast('حدث خطأ'); });
+      _reRenderSkills();
+      if(window._bgRefetch) window._bgRefetch();
+    }).catch(function(){
+      toast('خطأ في الاتصال بالخادم');
+    }).finally(function(){
+      saveBtn.disabled    = false;
+      saveBtn.textContent = 'حفظ';
+    });
   };
 
   // ── Build Skills HTML ──
@@ -87,14 +98,16 @@
   window._skillOpenAdd = function(){ openModal(); };
   window._skillConfirmDelete = function(id){
     id = parseInt(id);
-    if(!confirm('هل تريد حذف هذه المهارة؟')) return;
-    deleteSkill(id).then(function(res){
-      if(!res.ok){ toast('حدث خطأ'); return; }
-      var cache = window._scProfile;
-      if(cache) cache.skills = (cache.skills||[]).filter(function(s){ return s.id!==id; });
-      _reRenderSkills();
-      toast('تم الحذف');
-    }).catch(function(){ toast('حدث خطأ'); });
+    scConfirm('هل أنت متأكد من حذف هذه المهارة؟', function(){
+      deleteSkill(id).then(function(res){
+        if(!res.ok){ toast('حدث خطأ أثناء الحذف'); return; }
+        var cache = window._scProfile;
+        if(cache) cache.skills = (cache.skills||[]).filter(function(s){ return s.id!==id; });
+        _reRenderSkills();
+        toast('تم حذف المهارة');
+        if(window._bgRefetch) window._bgRefetch();
+      }).catch(function(){ toast('خطأ في الاتصال بالخادم'); });
+    });
   };
 
 })();

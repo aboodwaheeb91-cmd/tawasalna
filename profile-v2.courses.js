@@ -67,7 +67,8 @@
       certificate_url:  fv('courseCurl')  || null,
       description:      fv('courseDesc')  || null
     };
-    saveBtn.disabled=true;
+    saveBtn.disabled    = true;
+    saveBtn.textContent = 'جاري الحفظ…';
 
     var isEdit = !!_editId;
     var promise = isEdit
@@ -75,21 +76,31 @@
       : addCourse(_scUserId, payload);
 
     promise.then(function(res){
-      saveBtn.disabled=false;
-      if(!res.ok){ toast((res.data && res.data.detail) || 'حدث خطأ'); return; }
+      if(!res.ok){
+        var _det = res.data && res.data.detail;
+        var _msg = (_det && typeof _det === 'object' && _det.message) ? _det.message : (typeof _det === 'string' ? _det : 'حدث خطأ');
+        toast(_msg);
+        return;
+      }
       var entry = res.data.course;
       var cache = window._scProfile;
       if(cache){
         if(isEdit){
           cache.courses = (cache.courses||[]).map(function(c){ return c.id===entry.id ? entry : c; });
         } else {
-          cache.courses = (cache.courses||[]).concat([entry]);
+          cache.courses = [entry].concat(cache.courses||[]);
         }
       }
-      _reRenderCourses();
       closeModal();
       toast(isEdit ? 'تم التحديث' : 'تمت الإضافة');
-    }).catch(function(){ saveBtn.disabled=false; toast('حدث خطأ'); });
+      _reRenderCourses();
+      if(window._bgRefetch) window._bgRefetch();
+    }).catch(function(){
+      toast('خطأ في الاتصال بالخادم');
+    }).finally(function(){
+      saveBtn.disabled    = false;
+      saveBtn.textContent = 'حفظ';
+    });
   };
 
   // ── Build Courses HTML ──
@@ -157,14 +168,16 @@
   };
   window._courseConfirmDelete = function(id){
     id = parseInt(id);
-    if(!confirm('هل تريد حذف هذه الدورة؟')) return;
-    deleteCourse(id).then(function(res){
-      if(!res.ok){ toast('حدث خطأ'); return; }
-      var cache = window._scProfile;
-      if(cache) cache.courses = (cache.courses||[]).filter(function(c){ return c.id!==id; });
-      _reRenderCourses();
-      toast('تم الحذف');
-    }).catch(function(){ toast('حدث خطأ'); });
+    scConfirm('هل أنت متأكد من حذف هذه الدورة؟', function(){
+      deleteCourse(id).then(function(res){
+        if(!res.ok){ toast('حدث خطأ أثناء الحذف'); return; }
+        var cache = window._scProfile;
+        if(cache) cache.courses = (cache.courses||[]).filter(function(c){ return c.id!==id; });
+        _reRenderCourses();
+        toast('تم حذف الدورة');
+        if(window._bgRefetch) window._bgRefetch();
+      }).catch(function(){ toast('خطأ في الاتصال بالخادم'); });
+    });
   };
 
 })();
