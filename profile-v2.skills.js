@@ -71,7 +71,7 @@
         + '</span>';
     }).join('') + '</div>';
 
-    return chips + addBtn;
+    return addBtn + chips;
   };
 
   function _reRenderSkills(){

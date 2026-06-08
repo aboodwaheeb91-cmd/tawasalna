@@ -25,6 +25,7 @@
 | 14 | Script Integrity | **P0** |
 | 22 | No Emoji in Professional Data | **P0** |
 | 36 | Immediate UI Update Contract | **P1** |
+| 37 | Controlled Inputs over Free Text | **P1** |
 
 ---
 
@@ -2372,6 +2373,123 @@ edu.js → courses.js → skills.js → langs.js → links.js
 
 **ملاحظة Skills/Languages/Links:** لا edit (add يُحدّث ON CONFLICT — يعني add يعمل كـ upsert).
 **ملاحظة Links:** حقول URL فقط — emoji غير قابل للتطبيق على URLs.
+
+---
+
+## Add Button — القاعدة الموحّدة
+
+### Class المعتمد: `.sc-section-add`
+
+```css
+.sc-section-add {
+  display:flex; align-items:center; gap:5px; margin-bottom:10px;
+  padding:4px 10px; border-radius:20px; border:1px solid rgba(0,200,150,.35);
+  background:rgba(0,200,150,.07); color:#00c896;
+  font-family:inherit; font-size:.76rem; font-weight:700; cursor:pointer;
+  transition:background .15s;
+}
+```
+
+### قواعد ثابتة
+
+```
+✅ يظهر دائماً في أعلى القسم (قبل الـ list — addBtn + rows)
+✅ يحمل class="sc-section-add owner-only" دائماً
+✅ الأيقونة: + SVG مع class="ico-sm"
+✅ يُخفى لغير المالك عبر CSS (.owner-only) + body:not(.view-owner)
+❌ ممنوع return rows + addBtn (الزر يكون أسفل = خطأ)
+❌ ممنوع تغيير الـ padding أو الـ border-radius أو اللون لأي قسم
+❌ لا section له زر بحجم أو ستايل مختلف
+```
+
+### النمط المعتمد لكل section module
+
+```javascript
+window._buildXxxHTML = function(data, isOwner){
+  var addBtn = isOwner
+    ? '<button class="sc-section-add owner-only" onclick="window._xxxOpenAdd()">'
+      + '<svg class="ico-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>'
+      + ' إضافة ...</button>'
+    : '';
+  if(!data || !data.length) return addBtn + '<div class="sc-empty">...</div>';
+  var rows = '...';
+  return addBtn + rows;  // ← الزر دائماً أعلى
+};
+```
+
+---
+
+# F — CONTROLLED INPUTS
+
+---
+
+## [P1] 37. Controlled Inputs over Free Text
+
+> أي قيمة يمكن ضبطها بقائمة يجب أن تكون قائمة، والكتابة الحرة فقط للوصف أو النصوص الشخصية.
+
+### القاعدة الأساسية
+
+```
+✅ استخدم <select class="ep-select"> لكل حقل ذي قيم متوقعة
+✅ استخدم <textarea> أو <input type="text"> للوصف والنصوص الشخصية فقط
+❌ ممنوع حقل نصي حر لأي قيمة يمكن تحديدها من قائمة
+```
+
+### جدول الحقول — الحالة المعتمدة
+
+| Section | الحقل | النوع | ملاحظة |
+|---------|-------|-------|---------|
+| **Profile** | البلد | `<select>` ✅ | مرتبط بالمدينة |
+| | المدينة | `<select>` ✅ | تتغير بتغيير البلد |
+| | تاريخ الميلاد | `<select>` × 3 ✅ | يوم/شهر/سنة |
+| | حالة التوظيف | `<select>` ✅ | متاح/غير متاح/فريلانس |
+| | التخصص المهني | `<select>` ✅ | من endpoint |
+| | النبذة | `<textarea>` ✅ | نص شخصي |
+| **Experience** | سنة البداية | `<select>` ✅ | dynamic |
+| | سنة الانتهاء | `<select>` ✅ | dynamic |
+| | البلد | `<select>` ✅ | |
+| | المدينة | `<select>` ✅ | conditional |
+| | ما زلت أعمل | `checkbox` ✅ | |
+| | المسمى / الشركة / الوصف | `<input>` / `<textarea>` ✅ | نصوص مخصصة |
+| **Education** | الدرجة العلمية | `<select>` ✅ | ثانوية/دبلوم/بكالوريوس/ماجستير/دكتوراه/... |
+| | سنة البداية | `<select>` ✅ | dynamic |
+| | سنة التخرج | `<select>` ✅ | dynamic |
+| | المؤسسة / التخصص / الوصف | `<input>` / `<textarea>` ✅ | نصوص مخصصة |
+| **Courses** | سنة الإتمام | `<select>` ✅ | dynamic |
+| | العنوان / الجهة / الوصف | `<input>` / `<textarea>` ✅ | نصوص مخصصة |
+| | رابط الشهادة | `<input type="url">` ✅ | URL |
+| **Skills** | اسم المهارة | `<input>` (مؤقت) | مُعدّ لـ suggestions لاحقاً |
+| | المستوى | `<select>` ✅ | مبتدئ/متوسط/متقدم/خبير |
+| **Languages** | اللغة | `<select>` ✅ | قائمة شاملة مع optgroups |
+| | مستوى الإتقان | `<select>` ✅ | مبتدئ/متوسط/جيد/متقدم/محترف/اللغة الأم |
+| **Links** | نوع الرابط | `<select>` ✅ | LinkedIn/GitHub/Website/... |
+| | الرابط | `<input type="url">` ✅ | URL مع validation |
+
+### قواعد صارمة
+
+```
+✅ كل <select> يستخدم class="ep-select" → يُكسى بـ custom select component
+✅ <select> داخل .sc-modal-overlay يعمل تلقائياً عبر MutationObserver
+✅ قيم المستوى موحّدة: مبتدئ/متوسط/جيد/متقدم/محترف/اللغة الأم (للغات)
+❌ ممنوع استخدام <select> بدون class="ep-select"
+❌ ممنوع تحويل حقول الوصف والنصوص الشخصية إلى قوائم
+```
+
+### Skills — خارطة طريق
+
+```
+الحالة الحالية: <input type="text"> — free text مؤقت
+المرحلة القادمة: datalist مع suggestions من endpoint /skills/suggestions
+المرحلة النهائية: combobox — select + custom input
+```
+
+### Custom Select + Modal Integration
+
+```javascript
+// select.js يُراقب كلا نوعي الـ overlays
+var overlays = document.querySelectorAll('.ep-overlay, .sc-modal-overlay');
+// عند .open → _syncAll() بعد 80ms → triggers تتزامن مع القيم المُعيَّنة بـ sv()
+```
 
 ---
 

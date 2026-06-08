@@ -407,7 +407,7 @@ body.preview-guest       .owner-only { display: none !important; }
 }
 .ep-note .ico-sm { color:#2563ff; flex-shrink:0; margin-top:1px; }
 
-/* ── Experience card owner controls ── */
+/* ── Section add button — unified across all sections (exp/edu/courses/skills/langs/links) ── */
 .sc-section-add {
   display:flex; align-items:center; gap:5px; margin-bottom:10px;
   padding:4px 10px; border-radius:20px; border:1px solid rgba(0,200,150,.35);

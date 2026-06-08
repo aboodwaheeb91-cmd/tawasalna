@@ -414,7 +414,19 @@
       <div class="sc-form-row">
         <div class="sc-form-group">
           <label>الدرجة العلمية</label>
-          <input type="text" id="eduDeg" placeholder="بكالوريوس، ماجستير...">
+          <select class="ep-select" id="eduDeg">
+            <option value="">— اختر —</option>
+            <option value="ثانوية عامة">ثانوية عامة</option>
+            <option value="دبلوم">دبلوم</option>
+            <option value="بكالوريوس">بكالوريوس</option>
+            <option value="ليسانس">ليسانس</option>
+            <option value="بكالوريوس تطبيقي">بكالوريوس تطبيقي</option>
+            <option value="ماجستير">ماجستير</option>
+            <option value="دكتوراه">دكتوراه</option>
+            <option value="بورد / زمالة">بورد / زمالة</option>
+            <option value="شهادة مهنية">شهادة مهنية</option>
+            <option value="أخرى">أخرى</option>
+          </select>
         </div>
         <div class="sc-form-group">
           <label>التخصص</label>
@@ -424,11 +436,15 @@
       <div class="sc-form-row">
         <div class="sc-form-group">
           <label>سنة البداية</label>
-          <input type="number" id="eduSY" placeholder="2018" min="1950" max="2100">
+          <select class="ep-select" id="eduSY">
+            <option value="">— اختر —</option>
+          </select>
         </div>
         <div class="sc-form-group">
           <label>سنة التخرج</label>
-          <input type="number" id="eduEY" placeholder="2022" min="1950" max="2100">
+          <select class="ep-select" id="eduEY">
+            <option value="">— اختر —</option>
+          </select>
         </div>
       </div>
       <div class="sc-form-group">
@@ -458,8 +474,10 @@
         <input type="text" id="courseProv" placeholder="Coursera، Udemy، LinkedIn Learning...">
       </div>
       <div class="sc-form-group">
-        <label>تاريخ الإتمام</label>
-        <input type="date" id="courseCD">
+        <label>سنة الإتمام</label>
+        <select class="ep-select" id="courseCD">
+          <option value="">— اختر السنة —</option>
+        </select>
       </div>
       <div class="sc-form-group">
         <label>رابط الشهادة</label>
@@ -489,7 +507,7 @@
       </div>
       <div class="sc-form-group">
         <label>المستوى (اختياري)</label>
-        <select id="skillLevel">
+        <select class="ep-select" id="skillLevel">
           <option value="">— اختر المستوى —</option>
           <option value="مبتدئ">مبتدئ</option>
           <option value="متوسط">متوسط</option>
@@ -513,16 +531,47 @@
       </div>
       <div class="sc-form-group">
         <label>اللغة *</label>
-        <input type="text" id="langName" placeholder="العربية، الإنجليزية، الفرنسية...">
+        <select class="ep-select" id="langName">
+          <option value="">— اختر اللغة —</option>
+          <optgroup label="الأكثر استخداماً">
+            <option value="العربية">العربية</option>
+            <option value="الإنجليزية">الإنجليزية</option>
+            <option value="الفرنسية">الفرنسية</option>
+            <option value="الألمانية">الألمانية</option>
+            <option value="الإسبانية">الإسبانية</option>
+            <option value="الإيطالية">الإيطالية</option>
+            <option value="البرتغالية">البرتغالية</option>
+            <option value="الروسية">الروسية</option>
+          </optgroup>
+          <optgroup label="اللغات الآسيوية">
+            <option value="التركية">التركية</option>
+            <option value="الفارسية">الفارسية</option>
+            <option value="الأردية">الأردية</option>
+            <option value="الهندية">الهندية</option>
+            <option value="الصينية">الصينية</option>
+            <option value="اليابانية">اليابانية</option>
+            <option value="الكورية">الكورية</option>
+            <option value="الإندونيسية">الإندونيسية</option>
+          </optgroup>
+          <optgroup label="لغات أخرى">
+            <option value="الهولندية">الهولندية</option>
+            <option value="البولندية">البولندية</option>
+            <option value="السويدية">السويدية</option>
+            <option value="العبرية">العبرية</option>
+            <option value="اليونانية">اليونانية</option>
+            <option value="لغة أخرى">لغة أخرى</option>
+          </optgroup>
+        </select>
       </div>
       <div class="sc-form-group">
         <label>مستوى الإتقان (اختياري)</label>
-        <select id="langLevel">
+        <select class="ep-select" id="langLevel">
           <option value="">— اختر المستوى —</option>
           <option value="مبتدئ">مبتدئ</option>
           <option value="متوسط">متوسط</option>
+          <option value="جيد">جيد</option>
           <option value="متقدم">متقدم</option>
-          <option value="بطلاقة">بطلاقة</option>
+          <option value="محترف">محترف</option>
           <option value="اللغة الأم">اللغة الأم</option>
         </select>
       </div>
@@ -542,7 +591,7 @@
       </div>
       <div class="sc-form-group">
         <label>نوع الرابط</label>
-        <select id="linkType">
+        <select class="ep-select" id="linkType">
           <option value="linkedin">LinkedIn</option>
           <option value="github">GitHub</option>
           <option value="website">الموقع الشخصي</option>

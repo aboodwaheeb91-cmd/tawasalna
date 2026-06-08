@@ -263,7 +263,7 @@
   // ── Watch modal opens to re-sync prefilled values ──
   // Programmatic `select.value = x` doesn't fire a change event, so we sync on modal open.
   (function(){
-    var overlays = document.querySelectorAll('.ep-overlay');
+    var overlays = document.querySelectorAll('.ep-overlay, .sc-modal-overlay');
     for(var i=0; i<overlays.length; i++){
       (function(ov){
         new MutationObserver(function(muts){

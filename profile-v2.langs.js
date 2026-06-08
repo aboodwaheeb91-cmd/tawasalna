@@ -16,7 +16,6 @@
     sv('langName','');
     sv('langLevel','');
     overlay.classList.add('open');
-    var inp=f('langName'); if(inp) setTimeout(function(){ inp.focus(); },120);
   }
   function closeModal(){ overlay.classList.remove('open'); }
 
@@ -85,7 +84,7 @@
         + '</div>';
     }).join('') + '</div>';
 
-    return rows + addBtn;
+    return addBtn + rows;
   };
 
   function _reRenderLangs(){
