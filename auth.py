@@ -568,6 +568,7 @@ def init_db():
             "ALTER TABLE education ADD COLUMN IF NOT EXISTS start_year INTEGER",
             "ALTER TABLE education ADD COLUMN IF NOT EXISTS end_year INTEGER",
             "ALTER TABLE education ADD COLUMN IF NOT EXISTS description TEXT",
+            "ALTER TABLE education ADD COLUMN IF NOT EXISTS is_current BOOLEAN DEFAULT FALSE",
             # courses
             "ALTER TABLE courses ADD COLUMN IF NOT EXISTS title TEXT",
             "ALTER TABLE courses ADD COLUMN IF NOT EXISTS provider TEXT",
@@ -1054,12 +1055,13 @@ def add_education(user_id: int, data: dict) -> dict:
     conn = get_conn()
     try:
         rows = conn.run(
-            "INSERT INTO education (user_id, institution, degree, field, start_year, end_year, description) "
-            "VALUES (:uid, :institution, :degree, :field, :start_year, :end_year, :description) "
-            "RETURNING id, user_id, institution, degree, field, start_year, end_year, description, created_at",
+            "INSERT INTO education (user_id, institution, degree, field, start_year, end_year, is_current, description) "
+            "VALUES (:uid, :institution, :degree, :field, :start_year, :end_year, :is_current, :description) "
+            "RETURNING id, user_id, institution, degree, field, start_year, end_year, is_current, description, created_at",
             uid=user_id, institution=data["institution"],
             degree=data.get("degree"), field=data.get("field"),
             start_year=data.get("start_year"), end_year=data.get("end_year"),
+            is_current=bool(data.get("is_current", False)),
             description=data.get("description")
         )
         cols = [c["name"] for c in conn.columns]
@@ -1097,11 +1099,13 @@ def update_education(edu_id: int, user_id: int, data: dict):
     try:
         rows = conn.run(
             "UPDATE education SET institution=:inst, degree=:deg, field=:fld, "
-            "start_year=:sy, end_year=:ey, description=:desc "
+            "start_year=:sy, end_year=:ey, is_current=:isc, description=:desc "
             "WHERE id=:id AND user_id=:uid "
-            "RETURNING id, user_id, institution, degree, field, start_year, end_year, description, created_at",
+            "RETURNING id, user_id, institution, degree, field, start_year, end_year, is_current, description, created_at",
             inst=data.get("institution"), deg=data.get("degree"), fld=data.get("field"),
-            sy=data.get("start_year"), ey=data.get("end_year"), desc=data.get("description"),
+            sy=data.get("start_year"), ey=data.get("end_year"),
+            isc=bool(data.get("is_current", False)),
+            desc=data.get("description"),
             id=edu_id, uid=user_id
         )
         cols = [c["name"] for c in conn.columns]

@@ -8,41 +8,80 @@
   var closeBtn  = document.getElementById('eduClose');
   if(!overlay || !saveBtn) return;
 
+  var CUR_YEAR = new Date().getFullYear();
+
   function f(id){ return document.getElementById(id); }
   function fv(id){ return ((f(id)||{}).value||'').trim(); }
   function sv(id,v){ var el=f(id); if(el) el.value=(v==null?'':v); }
 
   var _editId = null;
 
-  // Populate year selects once — runs at module init
-  (function _populateEduYears(){
-    var selSY = f('eduSY'), selEY = f('eduEY');
+  // Populate start-year once at module init (past only, no future)
+  (function _populateStartYear(){
+    var selSY = f('eduSY');
     if(!selSY || selSY.options.length > 1) return;
-    var now = new Date().getFullYear();
     var opts = '<option value="">— اختر —</option>';
-    for(var y = now + 2; y >= 1950; y--) opts += '<option value="'+y+'">'+y+'</option>';
+    for(var y = CUR_YEAR; y >= 1950; y--) opts += '<option value="'+y+'">'+y+'</option>';
     selSY.innerHTML = opts;
-    selEY.innerHTML = opts;
   })();
+
+  // Rebuild end-year based on start-year and is_current state
+  function _refreshEndYear(fromYear, isCurrent, selectedVal){
+    var selEY  = f('eduEY');
+    var label  = f('eduEYLabel');
+    if(!selEY) return;
+
+    var minY = fromYear ? parseInt(fromYear) : 1950;
+    var maxY = isCurrent ? CUR_YEAR + 6 : CUR_YEAR;
+    var opts = '<option value="">— اختر —</option>';
+    for(var y = maxY; y >= minY; y--) opts += '<option value="'+y+'">'+y+'</option>';
+    selEY.innerHTML = opts;
+
+    if(label){
+      label.textContent = isCurrent ? 'متوقع التخرج (اختياري)' : 'سنة التخرج';
+    }
+
+    // Restore previous value if still valid
+    if(selectedVal){
+      var sy = parseInt(selectedVal);
+      if(sy >= minY && sy <= maxY) selEY.value = String(sy);
+    }
+  }
+
+  // Wire checkbox and start-year change
+  var cbCurrent = f('eduCurrent');
+  var selSY     = f('eduSY');
+
+  if(cbCurrent) cbCurrent.addEventListener('change', function(){
+    _refreshEndYear(fv('eduSY'), this.checked, fv('eduEY'));
+  });
+  if(selSY) selSY.addEventListener('change', function(){
+    _refreshEndYear(this.value, cbCurrent ? cbCurrent.checked : false, fv('eduEY'));
+  });
 
   function openAdd(){
     _editId = null;
     sv('eduMTitle','إضافة شهادة');
     sv('eduInst',''); sv('eduDeg',''); sv('eduField','');
-    sv('eduSY',''); sv('eduEY',''); sv('eduDesc','');
+    sv('eduSY',''); sv('eduDesc','');
+    if(cbCurrent){ cbCurrent.checked = false; }
+    _refreshEndYear(CUR_YEAR, false, '');
+    sv('eduEY','');
     overlay.classList.add('open');
     var inp=f('eduInst'); if(inp) setTimeout(function(){ inp.focus(); },120);
   }
 
   function openEdit(entry){
     _editId = entry.id;
+    var isCur = !!entry.is_current;
     sv('eduMTitle','تعديل الشهادة');
-    sv('eduInst',  entry.institution   || '');
-    sv('eduDeg',   entry.degree        || '');
-    sv('eduField', entry.field         || '');
-    sv('eduSY',    entry.start_year    ? String(entry.start_year) : '');
-    sv('eduEY',    entry.end_year      ? String(entry.end_year)   : '');
-    sv('eduDesc',  entry.description   || '');
+    sv('eduInst',  entry.institution || '');
+    sv('eduDeg',   entry.degree      || '');
+    sv('eduField', entry.field       || '');
+    sv('eduSY',    entry.start_year  ? String(entry.start_year) : '');
+    if(cbCurrent){ cbCurrent.checked = isCur; }
+    _refreshEndYear(entry.start_year || CUR_YEAR, isCur, entry.end_year ? String(entry.end_year) : '');
+    sv('eduDesc',  entry.description || '');
     overlay.classList.add('open');
     var inp=f('eduInst'); if(inp) setTimeout(function(){ inp.focus(); },120);
   }
@@ -56,22 +95,46 @@
   if(saveBtn) saveBtn.onclick = function(){
     var inst = fv('eduInst');
     if(!inst){ toast('اسم المؤسسة مطلوب'); return; }
+
     var _emojiFields = [inst, fv('eduDeg'), fv('eduField'), fv('eduDesc')];
     for(var _i=0; _i<_emojiFields.length; _i++){
       if(_emojiFields[_i] && typeof hasEmoji==='function' && hasEmoji(_emojiFields[_i])){ toast('لا يسمح باستخدام الرموز التعبيرية'); return; }
     }
+
+    var isCur   = cbCurrent ? cbCurrent.checked : false;
+    var syVal   = fv('eduSY')  ? parseInt(fv('eduSY'))  : null;
+    var eyVal   = fv('eduEY')  ? parseInt(fv('eduEY'))  : null;
+
+    // Validation: start year must not be in the future
+    if(syVal && syVal > CUR_YEAR){
+      toast('سنة البداية لا يمكن أن تكون في المستقبل');
+      return;
+    }
+    // Validation: end year must not precede start year
+    if(syVal && eyVal && eyVal < syVal){
+      toast('سنة التخرج لا يمكن أن تكون قبل سنة البداية');
+      return;
+    }
+    // Validation: future end year only allowed if is_current
+    if(eyVal && eyVal > CUR_YEAR && !isCur){
+      toast('لا يمكن اختيار سنة تخرج مستقبلية إلا إذا كنت ما زلت تدرس');
+      return;
+    }
+
     var payload = {
       institution:  inst,
-      degree:       fv('eduDeg')   || null,
+      degree:       fv('eduDeg')  || null,
       field:        fv('eduField') || null,
-      start_year:   fv('eduSY')    ? parseInt(fv('eduSY'))  : null,
-      end_year:     fv('eduEY')    ? parseInt(fv('eduEY'))  : null,
-      description:  fv('eduDesc')  || null
+      start_year:   syVal,
+      end_year:     eyVal,
+      is_current:   isCur,
+      description:  fv('eduDesc') || null
     };
+
     saveBtn.disabled    = true;
     saveBtn.textContent = 'جاري الحفظ…';
 
-    var isEdit = !!_editId;
+    var isEdit  = !!_editId;
     var promise = isEdit
       ? updateEdu(_editId, payload)
       : addEdu(_scUserId, payload);
@@ -114,12 +177,36 @@
     if(!education || !education.length) return addBtn + '<div class="sc-empty">لا توجد شهادات بعد</div>';
 
     var rows = '<div class="sc-exp-list">' + education.map(function(e){
-      var inst  = esc(e.institution || '');
-      var deg   = e.degree  ? esc(e.degree)  : '';
-      var field = e.field   ? esc(e.field)   : '';
-      var sy    = e.start_year || '';
-      var ey    = e.end_year   || '';
-      var period = sy ? (sy + (ey ? ' – ' + ey : ' – الآن')) : '';
+      var inst    = esc(e.institution || '');
+      var deg     = e.degree  ? esc(e.degree)  : '';
+      var field   = e.field   ? esc(e.field)   : '';
+      var sy      = e.start_year || '';
+      var ey      = e.end_year   || '';
+      var isCur   = !!e.is_current;
+
+      // Period display
+      var period = '';
+      if(sy){
+        if(isCur){
+          period = sy + ' – قيد الدراسة';
+        } else if(ey){
+          period = sy + ' – ' + ey;
+        } else {
+          period = String(sy);
+        }
+      }
+
+      // "متوقع التخرج" label for future graduation
+      var futureLabel = '';
+      if(isCur && ey && parseInt(ey) > CUR_YEAR){
+        futureLabel = '<span class="sc-exp-current" style="font-size:.72rem;padding:2px 7px">متوقع: ' + ey + '</span>';
+      }
+
+      // "قيد الدراسة" badge
+      var currentBadge = isCur
+        ? '<span class="sc-exp-current">قيد الدراسة</span>'
+        : '';
+
       var desc  = e.description ? esc(e.description) : '';
       var actions = isOwner
         ? '<div class="sc-exp-menu-wrap owner-only">'
@@ -141,7 +228,10 @@
         + '<div class="sc-exp-head">'
         + '<div class="sc-exp-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="20" height="20"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg></div>'
         + '<div class="sc-exp-body">'
-        + '<div class="sc-exp-title">' + (deg ? deg + (field ? ' – ' + field : '') : (field || 'شهادة')) + '</div>'
+        + '<div class="sc-exp-title">'
+          + (deg ? deg + (field ? ' – ' + field : '') : (field || 'شهادة'))
+          + (currentBadge || futureLabel ? ' ' + (currentBadge || futureLabel) : '')
+          + '</div>'
         + '<div class="sc-exp-company">' + inst + '</div>'
         + (period ? '<div class="sc-exp-period">' + period + '</div>' : '')
         + (desc   ? '<div class="sc-exp-desc">'   + desc   + '</div>' : '')

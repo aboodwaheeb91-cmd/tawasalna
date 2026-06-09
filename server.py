@@ -570,6 +570,7 @@ class EducationInput(BaseModel):
     field: Optional[str] = None
     start_year: Optional[int] = None
     end_year: Optional[int] = None
+    is_current: bool = False
     description: Optional[str] = None
 
 class ImageUploadInput(BaseModel):
