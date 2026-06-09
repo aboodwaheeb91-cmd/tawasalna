@@ -440,12 +440,18 @@
             <option value="">— اختر —</option>
           </select>
         </div>
-        <div class="sc-form-group">
-          <label>سنة التخرج</label>
+        <div class="sc-form-group" id="eduEYWrap">
+          <label id="eduEYLabel">سنة التخرج</label>
           <select class="ep-select" id="eduEY">
             <option value="">— اختر —</option>
           </select>
         </div>
+      </div>
+      <div class="sc-form-group">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;color:var(--t2,#9aa5b4);font-size:.83rem">
+          <input type="checkbox" id="eduCurrent" style="width:16px;height:16px;accent-color:#00c896;cursor:pointer">
+          ما زلت أدرس هنا
+        </label>
       </div>
       <div class="sc-form-group">
         <label>وصف إضافي</label>
@@ -623,7 +629,7 @@
   <script src="/static/profile-v2.cover.js?v=modular-v1"></script>
   <script src="/static/profile-v2.avatar.js?v=modular-v1"></script>
   <script src="/static/profile-v2.select.js?v=modular-v1"></script>
-  <script src="/static/profile-v2.edu.js?v=modular-v1"></script>
+  <script src="/static/profile-v2.edu.js?v=edu-iscurrent-v1"></script>
   <script src="/static/profile-v2.courses.js?v=modular-v1"></script>
   <script src="/static/profile-v2.skills.js?v=modular-v1"></script>
   <script src="/static/profile-v2.langs.js?v=modular-v1"></script>
