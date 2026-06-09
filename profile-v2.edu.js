@@ -65,7 +65,7 @@
     sv('eduInst',''); sv('eduDeg',''); sv('eduField','');
     sv('eduSY',''); sv('eduDesc','');
     if(cbCurrent){ cbCurrent.checked = false; }
-    _refreshEndYear(CUR_YEAR, false, '');
+    _refreshEndYear(0, false, '');
     sv('eduEY','');
     overlay.classList.add('open');
     var inp=f('eduInst'); if(inp) setTimeout(function(){ inp.focus(); },120);
@@ -80,7 +80,7 @@
     sv('eduField', entry.field       || '');
     sv('eduSY',    entry.start_year  ? String(entry.start_year) : '');
     if(cbCurrent){ cbCurrent.checked = isCur; }
-    _refreshEndYear(entry.start_year || CUR_YEAR, isCur, entry.end_year ? String(entry.end_year) : '');
+    _refreshEndYear(entry.start_year || 0, isCur, entry.end_year ? String(entry.end_year) : '');
     sv('eduDesc',  entry.description || '');
     overlay.classList.add('open');
     var inp=f('eduInst'); if(inp) setTimeout(function(){ inp.focus(); },120);
