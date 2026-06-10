@@ -113,9 +113,8 @@
       if(window._scProfile) window._scProfile.bio = payload.bio;
     }
 
-    // DOB → compute and display age (or hide if cleared)
+    // DOB → compute and display age
     if('dob' in payload){
-      if(window._scProfile) window._scProfile.dob = payload.dob;
       if(payload.dob){
         var birth = new Date(payload.dob);
         if(!isNaN(birth.getTime())){
@@ -132,6 +131,7 @@
         var ageEl = document.getElementById('scAge');
         if(ageEl) ageEl.style.display = 'none';
       }
+      if(window._scProfile) window._scProfile.dob = payload.dob;
     }
 
     // Country / city — update cache then refresh scLoc DOM immediately
@@ -198,6 +198,10 @@
       var dy = document.getElementById('epDobY'); if(dy) dy.value = dp[0];
       var dm = document.getElementById('epDobM'); if(dm) dm.value = dp[1];
       var dd = document.getElementById('epDobD'); if(dd) dd.value = dp[2];
+    } else {
+      var dy = document.getElementById('epDobY'); if(dy) dy.value = '';
+      var dm = document.getElementById('epDobM'); if(dm) dm.value = '';
+      var dd = document.getElementById('epDobD'); if(dd) dd.value = '';
     }
 
     // Country + City
@@ -347,7 +351,6 @@
     payload.first_name  = first;
     payload.middle_name = mid;
     payload.last_name   = last;
-    // Always send clearable fields — null explicitly clears them in the DB
     payload.dob     = dob     || null;
     payload.country = country || null;
     payload.city    = city    || null;

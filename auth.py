@@ -940,7 +940,6 @@ def update_profile(user_id: int, data: dict) -> dict:
 
         # Schema guaranteed by init_db — no runtime ALTER TABLE needed
         allowed = ["headline", "bio", "location", "skills", "avatar_url", "website", "phone", "sections_order", "custom_sections", "dob", "country", "city", "avail", "title", "profile_color", "profile_style", "profession_id", "first_name", "middle_name", "last_name", "cover_url"]
-        # These fields may be explicitly set to null/empty to clear them
         _clearable = {"dob", "country", "city", "avail"}
         fields = {k: v for k, v in data.items() if k in allowed and (v is not None or k in _clearable)}
         print(f"[update_profile] user={user_id} saving fields: {list(fields.keys())}")
@@ -1001,10 +1000,9 @@ def update_experience(exp_id: int, user_id: int, data: dict) -> dict:
     conn = get_conn()
     try:
         allowed = {"title", "company", "location", "start_date", "end_date", "is_current", "description"}
-        # end_date may be explicitly null to clear it — include None values for this field only
         _nullable = {"end_date"}
         fields = {k: data[k] for k in allowed if k in data and (data[k] is not None or k in _nullable)}
-        # always clear end_date when is_current becomes True
+        # clear end_date when is_current becomes True
         if fields.get('is_current') is True:
             fields['end_date'] = None
         if not fields:
