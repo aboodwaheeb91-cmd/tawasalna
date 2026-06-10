@@ -733,7 +733,7 @@ def _get_extras(conn, user_id: int) -> dict:
             "FROM experience WHERE user_id = :uid ORDER BY sort_order ASC, id DESC", user_id),
         "education": _safe_query(conn,
             "SELECT id, institution, degree, field, start_year, end_year, "
-            "description, created_at "
+            "is_current, description, created_at "
             "FROM education WHERE user_id = :uid ORDER BY id DESC", user_id),
         "courses": _safe_query(conn,
             "SELECT id, title, provider, completion_date, certificate_url, "
