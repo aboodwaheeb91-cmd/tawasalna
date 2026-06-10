@@ -25,6 +25,7 @@
     _cur.trg.setAttribute('aria-expanded','false');
     _cur = null;
     setTimeout(function(){ if(d.parentNode) d.parentNode.removeChild(d); }, 130);
+    if(window._scHistoryReset) window._scHistoryReset();
   }
 
   // ── Global close triggers ──

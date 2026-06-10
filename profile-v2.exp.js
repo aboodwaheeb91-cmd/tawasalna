@@ -453,6 +453,7 @@
       all[i].classList.remove('open', 'open-up');
       all[i].removeAttribute('style');
     }
+    if(window._scHistoryReset) window._scHistoryReset();
   };
 
   document.addEventListener('click', function(e){

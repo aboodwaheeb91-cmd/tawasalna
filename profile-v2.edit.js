@@ -113,20 +113,25 @@
       if(window._scProfile) window._scProfile.bio = payload.bio;
     }
 
-    // DOB → compute and display age
-    if(payload.dob){
-      var birth = new Date(payload.dob);
-      if(!isNaN(birth.getTime())){
-        var age = Math.floor((Date.now() - birth.getTime()) / (365.25*24*3600*1000));
-        if(age > 0 && age < 150){
+    // DOB → compute and display age (or hide if cleared)
+    if('dob' in payload){
+      if(window._scProfile) window._scProfile.dob = payload.dob;
+      if(payload.dob){
+        var birth = new Date(payload.dob);
+        if(!isNaN(birth.getTime())){
+          var age = Math.floor((Date.now() - birth.getTime()) / (365.25*24*3600*1000));
           var ageEl = document.getElementById('scAge');
           if(ageEl){
-            ageEl.innerHTML = '<i data-lucide="cake" class="ico-sm"></i> ' + age + ' سنة';
-            ageEl.style.display = 'flex';
+            if(age > 0 && age < 150){
+              ageEl.innerHTML = '<i data-lucide="cake" class="ico-sm"></i> ' + age + ' سنة';
+              ageEl.style.display = 'flex';
+            }
           }
         }
+      } else {
+        var ageEl = document.getElementById('scAge');
+        if(ageEl) ageEl.style.display = 'none';
       }
-      if(window._scProfile) window._scProfile.dob = payload.dob;
     }
 
     // Country / city — update cache then refresh scLoc DOM immediately
@@ -342,10 +347,11 @@
     payload.first_name  = first;
     payload.middle_name = mid;
     payload.last_name   = last;
-    if(dob)     payload.dob           = dob;
-    if(country) payload.country       = country;
-    if(city)    payload.city          = city;
-    if(avail)   payload.avail         = avail;
+    // Always send clearable fields — null explicitly clears them in the DB
+    payload.dob     = dob     || null;
+    payload.country = country || null;
+    payload.city    = city    || null;
+    payload.avail   = avail   || null;
     if(profVal) payload.profession_id = parseInt(profVal, 10);
 
     // Emoji guard — clear previous state, then mark ALL offending fields
