@@ -26,6 +26,7 @@
 | 22 | No Emoji in Professional Data | **P0** |
 | 36 | Immediate UI Update Contract | **P1** |
 | 37 | Controlled Inputs over Free Text | **P1** |
+| 38 | No JSON in data-* Attributes | **P0** |
 
 ---
 
@@ -2512,3 +2513,100 @@ CSS: body.view-owner .owner-only { display: ... }
 2. **Frontend:** تحديث `window._scProfile` يدوياً (no re-fetch) ثم `_reRenderXxx()`
 
 هذا يضمن Rule #36 (Immediate UI Update) بدون انتظار API fetch.
+
+---
+
+## [P0] 38. No JSON in data-* Attributes — ID Only + State Lookup
+
+**الحالة:** مُطبَّق — PR #79 (2026-06-10)
+
+### المشكلة المكتشفة
+
+`esc()` تُشفّر `<`, `>`, `&` فقط — **لا تُشفّر `"`**.
+
+عند وضع `JSON.stringify(entry)` داخل attribute بـ double-quotes:
+```html
+data-edu-json="{"id":9,"institution":"University",...}"
+```
+البراوزر يقطع القيمة عند أول `"` داخل الـ JSON → `dataset.eduJson = "{"` فقط → `JSON.parse` يرمي SyntaxError → catch يُظهر "حدث خطأ".
+
+**يحدث لكل entry دون استثناء** لأن JSON دائماً تحتوي `"` في keys والقيم.
+
+---
+
+### القاعدة الصارمة
+
+```
+❌ ممنوع:   data-xxx-json="' + esc(JSON.stringify(entry)) + '"
+✅ المسموح: data-xxx-id="' + entry.id + '"  ثم lookup من state
+```
+
+---
+
+### النمط الصحيح — مطابق للخبرات (المرجع الرسمي)
+
+**زر التعديل في `_buildXxxHTML`:**
+```javascript
+// ❌ ممنوع
++'<button data-xxx-json="'+esc(JSON.stringify(e))+'" onclick="window._xxxOpenEdit(this.dataset.xxxJson)">'
+
+// ✅ الصحيح
++'<button data-xxx-id="'+e.id+'" onclick="window._xxxOpenEdit(this.dataset.xxxId)">'
+```
+
+**دالة `_xxxOpenEdit`:**
+```javascript
+// ❌ ممنوع
+window._xxxOpenEdit = function(json){
+  try{ openEdit(JSON.parse(json)); } catch(e){ toast('حدث خطأ'); }
+};
+
+// ✅ الصحيح — نفس نمط الخبرات
+window._xxxOpenEdit = function(itemId){
+  var id   = parseInt(itemId, 10);
+  var list = (window._scProfile && Array.isArray(window._scProfile.xxx))
+    ? window._scProfile.xxx : [];
+  var entry = null;
+  for(var i = 0; i < list.length; i++){
+    if(list[i].id === id){ entry = list[i]; break; }
+  }
+  if(!entry){ toast('لم يتم العثور على العنصر'); return; }
+  openEdit(entry);
+};
+```
+
+---
+
+### لماذا ID Lookup أفضل
+
+| | JSON في attribute | ID + state lookup |
+|--|-------------------|-------------------|
+| يكسر عند `"` في البيانات | ❌ دائماً | ✅ لا |
+| يكسر عند `<` أو `>` في البيانات | ❌ | ✅ لا |
+| يعتمد على encoding صحيح | ❌ هش | ✅ لا |
+| يُمرر بيانات قديمة (stale) | ❌ ممكن | ✅ دائماً من الـ cache الحالي |
+| أمان (XSS احتمال) | ❌ أعلى | ✅ أقل |
+
+---
+
+### Sections المتأثرة (تم الإصلاح)
+
+| القسم | قبل | بعد |
+|-------|-----|-----|
+| Education | `data-edu-json` + JSON.parse ❌ | `data-edu-id` + cache lookup ✅ |
+| Courses | `data-course-json` + JSON.parse ❌ | `data-course-id` + cache lookup ✅ |
+| Experience | `data-exp-id` + cache lookup ✅ | بدون تغيير — المرجع الصحيح |
+
+**Skills / Languages / Links:** لا edit buttons → لا تأثير.
+
+---
+
+### ممنوعات صارمة
+
+```
+❌ JSON.stringify في أي data-* attribute
+❌ JSON.parse من dataset في أي edit handler
+❌ استخدام esc() كبديل لـ JSON escaping في attributes
+❌ وضع أي كائن مُسلسَل في HTML attribute
+✅ الوحيد المسموح: data-id = رقم صحيح، ثم lookup من window._scProfile
+```
