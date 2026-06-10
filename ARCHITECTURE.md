@@ -27,6 +27,7 @@
 | 36 | Immediate UI Update Contract | **P1** |
 | 37 | Controlled Inputs over Free Text | **P1** |
 | 38 | No JSON in data-* Attributes | **P0** |
+| 39 | Profile V2 Internal Back Navigation | **P1** |
 
 ---
 
@@ -2610,3 +2611,90 @@ window._xxxOpenEdit = function(itemId){
 ❌ وضع أي كائن مُسلسَل في HTML attribute
 ✅ الوحيد المسموح: data-id = رقم صحيح، ثم lookup من window._scProfile
 ```
+
+---
+
+## [P1] 39. Profile V2 Internal Back Navigation
+
+### المشكلة
+
+على Android يضغط المستخدم زر الرجوع الصلب (hardware back button) أثناء وجود modal مفتوح ← المتصفح يرجع للصفحة السابقة كلياً بدلاً من إغلاق الـ modal.
+
+---
+
+### الحل — History Stack داخلي
+
+**الملف المسؤول:** `profile-v2.history.js` — يُحمَّل **آخر** script في الصفحة.
+
+#### مبدأ العمل
+
+```
+تحميل الصفحة      → replaceState({ scLayer: 'profile-base' })
+فتح أي طبقة       → pushState({ scLayer: 'layer-name' })    ← _pushed = true
+ضغط Back          → popstate fires → close topmost → re-push إذا بقيت طبقات
+لا شيء مفتوح      → back ينتقل للصفحة السابقة طبيعياً
+```
+
+#### `_pushed` Flag
+
+- يمنع تكرار `pushState` لنفس مجموعة الطبقات المفتوحة.
+- يُعاد ضبطه على `false` عند popstate وعند إغلاق آخر طبقة.
+
+---
+
+### أولوية إغلاق الطبقات (من الأعلى للأسفل)
+
+| # | الطبقة | آلية الكشف | آلية الإغلاق |
+|---|--------|------------|--------------|
+| 1 | Three-dot menus | `.sc-exp-menu.open` | `window._expMenuClose()` |
+| 2 | Custom select dropdown | `.sc-sel-drop-open` | `window.scSelectClose()` |
+| 3 | Avatar crop | `#avCropOverlay.open` | `#avCropCancelBtn.click()` |
+| 4 | Cover crop | `#cvCropOverlay.open` | `#cvCropCancelBtn.click()` |
+| 5 | Experience modal | `#exOverlay.open` | `#exClose.click()` |
+| 6 | Edit Profile modal | `#epOverlay.open` | `#epClose.click()` |
+| 7 | Education modal | `#eduOverlay.open` | `#eduClose.click()` |
+| 8 | Courses modal | `#courseOverlay.open` | `#courseClose.click()` |
+| 9 | Skills modal | `#skillOverlay.open` | `#skillClose.click()` |
+| 10 | Languages modal | `#langOverlay.open` | `#langClose.click()` |
+| 11 | Links modal | `#linkOverlay.open` | `#linkClose.click()` |
+
+---
+
+### نقاط التكامل (modules أخرى تستدعي history.js)
+
+| الملف | المكان | ما يُضاف |
+|-------|--------|---------|
+| `profile-v2.exp.js` | `_expMenuToggle` عند فتح القائمة | `if(window._scPushHistory) window._scPushHistory('menu')` |
+| `profile-v2.select.js` | `_openFor` بعد تعيين `_cur` | `if(window._scPushHistory) window._scPushHistory('select')` |
+| `profile-v2.select.js` | نهاية IIFE | `window.scSelectClose = _close` |
+
+الـ static overlays (avCrop, cvCrop, exOverlay, epOverlay, eduOverlay, courseOverlay, skillOverlay, langOverlay, linkOverlay) تُراقَب تلقائياً بـ **MutationObserver** داخل `history.js`.
+
+---
+
+### ممنوعات
+
+```
+❌ لا تستدعي history.back() مباشرة من أي modal close handler
+❌ لا تضيف history.pushState من أكثر من مكان لنفس الطبقة (يكفي history.js)
+❌ لا تحمّل history.js قبل باقي modules — يجب أن يكون آخر script
+✅ أي طبقة جديدة: أضف entry في _layers() داخل history.js فقط
+```
+
+---
+
+### إضافة طبقة جديدة
+
+```javascript
+// في profile-v2.history.js — داخل دالة _layers()
+{
+  test:  function(){ var el=document.getElementById('myNewOverlay'); return !!(el && el.classList.contains('open')); },
+  close: function(){
+    var btn=document.getElementById('myNewCloseBtn');
+    if(btn) btn.click();
+    else { var el=document.getElementById('myNewOverlay'); if(el) el.classList.remove('open'); }
+  }
+},
+```
+
+إذا كانت الطبقة dynamic (كـ three-dot menus) وليس لها ID ثابت: أضف استدعاء `window._scPushHistory('layerName')` داخل دالة الفتح في الـ module المسؤول.
