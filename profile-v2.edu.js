@@ -214,7 +214,7 @@
           +'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>'
           +'</button>'
           +'<div class="sc-exp-menu">'
-          +'<button class="sc-exp-menu-item" data-edu-json="'+esc(JSON.stringify(e))+'" onclick="window._eduOpenEdit(this.dataset.eduJson);window._expMenuClose()">'
+          +'<button class="sc-exp-menu-item" data-edu-id="'+e.id+'" onclick="window._eduOpenEdit(this.dataset.eduId);window._expMenuClose()">'
           +'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>'
           +' تعديل</button>'
           +'<button class="sc-exp-menu-item sc-exp-menu-del" data-edu-id="'+e.id+'" onclick="window._eduConfirmDelete(this.dataset.eduId);window._expMenuClose()">'
@@ -257,8 +257,16 @@
   window._reRenderEdu = _reRenderEdu;
 
   window._eduOpenAdd  = function(){ openAdd(); };
-  window._eduOpenEdit = function(json){
-    try{ openEdit(JSON.parse(json)); } catch(e){ toast('حدث خطأ'); }
+  window._eduOpenEdit = function(eduId){
+    var id   = parseInt(eduId, 10);
+    var list = (window._scProfile && Array.isArray(window._scProfile.education))
+      ? window._scProfile.education : [];
+    var entry = null;
+    for(var i = 0; i < list.length; i++){
+      if(list[i].id === id){ entry = list[i]; break; }
+    }
+    if(!entry){ toast('لم يتم العثور على الشهادة'); return; }
+    openEdit(entry);
   };
   window._eduConfirmDelete = function(id){
     id = parseInt(id);

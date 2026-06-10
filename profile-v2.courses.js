@@ -124,7 +124,7 @@
           +'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>'
           +'</button>'
           +'<div class="sc-exp-menu">'
-          +'<button class="sc-exp-menu-item" data-course-json="'+esc(JSON.stringify(c))+'" onclick="window._courseOpenEdit(this.dataset.courseJson);window._expMenuClose()">'
+          +'<button class="sc-exp-menu-item" data-course-id="'+c.id+'" onclick="window._courseOpenEdit(this.dataset.courseId);window._expMenuClose()">'
           +'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>'
           +' تعديل</button>'
           +'<button class="sc-exp-menu-item sc-exp-menu-del" data-course-id="'+c.id+'" onclick="window._courseConfirmDelete(this.dataset.courseId);window._expMenuClose()">'
@@ -163,8 +163,16 @@
   window._reRenderCourses = _reRenderCourses;
 
   window._courseOpenAdd  = function(){ openAdd(); };
-  window._courseOpenEdit = function(json){
-    try{ openEdit(JSON.parse(json)); } catch(e){ toast('حدث خطأ'); }
+  window._courseOpenEdit = function(courseId){
+    var id   = parseInt(courseId, 10);
+    var list = (window._scProfile && Array.isArray(window._scProfile.courses))
+      ? window._scProfile.courses : [];
+    var entry = null;
+    for(var i = 0; i < list.length; i++){
+      if(list[i].id === id){ entry = list[i]; break; }
+    }
+    if(!entry){ toast('لم يتم العثور على الدورة'); return; }
+    openEdit(entry);
   };
   window._courseConfirmDelete = function(id){
     id = parseInt(id);
