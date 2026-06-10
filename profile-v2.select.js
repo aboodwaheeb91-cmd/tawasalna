@@ -192,6 +192,7 @@
     trg.setAttribute('aria-expanded','true');
     wrap.classList.add('sc-sel-open');
     _cur = { wrap:wrap, native:native, trg:trg, drop:drop };
+    if(window._scPushHistory) window._scPushHistory('select');
   }
 
   // ── Sync all initialized triggers (called on modal open) ──
@@ -283,6 +284,9 @@
     var sels = document.querySelectorAll('.ep-select:not([data-sc-sel])');
     for(var i=0; i<sels.length; i++) _init(sels[i]);
   };
+
+  // Expose close for history.js back-button handler
+  window.scSelectClose = _close;
 
   // Run at script load (all preceding scripts have already populated options)
   window.scSelectInit();

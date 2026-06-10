@@ -443,6 +443,7 @@
       var rect = btn.getBoundingClientRect();
       menu.classList.add('open');
       if(window.innerHeight - rect.bottom < 180) menu.classList.add('open-up');
+      if(window._scPushHistory) window._scPushHistory('menu');
     }
   };
 
