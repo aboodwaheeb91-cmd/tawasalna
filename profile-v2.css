@@ -668,19 +668,41 @@ body.view-owner .av-cam-btn { display:flex; }
    Section Modules: Education / Courses / Skills / Languages / Links
    ═══════════════════════════════════════════════ */
 
-/* ── Skills chip view (owner with delete X) ── */
+/* ── Skills autocomplete ── */
+.sk-ac-wrap { position:relative; }
+.sk-ac-drop {
+  display:none; position:absolute; top:calc(100% + 4px); inset-inline-start:0; inset-inline-end:0;
+  z-index:300; background:#0e1627; border:1px solid rgba(255,255,255,.09);
+  border-radius:10px; max-height:272px; overflow-y:auto;
+  box-shadow:0 8px 28px rgba(0,0,0,.45);
+}
+.sk-ac-item {
+  display:flex; align-items:center; gap:10px;
+  padding:9px 14px; cursor:pointer; transition:background .1s;
+}
+.sk-ac-item:hover,.sk-ac-item.sk-ac-active { background:rgba(0,200,150,.08); }
+.sk-ac-en { font-size:.88rem; font-weight:700; color:#e8e8e8; }
+.sk-ac-ar { font-size:.75rem; color:rgba(255,255,255,.42); }
+
+/* ── Skills chip view ── */
 .sc-skills-wrap { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:8px; }
 .sc-skill-chip {
-  display:inline-flex; align-items:center; gap:5px; padding:6px 12px;
-  border-radius:20px; background:rgba(0,200,150,.1);
-  color:var(--ac,#00c896); font-size:.78rem; font-weight:600;
+  display:inline-flex; align-items:center; gap:6px;
+  padding:5px 10px 5px 12px;
+  border-radius:20px; border:1px solid rgba(255,255,255,.08);
+  background:rgba(255,255,255,.04); font-size:.82rem;
 }
-.sc-skill-level { font-size:.68rem; opacity:.7; font-style:normal; }
+.sc-skill-name { font-weight:700; color:#e0e0e0; }
+.sc-skill-badge {
+  padding:1px 8px; border-radius:10px;
+  font-size:.72rem; font-weight:700; white-space:nowrap;
+}
 .sc-skill-del {
-  cursor:pointer; opacity:.5; font-size:1rem; line-height:1;
-  margin-right:2px; transition:opacity .15s;
+  background:none; border:none; cursor:pointer; line-height:1;
+  font-size:.95rem; color:rgba(255,255,255,.3);
+  padding:0 1px; transition:color .15s;
 }
-.sc-skill-del:hover { opacity:1; }
+.sc-skill-del:hover { color:#ef4444; }
 
 /* ── Links list ── */
 .sc-links-list { display:flex; flex-direction:column; gap:10px; }
