@@ -26,7 +26,8 @@
   if(saveBtn) saveBtn.onclick = function(){
     var lang = fv('langName');
     if(!lang){ toast('اسم اللغة مطلوب'); return; }
-    if(typeof hasEmoji==='function' && hasEmoji(lang)){ toast('لا يسمح باستخدام الرموز التعبيرية'); return; }
+    var _pcErr = window._scCheckProfessional && window._scCheckProfessional(lang);
+    if(_pcErr){ toast(_pcErr); return; }
     var payload = { language: lang, level: fv('langLevel') || null };
     saveBtn.disabled    = true;
     saveBtn.textContent = 'جاري الحفظ…';

@@ -73,7 +73,7 @@ from auth import (
     follow_company, unfollow_company, rate_company,
     get_company_posts, create_company_post, get_post_owner, delete_company_post
 )
-from auth import EmojiError, validate_no_emoji
+from auth import ContentValidationError, validate_professional_text
 
 # ── Config ──
 ADMIN_PASSWORD = "tw@admin2025"
@@ -1431,8 +1431,8 @@ def update_user_profile(user_id: int, data: ProfileUpdateInput, token=Depends(ve
         updated_keys = list(payload.keys())
         print(f"[PUT /profile] ✅ user={user_id} fields={updated_keys} — {_time.time()-_t0:.3f}s total")
         return {"status": "success", "profile": profile, "updated_fields": updated_keys}
-    except EmojiError as e:
-        raise HTTPException(422, detail={"status": "error", "message": "لا يسمح باستخدام الرموز التعبيرية داخل هذا الحقل", "field": e.field})
+    except ContentValidationError as e:
+        raise HTTPException(422, detail={"status": "error", "message": e.message, "field": e.field})
     except ValueError as e:
         raise HTTPException(404, detail=str(e))
     except Exception as e:
@@ -1447,8 +1447,8 @@ def add_user_experience(user_id: int, data: ExperienceInput, token=Depends(verif
         raise HTTPException(400, detail="المسمى الوظيفي وجهة العمل مطلوبان")
     try:
         return {"status": "success", "experience": add_experience(user_id, data.dict())}
-    except EmojiError as e:
-        raise HTTPException(422, detail={"status": "error", "message": "لا يسمح باستخدام الرموز التعبيرية داخل هذا الحقل", "field": e.field})
+    except ContentValidationError as e:
+        raise HTTPException(422, detail={"status": "error", "message": e.message, "field": e.field})
     except Exception as e:
         print(f"Experience error: {e}")
         raise HTTPException(500, detail="خطأ في الخادم")
@@ -1477,8 +1477,8 @@ def update_user_experience(exp_id: int, data: ExperienceUpdateInput, token=Depen
     try:
         result = update_experience(exp_id, uid, data.dict())
         return {"status": "success", "experience": result}
-    except EmojiError as e:
-        raise HTTPException(422, detail={"status": "error", "message": "لا يسمح باستخدام الرموز التعبيرية داخل هذا الحقل", "field": e.field})
+    except ContentValidationError as e:
+        raise HTTPException(422, detail={"status": "error", "message": e.message, "field": e.field})
     except ValueError as e:
         raise HTTPException(404, detail=str(e))
     except Exception as e:
@@ -1493,8 +1493,8 @@ def add_user_education(user_id: int, data: EducationInput, token=Depends(verify_
         raise HTTPException(400, detail="اسم المؤسسة التعليمية مطلوب")
     try:
         return {"status": "success", "education": add_education(user_id, data.dict())}
-    except EmojiError as e:
-        raise HTTPException(422, detail={"status": "error", "message": "لا يسمح باستخدام الرموز التعبيرية", "field": e.field})
+    except ContentValidationError as e:
+        raise HTTPException(422, detail={"status": "error", "message": e.message, "field": e.field})
     except Exception as e:
         print(f"Education error: {e}")
         raise HTTPException(500, detail="خطأ في الخادم")
@@ -1507,8 +1507,8 @@ def add_user_course(user_id: int, data: CourseInput, token=Depends(verify_token)
         raise HTTPException(400, detail="اسم الدورة مطلوب")
     try:
         return {"status": "success", "course": add_course(user_id, data.dict())}
-    except EmojiError as e:
-        raise HTTPException(422, detail={"status": "error", "message": "لا يسمح باستخدام الرموز التعبيرية", "field": e.field})
+    except ContentValidationError as e:
+        raise HTTPException(422, detail={"status": "error", "message": e.message, "field": e.field})
     except Exception as e:
         print(f"Course error: {e}")
         raise HTTPException(500, detail="خطأ في الخادم")
@@ -1526,9 +1526,9 @@ def add_user_skill(user_id: int, data: SkillInput, token=Depends(verify_token)):
     if not _re.search(r'[a-zA-Z؀-ۿ]', skill_clean):
         raise HTTPException(422, detail={"status":"error","message":"اسم المهارة يجب أن يحتوي على حروف"})
     try:
-        validate_no_emoji(skill_clean, "skill")
-    except EmojiError as e:
-        raise HTTPException(422, detail={"status": "error", "message": "لا يسمح باستخدام الرموز التعبيرية", "field": e.field})
+        validate_professional_text(skill_clean, "skill")
+    except ContentValidationError as e:
+        raise HTTPException(422, detail={"status": "error", "message": e.message, "field": e.field})
     try:
         conn = get_conn()
         try:
@@ -1566,9 +1566,9 @@ def add_user_lang(user_id: int, data: LangInput, token=Depends(verify_token)):
     if not data.language or not data.language.strip():
         raise HTTPException(400, detail="اسم اللغة مطلوب")
     try:
-        validate_no_emoji(data.language, "language")
-    except EmojiError as e:
-        raise HTTPException(422, detail={"status": "error", "message": "لا يسمح باستخدام الرموز التعبيرية", "field": e.field})
+        validate_professional_text(data.language, "language")
+    except ContentValidationError as e:
+        raise HTTPException(422, detail={"status": "error", "message": e.message, "field": e.field})
     try:
         conn = get_conn()
         try:
@@ -2250,8 +2250,8 @@ def update_education_entry(edu_id: int, data: EducationInput, token=Depends(veri
         return {"status": "success", "education": result}
     except HTTPException:
         raise
-    except EmojiError as e:
-        raise HTTPException(422, detail={"status": "error", "message": "لا يسمح باستخدام الرموز التعبيرية", "field": e.field})
+    except ContentValidationError as e:
+        raise HTTPException(422, detail={"status": "error", "message": e.message, "field": e.field})
     except Exception as e:
         print(f"[update_education] error: {e}")
         raise HTTPException(500, "خطأ في الخادم")
@@ -2285,8 +2285,8 @@ def update_course_entry(course_id: int, data: CourseInput, token=Depends(verify_
         return {"status": "success", "course": result}
     except HTTPException:
         raise
-    except EmojiError as e:
-        raise HTTPException(422, detail={"status": "error", "message": "لا يسمح باستخدام الرموز التعبيرية", "field": e.field})
+    except ContentValidationError as e:
+        raise HTTPException(422, detail={"status": "error", "message": e.message, "field": e.field})
     except Exception as e:
         print(f"[update_course] error: {e}")
         raise HTTPException(500, "خطأ في الخادم")

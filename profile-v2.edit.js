@@ -252,13 +252,12 @@
   }
 
   // ── Inline field-error helpers ──
-  var _EMOJI_MSG = 'لا يسمح باستخدام الرموز التعبيرية داخل هذا الحقل';
+  var _CONTENT_MSG = 'لا يسمح باستخدام كلمات غير لائقة أو غير مهنية داخل هذا الحقل';
 
-  function _showFieldErr(inputEl, errId){
+  function _showFieldErr(inputEl, errId, msg){
     var div = document.getElementById(errId);
     if(inputEl) inputEl.classList.add('ep-input-err');
-    if(div){ div.textContent = _EMOJI_MSG; div.classList.add('show'); }
-    // scroll the error into view without triggering keyboard (no focus)
+    if(div){ div.textContent = msg || _CONTENT_MSG; div.classList.add('show'); }
     if(div) div.scrollIntoView({behavior:'smooth', block:'nearest'});
   }
 
@@ -280,21 +279,19 @@
     if(bio) bio.classList.remove('ep-input-err');
   }
 
-  // Auto-clear name row when user edits and removes emoji
+  // Auto-clear name row when user edits and content is now clean
   function _checkNameErr(){
-    // Clear border on each individual field that is now emoji-free
     ['epFirstName','epMidName','epLastName'].forEach(function(id){
       var el = document.getElementById(id);
-      if(el && el.classList.contains('ep-input-err') && !(window.hasEmoji && window.hasEmoji(el.value))){
+      if(el && el.classList.contains('ep-input-err') && !window._scCheckProfessional(el.value)){
         el.classList.remove('ep-input-err');
       }
     });
-    // Hide the shared error message only when ALL three are clean
-    var anyEmoji = ['epFirstName','epMidName','epLastName'].some(function(id){
+    var anyBad = ['epFirstName','epMidName','epLastName'].some(function(id){
       var el = document.getElementById(id);
-      return el && window.hasEmoji && window.hasEmoji(el.value);
+      return el && window._scCheckProfessional && window._scCheckProfessional(el.value);
     });
-    if(!anyEmoji){
+    if(!anyBad){
       var div = document.getElementById('epNameErr');
       if(div){ div.textContent=''; div.classList.remove('show'); }
     }
@@ -307,7 +304,7 @@
   // Auto-clear bio error
   var _epBioInput = document.getElementById('epBio');
   if(_epBioInput) _epBioInput.addEventListener('input', function(){
-    if(!window.hasEmoji || !window.hasEmoji(_epBioInput.value))
+    if(!window._scCheckProfessional || !window._scCheckProfessional(_epBioInput.value))
       _clearFieldErr(_epBioInput, 'epBioErr');
   });
 
@@ -357,29 +354,32 @@
     payload.avail   = avail   || null;
     if(profVal) payload.profession_id = parseInt(profVal, 10);
 
-    // Emoji guard — clear previous state, then mark ALL offending fields
+    // Professional content guard — clear previous state, then mark ALL offending fields
     _clearAllFieldErrs();
-    var _emojiErr = false;
-    var _emojiFields = [
+    var _contentErr = false;
+    var _checkFields = [
       {v: first,  inputId: 'epFirstName', errId: 'epNameErr'},
       {v: mid,    inputId: 'epMidName',   errId: 'epNameErr'},
       {v: last,   inputId: 'epLastName',  errId: 'epNameErr'},
       {v: bioVal, inputId: 'epBio',       errId: 'epBioErr'}
     ];
-    for(var _ei=0; _ei<_emojiFields.length; _ei++){
-      var _ef = _emojiFields[_ei];
-      if(window.hasEmoji && window.hasEmoji(_ef.v)){
+    var _lastErrMsg = _CONTENT_MSG;
+    for(var _ei=0; _ei<_checkFields.length; _ei++){
+      var _ef = _checkFields[_ei];
+      var _pcErr = window._scCheckProfessional && window._scCheckProfessional(_ef.v);
+      if(_pcErr){
         var _inp = document.getElementById(_ef.inputId);
         if(_inp) _inp.classList.add('ep-input-err');
         var _div = document.getElementById(_ef.errId);
-        if(_div){ _div.textContent = _EMOJI_MSG; _div.classList.add('show'); }
-        _emojiErr = true;
+        if(_div){ _div.textContent = _pcErr; _div.classList.add('show'); }
+        _lastErrMsg = _pcErr;
+        _contentErr = true;
       }
     }
-    if(_emojiErr){
+    if(_contentErr){
       var _fe = document.querySelector('#epOverlay .ep-field-err.show');
       if(_fe) _fe.scrollIntoView({behavior:'smooth', block:'nearest'});
-      if(window.toast) window.toast(_EMOJI_MSG);
+      if(window.toast) window.toast(_lastErrMsg);
       return;
     }
 

@@ -2886,12 +2886,13 @@ if data.get('city') and data.get('country'):
 
 | الطبقة | الآلية |
 |--------|--------|
-| **Catalog** | `SKILL_CATALOG` array مدمج في `profile-v2.skills.js` — 100+ مهارة |
+| **Catalog** | `SKILL_CATALOG` array مدمج في `profile-v2.skills.js` — 300+ مهارة رسمية عبر 20 مجالاً |
 | **Normalization** | `_normalize(raw)` → يُرجع `name_en` القياسي إذا طابق أي entry في الـ catalog |
 | **Autocomplete** | عند الكتابة يبحث في `name_en + name_ar + slug + keywords` → يعرض 8 اقتراحات |
 | **Dedup** | Case-insensitive check في frontend + UNIQUE(user_id, skill) في DB |
-| **Validation** | min 2 chars + must-contain-letters + no emoji + no skill+level combo |
-| **Display** | `name` chip منفصل عن `level` badge — لا يُخزنان معاً كنص واحد |
+| **Validation** | min 2 chars + must-contain-letters + no emoji + no profanity + no skill+level combo |
+| **Display** | `name` chip + `level` badge + `مخصصة` badge للمهارات غير الرسمية — منفصلة كلها |
+| **Official check** | `_isOfficial(name)` → يطابق الكتالوج → يضيف CSS class `sc-skill-chip-custom` للمهارات المخصصة |
 
 ### Schema الحالي (Phase 1)
 
@@ -2941,7 +2942,7 @@ CREATE INDEX ON user_skills (skill_id);
 | اسم فارغ | ✅ | ✅ |
 | أقل من حرفين | ✅ | ✅ |
 | لا يحتوي حروف | ✅ | ✅ (`[a-zA-Z؀-ۿ]`) |
-| emoji | ✅ (`hasEmoji`) | ✅ (`validate_no_emoji`) |
+| emoji + profanity | ✅ (`_scCheckProfessional`) | ✅ (`validate_professional_text`) |
 | skill+level مدموجان | ✅ (LEVEL_WORDS list) | ❌ (frontend فقط) |
 | تكرار case-insensitive | ✅ | ❌ (UNIQUE case-sensitive فقط) |
 | Normalization | ✅ (`_normalize`) | ❌ (frontend فقط) |
@@ -2956,6 +2957,20 @@ CREATE INDEX ON user_skills (skill_id);
 محترف → #fbbf24
 ```
 
+### Custom Skills — مهارات مخصصة
+
+الكتالوج الرسمي قابل للتوسع، **ليس حصرياً**. المستخدم يستطيع إضافة مهارة غير موجودة في الكتالوج:
+
+- يُضاف الـ chip بـ CSS class `sc-skill-chip-custom` + badge "مخصصة" (بنفسجي)
+- `_isOfficial(name)` يُحدد هل المهارة رسمية أم مخصصة
+- في Phase 2: Admin Skill Review workflow — المهارات المخصصة تمر بـ pending review ويمكن دمجها بالكتالوج الرسمي أو رفضها
+
+### Phase 2 — Admin Skill Review (لاحقاً)
+
+```
+Custom Skill → pending_review → Admin reviews → approve (add to catalog) | reject
+```
+
 ### ممنوعات
 
 ```
@@ -2964,4 +2979,83 @@ CREATE INDEX ON user_skills (skill_id);
 ❌ لا تجلب اقتراحات من API خارجي — الـ catalog داخلي فقط
 ❌ لا تسمح بمستوى خارج القائمة الرسمية الخمسة
 ❌ لا تعتمد على UNIQUE(user_id, skill) وحده للـ case-insensitive dedup — الـ frontend مسؤول عن ذلك في Phase 1
+```
+
+---
+
+## [P1] 44. Professional Content Validation
+
+### المشكلة التي تحلها هذه القاعدة
+
+حقول النصوص في ملفات المستخدمين (الاسم، السيرة، الخبرة، التعليم، المهارات...) يجب حمايتها من:
+- الرموز التعبيرية (emoji) — تُشوّه المظهر المهني
+- الكلمات البذيئة والمحتوى الجنسي/الإباحي — لا يليق بمنصة توظيف
+
+**القاعدة:** كل حقل نصي مرئي (user-generated content) يجب أن يمر بـ `validate_professional_text()` قبل الحفظ في DB.
+
+---
+
+### المعمارية
+
+#### Backend — `auth.py`
+
+```python
+# هرمية الاستثناءات
+ContentValidationError(ValueError)     # base class — field + message
+├── EmojiError(ContentValidationError) # رموز تعبيرية — "لا يسمح باستخدام الرموز التعبيرية"
+└── ProfanityError(ContentValidationError) # محتوى غير لائق — "لا يسمح باستخدام كلمات غير لائقة"
+
+# الدالة الموحدة
+validate_professional_text(value, field) → None
+  يستدعي: validate_no_emoji(value, field)  # emoji check
+           + فحص _PROFANITY frozenset       # profanity check
+```
+
+**قائمة الحقول المحمية (backend):**
+
+| Endpoint | الحقول |
+|----------|--------|
+| `PUT /profile/{user_id}` | full_name, first_name, middle_name, last_name, bio, headline, title, location, phone, website |
+| `POST /experience/{user_id}` | title, company, location, description |
+| `PUT /experience/{exp_id}` | title, company, location, description |
+| `POST /education/{user_id}` | institution, degree, field, description |
+| `PUT /education/{edu_id}` | institution, degree, field, description |
+| `POST /course/{user_id}` | title, provider, description |
+| `PUT /course/{course_id}` | title, provider, description |
+| `POST /skills/{user_id}` | skill |
+| `POST /langs/{user_id}` | language |
+
+#### Frontend — `profile-v2.utils.js`
+
+```javascript
+window._scCheckProfessional(text)
+  // Returns: null (clean) | string (error message)
+  // Mirrors backend: emoji check + same _PROFANITY wordlist
+  // Used by: profile-v2.edit.js, profile-v2.exp.js, profile-v2.edu.js,
+  //          profile-v2.courses.js, profile-v2.langs.js, profile-v2.skills.js
+```
+
+رسالة الخطأ الموحدة:
+```
+"لا يسمح باستخدام كلمات غير لائقة أو غير مهنية داخل هذا الحقل"
+```
+
+---
+
+### ضوابط القائمة
+
+- **قائمة محافظة** — فقط الكلمات الفاحشة الصريحة التي ليس لها استخدام مهني/طبي مشروع
+- **لا false positives** على المصطلحات الطبية والمهنية
+- **العربية والإنجليزية** — بديل الأحرف الشائع (`0→o`, `@→a`...) و تكرار الحروف (`fuuuck`)
+- **word-level check** للكلمات القصيرة + **substring check** للكلمات الطويلة (≥5 أحرف)
+
+---
+
+### ممنوعات
+
+```
+❌ لا تستخدم hasEmoji وحده — استخدم _scCheckProfessional في الـ frontend
+❌ لا تستخدم validate_no_emoji وحده — استخدم validate_professional_text في الـ backend
+❌ لا تُضيف كلمات طبية أو مهنية مشروعة للقائمة (قضيب، ثدي، جنس في سياق تعليمي...)
+❌ لا تُضيف كلمات قصيرة ذات استخدام مزدوج (ass ← assistant, cock ← cock-up)
 ```

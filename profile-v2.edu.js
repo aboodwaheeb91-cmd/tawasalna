@@ -96,9 +96,10 @@
     var inst = fv('eduInst');
     if(!inst){ toast('اسم المؤسسة مطلوب'); return; }
 
-    var _emojiFields = [inst, fv('eduDeg'), fv('eduField'), fv('eduDesc')];
-    for(var _i=0; _i<_emojiFields.length; _i++){
-      if(_emojiFields[_i] && typeof hasEmoji==='function' && hasEmoji(_emojiFields[_i])){ toast('لا يسمح باستخدام الرموز التعبيرية'); return; }
+    var _checkFields = [inst, fv('eduDeg'), fv('eduField'), fv('eduDesc')];
+    for(var _i=0; _i<_checkFields.length; _i++){
+      var _pcErr = window._scCheckProfessional && window._scCheckProfessional(_checkFields[_i]);
+      if(_pcErr){ toast(_pcErr); return; }
     }
 
     var isCur   = cbCurrent ? cbCurrent.checked : false;

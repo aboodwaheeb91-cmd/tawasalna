@@ -222,12 +222,12 @@
   }
 
   // ── Inline field-error helpers ──
-  var _EMOJI_MSG = 'لا يسمح باستخدام الرموز التعبيرية داخل هذا الحقل';
+  var _CONTENT_MSG = 'لا يسمح باستخدام كلمات غير لائقة أو غير مهنية داخل هذا الحقل';
 
-  function _showFieldErr(inputEl, errId){
+  function _showFieldErr(inputEl, errId, msg){
     var div = document.getElementById(errId);
     if(inputEl) inputEl.classList.add('ep-input-err');
-    if(div){ div.textContent = _EMOJI_MSG; div.classList.add('show'); }
+    if(div){ div.textContent = msg || _CONTENT_MSG; div.classList.add('show'); }
     if(div) div.scrollIntoView({behavior:'smooth', block:'nearest'});
   }
 
@@ -248,7 +248,7 @@
   [['exTitle','exTitleErr'],['exCompany','exCompanyErr'],['exDesc','exDescErr']].forEach(function(p){
     var el = document.getElementById(p[0]);
     if(el) el.addEventListener('input', function(){
-      if(!window.hasEmoji || !window.hasEmoji(el.value)) _clearFieldErr(el, p[1]);
+      if(!window._scCheckProfessional || !window._scCheckProfessional(el.value)) _clearFieldErr(el, p[1]);
     });
   });
 
@@ -276,28 +276,31 @@
     var _loc  = _buildLocation();
     var _desc = fv('exDesc') || null;
 
-    // Emoji guard — clear previous state, then mark ALL offending fields
+    // Professional content guard — clear previous state, mark ALL offending fields
     _clearAllFieldErrs();
-    var _emojiErr = false;
-    var _emojiCheck = [
+    var _contentErr = false;
+    var _checkFields = [
       {v: title,   inputId: 'exTitle',   errId: 'exTitleErr'},
       {v: company, inputId: 'exCompany', errId: 'exCompanyErr'},
       {v: _desc,   inputId: 'exDesc',    errId: 'exDescErr'}
     ];
-    for(var _ei=0; _ei<_emojiCheck.length; _ei++){
-      var _ec = _emojiCheck[_ei];
-      if(window.hasEmoji && window.hasEmoji(_ec.v)){
+    var _lastErrMsg = _CONTENT_MSG;
+    for(var _ei=0; _ei<_checkFields.length; _ei++){
+      var _ec = _checkFields[_ei];
+      var _pcErr = window._scCheckProfessional && window._scCheckProfessional(_ec.v);
+      if(_pcErr){
         var _inp = document.getElementById(_ec.inputId);
         if(_inp) _inp.classList.add('ep-input-err');
         var _div = document.getElementById(_ec.errId);
-        if(_div){ _div.textContent = _EMOJI_MSG; _div.classList.add('show'); }
-        _emojiErr = true;
+        if(_div){ _div.textContent = _pcErr; _div.classList.add('show'); }
+        _lastErrMsg = _pcErr;
+        _contentErr = true;
       }
     }
-    if(_emojiErr){
+    if(_contentErr){
       var _fe = document.querySelector('#exOverlay .ep-field-err.show');
       if(_fe) _fe.scrollIntoView({behavior:'smooth', block:'nearest'});
-      if(window.toast) window.toast(_EMOJI_MSG);
+      if(window.toast) window.toast(_lastErrMsg);
       return;
     }
 
