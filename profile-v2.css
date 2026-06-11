@@ -713,6 +713,14 @@ body.view-owner .av-cam-btn { display:flex; }
   background:rgba(167,139,250,.15) !important;
   font-size:.68rem !important;
 }
+/* Lucide icon inside skill chip and autocomplete (Phase 1 icon system) */
+.sk-ic {
+  width:13px; height:13px; flex-shrink:0;
+  stroke:rgba(255,255,255,.45); stroke-width:2;
+  display:inline-block; vertical-align:middle;
+}
+.sc-skill-chip .sk-ic { stroke:#00c896; opacity:.75; }
+.sk-ac-item .sk-ic { width:14px; height:14px; stroke:rgba(255,255,255,.4); }
 
 /* ── Links list ── */
 .sc-links-list { display:flex; flex-direction:column; gap:10px; }

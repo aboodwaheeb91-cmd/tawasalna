@@ -3059,3 +3059,47 @@ window._scCheckProfessional(text)
 ❌ لا تُضيف كلمات طبية أو مهنية مشروعة للقائمة (قضيب، ثدي، جنس في سياق تعليمي...)
 ❌ لا تُضيف كلمات قصيرة ذات استخدام مزدوج (ass ← assistant, cock ← cock-up)
 ```
+
+---
+
+## Hybrid Skill Icon System
+
+> **نظام الأيقونات للمهارات** — توثيق الهندسة والقانونيات والمراحل.
+
+### المرحلة الحالية: Phase 1 — Lucide Only
+
+- **مكتبة الأيقونات:** [Lucide](https://lucide.dev/) v0.460.0 (CDN مُحمَّل مسبقاً في profile-showcase.html)
+- **التقديم:** `<i data-lucide="icon-name" class="sk-ic">` + `lucide.createIcons()` بعد كل تحديث DOM
+- **الحقل في CATALOG:** `icon: 'lucide-icon-name'` — اسم الأيقونة بالصيغة kebab-case
+- **الـ fallback للمهارات المخصصة:** `circle-check` (ثابت: `_CUSTOM_FALLBACK_ICON`)
+- **Helper:** `_skillIconHtml(iconName)` — تُنتج `<i data-lucide="..." class="sk-ic"></i>`
+- **مواضع الظهور:** داخل chip المهارة (قبل الاسم) + داخل قائمة autocomplete
+
+### Phase 2 — Font Awesome (مؤجّلة)
+
+- Font Awesome Free سيُضاف فقط كـ CDN إضافي في مرحلة لاحقة
+- سيُستخدم **فقط** لأيقونات العلامات التجارية التقنية (Python, Docker, GitHub, إلخ) حين يكون التطابق دقيقاً
+- سيُعرَّف `FA_BRAND_ALLOWLIST` ويُضاف حقل `icon_provider` للكتالوج
+- **لا تُطبَّق Phase 2 قبل موافقة صريحة**
+
+### القواعد القانونية وحقوق الملكية الفكرية
+
+```
+✅ Lucide — مرخّص MIT — مناسب للاستخدام التجاري بلا قيود
+✅ Font Awesome Free (Phase 2) — مرخّص SIL OFL + MIT — مناسب للاستخدام التجاري
+⚠️  شعارات العلامات التجارية (Python, Docker, AWS...) مملوكة لأصحابها
+⚠️  الاستخدام لأغراض تعريفية فقط — لا يُفيد بأي شراكة أو تأييد
+❌  لا تستخدم صوراً خارجية أو Google Images داخل الكود
+❌  لا تستخدم أيقونة علامة تجارية لمهارة عامة (لا تضع شعار Python على "البرمجة")
+❌  عند أي شك قانوني، استخدم Lucide generic icon بدلاً من أيقونة العلامة التجارية
+```
+
+### ممنوعات
+
+```
+❌ لا تُضيف Font Awesome أو CDN جديد دون موافقة صريحة
+❌ لا تستخدم emoji كأيقونات للمهارات
+❌ لا تستخدم صور خارجية أو URLs للأيقونات
+❌ لا تغيّر منطق الحفظ أو الـ validation بسبب تغييرات الأيقونات
+❌ لا تلمس profile.html القديم
+```
