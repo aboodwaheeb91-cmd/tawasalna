@@ -28,17 +28,82 @@ _EMOJI_RE = re.compile(
 )
 
 
-class EmojiError(ValueError):
-    """Raised when a text field contains emoji / pictographic symbols."""
-    def __init__(self, field: str):
+class ContentValidationError(ValueError):
+    """Base class for professional content validation errors."""
+    def __init__(self, field: str, message: str):
         super().__init__(field)
         self.field = field
+        self.message = message
+
+
+class EmojiError(ContentValidationError):
+    """Raised when a text field contains emoji / pictographic symbols."""
+    def __init__(self, field: str):
+        super().__init__(field, "لا يسمح باستخدام الرموز التعبيرية داخل هذا الحقل")
+
+
+class ProfanityError(ContentValidationError):
+    """Raised when a text field contains prohibited / unprofessional language."""
+    def __init__(self, field: str):
+        super().__init__(field, "لا يسمح باستخدام كلمات غير لائقة أو غير مهنية داخل هذا الحقل")
 
 
 def validate_no_emoji(value, field: str = "هذا الحقل") -> None:
     """Raise EmojiError if value contains emoji. Reusable across all text fields."""
     if value and _EMOJI_RE.search(str(value)):
         raise EmojiError(field)
+
+
+# ══ Profanity / Professional Content Filter ══
+_PROFANITY = frozenset([
+    # English — clearly offensive / sexual terms (no medical/professional false positives)
+    'fuck', 'fucking', 'fucked', 'fucker', 'fucks', 'motherfucker', 'motherfucking',
+    'shit', 'bullshit', 'shitting',
+    'cunt', 'cunts',
+    'bitch', 'bitches',
+    'asshole', 'assholes',
+    'whore', 'whores',
+    'slut', 'sluts',
+    'bastard',
+    'porn', 'porno', 'pornography', 'pornographic',
+    'blowjob', 'handjob', 'rimjob', 'cumshot',
+    'dildo', 'masturbate', 'masturbation',
+    # Arabic — clearly vulgar / offensive
+    'نيك', 'ينيك', 'ينكح', 'بنيك',
+    'شرموطة', 'شراميط',
+    'قحبة', 'قحاب',
+    'خرا', 'خرة',
+    'منيوك', 'منيوكة',
+    'كسمك', 'كسمه', 'كسها', 'كسك', 'كسمها', 'كسمهم',
+    'متناك', 'متناكة',
+    'سكس', 'سيكس',
+    'بورن', 'بورنو',
+])
+
+
+def _normalize_for_profanity(text: str) -> str:
+    """Normalize text for profanity matching (common substitutions, collapse repeats)."""
+    t = text.lower()
+    t = t.replace('@', 'a').replace('0', 'o').replace('1', 'i').replace('3', 'e').replace('$', 's')
+    t = re.sub(r'[​-‏‪-‮﻿]', '', t)
+    t = re.sub(r'(.)\1{2,}', r'\1\1', t)  # "fuuuck" → "fuuck"
+    return t
+
+
+def validate_professional_text(value, field: str = "هذا الحقل") -> None:
+    """Raise ContentValidationError if value contains emoji or prohibited language."""
+    if not value:
+        return
+    s = str(value)
+    validate_no_emoji(s, field)
+    normalized = _normalize_for_profanity(s)
+    word_set = set(re.split(r'[\s,،;:.!?\'\"()\[\]{}\-/\\]+', normalized))
+    word_set.discard('')
+    for bad in _PROFANITY:
+        if bad in word_set:
+            raise ProfanityError(field)
+        if len(bad) >= 5 and bad in normalized:
+            raise ProfanityError(field)
 
 
 # ══ نظام الـ IDs ══
@@ -913,10 +978,9 @@ def get_full_profile(user_id: int) -> Optional[dict]:
 
 
 def update_profile(user_id: int, data: dict) -> dict:
-    # Validate all user-visible text fields for emoji
     _TEXT_FIELDS = ("full_name", "first_name", "middle_name", "last_name", "bio", "headline", "title", "location", "phone", "website")
     for _f in _TEXT_FIELDS:
-        validate_no_emoji(data.get(_f), _f)
+        validate_professional_text(data.get(_f), _f)
 
     _t0 = _time_mod.time()
     _cache_del('profile:'+str(user_id))
@@ -976,7 +1040,7 @@ def update_profile(user_id: int, data: dict) -> dict:
 # ══ الخبرات ══
 def add_experience(user_id: int, data: dict) -> dict:
     for _f in ("title", "company", "location", "description"):
-        validate_no_emoji(data.get(_f), _f)
+        validate_professional_text(data.get(_f), _f)
     conn = get_conn()
     try:
         rows = conn.run(
@@ -996,7 +1060,7 @@ def add_experience(user_id: int, data: dict) -> dict:
 
 def update_experience(exp_id: int, user_id: int, data: dict) -> dict:
     for _f in ("title", "company", "location", "description"):
-        validate_no_emoji(data.get(_f), _f)
+        validate_professional_text(data.get(_f), _f)
     conn = get_conn()
     try:
         allowed = {"title", "company", "location", "start_date", "end_date", "is_current", "description"}
@@ -1053,7 +1117,7 @@ def reorder_experience(user_id: int, ordered_ids: list) -> bool:
 # ══ الشهادات ══
 def add_education(user_id: int, data: dict) -> dict:
     for _f in ("institution", "degree", "field", "description"):
-        validate_no_emoji(data.get(_f), _f)
+        validate_professional_text(data.get(_f), _f)
     conn = get_conn()
     try:
         rows = conn.run(
@@ -1075,7 +1139,7 @@ def add_education(user_id: int, data: dict) -> dict:
 # ══ الدورات ══
 def add_course(user_id: int, data: dict) -> dict:
     for _f in ("title", "provider", "description"):
-        validate_no_emoji(data.get(_f), _f)
+        validate_professional_text(data.get(_f), _f)
     conn = get_conn()
     try:
         title_val = data.get("title") or data.get("name") or ""
@@ -1096,7 +1160,7 @@ def add_course(user_id: int, data: dict) -> dict:
 
 def update_education(edu_id: int, user_id: int, data: dict):
     for _f in ("institution", "degree", "field", "description"):
-        validate_no_emoji(data.get(_f), _f)
+        validate_professional_text(data.get(_f), _f)
     conn = get_conn()
     try:
         rows = conn.run(
@@ -1118,7 +1182,7 @@ def update_education(edu_id: int, user_id: int, data: dict):
 
 def update_course(course_id: int, user_id: int, data: dict):
     for _f in ("title", "provider", "description"):
-        validate_no_emoji(data.get(_f), _f)
+        validate_professional_text(data.get(_f), _f)
     conn = get_conn()
     try:
         title_val = data.get("title") or data.get("name") or ""

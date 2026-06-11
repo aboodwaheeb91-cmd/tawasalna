@@ -703,6 +703,16 @@ body.view-owner .av-cam-btn { display:flex; }
   padding:0 1px; transition:color .15s;
 }
 .sc-skill-del:hover { color:#ef4444; }
+/* Custom (non-catalog) skill chip — slightly different border */
+.sc-skill-chip-custom {
+  border-color:rgba(167,139,250,.25);
+  background:rgba(167,139,250,.05);
+}
+.sc-skill-custom-badge {
+  color:#a78bfa !important;
+  background:rgba(167,139,250,.15) !important;
+  font-size:.68rem !important;
+}
 
 /* ── Links list ── */
 .sc-links-list { display:flex; flex-direction:column; gap:10px; }

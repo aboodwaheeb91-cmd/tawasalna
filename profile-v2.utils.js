@@ -72,6 +72,53 @@ window.scTab = function(name, el){
 
 window.addEventListener('resize', function(){ if(window._fitName) fitName(); });
 
+// Professional content guard — checks emoji AND prohibited language.
+// Returns error message string if found, null if clean.
+// Mirrors backend validate_professional_text() in auth.py.
+window._scCheckProfessional = (function(){
+  var _BAD = [
+    // English
+    'fuck','fucking','fucked','fucker','fucks','motherfucker','motherfucking',
+    'shit','bullshit','shitting','cunt','cunts','bitch','bitches',
+    'asshole','assholes','whore','whores','slut','sluts','bastard',
+    'porn','porno','pornography','pornographic',
+    'blowjob','handjob','rimjob','cumshot','dildo','masturbate','masturbation',
+    // Arabic
+    'نيك','ينيك','ينكح','بنيك',
+    'شرموطة','شراميط',
+    'قحبة','قحاب',
+    'خرا','خرة',
+    'منيوك','منيوكة',
+    'كسمك','كسمه','كسها','كسك','كسمها','كسمهم',
+    'متناك','متناكة',
+    'سكس','سيكس',
+    'بورن','بورنو'
+  ];
+  function _norm(t){
+    t = (t||'').toLowerCase()
+      .replace(/@/g,'a').replace(/0/g,'o').replace(/1/g,'i').replace(/3/g,'e').replace(/\$/g,'s');
+    t = t.replace(/[​-‏‪-‮﻿]/g,'');
+    t = t.replace(/(.)\1{2,}/g,'$1$1');
+    return t;
+  }
+  return function(text){
+    if(!text) return null;
+    if(typeof hasEmoji === 'function' && hasEmoji(text))
+      return 'لا يسمح باستخدام الرموز التعبيرية داخل هذا الحقل';
+    var n = _norm(String(text));
+    var words = n.split(/[\s,،;:.!?'"()\[\]{}\-/\\]+/).filter(Boolean);
+    var ws = {};
+    for(var i=0;i<words.length;i++) ws[words[i]]=1;
+    for(var j=0;j<_BAD.length;j++){
+      var bad = _BAD[j];
+      if(ws[bad]) return 'لا يسمح باستخدام كلمات غير لائقة أو غير مهنية داخل هذا الحقل';
+      if(bad.length >= 5 && n.indexOf(bad) !== -1)
+        return 'لا يسمح باستخدام كلمات غير لائقة أو غير مهنية داخل هذا الحقل';
+    }
+    return null;
+  };
+})();
+
 // Tab edge fade — shows gradient when tabs overflow horizontally
 (function(){
   function _initTabFade(){
