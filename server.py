@@ -1515,12 +1515,18 @@ def add_user_course(user_id: int, data: CourseInput, token=Depends(verify_token)
 
 @app.post("/skills/{user_id}")
 def add_user_skill(user_id: int, data: SkillInput, token=Depends(verify_token)):
+    import re as _re
     if str(token.get('user_id','')) != str(user_id):
         raise HTTPException(403, "Unauthorized")
-    if not data.skill or not data.skill.strip():
-        raise HTTPException(400, detail="اسم المهارة مطلوب")
+    skill_clean = (data.skill or '').strip()
+    if not skill_clean:
+        raise HTTPException(422, detail={"status":"error","message":"اسم المهارة مطلوب"})
+    if len(skill_clean) < 2:
+        raise HTTPException(422, detail={"status":"error","message":"اسم المهارة قصير جداً"})
+    if not _re.search(r'[a-zA-Z؀-ۿ]', skill_clean):
+        raise HTTPException(422, detail={"status":"error","message":"اسم المهارة يجب أن يحتوي على حروف"})
     try:
-        validate_no_emoji(data.skill, "skill")
+        validate_no_emoji(skill_clean, "skill")
     except EmojiError as e:
         raise HTTPException(422, detail={"status": "error", "message": "لا يسمح باستخدام الرموز التعبيرية", "field": e.field})
     try:
@@ -1528,7 +1534,7 @@ def add_user_skill(user_id: int, data: SkillInput, token=Depends(verify_token)):
         try:
             rows = conn.run(
                 "INSERT INTO user_skills (user_id, skill, level) VALUES (:uid, :skill, :level) ON CONFLICT (user_id, skill) DO UPDATE SET level=EXCLUDED.level RETURNING id, user_id, skill, level",
-                uid=user_id, skill=data.skill, level=data.level
+                uid=user_id, skill=skill_clean, level=data.level
             )
             cols = [d["name"] if isinstance(d, dict) else d[0] for d in conn.columns]
             return {"status": "success", "skill": dict(zip(cols, rows[0]))}

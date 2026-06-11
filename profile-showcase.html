@@ -509,7 +509,10 @@
       </div>
       <div class="sc-form-group">
         <label>اسم المهارة *</label>
-        <input type="text" id="skillName" placeholder="JavaScript، Photoshop، إدارة المشاريع...">
+        <div class="sk-ac-wrap">
+          <input type="text" class="ep-input" id="skillName" autocomplete="off" placeholder="اكتب للبحث… مثال: Java، SQL، Excel">
+          <div class="sk-ac-drop" id="skillDrop"></div>
+        </div>
       </div>
       <div class="sc-form-group">
         <label>المستوى (اختياري)</label>
@@ -517,8 +520,9 @@
           <option value="">— اختر المستوى —</option>
           <option value="مبتدئ">مبتدئ</option>
           <option value="متوسط">متوسط</option>
+          <option value="جيد">جيد</option>
           <option value="متقدم">متقدم</option>
-          <option value="خبير">خبير</option>
+          <option value="محترف">محترف</option>
         </select>
       </div>
       <div class="sc-modal-actions">
@@ -631,7 +635,7 @@
   <script src="/static/profile-v2.select.js?v=audit-v1"></script>
   <script src="/static/profile-v2.edu.js?v=edu-fix-edit-v1"></script>
   <script src="/static/profile-v2.courses.js?v=courses-fix-edit-v1"></script>
-  <script src="/static/profile-v2.skills.js?v=modular-v1"></script>
+  <script src="/static/profile-v2.skills.js?v=catalog-v1"></script>
   <script src="/static/profile-v2.langs.js?v=audit-v1"></script>
   <script src="/static/profile-v2.links.js?v=modular-v1"></script>
   <script src="/static/profile-v2.history.js?v=audit-v1"></script>

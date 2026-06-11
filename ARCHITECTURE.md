@@ -2865,3 +2865,103 @@ if data.get('city') and data.get('country'):
 > 2. اجعل `onchange` على `country` يُعيد بناء القائمة المرتبطة
 > 3. اجعل القائمة المرتبطة تُصفَّر (بدون pre-selection) عند تغيير `country`
 > 4. لا تثق بـ `city` القادمة من DB بدون تحقق — استخدم `epLoadCities(p.city)` الذي يُصلح المشكلة تلقائياً
+
+---
+
+## [P1] 43. Skill Catalog & Searchable Skills System
+
+### المشكلة التي تحلها هذه القاعدة
+
+المهارات المخزنة كنص حر (free text) تجعل البحث المستقبلي مستحيلاً:
+- `Java` / `java` / `JAVA` / `جافا` = 4 قيم مختلفة في DB
+- الشركات لا تستطيع البحث عن موظفين عندهم "Java" بشكل موثوق
+- الإحصائيات تعطي أرقاماً خاطئة
+- AI matching لا يستطيع ربط المهارات المتشابهة
+
+**القاعدة:** المهارات يجب أن تكون normalized وقابلة للبحث عبر `skill_id` أو `slug`، وليس فقط نص حر، لأن الشركات والأدمن سيحتاجون مستقبلاً للبحث عن المستخدمين حسب المهارة.
+
+---
+
+### المعمارية الحالية (Phase 1 — مكتملة)
+
+| الطبقة | الآلية |
+|--------|--------|
+| **Catalog** | `SKILL_CATALOG` array مدمج في `profile-v2.skills.js` — 100+ مهارة |
+| **Normalization** | `_normalize(raw)` → يُرجع `name_en` القياسي إذا طابق أي entry في الـ catalog |
+| **Autocomplete** | عند الكتابة يبحث في `name_en + name_ar + slug + keywords` → يعرض 8 اقتراحات |
+| **Dedup** | Case-insensitive check في frontend + UNIQUE(user_id, skill) في DB |
+| **Validation** | min 2 chars + must-contain-letters + no emoji + no skill+level combo |
+| **Display** | `name` chip منفصل عن `level` badge — لا يُخزنان معاً كنص واحد |
+
+### Schema الحالي (Phase 1)
+
+```sql
+user_skills:
+  id        SERIAL PRIMARY KEY
+  user_id   INTEGER FK → users(id)
+  skill     TEXT NOT NULL          -- canonical name_en من الـ catalog
+  level     TEXT                   -- مبتدئ / متوسط / جيد / متقدم / محترف
+  UNIQUE (user_id, skill)          -- يمنع التكرار الدقيق
+```
+
+### Phase 2 — المطلوب لاحقاً (DB migration)
+
+```sql
+-- كتالوج رسمي
+CREATE TABLE skills_catalog (
+    id            SERIAL PRIMARY KEY,
+    name_en       TEXT NOT NULL,
+    name_ar       TEXT NOT NULL,
+    slug          TEXT UNIQUE NOT NULL,
+    keywords      TEXT,
+    category      TEXT,
+    is_active     BOOLEAN DEFAULT TRUE
+);
+
+-- تحديث user_skills
+ALTER TABLE user_skills ADD COLUMN skill_id INTEGER REFERENCES skills_catalog(id);
+ALTER TABLE user_skills ADD COLUMN custom_name TEXT;
+-- skill_id NOT NULL للمهارات القياسية، custom_name للمهارات المخصصة pending review
+
+-- Index للبحث السريع
+CREATE INDEX ON user_skills (skill_id);
+```
+
+**متى ننتقل لـ Phase 2؟**
+عندما نحتاج:
+- الشركات تبحث بـ `skill_id` (ليس نصاً)
+- Admin analytics بـ slug
+- AI matching normalized
+- Pending review للمهارات المخصصة
+
+### Validation Rules (موثّقة للـ frontend والـ backend)
+
+| القاعدة | Frontend | Backend |
+|---------|---------|---------|
+| اسم فارغ | ✅ | ✅ |
+| أقل من حرفين | ✅ | ✅ |
+| لا يحتوي حروف | ✅ | ✅ (`[a-zA-Z؀-ۿ]`) |
+| emoji | ✅ (`hasEmoji`) | ✅ (`validate_no_emoji`) |
+| skill+level مدموجان | ✅ (LEVEL_WORDS list) | ❌ (frontend فقط) |
+| تكرار case-insensitive | ✅ | ❌ (UNIQUE case-sensitive فقط) |
+| Normalization | ✅ (`_normalize`) | ❌ (frontend فقط) |
+
+### قائمة المستويات الرسمية (ثابتة — لا تغيّرها بدون تحديث الـ DB)
+
+```
+مبتدئ → #9ca3af
+متوسط → #60a5fa
+جيد    → #a78bfa
+متقدم → #00c896
+محترف → #fbbf24
+```
+
+### ممنوعات
+
+```
+❌ لا تخزن المهارة كـ "Java متقدم" نص واحد — skill وlevel حقلان منفصلان
+❌ لا تستخدم free text input بدون autocomplete من catalog
+❌ لا تجلب اقتراحات من API خارجي — الـ catalog داخلي فقط
+❌ لا تسمح بمستوى خارج القائمة الرسمية الخمسة
+❌ لا تعتمد على UNIQUE(user_id, skill) وحده للـ case-insensitive dedup — الـ frontend مسؤول عن ذلك في Phase 1
+```
