@@ -137,6 +137,12 @@
     history.pushState({ scLayer: label || 'layer' }, '');
   };
 
+  // ── Called by dynamic layers (menus, select) when they close normally ──
+  // Resets _pushed so the next opened layer can push its own history entry.
+  window._scHistoryReset = function(){
+    if(!_hasOpenLayer()) _pushed = false;
+  };
+
   // ── popstate = Android/browser back button ──
   window.addEventListener('popstate', function(){
     _pushed = false;

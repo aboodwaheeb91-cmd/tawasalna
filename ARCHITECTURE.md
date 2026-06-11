@@ -28,6 +28,8 @@
 | 37 | Controlled Inputs over Free Text | **P1** |
 | 38 | No JSON in data-* Attributes | **P0** |
 | 39 | Profile V2 Internal Back Navigation | **P1** |
+| 40 | Clearable Profile Fields — Always Send Null | **P1** |
+| 41 | Experience end_date Nullable Update | **P1** |
 
 ---
 
@@ -2698,3 +2700,168 @@ window._xxxOpenEdit = function(itemId){
 ```
 
 إذا كانت الطبقة dynamic (كـ three-dot menus) وليس لها ID ثابت: أضف استدعاء `window._scPushHistory('layerName')` داخل دالة الفتح في الـ module المسؤول.
+
+---
+
+## [P1] 40. Clearable Profile Fields — Always Send Null
+
+### المشكلة
+
+حقول Profile Core كـ `avail`, `country`, `city`, `dob` لا يمكن مسحها بعد ضبطها، لأن الـ frontend يستخدم `if(value) payload.field = value` مما يمنع إرسال null.
+
+### القاعدة
+
+```
+❌ ممنوع:   if(avail) payload.avail = avail;
+✅ المسموح: payload.avail = avail || null;
+```
+
+الـ backend يجب أن يقبل null لهذه الحقول ويحولها إلى SQL NULL.
+
+### الحقول المؤهلة للمسح (clearable)
+
+| الحقل | Frontend | Backend |
+|-------|---------|---------|
+| `avail` | `payload.avail = avail || null` | `_clearable = {"dob","country","city","avail"}` |
+| `country` | `payload.country = country || null` | نفس المجموعة |
+| `city` | `payload.city = city || null` | نفس المجموعة |
+| `dob` | `payload.dob = dob || null` | نفس المجموعة |
+
+### `applyLocalUpdate` عند المسح
+
+عند مسح `dob = null`: يجب إخفاء عنصر `scAge` (`style.display = 'none'`).
+عند مسح `country`/`city`: `_buildLocText` يعيد `''` تلقائياً عند استقبال null لأن `_p.country || ''`.
+
+---
+
+## [P1] 41. Experience end_date Nullable Update
+
+### المشكلة
+
+`update_experience()` في auth.py يستخدم `data[k] is not None` للفلترة، مما يمنع مسح `end_date` عند تعديل الخبرة (إلا عند `is_current=True`).
+
+### السبب
+
+```python
+# ❌ قبل الإصلاح — يفلتر end_date=None
+fields = {k: data[k] for k in allowed if k in data and data[k] is not None}
+
+# ✅ بعد الإصلاح — يسمح بـ end_date=None
+_nullable = {"end_date"}
+fields = {k: data[k] for k in allowed if k in data and (data[k] is not None or k in _nullable)}
+```
+
+### القاعدة
+
+أي حقل يمثل "نهاية" (end_date, end_year) يجب أن يكون قابلاً للإرسال كـ null لمسحه.
+
+### نمط `_nullable` / `_clearable`
+
+```python
+# في update_experience:
+_nullable = {"end_date"}
+
+# في update_profile:
+_clearable = {"dob", "country", "city", "avail"}
+
+# كلاهما:
+fields = {k: data[k] for k in allowed if k in data and (data[k] is not None or k in _nullable_or_clearable)}
+```
+
+---
+
+## Back Navigation — `_scHistoryReset` Pattern
+
+### المشكلة
+
+الطبقات الديناميكية (three-dot menus, custom select) تُبقي `_pushed = true` بعد إغلاقها العادي (بدون Back button). هذا يمنع المودالات التالية من الحصول على `pushState` وحماية Back button.
+
+### الإصلاح
+
+```javascript
+// في history.js — دالة reset مُصدَّرة
+window._scHistoryReset = function(){
+    if(!_hasOpenLayer()) _pushed = false;
+};
+
+// في _expMenuClose (exp.js):
+window._expMenuClose = function(){
+    // ... close menus ...
+    if(window._scHistoryReset) window._scHistoryReset();
+};
+
+// في _close() (select.js):
+function _close(){
+    // ... close dropdown ...
+    if(window._scHistoryReset) window._scHistoryReset();
+}
+```
+
+### متى يجب استدعاء `_scHistoryReset`؟
+
+```
+✅ في نهاية دالة إغلاق كل طبقة ديناميكية
+✅ بعد _expMenuClose
+✅ بعد _close في select.js
+❌ لا تستدعيه من داخل popstate handler (يُعاد ضبطه تلقائياً)
+❌ لا تستدعيه عند إغلاق static overlays (MutationObserver يتولى ذلك)
+```
+
+---
+
+## [P1] 42. City/Country Linked Integrity — Frontend-Only Constraint
+
+### الحالة الحالية
+
+العلاقة بين حقلَي `country` و `city` في Edit Profile Modal محمية **من جهة الـ frontend فقط**.
+
+| الضمانة | الآلية | الملف |
+|---------|--------|-------|
+| city options مرتبطة دائماً بـ country | `EP_CITIES[countryCode]` — بيانات مرجعية ثابتة | `profile-v2.edit.js` |
+| changing country يُصفّر city | `onchange="epLoadCities()"` بدون args → لا pre-selection | `profile-showcase.html` |
+| invalid city تُمنع هيكلياً | `epCity` هو `<select>` مغلق — لا free text input | `profile-showcase.html` |
+| mismatch في prefill يُصلَح تلقائياً | `epLoadCities(p.city)` لا تُطابق مدينة خارج قائمة البلد → placeholder | `profile-v2.edit.js` |
+
+### ما لا يوجد حالياً
+
+```
+❌ لا يوجد جدول DB مرجعي للمدن والدول
+❌ backend لا يتحقق من صحة العلاقة city ↔ country
+❌ هجوم API مباشر (بدون واجهة) يمكنه حفظ city غير صالحة
+```
+
+### لماذا مقبول حالياً
+
+- `epCity` هو `<select>` لا `<input type="text">` — المستخدم العادي لا يستطيع تجاوزه
+- تطبيقات المستخدمين العاديين لا تتضمن هجمات API مباشرة
+- `EP_CITIES` يغطي 18 دولة عربية — مصدر موثوق وكافٍ
+
+### مسار الحماية الكاملة (مستقبلاً)
+
+لو احتجنا حماية backend كاملة:
+
+```python
+# 1. إضافة جدول DB
+CREATE TABLE city_country_ref (
+    country_code TEXT NOT NULL,
+    city_name    TEXT NOT NULL,
+    PRIMARY KEY (country_code, city_name)
+);
+
+# 2. validation في update_profile
+if data.get('city') and data.get('country'):
+    valid = conn.run(
+        "SELECT 1 FROM city_country_ref WHERE country_code=:cc AND city_name=:c",
+        cc=data['country'], c=data['city']
+    )
+    if not valid:
+        raise ValueError("المدينة غير صالحة للدولة المختارة")
+```
+
+### القاعدة
+
+> عند إضافة أي حقل مرتبط بـ `country` أو `city`:
+> 1. استخدم `<select>` مغلقاً — لا `<input type="text">` حراً
+> 2. اجعل `onchange` على `country` يُعيد بناء القائمة المرتبطة
+> 3. اجعل القائمة المرتبطة تُصفَّر (بدون pre-selection) عند تغيير `country`
+> 4. لا تثق بـ `city` القادمة من DB بدون تحقق — استخدم `epLoadCities(p.city)` الذي يُصلح المشكلة تلقائياً
