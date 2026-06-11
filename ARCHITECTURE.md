@@ -2806,3 +2806,62 @@ function _close(){
 ❌ لا تستدعيه من داخل popstate handler (يُعاد ضبطه تلقائياً)
 ❌ لا تستدعيه عند إغلاق static overlays (MutationObserver يتولى ذلك)
 ```
+
+---
+
+## [P1] 42. City/Country Linked Integrity — Frontend-Only Constraint
+
+### الحالة الحالية
+
+العلاقة بين حقلَي `country` و `city` في Edit Profile Modal محمية **من جهة الـ frontend فقط**.
+
+| الضمانة | الآلية | الملف |
+|---------|--------|-------|
+| city options مرتبطة دائماً بـ country | `EP_CITIES[countryCode]` — بيانات مرجعية ثابتة | `profile-v2.edit.js` |
+| changing country يُصفّر city | `onchange="epLoadCities()"` بدون args → لا pre-selection | `profile-showcase.html` |
+| invalid city تُمنع هيكلياً | `epCity` هو `<select>` مغلق — لا free text input | `profile-showcase.html` |
+| mismatch في prefill يُصلَح تلقائياً | `epLoadCities(p.city)` لا تُطابق مدينة خارج قائمة البلد → placeholder | `profile-v2.edit.js` |
+
+### ما لا يوجد حالياً
+
+```
+❌ لا يوجد جدول DB مرجعي للمدن والدول
+❌ backend لا يتحقق من صحة العلاقة city ↔ country
+❌ هجوم API مباشر (بدون واجهة) يمكنه حفظ city غير صالحة
+```
+
+### لماذا مقبول حالياً
+
+- `epCity` هو `<select>` لا `<input type="text">` — المستخدم العادي لا يستطيع تجاوزه
+- تطبيقات المستخدمين العاديين لا تتضمن هجمات API مباشرة
+- `EP_CITIES` يغطي 18 دولة عربية — مصدر موثوق وكافٍ
+
+### مسار الحماية الكاملة (مستقبلاً)
+
+لو احتجنا حماية backend كاملة:
+
+```python
+# 1. إضافة جدول DB
+CREATE TABLE city_country_ref (
+    country_code TEXT NOT NULL,
+    city_name    TEXT NOT NULL,
+    PRIMARY KEY (country_code, city_name)
+);
+
+# 2. validation في update_profile
+if data.get('city') and data.get('country'):
+    valid = conn.run(
+        "SELECT 1 FROM city_country_ref WHERE country_code=:cc AND city_name=:c",
+        cc=data['country'], c=data['city']
+    )
+    if not valid:
+        raise ValueError("المدينة غير صالحة للدولة المختارة")
+```
+
+### القاعدة
+
+> عند إضافة أي حقل مرتبط بـ `country` أو `city`:
+> 1. استخدم `<select>` مغلقاً — لا `<input type="text">` حراً
+> 2. اجعل `onchange` على `country` يُعيد بناء القائمة المرتبطة
+> 3. اجعل القائمة المرتبطة تُصفَّر (بدون pre-selection) عند تغيير `country`
+> 4. لا تثق بـ `city` القادمة من DB بدون تحقق — استخدم `epLoadCities(p.city)` الذي يُصلح المشكلة تلقائياً
