@@ -738,9 +738,13 @@ body.view-owner .av-cam-btn { display:flex; }
   background:rgba(255,255,255,.03);
 }
 .sc-skill-card-top {
-  display:flex; align-items:center; gap:8px; flex-wrap:nowrap;
+  display:flex; align-items:center; justify-content:space-between; gap:8px;
 }
-.sc-skill-card-top .sc-skill-name {
+/* Info group: icon + name + badge(s) — takes available space, del stays at far end */
+.sc-skill-info {
+  display:flex; align-items:center; gap:8px; flex:1; min-width:0; overflow:hidden;
+}
+.sc-skill-info .sc-skill-name {
   flex:1; min-width:0; font-weight:700; color:#e0e0e0; font-size:.9rem;
   overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
 }
