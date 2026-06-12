@@ -701,7 +701,7 @@ body.view-owner .av-cam-btn { display:flex; }
 .sc-skill-del {
   background:none; border:none; cursor:pointer; line-height:1;
   font-size:.95rem; color:rgba(255,255,255,.3);
-  padding:0 1px; transition:color .15s;
+  padding:0 1px; transition:color .15s; flex-shrink:0;
 }
 .sc-skill-del:hover { color:#ef4444; }
 /* Custom (non-catalog) skill chip — slightly different border */
@@ -737,20 +737,23 @@ body.view-owner .av-cam-btn { display:flex; }
   border:1px solid rgba(255,255,255,.08);
   background:rgba(255,255,255,.03);
 }
+/* Card top: two groups — info (icon+name) on one end, meta (badge+del) on the other */
 .sc-skill-card-top {
-  display:flex; align-items:center; gap:8px;
+  display:flex; align-items:center; justify-content:space-between; gap:12px;
 }
-/* Name: shrinks when needed, truncates with ellipsis on narrow screens */
-.sc-skill-card-top .sc-skill-name {
+/* Info group: icon + name [+ مخصصة badge] */
+.sc-sk-info {
+  display:flex; align-items:center; gap:8px; min-width:0; overflow:hidden;
+}
+.sc-sk-info .sc-skill-name {
   min-width:0; font-weight:700; color:#e0e0e0; font-size:.9rem;
   overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
 }
-/* Badge stays compact, never shrinks */
-.sc-skill-card-top .sc-skill-badge { flex-shrink:0; }
-/* Delete button: pushed to far end (LTR: right / RTL: left) via auto start-margin */
-.sc-skill-del {
-  margin-inline-start:auto; flex-shrink:0;
+/* Meta group: level badge + delete button — never shrinks */
+.sc-sk-meta {
+  display:flex; align-items:center; gap:6px; flex-shrink:0;
 }
+
 .sc-skill-note {
   margin:6px 0 0; font-size:.78rem;
   color:rgba(255,255,255,.48); line-height:1.55;
