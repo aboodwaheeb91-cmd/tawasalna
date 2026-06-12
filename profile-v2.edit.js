@@ -103,7 +103,12 @@
       var bioEl = document.getElementById('scBio');
       if(bioEl) bioEl.textContent = payload.bio;
       var aboutEl = document.getElementById('scAboutText');
-      if(aboutEl) aboutEl.textContent = payload.bio || 'لا توجد نبذة بعد';
+      if(aboutEl){
+        aboutEl.textContent = payload.bio || 'لا توجد نبذة بعد';
+        var _hint = aboutEl.nextElementSibling;
+        if(_hint && _hint.classList && _hint.classList.contains('sc-ab-empty-hint'))
+          _hint.style.display = 'none';
+      }
       requestAnimationFrame(function(){
         if(bioEl){
           var moreBtn = document.getElementById('scBioMore');
