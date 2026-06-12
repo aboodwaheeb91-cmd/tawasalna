@@ -19,6 +19,15 @@
   }
 
   // ── Level → CSS slug ──
+  // Rank used for sorting — higher number = shown first
+  var LEVEL_RANK = {
+    'محترف': 5,
+    'متقدم': 4,
+    'جيد':   3,
+    'متوسط': 2,
+    'مبتدئ': 1,
+  };
+
   var LEVEL_CSS = {
     'مبتدئ': 'lv-beginner',
     'متوسط': 'lv-mid',
@@ -633,12 +642,13 @@
   };
 
   // ── Build Skills HTML (vertical cards) ──
+  // Legend order matches card display order: highest level first
   var _LEGEND_HTML = '<div class="sc-skill-legend">'
-    + '<span class="sc-legend-item"><span class="sc-legend-dot sc-legend-beginner"></span>مبتدئ</span>'
-    + '<span class="sc-legend-item"><span class="sc-legend-dot sc-legend-mid"></span>متوسط</span>'
-    + '<span class="sc-legend-item"><span class="sc-legend-dot sc-legend-good"></span>جيد</span>'
-    + '<span class="sc-legend-item"><span class="sc-legend-dot sc-legend-advanced"></span>متقدم</span>'
     + '<span class="sc-legend-item"><span class="sc-legend-dot sc-legend-pro"></span>محترف</span>'
+    + '<span class="sc-legend-item"><span class="sc-legend-dot sc-legend-advanced"></span>متقدم</span>'
+    + '<span class="sc-legend-item"><span class="sc-legend-dot sc-legend-good"></span>جيد</span>'
+    + '<span class="sc-legend-item"><span class="sc-legend-dot sc-legend-mid"></span>متوسط</span>'
+    + '<span class="sc-legend-item"><span class="sc-legend-dot sc-legend-beginner"></span>مبتدئ</span>'
     + '</div>';
 
   window._buildSkillsHTML = function(skills, isOwner){
@@ -654,9 +664,17 @@
     if(!skills || !skills.length)
       return header + '<div class="sc-empty">لا توجد مهارات بعد</div>';
 
+    // Sort: by level rank descending (محترف first), then alphabetically within same level
+    var sorted = skills.slice().sort(function(a, b){
+      var ra = LEVEL_RANK[a.level] || 0;
+      var rb = LEVEL_RANK[b.level] || 0;
+      if(rb !== ra) return rb - ra;
+      return (a.skill || '').localeCompare(b.skill || '', 'ar');
+    });
+
     var cards = '<div class="sc-skill-list">';
-    for(var i=0; i<skills.length; i++){
-      var s     = skills[i];
+    for(var i=0; i<sorted.length; i++){
+      var s     = sorted[i];
       var name  = esc(s.skill || '');
       var level = s.level ? esc(s.level) : '';
       var note  = (s.note || '').trim();
