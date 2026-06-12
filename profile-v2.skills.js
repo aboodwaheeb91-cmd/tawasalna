@@ -731,6 +731,12 @@
   }
   window._reRenderSkills = _reRenderSkills;
 
+  // Expose icon lookup for About tab summary cards
+  window._getSkillIcon = function(skillName){
+    var e = _getCatalogEntry(skillName || '');
+    return (e && e.icon) ? e.icon : _CUSTOM_FALLBACK_ICON;
+  };
+
   window._skillOpenAdd = function(){ openModal(); };
 
   window._skillConfirmDelete = function(id){
