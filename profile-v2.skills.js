@@ -703,11 +703,15 @@
 
       cards += '<div class="'+cardClass+'">'
         + '<div class="sc-skill-card-top">'
+        + '<span class="sc-sk-info">'
         + _skillIconHtml(icon)
         + '<span class="sc-skill-name" dir="auto">'+name+'</span>'
-        + badge
         + cstBadge
+        + '</span>'
+        + '<span class="sc-sk-meta">'
+        + badge
         + del
+        + '</span>'
         + '</div>'
         + noteHtml
         + '</div>';
