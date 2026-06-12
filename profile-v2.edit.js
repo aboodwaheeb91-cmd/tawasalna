@@ -111,18 +111,6 @@
       if(window._scProfile) window._scProfile.short_bio = payload.short_bio;
     }
 
-    // نبذة رقم 2 (About tab) — bio only, never touches header
-    if(payload.bio !== undefined){
-      var aboutEl = document.getElementById('scAboutText');
-      if(aboutEl){
-        aboutEl.textContent = payload.bio || 'لا توجد نبذة بعد';
-        var _card = aboutEl.closest && aboutEl.closest('.sc-ab-card');
-        var _hint = _card && _card.querySelector('.sc-ab-empty-hint');
-        if(_hint) _hint.style.display = 'none';
-      }
-      if(window._scProfile) window._scProfile.bio = payload.bio;
-    }
-
     // DOB → compute and display age
     if('dob' in payload){
       if(payload.dob){
@@ -256,10 +244,6 @@
     var shortBioEl = document.getElementById('epShortBio');
     if(shortBioEl) shortBioEl.value = p.short_bio || '';
 
-    // Bio (About tab — نبذة رقم 2)
-    var bioEl = document.getElementById('epBio');
-    if(bioEl) bioEl.value = p.bio || '';
-
     if(errEl) errEl.style.display = 'none';
     overlay.classList.add('open');
     if(window.lucide && lucide.createIcons) lucide.createIcons();
@@ -285,12 +269,10 @@
     ['epFirstName','epMidName','epLastName'].forEach(function(id){
       var el = document.getElementById(id); if(el) el.classList.remove('ep-input-err');
     });
-    ['epNameErr','epShortBioErr','epBioErr'].forEach(function(id){
+    ['epNameErr','epShortBioErr'].forEach(function(id){
       var div = document.getElementById(id);
       if(div){ div.textContent=''; div.classList.remove('show'); }
     });
-    var bio = document.getElementById('epBio');
-    if(bio) bio.classList.remove('ep-input-err');
     var shortBio = document.getElementById('epShortBio');
     if(shortBio) shortBio.classList.remove('ep-input-err');
   }
@@ -322,13 +304,6 @@
   if(_epShortBioInput) _epShortBioInput.addEventListener('input', function(){
     if(!window._scCheckProfessional || !window._scCheckProfessional(_epShortBioInput.value))
       _clearFieldErr(_epShortBioInput, 'epShortBioErr');
-  });
-
-  // Auto-clear bio error
-  var _epBioInput = document.getElementById('epBio');
-  if(_epBioInput) _epBioInput.addEventListener('input', function(){
-    if(!window._scCheckProfessional || !window._scCheckProfessional(_epBioInput.value))
-      _clearFieldErr(_epBioInput, 'epBioErr');
   });
 
   function closeModal(){
@@ -365,9 +340,8 @@
     var avail   = ((document.getElementById('epAvail')     ||{}).value||'').trim();
     var profVal = ((document.getElementById('epProfession')||{}).value||'').trim();
     var shortBioVal = ((document.getElementById('epShortBio')||{}).value||'').trim();
-    var bioVal      = ((document.getElementById('epBio')     ||{}).value||'').trim();
 
-    var payload = { short_bio: shortBioVal, bio: bioVal };
+    var payload = { short_bio: shortBioVal };
     // Send name parts — backend builds full_name automatically
     payload.first_name  = first;
     payload.middle_name = mid;
@@ -385,8 +359,7 @@
       {v: first,  inputId: 'epFirstName', errId: 'epNameErr'},
       {v: mid,    inputId: 'epMidName',   errId: 'epNameErr'},
       {v: last,   inputId: 'epLastName',  errId: 'epNameErr'},
-      {v: shortBioVal, inputId: 'epShortBio', errId: 'epShortBioErr'},
-      {v: bioVal,      inputId: 'epBio',      errId: 'epBioErr'}
+      {v: shortBioVal, inputId: 'epShortBio', errId: 'epShortBioErr'}
     ];
     var _lastErrMsg = _CONTENT_MSG;
     for(var _ei=0; _ei<_checkFields.length; _ei++){
