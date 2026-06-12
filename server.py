@@ -71,7 +71,8 @@ from auth import (
     _cache_del, get_profile_style,
     get_company_profile_row, get_company_extras,
     follow_company, unfollow_company, rate_company,
-    get_company_posts, create_company_post, get_post_owner, delete_company_post
+    get_company_posts, create_company_post, get_post_owner, delete_company_post,
+    follow_profile, unfollow_profile, get_profile_followers_count, is_profile_following
 )
 from auth import ContentValidationError, validate_professional_text
 
