@@ -1318,6 +1318,15 @@ def public_profile(user_id: str, request: Request):
     if viewer_type == "public-user" and token_uid:
         _is_following = is_profile_following(int(token_uid), profile_id)
 
+    # ── Views counter (Step 2) ──
+    # Record view only for logged-in non-owner viewers (24h dedup inside record_profile_view)
+    if viewer_type == "public-user" and token_uid:
+        try:
+            record_profile_view(profile_id, int(token_uid))
+        except Exception:
+            pass
+    views_count = get_profile_views_count(profile_id)
+
     if viewer_type == "owner":
         permissions = {
             "can_edit":    True,
@@ -1350,6 +1359,7 @@ def public_profile(user_id: str, request: Request):
         "is_owner":        is_owner,
         "followers_count": followers_count,
         "is_following":    _is_following,
+        "views_count":     views_count,
         "permissions":     permissions,
     }
 
