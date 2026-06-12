@@ -77,11 +77,12 @@ window.addEventListener('resize', function(){ if(window._fitName) fitName(); });
 // Mirrors backend validate_professional_text() in auth.py.
 window._scCheckProfessional = (function(){
   var _BAD = [
-    // English: short — word-level match only (len < 5)
+    // English: short — word-level only (len < 5)
     'ass','anus','anal','cock','cum','dick','rape','sex','tit','tits',
-    // English: medium/long — substring match (len >= 5)
+    'nude','pimp','smut','perv','wank','twat','pedo',
+    // English: medium/long — also substring match (len >= 5)
     'pussy','penis','boobs','naked','horny','boner','nudes','vulva',
-    'rapist','orgasm','vagina','erotic','incest','sexting','camgirl',
+    'rapist','orgasm','vagina','erotic','incest','sexting','camgirl','wanker',
     'creampie','gangbang','onlyfans','ejaculat','pedophil','necrophil','bestiality',
     // English: original list
     'fuck','fucking','fucked','fucker','fucks','motherfucker','motherfucking',
@@ -89,41 +90,62 @@ window._scCheckProfessional = (function(){
     'asshole','assholes','whore','whores','slut','sluts','bastard',
     'porn','porno','pornography','pornographic',
     'blowjob','handjob','rimjob','cumshot','dildo','masturbate','masturbation',
-    // Arabic: short — word-level match only
+    // Arabic: short — word-level only
     'زب','طيز','كس','ير','خول','زناء','لواط',
-    // Arabic: medium/long — substring match
-    'إباحي','إباحية','زانية','عاهرة','دعارة','ماخور','استمناء',
+    'زنا','زنى','عاهر','مومس','بزاز','نهود','فحش','جماع','عرص','عري','تعري',
+    // Arabic: medium/long — also substring match
+    'إباحي','إباحية','زانية','عاهرة','دعارة','ماخور','استمناء','فاحشة',
     // Arabic: original list
     'نيك','ينيك','ينكح','بنيك',
-    'شرموطة','شراميط',
-    'قحبة','قحاب',
-    'خرا','خرة',
-    'منيوك','منيوكة',
+    'شرموطة','شراميط','قحبة','قحاب',
+    'خرا','خرة','منيوك','منيوكة',
     'كسمك','كسمه','كسها','كسك','كسمها','كسمهم',
-    'متناك','متناكة',
-    'سكس','سيكس',
-    'بورن','بورنو'
+    'متناك','متناكة','سكس','سيكس','بورن','بورنو'
   ];
+
   function _norm(t){
-    t = (t||'').toLowerCase()
-      .replace(/@/g,'a').replace(/0/g,'o').replace(/1/g,'i').replace(/3/g,'e').replace(/\$/g,'s');
-    t = t.replace(/[​-‏‪-‮﻿]/g,'');
+    t = (t||'').toLowerCase();
+    // Arabic: strip diacritics (tashkeel) and tatweel
+    t = t.replace(/[ً-ٰٟـ]/g,'');
+    // Arabic: normalize hamza forms → plain alef
+    t = t.replace(/[آأإٱ]/g,'ا');
+    // Arabic: alef maqsura → ya; teh marbuta → ha
+    t = t.replace(/ى/g,'ي').replace(/ة/g,'ه');
+    // Leet-speak substitutions
+    t = t.replace(/@/g,'a').replace(/0/g,'o').replace(/1/g,'i')
+         .replace(/3/g,'e').replace(/\$/g,'s').replace(/5/g,'s');
+    // Remove invisible / zero-width chars
+    t = t.replace(/[​-‏‪-‮﻿͏­]/g,'');
+    // Collapse excessive repeats
     t = t.replace(/(.)\1{2,}/g,'$1$1');
     return t;
   }
+
+  // Pre-normalize bad words so comparisons are always apples-to-apples.
+  // Handles Arabic words with ة/أ/إ stored in normalized form.
+  var _BAD_NORM = [];
+  for(var _i=0; _i<_BAD.length; _i++){ _BAD_NORM.push(_norm(_BAD[_i])); }
+
+  var _MSG = 'لا يسمح باستخدام كلمات غير لائقة أو غير مهنية داخل هذا الحقل';
+
   return function(text){
     if(!text) return null;
     if(typeof hasEmoji === 'function' && hasEmoji(text))
       return 'لا يسمح باستخدام الرموز التعبيرية داخل هذا الحقل';
     var n = _norm(String(text));
-    var words = n.split(/[\s,،;:.!?'"()\[\]{}\-/\\]+/).filter(Boolean);
+    // Split on whitespace/structural separators only (NOT . ! - * etc.),
+    // then strip remaining non-alphanumeric from each token to defeat
+    // obfuscation like f.u.c.k, sh!t, f*ck written as consonants, etc.
+    var rawToks = n.split(/[\s,،;:'"()\[\]{}]+/);
     var ws = {};
-    for(var i=0;i<words.length;i++) ws[words[i]]=1;
-    for(var j=0;j<_BAD.length;j++){
-      var bad = _BAD[j];
-      if(ws[bad]) return 'لا يسمح باستخدام كلمات غير لائقة أو غير مهنية داخل هذا الحقل';
-      if(bad.length >= 5 && n.indexOf(bad) !== -1)
-        return 'لا يسمح باستخدام كلمات غير لائقة أو غير مهنية داخل هذا الحقل';
+    for(var i=0; i<rawToks.length; i++){
+      var clean = rawToks[i].replace(/[^a-z0-9؀-ۿ]/g,'');
+      if(clean) ws[clean] = 1;
+    }
+    for(var j=0; j<_BAD_NORM.length; j++){
+      var bad = _BAD_NORM[j];
+      if(ws[bad]) return _MSG;
+      if(bad.length >= 5 && n.indexOf(bad) !== -1) return _MSG;
     }
     return null;
   };

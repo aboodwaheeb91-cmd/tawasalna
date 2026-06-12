@@ -56,50 +56,61 @@ def validate_no_emoji(value, field: str = "هذا الحقل") -> None:
 
 # ══ Profanity / Professional Content Filter ══
 _PROFANITY = frozenset([
-    # ─── English: explicit sexual terms (new additions) ─────────────────────
-    # Short — word-level match only (len < 5, won't substring-match inside longer words)
+    # ─── English: short — word-level only (len < 5) ──────────────────────────
     'ass', 'anus', 'anal', 'cock', 'cum', 'dick', 'rape', 'sex', 'tit', 'tits',
-    # Medium/long — substring match (len >= 5)
+    'nude', 'pimp', 'smut', 'perv', 'wank', 'twat', 'pedo',
+    # ─── English: medium/long — also substring match (len >= 5) ─────────────
     'pussy', 'penis', 'boobs', 'naked', 'horny', 'boner', 'nudes', 'vulva',
-    'rapist', 'orgasm', 'vagina', 'erotic', 'incest', 'sexting', 'camgirl',
+    'rapist', 'orgasm', 'vagina', 'erotic', 'incest', 'sexting', 'camgirl', 'wanker',
     'creampie', 'gangbang', 'onlyfans', 'ejaculat', 'pedophil', 'necrophil', 'bestiality',
     # ─── English: original list ──────────────────────────────────────────────
     'fuck', 'fucking', 'fucked', 'fucker', 'fucks', 'motherfucker', 'motherfucking',
     'shit', 'bullshit', 'shitting',
-    'cunt', 'cunts',
-    'bitch', 'bitches',
-    'asshole', 'assholes',
-    'whore', 'whores',
-    'slut', 'sluts',
-    'bastard',
+    'cunt', 'cunts', 'bitch', 'bitches',
+    'asshole', 'assholes', 'whore', 'whores', 'slut', 'sluts', 'bastard',
     'porn', 'porno', 'pornography', 'pornographic',
-    'blowjob', 'handjob', 'rimjob', 'cumshot',
-    'dildo', 'masturbate', 'masturbation',
-    # ─── Arabic: explicit sexual / vulgar terms (new additions) ─────────────
-    # Short — word-level match only
+    'blowjob', 'handjob', 'rimjob', 'cumshot', 'dildo', 'masturbate', 'masturbation',
+    # ─── Arabic: short — word-level only ─────────────────────────────────────
     'زب', 'طيز', 'كس', 'ير', 'خول', 'زناء', 'لواط',
-    # Medium/long — substring match
-    'إباحي', 'إباحية', 'زانية', 'عاهرة', 'دعارة', 'ماخور', 'استمناء',
+    'زنا', 'زنى', 'عاهر', 'مومس', 'بزاز', 'نهود', 'فحش', 'جماع', 'عرص', 'عري', 'تعري',
+    # ─── Arabic: medium/long — also substring match ───────────────────────────
+    'إباحي', 'إباحية', 'زانية', 'عاهرة', 'دعارة', 'ماخور', 'استمناء', 'فاحشة',
     # ─── Arabic: original list ───────────────────────────────────────────────
     'نيك', 'ينيك', 'ينكح', 'بنيك',
-    'شرموطة', 'شراميط',
-    'قحبة', 'قحاب',
-    'خرا', 'خرة',
-    'منيوك', 'منيوكة',
+    'شرموطة', 'شراميط', 'قحبة', 'قحاب',
+    'خرا', 'خرة', 'منيوك', 'منيوكة',
     'كسمك', 'كسمه', 'كسها', 'كسك', 'كسمها', 'كسمهم',
-    'متناك', 'متناكة',
-    'سكس', 'سيكس',
-    'بورن', 'بورنو',
+    'متناك', 'متناكة', 'سكس', 'سيكس', 'بورن', 'بورنو',
 ])
 
 
 def _normalize_for_profanity(text: str) -> str:
-    """Normalize text for profanity matching (common substitutions, collapse repeats)."""
+    """Normalize text before profanity matching.
+
+    Handles: Arabic tashkeel/tatweel, hamza variants, alef maqsura,
+    teh marbuta, leet-speak substitutions, invisible chars, repeat collapse.
+    """
     t = text.lower()
-    t = t.replace('@', 'a').replace('0', 'o').replace('1', 'i').replace('3', 'e').replace('$', 's')
-    t = re.sub(r'[​-‏‪-‮﻿]', '', t)
-    t = re.sub(r'(.)\1{2,}', r'\1\1', t)  # "fuuuck" → "fuuck"
+    # Arabic: strip diacritics (tashkeel U+064B–U+065F, superscript alef U+0670) and tatweel U+0640
+    t = re.sub(r'[ً-ٰٟـ]', '', t)
+    # Arabic: normalize all hamza forms → plain alef (U+0627)
+    t = re.sub(r'[آأإٱ]', 'ا', t)
+    # Arabic: alef maqsura → ya; teh marbuta → ha
+    t = t.replace('ى', 'ي').replace('ة', 'ه')
+    # Leet-speak digit/symbol substitutions
+    t = (t.replace('@', 'a').replace('0', 'o').replace('1', 'i')
+          .replace('3', 'e').replace('$', 's').replace('5', 's'))
+    # Remove invisible / zero-width Unicode
+    t = re.sub(r'[​-‏‪-‮﻿͏­]', '', t)
+    # Collapse excessive repeated chars ("fuuuck" → "fuuck")
+    t = re.sub(r'(.)\1{2,}', r'\1\1', t)
     return t
+
+
+# Pre-normalize the bad word list so every comparison is apples-to-apples.
+# This means Arabic words with ة/أ/إ in the list are stored normalized,
+# and input is normalized identically before checking.
+_PROFANITY_NORMALIZED = frozenset(_normalize_for_profanity(w) for w in _PROFANITY)
 
 
 def validate_professional_text(value, field: str = "هذا الحقل") -> None:
@@ -109,9 +120,15 @@ def validate_professional_text(value, field: str = "هذا الحقل") -> None:
     s = str(value)
     validate_no_emoji(s, field)
     normalized = _normalize_for_profanity(s)
-    word_set = set(re.split(r'[\s,،;:.!?\'\"()\[\]{}\-/\\]+', normalized))
-    word_set.discard('')
-    for bad in _PROFANITY:
+    # Split on whitespace and structural separators only (NOT on . ! - * etc.).
+    # Then strip remaining non-alphanumeric from each token — this defeats
+    # obfuscation like f.u.c.k, sh!t, f*ck written as f-c-k, etc.
+    word_set: set = set()
+    for tok in re.split(r'[\s,،;:\'"()\[\]{}]+', normalized):
+        clean = re.sub(r'[^a-z0-9؀-ۿ]', '', tok)
+        if clean:
+            word_set.add(clean)
+    for bad in _PROFANITY_NORMALIZED:
         if bad in word_set:
             raise ProfanityError(field)
         if len(bad) >= 5 and bad in normalized:
