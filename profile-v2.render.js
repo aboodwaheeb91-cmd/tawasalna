@@ -133,7 +133,7 @@ function _buildAboutPane(p, isOwner){
   sections.push(
     '<div class="sc-ab-card">'
     + '<div class="sc-ab-head"><span class="sc-ab-title">'+_icoUser+' نبذة عني</span>'
-    + (isOwner ? '<button class="sc-ab-edit owner-only" onclick="window._aboutBioEdit()" title="تعديل النبذة">'+_icoPen+' تعديل</button>' : '')
+    + (isOwner ? '<button class="sc-ab-edit owner-only" onclick="window._aboutBioEdit()" title="تعديل النبذة" aria-label="تعديل النبذة">'+_icoPen+'</button>' : '')
     + '</div>'
     // View mode
     + '<div id="scAboutBioView">'
@@ -159,16 +159,16 @@ function _buildAboutPane(p, isOwner){
   if(skills.length || isOwner){
     var _RANK = {'محترف':5,'متقدم':4,'جيد':3,'متوسط':2,'مبتدئ':1};
     var _CLR  = {'مبتدئ':'#9ca3af','متوسط':'#60a5fa','جيد':'#a78bfa','متقدم':'#00c896','محترف':'#fbbf24'};
-    var sk3 = skills.slice().sort(function(a,b){ return ((_RANK[b.level]||0)-(_RANK[a.level]||0)); }).slice(0,3);
+    var sk5 = skills.slice().sort(function(a,b){ return ((_RANK[b.level]||0)-(_RANK[a.level]||0)); }).slice(0,5);
     var skInner = '';
-    if(sk3.length){
-      skInner = '<div class="sc-ab-chips">';
-      for(var _si=0;_si<sk3.length;_si++){
-        var _s=sk3[_si], _c=_CLR[_s.level]||'#9ca3af';
+    if(sk5.length){
+      skInner = '<div class="sc-ab-chips" dir="ltr">';
+      for(var _si=0;_si<sk5.length;_si++){
+        var _s=sk5[_si], _c=_CLR[_s.level]||'#9ca3af';
         var _ico = (window._getSkillIcon && window._getSkillIcon(_s.skill||'')) || 'code';
         skInner += '<span class="sc-ab-chip" style="border-color:'+_c+'44;color:'+_c+'">'
           + '<i data-lucide="'+_ico+'" class="sc-ab-chip-ico"></i>'
-          + '<span dir="auto">'+esc(_s.skill||'')+'</span>'
+          + '<span style="unicode-bidi:isolate">'+esc(_s.skill||'')+'</span>'
           + '</span>';
       }
       skInner += '</div>';
@@ -178,7 +178,7 @@ function _buildAboutPane(p, isOwner){
     if(skInner)
       sections.push(
         '<div class="sc-ab-card"><div class="sc-ab-head"><span class="sc-ab-title">'+_icoZap+' المهارات</span>'
-        + (skills.length ? _viewAll('skills') : '') + '</div>' + skInner + '</div>'
+        + (skills.length > 5 ? _viewAll('skills') : (skills.length ? _viewAll('skills') : '')) + '</div>' + skInner + '</div>'
       );
   }
 

@@ -276,7 +276,7 @@
 
 .sc-empty { text-align:center; color:var(--t4,#4a5568); padding:24px 0; font-size:.82rem; }
 .sc-bio-text {
-  color:var(--t2,#9aa5b4); font-size:.8rem; line-height:1.62; white-space:pre-wrap; word-break:break-word;
+  color:var(--t2,#9aa5b4); font-size:.76rem; line-height:1.6; white-space:pre-wrap; word-break:break-word;
   display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
 }
 .sc-bio-text.sc-bio-expanded { display:block; overflow:visible; }
@@ -309,13 +309,12 @@
 }
 .sc-ab-title svg { stroke:var(--ac,#00c896); flex-shrink:0; }
 .sc-ab-edit {
-  display:inline-flex; align-items:center; gap:4px; flex-shrink:0;
-  font-family:inherit; font-size:.71rem; font-weight:600;
+  display:inline-flex; align-items:center; justify-content:center; flex-shrink:0;
   color:var(--t3,#6b7686); background:none;
   border:1px solid rgba(255,255,255,.1); border-radius:7px;
-  padding:3px 9px; cursor:pointer; transition:color .15s, border-color .15s;
-  white-space:nowrap;
+  width:26px; height:26px; padding:0; cursor:pointer; transition:color .15s, border-color .15s;
 }
+.sc-ab-edit svg { width:13px; height:13px; }
 .sc-ab-edit:hover { color:var(--ac,#00c896); border-color:rgba(0,200,150,.4); }
 .sc-ab-viewall {
   font-family:inherit; font-size:.71rem; font-weight:600;
@@ -326,7 +325,7 @@
 .sc-ab-empty-hint {
   font-size:.76rem; color:var(--t4,#4a5568); font-style:italic;
 }
-.sc-ab-chips { display:flex; flex-wrap:wrap; gap:6px; }
+.sc-ab-chips { display:flex; flex-wrap:wrap; gap:6px; direction:ltr; }
 .sc-ab-chip {
   display:inline-flex; align-items:center; gap:5px;
   padding:4px 11px; border-radius:20px;
