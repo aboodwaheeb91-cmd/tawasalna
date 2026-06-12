@@ -277,7 +277,7 @@
 .sc-empty { text-align:center; color:var(--t4,#4a5568); padding:24px 0; font-size:.82rem; }
 .sc-bio-text {
   color:var(--t2,#9aa5b4); font-size:.8rem; line-height:1.62; white-space:pre-wrap; word-break:break-word;
-  display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden;
+  display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
 }
 .sc-bio-text.sc-bio-expanded { display:block; overflow:visible; }
 

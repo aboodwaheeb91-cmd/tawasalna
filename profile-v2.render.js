@@ -80,18 +80,16 @@ window._aboutBioSave = function(){
 
   if(saveBtn){ saveBtn.disabled = true; saveBtn.textContent = 'جاري الحفظ…'; }
 
-  fetch('/profile/' + uid, {
-    method: 'PUT',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({bio: bio})
-  })
-  .then(function(r){ return r.json().then(function(d){ return {ok:r.ok, data:d}; }); })
+  window.updateProfile(uid, {bio: bio})
   .then(function(res){
     if(saveBtn){ saveBtn.disabled = false; saveBtn.textContent = 'حفظ'; }
     if(!res.ok){
-      var det = res.data && res.data.detail;
-      var msg = (det && typeof det === 'object' && det.message) ? det.message
-              : (typeof det === 'string' ? det : 'حدث خطأ، حاول مرة أخرى');
+      var status = res.data && res.data.status_code;
+      var det    = res.data && res.data.detail;
+      var msg = (status === 401 || (det && det.toString().indexOf('401') !== -1))
+        ? 'انتهت الجلسة، يرجى تسجيل الدخول مرة أخرى'
+        : ((det && typeof det === 'object' && det.message) ? det.message
+          : (typeof det === 'string' ? det : 'حدث خطأ، حاول مرة أخرى'));
       if(errEl){ errEl.textContent = msg; errEl.style.display = 'block'; }
       return;
     }
