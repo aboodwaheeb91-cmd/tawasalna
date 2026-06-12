@@ -714,6 +714,34 @@ window.renderProfile = function renderProfile(res){
     });
 })();
 
+// ── Soft refresh: followers_count on tab focus / visibility ──
+// Updates #scStatFollowers only — no full re-render, no WebSocket.
+// Cooldown: 30s to prevent request spam.
+(function(){
+  var _lastCheck = 0;
+  var _COOLDOWN  = 30000;
+
+  function _refreshCount(){
+    if(!_scProfileId) return;
+    var now = Date.now();
+    if(now - _lastCheck < _COOLDOWN) return;
+    _lastCheck = now;
+
+    getProfile(_scProfileId)
+      .then(function(res){
+        if(!res || res.followers_count == null) return;
+        setText('scStatFollowers', res.followers_count);
+        if(window._scProfile) window._scProfile.followers_count = res.followers_count;
+      })
+      .catch(function(){ /* silent */ });
+  }
+
+  document.addEventListener('visibilitychange', function(){
+    if(document.visibilityState === 'visible') _refreshCount();
+  });
+  window.addEventListener('focus', _refreshCount);
+})();
+
 // ── Preview Eye Button (Doctrine §24) ──
 (function(){
   var eyeWrap = document.getElementById('scEyeWrap');
