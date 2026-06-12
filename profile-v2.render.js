@@ -613,11 +613,7 @@ window.renderProfile = function renderProfile(res){
     var followBtn = document.getElementById('scFollowBtn');
     if(!followBtn) return;
 
-    // Owner: hide completely
-    if(_vt === 'owner'){
-      followBtn.style.display = 'none';
-      return;
-    }
+    // Reset any previous inline display — CSS handles owner hide/preview show
     followBtn.style.display = '';
 
     function _setBtn(following, newCount){
@@ -635,7 +631,15 @@ window.renderProfile = function renderProfile(res){
     _setBtn(_isFollowing, null);
 
     followBtn.onclick = function(){
-      // Guest: prompt login, no API call
+      // Preview mode: visual only, no API
+      var _isPreview = document.body.classList.contains('preview-public-user')
+                    || document.body.classList.contains('preview-guest');
+      if(_isPreview){
+        if(window.toast) toast('هذه معاينة فقط');
+        return;
+      }
+
+      // Guest or owner (can_follow=false): prompt login
       if(_vt === 'guest' || !_canFollow){
         if(window.toast) toast('سجّل الدخول لمتابعة هذا الحساب');
         return;
