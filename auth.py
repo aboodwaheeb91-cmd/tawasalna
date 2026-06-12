@@ -56,7 +56,14 @@ def validate_no_emoji(value, field: str = "هذا الحقل") -> None:
 
 # ══ Profanity / Professional Content Filter ══
 _PROFANITY = frozenset([
-    # English — clearly offensive / sexual terms (no medical/professional false positives)
+    # ─── English: explicit sexual terms (new additions) ─────────────────────
+    # Short — word-level match only (len < 5, won't substring-match inside longer words)
+    'ass', 'anus', 'anal', 'cock', 'cum', 'dick', 'rape', 'sex', 'tit', 'tits',
+    # Medium/long — substring match (len >= 5)
+    'pussy', 'penis', 'boobs', 'naked', 'horny', 'boner', 'nudes', 'vulva',
+    'rapist', 'orgasm', 'vagina', 'erotic', 'incest', 'sexting', 'camgirl',
+    'creampie', 'gangbang', 'onlyfans', 'ejaculat', 'pedophil', 'necrophil', 'bestiality',
+    # ─── English: original list ──────────────────────────────────────────────
     'fuck', 'fucking', 'fucked', 'fucker', 'fucks', 'motherfucker', 'motherfucking',
     'shit', 'bullshit', 'shitting',
     'cunt', 'cunts',
@@ -68,7 +75,12 @@ _PROFANITY = frozenset([
     'porn', 'porno', 'pornography', 'pornographic',
     'blowjob', 'handjob', 'rimjob', 'cumshot',
     'dildo', 'masturbate', 'masturbation',
-    # Arabic — clearly vulgar / offensive
+    # ─── Arabic: explicit sexual / vulgar terms (new additions) ─────────────
+    # Short — word-level match only
+    'زب', 'طيز', 'كس', 'ير', 'خول', 'زناء', 'لواط',
+    # Medium/long — substring match
+    'إباحي', 'إباحية', 'زانية', 'عاهرة', 'دعارة', 'ماخور', 'استمناء',
+    # ─── Arabic: original list ───────────────────────────────────────────────
     'نيك', 'ينيك', 'ينكح', 'بنيك',
     'شرموطة', 'شراميط',
     'قحبة', 'قحاب',

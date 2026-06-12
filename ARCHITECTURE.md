@@ -3011,6 +3011,8 @@ validate_professional_text(value, field) → None
            + فحص _PROFANITY frozenset       # profanity check
 ```
 
+> **تحديث (2026-06-12):** تم توسيع قائمتي `_PROFANITY` (backend) و `_BAD` (frontend) من 26 إلى ~65 مصطلحاً لتشمل مصطلحات جنسية وإساءة إضافية بالعربي والإنجليزي — القائمة التفصيلية تبقى داخل الكود فقط ولا تُنشر.
+
 **قائمة الحقول المحمية (backend):**
 
 | Endpoint | الحقول |
