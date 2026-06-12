@@ -263,7 +263,8 @@
 .sc-pane.active { display:block; animation:fade .25s; }
 @keyframes fade { from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:none;} }
 
-.sc-skills { display:flex; flex-wrap:wrap; gap:8px; }
+/* Skill cards pane — block container, not the old chip flex-wrap */
+.sc-skills { display:block; }
 .sc-skill { padding:7px 13px; border-radius:20px; background:rgba(0,200,150,.1);
   color:var(--ac,#00c896); font-size:.78rem; }
 
@@ -721,24 +722,28 @@ body.view-owner .av-cam-btn { display:flex; }
 }
 .sc-skill-chip .sk-ic { stroke:#00c896; opacity:.75; }
 .sk-ac-item .sk-ic { width:14px; height:14px; stroke:rgba(255,255,255,.4); }
-/* Icon inside skill card (larger, accent) */
-.sc-skill-card .sk-ic { width:15px; height:15px; stroke:#00c896; opacity:.7; flex-shrink:0; }
+/* Icon inside full-width skill card */
+.sc-skill-card .sk-ic { width:17px; height:17px; stroke:#00c896; opacity:.75; flex-shrink:0; }
 
 /* ── Skill cards (vertical list) ── */
 .sc-skill-header {
   display:flex; flex-wrap:wrap; align-items:center;
   gap:8px 14px; margin-bottom:14px;
 }
-.sc-skill-list { display:flex; flex-direction:column; gap:10px; margin-bottom:8px; }
+.sc-skill-list { display:flex; flex-direction:column; gap:10px; width:100%; margin-bottom:8px; }
 .sc-skill-card {
-  padding:12px 14px; border-radius:12px;
+  width:100%; box-sizing:border-box;
+  padding:13px 16px; border-radius:12px;
   border:1px solid rgba(255,255,255,.08);
   background:rgba(255,255,255,.03);
 }
 .sc-skill-card-top {
   display:flex; align-items:center; gap:8px; flex-wrap:nowrap;
 }
-.sc-skill-card-top .sc-skill-name { flex:1; min-width:0; font-weight:700; color:#e0e0e0; font-size:.88rem; }
+.sc-skill-card-top .sc-skill-name {
+  flex:1; min-width:0; font-weight:700; color:#e0e0e0; font-size:.9rem;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
 .sc-skill-note {
   margin:6px 0 0; font-size:.78rem;
   color:rgba(255,255,255,.48); line-height:1.55;
