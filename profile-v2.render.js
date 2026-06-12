@@ -601,9 +601,69 @@ window.renderProfile = function renderProfile(res){
   window._scViewerType = _vt;
   window._scUserId     = p.id;
 
+  // ── Follow button ──
+  var _isFollowing  = !!res.is_following;
+  var _canFollow    = !!(res.permissions && res.permissions.can_follow);
+  var _followCount  = (res.followers_count != null) ? res.followers_count : 0;
+
+  // Populate followers counter from API
+  setText('scStatFollowers', _followCount);
+
+  (function(){
+    var followBtn = document.getElementById('scFollowBtn');
+    if(!followBtn) return;
+
+    // Owner: hide completely
+    if(_vt === 'owner'){
+      followBtn.style.display = 'none';
+      return;
+    }
+    followBtn.style.display = '';
+
+    function _setBtn(following, newCount){
+      if(following){
+        followBtn.className = 'sc-btn sc-btn--following';
+        followBtn.innerHTML = '<i data-lucide="user-check" class="ico-sm"></i> متابَع';
+      } else {
+        followBtn.className = 'sc-btn sc-btn-primary';
+        followBtn.innerHTML = '<i data-lucide="user-plus" class="ico-sm"></i> متابعة';
+      }
+      if(newCount != null) setText('scStatFollowers', newCount);
+      if(window.lucide && lucide.createIcons) lucide.createIcons();
+    }
+
+    _setBtn(_isFollowing, null);
+
+    followBtn.onclick = function(){
+      // Guest: prompt login, no API call
+      if(_vt === 'guest' || !_canFollow){
+        if(window.toast) toast('سجّل الدخول لمتابعة هذا الحساب');
+        return;
+      }
+
+      if(followBtn.disabled) return;
+      followBtn.disabled = true;
+
+      var _req = _isFollowing
+        ? window.unfollowProfile(p.id)
+        : window.followProfile(p.id);
+
+      _req.then(function(r){
+        if(r.ok){
+          _isFollowing = !!r.data.is_following;
+          _setBtn(_isFollowing, r.data.followers_count);
+        } else {
+          if(window.toast) toast('حدث خطأ، حاول مرة أخرى');
+        }
+      }).catch(function(){
+        if(window.toast) toast('خطأ في الاتصال');
+      }).finally(function(){
+        followBtn.disabled = false;
+      });
+    };
+  })();
+
   // Action buttons — onclick overwrites safely on each re-render
-  var followBtn=document.getElementById('scFollowBtn');
-  if(followBtn) followBtn.onclick=function(){ toast('ميزة المتابعة قريباً'); };
   var contactBtn=document.getElementById('scContactBtn');
   if(contactBtn) contactBtn.onclick=function(){ window.location.href='/messages'; };
   var fullBtn=document.getElementById('scFullBtn');
