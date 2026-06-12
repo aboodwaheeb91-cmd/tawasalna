@@ -607,7 +607,7 @@ window.renderProfile = function renderProfile(res){
   var _followCount  = (res.followers_count != null) ? res.followers_count : 0;
 
   // Populate followers counter from API
-  setText('scStatFollowers', _followCount);
+  setText('scStatFollowers', formatCompactCount(_followCount));
 
   (function(){
     var followBtn = document.getElementById('scFollowBtn');
@@ -624,7 +624,7 @@ window.renderProfile = function renderProfile(res){
         followBtn.className = 'sc-btn sc-btn-primary';
         followBtn.innerHTML = '<i data-lucide="user-plus" class="ico-sm"></i> متابعة';
       }
-      if(newCount != null) setText('scStatFollowers', newCount);
+      if(newCount != null) setText('scStatFollowers', formatCompactCount(newCount));
       if(window.lucide && lucide.createIcons) lucide.createIcons();
     }
 
@@ -730,7 +730,7 @@ window.renderProfile = function renderProfile(res){
     getProfile(_scProfileId)
       .then(function(res){
         if(!res || res.followers_count == null) return;
-        setText('scStatFollowers', res.followers_count);
+        setText('scStatFollowers', formatCompactCount(res.followers_count));
         if(window._scProfile) window._scProfile.followers_count = res.followers_count;
       })
       .catch(function(){ /* silent */ });

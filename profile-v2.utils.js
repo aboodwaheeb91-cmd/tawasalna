@@ -10,6 +10,15 @@ window.hasEmoji = (function(){
 function esc(s){ var d=document.createElement('div'); d.textContent=s==null?'':String(s); return d.innerHTML; }
 function setText(id,v){ var el=document.getElementById(id); if(el) el.textContent=v==null?'':v; }
 
+function formatCompactCount(value){
+  var n = (value == null || value === '') ? 0 : parseInt(value, 10);
+  if(isNaN(n)) n = 0;
+  if(n < 1000) return String(n);
+  if(n < 1000000) return Math.floor(n / 1000) + 'k';
+  return Math.floor(n / 1000000) + 'M';
+}
+window.formatCompactCount = formatCompactCount;
+
 function renderIcons(){
   if(window.lucide && lucide.createIcons){ lucide.createIcons(); return true; }
   return false;

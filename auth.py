@@ -375,6 +375,28 @@ def init_db():
         except Exception as _pfe:
             print(f"[init_db] profile_follows setup note: {_pfe}")
 
+        # ── Profile Views ──
+        try:
+            conn.run("""
+                CREATE TABLE IF NOT EXISTS profile_views (
+                    id              SERIAL PRIMARY KEY,
+                    viewed_user_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    viewer_user_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    viewed_at       TIMESTAMPTZ DEFAULT NOW()
+                )
+            """)
+            # Migration: drop old UNIQUE/CHECK constraints from prior version (event-log redesign)
+            try: conn.run("ALTER TABLE profile_views DROP CONSTRAINT IF EXISTS uq_profile_view")
+            except Exception: pass
+            try: conn.run("ALTER TABLE profile_views DROP CONSTRAINT IF EXISTS no_self_profile_view")
+            except Exception: pass
+            # Composite index for "last view" lookup (24h check query)
+            conn.run("CREATE INDEX IF NOT EXISTS idx_pv_pair_time ON profile_views(viewed_user_id, viewer_user_id, viewed_at DESC)")
+            # Index for COUNT(*) per profile
+            conn.run("CREATE INDEX IF NOT EXISTS idx_pv_viewed ON profile_views(viewed_user_id)")
+        except Exception as _pve:
+            print(f"[init_db] profile_views setup note: {_pve}")
+
         # ── Profession Categories System ──
         conn.run("""
             CREATE TABLE IF NOT EXISTS profession_categories (
@@ -2133,6 +2155,43 @@ def is_profile_following(follower_id: int, followed_id: int) -> bool:
             "SELECT 1 FROM profile_follows WHERE follower_id = :frid AND followed_id = :fdid",
             frid=follower_id, fdid=followed_id)
         return bool(rows)
+    finally:
+        release_conn(conn)
+
+
+# ══ Profile Views System ══
+
+def record_profile_view(viewed_user_id: int, viewer_user_id: int) -> bool:
+    """Record a profile view. 24h anti-duplicate: same viewer only counted once per 24h window.
+    Returns True if a new view row was inserted, False if within 24h cooldown."""
+    if viewed_user_id == viewer_user_id:
+        return False
+    conn = get_conn()
+    try:
+        rows = conn.run(
+            "SELECT 1 FROM profile_views "
+            "WHERE viewed_user_id = :vuid AND viewer_user_id = :viid "
+            "AND viewed_at > NOW() - INTERVAL '24 hours' "
+            "LIMIT 1",
+            vuid=viewed_user_id, viid=viewer_user_id)
+        if rows:
+            return False
+        conn.run(
+            "INSERT INTO profile_views (viewed_user_id, viewer_user_id) VALUES (:vuid, :viid)",
+            vuid=viewed_user_id, viid=viewer_user_id)
+        return True
+    finally:
+        release_conn(conn)
+
+
+def get_profile_views_count(viewed_user_id: int) -> int:
+    """Return total number of unique viewers for a profile."""
+    conn = get_conn()
+    try:
+        rows = conn.run(
+            "SELECT COUNT(*) FROM profile_views WHERE viewed_user_id = :vuid",
+            vuid=viewed_user_id)
+        return rows[0][0] if rows else 0
     finally:
         release_conn(conn)
 
