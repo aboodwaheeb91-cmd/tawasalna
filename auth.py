@@ -382,13 +382,18 @@ def init_db():
                     id              SERIAL PRIMARY KEY,
                     viewed_user_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
                     viewer_user_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                    viewed_at       TIMESTAMPTZ DEFAULT NOW(),
-                    CONSTRAINT uq_profile_view      UNIQUE (viewed_user_id, viewer_user_id),
-                    CONSTRAINT no_self_profile_view CHECK  (viewed_user_id != viewer_user_id)
+                    viewed_at       TIMESTAMPTZ DEFAULT NOW()
                 )
             """)
+            # Migration: drop old UNIQUE/CHECK constraints from prior version (event-log redesign)
+            try: conn.run("ALTER TABLE profile_views DROP CONSTRAINT IF EXISTS uq_profile_view")
+            except Exception: pass
+            try: conn.run("ALTER TABLE profile_views DROP CONSTRAINT IF EXISTS no_self_profile_view")
+            except Exception: pass
+            # Composite index for "last view" lookup (24h check query)
+            conn.run("CREATE INDEX IF NOT EXISTS idx_pv_pair_time ON profile_views(viewed_user_id, viewer_user_id, viewed_at DESC)")
+            # Index for COUNT(*) per profile
             conn.run("CREATE INDEX IF NOT EXISTS idx_pv_viewed ON profile_views(viewed_user_id)")
-            conn.run("CREATE INDEX IF NOT EXISTS idx_pv_viewer ON profile_views(viewer_user_id)")
         except Exception as _pve:
             print(f"[init_db] profile_views setup note: {_pve}")
 
@@ -2156,19 +2161,25 @@ def is_profile_following(follower_id: int, followed_id: int) -> bool:
 
 # ══ Profile Views System ══
 
-def record_profile_view(viewed_user_id: int, viewer_user_id: int) -> None:
-    """Record a profile view. 24h anti-duplicate: same viewer only counted once per 24h."""
+def record_profile_view(viewed_user_id: int, viewer_user_id: int) -> bool:
+    """Record a profile view. 24h anti-duplicate: same viewer only counted once per 24h window.
+    Returns True if a new view row was inserted, False if within 24h cooldown."""
     if viewed_user_id == viewer_user_id:
-        return
+        return False
     conn = get_conn()
     try:
-        conn.run(
-            "INSERT INTO profile_views (viewed_user_id, viewer_user_id) "
-            "VALUES (:vuid, :viid) "
-            "ON CONFLICT (viewed_user_id, viewer_user_id) "
-            "DO UPDATE SET viewed_at = NOW() "
-            "WHERE profile_views.viewed_at < NOW() - INTERVAL '24 hours'",
+        rows = conn.run(
+            "SELECT 1 FROM profile_views "
+            "WHERE viewed_user_id = :vuid AND viewer_user_id = :viid "
+            "AND viewed_at > NOW() - INTERVAL '24 hours' "
+            "LIMIT 1",
             vuid=viewed_user_id, viid=viewer_user_id)
+        if rows:
+            return False
+        conn.run(
+            "INSERT INTO profile_views (viewed_user_id, viewer_user_id) VALUES (:vuid, :viid)",
+            vuid=viewed_user_id, viid=viewer_user_id)
+        return True
     finally:
         release_conn(conn)
 
