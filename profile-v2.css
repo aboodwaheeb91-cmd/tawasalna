@@ -767,12 +767,14 @@ body.view-owner .av-cam-btn { display:flex; }
 
 /* ── Skill level legend ── */
 .sc-skill-legend {
-  display:flex; flex-wrap:wrap; gap:4px 10px;
-  align-items:center; font-size:.72rem; color:rgba(255,255,255,.42);
+  width:100%; /* own row inside flex-wrap header */
+  display:flex; flex-wrap:wrap; gap:6px 16px;
+  justify-content:center; align-items:center;
+  font-size:.8rem; color:rgba(255,255,255,.55);
 }
-.sc-legend-item { display:flex; align-items:center; gap:4px; white-space:nowrap; }
+.sc-legend-item { display:flex; align-items:center; gap:5px; white-space:nowrap; }
 .sc-legend-dot {
-  display:inline-block; width:7px; height:7px;
+  display:inline-block; width:9px; height:9px;
   border-radius:50%; flex-shrink:0;
 }
 .sc-legend-beginner { background:#9ca3af; }
