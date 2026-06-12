@@ -522,6 +522,7 @@ class LoginInput(BaseModel):
 class ProfileUpdateInput(BaseModel):
     headline: Optional[str] = None
     bio: Optional[str] = None
+    short_bio: Optional[str] = None
     location: Optional[str] = None
     skills: Optional[List[str]] = None
     avatar_url: Optional[str] = None

@@ -350,6 +350,7 @@ def init_db():
             "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS middle_name TEXT",
             "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS last_name TEXT",
             "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS cover_url TEXT",
+            "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS short_bio TEXT",
         ]:
             try: conn.run(col_sql)
             except Exception: pass
@@ -862,7 +863,7 @@ def get_public_profile(user_id: int) -> Optional[dict]:
 
         try:
             rows = conn.run(
-                "SELECT p.headline, p.bio, p.location, p.skills, p.avatar_url, p.website, p.is_verified, "
+                "SELECT p.headline, p.bio, p.short_bio, p.location, p.skills, p.avatar_url, p.website, p.is_verified, "
                 "p.dob, p.phone, p.country, p.city, p.avail, p.title, p.sections_order, p.custom_sections, "
                 "p.profile_color, p.profile_style, p.profession_id, p.cover_url, "
                 "p.first_name, p.middle_name, p.last_name, "
@@ -880,8 +881,11 @@ def get_public_profile(user_id: int) -> Optional[dict]:
                 conn.run("ALTER TABLE profiles ADD COLUMN IF NOT EXISTS cover_url TEXT")
             except Exception: pass
             try:
+                conn.run("ALTER TABLE profiles ADD COLUMN IF NOT EXISTS short_bio TEXT")
+            except Exception: pass
+            try:
                 rows = conn.run(
-                    "SELECT p.headline, p.bio, p.location, p.skills, p.avatar_url, p.website, p.is_verified, "
+                    "SELECT p.headline, p.bio, p.short_bio, p.location, p.skills, p.avatar_url, p.website, p.is_verified, "
                     "p.dob, p.phone, p.country, p.city, p.avail, p.title, p.sections_order, p.custom_sections, "
                     "p.profile_color, p.profile_style, p.profession_id, p.cover_url, "
                     "p.first_name, p.middle_name, p.last_name, "
@@ -892,7 +896,7 @@ def get_public_profile(user_id: int) -> Optional[dict]:
                 )
             except Exception:
                 rows = conn.run(
-                    "SELECT headline, bio, location, skills, avatar_url, website, is_verified, "
+                    "SELECT headline, bio, short_bio, location, skills, avatar_url, website, is_verified, "
                     "dob, phone, country, city, avail, title, sections_order, custom_sections, "
                     "profile_color, profile_style, cover_url, first_name, middle_name, last_name "
                     "FROM profiles WHERE user_id = :uid", uid=user_id
@@ -936,7 +940,7 @@ def get_full_profile(user_id: int) -> Optional[dict]:
         # Columns are created in init_db migrations
         try:
             rows = conn.run(
-                "SELECT headline, bio, location, skills, avatar_url, website, is_verified, "
+                "SELECT headline, bio, short_bio, location, skills, avatar_url, website, is_verified, "
                 "updated_at, dob, phone, country, city, avail, title, sections_order, custom_sections, "
                 "profile_color, profile_style, profession_id, cover_url, "
                 "first_name, middle_name, last_name "
@@ -961,13 +965,14 @@ def get_full_profile(user_id: int) -> Optional[dict]:
                 "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS first_name TEXT",
                 "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS middle_name TEXT",
                 "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS last_name TEXT",
+                "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS short_bio TEXT",
             ]:
                 try: conn.run(col_sql)
                 except Exception: pass
             # Retry with full query
             try:
                 rows = conn.run(
-                    "SELECT headline, bio, location, skills, avatar_url, website, is_verified, "
+                    "SELECT headline, bio, short_bio, location, skills, avatar_url, website, is_verified, "
                     "updated_at, dob, phone, country, city, avail, title, sections_order, custom_sections, "
                     "profile_color, profile_style, profession_id, cover_url, "
                     "first_name, middle_name, last_name "
@@ -1010,7 +1015,7 @@ def get_full_profile(user_id: int) -> Optional[dict]:
 
 
 def update_profile(user_id: int, data: dict) -> dict:
-    _TEXT_FIELDS = ("full_name", "first_name", "middle_name", "last_name", "bio", "headline", "title", "location", "phone", "website")
+    _TEXT_FIELDS = ("full_name", "first_name", "middle_name", "last_name", "bio", "short_bio", "headline", "title", "location", "phone", "website")
     for _f in _TEXT_FIELDS:
         validate_professional_text(data.get(_f), _f)
 
@@ -1035,7 +1040,7 @@ def update_profile(user_id: int, data: dict) -> dict:
             conn.run("UPDATE users SET full_name = :name WHERE id = :uid", name=data["full_name"], uid=user_id)
 
         # Schema guaranteed by init_db — no runtime ALTER TABLE needed
-        allowed = ["headline", "bio", "location", "skills", "avatar_url", "website", "phone", "sections_order", "custom_sections", "dob", "country", "city", "avail", "title", "profile_color", "profile_style", "profession_id", "first_name", "middle_name", "last_name", "cover_url"]
+        allowed = ["headline", "bio", "short_bio", "location", "skills", "avatar_url", "website", "phone", "sections_order", "custom_sections", "dob", "country", "city", "avail", "title", "profile_color", "profile_style", "profession_id", "first_name", "middle_name", "last_name", "cover_url"]
         _clearable = {"dob", "country", "city", "avail"}
         fields = {k: v for k, v in data.items() if k in allowed and (v is not None or k in _clearable)}
         print(f"[update_profile] user={user_id} saving fields: {list(fields.keys())}")

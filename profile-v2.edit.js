@@ -98,10 +98,21 @@
       requestAnimationFrame(function(){ if(window._fitName) window._fitName(); });
     }
 
-    // Bio — update header bio, about tab, and overflow button
+    // نبذة رقم 1 (header) — short_bio only, never touches About tab
+    if(payload.short_bio !== undefined){
+      var headerBioEl = document.getElementById('scBio');
+      if(headerBioEl) headerBioEl.textContent = payload.short_bio;
+      requestAnimationFrame(function(){
+        if(headerBioEl){
+          var moreBtn = document.getElementById('scBioMore');
+          if(moreBtn) moreBtn.style.display = headerBioEl.scrollHeight > headerBioEl.clientHeight + 2 ? 'inline-block' : 'none';
+        }
+      });
+      if(window._scProfile) window._scProfile.short_bio = payload.short_bio;
+    }
+
+    // نبذة رقم 2 (About tab) — bio only, never touches header
     if(payload.bio !== undefined){
-      var bioEl = document.getElementById('scBio');
-      if(bioEl) bioEl.textContent = payload.bio;
       var aboutEl = document.getElementById('scAboutText');
       if(aboutEl){
         aboutEl.textContent = payload.bio || 'لا توجد نبذة بعد';
@@ -109,12 +120,6 @@
         var _hint = _card && _card.querySelector('.sc-ab-empty-hint');
         if(_hint) _hint.style.display = 'none';
       }
-      requestAnimationFrame(function(){
-        if(bioEl){
-          var moreBtn = document.getElementById('scBioMore');
-          if(moreBtn) moreBtn.style.display = bioEl.scrollHeight > bioEl.clientHeight + 2 ? 'inline-block' : 'none';
-        }
-      });
       if(window._scProfile) window._scProfile.bio = payload.bio;
     }
 
@@ -247,7 +252,11 @@
         .catch(function(){ profEl.innerHTML = '<option value="">تعذّر تحميل التخصصات</option>'; });
     }
 
-    // Bio
+    // Short bio (header — نبذة رقم 1)
+    var shortBioEl = document.getElementById('epShortBio');
+    if(shortBioEl) shortBioEl.value = p.short_bio || '';
+
+    // Bio (About tab — نبذة رقم 2)
     var bioEl = document.getElementById('epBio');
     if(bioEl) bioEl.value = p.bio || '';
 
@@ -276,12 +285,14 @@
     ['epFirstName','epMidName','epLastName'].forEach(function(id){
       var el = document.getElementById(id); if(el) el.classList.remove('ep-input-err');
     });
-    ['epNameErr','epBioErr'].forEach(function(id){
+    ['epNameErr','epShortBioErr','epBioErr'].forEach(function(id){
       var div = document.getElementById(id);
       if(div){ div.textContent=''; div.classList.remove('show'); }
     });
     var bio = document.getElementById('epBio');
     if(bio) bio.classList.remove('ep-input-err');
+    var shortBio = document.getElementById('epShortBio');
+    if(shortBio) shortBio.classList.remove('ep-input-err');
   }
 
   // Auto-clear name row when user edits and content is now clean
@@ -304,6 +315,13 @@
   ['epFirstName','epMidName','epLastName'].forEach(function(id){
     var el = document.getElementById(id);
     if(el) el.addEventListener('input', _checkNameErr);
+  });
+
+  // Auto-clear short bio error
+  var _epShortBioInput = document.getElementById('epShortBio');
+  if(_epShortBioInput) _epShortBioInput.addEventListener('input', function(){
+    if(!window._scCheckProfessional || !window._scCheckProfessional(_epShortBioInput.value))
+      _clearFieldErr(_epShortBioInput, 'epShortBioErr');
   });
 
   // Auto-clear bio error
@@ -346,9 +364,10 @@
     var city    = ((document.getElementById('epCity')      ||{}).value||'').trim();
     var avail   = ((document.getElementById('epAvail')     ||{}).value||'').trim();
     var profVal = ((document.getElementById('epProfession')||{}).value||'').trim();
-    var bioVal  = ((document.getElementById('epBio')       ||{}).value||'').trim();
+    var shortBioVal = ((document.getElementById('epShortBio')||{}).value||'').trim();
+    var bioVal      = ((document.getElementById('epBio')     ||{}).value||'').trim();
 
-    var payload = { bio: bioVal };
+    var payload = { short_bio: shortBioVal, bio: bioVal };
     // Send name parts — backend builds full_name automatically
     payload.first_name  = first;
     payload.middle_name = mid;
@@ -366,7 +385,8 @@
       {v: first,  inputId: 'epFirstName', errId: 'epNameErr'},
       {v: mid,    inputId: 'epMidName',   errId: 'epNameErr'},
       {v: last,   inputId: 'epLastName',  errId: 'epNameErr'},
-      {v: bioVal, inputId: 'epBio',       errId: 'epBioErr'}
+      {v: shortBioVal, inputId: 'epShortBio', errId: 'epShortBioErr'},
+      {v: bioVal,      inputId: 'epBio',      errId: 'epBioErr'}
     ];
     var _lastErrMsg = _CONTENT_MSG;
     for(var _ei=0; _ei<_checkFields.length; _ei++){

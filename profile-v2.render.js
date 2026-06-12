@@ -99,8 +99,6 @@ window._aboutBioSave = function(){
     var textEl = document.getElementById('scAboutText');
     if(textEl){ textEl.textContent = bio; textEl.classList.remove('sc-bio-expanded'); }
     if(ta) ta.value = bio;
-    var headerBio = document.getElementById('scBio');
-    if(headerBio) headerBio.textContent = bio;
     var _card = textEl && textEl.closest && textEl.closest('.sc-ab-card');
     var _hint = _card && _card.querySelector('.sc-ab-empty-hint');
     if(_hint) _hint.style.display = 'none';
@@ -419,7 +417,7 @@ window.renderProfile = function renderProfile(res){
 
   // Identity
   setText('scName', p.full_name || '—');
-  setText('scBio', p.bio || '');
+  setText('scBio', p.short_bio || '');
 
   // Title + profession icon (Doctrine §27) — fallback = briefcase
   var titleEl = document.getElementById('scTitle');
