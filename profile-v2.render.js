@@ -13,6 +13,204 @@
   if(menuBtn) menuBtn.onclick=function(){ history.back(); };
 })();
 
+// ── About tab: navigate to another tab by name ──
+window._aboutGoTab = function(tab){
+  var btn = document.querySelector('.sc-tab[data-tab="' + tab + '"]');
+  if(window.scTab) window.scTab(tab, btn || null);
+};
+
+// ── About Pane builder — summary cards ──
+function _buildAboutPane(p, isOwner){
+  var sections = [];
+
+  // shared inline SVGs (no Lucide dependency in this pane)
+  var _icoUser = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>';
+  var _icoZap  = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>';
+  var _icoBag  = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>';
+  var _icoBook = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>';
+  var _icoGrad = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>';
+  var _icoLang = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M5 8l6 6"/><path d="M4 14l6-6 2-3"/><path d="M2 5h12"/><path d="M7 2h1"/><path d="M22 22l-5-10-5 10"/><path d="M14 18h6"/></svg>';
+  var _icoPen  = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" width="13" height="13"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>';
+
+  function _viewAll(tab){
+    return '<button class="sc-ab-viewall" onclick="window._aboutGoTab(\''+tab+'\')">'
+      + 'عرض الكل &#x276F;</button>';
+  }
+
+  // ── 1. Bio card ──
+  var bio = (p.bio || '').trim();
+  var editBtn = isOwner
+    ? '<button class="sc-ab-edit owner-only" onclick="document.getElementById(\'scEditProfileBtn\').click()" title="تعديل النبذة">'
+      + _icoPen + ' تعديل</button>'
+    : '';
+  sections.push(
+    '<div class="sc-ab-card">'
+    + '<div class="sc-ab-head">'
+    + '<span class="sc-ab-title">'+_icoUser+' نبذة عني</span>'
+    + editBtn
+    + '</div>'
+    + '<div class="sc-bio-text" id="scAboutText">' + esc(bio || (isOwner ? '' : 'لا توجد نبذة بعد')) + '</div>'
+    + (isOwner && !bio ? '<div class="sc-ab-empty-hint">أضف نبذة تعريفية من زر التعديل أعلاه</div>' : '')
+    + '</div>'
+  );
+
+  // ── 2. Skills card ──
+  var skills = Array.isArray(p.skills) ? p.skills.map(function(s){ return typeof s==='object'?s:{skill:s}; }) : [];
+  if(skills.length || isOwner){
+    var _RANK = {'محترف':5,'متقدم':4,'جيد':3,'متوسط':2,'مبتدئ':1};
+    var _CLR  = {'مبتدئ':'#9ca3af','متوسط':'#60a5fa','جيد':'#a78bfa','متقدم':'#00c896','محترف':'#fbbf24'};
+    var sk3 = skills.slice().sort(function(a,b){ return ((_RANK[b.level]||0)-(_RANK[a.level]||0)); }).slice(0,3);
+    var skInner = '';
+    if(sk3.length){
+      skInner = '<div class="sc-ab-chips">';
+      for(var _si=0;_si<sk3.length;_si++){
+        var _s=sk3[_si], _c=_CLR[_s.level]||'#9ca3af';
+        skInner += '<span class="sc-ab-chip" style="border-color:'+_c+'44;color:'+_c+'">' + esc(_s.skill||'') + '</span>';
+      }
+      skInner += '</div>';
+    } else {
+      skInner = isOwner ? '<div class="sc-ab-empty-hint">أضف مهاراتك لتظهر هنا</div>' : '';
+    }
+    if(skInner)
+      sections.push(
+        '<div class="sc-ab-card">'
+        + '<div class="sc-ab-head"><span class="sc-ab-title">'+_icoZap+' المهارات</span>'
+        + (skills.length ? _viewAll('skills') : '')
+        + '</div>'
+        + skInner + '</div>'
+      );
+  }
+
+  // ── 3. Experience card ──
+  var exp = Array.isArray(p.experience) ? p.experience : [];
+  if(exp.length || isOwner){
+    var expInner = '';
+    if(exp.length){
+      expInner = '<div class="sc-ab-rows">';
+      for(var _ei=0;_ei<Math.min(exp.length,3);_ei++){
+        var _e=exp[_ei];
+        var _et = esc(_e.title||'');
+        var _eco = _e.company ? esc(_e.company) : '';
+        var _ep = _e.start_date
+          ? esc(_e.start_date)+(_e.is_current?' – الآن':(_e.end_date?' – '+esc(_e.end_date):''))
+          : '';
+        var _emeta = [_eco,_ep].filter(Boolean).join(' · ');
+        expInner += '<div class="sc-ab-row"><div class="sc-ab-row-t">'+_et+'</div>'
+          + (_emeta?'<div class="sc-ab-row-d">'+_emeta+'</div>':'')
+          + '</div>';
+      }
+      expInner += '</div>';
+    } else {
+      expInner = isOwner ? '<div class="sc-ab-empty-hint">أضف خبراتك لتظهر هنا</div>' : '';
+    }
+    if(expInner)
+      sections.push(
+        '<div class="sc-ab-card">'
+        + '<div class="sc-ab-head"><span class="sc-ab-title">'+_icoBag+' الخبرات</span>'
+        + (exp.length ? _viewAll('exp') : '')
+        + '</div>'
+        + expInner + '</div>'
+      );
+  }
+
+  // ── 4. Courses card ──
+  var courses = Array.isArray(p.courses) ? p.courses : [];
+  if(courses.length || isOwner){
+    var crsInner = '';
+    if(courses.length){
+      crsInner = '<div class="sc-ab-rows">';
+      for(var _ci=0;_ci<Math.min(courses.length,3);_ci++){
+        var _cr=courses[_ci];
+        var _ct = esc(_cr.title||'');
+        var _cp = _cr.provider ? esc(_cr.provider) : '';
+        var _cd = _cr.completion_date ? esc(String(_cr.completion_date).split('-')[0]) : '';
+        var _cmeta = [_cp,_cd].filter(Boolean).join(' · ');
+        crsInner += '<div class="sc-ab-row"><div class="sc-ab-row-t">'+_ct+'</div>'
+          + (_cmeta?'<div class="sc-ab-row-d">'+_cmeta+'</div>':'')
+          + '</div>';
+      }
+      crsInner += '</div>';
+    } else {
+      crsInner = isOwner ? '<div class="sc-ab-empty-hint">أضف دوراتك لتظهر هنا</div>' : '';
+    }
+    if(crsInner)
+      sections.push(
+        '<div class="sc-ab-card">'
+        + '<div class="sc-ab-head"><span class="sc-ab-title">'+_icoBook+' الدورات</span>'
+        + (courses.length ? _viewAll('courses') : '')
+        + '</div>'
+        + crsInner + '</div>'
+      );
+  }
+
+  // ── 5. Education card ──
+  var edu = Array.isArray(p.education) ? p.education : [];
+  if(edu.length || isOwner){
+    var eduInner = '';
+    if(edu.length){
+      eduInner = '<div class="sc-ab-rows">';
+      for(var _di=0;_di<Math.min(edu.length,3);_di++){
+        var _d=edu[_di];
+        var _deg  = _d.degree ? esc(_d.degree) : '';
+        var _fld  = _d.field  ? esc(_d.field)  : '';
+        var _dtitle = _deg ? (_deg+(_fld?' – '+_fld:'')) : (_fld||'شهادة');
+        var _inst = _d.institution ? esc(_d.institution) : '';
+        var _dper = _d.start_year
+          ? (String(_d.start_year)+(_d.is_current?' – قيد الدراسة':(_d.end_year?' – '+String(_d.end_year):'')))
+          : '';
+        var _dmeta = [_inst,_dper].filter(Boolean).join(' · ');
+        eduInner += '<div class="sc-ab-row"><div class="sc-ab-row-t">'+_dtitle+'</div>'
+          + (_dmeta?'<div class="sc-ab-row-d">'+_dmeta+'</div>':'')
+          + '</div>';
+      }
+      eduInner += '</div>';
+    } else {
+      eduInner = isOwner ? '<div class="sc-ab-empty-hint">أضف شهاداتك لتظهر هنا</div>' : '';
+    }
+    if(eduInner)
+      sections.push(
+        '<div class="sc-ab-card">'
+        + '<div class="sc-ab-head"><span class="sc-ab-title">'+_icoGrad+' التعليم</span>'
+        + (edu.length ? _viewAll('edu') : '')
+        + '</div>'
+        + eduInner + '</div>'
+      );
+  }
+
+  // ── 6. Languages card ──
+  var langs = Array.isArray(p.langs) ? p.langs : [];
+  if(langs.length || isOwner){
+    var langInner = '';
+    if(langs.length){
+      langInner = '<div class="sc-ab-chips">';
+      for(var _li=0;_li<langs.length;_li++){
+        var _l=langs[_li];
+        var _lv = _l.level ? '<span class="sc-ab-chip-sub">'+esc(_l.level)+'</span>' : '';
+        langInner += '<span class="sc-ab-chip sc-ab-chip--lang">'+esc(_l.language||'')+_lv+'</span>';
+      }
+      langInner += '</div>';
+    } else {
+      langInner = isOwner ? '<div class="sc-ab-empty-hint">أضف لغاتك لتظهر هنا</div>' : '';
+    }
+    if(langInner)
+      sections.push(
+        '<div class="sc-ab-card">'
+        + '<div class="sc-ab-head"><span class="sc-ab-title">'+_icoLang+' اللغات</span>'
+        + (langs.length ? _viewAll('langs') : '')
+        + '</div>'
+        + langInner + '</div>'
+      );
+  }
+
+  return sections.join('');
+}
+
+window._reRenderAbout = function(){
+  var pane = document.getElementById('pane-about');
+  if(!pane || !window._scProfile) return;
+  pane.innerHTML = _buildAboutPane(window._scProfile, window._scViewerType === 'owner');
+};
+
 // ── Experience HTML builder (shared with profile-v2.exp.js) ──
 window._buildExpHTML = function(exp, isOwner){
   var addBtn = isOwner
@@ -236,9 +434,9 @@ window.renderProfile = function renderProfile(res){
     }
   });
 
-  // Tab: About
-  var aboutEl=document.getElementById('scAboutText');
-  if(aboutEl) aboutEl.textContent = p.bio || 'لا توجد نبذة بعد';
+  // Tab: About — summary cards
+  var aboutPane = document.getElementById('pane-about');
+  if(aboutPane) aboutPane.innerHTML = _buildAboutPane(p, _vt === 'owner');
 
   // Tab: Skills
   var skEl=document.getElementById('scSkillsPane');
