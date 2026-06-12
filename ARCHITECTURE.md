@@ -3011,6 +3011,12 @@ validate_professional_text(value, field) → None
            + فحص _PROFANITY frozenset       # profanity check
 ```
 
+> **تحديث القائمة (2026-06-12):** تم توسيع `_PROFANITY` (backend) و `_BAD` (frontend) من 26 إلى ~65 كلمة لتشمل:
+> مصطلحات جنسية إنجليزية قصيرة (`ass`, `dick`, `cock`, `sex`, `cum`, `tit`, `tits`, `rape`, `anal`, `anus`),
+> مصطلحات متوسطة/طويلة (`pussy`, `penis`, `vagina`, `orgasm`, `erotic`, `incest`, ...) تطابق substring,
+> ومصطلحات عربية جديدة (`زب`, `طيز`, `كس`, `ير`, `خول`, `إباحي`, `دعارة`, `عاهرة`, ...).
+> كلا القائمتين متطابقتان تماماً للتزامن الكامل بين الطبقتين.
+
 **قائمة الحقول المحمية (backend):**
 
 | Endpoint | الحقول |

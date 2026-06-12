@@ -77,13 +77,23 @@ window.addEventListener('resize', function(){ if(window._fitName) fitName(); });
 // Mirrors backend validate_professional_text() in auth.py.
 window._scCheckProfessional = (function(){
   var _BAD = [
-    // English
+    // English: short — word-level match only (len < 5)
+    'ass','anus','anal','cock','cum','dick','rape','sex','tit','tits',
+    // English: medium/long — substring match (len >= 5)
+    'pussy','penis','boobs','naked','horny','boner','nudes','vulva',
+    'rapist','orgasm','vagina','erotic','incest','sexting','camgirl',
+    'creampie','gangbang','onlyfans','ejaculat','pedophil','necrophil','bestiality',
+    // English: original list
     'fuck','fucking','fucked','fucker','fucks','motherfucker','motherfucking',
     'shit','bullshit','shitting','cunt','cunts','bitch','bitches',
     'asshole','assholes','whore','whores','slut','sluts','bastard',
     'porn','porno','pornography','pornographic',
     'blowjob','handjob','rimjob','cumshot','dildo','masturbate','masturbation',
-    // Arabic
+    // Arabic: short — word-level match only
+    'زب','طيز','كس','ير','خول','زناء','لواط',
+    // Arabic: medium/long — substring match
+    'إباحي','إباحية','زانية','عاهرة','دعارة','ماخور','استمناء',
+    // Arabic: original list
     'نيك','ينيك','ينكح','بنيك',
     'شرموطة','شراميط',
     'قحبة','قحاب',
