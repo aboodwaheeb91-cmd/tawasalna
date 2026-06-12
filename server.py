@@ -1296,6 +1296,7 @@ def public_profile(user_id: str, request: Request):
     # Optional JWT — determines viewer_type (same pattern as /company/profile)
     viewer_type = "guest"
     is_owner    = False
+    token_uid   = None
 
     auth_header = request.headers.get("Authorization", "")
     if auth_header.startswith("Bearer "):
@@ -1308,6 +1309,13 @@ def public_profile(user_id: str, request: Request):
                 is_owner    = True
             else:
                 viewer_type = "public-user"
+
+    # ── Follow data ──
+    profile_id      = profile["id"]
+    followers_count = get_profile_followers_count(profile_id)
+    _is_following   = False
+    if viewer_type == "public-user" and token_uid:
+        _is_following = is_profile_following(int(token_uid), profile_id)
 
     if viewer_type == "owner":
         permissions = {
@@ -1335,11 +1343,13 @@ def public_profile(user_id: str, request: Request):
         }
 
     return {
-        "status":      "success",
-        "profile":     profile,
-        "viewer_type": viewer_type,
-        "is_owner":    is_owner,
-        "permissions": permissions,
+        "status":          "success",
+        "profile":         profile,
+        "viewer_type":     viewer_type,
+        "is_owner":        is_owner,
+        "followers_count": followers_count,
+        "is_following":    _is_following,
+        "permissions":     permissions,
     }
 
 @app.get("/profile/{user_id}/full")
@@ -1352,6 +1362,46 @@ def full_profile(user_id: str):
     if not profile:
         raise HTTPException(404, detail="الملف الشخصي غير موجود")
     return {"status": "success", "profile": profile}
+
+
+# ══ Profile Follow Endpoints ══
+
+@app.post("/profile/{user_id}/follow")
+def profile_follow(user_id: str, token=Depends(verify_token)):
+    viewer_id = token.get("user_id")
+    if not viewer_id:
+        raise HTTPException(401, "رمز غير صالح")
+
+    try:
+        target_id = int(user_id)
+    except ValueError:
+        raise HTTPException(400, "معرّف غير صالح")
+
+    if int(viewer_id) == target_id:
+        raise HTTPException(400, "لا يمكنك متابعة نفسك")
+
+    try:
+        count = follow_profile(int(viewer_id), target_id)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+    return {"status": "success", "is_following": True, "followers_count": count}
+
+
+@app.delete("/profile/{user_id}/follow")
+def profile_unfollow(user_id: str, token=Depends(verify_token)):
+    viewer_id = token.get("user_id")
+    if not viewer_id:
+        raise HTTPException(401, "رمز غير صالح")
+
+    try:
+        target_id = int(user_id)
+    except ValueError:
+        raise HTTPException(400, "معرّف غير صالح")
+
+    count = unfollow_profile(int(viewer_id), target_id)
+    return {"status": "success", "is_following": False, "followers_count": count}
+
 
 @app.get("/professions")
 def list_professions():
