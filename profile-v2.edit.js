@@ -105,9 +105,9 @@
       var aboutEl = document.getElementById('scAboutText');
       if(aboutEl){
         aboutEl.textContent = payload.bio || 'لا توجد نبذة بعد';
-        var _hint = aboutEl.nextElementSibling;
-        if(_hint && _hint.classList && _hint.classList.contains('sc-ab-empty-hint'))
-          _hint.style.display = 'none';
+        var _card = aboutEl.closest && aboutEl.closest('.sc-ab-card');
+        var _hint = _card && _card.querySelector('.sc-ab-empty-hint');
+        if(_hint) _hint.style.display = 'none';
       }
       requestAnimationFrame(function(){
         if(bioEl){

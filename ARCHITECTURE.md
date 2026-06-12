@@ -30,6 +30,7 @@
 | 39 | Profile V2 Internal Back Navigation | **P1** |
 | 40 | Clearable Profile Fields — Always Send Null | **P1** |
 | 41 | Experience end_date Nullable Update | **P1** |
+| 42 | About Tab Summary Cards | **P2** |
 
 ---
 
@@ -3151,3 +3152,17 @@ window._scCheckProfessional(text)
 ❌ لا تُخزّن string فارغ في DB — أرسل null إذا note فارغ
 ❌ لا تكسر skill catalog أو autocomplete أو duplicate prevention
 ```
+
+---
+
+## [P2] 42. About Tab Summary Cards
+
+The About tab is a **read-only snapshot** of the profile, auto-generated from `window._scProfile` on each `renderProfile()` call. It is not a separate data source.
+
+**Rules:**
+- Summary cards are built from existing profile state — no extra API calls.
+- Empty cards are hidden from public viewers; owner sees an "add content" hint.
+- Each card shows max 3 items with a "عرض الكل" button that switches to the full tab via `window.scTab`.
+- Bio has a dedicated inline editor (`window._aboutBioEdit/Save/Cancel`) that sends `{bio}` only to `PUT /profile/{id}`.
+- The About pane does NOT auto-update after adding items to other tabs (full tabs update in real time; About pane is rebuilt only on full page load or via `window._reRenderAbout()`).
+
