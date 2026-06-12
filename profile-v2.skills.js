@@ -1,4 +1,4 @@
-// profile-v2.skills.js — Skills with Catalog Autocomplete + Custom Skills + Lucide Icons (Phase 1)
+// profile-v2.skills.js — Skills: Catalog Autocomplete + Vertical Cards + Lucide Icons + Notes (Phase 2)
 // Depends on: profile-v2.state.js, profile-v2.api.js, profile-v2.utils.js
 
 (function(){
@@ -18,8 +18,17 @@
     return '<i data-lucide="'+(iconName||_CUSTOM_FALLBACK_ICON)+'" class="sk-ic"></i>';
   }
 
-  // ── Skill Catalog (Phase 1 — embedded; Phase 2 moves to DB) ──
-  // Format: {slug, en, ar, kw, icon}  — icon = Lucide icon name
+  // ── Level → CSS slug ──
+  var LEVEL_CSS = {
+    'مبتدئ': 'lv-beginner',
+    'متوسط': 'lv-mid',
+    'جيد':   'lv-good',
+    'متقدم': 'lv-advanced',
+    'محترف': 'lv-pro',
+  };
+
+  // ── Skill Catalog (Phase 1 — embedded) ──
+  // Format: {slug, en, ar, kw, icon}
   var CATALOG = [
     // ── Programming Languages ──
     {slug:'javascript',en:'JavaScript',ar:'جافا سكريبت',kw:'js جافاسكريبت web',icon:'code'},
@@ -371,7 +380,7 @@
   var LEVEL_WORDS = ['مبتدئ','متوسط','جيد','متقدم','محترف','متخصص','خبير',
                      'beginner','intermediate','advanced','expert','junior','senior','mid-level'];
 
-  // ── Catalog search (returns up to 8 matches) ──
+  // ── Catalog helpers ──
   function _search(q){
     if(!q || q.length < 1) return [];
     var ql = q.toLowerCase();
@@ -389,7 +398,6 @@
     return results;
   }
 
-  // ── Normalize: map input to canonical en name if it matches catalog ──
   function _normalize(raw){
     var cleaned = raw.trim();
     var ql = cleaned.toLowerCase();
@@ -406,7 +414,6 @@
     return cleaned;
   }
 
-  // ── _isOfficial: true if normalized skill name matches catalog ──
   function _isOfficial(name){
     var nl = (name || '').toLowerCase().trim();
     for(var i=0; i<CATALOG.length; i++){
@@ -415,7 +422,6 @@
     return false;
   }
 
-  // ── _getCatalogEntry: returns catalog entry for a skill name, or null ──
   function _getCatalogEntry(name){
     var nl = (name || '').toLowerCase().trim();
     for(var i=0; i<CATALOG.length; i++){
@@ -424,15 +430,13 @@
     return null;
   }
 
-  // ── Validation — returns error string or null ──
+  // ── Validation ──
   function _validate(skill){
     if(!skill) return 'اسم المهارة مطلوب';
     if(skill.length < 2) return 'اسم المهارة قصير جداً (حرفان على الأقل)';
-    // Professional content check (emoji + profanity)
     var _pcErr = window._scCheckProfessional && window._scCheckProfessional(skill);
     if(_pcErr) return _pcErr;
     if(!/[a-zA-Z؀-ۿ]/.test(skill)) return 'اسم المهارة غير صالح — يجب أن يحتوي على حروف';
-    // Detect merged "skill + level" pattern
     var sl = skill.toLowerCase();
     for(var i=0; i<LEVEL_WORDS.length; i++){
       if(sl.indexOf(LEVEL_WORDS[i]) !== -1){
@@ -442,7 +446,14 @@
     return null;
   }
 
-  // ── Case-insensitive duplicate check against current profile ──
+  function _validateNote(note){
+    if(!note) return null;
+    if(note.length > 160) return 'الملاحظة طويلة جداً — الحد الأقصى 160 حرف';
+    var _pcErr = window._scCheckProfessional && window._scCheckProfessional(note);
+    if(_pcErr) return _pcErr;
+    return null;
+  }
+
   function _isDuplicate(skill){
     var sl = skill.toLowerCase();
     var existing = (window._scProfile && window._scProfile.skills) || [];
@@ -520,11 +531,7 @@
   function _initAC(){
     var inp = f('skillName');
     if(!inp) return;
-
-    inp.addEventListener('input', function(){
-      _showDrop(_search(inp.value));
-    });
-
+    inp.addEventListener('input', function(){ _showDrop(_search(inp.value)); });
     inp.addEventListener('keydown', function(e){
       var drop = _getDrop();
       var open = drop && drop.style.display !== 'none';
@@ -533,9 +540,15 @@
       else if(e.key === 'Enter')    { if(open && _selectActive()) e.preventDefault();     }
       else if(e.key === 'Escape')   { _hideDrop();                                        }
     });
+    inp.addEventListener('blur', function(){ setTimeout(_hideDrop, 160); });
+  }
 
-    inp.addEventListener('blur', function(){
-      setTimeout(_hideDrop, 160);
+  function _initNoteCounter(){
+    var ta = f('skillNote');
+    var cnt = f('skillNoteCount');
+    if(!ta || !cnt) return;
+    ta.addEventListener('input', function(){
+      cnt.textContent = ta.value.length + ' / 160';
     });
   }
 
@@ -543,6 +556,9 @@
   function openModal(){
     sv('skillName','');
     sv('skillLevel','');
+    sv('skillNote','');
+    var cnt = f('skillNoteCount');
+    if(cnt) cnt.textContent = '0 / 160';
     _hideDrop();
     overlay.classList.add('open');
     if(window._scPushHistory) window._scPushHistory('skill');
@@ -559,15 +575,21 @@
   overlay.addEventListener('click', function(e){ if(e.target===overlay) closeModal(); });
 
   _initAC();
+  _initNoteCounter();
 
   // ── Save ──
   saveBtn.onclick = function(){
     var raw   = fv('skillName');
     var skill = _normalize(raw);
     var level = fv('skillLevel') || null;
+    var rawNote = fv('skillNote');
+    var note  = rawNote.length > 0 ? rawNote : null;
 
     var err = _validate(skill);
     if(err){ toast(err); return; }
+
+    var noteErr = _validateNote(note);
+    if(noteErr){ toast(noteErr); return; }
 
     if(_isDuplicate(skill)){
       toast('هذه المهارة موجودة مسبقاً في ملفك الشخصي');
@@ -577,7 +599,7 @@
     saveBtn.disabled    = true;
     saveBtn.textContent = 'جاري الحفظ…';
 
-    addSkill(_scUserId, {skill:skill, level:level}).then(function(res){
+    addSkill(_scUserId, {skill:skill, level:level, note:note}).then(function(res){
       if(!res.ok){
         var _det = res.data && res.data.detail;
         var _msg = (_det && typeof _det==='object' && _det.message) ? _det.message
@@ -610,7 +632,15 @@
     });
   };
 
-  // ── Build Skills HTML ──
+  // ── Build Skills HTML (vertical cards) ──
+  var _LEGEND_HTML = '<div class="sc-skill-legend">'
+    + '<span class="sc-legend-item"><span class="sc-legend-dot sc-legend-beginner"></span>مبتدئ</span>'
+    + '<span class="sc-legend-item"><span class="sc-legend-dot sc-legend-mid"></span>متوسط</span>'
+    + '<span class="sc-legend-item"><span class="sc-legend-dot sc-legend-good"></span>جيد</span>'
+    + '<span class="sc-legend-item"><span class="sc-legend-dot sc-legend-advanced"></span>متقدم</span>'
+    + '<span class="sc-legend-item"><span class="sc-legend-dot sc-legend-pro"></span>محترف</span>'
+    + '</div>';
+
   window._buildSkillsHTML = function(skills, isOwner){
     var addBtn = isOwner
       ? '<button class="sc-section-add owner-only" onclick="window._skillOpenAdd()">'
@@ -618,41 +648,54 @@
         + '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>'
         + ' إضافة مهارة</button>'
       : '';
-    if(!skills || !skills.length)
-      return addBtn + '<div class="sc-empty">لا توجد مهارات بعد</div>';
 
-    var chips = '<div class="sc-skills-wrap">';
+    var header = '<div class="sc-skill-header">' + addBtn + _LEGEND_HTML + '</div>';
+
+    if(!skills || !skills.length)
+      return header + '<div class="sc-empty">لا توجد مهارات بعد</div>';
+
+    var cards = '<div class="sc-skill-list">';
     for(var i=0; i<skills.length; i++){
-      var s      = skills[i];
-      var name   = esc(s.skill || '');
-      var level  = s.level ? esc(s.level) : '';
-      var lv     = LEVEL_COLORS[s.level] || {color:'#9ca3af', bg:'rgba(156,163,175,.15)'};
-      var badge  = level
+      var s     = skills[i];
+      var name  = esc(s.skill || '');
+      var level = s.level ? esc(s.level) : '';
+      var note  = (s.note || '').trim();
+      var lv    = LEVEL_COLORS[s.level] || {color:'#9ca3af', bg:'rgba(156,163,175,.15)'};
+      var lvSlug = LEVEL_CSS[s.level] || '';
+
+      var badge = level
         ? '<span class="sc-skill-badge" style="color:'+lv.color+';background:'+lv.bg+'">'+level+'</span>'
         : '';
-      // Custom skill badge — shown for skills not in the official catalog
-      var isOff  = _isOfficial(s.skill || '');
+
+      var isOff    = _isOfficial(s.skill || '');
       var cstBadge = !isOff
         ? '<span class="sc-skill-badge sc-skill-custom-badge">مخصصة</span>'
         : '';
+
       var del = isOwner
         ? '<button class="sc-skill-del owner-only" data-skill-id="'+s.id+'"'
           + ' onclick="window._skillConfirmDelete(this.dataset.skillId)"'
           + ' title="حذف" aria-label="حذف المهارة">×</button>'
         : '';
-      var chipClass = 'sc-skill-chip' + (!isOff ? ' sc-skill-chip-custom' : '');
+
       var entry  = _getCatalogEntry(s.skill || '');
       var icon   = (entry && entry.icon) ? entry.icon : _CUSTOM_FALLBACK_ICON;
-      chips += '<span class="'+chipClass+'">'
+      var noteHtml = note ? '<p class="sc-skill-note">'+esc(note)+'</p>' : '';
+      var cardClass = 'sc-skill-card' + (lvSlug ? ' sc-skill-card--'+lvSlug : '');
+
+      cards += '<div class="'+cardClass+'">'
+        + '<div class="sc-skill-card-top">'
         + _skillIconHtml(icon)
         + '<span class="sc-skill-name">'+name+'</span>'
         + badge
         + cstBadge
         + del
-        + '</span>';
+        + '</div>'
+        + noteHtml
+        + '</div>';
     }
-    chips += '</div>';
-    return addBtn + chips;
+    cards += '</div>';
+    return header + cards;
   };
 
   function _reRenderSkills(){

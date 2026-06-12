@@ -3103,3 +3103,49 @@ window._scCheckProfessional(text)
 ❌ لا تغيّر منطق الحفظ أو الـ validation بسبب تغييرات الأيقونات
 ❌ لا تلمس profile.html القديم
 ```
+
+---
+
+## Skill Notes & Vertical Cards
+
+> Skill notes are optional professional annotations added by the employee.
+
+### القواعد
+
+- **Note اختياري دائماً** — لا تجعله إجبارياً أبداً
+- **الحد الأقصى** 160 حرف — مطبَّق backend (`len > 160 → 422`) وfrontend (`maxlength="160"`)
+- **Validation مزدوج**: `validate_professional_text()` server-side + `_scCheckProfessional()` client-side — no emoji, no profanity
+- **عرض مشروط**: `noteHtml` يُبنى فقط إذا `note.trim()` غير فارغ — لا فراغ، لا placeholder
+- **UPSERT يحدّث level و note معاً**: `DO UPDATE SET level=EXCLUDED.level, note=EXCLUDED.note`
+- **مهارات قديمة**: `note = NULL` طبيعي — لا تحتاج migration لبياناتها
+
+### بنية الكرت
+
+```
+[icon] اسم المهارة    [badge المستوى] [مخصصة?] [× للمالك]
+ملاحظة اختيارية تظهر هنا فقط إذا كانت موجودة
+```
+
+### ألوان المستويات (تنت هادئ، dark-theme)
+
+| المستوى | border-color | background |
+|---------|-------------|------------|
+| مبتدئ   | `rgba(156,163,175,.28)` | `rgba(156,163,175,.05)` |
+| متوسط   | `rgba(96,165,250,.28)`  | `rgba(96,165,250,.05)`  |
+| جيد     | `rgba(167,139,250,.28)` | `rgba(167,139,250,.05)` |
+| متقدم   | `rgba(0,200,150,.28)`   | `rgba(0,200,150,.05)`   |
+| محترف   | `rgba(251,191,36,.32)`  | `rgba(251,191,36,.05)`  |
+
+### Legend
+
+- يظهر دائماً فوق قائمة المهارات (حتى عند عدم وجود مهارات) بجانب زر الإضافة
+- على الموبايل يُلتف تلقائياً تحت زر الإضافة عبر `flex-wrap:wrap`
+
+### ممنوعات
+
+```
+❌ لا تجعل note إجبارياً
+❌ لا تعرض فراغاً إذا note غير موجود
+❌ لا تُخزّن string فارغ في DB — أرسل null إذا note فارغ
+❌ لا تكسر skill catalog أو autocomplete أو duplicate prevention
+```
