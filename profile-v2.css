@@ -738,15 +738,18 @@ body.view-owner .av-cam-btn { display:flex; }
   background:rgba(255,255,255,.03);
 }
 .sc-skill-card-top {
-  display:flex; align-items:center; justify-content:space-between; gap:8px;
+  display:flex; align-items:center; gap:8px;
 }
-/* Info group: icon + name + badge(s) — takes available space, del stays at far end */
-.sc-skill-info {
-  display:flex; align-items:center; gap:8px; flex:1; min-width:0; overflow:hidden;
-}
-.sc-skill-info .sc-skill-name {
-  flex:1; min-width:0; font-weight:700; color:#e0e0e0; font-size:.9rem;
+/* Name: shrinks when needed, truncates with ellipsis on narrow screens */
+.sc-skill-card-top .sc-skill-name {
+  min-width:0; font-weight:700; color:#e0e0e0; font-size:.9rem;
   overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+/* Badge stays compact, never shrinks */
+.sc-skill-card-top .sc-skill-badge { flex-shrink:0; }
+/* Delete button: pushed to far end (LTR: right / RTL: left) via auto start-margin */
+.sc-skill-del {
+  margin-inline-start:auto; flex-shrink:0;
 }
 .sc-skill-note {
   margin:6px 0 0; font-size:.78rem;
