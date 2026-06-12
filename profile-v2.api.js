@@ -81,6 +81,23 @@ window.updateProfile  = updateProfile;
 window.uploadAvatar   = uploadAvatar;
 window.uploadCover    = uploadCover;
 
+function followProfile(userId){
+  return fetch('/profile/' + userId + '/follow', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (_jwt || '') }
+  }).then(function(r){ return r.json().then(function(d){ return {ok: r.ok, status: r.status, data: d}; }); });
+}
+
+function unfollowProfile(userId){
+  return fetch('/profile/' + userId + '/follow', {
+    method: 'DELETE',
+    headers: { 'Authorization': 'Bearer ' + (_jwt || '') }
+  }).then(function(r){ return r.json().then(function(d){ return {ok: r.ok, status: r.status, data: d}; }); });
+}
+
+window.followProfile   = followProfile;
+window.unfollowProfile = unfollowProfile;
+
 // ── Section CRUD helpers (Education, Courses, Skills, Languages, Links) ──
 
 function _scApiCall(method, path, body){

@@ -212,6 +212,14 @@
   color:var(--t1,#fff);
   border:1px solid rgba(255,255,255,.12);
 }
+.sc-btn--following {
+  padding:0 18px;
+  background:rgba(0,200,150,.1);
+  color:var(--ac,#00c896);
+  border:1px solid rgba(0,200,150,.35);
+}
+.sc-btn--following:hover { background:rgba(0,200,150,.18); }
+.sc-btn--following:disabled { opacity:.6; cursor:not-allowed; }
 
 /* Stats row */
 .sc-stats {
