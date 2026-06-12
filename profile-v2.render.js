@@ -609,6 +609,11 @@ window.renderProfile = function renderProfile(res){
   // Populate followers counter from API
   setText('scStatFollowers', formatCompactCount(_followCount));
 
+  // Populate views counter from API
+  var _viewsCount = (res.views_count != null) ? Number(res.views_count) : 0;
+  setText('scStatViews', formatCompactCount(_viewsCount));
+  window._scProfile.views_count = _viewsCount;
+
   (function(){
     var followBtn = document.getElementById('scFollowBtn');
     if(!followBtn) return;
