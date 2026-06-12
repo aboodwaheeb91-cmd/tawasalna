@@ -470,6 +470,9 @@ def init_db():
         try:
             conn.run("ALTER TABLE user_skills ADD CONSTRAINT IF NOT EXISTS user_skills_uid_skill_uq UNIQUE (user_id, skill)")
         except Exception: pass
+        try:
+            conn.run("ALTER TABLE user_skills ADD COLUMN IF NOT EXISTS note TEXT")
+        except Exception: pass
         conn.run("""
             CREATE TABLE IF NOT EXISTS user_langs (
                 id SERIAL PRIMARY KEY,
@@ -805,7 +808,7 @@ def _get_extras(conn, user_id: int) -> dict:
             "description, created_at "
             "FROM courses WHERE user_id = :uid ORDER BY id DESC", user_id),
         "skills": _safe_query(conn,
-            "SELECT id, skill, level FROM user_skills "
+            "SELECT id, skill, level, note FROM user_skills "
             "WHERE user_id = :uid ORDER BY id", user_id),
         "langs": _safe_query(conn,
             "SELECT id, language, level FROM user_langs "

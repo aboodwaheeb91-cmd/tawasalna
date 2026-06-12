@@ -642,6 +642,7 @@ class AppStatusInput(BaseModel):
 class SkillInput(BaseModel):
     skill: str
     level: Optional[str] = None
+    note: Optional[str] = None
 
 class LangInput(BaseModel):
     language: str
@@ -1529,12 +1530,22 @@ def add_user_skill(user_id: int, data: SkillInput, token=Depends(verify_token)):
         validate_professional_text(skill_clean, "skill")
     except ContentValidationError as e:
         raise HTTPException(422, detail={"status": "error", "message": e.message, "field": e.field})
+    note_clean = (data.note or '').strip() or None
+    if note_clean:
+        if len(note_clean) > 160:
+            raise HTTPException(422, detail={"status":"error","message":"ملاحظة المهارة طويلة جداً — الحد الأقصى 160 حرف","field":"note"})
+        try:
+            validate_professional_text(note_clean, "note")
+        except ContentValidationError as e:
+            raise HTTPException(422, detail={"status": "error", "message": e.message, "field": e.field})
     try:
         conn = get_conn()
         try:
             rows = conn.run(
-                "INSERT INTO user_skills (user_id, skill, level) VALUES (:uid, :skill, :level) ON CONFLICT (user_id, skill) DO UPDATE SET level=EXCLUDED.level RETURNING id, user_id, skill, level",
-                uid=user_id, skill=skill_clean, level=data.level
+                "INSERT INTO user_skills (user_id, skill, level, note) VALUES (:uid, :skill, :level, :note) "
+                "ON CONFLICT (user_id, skill) DO UPDATE SET level=EXCLUDED.level, note=EXCLUDED.note "
+                "RETURNING id, user_id, skill, level, note",
+                uid=user_id, skill=skill_clean, level=data.level, note=note_clean
             )
             cols = [d["name"] if isinstance(d, dict) else d[0] for d in conn.columns]
             return {"status": "success", "skill": dict(zip(cols, rows[0]))}

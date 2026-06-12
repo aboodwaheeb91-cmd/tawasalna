@@ -721,6 +721,54 @@ body.view-owner .av-cam-btn { display:flex; }
 }
 .sc-skill-chip .sk-ic { stroke:#00c896; opacity:.75; }
 .sk-ac-item .sk-ic { width:14px; height:14px; stroke:rgba(255,255,255,.4); }
+/* Icon inside skill card (larger, accent) */
+.sc-skill-card .sk-ic { width:15px; height:15px; stroke:#00c896; opacity:.7; flex-shrink:0; }
+
+/* ── Skill cards (vertical list) ── */
+.sc-skill-header {
+  display:flex; flex-wrap:wrap; align-items:center;
+  gap:8px 14px; margin-bottom:14px;
+}
+.sc-skill-list { display:flex; flex-direction:column; gap:10px; margin-bottom:8px; }
+.sc-skill-card {
+  padding:12px 14px; border-radius:12px;
+  border:1px solid rgba(255,255,255,.08);
+  background:rgba(255,255,255,.03);
+}
+.sc-skill-card-top {
+  display:flex; align-items:center; gap:8px; flex-wrap:nowrap;
+}
+.sc-skill-card-top .sc-skill-name { flex:1; min-width:0; font-weight:700; color:#e0e0e0; font-size:.88rem; }
+.sc-skill-note {
+  margin:6px 0 0; font-size:.78rem;
+  color:rgba(255,255,255,.48); line-height:1.55;
+}
+/* Level tints (subtle, dark-theme safe) */
+.sc-skill-card--lv-beginner { border-color:rgba(156,163,175,.28); background:rgba(156,163,175,.05); }
+.sc-skill-card--lv-mid      { border-color:rgba(96,165,250,.28);  background:rgba(96,165,250,.05);  }
+.sc-skill-card--lv-good     { border-color:rgba(167,139,250,.28); background:rgba(167,139,250,.05); }
+.sc-skill-card--lv-advanced { border-color:rgba(0,200,150,.28);   background:rgba(0,200,150,.05);   }
+.sc-skill-card--lv-pro      { border-color:rgba(251,191,36,.32);  background:rgba(251,191,36,.05);  }
+
+/* ── Skill level legend ── */
+.sc-skill-legend {
+  display:flex; flex-wrap:wrap; gap:4px 10px;
+  align-items:center; font-size:.72rem; color:rgba(255,255,255,.42);
+}
+.sc-legend-item { display:flex; align-items:center; gap:4px; white-space:nowrap; }
+.sc-legend-dot {
+  display:inline-block; width:7px; height:7px;
+  border-radius:50%; flex-shrink:0;
+}
+.sc-legend-beginner { background:#9ca3af; }
+.sc-legend-mid      { background:#60a5fa; }
+.sc-legend-good     { background:#a78bfa; }
+.sc-legend-advanced { background:#00c896; }
+.sc-legend-pro      { background:#fbbf24; }
+
+/* ── Skill note input & char counter ── */
+.sk-note-input { resize:vertical; min-height:54px; font-size:.85rem; }
+.sk-note-count { font-size:.72rem; color:rgba(255,255,255,.35); text-align:end; margin-top:3px; }
 
 /* ── Links list ── */
 .sc-links-list { display:flex; flex-direction:column; gap:10px; }
