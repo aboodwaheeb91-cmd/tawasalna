@@ -221,6 +221,11 @@
 .sc-btn--following:hover { background:rgba(0,200,150,.18); }
 .sc-btn--following:disabled { opacity:.6; cursor:not-allowed; }
 
+/* Follow button: hidden for real owner, shown in preview */
+body.view-owner #scFollowBtn { display:none; }
+body.preview-public-user #scFollowBtn,
+body.preview-guest        #scFollowBtn { display:inline-flex !important; }
+
 /* Stats row */
 .sc-stats {
   display:flex; margin:10px 20px 10px; padding:0;
