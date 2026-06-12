@@ -358,6 +358,23 @@ def init_db():
         try: conn.run("ALTER TABLE experience ADD COLUMN IF NOT EXISTS sort_order INTEGER DEFAULT 0")
         except Exception: pass
 
+        # ── Profile Follows ──
+        try:
+            conn.run("""
+                CREATE TABLE IF NOT EXISTS profile_follows (
+                    id          SERIAL PRIMARY KEY,
+                    follower_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    followed_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    created_at  TIMESTAMPTZ DEFAULT NOW(),
+                    CONSTRAINT uq_profile_follow UNIQUE (follower_id, followed_id),
+                    CONSTRAINT no_self_follow    CHECK  (follower_id != followed_id)
+                )
+            """)
+            conn.run("CREATE INDEX IF NOT EXISTS idx_pf_followed ON profile_follows(followed_id)")
+            conn.run("CREATE INDEX IF NOT EXISTS idx_pf_follower ON profile_follows(follower_id)")
+        except Exception as _pfe:
+            print(f"[init_db] profile_follows setup note: {_pfe}")
+
         # ── Profession Categories System ──
         conn.run("""
             CREATE TABLE IF NOT EXISTS profession_categories (
@@ -2054,6 +2071,67 @@ def delete_company_post(post_id: int) -> bool:
     conn = get_conn()
     try:
         rows = conn.run("DELETE FROM company_posts WHERE id = :pid RETURNING id", pid=post_id)
+        return bool(rows)
+    finally:
+        release_conn(conn)
+
+
+# ══ Profile Follow System ══
+
+def follow_profile(follower_id: int, followed_id: int) -> int:
+    """Follow a profile (idempotent). Returns new followers_count."""
+    if follower_id == followed_id:
+        raise ValueError("لا يمكنك متابعة نفسك")
+    conn = get_conn()
+    try:
+        conn.run(
+            "INSERT INTO profile_follows (follower_id, followed_id) "
+            "VALUES (:frid, :fdid) ON CONFLICT (follower_id, followed_id) DO NOTHING",
+            frid=follower_id, fdid=followed_id)
+        rows = conn.run(
+            "SELECT COUNT(*) FROM profile_follows WHERE followed_id = :fdid",
+            fdid=followed_id)
+        return rows[0][0] if rows else 0
+    finally:
+        release_conn(conn)
+
+
+def unfollow_profile(follower_id: int, followed_id: int) -> int:
+    """Unfollow a profile (idempotent). Returns new followers_count."""
+    conn = get_conn()
+    try:
+        conn.run(
+            "DELETE FROM profile_follows WHERE follower_id = :frid AND followed_id = :fdid",
+            frid=follower_id, fdid=followed_id)
+        rows = conn.run(
+            "SELECT COUNT(*) FROM profile_follows WHERE followed_id = :fdid",
+            fdid=followed_id)
+        return rows[0][0] if rows else 0
+    finally:
+        release_conn(conn)
+
+
+def get_profile_followers_count(followed_id: int) -> int:
+    """Return number of followers for a profile."""
+    conn = get_conn()
+    try:
+        rows = conn.run(
+            "SELECT COUNT(*) FROM profile_follows WHERE followed_id = :fdid",
+            fdid=followed_id)
+        return rows[0][0] if rows else 0
+    finally:
+        release_conn(conn)
+
+
+def is_profile_following(follower_id: int, followed_id: int) -> bool:
+    """Return True if follower_id follows followed_id."""
+    if follower_id == followed_id:
+        return False
+    conn = get_conn()
+    try:
+        rows = conn.run(
+            "SELECT 1 FROM profile_follows WHERE follower_id = :frid AND followed_id = :fdid",
+            frid=follower_id, fdid=followed_id)
         return bool(rows)
     finally:
         release_conn(conn)
