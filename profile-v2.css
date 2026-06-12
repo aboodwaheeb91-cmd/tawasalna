@@ -275,7 +275,7 @@
 .sc-item-d { color:var(--t4,#4a5568); font-size:.72rem; margin-top:2px; }
 
 .sc-empty { text-align:center; color:var(--t4,#4a5568); padding:24px 0; font-size:.82rem; }
-.sc-bio-text { color:var(--t2,#9aa5b4); font-size:8px; line-height:2; }
+.sc-bio-text { color:var(--t2,#9aa5b4); font-size:.85rem; line-height:1.75; white-space:pre-wrap; word-break:break-word; }
 
 /* About card */
 .sc-about-card {
