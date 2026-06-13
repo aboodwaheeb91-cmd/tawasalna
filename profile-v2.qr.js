@@ -176,5 +176,5 @@ window._qrDownload = function(url, name){
     if(window.toast) toast('تعذّر تحميل قالب البطاقة');
   };
   setTimeout(function(){ _onTemplate(null); }, 8000);
-  tmplImg.src = '/static/img/qr-card-template-ar.png';
+  tmplImg.src = '/static/img/qr-card-template-ar.png?v=1';
 };

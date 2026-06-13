@@ -1201,20 +1201,31 @@ import mimetypes as _mimetypes
 
 @app.get("/static/{filename:path}")
 def serve_static(filename: str):
-    """Serve static files: CSS, JS, images — supports subdirectories under project root"""
+    """Serve static files: CSS, JS, images.
+    Lookup order:
+      1. {root}/static/{filename}   — organised subdirectories (e.g. static/img/)
+      2. {root}/{filename}          — flat root layout (existing files)
+    Both locations are traversal-safe via realpath prefix check.
+    """
     import os
-    # Allowed extensions
     allowed = {'.css','.js','.svg','.png','.jpg','.jpeg','.webp','.ico','.woff','.woff2'}
     ext = os.path.splitext(filename)[1].lower()
     if ext not in allowed:
         raise HTTPException(404, "Not found")
-    # Security: resolve full path and ensure it stays inside project root
-    base_dir = os.path.realpath(os.path.dirname(__file__))
-    filepath  = os.path.realpath(os.path.join(base_dir, filename))
-    if not filepath.startswith(base_dir + os.sep) and filepath != base_dir:
-        raise HTTPException(404, "Not found")
-    if not os.path.isfile(filepath):
+
+    base_dir   = os.path.realpath(os.path.dirname(__file__))
+    static_dir = os.path.join(base_dir, 'static')
+
+    def _safe(candidate_dir: str, rel: str):
+        resolved = os.path.realpath(os.path.join(candidate_dir, rel))
+        if resolved.startswith(candidate_dir + os.sep) and os.path.isfile(resolved):
+            return resolved
+        return None
+
+    filepath = _safe(static_dir, filename) or _safe(base_dir, filename)
+    if not filepath:
         raise HTTPException(404, f"Static file not found: {filename}")
+
     mime = _mimetypes.guess_type(filepath)[0] or 'application/octet-stream'
     with open(filepath, 'rb') as f:
         content = f.read()
