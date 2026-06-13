@@ -6,6 +6,12 @@ function getProfile(id){
     .then(function(r){ if(!r.ok) throw new Error('profile ' + r.status); return r.json(); });
 }
 
+function getProfileMetrics(id){
+  return fetch('/profile/' + encodeURIComponent(id) + '/metrics', _fetchOpts)
+    .then(function(r){ return r.ok ? r.json() : null; });
+}
+window.getProfileMetrics = getProfileMetrics;
+
 function getScore(numId){
   return fetch('/profile/' + encodeURIComponent(numId) + '/score')
     .then(function(r){ return r.ok ? r.json() : null; });

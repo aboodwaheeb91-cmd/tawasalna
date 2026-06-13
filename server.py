@@ -1059,48 +1059,59 @@ def admin_errors(request: Request):
 
 @app.post("/auth/verify-token")
 
+def _calc_profile_score(uid: int, conn) -> dict:
+    """Shared scoring helper — used by /score and /metrics (no duplication).
+    Returns dict with score, tips, level, and the DB counts used for scoring."""
+    rows = conn.run(
+        "SELECT headline, bio, avatar_url, location, title, is_verified "
+        "FROM profiles WHERE user_id=:uid", uid=uid)
+    if not rows:
+        return {"score": 0, "tips": [], "level": "يحتاج تحسين",
+                "exp_count": 0, "edu_count": 0, "skill_count": 0, "link_count": 0}
+    cols = [c["name"] if isinstance(c, dict) else c[0] for c in conn.columns]
+    prof = dict(zip(cols, rows[0]))
+    exp_count   = (conn.run("SELECT COUNT(*) FROM experience  WHERE user_id=:uid", uid=uid) or [[0]])[0][0]
+    edu_count   = (conn.run("SELECT COUNT(*) FROM education   WHERE user_id=:uid", uid=uid) or [[0]])[0][0]
+    skill_count = (conn.run("SELECT COUNT(*) FROM user_skills WHERE user_id=:uid", uid=uid) or [[0]])[0][0]
+    link_count  = (conn.run("SELECT COUNT(*) FROM user_links  WHERE user_id=:uid", uid=uid) or [[0]])[0][0]
+    score = 0
+    tips  = []
+    checks = [
+        (bool(prof.get("avatar_url")),                    10, "أضف صورة شخصية"),
+        (bool(prof.get("headline") or prof.get("title")), 10, "أضف مسماك الوظيفي"),
+        (bool(prof.get("bio")),                           10, "أضف نبذة عنك"),
+        (bool(prof.get("location")),                       5, "أضف موقعك"),
+        (exp_count > 0,                                   20, "أضف خبرة عملية"),
+        (edu_count > 0,                                   15, "أضف شهاداتك"),
+        (skill_count >= 3,                                15, "أضف 3 مهارات على الأقل"),
+        (link_count > 0,                                   5, "أضف رابط LinkedIn أو GitHub"),
+        (bool(prof.get("is_verified")),                    5, "وثّق هويتك"),
+    ]
+    for ok, pts, tip in checks:
+        if ok: score += pts
+        else:  tips.append({"tip": tip, "points": pts})
+    tips.sort(key=lambda x: -x["points"])
+    return {
+        "score":       score,
+        "tips":        tips[:3],
+        "level":       "ممتاز" if score >= 90 else "جيد" if score >= 70 else "متوسط" if score >= 50 else "يحتاج تحسين",
+        "exp_count":   exp_count,
+        "edu_count":   edu_count,
+        "skill_count": skill_count,
+        "link_count":  link_count,
+    }
+
+
 @app.get("/profile/{user_id}/score")
 def profile_score(user_id: int):
-    """Calculate profile completion score from lightweight DB query.
-    Does NOT call get_full_profile — avoids duplicate /profile/full fetch.
-    Reads only the minimal fields needed for scoring.
-    """
+    """Profile completion score. Uses _calc_profile_score — no algorithm duplication."""
     try:
         conn = get_conn()
         try:
-            # Profiles table: headline/bio/avatar/location/is_verified
-            rows = conn.run(
-                "SELECT headline, bio, avatar_url, location, title, is_verified "
-                "FROM profiles WHERE user_id=:uid", uid=user_id)
-            if not rows: raise HTTPException(404, "Profile not found")
-            cols = [c["name"] if isinstance(c,dict) else c[0] for c in conn.columns]
-            prof = dict(zip(cols, rows[0]))
-            # Counts from child tables
-            exp_count = (conn.run("SELECT COUNT(*) FROM experience WHERE user_id=:uid", uid=user_id) or [[0]])[0][0]
-            edu_count = (conn.run("SELECT COUNT(*) FROM education WHERE user_id=:uid", uid=user_id) or [[0]])[0][0]
-            skill_count = (conn.run("SELECT COUNT(*) FROM user_skills WHERE user_id=:uid", uid=user_id) or [[0]])[0][0]
-            link_count = (conn.run("SELECT COUNT(*) FROM user_links WHERE user_id=:uid", uid=user_id) or [[0]])[0][0]
+            data = _calc_profile_score(user_id, conn)
         finally:
             release_conn(conn)
-
-        score = 0
-        tips = []
-        checks = [
-            (bool(prof.get("avatar_url")),           10, "أضف صورة شخصية"),
-            (bool(prof.get("headline") or prof.get("title")), 10, "أضف مسماك الوظيفي"),
-            (bool(prof.get("bio")),                  10, "أضف نبذة عنك"),
-            (bool(prof.get("location")),              5, "أضف موقعك"),
-            (exp_count > 0,                          20, "أضف خبرة عملية"),
-            (edu_count > 0,                          15, "أضف شهاداتك"),
-            (skill_count >= 3,                       15, "أضف 3 مهارات على الأقل"),
-            (link_count > 0,                          5, "أضف رابط LinkedIn أو GitHub"),
-            (bool(prof.get("is_verified")),           5, "وثّق هويتك"),
-        ]
-        for ok, pts, tip in checks:
-            if ok: score += pts
-            else: tips.append({"tip": tip, "points": pts})
-        tips.sort(key=lambda x: -x["points"])
-        return {"score": score, "tips": tips[:3], "level": "ممتاز" if score>=90 else "جيد" if score>=70 else "متوسط" if score>=50 else "يحتاج تحسين"}
+        return {"score": data["score"], "tips": data["tips"], "level": data["level"]}
     except HTTPException: raise
     except Exception as e: raise HTTPException(500, str(e))
 
@@ -1361,6 +1372,75 @@ def public_profile(user_id: str, request: Request):
         "is_following":    _is_following,
         "views_count":     views_count,
         "permissions":     permissions,
+    }
+
+@app.get("/profile/{user_id}/metrics")
+def profile_metrics(user_id: str, request: Request):
+    """Read-only unified metrics endpoint. Does NOT record a view.
+    Returns all profile counters + score + viewer.is_following in one request."""
+    try:
+        uid = int(user_id)
+    except ValueError:
+        uid = get_user_id_by_tw_id(user_id)
+    if not uid:
+        raise HTTPException(404, detail="الملف الشخصي غير موجود")
+
+    token_uid   = None
+    viewer_type = "guest"
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        raw     = auth_header[7:]
+        payload = _jwt_decode(raw) if raw else {}
+        if payload:
+            token_uid = payload.get("user_id")
+            if token_uid and int(token_uid) == uid:
+                viewer_type = "owner"
+            else:
+                viewer_type = "public-user"
+
+    conn = get_conn()
+    try:
+        def _cnt(table, col="user_id"):
+            return ((conn.run(f"SELECT COUNT(*) FROM {table} WHERE {col}=:uid", uid=uid)) or [[0]])[0][0]
+
+        course_count    = _cnt("courses")
+        lang_count      = _cnt("user_langs")
+        followers_count = _cnt("profile_follows",  "followed_id")
+        views_count     = _cnt("profile_views",    "viewed_user_id")
+
+        _is_following = False
+        if viewer_type == "public-user" and token_uid:
+            f = conn.run(
+                "SELECT 1 FROM profile_follows WHERE follower_id=:frid AND followed_id=:fdid",
+                frid=int(token_uid), fdid=uid)
+            _is_following = bool(f)
+
+        # Score + exp/edu/skill/link counts in same connection (no duplication)
+        score_data  = _calc_profile_score(uid, conn)
+        exp_count   = score_data["exp_count"]
+        edu_count   = score_data["edu_count"]
+        skill_count = score_data["skill_count"]
+        link_count  = score_data["link_count"]
+        score       = score_data["score"]
+    finally:
+        release_conn(conn)
+
+    return {
+        "status": "success",
+        "metrics": {
+            "views_count":      views_count,
+            "followers_count":  followers_count,
+            "experience_count": exp_count,
+            "education_count":  edu_count,
+            "courses_count":    course_count,
+            "skills_count":     skill_count,
+            "languages_count":  lang_count,
+            "links_count":      link_count,
+            "score":            score,
+        },
+        "viewer": {
+            "is_following": _is_following,
+        }
     }
 
 @app.get("/profile/{user_id}/full")
