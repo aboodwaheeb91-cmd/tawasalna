@@ -1363,6 +1363,43 @@ def public_profile(user_id: str, request: Request):
         "permissions":     permissions,
     }
 
+@app.get("/profile/{user_id}/stats")
+def profile_stats(user_id: str, request: Request):
+    """Lightweight read-only stats — views + followers + is_following.
+    Does NOT record a view. Safe for polling / soft-refresh."""
+    try:
+        uid = int(user_id)
+    except ValueError:
+        uid = get_user_id_by_tw_id(user_id)
+    if not uid:
+        raise HTTPException(404, detail="الملف الشخصي غير موجود")
+
+    token_uid   = None
+    viewer_type = "guest"
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        raw     = auth_header[7:]
+        payload = _jwt_decode(raw) if raw else {}
+        if payload:
+            token_uid = payload.get("user_id")
+            if token_uid and int(token_uid) == uid:
+                viewer_type = "owner"
+            else:
+                viewer_type = "public-user"
+
+    followers_count = get_profile_followers_count(uid)
+    views_count     = get_profile_views_count(uid)
+    _is_following   = False
+    if viewer_type == "public-user" and token_uid:
+        _is_following = is_profile_following(int(token_uid), uid)
+
+    return {
+        "status":          "success",
+        "views_count":     views_count,
+        "followers_count": followers_count,
+        "is_following":    _is_following,
+    }
+
 @app.get("/profile/{user_id}/full")
 def full_profile(user_id: str):
     try:

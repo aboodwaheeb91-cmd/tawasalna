@@ -719,32 +719,45 @@ window.renderProfile = function renderProfile(res){
     });
 })();
 
-// ── Soft refresh: followers_count on tab focus / visibility ──
-// Updates #scStatFollowers only — no full re-render, no WebSocket.
-// Cooldown: 30s to prevent request spam.
+// ── Soft stats refresh: views_count + followers_count ──
+// Uses /profile/{id}/stats — lightweight, no view recording, no full re-render.
+// Triggers: visibilitychange, window focus, and every 30s.
+// Cooldown: 20s to prevent request spam.
 (function(){
   var _lastCheck = 0;
-  var _COOLDOWN  = 30000;
+  var _COOLDOWN  = 20000;
 
-  function _refreshCount(){
+  function _refreshStats(){
     if(!_scProfileId) return;
     var now = Date.now();
     if(now - _lastCheck < _COOLDOWN) return;
     _lastCheck = now;
 
-    getProfile(_scProfileId)
+    getProfileStats(_scProfileId)
       .then(function(res){
-        if(!res || res.followers_count == null) return;
-        setText('scStatFollowers', formatCompactCount(res.followers_count));
-        if(window._scProfile) window._scProfile.followers_count = res.followers_count;
+        if(!res) return;
+        if(res.views_count != null){
+          var v = Number(res.views_count);
+          setText('scStatViews', formatCompactCount(v));
+          if(window._scProfile) window._scProfile.views_count = v;
+        }
+        if(res.followers_count != null){
+          var f = Number(res.followers_count);
+          setText('scStatFollowers', formatCompactCount(f));
+          if(window._scProfile) window._scProfile.followers_count = f;
+        }
+        if(res.is_following != null && window._scProfile){
+          window._scProfile.is_following = res.is_following;
+        }
       })
       .catch(function(){ /* silent */ });
   }
 
   document.addEventListener('visibilitychange', function(){
-    if(document.visibilityState === 'visible') _refreshCount();
+    if(document.visibilityState === 'visible') _refreshStats();
   });
-  window.addEventListener('focus', _refreshCount);
+  window.addEventListener('focus', _refreshStats);
+  setInterval(_refreshStats, 30000);
 })();
 
 // ── Preview Eye Button (Doctrine §24) ──
