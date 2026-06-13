@@ -92,9 +92,9 @@ window._qrDownload = function(url, name){
     return y + out.length * lineH;
   }
 
-  // ── Draw 1080×1080 card ──
+  // ── Draw 1080×1350 portrait card ──
   function _drawCard(qrCanvas, logo){
-    var W = 1080, H = 1080;
+    var W = 1080, H = 1350;
     var cv  = document.createElement('canvas');
     cv.width = W; cv.height = H;
     var ctx = cv.getContext('2d');
@@ -108,9 +108,9 @@ window._qrDownload = function(url, name){
     // Accent bar
     ctx.fillStyle = '#00c896'; ctx.fillRect(0, 0, W, 7);
 
-    // Logo (SVG aspect 3650:1100)
+    // Logo (SVG aspect 3650:1100) — Y=55, generous top air
     var logoH = 68, logoW = Math.round(logoH * 3650 / 1100);
-    var logoY = 28;
+    var logoY = 55;
     if(logo){
       try { ctx.drawImage(logo, (W - logoW) / 2, logoY, logoW, logoH); }
       catch(e){ logo = null; }
@@ -124,20 +124,20 @@ window._qrDownload = function(url, name){
       ctx.restore();
     }
 
-    // Tagline — more gap from logo, clear teal color
+    // Tagline — 35px below logo bottom (Y=158)
     ctx.save();
     ctx.direction = 'rtl'; ctx.textAlign = 'center';
     ctx.font = '26px "Cairo", Arial, sans-serif';
     ctx.fillStyle = '#00d4b4';
-    ctx.fillText('منصة تربط المواهب بالفرص', W / 2, 128);
+    ctx.fillText('منصة تربط المواهب بالفرص', W / 2, 158);
     ctx.restore();
 
-    // QR box — white fill + blue border
+    // QR box — white fill + blue border, same 460px QR
     var qrSize = 460, pad = 26;
-    var boxW   = qrSize + pad * 2;   // 512
-    var boxX   = (W - boxW) / 2;     // 284
-    var boxY   = 150;
-    var boxBot = boxY + boxW;         // 662
+    var boxW   = qrSize + pad * 2;    // 512
+    var boxX   = (W - boxW) / 2;      // 284
+    var boxY   = 192;
+    var boxBot = boxY + boxW;          // 704
     var rr     = 26;
 
     function _rrPath(){
@@ -155,24 +155,24 @@ window._qrDownload = function(url, name){
 
     if(qrCanvas) ctx.drawImage(qrCanvas, boxX + pad, boxY + pad, qrSize, qrSize);
 
-    // Profile name
+    // Profile name — Y=784
     ctx.save();
     ctx.direction = 'rtl'; ctx.textAlign = 'center';
     ctx.font = 'bold 40px "Cairo", Arial, sans-serif';
     ctx.fillStyle = '#ffffff';
-    ctx.fillText(name || '', W / 2, boxBot + 58);    // Y=720
+    ctx.fillText(name || '', W / 2, boxBot + 80);
 
-    // URL — strip ?ref=qr, light blue
+    // URL — strip ?ref=qr, light blue — Y=834
     var displayUrl = url.replace(/[?&]ref=qr$/, '');
     ctx.direction = 'ltr';
     ctx.font = '21px "Cairo", Arial, sans-serif';
     ctx.fillStyle = '#60a5fa';
-    ctx.fillText(displayUrl, W / 2, boxBot + 100);   // Y=762
+    ctx.fillText(displayUrl, W / 2, boxBot + 130);
     ctx.restore();
 
-    // Marketing rounded container
-    var mX = W * 0.07, mY = boxBot + 120;            // mY=782
-    var mW = W * 0.86, mH = 220, mR = 20;
+    // Marketing rounded container — Y=860, H=400, bottom=1260
+    var mX = W * 0.07, mY = boxBot + 156;   // mY=860
+    var mW = W * 0.86, mH = 400, mR = 20;
 
     ctx.save();
     ctx.fillStyle = 'rgba(37,99,255,0.10)';
@@ -186,28 +186,28 @@ window._qrDownload = function(url, name){
     ctx.strokeStyle = 'rgba(59,130,246,0.28)'; ctx.lineWidth = 1.5; ctx.stroke();
     ctx.restore();
 
-    // Marketing text (inside container)
+    // Marketing text — Y=920, 2 lines lineH=46
     ctx.save();
     ctx.direction = 'rtl'; ctx.textAlign = 'center';
     ctx.font = '27px "Cairo", Arial, sans-serif';
     ctx.fillStyle = 'rgba(255,255,255,.84)';
     _wrap(ctx,
       'أنشئ سيرتك الذاتية مجاناً، وابدأ رحلتك المهنية عبر تواصلنا',
-      W / 2, mY + 46, W * 0.76, 42);  // Y=828, up to 2 lines (828, 870)
+      W / 2, mY + 60, W * 0.76, 46);  // Y=920, 966 if 2 lines
 
-    // CTA — green, close to marketing text
-    ctx.font = 'bold 28px "Cairo", Arial, sans-serif';
+    // CTA — green, Y=1060
+    ctx.font = 'bold 30px "Cairo", Arial, sans-serif';
     ctx.fillStyle = '#00c896';
-    ctx.fillText('سجّل الآن على تواصلنا', W / 2, mY + 162);  // Y=944
+    ctx.fillText('سجّل الآن على تواصلنا', W / 2, mY + 260);
     ctx.restore();
 
-    // Outer gradient border frame (drawn last)
+    // Outer gradient border frame (drawn last over everything)
     var bGrad = ctx.createLinearGradient(0, 0, W, H);
     bGrad.addColorStop(0,   '#2563ff');
     bGrad.addColorStop(0.5, '#00c896');
     bGrad.addColorStop(1,   '#2563ff');
     ctx.strokeStyle = bGrad;
-    ctx.lineWidth   = 20;   // 10px shows inside canvas (other 10 clipped at edge)
+    ctx.lineWidth   = 20;
     var fr = 16;
     ctx.beginPath();
     ctx.moveTo(fr, 0);
