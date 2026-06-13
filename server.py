@@ -1201,19 +1201,20 @@ import mimetypes as _mimetypes
 
 @app.get("/static/{filename:path}")
 def serve_static(filename: str):
-    """Serve static files: CSS, JS, images"""
+    """Serve static files: CSS, JS, images — supports subdirectories under project root"""
     import os
-    # Security: prevent directory traversal
-    safe_filename = os.path.basename(filename)
     # Allowed extensions
     allowed = {'.css','.js','.svg','.png','.jpg','.jpeg','.webp','.ico','.woff','.woff2'}
-    ext = os.path.splitext(safe_filename)[1].lower()
+    ext = os.path.splitext(filename)[1].lower()
     if ext not in allowed:
         raise HTTPException(404, "Not found")
-    # Look in current directory
-    filepath = os.path.join(os.path.dirname(__file__), safe_filename)
-    if not os.path.exists(filepath):
-        raise HTTPException(404, f"Static file not found: {safe_filename}")
+    # Security: resolve full path and ensure it stays inside project root
+    base_dir = os.path.realpath(os.path.dirname(__file__))
+    filepath  = os.path.realpath(os.path.join(base_dir, filename))
+    if not filepath.startswith(base_dir + os.sep) and filepath != base_dir:
+        raise HTTPException(404, "Not found")
+    if not os.path.isfile(filepath):
+        raise HTTPException(404, f"Static file not found: {filename}")
     mime = _mimetypes.guess_type(filepath)[0] or 'application/octet-stream'
     with open(filepath, 'rb') as f:
         content = f.read()
