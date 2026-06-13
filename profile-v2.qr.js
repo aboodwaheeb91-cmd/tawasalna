@@ -69,7 +69,8 @@ window._qrShare = function(url, name){
   }
 };
 
-// Export QR card as 1080×1080 PNG — fully local, no cross-origin, works on Chrome Android.
+// Export QR card using fixed Arabic template (qr-card-template-ar.png).
+// Template is 1800×1800. QR and profile text are composited on top.
 window._qrDownload = function(url, name){
   if(typeof QRCode === 'undefined'){
     if(window.toast) toast('تعذّر تحميل مكتبة QR');
@@ -77,209 +78,52 @@ window._qrDownload = function(url, name){
   }
   if(window.toast) toast('جاري تجهيز البطاقة...');
 
-  // ── Text-wrap helper (Arabic RTL safe) ──
-  function _wrap(ctx, text, x, y, maxW, lineH){
-    var words = text.split(' ');
-    var line = '', out = [];
-    for(var i = 0; i < words.length; i++){
-      var t = line ? line + ' ' + words[i] : words[i];
-      if(ctx.measureText(t).width > maxW && line){ out.push(line); line = words[i]; }
-      else { line = t; }
-    }
-    if(line) out.push(line);
-    for(var j = 0; j < out.length; j++) ctx.fillText(out[j], x, y + j * lineH);
-    return y + out.length * lineH;
-  }
+  // ── Coordinates within the 1800×1800 template ──
+  // White QR placeholder box inner area (centred inside the white rounded rect)
+  var QR_X    = 97;    // left pixel where QR drawing starts
+  var QR_Y    = 370;   // top pixel where QR drawing starts
+  var QR_SIZE = 700;   // QR draw size (square)
 
-  // ── Draw 1080×1080 two-column card ──
-  function _drawCard(qrCanvas, logo){
-    var W = 1080, H = 1080;
+  // Profile card pill — vertical centre and text anchors
+  var PC_CY       = 1258;  // vertical centre of the profile pill
+  var PC_NAME_X   = 1520;  // right edge for name  (direction=rtl, textAlign=right)
+  var PC_URL_X    = 148;   // left  edge for URL   (direction=ltr, textAlign=left)
+  var PC_NAME_PX  = 56;    // name font size (px)
+  var PC_URL_PX   = 34;    // URL  font size (px)
+
+  // ── Draw card over template ──
+  function _drawCard(qrCanvas, tmpl){
+    var TW = 1800, TH = 1800;
     var cv = document.createElement('canvas');
-    cv.width = W; cv.height = H;
+    cv.width = TW; cv.height = TH;
     var ctx = cv.getContext('2d');
 
-    // Rounded rect path helper
-    function _rr(x, y, w, h, r){
-      ctx.beginPath();
-      ctx.moveTo(x+r,y); ctx.lineTo(x+w-r,y); ctx.arcTo(x+w,y,x+w,y+r,r);
-      ctx.lineTo(x+w,y+h-r); ctx.arcTo(x+w,y+h,x+w-r,y+h,r);
-      ctx.lineTo(x+r,y+h); ctx.arcTo(x,y+h,x,y+h-r,r);
-      ctx.lineTo(x,y+r); ctx.arcTo(x,y,x+r,y,r);
-      ctx.closePath();
-    }
+    // 1. Background template
+    if(tmpl) ctx.drawImage(tmpl, 0, 0, TW, TH);
 
-    // Background
-    ctx.fillStyle = '#080f1e';
-    ctx.fillRect(0, 0, W, H);
+    // 2. QR code inside white box (internal URL keeps ?ref=qr)
+    if(qrCanvas) ctx.drawImage(qrCanvas, QR_X, QR_Y, QR_SIZE, QR_SIZE);
 
-    // Dotted grid (very subtle)
+    // 3. Profile name — right-aligned Arabic, bold white
     ctx.save();
-    ctx.fillStyle = 'rgba(37,99,255,0.08)';
-    for(var gy = 20; gy < H; gy += 40){
-      for(var gx = 20; gx < W; gx += 40){
-        ctx.beginPath(); ctx.arc(gx, gy, 1.5, 0, Math.PI*2); ctx.fill();
-      }
-    }
+    ctx.direction  = 'rtl';
+    ctx.textAlign  = 'right';
+    ctx.font       = 'bold ' + PC_NAME_PX + 'px "Cairo","Noto Sans Arabic",Arial,sans-serif';
+    ctx.fillStyle  = '#ffffff';
+    ctx.fillText(name || '', PC_NAME_X, PC_CY - 22);
     ctx.restore();
 
-    // Outer gradient border (12px, not too thick)
-    var bGrad = ctx.createLinearGradient(0, 0, W, H);
-    bGrad.addColorStop(0, '#2563ff');
-    bGrad.addColorStop(0.5, '#00c896');
-    bGrad.addColorStop(1, '#2563ff');
-    ctx.strokeStyle = bGrad; ctx.lineWidth = 12;
-    _rr(6, 6, W-12, H-12, 22); ctx.stroke();
-
-    // Accent bar
-    ctx.fillStyle = '#00c896'; ctx.fillRect(0, 0, W, 5);
-
-    // Logo (SVG aspect 3650:1100)
-    var lH = 58, lW = Math.round(lH * 3650 / 1100), lY = 24;
-    if(logo){ try{ ctx.drawImage(logo, (W-lW)/2, lY, lW, lH); }catch(e){ logo = null; } }
-    if(!logo){
-      ctx.save(); ctx.direction='rtl'; ctx.textAlign='center';
-      ctx.font = 'bold 54px "Cairo",Arial,sans-serif'; ctx.fillStyle='#fff';
-      ctx.fillText('تواصلنا', W/2, lY+lH-4); ctx.restore();
-    }
-
-    // Tagline (small, below logo)
-    ctx.save(); ctx.direction='rtl'; ctx.textAlign='center';
-    ctx.font = '20px "Cairo",Arial,sans-serif'; ctx.fillStyle='#00d4b4';
-    ctx.fillText('منصة تربط المواهب بالفرص', W/2, 100); ctx.restore();
-
-    // Divider
-    var dg = ctx.createLinearGradient(40, 0, W-40, 0);
-    dg.addColorStop(0, 'transparent');
-    dg.addColorStop(0.25, 'rgba(37,99,255,.55)');
-    dg.addColorStop(0.75, 'rgba(0,200,150,.55)');
-    dg.addColorStop(1, 'transparent');
-    ctx.strokeStyle = dg; ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(40, 116); ctx.lineTo(W-40, 116); ctx.stroke();
-
-    // ── QR box (left column) ──
-    // qrSize=450 drawn from generated 460px QR → 98% scale, readable
-    var qrSize = 450, qrPad = 24;
-    var qBoxW = qrSize + qrPad*2;  // 498
-    var qBoxX = 36, qBoxY = 130;
-    var qBoxBot = qBoxY + qBoxW;   // 628
-
-    ctx.save(); ctx.shadowColor='rgba(59,130,246,.65)'; ctx.shadowBlur=28;
-    ctx.fillStyle='#fff'; _rr(qBoxX, qBoxY, qBoxW, qBoxW, 20); ctx.fill(); ctx.restore();
-    ctx.strokeStyle='#3b82f6'; ctx.lineWidth=3;
-    _rr(qBoxX, qBoxY, qBoxW, qBoxW, 20); ctx.stroke();
-    if(qrCanvas) ctx.drawImage(qrCanvas, qBoxX+qrPad, qBoxY+qrPad, qrSize, qrSize);
-
-    // ── Right column ──
-    var rx = qBoxX + qBoxW + 14;   // 548
-    var rw = W - rx - 36;           // 496  (right margin 36px)
-
-    // Title — "منصة تربط" teal, "المواهب بالفرص" white (two lines, large)
-    ctx.save(); ctx.direction='rtl'; ctx.textAlign='right';
-    ctx.font = 'bold 36px "Cairo",Arial,sans-serif'; ctx.fillStyle='#00d4b4';
-    ctx.fillText('منصة تربط', rx+rw, 170); ctx.restore();
-
-    ctx.save(); ctx.direction='rtl'; ctx.textAlign='right';
-    ctx.font = 'bold 36px "Cairo",Arial,sans-serif'; ctx.fillStyle='#ffffff';
-    ctx.fillText('المواهب بالفرص', rx+rw, 212); ctx.restore();
-
-    ctx.save(); ctx.direction='rtl'; ctx.textAlign='right';
-    ctx.font = '17px "Cairo",Arial,sans-serif'; ctx.fillStyle='rgba(0,212,180,.72)';
-    ctx.fillText('في تواصلنا، منصتك للنجاح', rx+rw, 238); ctx.restore();
-
-    // Sub-divider
-    ctx.save(); ctx.strokeStyle='rgba(0,212,180,.22)'; ctx.lineWidth=1;
-    ctx.beginPath(); ctx.moveTo(rx, 254); ctx.lineTo(rx+rw, 254); ctx.stroke(); ctx.restore();
-
-    // Bullets (user-specified text, 18px to fit in ~496px column)
-    var bullets = [
-      { c:'#00c896', t:'انضم إلى مجتمع المحترفين واكتشف فرصاً تناسب طموحاتك' },
-      { c:'#3b82f6', t:'أنشئ ملفك المهني باحترافية وسهولة' },
-      { c:'#8b5cf6', t:'اكتشف فرص عمل تناسب خبراتك' },
-      { c:'#f59e0b', t:'طوّر مهاراتك وانطلق نحو مستقبل أفضل' }
-    ];
-    var bStart = 266, bH = 88;
-    // last bullet bottom: 266 + 4*88 = 618 < 628=qBoxBot ✓
-
-    bullets.forEach(function(b, i){
-      var by = bStart + i * bH;
-      var icX = rx + rw - 16, icY = by + 44;
-      // Colored icon circle
-      ctx.save(); ctx.fillStyle=b.c; ctx.shadowColor=b.c; ctx.shadowBlur=10;
-      ctx.beginPath(); ctx.arc(icX, icY, 13, 0, Math.PI*2); ctx.fill(); ctx.restore();
-      // Checkmark inside
-      ctx.save(); ctx.strokeStyle='#fff'; ctx.lineWidth=2.2; ctx.lineCap='round'; ctx.lineJoin='round';
-      ctx.beginPath();
-      ctx.moveTo(icX-6, icY); ctx.lineTo(icX-1, icY+5); ctx.lineTo(icX+7, icY-5);
-      ctx.stroke(); ctx.restore();
-      // Bullet text (right-aligned, RTL, 18px)
-      ctx.save(); ctx.direction='rtl'; ctx.textAlign='right';
-      ctx.font = '18px "Cairo",Arial,sans-serif'; ctx.fillStyle='rgba(255,255,255,.88)';
-      ctx.fillText(b.t, icX-28, icY+6); ctx.restore();
-      // Row separator
-      if(i < 3){
-        ctx.save(); ctx.strokeStyle='rgba(255,255,255,.07)'; ctx.lineWidth=1;
-        ctx.beginPath(); ctx.moveTo(rx, by+bH-5); ctx.lineTo(rx+rw, by+bH-5); ctx.stroke(); ctx.restore();
-      }
-    });
-
-    // ── Profile card ──
-    var pcY = qBoxBot + 30;   // 658
-    var pcX = 36, pcW = W-72, pcH = 90, pcR = 16;
-    ctx.save(); ctx.fillStyle='rgba(37,99,255,.10)'; ctx.strokeStyle='rgba(59,130,246,.28)'; ctx.lineWidth=1.5;
-    _rr(pcX, pcY, pcW, pcH, pcR); ctx.fill(); ctx.stroke(); ctx.restore();
-
-    // Person icon (LEFT side — matching reference)
-    var icCX = pcX + 46, icCY = pcY + pcH/2;
-    ctx.save(); ctx.fillStyle='#2563ff'; ctx.shadowColor='rgba(37,99,255,.8)'; ctx.shadowBlur=14;
-    ctx.beginPath(); ctx.arc(icCX, icCY, 28, 0, Math.PI*2); ctx.fill(); ctx.restore();
-    ctx.save(); ctx.fillStyle='#fff';
-    ctx.beginPath(); ctx.arc(icCX, icCY-8, 8, 0, Math.PI*2); ctx.fill();
-    ctx.beginPath(); ctx.arc(icCX, icCY+12, 12, Math.PI, 0); ctx.fill(); ctx.restore();
-
-    // Name (right-aligned, Arabic)
-    ctx.save(); ctx.direction='rtl'; ctx.textAlign='right';
-    ctx.font = 'bold 26px "Cairo",Arial,sans-serif'; ctx.fillStyle='#fff';
-    ctx.fillText(name||'', pcX+pcW-22, pcY+32); ctx.restore();
-
-    // URL display (LTR, teal, starts after icon)
+    // 4. Display URL — LTR, teal, no ?ref=qr
     var displayUrl = url.replace(/[?&]ref=qr$/, '');
-    ctx.save(); ctx.direction='ltr'; ctx.textAlign='left';
-    ctx.font = '16px "Cairo",Arial,sans-serif'; ctx.fillStyle='#60a5fa';
-    ctx.fillText(displayUrl, icCX+38, pcY+60); ctx.restore();
+    ctx.save();
+    ctx.direction  = 'ltr';
+    ctx.textAlign  = 'left';
+    ctx.font       = PC_URL_PX + 'px "Cairo","Noto Sans Arabic",Arial,sans-serif';
+    ctx.fillStyle  = '#00d4b4';
+    ctx.fillText(displayUrl, PC_URL_X, PC_CY + 42);
+    ctx.restore();
 
-    // ── Marketing strip (thin, not big box) ──
-    var stY = pcY + pcH + 20;  // 768
-    ctx.save(); ctx.fillStyle='rgba(255,255,255,.05)'; ctx.strokeStyle='rgba(255,255,255,.10)'; ctx.lineWidth=1;
-    _rr(36, stY, W-72, 58, 14); ctx.fill(); ctx.stroke(); ctx.restore();
-    ctx.save(); ctx.direction='rtl'; ctx.textAlign='center';
-    ctx.font = '18px "Cairo",Arial,sans-serif'; ctx.fillStyle='rgba(255,255,255,.80)';
-    ctx.fillText('أنشئ سيرتك الذاتية مجاناً، وابدأ رحلتك المهنية عبر تواصلنا', W/2, stY+36); ctx.restore();
-
-    // ── CTA button (close to strip) ──
-    var btnY = stY + 58 + 18;  // 844
-    var btnW = 370, btnH = 58, btnX = (W-370)/2, btnR = 29;
-    var btnG = ctx.createLinearGradient(btnX, 0, btnX+btnW, 0);
-    btnG.addColorStop(0, '#00c896'); btnG.addColorStop(1, '#2563ff');
-    ctx.save(); ctx.fillStyle=btnG; ctx.shadowColor='rgba(0,200,150,.45)'; ctx.shadowBlur=20;
-    _rr(btnX, btnY, btnW, btnH, btnR); ctx.fill(); ctx.restore();
-    ctx.save(); ctx.direction='rtl'; ctx.textAlign='center';
-    ctx.font = 'bold 23px "Cairo",Arial,sans-serif'; ctx.fillStyle='#fff';
-    ctx.fillText('سجّل الآن على تواصلنا', W/2, btnY+38); ctx.restore();
-    // Arrow on button left (RTL trailing edge)
-    ctx.save(); ctx.strokeStyle='rgba(255,255,255,.72)'; ctx.lineWidth=2.5; ctx.lineCap='round'; ctx.lineJoin='round';
-    var ax = btnX+26, ay = btnY+btnH/2;
-    ctx.beginPath(); ctx.moveTo(ax+7,ay-7); ctx.lineTo(ax,ay); ctx.lineTo(ax+7,ay+7); ctx.stroke(); ctx.restore();
-
-    // Hint + watermark (compact)
-    ctx.save(); ctx.direction='rtl'; ctx.textAlign='center';
-    ctx.font = '15px "Cairo",Arial,sans-serif'; ctx.fillStyle='rgba(255,255,255,.32)';
-    ctx.fillText('امسح QR أو انقر لمشاركة البروفايل', W/2, btnY+btnH+24); ctx.restore();
-
-    ctx.save(); ctx.direction='ltr'; ctx.textAlign='center';
-    ctx.font = '13px "Cairo",Arial,sans-serif'; ctx.fillStyle='rgba(255,255,255,.17)';
-    ctx.fillText('tawasolna.com', W/2, btnY+btnH+46); ctx.restore();
-
-    // Download
+    // 5. Download as PNG
     cv.toBlob(function(blob){
       if(!blob){ if(window.toast) toast('تعذّر إنشاء الصورة'); return; }
       var dlName = (name ? name.replace(/\s+/g, '_') : 'profile') + '_tawasolna_qr.png';
@@ -292,15 +136,18 @@ window._qrDownload = function(url, name){
     }, 'image/png');
   }
 
-  // ── Generate QR then draw ──
-  function _generateAndDraw(logo){
+  // ── Generate QR at same size as draw target for sharpest output ──
+  function _generateAndDraw(tmpl){
     var tmpDiv = document.createElement('div');
-    tmpDiv.style.cssText = 'position:fixed;left:-9999px;top:0;width:460px;height:460px;overflow:hidden;';
+    tmpDiv.style.cssText = 'position:fixed;left:-9999px;top:0;width:' + QR_SIZE + 'px;height:' + QR_SIZE + 'px;overflow:hidden;';
     document.body.appendChild(tmpDiv);
     try {
       new QRCode(tmpDiv, {
-        text: url, width: 460, height: 460,
-        colorDark: '#111111', colorLight: '#ffffff',
+        text:         url,
+        width:        QR_SIZE,
+        height:       QR_SIZE,
+        colorDark:    '#111111',
+        colorLight:   '#ffffff',
         correctLevel: QRCode.CorrectLevel.H
       });
     } catch(e) {
@@ -311,20 +158,23 @@ window._qrDownload = function(url, name){
     setTimeout(function(){
       var qrCanvas = tmpDiv.querySelector('canvas');
       document.body.removeChild(tmpDiv);
-      _drawCard(qrCanvas, logo);
+      _drawCard(qrCanvas, tmpl);
     }, 0);
   }
 
-  // Load logo first (same-domain /static/33333.svg), then draw
+  // ── Load template then draw ──
+  // Served via /static/qr-card-template-ar.png (same-domain, no CORS)
   var _fired = false;
-  function _onLogo(img){
+  function _onTemplate(tmpl){
     if(_fired) return; _fired = true;
-    _generateAndDraw(img);
+    _generateAndDraw(tmpl);
   }
 
-  var logoImg = new Image();
-  logoImg.onload  = function(){ _onLogo(logoImg); };
-  logoImg.onerror = function(){ _onLogo(null); };
-  setTimeout(function(){ _onLogo(null); }, 5000);
-  logoImg.src = '/static/33333.svg';
+  var tmplImg = new Image();
+  tmplImg.onload  = function(){ _onTemplate(tmplImg); };
+  tmplImg.onerror = function(){
+    if(window.toast) toast('تعذّر تحميل قالب البطاقة');
+  };
+  setTimeout(function(){ _onTemplate(null); }, 8000);
+  tmplImg.src = '/static/qr-card-template-ar.png';
 };
