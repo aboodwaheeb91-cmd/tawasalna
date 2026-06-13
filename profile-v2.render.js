@@ -510,8 +510,8 @@ window.renderProfile = function renderProfile(res){
   // QR (via profile-v2.qr.js)
   var qrEl = document.getElementById('scQr');
   if(qrEl){
-    var _qrId  = p.tw_id || _scProfileId || '';
-    var _qrUrl = 'https://tawasolna.com/profile/' + encodeURIComponent(_qrId) + '?ref=qr';
+    var _qrId  = p.tw_id || '';
+    var _qrUrl = 'https://tawasolna.com/u/' + encodeURIComponent(_qrId) + '?ref=qr';
     renderQR(qrEl, _qrUrl);
     qrEl.setAttribute('role', 'button');
     qrEl.setAttribute('tabindex', '0');
