@@ -178,6 +178,38 @@
 
   <div class="sc-toast" id="scToast"></div>
 
+  <!-- QR Modal -->
+  <div class="sc-qr-modal" id="scQrModal" style="display:none" role="dialog" aria-modal="true" aria-labelledby="scQrModalName"
+       onclick="if(event.target===this)closeQRModal()">
+    <div class="sc-qr-card" onclick="event.stopPropagation()">
+      <button class="sc-qr-close" onclick="closeQRModal()" aria-label="إغلاق">
+        <i data-lucide="x" style="width:18px;height:18px"></i>
+      </button>
+      <div class="sc-qr-brand">
+        <img src="https://wrxvmdmknhoufoeprpoc.supabase.co/storage/v1/object/public/site/33333.svg"
+             alt="تواصلنا" class="sc-qr-brand-logo"
+             onerror="this.style.display='none'">
+        <span class="sc-qr-tagline">تواصلنا — منصة تربط المواهب بالفرص</span>
+      </div>
+      <div class="sc-qr-img-wrap">
+        <img id="scQrModalImg" src="" alt="رمز QR" class="sc-qr-big-img">
+      </div>
+      <div class="sc-qr-modal-name" id="scQrModalName"></div>
+      <div class="sc-qr-modal-url" id="scQrModalLink"></div>
+      <div class="sc-qr-modal-actions">
+        <button class="sc-qr-act" onclick="window._qrCopyLink(document.getElementById('scQrModalLink').textContent)">
+          <i data-lucide="copy" style="width:14px;height:14px"></i> نسخ
+        </button>
+        <button class="sc-qr-act" id="scQrShareBtn">
+          <i data-lucide="share-2" style="width:14px;height:14px"></i> مشاركة
+        </button>
+        <button class="sc-qr-act" id="scQrDownloadBtn">
+          <i data-lucide="download" style="width:14px;height:14px"></i> تحميل
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- Cover Crop Overlay -->
   <div class="cv-crop-overlay" id="cvCropOverlay">
     <div class="cv-crop-card">

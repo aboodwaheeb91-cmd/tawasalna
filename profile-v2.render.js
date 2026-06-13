@@ -510,8 +510,17 @@ window.renderProfile = function renderProfile(res){
   // QR (via profile-v2.qr.js)
   var qrEl = document.getElementById('scQr');
   if(qrEl){
-    var showcaseUrl = location.origin + '/profile-showcase?id=' + encodeURIComponent(_scProfileId);
-    renderQR(qrEl, showcaseUrl);
+    var _qrId  = p.tw_id || _scProfileId || '';
+    var _qrUrl = 'https://tawasolna.com/profile/' + encodeURIComponent(_qrId) + '?ref=qr';
+    renderQR(qrEl, _qrUrl);
+    qrEl.setAttribute('role', 'button');
+    qrEl.setAttribute('tabindex', '0');
+    qrEl.setAttribute('aria-label', 'فتح رمز QR لمشاركة البروفايل');
+    qrEl.setAttribute('title', 'مشاركة البروفايل');
+    qrEl.onclick = function(){ openQRModal(_qrUrl, p.full_name || p.first_name || ''); };
+    qrEl.onkeydown = function(e){
+      if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); openQRModal(_qrUrl, p.full_name || p.first_name || ''); }
+    };
   }
 
   // Data arrays
