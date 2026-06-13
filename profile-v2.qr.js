@@ -79,17 +79,18 @@ window._qrDownload = function(url, name){
   if(window.toast) toast('جاري تجهيز البطاقة...');
 
   // ── Coordinates within the 1800×1800 template ──
-  // White QR placeholder box inner area (centred inside the white rounded rect)
-  var QR_X    = 97;    // left pixel where QR drawing starts
-  var QR_Y    = 370;   // top pixel where QR drawing starts
-  var QR_SIZE = 700;   // QR draw size (square)
+  // White QR box: pixel-analysed bounds X=125..916, Y=393..1185
+  var QR_X    = 170;   // centred in white box (centre X=520, QR half=350)
+  var QR_Y    = 439;   // centred in white box (centre Y=789, QR half=350)
+  var QR_SIZE = 700;
 
-  // Profile card pill — vertical centre and text anchors
-  var PC_CY       = 1258;  // vertical centre of the profile pill
-  var PC_NAME_X   = 1520;  // right edge for name  (direction=rtl, textAlign=right)
-  var PC_URL_X    = 148;   // left  edge for URL   (direction=ltr, textAlign=left)
-  var PC_NAME_PX  = 56;    // name font size (px)
-  var PC_URL_PX   = 34;    // URL  font size (px)
+  // Profile card: teal borders at Y=1290 (top) and Y=1482 (bottom), centre Y=1390
+  var NAME_X  = 1520;  // right edge — direction=rtl, textAlign=right
+  var NAME_Y  = 1368;  // baseline (56px font, sits above card centre)
+  var URL_X   = 155;   // left edge  — direction=ltr, textAlign=left
+  var URL_Y   = 1435;  // baseline (below name, inside card)
+  var PC_NAME_PX = 56;
+  var PC_URL_PX  = 30; // slightly smaller so URL stays inside card width
 
   // ── Draw card over template ──
   function _drawCard(qrCanvas, tmpl){
@@ -110,7 +111,7 @@ window._qrDownload = function(url, name){
     ctx.textAlign  = 'right';
     ctx.font       = 'bold ' + PC_NAME_PX + 'px "Cairo","Noto Sans Arabic",Arial,sans-serif';
     ctx.fillStyle  = '#ffffff';
-    ctx.fillText(name || '', PC_NAME_X, PC_CY - 22);
+    ctx.fillText(name || '', NAME_X, NAME_Y);
     ctx.restore();
 
     // 4. Display URL — LTR, teal, no ?ref=qr
@@ -120,7 +121,7 @@ window._qrDownload = function(url, name){
     ctx.textAlign  = 'left';
     ctx.font       = PC_URL_PX + 'px "Cairo","Noto Sans Arabic",Arial,sans-serif';
     ctx.fillStyle  = '#00d4b4';
-    ctx.fillText(displayUrl, PC_URL_X, PC_CY + 42);
+    ctx.fillText(displayUrl, URL_X, URL_Y);
     ctx.restore();
 
     // 5. Download as PNG
