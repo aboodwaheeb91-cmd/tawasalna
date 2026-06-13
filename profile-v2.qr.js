@@ -69,12 +69,114 @@ window._qrShare = function(url, name){
   }
 };
 
+// Export QR card as 1080x1080 PNG — fully local, no cross-origin, works on Chrome Android.
 window._qrDownload = function(url, name){
-  var a = document.createElement('a');
-  a.href     = _qrSrc(url, 1024);
-  a.download = (name ? name.replace(/\s+/g, '-') : 'qr') + '-tawasolna.png';
-  a.target   = '_blank';
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
+  if(typeof QRCode === 'undefined'){
+    if(window.toast) toast('تعذّر تحميل مكتبة QR');
+    return;
+  }
+
+  // 1. Render QR into a hidden div using qrcodejs (local, no network call)
+  var tmpDiv = document.createElement('div');
+  tmpDiv.style.cssText = 'position:fixed;left:-9999px;top:0;width:540px;height:540px;overflow:hidden;';
+  document.body.appendChild(tmpDiv);
+  try {
+    new QRCode(tmpDiv, {
+      text: url,
+      width: 540, height: 540,
+      colorDark: '#111111', colorLight: '#ffffff',
+      correctLevel: QRCode.CorrectLevel.H
+    });
+  } catch(e) {
+    document.body.removeChild(tmpDiv);
+    if(window.toast) toast('تعذّر توليد QR');
+    return;
+  }
+
+  // qrcodejs draws synchronously for canvas — setTimeout(0) as safety net
+  setTimeout(function(){
+    var qrCanvas = tmpDiv.querySelector('canvas');
+    document.body.removeChild(tmpDiv);
+
+    // 2. Build 1080x1080 export canvas
+    var W = 1080, H = 1080;
+    var cv  = document.createElement('canvas');
+    cv.width = W; cv.height = H;
+    var ctx = cv.getContext('2d');
+
+    // Background
+    var bg = ctx.createLinearGradient(0, 0, W * 0.8, H);
+    bg.addColorStop(0, '#0d1526');
+    bg.addColorStop(1, '#070b18');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, W, H);
+
+    // Top green accent
+    ctx.fillStyle = '#00c896';
+    ctx.fillRect(0, 0, W, 6);
+
+    // White rounded box for QR
+    var qrSize = 540, pad = 28;
+    var boxW   = qrSize + pad * 2;                 // 596
+    var boxX   = (W - boxW) / 2;                   // 242
+    var boxY   = 205;
+    var r      = 28;
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.moveTo(boxX + r, boxY);
+    ctx.lineTo(boxX + boxW - r, boxY);           ctx.arcTo(boxX+boxW, boxY,    boxX+boxW, boxY+r,    r);
+    ctx.lineTo(boxX + boxW, boxY+boxW-r);        ctx.arcTo(boxX+boxW, boxY+boxW, boxX+boxW-r, boxY+boxW, r);
+    ctx.lineTo(boxX + r, boxY+boxW);             ctx.arcTo(boxX, boxY+boxW, boxX, boxY+boxW-r, r);
+    ctx.lineTo(boxX, boxY + r);                  ctx.arcTo(boxX, boxY, boxX+r, boxY, r);
+    ctx.closePath();
+    ctx.fill();
+
+    // QR image inside box
+    if(qrCanvas) ctx.drawImage(qrCanvas, boxX + pad, boxY + pad, qrSize, qrSize);
+
+    var boxBottom = boxY + boxW;  // 801
+
+    // Arabic brand text (RTL)
+    ctx.save();
+    ctx.direction   = 'rtl';
+    ctx.textAlign   = 'center';
+    ctx.textBaseline = 'alphabetic';
+
+    ctx.font      = 'bold 68px "Cairo", Arial, sans-serif';
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText('تواصلنا', W / 2, 115);
+
+    ctx.font      = '30px "Cairo", Arial, sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,.42)';
+    ctx.fillText('منصة تربط المواهب بالفرص', W / 2, 168);
+
+    ctx.font      = 'bold 42px "Cairo", Arial, sans-serif';
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(name || '', W / 2, boxBottom + 82);
+
+    ctx.restore();
+
+    // URL — LTR
+    ctx.save();
+    ctx.direction    = 'ltr';
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'alphabetic';
+    ctx.font         = '22px "Cairo", Arial, sans-serif';
+    ctx.fillStyle    = 'rgba(255,255,255,.32)';
+    ctx.fillText(url, W / 2, boxBottom + 135);
+    ctx.restore();
+
+    // 3. Download as PNG blob — works on Chrome Android
+    cv.toBlob(function(blob){
+      if(!blob){ if(window.toast) toast('تعذّر إنشاء الصورة'); return; }
+      var dlName = (name ? name.replace(/\s+/g, '_') : 'profile') + '_tawasolna_qr.png';
+      var a = document.createElement('a');
+      a.href     = URL.createObjectURL(blob);
+      a.download = dlName;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(function(){ URL.revokeObjectURL(a.href); }, 2000);
+      if(window.toast) toast('جاري التحميل...');
+    }, 'image/png');
+
+  }, 0);
 };
