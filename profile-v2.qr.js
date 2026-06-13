@@ -75,30 +75,25 @@ window._qrDownload = function(url, name){
     if(window.toast) toast('تعذّر تحميل مكتبة QR');
     return;
   }
+  if(window.toast) toast('جاري تجهيز البطاقة...');
 
-  // 1. Render QR into a hidden div using qrcodejs (local, no network call)
-  var tmpDiv = document.createElement('div');
-  tmpDiv.style.cssText = 'position:fixed;left:-9999px;top:0;width:540px;height:540px;overflow:hidden;';
-  document.body.appendChild(tmpDiv);
-  try {
-    new QRCode(tmpDiv, {
-      text: url,
-      width: 540, height: 540,
-      colorDark: '#111111', colorLight: '#ffffff',
-      correctLevel: QRCode.CorrectLevel.H
-    });
-  } catch(e) {
-    document.body.removeChild(tmpDiv);
-    if(window.toast) toast('تعذّر توليد QR');
-    return;
+  // ── Text-wrap helper (Arabic RTL safe) ──
+  function _wrap(ctx, text, x, y, maxW, lineH){
+    var words = text.split(' ');
+    var line = '';
+    var out = [];
+    for(var i = 0; i < words.length; i++){
+      var t = line ? line + ' ' + words[i] : words[i];
+      if(ctx.measureText(t).width > maxW && line){ out.push(line); line = words[i]; }
+      else { line = t; }
+    }
+    if(line) out.push(line);
+    for(var j = 0; j < out.length; j++) ctx.fillText(out[j], x, y + j * lineH);
+    return y + out.length * lineH;
   }
 
-  // qrcodejs draws synchronously for canvas — setTimeout(0) as safety net
-  setTimeout(function(){
-    var qrCanvas = tmpDiv.querySelector('canvas');
-    document.body.removeChild(tmpDiv);
-
-    // 2. Build 1080x1080 export canvas
+  // ── Draw 1080×1080 card ──
+  function _drawCard(qrCanvas, logo){
     var W = 1080, H = 1080;
     var cv  = document.createElement('canvas');
     cv.width = W; cv.height = H;
@@ -108,75 +103,131 @@ window._qrDownload = function(url, name){
     var bg = ctx.createLinearGradient(0, 0, W * 0.8, H);
     bg.addColorStop(0, '#0d1526');
     bg.addColorStop(1, '#070b18');
-    ctx.fillStyle = bg;
-    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
 
-    // Top green accent
-    ctx.fillStyle = '#00c896';
-    ctx.fillRect(0, 0, W, 6);
+    // Green accent bar
+    ctx.fillStyle = '#00c896'; ctx.fillRect(0, 0, W, 7);
 
-    // White rounded box for QR
-    var qrSize = 540, pad = 28;
-    var boxW   = qrSize + pad * 2;                 // 596
-    var boxX   = (W - boxW) / 2;                   // 242
-    var boxY   = 205;
-    var r      = 28;
+    // Logo (SVG width=3650 height=1100 → aspect ≈ 3.318)
+    var logoH = 68, logoW = Math.round(logoH * 3650 / 1100);  // ≈ 226px
+    var logoY = 32;
+    if(logo){
+      try { ctx.drawImage(logo, (W - logoW) / 2, logoY, logoW, logoH); }
+      catch(e){ logo = null; }
+    }
+    if(!logo){
+      ctx.save();
+      ctx.direction = 'rtl'; ctx.textAlign = 'center';
+      ctx.font = 'bold 62px "Cairo", Arial, sans-serif';
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText('تواصلنا', W / 2, logoY + logoH - 6);
+      ctx.restore();
+    }
+
+    // Tagline
+    ctx.save();
+    ctx.direction = 'rtl'; ctx.textAlign = 'center';
+    ctx.font = '27px "Cairo", Arial, sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,.40)';
+    ctx.fillText('منصة تربط المواهب بالفرص', W / 2, 124);
+    ctx.restore();
+
+    // QR white rounded box
+    var qrSize = 460, pad = 26;
+    var boxW   = qrSize + pad * 2;          // 512
+    var boxX   = (W - boxW) / 2;            // 284
+    var boxY   = 148;
+    var boxBot = boxY + boxW;               // 660
+    var rr     = 26;
     ctx.fillStyle = '#ffffff';
     ctx.beginPath();
-    ctx.moveTo(boxX + r, boxY);
-    ctx.lineTo(boxX + boxW - r, boxY);           ctx.arcTo(boxX+boxW, boxY,    boxX+boxW, boxY+r,    r);
-    ctx.lineTo(boxX + boxW, boxY+boxW-r);        ctx.arcTo(boxX+boxW, boxY+boxW, boxX+boxW-r, boxY+boxW, r);
-    ctx.lineTo(boxX + r, boxY+boxW);             ctx.arcTo(boxX, boxY+boxW, boxX, boxY+boxW-r, r);
-    ctx.lineTo(boxX, boxY + r);                  ctx.arcTo(boxX, boxY, boxX+r, boxY, r);
-    ctx.closePath();
-    ctx.fill();
+    ctx.moveTo(boxX + rr, boxY);
+    ctx.lineTo(boxX + boxW - rr, boxY);     ctx.arcTo(boxX+boxW, boxY,    boxX+boxW, boxY+rr,    rr);
+    ctx.lineTo(boxX + boxW, boxBot - rr);   ctx.arcTo(boxX+boxW, boxBot,  boxX+boxW-rr, boxBot,  rr);
+    ctx.lineTo(boxX + rr,  boxBot);         ctx.arcTo(boxX,      boxBot,  boxX,      boxBot-rr,  rr);
+    ctx.lineTo(boxX,       boxY + rr);      ctx.arcTo(boxX,      boxY,    boxX+rr,   boxY,       rr);
+    ctx.closePath(); ctx.fill();
 
-    // QR image inside box
     if(qrCanvas) ctx.drawImage(qrCanvas, boxX + pad, boxY + pad, qrSize, qrSize);
 
-    var boxBottom = boxY + boxW;  // 801
-
-    // Arabic brand text (RTL)
+    // Profile name
     ctx.save();
-    ctx.direction   = 'rtl';
-    ctx.textAlign   = 'center';
-    ctx.textBaseline = 'alphabetic';
-
-    ctx.font      = 'bold 68px "Cairo", Arial, sans-serif';
+    ctx.direction = 'rtl'; ctx.textAlign = 'center';
+    ctx.font = 'bold 40px "Cairo", Arial, sans-serif';
     ctx.fillStyle = '#ffffff';
-    ctx.fillText('تواصلنا', W / 2, 115);
+    ctx.fillText(name || '', W / 2, boxBot + 58);
 
-    ctx.font      = '30px "Cairo", Arial, sans-serif';
-    ctx.fillStyle = 'rgba(255,255,255,.42)';
-    ctx.fillText('منصة تربط المواهب بالفرص', W / 2, 168);
+    // Profile URL (LTR)
+    ctx.direction = 'ltr';
+    ctx.font = '20px "Cairo", Arial, sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,.30)';
+    ctx.fillText(url, W / 2, boxBot + 100);
 
-    ctx.font      = 'bold 42px "Cairo", Arial, sans-serif';
-    ctx.fillStyle = '#ffffff';
-    ctx.fillText(name || '', W / 2, boxBottom + 82);
+    // Separator
+    ctx.fillStyle = 'rgba(255,255,255,.07)';
+    ctx.fillRect(W * 0.14, boxBot + 118, W * 0.72, 1);
+
+    // Marketing text
+    ctx.direction = 'rtl';
+    ctx.font = '24px "Cairo", Arial, sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,.52)';
+    _wrap(ctx,
+      'أنشئ سيرتك الذاتية مجاناً، وابدأ رحلتك للحصول على فرصتك الوظيفية عبر تواصلنا',
+      W / 2, boxBot + 148, W - 140, 36);
+
+    // CTA
+    ctx.font = 'bold 26px "Cairo", Arial, sans-serif';
+    ctx.fillStyle = '#00c896';
+    ctx.fillText('سجّل الآن على تواصلنا', W / 2, boxBot + 256);
 
     ctx.restore();
 
-    // URL — LTR
-    ctx.save();
-    ctx.direction    = 'ltr';
-    ctx.textAlign    = 'center';
-    ctx.textBaseline = 'alphabetic';
-    ctx.font         = '22px "Cairo", Arial, sans-serif';
-    ctx.fillStyle    = 'rgba(255,255,255,.32)';
-    ctx.fillText(url, W / 2, boxBottom + 135);
-    ctx.restore();
-
-    // 3. Download as PNG blob — works on Chrome Android
+    // Download via blob — same-origin, works on Chrome Android
     cv.toBlob(function(blob){
       if(!blob){ if(window.toast) toast('تعذّر إنشاء الصورة'); return; }
       var dlName = (name ? name.replace(/\s+/g, '_') : 'profile') + '_tawasolna_qr.png';
       var a = document.createElement('a');
-      a.href     = URL.createObjectURL(blob);
+      a.href = URL.createObjectURL(blob);
       a.download = dlName;
       document.body.appendChild(a); a.click(); document.body.removeChild(a);
       setTimeout(function(){ URL.revokeObjectURL(a.href); }, 2000);
       if(window.toast) toast('جاري التحميل...');
     }, 'image/png');
+  }
 
-  }, 0);
+  // ── Generate QR then draw ──
+  function _generateAndDraw(logo){
+    var tmpDiv = document.createElement('div');
+    tmpDiv.style.cssText = 'position:fixed;left:-9999px;top:0;width:460px;height:460px;overflow:hidden;';
+    document.body.appendChild(tmpDiv);
+    try {
+      new QRCode(tmpDiv, {
+        text: url, width: 460, height: 460,
+        colorDark: '#111111', colorLight: '#ffffff',
+        correctLevel: QRCode.CorrectLevel.H
+      });
+    } catch(e) {
+      document.body.removeChild(tmpDiv);
+      if(window.toast) toast('تعذّر توليد QR');
+      return;
+    }
+    setTimeout(function(){
+      var qrCanvas = tmpDiv.querySelector('canvas');
+      document.body.removeChild(tmpDiv);
+      _drawCard(qrCanvas, logo);
+    }, 0);
+  }
+
+  // Load logo first (same-domain /static/33333.svg), then draw
+  var _fired = false;
+  function _onLogo(img){
+    if(_fired) return; _fired = true;
+    _generateAndDraw(img);
+  }
+
+  var logoImg = new Image();
+  logoImg.onload  = function(){ _onLogo(logoImg); };
+  logoImg.onerror = function(){ _onLogo(null); };
+  setTimeout(function(){ _onLogo(null); }, 5000);  // fallback if SVG stalls
+  logoImg.src = '/static/33333.svg';
 };
