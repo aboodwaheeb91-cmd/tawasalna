@@ -900,6 +900,16 @@ def get_public_profile(user_id: int) -> Optional[dict]:
         cols = [c["name"] for c in conn.columns]
         user = _serialize(_row_to_dict(cols, rows[0]))
 
+        # Self-heal: generate tw_id for legacy accounts that missed startup migration
+        if not user.get("tw_id"):
+            try:
+                tw_id = _unique_tw_id(conn, user.get("user_type", "emp"), user.get("country_code", "DEFAULT"))
+                conn.run("UPDATE users SET tw_id = :tw_id WHERE id = :uid", tw_id=tw_id, uid=user_id)
+                user["tw_id"] = tw_id
+                print(f"[get_public_profile] self-healed tw_id for user {user_id}: {tw_id}")
+            except Exception as _e:
+                print(f"[get_public_profile] tw_id self-heal failed for {user_id}: {_e}")
+
         try:
             rows = conn.run(
                 "SELECT p.headline, p.bio, p.short_bio, p.location, p.skills, p.avatar_url, p.website, p.is_verified, "
