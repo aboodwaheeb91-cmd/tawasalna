@@ -69,7 +69,7 @@ window._qrShare = function(url, name){
   }
 };
 
-// Export QR card as 1080x1080 PNG — fully local, no cross-origin, works on Chrome Android.
+// Export QR card as 1080×1350 PNG — fully local, no cross-origin, works on Chrome Android.
 window._qrDownload = function(url, name){
   if(typeof QRCode === 'undefined'){
     if(window.toast) toast('تعذّر تحميل مكتبة QR');
@@ -92,130 +92,200 @@ window._qrDownload = function(url, name){
     return y + out.length * lineH;
   }
 
-  // ── Draw 1080×1350 portrait card ──
+  // ── Draw 1080×1350 two-column card ──
   function _drawCard(qrCanvas, logo){
     var W = 1080, H = 1350;
     var cv  = document.createElement('canvas');
     cv.width = W; cv.height = H;
     var ctx = cv.getContext('2d');
 
-    // Background
-    var bg = ctx.createLinearGradient(0, 0, W * 0.8, H);
-    bg.addColorStop(0, '#0d1526');
-    bg.addColorStop(1, '#070b18');
-    ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
-
-    // Accent bar
-    ctx.fillStyle = '#00c896'; ctx.fillRect(0, 0, W, 7);
-
-    // Logo (SVG aspect 3650:1100) — Y=55, generous top air
-    var logoH = 68, logoW = Math.round(logoH * 3650 / 1100);
-    var logoY = 55;
-    if(logo){
-      try { ctx.drawImage(logo, (W - logoW) / 2, logoY, logoW, logoH); }
-      catch(e){ logo = null; }
-    }
-    if(!logo){
-      ctx.save();
-      ctx.direction = 'rtl'; ctx.textAlign = 'center';
-      ctx.font = 'bold 62px "Cairo", Arial, sans-serif';
-      ctx.fillStyle = '#ffffff';
-      ctx.fillText('تواصلنا', W / 2, logoY + logoH - 6);
-      ctx.restore();
-    }
-
-    // Tagline — 35px below logo bottom (Y=158)
-    ctx.save();
-    ctx.direction = 'rtl'; ctx.textAlign = 'center';
-    ctx.font = '26px "Cairo", Arial, sans-serif';
-    ctx.fillStyle = '#00d4b4';
-    ctx.fillText('منصة تربط المواهب بالفرص', W / 2, 158);
-    ctx.restore();
-
-    // QR box — white fill + blue border, same 460px QR
-    var qrSize = 460, pad = 26;
-    var boxW   = qrSize + pad * 2;    // 512
-    var boxX   = (W - boxW) / 2;      // 284
-    var boxY   = 192;
-    var boxBot = boxY + boxW;          // 704
-    var rr     = 26;
-
-    function _rrPath(){
+    // Rounded rect path helper
+    function _rr(x, y, w, h, r){
       ctx.beginPath();
-      ctx.moveTo(boxX + rr, boxY);
-      ctx.lineTo(boxX + boxW - rr, boxY);   ctx.arcTo(boxX+boxW, boxY,    boxX+boxW, boxY+rr,   rr);
-      ctx.lineTo(boxX + boxW, boxBot - rr); ctx.arcTo(boxX+boxW, boxBot,  boxX+boxW-rr, boxBot, rr);
-      ctx.lineTo(boxX + rr,  boxBot);       ctx.arcTo(boxX,      boxBot,  boxX,      boxBot-rr, rr);
-      ctx.lineTo(boxX,       boxY + rr);    ctx.arcTo(boxX,      boxY,    boxX+rr,   boxY,      rr);
+      ctx.moveTo(x+r, y);
+      ctx.lineTo(x+w-r, y);    ctx.arcTo(x+w, y,   x+w, y+r,   r);
+      ctx.lineTo(x+w, y+h-r);  ctx.arcTo(x+w, y+h, x+w-r, y+h, r);
+      ctx.lineTo(x+r, y+h);    ctx.arcTo(x,   y+h, x,   y+h-r, r);
+      ctx.lineTo(x,   y+r);    ctx.arcTo(x,   y,   x+r, y,     r);
       ctx.closePath();
     }
 
-    ctx.fillStyle = '#ffffff'; _rrPath(); ctx.fill();
-    ctx.strokeStyle = '#3b82f6'; ctx.lineWidth = 3; _rrPath(); ctx.stroke();
+    // Background
+    ctx.fillStyle = '#080f1e';
+    ctx.fillRect(0, 0, W, H);
 
-    if(qrCanvas) ctx.drawImage(qrCanvas, boxX + pad, boxY + pad, qrSize, qrSize);
-
-    // Profile name — Y=784
+    // Dotted grid
     ctx.save();
-    ctx.direction = 'rtl'; ctx.textAlign = 'center';
-    ctx.font = 'bold 40px "Cairo", Arial, sans-serif';
-    ctx.fillStyle = '#ffffff';
-    ctx.fillText(name || '', W / 2, boxBot + 80);
-
-    // URL — strip ?ref=qr, light blue — Y=834
-    var displayUrl = url.replace(/[?&]ref=qr$/, '');
-    ctx.direction = 'ltr';
-    ctx.font = '21px "Cairo", Arial, sans-serif';
-    ctx.fillStyle = '#60a5fa';
-    ctx.fillText(displayUrl, W / 2, boxBot + 130);
+    ctx.fillStyle = 'rgba(37,99,255,0.11)';
+    for(var gy = 20; gy < H; gy += 40){
+      for(var gx = 20; gx < W; gx += 40){
+        ctx.beginPath(); ctx.arc(gx, gy, 1.5, 0, Math.PI*2); ctx.fill();
+      }
+    }
     ctx.restore();
 
-    // Marketing rounded container — Y=860, H=400, bottom=1260
-    var mX = W * 0.07, mY = boxBot + 156;   // mY=860
-    var mW = W * 0.86, mH = 400, mR = 20;
-
-    ctx.save();
-    ctx.fillStyle = 'rgba(37,99,255,0.10)';
-    ctx.beginPath();
-    ctx.moveTo(mX+mR, mY);
-    ctx.lineTo(mX+mW-mR, mY);    ctx.arcTo(mX+mW, mY,    mX+mW, mY+mR,    mR);
-    ctx.lineTo(mX+mW, mY+mH-mR); ctx.arcTo(mX+mW, mY+mH, mX+mW-mR, mY+mH, mR);
-    ctx.lineTo(mX+mR, mY+mH);    ctx.arcTo(mX,    mY+mH, mX,    mY+mH-mR, mR);
-    ctx.lineTo(mX,    mY+mR);     ctx.arcTo(mX,    mY,    mX+mR, mY,       mR);
-    ctx.closePath(); ctx.fill();
-    ctx.strokeStyle = 'rgba(59,130,246,0.28)'; ctx.lineWidth = 1.5; ctx.stroke();
-    ctx.restore();
-
-    // Marketing text — Y=920, 2 lines lineH=46
-    ctx.save();
-    ctx.direction = 'rtl'; ctx.textAlign = 'center';
-    ctx.font = '27px "Cairo", Arial, sans-serif';
-    ctx.fillStyle = 'rgba(255,255,255,.84)';
-    _wrap(ctx,
-      'أنشئ سيرتك الذاتية مجاناً، وابدأ رحلتك المهنية عبر تواصلنا',
-      W / 2, mY + 60, W * 0.76, 46);  // Y=920, 966 if 2 lines
-
-    // CTA — green, Y=1060
-    ctx.font = 'bold 30px "Cairo", Arial, sans-serif';
-    ctx.fillStyle = '#00c896';
-    ctx.fillText('سجّل الآن على تواصلنا', W / 2, mY + 260);
-    ctx.restore();
-
-    // Outer gradient border frame (drawn last over everything)
+    // Outer gradient border
     var bGrad = ctx.createLinearGradient(0, 0, W, H);
     bGrad.addColorStop(0,   '#2563ff');
     bGrad.addColorStop(0.5, '#00c896');
     bGrad.addColorStop(1,   '#2563ff');
-    ctx.strokeStyle = bGrad;
-    ctx.lineWidth   = 20;
-    var fr = 16;
-    ctx.beginPath();
-    ctx.moveTo(fr, 0);
-    ctx.lineTo(W-fr, 0);  ctx.arcTo(W, 0, W, fr,   fr);
-    ctx.lineTo(W, H-fr);  ctx.arcTo(W, H, W-fr, H, fr);
-    ctx.lineTo(fr, H);    ctx.arcTo(0, H, 0, H-fr, fr);
-    ctx.lineTo(0, fr);    ctx.arcTo(0, 0, fr, 0,   fr);
-    ctx.closePath(); ctx.stroke();
+    ctx.strokeStyle = bGrad; ctx.lineWidth = 16;
+    _rr(8, 8, W-16, H-16, 20); ctx.stroke();
+
+    // Accent bar
+    ctx.fillStyle = '#00c896'; ctx.fillRect(0, 0, W, 6);
+
+    // Logo (SVG aspect 3650:1100)
+    var logoH = 60, logoW = Math.round(logoH * 3650 / 1100);
+    var logoY = 24;
+    if(logo){
+      try { ctx.drawImage(logo, (W-logoW)/2, logoY, logoW, logoH); }
+      catch(e){ logo = null; }
+    }
+    if(!logo){
+      ctx.save(); ctx.direction='rtl'; ctx.textAlign='center';
+      ctx.font = 'bold 56px "Cairo",Arial,sans-serif'; ctx.fillStyle='#ffffff';
+      ctx.fillText('تواصلنا', W/2, logoY+logoH-4); ctx.restore();
+    }
+
+    // Tagline
+    ctx.save(); ctx.direction='rtl'; ctx.textAlign='center';
+    ctx.font = '22px "Cairo",Arial,sans-serif'; ctx.fillStyle='#00d4b4';
+    ctx.fillText('منصة تربط المواهب بالفرص', W/2, 108); ctx.restore();
+
+    // Divider
+    var dg = ctx.createLinearGradient(40, 0, W-40, 0);
+    dg.addColorStop(0, 'transparent'); dg.addColorStop(0.25, 'rgba(37,99,255,0.6)');
+    dg.addColorStop(0.75, 'rgba(0,200,150,0.6)'); dg.addColorStop(1, 'transparent');
+    ctx.strokeStyle = dg; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(40, 126); ctx.lineTo(W-40, 126); ctx.stroke();
+
+    // ── QR box (left column) ──
+    var qrSize = 420, qrPad = 22;
+    var qBoxW   = qrSize + qrPad*2;   // 464
+    var qBoxX   = 40, qBoxY = 142;
+    var qBoxBot = qBoxY + qBoxW;       // 606
+
+    // Glow
+    ctx.save(); ctx.shadowColor='rgba(59,130,246,0.6)'; ctx.shadowBlur=32;
+    ctx.fillStyle='#ffffff'; _rr(qBoxX, qBoxY, qBoxW, qBoxW, 20); ctx.fill(); ctx.restore();
+    // Blue border
+    ctx.strokeStyle='#3b82f6'; ctx.lineWidth=3;
+    _rr(qBoxX, qBoxY, qBoxW, qBoxW, 20); ctx.stroke();
+    // QR image
+    if(qrCanvas) ctx.drawImage(qrCanvas, qBoxX+qrPad, qBoxY+qrPad, qrSize, qrSize);
+
+    // ── Right column ──
+    var rx = 524, rw = 516;   // X=524..1040
+
+    // Column heading
+    ctx.save(); ctx.direction='rtl'; ctx.textAlign='right';
+    ctx.font = 'bold 27px "Cairo",Arial,sans-serif'; ctx.fillStyle='#ffffff';
+    ctx.fillText('ابنِ سيرتك المهنية مجاناً', rx+rw, 176); ctx.restore();
+
+    ctx.save(); ctx.direction='rtl'; ctx.textAlign='right';
+    ctx.font = '20px "Cairo",Arial,sans-serif'; ctx.fillStyle='rgba(0,212,180,0.9)';
+    ctx.fillText('على تواصلنا — منصتك للنجاح', rx+rw, 212); ctx.restore();
+
+    // Sub-divider
+    ctx.save(); ctx.strokeStyle='rgba(0,212,180,0.25)'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(rx, 226); ctx.lineTo(rx+rw, 226); ctx.stroke(); ctx.restore();
+
+    // Bullet points (icon + text, RTL: icon on right)
+    var bullets = [
+      { color:'#00c896', text:'بروفايل احترافي مجاني وسهل' },
+      { color:'#3b82f6', text:'توثيق شهاداتك ومؤهلاتك' },
+      { color:'#8b5cf6', text:'تواصل مع أفضل الشركات' },
+      { color:'#f59e0b', text:'ابدأ مسيرتك المهنية اليوم' }
+    ];
+    var bStartY = 236, bH = 90;
+
+    bullets.forEach(function(b, i){
+      var by  = bStartY + i * bH;
+      var icX = rx+rw-18, icY = by+40;
+      // Colored circle icon
+      ctx.save(); ctx.fillStyle=b.color; ctx.shadowColor=b.color; ctx.shadowBlur=12;
+      ctx.beginPath(); ctx.arc(icX, icY, 15, 0, Math.PI*2); ctx.fill(); ctx.restore();
+      // Checkmark inside
+      ctx.save(); ctx.strokeStyle='#ffffff'; ctx.lineWidth=2.5; ctx.lineCap='round'; ctx.lineJoin='round';
+      ctx.beginPath();
+      ctx.moveTo(icX-8, icY); ctx.lineTo(icX-3, icY+6); ctx.lineTo(icX+7, icY-6);
+      ctx.stroke(); ctx.restore();
+      // Bullet text
+      ctx.save(); ctx.direction='rtl'; ctx.textAlign='right';
+      ctx.font='23px "Cairo",Arial,sans-serif'; ctx.fillStyle='rgba(255,255,255,0.9)';
+      ctx.fillText(b.text, icX-30, icY+8); ctx.restore();
+      // Row separator (not after last)
+      if(i < 3){
+        ctx.save(); ctx.strokeStyle='rgba(255,255,255,0.07)'; ctx.lineWidth=1;
+        ctx.beginPath(); ctx.moveTo(rx, by+bH-4); ctx.lineTo(rx+rw, by+bH-4); ctx.stroke(); ctx.restore();
+      }
+    });
+
+    // ── Profile card ──
+    var pcY = qBoxBot + 44;   // 650
+    var pcX = 40, pcW = W-80, pcH = 92, pcR = 18;
+    ctx.save(); ctx.fillStyle='rgba(37,99,255,0.10)';
+    ctx.strokeStyle='rgba(59,130,246,0.28)'; ctx.lineWidth=1.5;
+    _rr(pcX, pcY, pcW, pcH, pcR); ctx.fill(); ctx.stroke(); ctx.restore();
+
+    // Person icon (circle with head+body)
+    var icCX = pcX+pcW-48, icCY = pcY+pcH/2;
+    ctx.save(); ctx.fillStyle='#2563ff'; ctx.shadowColor='#2563ff'; ctx.shadowBlur=14;
+    ctx.beginPath(); ctx.arc(icCX, icCY, 30, 0, Math.PI*2); ctx.fill(); ctx.restore();
+    ctx.save(); ctx.fillStyle='#ffffff';
+    ctx.beginPath(); ctx.arc(icCX, icCY-9, 9, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(icCX, icCY+14, 14, Math.PI, 0); ctx.fill(); ctx.restore();
+
+    // Name
+    ctx.save(); ctx.direction='rtl'; ctx.textAlign='right';
+    ctx.font='bold 29px "Cairo",Arial,sans-serif'; ctx.fillStyle='#ffffff';
+    ctx.fillText(name||'', icCX-52, pcY+36); ctx.restore();
+
+    // Display URL (no ?ref=qr)
+    var displayUrl = url.replace(/[?&]ref=qr$/, '');
+    ctx.save(); ctx.direction='ltr'; ctx.textAlign='right';
+    ctx.font='19px "Cairo",Arial,sans-serif'; ctx.fillStyle='#60a5fa';
+    ctx.fillText(displayUrl, icCX-52, pcY+65); ctx.restore();
+
+    // ── Marketing block ──
+    var mbY = pcY + pcH + 38;  // 780
+    var mbX = 40, mbW = W-80, mbH = 460, mbR = 22;
+    ctx.save(); ctx.fillStyle='rgba(37,99,255,0.08)';
+    ctx.strokeStyle='rgba(59,130,246,0.20)'; ctx.lineWidth=1.5;
+    _rr(mbX, mbY, mbW, mbH, mbR); ctx.fill(); ctx.stroke(); ctx.restore();
+
+    // Marketing title
+    ctx.save(); ctx.direction='rtl'; ctx.textAlign='center';
+    ctx.font='bold 30px "Cairo",Arial,sans-serif'; ctx.fillStyle='#ffffff';
+    ctx.fillText('ابدأ رحلتك المهنية الآن', W/2, mbY+58); ctx.restore();
+
+    // Marketing body text (wrapped)
+    ctx.save(); ctx.direction='rtl'; ctx.textAlign='center';
+    ctx.font='23px "Cairo",Arial,sans-serif'; ctx.fillStyle='rgba(255,255,255,0.75)';
+    _wrap(ctx, 'أنشئ سيرتك الذاتية المجانية، احصل على توثيق مؤهلاتك، وتواصل مع الشركات الكبرى',
+      W/2, mbY+104, W*0.78, 40);
+    ctx.restore();
+
+    // CTA button (green→blue gradient)
+    var btnW = 400, btnH = 64, btnX = (W-400)/2, btnY = mbY+240, btnR = 32;
+    var btnG = ctx.createLinearGradient(btnX, 0, btnX+btnW, 0);
+    btnG.addColorStop(0, '#00c896'); btnG.addColorStop(1, '#2563ff');
+    ctx.save(); ctx.fillStyle=btnG; ctx.shadowColor='rgba(0,200,150,0.55)'; ctx.shadowBlur=26;
+    _rr(btnX, btnY, btnW, btnH, btnR); ctx.fill(); ctx.restore();
+    ctx.save(); ctx.direction='rtl'; ctx.textAlign='center';
+    ctx.font='bold 27px "Cairo",Arial,sans-serif'; ctx.fillStyle='#ffffff';
+    ctx.fillText('سجّل الآن على تواصلنا', W/2, btnY+41); ctx.restore();
+
+    // Scan hint
+    ctx.save(); ctx.direction='rtl'; ctx.textAlign='center';
+    ctx.font='20px "Cairo",Arial,sans-serif'; ctx.fillStyle='rgba(255,255,255,0.45)';
+    ctx.fillText('امسح رمز QR للانضمام أو مشاركة البروفايل', W/2, mbY+344); ctx.restore();
+
+    // Domain watermark
+    ctx.save(); ctx.direction='ltr'; ctx.textAlign='center';
+    ctx.font='17px "Cairo",Arial,sans-serif'; ctx.fillStyle='rgba(255,255,255,0.25)';
+    ctx.fillText('tawasolna.com', W/2, mbY+mbH-22); ctx.restore();
 
     // Download
     cv.toBlob(function(blob){
