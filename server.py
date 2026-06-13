@@ -324,7 +324,22 @@ def profile_showcase(): return read_html("profile-showcase.html")
 @app.get("/profile-showcase.html", response_class=HTMLResponse)
 def profile_showcase_html(): return read_html("profile-showcase.html")
 
-
+@app.get("/u/{tw_id}", response_class=HTMLResponse)
+def public_profile_short_url(tw_id: str):
+    """Public share URL for Profile V2. Serves profile-showcase.html with the
+    numeric user id injected so the page can call /profile/{id} API without
+    exposing tw_id in the API request."""
+    numeric_id = get_user_id_by_tw_id(tw_id)
+    if not numeric_id:
+        raise HTTPException(status_code=404, detail="الملف الشخصي غير موجود")
+    base = read_html("profile-showcase.html")
+    # int() call prevents any XSS — numeric_id is always an integer
+    injected = base.replace(
+        '</head>',
+        '<script>window._scProfileIdFromRoute=' + str(int(numeric_id)) + ';</script></head>',
+        1
+    )
+    return HTMLResponse(content=injected)
 
 # ══ Company Profile API — Rule #20 ══
 # ══ Phase 2 Step 4: shared company id resolver (refactor — same behavior) ══
