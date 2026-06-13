@@ -719,45 +719,54 @@ window.renderProfile = function renderProfile(res){
     });
 })();
 
-// ── Soft stats refresh: views_count + followers_count ──
-// Uses /profile/{id}/stats — lightweight, no view recording, no full re-render.
-// Triggers: visibilitychange, window focus, and every 30s.
-// Cooldown: 20s to prevent request spam.
+// ── Profile Metrics soft refresh ──
+// Uses GET /profile/{id}/metrics — read-only, no view recording, no full re-render.
+// Updates 5 visible counters: views, followers, edu, exp, score.
+// Stores remaining counts (courses, skills, langs, links) in state only.
+// Triggers: visibilitychange, window.focus, setInterval(30s). Cooldown: 20s.
 (function(){
   var _lastCheck = 0;
   var _COOLDOWN  = 20000;
 
-  function _refreshStats(){
+  window.refreshProfileMetrics = function(){
     if(!_scProfileId) return;
     var now = Date.now();
     if(now - _lastCheck < _COOLDOWN) return;
     _lastCheck = now;
 
-    getProfileStats(_scProfileId)
+    getProfileMetrics(_scProfileId)
       .then(function(res){
-        if(!res) return;
-        if(res.views_count != null){
-          var v = Number(res.views_count);
-          setText('scStatViews', formatCompactCount(v));
-          if(window._scProfile) window._scProfile.views_count = v;
+        if(!res || !res.metrics) return;
+        var m = res.metrics;
+        // Visible counters
+        if(m.views_count      != null) setText('scStatViews',     formatCompactCount(Number(m.views_count)));
+        if(m.followers_count  != null) setText('scStatFollowers', formatCompactCount(Number(m.followers_count)));
+        if(m.education_count  != null) setText('scStatEdu',   Number(m.education_count));
+        if(m.experience_count != null) setText('scStatExp',   Number(m.experience_count));
+        if(m.score            != null) setText('scStatScore', Number(m.score));
+        // State — all counts preserved as numbers
+        if(window._scProfile){
+          if(m.views_count      != null) window._scProfile.views_count      = Number(m.views_count);
+          if(m.followers_count  != null) window._scProfile.followers_count  = Number(m.followers_count);
+          if(m.education_count  != null) window._scProfile.education_count  = Number(m.education_count);
+          if(m.experience_count != null) window._scProfile.experience_count = Number(m.experience_count);
+          if(m.courses_count    != null) window._scProfile.courses_count    = Number(m.courses_count);
+          if(m.skills_count     != null) window._scProfile.skills_count     = Number(m.skills_count);
+          if(m.languages_count  != null) window._scProfile.languages_count  = Number(m.languages_count);
+          if(m.links_count      != null) window._scProfile.links_count      = Number(m.links_count);
+          if(m.score            != null) window._scProfile.score            = Number(m.score);
         }
-        if(res.followers_count != null){
-          var f = Number(res.followers_count);
-          setText('scStatFollowers', formatCompactCount(f));
-          if(window._scProfile) window._scProfile.followers_count = f;
-        }
-        if(res.is_following != null && window._scProfile){
-          window._scProfile.is_following = res.is_following;
-        }
+        if(res.viewer && res.viewer.is_following != null && window._scProfile)
+          window._scProfile.is_following = res.viewer.is_following;
       })
       .catch(function(){ /* silent */ });
-  }
+  };
 
   document.addEventListener('visibilitychange', function(){
-    if(document.visibilityState === 'visible') _refreshStats();
+    if(document.visibilityState === 'visible') window.refreshProfileMetrics();
   });
-  window.addEventListener('focus', _refreshStats);
-  setInterval(_refreshStats, 30000);
+  window.addEventListener('focus', window.refreshProfileMetrics);
+  setInterval(window.refreshProfileMetrics, 30000);
 })();
 
 // ── Preview Eye Button (Doctrine §24) ──
