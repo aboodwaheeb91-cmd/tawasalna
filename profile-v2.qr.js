@@ -4,7 +4,7 @@
 
 function _qrSrc(url, size){
   return 'https://api.qrserver.com/v1/create-qr-code/?size=' + size + 'x' + size
-    + '&qzone=1&color=111111&bgcolor=ffffff&data=' + encodeURIComponent(url);
+    + '&qzone=4&color=111111&bgcolor=ffffff&data=' + encodeURIComponent(url);
 }
 
 function renderQR(el, profileUrl){
@@ -71,7 +71,7 @@ window._qrShare = function(url, name){
 
 window._qrDownload = function(url, name){
   var a = document.createElement('a');
-  a.href     = _qrSrc(url, 400);
+  a.href     = _qrSrc(url, 1024);
   a.download = (name ? name.replace(/\s+/g, '-') : 'qr') + '-tawasolna.png';
   a.target   = '_blank';
   document.body.appendChild(a);
