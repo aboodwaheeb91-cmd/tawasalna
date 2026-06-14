@@ -73,7 +73,9 @@ from auth import (
     follow_company, unfollow_company, rate_company,
     get_company_posts, create_company_post, get_post_owner, delete_company_post,
     follow_profile, unfollow_profile, get_profile_followers_count, is_profile_following,
-    record_profile_view, get_profile_views_count
+    record_profile_view, get_profile_views_count,
+    save_profile_interest, remove_profile_interest,
+    is_profile_interest_active, get_profile_interest_type, get_profile_interest_label
 )
 from auth import ContentValidationError, validate_professional_text
 
