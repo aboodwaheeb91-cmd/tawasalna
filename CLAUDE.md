@@ -353,3 +353,11 @@ The `Procfile` binds to `$PORT` automatically:
 ```
 web: uvicorn server:app --host 0.0.0.0 --port $PORT
 ```
+
+---
+
+## Git Workflow Rules (mandatory for all AI sessions)
+
+1. **بعد كل `git push` — افتح PR فوراً** بدون انتظار طلب من المستخدم.
+2. **بعد كل PR يُدمج — تحقق من الـ branch** هل في commits لم تُدمج، وافتح PR جديد إذا في.
+3. **لا تنتظر "افحص الpr" أو "افتح pr"** — افعلها تلقائياً.
