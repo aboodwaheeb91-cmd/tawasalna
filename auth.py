@@ -375,6 +375,27 @@ def init_db():
         except Exception as _pfe:
             print(f"[init_db] profile_follows setup note: {_pfe}")
 
+        # ── Profile Interests ──
+        try:
+            conn.run("""
+                CREATE TABLE IF NOT EXISTS profile_interests (
+                    id             BIGSERIAL PRIMARY KEY,
+                    actor_user_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    target_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    actor_type     TEXT NOT NULL,
+                    interest_type  TEXT NOT NULL,
+                    created_at     TIMESTAMPTZ DEFAULT NOW(),
+                    updated_at     TIMESTAMPTZ DEFAULT NOW(),
+                    CONSTRAINT uq_profile_interest    UNIQUE (actor_user_id, target_user_id),
+                    CONSTRAINT no_self_profile_interest CHECK  (actor_user_id != target_user_id)
+                )
+            """)
+            conn.run("CREATE INDEX IF NOT EXISTS idx_pi_actor  ON profile_interests(actor_user_id)")
+            conn.run("CREATE INDEX IF NOT EXISTS idx_pi_target ON profile_interests(target_user_id)")
+            conn.run("CREATE INDEX IF NOT EXISTS idx_pi_type   ON profile_interests(interest_type)")
+        except Exception as _pie:
+            print(f"[init_db] profile_interests setup note: {_pie}")
+
         # ── Profile Views ──
         try:
             conn.run("""
@@ -2202,6 +2223,102 @@ def get_profile_views_count(viewed_user_id: int) -> int:
             "SELECT COUNT(*) FROM profile_views WHERE viewed_user_id = :vuid",
             vuid=viewed_user_id)
         return rows[0][0] if rows else 0
+    finally:
+        release_conn(conn)
+
+
+# ══ Profile Interest System ══
+
+_INTEREST_TYPE_MAP = {
+    "emp": "profile_like",
+    "co":  "candidate_save",
+    "edu": "training_invite",
+}
+
+_INTEREST_LABEL_MAP = {
+    "co":  {"inactive": "حفظ كمرشح",     "active": "محفوظ كمرشح"},
+    "edu": {"inactive": "دعوة للتدريب",   "active": "تم حفظ الدعوة"},
+    "emp": {"inactive": "أعجبني الملف",   "active": "تم الإعجاب"},
+}
+
+
+def get_profile_interest_type(actor_user_type: str) -> str:
+    """Return the interest_type for a given actor user_type.
+    Backend owns this mapping — frontend never decides."""
+    return _INTEREST_TYPE_MAP.get(actor_user_type, "profile_like")
+
+
+def get_profile_interest_label(actor_user_type: str, is_active: bool) -> str:
+    """Return the display label for the interest button."""
+    state = "active" if is_active else "inactive"
+    labels = _INTEREST_LABEL_MAP.get(actor_user_type, {"inactive": "أعجبني", "active": "تم الإعجاب"})
+    return labels[state]
+
+
+def save_profile_interest(actor_user_id: int, target_user_id: int) -> dict:
+    """Save a profile interest. actor_type and interest_type are derived server-side.
+    Uses UPSERT (ON CONFLICT DO NOTHING) — idempotent.
+    Returns {"success": bool, "interest_type": str, "is_active": bool}."""
+    if actor_user_id == target_user_id:
+        return {"success": False, "error": "لا يمكن حفظ ملفك الشخصي"}
+
+    conn = get_conn()
+    try:
+        rows = conn.run(
+            "SELECT user_type FROM users WHERE id = :uid",
+            uid=actor_user_id)
+        if not rows:
+            return {"success": False, "error": "المستخدم غير موجود"}
+
+        actor_type    = rows[0][0]
+        interest_type = get_profile_interest_type(actor_type)
+
+        conn.run(
+            """
+            INSERT INTO profile_interests
+                (actor_user_id, target_user_id, actor_type, interest_type, updated_at)
+            VALUES
+                (:aid, :tid, :atype, :itype, NOW())
+            ON CONFLICT (actor_user_id, target_user_id)
+            DO UPDATE SET updated_at = NOW()
+            """,
+            aid=actor_user_id, tid=target_user_id,
+            atype=actor_type, itype=interest_type)
+
+        return {"success": True, "interest_type": interest_type, "is_active": True}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+    finally:
+        release_conn(conn)
+
+
+def remove_profile_interest(actor_user_id: int, target_user_id: int) -> dict:
+    """Remove a profile interest. Idempotent — no error if row missing.
+    Returns {"success": bool, "is_active": False}."""
+    conn = get_conn()
+    try:
+        conn.run(
+            "DELETE FROM profile_interests "
+            "WHERE actor_user_id = :aid AND target_user_id = :tid",
+            aid=actor_user_id, tid=target_user_id)
+        return {"success": True, "is_active": False}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+    finally:
+        release_conn(conn)
+
+
+def is_profile_interest_active(actor_user_id: int, target_user_id: int) -> bool:
+    """Return True if actor has an active interest on target profile."""
+    if actor_user_id == target_user_id:
+        return False
+    conn = get_conn()
+    try:
+        rows = conn.run(
+            "SELECT 1 FROM profile_interests "
+            "WHERE actor_user_id = :aid AND target_user_id = :tid",
+            aid=actor_user_id, tid=target_user_id)
+        return bool(rows)
     finally:
         release_conn(conn)
 
