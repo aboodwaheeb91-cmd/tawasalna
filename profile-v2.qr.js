@@ -78,19 +78,19 @@ window._qrDownload = function(url, name){
   }
   if(window.toast) toast('جاري تجهيز البطاقة...');
 
-  // ── Coordinates within the 1800×1800 template ──
-  // White QR box: pixel-analysed bounds X=125..916, Y=393..1185
-  var QR_X    = 170;   // centred in white box (centre X=520, QR half=350)
-  var QR_Y    = 439;   // centred in white box (centre Y=789, QR half=350)
+  // ── Coordinates within the 1800×1800 template (v2 Canva design) ──
+  // White QR box: pixel-analysed X=125..916, Y=393..1185, centre (520,789)
+  var QR_X    = 170;
+  var QR_Y    = 439;
   var QR_SIZE = 700;
 
-  // Profile card: teal borders at Y=1290 (top) and Y=1482 (bottom), centre Y=1390
-  var NAME_X  = 1520;  // right edge — direction=rtl, textAlign=right
-  var NAME_Y  = 1368;  // baseline (56px font, sits above card centre)
-  var URL_X   = 155;   // left edge  — direction=ltr, textAlign=left
-  var URL_Y   = 1435;  // baseline (below name, inside card)
-  var PC_NAME_PX = 56;
-  var PC_URL_PX  = 30; // slightly smaller so URL stays inside card width
+  // Name card: teal borders Y=1340 (top) / Y=1484 (bottom), centre Y=1412
+  // Safe text zone X=120..1620 (person icon sits at ~X=1660..1740)
+  var CARD_CY     = 1412;
+  var NAME_LEFT   = 120;
+  var NAME_RIGHT  = 1620;
+  var NAME_MAX_PX = 68;   // start size; auto-fit shrinks until text fits
+  var NAME_MIN_PX = 28;
 
   // ── Draw card over template ──
   function _drawCard(qrCanvas, tmpl){
@@ -99,32 +99,32 @@ window._qrDownload = function(url, name){
     cv.width = TW; cv.height = TH;
     var ctx = cv.getContext('2d');
 
-    // 1. Background template
+    // 1. Background template (already contains URL, CTA, logo)
     if(tmpl) ctx.drawImage(tmpl, 0, 0, TW, TH);
 
-    // 2. QR code inside white box (internal URL keeps ?ref=qr)
+    // 2. QR code inside white placeholder box
     if(qrCanvas) ctx.drawImage(qrCanvas, QR_X, QR_Y, QR_SIZE, QR_SIZE);
 
-    // 3. Profile name — right-aligned Arabic, bold white
-    ctx.save();
-    ctx.direction  = 'rtl';
-    ctx.textAlign  = 'right';
-    ctx.font       = 'bold ' + PC_NAME_PX + 'px "Cairo","Noto Sans Arabic",Arial,sans-serif';
-    ctx.fillStyle  = '#ffffff';
-    ctx.fillText(name || '', NAME_X, NAME_Y);
-    ctx.restore();
+    // 3. Profile name — auto-fit, centred in name card, white bold
+    var nameText = (name || '').trim();
+    if(nameText){
+      var availW = NAME_RIGHT - NAME_LEFT;
+      var fontSize = NAME_MAX_PX;
+      ctx.font = 'bold ' + fontSize + 'px "Cairo","Noto Sans Arabic",Arial,sans-serif';
+      while(fontSize > NAME_MIN_PX && ctx.measureText(nameText).width > availW){
+        fontSize -= 2;
+        ctx.font = 'bold ' + fontSize + 'px "Cairo","Noto Sans Arabic",Arial,sans-serif';
+      }
+      var tw = ctx.measureText(nameText).width;
+      var nameX = NAME_LEFT + (availW - tw) / 2;   // centred horizontally
+      var nameY = CARD_CY + fontSize * 0.35;        // optically centred vertically
+      ctx.save();
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(nameText, nameX, nameY);
+      ctx.restore();
+    }
 
-    // 4. Display URL — LTR, teal, no ?ref=qr
-    var displayUrl = url.replace(/[?&]ref=qr$/, '');
-    ctx.save();
-    ctx.direction  = 'ltr';
-    ctx.textAlign  = 'left';
-    ctx.font       = PC_URL_PX + 'px "Cairo","Noto Sans Arabic",Arial,sans-serif';
-    ctx.fillStyle  = '#00d4b4';
-    ctx.fillText(displayUrl, URL_X, URL_Y);
-    ctx.restore();
-
-    // 5. Download as PNG
+    // 4. Download as PNG
     cv.toBlob(function(blob){
       if(!blob){ if(window.toast) toast('تعذّر إنشاء الصورة'); return; }
       var dlName = (name ? name.replace(/\s+/g, '_') : 'profile') + '_tawasolna_qr.png';
