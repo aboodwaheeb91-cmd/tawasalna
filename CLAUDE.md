@@ -361,3 +361,21 @@ web: uvicorn server:app --host 0.0.0.0 --port $PORT
 1. **بعد كل `git push` — افتح PR فوراً** بدون انتظار طلب من المستخدم.
 2. **بعد كل PR يُدمج — تحقق من الـ branch** هل في commits لم تُدمج، وافتح PR جديد إذا في.
 3. **لا تنتظر "افحص الpr" أو "افتح pr"** — افعلها تلقائياً.
+
+---
+
+## Documentation Rule (mandatory for all AI sessions)
+
+**Any PR that includes a new feature, system, or architectural change MUST update `ARCHITECTURE.md` in the same PR.**
+
+A PR is not considered complete if it introduces architectural changes without documentation.
+
+Rules:
+- New DB tables → document schema + constraints in ARCHITECTURE.md
+- New API endpoints → document endpoint, auth requirements, request/response
+- New Frontend systems → document components, state, behavior rules
+- New Backend modules → document functions, mapping tables, rules
+- Forbidden patterns → document what must NOT be done (ممنوعات)
+- Implementation status → document what is done vs. pending
+
+If `CLAUDE.md` contains AI behavior rules relevant to the new feature, add a summary there too.

@@ -3155,6 +3155,127 @@ window._scCheckProfessional(text)
 
 ---
 
+## [P1] 45. Profile Interest System
+
+> PRs: #130 (schema), #131 (endpoints), #132 (frontend)
+
+### الهدف
+
+استبدال زر "الملف" القديم (`scFullBtn`) في Profile V2 بزر ذكي يتكيف مع نوع المشاهد، ويخدم التوظيف والتدريب والتفاعل المهني.
+
+### مبدأ التصميم — Backend is the Source of Truth
+
+**Frontend لا يقرر أي شيء.** Backend يرجع `viewer_action` كاملاً في `GET /profile/{id}`. Frontend يعرض فقط ما يرجعه Backend.
+
+المحظور على Frontend:
+- حساب `label` أو `type` أو `hidden` أو `is_active`
+- إرسال `interest_type` من Frontend
+- الاعتماد على `localStorage` لتحديد نوع المستخدم
+
+### جدول DB
+
+```sql
+CREATE TABLE profile_interests (
+    id             BIGSERIAL PRIMARY KEY,
+    actor_user_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    target_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    actor_type     TEXT NOT NULL,
+    interest_type  TEXT NOT NULL,
+    created_at     TIMESTAMPTZ DEFAULT NOW(),
+    updated_at     TIMESTAMPTZ DEFAULT NOW(),
+    CONSTRAINT uq_profile_interest     UNIQUE (actor_user_id, target_user_id),
+    CONSTRAINT no_self_profile_interest CHECK  (actor_user_id != target_user_id)
+);
+-- Indexes: actor_user_id, target_user_id, interest_type
+```
+
+### تحويل نوع الحساب → interest_type
+
+| user_type | interest_type |
+|-----------|--------------|
+| `emp` | `profile_like` |
+| `co` | `candidate_save` |
+| `edu` | `training_invite` |
+
+يتم التحويل في `get_profile_interest_type(actor_user_type)` — Backend فقط.
+
+### viewer_action في GET /profile/{id}
+
+```json
+"viewer_action": {
+  "label":        "string",
+  "type":         "string",
+  "is_active":    false,
+  "can_interact": true,
+  "hidden":       false
+}
+```
+
+| الحالة | النتيجة |
+|-------|---------|
+| Owner (صاحب البروفايل) | `hidden=true` |
+| Target ليس `emp` | `hidden=true` |
+| Guest | `type=login_prompt`, `label=سجّل للتفاعل`, `can_interact=false` |
+| Emp يشاهد emp | `label=أعجبني الملف` / `تم الإعجاب`, `type=profile_like` |
+| Co يشاهد emp | `label=حفظ كمرشح` / `محفوظ كمرشح`, `type=candidate_save` |
+| Edu يشاهد emp | `label=دعوة للتدريب` / `تم حفظ الدعوة`, `type=training_invite` |
+
+### API Endpoints
+
+```
+POST   /profile/{id}/interest   # يتطلب JWT، يمنع self، يمنع guest
+DELETE /profile/{id}/interest   # يتطلب JWT، idempotent
+```
+
+كلاهما يرجع `viewer_action` محدّثاً في الـ response.
+
+### دوال Backend (`auth.py`)
+
+| الدالة | الوظيفة |
+|--------|---------|
+| `get_profile_interest_type(actor_user_type)` | تحديد `interest_type` |
+| `get_profile_interest_label(actor_user_type, is_active)` | نص الزر بالعربي |
+| `save_profile_interest(actor_id, target_id)` | UPSERT idempotent |
+| `remove_profile_interest(actor_id, target_id)` | DELETE idempotent |
+| `is_profile_interest_active(actor_id, target_id)` | bool |
+
+### Frontend Integration
+
+**الملفات:**
+- `profile-v2.api.js`: `saveProfileInterest(id)`, `removeProfileInterest(id)`
+- `profile-v2.render.js`: `window._scViewerAction` + scFullBtn wiring
+- `profile-v2.css`: `.sc-btn--interested` (active state أزرق)
+
+**سلوك scFullBtn:**
+1. `hidden=true` → `display:none`
+2. `login_prompt` → Toast فقط، لا POST
+3. `can_interact=true` → POST/DELETE toggle، تحديث label/class من `response.viewer_action`
+
+### حالة التنفيذ
+
+| الميزة | الحالة |
+|-------|-------|
+| Schema + دوال Backend | ✅ PR #130 |
+| API Endpoints + viewer_action | ✅ PR #131 |
+| Frontend button wiring | ✅ PR #132 |
+| صفحة قائمة المرشحين | ⏳ لم تُنفذ |
+| صفحة ملفات أعجبتني | ⏳ لم تُنفذ |
+| إشعارات عند الحفظ | ⏳ لم تُنفذ |
+
+### ممنوعات النظام
+
+```
+❌ لا localStorage
+❌ لا Frontend guessing للـ label أو type
+❌ لا interest_type من Frontend
+❌ لا guest POST/DELETE
+❌ لا owner self-interest
+❌ لا تعديل على profile.html القديم
+❌ لا كسر Follow / Contact / QR
+```
+
+---
+
 ## [P2] 42. About Tab Summary Cards
 
 The About tab is a **read-only snapshot** of the profile, auto-generated from `window._scProfile` on each `renderProfile()` call. It is not a separate data source.
