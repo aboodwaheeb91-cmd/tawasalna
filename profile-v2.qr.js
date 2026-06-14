@@ -170,21 +170,16 @@ window._qrDownload = function(url, name){
           document.body.appendChild(a);
           console.log('[QR-DL #' + _n + '] 10. anchor appended to body');
 
-          // Primary: dispatchEvent click (more reliable than .click() on some browsers)
-          try {
-            a.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-            console.log('[QR-DL #' + _n + '] 11. anchor dispatchEvent fired');
-          } catch(eClick){
-            a.click();
-            console.log('[QR-DL #' + _n + '] 11. anchor .click() fallback fired');
-          }
+          // ONLY a.click() triggers <a download> in browsers — dispatchEvent does NOT work
+          a.click();
+          console.log('[QR-DL #' + _n + '] 11. a.click() fired');
 
-          // Fallback: open in new tab if download likely blocked (e.g. Chrome Android)
+          // Remove anchor after 1s, revoke blobUrl after 10s
           setTimeout(function(){
-            var stillInDom = document.body.contains(a);
-            console.log('[QR-DL #' + _n + '] fallback check | anchor still in DOM: ' + stillInDom);
             if(a.parentNode) a.parentNode.removeChild(a);
             console.log('[QR-DL #' + _n + '] 12. anchor removed');
+          }, 1000);
+          setTimeout(function(){
             URL.revokeObjectURL(blobUrl);
             console.log('[QR-DL #' + _n + '] objectURL revoked');
           }, 10000);
