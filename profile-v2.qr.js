@@ -69,14 +69,28 @@ window._qrShare = function(url, name){
   }
 };
 
-// Export QR card using fixed Arabic template (qr-card-template-ar.png).
-// Template is 1800×1800. QR and profile text are composited on top.
+// Export QR card using fixed Arabic template (qr-card-template-ar-v2.png).
+// Template is 1800×1800. QR and profile name are composited on top.
+var _qrDownloading = false;   // module-level guard — prevents double-click overlap
+
 window._qrDownload = function(url, name){
+  if(_qrDownloading) return;
   if(typeof QRCode === 'undefined'){
     if(window.toast) toast('تعذّر تحميل مكتبة QR');
     return;
   }
+
+  _qrDownloading = true;
+  var dlB = document.getElementById('scQrDownloadBtn');
+  if(dlB) dlB.disabled = true;
   if(window.toast) toast('جاري تجهيز البطاقة...');
+
+  // Called in ALL exit paths — re-enables button and clears flag
+  function _done(errMsg){
+    _qrDownloading = false;
+    if(dlB) dlB.disabled = false;
+    if(errMsg && window.toast) toast(errMsg);
+  }
 
   // ── Coordinates within the 1800×1800 template (v2 Canva design) ──
   // White QR box: pixel-analysed X=125..916, Y=393..1185, centre (520,789)
@@ -89,17 +103,17 @@ window._qrDownload = function(url, name){
   var CARD_CY     = 1412;
   var NAME_LEFT   = 120;
   var NAME_RIGHT  = 1620;
-  var NAME_MAX_PX = 68;   // start size; auto-fit shrinks until text fits
+  var NAME_MAX_PX = 68;
   var NAME_MIN_PX = 28;
 
   // ── Draw card over template ──
   function _drawCard(qrCanvas, tmpl){
     var TW = 1800, TH = 1800;
-    var cv = document.createElement('canvas');
+    var cv = document.createElement('canvas');   // fresh canvas every time
     cv.width = TW; cv.height = TH;
     var ctx = cv.getContext('2d');
 
-    // 1. Background template (already contains URL, CTA, logo)
+    // 1. Background template (contains URL, CTA, logo)
     if(tmpl) ctx.drawImage(tmpl, 0, 0, TW, TH);
 
     // 2. QR code inside white placeholder box
@@ -116,28 +130,37 @@ window._qrDownload = function(url, name){
         ctx.font = 'bold ' + fontSize + 'px "Cairo","Noto Sans Arabic",Arial,sans-serif';
       }
       var tw = ctx.measureText(nameText).width;
-      var nameX = NAME_LEFT + (availW - tw) / 2;   // centred horizontally
-      var nameY = CARD_CY + fontSize * 0.35;        // optically centred vertically
+      var nameX = NAME_LEFT + (availW - tw) / 2;
+      var nameY = CARD_CY + fontSize * 0.35;
       ctx.save();
       ctx.fillStyle = '#ffffff';
       ctx.fillText(nameText, nameX, nameY);
       ctx.restore();
     }
 
-    // 4. Download as PNG
+    // 4. Download — fresh blob + objectURL + <a> every time
     cv.toBlob(function(blob){
-      if(!blob){ if(window.toast) toast('تعذّر إنشاء الصورة'); return; }
-      var dlName = (name ? name.replace(/\s+/g, '_') : 'profile') + '_tawasolna_qr.png';
-      var a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
+      if(!blob){ _done('تعذّر إنشاء الصورة'); return; }
+
+      // Unique filename: tw_id + timestamp
+      var twId = (url.match(/\/u\/([^?#/]+)/) || [])[1] || 'profile';
+      var dlName = 'tawasolna-qr-' + twId + '-' + Date.now() + '.png';
+
+      var blobUrl = URL.createObjectURL(blob);   // fresh URL every time
+      var a = document.createElement('a');       // fresh element every time
+      a.href     = blobUrl;
       a.download = dlName;
-      document.body.appendChild(a); a.click(); document.body.removeChild(a);
-      setTimeout(function(){ URL.revokeObjectURL(a.href); }, 2000);
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(function(){ URL.revokeObjectURL(blobUrl); }, 3000);  // revoke after browser grabs it
+
+      _done(null);
       if(window.toast) toast('جاري التحميل...');
     }, 'image/png');
   }
 
-  // ── Generate QR at same size as draw target for sharpest output ──
+  // ── Generate QR then draw ──
   function _generateAndDraw(tmpl){
     var tmpDiv = document.createElement('div');
     tmpDiv.style.cssText = 'position:fixed;left:-9999px;top:0;width:' + QR_SIZE + 'px;height:' + QR_SIZE + 'px;overflow:hidden;';
@@ -153,18 +176,17 @@ window._qrDownload = function(url, name){
       });
     } catch(e) {
       document.body.removeChild(tmpDiv);
-      if(window.toast) toast('تعذّر توليد QR');
+      _done('تعذّر توليد QR');
       return;
     }
     setTimeout(function(){
       var qrCanvas = tmpDiv.querySelector('canvas');
-      document.body.removeChild(tmpDiv);
+      if(document.body.contains(tmpDiv)) document.body.removeChild(tmpDiv);
       _drawCard(qrCanvas, tmpl);
     }, 0);
   }
 
   // ── Load template then draw ──
-  // Served via /static/qr-card-template-ar.png (same-domain, no CORS)
   var _fired = false;
   function _onTemplate(tmpl){
     if(_fired) return; _fired = true;
@@ -173,9 +195,7 @@ window._qrDownload = function(url, name){
 
   var tmplImg = new Image();
   tmplImg.onload  = function(){ _onTemplate(tmplImg); };
-  tmplImg.onerror = function(){
-    if(window.toast) toast('تعذّر تحميل قالب البطاقة');
-  };
+  tmplImg.onerror = function(){ _done('تعذّر تحميل قالب البطاقة'); };
   setTimeout(function(){ _onTemplate(null); }, 8000);
   tmplImg.src = '/static/img/qr-card-template-ar-v2.png?v=2';
 };
