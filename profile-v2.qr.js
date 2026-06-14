@@ -72,36 +72,47 @@ window._qrShare = function(url, name){
 // Export QR card using fixed Arabic template (qr-card-template-ar-v2.png).
 // Template is 1800×1800. QR and profile name are composited on top.
 var _qrDownloading = false;
+var _qrWatchdog    = null;   // safety timeout — releases lock if flow never completes
 var _QR_HIDDEN_ID  = '__qrHiddenContainer';
-var _qrClickCount  = 0;  // DEBUG: tracks how many times button pressed
+var _qrClickCount  = 0;
 
 window._qrDownload = function(url, name){
   _qrClickCount++;
-  var _n = _qrClickCount;  // capture click number for all logs in this call
-  console.log('[QR-DL #' + _n + '] 1. download clicked | lock=' + _qrDownloading + ' | url=' + url);
+  var _n = _qrClickCount;
+  console.log('[QR Download] start #' + _n + ' | lock=' + _qrDownloading);
 
   if(_qrDownloading){
-    console.log('[QR-DL #' + _n + '] BLOCKED — lock already held');
+    console.log('[QR Download] locked — skip #' + _n);
     return;
   }
   if(typeof QRCode === 'undefined'){
-    console.log('[QR-DL #' + _n + '] BLOCKED — QRCode library missing');
     if(window.toast) toast('تعذّر تحميل مكتبة QR');
     return;
   }
 
+  // ── Acquire lock ──
   _qrDownloading = true;
-  console.log('[QR-DL #' + _n + '] 2. lock acquired');
+  clearTimeout(_qrWatchdog);   // cancel any stale watchdog from previous call
   var dlB = document.getElementById('scQrDownloadBtn');
   if(dlB) dlB.disabled = true;
   if(window.toast) toast('جاري تجهيز البطاقة...');
 
+  // ── Watchdog: auto-release after 15 s if flow never completes ──
+  _qrWatchdog = setTimeout(function(){
+    console.log('[QR Download] watchdog release #' + _n);
+    _release(null);
+  }, 15000);
+
+  // ── _release: single choke-point, idempotent ──
   function _release(errMsg){
-    console.log('[QR-DL #' + _n + '] 13. release called | err=' + (errMsg || 'null'));
+    if(!_qrDownloading) return;   // already released — safe to call twice
+    clearTimeout(_qrWatchdog);
+    _qrWatchdog   = null;
     _qrDownloading = false;
     if(dlB) dlB.disabled = false;
     var hd = document.getElementById(_QR_HIDDEN_ID);
     if(hd) hd.innerHTML = '';
+    console.log('[QR Download] release #' + _n + ' | err=' + (errMsg || 'null'));
     if(errMsg && window.toast) toast(errMsg);
   }
 
@@ -116,14 +127,13 @@ window._qrDownload = function(url, name){
   var NAME_MAX_PX = 68;
   var NAME_MIN_PX = 28;
 
-  // ── Draw card over template ──
+  // ── Draw card ──
   function _drawCard(qrCanvas, tmpl){
-    console.log('[QR-DL #' + _n + '] 5. card canvas draw start | qrCanvas=' + (qrCanvas ? 'ok' : 'null') + ' | tmpl=' + (tmpl ? 'ok' : 'null'));
     var cv = document.createElement('canvas');
     cv.width = 1800; cv.height = 1800;
     var ctx = cv.getContext('2d');
 
-    if(tmpl) ctx.drawImage(tmpl, 0, 0, 1800, 1800);
+    if(tmpl)     ctx.drawImage(tmpl,     0,    0,    1800, 1800);
     if(qrCanvas) ctx.drawImage(qrCanvas, QR_X, QR_Y, QR_SIZE, QR_SIZE);
 
     var nameText = (name || '').trim();
@@ -135,80 +145,57 @@ window._qrDownload = function(url, name){
         fontSize -= 2;
         ctx.font = 'bold ' + fontSize + 'px "Cairo","Noto Sans Arabic",Arial,sans-serif';
       }
-      var tw    = ctx.measureText(nameText).width;
-      var nameX = NAME_LEFT + (availW - tw) / 2;
-      var nameY = CARD_CY + fontSize * 0.35;
+      var tw = ctx.measureText(nameText).width;
       ctx.save();
       ctx.fillStyle = '#ffffff';
-      ctx.fillText(nameText, nameX, nameY);
+      ctx.fillText(nameText, NAME_LEFT + (availW - tw) / 2, CARD_CY + fontSize * 0.35);
       ctx.restore();
     }
 
-    console.log('[QR-DL #' + _n + '] 6. toBlob started');
     try {
       cv.toBlob(function(blob){
-        console.log('[QR-DL #' + _n + '] 7. toBlob callback fired | blob=' + (blob ? 'exists size=' + blob.size : 'NULL'));
+        console.log('[QR Download] blob ready #' + _n + ' | size=' + (blob ? blob.size : 'null'));
         try {
-          if(!blob){
-            console.log('[QR-DL #' + _n + '] 8. blob is null — aborting');
-            _release('تعذّر إنشاء الصورة');
-            return;
-          }
-          console.log('[QR-DL #' + _n + '] 8. blob exists, size=' + blob.size);
+          if(!blob){ _release('تعذّر إنشاء الصورة'); return; }
 
           var twId   = (url.match(/\/u\/([^?#/]+)/) || [])[1] || 'profile';
           var dlName = 'tawasolna-qr-card-' + twId + '-' + Date.now() + '.png';
-          console.log('[QR-DL #' + _n + '] filename=' + dlName);
-
           var blobUrl = URL.createObjectURL(blob);
-          console.log('[QR-DL #' + _n + '] 9. objectURL created: ' + blobUrl.slice(0, 60));
 
           var a = document.createElement('a');
+          a.style.display = 'none';
           a.href     = blobUrl;
           a.download = dlName;
-          a.style.display = 'none';
           document.body.appendChild(a);
-          console.log('[QR-DL #' + _n + '] 10. anchor appended to body');
-
-          // ONLY a.click() triggers <a download> in browsers — dispatchEvent does NOT work
           a.click();
-          console.log('[QR-DL #' + _n + '] 11. a.click() fired');
+          console.log('[QR Download] a.click #' + _n + ' | file=' + dlName);
 
-          // Remove anchor after 1s, revoke blobUrl after 10s
-          setTimeout(function(){
-            if(a.parentNode) a.parentNode.removeChild(a);
-            console.log('[QR-DL #' + _n + '] 12. anchor removed');
-          }, 1000);
-          setTimeout(function(){
-            URL.revokeObjectURL(blobUrl);
-            console.log('[QR-DL #' + _n + '] objectURL revoked');
-          }, 10000);
+          // Cleanup: remove anchor after 500ms, revoke URL after 10s
+          setTimeout(function(){ if(a.parentNode) a.parentNode.removeChild(a); }, 500);
+          setTimeout(function(){ URL.revokeObjectURL(blobUrl); }, 10000);
 
           if(window.toast) toast('جاري التحميل...');
         } catch(e2){
-          console.log('[QR-DL #' + _n + '] ERROR inside toBlob callback: ' + e2);
+          console.log('[QR Download] error in blob cb #' + _n + ': ' + e2);
         } finally {
+          // Release immediately after a.click() — do NOT wait for browser download event
           _release(null);
         }
       }, 'image/png');
     } catch(e){
-      console.log('[QR-DL #' + _n + '] ERROR calling toBlob: ' + e);
+      console.log('[QR Download] toBlob threw #' + _n + ': ' + e);
       _release('تعذّر إنشاء الصورة');
     }
   }
 
   // ── Generate QR then draw ──
   function _generateAndDraw(tmpl){
-    console.log('[QR-DL #' + _n + '] 3. template loaded | tmpl=' + (tmpl ? 'ok' : 'null (timeout fallback)'));
     var hd = document.getElementById(_QR_HIDDEN_ID);
     if(!hd){
       hd = document.createElement('div');
       hd.id = _QR_HIDDEN_ID;
       hd.style.cssText = 'position:fixed;left:-9999px;top:0;width:' + QR_SIZE + 'px;height:' + QR_SIZE + 'px;overflow:hidden;';
       document.body.appendChild(hd);
-      console.log('[QR-DL #' + _n + '] hidden container created');
-    } else {
-      console.log('[QR-DL #' + _n + '] hidden container reused, clearing');
     }
     hd.innerHTML = '';
 
@@ -221,41 +208,26 @@ window._qrDownload = function(url, name){
         colorLight:   '#ffffff',
         correctLevel: QRCode.CorrectLevel.H
       });
-      console.log('[QR-DL #' + _n + '] 4. QR generated OK');
     } catch(e){
-      console.log('[QR-DL #' + _n + '] 4. QR generation FAILED: ' + e);
+      console.log('[QR Download] QRCode failed #' + _n + ': ' + e);
       _release('تعذّر توليد QR');
       return;
     }
 
     setTimeout(function(){
       var qrCanvas = hd.querySelector('canvas');
-      console.log('[QR-DL #' + _n + '] QR canvas after 50ms: ' + (qrCanvas ? 'found w=' + qrCanvas.width : 'NOT FOUND'));
+      console.log('[QR Download] canvas #' + _n + ': ' + (qrCanvas ? 'ok w=' + qrCanvas.width : 'NOT FOUND'));
       _drawCard(qrCanvas, tmpl);
     }, 50);
   }
 
   // ── Load template then draw ──
   var _fired = false;
-  function _onTemplate(tmpl){
-    if(_fired){ console.log('[QR-DL #' + _n + '] _onTemplate called again — ignored (already fired)'); return; }
-    _fired = true;
-    _generateAndDraw(tmpl);
-  }
+  function _onTemplate(tmpl){ if(_fired) return; _fired = true; _generateAndDraw(tmpl); }
 
   var tmplImg = new Image();
-  tmplImg.onload  = function(){
-    console.log('[QR-DL #' + _n + '] template image onload');
-    _onTemplate(tmplImg);
-  };
-  tmplImg.onerror = function(){
-    console.log('[QR-DL #' + _n + '] template image onerror');
-    _release('تعذّر تحميل قالب البطاقة');
-  };
-  setTimeout(function(){
-    console.log('[QR-DL #' + _n + '] template 8s timeout fallback');
-    _onTemplate(null);
-  }, 8000);
+  tmplImg.onload  = function(){ console.log('[QR Download] template ok #' + _n); _onTemplate(tmplImg); };
+  tmplImg.onerror = function(){ console.log('[QR Download] template err #' + _n); _release('تعذّر تحميل قالب البطاقة'); };
+  setTimeout(function(){ console.log('[QR Download] template timeout #' + _n); _onTemplate(null); }, 8000);
   tmplImg.src = '/static/img/qr-card-template-ar-v2.png?v=2';
-  console.log('[QR-DL #' + _n + '] template load started: ' + tmplImg.src);
 };
