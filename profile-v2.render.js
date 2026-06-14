@@ -510,17 +510,28 @@ window.renderProfile = function renderProfile(res){
   // QR (via profile-v2.qr.js)
   var qrEl = document.getElementById('scQr');
   if(qrEl){
-    var _qrId  = p.tw_id || '';
-    var _qrUrl = 'https://tawasolna.com/u/' + encodeURIComponent(_qrId) + '?ref=qr';
-    renderQR(qrEl, _qrUrl);
-    qrEl.setAttribute('role', 'button');
-    qrEl.setAttribute('tabindex', '0');
-    qrEl.setAttribute('aria-label', 'فتح رمز QR لمشاركة البروفايل');
-    qrEl.setAttribute('title', 'مشاركة البروفايل');
-    qrEl.onclick = function(){ openQRModal(_qrUrl, p.full_name || p.first_name || ''); };
-    qrEl.onkeydown = function(e){
-      if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); openQRModal(_qrUrl, p.full_name || p.first_name || ''); }
-    };
+    var _qrId  = (p.tw_id || '').trim();
+    var _qrUrl = _qrId ? ('https://tawasolna.com/u/' + encodeURIComponent(_qrId) + '?ref=qr') : '';
+    var _displayUrl = _qrId ? ('https://tawasolna.com/u/' + encodeURIComponent(_qrId)) : '';
+
+    // Debug log — remove after confirming QR URLs in production
+    console.log('[QR] profile.id:', p.id, '| tw_id:', _qrId || '(empty!)', '| qrUrl:', _qrUrl, '| displayUrl:', _displayUrl);
+
+    if(!_qrId){
+      // Guard: no tw_id — render placeholder and block modal
+      qrEl.innerHTML = '<div class="sc-qr-inner" style="display:flex;align-items:center;justify-content:center;font-size:11px;color:rgba(255,255,255,.4);text-align:center;padding:8px;">تعذّر إنشاء<br>رابط المشاركة</div>';
+      qrEl.onclick = function(){ if(window.toast) toast('تعذّر إنشاء رابط المشاركة — يرجى تسجيل الخروج والدخول مجدداً'); };
+    } else {
+      renderQR(qrEl, _qrUrl);
+      qrEl.setAttribute('role', 'button');
+      qrEl.setAttribute('tabindex', '0');
+      qrEl.setAttribute('aria-label', 'فتح رمز QR لمشاركة البروفايل');
+      qrEl.setAttribute('title', 'مشاركة البروفايل');
+      qrEl.onclick = function(){ openQRModal(_qrUrl, p.full_name || p.first_name || ''); };
+      qrEl.onkeydown = function(e){
+        if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); openQRModal(_qrUrl, p.full_name || p.first_name || ''); }
+      };
+    }
   }
 
   // Data arrays
