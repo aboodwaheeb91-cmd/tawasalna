@@ -1338,6 +1338,7 @@ def public_profile(user_id: str, request: Request):
     viewer_type = "guest"
     is_owner    = False
     token_uid   = None
+    payload     = {}
 
     auth_header = request.headers.get("Authorization", "")
     if auth_header.startswith("Bearer "):
@@ -1392,6 +1393,30 @@ def public_profile(user_id: str, request: Request):
             "can_report":  False,
         }
 
+    # ── Interest (viewer_action) ──
+    target_user_type = profile.get("user_type", "emp")
+    _interest_active = False
+    if viewer_type == "public-user" and token_uid and target_user_type == "emp":
+        try:
+            _interest_active = is_profile_interest_active(int(token_uid), profile_id)
+        except Exception:
+            pass
+
+    if viewer_type == "owner" or target_user_type != "emp":
+        viewer_action = {"hidden": True,  "can_interact": False, "is_active": False, "label": "", "type": ""}
+    elif viewer_type == "guest":
+        viewer_action = {"hidden": False, "can_interact": False, "is_active": False,
+                         "label": "سجّل للتفاعل", "type": "login_prompt"}
+    else:
+        actor_user_type = payload.get("user_type", "emp") if payload else "emp"
+        viewer_action = {
+            "hidden":       False,
+            "can_interact": True,
+            "is_active":    _interest_active,
+            "label":        get_profile_interest_label(actor_user_type, _interest_active),
+            "type":         get_profile_interest_type(actor_user_type),
+        }
+
     return {
         "status":          "success",
         "profile":         profile,
@@ -1401,6 +1426,7 @@ def public_profile(user_id: str, request: Request):
         "is_following":    _is_following,
         "views_count":     views_count,
         "permissions":     permissions,
+        "viewer_action":   viewer_action,
     }
 
 @app.get("/profile/{user_id}/metrics")
@@ -1521,6 +1547,67 @@ def profile_unfollow(user_id: str, token=Depends(verify_token)):
 
     count = unfollow_profile(int(viewer_id), target_id)
     return {"status": "success", "is_following": False, "followers_count": count}
+
+
+@app.post("/profile/{user_id}/interest")
+def profile_interest_save(user_id: str, token=Depends(verify_token)):
+    """Save a profile interest. Backend derives interest_type from actor user_type.
+    Guests and owners blocked. Target must be an emp profile."""
+    actor_id = token.get("user_id")
+    if not actor_id:
+        raise HTTPException(401, "رمز غير صالح")
+
+    try:
+        target_id = int(user_id)
+    except ValueError:
+        raise HTTPException(400, "معرّف غير صالح")
+
+    if int(actor_id) == target_id:
+        raise HTTPException(400, "لا يمكنك حفظ ملفك الشخصي")
+
+    result = save_profile_interest(int(actor_id), target_id)
+    if not result.get("success"):
+        raise HTTPException(400, result.get("error", "تعذّر الحفظ"))
+
+    actor_type    = token.get("user_type", "emp")
+    interest_type = result["interest_type"]
+    return {
+        "status": "success",
+        "viewer_action": {
+            "label":        get_profile_interest_label(actor_type, True),
+            "type":         interest_type,
+            "is_active":    True,
+            "can_interact": True,
+            "hidden":       False,
+        },
+    }
+
+
+@app.delete("/profile/{user_id}/interest")
+def profile_interest_remove(user_id: str, token=Depends(verify_token)):
+    """Remove a profile interest. Idempotent — no error if not found."""
+    actor_id = token.get("user_id")
+    if not actor_id:
+        raise HTTPException(401, "رمز غير صالح")
+
+    try:
+        target_id = int(user_id)
+    except ValueError:
+        raise HTTPException(400, "معرّف غير صالح")
+
+    remove_profile_interest(int(actor_id), target_id)
+
+    actor_type = token.get("user_type", "emp")
+    return {
+        "status": "success",
+        "viewer_action": {
+            "label":        get_profile_interest_label(actor_type, False),
+            "type":         get_profile_interest_type(actor_type),
+            "is_active":    False,
+            "can_interact": True,
+            "hidden":       False,
+        },
+    }
 
 
 @app.get("/professions")
