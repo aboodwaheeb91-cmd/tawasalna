@@ -137,11 +137,6 @@
             <div class="sc-stat-n" id="scStatFollowers">—</div>
             <div class="sc-stat-l">المتابعون</div>
           </div>
-          <div class="sc-stat" id="scStatFollowingTile">
-            <i data-lucide="user-check" class="ico sc-stat-i" style="color:#8b5cf6"></i>
-            <div class="sc-stat-n" id="scStatFollowing">—</div>
-            <div class="sc-stat-l">يتابع</div>
-          </div>
           <div class="sc-stat">
             <i data-lucide="briefcase" class="ico sc-stat-i" style="color:#f97316"></i>
             <div class="sc-stat-n" id="scStatExp">—</div>
@@ -664,6 +659,24 @@
         <button class="sc-modal-cancel" id="linkCancelBtn">إلغاء</button>
       </div>
     </div>
+  </div>
+
+  <!-- ── Followers Popover ── -->
+  <div class="sc-fl-popover" id="scFlPopover" style="display:none">
+    <button class="sc-fl-pop-item" id="scFlPopFollowers">
+      <i data-lucide="users" class="sc-fl-pop-ico" style="color:#8b5cf6"></i>
+      <div class="sc-fl-pop-meta">
+        <span class="sc-fl-pop-count" id="scFlPopCountFollowers">—</span>
+        <span class="sc-fl-pop-label">المتابعون</span>
+      </div>
+    </button>
+    <button class="sc-fl-pop-item" id="scFlPopFollowing">
+      <i data-lucide="user-check" class="sc-fl-pop-ico" style="color:#8b5cf6"></i>
+      <div class="sc-fl-pop-meta">
+        <span class="sc-fl-pop-count" id="scFlPopCountFollowing">—</span>
+        <span class="sc-fl-pop-label">يتابع</span>
+      </div>
+    </button>
   </div>
 
   <!-- ── Follow List Modal ── -->
