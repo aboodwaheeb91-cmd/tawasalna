@@ -3216,7 +3216,7 @@ CREATE TABLE profile_interests (
 | Owner (صاحب البروفايل) | `hidden=true` |
 | Target ليس `emp` | `hidden=true` |
 | Guest | `type=login_prompt`, `label=سجّل للتفاعل`, `can_interact=false` |
-| Emp يشاهد emp | `label=أعجبني الملف` / `تم الإعجاب`, `type=profile_like` |
+| Emp يشاهد emp | `label=أعجبني ملفك` / `تم الإعجاب`, `type=profile_like` |
 | Co يشاهد emp | `label=حفظ كمرشح` / `محفوظ كمرشح`, `type=candidate_save` |
 | Edu يشاهد emp | `label=دعوة للتدريب` / `تم حفظ الدعوة`, `type=training_invite` |
 
