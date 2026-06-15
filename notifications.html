@@ -149,138 +149,9 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-heig
     <button class="ftab" onclick="filterNotifs('msg',this)">💬 رسائل</button>
   </div>
 
-  <!-- TODAY -->
+  <!-- Notifications loaded from DB only -->
   <div id="dynamicNotifs" style="margin-bottom:8px"><div class="tw-skeleton" style="height:64px;margin-bottom:8px"></div><div class="tw-skeleton" style="height:64px"></div></div>
 
-  <div class="notif-group" id="group-today">
-    <div class="group-label">اليوم</div>
-
-    <!-- Interview -->
-    <div class="ni unread" data-type="interview">
-      <div class="ni-ico ico-interview">📅</div>
-      <div class="ni-body">
-        <div class="ni-title">موعد مقابلة من <span>شركة تك ستارت</span></div>
-        <div class="ni-sub">دعوة لمقابلة عمل لوظيفة مطور Full Stack</div>
-        <div class="interview-card">
-          <div class="ic-title">📅 تفاصيل المقابلة</div>
-          <div class="ic-details">
-            <div class="ic-item">📆 <span>الثلاثاء 20 مايو 2025</span></div>
-            <div class="ic-item">⏰ <span>10:00 صباحاً</span></div>
-            <div class="ic-item">📍 <span>عمان - الدوار الأول</span></div>
-            <div class="ic-item">👤 <span>أحمد المدير</span></div>
-          </div>
-        </div>
-        <div class="ni-actions">
-          <button class="na-btn na-primary">✓ تأكيد الحضور</button>
-          <button class="na-btn na-ghost">إعادة جدولة</button>
-        </div>
-        <div class="ni-time">منذ ساعة</div>
-      </div>
-    </div>
-
-    <!-- Job match -->
-    <div class="ni unread" data-type="job">
-      <div class="ni-ico ico-job">💼</div>
-      <div class="ni-body">
-        <div class="ni-title">وظيفة تناسبك بنسبة <span>94%</span></div>
-        <div class="ni-sub">مطور React أول - شركة تك ستارت - عمان - 1200 دينار/شهر</div>
-        <div class="ni-actions">
-          <button class="na-btn na-primary">عرض الوظيفة</button>
-          <button class="na-btn na-ghost">تجاهل</button>
-        </div>
-        <div class="ni-time">منذ 3 ساعات</div>
-      </div>
-    </div>
-
-    <!-- Message -->
-    <div class="ni unread" data-type="msg">
-      <div class="ni-ico ico-msg">💬</div>
-      <div class="ni-body">
-        <div class="ni-title">رسالة جديدة من <span>شركة إبداع للتقنية</span></div>
-        <div class="ni-sub">مرحباً، نود الاطلاع على ملفك الشخصي للتقدم لوظيفة...</div>
-        <div class="ni-actions">
-          <button class="na-btn na-primary">رد الآن</button>
-        </div>
-        <div class="ni-time">منذ 5 ساعات</div>
-      </div>
-    </div>
-
-  </div>
-
-  <!-- YESTERDAY -->
-  <div class="notif-group" id="group-yesterday">
-    <div class="group-label">أمس</div>
-
-    <!-- Verification -->
-    <div class="ni" data-type="verify">
-      <div class="ni-ico ico-verify">✅</div>
-      <div class="ni-body">
-        <div class="ni-title">تم توثيق شهادتك من <span>الجامعة الأردنية</span></div>
-        <div class="ni-sub">بكالوريوس هندسة الحاسوب - تظهر الآن موثقة في ملفك</div>
-        <div class="ni-time">أمس - 2:30 م</div>
-      </div>
-    </div>
-
-    <!-- Training -->
-    <div class="ni" data-type="training">
-      <div class="ni-ico ico-training">🎓</div>
-      <div class="ni-body">
-        <div class="ni-title">دورة جديدة من <span>أكاديمية التميز</span></div>
-        <div class="ni-sub">React المتقدم - 24 ساعة - خصم 30% حتى نهاية الشهر</div>
-        <div class="ni-actions">
-          <button class="na-btn na-primary">عرض الدورة</button>
-        </div>
-        <div class="ni-time">أمس - 10:15 ص</div>
-      </div>
-    </div>
-
-    <!-- Follow/Job post -->
-    <div class="ni" data-type="job">
-      <div class="ni-ico ico-job">💼</div>
-      <div class="ni-body">
-        <div class="ni-title"><span>شركة تك ستارت</span> التي تتابعها نشرت وظيفة جديدة</div>
-        <div class="ni-sub">مصمم UX/UI - دوام جزئي - عمان</div>
-        <div class="ni-actions">
-          <button class="na-btn na-primary">عرض الوظيفة</button>
-        </div>
-        <div class="ni-time">أمس - 9:00 ص</div>
-      </div>
-    </div>
-
-  </div>
-
-  <!-- OLDER -->
-  <div class="notif-group">
-    <div class="group-label">سابقاً</div>
-
-    <div class="ni" data-type="verify">
-      <div class="ni-ico ico-verify">⏳</div>
-      <div class="ni-body">
-        <div class="ni-title">طلب توثيق قيد المراجعة</div>
-        <div class="ni-sub">خبرة العمل في شركة إبداع - تواصلنا يراجع الطلب</div>
-        <div class="ni-time">منذ 3 أيام</div>
-      </div>
-    </div>
-
-    <div class="ni" data-type="training">
-      <div class="ni-ico ico-training">🎓</div>
-      <div class="ni-body">
-        <div class="ni-title">اكتملت دورة <span>Python للمبتدئين</span></div>
-        <div class="ni-sub">تهانينا! شهادتك جاهزة للتحميل وتظهر في ملفك</div>
-        <div class="ni-time">منذ 5 أيام</div>
-      </div>
-    </div>
-
-    <div class="ni" data-type="msg">
-      <div class="ni-ico ico-system">🔔</div>
-      <div class="ni-body">
-        <div class="ni-title">مرحباً بك في تواصلنا!</div>
-        <div class="ni-sub">أكمل ملفك الشخصي للحصول على أفضل فرص العمل</div>
-        <div class="ni-time">منذ أسبوع</div>
-      </div>
-    </div>
-
-  </div>
 </div>
 
 <!-- BOTTOM NAV -->
@@ -288,8 +159,8 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-heig
   <div class="bn" onclick="goHome()"><span class="bi">🏠</span><span class="bl">الرئيسية</span></div>
   <div class="bn"><span class="bi">💼</span><span class="bl">وظائف</span></div>
   <div class="bn"><span class="bi">👤</span><span class="bl">ملفي</span></div>
-  <div class="bn active"><span class="bi">🔔</span><span class="bl">إشعارات</span></div>
-  <div class="bn"><span class="bi">💬</span><span class="bl">رسائل</span></div>
+  <div class="bn active" style="position:relative"><span class="bi">🔔</span><span class="bl">إشعارات</span></div>
+  <div class="bn" onclick="location.href='/messages'" style="position:relative"><span class="bi">💬</span><span class="bl">رسائل</span><span data-badge="msgs" style="display:none;position:absolute;top:4px;right:4px;background:#2563ff;color:#fff;border-radius:50%;width:14px;height:14px;font-size:.5rem;font-weight:700;line-height:14px;text-align:center"></span></div>
 </div>
 
 <script src="/tw_shared.js"></script>
@@ -489,6 +360,7 @@ function markAll(){
 
 // Load on start
 loadRealNotifications();
+loadGlobalBadges();
 loadJobApplications();
 
 

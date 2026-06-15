@@ -1,8 +1,8 @@
 
 // Fix [A-2]: Version includes build timestamp
 // Update this BUILD_TIME on every deploy to bust old caches
-const BUILD_TIME = '20260529_1341';
-const CACHE_NAME = 'tawasolna-v4-' + BUILD_TIME; // bumped version to bust old cache
+const BUILD_TIME = '20260615_1900';
+const CACHE_NAME = 'tawasolna-v5-' + BUILD_TIME; // bumped to bust cached JS after messenger fixes
 
 const STATIC_ASSETS = [
   '/landing.html',

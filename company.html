@@ -261,8 +261,8 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-heig
     <a class="sm-item" onclick="goProfile()" style="cursor:pointer"><span class="sm-ico">🏢</span>ملف شركتي</a>
     <a class="sm-item on" href="#"><span class="sm-ico">🔍</span>بحث موظفين</a>
     <a class="sm-item" href="#"><span class="sm-ico">👥</span>موظفو الشركة</a>
-    <a class="sm-item" href="/messages"><span class="sm-ico">💬</span>الرسائل<span class="sm-badge">0</span></a>
-    <a class="sm-item" href="notifications.html"><span class="sm-ico">🔔</span>الإشعارات<span class="sm-badge">0</span></a>
+    <a class="sm-item" href="/messages"><span class="sm-ico">💬</span>الرسائل<span class="sm-badge" data-badge="msgs" style="display:none">0</span></a>
+    <a class="sm-item" href="notifications.html"><span class="sm-ico">🔔</span>الإشعارات<span class="sm-badge" data-badge="notif" style="display:none">0</span></a>
     <a class="sm-item" href="settings.html"><span class="sm-ico">⚙️</span>الإعدادات</a>
     <a class="sm-item" href="#" onclick="logout()" style="color:rgba(239,68,68,.6)"><span class="sm-ico">🚪</span>خروج</a>
   </div>
@@ -610,6 +610,7 @@ document.addEventListener('touchstart',function(e){if(window.scrollY===0)_ptr2St
 document.addEventListener('touchend',function(e){if(_ptr2Active){_ptr2Active=false;loadData?loadData():location.reload();}},{passive:true});
 document.addEventListener('touchmove',function(e){if(window.scrollY===0&&_ptr2Start>0){var diff=e.touches[0].clientY-_ptr2Start;if(diff>70&&!_ptr2Active){_ptr2Active=true;showToast('جاري التحديث...','info',1500);}}},{passive:true});
 
+document.addEventListener('DOMContentLoaded', loadGlobalBadges);
 </script>
 
 

@@ -132,6 +132,39 @@ function safeText(el, text){
   el.textContent = text || '';
 }
 
+// ══ Global Badge Loader ══
+// Populates all elements with data-badge="msgs" and data-badge="notif".
+// Call once after page init from any authenticated page.
+function loadGlobalBadges() {
+  try {
+    var u   = JSON.parse(localStorage.getItem('tw_user') || 'null');
+    var jwt = localStorage.getItem('tw_jwt') || '';
+    if (!u || !u.id || !jwt) return;
+
+    fetch('/notifications/' + u.id)
+      .then(function(r) { return r.ok ? r.json() : null; })
+      .then(function(d) {
+        if (!d) return;
+        var count = d.unread || 0;
+        document.querySelectorAll('[data-badge="notif"]').forEach(function(el) {
+          el.textContent = count > 9 ? '9+' : String(count);
+          el.style.display = count > 0 ? 'inline-block' : 'none';
+        });
+      }).catch(function() {});
+
+    fetch('/messages/unread/' + u.id, { headers: { 'Authorization': 'Bearer ' + jwt } })
+      .then(function(r) { return r.ok ? r.json() : null; })
+      .then(function(d) {
+        if (!d) return;
+        var count = d.count || 0;
+        document.querySelectorAll('[data-badge="msgs"]').forEach(function(el) {
+          el.textContent = count > 9 ? '9+' : String(count);
+          el.style.display = count > 0 ? 'inline-block' : 'none';
+        });
+      }).catch(function() {});
+  } catch(e) {}
+}
+
 // ══ Logo from Admin ══
 var _twLogoWide = 'https://wrxvmdmknhoufoeprpoc.supabase.co/storage/v1/object/public/site/Logo.svg';
 
