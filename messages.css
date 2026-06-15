@@ -1,7 +1,7 @@
 /* ══ messages.css — Messenger V1 Styles ══════════════════════════════ */
 :root{--ac:#00c896;--ac2:#2563ff;--bg:#070b18;--card:rgba(255,255,255,.03);--border:rgba(255,255,255,.07);--t:rgba(255,255,255,.87);--t2:rgba(255,255,255,.5);--t3:rgba(255,255,255,.27);}
 *{margin:0;padding:0;box-sizing:border-box;}
-body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;height:100vh;overflow:hidden;}
+body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;height:100vh;height:100dvh;overflow:hidden;}
 
 /* ── Nav ── */
 .nav{height:52px;display:flex;align-items:center;gap:8px;padding:0 14px;background:rgba(7,11,24,.93);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);position:fixed;top:0;left:0;right:0;z-index:100;}
@@ -10,7 +10,7 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;height:1
 .nb:hover{background:rgba(255,255,255,.12);color:var(--t);}
 
 /* ── Layout ── */
-.layout{display:grid;grid-template-columns:300px 1fr;height:calc(100vh - 52px);margin-top:52px;}
+.layout{display:grid;grid-template-columns:300px 1fr;height:calc(100vh - 52px);height:calc(100dvh - 52px);margin-top:52px;}
 
 /* ── Conversations list ── */
 .conv-list{border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;}
@@ -32,7 +32,7 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;height:1
 .ci-badge{background:var(--ac);color:#fff;border-radius:10px;padding:1px 6px;font-size:.58rem;font-weight:900;flex-shrink:0;}
 
 /* ── Chat panel ── */
-.chat{display:flex;flex-direction:column;background:rgba(255,255,255,.01);}
+.chat{display:flex;flex-direction:column;background:rgba(255,255,255,.01);min-height:0;overflow:hidden;}
 .chat-head{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-shrink:0;}
 .ch-ava{width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,var(--ac2),var(--ac));display:flex;align-items:center;justify-content:center;font-size:.95rem;flex-shrink:0;}
 .ch-name{font-size:.85rem;font-weight:800;}
@@ -43,7 +43,7 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;height:1
 .ch-back{display:none;}
 
 /* ── Messages area ── */
-.messages{flex:1;overflow-y:auto;padding:16px 18px;display:flex;flex-direction:column;gap:10px;}
+.messages{flex:1;min-height:0;overflow-y:auto;padding:16px 18px;display:flex;flex-direction:column;gap:10px;}
 .date-divider{text-align:center;font-size:.62rem;color:var(--t3);padding:6px 0;}
 
 /* ── Message bubbles ── */
@@ -58,7 +58,7 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;height:1
 .msg.in .msg-time{text-align:left;}
 
 /* ── Input ── */
-.chat-input{padding:12px 16px;border-top:1px solid var(--border);display:flex;gap:8px;align-items:flex-end;flex-shrink:0;}
+.chat-input{padding:12px 16px;padding-bottom:max(12px, env(safe-area-inset-bottom));border-top:1px solid var(--border);display:flex;gap:8px;align-items:flex-end;flex-shrink:0;}
 .input-wrap{flex:1;background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:14px;padding:10px 14px;display:flex;align-items:flex-end;gap:8px;transition:border-color .2s;}
 .input-wrap:focus-within{border-color:rgba(0,200,150,.3);}
 .msg-input{flex:1;background:transparent;border:none;outline:none;color:var(--t);font-family:'Cairo',sans-serif;font-size:.82rem;resize:none;max-height:100px;direction:rtl;}

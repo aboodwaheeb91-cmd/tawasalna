@@ -14,7 +14,7 @@
 <title>تواصلنا - الرسائل</title>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/tw_shared.css">
-<link rel="stylesheet" href="/static/messages.css?v=v1">
+<link rel="stylesheet" href="/static/messages.css?v=v2">
 <style>.skip-link{position:absolute;top:-40px;right:0;background:var(--ac,#00c896);color:#0d1a2e;padding:8px 16px;border-radius:0 0 8px 0;font-family:Cairo,sans-serif;font-size:.8rem;font-weight:700;text-decoration:none;transition:top .2s;z-index:10000}.skip-link:focus{top:0}</style>
 <a href="#main-content" class="skip-link">تخطى للمحتوى الرئيسي</a>
 </head>
@@ -62,7 +62,7 @@
       </div>
     </div>
 
-    <div class="chat-input">
+    <div class="chat-input" id="chatInput" style="display:none">
       <div class="input-wrap">
         <textarea class="msg-input" id="msgInput" placeholder="اكتب رسالتك..." rows="1"
                   onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
@@ -75,9 +75,9 @@
 </div>
 
 <script src="/tw_shared.js"></script>
-<script src="/static/messages.state.js?v=v1"></script>
-<script src="/static/messages.api.js?v=v1"></script>
-<script src="/static/messages.ws.js?v=v1"></script>
-<script src="/static/messages.render.js?v=v1"></script>
+<script src="/static/messages.state.js?v=v2"></script>
+<script src="/static/messages.api.js?v=v2"></script>
+<script src="/static/messages.ws.js?v=v2"></script>
+<script src="/static/messages.render.js?v=v2"></script>
 </body>
 </html>
