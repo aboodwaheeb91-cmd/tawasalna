@@ -231,6 +231,22 @@
 .sc-btn--interested:hover { background:rgba(37,99,255,.2); }
 .sc-btn--interested:disabled { opacity:.6; cursor:not-allowed; }
 
+/* profile_like button — heart style */
+.sc-btn--like {
+  border:1px solid rgba(236,72,153,.35);
+  color:rgba(236,72,153,.75);
+}
+.sc-btn--like:hover { background:rgba(236,72,153,.08); border-color:rgba(236,72,153,.55); color:rgb(236,72,153); }
+.sc-btn--like svg { stroke:currentColor; }
+.sc-btn--like.sc-btn--interested {
+  background:rgba(236,72,153,.12);
+  border-color:rgba(236,72,153,.5);
+  color:rgb(236,72,153);
+}
+.sc-btn--like.sc-btn--interested:hover { background:rgba(236,72,153,.2); }
+.sc-btn--like.sc-btn--interested svg { fill:rgba(236,72,153,.3); }
+.sc-btn--like:disabled, .sc-btn--like.sc-btn--interested:disabled { opacity:.6; cursor:not-allowed; }
+
 /* Follow button: hidden for real owner, shown in preview */
 body.view-owner #scFollowBtn { display:none; }
 body.preview-public-user #scFollowBtn,

@@ -711,8 +711,9 @@ window.renderProfile = function renderProfile(res){
       return;
     }
     intBtn.style.display = '';
+    if(va.type === 'profile_like') intBtn.classList.add('sc-btn--like');
 
-    function _icon(active){ return active ? 'bookmark-check' : 'bookmark'; }
+    function _icon(active){ return 'heart'; }
 
     function _applyVa(v){
       intBtn.innerHTML = '<i data-lucide="' + _icon(v.is_active) + '" class="ico-sm"></i> ' + esc(v.label);

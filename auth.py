@@ -2238,7 +2238,7 @@ _INTEREST_TYPE_MAP = {
 _INTEREST_LABEL_MAP = {
     "co":  {"inactive": "حفظ كمرشح",     "active": "محفوظ كمرشح"},
     "edu": {"inactive": "دعوة للتدريب",   "active": "تم حفظ الدعوة"},
-    "emp": {"inactive": "أعجبني الملف",   "active": "تم الإعجاب"},
+    "emp": {"inactive": "أعجبني ملفك",    "active": "تم الإعجاب"},
 }
 
 
