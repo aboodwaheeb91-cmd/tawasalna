@@ -816,6 +816,9 @@ class ConnectionManager:
     def __init__(self):
         self.active: Dict[int, list] = {}
         self.active_conversations: Dict[int, int] = {}
+        # Tracks which specific WebSocket connection last set active_conversations
+        # so that only the messenger WS — never the badge WS — can clear it on disconnect.
+        self._conv_ws_owner: Dict[int, object] = {}
 
     async def connect(self, user_id: int, ws: WebSocket):
         await ws.accept()
@@ -826,8 +829,13 @@ class ConnectionManager:
     def disconnect(self, user_id: int, ws: WebSocket):
         if user_id in self.active:
             self.active[user_id] = [w for w in self.active[user_id] if w != ws]
-            if not self.active[user_id]:
+            # Only clear active_conversation if the WS that OWNS it disconnected,
+            # or if there are no connections left at all.
+            # This prevents the global badge WS (tw_shared.js) from clearing
+            # the messenger conversation state when it briefly disconnects.
+            if self._conv_ws_owner.get(user_id) is ws or not self.active[user_id]:
                 self.active_conversations.pop(user_id, None)
+                self._conv_ws_owner.pop(user_id, None)
 
     async def send_to_user(self, user_id: int, data: dict) -> bool:
         import json
@@ -862,9 +870,12 @@ async def websocket_endpoint(websocket: WebSocket, user_id: int):
                     other_id = msg.get("other_id")
                     if other_id:
                         ws_manager.active_conversations[user_id] = int(other_id)
+                        ws_manager._conv_ws_owner[user_id] = websocket
 
                 elif msg_type == "inactive_conversation":
-                    ws_manager.active_conversations.pop(user_id, None)
+                    if ws_manager._conv_ws_owner.get(user_id) is websocket:
+                        ws_manager.active_conversations.pop(user_id, None)
+                        ws_manager._conv_ws_owner.pop(user_id, None)
 
                 elif msg_type == "typing":
                     to_id = msg.get("to_user_id")
@@ -881,6 +892,7 @@ async def websocket_endpoint(websocket: WebSocket, user_id: int):
                     receiver_id = msg.get("receiver_id")
                     content = msg.get("content", "")
                     if receiver_id and content:
+                        receiver_id = int(receiver_id)
                         saved = send_message(user_id, receiver_id, content)
                         msg_id = saved.get("id")
                         receiver_has_conv_open = ws_manager.active_conversations.get(receiver_id) == user_id

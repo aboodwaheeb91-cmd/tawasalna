@@ -99,7 +99,11 @@ function connectWS() {
       try {
         var data = JSON.parse(e.data);
 
-        if (data.type === 'message' && data.from === _currentConvId) {
+        // Normalize to number for all id comparisons — prevents string/number mismatch
+        var fromId = Number(data.from || data.from_user_id);
+        var convId  = Number(_currentConvId);
+
+        if (data.type === 'message' && fromId === convId) {
           // New incoming message in active conversation — append it
           var msgs = document.getElementById('messages');
           var t = new Date().toLocaleTimeString('ar', { hour: '2-digit', minute: '2-digit' });
@@ -110,7 +114,6 @@ function connectWS() {
             + '</div></div>'
           );
           scrollDown();
-          // Hide typing indicator when message arrives
           hideTypingIndicator();
         }
 
@@ -122,11 +125,11 @@ function connectWS() {
           updateMessageStatus(data);
         }
 
-        if (data.type === 'typing' && data.from_user_id === _currentConvId) {
+        if (data.type === 'typing' && fromId === convId) {
           showTypingIndicator();
         }
 
-        if (data.type === 'typing_stop' && data.from_user_id === _currentConvId) {
+        if (data.type === 'typing_stop' && fromId === convId) {
           hideTypingIndicator();
         }
 
