@@ -5104,3 +5104,65 @@ Three improvements shipped together: immediate read receipts, typing indicator, 
 ### Version Tracking
 
 Current version: `?v=v6` (bumped for realtime UX: read receipts, typing, global badge WS)
+
+---
+
+## [P1] 60. Messenger Realtime — Directional Fix & Typing Audit
+
+### Root Cause: Read B→A Delayed
+
+`ConnectionManager.disconnect()` cleared `active_conversations[user_id]` whenever the user's connection list became empty. On the messages page, each user has **two** WS connections: the messenger WS (`messages.ws.js`) and the global badge WS (`tw_shared.js`). If the badge WS disconnected (briefly), `self.active[user_id]` temporarily became `[messenger_ws]` — non-empty, so `active_conversations` was safe. BUT if the messenger WS disconnected while the badge WS was in a reconnecting gap, both slots were briefly empty and `active_conversations[user_id]` was wiped, causing the next message to fall through to `delivered` instead of `read`.
+
+### Fix: Per-WS Ownership of `active_conversations`
+
+`ConnectionManager` now tracks which specific WebSocket connection set the active conversation:
+
+```python
+self._conv_ws_owner: Dict[int, object] = {}  # user_id → WebSocket
+```
+
+- `active_conversation` WS event → sets `active_conversations[user_id] = other_id` AND `_conv_ws_owner[user_id] = websocket`
+- `disconnect(user_id, ws)` → clears `active_conversations` ONLY if `_conv_ws_owner[user_id] is ws` (that WS owned it), OR if no connections remain at all
+- Badge WS disconnecting → `_conv_ws_owner[user_id]` points to the messenger WS → `is` check fails → state preserved ✓
+- Messenger WS reconnecting → `onopen` re-sends `active_conversation` → state restored ✓
+
+**Forbidden:**
+- ممنوع: إغلاق `active_conversations` بسبب badge WS أو أي اتصال غير الماسنجر
+- ممنوع: مقارنة `active_conversations` بدون `int()` cast
+
+### Root Cause: Typing Not Working
+
+Strict `===` comparison in JavaScript. `data.from_user_id` is a JSON integer (Python int → number). `_currentConvId` should also be a number from `parseInt()`, but any stale path or future change could introduce a string. A single mismatched type silently breaks all typing events.
+
+### Fix: `Number()` Normalization in messages.ws.js
+
+All realtime ID comparisons now normalize both sides:
+
+```javascript
+var fromId = Number(data.from || data.from_user_id);
+var convId  = Number(_currentConvId);
+```
+
+This covers: incoming `message` (`data.from`), `typing` and `typing_stop` (`data.from_user_id`). For events without these fields, `fromId = NaN` and all comparisons are `false` (safe).
+
+**Rule:** Every WebSocket event handler that compares IDs MUST use `Number()` normalization. Never use `===` on raw `data.*` fields without normalizing.
+
+### active_conversation Contract
+
+| Field | Type | Source |
+|-------|------|--------|
+| `other_id` in WS event | numeric user id (NOT tw_id) | `_currentConvId` from `openConversation(otherId)` |
+| `active_conversations[user_id]` | Python int | `int(other_id)` on server |
+| Comparison in `/messages/send` | Python int == Python int | both sides must be ints |
+
+**tw_id is NEVER used in active_conversation** — it is a public routing string, not a realtime state key.
+
+### typing Payload Contract
+
+```
+Client → Server: {type: "typing", to_user_id: Number(_currentConvId)}
+Server → Receiver: {type: "typing", from_user_id: <int user_id from WS path>}
+Receiver check: Number(data.from_user_id) === Number(_currentConvId)
+```
+
+Same for `typing_stop`.
