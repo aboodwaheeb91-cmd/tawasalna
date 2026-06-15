@@ -248,6 +248,45 @@
 .sc-btn--like.sc-btn--interested svg { fill:rgba(139,92,246,.3); }
 .sc-btn--like:disabled, .sc-btn--like.sc-btn--interested:disabled { opacity:.6; cursor:not-allowed; }
 
+/* candidate_save button — professional blue */
+.sc-btn--candidate {
+  background:rgba(59,130,246,.07);
+  border:1px solid rgba(59,130,246,.35);
+  color:#93c5fd;
+}
+.sc-btn--candidate:hover { background:rgba(59,130,246,.13); border-color:rgba(59,130,246,.55); color:#93c5fd; }
+.sc-btn--candidate svg { stroke:currentColor; }
+.sc-btn--candidate.sc-btn--interested {
+  background:rgba(59,130,246,.17);
+  border-color:rgba(59,130,246,.55);
+  color:#93c5fd;
+}
+.sc-btn--candidate.sc-btn--interested:hover { background:rgba(59,130,246,.24); }
+.sc-btn--candidate:disabled, .sc-btn--candidate.sc-btn--interested:disabled { opacity:.6; cursor:not-allowed; }
+
+/* Candidate saved hint — shown below .sc-actions on save */
+.sc-candidate-hint {
+  display:flex; align-items:center; justify-content:center; gap:8px; flex-wrap:wrap;
+  padding:6px 16px; margin:0 20px 6px;
+  background:rgba(59,130,246,.08);
+  border:1px solid rgba(59,130,246,.25);
+  border-radius:10px;
+  font-size:12px; color:#93c5fd;
+  animation:scFadeIn .2s ease;
+}
+.sc-candidate-hint-btn {
+  background:none;
+  border:1px solid rgba(59,130,246,.4);
+  border-radius:6px;
+  color:#93c5fd;
+  font-size:11px; font-weight:700;
+  padding:2px 10px;
+  cursor:pointer;
+  font-family:inherit;
+}
+.sc-candidate-hint-btn:hover { background:rgba(59,130,246,.15); }
+@keyframes scFadeIn { from{opacity:0;transform:translateY(-4px)} to{opacity:1;transform:translateY(0)} }
+
 /* Follow button: hidden for real owner, shown in preview */
 body.view-owner #scFollowBtn { display:none; }
 body.preview-public-user #scFollowBtn,
