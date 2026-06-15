@@ -73,6 +73,7 @@ from auth import (
     follow_company, unfollow_company, rate_company,
     get_company_posts, create_company_post, get_post_owner, delete_company_post,
     follow_profile, unfollow_profile, get_profile_followers_count, is_profile_following,
+    get_profile_followers_list, get_profile_following_list,
     record_profile_view, get_profile_views_count,
     save_profile_interest, remove_profile_interest,
     is_profile_interest_active, get_profile_interest_type, get_profile_interest_label
@@ -1458,10 +1459,11 @@ def profile_metrics(user_id: str, request: Request):
         def _cnt(table, col="user_id"):
             return ((conn.run(f"SELECT COUNT(*) FROM {table} WHERE {col}=:uid", uid=uid)) or [[0]])[0][0]
 
-        course_count    = _cnt("courses")
-        lang_count      = _cnt("user_langs")
-        followers_count = _cnt("profile_follows",  "followed_id")
-        views_count     = _cnt("profile_views",    "viewed_user_id")
+        course_count     = _cnt("courses")
+        lang_count       = _cnt("user_langs")
+        followers_count  = _cnt("profile_follows", "followed_id")
+        following_count  = _cnt("profile_follows", "follower_id")
+        views_count      = _cnt("profile_views",   "viewed_user_id")
 
         _is_following = False
         if viewer_type == "public-user" and token_uid:
@@ -1485,6 +1487,7 @@ def profile_metrics(user_id: str, request: Request):
         "metrics": {
             "views_count":      views_count,
             "followers_count":  followers_count,
+            "following_count":  following_count,
             "experience_count": exp_count,
             "education_count":  edu_count,
             "courses_count":    course_count,
@@ -1547,6 +1550,54 @@ def profile_unfollow(user_id: str, token=Depends(verify_token)):
 
     count = unfollow_profile(int(viewer_id), target_id)
     return {"status": "success", "is_following": False, "followers_count": count}
+
+
+@app.get("/profile/{user_id}/followers")
+def profile_followers_list(user_id: str, request: Request, limit: int = 20, offset: int = 0):
+    """Paginated followers list. Public — no auth required."""
+    try:
+        profile_id = int(user_id)
+    except ValueError:
+        profile_id = get_user_id_by_tw_id(user_id)
+    if not profile_id:
+        raise HTTPException(404, "الملف الشخصي غير موجود")
+
+    limit  = min(max(limit, 1), 50)
+    offset = max(offset, 0)
+
+    viewer_id = None
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        payload = _jwt_decode(auth_header[7:])
+        if payload:
+            viewer_id = payload.get("user_id")
+
+    result = get_profile_followers_list(profile_id, viewer_id, limit, offset)
+    return {"status": "success", **result}
+
+
+@app.get("/profile/{user_id}/following")
+def profile_following_list(user_id: str, request: Request, limit: int = 20, offset: int = 0):
+    """Paginated following list (accounts this profile follows). Public — no auth required."""
+    try:
+        profile_id = int(user_id)
+    except ValueError:
+        profile_id = get_user_id_by_tw_id(user_id)
+    if not profile_id:
+        raise HTTPException(404, "الملف الشخصي غير موجود")
+
+    limit  = min(max(limit, 1), 50)
+    offset = max(offset, 0)
+
+    viewer_id = None
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        payload = _jwt_decode(auth_header[7:])
+        if payload:
+            viewer_id = payload.get("user_id")
+
+    result = get_profile_following_list(profile_id, viewer_id, limit, offset)
+    return {"status": "success", **result}
 
 
 @app.post("/profile/{user_id}/interest")

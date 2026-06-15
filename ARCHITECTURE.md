@@ -3738,12 +3738,72 @@ CREATE TABLE profile_follows (
 -- idx_pf_follower ON profile_follows(follower_id)
 ```
 
-### API Endpoints
+### API Endpoints — Write
 
 | Method | Path | Auth | Response |
 |--------|------|------|----------|
 | POST | `/profile/{user_id}/follow` | JWT | `{status, is_following: true, followers_count: <int>}` |
 | DELETE | `/profile/{user_id}/follow` | JWT | `{status, is_following: false, followers_count: <int>}` |
+
+### API Endpoints — Read (Paginated Lists)
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | `/profile/{id}/followers?limit=20&offset=0` | None (Public) | من يتابع هذا الحساب |
+| GET | `/profile/{id}/following?limit=20&offset=0` | None (Public) | من يتابعه هذا الحساب |
+
+**Response Contract:**
+
+```json
+{
+  "status": "success",
+  "items": [
+    {
+      "id": 42,
+      "tw_id": "U9620...",
+      "display_name": "أحمد الخالد",
+      "avatar_url": "https://...",
+      "user_type": "emp",
+      "profession": { "name_ar": "مطوّر برمجيات", "icon": "code" },
+      "is_following": true,
+      "can_follow": true,
+      "followed_at": "2026-06-15T00:00:00Z"
+    }
+  ],
+  "pagination": {
+    "limit": 20,
+    "offset": 0,
+    "has_more": true,
+    "total": 120
+  }
+}
+```
+
+**Pagination Rules:**
+- `limit` default=20, max=50
+- `offset` default=0
+- `has_more = (offset + limit) < total`
+
+**Permission Rules:**
+- القوائم عامة — guest يستطيع الرؤية
+- `is_following` = false للـ guest (لا JWT → لا EXISTS query)
+- `can_follow` = false للـ guest + للـ owner على نفسه
+- `can_follow` = true للـ logged-in public-user على أي حساب آخر
+
+**No N+1 — EXISTS داخل نفس SELECT:**
+
+```sql
+SELECT u.id, ...,
+  EXISTS(SELECT 1 FROM profile_follows v
+         WHERE v.follower_id=:viewer_id AND v.followed_id=u.id) AS is_following
+FROM profile_follows pf
+JOIN users u ON u.id=pf.follower_id   -- (أو followed_id للـ following list)
+LEFT JOIN profiles p ON p.user_id=u.id
+LEFT JOIN profession_categories pc ON pc.id=p.profession_id
+WHERE pf.followed_id=:profile_id
+ORDER BY pf.created_at DESC
+LIMIT :limit OFFSET :offset
+```
 
 ### Backend Functions
 
@@ -3753,6 +3813,33 @@ CREATE TABLE profile_follows (
 | `unfollow_profile(follower_id, followed_id)` | `DELETE` idempotent — يُعيد `followers_count` |
 | `get_profile_followers_count(followed_id)` | `COUNT(*)` |
 | `is_profile_following(follower_id, followed_id)` | `bool` — هل العلاقة موجودة |
+| `get_profile_followers_list(followed_id, viewer_id, limit, offset)` | قائمة المتابعين مع pagination + is_following |
+| `get_profile_following_list(follower_id, viewer_id, limit, offset)` | قائمة المتابَعين مع pagination + is_following |
+
+### following_count في /metrics
+
+`GET /profile/{id}/metrics` يُعيد الآن:
+
+```json
+"metrics": {
+  "followers_count": <int>,
+  "following_count": <int>,
+  ...
+}
+```
+
+`following_count = COUNT(*) FROM profile_follows WHERE follower_id = :profile_id`
+
+### حالة التنفيذ
+
+| الميزة | الحالة |
+|--------|--------|
+| POST/DELETE follow | ✅ |
+| GET followers list | ✅ |
+| GET following list | ✅ |
+| following_count في /metrics | ✅ |
+| Frontend Modal (Step 2) | ⏳ لم يُنفَّذ بعد |
+| scStatFollowing عداد جديد في الـ stats | ⏳ Step 2 |
 
 ### viewer_action for Follows (in GET /profile)
 
@@ -3771,8 +3858,12 @@ CREATE TABLE profile_follows (
 ✅ self-follow محظور في الـ DB (CHECK) وفي الـ endpoint (400 error)
 ✅ follow/unfollow idempotent — آمنة للاستدعاء المتكرر
 ✅ followers_count يُعاد فوراً بعد الـ mutation لتحديث الـ UI
+✅ Followers/Following lists عامة — لا تحتاج JWT للقراءة
+✅ is_following per item بدون N+1 (EXISTS في نفس الـ SELECT)
 ❌ لا إشعار عند المتابعة (by design)
 ❌ لا تغيّر زر scFollowBtn من داخل Interest System (scFullBtn)
+❌ لا تُرجع is_following=true للـ guest
+❌ لا تُرجع can_follow=true للـ owner على نفسه
 ```
 
 ---
