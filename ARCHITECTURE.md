@@ -3786,6 +3786,17 @@ All badge `<span>` elements in nav menus use `data-badge="msgs"` or `data-badge=
 - `notifications.html` — called directly after page init
 - `home.html` — has its own inline IIFE (compatible, uses same endpoints)
 - `profile.html` — has `window._triggerBadges()` (compatible, uses same endpoints)
+- `profile-showcase.html` (Profile V2 / `/u/{tw_id}`) — called from header-wiring IIFE in `profile-v2.render.js`; badge spans on `#scBellBtn` and `#scMsgBtn`
+
+### Profile V2 Badge Span Locations
+```html
+<!-- #scBellBtn — notifications badge -->
+<span data-badge="notif" style="position:absolute;top:-3px;left:-3px;..."></span>
+
+<!-- #scMsgBtn — messages badge -->
+<span data-badge="msgs" style="position:absolute;top:-3px;left:-3px;..."></span>
+```
+Both buttons have `position:relative`. Guest users see no badge (loadGlobalBadges returns early if no jwt).
 
 ---
 
