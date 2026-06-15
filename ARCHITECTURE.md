@@ -3464,14 +3464,21 @@ CREATE TABLE messages (
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| POST | `/messages/send` | JWT | إرسال رسالة → يُنشئ notification للمستقبل |
-| GET | `/messages/conversations/{user_id}` | None | قائمة المحادثات (آخر رسالة لكل محادثة) |
-| GET | `/messages/{user_id}/{other_id}` | None | رسائل محادثة (LIMIT 100) — يُحدّث is_read=TRUE |
-| GET | `/messages/unread/{user_id}` | None | عدد الرسائل غير المقروءة |
+| POST | `/messages/send` | JWT (required) | إرسال رسالة — `sender_id` مستخرج من JWT فقط |
+| GET | `/messages/conversations/{user_id}` | JWT + owner check | قائمة المحادثات (آخر رسالة لكل محادثة) |
+| GET | `/messages/{user_id}/{other_id}` | JWT + owner check | رسائل محادثة (LIMIT 100) — يُحدّث is_read=TRUE |
+| GET | `/messages/unread/{user_id}` | JWT + owner check | عدد الرسائل غير المقروءة |
 
 **Request for POST /messages/send:**
 ```json
-{ "sender_id": <int>, "receiver_id": <int>, "content": <str> }
+{ "receiver_id": <int>, "content": <str> }
+```
+> **ممنوع:** إرسال `sender_id` في body — يُستخرج من JWT حصراً.
+
+**Owner Check Pattern (GET endpoints):**
+```python
+if int(token.get("user_id") or 0) != user_id:
+    raise HTTPException(403, "غير مصرح")
 ```
 
 **Response for GET /messages/conversations:**
@@ -3491,6 +3498,13 @@ CREATE TABLE messages (
 - `send_message()` also calls `create_notification()` for receiver (type='message')
 - No message deletion endpoint in current version
 - Frontend (`messages.html`) polls via `setInterval` (client-driven frequency)
+- `messages.html` uses `tw_user` key in localStorage (legacy pattern — different from `tawasalna_user` used in profile)
+- `_jwt = localStorage.getItem('tw_jwt') || ''` — injected at top of script block after user session load
+
+### Security Debt (Known — Not Fixed in Step 1)
+
+- WebSocket `/ws/{user_id}` — `user_id` comes from URL path, no JWT verification on WS upgrade.
+  No change made to avoid breaking real-time delivery. Tracked for a future hardening step.
 
 ---
 

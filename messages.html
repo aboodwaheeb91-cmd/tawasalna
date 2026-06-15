@@ -303,6 +303,7 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;height:1
 let _user = null;
 try { _user = JSON.parse(localStorage.getItem('tw_user')); } catch(e){}
 if(!_user||!_user.id){ window.location.href='/'; }
+var _jwt = localStorage.getItem('tw_jwt') || '';
 
 function openConv(el, name, ava){
   document.querySelectorAll('.conv-item').forEach(i=>i.classList.remove('active'));
@@ -453,7 +454,7 @@ var _currentConvId = null;
 // Load conversations from DB
 function loadConversations(){
   if(!_user||!_user.id) return;
-  fetch('/messages/conversations/'+_user.id)
+  fetch('/messages/conversations/'+_user.id, {headers:{'Authorization':'Bearer '+_jwt}})
   .then(function(r){return r.json();}).then(function(data){
     var convs=data.conversations||[];
     var list=document.querySelector('.conv-list');
@@ -489,7 +490,7 @@ function openRealConv(el, otherId, name, ava){
   document.querySelector('.chat-sub').textContent='';
   var msgs=document.getElementById('messages');
   msgs.innerHTML='<div style="text-align:center;padding:20px;color:var(--t3);font-size:.8rem">⏳</div>';
-  fetch('/messages/'+_user.id+'/'+otherId)
+  fetch('/messages/'+_user.id+'/'+otherId, {headers:{'Authorization':'Bearer '+_jwt}})
   .then(function(r){return r.json();}).then(function(data){
     var list=data.messages||[];
     if(!list.length){msgs.innerHTML='<div style="text-align:center;padding:30px;color:var(--t3);font-size:.8rem">ابدأ المحادثة</div>';return;}
@@ -524,8 +525,8 @@ function sendMessage(){
   if(_currentConvId&&_user&&_user.id){
     fetch('/messages/send',{
       method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({sender_id:_user.id,receiver_id:_currentConvId,content:text})
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+_jwt},
+      body:JSON.stringify({receiver_id:_currentConvId,content:text})
     }).catch(function(){});
   }
   // Still show locally
@@ -540,7 +541,7 @@ function sendMessage(){
 // Load unread count for nav badge
 function loadUnreadCount(){
   if(!_user||!_user.id) return;
-  fetch('/messages/unread/'+_user.id)
+  fetch('/messages/unread/'+_user.id, {headers:{'Authorization':'Bearer '+_jwt}})
   .then(function(r){return r.json();}).then(function(data){
     var count=data.count||0;
     // Update bottom nav badge if any
@@ -613,8 +614,8 @@ function sendMessage(){
   if(!sent && _currentConvId && _user){
     // Fallback to HTTP
     fetch('/messages/send',{
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({sender_id:_user.id, receiver_id:_currentConvId, content:text})
+      method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+_jwt},
+      body: JSON.stringify({receiver_id:_currentConvId, content:text})
     }).catch(function(){});
   }
   // Show locally

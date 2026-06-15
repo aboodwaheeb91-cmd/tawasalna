@@ -610,7 +610,6 @@ class ErrorLogInput(BaseModel):
     ts: Optional[str] = None
 
 class MessageInput(BaseModel):
-    sender_id: int
     receiver_id: int
     content: str
 
@@ -1963,13 +1962,22 @@ def delete_user_link(link_id: int, token=Depends(verify_token)):
 @app.post("/messages/send")
 def send_msg(data: MessageInput, token=Depends(verify_token)):
     try:
-        msg = send_message(data.sender_id, data.receiver_id, data.content)
+        sender_id = int(token.get("user_id") or 0)
+        if not sender_id:
+            raise HTTPException(401, "غير مصرح")
+        if sender_id == data.receiver_id:
+            raise HTTPException(400, "لا يمكن إرسال رسالة لنفسك")
+        msg = send_message(sender_id, data.receiver_id, data.content)
         return {"status": "success", "message": msg}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(500, str(e))
 
 @app.get("/messages/conversations/{user_id}")
-def get_convs(user_id: int):
+def get_convs(user_id: int, token=Depends(verify_token)):
+    if int(token.get("user_id") or 0) != user_id:
+        raise HTTPException(403, "غير مصرح")
     try:
         convs = get_conversations(user_id)
         return {"status": "success", "conversations": convs}
@@ -1977,7 +1985,9 @@ def get_convs(user_id: int):
         raise HTTPException(500, str(e))
 
 @app.get("/messages/unread/{user_id}")
-def unread_msgs(user_id: int):
+def unread_msgs(user_id: int, token=Depends(verify_token)):
+    if int(token.get("user_id") or 0) != user_id:
+        raise HTTPException(403, "غير مصرح")
     try:
         count = get_unread_count(user_id)
         return {"status": "success", "count": count}
@@ -1985,7 +1995,9 @@ def unread_msgs(user_id: int):
         raise HTTPException(500, str(e))
 
 @app.get("/messages/{user_id}/{other_id}")
-def get_msgs(user_id: int, other_id: int):
+def get_msgs(user_id: int, other_id: int, token=Depends(verify_token)):
+    if int(token.get("user_id") or 0) != user_id:
+        raise HTTPException(403, "غير مصرح")
     try:
         msgs = get_messages(user_id, other_id)
         return {"status": "success", "messages": msgs}
