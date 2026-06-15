@@ -6,6 +6,7 @@ if (!_user || !_user.id) { window.location.href = '/'; }
 var _jwt = localStorage.getItem('tw_jwt') || '';
 var _currentConvId  = null; // numeric user id of open conversation partner
 var _activeConvMeta = null; // {id, name, typeIco} — survives conv-list refresh
+var _pendingStatus  = {};   // {msg_id → 'delivered'|'read'} for WS events arriving before HTTP ack
 
 function esc(s) {
   return String(s == null ? '' : s)

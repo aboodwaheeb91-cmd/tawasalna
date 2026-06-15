@@ -63,7 +63,7 @@ from auth import (
     start_kyc, send_email_code, verify_email_code,
     send_phone_code, verify_phone_code, upload_kyc_docs,
     get_kyc_status, admin_approve_kyc, admin_reject_kyc, get_all_kyc_submissions, ensure_site_settings_table, ensure_reports_table,
-    send_message, get_conversations, get_messages, get_unread_count,
+    send_message, mark_message_delivered, get_conversations, get_messages, get_unread_count,
     create_notification, get_notifications, mark_notifications_read, get_unread_notifications,
     get_job_applicants, get_user_applications,
     update_application_status, delete_job,
@@ -825,14 +825,21 @@ class ConnectionManager:
         if user_id in self.active:
             self.active[user_id] = [w for w in self.active[user_id] if w != ws]
 
-    async def send_to_user(self, user_id: int, data: dict):
+    async def send_to_user(self, user_id: int, data: dict) -> bool:
         import json
-        if user_id in self.active:
-            dead = []
-            for ws in self.active[user_id]:
-                try: await ws.send_text(json.dumps(data))
-                except: dead.append(ws)
-            for d in dead: self.active[user_id].remove(d)
+        if user_id not in self.active or not self.active[user_id]:
+            return False
+        sent = False
+        dead = []
+        for ws in self.active[user_id]:
+            try:
+                await ws.send_text(json.dumps(data))
+                sent = True
+            except:
+                dead.append(ws)
+        for d in dead:
+            self.active[user_id].remove(d)
+        return sent
 
 ws_manager = ConnectionManager()
 
@@ -850,15 +857,20 @@ async def websocket_endpoint(websocket: WebSocket, user_id: int):
                 if receiver_id and content:
                     # Save to DB
                     saved = send_message(user_id, receiver_id, content)
-                    # Send to receiver if online
-                    await ws_manager.send_to_user(receiver_id, {
+                    msg_id = saved.get("id")
+                    # Send to receiver if online; mark delivered if so
+                    was_delivered = await ws_manager.send_to_user(receiver_id, {
                         "type": "message",
                         "from": user_id,
+                        "id": msg_id,
                         "content": content,
                         "created_at": saved.get("created_at","")
                     })
-                    # Confirm to sender
-                    await websocket.send_text(json.dumps({"type": "sent", "id": saved.get("id")}))
+                    if was_delivered:
+                        mark_message_delivered(msg_id)
+                        await websocket.send_text(json.dumps({"type": "status_update", "id": msg_id, "status": "delivered"}))
+                    # Confirm to sender (sent state)
+                    await websocket.send_text(json.dumps({"type": "sent", "id": msg_id}))
             except Exception as e:
                 print(f"[WS] Error: {e}")
     except WebSocketDisconnect:
@@ -1976,7 +1988,7 @@ def delete_user_link(link_id: int, token=Depends(verify_token)):
 # ══ Messages & Notifications ══
 
 @app.post("/messages/send")
-def send_msg(data: MessageInput, token=Depends(verify_token)):
+async def send_msg(data: MessageInput, token=Depends(verify_token)):
     try:
         sender_id = int(token.get("user_id") or 0)
         if not sender_id:
@@ -1984,6 +1996,25 @@ def send_msg(data: MessageInput, token=Depends(verify_token)):
         if sender_id == data.receiver_id:
             raise HTTPException(400, "لا يمكن إرسال رسالة لنفسك")
         msg = send_message(sender_id, data.receiver_id, data.content)
+        msg_id = msg["id"]
+
+        # Push to receiver via WS; if delivered mark DB + notify sender
+        was_delivered = await ws_manager.send_to_user(data.receiver_id, {
+            "type": "message",
+            "from": sender_id,
+            "id": msg_id,
+            "content": data.content,
+            "created_at": msg.get("created_at", "")
+        })
+        if was_delivered:
+            mark_message_delivered(msg_id)
+            msg["delivered_at"] = True
+            await ws_manager.send_to_user(sender_id, {
+                "type": "status_update",
+                "id": msg_id,
+                "status": "delivered"
+            })
+
         return {"status": "success", "message": msg}
     except HTTPException:
         raise
@@ -2012,11 +2043,17 @@ def unread_msgs(user_id: int, token=Depends(verify_token)):
         raise HTTPException(500, str(e))
 
 @app.get("/messages/{user_id}/{other_id}")
-def get_msgs(user_id: int, other_id: int, token=Depends(verify_token)):
+async def get_msgs(user_id: int, other_id: int, token=Depends(verify_token)):
     if int(token.get("user_id") or 0) != user_id:
         raise HTTPException(403, "غير مصرح")
     try:
-        msgs = get_messages(user_id, other_id)
+        msgs, newly_read_ids = get_messages(user_id, other_id)
+        if newly_read_ids:
+            await ws_manager.send_to_user(other_id, {
+                "type": "status_update",
+                "ids": newly_read_ids,
+                "status": "read"
+            })
         return {"status": "success", "messages": msgs}
     except Exception as e:
         raise HTTPException(500, str(e))
