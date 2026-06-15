@@ -98,7 +98,15 @@ function loadConversations() {
   if (!_user || !_user.id) return;
   apiGetConversations().then(function(data) {
     renderConvList(data.conversations || []);
-  }).catch(function() {});
+  }).catch(function(status) {
+    console.error('[messages] loadConversations failed, status:', status);
+    if (status === 401 || status === 403) {
+      var items = document.querySelector('.conv-items');
+      if (items && !_currentConvId) {
+        items.innerHTML = '<div class="conv-empty" style="color:rgba(239,68,68,.7)">انتهت الجلسة — أعد تسجيل الدخول</div>';
+      }
+    }
+  });
 }
 
 // ── Message bubble ────────────────────────────────────────────────────────

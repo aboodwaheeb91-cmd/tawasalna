@@ -3745,6 +3745,90 @@ ORDER BY created_at DESC               -- outer sort by recency
 
 ---
 
+## [P0] 52. Global Badge System (`loadGlobalBadges`)
+
+### Problem
+Each page had its own (or missing) badge-loading logic:
+- `home.html` — had logic, fixed in PR #150 with JWT header
+- `profile.html` — had `window._triggerBadges()` with JWT
+- `company.html` — hardcoded `0`
+- `edu.html` — hardcoded `2` (wrong, never updates)
+- `edu-profile.html`, `company-profile.html`, `settings.html`, `notifications.html` — no badge loading
+
+### Solution: `loadGlobalBadges()` in `tw_shared.js`
+
+```javascript
+function loadGlobalBadges() {
+  // reads tw_user + tw_jwt from localStorage
+  // fetches /notifications/{id} → populates data-badge="notif"
+  // fetches /messages/unread/{id} with JWT → populates data-badge="msgs"
+}
+```
+
+All badge `<span>` elements in nav menus use `data-badge="msgs"` or `data-badge="notif"` attribute.
+`loadGlobalBadges()` finds all matching elements and sets their textContent + visibility.
+
+### Auth Requirements for Badges
+
+| Endpoint | Auth |
+|----------|------|
+| `GET /notifications/{user_id}` | None |
+| `GET /messages/unread/{user_id}` | JWT Bearer required |
+
+**Forbidden:**
+- ممنوع: hardcoded numbers in badge spans (always use `data-badge` + `loadGlobalBadges()`)
+- ممنوع: calling `/messages/unread/` without `Authorization: Bearer {jwt}` header
+- ممنوع: per-page badge-loading logic (use `loadGlobalBadges` from tw_shared.js)
+
+### Pages That Call `loadGlobalBadges()`
+- `company.html` — `document.addEventListener('DOMContentLoaded', loadGlobalBadges)`
+- `edu.html` — same
+- `notifications.html` — called directly after page init
+- `home.html` — has its own inline IIFE (compatible, uses same endpoints)
+- `profile.html` — has `window._triggerBadges()` (compatible, uses same endpoints)
+
+---
+
+## [P0] 53. Static Demo Content Removal — notifications.html
+
+### Problem
+`notifications.html` contained 3 hardcoded demo notification groups in HTML that were always visible:
+- `#group-today` — 3 fake notifications (interview, job match, message)
+- `#group-yesterday` — 2 fake notifications (verify, training, job)
+- Unnamed group — 3 more fake notifications
+
+The demo "رسالة جديدة" item had no `data-link`, no onclick — users clicked it expecting navigation but nothing happened. This was the root cause of "الإشعار لا يفتح المحادثة".
+
+### Fix
+All static `.notif-group` blocks removed. Only `#dynamicNotifs` remains — populated exclusively from `GET /notifications/{user_id}` DB data.
+
+**Forbidden:**
+- ممنوع: أي demo/fake notification content في notifications.html HTML
+- ممنوع: `.ni` elements without `data-link` if they represent clickable notifications
+
+---
+
+## [P0] 54. JS Cache Busting Contract
+
+### Problem
+`/static/` route serves files with `Cache-Control: public, max-age=86400` (24 hours).
+Messenger JS files used `?v=v2` across PRs #147–#150 — same URL, changing content.
+Browsers served cached old content for up to 24h after deploy.
+
+### Rule
+**Every time the content of a `messages.*.js` or other static JS file changes in a PR, the version query string in `messages.html` (or the importing HTML) MUST be bumped.**
+
+Current versions: `?v=v3` (set after PRs #147–#150 landed on main).
+
+### Service Worker
+`sw.js` `BUILD_TIME` must be updated on each deploy to trigger SW refresh and clear old caches.
+Current: `20260615_1900`.
+
+**Forbidden:**
+- ممنوع: تغيير محتوى ملف JS بدون bump للـ version string في الـ HTML الذي يستدعيه
+
+---
+
 ## [P0] 50. Contact Button — Profile V2 Integration
 
 ### Behavior (Three Modes)
