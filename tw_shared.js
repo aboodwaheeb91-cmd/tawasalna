@@ -195,4 +195,42 @@ function loadAndApplyLogos(){
   }).catch(function(){});
 }
 
+// ══ Global Real-time Badge WebSocket ══
+// Opens a WS on EVERY page using the authenticated viewer's ID (not profile owner).
+// Handles badge_update events to update [data-badge="msgs"] in real time.
+(function() {
+  function _initBadgeWS() {
+    var u = null;
+    try { u = JSON.parse(localStorage.getItem('tw_user') || 'null'); } catch(e){}
+    var jwt = localStorage.getItem('tw_jwt') || '';
+    if (!u || !u.id || !jwt) return;
+
+    var protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    var ws = new WebSocket(protocol + '//' + window.location.host + '/ws/' + u.id);
+    var retries = 0;
+
+    ws.onmessage = function(e) {
+      try {
+        var data = JSON.parse(e.data);
+        if (data.type === 'badge_update' && data.badge === 'messages') {
+          var count = data.count || 0;
+          document.querySelectorAll('[data-badge="msgs"]').forEach(function(el) {
+            el.textContent = count > 9 ? '9+' : String(count);
+            el.style.display = count > 0 ? 'inline-block' : 'none';
+          });
+        }
+      } catch(ex) {}
+    };
+    ws.onclose = function() {
+      if (retries < 5) { retries++; setTimeout(_initBadgeWS, retries * 2000); }
+    };
+    ws.onerror = function() { ws.close(); };
+  }
+
+  // Run after load so localStorage is populated by page auth guards
+  window.addEventListener('load', function() {
+    setTimeout(_initBadgeWS, 200);
+  });
+})();
+
 

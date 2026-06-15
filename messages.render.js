@@ -23,6 +23,7 @@ function toggleConvList() {
 }
 
 function goHome() {
+  if (_currentConvId) sendInactiveConversation(_currentConvId);
   if (!_user) { window.location.href = '/'; return; }
   var dest = _user.user_type === 'co'  ? '/company-profile?id=' + _user.id
            : _user.user_type === 'edu' ? '/edu-profile?id=' + _user.id
@@ -125,8 +126,15 @@ function renderBubble(isMe, content, time, readIcon) {
 // ── Open conversation — THE ONLY ENTRY POINT ─────────────────────────────
 
 function openConversation(otherId, name, typeIco) {
+  // Signal inactive on previous conversation before switching
+  if (_currentConvId && _currentConvId !== otherId) {
+    sendInactiveConversation(_currentConvId);
+    hideTypingIndicator();
+  }
   _currentConvId  = otherId;
   _activeConvMeta = { id: otherId, name: name, typeIco: typeIco };
+  // Signal active conversation to server (enables immediate read receipts)
+  sendActiveConversation(otherId);
 
   document.querySelectorAll('.conv-item').forEach(function(i) { i.classList.remove('active'); });
   var activeEl = document.querySelector('[data-uid="' + otherId + '"]');
@@ -331,4 +339,24 @@ document.addEventListener('DOMContentLoaded', function() {
     loadConversations();
     reloadMessagesQuiet();
   }, 10000);
+
+  // Typing indicator: debounced WS typing events
+  var msgInput = document.getElementById('msgInput');
+  if (msgInput) {
+    msgInput.addEventListener('input', function() {
+      autoResize(this);
+      if (!_currentConvId) return;
+      if (_typingTimer) clearTimeout(_typingTimer);
+      sendTyping(_currentConvId);
+      _typingTimer = setTimeout(function() {
+        sendTypingStop(_currentConvId);
+        _typingTimer = null;
+      }, 1800);
+    });
+  }
+
+  // Signal inactive conversation on page leave
+  window.addEventListener('beforeunload', function() {
+    if (_currentConvId) sendInactiveConversation(_currentConvId);
+  });
 });

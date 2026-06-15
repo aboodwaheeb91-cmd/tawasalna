@@ -4878,3 +4878,72 @@ loadConversations();
 
 Current version: `?v=v4` (bumped when messages.render.js changed — mobile default fix)
 
+
+---
+
+## 59. Messenger Realtime UX Contract
+
+### Overview
+
+Three improvements shipped together: immediate read receipts, typing indicator, and global badge WebSocket.
+
+### Read Receipt — Immediate Delivery
+
+**Rule:** ✓✓ turns green immediately when receiver has the conversation open, not on the next poll.
+
+**Mechanism:**
+- Server maintains `ws_manager.active_conversations: Dict[int, int]` (in-memory, `user_id → other_user_id`)
+- Client signals when it opens a conversation: WS `{type: "active_conversation", other_id: X}`
+- Client signals when it leaves: WS `{type: "inactive_conversation"}` (sent in `openConversation` switch, `goHome()`, and `beforeunload`)
+- On every message save (HTTP `/messages/send` or WS legacy path): server checks `active_conversations[receiver] == sender`
+  - If yes → `mark_message_read_immediate(msg_id)` → DB: `is_read=TRUE, read_at=NOW()` → WS `status_update {status: "read"}` to sender
+  - If no + receiver online → WS `status_update {status: "delivered"}` to sender
+- `active_conversations` is cleared on WS disconnect (when user's last WS for that user_id drops)
+
+**Constraints:**
+- ممنوع: ✓✓ green if receiver is merely online (not in that specific conversation)
+- ممنوع: read status update without DB write
+- In-memory only — resets on server restart, no persistence
+
+### Typing Indicator
+
+**Rule:** Show "يكتب الآن..." in `#chatStatus` only when the other party is actively typing in the same conversation.
+
+**Client (sender side):**
+- `msgInput` `input` event → debounced: send `{type: "typing", to_user_id: X}` once per burst
+- After 1.8s idle → send `{type: "typing_stop", to_user_id: X}`
+- Timer variable: `_typingTimer` (in `messages.state.js`)
+
+**Server:**
+- Routes `typing` → `send_to_user(to_user_id, {type: "typing", from_user_id: sender})`
+- Routes `typing_stop` → same pattern
+- No DB write; ephemeral
+
+**Client (receiver side):**
+- On `{type: "typing", from_user_id: X}`: if `X === _currentConvId` → show indicator, set 3s auto-hide timer (`_typingHideTimer`)
+- On `typing_stop` or incoming `message` → hide immediately
+
+**Forbidden:**
+- ممنوع: save typing state to DB
+- ممنوع: send typing event per keystroke (must debounce)
+- ممنوع: show typing if receiver is not in that conversation
+
+### Global Badge WebSocket
+
+**Rule:** `[data-badge="msgs"]` elements update in real time on ALL pages, not just the messages page.
+
+**Implementation:**
+- `tw_shared.js` IIFE opens `/ws/{viewer_id}` 200ms after `load`
+- `viewer_id` = `localStorage.getItem('tw_user').id` (authenticated user, never profile owner from URL)
+- On `{type: "badge_update", badge: "messages", count: N}`: update all `[data-badge="msgs"]` elements
+- Server sends `badge_update` to receiver after EVERY saved message (both HTTP and WS paths)
+- Messages page has TWO WS connections: one from `messages.ws.js` (chat) + one from `tw_shared.js` (badge) — this is intentional and harmless
+
+**Forbidden:**
+- ممنوع: use `localStorage` as source of badge count
+- ممنوع: bind badge count to profile owner (`tw_id` from URL) instead of authenticated viewer
+- ممنوع: create notification entries for messages
+
+### Version Tracking
+
+Current version: `?v=v6` (bumped for realtime UX: read receipts, typing, global badge WS)
