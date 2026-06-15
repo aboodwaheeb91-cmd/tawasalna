@@ -3508,6 +3508,61 @@ if int(token.get("user_id") or 0) != user_id:
 
 ---
 
+## [P0] 50. Contact Button — Profile V2 Integration
+
+### Behavior (Three Modes)
+
+| Viewer | Button Visibility | On Click |
+|--------|-------------------|----------|
+| Owner (صاحب البروفايل) | **مخفي** (`display:none`) | — |
+| Guest (غير مسجل) | ظاهر | Toast: "سجّل الدخول للتواصل" — لا navigation |
+| Logged-in non-owner | ظاهر | انتقال إلى `/messages?with={tw_id}` |
+
+### Source of Target
+
+```javascript
+var tw = window._scProfile && window._scProfile.tw_id;
+window.location.href = '/messages?with=' + encodeURIComponent(tw);
+```
+
+- Target = `window._scProfile.tw_id` (البروفايل المعروض)
+- **ممنوع:** استخدام id المستخدم المسجل كهدف
+- **ممنوع:** استخدام localStorage لتحديد صاحب البروفايل (يُستخرج من `viewer_type` server-side)
+- Owner check: `if(_vt === 'owner') contactBtn.style.display = 'none'`
+
+### messages.html — `?with=` Deep-link
+
+```
+GET /messages?with={tw_id}
+```
+
+1. صفحة الرسائل تقرأ `new URLSearchParams(location.search).get('with')`
+2. تستدعي `GET /user/lookup/{tw_id}` (JWT required) → `{ id, full_name, user_type, tw_id }`
+3. تفتح المحادثة تلقائياً عبر `openRealConv(el, data.id, name, typeIco)`
+4. إذا المحادثة فارغة → تعرض "ابدأ المحادثة" (موجودة في `openRealConv` بالفعل)
+5. URL يُنظَّف بعد الفتح: `history.replaceState(null, '', '/messages')`
+6. إذا tw_id غير صحيح → تعرض "تعذر فتح المحادثة" بدون كسر الصفحة
+
+### `/user/lookup/{tw_id}` Endpoint
+
+| | |
+|---|---|
+| Method | `GET` |
+| Path | `/user/lookup/{tw_id}` |
+| Auth | JWT required |
+| Response | `{ id, full_name, user_type, tw_id }` |
+| Error | 404 إذا tw_id غير موجود |
+
+### ممنوعات
+
+- لا `conversation_id` — sender_id من JWT فقط
+- لا تغيير لـ WebSocket
+- لا `sender_id` في body أي رسالة
+- `/profile/{id}` ليس رابط محادثة — رابط عرض فقط
+- `/u/{tw_id}` رابط عرض البروفايل — ليس رابط رسائل
+
+---
+
 ## [P0] 49. Notifications System
 
 **Database Table: `notifications`**

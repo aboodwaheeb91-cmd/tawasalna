@@ -1321,6 +1321,22 @@ def get_user(user_id: int):
         raise HTTPException(404, detail="المستخدم غير موجود")
     return {"user": user}
 
+@app.get("/user/lookup/{tw_id}")
+def lookup_user_by_twid(tw_id: str, token=Depends(verify_token)):
+    """Resolve tw_id → basic user info needed to open a direct message thread."""
+    uid = get_user_id_by_tw_id(tw_id)
+    if not uid:
+        raise HTTPException(404, "المستخدم غير موجود")
+    user = get_user_by_id(uid)
+    if not user:
+        raise HTTPException(404, "المستخدم غير موجود")
+    return {
+        "id": user["id"],
+        "full_name": user["full_name"],
+        "user_type": user["user_type"],
+        "tw_id": user["tw_id"]
+    }
+
 # ══════════════════════════════════════════
 # Profile
 # ══════════════════════════════════════════
