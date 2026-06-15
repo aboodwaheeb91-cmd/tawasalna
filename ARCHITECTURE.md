@@ -4827,30 +4827,76 @@ loadConversations();
 
 ---
 
-## [P1] 56. Messenger Conversations — Response Contract
+## [P0] 56. Messenger Conversations — SQL Column Qualification Rule
+
+### Root Cause (500 error — documented after production failure)
+
+`get_conversations()` used unqualified column names in a `messages m JOIN users u` query.
+Both tables have `created_at`. PostgreSQL threw:
+```
+ERROR: column reference "created_at" is ambiguous
+```
+
+This caused `/messages/conversations/{user_id}` to return 500 while `/messages/unread/{user_id}`
+returned 200 — because unread only queries `messages` with no JOIN.
+
+**The fix**: qualify ALL column references with the table alias in any JOIN query:
+
+```python
+# WRONG — causes 500 when messages JOIN users
+"content, created_at, is_read, sender_id, "
+"ORDER BY other_id, created_at DESC"
+
+# CORRECT — all columns qualified
+"m.content, m.created_at, m.is_read, m.sender_id, "
+"ORDER BY other_id, m.created_at DESC"
+```
+
+### Rule: Always Qualify Columns in JOIN Queries
+
+Any SQL that JOINs two or more tables MUST prefix every selected column with its table alias.
+Never rely on PostgreSQL to resolve ambiguity — if any two joined tables share a column name,
+the query fails at runtime.
+
+Common shared column names across tawasalna tables:
+- `created_at` — present in nearly ALL tables (messages, users, profiles, jobs, ...)
+- `id` — present in all tables
+- `user_id` — present in profiles, experience, education, courses, notifications, ...
+
+**Forbidden:**
+- ممنوع: `SELECT content, created_at FROM messages JOIN users ...` — `created_at` is ambiguous
+- ممنوع: `ORDER BY created_at DESC` في أي query بها JOIN
+
+---
+
+## [P1] 57. Messenger Conversations — Response Contract
 
 ### API Response: `GET /messages/conversations/{user_id}`
 
 **Auth:** `Authorization: Bearer {jwt}` required. Server validates `jwt.user_id == user_id`.
 
-**Response shape:**
+**Response shape (current):**
 ```json
 {
   "status": "success",
   "conversations": [
     {
-      "other_id":   42,
-      "full_name":  "اسم المستخدم",
-      "user_type":  "emp" | "co" | "edu",
-      "tw_id":      "U9620...",
-      "content":    "آخر رسالة",
-      "created_at": "2026-06-15T19:00:00",
-      "is_read":    false,
-      "sender_id":  17
+      "other_id":      42,
+      "full_name":     "اسم المستخدم",
+      "user_type":     "emp" | "co" | "edu",
+      "tw_id":         "U9620...",
+      "avatar_url":    "https://..." | null,
+      "content":       "آخر رسالة",
+      "created_at":    "2026-06-15T19:00:00",
+      "is_read":       false,
+      "sender_id":     17,
+      "unread_count":  3
     }
   ]
 }
 ```
+
+**Empty state (no messages):** `{ "status": "success", "conversations": [] }` — NEVER 500.
 
 **Frontend mapping (`messages.render.js`):**
 
@@ -4859,10 +4905,22 @@ loadConversations();
 | `other_id` | `data-uid` attribute, `openConversation(otherId)` |
 | `full_name` | Conversation name display |
 | `user_type` | Type icon (🏢/🎓/👤) |
-| `content` | Preview of last message |
+| `content` | Preview of last message (keep as `content`, NOT `last_message`) |
 | `is_read` + `sender_id` | Unread badge (sender ≠ current user AND not read) |
+| `avatar_url` | Future: conversation avatar (frontend not yet wired) |
+| `unread_count` | Future: per-conversation badge (frontend not yet wired) |
 
-### No-Silent-Catch Rule
+### Sources
+
+| Field | Source Table |
+|-------|-------------|
+| `other_id` | Computed: `CASE WHEN m.sender_id=uid THEN m.receiver_id ELSE m.sender_id END` |
+| `content`, `created_at`, `is_read`, `sender_id` | `messages m` (qualified `m.`) |
+| `full_name`, `user_type`, `tw_id` | `users u` |
+| `avatar_url` | `profiles p` (LEFT JOIN — may be NULL) |
+| `unread_count` | Batch subquery after main SELECT |
+
+### No-Silent-Catch Rule (Frontend)
 
 `loadConversations()` catch MUST show visible feedback:
 - 401/403 → "انتهت الجلسة — أعد تسجيل الدخول" (red)
@@ -4870,11 +4928,11 @@ loadConversations();
 - All statuses → `console.error('[messages] loadConversations failed, status:', status)`
 
 **Forbidden:**
-- ممنوع: `catch(function(){})` فارغ
+- ممنوع: `catch(function(){})` فارغ في loadConversations
 - ممنوع: حذف items صالحة بسبب فشل مؤقت في polling
-- ممنوع: unread count badge = 5 ولا تظهر المحادثات (يعني mobile CSS مكسور)
+- ممنوع: unread count badge = 5 ولا يكون conversations endpoint يعمل
 
 ### Version Tracking
 
-Current version: `?v=v4` (bumped when messages.render.js changed — mobile default fix)
+Current JS version: `?v=v4` (bumped when messages.render.js changed — mobile default fix)
 

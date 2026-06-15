@@ -1998,6 +1998,7 @@ def get_convs(user_id: int, token=Depends(verify_token)):
         convs = get_conversations(user_id)
         return {"status": "success", "conversations": convs}
     except Exception as e:
+        print(f"[get_convs] user_id={user_id} error={type(e).__name__}: {e}")
         raise HTTPException(500, str(e))
 
 @app.get("/messages/unread/{user_id}")
