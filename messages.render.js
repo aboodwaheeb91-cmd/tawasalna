@@ -136,6 +136,10 @@ function openConversation(otherId, name, typeIco) {
   var viewBtn = document.getElementById('viewProfileBtn');
   if (viewBtn) viewBtn.style.display = '';
 
+  // Show composer — only visible when a conversation is active
+  var chatInput = document.getElementById('chatInput');
+  if (chatInput) chatInput.style.display = '';
+
   var convListEl = document.getElementById('convList');
   if (convListEl) convListEl.classList.remove('mobile-show');
 
