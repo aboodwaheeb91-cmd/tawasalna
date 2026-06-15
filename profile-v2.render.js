@@ -11,6 +11,9 @@
   if(msgBtn) msgBtn.onclick=function(){ window.location.href='/messages'; };
   var menuBtn=document.getElementById('scMenuBtn');
   if(menuBtn) menuBtn.onclick=function(){ history.back(); };
+
+  // Load unread counts into data-badge spans (guest-safe — loadGlobalBadges checks jwt)
+  if(typeof loadGlobalBadges === 'function') loadGlobalBadges();
 })();
 
 // ── About tab: navigate to another tab by name ──

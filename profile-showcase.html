@@ -47,8 +47,14 @@
         </div>
       </div>
 
-      <button class="sc-hicon sc-hicon-bare" id="scBellBtn" title="الإشعارات"><i data-lucide="bell" class="ico"></i></button>
-      <button class="sc-hicon sc-hicon-bare" id="scMsgBtn" title="الرسائل"><i data-lucide="message-circle-more" class="ico"></i></button>
+      <button class="sc-hicon sc-hicon-bare" id="scBellBtn" title="الإشعارات" style="position:relative">
+        <i data-lucide="bell" class="ico"></i>
+        <span data-badge="notif" style="display:none;position:absolute;top:-3px;left:-3px;background:#f87171;color:#fff;border-radius:50%;min-width:14px;height:14px;font-size:.5rem;font-weight:700;line-height:14px;text-align:center;padding:0 2px"></span>
+      </button>
+      <button class="sc-hicon sc-hicon-bare" id="scMsgBtn" title="الرسائل" style="position:relative">
+        <i data-lucide="message-circle-more" class="ico"></i>
+        <span data-badge="msgs" style="display:none;position:absolute;top:-3px;left:-3px;background:#2563ff;color:#fff;border-radius:50%;min-width:14px;height:14px;font-size:.5rem;font-weight:700;line-height:14px;text-align:center;padding:0 2px"></span>
+      </button>
       <button class="sc-hicon sc-hicon-bare" id="scMenuBtn" title="القائمة"><i data-lucide="menu" class="ico"></i></button>
     </div>
   </div>
@@ -694,12 +700,13 @@
     </div>
   </div>
 
+  <script src="/tw_shared.js"></script>
   <script src="/static/profile-v2.state.js?v=modular-v1"></script>
   <script src="/static/profile-v2.utils.js?v=profanity-v1"></script>
   <script src="/static/profile-v2.api.js?v=modular-v1"></script>
   <script src="/static/qrcode.min.js"></script>
   <script src="/static/profile-v2.qr.js?v=qr-card-v1"></script>
-  <script src="/static/profile-v2.render.js?v=modular-v1"></script>
+  <script src="/static/profile-v2.render.js?v=badges-v1"></script>
   <script src="/static/profile-v2.edit.js?v=profanity-v1"></script>
   <script src="/static/profile-v2.exp.js?v=profanity-v1"></script>
   <script src="/static/profile-v2.cover.js?v=modular-v1"></script>
