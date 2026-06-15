@@ -3844,14 +3844,18 @@ LIMIT :limit OFFSET :offset
 - `scStatFollowersTile` — عند الضغط يفتح `scFlPopover`
 
 **Followers Popover (`scFlPopover`):**
-- `position:fixed` — يُحسب موقعه via `getBoundingClientRect()` + `scrollY`
-- عنصران: زر "المتابعون" + زر "يتابع"
-- كل زر: icon + count + label (نفس روح Stats Row)
+- `position:fixed` + `width:fit-content` — يُحسب موقعه via `getBoundingClientRect()` + `scrollY`
+- تخطيط أفقي: زر "المتابعون" | divider | زر "يتابع"
+- كل زر: icon فوق + count + label (نفس روح Stats Row)
 - `scFlPopCountFollowers` — يُحدَّث من `followers_count` (metrics + initial load)
 - `scFlPopCountFollowing` — يُحدَّث من `following_count` (metrics polling فقط)
+- ألوان: المتابعون = بنفسجي `#8b5cf6` — يتابع = تركواز `#22d3ee`
+- عداد المتابعون (`scStatFollowersTile`) لا يحصل على active/highlight state
+- الـ Popover مؤقت: يُغلق بعد 5 ثوانٍ من عدم التفاعل (auto-hide)
+- mouseenter على Popover يوقف مؤقت الـ auto-hide — mouseleave يُعيد تشغيله
+- `min-width:160px; max-width:calc(100vw - 16px)` — يتكيف مع حجم المحتوى
 - الضغط على أي زر → يُغلق الـ Popover → يفتح Modal بالتبويب المناسب
-- الضغط خارج الـ Popover أو ESC → يُغلقه
-- الضغط مرة ثانية على الـ tile → يُغلق الـ Popover
+- الضغط خارج الـ Popover أو ESC أو الضغط مرة ثانية على الـ tile → يُغلقه
 
 **Follow List Modal (`scFollowListModal`):**
 - `scFlTabFollowers` / `scFlTabFollowing` — tab buttons with `_scFlSwitch(mode,el)`
