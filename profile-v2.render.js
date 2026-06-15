@@ -711,12 +711,14 @@ window.renderProfile = function renderProfile(res){
       return;
     }
     intBtn.style.display = '';
-    if(va.type === 'profile_like') intBtn.classList.add('sc-btn--like');
+    var _vaType = va.type;
+    if(_vaType === 'profile_like')   intBtn.classList.add('sc-btn--like');
+    if(_vaType === 'candidate_save') intBtn.classList.add('sc-btn--candidate');
 
-    function _icon(active){ return 'heart'; }
+    function _icon(){ return _vaType === 'candidate_save' ? 'user-check' : 'heart'; }
 
     function _applyVa(v){
-      intBtn.innerHTML = '<i data-lucide="' + _icon(v.is_active) + '" class="ico-sm"></i> ' + esc(v.label);
+      intBtn.innerHTML = '<i data-lucide="' + _icon() + '" class="ico-sm"></i> ' + esc(v.label);
       if(v.is_active){
         intBtn.classList.add('sc-btn--interested');
         intBtn.classList.remove('sc-btn-ghost');
@@ -727,10 +729,27 @@ window.renderProfile = function renderProfile(res){
       if(window.lucide && lucide.createIcons) lucide.createIcons();
     }
 
+    function _showCandidateHint(){
+      var old = document.getElementById('_scCandidateHint');
+      if(old) old.remove();
+      var hint = document.createElement('div');
+      hint.id = '_scCandidateHint';
+      hint.className = 'sc-candidate-hint';
+      hint.innerHTML = '<span>تم حفظ المرشح — يمكنك إضافة ملاحظة خاصة</span>'
+        + '<button class="sc-candidate-hint-btn" id="_scNoteBtn">إضافة ملاحظة</button>';
+      var row = intBtn.closest('.sc-actions') || intBtn.parentNode;
+      row.parentNode.insertBefore(hint, row.nextSibling);
+      document.getElementById('_scNoteBtn').onclick = function(){
+        if(window.toast) toast('سيتم إضافة ملاحظات المرشحين قريباً');
+        hint.remove();
+      };
+      setTimeout(function(){ if(hint.parentNode) hint.remove(); }, 5000);
+    }
+
     _applyVa(va);
 
     // Guest / login_prompt
-    if(va.type === 'login_prompt' || !va.can_interact){
+    if(_vaType === 'login_prompt' || !va.can_interact){
       intBtn.onclick = function(){
         if(window.toast) toast('سجّل الدخول للتفاعل مع الملفات الشخصية');
       };
@@ -753,7 +772,12 @@ window.renderProfile = function renderProfile(res){
           if(r.ok && r.data && r.data.viewer_action){
             window._scViewerAction = r.data.viewer_action;
             _applyVa(r.data.viewer_action);
-            if(window.toast) toast(r.data.viewer_action.is_active ? 'تم حفظ التفاعل' : 'تم إلغاء التفاعل');
+            if(_vaType === 'candidate_save'){
+              if(r.data.viewer_action.is_active) _showCandidateHint();
+              else if(window.toast) toast('تم إلغاء حفظ المرشح');
+            } else {
+              if(window.toast) toast(r.data.viewer_action.is_active ? 'تم حفظ التفاعل' : 'تم إلغاء التفاعل');
+            }
           } else {
             if(window.toast) toast('حدث خطأ، حاول مرة أخرى');
           }

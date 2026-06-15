@@ -3244,12 +3244,36 @@ DELETE /profile/{id}/interest   # يتطلب JWT، idempotent
 **الملفات:**
 - `profile-v2.api.js`: `saveProfileInterest(id)`, `removeProfileInterest(id)`
 - `profile-v2.render.js`: `window._scViewerAction` + scFullBtn wiring
-- `profile-v2.css`: `.sc-btn--interested` (active state أزرق)
+- `profile-v2.css`: `.sc-btn--interested` (active state) + type-specific classes
 
 **سلوك scFullBtn:**
 1. `hidden=true` → `display:none`
 2. `login_prompt` → Toast فقط، لا POST
 3. `can_interact=true` → POST/DELETE toggle، تحديث label/class من `response.viewer_action`
+
+### ستايل الأزرار حسب النوع
+
+| `interest_type` | Class إضافي | الأيقونة | اللون | الحالة النشطة |
+|----------------|------------|---------|-------|--------------|
+| `profile_like` (emp) | `.sc-btn--like` | `heart` | بنفسجي هادئ `#a78bfa` | `rgba(139,92,246,.16)` |
+| `candidate_save` (co) | `.sc-btn--candidate` | `user-check` | أزرق رسمي `#93c5fd` | `rgba(59,130,246,.17)` |
+| `training_invite` (edu) | — | يرثه من `.sc-btn-ghost` | — | — |
+
+**بعد حفظ candidate_save:** تظهر `.sc-candidate-hint` أسفل `.sc-actions` مباشرةً لـ 5 ثوانٍ تحتوي:
+- نص: "تم حفظ المرشح — يمكنك إضافة ملاحظة خاصة"
+- زر: "إضافة ملاحظة" → Toast "سيتم إضافة ملاحظات المرشحين قريباً"
+
+### Candidate Notes — مؤجلة
+
+ملاحظات المرشحين **غير منفذة** في المرحلة الحالية. تحتاج:
+- حقل `candidate_note TEXT` في `profile_interests`
+- endpoint `PUT /profile/{id}/interest/note` (auth: actor فقط)
+- الملاحظة **خاصة بالشركة** — الموظف لا يراها نهائياً
+
+```
+❌ لا تُنفذ Candidate Notes بدون migration + endpoint
+❌ الموظف ممنوع من رؤية candidate_note
+```
 
 ### حالة التنفيذ
 
@@ -3258,6 +3282,8 @@ DELETE /profile/{id}/interest   # يتطلب JWT، idempotent
 | Schema + دوال Backend | ✅ PR #130 |
 | API Endpoints + viewer_action | ✅ PR #131 |
 | Frontend button wiring | ✅ PR #132 |
+| Button style per type (purple/blue) + icons | ✅ PR #134/#135 |
+| Candidate Notes (note field + endpoint) | ⏳ مؤجلة |
 | صفحة قائمة المرشحين | ⏳ لم تُنفذ |
 | صفحة ملفات أعجبتني | ⏳ لم تُنفذ |
 | إشعارات عند الحفظ | ⏳ لم تُنفذ |
@@ -3272,6 +3298,7 @@ DELETE /profile/{id}/interest   # يتطلب JWT، idempotent
 ❌ لا owner self-interest
 ❌ لا تعديل على profile.html القديم
 ❌ لا كسر Follow / Contact / QR
+❌ لا تغيير ستايل زر profile_like بتغيير candidate_save والعكس
 ```
 
 ---
