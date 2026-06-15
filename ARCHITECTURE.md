@@ -3321,3 +3321,781 @@ The About tab is a **read-only snapshot** of the profile, auto-generated from `w
 - Bio has a dedicated inline editor (`window._aboutBioEdit/Save/Cancel`) that sends `{bio}` only to `PUT /profile/{id}`.
 - The About pane does NOT auto-update after adding items to other tabs (full tabs update in real time; About pane is rebuilt only on full page load or via `window._reRenderAbout()`).
 
+
+---
+
+## [P0] 46. JWT Token System
+
+**Location:** `server.py` lines 90–119
+
+### Token Generation — `_jwt_encode(payload)`
+
+```python
+# payload input:
+{
+  "user_id": <int>,
+  "user_type": "emp" | "co" | "edu",
+  "tw_id": <str>
+}
+# Adds automatically:
+payload['iat'] = int(time.time())
+payload['exp'] = int(time.time()) + 86400 * 7  # 7 days
+# Algorithm: HS256 (HMAC-SHA256)
+# Encoding: Base64URL without padding (rstrip('='))
+# Header: {"alg":"HS256","typ":"JWT"}
+# Secret: first 32 chars of ADMIN_TOKEN SHA256
+```
+
+### Token Verification — `_jwt_decode(token)`
+
+Returns `{}` (empty dict) if: invalid format / bad signature / expired.
+
+Checks order:
+1. Signature verification (HS256 with JWT_SECRET)
+2. `exp` claim against `time.time()`
+
+### FastAPI Dependency — `verify_token`
+
+```python
+def verify_token(request: Request):
+    auth = request.headers.get("Authorization", "")
+    token = auth.replace("Bearer ", "") if auth.startswith("Bearer ") else ""
+    payload = _jwt_decode(token) if token else {}
+    if not payload:
+        raise HTTPException(401, "Token invalid or expired")
+    return {"valid": True, "user_id": payload.get("user_id"), "user_type": payload.get("user_type")}
+    # Used in endpoints as: token=Depends(verify_token)
+```
+
+### Frontend JWT Global
+
+All Profile V2 modules read JWT from `window._jwt` (set in `profile-v2.state.js`):
+```javascript
+_jwt = sess.jwt;  // From localStorage tawasalna_user.jwt
+```
+
+API calls use: `Authorization: Bearer ${_jwt || ''}`
+
+### Rules
+
+```
+✅ Expiry: 7 days — no refresh tokens
+✅ Secret: derived from ADMIN_PASSWORD hash (deterministic, no DB storage)
+✅ No token blacklist — logout is client-side only (localStorage.removeItem)
+❌ لا تخزين الـ token في الـ DB
+❌ لا تمرير الـ token في الـ URL
+❌ لا تنفيذ verify_token بدون الـ Authorization header
+```
+
+---
+
+## [P0] 47. WebSocket Real-time Messages
+
+**Location:** `server.py` lines 810–866
+
+### ConnectionManager Class
+
+```python
+class ConnectionManager:
+    def __init__(self):
+        self.active: Dict[int, list] = {}  # {user_id: [ws1, ws2, ...]} — supports multi-tab
+
+    async def connect(self, user_id: int, ws: WebSocket)     # Accepts + registers
+    def disconnect(self, user_id: int, ws: WebSocket)         # Removes from active list
+    async def send_to_user(self, user_id: int, data: dict)    # Sends to all tabs of user
+```
+
+### Endpoint
+
+- **Path:** `WS /ws/{user_id}`
+- **Auth:** None (user_id in path param serves as identifier)
+- **Protocol:** Text-based JSON
+
+### Message Flow
+
+**Client → Server (send):**
+```json
+{ "receiver_id": <int>, "content": <str> }
+```
+
+**Server → Receiver (receive):**
+```json
+{ "type": "message", "from": <int>, "content": <str>, "created_at": "<ISO>" }
+```
+
+**Server → Sender (confirmation):**
+```json
+{ "type": "sent", "id": <msg_id> }
+```
+
+### Key Implementation Details
+
+- In-memory `active` dict — NOT distributed (single Heroku dyno only)
+- Message persisted to `messages` table via `send_message()` before WS delivery
+- Dead connection cleanup: WebSocketDisconnect → `manager.disconnect()`
+- If receiver offline: message saved in DB, delivered next time they poll GET /messages
+- Multi-tab: same user_id can have multiple websockets in `active[user_id]` list
+
+### ممنوعات
+
+```
+❌ لا تفترض أن الـ WS متاح على multi-dyno (in-memory فقط)
+❌ لا تستبدل HTTP polling بـ WS وحده — WS للـ real-time، HTTP للـ history
+```
+
+---
+
+## [P0] 48. Messages System
+
+**Database Table: `messages`**
+
+```sql
+CREATE TABLE messages (
+    id         SERIAL PRIMARY KEY,
+    sender_id  INTEGER NOT NULL REFERENCES users(id),
+    receiver_id INTEGER NOT NULL REFERENCES users(id),
+    content    TEXT NOT NULL,
+    is_read    BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT NOW()
+)
+```
+
+### API Endpoints
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| POST | `/messages/send` | JWT | إرسال رسالة → يُنشئ notification للمستقبل |
+| GET | `/messages/conversations/{user_id}` | None | قائمة المحادثات (آخر رسالة لكل محادثة) |
+| GET | `/messages/{user_id}/{other_id}` | None | رسائل محادثة (LIMIT 100) — يُحدّث is_read=TRUE |
+| GET | `/messages/unread/{user_id}` | None | عدد الرسائل غير المقروءة |
+
+**Request for POST /messages/send:**
+```json
+{ "sender_id": <int>, "receiver_id": <int>, "content": <str> }
+```
+
+**Response for GET /messages/conversations:**
+```json
+{
+  "conversations": [
+    { "other_id": <int>, "content": <str>, "created_at": <str>,
+      "is_read": <bool>, "sender_id": <int>, "full_name": <str>, "user_type": <str> }
+  ]
+}
+```
+
+### Key Implementation Details
+
+- `get_conversations()` uses `DISTINCT ON (other_id)` — latest message per partner
+- `get_messages()` auto-marks `is_read=TRUE` for receiver's unread messages on read
+- `send_message()` also calls `create_notification()` for receiver (type='message')
+- No message deletion endpoint in current version
+- Frontend (`messages.html`) polls via `setInterval` (client-driven frequency)
+
+---
+
+## [P0] 49. Notifications System
+
+**Database Table: `notifications`**
+
+```sql
+CREATE TABLE notifications (
+    id         SERIAL PRIMARY KEY,
+    user_id    INTEGER NOT NULL REFERENCES users(id),
+    type       TEXT NOT NULL,     -- 'message' | 'report' | 'follow' | free text
+    title      TEXT,
+    body       TEXT,
+    link       TEXT,              -- navigation path (e.g. /messages)
+    is_read    BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT NOW()
+)
+```
+
+### API Endpoints
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | `/notifications/{user_id}` | None | LIMIT 50 DESC — يُعيد قائمة + unread count |
+| PUT | `/notifications/{user_id}/read` | JWT | يُحدّث is_read=TRUE لكل إشعارات المستخدم |
+
+**Response for GET:**
+```json
+{ "notifications": [{id, user_id, type, title, body, link, is_read, created_at}], "unread": <int> }
+```
+
+### Trigger Points
+
+`create_notification(user_id, type, title, body, link)` called from:
+- `send_message()` → type='message'
+- `report_submit()` → type='report' (للمستخدم المبلَّغ عنه)
+- Admin KYC approval → manually
+
+### Rules
+
+```
+✅ لا انتهاء صلاحية للإشعارات — تبقى حتى mark-as-read
+✅ type هو نص حر — لا enum validation في البيكند
+❌ لا حذف فردي للإشعارات في الـ UI الحالي
+```
+
+---
+
+## [P0] 50. Profile Views System
+
+**Database Table: `profile_views`**
+
+```sql
+CREATE TABLE profile_views (
+    id             SERIAL PRIMARY KEY,
+    viewed_user_id INTEGER NOT NULL REFERENCES users(id),
+    viewer_user_id INTEGER NOT NULL REFERENCES users(id),
+    viewed_at      TIMESTAMPTZ DEFAULT NOW()
+)
+-- Indexes:
+-- idx_pv_pair_time ON profile_views(viewed_user_id, viewer_user_id, viewed_at DESC)
+-- idx_pv_viewed ON profile_views(viewed_user_id)
+```
+
+### Functions
+
+| Function | Logic |
+|----------|-------|
+| `record_profile_view(viewed_user_id, viewer_user_id)` | 24h deduplication: إذا كان نفس الـ viewer زار في آخر 24 ساعة → لا يُسجَّل مرة ثانية |
+| `get_profile_views_count(viewed_user_id)` | `COUNT(*) FROM profile_views WHERE viewed_user_id` |
+
+### Wiring into GET /profile/{user_id}
+
+```python
+if viewer_type == "public-user" and token_uid:
+    try:
+        record_profile_view(profile_id, int(token_uid))
+    except Exception:
+        pass
+views_count = get_profile_views_count(profile_id)
+# Returned in response as: "views_count": views_count
+```
+
+### Rules
+
+```
+✅ 24h deduplication per viewer per profile
+✅ Owner لا يُسجَّل كـ view لملفه الشخصي
+✅ Guest (غير مسجّل) لا يُسجَّل
+❌ لا تسجيل view من /metrics endpoint
+❌ لا تسجيل view من admin endpoints
+```
+
+---
+
+## [P0] 51. `/u/` Public Profile Showcase
+
+**URL Pattern:** `/u/{tw_id}`
+
+**File:** `profile-showcase.html`
+
+**Server Route:**
+
+```python
+@app.get("/u/{tw_id}", response_class=HTMLResponse)
+def public_profile_short_url(tw_id: str):
+    numeric_id = get_user_id_by_tw_id(tw_id)
+    if not numeric_id:
+        raise HTTPException(404, "الملف الشخصي غير موجود")
+    base = read_html("profile-showcase.html")
+    # numeric_id cast to int prevents XSS
+    injected = base.replace('</head>',
+        '<script>window._scProfileIdFromRoute=' + str(int(numeric_id)) + ';</script></head>', 1)
+    return HTMLResponse(content=injected)
+```
+
+### Difference vs Regular Profile `/profile`
+
+| الخاصية | `/profile` | `/u/{tw_id}` |
+|---------|-----------|-------------|
+| الجمهور | مالك الملف (edit) | عام (قابل للمشاركة) |
+| URL | numeric id parameter | tw_id (مثل U9620ec95e9c5ca) |
+| Inject | لا شيء | `window._scProfileIdFromRoute` |
+| Editing | ✅ | ❌ |
+| QR Download | ✅ | ✅ |
+
+### QR URL Format
+
+```javascript
+'https://tawasolna.com/u/' + encodeURIComponent(tw_id) + '?ref=qr'
+```
+
+### Rules
+
+```
+✅ tw_id في الـ URL — numeric_id لا يظهر في الـ URL (خصوصية)
+✅ numeric_id يُحقن server-side لمنع XSS (int() cast)
+❌ لا تُرجع tw_id مباشرة من الـ API في الـ URL
+❌ لا تلمس profile-showcase.html بدون تحديث profile-v2.render.js أيضاً
+```
+
+---
+
+## [P0] 52. KYC / Credential Verification System
+
+### Database Tables
+
+**`kyc_submissions`** — حالة عملية التحقق من الهوية:
+
+```sql
+CREATE TABLE kyc_submissions (
+    id              SERIAL PRIMARY KEY,
+    user_id         INTEGER UNIQUE NOT NULL REFERENCES users(id),
+    step            TEXT NOT NULL,       -- 'email'|'phone'|'id_upload'|'review'|'approved'|'rejected'
+    status          TEXT DEFAULT 'pending',  -- 'pending'|'approved'|'rejected'
+    email_code      TEXT,                -- OTP 6 أرقام
+    email_verified  BOOLEAN DEFAULT FALSE,
+    phone           TEXT,
+    phone_code      TEXT,                -- OTP 6 أرقام
+    phone_verified  BOOLEAN DEFAULT FALSE,
+    id_front_url    TEXT,                -- Supabase storage URL
+    selfie_url      TEXT,                -- اختياري
+    admin_note      TEXT,
+    submitted_at    TIMESTAMP,
+    reviewed_at     TIMESTAMP,
+    UNIQUE(user_id)
+)
+```
+
+**`verify_requests`** — توثيق بيانات فردية (خبرة/شهادة/دورة):
+
+```sql
+CREATE TABLE verify_requests (
+    id           SERIAL PRIMARY KEY,
+    user_id      INTEGER NOT NULL REFERENCES users(id),
+    item_type    TEXT,       -- 'exp'|'edu'|'course'
+    item_id      INTEGER,    -- id الخبرة/التعليم/الدورة
+    item_title   TEXT,
+    item_company TEXT,
+    document_url TEXT,
+    notes        TEXT,
+    status       TEXT DEFAULT 'pending',  -- 'pending'|'verified'|'rejected'
+    created_at   TIMESTAMP DEFAULT NOW()
+)
+```
+
+### KYC Workflow (7 Steps)
+
+```
+1. POST /kyc/start          → step='email'
+2. POST /kyc/email/send     → يُولّد email_code (OTP 6 أرقام)
+3. POST /kyc/email/verify   → email_verified=TRUE, step='phone'
+4. POST /kyc/phone/send     → يُولّد phone_code
+5. POST /kyc/phone/verify   → phone_verified=TRUE, step='id_upload'
+6. POST /kyc/docs           → id_front_url + selfie, step='review', submitted_at=NOW()
+7. PUT /admin/kyc/{uid}/approve → status='approved', users.is_verified=TRUE
+```
+
+### API Endpoints
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| POST | `/kyc/start` | JWT | يبدأ أو يُعيد العملية |
+| GET | `/kyc/status/{user_id}` | None | حالة العملية الحالية |
+| POST | `/kyc/email/send` | JWT | يُرسل OTP للإيميل |
+| POST | `/kyc/email/verify` | JWT | يتحقق من الـ OTP |
+| POST | `/kyc/phone/send` | JWT | يُرسل OTP للهاتف |
+| POST | `/kyc/phone/verify` | JWT | يتحقق من الـ OTP |
+| POST | `/kyc/docs` | JWT | رفع صور الهوية |
+| POST | `/verify-request` | JWT | طلب توثيق بيانة فردية |
+| GET | `/admin/kyc` | Admin | قائمة كل الطلبات |
+| PUT | `/admin/kyc/{user_id}/approve` | Admin | موافقة + تفعيل الشارة |
+| PUT | `/admin/kyc/{user_id}/reject` | Admin | رفض الطلب |
+| GET | `/admin/verify-requests` | Admin | طلبات التوثيق الفردية |
+| PUT | `/admin/verify/{req_id}` | Admin | تحديث حالة الطلب الفردي |
+
+### Rules
+
+```
+✅ kyc_submissions 1:1 per user (UNIQUE user_id)
+✅ شارة الـ is_verified تُمنح فقط بعد admin approve
+✅ OTP codes: 6 أرقام عشوائية — لا انتهاء صلاحية في الـ DB
+❌ لا تُوافق تلقائياً — الموافقة من Admin فقط
+❌ الموظف لا يستطيع تعيين is_verified لنفسه
+```
+
+---
+
+## [P1] 53. Profile Follows System
+
+**Database Table: `profile_follows`**
+
+```sql
+CREATE TABLE profile_follows (
+    id          SERIAL PRIMARY KEY,
+    follower_id INTEGER NOT NULL REFERENCES users(id),
+    followed_id INTEGER NOT NULL REFERENCES users(id),
+    created_at  TIMESTAMPTZ DEFAULT NOW(),
+    CONSTRAINT uq_profile_follow UNIQUE (follower_id, followed_id),
+    CONSTRAINT no_self_follow    CHECK  (follower_id != followed_id)
+)
+-- Indexes:
+-- idx_pf_followed ON profile_follows(followed_id)
+-- idx_pf_follower ON profile_follows(follower_id)
+```
+
+### API Endpoints
+
+| Method | Path | Auth | Response |
+|--------|------|------|----------|
+| POST | `/profile/{user_id}/follow` | JWT | `{status, is_following: true, followers_count: <int>}` |
+| DELETE | `/profile/{user_id}/follow` | JWT | `{status, is_following: false, followers_count: <int>}` |
+
+### Backend Functions
+
+| Function | Logic |
+|----------|-------|
+| `follow_profile(follower_id, followed_id)` | `INSERT ... ON CONFLICT DO NOTHING` (idempotent) — يُعيد `followers_count` |
+| `unfollow_profile(follower_id, followed_id)` | `DELETE` idempotent — يُعيد `followers_count` |
+| `get_profile_followers_count(followed_id)` | `COUNT(*)` |
+| `is_profile_following(follower_id, followed_id)` | `bool` — هل العلاقة موجودة |
+
+### viewer_action for Follows (in GET /profile)
+
+```json
+{
+  "is_following": <bool>,
+  "followers_count": <int>
+}
+```
+
+الـ Follow button مُوصَّل في `profile-v2.render.js` — `scFollowBtn` — مستقل عن `scFullBtn`.
+
+### Rules
+
+```
+✅ self-follow محظور في الـ DB (CHECK) وفي الـ endpoint (400 error)
+✅ follow/unfollow idempotent — آمنة للاستدعاء المتكرر
+✅ followers_count يُعاد فوراً بعد الـ mutation لتحديث الـ UI
+❌ لا إشعار عند المتابعة (by design)
+❌ لا تغيّر زر scFollowBtn من داخل Interest System (scFullBtn)
+```
+
+---
+
+## [P1] 54. QR Card System
+
+**File:** `profile-v2.qr.js`
+
+### Library
+
+`QRCode.js` — تُحمَّل من `/static/qrcode.min.js`
+
+### Template
+
+```
+URL:  /static/img/qr-card-template-ar-v2.png?v=2
+Size: 1800 × 1800 pixels (fixed Arabic template)
+```
+
+### Canvas Compositing Coordinates
+
+```javascript
+QR_X       = 170    // QR code left edge
+QR_Y       = 439    // QR code top edge
+QR_SIZE    = 700    // QR width and height (pixels)
+CARD_CY    = 1412   // Vertical center for name text
+NAME_LEFT  = 120    // Name text left boundary
+NAME_RIGHT = 1620   // Name text right boundary
+// Font: Cairo → Noto Sans Arabic → Arial
+// Font size range: 68px (max) → 28px (min, auto-shrink)
+```
+
+### Lock Pattern — `_qrDownloading` flag
+
+```javascript
+var _qrDownloading = false;  // Global singleton lock
+var _qrClickCount  = 0;      // Debug counter
+
+if(_qrDownloading){ return; }  // Skip concurrent call
+_qrDownloading = true;
+```
+
+### Watchdog Timeout
+
+```javascript
+_qrWatchdog = setTimeout(function(){
+  _release(null);  // Force-release after 15 seconds
+}, 15000);
+```
+
+### `_release()` — Idempotent Guard
+
+```javascript
+function _release(errMsg){
+  if(!_qrDownloading) return;  // Safe to call multiple times
+  clearTimeout(_qrWatchdog);
+  _qrWatchdog    = null;
+  _qrDownloading = false;
+  // ... cleanup hidden container
+}
+```
+
+### Why `a.click()` Only — NOT `dispatchEvent`
+
+```javascript
+a.click();  // ✅ الطريقة الوحيدة التي تُطلق <a download> في المتصفحات
+
+// ❌ dispatchEvent(new MouseEvent('click', {bubbles:true}))
+// لا تُطلق سلوك <a download> — تُكسر التحميل في جميع المتصفحات
+```
+
+### Hidden Container Pattern
+
+```javascript
+var _QR_HIDDEN_ID = '__qrHiddenContainer';
+// div يُضاف في left:-9999px — خارج الشاشة
+// QRCode.js يرسم داخله، ثم يُستخرج الـ canvas
+// innerHTML='' لتنظيف بعد كل عملية
+```
+
+### Rules
+
+```
+✅ لا تستخدم dispatchEvent لتشغيل <a download>
+✅ حرّر الـ lock بعد a.click() مباشرةً
+✅ الـ watchdog يمنع lock بدون نهاية
+❌ لا تغيّر QR URL بدون تحديث _scQrUrl في state
+❌ لا تغيّر template URL بدون تحديث الإحداثيات
+```
+
+---
+
+## [P1] 55. Score System
+
+**Endpoint:** `GET /profile/{user_id}/score`
+**Auth:** None
+
+### Calculation — `_calc_profile_score(uid, conn)`
+
+| الشرط | النقاط |
+|-------|--------|
+| avatar_url محدّد | 10 |
+| headline أو title محدّد | 10 |
+| bio محدّدة | 10 |
+| location محدّد | 5 |
+| خبرة واحدة أو أكثر | 20 |
+| تعليم واحد أو أكثر | 15 |
+| 3 مهارات أو أكثر | 15 |
+| رابط واحد أو أكثر | 5 |
+| is_verified = TRUE | 5 |
+| **المجموع** | **95** |
+
+### Score Levels
+
+| النطاق | المستوى |
+|--------|---------|
+| ≥ 90 | ممتاز |
+| ≥ 70 | جيد |
+| ≥ 50 | متوسط |
+| < 50 | يحتاج تحسين |
+
+### Response
+
+```json
+{
+  "score": <0-95>,
+  "tips": [{"tip": <str>, "points": <int>}],  // أعلى 3 نقاط ناقصة
+  "level": "ممتاز|جيد|متوسط|يحتاج تحسين"
+}
+```
+
+### Rules
+
+```
+✅ _calc_profile_score مشترك بين /score و/metrics
+✅ tips تحتوي الشروط غير المكتملة فقط، مرتبة descending
+❌ لا caching — يُحسب fresh في كل طلب
+```
+
+---
+
+## [P1] 56. Metrics Endpoint
+
+**Endpoint:** `GET /profile/{user_id}/metrics`
+**Auth:** Optional JWT (لتحديد `viewer.is_following`)
+
+### Response
+
+```json
+{
+  "status": "success",
+  "metrics": {
+    "views_count":      <int>,
+    "followers_count":  <int>,
+    "experience_count": <int>,
+    "education_count":  <int>,
+    "courses_count":    <int>,
+    "skills_count":     <int>,
+    "languages_count":  <int>,
+    "links_count":      <int>,
+    "score":            <0-95>
+  },
+  "viewer": {
+    "is_following": <bool>
+  }
+}
+```
+
+### DB Queries (single connection)
+
+```python
+courses_count    = COUNT(*) FROM courses    WHERE user_id
+lang_count       = COUNT(*) FROM user_langs WHERE user_id
+followers_count  = COUNT(*) FROM profile_follows WHERE followed_id
+views_count      = COUNT(*) FROM profile_views   WHERE viewed_user_id
+is_following     = EXISTS   FROM profile_follows WHERE follower_id=token_uid AND followed_id=uid
+score_data       = _calc_profile_score(uid, conn)  # يُعيد exp/edu/skill/link counts أيضاً
+```
+
+### Rules
+
+```
+✅ لا يُسجّل view (بخلاف GET /profile/{id})
+✅ single connection — لا N+1 queries
+✅ viewer.is_following = false إذا كان الـ viewer هو الـ owner
+❌ لا تستخدم /metrics لتسجيل الزيارات
+```
+
+---
+
+## [P1] 57. Admin System
+
+**URL:** `/tw-ctrl-kPuOWhpIYjdLQXmh`
+**Files:** `admin.html`, `admin-view.html`
+
+### Token Authentication
+
+```python
+ADMIN_PASSWORD  = "tw@admin2025"
+ADMIN_URL_TOKEN = "kPuOWhpIYjdLQXmh"  # في الـ URL — security-through-obscurity
+ADMIN_TOKEN     = hashlib.sha256(ADMIN_PASSWORD.encode()).hexdigest()  # 64-char hex
+
+def check_admin(request: Request):
+    token = request.headers.get("X-Admin-Token", "")
+    if token != ADMIN_TOKEN:
+        raise HTTPException(403, "Forbidden")
+```
+
+**Admin Login Flow:**
+1. POST `/tw-ctrl-login` بكلمة المرور
+2. Server يُعيد JWT token
+3. يُخزَّن في `sessionStorage` (لا localStorage)
+4. كل استدعاء API يُرسل `X-Admin-Token: <sha256>`
+
+### admin.html — Sections
+
+| القسم | ID | الوظيفة |
+|-------|----|---------|
+| إحصائيات | — | عدد المستخدمين، الشركات، الوظائف، التوثيق |
+| إدارة المستخدمين | `#tab-users` | بحث، تغيير النوع، حذف، إرسال رسالة |
+| طلبات التوثيق | `#tab-verify` | verify_requests المعلّقة |
+| الوظائف | `#tab-jobs` | قائمة الوظائف، حذف |
+| البلاغات | `#tab-reports` | content reports مع status badges |
+| KYC | `#tab-kyc` | مراجعة kyc_submissions |
+| الأخطاء | `#tab-errors` | JavaScript error logs |
+
+### admin-view.html — Individual User Page
+
+الوصول: `admin.html?id={user_id}` ← يفتح `admin-view.html` في نافذة جديدة
+
+| القسم | الوظيفة |
+|-------|---------|
+| Sidebar | avatar، name، email، type badge، ID، تاريخ الإنضمام |
+| Quick Actions | تغيير النوع، verify/unverify، reset password، إرسال رسالة، حذف الحساب |
+| Basic Info | full_name، headline، location، bio، is_verified، tw_id |
+| Experience / Education / Courses | قائمة مع زر حذف لكل عنصر |
+
+### Rules
+
+```
+✅ Admin token مشتق من كلمة المرور — لا DB storage
+✅ ADMIN_URL_TOKEN سري — لا يُكشف في logs أو responses
+❌ لا تُعيد ADMIN_TOKEN في أي response
+❌ لا تُضف admin endpoints بدون check_admin dependency
+```
+
+---
+
+## [P2] 58. Reports System
+
+**Database Table: `reports`**
+
+```sql
+CREATE TABLE reports (
+    id            SERIAL PRIMARY KEY,
+    reporter_id   INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    reported_id   INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    reported_type TEXT DEFAULT 'user',   -- 'user'|'job'|'company'
+    report_type   TEXT NOT NULL,         -- 'sexual'|'fraud'|'harassment'|'spam'|'other'
+    reason        TEXT,
+    target_url    TEXT,
+    status        TEXT DEFAULT 'pending', -- 'pending'|'resolved'
+    created_at    TIMESTAMPTZ DEFAULT NOW()
+)
+```
+
+### API Endpoints
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| POST | `/reports/submit` | JWT | تقديم بلاغ |
+| GET | `/admin/reports` | Admin | قائمة كل البلاغات |
+| PUT | `/admin/reports/{report_id}/resolve` | Admin | تغيير status إلى 'resolved' |
+
+**Request for POST /reports/submit:**
+```json
+{ "reported_id": <int>, "reported_type": "user|job|company", "report_type": "sexual|fraud|harassment|spam|other", "reason": <str>, "target_url": <str|null> }
+```
+
+### Rules
+
+```
+✅ reporter_id: ON DELETE SET NULL — البلاغ يبقى حتى بعد حذف المُبلِّغ
+✅ reported_id: ON DELETE CASCADE — البلاغ يُحذف بحذف المُبلَّغ عنه
+❌ لا حذف فردي للبلاغات من الـ UI (resolve فقط)
+```
+
+---
+
+## [P2] 59. Landing Page
+
+**File:** `landing.html`
+**Route:** `GET /` (serves landing.html)
+
+### Sections
+
+| القسم | ID | المحتوى |
+|-------|-----|---------|
+| Navigation | — | Logo + روابط + Login/Sign up |
+| Hero | — | شعار + CTA + إحصائيات ديناميكية |
+| من للمنصة | `#who` | 3 cards: موظف / شركة / جهة تعليمية |
+| كيف تعمل | `#how` | 3 خطوات مرقّمة |
+| المميزات | `#features` | 6 بطاقات ميزات |
+| نظام التوثيق | `#verify` | 3-step verification flow |
+| شهادات | — | 3 testimonial cards |
+| CTA نهائي | — | 3 أزرار حسب نوع المستخدم |
+
+### Dynamic Behavior
+
+```javascript
+// إحصائيات ديناميكية — تُجلب من API
+fetch('/jobs')       → عدد الوظائف في الـ Hero
+fetch('/auth/users') → عدد المستخدمين في الـ Hero
+
+// إذا كان المستخدم مسجّلاً (localStorage tawasalna_user):
+// أزرار CTA تُوجَّه للـ dashboard بدلاً من التسجيل
+emp  → /profile.html?id={id}
+co   → /company-profile.html?id={id}
+edu  → /edu-profile.html?id={id}
+```
+
+**Animations:**
+- Scroll reveal via `IntersectionObserver`
+- Animated counters on stats
+- Smooth scroll لروابط الـ anchor
+
