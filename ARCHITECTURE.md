@@ -3867,7 +3867,7 @@ Browsers served cached old content for up to 24h after deploy.
 ### Rule
 **Every time the content of a `messages.*.js` or other static JS file changes in a PR, the version query string in `messages.html` (or the importing HTML) MUST be bumped.**
 
-Current versions: `?v=v3` (set after PRs #147–#150 landed on main).
+Current versions: `?v=v4` (bumped after mobile default view fix — PR that fixed conv-list hidden on mobile).
 
 ### Service Worker
 `sw.js` `BUILD_TIME` must be updated on each deploy to trigger SW refresh and clear old caches.
@@ -4781,4 +4781,100 @@ edu  → /edu-profile.html?id={id}
 - Scroll reveal via `IntersectionObserver`
 - Animated counters on stats
 - Smooth scroll لروابط الـ anchor
+
+---
+
+## [P0] 55. Messenger Mobile Default View
+
+### Root Cause (documented after bug fix)
+
+On mobile (≤700px), `messages.css` hides `.conv-list` by default:
+```css
+@media(max-width:700px){
+  .conv-list{display:none;}
+  .conv-list.mobile-show{display:flex;...}
+}
+```
+
+`renderConvList()` populates `.conv-items` (inside `.conv-list`) but does NOT add `mobile-show`.  
+Result: conversations are rendered in the DOM but invisible. User sees only "اختر محادثة".
+
+### Rule: Mobile Default View = Conversation List
+
+When the user opens `/messages` without a `?with=` param, the conversation list MUST be visible on mobile.
+
+**Implementation:**
+```javascript
+// DOMContentLoaded — no ?with param path:
+var convListEl = document.getElementById('convList');
+if (convListEl) convListEl.classList.add('mobile-show');  // ← show list on mobile
+loadConversations();
+```
+
+### State Transitions (mobile)
+
+| Action | Result |
+|--------|--------|
+| Open /messages (no ?with) | `mobile-show` added → conv-list visible |
+| Click conversation | `openConversation()` removes `mobile-show` → chat visible |
+| Click ☰ button | `toggleConvList()` toggles `mobile-show` → list visible |
+| Open /messages?with={tw_id} | `handleWithParam()` → chat opens → `mobile-show` removed |
+
+**Forbidden:**
+- ممنوع: فتح /messages وعرض "اختر محادثة" فقط إذا يوجد محادثات
+- ممنوع: إخفاء conv-list على الموبايل بدون أن يتمكن المستخدم من رؤيتها
+- ممنوع: silent catch في loadConversations — أي error يجب أن يُعرض للمستخدم
+
+---
+
+## [P1] 56. Messenger Conversations — Response Contract
+
+### API Response: `GET /messages/conversations/{user_id}`
+
+**Auth:** `Authorization: Bearer {jwt}` required. Server validates `jwt.user_id == user_id`.
+
+**Response shape:**
+```json
+{
+  "status": "success",
+  "conversations": [
+    {
+      "other_id":   42,
+      "full_name":  "اسم المستخدم",
+      "user_type":  "emp" | "co" | "edu",
+      "tw_id":      "U9620...",
+      "content":    "آخر رسالة",
+      "created_at": "2026-06-15T19:00:00",
+      "is_read":    false,
+      "sender_id":  17
+    }
+  ]
+}
+```
+
+**Frontend mapping (`messages.render.js`):**
+
+| Field | Used for |
+|-------|----------|
+| `other_id` | `data-uid` attribute, `openConversation(otherId)` |
+| `full_name` | Conversation name display |
+| `user_type` | Type icon (🏢/🎓/👤) |
+| `content` | Preview of last message |
+| `is_read` + `sender_id` | Unread badge (sender ≠ current user AND not read) |
+
+### No-Silent-Catch Rule
+
+`loadConversations()` catch MUST show visible feedback:
+- 401/403 → "انتهت الجلسة — أعد تسجيل الدخول" (red)
+- Other errors → "تعذر تحميل المحادثات" (red, only if no items rendered)
+- All statuses → `console.error('[messages] loadConversations failed, status:', status)`
+
+**Forbidden:**
+- ممنوع: `catch(function(){})` فارغ
+- ممنوع: حذف items صالحة بسبب فشل مؤقت في polling
+- ممنوع: unread count badge = 5 ولا تظهر المحادثات (يعني mobile CSS مكسور)
+
+### Version Tracking
+
+Current version: `?v=v4` (bumped when messages.render.js changed — mobile default fix)
 

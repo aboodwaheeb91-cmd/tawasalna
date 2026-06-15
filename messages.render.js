@@ -100,11 +100,13 @@ function loadConversations() {
     renderConvList(data.conversations || []);
   }).catch(function(status) {
     console.error('[messages] loadConversations failed, status:', status);
+    var items = document.querySelector('.conv-items');
+    if (!items || _currentConvId) return;
     if (status === 401 || status === 403) {
-      var items = document.querySelector('.conv-items');
-      if (items && !_currentConvId) {
-        items.innerHTML = '<div class="conv-empty" style="color:rgba(239,68,68,.7)">انتهت الجلسة — أعد تسجيل الدخول</div>';
-      }
+      items.innerHTML = '<div class="conv-empty" style="color:rgba(239,68,68,.7)">انتهت الجلسة — أعد تسجيل الدخول</div>';
+    } else if (!items.querySelector('.conv-item')) {
+      // Don't overwrite a valid list on a temporary poll failure
+      items.innerHTML = '<div class="conv-empty" style="color:rgba(239,68,68,.5)">تعذر تحميل المحادثات</div>';
     }
   });
 }
@@ -314,6 +316,11 @@ document.addEventListener('DOMContentLoaded', function() {
   if (withParam && _user && _user.id) {
     handleWithParam(withParam);
   } else {
+    // Mobile: .conv-list is display:none by default (CSS). Show it immediately
+    // so the user sees conversations as the landing view, not just "اختر محادثة".
+    // On desktop this has no visual effect (conv-list is always visible).
+    var convListEl = document.getElementById('convList');
+    if (convListEl) convListEl.classList.add('mobile-show');
     loadConversations();
   }
   loadUnreadCount();
