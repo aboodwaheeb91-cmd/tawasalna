@@ -630,7 +630,8 @@ window.renderProfile = function renderProfile(res){
   var _followCount  = (res.followers_count != null) ? res.followers_count : 0;
 
   // Populate followers counter from API
-  setText('scStatFollowers', formatCompactCount(_followCount));
+  setText('scStatFollowers',      formatCompactCount(_followCount));
+  setText('scFlPopCountFollowers', formatCompactCount(_followCount));
 
   // Populate views counter from API
   var _viewsCount = (res.views_count != null) ? Number(res.views_count) : 0;
@@ -866,8 +867,12 @@ window.renderProfile = function renderProfile(res){
         var m = res.metrics;
         // Visible counters
         if(m.views_count      != null) setText('scStatViews',     formatCompactCount(Number(m.views_count)));
-        if(m.followers_count  != null) setText('scStatFollowers', formatCompactCount(Number(m.followers_count)));
-        if(m.following_count  != null) setText('scStatFollowing', formatCompactCount(Number(m.following_count)));
+        if(m.followers_count  != null){
+          var _fc = formatCompactCount(Number(m.followers_count));
+          setText('scStatFollowers',      _fc);
+          setText('scFlPopCountFollowers', _fc);
+        }
+        if(m.following_count  != null) setText('scFlPopCountFollowing', formatCompactCount(Number(m.following_count)));
         if(m.education_count  != null) setText('scStatEdu',   Number(m.education_count));
         if(m.experience_count != null) setText('scStatExp',   Number(m.experience_count));
         if(m.score            != null) setText('scStatScore', Number(m.score));
@@ -1023,10 +1028,7 @@ window.renderProfile = function renderProfile(res){
     }).catch(function(){ btn.disabled = false; });
   });
 
-  var followersTile = document.getElementById('scStatFollowersTile');
-  var followingTile = document.getElementById('scStatFollowingTile');
-  if(followersTile) followersTile.addEventListener('click', function(){ _open('followers'); });
-  if(followingTile) followingTile.addEventListener('click', function(){ _open('following'); });
+  // Tile click wiring handled by Popover IIFE below (_scFlOpen exposed as window._scFlOpen)
 
   document.getElementById('scFlClose').addEventListener('click', _close);
   _overlay.addEventListener('click', function(e){ if(e.target === _overlay) _close(); });
@@ -1043,4 +1045,53 @@ window.renderProfile = function renderProfile(res){
   };
 
   window._scFlOpen = _open;
+})();
+
+// ── Followers Popover ──
+(function(){
+  var _popover = document.getElementById('scFlPopover');
+  var _tile    = document.getElementById('scStatFollowersTile');
+  if(!_popover || !_tile) return;
+
+  var _visible = false;
+
+  function _openPop(){
+    var rect   = _tile.getBoundingClientRect();
+    var popW   = _popover.offsetWidth || 172;
+    var left   = rect.left + rect.width / 2 - popW / 2;
+    var maxL   = window.innerWidth - popW - 8;
+    _popover.style.top     = (rect.bottom + window.scrollY + 8) + 'px';
+    _popover.style.left    = Math.max(8, Math.min(left, maxL)) + 'px';
+    _popover.style.display = 'block';
+    if(window.lucide && lucide.createIcons) lucide.createIcons();
+    _visible = true;
+  }
+
+  function _closePop(){
+    _popover.style.display = 'none';
+    _visible = false;
+  }
+
+  _tile.addEventListener('click', function(e){
+    e.stopPropagation();
+    if(_visible){ _closePop(); } else { _openPop(); }
+  });
+
+  document.addEventListener('click', function(e){
+    if(_visible && !_popover.contains(e.target)) _closePop();
+  });
+
+  document.addEventListener('keydown', function(e){
+    if(e.key === 'Escape' && _visible) _closePop();
+  });
+
+  document.getElementById('scFlPopFollowers').addEventListener('click', function(){
+    _closePop();
+    if(window._scFlOpen) window._scFlOpen('followers');
+  });
+
+  document.getElementById('scFlPopFollowing').addEventListener('click', function(){
+    _closePop();
+    if(window._scFlOpen) window._scFlOpen('following');
+  });
 })();
