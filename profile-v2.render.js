@@ -943,17 +943,28 @@ window.renderProfile = function renderProfile(res){
   var _list     = document.getElementById('scFlList');
   var _loadWrap = document.getElementById('scFlLoad');
   var _loadBtn  = document.getElementById('scFlLoadMore');
+  var _filtersEl= document.getElementById('scFlFilters');
 
   var _mode    = 'followers';
+  var _filter  = 'all';
   var _offset  = 0;
   var _limit   = 20;
   var _loading = false;
 
+  var _TYPE_LABELS = { all: 'الكل', emp: 'موظفون', co: 'شركات', edu: 'مراكز تعليم' };
+  var _TYPE_BADGE  = {
+    emp: { label: 'موظف',        cls: 'sc-fl-type-badge--emp' },
+    co:  { label: 'شركة',        cls: 'sc-fl-type-badge--co'  },
+    edu: { label: 'مركز تعليم',  cls: 'sc-fl-type-badge--edu' },
+  };
+
   function _open(mode){
     _mode   = mode || 'followers';
+    _filter = 'all';
     _offset = 0;
     _list.innerHTML = '';
     _loadWrap.style.display = 'none';
+    if(_filtersEl) _filtersEl.innerHTML = '';
     _overlay.style.display  = 'flex';
     document.body.style.overflow = 'hidden';
     document.getElementById('scFlTabFollowers').classList.toggle('active', _mode === 'followers');
@@ -966,23 +977,62 @@ window.renderProfile = function renderProfile(res){
     document.body.style.overflow = '';
   }
 
+  function _setFilter(type){
+    if(_filter === type) return;
+    _filter = type;
+    _offset = 0;
+    _fetchPage(true);
+  }
+
   function _fetchPage(replace){
     if(_loading || !_scProfileId) return;
     _loading = true;
     if(replace) _list.innerHTML = '<div class="sc-fl-spin"></div>';
     var fn = _mode === 'followers' ? window.getFollowersList : window.getFollowingList;
-    fn(_scProfileId, _limit, _offset)
+    fn(_scProfileId, _limit, _offset, _filter)
       .then(function(res){
         _loading = false;
         if(!res || !res.ok || !res.data) return;
         var d = res.data;
         if(replace) _list.innerHTML = '';
+        if(_offset === 0 && d.counts) _renderChips(d.counts);
         _renderItems(d.items || []);
         var pag = d.pagination || {};
         _offset += (d.items || []).length;
         _loadWrap.style.display = pag.has_more ? 'flex' : 'none';
       })
       .catch(function(){ _loading = false; });
+  }
+
+  function _renderChips(counts){
+    if(!_filtersEl) return;
+    _filtersEl.innerHTML = '';
+    ['all', 'emp', 'co', 'edu'].forEach(function(t){
+      var cnt = counts[t] != null ? Number(counts[t]) : 0;
+      var btn = document.createElement('button');
+      btn.className = 'sc-fl-chip' + (t === _filter ? ' active' : '');
+      btn.dataset.ftype = t;
+      if(cnt === 0 && t !== 'all') btn.disabled = true;
+      btn.innerHTML = esc(_TYPE_LABELS[t]) + ' <span class="sc-fl-chip-count">' + formatCompactCount(cnt) + '</span>';
+      _filtersEl.appendChild(btn);
+    });
+  }
+
+  _filtersEl && _filtersEl.addEventListener('click', function(e){
+    var btn = e.target.closest('.sc-fl-chip');
+    if(!btn || btn.disabled) return;
+    var t = btn.dataset.ftype;
+    if(!t || t === _filter) return;
+    _filtersEl.querySelectorAll('.sc-fl-chip').forEach(function(c){
+      c.classList.toggle('active', c.dataset.ftype === t);
+    });
+    _setFilter(t);
+  });
+
+  function _typeBadge(user_type){
+    var m = _TYPE_BADGE[user_type];
+    if(!m) return '';
+    return '<span class="sc-fl-type-badge ' + m.cls + '">' + m.label + '</span>';
   }
 
   function _renderItems(items){
@@ -1004,8 +1054,10 @@ window.renderProfile = function renderProfile(res){
       el.innerHTML =
         '<a class="sc-fl-info" href="/u/' + esc(item.tw_id) + '">'
         + avatarHtml
-        + '<div class="sc-fl-meta"><span class="sc-fl-name">' + esc(item.display_name || '') + '</span>'
-        + profHtml + '</div></a>' + followBtn;
+        + '<div class="sc-fl-meta">'
+        + '<span class="sc-fl-name">' + esc(item.display_name || '') + '</span>'
+        + '<div class="sc-fl-sub">' + profHtml + _typeBadge(item.user_type) + '</div>'
+        + '</div></a>' + followBtn;
       _list.appendChild(el);
     });
     if(window.lucide && lucide.createIcons) lucide.createIcons();
@@ -1038,9 +1090,11 @@ window.renderProfile = function renderProfile(res){
 
   window._scFlSwitch = function(mode, tabEl){
     _mode   = mode;
+    _filter = 'all';
     _offset = 0;
     document.querySelectorAll('.sc-fl-tab').forEach(function(t){ t.classList.remove('active'); });
     if(tabEl) tabEl.classList.add('active');
+    if(_filtersEl) _filtersEl.innerHTML = '';
     _fetchPage(true);
   };
 

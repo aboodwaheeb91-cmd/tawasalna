@@ -2190,104 +2190,140 @@ def is_profile_following(follower_id: int, followed_id: int) -> bool:
         release_conn(conn)
 
 
-def get_profile_followers_list(followed_id: int, viewer_id, limit: int, offset: int) -> dict:
+def get_profile_followers_list(followed_id: int, viewer_id, limit: int, offset: int, user_type: str = "all") -> dict:
     """Paginated list of accounts that follow followed_id. viewer_id=None for guests."""
     conn = get_conn()
     try:
-        total = (conn.run(
-            "SELECT COUNT(*) FROM profile_follows WHERE followed_id=:fdid",
-            fdid=followed_id) or [[0]])[0][0]
+        # Per-type counts (single query)
+        type_rows = conn.run(
+            "SELECT u.user_type, COUNT(*) FROM profile_follows pf "
+            "JOIN users u ON u.id=pf.follower_id "
+            "WHERE pf.followed_id=:fdid GROUP BY u.user_type",
+            fdid=followed_id) or []
+        type_counts = {"emp": 0, "co": 0, "edu": 0}
+        for utype, cnt in type_rows:
+            if utype in type_counts:
+                type_counts[utype] = cnt
+        total_all = sum(type_counts.values())
+        counts = {"all": total_all, **type_counts}
 
-        base_select = (
+        total = type_counts.get(user_type, 0) if user_type != "all" else total_all
+
+        # Build query
+        where_type = "AND u.user_type=:utype " if user_type != "all" else ""
+        if viewer_id is not None:
+            is_following_expr = (
+                "EXISTS(SELECT 1 FROM profile_follows v "
+                "WHERE v.follower_id=:vid AND v.followed_id=u.id)")
+        else:
+            is_following_expr = "FALSE"
+
+        query = (
             "SELECT u.id, u.tw_id, u.full_name, u.user_type, p.avatar_url, "
-            "pc.name_ar, pc.icon, pf.created_at, {is_following_expr} "
+            "pc.name_ar, pc.icon, pf.created_at, " + is_following_expr + " "
             "FROM profile_follows pf "
             "JOIN users u ON u.id=pf.follower_id "
             "LEFT JOIN profiles p ON p.user_id=u.id "
             "LEFT JOIN profession_categories pc ON pc.id=p.profession_id "
-            "WHERE pf.followed_id=:fdid "
+            "WHERE pf.followed_id=:fdid " + where_type +
             "ORDER BY pf.created_at DESC LIMIT :lim OFFSET :off"
         )
-
+        params = {"fdid": followed_id, "lim": limit, "off": offset}
         if viewer_id is not None:
-            rows = conn.run(
-                base_select.format(is_following_expr=(
-                    "EXISTS(SELECT 1 FROM profile_follows v "
-                    "WHERE v.follower_id=:vid AND v.followed_id=u.id)")),
-                fdid=followed_id, vid=int(viewer_id), lim=limit, off=offset)
-        else:
-            rows = conn.run(
-                base_select.format(is_following_expr="FALSE"),
-                fdid=followed_id, lim=limit, off=offset)
+            params["vid"] = int(viewer_id)
+        if user_type != "all":
+            params["utype"] = user_type
+
+        rows = conn.run(query, **params)
 
         items = []
         for r in rows:
-            uid, tw_id, full_name, user_type, avatar_url, prof_name, prof_icon, followed_at, is_following = r
+            uid, tw_id, full_name, utype, avatar_url, prof_name, prof_icon, followed_at, is_following = r
             items.append({
                 "id":           uid,
                 "tw_id":        tw_id,
                 "display_name": full_name,
                 "avatar_url":   avatar_url,
-                "user_type":    user_type,
+                "user_type":    utype,
                 "profession":   {"name_ar": prof_name, "icon": prof_icon} if prof_name else None,
                 "is_following": bool(is_following),
                 "can_follow":   viewer_id is not None and int(viewer_id) != uid,
                 "followed_at":  followed_at.isoformat() if hasattr(followed_at, "isoformat") else (str(followed_at) if followed_at else None),
             })
         return {
-            "items": items,
+            "items":      items,
+            "filter":     {"type": user_type},
+            "counts":     counts,
             "pagination": {"limit": limit, "offset": offset, "has_more": (offset + limit) < total, "total": total},
         }
     finally:
         release_conn(conn)
 
 
-def get_profile_following_list(follower_id: int, viewer_id, limit: int, offset: int) -> dict:
+def get_profile_following_list(follower_id: int, viewer_id, limit: int, offset: int, user_type: str = "all") -> dict:
     """Paginated list of accounts that follower_id follows. viewer_id=None for guests."""
     conn = get_conn()
     try:
-        total = (conn.run(
-            "SELECT COUNT(*) FROM profile_follows WHERE follower_id=:frid",
-            frid=follower_id) or [[0]])[0][0]
+        # Per-type counts (single query)
+        type_rows = conn.run(
+            "SELECT u.user_type, COUNT(*) FROM profile_follows pf "
+            "JOIN users u ON u.id=pf.followed_id "
+            "WHERE pf.follower_id=:frid GROUP BY u.user_type",
+            frid=follower_id) or []
+        type_counts = {"emp": 0, "co": 0, "edu": 0}
+        for utype, cnt in type_rows:
+            if utype in type_counts:
+                type_counts[utype] = cnt
+        total_all = sum(type_counts.values())
+        counts = {"all": total_all, **type_counts}
 
-        base_select = (
+        total = type_counts.get(user_type, 0) if user_type != "all" else total_all
+
+        # Build query
+        where_type = "AND u.user_type=:utype " if user_type != "all" else ""
+        if viewer_id is not None:
+            is_following_expr = (
+                "EXISTS(SELECT 1 FROM profile_follows v "
+                "WHERE v.follower_id=:vid AND v.followed_id=u.id)")
+        else:
+            is_following_expr = "FALSE"
+
+        query = (
             "SELECT u.id, u.tw_id, u.full_name, u.user_type, p.avatar_url, "
-            "pc.name_ar, pc.icon, pf.created_at, {is_following_expr} "
+            "pc.name_ar, pc.icon, pf.created_at, " + is_following_expr + " "
             "FROM profile_follows pf "
             "JOIN users u ON u.id=pf.followed_id "
             "LEFT JOIN profiles p ON p.user_id=u.id "
             "LEFT JOIN profession_categories pc ON pc.id=p.profession_id "
-            "WHERE pf.follower_id=:frid "
+            "WHERE pf.follower_id=:frid " + where_type +
             "ORDER BY pf.created_at DESC LIMIT :lim OFFSET :off"
         )
-
+        params = {"frid": follower_id, "lim": limit, "off": offset}
         if viewer_id is not None:
-            rows = conn.run(
-                base_select.format(is_following_expr=(
-                    "EXISTS(SELECT 1 FROM profile_follows v "
-                    "WHERE v.follower_id=:vid AND v.followed_id=u.id)")),
-                frid=follower_id, vid=int(viewer_id), lim=limit, off=offset)
-        else:
-            rows = conn.run(
-                base_select.format(is_following_expr="FALSE"),
-                frid=follower_id, lim=limit, off=offset)
+            params["vid"] = int(viewer_id)
+        if user_type != "all":
+            params["utype"] = user_type
+
+        rows = conn.run(query, **params)
 
         items = []
         for r in rows:
-            uid, tw_id, full_name, user_type, avatar_url, prof_name, prof_icon, followed_at, is_following = r
+            uid, tw_id, full_name, utype, avatar_url, prof_name, prof_icon, followed_at, is_following = r
             items.append({
                 "id":           uid,
                 "tw_id":        tw_id,
                 "display_name": full_name,
                 "avatar_url":   avatar_url,
-                "user_type":    user_type,
+                "user_type":    utype,
                 "profession":   {"name_ar": prof_name, "icon": prof_icon} if prof_name else None,
                 "is_following": bool(is_following),
                 "can_follow":   viewer_id is not None and int(viewer_id) != uid,
                 "followed_at":  followed_at.isoformat() if hasattr(followed_at, "isoformat") else (str(followed_at) if followed_at else None),
             })
         return {
-            "items": items,
+            "items":      items,
+            "filter":     {"type": user_type},
+            "counts":     counts,
             "pagination": {"limit": limit, "offset": offset, "has_more": (offset + limit) < total, "total": total},
         }
     finally:

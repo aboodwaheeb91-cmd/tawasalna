@@ -1552,9 +1552,13 @@ def profile_unfollow(user_id: str, token=Depends(verify_token)):
     return {"status": "success", "is_following": False, "followers_count": count}
 
 
+_VALID_FOLLOW_TYPES = {"all", "emp", "co", "edu"}
+
 @app.get("/profile/{user_id}/followers")
-def profile_followers_list(user_id: str, request: Request, limit: int = 20, offset: int = 0):
-    """Paginated followers list. Public — no auth required."""
+def profile_followers_list(user_id: str, request: Request, limit: int = 20, offset: int = 0, type: str = "all"):
+    """Paginated followers list. Public — no auth required. type: all|emp|co|edu"""
+    if type not in _VALID_FOLLOW_TYPES:
+        raise HTTPException(400, "نوع غير صالح — القيم المسموحة: all, emp, co, edu")
     try:
         profile_id = int(user_id)
     except ValueError:
@@ -1572,13 +1576,15 @@ def profile_followers_list(user_id: str, request: Request, limit: int = 20, offs
         if payload:
             viewer_id = payload.get("user_id")
 
-    result = get_profile_followers_list(profile_id, viewer_id, limit, offset)
+    result = get_profile_followers_list(profile_id, viewer_id, limit, offset, type)
     return {"status": "success", **result}
 
 
 @app.get("/profile/{user_id}/following")
-def profile_following_list(user_id: str, request: Request, limit: int = 20, offset: int = 0):
-    """Paginated following list (accounts this profile follows). Public — no auth required."""
+def profile_following_list(user_id: str, request: Request, limit: int = 20, offset: int = 0, type: str = "all"):
+    """Paginated following list (accounts this profile follows). Public — no auth required. type: all|emp|co|edu"""
+    if type not in _VALID_FOLLOW_TYPES:
+        raise HTTPException(400, "نوع غير صالح — القيم المسموحة: all, emp, co, edu")
     try:
         profile_id = int(user_id)
     except ValueError:
@@ -1596,7 +1602,7 @@ def profile_following_list(user_id: str, request: Request, limit: int = 20, offs
         if payload:
             viewer_id = payload.get("user_id")
 
-    result = get_profile_following_list(profile_id, viewer_id, limit, offset)
+    result = get_profile_following_list(profile_id, viewer_id, limit, offset, type)
     return {"status": "success", **result}
 
 

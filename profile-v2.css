@@ -1083,6 +1083,39 @@ body.view-owner .av-cam-btn { display:flex; }
 .sc-fl-pop-item--following .sc-fl-pop-count { color:#22d3ee; }
 .sc-fl-pop-item--following:hover { background:rgba(34,211,238,.08); }
 
+/* ── Follow List Filters ── */
+.sc-fl-filters {
+  display:flex; gap:6px; padding:10px 14px 8px;
+  border-bottom:1px solid rgba(255,255,255,.05);
+  overflow-x:auto; scrollbar-width:none; flex-shrink:0;
+}
+.sc-fl-filters:empty { display:none; }
+.sc-fl-filters::-webkit-scrollbar { display:none; }
+.sc-fl-chip {
+  display:inline-flex; align-items:center; gap:4px;
+  padding:5px 11px; border-radius:20px;
+  border:1px solid rgba(255,255,255,.1); cursor:pointer;
+  background:rgba(255,255,255,.04); color:var(--t2,#9aa5b4);
+  font-family:inherit; font-size:.78rem; font-weight:600;
+  white-space:nowrap; transition:background .15s, color .15s, border-color .15s;
+  flex-shrink:0;
+}
+.sc-fl-chip.active {
+  background:rgba(0,200,150,.1); border-color:rgba(0,200,150,.3); color:#00c896;
+}
+.sc-fl-chip:disabled { opacity:.38; cursor:default; }
+.sc-fl-chip-count { font-size:.72rem; font-weight:800; opacity:.85; }
+/* User type badge */
+.sc-fl-sub { display:flex; align-items:center; gap:5px; flex-wrap:wrap; margin-top:1px; }
+.sc-fl-type-badge {
+  display:inline-flex; align-items:center;
+  padding:1px 7px; border-radius:20px;
+  font-size:.66rem; font-weight:700;
+}
+.sc-fl-type-badge--emp { background:rgba(0,200,150,.1);  color:#00c896; }
+.sc-fl-type-badge--co  { background:rgba(37,99,255,.1);  color:#2563ff; }
+.sc-fl-type-badge--edu { background:rgba(245,158,11,.1); color:#f59e0b; }
+
 /* ── Follow List Modal ── */
 .sc-fl-overlay {
   position:fixed; inset:0; z-index:300;
