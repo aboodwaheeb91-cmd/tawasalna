@@ -3256,12 +3256,19 @@ DELETE /profile/{id}/interest   # يتطلب JWT، idempotent
 | `interest_type` | Class إضافي | الأيقونة | اللون | الحالة النشطة |
 |----------------|------------|---------|-------|--------------|
 | `profile_like` (emp) | `.sc-btn--like` | `heart` | بنفسجي هادئ `#a78bfa` | `rgba(139,92,246,.16)` |
-| `candidate_save` (co) | `.sc-btn--candidate` | `user-check` | أزرق رسمي `#93c5fd` | `rgba(59,130,246,.17)` |
+| `candidate_save` (co) | `.sc-btn--candidate` | inactive=`user-plus` / active=`user-check` | أزرق رسمي `#93c5fd` | `rgba(59,130,246,.17)` |
 | `training_invite` (edu) | — | يرثه من `.sc-btn-ghost` | — | — |
 
-**بعد حفظ candidate_save:** تظهر `.sc-candidate-hint` أسفل `.sc-actions` مباشرةً لـ 5 ثوانٍ تحتوي:
-- نص: "تم حفظ المرشح — يمكنك إضافة ملاحظة خاصة"
-- زر: "إضافة ملاحظة" → Toast "سيتم إضافة ملاحظات المرشحين قريباً"
+**بعد حفظ candidate_save:** تظهر `.sc-candidate-hint` أسفل `.sc-actions` وتبقى ظاهرة حتى يختار المستخدم:
+- أيقونة `check-circle` + نص: "تم حفظ المرشح" / "يمكنك إضافة ملاحظة خاصة"
+- زر "إضافة ملاحظة" → Toast "سيتم إضافة ملاحظات المرشحين قريباً" ثم تُخفى الـ hint
+- زر "ليس الآن" → يُخفي الـ hint فقط بدون أي API call
+- عند إلغاء الحفظ: الـ hint تُزال تلقائياً إن كانت ظاهرة
+
+```
+❌ الـ hint لا تختفي تلقائياً بـ timeout
+❌ "ليس الآن" لا يلغي الحفظ ولا يرسل API call
+```
 
 ### Candidate Notes — مؤجلة
 
