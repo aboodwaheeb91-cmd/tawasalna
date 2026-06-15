@@ -3493,9 +3493,10 @@ if int(token.get("user_id") or 0) != user_id:
 
 ### Key Implementation Details
 
-- `get_conversations()` uses `DISTINCT ON (other_id)` — latest message per partner
+- `get_conversations()` uses `DISTINCT ON (other_id)` wrapped in a subquery sorted `ORDER BY created_at DESC` — returns one row per partner, ordered by recency
+- `get_conversations()` returns `tw_id` of the other party alongside `other_id` (numeric)
 - `get_messages()` auto-marks `is_read=TRUE` for receiver's unread messages on read
-- `send_message()` also calls `create_notification()` for receiver (type='message')
+- `send_message()` looks up sender's `tw_id` and calls `create_notification()` with link `/messages?with={sender_tw_id}` so the notification deep-links to the correct conversation
 - No message deletion endpoint in current version
 - Frontend (`messages.html`) polls via `setInterval` (client-driven frequency)
 - `messages.html` uses `tw_user` key in localStorage (legacy pattern — different from `tawasalna_user` used in profile)
@@ -3610,11 +3611,11 @@ body / .layout  → height: 100dvh (fallback: 100vh) — prevents Chrome Android
 
 ### Known Debt
 
-| Ref | Debt | Severity |
-|-----|------|----------|
-| P0 | `/ws/{user_id}` — no JWT verification on WebSocket upgrade | Critical |
-| P1 | `get_conversations` sorts by `other_id` not `created_at DESC` | High |
-| P2 | `create_notification()` in `send_message()` links to `/messages.html` (should be `/messages`) | Low |
+| Ref | Debt | Severity | Status |
+|-----|------|----------|--------|
+| P0 | `/ws/{user_id}` — no JWT verification on WebSocket upgrade | Critical | Open |
+| P1 | `get_conversations` sorted by `other_id` not recency | High | **Fixed** (subquery wrap) |
+| P2 | `create_notification()` deep-link was `/messages` without sender tw_id | Low | **Fixed** |
 
 ### Send Flow — HTTP Primary (V1 Step 3 fix)
 
@@ -3676,6 +3677,71 @@ setInterval(function() {
 - ممنوع: إرسال عبر WebSocket من `doSendMessage()` — WS للاستقبال فقط
 - ممنوع: إظهار ✓ قبل تأكيد HTTP 200 من `/messages/send`
 - ممنوع: `.catch(function(){})` على `apiSendMessage` بدون معالجة الفشل
+
+---
+
+## [P0] 51. Messenger + Notifications Integration
+
+### Notification Deep-Link Contract
+
+When `send_message()` creates a notification for the receiver, the link MUST be:
+```
+/messages?with={sender_tw_id}
+```
+This allows the receiver to click the notification and land directly in the correct conversation.
+
+**Implementation (`auth.py`):**
+```python
+sender_info = get_user_by_id(sender_id)
+sender_tw_id = sender_info.get('tw_id', '') if sender_info else ''
+notif_link = f'/messages?with={sender_tw_id}' if sender_tw_id else '/messages'
+create_notification(receiver_id, 'message', 'رسالة جديدة', content[:60], notif_link)
+```
+
+**Forbidden:** hardcoding `/messages` as notification link without `?with=` — the receiver has no way to know which conversation to open.
+
+### `notifications.html` — Click Navigation
+
+Notification items rendered in `container.innerHTML` have no native onclick. Navigation is wired via:
+
+1. Each notification `<div class="ni">` receives `data-link="{n.link}"` attribute
+2. Event delegation on the container fires after `innerHTML` is set:
+```javascript
+container.addEventListener('click', function(e) {
+  var item = e.target.closest('.ni[data-link]');
+  if (item) { var lnk = item.getAttribute('data-link'); if (lnk) window.location.href = lnk; }
+});
+```
+
+**Forbidden:** attaching individual `onclick` per item inside `innerHTML` string — use event delegation.
+**Forbidden:** navigating to `/messages` (no `?with=`) from a message notification — the conversation list will be empty if link is generic.
+
+### Header Badge — Auth Requirements
+
+| Endpoint | Auth Required | Header in home.html |
+|----------|---------------|---------------------|
+| `GET /notifications/{user_id}` | None | — |
+| `GET /messages/unread/{user_id}` | JWT (`verify_token`) | `Authorization: Bearer {tw_jwt}` |
+
+`home.html` reads `tw_jwt` from localStorage before both badge IIFEs. Both the nav-bar badge IIFE and the home-badges IIFE apply the JWT header to the `/messages/unread/` call.
+
+### `get_conversations()` — Sort Fix
+
+**Problem:** `DISTINCT ON` in PostgreSQL requires the first `ORDER BY` key to match the `DISTINCT ON` key. The old query ordered by `other_id, created_at DESC` — giving one row per partner but sorted by partner ID, not recency.
+
+**Fix:** wrap in a subquery:
+```sql
+SELECT * FROM (
+  SELECT DISTINCT ON (other_id) ..., u.tw_id
+  FROM messages m
+  JOIN users u ON ...
+  WHERE sender_id=:uid OR receiver_id=:uid
+  ORDER BY other_id, created_at DESC   -- required by DISTINCT ON
+) sub
+ORDER BY created_at DESC               -- outer sort by recency
+```
+
+`tw_id` is now included in the result so future UI features can build deep-links without a secondary lookup.
 
 ---
 

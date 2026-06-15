@@ -424,7 +424,8 @@ function loadRealNotifications(){
       var t=typeMap[n.type]||typeMap.system;
       var ago=Math.floor((Date.now()-new Date(n.created_at))/60000);
       var agoStr=ago<1?'الآن':ago<60?ago+' د':ago<1440?Math.floor(ago/60)+' س':Math.floor(ago/1440)+' ي';
-      return '<div class="ni '+(n.is_read?'':'unread')+'" data-type="'+n.type+'" style="border-right:3px solid '+(n.is_read?'transparent':'var(--ac)')+'">'+
+      var linkAttr=n.link?(' data-link="'+n.link+'"'):'';
+      return '<div class="ni '+(n.is_read?'':'unread')+'" data-type="'+n.type+'"'+linkAttr+' style="border-right:3px solid '+(n.is_read?'transparent':'var(--ac)')+'">'+
         '<div class="ni-ico" style="background:'+t.color+'">'+t.ico+'</div>'+
         '<div class="ni-body">'+
         '<div class="ni-title">'+(n.title||t.label)+'</div>'+
@@ -433,6 +434,12 @@ function loadRealNotifications(){
     }).join('');
 
     container.innerHTML=html;
+
+    // Click-to-navigate via event delegation
+    container.addEventListener('click',function(e){
+      var item=e.target.closest('.ni[data-link]');
+      if(item){var lnk=item.getAttribute('data-link');if(lnk)window.location.href=lnk;}
+    });
 
     // Mark as read
     if(unread>0){

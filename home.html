@@ -617,6 +617,7 @@ function closeOnboard(){
 // ── Notification Badge on Nav ──
 (function(){
   if(!_u||!_u.id) return;
+  var _jwt=localStorage.getItem('tw_jwt')||'';
   fetch('/notifications/'+_u.id).then(function(r){return r.json();}).then(function(data){
     var unread=data.unread||0;
     if(unread>0){
@@ -630,8 +631,8 @@ function closeOnboard(){
       }
     }
   }).catch(function(){});
-  // Unread messages badge
-  fetch('/messages/unread/'+_u.id).then(function(r){return r.json();}).then(function(data){
+  // Unread messages badge — requires JWT auth
+  fetch('/messages/unread/'+_u.id,{headers:{'Authorization':'Bearer '+_jwt}}).then(function(r){return r.json();}).then(function(data){
     var unread=data.count||0;
     if(unread>0){
       var navMsg=document.querySelector('a[href="/messages"] .bi, a[href="/messages"]');
@@ -649,12 +650,13 @@ function closeOnboard(){
 // ── Home Badges ──
 (function(){
   if(!_u||!_u.id) return;
+  var _jwt=localStorage.getItem('tw_jwt')||'';
   fetch('/notifications/'+_u.id).then(function(r){return r.json();}).then(function(d){
     var u=d.unread||0;
     var b=document.getElementById('homeNotifBadge');
     if(b&&u>0){b.textContent=u>9?'9+':u;b.style.display='block';}
   }).catch(function(){});
-  fetch('/messages/unread/'+_u.id).then(function(r){return r.json();}).then(function(d){
+  fetch('/messages/unread/'+_u.id,{headers:{'Authorization':'Bearer '+_jwt}}).then(function(r){return r.json();}).then(function(d){
     var u=d.count||0;
     var b=document.getElementById('homeMsgBadge');
     if(b&&u>0){b.textContent=u>9?'9+':u;b.style.display='block';}
