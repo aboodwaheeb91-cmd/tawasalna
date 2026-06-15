@@ -114,12 +114,19 @@ function loadConversations() {
 
 // ── Message bubble ────────────────────────────────────────────────────────
 
-function renderBubble(isMe, content, time, readIcon) {
-  var dir = isMe ? 'out' : 'in';
-  return '<div class="msg-wrap ' + dir + '"><div class="msg ' + dir + '">'
+function renderMessageStatus(msg) {
+  if (msg.read_at)      return '<span class="msg-status read">✓✓</span>';
+  if (msg.delivered_at) return '<span class="msg-status delivered">✓✓</span>';
+  return '<span class="msg-status sent">✓</span>';
+}
+
+function renderBubble(isMe, content, time, statusHtml, msgId) {
+  var dir    = isMe ? 'out' : 'in';
+  var idAttr = msgId ? ' data-msg-id="' + msgId + '"' : '';
+  return '<div class="msg-wrap ' + dir + '"' + idAttr + '><div class="msg ' + dir + '">'
     + '<div class="msg-text">' + esc(content) + '</div>'
     + '<div class="msg-time">' + esc(time)
-    + (readIcon ? ' <span style="font-size:.6rem;opacity:.7">' + readIcon + '</span>' : '')
+    + (statusHtml ? ' ' + statusHtml : '')
     + '</div></div></div>';
 }
 
@@ -182,8 +189,8 @@ function openConversation(otherId, name, typeIco) {
         lastDate = dateStr;
         dateDiv = '<div class="date-divider">' + esc(dateStr) + '</div>';
       }
-      var readIcon = isMe ? (msg.is_read ? '✓✓' : '✓') : '';
-      return dateDiv + renderBubble(isMe, msg.content, t, readIcon);
+      var statusHtml = isMe ? renderMessageStatus(msg) : '';
+      return dateDiv + renderBubble(isMe, msg.content, t, statusHtml, msg.id);
     }).join('');
     scrollDown();
     loadUnreadCount();
@@ -215,18 +222,39 @@ function doSendMessage() {
     '<div id="' + pid + '" class="msg-wrap out">'
     + '<div class="msg out">'
     + '<div class="msg-text" style="opacity:.6">' + esc(savedText) + '</div>'
-    + '<div class="msg-time">' + esc(t) + ' <span id="' + pid + 'st">•••</span></div>'
+    + '<div class="msg-time">' + esc(t)
+    + ' <span class="msg-status pending" id="' + pid + 'st">•••</span></div>'
     + '</div></div>'
   );
   scrollDown();
 
   apiSendMessage(_currentConvId, savedText)
-    .then(function() {
+    .then(function(data) {
+      var msg = (data && data.message) || {};
       var el  = document.getElementById(pid);
+      var realId = msg.id;
+      if (el && realId) {
+        el.setAttribute('data-msg-id', String(realId));
+      }
       var txt = el && el.querySelector('.msg-text');
-      var st  = document.getElementById(pid + 'st');
       if (txt) txt.style.opacity = '';
-      if (st)  st.textContent = '✓';
+      // Apply any WS status_update that arrived before HTTP response
+      if (realId && _pendingStatus[realId]) {
+        _applyStatusToEl(el, _pendingStatus[realId]);
+        delete _pendingStatus[realId];
+        loadConversations();
+        return;
+      }
+      var st  = document.getElementById(pid + 'st');
+      if (st) {
+        if (msg.read_at) {
+          st.className = 'msg-status read'; st.textContent = '✓✓';
+        } else if (msg.delivered_at) {
+          st.className = 'msg-status delivered'; st.textContent = '✓✓';
+        } else {
+          st.className = 'msg-status sent'; st.textContent = '✓';
+        }
+      }
       loadConversations();
     })
     .catch(function() {
@@ -266,8 +294,8 @@ function reloadMessagesQuiet() {
         lastDate = dateStr;
         dateDiv = '<div class="date-divider">' + esc(dateStr) + '</div>';
       }
-      var readIcon = isMe ? (msg.is_read ? '✓✓' : '✓') : '';
-      return dateDiv + renderBubble(isMe, msg.content, t, readIcon);
+      var statusHtml = isMe ? renderMessageStatus(msg) : '';
+      return dateDiv + renderBubble(isMe, msg.content, t, statusHtml, msg.id);
     }).join('');
     if (atBottom) scrollDown();
     loadUnreadCount();

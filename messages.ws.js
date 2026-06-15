@@ -51,9 +51,11 @@ function _applyStatusToEl(el, status) {
   var st = el.querySelector('.msg-status');
   if (!st) return;
   if (status === 'read') {
-    st.className = 'msg-status read'; st.textContent = '✓✓';
+    st.className = 'msg-status read';
+    st.textContent = '✓✓';
   } else if (status === 'delivered') {
-    st.className = 'msg-status delivered'; st.textContent = '✓✓';
+    st.className = 'msg-status delivered';
+    st.textContent = '✓✓';
   }
 }
 
@@ -65,6 +67,7 @@ function updateMessageStatus(data) {
     if (el) {
       _applyStatusToEl(el, status);
     } else {
+      // WS event arrived before HTTP ack set data-msg-id — stash for later
       _pendingStatus[id] = status;
     }
   });

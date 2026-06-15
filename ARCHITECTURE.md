@@ -4827,30 +4827,76 @@ loadConversations();
 
 ---
 
-## [P1] 56. Messenger Conversations — Response Contract
+## [P0] 56. Messenger Conversations — SQL Column Qualification Rule
+
+### Root Cause (500 error — documented after production failure)
+
+`get_conversations()` used unqualified column names in a `messages m JOIN users u` query.
+Both tables have `created_at`. PostgreSQL threw:
+```
+ERROR: column reference "created_at" is ambiguous
+```
+
+This caused `/messages/conversations/{user_id}` to return 500 while `/messages/unread/{user_id}`
+returned 200 — because unread only queries `messages` with no JOIN.
+
+**The fix**: qualify ALL column references with the table alias in any JOIN query:
+
+```python
+# WRONG — causes 500 when messages JOIN users
+"content, created_at, is_read, sender_id, "
+"ORDER BY other_id, created_at DESC"
+
+# CORRECT — all columns qualified
+"m.content, m.created_at, m.is_read, m.sender_id, "
+"ORDER BY other_id, m.created_at DESC"
+```
+
+### Rule: Always Qualify Columns in JOIN Queries
+
+Any SQL that JOINs two or more tables MUST prefix every selected column with its table alias.
+Never rely on PostgreSQL to resolve ambiguity — if any two joined tables share a column name,
+the query fails at runtime.
+
+Common shared column names across tawasalna tables:
+- `created_at` — present in nearly ALL tables (messages, users, profiles, jobs, ...)
+- `id` — present in all tables
+- `user_id` — present in profiles, experience, education, courses, notifications, ...
+
+**Forbidden:**
+- ممنوع: `SELECT content, created_at FROM messages JOIN users ...` — `created_at` is ambiguous
+- ممنوع: `ORDER BY created_at DESC` في أي query بها JOIN
+
+---
+
+## [P1] 57. Messenger Conversations — Response Contract
 
 ### API Response: `GET /messages/conversations/{user_id}`
 
 **Auth:** `Authorization: Bearer {jwt}` required. Server validates `jwt.user_id == user_id`.
 
-**Response shape:**
+**Response shape (current):**
 ```json
 {
   "status": "success",
   "conversations": [
     {
-      "other_id":   42,
-      "full_name":  "اسم المستخدم",
-      "user_type":  "emp" | "co" | "edu",
-      "tw_id":      "U9620...",
-      "content":    "آخر رسالة",
-      "created_at": "2026-06-15T19:00:00",
-      "is_read":    false,
-      "sender_id":  17
+      "other_id":      42,
+      "full_name":     "اسم المستخدم",
+      "user_type":     "emp" | "co" | "edu",
+      "tw_id":         "U9620...",
+      "avatar_url":    "https://..." | null,
+      "content":       "آخر رسالة",
+      "created_at":    "2026-06-15T19:00:00",
+      "is_read":       false,
+      "sender_id":     17,
+      "unread_count":  3
     }
   ]
 }
 ```
+
+**Empty state (no messages):** `{ "status": "success", "conversations": [] }` — NEVER 500.
 
 **Frontend mapping (`messages.render.js`):**
 
@@ -4859,10 +4905,22 @@ loadConversations();
 | `other_id` | `data-uid` attribute, `openConversation(otherId)` |
 | `full_name` | Conversation name display |
 | `user_type` | Type icon (🏢/🎓/👤) |
-| `content` | Preview of last message |
+| `content` | Preview of last message (keep as `content`, NOT `last_message`) |
 | `is_read` + `sender_id` | Unread badge (sender ≠ current user AND not read) |
+| `avatar_url` | Future: conversation avatar (frontend not yet wired) |
+| `unread_count` | Future: per-conversation badge (frontend not yet wired) |
 
-### No-Silent-Catch Rule
+### Sources
+
+| Field | Source Table |
+|-------|-------------|
+| `other_id` | Computed: `CASE WHEN m.sender_id=uid THEN m.receiver_id ELSE m.sender_id END` |
+| `content`, `created_at`, `is_read`, `sender_id` | `messages m` (qualified `m.`) |
+| `full_name`, `user_type`, `tw_id` | `users u` |
+| `avatar_url` | `profiles p` (LEFT JOIN — may be NULL) |
+| `unread_count` | Batch subquery after main SELECT |
+
+### No-Silent-Catch Rule (Frontend)
 
 `loadConversations()` catch MUST show visible feedback:
 - 401/403 → "انتهت الجلسة — أعد تسجيل الدخول" (red)
@@ -4870,14 +4928,113 @@ loadConversations();
 - All statuses → `console.error('[messages] loadConversations failed, status:', status)`
 
 **Forbidden:**
-- ممنوع: `catch(function(){})` فارغ
+- ممنوع: `catch(function(){})` فارغ في loadConversations
 - ممنوع: حذف items صالحة بسبب فشل مؤقت في polling
-- ممنوع: unread count badge = 5 ولا تظهر المحادثات (يعني mobile CSS مكسور)
+- ممنوع: unread count badge = 5 ولا يكون conversations endpoint يعمل
 
 ### Version Tracking
 
-Current version: `?v=v4` (bumped when messages.render.js changed — mobile default fix)
+Current JS version: `?v=v4` (bumped when messages.render.js changed — mobile default fix)
 
+
+---
+
+## [P1] 58. Messenger — Delivery & Read Receipts
+
+### 4 Message States
+
+| State | DB condition | Status icon | Color |
+|-------|-------------|-------------|-------|
+| `pending` | Optimistic, no server ack yet | `•••` | dim gray |
+| `sent` | Inserted in DB (`id` returned) | `✓` | gray |
+| `delivered` | `delivered_at IS NOT NULL` | `✓✓` | gray |
+| `read` | `read_at IS NOT NULL` | `✓✓` | green (#00c896) |
+
+### DB Schema Migration
+
+Added to `messages` table (ALTER TABLE migration in `init_db()`):
+
+```sql
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS delivered_at TIMESTAMP NULL;
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS read_at TIMESTAMP NULL;
+```
+
+Existing `is_read BOOLEAN` kept for backwards-compat (unread badge queries use it).
+
+### When Each State Is Set
+
+| Transition | Trigger | Code location |
+|-----------|---------|--------------|
+| pending → sent | HTTP POST /messages/send returns | `messages.render.js doSendMessage.then` |
+| sent → delivered | Receiver's WS is online when sender posts | `server.py send_msg()` — calls `mark_message_delivered()` after `ws_manager.send_to_user()` returns `True` |
+| sent → delivered | Receiver opens conversation (pulls from DB) | `auth.py get_messages()` — bulk `UPDATE ... SET delivered_at=NOW() WHERE delivered_at IS NULL` |
+| delivered → read | Receiver opens conversation | `auth.py get_messages()` — `UPDATE ... SET is_read=TRUE, read_at=NOW()` |
+
+### Backend Functions
+
+**`auth.py`**
+
+- `send_message(sender_id, receiver_id, content) → dict` — RETURNING now includes `delivered_at`, `read_at`
+- `mark_message_delivered(msg_id)` — sets `delivered_at=NOW()` if NULL
+- `get_messages(user_id, other_id) → (list, list)` — returns `(messages, newly_read_ids)`; marks `delivered_at` and `read_at` on open
+
+**`server.py`**
+
+- `ConnectionManager.send_to_user()` — now returns `bool` (True if at least one WS was alive)
+- `POST /messages/send` — now `async def`; pushes WS to receiver; if delivered, calls `mark_message_delivered()` and sends `status_update` WS to sender
+- `GET /messages/{user_id}/{other_id}` — now `async def`; after marking read, sends `{"type":"status_update","ids":[...],"status":"read"}` WS to `other_id`
+
+### WebSocket Events
+
+**`type: "message"` (server → receiver):**
+```json
+{"type": "message", "from": 17, "id": 99, "content": "...", "created_at": "..."}
+```
+
+**`type: "status_update"` (server → sender, delivered):**
+```json
+{"type": "status_update", "id": 99, "status": "delivered"}
+```
+
+**`type: "status_update"` (server → sender, read):**
+```json
+{"type": "status_update", "ids": [99, 100], "status": "read"}
+```
+
+### Frontend
+
+**`messages.ws.js`**
+- `_applyStatusToEl(el, status)` — updates `.msg-status` class + text on a bubble element
+- `updateMessageStatus(data)` — resolves element by `[data-msg-id]`; if not found yet, stashes in `_pendingStatus`
+
+**`messages.render.js`**
+- `renderMessageStatus(msg)` — returns HTML span: reads `msg.read_at`, `msg.delivered_at`
+- `renderBubble(isMe, content, time, statusHtml, msgId)` — adds `data-msg-id` attribute
+- `doSendMessage().then` — sets `data-msg-id` on optimistic bubble; applies `_pendingStatus` if WS arrived first
+
+**`messages.state.js`**
+- `_pendingStatus = {}` — map of `{msg_id → 'delivered'|'read'}` for race-condition handling
+
+### CSS Classes
+
+```css
+.msg-status.pending   { opacity:.4; color: var(--t3); }   /* ••• */
+.msg-status.sent      { color: var(--t3); }                /* ✓ */
+.msg-status.delivered { color: var(--t3); }                /* ✓✓ gray */
+.msg-status.read      { color: #00c896; opacity: 1; }      /* ✓✓ green */
+```
+
+### Forbidden
+
+- ممنوع: تغيير لون ✓✓ بدون `read_at` حقيقي من DB
+- ممنوع: إرسال `status_update` إلى الطرف الخاطئ (يجب: delivered/sent → إلى sender؛ read → إلى other_id)
+- ممنوع: إعادة رسائل الماسنجر كـ notifications
+- ممنوع: polling بديل بدلاً من WS للـ status updates (WS هو المصدر الحقيقي للتحديث الفوري)
+- ممنوع: كسر `is_read` (تظل لحساب unread badge في conversations list)
+
+### Version Tracking
+
+Current JS version: `?v=v5` (bumped when delivery/read receipts implemented)
 
 ---
 
