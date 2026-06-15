@@ -3858,10 +3858,50 @@ LIMIT :limit OFFSET :offset
 - الضغط خارج الـ Popover أو ESC أو الضغط مرة ثانية على الـ tile → يُغلقه
 
 **Follow List Modal (`scFollowListModal`):**
-- `scFlTabFollowers` / `scFlTabFollowing` — tab buttons with `_scFlSwitch(mode,el)`
+- `scFlTabFollowers` / `scFlTabFollowing` — tab buttons with `_scFlSwitch(mode,el)` — يُعيد الفلتر إلى "الكل"
+- `scFlFilters` — حاوية Filter Chips (rendered by JS after first fetch)
 - `scFlList` — scrollable list container
 - `scFlLoad` / `scFlLoadMore` — load more pagination
 - يُفتح عبر `window._scFlOpen('followers' | 'following')`
+
+**Filter Chips:**
+- أنواع: `all` / `emp` / `co` / `edu`
+- كل chip: اسم عربي + عدد compact
+- الضغط على chip يُعيد: `_filter = type`, `_offset = 0`, fetch جديد
+- تبديل التبويب (followers ↔ following): يُعيد الفلتر إلى "all"
+- Chip مع count=0 → disabled (ما عدا "الكل")
+
+**User Type Badge في القائمة:**
+- `emp` → "موظف" بادج أخضر
+- `co`  → "شركة" بادج أزرق
+- `edu` → "مركز تعليم" بادج برتقالي
+- لا يُعرض الكود الخام (emp/co/edu) للمستخدم
+
+**Filter API Contract:**
+
+```
+GET /profile/{id}/followers?limit=20&offset=0&type=all
+GET /profile/{id}/following?limit=20&offset=0&type=all
+
+type values: all | emp | co | edu
+invalid type → HTTP 400
+```
+
+**Response Contract (مع counts):**
+
+```json
+{
+  "status": "success",
+  "items": [...],
+  "filter": { "type": "all" },
+  "counts": { "all": 120, "emp": 80, "co": 25, "edu": 15 },
+  "pagination": { "limit": 20, "offset": 0, "has_more": true, "total": 120 }
+}
+```
+
+- `pagination.total` = عدد النتائج حسب الفلتر الحالي
+- `counts.all` = المجموع الكلي دائماً
+- عداد الشريط + Popover يستخدمان `/metrics.followers_count` (لا يتأثران بالفلتر)
 
 **قواعد الـ Modal:**
 - روابط العرض: `/u/{tw_id}` (ليس `/profile/{id}`)
@@ -3869,12 +3909,14 @@ LIMIT :limit OFFSET :offset
 - Follow toggle داخل Modal يستخدم `followProfile` / `unfollowProfile` الموجودَين
 - ESC + click على overlay يُغلق الـ modal
 - Offset-based pagination — `has_more` من Backend
+- Filtering من Backend (ليس Frontend) — حفاظاً على صحة pagination
 - Empty state: رسالة "لا توجد نتائج بعد"
 - Avatar fallback: placeholder `<div>` + Lucide user icon
 
 **ممنوعات:**
 - لا يظهر `following_count` كـ tile مستقل في شريط الإحصائيات
 - لا تُحذف `following_count` من `/metrics` — تُستخدم فقط داخل الـ Popover
+- لا تُعمل الفلترة في Frontend فقط — يكسر pagination
 
 ### حالة التنفيذ
 
@@ -3886,6 +3928,8 @@ LIMIT :limit OFFSET :offset
 | following_count في /metrics | ✅ |
 | Frontend Modal | ✅ |
 | Followers Popover (compact UX) | ✅ |
+| Filter by user_type (Backend + Frontend) | ✅ |
+| User type badge in list items | ✅ |
 
 ### viewer_action for Follows (in GET /profile)
 

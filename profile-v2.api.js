@@ -121,15 +121,15 @@ function removeProfileInterest(profileId){
 window.saveProfileInterest   = saveProfileInterest;
 window.removeProfileInterest = removeProfileInterest;
 
-function getFollowersList(profileId, limit, offset){
-  var qs = '?limit=' + (limit || 20) + '&offset=' + (offset || 0);
+function getFollowersList(profileId, limit, offset, type){
+  var qs = '?limit=' + (limit || 20) + '&offset=' + (offset || 0) + '&type=' + (type || 'all');
   return fetch('/profile/' + profileId + '/followers' + qs, {
     headers: { 'Authorization': 'Bearer ' + (_jwt || '') }
   }).then(function(r){ return r.json().then(function(d){ return {ok: r.ok, data: d}; }); });
 }
 
-function getFollowingList(profileId, limit, offset){
-  var qs = '?limit=' + (limit || 20) + '&offset=' + (offset || 0);
+function getFollowingList(profileId, limit, offset, type){
+  var qs = '?limit=' + (limit || 20) + '&offset=' + (offset || 0) + '&type=' + (type || 'all');
   return fetch('/profile/' + profileId + '/following' + qs, {
     headers: { 'Authorization': 'Bearer ' + (_jwt || '') }
   }).then(function(r){ return r.json().then(function(d){ return {ok: r.ok, data: d}; }); });
