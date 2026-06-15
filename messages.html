@@ -2,653 +2,82 @@
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="UTF-8">
-  <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
-  <link rel="dns-prefetch" href="https://fonts.gstatic.com">
-  <link rel="dns-prefetch" href="https://tawasolna.com">
-  <link rel="manifest" href="/manifest.json">
-  <meta name="theme-color" content="#00c896">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="تواصلنا">
-  <link rel="apple-touch-icon" href="/icon-192.png">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+<link rel="dns-prefetch" href="https://fonts.gstatic.com">
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#00c896">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="تواصلنا">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>تواصلنا - الرسائل</title>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
-<style>
-:root{--ac:#00c896;--ac2:#2563ff;--bg:#070b18;--card:rgba(255,255,255,.03);--border:rgba(255,255,255,.07);--t:rgba(255,255,255,.87);--t2:rgba(255,255,255,.5);--t3:rgba(255,255,255,.27);}
-*{margin:0;padding:0;box-sizing:border-box;}
-body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;height:100vh;overflow:hidden;}
-
-/* NAV */
-.nav{height:52px;display:flex;align-items:center;gap:8px;padding:0 14px;background:rgba(7,11,24,.93);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);position:fixed;top:0;left:0;right:0;z-index:100;}
-.nav-logo{font-size:1rem;font-weight:900;background:linear-gradient(135deg,var(--ac),var(--ac2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-left:auto;cursor:pointer;}
-.nb{padding:5px 11px;border-radius:8px;border:1px solid var(--border);background:rgba(255,255,255,.07);color:var(--t2);font-family:'Cairo',sans-serif;font-size:.73rem;font-weight:700;cursor:pointer;transition:all .2s;}
-.nb:hover{background:rgba(255,255,255,.12);color:var(--t);}
-
-/* LAYOUT */
-.layout{display:grid;grid-template-columns:300px 1fr;height:calc(100vh - 52px);margin-top:52px;}
-
-/* CONVERSATIONS LIST */
-.conv-list{border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;}
-.conv-search{padding:12px;border-bottom:1px solid var(--border);}
-.cs-input{width:100%;padding:8px 12px;background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:10px;color:var(--t);font-family:'Cairo',sans-serif;font-size:.78rem;outline:none;direction:rtl;}
-.cs-input::placeholder{color:var(--t3);}
-.conv-items{flex:1;overflow-y:auto;}
-.conv-item{display:flex;gap:10px;padding:12px 14px;cursor:pointer;transition:background .15s;border-bottom:1px solid rgba(255,255,255,.04);align-items:flex-start;}
-.conv-item:hover{background:rgba(255,255,255,.03);}
-.conv-item.active{background:rgba(0,200,150,.06);border-right:3px solid var(--ac);}
-.conv-item.unread .ci-name{color:#fff;font-weight:800;}
-.conv-item.unread .ci-preview{color:var(--t2);}
-.ci-ava{width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,var(--ac2),var(--ac));display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0;}
-.ci-body{flex:1;min-width:0;}
-.ci-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:2px;}
-.ci-name{font-size:.78rem;font-weight:700;color:var(--t2);}
-.ci-time{font-size:.62rem;color:var(--t3);}
-.ci-preview{font-size:.7rem;color:var(--t3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.ci-badge{background:var(--ac);color:#fff;border-radius:10px;padding:1px 6px;font-size:.58rem;font-weight:900;}
-
-/* CHAT */
-.chat{display:flex;flex-direction:column;background:rgba(255,255,255,.01);}
-.chat-head{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-shrink:0;}
-.ch-ava{width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,var(--ac2),var(--ac));display:flex;align-items:center;justify-content:center;font-size:.95rem;flex-shrink:0;}
-.ch-name{font-size:.85rem;font-weight:800;}
-.ch-status{font-size:.65rem;color:var(--ac);}
-.ch-actions{margin-right:auto;display:flex;gap:6px;}
-.ch-btn{padding:5px 11px;border-radius:8px;border:1px solid var(--border);background:rgba(255,255,255,.06);color:var(--t2);font-family:'Cairo',sans-serif;font-size:.7rem;font-weight:700;cursor:pointer;transition:all .2s;}
-.ch-btn:hover{background:rgba(255,255,255,.12);color:var(--t);}
-.ch-btn-primary{background:linear-gradient(135deg,var(--ac),var(--ac2));color:#fff;border-color:transparent;}
-.ch-back{display:none;}
-
-/* MESSAGES */
-.messages{flex:1;overflow-y:auto;padding:16px 18px;display:flex;flex-direction:column;gap:10px;}
-.date-divider{text-align:center;font-size:.62rem;color:var(--t3);padding:6px 0;}
-
-/* Message bubble */
-.msg{display:flex;gap:8px;max-width:75%;}
-.msg.sent{align-self:flex-start;flex-direction:row-reverse;}
-.msg.recv{align-self:flex-end;}
-.msg-ava{width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,var(--ac2),var(--ac));display:flex;align-items:center;justify-content:center;font-size:.75rem;flex-shrink:0;align-self:flex-end;}
-.msg-body{}
-.msg-bubble{padding:10px 14px;border-radius:16px;font-size:.78rem;line-height:1.5;}
-.msg.sent .msg-bubble{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.08);border-radius:16px 4px 16px 16px;}
-.msg.recv .msg-bubble{background:linear-gradient(135deg,rgba(37,99,255,.2),rgba(0,200,150,.15));border:1px solid rgba(37,99,255,.2);border-radius:4px 16px 16px 16px;}
-.msg-time{font-size:.6rem;color:var(--t3);margin-top:3px;}
-.msg.recv .msg-time{text-align:left;}
-
-/* Interview card in chat */
-.interview-msg{background:rgba(234,179,8,.06);border:1px solid rgba(234,179,8,.2);border-radius:14px;padding:14px 16px;max-width:320px;}
-.im-title{font-size:.8rem;font-weight:800;color:#eab308;margin-bottom:8px;}
-.im-details{display:flex;flex-direction:column;gap:4px;margin-bottom:10px;}
-.im-row{font-size:.72rem;color:var(--t2);display:flex;align-items:center;gap:6px;}
-.im-actions{display:flex;gap:6px;}
-.im-btn{flex:1;padding:7px;border-radius:8px;border:none;font-family:'Cairo',sans-serif;font-size:.72rem;font-weight:700;cursor:pointer;}
-.im-accept{background:rgba(0,200,150,.2);color:#00c896;border:1px solid rgba(0,200,150,.3);}
-.im-decline{background:rgba(255,255,255,.07);color:var(--t2);}
-
-/* Input */
-.chat-input{padding:12px 16px;border-top:1px solid var(--border);display:flex;gap:8px;align-items:flex-end;flex-shrink:0;}
-.input-wrap{flex:1;background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:14px;padding:10px 14px;display:flex;align-items:flex-end;gap:8px;transition:border-color .2s;}
-.input-wrap:focus-within{border-color:rgba(0,200,150,.3);}
-.msg-input{flex:1;background:transparent;border:none;outline:none;color:var(--t);font-family:'Cairo',sans-serif;font-size:.82rem;resize:none;max-height:100px;direction:rtl;}
-.msg-input::placeholder{color:var(--t3);}
-.attach-btn{color:var(--t3);cursor:pointer;font-size:1rem;transition:color .2s;flex-shrink:0;}
-.attach-btn:hover{color:var(--ac);}
-.send-btn{width:42px;height:42px;border-radius:12px;border:none;background:linear-gradient(135deg,var(--ac),var(--ac2));color:#fff;font-size:1rem;cursor:pointer;transition:all .2s;flex-shrink:0;display:flex;align-items:center;justify-content:center;}
-.send-btn:hover{transform:scale(1.05);}
-
-/* Empty state */
-.empty-chat{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--t3);}
-.empty-chat .ei{font-size:3rem;margin-bottom:12px;}
-.empty-chat p{font-size:.8rem;}
-
-/* Interview modal */
-.overlay{position:fixed;inset:0;z-index:2000;background:rgba(0,0,0,.75);display:flex;align-items:center;justify-content:center;padding:16px;opacity:0;pointer-events:none;transition:opacity .2s;}
-.overlay.show{opacity:1;pointer-events:all;}
-.modal{background:#0a0f1e;border:1px solid rgba(255,255,255,.1);border-radius:20px;width:100%;max-width:440px;padding:24px;font-family:'Cairo',sans-serif;transform:translateY(12px);transition:transform .2s;}
-.overlay.show .modal{transform:translateY(0);}
-.modal-title{font-size:.95rem;font-weight:800;color:#fff;margin-bottom:18px;}
-.mf{margin-bottom:12px;}
-.mf label{display:block;font-size:.72rem;font-weight:700;color:rgba(255,255,255,.45);margin-bottom:4px;}
-.mf input,.mf textarea,.mf select{width:100%;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:'Cairo',sans-serif;font-size:.82rem;outline:none;direction:rtl;}
-.mf input:focus{border-color:var(--ac);}
-.mrow{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
-.mact{display:flex;gap:8px;margin-top:16px;}
-.mbtn{flex:1;padding:10px;border:none;border-radius:10px;font-family:'Cairo',sans-serif;font-size:.82rem;font-weight:700;cursor:pointer;}
-.mbtn-ok{background:linear-gradient(135deg,var(--ac),var(--ac2));color:#fff;}
-.mbtn-no{background:rgba(255,255,255,.07);color:rgba(255,255,255,.55);}
-
-@media(max-width:700px){
-  .layout{grid-template-columns:1fr;}
-  .conv-list{display:none;}
-  .conv-list.mobile-show{display:flex;position:fixed;inset:52px 0 0 0;z-index:50;background:var(--bg);}
-  .ch-back{display:flex;}
-}
-
-
-/* ══ ITQAN - Shared Utilities ══ */
-@keyframes tw-shimmer{0%{background-position:-1000px 0}100%{background-position:1000px 0}}
-@keyframes tw-spin{to{transform:translateY(-50%) rotate(360deg);}}
-@keyframes tw-fadein{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:none;}}
-@keyframes tw-verified{0%,100%{box-shadow:0 0 0 0 rgba(0,200,150,0);}50%{box-shadow:0 0 0 5px rgba(0,200,150,.15);}}
-.tw-toast[aria-live="polite"]{position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(20px);background:rgba(7,11,24,.97);border:1px solid rgba(255,255,255,.1);backdrop-filter:blur(20px);border-radius:14px;padding:12px 20px;display:flex;align-items:center;gap:10px;font-size:.82rem;font-family:Cairo,sans-serif;color:rgba(255,255,255,.92);opacity:0;transition:all .3s cubic-bezier(.34,1.56,.64,1);z-index:9999;white-space:nowrap;min-width:180px;justify-content:center;box-shadow:0 8px 32px rgba(0,0,0,.4);}
-.tw-toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
-.tw-toast.success{border-color:rgba(0,200,150,.3);}
-.tw-toast.error{border-color:rgba(239,68,68,.3);}
-.tw-toast.info{border-color:rgba(37,99,255,.3);}
-.tw-skeleton{background:linear-gradient(90deg,rgba(255,255,255,.04) 25%,rgba(255,255,255,.09) 50%,rgba(255,255,255,.04) 75%);background-size:2000px 100%;animation:tw-shimmer 1.5s infinite linear;border-radius:8px;}
-.tw-btn-loading{position:relative;pointer-events:none;opacity:.8;}
-.tw-btn-loading::after{content:'';position:absolute;width:14px;height:14px;border-radius:50%;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;animation:tw-spin .7s linear infinite;right:12px;top:50%;transform:translateY(-50%);}
-.tw-scroll-prog{position:fixed;top:0;left:0;height:2px;z-index:999;background:linear-gradient(90deg,var(--ac,#00c896),var(--ac2,#2563ff));transition:width .1s;width:0%;}
-.tw-fab{position:fixed;bottom:80px;left:18px;width:50px;height:50px;border-radius:50%;border:none;font-size:1.4rem;background:linear-gradient(135deg,var(--ac,#00c896),var(--ac2,#2563ff));color:#fff;cursor:pointer;box-shadow:0 4px 20px rgba(0,200,150,.35);transition:all .25s cubic-bezier(.34,1.56,.64,1);z-index:50;display:flex;align-items:center;justify-content:center;}
-.tw-fab:hover{transform:scale(1.12) rotate(90deg);}
-.tw-empty{text-align:center;padding:50px 20px;}
-.tw-empty-ico{font-size:2.5rem;margin-bottom:12px;opacity:.7;display:block;}
-.tw-empty-title{font-size:.95rem;font-weight:800;margin-bottom:6px;}
-.tw-empty-sub{font-size:.78rem;color:rgba(255,255,255,.35);margin-bottom:18px;line-height:1.6;}
-.tw-empty-btn{padding:10px 22px;border-radius:12px;background:linear-gradient(135deg,var(--ac,#00c896),var(--ac2,#2563ff));border:none;color:#fff;font-family:Cairo,sans-serif;font-weight:700;font-size:.8rem;cursor:pointer;}
-.tw-card-lift{transition:transform .2s,box-shadow .2s;}
-.tw-card-lift:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.3);}
-.tw-verified{animation:tw-verified 2.5s ease-in-out infinite;}
-
-</style>
-<style>.skip-link{position:absolute;top:-40px;right:0;background:var(--ac,#00c896);color:#0d1a2e;padding:8px 16px;border-radius:0 0 8px 0;font-family:Cairo,sans-serif;font-size:.8rem;font-weight:700;text-decoration:none;transition:top .2s;z-index:10000}.skip-link:focus{top:0}</style><a href="#main-content" class="skip-link">تخطى للمحتوى الرئيسي</a><link rel="stylesheet" href="/static/tw_shared.css">
+<link rel="stylesheet" href="/static/tw_shared.css">
+<link rel="stylesheet" href="/static/messages.css?v=v1">
+<style>.skip-link{position:absolute;top:-40px;right:0;background:var(--ac,#00c896);color:#0d1a2e;padding:8px 16px;border-radius:0 0 8px 0;font-family:Cairo,sans-serif;font-size:.8rem;font-weight:700;text-decoration:none;transition:top .2s;z-index:10000}.skip-link:focus{top:0}</style>
+<a href="#main-content" class="skip-link">تخطى للمحتوى الرئيسي</a>
 </head>
 <body>
-<!--
-╔══════════════════════════════════════════════╗
-║  TAWASALNA - MESSAGES                        ║
-║  Architecture: Hybrid                        ║
-║  Last Modified: 2026-06                      ║
-║  DO NOT EDIT outside designated sections     ║
-╚══════════════════════════════════════════════╝
--->
 
-
-<!-- ██ NAVBAR SECTION ██ -->
+<!-- ── Nav ── -->
 <nav class="nav">
   <button class="nb" onclick="goHome()">← رجوع</button>
   <span style="font-size:.82rem;font-weight:700;color:var(--t2)">💬 الرسائل</span>
-  <div class="nav-logo"><img src="https://wrxvmdmknhoufoeprpoc.supabase.co/storage/v1/object/public/site/Logo.svg" alt="تواصلنا" style="height:36px;width:auto;object-fit:contain;display:block"></div>
+  <div class="nav-logo">
+    <img src="https://wrxvmdmknhoufoeprpoc.supabase.co/storage/v1/object/public/site/Logo.svg"
+         alt="تواصلنا" style="height:36px;width:auto;object-fit:contain;display:block">
+  </div>
 </nav>
 
-<div class="layout">
+<div class="layout" id="main-content">
 
-  <!-- CONVERSATIONS -->
+  <!-- ── Conversations List ── -->
   <div class="conv-list" id="convList">
     <div class="conv-search">
-      <input class="cs-input" placeholder="🔍 بحث في المحادثات...">
+      <input class="cs-input" id="convSearch" placeholder="🔍 بحث في المحادثات...">
     </div>
-    <div class="conv-items">
-
-      <div class="conv-item active unread" onclick="openConv(this,'شركة تك ستارت','🏢')">
-        <div class="ci-ava">🏢</div>
-        <div class="ci-body">
-          <div class="ci-top"><span class="ci-name">شركة تك ستارت</span><span class="ci-time">10:30 ص</span></div>
-          <div class="ci-preview">موعد مقابلة يوم الثلاثاء...</div>
-        </div>
-        <span class="ci-badge">2</span>
-      </div>
-
-      <div class="conv-item unread" onclick="openConv(this,'شركة إبداع للتقنية','💻')">
-        <div class="ci-ava" style="background:linear-gradient(135deg,#8b5cf6,#2563ff)">💻</div>
-        <div class="ci-body">
-          <div class="ci-top"><span class="ci-name">شركة إبداع للتقنية</span><span class="ci-time">أمس</span></div>
-          <div class="ci-preview">يسعدنا مراجعة ملفك الشخصي...</div>
-        </div>
-        <span class="ci-badge">1</span>
-      </div>
-
-      <div class="conv-item" onclick="openConv(this,'أكاديمية التميز','🎓')">
-        <div class="ci-ava" style="background:linear-gradient(135deg,#8b5cf6,#ec4899)">🎓</div>
-        <div class="ci-body">
-          <div class="ci-top"><span class="ci-name">أكاديمية التميز</span><span class="ci-time">منذ 3 أيام</span></div>
-          <div class="ci-preview">دورة React المتقدم متاحة الآن</div>
-        </div>
-      </div>
-
-    </div>
+    <div class="conv-items" id="convItems"></div>
   </div>
 
-  <!-- CHAT -->
+  <!-- ── Chat Panel ── -->
   <div class="chat" id="chatArea">
+
     <div class="chat-head" id="chatHead">
       <button class="ch-btn ch-back" onclick="toggleConvList()" title="قائمة المحادثات">☰</button>
-      <div class="ch-ava" id="chatAva">🏢</div>
+      <div class="ch-ava" id="chatAva">💬</div>
       <div>
-        <div class="ch-name" id="chatName">شركة تك ستارت</div>
-        <div class="ch-status" id="chatStatus">متصل الآن</div>
+        <div class="ch-name" id="chatName">اختر محادثة</div>
+        <div class="ch-status" id="chatStatus"></div>
       </div>
       <div class="ch-actions">
-        <button class="ch-btn" onclick="openInterview()">📅 موعد مقابلة</button>
-        <button class="ch-btn ch-btn-primary" onclick="openConvProfile()">👤 الملف</button>
+        <button class="ch-btn" id="viewProfileBtn" onclick="viewConvProfile()" style="display:none">👤 الملف</button>
       </div>
     </div>
 
     <div class="messages" id="messages">
-      <div class="date-divider">اليوم</div>
-
-      <!-- Received (from company) -->
-      <div class="msg recv">
-        <div class="msg-ava">🏢</div>
-        <div class="msg-body">
-          <div class="msg-bubble">مرحباً! نود إبلاغك باهتمامنا بملفك الشخصي لوظيفة مطور Full Stack لدينا. هل أنت متاح لمقابلة قريباً؟</div>
-          <div class="msg-time">10:15 ص</div>
-        </div>
+      <div class="empty-chat">
+        <span class="ei">💬</span>
+        <p>اختر محادثة للبدء</p>
       </div>
-
-      <!-- Sent (from user) -->
-      <div class="msg sent">
-        <div class="msg-ava">👤</div>
-        <div class="msg-body">
-          <div class="msg-bubble">مرحباً! شكراً لاهتمامكم. نعم، أنا متاح هذا الأسبوع.</div>
-          <div class="msg-time">10:22 ص ✓✓</div>
-        </div>
-      </div>
-
-      <!-- Interview invitation card -->
-      <div class="msg recv">
-        <div class="msg-ava">🏢</div>
-        <div class="msg-body">
-          <div class="interview-msg">
-            <div class="im-title">📅 دعوة مقابلة عمل</div>
-            <div class="im-details">
-              <div class="im-row">📆 <span>الثلاثاء، 20 مايو 2025</span></div>
-              <div class="im-row">⏰ <span>10:00 صباحاً</span></div>
-              <div class="im-row">📍 <span>عمان - الدوار الأول، مبنى الأعمال</span></div>
-              <div class="im-row">👤 <span>مع: أحمد الخالدي - مدير التوظيف</span></div>
-              <div class="im-row">💼 <span>وظيفة: مطور Full Stack</span></div>
-            </div>
-            <div class="im-actions">
-              <button class="im-btn im-accept" onclick="acceptInterview(this)">✓ تأكيد الحضور</button>
-              <button class="im-btn im-decline">طلب تغيير</button>
-            </div>
-          </div>
-          <div class="msg-time">10:30 ص</div>
-        </div>
-      </div>
-
     </div>
 
-    <!-- INPUT -->
     <div class="chat-input">
       <div class="input-wrap">
-        <textarea class="msg-input" id="msgInput" placeholder="اكتب رسالتك..." rows="1" onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
-        <span class="attach-btn">📎</span>
+        <textarea class="msg-input" id="msgInput" placeholder="اكتب رسالتك..." rows="1"
+                  onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
+        <span class="attach-btn" title="إرفاق ملف (قريباً)">📎</span>
       </div>
-      <button class="send-btn" onclick="sendMessage()">➤</button>
+      <button class="send-btn" onclick="doSendMessage()" title="إرسال">➤</button>
     </div>
-  </div>
 
-</div>
-
-<!-- INTERVIEW MODAL -->
-<div class="overlay" id="interviewOverlay" onclick="closeOverlay(event)">
-  <div class="modal">
-    <div class="modal-title">📅 إرسال موعد مقابلة</div>
-    <div class="mf"><label>اسم المتقدم</label><input id="i-name" placeholder="اسم الموظف..."></div>
-    <div class="mrow">
-      <div class="mf"><label>التاريخ</label><input id="i-date" type="date"></div>
-      <div class="mf"><label>الوقت</label><input id="i-time" type="time"></div>
-    </div>
-    <div class="mf"><label>الموقع</label><input id="i-loc" placeholder="عنوان مكان المقابلة..."></div>
-    <div class="mf"><label>المسؤول عن المقابلة</label><input id="i-person" placeholder="اسم المدير..."></div>
-    <div class="mf"><label>ملاحظات إضافية</label><textarea id="i-notes" placeholder="أي تعليمات أو معلومات إضافية..."></textarea></div>
-    <div class="f-row"><label>المحاور</label><input id="i-interviewer" class="fi" placeholder="اسم المحاور"></div>
-    <div class="mact">
-      <button class="mbtn mbtn-ok" onclick="sendInterview()">إرسال الموعد</button>
-      <button class="mbtn mbtn-no" onclick="document.getElementById('interviewOverlay').classList.remove('show')">إلغاء</button>
-    </div>
   </div>
 </div>
 
 <script src="/tw_shared.js"></script>
-<script>
-// ── Session ──
-var _user = null;
-try { _user = JSON.parse(localStorage.getItem('tw_user')); } catch(e){}
-if(!_user||!_user.id){ window.location.href='/'; }
-var _jwt = localStorage.getItem('tw_jwt') || '';
-
-// ── XSS prevention — escape before any innerHTML injection ──
-function esc(s){
-  return String(s == null ? '' : s)
-    .replace(/&/g,'&amp;')
-    .replace(/</g,'&lt;')
-    .replace(/>/g,'&gt;')
-    .replace(/"/g,'&quot;')
-    .replace(/'/g,'&#39;');
-}
-
-// ── Static demo-conv click (placeholder items in HTML) ──
-function openConv(el, name, ava){
-  document.querySelectorAll('.conv-item').forEach(function(i){i.classList.remove('active');});
-  el.classList.add('active');
-  el.classList.remove('unread');
-  var badge = el.querySelector('.ci-badge');
-  if(badge) badge.remove();
-  document.getElementById('chatName').textContent = name;
-  document.getElementById('chatAva').textContent = ava;
-}
-
-// ── Interview modal ──
-function openInterview(){
-  document.getElementById('interviewOverlay').classList.add('show');
-}
-
-function sendInterview(){
-  var date = document.getElementById('i-date')?.value||'';
-  var time = document.getElementById('i-time')?.value||'';
-  var loc  = document.getElementById('i-loc')?.value||'';
-  var inter = document.getElementById('i-interviewer')?.value||'';
-  if(!date||!time){ showToast('أدخل تاريخ ووقت المقابلة','error'); return; }
-  var msg = 'دعوة مقابلة: '+date+' الساعة '+time+' في '+loc+' مع '+inter;
-  if(_user && _user.id){
-    fetch('/admin/message',{
-      method:'POST',
-      headers:{'Content-Type':'application/json','X-Admin-Token':sessionStorage.getItem('tw_adm_token')||''},
-      body:JSON.stringify({user_id:0, subject:'دعوة مقابلة', message:msg})
-    }).catch(function(){});
-  }
-  var msgs = document.getElementById('messages');
-  var t = new Date().toLocaleTimeString('ar',{hour:'2-digit',minute:'2-digit'});
-  var card = '<div class="msg-wrap out"><div class="msg out interview-msg">'
-    +'<div class="msg-text">📅 دعوة مقابلة</div>'
-    +'<div class="ic-details">'
-    +'<div class="ic-item">📆 <span>'+esc(date)+'</span></div>'
-    +'<div class="ic-item">⏰ <span>'+esc(time)+'</span></div>'
-    +'<div class="ic-item">📍 <span>'+esc(loc)+'</span></div></div>'
-    +'<div class="msg-time">'+t+'</div></div></div>';
-  msgs.insertAdjacentHTML('beforeend', card);
-  document.getElementById('interviewOverlay')?.classList.remove('show');
-  scrollDown();
-}
-
-function acceptInterview(btn){
-  btn.textContent = '✓ تم التأكيد';
-  btn.style.background = 'rgba(0,200,150,.3)';
-  btn.disabled = true;
-}
-
-// ── UI helpers ──
-function handleKey(e){
-  if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); sendMessage(); }
-}
-
-function autoResize(el){
-  el.style.height='auto';
-  el.style.height=Math.min(el.scrollHeight,100)+'px';
-}
-
-function scrollDown(){
-  var msgs = document.getElementById('messages');
-  if(msgs) msgs.scrollTop = msgs.scrollHeight;
-}
-
-function closeOverlay(e){
-  if(e.target.classList.contains('overlay')) e.target.classList.remove('show');
-}
-
-function openConvProfile(){
-  window.open('profile.html', '_blank');
-}
-
-function goHome(){
-  var u=null;
-  try{u=JSON.parse(localStorage.getItem('tw_user'));}catch(e){}
-  if(!u){ window.location.href='/'; return; }
-  var dest = u.user_type==='co' ? 'company-profile.html?id='+u.id
-           : u.user_type==='edu' ? 'edu-profile.html?id='+u.id
-           : 'home.html';
-  window.location.href = dest;
-}
-
-document.addEventListener('DOMContentLoaded', function(){ scrollDown(); });
-
-// ── ITQAN Utilities ──
-var _twToast=null;
-function showToast(msg,type,dur){
-  type=type||'success';dur=dur||2800;
-  if(_twToast){_twToast.remove();}
-  var t=document.createElement('div');
-  t.className='tw-toast '+type;
-  var ico=type==='success'?'✅':type==='error'?'❌':'ℹ️';
-  t.innerHTML='<span>'+ico+'</span><span>'+esc(msg)+'</span>';
-  document.body.appendChild(t);
-  _twToast=t;
-  requestAnimationFrame(function(){requestAnimationFrame(function(){t.classList.add('show');});});
-  setTimeout(function(){t.classList.remove('show');setTimeout(function(){if(t.parentNode)t.remove();},350);},dur);
-}
-function setBtnLoad(btn,loading){
-  if(!btn)return;
-  if(loading){btn.classList.add('tw-btn-loading');btn._orig=btn.textContent;btn.textContent='';btn.disabled=true;}
-  else{btn.classList.remove('tw-btn-loading');btn.textContent=btn._orig||'حفظ';btn.disabled=false;}
-}
-function twNavigate(url){
-  document.body.style.cssText='opacity:0;transform:translateY(-6px);transition:all .2s ease;';
-  setTimeout(function(){window.location.href=url;},180);
-}
-function initScrollProg(){
-  var p=document.createElement('div');p.className='tw-scroll-prog';
-  document.body.prepend(p);
-  window.addEventListener('scroll',function(){
-    var pct=window.scrollY/(document.body.scrollHeight-window.innerHeight)*100;
-    p.style.width=Math.min(pct,100)+'%';
-  });
-}
-
-// ── Mobile: toggle conversation list overlay ──
-function toggleConvList(){
-  var cl = document.getElementById('convList');
-  if(cl) cl.classList.toggle('mobile-show');
-}
-
-// ── Messaging state ──
-var _currentConvId  = null;
-var _activeConvMeta = null; // { id, name, typeIco } — survives list refresh
-
-// Load conversations from DB — preserves active state on every refresh
-function loadConversations(){
-  if(!_user||!_user.id) return;
-  fetch('/messages/conversations/'+_user.id, {headers:{'Authorization':'Bearer '+_jwt}})
-  .then(function(r){return r.json();}).then(function(data){
-    var convs=data.conversations||[];
-    var items=document.querySelector('.conv-items');
-    if(!items) return;
-    if(!convs.length) return; // keep placeholder UI if no real conversations yet
-    var frag='';
-    convs.forEach(function(c){
-      var typeIco=c.user_type==='co'?'🏢':c.user_type==='edu'?'🎓':'👤';
-      var name=esc(c.full_name||'مستخدم');
-      var last=esc((c.content||'').slice(0,40));
-      var unread=(!c.is_read&&c.sender_id!==_user.id)?'<span class="ci-badge">1</span>':'';
-      var isActive=(_currentConvId&&c.other_id===_currentConvId)?' active':'';
-      frag+='<div class="conv-item'+isActive+'" data-uid="'+c.other_id+'">'
-        +'<div class="ci-ava">'+typeIco+'</div>'
-        +'<div class="ci-body"><div class="ci-name">'+name+'</div>'
-        +'<div class="ci-last">'+last+'</div></div>'+unread+'</div>';
-    });
-    items.innerHTML=frag;
-    // If current conversation isn't in DB list yet (new convo), keep a placeholder item
-    if(_currentConvId && _activeConvMeta && !items.querySelector('[data-uid="'+_currentConvId+'"]')){
-      var ph=document.createElement('div');
-      ph.className='conv-item active';
-      ph.setAttribute('data-uid',_activeConvMeta.id);
-      ph.innerHTML='<div class="ci-ava">'+_activeConvMeta.typeIco+'</div>'
-        +'<div class="ci-body"><div class="ci-name">'+esc(_activeConvMeta.name)+'</div>'
-        +'<div class="ci-last">محادثة جديدة</div></div>';
-      ph.addEventListener('click',function(){
-        openRealConv(ph,_activeConvMeta.id,_activeConvMeta.name,_activeConvMeta.typeIco);
-      });
-      items.insertAdjacentElement('afterbegin',ph);
-    }
-    items.querySelectorAll('.conv-item').forEach(function(el){
-      var uid=parseInt(el.getAttribute('data-uid'));
-      var n=el.querySelector('.ci-name')?.textContent||'';
-      var a=el.querySelector('.ci-ava')?.textContent||'👤';
-      el.addEventListener('click',function(){openRealConv(el,uid,n,a);});
-    });
-  }).catch(function(){});
-}
-
-function openRealConv(el, otherId, name, ava){
-  _currentConvId  = otherId;
-  _activeConvMeta = { id: otherId, name: name, typeIco: ava };
-  document.querySelectorAll('.conv-item').forEach(function(i){i.classList.remove('active');});
-  el.classList.add('active');
-  var badge=el.querySelector('.ci-badge'); if(badge) badge.remove();
-  document.getElementById('chatName').textContent=name;
-  document.getElementById('chatAva').textContent=ava;
-  // On mobile: hide conv-list overlay once a conversation is selected
-  var convListEl=document.getElementById('convList');
-  if(convListEl) convListEl.classList.remove('mobile-show');
-  var msgsSel=document.getElementById('messages');
-  msgsSel.innerHTML='<div style="text-align:center;padding:20px;color:var(--t3);font-size:.8rem">⏳</div>';
-  fetch('/messages/'+_user.id+'/'+otherId, {headers:{'Authorization':'Bearer '+_jwt}})
-  .then(function(r){return r.json();}).then(function(data){
-    var list=data.messages||[];
-    if(!list.length){
-      msgsSel.innerHTML='<div style="text-align:center;padding:30px;color:var(--t3);font-size:.8rem">ابدأ المحادثة</div>';
-      loadUnreadCount();
-      return;
-    }
-    var lastDate='';
-    msgsSel.innerHTML=list.map(function(msg){
-      var isMe=msg.sender_id===_user.id;
-      var d=new Date(msg.created_at);
-      var t=d.toLocaleTimeString('ar',{hour:'2-digit',minute:'2-digit'});
-      var dateStr=d.toLocaleDateString('ar',{weekday:'long',month:'short',day:'numeric'});
-      var dateDiv='';
-      if(dateStr!==lastDate){
-        lastDate=dateStr;
-        dateDiv='<div style="text-align:center;font-size:.65rem;color:rgba(255,255,255,.3);padding:8px 0">'+esc(dateStr)+'</div>';
-      }
-      var readIcon=isMe?(msg.is_read?'✓✓':'✓'):'';
-      return dateDiv+'<div class="msg-wrap '+(isMe?'out':'in')+'">'
-        +'<div class="msg '+(isMe?'out':'in')+'">'
-        +'<div class="msg-text">'+esc(msg.content)+'</div>'
-        +'<div class="msg-time">'+t+' <span style="font-size:.6rem;opacity:.7">'+readIcon+'</span></div>'
-        +'</div></div>';
-    }).join('');
-    scrollDown();
-    loadUnreadCount();
-  }).catch(function(){
-    msgsSel.innerHTML='<div style="text-align:center;color:var(--t3)">تعذر تحميل الرسائل</div>';
-  });
-}
-
-function loadUnreadCount(){
-  if(!_user||!_user.id) return;
-  fetch('/messages/unread/'+_user.id, {headers:{'Authorization':'Bearer '+_jwt}})
-  .then(function(r){return r.json();}).then(function(data){
-    var count=data.count||0;
-    if(count>0){
-      var msgBn=document.querySelector('.bn:last-child .bi');
-      if(msgBn) msgBn.textContent='💬';
-    }
-  }).catch(function(){});
-}
-
-// ── sendMessage — single implementation (WS primary, HTTP fallback) ──
-function sendMessage(){
-  var input=document.getElementById('msgInput');
-  var text=input?.value?.trim();
-  if(!text) return;
-  var sent=false;
-  if(_ws && _ws.readyState===WebSocket.OPEN && _currentConvId){
-    _ws.send(JSON.stringify({receiver_id:_currentConvId, content:text}));
-    sent=true;
-  }
-  if(!sent && _currentConvId && _user){
-    fetch('/messages/send',{
-      method:'POST',
-      headers:{'Content-Type':'application/json','Authorization':'Bearer '+_jwt},
-      body:JSON.stringify({receiver_id:_currentConvId, content:text})
-    }).catch(function(){});
-  }
-  var msgs=document.getElementById('messages');
-  var t=new Date().toLocaleTimeString('ar',{hour:'2-digit',minute:'2-digit'});
-  msgs.insertAdjacentHTML('beforeend',
-    '<div class="msg-wrap out"><div class="msg out">'
-    +'<div class="msg-text">'+esc(text)+'</div>'
-    +'<div class="msg-time">'+t+' ✓</div>'
-    +'</div></div>'
-  );
-  input.value=''; autoResize(input); scrollDown();
-}
-
-// ── WebSocket Real-time ──
-var _ws=null;
-var _wsRetries=0;
-
-function connectWS(){
-  if(!_user||!_user.id) return;
-  var protocol=window.location.protocol==='https:'?'wss:':'ws:';
-  var wsUrl=protocol+'//'+window.location.host+'/ws/'+_user.id;
-  try{
-    _ws=new WebSocket(wsUrl);
-    _ws.onopen=function(){ _wsRetries=0; };
-    _ws.onmessage=function(e){
-      try{
-        var data=JSON.parse(e.data);
-        if(data.type==='message' && data.from===_currentConvId){
-          var msgs=document.getElementById('messages');
-          var t=new Date().toLocaleTimeString('ar',{hour:'2-digit',minute:'2-digit'});
-          msgs.insertAdjacentHTML('beforeend',
-            '<div class="msg-wrap in"><div class="msg in">'
-            +'<div class="msg-text">'+esc(data.content)+'</div>'
-            +'<div class="msg-time">'+t+'</div>'
-            +'</div></div>'
-          );
-          scrollDown();
-        }
-        if(data.type==='message') loadConversations();
-      }catch(ex){}
-    };
-    _ws.onclose=function(){
-      if(_wsRetries<5){ _wsRetries++; setTimeout(connectWS,_wsRetries*2000); }
-    };
-    _ws.onerror=function(){ _ws.close(); };
-  }catch(e){}
-}
-
-// ── Init — ?with= flow resolved before loadConversations to avoid race condition ──
-var _withTw=new URLSearchParams(location.search).get('with');
-
-if(_withTw && _user && _user.id){
-  fetch('/user/lookup/'+encodeURIComponent(_withTw), {
-    headers:{'Authorization':'Bearer '+_jwt}
-  }).then(function(r){ return r.ok ? r.json() : null; })
-  .then(function(data){
-    if(!data || !data.id){
-      var msgs=document.getElementById('messages');
-      if(msgs) msgs.innerHTML='<div style="text-align:center;padding:30px;color:var(--t3)">تعذر فتح المحادثة</div>';
-    } else {
-      var typeIco=data.user_type==='co'?'🏢':data.user_type==='edu'?'🎓':'👤';
-      var name=data.full_name||'مستخدم';
-      var fakeEl=document.createElement('div');
-      fakeEl.className='conv-item';
-      fakeEl.setAttribute('data-uid',data.id);
-      fakeEl.innerHTML='<div class="ci-ava">'+typeIco+'</div>'
-        +'<div class="ci-body"><div class="ci-name">'+esc(name)+'</div><div class="ci-last"></div></div>';
-      var convItems=document.querySelector('.conv-items');
-      if(convItems) convItems.insertAdjacentElement('afterbegin',fakeEl);
-      openRealConv(fakeEl, data.id, name, typeIco);
-      history.replaceState(null,'','/messages');
-    }
-    // loadConversations runs AFTER _currentConvId is set → active state is preserved
-    loadConversations();
-  }).catch(function(){
-    var msgs=document.getElementById('messages');
-    if(msgs) msgs.innerHTML='<div style="text-align:center;padding:30px;color:var(--t3)">تعذر فتح المحادثة</div>';
-    loadConversations();
-  });
-} else {
-  loadConversations();
-}
-
-loadUnreadCount();
-setInterval(function(){if(!_ws||_ws.readyState!==WebSocket.OPEN) loadConversations();},30000);
-connectWS();
-</script>
+<script src="/static/messages.state.js?v=v1"></script>
+<script src="/static/messages.api.js?v=v1"></script>
+<script src="/static/messages.ws.js?v=v1"></script>
+<script src="/static/messages.render.js?v=v1"></script>
 </body>
 </html>
