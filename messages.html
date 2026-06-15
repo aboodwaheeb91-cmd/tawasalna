@@ -57,6 +57,7 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;height:1
 .ch-btn{padding:5px 11px;border-radius:8px;border:1px solid var(--border);background:rgba(255,255,255,.06);color:var(--t2);font-family:'Cairo',sans-serif;font-size:.7rem;font-weight:700;cursor:pointer;transition:all .2s;}
 .ch-btn:hover{background:rgba(255,255,255,.12);color:var(--t);}
 .ch-btn-primary{background:linear-gradient(135deg,var(--ac),var(--ac2));color:#fff;border-color:transparent;}
+.ch-back{display:none;}
 
 /* MESSAGES */
 .messages{flex:1;overflow-y:auto;padding:16px 18px;display:flex;flex-direction:column;gap:10px;}
@@ -120,6 +121,7 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;height:1
   .layout{grid-template-columns:1fr;}
   .conv-list{display:none;}
   .conv-list.mobile-show{display:flex;position:fixed;inset:52px 0 0 0;z-index:50;background:var(--bg);}
+  .ch-back{display:flex;}
 }
 
 
@@ -156,7 +158,7 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;height:1
 ╔══════════════════════════════════════════════╗
 ║  TAWASALNA - MESSAGES                        ║
 ║  Architecture: Hybrid                        ║
-║  Last Modified: 2026-05                      ║
+║  Last Modified: 2026-06                      ║
 ║  DO NOT EDIT outside designated sections     ║
 ╚══════════════════════════════════════════════╝
 -->
@@ -210,10 +212,11 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;height:1
   <!-- CHAT -->
   <div class="chat" id="chatArea">
     <div class="chat-head" id="chatHead">
+      <button class="ch-btn ch-back" onclick="toggleConvList()" title="قائمة المحادثات">☰</button>
       <div class="ch-ava" id="chatAva">🏢</div>
       <div>
         <div class="ch-name" id="chatName">شركة تك ستارت</div>
-        <div class="ch-status">متصل الآن</div>
+        <div class="ch-status" id="chatStatus">متصل الآن</div>
       </div>
       <div class="ch-actions">
         <button class="ch-btn" onclick="openInterview()">📅 موعد مقابلة</button>
@@ -300,34 +303,45 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;height:1
 
 <script src="/tw_shared.js"></script>
 <script>
-let _user = null;
+// ── Session ──
+var _user = null;
 try { _user = JSON.parse(localStorage.getItem('tw_user')); } catch(e){}
 if(!_user||!_user.id){ window.location.href='/'; }
 var _jwt = localStorage.getItem('tw_jwt') || '';
 
+// ── XSS prevention — escape before any innerHTML injection ──
+function esc(s){
+  return String(s == null ? '' : s)
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;')
+    .replace(/'/g,'&#39;');
+}
+
+// ── Static demo-conv click (placeholder items in HTML) ──
 function openConv(el, name, ava){
-  document.querySelectorAll('.conv-item').forEach(i=>i.classList.remove('active'));
+  document.querySelectorAll('.conv-item').forEach(function(i){i.classList.remove('active');});
   el.classList.add('active');
   el.classList.remove('unread');
-  const badge = el.querySelector('.ci-badge');
+  var badge = el.querySelector('.ci-badge');
   if(badge) badge.remove();
   document.getElementById('chatName').textContent = name;
   document.getElementById('chatAva').textContent = ava;
 }
 
+// ── Interview modal ──
 function openInterview(){
   document.getElementById('interviewOverlay').classList.add('show');
 }
 
 function sendInterview(){
-  const date = document.getElementById('i-date')?.value||'';
-  const time = document.getElementById('i-time')?.value||'';
-  const loc = document.getElementById('i-loc')?.value||'';
-  const inter = document.getElementById('i-interviewer')?.value||'';
+  var date = document.getElementById('i-date')?.value||'';
+  var time = document.getElementById('i-time')?.value||'';
+  var loc  = document.getElementById('i-loc')?.value||'';
+  var inter = document.getElementById('i-interviewer')?.value||'';
   if(!date||!time){ showToast('أدخل تاريخ ووقت المقابلة','error'); return; }
-  const convName = document.querySelector('.conv-item.active .ci-name')?.textContent||'المرشح';
-  const msg = 'دعوة مقابلة: '+date+' الساعة '+time+' في '+loc+' مع '+inter;
-  // Try to notify via message API
+  var msg = 'دعوة مقابلة: '+date+' الساعة '+time+' في '+loc+' مع '+inter;
   if(_user && _user.id){
     fetch('/admin/message',{
       method:'POST',
@@ -335,20 +349,19 @@ function sendInterview(){
       body:JSON.stringify({user_id:0, subject:'دعوة مقابلة', message:msg})
     }).catch(function(){});
   }
-  // Add to chat
-  const msgs = document.getElementById('messages');
-  const t = new Date().toLocaleTimeString('ar',{hour:'2-digit',minute:'2-digit'});
-  const card = '<div class="msg-wrap out"><div class="msg out interview-msg">'
+  var msgs = document.getElementById('messages');
+  var t = new Date().toLocaleTimeString('ar',{hour:'2-digit',minute:'2-digit'});
+  var card = '<div class="msg-wrap out"><div class="msg out interview-msg">'
     +'<div class="msg-text">📅 دعوة مقابلة</div>'
-    +'<div class="ic-details"><div class="ic-item">📆 <span>'+date+'</span></div>'
-    +'<div class="ic-item">⏰ <span>'+time+'</span></div>'
-    +'<div class="ic-item">📍 <span>'+loc+'</span></div></div>'
+    +'<div class="ic-details">'
+    +'<div class="ic-item">📆 <span>'+esc(date)+'</span></div>'
+    +'<div class="ic-item">⏰ <span>'+esc(time)+'</span></div>'
+    +'<div class="ic-item">📍 <span>'+esc(loc)+'</span></div></div>'
     +'<div class="msg-time">'+t+'</div></div></div>';
   msgs.insertAdjacentHTML('beforeend', card);
   document.getElementById('interviewOverlay')?.classList.remove('show');
   scrollDown();
 }
-
 
 function acceptInterview(btn){
   btn.textContent = '✓ تم التأكيد';
@@ -356,30 +369,7 @@ function acceptInterview(btn){
   btn.disabled = true;
 }
 
-function sendMessage(){
-  const input = document.getElementById('msgInput');
-  const text = input.value.trim();
-  if(!text) return;
-  const msgs = document.getElementById('messages');
-  const time = new Date().toLocaleTimeString('ar',{hour:'2-digit',minute:'2-digit'});
-  const card = `<div class="msg-wrap out"><div class="msg out"><div class="msg-text">${text}</div><div class="msg-time">${time}</div></div></div>`;
-  msgs.insertAdjacentHTML('beforeend', card);
-  input.value = '';
-  autoResize(input);
-  scrollDown();
-  // Save to localStorage as chat history
-  try{
-    const convId = document.querySelector('.conv-item.active')?.dataset?.convId||'default';
-    const key = 'tw_chat_'+convId+(_user?'_'+_user.id:'');
-    const history = JSON.parse(localStorage.getItem(key)||'[]');
-    history.push({text, time, out:true});
-    localStorage.setItem(key, JSON.stringify(history.slice(-50)));
-  }catch(e){}
-  // Log to server (silent)
-  if(_user && _user.id) fetch('/health').catch(function(){});
-}
-
-
+// ── UI helpers ──
 function handleKey(e){
   if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); sendMessage(); }
 }
@@ -390,8 +380,8 @@ function autoResize(el){
 }
 
 function scrollDown(){
-  const msgs = document.getElementById('messages');
-  msgs.scrollTop = msgs.scrollHeight;
+  var msgs = document.getElementById('messages');
+  if(msgs) msgs.scrollTop = msgs.scrollHeight;
 }
 
 function closeOverlay(e){
@@ -403,19 +393,18 @@ function openConvProfile(){
 }
 
 function goHome(){
-  let u=null;
+  var u=null;
   try{u=JSON.parse(localStorage.getItem('tw_user'));}catch(e){}
   if(!u){ window.location.href='/'; return; }
-  const dest = u.user_type==='co' ? 'company-profile.html?id='+u.id
-             : u.user_type==='edu' ? 'edu-profile.html?id='+u.id
-             : 'home.html';
+  var dest = u.user_type==='co' ? 'company-profile.html?id='+u.id
+           : u.user_type==='edu' ? 'edu-profile.html?id='+u.id
+           : 'home.html';
   window.location.href = dest;
 }
 
 document.addEventListener('DOMContentLoaded', function(){ scrollDown(); });
 
-
-// ══ ITQAN Utilities ══
+// ── ITQAN Utilities ──
 var _twToast=null;
 function showToast(msg,type,dur){
   type=type||'success';dur=dur||2800;
@@ -423,7 +412,7 @@ function showToast(msg,type,dur){
   var t=document.createElement('div');
   t.className='tw-toast '+type;
   var ico=type==='success'?'✅':type==='error'?'❌':'ℹ️';
-  t.innerHTML='<span>'+ico+'</span><span>'+msg+'</span>';
+  t.innerHTML='<span>'+ico+'</span><span>'+esc(msg)+'</span>';
   document.body.appendChild(t);
   _twToast=t;
   requestAnimationFrame(function(){requestAnimationFrame(function(){t.classList.add('show');});});
@@ -447,55 +436,83 @@ function initScrollProg(){
   });
 }
 
+// ── Mobile: toggle conversation list overlay ──
+function toggleConvList(){
+  var cl = document.getElementById('convList');
+  if(cl) cl.classList.toggle('mobile-show');
+}
 
-// ══ Real Messaging System ══
-var _currentConvId = null;
+// ── Messaging state ──
+var _currentConvId  = null;
+var _activeConvMeta = null; // { id, name, typeIco } — survives list refresh
 
-// Load conversations from DB
+// Load conversations from DB — preserves active state on every refresh
 function loadConversations(){
   if(!_user||!_user.id) return;
   fetch('/messages/conversations/'+_user.id, {headers:{'Authorization':'Bearer '+_jwt}})
   .then(function(r){return r.json();}).then(function(data){
     var convs=data.conversations||[];
-    var list=document.querySelector('.conv-list');
-    if(!list) return;
-    if(!convs.length) return; // Keep static UI if no real convs
+    var items=document.querySelector('.conv-items');
+    if(!items) return;
+    if(!convs.length) return; // keep placeholder UI if no real conversations yet
     var frag='';
     convs.forEach(function(c){
       var typeIco=c.user_type==='co'?'🏢':c.user_type==='edu'?'🎓':'👤';
-      var name=c.full_name||'مستخدم';
-      var last=(c.content||'').slice(0,40);
-      var unread=(!c.is_read&&c.sender_id!==_user.id)?'<div class="ci-badge">1</div>':'';
-      var div='<div class="conv-item" data-uid="'+c.other_id+'">'
+      var name=esc(c.full_name||'مستخدم');
+      var last=esc((c.content||'').slice(0,40));
+      var unread=(!c.is_read&&c.sender_id!==_user.id)?'<span class="ci-badge">1</span>':'';
+      var isActive=(_currentConvId&&c.other_id===_currentConvId)?' active':'';
+      frag+='<div class="conv-item'+isActive+'" data-uid="'+c.other_id+'">'
         +'<div class="ci-ava">'+typeIco+'</div>'
         +'<div class="ci-body"><div class="ci-name">'+name+'</div>'
         +'<div class="ci-last">'+last+'</div></div>'+unread+'</div>';
-      frag+=div;
     });
-    list.innerHTML=frag;
-    list.querySelectorAll('.conv-item').forEach(function(el){
+    items.innerHTML=frag;
+    // If current conversation isn't in DB list yet (new convo), keep a placeholder item
+    if(_currentConvId && _activeConvMeta && !items.querySelector('[data-uid="'+_currentConvId+'"]')){
+      var ph=document.createElement('div');
+      ph.className='conv-item active';
+      ph.setAttribute('data-uid',_activeConvMeta.id);
+      ph.innerHTML='<div class="ci-ava">'+_activeConvMeta.typeIco+'</div>'
+        +'<div class="ci-body"><div class="ci-name">'+esc(_activeConvMeta.name)+'</div>'
+        +'<div class="ci-last">محادثة جديدة</div></div>';
+      ph.addEventListener('click',function(){
+        openRealConv(ph,_activeConvMeta.id,_activeConvMeta.name,_activeConvMeta.typeIco);
+      });
+      items.insertAdjacentElement('afterbegin',ph);
+    }
+    items.querySelectorAll('.conv-item').forEach(function(el){
       var uid=parseInt(el.getAttribute('data-uid'));
-      var name=el.querySelector('.ci-name')?.textContent||'';
-      var ava=el.querySelector('.ci-ava')?.textContent||'👤';
-      el.addEventListener('click',function(){openRealConv(el,uid,name,ava);});
-    });  }).catch(function(){});
+      var n=el.querySelector('.ci-name')?.textContent||'';
+      var a=el.querySelector('.ci-ava')?.textContent||'👤';
+      el.addEventListener('click',function(){openRealConv(el,uid,n,a);});
+    });
+  }).catch(function(){});
 }
 
 function openRealConv(el, otherId, name, ava){
-  _currentConvId = otherId;
+  _currentConvId  = otherId;
+  _activeConvMeta = { id: otherId, name: name, typeIco: ava };
   document.querySelectorAll('.conv-item').forEach(function(i){i.classList.remove('active');});
   el.classList.add('active');
   var badge=el.querySelector('.ci-badge'); if(badge) badge.remove();
-  document.querySelector('.chat-name').textContent=name;
-  document.querySelector('.chat-sub').textContent='';
-  var msgs=document.getElementById('messages');
-  msgs.innerHTML='<div style="text-align:center;padding:20px;color:var(--t3);font-size:.8rem">⏳</div>';
+  document.getElementById('chatName').textContent=name;
+  document.getElementById('chatAva').textContent=ava;
+  // On mobile: hide conv-list overlay once a conversation is selected
+  var convListEl=document.getElementById('convList');
+  if(convListEl) convListEl.classList.remove('mobile-show');
+  var msgsSel=document.getElementById('messages');
+  msgsSel.innerHTML='<div style="text-align:center;padding:20px;color:var(--t3);font-size:.8rem">⏳</div>';
   fetch('/messages/'+_user.id+'/'+otherId, {headers:{'Authorization':'Bearer '+_jwt}})
   .then(function(r){return r.json();}).then(function(data){
     var list=data.messages||[];
-    if(!list.length){msgs.innerHTML='<div style="text-align:center;padding:30px;color:var(--t3);font-size:.8rem">ابدأ المحادثة</div>';return;}
+    if(!list.length){
+      msgsSel.innerHTML='<div style="text-align:center;padding:30px;color:var(--t3);font-size:.8rem">ابدأ المحادثة</div>';
+      loadUnreadCount();
+      return;
+    }
     var lastDate='';
-    msgs.innerHTML=list.map(function(msg){
+    msgsSel.innerHTML=list.map(function(msg){
       var isMe=msg.sender_id===_user.id;
       var d=new Date(msg.created_at);
       var t=d.toLocaleTimeString('ar',{hour:'2-digit',minute:'2-digit'});
@@ -503,48 +520,27 @@ function openRealConv(el, otherId, name, ava){
       var dateDiv='';
       if(dateStr!==lastDate){
         lastDate=dateStr;
-        dateDiv='<div style="text-align:center;font-size:.65rem;color:rgba(255,255,255,.3);padding:8px 0">'+dateStr+'</div>';
+        dateDiv='<div style="text-align:center;font-size:.65rem;color:rgba(255,255,255,.3);padding:8px 0">'+esc(dateStr)+'</div>';
       }
       var readIcon=isMe?(msg.is_read?'✓✓':'✓'):'';
-      return dateDiv+'<div class="msg-wrap '+(isMe?'out':'in')+'">'+
-        '<div class="msg '+(isMe?'out':'in')+'">'+
-        '<div class="msg-text">'+msg.content+'</div>'+
-        '<div class="msg-time">'+t+' <span style="font-size:.6rem;opacity:.7">'+readIcon+'</span></div>'+
-        '</div></div>';
+      return dateDiv+'<div class="msg-wrap '+(isMe?'out':'in')+'">'
+        +'<div class="msg '+(isMe?'out':'in')+'">'
+        +'<div class="msg-text">'+esc(msg.content)+'</div>'
+        +'<div class="msg-time">'+t+' <span style="font-size:.6rem;opacity:.7">'+readIcon+'</span></div>'
+        +'</div></div>';
     }).join('');
     scrollDown();
-  }).catch(function(){msgs.innerHTML='<div style="text-align:center;color:var(--t3)">تعذر تحميل الرسائل</div>';});
+    loadUnreadCount();
+  }).catch(function(){
+    msgsSel.innerHTML='<div style="text-align:center;color:var(--t3)">تعذر تحميل الرسائل</div>';
+  });
 }
 
-// Override sendMessage to save to DB
-var _origSendMessage = sendMessage;
-function sendMessage(){
-  var input=document.getElementById('msgInput');
-  var text=input?.value?.trim();
-  if(!text) return;
-  if(_currentConvId&&_user&&_user.id){
-    fetch('/messages/send',{
-      method:'POST',
-      headers:{'Content-Type':'application/json','Authorization':'Bearer '+_jwt},
-      body:JSON.stringify({receiver_id:_currentConvId,content:text})
-    }).catch(function(){});
-  }
-  // Still show locally
-  var msgs=document.getElementById('messages');
-  var t=new Date().toLocaleTimeString('ar',{hour:'2-digit',minute:'2-digit'});
-  msgs.insertAdjacentHTML('beforeend',
-    '<div class="msg-wrap out"><div class="msg out"><div class="msg-text">'+text+'</div><div class="msg-time">'+t+'</div></div></div>'
-  );
-  input.value=''; autoResize(input); scrollDown();
-}
-
-// Load unread count for nav badge
 function loadUnreadCount(){
   if(!_user||!_user.id) return;
   fetch('/messages/unread/'+_user.id, {headers:{'Authorization':'Bearer '+_jwt}})
   .then(function(r){return r.json();}).then(function(data){
     var count=data.count||0;
-    // Update bottom nav badge if any
     if(count>0){
       var msgBn=document.querySelector('.bn:last-child .bi');
       if(msgBn) msgBn.textContent='💬';
@@ -552,112 +548,106 @@ function loadUnreadCount(){
   }).catch(function(){});
 }
 
-// Init
-loadConversations();
-loadUnreadCount();
-// WebSocket handles real-time - polling as fallback
-setInterval(function(){if(!_ws||_ws.readyState!==WebSocket.OPEN) loadConversations();},30000);
-
-// Handle ?with={tw_id} deep-link from Profile V2 contact button
-(function(){
-  var withTw = new URLSearchParams(location.search).get('with');
-  if(!withTw || !_user || !_user.id) return;
-  fetch('/user/lookup/' + encodeURIComponent(withTw), {
-    headers: {'Authorization': 'Bearer ' + _jwt}
-  }).then(function(r){ return r.ok ? r.json() : null; })
-  .then(function(data){
-    if(!data || !data.id){
-      var msgs = document.getElementById('messages');
-      if(msgs) msgs.innerHTML = '<div style="text-align:center;padding:30px;color:var(--t3)">تعذر فتح المحادثة</div>';
-      return;
-    }
-    var typeIco = data.user_type === 'co' ? '🏢' : data.user_type === 'edu' ? '🎓' : '👤';
-    var name = data.full_name || 'مستخدم';
-    var fakeEl = document.createElement('div');
-    fakeEl.className = 'conv-item';
-    fakeEl.setAttribute('data-uid', data.id);
-    fakeEl.innerHTML = '<div class="ci-ava">'+typeIco+'</div>'
-      +'<div class="ci-body"><div class="ci-name">'+name+'</div><div class="ci-last"></div></div>';
-    var list = document.querySelector('.conv-list');
-    if(list) list.insertAdjacentElement('afterbegin', fakeEl);
-    openRealConv(fakeEl, data.id, name, typeIco);
-    history.replaceState(null, '', '/messages');
-  }).catch(function(){
-    var msgs = document.getElementById('messages');
-    if(msgs) msgs.innerHTML = '<div style="text-align:center;padding:30px;color:var(--t3)">تعذر فتح المحادثة</div>';
-  });
-})();
-
-
+// ── sendMessage — single implementation (WS primary, HTTP fallback) ──
+function sendMessage(){
+  var input=document.getElementById('msgInput');
+  var text=input?.value?.trim();
+  if(!text) return;
+  var sent=false;
+  if(_ws && _ws.readyState===WebSocket.OPEN && _currentConvId){
+    _ws.send(JSON.stringify({receiver_id:_currentConvId, content:text}));
+    sent=true;
+  }
+  if(!sent && _currentConvId && _user){
+    fetch('/messages/send',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+_jwt},
+      body:JSON.stringify({receiver_id:_currentConvId, content:text})
+    }).catch(function(){});
+  }
+  var msgs=document.getElementById('messages');
+  var t=new Date().toLocaleTimeString('ar',{hour:'2-digit',minute:'2-digit'});
+  msgs.insertAdjacentHTML('beforeend',
+    '<div class="msg-wrap out"><div class="msg out">'
+    +'<div class="msg-text">'+esc(text)+'</div>'
+    +'<div class="msg-time">'+t+' ✓</div>'
+    +'</div></div>'
+  );
+  input.value=''; autoResize(input); scrollDown();
+}
 
 // ── WebSocket Real-time ──
-var _ws = null;
-var _wsRetries = 0;
+var _ws=null;
+var _wsRetries=0;
 
 function connectWS(){
   if(!_user||!_user.id) return;
-  var protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  var wsUrl = protocol + '//' + window.location.host + '/ws/' + _user.id;
+  var protocol=window.location.protocol==='https:'?'wss:':'ws:';
+  var wsUrl=protocol+'//'+window.location.host+'/ws/'+_user.id;
   try{
-    _ws = new WebSocket(wsUrl);
-    _ws.onopen = function(){
-      _wsRetries = 0;
-      console.log('[WS] Connected');
-    };
-    _ws.onmessage = function(e){
+    _ws=new WebSocket(wsUrl);
+    _ws.onopen=function(){ _wsRetries=0; };
+    _ws.onmessage=function(e){
       try{
-        var data = JSON.parse(e.data);
-        if(data.type === 'message' && data.from === _currentConvId){
-          var msgs = document.getElementById('messages');
-          var t = new Date().toLocaleTimeString('ar',{hour:'2-digit',minute:'2-digit'});
+        var data=JSON.parse(e.data);
+        if(data.type==='message' && data.from===_currentConvId){
+          var msgs=document.getElementById('messages');
+          var t=new Date().toLocaleTimeString('ar',{hour:'2-digit',minute:'2-digit'});
           msgs.insertAdjacentHTML('beforeend',
-            '<div class="msg-wrap in"><div class="msg in"><div class="msg-text">'+data.content+'</div><div class="msg-time">'+t+'</div></div></div>'
+            '<div class="msg-wrap in"><div class="msg in">'
+            +'<div class="msg-text">'+esc(data.content)+'</div>'
+            +'<div class="msg-time">'+t+'</div>'
+            +'</div></div>'
           );
           scrollDown();
         }
-        // Update conversation list
-        if(data.type === 'message') loadConversations();
-      }catch(e){}
+        if(data.type==='message') loadConversations();
+      }catch(ex){}
     };
-    _ws.onclose = function(){
-      // Reconnect with backoff
-      if(_wsRetries < 5){
-        _wsRetries++;
-        setTimeout(connectWS, _wsRetries * 2000);
-      }
+    _ws.onclose=function(){
+      if(_wsRetries<5){ _wsRetries++; setTimeout(connectWS,_wsRetries*2000); }
     };
-    _ws.onerror = function(){ _ws.close(); };
-  }catch(e){ console.log('[WS] Not supported, using polling'); }
+    _ws.onerror=function(){ _ws.close(); };
+  }catch(e){}
 }
 
-// Override sendMessage to use WebSocket when available
-var _origSend = sendMessage;
-function sendMessage(){
-  var input = document.getElementById('msgInput');
-  var text = input?.value?.trim();
-  if(!text) return;
-  var sent = false;
-  if(_ws && _ws.readyState === WebSocket.OPEN && _currentConvId){
-    _ws.send(JSON.stringify({receiver_id: _currentConvId, content: text}));
-    sent = true;
-  }
-  if(!sent && _currentConvId && _user){
-    // Fallback to HTTP
-    fetch('/messages/send',{
-      method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+_jwt},
-      body: JSON.stringify({receiver_id:_currentConvId, content:text})
-    }).catch(function(){});
-  }
-  // Show locally
-  var msgs = document.getElementById('messages');
-  var t = new Date().toLocaleTimeString('ar',{hour:'2-digit',minute:'2-digit'});
-  msgs.insertAdjacentHTML('beforeend',
-    '<div class="msg-wrap out"><div class="msg out"><div class="msg-text">'+text+'</div><div class="msg-time">'+t+' ✓</div></div></div>'
-  );
-  input.value = ''; autoResize(input); scrollDown();
+// ── Init — ?with= flow resolved before loadConversations to avoid race condition ──
+var _withTw=new URLSearchParams(location.search).get('with');
+
+if(_withTw && _user && _user.id){
+  fetch('/user/lookup/'+encodeURIComponent(_withTw), {
+    headers:{'Authorization':'Bearer '+_jwt}
+  }).then(function(r){ return r.ok ? r.json() : null; })
+  .then(function(data){
+    if(!data || !data.id){
+      var msgs=document.getElementById('messages');
+      if(msgs) msgs.innerHTML='<div style="text-align:center;padding:30px;color:var(--t3)">تعذر فتح المحادثة</div>';
+    } else {
+      var typeIco=data.user_type==='co'?'🏢':data.user_type==='edu'?'🎓':'👤';
+      var name=data.full_name||'مستخدم';
+      var fakeEl=document.createElement('div');
+      fakeEl.className='conv-item';
+      fakeEl.setAttribute('data-uid',data.id);
+      fakeEl.innerHTML='<div class="ci-ava">'+typeIco+'</div>'
+        +'<div class="ci-body"><div class="ci-name">'+esc(name)+'</div><div class="ci-last"></div></div>';
+      var convItems=document.querySelector('.conv-items');
+      if(convItems) convItems.insertAdjacentElement('afterbegin',fakeEl);
+      openRealConv(fakeEl, data.id, name, typeIco);
+      history.replaceState(null,'','/messages');
+    }
+    // loadConversations runs AFTER _currentConvId is set → active state is preserved
+    loadConversations();
+  }).catch(function(){
+    var msgs=document.getElementById('messages');
+    if(msgs) msgs.innerHTML='<div style="text-align:center;padding:30px;color:var(--t3)">تعذر فتح المحادثة</div>';
+    loadConversations();
+  });
+} else {
+  loadConversations();
 }
 
-// Connect WebSocket on load
+loadUnreadCount();
+setInterval(function(){if(!_ws||_ws.readyState!==WebSocket.OPEN) loadConversations();},30000);
 connectWS();
 </script>
 </body>

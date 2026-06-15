@@ -3506,6 +3506,18 @@ if int(token.get("user_id") or 0) != user_id:
 - WebSocket `/ws/{user_id}` — `user_id` comes from URL path, no JWT verification on WS upgrade.
   No change made to avoid breaking real-time delivery. Tracked for a future hardening step.
 
+### Frontend Security Rules (messages.html — Step 1)
+
+- **`esc(s)` helper** must be called before injecting ANY user-supplied string into `innerHTML`.
+  Covers: `msg.content`, `full_name`, `c.content` (last message preview), `data.content` (WS), form inputs in interview card.
+- **Forbidden:** `innerHTML += rawUserString` anywhere in messages.html — use `esc()` first.
+- **Single `sendMessage` function** — no override pattern. Body: WS send (primary) + HTTP fallback. No `sender_id` in body, ever.
+- **Messages source: DB only** — no localStorage read/write for message content. `tw_chat_*` keys are removed.
+- **`?with=` race condition fix** — resolve `tw_id` first, call `openRealConv` (sets `_currentConvId`), then `loadConversations()`. `_activeConvMeta` preserves active item if conversation isn't in DB list yet.
+- **Mobile back button** — `toggleConvList()` toggles `.mobile-show` on `#convList`. `openRealConv` removes `.mobile-show` on selection.
+- **`loadUnreadCount()` called after `openRealConv`** — count refreshes when messages are marked read.
+- **WebSocket security debt** — `/ws/{user_id}` has no JWT check. Deferred to a dedicated future Step.
+
 ---
 
 ## [P0] 50. Contact Button — Profile V2 Integration
