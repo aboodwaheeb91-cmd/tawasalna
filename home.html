@@ -308,7 +308,7 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-heig
     <span id="homeNotifBadge" style="display:none;position:absolute;top:4px;right:4px;background:#f87171;color:#fff;border-radius:50%;width:14px;height:14px;font-size:.5rem;font-weight:700;line-height:14px;text-align:center"></span>
   </div>
   <div style="position:relative;display:inline-flex">
-    <button type="button" class="tb-btn tb-ghost" onclick="location.href='messages.html'" title="الرسائل" style="font-size:1rem;padding:6px 10px">💬</button>
+    <button type="button" class="tb-btn tb-ghost" onclick="location.href='/messages'" title="الرسائل" style="font-size:1rem;padding:6px 10px">💬</button>
     <span id="homeMsgBadge" style="display:none;position:absolute;top:4px;right:4px;background:#2563ff;color:#fff;border-radius:50%;width:14px;height:14px;font-size:.5rem;font-weight:700;line-height:14px;text-align:center"></span>
   </div>
 </nav>
@@ -334,7 +334,7 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-heig
     <a class="sm-item" href="job-detail.html"><span class="sm-ico">💼</span>وظائفي<span class="sm-badge">0</span></a>
     <a class="sm-item" href="edu-profile.html"><span class="sm-ico">🎓</span>دوراتي</a>
     <a class="sm-item" href="notifications.html"><span class="sm-ico">🔔</span>إشعارات</a>
-    <a class="sm-item" href="messages.html"><span class="sm-ico">💬</span>رسائل</a>
+    <a class="sm-item" href="/messages"><span class="sm-ico">💬</span>رسائل</a>
     <a class="sm-item" href="home.html#foreign"><span class="sm-ico">🌍</span>فرص الخارج</a>
     <a class="sm-item" href="settings.html"><span class="sm-ico">⚙️</span>إعدادات</a>
     <a class="sm-item" href="#" onclick="logout()" style="color:rgba(239,68,68,.6)"><span class="sm-ico">🚪</span>خروج</a>
@@ -463,7 +463,8 @@ function markDone(id){
 }
 
 function goProfile(){
-  if(_u)window.location.href='profile.html?id='+(_u.tw_id||_u.id);
+  if(!_u) return;
+  window.location.href = _u.tw_id ? '/u/'+_u.tw_id : '/profile-showcase?id='+_u.id;
 }
 function logout(){
   localStorage.removeItem('tw_user');
@@ -633,7 +634,7 @@ function closeOnboard(){
   fetch('/messages/unread/'+_u.id).then(function(r){return r.json();}).then(function(data){
     var unread=data.count||0;
     if(unread>0){
-      var navMsg=document.querySelector('a[href="messages.html"] .bi, a[href="messages.html"]');
+      var navMsg=document.querySelector('a[href="/messages"] .bi, a[href="/messages"]');
       if(navMsg){
         var badge=document.createElement('span');
         badge.style.cssText='position:absolute;top:-4px;right:-4px;background:#2563ff;color:#fff;border-radius:50%;width:16px;height:16px;font-size:.55rem;display:flex;align-items:center;justify-content:center;font-weight:700';

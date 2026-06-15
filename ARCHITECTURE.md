@@ -3875,6 +3875,69 @@ def public_profile_short_url(tw_id: str):
 
 ---
 
+## [P0] Routing & Navigation Rules (Global)
+
+### Official URLs
+
+| Use case | Correct URL | Forbidden |
+|----------|-------------|---------|
+| عرض بروفايل مستخدم (موظف) | `/u/{tw_id}` | `profile.html?id=`, `/profile?id=` |
+| صفحة الرسائل | `/messages` | `messages.html` |
+| فتح محادثة مع مستخدم | `/messages?with={tw_id}` | `messages.html` |
+| بروفايل شركة | `/company-profile?id={id}` | `company-profile.html?id=` |
+| بروفايل جهة تعليمية | `/edu-profile?id={id}` | `edu-profile.html?id=` |
+
+### Profile Button Pattern
+
+When navigating to another user's profile from any page (Messenger, company search, team list):
+
+```javascript
+// CORRECT — always via tw_id
+fetch('/auth/user/' + numericId)
+  .then(function(r){ return r.ok ? r.json() : null; })
+  .then(function(data){
+    var tw = data && data.user && data.user.tw_id;
+    if (tw) window.location.href = '/u/' + tw;
+  });
+
+// FORBIDDEN
+window.open('profile.html?id=' + id, '_blank');
+window.location.href = '/profile?id=' + id;
+```
+
+Note: `GET /auth/user/{id}` returns `{ "user": { id, tw_id, full_name, ... } }` — access via `data.user.tw_id`, NOT `data.tw_id`.
+
+### Messages Link Pattern
+
+```javascript
+// CORRECT
+window.location.href = '/messages';
+window.location.href = '/messages?with=' + twId;
+<a href="/messages">الرسائل</a>
+
+// FORBIDDEN
+window.location.href = 'messages.html';
+<a href="messages.html">الرسائل</a>
+```
+
+### Notification Links (auth.py `create_notification`)
+
+| Notification type | Correct link |
+|-------------------|-------------|
+| رسالة جديدة | `/messages` |
+| وظيفة | `/job-detail?id={job_id}` |
+| توثيق | `/settings` |
+
+### Legacy Files
+
+| File | Status |
+|------|--------|
+| `profile.html` | Legacy — لا تُضاف إليه navigation جديد. لا تحذفه. |
+| `messages.html` → `/messages` | الـ route يخدم نفس الملف، استخدم `/messages` دائماً |
+| `/profile?id=` | لا تُستخدم كـ display URL — للـ API والـ legacy فقط |
+
+---
+
 ## [P0] 52. KYC / Credential Verification System
 
 ### Database Tables

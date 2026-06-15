@@ -261,7 +261,7 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-heig
     <a class="sm-item" onclick="goProfile()" style="cursor:pointer"><span class="sm-ico">🏢</span>ملف شركتي</a>
     <a class="sm-item on" href="#"><span class="sm-ico">🔍</span>بحث موظفين</a>
     <a class="sm-item" href="#"><span class="sm-ico">👥</span>موظفو الشركة</a>
-    <a class="sm-item" href="messages.html"><span class="sm-ico">💬</span>الرسائل<span class="sm-badge">0</span></a>
+    <a class="sm-item" href="/messages"><span class="sm-ico">💬</span>الرسائل<span class="sm-badge">0</span></a>
     <a class="sm-item" href="notifications.html"><span class="sm-ico">🔔</span>الإشعارات<span class="sm-badge">0</span></a>
     <a class="sm-item" href="settings.html"><span class="sm-ico">⚙️</span>الإعدادات</a>
     <a class="sm-item" href="#" onclick="logout()" style="color:rgba(239,68,68,.6)"><span class="sm-ico">🚪</span>خروج</a>
@@ -351,7 +351,7 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-heig
   <div class="bn" onclick="goProfile()"><span class="bi">🏢</span><span class="bl">ملفي</span></div>
   <div class="bn on"><span class="bi">🔍</span><span class="bl">بحث</span></div>
   <div class="bn" onclick="location.href='#'"><span class="bi">👥</span><span class="bl">موظفوي</span></div>
-  <div class="bn" onclick="location.href='messages.html'"><span class="bi">💬</span><span class="bl">رسائل</span></div>
+  <div class="bn" onclick="location.href='/messages'"><span class="bi">💬</span><span class="bl">رسائل</span></div>
   <div class="bn" onclick="location.href='notifications.html'"><span class="bi">🔔</span><span class="bl">إشعارات</span></div>
 </div>
 
@@ -476,8 +476,23 @@ function saveCandidate(id,e){
   document.getElementById('savedCount').textContent=savedIds.length;
 }
 
-function viewProfile(id){ window.open('profile.html?id='+id,'_blank'); }
-function msgEmp(id){ window.location.href='messages.html'; }
+function viewProfile(id){
+  fetch('/auth/user/'+id)
+    .then(function(r){ return r.ok?r.json():null; })
+    .then(function(data){
+      var tw=data&&data.user&&data.user.tw_id;
+      if(tw){ window.open('/u/'+tw,'_blank'); }
+      else if(typeof showToast==='function') showToast('تعذر فتح الملف','error');
+    }).catch(function(){});
+}
+function msgEmp(id){
+  fetch('/auth/user/'+id)
+    .then(function(r){ return r.ok?r.json():null; })
+    .then(function(data){
+      var tw=data&&data.user&&data.user.tw_id;
+      window.location.href=tw?'/messages?with='+tw:'/messages';
+    }).catch(function(){ window.location.href='/messages'; });
+}
 function goProfile(){ if(_user) window.location.href='company-profile.html?id='+_user.id; }
 function logout(){ localStorage.removeItem('tw_user'); window.location.href='/'; }
 

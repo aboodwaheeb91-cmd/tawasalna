@@ -195,7 +195,7 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-heig
       <a class="ni" href="#" onclick="goBack()"><span class="ni-ico">🏢</span>ملف الشركة</a>
       <a class="ni active" href="#"><span class="ni-ico">👥</span>الموظفون</a>
       <a class="ni" href="company.html"><span class="ni-ico">🔍</span>بحث موظفين</a>
-      <a class="ni" href="messages.html"><span class="ni-ico">💬</span>الرسائل</a>
+      <a class="ni" href="/messages"><span class="ni-ico">💬</span>الرسائل</a>
       <a class="ni" href="notifications.html"><span class="ni-ico">🔔</span>الإشعارات</a>
     </nav>
   </aside>
@@ -450,10 +450,9 @@ function assignCourse(){
 }
 
 function viewEmp(twId){
-  var url=twId?'profile.html?id='+twId:'profile.html';
-  window.open(url,'_blank');
+  if(twId) window.open('/u/'+twId,'_blank');
 }
-function msgEmp(){window.location.href='messages.html';}
+function msgEmp(){window.location.href='/messages';}
 function closeOverlay(e){if(e.target.classList.contains('overlay'))e.target.classList.remove('show');}
 function goBack(){window.location.href='company-profile.html?id='+(_user?_user.id:'');}
 

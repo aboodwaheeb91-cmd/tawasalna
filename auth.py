@@ -1664,7 +1664,7 @@ def send_message(sender_id: int, receiver_id: int, content: str) -> dict:
         cols = [c["name"] for c in conn.columns]
         msg = _serialize(_row_to_dict(cols, rows[0]))
         # Create notification for receiver
-        create_notification(receiver_id, 'message', 'رسالة جديدة', content[:60], '/messages.html')
+        create_notification(receiver_id, 'message', 'رسالة جديدة', content[:60], '/messages')
         return msg
     finally:
         release_conn(conn)
