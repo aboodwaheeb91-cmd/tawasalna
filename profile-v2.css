@@ -1059,24 +1059,29 @@ body.view-owner .av-cam-btn { display:flex; }
 /* ── Followers Popover ── */
 .sc-fl-popover {
   position:fixed; z-index:250;
-  background:#151c28; border:1px solid rgba(255,255,255,.12);
-  border-radius:14px; padding:6px;
-  box-shadow:0 8px 32px rgba(0,0,0,.5);
-  min-width:160px;
+  background:rgba(7,11,24,.97); border:1px solid rgba(255,255,255,.1);
+  border-radius:14px; padding:6px 4px;
+  box-shadow:0 8px 32px rgba(0,0,0,.55);
+  display:flex; flex-direction:row; align-items:stretch;
+  width:fit-content; min-width:160px; max-width:calc(100vw - 16px);
   animation:scFadeIn .15s;
 }
 .sc-fl-pop-item {
-  display:flex; align-items:center; gap:12px;
-  width:100%; padding:10px 12px; border-radius:10px;
+  display:flex; flex-direction:column; align-items:center;
+  gap:3px; padding:10px 18px; border-radius:10px;
   border:none; cursor:pointer; background:transparent;
-  color:var(--t1,#fff); font-family:inherit; direction:rtl;
-  transition:background .15s;
+  color:var(--t1,#fff); font-family:inherit;
+  transition:background .15s; flex:1; white-space:nowrap;
 }
-.sc-fl-pop-item:hover { background:rgba(255,255,255,.07); }
-.sc-fl-pop-ico { width:18px; height:18px; flex-shrink:0; }
-.sc-fl-pop-meta { display:flex; flex-direction:column; gap:1px; align-items:flex-start; }
+.sc-fl-pop-ico { width:18px; height:18px; margin-bottom:2px; }
 .sc-fl-pop-count { font-size:.95rem; font-weight:800; color:#fff; line-height:1; }
-.sc-fl-pop-label { font-size:.62rem; color:var(--t3,#6b7686); }
+.sc-fl-pop-label { font-size:.6rem; color:var(--t3,#6b7686); }
+.sc-fl-pop-divider { width:1px; background:rgba(255,255,255,.07); margin:8px 0; flex-shrink:0; }
+.sc-fl-pop-item--followers .sc-fl-pop-ico { color:#8b5cf6; }
+.sc-fl-pop-item--followers:hover { background:rgba(139,92,246,.08); }
+.sc-fl-pop-item--following .sc-fl-pop-ico,
+.sc-fl-pop-item--following .sc-fl-pop-count { color:#22d3ee; }
+.sc-fl-pop-item--following:hover { background:rgba(34,211,238,.08); }
 
 /* ── Follow List Modal ── */
 .sc-fl-overlay {
@@ -1159,8 +1164,7 @@ body.view-owner .av-cam-btn { display:flex; }
   font-family:inherit; font-size:.84rem;
 }
 .sc-fl-load-btn:hover { background:rgba(255,255,255,.08); }
-.sc-stat[id$="Tile"] { cursor:pointer; transition:background .15s; border-radius:10px; }
-.sc-stat[id$="Tile"]:hover { background:rgba(255,255,255,.05); }
+.sc-stat[id$="Tile"] { cursor:pointer; border-radius:10px; }
 
 /* ── QR Modal ── */
 .sc-qr-modal {

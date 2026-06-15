@@ -1049,25 +1049,35 @@ window.renderProfile = function renderProfile(res){
 
 // ── Followers Popover ──
 (function(){
-  var _popover = document.getElementById('scFlPopover');
-  var _tile    = document.getElementById('scStatFollowersTile');
+  var _popover   = document.getElementById('scFlPopover');
+  var _tile      = document.getElementById('scStatFollowersTile');
   if(!_popover || !_tile) return;
 
-  var _visible = false;
+  var _visible   = false;
+  var _autoHide;
 
   function _openPop(){
-    var rect   = _tile.getBoundingClientRect();
-    var popW   = _popover.offsetWidth || 172;
-    var left   = rect.left + rect.width / 2 - popW / 2;
-    var maxL   = window.innerWidth - popW - 8;
-    _popover.style.top     = (rect.bottom + window.scrollY + 8) + 'px';
-    _popover.style.left    = Math.max(8, Math.min(left, maxL)) + 'px';
-    _popover.style.display = 'block';
+    // Measure width before reveal to center correctly
+    _popover.style.visibility = 'hidden';
+    _popover.style.display    = 'flex';
     if(window.lucide && lucide.createIcons) lucide.createIcons();
+
+    var rect = _tile.getBoundingClientRect();
+    var popW = _popover.offsetWidth;
+    var left = rect.left + rect.width / 2 - popW / 2;
+    var maxL = window.innerWidth - popW - 8;
+
+    _popover.style.top        = (rect.bottom + window.scrollY + 8) + 'px';
+    _popover.style.left       = Math.max(8, Math.min(left, maxL)) + 'px';
+    _popover.style.visibility = '';
     _visible = true;
+
+    clearTimeout(_autoHide);
+    _autoHide = setTimeout(_closePop, 5000);
   }
 
   function _closePop(){
+    clearTimeout(_autoHide);
     _popover.style.display = 'none';
     _visible = false;
   }
@@ -1075,6 +1085,12 @@ window.renderProfile = function renderProfile(res){
   _tile.addEventListener('click', function(e){
     e.stopPropagation();
     if(_visible){ _closePop(); } else { _openPop(); }
+  });
+
+  // Pause auto-hide while hovering the popover
+  _popover.addEventListener('mouseenter', function(){ clearTimeout(_autoHide); });
+  _popover.addEventListener('mouseleave', function(){
+    if(_visible) _autoHide = setTimeout(_closePop, 5000);
   });
 
   document.addEventListener('click', function(e){
