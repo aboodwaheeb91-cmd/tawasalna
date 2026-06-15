@@ -3513,10 +3513,89 @@ if int(token.get("user_id") or 0) != user_id:
 - **Forbidden:** `innerHTML += rawUserString` anywhere in messages.html — use `esc()` first.
 - **Single `sendMessage` function** — no override pattern. Body: WS send (primary) + HTTP fallback. No `sender_id` in body, ever.
 - **Messages source: DB only** — no localStorage read/write for message content. `tw_chat_*` keys are removed.
-- **`?with=` race condition fix** — resolve `tw_id` first, call `openRealConv` (sets `_currentConvId`), then `loadConversations()`. `_activeConvMeta` preserves active item if conversation isn't in DB list yet.
-- **Mobile back button** — `toggleConvList()` toggles `.mobile-show` on `#convList`. `openRealConv` removes `.mobile-show` on selection.
-- **`loadUnreadCount()` called after `openRealConv`** — count refreshes when messages are marked read.
+- **`?with=` race condition fix** — resolve `tw_id` first, call `openConversation` (sets `_currentConvId`), then `loadConversations()`. `_activeConvMeta` preserves active item if conversation isn't in DB list yet.
+- **Mobile back button** — `toggleConvList()` toggles `.mobile-show` on `#convList`. `openConversation` removes `.mobile-show` on selection.
+- **`loadUnreadCount()` called after `openConversation`** — count refreshes when messages are marked read.
 - **WebSocket security debt** — `/ws/{user_id}` has no JWT check. Deferred to a dedicated future Step.
+
+---
+
+## [P0] 49. Messenger V1 — Modular Architecture
+
+### Overview
+
+`messages.html` was rebuilt from scratch (Step 2) in a modular structure identical to Profile V2.
+All static/demo content was removed. The page is a pure shell — JS files own all dynamic rendering.
+
+### File Map
+
+| File | Role |
+|------|------|
+| `messages.html` | Shell only: nav, layout skeleton, empty `#convItems`, empty `#messages`, script tags |
+| `messages.css` | All styles: layout, conv-list, chat panel, message bubbles, input, mobile |
+| `messages.state.js` | State globals: `_user`, `_jwt`, `_currentConvId`, `_activeConvMeta`, `esc()` |
+| `messages.api.js` | API layer: `apiGetConversations`, `apiGetMessages`, `apiSendMessage`, `apiGetUnreadCount`, `apiLookupByTwId`, `apiGetUser` |
+| `messages.ws.js` | WebSocket: `connectWS()`, reconnect logic, onmessage handler |
+| `messages.render.js` | Render + UI + init: `openConversation`, `loadConversations`, `renderConvList`, `renderBubble`, `doSendMessage`, `handleWithParam`, DOMContentLoaded init |
+
+### Script Loading Order
+
+```html
+<script src="/tw_shared.js"></script>              <!-- showToast, getAuthHeaders -->
+<script src="/static/messages.state.js?v=v1"></script>
+<script src="/static/messages.api.js?v=v1"></script>
+<script src="/static/messages.ws.js?v=v1"></script>
+<script src="/static/messages.render.js?v=v1"></script>
+```
+
+Static files served by the existing `/static/{filename:path}` route (reads from repo root as fallback — no server.py changes required).
+
+### Message Bubble HTML Structure
+
+```html
+<div class="msg-wrap out">   <!-- out = sent by me, in = received -->
+  <div class="msg out">
+    <div class="msg-text">content</div>
+    <div class="msg-time">10:30 ص ✓</div>
+  </div>
+</div>
+```
+
+- `msg-wrap.out` → `justify-content: flex-start` (RTL: right-aligned)
+- `msg-wrap.in`  → `justify-content: flex-end`   (RTL: left-aligned)
+
+### `openConversation(otherId, name, typeIco)` — Single Entry Point
+
+**Rule:** Every conversation open MUST go through `openConversation()`. No other function may load messages directly.
+
+Called by:
+- `handleWithParam()` — resolves `?with=` deep-link
+- `renderConvList()` — click handlers on list items
+- Placeholder item click in `_activeConvMeta` insertion
+
+### `_activeConvMeta` — Race Condition Prevention
+
+Stores `{ id, name, typeIco }` for the active conversation.
+When `renderConvList()` rebuilds the list from DB, it checks if `_currentConvId` exists in new data.
+If not (new conversation not yet persisted), it inserts a placeholder item at top with `active` class.
+This prevents the active item from disappearing during the 30s polling refresh.
+
+### Known Debt
+
+| Ref | Debt | Severity |
+|-----|------|----------|
+| P0 | `/ws/{user_id}` — no JWT verification on WebSocket upgrade | Critical |
+| P1 | `get_conversations` sorts by `other_id` not `created_at DESC` | High |
+| P2 | `create_notification()` in `send_message()` links to `/messages.html` (should be `/messages`) | Low |
+
+### Forbidden Patterns (Messenger V1)
+
+- ممنوع: `innerHTML` injection without `esc()` first
+- ممنوع: `sender_id` في body للـ POST `/messages/send`
+- ممنوع: فتح محادثة بدون `openConversation()` (لا تستدعي `apiGetMessages` مباشرة)
+- ممنوع: حفظ محتوى الرسائل في localStorage
+- ممنوع: demo/static conversations أو messages في HTML
+- ممنوع: إضافة `conversations` table أو `conversation_id` لحين القرار المعماري
 
 ---
 
