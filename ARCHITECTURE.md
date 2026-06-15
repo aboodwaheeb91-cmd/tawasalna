@@ -3830,6 +3830,34 @@ LIMIT :limit OFFSET :offset
 
 `following_count = COUNT(*) FROM profile_follows WHERE follower_id = :profile_id`
 
+### Frontend Modal — Follow List (Step 2)
+
+**الملفات المعدَّلة:**
+- `profile-v2.api.js`: `getFollowersList(profileId, limit, offset)` + `getFollowingList(profileId, limit, offset)`
+- `profile-showcase.html`: عداد `scStatFollowing` جديد + `id="scStatFollowersTile"` + `scFollowListModal` HTML
+- `profile-v2.render.js`: metrics polling لـ `following_count` + modal IIFE
+- `profile-v2.css`: `.sc-fl-*` styles
+
+**عناصر الـ Modal:**
+- `scFollowListModal` — overlay (`display:none` / `flex`)
+- `scFlTabFollowers` / `scFlTabFollowing` — tab buttons with `_scFlSwitch(mode,el)`
+- `scFlList` — scrollable list container
+- `scFlLoad` / `scFlLoadMore` — load more pagination
+
+**Tile IDs للـ stats:**
+- `scStatFollowersTile` → يفتح modal على وضع "followers"
+- `scStatFollowingTile` → يفتح modal على وضع "following"
+- `scStatFollowing` → يُعرض عدد المتابَعين (من metrics polling)
+
+**قواعد الـ Modal:**
+- روابط العرض: `/u/{tw_id}` (ليس `/profile/{id}`)
+- Follow toggle داخل Modal يستخدم `followProfile` / `unfollowProfile` الموجودَين
+- زر Follow لا يظهر إذا `can_follow = false` (guest / owner)
+- ESC + click على overlay يُغلق الـ modal
+- Offset-based pagination — `has_more` من Backend
+- Empty state: رسالة "لا توجد نتائج بعد"
+- Avatar fallback: placeholder `<div>` + Lucide user icon
+
 ### حالة التنفيذ
 
 | الميزة | الحالة |
@@ -3838,8 +3866,8 @@ LIMIT :limit OFFSET :offset
 | GET followers list | ✅ |
 | GET following list | ✅ |
 | following_count في /metrics | ✅ |
-| Frontend Modal (Step 2) | ⏳ لم يُنفَّذ بعد |
-| scStatFollowing عداد جديد في الـ stats | ⏳ Step 2 |
+| Frontend Modal (Step 2) | ✅ |
+| scStatFollowing عداد جديد في الـ stats | ✅ |
 
 ### viewer_action for Follows (in GET /profile)
 

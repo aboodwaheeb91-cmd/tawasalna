@@ -867,6 +867,7 @@ window.renderProfile = function renderProfile(res){
         // Visible counters
         if(m.views_count      != null) setText('scStatViews',     formatCompactCount(Number(m.views_count)));
         if(m.followers_count  != null) setText('scStatFollowers', formatCompactCount(Number(m.followers_count)));
+        if(m.following_count  != null) setText('scStatFollowing', formatCompactCount(Number(m.following_count)));
         if(m.education_count  != null) setText('scStatEdu',   Number(m.education_count));
         if(m.experience_count != null) setText('scStatExp',   Number(m.experience_count));
         if(m.score            != null) setText('scStatScore', Number(m.score));
@@ -874,6 +875,7 @@ window.renderProfile = function renderProfile(res){
         if(window._scProfile){
           if(m.views_count      != null) window._scProfile.views_count      = Number(m.views_count);
           if(m.followers_count  != null) window._scProfile.followers_count  = Number(m.followers_count);
+          if(m.following_count  != null) window._scProfile.following_count  = Number(m.following_count);
           if(m.education_count  != null) window._scProfile.education_count  = Number(m.education_count);
           if(m.experience_count != null) window._scProfile.experience_count = Number(m.experience_count);
           if(m.courses_count    != null) window._scProfile.courses_count    = Number(m.courses_count);
@@ -927,4 +929,118 @@ window.renderProfile = function renderProfile(res){
   document.addEventListener('click', function(e){
     if(eyeWrap && !eyeWrap.contains(e.target)) eyeMenu.classList.remove('open');
   });
+})();
+
+// ── Follow List Modal ──
+(function(){
+  var _overlay  = document.getElementById('scFollowListModal');
+  if(!_overlay) return;
+  var _list     = document.getElementById('scFlList');
+  var _loadWrap = document.getElementById('scFlLoad');
+  var _loadBtn  = document.getElementById('scFlLoadMore');
+
+  var _mode    = 'followers';
+  var _offset  = 0;
+  var _limit   = 20;
+  var _loading = false;
+
+  function _open(mode){
+    _mode   = mode || 'followers';
+    _offset = 0;
+    _list.innerHTML = '';
+    _loadWrap.style.display = 'none';
+    _overlay.style.display  = 'flex';
+    document.body.style.overflow = 'hidden';
+    document.getElementById('scFlTabFollowers').classList.toggle('active', _mode === 'followers');
+    document.getElementById('scFlTabFollowing').classList.toggle('active', _mode === 'following');
+    _fetchPage(true);
+  }
+
+  function _close(){
+    _overlay.style.display = 'none';
+    document.body.style.overflow = '';
+  }
+
+  function _fetchPage(replace){
+    if(_loading || !_scProfileId) return;
+    _loading = true;
+    if(replace) _list.innerHTML = '<div class="sc-fl-spin"></div>';
+    var fn = _mode === 'followers' ? window.getFollowersList : window.getFollowingList;
+    fn(_scProfileId, _limit, _offset)
+      .then(function(res){
+        _loading = false;
+        if(!res || !res.ok || !res.data) return;
+        var d = res.data;
+        if(replace) _list.innerHTML = '';
+        _renderItems(d.items || []);
+        var pag = d.pagination || {};
+        _offset += (d.items || []).length;
+        _loadWrap.style.display = pag.has_more ? 'flex' : 'none';
+      })
+      .catch(function(){ _loading = false; });
+  }
+
+  function _renderItems(items){
+    if(!items.length && _offset === 0){
+      _list.innerHTML = '<div class="sc-fl-empty">لا توجد نتائج بعد</div>';
+      return;
+    }
+    items.forEach(function(item){
+      var profHtml = item.profession && item.profession.name_ar
+        ? '<span class="sc-fl-prof">' + esc(item.profession.name_ar) + '</span>' : '';
+      var avatarHtml = item.avatar_url
+        ? '<img class="sc-fl-avatar" src="' + esc(item.avatar_url) + '" alt="">'
+        : '<div class="sc-fl-avatar sc-fl-avatar-ph"><i data-lucide="user" class="ico-sm"></i></div>';
+      var followBtn = item.can_follow
+        ? '<button class="sc-fl-follow-btn' + (item.is_following ? ' active' : '') + '" data-uid="' + item.id + '">'
+          + (item.is_following ? 'متابَع' : 'تابع') + '</button>' : '';
+      var el = document.createElement('div');
+      el.className = 'sc-fl-item';
+      el.innerHTML =
+        '<a class="sc-fl-info" href="/u/' + esc(item.tw_id) + '">'
+        + avatarHtml
+        + '<div class="sc-fl-meta"><span class="sc-fl-name">' + esc(item.display_name || '') + '</span>'
+        + profHtml + '</div></a>' + followBtn;
+      _list.appendChild(el);
+    });
+    if(window.lucide && lucide.createIcons) lucide.createIcons();
+  }
+
+  _list.addEventListener('click', function(e){
+    var btn = e.target.closest('.sc-fl-follow-btn');
+    if(!btn) return;
+    var uid = btn.dataset.uid;
+    if(!uid) return;
+    var isActive = btn.classList.contains('active');
+    btn.disabled = true;
+    var fn = isActive ? window.unfollowProfile : window.followProfile;
+    fn(uid).then(function(res){
+      btn.disabled = false;
+      if(res.ok){
+        btn.classList.toggle('active', !isActive);
+        btn.textContent = !isActive ? 'متابَع' : 'تابع';
+      }
+    }).catch(function(){ btn.disabled = false; });
+  });
+
+  var followersTile = document.getElementById('scStatFollowersTile');
+  var followingTile = document.getElementById('scStatFollowingTile');
+  if(followersTile) followersTile.addEventListener('click', function(){ _open('followers'); });
+  if(followingTile) followingTile.addEventListener('click', function(){ _open('following'); });
+
+  document.getElementById('scFlClose').addEventListener('click', _close);
+  _overlay.addEventListener('click', function(e){ if(e.target === _overlay) _close(); });
+  document.addEventListener('keydown', function(e){ if(e.key === 'Escape') _close(); });
+
+  if(_loadBtn) _loadBtn.addEventListener('click', function(){ _fetchPage(false); });
+
+  window._scFlSwitch = function(mode, tabEl){
+    _mode   = mode;
+    _offset = 0;
+    document.querySelectorAll('.sc-fl-tab').forEach(function(t){ t.classList.remove('active'); });
+    if(tabEl) tabEl.classList.add('active');
+    _fetchPage(true);
+  };
+
+  window._scFlOpen = _open;
 })();

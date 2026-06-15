@@ -132,10 +132,15 @@
             <div class="sc-stat-n" id="scStatViews">—</div>
             <div class="sc-stat-l">المشاهدات</div>
           </div>
-          <div class="sc-stat">
+          <div class="sc-stat" id="scStatFollowersTile">
             <i data-lucide="users" class="ico sc-stat-i" style="color:#8b5cf6"></i>
             <div class="sc-stat-n" id="scStatFollowers">—</div>
             <div class="sc-stat-l">المتابعون</div>
+          </div>
+          <div class="sc-stat" id="scStatFollowingTile">
+            <i data-lucide="user-check" class="ico sc-stat-i" style="color:#8b5cf6"></i>
+            <div class="sc-stat-n" id="scStatFollowing">—</div>
+            <div class="sc-stat-l">يتابع</div>
           </div>
           <div class="sc-stat">
             <i data-lucide="briefcase" class="ico sc-stat-i" style="color:#f97316"></i>
@@ -657,6 +662,23 @@
       <div class="sc-modal-actions">
         <button class="sc-modal-save" id="linkSaveBtn">حفظ</button>
         <button class="sc-modal-cancel" id="linkCancelBtn">إلغاء</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Follow List Modal ── -->
+  <div class="sc-fl-overlay" id="scFollowListModal" style="display:none">
+    <div class="sc-fl-panel">
+      <div class="sc-fl-head">
+        <div class="sc-fl-tabs">
+          <button class="sc-fl-tab active" id="scFlTabFollowers" onclick="_scFlSwitch('followers',this)">المتابعون</button>
+          <button class="sc-fl-tab" id="scFlTabFollowing" onclick="_scFlSwitch('following',this)">يتابع</button>
+        </div>
+        <button class="sc-fl-close" id="scFlClose">×</button>
+      </div>
+      <div class="sc-fl-list" id="scFlList"></div>
+      <div class="sc-fl-load" id="scFlLoad" style="display:none">
+        <button class="sc-fl-load-btn" id="scFlLoadMore">تحميل المزيد</button>
       </div>
     </div>
   </div>
