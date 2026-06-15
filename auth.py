@@ -673,6 +673,13 @@ def init_db():
                 created_at TIMESTAMP DEFAULT NOW()
             )
         """)
+        # Delivery / read receipt columns (migration for existing tables)
+        for col in [
+            "ALTER TABLE messages ADD COLUMN IF NOT EXISTS delivered_at TIMESTAMP NULL",
+            "ALTER TABLE messages ADD COLUMN IF NOT EXISTS read_at TIMESTAMP NULL",
+        ]:
+            try: conn.run(col)
+            except: pass
         # Notifications table
         conn.run("""
             CREATE TABLE IF NOT EXISTS notifications (
@@ -1658,11 +1665,24 @@ def send_message(sender_id: int, receiver_id: int, content: str) -> dict:
     try:
         rows = conn.run(
             "INSERT INTO messages (sender_id, receiver_id, content) "
-            "VALUES (:sid, :rid, :content) RETURNING id, sender_id, receiver_id, content, is_read, created_at",
+            "VALUES (:sid, :rid, :content) "
+            "RETURNING id, sender_id, receiver_id, content, is_read, delivered_at, read_at, created_at",
             sid=sender_id, rid=receiver_id, content=content
         )
         cols = [c["name"] for c in conn.columns]
         return _serialize(_row_to_dict(cols, rows[0]))
+    finally:
+        release_conn(conn)
+
+
+def mark_message_delivered(msg_id: int):
+    """Mark a single message as delivered (receiver WS connection confirmed receipt)."""
+    conn = get_conn()
+    try:
+        conn.run(
+            "UPDATE messages SET delivered_at=NOW() WHERE id=:id AND delivered_at IS NULL",
+            id=msg_id
+        )
     finally:
         release_conn(conn)
 
@@ -1714,8 +1734,13 @@ def get_conversations(user_id: int) -> list:
     finally:
         release_conn(conn)
 
-def get_messages(user_id: int, other_id: int) -> list:
-    """Get messages between two users"""
+def get_messages(user_id: int, other_id: int):
+    """Get messages between two users.
+
+    Returns (messages, newly_read_ids) where newly_read_ids are IDs of messages
+    that were just marked read — used by the caller to push WS read receipts to sender.
+    Also marks delivered_at for messages received by this user that weren't yet delivered.
+    """
     conn = get_conn()
     try:
         rows = conn.run(
@@ -1723,17 +1748,36 @@ def get_messages(user_id: int, other_id: int) -> list:
             "FROM messages m JOIN users u ON u.id=m.sender_id "
             "WHERE (sender_id=:uid AND receiver_id=:oid) "
             "OR (sender_id=:oid AND receiver_id=:uid) "
-            "ORDER BY created_at ASC LIMIT 100",
+            "ORDER BY m.created_at ASC LIMIT 100",
             uid=user_id, oid=other_id
         )
         cols = [c["name"] for c in conn.columns]
-        # Mark as read
+        messages = [_serialize(_row_to_dict(cols, r)) for r in rows]
+
+        # Mark undelivered messages as delivered (receiver is viewing the conversation)
         conn.run(
-            "UPDATE messages SET is_read=TRUE "
+            "UPDATE messages SET delivered_at=NOW() "
+            "WHERE receiver_id=:uid AND sender_id=:oid AND delivered_at IS NULL",
+            uid=user_id, oid=other_id
+        )
+
+        # Collect IDs to mark as read (before the UPDATE so we know which changed)
+        unread_rows = conn.run(
+            "SELECT id FROM messages "
             "WHERE receiver_id=:uid AND sender_id=:oid AND is_read=FALSE",
             uid=user_id, oid=other_id
         )
-        return [_serialize(_row_to_dict(cols, r)) for r in rows]
+        newly_read_ids = [r[0] for r in (unread_rows or [])]
+
+        # Mark as read with timestamp
+        if newly_read_ids:
+            conn.run(
+                "UPDATE messages SET is_read=TRUE, read_at=NOW() "
+                "WHERE receiver_id=:uid AND sender_id=:oid AND is_read=FALSE",
+                uid=user_id, oid=other_id
+            )
+
+        return messages, newly_read_ids
     finally:
         release_conn(conn)
 

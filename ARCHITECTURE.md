@@ -4936,3 +4936,102 @@ Common shared column names across tawasalna tables:
 
 Current JS version: `?v=v4` (bumped when messages.render.js changed — mobile default fix)
 
+
+---
+
+## [P1] 58. Messenger — Delivery & Read Receipts
+
+### 4 Message States
+
+| State | DB condition | Status icon | Color |
+|-------|-------------|-------------|-------|
+| `pending` | Optimistic, no server ack yet | `•••` | dim gray |
+| `sent` | Inserted in DB (`id` returned) | `✓` | gray |
+| `delivered` | `delivered_at IS NOT NULL` | `✓✓` | gray |
+| `read` | `read_at IS NOT NULL` | `✓✓` | green (#00c896) |
+
+### DB Schema Migration
+
+Added to `messages` table (ALTER TABLE migration in `init_db()`):
+
+```sql
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS delivered_at TIMESTAMP NULL;
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS read_at TIMESTAMP NULL;
+```
+
+Existing `is_read BOOLEAN` kept for backwards-compat (unread badge queries use it).
+
+### When Each State Is Set
+
+| Transition | Trigger | Code location |
+|-----------|---------|--------------|
+| pending → sent | HTTP POST /messages/send returns | `messages.render.js doSendMessage.then` |
+| sent → delivered | Receiver's WS is online when sender posts | `server.py send_msg()` — calls `mark_message_delivered()` after `ws_manager.send_to_user()` returns `True` |
+| sent → delivered | Receiver opens conversation (pulls from DB) | `auth.py get_messages()` — bulk `UPDATE ... SET delivered_at=NOW() WHERE delivered_at IS NULL` |
+| delivered → read | Receiver opens conversation | `auth.py get_messages()` — `UPDATE ... SET is_read=TRUE, read_at=NOW()` |
+
+### Backend Functions
+
+**`auth.py`**
+
+- `send_message(sender_id, receiver_id, content) → dict` — RETURNING now includes `delivered_at`, `read_at`
+- `mark_message_delivered(msg_id)` — sets `delivered_at=NOW()` if NULL
+- `get_messages(user_id, other_id) → (list, list)` — returns `(messages, newly_read_ids)`; marks `delivered_at` and `read_at` on open
+
+**`server.py`**
+
+- `ConnectionManager.send_to_user()` — now returns `bool` (True if at least one WS was alive)
+- `POST /messages/send` — now `async def`; pushes WS to receiver; if delivered, calls `mark_message_delivered()` and sends `status_update` WS to sender
+- `GET /messages/{user_id}/{other_id}` — now `async def`; after marking read, sends `{"type":"status_update","ids":[...],"status":"read"}` WS to `other_id`
+
+### WebSocket Events
+
+**`type: "message"` (server → receiver):**
+```json
+{"type": "message", "from": 17, "id": 99, "content": "...", "created_at": "..."}
+```
+
+**`type: "status_update"` (server → sender, delivered):**
+```json
+{"type": "status_update", "id": 99, "status": "delivered"}
+```
+
+**`type: "status_update"` (server → sender, read):**
+```json
+{"type": "status_update", "ids": [99, 100], "status": "read"}
+```
+
+### Frontend
+
+**`messages.ws.js`**
+- `_applyStatusToEl(el, status)` — updates `.msg-status` class + text on a bubble element
+- `updateMessageStatus(data)` — resolves element by `[data-msg-id]`; if not found yet, stashes in `_pendingStatus`
+
+**`messages.render.js`**
+- `renderMessageStatus(msg)` — returns HTML span: reads `msg.read_at`, `msg.delivered_at`
+- `renderBubble(isMe, content, time, statusHtml, msgId)` — adds `data-msg-id` attribute
+- `doSendMessage().then` — sets `data-msg-id` on optimistic bubble; applies `_pendingStatus` if WS arrived first
+
+**`messages.state.js`**
+- `_pendingStatus = {}` — map of `{msg_id → 'delivered'|'read'}` for race-condition handling
+
+### CSS Classes
+
+```css
+.msg-status.pending   { opacity:.4; color: var(--t3); }   /* ••• */
+.msg-status.sent      { color: var(--t3); }                /* ✓ */
+.msg-status.delivered { color: var(--t3); }                /* ✓✓ gray */
+.msg-status.read      { color: #00c896; opacity: 1; }      /* ✓✓ green */
+```
+
+### Forbidden
+
+- ممنوع: تغيير لون ✓✓ بدون `read_at` حقيقي من DB
+- ممنوع: إرسال `status_update` إلى الطرف الخاطئ (يجب: delivered/sent → إلى sender؛ read → إلى other_id)
+- ممنوع: إعادة رسائل الماسنجر كـ notifications
+- ممنوع: polling بديل بدلاً من WS للـ status updates (WS هو المصدر الحقيقي للتحديث الفوري)
+- ممنوع: كسر `is_read` (تظل لحساب unread badge في conversations list)
+
+### Version Tracking
+
+Current JS version: `?v=v5` (bumped when delivery/read receipts implemented)
