@@ -1662,13 +1662,7 @@ def send_message(sender_id: int, receiver_id: int, content: str) -> dict:
             sid=sender_id, rid=receiver_id, content=content
         )
         cols = [c["name"] for c in conn.columns]
-        msg = _serialize(_row_to_dict(cols, rows[0]))
-        # Build deep-link so notification opens the correct conversation
-        sender_info = get_user_by_id(sender_id)
-        sender_tw_id = sender_info.get('tw_id', '') if sender_info else ''
-        notif_link = f'/messages?with={sender_tw_id}' if sender_tw_id else '/messages'
-        create_notification(receiver_id, 'message', 'رسالة جديدة', content[:60], notif_link)
-        return msg
+        return _serialize(_row_to_dict(cols, rows[0]))
     finally:
         release_conn(conn)
 
@@ -1775,7 +1769,7 @@ def get_notifications(user_id: int, limit: int = 50) -> list:
     conn = get_conn()
     try:
         rows = conn.run(
-            "SELECT * FROM notifications WHERE user_id=:uid "
+            "SELECT * FROM notifications WHERE user_id=:uid AND type != 'message' "
             "ORDER BY created_at DESC LIMIT :lim",
             uid=user_id, lim=limit
         )
@@ -1796,7 +1790,7 @@ def get_unread_notifications(user_id: int) -> int:
     conn = get_conn()
     try:
         rows = conn.run(
-            "SELECT COUNT(*) FROM notifications WHERE user_id=:uid AND is_read=FALSE",
+            "SELECT COUNT(*) FROM notifications WHERE user_id=:uid AND is_read=FALSE AND type != 'message'",
             uid=user_id
         )
         return rows[0][0] if rows else 0

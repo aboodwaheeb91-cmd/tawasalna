@@ -3800,7 +3800,45 @@ Both buttons have `position:relative`. Guest users see no badge (loadGlobalBadge
 
 ---
 
-## [P0] 53. Static Demo Content Removal — notifications.html
+## [P0] 53. Messenger ↔ Notifications Separation (Architectural Rule)
+
+### Rule: Messages Are Not General Notifications
+
+Messenger messages and general platform notifications are **separate systems**:
+
+| System | Table | Badge | Page |
+|--------|-------|-------|------|
+| Messenger | `messages` | `/messages/unread/{id}` (JWT required) | `/messages` |
+| Notifications | `notifications` | `/notifications/{id}` (no auth) | `/notifications` |
+
+### Backend Rules
+
+- `send_message()` saves to `messages` table only — **no `create_notification()` call**
+- `get_notifications()` filters `WHERE type != 'message'` — legacy rows excluded at DB query level
+- `get_unread_notifications()` filters `WHERE type != 'message' AND is_read=FALSE` — notification badge count never includes messages
+
+### Frontend Rules
+
+- `notifications.html` filters out `n.type === 'message'` AND `n.link.startsWith('/messages')` client-side (defense-in-depth for any legacy rows)
+- No "💬 رسائل" tab in notifications filter tabs
+- `loadGlobalBadges()` always fetches both counts independently:
+  - Notif badge ← `/notifications/{id}` (excludes messages at server level)
+  - Msg badge ← `/messages/unread/{id}` (exclusive to messenger)
+
+### Legacy Data
+
+Any `notifications` rows with `type='message'` or `link LIKE '/messages%'` are **legacy** (created before this rule was established). They are excluded at both API and UI layers. DB cleanup: `DELETE FROM notifications WHERE type = 'message';` can be run manually.
+
+### Forbidden
+
+- ممنوع: استدعاء `create_notification()` من `send_message()` أو أي دالة إرسال رسائل
+- ممنوع: عرض `type='message'` notifications في `/notifications`
+- ممنوع: إضافة tab "رسائل" في صفحة الإشعارات
+- ممنوع: احتساب رسائل الماسنجر ضمن عداد الإشعارات
+
+---
+
+## [P0] 53b. Static Demo Content Removal — notifications.html
 
 ### Problem
 `notifications.html` contained 3 hardcoded demo notification groups in HTML that were always visible:

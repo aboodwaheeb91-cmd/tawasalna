@@ -146,7 +146,6 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-heig
     <button class="ftab" onclick="filterNotifs('interview',this)">📅 مقابلات</button>
     <button class="ftab" onclick="filterNotifs('training',this)">🎓 تدريب</button>
     <button class="ftab" onclick="filterNotifs('verify',this)">✅ توثيق</button>
-    <button class="ftab" onclick="filterNotifs('msg',this)">💬 رسائل</button>
   </div>
 
   <!-- Notifications loaded from DB only -->
@@ -289,6 +288,13 @@ function loadRealNotifications(){
       kyc:{ico:'🪪',color:'rgba(0,200,150,.1)',label:'KYC'},
       system:{ico:'🔔',color:'rgba(255,255,255,.05)',label:'إشعار'}
     };
+
+    // Defense-in-depth: filter out any legacy message notifications
+    notifs = notifs.filter(function(n){
+      return n.type !== 'message' && !(n.link && n.link.startsWith('/messages'));
+    });
+
+    if(!notifs.length){ container.innerHTML=''; return; }
 
     var html='<div class="group-label">الإشعارات الحديثة'+(unread>0?' ('+unread+' جديد)':'')+'</div>';
     html+=notifs.slice(0,10).map(function(n){
