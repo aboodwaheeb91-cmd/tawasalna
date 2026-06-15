@@ -715,10 +715,13 @@ window.renderProfile = function renderProfile(res){
     if(_vaType === 'profile_like')   intBtn.classList.add('sc-btn--like');
     if(_vaType === 'candidate_save') intBtn.classList.add('sc-btn--candidate');
 
-    function _icon(){ return _vaType === 'candidate_save' ? 'user-check' : 'heart'; }
+    function _icon(isActive){
+      if(_vaType === 'candidate_save') return isActive ? 'user-check' : 'user-plus';
+      return 'heart';
+    }
 
     function _applyVa(v){
-      intBtn.innerHTML = '<i data-lucide="' + _icon() + '" class="ico-sm"></i> ' + esc(v.label);
+      intBtn.innerHTML = '<i data-lucide="' + _icon(v.is_active) + '" class="ico-sm"></i> ' + esc(v.label);
       if(v.is_active){
         intBtn.classList.add('sc-btn--interested');
         intBtn.classList.remove('sc-btn-ghost');
@@ -735,15 +738,24 @@ window.renderProfile = function renderProfile(res){
       var hint = document.createElement('div');
       hint.id = '_scCandidateHint';
       hint.className = 'sc-candidate-hint';
-      hint.innerHTML = '<span>تم حفظ المرشح — يمكنك إضافة ملاحظة خاصة</span>'
-        + '<button class="sc-candidate-hint-btn" id="_scNoteBtn">إضافة ملاحظة</button>';
+      hint.innerHTML =
+        '<div class="sc-candidate-hint-msg">'
+          + '<i data-lucide="check-circle" class="ico-sm"></i>'
+          + '<div><div>تم حفظ المرشح</div>'
+          + '<div class="sc-candidate-hint-sub">يمكنك إضافة ملاحظة خاصة</div></div>'
+        + '</div>'
+        + '<div class="sc-candidate-hint-actions">'
+          + '<button class="sc-candidate-hint-btn" id="_scNoteBtn">إضافة ملاحظة</button>'
+          + '<button class="sc-candidate-hint-btn sc-candidate-hint-btn--dismiss" id="_scDismissBtn">ليس الآن</button>'
+        + '</div>';
       var row = intBtn.closest('.sc-actions') || intBtn.parentNode;
       row.parentNode.insertBefore(hint, row.nextSibling);
+      if(window.lucide && lucide.createIcons) lucide.createIcons();
       document.getElementById('_scNoteBtn').onclick = function(){
         if(window.toast) toast('سيتم إضافة ملاحظات المرشحين قريباً');
         hint.remove();
       };
-      setTimeout(function(){ if(hint.parentNode) hint.remove(); }, 5000);
+      document.getElementById('_scDismissBtn').onclick = function(){ hint.remove(); };
     }
 
     _applyVa(va);
@@ -773,8 +785,13 @@ window.renderProfile = function renderProfile(res){
             window._scViewerAction = r.data.viewer_action;
             _applyVa(r.data.viewer_action);
             if(_vaType === 'candidate_save'){
-              if(r.data.viewer_action.is_active) _showCandidateHint();
-              else if(window.toast) toast('تم إلغاء حفظ المرشح');
+              if(r.data.viewer_action.is_active){
+                _showCandidateHint();
+              } else {
+                var _h = document.getElementById('_scCandidateHint');
+                if(_h) _h.remove();
+                if(window.toast) toast('تم إلغاء حفظ المرشح');
+              }
             } else {
               if(window.toast) toast(r.data.viewer_action.is_active ? 'تم حفظ التفاعل' : 'تم إلغاء التفاعل');
             }
