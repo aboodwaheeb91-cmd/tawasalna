@@ -1667,24 +1667,50 @@ def send_message(sender_id: int, receiver_id: int, content: str) -> dict:
         release_conn(conn)
 
 def get_conversations(user_id: int) -> list:
-    """Get all unique conversations for a user, sorted by most recent message."""
+    """Get all unique conversations for a user, sorted by most recent message.
+
+    Root-cause note: all columns must be qualified with 'm.' to avoid
+    PostgreSQL "column reference is ambiguous" error — both messages and users
+    tables have a created_at column, which caused 500 when unqualified.
+    """
     conn = get_conn()
     try:
         rows = conn.run(
             "SELECT * FROM ("
             "SELECT DISTINCT ON (other_id) "
-            "CASE WHEN sender_id=:uid THEN receiver_id ELSE sender_id END AS other_id, "
-            "content, created_at, is_read, sender_id, "
-            "u.full_name, u.user_type, u.tw_id "
+            "CASE WHEN m.sender_id=:uid THEN m.receiver_id ELSE m.sender_id END AS other_id, "
+            "m.content, m.created_at, m.is_read, m.sender_id, "
+            "u.full_name, u.user_type, u.tw_id, "
+            "p.avatar_url "
             "FROM messages m "
             "JOIN users u ON u.id = CASE WHEN m.sender_id=:uid THEN m.receiver_id ELSE m.sender_id END "
-            "WHERE sender_id=:uid OR receiver_id=:uid "
-            "ORDER BY other_id, created_at DESC"
+            "LEFT JOIN profiles p ON p.user_id = u.id "
+            "WHERE m.sender_id=:uid OR m.receiver_id=:uid "
+            "ORDER BY other_id, m.created_at DESC"
             ") sub ORDER BY created_at DESC",
             uid=user_id
         )
         cols = [c["name"] for c in conn.columns]
-        return [_serialize(_row_to_dict(cols, r)) for r in rows]
+        convs = [_serialize(_row_to_dict(cols, r)) for r in rows]
+
+        # Enrich with per-conversation unread_count in a single batch query
+        if convs:
+            other_ids = [c["other_id"] for c in convs]
+            placeholders = ", ".join(":oid" + str(i) for i in range(len(other_ids)))
+            params = {"uid": user_id}
+            for i, oid in enumerate(other_ids):
+                params["oid" + str(i)] = oid
+            unread_rows = conn.run(
+                "SELECT sender_id, COUNT(*) AS cnt FROM messages "
+                "WHERE receiver_id=:uid AND sender_id IN (" + placeholders + ") AND is_read=FALSE "
+                "GROUP BY sender_id",
+                **params
+            )
+            unread_map = {r[0]: r[1] for r in (unread_rows or [])}
+            for c in convs:
+                c["unread_count"] = unread_map.get(c["other_id"], 0)
+
+        return convs
     finally:
         release_conn(conn)
 
