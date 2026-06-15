@@ -261,8 +261,9 @@ function reloadMessagesQuiet() {
 function viewConvProfile() {
   if (!_activeConvMeta || !_activeConvMeta.id) return;
   apiGetUser(_activeConvMeta.id).then(function(data) {
-    if (data && data.tw_id) {
-      window.location.href = '/u/' + data.tw_id;
+    var tw = data && data.user && data.user.tw_id;
+    if (tw) {
+      window.location.href = '/u/' + tw;
     } else {
       showToast('تعذر فتح الملف الشخصي', 'error');
     }
