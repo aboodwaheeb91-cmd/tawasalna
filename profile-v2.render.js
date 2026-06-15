@@ -696,9 +696,24 @@ window.renderProfile = function renderProfile(res){
     };
   })();
 
-  // Action buttons — onclick overwrites safely on each re-render
-  var contactBtn=document.getElementById('scContactBtn');
-  if(contactBtn) contactBtn.onclick=function(){ window.location.href='/messages'; };
+  // Contact button — three-mode: owner hidden / guest toast / logged-in navigate
+  var contactBtn = document.getElementById('scContactBtn');
+  if(contactBtn){
+    if(_vt === 'owner'){
+      contactBtn.style.display = 'none';
+    } else {
+      contactBtn.style.display = '';
+      contactBtn.onclick = function(){
+        if(_vt === 'guest'){
+          if(window.toast) toast('سجّل الدخول للتواصل');
+          return;
+        }
+        var tw = window._scProfile && window._scProfile.tw_id;
+        if(!tw){ if(window.toast) toast('تعذر فتح المحادثة'); return; }
+        window.location.href = '/messages?with=' + encodeURIComponent(tw);
+      };
+    }
+  }
   // ── Profile Interest Button (replaces hardcoded /profile?id nav) ──
   (function(){
     var intBtn = document.getElementById('scFullBtn');

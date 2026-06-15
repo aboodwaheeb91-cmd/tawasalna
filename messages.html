@@ -558,6 +558,36 @@ loadUnreadCount();
 // WebSocket handles real-time - polling as fallback
 setInterval(function(){if(!_ws||_ws.readyState!==WebSocket.OPEN) loadConversations();},30000);
 
+// Handle ?with={tw_id} deep-link from Profile V2 contact button
+(function(){
+  var withTw = new URLSearchParams(location.search).get('with');
+  if(!withTw || !_user || !_user.id) return;
+  fetch('/user/lookup/' + encodeURIComponent(withTw), {
+    headers: {'Authorization': 'Bearer ' + _jwt}
+  }).then(function(r){ return r.ok ? r.json() : null; })
+  .then(function(data){
+    if(!data || !data.id){
+      var msgs = document.getElementById('messages');
+      if(msgs) msgs.innerHTML = '<div style="text-align:center;padding:30px;color:var(--t3)">تعذر فتح المحادثة</div>';
+      return;
+    }
+    var typeIco = data.user_type === 'co' ? '🏢' : data.user_type === 'edu' ? '🎓' : '👤';
+    var name = data.full_name || 'مستخدم';
+    var fakeEl = document.createElement('div');
+    fakeEl.className = 'conv-item';
+    fakeEl.setAttribute('data-uid', data.id);
+    fakeEl.innerHTML = '<div class="ci-ava">'+typeIco+'</div>'
+      +'<div class="ci-body"><div class="ci-name">'+name+'</div><div class="ci-last"></div></div>';
+    var list = document.querySelector('.conv-list');
+    if(list) list.insertAdjacentElement('afterbegin', fakeEl);
+    openRealConv(fakeEl, data.id, name, typeIco);
+    history.replaceState(null, '', '/messages');
+  }).catch(function(){
+    var msgs = document.getElementById('messages');
+    if(msgs) msgs.innerHTML = '<div style="text-align:center;padding:30px;color:var(--t3)">تعذر فتح المحادثة</div>';
+  });
+})();
+
 
 
 // ── WebSocket Real-time ──
