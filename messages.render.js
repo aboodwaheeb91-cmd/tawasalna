@@ -136,7 +136,7 @@ function openConversation(otherId, name, typeIco) {
   // Signal inactive on previous conversation before switching
   if (_currentConvId && _currentConvId !== otherId) {
     sendInactiveConversation(_currentConvId);
-    hideTypingIndicator();
+    hideTypingBubble(_currentConvId);
   }
   _currentConvId  = otherId;
   _activeConvMeta = { id: otherId, name: name, typeIco: typeIco };

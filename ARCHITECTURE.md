@@ -5064,7 +5064,7 @@ Three improvements shipped together: immediate read receipts, typing indicator, 
 
 ### Typing Indicator
 
-**Rule:** Show "يكتب الآن..." in `#chatStatus` only when the other party is actively typing in the same conversation.
+**Rule:** Typing appears as a temporary **in-chat bubble** (not in the header) — a received-message bubble with animated dots, inside `#messages`.
 
 **Client (sender side):**
 - `msgInput` `input` event → debounced: send `{type: "typing", to_user_id: X}` once per burst
@@ -5076,14 +5076,25 @@ Three improvements shipped together: immediate read receipts, typing indicator, 
 - Routes `typing_stop` → same pattern
 - No DB write; ephemeral
 
-**Client (receiver side):**
-- On `{type: "typing", from_user_id: X}`: if `X === _currentConvId` → show indicator, set 3s auto-hide timer (`_typingHideTimer`)
-- On `typing_stop` or incoming `message` → hide immediately
+**Client (receiver side — `messages.ws.js`):**
+- `showTypingBubble(fromId)`: inserts `<div id="typing-bubble-{fromId}" class="msg-wrap in typing-bubble">` with `.typing-dots` animated spans; scrolls to it; sets 3s auto-hide via `_typingHideTimer`
+- Idempotent: checks for existing `#typing-bubble-{fromId}` before inserting
+- `hideTypingBubble(fromId)`: removes `#typing-bubble-{fromId}` by id; clears `_typingHideTimer`
+- On incoming `message` from same user → `hideTypingBubble(fromId)` before appending real bubble
+- On `typing_stop` → `hideTypingBubble(fromId)`
+- On conversation switch → `hideTypingBubble(previous_conv_id)` in `openConversation()`
+- `#chatStatus` header element is NOT used for typing state
+
+**CSS (`.typing-bubble`, `.typing-dots`):**
+- Bubble uses existing `.msg-wrap.in` + `.msg.in` styles (received-message appearance)
+- `.typing-dots span` animated with `@keyframes tw-typing-dot` (bounce up/down, 0.9s, staggered)
 
 **Forbidden:**
+- ممنوع: show typing in `#chatStatus` header
 - ممنوع: save typing state to DB
 - ممنوع: send typing event per keystroke (must debounce)
 - ممنوع: show typing if receiver is not in that conversation
+- ممنوع: duplicate bubble (always check id before insert)
 
 ### Global Badge WebSocket
 
@@ -5103,7 +5114,7 @@ Three improvements shipped together: immediate read receipts, typing indicator, 
 
 ### Version Tracking
 
-Current version: `?v=v6` (bumped for realtime UX: read receipts, typing, global badge WS)
+Current version: `?v=v7` (bumped for in-chat typing bubble: replaced header indicator with animated dots bubble inside #messages)
 
 ---
 
