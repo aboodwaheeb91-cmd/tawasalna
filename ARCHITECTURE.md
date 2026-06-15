@@ -3580,6 +3580,34 @@ When `renderConvList()` rebuilds the list from DB, it checks if `_currentConvId`
 If not (new conversation not yet persisted), it inserts a placeholder item at top with `active` class.
 This prevents the active item from disappearing during the 30s polling refresh.
 
+### Composer Visibility Rules (`#chatInput`)
+
+| State | Composer |
+|-------|----------|
+| Page load, no conversation selected | `display:none` (hidden) |
+| `openConversation()` called | `display:''` (shown) |
+| Empty conversation ("ابدأ المحادثة") | **Shown** — empty state never hides composer |
+| Invalid `?with=` tw_id | Stays hidden (error state shown in `#messages`) |
+
+`openConversation()` is the only function that shows the composer. It must always call:
+```javascript
+document.getElementById('chatInput').style.display = '';
+```
+
+### Mobile Layout Contract
+
+```
+body / .layout  → height: 100dvh (fallback: 100vh) — prevents Chrome Android overflow
+.chat           → flex-column + min-height:0 + overflow:hidden — constrains to grid cell
+.messages       → flex:1 + min-height:0 — allows shrink so composer stays on-screen
+.chat-input     → flex-shrink:0 + padding-bottom: max(12px, env(safe-area-inset-bottom))
+```
+
+- `min-height:0` on `.messages` is mandatory — without it, the flex default `min-height:auto`
+  causes `.messages` to expand beyond its container, pushing `.chat-input` off-screen.
+- `100dvh` (dynamic viewport height) adjusts for the mobile browser chrome (address bar).
+  Older browsers fall back to `100vh` via the cascade (last declaration wins if `dvh` unknown).
+
 ### Known Debt
 
 | Ref | Debt | Severity |
@@ -3596,6 +3624,8 @@ This prevents the active item from disappearing during the 30s polling refresh.
 - ممنوع: حفظ محتوى الرسائل في localStorage
 - ممنوع: demo/static conversations أو messages في HTML
 - ممنوع: إضافة `conversations` table أو `conversation_id` لحين القرار المعماري
+- ممنوع: إظهار `#chatInput` إلا عبر `openConversation()` فقط
+- ممنوع: empty state يستبدل `.chat` كاملاً — يُعرض داخل `#messages` فقط
 
 ---
 
