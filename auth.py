@@ -1663,25 +1663,30 @@ def send_message(sender_id: int, receiver_id: int, content: str) -> dict:
         )
         cols = [c["name"] for c in conn.columns]
         msg = _serialize(_row_to_dict(cols, rows[0]))
-        # Create notification for receiver
-        create_notification(receiver_id, 'message', 'رسالة جديدة', content[:60], '/messages')
+        # Build deep-link so notification opens the correct conversation
+        sender_info = get_user_by_id(sender_id)
+        sender_tw_id = sender_info.get('tw_id', '') if sender_info else ''
+        notif_link = f'/messages?with={sender_tw_id}' if sender_tw_id else '/messages'
+        create_notification(receiver_id, 'message', 'رسالة جديدة', content[:60], notif_link)
         return msg
     finally:
         release_conn(conn)
 
 def get_conversations(user_id: int) -> list:
-    """Get all unique conversations for a user"""
+    """Get all unique conversations for a user, sorted by most recent message."""
     conn = get_conn()
     try:
         rows = conn.run(
+            "SELECT * FROM ("
             "SELECT DISTINCT ON (other_id) "
             "CASE WHEN sender_id=:uid THEN receiver_id ELSE sender_id END AS other_id, "
             "content, created_at, is_read, sender_id, "
-            "u.full_name, u.user_type "
+            "u.full_name, u.user_type, u.tw_id "
             "FROM messages m "
             "JOIN users u ON u.id = CASE WHEN m.sender_id=:uid THEN m.receiver_id ELSE m.sender_id END "
             "WHERE sender_id=:uid OR receiver_id=:uid "
-            "ORDER BY other_id, created_at DESC",
+            "ORDER BY other_id, created_at DESC"
+            ") sub ORDER BY created_at DESC",
             uid=user_id
         )
         cols = [c["name"] for c in conn.columns]
