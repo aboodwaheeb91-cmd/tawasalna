@@ -3616,6 +3616,53 @@ body / .layout  → height: 100dvh (fallback: 100vh) — prevents Chrome Android
 | P1 | `get_conversations` sorts by `other_id` not `created_at DESC` | High |
 | P2 | `create_notification()` in `send_message()` links to `/messages.html` (should be `/messages`) | Low |
 
+### Send Flow — HTTP Primary (V1 Step 3 fix)
+
+`doSendMessage()` now uses **HTTP as source of truth** for DB save:
+
+```
+1. disable send button
+2. clear input
+3. render pending bubble (opacity .6, time + ···)
+4. POST /messages/send (HTTP)
+   SUCCESS → opacity 1, ··· → ✓, loadConversations()
+   FAILURE → .msg-failed style, ··· → ✗, restore input text
+5. re-enable send button (always)
+```
+
+**Rules:**
+- ✓ is shown ONLY after HTTP 200 response — never before
+- HTTP failure shows ✗ with red tint on bubble; input text restored for retry
+- WebSocket is NOT used for sending — WS is receive-only (real-time push from server)
+- No `sender_id` in POST body — always from JWT
+
+**Why HTTP-only send?**
+The WS endpoint (`/ws/{user_id}`) also saves to DB. Sending via BOTH would create duplicates.
+The HTTP endpoint (`POST /messages/send`) is stateless, reliable, and returns DB confirmation.
+WS real-time delivery to receiver requires server.py changes (HTTP handler would need to call `ws_manager.send_to_user`) — deferred.
+
+### Receiver Delivery — Polling
+
+Since HTTP send does not trigger WS push to receiver, delivery relies on polling:
+
+```javascript
+setInterval(function() {
+  loadConversations();      // update sidebar preview
+  reloadMessagesQuiet();    // reload open conversation from DB
+}, 10000);                  // every 10 seconds
+```
+
+`reloadMessagesQuiet()` rules:
+- Only fires if `_currentConvId` is set
+- Compares `list.length` vs current `.msg-wrap` count — skips if no new messages
+- Preserves scroll position if user is not at bottom
+- Does NOT reset pending/failed bubbles mid-flight
+
+**Delivery guarantee:**
+- Sender: ✓ = confirmed in DB
+- Receiver: sees message within ≤10s if chat open, or on next `openConversation()` call
+- No message shown as delivered if DB save failed
+
 ### Forbidden Patterns (Messenger V1)
 
 - ممنوع: `innerHTML` injection without `esc()` first
@@ -3626,6 +3673,9 @@ body / .layout  → height: 100dvh (fallback: 100vh) — prevents Chrome Android
 - ممنوع: إضافة `conversations` table أو `conversation_id` لحين القرار المعماري
 - ممنوع: إظهار `#chatInput` إلا عبر `openConversation()` فقط
 - ممنوع: empty state يستبدل `.chat` كاملاً — يُعرض داخل `#messages` فقط
+- ممنوع: إرسال عبر WebSocket من `doSendMessage()` — WS للاستقبال فقط
+- ممنوع: إظهار ✓ قبل تأكيد HTTP 200 من `/messages/send`
+- ممنوع: `.catch(function(){})` على `apiSendMessage` بدون معالجة الفشل
 
 ---
 

@@ -174,28 +174,86 @@ function openConversation(otherId, name, typeIco) {
   });
 }
 
-// ── Send message — WS primary, HTTP fallback ──────────────────────────────
+// ── Send message — HTTP primary, WS receive only ──────────────────────────
+// HTTP is source of truth for DB save. ✓ shown ONLY after server confirms.
 
 function doSendMessage() {
   var input = document.getElementById('msgInput');
   var text  = input ? input.value.trim() : '';
   if (!text || !_currentConvId) return;
 
-  var sent = false;
-  if (_ws && _ws.readyState === WebSocket.OPEN) {
-    _ws.send(JSON.stringify({ receiver_id: _currentConvId, content: text }));
-    sent = true;
-  }
-  if (!sent) {
-    apiSendMessage(_currentConvId, text).catch(function() {});
-  }
+  var sendBtn = document.querySelector('.send-btn');
+  if (sendBtn) sendBtn.disabled = true;
 
-  var msgs = document.getElementById('messages');
-  var t    = new Date().toLocaleTimeString('ar', { hour: '2-digit', minute: '2-digit' });
-  msgs.insertAdjacentHTML('beforeend', renderBubble(true, text, t, '✓'));
+  var savedText = text;
   input.value = '';
   autoResize(input);
+
+  var pid = 'pm' + Date.now();
+  var msgs = document.getElementById('messages');
+  var t    = new Date().toLocaleTimeString('ar', { hour: '2-digit', minute: '2-digit' });
+
+  msgs.insertAdjacentHTML('beforeend',
+    '<div id="' + pid + '" class="msg-wrap out">'
+    + '<div class="msg out">'
+    + '<div class="msg-text" style="opacity:.6">' + esc(savedText) + '</div>'
+    + '<div class="msg-time">' + esc(t) + ' <span id="' + pid + 'st">•••</span></div>'
+    + '</div></div>'
+  );
   scrollDown();
+
+  apiSendMessage(_currentConvId, savedText)
+    .then(function() {
+      var el  = document.getElementById(pid);
+      var txt = el && el.querySelector('.msg-text');
+      var st  = document.getElementById(pid + 'st');
+      if (txt) txt.style.opacity = '';
+      if (st)  st.textContent = '✓';
+      loadConversations();
+    })
+    .catch(function() {
+      var el = document.getElementById(pid);
+      if (el) el.classList.add('msg-failed');
+      var st = document.getElementById(pid + 'st');
+      if (st) { st.textContent = '✗'; st.style.color = '#ef4444'; }
+      var inp = document.getElementById('msgInput');
+      if (inp) { inp.value = savedText; autoResize(inp); }
+    })
+    .finally(function() {
+      if (sendBtn) sendBtn.disabled = false;
+    });
+}
+
+// ── Silent message reload (receiver polling) ──────────────────────────────
+// Called on interval — only refreshes if DB has more messages than shown.
+// Preserves scroll position if user is not at bottom.
+
+function reloadMessagesQuiet() {
+  if (!_currentConvId) return;
+  apiGetMessages(_currentConvId).then(function(data) {
+    var list = data.messages || [];
+    var msgs = document.getElementById('messages');
+    if (!msgs) return;
+    var current = msgs.querySelectorAll('.msg-wrap').length;
+    if (list.length <= current) return;
+    var atBottom = (msgs.scrollHeight - msgs.scrollTop - msgs.clientHeight) < 80;
+    var lastDate = '';
+    msgs.innerHTML = list.map(function(msg) {
+      var isMe    = msg.sender_id === _user.id;
+      var d       = new Date(msg.created_at);
+      var t       = d.toLocaleTimeString('ar', { hour: '2-digit', minute: '2-digit' });
+      var dateStr = d.toLocaleDateString('ar', { weekday: 'long', month: 'short', day: 'numeric' });
+      var dateDiv = '';
+      if (dateStr !== lastDate) {
+        lastDate = dateStr;
+        dateDiv = '<div class="date-divider">' + esc(dateStr) + '</div>';
+      }
+      var readIcon = isMe ? (msg.is_read ? '✓✓' : '✓') : '';
+      return dateDiv + renderBubble(isMe, msg.content, t, readIcon);
+    }).join('');
+    if (atBottom) scrollDown();
+    loadUnreadCount();
+  }).catch(function() {});
 }
 
 // ── View conversation partner's profile ───────────────────────────────────
@@ -251,7 +309,10 @@ document.addEventListener('DOMContentLoaded', function() {
   }
   loadUnreadCount();
   connectWS();
+  // Poll every 10s: conversations list + active conversation messages.
+  // Required because HTTP send does not push to receiver via WS.
   setInterval(function() {
-    if (!_ws || _ws.readyState !== WebSocket.OPEN) loadConversations();
-  }, 30000);
+    loadConversations();
+    reloadMessagesQuiet();
+  }, 10000);
 });
