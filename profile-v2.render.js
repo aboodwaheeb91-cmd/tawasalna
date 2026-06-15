@@ -396,6 +396,9 @@ window._buildLocText = function(country, city, fallback){
 window.renderProfile = function renderProfile(res){
   var p = (res && res.profile) ? res.profile : {};
 
+  // Store viewer_action for Interest System (Step 3)
+  window._scViewerAction = (res && res.viewer_action) ? res.viewer_action : null;
+
   // viewer_type → body class (Doctrine §22, §23)
   var _vt = res.viewer_type || 'guest';
   document.body.classList.remove('view-owner', 'public-view', 'view-guest');
@@ -695,8 +698,69 @@ window.renderProfile = function renderProfile(res){
   // Action buttons — onclick overwrites safely on each re-render
   var contactBtn=document.getElementById('scContactBtn');
   if(contactBtn) contactBtn.onclick=function(){ window.location.href='/messages'; };
-  var fullBtn=document.getElementById('scFullBtn');
-  if(fullBtn) fullBtn.onclick=function(){ window.location.href='/profile?id='+encodeURIComponent(_scProfileId); };
+  // ── Profile Interest Button (replaces hardcoded /profile?id nav) ──
+  (function(){
+    var intBtn = document.getElementById('scFullBtn');
+    if(!intBtn) return;
+
+    var va = window._scViewerAction;
+
+    // hidden: owner viewing own profile OR target profile is not emp
+    if(!va || va.hidden){
+      intBtn.style.display = 'none';
+      return;
+    }
+    intBtn.style.display = '';
+
+    function _icon(active){ return active ? 'bookmark-check' : 'bookmark'; }
+
+    function _applyVa(v){
+      intBtn.innerHTML = '<i data-lucide="' + _icon(v.is_active) + '" class="ico-sm"></i> ' + esc(v.label);
+      if(v.is_active){
+        intBtn.classList.add('sc-btn--interested');
+        intBtn.classList.remove('sc-btn-ghost');
+      } else {
+        intBtn.classList.remove('sc-btn--interested');
+        intBtn.classList.add('sc-btn-ghost');
+      }
+      if(window.lucide && lucide.createIcons) lucide.createIcons();
+    }
+
+    _applyVa(va);
+
+    // Guest / login_prompt
+    if(va.type === 'login_prompt' || !va.can_interact){
+      intBtn.onclick = function(){
+        if(window.toast) toast('سجّل الدخول للتفاعل مع الملفات الشخصية');
+      };
+      return;
+    }
+
+    // Authenticated: POST / DELETE toggle
+    var _busy = false;
+    intBtn.onclick = function(){
+      if(_busy) return;
+      _busy = true;
+      intBtn.disabled = true;
+
+      var curVa    = window._scViewerAction;
+      var targetId = p.id;
+      var action   = (curVa && curVa.is_active) ? removeProfileInterest : saveProfileInterest;
+
+      action(targetId)
+        .then(function(r){
+          if(r.ok && r.data && r.data.viewer_action){
+            window._scViewerAction = r.data.viewer_action;
+            _applyVa(r.data.viewer_action);
+            if(window.toast) toast(r.data.viewer_action.is_active ? 'تم حفظ التفاعل' : 'تم إلغاء التفاعل');
+          } else {
+            if(window.toast) toast('حدث خطأ، حاول مرة أخرى');
+          }
+        })
+        .catch(function(){ if(window.toast) toast('خطأ في الاتصال'); })
+        .finally(function(){ _busy = false; intBtn.disabled = false; });
+    };
+  })();
 
   // Reveal
   var ld=document.getElementById('scLoading');

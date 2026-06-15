@@ -222,6 +222,14 @@
 }
 .sc-btn--following:hover { background:rgba(0,200,150,.18); }
 .sc-btn--following:disabled { opacity:.6; cursor:not-allowed; }
+.sc-btn--interested {
+  padding:0 18px;
+  background:rgba(37,99,255,.12);
+  color:#7eaaff;
+  border:1px solid rgba(37,99,255,.35);
+}
+.sc-btn--interested:hover { background:rgba(37,99,255,.2); }
+.sc-btn--interested:disabled { opacity:.6; cursor:not-allowed; }
 
 /* Follow button: hidden for real owner, shown in preview */
 body.view-owner #scFollowBtn { display:none; }

@@ -104,6 +104,23 @@ function unfollowProfile(userId){
 window.followProfile   = followProfile;
 window.unfollowProfile = unfollowProfile;
 
+function saveProfileInterest(profileId){
+  return fetch('/profile/' + profileId + '/interest', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (_jwt || '') }
+  }).then(function(r){ return r.json().then(function(d){ return {ok: r.ok, status: r.status, data: d}; }); });
+}
+
+function removeProfileInterest(profileId){
+  return fetch('/profile/' + profileId + '/interest', {
+    method: 'DELETE',
+    headers: { 'Authorization': 'Bearer ' + (_jwt || '') }
+  }).then(function(r){ return r.json().then(function(d){ return {ok: r.ok, status: r.status, data: d}; }); });
+}
+
+window.saveProfileInterest   = saveProfileInterest;
+window.removeProfileInterest = removeProfileInterest;
+
 // ── Section CRUD helpers (Education, Courses, Skills, Languages, Links) ──
 
 function _scApiCall(method, path, body){
