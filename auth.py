@@ -1660,6 +1660,18 @@ def get_all_kyc_submissions() -> list:
 
 # ══ Messages System ══
 
+def mark_message_read_immediate(msg_id: int):
+    """Mark a message as read immediately when receiver has the conversation open."""
+    conn = get_conn()
+    try:
+        conn.run(
+            "UPDATE messages SET is_read=TRUE, read_at=NOW(), "
+            "delivered_at=COALESCE(delivered_at, NOW()) WHERE id=:id",
+            id=msg_id
+        )
+    finally:
+        release_conn(conn)
+
 def send_message(sender_id: int, receiver_id: int, content: str) -> dict:
     conn = get_conn()
     try:

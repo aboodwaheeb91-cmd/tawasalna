@@ -8,6 +8,9 @@ var _currentConvId  = null; // numeric user id of open conversation partner
 var _activeConvMeta = null; // {id, name, typeIco} — survives conv-list refresh
 var _pendingStatus  = {};   // {msg_id → 'delivered'|'read'} for WS events arriving before HTTP ack
 
+var _typingTimer     = null;  // debounce: send typing_stop after idle
+var _typingHideTimer = null;  // auto-hide typing indicator after 3s
+
 function esc(s) {
   return String(s == null ? '' : s)
     .replace(/&/g, '&amp;')

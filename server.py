@@ -64,6 +64,7 @@ from auth import (
     send_phone_code, verify_phone_code, upload_kyc_docs,
     get_kyc_status, admin_approve_kyc, admin_reject_kyc, get_all_kyc_submissions, ensure_site_settings_table, ensure_reports_table,
     send_message, mark_message_delivered, get_conversations, get_messages, get_unread_count,
+    mark_message_read_immediate,
     create_notification, get_notifications, mark_notifications_read, get_unread_notifications,
     get_job_applicants, get_user_applications,
     update_application_status, delete_job,
@@ -814,6 +815,7 @@ from typing import Dict
 class ConnectionManager:
     def __init__(self):
         self.active: Dict[int, list] = {}
+        self.active_conversations: Dict[int, int] = {}
 
     async def connect(self, user_id: int, ws: WebSocket):
         await ws.accept()
@@ -824,6 +826,8 @@ class ConnectionManager:
     def disconnect(self, user_id: int, ws: WebSocket):
         if user_id in self.active:
             self.active[user_id] = [w for w in self.active[user_id] if w != ws]
+            if not self.active[user_id]:
+                self.active_conversations.pop(user_id, None)
 
     async def send_to_user(self, user_id: int, data: dict) -> bool:
         import json
@@ -852,25 +856,46 @@ async def websocket_endpoint(websocket: WebSocket, user_id: int):
             import json
             try:
                 msg = json.loads(data)
-                receiver_id = msg.get("receiver_id")
-                content = msg.get("content","")
-                if receiver_id and content:
-                    # Save to DB
-                    saved = send_message(user_id, receiver_id, content)
-                    msg_id = saved.get("id")
-                    # Send to receiver if online; mark delivered if so
-                    was_delivered = await ws_manager.send_to_user(receiver_id, {
-                        "type": "message",
-                        "from": user_id,
-                        "id": msg_id,
-                        "content": content,
-                        "created_at": saved.get("created_at","")
-                    })
-                    if was_delivered:
-                        mark_message_delivered(msg_id)
-                        await websocket.send_text(json.dumps({"type": "status_update", "id": msg_id, "status": "delivered"}))
-                    # Confirm to sender (sent state)
-                    await websocket.send_text(json.dumps({"type": "sent", "id": msg_id}))
+                msg_type = msg.get("type", "")
+
+                if msg_type == "active_conversation":
+                    other_id = msg.get("other_id")
+                    if other_id:
+                        ws_manager.active_conversations[user_id] = int(other_id)
+
+                elif msg_type == "inactive_conversation":
+                    ws_manager.active_conversations.pop(user_id, None)
+
+                elif msg_type == "typing":
+                    to_id = msg.get("to_user_id")
+                    if to_id:
+                        await ws_manager.send_to_user(int(to_id), {"type": "typing", "from_user_id": user_id})
+
+                elif msg_type == "typing_stop":
+                    to_id = msg.get("to_user_id")
+                    if to_id:
+                        await ws_manager.send_to_user(int(to_id), {"type": "typing_stop", "from_user_id": user_id})
+
+                else:
+                    # Legacy WS send path (HTTP is primary)
+                    receiver_id = msg.get("receiver_id")
+                    content = msg.get("content", "")
+                    if receiver_id and content:
+                        saved = send_message(user_id, receiver_id, content)
+                        msg_id = saved.get("id")
+                        receiver_has_conv_open = ws_manager.active_conversations.get(receiver_id) == user_id
+                        if receiver_has_conv_open:
+                            mark_message_read_immediate(msg_id)
+                            await ws_manager.send_to_user(receiver_id, {"type": "message", "from": user_id, "id": msg_id, "content": content, "created_at": saved.get("created_at", ""), "is_read": True})
+                            await websocket.send_text(json.dumps({"type": "status_update", "id": msg_id, "status": "read"}))
+                        else:
+                            was_delivered = await ws_manager.send_to_user(receiver_id, {"type": "message", "from": user_id, "id": msg_id, "content": content, "created_at": saved.get("created_at", "")})
+                            if was_delivered:
+                                mark_message_delivered(msg_id)
+                                await websocket.send_text(json.dumps({"type": "status_update", "id": msg_id, "status": "delivered"}))
+                        await websocket.send_text(json.dumps({"type": "sent", "id": msg_id}))
+                        unread = get_unread_count(receiver_id)
+                        await ws_manager.send_to_user(receiver_id, {"type": "badge_update", "badge": "messages", "count": unread})
             except Exception as e:
                 print(f"[WS] Error: {e}")
     except WebSocketDisconnect:
@@ -1998,22 +2023,36 @@ async def send_msg(data: MessageInput, token=Depends(verify_token)):
         msg = send_message(sender_id, data.receiver_id, data.content)
         msg_id = msg["id"]
 
-        # Push to receiver via WS; if delivered mark DB + notify sender
-        was_delivered = await ws_manager.send_to_user(data.receiver_id, {
-            "type": "message",
-            "from": sender_id,
-            "id": msg_id,
-            "content": data.content,
-            "created_at": msg.get("created_at", "")
-        })
-        if was_delivered:
-            mark_message_delivered(msg_id)
+        receiver_has_conv_open = ws_manager.active_conversations.get(data.receiver_id) == sender_id
+
+        if receiver_has_conv_open:
+            mark_message_read_immediate(msg_id)
             msg["delivered_at"] = True
-            await ws_manager.send_to_user(sender_id, {
-                "type": "status_update",
-                "id": msg_id,
-                "status": "delivered"
+            msg["read_at"] = True
+            await ws_manager.send_to_user(data.receiver_id, {
+                "type": "message", "from": sender_id, "id": msg_id,
+                "content": data.content, "created_at": msg.get("created_at", ""), "is_read": True
             })
+            await ws_manager.send_to_user(sender_id, {
+                "type": "status_update", "id": msg_id, "status": "read"
+            })
+        else:
+            was_delivered = await ws_manager.send_to_user(data.receiver_id, {
+                "type": "message", "from": sender_id, "id": msg_id,
+                "content": data.content, "created_at": msg.get("created_at", "")
+            })
+            if was_delivered:
+                mark_message_delivered(msg_id)
+                msg["delivered_at"] = True
+                await ws_manager.send_to_user(sender_id, {
+                    "type": "status_update", "id": msg_id, "status": "delivered"
+                })
+
+        # Always send badge_update to receiver
+        unread = get_unread_count(data.receiver_id)
+        await ws_manager.send_to_user(data.receiver_id, {
+            "type": "badge_update", "badge": "messages", "count": unread
+        })
 
         return {"status": "success", "message": msg}
     except HTTPException:
