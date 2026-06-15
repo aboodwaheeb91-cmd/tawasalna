@@ -30,19 +30,26 @@ function sendTypingStop(toUserId) {
     _ws.send(JSON.stringify({type: 'typing_stop', to_user_id: toUserId}));
 }
 
-// ── Typing indicator UI ───────────────────────────────────────────────────
+// ── Typing bubble (in-chat) ───────────────────────────────────────────────
 
-function showTypingIndicator() {
-  var st = document.getElementById('chatStatus');
-  if (st) st.textContent = 'يكتب الآن...';
+function showTypingBubble(fromId) {
+  var msgs = document.getElementById('messages');
+  if (!msgs || document.getElementById('typing-bubble-' + fromId)) return;
+  msgs.insertAdjacentHTML('beforeend',
+    '<div id="typing-bubble-' + fromId + '" class="msg-wrap in typing-bubble">'
+    + '<div class="msg in"><div class="msg-text typing-dots">'
+    + '<span></span><span></span><span></span>'
+    + '</div></div></div>'
+  );
+  scrollDown();
   if (_typingHideTimer) clearTimeout(_typingHideTimer);
-  _typingHideTimer = setTimeout(hideTypingIndicator, 3000);
+  _typingHideTimer = setTimeout(function() { hideTypingBubble(fromId); }, 3000);
 }
 
-function hideTypingIndicator() {
+function hideTypingBubble(fromId) {
   if (_typingHideTimer) { clearTimeout(_typingHideTimer); _typingHideTimer = null; }
-  var st = document.getElementById('chatStatus');
-  if (st) st.textContent = '';
+  var el = document.getElementById('typing-bubble-' + fromId);
+  if (el) el.remove();
 }
 
 // ── Status update helper ──────────────────────────────────────────────────
@@ -114,7 +121,7 @@ function connectWS() {
             + '</div></div>'
           );
           scrollDown();
-          hideTypingIndicator();
+          hideTypingBubble(fromId);
         }
 
         if (data.type === 'message') {
@@ -126,11 +133,11 @@ function connectWS() {
         }
 
         if (data.type === 'typing' && fromId === convId) {
-          showTypingIndicator();
+          showTypingBubble(fromId);
         }
 
         if (data.type === 'typing_stop' && fromId === convId) {
-          hideTypingIndicator();
+          hideTypingBubble(fromId);
         }
 
         if (data.type === 'badge_update' && data.badge === 'messages') {
