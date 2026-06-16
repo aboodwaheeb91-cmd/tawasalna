@@ -31,6 +31,18 @@
    stays visually balanced with the icon group on the other side of the
    centered logo regardless of which side of the header it sits on. */
 .sc-hicon-bare { width:auto; height:auto; padding:4px; background:none !important; border:none !important; }
+/* Home button — deliberately NOT icon-sized like the rest of the header
+   (it's the most important nav action) and NOT the old oversized text pill
+   either: a medium circular button, slightly larger than the other ghost
+   icons, with a brand-identity gradient so it stays visually anchored. */
+.sc-home-btn {
+  width:34px; height:34px; border-radius:50%; flex-shrink:0;
+  background:linear-gradient(135deg,#00c896,#00b8c4,#2563ff);
+  box-shadow:0 2px 10px rgba(0,184,196,.35);
+  color:#06121c;
+}
+.sc-home-btn .ico { width:18px; height:18px; }
+.sc-home-btn:active { transform:scale(.94); }
 .sc-head-icons { display:flex; align-items:center; gap:8px; }
 .sc-head-icons .ico { width:20px; height:20px; }
 .sc-hgroup { display:flex; align-items:center; gap:10px; }
@@ -38,6 +50,34 @@
 .sc-logo-fallback { font-weight:800; font-size:1rem; letter-spacing:-.3px;
   background:linear-gradient(135deg,var(--ac,#00c896),var(--ac2,#2563ff));
   -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
+
+/* ── Header ☰ menu dropdown — shared "Global Header Menu" contract; see
+   ARCHITECTURE.md. Same visual pattern as messages.css' copy (the two
+   pages don't share a stylesheet, so the rules are duplicated, not
+   imported — there's no build step to dedupe them). ── */
+.sc-menu-wrap { position:relative; }
+.sc-menu-dropdown {
+  display:none; position:absolute; top:calc(100% + 8px); left:0; min-width:180px;
+  background:rgba(10,14,24,.95); border:1px solid rgba(255,255,255,.13);
+  border-radius:13px; padding:5px; z-index:200;
+  backdrop-filter:blur(18px); -webkit-backdrop-filter:blur(18px);
+  box-shadow:0 10px 30px rgba(0,0,0,.45);
+}
+.sc-menu-dropdown.open { display:block; }
+.sc-menu-item {
+  display:flex; align-items:center; gap:9px; width:100%;
+  padding:9px 12px; border:none; background:none;
+  color:var(--t1,#fff); font-family:inherit; font-size:12px; font-weight:600;
+  border-radius:8px; cursor:pointer; text-align:right;
+  transition:background .15s;
+}
+.sc-menu-item:hover { background:rgba(255,255,255,.07); }
+.sc-menu-item .sc-svg-icon-sm { width:14px; height:14px; flex-shrink:0; color:var(--ac,#00c896); }
+.sc-menu-item.current { background:rgba(255,255,255,.05); color:var(--t2,rgba(255,255,255,.5)); cursor:default; }
+.sc-menu-item.current .sc-svg-icon-sm { color:var(--t2,rgba(255,255,255,.5)); }
+.sc-menu-item.danger { color:#f87171; }
+.sc-menu-item.danger .sc-svg-icon-sm { color:#f87171; }
+.sc-menu-item.danger:hover { background:rgba(248,113,113,.1); }
 
 /* ── Main wrap ── */
 .sc-wrap { max-width:600px; margin:0 auto; padding:8px 16px 16px; }

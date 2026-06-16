@@ -4,13 +4,21 @@
 // ── Header button wiring (once at load) ──
 (function(){
   var homeBtn=document.getElementById('scHomeBtn');
-  if(homeBtn) homeBtn.onclick=function(){ window.location.href='/home'; };
+  if(homeBtn) homeBtn.onclick=function(){ window.location.href=typeof twHomeHref==='function' ? twHomeHref() : '/home'; };
   var bellBtn=document.getElementById('scBellBtn');
   if(bellBtn) bellBtn.onclick=function(){ window.location.href='/notifications'; };
   var msgBtn=document.getElementById('scMsgBtn');
   if(msgBtn) msgBtn.onclick=function(){ window.location.href='/messages'; };
-  var menuBtn=document.getElementById('scMenuBtn');
-  if(menuBtn) menuBtn.onclick=function(){ history.back(); };
+
+  // Global Header Menu (shared, tw_shared.js) — see ARCHITECTURE.md "Global
+  // Header Menu Contract". Only mark "الملف الشخصي" as the current/disabled
+  // page when the viewer IS the owner — this page also renders OTHER
+  // people's profiles, where it must stay a normal link back to one's own.
+  if (typeof initGlobalHeaderMenu === 'function') {
+    initGlobalHeaderMenu('scMenuBtn', 'scMenuDropdown', function(){
+      return window._scViewerType === 'owner' ? 'profile' : null;
+    });
+  }
 
   // Load unread counts into data-badge spans (guest-safe — loadGlobalBadges checks jwt)
   if(typeof loadGlobalBadges === 'function') loadGlobalBadges();

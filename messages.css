@@ -30,6 +30,18 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;height:1
    its padding+icon rather than the fixed 34px box above, so it stays
    visually consistent with the rest of the header on both sides. */
 .sc-hicon-bare{width:auto;height:auto;padding:4px;background:none!important;border:none!important;}
+/* Home button — deliberately NOT icon-sized like the rest of the header
+   (it's the most important nav action) and NOT the old oversized text pill
+   either: a medium circular button, slightly larger than the other ghost
+   icons, with a brand-identity gradient so it stays visually anchored. */
+.sc-home-btn{
+  width:34px;height:34px;border-radius:50%;flex-shrink:0;
+  background:linear-gradient(135deg,#00c896,#00b8c4,#2563ff);
+  box-shadow:0 2px 10px rgba(0,184,196,.35);
+  color:#06121c;
+}
+.sc-home-btn .sc-svg-icon{width:18px;height:18px;}
+.sc-home-btn:active{transform:scale(.94);}
 
 /* ── Header icons — inline local SVG (no external icon CDN) ── */
 .sc-svg-icon{width:20px;height:20px;flex-shrink:0;}
@@ -54,6 +66,13 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;height:1
 }
 .sc-menu-item:hover{background:rgba(255,255,255,.07);}
 .sc-menu-item .sc-svg-icon-sm{color:var(--ac,#00c896);}
+/* Current page — shown so the list stays complete/predictable, but not a
+   clickable link to itself (rendered as a <div>, not an <a>/<button>). */
+.sc-menu-item.current{background:rgba(255,255,255,.05);color:var(--t2,rgba(255,255,255,.5));cursor:default;}
+.sc-menu-item.current .sc-svg-icon-sm{color:var(--t2,rgba(255,255,255,.5));}
+.sc-menu-item.danger{color:#f87171;}
+.sc-menu-item.danger .sc-svg-icon-sm{color:#f87171;}
+.sc-menu-item.danger:hover{background:rgba(248,113,113,.1);}
 
 /* ── Layout ── */
 .layout{display:grid;grid-template-columns:300px 1fr;height:calc(100vh - 42px);height:calc(100dvh - 42px);margin-top:42px;}

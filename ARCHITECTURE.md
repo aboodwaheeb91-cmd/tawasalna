@@ -5723,6 +5723,184 @@ header center on both pages.
   `profile-v2.css` `?v=cards-v1` → `?v=header-v2` (only the CSS changed,
   so only its query param moved — the JS files are untouched).
 
+### Home Button Reversal — Icon-Only Ghost → Medium Brand-Gradient Circle
+
+**Supersedes the previous section ("Pill → Icon-Only Ghost Button") —
+explicit user correction.** Making the home button exactly the same size
+as the other ghost icons (~28px) was reported as wrong: "زر الرئيسية مهم
+جداً، لذلك لا أريده صغيراً مثل باقي الأيقونات تماماً" (the home button
+matters too much to be that small) — but the original oversized green text
+pill (`.sc-home-pill`, removed in the previous section) is *also*
+explicitly ruled out: "لا يرجع كبير مثل زر الرئيسية القديم... لا يكون pill
+طويل".
+
+**Fix — new `.sc-home-btn` class**, applied on top of the existing
+`.sc-hicon` base (replacing `.sc-hicon-bare` on the home button only; every
+other header icon keeps `.sc-hicon-bare` unchanged):
+```css
+.sc-home-btn{
+  width:34px;height:34px;border-radius:50%;flex-shrink:0;
+  background:linear-gradient(135deg,#00c896,#00b8c4,#2563ff);
+  box-shadow:0 2px 10px rgba(0,184,196,.35);
+  color:#06121c;
+}
+```
+- **34×34px, circular** — between the 28px ghost icons and the old pill;
+  matches `.sc-hicon`'s original (pre-ghost) box size, just restored and
+  made circular instead of the `border-radius:10px` square.
+- **Cyan/teal/blue brand gradient** (`--ac`→`--ac3`-ish/`--ac2` literal hex,
+  hardcoded since `--ac3` only exists in `messages.css`, not
+  `profile-v2.css` — see root-vars note above) instead of a flat fill, per
+  "يكون فيه gradient خفيف cyan/teal/blue".
+- **Icon-only, no label** on both pages — `title="الرئيسية"` only, exactly
+  as before. Logo stays mathematically centered (`.sc-logo`'s
+  `position:absolute;left:50%` is unaffected by sibling width either way).
+- **Route/click logic untouched** — same `onclick="goMessengerHome()"` /
+  `id="scHomeBtn"` + `profile-v2.render.js` wiring as before (now reading
+  `twHomeHref()`, see next section).
+- **Files changed:** `messages.html`, `messages.css`, `profile-showcase.html`,
+  `profile-v2.css`, `profile-v2.render.js`. No backend/WebSocket/send-pipeline
+  changes.
+
+### Global Header Menu Contract
+
+**The ☰ button's dropdown on every page built on the shared `.sc-header`
+(currently `messages.html` and `profile-showcase.html`) is now one unified
+menu, owned by `tw_shared.js` — not a per-page hardcoded list.** Any future
+page adopting `.sc-header` should wire its ☰ button into this menu instead
+of building its own dropdown markup/logic.
+
+#### Pre-implementation audit (as requested before this pass)
+
+- **Existing similar menu?** Yes — `messages.css`/`messages.html` already
+  had a working `.sc-menu-wrap`/`.sc-menu-dropdown`/`.sc-menu-item`
+  open/close/outside-click pattern, but with a **static, hardcoded
+  4-item list** (الرئيسية / الملف الشخصي / الإشعارات / الإعدادات), wired
+  by a page-local `toggleHeaderMenu()` in `messages.render.js`.
+  `profile-showcase.html` had **no dropdown at all** — its ☰ button just
+  called `history.back()`.
+- **Copy or share?** Built one shared function (`initGlobalHeaderMenu` in
+  `tw_shared.js`) rather than copying the 4-item markup a second time —
+  the whole point of "قائمة موحدة" is a single source of truth for the
+  item list, icons, and the current-page/disabled rule.
+- **Pages using `.sc-header`:** confirmed via `grep -rn "sc-header"
+  --include="*.html"` — only `messages.html` and `profile-showcase.html`.
+- **Per-account-type links:** home → `/home` (emp) / `/company` (co) /
+  `/edu` (edu), now centralized in `twHomeHref(u)`; profile → `/u/{tw_id}`
+  (falls back to `/profile` if no `tw_id`); messages → `/messages`;
+  notifications → `/notifications`; settings → `/settings`.
+- **Existing logout:** none shared — duplicated ad hoc per page
+  (`home.html`, `company.html`, `edu.html`, `profile.html`,
+  `edu-profile.html`, `company-profile.js`), all just
+  `localStorage.removeItem('tw_user'); location.href='/';` — none cleared
+  `tw_jwt`. New shared `twLogout()` clears both.
+- **Existing copy/share-profile:** `messages.render.js`'s
+  `copyConvProfileLink()` and `profile-v2.qr.js`'s `_qrCopyLink`/`_qrShare`
+  both operate on the profile **currently being viewed**, not necessarily
+  the logged-in user's own — wrong semantics for a global "share my
+  profile" menu item, so new dedicated `twCopyProfileLink()`/
+  `twShareProfile()` were added instead, built around `getTwUser().tw_id`.
+
+#### New shared functions — `tw_shared.js`
+
+| Function | Purpose |
+|---|---|
+| `getTwUser()` | Parses `localStorage.tw_user`, returns `null` if absent/invalid. |
+| `twHomeHref(u?)` | Single source of truth for the type-aware home route (`/home`\|`/company`\|`/edu`). Replaces the duplicated logic previously inline in `goMessengerHome()` and hardcoded to `/home` in `profile-v2.render.js` (a latent bug for co/edu accounts, now fixed as a side effect). |
+| `twLogout()` | Clears `tw_user` **and** `tw_jwt`, redirects to `/`. |
+| `twOwnProfileUrl()` | `origin + '/u/' + tw_id` for the logged-in user, or `null` if logged out. |
+| `twCopyProfileLink()` | Clipboard-copies the above, with a toast. |
+| `twShareProfile()` | `navigator.share()` if available, else falls back to `twCopyProfileLink()`. |
+| `initGlobalHeaderMenu(btnId, ddId, currentPage)` | Wires one page's `#btnId` (toggle) + `#ddId` (`.sc-menu-dropdown`, must be inside a `.sc-menu-wrap`). Renders the item list fresh on every open. `currentPage` is `'messages'` \| `'profile'` \| `null`/anything-else, **or a function returning one** — needed by `profile-showcase.html`, which renders both the owner's own profile and other people's profiles; ownership (`window._scViewerType`) is only known after profile data loads, so it must be read lazily at open-time, not once at page-load. |
+
+#### Canonical 8-item list (`_twHeaderMenuItems`, `tw_shared.js`)
+
+1. الرئيسية → `twHomeHref()`
+2. الملف الشخصي → `/u/{tw_id}` — **disabled/current** when `currentPage==='profile'`
+3. الرسائل → `/messages` — **disabled/current** when `currentPage==='messages'`
+4. الإشعارات → `/notifications`
+5. الإعدادات → `/settings`
+6. مشاركة الملف الشخصي → `action: twShareProfile`
+7. نسخ رابط الملف → `action: twCopyProfileLink`
+8. تسجيل الخروج → `action: twLogout` (styled `.danger`, red)
+
+A "current" item renders as a plain `<div class="sc-menu-item current" aria-current="page">` (not a link/button — not clickable, not focusable), so the current page never appears as a duplicate, clickable nav target inside its own menu, per "لا تكرر نفس الصفحة الحالية كزر عادي".
+
+#### Markup contract for a host page
+
+```html
+<div class="sc-menu-wrap" id="scMenuWrap">
+  <button class="sc-hicon sc-hicon-bare" id="scMenuBtn" title="القائمة">...</button>
+  <div class="sc-menu-dropdown" id="scMenuDropdown"></div>
+</div>
+```
+The dropdown starts **empty** — `initGlobalHeaderMenu()` populates it on
+first open. `messages.html` previously had its 4 static items here, all
+removed. `profile-showcase.html` previously had no `.sc-menu-wrap`/
+dropdown at all; both were added from scratch around its existing `☰`
+button.
+
+```js
+// messages.render.js
+if (typeof initGlobalHeaderMenu === 'function') {
+  initGlobalHeaderMenu('scMenuBtn', 'scMenuDropdown', 'messages');
+}
+
+// profile-v2.render.js
+if (typeof initGlobalHeaderMenu === 'function') {
+  initGlobalHeaderMenu('scMenuBtn', 'scMenuDropdown', function(){
+    return window._scViewerType === 'owner' ? 'profile' : null;
+  });
+}
+```
+
+#### Preserving messenger WS cleanup through the shared menu
+
+`goMessengerHome()`/`goMessengerProfile()` (the **dedicated** home/profile
+header buttons, unchanged) call `sendInactiveConversation(_currentConvId)`
+before navigating away from an open conversation. The shared menu's items
+are plain `<a href>` tags owned by `tw_shared.js`, which has no knowledge
+of `_currentConvId` or the WS layer — so `initGlobalHeaderMenu()` calls an
+optional page-defined hook, `window.twBeforeHeaderNav(key)`, synchronously
+right before any menu link navigates. `messages.render.js` defines it:
+```js
+window.twBeforeHeaderNav = function(){
+  if (_currentConvId) sendInactiveConversation(_currentConvId);
+};
+```
+This runs the same cleanup for **every** shared-menu navigation away from
+`/messages` (home/profile/notifications/settings), not just the two routes
+that already had it — a strict improvement, not a behavior change to the
+WS protocol or send pipeline itself. `profile-showcase.html` defines no
+such hook (nothing to clean up there).
+
+#### Visual rules implemented
+
+- Dark premium dropdown: `rgba(10,14,24,.95)` + `blur(18px)` + 1px
+  translucent border — unchanged from the pre-existing `messages.css`
+  pattern, copied (not imported — no shared stylesheet) into `profile-v2.css`.
+- Inline local SVG icons only (`stroke="currentColor"`, hand-drawn paths,
+  same convention as the rest of `.sc-header`) — **no emoji, no icon CDN**
+  for any menu item, including the new share/copy-link/logout icons.
+- `.sc-menu-item.current` — dimmed (`--t2`), non-interactive (`cursor:default`).
+- `.sc-menu-item.danger` (logout) — red text/icon, red-tinted hover.
+- Outside-click and item-click both close the dropdown (delegated
+  listeners on `document` and on `dd` itself).
+- No horizontal overflow: `min-width:180px`, dropdown anchored `left:0`
+  under the ☰ button, same as the pre-existing pattern — not widened.
+- No bottom nav added.
+
+#### Forbidden (still enforced)
+
+No changes to `server.py`, `auth.py`, the messages WebSocket protocol, or
+the send pipeline — confirmed via `git diff --stat` (only `tw_shared.js`,
+`messages.html`, `messages.css`, `messages.render.js`,
+`profile-showcase.html`, `profile-v2.css`, `profile-v2.render.js`,
+`ARCHITECTURE.md` touched).
+
+- **Version bump:** `messages.css`/`messages.*.js` `v=v20` → `v=v21`;
+  `profile-v2.css` `?v=header-v2` → `?v=header-v3`.
+
 ### Messenger Identity Display Contract
 
 **Binding for all future work on how `messages.html` shows the other party
