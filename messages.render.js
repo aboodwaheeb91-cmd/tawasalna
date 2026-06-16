@@ -27,6 +27,69 @@ function formatConvTime(iso) {
   catch (e) { return ''; }
 }
 
+// ── Online row (presence) ───────────────────────────────────────────────
+// No client-accessible "who is online" signal exists anywhere in the
+// backend today (see ARCHITECTURE.md). This renders a structurally-ready
+// row — real avatar/name/type-badge — if presence data is ever supplied;
+// otherwise it leaves the honest empty state already in the markup.
+function renderOnlineRow(users) {
+  var wrap = document.getElementById('onlineRowItems');
+  if (!wrap) return;
+  if (!users || !users.length) {
+    wrap.innerHTML = '<div class="online-empty">لا يوجد متصلون حالياً</div>';
+    return;
+  }
+  wrap.innerHTML = users.map(function(u) {
+    var type = u.user_type || 'emp';
+    var shortName = String(u.full_name || '').trim().split(' ')[0] || 'مستخدم';
+    return '<div class="online-item" data-uid="' + u.id + '">'
+      + '<div class="online-ava-wrap"><div class="online-ava ' + typeInfo(type).cls + '">'
+      + avatarHtml(u.full_name, u.avatar_url) + '</div>'
+      + '<span class="online-dot"></span>'
+      + typeBadgeHtml(type, 'online-type-badge') + '</div>'
+      + '<span class="online-name">' + esc(shortName) + '</span>'
+      + '</div>';
+  }).join('');
+}
+
+// ── Conversation list filter/search (client-side, DOM-only) ──────────────
+var _convFilterMode  = 'all';
+var _convSearchTerm  = '';
+
+function applyConvFilter(mode) {
+  _convFilterMode = mode || 'all';
+  var term = _convSearchTerm.toLowerCase();
+  document.querySelectorAll('.conv-item').forEach(function(el) {
+    var matchesFilter = _convFilterMode !== 'unread' || !!el.querySelector('.ci-badge');
+    var nameEl = el.querySelector('.ci-name');
+    var prevEl = el.querySelector('.ci-preview');
+    var text = ((nameEl ? nameEl.textContent : '') + ' ' + (prevEl ? prevEl.textContent : '')).toLowerCase();
+    var matchesSearch = !term || text.indexOf(term) !== -1;
+    el.style.display = (matchesFilter && matchesSearch) ? '' : 'none';
+  });
+}
+
+function initConvFilters() {
+  var box = document.getElementById('convFilters');
+  if (!box) return;
+  box.querySelectorAll('.cf-chip').forEach(function(chip) {
+    chip.addEventListener('click', function() {
+      box.querySelectorAll('.cf-chip').forEach(function(c) { c.classList.remove('active'); });
+      chip.classList.add('active');
+      applyConvFilter(chip.getAttribute('data-filter'));
+    });
+  });
+}
+
+function initConvSearch() {
+  var input = document.getElementById('convSearch');
+  if (!input) return;
+  input.addEventListener('input', function() {
+    _convSearchTerm = input.value.trim();
+    applyConvFilter(_convFilterMode);
+  });
+}
+
 // ── Helpers ──────────────────────────────────────────────────────────────
 
 function scrollDown() {
@@ -128,6 +191,8 @@ function renderConvList(convs) {
     var avatarUrl = el.getAttribute('data-avatar') || '';
     el.addEventListener('click', function() { openConversation(uid, name, type, avatarUrl); });
   });
+
+  applyConvFilter(_convFilterMode);
 }
 
 function loadConversations() {
@@ -435,6 +500,8 @@ document.addEventListener('DOMContentLoaded', function() {
     loadConversations();
   }
   loadUnreadCount();
+  initConvFilters();
+  initConvSearch();
   connectWS();
   // Poll every 10s: conversations list + active conversation messages.
   // Required because HTTP send does not push to receiver via WS.

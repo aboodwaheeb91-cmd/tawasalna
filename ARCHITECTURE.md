@@ -5434,3 +5434,67 @@ Added pure-presentation helpers — `typeInfo()`, `avatarHtml()`, `typeBadgeHtml
 (previously `(otherId, name, typeIco)`) to carry `user_type`/`avatar_url` through to
 the chat header. No new HTTP calls, no new WebSocket messages, no change to
 `doSendMessage()`, `renderMessageStatus()`, `showTypingBubble()`, or the debug panel.
+
+### Reference-inspired redesign pass (header / search+filters / online row)
+
+A third pass restructured `messages.html`/`messages.css` (plus small additive
+helpers in `messages.render.js`) to match the feel of a reference messenger
+screenshot supplied by the product owner — **without copying it literally and
+without adding the bottom navigation bar shown in that reference** (a unified
+bottom nav for the whole site is planned separately and explicitly out of
+scope here). Cache-busting bumped to `?v=v11` on `messages.css` and all 5 JS
+files.
+
+| Area | Before | After |
+|------|--------|-------|
+| Header | `.nb` back button + `.nav-title` span + logo pinned to the edge via `margin-left:auto` | Back button + centered `.nav-brand` (logo + "الرسائل" title + "تواصل احترافي يبني الفرص" subtitle) + a `.nav-spacer` matching the back button's width so the brand block is visually centered. Height `56px → 60px` (still compact, two short lines) |
+| Search | Single `.conv-search` input, no filters | `.conv-toolbar` wraps a pill search input (placeholder "ابحث في الرسائل أو الأشخاص...") with an inline 🔍 icon, plus two filter chips (`.cf-chip[data-filter="all"\|"unread"]`) |
+| Conversation filtering | None | `applyConvFilter()` in `messages.render.js` — pure client-side DOM filter (hides `.conv-item` elements that don't match the active chip and/or the search text). No new API calls; re-applied automatically every time `renderConvList()` re-renders (e.g. on the 10s poll) so the filter survives list refreshes |
+| "Online now" row | Did not exist | New `#onlineRow` / `#onlineRowItems` block between the toolbar and the conversation list, with a `renderOnlineRow(users)` helper in `messages.render.js` |
+| Active conversation card | `border-right:3px solid var(--ac)` (hard edge) | `box-shadow:inset 0 0 0 1px rgba(0,200,150,.32)` — a soft full-perimeter cyan ring instead of a hard right-side bar |
+
+#### "المتصلون الآن" (online row) — explicitly NOT populated with real data
+
+Same constraint as the chat-header status field (§62): **no client-accessible
+presence/"who is online" signal exists anywhere in the backend.**
+`ConnectionManager.active` (in-memory, server-side only) is never exposed via
+any endpoint or WebSocket broadcast. `renderOnlineRow(users)` is a
+structurally-ready component — it renders a real avatar, short name, a green
+online dot, and an account-type corner badge per user *if* an array is ever
+passed to it — but nothing in this pass calls it with live data. The static
+markup shipped in `messages.html` therefore always shows the honest fallback:
+"لا يوجد متصلون حالياً". Wiring this up for real would require a new backend
+presence broadcast — out of scope, tracked as future work, not implied by
+this UI pass.
+
+#### Verification badge — explicitly NOT shown (data gap, not a UI choice)
+
+The reference image shows an inline checkmark next to some names. `profiles.is_verified`
+exists in the schema and is used elsewhere (e.g. public profile pages), but
+`get_conversations()` in `auth.py` does not `SELECT p.is_verified`, so this
+data never reaches the messages page today. No badge was added to avoid
+fabricating verification status; adding it requires a backend query change
+(forbidden in this pass) — tracked as future work.
+
+#### Filter icon button — intentionally omitted
+
+The reference's small standalone filter-icon button (beside the search bar)
+was not added. The two chips ("الكل" / "غير المقروءة") already cover the only
+clearly-specified filter behavior; a third icon button with no defined action
+would have shipped as a dead control. Omitted by design, not a missed
+requirement — flag if a specific second filter dimension (e.g. by account
+type) is wanted and it can be added as a real, working control.
+
+#### Forbidden (still enforced)
+
+- No bottom navigation bar was added anywhere in `messages.html` — confirmed
+  by inspection of the final markup; the 5-icon bottom bar in the reference
+  image was deliberately not replicated
+- No changes to `server.py`, `auth.py`, WebSocket message types, the HTTP
+  send pipeline, typing-bubble logic, read-receipt logic, or
+  `messages.debug.js` — `git diff --stat` against `main` shows only
+  `messages.html`, `messages.css`, `messages.render.js`, `ARCHITECTURE.md`
+- `applyConvFilter()` / `initConvFilters()` / `initConvSearch()` /
+  `renderOnlineRow()` are additive, render-markup-only helpers — they read
+  already-rendered DOM text and already-available conversation data; they
+  issue no new HTTP/WebSocket requests
