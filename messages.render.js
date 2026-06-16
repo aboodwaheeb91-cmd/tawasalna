@@ -210,9 +210,14 @@ function doSendMessage() {
   var sendBtn = document.querySelector('.send-btn');
   if (sendBtn) sendBtn.disabled = true;
 
+  // Cancel debounce; notify receiver immediately so their 2.5s delayed hide starts now
+  if (_typingTimer) { clearTimeout(_typingTimer); _typingTimer = null; }
+  sendTypingStop(_currentConvId);
+
   var savedText = text;
   input.value = '';
   autoResize(input);
+  var _twT0 = performance.now();
 
   var pid = 'pm' + Date.now();
   var msgs = document.getElementById('messages');
@@ -233,6 +238,7 @@ function doSendMessage() {
       var msg = (data && data.message) || {};
       var el  = document.getElementById(pid);
       var realId = msg.id;
+      console.log('[TW-TIMING] HTTP send: ' + (performance.now() - _twT0).toFixed(0) + 'ms (msg #' + (realId || '?') + ')');
       if (el && realId) {
         el.setAttribute('data-msg-id', String(realId));
       }

@@ -13,7 +13,7 @@ from pydantic import BaseModel
 import base64, mimetypes
 from typing import List, Optional
 from datetime import datetime
-import hashlib, secrets, json, os
+import hashlib, secrets, json, os, time
 
 import urllib.request
 
@@ -2026,6 +2026,7 @@ def delete_user_link(link_id: int, token=Depends(verify_token)):
 
 @app.post("/messages/send")
 async def send_msg(data: MessageInput, token=Depends(verify_token)):
+    _t0 = time.perf_counter()
     try:
         sender_id = int(token.get("user_id") or 0)
         if not sender_id:
@@ -2034,6 +2035,7 @@ async def send_msg(data: MessageInput, token=Depends(verify_token)):
             raise HTTPException(400, "لا يمكن إرسال رسالة لنفسك")
         msg = send_message(sender_id, data.receiver_id, data.content)
         msg_id = msg["id"]
+        _t_db = time.perf_counter()
 
         receiver_has_conv_open = ws_manager.active_conversations.get(data.receiver_id) == sender_id
 
@@ -2060,11 +2062,14 @@ async def send_msg(data: MessageInput, token=Depends(verify_token)):
                     "type": "status_update", "id": msg_id, "status": "delivered"
                 })
 
+        _t_ws = time.perf_counter()
         # Always send badge_update to receiver
         unread = get_unread_count(data.receiver_id)
         await ws_manager.send_to_user(data.receiver_id, {
             "type": "badge_update", "badge": "messages", "count": unread
         })
+        _t_end = time.perf_counter()
+        print(f"[TW-TIMING] send_msg #{msg_id}: DB={(_t_db-_t0)*1000:.0f}ms WS={(_t_ws-_t_db)*1000:.0f}ms badge={(_t_end-_t_ws)*1000:.0f}ms total={(_t_end-_t0)*1000:.0f}ms")
 
         return {"status": "success", "message": msg}
     except HTTPException:

@@ -34,22 +34,29 @@ function sendTypingStop(toUserId) {
 
 function showTypingBubble(fromId) {
   var msgs = document.getElementById('messages');
-  if (!msgs || document.getElementById('typing-bubble-' + fromId)) return;
-  msgs.insertAdjacentHTML('beforeend',
-    '<div id="typing-bubble-' + fromId + '" class="msg-wrap in typing-bubble">'
-    + '<div class="msg in"><div class="msg-text typing-dots">'
-    + '<span></span><span></span><span></span>'
-    + '</div></div></div>'
-  );
-  scrollDown();
-  if (_typingHideTimer) clearTimeout(_typingHideTimer);
-  _typingHideTimer = setTimeout(function() { hideTypingBubble(fromId); }, 3000);
+  if (!msgs) return;
+  if (!document.getElementById('typing-bubble-' + fromId)) {
+    msgs.insertAdjacentHTML('beforeend',
+      '<div id="typing-bubble-' + fromId + '" class="msg-wrap in typing-bubble">'
+      + '<div class="msg in"><div class="msg-text typing-dots">'
+      + '<span></span><span></span><span></span>'
+      + '</div></div></div>'
+    );
+    scrollDown();
+  }
+  // Failsafe: hide after 5s if no typing_stop or message arrives
+  _scheduleHideTypingBubble(fromId, 5000);
 }
 
 function hideTypingBubble(fromId) {
   if (_typingHideTimer) { clearTimeout(_typingHideTimer); _typingHideTimer = null; }
   var el = document.getElementById('typing-bubble-' + fromId);
   if (el) el.remove();
+}
+
+function _scheduleHideTypingBubble(fromId, ms) {
+  if (_typingHideTimer) clearTimeout(_typingHideTimer);
+  _typingHideTimer = setTimeout(function() { hideTypingBubble(fromId); }, ms);
 }
 
 // ── Status update helper ──────────────────────────────────────────────────
@@ -111,17 +118,29 @@ function connectWS() {
         var convId  = Number(_currentConvId);
 
         if (data.type === 'message' && fromId === convId) {
-          // New incoming message in active conversation — append it
+          var _twRx = performance.now();
           var msgs = document.getElementById('messages');
           var t = new Date().toLocaleTimeString('ar', { hour: '2-digit', minute: '2-digit' });
-          msgs.insertAdjacentHTML('beforeend',
-            '<div class="msg-wrap in" data-msg-id="' + data.id + '"><div class="msg in">'
+          var innerHtml = '<div class="msg in">'
             + '<div class="msg-text">' + esc(data.content) + '</div>'
             + '<div class="msg-time">' + esc(t) + '</div>'
-            + '</div></div>'
-          );
+            + '</div>';
+          // Cancel any pending hide timer
+          if (_typingHideTimer) { clearTimeout(_typingHideTimer); _typingHideTimer = null; }
+          var typingEl = document.getElementById('typing-bubble-' + fromId);
+          if (typingEl) {
+            // Transform typing bubble in-place — no jump, no duplicate
+            typingEl.removeAttribute('id');
+            typingEl.classList.remove('typing-bubble');
+            typingEl.setAttribute('data-msg-id', data.id);
+            typingEl.innerHTML = innerHtml;
+          } else {
+            msgs.insertAdjacentHTML('beforeend',
+              '<div class="msg-wrap in" data-msg-id="' + data.id + '">' + innerHtml + '</div>'
+            );
+          }
           scrollDown();
-          hideTypingBubble(fromId);
+          console.log('[TW-TIMING] WS→DOM: ' + (performance.now() - _twRx).toFixed(0) + 'ms (msg #' + data.id + ' from #' + fromId + ')');
         }
 
         if (data.type === 'message') {
@@ -137,7 +156,8 @@ function connectWS() {
         }
 
         if (data.type === 'typing_stop' && fromId === convId) {
-          hideTypingBubble(fromId);
+          // Delay hide 2.5s — lets the bubble linger naturally after typing stops
+          _scheduleHideTypingBubble(fromId, 2500);
         }
 
         if (data.type === 'badge_update' && data.badge === 'messages') {

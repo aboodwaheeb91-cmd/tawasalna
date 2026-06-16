@@ -5077,17 +5077,43 @@ Three improvements shipped together: immediate read receipts, typing indicator, 
 - No DB write; ephemeral
 
 **Client (receiver side — `messages.ws.js`):**
-- `showTypingBubble(fromId)`: inserts `<div id="typing-bubble-{fromId}" class="msg-wrap in typing-bubble">` with `.typing-dots` animated spans; scrolls to it; sets 3s auto-hide via `_typingHideTimer`
-- Idempotent: checks for existing `#typing-bubble-{fromId}` before inserting
-- `hideTypingBubble(fromId)`: removes `#typing-bubble-{fromId}` by id; clears `_typingHideTimer`
-- On incoming `message` from same user → `hideTypingBubble(fromId)` before appending real bubble
-- On `typing_stop` → `hideTypingBubble(fromId)`
-- On conversation switch → `hideTypingBubble(previous_conv_id)` in `openConversation()`
-- `#chatStatus` header element is NOT used for typing state
+
+**Bubble lifecycle:**
+- `showTypingBubble(fromId)`: idempotent insert of `<div id="typing-bubble-{fromId}" class="msg-wrap in typing-bubble">` with `.typing-dots` spans; scrolls to it; sets 5s failsafe auto-hide timer (resets on each `typing` event)
+- `hideTypingBubble(fromId)`: removes `#typing-bubble-{fromId}` immediately; clears timer
+- `_scheduleHideTypingBubble(fromId, ms)`: internal — cancels any pending timer, sets new one
+
+**Event handling:**
+- `typing` WS event → `showTypingBubble(fromId)` (idempotent; resets 5s failsafe)
+- `typing_stop` WS event → `_scheduleHideTypingBubble(fromId, 2500)` — **2.5s delay, not immediate**
+- `message` WS event from same user → **transform bubble in-place** (see below); clear timer
+- Conversation switch → `hideTypingBubble(previous_conv_id)` in `openConversation()` (immediate)
+
+**Bubble-to-message transform (on `message` event):**
+```
+if #typing-bubble-{fromId} exists:
+  1. clearTimeout(_typingHideTimer)
+  2. typingEl.removeAttribute('id')          // deregisters from timer callback
+  3. typingEl.classList.remove('typing-bubble')
+  4. typingEl.setAttribute('data-msg-id', data.id)
+  5. typingEl.innerHTML = real message HTML   // replaces dots with text + time
+  NO new element inserted — same DOM node, same scroll position
+else:
+  insertAdjacentHTML normally
+```
+
+**Sender side on send:**
+- `doSendMessage()` immediately clears `_typingTimer` and calls `sendTypingStop()` — does NOT wait 1.8s debounce
+- This starts receiver's 2.5s hide timer; the `message` WS event (arriving in ~100–500ms) then transforms and cancels it
+
+**Timing trace (temporary debug, console only):**
+- Frontend receiver: `[TW-TIMING] WS→DOM: Xms (msg #N from #M)` — measures WS parse + DOM op
+- Frontend sender: `[TW-TIMING] HTTP send: Xms (msg #N)` — measures full HTTP round-trip
+- Backend: `[TW-TIMING] send_msg #N: DB=Xms WS=Xms badge=Xms total=Xms` — server-side breakdown
 
 **CSS (`.typing-bubble`, `.typing-dots`):**
 - Bubble uses existing `.msg-wrap.in` + `.msg.in` styles (received-message appearance)
-- `.typing-dots span` animated with `@keyframes tw-typing-dot` (bounce up/down, 0.9s, staggered)
+- `.typing-dots span` animated with `@keyframes tw-typing-dot` (bounce up/down, 0.9s, staggered at 0/0.2/0.4s)
 
 **Forbidden:**
 - ممنوع: show typing in `#chatStatus` header
@@ -5095,6 +5121,8 @@ Three improvements shipped together: immediate read receipts, typing indicator, 
 - ممنوع: send typing event per keystroke (must debounce)
 - ممنوع: show typing if receiver is not in that conversation
 - ممنوع: duplicate bubble (always check id before insert)
+- ممنوع: remove typing bubble then add new message bubble when real message arrives
+- ممنوع: leave typing bubble after real message is shown
 
 ### Global Badge WebSocket
 
@@ -5114,7 +5142,7 @@ Three improvements shipped together: immediate read receipts, typing indicator, 
 
 ### Version Tracking
 
-Current version: `?v=v7` (bumped for in-chat typing bubble: replaced header indicator with animated dots bubble inside #messages)
+Current version: `?v=v7` (typing bubble UX: in-chat animated dots, 2.5s delayed hide, in-place transform to real message on arrival, immediate typing_stop on send, performance timing trace)
 
 ---
 
