@@ -5498,3 +5498,48 @@ type) is wanted and it can be added as a real, working control.
   `renderOnlineRow()` are additive, render-markup-only helpers — they read
   already-rendered DOM text and already-available conversation data; they
   issue no new HTTP/WebSocket requests
+
+### Unified header pass — `messages.html` now uses profile.html's `.toolbar`
+
+A follow-up correction: the page-specific `.nav`/`.nb`/`.nav-brand` header
+built in the previous pass was replaced with the **same header component
+`profile.html` actually uses** — `.toolbar` / `.tb-logo` / `.tb-btn.tb-ghost`
+— copied verbatim (same selector names, same `height:50px`, same blur/colors)
+from `profile.html`'s `<style>` block into `messages.css`, instead of the
+generic `.nav` pattern used by `home.html`/`company.html`/`edu.html`. Cache
+bump: `?v=v12`.
+
+**Note on "logo in the center":** the request asked for the logo to sit in
+the middle "like the profile page," but `profile.html`'s real `.toolbar`
+does not center its logo — `.tb-logo{margin-left:auto}` pins it to one edge,
+with action buttons clustered on the other side (verified by rendering the
+real `/profile` page, not by reading the CSS alone). Since "نفس الهيدر
+تماماً" (identical to the profile header) was the more heavily emphasized,
+literal, and testable instruction, fidelity to the real component took
+priority over the "centered" description — the messages.html toolbar now
+positions its logo exactly where profile.html's does (edge-pinned), not
+dead-center. Flag if true centering is wanted as an intentional deviation
+from `profile.html`'s actual layout.
+
+| Toolbar slot (right → left, RTL source order) | profile.html | messages.html |
+|---|---|---|
+| Logo | `Logo.svg`, `.tb-logo` | same `Logo.svg`, same `.tb-logo` |
+| Next to logo | 🏠 → `home.html` (hardcoded, employee-only page) | 🏠 → `goMessengerHome()`: type-aware (`/home` emp, `/company` co, `/edu` edu), since unlike `profile.html`, `messages.html` is shared by all three user types |
+| *(removed)* | 👁 preview toggle | **not present** — preview has no meaning outside profile editing |
+| Notifications | 🔔 → `notifications.html` | 🔔 → `/notifications` |
+| *(removed)* | 💬 messages → `messages.html` | **not present** — would be a self-link from the messages page |
+| Profile | *(not present — page is already "my profile")* | 👤 → `goMessengerProfile()`: `/u/{tw_id}` (same pattern as `home.html`'s `goProfile()`) |
+| Menu/settings | ⚙️ → `openPanel()` (opens profile-editing accordion — style/sections/etc., meaningless outside `profile.html`) | ☰ → **visually present, intentionally inert** (`opacity:.65; cursor:not-allowed`, title "القائمة (قريباً)") — same "designed but not wired" treatment already used by the existing `.attach-btn` ("إرفاق ملف (قريباً)"). `profile.html`'s side panel is profile-editing-specific markup/JS and isn't portable to this page; building a new generic menu wasn't requested and would be new scope |
+
+"الرسائل" page title (`.msg-page-title`) + subtitle (`.msg-page-subtitle`)
+moved out of the fixed header entirely and now render as the first child of
+`#convList`, directly above the search/filter row. This means the title is
+part of the conversation-list view only — opening a conversation hides
+`#convList` (mobile) or simply isn't where the title lives (desktop column),
+so inside a chat only the unified `.toolbar` plus the chat-specific
+`.chat-head` show, per the requirement that the per-conversation header
+follow directly under the unified site header with no page title in between.
+
+`goMessengerHome()` / `goMessengerProfile()` both call the existing
+`sendInactiveConversation()` before navigating away, mirroring `goHome()`'s
+existing guard — reusing an already-shipped function, not new WebSocket logic.

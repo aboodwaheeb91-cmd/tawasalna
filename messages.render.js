@@ -120,6 +120,24 @@ function goHome() {
   window.location.href = dest;
 }
 
+// ── Unified header nav buttons (same destinations used by the rest of the
+// site's headers — home.html's 🏠/👤, just made type-aware since messages
+// is shared by emp/co/edu, unlike profile.html which is employee-only) ──
+function goMessengerHome() {
+  if (_currentConvId) sendInactiveConversation(_currentConvId);
+  if (!_user) { window.location.href = '/'; return; }
+  var dest = _user.user_type === 'co'  ? '/company'
+           : _user.user_type === 'edu' ? '/edu'
+           : '/home';
+  window.location.href = dest;
+}
+
+function goMessengerProfile() {
+  if (_currentConvId) sendInactiveConversation(_currentConvId);
+  if (!_user) { window.location.href = '/'; return; }
+  window.location.href = _user.tw_id ? '/u/' + _user.tw_id : '/profile';
+}
+
 // ── Unread count ──────────────────────────────────────────────────────────
 
 function loadUnreadCount() {

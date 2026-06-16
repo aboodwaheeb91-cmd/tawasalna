@@ -11,33 +11,31 @@
 *{margin:0;padding:0;box-sizing:border-box;}
 body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;height:100vh;height:100dvh;overflow:hidden;}
 
-/* ── Nav ── */
-.nav{
-  height:60px;display:flex;align-items:center;gap:8px;padding:0 12px;
-  background:rgba(7,11,24,.95);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);
-  border-bottom:1px solid var(--border);
-  position:fixed;top:0;left:0;right:0;z-index:100;
+/* ── Unified site header — same component as profile.html's .toolbar ── */
+.toolbar{
+  position:fixed;top:0;left:0;right:0;z-index:1000;
+  height:50px;display:flex;align-items:center;gap:8px;padding:0 14px;
+  background:rgba(7,11,24,.93);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+  border-bottom:1px solid rgba(255,255,255,.06);font-family:'Cairo',sans-serif;
 }
-.nav-brand{flex:1;min-width:0;display:flex;align-items:center;justify-content:center;gap:8px;}
-.nav-brand-logo{height:26px;width:auto;object-fit:contain;display:block;flex-shrink:0;}
-.nav-brand-text{display:flex;flex-direction:column;align-items:center;line-height:1.25;min-width:0;}
-.nav-spacer{width:34px;flex-shrink:0;}
-.nav-title{font-size:.82rem;font-weight:800;color:var(--t);letter-spacing:.01em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%;}
-.nav-subtitle{font-size:.58rem;font-weight:600;color:var(--t3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%;}
-.nb{
-  width:34px;height:34px;padding:0;border-radius:10px;flex-shrink:0;
-  border:1px solid transparent;background:transparent;
-  color:var(--t2);font-family:'Cairo',sans-serif;font-size:1rem;font-weight:700;
-  display:flex;align-items:center;justify-content:center;
-  cursor:pointer;transition:all .18s;
+.tb-logo{margin-left:auto;}
+.tb-btn{
+  display:flex;align-items:center;gap:5px;padding:6px 11px;
+  border-radius:9px;border:none;cursor:pointer;
+  font-family:'Cairo',sans-serif;font-size:.74rem;font-weight:700;
+  transition:all .2s;white-space:nowrap;
 }
-.nb:hover{background:rgba(255,255,255,.08);color:var(--t);border-color:var(--border);}
+.tb-ghost{background:rgba(255,255,255,.07);color:rgba(255,255,255,.7);border:1px solid rgba(255,255,255,.1);}
+.tb-ghost:hover{background:rgba(255,255,255,.12);color:#fff;}
 
 /* ── Layout ── */
-.layout{display:grid;grid-template-columns:300px 1fr;height:calc(100vh - 60px);height:calc(100dvh - 60px);margin-top:60px;}
+.layout{display:grid;grid-template-columns:300px 1fr;height:calc(100vh - 50px);height:calc(100dvh - 50px);margin-top:50px;}
 
 /* ── Conversations list ── */
 .conv-list{border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;background:var(--bg2);}
+.msg-page-head{padding:16px 14px 6px;text-align:center;}
+.msg-page-title{font-size:1.05rem;font-weight:900;color:var(--t);margin:0;}
+.msg-page-subtitle{font-size:.66rem;font-weight:600;color:var(--t3);margin:3px 0 0;}
 .conv-toolbar{padding:12px 12px 8px;border-bottom:1px solid var(--border);display:flex;flex-direction:column;gap:8px;}
 .conv-search{
   position:relative;display:flex;align-items:center;
@@ -273,9 +271,9 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;height:1
 
 /* ── Mobile ── */
 @media(max-width:700px){
-  .layout{grid-template-columns:1fr;height:calc(100dvh - 60px);}
+  .layout{grid-template-columns:1fr;height:calc(100dvh - 50px);}
   .conv-list{display:none;}
-  .conv-list.mobile-show{display:flex;position:fixed;inset:60px 0 0 0;z-index:50;background:var(--bg2);}
+  .conv-list.mobile-show{display:flex;position:fixed;inset:50px 0 0 0;z-index:50;background:var(--bg2);}
   .ch-back{display:flex;}
   .messages{padding:16px 14px 10px;}
   .chat-input{padding:10px 12px;padding-bottom:max(10px,env(safe-area-inset-bottom));}
