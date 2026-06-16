@@ -21,6 +21,14 @@ function typeBadgeHtml(type, cls) {
   return '<span class="' + cls + ' ' + info.cls + '" title="' + info.label + '">' + info.icon + '</span>';
 }
 
+// Text-only pill badge — same identity-display convention as the followers
+// list (profile-v2.css .sc-fl-type-badge): label only, no emoji, color-tinted
+// background. Used for the chat header and conversation-list cards.
+function typeBadgePillHtml(type) {
+  var info = typeInfo(type);
+  return '<span class="type-badge-pill ' + info.cls + '">' + info.label + '</span>';
+}
+
 function formatConvTime(iso) {
   if (!iso) return '';
   try { return new Date(iso).toLocaleTimeString('ar', { hour: '2-digit', minute: '2-digit' }); }
@@ -106,11 +114,6 @@ function autoResize(el) {
   el.style.height = Math.min(el.scrollHeight, 100) + 'px';
 }
 
-function toggleConvList() {
-  var cl = document.getElementById('convList');
-  if (cl) cl.classList.toggle('mobile-show');
-}
-
 // ── Header ☰ menu dropdown (same open/outside-click pattern as Profile V2's
 // .sc-eye-menu in profile-v2.render.js) ──
 function toggleHeaderMenu(e) {
@@ -121,6 +124,19 @@ function toggleHeaderMenu(e) {
 document.addEventListener('click', function(e) {
   var wrap = document.getElementById('scMenuWrap');
   var dd = document.getElementById('scMenuDropdown');
+  if (wrap && dd && !wrap.contains(e.target)) dd.classList.remove('open');
+});
+
+// ── Chat-options menu dropdown (beside the conversation avatar) — same
+// toggle/outside-click pattern as the header menu above, separate ids ──
+function toggleChatMenu(e) {
+  if (e) e.stopPropagation();
+  var dd = document.getElementById('chMenuDropdown');
+  if (dd) dd.classList.toggle('open');
+}
+document.addEventListener('click', function(e) {
+  var wrap = document.getElementById('chMenuWrap');
+  var dd = document.getElementById('chMenuDropdown');
   if (wrap && dd && !wrap.contains(e.target)) dd.classList.remove('open');
 });
 
@@ -179,10 +195,10 @@ function renderConvList(convs) {
     frag += '<div class="conv-item' + isActive + '" data-uid="' + c.other_id
           + '" data-type="' + type + '" data-avatar="' + esc(avatarUrl) + '">'
           + '<div class="ci-ava-wrap"><div class="ci-ava ' + typeInfo(type).cls + '">'
-          + avatarHtml(c.full_name, avatarUrl) + '</div>'
-          + typeBadgeHtml(type, 'ci-type-badge') + '</div>'
+          + avatarHtml(c.full_name, avatarUrl) + '</div></div>'
           + '<div class="ci-body">'
           + '<div class="ci-top"><span class="ci-name">' + name + '</span><span class="ci-time">' + time + '</span></div>'
+          + '<div class="ci-sub">' + typeBadgePillHtml(type) + '</div>'
           + '<div class="ci-preview">' + last + '</div>'
           + '</div>' + unread + '</div>';
   });
@@ -195,10 +211,10 @@ function renderConvList(convs) {
     ph.className = 'conv-item active';
     ph.setAttribute('data-uid', String(_activeConvMeta.id));
     ph.innerHTML = '<div class="ci-ava-wrap"><div class="ci-ava ' + typeInfo(phType).cls + '">'
-      + avatarHtml(_activeConvMeta.name, _activeConvMeta.avatarUrl) + '</div>'
-      + typeBadgeHtml(phType, 'ci-type-badge') + '</div>'
+      + avatarHtml(_activeConvMeta.name, _activeConvMeta.avatarUrl) + '</div></div>'
       + '<div class="ci-body">'
       + '<div class="ci-top"><span class="ci-name">' + esc(_activeConvMeta.name) + '</span></div>'
+      + '<div class="ci-sub">' + typeBadgePillHtml(phType) + '</div>'
       + '<div class="ci-preview">محادثة جديدة</div></div>';
     ph.addEventListener('click', function() {
       openConversation(_activeConvMeta.id, _activeConvMeta.name, _activeConvMeta.type, _activeConvMeta.avatarUrl);
@@ -285,16 +301,18 @@ function openConversation(otherId, name, type, avatarUrl) {
   }
   if (badgeEl) {
     var info = typeInfo(type);
-    badgeEl.textContent = info.icon + ' ' + info.label;
-    badgeEl.className   = 'ch-type-badge ' + info.cls;
+    badgeEl.textContent = info.label;
+    badgeEl.className   = 'type-badge-pill ' + info.cls;
     badgeEl.style.display = '';
   }
   // No real presence/online signal is exposed by the backend to other users —
   // show an honest "unavailable" state rather than inventing online/offline.
   if (statusEl) statusEl.textContent = 'آخر نشاط غير متاح';
 
-  var viewBtn = document.getElementById('viewProfileBtn');
-  if (viewBtn) viewBtn.style.display = '';
+  var menuBtn = document.getElementById('chMenuBtn');
+  if (menuBtn) menuBtn.style.display = '';
+  var backArrow = document.getElementById('chBackArrow');
+  if (backArrow) backArrow.style.display = '';
 
   // Show composer — only visible when a conversation is active
   var chatInput = document.getElementById('chatInput');
@@ -477,6 +495,58 @@ function viewConvProfile() {
   }).catch(function() { showToast('تعذر فتح الملف الشخصي', 'error'); });
 }
 
+function copyConvProfileLink() {
+  if (!_activeConvMeta || !_activeConvMeta.id) return;
+  var dd = document.getElementById('chMenuDropdown');
+  if (dd) dd.classList.remove('open');
+  apiGetUser(_activeConvMeta.id).then(function(data) {
+    var tw = data && data.user && data.user.tw_id;
+    if (!tw) { showToast('تعذر نسخ الرابط', 'error'); return; }
+    var url = window.location.origin + '/u/' + tw;
+    navigator.clipboard.writeText(url)
+      .then(function() { showToast('تم نسخ رابط الملف', 'success'); })
+      .catch(function() { showToast('تعذر نسخ الرابط', 'error'); });
+  }).catch(function() { showToast('تعذر نسخ الرابط', 'error'); });
+}
+
+// ── Exit conversation back to the conversation list (explicit UI action —
+// not a browser-history back, so it can't navigate the user off /messages) ──
+function backToConvList() {
+  if (_currentConvId) {
+    sendInactiveConversation(_currentConvId);
+    hideTypingBubble(_currentConvId);
+  }
+  _currentConvId  = null;
+  _activeConvMeta = null;
+
+  document.querySelectorAll('.conv-item').forEach(function(i) { i.classList.remove('active'); });
+
+  var dd = document.getElementById('chMenuDropdown');
+  if (dd) dd.classList.remove('open');
+  var menuBtn = document.getElementById('chMenuBtn');
+  if (menuBtn) menuBtn.style.display = 'none';
+  var backArrow = document.getElementById('chBackArrow');
+  if (backArrow) backArrow.style.display = 'none';
+  var nameEl   = document.getElementById('chatName');
+  if (nameEl) nameEl.textContent = 'اختر محادثة';
+  var avaEl    = document.getElementById('chatAva');
+  if (avaEl) { avaEl.className = 'ch-ava'; avaEl.innerHTML = '💬'; }
+  var badgeEl  = document.getElementById('chatTypeBadge');
+  if (badgeEl) { badgeEl.style.display = 'none'; badgeEl.textContent = ''; badgeEl.className = 'type-badge-pill'; }
+  var statusEl = document.getElementById('chatStatus');
+  if (statusEl) statusEl.textContent = '';
+
+  var chatInput = document.getElementById('chatInput');
+  if (chatInput) chatInput.style.display = 'none';
+  var msgArea = document.getElementById('messages');
+  if (msgArea) msgArea.innerHTML = '<div class="empty-chat"><span class="ei">💬</span><p>اختر محادثة للبدء</p></div>';
+
+  var convListEl = document.getElementById('convList');
+  if (convListEl) convListEl.classList.add('mobile-show');
+
+  history.pushState(null, '', '/messages');
+}
+
 // ── ?with= deep-link handler ──────────────────────────────────────────────
 
 function handleWithParam(twId) {
@@ -491,9 +561,10 @@ function handleWithParam(twId) {
       ph.className = 'conv-item';
       ph.setAttribute('data-uid', String(data.id));
       ph.innerHTML = '<div class="ci-ava-wrap"><div class="ci-ava ' + typeInfo(type).cls + '">'
-        + avatarHtml(data.full_name, '') + '</div>' + typeBadgeHtml(type, 'ci-type-badge') + '</div>'
+        + avatarHtml(data.full_name, '') + '</div></div>'
         + '<div class="ci-body"><div class="ci-top"><span class="ci-name">'
-        + esc(data.full_name || 'مستخدم') + '</span></div></div>';
+        + esc(data.full_name || 'مستخدم') + '</span></div>'
+        + '<div class="ci-sub">' + typeBadgePillHtml(type) + '</div></div>';
       if (convItems) convItems.insertAdjacentElement('afterbegin', ph);
       openConversation(data.id, data.full_name || 'مستخدم', type, '');
       history.replaceState(null, '', '/messages');

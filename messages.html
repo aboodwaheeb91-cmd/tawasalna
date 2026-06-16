@@ -14,7 +14,7 @@
 <title>تواصلنا - الرسائل</title>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/tw_shared.css">
-<link rel="stylesheet" href="/static/messages.css?v=v14">
+<link rel="stylesheet" href="/static/messages.css?v=v15">
 <style>.skip-link{position:absolute;top:-40px;right:0;background:var(--ac,#00c896);color:#0d1a2e;padding:8px 16px;border-radius:0 0 8px 0;font-family:Cairo,sans-serif;font-size:.8rem;font-weight:700;text-decoration:none;transition:top .2s;z-index:10000}.skip-link:focus{top:0}</style>
 <a href="#main-content" class="skip-link">تخطى للمحتوى الرئيسي</a>
 </head>
@@ -96,19 +96,43 @@
   <div class="chat" id="chatArea">
 
     <div class="chat-head" id="chatHead">
-      <button class="ch-btn ch-back" onclick="toggleConvList()" title="قائمة المحادثات">☰</button>
+      <div class="ch-menu-wrap" id="chMenuWrap">
+        <button type="button" class="ch-btn ch-menu-btn" id="chMenuBtn" onclick="toggleChatMenu(event)" title="خيارات المحادثة" style="display:none">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="sc-svg-icon-sm" aria-hidden="true"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></svg>
+        </button>
+        <div class="ch-menu-dropdown" id="chMenuDropdown">
+          <button type="button" class="ch-menu-item" onclick="viewConvProfile()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="sc-svg-icon-sm" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>
+            عرض الملف الشخصي
+          </button>
+          <button type="button" class="ch-menu-item" onclick="copyConvProfileLink()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="sc-svg-icon-sm" aria-hidden="true"><path d="M9 17H7a5 5 0 0 1 0-10h2"/><path d="M15 7h2a5 5 0 0 1 0 10h-2"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+            نسخ رابط الملف
+          </button>
+          <button type="button" class="ch-menu-item" onclick="backToConvList()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="sc-svg-icon-sm" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+            الرجوع لقائمة الرسائل
+          </button>
+          <button type="button" class="ch-menu-item ch-menu-item--disabled" disabled title="هذه الميزة قيد التطوير">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="sc-svg-icon-sm" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            إعدادات المحادثة <span class="ch-menu-soon">قريباً</span>
+          </button>
+        </div>
+      </div>
       <div class="ch-ava-wrap">
         <div class="ch-ava" id="chatAva">💬</div>
       </div>
       <div class="ch-info">
-        <div class="ch-name" id="chatName">اختر محادثة</div>
+        <div class="ch-name-row">
+          <span class="ch-name" id="chatName">اختر محادثة</span>
+          <button type="button" class="ch-back-arrow" id="chBackArrow" onclick="backToConvList()" title="الرجوع لقائمة الرسائل" style="display:none">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+          </button>
+        </div>
         <div class="ch-meta">
-          <span class="ch-type-badge" id="chatTypeBadge" style="display:none"></span>
+          <span class="type-badge-pill" id="chatTypeBadge" style="display:none"></span>
           <span class="ch-status" id="chatStatus"></span>
         </div>
-      </div>
-      <div class="ch-actions">
-        <button class="ch-btn" id="viewProfileBtn" onclick="viewConvProfile()" style="display:none">👤 الملف</button>
       </div>
     </div>
 
@@ -132,10 +156,10 @@
 </div>
 
 <script src="/tw_shared.js"></script>
-<script src="/static/messages.state.js?v=v14"></script>
-<script src="/static/messages.debug.js?v=v14"></script>
-<script src="/static/messages.api.js?v=v14"></script>
-<script src="/static/messages.ws.js?v=v14"></script>
-<script src="/static/messages.render.js?v=v14"></script>
+<script src="/static/messages.state.js?v=v15"></script>
+<script src="/static/messages.debug.js?v=v15"></script>
+<script src="/static/messages.api.js?v=v15"></script>
+<script src="/static/messages.ws.js?v=v15"></script>
+<script src="/static/messages.render.js?v=v15"></script>
 </body>
 </html>
