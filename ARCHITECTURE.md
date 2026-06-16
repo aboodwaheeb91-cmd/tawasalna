@@ -5753,3 +5753,93 @@ chat header.
 - `server.py`, `auth.py`, WebSocket message types, the HTTP send pipeline,
   typing-bubble logic, read-receipt logic, `messages.debug.js`, the DB —
   confirmed via `git diff --stat HEAD`.
+
+### Messenger Conversation Card Contract
+
+**Binding for the shape of conv-list cards, avatar geometry everywhere in
+the messenger, the chat-head "last activity" line, and how the phone/browser
+back button behaves while a conversation is open.** Refines (does not
+contradict) the Messenger Identity Display Contract above — same
+avatar/name/badge source-of-truth, different container shape and history
+handling.
+
+- **All avatars are circular, everywhere in `messages.html`.** `.ci-ava`
+  (conv-list) and `.ch-ava` (chat header) changed from a rounded-square
+  (`border-radius:14px`/`12px`) to `border-radius:50%`, matching the
+  followers/profile avatar convention. `.online-ava` (online row) was
+  already circular — unchanged. The chat-options menu has no avatars, so
+  nothing to change there. Fallback (no `avatar_url`) stays the existing
+  initials-on-gradient (`avatarHtml()`), now rendered inside a circle
+  instead of a rounded square — never a square placeholder.
+- **Conv-list items are cards, not list rows.** `.conv-item` gained
+  `margin`, `border-radius:16px`, `background:var(--card)`, and a visible
+  `border` — a distinct rectangle per conversation instead of a row
+  separated only by a hairline `border-bottom`.
+- **Card layout is two columns**, matching the reference: avatar + identity
+  block on the right (avatar → name → account-type pill → last message),
+  time + unread badge in a separate `.ci-aside` column on the far left.
+  Previously time lived inside the name's own row (`.ci-top`, now removed)
+  and the unread badge was absolutely-positioned over the card; both are
+  now in the same dedicated aside column, vertically centered.
+  - **Unread count is now the real per-conversation count.** `get_conversations()`
+    in `auth.py` already computes and returns `unread_count` per conversation
+    (unchanged, pre-existing, not touched this pass) — the frontend
+    previously ignored it and always rendered a hardcoded `"1"` badge
+    whenever the latest message was unread. `renderConvList()` now reads
+    `c.unread_count` directly and shows the real number (capped at `99+`),
+    and applies the (previously dead) `.conv-item.unread` CSS class so the
+    already-existing bold/white "unread" name styling actually activates.
+  - **No pin icon.** There is no "pinned conversation" concept anywhere in
+    the data model (`messages` table has no such column, `get_conversations()`
+    returns no such flag) — per the instruction to only prepare a UI slot
+    for fields that exist, the aside column has no pin slot at all rather
+    than a fake/always-disabled one.
+  - **No online dot on conv-list cards.** Same reasoning as the (dormant)
+    online row: no backend signal exists for "is this specific conversation
+    partner online right now" — inventing one would violate the
+    no-fake-presence rule established in the Identity Display Contract
+    above. The avatar/card structure has room for one if presence data is
+    ever added, but no dot markup is rendered today.
+  - **Profession/specialty field:** `get_conversations()`'s `SELECT` only
+    joins `profiles.avatar_url`, not `headline`/`title` — no per-conversation
+    profession data is available from this endpoint today, and adding it
+    would mean touching `auth.py`/`server.py`, out of scope for a
+    frontend-only pass. Per the "no ugly gap" rule, the card's `.ci-sub` row
+    always shows the account-type pill in that slot instead — never an
+    empty line waiting for a field that doesn't exist.
+- **The chat-head "last activity" line is hidden, not removed.** Round 1 of
+  this contract showed `"آخر نشاط غير متاح"` as visible (soft) text under
+  the name. Direct visual feedback on that screenshot was that the line
+  still reads as a distracting bar under the name at this size/weight. The
+  element (`#chatStatus`) and the code that sets its text are unchanged —
+  `.ch-status{display:none}` in CSS is the only change — so the line can be
+  shown again instantly (`.has-value` class) the moment a real
+  presence/last-seen signal exists, without any further markup work. Today
+  it never renders.
+- **Phone/browser back button while inside a conversation must return to
+  the conversation list, never leave `/messages`.** This requires a real
+  `pushState`/`popstate` pair — there is no other way to intercept a phone's
+  hardware back button from a web page:
+  - `openConversation()` pushes one history entry (`{ twConvOpen: true }`,
+    url unchanged at `/messages`) the *first* time a conversation is opened
+    in this page-load (tracked by `_convHistoryPushed`); switching directly
+    between conversations afterward does not push additional entries — only
+    "no conversation → some conversation" creates a back-stop.
+  - A `popstate` listener (`messages.render.js`) fires on the actual
+    browser/phone back action. If the entry the browser landed on does
+    *not* carry `twConvOpen` and a conversation is currently open, it runs
+    `closeConversationUI()` (DOM/state reset only, extracted from the old
+    `backToConvList()`) and force-sets the URL to `/messages` via
+    `history.replaceState`. The listener never calls `history.back()`
+    itself — it only reacts to the native event the real back button
+    already produced.
+  - The on-screen back controls (`#chBackArrow`, "الرجوع لقائمة الرسائل" in
+    the menu) call `backToConvList()`, which now also calls
+    `closeConversationUI()` and then `history.replaceState(null, '',
+    '/messages')` — overwriting the just-pushed `twConvOpen` entry in place
+    rather than stacking a new one on top of it (which would have let a
+    *second* press of the hardware back button re-open the same
+    conversation — a bug avoided by replacing instead of pushing here).
+    `history.length` is unaffected either way (replaceState never adds or
+    removes entries) — still "without breaking history" as originally
+    required.

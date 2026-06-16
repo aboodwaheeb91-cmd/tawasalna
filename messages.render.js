@@ -64,6 +64,11 @@ function renderOnlineRow(users) {
 var _convFilterMode  = 'all';
 var _convSearchTerm  = '';
 
+// Tracks whether openConversation() has already pushed the "conversation-open"
+// history entry, so switching directly between conversations doesn't stack
+// multiple entries (see openConversation/backToConvList/popstate below).
+var _convHistoryPushed = false;
+
 function applyConvFilter(mode) {
   _convFilterMode = mode || 'all';
   var term = _convSearchTerm.toLowerCase();
@@ -188,19 +193,23 @@ function renderConvList(convs) {
     var name    = esc(c.full_name || 'مستخدم');
     var last    = esc((c.content || '').slice(0, 45));
     var time    = esc(formatConvTime(c.created_at));
-    var unread  = (!c.is_read && c.sender_id !== _user.id)
-                  ? '<span class="ci-badge">1</span>' : '';
+    var unreadCount = c.unread_count || 0;
+    var unreadCls   = unreadCount > 0 ? ' unread' : '';
+    var unread  = unreadCount > 0
+                  ? '<span class="ci-badge">' + (unreadCount > 99 ? '99+' : unreadCount) + '</span>' : '';
     var isActive = (_currentConvId && c.other_id === _currentConvId) ? ' active' : '';
     var avatarUrl = c.avatar_url || '';
-    frag += '<div class="conv-item' + isActive + '" data-uid="' + c.other_id
+    frag += '<div class="conv-item' + isActive + unreadCls + '" data-uid="' + c.other_id
           + '" data-type="' + type + '" data-avatar="' + esc(avatarUrl) + '">'
           + '<div class="ci-ava-wrap"><div class="ci-ava ' + typeInfo(type).cls + '">'
           + avatarHtml(c.full_name, avatarUrl) + '</div></div>'
           + '<div class="ci-body">'
-          + '<div class="ci-top"><span class="ci-name">' + name + '</span><span class="ci-time">' + time + '</span></div>'
+          + '<span class="ci-name">' + name + '</span>'
           + '<div class="ci-sub">' + typeBadgePillHtml(type) + '</div>'
           + '<div class="ci-preview">' + last + '</div>'
-          + '</div>' + unread + '</div>';
+          + '</div>'
+          + '<div class="ci-aside"><span class="ci-time">' + time + '</span>' + unread + '</div>'
+          + '</div>';
   });
   items.innerHTML = frag;
 
@@ -213,7 +222,7 @@ function renderConvList(convs) {
     ph.innerHTML = '<div class="ci-ava-wrap"><div class="ci-ava ' + typeInfo(phType).cls + '">'
       + avatarHtml(_activeConvMeta.name, _activeConvMeta.avatarUrl) + '</div></div>'
       + '<div class="ci-body">'
-      + '<div class="ci-top"><span class="ci-name">' + esc(_activeConvMeta.name) + '</span></div>'
+      + '<span class="ci-name">' + esc(_activeConvMeta.name) + '</span>'
       + '<div class="ci-sub">' + typeBadgePillHtml(phType) + '</div>'
       + '<div class="ci-preview">محادثة جديدة</div></div>';
     ph.addEventListener('click', function() {
@@ -276,6 +285,13 @@ function openConversation(otherId, name, type, avatarUrl) {
     sendInactiveConversation(_currentConvId);
     hideTypingBubble(_currentConvId);
   }
+  // One history entry marks "a conversation is open" so the phone/browser
+  // back button has something to pop back from (see popstate handler below).
+  // Switching directly between conversations must not stack more entries.
+  if (!_convHistoryPushed) {
+    history.pushState({ twConvOpen: true }, '', '/messages');
+    _convHistoryPushed = true;
+  }
   type = type || 'emp';
   _currentConvId  = otherId;
   _activeConvMeta = { id: otherId, name: name, type: type, avatarUrl: avatarUrl };
@@ -305,8 +321,9 @@ function openConversation(otherId, name, type, avatarUrl) {
     badgeEl.className   = 'type-badge-pill ' + info.cls;
     badgeEl.style.display = '';
   }
-  // No real presence/online signal is exposed by the backend to other users —
-  // show an honest "unavailable" state rather than inventing online/offline.
+  // No real presence/online signal is exposed by the backend to other users.
+  // Kept ready (text set) but hidden via CSS (.ch-status{display:none}) so
+  // the header never shows an invented/placeholder activity line.
   if (statusEl) statusEl.textContent = 'آخر نشاط غير متاح';
 
   var menuBtn = document.getElementById('chMenuBtn');
@@ -509,9 +526,12 @@ function copyConvProfileLink() {
   }).catch(function() { showToast('تعذر نسخ الرابط', 'error'); });
 }
 
-// ── Exit conversation back to the conversation list (explicit UI action —
-// not a browser-history back, so it can't navigate the user off /messages) ──
-function backToConvList() {
+// ── Exit conversation back to the conversation list ───────────────────────
+// closeConversationUI() does the DOM/state reset only — no history mutation —
+// so it can be reused by both the explicit on-screen back action and the
+// popstate handler (phone/browser back), which already moved the history
+// pointer itself and must not have a second entry pushed on top of it.
+function closeConversationUI() {
   if (_currentConvId) {
     sendInactiveConversation(_currentConvId);
     hideTypingBubble(_currentConvId);
@@ -543,9 +563,34 @@ function backToConvList() {
 
   var convListEl = document.getElementById('convList');
   if (convListEl) convListEl.classList.add('mobile-show');
-
-  history.pushState(null, '', '/messages');
 }
+
+// Explicit on-screen action (back-arrow beside the name, or the menu's
+// "الرجوع لقائمة الرسائل"). Uses replaceState — not pushState, not
+// history.back() — so the "conversation-open" entry that openConversation()
+// pushed is overwritten in place rather than stacked on top of or popped
+// from; history.length is unchanged either way, never broken.
+function backToConvList() {
+  closeConversationUI();
+  _convHistoryPushed = false;
+  history.replaceState(null, '', '/messages');
+}
+
+// Phone/browser back button while a conversation is open: openConversation()
+// already pushed a { twConvOpen: true } entry, so the native back action
+// fires popstate and lands on the entry beneath it (no twConvOpen flag).
+// We close the conversation UI in place and pin the URL to /messages —
+// never letting the user leave the messages page from inside a conversation.
+window.addEventListener('popstate', function(e) {
+  var landedOnConvState = e.state && e.state.twConvOpen;
+  if (!landedOnConvState && _currentConvId) {
+    closeConversationUI();
+    _convHistoryPushed = false;
+    if (location.pathname + location.search !== '/messages') {
+      history.replaceState(null, '', '/messages');
+    }
+  }
+});
 
 // ── ?with= deep-link handler ──────────────────────────────────────────────
 
@@ -562,12 +607,11 @@ function handleWithParam(twId) {
       ph.setAttribute('data-uid', String(data.id));
       ph.innerHTML = '<div class="ci-ava-wrap"><div class="ci-ava ' + typeInfo(type).cls + '">'
         + avatarHtml(data.full_name, '') + '</div></div>'
-        + '<div class="ci-body"><div class="ci-top"><span class="ci-name">'
-        + esc(data.full_name || 'مستخدم') + '</span></div>'
+        + '<div class="ci-body"><span class="ci-name">'
+        + esc(data.full_name || 'مستخدم') + '</span>'
         + '<div class="ci-sub">' + typeBadgePillHtml(type) + '</div></div>';
       if (convItems) convItems.insertAdjacentElement('afterbegin', ph);
       openConversation(data.id, data.full_name || 'مستخدم', type, '');
-      history.replaceState(null, '', '/messages');
     }
     // loadConversations runs AFTER _currentConvId is set → active state preserved
     loadConversations();
