@@ -5282,46 +5282,56 @@ Hot path skips both — receiver is actively reading, delivered+read already set
 | `srv_ms` | ~1700ms | **531ms** | ⬇️ |
 | `net_ms` | ~2500ms | **912ms** | ⬇️ |
 
-### INSERT Bottleneck Hypothesis — Extended Query Protocol
+### INSERT Bottleneck — Extended Query Protocol (confirmed by PR #167)
 
-`ins_ms: 531ms ≈ 3 × 173ms (RTT)`. This matches the pg8000 **extended query protocol** flow for parameterized queries (`:named` params trigger Parse → Bind+Execute → Sync as three separate message exchanges):
+`ins_exec: 523-548ms ≈ 3 × 173ms (RTT)` with `sync_ms:0` confirmed the root cause:
 
+pg8000 sends parameterized queries as **three separate TCP exchanges**:
 ```
 1. Parse     → ParseComplete          ~173ms
 2. Bind+Exec → RowDescription+Rows    ~173ms
 3. Sync      → ReadyForQuery          ~173ms
                                       ─────
-                                      ~519ms ≈ 531ms ✓
+                                      ~519ms ≈ 530ms ✓
 ```
 
-By contrast, `SELECT 1` (no params, simple query) = 1 RTT = 173ms.
+`SELECT 1` (simple query, no params) = 1 RTT = 173ms. The overhead is purely protocol, not WAL or triggers.
 
-**This is a protocol overhead issue, not a WAL flush or trigger issue.**
+### Fix — asyncpg Single-RTT Pipeline (PR #168)
 
-### Diagnostic Timing Fields (PR #167)
+`asyncpg` pipelines Parse+Bind+Execute+Sync in **one TCP write** and reads all responses together:
+```
+Parse+Bind+Execute+Sync → ParseComplete+BindComplete+Rows+ReadyForQuery
+                                      ─────
+                                      ~173ms (1 RTT)
+```
 
-`_timing` now returns a full breakdown to confirm or refute the above:
+Implementation:
+- `asyncpg.create_pool()` initializes at startup with `statement_cache_size=0` (safe with Supabase PgBouncer/Transaction Pooler)
+- `_pipeline_asyncpg()` in `server.py` uses `conn.fetchrow()` for INSERT
+- `/messages/send` uses asyncpg pool if available; falls back to pg8000 `send_message_pipeline` if asyncpg pool fails to init
+- `_timing.driver` field indicates which driver was used (`asyncpg` or `pg8000`)
+
+Expected results:
+```
+drv:asyncpg  conn_ms:0  ins_exec:~173ms  ins_ms:~173ms  db_ms:~180ms  srv_ms:~200ms
+```
+
+### Timing Fields Returned in `_timing`
 
 | Field | Meaning |
 |-------|---------|
-| `conn_ms` | Time for `get_conn()` only (ping omitted for connections < 240s) |
-| `sync_set_ms` | Time for `SET synchronous_commit=off` (0ms after first use per connection) |
-| `insert_exec_ms` | Time for the INSERT `conn.run()` call (pure extended query) |
-| `insert_ms` | `sync_set_ms` + `insert_exec_ms` combined |
+| `driver` | `"asyncpg"` or `"pg8000"` — which pipeline was used |
+| `conn_ms` | Pool acquire time (asyncpg: near 0; pg8000: 0 if fresh, 173ms if pinged) |
+| `sync_set_ms` | `SET synchronous_commit=off` time (0 for asyncpg; 0 for pg8000 after first use) |
+| `insert_exec_ms` | INSERT `conn.run()` / `conn.fetchrow()` time (1 RTT with asyncpg vs 3 RTTs pg8000) |
+| `insert_ms` | `sync_set_ms` + `insert_exec_ms` |
 | `update_ms` | Always 0 on hot path |
 | `count_ms` | COUNT(*) query time (0 on hot path) |
 | `db_ms` | Total DB time = conn + set + insert + count |
 | `ws_ms` | WS send time (critical path only) |
 | `badge_ms` | Always 0 (deferred to background) |
 | `total_ms` | Full endpoint wall time |
-
-**Expected debug panel output after PR #167:**
-```
-HTTP send net_ms:912 id:93 srv_ms:531 conn_ms:0 sync_ms:0 ins_exec:531 ins_ms:531 upd_ms:0 cnt_ms:0
-```
-
-If `sync_ms:0` and `ins_exec:531` → confirmed extended query protocol overhead.
-If `sync_ms:173` → `SET synchronous_commit=off` still running per request (flag not persisting).
 
 ### Startup Diagnostics (in `init_db`)
 

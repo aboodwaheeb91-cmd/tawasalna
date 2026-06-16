@@ -14,6 +14,10 @@ import base64, mimetypes
 from typing import List, Optional
 from datetime import datetime
 import hashlib, secrets, json, os, time, asyncio
+try:
+    import asyncpg as _asyncpg
+except ImportError:
+    _asyncpg = None
 
 import urllib.request
 
@@ -223,14 +227,122 @@ def favicon():
     return Response(content=svg, media_type="image/svg+xml",
                     headers={"Cache-Control": "public, max-age=86400"})
 
+# ── asyncpg pool — single-RTT INSERT pipeline ──────────────────────────────
+_asyncpg_pool = None  # None until startup; fallback to pg8000 if unavailable
+
+
+def _asyncpg_dsn() -> str:
+    """Return a postgresql:// DSN compatible with asyncpg."""
+    raw = os.environ.get("SUPABASE_DB_URL", "")
+    # asyncpg requires postgresql:// not postgres://
+    if raw.startswith("postgres://"):
+        raw = "postgresql://" + raw[len("postgres://"):]
+    return raw
+
+
+async def _init_asyncpg_pool():
+    global _asyncpg_pool
+    if not _asyncpg:
+        print("⚠️ asyncpg not installed — using pg8000 fallback")
+        return
+    try:
+        _asyncpg_pool = await _asyncpg.create_pool(
+            dsn=_asyncpg_dsn(),
+            min_size=1,
+            max_size=5,
+            statement_cache_size=0,  # safe with Supabase PgBouncer/Transaction Pooler
+            command_timeout=10,
+        )
+        print("✅ asyncpg pool ready (single-RTT INSERT pipeline active)")
+    except Exception as e:
+        _asyncpg_pool = None
+        print(f"⚠️ asyncpg pool init failed ({type(e).__name__}: {e}) — using pg8000 fallback")
+
+
+def _serialize_asyncpg_row(row) -> dict:
+    """Convert asyncpg Record to JSON-serializable dict."""
+    result = {}
+    for k, v in dict(row).items():
+        if hasattr(v, 'isoformat'):
+            result[k] = v.isoformat()
+        elif v is None:
+            result[k] = None
+        else:
+            result[k] = v
+    return result
+
+
+async def _pipeline_asyncpg(
+    sender_id: int, receiver_id: int, content: str, mark_as_read: bool
+) -> tuple:
+    """Single-RTT INSERT via asyncpg (pipelines Parse+Bind+Execute+Sync in one TCP write).
+
+    Hot  path: 1 query  (INSERT as read) — ~1 RTT.
+    Cold path: 2 queries (INSERT unread + COUNT) — ~2 RTTs.
+    """
+    t0 = time.perf_counter()
+    async with _asyncpg_pool.acquire() as conn:
+        t_after_conn = time.perf_counter()
+        if mark_as_read:
+            row = await conn.fetchrow(
+                "INSERT INTO messages "
+                "(sender_id, receiver_id, content, is_read, delivered_at, read_at) "
+                "VALUES ($1, $2, $3, TRUE, NOW(), NOW()) "
+                "RETURNING id, sender_id, receiver_id, content, "
+                "is_read, delivered_at, read_at, created_at",
+                sender_id, receiver_id, content
+            )
+            t_after_insert = time.perf_counter()
+            msg = _serialize_asyncpg_row(row)
+            timing = {
+                "conn_ms":        round((t_after_conn   - t0)             * 1000),
+                "sync_set_ms":    0,
+                "insert_exec_ms": round((t_after_insert - t_after_conn)   * 1000),
+                "insert_ms":      round((t_after_insert - t_after_conn)   * 1000),
+                "update_ms":      0,
+                "count_ms":       0,
+                "db_ms":          round((t_after_insert - t0)             * 1000),
+                "driver":         "asyncpg",
+            }
+            return msg, None, timing
+
+        else:
+            row = await conn.fetchrow(
+                "INSERT INTO messages (sender_id, receiver_id, content) "
+                "VALUES ($1, $2, $3) "
+                "RETURNING id, sender_id, receiver_id, content, "
+                "is_read, delivered_at, read_at, created_at",
+                sender_id, receiver_id, content
+            )
+            t_after_insert = time.perf_counter()
+            msg = _serialize_asyncpg_row(row)
+            unread = await conn.fetchval(
+                "SELECT COUNT(*) FROM messages WHERE receiver_id=$1 AND is_read=FALSE",
+                receiver_id
+            )
+            t_after_count = time.perf_counter()
+            timing = {
+                "conn_ms":        round((t_after_conn   - t0)              * 1000),
+                "sync_set_ms":    0,
+                "insert_exec_ms": round((t_after_insert - t_after_conn)    * 1000),
+                "insert_ms":      round((t_after_insert - t_after_conn)    * 1000),
+                "update_ms":      0,
+                "count_ms":       round((t_after_count  - t_after_insert)  * 1000),
+                "db_ms":          round((t_after_count  - t0)              * 1000),
+                "driver":         "asyncpg",
+            }
+            return msg, int(unread or 0), timing
+
+
 # ── Startup ──
 @app.on_event("startup")
-def on_startup():
+async def on_startup():
     try:
         init_db()
         print("✅ DB initialized")
     except Exception as e:
         print(f"⚠️ DB init failed: {e}")
+    await _init_asyncpg_pool()
 
 # ── Helpers ──
 _html_cache = {}
@@ -2049,10 +2161,19 @@ async def send_msg(data: MessageInput, background_tasks: BackgroundTasks, token=
 
         receiver_has_conv_open = ws_manager.active_conversations.get(data.receiver_id) == sender_id
 
-        msg, unread, db_timing = send_message_pipeline(
-            sender_id, data.receiver_id, data.content,
-            mark_as_read=receiver_has_conv_open
-        )
+        # Use asyncpg (1 RTT) if pool is up; fall back to pg8000 (3 RTTs) otherwise
+        if _asyncpg_pool:
+            msg, unread, db_timing = await _pipeline_asyncpg(
+                sender_id, data.receiver_id, data.content,
+                mark_as_read=receiver_has_conv_open
+            )
+        else:
+            loop = asyncio.get_event_loop()
+            msg, unread, db_timing = await loop.run_in_executor(
+                None, send_message_pipeline,
+                sender_id, data.receiver_id, data.content, receiver_has_conv_open
+            )
+            db_timing["driver"] = "pg8000"
         msg_id = msg["id"]
         _t_db = time.perf_counter()
 
