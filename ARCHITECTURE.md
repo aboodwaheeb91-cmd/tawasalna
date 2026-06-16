@@ -5663,6 +5663,66 @@ Dead code removed: `goHome()` in `messages.render.js` (superseded by
   longer referenced anywhere in `messages.html`/`messages.css` (verified
   via grep — zero matches)
 
+### Shared Header — Home Button: Pill → Icon-Only Ghost Button
+
+**Supersedes the "Home pill" row of the `messages.html` header table
+above and the original `.sc-home-pill` markup in `profile-showcase.html`.**
+Both pages share the same `.sc-header` contract (per the rule at the top
+of that section: "any future header change must state which of these two
+sources it is built from"), so this change was applied identically to
+both `messages.html`/`messages.css` and `profile-showcase.html`/
+`profile-v2.css` — there is no longer a `.sc-home-pill` class anywhere in
+the codebase.
+
+**Why:** the green "الرئيسية" pill (icon + Arabic label, ~18px side
+padding, full accent-color fill) was visually much wider than the other
+header buttons (bell/profile/menu — plain 28px ghost icon buttons), so it
+dominated one side of the header and made the centered logo look
+off-balance even though `.sc-logo`'s `position:absolute;left:50%` keeps
+it mathematically centered regardless of sibling width. Reported as
+"كبير... وعم يسرق الانتباه من الشعار... لا يعطي إحساس Premium" with a
+production screenshot from `/profile`.
+
+**Fix:** the home button now uses the exact same classes as every other
+header icon button — `.sc-hicon.sc-hicon-bare` — with no text, icon only,
+`title="الرئيسية"` kept for accessibility/desktop-hover tooltip only:
+```html
+<!-- messages.html -->
+<button type="button" class="sc-hicon sc-hicon-bare" onclick="goMessengerHome()" title="الرئيسية">
+  <svg class="sc-svg-icon" ...>...</svg>
+</button>
+
+<!-- profile-showcase.html -->
+<button class="sc-hicon sc-hicon-bare" id="scHomeBtn" title="الرئيسية"><i data-lucide="home" class="ico"></i></button>
+```
+`onclick`/`id="scHomeBtn"` and their JS wiring (`goMessengerHome()` /
+`profile-v2.render.js`'s `homeBtn.onclick`) are untouched — same route
+logic (`/home` emp, `/company` co, `/edu` edu on the messages page;
+`/home` on the showcase page), confirmed via Playwright click test
+(`/messages` → click → lands on `/home`).
+
+**CSS — one ghost-icon rule instead of two near-duplicates.** Previously
+`.sc-hicon-bare` only stripped background/border, and a second,
+more-specific selector `.sc-head-icons .sc-hicon-bare` shrank it to
+`width:auto;height:auto;padding:4px` — but that scoped rule only matched
+buttons living inside `.sc-head-icons`, which the home button (on the
+opposite side of the logo) is not. Folding the sizing into the base
+`.sc-hicon-bare` rule (no `.sc-head-icons` scope needed) means the home
+button now renders at the same ~28px (`messages.html`) / ~26px
+(`profile-showcase.html`) footprint as the bell/profile/menu icons,
+without any new selector dedicated to it — verified via Playwright
+`getBoundingClientRect()`: home button and the three other header icons
+all measured **28×28px** on `/messages`, logo center exactly equal to
+header center on both pages.
+
+- **Files changed:** `messages.html`, `messages.css`, `profile-showcase.html`,
+  `profile-v2.css`. No `server.py`/`auth.py`/WebSocket/send-pipeline/
+  typing/read-receipt/`messages.debug.js` changes — confirmed via
+  `git diff --stat`.
+- **Version bump:** `messages.css`/`messages.*.js` `v=v19` → `v=v20`;
+  `profile-v2.css` `?v=cards-v1` → `?v=header-v2` (only the CSS changed,
+  so only its query param moved — the JS files are untouched).
+
 ### Messenger Identity Display Contract
 
 **Binding for all future work on how `messages.html` shows the other party

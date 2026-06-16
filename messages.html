@@ -14,7 +14,7 @@
 <title>تواصلنا - الرسائل</title>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/tw_shared.css">
-<link rel="stylesheet" href="/static/messages.css?v=v19">
+<link rel="stylesheet" href="/static/messages.css?v=v20">
 <style>.skip-link{position:absolute;top:-40px;right:0;background:var(--ac,#00c896);color:#0d1a2e;padding:8px 16px;border-radius:0 0 8px 0;font-family:Cairo,sans-serif;font-size:.8rem;font-weight:700;text-decoration:none;transition:top .2s;z-index:10000}.skip-link:focus{top:0}</style>
 <a href="#main-content" class="skip-link">تخطى للمحتوى الرئيسي</a>
 </head>
@@ -22,9 +22,8 @@
 
 <!-- ── Unified site header — Profile V2 source: .sc-header (profile-showcase.html / profile-v2.css) ── -->
 <div class="sc-header">
-  <button type="button" class="sc-home-pill" onclick="goMessengerHome()">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="sc-svg-icon-sm" aria-hidden="true"><path d="M3 11l9-8 9 8"/><path d="M5 10v10a1 1 0 0 0 1 1h3v-6h6v6h3a1 1 0 0 0 1-1V10"/></svg>
-    الرئيسية
+  <button type="button" class="sc-hicon sc-hicon-bare" onclick="goMessengerHome()" title="الرئيسية">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="sc-svg-icon" aria-hidden="true"><path d="M3 11l9-8 9 8"/><path d="M5 10v10a1 1 0 0 0 1 1h3v-6h6v6h3a1 1 0 0 0 1-1V10"/></svg>
   </button>
   <div class="sc-logo">
     <img src="https://wrxvmdmknhoufoeprpoc.supabase.co/storage/v1/object/public/site/33333.svg" alt="تواصلنا">
@@ -157,10 +156,10 @@
 </div>
 
 <script src="/tw_shared.js"></script>
-<script src="/static/messages.state.js?v=v19"></script>
-<script src="/static/messages.debug.js?v=v19"></script>
-<script src="/static/messages.api.js?v=v19"></script>
-<script src="/static/messages.ws.js?v=v19"></script>
-<script src="/static/messages.render.js?v=v19"></script>
+<script src="/static/messages.state.js?v=v20"></script>
+<script src="/static/messages.debug.js?v=v20"></script>
+<script src="/static/messages.api.js?v=v20"></script>
+<script src="/static/messages.ws.js?v=v20"></script>
+<script src="/static/messages.render.js?v=v20"></script>
 </body>
 </html>
