@@ -35,7 +35,31 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;height:1
 .sc-head-icons{display:flex;align-items:center;gap:8px;}
 .sc-hicon{width:34px;height:34px;border-radius:10px;border:none;cursor:pointer;background:rgba(255,255,255,.06);color:var(--t1,#fff);font-size:1rem;display:flex;align-items:center;justify-content:center;}
 .sc-hicon-bare{background:none!important;border:none!important;}
-.sc-head-icons .sc-hicon-bare{width:auto;height:auto;padding:4px;font-size:1.05rem;}
+.sc-head-icons .sc-hicon-bare{width:auto;height:auto;padding:4px;}
+
+/* ── Header icons — inline local SVG (no external icon CDN) ── */
+.sc-svg-icon{width:20px;height:20px;flex-shrink:0;}
+.sc-svg-icon-sm{width:14px;height:14px;flex-shrink:0;}
+
+/* ── Header ☰ menu dropdown — same visual pattern as Profile V2's .sc-eye-menu ── */
+.sc-menu-wrap{position:relative;}
+.sc-menu-dropdown{
+  display:none;position:absolute;top:calc(100% + 8px);left:0;min-width:180px;
+  background:rgba(10,14,24,.95);border:1px solid rgba(255,255,255,.13);
+  border-radius:13px;padding:5px;z-index:200;
+  backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
+  box-shadow:0 10px 30px rgba(0,0,0,.45);
+}
+.sc-menu-dropdown.open{display:block;}
+.sc-menu-item{
+  display:flex;align-items:center;gap:9px;width:100%;
+  padding:9px 12px;border:none;background:none;
+  color:var(--t1,#fff);font-family:inherit;font-size:12px;font-weight:600;
+  border-radius:8px;cursor:pointer;text-align:right;
+  transition:background .15s;
+}
+.sc-menu-item:hover{background:rgba(255,255,255,.07);}
+.sc-menu-item .sc-svg-icon-sm{color:var(--ac,#00c896);}
 
 /* ── Layout ── */
 .layout{display:grid;grid-template-columns:300px 1fr;height:calc(100vh - 42px);height:calc(100dvh - 42px);margin-top:42px;}

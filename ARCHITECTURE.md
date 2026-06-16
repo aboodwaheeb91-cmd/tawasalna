@@ -5588,7 +5588,7 @@ Replaced the `.toolbar`/`.tb-logo`/`.tb-btn` block (copied from `profile.html`
 in the previous pass) with `.sc-header`/`.sc-logo`/`.sc-home-pill`/
 `.sc-head-icons`/`.sc-hicon` — copied from `profile-showcase.html:16-60` and
 `/static/profile-v2.css:14-44` — into `messages.html` + `messages.css`.
-Cache bump: `?v=v13` on `messages.css` and all 5 JS files.
+Cache bump: `?v=v14` on `messages.css` and all 5 JS files.
 
 | Slot | Profile V2 source (`profile-showcase.html`) | `messages.html` |
 |---|---|---|
@@ -5597,22 +5597,46 @@ Cache bump: `?v=v13` on `messages.css` and all 5 JS files.
 | *(removed)* | 👁 eye/preview (`.sc-eye-wrap`, owner-only) | **not present** — no preview concept on the messages page |
 | Notifications | `.sc-hicon` bell → `/notifications` | same class, → `/notifications` |
 | *(removed)* | 💬 messages → `/messages` | **not present** — self-link from the messages page |
-| Profile | *(not present — page is already the profile)* | **added**: `.sc-hicon` 👤 → `goMessengerProfile()` (`/u/{tw_id}`, the same Profile V2 public route) |
-| Menu | `.sc-hicon` ☰ → `history.back()` | same class, → `toggleConvList()` (real, existing function — shows the conversation list on mobile; not a placeholder) |
+| Profile | *(not present — page is already the profile)* | **added**: `.sc-hicon` user icon → `goMessengerProfile()` (`/u/{tw_id}`, the same Profile V2 public route) |
+| Menu | `.sc-hicon` ☰ → `history.back()` | same class, now a **real working dropdown** (`.sc-menu-wrap`/`.sc-menu-dropdown`) — see below |
 
-**Icon rendering — emoji, not Lucide SVG (deliberate deviation, disclosed):**
-`profile-showcase.html` renders its header icons via `<i data-lucide="...">`
-+ the Lucide CDN script (`unpkg.com/lucide@0.460.0`). That CDN failed to
-load in this session's test sandbox (`net::ERR_CERT_AUTHORITY_INVALID`),
-leaving icons invisible — and no other header anywhere in the codebase
-depends on an external icon library (every other header, including
-`profile.html`'s own `.toolbar`, uses plain emoji). To avoid shipping a
-header with an unverified, single-purpose external dependency, the icons
-were kept as plain emoji (🏠/🔔/👤/☰) inside the exact same `.sc-*` classes,
-sizing, and layout. The shape/classes/colors/centering are unchanged from
-Profile V2; only the icon glyph technology differs. Flag if exact Lucide
-icon-for-icon fidelity is required and `unpkg.com` reachability in
-production can be confirmed.
+**Icon rendering — inline local SVG, no emoji, no external CDN (revised):**
+The Lucide CDN (`unpkg.com/lucide@0.460.0`, used by `profile-showcase.html`
+via `<i data-lucide="...">`) failed to load in this session's test sandbox
+(`net::ERR_CERT_AUTHORITY_INVALID`). An earlier pass shipped plain emoji
+(🏠/🔔/👤/☰) as a stopgap — this was explicitly rejected ("لا أريد أيقونات
+الهيدر تكون إيموجي... هذا لا يعطي شكل Premium") because emoji do not read as
+a premium product UI and render inconsistently across platforms/fonts.
+**Fix:** all header icons (home, bell, user, hamburger, gear) are now
+hand-authored inline `<svg>` markup directly in `messages.html` — no
+`data-lucide` attribute, no external script tag, no network dependency at
+all. They follow the same outline-icon convention Lucide uses (`viewBox
+0 0 24 24`, `fill="none" stroke="currentColor" stroke-width="2"
+stroke-linecap="round" stroke-linejoin="round"`) so they are visually
+consistent with the rest of the icon language, but the path data is
+hand-drawn, not copied from Lucide's source (no network-verified copy of
+the exact paths was obtainable in this sandbox). Sized via two new CSS
+classes: `.sc-svg-icon` (20×20, header icon buttons) and `.sc-svg-icon-sm`
+(14×14, home-pill icon + dropdown-item icons).
+
+**Menu button — real working dropdown, not a dead control (revised):**
+The ☰ button no longer just calls `toggleConvList()` silently — it opens an
+actual dropdown menu (`#scMenuDropdown`, toggled via `toggleHeaderMenu()` in
+`messages.render.js`) styled on the codebase's own existing `.sc-eye-menu`
+pattern (`profile-v2.css:485-512` / `profile-v2.render.js:923-955`: toggle
+`.open` class on click, `stopPropagation()`, outside-click closes it via a
+`document`-level listener). It contains four real links, each with its own
+inline SVG icon:
+
+| Item | Target |
+|---|---|
+| الرئيسية | `goMessengerHome()` — type-aware (`/home`/`/company`/`/edu`) |
+| الملف الشخصي | `goMessengerProfile()` — `/u/{tw_id}` |
+| الإشعارات | `/notifications` |
+| الإعدادات | `/settings` (single shared route for all account types, `server.py:630-634`) |
+
+The button no longer looks active while doing nothing — every item it
+exposes is a real, already-existing route.
 
 **Layout height changed 50px → 42px** (real measured height of
 `.sc-header` via Playwright on `/profile-showcase`, not assumed) —

@@ -111,6 +111,19 @@ function toggleConvList() {
   if (cl) cl.classList.toggle('mobile-show');
 }
 
+// ── Header ☰ menu dropdown (same open/outside-click pattern as Profile V2's
+// .sc-eye-menu in profile-v2.render.js) ──
+function toggleHeaderMenu(e) {
+  if (e) e.stopPropagation();
+  var dd = document.getElementById('scMenuDropdown');
+  if (dd) dd.classList.toggle('open');
+}
+document.addEventListener('click', function(e) {
+  var wrap = document.getElementById('scMenuWrap');
+  var dd = document.getElementById('scMenuDropdown');
+  if (wrap && dd && !wrap.contains(e.target)) dd.classList.remove('open');
+});
+
 // ── Unified header nav buttons (.sc-header, Profile V2 source) — type-aware
 // since messages.html is shared by emp/co/edu, unlike profile-showcase.html
 // which always goes to /home regardless of account type ──
