@@ -23,19 +23,13 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;height:1
 }
 .sc-header .sc-logo{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);pointer-events:none;}
 .sc-logo img{height:38px;width:auto;max-width:140px;object-fit:contain;display:block;}
-.sc-home-pill{
-  display:inline-flex;align-items:center;gap:5px;
-  padding:0 18px;height:27px;border-radius:9px;cursor:pointer;
-  background:var(--ac,#00c896);border:1px solid rgba(255,255,255,.18);
-  color:#fff;font-family:inherit;font-size:11px;font-weight:700;
-  white-space:nowrap;transition:transform .15s,opacity .2s;
-  box-shadow:0 2px 6px rgba(0,200,150,.12);
-}
-.sc-home-pill:active{transform:scale(.95);opacity:.9;}
 .sc-head-icons{display:flex;align-items:center;gap:8px;}
 .sc-hicon{width:34px;height:34px;border-radius:10px;border:none;cursor:pointer;background:rgba(255,255,255,.06);color:var(--t1,#fff);font-size:1rem;display:flex;align-items:center;justify-content:center;}
-.sc-hicon-bare{background:none!important;border:none!important;}
-.sc-head-icons .sc-hicon-bare{width:auto;height:auto;padding:4px;}
+/* Icon-only ghost variant — used by every header button incl. the home
+   button (see "الرئيسية" pill removal): no background/border, sized by
+   its padding+icon rather than the fixed 34px box above, so it stays
+   visually consistent with the rest of the header on both sides. */
+.sc-hicon-bare{width:auto;height:auto;padding:4px;background:none!important;border:none!important;}
 
 /* ── Header icons — inline local SVG (no external icon CDN) ── */
 .sc-svg-icon{width:20px;height:20px;flex-shrink:0;}
