@@ -142,7 +142,7 @@ function autoResize(el) {
 // ARCHITECTURE.md "Global Header Menu Contract". "messages" marks "الرسائل"
 // as the current/disabled page since this IS the messages page. ──
 if (typeof initGlobalHeaderMenu === 'function') {
-  initGlobalHeaderMenu('scMenuBtn', 'scMenuDropdown', 'messages');
+  initGlobalHeaderMenu('scMenuBtn', 'scMenuDropdown');
 }
 // Run the same open-conversation cleanup the dedicated home/profile buttons
 // already do (sendInactiveConversation over the existing WS) before ANY

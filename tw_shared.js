@@ -199,9 +199,8 @@ function loadAndApplyLogos(){
 // Single source of truth for the unified mobile menu shared by every page
 // built on the Profile V2 .sc-header contract (currently messages.html and
 // profile-showcase.html — see ARCHITECTURE.md "Global Header Menu Contract").
-// Each host page only needs a `.sc-menu-wrap > button#<btnId> + .sc-menu-dropdown#<ddId>`
-// shell already in its HTML/CSS; this file owns the item list, icons, the
-// current-page/disabled rule, and the open/close wiring.
+// Design rule: header contains primary navigation; this menu contains
+// secondary tools only. Never duplicate header nav items here.
 
 function getTwUser() {
   try { return JSON.parse(localStorage.getItem('tw_user') || 'null'); } catch(e) { return null; }
@@ -233,7 +232,7 @@ function twCopyProfileLink() {
   if (!url) { showToast('سجّل الدخول أولاً', 'error'); return; }
   navigator.clipboard.writeText(url)
     .then(function() { showToast('تم نسخ رابط الملف', 'success'); })
-    .catch(function() { showToast('تعذر نسخ الرابط', 'error'); });
+    .catch(function() { showToast('تعذّر نسخ الرابط', 'error'); });
 }
 
 function twShareProfile() {
@@ -251,27 +250,20 @@ function twShareProfile() {
   }
 }
 
-// `currentPage`: 'messages' | 'profile' — marks the matching nav item as
-// the current page (shown, but not a clickable link to itself).
-function _twHeaderMenuItems(currentPage) {
-  var u = getTwUser();
+// Secondary-tools menu items — NO navigation items (home/profile/messages/
+// notifications are already in the header and must not be duplicated here).
+// Items with `disabled:true` are shown greyed with a "قريباً" tag — they
+// have no route yet and must NOT appear as functional links.
+function _twHeaderMenuItems() {
   return [
-    { key: 'home', label: 'الرئيسية', href: twHomeHref(u),
-      icon: '<path d="M3 11l9-8 9 8"/><path d="M5 10v10a1 1 0 0 0 1 1h3v-6h6v6h3a1 1 0 0 0 1-1V10"/>' },
-    { key: 'profile', label: 'الملف الشخصي', href: u && u.tw_id ? '/u/' + u.tw_id : '/profile',
-      current: currentPage === 'profile',
-      icon: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>' },
-    { key: 'messages', label: 'الرسائل', href: '/messages',
-      current: currentPage === 'messages',
-      icon: '<path d="M4 4h16v12H8l-4 4V4z"/>' },
-    { key: 'notifications', label: 'الإشعارات', href: '/notifications',
-      icon: '<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>' },
     { key: 'settings', label: 'الإعدادات', href: '/settings',
       icon: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>' },
-    { key: 'share', label: 'مشاركة الملف الشخصي', action: 'twShareProfile',
-      icon: '<path d="M12 3v12"/><path d="M7 8l5-5 5 5"/><path d="M5 21h14"/>' },
-    { key: 'copy-link', label: 'نسخ رابط الملف', action: 'twCopyProfileLink',
-      icon: '<rect x="7" y="7" width="11" height="11" rx="2"/><path d="M4 14V5a2 2 0 0 1 2-2h9"/>' },
+    { key: 'contact', label: 'تواصل معنا', disabled: true,
+      icon: '<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.07 12 19.79 19.79 0 0 1 1.06 3.31 2 2 0 0 1 3 1h2.09a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L6.09 9a16 16 0 0 0 5.9 5.9l1.36-1.36a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 20 16z"/>' },
+    { key: 'report', label: 'الإبلاغ عن مشكلة', disabled: true,
+      icon: '<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>' },
+    { key: 'suggest', label: 'اقترح ميزة', disabled: true,
+      icon: '<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>' },
     { key: 'logout', label: 'تسجيل الخروج', action: 'twLogout', danger: true,
       icon: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/>' }
   ];
@@ -280,8 +272,10 @@ function _twHeaderMenuItems(currentPage) {
 function _twHeaderMenuItemHtml(item) {
   var svg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
     + 'stroke-linecap="round" stroke-linejoin="round" class="sc-svg-icon-sm" aria-hidden="true">' + item.icon + '</svg>';
-  if (item.current) {
-    return '<div class="sc-menu-item current" aria-current="page">' + svg + sanitize(item.label) + '</div>';
+  if (item.disabled) {
+    return '<div class="sc-menu-item disabled" title="قريباً">'
+      + svg + sanitize(item.label)
+      + '<span class="sc-menu-soon">قريباً</span></div>';
   }
   var cls = 'sc-menu-item' + (item.danger ? ' danger' : '');
   if (item.action) {
@@ -292,26 +286,30 @@ function _twHeaderMenuItemHtml(item) {
 
 // Wires button#btnId (toggle) + #ddId (.sc-menu-dropdown, must already be
 // inside a `.sc-menu-wrap` ancestor for outside-click + positioning to
-// work) for one page. Renders the item list fresh on every open so the
-// current-page user / route are always up to date.
-// `currentPage` may be a plain string ('messages' | 'profile') or a
-// function returning one — profile-showcase.html needs a function since it
-// renders both the OWNER's own profile and other people's profiles, and
-// only the former should disable the "الملف الشخصي" item; ownership
-// (window._scViewerType) isn't known yet when the page wires its header,
-// only later once profile data has loaded — so it must be read lazily,
-// each time the menu is opened, not once at init time.
-function initGlobalHeaderMenu(btnId, ddId, currentPage) {
-  var btn = document.getElementById(btnId);
-  var dd  = document.getElementById(ddId);
+// work) for one page.
+// `dynId` (optional): id of the inner container to render dynamic items
+// into. When omitted the items are rendered directly into #ddId. Use when
+// the dropdown also contains a static section above the dynamic items —
+// e.g. profile-showcase.html puts the eye-preview rows as a static first
+// child of the dropdown so their directly-bound event listeners survive
+// across re-renders; tw_shared.js only regenerates the sibling #scMenuDynamic
+// container below them.
+function initGlobalHeaderMenu(btnId, ddId, dynId) {
+  var btn  = document.getElementById(btnId);
+  var dd   = document.getElementById(ddId);
+  var dyn  = dynId ? (document.getElementById(dynId) || dd) : dd;
   if (!btn || !dd) return;
   var wrap = dd.closest('.sc-menu-wrap') || dd.parentElement;
 
   function render() {
-    var cp = typeof currentPage === 'function' ? currentPage() : currentPage;
-    dd.innerHTML = _twHeaderMenuItems(cp).map(_twHeaderMenuItemHtml).join('');
+    dyn.innerHTML = _twHeaderMenuItems().map(_twHeaderMenuItemHtml).join('');
   }
-  function close() { dd.classList.remove('open'); }
+  function close() {
+    dd.classList.remove('open');
+    // Also collapse the eye submenu (if any) so it always resets on next open
+    var em = document.getElementById('scEyeMenu');
+    if (em) em.classList.remove('open');
+  }
 
   btn.addEventListener('click', function(e) {
     e.stopPropagation();
@@ -328,9 +326,7 @@ function initGlobalHeaderMenu(btnId, ddId, currentPage) {
       if (typeof fn === 'function') fn();
     }
     // Let the host page run cleanup (e.g. messages.html marking the open
-    // conversation inactive over the existing WS) before a menu link
-    // navigates away — same hook every link goes through, so behavior is
-    // consistent regardless of which item was clicked.
+    // conversation inactive over the existing WS) before a menu link navigates away.
     var link = e.target.closest('a.sc-menu-item');
     if (link && typeof window.twBeforeHeaderNav === 'function') {
       window.twBeforeHeaderNav(link.getAttribute('data-key'));

@@ -70,6 +70,11 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;height:1
    clickable link to itself (rendered as a <div>, not an <a>/<button>). */
 .sc-menu-item.current{background:rgba(255,255,255,.05);color:var(--t2,rgba(255,255,255,.5));cursor:default;}
 .sc-menu-item.current .sc-svg-icon-sm{color:var(--t2,rgba(255,255,255,.5));}
+.sc-menu-item.disabled{color:var(--t3,rgba(255,255,255,.27));cursor:default;justify-content:space-between;}
+.sc-menu-item.disabled .sc-svg-icon-sm{color:var(--t3,rgba(255,255,255,.27));}
+.sc-menu-item.disabled:hover{background:none;}
+.sc-menu-soon{font-size:.6rem;font-weight:700;background:rgba(255,255,255,.07);color:var(--t3,rgba(255,255,255,.27));border-radius:999px;padding:1px 6px;margin-right:auto;}
+.sc-menu-sep{height:1px;background:rgba(255,255,255,.08);margin:3px 8px;}
 .sc-menu-item.danger{color:#f87171;}
 .sc-menu-item.danger .sc-svg-icon-sm{color:#f87171;}
 .sc-menu-item.danger:hover{background:rgba(248,113,113,.1);}

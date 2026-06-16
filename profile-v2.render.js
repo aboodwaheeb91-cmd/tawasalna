@@ -10,14 +10,12 @@
   var msgBtn=document.getElementById('scMsgBtn');
   if(msgBtn) msgBtn.onclick=function(){ window.location.href='/messages'; };
 
-  // Global Header Menu (shared, tw_shared.js) — see ARCHITECTURE.md "Global
-  // Header Menu Contract". Only mark "الملف الشخصي" as the current/disabled
-  // page when the viewer IS the owner — this page also renders OTHER
-  // people's profiles, where it must stay a normal link back to one's own.
+  // Global Header Menu (shared, tw_shared.js) — secondary tools only.
+  // Eye-preview rows live as static HTML in #scMenuDropdown; dynamic items
+  // (settings/contact/suggest/logout) are rendered into #scMenuDynamic so
+  // the eye section's event-listeners survive re-renders.
   if (typeof initGlobalHeaderMenu === 'function') {
-    initGlobalHeaderMenu('scMenuBtn', 'scMenuDropdown', function(){
-      return window._scViewerType === 'owner' ? 'profile' : null;
-    });
+    initGlobalHeaderMenu('scMenuBtn', 'scMenuDropdown', 'scMenuDynamic');
   }
 
   // Load unread counts into data-badge spans (guest-safe — loadGlobalBadges checks jwt)
@@ -935,26 +933,34 @@ window.renderProfile = function renderProfile(res){
   var eyeMenu = document.getElementById('scEyeMenu');
   if(!eyeBtn || !eyeMenu) return;
 
+  // eyeBtn is now inside the global menu dropdown; stop-propagation keeps
+  // the outer menu open while the inner eye sub-list opens below it.
   eyeBtn.addEventListener('click', function(e){
     e.stopPropagation();
     eyeMenu.classList.toggle('open');
   });
 
+  function closeAllMenus() {
+    eyeMenu.classList.remove('open');
+    var dd = document.getElementById('scMenuDropdown');
+    if (dd) dd.classList.remove('open');
+  }
+
   document.getElementById('scPreviewPublic').addEventListener('click', function(){
     document.body.classList.remove('preview-guest');
     document.body.classList.add('preview-public-user');
-    eyeMenu.classList.remove('open');
+    closeAllMenus();
   });
 
   document.getElementById('scPreviewGuest').addEventListener('click', function(){
     document.body.classList.remove('preview-public-user');
     document.body.classList.add('preview-guest');
-    eyeMenu.classList.remove('open');
+    closeAllMenus();
   });
 
   document.getElementById('scPreviewEnd').addEventListener('click', function(){
     document.body.classList.remove('preview-public-user', 'preview-guest');
-    eyeMenu.classList.remove('open');
+    closeAllMenus();
   });
 
   document.addEventListener('click', function(e){
