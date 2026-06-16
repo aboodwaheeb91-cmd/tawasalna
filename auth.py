@@ -185,10 +185,7 @@ def _parse_db_url():
     host_port, dbname = hostinfo.split("/",1)
     dbname = dbname.split("?")[0]
     host, port = (host_port.rsplit(":",1) if ":" in host_port else (host_port, "5432"))
-    # synchronous_commit=off: skip WAL flush wait on COMMIT — saves ~350ms per INSERT.
-    # Trade-off: in a crash the last committed message might not persist, acceptable for chat.
-    _db_params = dict(host=host, port=int(port), user=username, password=password, database=dbname, ssl_context=True,
-                      options="-c synchronous_commit=off")
+    _db_params = dict(host=host, port=int(port), user=username, password=password, database=dbname, ssl_context=True)
 
 
 # ── Query Cache (Redis-ready) ──
@@ -269,6 +266,18 @@ def release_conn(conn):
                 pass
     try: conn.close()
     except: pass
+
+
+def _ensure_async_commit(conn):
+    """Set synchronous_commit=off for this session if not already done.
+
+    Scoped to INSERT-heavy paths (send_message_pipeline).
+    First call per connection = 1 RTT (~173ms). All subsequent calls = 0ms.
+    Connection flag persists in the pool across reuses so the RTT is paid once.
+    """
+    if not getattr(conn, '_tw_async_commit', False):
+        conn.run("SET synchronous_commit=off")
+        conn._tw_async_commit = True
 
 
 # ══ مساعدات ══
@@ -1732,6 +1741,11 @@ def send_message_pipeline(sender_id: int, receiver_id: int, content: str, mark_a
     conn = get_conn()
     t_conn = _time_mod.perf_counter()
     try:
+        # First use of this connection: SET synchronous_commit=off (1 RTT, ~173ms).
+        # Subsequent uses: 0ms — flag persists on the connection object in the pool.
+        _ensure_async_commit(conn)
+        t_conn = _time_mod.perf_counter()  # re-snap after SET so conn_ms includes it
+
         if mark_as_read:
             # Save message as already delivered+read in one INSERT — no UPDATE needed
             rows = conn.run(
