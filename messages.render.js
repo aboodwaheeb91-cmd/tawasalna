@@ -217,6 +217,8 @@ function doSendMessage() {
   var savedText = text;
   input.value = '';
   autoResize(input);
+  // Keep keyboard open on mobile: restore focus before the browser has a chance to close it
+  requestAnimationFrame(function() { input.focus({ preventScroll: true }); });
   var _twT0 = performance.now();
 
   var pid = 'pm' + Date.now();
@@ -283,7 +285,11 @@ function doSendMessage() {
       var st = document.getElementById(pid + 'st');
       if (st) { st.textContent = '✗'; st.style.color = '#ef4444'; }
       var inp = document.getElementById('msgInput');
-      if (inp) { inp.value = savedText; autoResize(inp); }
+      if (inp) {
+        inp.value = savedText;
+        autoResize(inp);
+        requestAnimationFrame(function() { inp.focus({ preventScroll: true }); });
+      }
     })
     .finally(function() {
       if (sendBtn) sendBtn.disabled = false;
@@ -401,6 +407,13 @@ document.addEventListener('DOMContentLoaded', function() {
         _typingTimer = null;
       }, 1800);
     });
+  }
+
+  // Prevent send button from stealing focus (keeps mobile keyboard open).
+  // pointerdown preventDefault blocks focus transfer; click still fires and sends.
+  var sendBtnEl = document.querySelector('.send-btn');
+  if (sendBtnEl) {
+    sendBtnEl.addEventListener('pointerdown', function(e) { e.preventDefault(); });
   }
 
   // Signal inactive conversation on page leave
