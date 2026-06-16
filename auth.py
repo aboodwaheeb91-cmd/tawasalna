@@ -1739,12 +1739,11 @@ def send_message_pipeline(sender_id: int, receiver_id: int, content: str, mark_a
     """
     t0 = _time_mod.perf_counter()
     conn = get_conn()
-    t_conn = _time_mod.perf_counter()
+    t_after_conn = _time_mod.perf_counter()
     try:
-        # First use of this connection: SET synchronous_commit=off (1 RTT, ~173ms).
-        # Subsequent uses: 0ms — flag persists on the connection object in the pool.
+        # SET synchronous_commit=off: 1 RTT on first use of this connection, 0ms after.
         _ensure_async_commit(conn)
-        t_conn = _time_mod.perf_counter()  # re-snap after SET so conn_ms includes it
+        t_after_set = _time_mod.perf_counter()
 
         if mark_as_read:
             # Save message as already delivered+read in one INSERT — no UPDATE needed
@@ -1756,15 +1755,17 @@ def send_message_pipeline(sender_id: int, receiver_id: int, content: str, mark_a
             )
             cols = [c["name"] for c in conn.columns]
             msg = _serialize(_row_to_dict(cols, rows[0]))
-            t_done = _time_mod.perf_counter()
+            t_after_insert = _time_mod.perf_counter()
             msg["delivered_at"] = True
             msg["read_at"] = True
             timing = {
-                "conn_ms":   round((t_conn - t0)     * 1000),
-                "insert_ms": round((t_done - t_conn) * 1000),
+                "conn_ms":        round((t_after_conn   - t0)            * 1000),
+                "sync_set_ms":    round((t_after_set    - t_after_conn)   * 1000),
+                "insert_exec_ms": round((t_after_insert - t_after_set)    * 1000),
+                "insert_ms":      round((t_after_insert - t_after_conn)   * 1000),
                 "update_ms": 0,   # skipped — inserted as read directly
                 "count_ms":  0,   # skipped — badge unchanged when receiver is reading
-                "db_ms":     round((t_done - t0)     * 1000),
+                "db_ms":     round((t_after_insert - t0) * 1000),
             }
             return msg, None, timing  # None = badge update not needed
 
@@ -1778,21 +1779,23 @@ def send_message_pipeline(sender_id: int, receiver_id: int, content: str, mark_a
             )
             cols = [c["name"] for c in conn.columns]
             msg = _serialize(_row_to_dict(cols, rows[0]))
-            t_insert = _time_mod.perf_counter()
+            t_after_insert = _time_mod.perf_counter()
 
             uc = conn.run(
                 "SELECT COUNT(*) FROM messages WHERE receiver_id=:rid AND is_read=FALSE",
                 rid=receiver_id
             )
             unread = int(uc[0][0]) if uc else 0
-            t_done = _time_mod.perf_counter()
+            t_after_count = _time_mod.perf_counter()
 
             timing = {
-                "conn_ms":   round((t_conn   - t0)       * 1000),
-                "insert_ms": round((t_insert - t_conn)   * 1000),
+                "conn_ms":        round((t_after_conn   - t0)              * 1000),
+                "sync_set_ms":    round((t_after_set    - t_after_conn)    * 1000),
+                "insert_exec_ms": round((t_after_insert - t_after_set)     * 1000),
+                "insert_ms":      round((t_after_insert - t_after_conn)    * 1000),
                 "update_ms": 0,
-                "count_ms":  round((t_done   - t_insert) * 1000),
-                "db_ms":     round((t_done   - t0)       * 1000),
+                "count_ms":       round((t_after_count  - t_after_insert)  * 1000),
+                "db_ms":          round((t_after_count  - t0)              * 1000),
             }
             return msg, unread, timing
     finally:

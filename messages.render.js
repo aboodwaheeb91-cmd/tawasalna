@@ -240,15 +240,17 @@ function doSendMessage() {
       var realId = msg.id;
       var _srv = data && data._timing;
       twDebugLog('HTTP send', {
-        net_ms:  (performance.now() - _twT0).toFixed(0),
-        id:      realId || '?',
-        srv_ms:  _srv ? _srv.total_ms  : '?',
-        db_ms:   _srv ? _srv.db_ms    : '?',
-        conn_ms: _srv ? _srv.conn_ms  : '?',
-        ins_ms:  _srv ? _srv.insert_ms : '?',
-        upd_ms:  _srv ? _srv.update_ms : '?',
-        cnt_ms:  _srv ? _srv.count_ms  : '?',
-        ws_ms:   _srv ? _srv.ws_ms    : '?'
+        net_ms:   (performance.now() - _twT0).toFixed(0),
+        id:       realId || '?',
+        srv_ms:   _srv ? _srv.total_ms       : '?',
+        db_ms:    _srv ? _srv.db_ms          : '?',
+        conn_ms:  _srv ? _srv.conn_ms        : '?',
+        sync_ms:  _srv ? _srv.sync_set_ms    : '?',
+        ins_exec: _srv ? _srv.insert_exec_ms : '?',
+        ins_ms:   _srv ? _srv.insert_ms      : '?',
+        upd_ms:   _srv ? _srv.update_ms      : '?',
+        cnt_ms:   _srv ? _srv.count_ms       : '?',
+        ws_ms:    _srv ? _srv.ws_ms          : '?'
       });
       if (el && realId) {
         el.setAttribute('data-msg-id', String(realId));
