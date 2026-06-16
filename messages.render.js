@@ -238,7 +238,15 @@ function doSendMessage() {
       var msg = (data && data.message) || {};
       var el  = document.getElementById(pid);
       var realId = msg.id;
-      twDebugLog('HTTP send', { ms: (performance.now() - _twT0).toFixed(0), id: realId || '?' });
+      var _srv = data && data._timing;
+      twDebugLog('HTTP send', {
+        net_ms: (performance.now() - _twT0).toFixed(0),
+        id: realId || '?',
+        srv_ms: _srv ? _srv.total_ms : '?',
+        db_ms:  _srv ? _srv.db_ms   : '?',
+        conn:   _srv ? _srv.conn_ms  : '?',
+        ws_ms:  _srv ? _srv.ws_ms   : '?'
+      });
       if (el && realId) {
         el.setAttribute('data-msg-id', String(realId));
       }

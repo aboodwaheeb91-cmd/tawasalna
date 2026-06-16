@@ -63,7 +63,7 @@ from auth import (
     start_kyc, send_email_code, verify_email_code,
     send_phone_code, verify_phone_code, upload_kyc_docs,
     get_kyc_status, admin_approve_kyc, admin_reject_kyc, get_all_kyc_submissions, ensure_site_settings_table, ensure_reports_table,
-    send_message, mark_message_delivered, get_conversations, get_messages, get_unread_count,
+    send_message, send_message_pipeline, mark_message_delivered, get_conversations, get_messages, get_unread_count,
     mark_message_read_immediate,
     create_notification, get_notifications, mark_notifications_read, get_unread_notifications,
     get_job_applicants, get_user_applications,
@@ -2033,16 +2033,18 @@ async def send_msg(data: MessageInput, token=Depends(verify_token)):
             raise HTTPException(401, "غير مصرح")
         if sender_id == data.receiver_id:
             raise HTTPException(400, "لا يمكن إرسال رسالة لنفسك")
-        msg = send_message(sender_id, data.receiver_id, data.content)
-        msg_id = msg["id"]
-        _t_db = time.perf_counter()
 
         receiver_has_conv_open = ws_manager.active_conversations.get(data.receiver_id) == sender_id
 
+        # Single DB connection: INSERT + optional UPDATE read + COUNT unread
+        msg, unread, db_timing = send_message_pipeline(
+            sender_id, data.receiver_id, data.content,
+            mark_as_read=receiver_has_conv_open
+        )
+        msg_id = msg["id"]
+        _t_db = time.perf_counter()
+
         if receiver_has_conv_open:
-            mark_message_read_immediate(msg_id)
-            msg["delivered_at"] = True
-            msg["read_at"] = True
             await ws_manager.send_to_user(data.receiver_id, {
                 "type": "message", "from": sender_id, "id": msg_id,
                 "content": data.content, "created_at": msg.get("created_at", ""), "is_read": True
@@ -2056,22 +2058,27 @@ async def send_msg(data: MessageInput, token=Depends(verify_token)):
                 "content": data.content, "created_at": msg.get("created_at", "")
             })
             if was_delivered:
-                mark_message_delivered(msg_id)
+                mark_message_delivered(msg_id)   # one extra connection only on cold path
                 msg["delivered_at"] = True
                 await ws_manager.send_to_user(sender_id, {
                     "type": "status_update", "id": msg_id, "status": "delivered"
                 })
 
         _t_ws = time.perf_counter()
-        # Always send badge_update to receiver
-        unread = get_unread_count(data.receiver_id)
         await ws_manager.send_to_user(data.receiver_id, {
             "type": "badge_update", "badge": "messages", "count": unread
         })
         _t_end = time.perf_counter()
-        print(f"[TW-TIMING] send_msg #{msg_id}: DB={(_t_db-_t0)*1000:.0f}ms WS={(_t_ws-_t_db)*1000:.0f}ms badge={(_t_end-_t_ws)*1000:.0f}ms total={(_t_end-_t0)*1000:.0f}ms")
 
-        return {"status": "success", "message": msg}
+        _timing = {
+            **db_timing,
+            "ws_ms":    round((_t_ws  - _t_db) * 1000),
+            "badge_ms": round((_t_end - _t_ws) * 1000),
+            "total_ms": round((_t_end - _t0)   * 1000),
+        }
+        print(f"[TW-TIMING] send_msg #{msg_id}: {_timing}")
+
+        return {"status": "success", "message": msg, "_timing": _timing}
     except HTTPException:
         raise
     except Exception as e:

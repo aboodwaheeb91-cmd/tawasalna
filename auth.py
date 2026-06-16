@@ -680,6 +680,14 @@ def init_db():
         ]:
             try: conn.run(col)
             except: pass
+        # Indexes for messages — critical for send latency and badge count
+        for idx_sql in [
+            "CREATE INDEX IF NOT EXISTS idx_msg_receiver_unread ON messages(receiver_id, is_read) WHERE is_read=FALSE",
+            "CREATE INDEX IF NOT EXISTS idx_msg_pair ON messages(sender_id, receiver_id)",
+            "CREATE INDEX IF NOT EXISTS idx_msg_receiver ON messages(receiver_id)",
+        ]:
+            try: conn.run(idx_sql)
+            except: pass
         # Notifications table
         conn.run("""
             CREATE TABLE IF NOT EXISTS notifications (
@@ -1683,6 +1691,59 @@ def send_message(sender_id: int, receiver_id: int, content: str) -> dict:
         )
         cols = [c["name"] for c in conn.columns]
         return _serialize(_row_to_dict(cols, rows[0]))
+    finally:
+        release_conn(conn)
+
+
+def send_message_pipeline(sender_id: int, receiver_id: int, content: str, mark_as_read: bool) -> tuple:
+    """Single-connection pipeline for the hot send path.
+
+    Combines INSERT + optional UPDATE read/delivered + COUNT unread into ONE
+    DB connection, eliminating 2 of the 3 connection-acquisition round-trips
+    (each of which included a SELECT 1 ping to Supabase).
+
+    Returns: (msg_dict, unread_count, timing_dict)
+    """
+    t0 = _time_mod.perf_counter()
+    conn = get_conn()
+    t_conn = _time_mod.perf_counter()
+    try:
+        rows = conn.run(
+            "INSERT INTO messages (sender_id, receiver_id, content) "
+            "VALUES (:sid, :rid, :content) "
+            "RETURNING id, sender_id, receiver_id, content, is_read, delivered_at, read_at, created_at",
+            sid=sender_id, rid=receiver_id, content=content
+        )
+        cols = [c["name"] for c in conn.columns]
+        msg = _serialize(_row_to_dict(cols, rows[0]))
+        msg_id = msg["id"]
+        t_insert = _time_mod.perf_counter()
+
+        if mark_as_read:
+            conn.run(
+                "UPDATE messages SET is_read=TRUE, read_at=NOW(), "
+                "delivered_at=COALESCE(delivered_at, NOW()) WHERE id=:id",
+                id=msg_id
+            )
+            msg["delivered_at"] = True
+            msg["read_at"] = True
+        t_update = _time_mod.perf_counter()
+
+        uc = conn.run(
+            "SELECT COUNT(*) FROM messages WHERE receiver_id=:rid AND is_read=FALSE",
+            rid=receiver_id
+        )
+        unread = int(uc[0][0]) if uc else 0
+        t_done = _time_mod.perf_counter()
+
+        timing = {
+            "conn_ms":   round((t_conn   - t0)       * 1000),
+            "insert_ms": round((t_insert - t_conn)   * 1000),
+            "update_ms": round((t_update - t_insert) * 1000),
+            "count_ms":  round((t_done   - t_update) * 1000),
+            "db_ms":     round((t_done   - t0)       * 1000),
+        }
+        return msg, unread, timing
     finally:
         release_conn(conn)
 
