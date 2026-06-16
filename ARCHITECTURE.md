@@ -5662,3 +5662,94 @@ Dead code removed: `goHome()` in `messages.render.js` (superseded by
 - `profile.html`/`.toolbar`/`.tb-logo`/`.tb-btn`/old `Logo.svg` are no
   longer referenced anywhere in `messages.html`/`messages.css` (verified
   via grep — zero matches)
+
+### Messenger Identity Display Contract
+
+**Binding for all future work on how `messages.html` shows the other party
+in a conversation (avatar/name/account-type), and on the chat-head/menu/back
+behavior.** This supersedes the chat-head shape used in the previous passes
+above.
+
+- **Person identity (avatar + name + account-type badge) must read the same
+  way it does in the followers list** (`profile-v2.render.js`'s
+  `_renderItems()` / `.sc-fl-*` classes): a real photo when `avatar_url` is
+  set, a meaningful fallback when it is not (never a random/generic
+  placeholder), the name in full, and the account type shown as a small
+  **text-only color-tinted pill** next to/under the name — موظف / شركة /
+  جهة تعليمية. No emoji in the type indicator.
+  - Avatar fallback in `messages.html` is the first-letter initial on a
+    type-colored gradient (`avatarHtml()` in `messages.render.js`, unchanged
+    from prior passes) rather than the followers list's generic person-icon
+    placeholder — both are "real, meaningful fallbacks, not random
+    placeholders"; the messenger's own initials convention was kept because
+    it is already used consistently across the conv-list, chat header, and
+    (dormant) online row, and rewriting the avatar fallback itself was out
+    of scope (only `messages.html`/`.css`/`.render.js` markup, no new
+    backend data was introduced or needed).
+  - The account-type **badge** is what changed to match the followers
+    list's "spirit": `typeBadgePillHtml(type)` (new helper in
+    `messages.render.js`) renders `<span class="type-badge-pill {t-emp|t-co|
+    t-edu}">{label}</span>` — label only, no emoji, background tinted to
+    ~10% opacity of the type's accent color (green/blue/purple), exactly the
+    same visual language as `profile-v2.css`'s `.sc-fl-type-badge--*`. This
+    replaces the old `.ch-type-badge`/`.ci-type-badge` (emoji + label pill /
+    emoji-in-a-circle-on-the-avatar-corner) in both the chat header and the
+    conversation-list cards.
+- **No placeholder buttons.** Every control shown must do something real:
+  - The profile button is **not** a separate header action anymore — it
+    lives inside the chat-options menu (`#chMenuDropdown`) as "عرض الملف
+    الشخصي", calling the pre-existing `viewConvProfile()`.
+  - The one genuinely-not-built-yet option ("إعدادات المحادثة") is rendered
+    with the native `disabled` attribute, dimmed (`opacity:.45`,
+    `cursor:not-allowed`, no hover state) and tagged "قريباً" — it cannot be
+    clicked and does not look interactive.
+- **Back-to-list is an explicit UI action, never `history.back()`.**
+  `backToConvList()` (new, `messages.render.js`) clears `_currentConvId`/
+  `_activeConvMeta`, resets the chat-head to its empty state, re-shows the
+  conv-list (`#convList.mobile-show`), and calls
+  `history.pushState(null, '', '/messages')` — it adds a history entry
+  rather than erasing one, so the browser back button still works normally
+  afterward; it never relies on `history.back()`, which would be one
+  unrelated page in the user's actual browsing history, not necessarily
+  "previous conversation". Two entry points call it: the small chevron
+  beside the conversation name (`#chBackArrow`) and "الرجوع لقائمة الرسائل"
+  inside the chat-options menu.
+- Any future change to person-identity rendering anywhere in the messenger
+  must keep avatar/name/badge sourced from `typeInfo()`/`avatarHtml()`/
+  `typeBadgePillHtml()` in `messages.render.js` — do not reintroduce a
+  one-off inline rendering path.
+
+#### `messages.html` chat-head restructured around this contract
+
+| Before | After |
+|---|---|
+| `.ch-back` (☰) — toggled `#convList.mobile-show`, mobile-only, called `toggleConvList()` | **removed** (dead code `toggleConvList()` deleted, zero remaining callers) |
+| `.ch-actions > #viewProfileBtn` ("👤 الملف") — always-visible standalone button | **removed** — folded into the chat-options menu |
+| *(none)* | **added**: `#chMenuBtn` (☰, beside the avatar) opens `#chMenuDropdown` — عرض الملف الشخصي / نسخ رابط الملف (new: `copyConvProfileLink()`, clipboard) / الرجوع لقائمة الرسائل / إعدادات المحادثة (disabled, "قريباً") |
+| *(none)* | **added**: `#chBackArrow`, a small chevron beside `#chatName`, calls `backToConvList()` |
+| `#chatTypeBadge` — emoji + label, solid gradient fill, `color:#fff` | same id, now `type-badge-pill {t-emp|t-co|t-edu}` — label only, tinted background |
+| `#chatStatus` — "آخر نشاط غير متاح" (unchanged; no real presence data exists) | unchanged |
+
+`#chMenuBtn`/`#chBackArrow` are hidden by default and only shown once
+`openConversation()` populates the header — there is no conversation
+selected, so there is nothing for them to act on (same "don't show an
+active-looking button with no function" rule applied to this redesign too).
+
+#### `messages.html` conv-list cards restructured around this contract
+
+`renderConvList()`'s per-item template, the `_activeConvMeta` placeholder
+item, and `handleWithParam()`'s placeholder item all moved the type
+indicator from an absolutely-positioned emoji badge at the avatar's corner
+(`.ci-type-badge`, now unused/removed from CSS) into a `.ci-sub` row under
+the name, rendered via `typeBadgePillHtml(type)` — same pill used in the
+chat header.
+
+#### Explicitly NOT touched by this pass
+
+- `renderOnlineRow()` ("المتصلون الآن") — still dead code with zero
+  production callers (per the prior pass's documented finding); its
+  `.online-type-badge` corner-emoji badge was intentionally left as-is since
+  it never renders in production and touching unused code was out of scope.
+- `server.py`, `auth.py`, WebSocket message types, the HTTP send pipeline,
+  typing-bubble logic, read-receipt logic, `messages.debug.js`, the DB —
+  confirmed via `git diff --stat HEAD`.

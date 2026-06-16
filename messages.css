@@ -147,6 +147,18 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;height:1
 .t-co{background:linear-gradient(135deg,#1e3a8a,var(--ac2));}
 .t-edu{background:linear-gradient(135deg,#8b5cf6,var(--ac2));}
 
+/* ── Unified account-type badge — same tinted-pill spirit as the followers
+   list (profile-v2.css .sc-fl-type-badge): text label only, no emoji, color
+   tint matches this page's own avatar gradient convention (t-emp/t-co/t-edu) ── */
+.type-badge-pill{
+  display:inline-flex;align-items:center;
+  padding:1px 8px;border-radius:20px;
+  font-size:.62rem;font-weight:700;flex-shrink:0;
+}
+.type-badge-pill.t-emp{background:rgba(0,200,150,.1);color:#00c896;}
+.type-badge-pill.t-co{background:rgba(37,99,255,.1);color:#2563ff;}
+.type-badge-pill.t-edu{background:rgba(139,92,246,.1);color:#8b5cf6;}
+
 .ci-ava-wrap{position:relative;flex-shrink:0;}
 .ci-ava{
   width:44px;height:44px;border-radius:14px;overflow:hidden;
@@ -155,15 +167,11 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;height:1
   box-shadow:0 2px 10px rgba(0,200,150,.12);
 }
 .ci-ava img{width:100%;height:100%;object-fit:cover;display:block;}
-.ci-type-badge{
-  position:absolute;bottom:-3px;left:-3px;width:18px;height:18px;border-radius:50%;
-  display:flex;align-items:center;justify-content:center;
-  font-size:.6rem;border:2px solid var(--bg2);line-height:1;
-}
 .ci-body{flex:1;min-width:0;}
 .ci-top{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:3px;}
 .ci-name{font-size:.78rem;font-weight:700;color:var(--t2);transition:color .15s;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .ci-time{font-size:.6rem;color:var(--t3);flex-shrink:0;}
+.ci-sub{margin:1px 0 4px;}
 .ci-preview{font-size:.69rem;color:var(--t3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .ci-badge{
   background:linear-gradient(135deg,var(--ac),var(--ac3));
@@ -187,23 +195,54 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;height:1
   box-shadow:0 2px 10px rgba(0,200,150,.15);
 }
 .ch-ava img{width:100%;height:100%;object-fit:cover;display:block;}
-.ch-info{min-width:0;}
+.ch-info{min-width:0;flex:1;}
+.ch-name-row{display:flex;align-items:center;gap:6px;min-width:0;}
 .ch-name{font-size:.86rem;font-weight:800;color:var(--t);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.ch-meta{display:flex;align-items:center;gap:7px;margin-top:2px;}
-.ch-type-badge{
-  font-size:.6rem;font-weight:700;padding:1px 7px;border-radius:7px;
-  color:#fff;flex-shrink:0;
+.ch-back-arrow{
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;
+  width:20px;height:20px;padding:0;border:none;background:none;
+  color:var(--t3);cursor:pointer;border-radius:6px;transition:color .15s,background .15s;
 }
+.ch-back-arrow svg{width:14px;height:14px;}
+.ch-back-arrow:hover{color:var(--t);background:rgba(255,255,255,.07);}
+.ch-meta{display:flex;align-items:center;gap:7px;margin-top:2px;}
 .ch-status{font-size:.64rem;color:var(--t3);transition:opacity .2s;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0;}
-.ch-actions{margin-right:auto;display:flex;gap:6px;flex-shrink:0;}
-.ch-btn{
-  padding:5px 10px;border-radius:8px;border:1px solid var(--border);
+
+/* ── Chat-options menu (beside avatar) — replaces the old inert ☰ "back" button
+   and the separate "👤 الملف" action button; same dropdown pattern as the
+   site-header's .sc-menu-dropdown ── */
+.ch-menu-wrap{position:relative;flex-shrink:0;}
+.ch-btn.ch-menu-btn{
+  padding:6px;border-radius:8px;border:1px solid var(--border);
   background:rgba(255,255,255,.05);color:var(--t2);
-  font-family:'Cairo',sans-serif;font-size:.67rem;font-weight:700;
+  display:flex;align-items:center;justify-content:center;
   cursor:pointer;transition:all .18s;
 }
-.ch-btn:hover{background:rgba(255,255,255,.1);color:var(--t);border-color:var(--border2);}
-.ch-back{display:none;}
+.ch-btn.ch-menu-btn:hover{background:rgba(255,255,255,.1);color:var(--t);border-color:var(--border2);}
+.ch-menu-dropdown{
+  display:none;position:absolute;top:calc(100% + 8px);right:0;min-width:190px;
+  background:rgba(10,14,24,.95);border:1px solid rgba(255,255,255,.13);
+  border-radius:13px;padding:5px;z-index:200;
+  backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
+  box-shadow:0 10px 30px rgba(0,0,0,.45);
+}
+.ch-menu-dropdown.open{display:block;}
+.ch-menu-item{
+  display:flex;align-items:center;gap:9px;width:100%;
+  padding:9px 12px;border:none;background:none;
+  color:var(--t,#fff);font-family:inherit;font-size:12px;font-weight:600;
+  border-radius:8px;cursor:pointer;text-align:right;
+  transition:background .15s;
+}
+.ch-menu-item svg{color:var(--ac,#00c896);flex-shrink:0;width:14px;height:14px;}
+.ch-menu-item:hover{background:rgba(255,255,255,.07);}
+.ch-menu-item--disabled{opacity:.45;cursor:not-allowed;}
+.ch-menu-item--disabled:hover{background:none;}
+.ch-menu-item--disabled svg{color:var(--t3);}
+.ch-menu-soon{
+  margin-right:auto;font-size:.6rem;font-weight:800;color:var(--t3);
+  background:rgba(255,255,255,.06);padding:1px 6px;border-radius:8px;flex-shrink:0;
+}
 
 /* ── Messages area ── */
 .messages{
@@ -307,7 +346,6 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;height:1
   .layout{grid-template-columns:1fr;height:calc(100dvh - 42px);}
   .conv-list{display:none;}
   .conv-list.mobile-show{display:flex;position:fixed;inset:42px 0 0 0;z-index:50;background:var(--bg2);}
-  .ch-back{display:flex;}
   .messages{padding:16px 14px 10px;}
   .chat-input{padding:10px 12px;padding-bottom:max(10px,env(safe-area-inset-bottom));}
   .msg{max-width:82%;}
