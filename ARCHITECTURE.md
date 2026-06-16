@@ -5270,28 +5270,58 @@ Cold path only, via `FastAPI.BackgroundTasks`:
 
 Hot path skips both — receiver is actively reading, delivered+read already set in INSERT, unread count unchanged.
 
-### Expected After PR #165
+### Measured After PR #165 + PR #166
 
-| Metric | Before | After (estimate) |
-|--------|--------|-----------------|
-| `conn_ms` | 173ms | ~1ms (no ping for fresh connections) |
-| `ins_ms` | 524ms | ~173ms (1 RTT, no WAL flush wait) |
-| `db_ms` | 697ms | ~200ms |
-| `srv_ms` | ~697ms | ~210ms |
-| `net_ms` | ~1345ms | ~810ms (srv drop + same network overhead) |
+| Metric | Before (PR #163) | After PR #165/#166 | Status |
+|--------|-----------------|-------------------|--------|
+| `conn_ms` | 173ms | **0ms** | ✅ Fixed |
+| `upd_ms` | ~500ms | **0ms** | ✅ Fixed |
+| `cnt_ms` | ~500ms | **0ms** | ✅ Fixed |
+| `ins_ms` | ~524ms | **531ms** | ⏳ Under investigation |
+| `db_ms` | ~1700ms | **531ms** | ⬇️ Improved but bottleneck remains |
+| `srv_ms` | ~1700ms | **531ms** | ⬇️ |
+| `net_ms` | ~2500ms | **912ms** | ⬇️ |
 
-### Timing Fields Returned in `_timing`
+### INSERT Bottleneck Hypothesis — Extended Query Protocol
+
+`ins_ms: 531ms ≈ 3 × 173ms (RTT)`. This matches the pg8000 **extended query protocol** flow for parameterized queries (`:named` params trigger Parse → Bind+Execute → Sync as three separate message exchanges):
+
+```
+1. Parse     → ParseComplete          ~173ms
+2. Bind+Exec → RowDescription+Rows    ~173ms
+3. Sync      → ReadyForQuery          ~173ms
+                                      ─────
+                                      ~519ms ≈ 531ms ✓
+```
+
+By contrast, `SELECT 1` (no params, simple query) = 1 RTT = 173ms.
+
+**This is a protocol overhead issue, not a WAL flush or trigger issue.**
+
+### Diagnostic Timing Fields (PR #167)
+
+`_timing` now returns a full breakdown to confirm or refute the above:
 
 | Field | Meaning |
 |-------|---------|
-| `conn_ms` | Time to acquire DB connection (ping only if idle > 4 min) |
-| `insert_ms` | INSERT query round-trip (no WAL flush wait) |
-| `update_ms` | Always 0 (UPDATE eliminated; hot path inserts as read directly) |
-| `count_ms` | COUNT(*) query (0 on hot path) |
-| `db_ms` | Total DB time = conn + insert + count |
+| `conn_ms` | Time for `get_conn()` only (ping omitted for connections < 240s) |
+| `sync_set_ms` | Time for `SET synchronous_commit=off` (0ms after first use per connection) |
+| `insert_exec_ms` | Time for the INSERT `conn.run()` call (pure extended query) |
+| `insert_ms` | `sync_set_ms` + `insert_exec_ms` combined |
+| `update_ms` | Always 0 on hot path |
+| `count_ms` | COUNT(*) query time (0 on hot path) |
+| `db_ms` | Total DB time = conn + set + insert + count |
 | `ws_ms` | WS send time (critical path only) |
 | `badge_ms` | Always 0 (deferred to background) |
 | `total_ms` | Full endpoint wall time |
+
+**Expected debug panel output after PR #167:**
+```
+HTTP send net_ms:912 id:93 srv_ms:531 conn_ms:0 sync_ms:0 ins_exec:531 ins_ms:531 upd_ms:0 cnt_ms:0
+```
+
+If `sync_ms:0` and `ins_exec:531` → confirmed extended query protocol overhead.
+If `sync_ms:173` → `SET synchronous_commit=off` still running per request (flag not persisting).
 
 ### Startup Diagnostics (in `init_db`)
 
