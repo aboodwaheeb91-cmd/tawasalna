@@ -5843,3 +5843,67 @@ handling.
     `history.length` is unaffected either way (replaceState never adds or
     removes entries) — still "without breaking history" as originally
     required.
+
+### Messenger Badge-Beside-Name Contract
+
+**Refines the Messenger Conversation Card Contract above: the account-type
+badge moves from its own line to sit directly beside the name, and the card
+gets a soft per-account-type accent.** Pure markup/CSS placement change —
+no backend, WebSocket, or send-pipeline code touched.
+
+- **Line 1 is name + account-type badge, side by side.** New
+  `.ci-name-row` (conv-list) / `.ch-name-row` (chat header, already existed
+  but now also hosts the badge) wraps the name `<span>` and the existing
+  `typeBadgePillHtml(type)` pill in a flex row with a small gap — the badge
+  is never on its own line and never far from the name. `#chatTypeBadge`
+  moved out of `.ch-meta` into `.ch-name-row`, right after `#chatName`.
+  The pill itself (`typeBadgePillHtml()`) is unchanged — text-only, no
+  emoji, tinted background — only its *position* in the markup changed.
+- **Line 2 is the profession/specialty caption, falling back to the
+  account-type label.** `.ci-sub` (conv-list) and the new `.ch-role`
+  (chat header) render `typeInfo(type).label` as plain soft text (not a
+  pill — the pill already lives on line 1). As documented in the
+  Conversation Card Contract above, `get_conversations()` in `auth.py`
+  has no `headline`/`title` column, so there is no profession data to
+  show today; this caption always falls back to the type label rather
+  than leaving an empty line. If a profession field is ever added to the
+  endpoint, this is the one slot to swap it into.
+- **New per-account-type card accent — `acc-emp` / `acc-co` / `acc-edu`.**
+  Deliberately namespaced separately from the pre-existing `t-emp` /
+  `t-co` / `t-edu` classes, which already style the *solid* avatar-gradient
+  background (`.ci-ava.t-emp{background:linear-gradient(...)}`). Applying
+  `t-emp` directly to `.conv-item` would have painted the whole card with
+  that vivid avatar gradient — reusing the namespace was rejected for that
+  reason. `accentClass(type)` (`messages.render.js`) derives the new class
+  from the existing `typeInfo(type).cls` by swapping the `t-` prefix for
+  `acc-`, so both class sets stay derived from the same single source of
+  truth (`_TYPE_INFO`).
+  - Each accent is a low-opacity border tint + a faint diagonal gradient
+    wash fading into the normal card background, not a solid fill:
+    `acc-emp` → `rgba(0,200,150,.2)` border / `rgba(0,200,150,.05)` wash
+    (soft green/teal), `acc-co` → `rgba(37,99,255,.2)` / `rgba(37,99,255,.05)`
+    (soft light blue), `acc-edu` → `rgba(139,92,246,.2)` /
+    `rgba(139,92,246,.05)` (soft purple). Same three brand hues used
+    everywhere else in the app (avatars, badges) — just diluted, so the
+    card reads as calm/premium rather than loud, and only one accent hue
+    appears per card.
+  - `.conv-item:hover` / `.conv-item.active` rules are declared after the
+    `acc-*` rules so hover/active state still wins on interaction.
+- **Forbidden items confirmed respected:** no emoji added to any badge
+  (the pill markup is unchanged); badge stays the existing small pill, not
+  enlarged or squared; avatars stay circular (untouched this pass); no new
+  saturated/loud colors — all three accents use the existing brand hues at
+  5–20% opacity; no backend, WebSocket, or send-pipeline file touched
+  (only `messages.html`, `messages.css`, `messages.render.js`).
+- **No pin icon, still.** Re-confirmed unchanged from the Conversation Card
+  Contract above — no backing data field exists.
+- **Verified with Playwright** (`renderConvList()` / `openConversation()`
+  called directly against real production JS, mock conversations covering
+  all three account types) for: badge present and adjacent to the name in
+  both the conv-list cards and the chat header (`nameRowHasBadge` /
+  `badgeInNameRow`), zero emoji in badge text, distinct `acc-*` class and
+  border-color per card matching its type, and no horizontal overflow at a
+  390px mobile viewport.
+- **Version bump:** `messages.css` and all five `messages.*.js` script tags
+  in `messages.html` bumped `v=v16` → `v=v17` (cache-busting only, no
+  behavior implied by the version number itself).
