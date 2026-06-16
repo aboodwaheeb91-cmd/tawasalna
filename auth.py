@@ -1696,54 +1696,68 @@ def send_message(sender_id: int, receiver_id: int, content: str) -> dict:
 
 
 def send_message_pipeline(sender_id: int, receiver_id: int, content: str, mark_as_read: bool) -> tuple:
-    """Single-connection pipeline for the hot send path.
+    """Single-connection send pipeline — two optimised paths:
 
-    Combines INSERT + optional UPDATE read/delivered + COUNT unread into ONE
-    DB connection, eliminating 2 of the 3 connection-acquisition round-trips
-    (each of which included a SELECT 1 ping to Supabase).
+    Hot  (mark_as_read=True):  1 query  — INSERT already-read (no UPDATE, no COUNT).
+                                Returns (msg, None, timing). Caller skips badge update.
+    Cold (mark_as_read=False): 2 queries — INSERT unread + COUNT for badge.
+                                Returns (msg, unread_count, timing). Badge pushed in background.
 
-    Returns: (msg_dict, unread_count, timing_dict)
+    One DB connection, one SELECT 1 ping regardless of path.
     """
     t0 = _time_mod.perf_counter()
     conn = get_conn()
     t_conn = _time_mod.perf_counter()
     try:
-        rows = conn.run(
-            "INSERT INTO messages (sender_id, receiver_id, content) "
-            "VALUES (:sid, :rid, :content) "
-            "RETURNING id, sender_id, receiver_id, content, is_read, delivered_at, read_at, created_at",
-            sid=sender_id, rid=receiver_id, content=content
-        )
-        cols = [c["name"] for c in conn.columns]
-        msg = _serialize(_row_to_dict(cols, rows[0]))
-        msg_id = msg["id"]
-        t_insert = _time_mod.perf_counter()
-
         if mark_as_read:
-            conn.run(
-                "UPDATE messages SET is_read=TRUE, read_at=NOW(), "
-                "delivered_at=COALESCE(delivered_at, NOW()) WHERE id=:id",
-                id=msg_id
+            # Save message as already delivered+read in one INSERT — no UPDATE needed
+            rows = conn.run(
+                "INSERT INTO messages (sender_id, receiver_id, content, is_read, delivered_at, read_at) "
+                "VALUES (:sid, :rid, :content, TRUE, NOW(), NOW()) "
+                "RETURNING id, sender_id, receiver_id, content, is_read, delivered_at, read_at, created_at",
+                sid=sender_id, rid=receiver_id, content=content
             )
+            cols = [c["name"] for c in conn.columns]
+            msg = _serialize(_row_to_dict(cols, rows[0]))
+            t_done = _time_mod.perf_counter()
             msg["delivered_at"] = True
             msg["read_at"] = True
-        t_update = _time_mod.perf_counter()
+            timing = {
+                "conn_ms":   round((t_conn - t0)     * 1000),
+                "insert_ms": round((t_done - t_conn) * 1000),
+                "update_ms": 0,   # skipped — inserted as read directly
+                "count_ms":  0,   # skipped — badge unchanged when receiver is reading
+                "db_ms":     round((t_done - t0)     * 1000),
+            }
+            return msg, None, timing  # None = badge update not needed
 
-        uc = conn.run(
-            "SELECT COUNT(*) FROM messages WHERE receiver_id=:rid AND is_read=FALSE",
-            rid=receiver_id
-        )
-        unread = int(uc[0][0]) if uc else 0
-        t_done = _time_mod.perf_counter()
+        else:
+            # Cold path: save unread, then count for badge (2 queries, 1 connection)
+            rows = conn.run(
+                "INSERT INTO messages (sender_id, receiver_id, content) "
+                "VALUES (:sid, :rid, :content) "
+                "RETURNING id, sender_id, receiver_id, content, is_read, delivered_at, read_at, created_at",
+                sid=sender_id, rid=receiver_id, content=content
+            )
+            cols = [c["name"] for c in conn.columns]
+            msg = _serialize(_row_to_dict(cols, rows[0]))
+            t_insert = _time_mod.perf_counter()
 
-        timing = {
-            "conn_ms":   round((t_conn   - t0)       * 1000),
-            "insert_ms": round((t_insert - t_conn)   * 1000),
-            "update_ms": round((t_update - t_insert) * 1000),
-            "count_ms":  round((t_done   - t_update) * 1000),
-            "db_ms":     round((t_done   - t0)       * 1000),
-        }
-        return msg, unread, timing
+            uc = conn.run(
+                "SELECT COUNT(*) FROM messages WHERE receiver_id=:rid AND is_read=FALSE",
+                rid=receiver_id
+            )
+            unread = int(uc[0][0]) if uc else 0
+            t_done = _time_mod.perf_counter()
+
+            timing = {
+                "conn_ms":   round((t_conn   - t0)       * 1000),
+                "insert_ms": round((t_insert - t_conn)   * 1000),
+                "update_ms": 0,
+                "count_ms":  round((t_done   - t_insert) * 1000),
+                "db_ms":     round((t_done   - t0)       * 1000),
+            }
+            return msg, unread, timing
     finally:
         release_conn(conn)
 

@@ -5,7 +5,7 @@
 """
 
 import os
-from fastapi import FastAPI, HTTPException, Request, Response, Depends
+from fastapi import FastAPI, HTTPException, Request, Response, Depends, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -13,7 +13,7 @@ from pydantic import BaseModel
 import base64, mimetypes
 from typing import List, Optional
 from datetime import datetime
-import hashlib, secrets, json, os, time
+import hashlib, secrets, json, os, time, asyncio
 
 import urllib.request
 
@@ -2024,8 +2024,21 @@ def delete_user_link(link_id: int, token=Depends(verify_token)):
 
 # ══ Messages & Notifications ══
 
+async def _bg_cold_path_update(receiver_id: int, msg_id: int, was_delivered: bool, unread: int):
+    """Background: DB mark-delivered + WS badge_update — off critical path."""
+    try:
+        if was_delivered:
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(None, mark_message_delivered, msg_id)
+        await ws_manager.send_to_user(receiver_id, {
+            "type": "badge_update", "badge": "messages", "count": unread
+        })
+    except Exception as e:
+        print(f"[bg_cold_path] {e}")
+
+
 @app.post("/messages/send")
-async def send_msg(data: MessageInput, token=Depends(verify_token)):
+async def send_msg(data: MessageInput, background_tasks: BackgroundTasks, token=Depends(verify_token)):
     _t0 = time.perf_counter()
     try:
         sender_id = int(token.get("user_id") or 0)
@@ -2036,7 +2049,6 @@ async def send_msg(data: MessageInput, token=Depends(verify_token)):
 
         receiver_has_conv_open = ws_manager.active_conversations.get(data.receiver_id) == sender_id
 
-        # Single DB connection: INSERT + optional UPDATE read + COUNT unread
         msg, unread, db_timing = send_message_pipeline(
             sender_id, data.receiver_id, data.content,
             mark_as_read=receiver_has_conv_open
@@ -2045,6 +2057,7 @@ async def send_msg(data: MessageInput, token=Depends(verify_token)):
         _t_db = time.perf_counter()
 
         if receiver_has_conv_open:
+            # Hot path: 1 DB round-trip, badge unchanged (receiver is reading)
             await ws_manager.send_to_user(data.receiver_id, {
                 "type": "message", "from": sender_id, "id": msg_id,
                 "content": data.content, "created_at": msg.get("created_at", ""), "is_read": True
@@ -2053,27 +2066,25 @@ async def send_msg(data: MessageInput, token=Depends(verify_token)):
                 "type": "status_update", "id": msg_id, "status": "read"
             })
         else:
+            # Cold path: WS events on critical path; mark_delivered + badge in background
             was_delivered = await ws_manager.send_to_user(data.receiver_id, {
                 "type": "message", "from": sender_id, "id": msg_id,
                 "content": data.content, "created_at": msg.get("created_at", "")
             })
             if was_delivered:
-                mark_message_delivered(msg_id)   # one extra connection only on cold path
                 msg["delivered_at"] = True
                 await ws_manager.send_to_user(sender_id, {
                     "type": "status_update", "id": msg_id, "status": "delivered"
                 })
+            background_tasks.add_task(
+                _bg_cold_path_update, data.receiver_id, msg_id, bool(was_delivered), unread or 0
+            )
 
-        _t_ws = time.perf_counter()
-        await ws_manager.send_to_user(data.receiver_id, {
-            "type": "badge_update", "badge": "messages", "count": unread
-        })
         _t_end = time.perf_counter()
-
         _timing = {
             **db_timing,
-            "ws_ms":    round((_t_ws  - _t_db) * 1000),
-            "badge_ms": round((_t_end - _t_ws) * 1000),
+            "ws_ms":    round((_t_end - _t_db) * 1000),
+            "badge_ms": 0,   # deferred to background on cold path; skipped on hot path
             "total_ms": round((_t_end - _t0)   * 1000),
         }
         print(f"[TW-TIMING] send_msg #{msg_id}: {_timing}")
