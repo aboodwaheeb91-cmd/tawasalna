@@ -5356,3 +5356,38 @@ CREATE INDEX IF NOT EXISTS idx_msg_receiver        ON messages(receiver_id);
 - DO NOT add a 4th DB query to the critical path without documenting it here
 
 Same for `typing_stop`.
+
+---
+
+## [P1] 62. Messenger Premium UI Contract
+
+**Scope:** HTML/CSS-only redesign of `messages.html` + `messages.css`. No backend, WebSocket, or message-pipeline logic changed. All element IDs, class names used by JS (`messages.state.js`, `messages.api.js`, `messages.ws.js`, `messages.render.js`), and the typing-bubble/read-receipt markup are unchanged.
+
+### What changed (PR #170)
+
+| Area | Before (V1) | After (Premium V2) |
+|------|------------|---------------------|
+| Outgoing bubble (`.msg.out .msg-text`) | `rgba(255,255,255,.07)` flat gray — nearly invisible | `linear-gradient(135deg, var(--ac), var(--ac3), var(--ac2))` + white text + `box-shadow` |
+| Incoming bubble (`.msg.in .msg-text`) | vibrant blue/teal gradient (backwards — receiver's message looked more prominent than sender's) | neutral glass surface: `rgba(255,255,255,.06)` + 1px border |
+| Send button | 12px rounded square | full circle (`border-radius:50%`) with gradient + shadow, scale on hover/active |
+| Nav title / logo | inline `style="..."` on `<span>` and `<img>` | `.nav-title` class on span; `.nav-logo img` rule in CSS — no inline styles |
+| Nav height | 52px | 56px |
+| Composer input | 14px rounded rect | 22px pill (`border-radius:22px`) with focus glow ring |
+| Conversation list / chat background | flat single color | subtle radial-gradient accents (`rgba(0,200,150,.03)` / `rgba(37,99,255,.03)`), still dark/teal/blue theme |
+| Scrollbars | default | thin custom webkit scrollbar (3px, translucent thumb) on `.conv-items` and `.messages` |
+| Cache-busting version | `?v=v8` | `?v=v9` (CSS + all 5 JS files) |
+
+### Explicitly NOT changed
+
+- Typing bubble markup/animation (`.typing-bubble`, `.typing-dots`, `@keyframes tw-typing-dot`) — copied verbatim
+- Message status icon classes (`.msg-status.pending/.sent/.delivered/.read`) — same selectors, same read-receipt color (`#00c896`)
+- `.msg-wrap.out{justify-content:flex-start}` / `.msg-wrap.in{justify-content:flex-end}` RTL layout direction — unchanged
+- Mobile breakpoint (`@media(max-width:700px)`), `.conv-list.mobile-show`, `.ch-back` toggle behavior — unchanged, only padding/sizing refined
+- No JS files touched; no new HTTP requests, libraries, or animations beyond what already existed (hover/active transitions only, no new keyframes)
+- Mobile keyboard-focus fix (PR #169: `pointerdown` preventDefault + `requestAnimationFrame` focus restore in `messages.render.js`) — untouched
+
+### Forbidden
+
+- NEVER reuse `?v=v8` (or any prior version string) after editing `messages.css`/the JS files — always bump together so browsers don't serve a stale CSS against new HTML structure
+- NEVER reintroduce inline `style="..."` attributes on nav elements — use `.nav-title` / `.nav-logo img` classes
+- NEVER make the incoming bubble more visually prominent than the outgoing bubble (readability rule: the user's own sent messages should be the most prominent/colorful element in the thread)
