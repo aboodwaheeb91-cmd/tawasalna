@@ -1,6 +1,32 @@
 // messages.render.js — Messenger V1 render + UI + init
 // Depends on: messages.state.js, messages.api.js, messages.ws.js
 
+// ── Account-type presentation (avatar/badge only — no new data, no new logic) ──
+// Maps the user_type already returned by the API to a label/icon/color class.
+var _TYPE_INFO = {
+  co:  { label: 'شركة',       icon: '🏢', cls: 't-co'  },
+  edu: { label: 'جهة تعليمية', icon: '🎓', cls: 't-edu' },
+  emp: { label: 'موظف',       icon: '👤', cls: 't-emp' }
+};
+function typeInfo(t) { return _TYPE_INFO[t] || _TYPE_INFO.emp; }
+
+function avatarHtml(name, avatarUrl) {
+  if (avatarUrl) return '<img src="' + esc(avatarUrl) + '" alt="" loading="lazy">';
+  var initial = String(name || '').trim().charAt(0) || '؟';
+  return '<span class="ava-initial">' + esc(initial) + '</span>';
+}
+
+function typeBadgeHtml(type, cls) {
+  var info = typeInfo(type);
+  return '<span class="' + cls + ' ' + info.cls + '" title="' + info.label + '">' + info.icon + '</span>';
+}
+
+function formatConvTime(iso) {
+  if (!iso) return '';
+  try { return new Date(iso).toLocaleTimeString('ar', { hour: '2-digit', minute: '2-digit' }); }
+  catch (e) { return ''; }
+}
+
 // ── Helpers ──────────────────────────────────────────────────────────────
 
 function scrollDown() {
@@ -57,16 +83,21 @@ function renderConvList(convs) {
 
   var frag = '';
   convs.forEach(function(c) {
-    var typeIco = c.user_type === 'co' ? '🏢' : c.user_type === 'edu' ? '🎓' : '👤';
+    var type    = c.user_type || 'emp';
     var name    = esc(c.full_name || 'مستخدم');
     var last    = esc((c.content || '').slice(0, 45));
+    var time    = esc(formatConvTime(c.created_at));
     var unread  = (!c.is_read && c.sender_id !== _user.id)
                   ? '<span class="ci-badge">1</span>' : '';
     var isActive = (_currentConvId && c.other_id === _currentConvId) ? ' active' : '';
-    frag += '<div class="conv-item' + isActive + '" data-uid="' + c.other_id + '">'
-          + '<div class="ci-ava">' + typeIco + '</div>'
+    var avatarUrl = c.avatar_url || '';
+    frag += '<div class="conv-item' + isActive + '" data-uid="' + c.other_id
+          + '" data-type="' + type + '" data-avatar="' + esc(avatarUrl) + '">'
+          + '<div class="ci-ava-wrap"><div class="ci-ava ' + typeInfo(type).cls + '">'
+          + avatarHtml(c.full_name, avatarUrl) + '</div>'
+          + typeBadgeHtml(type, 'ci-type-badge') + '</div>'
           + '<div class="ci-body">'
-          + '<div class="ci-top"><span class="ci-name">' + name + '</span></div>'
+          + '<div class="ci-top"><span class="ci-name">' + name + '</span><span class="ci-time">' + time + '</span></div>'
           + '<div class="ci-preview">' + last + '</div>'
           + '</div>' + unread + '</div>';
   });
@@ -74,24 +105,28 @@ function renderConvList(convs) {
 
   // Placeholder for conversations not yet in DB (new conv via ?with=)
   if (_currentConvId && _activeConvMeta && !items.querySelector('[data-uid="' + _currentConvId + '"]')) {
+    var phType = _activeConvMeta.type || 'emp';
     var ph = document.createElement('div');
     ph.className = 'conv-item active';
     ph.setAttribute('data-uid', String(_activeConvMeta.id));
-    ph.innerHTML = '<div class="ci-ava">' + _activeConvMeta.typeIco + '</div>'
+    ph.innerHTML = '<div class="ci-ava-wrap"><div class="ci-ava ' + typeInfo(phType).cls + '">'
+      + avatarHtml(_activeConvMeta.name, _activeConvMeta.avatarUrl) + '</div>'
+      + typeBadgeHtml(phType, 'ci-type-badge') + '</div>'
       + '<div class="ci-body">'
       + '<div class="ci-top"><span class="ci-name">' + esc(_activeConvMeta.name) + '</span></div>'
       + '<div class="ci-preview">محادثة جديدة</div></div>';
     ph.addEventListener('click', function() {
-      openConversation(_activeConvMeta.id, _activeConvMeta.name, _activeConvMeta.typeIco);
+      openConversation(_activeConvMeta.id, _activeConvMeta.name, _activeConvMeta.type, _activeConvMeta.avatarUrl);
     });
     items.insertAdjacentElement('afterbegin', ph);
   }
 
   items.querySelectorAll('.conv-item').forEach(function(el) {
-    var uid  = parseInt(el.getAttribute('data-uid'));
-    var name = (el.querySelector('.ci-name') || {}).textContent || '';
-    var ava  = (el.querySelector('.ci-ava')  || {}).textContent || '👤';
-    el.addEventListener('click', function() { openConversation(uid, name, ava); });
+    var uid       = parseInt(el.getAttribute('data-uid'));
+    var name      = (el.querySelector('.ci-name') || {}).textContent || '';
+    var type      = el.getAttribute('data-type') || 'emp';
+    var avatarUrl = el.getAttribute('data-avatar') || '';
+    el.addEventListener('click', function() { openConversation(uid, name, type, avatarUrl); });
   });
 }
 
@@ -132,14 +167,15 @@ function renderBubble(isMe, content, time, statusHtml, msgId) {
 
 // ── Open conversation — THE ONLY ENTRY POINT ─────────────────────────────
 
-function openConversation(otherId, name, typeIco) {
+function openConversation(otherId, name, type, avatarUrl) {
   // Signal inactive on previous conversation before switching
   if (_currentConvId && _currentConvId !== otherId) {
     sendInactiveConversation(_currentConvId);
     hideTypingBubble(_currentConvId);
   }
+  type = type || 'emp';
   _currentConvId  = otherId;
-  _activeConvMeta = { id: otherId, name: name, typeIco: typeIco };
+  _activeConvMeta = { id: otherId, name: name, type: type, avatarUrl: avatarUrl };
   // Signal active conversation to server (enables immediate read receipts)
   sendActiveConversation(otherId);
 
@@ -153,10 +189,22 @@ function openConversation(otherId, name, typeIco) {
 
   var nameEl   = document.getElementById('chatName');
   var avaEl    = document.getElementById('chatAva');
+  var badgeEl  = document.getElementById('chatTypeBadge');
   var statusEl = document.getElementById('chatStatus');
-  if (nameEl)   nameEl.textContent   = name;
-  if (avaEl)    avaEl.textContent    = typeIco;
-  if (statusEl) statusEl.textContent = '';
+  if (nameEl) nameEl.textContent = name;
+  if (avaEl) {
+    avaEl.className = 'ch-ava ' + typeInfo(type).cls;
+    avaEl.innerHTML = avatarHtml(name, avatarUrl);
+  }
+  if (badgeEl) {
+    var info = typeInfo(type);
+    badgeEl.textContent = info.icon + ' ' + info.label;
+    badgeEl.className   = 'ch-type-badge ' + info.cls;
+    badgeEl.style.display = '';
+  }
+  // No real presence/online signal is exposed by the backend to other users —
+  // show an honest "unavailable" state rather than inventing online/offline.
+  if (statusEl) statusEl.textContent = 'آخر نشاط غير متاح';
 
   var viewBtn = document.getElementById('viewProfileBtn');
   if (viewBtn) viewBtn.style.display = '';
@@ -350,16 +398,17 @@ function handleWithParam(twId) {
       document.getElementById('messages').innerHTML =
         '<div style="text-align:center;padding:30px;color:var(--t3)">تعذر فتح المحادثة</div>';
     } else {
-      var typeIco   = data.user_type === 'co' ? '🏢' : data.user_type === 'edu' ? '🎓' : '👤';
+      var type      = data.user_type || 'emp';
       var convItems = document.querySelector('.conv-items');
       var ph = document.createElement('div');
       ph.className = 'conv-item';
       ph.setAttribute('data-uid', String(data.id));
-      ph.innerHTML = '<div class="ci-ava">' + typeIco + '</div>'
+      ph.innerHTML = '<div class="ci-ava-wrap"><div class="ci-ava ' + typeInfo(type).cls + '">'
+        + avatarHtml(data.full_name, '') + '</div>' + typeBadgeHtml(type, 'ci-type-badge') + '</div>'
         + '<div class="ci-body"><div class="ci-top"><span class="ci-name">'
         + esc(data.full_name || 'مستخدم') + '</span></div></div>';
       if (convItems) convItems.insertAdjacentElement('afterbegin', ph);
-      openConversation(data.id, data.full_name || 'مستخدم', typeIco);
+      openConversation(data.id, data.full_name || 'مستخدم', type, '');
       history.replaceState(null, '', '/messages');
     }
     // loadConversations runs AFTER _currentConvId is set → active state preserved

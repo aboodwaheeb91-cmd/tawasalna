@@ -5391,3 +5391,46 @@ Same for `typing_stop`.
 - NEVER reuse `?v=v8` (or any prior version string) after editing `messages.css`/the JS files — always bump together so browsers don't serve a stale CSS against new HTML structure
 - NEVER reintroduce inline `style="..."` attributes on nav elements — use `.nav-title` / `.nav-logo img` classes
 - NEVER make the incoming bubble more visually prominent than the outgoing bubble (readability rule: the user's own sent messages should be the most prominent/colorful element in the thread)
+
+### Real Product Polish pass (follow-up PR)
+
+PR #170 only restyled colors/bubbles; this pass wires the conversation list and chat
+header to data the backend (`auth.py get_conversations()`, `/user/lookup/{tw_id}`)
+already returned but the old markup never displayed. **Scope is still HTML/CSS plus
+render-markup-only changes in `messages.render.js`** — no new endpoints, no WebSocket
+changes, no changes to send/read-receipt/typing-bubble/debug logic.
+
+| Area | Before | After |
+|------|--------|-------|
+| Logo | `Logo.svg` (old asset, mismatched brand colors) | `33333.svg` (current official mark — teal→blue gradient matching `--ac`/`--ac2`, used elsewhere only in `profile-showcase.html`) |
+| Conv-list avatar | Generic emoji (👤/🏢/🎓) — `avatar_url` from the API was fetched but never rendered | Real photo (`<img>`) when `avatar_url` is set; else initials avatar colored per account type (`.t-emp`/`.t-co`/`.t-edu`) |
+| Account type | Implied only by the avatar emoji | Explicit small corner badge (`.ci-type-badge` / `.ch-type-badge`) with icon + Arabic label, separate from the avatar |
+| Conv-list time | `.ci-time` existed in CSS but was never populated by JS | Populated from `c.created_at` (already in the API response) |
+| Chat header avatar/status | Emoji icon; `#chatStatus` was always cleared to `''` (dead element) | Same avatar/badge treatment as conv-list; `#chatStatus` now shows **"آخر نشاط غير متاح"** |
+| Nav back button | Bordered pill with arrow + "رجوع" text — visually heavy | Compact 34×34 icon-only ghost button (border/background only on hover) |
+| Search bar | Plain wide rectangular input | Pill-shaped (`border-radius:999px`), tighter padding — same scoping as before (lives only inside `#convList`, never inside `#chatArea`) |
+| Spacing | `.messages` padding `20px 20px 12px` | `22px 20px 18px` — more breathing room above the first bubble and above the composer |
+| Attach button | `opacity:.45` (nearly invisible) | `opacity:.65` — still visibly disabled/"coming soon", no longer looks broken |
+
+#### Online/offline status — explicitly NOT implemented
+
+There is **no general presence signal exposed to clients** anywhere in the
+codebase. `ConnectionManager.active_conversations` (server.py) only tracks which
+conversation a user currently has open, for immediate read-receipt delivery — it
+is never broadcast to other users and has no "last seen" timestamp backing it.
+No DB column or API field carries online/offline/last-seen data today.
+
+Per explicit product instruction, this pass **does not fabricate a fake online
+indicator**. `#chatStatus` shows the honest fallback text "آخر نشاط غير متاح"
+("activity status unavailable") instead. Wiring real presence would require a
+new backend feature (broadcast `ConnectionManager.active` connection state, or a
+`last_seen` column) and is out of scope here — track as future work, not implied
+by this UI pass.
+
+#### Render-markup-only changes in `messages.render.js`
+
+Added pure-presentation helpers — `typeInfo()`, `avatarHtml()`, `typeBadgeHtml()`,
+`formatConvTime()` — and extended `openConversation(otherId, name, type, avatarUrl)`
+(previously `(otherId, name, typeIco)`) to carry `user_type`/`avatar_url` through to
+the chat header. No new HTTP calls, no new WebSocket messages, no change to
+`doSendMessage()`, `renderMessageStatus()`, `showTypingBubble()`, or the debug panel.
