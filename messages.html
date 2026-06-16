@@ -14,23 +14,23 @@
 <title>تواصلنا - الرسائل</title>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/tw_shared.css">
-<link rel="stylesheet" href="/static/messages.css?v=v12">
+<link rel="stylesheet" href="/static/messages.css?v=v13">
 <style>.skip-link{position:absolute;top:-40px;right:0;background:var(--ac,#00c896);color:#0d1a2e;padding:8px 16px;border-radius:0 0 8px 0;font-family:Cairo,sans-serif;font-size:.8rem;font-weight:700;text-decoration:none;transition:top .2s;z-index:10000}.skip-link:focus{top:0}</style>
 <a href="#main-content" class="skip-link">تخطى للمحتوى الرئيسي</a>
 </head>
 <body>
 
-<!-- ── Unified site header (same component as profile.html's .toolbar) ── -->
-<div class="toolbar">
-  <div class="tb-logo">
-    <img src="https://wrxvmdmknhoufoeprpoc.supabase.co/storage/v1/object/public/site/Logo.svg"
-         alt="تواصلنا" style="height:36px;width:auto;object-fit:contain;display:block">
+<!-- ── Unified site header — Profile V2 source: .sc-header (profile-showcase.html / profile-v2.css) ── -->
+<div class="sc-header">
+  <button type="button" class="sc-home-pill" onclick="goMessengerHome()"><span aria-hidden="true">🏠</span> الرئيسية</button>
+  <div class="sc-logo">
+    <img src="https://wrxvmdmknhoufoeprpoc.supabase.co/storage/v1/object/public/site/33333.svg" alt="تواصلنا">
   </div>
-  <button type="button" class="tb-btn tb-ghost" onclick="goMessengerHome()" title="الرئيسية" style="font-size:1.1rem;padding:6px 10px">🏠</button>
-  <div style="flex:1"></div>
-  <button type="button" class="tb-btn tb-ghost" onclick="location.href='/notifications'" title="الإشعارات" style="font-size:1rem;padding:6px 10px">🔔</button>
-  <button type="button" class="tb-btn tb-ghost" onclick="goMessengerProfile()" title="ملفي الشخصي" style="font-size:1rem;padding:6px 10px">👤</button>
-  <button type="button" class="tb-btn tb-ghost" title="القائمة (قريباً)" style="font-size:1rem;padding:6px 10px;opacity:.65;cursor:not-allowed">☰</button>
+  <div class="sc-head-icons">
+    <button type="button" class="sc-hicon sc-hicon-bare" onclick="location.href='/notifications'" title="الإشعارات">🔔</button>
+    <button type="button" class="sc-hicon sc-hicon-bare" onclick="goMessengerProfile()" title="ملفي الشخصي">👤</button>
+    <button type="button" class="sc-hicon sc-hicon-bare" onclick="toggleConvList()" title="القائمة">☰</button>
+  </div>
 </div>
 
 <div class="layout" id="main-content">
@@ -103,10 +103,10 @@
 </div>
 
 <script src="/tw_shared.js"></script>
-<script src="/static/messages.state.js?v=v12"></script>
-<script src="/static/messages.debug.js?v=v12"></script>
-<script src="/static/messages.api.js?v=v12"></script>
-<script src="/static/messages.ws.js?v=v12"></script>
-<script src="/static/messages.render.js?v=v12"></script>
+<script src="/static/messages.state.js?v=v13"></script>
+<script src="/static/messages.debug.js?v=v13"></script>
+<script src="/static/messages.api.js?v=v13"></script>
+<script src="/static/messages.ws.js?v=v13"></script>
+<script src="/static/messages.render.js?v=v13"></script>
 </body>
 </html>

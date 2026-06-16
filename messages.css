@@ -11,25 +11,34 @@
 *{margin:0;padding:0;box-sizing:border-box;}
 body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;height:100vh;height:100dvh;overflow:hidden;}
 
-/* ── Unified site header — same component as profile.html's .toolbar ── */
-.toolbar{
+/* ── Unified site header — Profile V2 source: .sc-header (profile-showcase.html / profile-v2.css) ──
+   position:fixed here (not sticky, as in the source) because messages.html is a fixed-viewport
+   app-shell — body does not scroll, so sticky would have no scrolling ancestor to stick within. */
+.sc-header{
   position:fixed;top:0;left:0;right:0;z-index:1000;
-  height:50px;display:flex;align-items:center;gap:8px;padding:0 14px;
-  background:rgba(7,11,24,.93);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+  display:flex;align-items:center;justify-content:space-between;
+  height:42px;padding:7px 16px;
+  background:rgba(10,14,20,.85);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
   border-bottom:1px solid rgba(255,255,255,.06);font-family:'Cairo',sans-serif;
 }
-.tb-logo{margin-left:auto;}
-.tb-btn{
-  display:flex;align-items:center;gap:5px;padding:6px 11px;
-  border-radius:9px;border:none;cursor:pointer;
-  font-family:'Cairo',sans-serif;font-size:.74rem;font-weight:700;
-  transition:all .2s;white-space:nowrap;
+.sc-header .sc-logo{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);pointer-events:none;}
+.sc-logo img{height:38px;width:auto;max-width:140px;object-fit:contain;display:block;}
+.sc-home-pill{
+  display:inline-flex;align-items:center;gap:5px;
+  padding:0 18px;height:27px;border-radius:9px;cursor:pointer;
+  background:var(--ac,#00c896);border:1px solid rgba(255,255,255,.18);
+  color:#fff;font-family:inherit;font-size:11px;font-weight:700;
+  white-space:nowrap;transition:transform .15s,opacity .2s;
+  box-shadow:0 2px 6px rgba(0,200,150,.12);
 }
-.tb-ghost{background:rgba(255,255,255,.07);color:rgba(255,255,255,.7);border:1px solid rgba(255,255,255,.1);}
-.tb-ghost:hover{background:rgba(255,255,255,.12);color:#fff;}
+.sc-home-pill:active{transform:scale(.95);opacity:.9;}
+.sc-head-icons{display:flex;align-items:center;gap:8px;}
+.sc-hicon{width:34px;height:34px;border-radius:10px;border:none;cursor:pointer;background:rgba(255,255,255,.06);color:var(--t1,#fff);font-size:1rem;display:flex;align-items:center;justify-content:center;}
+.sc-hicon-bare{background:none!important;border:none!important;}
+.sc-head-icons .sc-hicon-bare{width:auto;height:auto;padding:4px;font-size:1.05rem;}
 
 /* ── Layout ── */
-.layout{display:grid;grid-template-columns:300px 1fr;height:calc(100vh - 50px);height:calc(100dvh - 50px);margin-top:50px;}
+.layout{display:grid;grid-template-columns:300px 1fr;height:calc(100vh - 42px);height:calc(100dvh - 42px);margin-top:42px;}
 
 /* ── Conversations list ── */
 .conv-list{border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;background:var(--bg2);}
@@ -271,9 +280,9 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;height:1
 
 /* ── Mobile ── */
 @media(max-width:700px){
-  .layout{grid-template-columns:1fr;height:calc(100dvh - 50px);}
+  .layout{grid-template-columns:1fr;height:calc(100dvh - 42px);}
   .conv-list{display:none;}
-  .conv-list.mobile-show{display:flex;position:fixed;inset:50px 0 0 0;z-index:50;background:var(--bg2);}
+  .conv-list.mobile-show{display:flex;position:fixed;inset:42px 0 0 0;z-index:50;background:var(--bg2);}
   .ch-back{display:flex;}
   .messages{padding:16px 14px 10px;}
   .chat-input{padding:10px 12px;padding-bottom:max(10px,env(safe-area-inset-bottom));}

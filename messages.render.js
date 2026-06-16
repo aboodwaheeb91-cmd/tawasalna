@@ -111,18 +111,9 @@ function toggleConvList() {
   if (cl) cl.classList.toggle('mobile-show');
 }
 
-function goHome() {
-  if (_currentConvId) sendInactiveConversation(_currentConvId);
-  if (!_user) { window.location.href = '/'; return; }
-  var dest = _user.user_type === 'co'  ? '/company-profile?id=' + _user.id
-           : _user.user_type === 'edu' ? '/edu-profile?id=' + _user.id
-           : '/home';
-  window.location.href = dest;
-}
-
-// ── Unified header nav buttons (same destinations used by the rest of the
-// site's headers — home.html's 🏠/👤, just made type-aware since messages
-// is shared by emp/co/edu, unlike profile.html which is employee-only) ──
+// ── Unified header nav buttons (.sc-header, Profile V2 source) — type-aware
+// since messages.html is shared by emp/co/edu, unlike profile-showcase.html
+// which always goes to /home regardless of account type ──
 function goMessengerHome() {
   if (_currentConvId) sendInactiveConversation(_currentConvId);
   if (!_user) { window.location.href = '/'; return; }

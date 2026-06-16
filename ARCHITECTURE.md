@@ -5543,3 +5543,98 @@ follow directly under the unified site header with no page title in between.
 `goMessengerHome()` / `goMessengerProfile()` both call the existing
 `sendInactiveConversation()` before navigating away, mirroring `goHome()`'s
 existing guard — reusing an already-shipped function, not new WebSocket logic.
+
+### Header source correction — Profile V2, not `profile.html` (supersedes the pass above)
+
+A read-only audit (triggered by user-reported confusion between "the old
+profile and the new profile") established that `profile.html`'s `.toolbar`
+— used as the copy source in the previous pass — is **not** the site's
+current/actively-developed profile surface. Hard evidence:
+
+- `profile.html` git history: ~195 commits, **all** `"Add files via upload"`
+  — no descriptive feature commits, ever.
+- `profile-showcase.html` git history: ~96 commits with real feature
+  messages (`feat: follow list filter`, `fix: Profile V2 header badges`...)
+  — actively maintained, internally branded **"Profile V2"**.
+- `server.py:443-458` (`/u/{tw_id}`) docstring literally says *"Public share
+  URL for Profile V2. Serves profile-showcase.html..."*; commit `ccd94ca`
+  is titled *"fix: profile routing — /u/{tw_id} everywhere, no profile.html
+  refs"*.
+- `profile-showcase.html`'s header (`.sc-header`, defined in external
+  `/static/profile-v2.css:14`) centers its logo via real CSS —
+  `position:absolute;left:50%;top:50%;transform:translate(-50%,-50%)` —
+  unlike `profile.html`'s edge-pinned `.tb-logo{margin-left:auto}`. This is
+  the literal source of the "centered logo" mismatch flagged (but not yet
+  resolved) in the previous pass.
+
+**Messenger Header Source Contract** (binding for all future header work
+on `messages.html` and any other page that unifies its header with the
+profile page):
+
+- The approved header source is **Profile V2**: `profile-showcase.html` /
+  `/static/profile-v2.css` (`.sc-header` / `.sc-logo` / `.sc-home-pill` /
+  `.sc-head-icons` / `.sc-hicon`).
+- `profile.html` (`.toolbar` / `.tb-logo` / `.tb-btn` / `.tb-ghost`) must
+  **not** be used as a visual reference for any new header work — it is
+  legacy (owner-editing surface only, never feature-developed).
+- The old `Logo.svg` asset must not be used in any newly-unified header;
+  the official mark is `33333.svg`.
+- Any future header change must state which of these two sources it is
+  built from, in its own ARCHITECTURE.md entry.
+
+### `messages.html` header rebuilt from `.sc-header` (Profile V2)
+
+Replaced the `.toolbar`/`.tb-logo`/`.tb-btn` block (copied from `profile.html`
+in the previous pass) with `.sc-header`/`.sc-logo`/`.sc-home-pill`/
+`.sc-head-icons`/`.sc-hicon` — copied from `profile-showcase.html:16-60` and
+`/static/profile-v2.css:14-44` — into `messages.html` + `messages.css`.
+Cache bump: `?v=v13` on `messages.css` and all 5 JS files.
+
+| Slot | Profile V2 source (`profile-showcase.html`) | `messages.html` |
+|---|---|---|
+| Home pill | `.sc-home-pill` → `/home` (hardcoded) | same class, `goMessengerHome()` (type-aware: `/home` emp, `/company` co, `/edu` edu) |
+| Logo | `.sc-logo img`, `33333.svg`, centered via `position:absolute;left:50%;top:50%` | identical — same asset, same centering rule |
+| *(removed)* | 👁 eye/preview (`.sc-eye-wrap`, owner-only) | **not present** — no preview concept on the messages page |
+| Notifications | `.sc-hicon` bell → `/notifications` | same class, → `/notifications` |
+| *(removed)* | 💬 messages → `/messages` | **not present** — self-link from the messages page |
+| Profile | *(not present — page is already the profile)* | **added**: `.sc-hicon` 👤 → `goMessengerProfile()` (`/u/{tw_id}`, the same Profile V2 public route) |
+| Menu | `.sc-hicon` ☰ → `history.back()` | same class, → `toggleConvList()` (real, existing function — shows the conversation list on mobile; not a placeholder) |
+
+**Icon rendering — emoji, not Lucide SVG (deliberate deviation, disclosed):**
+`profile-showcase.html` renders its header icons via `<i data-lucide="...">`
++ the Lucide CDN script (`unpkg.com/lucide@0.460.0`). That CDN failed to
+load in this session's test sandbox (`net::ERR_CERT_AUTHORITY_INVALID`),
+leaving icons invisible — and no other header anywhere in the codebase
+depends on an external icon library (every other header, including
+`profile.html`'s own `.toolbar`, uses plain emoji). To avoid shipping a
+header with an unverified, single-purpose external dependency, the icons
+were kept as plain emoji (🏠/🔔/👤/☰) inside the exact same `.sc-*` classes,
+sizing, and layout. The shape/classes/colors/centering are unchanged from
+Profile V2; only the icon glyph technology differs. Flag if exact Lucide
+icon-for-icon fidelity is required and `unpkg.com` reachability in
+production can be confirmed.
+
+**Layout height changed 50px → 42px** (real measured height of
+`.sc-header` via Playwright on `/profile-showcase`, not assumed) —
+`.layout{margin-top}`, the `height:calc(...)` rules, and the mobile
+`.conv-list.mobile-show{inset:...}` rule were all updated to match.
+`position:fixed` is used instead of the source's `position:sticky`,
+because `messages.html` is a fixed-viewport app-shell (`body{overflow:
+hidden}`) with no scrolling ancestor for `sticky` to stick within —
+`profile-showcase.html` is a normally-scrolling page, so `sticky` works
+there but would not behave correctly here. This is a structural adaptation
+required by the surrounding layout, not a visual deviation.
+
+Dead code removed: `goHome()` in `messages.render.js` (superseded by
+`goMessengerHome()` in the previous pass, had zero remaining callers).
+
+#### Forbidden (still enforced)
+
+- No changes to `server.py`, `auth.py`, WebSocket message types, the HTTP
+  send pipeline, typing-bubble logic, read-receipt logic, or
+  `messages.debug.js` — confirmed via `git diff --stat HEAD` showing only
+  `messages.html`, `messages.css`, `messages.render.js`, `ARCHITECTURE.md`
+- No bottom navigation bar added
+- `profile.html`/`.toolbar`/`.tb-logo`/`.tb-btn`/old `Logo.svg` are no
+  longer referenced anywhere in `messages.html`/`messages.css` (verified
+  via grep — zero matches)
