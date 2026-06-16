@@ -242,6 +242,7 @@ function doSendMessage() {
       twDebugLog('HTTP send', {
         net_ms:   (performance.now() - _twT0).toFixed(0),
         id:       realId || '?',
+        drv:      _srv ? (_srv.driver || '?') : '?',
         srv_ms:   _srv ? _srv.total_ms       : '?',
         db_ms:    _srv ? _srv.db_ms          : '?',
         conn_ms:  _srv ? _srv.conn_ms        : '?',
