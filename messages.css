@@ -19,7 +19,7 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;height:1
   position:fixed;top:0;left:0;right:0;z-index:100;
 }
 .nav-logo{margin-left:auto;display:flex;align-items:center;}
-.nav-logo img{height:34px;width:auto;object-fit:contain;display:block;}
+.nav-logo img{height:36px;width:auto;object-fit:contain;display:block;}
 .nav-title{font-size:.8rem;font-weight:700;color:var(--t2);letter-spacing:.01em;}
 .nb{
   padding:6px 12px;border-radius:10px;
