@@ -195,6 +195,150 @@ function loadAndApplyLogos(){
   }).catch(function(){});
 }
 
+// ══ Global Header Menu (.sc-header ☰ dropdown) ══════════════════════════
+// Single source of truth for the unified mobile menu shared by every page
+// built on the Profile V2 .sc-header contract (currently messages.html and
+// profile-showcase.html — see ARCHITECTURE.md "Global Header Menu Contract").
+// Each host page only needs a `.sc-menu-wrap > button#<btnId> + .sc-menu-dropdown#<ddId>`
+// shell already in its HTML/CSS; this file owns the item list, icons, the
+// current-page/disabled rule, and the open/close wiring.
+
+function getTwUser() {
+  try { return JSON.parse(localStorage.getItem('tw_user') || 'null'); } catch(e) { return null; }
+}
+
+// Type-aware "home" destination — single source of truth (previously
+// duplicated as goMessengerHome() in messages.render.js and hardcoded to
+// '/home' for every account type in profile-v2.render.js).
+function twHomeHref(u) {
+  u = u || getTwUser();
+  if (!u) return '/';
+  return u.user_type === 'co' ? '/company' : u.user_type === 'edu' ? '/edu' : '/home';
+}
+
+function twLogout() {
+  localStorage.removeItem('tw_user');
+  localStorage.removeItem('tw_jwt');
+  window.location.href = '/';
+}
+
+function twOwnProfileUrl() {
+  var u = getTwUser();
+  if (!u || !u.tw_id) return null;
+  return window.location.origin + '/u/' + u.tw_id;
+}
+
+function twCopyProfileLink() {
+  var url = twOwnProfileUrl();
+  if (!url) { showToast('سجّل الدخول أولاً', 'error'); return; }
+  navigator.clipboard.writeText(url)
+    .then(function() { showToast('تم نسخ رابط الملف', 'success'); })
+    .catch(function() { showToast('تعذر نسخ الرابط', 'error'); });
+}
+
+function twShareProfile() {
+  var url = twOwnProfileUrl();
+  if (!url) { showToast('سجّل الدخول أولاً', 'error'); return; }
+  var u = getTwUser();
+  if (navigator.share) {
+    navigator.share({
+      title: (u && u.full_name ? u.full_name : 'بروفايل') + ' — تواصلنا',
+      text:  'تعرّف على ملفي الشخصي على تواصلنا',
+      url:   url
+    }).catch(function() {});
+  } else {
+    twCopyProfileLink();
+  }
+}
+
+// `currentPage`: 'messages' | 'profile' — marks the matching nav item as
+// the current page (shown, but not a clickable link to itself).
+function _twHeaderMenuItems(currentPage) {
+  var u = getTwUser();
+  return [
+    { key: 'home', label: 'الرئيسية', href: twHomeHref(u),
+      icon: '<path d="M3 11l9-8 9 8"/><path d="M5 10v10a1 1 0 0 0 1 1h3v-6h6v6h3a1 1 0 0 0 1-1V10"/>' },
+    { key: 'profile', label: 'الملف الشخصي', href: u && u.tw_id ? '/u/' + u.tw_id : '/profile',
+      current: currentPage === 'profile',
+      icon: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>' },
+    { key: 'messages', label: 'الرسائل', href: '/messages',
+      current: currentPage === 'messages',
+      icon: '<path d="M4 4h16v12H8l-4 4V4z"/>' },
+    { key: 'notifications', label: 'الإشعارات', href: '/notifications',
+      icon: '<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>' },
+    { key: 'settings', label: 'الإعدادات', href: '/settings',
+      icon: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>' },
+    { key: 'share', label: 'مشاركة الملف الشخصي', action: 'twShareProfile',
+      icon: '<path d="M12 3v12"/><path d="M7 8l5-5 5 5"/><path d="M5 21h14"/>' },
+    { key: 'copy-link', label: 'نسخ رابط الملف', action: 'twCopyProfileLink',
+      icon: '<rect x="7" y="7" width="11" height="11" rx="2"/><path d="M4 14V5a2 2 0 0 1 2-2h9"/>' },
+    { key: 'logout', label: 'تسجيل الخروج', action: 'twLogout', danger: true,
+      icon: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/>' }
+  ];
+}
+
+function _twHeaderMenuItemHtml(item) {
+  var svg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
+    + 'stroke-linecap="round" stroke-linejoin="round" class="sc-svg-icon-sm" aria-hidden="true">' + item.icon + '</svg>';
+  if (item.current) {
+    return '<div class="sc-menu-item current" aria-current="page">' + svg + sanitize(item.label) + '</div>';
+  }
+  var cls = 'sc-menu-item' + (item.danger ? ' danger' : '');
+  if (item.action) {
+    return '<button type="button" class="' + cls + '" data-menu-action="' + item.action + '">' + svg + sanitize(item.label) + '</button>';
+  }
+  return '<a class="' + cls + '" href="' + item.href + '" data-key="' + item.key + '">' + svg + sanitize(item.label) + '</a>';
+}
+
+// Wires button#btnId (toggle) + #ddId (.sc-menu-dropdown, must already be
+// inside a `.sc-menu-wrap` ancestor for outside-click + positioning to
+// work) for one page. Renders the item list fresh on every open so the
+// current-page user / route are always up to date.
+// `currentPage` may be a plain string ('messages' | 'profile') or a
+// function returning one — profile-showcase.html needs a function since it
+// renders both the OWNER's own profile and other people's profiles, and
+// only the former should disable the "الملف الشخصي" item; ownership
+// (window._scViewerType) isn't known yet when the page wires its header,
+// only later once profile data has loaded — so it must be read lazily,
+// each time the menu is opened, not once at init time.
+function initGlobalHeaderMenu(btnId, ddId, currentPage) {
+  var btn = document.getElementById(btnId);
+  var dd  = document.getElementById(ddId);
+  if (!btn || !dd) return;
+  var wrap = dd.closest('.sc-menu-wrap') || dd.parentElement;
+
+  function render() {
+    var cp = typeof currentPage === 'function' ? currentPage() : currentPage;
+    dd.innerHTML = _twHeaderMenuItems(cp).map(_twHeaderMenuItemHtml).join('');
+  }
+  function close() { dd.classList.remove('open'); }
+
+  btn.addEventListener('click', function(e) {
+    e.stopPropagation();
+    if (!dd.classList.contains('open')) render();
+    dd.classList.toggle('open');
+  });
+  document.addEventListener('click', function(e) {
+    if (wrap && !wrap.contains(e.target)) close();
+  });
+  dd.addEventListener('click', function(e) {
+    var actionEl = e.target.closest('[data-menu-action]');
+    if (actionEl) {
+      var fn = window[actionEl.getAttribute('data-menu-action')];
+      if (typeof fn === 'function') fn();
+    }
+    // Let the host page run cleanup (e.g. messages.html marking the open
+    // conversation inactive over the existing WS) before a menu link
+    // navigates away — same hook every link goes through, so behavior is
+    // consistent regardless of which item was clicked.
+    var link = e.target.closest('a.sc-menu-item');
+    if (link && typeof window.twBeforeHeaderNav === 'function') {
+      window.twBeforeHeaderNav(link.getAttribute('data-key'));
+    }
+    if (e.target.closest('a.sc-menu-item, button.sc-menu-item')) close();
+  });
+}
+
 // ══ Global Real-time Badge WebSocket ══
 // Opens a WS on EVERY page using the authenticated viewer's ID (not profile owner).
 // Handles badge_update events to update [data-badge="msgs"] in real time.

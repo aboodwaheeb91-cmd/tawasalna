@@ -138,18 +138,18 @@ function autoResize(el) {
   el.style.height = Math.min(el.scrollHeight, 100) + 'px';
 }
 
-// ── Header ☰ menu dropdown (same open/outside-click pattern as Profile V2's
-// .sc-eye-menu in profile-v2.render.js) ──
-function toggleHeaderMenu(e) {
-  if (e) e.stopPropagation();
-  var dd = document.getElementById('scMenuDropdown');
-  if (dd) dd.classList.toggle('open');
+// ── Header ☰ menu dropdown — shared Global Header Menu (tw_shared.js); see
+// ARCHITECTURE.md "Global Header Menu Contract". "messages" marks "الرسائل"
+// as the current/disabled page since this IS the messages page. ──
+if (typeof initGlobalHeaderMenu === 'function') {
+  initGlobalHeaderMenu('scMenuBtn', 'scMenuDropdown', 'messages');
 }
-document.addEventListener('click', function(e) {
-  var wrap = document.getElementById('scMenuWrap');
-  var dd = document.getElementById('scMenuDropdown');
-  if (wrap && dd && !wrap.contains(e.target)) dd.classList.remove('open');
-});
+// Run the same open-conversation cleanup the dedicated home/profile buttons
+// already do (sendInactiveConversation over the existing WS) before ANY
+// shared-menu link navigates away from this page.
+window.twBeforeHeaderNav = function() {
+  if (_currentConvId) sendInactiveConversation(_currentConvId);
+};
 
 // ── Chat-options menu dropdown (beside the conversation avatar) — same
 // toggle/outside-click pattern as the header menu above, separate ids ──
