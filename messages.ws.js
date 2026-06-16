@@ -76,6 +76,7 @@ function _applyStatusToEl(el, status) {
 function updateMessageStatus(data) {
   var status = data.status;
   var ids = data.ids || (data.id != null ? [data.id] : []);
+  twDebugLog('status_update', { status: status, ids: ids.join(',') });
   ids.forEach(function(id) {
     var el = document.querySelector('[data-msg-id="' + id + '"]');
     if (el) {
@@ -140,7 +141,7 @@ function connectWS() {
             );
           }
           scrollDown();
-          console.log('[TW-TIMING] WS→DOM: ' + (performance.now() - _twRx).toFixed(0) + 'ms (msg #' + data.id + ' from #' + fromId + ')');
+          twDebugLog('WS→DOM', { ms: (performance.now() - _twRx).toFixed(0), id: data.id, from: fromId, via: typingEl ? 'transform' : 'append' });
         }
 
         if (data.type === 'message') {

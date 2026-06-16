@@ -238,7 +238,7 @@ function doSendMessage() {
       var msg = (data && data.message) || {};
       var el  = document.getElementById(pid);
       var realId = msg.id;
-      console.log('[TW-TIMING] HTTP send: ' + (performance.now() - _twT0).toFixed(0) + 'ms (msg #' + (realId || '?') + ')');
+      twDebugLog('HTTP send', { ms: (performance.now() - _twT0).toFixed(0), id: realId || '?' });
       if (el && realId) {
         el.setAttribute('data-msg-id', String(realId));
       }
