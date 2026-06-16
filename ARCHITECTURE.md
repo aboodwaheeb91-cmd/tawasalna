@@ -5204,4 +5204,71 @@ Server → Receiver: {type: "typing", from_user_id: <int user_id from WS path>}
 Receiver check: Number(data.from_user_id) === Number(_currentConvId)
 ```
 
+---
+
+## [P1] 61. Messenger Send Performance Contract
+
+**Target:** `/messages/send` HTTP response ≤ 500ms total from client perspective.
+
+### Two-path Pipeline (`send_message_pipeline` in `auth.py`)
+
+| Path | Condition | DB queries | Queries detail |
+|------|-----------|-----------|----------------|
+| **Hot** | `receiver_has_conv_open = True` | **1** | `INSERT ... is_read=TRUE, read_at=NOW()` |
+| **Cold** | `receiver_has_conv_open = False` | **2** | `INSERT` unread + `COUNT(*)` for badge |
+
+`receiver_has_conv_open` is determined by `ws_manager.active_conversations.get(receiver_id) == sender_id`.
+
+### Critical Path (blocks HTTP response)
+
+```
+get_conn() → SELECT 1 ping → INSERT (hot: +read_at; cold: unread)
+→ [cold only] COUNT unread
+→ WS send message to receiver
+→ WS send status_update to sender
+→ return JSON
+```
+
+**Hot path total DB = 1 round-trip.  Cold path total DB = 2 round-trips.**
+
+### Background Tasks (do NOT block response)
+
+Cold path only, via `FastAPI.BackgroundTasks`:
+
+| Task | Trigger |
+|------|---------|
+| `mark_message_delivered` (DB UPDATE) | `was_delivered = True` |
+| `badge_update` WS push to receiver | always on cold path |
+
+Hot path skips both — receiver is actively reading, delivered+read already set in INSERT, unread count unchanged.
+
+### Timing Fields Returned in `_timing`
+
+| Field | Meaning |
+|-------|---------|
+| `conn_ms` | Time to acquire DB connection (includes `SELECT 1` ping) |
+| `insert_ms` | INSERT query round-trip |
+| `update_ms` | Always 0 (UPDATE eliminated; hot path inserts as read directly) |
+| `count_ms` | COUNT(*) query (0 on hot path) |
+| `db_ms` | Total DB time = conn + insert + count |
+| `ws_ms` | WS send time (critical path only) |
+| `badge_ms` | Always 0 (deferred to background) |
+| `total_ms` | Full endpoint wall time |
+
+### Indexes (created at startup in `init_db`)
+
+```sql
+CREATE INDEX IF NOT EXISTS idx_msg_receiver_unread ON messages(receiver_id, is_read) WHERE is_read=FALSE;
+CREATE INDEX IF NOT EXISTS idx_msg_pair            ON messages(sender_id, receiver_id);
+CREATE INDEX IF NOT EXISTS idx_msg_receiver        ON messages(receiver_id);
+```
+
+### Forbidden
+
+- NEVER call `get_conn()` more than once per `/messages/send` invocation on the critical path
+- NEVER run `mark_message_delivered` (UPDATE) synchronously in the endpoint handler
+- NEVER send `badge_update` synchronously on the cold path (it is a background task)
+- NEVER skip the two-path logic and always-UPDATE every message
+- DO NOT add a 4th DB query to the critical path without documenting it here
+
 Same for `typing_stop`.
