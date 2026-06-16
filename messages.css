@@ -137,6 +137,14 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;height:1
   background:var(--card);border:1px solid var(--border);
   transition:background .15s,border-color .15s;position:relative;
 }
+/* ── Per-account-type accent — soft border tint + faint gradient wash,
+   same three accent colors already used app-wide (green=emp/blue=co/
+   purple=edu), kept low-opacity so the card stays calm/premium rather than
+   loud. Namespaced "acc-*" (not "t-*") so it never collides with the
+   solid-fill avatar gradient classes of the same type. ── */
+.conv-item.acc-emp{border-color:rgba(0,200,150,.2);background:linear-gradient(135deg,rgba(0,200,150,.05),var(--card) 65%);}
+.conv-item.acc-co{border-color:rgba(37,99,255,.2);background:linear-gradient(135deg,rgba(37,99,255,.05),var(--card) 65%);}
+.conv-item.acc-edu{border-color:rgba(139,92,246,.2);background:linear-gradient(135deg,rgba(139,92,246,.05),var(--card) 65%);}
 .conv-item:hover{background:rgba(255,255,255,.05);border-color:var(--border2);}
 .conv-item.active{
   background:rgba(0,200,150,.07);border-color:rgba(0,200,150,.32);
@@ -171,8 +179,14 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;height:1
 }
 .ci-ava img{width:100%;height:100%;object-fit:cover;display:block;}
 .ci-body{flex:1;min-width:0;}
-.ci-name{display:block;font-size:.78rem;font-weight:700;color:var(--t2);transition:color .15s;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-bottom:1px;}
-.ci-sub{margin:1px 0 4px;}
+/* Line 1: name + account-type badge, side by side — badge must read as
+   "right next to the name", never under it or far from it. */
+.ci-name-row{display:flex;align-items:center;gap:6px;min-width:0;margin-bottom:1px;}
+.ci-name{flex-shrink:1;font-size:.78rem;font-weight:700;color:var(--t2);transition:color .15s;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+/* Line 2: profession/specialty caption — plain soft text (not a pill);
+   falls back to the account-type label when no profession data exists
+   (see ARCHITECTURE.md — the conversations API has no headline/title field). */
+.ci-sub{font-size:.66rem;color:var(--t2);margin:1px 0 4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .ci-preview{font-size:.69rem;color:var(--t3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 /* ── Left-side column (time / unread count) — separate from the
    name+badge+preview column on the right, same reference layout ── */
@@ -201,8 +215,13 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;height:1
 }
 .ch-ava img{width:100%;height:100%;object-fit:cover;display:block;}
 .ch-info{min-width:0;flex:1;}
+/* Line 1: name + account-type badge + small back-arrow, same "badge right
+   beside the name" rule as the conv-list cards. */
 .ch-name-row{display:flex;align-items:center;gap:6px;min-width:0;}
-.ch-name{font-size:.86rem;font-weight:800;color:var(--t);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.ch-name{flex-shrink:1;font-size:.86rem;font-weight:800;color:var(--t);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+/* Line 2: profession/specialty caption — same fallback-to-account-type
+   rule as .ci-sub on the conv-list cards (no headline data exists yet). */
+.ch-role{font-size:.66rem;color:var(--t2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .ch-back-arrow{
   display:flex;align-items:center;justify-content:center;flex-shrink:0;
   width:20px;height:20px;padding:0;border:none;background:none;

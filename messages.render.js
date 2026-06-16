@@ -29,6 +29,12 @@ function typeBadgePillHtml(type) {
   return '<span class="type-badge-pill ' + info.cls + '">' + info.label + '</span>';
 }
 
+// Per-type card accent class — namespaced "acc-*" (not "t-*") so it never
+// collides with the solid-fill avatar gradient classes of the same name.
+function accentClass(type) {
+  return typeInfo(type).cls.replace('t-', 'acc-');
+}
+
 function formatConvTime(iso) {
   if (!iso) return '';
   try { return new Date(iso).toLocaleTimeString('ar', { hour: '2-digit', minute: '2-digit' }); }
@@ -199,13 +205,13 @@ function renderConvList(convs) {
                   ? '<span class="ci-badge">' + (unreadCount > 99 ? '99+' : unreadCount) + '</span>' : '';
     var isActive = (_currentConvId && c.other_id === _currentConvId) ? ' active' : '';
     var avatarUrl = c.avatar_url || '';
-    frag += '<div class="conv-item' + isActive + unreadCls + '" data-uid="' + c.other_id
+    frag += '<div class="conv-item ' + accentClass(type) + isActive + unreadCls + '" data-uid="' + c.other_id
           + '" data-type="' + type + '" data-avatar="' + esc(avatarUrl) + '">'
           + '<div class="ci-ava-wrap"><div class="ci-ava ' + typeInfo(type).cls + '">'
           + avatarHtml(c.full_name, avatarUrl) + '</div></div>'
           + '<div class="ci-body">'
-          + '<span class="ci-name">' + name + '</span>'
-          + '<div class="ci-sub">' + typeBadgePillHtml(type) + '</div>'
+          + '<div class="ci-name-row"><span class="ci-name">' + name + '</span>' + typeBadgePillHtml(type) + '</div>'
+          + '<div class="ci-sub">' + typeInfo(type).label + '</div>'
           + '<div class="ci-preview">' + last + '</div>'
           + '</div>'
           + '<div class="ci-aside"><span class="ci-time">' + time + '</span>' + unread + '</div>'
@@ -217,13 +223,13 @@ function renderConvList(convs) {
   if (_currentConvId && _activeConvMeta && !items.querySelector('[data-uid="' + _currentConvId + '"]')) {
     var phType = _activeConvMeta.type || 'emp';
     var ph = document.createElement('div');
-    ph.className = 'conv-item active';
+    ph.className = 'conv-item ' + accentClass(phType) + ' active';
     ph.setAttribute('data-uid', String(_activeConvMeta.id));
     ph.innerHTML = '<div class="ci-ava-wrap"><div class="ci-ava ' + typeInfo(phType).cls + '">'
       + avatarHtml(_activeConvMeta.name, _activeConvMeta.avatarUrl) + '</div></div>'
       + '<div class="ci-body">'
-      + '<span class="ci-name">' + esc(_activeConvMeta.name) + '</span>'
-      + '<div class="ci-sub">' + typeBadgePillHtml(phType) + '</div>'
+      + '<div class="ci-name-row"><span class="ci-name">' + esc(_activeConvMeta.name) + '</span>' + typeBadgePillHtml(phType) + '</div>'
+      + '<div class="ci-sub">' + typeInfo(phType).label + '</div>'
       + '<div class="ci-preview">محادثة جديدة</div></div>';
     ph.addEventListener('click', function() {
       openConversation(_activeConvMeta.id, _activeConvMeta.name, _activeConvMeta.type, _activeConvMeta.avatarUrl);
@@ -321,6 +327,11 @@ function openConversation(otherId, name, type, avatarUrl) {
     badgeEl.className   = 'type-badge-pill ' + info.cls;
     badgeEl.style.display = '';
   }
+  // Profession/specialty caption — no headline data exists on this endpoint
+  // (see ARCHITECTURE.md), so it always falls back to the account-type label,
+  // same convention as the conv-list cards' .ci-sub line.
+  var roleEl = document.getElementById('chatRole');
+  if (roleEl) roleEl.textContent = typeInfo(type).label;
   // No real presence/online signal is exposed by the backend to other users.
   // Kept ready (text set) but hidden via CSS (.ch-status{display:none}) so
   // the header never shows an invented/placeholder activity line.
@@ -553,6 +564,8 @@ function closeConversationUI() {
   if (avaEl) { avaEl.className = 'ch-ava'; avaEl.innerHTML = '💬'; }
   var badgeEl  = document.getElementById('chatTypeBadge');
   if (badgeEl) { badgeEl.style.display = 'none'; badgeEl.textContent = ''; badgeEl.className = 'type-badge-pill'; }
+  var roleEl   = document.getElementById('chatRole');
+  if (roleEl) roleEl.textContent = '';
   var statusEl = document.getElementById('chatStatus');
   if (statusEl) statusEl.textContent = '';
 
@@ -603,13 +616,13 @@ function handleWithParam(twId) {
       var type      = data.user_type || 'emp';
       var convItems = document.querySelector('.conv-items');
       var ph = document.createElement('div');
-      ph.className = 'conv-item';
+      ph.className = 'conv-item ' + accentClass(type);
       ph.setAttribute('data-uid', String(data.id));
       ph.innerHTML = '<div class="ci-ava-wrap"><div class="ci-ava ' + typeInfo(type).cls + '">'
         + avatarHtml(data.full_name, '') + '</div></div>'
-        + '<div class="ci-body"><span class="ci-name">'
-        + esc(data.full_name || 'مستخدم') + '</span>'
-        + '<div class="ci-sub">' + typeBadgePillHtml(type) + '</div></div>';
+        + '<div class="ci-body"><div class="ci-name-row"><span class="ci-name">'
+        + esc(data.full_name || 'مستخدم') + '</span>' + typeBadgePillHtml(type) + '</div>'
+        + '<div class="ci-sub">' + typeInfo(type).label + '</div></div>';
       if (convItems) convItems.insertAdjacentElement('afterbegin', ph);
       openConversation(data.id, data.full_name || 'مستخدم', type, '');
     }
