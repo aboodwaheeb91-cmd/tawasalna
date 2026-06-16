@@ -14,7 +14,7 @@
 <title>تواصلنا - الرسائل</title>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/tw_shared.css">
-<link rel="stylesheet" href="/static/messages.css?v=v9">
+<link rel="stylesheet" href="/static/messages.css?v=v11">
 <style>.skip-link{position:absolute;top:-40px;right:0;background:var(--ac,#00c896);color:#0d1a2e;padding:8px 16px;border-radius:0 0 8px 0;font-family:Cairo,sans-serif;font-size:.8rem;font-weight:700;text-decoration:none;transition:top .2s;z-index:10000}.skip-link:focus{top:0}</style>
 <a href="#main-content" class="skip-link">تخطى للمحتوى الرئيسي</a>
 </head>
@@ -22,21 +22,40 @@
 
 <!-- ── Nav ── -->
 <nav class="nav">
-  <button class="nb" onclick="goHome()">← رجوع</button>
-  <span class="nav-title">💬 الرسائل</span>
-  <div class="nav-logo">
-    <img src="https://wrxvmdmknhoufoeprpoc.supabase.co/storage/v1/object/public/site/Logo.svg"
-         alt="تواصلنا">
+  <button class="nb" onclick="goHome()" title="رجوع" aria-label="رجوع">←</button>
+  <div class="nav-brand">
+    <img class="nav-brand-logo" alt="تواصلنا"
+         src="https://wrxvmdmknhoufoeprpoc.supabase.co/storage/v1/object/public/site/33333.svg">
+    <div class="nav-brand-text">
+      <span class="nav-title">الرسائل</span>
+      <span class="nav-subtitle">تواصل احترافي يبني الفرص</span>
+    </div>
   </div>
+  <span class="nav-spacer" aria-hidden="true"></span>
 </nav>
 
 <div class="layout" id="main-content">
 
   <!-- ── Conversations List ── -->
   <div class="conv-list" id="convList">
-    <div class="conv-search">
-      <input class="cs-input" id="convSearch" placeholder="🔍 بحث في المحادثات...">
+    <div class="conv-toolbar">
+      <div class="conv-search">
+        <span class="cs-icon" aria-hidden="true">🔍</span>
+        <input class="cs-input" id="convSearch" placeholder="ابحث في الرسائل أو الأشخاص...">
+      </div>
+      <div class="conv-filters" id="convFilters">
+        <button class="cf-chip active" type="button" data-filter="all">الكل</button>
+        <button class="cf-chip" type="button" data-filter="unread">غير المقروءة</button>
+      </div>
     </div>
+
+    <div class="online-row" id="onlineRow">
+      <div class="online-row-head">المتصلون الآن</div>
+      <div class="online-row-items" id="onlineRowItems">
+        <div class="online-empty">لا يوجد متصلون حالياً</div>
+      </div>
+    </div>
+
     <div class="conv-items" id="convItems"></div>
   </div>
 
@@ -45,10 +64,15 @@
 
     <div class="chat-head" id="chatHead">
       <button class="ch-btn ch-back" onclick="toggleConvList()" title="قائمة المحادثات">☰</button>
-      <div class="ch-ava" id="chatAva">💬</div>
-      <div>
+      <div class="ch-ava-wrap">
+        <div class="ch-ava" id="chatAva">💬</div>
+      </div>
+      <div class="ch-info">
         <div class="ch-name" id="chatName">اختر محادثة</div>
-        <div class="ch-status" id="chatStatus"></div>
+        <div class="ch-meta">
+          <span class="ch-type-badge" id="chatTypeBadge" style="display:none"></span>
+          <span class="ch-status" id="chatStatus"></span>
+        </div>
       </div>
       <div class="ch-actions">
         <button class="ch-btn" id="viewProfileBtn" onclick="viewConvProfile()" style="display:none">👤 الملف</button>
@@ -75,10 +99,10 @@
 </div>
 
 <script src="/tw_shared.js"></script>
-<script src="/static/messages.state.js?v=v9"></script>
-<script src="/static/messages.debug.js?v=v9"></script>
-<script src="/static/messages.api.js?v=v9"></script>
-<script src="/static/messages.ws.js?v=v9"></script>
-<script src="/static/messages.render.js?v=v9"></script>
+<script src="/static/messages.state.js?v=v11"></script>
+<script src="/static/messages.debug.js?v=v11"></script>
+<script src="/static/messages.api.js?v=v11"></script>
+<script src="/static/messages.ws.js?v=v11"></script>
+<script src="/static/messages.render.js?v=v11"></script>
 </body>
 </html>
