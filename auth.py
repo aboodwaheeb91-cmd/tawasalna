@@ -1828,7 +1828,7 @@ def get_conversations(user_id: int) -> list:
             "CASE WHEN m.sender_id=:uid THEN m.receiver_id ELSE m.sender_id END AS other_id, "
             "m.content, m.created_at, m.is_read, m.sender_id, "
             "u.full_name, u.user_type, u.tw_id, "
-            "p.avatar_url "
+            "p.avatar_url, p.headline, p.title "
             "FROM messages m "
             "JOIN users u ON u.id = CASE WHEN m.sender_id=:uid THEN m.receiver_id ELSE m.sender_id END "
             "LEFT JOIN profiles p ON p.user_id = u.id "
@@ -1870,12 +1870,18 @@ def get_messages(user_id: int, other_id: int):
     """
     conn = get_conn()
     try:
+        # Root-cause note: must take the latest 100 by DESC first, then
+        # re-sort ASC for display — "ORDER BY created_at ASC LIMIT 100"
+        # silently dropped the newest messages once a conversation passed
+        # 100 rows, keeping only the oldest 100 instead of the most recent.
         rows = conn.run(
+            "SELECT * FROM ("
             "SELECT m.*, u.full_name as sender_name "
             "FROM messages m JOIN users u ON u.id=m.sender_id "
             "WHERE (sender_id=:uid AND receiver_id=:oid) "
             "OR (sender_id=:oid AND receiver_id=:uid) "
-            "ORDER BY m.created_at ASC LIMIT 100",
+            "ORDER BY m.created_at DESC LIMIT 100"
+            ") sub ORDER BY created_at ASC",
             uid=user_id, oid=other_id
         )
         cols = [c["name"] for c in conn.columns]

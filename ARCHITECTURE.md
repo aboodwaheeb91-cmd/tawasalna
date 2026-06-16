@@ -5962,3 +5962,66 @@ code touched.
   measured card height ≈62px at 390px width, zero horizontal overflow.
 - **Version bump:** `messages.css` and all five `messages.*.js` script tags
   in `messages.html` bumped `v=v17` → `v=v18`.
+
+### Messenger — Profession Caption + `get_messages()` Pagination Bug Fix
+
+**Two independent fixes, both scoped to read-only data and frontend
+display — no schema change, no send pipeline/WebSocket/typing/read-receipt
+code touched.**
+
+**Bug 1 — root cause confirmed: `get_messages()` dropped the newest
+messages once a thread passed 100 rows.** `auth.py`'s `get_messages()`
+queried `ORDER BY m.created_at ASC LIMIT 100` directly — for a thread
+with more than 100 total messages this keeps the **oldest** 100 rows and
+silently discards everything after them, including the actual latest
+message. This is why a freshly sent message would appear correctly in
+the conversation list (`get_conversations()` uses an unrelated
+`DISTINCT ON (other_id) ... ORDER BY ... DESC` query that always grabs
+the true latest row per conversation, so it was never affected) and at
+send time (appended directly to in-memory thread state), but vanish the
+next time the same thread was reopened via `GET /messages/{uid}/{oid}`.
+Fix: wrap the query so the latest 100 rows are selected first
+(`ORDER BY m.created_at DESC LIMIT 100`), then re-sorted ascending in an
+outer query — preserving the exact ascending-order response contract the
+frontend already relies on (it never re-sorts, just maps over
+`data.messages`):
+```python
+rows = conn.run(
+    "SELECT * FROM ("
+    "SELECT m.*, u.full_name as sender_name "
+    "FROM messages m JOIN users u ON u.id=m.sender_id "
+    "WHERE (sender_id=:uid AND receiver_id=:oid) "
+    "OR (sender_id=:oid AND receiver_id=:uid) "
+    "ORDER BY m.created_at DESC LIMIT 100"
+    ") sub ORDER BY created_at ASC",
+    uid=user_id, oid=other_id
+)
+```
+Verified end-to-end against a real seeded Postgres database (105 historical
++ 1 sentinel message in one thread) at three levels: raw SQL via `psql`
+(old query → sentinel absent; new query → present), the Python function
+directly, and the live authenticated HTTP endpoint via curl with a real
+signed JWT. Confirmed via Playwright that reopening the thread — even a
+second time — now always shows the latest message.
+
+**Bug 2 — line 2 of the conversation card/chat header now shows real
+profession data instead of staying empty.** `get_conversations()` never
+selected `profiles.headline`/`profiles.title` — the same canonical
+"professional headline" fields already used by `profile.html` and
+`profile-v2.render.js` (`prof.headline || prof.title`). Added
+`p.headline, p.title` to its existing `SELECT`/JOIN (additive, no new
+column, no migration). Frontend (`messages.render.js`): added a
+`profession(c)` helper (`c.headline || c.title || ''`) feeding
+`professionLineHtml()`, threaded through as a new `data-headline`
+attribute on `.conv-item` (same pattern as the existing `data-type`/
+`data-avatar`), and a new 5th `headline` parameter on `openConversation()`
+that populates `#chatRole` when reopening. When no profession data exists,
+both line 2 and `#chatRole` render empty — `.ci-sub` is simply omitted
+and `.ch-role:empty{display:none}` (from the prior round) collapses the
+header line, so the account-type badge next to the name is still never
+duplicated below it.
+
+- **Files changed:** `auth.py` (`get_messages`, `get_conversations`),
+  `messages.render.js` (`profession`, `professionLineHtml`,
+  `renderConvList`, `openConversation`), `messages.html` (version bump).
+- **Version bump:** `v=v18` → `v=v19`.
