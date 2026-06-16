@@ -5208,7 +5208,35 @@ Receiver check: Number(data.from_user_id) === Number(_currentConvId)
 
 ## [P1] 61. Messenger Send Performance Contract
 
-**Target:** `/messages/send` HTTP response ≤ 500ms total from client perspective.
+**Target:** `/messages/send` critical path ≤ 300ms server-side, ≤ 800ms net_ms on mobile.
+
+### Measured Baseline (PR #164 debug panel)
+
+| Metric | PR #163 | PR #164 | Root cause identified |
+|--------|---------|---------|----------------------|
+| `upd_ms` | ~500ms | **0ms** | UPDATE eliminated — hot path INSERT as read |
+| `cnt_ms` | ~500ms | **0ms** | COUNT moved off hot path |
+| `conn_ms` | 173ms | 173ms | SELECT 1 ping each request |
+| `ins_ms` | ~300ms | **524ms** | WAL flush (synchronous_commit=on) |
+| `db_ms` | ~1700ms | **697ms** | total |
+| `srv_ms` | ~1700ms | **697ms** | ≈ db_ms (WS is negligible) |
+| `net_ms` | ~2500ms | **1345ms** | includes ~600ms mobile network RTT |
+
+### Root Cause of `ins_ms: 524ms` — WAL Flush
+
+PostgreSQL default `synchronous_commit=on` means every COMMIT waits for the WAL record to be durably flushed to storage. On Supabase (remote storage), each WAL flush = ~350ms. Combined with 1 query roundtrip (~173ms), INSERT total ≈ 524ms.
+
+**Fix (PR #165):** Set `synchronous_commit=off` at connection level via `options="-c synchronous_commit=off"` in `_db_params`. The COMMIT returns immediately; WAL is flushed asynchronously. In a crash, the last few milliseconds of messages might not persist — acceptable for chat.
+
+### Root Cause of `conn_ms: 173ms` — Pool Ping
+
+Every pool checkout ran `SELECT 1` to verify the connection was still alive (Supabase closes idle connections after ~5 minutes). This added 1 full Supabase roundtrip (~173ms) to every request.
+
+**Fix (PR #165):** Pool stores `(conn, timestamp)`. Connections used within the last 240 seconds skip the ping — they cannot have expired yet. Only connections idle > 4 minutes are pinged. `conn_ms` drops to < 5ms for normal traffic.
+
+### Root Cause of `net_ms - srv_ms ≈ 600ms` — Mobile Network
+
+`net_ms` is measured client-side: start = just before `fetch()`, end = `.then()` receives parsed JSON. The ~600ms gap = mobile upload latency + server response download + TLS overhead. This is infrastructure/network, not reducible from application code.
 
 ### Two-path Pipeline (`send_message_pipeline` in `auth.py`)
 
@@ -5222,7 +5250,7 @@ Receiver check: Number(data.from_user_id) === Number(_currentConvId)
 ### Critical Path (blocks HTTP response)
 
 ```
-get_conn() → SELECT 1 ping → INSERT (hot: +read_at; cold: unread)
+get_conn() → [ping only if idle > 4min] → INSERT (hot: +read_at; cold: unread)
 → [cold only] COUNT unread
 → WS send message to receiver
 → WS send status_update to sender
@@ -5242,18 +5270,33 @@ Cold path only, via `FastAPI.BackgroundTasks`:
 
 Hot path skips both — receiver is actively reading, delivered+read already set in INSERT, unread count unchanged.
 
+### Expected After PR #165
+
+| Metric | Before | After (estimate) |
+|--------|--------|-----------------|
+| `conn_ms` | 173ms | ~1ms (no ping for fresh connections) |
+| `ins_ms` | 524ms | ~173ms (1 RTT, no WAL flush wait) |
+| `db_ms` | 697ms | ~200ms |
+| `srv_ms` | ~697ms | ~210ms |
+| `net_ms` | ~1345ms | ~810ms (srv drop + same network overhead) |
+
 ### Timing Fields Returned in `_timing`
 
 | Field | Meaning |
 |-------|---------|
-| `conn_ms` | Time to acquire DB connection (includes `SELECT 1` ping) |
-| `insert_ms` | INSERT query round-trip |
+| `conn_ms` | Time to acquire DB connection (ping only if idle > 4 min) |
+| `insert_ms` | INSERT query round-trip (no WAL flush wait) |
 | `update_ms` | Always 0 (UPDATE eliminated; hot path inserts as read directly) |
 | `count_ms` | COUNT(*) query (0 on hot path) |
 | `db_ms` | Total DB time = conn + insert + count |
 | `ws_ms` | WS send time (critical path only) |
 | `badge_ms` | Always 0 (deferred to background) |
 | `total_ms` | Full endpoint wall time |
+
+### Startup Diagnostics (in `init_db`)
+
+- Logs any triggers on `messages` table (`pg_trigger` query) — unexpected triggers add INSERT latency
+- Unexpected output: `[TW-WARN] triggers on messages table: [...]` → investigate
 
 ### Indexes (created at startup in `init_db`)
 
@@ -5269,6 +5312,7 @@ CREATE INDEX IF NOT EXISTS idx_msg_receiver        ON messages(receiver_id);
 - NEVER run `mark_message_delivered` (UPDATE) synchronously in the endpoint handler
 - NEVER send `badge_update` synchronously on the cold path (it is a background task)
 - NEVER skip the two-path logic and always-UPDATE every message
+- NEVER revert `synchronous_commit=off` without documenting the latency regression and reason
 - DO NOT add a 4th DB query to the critical path without documenting it here
 
 Same for `typing_stop`.

@@ -185,7 +185,10 @@ def _parse_db_url():
     host_port, dbname = hostinfo.split("/",1)
     dbname = dbname.split("?")[0]
     host, port = (host_port.rsplit(":",1) if ":" in host_port else (host_port, "5432"))
-    _db_params = dict(host=host, port=int(port), user=username, password=password, database=dbname, ssl_context=True)
+    # synchronous_commit=off: skip WAL flush wait on COMMIT — saves ~350ms per INSERT.
+    # Trade-off: in a crash the last committed message might not persist, acceptable for chat.
+    _db_params = dict(host=host, port=int(port), user=username, password=password, database=dbname, ssl_context=True,
+                      options="-c synchronous_commit=off")
 
 
 # ── Query Cache (Redis-ready) ──
@@ -234,25 +237,33 @@ def _cache_del(prefix):
         if k.startswith(prefix):
             del _query_cache[k]
 
+_CONN_MAX_AGE = 240  # seconds — ping only if idle longer than this
+
 def get_conn():
     _parse_db_url()
     global _pool
+    now = _time_mod.time()
     with _pool_lock:
-        if _pool:
-            try:
-                conn = _pool.pop()
-                conn.run("SELECT 1")
-                return conn
-            except Exception:
-                pass
+        while _pool:
+            conn, ts = _pool.pop()
+            if now - ts > _CONN_MAX_AGE:
+                # Connection may have been closed by Supabase idle timeout — verify
+                try:
+                    conn.run("SELECT 1")
+                    return conn
+                except Exception:
+                    pass  # stale — discard, try next
+            else:
+                return conn  # recent enough — skip ping, save ~173ms
     return pg8000.native.Connection(**_db_params)
 
 def release_conn(conn):
     global _pool
+    now = _time_mod.time()
     with _pool_lock:
         if len(_pool) < _MAX_POOL:
             try:
-                _pool.append(conn)
+                _pool.append((conn, now))
                 return
             except Exception:
                 pass
@@ -688,6 +699,18 @@ def init_db():
         ]:
             try: conn.run(idx_sql)
             except: pass
+        # Log any triggers on messages (unexpected triggers add INSERT latency)
+        try:
+            trows = conn.run(
+                "SELECT trigger_name, event_manipulation FROM information_schema.triggers "
+                "WHERE event_object_table='messages' ORDER BY trigger_name"
+            )
+            if trows:
+                print(f"[TW-WARN] triggers on messages table: {trows}")
+            else:
+                print("[TW-INFO] no triggers on messages table — clean")
+        except Exception as _te:
+            print(f"[TW-INFO] trigger check skipped: {_te}")
         # Notifications table
         conn.run("""
             CREATE TABLE IF NOT EXISTS notifications (
