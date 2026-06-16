@@ -111,13 +111,35 @@ function toggleConvList() {
   if (cl) cl.classList.toggle('mobile-show');
 }
 
-function goHome() {
+// ── Header ☰ menu dropdown (same open/outside-click pattern as Profile V2's
+// .sc-eye-menu in profile-v2.render.js) ──
+function toggleHeaderMenu(e) {
+  if (e) e.stopPropagation();
+  var dd = document.getElementById('scMenuDropdown');
+  if (dd) dd.classList.toggle('open');
+}
+document.addEventListener('click', function(e) {
+  var wrap = document.getElementById('scMenuWrap');
+  var dd = document.getElementById('scMenuDropdown');
+  if (wrap && dd && !wrap.contains(e.target)) dd.classList.remove('open');
+});
+
+// ── Unified header nav buttons (.sc-header, Profile V2 source) — type-aware
+// since messages.html is shared by emp/co/edu, unlike profile-showcase.html
+// which always goes to /home regardless of account type ──
+function goMessengerHome() {
   if (_currentConvId) sendInactiveConversation(_currentConvId);
   if (!_user) { window.location.href = '/'; return; }
-  var dest = _user.user_type === 'co'  ? '/company-profile?id=' + _user.id
-           : _user.user_type === 'edu' ? '/edu-profile?id=' + _user.id
+  var dest = _user.user_type === 'co'  ? '/company'
+           : _user.user_type === 'edu' ? '/edu'
            : '/home';
   window.location.href = dest;
+}
+
+function goMessengerProfile() {
+  if (_currentConvId) sendInactiveConversation(_currentConvId);
+  if (!_user) { window.location.href = '/'; return; }
+  window.location.href = _user.tw_id ? '/u/' + _user.tw_id : '/profile';
 }
 
 // ── Unread count ──────────────────────────────────────────────────────────

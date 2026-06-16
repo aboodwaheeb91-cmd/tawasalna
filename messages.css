@@ -11,33 +11,64 @@
 *{margin:0;padding:0;box-sizing:border-box;}
 body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;height:100vh;height:100dvh;overflow:hidden;}
 
-/* ── Nav ── */
-.nav{
-  height:60px;display:flex;align-items:center;gap:8px;padding:0 12px;
-  background:rgba(7,11,24,.95);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);
-  border-bottom:1px solid var(--border);
-  position:fixed;top:0;left:0;right:0;z-index:100;
+/* ── Unified site header — Profile V2 source: .sc-header (profile-showcase.html / profile-v2.css) ──
+   position:fixed here (not sticky, as in the source) because messages.html is a fixed-viewport
+   app-shell — body does not scroll, so sticky would have no scrolling ancestor to stick within. */
+.sc-header{
+  position:fixed;top:0;left:0;right:0;z-index:1000;
+  display:flex;align-items:center;justify-content:space-between;
+  height:42px;padding:7px 16px;
+  background:rgba(10,14,20,.85);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+  border-bottom:1px solid rgba(255,255,255,.06);font-family:'Cairo',sans-serif;
 }
-.nav-brand{flex:1;min-width:0;display:flex;align-items:center;justify-content:center;gap:8px;}
-.nav-brand-logo{height:26px;width:auto;object-fit:contain;display:block;flex-shrink:0;}
-.nav-brand-text{display:flex;flex-direction:column;align-items:center;line-height:1.25;min-width:0;}
-.nav-spacer{width:34px;flex-shrink:0;}
-.nav-title{font-size:.82rem;font-weight:800;color:var(--t);letter-spacing:.01em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%;}
-.nav-subtitle{font-size:.58rem;font-weight:600;color:var(--t3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%;}
-.nb{
-  width:34px;height:34px;padding:0;border-radius:10px;flex-shrink:0;
-  border:1px solid transparent;background:transparent;
-  color:var(--t2);font-family:'Cairo',sans-serif;font-size:1rem;font-weight:700;
-  display:flex;align-items:center;justify-content:center;
-  cursor:pointer;transition:all .18s;
+.sc-header .sc-logo{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);pointer-events:none;}
+.sc-logo img{height:38px;width:auto;max-width:140px;object-fit:contain;display:block;}
+.sc-home-pill{
+  display:inline-flex;align-items:center;gap:5px;
+  padding:0 18px;height:27px;border-radius:9px;cursor:pointer;
+  background:var(--ac,#00c896);border:1px solid rgba(255,255,255,.18);
+  color:#fff;font-family:inherit;font-size:11px;font-weight:700;
+  white-space:nowrap;transition:transform .15s,opacity .2s;
+  box-shadow:0 2px 6px rgba(0,200,150,.12);
 }
-.nb:hover{background:rgba(255,255,255,.08);color:var(--t);border-color:var(--border);}
+.sc-home-pill:active{transform:scale(.95);opacity:.9;}
+.sc-head-icons{display:flex;align-items:center;gap:8px;}
+.sc-hicon{width:34px;height:34px;border-radius:10px;border:none;cursor:pointer;background:rgba(255,255,255,.06);color:var(--t1,#fff);font-size:1rem;display:flex;align-items:center;justify-content:center;}
+.sc-hicon-bare{background:none!important;border:none!important;}
+.sc-head-icons .sc-hicon-bare{width:auto;height:auto;padding:4px;}
+
+/* ── Header icons — inline local SVG (no external icon CDN) ── */
+.sc-svg-icon{width:20px;height:20px;flex-shrink:0;}
+.sc-svg-icon-sm{width:14px;height:14px;flex-shrink:0;}
+
+/* ── Header ☰ menu dropdown — same visual pattern as Profile V2's .sc-eye-menu ── */
+.sc-menu-wrap{position:relative;}
+.sc-menu-dropdown{
+  display:none;position:absolute;top:calc(100% + 8px);left:0;min-width:180px;
+  background:rgba(10,14,24,.95);border:1px solid rgba(255,255,255,.13);
+  border-radius:13px;padding:5px;z-index:200;
+  backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
+  box-shadow:0 10px 30px rgba(0,0,0,.45);
+}
+.sc-menu-dropdown.open{display:block;}
+.sc-menu-item{
+  display:flex;align-items:center;gap:9px;width:100%;
+  padding:9px 12px;border:none;background:none;
+  color:var(--t1,#fff);font-family:inherit;font-size:12px;font-weight:600;
+  border-radius:8px;cursor:pointer;text-align:right;
+  transition:background .15s;
+}
+.sc-menu-item:hover{background:rgba(255,255,255,.07);}
+.sc-menu-item .sc-svg-icon-sm{color:var(--ac,#00c896);}
 
 /* ── Layout ── */
-.layout{display:grid;grid-template-columns:300px 1fr;height:calc(100vh - 60px);height:calc(100dvh - 60px);margin-top:60px;}
+.layout{display:grid;grid-template-columns:300px 1fr;height:calc(100vh - 42px);height:calc(100dvh - 42px);margin-top:42px;}
 
 /* ── Conversations list ── */
 .conv-list{border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;background:var(--bg2);}
+.msg-page-head{padding:16px 14px 6px;text-align:center;}
+.msg-page-title{font-size:1.05rem;font-weight:900;color:var(--t);margin:0;}
+.msg-page-subtitle{font-size:.66rem;font-weight:600;color:var(--t3);margin:3px 0 0;}
 .conv-toolbar{padding:12px 12px 8px;border-bottom:1px solid var(--border);display:flex;flex-direction:column;gap:8px;}
 .conv-search{
   position:relative;display:flex;align-items:center;
@@ -273,9 +304,9 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;height:1
 
 /* ── Mobile ── */
 @media(max-width:700px){
-  .layout{grid-template-columns:1fr;height:calc(100dvh - 60px);}
+  .layout{grid-template-columns:1fr;height:calc(100dvh - 42px);}
   .conv-list{display:none;}
-  .conv-list.mobile-show{display:flex;position:fixed;inset:60px 0 0 0;z-index:50;background:var(--bg2);}
+  .conv-list.mobile-show{display:flex;position:fixed;inset:42px 0 0 0;z-index:50;background:var(--bg2);}
   .ch-back{display:flex;}
   .messages{padding:16px 14px 10px;}
   .chat-input{padding:10px 12px;padding-bottom:max(10px,env(safe-area-inset-bottom));}

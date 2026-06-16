@@ -5498,3 +5498,167 @@ type) is wanted and it can be added as a real, working control.
   `renderOnlineRow()` are additive, render-markup-only helpers — they read
   already-rendered DOM text and already-available conversation data; they
   issue no new HTTP/WebSocket requests
+
+### Unified header pass — `messages.html` now uses profile.html's `.toolbar`
+
+A follow-up correction: the page-specific `.nav`/`.nb`/`.nav-brand` header
+built in the previous pass was replaced with the **same header component
+`profile.html` actually uses** — `.toolbar` / `.tb-logo` / `.tb-btn.tb-ghost`
+— copied verbatim (same selector names, same `height:50px`, same blur/colors)
+from `profile.html`'s `<style>` block into `messages.css`, instead of the
+generic `.nav` pattern used by `home.html`/`company.html`/`edu.html`. Cache
+bump: `?v=v12`.
+
+**Note on "logo in the center":** the request asked for the logo to sit in
+the middle "like the profile page," but `profile.html`'s real `.toolbar`
+does not center its logo — `.tb-logo{margin-left:auto}` pins it to one edge,
+with action buttons clustered on the other side (verified by rendering the
+real `/profile` page, not by reading the CSS alone). Since "نفس الهيدر
+تماماً" (identical to the profile header) was the more heavily emphasized,
+literal, and testable instruction, fidelity to the real component took
+priority over the "centered" description — the messages.html toolbar now
+positions its logo exactly where profile.html's does (edge-pinned), not
+dead-center. Flag if true centering is wanted as an intentional deviation
+from `profile.html`'s actual layout.
+
+| Toolbar slot (right → left, RTL source order) | profile.html | messages.html |
+|---|---|---|
+| Logo | `Logo.svg`, `.tb-logo` | same `Logo.svg`, same `.tb-logo` |
+| Next to logo | 🏠 → `home.html` (hardcoded, employee-only page) | 🏠 → `goMessengerHome()`: type-aware (`/home` emp, `/company` co, `/edu` edu), since unlike `profile.html`, `messages.html` is shared by all three user types |
+| *(removed)* | 👁 preview toggle | **not present** — preview has no meaning outside profile editing |
+| Notifications | 🔔 → `notifications.html` | 🔔 → `/notifications` |
+| *(removed)* | 💬 messages → `messages.html` | **not present** — would be a self-link from the messages page |
+| Profile | *(not present — page is already "my profile")* | 👤 → `goMessengerProfile()`: `/u/{tw_id}` (same pattern as `home.html`'s `goProfile()`) |
+| Menu/settings | ⚙️ → `openPanel()` (opens profile-editing accordion — style/sections/etc., meaningless outside `profile.html`) | ☰ → **visually present, intentionally inert** (`opacity:.65; cursor:not-allowed`, title "القائمة (قريباً)") — same "designed but not wired" treatment already used by the existing `.attach-btn` ("إرفاق ملف (قريباً)"). `profile.html`'s side panel is profile-editing-specific markup/JS and isn't portable to this page; building a new generic menu wasn't requested and would be new scope |
+
+"الرسائل" page title (`.msg-page-title`) + subtitle (`.msg-page-subtitle`)
+moved out of the fixed header entirely and now render as the first child of
+`#convList`, directly above the search/filter row. This means the title is
+part of the conversation-list view only — opening a conversation hides
+`#convList` (mobile) or simply isn't where the title lives (desktop column),
+so inside a chat only the unified `.toolbar` plus the chat-specific
+`.chat-head` show, per the requirement that the per-conversation header
+follow directly under the unified site header with no page title in between.
+
+`goMessengerHome()` / `goMessengerProfile()` both call the existing
+`sendInactiveConversation()` before navigating away, mirroring `goHome()`'s
+existing guard — reusing an already-shipped function, not new WebSocket logic.
+
+### Header source correction — Profile V2, not `profile.html` (supersedes the pass above)
+
+A read-only audit (triggered by user-reported confusion between "the old
+profile and the new profile") established that `profile.html`'s `.toolbar`
+— used as the copy source in the previous pass — is **not** the site's
+current/actively-developed profile surface. Hard evidence:
+
+- `profile.html` git history: ~195 commits, **all** `"Add files via upload"`
+  — no descriptive feature commits, ever.
+- `profile-showcase.html` git history: ~96 commits with real feature
+  messages (`feat: follow list filter`, `fix: Profile V2 header badges`...)
+  — actively maintained, internally branded **"Profile V2"**.
+- `server.py:443-458` (`/u/{tw_id}`) docstring literally says *"Public share
+  URL for Profile V2. Serves profile-showcase.html..."*; commit `ccd94ca`
+  is titled *"fix: profile routing — /u/{tw_id} everywhere, no profile.html
+  refs"*.
+- `profile-showcase.html`'s header (`.sc-header`, defined in external
+  `/static/profile-v2.css:14`) centers its logo via real CSS —
+  `position:absolute;left:50%;top:50%;transform:translate(-50%,-50%)` —
+  unlike `profile.html`'s edge-pinned `.tb-logo{margin-left:auto}`. This is
+  the literal source of the "centered logo" mismatch flagged (but not yet
+  resolved) in the previous pass.
+
+**Messenger Header Source Contract** (binding for all future header work
+on `messages.html` and any other page that unifies its header with the
+profile page):
+
+- The approved header source is **Profile V2**: `profile-showcase.html` /
+  `/static/profile-v2.css` (`.sc-header` / `.sc-logo` / `.sc-home-pill` /
+  `.sc-head-icons` / `.sc-hicon`).
+- `profile.html` (`.toolbar` / `.tb-logo` / `.tb-btn` / `.tb-ghost`) must
+  **not** be used as a visual reference for any new header work — it is
+  legacy (owner-editing surface only, never feature-developed).
+- The old `Logo.svg` asset must not be used in any newly-unified header;
+  the official mark is `33333.svg`.
+- Any future header change must state which of these two sources it is
+  built from, in its own ARCHITECTURE.md entry.
+
+### `messages.html` header rebuilt from `.sc-header` (Profile V2)
+
+Replaced the `.toolbar`/`.tb-logo`/`.tb-btn` block (copied from `profile.html`
+in the previous pass) with `.sc-header`/`.sc-logo`/`.sc-home-pill`/
+`.sc-head-icons`/`.sc-hicon` — copied from `profile-showcase.html:16-60` and
+`/static/profile-v2.css:14-44` — into `messages.html` + `messages.css`.
+Cache bump: `?v=v14` on `messages.css` and all 5 JS files.
+
+| Slot | Profile V2 source (`profile-showcase.html`) | `messages.html` |
+|---|---|---|
+| Home pill | `.sc-home-pill` → `/home` (hardcoded) | same class, `goMessengerHome()` (type-aware: `/home` emp, `/company` co, `/edu` edu) |
+| Logo | `.sc-logo img`, `33333.svg`, centered via `position:absolute;left:50%;top:50%` | identical — same asset, same centering rule |
+| *(removed)* | 👁 eye/preview (`.sc-eye-wrap`, owner-only) | **not present** — no preview concept on the messages page |
+| Notifications | `.sc-hicon` bell → `/notifications` | same class, → `/notifications` |
+| *(removed)* | 💬 messages → `/messages` | **not present** — self-link from the messages page |
+| Profile | *(not present — page is already the profile)* | **added**: `.sc-hicon` user icon → `goMessengerProfile()` (`/u/{tw_id}`, the same Profile V2 public route) |
+| Menu | `.sc-hicon` ☰ → `history.back()` | same class, now a **real working dropdown** (`.sc-menu-wrap`/`.sc-menu-dropdown`) — see below |
+
+**Icon rendering — inline local SVG, no emoji, no external CDN (revised):**
+The Lucide CDN (`unpkg.com/lucide@0.460.0`, used by `profile-showcase.html`
+via `<i data-lucide="...">`) failed to load in this session's test sandbox
+(`net::ERR_CERT_AUTHORITY_INVALID`). An earlier pass shipped plain emoji
+(🏠/🔔/👤/☰) as a stopgap — this was explicitly rejected ("لا أريد أيقونات
+الهيدر تكون إيموجي... هذا لا يعطي شكل Premium") because emoji do not read as
+a premium product UI and render inconsistently across platforms/fonts.
+**Fix:** all header icons (home, bell, user, hamburger, gear) are now
+hand-authored inline `<svg>` markup directly in `messages.html` — no
+`data-lucide` attribute, no external script tag, no network dependency at
+all. They follow the same outline-icon convention Lucide uses (`viewBox
+0 0 24 24`, `fill="none" stroke="currentColor" stroke-width="2"
+stroke-linecap="round" stroke-linejoin="round"`) so they are visually
+consistent with the rest of the icon language, but the path data is
+hand-drawn, not copied from Lucide's source (no network-verified copy of
+the exact paths was obtainable in this sandbox). Sized via two new CSS
+classes: `.sc-svg-icon` (20×20, header icon buttons) and `.sc-svg-icon-sm`
+(14×14, home-pill icon + dropdown-item icons).
+
+**Menu button — real working dropdown, not a dead control (revised):**
+The ☰ button no longer just calls `toggleConvList()` silently — it opens an
+actual dropdown menu (`#scMenuDropdown`, toggled via `toggleHeaderMenu()` in
+`messages.render.js`) styled on the codebase's own existing `.sc-eye-menu`
+pattern (`profile-v2.css:485-512` / `profile-v2.render.js:923-955`: toggle
+`.open` class on click, `stopPropagation()`, outside-click closes it via a
+`document`-level listener). It contains four real links, each with its own
+inline SVG icon:
+
+| Item | Target |
+|---|---|
+| الرئيسية | `goMessengerHome()` — type-aware (`/home`/`/company`/`/edu`) |
+| الملف الشخصي | `goMessengerProfile()` — `/u/{tw_id}` |
+| الإشعارات | `/notifications` |
+| الإعدادات | `/settings` (single shared route for all account types, `server.py:630-634`) |
+
+The button no longer looks active while doing nothing — every item it
+exposes is a real, already-existing route.
+
+**Layout height changed 50px → 42px** (real measured height of
+`.sc-header` via Playwright on `/profile-showcase`, not assumed) —
+`.layout{margin-top}`, the `height:calc(...)` rules, and the mobile
+`.conv-list.mobile-show{inset:...}` rule were all updated to match.
+`position:fixed` is used instead of the source's `position:sticky`,
+because `messages.html` is a fixed-viewport app-shell (`body{overflow:
+hidden}`) with no scrolling ancestor for `sticky` to stick within —
+`profile-showcase.html` is a normally-scrolling page, so `sticky` works
+there but would not behave correctly here. This is a structural adaptation
+required by the surrounding layout, not a visual deviation.
+
+Dead code removed: `goHome()` in `messages.render.js` (superseded by
+`goMessengerHome()` in the previous pass, had zero remaining callers).
+
+#### Forbidden (still enforced)
+
+- No changes to `server.py`, `auth.py`, WebSocket message types, the HTTP
+  send pipeline, typing-bubble logic, read-receipt logic, or
+  `messages.debug.js` — confirmed via `git diff --stat HEAD` showing only
+  `messages.html`, `messages.css`, `messages.render.js`, `ARCHITECTURE.md`
+- No bottom navigation bar added
+- `profile.html`/`.toolbar`/`.tb-logo`/`.tb-btn`/old `Logo.svg` are no
+  longer referenced anywhere in `messages.html`/`messages.css` (verified
+  via grep — zero matches)
