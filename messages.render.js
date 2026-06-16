@@ -35,6 +35,16 @@ function accentClass(type) {
   return typeInfo(type).cls.replace('t-', 'acc-');
 }
 
+// Line-2 profession/specialty caption. The conversations API has no
+// headline/title field (see ARCHITECTURE.md), so there is never real
+// profession text today — and the account type already shows as the
+// line-1 badge, so repeating it here would just duplicate that badge.
+// Returns '' (renders no line at all) until a profession field exists.
+function professionLineHtml(c) {
+  var text = (c && c.headline) || '';
+  return text ? '<div class="ci-sub">' + esc(text) + '</div>' : '';
+}
+
 function formatConvTime(iso) {
   if (!iso) return '';
   try { return new Date(iso).toLocaleTimeString('ar', { hour: '2-digit', minute: '2-digit' }); }
@@ -211,7 +221,7 @@ function renderConvList(convs) {
           + avatarHtml(c.full_name, avatarUrl) + '</div></div>'
           + '<div class="ci-body">'
           + '<div class="ci-name-row"><span class="ci-name">' + name + '</span>' + typeBadgePillHtml(type) + '</div>'
-          + '<div class="ci-sub">' + typeInfo(type).label + '</div>'
+          + professionLineHtml(c)
           + '<div class="ci-preview">' + last + '</div>'
           + '</div>'
           + '<div class="ci-aside"><span class="ci-time">' + time + '</span>' + unread + '</div>'
@@ -229,7 +239,6 @@ function renderConvList(convs) {
       + avatarHtml(_activeConvMeta.name, _activeConvMeta.avatarUrl) + '</div></div>'
       + '<div class="ci-body">'
       + '<div class="ci-name-row"><span class="ci-name">' + esc(_activeConvMeta.name) + '</span>' + typeBadgePillHtml(phType) + '</div>'
-      + '<div class="ci-sub">' + typeInfo(phType).label + '</div>'
       + '<div class="ci-preview">محادثة جديدة</div></div>';
     ph.addEventListener('click', function() {
       openConversation(_activeConvMeta.id, _activeConvMeta.name, _activeConvMeta.type, _activeConvMeta.avatarUrl);
@@ -328,10 +337,11 @@ function openConversation(otherId, name, type, avatarUrl) {
     badgeEl.style.display = '';
   }
   // Profession/specialty caption — no headline data exists on this endpoint
-  // (see ARCHITECTURE.md), so it always falls back to the account-type label,
-  // same convention as the conv-list cards' .ci-sub line.
+  // (see ARCHITECTURE.md). The account type already shows as the badge next
+  // to the name, so leave this empty rather than repeat it; CSS collapses
+  // the empty line (.ch-role:empty) so no gap is left under the name.
   var roleEl = document.getElementById('chatRole');
-  if (roleEl) roleEl.textContent = typeInfo(type).label;
+  if (roleEl) roleEl.textContent = '';
   // No real presence/online signal is exposed by the backend to other users.
   // Kept ready (text set) but hidden via CSS (.ch-status{display:none}) so
   // the header never shows an invented/placeholder activity line.
@@ -621,8 +631,7 @@ function handleWithParam(twId) {
       ph.innerHTML = '<div class="ci-ava-wrap"><div class="ci-ava ' + typeInfo(type).cls + '">'
         + avatarHtml(data.full_name, '') + '</div></div>'
         + '<div class="ci-body"><div class="ci-name-row"><span class="ci-name">'
-        + esc(data.full_name || 'مستخدم') + '</span>' + typeBadgePillHtml(type) + '</div>'
-        + '<div class="ci-sub">' + typeInfo(type).label + '</div></div>';
+        + esc(data.full_name || 'مستخدم') + '</span>' + typeBadgePillHtml(type) + '</div></div>';
       if (convItems) convItems.insertAdjacentElement('afterbegin', ph);
       openConversation(data.id, data.full_name || 'مستخدم', type, '');
     }

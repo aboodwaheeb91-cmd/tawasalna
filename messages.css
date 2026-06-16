@@ -132,8 +132,8 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;height:1
    reference convention as the followers list: avatar+identity on the right,
    time/unread on the far left ── */
 .conv-item{
-  display:flex;align-items:center;gap:11px;cursor:pointer;
-  margin:6px 10px;padding:12px 13px;border-radius:16px;
+  display:flex;align-items:center;gap:10px;cursor:pointer;
+  margin:4px 10px;padding:9px 12px;border-radius:14px;
   background:var(--card);border:1px solid var(--border);
   transition:background .15s,border-color .15s;position:relative;
 }
@@ -172,21 +172,23 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;height:1
 
 .ci-ava-wrap{position:relative;flex-shrink:0;}
 .ci-ava{
-  width:46px;height:46px;border-radius:50%;overflow:hidden;
+  width:42px;height:42px;border-radius:50%;overflow:hidden;
   display:flex;align-items:center;justify-content:center;
-  font-size:1.05rem;font-weight:800;color:#fff;
+  font-size:1rem;font-weight:800;color:#fff;
   box-shadow:0 2px 10px rgba(0,200,150,.12);
 }
 .ci-ava img{width:100%;height:100%;object-fit:cover;display:block;}
 .ci-body{flex:1;min-width:0;}
 /* Line 1: name + account-type badge, side by side — badge must read as
    "right next to the name", never under it or far from it. */
-.ci-name-row{display:flex;align-items:center;gap:6px;min-width:0;margin-bottom:1px;}
+.ci-name-row{display:flex;align-items:center;gap:6px;min-width:0;margin-bottom:2px;}
 .ci-name{flex-shrink:1;font-size:.78rem;font-weight:700;color:var(--t2);transition:color .15s;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-/* Line 2: profession/specialty caption — plain soft text (not a pill);
-   falls back to the account-type label when no profession data exists
-   (see ARCHITECTURE.md — the conversations API has no headline/title field). */
-.ci-sub{font-size:.66rem;color:var(--t2);margin:1px 0 4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+/* Line 2: profession/specialty caption — plain soft text (not a pill).
+   Prepared but unused today: get_conversations() has no headline/title
+   field (see ARCHITECTURE.md), and the account type already shows as the
+   line-1 badge, so this line is omitted entirely (not rendered) rather
+   than repeating it — no fallback text, no empty-line gap. */
+.ci-sub{font-size:.66rem;color:var(--t2);margin:0 0 2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .ci-preview{font-size:.69rem;color:var(--t3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 /* ── Left-side column (time / unread count) — separate from the
    name+badge+preview column on the right, same reference layout ── */
@@ -219,9 +221,11 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;height:1
    beside the name" rule as the conv-list cards. */
 .ch-name-row{display:flex;align-items:center;gap:6px;min-width:0;}
 .ch-name{flex-shrink:1;font-size:.86rem;font-weight:800;color:var(--t);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-/* Line 2: profession/specialty caption — same fallback-to-account-type
-   rule as .ci-sub on the conv-list cards (no headline data exists yet). */
+/* Line 2: profession/specialty caption — empty until a headline field
+   exists (see ARCHITECTURE.md); :empty collapses it so no gap is left
+   under the name instead of repeating the type already shown as the badge. */
 .ch-role{font-size:.66rem;color:var(--t2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.ch-role:empty{display:none;}
 .ch-back-arrow{
   display:flex;align-items:center;justify-content:center;flex-shrink:0;
   width:20px;height:20px;padding:0;border:none;background:none;

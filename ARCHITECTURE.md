@@ -5907,3 +5907,58 @@ no backend, WebSocket, or send-pipeline code touched.
 - **Version bump:** `messages.css` and all five `messages.*.js` script tags
   in `messages.html` bumped `v=v16` → `v=v17` (cache-busting only, no
   behavior implied by the version number itself).
+
+### Messenger Card Density Fix — No Duplicate Type Label, Shorter Cards
+
+**Fixes a regression visible in production screenshots of the Badge-Beside-Name
+Contract above: the line-2 caption was rendering the account-type label a
+second time (it already shows once as the line-1 badge), and the extra line
+plus loose padding made cards noticeably taller than the reference design.**
+Frontend-only; no backend/API/WebSocket/send/typing/read-receipt/debug/DB
+code touched.
+
+- **Line 2 no longer repeats the account type.** `professionLineHtml(c)`
+  (`messages.render.js`) replaces the old `typeInfo(type).label` fallback in
+  `renderConvList()`'s card template. It reads `c.headline` — a field that
+  does not exist yet on `GET /messages/conversations/{user_id}`
+  (`get_conversations()` in `auth.py` only selects `avatar_url` from
+  `profiles`, confirmed again this pass) — and returns `''` when absent, so
+  **no `.ci-sub` element is rendered at all** today. The moment a headline
+  field is added to that endpoint, this one function is where it surfaces;
+  no other call site needs to change. The two placeholder templates
+  (`_activeConvMeta` "new conversation" card, `handleWithParam()`'s
+  deep-link card) had their `.ci-sub` line removed outright for the same
+  reason — both only ever rendered the duplicate type label.
+- **Chat header's `.ch-role` follows the same rule, via CSS instead of
+  omission.** `openConversation()` now sets `#chatRole`'s text to `''`
+  instead of `typeInfo(type).label`. Because `#chatRole` is a fixed element
+  in `messages.html` (toggled across opens/closes, not rebuilt from a
+  string template like the cards), a new `.ch-role:empty{display:none}`
+  rule collapses it automatically whenever its text is empty — no JS
+  branching needed, and it starts showing itself the instant real text is
+  set, same self-describing pattern as `.ch-status.has-value` above.
+- **Card density reduced** to match the reference screenshot, purely via
+  spacing (no information removed beyond the duplicate line above):
+  `.conv-item` padding `12px 13px` → `9px 12px`, margin `6px 10px` →
+  `4px 10px`, border-radius `16px` → `14px`; `.ci-ava` `46px` → `42px`.
+  Combined with the removed duplicate-label line, a card with no real
+  profession data (today, always) is consistently shorter than before
+  (~62px tall at 390px width vs. the previous ~88px) while staying
+  readable — name, badge, and last message no longer have a dead line
+  wedged between them.
+- **Pin icon: still not added.** Re-confirmed, same reasoning as the
+  Conversation Card Contract above — `messages`/`profiles` have no
+  "pinned" column anywhere in the schema, so no pin slot is rendered
+  (faking one was explicitly out of scope this pass too).
+- **Avatars: re-confirmed circular everywhere**, no regression — `.ci-ava`,
+  `.ch-ava`, `.online-ava` all compute `border-radius: 50%` with their
+  `img` children at `object-fit: cover`; verified via Playwright across
+  both photo avatars and the initials fallback (no avatar_url → single
+  letter inside the same circular container, never a square).
+- **Verified with Playwright** (4 mock conversations spanning emp/co/edu,
+  one with no `avatar_url`): zero `.ci-sub` elements rendered (no
+  duplicate label), badge still adjacent to the name in both the cards and
+  the chat header, `#chatRole` computes `display: none` when empty,
+  measured card height ≈62px at 390px width, zero horizontal overflow.
+- **Version bump:** `messages.css` and all five `messages.*.js` script tags
+  in `messages.html` bumped `v=v17` → `v=v18`.
