@@ -35,13 +35,16 @@ function accentClass(type) {
   return typeInfo(type).cls.replace('t-', 'acc-');
 }
 
-// Line-2 profession/specialty caption. The conversations API has no
-// headline/title field (see ARCHITECTURE.md), so there is never real
-// profession text today — and the account type already shows as the
-// line-1 badge, so repeating it here would just duplicate that badge.
-// Returns '' (renders no line at all) until a profession field exists.
+// Line-2 profession/specialty caption — profiles.headline (falling back to
+// the older profiles.title column, same convention as profile.html /
+// profile-v2.render.js: `prof.headline || prof.title`). The account type
+// already shows as the line-1 badge, so when neither field is set, render
+// no line at all rather than repeating the type.
+function profession(c) {
+  return (c && (c.headline || c.title)) || '';
+}
 function professionLineHtml(c) {
-  var text = (c && c.headline) || '';
+  var text = profession(c);
   return text ? '<div class="ci-sub">' + esc(text) + '</div>' : '';
 }
 
@@ -216,7 +219,8 @@ function renderConvList(convs) {
     var isActive = (_currentConvId && c.other_id === _currentConvId) ? ' active' : '';
     var avatarUrl = c.avatar_url || '';
     frag += '<div class="conv-item ' + accentClass(type) + isActive + unreadCls + '" data-uid="' + c.other_id
-          + '" data-type="' + type + '" data-avatar="' + esc(avatarUrl) + '">'
+          + '" data-type="' + type + '" data-avatar="' + esc(avatarUrl)
+          + '" data-headline="' + esc(profession(c)) + '">'
           + '<div class="ci-ava-wrap"><div class="ci-ava ' + typeInfo(type).cls + '">'
           + avatarHtml(c.full_name, avatarUrl) + '</div></div>'
           + '<div class="ci-body">'
@@ -241,7 +245,7 @@ function renderConvList(convs) {
       + '<div class="ci-name-row"><span class="ci-name">' + esc(_activeConvMeta.name) + '</span>' + typeBadgePillHtml(phType) + '</div>'
       + '<div class="ci-preview">محادثة جديدة</div></div>';
     ph.addEventListener('click', function() {
-      openConversation(_activeConvMeta.id, _activeConvMeta.name, _activeConvMeta.type, _activeConvMeta.avatarUrl);
+      openConversation(_activeConvMeta.id, _activeConvMeta.name, _activeConvMeta.type, _activeConvMeta.avatarUrl, _activeConvMeta.headline);
     });
     items.insertAdjacentElement('afterbegin', ph);
   }
@@ -251,7 +255,8 @@ function renderConvList(convs) {
     var name      = (el.querySelector('.ci-name') || {}).textContent || '';
     var type      = el.getAttribute('data-type') || 'emp';
     var avatarUrl = el.getAttribute('data-avatar') || '';
-    el.addEventListener('click', function() { openConversation(uid, name, type, avatarUrl); });
+    var headline  = el.getAttribute('data-headline') || '';
+    el.addEventListener('click', function() { openConversation(uid, name, type, avatarUrl, headline); });
   });
 
   applyConvFilter(_convFilterMode);
@@ -294,7 +299,7 @@ function renderBubble(isMe, content, time, statusHtml, msgId) {
 
 // ── Open conversation — THE ONLY ENTRY POINT ─────────────────────────────
 
-function openConversation(otherId, name, type, avatarUrl) {
+function openConversation(otherId, name, type, avatarUrl, headline) {
   // Signal inactive on previous conversation before switching
   if (_currentConvId && _currentConvId !== otherId) {
     sendInactiveConversation(_currentConvId);
@@ -309,7 +314,7 @@ function openConversation(otherId, name, type, avatarUrl) {
   }
   type = type || 'emp';
   _currentConvId  = otherId;
-  _activeConvMeta = { id: otherId, name: name, type: type, avatarUrl: avatarUrl };
+  _activeConvMeta = { id: otherId, name: name, type: type, avatarUrl: avatarUrl, headline: headline || '' };
   // Signal active conversation to server (enables immediate read receipts)
   sendActiveConversation(otherId);
 
@@ -336,12 +341,13 @@ function openConversation(otherId, name, type, avatarUrl) {
     badgeEl.className   = 'type-badge-pill ' + info.cls;
     badgeEl.style.display = '';
   }
-  // Profession/specialty caption — no headline data exists on this endpoint
-  // (see ARCHITECTURE.md). The account type already shows as the badge next
-  // to the name, so leave this empty rather than repeat it; CSS collapses
-  // the empty line (.ch-role:empty) so no gap is left under the name.
+  // Profession/specialty caption — profiles.headline/title, passed in from
+  // the card's data-headline attribute. The account type already shows as
+  // the badge next to the name, so when there's no profession text, leave
+  // this empty rather than repeat it; CSS collapses the empty line
+  // (.ch-role:empty) so no gap is left under the name.
   var roleEl = document.getElementById('chatRole');
-  if (roleEl) roleEl.textContent = '';
+  if (roleEl) roleEl.textContent = headline || '';
   // No real presence/online signal is exposed by the backend to other users.
   // Kept ready (text set) but hidden via CSS (.ch-status{display:none}) so
   // the header never shows an invented/placeholder activity line.
