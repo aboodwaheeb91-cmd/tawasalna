@@ -5764,142 +5764,110 @@ other header icon keeps `.sc-hicon-bare` unchanged):
 
 ### Global Header Menu Contract
 
-**The ☰ button's dropdown on every page built on the shared `.sc-header`
-(currently `messages.html` and `profile-showcase.html`) is now one unified
-menu, owned by `tw_shared.js` — not a per-page hardcoded list.** Any future
-page adopting `.sc-header` should wire its ☰ button into this menu instead
-of building its own dropdown markup/logic.
+**Rule (mandatory for all AI sessions):**
+- The `.sc-header` header contains **primary navigation only** — home, profile, messages, notifications.
+- The ☰ dropdown contains **secondary tools only** — settings, contact/report/suggest, logout, preview.
+- **Never duplicate primary nav items inside the ☰ menu.** They are already one tap away in the header.
 
-#### Pre-implementation audit (as requested before this pass)
+The unified ☰ dropdown is owned by `tw_shared.js` and used by both `messages.html` and
+`profile-showcase.html`. Any future page adopting `.sc-header` should wire its ☰ button
+with `initGlobalHeaderMenu()` instead of building its own dropdown.
 
-- **Existing similar menu?** Yes — `messages.css`/`messages.html` already
-  had a working `.sc-menu-wrap`/`.sc-menu-dropdown`/`.sc-menu-item`
-  open/close/outside-click pattern, but with a **static, hardcoded
-  4-item list** (الرئيسية / الملف الشخصي / الإشعارات / الإعدادات), wired
-  by a page-local `toggleHeaderMenu()` in `messages.render.js`.
-  `profile-showcase.html` had **no dropdown at all** — its ☰ button just
-  called `history.back()`.
-- **Copy or share?** Built one shared function (`initGlobalHeaderMenu` in
-  `tw_shared.js`) rather than copying the 4-item markup a second time —
-  the whole point of "قائمة موحدة" is a single source of truth for the
-  item list, icons, and the current-page/disabled rule.
-- **Pages using `.sc-header`:** confirmed via `grep -rn "sc-header"
-  --include="*.html"` — only `messages.html` and `profile-showcase.html`.
-- **Per-account-type links:** home → `/home` (emp) / `/company` (co) /
-  `/edu` (edu), now centralized in `twHomeHref(u)`; profile → `/u/{tw_id}`
-  (falls back to `/profile` if no `tw_id`); messages → `/messages`;
-  notifications → `/notifications`; settings → `/settings`.
-- **Existing logout:** none shared — duplicated ad hoc per page
-  (`home.html`, `company.html`, `edu.html`, `profile.html`,
-  `edu-profile.html`, `company-profile.js`), all just
-  `localStorage.removeItem('tw_user'); location.href='/';` — none cleared
-  `tw_jwt`. New shared `twLogout()` clears both.
-- **Existing copy/share-profile:** `messages.render.js`'s
-  `copyConvProfileLink()` and `profile-v2.qr.js`'s `_qrCopyLink`/`_qrShare`
-  both operate on the profile **currently being viewed**, not necessarily
-  the logged-in user's own — wrong semantics for a global "share my
-  profile" menu item, so new dedicated `twCopyProfileLink()`/
-  `twShareProfile()` were added instead, built around `getTwUser().tw_id`.
+#### Canonical item list (secondary tools only)
 
-#### New shared functions — `tw_shared.js`
+1. **المعاينة** — owner-only, first item, static HTML in `#scMenuDropdown` (see eye section below)
+2. **الإعدادات** → `/settings` (active link)
+3. **تواصل معنا** — disabled / `قريباً` (no route exists yet)
+4. **الإبلاغ عن مشكلة** — disabled / `قريباً` (no route exists yet)
+5. **اقترح ميزة** — disabled / `قريباً` (no route exists yet)
+6. **تسجيل الخروج** — danger/red, `twLogout()` (clears `tw_user` + `tw_jwt`)
 
-| Function | Purpose |
-|---|---|
-| `getTwUser()` | Parses `localStorage.tw_user`, returns `null` if absent/invalid. |
-| `twHomeHref(u?)` | Single source of truth for the type-aware home route (`/home`\|`/company`\|`/edu`). Replaces the duplicated logic previously inline in `goMessengerHome()` and hardcoded to `/home` in `profile-v2.render.js` (a latent bug for co/edu accounts, now fixed as a side effect). |
-| `twLogout()` | Clears `tw_user` **and** `tw_jwt`, redirects to `/`. |
-| `twOwnProfileUrl()` | `origin + '/u/' + tw_id` for the logged-in user, or `null` if logged out. |
-| `twCopyProfileLink()` | Clipboard-copies the above, with a toast. |
-| `twShareProfile()` | `navigator.share()` if available, else falls back to `twCopyProfileLink()`. |
-| `initGlobalHeaderMenu(btnId, ddId, currentPage)` | Wires one page's `#btnId` (toggle) + `#ddId` (`.sc-menu-dropdown`, must be inside a `.sc-menu-wrap`). Renders the item list fresh on every open. `currentPage` is `'messages'` \| `'profile'` \| `null`/anything-else, **or a function returning one** — needed by `profile-showcase.html`, which renders both the owner's own profile and other people's profiles; ownership (`window._scViewerType`) is only known after profile data loads, so it must be read lazily at open-time, not once at page-load. |
+Items 2–6 are dynamically rendered by `initGlobalHeaderMenu()` into `#scMenuDynamic`.
+Disabled items use `<div class="sc-menu-item disabled">` with a "قريباً" pill — they render visually
+but are not clickable, per "لا تضع زر شكله يعمل وهو لا يعمل".
 
-#### Canonical 8-item list (`_twHeaderMenuItems`, `tw_shared.js`)
+#### Eye preview — migrated from header to menu (profile-showcase.html only)
 
-1. الرئيسية → `twHomeHref()`
-2. الملف الشخصي → `/u/{tw_id}` — **disabled/current** when `currentPage==='profile'`
-3. الرسائل → `/messages` — **disabled/current** when `currentPage==='messages'`
-4. الإشعارات → `/notifications`
-5. الإعدادات → `/settings`
-6. مشاركة الملف الشخصي → `action: twShareProfile`
-7. نسخ رابط الملف → `action: twCopyProfileLink`
-8. تسجيل الخروج → `action: twLogout` (styled `.danger`, red)
+The eye/preview button was previously a standalone icon in `.sc-head-icons`. It is now
+the **first item inside `#scMenuDropdown`**, visible only when `body.view-owner` is set.
 
-A "current" item renders as a plain `<div class="sc-menu-item current" aria-current="page">` (not a link/button — not clickable, not focusable), so the current page never appears as a duplicate, clickable nav target inside its own menu, per "لا تكرر نفس الصفحة الحالية كزر عادي".
+**Why static, not dynamically generated:** the eye section has direct `addEventListener`
+bindings in `profile-v2.render.js`'s IIFE (bound once at page load, by ID:
+`scEyeBtn`, `scEyeMenu`, `scPreviewPublic`, `scPreviewGuest`, `scPreviewEnd`).
+If these nodes were regenerated via `dd.innerHTML = ...` on every menu open, the original
+DOM nodes would be discarded and the bindings lost. To preserve them: the eye markup lives
+as **static HTML** in `#scMenuDropdown`, above a separate `<div id="scMenuDynamic">` into
+which tw_shared.js renders the 5 dynamic items — `initGlobalHeaderMenu` renders into
+`#scMenuDynamic`, not `#scMenuDropdown`. This means the eye section survives re-renders.
 
-#### Markup contract for a host page
+Eye sub-menu (معاينة كمستخدم مسجل / معاينة كزائر / إنهاء المعاينة) is an inline-flow expand
+(not a floating absolute popup): `position:static` overridden inside `.sc-menu-dropdown .sc-eye-menu`
+so it opens in-place vertically below the trigger row. Selecting any preview option calls
+`closeAllMenus()` (profile-v2.render.js) which closes both the eye sub-menu and the parent
+`#scMenuDropdown` — consistent with "تغلق بعد اختيار أي عنصر".
 
+All icons are inline local SVG (replaced the original Lucide `<i data-lucide="...">` tags in
+the eye section). Toggle behavior (`.open` class, `body.preview-public-user`/`body.preview-guest`
+classes, `eyeBtn.stopPropagation()`) is unchanged.
+
+#### `initGlobalHeaderMenu(btnId, ddId, dynId?)` API
+
+| Param | Required | Purpose |
+|-------|----------|---------|
+| `btnId` | Yes | ID of the `<button>` that toggles the dropdown open/closed |
+| `ddId` | Yes | ID of `.sc-menu-dropdown` — the visible box to toggle |
+| `dynId` | Optional | ID of the inner container to render dynamic items into. Defaults to `ddId`. Use `'scMenuDynamic'` on profile-showcase.html since `#scMenuDropdown` also contains the static eye section. |
+
+Closing the dropdown also collapses `#scEyeMenu` (if present) so it always resets on next open.
+`window.twBeforeHeaderNav(key)` hook (defined per page) runs synchronously before any menu link
+navigates away — messages.render.js uses it to call `sendInactiveConversation` on the open
+conversation, consistent with what the dedicated header buttons already do.
+
+#### Wiring per page
+
+```js
+// messages.render.js — no eye section, renders into #scMenuDropdown directly
+initGlobalHeaderMenu('scMenuBtn', 'scMenuDropdown');
+
+// profile-v2.render.js — renders dynamic items into #scMenuDynamic, leaving
+// the static eye section above it untouched
+initGlobalHeaderMenu('scMenuBtn', 'scMenuDropdown', 'scMenuDynamic');
+```
+
+#### Markup contract for `#scMenuDropdown`
+
+**messages.html** (no eye section):
 ```html
 <div class="sc-menu-wrap" id="scMenuWrap">
-  <button class="sc-hicon sc-hicon-bare" id="scMenuBtn" title="القائمة">...</button>
-  <div class="sc-menu-dropdown" id="scMenuDropdown"></div>
+  <button id="scMenuBtn" class="sc-hicon sc-hicon-bare">...</button>
+  <div class="sc-menu-dropdown" id="scMenuDropdown"></div>  <!-- rendered by tw_shared.js -->
 </div>
 ```
-The dropdown starts **empty** — `initGlobalHeaderMenu()` populates it on
-first open. `messages.html` previously had its 4 static items here, all
-removed. `profile-showcase.html` previously had no `.sc-menu-wrap`/
-dropdown at all; both were added from scratch around its existing `☰`
-button.
 
-```js
-// messages.render.js
-if (typeof initGlobalHeaderMenu === 'function') {
-  initGlobalHeaderMenu('scMenuBtn', 'scMenuDropdown', 'messages');
-}
-
-// profile-v2.render.js
-if (typeof initGlobalHeaderMenu === 'function') {
-  initGlobalHeaderMenu('scMenuBtn', 'scMenuDropdown', function(){
-    return window._scViewerType === 'owner' ? 'profile' : null;
-  });
-}
+**profile-showcase.html** (with static eye section):
+```html
+<div class="sc-menu-wrap" id="scMenuWrap">
+  <button id="scMenuBtn" class="sc-hicon sc-hicon-bare">...</button>
+  <div class="sc-menu-dropdown" id="scMenuDropdown">
+    <div class="sc-eye-wrap" id="scEyeWrap">  <!-- static, always present in DOM -->
+      <button class="sc-menu-item sc-eye-btn" id="scEyeBtn">...</button>
+      <div class="sc-eye-menu" id="scEyeMenu">...</div>
+    </div>
+    <div class="sc-menu-sep" id="scMenuEyeSep"></div>   <!-- visible only body.view-owner -->
+    <div id="scMenuDynamic"></div>                       <!-- rendered by tw_shared.js -->
+  </div>
+</div>
 ```
 
-#### Preserving messenger WS cleanup through the shared menu
+#### Forbidden (Global Header Menu)
 
-`goMessengerHome()`/`goMessengerProfile()` (the **dedicated** home/profile
-header buttons, unchanged) call `sendInactiveConversation(_currentConvId)`
-before navigating away from an open conversation. The shared menu's items
-are plain `<a href>` tags owned by `tw_shared.js`, which has no knowledge
-of `_currentConvId` or the WS layer — so `initGlobalHeaderMenu()` calls an
-optional page-defined hook, `window.twBeforeHeaderNav(key)`, synchronously
-right before any menu link navigates. `messages.render.js` defines it:
-```js
-window.twBeforeHeaderNav = function(){
-  if (_currentConvId) sendInactiveConversation(_currentConvId);
-};
-```
-This runs the same cleanup for **every** shared-menu navigation away from
-`/messages` (home/profile/notifications/settings), not just the two routes
-that already had it — a strict improvement, not a behavior change to the
-WS protocol or send pipeline itself. `profile-showcase.html` defines no
-such hook (nothing to clean up there).
+- **Never put home / profile / messages / notifications inside the ☰ menu** — they are
+  primary nav, already present as header buttons.
+- **Never add external icon CDN or emoji** to menu items — inline local SVG only.
+- No backend / WebSocket / send-pipeline changes for any header or menu work.
 
-#### Visual rules implemented
-
-- Dark premium dropdown: `rgba(10,14,24,.95)` + `blur(18px)` + 1px
-  translucent border — unchanged from the pre-existing `messages.css`
-  pattern, copied (not imported — no shared stylesheet) into `profile-v2.css`.
-- Inline local SVG icons only (`stroke="currentColor"`, hand-drawn paths,
-  same convention as the rest of `.sc-header`) — **no emoji, no icon CDN**
-  for any menu item, including the new share/copy-link/logout icons.
-- `.sc-menu-item.current` — dimmed (`--t2`), non-interactive (`cursor:default`).
-- `.sc-menu-item.danger` (logout) — red text/icon, red-tinted hover.
-- Outside-click and item-click both close the dropdown (delegated
-  listeners on `document` and on `dd` itself).
-- No horizontal overflow: `min-width:180px`, dropdown anchored `left:0`
-  under the ☰ button, same as the pre-existing pattern — not widened.
-- No bottom nav added.
-
-#### Forbidden (still enforced)
-
-No changes to `server.py`, `auth.py`, the messages WebSocket protocol, or
-the send pipeline — confirmed via `git diff --stat` (only `tw_shared.js`,
-`messages.html`, `messages.css`, `messages.render.js`,
-`profile-showcase.html`, `profile-v2.css`, `profile-v2.render.js`,
-`ARCHITECTURE.md` touched).
-
-- **Version bump:** `messages.css`/`messages.*.js` `v=v20` → `v=v21`;
-  `profile-v2.css` `?v=header-v2` → `?v=header-v3`.
+- **Version bumps:** `messages.css`/`messages.*.js` `v=v21` → `v=v22`;
+  `profile-v2.css` `?v=header-v3` → `?v=header-v4`.
 
 ### Messenger Identity Display Contract
 

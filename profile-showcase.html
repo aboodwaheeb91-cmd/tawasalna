@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/tw_shared.css">
-  <link rel="stylesheet" href="/static/profile-v2.css?v=header-v3">
+  <link rel="stylesheet" href="/static/profile-v2.css?v=header-v4">
   <script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
 </head>
 <body>
@@ -22,31 +22,6 @@
       <span class="sc-logo-fallback" style="display:none">تواصلنا</span>
     </div>
     <div class="sc-head-icons">
-
-      <!-- Eye preview button — owner only (hidden via CSS until body.view-owner) -->
-      <div class="sc-eye-wrap" id="scEyeWrap">
-        <button class="sc-hicon sc-hicon-bare" id="scEyeBtn" title="معاينة البروفايل">
-          <i data-lucide="eye-off" class="ico sc-eye-icon-off"></i>
-          <i data-lucide="eye"     class="ico sc-eye-icon-on"></i>
-        </button>
-        <div class="sc-eye-menu" id="scEyeMenu">
-
-          <button class="sc-eye-item" id="scPreviewPublic">
-            <i data-lucide="user-round" class="ico-sm"></i>
-            معاينة كمستخدم مسجل
-          </button>
-          <button class="sc-eye-item" id="scPreviewGuest">
-            <i data-lucide="user-x" class="ico-sm"></i>
-            معاينة كزائر
-          </button>
-          <div class="sc-eye-sep"></div>
-          <button class="sc-eye-item sc-eye-end" id="scPreviewEnd">
-            <i data-lucide="x-circle" class="ico-sm"></i>
-            إنهاء المعاينة
-          </button>
-        </div>
-      </div>
-
       <button class="sc-hicon sc-hicon-bare" id="scBellBtn" title="الإشعارات" style="position:relative">
         <i data-lucide="bell" class="ico"></i>
         <span data-badge="notif" style="display:none;position:absolute;top:-3px;left:-3px;background:#f87171;color:#fff;border-radius:50%;min-width:14px;height:14px;font-size:.5rem;font-weight:700;line-height:14px;text-align:center;padding:0 2px"></span>
@@ -57,7 +32,35 @@
       </button>
       <div class="sc-menu-wrap" id="scMenuWrap">
         <button class="sc-hicon sc-hicon-bare" id="scMenuBtn" title="القائمة"><i data-lucide="menu" class="ico"></i></button>
-        <div class="sc-menu-dropdown" id="scMenuDropdown"></div>
+        <div class="sc-menu-dropdown" id="scMenuDropdown">
+          <!-- Eye preview — owner only (hidden via CSS until body.view-owner).
+               Static child so its IIFE event-listeners survive menu re-renders. -->
+          <div class="sc-eye-wrap" id="scEyeWrap">
+            <button class="sc-menu-item sc-eye-btn" id="scEyeBtn" type="button" title="معاينة البروفايل">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="sc-svg-icon-sm sc-eye-icon-off" aria-hidden="true"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="sc-svg-icon-sm sc-eye-icon-on" aria-hidden="true" style="display:none"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              المعاينة
+            </button>
+            <div class="sc-eye-menu" id="scEyeMenu">
+              <button class="sc-eye-item" id="scPreviewPublic" type="button">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="ico-sm" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>
+                معاينة كمستخدم مسجل
+              </button>
+              <button class="sc-eye-item" id="scPreviewGuest" type="button">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="ico-sm" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="17" y1="8" x2="23" y2="14"/><line x1="23" y1="8" x2="17" y2="14"/></svg>
+                معاينة كزائر
+              </button>
+              <div class="sc-eye-sep"></div>
+              <button class="sc-eye-item sc-eye-end" id="scPreviewEnd" type="button">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="ico-sm" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                إنهاء المعاينة
+              </button>
+            </div>
+          </div>
+          <div class="sc-menu-sep" style="display:none" id="scMenuEyeSep"></div>
+          <!-- Dynamic secondary-tools items rendered by initGlobalHeaderMenu() -->
+          <div id="scMenuDynamic"></div>
+        </div>
       </div>
     </div>
   </div>
