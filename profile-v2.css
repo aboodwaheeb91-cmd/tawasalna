@@ -537,12 +537,6 @@ body.preview-guest        #scFollowBtn { display:inline-flex !important; }
 /* ── Preview Eye Button — owner only ── */
 .sc-eye-wrap { position:relative; display:none; }
 body.view-owner .sc-eye-wrap { display:flex; }
-.sc-eye-icon-on { display:none; }
-body.preview-public-user .sc-eye-icon-off,
-body.preview-guest       .sc-eye-icon-off { display:none; }
-body.preview-public-user .sc-eye-icon-on,
-body.preview-guest       .sc-eye-icon-on  { display:block; color:var(--ac,#00c896); }
-
 .sc-eye-menu {
   display:none; position:absolute; top:calc(100% + 8px); left:0; min-width:190px;
   background:rgba(10,14,24,.95); border:1px solid rgba(255,255,255,.13);
@@ -563,6 +557,24 @@ body.preview-guest       .sc-eye-icon-on  { display:block; color:var(--ac,#00c89
 .sc-eye-item.sc-eye-end .ico-sm { color:#f87171; }
 .sc-eye-item.sc-eye-end { color:var(--t2,#9aa5b4); }
 .sc-eye-sep { height:1px; background:rgba(255,255,255,.08); margin:4px 8px; }
+
+/* Glassmorphic icon circle for the eye/preview button in the global menu */
+.sc-eye-ico-wrap {
+  width:26px; height:26px; border-radius:50%; flex-shrink:0;
+  background:rgba(0,200,150,.1); border:1px solid rgba(0,200,150,.22);
+  display:inline-flex; align-items:center; justify-content:center;
+}
+.sc-eye-ico-wrap svg { width:13px; height:13px; stroke:var(--ac,#00c896); fill:none; flex-shrink:0; }
+
+/* Preview mode back button — shown in place of ☰ while any preview class is active.
+   Uses !important to override .sc-hicon-bare's reset without restructuring HTML. */
+.sc-preview-back {
+  background:rgba(0,200,150,.1) !important;
+  border:1px solid rgba(0,200,150,.25) !important;
+  color:var(--ac,#00c896) !important;
+}
+.sc-preview-back:hover { background:rgba(0,200,150,.2) !important; }
+.sc-preview-back:active { transform:scale(.92); }
 
 /* ── Owner-only foundation — Doctrine §25 ──
    أي عنصر owner-only يختفي تلقائياً في preview mode. */

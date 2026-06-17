@@ -5869,6 +5869,87 @@ initGlobalHeaderMenu('scMenuBtn', 'scMenuDropdown', 'scMenuDynamic');
 - **Version bumps:** `messages.css`/`messages.*.js` `v=v21` → `v=v22`;
   `profile-v2.css` `?v=header-v3` → `?v=header-v4`.
 
+#### Eye button — glassmorphic icon circle (profile-showcase.html)
+
+The preview/eye trigger button inside the dropdown renders its icon wrapped in
+a glassmorphic circle, consistent with the premium header-icon visual language.
+
+```html
+<span class="sc-eye-ico-wrap" aria-hidden="true">
+  <svg …><!-- eye icon only --></svg>
+</span>
+المعاينة
+```
+
+CSS: `.sc-eye-ico-wrap` — 26×26 px, `border-radius:50%`, teal glass tint
+(`rgba(0,200,150,.1)` + `border:1px solid rgba(0,200,150,.22)`). The eye icon
+is always the "open eye" (indicating "you can preview") — never eye-off inside
+the menu. The eye-off / eye-on switching was removed; the preview state is now
+communicated by the header back button appearing (see section below).
+
+---
+
+### Global Header Preview Mode Contract
+
+**Rule (mandatory for all AI sessions on profile-showcase.html):**
+
+When the owner enters a preview mode (معاينة كمستخدم مسجل / معاينة كزائر):
+
+1. **☰ button hides** — `#scMenuBtn` gets `display:none`.
+2. **Back button appears** — `#scPreviewBackBtn` (inside `#scMenuWrap`, styled
+   `.sc-preview-back`) becomes visible in the same position.
+3. **Back button exits preview directly** — no need to re-open the menu. Clicking it
+   calls `exitPreview()` then `history.back()` to clean up the history entry.
+4. **Browser back (hardware/OS) exits preview first** — entering preview pushes a
+   history entry with `{ twPreview: true }`. A `popstate` listener calls `exitPreview()`
+   if the body has a preview class. The second back press leaves the page normally.
+5. **Switching preview modes (public ↔ guest)** does NOT push a second history entry —
+   only one entry per preview session, regardless of how many mode switches occur.
+6. **"إنهاء المعاينة"** in the eye sub-menu behaves identically to the header back button.
+
+#### State machine
+
+```
+Normal ──(choose preview option)──► Preview
+           pushState({twPreview:true})      │
+                                            │
+Preview ──(back btn / إنهاء المعاينة / popstate)──► Normal
+           exitPreview()                           history.back() cleans the entry
+```
+
+#### DOM additions (profile-showcase.html only)
+
+```html
+<div class="sc-menu-wrap" id="scMenuWrap">
+  <button id="scMenuBtn" class="sc-hicon sc-hicon-bare">…</button>
+  <!-- Shown only during preview; replaces ☰ -->
+  <button id="scPreviewBackBtn" class="sc-hicon sc-preview-back" style="display:none">
+    <svg …>← arrow</svg>
+  </button>
+  <div class="sc-menu-dropdown" id="scMenuDropdown">…</div>
+</div>
+```
+
+#### JS helpers (profile-v2.render.js — eye IIFE)
+
+| Function | Role |
+|----------|------|
+| `_inPreview()` | Returns true if body has any preview class |
+| `updatePreviewHeader(bool)` | Toggles `#scMenuBtn` / `#scPreviewBackBtn` visibility |
+| `exitPreview()` | Removes preview classes, closes menus, updates header |
+| `enterPreviewMode(type)` | Sets preview class, updates header, pushes history once |
+
+#### Forbidden (Preview Mode)
+
+- **Never call `history.back()` without first calling `exitPreview()`** — DOM state
+  and history must stay in sync.
+- **Never use browser back to navigate to a different URL** — `pushState` without a
+  URL argument keeps the URL unchanged; only the state differs.
+- **Never add backend / WebSocket / API calls** for entering or exiting preview — it
+  is a purely CSS-class-based client-side feature.
+- **Never move the back button outside `#scMenuWrap`** — it must occupy the same
+  flex slot as ☰ to avoid header layout shifts.
+
 ### Messenger Identity Display Contract
 
 **Binding for all future work on how `messages.html` shows the other party
