@@ -6368,19 +6368,31 @@ Save is via `window.updateProfile(uid, { availability_status: val })` (from `pro
 
 #### Owner vs Visitor
 
-| Context | Dot visible | Picker available | Cursor |
-|---------|------------|-----------------|--------|
-| Owner (normal) | Yes | Yes | pointer |
-| Owner (preview mode) | Yes | No (CSS + `_isOwnerActive()` guard) | default |
-| Public visitor | Yes | No | default |
-| Guest (unauthenticated) | Yes | No | default |
-| No status set | No | Owner: yes on click | — |
+| Context | `status = null` | `status` set | Picker |
+|---------|----------------|-------------|--------|
+| Owner — normal | Ghost ring `.is-empty-owner`, clickable | Colored dot, clickable | Opens on click |
+| Owner — preview mode | Dot hidden (visitor-like) | Colored dot, read-only | Never opens |
+| Public visitor | Dot hidden | Colored dot, read-only | Never opens |
+| Guest (unauthenticated) | Dot hidden | Colored dot, read-only | Never opens |
+
+**Rule**: `effectiveOwner = isOwner && !inPreviewMode`. The dot's empty/setter state is only shown when `effectiveOwner` is true. `inPreviewMode` is checked inside `_renderAvailDot` via body class (`preview-public-user` / `preview-guest`), not passed as a parameter.
+
+#### Empty Owner State (`.is-empty-owner`)
+
+When `effectiveOwner = true` and `status = null`, the dot:
+- Is visible with a subtle dashed-ring outline (no fill color)
+- Shows tooltip `"تحديد حالة التوفر"`
+- Has `cursor:pointer` and `tabindex=0`
+- Responds to hover with a faint teal tint
+
+This class is removed immediately when a real status is applied. Visitors never see this class.
 
 #### Forbidden Patterns
 
+- Do NOT hide the dot for owners when status is null — show `.is-empty-owner` instead
+- Do NOT show `.is-empty-owner` to visitors or in preview mode
 - Do NOT show the picker when `body.preview-public-user` or `body.preview-guest` is set
 - Do NOT invent dot colors outside the four defined values
-- Do NOT show a dot when `status` is null/unknown — hide it entirely
 - Do NOT modify the avatar ring, camera button, or `#scAvatar` shape when adding the dot
 - Do NOT reuse the `avail` column or its legacy values for this feature
 
@@ -6390,6 +6402,6 @@ Save is via `window.updateProfile(uid, { availability_status: val })` (from `pro
 |------|--------|
 | `auth.py` | Migration; `get_public_profile` + `get_full_profile` selects; `update_profile` allowed list + `_clearable` set |
 | `server.py` | `ProfileUpdateInput.availability_status: Optional[str] = None` |
-| `profile-showcase.html` | `#scAvailDot` + `#scAvailPicker` inside `.sc-avatar-wrap` |
-| `profile-v2.css` | `.sc-avail-dot`, `.sc-avail-picker`, `.sc-avail-opt`, `.sc-avail-sep`, `.sc-avail-opt-clear` styles |
-| `profile-v2.render.js` | `_renderAvailDot` call in `renderProfile`; availability IIFE at end of file |
+| `profile-showcase.html` | `#scAvailDot` + `#scAvailPicker` inside `.sc-avatar-wrap`; version bumps |
+| `profile-v2.css` | `.sc-avail-dot`, `.sc-avail-dot.is-empty-owner`, `.sc-avail-picker`, `.sc-avail-opt` and related styles |
+| `profile-v2.render.js` | `_renderAvailDot` with `effectiveOwner` logic and preview-mode guard; availability IIFE |

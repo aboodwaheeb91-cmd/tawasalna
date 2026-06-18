@@ -1274,18 +1274,37 @@ window.renderProfile = function renderProfile(res){
   window._renderAvailDot = function(status, isOwner){
     var dot = _getDot();
     if(!dot) return;
+    // In preview mode treat owner as visitor (read-only, no setter)
+    var inPreview = document.body.classList.contains('preview-public-user') ||
+                    document.body.classList.contains('preview-guest');
+    var effectiveOwner = isOwner && !inPreview;
     var s = status && _STATUS_MAP[status];
     if(!s){
-      dot.style.display = 'none';
-      dot.removeAttribute('title');
+      if(effectiveOwner){
+        // Owner with no status → show subtle empty-state dot so they can click to set
+        dot.style.display = 'block';
+        dot.style.background = '';
+        dot.classList.add('is-empty-owner');
+        dot.setAttribute('title', 'تحديد حالة التوفر');
+        dot.setAttribute('aria-label', 'تحديد حالة التوفر');
+        dot.style.cursor = 'pointer';
+        dot.setAttribute('tabindex', '0');
+      } else {
+        // Visitor / preview with no status → hide entirely
+        dot.style.display = 'none';
+        dot.removeAttribute('title');
+        dot.classList.remove('is-empty-owner');
+      }
       return;
     }
+    // Status is set
     dot.style.display = 'block';
+    dot.classList.remove('is-empty-owner');
     dot.style.background = s.color;
     dot.setAttribute('title', s.label);
     dot.setAttribute('aria-label', 'حالة التوفر: ' + s.label);
-    dot.style.cursor = isOwner ? 'pointer' : 'default';
-    dot.setAttribute('tabindex', isOwner ? '0' : '-1');
+    dot.style.cursor = effectiveOwner ? 'pointer' : 'default';
+    dot.setAttribute('tabindex', effectiveOwner ? '0' : '-1');
   };
 
   // Dot click → toggle picker
