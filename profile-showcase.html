@@ -98,6 +98,25 @@
                 <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
               </button>
               <input type="file" id="avFileInput" accept="image/jpeg,image/png,image/webp" style="display:none">
+              <!-- Availability status dot — hidden until JS sets a status -->
+              <div class="sc-avail-dot" id="scAvailDot" style="display:none" title="" role="button" tabindex="0" aria-label="حالة التوفر"></div>
+              <!-- Picker panel — owner-only class hides it in preview mode -->
+              <div class="sc-avail-picker owner-only" id="scAvailPicker" style="display:none" role="menu">
+                <button class="sc-avail-opt" data-val="available" type="button" role="menuitem">
+                  <span class="sc-avail-opt-dot" style="background:#22c55e"></span>متاح للعمل
+                </button>
+                <button class="sc-avail-opt" data-val="open_to_offers" type="button" role="menuitem">
+                  <span class="sc-avail-opt-dot" style="background:#22d3ee"></span>منفتح على فرص
+                </button>
+                <button class="sc-avail-opt" data-val="busy" type="button" role="menuitem">
+                  <span class="sc-avail-opt-dot" style="background:#f59e0b"></span>مشغول حالياً
+                </button>
+                <button class="sc-avail-opt" data-val="not_available" type="button" role="menuitem">
+                  <span class="sc-avail-opt-dot" style="background:#94a3b8"></span>غير متاح حالياً
+                </button>
+                <hr class="sc-avail-sep">
+                <button class="sc-avail-opt sc-avail-opt-clear" data-val="" type="button" role="menuitem">إزالة الحالة</button>
+              </div>
             </div>
             <div class="sc-qr" id="scQr"></div>
           </div>
