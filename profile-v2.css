@@ -363,7 +363,7 @@ body.preview-guest        #scFollowBtn { display:inline-flex !important; }
   border-radius:14px; overflow:hidden;
 }
 .sc-stat {
-  flex:1; text-align:center; padding:12px 2px;
+  flex:1; text-align:center; padding:8px 2px;
   display:flex; flex-direction:column; align-items:center; gap:4px;
   position:relative;
 }
