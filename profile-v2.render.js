@@ -502,8 +502,8 @@ window.renderProfile = function renderProfile(res){
     img.src=esc(p.avatar_url);
   }
 
-  // Availability status dot
-  if(window._renderAvailDot) window._renderAvailDot(p.availability_status || null, _vt === 'owner');
+  // Availability dot — reads from avail (single source of truth)
+  if(window._renderAvailDot) window._renderAvailDot(p.avail || null, _vt === 'owner');
 
   // Profile link row — single version using onclick (safe on re-render, Doctrine §28)
   var _profileUrl = location.origin + '/profile?id=' + encodeURIComponent(p.tw_id || _scProfileId);
@@ -1243,10 +1243,16 @@ window.renderProfile = function renderProfile(res){
 // ── Availability status dot IIFE ──
 ;(function(){
   var _STATUS_MAP = {
+    // Current semantic values (avail field, post-unification)
     'available':      { color:'#22c55e', label:'متاح للعمل' },
     'open_to_offers': { color:'#22d3ee', label:'منفتح على فرص' },
     'busy':           { color:'#f59e0b', label:'مشغول حالياً' },
     'not_available':  { color:'#94a3b8', label:'غير متاح حالياً' },
+    // Legacy avail values — backward compat for existing users' saved data
+    'open':      { color:'#22c55e', label:'متاح للعمل' },
+    'employed':  { color:'#94a3b8', label:'غير متاح حالياً' },
+    'freelance': { color:'#22d3ee', label:'فريلانس' },
+    'closed':    { color:'#94a3b8', label:'غير متاح' },
   };
   var _pickerOpen = false;
 
@@ -1342,9 +1348,10 @@ window.renderProfile = function renderProfile(res){
     var val = opt.getAttribute('data-val') || null;
     _closePicker();
     if(window._renderAvailDot) window._renderAvailDot(val, true);
+    if(window._scProfile) window._scProfile.avail = val;
     var uid = window._scUserId;
     if(uid && window.updateProfile){
-      window.updateProfile(uid, { availability_status: val }).catch(function(err){
+      window.updateProfile(uid, { avail: val }).catch(function(err){
         console.warn('[avail] save failed', err);
       });
     }

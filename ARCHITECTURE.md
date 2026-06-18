@@ -6317,27 +6317,39 @@ duplicated below it.
 
 ### Availability Status Contract
 
-**What it is:** A small colored dot at the bottom-right of the profile avatar in Profile V2 (`profile-showcase.html`) indicating the user's current work availability. Owners click it to update; visitors see it read-only with a hover tooltip.
+**What it is:** A small colored dot at the bottom-right of the profile avatar in Profile V2 indicating the user's current employment status. It is a **visual shortcut** to the same `حالة التوظيف` field already managed by the profile edit modal — not a separate feature.
+
+#### Single Source of Truth
+
+**`profiles.avail`** is the **only** field for employment/availability status. The avatar dot, the profile edit modal, and the public profile view all read from and write to this single column. There must never be two independent fields controlling the same concept.
+
+> **RULE: The availability dot is a visual representation of Employment Status (`avail`), not a separate state.**
+
+| Surface | Reads from | Writes to |
+|---------|-----------|-----------|
+| Avatar dot (Profile V2) | `profiles.avail` | `profiles.avail` |
+| Profile edit modal (`#epAvail`) | `profiles.avail` | `profiles.avail` |
+| Public profile visitor view | `profiles.avail` | — (read-only) |
 
 #### DB Column
 
-| Table | Column | Type | Values |
-|-------|--------|------|--------|
-| `profiles` | `availability_status` | `TEXT NULL` | `available`, `open_to_offers`, `busy`, `not_available`, or NULL (no dot shown) |
+| Table | Column | Type |
+|-------|--------|------|
+| `profiles` | `avail` | `TEXT NULL` |
 
-Migration (idempotent): `ALTER TABLE profiles ADD COLUMN IF NOT EXISTS availability_status TEXT`
+> `availability_status` was added in an earlier migration but is **deprecated and unused**. The application reads and writes `avail` exclusively. The column can be cleaned up in a future migration.
 
-**Separate from `avail`** — the existing `avail` column uses legacy values (`open`, `employed`, `freelance`, `closed`) and is owned by the profile edit modal. `availability_status` is a new column with its own semantics and UI surface.
+#### Status Values (unified)
 
-#### Status Values
+| Value | Color | Arabic label | DB column |
+|-------|-------|-------------|-----------|
+| `available` | `#22c55e` (green) | متاح للعمل | `avail` |
+| `open_to_offers` | `#22d3ee` (teal) | منفتح على فرص | `avail` |
+| `busy` | `#f59e0b` (orange) | مشغول حالياً | `avail` |
+| `not_available` | `#94a3b8` (grey) | غير متاح حالياً | `avail` |
+| NULL / empty | — | dot hidden for visitors; ghost ring for owner | `avail` |
 
-| Value | Color | Arabic label |
-|-------|-------|-------------|
-| `available` | `#22c55e` (green) | متاح للعمل |
-| `open_to_offers` | `#22d3ee` (teal) | منفتح على فرص |
-| `busy` | `#f59e0b` (orange) | مشغول حالياً |
-| `not_available` | `#94a3b8` (grey) | غير متاح حالياً |
-| NULL / unknown | — | dot hidden |
+**Legacy compat**: old values (`open`, `employed`, `freelance`, `closed`) still in the DB from before unification are handled by `_STATUS_MAP` aliases in `profile-v2.render.js` so existing users' dots show correctly. New saves always write the semantic values above.
 
 #### DOM Structure
 
@@ -6355,53 +6367,54 @@ The `.sc-avail-picker` carries `owner-only` class — CSS hides it in `body.prev
 
 | Function | Location | Signature | Purpose |
 |----------|----------|-----------|---------|
-| `window._renderAvailDot(status, isOwner)` | `profile-v2.render.js` (availability IIFE) | `(string\|null, bool)` | Sets dot color, title, cursor; hides if no status |
+| `window._renderAvailDot(status, isOwner)` | `profile-v2.render.js` (availability IIFE) | `(string\|null, bool)` | Sets dot color, title, cursor; empty-owner state if null+owner |
 
-`renderProfile` calls `window._renderAvailDot(p.availability_status \|\| null, _vt === 'owner')` after avatar setup on every profile load/re-render.
+`renderProfile` calls `window._renderAvailDot(p.avail \|\| null, _vt === 'owner')`.
 
-The availability IIFE also registers three `document.addEventListener` handlers:
-- `click` (dot target) — toggle picker for owner only
+`profile-v2.edit.js` calls `window._renderAvailDot(payload.avail \|\| null, true)` immediately after a successful save so the dot updates in real time without a page refresh.
+
+The availability IIFE registers three `document.addEventListener` handlers:
+- `click` (dot target) — toggle picker for owner only (respects preview mode via `_isOwnerActive()`)
 - `keydown` (Enter/Space on dot, Escape) — keyboard access
-- `click` (`.sc-avail-opt` target) — save selection, optimistic dot update
-
-Save is via `window.updateProfile(uid, { availability_status: val })` (from `profile-v2.api.js`). Sending `null` clears the dot (dot hides on next render).
+- `click` (`.sc-avail-opt` target) — saves to `avail`, updates `_scProfile.avail`, optimistic dot update
 
 #### Owner vs Visitor
 
-| Context | `status = null` | `status` set | Picker |
-|---------|----------------|-------------|--------|
+| Context | `avail = null` | `avail` set | Picker |
+|---------|---------------|------------|--------|
 | Owner — normal | Ghost ring `.is-empty-owner`, clickable | Colored dot, clickable | Opens on click |
 | Owner — preview mode | Dot hidden (visitor-like) | Colored dot, read-only | Never opens |
 | Public visitor | Dot hidden | Colored dot, read-only | Never opens |
 | Guest (unauthenticated) | Dot hidden | Colored dot, read-only | Never opens |
 
-**Rule**: `effectiveOwner = isOwner && !inPreviewMode`. The dot's empty/setter state is only shown when `effectiveOwner` is true. `inPreviewMode` is checked inside `_renderAvailDot` via body class (`preview-public-user` / `preview-guest`), not passed as a parameter.
+`effectiveOwner = isOwner && !inPreviewMode`. Checked inside `_renderAvailDot` via body classes.
 
 #### Empty Owner State (`.is-empty-owner`)
 
-When `effectiveOwner = true` and `status = null`, the dot:
+When `effectiveOwner = true` and `avail = null`, the dot:
 - Is visible with a subtle dashed-ring outline (no fill color)
 - Shows tooltip `"تحديد حالة التوفر"`
 - Has `cursor:pointer` and `tabindex=0`
-- Responds to hover with a faint teal tint
+- Removed immediately when a real status is applied or cleared
 
-This class is removed immediately when a real status is applied. Visitors never see this class.
+Visitors never see this class.
 
 #### Forbidden Patterns
 
-- Do NOT hide the dot for owners when status is null — show `.is-empty-owner` instead
-- Do NOT show `.is-empty-owner` to visitors or in preview mode
-- Do NOT show the picker when `body.preview-public-user` or `body.preview-guest` is set
+- Do NOT create a second field to store employment/availability status — `avail` is the only source
+- Do NOT let the dot and the edit modal diverge in the status value they show
+- Do NOT use `availability_status` for new logic — it is deprecated
+- Do NOT hide the dot for owners when `avail = null` — show `.is-empty-owner` instead
+- Do NOT show the picker in preview mode or to visitors
 - Do NOT invent dot colors outside the four defined values
-- Do NOT modify the avatar ring, camera button, or `#scAvatar` shape when adding the dot
-- Do NOT reuse the `avail` column or its legacy values for this feature
 
-#### Files Changed
+#### Files Changed (unified)
 
 | File | Change |
 |------|--------|
-| `auth.py` | Migration; `get_public_profile` + `get_full_profile` selects; `update_profile` allowed list + `_clearable` set |
-| `server.py` | `ProfileUpdateInput.availability_status: Optional[str] = None` |
-| `profile-showcase.html` | `#scAvailDot` + `#scAvailPicker` inside `.sc-avatar-wrap`; version bumps |
+| `auth.py` | `avail` already in all SELECTs + `update_profile` allowed list; `availability_status` migration kept but value unused |
+| `server.py` | `avail: Optional[str] = None` in `ProfileUpdateInput` (already existed) |
+| `profile-showcase.html` | `#epAvail` options updated to semantic values; `#scAvailDot` + `#scAvailPicker` in avatar wrap; version bumps |
 | `profile-v2.css` | `.sc-avail-dot`, `.sc-avail-dot.is-empty-owner`, `.sc-avail-picker`, `.sc-avail-opt` and related styles |
-| `profile-v2.render.js` | `_renderAvailDot` with `effectiveOwner` logic and preview-mode guard; availability IIFE |
+| `profile-v2.render.js` | Reads `p.avail`; `_STATUS_MAP` includes legacy compat; saves to `avail`; `_renderAvailDot` with `effectiveOwner` + preview guard |
+| `profile-v2.edit.js` | After saving `avail`, calls `_renderAvailDot` to sync dot immediately |

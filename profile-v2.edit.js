@@ -136,6 +136,7 @@
     if('country' in payload && window._scProfile) window._scProfile.country = payload.country || '';
     if('city'    in payload && window._scProfile) window._scProfile.city    = payload.city    || '';
     if(payload.avail !== undefined && window._scProfile) window._scProfile.avail = payload.avail;
+    if(payload.avail !== undefined && window._renderAvailDot) window._renderAvailDot(payload.avail || null, true);
     (function(){
       var _p   = window._scProfile || {};
       var _loc = document.getElementById('scLoc');
