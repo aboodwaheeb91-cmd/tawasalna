@@ -6312,3 +6312,84 @@ duplicated below it.
   `messages.render.js` (`profession`, `professionLineHtml`,
   `renderConvList`, `openConversation`), `messages.html` (version bump).
 - **Version bump:** `v=v18` → `v=v19`.
+
+---
+
+### Availability Status Contract
+
+**What it is:** A small colored dot at the bottom-right of the profile avatar in Profile V2 (`profile-showcase.html`) indicating the user's current work availability. Owners click it to update; visitors see it read-only with a hover tooltip.
+
+#### DB Column
+
+| Table | Column | Type | Values |
+|-------|--------|------|--------|
+| `profiles` | `availability_status` | `TEXT NULL` | `available`, `open_to_offers`, `busy`, `not_available`, or NULL (no dot shown) |
+
+Migration (idempotent): `ALTER TABLE profiles ADD COLUMN IF NOT EXISTS availability_status TEXT`
+
+**Separate from `avail`** — the existing `avail` column uses legacy values (`open`, `employed`, `freelance`, `closed`) and is owned by the profile edit modal. `availability_status` is a new column with its own semantics and UI surface.
+
+#### Status Values
+
+| Value | Color | Arabic label |
+|-------|-------|-------------|
+| `available` | `#22c55e` (green) | متاح للعمل |
+| `open_to_offers` | `#22d3ee` (teal) | منفتح على فرص |
+| `busy` | `#f59e0b` (orange) | مشغول حالياً |
+| `not_available` | `#94a3b8` (grey) | غير متاح حالياً |
+| NULL / unknown | — | dot hidden |
+
+#### DOM Structure
+
+Inside `.sc-avatar-wrap` (`#scAvatarWrap`):
+```html
+<div class="sc-avail-dot" id="scAvailDot" style="display:none" title="" role="button" tabindex="0"></div>
+<div class="sc-avail-picker owner-only" id="scAvailPicker" style="display:none" role="menu">
+  <!-- four .sc-avail-opt buttons, one .sc-avail-opt-clear -->
+</div>
+```
+
+The `.sc-avail-picker` carries `owner-only` class — CSS hides it in `body.preview-public-user` and `body.preview-guest` as part of the Global Header Preview Mode Contract.
+
+#### JS API
+
+| Function | Location | Signature | Purpose |
+|----------|----------|-----------|---------|
+| `window._renderAvailDot(status, isOwner)` | `profile-v2.render.js` (availability IIFE) | `(string\|null, bool)` | Sets dot color, title, cursor; hides if no status |
+
+`renderProfile` calls `window._renderAvailDot(p.availability_status \|\| null, _vt === 'owner')` after avatar setup on every profile load/re-render.
+
+The availability IIFE also registers three `document.addEventListener` handlers:
+- `click` (dot target) — toggle picker for owner only
+- `keydown` (Enter/Space on dot, Escape) — keyboard access
+- `click` (`.sc-avail-opt` target) — save selection, optimistic dot update
+
+Save is via `window.updateProfile(uid, { availability_status: val })` (from `profile-v2.api.js`). Sending `null` clears the dot (dot hides on next render).
+
+#### Owner vs Visitor
+
+| Context | Dot visible | Picker available | Cursor |
+|---------|------------|-----------------|--------|
+| Owner (normal) | Yes | Yes | pointer |
+| Owner (preview mode) | Yes | No (CSS + `_isOwnerActive()` guard) | default |
+| Public visitor | Yes | No | default |
+| Guest (unauthenticated) | Yes | No | default |
+| No status set | No | Owner: yes on click | — |
+
+#### Forbidden Patterns
+
+- Do NOT show the picker when `body.preview-public-user` or `body.preview-guest` is set
+- Do NOT invent dot colors outside the four defined values
+- Do NOT show a dot when `status` is null/unknown — hide it entirely
+- Do NOT modify the avatar ring, camera button, or `#scAvatar` shape when adding the dot
+- Do NOT reuse the `avail` column or its legacy values for this feature
+
+#### Files Changed
+
+| File | Change |
+|------|--------|
+| `auth.py` | Migration; `get_public_profile` + `get_full_profile` selects; `update_profile` allowed list + `_clearable` set |
+| `server.py` | `ProfileUpdateInput.availability_status: Optional[str] = None` |
+| `profile-showcase.html` | `#scAvailDot` + `#scAvailPicker` inside `.sc-avatar-wrap` |
+| `profile-v2.css` | `.sc-avail-dot`, `.sc-avail-picker`, `.sc-avail-opt`, `.sc-avail-sep`, `.sc-avail-opt-clear` styles |
+| `profile-v2.render.js` | `_renderAvailDot` call in `renderProfile`; availability IIFE at end of file |

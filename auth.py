@@ -361,6 +361,7 @@ def init_db():
             "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS country TEXT",
             "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS city TEXT",
             "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS avail TEXT",
+            "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS availability_status TEXT",
             "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS title TEXT",
             "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS sections_order TEXT",
             "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS custom_sections TEXT",
@@ -786,6 +787,7 @@ def init_db():
             "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS country TEXT",
             "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS city TEXT",
             "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS avail TEXT",
+            "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS availability_status TEXT",
             "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS title TEXT",
             "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS sections_order TEXT",
             "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS custom_sections TEXT",
@@ -983,7 +985,7 @@ def get_public_profile(user_id: int) -> Optional[dict]:
                 "SELECT p.headline, p.bio, p.short_bio, p.location, p.skills, p.avatar_url, p.website, p.is_verified, "
                 "p.dob, p.phone, p.country, p.city, p.avail, p.title, p.sections_order, p.custom_sections, "
                 "p.profile_color, p.profile_style, p.profession_id, p.cover_url, "
-                "p.first_name, p.middle_name, p.last_name, "
+                "p.first_name, p.middle_name, p.last_name, p.availability_status, "
                 "pc.id AS pc_id, pc.name_ar AS pc_name_ar, pc.name_en AS pc_name_en, "
                 "pc.slug AS pc_slug, pc.icon AS pc_icon, pc.category_group AS pc_category_group "
                 "FROM profiles p LEFT JOIN profession_categories pc ON p.profession_id = pc.id "
@@ -1005,7 +1007,7 @@ def get_public_profile(user_id: int) -> Optional[dict]:
                     "SELECT p.headline, p.bio, p.short_bio, p.location, p.skills, p.avatar_url, p.website, p.is_verified, "
                     "p.dob, p.phone, p.country, p.city, p.avail, p.title, p.sections_order, p.custom_sections, "
                     "p.profile_color, p.profile_style, p.profession_id, p.cover_url, "
-                    "p.first_name, p.middle_name, p.last_name, "
+                    "p.first_name, p.middle_name, p.last_name, p.availability_status, "
                     "pc.id AS pc_id, pc.name_ar AS pc_name_ar, pc.name_en AS pc_name_en, "
                     "pc.slug AS pc_slug, pc.icon AS pc_icon, pc.category_group AS pc_category_group "
                     "FROM profiles p LEFT JOIN profession_categories pc ON p.profession_id = pc.id "
@@ -1015,7 +1017,7 @@ def get_public_profile(user_id: int) -> Optional[dict]:
                 rows = conn.run(
                     "SELECT headline, bio, short_bio, location, skills, avatar_url, website, is_verified, "
                     "dob, phone, country, city, avail, title, sections_order, custom_sections, "
-                    "profile_color, profile_style, cover_url, first_name, middle_name, last_name "
+                    "profile_color, profile_style, cover_url, first_name, middle_name, last_name, availability_status "
                     "FROM profiles WHERE user_id = :uid", uid=user_id
                 )
         cols = [c["name"] for c in conn.columns]
@@ -1060,7 +1062,7 @@ def get_full_profile(user_id: int) -> Optional[dict]:
                 "SELECT headline, bio, short_bio, location, skills, avatar_url, website, is_verified, "
                 "updated_at, dob, phone, country, city, avail, title, sections_order, custom_sections, "
                 "profile_color, profile_style, profession_id, cover_url, "
-                "first_name, middle_name, last_name "
+                "first_name, middle_name, last_name, availability_status "
                 "FROM profiles WHERE user_id = :uid", uid=user_id
             )
         except Exception as e:
@@ -1092,7 +1094,7 @@ def get_full_profile(user_id: int) -> Optional[dict]:
                     "SELECT headline, bio, short_bio, location, skills, avatar_url, website, is_verified, "
                     "updated_at, dob, phone, country, city, avail, title, sections_order, custom_sections, "
                     "profile_color, profile_style, profession_id, cover_url, "
-                    "first_name, middle_name, last_name "
+                    "first_name, middle_name, last_name, availability_status "
                     "FROM profiles WHERE user_id = :uid", uid=user_id
                 )
             except Exception as e2:
@@ -1157,8 +1159,8 @@ def update_profile(user_id: int, data: dict) -> dict:
             conn.run("UPDATE users SET full_name = :name WHERE id = :uid", name=data["full_name"], uid=user_id)
 
         # Schema guaranteed by init_db — no runtime ALTER TABLE needed
-        allowed = ["headline", "bio", "short_bio", "location", "skills", "avatar_url", "website", "phone", "sections_order", "custom_sections", "dob", "country", "city", "avail", "title", "profile_color", "profile_style", "profession_id", "first_name", "middle_name", "last_name", "cover_url"]
-        _clearable = {"dob", "country", "city", "avail"}
+        allowed = ["headline", "bio", "short_bio", "location", "skills", "avatar_url", "website", "phone", "sections_order", "custom_sections", "dob", "country", "city", "avail", "availability_status", "title", "profile_color", "profile_style", "profession_id", "first_name", "middle_name", "last_name", "cover_url"]
+        _clearable = {"dob", "country", "city", "avail", "availability_status"}
         fields = {k: v for k, v in data.items() if k in allowed and (v is not None or k in _clearable)}
         print(f"[update_profile] user={user_id} saving fields: {list(fields.keys())}")
 

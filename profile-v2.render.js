@@ -502,6 +502,9 @@ window.renderProfile = function renderProfile(res){
     img.src=esc(p.avatar_url);
   }
 
+  // Availability status dot
+  if(window._renderAvailDot) window._renderAvailDot(p.availability_status || null, _vt === 'owner');
+
   // Profile link row — single version using onclick (safe on re-render, Doctrine §28)
   var _profileUrl = location.origin + '/profile?id=' + encodeURIComponent(p.tw_id || _scProfileId);
   var linkRow  = document.getElementById('scLinkRow');
@@ -1234,5 +1237,97 @@ window.renderProfile = function renderProfile(res){
   document.getElementById('scFlPopFollowing').addEventListener('click', function(){
     _closePop();
     if(window._scFlOpen) window._scFlOpen('following');
+  });
+})();
+
+// ── Availability status dot IIFE ──
+;(function(){
+  var _STATUS_MAP = {
+    'available':      { color:'#22c55e', label:'متاح للعمل' },
+    'open_to_offers': { color:'#22d3ee', label:'منفتح على فرص' },
+    'busy':           { color:'#f59e0b', label:'مشغول حالياً' },
+    'not_available':  { color:'#94a3b8', label:'غير متاح حالياً' },
+  };
+  var _pickerOpen = false;
+
+  function _getDot(){ return document.getElementById('scAvailDot'); }
+  function _getPicker(){ return document.getElementById('scAvailPicker'); }
+
+  function _closePicker(){
+    var p = _getPicker();
+    if(p) p.style.display = 'none';
+    _pickerOpen = false;
+  }
+  function _openPicker(){
+    var p = _getPicker();
+    if(!p) return;
+    p.style.display = 'block';
+    _pickerOpen = true;
+  }
+  function _isOwnerActive(){
+    var b = document.body;
+    return b.classList.contains('view-owner') &&
+           !b.classList.contains('preview-public-user') &&
+           !b.classList.contains('preview-guest');
+  }
+
+  window._renderAvailDot = function(status, isOwner){
+    var dot = _getDot();
+    if(!dot) return;
+    var s = status && _STATUS_MAP[status];
+    if(!s){
+      dot.style.display = 'none';
+      dot.removeAttribute('title');
+      return;
+    }
+    dot.style.display = 'block';
+    dot.style.background = s.color;
+    dot.setAttribute('title', s.label);
+    dot.setAttribute('aria-label', 'حالة التوفر: ' + s.label);
+    dot.style.cursor = isOwner ? 'pointer' : 'default';
+    dot.setAttribute('tabindex', isOwner ? '0' : '-1');
+  };
+
+  // Dot click → toggle picker
+  document.addEventListener('click', function(e){
+    var dot = _getDot();
+    var picker = _getPicker();
+    if(!dot || !picker) return;
+    if(dot.contains(e.target)){
+      if(_isOwnerActive()){
+        e.stopPropagation();
+        _pickerOpen ? _closePicker() : _openPicker();
+      }
+      return;
+    }
+    if(_pickerOpen && !picker.contains(e.target)) _closePicker();
+  });
+
+  // Keyboard: Enter/Space on dot
+  document.addEventListener('keydown', function(e){
+    var dot = _getDot();
+    if(!dot) return;
+    if(document.activeElement === dot && (e.key === 'Enter' || e.key === ' ')){
+      e.preventDefault();
+      if(_isOwnerActive()) _pickerOpen ? _closePicker() : _openPicker();
+    }
+    if(e.key === 'Escape' && _pickerOpen) _closePicker();
+  });
+
+  // Option click → save
+  document.addEventListener('click', function(e){
+    var opt = e.target.closest('.sc-avail-opt');
+    if(!opt) return;
+    var picker = _getPicker();
+    if(!picker || !picker.contains(opt)) return;
+    var val = opt.getAttribute('data-val') || null;
+    _closePicker();
+    if(window._renderAvailDot) window._renderAvailDot(val, true);
+    var uid = window._scUserId;
+    if(uid && window.updateProfile){
+      window.updateProfile(uid, { availability_status: val }).catch(function(err){
+        console.warn('[avail] save failed', err);
+      });
+    }
   });
 })();
