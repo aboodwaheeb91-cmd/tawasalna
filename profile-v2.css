@@ -1377,3 +1377,15 @@ body.view-owner .sc-avail-dot:hover { transform:scale(1.18); box-shadow:0 0 0 3p
 /* Force-hide picker in preview modes */
 body.preview-public-user .sc-avail-picker,
 body.preview-guest .sc-avail-picker { display:none !important; }
+
+/* Owner with no status: subtle ghost ring so they know it's clickable */
+.sc-avail-dot.is-empty-owner {
+  background: transparent !important;
+  border: 2px dashed rgba(255,255,255,.28);
+  box-shadow: none;
+}
+.sc-avail-dot.is-empty-owner:hover {
+  border-color: rgba(0,200,150,.65);
+  background: rgba(0,200,150,.08) !important;
+  transform: scale(1.18);
+}
