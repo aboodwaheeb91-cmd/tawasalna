@@ -926,19 +926,19 @@ window.renderProfile = function renderProfile(res){
   setInterval(window.refreshProfileMetrics, 30000);
 })();
 
-// ── Preview Eye Button (Doctrine §24) ──
+// ── Preview Eye Button + Preview Mode Header (Doctrine §24) ──
 (function(){
   var eyeWrap = document.getElementById('scEyeWrap');
   var eyeBtn  = document.getElementById('scEyeBtn');
   var eyeMenu = document.getElementById('scEyeMenu');
+  var menuBtn = document.getElementById('scMenuBtn');
+  var backBtn = document.getElementById('scPreviewBackBtn');
   if(!eyeBtn || !eyeMenu) return;
 
-  // eyeBtn is now inside the global menu dropdown; stop-propagation keeps
-  // the outer menu open while the inner eye sub-list opens below it.
-  eyeBtn.addEventListener('click', function(e){
-    e.stopPropagation();
-    eyeMenu.classList.toggle('open');
-  });
+  function _inPreview() {
+    return document.body.classList.contains('preview-public-user')
+        || document.body.classList.contains('preview-guest');
+  }
 
   function closeAllMenus() {
     eyeMenu.classList.remove('open');
@@ -946,21 +946,60 @@ window.renderProfile = function renderProfile(res){
     if (dd) dd.classList.remove('open');
   }
 
-  document.getElementById('scPreviewPublic').addEventListener('click', function(){
-    document.body.classList.remove('preview-guest');
-    document.body.classList.add('preview-public-user');
+  function updatePreviewHeader(inPreview) {
+    if (menuBtn) menuBtn.style.display = inPreview ? 'none' : '';
+    if (backBtn) backBtn.style.display = inPreview ? '' : 'none';
+  }
+
+  function exitPreview() {
+    document.body.classList.remove('preview-public-user', 'preview-guest');
     closeAllMenus();
+    updatePreviewHeader(false);
+  }
+
+  function enterPreviewMode(type) {
+    var wasInPreview = _inPreview();
+    document.body.classList.remove('preview-public-user', 'preview-guest');
+    document.body.classList.add(type);
+    closeAllMenus();
+    updatePreviewHeader(true);
+    // Push a history entry so browser-back exits preview instead of leaving the page.
+    // Only push once — switching between preview modes reuses the same entry.
+    if (!wasInPreview) history.pushState({ twPreview: true }, '');
+  }
+
+  eyeBtn.addEventListener('click', function(e){
+    e.stopPropagation();
+    eyeMenu.classList.toggle('open');
+  });
+
+  document.getElementById('scPreviewPublic').addEventListener('click', function(){
+    enterPreviewMode('preview-public-user');
   });
 
   document.getElementById('scPreviewGuest').addEventListener('click', function(){
-    document.body.classList.remove('preview-public-user');
-    document.body.classList.add('preview-guest');
-    closeAllMenus();
+    enterPreviewMode('preview-guest');
   });
 
   document.getElementById('scPreviewEnd').addEventListener('click', function(){
-    document.body.classList.remove('preview-public-user', 'preview-guest');
-    closeAllMenus();
+    exitPreview();
+    // Remove the preview history entry so next browser-back leaves the page normally
+    if (history.state && history.state.twPreview) history.back();
+  });
+
+  // Header back button — same as "إنهاء المعاينة" but always visible during preview
+  if (backBtn) {
+    backBtn.addEventListener('click', function(){
+      exitPreview();
+      if (history.state && history.state.twPreview) history.back();
+    });
+  }
+
+  // Browser back while in preview exits preview instead of leaving the page.
+  // history.pushState inserted an extra entry when entering preview, so the first
+  // back press fires this handler; the second press leaves the page normally.
+  window.addEventListener('popstate', function() {
+    if (_inPreview()) exitPreview();
   });
 
   document.addEventListener('click', function(e){
