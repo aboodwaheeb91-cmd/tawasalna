@@ -404,7 +404,7 @@ These rules are permanent and apply to all future AI sessions:
 
 These rules are permanent and apply to all future AI sessions:
 
-1. **The completion card is owner-only.** It must never be visible to visitors, guests, or in preview mode. Three independent layers enforce this:
+1. **The completion strip is owner-only.** It must never be visible to visitors, guests, or in preview mode. Three independent layers enforce this:
    - `style="display:none"` on `#scComplCard` in HTML (default hidden)
    - `renderProfile` in `profile-v2.render.js` shows it **only** when `_vt === 'owner'`; the `else` branch explicitly hides it and clears `#scComplList`
    - `_isOwnerActive()` inside `profile-v2.completion.js` checks `window._scViewerType === 'owner'` AND body has no `preview-public-user` / `preview-guest` class; `_render`, `_doAction`, and all click handlers bail immediately if this returns `false`
@@ -418,3 +418,7 @@ These rules are permanent and apply to all future AI sessions:
 5. **`window._updateCompletion()`** must be called after every successful add/edit/delete in all section save handlers (`exp`, `edu`, `courses`, `skills`, `langs`, `links`, `avatar`, `edit`). Do not add a new section save handler without this call.
 
 6. **Do NOT invent a separate completion API endpoint.** The card derives its state entirely from the already-loaded `window._scProfile`.
+
+7. **The strip is positioned inside `.sc-main-card`, between `.sc-actions` and `.sc-stats`.** Do not move it outside the main card or below the tabs.
+
+8. **Dismiss state uses a module-level `_dismissed` variable only** (resets on page reload). Do NOT persist dismiss state to localStorage or sessionStorage.
