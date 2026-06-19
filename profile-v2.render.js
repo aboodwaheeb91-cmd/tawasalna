@@ -505,21 +505,28 @@ window.renderProfile = function renderProfile(res){
   // Availability dot — reads from avail (single source of truth)
   if(window._renderAvailDot) window._renderAvailDot(p.avail || null, _vt === 'owner');
 
-  // Profile link row — single version using onclick (safe on re-render, Doctrine §28)
-  var _profileUrl = location.origin + '/u/' + encodeURIComponent(p.tw_id || _scProfileId);
+  // Profile link row — tw_id only, no numeric fallback (CLAUDE.md rule)
+  var _twIdForLink = (p.tw_id || '').trim();
+  var _profileUrl  = _twIdForLink ? (location.origin + '/u/' + encodeURIComponent(_twIdForLink)) : '';
   var linkRow  = document.getElementById('scLinkRow');
   var linkText = document.getElementById('scLinkText');
   var linkCopy = document.getElementById('scLinkCopy');
   if(linkRow && linkText && linkCopy){
-    linkText.textContent = _profileUrl;
-    linkRow.style.display = 'flex';
-    linkCopy.onclick = function(){
-      if(navigator.clipboard && navigator.clipboard.writeText){
-        navigator.clipboard.writeText(_profileUrl)
-          .then(function(){ toast('تم نسخ رابط البروفايل'); })
-          .catch(function(){ toast('تعذّر نسخ الرابط'); });
-      } else { toast('تعذّر نسخ الرابط'); }
-    };
+    if(!_twIdForLink){
+      // Guard: no tw_id — hide row, disable copy (same contract as QR guard)
+      linkRow.style.display = 'none';
+      linkCopy.onclick = null;
+    } else {
+      linkText.textContent = _profileUrl;
+      linkRow.style.display = 'flex';
+      linkCopy.onclick = function(){
+        if(navigator.clipboard && navigator.clipboard.writeText){
+          navigator.clipboard.writeText(_profileUrl)
+            .then(function(){ toast('تم نسخ رابط البروفايل'); })
+            .catch(function(){ toast('تعذّر نسخ الرابط'); });
+        } else { toast('تعذّر نسخ الرابط'); }
+      };
+    }
   }
 
   // QR (via profile-v2.qr.js)
