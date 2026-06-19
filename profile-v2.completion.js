@@ -100,7 +100,8 @@
     var rules = [
       {
         id:      'react',
-        cond:    /javascript|frontend|html|css/.test(_all) && !/react/.test(skillStr),
+        // Triggers for front-end profiles (Arabic + English keywords); disappears when React is in skills
+        cond:    /javascript|frontend|html|css|واجهات|واجهة|فرونت/.test(_all) && !/react/.test(skillStr),
         text:    'أضف مهارة React.js',
         reason:  'ملفك يشير إلى خلفية في تطوير الواجهات الأمامية ولكن React.js غير مضافة.',
         benefit: 'React من أكثر المهارات طلباً في وظائف الفرونت إند حالياً.',
@@ -108,7 +109,8 @@
       },
       {
         id:      'git',
-        cond:    /developer|frontend|backend|تطوير/.test(_all) && !/git/.test(skillStr),
+        // Triggers for any developer profile (Arabic + English); disappears when Git is in skills
+        cond:    /developer|frontend|backend|تطوير|مطور|برمجيات|برمجة/.test(_all) && !/git/.test(skillStr),
         text:    'أضف مهارة Git',
         reason:  'Git أساسي لأي مطوّر ولم يُذكر في مهاراتك.',
         benefit: 'يرفع مصداقية ملفك أمام المسؤولين عن التوظيف.',
@@ -116,7 +118,8 @@
       },
       {
         id:      'nodejs',
-        cond:    /javascript|node|backend/.test(_all) && !/node/.test(skillStr),
+        // Triggers for JS/backend profiles; disappears when Node is in skills
+        cond:    /javascript|node|backend|خلفية|باك.?اند/.test(_all) && !/node/.test(skillStr),
         text:    'أضف مهارة Node.js',
         reason:  'خلفيتك في JavaScript تجعل Node.js إضافة طبيعية للملف.',
         benefit: 'يفتح لك فرص وظائف الـ Full Stack.',
@@ -124,15 +127,19 @@
       },
       {
         id:      'sql_course',
-        cond:    /data|analyst|backend|erp/.test(_all) && !/sql/.test(courseStr) && !/sql/.test(skillStr),
-        text:    'أضف دورة SQL أو تحليل البيانات',
-        reason:  'تخصصك يستفيد كثيراً من احتراف قواعد البيانات.',
-        benefit: 'مهارة SQL تزيد فرصك في وظائف التحليل بنسبة كبيرة.',
+        // Triggers when profile has SQL/data context (including SQL in skills) but NO SQL course yet.
+        // Having SQL as a skill without a course is a stronger reason to suggest the course — not a reason to suppress it.
+        cond:    (/data|analyst|backend|erp|بيانات|قواعد.?بيانات|تحليل/.test(_all) || /sql/.test(skillStr))
+                 && !/sql|database|قواعد/.test(courseStr),
+        text:    'أضف دورة SQL أو قواعد البيانات',
+        reason:  'لديك خلفية في البيانات أو قواعد البيانات ولكن لا توجد دورة موثقة في ملفك.',
+        benefit: 'الدورة تُثبت مهارتك بشكل رسمي وتُفتح أمامك وظائف التحليل والـ Backend.',
         action:  'tab-courses',
       },
       {
         id:      'github_link',
-        cond:    /developer|مطور|frontend|backend/.test(_all) && !/github/.test(linkStr),
+        // Triggers for developer profiles (Arabic + English); disappears when GitHub link is added
+        cond:    /developer|frontend|backend|مطور|برمجيات|برمجة/.test(_all) && !/github/.test(linkStr),
         text:    'أضف رابط GitHub الخاص بك',
         reason:  'لا يوجد رابط GitHub في روابط تواصلك حتى الآن.',
         benefit: 'يُبرز مشاريعك ويُقنع الشركات بمهاراتك التقنية.',
@@ -140,8 +147,9 @@
       },
       {
         id:      'english',
-        cond:    !/english|إنجليزي/.test(langStr),
-        text:    'أضف شهادة لغة إنجليزية',
+        // Suggests adding English as a language. Disappears once English appears in langs section.
+        cond:    !/english|إنجليزي|الإنجليزية/.test(langStr),
+        text:    'أضف اللغة الإنجليزية إلى ملفك',
         reason:  'اللغة الإنجليزية غير مضافة إلى قسم اللغات في ملفك.',
         benefit: 'تفتح لك أبواب وظائف الشركات الدولية والعمل عن بُعد.',
         action:  'tab-langs',
@@ -156,7 +164,8 @@
       },
       {
         id:      'python',
-        cond:    /data|machine.?learn|ai|analytics/.test(_all) && !/python/.test(skillStr),
+        // Triggers for data/AI profiles (Arabic + English); disappears when Python is in skills
+        cond:    /data|machine.?learn|ai|analytics|بيانات|تحليل.?بيانات|ذكاء.?اصطناعي/.test(_all) && !/python/.test(skillStr),
         text:    'أضف مهارة Python',
         reason:  'اهتمامك بمجال البيانات يجعل Python خطوة أساسية.',
         benefit: 'Python هي اللغة الأولى في علم البيانات والذكاء الاصطناعي.',
@@ -164,7 +173,8 @@
       },
       {
         id:      'php_course',
-        cond:    /php|laravel|backend/.test(_all) && !/laravel/.test(courseStr),
+        // Triggers for PHP/backend profiles; disappears when a Laravel course is added
+        cond:    /php|laravel|backend|خلفية|باك.?اند/.test(_all) && !/laravel/.test(courseStr),
         text:    'أضف دورة Laravel أو PHP المتقدم',
         reason:  'خلفيتك في PHP تستحق توثيق دورة تدريبية متخصصة.',
         benefit: 'يُثبت للشركات مستواك المتقدم في تطوير الخلفية.',
