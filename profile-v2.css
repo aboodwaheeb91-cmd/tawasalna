@@ -1596,37 +1596,43 @@ body.preview-guest .sc-avail-picker { display:none !important; }
   text-overflow: ellipsis;
   font-weight: 500;
 }
+/* Shared base — no glass, solid fills defined per-button below */
 .sc-growth-btn {
   flex-shrink: 0;
-  background: rgba(255,255,255,.06);
-  border: 1px solid rgba(255,255,255,.12);
+  border: none;
   border-radius: 6px;
-  color: rgba(255,255,255,.7);
-  font-size: .72rem;
-  padding: 3px 10px;
+  font-size: .71rem;
+  font-weight: 600;
+  padding: 4px 11px;
   cursor: pointer;
-  transition: background .15s, color .15s;
+  transition: background .13s, opacity .13s;
   font-family: inherit;
   line-height: 1.4;
 }
-.sc-growth-btn:hover {
-  background: rgba(255,255,255,.12);
-  color: #fff;
+/* Details button — teal solid */
+#scGrowthDet {
+  background: rgba(0,200,150,.22);
+  color: #00e0aa;
 }
-.sc-growth-btn.is-open {
-  background: rgba(0,200,150,.12);
-  border-color: rgba(0,200,150,.3);
-  color: #00c896;
+#scGrowthDet:hover    { background: rgba(0,200,150,.35); }
+#scGrowthDet.is-open  { background: rgba(0,200,150,.32); outline: 1px solid rgba(0,200,150,.45); }
+/* Cycle button — neutral solid */
+#scGrowthNext {
+  background: rgba(255,255,255,.14);
+  color: rgba(255,255,255,.88);
+  padding: 4px 9px;
+  font-size: .84rem;
 }
-.sc-growth-dismiss {
-  font-size: .8rem;
-  padding: 3px 8px;
-}
-.sc-growth-dismiss:hover {
-  background: rgba(248,113,113,.12);
-  border-color: rgba(248,113,113,.3);
+#scGrowthNext:hover { background: rgba(255,255,255,.24); }
+/* Dismiss button — red solid */
+.sc-growth-dismiss,
+#scGrowthHide {
+  background: rgba(248,113,113,.2);
   color: #f87171;
+  padding: 4px 8px;
+  font-size: .8rem;
 }
+#scGrowthHide:hover { background: rgba(248,113,113,.32); }
 .sc-growth-panel {
   border-top: 1px solid rgba(255,255,255,.06);
   padding: 10px 0 6px;
