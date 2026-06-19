@@ -494,7 +494,12 @@ function msgEmp(id){
     }).catch(function(){ window.location.href='/messages'; });
 }
 function goProfile(){ if(_user) window.location.href='company-profile.html?id='+_user.id; }
-function logout(){ localStorage.removeItem('tw_user'); window.location.href='/'; }
+function logout(){
+  try{
+    Object.keys(localStorage).filter(function(k){return k.startsWith('tw_');}).forEach(function(k){localStorage.removeItem(k);});
+  }catch(e){}
+  window.location.href='/login';
+}
 
 document.getElementById('q').addEventListener('keydown',e=>{if(e.key==='Enter')doSearch();});
 document.getElementById('loc').addEventListener('keydown',e=>{if(e.key==='Enter')doSearch();});

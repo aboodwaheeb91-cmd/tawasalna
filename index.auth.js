@@ -98,8 +98,11 @@ async function doRegister(){
 }
 
 // ── Enter key shortcut ────────────────────────────────────────────────────────
+// Guard: only fire when user is actively focused on an INPUT element.
+// Prevents autofill from triggering doLogin() without explicit user action.
 document.addEventListener('keydown', function(e){
   if(e.key !== 'Enter') return;
+  if(!e.target || e.target.tagName !== 'INPUT') return;
   var login = document.getElementById('loginSection');
   if(login && !login.classList.contains('hidden')) doLogin();
   else doRegister();

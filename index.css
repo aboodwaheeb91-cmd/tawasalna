@@ -1,6 +1,6 @@
 /* index.css — Auth Gateway styles (login + register page only)
    Scope: index.html exclusively. Do NOT import from other pages.
-   Version: auth-gw-v1 */
+   Version: auth-gw-v3 */
 
 :root{--ac:#00c896;--ac2:#2563ff;}
 *{margin:0;padding:0;box-sizing:border-box;}
@@ -113,8 +113,13 @@ body{font-family:'Cairo',sans-serif;background:#070b18;min-height:100vh;display:
 .toast.success{background:#065f46;color:#6ee7b7;border:1px solid rgba(110,231,183,.2);}
 .toast.error{background:#7f1d1d;color:#fca5a5;border:1px solid rgba(252,165,165,.2);}
 
-/* ── Logo image ── */
-.logo-img{height:36px;width:auto;object-fit:contain;display:block;}
+/* ── Logo image — centered, 130-160px wide ── */
+.logo-img{width:145px;height:auto;object-fit:contain;display:block;margin:0 auto;}
+
+/* ── Register step header ── */
+.reg-step-header{text-align:center;margin-bottom:12px;}
+.reg-step-title{font-size:.88rem;font-weight:800;color:#fff;margin-bottom:4px;}
+.reg-step-sub{font-size:.68rem;color:rgba(255,255,255,.35);line-height:1.5;}
 
 /* ── Forgot password ── */
 .forgot-wrap{text-align:left;margin-bottom:12px;}
