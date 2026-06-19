@@ -2,7 +2,7 @@
 // Responsibilities: selectType(), showRegister(), showLogin(), toast(),
 //                   checkPassStrength(), ITQAN utilities, hash-based auto-route.
 // Does NOT contain any auth logic — login/register/redirect live in index.auth.js.
-// Version: auth-gw-v5
+// Version: auth-gw-v6
 
 'use strict';
 
@@ -30,10 +30,11 @@ function selectType(type){
   var isOpen = panel.classList.contains('open');
 
   if(!isOpen){
-    // First open: update labels then slide down
+    // First open: update labels then slide down; move back link below the form
     curType = type;
     _applyRegLabels(type);
     panel.classList.add('open');
+    _setBackLink(true);
   } else {
     // Close current → update labels → reopen for new type
     var gen = ++_panelGen;
@@ -48,6 +49,16 @@ function selectType(type){
     }
     panel.addEventListener('transitionend', onClose);
   }
+}
+
+// _setBackLink(panelOpen) — toggles which copy of "عندك حساب؟ دخول" is visible.
+// true  → hide step1 copy, show panel copy (link lives below the form)
+// false → show step1 copy, hide panel copy (link lives below the role cards)
+function _setBackLink(panelOpen){
+  var bl1 = document.getElementById('regBackStep1');
+  var bl2 = document.getElementById('regBackPanel');
+  if(bl1) bl1.classList.toggle('hidden', panelOpen);
+  if(bl2) bl2.classList.toggle('hidden', !panelOpen);
 }
 
 function _applyRegLabels(type){
@@ -76,6 +87,7 @@ function showRegister(){
   if(ls) ls.classList.add('hidden'); // keeps index.auth.js Enter-key guard working
   if(s1) s1.classList.remove('hidden');
   if(rp) rp.classList.remove('open');
+  _setBackLink(false); // back link below role cards
 }
 
 function showLogin(){
@@ -88,7 +100,8 @@ function showLogin(){
   if(ls) ls.classList.remove('hidden');
   if(s1) s1.classList.add('hidden');
   if(rp) rp.classList.remove('open');
-  // reset card active states for next visit to register
+  _setBackLink(false); // reset for next register visit
+  // reset card active states
   ['empBtn','coBtn','eduBtn'].forEach(function(id){
     var b = document.getElementById(id);
     if(b) b.classList.remove('active','inst');

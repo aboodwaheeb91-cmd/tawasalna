@@ -26,7 +26,7 @@
   <link rel="canonical" href="https://tawasolna.com">
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/tw_shared.css">
-<link rel="stylesheet" href="/static/index.css?v=auth-gw-v5">
+<link rel="stylesheet" href="/static/index.css?v=auth-gw-v6">
 </head>
 <body>
 <a href="#main-content" class="skip-link">تخطى للمحتوى الرئيسي</a>
@@ -70,7 +70,7 @@
         <div class="tb-sub">جامعة · مركز تدريب</div>
       </div>
     </div>
-    <div class="switch-link">عندك حساب؟ <span onclick="showLogin()">دخول</span></div>
+    <div class="switch-link" id="regBackStep1">عندك حساب؟ <span onclick="showLogin()">دخول</span></div>
   </div>
 
   <!-- Auth card (login only — OR divider and Google stay with login flow) -->
@@ -127,6 +127,7 @@
       </div>
       <div id="passStrengthLabel"></div>
       <button class="cta" id="regBtn" onclick="doRegister()">إنشاء حساب</button>
+      <div class="switch-link hidden" id="regBackPanel">عندك حساب؟ <span onclick="showLogin()">دخول</span></div>
     </div>
   </div>
 
@@ -135,7 +136,7 @@
 <div class="toast" id="toast"></div>
 
 <script src="/tw_shared.js"></script>
-<script src="/static/index.auth.js?v=auth-gw-v5"></script>
-<script src="/static/index.ui.js?v=auth-gw-v5"></script>
+<script src="/static/index.auth.js?v=auth-gw-v6"></script>
+<script src="/static/index.ui.js?v=auth-gw-v6"></script>
 </body>
 </html>
