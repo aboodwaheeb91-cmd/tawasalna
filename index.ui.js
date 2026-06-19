@@ -2,7 +2,7 @@
 // Responsibilities: selectType(), showRegister(), showLogin(), toast(),
 //                   checkPassStrength(), ITQAN utilities, hash-based auto-route.
 // Does NOT contain any auth logic — login/register/redirect live in index.auth.js.
-// Version: auth-gw-v7
+// Version: auth-gw-v8
 
 'use strict';
 

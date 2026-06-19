@@ -1,6 +1,6 @@
 /* index.css — Auth Gateway styles (login + register page only)
    Scope: index.html exclusively. Do NOT import from other pages.
-   Version: auth-gw-v7 */
+   Version: auth-gw-v8 */
 
 :root{--ac:#00c896;--ac2:#2563ff;}
 *{margin:0;padding:0;box-sizing:border-box;}
@@ -49,8 +49,8 @@ body{font-family:'Cairo',sans-serif;background:#070b18;min-height:100vh;display:
 .tb-ico{
   width:52px;height:52px;border-radius:50%;
   display:flex;align-items:center;justify-content:center;
-  background:rgba(255,255,255,.07);
-  color:rgba(255,255,255,.38);
+  background:rgba(255,255,255,.10);
+  color:rgba(255,255,255,.55);
   transition:background .25s,color .25s,box-shadow .25s;
   flex-shrink:0;
 }
@@ -59,8 +59,8 @@ body{font-family:'Cairo',sans-serif;background:#070b18;min-height:100vh;display:
 .type-btn.active .tb-ico,
 .type-btn.active.inst .tb-ico{
   color:var(--ac);
-  background:rgba(0,200,150,.13);
-  box-shadow:0 0 16px rgba(0,200,150,.22);
+  background:rgba(0,200,150,.14);
+  box-shadow:0 0 12px rgba(0,200,150,.18);
 }
 .tb-name{font-size:.72rem;font-weight:800;color:#fff;line-height:1.2;}
 .tb-sub{font-size:.6rem;color:rgba(255,255,255,.48);line-height:1.3;}
