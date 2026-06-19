@@ -1328,13 +1328,22 @@ body.view-owner .av-cam-btn { display:flex; }
 
 /* ── Availability status dot ── */
 .sc-avail-dot {
-  position:absolute; bottom:4px; right:4px;
-  width:14px; height:14px; border-radius:50%;
-  border:2.5px solid var(--bg,#0a0e14);
-  z-index:3; transition:transform .15s, box-shadow .15s;
+  position:absolute; bottom:3px; right:3px;
+  width:18px; height:18px; border-radius:50%;
+  border:3px solid var(--bg,#0a0e14);
+  z-index:4; transition:transform .15s, box-shadow .15s;
 }
 body.view-owner .sc-avail-dot { cursor:pointer; }
-body.view-owner .sc-avail-dot:hover { transform:scale(1.18); box-shadow:0 0 0 3px rgba(255,255,255,.1); }
+body.view-owner .sc-avail-dot:hover { transform:scale(1.12); box-shadow:0 0 0 3px rgba(255,255,255,.1); }
+
+/* 44×44px touch target for owner — centered on dot via ::before.
+   Invisible expansion keeps visual size unchanged. */
+body.view-owner .sc-avail-dot::before {
+  content:'';
+  position:absolute; top:50%; left:50%;
+  transform:translate(-50%,-50%);
+  width:44px; height:44px; border-radius:50%;
+}
 
 /* Tooltip via ::after */
 .sc-avail-dot::after {
@@ -1381,7 +1390,7 @@ body.preview-guest .sc-avail-picker { display:none !important; }
 /* Owner with no status: subtle ghost ring so they know it's clickable */
 .sc-avail-dot.is-empty-owner {
   background: transparent !important;
-  border: 2px dashed rgba(255,255,255,.28);
+  border: 2.5px dashed rgba(255,255,255,.28);
   box-shadow: none;
 }
 .sc-avail-dot.is-empty-owner:hover {
