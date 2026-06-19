@@ -26,7 +26,7 @@
   <link rel="canonical" href="https://tawasolna.com">
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/tw_shared.css">
-<link rel="stylesheet" href="/static/index.css?v=auth-gw-v4">
+<link rel="stylesheet" href="/static/index.css?v=auth-gw-v5">
 </head>
 <body>
 <a href="#main-content" class="skip-link">تخطى للمحتوى الرئيسي</a>
@@ -45,7 +45,7 @@
   <!--
     Register step 1: role selection.
     Hidden by default; shown by showRegister(), hidden by showLogin().
-    Cards stay visible after selection (accordion: fields open below, cards stay).
+    Cards stay visible after selection; #registerPanel accordion opens below.
     Hash routes: /login#register-emp, /login#register-co, /login#register-edu
   -->
   <div id="registerStep1" class="hidden">
@@ -70,12 +70,11 @@
         <div class="tb-sub">جامعة · مركز تدريب</div>
       </div>
     </div>
+    <div class="switch-link">عندك حساب؟ <span onclick="showLogin()">دخول</span></div>
   </div>
 
-  <!-- Auth card -->
-  <div class="bubble">
-
-    <!-- ── LOGIN FORM ── -->
+  <!-- Auth card (login only — OR divider and Google stay with login flow) -->
+  <div class="bubble" id="loginBubble">
     <div id="loginSection">
       <div class="form-title">دخول</div>
       <div class="field">
@@ -91,20 +90,24 @@
       </div>
       <button class="cta" id="loginBtn" onclick="doLogin()">دخول</button>
       <div class="switch-link">مستخدم جديد؟ <span onclick="showRegister()">سجّل الآن</span></div>
+      <div class="or-divider">
+        <div class="or-line"></div>
+        <span class="or-text">أو</span>
+        <div class="or-line"></div>
+      </div>
+      <button class="google-btn" onclick="showToast('قريباً - تسجيل بـ Google','info')">
+        🌐 متابعة بـ Google
+      </button>
     </div>
+  </div>
 
-    <!-- ── OR divider + Google SSO placeholder ── -->
-    <div class="or-divider">
-      <div class="or-line"></div>
-      <span class="or-text">أو</span>
-      <div class="or-line"></div>
-    </div>
-    <button class="google-btn" onclick="showToast('قريباً - تسجيل بـ Google','info')">
-      🌐 متابعة بـ Google
-    </button>
-
-    <!-- ── REGISTER FORM ── -->
-    <div id="registerSection" class="hidden">
+  <!--
+    Register panel: accordion, starts collapsed.
+    Opened by selectType() after user picks a role in step 1.
+    Closed by showLogin() or when switching types (close → update → reopen).
+  -->
+  <div id="registerPanel" class="reg-panel">
+    <div class="bubble">
       <div class="form-title">تسجيل جديد</div>
       <div class="field">
         <label id="nameLabel">الاسم الكامل</label>
@@ -124,16 +127,15 @@
       </div>
       <div id="passStrengthLabel"></div>
       <button class="cta" id="regBtn" onclick="doRegister()">إنشاء حساب</button>
-      <div class="switch-link">عندك حساب؟ <span onclick="showLogin()">دخول</span></div>
     </div>
-
   </div>
+
 </main>
 
 <div class="toast" id="toast"></div>
 
 <script src="/tw_shared.js"></script>
-<script src="/static/index.auth.js?v=auth-gw-v4"></script>
-<script src="/static/index.ui.js?v=auth-gw-v4"></script>
+<script src="/static/index.auth.js?v=auth-gw-v5"></script>
+<script src="/static/index.ui.js?v=auth-gw-v5"></script>
 </body>
 </html>

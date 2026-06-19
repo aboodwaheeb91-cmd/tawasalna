@@ -2,58 +2,97 @@
 // Responsibilities: selectType(), showRegister(), showLogin(), toast(),
 //                   checkPassStrength(), ITQAN utilities, hash-based auto-route.
 // Does NOT contain any auth logic — login/register/redirect live in index.auth.js.
-// Version: auth-gw-v3
+// Version: auth-gw-v5
 
 'use strict';
 
 // ── Role selector (register-only, 3 explicit options) ────────────────────────
-// Updates curType (declared in index.auth.js) and adjusts name field label.
-// Accordion: selecting a type shows the register fields below the cards.
-// Cards stay visible after selection so the user can switch type.
+// First selection: slide #registerPanel open from top.
+// Type switch: slide current panel closed, update labels, slide new one open.
+// Cards stay visible throughout to allow switching.
+var _panelGen = 0;
+
 function selectType(type){
-  curType = type;
-  var empBtn = document.getElementById('empBtn');
-  var coBtn  = document.getElementById('coBtn');
-  var eduBtn = document.getElementById('eduBtn');
+  // Immediate visual feedback on cards
+  ['empBtn','coBtn','eduBtn'].forEach(function(id){
+    var b = document.getElementById(id);
+    if(b) b.classList.remove('active','inst');
+  });
+  var activeEl = document.getElementById(type + 'Btn');
+  if(activeEl){
+    activeEl.classList.add('active');
+    if(type !== 'emp') activeEl.classList.add('inst');
+  }
+
+  var panel = document.getElementById('registerPanel');
+  if(!panel) return;
+
+  var isOpen = panel.classList.contains('open');
+
+  if(!isOpen){
+    // First open: update labels then slide down
+    curType = type;
+    _applyRegLabels(type);
+    panel.classList.add('open');
+  } else {
+    // Close current → update labels → reopen for new type
+    var gen = ++_panelGen;
+    panel.classList.remove('open');
+    function onClose(e){
+      if(e.propertyName !== 'max-height') return;
+      panel.removeEventListener('transitionend', onClose);
+      if(_panelGen !== gen) return; // cancelled by showLogin or rapid switch
+      curType = type;
+      _applyRegLabels(type);
+      panel.classList.add('open');
+    }
+    panel.addEventListener('transitionend', onClose);
+  }
+}
+
+function _applyRegLabels(type){
   var nameLabel = document.getElementById('nameLabel');
   var rName     = document.getElementById('rName');
-
-  [empBtn, coBtn, eduBtn].forEach(function(b){ if(b) b.classList.remove('active','inst'); });
-
-  if(type === 'emp'){
-    if(empBtn) empBtn.classList.add('active');
-    if(nameLabel) nameLabel.textContent = 'الاسم الكامل';
-    if(rName)     rName.placeholder = 'اكتب اسمك...';
-  } else if(type === 'co'){
-    if(coBtn) coBtn.classList.add('active','inst');
+  if(type === 'co'){
     if(nameLabel) nameLabel.textContent = 'اسم الشركة / الجهة';
     if(rName)     rName.placeholder = 'اسم شركتك أو مؤسستك...';
   } else if(type === 'edu'){
-    if(eduBtn) eduBtn.classList.add('active','inst');
     if(nameLabel) nameLabel.textContent = 'اسم المؤسسة التعليمية';
     if(rName)     rName.placeholder = 'اسم الجامعة أو المركز...';
+  } else {
+    if(nameLabel) nameLabel.textContent = 'الاسم الكامل';
+    if(rName)     rName.placeholder = 'اكتب اسمك...';
   }
-
-  // Accordion: show register fields only after a type is selected
-  var reg = document.getElementById('registerSection');
-  if(reg) reg.classList.remove('hidden');
 }
 
 // ── Form switching ────────────────────────────────────────────────────────────
 function showRegister(){
-  // Step 1: show role cards, hide login and register fields
-  document.getElementById('loginSection').classList.add('hidden');
-  document.getElementById('registerSection').classList.add('hidden');
-  var step1 = document.getElementById('registerStep1');
-  if(step1) step1.classList.remove('hidden');
+  ++_panelGen; // cancel any in-flight accordion transition
+  var lb = document.getElementById('loginBubble');
+  var ls = document.getElementById('loginSection');
+  var s1 = document.getElementById('registerStep1');
+  var rp = document.getElementById('registerPanel');
+  if(lb) lb.classList.add('hidden');
+  if(ls) ls.classList.add('hidden'); // keeps index.auth.js Enter-key guard working
+  if(s1) s1.classList.remove('hidden');
+  if(rp) rp.classList.remove('open');
 }
 
 function showLogin(){
-  // Return to login: hide step1 and register fields
-  var step1 = document.getElementById('registerStep1');
-  if(step1) step1.classList.add('hidden');
-  document.getElementById('registerSection').classList.add('hidden');
-  document.getElementById('loginSection').classList.remove('hidden');
+  ++_panelGen; // cancel any in-flight accordion transition
+  var lb = document.getElementById('loginBubble');
+  var ls = document.getElementById('loginSection');
+  var s1 = document.getElementById('registerStep1');
+  var rp = document.getElementById('registerPanel');
+  if(lb) lb.classList.remove('hidden');
+  if(ls) ls.classList.remove('hidden');
+  if(s1) s1.classList.add('hidden');
+  if(rp) rp.classList.remove('open');
+  // reset card active states for next visit to register
+  ['empBtn','coBtn','eduBtn'].forEach(function(id){
+    var b = document.getElementById(id);
+    if(b) b.classList.remove('active','inst');
+  });
 }
 
 // ── Simple inline toast ───────────────────────────────────────────────────────
