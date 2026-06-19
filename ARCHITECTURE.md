@@ -6444,9 +6444,10 @@ Visitors and preview modes never see this strip.
 - Height: ~44px in collapsed state; expands panel when "تفاصيل" is clicked
 - **Completion mode components**: title label | progress bar | percentage | toggle button
 - **Completion mode panel**: missing items (clickable) + done items + optional domain-tag suggestions
-- **Growth mode components**: "اقتراح" badge | suggestion text (clickable → toast) | التالي button | تفاصيل button | ✕ إخفاء button
-- **Growth mode toast**: clicking the suggestion text shows a `#scGrowthToast` element inline below the row for 4 s, explaining why the suggestion matters and reminding the user to learn/earn it first. Auto-dismisses. Clears on التالي click.
-- **Growth mode panel**: reason text + benefit text + "اذهب إلى القسم" action button
+- **Growth mode components (RTL visual order)**: "اقتراح" badge | suggestion text (clickable → short actionable toast) | تفاصيل button | ↻ cycle button | ✕ إخفاء button
+- **Button style**: solid fills, no glassmorphism. تفاصيل = teal; ↻ = neutral gray; ✕ = red. Each styled by ID (`#scGrowthDet`, `#scGrowthNext`, `#scGrowthHide`).
+- **Suggestion-text toast** (`#scGrowthToast`): 1-sentence actionable tip ("ابحث عن دورة X، وبعد الحصول عليها أضفها لقسم الدورات"). Auto-dismisses after 4 s. Cleared on ↻ click. Does NOT contain the full explanation — that is reserved for the details panel.
+- **Growth mode panel** (`#scGrowthPanel`): shown only via "تفاصيل" button. Contains the full explanation: `reason` (why it matters) + `benefit` (career impact) + "اذهب إلى القسم" action button. This is the only place the full explanation appears.
 - **Growth empty state**: text "ملفك قوي! سنقترح لك فرص تطوير لاحقاً", التالي/تفاصيل buttons hidden
 - Dismiss: IIFE-level `_dismissed` flag (resets on page reload, no persistence)
 - `_growthIdx`: IIFE-level index for cycling through growth suggestions (clamp: `% suggs.length`)
@@ -6569,4 +6570,6 @@ Rules include: React.js course, Git, Node.js, SQL course, GitHub link, English l
 - Do NOT show growth mode when score < 100% — growth mode only activates at exactly 100%
 - Do NOT persist `_growthIdx` to localStorage — it resets with the page
 - Do NOT write suggestion `text` that implies adding something without having earned/completed it — all text must follow the "learn/earn first, then document" pattern
-- Do NOT replace the toast with a modal or full-panel expansion — clicking suggestion text shows the inline toast only
+- Do NOT put the full explanation in the toast — toast is 1 short actionable sentence; full explanation belongs in the "تفاصيل" panel only
+- Do NOT style growth buttons as glassmorphic — each button has a solid colored background via its ID selector
+- Do NOT open any new route or add a course automatically from the suggestion — the user must find and complete the course themselves first
