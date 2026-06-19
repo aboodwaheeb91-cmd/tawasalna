@@ -1,6 +1,6 @@
 /* index.css — Auth Gateway styles (login + register page only)
    Scope: index.html exclusively. Do NOT import from other pages.
-   Version: auth-gw-v3 */
+   Version: auth-gw-v5 */
 
 :root{--ac:#00c896;--ac2:#2563ff;}
 *{margin:0;padding:0;box-sizing:border-box;}
@@ -134,6 +134,24 @@ body{font-family:'Cairo',sans-serif;background:#070b18;min-height:100vh;display:
 /* ── Google SSO placeholder ── */
 .google-btn{width:100%;margin-top:12px;padding:11px;border-radius:12px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);color:rgba(255,255,255,.6);font-family:'Cairo',sans-serif;font-size:.82rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;}
 .google-btn:hover{background:rgba(255,255,255,.07);}
+
+/* ── Register panel accordion ── */
+#registerPanel{
+  overflow:hidden;
+  max-height:0;
+  opacity:0;
+  transform:translateY(-8px);
+  transition:max-height .32s cubic-bezier(.4,0,.2,1),
+             opacity .25s ease,
+             transform .25s ease;
+  margin-top:0;
+}
+#registerPanel.open{
+  max-height:640px;
+  opacity:1;
+  transform:translateY(0);
+  margin-top:12px;
+}
 
 /* ── Password strength ── */
 #passStrengthBar{height:3px;border-radius:2px;background:rgba(255,255,255,.08);margin-top:6px;transition:all .3s;display:none;}
