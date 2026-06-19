@@ -25,461 +25,112 @@
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="https://tawasolna.com">
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;900&display=swap" rel="stylesheet">
-<style>
-:root{--ac:#00c896;--ac2:#2563ff;}
-*{margin:0;padding:0;box-sizing:border-box;}
-body{font-family:'Cairo',sans-serif;background:#070b18;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:40px 16px;overflow-x:hidden;}
-
-/* BG */
-.bg{position:fixed;inset:0;pointer-events:none;z-index:0;}
-.orb{position:absolute;border-radius:50%;filter:blur(110px);animation:breathe 9s ease-in-out infinite;}
-.o1{width:600px;height:600px;background:#00c896;opacity:.12;top:-200px;right:-160px;}
-.o2{width:500px;height:500px;background:#2563ff;opacity:.11;bottom:-180px;left:-140px;animation-delay:4s;}
-.o3{width:280px;height:280px;background:#8b5cf6;opacity:.07;top:40%;left:30%;animation-delay:2s;}
-@keyframes breathe{0%,100%{transform:scale(1);}50%{transform:scale(1.08) translateY(-18px);}}
-.grid{position:fixed;inset:0;z-index:0;background-image:linear-gradient(rgba(255,255,255,.022) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.022) 1px,transparent 1px);background-size:52px 52px;}
-
-/* WRAP */
-.wrap{position:relative;z-index:10;width:100%;max-width:420px;}
-
-/* LOGO */
-.logo{text-align:center;margin-bottom:28px;}
-.logo-mark{font-size:2.2rem;font-weight:900;background:linear-gradient(135deg,var(--ac),var(--ac2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;line-height:1;}
-.logo-sub{font-size:.7rem;color:rgba(255,255,255,.28);margin-top:3px;}
-
-/* TYPE CARDS - compact */
-.type-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;}
-.type-btn{
-  padding:10px 8px;
-  border-radius:14px;
-  border:2px solid rgba(255,255,255,.1);
-  background:rgba(255,255,255,.04);
-  cursor:pointer;
-  text-align:center;
-  transition:all .25s;
-  font-family:'Cairo',sans-serif;
-  display:flex;
-  align-items:center;
-  gap:8px;
-  justify-content:center;
-}
-.type-btn:hover{border-color:rgba(255,255,255,.2);background:rgba(255,255,255,.07);}
-.type-btn.active{border-color:var(--ac);background:rgba(0,200,150,.08);}
-.type-btn.active.inst{border-color:var(--ac2);background:rgba(37,99,255,.08);}
-.tb-ico{font-size:1.3rem;flex-shrink:0;}
-.tb-name{font-size:.8rem;font-weight:800;color:#fff;}
-.tb-sub{font-size:.62rem;color:rgba(255,255,255,.35);}
-
-/* BUBBLE */
-.bubble{
-  background:linear-gradient(160deg,rgba(20,30,55,.9),rgba(10,18,38,.95));
-  border:1px solid rgba(255,255,255,.09);
-  border-radius:22px;
-  padding:26px 24px;
-  backdrop-filter:blur(24px);
-  box-shadow:0 20px 70px rgba(0,0,0,.6);
-}
-
-/* FORM TITLE */
-.form-title{font-size:.92rem;font-weight:900;color:#fff;margin-bottom:18px;}
-
-/* FIELDS */
-.field{margin-bottom:13px;}
-.field label{display:block;font-size:.71rem;font-weight:700;color:rgba(255,255,255,.4);margin-bottom:5px;}
-.field input,
-.field select{
-  width:100%;
-  padding:11px 14px;
-  background:rgba(255,255,255,.06);
-  border:1.5px solid rgba(255,255,255,.09);
-  border-radius:12px;
-  color:#fff;
-  font-family:'Cairo',sans-serif;
-  font-size:.84rem;
-  outline:none;
-  direction:rtl;
-  transition:border-color .2s;
-  appearance:none;
-}
-.field input:focus,
-.field select:focus{border-color:var(--ac);}
-.field input::placeholder{color:rgba(255,255,255,.28);}
-.field select{cursor:pointer;}
-.field select option{background:#0d1526;color:#fff;}
-
-/* CTA */
-.cta{
-  width:100%;padding:13px;border:none;border-radius:13px;
-  background:linear-gradient(135deg,var(--ac),var(--ac2));
-  color:#fff;font-family:'Cairo',sans-serif;font-size:.9rem;font-weight:900;
-  cursor:pointer;transition:all .25s;margin-top:4px;
-}
-.cta:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,200,150,.35);}
-.cta:disabled{opacity:.6;transform:none;cursor:wait;}
-
-/* SWITCH */
-.switch-link{text-align:center;margin-top:14px;font-size:.73rem;color:rgba(255,255,255,.35);}
-.switch-link span{color:var(--ac);cursor:pointer;font-weight:700;}
-.switch-link span:hover{text-decoration:underline;}
-
-/* HIDDEN */
-
-.hidden{display:none!important;}
-
-/* TOAST */
-.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);padding:10px 18px;border-radius:12px;font-size:.78rem;font-weight:700;z-index:9999;transition:transform .3s;pointer-events:none;white-space:nowrap;}
-.toast.show{transform:translateX(-50%) translateY(0);}
-.toast.success{background:#065f46;color:#6ee7b7;border:1px solid rgba(110,231,183,.2);}
-.toast.error{background:#7f1d1d;color:#fca5a5;border:1px solid rgba(252,165,165,.2);}
-
-
-/* ══ ITQAN - Shared Utilities ══ */
-@keyframes tw-shimmer{0%{background-position:-1000px 0}100%{background-position:1000px 0}}
-@keyframes tw-spin{to{transform:translateY(-50%) rotate(360deg);}}
-@keyframes tw-fadein{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:none;}}
-@keyframes tw-verified{0%,100%{box-shadow:0 0 0 0 rgba(0,200,150,0);}50%{box-shadow:0 0 0 5px rgba(0,200,150,.15);}}
-.tw-toast[aria-live="polite"]{position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(20px);background:rgba(7,11,24,.97);border:1px solid rgba(255,255,255,.1);backdrop-filter:blur(20px);border-radius:14px;padding:12px 20px;display:flex;align-items:center;gap:10px;font-size:.82rem;font-family:Cairo,sans-serif;color:rgba(255,255,255,.92);opacity:0;transition:all .3s cubic-bezier(.34,1.56,.64,1);z-index:9999;white-space:nowrap;min-width:180px;justify-content:center;box-shadow:0 8px 32px rgba(0,0,0,.4);}
-.tw-toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
-.tw-toast.success{border-color:rgba(0,200,150,.3);}
-.tw-toast.error{border-color:rgba(239,68,68,.3);}
-.tw-toast.info{border-color:rgba(37,99,255,.3);}
-.tw-skeleton{background:linear-gradient(90deg,rgba(255,255,255,.04) 25%,rgba(255,255,255,.09) 50%,rgba(255,255,255,.04) 75%);background-size:2000px 100%;animation:tw-shimmer 1.5s infinite linear;border-radius:8px;}
-.tw-btn-loading{position:relative;pointer-events:none;opacity:.8;}
-.tw-btn-loading::after{content:'';position:absolute;width:14px;height:14px;border-radius:50%;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;animation:tw-spin .7s linear infinite;right:12px;top:50%;transform:translateY(-50%);}
-.tw-scroll-prog{position:fixed;top:0;left:0;height:2px;z-index:999;background:linear-gradient(90deg,var(--ac,#00c896),var(--ac2,#2563ff));transition:width .1s;width:0%;}
-.tw-fab{position:fixed;bottom:80px;left:18px;width:50px;height:50px;border-radius:50%;border:none;font-size:1.4rem;background:linear-gradient(135deg,var(--ac,#00c896),var(--ac2,#2563ff));color:#fff;cursor:pointer;box-shadow:0 4px 20px rgba(0,200,150,.35);transition:all .25s cubic-bezier(.34,1.56,.64,1);z-index:50;display:flex;align-items:center;justify-content:center;}
-.tw-fab:hover{transform:scale(1.12) rotate(90deg);}
-.tw-empty{text-align:center;padding:50px 20px;}
-.tw-empty-ico{font-size:2.5rem;margin-bottom:12px;opacity:.7;display:block;}
-.tw-empty-title{font-size:.95rem;font-weight:800;margin-bottom:6px;}
-.tw-empty-sub{font-size:.78rem;color:rgba(255,255,255,.35);margin-bottom:18px;line-height:1.6;}
-.tw-empty-btn{padding:10px 22px;border-radius:12px;background:linear-gradient(135deg,var(--ac,#00c896),var(--ac2,#2563ff));border:none;color:#fff;font-family:Cairo,sans-serif;font-weight:700;font-size:.8rem;cursor:pointer;}
-.tw-card-lift{transition:transform .2s,box-shadow .2s;}
-.tw-card-lift:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.3);}
-.tw-verified{animation:tw-verified 2.5s ease-in-out infinite;}
-
-</style>
-<style>.skip-link{position:absolute;top:-40px;right:0;background:var(--ac,#00c896);color:#0d1a2e;padding:8px 16px;border-radius:0 0 8px 0;font-family:Cairo,sans-serif;font-size:.8rem;font-weight:700;text-decoration:none;transition:top .2s;z-index:10000}.skip-link:focus{top:0}
-/* ── Password Eye Icon ── */
-.pass-wrap{position:relative;display:flex;align-items:center;}
-.pass-wrap input{width:100%;padding-left:36px!important;}
-.pass-eye{position:absolute;left:10px;cursor:pointer;font-size:1rem;opacity:.5;user-select:none;transition:opacity .2s;}
-.pass-eye:hover{opacity:.9;}
-</style><a href="#main-content" class="skip-link">تخطى للمحتوى الرئيسي</a><link rel="stylesheet" href="/static/tw_shared.css">
+<link rel="stylesheet" href="/static/tw_shared.css">
+<link rel="stylesheet" href="/index.css?v=auth-gw-v1">
 </head>
 <body>
-<!--
-╔══════════════════════════════════════════════╗
-║  TAWASALNA - INDEX                           ║
-║  Architecture: Hybrid                        ║
-║  Last Modified: 2026-05                      ║
-║  DO NOT EDIT outside designated sections     ║
-╚══════════════════════════════════════════════╝
--->
+<a href="#main-content" class="skip-link">تخطى للمحتوى الرئيسي</a>
 
 <div class="bg"><div class="orb o1"></div><div class="orb o2"></div><div class="orb o3"></div></div>
 <div class="grid"></div>
 
-<div class="wrap">
+<main id="main-content" class="wrap">
+
   <!-- Logo -->
   <div class="logo">
-    <div class="logo-mark nav-logo"><img src="https://wrxvmdmknhoufoeprpoc.supabase.co/storage/v1/object/public/site/Logo.svg" alt="تواصلنا" style="height:36px;width:auto;object-fit:contain;display:block"></div>
+    <div class="logo-mark nav-logo">
+      <img src="https://wrxvmdmknhoufoeprpoc.supabase.co/storage/v1/object/public/site/Logo.svg"
+           alt="تواصلنا" class="logo-img">
+    </div>
     <div class="logo-sub">منصة التوظيف والتوثيق العربية</div>
   </div>
 
   <!--
-    P1 TODO: Replace this 2-button selector with 3 explicit role cards:
-      👤 موظف  |  🏢 شركة  |  🎓 مؤسسة تعليمية
-    Currently "شركة" and "مؤسسة تعليمية" are grouped under one "جهة مؤسسية" button
-    with a dropdown — this is ambiguous for new users.
-    The user_type sent to /auth/register must be explicit: emp | co | edu.
-    Do NOT merge this with the login form; login requires no role selection.
+    Role selector — register-only.
+    Hidden by default (login view); shown by showRegister() / hidden by showLogin().
+    3 explicit cards: emp | co | edu — no ambiguous dropdown.
+    Hash routes: /login#register-emp, /login#register-co, /login#register-edu
   -->
-  <!-- Type selector -->
-  <div class="type-row">
+  <div class="type-row hidden" id="typeRow">
     <div class="type-btn active" id="empBtn" onclick="selectType('emp')">
       <div class="tb-ico">👤</div>
-      <div><div class="tb-name">موظف</div><div class="tb-sub">باحث عن عمل</div></div>
+      <div class="tb-name">موظف</div>
+      <div class="tb-sub">باحث عن عمل</div>
     </div>
-    <div class="type-btn" id="instBtn" onclick="selectType('inst')">
-      <div class="tb-ico">🏛️</div>
-      <div><div class="tb-name">جهة مؤسسية</div><div class="tb-sub">شركة، جامعة...</div></div>
+    <div class="type-btn" id="coBtn" onclick="selectType('co')">
+      <div class="tb-ico">🏢</div>
+      <div class="tb-name">شركة</div>
+      <div class="tb-sub">صاحب عمل</div>
+    </div>
+    <div class="type-btn" id="eduBtn" onclick="selectType('edu')">
+      <div class="tb-ico">🎓</div>
+      <div class="tb-name">مؤسسة تعليمية</div>
+      <div class="tb-sub">جامعة · مركز تدريب</div>
     </div>
   </div>
 
-  <!-- Form bubble -->
+  <!-- Auth card -->
   <div class="bubble">
 
-    <!-- LOGIN FORM -->
+    <!-- ── LOGIN FORM ── -->
     <div id="loginSection">
       <div class="form-title">دخول</div>
-      <div class="field"><label>البريد الإلكتروني</label><input id="lEmail" autocomplete="email" type="email" placeholder="example@email.com"></div>
-      <div class="field"><label>كلمة المرور</label><input id="lPass" autocomplete="current-password" type="password" placeholder="••••••••"></div>
-      <div style="text-align:left;margin-bottom:12px"><span style="font-size:.7rem;color:rgba(255,255,255,.3);cursor:pointer">نسيت كلمة المرور؟</span></div>
+      <div class="field">
+        <label>البريد الإلكتروني</label>
+        <input id="lEmail" autocomplete="email" type="email" placeholder="example@email.com">
+      </div>
+      <div class="field">
+        <label>كلمة المرور</label>
+        <input id="lPass" autocomplete="current-password" type="password" placeholder="••••••••">
+      </div>
+      <div class="forgot-wrap">
+        <span class="forgot-link">نسيت كلمة المرور؟</span>
+      </div>
       <button class="cta" id="loginBtn" onclick="doLogin()">دخول</button>
       <div class="switch-link">مستخدم جديد؟ <span onclick="showRegister()">سجّل الآن</span></div>
-
     </div>
 
-    
-  <div style="margin-top:16px;display:flex;align-items:center;gap:10px">
-    <div style="flex:1;height:1px;background:rgba(255,255,255,.08)"></div>
-    <span style="font-size:.7rem;color:rgba(255,255,255,.3)">أو</span>
-    <div style="flex:1;height:1px;background:rgba(255,255,255,.08)"></div>
-  </div>
-  <button onclick="showToast('قريباً - تسجيل بـ Google','info')" style="width:100%;margin-top:12px;padding:11px;border-radius:12px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);color:rgba(255,255,255,.6);font-family:Cairo,sans-serif;font-size:.82rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px">
-    🌐 متابعة بـ Google
-  </button>
-  <!-- REGISTER FORM -->
+    <!-- ── OR divider + Google SSO placeholder ── -->
+    <div class="or-divider">
+      <div class="or-line"></div>
+      <span class="or-text">أو</span>
+      <div class="or-line"></div>
+    </div>
+    <button class="google-btn" onclick="showToast('قريباً - تسجيل بـ Google','info')">
+      🌐 متابعة بـ Google
+    </button>
+
+    <!-- ── REGISTER FORM ── -->
     <div id="registerSection" class="hidden">
       <div class="form-title">تسجيل جديد</div>
-
-      <!-- Institution type (only for جهة) -->
-      <div class="field hidden" id="instTypeField">
-        <label>نوع الجهة</label>
-        <select id="instSubtype">
-          <option value="" disabled selected>اختر نوع جهتك...</option>
-          <optgroup label="جهات تجارية">
-            <option value="co|شركة خاصة">🏢 شركة خاصة</option>
-            <option value="co|مصنع">🏭 مصنع</option>
-            <option value="co|بنك / مؤسسة مالية">🏦 بنك / مؤسسة مالية</option>
-            <option value="co|مستشفى / مركز طبي">🏥 مستشفى / مركز طبي</option>
-            <option value="co|جهة حكومية">🏛️ جهة حكومية</option>
-            <option value="co|أخرى">🔧 أخرى</option>
-          </optgroup>
-          <optgroup label="جهات تعليمية">
-            <option value="edu|جامعة / كلية">🎓 جامعة / كلية</option>
-            <option value="edu|مدرسة">🏫 مدرسة</option>
-            <option value="edu|مركز تدريب">📚 مركز تدريب</option>
-          </optgroup>
-        </select>
+      <div class="field">
+        <label id="nameLabel">الاسم الكامل</label>
+        <input id="rName" autocomplete="off" placeholder="اكتب اسمك...">
       </div>
-
-      <div class="field"><label id="nameLabel">الاسم الكامل</label><input id="rName" autocomplete="off" placeholder="اكتب اسمك..."></div>
-      <div class="field"><label>البريد الإلكتروني</label><input id="rEmail" autocomplete="off" type="email" placeholder="example@email.com"></div>
-      <div class="field"><label>كلمة المرور</label><input id="rPass" autocomplete="new-password" type="password" placeholder="6 أحرف على الأقل" oninput="checkPassStrength(this.value)"></div>
-      <div id="passStrengthBar" style="height:3px;border-radius:2px;background:rgba(255,255,255,.08);margin-top:6px;transition:all .3s;display:none">
-        <div id="passStrengthFill" style="height:100%;border-radius:2px;width:0%;transition:all .3s"></div>
+      <div class="field">
+        <label>البريد الإلكتروني</label>
+        <input id="rEmail" autocomplete="off" type="email" placeholder="example@email.com">
       </div>
-      <div id="passStrengthLabel" style="font-size:.65rem;color:rgba(255,255,255,.4);margin-top:3px;display:none"></div>
+      <div class="field">
+        <label>كلمة المرور</label>
+        <input id="rPass" autocomplete="new-password" type="password"
+               placeholder="6 أحرف على الأقل" oninput="checkPassStrength(this.value)">
+      </div>
+      <div id="passStrengthBar">
+        <div id="passStrengthFill"></div>
+      </div>
+      <div id="passStrengthLabel"></div>
       <button class="cta" id="regBtn" onclick="doRegister()">إنشاء حساب</button>
       <div class="switch-link">عندك حساب؟ <span onclick="showLogin()">دخول</span></div>
     </div>
 
   </div>
-</div>
+</main>
 
 <div class="toast" id="toast"></div>
 
 <script src="/tw_shared.js"></script>
-<script>
-let curType = 'emp';
-let instUserType = '';
-let instSubtype = '';
-
-// ── Auth redirect ──────────────────────────────────────────────────────────
-// Source of truth: the user object returned by /auth/login or /auth/register.
-// localStorage.tw_user is a short-lived session cache — NOT the authority for roles.
-// TODO (P1): before using the cached session, call /auth/verify-token to confirm
-//            it is still valid (guards against stale or tampered localStorage data).
-function redirect(u){
-  if(!u) return;
-  if(u.user_type === 'co')    { window.location.href = '/company-profile'; return; }
-  if(u.user_type === 'edu')   { window.location.href = '/edu-profile';     return; }
-  // Admin users authenticate via the admin-specific flow, not this page.
-  // This branch is defensive: handle the case where a user object ever carries 'admin'.
-  if(u.user_type === 'admin') { window.location.href = '/admin';           return; }
-  // Default: employee — canonical public profile URL is /u/{tw_id}
-  window.location.href = u.tw_id ? '/u/' + u.tw_id : '/profile-showcase';
-}
-
-// ── Single on-load session check ───────────────────────────────────────────
-// Previously three duplicate redirect blocks existed here; consolidated to one.
-// If a valid cached session exists, redirect without re-auth. No action if missing.
-try {
-  var _cached = JSON.parse(localStorage.getItem('tw_user'));
-  if(_cached && _cached.id) redirect(_cached);
-} catch(e){}
-
-
-function selectType(type){
-  curType = type;
-  const empBtn = document.getElementById('empBtn');
-  const instBtn = document.getElementById('instBtn');
-  const instField = document.getElementById('instTypeField');
-  const nameLabel = document.getElementById('nameLabel');
-  const rName = document.getElementById('rName');
-
-  // Always go back to login when switching type
-  showLogin();
-
-  if(type === 'emp'){
-    empBtn.classList.add('active');
-    empBtn.classList.remove('inst');
-    instBtn.classList.remove('active','inst');
-    instField.classList.add('hidden');
-    nameLabel.textContent = 'الاسم الكامل';
-    rName.placeholder = 'اكتب اسمك...';
-  } else {
-    instBtn.classList.add('active','inst');
-    empBtn.classList.remove('active');
-    nameLabel.textContent = 'اسم الجهة / المؤسسة';
-    rName.placeholder = 'اسم شركتك أو مؤسستك...';
-  }
-}
-
-function showRegister(){
-  document.getElementById('loginSection').classList.add('hidden');
-  document.getElementById('registerSection').classList.remove('hidden');
-  // Show inst type if جهة is selected
-  if(curType === 'inst'){
-    document.getElementById('instTypeField').classList.remove('hidden');
-  }
-}
-
-function showLogin(){
-  document.getElementById('registerSection').classList.add('hidden');
-  document.getElementById('instTypeField').classList.add('hidden');
-  document.getElementById('loginSection').classList.remove('hidden');
-}
-
-function toast(msg, type='success'){
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.className = `toast ${type} show`;
-  setTimeout(()=>t.classList.remove('show'), 3200);
-}
-
-async function doLogin(){
-  const email = document.getElementById('lEmail').value.trim();
-  const pass = document.getElementById('lPass').value;
-  if(!email||!pass){ toast('أدخل البريد وكلمة المرور','error'); return; }
-  const btn = document.getElementById('loginBtn');
-  setBtnLoad(btn, true);
-  try{
-    const res = await fetch('/auth/login',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({email, password:pass})
-    });
-    const data = await res.json();
-    if(!res.ok){ toast(data.detail||'بيانات الدخول غير صحيحة','error'); return; }
-    // Clear old user data before storing new user (prevents cross-account leaks)
-    Object.keys(localStorage)
-      .filter(function(k){ return k.startsWith('tw_'); })
-      .forEach(function(k){ localStorage.removeItem(k); });
-    localStorage.setItem('tw_user', JSON.stringify(data.user));
-        if(data.token) localStorage.setItem('tw_jwt', data.token);
-    toast('مرحباً بك! 👋');
-    setTimeout(()=>redirect(data.user), 600);
-  }catch(e){ toast('تعذّر الاتصال بالخادم','error'); }
-  finally{ btn.disabled=false; btn.textContent='دخول'; }
-}
-
-async function doRegister(){
-  const full_name = document.getElementById('rName').value.trim();
-  const email = document.getElementById('rEmail').value.trim();
-  const password = document.getElementById('rPass').value;
-
-  if(!full_name){ toast('أدخل الاسم','error'); return; }
-  if(!email){ toast('أدخل البريد الإلكتروني','error'); return; }
-  if(password.length<6){ toast('كلمة المرور قصيرة جداً','error'); return; }
-
-  let user_type = 'emp';
-  if(curType === 'inst'){
-    const val = document.getElementById('instSubtype').value;
-    if(!val){ toast('اختر نوع الجهة','error'); return; }
-    const parts = val.split('|');
-    user_type = parts[0];
-    instSubtype = parts[1];
-  }
-
-  const btn = document.getElementById('regBtn');
-  btn.disabled=true; btn.textContent='جاري الإنشاء...';
-  try{
-    const res = await fetch('/auth/register',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({full_name, email, password, user_type})
-    });
-    const data = await res.json();
-    if(!res.ok){ toast(data.detail||'خطأ في التسجيل','error'); return; }
-    const userData = {...data.user, institution_subtype: instSubtype||''};
-    localStorage.setItem('tw_user', JSON.stringify(userData));
-        if(data.token) localStorage.setItem('tw_jwt', data.token);
-    toast('تم إنشاء حسابك! 🎉');
-    setTimeout(()=>redirect(data.user), 700);
-  }catch(e){ toast('تعذّر الاتصال بالخادم','error'); }
-  finally{ btn.disabled=false; btn.textContent='إنشاء حساب'; }
-}
-
-document.addEventListener('keydown', e => {
-  if(e.key==='Enter'){
-    const login = document.getElementById('loginSection');
-    if(!login.classList.contains('hidden')) doLogin();
-    else doRegister();
-  }
-});
-
-
-// ── Password Strength ──
-function checkPassStrength(val){
-  var bar=document.getElementById('passStrengthBar');
-  var fill=document.getElementById('passStrengthFill');
-  var label=document.getElementById('passStrengthLabel');
-  if(!bar||!val){if(bar)bar.style.display='none';return;}
-  bar.style.display='block';label.style.display='block';
-  var score=0;
-  if(val.length>=8) score++;
-  if(val.length>=12) score++;
-  if(/[A-Z]/.test(val)) score++;
-  if(/[0-9]/.test(val)) score++;
-  if(/[^A-Za-z0-9]/.test(val)) score++;
-  var levels=[
-    {w:'20%',c:'#ef4444',t:'ضعيف جداً'},
-    {w:'40%',c:'#f97316',t:'ضعيف'},
-    {w:'60%',c:'#eab308',t:'متوسط'},
-    {w:'80%',c:'#22c55e',t:'قوي'},
-    {w:'100%',c:'#00c896',t:'قوي جداً'}
-  ];
-  var level=levels[Math.min(score,4)];
-  fill.style.width=level.w;fill.style.background=level.c;
-  label.textContent=level.t;label.style.color=level.c;
-}
-
-// ══ ITQAN Utilities ══
-var _twToast=null;
-function showToast(msg,type,dur){
-  type=type||'success';dur=dur||2800;
-  if(_twToast){_twToast.remove();}
-  var t=document.createElement('div');
-  t.className='tw-toast '+type;
-  var ico=type==='success'?'✅':type==='error'?'❌':'ℹ️';
-  t.innerHTML='<span>'+ico+'</span><span>'+msg+'</span>';
-  document.body.appendChild(t);
-  _twToast=t;
-  requestAnimationFrame(function(){requestAnimationFrame(function(){t.classList.add('show');});});
-  setTimeout(function(){t.classList.remove('show');setTimeout(function(){if(t.parentNode)t.remove();},350);},dur);
-}
-function setBtnLoad(btn,loading){
-  if(!btn)return;
-  if(loading){btn.classList.add('tw-btn-loading');btn._orig=btn.textContent;btn.textContent='';btn.disabled=true;}
-  else{btn.classList.remove('tw-btn-loading');btn.textContent=btn._orig||'حفظ';btn.disabled=false;}
-}
-function twNavigate(url){
-  document.body.style.cssText='opacity:0;transform:translateY(-6px);transition:all .2s ease;';
-  setTimeout(function(){window.location.href=url;},180);
-}
-function initScrollProg(){
-  var p=document.createElement('div');p.className='tw-scroll-prog';
-  document.body.prepend(p);
-  window.addEventListener('scroll',function(){
-    var pct=window.scrollY/(document.body.scrollHeight-window.innerHeight)*100;
-    p.style.width=Math.min(pct,100)+'%';
-  });
-}
-
-
-</script>
+<script src="/index.auth.js?v=auth-gw-v1"></script>
+<script src="/index.ui.js?v=auth-gw-v1"></script>
 </body>
 </html>
