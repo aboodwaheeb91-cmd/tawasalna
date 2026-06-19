@@ -6337,7 +6337,7 @@ duplicated below it.
 |-------|--------|------|
 | `profiles` | `avail` | `TEXT NULL` |
 
-> `availability_status` was added in an earlier migration but is **deprecated and unused**. The application reads and writes `avail` exclusively. The column can be cleaned up in a future migration.
+> `availability_status` was added in an earlier migration and is **deprecated and hardened-out**. The DB column is kept (idempotent `ADD COLUMN IF NOT EXISTS` migration) but the backend no longer reads, writes, or returns it — it is not in any SELECT, not in `ProfileUpdateInput`, not in `update_profile` allowed/clearable. The column can be dropped in a future `DROP COLUMN` migration.
 
 #### Status Values (unified)
 
@@ -6408,13 +6408,20 @@ Visitors never see this class.
 - Do NOT show the picker in preview mode or to visitors
 - Do NOT invent dot colors outside the four defined values
 
-#### Files Changed (unified)
+#### Public Profile URL
+
+The profile share link uses `/u/{tw_id}` (Profile V2 public URL), not the legacy `/profile?id=` route. This applies to:
+- The link row displayed on the card (`#scLinkText`)
+- The clipboard copy button (`#scLinkCopy`)
+- QR code URL (always used `/u/` — unchanged)
+
+#### Files Changed (final state)
 
 | File | Change |
 |------|--------|
-| `auth.py` | `avail` already in all SELECTs + `update_profile` allowed list; `availability_status` migration kept but value unused |
-| `server.py` | `avail: Optional[str] = None` in `ProfileUpdateInput` (already existed) |
-| `profile-showcase.html` | `#epAvail` options updated to semantic values; `#scAvailDot` + `#scAvailPicker` in avatar wrap; version bumps |
-| `profile-v2.css` | `.sc-avail-dot`, `.sc-avail-dot.is-empty-owner`, `.sc-avail-picker`, `.sc-avail-opt` and related styles |
-| `profile-v2.render.js` | Reads `p.avail`; `_STATUS_MAP` includes legacy compat; saves to `avail`; `_renderAvailDot` with `effectiveOwner` + preview guard |
+| `auth.py` | `avail` in all SELECTs; `availability_status` removed from all SELECTs, `allowed`, and `_clearable`; DB migration kept (column not dropped yet) |
+| `server.py` | `availability_status` removed from `ProfileUpdateInput`; `avail: Optional[str] = None` remains |
+| `profile-showcase.html` | `#epAvail` options use semantic values; `#scAvailDot`+`#scAvailPicker` in avatar wrap; version bumps |
+| `profile-v2.css` | `.sc-avail-dot` (18px, 44px tap target), `.sc-avail-dot.is-empty-owner`, `.sc-avail-picker`, `.sc-avail-opt` styles |
+| `profile-v2.render.js` | Reads `p.avail`; `_STATUS_MAP` includes legacy compat; saves to `avail`; profile URL uses `/u/{tw_id}`; `_renderAvailDot` with `effectiveOwner` + preview guard |
 | `profile-v2.edit.js` | After saving `avail`, calls `_renderAvailDot` to sync dot immediately |

@@ -379,3 +379,21 @@ Rules:
 - Implementation status → document what is done vs. pending
 
 If `CLAUDE.md` contains AI behavior rules relevant to the new feature, add a summary there too.
+
+---
+
+## Employment / Availability Status Rules (mandatory)
+
+These rules are permanent and apply to all future AI sessions:
+
+1. **`profiles.avail` is the single source of truth** for employment/availability status. No second field may serve the same purpose.
+
+2. **`availability_status` is deprecated and hardened-out.** The DB column exists but must not appear in:
+   - `ProfileUpdateInput` fields
+   - `update_profile` `allowed` or `_clearable` lists
+   - Any SELECT query in `auth.py`
+   - Any frontend variable or API call
+
+3. **The availability dot on the profile avatar is a visual shortcut to `avail`.** Saving from the dot writes to `avail`; saving from the edit modal writes to `avail`; both surfaces must always be in sync.
+
+4. **Public profile share URL must always be `/u/{tw_id}`**, not `/profile?id=`. The `/u/{tw_id}` route is served by `server.py` and is the canonical public URL for Profile V2.

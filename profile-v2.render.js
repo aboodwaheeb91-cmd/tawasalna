@@ -506,7 +506,7 @@ window.renderProfile = function renderProfile(res){
   if(window._renderAvailDot) window._renderAvailDot(p.avail || null, _vt === 'owner');
 
   // Profile link row — single version using onclick (safe on re-render, Doctrine §28)
-  var _profileUrl = location.origin + '/profile?id=' + encodeURIComponent(p.tw_id || _scProfileId);
+  var _profileUrl = location.origin + '/u/' + encodeURIComponent(p.tw_id || _scProfileId);
   var linkRow  = document.getElementById('scLinkRow');
   var linkText = document.getElementById('scLinkText');
   var linkCopy = document.getElementById('scLinkCopy');
