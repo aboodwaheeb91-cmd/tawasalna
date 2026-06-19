@@ -215,6 +215,7 @@
           window._scProfile.experience = window._scProfile.experience.filter(function(e){ return e.id !== id; });
         }
         toast('تم حذف الخبرة');
+        if(window._updateCompletion) window._updateCompletion();
         _reRenderExp();
         _bgRefetch();
       })
@@ -344,6 +345,7 @@
         }
         closeModal();
         toast(_mode === 'add' ? 'تمت إضافة الخبرة' : 'تم تعديل الخبرة');
+        if(window._updateCompletion) window._updateCompletion();
         _reRenderExp();
         _bgRefetch();
       })

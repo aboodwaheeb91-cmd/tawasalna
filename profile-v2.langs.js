@@ -50,6 +50,7 @@
       }
       closeModal();
       toast('تمت الإضافة');
+      if(window._updateCompletion) window._updateCompletion();
       _reRenderLangs();
       if(window._bgRefetch) window._bgRefetch();
     }).catch(function(){
@@ -120,6 +121,7 @@
         if(cache) cache.langs = (cache.langs||[]).filter(function(l){ return l.id!==id; });
         _reRenderLangs();
         toast('تم حذف اللغة');
+        if(window._updateCompletion) window._updateCompletion();
         if(window._bgRefetch) window._bgRefetch();
       }).catch(function(){ toast('خطأ في الاتصال بالخادم'); });
     });

@@ -60,6 +60,7 @@
       }
       closeModal();
       toast('تمت الإضافة');
+      if(window._updateCompletion) window._updateCompletion();
       _reRenderLinks();
       if(window._bgRefetch) window._bgRefetch();
     }).catch(function(){
@@ -131,6 +132,7 @@
         if(cache) cache.links = (cache.links||[]).filter(function(l){ return l.id!==id; });
         _reRenderLinks();
         toast('تم حذف الرابط');
+        if(window._updateCompletion) window._updateCompletion();
         if(window._bgRefetch) window._bgRefetch();
       }).catch(function(){ toast('خطأ في الاتصال بالخادم'); });
     });

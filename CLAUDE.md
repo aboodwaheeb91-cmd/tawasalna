@@ -397,3 +397,24 @@ These rules are permanent and apply to all future AI sessions:
 3. **The availability dot on the profile avatar is a visual shortcut to `avail`.** Saving from the dot writes to `avail`; saving from the edit modal writes to `avail`; both surfaces must always be in sync.
 
 4. **Public profile share URL must always be `/u/{tw_id}`**, not `/profile?id=`. The `/u/{tw_id}` route is served by `server.py` and is the canonical public URL for Profile V2.
+
+---
+
+## Profile Completion Card Rules (mandatory for all AI sessions)
+
+These rules are permanent and apply to all future AI sessions:
+
+1. **The completion card is owner-only.** It must never be visible to visitors, guests, or in preview mode. Three independent layers enforce this:
+   - `style="display:none"` on `#scComplCard` in HTML (default hidden)
+   - `renderProfile` in `profile-v2.render.js` shows it **only** when `_vt === 'owner'`; the `else` branch explicitly hides it and clears `#scComplList`
+   - `_isOwnerActive()` inside `profile-v2.completion.js` checks `window._scViewerType === 'owner'` AND body has no `preview-public-user` / `preview-guest` class; `_render`, `_doAction`, and all click handlers bail immediately if this returns `false`
+
+2. **`window._scProfile` is the only data source.** No localStorage reads, no separate API calls, no hardcoded data.
+
+3. **Weights must always sum to 100.** Adding or removing a checklist item requires rebalancing all weights so the total remains exactly 100.
+
+4. **`window._scViewerType`** is set by `renderProfile` in `profile-v2.render.js` (`= _vt`). It is the authoritative viewer-type signal for all IIFE modules including `completion.js`. Do not read it before `renderProfile` runs.
+
+5. **`window._updateCompletion()`** must be called after every successful add/edit/delete in all section save handlers (`exp`, `edu`, `courses`, `skills`, `langs`, `links`, `avatar`, `edit`). Do not add a new section save handler without this call.
+
+6. **Do NOT invent a separate completion API endpoint.** The card derives its state entirely from the already-loaded `window._scProfile`.

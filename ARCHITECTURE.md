@@ -6425,3 +6425,82 @@ The profile share link uses `/u/{tw_id}` (Profile V2 public URL), not the legacy
 | `profile-v2.css` | `.sc-avail-dot` (18px, 44px tap target), `.sc-avail-dot.is-empty-owner`, `.sc-avail-picker`, `.sc-avail-opt` styles |
 | `profile-v2.render.js` | Reads `p.avail`; `_STATUS_MAP` includes legacy compat; saves to `avail`; profile URL uses `/u/{tw_id}`; `_renderAvailDot` with `effectiveOwner` + preview guard |
 | `profile-v2.edit.js` | After saving `avail`, calls `_renderAvailDot` to sync dot immediately |
+
+---
+
+## Profile Completion Card
+
+### Purpose
+
+Owner-only card displayed below the main profile card on Profile V2 (`profile-showcase.html`). Shows the owner a live percentage of how complete their profile is and a clickable checklist of missing items. Visitors and preview modes never see this card.
+
+### Data Source
+
+Reads exclusively from `window._scProfile` (the global flat profile state set by `renderProfile`). No localStorage, no DB calls, no separate API request.
+
+### Files
+
+| File | Role |
+|------|------|
+| `profile-v2.completion.js` | Self-contained IIFE: scoring, rendering, toggle, click dispatch |
+| `profile-v2.css` | `.sc-compl-card` and all child element styles |
+| `profile-showcase.html` | `#scComplCard` card markup (inside `#scContent`, after `.sc-main-card`) |
+| `profile-v2.render.js` | Shows card + calls `_renderCompletion()` at end of `renderProfile` (owner only) |
+| All section JS files | Call `_updateCompletion()` after every add/edit/delete save |
+
+### Scored Items
+
+| id | Label | Weight |
+|----|-------|--------|
+| `avatar` | صورة شخصية | 10 |
+| `name` | الاسم الكامل | 8 |
+| `profession` | التخصص المهني | 8 |
+| `avail` | حالة التوظيف | 5 |
+| `short_bio` | نبذة قصيرة | 7 |
+| `bio` | نبذة عني | 8 |
+| `location` | المدينة / الدولة | 6 |
+| `skills` | المهارات | 9 |
+| `exp` | الخبرات | 10 |
+| `edu` | التعليم | 8 |
+| `courses` | الدورات | 5 |
+| `langs` | اللغات | 5 |
+| `links` | روابط التواصل | 5 |
+| `tw_id` | رابط مشاركة عام | 6 |
+| **Total** | | **100** |
+
+### Visibility Contract
+
+1. `#scComplCard` starts as `style="display:none"` in HTML.
+2. `renderProfile` in `profile-v2.render.js` shows the card and calls `window._renderCompletion()` **only** when `_vt === 'owner'`.
+3. The card also carries the `owner-only` CSS class, which forces `display:none` in `body.preview-public-user` and `body.preview-guest` via the shared owner-only rule in `profile-v2.css`.
+4. Visitors (`body.public-view`, `body.view-guest`) never reach the owner branch, so the card remains `display:none`.
+
+### Global Functions
+
+| Function | Exposed on | Description |
+|----------|-----------|-------------|
+| `window._renderCompletion()` | `profile-v2.completion.js` | Full re-render of card content from `_scProfile` |
+| `window._updateCompletion()` | alias of `_renderCompletion` | Called by section saves to refresh card immediately |
+
+### Action Mapping
+
+| action value | What it does |
+|---|---|
+| `avatar` | `click()` on `#avCamBtn` |
+| `edit-modal` | `click()` on `#scEditProfileBtn` |
+| `avail-dot` | `click()` on `#scAvailDot` |
+| `tab-skills` | `window._aboutGoTab('skills')` + smooth scroll |
+| `tab-exp` | `window._aboutGoTab('exp')` + smooth scroll |
+| `tab-edu` | `window._aboutGoTab('edu')` + smooth scroll |
+| `tab-courses` | `window._aboutGoTab('courses')` + smooth scroll |
+| `tab-langs` | `window._aboutGoTab('langs')` + smooth scroll |
+| `tab-links` | `window._aboutGoTab('links')` + smooth scroll |
+| `none` | No action (e.g. `tw_id` — set server-side) |
+
+### Forbidden Patterns
+
+- Do NOT read from localStorage for completion state — use `window._scProfile` only
+- Do NOT show the card to visitors or in preview mode
+- Do NOT call any API endpoint from `completion.js`
+- Do NOT add a new item without ensuring its weight keeps the total at 100
+- Do NOT call `_renderCompletion` in non-owner contexts

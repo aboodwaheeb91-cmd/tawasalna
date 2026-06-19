@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/tw_shared.css">
-  <link rel="stylesheet" href="/static/profile-v2.css?v=avail-v4">
+  <link rel="stylesheet" href="/static/profile-v2.css?v=compl-v1">
   <script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
 </head>
 <body>
@@ -207,6 +207,17 @@
           <div class="sc-pane" id="pane-langs"><div id="scLangsPane"></div></div>
           <div class="sc-pane" id="pane-links"><div id="scLinksPane"></div></div>
         </div>
+      </div>
+
+      <!-- Profile Completion Card — owner-only, hidden until renderProfile sets it visible -->
+      <div class="sc-compl-card owner-only" id="scComplCard" style="display:none">
+        <div class="sc-compl-header">
+          <span class="sc-compl-title">اكتمال الملف</span>
+          <span class="sc-compl-pct" id="scComplPct">—</span>
+        </div>
+        <div class="sc-compl-bar"><div class="sc-compl-fill" id="scComplFill"></div></div>
+        <button class="sc-compl-toggle" id="scComplToggle" type="button">عرض البنود الناقصة ▾</button>
+        <div class="sc-compl-list" id="scComplList" style="display:none"></div>
       </div>
     </div>
   </div>
@@ -735,18 +746,19 @@
   <script src="/static/profile-v2.api.js?v=modular-v1"></script>
   <script src="/static/qrcode.min.js"></script>
   <script src="/static/profile-v2.qr.js?v=qr-card-v1"></script>
-  <script src="/static/profile-v2.render.js?v=avail-v5"></script>
-  <script src="/static/profile-v2.edit.js?v=avail-v3"></script>
-  <script src="/static/profile-v2.exp.js?v=profanity-v1"></script>
+  <script src="/static/profile-v2.render.js?v=compl-v2"></script>
+  <script src="/static/profile-v2.edit.js?v=compl-v1"></script>
+  <script src="/static/profile-v2.exp.js?v=compl-v1"></script>
   <script src="/static/profile-v2.cover.js?v=modular-v1"></script>
-  <script src="/static/profile-v2.avatar.js?v=modular-v1"></script>
+  <script src="/static/profile-v2.avatar.js?v=compl-v1"></script>
   <script src="/static/profile-v2.select.js?v=audit-v1"></script>
-  <script src="/static/profile-v2.edu.js?v=profanity-v1"></script>
-  <script src="/static/profile-v2.courses.js?v=profanity-v1"></script>
-  <script src="/static/profile-v2.skills.js?v=cards-v1"></script>
-  <script src="/static/profile-v2.langs.js?v=profanity-v1"></script>
-  <script src="/static/profile-v2.links.js?v=modular-v1"></script>
+  <script src="/static/profile-v2.edu.js?v=compl-v1"></script>
+  <script src="/static/profile-v2.courses.js?v=compl-v1"></script>
+  <script src="/static/profile-v2.skills.js?v=compl-v1"></script>
+  <script src="/static/profile-v2.langs.js?v=compl-v1"></script>
+  <script src="/static/profile-v2.links.js?v=compl-v1"></script>
   <script src="/static/profile-v2.history.js?v=audit-v1"></script>
+  <script src="/static/profile-v2.completion.js?v=compl-v2"></script>
 
 </body>
 </html>

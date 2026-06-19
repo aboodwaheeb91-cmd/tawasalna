@@ -863,6 +863,17 @@ window.renderProfile = function renderProfile(res){
   getScore(numId)
     .then(function(sc){ if(sc && typeof sc.score!=='undefined') setText('scStatScore', sc.score); })
     .catch(function(){ /* score stays — */ });
+
+  // Completion card — owner-only; explicit show/hide on every render
+  var _complCard = document.getElementById('scComplCard');
+  var _complList = document.getElementById('scComplList');
+  if(_vt === 'owner'){
+    if(_complCard) _complCard.style.display = '';
+    if(window._renderCompletion) window._renderCompletion();
+  } else {
+    if(_complCard){ _complCard.style.display = 'none'; }
+    if(_complList){ _complList.innerHTML = ''; }
+  }
 }; // end renderProfile
 
 // ── Initial load ──
