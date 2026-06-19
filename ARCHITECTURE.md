@@ -6428,11 +6428,19 @@ The profile share link uses `/u/{tw_id}` (Profile V2 public URL), not the legacy
 
 ---
 
-## Profile Completion Card
+## Profile Completion Strip
 
 ### Purpose
 
-Owner-only card displayed below the main profile card on Profile V2 (`profile-showcase.html`). Shows the owner a live percentage of how complete their profile is and a clickable checklist of missing items. Visitors and preview modes never see this card.
+Owner-only compact strip placed **inside `.sc-main-card`, between `.sc-actions` and `.sc-stats`**. Shows the owner a one-line progress bar with percentage and a "تفاصيل" button that expands a checklist of missing items. At 100% it shows a celebration state with a "تم" dismiss button. Visitors and preview modes never see this strip.
+
+### Design: Compact Strip
+
+- Height: ~44px in collapsed state; expands when "تفاصيل" is clicked
+- Components: title label | progress bar | percentage | toggle button
+- Details panel: missing items (clickable) + done items + optional rule-based suggestions
+- 100% state: label → "ملفك مكتمل 🎉", toggle → "تم" (dismisses for the session)
+- Dismiss: IIFE-level `_dismissed` flag (resets on page reload, no persistence)
 
 ### Data Source
 
@@ -6442,10 +6450,10 @@ Reads exclusively from `window._scProfile` (the global flat profile state set by
 
 | File | Role |
 |------|------|
-| `profile-v2.completion.js` | Self-contained IIFE: scoring, rendering, toggle, click dispatch |
-| `profile-v2.css` | `.sc-compl-card` and all child element styles |
-| `profile-showcase.html` | `#scComplCard` card markup (inside `#scContent`, after `.sc-main-card`) |
-| `profile-v2.render.js` | Shows card + calls `_renderCompletion()` at end of `renderProfile` (owner only) |
+| `profile-v2.completion.js` | IIFE: scoring, rendering, toggle, dismiss, rule-based suggestions |
+| `profile-v2.css` | `.sc-compl-strip` and all child element styles |
+| `profile-showcase.html` | `#scComplCard` strip markup inside `.sc-main-card`, between `.sc-actions` and `.sc-stats` |
+| `profile-v2.render.js` | Shows strip + calls `_renderCompletion()` at end of `renderProfile` (owner only) |
 | All section JS files | Call `_updateCompletion()` after every add/edit/delete save |
 
 ### Scored Items
@@ -6497,10 +6505,20 @@ Reads exclusively from `window._scProfile` (the global flat profile state set by
 | `tab-links` | `window._aboutGoTab('links')` + smooth scroll |
 | `none` | No action (e.g. `tw_id` — set server-side) |
 
+### Course Suggestions (rule-based)
+
+`_buildSuggestions()` in `completion.js` matches keywords from `p.title`, `p.profession.name_ar`, `p.bio`, and `p.skills[]` against a fixed map of 8 domain categories. Returns up to 3 matching suggestions. Shown inside the details panel as compact tag chips.
+
+- No API call — purely local keyword matching
+- Shows only when panel is open and at least one keyword matches
+- Do NOT replace with random/hardcoded suggestions
+
 ### Forbidden Patterns
 
 - Do NOT read from localStorage for completion state — use `window._scProfile` only
-- Do NOT show the card to visitors or in preview mode
+- Do NOT persist dismiss state across sessions — use IIFE-level `_dismissed` variable only
+- Do NOT show the strip to visitors or in preview mode
 - Do NOT call any API endpoint from `completion.js`
 - Do NOT add a new item without ensuring its weight keeps the total at 100
 - Do NOT call `_renderCompletion` in non-owner contexts
+- Do NOT move the strip outside `.sc-main-card` — it must sit between `.sc-actions` and `.sc-stats`

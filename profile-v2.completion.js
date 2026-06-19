@@ -1,8 +1,11 @@
-// profile-v2.completion.js — Profile completion card (owner-only, Profile V2)
+// profile-v2.completion.js — Compact Completion Strip (owner-only, Profile V2)
 // Reads exclusively from window._scProfile — no localStorage, no DB field.
 // Weights sum to 100. Call window._updateCompletion() after any profile save.
 ;(function(){
   'use strict';
+
+  // Session-level dismiss — reset on page reload, no persistence
+  var _dismissed = false;
 
   var _ITEMS = [
     { id:'avatar',    label:'صورة شخصية',       weight:10, action:'avatar'      },
@@ -22,8 +25,7 @@
   ];
   // Total: 10+8+8+5+7+8+6+9+10+8+5+5+5+6 = 100
 
-  // Returns true only when the current viewer is the authenticated owner
-  // and is NOT in any preview mode.
+  // Returns true only when viewing as authenticated owner outside any preview mode
   function _isOwnerActive(){
     if(window._scViewerType !== 'owner') return false;
     var b = document.body;
@@ -61,6 +63,37 @@
     return Math.min(s, 100);
   }
 
+  // Rule-based suggestions from profile title/profession/skills — no API call
+  function _buildSuggestions(){
+    var p   = window._scProfile || {};
+    var src = [
+      (p.title || ''),
+      ((p.profession && (p.profession.name_ar || p.profession.name || '')) || ''),
+      (p.bio || ''),
+    ].join(' ').toLowerCase();
+    var skillStr = (p.skills || []).map(function(s){
+      return (s.skill || s.name || '').toLowerCase();
+    }).join(' ');
+    var all = src + ' ' + skillStr;
+
+    var map = [
+      { re:/javascript|react|vue|angular|frontend|html|css|node|typescript/,  label:'تطوير الواجهات الأمامية'          },
+      { re:/python|django|fastapi|backend|laravel|php|api|java|spring/,        label:'تطوير الخلفية والـ API'            },
+      { re:/data|machine.?learn|ai|analytics|power.?bi|tensorflow|pandas/,     label:'تحليل البيانات والذكاء الاصطناعي' },
+      { re:/تسويق|marketing|seo|social.?media|content|google.?ads/,            label:'التسويق الرقمي'                   },
+      { re:/design|ui|ux|figma|photoshop|illustrator|تصميم/,                   label:'تصميم UI/UX'                      },
+      { re:/project|management|agile|scrum|pmp|إدارة.?مشاريع/,                 label:'إدارة المشاريع'                   },
+      { re:/accounting|finance|excel|محاسبة|مالية|erp|sap/,                    label:'المحاسبة والمالية'                 },
+      { re:/sales|مبيعات|crm|negotiation/,                                     label:'المبيعات وخدمة العملاء'            },
+    ];
+
+    var results = [];
+    for(var i = 0; i < map.length && results.length < 3; i++){
+      if(map[i].re.test(all)) results.push(map[i].label);
+    }
+    return results;
+  }
+
   function _doAction(action){
     if(!_isOwnerActive()) return;
     if(!action || action === 'none') return;
@@ -93,48 +126,67 @@
     var card = document.getElementById('scComplCard');
     if(!card) return;
 
-    // Hard guard: hide and bail if not the active owner
+    // Hard guard — hide immediately if not the active owner
     if(!_isOwnerActive()){
       card.style.display = 'none';
-      var _safeList = document.getElementById('scComplList');
-      if(_safeList) _safeList.innerHTML = '';
+      var safeList = document.getElementById('scComplList');
+      if(safeList) safeList.innerHTML = '';
       return;
     }
 
-    var pct   = _score();
-    var color = pct >= 80 ? '#22c55e' : pct >= 50 ? '#f59e0b' : '#f87171';
+    // Dismissed this session — stay hidden
+    if(_dismissed){ card.style.display = 'none'; return; }
 
-    var pctEl  = document.getElementById('scComplPct');
-    var fillEl = document.getElementById('scComplFill');
-    var listEl = document.getElementById('scComplList');
-    var togBtn = document.getElementById('scComplToggle');
+    var pct      = _score();
+    var color    = pct >= 80 ? '#22c55e' : pct >= 50 ? '#f59e0b' : '#f87171';
+    var labelEl  = document.getElementById('scComplLabel');
+    var pctEl    = document.getElementById('scComplPct');
+    var fillEl   = document.getElementById('scComplFill');
+    var togBtn   = document.getElementById('scComplToggle');
+    var panelEl  = document.getElementById('scComplPanel');
+    var listEl   = document.getElementById('scComplList');
+    var suggestEl= document.getElementById('scComplSuggest');
 
     if(pctEl)  { pctEl.textContent = pct + '%'; pctEl.style.color = color; }
     if(fillEl) { fillEl.style.width = pct + '%'; fillEl.style.background = color; }
 
     if(pct >= 100){
-      if(togBtn) togBtn.textContent = '🎉 ملفك مكتمل!';
-      if(listEl) listEl.style.display = 'none';
+      if(labelEl) labelEl.textContent = 'ملفك مكتمل 🎉';
+      if(togBtn){
+        togBtn.textContent = 'تم';
+        togBtn.classList.add('is-done');
+        togBtn.classList.remove('is-open');
+      }
+      if(panelEl) panelEl.style.display = 'none';
       return;
     }
+
+    // Incomplete state — reset header labels
+    if(labelEl) labelEl.textContent = 'اكتمال الملف';
+    if(togBtn){
+      togBtn.classList.remove('is-done');
+      // Only reset button text if panel is currently closed
+      if(!panelEl || panelEl.style.display === 'none'){
+        togBtn.textContent = 'تفاصيل ▾';
+        togBtn.classList.remove('is-open');
+      }
+    }
+
+    // Don't rebuild list while panel is hidden — wait for user to open it
+    if(!panelEl || panelEl.style.display === 'none') return;
+    if(!listEl) return;
 
     var missing = [], done = [];
     for(var i = 0; i < _ITEMS.length; i++){
       (_isDone(_ITEMS[i].id) ? done : missing).push(_ITEMS[i]);
     }
 
-    if(togBtn && listEl && listEl.style.display === 'none'){
-      togBtn.textContent = missing.length + ' بنود ناقصة — عرض التفاصيل ▾';
-    }
-
-    if(!listEl) return;
-
     var html = '';
     for(var m = 0; m < missing.length; m++){
       var it = missing[m];
       html += '<button type="button" class="sc-compl-item missing" data-action="' + it.action + '">'
         + '<span class="sc-compl-ico sc-compl-ico-miss"></span>'
-        + '<span class="sc-compl-label">' + it.label + '</span>'
+        + '<span class="sc-compl-label-text">' + it.label + '</span>'
         + (it.action !== 'none' ? '<span class="sc-compl-weight">+' + it.weight + '%</span>' : '')
         + '</button>';
     }
@@ -142,10 +194,24 @@
       var it2 = done[d];
       html += '<button type="button" class="sc-compl-item done" disabled>'
         + '<span class="sc-compl-ico sc-compl-ico-done"></span>'
-        + '<span class="sc-compl-label">' + it2.label + '</span>'
+        + '<span class="sc-compl-label-text">' + it2.label + '</span>'
         + '</button>';
     }
     listEl.innerHTML = html;
+
+    // Suggestions — rule-based, no API
+    if(suggestEl){
+      var suggs = _buildSuggestions();
+      if(suggs.length){
+        suggestEl.innerHTML = '<div class="sc-compl-suggest-title">اقتراحات تناسب تخصصك</div>'
+          + '<div class="sc-compl-suggest-tags">'
+          + suggs.map(function(s){ return '<span class="sc-compl-suggest-tag">' + s + '</span>'; }).join('')
+          + '</div>';
+        suggestEl.style.display = '';
+      } else {
+        suggestEl.style.display = 'none';
+      }
+    }
   }
 
   window._renderCompletion = _render;
@@ -160,20 +226,34 @@
     if(act) _doAction(act);
   });
 
-  // Toggle list open/close (owner-active guard)
+  // Toggle: open/close panel, or dismiss at 100% (owner-active guard)
   document.addEventListener('click', function(e){
     if(!e.target.closest('#scComplToggle')) return;
     if(!_isOwnerActive()) return;
-    var list = document.getElementById('scComplList');
-    var btn  = document.getElementById('scComplToggle');
-    if(!list || !btn) return;
-    var isOpen = list.style.display !== 'none';
-    list.style.display = isOpen ? 'none' : 'block';
+
+    var togBtn  = document.getElementById('scComplToggle');
+    var panelEl = document.getElementById('scComplPanel');
+    var card    = document.getElementById('scComplCard');
+    if(!togBtn) return;
+
+    // "تم" at 100% — dismiss for this page session
+    if(togBtn.classList.contains('is-done')){
+      _dismissed = true;
+      if(card) card.style.display = 'none';
+      return;
+    }
+
+    if(!panelEl) return;
+    var isOpen = panelEl.style.display !== 'none';
     if(isOpen){
-      var mc = _ITEMS.filter(function(it){ return !_isDone(it.id); }).length;
-      btn.textContent = mc + ' بنود ناقصة — عرض التفاصيل ▾';
+      panelEl.style.display = 'none';
+      togBtn.textContent = 'تفاصيل ▾';
+      togBtn.classList.remove('is-open');
     } else {
-      btn.textContent = 'إخفاء التفاصيل ▴';
+      panelEl.style.display = '';
+      togBtn.textContent = 'إخفاء ▴';
+      togBtn.classList.add('is-open');
+      _render();  // build list now that panel is visible
     }
   });
 })();
