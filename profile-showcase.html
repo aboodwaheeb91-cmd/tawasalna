@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/tw_shared.css">
-  <link rel="stylesheet" href="/static/profile-v2.css?v=compl-v4">
+  <link rel="stylesheet" href="/static/profile-v2.css?v=compl-v5">
   <script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
 </head>
 <body>
@@ -169,7 +169,7 @@
           <!-- Growth mode row (= 100%) — one suggestion at a time -->
           <div class="sc-growth-row" id="scGrowthRow" style="display:none">
             <span class="sc-growth-badge">اقتراح</span>
-            <span class="sc-growth-text" id="scGrowthText">—</span>
+            <span class="sc-growth-text" id="scGrowthText" role="button" tabindex="0" title="اضغط لمعرفة التفاصيل">—</span>
             <button class="sc-growth-btn" id="scGrowthNext" type="button" title="الاقتراح التالي">›</button>
             <button class="sc-growth-btn" id="scGrowthDet" type="button">تفاصيل</button>
             <button class="sc-growth-btn sc-growth-dismiss" id="scGrowthHide" type="button" title="إخفاء">✕</button>
@@ -180,6 +180,8 @@
             <div class="sc-growth-benefit" id="scGrowthBenefit"></div>
             <button class="sc-growth-action" id="scGrowthAction" type="button" style="display:none"></button>
           </div>
+          <!-- Toast: brief explanation shown on suggestion text click (auto-dismiss) -->
+          <div class="sc-growth-toast" id="scGrowthToast" style="display:none"></div>
         </div>
 
         <!-- Stats: 5 cells RTL order: الشهادات ← القوة ← المشاهدات ← المتابعون ← الخبرات -->
@@ -768,7 +770,7 @@
   <script src="/static/profile-v2.api.js?v=modular-v1"></script>
   <script src="/static/qrcode.min.js"></script>
   <script src="/static/profile-v2.qr.js?v=qr-card-v1"></script>
-  <script src="/static/profile-v2.render.js?v=compl-v4"></script>
+  <script src="/static/profile-v2.render.js?v=compl-v5"></script>
   <script src="/static/profile-v2.edit.js?v=compl-v1"></script>
   <script src="/static/profile-v2.exp.js?v=compl-v1"></script>
   <script src="/static/profile-v2.cover.js?v=modular-v1"></script>
@@ -780,7 +782,7 @@
   <script src="/static/profile-v2.langs.js?v=compl-v1"></script>
   <script src="/static/profile-v2.links.js?v=compl-v1"></script>
   <script src="/static/profile-v2.history.js?v=audit-v1"></script>
-  <script src="/static/profile-v2.completion.js?v=compl-v4"></script>
+  <script src="/static/profile-v2.completion.js?v=compl-v5"></script>
 
 </body>
 </html>

@@ -4,9 +4,10 @@
 ;(function(){
   'use strict';
 
-  // Session-level dismiss — reset on page reload, no persistence
-  var _dismissed  = false;
-  var _growthIdx  = 0;
+  // Session-level state — all reset on page reload, no persistence
+  var _dismissed   = false;
+  var _growthIdx   = 0;
+  var _toastTimer  = null;
 
   var _ITEMS = [
     { id:'avatar',    label:'صورة شخصية',       weight:10, action:'avatar'      },
@@ -65,7 +66,9 @@
   }
 
   // ── Growth Suggestions (rule-based, no API) ──────────────────────────────
-  // Each rule: { id, text, reason, benefit, action }
+  // Each rule: { id, text, toast, reason, benefit, action }
+  // text  — short ethical framing (learn first, then document)
+  // toast — 3-4 sentence explanation shown on suggestion-text click
   // Filtered out if the profile already satisfies the condition.
   function _buildGrowthSuggestions(){
     var p        = window._scProfile || {};
@@ -100,92 +103,102 @@
     var rules = [
       {
         id:      'react',
-        // Triggers for front-end profiles (Arabic + English keywords); disappears when React is in skills
+        // Triggers for front-end profiles (AR+EN); disappears when React is in skills
         cond:    /javascript|frontend|html|css|واجهات|واجهة|فرونت/.test(_all) && !/react/.test(skillStr),
-        text:    'أضف مهارة React.js',
-        reason:  'ملفك يشير إلى خلفية في تطوير الواجهات الأمامية ولكن React.js غير مضافة.',
-        benefit: 'React من أكثر المهارات طلباً في وظائف الفرونت إند حالياً.',
+        text:    'احصل على دورة React.js ثم أضفها لملفك',
+        toast:   'React أكثر مكتبات الواجهات طلباً في سوق العمل. بعد ما تنتهي من دورة React أضف المهارة لقسم مهاراتك لتُظهر للشركات مستواك التقني.',
+        reason:  'ملفك يُشير إلى خلفية في تطوير الواجهات، لكن React.js غير موثقة بعد.',
+        benefit: 'React تفتح أمامك فرص الفرونت إند وتقوّي مكانتك في السوق.',
         action:  'tab-skills',
       },
       {
         id:      'git',
-        // Triggers for any developer profile (Arabic + English); disappears when Git is in skills
+        // Triggers for any developer profile (AR+EN); disappears when Git is in skills
         cond:    /developer|frontend|backend|تطوير|مطور|برمجيات|برمجة/.test(_all) && !/git/.test(skillStr),
-        text:    'أضف مهارة Git',
-        reason:  'Git أساسي لأي مطوّر ولم يُذكر في مهاراتك.',
-        benefit: 'يرفع مصداقية ملفك أمام المسؤولين عن التوظيف.',
+        text:    'تعلّم Git ثم وثّقه ضمن مهاراتك',
+        toast:   'Git أساسي لأي مطوّر ويُثبت قدرتك على العمل ضمن فريق. ابدأ باستخدامه في مشاريعك ثم وثّق المهارة في ملفك حتى تنعكس خبرتك الحقيقية.',
+        reason:  'Git غير مُذكر في مهاراتك رغم أهميته لكل مطوّر.',
+        benefit: 'يرفع مصداقية ملفك أمام الفرق التقنية ومسؤولي التوظيف.',
         action:  'tab-skills',
       },
       {
         id:      'nodejs',
         // Triggers for JS/backend profiles; disappears when Node is in skills
         cond:    /javascript|node|backend|خلفية|باك.?اند/.test(_all) && !/node/.test(skillStr),
-        text:    'أضف مهارة Node.js',
-        reason:  'خلفيتك في JavaScript تجعل Node.js إضافة طبيعية للملف.',
-        benefit: 'يفتح لك فرص وظائف الـ Full Stack.',
+        text:    'تعلّم Node.js ثم أضفه لمهاراتك',
+        toast:   'Node.js يُمكّنك من العمل على الـ Full Stack وزيادة قيمتك في سوق العمل. بعد ما تنتهي من تعلمه وتطبّقه في مشروع أضفه لقسم مهاراتك.',
+        reason:  'خلفيتك في JavaScript تجعل Node.js الخطوة التالية الطبيعية.',
+        benefit: 'يفتح لك فرص وظائف الـ Full Stack والـ Backend.',
         action:  'tab-skills',
       },
       {
         id:      'sql_course',
-        // Triggers when profile has SQL/data context (including SQL in skills) but NO SQL course yet.
-        // Having SQL as a skill without a course is a stronger reason to suggest the course — not a reason to suppress it.
+        // Triggers when profile has SQL/data context OR SQL as a skill but no documented SQL course.
+        // SQL in skills WITHOUT a course is a stronger reason to suggest the course, not suppress it.
         cond:    (/data|analyst|backend|erp|بيانات|قواعد.?بيانات|تحليل/.test(_all) || /sql/.test(skillStr))
                  && !/sql|database|قواعد/.test(courseStr),
-        text:    'أضف دورة SQL أو قواعد البيانات',
+        text:    'احصل على دورة SQL أو قواعد البيانات ثم أضفها لملفك',
+        toast:   'دورة SQL تُثبت مهارتك بشكل رسمي وتساعد أصحاب العمل على فهم مستواك بسرعة. بعد ما تحصل عليها أضفها لقسم الدورات لتُكمل صورة ملفك المهني.',
         reason:  'لديك خلفية في البيانات أو قواعد البيانات ولكن لا توجد دورة موثقة في ملفك.',
-        benefit: 'الدورة تُثبت مهارتك بشكل رسمي وتُفتح أمامك وظائف التحليل والـ Backend.',
+        benefit: 'الدورة تُكمل ما تُظهره مهاراتك وتفتح أمامك وظائف التحليل والـ Backend.',
         action:  'tab-courses',
       },
       {
         id:      'github_link',
-        // Triggers for developer profiles (Arabic + English); disappears when GitHub link is added
+        // Triggers for developer profiles (AR+EN); disappears when GitHub link is added
         cond:    /developer|frontend|backend|مطور|برمجيات|برمجة/.test(_all) && !/github/.test(linkStr),
-        text:    'أضف رابط GitHub الخاص بك',
+        text:    'أنشئ أو حدّث GitHub ثم أضف رابطه لملفك',
+        toast:   'رابط GitHub يُبرز مشاريعك الفعلية أمام الشركات. إذا عندك مشاريع موجودة انشرها على GitHub وأضف الرابط، وإذا لم يكن لديك مشاريع بعد ابدأ بنشر أعمالك أو مشاريعك الدراسية.',
         reason:  'لا يوجد رابط GitHub في روابط تواصلك حتى الآن.',
-        benefit: 'يُبرز مشاريعك ويُقنع الشركات بمهاراتك التقنية.',
+        benefit: 'يُقنع الشركات بمهاراتك التقنية أكثر من أي وصف نصي.',
         action:  'tab-links',
       },
       {
         id:      'english',
-        // Suggests adding English as a language. Disappears once English appears in langs section.
+        // Suggests developing and adding English. Disappears once English appears in langs section.
         cond:    !/english|إنجليزي|الإنجليزية/.test(langStr),
-        text:    'أضف اللغة الإنجليزية إلى ملفك',
+        text:    'طوّر لغتك الإنجليزية ثم أضف مستواك للملف',
+        toast:   'اللغة الإنجليزية تفتح لك وظائف الشركات الدولية والعمل عن بُعد. بعد ما تُطوّر مستواك أضف اللغة ومستواك في قسم اللغات حتى يعرف أصحاب العمل أنك تتواصل بها.',
         reason:  'اللغة الإنجليزية غير مضافة إلى قسم اللغات في ملفك.',
-        benefit: 'تفتح لك أبواب وظائف الشركات الدولية والعمل عن بُعد.',
+        benefit: 'تُوسّع نطاق الفرص أمامك محلياً ودولياً.',
         action:  'tab-langs',
       },
       {
         id:      'more_exp',
         cond:    expCount === 1,
-        text:    'أضف تجربة عمل أو مشروع آخر',
+        text:    'نفّذ مشروعاً عملياً أو وثّق تجربة حقيقية في ملفك',
+        toast:   'التجارب المتعددة تُقنع الشركات بجدية مسيرتك. نفّذ مشروعاً حقيقياً أو تطوعياً، وبعد ما تنتهي وثّقه في قسم الخبرات بأثر حقيقي تُذكره.',
         reason:  'ملفك يحتوي على خبرة واحدة فقط.',
-        benefit: 'إضافة خبرة أو مشروع ثانٍ يُقوّي ملفك أمام أصحاب العمل.',
+        benefit: 'إضافة تجربة ثانية تُقوّي ملفك بشكل ملحوظ أمام أصحاب العمل.',
         action:  'tab-exp',
       },
       {
         id:      'python',
-        // Triggers for data/AI profiles (Arabic + English); disappears when Python is in skills
+        // Triggers for data/AI profiles (AR+EN); disappears when Python is in skills
         cond:    /data|machine.?learn|ai|analytics|بيانات|تحليل.?بيانات|ذكاء.?اصطناعي/.test(_all) && !/python/.test(skillStr),
-        text:    'أضف مهارة Python',
-        reason:  'اهتمامك بمجال البيانات يجعل Python خطوة أساسية.',
-        benefit: 'Python هي اللغة الأولى في علم البيانات والذكاء الاصطناعي.',
+        text:    'تعلّم Python ثم أضفه لمهاراتك',
+        toast:   'Python هي اللغة الأولى في علم البيانات والذكاء الاصطناعي. خذ دورة أساسية وطبّق ما تعلمته على بيانات حقيقية، ثم أضف Python لقسم مهاراتك.',
+        reason:  'اهتمامك بمجال البيانات يجعل Python الأداة الأساسية.',
+        benefit: 'تُضاعف فرصك في وظائف تحليل البيانات والـ AI.',
         action:  'tab-skills',
       },
       {
         id:      'php_course',
         // Triggers for PHP/backend profiles; disappears when a Laravel course is added
         cond:    /php|laravel|backend|خلفية|باك.?اند/.test(_all) && !/laravel/.test(courseStr),
-        text:    'أضف دورة Laravel أو PHP المتقدم',
-        reason:  'خلفيتك في PHP تستحق توثيق دورة تدريبية متخصصة.',
-        benefit: 'يُثبت للشركات مستواك المتقدم في تطوير الخلفية.',
+        text:    'احصل على دورة Laravel أو PHP المتقدم ثم أضفها لملفك',
+        toast:   'دورة Laravel تُثبت مستواك في تطوير الخلفية وتُقنع الشركات بعمق خبرتك. بعد ما تنتهي منها أضفها لقسم الدورات لتُكمل صورتك المهنية.',
+        reason:  'خلفيتك في PHP تستحق دورة تدريبية موثقة تُكملها.',
+        benefit: 'يُميّزك عن المطورين الذين لديهم مهارة PHP بدون توثيق رسمي.',
         action:  'tab-courses',
       },
       {
         id:      'first_course',
         cond:    courseCount === 0,
-        text:    'أضف أول دورة تدريبية لك',
+        text:    'أتمّ دورة تدريبية ثم أضفها لملفك',
+        toast:   'الدورات التدريبية تُثري ملفك وتُظهر التزامك بالتطوير المهني. أتمّ دورة في مجالك — سواء من منصة مجانية أو مدفوعة — ثم أضفها لقسم الدورات.',
         reason:  'قسم الدورات في ملفك فارغ حتى الآن.',
-        benefit: 'الدورات تُثري ملفك وتُظهر شغفك بالتطوير المهني.',
+        benefit: 'تُبيّن للشركات أنك تستثمر في تطوير نفسك باستمرار.',
         action:  'tab-courses',
       },
     ];
@@ -226,6 +239,19 @@
       if(map[i].re.test(all)) results.push(map[i].label);
     }
     return results;
+  }
+
+  // Show toast message for 4 s; clicking the suggestion text triggers this
+  function _showToast(msg){
+    var el = document.getElementById('scGrowthToast');
+    if(!el) return;
+    if(_toastTimer){ clearTimeout(_toastTimer); _toastTimer = null; }
+    el.textContent = msg;
+    el.style.display = '';
+    _toastTimer = setTimeout(function(){
+      el.style.display = 'none';
+      _toastTimer = null;
+    }, 4000);
   }
 
   function _doAction(action){
@@ -452,6 +478,17 @@
     }
   });
 
+  // ── Growth: suggestion text click → toast ────────────────────────────────
+  document.addEventListener('click', function(e){
+    var tgt = e.target.closest('#scGrowthText');
+    if(!tgt) return;
+    if(!_isOwnerActive()) return;
+    var suggs = _buildGrowthSuggestions();
+    if(!suggs.length) return;
+    var sg = suggs[_growthIdx % suggs.length];
+    if(sg && sg.toast) _showToast(sg.toast);
+  });
+
   // ── Growth: التالي ────────────────────────────────────────────────────────
   document.addEventListener('click', function(e){
     if(!e.target.closest('#scGrowthNext')) return;
@@ -459,11 +496,14 @@
     var suggs = _buildGrowthSuggestions();
     if(!suggs.length) return;
     _growthIdx = (_growthIdx + 1) % suggs.length;
-    // Close panel when cycling to next suggestion
-    var panelEl = document.getElementById('scGrowthPanel');
-    var detBtn  = document.getElementById('scGrowthDet');
-    if(panelEl) panelEl.style.display = 'none';
-    if(detBtn)  { detBtn.textContent = 'تفاصيل'; detBtn.classList.remove('is-open'); }
+    // Close panel and toast when cycling to next suggestion
+    var panelEl   = document.getElementById('scGrowthPanel');
+    var detBtn    = document.getElementById('scGrowthDet');
+    var toastEl   = document.getElementById('scGrowthToast');
+    if(panelEl)  panelEl.style.display = 'none';
+    if(detBtn)   { detBtn.textContent = 'تفاصيل'; detBtn.classList.remove('is-open'); }
+    if(toastEl)  toastEl.style.display = 'none';
+    if(_toastTimer){ clearTimeout(_toastTimer); _toastTimer = null; }
     _renderGrowthMode(suggs);
   });
 
