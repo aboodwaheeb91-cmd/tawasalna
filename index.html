@@ -27,9 +27,9 @@
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/tw_shared.css">
 <link rel="stylesheet" href="/index.css?v=auth-gw-v1">
-<a href="#main-content" class="skip-link">تخطى للمحتوى الرئيسي</a>
 </head>
 <body>
+<a href="#main-content" class="skip-link">تخطى للمحتوى الرئيسي</a>
 
 <div class="bg"><div class="orb o1"></div><div class="orb o2"></div><div class="orb o3"></div></div>
 <div class="grid"></div>
@@ -40,7 +40,7 @@
   <div class="logo">
     <div class="logo-mark nav-logo">
       <img src="https://wrxvmdmknhoufoeprpoc.supabase.co/storage/v1/object/public/site/Logo.svg"
-           alt="تواصلنا" style="height:36px;width:auto;object-fit:contain;display:block">
+           alt="تواصلنا" class="logo-img">
     </div>
     <div class="logo-sub">منصة التوظيف والتوثيق العربية</div>
   </div>
@@ -83,21 +83,20 @@
         <label>كلمة المرور</label>
         <input id="lPass" autocomplete="current-password" type="password" placeholder="••••••••">
       </div>
-      <div style="text-align:left;margin-bottom:12px">
-        <span style="font-size:.7rem;color:rgba(255,255,255,.3);cursor:pointer">نسيت كلمة المرور؟</span>
+      <div class="forgot-wrap">
+        <span class="forgot-link">نسيت كلمة المرور؟</span>
       </div>
       <button class="cta" id="loginBtn" onclick="doLogin()">دخول</button>
       <div class="switch-link">مستخدم جديد؟ <span onclick="showRegister()">سجّل الآن</span></div>
     </div>
 
     <!-- ── OR divider + Google SSO placeholder ── -->
-    <div style="margin-top:16px;display:flex;align-items:center;gap:10px">
-      <div style="flex:1;height:1px;background:rgba(255,255,255,.08)"></div>
-      <span style="font-size:.7rem;color:rgba(255,255,255,.3)">أو</span>
-      <div style="flex:1;height:1px;background:rgba(255,255,255,.08)"></div>
+    <div class="or-divider">
+      <div class="or-line"></div>
+      <span class="or-text">أو</span>
+      <div class="or-line"></div>
     </div>
-    <button onclick="showToast('قريباً - تسجيل بـ Google','info')"
-            style="width:100%;margin-top:12px;padding:11px;border-radius:12px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);color:rgba(255,255,255,.6);font-family:Cairo,sans-serif;font-size:.82rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px">
+    <button class="google-btn" onclick="showToast('قريباً - تسجيل بـ Google','info')">
       🌐 متابعة بـ Google
     </button>
 
@@ -117,12 +116,10 @@
         <input id="rPass" autocomplete="new-password" type="password"
                placeholder="6 أحرف على الأقل" oninput="checkPassStrength(this.value)">
       </div>
-      <div id="passStrengthBar"
-           style="height:3px;border-radius:2px;background:rgba(255,255,255,.08);margin-top:6px;transition:all .3s;display:none">
-        <div id="passStrengthFill" style="height:100%;border-radius:2px;width:0%;transition:all .3s"></div>
+      <div id="passStrengthBar">
+        <div id="passStrengthFill"></div>
       </div>
-      <div id="passStrengthLabel"
-           style="font-size:.65rem;color:rgba(255,255,255,.4);margin-top:3px;display:none"></div>
+      <div id="passStrengthLabel"></div>
       <button class="cta" id="regBtn" onclick="doRegister()">إنشاء حساب</button>
       <div class="switch-link">عندك حساب؟ <span onclick="showLogin()">دخول</span></div>
     </div>
