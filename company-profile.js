@@ -20,9 +20,12 @@ function switchTab(name, el) {
 }
 
 function doLogout() {
-  localStorage.removeItem('tw_user');
-  localStorage.removeItem('tw_jwt');
-  window.location.href = '/';
+  try {
+    Object.keys(localStorage)
+      .filter(function(k){ return k.startsWith('tw_'); })
+      .forEach(function(k){ localStorage.removeItem(k); });
+  } catch(e){}
+  window.location.href = '/login';
 }
 
 // ── Dropdown menu ──

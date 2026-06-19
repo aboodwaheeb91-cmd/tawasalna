@@ -2,12 +2,14 @@
 // Responsibilities: selectType(), showRegister(), showLogin(), toast(),
 //                   checkPassStrength(), ITQAN utilities, hash-based auto-route.
 // Does NOT contain any auth logic — login/register/redirect live in index.auth.js.
-// Version: auth-gw-v1
+// Version: auth-gw-v3
 
 'use strict';
 
 // ── Role selector (register-only, 3 explicit options) ────────────────────────
 // Updates curType (declared in index.auth.js) and adjusts name field label.
+// Accordion: selecting a type shows the register fields below the cards.
+// Cards stay visible after selection so the user can switch type.
 function selectType(type){
   curType = type;
   var empBtn = document.getElementById('empBtn');
@@ -31,21 +33,27 @@ function selectType(type){
     if(nameLabel) nameLabel.textContent = 'اسم المؤسسة التعليمية';
     if(rName)     rName.placeholder = 'اسم الجامعة أو المركز...';
   }
+
+  // Accordion: show register fields only after a type is selected
+  var reg = document.getElementById('registerSection');
+  if(reg) reg.classList.remove('hidden');
 }
 
 // ── Form switching ────────────────────────────────────────────────────────────
 function showRegister(){
+  // Step 1: show role cards, hide login and register fields
   document.getElementById('loginSection').classList.add('hidden');
-  document.getElementById('registerSection').classList.remove('hidden');
-  var typeRow = document.getElementById('typeRow');
-  if(typeRow) typeRow.classList.remove('hidden');
+  document.getElementById('registerSection').classList.add('hidden');
+  var step1 = document.getElementById('registerStep1');
+  if(step1) step1.classList.remove('hidden');
 }
 
 function showLogin(){
+  // Return to login: hide step1 and register fields
+  var step1 = document.getElementById('registerStep1');
+  if(step1) step1.classList.add('hidden');
   document.getElementById('registerSection').classList.add('hidden');
   document.getElementById('loginSection').classList.remove('hidden');
-  var typeRow = document.getElementById('typeRow');
-  if(typeRow) typeRow.classList.add('hidden');
 }
 
 // ── Simple inline toast ───────────────────────────────────────────────────────
@@ -137,10 +145,10 @@ function initScrollProg(){
 
 // ── Hash-based auto-route ─────────────────────────────────────────────────────
 // Supports: /login#register-emp  /login#register-co  /login#register-edu
-// Landing page can link here to pre-select a role and open the register form.
+// showRegister() opens step1 (cards), selectType() then opens the fields.
 ;(function(){
   var hash = window.location.hash;
-  if(hash === '#register-emp')      { selectType('emp'); showRegister(); }
-  else if(hash === '#register-co')  { selectType('co');  showRegister(); }
-  else if(hash === '#register-edu') { selectType('edu'); showRegister(); }
+  if(hash === '#register-emp')      { showRegister(); selectType('emp'); }
+  else if(hash === '#register-co')  { showRegister(); selectType('co');  }
+  else if(hash === '#register-edu') { showRegister(); selectType('edu'); }
 }());

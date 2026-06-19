@@ -467,8 +467,10 @@ function goProfile(){
   window.location.href = _u.tw_id ? '/u/'+_u.tw_id : '/profile-showcase?id='+_u.id;
 }
 function logout(){
-  localStorage.removeItem('tw_user');
-  window.location.href='/';
+  try{
+    Object.keys(localStorage).filter(function(k){return k.startsWith('tw_');}).forEach(function(k){localStorage.removeItem(k);});
+  }catch(e){}
+  window.location.href='/login';
 }
 function setTab(el){
   document.querySelectorAll('.ftab').forEach(t=>t.classList.remove('on'));
