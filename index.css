@@ -1,6 +1,6 @@
 /* index.css — Auth Gateway styles (login + register page only)
    Scope: index.html exclusively. Do NOT import from other pages.
-   Version: auth-gw-v5 */
+   Version: auth-gw-v6 */
 
 :root{--ac:#00c896;--ac2:#2563ff;}
 *{margin:0;padding:0;box-sizing:border-box;}
