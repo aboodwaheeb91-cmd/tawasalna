@@ -22,6 +22,16 @@
   ];
   // Total: 10+8+8+5+7+8+6+9+10+8+5+5+5+6 = 100
 
+  // Returns true only when the current viewer is the authenticated owner
+  // and is NOT in any preview mode.
+  function _isOwnerActive(){
+    if(window._scViewerType !== 'owner') return false;
+    var b = document.body;
+    if(b.classList.contains('preview-public-user')) return false;
+    if(b.classList.contains('preview-guest'))       return false;
+    return true;
+  }
+
   function _isDone(id){
     var p = window._scProfile || {};
     switch(id){
@@ -52,6 +62,7 @@
   }
 
   function _doAction(action){
+    if(!_isOwnerActive()) return;
     if(!action || action === 'none') return;
     if(action === 'avatar'){
       var cam = document.getElementById('avCamBtn');
@@ -81,6 +92,14 @@
   function _render(){
     var card = document.getElementById('scComplCard');
     if(!card) return;
+
+    // Hard guard: hide and bail if not the active owner
+    if(!_isOwnerActive()){
+      card.style.display = 'none';
+      var _safeList = document.getElementById('scComplList');
+      if(_safeList) _safeList.innerHTML = '';
+      return;
+    }
 
     var pct   = _score();
     var color = pct >= 80 ? '#22c55e' : pct >= 50 ? '#f59e0b' : '#f87171';
@@ -132,17 +151,19 @@
   window._renderCompletion = _render;
   window._updateCompletion = _render;
 
-  // Item click → open relevant section
+  // Item click → open relevant section (owner-active guard)
   document.addEventListener('click', function(e){
     var item = e.target.closest('.sc-compl-item.missing');
     if(!item) return;
+    if(!_isOwnerActive()) return;
     var act = item.getAttribute('data-action');
     if(act) _doAction(act);
   });
 
-  // Toggle list open/close
+  // Toggle list open/close (owner-active guard)
   document.addEventListener('click', function(e){
     if(!e.target.closest('#scComplToggle')) return;
+    if(!_isOwnerActive()) return;
     var list = document.getElementById('scComplList');
     var btn  = document.getElementById('scComplToggle');
     if(!list || !btn) return;
