@@ -26,7 +26,7 @@
   <link rel="canonical" href="https://tawasolna.com">
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/tw_shared.css">
-<link rel="stylesheet" href="/static/index.css?v=auth-gw-v6">
+<link rel="stylesheet" href="/static/index.css?v=auth-gw-v7">
 </head>
 <body>
 <a href="#main-content" class="skip-link">تخطى للمحتوى الرئيسي</a>
@@ -55,17 +55,17 @@
     </div>
     <div class="type-row" id="typeRow">
       <div class="type-btn" id="empBtn" onclick="selectType('emp')">
-        <div class="tb-ico">👤</div>
+        <div class="tb-ico"><i data-lucide="id-card"></i></div>
         <div class="tb-name">موظف</div>
         <div class="tb-sub">باحث عن عمل</div>
       </div>
       <div class="type-btn" id="coBtn" onclick="selectType('co')">
-        <div class="tb-ico">🏢</div>
+        <div class="tb-ico"><i data-lucide="building-2"></i></div>
         <div class="tb-name">شركة</div>
         <div class="tb-sub">صاحب عمل</div>
       </div>
       <div class="type-btn" id="eduBtn" onclick="selectType('edu')">
-        <div class="tb-ico">🎓</div>
+        <div class="tb-ico"><i data-lucide="graduation-cap"></i></div>
         <div class="tb-name">مؤسسة تعليمية</div>
         <div class="tb-sub">جامعة · مركز تدريب</div>
       </div>
@@ -135,8 +135,9 @@
 
 <div class="toast" id="toast"></div>
 
+<script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
 <script src="/tw_shared.js"></script>
-<script src="/static/index.auth.js?v=auth-gw-v6"></script>
-<script src="/static/index.ui.js?v=auth-gw-v6"></script>
+<script src="/static/index.auth.js?v=auth-gw-v7"></script>
+<script src="/static/index.ui.js?v=auth-gw-v7"></script>
 </body>
 </html>
