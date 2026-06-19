@@ -187,6 +187,14 @@ body{font-family:'Cairo',sans-serif;background:#070b18;min-height:100vh;display:
     <div class="logo-sub">منصة التوظيف والتوثيق العربية</div>
   </div>
 
+  <!--
+    P1 TODO: Replace this 2-button selector with 3 explicit role cards:
+      👤 موظف  |  🏢 شركة  |  🎓 مؤسسة تعليمية
+    Currently "شركة" and "مؤسسة تعليمية" are grouped under one "جهة مؤسسية" button
+    with a dropdown — this is ambiguous for new users.
+    The user_type sent to /auth/register must be explicit: emp | co | edu.
+    Do NOT merge this with the login form; login requires no role selection.
+  -->
   <!-- Type selector -->
   <div class="type-row">
     <div class="type-btn active" id="empBtn" onclick="selectType('emp')">
@@ -264,47 +272,35 @@ body{font-family:'Cairo',sans-serif;background:#070b18;min-height:100vh;display:
 <div class="toast" id="toast"></div>
 
 <script src="/tw_shared.js"></script>
-<script>// Redirect if already logged in
-try{
-  var _lu=JSON.parse(localStorage.getItem('tw_user'));
-  if(_lu&&_lu.id){
-    var dest=_lu.user_type==='co'?'company-profile.html?id='+(_lu.tw_id||_lu.id)
-            :_lu.user_type==='edu'?'edu-profile.html?id='+(_lu.tw_id||_lu.id)
-            :'profile.html?id='+(_lu.tw_id||_lu.id);
-    window.location.href=dest;
-  }
-}catch(e){}
-
-// Redirect if already logged in
-try{
-  const _lu=JSON.parse(localStorage.getItem('tw_user'));
-  if(_lu&&_lu.id){
-    const dest=_lu.user_type==='co'?'company-profile.html?id='+(_lu.tw_id||_lu.id)
-              :_lu.user_type==='edu'?'edu-profile.html?id='+(_lu.tw_id||_lu.id)
-              :'profile.html?id='+(_lu.tw_id||_lu.id);
-    window.location.href=dest;
-  }
-}catch(e){}
-
+<script>
 let curType = 'emp';
 let instUserType = '';
 let instSubtype = '';
 
-// ── Auto redirect ──
+// ── Auth redirect ──────────────────────────────────────────────────────────
+// Source of truth: the user object returned by /auth/login or /auth/register.
+// localStorage.tw_user is a short-lived session cache — NOT the authority for roles.
+// TODO (P1): before using the cached session, call /auth/verify-token to confirm
+//            it is still valid (guards against stale or tampered localStorage data).
+function redirect(u){
+  if(!u) return;
+  if(u.user_type === 'co')    { window.location.href = '/company-profile'; return; }
+  if(u.user_type === 'edu')   { window.location.href = '/edu-profile';     return; }
+  // Admin users authenticate via the admin-specific flow, not this page.
+  // This branch is defensive: handle the case where a user object ever carries 'admin'.
+  if(u.user_type === 'admin') { window.location.href = '/admin';           return; }
+  // Default: employee — canonical public profile URL is /u/{tw_id}
+  window.location.href = u.tw_id ? '/u/' + u.tw_id : '/profile-showcase';
+}
+
+// ── Single on-load session check ───────────────────────────────────────────
+// Previously three duplicate redirect blocks existed here; consolidated to one.
+// If a valid cached session exists, redirect without re-auth. No action if missing.
 try {
-  const saved = JSON.parse(localStorage.getItem('tw_user'));
-  if(saved && saved.id){
-    redirect(saved);
-  }
+  var _cached = JSON.parse(localStorage.getItem('tw_user'));
+  if(_cached && _cached.id) redirect(_cached);
 } catch(e){}
 
-
-function redirect(u){
-  const dest = u.user_type==='co' ? 'company-profile.html?id='+(u.tw_id||u.id)
-             : u.user_type==='edu' ? 'edu-profile.html?id='+(u.tw_id||u.id)
-             : 'profile.html?id='+(u.tw_id||u.id);
-  window.location.href = dest;
-}
 
 function selectType(type){
   curType = type;

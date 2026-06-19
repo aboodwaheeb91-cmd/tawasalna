@@ -430,3 +430,27 @@ These rules are permanent and apply to all future AI sessions:
 11. **Growth mode and completion mode share the same `#scComplCard` container** but use separate row and panel elements (`#scComplRow`/`#scComplPanel` for completion, `#scGrowthRow`/`#scGrowthPanel` for growth). `_render()` shows exactly one mode and hides the other.
 
 12. **All growth suggestion `text` values must follow the "learn/earn first, then document" ethical framing.** Never write text that implies adding a skill or course the user hasn't actually completed. Pattern: "تعلّم X ثم وثّقه" / "احصل على دورة X ثم أضفها". Do NOT write suggestions that could be read as "fake it till you make it".
+
+---
+
+## Auth Gateway Rules (mandatory for all AI sessions)
+
+1. **`/` is the Landing Page.** `GET /` serves `landing.html`. Do not replace it with a login form or a dashboard redirect.
+
+2. **`/login` (index.html) is the Auth Gateway only.** It contains the login form and registration form. It is not a full Landing Page and must not be redesigned as one without an explicit request.
+
+3. **Post-login redirect is role-based from the API response, not from inbox or messages.** The `redirect(u)` function in `index.html` is the single authority. Rules:
+   - `emp` → `/u/{tw_id}` (canonical employee public profile)
+   - `co` → `/company-profile`
+   - `edu` → `/edu-profile`
+   - `admin` → `/admin` (defensive; admin auth uses separate flow)
+
+4. **`profile.html?id=` is a forbidden redirect target for new code.** Use `/u/{tw_id}` for employees. The legacy URL `profile.html?id=` must not appear in any new redirect, link, or button.
+
+5. **`company-profile.html?id=` and `edu-profile.html?id=` are forbidden as new redirect targets.** Use `/company-profile` and `/edu-profile` (modern routes without query params).
+
+6. **localStorage is a session cache, not the authority for roles.** `localStorage.tw_user` is populated by the API after login and used as a convenience cache. Never gate security-sensitive behaviour on it. TODO (P1): validate the session with `POST /auth/verify-token` before trusting localStorage data.
+
+7. **Exactly one on-load redirect check in index.html.** Three duplicate blocks existed previously and were removed. Do not re-add more than one `try { redirect(_cached) }` block.
+
+8. **Do NOT redirect to `/messages` or `/notifications` as the post-login landing destination.** These are secondary destinations reachable from the dashboard, not entry points after login.

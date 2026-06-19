@@ -6573,3 +6573,41 @@ Rules include: React.js course, Git, Node.js, SQL course, GitHub link, English l
 - Do NOT put the full explanation in the toast — toast is 1 short actionable sentence; full explanation belongs in the "تفاصيل" panel only
 - Do NOT style growth buttons as glassmorphic — each button has a solid colored background via its ID selector
 - Do NOT open any new route or add a course automatically from the suggestion — the user must find and complete the course themselves first
+
+---
+
+## Auth Gateway (index.html / `/login`)
+
+### Role
+
+`index.html` is the **Auth Gateway only** — login form + registration form.
+It is NOT a Landing Page and must not be redesigned as one.
+
+- `GET /` → `landing.html` — public marketing page, no auth needed
+- `GET /login` (or `/index.html`) → `index.html` — auth gateway
+
+### Post-Login Redirect Rules (mandatory)
+
+The `redirect(u)` function in `index.html` is the **single authority** for post-login routing. All changes to where users land after login must go through this function.
+
+| user_type | Redirect target | Notes |
+|-----------|----------------|-------|
+| `emp` | `/u/{tw_id}` | Canonical public profile URL; fallback `/profile-showcase` if tw_id missing |
+| `co` | `/company-profile` | Modern route (no `?id=` query param) |
+| `edu` | `/edu-profile` | Modern route (no `?id=` query param) |
+| `admin` | `/admin` | Defensive branch only — admin auth uses `/tw-ctrl-login` |
+
+### localStorage Rules
+
+- `localStorage.tw_user` — short-lived session cache; populated by `/auth/login` and `/auth/register` responses
+- `localStorage.tw_jwt` — JWT bearer token; 7-day expiry
+- **Neither is the authority for roles** — the user object from the API response is the source of truth
+- TODO (P1): call `POST /auth/verify-token` on page load before trusting the cached session
+
+### Forbidden Patterns
+
+- Do NOT redirect to `profile.html?id=` — this is a legacy URL; use `/u/{tw_id}` for employees
+- Do NOT redirect to `company-profile.html?id=` or `edu-profile.html?id=` — use `/company-profile` and `/edu-profile`
+- Do NOT redirect to `/messages` or `/notifications` as the post-login landing page
+- Do NOT add more than ONE on-load redirect check — exactly one `try { redirect(_cached) }` block
+- Do NOT use `localStorage.tw_user.user_type` to gate features or permissions — only for display/routing hints; validate with API when security matters
