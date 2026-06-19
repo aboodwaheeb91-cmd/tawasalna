@@ -6444,11 +6444,13 @@ Visitors and preview modes never see this strip.
 - Height: ~44px in collapsed state; expands panel when "تفاصيل" is clicked
 - **Completion mode components**: title label | progress bar | percentage | toggle button
 - **Completion mode panel**: missing items (clickable) + done items + optional domain-tag suggestions
-- **Growth mode components**: "اقتراح" badge | suggestion text | التالي button | تفاصيل button | ✕ إخفاء button
+- **Growth mode components**: "اقتراح" badge | suggestion text (clickable → toast) | التالي button | تفاصيل button | ✕ إخفاء button
+- **Growth mode toast**: clicking the suggestion text shows a `#scGrowthToast` element inline below the row for 4 s, explaining why the suggestion matters and reminding the user to learn/earn it first. Auto-dismisses. Clears on التالي click.
 - **Growth mode panel**: reason text + benefit text + "اذهب إلى القسم" action button
 - **Growth empty state**: text "ملفك قوي! سنقترح لك فرص تطوير لاحقاً", التالي/تفاصيل buttons hidden
 - Dismiss: IIFE-level `_dismissed` flag (resets on page reload, no persistence)
 - `_growthIdx`: IIFE-level index for cycling through growth suggestions (clamp: `% suggs.length`)
+- `_toastTimer`: IIFE-level setTimeout handle; cleared when a new toast is shown or التالي is clicked
 
 ### Data Source
 
@@ -6522,12 +6524,19 @@ Reads exclusively from `window._scProfile` (the global flat profile state set by
 Called only when score = 100%. Builds a filtered list of improvement rules from `window._scProfile`. Each rule:
 
 ```js
-{ id, cond, text, reason, benefit, action }
+{ id, cond, text, toast, reason, benefit, action }
+// text   — short ethical framing: "learn/earn first, then document"
+// toast  — 2-3 sentence explanation shown on suggestion-text click (auto-dismiss 4 s)
+// reason — why the item is missing or relevant
+// benefit — how it strengthens the profile
 ```
 
-Rules include: add React.js, add Git, add Node.js, add SQL course, add GitHub link, add English cert, add a second experience, add Python, add Laravel course, add first course. Each `cond` checks that the suggested item doesn't already exist in the profile — so adding the item removes it from the list automatically on next `_render()` call.
+**Ethical framing rule:** All `text` values must frame the suggestion as "do the thing first, then add it to your profile." Never suggest adding a skill or course the user hasn't actually completed. Examples: "تعلّم Git ثم وثّقه ضمن مهاراتك", "احصل على دورة SQL ثم أضفها لملفك".
+
+Rules include: React.js course, Git, Node.js, SQL course, GitHub link, English language, second experience, Python, Laravel course, first course. Each `cond` checks that the suggested item doesn't already exist in the profile — so completing and adding the item removes it from the list automatically on next `_render()` call.
 
 - `_growthIdx` persists across renders within the session; clamped to `% suggs.length` to handle list shrinkage
+- `_toastTimer` holds the active setTimeout; cleared on new toast or التالي click
 - Returns empty array if all conditions are satisfied → shows empty-state message
 - No API call, no randomness — deterministic from `_scProfile`
 
@@ -6543,6 +6552,8 @@ Rules include: add React.js, add Git, add Node.js, add SQL course, add GitHub li
   <div class="sc-growth-row" id="scGrowthRow" style="display:none"> ... </div>
   <!-- Growth mode panel -->
   <div class="sc-growth-panel" id="scGrowthPanel" style="display:none"> ... </div>
+  <!-- Toast (auto-dismiss, shown on suggestion text click) -->
+  <div class="sc-growth-toast" id="scGrowthToast" style="display:none"></div>
 </div>
 ```
 
@@ -6557,3 +6568,5 @@ Rules include: add React.js, add Git, add Node.js, add SQL course, add GitHub li
 - Do NOT move the strip outside `.sc-main-card` — it must sit between `.sc-actions` and `.sc-stats`
 - Do NOT show growth mode when score < 100% — growth mode only activates at exactly 100%
 - Do NOT persist `_growthIdx` to localStorage — it resets with the page
+- Do NOT write suggestion `text` that implies adding something without having earned/completed it — all text must follow the "learn/earn first, then document" pattern
+- Do NOT replace the toast with a modal or full-panel expansion — clicking suggestion text shows the inline toast only

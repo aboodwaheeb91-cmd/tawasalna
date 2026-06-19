@@ -1662,3 +1662,29 @@ body.preview-guest .sc-avail-picker { display:none !important; }
   .sc-growth-text { font-size: .72rem; }
   .sc-growth-btn  { font-size: .68rem; padding: 2px 8px; }
 }
+
+/* Growth suggestion text — shows pointer to hint it's interactive */
+#scGrowthText {
+  cursor: pointer;
+}
+#scGrowthText:hover {
+  color: #fff;
+  text-decoration: underline dotted rgba(255,255,255,.35);
+  text-underline-offset: 3px;
+}
+
+/* Toast: brief message shown on suggestion-text click, auto-dismisses */
+.sc-growth-toast {
+  padding: 9px 12px;
+  font-size: .73rem;
+  line-height: 1.6;
+  color: rgba(255,255,255,.72);
+  background: rgba(0,200,150,.07);
+  border-top: 1px solid rgba(0,200,150,.15);
+  border-radius: 0 0 10px 10px;
+  animation: sc-toast-in .18s ease;
+}
+@keyframes sc-toast-in {
+  from { opacity: 0; transform: translateY(-3px); }
+  to   { opacity: 1; transform: translateY(0);    }
+}
