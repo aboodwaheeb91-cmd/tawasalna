@@ -402,6 +402,7 @@
         if(window.toast) window.toast('تم حفظ التغييرات بنجاح');
         // 2. Confirmed Local Update — no waiting for re-fetch
         applyLocalUpdate(payload);
+        if(window._updateCompletion) window._updateCompletion();
         // 3. Background re-fetch for full sync (score not included, runs separately)
         getProfile(_scProfileKey)
           .then(function(freshRes){

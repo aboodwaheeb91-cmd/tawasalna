@@ -158,6 +158,7 @@
       }
       closeModal();
       toast(isEdit ? 'تم التحديث' : 'تمت الإضافة');
+      if(window._updateCompletion) window._updateCompletion();
       _reRenderEdu();
       if(window._bgRefetch) window._bgRefetch();
     }).catch(function(){
@@ -278,6 +279,7 @@
         if(cache) cache.education = (cache.education||[]).filter(function(e){ return e.id!==id; });
         _reRenderEdu();
         toast('تم حذف الشهادة');
+        if(window._updateCompletion) window._updateCompletion();
         if(window._bgRefetch) window._bgRefetch();
       }).catch(function(){ toast('خطأ في الاتصال بالخادم'); });
     });

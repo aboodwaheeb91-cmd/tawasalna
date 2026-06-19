@@ -631,6 +631,7 @@
       }
       closeModal();
       toast('تمت إضافة المهارة');
+      if(window._updateCompletion) window._updateCompletion();
       _reRenderSkills();
       if(window._bgRefetch) window._bgRefetch();
     }).catch(function(){
@@ -748,6 +749,7 @@
         if(cache) cache.skills = (cache.skills||[]).filter(function(s){ return s.id!==id; });
         _reRenderSkills();
         toast('تم حذف المهارة');
+        if(window._updateCompletion) window._updateCompletion();
         if(window._bgRefetch) window._bgRefetch();
       }).catch(function(){ toast('خطأ في الاتصال بالخادم'); });
     });

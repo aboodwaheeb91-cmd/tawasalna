@@ -213,6 +213,7 @@
         if(window._scProfile) window._scProfile.avatar_url = result.url;
         closeCrop();
         toast('تم تحديث الصورة الشخصية');
+        if(window._updateCompletion) window._updateCompletion();
       })
       .catch(function(){
         toast('حدث خطأ أثناء رفع الصورة');

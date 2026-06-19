@@ -94,6 +94,7 @@
       }
       closeModal();
       toast(isEdit ? 'تم التحديث' : 'تمت الإضافة');
+      if(window._updateCompletion) window._updateCompletion();
       _reRenderCourses();
       if(window._bgRefetch) window._bgRefetch();
     }).catch(function(){
@@ -184,6 +185,7 @@
         if(cache) cache.courses = (cache.courses||[]).filter(function(c){ return c.id!==id; });
         _reRenderCourses();
         toast('تم حذف الدورة');
+        if(window._updateCompletion) window._updateCompletion();
         if(window._bgRefetch) window._bgRefetch();
       }).catch(function(){ toast('خطأ في الاتصال بالخادم'); });
     });
