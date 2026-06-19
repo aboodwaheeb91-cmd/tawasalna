@@ -1,7 +1,7 @@
 // index.auth.js — Auth Gateway: redirect logic, login, register
 // Responsibilities: redirect(), doLogin(), doRegister(), on-load session check.
 // Does NOT touch DOM appearance — UI effects live in index.ui.js.
-// Version: auth-gw-v1
+// Version: auth-gw-v4
 
 'use strict';
 
@@ -58,8 +58,7 @@ async function doLogin(){
   } catch(e) {
     toast('تعذّر الاتصال بالخادم', 'error');
   } finally {
-    btn.disabled = false;
-    btn.textContent = 'دخول';
+    setBtnLoad(btn, false);
   }
 }
 
@@ -75,8 +74,8 @@ async function doRegister(){
   if(!['emp','co','edu'].includes(curType)){ toast('اختر نوع الحساب', 'error'); return; }
 
   var btn = document.getElementById('regBtn');
-  btn.disabled = true;
-  btn.textContent = 'جاري الإنشاء...';
+  btn._orig = 'إنشاء حساب';
+  setBtnLoad(btn, true);
   try {
     var res  = await fetch('/auth/register', {
       method:'POST',
@@ -92,8 +91,7 @@ async function doRegister(){
   } catch(e) {
     toast('تعذّر الاتصال بالخادم', 'error');
   } finally {
-    btn.disabled = false;
-    btn.textContent = 'إنشاء حساب';
+    setBtnLoad(btn, false);
   }
 }
 
