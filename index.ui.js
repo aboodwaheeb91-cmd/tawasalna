@@ -2,7 +2,7 @@
 // Responsibilities: selectType(), showRegister(), showLogin(), toast(),
 //                   checkPassStrength(), ITQAN utilities, hash-based auto-route.
 // Does NOT contain any auth logic — login/register/redirect live in index.auth.js.
-// Version: auth-gw-v6
+// Version: auth-gw-v7
 
 'use strict';
 
@@ -23,6 +23,8 @@ function selectType(type){
     activeEl.classList.add('active');
     if(type !== 'emp') activeEl.classList.add('inst');
   }
+  var typeRow = document.getElementById('typeRow');
+  if(typeRow) typeRow.classList.add('has-selection');
 
   var panel = document.getElementById('registerPanel');
   if(!panel) return;
@@ -101,11 +103,13 @@ function showLogin(){
   if(s1) s1.classList.add('hidden');
   if(rp) rp.classList.remove('open');
   _setBackLink(false); // reset for next register visit
-  // reset card active states for next visit to register
+  // reset card states for next visit to register
   ['empBtn','coBtn','eduBtn'].forEach(function(id){
     var b = document.getElementById(id);
     if(b) b.classList.remove('active','inst');
   });
+  var typeRow = document.getElementById('typeRow');
+  if(typeRow) typeRow.classList.remove('has-selection');
 }
 
 // ── Simple inline toast ───────────────────────────────────────────────────────
@@ -194,6 +198,9 @@ function initScrollProg(){
     p.style.width = Math.min(pct, 100) + '%';
   });
 }
+
+// ── Lucide icon init ──────────────────────────────────────────────────────────
+if(window.lucide && lucide.createIcons) lucide.createIcons();
 
 // ── Hash-based auto-route ─────────────────────────────────────────────────────
 // Supports: /login#register-emp  /login#register-co  /login#register-edu
