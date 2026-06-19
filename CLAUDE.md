@@ -422,3 +422,9 @@ These rules are permanent and apply to all future AI sessions:
 7. **The strip is positioned inside `.sc-main-card`, between `.sc-actions` and `.sc-stats`.** Do not move it outside the main card or below the tabs.
 
 8. **Dismiss state uses a module-level `_dismissed` variable only** (resets on page reload). Do NOT persist dismiss state to localStorage or sessionStorage.
+
+9. **At 100% completion the strip switches to Growth Mode.** It shows one rule-based suggestion at a time from `_buildGrowthSuggestions()`. Buttons: "التالي" (cycle), "تفاصيل" (expand detail panel), "✕" (dismiss session). The `_growthIdx` IIFE variable tracks the current suggestion index (never persisted). Do NOT show a "تم" dismiss button at 100% — growth mode replaces it.
+
+10. **`_buildGrowthSuggestions()` rules must check that the suggested item is not already in the profile.** Each rule's `cond` must evaluate to `false` if the skill/course/link already exists. When the user adds the suggested item, `_updateCompletion()` is called, `_render()` re-runs `_buildGrowthSuggestions()`, and the satisfied rule drops out automatically. `_growthIdx` is clamped with `% suggs.length`.
+
+11. **Growth mode and completion mode share the same `#scComplCard` container** but use separate row and panel elements (`#scComplRow`/`#scComplPanel` for completion, `#scGrowthRow`/`#scGrowthPanel` for growth). `_render()` shows exactly one mode and hides the other.

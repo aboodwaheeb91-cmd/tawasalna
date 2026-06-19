@@ -6432,15 +6432,23 @@ The profile share link uses `/u/{tw_id}` (Profile V2 public URL), not the legacy
 
 ### Purpose
 
-Owner-only compact strip placed **inside `.sc-main-card`, between `.sc-actions` and `.sc-stats`**. Shows the owner a one-line progress bar with percentage and a "تفاصيل" button that expands a checklist of missing items. At 100% it shows a celebration state with a "تم" dismiss button. Visitors and preview modes never see this strip.
+Owner-only compact strip placed **inside `.sc-main-card`, between `.sc-actions` and `.sc-stats`**. Operates in two modes depending on completion percentage:
+
+- **Completion mode** (score < 100%): one-line progress bar + "تفاصيل" button that expands a checklist of missing items.
+- **Growth mode** (score = 100%): one-line strip showing one rule-based improvement suggestion at a time, with "التالي" / "تفاصيل" / "إخفاء" buttons.
+
+Visitors and preview modes never see this strip.
 
 ### Design: Compact Strip
 
-- Height: ~44px in collapsed state; expands when "تفاصيل" is clicked
-- Components: title label | progress bar | percentage | toggle button
-- Details panel: missing items (clickable) + done items + optional rule-based suggestions
-- 100% state: label → "ملفك مكتمل 🎉", toggle → "تم" (dismisses for the session)
+- Height: ~44px in collapsed state; expands panel when "تفاصيل" is clicked
+- **Completion mode components**: title label | progress bar | percentage | toggle button
+- **Completion mode panel**: missing items (clickable) + done items + optional domain-tag suggestions
+- **Growth mode components**: "اقتراح" badge | suggestion text | التالي button | تفاصيل button | ✕ إخفاء button
+- **Growth mode panel**: reason text + benefit text + "اذهب إلى القسم" action button
+- **Growth empty state**: text "ملفك قوي! سنقترح لك فرص تطوير لاحقاً", التالي/تفاصيل buttons hidden
 - Dismiss: IIFE-level `_dismissed` flag (resets on page reload, no persistence)
+- `_growthIdx`: IIFE-level index for cycling through growth suggestions (clamp: `% suggs.length`)
 
 ### Data Source
 
@@ -6505,13 +6513,38 @@ Reads exclusively from `window._scProfile` (the global flat profile state set by
 | `tab-links` | `window._aboutGoTab('links')` + smooth scroll |
 | `none` | No action (e.g. `tw_id` — set server-side) |
 
-### Course Suggestions (rule-based)
+### Completion Mode Suggestions (rule-based topic tags)
 
-`_buildSuggestions()` in `completion.js` matches keywords from `p.title`, `p.profession.name_ar`, `p.bio`, and `p.skills[]` against a fixed map of 8 domain categories. Returns up to 3 matching suggestions. Shown inside the details panel as compact tag chips.
+`_buildCompletionSuggestions()` matches keywords from `p.title`, `p.profession`, `p.bio`, and `p.skills[]` against a fixed map of 8 domain categories. Returns up to 3 matching topic labels shown as compact tag chips inside the details panel.
 
-- No API call — purely local keyword matching
-- Shows only when panel is open and at least one keyword matches
-- Do NOT replace with random/hardcoded suggestions
+### Growth Mode Suggestions (`_buildGrowthSuggestions()`)
+
+Called only when score = 100%. Builds a filtered list of improvement rules from `window._scProfile`. Each rule:
+
+```js
+{ id, cond, text, reason, benefit, action }
+```
+
+Rules include: add React.js, add Git, add Node.js, add SQL course, add GitHub link, add English cert, add a second experience, add Python, add Laravel course, add first course. Each `cond` checks that the suggested item doesn't already exist in the profile — so adding the item removes it from the list automatically on next `_render()` call.
+
+- `_growthIdx` persists across renders within the session; clamped to `% suggs.length` to handle list shrinkage
+- Returns empty array if all conditions are satisfied → shows empty-state message
+- No API call, no randomness — deterministic from `_scProfile`
+
+### HTML Structure (Dual Mode)
+
+```html
+<div class="sc-compl-strip owner-only" id="scComplCard" style="display:none">
+  <!-- Completion mode row -->
+  <div class="sc-compl-row" id="scComplRow"> ... </div>
+  <!-- Completion mode panel -->
+  <div class="sc-compl-panel" id="scComplPanel" style="display:none"> ... </div>
+  <!-- Growth mode row -->
+  <div class="sc-growth-row" id="scGrowthRow" style="display:none"> ... </div>
+  <!-- Growth mode panel -->
+  <div class="sc-growth-panel" id="scGrowthPanel" style="display:none"> ... </div>
+</div>
+```
 
 ### Forbidden Patterns
 
@@ -6522,3 +6555,5 @@ Reads exclusively from `window._scProfile` (the global flat profile state set by
 - Do NOT add a new item without ensuring its weight keeps the total at 100
 - Do NOT call `_renderCompletion` in non-owner contexts
 - Do NOT move the strip outside `.sc-main-card` — it must sit between `.sc-actions` and `.sc-stats`
+- Do NOT show growth mode when score < 100% — growth mode only activates at exactly 100%
+- Do NOT persist `_growthIdx` to localStorage — it resets with the page

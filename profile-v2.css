@@ -1567,3 +1567,98 @@ body.preview-guest .sc-avail-picker { display:none !important; }
   .sc-compl-label { font-size: .7rem; }
   .sc-compl-toggle { font-size: .68rem; padding: 2px 9px; }
 }
+
+/* ── Growth Mode Strip (100% complete) ── */
+.sc-growth-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 6px 0;
+}
+.sc-growth-badge {
+  flex-shrink: 0;
+  font-size: .65rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 20px;
+  background: rgba(0,200,150,.12);
+  color: #00c896;
+  border: 1px solid rgba(0,200,150,.25);
+  letter-spacing: .03em;
+}
+.sc-growth-text {
+  flex: 1;
+  font-size: .78rem;
+  color: rgba(255,255,255,.82);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 500;
+}
+.sc-growth-btn {
+  flex-shrink: 0;
+  background: rgba(255,255,255,.06);
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 6px;
+  color: rgba(255,255,255,.7);
+  font-size: .72rem;
+  padding: 3px 10px;
+  cursor: pointer;
+  transition: background .15s, color .15s;
+  font-family: inherit;
+  line-height: 1.4;
+}
+.sc-growth-btn:hover {
+  background: rgba(255,255,255,.12);
+  color: #fff;
+}
+.sc-growth-btn.is-open {
+  background: rgba(0,200,150,.12);
+  border-color: rgba(0,200,150,.3);
+  color: #00c896;
+}
+.sc-growth-dismiss {
+  font-size: .8rem;
+  padding: 3px 8px;
+}
+.sc-growth-dismiss:hover {
+  background: rgba(248,113,113,.12);
+  border-color: rgba(248,113,113,.3);
+  color: #f87171;
+}
+.sc-growth-panel {
+  border-top: 1px solid rgba(255,255,255,.06);
+  padding: 10px 0 6px;
+}
+.sc-growth-reason {
+  font-size: .74rem;
+  color: rgba(255,255,255,.55);
+  margin-bottom: 6px;
+  line-height: 1.55;
+}
+.sc-growth-benefit {
+  font-size: .76rem;
+  color: rgba(0,200,150,.85);
+  font-weight: 600;
+  margin-bottom: 10px;
+  line-height: 1.4;
+}
+.sc-growth-action {
+  font-size: .74rem;
+  padding: 5px 16px;
+  border-radius: 8px;
+  background: transparent;
+  border: 1px solid rgba(0,200,150,.4);
+  color: #00c896;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background .15s;
+}
+.sc-growth-action:hover {
+  background: rgba(0,200,150,.1);
+}
+@media (max-width: 480px) {
+  .sc-growth-text { font-size: .72rem; }
+  .sc-growth-btn  { font-size: .68rem; padding: 2px 8px; }
+}
