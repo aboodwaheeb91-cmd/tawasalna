@@ -6576,7 +6576,20 @@ Rules include: React.js course, Git, Node.js, SQL course, GitHub link, English l
 
 ---
 
-## Auth Gateway (index.html / `/login`)
+## Auth Gateway (index.html / `/login`) — P1 Refactor
+
+### File Structure (auth-gw-v1)
+
+| File | Responsibility |
+|------|---------------|
+| `index.html` | HTML structure only — logo, role selector, forms, skip link |
+| `index.css` | Auth page styles only — do NOT import from other pages |
+| `index.auth.js` | `redirect()`, `doLogin()`, `doRegister()`, on-load session check, Enter key handler |
+| `index.ui.js` | `selectType()`, `showRegister()`, `showLogin()`, `toast()`, `checkPassStrength()`, ITQAN utilities, hash auto-route |
+
+**Loading order in `index.html`:** `tw_shared.js` → `index.auth.js` → `index.ui.js`
+
+Auth module loads first so the on-load redirect check fires before any UI initialises. Both modules are loaded before any user interaction can trigger `doLogin()` or `doRegister()`.
 
 ### Role
 
@@ -6586,9 +6599,22 @@ It is NOT a Landing Page and must not be redesigned as one.
 - `GET /` → `landing.html` — public marketing page, no auth needed
 - `GET /login` (or `/index.html`) → `index.html` — auth gateway
 
+### Role Selector (register-only)
+
+Three explicit cards replace the old 2-button + dropdown:
+
+| Card | user_type sent to API | Hash route |
+|------|-----------------------|------------|
+| 👤 موظف / باحث عن عمل | `emp` | `/login#register-emp` |
+| 🏢 شركة / صاحب عمل | `co` | `/login#register-co` |
+| 🎓 مؤسسة تعليمية | `edu` | `/login#register-edu` |
+
+- Role selector is **hidden on login view**, shown only when register form is open.
+- Login form derives role from the API response — it never asks the user to pick one.
+
 ### Post-Login Redirect Rules (mandatory)
 
-The `redirect(u)` function in `index.html` is the **single authority** for post-login routing. All changes to where users land after login must go through this function.
+`redirect(u)` in `index.auth.js` is the **single authority** for post-login routing.
 
 | user_type | Redirect target | Notes |
 |-----------|----------------|-------|
@@ -6602,12 +6628,15 @@ The `redirect(u)` function in `index.html` is the **single authority** for post-
 - `localStorage.tw_user` — short-lived session cache; populated by `/auth/login` and `/auth/register` responses
 - `localStorage.tw_jwt` — JWT bearer token; 7-day expiry
 - **Neither is the authority for roles** — the user object from the API response is the source of truth
-- TODO (P1): call `POST /auth/verify-token` on page load before trusting the cached session
+- TODO (P1 next): call `POST /auth/verify-token` on page load before trusting the cached session
 
 ### Forbidden Patterns
 
+- Do NOT put auth logic in `index.ui.js` — keep `redirect()`, `doLogin()`, `doRegister()` in `index.auth.js` only
+- Do NOT put DOM/appearance effects in `index.auth.js` — keep UI in `index.ui.js`
 - Do NOT redirect to `profile.html?id=` — this is a legacy URL; use `/u/{tw_id}` for employees
 - Do NOT redirect to `company-profile.html?id=` or `edu-profile.html?id=` — use `/company-profile` and `/edu-profile`
 - Do NOT redirect to `/messages` or `/notifications` as the post-login landing page
-- Do NOT add more than ONE on-load redirect check — exactly one `try { redirect(_cached) }` block
+- Do NOT add more than ONE on-load redirect check — exactly one IIFE in `index.auth.js`
 - Do NOT use `localStorage.tw_user.user_type` to gate features or permissions — only for display/routing hints; validate with API when security matters
+- Do NOT add a role selector inside the login form — role is login-derived from the API only
