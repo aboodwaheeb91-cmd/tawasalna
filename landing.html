@@ -2,36 +2,53 @@
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="UTF-8">
-  <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
-  <link rel="dns-prefetch" href="https://fonts.gstatic.com">
-  <link rel="dns-prefetch" href="https://tawasolna.com">
-  <link rel="manifest" href="/manifest.json">
-  <meta name="theme-color" content="#00c896">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="تواصلنا">
-  <link rel="apple-touch-icon" href="/icon-192.png">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+<link rel="dns-prefetch" href="https://fonts.gstatic.com">
+<link rel="dns-prefetch" href="https://tawasolna.com">
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#00c896">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="تواصلنا">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>تواصلنا - منصة التوظيف والتوثيق العربية</title>
-  <meta name="description" content="ابنِ ملفك الشخصي، وثّق خبراتك، وابحث عن وظيفتك المثالية. منصة تواصلنا تجمع الموظفين والشركات والجهات التعليمية.">
-  <meta property="og:title" content="تواصلنا - منصة التوظيف والتوثيق العربية">
-  <meta property="og:description" content="ابنِ ملفك الشخصي، وثّق خبراتك، وابحث عن وظيفتك المثالية. منصة تواصلنا تجمع الموظفين والشركات والجهات التعليمية.">
-  <meta property="og:type" content="website">
-  <meta property="og:url" content="https://tawasolna.com">
-  <meta property="og:locale" content="ar_AR">
-  <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="تواصلنا - منصة التوظيف والتوثيق العربية">
-  <meta name="twitter:description" content="ابنِ ملفك الشخصي، وثّق خبراتك، وابحث عن وظيفتك المثالية. منصة تواصلنا تجمع الموظفين والشركات والجهات التعليمية.">
-  <meta name="robots" content="index, follow">
-  <link rel="canonical" href="https://tawasolna.com">
+<meta name="description" content="ابنِ ملفك الشخصي، وثّق خبراتك، وابحث عن وظيفتك المثالية. منصة تواصلنا تجمع الموظفين والشركات والجهات التعليمية.">
+<meta property="og:title" content="تواصلنا - منصة التوظيف والتوثيق العربية">
+<meta property="og:description" content="ابنِ ملفك الشخصي، وثّق خبراتك، وابحث عن وظيفتك المثالية. منصة تواصلنا تجمع الموظفين والشركات والجهات التعليمية.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://tawasolna.com">
+<meta property="og:locale" content="ar_AR">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="تواصلنا - منصة التوظيف والتوثيق العربية">
+<meta name="twitter:description" content="ابنِ ملفك الشخصي، وثّق خبراتك، وابحث عن وظيفتك المثالية. منصة تواصلنا تجمع الموظفين والشركات والجهات التعليمية.">
+<meta name="robots" content="index, follow">
+<link rel="canonical" href="https://tawasolna.com">
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;900&display=swap" rel="stylesheet">
+<noscript><style>body{opacity:1!important}</style></noscript>
 <style>
-:root{--ac:#00c896;--ac2:#2563ff;--bg:#070b18;--t:rgba(255,255,255,.87);--t2:rgba(255,255,255,.5);--t3:rgba(255,255,255,.28);}
+/* ══ VARIABLES ══ */
+:root{
+  --ac:#00c896;
+  --ac2:#2563ff;
+  --ac3:#8b5cf6;
+  --bg:#070b18;
+  --t:rgba(255,255,255,.87);
+  --t2:rgba(255,255,255,.5);
+  --t3:rgba(255,255,255,.28);
+  --card:rgba(255,255,255,.03);
+  --border:rgba(255,255,255,.08);
+}
 *{margin:0;padding:0;box-sizing:border-box;}
 html{scroll-behavior:smooth;}
-body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--t);overflow-x:hidden;}
+body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--t);overflow-x:hidden;opacity:0;transition:opacity .5s ease;}
+body.ready{opacity:1;}
 
-/* ══ BG ══ */
+/* ══ SKIP LINK ══ */
+.skip-link{position:absolute;top:-40px;right:16px;background:var(--ac);color:#000;padding:8px 14px;border-radius:6px;font-size:.85rem;font-weight:700;z-index:9999;transition:top .2s;text-decoration:none;}
+.skip-link:focus{top:8px;}
+
+/* ══ BACKGROUND ══ */
 .bg-orbs{position:fixed;inset:0;pointer-events:none;z-index:0;}
 .orb{position:absolute;border-radius:50%;filter:blur(120px);animation:breathe 10s ease-in-out infinite;}
 .o1{width:700px;height:700px;background:#00c896;opacity:.08;top:-200px;right:-200px;}
@@ -41,514 +58,628 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--t);overflow
 .grid-bg{position:fixed;inset:0;z-index:0;background-image:linear-gradient(rgba(255,255,255,.018) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.018) 1px,transparent 1px);background-size:60px 60px;}
 
 /* ══ NAV ══ */
-.nav{position:fixed;top:0;left:0;right:0;z-index:100;height:58px;display:flex;align-items:center;padding:0 5%;background:rgba(7,11,24,.7);backdrop-filter:blur(20px);border-bottom:1px solid rgba(255,255,255,.06);}
-.nav-logo{font-size:1.2rem;font-weight:900;background:linear-gradient(135deg,var(--ac),var(--ac2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+nav{position:fixed;top:0;left:0;right:0;z-index:100;height:60px;display:flex;align-items:center;padding:0 5%;background:rgba(7,11,24,.7);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-bottom:1px solid rgba(255,255,255,.06);transition:background .3s;}
+nav.scrolled{background:rgba(7,11,24,.92);}
+.nav-logo img{display:block;}
 .nav-links{display:flex;gap:24px;margin-right:auto;margin-left:32px;}
 .nav-link{font-size:.8rem;font-weight:600;color:var(--t2);text-decoration:none;transition:color .2s;}
 .nav-link:hover{color:var(--t);}
 .nav-btns{display:flex;gap:8px;margin-right:auto;}
-.btn-ghost{padding:7px 16px;border-radius:10px;border:1px solid rgba(255,255,255,.12);background:transparent;color:var(--t2);font-family:'Cairo',sans-serif;font-size:.78rem;font-weight:700;cursor:pointer;transition:all .2s;text-decoration:none;display:inline-flex;align-items:center;}
-.btn-ghost:hover{border-color:rgba(255,255,255,.25);color:var(--t);}
-.btn-primary{padding:7px 18px;border-radius:10px;border:none;background:linear-gradient(135deg,var(--ac),var(--ac2));color:#fff;font-family:'Cairo',sans-serif;font-size:.78rem;font-weight:800;cursor:pointer;transition:all .2s;text-decoration:none;display:inline-flex;align-items:center;}
-.btn-primary:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(0,200,150,.3);}
+.btn-ghost{padding:7px 18px;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:transparent;color:var(--t2);font-family:'Cairo',sans-serif;font-size:.8rem;font-weight:700;cursor:pointer;transition:all .2s;text-decoration:none;display:inline-flex;align-items:center;gap:6px;}
+.btn-ghost:hover{border-color:rgba(255,255,255,.35);color:var(--t);}
+.btn-primary{padding:7px 18px;border-radius:10px;border:none;background:linear-gradient(135deg,var(--ac),var(--ac2));color:#fff;font-family:'Cairo',sans-serif;font-size:.8rem;font-weight:700;cursor:pointer;transition:all .2s;text-decoration:none;display:inline-flex;align-items:center;gap:6px;box-shadow:0 0 20px rgba(0,200,150,.2);}
+.btn-primary:hover{transform:translateY(-1px);box-shadow:0 6px 24px rgba(0,200,150,.35);}
 
-/* ══ HERO ══ */
-.hero{position:relative;z-index:1;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:80px 20px 60px;}
-.hero-badge{display:inline-flex;align-items:center;gap:7px;padding:6px 16px;border-radius:30px;border:1px solid rgba(0,200,150,.25);background:rgba(0,200,150,.06);color:var(--ac);font-size:.75rem;font-weight:700;margin-bottom:24px;animation:fadeUp .6s ease both;}
-.hero-title{font-size:clamp(2.2rem,6vw,4rem);font-weight:900;line-height:1.15;margin-bottom:20px;animation:fadeUp .6s ease .1s both;}
-.hero-title span{background:linear-gradient(135deg,var(--ac),var(--ac2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
-.hero-sub{font-size:clamp(.95rem,2.5vw,1.18rem);color:var(--t2);max-width:620px;line-height:1.7;margin-bottom:36px;animation:fadeUp .6s ease .2s both;}
-.hero-btns{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;margin-bottom:56px;animation:fadeUp .6s ease .3s both;}
-.btn-lg{padding:13px 28px;border-radius:13px;font-size:.9rem;font-weight:900;cursor:pointer;transition:all .25s;text-decoration:none;display:inline-flex;align-items:center;gap:8px;}
-.btn-lg-primary{border:none;background:linear-gradient(135deg,var(--ac),var(--ac2));color:#fff;}
-.btn-lg-primary:hover{transform:translateY(-3px);box-shadow:0 10px 30px rgba(0,200,150,.35);}
-.btn-lg-ghost{border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.05);color:var(--t);}
-.btn-lg-ghost:hover{border-color:rgba(255,255,255,.3);background:rgba(255,255,255,.09);}
-
-/* Stats */
-.hero-stats{display:flex;gap:32px;flex-wrap:wrap;justify-content:center;animation:fadeUp .6s ease .4s both;}
-.hstat{text-align:center;}
-.hstat-n{font-size:1.6rem;font-weight:900;background:linear-gradient(135deg,var(--ac),var(--ac2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
-.hstat-l{font-size:.72rem;color:var(--t3);}
+@media(max-width:768px){.nav-links{display:none;}}
 
 /* ══ SECTIONS ══ */
 section{position:relative;z-index:1;padding:80px 5%;}
+.section-label{display:inline-flex;align-items:center;gap:8px;background:rgba(0,200,150,.08);border:1px solid rgba(0,200,150,.2);border-radius:50px;padding:5px 16px;font-size:.75rem;font-weight:700;color:var(--ac);margin-bottom:20px;letter-spacing:.04em;}
+.section-title{font-size:clamp(1.6rem,3vw,2.4rem);font-weight:900;line-height:1.3;margin-bottom:12px;}
+.section-sub{font-size:.95rem;color:var(--t2);line-height:1.8;max-width:560px;}
 
-/* Who section */
-.who-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;max-width:960px;margin:0 auto;}
-.who-card{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:20px;padding:28px 24px;text-align:center;transition:all .3s;cursor:default;}
-.who-card:hover{transform:translateY(-6px);border-color:rgba(0,200,150,.2);box-shadow:0 16px 40px rgba(0,0,0,.3);}
-.who-ico{font-size:2.8rem;margin-bottom:14px;}
-.who-title{font-size:1rem;font-weight:900;margin-bottom:8px;}
-.who-desc{font-size:.78rem;color:var(--t2);line-height:1.65;}
-.who-card.emp{border-top:2px solid var(--ac);}
-.who-card.co{border-top:2px solid var(--ac2);}
-.who-card.edu{border-top:2px solid #8b5cf6;}
+/* ══ REVEAL ══ */
+.reveal{opacity:0;transform:translateY(28px);transition:opacity .6s ease,transform .6s ease;}
+.reveal.visible{opacity:1;transform:none;}
 
-/* Section title */
-.sec-label{font-size:.7rem;font-weight:800;letter-spacing:2px;text-transform:uppercase;color:var(--ac);margin-bottom:10px;}
-.sec-title{font-size:clamp(1.5rem,4vw,2.2rem);font-weight:900;margin-bottom:14px;line-height:1.2;}
-.sec-sub{font-size:.88rem;color:var(--t2);max-width:540px;line-height:1.7;}
-.centered{text-align:center;display:flex;flex-direction:column;align-items:center;}
+/* ══ HERO ══ */
+#hero{padding:0;min-height:100vh;display:flex;align-items:center;padding-top:60px;}
+.hero-inner{display:flex;flex-direction:row-reverse;align-items:center;justify-content:space-between;gap:40px;padding:80px 5% 60px;width:100%;max-width:1200px;margin:0 auto;}
+.hero-text{flex:1;min-width:0;}
+.hero-chip{display:inline-flex;align-items:center;gap:8px;background:rgba(0,200,150,.08);border:1px solid rgba(0,200,150,.22);border-radius:50px;padding:6px 18px;font-size:.78rem;font-weight:700;color:var(--ac);margin-bottom:28px;}
+.hero-h1{font-size:clamp(2rem,4.5vw,3.4rem);font-weight:900;line-height:1.25;margin-bottom:22px;}
+.hero-h1 .grad{background:linear-gradient(135deg,var(--ac),var(--ac2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+.hero-sub{font-size:1rem;color:var(--t2);line-height:1.9;margin-bottom:36px;max-width:500px;}
+.hero-actions{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:32px;}
+.btn-hero-primary{padding:13px 28px;border-radius:12px;border:none;background:linear-gradient(135deg,var(--ac),var(--ac2));color:#fff;font-family:'Cairo',sans-serif;font-size:1rem;font-weight:700;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:8px;box-shadow:0 0 32px rgba(0,200,150,.3);transition:all .25s;}
+.btn-hero-primary:hover{transform:translateY(-2px);box-shadow:0 8px 32px rgba(0,200,150,.45);}
+.btn-hero-ghost{padding:13px 28px;border-radius:12px;border:1px solid rgba(255,255,255,.18);background:transparent;color:var(--t);font-family:'Cairo',sans-serif;font-size:1rem;font-weight:700;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:8px;transition:all .25s;}
+.btn-hero-ghost:hover{border-color:rgba(255,255,255,.4);background:rgba(255,255,255,.04);}
+.hero-pills{display:flex;flex-wrap:wrap;gap:10px;}
+.pill{display:inline-flex;align-items:center;gap:6px;background:rgba(0,200,150,.07);border:1px solid rgba(0,200,150,.18);border-radius:50px;padding:5px 14px;font-size:.78rem;font-weight:600;color:var(--t2);}
+.pill-check{color:var(--ac);font-size:.7rem;font-weight:900;}
+
+/* ══ HERO VISUAL ══ */
+.hero-visual{flex:0 0 420px;position:relative;}
+@media(max-width:900px){.hero-visual{flex:0 0 340px;}}
+.profile-card{background:rgba(255,255,255,.04);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);border:1px solid rgba(255,255,255,.1);border-radius:20px;padding:24px;position:relative;z-index:2;}
+.pc-header{display:flex;align-items:center;gap:14px;margin-bottom:20px;}
+.pc-avatar{width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,var(--ac),var(--ac2));display:flex;align-items:center;justify-content:center;font-size:1.3rem;font-weight:900;color:#fff;flex-shrink:0;}
+.pc-info{flex:1;min-width:0;}
+.pc-name{font-size:1rem;font-weight:700;display:flex;align-items:center;gap:8px;}
+.pc-badge{display:inline-flex;align-items:center;gap:4px;background:rgba(0,200,150,.15);border:1px solid rgba(0,200,150,.3);border-radius:50px;padding:2px 10px;font-size:.68rem;font-weight:700;color:var(--ac);}
+.pc-title{font-size:.8rem;color:var(--t2);margin-top:3px;}
+.pc-divider{border:none;border-top:1px solid rgba(255,255,255,.07);margin:16px 0;}
+.pc-section-label{font-size:.72rem;color:var(--t3);font-weight:600;margin-bottom:10px;}
+.pc-skills{display:flex;flex-wrap:wrap;gap:7px;}
+.pc-skill{padding:4px 12px;border-radius:50px;background:rgba(37,99,255,.12);border:1px solid rgba(37,99,255,.25);font-size:.72rem;font-weight:600;color:rgba(100,160,255,.9);}
+.pc-link-row{display:flex;align-items:center;justify-content:space-between;gap:12px;}
+.pc-link-text{font-size:.72rem;color:var(--t3);}
+.pc-qr{width:52px;height:52px;display:grid;grid-template-columns:repeat(5,1fr);gap:3px;flex-shrink:0;}
+.qr-dot{border-radius:2px;}
+.qr-fill{background:var(--ac);}
+.qr-empty{background:rgba(255,255,255,.06);}
+
+/* Floating badges */
+.badge-float{position:absolute;z-index:3;border-radius:12px;padding:10px 14px;font-size:.72rem;font-weight:700;white-space:nowrap;backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);}
+.badge-verified{top:-18px;left:-24px;background:rgba(255,255,255,.92);color:#111;display:flex;align-items:center;gap:7px;border:1px solid rgba(0,200,150,.3);box-shadow:0 4px 24px rgba(0,0,0,.3);}
+.badge-verified .bv-icon{width:24px;height:24px;border-radius:50%;background:var(--ac);display:flex;align-items:center;justify-content:center;}
+.badge-verified .bv-icon svg{width:13px;height:13px;stroke:#fff;stroke-width:3;}
+.badge-job{bottom:-18px;right:-24px;background:rgba(0,200,150,.12);border:1px solid rgba(0,200,150,.3);color:var(--t);display:flex;flex-direction:column;gap:3px;box-shadow:0 4px 24px rgba(0,0,0,.25);}
+.badge-job .bj-label{color:var(--ac);font-size:.65rem;}
+
+@media(max-width:768px){
+  .hero-inner{flex-direction:column;padding:60px 5% 40px;}
+  .hero-visual{flex:none;width:100%;max-width:380px;margin:0 auto;}
+  .badge-float{display:none;}
+}
+
+/* ══ VALUE CARDS ══ */
+#values{padding-top:60px;}
+.value-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:18px;margin-top:40px;}
+@media(max-width:900px){.value-grid{grid-template-columns:repeat(2,1fr);}}
+@media(max-width:480px){.value-grid{grid-template-columns:1fr;}}
+.value-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:24px 20px;transition:border-color .25s,transform .25s;}
+.value-card:hover{border-color:rgba(0,200,150,.25);transform:translateY(-3px);}
+.vc-icon{width:44px;height:44px;border-radius:12px;background:rgba(0,200,150,.1);display:flex;align-items:center;justify-content:center;margin-bottom:16px;color:var(--ac);}
+.vc-icon svg{width:22px;height:22px;stroke:var(--ac);stroke-width:1.8;}
+.vc-title{font-size:.95rem;font-weight:700;margin-bottom:7px;}
+.vc-sub{font-size:.8rem;color:var(--t2);line-height:1.7;}
+
+/* ══ WHO ══ */
+#who{background:rgba(255,255,255,.012);border-top:1px solid var(--border);border-bottom:1px solid var(--border);}
+.who-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:24px;margin-top:48px;}
+@media(max-width:768px){.who-grid{grid-template-columns:1fr;}}
+.who-card{background:var(--card);border:1px solid var(--border);border-radius:18px;padding:28px 24px;border-top-width:3px;transition:transform .25s;}
+.who-card:hover{transform:translateY(-4px);}
+.who-card.green{border-top-color:var(--ac);}
+.who-card.blue{border-top-color:var(--ac2);}
+.who-card.purple{border-top-color:var(--ac3);}
+.who-icon{width:50px;height:50px;border-radius:14px;display:flex;align-items:center;justify-content:center;margin-bottom:18px;}
+.who-card.green .who-icon{background:rgba(0,200,150,.1);}
+.who-card.blue .who-icon{background:rgba(37,99,255,.1);}
+.who-card.purple .who-icon{background:rgba(139,92,246,.1);}
+.who-icon svg{width:24px;height:24px;stroke-width:1.7;}
+.who-card.green .who-icon svg{stroke:var(--ac);}
+.who-card.blue .who-icon svg{stroke:var(--ac2);}
+.who-card.purple .who-icon svg{stroke:var(--ac3);}
+.who-title{font-size:1.05rem;font-weight:800;margin-bottom:10px;}
+.who-desc{font-size:.85rem;color:var(--t2);line-height:1.8;}
+.who-list{margin-top:14px;padding-right:4px;}
+.who-list li{font-size:.82rem;color:var(--t2);list-style:none;padding:4px 0;display:flex;align-items:flex-start;gap:8px;}
+.who-list li::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;margin-top:7px;flex-shrink:0;}
+.who-card.green .who-list li::before{background:var(--ac);}
+.who-card.blue .who-list li::before{background:var(--ac2);}
+.who-card.purple .who-list li::before{background:var(--ac3);}
 
 /* ══ HOW IT WORKS ══ */
-.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;max-width:900px;margin:40px auto 0;position:relative;}
-.steps::before{content:'';position:absolute;top:28px;right:16.6%;left:16.6%;height:1px;background:linear-gradient(90deg,transparent,rgba(0,200,150,.3),transparent);z-index:0;}
-.step{text-align:center;position:relative;z-index:1;}
-.step-num{width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,var(--ac),var(--ac2));display:flex;align-items:center;justify-content:center;font-size:1.2rem;font-weight:900;color:#fff;margin:0 auto 14px;box-shadow:0 6px 20px rgba(0,200,150,.3);}
-.step-title{font-size:.86rem;font-weight:800;margin-bottom:6px;}
-.step-desc{font-size:.74rem;color:var(--t2);line-height:1.6;}
+#how{}
+.how-steps{display:grid;grid-template-columns:repeat(3,1fr);gap:0;margin-top:48px;position:relative;}
+.how-steps::before{content:"";position:absolute;top:28px;right:16.5%;left:16.5%;height:2px;background:linear-gradient(90deg,var(--ac),var(--ac2));z-index:0;border-radius:2px;}
+@media(max-width:768px){
+  .how-steps{grid-template-columns:1fr;gap:0;}
+  .how-steps::before{display:none;}
+}
+.how-step{position:relative;z-index:1;text-align:center;padding:0 20px;}
+.how-num{width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,var(--ac),var(--ac2));color:#fff;font-size:1.1rem;font-weight:900;display:flex;align-items:center;justify-content:center;margin:0 auto 20px;box-shadow:0 0 24px rgba(0,200,150,.35);}
+.how-step-title{font-size:1rem;font-weight:700;margin-bottom:10px;}
+.how-step-desc{font-size:.83rem;color:var(--t2);line-height:1.8;}
+@media(max-width:768px){
+  .how-step{display:flex;gap:20px;text-align:right;padding:16px 0;}
+  .how-num{margin:0;flex-shrink:0;}
+  .how-step-body{flex:1;}
+}
 
 /* ══ FEATURES ══ */
-.features-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;max-width:900px;margin:40px auto 0;}
-.feat-card{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:18px;padding:22px;display:flex;gap:16px;align-items:flex-start;transition:all .25s;}
-.feat-card:hover{border-color:rgba(0,200,150,.18);background:rgba(0,200,150,.02);}
-.feat-ico{width:46px;height:46px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:1.3rem;flex-shrink:0;}
-.fi-green{background:rgba(0,200,150,.12);}
-.fi-blue{background:rgba(37,99,255,.12);}
-.fi-purple{background:rgba(139,92,246,.12);}
-.fi-orange{background:rgba(249,115,22,.12);}
-.fi-pink{background:rgba(236,72,153,.12);}
-.fi-yellow{background:rgba(234,179,8,.12);}
-.feat-title{font-size:.86rem;font-weight:800;margin-bottom:5px;}
-.feat-desc{font-size:.74rem;color:var(--t2);line-height:1.6;}
+#features{background:rgba(255,255,255,.012);border-top:1px solid var(--border);border-bottom:1px solid var(--border);}
+.features-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:48px;}
+@media(max-width:900px){.features-grid{grid-template-columns:repeat(2,1fr);}}
+@media(max-width:560px){.features-grid{grid-template-columns:1fr;}}
+.feat-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:24px;transition:all .25s;}
+.feat-card:hover{transform:translateY(-3px);}
+.feat-icon{width:46px;height:46px;border-radius:12px;display:flex;align-items:center;justify-content:center;margin-bottom:16px;}
+.feat-icon svg{width:22px;height:22px;stroke-width:1.7;}
+.fi-green{background:rgba(0,200,150,.1);}
+.fi-green svg{stroke:var(--ac);}
+.fi-blue{background:rgba(37,99,255,.1);}
+.fi-blue svg{stroke:var(--ac2);}
+.fi-purple{background:rgba(139,92,246,.1);}
+.fi-purple svg{stroke:var(--ac3);}
+.fi-orange{background:rgba(245,158,11,.1);}
+.fi-orange svg{stroke:#f59e0b;}
+.fi-pink{background:rgba(236,72,153,.1);}
+.fi-pink svg{stroke:#ec4899;}
+.fi-yellow{background:rgba(234,179,8,.1);}
+.fi-yellow svg{stroke:#eab308;}
+.feat-title{font-size:.95rem;font-weight:700;margin-bottom:8px;}
+.feat-desc{font-size:.82rem;color:var(--t2);line-height:1.75;}
 
-/* ══ VERIFICATION ══ */
-.verify-flow{max-width:720px;margin:40px auto 0;display:flex;flex-direction:column;gap:12px;}
-.vf-step{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:14px;padding:16px 20px;display:flex;align-items:center;gap:16px;}
-.vf-num{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,var(--ac),var(--ac2));display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:900;color:#fff;flex-shrink:0;}
-.vf-title{font-size:.82rem;font-weight:700;margin-bottom:2px;}
-.vf-desc{font-size:.72rem;color:var(--t2);}
-.vf-badge{margin-right:auto;padding:3px 10px;border-radius:20px;font-size:.64rem;font-weight:800;}
-.vb-green{background:rgba(0,200,150,.1);color:#00c896;border:1px solid rgba(0,200,150,.2);}
-.vb-blue{background:rgba(37,99,255,.1);color:#60a5fa;border:1px solid rgba(37,99,255,.2);}
-.vb-gray{background:rgba(255,255,255,.06);color:var(--t2);}
+/* ══ VERIFY ══ */
+#verify{}
+.verify-steps{display:grid;grid-template-columns:repeat(3,1fr);gap:24px;margin-top:48px;}
+@media(max-width:768px){.verify-steps{grid-template-columns:1fr;}}
+.verify-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:26px;position:relative;overflow:hidden;}
+.verify-card::before{content:"";position:absolute;top:0;right:0;left:0;height:2px;background:linear-gradient(90deg,var(--ac),var(--ac2));}
+.v-num{font-size:2.5rem;font-weight:900;color:rgba(0,200,150,.12);position:absolute;top:14px;left:20px;line-height:1;}
+.v-icon{width:44px;height:44px;border-radius:12px;background:rgba(0,200,150,.1);display:flex;align-items:center;justify-content:center;margin-bottom:16px;}
+.v-icon svg{width:22px;height:22px;stroke:var(--ac);stroke-width:1.8;}
+.v-title{font-size:.95rem;font-weight:700;margin-bottom:8px;}
+.v-desc{font-size:.82rem;color:var(--t2);line-height:1.75;}
 
-/* ══ CTA SECTION ══ */
-.cta-section{text-align:center;padding:80px 20px 100px;}
-.cta-box{max-width:700px;margin:0 auto;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:28px;padding:56px 40px;position:relative;overflow:hidden;}
-.cta-box::before{content:'';position:absolute;top:-100px;right:-100px;width:300px;height:300px;background:var(--ac);opacity:.06;border-radius:50%;filter:blur(60px);}
-.cta-box::after{content:'';position:absolute;bottom:-80px;left:-80px;width:250px;height:250px;background:var(--ac2);opacity:.06;border-radius:50%;filter:blur(60px);}
-.cta-title{font-size:clamp(1.5rem,4vw,2rem);font-weight:900;margin-bottom:12px;position:relative;z-index:1;}
-.cta-sub{font-size:.88rem;color:var(--t2);margin-bottom:30px;line-height:1.6;position:relative;z-index:1;}
-.cta-btns{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;position:relative;z-index:1;}
-.user-types-row{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:20px;position:relative;z-index:1;}
-.utype{padding:8px 18px;border-radius:30px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);font-family:'Cairo',sans-serif;font-size:.76rem;font-weight:700;cursor:pointer;color:var(--t2);transition:all .2s;text-decoration:none;}
-.utype:hover{border-color:rgba(0,200,150,.3);color:var(--ac);background:rgba(0,200,150,.06);}
+/* ══ CTA ══ */
+#cta{text-align:center;}
+.cta-box{background:rgba(255,255,255,.03);border:1px solid rgba(0,200,150,.15);border-radius:24px;padding:60px 40px;max-width:700px;margin:0 auto;position:relative;overflow:hidden;}
+.cta-box::before{content:"";position:absolute;inset:0;background:radial-gradient(ellipse at 50% 0%,rgba(0,200,150,.08) 0%,transparent 70%);pointer-events:none;}
+.cta-title{font-size:clamp(1.6rem,3vw,2.2rem);font-weight:900;margin-bottom:14px;}
+.cta-sub{font-size:.95rem;color:var(--t2);line-height:1.8;margin-bottom:36px;}
+.cta-btn{display:inline-flex;align-items:center;gap:9px;padding:14px 36px;border-radius:14px;background:linear-gradient(135deg,var(--ac),var(--ac2));color:#fff;font-family:'Cairo',sans-serif;font-size:1rem;font-weight:700;text-decoration:none;box-shadow:0 0 32px rgba(0,200,150,.35);transition:all .25s;margin-bottom:28px;}
+.cta-btn:hover{transform:translateY(-2px);box-shadow:0 8px 36px rgba(0,200,150,.5);}
+.cta-links{display:flex;justify-content:center;gap:28px;flex-wrap:wrap;}
+.cta-link{font-size:.85rem;color:var(--t2);text-decoration:none;transition:color .2s;}
+.cta-link:hover{color:var(--ac);}
+.cta-divider{color:var(--t3);}
 
 /* ══ FOOTER ══ */
-footer{position:relative;z-index:1;border-top:1px solid rgba(255,255,255,.06);padding:30px 5%;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;}
-.footer-logo{font-size:.95rem;font-weight:900;background:linear-gradient(135deg,var(--ac),var(--ac2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
-.footer-text{font-size:.72rem;color:var(--t3);}
-
-/* ══ ANIMATIONS ══ */
-@keyframes fadeUp{from{opacity:0;transform:translateY(24px);}to{opacity:1;transform:translateY(0);}}
-.reveal{opacity:0;transform:translateY(30px);transition:opacity .6s ease,transform .6s ease;}
-.reveal.visible{opacity:1;transform:translateY(0);}
-
-/* ══ RESPONSIVE ══ */
-@media(max-width:768px){
-  .nav-links{display:none;}
-  .who-grid{grid-template-columns:1fr;}
-  .steps{grid-template-columns:1fr;gap:16px;}
-  .steps::before{display:none;}
-  .features-grid{grid-template-columns:1fr;}
-  .hero-stats{gap:20px;}
-  section{padding:60px 5%;}
-  .cta-box{padding:36px 20px;}
-}
-@media(max-width:480px){
-  .nav-btns .btn-ghost{display:none;}
-}
-
-/* ══ ITQAN Utilities ══ */
-@keyframes tw-fadein{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:none;}}
-.tw-toast[aria-live="polite"]{position:fixed;bottom:30px;left:50%;transform:translateX(-50%) translateY(20px);background:rgba(7,11,24,.97);border:1px solid rgba(255,255,255,.1);backdrop-filter:blur(20px);border-radius:14px;padding:12px 20px;display:flex;align-items:center;gap:10px;font-size:.82rem;font-family:Cairo,sans-serif;color:rgba(255,255,255,.92);opacity:0;transition:all .3s cubic-bezier(.34,1.56,.64,1);z-index:9999;white-space:nowrap;}
-.tw-toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
-.tw-toast.success{border-color:rgba(0,200,150,.3);}
-
-
-.nav.scrolled{background:rgba(7,11,24,.98);box-shadow:0 4px 24px rgba(0,0,0,.3);}
-
+footer{position:relative;z-index:1;border-top:1px solid var(--border);padding:32px 5%;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;}
+.footer-brand{display:flex;align-items:center;gap:10px;}
+.footer-copy{font-size:.78rem;color:var(--t3);}
+.footer-links{display:flex;gap:20px;}
+.footer-link{font-size:.78rem;color:var(--t3);text-decoration:none;transition:color .2s;}
+.footer-link:hover{color:var(--ac);}
+@media(max-width:560px){footer{flex-direction:column;text-align:center;}.footer-brand,.footer-links{justify-content:center;}}
 </style>
-<style>.skip-link{position:absolute;top:-40px;right:0;background:var(--ac,#00c896);color:#0d1a2e;padding:8px 16px;border-radius:0 0 8px 0;font-family:Cairo,sans-serif;font-size:.8rem;font-weight:700;text-decoration:none;transition:top .2s;z-index:10000}.skip-link:focus{top:0}</style><a href="#main-content" class="skip-link">تخطى للمحتوى الرئيسي</a><link rel="stylesheet" href="/static/tw_shared.css">
 </head>
 <body>
-<!--
-╔══════════════════════════════════════════════╗
-║  TAWASALNA - LANDING                         ║
-║  Architecture: Hybrid                        ║
-║  Last Modified: 2026-05                      ║
-║  DO NOT EDIT outside designated sections     ║
-╚══════════════════════════════════════════════╝
--->
 
+<!-- Skip to content -->
+<a href="#main" class="skip-link">تخطى إلى المحتوى</a>
 
-<div class="bg-orbs">
+<!-- Background decoration -->
+<div class="bg-orbs" aria-hidden="true">
   <div class="orb o1"></div>
   <div class="orb o2"></div>
   <div class="orb o3"></div>
 </div>
-<div class="grid-bg"></div>
+<div class="grid-bg" aria-hidden="true"></div>
 
 <!-- ══ NAV ══ -->
-<!-- ██ NAVBAR SECTION ██ -->
-<nav class="nav">
-  <div class="nav-logo"><img src="https://wrxvmdmknhoufoeprpoc.supabase.co/storage/v1/object/public/site/Logo.svg" alt="تواصلنا" style="height:36px;width:auto;object-fit:contain;display:block"></div>
+<nav role="navigation" aria-label="التنقل الرئيسي">
+  <a href="/" aria-label="تواصلنا - الرئيسية">
+    <img src="/static/33333.svg" height="36" alt="تواصلنا">
+  </a>
   <div class="nav-links">
-    <a class="nav-link" href="#who">لمن؟</a>
-    <a class="nav-link" href="#how">كيف؟</a>
-    <a class="nav-link" href="#features">المميزات</a>
-    <a class="nav-link" href="#verify">التوثيق</a>
+    <a href="#who" class="nav-link">من نخدم</a>
+    <a href="#features" class="nav-link">المميزات</a>
+    <a href="#verify" class="nav-link">التوثيق</a>
   </div>
   <div class="nav-btns">
-    <a class="btn-ghost" href="index.html">دخول</a>
-    <a class="btn-primary" href="index.html">ابدأ مجاناً</a>
+    <a href="/login" class="btn-ghost">دخول</a>
+    <a href="/login" class="btn-primary">ابدأ مجاناً</a>
   </div>
 </nav>
 
+<!-- ══ MAIN ══ -->
+<main id="main">
+
 <!-- ══ HERO ══ -->
-<!-- ██ HERO SECTION ██ -->
-<!-- ── Content Section ── -->
-<section class="hero">
-  <div class="hero-badge">🚀 منصة التوظيف والتوثيق العربية</div>
-  
-  <h1 class="hero-title">
-    وظيفتك تبدأ من<br>
-    <span>ملف موثوق</span>
-  </h1>
-  <p class="hero-sub">
-    تواصلنا تجمع الموظفين والشركات والجهات التعليمية في مكان واحد.
-    ابنِ ملفك الشخصي، وثّق خبراتك وشهاداتك، وابحث عن فرصتك المثالية.
-  </p>
-  <div class="hero-btns">
-    <a class="btn-lg btn-lg-primary" href="index.html">🚀 ابدأ الآن - مجاناً</a>
-    <a class="btn-lg btn-lg-ghost" href="#how">تعرّف على المنصة</a>
+<section id="hero" aria-label="الرئيسية">
+  <div class="hero-inner">
+
+    <!-- Text column -->
+    <div class="hero-text reveal">
+      <div class="hero-chip">
+        <i data-lucide="sparkles" style="width:14px;height:14px;stroke:var(--ac);stroke-width:2;"></i>
+        منصة التوظيف والتوثيق العربية
+      </div>
+      <h1 class="hero-h1">
+        وظيفتك المثالية<br>تبدأ من ملف <span class="grad">موثوق</span>
+      </h1>
+      <p class="hero-sub">تواصلنا تجمع الموظفين والشركات والجهات التعليمية. ابنِ ملفك المهني، وثّق خبراتك وشهاداتك، وانطلق نحو فرصتك.</p>
+      <div class="hero-actions">
+        <a href="/login" class="btn-hero-primary" id="heroCta">ابدأ مجاناً ←</a>
+        <a href="#who" class="btn-hero-ghost">تعرّف على المنصة</a>
+      </div>
+      <div class="hero-pills">
+        <span class="pill"><span class="pill-check">✓</span> مجاني للموظفين</span>
+        <span class="pill"><span class="pill-check">✓</span> توثيق موثوق</span>
+        <span class="pill"><span class="pill-check">✓</span> رابط وQR خاص</span>
+        <span class="pill"><span class="pill-check">✓</span> عربي 100%</span>
+      </div>
+    </div>
+
+    <!-- Visual column -->
+    <div class="hero-visual reveal" aria-hidden="true">
+
+      <!-- Floating badge top-left -->
+      <div class="badge-float badge-verified">
+        <div class="bv-icon">
+          <svg viewBox="0 0 24 24" fill="none"><polyline points="20 6 9 17 4 12"/></svg>
+        </div>
+        <div>
+          <div style="font-size:.65rem;color:#555;font-weight:600;margin-bottom:1px;">جهة موثقة</div>
+          <div>شركة تقنية الأردن</div>
+        </div>
+      </div>
+
+      <!-- Profile card mockup -->
+      <div class="profile-card">
+        <div class="pc-header">
+          <div class="pc-avatar">أ</div>
+          <div class="pc-info">
+            <div class="pc-name">
+              أحمد المحمد
+              <span class="pc-badge">
+                <i data-lucide="badge-check" style="width:11px;height:11px;stroke:var(--ac);stroke-width:2.5;"></i>
+                موثق
+              </span>
+            </div>
+            <div class="pc-title">مطور ويب أول &middot; عمان، الأردن</div>
+          </div>
+        </div>
+        <hr class="pc-divider">
+        <div class="pc-section-label">المهارات</div>
+        <div class="pc-skills">
+          <span class="pc-skill">React</span>
+          <span class="pc-skill">Node.js</span>
+          <span class="pc-skill">Python</span>
+          <span class="pc-skill">TypeScript</span>
+        </div>
+        <hr class="pc-divider">
+        <div class="pc-link-row">
+          <div class="pc-link-text">tawasolna.com/u/U9620abc</div>
+          <div class="pc-qr" role="img" aria-label="QR Code">
+            <div class="qr-dot qr-fill"></div><div class="qr-dot qr-fill"></div><div class="qr-dot qr-empty"></div><div class="qr-dot qr-fill"></div><div class="qr-dot qr-fill"></div>
+            <div class="qr-dot qr-fill"></div><div class="qr-dot qr-empty"></div><div class="qr-dot qr-fill"></div><div class="qr-dot qr-empty"></div><div class="qr-dot qr-fill"></div>
+            <div class="qr-dot qr-empty"></div><div class="qr-dot qr-fill"></div><div class="qr-dot qr-fill"></div><div class="qr-dot qr-fill"></div><div class="qr-dot qr-empty"></div>
+            <div class="qr-dot qr-fill"></div><div class="qr-dot qr-empty"></div><div class="qr-dot qr-fill"></div><div class="qr-dot qr-empty"></div><div class="qr-dot qr-fill"></div>
+            <div class="qr-dot qr-fill"></div><div class="qr-dot qr-fill"></div><div class="qr-dot qr-empty"></div><div class="qr-dot qr-fill"></div><div class="qr-dot qr-fill"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Floating badge bottom-right -->
+      <div class="badge-float badge-job">
+        <div class="bj-label">عرض عمل جديد</div>
+        <div style="font-weight:800;">مطور Frontend</div>
+        <div style="color:var(--t2);font-size:.65rem;">الرياض، المملكة العربية السعودية</div>
+      </div>
+
+    </div>
   </div>
-  <div class="hero-stats">
-    <div class="hstat"><div class="hstat-n" id="statJobs">--</div><div class="hstat-l">وظيفة متاحة</div></div>
-    <div class="hstat"><div class="hstat-n" id="statUsers">--</div><div class="hstat-l">مستخدم مسجل</div></div>
-    <div class="hstat"><div class="hstat-n">100%</div><div class="hstat-l">عربي</div></div>
-    <div class="hstat"><div class="hstat-n">مجاني</div><div class="hstat-l">للموظفين دائماً</div></div>
+</section>
+
+<!-- ══ VALUE CARDS ══ -->
+<section id="values" aria-label="قيمنا">
+  <div style="max-width:1200px;margin:0 auto;">
+    <div class="value-grid">
+      <div class="value-card reveal">
+        <div class="vc-icon"><i data-lucide="badge-check"></i></div>
+        <div class="vc-title">ملف موثوق</div>
+        <div class="vc-sub">خبراتك وشهاداتك قابلة للتوثيق والاعتماد الرسمي</div>
+      </div>
+      <div class="value-card reveal">
+        <div class="vc-icon"><i data-lucide="link"></i></div>
+        <div class="vc-title">رابط وQR خاص</div>
+        <div class="vc-sub">شارك ملفك المهني بروابط مختصرة أو QR Code</div>
+      </div>
+      <div class="value-card reveal">
+        <div class="vc-icon"><i data-lucide="briefcase"></i></div>
+        <div class="vc-title">فرص عمل وتدريب</div>
+        <div class="vc-sub">وظائف ودورات من شركات وجهات تعليمية موثوقة</div>
+      </div>
+      <div class="value-card reveal">
+        <div class="vc-icon"><i data-lucide="users"></i></div>
+        <div class="vc-title">للجميع</div>
+        <div class="vc-sub">موظفون، شركات، وجهات تعليمية — في منصة واحدة</div>
+      </div>
+    </div>
   </div>
 </section>
 
 <!-- ══ WHO ══ -->
-<section id="who">
-  <div class="centered">
-    <div class="sec-label">لمن تواصلنا؟</div>
-    <h2 class="sec-title">كل طرف يستفيد</h2>
-    <p class="sec-sub">ثلاثة أطراف في منصة واحدة، كل طرف له أدواته وصلاحياته الخاصة</p>
-  </div>
-  <div class="who-grid reveal" style="margin-top:40px">
-    <div class="who-card emp">
-      <div class="who-ico">👤</div>
-      <div class="who-title">الموظف / الباحث عن عمل</div>
-      <div class="who-desc">
-        ابنِ ملفك الشخصي المحترف، وثّق خبراتك وشهاداتك من مصادرها الأصلية،
-        تابع الشركات، وتقدم لوظائف تناسب مهاراتك بدقة.
-      </div>
+<section id="who" aria-labelledby="who-title">
+  <div style="max-width:1200px;margin:0 auto;">
+    <div class="section-label">
+      <i data-lucide="users" style="width:14px;height:14px;"></i>
+      من نخدم
     </div>
-    <div class="who-card co">
-      <div class="who-ico">🏢</div>
-      <div class="who-title">الشركة / المؤسسة</div>
-      <div class="who-desc">
-        ابحث عن الموظف المثالي من آلاف الملفات الموثقة،
-        انشر وظائفك، درّب موظفيك، وتواصل معهم مباشرة.
+    <h2 class="section-title reveal" id="who-title">منصة واحدة لثلاثة أطراف</h2>
+    <p class="section-sub reveal">تواصلنا تصل بين الباحثين عن العمل والشركات الرائدة والجهات التعليمية المعتمدة.</p>
+    <div class="who-grid">
+
+      <div class="who-card green reveal">
+        <div class="who-icon"><i data-lucide="user-round"></i></div>
+        <div class="who-title">الموظف / الباحث عن عمل</div>
+        <div class="who-desc">ابنِ ملفك المهني، أضف خبراتك وشهاداتك، وابحث عن وظيفتك المثالية.</div>
+        <ul class="who-list">
+          <li>ملف شخصي احترافي موثوق</li>
+          <li>مطابقة ذكية مع الوظائف</li>
+          <li>رابط عام وQR لمشاركة ملفك</li>
+        </ul>
       </div>
-    </div>
-    <div class="who-card edu">
-      <div class="who-ico">🎓</div>
-      <div class="who-title">الجهة التعليمية</div>
-      <div class="who-desc">
-        انشر دوراتك (أونلاين أو وجاهية)، أصدر شهادات موثقة تظهر
-        تلقائياً في ملفات الموظفين، وعرض خصومات للشركات.
+
+      <div class="who-card blue reveal">
+        <div class="who-icon"><i data-lucide="briefcase-business"></i></div>
+        <div class="who-title">الشركة / المؤسسة</div>
+        <div class="who-desc">انشر وظائفك، ابحث عن المرشحين المؤهلين، وتواصل معهم مباشرة.</div>
+        <ul class="who-list">
+          <li>نشر وظائف وإدارة الطلبات</li>
+          <li>البحث في قاعدة موظفين موثقة</li>
+          <li>تواصل مباشر مع المرشحين</li>
+        </ul>
       </div>
+
+      <div class="who-card purple reveal">
+        <div class="who-icon"><i data-lucide="graduation-cap"></i></div>
+        <div class="who-title">الجهة التعليمية</div>
+        <div class="who-desc">انشر دوراتك وبرامجك، واعتمد شهادات خريجيك رسمياً عبر المنصة.</div>
+        <ul class="who-list">
+          <li>نشر الدورات والبرامج التدريبية</li>
+          <li>توثيق شهادات الخريجين</li>
+          <li>ملف مؤسسي موثوق</li>
+        </ul>
+      </div>
+
     </div>
   </div>
 </section>
 
-<!-- ══ HOW ══ -->
-<section id="how" style="background:rgba(255,255,255,.015);border-top:1px solid rgba(255,255,255,.05);border-bottom:1px solid rgba(255,255,255,.05);">
-  <div class="centered">
-    <div class="sec-label">كيف تعمل؟</div>
-    <h2 class="sec-title">ثلاث خطوات فقط</h2>
-    <p class="sec-sub">ابدأ رحلتك في دقائق</p>
-  </div>
-  <div class="steps reveal">
-    <div class="step">
-      <div class="step-num">1</div>
-      <div class="step-title">سجّل حسابك</div>
-      <div class="step-desc">اختر نوع حسابك (موظف أو جهة)، وأدخل بياناتك الأساسية في دقيقة واحدة.</div>
+<!-- ══ HOW IT WORKS ══ -->
+<section id="how" aria-labelledby="how-title">
+  <div style="max-width:1000px;margin:0 auto;text-align:center;">
+    <div class="section-label" style="justify-content:center;">
+      <i data-lucide="map" style="width:14px;height:14px;"></i>
+      كيف تعمل المنصة
     </div>
-    <div class="step">
-      <div class="step-num">2</div>
-      <div class="step-title">ابنِ ملفك</div>
-      <div class="step-desc">أضف خبراتك، شهاداتك، مهاراتك، واطلب توثيقها من الجهات المختصة مباشرة.</div>
-    </div>
-    <div class="step">
-      <div class="step-num">3</div>
-      <div class="step-title">انطلق</div>
-      <div class="step-desc">تقدم لوظائف، تابع شركات، سجّل في دورات، وشهاداتك الموثقة تتكلم عنك.</div>
+    <h2 class="section-title reveal" id="how-title">ثلاث خطوات للانطلاق</h2>
+    <div class="how-steps">
+      <div class="how-step reveal">
+        <div class="how-num">١</div>
+        <div class="how-step-body">
+          <div class="how-step-title">أنشئ ملفك المهني</div>
+          <div class="how-step-desc">سجّل مجاناً وأضف خبراتك وشهاداتك ومهاراتك في دقائق</div>
+        </div>
+      </div>
+      <div class="how-step reveal">
+        <div class="how-num">٢</div>
+        <div class="how-step-body">
+          <div class="how-step-title">وثّق بياناتك</div>
+          <div class="how-step-desc">أرسل طلب توثيق مع الوثائق الداعمة وانتظر الاعتماد الرسمي</div>
+        </div>
+      </div>
+      <div class="how-step reveal">
+        <div class="how-num">٣</div>
+        <div class="how-step-body">
+          <div class="how-step-title">انطلق نحو فرصتك</div>
+          <div class="how-step-desc">شارك ملفك بروابط أو QR وطابق سيرتك مع أفضل الوظائف</div>
+        </div>
+      </div>
     </div>
   </div>
 </section>
 
 <!-- ══ FEATURES ══ -->
-<section id="features">
-  <div class="centered">
-    <div class="sec-label">المميزات</div>
-    <h2 class="sec-title">كل ما تحتاجه في مكان واحد</h2>
-    <p class="sec-sub">منصة متكاملة تغطي كل رحلة العمل من البداية للنهاية</p>
-  </div>
-  <div class="features-grid reveal">
-    <div class="feat-card">
-      <div class="feat-ico fi-green">✅</div>
-      <div>
-        <div class="feat-title">توثيق فوري من المصدر</div>
-        <div class="feat-desc">خبراتك وشهاداتك تُوثَّق مباشرة من الجهة التي عملت أو درست فيها، مما يجعلها موثوقة 100%.</div>
-      </div>
+<section id="features" aria-labelledby="features-title">
+  <div style="max-width:1200px;margin:0 auto;">
+    <div class="section-label">
+      <i data-lucide="layers" style="width:14px;height:14px;"></i>
+      المميزات
     </div>
-    <div class="feat-card">
-      <div class="feat-ico fi-blue">🎨</div>
-      <div>
+    <h2 class="section-title reveal" id="features-title">كل ما تحتاجه في مكان واحد</h2>
+    <p class="section-sub reveal">منصة تواصلنا مصممة لتمنحك أدوات احترافية مدعومة بتوثيق حقيقي.</p>
+    <div class="features-grid" style="margin-top:40px;">
+
+      <div class="feat-card reveal">
+        <div class="feat-icon fi-green"><i data-lucide="shield-check"></i></div>
+        <div class="feat-title">توثيق رسمي من المصدر</div>
+        <div class="feat-desc">يُراجع فريق تواصلنا وثائقك ويعتمدها رسمياً. شارة الموثق تظهر على ملفك العام.</div>
+      </div>
+
+      <div class="feat-card reveal">
+        <div class="feat-icon fi-blue"><i data-lucide="layout-template"></i></div>
         <div class="feat-title">ملف شخصي احترافي</div>
-        <div class="feat-desc">5 ستايلات مختلفة وألوان قابلة للتخصيص. اجعل ملفك يعبر عن شخصيتك المهنية.</div>
+        <div class="feat-desc">صفحة عامة كاملة تضم خبراتك، مهاراتك، شهاداتك، وروابط تواصلك.</div>
       </div>
-    </div>
-    <div class="feat-card">
-      <div class="feat-ico fi-purple">🎯</div>
-      <div>
+
+      <div class="feat-card reveal">
+        <div class="feat-icon fi-purple"><i data-lucide="target"></i></div>
         <div class="feat-title">مطابقة ذكية للوظائف</div>
-        <div class="feat-desc">المنصة تحسب نسبة تطابق ملفك مع كل وظيفة وتقترح عليك الأنسب تلقائياً.</div>
+        <div class="feat-desc">أرسل سيرتك الذاتية واحصل على قائمة بأنسب الوظائف المتاحة مع نسبة التطابق.</div>
       </div>
-    </div>
-    <div class="feat-card">
-      <div class="feat-ico fi-orange">📚</div>
-      <div>
+
+      <div class="feat-card reveal">
+        <div class="feat-icon fi-orange"><i data-lucide="book-open"></i></div>
         <div class="feat-title">دورات موثوقة</div>
-        <div class="feat-desc">سجّل في دورات أونلاين أو وجاهية، وعند إكمالها تظهر الشهادة مباشرة في ملفك.</div>
+        <div class="feat-desc">الجهات التعليمية المسجلة تنشر دوراتها، وشهادات الإتمام تُضاف مباشرة لملفك.</div>
       </div>
-    </div>
-    <div class="feat-card">
-      <div class="feat-ico fi-pink">💬</div>
-      <div>
+
+      <div class="feat-card reveal">
+        <div class="feat-icon fi-pink"><i data-lucide="message-circle"></i></div>
         <div class="feat-title">تواصل مباشر</div>
-        <div class="feat-desc">الشركات تتواصل معك مباشرة، وترسل لك مواعيد مقابلات العمل عبر المنصة.</div>
+        <div class="feat-desc">رسائل مباشرة بين الموظفين والشركات داخل المنصة بدون وسيط.</div>
       </div>
-    </div>
-    <div class="feat-card">
-      <div class="feat-ico fi-yellow">📊</div>
-      <div>
+
+      <div class="feat-card reveal">
+        <div class="feat-icon fi-yellow"><i data-lucide="qr-code"></i></div>
         <div class="feat-title">QR Code لملفك</div>
-        <div class="feat-desc">كل ملف شخصي له QR Code فريد. شاركه في CV ورقي أو بطاقة العمل بسهولة.</div>
+        <div class="feat-desc">كل ملف يحمل QR خاص قابل للطباعة والمشاركة. يُمسح ويفتح ملفك فوراً.</div>
       </div>
+
     </div>
   </div>
 </section>
 
-<!-- ══ VERIFY ══ -->
-<section id="verify" style="background:rgba(255,255,255,.015);border-top:1px solid rgba(255,255,255,.05);border-bottom:1px solid rgba(255,255,255,.05);">
-  <div class="centered">
-    <div class="sec-label">نظام التوثيق</div>
-    <h2 class="sec-title">توثيق من المصدر مباشرة</h2>
-    <p class="sec-sub">لأول مرة في العالم العربي، خبراتك وشهاداتك تُوثَّق من الجهة المختصة بضغطة واحدة</p>
-  </div>
-  <div class="verify-flow reveal">
-    <div class="vf-step">
-      <div class="vf-num">1</div>
-      <div>
-        <div class="vf-title">أضف خبرتك أو شهادتك</div>
-        <div class="vf-desc">أدخل تفاصيل خبرتك أو شهادتك مع رفع وثيقة إثبات اختياري</div>
-      </div>
-      <span class="vf-badge vb-gray">الموظف</span>
+<!-- ══ VERIFICATION ══ -->
+<section id="verify" aria-labelledby="verify-title">
+  <div style="max-width:1200px;margin:0 auto;">
+    <div class="section-label">
+      <i data-lucide="shield-check" style="width:14px;height:14px;"></i>
+      التوثيق
     </div>
-    <div class="vf-step">
-      <div class="vf-num">2</div>
-      <div>
-        <div class="vf-title">يصل طلب التوثيق للجهة</div>
-        <div class="vf-desc">إذا الجهة مسجلة على تواصلنا — يصلها الطلب مباشرة. إذا لا، يراجعه فريق تواصلنا</div>
+    <h2 class="section-title reveal" id="verify-title">كيف يعمل التوثيق؟</h2>
+    <p class="section-sub reveal">توثيق بياناتك يُعطيك ميزة تنافسية حقيقية أمام أصحاب العمل.</p>
+    <div class="verify-steps">
+
+      <div class="verify-card reveal">
+        <div class="v-num">01</div>
+        <div class="v-icon"><i data-lucide="upload-cloud"></i></div>
+        <div class="v-title">ارفع الوثيقة</div>
+        <div class="v-desc">أرفق صورة واضحة أو PDF للشهادة أو الخبرة التي تود توثيقها.</div>
       </div>
-      <span class="vf-badge vb-blue">تلقائي</span>
-    </div>
-    <div class="vf-step">
-      <div class="vf-num">3</div>
-      <div>
-        <div class="vf-title">الجهة تؤكد وتوثّق</div>
-        <div class="vf-desc">بضغطة واحدة من الجهة، تظهر الشهادة موثقة في ملفك الشخصي فوراً</div>
+
+      <div class="verify-card reveal">
+        <div class="v-num">02</div>
+        <div class="v-icon"><i data-lucide="search-check"></i></div>
+        <div class="v-title">المراجعة والتحقق</div>
+        <div class="v-desc">يراجع فريق تواصلنا الوثيقة ويتحقق منها من مصدرها خلال وقت قصير.</div>
       </div>
-      <span class="vf-badge vb-green">✓ موثق</span>
+
+      <div class="verify-card reveal">
+        <div class="v-num">03</div>
+        <div class="v-icon"><i data-lucide="badge-check"></i></div>
+        <div class="v-title">الاعتماد الرسمي</div>
+        <div class="v-desc">تظهر شارة "موثق" على ملفك العام وتمنحك مصداقية إضافية لدى أصحاب العمل.</div>
+      </div>
+
     </div>
   </div>
 </section>
 
 <!-- ══ CTA ══ -->
-
-<!-- ══ Social Proof ══ -->
-<section id="testimonials" style="padding:60px 5%">
-  <div style="text-align:center;margin-bottom:40px">
-    <h2 style="font-size:1.6rem;font-weight:900;margin-bottom:8px">ماذا يقول مستخدمونا</h2>
-    <p style="color:rgba(255,255,255,.4);font-size:.85rem">آراء حقيقية من مجتمعنا</p>
-  </div>
-  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;max-width:900px;margin:0 auto">
-    <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:16px;padding:20px">
-      <div style="font-size:1.1rem;margin-bottom:12px">⭐⭐⭐⭐⭐</div>
-      <p style="font-size:.82rem;color:rgba(255,255,255,.7);line-height:1.8;margin-bottom:14px">"وجدت وظيفتي خلال أسبوعين من التسجيل. الملف الشخصي الموثق كان الفرق الكبير."</p>
-      <div style="display:flex;align-items:center;gap:10px">
-        <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,#00c896,#2563ff);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:.85rem">أ</div>
-        <div><div style="font-size:.8rem;font-weight:700">أحمد العمري</div><div style="font-size:.7rem;color:rgba(255,255,255,.4)">مطور ويب · عمان</div></div>
-      </div>
-    </div>
-    <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:16px;padding:20px">
-      <div style="font-size:1.1rem;margin-bottom:12px">⭐⭐⭐⭐⭐</div>
-      <p style="font-size:.82rem;color:rgba(255,255,255,.7);line-height:1.8;margin-bottom:14px">"المنصة سهّلت علينا إيجاد الكفاءات. نشرنا 5 وظائف وملأناها في وقت قياسي."</p>
-      <div style="display:flex;align-items:center;gap:10px">
-        <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,#2563ff,#00c896);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:.85rem">س</div>
-        <div><div style="font-size:.8rem;font-weight:700">سارة التميمي</div><div style="font-size:.7rem;color:rgba(255,255,255,.4)">مدير HR · الرياض</div></div>
-      </div>
-    </div>
-    <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:16px;padding:20px">
-      <div style="font-size:1.1rem;margin-bottom:12px">⭐⭐⭐⭐⭐</div>
-      <p style="font-size:.82rem;color:rgba(255,255,255,.7);line-height:1.8;margin-bottom:14px">"ربطنا طلابنا بالشركات مباشرة. نظام التوثيق أضاف مصداقية لشهاداتنا."</p>
-      <div style="display:flex;align-items:center;gap:10px">
-        <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,#7c3aed,#00c896);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:.85rem">م</div>
-        <div><div style="font-size:.8rem;font-weight:700">د. محمد الرشيد</div><div style="font-size:.7rem;color:rgba(255,255,255,.4)">مدير أكاديمية · دبي</div></div>
-      </div>
-    </div>
-  </div>
-</section>
-
-<section class="cta-section">
+<section id="cta" aria-label="ابدأ الآن">
   <div class="cta-box reveal">
-    <h2 class="cta-title">جاهز تبدأ رحلتك؟</h2>
-    <p class="cta-sub">
-      سجّل الآن مجاناً وابنِ ملفك الشخصي الموثوق.<br>
-      الموظف مجاني دائماً — بدون بطاقة ائتمان.
-    </p>
-    <div class="cta-btns">
-      <a class="btn-lg btn-lg-primary" href="index.html">🚀 ابدأ الآن مجاناً</a>
-    </div>
-    <div class="user-types-row">
-      <a class="utype" href="index.html">👤 أنا موظف</a>
-      <a class="utype" href="index.html">🏢 أنا شركة</a>
-      <a class="utype" href="index.html">🎓 أنا جهة تعليمية</a>
+    <h2 class="cta-title">جاهز لتبدأ رحلتك المهنية؟</h2>
+    <p class="cta-sub">سجّل الآن مجاناً وابنِ ملفك الموثوق.<br>الموظف مجاني دائماً.</p>
+    <a href="/login" class="cta-btn" id="ctaMainBtn">
+      <i data-lucide="arrow-left" style="width:18px;height:18px;stroke:#fff;stroke-width:2.5;"></i>
+      ابدأ مجاناً
+    </a>
+    <div class="cta-links">
+      <a href="/login" class="cta-link">كموظف</a>
+      <span class="cta-divider">/</span>
+      <a href="/login" class="cta-link">كشركة</a>
+      <span class="cta-divider">/</span>
+      <a href="/login" class="cta-link">كجهة تعليمية</a>
     </div>
   </div>
 </section>
+
+</main>
 
 <!-- ══ FOOTER ══ -->
-<!-- ██ FOOTER SECTION ██ -->
-<footer>
-  <div class="footer-logo">تواصلنا</div>
-  <div class="footer-text">منصة التوظيف والتوثيق العربية © 2025</div>
-  <div class="footer-text"><a href="index.html" style="color:var(--ac);text-decoration:none">دخول</a> · <a href="index.html" style="color:var(--ac);text-decoration:none">تسجيل</a></div>
+<footer role="contentinfo">
+  <div class="footer-brand">
+    <img src="/static/33333.svg" height="30" alt="تواصلنا">
+    <span class="footer-copy">منصة التوظيف والتوثيق العربية</span>
+  </div>
+  <div class="footer-copy">© 2025 تواصلنا. جميع الحقوق محفوظة.</div>
+  <div class="footer-links">
+    <a href="/login" class="footer-link">دخول</a>
+    <a href="/login" class="footer-link">تسجيل</a>
+  </div>
 </footer>
 
-<script src="/tw_shared.js"></script>
+<!-- Lucide Icons -->
+<script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
 <script>
-(function(){
+(function () {
+  'use strict';
+  /* Safety: reveal page even if anything below throws */
+  setTimeout(function(){ document.body.classList.add('ready'); }, 400);
 
-// Reveal on scroll
-const observer = new IntersectionObserver(entries=>{
-  entries.forEach(e=>{ if(e.isIntersecting) e.target.classList.add('visible'); });
-},{threshold:0.12});
-document.querySelectorAll('.reveal').forEach(el=>observer.observe(el));
+  /* ── Logged-in redirect ── */
+  var _raw = null;
+  try { _raw = JSON.parse(localStorage.getItem('tw_user') || 'null'); } catch(e){}
+  if (_raw && _raw.user_type) {
+    var _dest = '/home';
+    if (_raw.user_type === 'co') {
+      _dest = '/company-profile';
+    } else if (_raw.user_type === 'edu') {
+      _dest = '/edu-profile';
+    } else if (_raw.tw_id) {
+      _dest = '/u/' + _raw.tw_id;
+    }
+    /* Update CTA button text before redirect so there's no flash */
+    var _h = document.getElementById('heroCta');
+    var _c = document.getElementById('ctaMainBtn');
+    if (_h) _h.textContent = 'الذهاب للوحة التحكم';
+    if (_c) _c.textContent = 'الذهاب للوحة التحكم';
+    location.replace(_dest);
+    return; /* stop further JS if redirect fires */
+  }
 
-// If already logged in, show "go to dashboard" instead
-try{
-  const u=JSON.parse(localStorage.getItem('tw_user'));
-  if(u&&u.id){
-    const dest=u.user_type==='co'?'company-profile.html?id='+u.id:u.user_type==='edu'?'edu-profile.html?id='+u.id:'profile.html?id='+u.id;
-    document.querySelectorAll('a[href="index.html"]').forEach(a=>{
-      if(a.textContent.includes('ابدأ')||a.textContent.includes('دخول')){
-        a.href=dest;
-        if(a.textContent.includes('ابدأ الآن')) a.textContent='🏠 الذهاب للوحة التحكم';
+  /* ── Page fade-in ── */
+  document.body.classList.add('ready');
+
+  /* ── Init Lucide icons ── */
+  if (window.lucide) {
+    lucide.createIcons();
+  }
+
+  /* ── Smooth scroll for anchor links ── */
+  document.querySelectorAll('a[href^="#"]').forEach(function (link) {
+    link.addEventListener('click', function (e) {
+      var target = document.querySelector(this.getAttribute('href'));
+      if (target) {
+        e.preventDefault();
+        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }
     });
-  }
-}catch(e){}
-
-})();
-</script>
-
-<script>
-(function(){
-
-// ── ITQAN Utilities ──
-var _twToast=null;
-function showToast(msg,type,dur){
-  type=type||'success';dur=dur||2800;
-  if(_twToast){_twToast.remove();}
-  var t=document.createElement('div');
-  t.className='tw-toast '+type;
-  t.innerHTML='<span>'+(type==='success'?'✅':type==='error'?'❌':'ℹ️')+'</span><span>'+msg+'</span>';
-  document.body.appendChild(t);_twToast=t;
-  requestAnimationFrame(function(){requestAnimationFrame(function(){t.classList.add('show');});});
-  setTimeout(function(){t.classList.remove('show');setTimeout(function(){if(t.parentNode)t.remove();},350);},dur);
-}
-
-// Page fade in
-document.documentElement.style.opacity='0';
-window.addEventListener('load',function(){
-  document.documentElement.style.transition='opacity .3s ease';
-  document.documentElement.style.opacity='1';
-});
-
-// Smooth scroll for nav links
-document.querySelectorAll('a[href^="#"]').forEach(function(a){
-  a.addEventListener('click',function(e){
-    var target=document.querySelector(a.getAttribute('href'));
-    if(target){e.preventDefault();target.scrollIntoView({behavior:'smooth',block:'start'});}
   });
-});
 
-// Animated counters
-function animateCounter(el, target, suffix){
-  suffix=suffix||'';
-  var count=0, step=Math.max(1,Math.ceil(target/60));
-  var timer=setInterval(function(){
-    count=Math.min(count+step,target);
-    el.textContent=count.toLocaleString('ar')+suffix;
-    if(count>=target) clearInterval(timer);
-  },25);
-}
-
-// Load real stats from API
-fetch('/jobs').then(function(r){return r.json();}).then(function(data){
-  var jobCount=data.count||0;
-  var el=document.getElementById('statJobs');
-  if(el&&jobCount>0) animateCounter(el,jobCount,'+');
-}).catch(function(){});
-
-fetch('/auth/users').then(function(r){return r.json();}).then(function(data){
-  var userCount=(data.users||[]).length;
-  var el=document.getElementById('statUsers');
-  if(el&&userCount>0) animateCounter(el,userCount,'+');
-}).catch(function(){});
-
-// Intersection Observer for animations
-var observer=new IntersectionObserver(function(entries){
-  entries.forEach(function(e){
-    if(e.isIntersecting){
-      e.target.style.animation='tw-fadein .5s ease forwards';
-      observer.unobserve(e.target);
+  /* ── Nav scrolled class ── */
+  var _nav = document.querySelector('nav');
+  function _onScroll() {
+    if (window.scrollY > 20) {
+      _nav.classList.add('scrolled');
+    } else {
+      _nav.classList.remove('scrolled');
     }
+  }
+  window.addEventListener('scroll', _onScroll, { passive: true });
+  _onScroll();
+
+  /* ── Scroll reveal (IntersectionObserver) ── */
+  var _revealObs = new IntersectionObserver(function (entries) {
+    entries.forEach(function (entry) {
+      if (entry.isIntersecting) {
+        /* Stagger siblings slightly */
+        var siblings = entry.target.parentElement
+          ? entry.target.parentElement.querySelectorAll('.reveal')
+          : [];
+        var idx = Array.prototype.indexOf.call(siblings, entry.target);
+        entry.target.style.transitionDelay = (idx * 80) + 'ms';
+        entry.target.classList.add('visible');
+        _revealObs.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
+
+  document.querySelectorAll('.reveal').forEach(function (el) {
+    _revealObs.observe(el);
   });
-},{threshold:0.1});
-document.querySelectorAll('.feature-card,.step,.stat-box,.who-card').forEach(function(el){
-  el.style.opacity='0';
-  observer.observe(el);
-});
-
-// Nav scroll effect
-window.addEventListener('scroll',function(){
-  var nav=document.querySelector('.nav');
-  if(nav) nav.classList.toggle('scrolled',window.scrollY>50);
-});
-
 
 })();
 </script>
-
 </body>
 </html>
