@@ -751,12 +751,15 @@ function _mergeCompanyState(apiResponse) {
 
 ### Authorization per Endpoint:
 ```
-GET  /company/profile/{id}   → Optional JWT | Public read
-PUT  /company/profile/{id}   → JWT + token.user_id == id + user_type=='co'
-POST /company/jobs           → JWT + user_type=='co'
-PUT  /company/jobs/{job_id}  → JWT + token.user_id == jobs.company_id
-DELETE /company/jobs/{job_id}→ JWT + token.user_id == jobs.company_id
-POST /company/{id}/follow    → JWT + user_type=='emp'
+GET  /company/profile/{id}          → Optional JWT | Public read
+PUT  /company/profile/{id}          → JWT + token.user_id == id + user_type=='co'
+POST /company/jobs                  → JWT + user_type=='co'
+PUT  /company/jobs/{job_id}         → JWT + token.user_id == jobs.company_id
+DELETE /company/jobs/{job_id}       → JWT + token.user_id == jobs.company_id
+GET  /jobs/{job_id}/applicants      → JWT + token.user_id == jobs.company_id
+PUT  /jobs/applications/{id}/status → JWT + token.user_id == jobs.company_id (via JOIN) + status allowlist
+GET  /my/applications               → JWT + user_id from token only
+POST /company/{id}/follow           → JWT + user_type=='emp'
 ```
 
 ### viewMode Response Contract:
@@ -782,24 +785,25 @@ POST /company/{id}/follow    → JWT + user_type=='emp'
 - **الحد:** profiles لا تحتوي company-only fields بعد اليوم
 - **أمان:** لا يوجد أثر أمني
 
-### Exception 05 — X-User-Id في /company/jobs (مؤقت)
+### Exception 05 — X-User-Id في /company/jobs ~~(مؤقت)~~ ✅ مُغلق
 - **القاعدة:** Rule #1 (API Authorization)
-- **السبب:** migration تدريجية
-- **الحد:** يُزال في Phase 1 قبل أي deploy لـ production
-- **أمان:** ⚠️ قابل للتزوير — مقبول في dev فقط
+- **الحل:** جميع endpoints تستخدم `Depends(verify_token)` الآن — X-User-Id أُزيل بالكامل
+- **المغلق في:** PR security(company): replace X-User-Id job endpoints with JWT ownership checks
 
 ---
 
 ## Phase Roadmap — Company Profile
 
 ```
-Phase 1 — Security Foundation (الحالي):
+Phase 1 — Security Foundation (مكتمل):
   ✅ JWT ownership validation
   ✅ API authorization (Depends verify_token)
   ✅ viewMode system من API
   ✅ CSS visibility system
   ✅ Bootstrap idempotency
   ✅ Duplicate request prevention
+  ✅ X-User-Id أُزيل من /jobs/{id}/applicants, /my/applications, /jobs/applications/{id}/status
+  ✅ Status allowlist validation على PUT /jobs/applications/{id}/status
 
 Phase 2 — Schema + Real Data:
   company_profiles table migration
