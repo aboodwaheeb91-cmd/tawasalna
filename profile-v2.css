@@ -10,11 +10,15 @@
   direction:rtl; min-height:100vh;
 }
 
-/* ── Header ── */
+/* ── Header (uses app-header.css vars for visual identity) ── */
 .sc-header {
   display:flex; align-items:center; justify-content:space-between;
   padding:7px 16px; position:sticky; top:0; z-index:50;
-  background:rgba(10,14,20,.85); backdrop-filter:blur(12px);
+  min-height:var(--ah-h,56px);
+  background:var(--ah-bg,rgba(7,11,24,.93));
+  backdrop-filter:var(--ah-blur,blur(14px));
+  -webkit-backdrop-filter:var(--ah-blur,blur(14px));
+  border-bottom:1px solid var(--ah-brd,rgba(255,255,255,.09));
 }
 .sc-header .sc-logo {
   position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);

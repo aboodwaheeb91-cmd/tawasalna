@@ -6,35 +6,36 @@
 <title>الرئيسية — تواصلنا</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="/static/app-header.css">
 <link rel="stylesheet" href="/static/home-v2.css">
 <script src="/static/vendor/lucide/lucide.min.js"></script>
 </head>
 <body>
 
-<!-- Top Nav -->
-<nav class="hw-nav">
-  <a href="/" class="hw-logo"><img src="/static/33333.svg" height="28" alt="تواصلنا"></a>
-  <div class="hw-nav-sp"></div>
-  <a href="/messages" class="hw-ni" title="رسائل">
+<!-- Top Nav (app-nav = shared app header) -->
+<nav class="app-nav">
+  <a href="/" class="app-nav-logo"><img src="/static/33333.svg" alt="تواصلنا"></a>
+  <div class="app-nav-sp"></div>
+  <a href="/messages" class="app-nav-icon" title="رسائل">
     <i data-lucide="message-square" width="19" height="19"></i>
   </a>
-  <a href="/notifications" class="hw-ni" title="إشعارات">
+  <a href="/notifications" class="app-nav-icon" title="إشعارات">
     <i data-lucide="bell" width="19" height="19"></i>
-    <span class="hw-ni-dot hidden" id="notifDot"></span>
+    <span class="app-nav-dot hidden" id="notifDot"></span>
   </a>
-  <button class="hw-ni" id="btnLogout" title="تسجيل الخروج">
+  <button class="app-nav-icon" data-ah-logout title="تسجيل الخروج">
     <i data-lucide="log-out" width="19" height="19"></i>
   </button>
-  <a id="navAv" href="#" class="hw-av" title="ملفي">?</a>
+  <a class="app-nav-av" data-ah-av href="#" title="ملفي">?</a>
 </nav>
 
 <!-- Filter Bar -->
 <div class="hw-fbar">
   <div class="hw-fbar-inner">
     <button class="hw-ft active" data-filter="all">الكل</button>
-    <button class="hw-ft" data-filter="jobs">وظائف</button>
+    <button class="hw-ft" data-filter="opportunities">فرص</button>
     <button class="hw-ft" data-filter="posts">منشورات</button>
-    <button class="hw-ft" data-filter="companies">شركات</button>
+    <button class="hw-ft" data-filter="news">أخبار</button>
   </div>
 </div>
 
@@ -111,7 +112,7 @@
   </a>
   <a id="bnJobs" href="#" class="hw-bn">
     <i id="bnJobsIco" data-lucide="briefcase" width="20" height="20"></i>
-    <span id="bnJobsLbl">وظائف</span>
+    <span id="bnJobsLbl">فرص</span>
   </a>
   <a id="bnProfile" href="/profile" class="hw-bn">
     <i data-lucide="user" width="20" height="20"></i>
@@ -127,6 +128,7 @@
   </a>
 </nav>
 
+<script src="/static/app-header.js"></script>
 <script src="/static/home-v2.js"></script>
 </body>
 </html>

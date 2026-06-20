@@ -7,13 +7,14 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/app-header.css">
   <link rel="stylesheet" href="/static/tw_shared.css">
   <link rel="stylesheet" href="/static/profile-v2.css?v=compl-v6">
   <script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
 </head>
 <body>
-  <!-- Header -->
-  <div class="sc-header">
+  <!-- Header (sc-header + app-nav = shared app header identity) -->
+  <div class="sc-header app-nav">
     <button class="sc-hicon sc-home-btn" id="scHomeBtn" title="الرئيسية"><i data-lucide="home" class="ico"></i></button>
     <div class="sc-logo">
       <img src="https://wrxvmdmknhoufoeprpoc.supabase.co/storage/v1/object/public/site/33333.svg"
@@ -22,6 +23,7 @@
       <span class="sc-logo-fallback" style="display:none">تواصلنا</span>
     </div>
     <div class="sc-head-icons">
+      <a class="app-nav-av" data-ah-av href="/home" title="ملفي" style="flex-shrink:0">?</a>
       <button class="sc-hicon sc-hicon-bare" id="scBellBtn" title="الإشعارات" style="position:relative">
         <i data-lucide="bell" class="ico"></i>
         <span data-badge="notif" style="display:none;position:absolute;top:-3px;left:-3px;background:#f87171;color:#fff;border-radius:50%;min-width:14px;height:14px;font-size:.5rem;font-weight:700;line-height:14px;text-align:center;padding:0 2px"></span>
@@ -764,7 +766,17 @@
     </div>
   </div>
 
+  <script src="/static/app-header.js"></script>
   <script src="/tw_shared.js"></script>
+  <script>
+    /* initAppHeader — runs after tw_shared.js defines getTwUser() */
+    (function() {
+      if (typeof initAppHeader === 'function' && typeof getTwUser === 'function') {
+        var _u = getTwUser();
+        if (_u) initAppHeader(_u);
+      }
+    })();
+  </script>
   <script src="/static/profile-v2.state.js?v=modular-v1"></script>
   <script src="/static/profile-v2.utils.js?v=profanity-v1"></script>
   <script src="/static/profile-v2.api.js?v=modular-v1"></script>
