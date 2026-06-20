@@ -125,6 +125,14 @@ def _jwt_decode(token: str) -> dict:
     except: return {}
 
 
+def verify_token(request: Request):
+    auth = request.headers.get("Authorization","")
+    token = auth.replace("Bearer ","") if auth.startswith("Bearer ") else ""
+    payload = _jwt_decode(token) if token else {}
+    if not payload: raise HTTPException(401, "Token invalid or expired")
+    return {"valid": True, "user_id": payload.get("user_id"), "user_type": payload.get("user_type")}
+
+
 # ── App ──
 app = FastAPI(title="تواصلنا API", version="1.0.0")
 
@@ -1136,15 +1144,6 @@ class ReportInput(BaseModel):
     report_type: str    # sexual, fraud, harassment, spam, other
     reason: str
     target_url: Optional[str] = None
-
-
-def verify_token(request: Request):
-    auth = request.headers.get("Authorization","")
-    token = auth.replace("Bearer ","") if auth.startswith("Bearer ") else ""
-    payload = _jwt_decode(token) if token else {}
-    if not payload: raise HTTPException(401, "Token invalid or expired")
-    return {"valid": True, "user_id": payload.get("user_id"), "user_type": payload.get("user_type")}
-
 
 
 # ══ Phase 2 Step 4: Company social endpoints (follow / rate) ══
