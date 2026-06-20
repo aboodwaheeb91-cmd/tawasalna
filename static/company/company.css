@@ -141,6 +141,20 @@ body { background:var(--bg); color:var(--t); font-family:'Cairo',sans-serif; min
 .co-meta-item a { color:var(--ac); text-decoration:none; }
 .co-meta-item a:hover { text-decoration:underline; }
 
+/* Social links row (hidden until JS shows it) */
+.co-social-row {
+  display:none; gap:8px; justify-content:center;
+  flex-wrap:wrap; margin-top:12px;
+}
+.co-social-btn {
+  width:34px; height:34px; border-radius:50%;
+  background:rgba(255,255,255,.07); border:1px solid var(--border);
+  display:flex; align-items:center; justify-content:center;
+  color:var(--t2); text-decoration:none; transition:all .18s; flex-shrink:0;
+}
+.co-social-btn:hover { background:rgba(255,255,255,.14); color:var(--t); border-color:var(--bd2); }
+.co-social-btn svg { width:15px; height:15px; }
+
 /* Action buttons row */
 .co-actions {
   flex-wrap:wrap; justify-content:center;
@@ -161,6 +175,8 @@ body { background:var(--bg); color:var(--t); font-family:'Cairo',sans-serif; min
 }
 .sbi:first-child { border-left:none; }
 .sbi:hover { background:rgba(255,255,255,.02); }
+.sbi-ico { margin:0 auto 5px; opacity:.7; }
+.sbi-ico svg { width:18px; height:18px; stroke:var(--ac2); fill:none; stroke-width:1.8; display:block; margin:auto; }
 .sbi-n { font-size:1.2rem; font-weight:900; color:var(--ac); margin-bottom:3px; }
 .sbi-l { font-size:.6rem; color:var(--t3); font-weight:600; }
 
@@ -188,6 +204,25 @@ body { background:var(--bg); color:var(--t); font-family:'Cairo',sans-serif; min
   border-bottom:1px solid var(--border);
 }
 
+/* ══ LUCIDE ICON SIZING ═══════════════════════════════════════ */
+/* Profile meta icons */
+.co-meta-item svg { width:13px; height:13px; stroke:currentColor; fill:none; stroke-width:2; flex-shrink:0; }
+.co-meta-row .co-meta-item { gap:5px; }
+/* Co-name-row badge icon */
+.co-verified-badge svg { width:12px; height:12px; stroke:currentColor; fill:none; stroke-width:2; }
+/* Type badge icon */
+.co-type-badge svg { width:12px; height:12px; stroke:currentColor; fill:none; stroke-width:2; }
+/* Nav button icons */
+.nb svg { width:13px; height:13px; stroke:currentColor; fill:none; stroke-width:2; flex-shrink:0; display:inline; vertical-align:middle; }
+/* Dropdown item icons */
+.drop-item svg { width:14px; height:14px; stroke:currentColor; fill:none; stroke-width:2; flex-shrink:0; }
+/* Cover upload label icon */
+.cover-upload-btn svg { width:14px; height:14px; stroke:currentColor; fill:none; stroke-width:2; }
+/* About-card item icons */
+.ac-icon svg { width:15px; height:15px; stroke:currentColor; fill:none; stroke-width:2; display:block; }
+/* Follower avatar placeholder icon */
+.fw-ava svg { width:14px; height:14px; stroke:currentColor; fill:none; stroke-width:2; }
+
 /* ══ JOB CARDS (horizontal) ═══════════════════════════════════ */
 .job-card {
   background:var(--card); border:1px solid var(--border);
@@ -212,6 +247,8 @@ body { background:var(--bg); color:var(--t); font-family:'Cairo',sans-serif; min
   padding:2px 9px; border-radius:20px; font-size:.65rem; font-weight:600;
   background:rgba(255,255,255,.04); border:1px solid var(--border); color:var(--t2);
 }
+.job-meta-chip svg { width:11px; height:11px; stroke:currentColor; fill:none; stroke-width:2; flex-shrink:0; }
+.job-card-logo svg { width:20px; height:20px; stroke:rgba(255,255,255,.9); fill:none; stroke-width:1.8; }
 
 /* Apply buttons */
 .apply-btn-pill {
@@ -300,8 +337,9 @@ body { background:var(--bg); color:var(--t); font-family:'Cairo',sans-serif; min
 .post-ava {
   width:38px; height:38px; border-radius:10px; flex-shrink:0;
   background:linear-gradient(135deg,var(--ac),var(--ac2));
-  display:flex; align-items:center; justify-content:center; font-size:.95rem;
+  display:flex; align-items:center; justify-content:center;
 }
+.post-ava svg { width:18px; height:18px; flex-shrink:0; }
 .post-head-info { flex:1; }
 .post-nm   { font-size:.8rem; font-weight:800; }
 .post-date { font-size:.64rem; color:var(--t3); margin-top:1px; }

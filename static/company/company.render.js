@@ -51,9 +51,9 @@
     var p    = companyState.profile;
     var name = p.full_name || '—';
 
-    _setText('coName', name);
-    _setText('coDesc', p.bio || 'لا يوجد وصف بعد.');
-    _setText('coLoc',  p.location ? '📍 ' + p.location : '📍 —');
+    _setText('coName',   name);
+    _setText('coDesc',   p.bio || 'لا يوجد وصف بعد.');
+    _setText('coLocText', p.location || '—');
 
     document.querySelectorAll('[id^="postCoName"]').forEach(function (el) {
       el.textContent = name;
@@ -76,9 +76,14 @@
       verifiedBadge.style.display = p.is_verified ? 'inline-flex' : 'none';
     }
 
-    // Company type badge
+    // Company type badge (preserve Lucide icon inside)
     var badge = document.getElementById('coTypeBadge');
-    if (badge) badge.textContent = '🏢 ' + (companyState.company.company_type || 'شركة');
+    if (badge) {
+      var typeIcon = badge.querySelector('svg');
+      badge.textContent = (companyState.company && companyState.company.company_type)
+        ? companyState.company.company_type : 'شركة';
+      if (typeIcon) badge.insertBefore(typeIcon, badge.firstChild);
+    }
 
     // Website meta item (show only when available)
     var websiteEl   = document.getElementById('coWebsite');
@@ -92,6 +97,25 @@
         websiteEl.style.display = 'none';
       }
     }
+
+    // Social links row — show only platforms that have data
+    var links      = (p && p.links) ? p.links : [];
+    var socialMap  = { linkedin: 'coSocialLinkedin', twitter: 'coSocialTwitter', x: 'coSocialTwitter', facebook: 'coSocialFacebook', instagram: 'coSocialInstagram' };
+    var socialIds  = ['coSocialLinkedin', 'coSocialTwitter', 'coSocialFacebook', 'coSocialInstagram'];
+    socialIds.forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) el.style.display = 'none';
+    });
+    var visibleSocial = 0;
+    links.forEach(function (link) {
+      var type = (link.link_type || '').toLowerCase();
+      var id   = socialMap[type];
+      if (!id || !link.url) return;
+      var el = document.getElementById(id);
+      if (el) { el.href = link.url; el.style.display = 'flex'; visibleSocial++; }
+    });
+    var socialRow = document.getElementById('coSocialRow');
+    if (socialRow) socialRow.style.display = visibleSocial > 0 ? 'flex' : 'none';
   }
 
   // ── Stats ─────────────────────────────────────────────────────
@@ -111,7 +135,7 @@
 
     if (!companyState.jobs.length) {
       jobsList.innerHTML =
-        '<div class="tw-empty"><span class="tw-empty-ico">💼</span>' +
+        '<div class="tw-empty"><span class="tw-empty-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="40" height="40"><rect width="20" height="14" x="2" y="7" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/><line x1="12" x2="12" y1="12" y2="12"/><path d="M12 12h.01"/></svg></span>' +
         '<div class="tw-empty-title">لا توجد وظائف مفتوحة</div>' +
         '<div class="tw-empty-sub">لم تُضف هذه الشركة أي وظائف بعد.</div></div>';
       if (window.bindEvents) bindEvents();
@@ -120,14 +144,18 @@
 
     jobsList.innerHTML = companyState.jobs.map(function (j) {
       var canApply = companyState.viewMode !== 'owner';
+      // Lucide SVG path strings — no external CDN call, rendered synchronously
+      var icoBuilding = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"/><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/><path d="M10 6h4"/><path d="M10 10h4"/><path d="M10 14h4"/><path d="M10 18h4"/></svg>';
+      var icoMapPin  = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>';
+      var icoClock   = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>';
 
       return '<div class="job-card tw-card-lift" data-jid="' + _esc(String(j.id)) + '">' +
-        '<div class="job-card-logo">🏢</div>' +
+        '<div class="job-card-logo">' + icoBuilding + '</div>' +
         '<div class="job-card-body">' +
           '<div class="job-title">' + _esc(j.title) + '</div>' +
           '<div class="job-card-meta">' +
-            '<span class="job-meta-chip">📍 ' + _esc(j.location || '—') + '</span>' +
-            '<span class="job-meta-chip">⏰ ' + _esc(j.job_type || '—') + '</span>' +
+            '<span class="job-meta-chip">' + icoMapPin + ' ' + _esc(j.location || '—') + '</span>' +
+            '<span class="job-meta-chip">' + icoClock  + ' ' + _esc(j.job_type || '—') + '</span>' +
           '</div>' +
         '</div>' +
         (canApply
@@ -199,7 +227,7 @@
 
     return '<div class="post-card">' +
       '<div class="post-head">' +
-        '<div class="post-ava">🏢</div>' +
+        '<div class="post-ava"><svg viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.9)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"/><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/><path d="M10 6h4"/><path d="M10 10h4"/></svg></div>' +
         '<div class="post-head-info">' +
           '<div class="post-nm">' + _escapeHtml(coName) + '</div>' +
           '<div class="post-date">' + _relativeTime(post.created_at) + '</div>' +
@@ -231,6 +259,7 @@
     renderJobs();
     if (window.renderFollowBtn) renderFollowBtn();
     if (window.renderRating)    renderRating();
+    if (window.lucide) lucide.createIcons();
   }
 
   // ── Expose ────────────────────────────────────────────────────

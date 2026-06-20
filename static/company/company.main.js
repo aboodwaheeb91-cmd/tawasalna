@@ -318,6 +318,7 @@
 
   // ── DOMContentLoaded ───────────────────────────────────────────
   document.addEventListener('DOMContentLoaded', function () {
+    if (window.lucide) lucide.createIcons();
     if (window.initScrollProg)      initScrollProg();
     if (window.initCompanyProfile)  initCompanyProfile();
     _bindMainEvents();
