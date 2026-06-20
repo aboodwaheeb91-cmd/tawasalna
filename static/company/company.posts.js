@@ -104,5 +104,13 @@
 
   document.addEventListener('DOMContentLoaded', function () {
     _bindPostEvents();
+    // Event delegation for dynamically-rendered delete buttons
+    var postsList = document.getElementById('postsList');
+    if (postsList) {
+      postsList.addEventListener('click', function (e) {
+        var btn = e.target.closest('.post-del[data-post-id]');
+        if (btn) deletePost(parseInt(btn.getAttribute('data-post-id'), 10));
+      });
+    }
   });
 }());

@@ -9,6 +9,7 @@
   function _applyJob(btn, jobId) {
     if (!jobId) return;
     if (!window._jwt || !_jwt()) { window.location.href = '/'; return; }
+    var origText = btn.textContent;
     btn.disabled = true; btn.textContent = 'جاري...';
     fetch('/jobs/' + jobId + '/apply', {
       method:  'POST',
@@ -21,7 +22,7 @@
       btn.classList.add('applied');
     })
     .catch(function () {
-      btn.disabled = false; btn.textContent = 'تقديم ←';
+      btn.disabled = false; btn.textContent = origText;
     });
   }
 
@@ -40,7 +41,7 @@
       jobsList.addEventListener('click', function (e) {
         var card = e.target.closest('[data-jid]');
         if (!card) return;
-        if (e.target.classList.contains('apply-btn')) {
+        if (e.target.classList.contains('apply-btn') || e.target.classList.contains('apply-btn-pill')) {
           e.stopPropagation();
           _applyJob(e.target, card.dataset.jid);
           return;
