@@ -17,8 +17,33 @@
     return u.tw_id ? '/u/' + u.tw_id : '/profile';
   }
 
-  /* ── Shared header init (app-header.js) ── */
-  if (typeof initAppHeader === 'function') initAppHeader(_u);
+  /* ── Header wiring ── */
+  var _hwHomeBtn = document.getElementById('hwHomeBtn');
+  if (_hwHomeBtn) _hwHomeBtn.addEventListener('click', function() {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+
+  var _hwMenuBtn = document.getElementById('hwMenuBtn');
+  var _hwMenuDrop = document.getElementById('hwMenuDropdown');
+  if (_hwMenuBtn && _hwMenuDrop) {
+    _hwMenuBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      _hwMenuDrop.classList.toggle('open');
+    });
+    document.addEventListener('click', function(e) {
+      if (!_hwMenuDrop.contains(e.target)) _hwMenuDrop.classList.remove('open');
+    });
+  }
+
+  var _hwLogoutBtn = document.getElementById('hwLogoutBtn');
+  if (_hwLogoutBtn) _hwLogoutBtn.addEventListener('click', function() {
+    try {
+      Object.keys(localStorage)
+        .filter(function(k) { return k.startsWith('tw_'); })
+        .forEach(function(k) { localStorage.removeItem(k); });
+    } catch (e) {}
+    location.replace('/login');
+  });
 
   /* ── Helpers ── */
   var JOB_TYPES = {
