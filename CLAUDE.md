@@ -482,3 +482,33 @@ These rules are permanent and apply to all future AI sessions:
 10. **`index.auth.js` must not contain DOM/appearance code.** UI side-effects (show/hide forms, button states, toast) belong in `index.ui.js`. The separation is mandatory — auth logic must remain testable in isolation.
 
 11. **`index.css` is scoped to the auth page.** Do not import it from any other page. Do not put shared/global styles in it.
+
+---
+
+## Home V2 Rules (mandatory for all AI sessions)
+
+These rules are permanent and apply to all future AI sessions:
+
+1. **`/home` serves `home-v2.html`** — `home.html` (القديم) لم يعد production route. لا تعيده لـ `/home`.
+
+2. **Feed-first is mandatory.** أي تعديل على Home V2 يجب أن يبدأ بـ filter tabs ثم feed. ممنوع إعادة Dashboard-first (بطاقة مستخدم ضخمة أول الصفحة).
+
+3. **Files are split — keep them split:**
+   - `home-v2.html` — HTML هيكل فقط
+   - `static/home-v2.css` — جميع الأنماط
+   - `static/home-v2.js` — جميع المنطق
+   - ممنوع دمج CSS/JS الكبير داخل HTML
+
+4. **`/preview/home-v2` is deleted.** لا تعيد إضافته. Route المعاينة المؤقت أُزيل عند shipping Home V2.
+
+5. **`GET /home/feed` is the feed API.** Auth: `Depends(verify_token)` — `user_id` من JWT فقط، ليس من query param. `filter` مُقيَّد server-side بـ allowlist.
+
+6. **Rendering is always safe:** كل بيانات API تُعرض عبر `createElement` + `textContent`. لا `innerHTML = apiData`. السماح بـ `innerHTML` للـ skeleton الثابت فقط (لا يحتوي بيانات API).
+
+7. **`questions` and `courses` are NOT Home V2 filters.** هما features مستقبلية مستقلة تحتاج جداول وتصميم منفصل. ممنوع إعادة إضافتهما كـ filter في `home-v2.html` أو في allowlist `/home/feed` قبل بناء جداولهما الكاملة.
+
+8. **`tw_jwt` is the auth token.** `localStorage.getItem('tw_jwt')` يُرسل كـ `Authorization: Bearer` في كل API call من Home V2.
+
+9. **CSS offset is single-source:** `body { padding-top: calc(var(--nav) + var(--flt)) }`. كلا الشريطين `position: fixed`. ممنوع إضافة `margin-block-start` على `.hw-page`.
+
+10. **`home.html` is legacy.** يمكن الاحتفاظ به كملف احتياطي لكنه ليس route. ممنوع حذفه أو تعديله دون سبب واضح.

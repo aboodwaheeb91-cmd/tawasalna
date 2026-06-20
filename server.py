@@ -385,14 +385,109 @@ def login_page(): return read_html("index.html")
 def login_html(): return read_html("index.html")
 
 @app.get("/home", response_class=HTMLResponse)
-def home(): return read_html("home.html")
+def home(): return read_html("home-v2.html")
 
 @app.get("/home.html", response_class=HTMLResponse)
-def home_html(): return read_html("home.html")
+def home_html(): return read_html("home-v2.html")
 
-# TEMPORARY — PR A preview only. Remove or replace with /home in PR B.
-@app.get("/preview/home-v2", response_class=HTMLResponse)
-def preview_home_v2(): return read_html("home-v2.html")
+@app.get("/home/feed")
+def home_feed(filter: str = "all", limit: int = 20, token=Depends(verify_token)):
+    user_id   = int(token.get("user_id") or 0)
+    user_type = token.get("user_type", "emp")
+    if not user_id:
+        raise HTTPException(401, "رمز غير صالح")
+
+    allowed_filters = {"all", "jobs", "posts", "companies"}
+    if filter not in allowed_filters:
+        filter = "all"
+    lim = min(max(int(limit), 1), 50)
+
+    items = []
+    conn = get_conn()
+    try:
+        # ── Jobs ──
+        if filter in ("all", "jobs"):
+            job_lim = lim if filter == "jobs" else lim // 2
+            rows = conn.run(
+                """SELECT j.id, j.title, j.location, j.job_type,
+                          j.salary_min, j.salary_max, j.currency,
+                          j.skills, j.created_at,
+                          u.full_name AS company_name,
+                          u.tw_id    AS company_tw_id,
+                          u.id       AS company_id,
+                          COALESCE(p.avatar_url,'') AS company_logo
+                   FROM jobs j
+                   JOIN users u ON j.company_id = u.id
+                   LEFT JOIN profiles p ON j.company_id = p.user_id
+                   WHERE j.status = 'open'
+                   ORDER BY j.created_at DESC
+                   LIMIT :lim""",
+                lim=job_lim
+            )
+            cols = ["id","title","location","job_type","salary_min","salary_max","currency",
+                    "skills","created_at","company_name","company_tw_id","company_id","company_logo"]
+            for r in (rows or []):
+                d = dict(zip(cols, r))
+                d["type"] = "job"
+                if d.get("created_at") and hasattr(d["created_at"], "isoformat"):
+                    d["created_at"] = d["created_at"].isoformat()
+                if isinstance(d.get("skills"), list):
+                    d["skills"] = [str(s) for s in d["skills"]]
+                items.append(d)
+
+        # ── Company posts ──
+        if filter in ("all", "posts"):
+            post_lim = lim if filter == "posts" else lim // 2
+            rows = conn.run(
+                """SELECT cp.id, cp.body, cp.tags, cp.created_at,
+                          u.full_name AS author_name,
+                          u.tw_id    AS author_tw_id,
+                          u.id       AS author_id,
+                          COALESCE(p.avatar_url,'') AS author_avatar
+                   FROM company_posts cp
+                   JOIN users u ON cp.company_id = u.id
+                   LEFT JOIN profiles p ON cp.company_id = p.user_id
+                   ORDER BY cp.created_at DESC
+                   LIMIT :lim""",
+                lim=post_lim
+            )
+            cols = ["id","body","tags","created_at","author_name","author_tw_id","author_id","author_avatar"]
+            for r in (rows or []):
+                d = dict(zip(cols, r))
+                d["type"] = "post"
+                if d.get("created_at") and hasattr(d["created_at"], "isoformat"):
+                    d["created_at"] = d["created_at"].isoformat()
+                if isinstance(d.get("tags"), list):
+                    d["tags"] = [str(t) for t in d["tags"]]
+                items.append(d)
+
+        # ── Company / institution suggestions ──
+        if filter in ("all", "companies"):
+            sugg_lim = lim if filter == "companies" else 5
+            rows = conn.run(
+                """SELECT u.id, u.full_name AS name, u.tw_id, u.user_type,
+                          COALESCE(p.headline,'')   AS headline,
+                          COALESCE(p.avatar_url,'') AS avatar_url,
+                          COALESCE(p.location,'')   AS location
+                   FROM users u
+                   LEFT JOIN profiles p ON u.id = p.user_id
+                   WHERE u.user_type IN ('co','edu') AND u.id != :uid
+                   ORDER BY RANDOM()
+                   LIMIT :lim""",
+                uid=user_id, lim=sugg_lim
+            )
+            cols = ["id","name","tw_id","user_type","headline","avatar_url","location"]
+            for r in (rows or []):
+                d = dict(zip(cols, r))
+                d["type"] = "company"
+                items.append(d)
+
+
+    finally:
+        release_conn(conn)
+
+    return {"items": items, "filter": filter, "total": len(items)}
+
 
 @app.get("/profile", response_class=HTMLResponse)
 def profile(id: str = ""):
