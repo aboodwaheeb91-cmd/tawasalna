@@ -4835,76 +4835,94 @@ if (window.lucide) { lucide.createIcons(); }
 
 ---
 
-## Home V2 — `home-v2.html` (PR A — هيكلة فقط)
+## Home V2 — `home-v2.html` (Feed-first — PR A)
 
 **File:** `home-v2.html` (معزول — لا يستبدل `home.html` بعد)
 **Route (Preview):** `GET /preview/home-v2` — مؤقت لـ PR A فقط، يُحذف أو يُستبدل بـ `/home` في PR B
-**Route (Production):** لا يوجد بعد — `/home` لا يتغير حتى PR B
-**Status:** PR A — تصميم وهيكلة فقط، بدون API calls حقيقية
+**Route (Production):** `/home` — لا يتغير حتى PR B
+**Design Direction:** **Feed-first** (وليس Dashboard-first) — أول ما يراه المستخدم هو filter tabs + feed cards، ليس بطاقة مستخدم ضخمة
 
 ### سبب إعادة البناء من الصفر
 
 | المشكلة في home.html القديم | الحل في V2 |
 |-----------------------------|-----------|
-| XSS في `renderJobCard()` — `innerHTML` من API بدون تنقية | PR B يستخدم DOM API (`createElement`) بدلاً من innerHTML |
-| Sidebar أيمن كاملاً hardcoded (تطابقات وهمية، فرص خارجية وهمية) | حُذف نهائياً — لا بيانات وهمية |
-| Bottom nav موجودة في CSS فقط، غائبة من HTML | تم بناؤها كاملاً في HTML مع JS صحيح |
-| الصفحة لا تفرق بين emp/co/edu في المحتوى | 3 views مستقلة: `#view-emp`، `#view-co`، `#view-edu` |
+| XSS في `renderJobCard()` — `innerHTML` من API | PR B يستخدم DOM API (`createElement` + `textContent`) |
+| Sidebar كاملاً hardcoded (بيانات وهمية) | لا بيانات وهمية — skeleton/empty فقط |
+| Bottom nav في CSS فقط، غائبة من HTML | بُنيت كاملاً في HTML مع JS |
+| الصفحة لا تفرق بين emp/co/edu | co/edu يرون compact banner فوق الـ feed |
 | شعار Supabase CDN خارجي | `/static/33333.svg` محلي |
-| CSS conflict: `.ftab` معرّف مرتين | CSS نظيف بلا تعارضات |
+| Dashboard-first: بطاقة مستخدم ضخمة تسيطر | Feed-first: أول عنصر = filter tabs ثم feed |
 
 ### Structure (DOM)
 
 ```
-<nav.hw-nav>           top nav: logo + notification + messages + logout
-<div.hw-wrap>
-  <aside.hw-aside>     desktop sidebar: user card + quick nav (hidden ≤1020px)
-  <main.hw-main>
-    <section#view-emp> موظف: welcome + completion + suggested jobs + quick links
-    <section#view-co>  شركة: welcome + stats + posted jobs + quick links
-    <section#view-edu> جهة تعليمية: welcome + stats + courses + quick links
-    <div#view-fallback> نوع غير معروف: رسالة خطأ + logout
-<nav.hw-bnav>          bottom nav (mobile ≤768px): home / jobs / messages / notifications / profile
+<nav.hw-nav>             top nav صغير ثابت: logo + messages + notifications + logout + avatar
+<div.hw-fbar>            filter tabs أفقية: الكل / وظائف / منشورات / أسئلة / دورات / شركات
+<div.hw-page>
+  <main.hw-feed>
+    <div#hwBanner>       compact banner للـ co/edu فقط (hidden للـ emp)
+    <div#hwFeed>         feed list: skeleton cards (PR A) → real cards via DOM API (PR B)
+    <div#hwEmpty>        empty state — hidden في PR A
+  <aside.hw-sidebar>     desktop only (≥1020px): completion strip + quick links
+<nav.hw-bnav>            bottom nav (mobile ≤1020px): 5 tabs per user type
 ```
 
-### Views per User Type
+### Feed Card Types (PR A: skeleton; PR B: real data)
 
-| view | الـ sections |
-|------|-------------|
-| `#view-emp` | ترحيب شخصي · اكتمال الملف (skeleton) · وظائف مقترحة (skeleton/empty state) · روابط سريعة |
-| `#view-co` | ترحيب شخصي · إحصائيات 3 مربعات (skeleton) · وظائفي المنشورة (skeleton/empty state) · روابط سريعة |
-| `#view-edu` | ترحيب شخصي · إحصائيات 3 مربعات (skeleton) · الدورات المنشورة (skeleton/empty state) · روابط سريعة |
+| نوع الكارت | العناصر |
+|-----------|---------|
+| Job card | logo placeholder · title · company · chips (location/type/salary) · time · apply button |
+| Post card | avatar · name · sub · body (3 lines max) · like/comment/share counts |
+| Question card | Q icon (purple) · question text (2 lines max) · answers + views counts |
+| Course card | thumb (gradient) · title · provider · chips · enroll button |
+| Suggested card | avatar · name · sub · follow button |
+
+### Per-Type Behavior
+
+| user_type | Banner | Bottom nav tab 2 | Sidebar completion link |
+|-----------|--------|-----------------|------------------------|
+| `emp` | مخفي | وظائف → `/home` | `getProfileUrl(_u)` |
+| `co` | وظائف شركتك (briefcase icon) | وظائفي → `/company-profile` | `/company-profile` |
+| `edu` | دورات مؤسستك (graduation-cap) | دوراتي → `/edu-profile` | `/edu-profile` |
 
 ### Routing Logic (JS — PR A)
 
 ```javascript
-// 1. Auth guard: if !tw_user → /login
-// 2. type = _u.user_type ∈ ['emp','co','edu'] → 'view-{type}' | 'view-fallback'
-// 3. Sidebar nav links filtered by data-for="{type}"
-// 4. Bottom nav #bnProfile href per type:
-//    co → /company-profile | edu → /edu-profile | emp+tw_id → /u/{tw_id}
-// 5. Bottom nav #bnJobs label+href per type:
-//    co → وظائفي / /company-profile | edu → دوراتي / /edu-profile
-// 6. Logout: clear all tw_* keys from localStorage → /login
+// 1. Auth guard: tw_user from localStorage → if !_u.id → /login
+// 2. type = _u.user_type ∈ ['emp','co','edu']
+// 3. getProfileUrl(u): u.tw_id ? '/u/'+u.tw_id : '/profile'
+// 4. navAv href: emp→getProfileUrl | co→/company-profile | edu→/edu-profile
+// 5. Banner: shown for co/edu, hidden for emp
+// 6. Bottom nav: bnProfile + bnJobs per type
+// 7. Sidebar: sbComplLink per type; _sbLinks() builds quick links via createElement
+// 8. Filter tabs: visual toggle only (PR B adds fetch per filter)
+// 9. Logout: clear all tw_* keys → /login
 ```
 
-### Skeleton / Empty State Pattern
+### Skeleton / Empty / Real Pattern
 
-Every dynamic section has **three states** represented in the DOM from the start:
+| State | Mechanism | Default |
+|-------|-----------|---------|
+| Skeleton | static `.hw-skl/.hw-skc/.hw-skr` divs in `#hwFeed` | visible |
+| Empty | `#hwEmpty` | `.hidden` |
+| Real cards | appended by PR B via `createElement` + `textContent` | not yet |
 
-| State | HTML element | Default |
-|-------|-------------|---------|
-| Skeleton | `#xxxSkl` div with `.hw-sk` children | visible |
-| List | `#xxxList` with `.hw-list` | `.hidden` |
-| Empty | `#xxxEmpty` with `.hw-empty` | `.hidden` |
-
-PR B toggles between them after each `fetch()` resolves.
+PR B: removes skeleton cards, appends real cards OR shows `#hwEmpty` if API returns empty.
 
 ### CSS Class Namespace
 
-All classes prefixed `.hw-` to avoid collision with `tw_shared.css` or other pages:
-`.hw-nav`, `.hw-wrap`, `.hw-aside`, `.hw-main`, `.hw-view`, `.hw-card`, `.hw-welcome`,
-`.hw-stats`, `.hw-stat`, `.hw-item`, `.hw-tag`, `.hw-ql`, `.hw-btn`, `.hw-sk`, `.hw-empty`, `.hw-bnav`, `.hw-bn`
+All classes prefixed `.hw-` to avoid collision with any other page:
+`.hw-nav`, `.hw-fbar`, `.hw-ft`, `.hw-page`, `.hw-feed`, `.hw-banner`, `.hw-card`,
+`.hw-chip`, `.hw-btn`, `.hw-skl`, `.hw-skc`, `.hw-skr`, `.hw-empty`, `.hw-sidebar`, `.hw-bnav`, `.hw-bn`
+
+### Desktop Layout (≥1020px)
+
+```
+grid-template-columns: 1fr 260px
+grid-template-areas:   'feed sidebar'
+```
+في RTL، column 1 (1fr) يظهر على اليمين (start) = feed. Column 2 (260px) على اليسار (end) = sidebar.
+Sidebar sticky: `top: calc(56px + 46px + 16px)`.
 
 ### Forbidden Patterns (Home V2)
 
@@ -4915,13 +4933,15 @@ All classes prefixed `.hw-` to avoid collision with `tw_shared.css` or other pag
 - **ممنوع** تغيير `home.html` القديم حتى PR B تُختبر وتُوافق عليها
 - **ممنوع** ربط `/home-v2` كـ route نهائي في `server.py` — المسار النهائي هو `/home` ويُفعَّل في PR B
 - **ممنوع** الإبقاء على `/preview/home-v2` بعد PR B — يجب حذفه أو تحويله
+- **ممنوع** إعادة تحويل الصفحة إلى Dashboard-first (بطاقة مستخدم ضخمة أول الصفحة)
 
 ### PR Roadmap
 
 | PR | المحتوى |
 |----|---------|
-| **A (هذا)** | `home-v2.html` — هيكلة + CSS + JS routing فقط، لا API |
-| **B** | JS كامل: profile fetch, jobs render (DOM API), badges, stats — ثم استبدال `home.html` |
+| **A (هذا)** | `home-v2.html` — هيكل Feed-first + CSS + JS routing، لا API، skeleton فقط |
+| **preview** | `GET /preview/home-v2` في `server.py` — مؤقت للمعاينة (PR #208) |
+| **B** | JS كامل: feed fetch per filter, jobs/posts/courses via DOM API — ثم استبدال `/home` |
 
 ---
 
