@@ -2681,23 +2681,57 @@ def apply_to_job(job_id: int, data: JobApplyInput, token=Depends(verify_token)):
     return {"status": "success", **result}
 
 @app.get("/jobs/{job_id}/applicants")
-def job_applicants(job_id: int, request: Request):
-    user_id = int(request.headers.get("X-User-Id", 0))
-    if not user_id: raise HTTPException(401, "غير مصرح")
+def job_applicants(job_id: int, token=Depends(verify_token)):
+    user_id = token.get("user_id")
+    if not user_id:
+        print(f"[SECURITY] INVALID_TOKEN: GET /jobs/{job_id}/applicants")
+        raise HTTPException(401, "رمز غير صالح")
+    conn = get_conn()
+    try:
+        rows = conn.run("SELECT company_id FROM jobs WHERE id=:jid", jid=job_id)
+        if not rows:
+            raise HTTPException(404, "الوظيفة غير موجودة")
+        job_company_id = rows[0][0]
+    finally:
+        release_conn(conn)
+    if int(job_company_id) != int(user_id):
+        print(f"[SECURITY] JOB_OWNERSHIP_FAILED: user {user_id} tried to access applicants for job {job_id} owned by {job_company_id}")
+        raise HTTPException(403, "غير مصرح — هذه الوظيفة ليست لشركتك")
     applicants = get_job_applicants(job_id)
     return {"applicants": applicants, "count": len(applicants)}
 
 @app.get("/my/applications")
-def my_applications(request: Request):
-    user_id = int(request.headers.get("X-User-Id", 0))
-    if not user_id: raise HTTPException(401, "غير مصرح")
-    apps = get_user_applications(user_id)
+def my_applications(token=Depends(verify_token)):
+    user_id = token.get("user_id")
+    if not user_id:
+        print(f"[SECURITY] INVALID_TOKEN: GET /my/applications")
+        raise HTTPException(401, "رمز غير صالح")
+    apps = get_user_applications(int(user_id))
     return {"applications": apps, "count": len(apps)}
 
 @app.put("/jobs/applications/{app_id}/status")
-def update_app_status(app_id: int, data: AppStatusInput, request: Request):
-    user_id = int(request.headers.get("X-User-Id", 0))
-    if not user_id: raise HTTPException(401, "غير مصرح")
+def update_app_status(app_id: int, data: AppStatusInput, token=Depends(verify_token)):
+    user_id = token.get("user_id")
+    if not user_id:
+        print(f"[SECURITY] INVALID_TOKEN: PUT /jobs/applications/{app_id}/status")
+        raise HTTPException(401, "رمز غير صالح")
+    allowed_statuses = {"pending", "viewed", "accepted", "rejected"}
+    if data.status not in allowed_statuses:
+        raise HTTPException(400, f"حالة غير صالحة. المسموح: {', '.join(sorted(allowed_statuses))}")
+    conn = get_conn()
+    try:
+        rows = conn.run(
+            "SELECT j.company_id FROM job_applications ja JOIN jobs j ON j.id=ja.job_id WHERE ja.id=:aid",
+            aid=app_id
+        )
+        if not rows:
+            raise HTTPException(404, "الطلب غير موجود")
+        job_company_id = rows[0][0]
+    finally:
+        release_conn(conn)
+    if int(job_company_id) != int(user_id):
+        print(f"[SECURITY] APPLICATION_OWNERSHIP_FAILED: user {user_id} tried to update app {app_id} owned by company {job_company_id}")
+        raise HTTPException(403, "غير مصرح — هذا الطلب ليس لوظيفة شركتك")
     result = update_application_status(app_id, data.status)
     return result
 

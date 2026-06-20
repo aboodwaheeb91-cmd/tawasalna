@@ -360,6 +360,7 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-heig
 let _user=null;
 try{_user=JSON.parse(localStorage.getItem('tw_user'));}catch(e){}
 if(!_user||!_user.id||_user.user_type!=='co'){window.location.href='/';}
+const _jwt=localStorage.getItem('tw_jwt')||'';
 if(_user){
   const name=_user.full_name||'شركتك';
   const code='TW-CO-'+String(_user.id).padStart(5,'0');
@@ -522,7 +523,7 @@ function submitPostJob(){
   const skills = document.getElementById('pj-skills').value.split(',').map(s=>s.trim()).filter(Boolean);
   fetch('/company/jobs',{
     method:'POST',
-    headers:{'Content-Type':'application/json','X-User-Id': (_u?.id||'')},
+    headers:{'Content-Type':'application/json','Authorization':'Bearer '+_jwt},
     body:JSON.stringify({
       title,
       description: document.getElementById('pj-desc').value,
@@ -543,7 +544,7 @@ function submitPostJob(){
 
 function loadCompanyJobs(){
   if(!_u||!_u.id) return;
-  fetch('/company/jobs',{headers:{'X-User-Id':_u.id}})
+  fetch('/company/jobs',{headers:{'Authorization':'Bearer '+_jwt}})
   .then(r=>r.json()).then(data=>{
     const jobs = data.jobs||[];
     const container = document.getElementById('companyJobsList');
@@ -568,7 +569,7 @@ function loadCompanyJobs(){
 
 function deleteCompanyJob(jobId){
   if(!confirm('حذف هذه الوظيفة؟')) return;
-  fetch('/company/jobs/'+jobId,{method:'DELETE',headers:{'X-User-Id':(_u?.id||'')}})
+  fetch('/company/jobs/'+jobId,{method:'DELETE',headers:{'Authorization':'Bearer '+_jwt}})
   .then(()=>loadCompanyJobs()).catch(()=>{});
 }
 
