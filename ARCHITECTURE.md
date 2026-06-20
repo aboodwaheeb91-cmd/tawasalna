@@ -4784,6 +4784,94 @@ edu  → /edu-profile.html?id={id}
 
 ---
 
+## Home V2 — `home-v2.html` (PR A — هيكلة فقط)
+
+**File:** `home-v2.html` (معزول — لا يستبدل `home.html` بعد)
+**Route:** لا يوجد route بعد — الملف مؤقت حتى PR B
+**Status:** PR A — تصميم وهيكلة فقط، بدون API calls حقيقية
+
+### سبب إعادة البناء من الصفر
+
+| المشكلة في home.html القديم | الحل في V2 |
+|-----------------------------|-----------|
+| XSS في `renderJobCard()` — `innerHTML` من API بدون تنقية | PR B يستخدم DOM API (`createElement`) بدلاً من innerHTML |
+| Sidebar أيمن كاملاً hardcoded (تطابقات وهمية، فرص خارجية وهمية) | حُذف نهائياً — لا بيانات وهمية |
+| Bottom nav موجودة في CSS فقط، غائبة من HTML | تم بناؤها كاملاً في HTML مع JS صحيح |
+| الصفحة لا تفرق بين emp/co/edu في المحتوى | 3 views مستقلة: `#view-emp`، `#view-co`، `#view-edu` |
+| شعار Supabase CDN خارجي | `/static/33333.svg` محلي |
+| CSS conflict: `.ftab` معرّف مرتين | CSS نظيف بلا تعارضات |
+
+### Structure (DOM)
+
+```
+<nav.hw-nav>           top nav: logo + notification + messages + logout
+<div.hw-wrap>
+  <aside.hw-aside>     desktop sidebar: user card + quick nav (hidden ≤1020px)
+  <main.hw-main>
+    <section#view-emp> موظف: welcome + completion + suggested jobs + quick links
+    <section#view-co>  شركة: welcome + stats + posted jobs + quick links
+    <section#view-edu> جهة تعليمية: welcome + stats + courses + quick links
+    <div#view-fallback> نوع غير معروف: رسالة خطأ + logout
+<nav.hw-bnav>          bottom nav (mobile ≤768px): home / jobs / messages / notifications / profile
+```
+
+### Views per User Type
+
+| view | الـ sections |
+|------|-------------|
+| `#view-emp` | ترحيب شخصي · اكتمال الملف (skeleton) · وظائف مقترحة (skeleton/empty state) · روابط سريعة |
+| `#view-co` | ترحيب شخصي · إحصائيات 3 مربعات (skeleton) · وظائفي المنشورة (skeleton/empty state) · روابط سريعة |
+| `#view-edu` | ترحيب شخصي · إحصائيات 3 مربعات (skeleton) · الدورات المنشورة (skeleton/empty state) · روابط سريعة |
+
+### Routing Logic (JS — PR A)
+
+```javascript
+// 1. Auth guard: if !tw_user → /login
+// 2. type = _u.user_type ∈ ['emp','co','edu'] → 'view-{type}' | 'view-fallback'
+// 3. Sidebar nav links filtered by data-for="{type}"
+// 4. Bottom nav #bnProfile href per type:
+//    co → /company-profile | edu → /edu-profile | emp+tw_id → /u/{tw_id}
+// 5. Bottom nav #bnJobs label+href per type:
+//    co → وظائفي / /company-profile | edu → دوراتي / /edu-profile
+// 6. Logout: clear all tw_* keys from localStorage → /login
+```
+
+### Skeleton / Empty State Pattern
+
+Every dynamic section has **three states** represented in the DOM from the start:
+
+| State | HTML element | Default |
+|-------|-------------|---------|
+| Skeleton | `#xxxSkl` div with `.hw-sk` children | visible |
+| List | `#xxxList` with `.hw-list` | `.hidden` |
+| Empty | `#xxxEmpty` with `.hw-empty` | `.hidden` |
+
+PR B toggles between them after each `fetch()` resolves.
+
+### CSS Class Namespace
+
+All classes prefixed `.hw-` to avoid collision with `tw_shared.css` or other pages:
+`.hw-nav`, `.hw-wrap`, `.hw-aside`, `.hw-main`, `.hw-view`, `.hw-card`, `.hw-welcome`,
+`.hw-stats`, `.hw-stat`, `.hw-item`, `.hw-tag`, `.hw-ql`, `.hw-btn`, `.hw-sk`, `.hw-empty`, `.hw-bnav`, `.hw-bn`
+
+### Forbidden Patterns (Home V2)
+
+- **ممنوع** `element.innerHTML = apiData.anything` — يجب `createElement` + `textContent`
+- **ممنوع** بيانات وهمية أو hardcoded stats في أي view
+- **ممنوع** `profile.html?id=`، `job-detail.html?id=`، أي `.html?id=` pattern
+- **ممنوع** قراءة نوع المستخدم من مكان غير `tw_user.user_type`
+- **ممنوع** تغيير `home.html` القديم حتى PR B تُختبر وتُوافق عليها
+- **ممنوع** ربط `/home-v2` كـ route في `server.py` حتى PR B
+
+### PR Roadmap
+
+| PR | المحتوى |
+|----|---------|
+| **A (هذا)** | `home-v2.html` — هيكلة + CSS + JS routing فقط، لا API |
+| **B** | JS كامل: profile fetch, jobs render (DOM API), badges, stats — ثم استبدال `home.html` |
+
+---
+
 ## [P0] 55. Messenger Mobile Default View
 
 ### Root Cause (documented after bug fix)

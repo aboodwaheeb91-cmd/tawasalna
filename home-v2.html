@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+<link rel="dns-prefetch" href="https://fonts.gstatic.com">
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#00c896">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="تواصلنا">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>الرئيسية - تواصلنا</title>
+<meta name="robots" content="noindex">
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;900&display=swap" rel="stylesheet">
+<!-- Lucide vendored locally, version 0.460.0 -->
+<script src="/static/vendor/lucide/lucide.min.js"></script>
+<style>
+/* ══ TOKENS ══ */
+:root{
+  --ac:#00c896;--ac2:#2563ff;--ac3:#8b5cf6;
+  --bg:#070b18;--t:rgba(255,255,255,.87);
+  --t2:rgba(255,255,255,.5);--t3:rgba(255,255,255,.28);
+  --card:rgba(255,255,255,.03);--border:rgba(255,255,255,.08);
+  --nav-h:56px;--bnav-h:62px;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--t);overflow-x:hidden;padding-top:var(--nav-h);}
+@media(max-width:768px){body{padding-bottom:var(--bnav-h);}}
+.hidden{display:none!important;}
+
+/* ══ SKIP LINK ══ */
+.skip-link{position:absolute;top:-40px;right:16px;background:var(--ac);color:#000;padding:8px 14px;border-radius:6px;font-size:.85rem;font-weight:700;z-index:9999;transition:top .2s;text-decoration:none;}
+.skip-link:focus{top:8px;}
+
+/* ══ BACKGROUND ══ */
+.hw-bg{position:fixed;inset:0;pointer-events:none;z-index:0;}
+.hw-orb{position:absolute;border-radius:50%;filter:blur(120px);animation:hw-breathe 10s ease-in-out infinite;}
+.hw-o1{width:500px;height:500px;background:#00c896;opacity:.06;top:-150px;right:-150px;}
+.hw-o2{width:400px;height:400px;background:#2563ff;opacity:.05;bottom:-150px;left:-150px;animation-delay:5s;}
+@keyframes hw-breathe{0%,100%{transform:scale(1);}50%{transform:scale(1.08) translateY(-15px);}}
+.hw-grid{position:fixed;inset:0;z-index:0;background-image:linear-gradient(rgba(255,255,255,.016) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.016) 1px,transparent 1px);background-size:60px 60px;}
+
+/* ══ TOP NAV ══ */
+.hw-nav{
+  position:fixed;top:0;inset-inline:0;height:var(--nav-h);z-index:100;
+  display:flex;align-items:center;gap:12px;padding-inline:5%;
+  background:rgba(7,11,24,.88);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+  border-bottom:1px solid var(--border);
+}
+.hw-nav-logo img{display:block;}
+.hw-nav-title{flex:1;font-size:.9rem;font-weight:700;color:var(--t);}
+.hw-nav-actions{display:flex;gap:8px;}
+.hw-icon-btn{
+  width:38px;height:38px;border-radius:10px;border:none;
+  background:rgba(255,255,255,.06);color:var(--t2);cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  position:relative;transition:background .2s;text-decoration:none;
+}
+.hw-icon-btn:hover{background:rgba(255,255,255,.11);color:var(--t);}
+.hw-icon-btn svg{width:18px;height:18px;stroke-width:1.8;}
+.hw-badge{
+  position:absolute;top:-4px;inset-inline-end:-4px;
+  min-width:16px;height:16px;border-radius:50%;
+  background:var(--ac);color:#fff;font-size:.58rem;font-weight:700;
+  display:flex;align-items:center;justify-content:center;padding:0 3px;
+}
+
+/* ══ LAYOUT WRAPPER ══ */
+.hw-wrap{
+  position:relative;z-index:1;
+  display:grid;grid-template-columns:240px 1fr;gap:20px;
+  max-width:1080px;margin-inline:auto;
+  padding:24px 5%;
+  align-items:start;
+}
+@media(max-width:1020px){
+  .hw-wrap{grid-template-columns:1fr;}
+  .hw-aside{display:none;}
+}
+
+/* ══ SIDEBAR ══ */
+.hw-aside{display:flex;flex-direction:column;gap:14px;position:sticky;top:calc(var(--nav-h) + 16px);}
+.hw-user-card{
+  background:var(--card);border:1px solid var(--border);
+  border-radius:18px;padding:20px;text-align:center;
+}
+.hw-user-avatar{
+  width:60px;height:60px;border-radius:50%;
+  background:linear-gradient(135deg,var(--ac),var(--ac2));
+  display:flex;align-items:center;justify-content:center;
+  font-size:1.5rem;font-weight:900;color:#fff;
+  margin-inline:auto;margin-bottom:10px;
+}
+.hw-user-name{font-size:.92rem;font-weight:700;}
+.hw-user-label{font-size:.72rem;color:var(--t3);margin-top:3px;}
+.hw-user-divider{border:none;border-top:1px solid var(--border);margin:14px 0;}
+.hw-qnav{display:flex;flex-direction:column;gap:3px;}
+.hw-qn-link[data-for]{display:none;}
+.hw-qn-link{
+  display:flex;align-items:center;gap:10px;
+  padding:10px 12px;border-radius:11px;
+  font-size:.82rem;font-weight:600;color:var(--t2);
+  text-decoration:none;transition:all .18s;
+}
+.hw-qn-link:hover,.hw-qn-link.active{background:rgba(0,200,150,.08);color:var(--ac);}
+.hw-qn-link svg{width:17px;height:17px;stroke-width:1.8;flex-shrink:0;}
+
+/* ══ MAIN ══ */
+.hw-main{display:flex;flex-direction:column;gap:18px;min-width:0;}
+
+/* ══ VIEWS ══ */
+.hw-view{display:none;flex-direction:column;gap:18px;}
+.hw-view.active{display:flex;}
+
+/* ══ CARD ══ */
+.hw-card{
+  background:var(--card);border:1px solid var(--border);
+  border-radius:18px;padding:20px;
+}
+.hw-card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;}
+.hw-card-title{font-size:.88rem;font-weight:800;}
+.hw-card-action{font-size:.74rem;color:var(--ac);font-weight:600;text-decoration:none;transition:opacity .2s;}
+.hw-card-action:hover{opacity:.75;}
+
+/* ══ WELCOME BANNER ══ */
+.hw-welcome{
+  background:linear-gradient(135deg,rgba(0,200,150,.07),rgba(37,99,255,.05));
+  border:1px solid rgba(0,200,150,.14);
+  border-radius:18px;padding:20px;
+  display:flex;align-items:center;gap:16px;
+}
+.hw-welcome-av{
+  width:50px;height:50px;border-radius:50%;flex-shrink:0;
+  background:linear-gradient(135deg,var(--ac),var(--ac2));
+  display:flex;align-items:center;justify-content:center;
+  font-size:1.25rem;font-weight:900;color:#fff;
+}
+.hw-welcome-title{font-size:.95rem;font-weight:800;margin-bottom:3px;}
+.hw-welcome-sub{font-size:.78rem;color:var(--t2);}
+@media(max-width:480px){
+  .hw-welcome{flex-direction:column;text-align:center;}
+}
+
+/* ══ STATS ROW ══ */
+.hw-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;}
+@media(max-width:480px){.hw-stats{grid-template-columns:1fr 1fr;}}
+.hw-stat{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px;text-align:center;}
+.hw-stat-num{font-size:1.5rem;font-weight:900;color:var(--ac);line-height:1;}
+.hw-stat-label{font-size:.7rem;color:var(--t2);margin-top:6px;}
+
+/* ══ PROFILE COMPLETION ══ */
+.hw-compl-bar-wrap{background:rgba(255,255,255,.06);border-radius:50px;height:7px;margin:10px 0 6px;overflow:hidden;}
+.hw-compl-bar{height:100%;border-radius:50px;background:linear-gradient(90deg,var(--ac),var(--ac2));transition:width .5s ease;}
+.hw-compl-hint{font-size:.72rem;color:var(--t2);}
+
+/* ══ LIST + ITEMS ══ */
+.hw-list{display:flex;flex-direction:column;gap:10px;}
+.hw-item{
+  display:flex;align-items:flex-start;gap:12px;
+  background:rgba(255,255,255,.025);border:1px solid var(--border);
+  border-radius:13px;padding:13px;
+  transition:border-color .2s,transform .18s;cursor:pointer;
+  text-decoration:none;color:inherit;
+}
+.hw-item:hover{border-color:rgba(0,200,150,.22);transform:translateY(-1px);}
+.hw-item-ico{
+  width:42px;height:42px;border-radius:11px;flex-shrink:0;
+  background:rgba(0,200,150,.09);
+  display:flex;align-items:center;justify-content:center;
+}
+.hw-item-ico svg{width:20px;height:20px;stroke:var(--ac);stroke-width:1.8;}
+.hw-item-ico.blue{background:rgba(37,99,255,.09);}
+.hw-item-ico.blue svg{stroke:var(--ac2);}
+.hw-item-ico.purple{background:rgba(139,92,246,.09);}
+.hw-item-ico.purple svg{stroke:var(--ac3);}
+.hw-item-body{flex:1;min-width:0;}
+.hw-item-title{font-size:.86rem;font-weight:700;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.hw-item-sub{font-size:.73rem;color:var(--t2);}
+.hw-item-tags{display:flex;gap:6px;margin-top:7px;flex-wrap:wrap;}
+.hw-tag{display:inline-flex;padding:2px 9px;border-radius:50px;font-size:.66rem;font-weight:600;border:1px solid;}
+.hw-tag.teal{background:rgba(0,200,150,.08);color:var(--ac);border-color:rgba(0,200,150,.18);}
+.hw-tag.blue{background:rgba(37,99,255,.08);color:rgba(100,160,255,.9);border-color:rgba(37,99,255,.18);}
+.hw-tag.gray{background:rgba(255,255,255,.04);color:var(--t3);border-color:var(--border);}
+
+/* ══ QUICK LINK GRID ══ */
+.hw-ql-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;}
+@media(max-width:480px){.hw-ql-grid{grid-template-columns:repeat(2,1fr);}}
+.hw-ql{
+  display:flex;flex-direction:column;align-items:center;gap:7px;
+  padding:14px 8px;border-radius:13px;
+  background:rgba(255,255,255,.025);border:1px solid var(--border);
+  font-size:.72rem;font-weight:600;color:var(--t2);
+  text-decoration:none;transition:all .18s;
+}
+.hw-ql:hover{border-color:rgba(0,200,150,.22);color:var(--ac);}
+.hw-ql svg{width:22px;height:22px;stroke-width:1.7;}
+
+/* ══ CTA BUTTON ══ */
+.hw-btn{
+  display:inline-flex;align-items:center;gap:8px;
+  padding:10px 20px;border-radius:11px;border:none;
+  background:linear-gradient(135deg,var(--ac),var(--ac2));
+  color:#fff;font-family:'Cairo',sans-serif;
+  font-size:.82rem;font-weight:700;cursor:pointer;
+  text-decoration:none;transition:all .2s;
+}
+.hw-btn:hover{transform:translateY(-1px);box-shadow:0 6px 18px rgba(0,200,150,.3);}
+.hw-btn svg{width:15px;height:15px;stroke:#fff;stroke-width:2.5;flex-shrink:0;}
+
+/* ══ SKELETON ══ */
+@keyframes hw-shimmer{0%{background-position:-1000px 0}100%{background-position:1000px 0}}
+.hw-sk{
+  background:linear-gradient(90deg,rgba(255,255,255,.04) 25%,rgba(255,255,255,.09) 50%,rgba(255,255,255,.04) 75%);
+  background-size:2000px 100%;animation:hw-shimmer 1.5s infinite linear;
+}
+.hw-sk-circ{border-radius:50%;}
+.hw-sk-line{height:13px;border-radius:50px;}
+.hw-sk-block{border-radius:13px;}
+
+/* ══ EMPTY STATE ══ */
+.hw-empty{display:flex;flex-direction:column;align-items:center;gap:12px;padding:36px 20px;text-align:center;}
+.hw-empty-ico{
+  width:54px;height:54px;border-radius:15px;
+  background:rgba(255,255,255,.03);border:1px solid var(--border);
+  display:flex;align-items:center;justify-content:center;color:var(--t3);
+}
+.hw-empty-ico svg{width:24px;height:24px;stroke-width:1.5;}
+.hw-empty-title{font-size:.88rem;font-weight:700;}
+.hw-empty-sub{font-size:.76rem;color:var(--t2);line-height:1.7;max-width:260px;}
+
+/* ══ BOTTOM NAV ══ */
+.hw-bnav{
+  display:none;
+  position:fixed;bottom:0;inset-inline:0;height:var(--bnav-h);z-index:100;
+  background:rgba(7,11,24,.95);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+  border-top:1px solid var(--border);
+  align-items:center;justify-content:space-around;
+}
+@media(max-width:768px){.hw-bnav{display:flex;}}
+.hw-bn{
+  display:flex;flex-direction:column;align-items:center;gap:3px;flex:1;
+  padding:6px 0;color:var(--t3);text-decoration:none;
+  font-size:.6rem;font-weight:600;transition:color .18s;cursor:pointer;
+  border:none;background:none;font-family:'Cairo',sans-serif;
+}
+.hw-bn:hover,.hw-bn.active{color:var(--ac);}
+.hw-bn svg{width:22px;height:22px;stroke-width:1.8;}
+
+/* ══ TOAST ══ */
+.hw-toast{
+  position:fixed;bottom:80px;left:50%;
+  transform:translateX(-50%) translateY(16px);
+  background:rgba(7,11,24,.97);border:1px solid rgba(255,255,255,.1);
+  backdrop-filter:blur(20px);border-radius:13px;
+  padding:11px 18px;font-size:.8rem;color:var(--t);
+  opacity:0;transition:all .28s cubic-bezier(.34,1.56,.64,1);
+  z-index:9999;white-space:nowrap;pointer-events:none;
+  display:flex;align-items:center;gap:8px;
+}
+.hw-toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+.hw-toast.ok{border-color:rgba(0,200,150,.3);}
+.hw-toast.err{border-color:rgba(239,68,68,.3);}
+</style>
+</head>
+<body>
+
+<a href="#hw-main" class="skip-link">تخطى إلى المحتوى</a>
+
+<!-- Background -->
+<div class="hw-bg" aria-hidden="true">
+  <div class="hw-orb hw-o1"></div>
+  <div class="hw-orb hw-o2"></div>
+</div>
+<div class="hw-grid" aria-hidden="true"></div>
+
+<!-- ══ TOP NAV ══ -->
+<nav class="hw-nav" role="navigation" aria-label="التنقل الرئيسي">
+  <a href="/" class="hw-nav-logo" aria-label="تواصلنا - الرئيسية">
+    <img src="/static/33333.svg" height="26" alt="تواصلنا">
+  </a>
+  <span class="hw-nav-title">الرئيسية</span>
+  <div class="hw-nav-actions">
+    <a href="/notifications" class="hw-icon-btn" aria-label="الإشعارات" id="notifBtn">
+      <i data-lucide="bell"></i>
+      <span class="hw-badge hidden" id="notifBadge"></span>
+    </a>
+    <a href="/messages" class="hw-icon-btn" aria-label="الرسائل" id="msgBtn">
+      <i data-lucide="message-circle"></i>
+      <span class="hw-badge hidden" id="msgBadge"></span>
+    </a>
+    <button class="hw-icon-btn" id="logoutBtn" aria-label="تسجيل الخروج" title="تسجيل الخروج">
+      <i data-lucide="log-out"></i>
+    </button>
+  </div>
+</nav>
+
+<!-- ══ LAYOUT ══ -->
+<div class="hw-wrap">
+
+  <!-- Sidebar (desktop only) -->
+  <aside class="hw-aside" aria-label="الشريط الجانبي">
+    <div class="hw-user-card">
+      <!-- Skeleton state -->
+      <div id="sideSkl">
+        <div class="hw-sk hw-sk-circ" style="width:60px;height:60px;margin-inline:auto;margin-bottom:12px;"></div>
+        <div class="hw-sk hw-sk-line" style="width:70%;margin-inline:auto;margin-bottom:8px;"></div>
+        <div class="hw-sk hw-sk-line" style="width:45%;margin-inline:auto;"></div>
+      </div>
+      <!-- Real state -->
+      <div id="sideReal" class="hidden">
+        <div class="hw-user-avatar" id="sideAv">؟</div>
+        <div class="hw-user-name"  id="sideName">—</div>
+        <div class="hw-user-label" id="sideLabel">—</div>
+      </div>
+      <hr class="hw-user-divider">
+      <!-- Quick nav — data-for hides wrong-type links via JS -->
+      <nav class="hw-qnav" aria-label="روابط سريعة">
+        <!-- emp -->
+        <a href="/home"        class="hw-qn-link active" data-for="emp"><i data-lucide="layout-dashboard"></i><span>الرئيسية</span></a>
+        <a href="/profile"     class="hw-qn-link"        data-for="emp"><i data-lucide="user-round"></i><span>ملفي الشخصي</span></a>
+        <a href="/messages"    class="hw-qn-link"        data-for="emp"><i data-lucide="message-circle"></i><span>الرسائل</span></a>
+        <a href="/notifications" class="hw-qn-link"      data-for="emp"><i data-lucide="bell"></i><span>الإشعارات</span></a>
+        <a href="/settings"    class="hw-qn-link"        data-for="emp"><i data-lucide="settings"></i><span>الإعدادات</span></a>
+        <!-- co -->
+        <a href="/home"            class="hw-qn-link active" data-for="co"><i data-lucide="layout-dashboard"></i><span>الرئيسية</span></a>
+        <a href="/company-profile" class="hw-qn-link"        data-for="co"><i data-lucide="building-2"></i><span>ملف الشركة</span></a>
+        <a href="/company"         class="hw-qn-link"        data-for="co"><i data-lucide="users"></i><span>المرشحون</span></a>
+        <a href="/messages"        class="hw-qn-link"        data-for="co"><i data-lucide="message-circle"></i><span>الرسائل</span></a>
+        <a href="/settings"        class="hw-qn-link"        data-for="co"><i data-lucide="settings"></i><span>الإعدادات</span></a>
+        <!-- edu -->
+        <a href="/home"         class="hw-qn-link active" data-for="edu"><i data-lucide="layout-dashboard"></i><span>الرئيسية</span></a>
+        <a href="/edu-profile"  class="hw-qn-link"        data-for="edu"><i data-lucide="graduation-cap"></i><span>ملف المؤسسة</span></a>
+        <a href="/edu"          class="hw-qn-link"        data-for="edu"><i data-lucide="book-open"></i><span>الدورات</span></a>
+        <a href="/messages"     class="hw-qn-link"        data-for="edu"><i data-lucide="message-circle"></i><span>الرسائل</span></a>
+        <a href="/settings"     class="hw-qn-link"        data-for="edu"><i data-lucide="settings"></i><span>الإعدادات</span></a>
+      </nav>
+    </div>
+  </aside>
+
+  <!-- ══ MAIN CONTENT ══ -->
+  <main class="hw-main" id="hw-main">
+
+    <!-- ════════════════════════════════════════
+         VIEW: EMP — موظف / باحث عن عمل
+         ════════════════════════════════════════ -->
+    <section id="view-emp" class="hw-view" aria-label="لوحة الموظف">
+
+      <!-- Welcome -->
+      <div class="hw-welcome" id="empWelcome">
+        <div class="hw-welcome-av" id="empAv">؟</div>
+        <div>
+          <div class="hw-welcome-title" id="empGreet">مرحباً بك</div>
+          <div class="hw-welcome-sub">ابنِ ملفك، وثّق خبراتك، واعثر على وظيفتك المثالية</div>
+        </div>
+      </div>
+
+      <!-- Profile completion -->
+      <div class="hw-card">
+        <div class="hw-card-header">
+          <span class="hw-card-title">اكتمال الملف الشخصي</span>
+          <a href="/profile" class="hw-card-action">تحسين الملف ←</a>
+        </div>
+        <!-- Skeleton (default — PR B replaces with real data) -->
+        <div id="complSkl">
+          <div class="hw-sk hw-sk-line" style="width:35%;margin-bottom:12px;"></div>
+          <div class="hw-sk" style="height:7px;border-radius:50px;margin-bottom:8px;"></div>
+          <div class="hw-sk hw-sk-line" style="width:55%;"></div>
+        </div>
+        <!-- Real (PR B will unhide and populate) -->
+        <div id="complReal" class="hidden">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+            <span id="complText" style="font-size:.8rem;color:var(--t2);"></span>
+            <span id="complPct"  style="font-size:1rem;font-weight:800;color:var(--ac);"></span>
+          </div>
+          <div class="hw-compl-bar-wrap">
+            <div class="hw-compl-bar" id="complBar" style="width:0%"></div>
+          </div>
+          <div class="hw-compl-hint" id="complHint"></div>
+        </div>
+      </div>
+
+      <!-- Suggested jobs -->
+      <div class="hw-card">
+        <div class="hw-card-header">
+          <span class="hw-card-title">وظائف مقترحة</span>
+          <a href="/home" class="hw-card-action">عرض الكل ←</a>
+        </div>
+        <!-- Skeleton (3 cards) -->
+        <div id="jobsSkl" style="display:flex;flex-direction:column;gap:10px;">
+          <div class="hw-sk hw-sk-block" style="height:76px;"></div>
+          <div class="hw-sk hw-sk-block" style="height:76px;"></div>
+          <div class="hw-sk hw-sk-block" style="height:76px;"></div>
+        </div>
+        <!-- List (PR B will populate via safe DOM API) -->
+        <div id="jobsList" class="hw-list hidden"></div>
+        <!-- Empty state -->
+        <div id="jobsEmpty" class="hw-empty hidden">
+          <div class="hw-empty-ico"><i data-lucide="briefcase"></i></div>
+          <div class="hw-empty-title">لا توجد وظائف مقترحة بعد</div>
+          <div class="hw-empty-sub">أكمل ملفك الشخصي لتحسين اقتراحات الوظائف المناسبة لك</div>
+          <a href="/profile" class="hw-btn">
+            <i data-lucide="user-round"></i>
+            أكمل ملفي
+          </a>
+        </div>
+      </div>
+
+      <!-- Quick links -->
+      <div class="hw-card">
+        <div class="hw-card-header"><span class="hw-card-title">روابط سريعة</span></div>
+        <div class="hw-ql-grid">
+          <a href="/profile"       class="hw-ql"><i data-lucide="user-round"></i><span>ملفي</span></a>
+          <a href="/home"          class="hw-ql"><i data-lucide="briefcase"></i><span>الوظائف</span></a>
+          <a href="/messages"      class="hw-ql"><i data-lucide="message-circle"></i><span>الرسائل</span></a>
+          <a href="/notifications" class="hw-ql"><i data-lucide="bell"></i><span>الإشعارات</span></a>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ════════════════════════════════════════
+         VIEW: CO — شركة / صاحب عمل
+         ════════════════════════════════════════ -->
+    <section id="view-co" class="hw-view" aria-label="لوحة الشركة">
+
+      <!-- Welcome -->
+      <div class="hw-welcome">
+        <div class="hw-welcome-av" id="coAv">ش</div>
+        <div>
+          <div class="hw-welcome-title" id="coGreet">مرحباً بشركتك</div>
+          <div class="hw-welcome-sub">انشر وظائفك، ابحث عن المرشحين المؤهلين، وتواصل مباشرة</div>
+        </div>
+      </div>
+
+      <!-- Stats skeleton -->
+      <div class="hw-stats" id="coSklStats">
+        <div class="hw-stat"><div class="hw-sk hw-sk-block" style="height:62px;"></div></div>
+        <div class="hw-stat"><div class="hw-sk hw-sk-block" style="height:62px;"></div></div>
+        <div class="hw-stat"><div class="hw-sk hw-sk-block" style="height:62px;"></div></div>
+      </div>
+      <!-- Stats real (PR B will unhide and populate) -->
+      <div class="hw-stats hidden" id="coRealStats">
+        <div class="hw-stat">
+          <div class="hw-stat-num" id="coJobsCnt">—</div>
+          <div class="hw-stat-label">وظائف نشطة</div>
+        </div>
+        <div class="hw-stat">
+          <div class="hw-stat-num" id="coAppsCnt">—</div>
+          <div class="hw-stat-label">متقدمون جدد</div>
+        </div>
+        <div class="hw-stat">
+          <div class="hw-stat-num" id="coViewsCnt">—</div>
+          <div class="hw-stat-label">مشاهدات</div>
+        </div>
+      </div>
+
+      <!-- Posted jobs -->
+      <div class="hw-card">
+        <div class="hw-card-header">
+          <span class="hw-card-title">وظائفي المنشورة</span>
+          <a href="/company-profile" class="hw-card-action">إدارة الوظائف ←</a>
+        </div>
+        <div id="coJobsSkl" style="display:flex;flex-direction:column;gap:10px;">
+          <div class="hw-sk hw-sk-block" style="height:76px;"></div>
+          <div class="hw-sk hw-sk-block" style="height:76px;"></div>
+        </div>
+        <div id="coJobsList" class="hw-list hidden"></div>
+        <div id="coJobsEmpty" class="hw-empty hidden">
+          <div class="hw-empty-ico"><i data-lucide="briefcase-business"></i></div>
+          <div class="hw-empty-title">لم تنشر أي وظائف بعد</div>
+          <div class="hw-empty-sub">انشر وظيفتك الأولى وابدأ في استقطاب المرشحين المؤهلين</div>
+          <a href="/company-profile" class="hw-btn">
+            <i data-lucide="plus"></i>
+            انشر وظيفة جديدة
+          </a>
+        </div>
+      </div>
+
+      <!-- Quick links co -->
+      <div class="hw-card">
+        <div class="hw-card-header"><span class="hw-card-title">روابط سريعة</span></div>
+        <div class="hw-ql-grid">
+          <a href="/company-profile" class="hw-ql"><i data-lucide="building-2"></i><span>ملف الشركة</span></a>
+          <a href="/company"         class="hw-ql"><i data-lucide="users"></i><span>المرشحون</span></a>
+          <a href="/messages"        class="hw-ql"><i data-lucide="message-circle"></i><span>الرسائل</span></a>
+          <a href="/settings"        class="hw-ql"><i data-lucide="settings"></i><span>الإعدادات</span></a>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ════════════════════════════════════════
+         VIEW: EDU — جهة تعليمية
+         ════════════════════════════════════════ -->
+    <section id="view-edu" class="hw-view" aria-label="لوحة الجهة التعليمية">
+
+      <!-- Welcome -->
+      <div class="hw-welcome">
+        <div class="hw-welcome-av" id="eduAv">ت</div>
+        <div>
+          <div class="hw-welcome-title" id="eduGreet">مرحباً بمؤسستك</div>
+          <div class="hw-welcome-sub">انشر دوراتك، وثّق شهادات خريجيك، وأدر ملفك المؤسسي</div>
+        </div>
+      </div>
+
+      <!-- Stats skeleton -->
+      <div class="hw-stats" id="eduSklStats">
+        <div class="hw-stat"><div class="hw-sk hw-sk-block" style="height:62px;"></div></div>
+        <div class="hw-stat"><div class="hw-sk hw-sk-block" style="height:62px;"></div></div>
+        <div class="hw-stat"><div class="hw-sk hw-sk-block" style="height:62px;"></div></div>
+      </div>
+      <!-- Stats real (PR B) -->
+      <div class="hw-stats hidden" id="eduRealStats">
+        <div class="hw-stat">
+          <div class="hw-stat-num" id="eduCoursesCnt">—</div>
+          <div class="hw-stat-label">دورات منشورة</div>
+        </div>
+        <div class="hw-stat">
+          <div class="hw-stat-num" id="eduVerifyCnt">—</div>
+          <div class="hw-stat-label">طلبات توثيق</div>
+        </div>
+        <div class="hw-stat">
+          <div class="hw-stat-num" id="eduStudentsCnt">—</div>
+          <div class="hw-stat-label">متدربون</div>
+        </div>
+      </div>
+
+      <!-- Courses -->
+      <div class="hw-card">
+        <div class="hw-card-header">
+          <span class="hw-card-title">الدورات المنشورة</span>
+          <a href="/edu-profile" class="hw-card-action">إدارة الدورات ←</a>
+        </div>
+        <div id="eduCoursesSkl" style="display:flex;flex-direction:column;gap:10px;">
+          <div class="hw-sk hw-sk-block" style="height:76px;"></div>
+          <div class="hw-sk hw-sk-block" style="height:76px;"></div>
+        </div>
+        <div id="eduCoursesList" class="hw-list hidden"></div>
+        <div id="eduCoursesEmpty" class="hw-empty hidden">
+          <div class="hw-empty-ico"><i data-lucide="book-open"></i></div>
+          <div class="hw-empty-title">لم تضف أي دورات بعد</div>
+          <div class="hw-empty-sub">أضف دوراتك التدريبية وابدأ في استقطاب المتدربين</div>
+          <a href="/edu-profile" class="hw-btn">
+            <i data-lucide="plus"></i>
+            أضف دورة جديدة
+          </a>
+        </div>
+      </div>
+
+      <!-- Quick links edu -->
+      <div class="hw-card">
+        <div class="hw-card-header"><span class="hw-card-title">روابط سريعة</span></div>
+        <div class="hw-ql-grid">
+          <a href="/edu-profile" class="hw-ql"><i data-lucide="graduation-cap"></i><span>ملف المؤسسة</span></a>
+          <a href="/edu"         class="hw-ql"><i data-lucide="book-open"></i><span>الدورات</span></a>
+          <a href="/messages"    class="hw-ql"><i data-lucide="message-circle"></i><span>الرسائل</span></a>
+          <a href="/settings"    class="hw-ql"><i data-lucide="settings"></i><span>الإعدادات</span></a>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ════════════════════════════════════════
+         FALLBACK — نوع حساب غير معروف
+         ════════════════════════════════════════ -->
+    <div id="view-fallback" class="hw-view">
+      <div class="hw-empty" style="padding:60px 20px;">
+        <div class="hw-empty-ico"><i data-lucide="alert-circle"></i></div>
+        <div class="hw-empty-title">نوع الحساب غير معروف</div>
+        <div class="hw-empty-sub">يرجى تسجيل الخروج وإعادة الدخول لإعادة ضبط الجلسة</div>
+        <button class="hw-btn" id="fallbackLogout">
+          <i data-lucide="log-out"></i>
+          تسجيل الخروج
+        </button>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- ══ BOTTOM NAV (mobile) ══ -->
+<nav class="hw-bnav" role="navigation" aria-label="التنقل السفلي">
+  <a href="/home" class="hw-bn active" aria-label="الرئيسية">
+    <i data-lucide="layout-dashboard"></i><span>الرئيسية</span>
+  </a>
+  <a href="/home" class="hw-bn" aria-label="الوظائف" id="bnJobs">
+    <i data-lucide="briefcase"></i><span>الوظائف</span>
+  </a>
+  <a href="/messages" class="hw-bn" aria-label="الرسائل">
+    <i data-lucide="message-circle"></i><span>الرسائل</span>
+  </a>
+  <a href="/notifications" class="hw-bn" aria-label="الإشعارات">
+    <i data-lucide="bell"></i><span>الإشعارات</span>
+  </a>
+  <a href="/profile" class="hw-bn" aria-label="ملفي" id="bnProfile">
+    <i data-lucide="user-round"></i><span>ملفي</span>
+  </a>
+</nav>
+
+<!-- Toast -->
+<div class="hw-toast" id="hwToast" role="status" aria-live="polite"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ── Auth guard ── */
+  var _u = null;
+  try { _u = JSON.parse(localStorage.getItem('tw_user') || 'null'); } catch (e) {}
+  if (!_u || !_u.id) { location.replace('/login'); return; }
+
+  /* ── Init Lucide ── */
+  if (window.lucide) lucide.createIcons();
+
+  /* ── Resolve user type ── */
+  var type = (['emp', 'co', 'edu'].indexOf(_u.user_type) !== -1) ? _u.user_type : null;
+
+  /* ── Activate correct view ── */
+  document.querySelectorAll('.hw-view').forEach(function (v) { v.classList.remove('active'); });
+  var targetView = document.getElementById(type ? ('view-' + type) : 'view-fallback');
+  if (targetView) targetView.classList.add('active');
+
+  /* ── Show correct sidebar nav links ── */
+  document.querySelectorAll('.hw-qn-link[data-for]').forEach(function (el) {
+    el.style.display = (el.getAttribute('data-for') === type) ? 'flex' : 'none';
+  });
+
+  /* ── Populate user info ── */
+  var initial   = (_u.full_name || '؟').charAt(0);
+  var fullName  = _u.full_name  || '';
+  var typeLabel = type === 'co' ? 'شركة' : type === 'edu' ? 'جهة تعليمية' : 'موظف';
+  var greeting  = 'مرحباً، ' + fullName;
+
+  /* Sidebar */
+  document.getElementById('sideSkl').style.display  = 'none';
+  document.getElementById('sideReal').classList.remove('hidden');
+  document.getElementById('sideAv').textContent    = initial;
+  document.getElementById('sideName').textContent  = fullName;
+  document.getElementById('sideLabel').textContent = typeLabel;
+
+  /* View-specific welcome cards */
+  var $t = function (id, val) { var el = document.getElementById(id); if (el) el.textContent = val; };
+  $t('empAv',    initial);  $t('empGreet', greeting);
+  $t('coAv',     initial);  $t('coGreet',  greeting);
+  $t('eduAv',    initial);  $t('eduGreet', greeting);
+
+  /* ── Bottom nav: profile + jobs links per type ── */
+  var bnProfile = document.getElementById('bnProfile');
+  var bnJobs    = document.getElementById('bnJobs');
+  if (bnProfile) {
+    if (type === 'co')       bnProfile.href = '/company-profile';
+    else if (type === 'edu') bnProfile.href = '/edu-profile';
+    else if (_u.tw_id)       bnProfile.href = '/u/' + _u.tw_id;
+  }
+  if (bnJobs) {
+    if (type === 'co') {
+      bnJobs.querySelector('span').textContent = 'وظائفي';
+      bnJobs.href = '/company-profile';
+    } else if (type === 'edu') {
+      bnJobs.querySelector('span').textContent = 'دوراتي';
+      bnJobs.href = '/edu-profile';
+    }
+  }
+
+  /* ── Logout ── */
+  function doLogout() {
+    Object.keys(localStorage)
+      .filter(function (k) { return k.startsWith('tw_'); })
+      .forEach(function (k) { localStorage.removeItem(k); });
+    location.replace('/login');
+  }
+  var logoutBtn = document.getElementById('logoutBtn');
+  if (logoutBtn) logoutBtn.addEventListener('click', doLogout);
+  var fallbackLogout = document.getElementById('fallbackLogout');
+  if (fallbackLogout) fallbackLogout.addEventListener('click', doLogout);
+
+  /* ── TODO (PR B): replace skeleton sections with real API data ──
+     • fetch /profile/{id}/full         → profile completion %
+     • fetch /jobs                      → emp suggested jobs (safe DOM API, no innerHTML)
+     • fetch /messages/unread/{id}      → msgBadge count
+     • fetch /notifications/{id}        → notifBadge count
+     • fetch company jobs / edu courses → co/edu lists
+  ── */
+
+}());
+</script>
+</body>
+</html>
