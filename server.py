@@ -542,7 +542,7 @@ def home_feed(filter: str = "all", limit: int = 20, token=Depends(verify_token))
     if filter == "all" and items:
         items.sort(key=lambda x: x.get("created_at") or "", reverse=True)
 
-    return {"items": items, "filter": filter, "total": len(items)}
+    return {"items": items, "filter": filter, "total": len(items), "next_cursor": None}
 
 
 @app.get("/profile", response_class=HTMLResponse)
