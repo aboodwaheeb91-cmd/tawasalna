@@ -12,16 +12,23 @@
 
   var type     = _u.user_type || 'emp';
   var fullName = _u.full_name || _u.name || _u.email || 'مستخدم';
-  var initial  = fullName.charAt(0).toUpperCase();
 
   function getProfileUrl(u) {
     return u.tw_id ? '/u/' + u.tw_id : '/profile';
   }
 
+  /* ── Shared header init (app-header.js) ── */
+  if (typeof initAppHeader === 'function') initAppHeader(_u);
+
   /* ── Helpers ── */
   var JOB_TYPES = {
     full_time: 'دوام كامل', part_time: 'دوام جزئي',
     remote: 'عن بُعد', contract: 'عقد', internship: 'تدريب'
+  };
+
+  var NEWS_CATS = {
+    general: 'عام', labor_law: 'قانون العمل', opportunity: 'فرصة',
+    ministry: 'وزارة العمل', platform: 'أخبار المنصة', agreement: 'اتفاقية'
   };
 
   function timeAgo(iso) {
@@ -54,7 +61,6 @@
       var img = el('img');
       img.alt = '';
       img.setAttribute('loading', 'lazy');
-      /* only absolute URLs from our own API are allowed */
       img.src = avatarUrl;
       wrap.appendChild(img);
     } else {
@@ -65,7 +71,8 @@
 
   /* ── Card renderers (all use createElement + textContent, NO innerHTML from API) ── */
 
-  function renderJobCard(item) {
+  /* Opportunity card — currently always opp_type="job"; extensible for future types */
+  function renderOpportunityCard(item) {
     var art = el('article', 'hw-card');
 
     var head = el('div', 'hw-jhead');
@@ -97,12 +104,16 @@
     if (item.salary_min) {
       meta.appendChild(txt('span', 'hw-chip g', item.salary_min + (item.salary_max ? '–' + item.salary_max : '+') + ' ' + (item.currency || '')));
     }
+    /* opp_type chip — shows sub-type for future non-job opportunities */
+    if (item.opp_type && item.opp_type !== 'job') {
+      meta.appendChild(txt('span', 'hw-chip', item.opp_type));
+    }
     art.appendChild(meta);
 
     var foot = el('div', 'hw-jfoot');
     foot.appendChild(txt('span', 'hw-ts', timeAgo(item.created_at)));
     var applyLink = el('a', 'hw-btn g');
-    applyLink.textContent = 'عرض الوظيفة';
+    applyLink.textContent = 'عرض الفرصة';
     applyLink.href = '/job-detail?id=' + parseInt(item.id, 10);
     foot.appendChild(applyLink);
     art.appendChild(foot);
@@ -134,7 +145,6 @@
     foot.appendChild(shareAct);
     art.appendChild(foot);
 
-    /* link the card to the company profile */
     if (item.author_tw_id) {
       art.style.cursor = 'pointer';
       art.addEventListener('click', function (ev) {
@@ -146,28 +156,73 @@
     return art;
   }
 
-  function renderSuggestedCard(item) {
+  /* News card — inline expand (body) + external source link */
+  function renderNewsCard(item) {
     var art = el('article', 'hw-card');
-    var wrap = el('div', 'hw-scard');
-    wrap.appendChild(makeAvatar('hw-sav', item.name, item.avatar_url));
-    var info = el('div', 'hw-sinfo');
-    info.appendChild(txt('div', 'hw-sname', item.name || ''));
-    info.appendChild(txt('div', 'hw-ssub', item.headline || (item.user_type === 'edu' ? 'مؤسسة تعليمية' : 'شركة')));
-    wrap.appendChild(info);
-    if (item.tw_id) {
-      var viewLink = el('a', 'hw-btn out');
-      viewLink.textContent = 'عرض';
-      viewLink.href = '/u/' + item.tw_id;
-      wrap.appendChild(viewLink);
+
+    /* Header row: news icon + title + meta */
+    var head = el('div', 'hw-nhead');
+    var nico = el('div', 'hw-nico');
+    var nicoI = el('i');
+    nicoI.setAttribute('data-lucide', 'newspaper');
+    nicoI.setAttribute('width', '16');
+    nicoI.setAttribute('height', '16');
+    nico.appendChild(nicoI);
+    head.appendChild(nico);
+
+    var ninfo = el('div', 'hw-ninfo');
+    ninfo.appendChild(txt('div', 'hw-ntitle', item.title || ''));
+    var nmeta = el('div', 'hw-nmeta');
+    if (item.category) {
+      nmeta.appendChild(txt('span', 'hw-ncat', NEWS_CATS[item.category] || item.category));
     }
-    art.appendChild(wrap);
+    if (item.country) nmeta.appendChild(txt('span', 'hw-ncountry', item.country));
+    ninfo.appendChild(nmeta);
+    head.appendChild(ninfo);
+    art.appendChild(head);
+
+    /* Summary (always visible) */
+    if (item.summary) art.appendChild(txt('p', 'hw-nsummary', item.summary));
+
+    /* Full body (hidden, toggled by "قراءة المزيد") */
+    var bodyEl = null;
+    if (item.body && item.body.trim()) {
+      bodyEl = txt('div', 'hw-nbody', item.body);
+      art.appendChild(bodyEl);
+    }
+
+    /* Footer: timestamp + action buttons */
+    var foot = el('div', 'hw-nfoot');
+    foot.appendChild(txt('span', 'hw-ts', timeAgo(item.created_at)));
+
+    if (bodyEl) {
+      var expandBtn = el('button', 'hw-nbtn');
+      expandBtn.textContent = 'قراءة المزيد';
+      expandBtn.addEventListener('click', function () {
+        var isOpen = bodyEl.classList.toggle('open');
+        expandBtn.textContent = isOpen ? 'إخفاء' : 'قراءة المزيد';
+      });
+      foot.appendChild(expandBtn);
+    }
+
+    /* source_url — only http/https allowed; reject javascript:, data:, etc. */
+    if (item.source_url && /^https?:\/\//i.test(item.source_url)) {
+      var srcLink = el('a', 'hw-nbtn src');
+      srcLink.textContent = 'المصدر الرسمي';
+      srcLink.href = item.source_url;
+      srcLink.target = '_blank';
+      srcLink.rel = 'noopener noreferrer';
+      foot.appendChild(srcLink);
+    }
+
+    art.appendChild(foot);
     return art;
   }
 
   function renderCard(item) {
-    if (item.type === 'job')     return renderJobCard(item);
-    if (item.type === 'post')    return renderPostCard(item);
-    if (item.type === 'company') return renderSuggestedCard(item);
+    if (item.type === 'opportunity') return renderOpportunityCard(item);
+    if (item.type === 'post')        return renderPostCard(item);
+    if (item.type === 'news')        return renderNewsCard(item);
     return null;
   }
 
@@ -183,7 +238,7 @@
 
     skCard('<div style="display:flex;gap:12px;align-items:flex-start;margin-bottom:12px"><div class="hw-skr" style="width:44px;height:44px;flex-shrink:0"></div><div style="flex:1;display:flex;flex-direction:column;gap:7px"><div class="hw-skl" style="height:14px;width:62%"></div><div class="hw-skl" style="height:11px;width:38%"></div></div></div><div style="display:flex;gap:7px;margin-bottom:14px"><div class="hw-skl" style="height:22px;width:68px;border-radius:12px"></div><div class="hw-skl" style="height:22px;width:52px;border-radius:12px"></div></div><div style="display:flex;justify-content:space-between;align-items:center"><div class="hw-skl" style="height:10px;width:76px"></div><div class="hw-skl" style="height:30px;width:82px;border-radius:20px"></div></div>');
     skCard('<div style="display:flex;gap:10px;align-items:center;margin-bottom:12px"><div class="hw-skc" style="width:38px;height:38px;flex-shrink:0"></div><div style="flex:1;display:flex;flex-direction:column;gap:6px"><div class="hw-skl" style="height:13px;width:42%"></div><div class="hw-skl" style="height:10px;width:26%"></div></div></div><div style="display:flex;flex-direction:column;gap:6px"><div class="hw-skl" style="height:12px;width:100%"></div><div class="hw-skl" style="height:12px;width:88%"></div><div class="hw-skl" style="height:12px;width:72%"></div></div>');
-    skCard('<div style="display:flex;align-items:center;gap:12px"><div class="hw-skc" style="width:46px;height:46px;flex-shrink:0"></div><div style="flex:1;display:flex;flex-direction:column;gap:7px"><div class="hw-skl" style="height:13px;width:55%"></div><div class="hw-skl" style="height:10px;width:38%"></div></div><div class="hw-skl" style="height:30px;width:74px;border-radius:20px;flex-shrink:0"></div></div>');
+    skCard('<div style="display:flex;gap:12px;align-items:flex-start;margin-bottom:10px"><div class="hw-skr" style="width:36px;height:36px;flex-shrink:0;border-radius:9px"></div><div style="flex:1;display:flex;flex-direction:column;gap:7px"><div class="hw-skl" style="height:14px;width:70%"></div><div class="hw-skl" style="height:10px;width:30%;border-radius:12px"></div></div></div><div class="hw-skl" style="height:12px;width:100%;margin-bottom:6px"></div><div class="hw-skl" style="height:12px;width:80%"></div>');
 
     return frag;
   }
@@ -206,15 +261,19 @@
 
   function showEmpty(filter) {
     var LABELS = {
-      all:'لا يوجد محتوى بعد', jobs:'لا توجد وظائف حالياً',
-      posts:'لا توجد منشورات بعد', companies:'لا توجد شركات بعد'
+      all:           'لا يوجد محتوى بعد',
+      opportunities: 'لا توجد فرص حالياً',
+      posts:         'لا توجد منشورات بعد',
+      news:          'لا توجد أخبار منشورة بعد'
     };
     feedEl.innerHTML = '';
     feedEl.classList.add('hidden');
     var h3 = emptyEl.querySelector('h3');
     var p  = emptyEl.querySelector('p');
     if (h3) h3.textContent = LABELS[filter] || 'لا يوجد محتوى';
-    if (p)  p.textContent  = 'ارجع لاحقاً أو جرّب فلتراً آخر';
+    if (p)  p.textContent  = filter === 'news'
+      ? 'ستظهر هنا الأخبار الرسمية والإعلانات عند نشرها'
+      : 'ارجع لاحقاً أو جرّب فلتراً آخر';
     emptyEl.classList.remove('hidden');
     errorEl.classList.add('hidden');
   }
@@ -270,23 +329,6 @@
       });
   }
 
-  /* ── Nav setup ── */
-  var navAv = document.getElementById('navAv');
-  if (navAv) {
-    navAv.textContent = initial;
-    navAv.title = fullName;
-    if (type === 'emp')      navAv.href = getProfileUrl(_u);
-    else if (type === 'co')  navAv.href = '/company-profile';
-    else if (type === 'edu') navAv.href = '/edu-profile';
-  }
-
-  document.getElementById('btnLogout').addEventListener('click', function () {
-    Object.keys(localStorage)
-      .filter(function (k) { return k.startsWith('tw_'); })
-      .forEach(function (k) { localStorage.removeItem(k); });
-    location.replace('/login');
-  });
-
   /* ── Filter tabs ── */
   document.querySelectorAll('.hw-ft').forEach(function (btn) {
     btn.addEventListener('click', function () {
@@ -306,25 +348,25 @@
     document.getElementById('sbComplLink').href = profileUrl;
     _sbLinks([
       { icon: 'user',      label: 'ملفي الشخصي',  href: profileUrl },
-      { icon: 'briefcase', label: 'تصفح الوظائف', href: '/home' },
-      { icon: 'book-open', label: 'الدورات',       href: '/home' },
-      { icon: 'settings',  label: 'الإعدادات',     href: '/settings' },
+      { icon: 'briefcase', label: 'تصفح الفرص',    href: '/home' },
+      { icon: 'newspaper', label: 'الأخبار',        href: '/home' },
+      { icon: 'settings',  label: 'الإعدادات',      href: '/settings' },
     ]);
 
   } else if (type === 'co') {
     document.getElementById('bnProfile').href = '/company-profile';
     document.getElementById('bnProfileLbl').textContent = 'شركتي';
     document.getElementById('bnJobs').href = '/company-profile';
-    document.getElementById('bnJobsLbl').textContent = 'وظائفي';
+    document.getElementById('bnJobsLbl').textContent = 'فرصي';
     document.getElementById('sbComplLink').href = '/company-profile';
-    _banner('briefcase', 'وظائف شركتك', 'تابع وظائفك المنشورة والمتقدمين', [
-      { v: '—', l: 'وظيفة نشطة' }, { v: '—', l: 'متقدم جديد' },
+    _banner('briefcase', 'فرص شركتك', 'تابع الفرص المنشورة والمتقدمين', [
+      { v: '—', l: 'فرصة نشطة' }, { v: '—', l: 'متقدم جديد' },
     ]);
     _sbLinks([
       { icon: 'layout-dashboard', label: 'لوحة التحكم', href: '/company-profile' },
       { icon: 'users',            label: 'المرشحون',     href: '/company' },
-      { icon: 'plus-circle',      label: 'نشر وظيفة',   href: '/company-profile' },
-      { icon: 'settings',         label: 'الإعدادات',   href: '/settings' },
+      { icon: 'plus-circle',      label: 'نشر فرصة',    href: '/company-profile' },
+      { icon: 'settings',         label: 'الإعدادات',    href: '/settings' },
     ]);
 
   } else if (type === 'edu') {

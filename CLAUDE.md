@@ -495,20 +495,29 @@ These rules are permanent and apply to all future AI sessions:
 
 3. **Files are split — keep them split:**
    - `home-v2.html` — HTML هيكل فقط
-   - `static/home-v2.css` — جميع الأنماط
+   - `static/app-header.css` — CSS vars وstyles للهيدر المشترك (Home + Profile V2)
+   - `static/app-header.js` — `initAppHeader(user)` — avatar + logout
+   - `static/home-v2.css` — أنماط الصفحة
    - `static/home-v2.js` — جميع المنطق
    - ممنوع دمج CSS/JS الكبير داخل HTML
 
 4. **`/preview/home-v2` is deleted.** لا تعيد إضافته. Route المعاينة المؤقت أُزيل عند shipping Home V2.
 
-5. **`GET /home/feed` is the feed API.** Auth: `Depends(verify_token)` — `user_id` من JWT فقط، ليس من query param. `filter` مُقيَّد server-side بـ allowlist.
+5. **`GET /home/feed` is the feed API.** Auth: `Depends(verify_token)` — `user_id` من JWT فقط، ليس من query param. `filter` مُقيَّد server-side بـ allowlist: `{"all","opportunities","posts","news"}`.
 
 6. **Rendering is always safe:** كل بيانات API تُعرض عبر `createElement` + `textContent`. لا `innerHTML = apiData`. السماح بـ `innerHTML` للـ skeleton الثابت فقط (لا يحتوي بيانات API).
 
-7. **`questions` and `courses` are NOT Home V2 filters.** هما features مستقبلية مستقلة تحتاج جداول وتصميم منفصل. ممنوع إعادة إضافتهما كـ filter في `home-v2.html` أو في allowlist `/home/feed` قبل بناء جداولهما الكاملة.
+7. **Home feed filters are final: `all / opportunities / posts / news`.**
+   - `opportunities` — يعرض `jobs` حالياً (مع `opp_type="job"`). مستقبلاً يدعم training/scholarship/overseas.
+   - `news` — أخبار رسمية من `news_posts` table، يُنشر من الأدمن فقط.
+   - **ممنوع** إعادة `companies` كـ filter — مكانها صفحة استكشاف/بحث مستقلة في PR منفصل.
+   - **ممنوع** إضافة `questions` أو `courses` أو أي filter آخر قبل بناء جدوله وendpoint حقيقي.
+   - فلتر `news` فارغ بسبب غياب بيانات = **مقبول**. فلتر بدون جدول/API = **ممنوع**.
 
 8. **`tw_jwt` is the auth token.** `localStorage.getItem('tw_jwt')` يُرسل كـ `Authorization: Bearer` في كل API call من Home V2.
 
-9. **CSS offset is single-source:** `body { padding-top: calc(var(--nav) + var(--flt)) }`. كلا الشريطين `position: fixed`. ممنوع إضافة `margin-block-start` على `.hw-page`.
+9. **CSS offset is single-source:** `body { padding-top: calc(var(--ah-h, 56px) + var(--flt)) }`. كلا الشريطين `position: fixed`. ممنوع إضافة `margin-block-start` على `.hw-page`.
 
 10. **`home.html` is legacy.** يمكن الاحتفاظ به كملف احتياطي لكنه ليس route. ممنوع حذفه أو تعديله دون سبب واضح.
+
+11. **App Header is unified.** `static/app-header.css` + `static/app-header.js` هما المرجع الرسمي لهيدر الصفحات الداخلية. ممنوع إنشاء header styles منفصلة لصفحة جديدة — يجب استخدام CSS vars من `app-header.css`. أي تعديل على شكل الهيدر يجب أن يكون في `app-header.css` فقط.

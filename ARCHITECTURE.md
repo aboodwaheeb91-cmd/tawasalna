@@ -4847,26 +4847,42 @@ if (window.lucide) { lucide.createIcons(); }
 | الملف | الدور |
 |-------|-------|
 | `home-v2.html` | HTML هيكل نظيف، يرتبط بـ CSS و JS خارجيين |
-| `static/home-v2.css` | جميع الأنماط المرئية، namespace `.hw-*` |
+| `static/app-header.css` | هوية الهيدر المشتركة (Home + Profile V2) — `.app-nav` + CSS vars |
+| `static/app-header.js` | `initAppHeader(user)` — يضبط الـ avatar والـ logout |
+| `static/home-v2.css` | أنماط الصفحة، namespace `.hw-*` |
 | `static/home-v2.js` | منطق Auth، Feed fetch، rendering، per-type setup |
 
-### سبب إعادة البناء من الصفر
+### App Header (Shared — `static/app-header.css` + `static/app-header.js`)
 
-| المشكلة في home.html القديم | الحل في V2 |
-|-----------------------------|-----------|
-| XSS: `innerHTML` من بيانات API | جميع البيانات عبر `createElement` + `textContent` |
-| Sidebar hardcoded (بيانات وهمية) | skeleton/empty/real pattern — لا بيانات وهمية |
-| Bottom nav غائبة من HTML | بُنيت كاملاً في HTML + JS |
-| لا تفريق بين emp/co/edu | banner مختصر للـ co/edu فوق الـ feed |
-| CDN خارجي (Supabase) | `/static/33333.svg` محلي |
-| Dashboard-first | Feed-first: filter tabs ثم feed فوراً |
+جميع الصفحات الداخلية (Home V2، Profile V2) تستخدم نفس CSS vars وclass للهيدر:
+
+```css
+:root {
+  --ah-h:    56px;              /* ارتفاع الهيدر */
+  --ah-bg:   rgba(7,11,24,.93);
+  --ah-blur: blur(14px);
+  --ah-brd:  rgba(255,255,255,.09);
+}
+.app-nav { position:fixed; top:0; height:var(--ah-h); background:var(--ah-bg); ... }
+```
+
+**استخدام `initAppHeader(user)`:**
+```js
+initAppHeader(user)  // يضبط [data-ah-av] و [data-ah-logout]
+```
+
+- `[data-ah-av]` — دائرة الـ avatar: initials أو صورة، href حسب user_type
+- `[data-ah-logout]` — زر الخروج: يمسح `tw_*` من localStorage → `/login`
+- Bell و Messages هي `<a href>` عادية — لا تحتاج JS binding
+
+**Profile V2:** يستخدم `.sc-header.app-nav` — نفس CSS vars، `position:sticky` بدلاً من `fixed`.
 
 ### DOM Structure
 
 ```
-<nav.hw-nav>      fixed 56px: logo + messages + notifications + logout + avatar
-<div.hw-fbar>     fixed 46px (below nav): filter tabs — الكل/وظائف/منشورات/أسئلة/دورات/شركات
-body              padding-top: 102px (= 56 + 46) — single offset, no double margin
+<nav.app-nav>     fixed 56px (var --ah-h): logo + messages + notifications + logout + avatar
+<div.hw-fbar>     fixed 46px (below nav): filter tabs — الكل/فرص/منشورات/أخبار
+body              padding-top: calc(var(--ah-h) + 46px) — single offset, no double margin
 <div.hw-page>
   <main.hw-feed>
     <div#hwBanner>   compact banner for co/edu (hidden for emp)
@@ -4884,20 +4900,20 @@ body              padding-top: 102px (= 56 + 46) — single offset, no double ma
 
 | Query Param | Values | Default |
 |-------------|--------|---------|
-| `filter` | `all\|jobs\|posts\|companies` | `all` |
+| `filter` | `all\|opportunities\|posts\|news` | `all` |
 | `limit` | 1–50 | 20 |
 
-**Response:**
+**Response examples:**
 ```json
 {
   "items": [
-    {"type":"job", "id":1, "title":"...", "company_name":"...", "location":"...",
-     "job_type":"full_time", "salary_min":null, "salary_max":null, "currency":"",
-     "skills":[], "created_at":"2025-...", "company_tw_id":"C...", "company_logo":""},
+    {"type":"opportunity", "opp_type":"job", "id":1, "title":"...", "company_name":"...",
+     "location":"...", "job_type":"full_time", "salary_min":null, "salary_max":null,
+     "currency":"", "skills":[], "created_at":"2025-...", "company_tw_id":"C...", "company_logo":""},
     {"type":"post", "id":2, "body":"...", "tags":[], "created_at":"2025-...",
      "author_name":"...", "author_tw_id":"C...", "author_avatar":""},
-    {"type":"company", "id":3, "name":"...", "tw_id":"C...", "user_type":"co",
-     "headline":"...", "avatar_url":"", "location":""}
+    {"type":"news", "id":3, "title":"...", "summary":"...", "body":"...",
+     "category":"labor_law", "country":"JO", "source_url":"https://...", "created_at":"2025-..."}
   ],
   "filter": "all",
   "total": 3
@@ -4906,12 +4922,54 @@ body              padding-top: 102px (= 56 + 46) — single offset, no double ma
 
 **Data sources per filter:**
 
-| filter | data source | status |
-|--------|-------------|--------|
-| `all` | jobs (½ limit) + company_posts (½ limit) + companies (5) | ✅ |
-| `jobs` | `jobs` table JOIN `users` + `profiles` | ✅ |
-| `posts` | `company_posts` table JOIN `users` + `profiles` | ✅ |
-| `companies` | `users` WHERE `user_type IN ('co','edu')` RANDOM() | ✅ |
+| filter | data source | مصدر البيانات | ملاحظة |
+|--------|-------------|--------------|--------|
+| `all` | opportunities (⅓) + posts (⅓) + news (⅓) → sorted by created_at DESC | مُختلط | مرتب زمنياً |
+| `opportunities` | `jobs` table JOIN `users` + `profiles` WHERE `status='open'` | `jobs` | `opp_type="job"` حالياً |
+| `posts` | `company_posts` table JOIN `users` + `profiles` | `company_posts` | |
+| `news` | `news_posts` WHERE `status='published'` | `news_posts` | admin-only نشر |
+
+> **ملاحظة هامة:** فلتر `news` قد يرجع قائمة فارغة إذا لم يكن الأدمن قد نشر أخباراً بعد. هذا **مقبول ومتوقع** — الجدول والـ API موجودان. الفرق: فلتر فارغ بسبب **غياب البيانات** ≠ فلتر وهمي بدون API/DB (الثاني ممنوع).
+
+### `news_posts` Table Schema
+
+```sql
+CREATE TABLE news_posts (
+    id BIGSERIAL PRIMARY KEY,
+    title TEXT NOT NULL,
+    summary TEXT,
+    body TEXT,
+    category TEXT DEFAULT 'general',   -- general|labor_law|opportunity|ministry|platform|agreement
+    country TEXT,
+    source_url TEXT,
+    status TEXT DEFAULT 'draft',       -- draft|published|archived
+    created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+```
+
+### News Admin Endpoints (require `X-Admin-Token`)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/admin/news` | List all news (all statuses) |
+| `POST` | `/admin/news` | Create news post |
+| `PUT` | `/admin/news/{id}` | Update news post |
+| `DELETE` | `/admin/news/{id}` | Delete news post |
+
+### `opp_type` Field (extensibility)
+
+`type="opportunity"` cards include `opp_type` to allow future sub-types without redesigning the card:
+
+| `opp_type` | الوصف | الجدول |
+|-----------|-------|--------|
+| `"job"` | وظيفة (الحالي) | `jobs` |
+| `"training"` | تدريب (مستقبلي) | جدول مستقبلي |
+| `"scholarship"` | منحة (مستقبلي) | جدول مستقبلي |
+| `"overseas"` | فرصة خارجية (مستقبلي) | جدول مستقبلي |
+
+**ممنوع** إضافة opp_type جديد بدون جدول + API حقيقي.
 
 ### Security Notes
 
@@ -4920,8 +4978,9 @@ body              padding-top: 102px (= 56 + 46) — single offset, no double ma
 - `limit` capped at 50 server-side
 - All text from API rendered via `textContent` — no `innerHTML` from API data
 - Skeleton `innerHTML` is static (no API data) — safe
-- Job links: `/job-detail?id=<integer>` — integer cast enforced client-side
+- Opportunity links: `/job-detail?id=<integer>` — integer cast enforced client-side
 - Profile links: `/u/<tw_id>` — only used when server returns non-empty `tw_id` string
+- News `source_url`: rendered as `<a target="_blank" rel="noopener noreferrer">` — no innerHTML
 
 ### Feed State Machine (home-v2.js)
 
@@ -4930,33 +4989,33 @@ filter tab click → fetchFeed(filter)
   → showSkeleton()           — clears #hwFeed, shows animated placeholders
   → fetch /home/feed         — with AbortController (cancels previous in-flight request)
   → success + items.length > 0 → renderFeed(items)  — createElement per item type
-  → success + items.length = 0 → showEmpty(filter)
+  → success + items.length = 0 → showEmpty(filter)  — friendly message (news: "ستظهر لاحقاً")
   → network/HTTP error        → showError()         — retry button re-calls fetchFeed
 ```
 
 ### Card Types
 
-| type | fields used | link |
-|------|-------------|------|
-| `job` | title, company_name, location, job_type, salary_min/max, created_at | `/job-detail?id={id}` |
+| type | fields used | link/action |
+|------|-------------|-------------|
+| `opportunity` | title, company_name, location, job_type, salary, opp_type, created_at | `/job-detail?id={id}` |
 | `post` | author_name, author_avatar, body, created_at | click → `/u/{author_tw_id}` |
-| `company` | name, avatar_url, headline, user_type | `/u/{tw_id}` |
+| `news` | title, summary, body, category, country, source_url, created_at | expand inline / external source |
 
 ### Per-Type User Behavior
 
 | user_type | Banner | Bottom nav tab 2 | Profile link |
 |-----------|--------|-----------------|--------------|
-| `emp` | hidden | وظائف → filter jobs | `/u/{tw_id}` or `/profile` |
-| `co` | وظائف شركتك | وظائفي → `/company-profile` | `/company-profile` |
+| `emp` | hidden | فرص → filter opportunities | `/u/{tw_id}` or `/profile` |
+| `co` | فرص شركتك | فرصي → `/company-profile` | `/company-profile` |
 | `edu` | دورات مؤسستك | دوراتي → `/edu-profile` | `/edu-profile` |
 
 ### CSS Offset System (single source)
 
 ```css
-body     { padding-top: calc(56px + 46px); }   /* = 102px — pushes content below both bars */
-.hw-nav  { position: fixed; top: 0; }
-.hw-fbar { position: fixed; top: 56px; }
-.hw-page { padding: 14px 12px 72px; }          /* no margin-block-start */
+body     { padding-top: calc(var(--ah-h, 56px) + 46px); }   /* uses app-header.css var */
+.app-nav { position: fixed; top: 0; height: var(--ah-h); }  /* shared header class */
+.hw-fbar { position: fixed; top: var(--ah-h, 56px); }
+.hw-page { padding: 14px 12px 72px; }                        /* no margin-block-start */
 ```
 
 ### Forbidden Patterns (Home V2)
@@ -4969,7 +5028,9 @@ body     { padding-top: calc(56px + 46px); }   /* = 102px — pushes content bel
 - **ممنوع** إعادة Dashboard-first (بطاقة مستخدم ضخمة أول الصفحة)
 - **ممنوع** inline CSS/JS كبير في `home-v2.html` — يجب في الملفات المنفصلة
 - **ممنوع** إضافة filter في الواجهة قبل وجود جدول/endpoint حقيقي له — filter بدون بيانات = UX ناقص
-- **ممنوع** إظهار `questions` أو `courses` كـ filter قبل بناء جداولهما — هما features مستقلة مستقبلية
+- **ممنوع** إضافة فلتر `companies` للـ Home — الشركات ليست محتوى feed؛ مكانها صفحة استكشاف/بحث مستقلة
+- **ممنوع** إعادة `questions` أو `courses` كـ filters قبل بناء جداولهما الكاملة
+- **ممنوع** إنشاء header مستقل لصفحة جديدة بدون استخدام `static/app-header.css` — الـ App Header موحد
 
 ---
 
