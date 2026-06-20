@@ -320,7 +320,7 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--t);overflow
       <nav class="hw-qnav" aria-label="روابط سريعة">
         <!-- emp -->
         <a href="/home"        class="hw-qn-link active" data-for="emp"><i data-lucide="layout-dashboard"></i><span>الرئيسية</span></a>
-        <a href="/profile"     class="hw-qn-link"        data-for="emp"><i data-lucide="user-round"></i><span>ملفي الشخصي</span></a>
+        <a href="/profile"     class="hw-qn-link"        data-for="emp" id="sideEmpProfile"><i data-lucide="user-round"></i><span>ملفي الشخصي</span></a>
         <a href="/messages"    class="hw-qn-link"        data-for="emp"><i data-lucide="message-circle"></i><span>الرسائل</span></a>
         <a href="/notifications" class="hw-qn-link"      data-for="emp"><i data-lucide="bell"></i><span>الإشعارات</span></a>
         <a href="/settings"    class="hw-qn-link"        data-for="emp"><i data-lucide="settings"></i><span>الإعدادات</span></a>
@@ -361,7 +361,7 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--t);overflow
       <div class="hw-card">
         <div class="hw-card-header">
           <span class="hw-card-title">اكتمال الملف الشخصي</span>
-          <a href="/profile" class="hw-card-action">تحسين الملف ←</a>
+          <a href="/profile" class="hw-card-action" id="complLink">تحسين الملف ←</a>
         </div>
         <!-- Skeleton (default — PR B replaces with real data) -->
         <div id="complSkl">
@@ -401,7 +401,7 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--t);overflow
           <div class="hw-empty-ico"><i data-lucide="briefcase"></i></div>
           <div class="hw-empty-title">لا توجد وظائف مقترحة بعد</div>
           <div class="hw-empty-sub">أكمل ملفك الشخصي لتحسين اقتراحات الوظائف المناسبة لك</div>
-          <a href="/profile" class="hw-btn">
+          <a href="/profile" class="hw-btn" id="empProfileBtn">
             <i data-lucide="user-round"></i>
             أكمل ملفي
           </a>
@@ -412,7 +412,7 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--t);overflow
       <div class="hw-card">
         <div class="hw-card-header"><span class="hw-card-title">روابط سريعة</span></div>
         <div class="hw-ql-grid">
-          <a href="/profile"       class="hw-ql"><i data-lucide="user-round"></i><span>ملفي</span></a>
+          <a href="/profile"       class="hw-ql" id="empQlProfile"><i data-lucide="user-round"></i><span>ملفي</span></a>
           <a href="/home"          class="hw-ql"><i data-lucide="briefcase"></i><span>الوظائف</span></a>
           <a href="/messages"      class="hw-ql"><i data-lucide="message-circle"></i><span>الرسائل</span></a>
           <a href="/notifications" class="hw-ql"><i data-lucide="bell"></i><span>الإشعارات</span></a>
@@ -629,8 +629,13 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--t);overflow
   });
 
   /* ── Populate user info ── */
-  var initial   = (_u.full_name || '؟').charAt(0);
-  var fullName  = _u.full_name  || '';
+  /* ── Helpers ── */
+  function getProfileUrl(u) {
+    return u.tw_id ? '/u/' + u.tw_id : '/profile';
+  }
+
+  var fullName  = _u.full_name || _u.name || _u.email || 'مستخدم';
+  var initial   = fullName.charAt(0).toUpperCase();
   var typeLabel = type === 'co' ? 'شركة' : type === 'edu' ? 'جهة تعليمية' : 'موظف';
   var greeting  = 'مرحباً، ' + fullName;
 
@@ -647,13 +652,22 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--t);overflow
   $t('coAv',     initial);  $t('coGreet',  greeting);
   $t('eduAv',    initial);  $t('eduGreet', greeting);
 
+  /* ── Emp profile links — all dynamic via getProfileUrl ── */
+  if (type === 'emp') {
+    var profileUrl = getProfileUrl(_u);
+    ['sideEmpProfile', 'complLink', 'empProfileBtn', 'empQlProfile', 'bnProfile'].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) el.href = profileUrl;
+    });
+  }
+
   /* ── Bottom nav: profile + jobs links per type ── */
   var bnProfile = document.getElementById('bnProfile');
   var bnJobs    = document.getElementById('bnJobs');
   if (bnProfile) {
     if (type === 'co')       bnProfile.href = '/company-profile';
     else if (type === 'edu') bnProfile.href = '/edu-profile';
-    else if (_u.tw_id)       bnProfile.href = '/u/' + _u.tw_id;
+    /* emp: already set above by getProfileUrl block */
   }
   if (bnJobs) {
     if (type === 'co') {
