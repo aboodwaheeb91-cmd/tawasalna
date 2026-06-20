@@ -505,7 +505,7 @@ These rules are permanent and apply to all future AI sessions:
 
 6. **Rendering is always safe:** كل بيانات API تُعرض عبر `createElement` + `textContent`. لا `innerHTML = apiData`. السماح بـ `innerHTML` للـ skeleton الثابت فقط (لا يحتوي بيانات API).
 
-7. **`questions` and `courses` filters return `[]` until tables exist.** لا تضيف بيانات وهمية لهذين الفلترين.
+7. **`questions` and `courses` are NOT Home V2 filters.** هما features مستقبلية مستقلة تحتاج جداول وتصميم منفصل. ممنوع إعادة إضافتهما كـ filter في `home-v2.html` أو في allowlist `/home/feed` قبل بناء جداولهما الكاملة.
 
 8. **`tw_jwt` is the auth token.** `localStorage.getItem('tw_jwt')` يُرسل كـ `Authorization: Bearer` في كل API call من Home V2.
 

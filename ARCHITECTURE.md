@@ -4884,7 +4884,7 @@ body              padding-top: 102px (= 56 + 46) — single offset, no double ma
 
 | Query Param | Values | Default |
 |-------------|--------|---------|
-| `filter` | `all\|jobs\|posts\|questions\|courses\|companies` | `all` |
+| `filter` | `all\|jobs\|posts\|companies` | `all` |
 | `limit` | 1–50 | 20 |
 
 **Response:**
@@ -4912,8 +4912,6 @@ body              padding-top: 102px (= 56 + 46) — single offset, no double ma
 | `jobs` | `jobs` table JOIN `users` + `profiles` | ✅ |
 | `posts` | `company_posts` table JOIN `users` + `profiles` | ✅ |
 | `companies` | `users` WHERE `user_type IN ('co','edu')` RANDOM() | ✅ |
-| `questions` | — no table yet | returns `[]` |
-| `courses` | — no catalog table yet | returns `[]` |
 
 ### Security Notes
 
@@ -4970,13 +4968,8 @@ body     { padding-top: calc(56px + 46px); }   /* = 102px — pushes content bel
 - **ممنوع** ترك `/preview/home-v2` — تم حذفه
 - **ممنوع** إعادة Dashboard-first (بطاقة مستخدم ضخمة أول الصفحة)
 - **ممنوع** inline CSS/JS كبير في `home-v2.html` — يجب في الملفات المنفصلة
-- **ممنوع** `questions` أو `courses` filter يرجع بيانات وهمية — يرجع `[]` حتى تُبنى الجداول
-
-### TODO (Technical Debt)
-
-- [ ] `questions` filter: يحتاج جدول `questions` أو `posts` للموظفين
-- [ ] `courses` filter: يحتاج catalog table للدورات المتاحة (ليس completed courses)
-- [ ] Session verify: `POST /auth/verify-token` قبل الثقة بـ localStorage (P1 next)
+- **ممنوع** إضافة filter في الواجهة قبل وجود جدول/endpoint حقيقي له — filter بدون بيانات = UX ناقص
+- **ممنوع** إظهار `questions` أو `courses` كـ filter قبل بناء جداولهما — هما features مستقلة مستقبلية
 
 ---
 

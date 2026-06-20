@@ -207,8 +207,7 @@
   function showEmpty(filter) {
     var LABELS = {
       all:'لا يوجد محتوى بعد', jobs:'لا توجد وظائف حالياً',
-      posts:'لا توجد منشورات بعد', questions:'لا توجد أسئلة بعد',
-      courses:'لا توجد دورات بعد', companies:'لا توجد شركات بعد'
+      posts:'لا توجد منشورات بعد', companies:'لا توجد شركات بعد'
     };
     feedEl.innerHTML = '';
     feedEl.classList.add('hidden');

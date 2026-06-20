@@ -397,7 +397,7 @@ def home_feed(filter: str = "all", limit: int = 20, token=Depends(verify_token))
     if not user_id:
         raise HTTPException(401, "رمز غير صالح")
 
-    allowed_filters = {"all", "jobs", "posts", "questions", "courses", "companies"}
+    allowed_filters = {"all", "jobs", "posts", "companies"}
     if filter not in allowed_filters:
         filter = "all"
     lim = min(max(int(limit), 1), 50)
@@ -482,8 +482,6 @@ def home_feed(filter: str = "all", limit: int = 20, token=Depends(verify_token))
                 d["type"] = "company"
                 items.append(d)
 
-        # questions and courses: feature pending — return empty list
-        # (no posts/questions tables for employees; no course catalog table)
 
     finally:
         release_conn(conn)
