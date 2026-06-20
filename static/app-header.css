@@ -1,130 +1,102 @@
-/* app-header.css — Shared App Header (inner pages: Home, Profile V2, etc.)
+/* app-header.css — Shared inner-page header (Home V2, Profile V2, …)
  *
- * All inner-page headers MUST use these CSS variables so a single edit here
- * propagates to every page. See ARCHITECTURE.md § App Header.
- *
- * Usage:
- *   1. Link this file in the page <head> BEFORE the page-specific CSS.
- *   2. Use .app-nav (or adopt vars into the page's own nav class).
- *   3. Call initAppHeader(user) from app-header.js after auth guard runs.
+ * Two systems live here:
+ *   1. CSS variables — all inner pages consume these for visual consistency.
+ *   2. .sc-header + .sc-* — the shared header structure used by Home V2 and
+ *      Profile V2. Profile V2 keeps a duplicate of these rules in profile-v2.css
+ *      (no build step to deduplicate — by design, see ARCHITECTURE.md).
  */
 
+/* ── Variables ── */
 :root {
   --ah-h:    56px;
   --ah-bg:   rgba(7,11,24,.93);
   --ah-blur: blur(14px);
   --ah-brd:  rgba(255,255,255,.09);
   --ah-muted: rgba(255,255,255,.5);
-  --ah-icon-size: 34px;
-  --ah-av-size:   34px;
   --ah-g: #00c896;
   --ah-b: #2563ff;
 }
 
-/* ── Base nav bar ── */
-.app-nav {
-  position: fixed;
+/* ── Shared header bar ── */
+.sc-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 16px;
+  position: sticky;
   top: 0;
-  inset-inline: 0;
   z-index: 100;
-  height: var(--ah-h);
+  min-height: var(--ah-h);
   background: var(--ah-bg);
   backdrop-filter: var(--ah-blur);
   -webkit-backdrop-filter: var(--ah-blur);
   border-bottom: 1px solid var(--ah-brd);
-  display: flex;
-  align-items: center;
-  padding: 0 14px;
-  gap: 6px;
 }
 
-/* Logo */
-.app-nav-logo img { height: 28px; display: block; }
-
-/* Spacer */
-.app-nav-sp { flex: 1; }
-
-/* Icon button (links or buttons) */
-.app-nav-icon {
-  width: var(--ah-icon-size);
-  height: var(--ah-icon-size);
-  border-radius: 50%;
-  flex-shrink: 0;
-  border: none;
-  cursor: pointer;
-  background: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--ah-muted);
-  text-decoration: none;
-  transition: color .15s, background .15s;
-  position: relative;
-  font-family: inherit;
-}
-.app-nav-icon:hover { color: #e2e8f0; background: rgba(255,255,255,.07); }
-
-/* Notification badge dot on icon */
-.app-nav-dot {
-  position: absolute;
-  top: 6px;
-  inset-inline-end: 6px;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--ah-g);
-  border: 2px solid #070b18;
-}
-.app-nav-dot.hidden { display: none !important; }
-
-/* Avatar circle */
-.app-nav-av {
-  width: var(--ah-av-size);
-  height: var(--ah-av-size);
-  border-radius: 50%;
-  flex-shrink: 0;
-  cursor: pointer;
-  background: linear-gradient(135deg, var(--ah-g), var(--ah-b));
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 700;
-  font-size: 13px;
-  color: #fff;
-  text-decoration: none;
-  overflow: hidden;
-  border: none;
-  font-family: inherit;
-}
-.app-nav-av img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  border-radius: 50%;
-}
-
-/* Centered logo — absolute inside .app-nav (position:fixed = positioning ctx) */
-.app-nav-logo-c {
+/* Logo — absolute center so left/right groups stay balanced */
+.sc-header .sc-logo {
   position: absolute;
   left: 50%;
   top: 50%;
   transform: translate(-50%, -50%);
-  pointer-events: auto;
-  text-decoration: none;
+  pointer-events: none;
 }
-.app-nav-logo-c img { height: 28px; display: block; }
+.sc-logo img { height: 38px; width: auto; max-width: 140px; object-fit: contain; display: block; }
+.sc-logo-fallback {
+  font-weight: 800; font-size: 1rem; letter-spacing: -.3px;
+  background: linear-gradient(135deg, var(--ah-g), var(--ah-b));
+  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+}
 
-/* Gradient home button — matches Profile V2 .sc-home-btn */
-.app-nav-home-btn {
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  flex-shrink: 0;
-  background: linear-gradient(135deg, #00c896, #00b8c4, #2563ff);
-  box-shadow: 0 2px 10px rgba(0, 184, 196, .35);
-  color: #06121c;
-  text-decoration: none;
-  border: none;
-  cursor: pointer;
-  font-family: inherit;
+/* Generic icon button (square with rounded corners) */
+.sc-hicon {
+  width: 34px; height: 34px; border-radius: 10px; border: none; cursor: pointer;
+  background: rgba(255,255,255,.06); color: #fff; font-size: 1rem;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; font-family: inherit;
 }
+/* Ghost/bare variant — no background, auto-sized by icon */
+.sc-hicon-bare {
+  width: auto; height: auto; padding: 4px;
+  background: none !important; border: none !important;
+  text-decoration: none; color: rgba(255,255,255,.7);
+  transition: color .15s;
+}
+.sc-hicon-bare:hover { color: #e2e8f0; }
+.sc-hicon-bare .ico { width: 20px; height: 20px; }
+
+/* Gradient home button (circle) */
+.sc-home-btn {
+  width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0;
+  background: linear-gradient(135deg, #00c896, #00b8c4, #2563ff);
+  box-shadow: 0 2px 10px rgba(0,184,196,.35);
+  color: #06121c;
+}
+.sc-home-btn .ico { width: 18px; height: 18px; }
+.sc-home-btn:active { transform: scale(.94); }
+
+/* Icon group on the right side (RTL end) */
+.sc-head-icons { display: flex; align-items: center; gap: 8px; }
+
+/* ── Dropdown menu ── */
+.sc-menu-wrap { position: relative; }
+.sc-menu-dropdown {
+  display: none; position: absolute; top: calc(100% + 8px); left: 0; min-width: 180px;
+  background: rgba(10,14,24,.95); border: 1px solid rgba(255,255,255,.13);
+  border-radius: 13px; padding: 5px; z-index: 200;
+  backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+  box-shadow: 0 10px 30px rgba(0,0,0,.45);
+}
+.sc-menu-dropdown.open { display: block; }
+.sc-menu-item {
+  display: flex; align-items: center; gap: 9px; width: 100%;
+  padding: 9px 12px; border: none; background: none;
+  color: #fff; font-family: inherit; font-size: 12px; font-weight: 600;
+  border-radius: 8px; cursor: pointer; text-align: right; text-decoration: none;
+  transition: background .15s;
+}
+.sc-menu-item:hover { background: rgba(255,255,255,.07); }
+.sc-menu-sep { height: 1px; background: rgba(255,255,255,.08); margin: 3px 8px; }
+.sc-menu-item.danger { color: #f87171; }
+.sc-menu-item.danger:hover { background: rgba(248,113,113,.1); }
