@@ -4838,7 +4838,8 @@ if (window.lucide) { lucide.createIcons(); }
 ## Home V2 — `home-v2.html` (PR A — هيكلة فقط)
 
 **File:** `home-v2.html` (معزول — لا يستبدل `home.html` بعد)
-**Route:** لا يوجد route بعد — الملف مؤقت حتى PR B
+**Route (Preview):** `GET /preview/home-v2` — مؤقت لـ PR A فقط، يُحذف أو يُستبدل بـ `/home` في PR B
+**Route (Production):** لا يوجد بعد — `/home` لا يتغير حتى PR B
 **Status:** PR A — تصميم وهيكلة فقط، بدون API calls حقيقية
 
 ### سبب إعادة البناء من الصفر
@@ -4912,7 +4913,8 @@ All classes prefixed `.hw-` to avoid collision with `tw_shared.css` or other pag
 - **ممنوع** `profile.html?id=`، `job-detail.html?id=`، أي `.html?id=` pattern
 - **ممنوع** قراءة نوع المستخدم من مكان غير `tw_user.user_type`
 - **ممنوع** تغيير `home.html` القديم حتى PR B تُختبر وتُوافق عليها
-- **ممنوع** ربط `/home-v2` كـ route في `server.py` حتى PR B
+- **ممنوع** ربط `/home-v2` كـ route نهائي في `server.py` — المسار النهائي هو `/home` ويُفعَّل في PR B
+- **ممنوع** الإبقاء على `/preview/home-v2` بعد PR B — يجب حذفه أو تحويله
 
 ### PR Roadmap
 
