@@ -443,7 +443,7 @@ def home_feed(filter: str = "all", limit: int = 20, token=Depends(verify_token))
     try:
         # ── Opportunities (jobs table — opp_type="job" now, extensible later) ──
         if filter in ("all", "opportunities"):
-            opp_lim = lim if filter == "opportunities" else lim // 3
+            opp_lim = lim if filter == "opportunities" else max(1, lim // 3)
             rows = conn.run(
                 """SELECT j.id, j.title, j.location, j.job_type,
                           j.salary_min, j.salary_max, j.currency,
@@ -474,7 +474,7 @@ def home_feed(filter: str = "all", limit: int = 20, token=Depends(verify_token))
 
         # ── Company posts ──
         if filter in ("all", "posts"):
-            post_lim = lim if filter == "posts" else lim // 3
+            post_lim = lim if filter == "posts" else max(1, lim // 3)
             rows = conn.run(
                 """SELECT cp.id, cp.body, cp.tags, cp.created_at,
                           u.full_name AS author_name,
@@ -500,7 +500,7 @@ def home_feed(filter: str = "all", limit: int = 20, token=Depends(verify_token))
 
         # ── News (admin-published content from news_posts table) ──
         if filter in ("all", "news"):
-            news_lim = lim if filter == "news" else lim // 3
+            news_lim = lim if filter == "news" else max(1, lim // 3)
             rows = conn.run(
                 """SELECT id, title, summary, body, category, country, source_url, created_at
                    FROM news_posts

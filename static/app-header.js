@@ -14,7 +14,7 @@ function initAppHeader(user) {
   if (!user) return;
   var initial = (user.full_name || user.name || '?').charAt(0).toUpperCase();
 
-  /* Avatar — set initials; if <a>, set profile href */
+  /* Avatar — show only for authenticated users; hidden by default in HTML */
   document.querySelectorAll('[data-ah-av]').forEach(function(av) {
     if (user.avatar_url) {
       var img = document.createElement('img');
@@ -35,6 +35,7 @@ function initAppHeader(user) {
       }
     }
     av.title = user.full_name || '';
+    av.style.display = '';  /* un-hide: only reaches here when user is authenticated */
   });
 
   /* Logout */

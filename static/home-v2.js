@@ -205,10 +205,10 @@
       foot.appendChild(expandBtn);
     }
 
-    if (item.source_url) {
+    /* source_url — only http/https allowed; reject javascript:, data:, etc. */
+    if (item.source_url && /^https?:\/\//i.test(item.source_url)) {
       var srcLink = el('a', 'hw-nbtn src');
       srcLink.textContent = 'المصدر الرسمي';
-      /* safe external link — no innerHTML, explicit rel */
       srcLink.href = item.source_url;
       srcLink.target = '_blank';
       srcLink.rel = 'noopener noreferrer';
