@@ -129,8 +129,36 @@ section{position:relative;z-index:1;padding:80px 5%;}
 .badge-job .bj-label{color:var(--ac);font-size:.65rem;}
 
 @media(max-width:768px){
-  .hero-inner{flex-direction:column;padding:60px 5% 40px;}
-  .hero-visual{flex:none;width:100%;max-width:380px;margin:0 auto;}
+  .hero-inner{
+    flex-direction:column;
+    padding:60px 5% 40px;
+    align-items:center;
+  }
+  .hero-text{
+    width:100%;
+    text-align:center;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+  }
+  .hero-sub{
+    margin-inline:auto;
+    text-align:center;
+  }
+  .hero-actions{
+    justify-content:center;
+    width:100%;
+  }
+  .hero-pills{
+    justify-content:center;
+    width:100%;
+  }
+  .hero-visual{
+    flex:none;
+    width:100%;
+    max-width:380px;
+    margin-inline:auto;
+  }
   .badge-float{display:none;}
 }
 
