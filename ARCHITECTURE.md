@@ -4749,38 +4749,89 @@ CREATE TABLE reports (
 
 **File:** `landing.html`
 **Route:** `GET /` (serves landing.html)
+**Last redesign:** PR #203 (June 2026) — complete rebuild
 
 ### Sections
 
-| القسم | ID | المحتوى |
-|-------|-----|---------|
-| Navigation | — | Logo + روابط + Login/Sign up |
-| Hero | — | شعار + CTA + إحصائيات ديناميكية |
-| من للمنصة | `#who` | 3 cards: موظف / شركة / جهة تعليمية |
-| كيف تعمل | `#how` | 3 خطوات مرقّمة |
-| المميزات | `#features` | 6 بطاقات ميزات |
-| نظام التوثيق | `#verify` | 3-step verification flow |
-| شهادات | — | 3 testimonial cards |
-| CTA نهائي | — | 3 أزرار حسب نوع المستخدم |
+| القسم | HTML ID | المحتوى |
+|-------|---------|---------|
+| Navigation | `nav` | Logo (`/static/33333.svg`) + anchor links + دخول / ابدأ مجاناً → `/login` |
+| Hero | `#hero` | 2-column: نص + بطاقة ملف تعريفي (glassmorphism mockup) + floating badges |
+| Value Cards | `#values` | 4 بطاقات: ملف موثوق / رابط وQR / فرص عمل / للجميع |
+| من نخدم | `#who` | 3 cards ملوّنة: موظف (أخضر) / شركة (أزرق) / جهة تعليمية (بنفسجي) |
+| كيف تعمل | `#how` | 3 خطوات مرقّمة بخط gradient رابط (يختفي على موبايل) |
+| المميزات | `#features` | 6 بطاقات: توثيق رسمي / ملف شخصي / مطابقة وظائف / دورات / رسائل / QR |
+| التوثيق | `#verify` | 3 خطوات: رفع وثيقة → مراجعة → اعتماد رسمي |
+| CTA | `#cta` | زر واحد → `/login` + 3 روابط نصية (موظف / شركة / جهة تعليمية) |
+| Footer | `footer` | Logo + نسخة حقوق + روابط دخول/تسجيل |
 
 ### Dynamic Behavior
 
 ```javascript
-// إحصائيات ديناميكية — تُجلب من API
-fetch('/jobs')       → عدد الوظائف في الـ Hero
-fetch('/auth/users') → عدد المستخدمين في الـ Hero
+// لا توجد API calls على هذه الصفحة — جميع المحتوى ثابت
+// السبب: /auth/users يتطلب X-Admin-Token (ممنوع من الصفحة العامة)
+//         /jobs يعيد 0 لعدم وجود بيانات كافية حالياً
 
-// إذا كان المستخدم مسجّلاً (localStorage tawasalna_user):
-// أزرار CTA تُوجَّه للـ dashboard بدلاً من التسجيل
-emp  → /profile.html?id={id}
-co   → /company-profile.html?id={id}
-edu  → /edu-profile.html?id={id}
+// إذا كان المستخدم مسجّلاً (localStorage key: tw_user):
+emp  + tw_id → /u/{tw_id}       ← الملف العام الكنوني
+emp  بدون tw_id → /home
+co           → /company-profile  ← بدون ?id= query params
+edu          → /edu-profile      ← بدون ?id= query params
 ```
 
-**Animations:**
-- Scroll reveal via `IntersectionObserver`
-- Animated counters on stats
-- Smooth scroll لروابط الـ anchor
+### Forbidden Patterns (Landing Page)
+
+- **ممنوع** استدعاء `/auth/users` من `landing.html` — يتطلب `X-Admin-Token`
+- **ممنوع** الرجوع إلى `profile.html?id=`، `company-profile.html?id=`، `edu-profile.html?id=`
+- **ممنوع** قراءة `tawasalna_user` من `localStorage` — المفتاح الصحيح هو `tw_user`
+- **ممنوع** وضع stat counters ديناميكية إلا إذا كان الـ endpoint عاماً ويعيد بيانات حقيقية
+- **ممنوع** وعود تسويقية مبالغة مثل "مؤكدة من مصادرها مباشرة" — استخدم "قابلة للتوثيق والاعتماد"
+
+### Body Visibility Safety
+
+```html
+<!-- في <head>: يمنع بقاء الصفحة فارغة إذا فشل JS -->
+<noscript><style>body{opacity:1!important}</style></noscript>
+```
+
+```javascript
+// في أول سطر داخل IIFE: safety net إذا رمى الكود exception
+setTimeout(function(){ document.body.classList.add('ready'); }, 400);
+```
+
+### Icons
+
+Lucide icons مُحمَّلة من vendor محلي (انظر قسم Vendor Assets أدناه):
+```html
+<script src="/static/vendor/lucide/lucide.min.js"></script>
+```
+Guard إلزامي قبل الاستخدام:
+```javascript
+if (window.lucide) { lucide.createIcons(); }
+```
+
+### Animations
+
+- Scroll reveal: `IntersectionObserver` على `.reveal` elements مع stagger للأشقاء
+- Smooth scroll: `scrollIntoView({behavior:'smooth'})` للـ anchor links
+- Nav `scrolled` class: يُضاف عند `scrollY > 20` لتغميق الخلفية
+
+---
+
+## Vendor Assets
+
+محلي داخل `static/vendor/` لتجنب الاعتماد على CDN خارجي في الإنتاج.
+
+| المكتبة | النسخة | المسار المحلي | الترخيص |
+|---------|--------|--------------|---------|
+| Lucide | 0.460.0 | `static/vendor/lucide/lucide.min.js` | ISC |
+
+### قواعد Vendor Assets
+
+- **ممنوع** تحديث نسخة vendor دون تحديث هذا الجدول
+- عند إضافة مكتبة جديدة: نزّل UMD bundle، ضعه في `static/vendor/{lib}/`، وثّق النسخة هنا
+- FastAPI يخدم المسار عبر `@app.get("/static/{filename:path}")` — يدعم subdirectories تلقائياً
+- الصفحات التي تستخدم Lucide عبر CDN خارجي (مثل `index.html`): يُنقل تدريجياً للـ vendor في PRs مستقلة
 
 ---
 
