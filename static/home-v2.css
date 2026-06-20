@@ -39,17 +39,23 @@ img{display:block;max-width:100%}
   border-bottom:1px solid var(--brd);overflow:hidden;
 }
 .hw-fbar-inner{
-  display:flex;align-items:center;gap:4px;height:100%;padding:0 12px;
+  display:flex;align-items:center;height:100%;padding:0 12px;
   overflow-x:auto;-ms-overflow-style:none;scrollbar-width:none;
 }
 .hw-fbar-inner::-webkit-scrollbar{display:none}
 .hw-ft{
-  flex-shrink:0;padding:5px 14px;border-radius:20px;
+  position:relative;flex-shrink:0;padding:0 16px;height:100%;
   font-size:13px;font-weight:600;color:var(--muted);
-  transition:all .15s;white-space:nowrap;
+  transition:color .15s;white-space:nowrap;
+  display:flex;align-items:center;
 }
-.hw-ft:hover{color:var(--text);background:var(--surf2)}
-.hw-ft.active{color:#070b18;background:var(--g)}
+.hw-ft::after{
+  content:'';position:absolute;inset-inline-end:0;top:25%;height:50%;
+  width:1px;background:rgba(255,255,255,.12);
+}
+.hw-ft:last-child::after{display:none}
+.hw-ft:hover{color:var(--text)}
+.hw-ft.active{color:var(--g);font-weight:700}
 
 /* === Page Layout === */
 .hw-page{
