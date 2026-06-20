@@ -4835,113 +4835,148 @@ if (window.lucide) { lucide.createIcons(); }
 
 ---
 
-## Home V2 — `home-v2.html` (Feed-first — PR A)
+## Home V2 — `home-v2.html` (Feed-first — Production)
 
-**File:** `home-v2.html` (معزول — لا يستبدل `home.html` بعد)
-**Route (Preview):** `GET /preview/home-v2` — مؤقت لـ PR A فقط، يُحذف أو يُستبدل بـ `/home` في PR B
-**Route (Production):** `/home` — لا يتغير حتى PR B
-**Design Direction:** **Feed-first** (وليس Dashboard-first) — أول ما يراه المستخدم هو filter tabs + feed cards، ليس بطاقة مستخدم ضخمة
+**File:** `home-v2.html` (مُفعَّل في production)
+**Route:** `GET /home` و `GET /home.html` — يخدمان `home-v2.html` (استُبدل `home.html` القديم)
+**Preview Route:** `GET /preview/home-v2` — **محذوف**
+**Design Direction:** **Feed-first** — أول ما يراه المستخدم = filter tabs + feed cards
+
+### Files
+
+| الملف | الدور |
+|-------|-------|
+| `home-v2.html` | HTML هيكل نظيف، يرتبط بـ CSS و JS خارجيين |
+| `static/home-v2.css` | جميع الأنماط المرئية، namespace `.hw-*` |
+| `static/home-v2.js` | منطق Auth، Feed fetch، rendering، per-type setup |
 
 ### سبب إعادة البناء من الصفر
 
 | المشكلة في home.html القديم | الحل في V2 |
 |-----------------------------|-----------|
-| XSS في `renderJobCard()` — `innerHTML` من API | PR B يستخدم DOM API (`createElement` + `textContent`) |
-| Sidebar كاملاً hardcoded (بيانات وهمية) | لا بيانات وهمية — skeleton/empty فقط |
-| Bottom nav في CSS فقط، غائبة من HTML | بُنيت كاملاً في HTML مع JS |
-| الصفحة لا تفرق بين emp/co/edu | co/edu يرون compact banner فوق الـ feed |
-| شعار Supabase CDN خارجي | `/static/33333.svg` محلي |
-| Dashboard-first: بطاقة مستخدم ضخمة تسيطر | Feed-first: أول عنصر = filter tabs ثم feed |
+| XSS: `innerHTML` من بيانات API | جميع البيانات عبر `createElement` + `textContent` |
+| Sidebar hardcoded (بيانات وهمية) | skeleton/empty/real pattern — لا بيانات وهمية |
+| Bottom nav غائبة من HTML | بُنيت كاملاً في HTML + JS |
+| لا تفريق بين emp/co/edu | banner مختصر للـ co/edu فوق الـ feed |
+| CDN خارجي (Supabase) | `/static/33333.svg` محلي |
+| Dashboard-first | Feed-first: filter tabs ثم feed فوراً |
 
-### Structure (DOM)
+### DOM Structure
 
 ```
-<nav.hw-nav>             top nav صغير ثابت: logo + messages + notifications + logout + avatar
-<div.hw-fbar>            filter tabs أفقية: الكل / وظائف / منشورات / أسئلة / دورات / شركات
+<nav.hw-nav>      fixed 56px: logo + messages + notifications + logout + avatar
+<div.hw-fbar>     fixed 46px (below nav): filter tabs — الكل/وظائف/منشورات/أسئلة/دورات/شركات
+body              padding-top: 102px (= 56 + 46) — single offset, no double margin
 <div.hw-page>
   <main.hw-feed>
-    <div#hwBanner>       compact banner للـ co/edu فقط (hidden للـ emp)
-    <div#hwFeed>         feed list: skeleton cards (PR A) → real cards via DOM API (PR B)
-    <div#hwEmpty>        empty state — hidden في PR A
-  <aside.hw-sidebar>     desktop only (≥1020px): completion strip + quick links
-<nav.hw-bnav>            bottom nav (mobile ≤1020px): 5 tabs per user type
+    <div#hwBanner>   compact banner for co/edu (hidden for emp)
+    <div#hwFeed>     feed items rendered by home-v2.js via DOM API
+    <div#hwEmpty>    empty state per filter
+    <div#hwError>    error state with retry button
+  <aside.hw-sidebar> desktop only (≥1020px): completion strip + quick links
+<nav.hw-bnav>     fixed bottom 60px (mobile ≤1020px): 5 tabs per user type
 ```
 
-### Feed Card Types (PR A: skeleton; PR B: real data)
+### API Contract — `GET /home/feed`
 
-| نوع الكارت | العناصر |
-|-----------|---------|
-| Job card | logo placeholder · title · company · chips (location/type/salary) · time · apply button |
-| Post card | avatar · name · sub · body (3 lines max) · like/comment/share counts |
-| Question card | Q icon (purple) · question text (2 lines max) · answers + views counts |
-| Course card | thumb (gradient) · title · provider · chips · enroll button |
-| Suggested card | avatar · name · sub · follow button |
+**Auth:** `Authorization: Bearer <tw_jwt>` (JWT from localStorage `tw_jwt`) — `Depends(verify_token)`  
+**`user_id` comes from JWT only** — client cannot override
 
-### Per-Type Behavior
+| Query Param | Values | Default |
+|-------------|--------|---------|
+| `filter` | `all\|jobs\|posts\|questions\|courses\|companies` | `all` |
+| `limit` | 1–50 | 20 |
 
-| user_type | Banner | Bottom nav tab 2 | Sidebar completion link |
-|-----------|--------|-----------------|------------------------|
-| `emp` | مخفي | وظائف → `/home` | `getProfileUrl(_u)` |
-| `co` | وظائف شركتك (briefcase icon) | وظائفي → `/company-profile` | `/company-profile` |
-| `edu` | دورات مؤسستك (graduation-cap) | دوراتي → `/edu-profile` | `/edu-profile` |
-
-### Routing Logic (JS — PR A)
-
-```javascript
-// 1. Auth guard: tw_user from localStorage → if !_u.id → /login
-// 2. type = _u.user_type ∈ ['emp','co','edu']
-// 3. getProfileUrl(u): u.tw_id ? '/u/'+u.tw_id : '/profile'
-// 4. navAv href: emp→getProfileUrl | co→/company-profile | edu→/edu-profile
-// 5. Banner: shown for co/edu, hidden for emp
-// 6. Bottom nav: bnProfile + bnJobs per type
-// 7. Sidebar: sbComplLink per type; _sbLinks() builds quick links via createElement
-// 8. Filter tabs: visual toggle only (PR B adds fetch per filter)
-// 9. Logout: clear all tw_* keys → /login
+**Response:**
+```json
+{
+  "items": [
+    {"type":"job", "id":1, "title":"...", "company_name":"...", "location":"...",
+     "job_type":"full_time", "salary_min":null, "salary_max":null, "currency":"",
+     "skills":[], "created_at":"2025-...", "company_tw_id":"C...", "company_logo":""},
+    {"type":"post", "id":2, "body":"...", "tags":[], "created_at":"2025-...",
+     "author_name":"...", "author_tw_id":"C...", "author_avatar":""},
+    {"type":"company", "id":3, "name":"...", "tw_id":"C...", "user_type":"co",
+     "headline":"...", "avatar_url":"", "location":""}
+  ],
+  "filter": "all",
+  "total": 3
+}
 ```
 
-### Skeleton / Empty / Real Pattern
+**Data sources per filter:**
 
-| State | Mechanism | Default |
-|-------|-----------|---------|
-| Skeleton | static `.hw-skl/.hw-skc/.hw-skr` divs in `#hwFeed` | visible |
-| Empty | `#hwEmpty` | `.hidden` |
-| Real cards | appended by PR B via `createElement` + `textContent` | not yet |
+| filter | data source | status |
+|--------|-------------|--------|
+| `all` | jobs (½ limit) + company_posts (½ limit) + companies (5) | ✅ |
+| `jobs` | `jobs` table JOIN `users` + `profiles` | ✅ |
+| `posts` | `company_posts` table JOIN `users` + `profiles` | ✅ |
+| `companies` | `users` WHERE `user_type IN ('co','edu')` RANDOM() | ✅ |
+| `questions` | — no table yet | returns `[]` |
+| `courses` | — no catalog table yet | returns `[]` |
 
-PR B: removes skeleton cards, appends real cards OR shows `#hwEmpty` if API returns empty.
+### Security Notes
 
-### CSS Class Namespace
+- `user_id` extracted from JWT only (never from query/body param)
+- `filter` allowlisted server-side; unknown values → `"all"`
+- `limit` capped at 50 server-side
+- All text from API rendered via `textContent` — no `innerHTML` from API data
+- Skeleton `innerHTML` is static (no API data) — safe
+- Job links: `/job-detail?id=<integer>` — integer cast enforced client-side
+- Profile links: `/u/<tw_id>` — only used when server returns non-empty `tw_id` string
 
-All classes prefixed `.hw-` to avoid collision with any other page:
-`.hw-nav`, `.hw-fbar`, `.hw-ft`, `.hw-page`, `.hw-feed`, `.hw-banner`, `.hw-card`,
-`.hw-chip`, `.hw-btn`, `.hw-skl`, `.hw-skc`, `.hw-skr`, `.hw-empty`, `.hw-sidebar`, `.hw-bnav`, `.hw-bn`
-
-### Desktop Layout (≥1020px)
+### Feed State Machine (home-v2.js)
 
 ```
-grid-template-columns: 1fr 260px
-grid-template-areas:   'feed sidebar'
+filter tab click → fetchFeed(filter)
+  → showSkeleton()           — clears #hwFeed, shows animated placeholders
+  → fetch /home/feed         — with AbortController (cancels previous in-flight request)
+  → success + items.length > 0 → renderFeed(items)  — createElement per item type
+  → success + items.length = 0 → showEmpty(filter)
+  → network/HTTP error        → showError()         — retry button re-calls fetchFeed
 ```
-في RTL، column 1 (1fr) يظهر على اليمين (start) = feed. Column 2 (260px) على اليسار (end) = sidebar.
-Sidebar sticky: `top: calc(56px + 46px + 16px)`.
+
+### Card Types
+
+| type | fields used | link |
+|------|-------------|------|
+| `job` | title, company_name, location, job_type, salary_min/max, created_at | `/job-detail?id={id}` |
+| `post` | author_name, author_avatar, body, created_at | click → `/u/{author_tw_id}` |
+| `company` | name, avatar_url, headline, user_type | `/u/{tw_id}` |
+
+### Per-Type User Behavior
+
+| user_type | Banner | Bottom nav tab 2 | Profile link |
+|-----------|--------|-----------------|--------------|
+| `emp` | hidden | وظائف → filter jobs | `/u/{tw_id}` or `/profile` |
+| `co` | وظائف شركتك | وظائفي → `/company-profile` | `/company-profile` |
+| `edu` | دورات مؤسستك | دوراتي → `/edu-profile` | `/edu-profile` |
+
+### CSS Offset System (single source)
+
+```css
+body     { padding-top: calc(56px + 46px); }   /* = 102px — pushes content below both bars */
+.hw-nav  { position: fixed; top: 0; }
+.hw-fbar { position: fixed; top: 56px; }
+.hw-page { padding: 14px 12px 72px; }          /* no margin-block-start */
+```
 
 ### Forbidden Patterns (Home V2)
 
 - **ممنوع** `element.innerHTML = apiData.anything` — يجب `createElement` + `textContent`
-- **ممنوع** بيانات وهمية أو hardcoded stats في أي view
-- **ممنوع** `profile.html?id=`، `job-detail.html?id=`، أي `.html?id=` pattern
-- **ممنوع** قراءة نوع المستخدم من مكان غير `tw_user.user_type`
-- **ممنوع** تغيير `home.html` القديم حتى PR B تُختبر وتُوافق عليها
-- **ممنوع** ربط `/home-v2` كـ route نهائي في `server.py` — المسار النهائي هو `/home` ويُفعَّل في PR B
-- **ممنوع** الإبقاء على `/preview/home-v2` بعد PR B — يجب حذفه أو تحويله
-- **ممنوع** إعادة تحويل الصفحة إلى Dashboard-first (بطاقة مستخدم ضخمة أول الصفحة)
+- **ممنوع** بيانات وهمية أو hardcoded في أي جزء من الـ feed
+- **ممنوع** `.html?id=` routes — استخدم `/job-detail?id=` و `/u/{tw_id}` فقط
+- **ممنوع** قراءة `user_type` أو `user_id` من أي مكان غير JWT (server) أو `tw_user` (client)
+- **ممنوع** ترك `/preview/home-v2` — تم حذفه
+- **ممنوع** إعادة Dashboard-first (بطاقة مستخدم ضخمة أول الصفحة)
+- **ممنوع** inline CSS/JS كبير في `home-v2.html` — يجب في الملفات المنفصلة
+- **ممنوع** `questions` أو `courses` filter يرجع بيانات وهمية — يرجع `[]` حتى تُبنى الجداول
 
-### PR Roadmap
+### TODO (Technical Debt)
 
-| PR | المحتوى |
-|----|---------|
-| **A (هذا)** | `home-v2.html` — هيكل Feed-first + CSS + JS routing، لا API، skeleton فقط |
-| **preview** | `GET /preview/home-v2` في `server.py` — مؤقت للمعاينة (PR #208) |
-| **B** | JS كامل: feed fetch per filter, jobs/posts/courses via DOM API — ثم استبدال `/home` |
+- [ ] `questions` filter: يحتاج جدول `questions` أو `posts` للموظفين
+- [ ] `courses` filter: يحتاج catalog table للدورات المتاحة (ليس completed courses)
+- [ ] Session verify: `POST /auth/verify-token` قبل الثقة بـ localStorage (P1 next)
 
 ---
 
