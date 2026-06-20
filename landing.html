@@ -25,6 +25,7 @@
 <meta name="robots" content="index, follow">
 <link rel="canonical" href="https://tawasolna.com">
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;900&display=swap" rel="stylesheet">
+<noscript><style>body{opacity:1!important}</style></noscript>
 <style>
 /* ══ VARIABLES ══ */
 :root{
@@ -300,7 +301,7 @@ footer{position:relative;z-index:1;border-top:1px solid var(--border);padding:32
       </div>
       <div class="hero-pills">
         <span class="pill"><span class="pill-check">✓</span> مجاني للموظفين</span>
-        <span class="pill"><span class="pill-check">✓</span> توثيق فوري</span>
+        <span class="pill"><span class="pill-check">✓</span> توثيق موثوق</span>
         <span class="pill"><span class="pill-check">✓</span> رابط وQR خاص</span>
         <span class="pill"><span class="pill-check">✓</span> عربي 100%</span>
       </div>
@@ -374,7 +375,7 @@ footer{position:relative;z-index:1;border-top:1px solid var(--border);padding:32
       <div class="value-card reveal">
         <div class="vc-icon"><i data-lucide="badge-check"></i></div>
         <div class="vc-title">ملف موثوق</div>
-        <div class="vc-sub">خبراتك وشهاداتك مؤكدة من مصادرها مباشرة</div>
+        <div class="vc-sub">خبراتك وشهاداتك قابلة للتوثيق والاعتماد الرسمي</div>
       </div>
       <div class="value-card reveal">
         <div class="vc-icon"><i data-lucide="link"></i></div>
@@ -490,7 +491,7 @@ footer{position:relative;z-index:1;border-top:1px solid var(--border);padding:32
 
       <div class="feat-card reveal">
         <div class="feat-icon fi-green"><i data-lucide="shield-check"></i></div>
-        <div class="feat-title">توثيق فوري من المصدر</div>
+        <div class="feat-title">توثيق رسمي من المصدر</div>
         <div class="feat-desc">يُراجع فريق تواصلنا وثائقك ويعتمدها رسمياً. شارة الموثق تظهر على ملفك العام.</div>
       </div>
 
@@ -603,6 +604,8 @@ footer{position:relative;z-index:1;border-top:1px solid var(--border);padding:32
 <script>
 (function () {
   'use strict';
+  /* Safety: reveal page even if anything below throws */
+  setTimeout(function(){ document.body.classList.add('ready'); }, 400);
 
   /* ── Logged-in redirect ── */
   var _raw = null;
