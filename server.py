@@ -390,6 +390,10 @@ def home(): return read_html("home.html")
 @app.get("/home.html", response_class=HTMLResponse)
 def home_html(): return read_html("home.html")
 
+# TEMPORARY — PR A preview only. Remove or replace with /home in PR B.
+@app.get("/preview/home-v2", response_class=HTMLResponse)
+def preview_home_v2(): return read_html("home-v2.html")
+
 @app.get("/profile", response_class=HTMLResponse)
 def profile(id: str = ""):
     """Serve profile.html with SSR theme injection to prevent FOUC.
