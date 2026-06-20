@@ -43,7 +43,7 @@
   transform: translate(-50%, -50%);
   pointer-events: none;
 }
-.sc-logo img { height: 28px; width: auto; max-width: 120px; object-fit: contain; display: block; }
+.sc-logo img { height: 32px; width: auto; max-width: 120px; object-fit: contain; display: block; }
 .sc-logo-fallback {
   font-weight: 800; font-size: 1rem; letter-spacing: -.3px;
   background: linear-gradient(135deg, var(--ah-g), var(--ah-b));
