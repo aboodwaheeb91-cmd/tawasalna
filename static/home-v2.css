@@ -39,7 +39,7 @@ img{display:block;max-width:100%}
   margin:8px auto 72px;   /* 8px gap below header, 72px clears bottom nav */
   border-radius:13px;
   border:1px solid rgba(255,255,255,.06);
-  background:#141a24;
+  background:#0d1426;   /* matches .sc-main-card actual rendered color in Profile V2 */
   box-shadow:0 20px 60px rgba(0,0,0,.35);
   /* overflow:visible so sticky children work correctly */
 }
@@ -47,7 +47,7 @@ img{display:block;max-width:100%}
 /* === Filter Bar (sticky inside shell) === */
 .hw-fbar{
   position:sticky;top:var(--ah-h,44px);z-index:90;height:var(--flt);
-  background:#141a24;backdrop-filter:blur(10px);
+  background:#0d1426;backdrop-filter:blur(10px);
   border-bottom:1px solid rgba(255,255,255,.07);
   border-radius:13px 13px 0 0;   /* match shell top corners */
   overflow:hidden;
