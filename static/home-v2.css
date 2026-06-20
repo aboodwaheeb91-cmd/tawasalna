@@ -8,7 +8,7 @@
 body{
   background:#070b18;color:#e2e8f0;font-family:'Cairo',sans-serif;
   min-height:100vh;-webkit-font-smoothing:antialiased;line-height:1.5;
-  padding-top:calc(var(--ah-h,56px) + var(--flt,46px));
+  padding-top:calc(var(--ah-h,44px) + var(--flt,46px));
 }
 
 /* Home V2 header — fixed (unlike Profile V2 which is sticky).
@@ -34,7 +34,7 @@ img{display:block;max-width:100%}
 
 /* === Filter Bar === */
 .hw-fbar{
-  position:fixed;top:var(--ah-h,56px);inset-inline:0;z-index:90;height:var(--flt);
+  position:fixed;top:var(--ah-h,44px);inset-inline:0;z-index:90;height:var(--flt);
   background:rgba(7,11,24,.9);backdrop-filter:blur(10px);
   border-bottom:1px solid var(--brd);overflow:hidden;
 }
@@ -227,7 +227,7 @@ img{display:block;max-width:100%}
   .hw-sidebar{
     display:flex;flex-direction:column;gap:12px;grid-area:sidebar;
     align-self:start;
-    position:sticky;top:calc(var(--ah-h,56px) + var(--flt,46px) + 16px);
+    position:sticky;top:calc(var(--ah-h,44px) + var(--flt,46px) + 16px);
   }
   .hw-bnav{display:none}
   .hw-sb-box{

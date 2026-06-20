@@ -9,7 +9,7 @@
 
 /* ── Variables ── */
 :root {
-  --ah-h:    56px;
+  --ah-h:    44px;
   --ah-bg:   rgba(7,11,24,.93);
   --ah-blur: blur(14px);
   --ah-brd:  rgba(255,255,255,.09);
@@ -23,16 +23,19 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 7px 16px;
+  padding: 0 16px;
+  height: var(--ah-h);
+  min-height: 0;
+  box-sizing: border-box;
   /* position/top intentionally omitted — each page sets its own:
      Profile V2 → position:sticky in profile-v2.css
      Home V2    → position:fixed  in home-v2.css            */
   z-index: 100;
-  min-height: var(--ah-h);
   background: var(--ah-bg);
   backdrop-filter: var(--ah-blur);
   -webkit-backdrop-filter: var(--ah-blur);
-  border-bottom: 1px solid var(--ah-brd);
+  border-bottom: 0 !important;
+  box-shadow: none !important;
 }
 
 /* Logo — absolute center so left/right groups stay balanced */
@@ -52,7 +55,7 @@
 
 /* Generic icon button (square with rounded corners) */
 .sc-hicon {
-  width: 34px; height: 34px; border-radius: 10px; border: none; cursor: pointer;
+  width: 32px; height: 32px; border-radius: 10px; border: none; cursor: pointer;
   background: rgba(255,255,255,.06); color: #fff; font-size: 1rem;
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0; font-family: inherit;
@@ -69,7 +72,7 @@
 
 /* Gradient home button (circle) */
 .sc-home-btn {
-  width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0;
+  width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0;
   background: linear-gradient(135deg, #00c896, #00b8c4, #2563ff);
   box-shadow: 0 2px 10px rgba(0,184,196,.35);
   color: #06121c;
