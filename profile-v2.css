@@ -50,7 +50,7 @@
 .sc-head-icons { display:flex; align-items:center; gap:8px; }
 .sc-head-icons .ico { width:20px; height:20px; }
 .sc-hgroup { display:flex; align-items:center; gap:10px; }
-.sc-logo img { height:38px; width:auto; max-width:140px; object-fit:contain; display:block; }
+.sc-logo img { height:28px; width:auto; max-width:120px; object-fit:contain; display:block; }
 .sc-logo-fallback { font-weight:800; font-size:1rem; letter-spacing:-.3px;
   background:linear-gradient(135deg,var(--ac,#00c896),var(--ac2,#2563ff));
   -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
