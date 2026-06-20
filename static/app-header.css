@@ -9,7 +9,7 @@
 
 /* ── Variables ── */
 :root {
-  --ah-h:    56px;
+  --ah-h:    48px;
   --ah-bg:   rgba(7,11,24,.93);
   --ah-blur: blur(14px);
   --ah-brd:  rgba(255,255,255,.09);
@@ -23,7 +23,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 7px 16px;
+  padding: 4px 16px;
   /* position/top intentionally omitted — each page sets its own:
      Profile V2 → position:sticky in profile-v2.css
      Home V2    → position:fixed  in home-v2.css            */
@@ -32,7 +32,8 @@
   background: var(--ah-bg);
   backdrop-filter: var(--ah-blur);
   -webkit-backdrop-filter: var(--ah-blur);
-  border-bottom: 1px solid var(--ah-brd);
+  border-bottom: none;
+  box-shadow: 0 1px 12px rgba(0,0,0,.35);
 }
 
 /* Logo — absolute center so left/right groups stay balanced */
@@ -43,7 +44,7 @@
   transform: translate(-50%, -50%);
   pointer-events: none;
 }
-.sc-logo img { height: 28px; width: auto; max-width: 120px; object-fit: contain; display: block; }
+.sc-logo img { height: 32px; width: auto; max-width: 120px; object-fit: contain; display: block; }
 .sc-logo-fallback {
   font-weight: 800; font-size: 1rem; letter-spacing: -.3px;
   background: linear-gradient(135deg, var(--ah-g), var(--ah-b));
@@ -52,7 +53,7 @@
 
 /* Generic icon button (square with rounded corners) */
 .sc-hicon {
-  width: 34px; height: 34px; border-radius: 10px; border: none; cursor: pointer;
+  width: 32px; height: 32px; border-radius: 10px; border: none; cursor: pointer;
   background: rgba(255,255,255,.06); color: #fff; font-size: 1rem;
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0; font-family: inherit;
@@ -69,7 +70,7 @@
 
 /* Gradient home button (circle) */
 .sc-home-btn {
-  width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0;
+  width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0;
   background: linear-gradient(135deg, #00c896, #00b8c4, #2563ff);
   box-shadow: 0 2px 10px rgba(0,184,196,.35);
   color: #06121c;
