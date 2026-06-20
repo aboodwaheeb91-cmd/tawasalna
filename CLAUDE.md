@@ -540,3 +540,29 @@ These rules are permanent and apply to all future AI sessions:
     - **ممنوع** table scan بدون index على columns مستخدمة في WHERE/ORDER — راجع `_migrate_feed_indexes()`
     - **مطلوب** اتباع `window.Home` namespace لأي module جديد
     - **مطلوب** تحديد module المناسب قبل إضافة أي سلوك جديد على Home
+
+---
+
+## Company Profile Rules (mandatory for all AI sessions)
+
+These rules are permanent and apply to all future AI sessions:
+
+1. **`static/company/` is the canonical location** for all Company Profile JS and CSS. Never add inline `<style>` or `<script>` blocks to `company-profile.html`.
+
+2. **`company-profile.html` is HTML structure only.** It loads 7 module scripts and 1 CSS file. No logic lives inside it.
+
+3. **Module load order is mandatory:**
+   `company.state.js` → `company.api.js` → `company.permissions.js` → `company.render.js` → `company.jobs.js` → `company.posts.js` → `company.main.js`
+
+4. **`company-profile.js` (root file) is superseded.** It must not be loaded from `company-profile.html`. The `/company-profile.js` server route remains in `server.py` but is unused.
+
+5. **New features for Company Profile go into the appropriate module** — never a new root-level JS file, never inline in HTML.
+
+6. **Security rules from PR #223 are permanent:**
+   - All fetch calls use `Authorization: Bearer {jwt}` only — X-User-Id is forbidden
+   - `_jwt()` from `company.state.js` is the only token source
+   - Ownership checks stay server-side (DB query in server.py)
+
+7. **`companyState` is the Single Source of Truth.** No other variable may serve as state for company profile data. `localStorage` is never used as an authority for company data.
+
+8. **`window.X` namespace only.** No ES modules, no bundler. All cross-module calls go through `window.X` exposed at the bottom of each IIFE.
