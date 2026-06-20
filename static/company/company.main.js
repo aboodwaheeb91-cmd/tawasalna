@@ -9,7 +9,7 @@
     el.classList.add('active');
     ['jobs', 'posts', 'about', 'ratings'].forEach(function (t) {
       var el2 = document.getElementById('tab-' + t);
-      if (el2) el2.style.display = t === name ? '' : 'none';
+      if (el2) el2.style.display = t === name ? 'block' : 'none';
     });
     if (name === 'posts' && window.loadPosts) loadPosts();
   }
@@ -268,10 +268,58 @@
   window.submitReport      = submitReport;
   window.initCompanyProfile = initCompanyProfile;
 
+  // ── Event bindings (commit #2 — replaces all inline onclick/onchange) ──
+  function _bindMainEvents() {
+    var q = function (id) { return document.getElementById(id); };
+
+    // Nav
+    var postJobBtn = q('postJobBtn'); if (postJobBtn) postJobBtn.addEventListener('click', openPostJob);
+    var editBtn    = q('editBtn');    if (editBtn)    editBtn.addEventListener('click', openEditModal);
+    var menuBtn    = q('menuBtn');    if (menuBtn)    menuBtn.addEventListener('click', toggleMenu);
+
+    // Logout (nav button + dropdown link)
+    var visitorLogout = q('visitorLogout'); if (visitorLogout) visitorLogout.addEventListener('click', doLogout);
+    var dropLogout    = q('dropLogout');    if (dropLogout)    dropLogout.addEventListener('click', doLogout);
+
+    // Cover photo upload
+    var coverFileInput = q('coverFileInput');
+    if (coverFileInput) coverFileInput.addEventListener('change', function () { uploadCover(this); });
+
+    // Follow + Contact
+    var followBtn  = q('followBtn');  if (followBtn)  followBtn.addEventListener('click', toggleFollow);
+    var contactBtn = q('contactBtn'); if (contactBtn) contactBtn.addEventListener('click', openContact);
+
+    // Tabs
+    document.querySelectorAll('.tab[data-tab]').forEach(function (tab) {
+      tab.addEventListener('click', function () { switchTab(this.dataset.tab, this); });
+    });
+
+    // Edit modal
+    var editOverlay   = q('editOverlay');   if (editOverlay)   editOverlay.addEventListener('click', closeEdit);
+    var editSaveBtn   = q('editSaveBtn');   if (editSaveBtn)   editSaveBtn.addEventListener('click', saveEdit);
+    var editCancelBtn = q('editCancelBtn');
+    if (editCancelBtn) editCancelBtn.addEventListener('click', function () {
+      var ov = q('editOverlay'); if (ov) ov.classList.remove('show');
+    });
+
+    // Contact modal
+    var contactOverlay   = q('contactOverlay');   if (contactOverlay)   contactOverlay.addEventListener('click', closeContact);
+    var contactSendBtn   = q('contactSendBtn');   if (contactSendBtn)   contactSendBtn.addEventListener('click', sendMsg);
+    var contactCancelBtn = q('contactCancelBtn');
+    if (contactCancelBtn) contactCancelBtn.addEventListener('click', function () {
+      var ov = q('contactOverlay'); if (ov) ov.classList.remove('show');
+    });
+
+    // Report modal
+    var reportSubmitBtn = q('reportSubmitBtn'); if (reportSubmitBtn) reportSubmitBtn.addEventListener('click', submitReport);
+    var reportCancelBtn = q('reportCancelBtn'); if (reportCancelBtn) reportCancelBtn.addEventListener('click', closeReportModal);
+  }
+
   // ── DOMContentLoaded ───────────────────────────────────────────
   document.addEventListener('DOMContentLoaded', function () {
     if (window.initScrollProg)      initScrollProg();
     if (window.initCompanyProfile)  initCompanyProfile();
+    _bindMainEvents();
   });
 
   // ── Pull-to-refresh ────────────────────────────────────────────

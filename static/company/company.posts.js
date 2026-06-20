@@ -79,7 +79,30 @@
     .finally(function () { isPostDeleting = false; });
   }
 
+  // ── Event bindings (commit #2) ──────────────────────────────────
+  function _bindPostEvents() {
+    var q = function (id) { return document.getElementById(id); };
+
+    var postModalBtn = q('postModalBtn'); if (postModalBtn) postModalBtn.addEventListener('click', openPostModal);
+
+    var postOverlay = q('postOverlay');
+    if (postOverlay) postOverlay.addEventListener('click', function (e) {
+      if (e.target === this) this.classList.remove('show');
+    });
+
+    var createPostBtn = q('createPostBtn'); if (createPostBtn) createPostBtn.addEventListener('click', createPost);
+
+    var postCancelBtn = q('postCancelBtn');
+    if (postCancelBtn) postCancelBtn.addEventListener('click', function () {
+      var ov = q('postOverlay'); if (ov) ov.classList.remove('show');
+    });
+  }
+
   window.openPostModal = openPostModal;
   window.createPost    = createPost;
   window.deletePost    = deletePost;
+
+  document.addEventListener('DOMContentLoaded', function () {
+    _bindPostEvents();
+  });
 }());

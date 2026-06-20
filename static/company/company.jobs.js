@@ -149,6 +149,23 @@
     });
   }
 
+  // ── Event bindings (commit #2) ──────────────────────────────────
+  function _bindJobEvents() {
+    var q = function (id) { return document.getElementById(id); };
+
+    var postJobOverlay = q('postJobOverlay');
+    if (postJobOverlay) postJobOverlay.addEventListener('click', function (e) {
+      if (e.target === this) this.classList.remove('show');
+    });
+
+    var publishJobBtn = q('publishJobBtn'); if (publishJobBtn) publishJobBtn.addEventListener('click', publishJob);
+
+    var postJobCancelBtn = q('postJobCancelBtn');
+    if (postJobCancelBtn) postJobCancelBtn.addEventListener('click', function () {
+      var ov = q('postJobOverlay'); if (ov) ov.classList.remove('show');
+    });
+  }
+
   window._applyJob     = _applyJob;
   window.applyJob      = applyJob;
   window.bindEvents    = bindEvents;
@@ -156,4 +173,9 @@
   window.submitRating  = submitRating;
   window.openPostJob   = openPostJob;
   window.publishJob    = publishJob;
+
+  document.addEventListener('DOMContentLoaded', function () {
+    bindEvents();
+    _bindJobEvents();
+  });
 }());
