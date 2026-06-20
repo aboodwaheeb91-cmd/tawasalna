@@ -12,10 +12,14 @@
 </head>
 <body>
 
-<!-- Top Nav (app-nav = shared app header) -->
+<!-- Top Nav — [home btn] [logo center] [messages|bell|logout] -->
 <nav class="app-nav">
-  <a href="/" class="app-nav-logo"><img src="/static/33333.svg" alt="تواصلنا"></a>
-  <div class="app-nav-sp"></div>
+  <a href="/home" class="app-nav-icon app-nav-home-btn" title="الرئيسية">
+    <i data-lucide="home" width="18" height="18"></i>
+  </a>
+  <a href="/" class="app-nav-logo-c">
+    <img src="/static/33333.svg" alt="تواصلنا">
+  </a>
   <a href="/messages" class="app-nav-icon" title="رسائل">
     <i data-lucide="message-square" width="19" height="19"></i>
   </a>
@@ -26,7 +30,6 @@
   <button class="app-nav-icon" data-ah-logout title="تسجيل الخروج">
     <i data-lucide="log-out" width="19" height="19"></i>
   </button>
-  <a class="app-nav-av" data-ah-av href="#" title="ملفي">?</a>
 </nav>
 
 <!-- Filter Bar -->
