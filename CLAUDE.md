@@ -493,13 +493,24 @@ These rules are permanent and apply to all future AI sessions:
 
 2. **Feed-first is mandatory.** أي تعديل على Home V2 يجب أن يبدأ بـ filter tabs ثم feed. ممنوع إعادة Dashboard-first (بطاقة مستخدم ضخمة أول الصفحة).
 
-3. **Files are split — keep them split:**
+3. **Files are split — keep them split (modular structure):**
    - `home-v2.html` — HTML هيكل فقط
-   - `static/app-header.css` — CSS vars وstyles للهيدر المشترك (Home + Profile V2)
-   - `static/app-header.js` — `initAppHeader(user)` — avatar + logout
-   - `static/home-v2.css` — أنماط الصفحة
-   - `static/home-v2.js` — جميع المنطق
+   - `static/app-header.css` — CSS vars + `.sc-header` / `.sc-*` shared header classes
+   - `static/app-header.js` — `initAppHeader(user)` — reserved, not used on Home currently
+   - `static/home-v2.css` — أنماط الصفحة (`.hw-*` namespace)
+   - `static/home-v2.js` — **DEPRECATED** — placeholder فقط، لا تضيف code هنا
+   - `static/home/home.utils.js` — constants + DOM helpers
+   - `static/home/home.state.js` — shared state (`window.Home.state`)
+   - `static/home/home.api.js` — feed fetch (`Home.api.loadFeed`)
+   - `static/home/home.cards.js` — card renderers (opportunity / post / news)
+   - `static/home/home.render.js` — feed UI states (skeleton / empty / error / feed)
+   - `static/home/home.filters.js` — filter tab wiring + orchestration
+   - `static/home/home.header.js` — header buttons (home, menu, logout)
+   - `static/home/home.nav.js` — bottom nav + sidebar + per-user-type setup
+   - `static/home/home.main.js` — bootstrap only (auth guard + init + load)
    - ممنوع دمج CSS/JS الكبير داخل HTML
+   - **ممنوع** إضافة logic في `static/home-v2.js`
+   - **ممنوع** إضافة feature جديدة قبل تحديد module المناسب لها
 
 4. **`/preview/home-v2` is deleted.** لا تعيد إضافته. Route المعاينة المؤقت أُزيل عند shipping Home V2.
 
@@ -516,8 +527,16 @@ These rules are permanent and apply to all future AI sessions:
 
 8. **`tw_jwt` is the auth token.** `localStorage.getItem('tw_jwt')` يُرسل كـ `Authorization: Bearer` في كل API call من Home V2.
 
-9. **CSS offset is single-source:** `body { padding-top: calc(var(--ah-h, 56px) + var(--flt)) }`. كلا الشريطين `position: fixed`. ممنوع إضافة `margin-block-start` على `.hw-page`.
+9. **CSS offset is single-source:** `body { padding-top: var(--flt) }` — `.sc-header` هو `position:sticky` (في التدفق الطبيعي)، لا يحتاج padding. `.hw-fbar` هو `position:fixed` على `top:var(--ah-h,56px)`. ممنوع إضافة `margin-block-start` على `.hw-page`.
 
 10. **`home.html` is legacy.** يمكن الاحتفاظ به كملف احتياطي لكنه ليس route. ممنوع حذفه أو تعديله دون سبب واضح.
 
-11. **App Header is unified.** `static/app-header.css` + `static/app-header.js` هما المرجع الرسمي لهيدر الصفحات الداخلية. ممنوع إنشاء header styles منفصلة لصفحة جديدة — يجب استخدام CSS vars من `app-header.css`. أي تعديل على شكل الهيدر يجب أن يكون في `app-header.css` فقط.
+11. **App Header is unified.** `static/app-header.css` هو المرجع الرسمي لـ CSS vars وshared header classes (`.sc-header`, `.sc-hicon`, `.sc-home-btn`, `.sc-menu-*`). ممنوع إنشاء header styles منفصلة لصفحة جديدة — يجب استخدام CSS vars من `app-header.css`. أي تعديل على شكل الهيدر يجب أن يكون في `app-header.css` فقط.
+
+12. **Home مصمم لملايين المستخدمين — لا ديون تقنية.** قواعد إلزامية:
+    - **ممنوع** إضافة feature جديدة فوق ملف واحد كبير — كل feature تذهب لـ module مناسب
+    - **ممنوع** حلول مؤقتة أو TODO داخل production code
+    - **ممنوع** `ORDER BY RANDOM()` في أي query على `/home/feed`
+    - **ممنوع** table scan بدون index على columns مستخدمة في WHERE/ORDER — راجع `_migrate_feed_indexes()`
+    - **مطلوب** اتباع `window.Home` namespace لأي module جديد
+    - **مطلوب** تحديد module المناسب قبل إضافة أي سلوك جديد على Home

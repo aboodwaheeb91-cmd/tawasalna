@@ -355,6 +355,11 @@ async def on_startup():
         print("✅ news_posts table ready")
     except Exception as e:
         print(f"⚠️ news_posts migration failed: {e}")
+    try:
+        _migrate_feed_indexes()
+        print("✅ feed indexes ready")
+    except Exception as e:
+        print(f"⚠️ feed indexes migration failed: {e}")
     await _init_asyncpg_pool()
 
 # ── Helpers ──
@@ -376,6 +381,19 @@ def check_admin(request: Request):
     token = request.headers.get("X-Admin-Token", "")
     if token != ADMIN_TOKEN:
         raise HTTPException(status_code=403, detail="Forbidden")
+
+
+def _migrate_feed_indexes():
+    """Create feed query indexes (idempotent — CREATE INDEX IF NOT EXISTS).
+    These indexes support the /home/feed endpoint for production scale.
+    """
+    conn = get_conn()
+    try:
+        conn.run("CREATE INDEX IF NOT EXISTS idx_jobs_status_created     ON jobs(status, created_at DESC)")
+        conn.run("CREATE INDEX IF NOT EXISTS idx_cposts_created          ON company_posts(created_at DESC)")
+        conn.run("CREATE INDEX IF NOT EXISTS idx_news_status_created     ON news_posts(status, created_at DESC)")
+    finally:
+        release_conn(conn)
 
 
 def _migrate_news_posts():
@@ -524,7 +542,7 @@ def home_feed(filter: str = "all", limit: int = 20, token=Depends(verify_token))
     if filter == "all" and items:
         items.sort(key=lambda x: x.get("created_at") or "", reverse=True)
 
-    return {"items": items, "filter": filter, "total": len(items)}
+    return {"items": items, "filter": filter, "total": len(items), "next_cursor": None}
 
 
 @app.get("/profile", response_class=HTMLResponse)

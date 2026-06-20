@@ -4844,49 +4844,85 @@ if (window.lucide) { lucide.createIcons(); }
 
 ### Files
 
+#### CSS / HTML
+
 | الملف | الدور |
 |-------|-------|
-| `home-v2.html` | HTML هيكل نظيف، يرتبط بـ CSS و JS خارجيين |
-| `static/app-header.css` | هوية الهيدر المشتركة (Home + Profile V2) — `.app-nav` + CSS vars |
-| `static/app-header.js` | `initAppHeader(user)` — يضبط الـ avatar والـ logout |
+| `home-v2.html` | HTML هيكل نظيف فقط — لا منطق، لا styles inline |
+| `static/app-header.css` | CSS vars مشتركة + `.sc-header` / `.sc-hicon` / `.sc-menu-*` classes |
 | `static/home-v2.css` | أنماط الصفحة، namespace `.hw-*` |
-| `static/home-v2.js` | منطق Auth، Feed fetch، rendering، per-type setup |
 
-### App Header (Shared — `static/app-header.css` + `static/app-header.js`)
+#### JS Modules (في `static/home/`) — مُرتّبة حسب ترتيب التحميل
 
-جميع الصفحات الداخلية (Home V2، Profile V2) تستخدم نفس CSS vars وclass للهيدر:
+| الملف | المسؤولية |
+|-------|----------|
+| `home.utils.js` | constants (JOB_TYPES, NEWS_CATS, EMPTY_LABELS) + DOM helpers (el, txt, makeAvatar, timeAgo, icons) |
+| `home.state.js` | shared runtime state: `Home.state = { user, jwt, currentFilter, loading, abortCtrl, nextCursor }` |
+| `home.api.js` | `Home.api.loadFeed(filter, limit)` — fetch + abort + error handling |
+| `home.cards.js` | `Home.cards.renderCard / renderOpportunityCard / renderPostCard / renderNewsCard` |
+| `home.render.js` | `Home.render.showSkeleton / showEmpty / showError / renderFeed` |
+| `home.filters.js` | `Home.filters.init() / load(filter)` — tab wiring + orchestration |
+| `home.header.js` | `Home.header.init()` — home btn, menu dropdown, logout |
+| `home.nav.js` | `Home.nav.init(user)` — bottom nav, sidebar, per-user-type adjustments |
+| `home.main.js` | bootstrap only: auth guard, populate state, init modules, load initial feed |
 
+**ممنوع** إضافة منطق في `home-v2.js` — هذا الملف deprecated ويحتوي تعليق redirect فقط.  
+**ممنوع** تضخيم `home.main.js` بمنطق — هو bootstrap فقط.
+
+### Shared Namespace
+
+جميع الـ modules تكتب على `window.Home`:
+
+```js
+window.Home = window.Home || {};
+window.Home.utils   = { ... };
+window.Home.state   = { ... };
+window.Home.api     = { ... };
+window.Home.cards   = { ... };
+window.Home.render  = { ... };
+window.Home.filters = { ... };
+window.Home.header  = { ... };
+window.Home.nav     = { ... };
+```
+
+### App Header (Shared — `static/app-header.css`)
+
+Home V2 و Profile V2 يستخدمان نفس هيكل الهيدر:
+
+```html
+<div class="sc-header">
+  <button class="sc-hicon sc-home-btn" id="hwHomeBtn">← home icon</button>
+  <div class="sc-logo">← logo absolute center</div>
+  <div class="sc-head-icons">← bell / messages / menu dropdown</div>
+</div>
+```
+
+CSS vars مشتركة (من `app-header.css`):
 ```css
 :root {
-  --ah-h:    56px;              /* ارتفاع الهيدر */
+  --ah-h:    56px;
   --ah-bg:   rgba(7,11,24,.93);
   --ah-blur: blur(14px);
   --ah-brd:  rgba(255,255,255,.09);
 }
-.app-nav { position:fixed; top:0; height:var(--ah-h); background:var(--ah-bg); ... }
+.sc-header { position:sticky; top:0; min-height:var(--ah-h); background:var(--ah-bg); ... }
+.sc-header .sc-logo { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); }
 ```
 
-**استخدام `initAppHeader(user)`:**
-```js
-initAppHeader(user)  // يضبط [data-ah-av] و [data-ah-logout]
-```
-
-- `[data-ah-av]` — دائرة الـ avatar: initials أو صورة، href حسب user_type
-- `[data-ah-logout]` — زر الخروج: يمسح `tw_*` من localStorage → `/login`
-- Bell و Messages هي `<a href>` عادية — لا تحتاج JS binding
-
-**Profile V2:** يستخدم `.sc-header.app-nav` — نفس CSS vars، `position:sticky` بدلاً من `fixed`.
+- `static/app-header.js` — يبقى للاستخدام المستقبلي (لا يُستخدم في Home V2 أو Profile V2 حالياً)
+- Profile V2 logout يديره `initGlobalHeaderMenu()` من `tw_shared.js`
+- Home V2 logout يديره `home.header.js` على `#hwLogoutBtn`
 
 ### DOM Structure
 
 ```
-<nav.app-nav>     fixed 56px (var --ah-h): logo + messages + notifications + logout + avatar
-<div.hw-fbar>     fixed 46px (below nav): filter tabs — الكل/فرص/منشورات/أخبار
-body              padding-top: calc(var(--ah-h) + 46px) — single offset, no double margin
+<div.sc-header>   sticky 56px (var --ah-h): sc-home-btn + sc-logo (absolute center) + sc-head-icons
+<div.hw-fbar>     fixed 46px (below sc-header): filter tabs — الكل/فرص/منشورات/أخبار
+body              padding-top: var(--flt, 46px) only — sc-header is sticky (in flow)
 <div.hw-page>
   <main.hw-feed>
     <div#hwBanner>   compact banner for co/edu (hidden for emp)
-    <div#hwFeed>     feed items rendered by home-v2.js via DOM API
+    <div#hwFeed>     feed items rendered by Home.cards via DOM API
     <div#hwEmpty>    empty state per filter
     <div#hwError>    error state with retry button
   <aside.hw-sidebar> desktop only (≥1020px): completion strip + quick links
@@ -4982,16 +5018,38 @@ CREATE TABLE news_posts (
 - Profile links: `/u/<tw_id>` — only used when server returns non-empty `tw_id` string
 - News `source_url`: rendered as `<a target="_blank" rel="noopener noreferrer">` — no innerHTML
 
-### Feed State Machine (home-v2.js)
+### Feed State Machine
 
 ```
-filter tab click → fetchFeed(filter)
-  → showSkeleton()           — clears #hwFeed, shows animated placeholders
-  → fetch /home/feed         — with AbortController (cancels previous in-flight request)
-  → success + items.length > 0 → renderFeed(items)  — createElement per item type
-  → success + items.length = 0 → showEmpty(filter)  — friendly message (news: "ستظهر لاحقاً")
-  → network/HTTP error        → showError()         — retry button re-calls fetchFeed
+filter tab click
+  → Home.filters.load(filter)
+      → Home.render.showSkeleton()   — clears #hwFeed, shows static animated placeholders
+      → Home.api.loadFeed(filter)    — AbortController (cancels previous in-flight request)
+          → success + items          → Home.render.renderFeed(items, filter)
+          → success + empty          → Home.render.showEmpty(filter)
+          → abort (null returned)    → no-op (filter changed mid-flight)
+          → network/server error     → Home.render.showError(retryFn)
 ```
+
+### DB Indexes (Feed Scalability)
+
+أضيفت في `_migrate_feed_indexes()` — تُنفَّذ على `on_startup` — idempotent:
+
+```sql
+CREATE INDEX IF NOT EXISTS idx_jobs_status_created  ON jobs(status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_cposts_created       ON company_posts(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_news_status_created  ON news_posts(status, created_at DESC);
+```
+
+**ممنوع** حذف هذه الـ indexes — الـ feed يعتمد عليها لـ sequential scan avoidance.
+
+### Cursor Pagination Contract (Reserved — Not Yet Active)
+
+الـ API يرجع `{ items: [...], next_cursor: null }` حالياً (`next_cursor` دائماً `null`).  
+عند التطبيق المستقبلي:
+- Client يرسل `?cursor=<opaque_string>` بدل `?limit=` على load-more requests
+- Server يرجع `next_cursor: "<string>"` أو `null` (نهاية البيانات)
+- **ممنوع** تغيير `?filter=` أو `?limit=` behavior الحالي عند إضافة cursor — backward-compatible فقط
 
 ### Card Types
 
@@ -5012,10 +5070,11 @@ filter tab click → fetchFeed(filter)
 ### CSS Offset System (single source)
 
 ```css
-body     { padding-top: calc(var(--ah-h, 56px) + 46px); }   /* uses app-header.css var */
-.app-nav { position: fixed; top: 0; height: var(--ah-h); }  /* shared header class */
-.hw-fbar { position: fixed; top: var(--ah-h, 56px); }
-.hw-page { padding: 14px 12px 72px; }                        /* no margin-block-start */
+/* sc-header is position:sticky — it occupies natural flow space (no padding-top needed for it) */
+body     { padding-top: var(--flt, 46px); }   /* only filter bar height */
+.sc-header { position: sticky; top: 0; min-height: var(--ah-h, 56px); }
+.hw-fbar   { position: fixed;  top: var(--ah-h, 56px); }
+.hw-page   { padding: 14px 12px 72px; }       /* no margin-block-start */
 ```
 
 ### Forbidden Patterns (Home V2)
@@ -5031,6 +5090,11 @@ body     { padding-top: calc(var(--ah-h, 56px) + 46px); }   /* uses app-header.c
 - **ممنوع** إضافة فلتر `companies` للـ Home — الشركات ليست محتوى feed؛ مكانها صفحة استكشاف/بحث مستقلة
 - **ممنوع** إعادة `questions` أو `courses` كـ filters قبل بناء جداولهما الكاملة
 - **ممنوع** إنشاء header مستقل لصفحة جديدة بدون استخدام `static/app-header.css` — الـ App Header موحد
+- **ممنوع** إضافة منطق في `static/home-v2.js` — الملف deprecated؛ أي logic يذهب إلى module مناسب في `static/home/`
+- **ممنوع** إضافة feature جديدة على Home قبل تحديد module المناسب لها في `static/home/`
+- **ممنوع** تضخيم `home.main.js` — bootstrap فقط؛ أي منطق يذهب لـ module مخصص
+- **ممنوع** `ORDER BY RANDOM()` في أي query على `/home/feed` — يكسر pagination ويُحمّل DB
+- **ممنوع** table scan ثقيل بدون index على columns مستخدمة في WHERE/ORDER — راجع indexes section أعلاه
 
 ---
 

@@ -74,7 +74,7 @@
       <div class="hw-banner-stats" id="hwBStats"></div>
     </div>
 
-    <!-- Feed list (populated by home-v2.js) -->
+    <!-- Feed list (populated by Home.render via static/home/ modules) -->
     <div id="hwFeed"></div>
 
     <!-- Empty state -->
@@ -147,6 +147,14 @@
   </a>
 </nav>
 
-<script src="/static/home-v2.js"></script>
+<script src="/static/home/home.utils.js"></script>
+<script src="/static/home/home.state.js"></script>
+<script src="/static/home/home.api.js"></script>
+<script src="/static/home/home.cards.js"></script>
+<script src="/static/home/home.render.js"></script>
+<script src="/static/home/home.filters.js"></script>
+<script src="/static/home/home.header.js"></script>
+<script src="/static/home/home.nav.js"></script>
+<script src="/static/home/home.main.js"></script>
 </body>
 </html>
