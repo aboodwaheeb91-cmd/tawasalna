@@ -369,19 +369,38 @@ web: uvicorn server:app --host 0.0.0.0 --port $PORT
 
 ## Documentation Rule (mandatory for all AI sessions)
 
-**Any PR that includes a new feature, system, or architectural change MUST update `ARCHITECTURE.md` in the same PR.**
+**Every PR must include documentation updates in the same PR — PR description is NOT a substitute for `.md` files.**
 
-A PR is not considered complete if it introduces architectural changes without documentation.
+### What to update per change type
 
-Rules:
+| نوع التغيير | الملف المطلوب |
+|------------|--------------|
+| تغيير معماري / routes / صلاحيات / DB schema | `ARCHITECTURE.md` |
+| مكتبة vendor جديدة / CDN → local / اعتمادية build | `ARCHITECTURE.md` قسم Vendor Assets + `README.md` إذا يؤثر على setup |
+| سلوك صفحة أو flow مهم | `ARCHITECTURE.md` في قسم الصفحة المعنية |
+| قاعدة جديدة يجب على AI الالتزام بها | `CLAUDE.md` |
+| تغيير صغير لا أثر معماري له | اكتب في وصف PR: `Docs: not needed — [سبب واضح]` |
+
+### Detailed rules
+
 - New DB tables → document schema + constraints in ARCHITECTURE.md
 - New API endpoints → document endpoint, auth requirements, request/response
 - New Frontend systems → document components, state, behavior rules
 - New Backend modules → document functions, mapping tables, rules
 - Forbidden patterns → document what must NOT be done (ممنوعات)
-- Implementation status → document what is done vs. pending
+- Vendor assets → add to Vendor Assets table in ARCHITECTURE.md with version + license
 
-If `CLAUDE.md` contains AI behavior rules relevant to the new feature, add a summary there too.
+### PR Checklist (mandatory — add to every PR body)
+
+```
+- [ ] Code updated
+- [ ] Docs updated (ARCHITECTURE.md / CLAUDE.md / README.md)
+- [ ] Architecture impact checked
+- [ ] No old routes/contracts broken
+```
+
+If docs are genuinely not needed, replace the "Docs updated" line with:
+`- [x] Docs: not needed — [reason]`
 
 ---
 
