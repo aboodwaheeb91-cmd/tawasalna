@@ -805,6 +805,13 @@ Phase 1 — Security Foundation (مكتمل):
   ✅ X-User-Id أُزيل من /jobs/{id}/applicants, /my/applications, /jobs/applications/{id}/status
   ✅ Status allowlist validation على PUT /jobs/applications/{id}/status
 
+Phase 1.5 — Modularization (مكتمل — PR #224):
+  ✅ CSS نُقل من company-profile.html → static/company/company.css
+  ✅ JS نُقل من company-profile.html + company-profile.js → static/company/ modules
+  ✅ company-profile.html أصبح HTML هيكل فقط (no inline <style> or <script>)
+  ✅ company-profile.js (القديم) لا يُحمَّل بعد الآن (superseded by modules)
+  ✅ لا تغيير في التصميم / لا تغيير في API / Security P0 محفوظة
+
 Phase 2 — Schema + Real Data:
   company_profiles table migration
   Real data: jobs_count, verified_count من DB
@@ -824,6 +831,29 @@ Phase 4 — Polish:
 
 ممنوع الانتقال لـ Phase التالية قبل إغلاق الحالية واختبارها.
 ```
+
+---
+
+## Company Frontend — Modular File Structure (PR #224)
+
+ملفات صفحة الشركة تعيش في `static/company/`. ترتيب التحميل إلزامي:
+
+| الترتيب | الملف | المسؤولية |
+|---------|-------|-----------|
+| 1 | `static/company/company.state.js` | `companyState` SSOT + `_mergeCompanyState` + `_applyViewMode` + `_jwt()` |
+| 2 | `static/company/company.api.js` | `loadData` + `loadJobs` + `loadPosts` — JWT Bearer فقط |
+| 3 | `static/company/company.permissions.js` | `_applyLoadingState` + permission guards |
+| 4 | `static/company/company.render.js` | `renderProfile/Stats/Jobs/All` + `renderFollowBtn/Rating/Posts` + DOM helpers |
+| 5 | `static/company/company.jobs.js` | `_applyJob` + `applyJob` + `bindEvents` + `bindRateStars` + `submitRating` + `openPostJob` + `publishJob` |
+| 6 | `static/company/company.posts.js` | `openPostModal` + `createPost` + `deletePost` |
+| 7 | `static/company/company.main.js` | bootstrap + `initCompanyProfile` + nav + modals + follow + cover + report + pull-to-refresh |
+| CSS | `static/company/company.css` | كل styles الصفحة (منقولة من `<style>` blocks داخل HTML) |
+
+### قواعد إلزامية
+- **ممنوع** إضافة `<style>` أو `<script>` inline في `company-profile.html`
+- **ممنوع** تحميل `company-profile.js` (القديم) — superseded
+- **ممنوع** إضافة module جديد قبل تحديد الترتيب الصحيح له في الجدول أعلاه
+- كل namespace: `window.X` — لا ES modules، لا bundler
 
 ---
 

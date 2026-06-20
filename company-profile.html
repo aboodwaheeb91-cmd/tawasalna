@@ -14,275 +14,47 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>تواصلنا - ملف الشركة</title>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
-<style>
-:root{
-  --default-cover: url("https://wrxvmdmknhoufoeprpoc.supabase.co/storage/v1/object/public/site/1780242706094.jpg");--ac:#2563ff;--ac2:#00c896;--bg:#070b18;--card:rgba(255,255,255,.03);--border:rgba(255,255,255,.07);--t:rgba(255,255,255,.87);--t2:rgba(255,255,255,.5);--t3:rgba(255,255,255,.27);}
-*{margin:0;padding:0;box-sizing:border-box;}
-body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-height:100vh;}
-
-/* NAV */
-.nav{position:fixed;top:0;left:0;right:0;z-index:100;height:52px;display:flex;align-items:center;gap:8px;padding:0 14px;background:rgba(7,11,24,.93);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);overflow:visible;}
-.nav-logo{font-size:1rem;font-weight:900;background:linear-gradient(135deg,var(--ac),var(--ac2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;cursor:pointer;flex-shrink:0;}
-.nb{padding:5px 11px;border-radius:8px;border:none;cursor:pointer;font-family:'Cairo',sans-serif;font-size:.73rem;font-weight:700;transition:all .2s;}
-.nb-ghost{background:rgba(255,255,255,.07);color:var(--t2);border:1px solid var(--border);}
-.nb-ghost:hover{background:rgba(255,255,255,.12);color:var(--t);}
-.nb-primary{background:linear-gradient(135deg,var(--ac),var(--ac2));color:#fff;}
-.nb-primary:hover{transform:translateY(-1px);box-shadow:0 4px 14px rgba(37,99,255,.35);}
-.nb-follow{background:rgba(37,99,255,.15);color:#60a5fa;border:1px solid rgba(37,99,255,.3);}
-.nb-follow.following{background:rgba(0,200,150,.15);color:#00c896;border-color:rgba(0,200,150,.3);}
-
-/* HERO */
-.hero{margin-top:52px;position:relative;height:200px;overflow:hidden;
-  background:linear-gradient(135deg,#0d1526,#1a2540);
-  background-image:var(--default-cover);
-  background-size:cover;background-position:center;background-repeat:no-repeat;}
-.hero-bg{position:absolute;inset:0;background:linear-gradient(135deg,rgba(37,99,255,.15),rgba(0,200,150,.08));opacity:.8;}
-.hero-orb{position:absolute;border-radius:50%;filter:blur(60px);}
-.ho1{width:300px;height:300px;background:#2563ff;opacity:.1;top:-100px;right:-80px;}
-.ho2{width:200px;height:200px;background:#00c896;opacity:.08;bottom:-60px;left:-40px;}
-
-
-
-/* Dropdown */
-.drop-item{
-  display:flex;align-items:center;gap:8px;
-  padding:9px 12px;border-radius:9px;
-  font-family:'Cairo',sans-serif;font-size:.78rem;font-weight:700;
-  color:rgba(255,255,255,.7);text-decoration:none;cursor:pointer;
-  transition:all .15s;white-space:nowrap;
-}
-.drop-item:hover{background:rgba(255,255,255,.06);color:#fff;}
-
-/* Cover upload */
-.cover-upload-btn {
-  position:absolute;
-  bottom:12px;
-  left:12px;
-  padding:7px 14px;
-  border-radius:10px;
-  background:rgba(0,0,0,.55);
-  color:#fff;
-  font-family:'Cairo',sans-serif;
-  font-size:.74rem;
-  font-weight:700;
-  cursor:pointer;
-  backdrop-filter:blur(8px);
-  border:1px solid rgba(255,255,255,.2);
-  transition:all .2s;
-  z-index:5;
-}
-.cover-upload-btn:hover {
-  background:rgba(0,0,0,.75);
-  border-color:rgba(255,255,255,.4);
-}
-
-/* PROFILE HEADER */
-.profile-header{max-width:900px;margin:0 auto;padding:0 16px;position:relative;margin-top:-50px;z-index:10;}
-.ph-card{background:#0d1526;border:1px solid var(--border);border-radius:20px;padding:24px;display:flex;gap:20px;align-items:flex-start;}
-.co-logo{width:90px;height:90px;border-radius:18px;background:linear-gradient(135deg,var(--ac),var(--ac2));display:flex;align-items:center;justify-content:center;font-size:2.5rem;flex-shrink:0;border:3px solid rgba(37,99,255,.3);box-shadow:0 8px 24px rgba(37,99,255,.25);}
-.ph-info{flex:1;min-width:0;}
-.ph-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;flex-wrap:wrap;}
-.co-name{font-size:1.4rem;font-weight:900;margin-bottom:3px;}
-.co-type-badge{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;font-size:.68rem;font-weight:800;background:rgba(37,99,255,.12);color:#60a5fa;border:1px solid rgba(37,99,255,.2);margin-bottom:8px;}
-.co-desc{font-size:.8rem;color:var(--t2);line-height:1.6;margin-bottom:10px;}
-.co-meta{display:flex;gap:14px;flex-wrap:wrap;}
-.co-meta-item{display:flex;align-items:center;gap:5px;font-size:.72rem;color:var(--t3);}
-.ph-actions{display:flex;gap:6px;flex-shrink:0;}
-
-/* STATS BAR */
-.stats-bar{max-width:900px;margin:14px auto;padding:0 16px;}
-.stats-inner{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:14px 20px;display:flex;gap:0;justify-content:space-around;}
-.sbi{text-align:center;flex:1;border-left:1px solid var(--border);}
-.sbi:last-child{border-left:none;}
-.sbi-n{font-size:1.2rem;font-weight:900;color:var(--ac);margin-bottom:2px;}
-.sbi-l{font-size:.65rem;color:var(--t3);}
-
-/* TABS */
-.tabs-wrap{max-width:900px;margin:0 auto;padding:0 16px;margin-bottom:16px;}
-.tabs{display:flex;gap:6px;border-bottom:1px solid var(--border);padding-bottom:0;}
-.tab{padding:10px 16px;font-size:.78rem;font-weight:700;color:var(--t2);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .2s;}
-.tab:hover{color:var(--t);}
-.tab.active{color:var(--ac);border-bottom-color:var(--ac);}
-
-/* MAIN CONTENT */
-.content{max-width:900px;margin:0 auto;padding:0 16px 40px;}
-.grid-2{display:grid;grid-template-columns:1fr 320px;gap:16px;}
-
-/* JOB CARD */
-.job-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:16px 18px;margin-bottom:10px;transition:all .2s;cursor:pointer;}
-.job-card:hover{border-color:rgba(37,99,255,.25);transform:translateY(-1px);}
-.job-title{font-size:.92rem;font-weight:800;margin-bottom:3px;}
-.job-meta{display:flex;gap:10px;font-size:.7rem;color:var(--t2);margin-bottom:8px;}
-.job-tags{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px;}
-.jtag{padding:2px 8px;border-radius:20px;font-size:.64rem;font-weight:700;}
-.jtag-blue{background:rgba(37,99,255,.1);color:#60a5fa;}
-.jtag-green{background:rgba(0,200,150,.1);color:#00c896;}
-.jtag-gray{background:rgba(255,255,255,.06);color:var(--t2);}
-.job-footer{display:flex;align-items:center;justify-content:space-between;}
-.job-salary{font-size:.78rem;font-weight:800;color:var(--ac);}
-.job-date{font-size:.65rem;color:var(--t3);}
-.apply-btn{padding:7px 16px;border-radius:9px;border:none;background:linear-gradient(135deg,var(--ac),var(--ac2));color:#fff;font-family:'Cairo',sans-serif;font-size:.73rem;font-weight:800;cursor:pointer;transition:all .2s;}
-.apply-btn:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(37,99,255,.35);}
-.apply-btn.applied{background:rgba(0,200,150,.15);color:#00c896;border:1px solid rgba(0,200,150,.3);}
-
-/* ABOUT CARD */
-.about-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:18px;}
-.ac-title{font-size:.78rem;font-weight:800;color:var(--t);margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--border);}
-.ac-item{display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);align-items:flex-start;}
-.ac-item:last-child{border-bottom:none;}
-.ac-icon{font-size:1rem;width:20px;flex-shrink:0;margin-top:1px;}
-.ac-key{font-size:.68rem;color:var(--t3);margin-bottom:2px;}
-.ac-val{font-size:.76rem;font-weight:700;color:var(--t);}
-.ac-val a{color:var(--ac);text-decoration:none;}
-
-/* FOLLOWERS */
-.followers-wrap{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:16px;margin-top:14px;}
-.fw-avatars{display:flex;margin-bottom:8px;}
-.fw-ava{width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,var(--ac),var(--ac2));border:2px solid var(--bg);margin-left:-8px;display:flex;align-items:center;justify-content:center;font-size:.7rem;}
-.fw-count{font-size:.74rem;color:var(--t2);font-weight:700;}
-
-/* RATING */
-.rating-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:16px;margin-top:14px;}
-.stars{display:flex;gap:3px;font-size:1.1rem;margin-bottom:6px;}
-.rating-n{font-size:1.6rem;font-weight:900;color:var(--ac);}
-.rating-sub{font-size:.65rem;color:var(--t3);margin-top:2px;}
-.bar-row{display:flex;align-items:center;gap:8px;margin-bottom:4px;}
-.bar-label{font-size:.65rem;color:var(--t3);width:30px;text-align:left;}
-.bar-track{flex:1;height:5px;background:rgba(255,255,255,.08);border-radius:10px;overflow:hidden;}
-.bar-fill{height:100%;border-radius:10px;background:linear-gradient(90deg,var(--ac),var(--ac2));}
-
-/* POST CARD */
-.post-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:16px 18px;margin-bottom:10px;}
-.post-head{display:flex;align-items:center;gap:10px;margin-bottom:12px;}
-.post-ava{width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,var(--ac),var(--ac2));display:flex;align-items:center;justify-content:center;font-size:.9rem;flex-shrink:0;}
-.post-nm{font-size:.78rem;font-weight:800;}
-.post-date{font-size:.63rem;color:var(--t3);}
-.post-body{font-size:.78rem;color:var(--t2);line-height:1.6;margin-bottom:10px;}
-.post-actions{display:flex;gap:12px;}
-.pa{font-size:.7rem;color:var(--t3);cursor:pointer;transition:color .2s;display:flex;align-items:center;gap:4px;}
-.pa:hover{color:var(--ac);}
-
-/* Empty */
-.empty{text-align:center;padding:40px 20px;color:var(--t2);}
-.empty .ei{font-size:2.5rem;margin-bottom:10px;}
-.empty p{font-size:.78rem;}
-
-/* Modal */
-.overlay{position:fixed;inset:0;z-index:2000;background:rgba(0,0,0,.78);display:flex;align-items:center;justify-content:center;padding:16px;opacity:0;pointer-events:none;transition:opacity .2s;}
-.overlay.show{opacity:1;pointer-events:all;}
-.modal{background:#0a0f1e;border:1px solid rgba(255,255,255,.1);border-radius:20px;width:100%;max-width:480px;max-height:88vh;overflow-y:auto;padding:24px;font-family:'Cairo',sans-serif;transform:translateY(12px);transition:transform .2s;}
-.overlay.show .modal{transform:translateY(0);}
-.modal-title{font-size:.95rem;font-weight:800;color:#fff;margin-bottom:18px;}
-.mf{margin-bottom:12px;}
-.mf label{display:block;font-size:.72rem;font-weight:700;color:rgba(255,255,255,.45);margin-bottom:4px;}
-.mf input,.mf textarea,.mf select{width:100%;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:'Cairo',sans-serif;font-size:.82rem;outline:none;transition:border-color .2s;direction:rtl;}
-.mf input:focus,.mf textarea:focus{border-color:var(--ac);}
-.mf textarea{resize:vertical;min-height:80px;}
-.mrow{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
-.mact{display:flex;gap:8px;margin-top:16px;}
-.mbtn{flex:1;padding:10px;border:none;border-radius:10px;font-family:'Cairo',sans-serif;font-size:.82rem;font-weight:700;cursor:pointer;transition:all .2s;}
-.mbtn-ok{background:linear-gradient(135deg,var(--ac),var(--ac2));color:#fff;}
-.mbtn-no{background:rgba(255,255,255,.07);color:rgba(255,255,255,.55);}
-
-@media(max-width:700px){
-  .grid-2{grid-template-columns:1fr;}
-  .ph-card{flex-direction:column;align-items:center;text-align:center;}
-  .ph-top{justify-content:center;}
-  .co-meta{justify-content:center;}
-  .ph-actions{justify-content:center;}
-  .stats-inner{flex-wrap:wrap;gap:10px;}
-  .sbi{border-left:none;border-top:1px solid var(--border);padding-top:10px;}
-  .sbi:first-child{border-top:none;}
-}
-
-
-/* ══ ITQAN - Shared Utilities ══ */
-@keyframes tw-shimmer{0%{background-position:-1000px 0}100%{background-position:1000px 0}}
-@keyframes tw-spin{to{transform:translateY(-50%) rotate(360deg);}}
-@keyframes tw-fadein{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:none;}}
-@keyframes tw-verified{0%,100%{box-shadow:0 0 0 0 rgba(0,200,150,0);}50%{box-shadow:0 0 0 5px rgba(0,200,150,.15);}}
-.tw-toast[aria-live="polite"]{position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(20px);background:rgba(7,11,24,.97);border:1px solid rgba(255,255,255,.1);backdrop-filter:blur(20px);border-radius:14px;padding:12px 20px;display:flex;align-items:center;gap:10px;font-size:.82rem;font-family:Cairo,sans-serif;color:rgba(255,255,255,.92);opacity:0;transition:all .3s cubic-bezier(.34,1.56,.64,1);z-index:9999;white-space:nowrap;min-width:180px;justify-content:center;box-shadow:0 8px 32px rgba(0,0,0,.4);}
-.tw-toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
-.tw-toast.success{border-color:rgba(0,200,150,.3);}
-.tw-toast.error{border-color:rgba(239,68,68,.3);}
-.tw-toast.info{border-color:rgba(37,99,255,.3);}
-.tw-skeleton{background:linear-gradient(90deg,rgba(255,255,255,.04) 25%,rgba(255,255,255,.09) 50%,rgba(255,255,255,.04) 75%);background-size:2000px 100%;animation:tw-shimmer 1.5s infinite linear;border-radius:8px;}
-.tw-btn-loading{position:relative;pointer-events:none;opacity:.8;}
-.tw-btn-loading::after{content:'';position:absolute;width:14px;height:14px;border-radius:50%;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;animation:tw-spin .7s linear infinite;right:12px;top:50%;transform:translateY(-50%);}
-.tw-scroll-prog{position:fixed;top:0;left:0;height:2px;z-index:999;background:linear-gradient(90deg,var(--ac,#00c896),var(--ac2,#2563ff));transition:width .1s;width:0%;}
-.tw-fab{position:fixed;bottom:80px;left:18px;width:50px;height:50px;border-radius:50%;border:none;font-size:1.4rem;background:linear-gradient(135deg,var(--ac,#00c896),var(--ac2,#2563ff));color:#fff;cursor:pointer;box-shadow:0 4px 20px rgba(0,200,150,.35);transition:all .25s cubic-bezier(.34,1.56,.64,1);z-index:50;display:flex;align-items:center;justify-content:center;}
-.tw-fab:hover{transform:scale(1.12) rotate(90deg);}
-.tw-empty{text-align:center;padding:50px 20px;}
-.tw-empty-ico{font-size:2.5rem;margin-bottom:12px;opacity:.7;display:block;}
-.tw-empty-title{font-size:.95rem;font-weight:800;margin-bottom:6px;}
-.tw-empty-sub{font-size:.78rem;color:rgba(255,255,255,.35);margin-bottom:18px;line-height:1.6;}
-.tw-empty-btn{padding:10px 22px;border-radius:12px;background:linear-gradient(135deg,var(--ac,#00c896),var(--ac2,#2563ff));border:none;color:#fff;font-family:Cairo,sans-serif;font-weight:700;font-size:.8rem;cursor:pointer;}
-.tw-card-lift{transition:transform .2s,box-shadow .2s;}
-.tw-card-lift:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.3);}
-.tw-verified{animation:tw-verified 2.5s ease-in-out infinite;}
-
-
-/* ══ View Mode Visibility System — Rule #21 ══ */
-/* Default (no body class yet): hide everything role-specific to prevent flash */
-.owner-only   { display: none !important; }
-.visitor-only { display: none !important; }
-.guest-cta    { display: none !important; }
-
-/* Owner view: show owner controls only */
-body.view-owner  .owner-only   { display: flex !important; }
-body.view-owner  .owner-only.tab { display: inline-flex !important; }
-
-/* Public-user view: show visitor controls */
-body.public-view .visitor-only { display: flex !important; }
-
-/* Guest view: show visitor controls + login CTA */
-body.view-guest  .visitor-only { display: flex !important; }
-body.view-guest  .guest-cta    { display: flex !important; }
-
-/* Loading state: hide actions until viewMode resolved */
-body.co-loading .owner-only,
-body.co-loading .visitor-only { display: none !important; }
-
-</style>
-<style>.skip-link{position:absolute;top:-40px;right:0;background:var(--ac,#00c896);color:#0d1a2e;padding:8px 16px;border-radius:0 0 8px 0;font-family:Cairo,sans-serif;font-size:.8rem;font-weight:700;text-decoration:none;transition:top .2s;z-index:10000}.skip-link:focus{top:0}</style><a href="#main-content" class="skip-link">تخطى للمحتوى الرئيسي</a><link rel="stylesheet" href="/static/tw_shared.css">
+<link rel="stylesheet" href="/static/company/company.css">
+<link rel="stylesheet" href="/static/tw_shared.css">
 </head>
 <body>
 <!--
 ╔══════════════════════════════════════════════╗
 ║  TAWASALNA - COMPANY-PROFILE                 ║
-║  Architecture: Hybrid                        ║
-║  Last Modified: 2026-05                      ║
-║  DO NOT EDIT outside designated sections     ║
+║  Architecture: Modular (static/company/)     ║
+║  Refactored: PR #224 — HTML structure only   ║
+║  DO NOT add <script> or <style> blocks here  ║
 ╚══════════════════════════════════════════════╝
 -->
 
+<a href="#main-content" class="skip-link">تخطى للمحتوى الرئيسي</a>
 
 <!-- ██ NAVBAR SECTION ██ -->
 <nav class="nav">
-  <div class="nav-logo"><img src="https://wrxvmdmknhoufoeprpoc.supabase.co/storage/v1/object/public/site/Logo.svg" alt="تواصلنا" style="height:36px;width:auto;object-fit:contain;display:block"></div>
+  <div class="nav-logo"><img src="https://wrxvmdmknhoufoeprpoc.supabase.co/storage/v1/object/public/site/Logo.svg" alt="تواصلنا" class="nav-logo-img"></div>
 
   <!-- Owner quick actions -->
-  <div id="ownerActions" class="owner-only" style="align-items:center;gap:6px">
-    <button class="nb nb-primary" onclick="openPostJob()">+ نشر وظيفة</button>
-    <button class="nb nb-ghost" onclick="openEditModal()">✏️ تعديل</button>
-    <button class="nb nb-ghost" onclick="toggleMenu(event)" id="menuBtn">☰ القائمة</button>
+  <div id="ownerActions" class="owner-only nav-owner-actions">
+    <button id="postJobBtn" class="nb nb-primary">+ نشر وظيفة</button>
+    <button id="editBtn" class="nb nb-ghost">✏️ تعديل</button>
+    <button id="menuBtn" class="nb nb-ghost">☰ القائمة</button>
   </div>
 
-  <div style="flex:1"></div>
+  <div class="nav-spacer"></div>
 
   <!-- Logout for non-owners -->
-  <button id="visitorLogout" class="nb" onclick="doLogout()" style="background:rgba(239,68,68,.1);color:#f87171;border:1px solid rgba(239,68,68,.2)">خروج</button>
+  <button id="visitorLogout" class="nb nb-danger">خروج</button>
 </nav>
 
 <!-- Dropdown outside nav (fixes stacking context) -->
-<div id="dropMenu" style="display:none;position:fixed;top:52px;z-index:9999;background:#0d1526;border:1px solid rgba(255,255,255,.1);border-radius:13px;padding:6px;min-width:180px;box-shadow:0 10px 30px rgba(0,0,0,.6)">
+<div id="dropMenu" class="drop-menu">
   <a class="drop-item" href="company.html">🔍 بحث عن موظفين</a>
   <a class="drop-item" href="#">👥 موظفو الشركة</a>
   <a class="drop-item" href="/messages">💬 الرسائل</a>
   <a class="drop-item" href="notifications.html">🔔 الإشعارات</a>
   <a class="drop-item" href="settings.html">⚙️ الإعدادات</a>
-  <div style="height:1px;background:rgba(255,255,255,.08);margin:4px 0"></div>
-  <a class="drop-item" onclick="doLogout()" style="color:#f87171;cursor:pointer">🚪 خروج</a>
+  <div class="drop-divider"></div>
+  <a id="dropLogout" class="drop-item drop-item-danger">🚪 خروج</a>
 </div>
 
 <!-- HERO -->
@@ -290,10 +62,10 @@ body.co-loading .visitor-only { display: none !important; }
   <div class="hero-bg" id="heroBg"></div>
   <div class="hero-orb ho1"></div>
   <div class="hero-orb ho2"></div>
-  <img loading="lazy" id="coverImg" src="" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:none;opacity:0;transition:opacity .4s">
+  <img loading="lazy" id="coverImg" src="" alt="" class="cover-img">
   <!-- Upload button (owner only) -->
   <label id="coverUploadBtn" class="cover-upload-btn owner-only" title="رفع صورة الغلاف">
-    <input type="file" accept="image/*" onchange="uploadCover(this)" style="display:none">
+    <input id="coverFileInput" type="file" accept="image/*" class="file-input-hidden">
     📷 تغيير صورة الغلاف
   </label>
 </div>
@@ -312,12 +84,12 @@ body.co-loading .visitor-only { display: none !important; }
             <div class="co-meta-item" id="coLoc">📍 —</div>
             <div class="co-meta-item" id="coFounded">📅 —</div>
             <div class="co-meta-item" id="coSize">👥 —</div>
-            <div class="co-meta-item" id="coWebsite" style="display:none">🌐 <a href="#" id="coWebsiteLink" target="_blank">الموقع</a></div>
+            <div class="co-meta-item" id="coWebsite">🌐 <a href="#" id="coWebsiteLink" target="_blank">الموقع</a></div>
           </div>
         </div>
         <div class="ph-actions visitor-only" id="visitorActions">
-          <button class="nb nb-follow" id="followBtn" onclick="toggleFollow()">+ متابعة</button>
-          <button class="nb nb-ghost" onclick="openContact()">💬 تواصل</button>
+          <button class="nb nb-follow" id="followBtn">+ متابعة</button>
+          <button id="contactBtn" class="nb nb-ghost">💬 تواصل</button>
         </div>
       </div>
     </div>
@@ -337,15 +109,15 @@ body.co-loading .visitor-only { display: none !important; }
 <!-- TABS -->
 <div class="tabs-wrap">
   <div class="tabs">
-    <div class="tab active" onclick="switchTab('jobs',this)">💼 الوظائف</div>
-    <div class="tab" onclick="switchTab('posts',this)">📢 المنشورات</div>
-    <div class="tab" onclick="switchTab('about',this)">ℹ️ عن الشركة</div>
-    <div class="tab owner-only" onclick="switchTab('ratings',this)" style="display:none">⭐ التقييمات</div>
+    <div class="tab active" data-tab="jobs">💼 الوظائف</div>
+    <div class="tab" data-tab="posts">📢 المنشورات</div>
+    <div class="tab" data-tab="about">ℹ️ عن الشركة</div>
+    <div class="tab owner-only" data-tab="ratings">⭐ التقييمات</div>
   </div>
 </div>
 
 <!-- CONTENT -->
-<div class="content">
+<div class="content" id="main-content">
 
   <!-- JOBS TAB -->
   <div id="tab-jobs">
@@ -365,7 +137,7 @@ body.co-loading .visitor-only { display: none !important; }
               <div class="job-salary">800 - 1200 دينار/شهر</div>
               <div class="job-date">آخر تقديم: 30 مايو 2025</div>
             </div>
-            <button class="apply-btn" onclick="applyJob(this)">تقديم ←</button>
+            <button class="apply-btn">تقديم ←</button>
           </div>
         </div>
         <div class="job-card tw-card-lift">
@@ -381,7 +153,7 @@ body.co-loading .visitor-only { display: none !important; }
               <div class="job-salary">600 - 900 دينار/شهر</div>
               <div class="job-date">آخر تقديم: 25 مايو 2025</div>
             </div>
-            <button class="apply-btn" onclick="applyJob(this)">تقديم ←</button>
+            <button class="apply-btn">تقديم ←</button>
           </div>
         </div>
       </div>
@@ -411,16 +183,15 @@ body.co-loading .visitor-only { display: none !important; }
         <!-- Rating -->
         <div class="rating-card">
           <div class="ac-title">تقييم الموظفين</div>
-          <!-- Display (Phase 1: from companyState.stats) -->
           <div class="stars" id="ratingStarsDisplay">☆☆☆☆☆</div>
-          <div style="display:flex;align-items:baseline;gap:6px">
+          <div class="rating-nums">
             <div class="rating-n" id="ratingNum">—</div>
             <div class="rating-sub" id="ratingSub">لا تقييمات بعد</div>
           </div>
-          <!-- Interactive (Phase 2: emp rates — visitor-only) -->
-          <div class="rate-interactive visitor-only" id="rateBox" style="margin-top:14px;border-top:1px solid var(--bd);padding-top:12px">
-            <div style="font-size:.72rem;color:var(--t2);margin-bottom:6px" id="ratePrompt">قيّم هذه الشركة:</div>
-            <div class="rate-stars" id="rateStars" style="display:flex;gap:4px;font-size:1.6rem;cursor:pointer;direction:ltr">
+          <!-- Interactive (visitor-only) -->
+          <div class="rate-interactive visitor-only" id="rateBox">
+            <div id="ratePrompt">قيّم هذه الشركة:</div>
+            <div class="rate-stars" id="rateStars">
               <span data-score="1">☆</span><span data-score="2">☆</span><span data-score="3">☆</span><span data-score="4">☆</span><span data-score="5">☆</span>
             </div>
           </div>
@@ -430,22 +201,20 @@ body.co-loading .visitor-only { display: none !important; }
   </div>
 
   <!-- POSTS TAB -->
-  <div id="tab-posts" style="display:none">
-    <!-- Step 5-1: create post button (owner-only) -->
-    <div class="owner-only" style="margin-bottom:14px">
-      <button class="nb nb-primary" onclick="openPostModal()">📢 نشر منشور</button>
+  <div id="tab-posts">
+    <div class="owner-only posts-owner-bar">
+      <button id="postModalBtn" class="nb nb-primary">📢 نشر منشور</button>
     </div>
-    <!-- Posts rendered from API by renderPosts() (Phase 3) -->
     <div id="postsList"></div>
-    <div id="postsEmpty" style="display:none;text-align:center;color:var(--t3);padding:30px 0">لا منشورات بعد</div>
+    <div id="postsEmpty">لا منشورات بعد</div>
   </div>
 
   <!-- ABOUT TAB -->
-  <div id="tab-about" style="display:none">
+  <div id="tab-about">
     <div class="grid-2">
       <div class="about-card">
         <div class="ac-title">عن الشركة</div>
-        <div style="font-size:.8rem;color:var(--t2);line-height:1.7;margin-bottom:16px" id="aboutDesc">لا يوجد وصف مفصل بعد.</div>
+        <div id="aboutDesc">لا يوجد وصف مفصل بعد.</div>
         <div class="ac-item"><span class="ac-icon">🏢</span><div><div class="ac-key">نوع الجهة</div><div class="ac-val" id="aboutType">شركة خاصة</div></div></div>
         <div class="ac-item"><span class="ac-icon">📍</span><div><div class="ac-key">الموقع</div><div class="ac-val" id="aboutLoc">—</div></div></div>
         <div class="ac-item"><span class="ac-icon">📅</span><div><div class="ac-key">سنة التأسيس</div><div class="ac-val" id="aboutFounded">—</div></div></div>
@@ -467,7 +236,7 @@ body.co-loading .visitor-only { display: none !important; }
 </div>
 
 <!-- EDIT MODAL (owner only) -->
-<div class="overlay" id="editOverlay" onclick="closeEdit(event)">
+<div class="overlay" id="editOverlay">
   <div class="modal">
     <div class="modal-title">✏️ تعديل ملف الشركة</div>
     <div class="mf"><label>اسم الشركة</label><input id="e-name" placeholder="اسم الشركة..."></div>
@@ -503,357 +272,76 @@ body.co-loading .visitor-only { display: none !important; }
     <div class="mf"><label>الموقع الإلكتروني</label><input id="e-web" placeholder="https://..."></div>
     <div class="mf"><label>البريد الإلكتروني للتواصل</label><input id="e-email" placeholder="info@company.com"></div>
     <div class="mact">
-      <button class="mbtn mbtn-ok" onclick="saveEdit()">حفظ</button>
-      <button class="mbtn mbtn-no" onclick="document.getElementById('editOverlay').classList.remove('show')">إلغاء</button>
+      <button id="editSaveBtn" class="mbtn mbtn-ok">حفظ</button>
+      <button id="editCancelBtn" class="mbtn mbtn-no">إلغاء</button>
     </div>
   </div>
 </div>
 
 <!-- CONTACT MODAL -->
-<div class="overlay" id="contactOverlay" onclick="closeContact(event)">
+<div class="overlay" id="contactOverlay">
   <div class="modal">
     <div class="modal-title">💬 التواصل مع الشركة</div>
-    <p style="font-size:.8rem;color:var(--t2);margin-bottom:16px">أرسل رسالة للشركة وسيصلها إشعار.</p>
-    <div class="mf"><label>رسالتك</label><input id="msg-subject" placeholder="الموضوع" style="width:100%;padding:10px 14px;border-radius:10px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);color:#fff;font-family:Cairo,sans-serif;margin-bottom:8px">
-      <textarea id="msg-body" id="c-msg" placeholder="اكتب رسالتك هنا..." style="min-height:100px"></textarea></div>
+    <p class="modal-hint-text">أرسل رسالة للشركة وسيصلها إشعار.</p>
+    <div class="mf"><label>رسالتك</label><input id="msg-subject" placeholder="الموضوع">
+      <textarea id="msg-body" placeholder="اكتب رسالتك هنا..."></textarea></div>
     <div class="mact">
-      <button class="mbtn mbtn-ok" onclick="sendMsg()">إرسال</button>
-      <button class="mbtn mbtn-no" onclick="document.getElementById('contactOverlay').classList.remove('show')">إلغاء</button>
+      <button id="contactSendBtn" class="mbtn mbtn-ok">إرسال</button>
+      <button id="contactCancelBtn" class="mbtn mbtn-no">إلغاء</button>
     </div>
   </div>
 </div>
 
-<script src="/tw_shared.js"></script>
-<script>
-(function() {
-
-// ════════════════════════════════════════════════════════════
-// COMPANY PROFILE — Core Engine
-// Rule #19: companyState is the Single Source of Truth
-// Rule #21: API → State → Render → Events (strict pipeline)
-// ════════════════════════════════════════════════════════════
-
-// ── Bootstrap guard (Rule #10) ──
-window.__companyBooted = false;
-
-// ── AbortController for duplicate request prevention ──
-let _loadController = null;
-
-// ── companyState — initial shape (Rule #19) ──
-window.companyState = {
-  profile: {
-    id: null, tw_id: null, full_name: null, user_type: null,
-    bio: null, location: null, avatar_url: null,
-    website: null, phone: null, is_verified: false,
-  },
-  company: {
-    company_type: null, founded_year: null, company_size: null,
-    cover_url: null, industry: null, headquarters: null, contact_email: null,
-  },
-  jobs: [],
-  stats: { jobs_count: 0, followers_count: 0, verified_count: 0, rating_avg: null },
-  permissions: {
-    is_owner: false, can_edit: false, can_post_jobs: false,
-    can_follow: false, can_rate: false,
-  },
-  viewMode: 'guest',
-};
-
-// ════════════════════════════════════════════════════════════
-// STATE LAYER — _mergeCompanyState (atomic replacement)
-// ════════════════════════════════════════════════════════════
-function _mergeCompanyState(apiResponse) {
-  // Atomic: replaces top-level keys entirely — no partial updates
-  // Called ONLY from loadData() — never from UI events
-  if (!apiResponse || apiResponse.status !== 'success') return;
-  companyState.profile     = apiResponse.profile     || {};
-  companyState.company     = apiResponse.company     || {};
-  companyState.jobs        = apiResponse.jobs        || [];
-  companyState.stats       = apiResponse.stats       || companyState.stats;
-  companyState.permissions = apiResponse.permissions || {};
-  companyState.viewMode    = apiResponse.viewer_type || 'guest';
-}
-
-// ════════════════════════════════════════════════════════════
-// VIEW MODE — _applyViewMode (CSS setter only)
-// ════════════════════════════════════════════════════════════
-function _applyViewMode() {
-  // Pure CSS class setter — no logic, no DOM reads
-  // Called once after _mergeCompanyState — never from events
-  const vm = companyState.viewMode;
-  document.body.classList.remove('view-owner', 'public-view', 'view-guest');
-  if      (vm === 'owner')       document.body.classList.add('view-owner');
-  else if (vm === 'public-user') document.body.classList.add('public-view');
-  else                           document.body.classList.add('view-guest');
-}
-
-// ════════════════════════════════════════════════════════════
-// RENDER LAYER — pure functions, read companyState only
-// ════════════════════════════════════════════════════════════
-
-function renderProfile() {
-  // Pure: reads companyState.profile → writes DOM. No API, no state mutation.
-  const p = companyState.profile;
-  const name = p.full_name || '—';
-
-  _setText('coName', name);
-  _setText('coDesc', p.bio || 'لا يوجد وصف بعد.');
-  _setText('coLoc',  p.location ? '📍 ' + p.location : '📍 —');
-  document.querySelectorAll('[id^="postCoName"]').forEach(el => el.textContent = name);
-
-  // Logo
-  const logoEl = document.getElementById('coLogo');
-  if (logoEl && p.avatar_url) {
-    logoEl.innerHTML = '<img src="' + p.avatar_url +
-      '" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">';
-  }
-
-  // Verification badge
-  const badge = document.getElementById('coTypeBadge');
-  if (badge) badge.textContent = '🏢 ' + (companyState.company.company_type || 'شركة');
-}
-
-function renderStats() {
-  // Pure: reads companyState.stats → writes DOM. No hardcoded values.
-  const s = companyState.stats;
-  _setText('jobsCount',       s.jobs_count      ?? '—');
-  _setText('followersCount',  s.followers_count ?? '—');
-  _setText('followersCount2', s.followers_count ?? '—');
-  _setText('ratingAvg',       s.rating_avg      ?? '—');
-  _setText('verifiedCount',   s.verified_count  ?? '—');
-}
-
-function renderJobs() {
-  // Pure: reads companyState.jobs → writes DOM.
-  const jobsList = document.getElementById('jobsList');
-  if (!jobsList) return;
-
-  if (!companyState.jobs.length) {
-    jobsList.innerHTML =
-      '<div class="tw-empty"><span class="tw-empty-ico">💼</span>' +
-      '<div class="tw-empty-title">لا توجد وظائف مفتوحة</div></div>';
-    return;
-  }
-
-  jobsList.innerHTML = companyState.jobs.map(j => {
-    const canApply = companyState.viewMode !== 'owner';
-    return '<div class="job-card tw-card-lift" data-jid="' + j.id + '">' +
-      '<div class="job-title">' + _esc(j.title) + '</div>' +
-      '<div class="job-meta"><span>📍 ' + _esc(j.location || '—') + '</span>' +
-      '<span>⏰ ' + _esc(j.job_type || '—') + '</span></div>' +
-      '<div class="job-footer">' +
-      (j.salary_min ? '<div class="job-salary">' + j.salary_min +
-        (j.salary_max ? ' - ' + j.salary_max : '') + '</div>' : '<div></div>') +
-      (canApply
-        ? '<button class="apply-btn" data-jid="' + j.id + '">تقديم ←</button>'
-        : '<span style="font-size:.7rem;color:var(--t3)">وظيفتك</span>') +
-      '</div></div>';
-  }).join('');
-}
-
-function renderAll() {
-  // Orchestrator: calls all render functions in order.
-  // Pure pipeline — no API calls, no state mutation.
-  renderProfile();
-  renderStats();
-  renderJobs();
-  // Step 5a: sync follow button from companyState (defined in company-profile.js)
-  if (window.renderFollowBtn) renderFollowBtn();
-  // Step 5b: sync rating display from companyState
-  if (window.renderRating) renderRating();
-}
-
-// ════════════════════════════════════════════════════════════
-// EVENTS — bindEvents (idempotent)
-// ════════════════════════════════════════════════════════════
-function bindEvents() {
-  // Idempotent: uses data-bound attribute to prevent double binding.
-  // Called after renderAll() — never before.
-  const jobsList = document.getElementById('jobsList');
-  if (jobsList && !jobsList.dataset.bound) {
-    jobsList.dataset.bound = '1';
-    jobsList.addEventListener('click', function(e) {
-      // Job card navigation
-      const card = e.target.closest('[data-jid]');
-      if (!card) return;
-      // Apply button
-      if (e.target.classList.contains('apply-btn')) {
-        e.stopPropagation();
-        _applyJob(e.target, card.dataset.jid);
-        return;
-      }
-      // Card click → job detail
-      window.location.href = 'job-detail.html?id=' + card.dataset.jid;
-    });
-  }
-  // Step 5b: bind interactive rating stars (idempotent)
-  if (window.bindRateStars) bindRateStars();
-}
-
-// ════════════════════════════════════════════════════════════
-// FETCH LAYER — loadData (AbortController + JWT)
-// ════════════════════════════════════════════════════════════
-function loadData() {
-  // Abort any in-flight request before starting new one
-  if (_loadController) _loadController.abort();
-  _loadController = new AbortController();
-
-  const urlParams  = new URLSearchParams(window.location.search);
-  const coId       = urlParams.get('id');
-  const jwt        = localStorage.getItem('tw_jwt') || '';
-  const headers    = { 'Content-Type': 'application/json' };
-  if (jwt) headers['Authorization'] = 'Bearer ' + jwt;
-
-  if (!coId) {
-    console.warn('[Company] No company id in URL');
-    return;
-  }
-
-  fetch('/company/profile/' + coId, {
-    headers: headers,
-    signal:  _loadController.signal,
-  })
-  .then(function(r) { return r.json(); })
-  .then(function(data) {
-    // ── DIAGNOSTIC LOGS (requested) ──
-    _mergeCompanyState(data);
-    // PIPELINE: merge → viewMode → render → events
-    _applyViewMode();
-    renderAll();
-    bindEvents();
-    // Jobs: separate endpoint (Option B) — fills companyState.jobs then re-renders
-    if (window.loadJobs) loadJobs();
-  })
-  .catch(function(err) {
-    if (err.name === 'AbortError') return; // intentional abort — no action
-    console.error('[Company] loadData error:', err);
-  })
-  .finally(function() {
-    // Always clear loading — even if render throws (prevents stuck co-loading)
-    _applyLoadingState(false);
-    _loadController = null;
-  });
-}
-
-// ════════════════════════════════════════════════════════════
-// BOOTSTRAP — initCompanyProfile (idempotent)
-// ════════════════════════════════════════════════════════════
-function initCompanyProfile() {
-  // Rule #10: Bootstrap Idempotency — runs exactly once
-  if (window.__companyBooted) return;
-  window.__companyBooted = true;
-
-  _applyLoadingState(true);
-  loadData();
-}
-
-// ════════════════════════════════════════════════════════════
-// HELPERS
-// ════════════════════════════════════════════════════════════
-function _applyLoadingState(loading) {
-  document.body.classList.toggle('co-loading', loading);
-}
-
-function _setText(id, value) {
-  const el = document.getElementById(id);
-  if (el) el.textContent = value;
-}
-
-function _esc(str) {
-  return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-}
-
-function _jwt() {
-  return localStorage.getItem('tw_jwt') || '';
-}
-
-function _applyJob(btn, jobId) {
-  if (!jobId) return;
-  if (!_jwt()) { window.location.href = '/'; return; }
-  btn.disabled = true; btn.textContent = 'جاري...';
-  fetch('/jobs/' + jobId + '/apply', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + _jwt() },
-    body: JSON.stringify({ cover_letter: '' }),
-  })
-  .then(function(r) { return r.json(); })
-  .then(function(data) {
-    btn.textContent = data.already_applied ? '✓ قدّمت مسبقاً' : '✓ تم التقديم';
-    btn.classList.add('applied');
-  })
-  .catch(function() {
-    btn.disabled = false; btn.textContent = 'تقديم ←';
-  });
-}
-
-
-
-// ── Expose pipeline to window (for company-profile.js access) ──
-window.loadData           = loadData;
-window.renderAll          = renderAll;
-window._mergeCompanyState = _mergeCompanyState;
-window._applyViewMode     = _applyViewMode;
-window._applyLoadingState = _applyLoadingState;
-window._jwt               = _jwt;
-window._setText           = _setText;
-window._esc               = _esc;
-window._applyJob          = _applyJob;
-window.initCompanyProfile = initCompanyProfile;
-})();
-</script>
-
 <!-- POST JOB MODAL -->
-<div class="overlay" id="postJobOverlay" onclick="if(event.target===this)this.classList.remove('show')">
-  <div class="modal" style="max-width:520px">
+<div class="overlay" id="postJobOverlay">
+  <div class="modal modal-lg">
     <div class="modal-title">💼 نشر وظيفة جديدة</div>
     <div class="mf"><label>المسمى الوظيفي *</label><input id="j-title" placeholder="مثال: مطور Full Stack..."></div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+    <div class="mrow">
       <div class="mf"><label>الموقع</label><input id="j-loc" placeholder="عمان، الأردن"></div>
       <div class="mf"><label>نوع الدوام</label>
-        <select id="j-type" style="width:100%;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:'Cairo',sans-serif;font-size:.82rem;outline:none;direction:rtl">
+        <select id="j-type">
           <option>دوام كامل</option><option>دوام جزئي</option><option>عن بُعد</option><option>هجين</option>
         </select>
       </div>
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+    <div class="mrow">
       <div class="mf"><label>الراتب من</label><input id="j-sal1" type="number" placeholder="800"></div>
       <div class="mf"><label>الراتب إلى</label><input id="j-sal2" type="number" placeholder="1200"></div>
     </div>
-    <div class="mf"><label>وصف الوظيفة</label><textarea id="j-desc" style="width:100%;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:'Cairo',sans-serif;font-size:.82rem;outline:none;resize:vertical;min-height:80px;direction:rtl" placeholder="اكتب وصف الوظيفة والمتطلبات..."></textarea></div>
+    <div class="mf"><label>وصف الوظيفة</label><textarea id="j-desc" placeholder="اكتب وصف الوظيفة والمتطلبات..."></textarea></div>
     <div class="mf"><label>المهارات المطلوبة (افصل بفاصلة)</label><input id="j-skills" placeholder="React, Python, SQL..."></div>
     <div class="mact">
-      <button class="mbtn mbtn-ok" onclick="publishJob()">نشر الوظيفة</button>
-      <button class="mbtn mbtn-no" onclick="document.getElementById('postJobOverlay').classList.remove('show')">إلغاء</button>
+      <button id="publishJobBtn" class="mbtn mbtn-ok">نشر الوظيفة</button>
+      <button id="postJobCancelBtn" class="mbtn mbtn-no">إلغاء</button>
     </div>
   </div>
 </div>
 
-
-<!-- Step 5-1: Create Post Modal (pattern from postJobOverlay) -->
-<div class="overlay" id="postOverlay" onclick="if(event.target===this)this.classList.remove('show')">
-  <div class="modal" style="max-width:520px">
+<!-- CREATE POST MODAL -->
+<div class="overlay" id="postOverlay">
+  <div class="modal modal-lg">
     <div class="modal-title">📢 نشر منشور جديد</div>
     <div class="mf"><label>المحتوى *</label>
-      <textarea id="p-body" rows="4" placeholder="اكتب منشورك هنا..." style="width:100%;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:'Cairo',sans-serif;font-size:.82rem;outline:none;direction:rtl;resize:vertical"></textarea>
+      <textarea id="p-body" rows="4" placeholder="اكتب منشورك هنا..."></textarea>
     </div>
     <div class="mf"><label>وسوم (افصل بفاصلة)</label>
       <input id="p-tags" placeholder="توظيف, خبر, إعلان...">
     </div>
     <div class="modal-btns">
-      <button class="mbtn mbtn-yes" onclick="createPost()">نشر</button>
-      <button class="mbtn mbtn-no" onclick="document.getElementById('postOverlay').classList.remove('show')">إلغاء</button>
+      <button id="createPostBtn" class="mbtn mbtn-yes">نشر</button>
+      <button id="postCancelBtn" class="mbtn mbtn-no">إلغاء</button>
     </div>
   </div>
 </div>
 
-
-<!-- Report Modal -->
-<div id="reportModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:300;align-items:flex-end;justify-content:center">
-  <div style="background:#0d1426;border-radius:20px 20px 0 0;padding:20px;width:100%;max-width:480px">
-    <div style="font-weight:800;font-size:.9rem;margin-bottom:12px">🚨 إبلاغ عن محتوى مخالف</div>
-    <div style="margin-bottom:10px">
-      <div style="font-size:.72rem;color:rgba(255,255,255,.4);margin-bottom:6px">نوع البلاغ</div>
-      <select id="reportType" style="width:100%;padding:9px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.05);color:#fff;font-family:Cairo,sans-serif;font-size:.78rem">
+<!-- REPORT MODAL -->
+<div id="reportModal" class="report-modal">
+  <div class="report-inner">
+    <div class="report-title">🚨 إبلاغ عن محتوى مخالف</div>
+    <div class="report-section">
+      <div class="report-label">نوع البلاغ</div>
+      <select id="reportType" class="report-select">
         <option value="sexual">محتوى جنسي</option>
         <option value="fraud">احتيال أو نصب</option>
         <option value="harassment">تحرش أو مضايقة</option>
@@ -861,46 +349,25 @@ window.initCompanyProfile = initCompanyProfile;
         <option value="other">أخرى</option>
       </select>
     </div>
-    <div style="margin-bottom:14px">
-      <div style="font-size:.72rem;color:rgba(255,255,255,.4);margin-bottom:6px">تفاصيل البلاغ</div>
-      <textarea id="reportReason" placeholder="اشرح سبب البلاغ..." rows="3" style="width:100%;padding:9px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.05);color:#fff;font-family:Cairo,sans-serif;font-size:.78rem;resize:none"></textarea>
+    <div class="report-section-reason">
+      <div class="report-label">تفاصيل البلاغ</div>
+      <textarea id="reportReason" class="report-textarea" placeholder="اشرح سبب البلاغ..." rows="3"></textarea>
     </div>
-    <div style="display:flex;gap:8px">
-      <button id="reportSubmitBtn" onclick="submitReport()" style="flex:1;padding:10px;border-radius:10px;border:none;background:linear-gradient(135deg,#dc2626,#7c3aed);color:#fff;font-family:Cairo,sans-serif;font-size:.8rem;font-weight:700;cursor:pointer">🚨 إرسال البلاغ</button>
-      <button onclick="closeReportModal()" style="padding:10px 16px;border-radius:10px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);color:rgba(255,255,255,.6);font-family:Cairo,sans-serif;font-size:.8rem;cursor:pointer">إلغاء</button>
+    <div class="report-actions">
+      <button id="reportSubmitBtn" class="report-submit-btn">🚨 إرسال البلاغ</button>
+      <button id="reportCancelBtn" class="report-cancel-btn">إلغاء</button>
     </div>
   </div>
 </div>
 
-
-<script src="/company-profile.js"></script>
-<script>
-(function() {
-// ── Bootstrap call (Rule #10) ──
-document.addEventListener('DOMContentLoaded', function() {
-  if (window.initScrollProg) initScrollProg();
-  if (window.initCompanyProfile) initCompanyProfile();
-});
-
-// ── Pull-to-refresh → loadData (not initCompanyProfile) ──
-var _ptr2Start = 0, _ptr2Active = false;
-document.addEventListener('touchstart', function(e) {
-  if (window.scrollY === 0) _ptr2Start = e.touches[0].clientY;
-}, { passive: true });
-document.addEventListener('touchend', function() {
-  if (_ptr2Active) { _ptr2Active = false; loadData(); }
-}, { passive: true });
-document.addEventListener('touchmove', function(e) {
-  if (window.scrollY === 0 && _ptr2Start > 0) {
-    var diff = e.touches[0].clientY - _ptr2Start;
-    if (diff > 70 && !_ptr2Active) {
-      _ptr2Active = true;
-      showToast('جاري التحديث...', 'info', 1500);
-    }
-  }
-}, { passive: true });
-
-})();
-</script>
+<!-- Scripts: load order matters — state → api → permissions → render → jobs → posts → main -->
+<script src="/tw_shared.js"></script>
+<script src="/static/company/company.state.js"></script>
+<script src="/static/company/company.api.js"></script>
+<script src="/static/company/company.permissions.js"></script>
+<script src="/static/company/company.render.js"></script>
+<script src="/static/company/company.jobs.js"></script>
+<script src="/static/company/company.posts.js"></script>
+<script src="/static/company/company.main.js"></script>
 </body>
 </html>
