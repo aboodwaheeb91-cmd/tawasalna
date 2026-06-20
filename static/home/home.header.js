@@ -12,9 +12,16 @@
     init: function () {
       var homeBtn = document.getElementById('hwHomeBtn');
       if (homeBtn) {
+        var user = window.Home.state.user || {};
+        var type = user.user_type || 'emp';
+        var profileUrl = type === 'co'  ? '/company-profile'
+                       : type === 'edu' ? '/edu-profile'
+                       : user.tw_id    ? '/u/' + user.tw_id
+                       : '/profile';
         homeBtn.addEventListener('click', function () {
-          window.scrollTo({ top: 0, behavior: 'smooth' });
+          location.href = profileUrl;
         });
+        homeBtn.title = 'ملفي';
       }
 
       var menuBtn  = document.getElementById('hwMenuBtn');

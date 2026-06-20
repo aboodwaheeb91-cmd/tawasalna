@@ -24,8 +24,9 @@
   align-items: center;
   justify-content: space-between;
   padding: 7px 16px;
-  position: sticky;
-  top: 0;
+  /* position/top intentionally omitted — each page sets its own:
+     Profile V2 → position:sticky in profile-v2.css
+     Home V2    → position:fixed  in home-v2.css            */
   z-index: 100;
   min-height: var(--ah-h);
   background: var(--ah-bg);
