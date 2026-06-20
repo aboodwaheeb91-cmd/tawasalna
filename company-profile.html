@@ -22,16 +22,18 @@
 ╔══════════════════════════════════════════════╗
 ║  TAWASALNA - COMPANY-PROFILE                 ║
 ║  Architecture: Modular (static/company/)     ║
-║  Refactored: PR #224 — HTML structure only   ║
+║  PR #224 refactor + PR #225 redesign         ║
 ║  DO NOT add <script> or <style> blocks here  ║
 ╚══════════════════════════════════════════════╝
 -->
 
 <a href="#main-content" class="skip-link">تخطى للمحتوى الرئيسي</a>
 
-<!-- ██ NAVBAR SECTION ██ -->
+<!-- ██ NAVBAR ██ -->
 <nav class="nav">
-  <div class="nav-logo"><img src="https://wrxvmdmknhoufoeprpoc.supabase.co/storage/v1/object/public/site/Logo.svg" alt="تواصلنا" class="nav-logo-img"></div>
+  <div class="nav-logo">
+    <img src="https://wrxvmdmknhoufoeprpoc.supabase.co/storage/v1/object/public/site/Logo.svg" alt="تواصلنا" class="nav-logo-img">
+  </div>
 
   <!-- Owner quick actions -->
   <div id="ownerActions" class="owner-only nav-owner-actions">
@@ -42,11 +44,10 @@
 
   <div class="nav-spacer"></div>
 
-  <!-- Logout for non-owners -->
   <button id="visitorLogout" class="nb nb-danger">خروج</button>
 </nav>
 
-<!-- Dropdown outside nav (fixes stacking context) -->
+<!-- Dropdown (outside nav — fixes stacking context) -->
 <div id="dropMenu" class="drop-menu">
   <a class="drop-item" href="company.html">🔍 بحث عن موظفين</a>
   <a class="drop-item" href="#">👥 موظفو الشركة</a>
@@ -57,56 +58,75 @@
   <a id="dropLogout" class="drop-item drop-item-danger">🚪 خروج</a>
 </div>
 
-<!-- HERO -->
+<!-- ██ HERO ██ -->
 <div class="hero" id="heroSection">
   <div class="hero-bg" id="heroBg"></div>
   <div class="hero-orb ho1"></div>
   <div class="hero-orb ho2"></div>
   <img loading="lazy" id="coverImg" src="" alt="" class="cover-img">
-  <!-- Upload button (owner only) -->
   <label id="coverUploadBtn" class="cover-upload-btn owner-only" title="رفع صورة الغلاف">
     <input id="coverFileInput" type="file" accept="image/*" class="file-input-hidden">
     📷 تغيير صورة الغلاف
   </label>
 </div>
 
-<!-- PROFILE HEADER -->
+<!-- ██ PROFILE HEADER ██ -->
 <div class="profile-header">
   <div class="ph-card">
+
     <div class="co-logo" id="coLogo">🏢</div>
+
     <div class="ph-info">
-      <div class="ph-top">
-        <div>
-          <div class="co-name" id="coName">اسم الشركة</div>
-          <div class="co-type-badge" id="coTypeBadge">🏢 شركة خاصة</div>
-          <div class="co-desc" id="coDesc">لا يوجد وصف بعد.</div>
-          <div class="co-meta">
-            <div class="co-meta-item" id="coLoc">📍 —</div>
-            <div class="co-meta-item" id="coFounded">📅 —</div>
-            <div class="co-meta-item" id="coSize">👥 —</div>
-            <div class="co-meta-item" id="coWebsite">🌐 <a href="#" id="coWebsiteLink" target="_blank">الموقع</a></div>
-          </div>
-        </div>
-        <div class="ph-actions visitor-only" id="visitorActions">
-          <button class="nb nb-follow" id="followBtn">+ متابعة</button>
-          <button id="contactBtn" class="nb nb-ghost">💬 تواصل</button>
-        </div>
+      <div class="ph-name-row">
+        <h1 class="co-name" id="coName">اسم الشركة</h1>
+        <span id="coVerifiedBadge" class="co-verified-badge">✓ موثق</span>
       </div>
+      <div class="co-type-badge" id="coTypeBadge">🏢 شركة</div>
+      <div class="co-desc" id="coDesc">لا يوجد وصف بعد.</div>
+      <div class="co-meta">
+        <div class="co-meta-item" id="coLoc">📍 —</div>
+        <div class="co-meta-item" id="coFounded">📅 —</div>
+        <div class="co-meta-item" id="coSize">👥 —</div>
+        <div class="co-meta-item" id="coWebsite">🌐 <a href="#" id="coWebsiteLink" target="_blank">الموقع</a></div>
+      </div>
+    </div>
+
+    <!-- Visitor actions (follow + contact) -->
+    <div class="ph-actions visitor-only" id="visitorActions">
+      <button class="nb nb-follow" id="followBtn">+ متابعة</button>
+      <button id="contactBtn" class="nb nb-ghost">💬 تواصل</button>
+    </div>
+
+  </div>
+</div>
+
+<!-- ██ STATS BAR ██ -->
+<div class="stats-bar">
+  <div class="stats-inner">
+    <div class="sbi">
+      <div class="sbi-ico">💼</div>
+      <div class="sbi-n" id="jobsCount">0</div>
+      <div class="sbi-l">وظيفة مفتوحة</div>
+    </div>
+    <div class="sbi">
+      <div class="sbi-ico">👥</div>
+      <div class="sbi-n" id="followersCount">0</div>
+      <div class="sbi-l">متابع</div>
+    </div>
+    <div class="sbi">
+      <div class="sbi-ico">⭐</div>
+      <div class="sbi-n" id="ratingAvg">—</div>
+      <div class="sbi-l">تقييم</div>
+    </div>
+    <div class="sbi">
+      <div class="sbi-ico">✅</div>
+      <div class="sbi-n" id="verifiedCount">0</div>
+      <div class="sbi-l">توثيق معتمد</div>
     </div>
   </div>
 </div>
 
-<!-- STATS -->
-<div class="stats-bar">
-  <div class="stats-inner">
-    <div class="sbi"><div class="sbi-n" id="jobsCount">0</div><div class="sbi-l">وظيفة مفتوحة</div></div>
-    <div class="sbi"><div class="sbi-n" id="followersCount">0</div><div class="sbi-l">متابع</div></div>
-    <div class="sbi"><div class="sbi-n" id="ratingAvg">—</div><div class="sbi-l">تقييم موظفين</div></div>
-    <div class="sbi"><div class="sbi-n" id="verifiedCount">0</div><div class="sbi-l">توثيق معتمد</div></div>
-  </div>
-</div>
-
-<!-- TABS -->
+<!-- ██ TABS ██ -->
 <div class="tabs-wrap">
   <div class="tabs">
     <div class="tab active" data-tab="jobs">💼 الوظائف</div>
@@ -116,57 +136,63 @@
   </div>
 </div>
 
-<!-- CONTENT -->
+<!-- ██ CONTENT ██ -->
 <div class="content" id="main-content">
 
-  <!-- JOBS TAB -->
+  <!-- JOBS TAB (default) -->
   <div id="tab-jobs">
     <div class="grid-2">
+
+      <!-- Jobs list -->
       <div id="jobsList">
+        <!-- Placeholder cards (replaced by renderJobs on data load) -->
         <div class="job-card tw-card-lift">
           <div class="job-title">مطور Full Stack</div>
-          <div class="job-meta"><span>📍 عمان، الأردن</span><span>⏰ دوام كامل</span><span>🕐 منذ يومين</span></div>
+          <div class="job-meta">
+            <span class="job-meta-chip">📍 عمان، الأردن</span>
+            <span class="job-meta-chip">⏰ دوام كامل</span>
+          </div>
           <div class="job-tags">
             <span class="jtag jtag-green">React</span>
             <span class="jtag jtag-green">Python</span>
             <span class="jtag jtag-blue">Remote</span>
-            <span class="jtag jtag-gray">3-5 سنوات</span>
           </div>
           <div class="job-footer">
             <div>
-              <div class="job-salary">800 - 1200 دينار/شهر</div>
-              <div class="job-date">آخر تقديم: 30 مايو 2025</div>
+              <div class="job-salary">800 – 1200 دينار/شهر</div>
             </div>
             <button class="apply-btn">تقديم ←</button>
           </div>
         </div>
         <div class="job-card tw-card-lift">
           <div class="job-title">مصمم UX/UI</div>
-          <div class="job-meta"><span>📍 عمان، الأردن</span><span>⏰ دوام جزئي</span><span>🕐 منذ أسبوع</span></div>
+          <div class="job-meta">
+            <span class="job-meta-chip">📍 عمان، الأردن</span>
+            <span class="job-meta-chip">⏰ دوام جزئي</span>
+          </div>
           <div class="job-tags">
             <span class="jtag jtag-green">Figma</span>
             <span class="jtag jtag-green">Adobe XD</span>
-            <span class="jtag jtag-gray">2+ سنوات</span>
           </div>
           <div class="job-footer">
             <div>
-              <div class="job-salary">600 - 900 دينار/شهر</div>
-              <div class="job-date">آخر تقديم: 25 مايو 2025</div>
+              <div class="job-salary">600 – 900 دينار/شهر</div>
             </div>
             <button class="apply-btn">تقديم ←</button>
           </div>
         </div>
       </div>
 
+      <!-- Sidebar -->
       <div>
-        <!-- About mini -->
+        <!-- Company quick info -->
         <div class="about-card">
           <div class="ac-title">معلومات الشركة</div>
-          <div class="ac-item"><span class="ac-icon">🏢</span><div><div class="ac-key">النوع</div><div class="ac-val" id="acType">شركة خاصة</div></div></div>
+          <div class="ac-item"><span class="ac-icon">🏢</span><div><div class="ac-key">النوع</div><div class="ac-val" id="acType">—</div></div></div>
           <div class="ac-item"><span class="ac-icon">📍</span><div><div class="ac-key">الموقع</div><div class="ac-val" id="acLoc">—</div></div></div>
           <div class="ac-item"><span class="ac-icon">📅</span><div><div class="ac-key">سنة التأسيس</div><div class="ac-val" id="acFounded">—</div></div></div>
           <div class="ac-item"><span class="ac-icon">👥</span><div><div class="ac-key">حجم الشركة</div><div class="ac-val" id="acSize">—</div></div></div>
-          <div class="ac-item"><span class="ac-icon">🌐</span><div><div class="ac-key">الموقع الإلكتروني</div><div class="ac-val"><a href="#" id="acWeb">—</a></div></div></div>
+          <div class="ac-item"><span class="ac-icon">🌐</span><div><div class="ac-key">الموقع الإلكتروني</div><div class="ac-val"><a href="#" id="acWeb" target="_blank">—</a></div></div></div>
         </div>
 
         <!-- Followers -->
@@ -188,7 +214,7 @@
             <div class="rating-n" id="ratingNum">—</div>
             <div class="rating-sub" id="ratingSub">لا تقييمات بعد</div>
           </div>
-          <!-- Interactive (visitor-only) -->
+          <!-- Interactive stars (visitor only) -->
           <div class="rate-interactive visitor-only" id="rateBox">
             <div id="ratePrompt">قيّم هذه الشركة:</div>
             <div class="rate-stars" id="rateStars">
@@ -197,13 +223,14 @@
           </div>
         </div>
       </div>
+
     </div>
-  </div>
+  </div><!-- /tab-jobs -->
 
   <!-- POSTS TAB -->
   <div id="tab-posts">
     <div class="owner-only posts-owner-bar">
-      <button id="postModalBtn" class="nb nb-primary">📢 نشر منشور</button>
+      <button id="postModalBtn" class="nb nb-primary">📢 نشر منشور جديد</button>
     </div>
     <div id="postsList"></div>
     <div id="postsEmpty">لا منشورات بعد</div>
@@ -215,7 +242,7 @@
       <div class="about-card">
         <div class="ac-title">عن الشركة</div>
         <div id="aboutDesc">لا يوجد وصف مفصل بعد.</div>
-        <div class="ac-item"><span class="ac-icon">🏢</span><div><div class="ac-key">نوع الجهة</div><div class="ac-val" id="aboutType">شركة خاصة</div></div></div>
+        <div class="ac-item"><span class="ac-icon">🏢</span><div><div class="ac-key">نوع الجهة</div><div class="ac-val" id="aboutType">—</div></div></div>
         <div class="ac-item"><span class="ac-icon">📍</span><div><div class="ac-key">الموقع</div><div class="ac-val" id="aboutLoc">—</div></div></div>
         <div class="ac-item"><span class="ac-icon">📅</span><div><div class="ac-key">سنة التأسيس</div><div class="ac-val" id="aboutFounded">—</div></div></div>
         <div class="ac-item"><span class="ac-icon">👥</span><div><div class="ac-key">حجم الشركة</div><div class="ac-val" id="aboutSize">—</div></div></div>
@@ -233,9 +260,21 @@
     </div>
   </div>
 
-</div>
+  <!-- RATINGS TAB (owner only) -->
+  <div id="tab-ratings">
+    <div class="about-card">
+      <div class="ac-title">⭐ التقييمات الواردة</div>
+      <div class="stars" id="ratingsTabStars">☆☆☆☆☆</div>
+      <div class="rating-nums">
+        <div class="rating-n" id="ratingsTabAvg">—</div>
+        <div class="rating-sub" id="ratingsTabCount">لا تقييمات بعد</div>
+      </div>
+    </div>
+  </div>
 
-<!-- EDIT MODAL (owner only) -->
+</div><!-- /content -->
+
+<!-- ██ EDIT MODAL ██ -->
 <div class="overlay" id="editOverlay">
   <div class="modal">
     <div class="modal-title">✏️ تعديل ملف الشركة</div>
@@ -244,15 +283,9 @@
     <div class="mrow">
       <div class="mf"><label>نوع الجهة</label>
         <select id="e-type">
-          <option>شركة خاصة</option>
-          <option>مصنع</option>
-          <option>بنك / مؤسسة مالية</option>
-          <option>جامعة / كلية</option>
-          <option>مدرسة</option>
-          <option>مركز تدريب</option>
-          <option>مستشفى</option>
-          <option>جهة حكومية</option>
-          <option>أخرى</option>
+          <option>شركة خاصة</option><option>مصنع</option><option>بنك / مؤسسة مالية</option>
+          <option>جامعة / كلية</option><option>مدرسة</option><option>مركز تدريب</option>
+          <option>مستشفى</option><option>جهة حكومية</option><option>أخرى</option>
         </select>
       </div>
       <div class="mf"><label>سنة التأسيس</label><input id="e-founded" placeholder="2010" type="number"></div>
@@ -261,30 +294,30 @@
       <div class="mf"><label>الموقع</label><input id="e-loc" placeholder="عمان، الأردن"></div>
       <div class="mf"><label>حجم الشركة</label>
         <select id="e-size">
-          <option>1-10 موظفين</option>
-          <option>11-50 موظف</option>
-          <option>51-200 موظف</option>
-          <option>201-500 موظف</option>
-          <option>+500 موظف</option>
+          <option>1-10 موظفين</option><option>11-50 موظف</option><option>51-200 موظف</option>
+          <option>201-500 موظف</option><option>+500 موظف</option>
         </select>
       </div>
     </div>
     <div class="mf"><label>الموقع الإلكتروني</label><input id="e-web" placeholder="https://..."></div>
     <div class="mf"><label>البريد الإلكتروني للتواصل</label><input id="e-email" placeholder="info@company.com"></div>
     <div class="mact">
-      <button id="editSaveBtn" class="mbtn mbtn-ok">حفظ</button>
+      <button id="editSaveBtn" class="mbtn mbtn-ok">حفظ التعديلات</button>
       <button id="editCancelBtn" class="mbtn mbtn-no">إلغاء</button>
     </div>
   </div>
 </div>
 
-<!-- CONTACT MODAL -->
+<!-- ██ CONTACT MODAL ██ -->
 <div class="overlay" id="contactOverlay">
   <div class="modal">
     <div class="modal-title">💬 التواصل مع الشركة</div>
     <p class="modal-hint-text">أرسل رسالة للشركة وسيصلها إشعار.</p>
-    <div class="mf"><label>رسالتك</label><input id="msg-subject" placeholder="الموضوع">
-      <textarea id="msg-body" placeholder="اكتب رسالتك هنا..."></textarea></div>
+    <div class="mf">
+      <label>رسالتك</label>
+      <input id="msg-subject" placeholder="الموضوع">
+      <textarea id="msg-body" placeholder="اكتب رسالتك هنا..."></textarea>
+    </div>
     <div class="mact">
       <button id="contactSendBtn" class="mbtn mbtn-ok">إرسال</button>
       <button id="contactCancelBtn" class="mbtn mbtn-no">إلغاء</button>
@@ -292,7 +325,7 @@
   </div>
 </div>
 
-<!-- POST JOB MODAL -->
+<!-- ██ POST JOB MODAL ██ -->
 <div class="overlay" id="postJobOverlay">
   <div class="modal modal-lg">
     <div class="modal-title">💼 نشر وظيفة جديدة</div>
@@ -318,7 +351,7 @@
   </div>
 </div>
 
-<!-- CREATE POST MODAL -->
+<!-- ██ CREATE POST MODAL ██ -->
 <div class="overlay" id="postOverlay">
   <div class="modal modal-lg">
     <div class="modal-title">📢 نشر منشور جديد</div>
@@ -335,7 +368,7 @@
   </div>
 </div>
 
-<!-- REPORT MODAL -->
+<!-- ██ REPORT MODAL (bottom sheet) ██ -->
 <div id="reportModal" class="report-modal">
   <div class="report-inner">
     <div class="report-title">🚨 إبلاغ عن محتوى مخالف</div>

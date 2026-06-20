@@ -14,7 +14,6 @@
     return String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
 
-  // Safe HTML escaping via DOM (used for post content)
   function _escapeHtml(s) {
     var d = document.createElement('div');
     d.textContent = s == null ? '' : String(s);
@@ -42,10 +41,8 @@
   }
 
   function _paintRateStars(score) {
-    var stars = document.querySelectorAll('#rateStars span');
-    stars.forEach(function (s) {
-      var v = parseInt(s.getAttribute('data-score'));
-      s.textContent = (v <= score) ? '⭐' : '☆';
+    document.querySelectorAll('#rateStars span').forEach(function (s) {
+      s.textContent = (parseInt(s.getAttribute('data-score')) <= score) ? '⭐' : '☆';
     });
   }
 
@@ -57,16 +54,29 @@
     _setText('coName', name);
     _setText('coDesc', p.bio || 'لا يوجد وصف بعد.');
     _setText('coLoc',  p.location ? '📍 ' + p.location : '📍 —');
+
     document.querySelectorAll('[id^="postCoName"]').forEach(function (el) {
       el.textContent = name;
     });
 
+    // Logo: use DOM createElement to avoid inline styles
     var logoEl = document.getElementById('coLogo');
     if (logoEl && p.avatar_url) {
-      logoEl.innerHTML = '<img src="' + p.avatar_url +
-        '" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">';
+      var img = document.createElement('img');
+      img.src       = p.avatar_url;
+      img.alt       = name;
+      img.className = 'co-logo-img';
+      logoEl.innerHTML = '';
+      logoEl.appendChild(img);
     }
 
+    // Verified badge
+    var verifiedBadge = document.getElementById('coVerifiedBadge');
+    if (verifiedBadge) {
+      verifiedBadge.style.display = p.is_verified ? 'inline-flex' : 'none';
+    }
+
+    // Company type badge
     var badge = document.getElementById('coTypeBadge');
     if (badge) badge.textContent = '🏢 ' + (companyState.company.company_type || 'شركة');
   }
@@ -89,26 +99,35 @@
     if (!companyState.jobs.length) {
       jobsList.innerHTML =
         '<div class="tw-empty"><span class="tw-empty-ico">💼</span>' +
-        '<div class="tw-empty-title">لا توجد وظائف مفتوحة</div></div>';
+        '<div class="tw-empty-title">لا توجد وظائف مفتوحة</div>' +
+        '<div class="tw-empty-sub">لم تُضف هذه الشركة أي وظائف بعد.</div></div>';
+      if (window.bindEvents) bindEvents();
       return;
     }
 
     jobsList.innerHTML = companyState.jobs.map(function (j) {
       var canApply = companyState.viewMode !== 'owner';
-      return '<div class="job-card tw-card-lift" data-jid="' + j.id + '">' +
+      var salaryHtml = j.salary_min
+        ? '<div class="job-salary">' + _esc(String(j.salary_min)) +
+          (j.salary_max ? ' – ' + _esc(String(j.salary_max)) : '') + ' د.أ</div>'
+        : '<div></div>';
+
+      return '<div class="job-card tw-card-lift" data-jid="' + _esc(String(j.id)) + '">' +
         '<div class="job-title">' + _esc(j.title) + '</div>' +
-        '<div class="job-meta"><span>📍 ' + _esc(j.location || '—') + '</span>' +
-        '<span>⏰ ' + _esc(j.job_type || '—') + '</span></div>' +
+        '<div class="job-meta">' +
+          '<span class="job-meta-chip">📍 ' + _esc(j.location || '—') + '</span>' +
+          '<span class="job-meta-chip">⏰ ' + _esc(j.job_type || '—') + '</span>' +
+        '</div>' +
         '<div class="job-footer">' +
-        (j.salary_min
-          ? '<div class="job-salary">' + j.salary_min +
-            (j.salary_max ? ' - ' + j.salary_max : '') + '</div>'
-          : '<div></div>') +
-        (canApply
-          ? '<button class="apply-btn" data-jid="' + j.id + '">تقديم ←</button>'
-          : '<span style="font-size:.7rem;color:var(--t3)">وظيفتك</span>') +
-        '</div></div>';
+          salaryHtml +
+          (canApply
+            ? '<button class="apply-btn" data-jid="' + _esc(String(j.id)) + '">تقديم ←</button>'
+            : '<span class="owner-job-badge">وظيفتك ✓</span>') +
+        '</div>' +
+      '</div>';
     }).join('');
+
+    if (window.bindEvents) bindEvents();
   }
 
   // ── Follow button ─────────────────────────────────────────────
@@ -127,18 +146,19 @@
     var count = companyState.stats.rating_count || 0;
     var mine  = companyState.permissions ? companyState.permissions.my_rating : null;
 
-    var disp = document.getElementById('ratingStarsDisplay');
-    if (disp) disp.textContent = avg ? _starsString(avg, '⭐', '☆') : '☆☆☆☆☆';
+    var starsStr = avg ? _starsString(avg, '⭐', '☆') : '☆☆☆☆☆';
+    _setText('ratingStarsDisplay', starsStr);
+    _setText('ratingNum',   avg != null ? avg : '—');
 
-    var num = document.getElementById('ratingNum');
-    if (num) num.textContent = (avg != null) ? avg : '—';
+    var subText = count > 0
+      ? ('من 5 — بناءً على ' + count + ' تقييم' + (count > 10 ? '' : 'ات'))
+      : 'لا تقييمات بعد';
+    _setText('ratingSub', subText);
 
-    var sub = document.getElementById('ratingSub');
-    if (sub) {
-      sub.textContent = count > 0
-        ? ('من 5 — بناءً على ' + count + ' تقييم' + (count > 10 ? '' : 'ات'))
-        : 'لا تقييمات بعد';
-    }
+    // Sync ratings tab panel
+    _setText('ratingsTabStars', starsStr);
+    _setText('ratingsTabAvg',   avg != null ? avg : '—');
+    _setText('ratingsTabCount', subText);
 
     _paintRateStars(mine || 0);
 
@@ -165,15 +185,16 @@
     var canEdit = window.companyState &&
       companyState.permissions && companyState.permissions.can_edit;
     var delBtn = canEdit
-      ? '<button class="post-del" onclick="deletePost(' + post.id + ')" title="حذف" ' +
-        'style="margin-right:auto;background:none;border:none;color:var(--t3);cursor:pointer;font-size:1rem">🗑</button>'
+      ? '<button class="post-del" data-post-id="' + post.id + '" title="حذف">🗑</button>'
       : '';
 
     return '<div class="post-card">' +
       '<div class="post-head">' +
         '<div class="post-ava">🏢</div>' +
-        '<div style="flex:1"><div class="post-nm">' + _escapeHtml(coName) + '</div>' +
-        '<div class="post-date">' + _relativeTime(post.created_at) + '</div></div>' +
+        '<div class="post-head-info">' +
+          '<div class="post-nm">' + _escapeHtml(coName) + '</div>' +
+          '<div class="post-date">' + _relativeTime(post.created_at) + '</div>' +
+        '</div>' +
         delBtn +
       '</div>' +
       '<div class="post-body">' + _escapeHtml(post.body) + '</div>' +
