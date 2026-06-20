@@ -79,6 +79,19 @@
     // Company type badge
     var badge = document.getElementById('coTypeBadge');
     if (badge) badge.textContent = '🏢 ' + (companyState.company.company_type || 'شركة');
+
+    // Website meta item (show only when available)
+    var websiteEl   = document.getElementById('coWebsite');
+    var websiteLink = document.getElementById('coWebsiteLink');
+    if (websiteEl && websiteLink) {
+      if (p.website) {
+        websiteLink.href        = p.website;
+        websiteLink.textContent = p.website.replace(/^https?:\/\//, '');
+        websiteEl.style.display = 'flex';
+      } else {
+        websiteEl.style.display = 'none';
+      }
+    }
   }
 
   // ── Stats ─────────────────────────────────────────────────────
@@ -107,23 +120,19 @@
 
     jobsList.innerHTML = companyState.jobs.map(function (j) {
       var canApply = companyState.viewMode !== 'owner';
-      var salaryHtml = j.salary_min
-        ? '<div class="job-salary">' + _esc(String(j.salary_min)) +
-          (j.salary_max ? ' – ' + _esc(String(j.salary_max)) : '') + ' د.أ</div>'
-        : '<div></div>';
 
       return '<div class="job-card tw-card-lift" data-jid="' + _esc(String(j.id)) + '">' +
-        '<div class="job-title">' + _esc(j.title) + '</div>' +
-        '<div class="job-meta">' +
-          '<span class="job-meta-chip">📍 ' + _esc(j.location || '—') + '</span>' +
-          '<span class="job-meta-chip">⏰ ' + _esc(j.job_type || '—') + '</span>' +
+        '<div class="job-card-logo">🏢</div>' +
+        '<div class="job-card-body">' +
+          '<div class="job-title">' + _esc(j.title) + '</div>' +
+          '<div class="job-card-meta">' +
+            '<span class="job-meta-chip">📍 ' + _esc(j.location || '—') + '</span>' +
+            '<span class="job-meta-chip">⏰ ' + _esc(j.job_type || '—') + '</span>' +
+          '</div>' +
         '</div>' +
-        '<div class="job-footer">' +
-          salaryHtml +
-          (canApply
-            ? '<button class="apply-btn" data-jid="' + _esc(String(j.id)) + '">تقديم ←</button>'
-            : '<span class="owner-job-badge">وظيفتك ✓</span>') +
-        '</div>' +
+        (canApply
+          ? '<button class="apply-btn-pill" data-jid="' + _esc(String(j.id)) + '">تقديم الآن</button>'
+          : '<span class="owner-job-badge">وظيفتك ✓</span>') +
       '</div>';
     }).join('');
 

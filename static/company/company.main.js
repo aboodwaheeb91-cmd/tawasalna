@@ -272,10 +272,11 @@
   function _bindMainEvents() {
     var q = function (id) { return document.getElementById(id); };
 
-    // Nav
-    var postJobBtn = q('postJobBtn'); if (postJobBtn) postJobBtn.addEventListener('click', openPostJob);
-    var editBtn    = q('editBtn');    if (editBtn)    editBtn.addEventListener('click', openEditModal);
-    var menuBtn    = q('menuBtn');    if (menuBtn)    menuBtn.addEventListener('click', toggleMenu);
+    // Profile section buttons
+    var postJobBtn    = q('postJobBtn');    if (postJobBtn)    postJobBtn.addEventListener('click', openPostJob);
+    var editBtn       = q('editBtn');       if (editBtn)       editBtn.addEventListener('click', openEditModal);
+    var menuBtn       = q('menuBtn');       if (menuBtn)       menuBtn.addEventListener('click', toggleMenu);
+    var ctaPostJobBtn = q('ctaPostJobBtn'); if (ctaPostJobBtn) ctaPostJobBtn.addEventListener('click', openPostJob);
 
     // Logout (nav button + dropdown link)
     var visitorLogout = q('visitorLogout'); if (visitorLogout) visitorLogout.addEventListener('click', doLogout);

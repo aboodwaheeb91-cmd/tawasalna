@@ -34,16 +34,8 @@
   <div class="nav-logo">
     <img src="https://wrxvmdmknhoufoeprpoc.supabase.co/storage/v1/object/public/site/Logo.svg" alt="تواصلنا" class="nav-logo-img">
   </div>
-
-  <!-- Owner quick actions -->
-  <div id="ownerActions" class="owner-only nav-owner-actions">
-    <button id="postJobBtn" class="nb nb-primary">+ نشر وظيفة</button>
-    <button id="editBtn" class="nb nb-ghost">✏️ تعديل</button>
-    <button id="menuBtn" class="nb nb-ghost">☰ القائمة</button>
-  </div>
-
   <div class="nav-spacer"></div>
-
+  <button id="menuBtn" class="nb nb-ghost owner-only">☰ القائمة</button>
   <button id="visitorLogout" class="nb nb-danger">خروج</button>
 </nav>
 
@@ -70,58 +62,60 @@
   </label>
 </div>
 
-<!-- ██ PROFILE HEADER ██ -->
-<div class="profile-header">
-  <div class="ph-card">
+<!-- ██ COMPANY PROFILE (centered, overlaps hero) ██ -->
+<div class="co-profile">
 
+  <!-- Logo overlapping hero bottom -->
+  <div class="co-logo-wrap">
     <div class="co-logo" id="coLogo">🏢</div>
-
-    <div class="ph-info">
-      <div class="ph-name-row">
-        <h1 class="co-name" id="coName">اسم الشركة</h1>
-        <span id="coVerifiedBadge" class="co-verified-badge">✓ موثق</span>
-      </div>
-      <div class="co-type-badge" id="coTypeBadge">🏢 شركة</div>
-      <div class="co-desc" id="coDesc">لا يوجد وصف بعد.</div>
-      <div class="co-meta">
-        <div class="co-meta-item" id="coLoc">📍 —</div>
-        <div class="co-meta-item" id="coFounded">📅 —</div>
-        <div class="co-meta-item" id="coSize">👥 —</div>
-        <div class="co-meta-item" id="coWebsite">🌐 <a href="#" id="coWebsiteLink" target="_blank">الموقع</a></div>
-      </div>
-    </div>
-
-    <!-- Visitor actions (follow + contact) -->
-    <div class="ph-actions visitor-only" id="visitorActions">
-      <button class="nb nb-follow" id="followBtn">+ متابعة</button>
-      <button id="contactBtn" class="nb nb-ghost">💬 تواصل</button>
-    </div>
-
   </div>
+
+  <!-- Company info centered -->
+  <div class="co-info-center">
+    <div class="co-name-row">
+      <h1 class="co-name" id="coName">اسم الشركة</h1>
+      <span id="coVerifiedBadge" class="co-verified-badge">✓ موثق</span>
+    </div>
+    <div class="co-type-badge" id="coTypeBadge">🏢 شركة</div>
+    <div class="co-desc" id="coDesc">لا يوجد وصف بعد.</div>
+    <div class="co-meta-row">
+      <div class="co-meta-item" id="coLoc">📍 —</div>
+      <div class="co-meta-item" id="coWebsite">🌐 <a href="#" id="coWebsiteLink" target="_blank" rel="noopener">الموقع</a></div>
+    </div>
+
+    <!-- Owner action buttons -->
+    <div class="co-actions owner-only">
+      <button id="postJobBtn" class="nb nb-primary">+ نشر وظيفة</button>
+      <button id="editBtn" class="nb nb-outline">✏️ تعديل</button>
+    </div>
+
+    <!-- Visitor action buttons -->
+    <div class="co-actions visitor-only" id="visitorActions">
+      <button class="nb nb-follow" id="followBtn">+ متابعة</button>
+      <button id="contactBtn" class="nb nb-outline">💬 تواصل معنا</button>
+    </div>
+  </div>
+
 </div>
 
 <!-- ██ STATS BAR ██ -->
 <div class="stats-bar">
   <div class="stats-inner">
     <div class="sbi">
-      <div class="sbi-ico">💼</div>
       <div class="sbi-n" id="jobsCount">0</div>
-      <div class="sbi-l">وظيفة مفتوحة</div>
+      <div class="sbi-l">وظيفة متاحة</div>
     </div>
     <div class="sbi">
-      <div class="sbi-ico">👥</div>
       <div class="sbi-n" id="followersCount">0</div>
-      <div class="sbi-l">متابع</div>
+      <div class="sbi-l">متابع الشركة</div>
     </div>
     <div class="sbi">
-      <div class="sbi-ico">⭐</div>
       <div class="sbi-n" id="ratingAvg">—</div>
-      <div class="sbi-l">تقييم</div>
+      <div class="sbi-l">معدل التقييم</div>
     </div>
     <div class="sbi">
-      <div class="sbi-ico">✅</div>
       <div class="sbi-n" id="verifiedCount">0</div>
-      <div class="sbi-l">توثيق معتمد</div>
+      <div class="sbi-l">موظف موثق</div>
     </div>
   </div>
 </div>
@@ -129,10 +123,10 @@
 <!-- ██ TABS ██ -->
 <div class="tabs-wrap">
   <div class="tabs">
-    <div class="tab active" data-tab="jobs">💼 الوظائف</div>
-    <div class="tab" data-tab="posts">📢 المنشورات</div>
-    <div class="tab" data-tab="about">ℹ️ عن الشركة</div>
-    <div class="tab owner-only" data-tab="ratings">⭐ التقييمات</div>
+    <div class="tab active" data-tab="jobs">الوظائف</div>
+    <div class="tab" data-tab="posts">المنشورات</div>
+    <div class="tab" data-tab="about">التفاصيل</div>
+    <div class="tab owner-only" data-tab="ratings">التقييمات</div>
   </div>
 </div>
 
@@ -141,61 +135,80 @@
 
   <!-- JOBS TAB (default) -->
   <div id="tab-jobs">
-    <div class="grid-2">
+    <div class="section-header">الوظائف المفتوحة</div>
 
-      <!-- Jobs list -->
-      <div id="jobsList">
-        <!-- Placeholder cards (replaced by renderJobs on data load) -->
-        <div class="job-card tw-card-lift">
+    <!-- Jobs list (full-width, horizontal cards) -->
+    <div id="jobsList">
+      <!-- Placeholder cards (replaced by renderJobs on data load) -->
+      <div class="job-card tw-card-lift">
+        <div class="job-card-logo">🏢</div>
+        <div class="job-card-body">
           <div class="job-title">مطور Full Stack</div>
-          <div class="job-meta">
+          <div class="job-card-meta">
             <span class="job-meta-chip">📍 عمان، الأردن</span>
             <span class="job-meta-chip">⏰ دوام كامل</span>
           </div>
-          <div class="job-tags">
-            <span class="jtag jtag-green">React</span>
-            <span class="jtag jtag-green">Python</span>
-            <span class="jtag jtag-blue">Remote</span>
-          </div>
-          <div class="job-footer">
-            <div>
-              <div class="job-salary">800 – 1200 دينار/شهر</div>
-            </div>
-            <button class="apply-btn">تقديم ←</button>
-          </div>
         </div>
-        <div class="job-card tw-card-lift">
+        <button class="apply-btn-pill">تقديم الآن</button>
+      </div>
+      <div class="job-card tw-card-lift">
+        <div class="job-card-logo">🏢</div>
+        <div class="job-card-body">
           <div class="job-title">مصمم UX/UI</div>
-          <div class="job-meta">
+          <div class="job-card-meta">
             <span class="job-meta-chip">📍 عمان، الأردن</span>
             <span class="job-meta-chip">⏰ دوام جزئي</span>
           </div>
-          <div class="job-tags">
-            <span class="jtag jtag-green">Figma</span>
-            <span class="jtag jtag-green">Adobe XD</span>
-          </div>
-          <div class="job-footer">
-            <div>
-              <div class="job-salary">600 – 900 دينار/شهر</div>
-            </div>
-            <button class="apply-btn">تقديم ←</button>
-          </div>
         </div>
+        <button class="apply-btn-pill">تقديم الآن</button>
+      </div>
+    </div>
+
+    <!-- CTA banner (owner only) -->
+    <div class="jobs-cta owner-only">
+      <div class="jobs-cta-inner">
+        <div class="jobs-cta-text">هل تبحث عن المواهب المناسبة؟</div>
+        <button id="ctaPostJobBtn" class="nb nb-cta">نشر وظيفة الآن</button>
+      </div>
+    </div>
+  </div><!-- /tab-jobs -->
+
+  <!-- POSTS TAB -->
+  <div id="tab-posts">
+    <div class="owner-only posts-owner-bar">
+      <button id="postModalBtn" class="nb nb-primary">📢 نشر منشور جديد</button>
+    </div>
+    <div id="postsList"></div>
+    <div id="postsEmpty">لا منشورات بعد</div>
+  </div>
+
+  <!-- ABOUT / DETAILS TAB -->
+  <div id="tab-about">
+    <div class="about-grid">
+
+      <!-- Company details -->
+      <div class="about-card">
+        <div class="ac-title">عن الشركة</div>
+        <div id="aboutDesc">لا يوجد وصف مفصل بعد.</div>
+        <div class="ac-item"><span class="ac-icon">🏢</span><div><div class="ac-key">نوع الجهة</div><div class="ac-val" id="aboutType">—</div></div></div>
+        <div class="ac-item"><span class="ac-icon">📍</span><div><div class="ac-key">الموقع</div><div class="ac-val" id="aboutLoc">—</div></div></div>
+        <div class="ac-item"><span class="ac-icon">📅</span><div><div class="ac-key">سنة التأسيس</div><div class="ac-val" id="aboutFounded">—</div></div></div>
+        <div class="ac-item"><span class="ac-icon">👥</span><div><div class="ac-key">حجم الشركة</div><div class="ac-val" id="aboutSize">—</div></div></div>
+        <div class="ac-item"><span class="ac-icon">🌐</span><div><div class="ac-key">الموقع الإلكتروني</div><div class="ac-val"><a href="#" id="aboutWeb" target="_blank" rel="noopener">—</a></div></div></div>
+        <div class="ac-item"><span class="ac-icon">📧</span><div><div class="ac-key">البريد الإلكتروني</div><div class="ac-val" id="aboutEmail">—</div></div></div>
+        <div class="ac-item"><span class="ac-icon">📞</span><div><div class="ac-key">الهاتف</div><div class="ac-val" id="aboutPhone">—</div></div></div>
       </div>
 
-      <!-- Sidebar -->
+      <!-- Right column -->
       <div>
-        <!-- Company quick info -->
+        <!-- Achievements -->
         <div class="about-card">
-          <div class="ac-title">معلومات الشركة</div>
-          <div class="ac-item"><span class="ac-icon">🏢</span><div><div class="ac-key">النوع</div><div class="ac-val" id="acType">—</div></div></div>
-          <div class="ac-item"><span class="ac-icon">📍</span><div><div class="ac-key">الموقع</div><div class="ac-val" id="acLoc">—</div></div></div>
-          <div class="ac-item"><span class="ac-icon">📅</span><div><div class="ac-key">سنة التأسيس</div><div class="ac-val" id="acFounded">—</div></div></div>
-          <div class="ac-item"><span class="ac-icon">👥</span><div><div class="ac-key">حجم الشركة</div><div class="ac-val" id="acSize">—</div></div></div>
-          <div class="ac-item"><span class="ac-icon">🌐</span><div><div class="ac-key">الموقع الإلكتروني</div><div class="ac-val"><a href="#" id="acWeb" target="_blank">—</a></div></div></div>
+          <div class="ac-title">🏆 الإنجازات والتوثيق</div>
+          <div class="ac-item"><span class="ac-icon">✅</span><div><div class="ac-key">التوثيق</div><div class="ac-val">جهة موثقة من تواصلنا</div></div></div>
+          <div class="ac-item"><span class="ac-icon">📋</span><div><div class="ac-key">عمليات التوثيق</div><div class="ac-val" id="aboutVerified">0 توثيق معتمد</div></div></div>
         </div>
 
-        <!-- Followers -->
+        <!-- Followers widget -->
         <div class="followers-wrap">
           <div class="ac-title">المتابعون</div>
           <div class="fw-avatars">
@@ -206,7 +219,7 @@
           <div class="fw-count"><span id="followersCount2">0</span> متابع</div>
         </div>
 
-        <!-- Rating -->
+        <!-- Rating card (visitor: interactive stars; owner: view-only) -->
         <div class="rating-card">
           <div class="ac-title">تقييم الموظفين</div>
           <div class="stars" id="ratingStarsDisplay">☆☆☆☆☆</div>
@@ -224,39 +237,6 @@
         </div>
       </div>
 
-    </div>
-  </div><!-- /tab-jobs -->
-
-  <!-- POSTS TAB -->
-  <div id="tab-posts">
-    <div class="owner-only posts-owner-bar">
-      <button id="postModalBtn" class="nb nb-primary">📢 نشر منشور جديد</button>
-    </div>
-    <div id="postsList"></div>
-    <div id="postsEmpty">لا منشورات بعد</div>
-  </div>
-
-  <!-- ABOUT TAB -->
-  <div id="tab-about">
-    <div class="grid-2">
-      <div class="about-card">
-        <div class="ac-title">عن الشركة</div>
-        <div id="aboutDesc">لا يوجد وصف مفصل بعد.</div>
-        <div class="ac-item"><span class="ac-icon">🏢</span><div><div class="ac-key">نوع الجهة</div><div class="ac-val" id="aboutType">—</div></div></div>
-        <div class="ac-item"><span class="ac-icon">📍</span><div><div class="ac-key">الموقع</div><div class="ac-val" id="aboutLoc">—</div></div></div>
-        <div class="ac-item"><span class="ac-icon">📅</span><div><div class="ac-key">سنة التأسيس</div><div class="ac-val" id="aboutFounded">—</div></div></div>
-        <div class="ac-item"><span class="ac-icon">👥</span><div><div class="ac-key">حجم الشركة</div><div class="ac-val" id="aboutSize">—</div></div></div>
-        <div class="ac-item"><span class="ac-icon">🌐</span><div><div class="ac-key">الموقع الإلكتروني</div><div class="ac-val"><a href="#" id="aboutWeb" target="_blank">—</a></div></div></div>
-        <div class="ac-item"><span class="ac-icon">📧</span><div><div class="ac-key">البريد الإلكتروني</div><div class="ac-val" id="aboutEmail">—</div></div></div>
-        <div class="ac-item"><span class="ac-icon">📞</span><div><div class="ac-key">الهاتف</div><div class="ac-val" id="aboutPhone">—</div></div></div>
-      </div>
-      <div>
-        <div class="about-card">
-          <div class="ac-title">🏆 الإنجازات والتوثيق</div>
-          <div class="ac-item"><span class="ac-icon">✅</span><div><div class="ac-key">التوثيق</div><div class="ac-val">جهة موثقة من تواصلنا</div></div></div>
-          <div class="ac-item"><span class="ac-icon">📋</span><div><div class="ac-key">عمليات التوثيق</div><div class="ac-val" id="aboutVerified">0 توثيق معتمد</div></div></div>
-        </div>
-      </div>
     </div>
   </div>
 
