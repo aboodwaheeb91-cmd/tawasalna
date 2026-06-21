@@ -70,10 +70,16 @@
       logoEl.appendChild(img);
     }
 
-    // Verified badge
+    // Verified badge (name row)
     var verifiedBadge = document.getElementById('coVerifiedBadge');
     if (verifiedBadge) {
       verifiedBadge.style.display = p.is_verified ? 'inline-flex' : 'none';
+    }
+
+    // Verified badge on logo
+    var logoBadge = document.getElementById('coLogoBadge');
+    if (logoBadge) {
+      logoBadge.style.display = p.is_verified ? 'flex' : 'none';
     }
 
     // Company type badge (preserve Lucide icon inside)
