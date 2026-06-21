@@ -27,24 +27,17 @@
   var _menuOpen = false;
   function toggleMenu(e) {
     e.stopPropagation();
+    var m = document.getElementById('coMenuDropdown');
+    if (!m) return;
     _menuOpen = !_menuOpen;
-    var m   = document.getElementById('dropMenu');
-    var btn = document.getElementById('menuBtn');
-    if (!m || !btn) return;
-    if (_menuOpen) {
-      var r = btn.getBoundingClientRect();
-      m.style.left = r.left + 'px';
-      m.style.display = 'block';
-    } else {
-      m.style.display = 'none';
-    }
+    m.classList.toggle('open', _menuOpen);
   }
   document.addEventListener('click', function (e) {
-    var btn = document.getElementById('menuBtn');
-    var m   = document.getElementById('dropMenu');
-    if (_menuOpen && m && btn && !btn.contains(e.target) && !m.contains(e.target)) {
+    var wrap = document.getElementById('coMenuWrap');
+    var m    = document.getElementById('coMenuDropdown');
+    if (_menuOpen && m && wrap && !wrap.contains(e.target)) {
       _menuOpen = false;
-      m.style.display = 'none';
+      m.classList.remove('open');
     }
   });
 
@@ -275,12 +268,11 @@
     // Profile section buttons
     var postJobBtn    = q('postJobBtn');    if (postJobBtn)    postJobBtn.addEventListener('click', openPostJob);
     var editBtn       = q('editBtn');       if (editBtn)       editBtn.addEventListener('click', openEditModal);
-    var menuBtn       = q('menuBtn');       if (menuBtn)       menuBtn.addEventListener('click', toggleMenu);
     var ctaPostJobBtn = q('ctaPostJobBtn'); if (ctaPostJobBtn) ctaPostJobBtn.addEventListener('click', openPostJob);
 
-    // Logout (nav button + dropdown link)
-    var visitorLogout = q('visitorLogout'); if (visitorLogout) visitorLogout.addEventListener('click', doLogout);
-    var dropLogout    = q('dropLogout');    if (dropLogout)    dropLogout.addEventListener('click', doLogout);
+    // Shared header — menu + logout
+    var coMenuBtn   = q('coMenuBtn');   if (coMenuBtn)   coMenuBtn.addEventListener('click', toggleMenu);
+    var coLogoutBtn = q('coLogoutBtn'); if (coLogoutBtn) coLogoutBtn.addEventListener('click', doLogout);
 
     // Cover photo upload
     var coverFileInput = q('coverFileInput');
