@@ -21,7 +21,16 @@
     if (jwt) headers['Authorization'] = 'Bearer ' + jwt;
 
     if (!coId) {
-      console.warn('[Company] No company id in URL');
+      // Auto-detect from localStorage (company owner visiting /company-profile without ?id=)
+      try {
+        var _u = JSON.parse(localStorage.getItem('tawasalna_user') || 'null');
+        if (_u && _u.user_type === 'co' && _u.id) coId = String(_u.id);
+      } catch (e) {}
+    }
+
+    if (!coId) {
+      console.warn('[Company] No company id in URL or session');
+      if (window._applyLoadingState) window._applyLoadingState(false);
       return;
     }
 

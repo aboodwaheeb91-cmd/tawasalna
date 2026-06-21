@@ -87,9 +87,9 @@ body { background:var(--bg); color:var(--t); font-family:'Cairo',sans-serif; min
 .ho1 { width:400px; height:400px; background:#2563ff; opacity:.1; top:-150px; right:-100px; }
 .ho2 { width:280px; height:280px; background:#00c896; opacity:.07; bottom:-90px; left:-60px; }
 
-/* Cover upload button — matches Profile V2 .cv-edit-btn exactly */
+/* Cover upload button — top-left corner, z-index:20 beats .co-profile{z-index:10} */
 .cover-upload-btn {
-  position:absolute; top:8px; right:8px; z-index:10;
+  position:absolute; top:8px; left:8px; z-index:20;
   width:30px; height:30px; border-radius:50%;
   display:flex; align-items:center; justify-content:center;
   background:rgba(0,0,0,.45); backdrop-filter:blur(8px);
