@@ -14,6 +14,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>تواصلنا - ملف الشركة</title>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/app-header.css">
 <link rel="stylesheet" href="/static/company/company.css">
 <link rel="stylesheet" href="/static/tw_shared.css">
 </head>
@@ -29,28 +30,45 @@
 
 <a href="#main-content" class="skip-link">تخطى للمحتوى الرئيسي</a>
 
-<!-- ██ NAVBAR ██ -->
-<nav class="nav">
-  <div class="nav-logo">
-    <img src="https://wrxvmdmknhoufoeprpoc.supabase.co/storage/v1/object/public/site/Logo.svg" alt="تواصلنا" class="nav-logo-img">
+<!-- ██ HEADER (shared .sc-header) ██ -->
+<div class="sc-header co-hdr">
+  <a href="/home" class="sc-hicon sc-home-btn" title="الرئيسية" aria-label="الرئيسية">
+    <i data-lucide="home" class="ico"></i>
+  </a>
+  <div class="sc-logo">
+    <img src="/static/33333.svg" alt="تواصلنا">
   </div>
-  <div class="nav-spacer"></div>
-  <button id="menuBtn" class="nb nb-ghost owner-only">
-    <i data-lucide="menu"></i>
-    القائمة
-  </button>
-  <button id="visitorLogout" class="nb nb-danger">خروج</button>
-</nav>
-
-<!-- Dropdown (outside nav — fixes stacking context) -->
-<div id="dropMenu" class="drop-menu">
-  <a class="drop-item" href="company.html"><i data-lucide="search"></i> بحث عن موظفين</a>
-  <a class="drop-item" href="#"><i data-lucide="users"></i> موظفو الشركة</a>
-  <a class="drop-item" href="/messages"><i data-lucide="message-circle"></i> الرسائل</a>
-  <a class="drop-item" href="notifications.html"><i data-lucide="bell"></i> الإشعارات</a>
-  <a class="drop-item" href="settings.html"><i data-lucide="settings"></i> الإعدادات</a>
-  <div class="drop-divider"></div>
-  <a id="dropLogout" class="drop-item drop-item-danger"><i data-lucide="log-out"></i> خروج</a>
+  <div class="sc-head-icons">
+    <a href="/notifications" class="sc-hicon sc-hicon-bare" title="الإشعارات" aria-label="الإشعارات">
+      <i data-lucide="bell" class="ico"></i>
+    </a>
+    <a href="/messages" class="sc-hicon sc-hicon-bare" title="الرسائل" aria-label="الرسائل">
+      <i data-lucide="message-circle-more" class="ico"></i>
+    </a>
+    <div class="sc-menu-wrap" id="coMenuWrap">
+      <button class="sc-hicon sc-hicon-bare" id="coMenuBtn" title="القائمة" aria-label="القائمة">
+        <i data-lucide="menu" class="ico"></i>
+      </button>
+      <div class="sc-menu-dropdown" id="coMenuDropdown">
+        <a href="/company" class="sc-menu-item">
+          <i data-lucide="search" class="ico-sm"></i> بحث عن موظفين
+        </a>
+        <a href="/messages" class="sc-menu-item">
+          <i data-lucide="message-circle" class="ico-sm"></i> الرسائل
+        </a>
+        <a href="/notifications" class="sc-menu-item">
+          <i data-lucide="bell" class="ico-sm"></i> الإشعارات
+        </a>
+        <a href="/settings" class="sc-menu-item">
+          <i data-lucide="settings" class="ico-sm"></i> الإعدادات
+        </a>
+        <div class="sc-menu-sep"></div>
+        <button class="sc-menu-item danger" id="coLogoutBtn">
+          <i data-lucide="log-out" class="ico-sm"></i> تسجيل الخروج
+        </button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <!-- ██ HERO ██ -->
