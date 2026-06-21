@@ -53,7 +53,7 @@ body { background:var(--bg); color:var(--t); font-family:'Cairo',sans-serif; min
 
 /* ══ HERO ═════════════════════════════════════════════════════ */
 .hero {
-  position:relative; height:210px; overflow:hidden;
+  position:relative; height:310px; overflow:hidden;
   background:linear-gradient(135deg,#0c1a38,#101f44);
   border-radius:16px 16px 0 0;
 }
@@ -71,14 +71,15 @@ body { background:var(--bg); color:var(--t); font-family:'Cairo',sans-serif; min
 .ho2 { width:280px; height:280px; background:#00c896; opacity:.07; bottom:-90px; left:-60px; }
 
 .cover-upload-btn {
-  position:absolute; bottom:16px; left:16px; z-index:10;
-  padding:7px 16px; border-radius:10px;
-  background:rgba(0,0,0,.6); color:#fff;
-  font-family:'Cairo',sans-serif; font-size:.74rem; font-weight:700;
-  cursor:pointer; backdrop-filter:blur(8px);
-  border:1px solid rgba(255,255,255,.2); transition:all .2s;
+  position:absolute; bottom:10px; left:10px; z-index:10;
+  width:32px; height:32px; border-radius:50%;
+  display:flex; align-items:center; justify-content:center;
+  background:rgba(0,0,0,.45); backdrop-filter:blur(8px);
+  border:2px solid rgba(255,255,255,.25); cursor:pointer;
+  transition:background .15s, transform .15s;
 }
-.cover-upload-btn:hover { background:rgba(0,0,0,.82); border-color:rgba(255,255,255,.4); }
+.cover-upload-btn:hover { background:rgba(0,0,0,.72); transform:scale(1.1); }
+.cover-upload-btn svg { width:14px; height:14px; stroke:#fff; fill:none; stroke-width:2; flex-shrink:0; }
 
 /* ══ COMPANY PROFILE (centered, overlaps hero) ════════════════ */
 .co-profile {
@@ -208,8 +209,6 @@ body { background:var(--bg); color:var(--t); font-family:'Cairo',sans-serif; min
 .nb svg { width:13px; height:13px; stroke:currentColor; fill:none; stroke-width:2; flex-shrink:0; display:inline; vertical-align:middle; }
 /* Shared header menu item icons */
 svg.ico-sm { width:14px; height:14px; stroke:currentColor; fill:none; stroke-width:2; flex-shrink:0; }
-/* Cover upload label icon */
-.cover-upload-btn svg { width:14px; height:14px; stroke:currentColor; fill:none; stroke-width:2; }
 /* About-card item icons */
 .ac-icon svg { width:15px; height:15px; stroke:currentColor; fill:none; stroke-width:2; display:block; }
 /* Follower avatar placeholder icon */
@@ -462,7 +461,7 @@ body.co-loading  .visitor-only        { display: none !important; }
 /* ══ RESPONSIVE ═══════════════════════════════════════════════ */
 @media(max-width:640px) {
   .co-wrap { padding:4px 8px 16px; }
-  .hero { height:165px; }
+  .hero { height:245px; }
   .co-logo-wrap { margin-top:-44px; }
   .co-logo { width:80px; height:80px; font-size:2rem; }
   .co-profile { padding:0 14px; }
