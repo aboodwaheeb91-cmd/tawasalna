@@ -187,6 +187,25 @@
     reader.readAsDataURL(input.files[0]);
   }
 
+  // ── Logo photo (same local-preview pattern as uploadCover) ─────
+  function uploadLogo(input) {
+    var file = input.files && input.files[0];
+    input.value = '';
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function (e) {
+      var logoEl = document.getElementById('coLogo');
+      if (!logoEl) return;
+      logoEl.innerHTML = '';
+      var img = document.createElement('img');
+      img.src       = e.target.result;
+      img.className = 'co-logo-img';
+      img.alt       = (window.companyState && companyState.profile && companyState.profile.full_name) || '';
+      logoEl.appendChild(img);
+    };
+    reader.readAsDataURL(file);
+  }
+
   // ── Report modal ───────────────────────────────────────────────
   var _reportTargetId = null, _reportTargetType = 'company', _reportTargetUrl = '';
   function openReportModal(targetId, targetType, targetUrl) {
@@ -256,6 +275,7 @@
   window.saveEdit          = saveEdit;
   window.setCover          = setCover;
   window.uploadCover       = uploadCover;
+  window.uploadLogo        = uploadLogo;
   window.openReportModal   = openReportModal;
   window.closeReportModal  = closeReportModal;
   window.submitReport      = submitReport;
@@ -277,6 +297,14 @@
     // Cover photo upload
     var coverFileInput = q('coverFileInput');
     if (coverFileInput) coverFileInput.addEventListener('change', function () { uploadCover(this); });
+
+    // Logo photo upload — analogous to Profile V2 av-cam-btn flow
+    var coLogoCamBtn    = q('coLogoCamBtn');
+    var coLogoFileInput = q('coLogoFileInput');
+    if (coLogoCamBtn && coLogoFileInput) {
+      coLogoCamBtn.addEventListener('click', function () { coLogoFileInput.click(); });
+      coLogoFileInput.addEventListener('change', function () { uploadLogo(this); });
+    }
 
     // Follow + Contact
     var followBtn  = q('followBtn');  if (followBtn)  followBtn.addEventListener('click', toggleFollow);

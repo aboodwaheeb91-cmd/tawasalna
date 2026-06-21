@@ -68,9 +68,9 @@ body { background:var(--bg); color:var(--t); font-family:'Cairo',sans-serif; min
 .nb-cta:hover { background:rgba(255,255,255,.2); }
 
 /* ══ HERO ═════════════════════════════════════════════════════ */
-/* aspect-ratio:6/1 matches Profile V2 .sc-cover — height auto-derives from width */
+/* aspect-ratio:4/1 — 50% taller than 6/1, no fixed height on any breakpoint */
 .hero {
-  position:relative; aspect-ratio:6/1; height:auto; overflow:hidden;
+  position:relative; aspect-ratio:4/1; height:auto; overflow:hidden;
   background:linear-gradient(135deg,#0f2027,#203a43,#2c5364);
   border-radius:13px 13px 0 0;
 }
@@ -141,6 +141,18 @@ body { background:var(--bg); color:var(--t); font-family:'Cairo',sans-serif; min
   align-items:center; justify-content:center; z-index:2;
 }
 .co-logo-verify svg { width:13px; height:13px; stroke:#fff; fill:none; stroke-width:2.5; }
+
+/* Logo camera button — owner-only, mirrors Profile V2 .av-cam-btn
+   Position: bottom-left of anchor (badge is bottom-right — no overlap) */
+.co-logo-cam-btn {
+  position:absolute; bottom:2px; left:2px;
+  width:26px; height:26px; border-radius:50%;
+  border:2px solid var(--bg); background:var(--ac2);
+  display:flex; align-items:center; justify-content:center;
+  cursor:pointer; z-index:4; transition:transform .15s;
+}
+.co-logo-cam-btn svg { width:13px; height:13px; stroke:#fff; fill:none; stroke-width:2; flex-shrink:0; }
+.co-logo-cam-btn:hover { transform:scale(1.12); }
 
 /* Company info block */
 .co-info-center {
