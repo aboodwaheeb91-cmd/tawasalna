@@ -25,6 +25,17 @@ body { background:var(--bg); color:var(--t); font-family:'Cairo',sans-serif; min
 .co-hdr { position:sticky; top:0; }
 .ico-sm { width:14px; height:14px; flex-shrink:0; }
 
+/* ══ SHELL ════════════════════════════════════════════════════ */
+.co-wrap {
+  max-width:640px; margin:0 auto; padding:8px 16px 24px;
+}
+.co-shell {
+  background:var(--card); border-radius:16px;
+  border:1px solid var(--border);
+  box-shadow:0 20px 60px rgba(0,0,0,.4);
+  overflow:visible;
+}
+
 .nb {
   padding:6px 14px; border-radius:9px; border:none; cursor:pointer;
   font-family:'Cairo',sans-serif; font-size:.74rem; font-weight:700;
@@ -42,8 +53,9 @@ body { background:var(--bg); color:var(--t); font-family:'Cairo',sans-serif; min
 
 /* ══ HERO ═════════════════════════════════════════════════════ */
 .hero {
-  margin-top:var(--ah-h,44px); position:relative; height:210px; overflow:hidden;
+  position:relative; height:210px; overflow:hidden;
   background:linear-gradient(135deg,#0c1a38,#101f44);
+  border-radius:16px 16px 0 0;
 }
 .hero::after {
   content:''; position:absolute; inset:0; z-index:2;
@@ -70,7 +82,7 @@ body { background:var(--bg); color:var(--t); font-family:'Cairo',sans-serif; min
 
 /* ══ COMPANY PROFILE (centered, overlaps hero) ════════════════ */
 .co-profile {
-  max-width:640px; margin:0 auto; padding:0 22px;
+  padding:0 22px;
   text-align:center; position:relative; z-index:10;
 }
 
@@ -143,7 +155,7 @@ body { background:var(--bg); color:var(--t); font-family:'Cairo',sans-serif; min
 
 /* ══ STATS BAR ════════════════════════════════════════════════ */
 .stats-bar {
-  max-width:640px; margin:20px auto 0; padding:0 22px;
+  margin:20px 0 0; padding:0 22px;
 }
 .stats-inner {
   background:var(--card); border:1px solid var(--border);
@@ -162,7 +174,7 @@ body { background:var(--bg); color:var(--t); font-family:'Cairo',sans-serif; min
 
 /* ══ TABS ═════════════════════════════════════════════════════ */
 .tabs-wrap {
-  max-width:640px; margin:16px auto 0; padding:0 22px; margin-bottom:20px;
+  margin:16px 0 20px; padding:0 22px;
 }
 .tabs { display:flex; gap:0; border-bottom:1px solid var(--border); }
 .tab {
@@ -175,7 +187,7 @@ body { background:var(--bg); color:var(--t); font-family:'Cairo',sans-serif; min
 .tab.active { color:var(--ac); border-bottom-color:var(--ac); }
 
 /* ══ CONTENT ══════════════════════════════════════════════════ */
-.content { max-width:640px; margin:0 auto; padding:0 22px 80px; }
+.content { padding:0 22px 80px; }
 
 /* Section header (e.g. "الوظائف المفتوحة") */
 .section-header {
@@ -449,21 +461,22 @@ body.co-loading  .visitor-only        { display: none !important; }
 
 /* ══ RESPONSIVE ═══════════════════════════════════════════════ */
 @media(max-width:640px) {
+  .co-wrap { padding:4px 8px 16px; }
   .hero { height:165px; }
   .co-logo-wrap { margin-top:-44px; }
   .co-logo { width:80px; height:80px; font-size:2rem; }
-  .co-profile { padding:0 16px; }
+  .co-profile { padding:0 14px; }
   .co-name { font-size:1.25rem; }
-  .stats-bar { padding:0 16px; }
+  .stats-bar { padding:0 14px; }
   .stats-inner { flex-wrap:wrap; }
   .sbi { flex-basis:50%; border-left:none; border-top:1px solid var(--border); padding:12px 8px; }
   .sbi:nth-child(1),.sbi:nth-child(2) { border-top:none; }
   .sbi:nth-child(odd) { border-right:1px solid var(--border); }
-  .tabs-wrap { padding:0 16px; }
+  .tabs-wrap { padding:0 14px; }
   .tab { padding:10px 12px; font-size:.74rem; }
-  .content { padding:0 16px 80px; }
+  .content { padding:0 14px 80px; }
   .about-grid { grid-template-columns:1fr; }
   .modal { padding:20px 16px; }
   .job-card { gap:10px; padding:12px 14px; }
-  .jobs-cta { padding:18px 16px; }
+  .jobs-cta { padding:18px 14px; }
 }
