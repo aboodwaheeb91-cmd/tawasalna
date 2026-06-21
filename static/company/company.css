@@ -21,26 +21,15 @@
 * { margin:0; padding:0; box-sizing:border-box; }
 body { background:var(--bg); color:var(--t); font-family:'Cairo',sans-serif; min-height:100vh; }
 
-/* ══ NAV ══════════════════════════════════════════════════════ */
-.nav {
-  position:fixed; top:0; left:0; right:0; z-index:100; height:56px;
-  display:flex; align-items:center; gap:10px; padding:0 22px;
-  background:rgba(7,11,24,.96); backdrop-filter:blur(24px);
-  border-bottom:1px solid var(--border); overflow:visible;
-}
-.nav-logo {
-  font-size:1.05rem; font-weight:900;
-  background:linear-gradient(135deg,var(--ac),var(--ac2));
-  -webkit-background-clip:text; -webkit-text-fill-color:transparent;
-  background-clip:text; cursor:pointer; flex-shrink:0;
-}
+/* ══ HEADER (shared sc-header extension) ══════════════════════ */
+.co-hdr { position:sticky; top:0; }
+.ico-sm { width:14px; height:14px; flex-shrink:0; }
+
 .nb {
   padding:6px 14px; border-radius:9px; border:none; cursor:pointer;
   font-family:'Cairo',sans-serif; font-size:.74rem; font-weight:700;
   transition:all .18s;
 }
-.nb-ghost    { background:rgba(255,255,255,.06); color:var(--t2); border:1px solid var(--border); }
-.nb-ghost:hover { background:rgba(255,255,255,.11); color:var(--t); }
 .nb-primary  { background:linear-gradient(135deg,var(--ac),var(--ac2)); color:#fff; border:none; }
 .nb-primary:hover { transform:translateY(-1px); box-shadow:0 4px 14px rgba(37,99,255,.4); }
 .nb-outline  { background:transparent; color:var(--t2); border:1px solid var(--bd2); }
@@ -51,18 +40,9 @@ body { background:var(--bg); color:var(--t); font-family:'Cairo',sans-serif; min
 .nb-cta      { background:rgba(255,255,255,.12); color:#fff; border:1px solid rgba(255,255,255,.25); }
 .nb-cta:hover { background:rgba(255,255,255,.2); }
 
-/* Dropdown */
-.drop-item {
-  display:flex; align-items:center; gap:8px; padding:9px 13px;
-  border-radius:9px; font-family:'Cairo',sans-serif;
-  font-size:.78rem; font-weight:700; color:rgba(255,255,255,.7);
-  text-decoration:none; cursor:pointer; transition:all .15s; white-space:nowrap;
-}
-.drop-item:hover { background:rgba(255,255,255,.06); color:#fff; }
-
 /* ══ HERO ═════════════════════════════════════════════════════ */
 .hero {
-  margin-top:56px; position:relative; height:210px; overflow:hidden;
+  margin-top:var(--ah-h,44px); position:relative; height:210px; overflow:hidden;
   background:linear-gradient(135deg,#0c1a38,#101f44);
 }
 .hero::after {
@@ -214,8 +194,8 @@ body { background:var(--bg); color:var(--t); font-family:'Cairo',sans-serif; min
 .co-type-badge svg { width:12px; height:12px; stroke:currentColor; fill:none; stroke-width:2; }
 /* Nav button icons */
 .nb svg { width:13px; height:13px; stroke:currentColor; fill:none; stroke-width:2; flex-shrink:0; display:inline; vertical-align:middle; }
-/* Dropdown item icons */
-.drop-item svg { width:14px; height:14px; stroke:currentColor; fill:none; stroke-width:2; flex-shrink:0; }
+/* Shared header menu item icons */
+svg.ico-sm { width:14px; height:14px; stroke:currentColor; fill:none; stroke-width:2; flex-shrink:0; }
 /* Cover upload label icon */
 .cover-upload-btn svg { width:14px; height:14px; stroke:currentColor; fill:none; stroke-width:2; }
 /* About-card item icons */
@@ -438,12 +418,6 @@ body.co-loading  .visitor-only        { display: none !important; }
 .skip-link:focus{top:0}
 
 /* ══ INLINE → CLASS (PR #224 commit #2) ══════════════════════ */
-.nav-logo-img     { height:36px; width:auto; object-fit:contain; display:block; }
-.nav-spacer       { flex:1; }
-.nb-danger        { background:rgba(239,68,68,.1); color:#f87171; border:1px solid rgba(239,68,68,.2); }
-.drop-menu        { display:none; position:fixed; top:56px; z-index:9999; background:#0d1526; border:1px solid rgba(255,255,255,.1); border-radius:13px; padding:6px; min-width:190px; box-shadow:0 12px 40px rgba(0,0,0,.65); }
-.drop-divider     { height:1px; background:rgba(255,255,255,.08); margin:4px 0; }
-.drop-item-danger { color:#f87171; }
 #coverImg         { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; display:none; opacity:0; transition:opacity .4s; z-index:3; }
 .file-input-hidden{ display:none; }
 #coWebsite        { display:none; }
