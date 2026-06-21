@@ -19,18 +19,18 @@
 }
 
 /* ══ TEMP COMPANY VISUAL TUNING — remove after sizes are finalized ══
- * Edit values here only. Wired below — no other file needs to change. */
+ * Values sourced from Profile V2 (profile-showcase.html / profile-v2.css).
+ * Edit only here — wired below, no other file needs to change. */
 :root {
-  --co-hero-h-desktop:       260px;
-  --co-hero-h-mobile:        200px;
+  /* Cover: switched to aspect-ratio:6/1 (Profile V2 approach) — no fixed height */
 
-  --co-logo-size-desktop:    130px;
-  --co-logo-size-mobile:     118px;
+  --co-logo-size-desktop:    106px;   /* Profile V2 avatar: 106px */
+  --co-logo-size-mobile:      96px;   /* slightly smaller on narrow screens */
 
-  --co-logo-overlap-desktop: -65px;
-  --co-logo-overlap-mobile:  -58px;
+  --co-logo-overlap-desktop: -40px;   /* Profile V2: margin-top:-40px on .sc-prof-row */
+  --co-logo-overlap-mobile:  -36px;
 
-  --co-logo-badge-size:       28px;
+  --co-logo-badge-size:       26px;
 }
 /* ══ END TEMP TUNING ═══════════════════════════════════════════════ */
 
@@ -43,12 +43,12 @@ body { background:var(--bg); color:var(--t); font-family:'Cairo',sans-serif; min
 
 /* ══ SHELL ════════════════════════════════════════════════════ */
 .co-wrap {
-  max-width:640px; margin:0 auto; padding:8px 16px 24px;
+  max-width:600px; margin:0 auto; padding:8px 16px 24px;
 }
 .co-shell {
-  background:var(--card); border-radius:16px;
+  background:var(--card); border-radius:13px;
   border:1px solid var(--border);
-  box-shadow:0 20px 60px rgba(0,0,0,.4);
+  box-shadow:0 20px 60px rgba(0,0,0,.35);
   overflow:visible;
 }
 
@@ -68,14 +68,15 @@ body { background:var(--bg); color:var(--t); font-family:'Cairo',sans-serif; min
 .nb-cta:hover { background:rgba(255,255,255,.2); }
 
 /* ══ HERO ═════════════════════════════════════════════════════ */
+/* aspect-ratio:6/1 matches Profile V2 .sc-cover — height auto-derives from width */
 .hero {
-  position:relative; height:var(--co-hero-h-desktop); overflow:hidden;
-  background:linear-gradient(135deg,#0c1a38,#101f44);
-  border-radius:16px 16px 0 0;
+  position:relative; aspect-ratio:6/1; height:auto; overflow:hidden;
+  background:linear-gradient(135deg,#0f2027,#203a43,#2c5364);
+  border-radius:13px 13px 0 0;
 }
 .hero::after {
   content:''; position:absolute; inset:0; z-index:2;
-  background:linear-gradient(to bottom, rgba(7,11,24,0) 30%, rgba(7,11,24,.85) 100%);
+  background:linear-gradient(180deg,transparent,rgba(20,26,36,.6));
   pointer-events:none;
 }
 .hero-bg {
@@ -86,16 +87,18 @@ body { background:var(--bg); color:var(--t); font-family:'Cairo',sans-serif; min
 .ho1 { width:400px; height:400px; background:#2563ff; opacity:.1; top:-150px; right:-100px; }
 .ho2 { width:280px; height:280px; background:#00c896; opacity:.07; bottom:-90px; left:-60px; }
 
+/* Cover upload button — matches Profile V2 .cv-edit-btn exactly */
 .cover-upload-btn {
-  position:absolute; bottom:10px; left:10px; z-index:10;
-  width:32px; height:32px; border-radius:50%;
+  position:absolute; top:8px; right:8px; z-index:10;
+  width:30px; height:30px; border-radius:50%;
   display:flex; align-items:center; justify-content:center;
   background:rgba(0,0,0,.45); backdrop-filter:blur(8px);
   border:2px solid rgba(255,255,255,.25); cursor:pointer;
   transition:background .15s, transform .15s;
 }
-.cover-upload-btn:hover { background:rgba(0,0,0,.72); transform:scale(1.1); }
+.cover-upload-btn:hover { background:rgba(0,0,0,.7); transform:scale(1.1); }
 .cover-upload-btn svg { width:14px; height:14px; stroke:#fff; fill:none; stroke-width:2; flex-shrink:0; }
+/* Icon inside: Profile V2 uses stroke only; Lucide camera renders via JS */
 
 /* ══ COMPANY PROFILE (centered, overlaps hero) ════════════════ */
 .co-profile {
@@ -103,31 +106,41 @@ body { background:var(--bg); color:var(--t); font-family:'Cairo',sans-serif; min
   text-align:center; position:relative; z-index:10;
 }
 
-/* Logo wrapping — centered, pulls up over hero */
+/* Logo wrapping — centered, pulls up over hero.
+   Mirrors Profile V2: .sc-prof-row { margin-top:-40px } */
 .co-logo-wrap {
   display:flex; justify-content:center;
   margin-top:var(--co-logo-overlap-desktop); margin-bottom:14px;
 }
-.co-logo-anchor { position:relative; flex-shrink:0; }
-.co-logo {
+/* Anchor carries the glass ring via ::after — matches Profile V2 .sc-avatar-wrap */
+.co-logo-anchor {
+  position:relative; flex-shrink:0;
   width:var(--co-logo-size-desktop); height:var(--co-logo-size-desktop);
-  border-radius:50%; flex-shrink:0;
+}
+/* Glass ring: centered on image edge, 50% in / 50% out — identical to Profile V2 */
+.co-logo-anchor::after {
+  content:''; position:absolute; inset:0; border-radius:50%;
+  border:3px solid rgba(225,230,240,.55);
+  pointer-events:none;
+  margin:-1.5px;
+  width:calc(100% + 3px); height:calc(100% + 3px);
+}
+.co-logo {
+  width:100%; height:100%; border-radius:50%;
   background:linear-gradient(135deg,var(--ac),var(--ac2));
   display:flex; align-items:center; justify-content:center;
-  font-size:3rem;
-  border:4px solid rgba(255,255,255,.18);
-  box-shadow:0 0 0 3px rgba(0,200,150,.15), 0 8px 32px rgba(0,200,150,.28);
-  overflow:hidden;
+  font-size:2.6rem; overflow:hidden;
 }
 .co-logo-img { width:100%; height:100%; object-fit:cover; border-radius:inherit; display:block; }
+/* Verified badge on logo — small teal circle, bottom-right of anchor */
 .co-logo-verify {
-  display:none; position:absolute; bottom:6px; right:6px;
+  display:none; position:absolute; bottom:4px; right:4px;
   width:var(--co-logo-badge-size); height:var(--co-logo-badge-size);
   border-radius:50%;
   background:var(--ac2); border:2px solid var(--bg);
-  align-items:center; justify-content:center;
+  align-items:center; justify-content:center; z-index:2;
 }
-.co-logo-verify svg { width:14px; height:14px; stroke:#fff; fill:none; stroke-width:2.5; }
+.co-logo-verify svg { width:13px; height:13px; stroke:#fff; fill:none; stroke-width:2.5; }
 
 /* Company info block */
 .co-info-center {
@@ -487,9 +500,10 @@ body.co-loading  .visitor-only        { display: none !important; }
 /* ══ RESPONSIVE ═══════════════════════════════════════════════ */
 @media(max-width:640px) {
   .co-wrap { padding:4px 8px 16px; }
-  .hero { height:var(--co-hero-h-mobile); }
+  /* Hero height auto-derives from aspect-ratio:6/1 — no override needed */
   .co-logo-wrap { margin-top:var(--co-logo-overlap-mobile); }
-  .co-logo { width:var(--co-logo-size-mobile); height:var(--co-logo-size-mobile); font-size:2.5rem; }
+  .co-logo-anchor { width:var(--co-logo-size-mobile); height:var(--co-logo-size-mobile); }
+  .co-logo { font-size:2rem; }
   .co-profile { padding:0 14px; }
   .co-name { font-size:1.25rem; }
   .stats-bar { padding:0 14px; }
