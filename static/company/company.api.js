@@ -44,6 +44,23 @@
     .finally(function () {
       if (window._applyLoadingState) window._applyLoadingState(false);
       _loadController = null;
+      // ── Owner-button diagnostic — answers: is body.view-owner set?
+      //    co-loading removed? buttons in DOM? display computed correctly?
+      (function () {
+        var s = window.companyState;
+        if (!s) return;
+        var coverBtn = document.getElementById('coverUploadBtn');
+        var logoBtn  = document.getElementById('coLogoCamBtn');
+        var gc = function (el) { return el ? getComputedStyle(el).display : 'MISSING'; };
+        console.info(
+          '[Company:owner-diag]',
+          'viewMode='    + s.viewMode,
+          '| body=['     + Array.prototype.slice.call(document.body.classList).join(' ') + ']',
+          '| can_edit='  + !!(s.permissions && s.permissions.can_edit),
+          '| coverBtn='  + gc(coverBtn),
+          '| logoCamBtn='+ gc(logoBtn)
+        );
+      }());
     });
   }
 
