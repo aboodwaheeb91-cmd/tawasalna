@@ -22,7 +22,7 @@
  * Values sourced from Profile V2 (profile-showcase.html / profile-v2.css).
  * Edit only here — wired below, no other file needs to change. */
 :root {
-  /* Cover: switched to aspect-ratio:6/1 (Profile V2 approach) — no fixed height */
+  /* Cover: aspect-ratio:4/1 (50% taller than 6/1) — no fixed height */
 
   --co-logo-size-desktop:    106px;   /* Profile V2 avatar: 106px */
   --co-logo-size-mobile:      96px;   /* slightly smaller on narrow screens */
@@ -87,9 +87,9 @@ body { background:var(--bg); color:var(--t); font-family:'Cairo',sans-serif; min
 .ho1 { width:400px; height:400px; background:#2563ff; opacity:.1; top:-150px; right:-100px; }
 .ho2 { width:280px; height:280px; background:#00c896; opacity:.07; bottom:-90px; left:-60px; }
 
-/* Cover upload button — matches Profile V2 .cv-edit-btn exactly */
+/* Cover upload button — top-left corner, z-index:20 beats .co-profile{z-index:10} */
 .cover-upload-btn {
-  position:absolute; top:8px; right:8px; z-index:10;
+  position:absolute; top:8px; left:8px; z-index:20;
   width:30px; height:30px; border-radius:50%;
   display:flex; align-items:center; justify-content:center;
   background:rgba(0,0,0,.45); backdrop-filter:blur(8px);
@@ -512,7 +512,7 @@ body.co-loading  .visitor-only        { display: none !important; }
 /* ══ RESPONSIVE ═══════════════════════════════════════════════ */
 @media(max-width:640px) {
   .co-wrap { padding:4px 8px 16px; }
-  /* Hero height auto-derives from aspect-ratio:6/1 — no override needed */
+  /* Hero height auto-derives from aspect-ratio:4/1 — no override needed */
   .co-logo-wrap { margin-top:var(--co-logo-overlap-mobile); }
   .co-logo-anchor { width:var(--co-logo-size-mobile); height:var(--co-logo-size-mobile); }
   .co-logo { font-size:2rem; }
