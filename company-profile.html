@@ -23,7 +23,7 @@
 ╔══════════════════════════════════════════════╗
 ║  TAWASALNA - COMPANY-PROFILE                 ║
 ║  Architecture: Modular (static/company/)     ║
-║  PR #224 refactor + PR #225 redesign         ║
+║  Visual: Profile V2 parity (PR #237)         ║
 ║  DO NOT add <script> or <style> blocks here  ║
 ╚══════════════════════════════════════════════╝
 -->
@@ -72,33 +72,30 @@
 </div>
 
 <!-- ██ SHELL ██ -->
-<div class="co-wrap">
-<div class="co-shell">
+<div class="sc-wrap">
+<div class="sc-main-card">
 
-<!-- ██ HERO ██ -->
-<div class="hero" id="heroSection">
-  <div class="hero-bg" id="heroBg"></div>
-  <div class="hero-orb ho1"></div>
-  <div class="hero-orb ho2"></div>
-  <img loading="lazy" id="coverImg" src="" alt="" class="cover-img">
-  <label id="coverUploadBtn" class="cover-upload-btn owner-only" title="تغيير صورة الغلاف" aria-label="تغيير صورة الغلاف">
+<!-- ██ COVER ██ -->
+<div class="sc-cover" id="heroSection">
+  <img loading="lazy" id="coverImg" src="" alt="">
+  <label id="coverUploadBtn" class="cv-edit-btn owner-only" title="تغيير صورة الغلاف" aria-label="تغيير صورة الغلاف">
     <input id="coverFileInput" type="file" accept="image/*" class="file-input-hidden">
     <i data-lucide="camera"></i>
   </label>
 </div>
 
-<!-- ██ COMPANY PROFILE (centered, overlaps hero) ██ -->
-<div class="co-profile">
+<!-- ██ PROFILE ROW (logo + info, margin-top:-40px) ██ -->
+<div class="sc-prof-row">
 
-  <!-- Logo overlapping hero bottom -->
-  <div class="co-logo-wrap">
-    <div class="co-logo-anchor">
+  <!-- Logo column -->
+  <div class="sc-ava-col">
+    <div class="sc-avatar-wrap">
       <div class="co-logo" id="coLogo"><i data-lucide="building-2"></i></div>
       <span class="co-logo-verify" id="coLogoBadge" aria-label="شركة موثقة">
         <i data-lucide="badge-check"></i>
       </span>
-      <!-- Logo camera button — owner-only, analogous to Profile V2 av-cam-btn -->
-      <button class="co-logo-cam-btn owner-only" id="coLogoCamBtn"
+      <!-- Logo cam button — owner-only, matches Profile V2 .av-cam-btn -->
+      <button class="av-cam-btn owner-only" id="coLogoCamBtn"
               title="تغيير شعار الشركة" aria-label="تغيير شعار الشركة" type="button">
         <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
@@ -109,8 +106,8 @@
     </div>
   </div>
 
-  <!-- Company info centered -->
-  <div class="co-info-center">
+  <!-- Company info column -->
+  <div class="sc-info">
     <div class="co-name-row">
       <h1 class="co-name" id="coName">اسم الشركة</h1>
       <span id="coVerifiedBadge" class="co-verified-badge">
@@ -132,93 +129,84 @@
       </div>
     </div>
 
-    <!-- Social links row (hidden until JS populates it from profile.links) -->
+    <!-- Social links row (hidden until JS populates it) -->
     <div class="co-social-row" id="coSocialRow">
       <a id="coSocialLinkedin" class="co-social-btn" href="#" target="_blank" rel="noopener" title="LinkedIn" aria-label="LinkedIn">
-        <!-- LinkedIn brand icon (not in Lucide) -->
         <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 0 1-2.063-2.065 2.064 2.064 0 1 1 2.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
       </a>
       <a id="coSocialTwitter" class="co-social-btn" href="#" target="_blank" rel="noopener" title="X / Twitter" aria-label="X / Twitter">
-        <!-- X / Twitter brand icon -->
         <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.743l7.732-8.845L1.254 2.25H8.08l4.253 5.622zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
       </a>
       <a id="coSocialFacebook" class="co-social-btn" href="#" target="_blank" rel="noopener" title="Facebook" aria-label="Facebook">
-        <!-- Facebook brand icon -->
         <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
       </a>
       <a id="coSocialInstagram" class="co-social-btn" href="#" target="_blank" rel="noopener" title="Instagram" aria-label="Instagram">
-        <!-- Instagram brand icon -->
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="20" height="20" x="2" y="2" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" x2="17.51" y1="6.5" y2="6.5"/></svg>
       </a>
     </div>
+  </div><!-- /sc-info -->
 
-    <!-- Owner action buttons -->
-    <div class="co-actions owner-only">
-      <button id="postJobBtn" class="nb nb-primary">
-        <i data-lucide="plus"></i> نشر وظيفة
-      </button>
-      <button id="editBtn" class="nb nb-outline">
-        <i data-lucide="pencil"></i> تعديل
-      </button>
-    </div>
+</div><!-- /sc-prof-row -->
 
-    <!-- Visitor action buttons -->
-    <div class="co-actions visitor-only" id="visitorActions">
-      <button class="nb nb-follow" id="followBtn">
-        <i data-lucide="user-plus"></i> متابعة
-      </button>
-      <button id="contactBtn" class="nb nb-outline">
-        <i data-lucide="message-circle"></i> تواصل معنا
-      </button>
-    </div>
-  </div>
-
+<!-- ██ ACTIONS ██ -->
+<div class="sc-actions owner-only">
+  <button id="postJobBtn" class="nb nb-primary">
+    <i data-lucide="plus"></i> نشر وظيفة
+  </button>
+  <button id="editBtn" class="nb nb-outline">
+    <i data-lucide="pencil"></i> تعديل
+  </button>
+</div>
+<div class="sc-actions visitor-only" id="visitorActions">
+  <button class="nb nb-follow" id="followBtn">
+    <i data-lucide="user-plus"></i> متابعة
+  </button>
+  <button id="contactBtn" class="nb nb-outline">
+    <i data-lucide="message-circle"></i> تواصل معنا
+  </button>
 </div>
 
-<!-- ██ STATS BAR ██ -->
-<div class="stats-bar">
-  <div class="stats-inner">
-    <div class="sbi">
-      <div class="sbi-ico"><i data-lucide="briefcase"></i></div>
-      <div class="sbi-n" id="jobsCount">0</div>
-      <div class="sbi-l">وظيفة متاحة</div>
-    </div>
-    <div class="sbi">
-      <div class="sbi-ico"><i data-lucide="users"></i></div>
-      <div class="sbi-n" id="followersCount">0</div>
-      <div class="sbi-l">متابع الشركة</div>
-    </div>
-    <div class="sbi">
-      <div class="sbi-ico"><i data-lucide="star"></i></div>
-      <div class="sbi-n" id="ratingAvg">—</div>
-      <div class="sbi-l">معدل التقييم</div>
-    </div>
-    <div class="sbi">
-      <div class="sbi-ico"><i data-lucide="shield-check"></i></div>
-      <div class="sbi-n" id="verifiedCount">0</div>
-      <div class="sbi-l">موظف موثق</div>
-    </div>
+<!-- ██ STATS ██ -->
+<div class="sc-stats">
+  <div class="sc-stat">
+    <div class="sc-stat-i"><i data-lucide="briefcase"></i></div>
+    <div class="sc-stat-n" id="jobsCount">0</div>
+    <div class="sc-stat-l">وظيفة متاحة</div>
+  </div>
+  <div class="sc-stat">
+    <div class="sc-stat-i"><i data-lucide="users"></i></div>
+    <div class="sc-stat-n" id="followersCount">0</div>
+    <div class="sc-stat-l">متابع الشركة</div>
+  </div>
+  <div class="sc-stat">
+    <div class="sc-stat-i"><i data-lucide="star"></i></div>
+    <div class="sc-stat-n" id="ratingAvg">—</div>
+    <div class="sc-stat-l">معدل التقييم</div>
+  </div>
+  <div class="sc-stat">
+    <div class="sc-stat-i"><i data-lucide="shield-check"></i></div>
+    <div class="sc-stat-n" id="verifiedCount">0</div>
+    <div class="sc-stat-l">موظف موثق</div>
   </div>
 </div>
 
 <!-- ██ TABS ██ -->
-<div class="tabs-wrap">
-  <div class="tabs">
-    <div class="tab active" data-tab="jobs">الوظائف</div>
-    <div class="tab" data-tab="posts">المنشورات</div>
-    <div class="tab" data-tab="about">التفاصيل</div>
-    <div class="tab owner-only" data-tab="ratings">التقييمات</div>
+<div class="sc-tabs-wrap">
+  <div class="sc-tabs">
+    <button class="sc-tab active" data-tab="jobs">الوظائف</button>
+    <button class="sc-tab" data-tab="posts">المنشورات</button>
+    <button class="sc-tab" data-tab="about">التفاصيل</button>
+    <button class="sc-tab owner-only" data-tab="ratings">التقييمات</button>
   </div>
 </div>
 
 <!-- ██ CONTENT ██ -->
-<div class="content" id="main-content">
+<div class="sc-content" id="main-content">
 
   <!-- JOBS TAB (default) -->
   <div id="tab-jobs">
     <div class="section-header">الوظائف المفتوحة</div>
 
-    <!-- Jobs list (full-width, horizontal cards) — replaced on data load -->
     <div id="jobsList">
       <div class="job-card tw-card-lift">
         <div class="job-card-logo"><i data-lucide="building-2"></i></div>
@@ -244,7 +232,6 @@
       </div>
     </div>
 
-    <!-- CTA banner (owner only) -->
     <div class="jobs-cta owner-only">
       <div class="jobs-cta-inner">
         <div class="jobs-cta-text">هل تبحث عن المواهب المناسبة؟</div>
@@ -266,11 +253,10 @@
     <div id="postsEmpty">لا منشورات بعد</div>
   </div>
 
-  <!-- ABOUT / DETAILS TAB -->
+  <!-- ABOUT TAB -->
   <div id="tab-about">
     <div class="about-grid">
 
-      <!-- Company details -->
       <div class="about-card">
         <div class="ac-title">عن الشركة</div>
         <div id="aboutDesc">لا يوجد وصف مفصل بعد.</div>
@@ -283,16 +269,13 @@
         <div class="ac-item"><span class="ac-icon"><i data-lucide="phone"></i></span><div><div class="ac-key">الهاتف</div><div class="ac-val" id="aboutPhone">—</div></div></div>
       </div>
 
-      <!-- Right column -->
       <div>
-        <!-- Achievements -->
         <div class="about-card">
           <div class="ac-title">الإنجازات والتوثيق</div>
           <div class="ac-item"><span class="ac-icon"><i data-lucide="shield-check"></i></span><div><div class="ac-key">التوثيق</div><div class="ac-val">جهة موثقة من تواصلنا</div></div></div>
           <div class="ac-item"><span class="ac-icon"><i data-lucide="clipboard-check"></i></span><div><div class="ac-key">عمليات التوثيق</div><div class="ac-val" id="aboutVerified">0 توثيق معتمد</div></div></div>
         </div>
 
-        <!-- Followers widget -->
         <div class="followers-wrap">
           <div class="ac-title">المتابعون</div>
           <div class="fw-avatars">
@@ -303,7 +286,6 @@
           <div class="fw-count"><span id="followersCount2">0</span> متابع</div>
         </div>
 
-        <!-- Rating card (visitor: interactive stars; owner: view-only) -->
         <div class="rating-card">
           <div class="ac-title">تقييم الموظفين</div>
           <div class="stars" id="ratingStarsDisplay">☆☆☆☆☆</div>
@@ -311,7 +293,6 @@
             <div class="rating-n" id="ratingNum">—</div>
             <div class="rating-sub" id="ratingSub">لا تقييمات بعد</div>
           </div>
-          <!-- Interactive stars (visitor only) -->
           <div class="rate-interactive visitor-only" id="rateBox">
             <div id="ratePrompt">قيّم هذه الشركة:</div>
             <div class="rate-stars" id="rateStars">
@@ -322,7 +303,7 @@
       </div>
 
     </div>
-  </div>
+  </div><!-- /tab-about -->
 
   <!-- RATINGS TAB (owner only) -->
   <div id="tab-ratings">
@@ -334,12 +315,12 @@
         <div class="rating-sub" id="ratingsTabCount">لا تقييمات بعد</div>
       </div>
     </div>
-  </div>
+  </div><!-- /tab-ratings -->
 
-</div><!-- /content -->
+</div><!-- /sc-content -->
 
-</div><!-- /co-shell -->
-</div><!-- /co-wrap -->
+</div><!-- /sc-main-card -->
+</div><!-- /sc-wrap -->
 
 <!-- ██ EDIT MODAL ██ -->
 <div class="overlay" id="editOverlay">
