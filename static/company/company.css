@@ -22,7 +22,7 @@
  * Values sourced from Profile V2 (profile-showcase.html / profile-v2.css).
  * Edit only here — wired below, no other file needs to change. */
 :root {
-  /* Cover: switched to aspect-ratio:6/1 (Profile V2 approach) — no fixed height */
+  /* Cover: aspect-ratio:4/1 (50% taller than 6/1) — no fixed height */
 
   --co-logo-size-desktop:    106px;   /* Profile V2 avatar: 106px */
   --co-logo-size-mobile:      96px;   /* slightly smaller on narrow screens */
@@ -512,7 +512,7 @@ body.co-loading  .visitor-only        { display: none !important; }
 /* ══ RESPONSIVE ═══════════════════════════════════════════════ */
 @media(max-width:640px) {
   .co-wrap { padding:4px 8px 16px; }
-  /* Hero height auto-derives from aspect-ratio:6/1 — no override needed */
+  /* Hero height auto-derives from aspect-ratio:4/1 — no override needed */
   .co-logo-wrap { margin-top:var(--co-logo-overlap-mobile); }
   .co-logo-anchor { width:var(--co-logo-size-mobile); height:var(--co-logo-size-mobile); }
   .co-logo { font-size:2rem; }
