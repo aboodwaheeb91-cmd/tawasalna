@@ -16,6 +16,11 @@
   --ah-muted: rgba(255,255,255,.5);
   --ah-g: #00c896;
   --ah-b: #2563ff;
+
+  /* Home button — pages can override these three vars for per-page theming */
+  --hdr-home-accent: #00c896;
+  --hdr-home-glow:   rgba(0,200,150,.28);
+  --hdr-home-bg:     rgba(0,200,150,.07);
 }
 
 /* ── Shared header bar ── */
@@ -70,15 +75,29 @@
 .sc-hicon-bare:hover { color: #e2e8f0; }
 .sc-hicon-bare .ico { width: 20px; height: 20px; }
 
-/* Gradient home button (circle) */
+/* Glow-square home button — size, shape, and glow driven by CSS vars */
 .sc-home-btn {
-  width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0;
-  background: linear-gradient(135deg, #00c896, #00b8c4, #2563ff);
-  box-shadow: 0 2px 10px rgba(0,184,196,.35);
-  color: #06121c;
+  width: 40px; height: 40px;
+  border-radius: 11px;
+  flex-shrink: 0;
+  background: var(--hdr-home-bg);
+  border: 1.5px solid var(--hdr-home-glow);
+  box-shadow: 0 0 10px var(--hdr-home-glow),
+              inset 0 0 6px var(--hdr-home-glow);
+  color: var(--hdr-home-accent);
+  transition: box-shadow .2s, border-color .2s;
 }
-.sc-home-btn .ico { width: 18px; height: 18px; }
-.sc-home-btn:active { transform: scale(.94); }
+.sc-home-btn .ico {
+  width: 19px; height: 19px;
+  filter: drop-shadow(0 0 3px var(--hdr-home-glow));
+}
+.sc-home-btn:hover,
+.sc-home-btn:focus-visible {
+  box-shadow: 0 0 18px var(--hdr-home-glow),
+              inset 0 0 10px var(--hdr-home-glow);
+  border-color: var(--hdr-home-accent);
+}
+.sc-home-btn:active { transform: scale(.93); }
 
 /* Icon group on the right side (RTL end) */
 .sc-head-icons { display: flex; align-items: center; gap: 8px; }
