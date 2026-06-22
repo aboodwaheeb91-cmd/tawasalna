@@ -24,10 +24,10 @@
 
 /* Logo size tuning — edit here only */
 :root {
-  --co-logo-size-desktop: 106px;  /* Profile V2 avatar: 106px */
-  --co-logo-size-mobile:   96px;
-  --co-logo-overlap:      -40px;  /* Profile V2: margin-top:-40px */
-  --co-logo-badge-size:    26px;
+  --co-logo-size-desktop: 85px;   /* -20% from Profile V2's 106px */
+  --co-logo-size-mobile:  76px;   /* -20% from previous 96px */
+  --co-logo-overlap:     -32px;   /* proportional to logo size (85/106 × 40) */
+  --co-logo-badge-size:   24px;
 }
 
 * { margin:0; padding:0; box-sizing:border-box; }
@@ -49,9 +49,9 @@ body { background:var(--bg); color:var(--t); font-family:'Cairo',sans-serif; min
 }
 
 /* ══ COVER ═══════════════════════════════════════════════════════ */
-/* aspect-ratio:6/1 — matches Profile V2 exactly */
+/* aspect-ratio:4/1 — 50% taller than 6/1 */
 .sc-cover {
-  position:relative; aspect-ratio:6/1; height:auto; overflow:hidden;
+  position:relative; aspect-ratio:4/1; height:auto; overflow:hidden;
   background:linear-gradient(135deg,#0f2027,#203a43,#2c5364);
   border-radius:13px 13px 0 0;
 }
@@ -80,11 +80,12 @@ body { background:var(--bg); color:var(--t); font-family:'Cairo',sans-serif; min
 .cv-edit-btn i { width:14px; height:14px; stroke:#fff; fill:none; stroke-width:2; flex-shrink:0; display:block; }
 
 /* ══ PROFILE ROW ══════════════════════════════════════════════════ */
-/* Mirrors Profile V2: margin-top:-40px overlaps logo over cover */
+/* Centered column: logo on top, info below, both centered */
 .sc-prof-row {
-  display:flex; gap:14px; padding:0 20px;
+  display:flex; flex-direction:column; align-items:center; gap:0;
+  padding:0 20px;
   margin-top:var(--co-logo-overlap);
-  position:relative; z-index:2; align-items:flex-start;
+  position:relative; z-index:2;
 }
 .sc-ava-col {
   display:flex; flex-direction:column; align-items:center; flex-shrink:0;
@@ -135,14 +136,14 @@ body { background:var(--bg); color:var(--t); font-family:'Cairo',sans-serif; min
 .av-cam-btn svg { width:14px; height:14px; stroke:#fff; fill:none; stroke-width:2; flex-shrink:0; }
 .av-cam-btn:hover { transform:scale(1.12); }
 
-/* Company info column — padding-top pushes text below avatar overlap */
+/* Company info column — centered below logo */
 .sc-info {
-  flex:1; min-width:0; padding-top:50px;
+  width:100%; text-align:center; padding-top:12px;
 }
 
 /* ══ COMPANY INFO ════════════════════════════════════════════════ */
 .co-name-row {
-  display:flex; align-items:center; gap:6px;
+  display:flex; align-items:center; justify-content:center; gap:6px;
   flex-wrap:wrap; margin-bottom:3px;
 }
 .co-name { font-size:1.2rem; font-weight:900; line-height:1.2; }
@@ -161,13 +162,13 @@ body { background:var(--bg); color:var(--t); font-family:'Cairo',sans-serif; min
   font-size:.75rem; color:var(--t2); line-height:1.65; margin-top:2px; margin-bottom:4px;
 }
 .co-meta-row {
-  display:flex; gap:10px; flex-wrap:wrap; margin-top:4px;
+  display:flex; justify-content:center; gap:10px; flex-wrap:wrap; margin-top:4px;
 }
 .co-meta-item { display:flex; align-items:center; gap:4px; font-size:.67rem; color:var(--t3); }
 .co-meta-item a { color:var(--ac); text-decoration:none; }
 .co-meta-item a:hover { text-decoration:underline; }
 .co-social-row {
-  display:none; gap:6px; margin-top:8px; flex-wrap:wrap;
+  display:none; justify-content:center; gap:6px; margin-top:8px; flex-wrap:wrap;
 }
 .co-social-btn {
   width:28px; height:28px; border-radius:50%;
@@ -510,10 +511,10 @@ body.co-loading  .visitor-only           { display: none !important; }
 /* ══ RESPONSIVE ══════════════════════════════════════════════════ */
 @media(max-width:640px) {
   .sc-wrap    { padding:4px 8px 16px; }
-  .sc-prof-row { gap:10px; padding:0 14px; margin-top:-36px; }
+  .sc-prof-row { gap:0; padding:0 14px; margin-top:-28px; }
   .sc-avatar-wrap { width:var(--co-logo-size-mobile); height:var(--co-logo-size-mobile); }
-  .co-logo { font-size:2rem; }
-  .sc-info { padding-top:40px; }
+  .co-logo { font-size:1.8rem; }
+  .sc-info { padding-top:10px; }
   .co-name { font-size:1rem; }
   .sc-actions { padding:6px 14px 12px; }
   .sc-stats { margin:10px 14px; }
