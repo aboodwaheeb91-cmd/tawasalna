@@ -24,9 +24,9 @@
 
 /* Logo size tuning — edit here only */
 :root {
-  --co-logo-size-desktop: 85px;   /* -20% from Profile V2's 106px */
-  --co-logo-size-mobile:  76px;   /* -20% from previous 96px */
-  --co-logo-overlap:     -32px;   /* proportional to logo size (85/106 × 40) */
+  --co-logo-size-desktop: 94px;   /* +10% from 85px */
+  --co-logo-size-mobile:  84px;   /* +10% from 76px */
+  --co-logo-overlap:     -35px;   /* proportional to logo size (94/85 × 32) */
   --co-logo-badge-size:   24px;
 }
 
@@ -146,27 +146,43 @@ body { background:var(--bg); color:var(--t); font-family:'Cairo',sans-serif; min
   display:flex; align-items:center; justify-content:center; gap:6px;
   flex-wrap:wrap; margin-bottom:3px;
 }
-.co-name { font-size:1.2rem; font-weight:900; line-height:1.2; }
+.co-name { font-size:1rem; font-weight:900; line-height:1.2; }
 .co-verified-badge {
   display:none; align-items:center; gap:3px;
   padding:2px 8px; border-radius:20px; font-size:.63rem; font-weight:800;
   background:rgba(0,200,150,.1); color:#00c896; border:1px solid rgba(0,200,150,.25);
 }
 .co-type-badge {
-  display:inline-flex; align-items:center; gap:4px;
-  padding:2px 9px; border-radius:20px; font-size:.65rem; font-weight:800;
-  background:rgba(37,99,255,.1); color:#60a5fa; border:1px solid rgba(37,99,255,.18);
-  margin-bottom:4px;
+  font-size:.72rem; font-weight:600; color:var(--t3);
+  margin-bottom:6px; display:block;
 }
+.co-type-badge svg,
+.co-type-badge i { display:none; }
 .co-desc {
   font-size:.75rem; color:var(--t2); line-height:1.65; margin-top:2px; margin-bottom:4px;
 }
 .co-meta-row {
-  display:flex; justify-content:center; gap:10px; flex-wrap:wrap; margin-top:4px;
+  display:flex; justify-content:center; flex-wrap:wrap; margin-top:4px;
 }
-.co-meta-item { display:flex; align-items:center; gap:4px; font-size:.67rem; color:var(--t3); }
-.co-meta-item a { color:var(--ac); text-decoration:none; }
-.co-meta-item a:hover { text-decoration:underline; }
+.co-meta-inline {
+  display:inline-flex; align-items:center; gap:5px; flex-wrap:wrap; justify-content:center;
+  font-size:.67rem; color:var(--t3);
+}
+.co-meta-inline svg,
+.co-meta-inline i { width:11px; height:11px; stroke:currentColor; fill:none; stroke-width:2; flex-shrink:0; }
+.co-meta-link { color:var(--ac); text-decoration:none; }
+.co-meta-link:hover { text-decoration:underline; }
+.co-copy-btn {
+  width:18px; height:18px; border:none; background:none; cursor:pointer;
+  display:inline-flex; align-items:center; justify-content:center;
+  color:var(--t3); padding:0; transition:color .15s; flex-shrink:0;
+}
+.co-copy-btn:hover { color:var(--ac2); }
+.co-copy-btn svg { width:11px; height:11px; stroke:currentColor; fill:none; stroke-width:2; }
+.co-meta-sep { color:var(--t4); }
+#coLoc { display:none; }
+/* .co-meta-item kept for legacy — not rendered anymore */
+.co-meta-item { display:flex; align-items:center; gap:4px; }
 .co-social-row {
   display:none; justify-content:center; gap:6px; margin-top:8px; flex-wrap:wrap;
 }
@@ -260,8 +276,7 @@ body { background:var(--bg); color:var(--t); font-family:'Cairo',sans-serif; min
 .co-meta-item i { width:12px; height:12px; stroke:currentColor; fill:none; stroke-width:2; flex-shrink:0; }
 .co-verified-badge svg,
 .co-verified-badge i { width:11px; height:11px; stroke:currentColor; fill:none; stroke-width:2; }
-.co-type-badge svg,
-.co-type-badge i { width:11px; height:11px; stroke:currentColor; fill:none; stroke-width:2; }
+/* .co-type-badge icon hidden — industry label is text-only */
 .nb svg,
 .nb i { width:13px; height:13px; stroke:currentColor; fill:none; stroke-width:2; flex-shrink:0; }
 svg.ico-sm,
@@ -500,6 +515,7 @@ body.co-loading  .visitor-only           { display: none !important; }
 /* ══ STATIC INITIAL STATES ═══════════════════════════════════════ */
 .file-input-hidden { display:none; }
 #coWebsite         { display:none; }
+#coMetaSep         { display:none; }
 #tab-posts,
 #tab-about,
 #tab-ratings       { display:none; }
@@ -511,9 +527,9 @@ body.co-loading  .visitor-only           { display: none !important; }
 /* ══ RESPONSIVE ══════════════════════════════════════════════════ */
 @media(max-width:640px) {
   .sc-wrap    { padding:4px 8px 16px; }
-  .sc-prof-row { gap:0; padding:0 14px; margin-top:-28px; }
+  .sc-prof-row { gap:0; padding:0 14px; margin-top:-30px; }
   .sc-avatar-wrap { width:var(--co-logo-size-mobile); height:var(--co-logo-size-mobile); }
-  .co-logo { font-size:1.8rem; }
+  .co-logo { font-size:2rem; }
   .sc-info { padding-top:10px; }
   .co-name { font-size:1rem; }
   .sc-actions { padding:6px 14px 12px; }

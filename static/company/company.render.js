@@ -53,7 +53,6 @@
 
     _setText('coName',   name);
     _setText('coDesc',   p.bio || 'لا يوجد وصف بعد.');
-    _setText('coLocText', p.location || '—');
 
     document.querySelectorAll('[id^="postCoName"]').forEach(function (el) {
       el.textContent = name;
@@ -82,27 +81,39 @@
       logoBadge.style.display = p.is_verified ? 'flex' : 'none';
     }
 
-    // Company type badge (preserve Lucide icon inside)
+    // Industry label (replaces generic type badge)
     var badge = document.getElementById('coTypeBadge');
     if (badge) {
-      var typeIcon = badge.querySelector('svg');
-      badge.textContent = (companyState.company && companyState.company.company_type)
-        ? companyState.company.company_type : 'شركة';
-      if (typeIcon) badge.insertBefore(typeIcon, badge.firstChild);
+      var industry = companyState.company && companyState.company.industry;
+      badge.textContent = industry || 'تصنيف غير محدد';
     }
 
-    // Website meta item (show only when available)
-    var websiteEl   = document.getElementById('coWebsite');
-    var websiteLink = document.getElementById('coWebsiteLink');
-    if (websiteEl && websiteLink) {
-      if (p.website) {
-        websiteLink.href        = p.website;
-        websiteLink.textContent = p.website.replace(/^https?:\/\//, '');
-        websiteEl.style.display = 'flex';
-      } else {
-        websiteEl.style.display = 'none';
-      }
+    // Website + location inline meta row
+    var websiteEl      = document.getElementById('coWebsite');
+    var websiteLink    = document.getElementById('coWebsiteLink');
+    var websiteCopyBtn = document.getElementById('coWebsiteCopyBtn');
+    var metaSep        = document.getElementById('coMetaSep');
+    var locEl          = document.getElementById('coLoc');
+    var locTextEl      = document.getElementById('coLocText');
+    var hasWebsite     = !!(p.website);
+    var hasLocation    = !!(p.location);
+
+    if (locEl) locEl.style.display = hasLocation ? 'inline-flex' : 'none';
+    if (locTextEl) locTextEl.textContent = hasLocation ? p.location : '';
+
+    if (websiteEl) websiteEl.style.display = hasWebsite ? 'inline-flex' : 'none';
+    if (websiteLink && hasWebsite) {
+      websiteLink.href = p.website;
+      websiteLink.textContent = p.website.replace(/^https?:\/\//, '');
     }
+    if (websiteCopyBtn && hasWebsite) {
+      websiteCopyBtn.onclick = function () {
+        navigator.clipboard.writeText(p.website).then(function () {
+          if (window.showToast) showToast('تم نسخ الرابط ✓');
+        }).catch(function () {});
+      };
+    }
+    if (metaSep) metaSep.style.display = (hasWebsite && hasLocation) ? 'inline' : 'none';
 
     // Social links row — show only platforms that have data
     var links      = (p && p.links) ? p.links : [];

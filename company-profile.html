@@ -119,13 +119,18 @@
     </div>
     <div class="co-desc" id="coDesc">لا يوجد وصف بعد.</div>
     <div class="co-meta-row">
-      <div class="co-meta-item" id="coLoc">
-        <i data-lucide="map-pin"></i>
-        <span id="coLocText">—</span>
-      </div>
-      <div class="co-meta-item" id="coWebsite">
-        <i data-lucide="globe"></i>
-        <a href="#" id="coWebsiteLink" target="_blank" rel="noopener">الموقع</a>
+      <div class="co-meta-inline">
+        <span id="coWebsite">
+          <a href="#" id="coWebsiteLink" class="co-meta-link" target="_blank" rel="noopener noreferrer"></a>
+          <button type="button" class="co-copy-btn" id="coWebsiteCopyBtn" title="نسخ الرابط" aria-label="نسخ الرابط">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+          </button>
+        </span>
+        <span class="co-meta-sep" id="coMetaSep">—</span>
+        <span id="coLoc">
+          <i data-lucide="map-pin"></i>
+          <span id="coLocText"></span>
+        </span>
       </div>
     </div>
 
