@@ -5,7 +5,7 @@
 
   // ── Navigation ─────────────────────────────────────────────────
   function switchTab(name, el) {
-    document.querySelectorAll('.tab').forEach(function (t) { t.classList.remove('active'); });
+    document.querySelectorAll('.sc-tab').forEach(function (t) { t.classList.remove('active'); });
     el.classList.add('active');
     ['jobs', 'posts', 'about', 'ratings'].forEach(function (t) {
       var el2 = document.getElementById('tab-' + t);
@@ -171,14 +171,9 @@
   // ── Cover photo ────────────────────────────────────────────────
   function setCover(src) {
     var img = document.getElementById('coverImg');
-    var bg  = document.getElementById('heroBg');
     if (!img) return;
     img.src = src; img.style.display = 'block';
     setTimeout(function () { img.style.opacity = '1'; }, 50);
-    if (bg) bg.style.opacity = '0';
-    document.querySelectorAll('.hero-orb').forEach(function (o) {
-      o.style.display = 'none';
-    });
   }
   function uploadCover(input) {
     if (!input.files[0]) return;
@@ -311,7 +306,7 @@
     var contactBtn = q('contactBtn'); if (contactBtn) contactBtn.addEventListener('click', openContact);
 
     // Tabs
-    document.querySelectorAll('.tab[data-tab]').forEach(function (tab) {
+    document.querySelectorAll('.sc-tab[data-tab]').forEach(function (tab) {
       tab.addEventListener('click', function () { switchTab(this.dataset.tab, this); });
     });
 

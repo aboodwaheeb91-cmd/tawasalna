@@ -99,6 +99,8 @@
     if (_postsLoading) return;
     if (_postsLoaded && !force) return;
     var companyId = new URLSearchParams(location.search).get('id');
+    if (!companyId && window.companyState && companyState.profile && companyState.profile.id)
+      companyId = String(companyState.profile.id);
     if (!companyId) return;
     _postsLoading = true;
     fetch('/company/posts/' + companyId)
