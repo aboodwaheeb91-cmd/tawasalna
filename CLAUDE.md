@@ -566,3 +566,16 @@ These rules are permanent and apply to all future AI sessions:
 7. **`companyState` is the Single Source of Truth.** No other variable may serve as state for company profile data. `localStorage` is never used as an authority for company data.
 
 8. **`window.X` namespace only.** No ES modules, no bundler. All cross-module calls go through `window.X` exposed at the bottom of each IIFE.
+
+9. **Location field mapping is permanent (PR #248):**
+   - `profiles.country` → stores Arabic country name (e.g. "الأردن") — edit field `e-country`
+   - `profiles.city` → stores Arabic city name (e.g. "عمان") — edit field `e-city-sel`
+   - `profiles.location` → stores street/district free text — edit field `e-district`
+   - Display order: `country + '، ' + city`; if both empty → fall back to `p.location`
+   - **Never** use `p.location` as the country; **never** swap city/country display order
+
+10. **`ep-select` in company profile is native-only (no custom JS).** Company profile does NOT load `profile-v2.select.js`. The `.ep-select` class styles native `<select>` via `company.css`. Do NOT add `profile-v2.select.js` to `company-profile.html`.
+
+11. **Branches UI is in-memory only.** `company_branches` table does not exist. `_addBranchRow()` is UI-only. Never save branch data to DB or localStorage without explicit user approval and a DB migration.
+
+12. **`e-web` and `e-email` are removed from the edit form only — the DB columns remain.** Do not drop `profiles.website` or `company_profiles.contact_email`. Displaying them in the About tab or other surfaces is valid.

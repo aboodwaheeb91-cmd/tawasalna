@@ -6988,3 +6988,46 @@ Three explicit cards replace the old 2-button + dropdown:
 - Do NOT add more than ONE on-load redirect check — exactly one IIFE in `index.auth.js`
 - Do NOT use `localStorage.tw_user.user_type` to gate features or permissions — only for display/routing hints; validate with API when security matters
 - Do NOT add a role selector inside the login form — role is login-derived from the API only
+
+---
+
+## Company Profile Edit Form (PR #248)
+
+### Location Field Mapping
+
+| Form Field | DB Column | Table | Notes |
+|------------|-----------|-------|-------|
+| `e-country` (select) | `profiles.country` | `profiles` | Arabic country name, e.g. "الأردن" |
+| `e-city-sel` (select) | `profiles.city` | `profiles` | Arabic city name, populated dynamically from `_CO_CITIES` |
+| `e-district` (text) | `profiles.location` | `profiles` | Street / district free text; legacy `location` field repurposed |
+
+**Rule:** `profiles.location` is now the street/area free-text field for company profiles. It is NOT the country. `profiles.country` and `profiles.city` are the canonical location fields.
+
+**Display order in render.js:** `country + '، ' + city`. If both are empty, fall back to `p.location`. Never combine all three in the visible string.
+
+### `_CO_COUNTRIES` / `_CO_CITIES`
+
+Defined in `static/company/company.main.js`. Keys in `_CO_CITIES` are Arabic country names (not ISO codes) matching the values saved in `profiles.country`. Do NOT change to ISO codes — the DB stores Arabic names.
+
+### Branches Section
+
+`company_branches` table **does not exist** yet. The branches UI in the edit modal is in-memory only:
+- `_addBranchRow()` adds a DOM row; deletion removes the DOM row
+- Branch data is **never saved** to DB or localStorage
+- A note `(الحفظ سيتاح بعد إضافة الجدول)` is shown inline
+- To enable save: add `company_branches` table migration in `server.py`, add `POST /company/branches/{id}` endpoint, update `saveEdit()` — requires explicit user approval before implementing
+
+### Removed Form Fields
+
+`e-web` (website) and `e-email` (contact_email) have been removed from the edit form. The data remains in the DB (`profiles.website`, `company_profiles.contact_email`) and is untouched. Displaying these fields elsewhere (e.g. About tab) is still valid.
+
+### `ep-select` in Company Profile
+
+Company profile does NOT load `profile-v2.select.js`. The `.ep-select` class on native `<select>` elements in `company-profile.html` is styled via `company.css` only (native appearance with `appearance:none`). Do NOT add `profile-v2.select.js` to `company-profile.html` without explicit approval.
+
+### `PUT /company/profile/{company_id}` Endpoint
+
+- Auth: `Depends(verify_token)` — JWT only, ownership checked server-side
+- Validates: `industry` required
+- Updates: `company_profiles` table only (not `profiles`)
+- Forbidden: `X-User-Id` header, localStorage-based auth, breaking existing endpoints
