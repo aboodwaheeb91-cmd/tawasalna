@@ -184,39 +184,45 @@ body { background:var(--bg); color:var(--t); font-family:'Cairo',sans-serif; min
 /* .co-meta-item kept for legacy — not rendered anymore */
 .co-meta-item { display:flex; align-items:center; gap:4px; }
 .co-social-row {
-  display:none; justify-content:center; gap:6px; margin-top:8px; flex-wrap:wrap;
+  display:none; justify-content:center; gap:7px; margin-top:4px; flex-wrap:wrap;
+  padding:4px 20px 6px;
 }
 .co-social-btn {
-  width:28px; height:28px; border-radius:50%;
-  background:rgba(255,255,255,.07); border:1px solid var(--border);
+  width:34px; height:34px; border-radius:50%;
+  background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12);
   display:flex; align-items:center; justify-content:center;
   color:var(--t2); text-decoration:none; transition:all .18s; flex-shrink:0;
 }
-.co-social-btn:hover { background:rgba(255,255,255,.14); color:var(--t); border-color:var(--bd2); }
-.co-social-btn svg { width:12px; height:12px; }
+.co-social-btn:hover { background:rgba(255,255,255,.13); color:var(--t); border-color:rgba(255,255,255,.22); }
+.co-social-btn svg,
+.co-social-btn i { width:14px; height:14px; }
 
 /* ══ ACTIONS ══════════════════════════════════════════════════════ */
 .sc-actions {
   display:flex; flex-direction:row; align-items:center;
   justify-content:center; flex-wrap:wrap;
-  gap:8px; padding:8px 20px 14px;
+  gap:8px; padding:10px 20px 6px;
 }
 
 /* ══ NB BUTTONS ══════════════════════════════════════════════════ */
 .nb {
-  padding:7px 16px; border-radius:9px; border:none; cursor:pointer;
-  font-family:'Cairo',sans-serif; font-size:.78rem; font-weight:700;
-  transition:all .18s; display:inline-flex; align-items:center; gap:5px;
+  padding:10px 22px; border-radius:11px; border:none; cursor:pointer;
+  font-family:'Cairo',sans-serif; font-size:.8rem; font-weight:700;
+  transition:all .18s; display:inline-flex; align-items:center; gap:6px;
+  min-height:42px;
 }
-.nb-primary  { background:linear-gradient(135deg,var(--ac),var(--ac2)); color:#fff; }
-.nb-primary:hover { transform:translateY(-1px); box-shadow:0 4px 14px rgba(37,99,255,.4); }
-.nb-outline  { background:transparent; color:var(--t2); border:1px solid var(--bd2); }
-.nb-outline:hover { background:rgba(255,255,255,.07); color:var(--t); }
-.nb-follow   { background:rgba(37,99,255,.12); color:#60a5fa; border:1px solid rgba(37,99,255,.25); }
-.nb-follow:hover { background:rgba(37,99,255,.2); }
-.nb-follow.following { background:rgba(0,200,150,.12); color:#00c896; border-color:rgba(0,200,150,.3); }
-.nb-cta      { background:rgba(255,255,255,.12); color:#fff; border:1px solid rgba(255,255,255,.25); }
-.nb-cta:hover { background:rgba(255,255,255,.2); }
+/* Glass outline — used for secondary actions (نشر وظيفة، تعديل، تواصل معنا) */
+.nb-primary, .nb-outline { background:rgba(255,255,255,.06); color:var(--t2); border:1px solid rgba(255,255,255,.14); }
+.nb-primary:hover, .nb-outline:hover { background:rgba(255,255,255,.11); color:var(--t); border-color:rgba(255,255,255,.22); }
+/* Teal primary — متابعة (visitor main action) */
+.nb-follow   { background:var(--ac2); color:#06121c; font-weight:800; border:none;
+               box-shadow:0 2px 14px rgba(0,200,150,.3); }
+.nb-follow:hover { filter:brightness(1.08); box-shadow:0 4px 20px rgba(0,200,150,.4); }
+.nb-follow.following { background:rgba(0,200,150,.12); color:#00c896; border:1px solid rgba(0,200,150,.3);
+                       box-shadow:none; font-weight:700; }
+.nb-follow.following:hover { background:rgba(0,200,150,.2); }
+.nb-cta      { background:rgba(255,255,255,.08); color:#fff; border:1px solid rgba(255,255,255,.2); }
+.nb-cta:hover { background:rgba(255,255,255,.14); }
 
 /* ══ STATS ════════════════════════════════════════════════════════ */
 /* Profile V2 .sc-stats exactly */
