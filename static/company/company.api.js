@@ -21,17 +21,17 @@
     if (jwt) headers['Authorization'] = 'Bearer ' + jwt;
 
     if (!coId) {
-      // Auto-detect from localStorage (company owner visiting /company-profile without ?id=)
-      try {
-        var _u = JSON.parse(localStorage.getItem('tawasalna_user') || 'null');
-        if (_u && _u.user_type === 'co' && _u.id) coId = String(_u.id);
-      } catch (e) {}
-    }
-
-    if (!coId) {
-      console.warn('[Company] No company id in URL or session');
-      if (window._applyLoadingState) window._applyLoadingState(false);
-      return;
+      // Auto-detect from session (company owner visiting /company-profile without ?id=)
+      var _u = null;
+      try { _u = JSON.parse(localStorage.getItem('tw_user') || 'null'); } catch (e) {}
+      if (_u && _u.user_type === 'co' && _u.id) {
+        coId = String(_u.id);
+      } else {
+        // No usable id — redirect rather than show placeholder
+        if (window._applyLoadingState) window._applyLoadingState(false);
+        window.location.href = (_u && _u.id) ? '/home' : '/login';
+        return;
+      }
     }
 
     fetch('/company/profile/' + coId, {
