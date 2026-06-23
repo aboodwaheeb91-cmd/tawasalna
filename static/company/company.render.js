@@ -88,61 +88,31 @@
       badge.textContent = industry || 'تصنيف غير محدد';
     }
 
-    // Website + location inline meta row
-    // siteUrl: company website if set, else page URL as shareable link
+    // Meta row: page URL (always the company's Tawasalna profile link, not p.website)
     var websiteEl      = document.getElementById('coWebsite');
     var websiteLink    = document.getElementById('coWebsiteLink');
     var websiteCopyBtn = document.getElementById('coWebsiteCopyBtn');
     var metaSep        = document.getElementById('coMetaSep');
     var locEl          = document.getElementById('coLoc');
     var locTextEl      = document.getElementById('coLocText');
-    var siteUrl        = p.website || window.location.href;
+    var pageUrl        = window.location.href;
     var hasLocation    = !!(p.location);
 
     if (websiteEl) websiteEl.style.display = 'inline-flex';
     if (websiteLink) {
-      websiteLink.href        = siteUrl;
-      websiteLink.textContent = siteUrl.replace(/^https?:\/\//, '');
+      websiteLink.href        = pageUrl;
+      websiteLink.textContent = pageUrl.replace(/^https?:\/\//, '');
     }
     if (websiteCopyBtn) {
       websiteCopyBtn.onclick = function () {
-        navigator.clipboard.writeText(siteUrl).then(function () {
+        navigator.clipboard.writeText(pageUrl).then(function () {
           if (window.showToast) showToast('تم نسخ الرابط ✓');
         }).catch(function () {});
       };
     }
     if (locEl) locEl.style.display = hasLocation ? 'inline-flex' : 'none';
     if (locTextEl) locTextEl.textContent = hasLocation ? p.location : '';
-    if (metaSep) metaSep.style.display = hasLocation ? 'inline' : 'none';
-
-    // Social links row — show only platforms that have data
-    var links      = (p && p.links) ? p.links : [];
-    var socialMap  = { linkedin: 'coSocialLinkedin', twitter: 'coSocialTwitter', x: 'coSocialTwitter', facebook: 'coSocialFacebook', instagram: 'coSocialInstagram' };
-    var socialIds  = ['coSocialLinkedin', 'coSocialTwitter', 'coSocialFacebook', 'coSocialInstagram', 'coSocialWebsite'];
-    socialIds.forEach(function (id) {
-      var el = document.getElementById(id);
-      if (el) el.style.display = 'none';
-    });
-    var visibleSocial = 0;
-    links.forEach(function (link) {
-      var type = (link.link_type || '').toLowerCase();
-      var id   = socialMap[type];
-      if (!id || !link.url) return;
-      var el = document.getElementById(id);
-      if (el) { el.href = link.url; el.style.display = 'flex'; visibleSocial++; }
-    });
-    var socialWebsite = document.getElementById('coSocialWebsite');
-    if (socialWebsite) {
-      if (p.website) {
-        socialWebsite.href = p.website;
-        socialWebsite.style.display = 'flex';
-        visibleSocial++;
-      } else {
-        socialWebsite.style.display = 'none';
-      }
-    }
-    var socialRow = document.getElementById('coSocialRow');
-    if (socialRow) socialRow.style.display = visibleSocial > 0 ? 'flex' : 'none';
+    if (metaSep) metaSep.style.display = hasLocation ? 'inline-block' : 'none';
   }
 
   // ── Stats ─────────────────────────────────────────────────────
