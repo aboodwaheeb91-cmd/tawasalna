@@ -70,18 +70,18 @@ body { background:var(--bg); color:var(--t); font-family:'Cairo',sans-serif; min
   transition:opacity .4s; z-index:1;
 }
 
-/* Cover edit button — left corner (user pref), z-index:20 beats any sibling */
+/* Cover upload button — bottom-left corner, subtle */
 .cv-edit-btn {
-  position:absolute; top:8px; left:8px; z-index:20;
-  width:30px; height:30px; border-radius:50%;
+  position:absolute; bottom:10px; left:10px; z-index:20;
+  width:24px; height:24px; border-radius:50%;
   display:flex; align-items:center; justify-content:center;
-  background:rgba(0,0,0,.45); backdrop-filter:blur(8px);
-  border:2px solid rgba(255,255,255,.25); cursor:pointer;
-  transition:background .15s, transform .15s;
+  background:rgba(0,0,0,.32); backdrop-filter:blur(6px);
+  border:1px solid rgba(255,255,255,.15); cursor:pointer;
+  transition:background .15s, transform .15s; opacity:.8;
 }
-.cv-edit-btn:hover { background:rgba(0,0,0,.7); transform:scale(1.1); }
+.cv-edit-btn:hover { background:rgba(0,0,0,.55); transform:scale(1.08); opacity:1; }
 .cv-edit-btn svg,
-.cv-edit-btn i { width:14px; height:14px; stroke:#fff; fill:none; stroke-width:2; flex-shrink:0; display:block; }
+.cv-edit-btn i { width:11px; height:11px; stroke:#fff; fill:none; stroke-width:2; flex-shrink:0; display:block; }
 
 /* ══ PROFILE ROW ══════════════════════════════════════════════════ */
 /* Centered column: logo on top, info below, both centered */
@@ -205,6 +205,17 @@ body { background:var(--bg); color:var(--t); font-family:'Cairo',sans-serif; min
 .co-social-btn:hover { background:rgba(255,255,255,.13); color:var(--t); border-color:rgba(255,255,255,.22); }
 .co-social-btn svg,
 .co-social-btn i { width:14px; height:14px; }
+
+/* ══ CO-HDR HOME BUTTON — scoped to company profile only ═══════ */
+.co-hdr .sc-home-btn {
+  width:32px; height:32px; border-radius:10px; border-width:1px;
+  box-shadow:none;
+}
+.co-hdr .sc-home-btn .ico { width:16px; height:16px; filter:none; }
+.co-hdr .sc-home-btn:hover,
+.co-hdr .sc-home-btn:focus-visible {
+  box-shadow:0 0 8px var(--hdr-home-glow);
+}
 
 /* ══ PROFILE EDIT BTN ═════════════════════════════════════════════ */
 .co-prof-edit-btn {

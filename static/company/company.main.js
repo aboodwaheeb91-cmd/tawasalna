@@ -282,7 +282,7 @@
 
     // Profile section buttons
     var postJobBtn    = q('postJobBtn');    if (postJobBtn)    postJobBtn.addEventListener('click', openPostJob);
-    var editBtn       = q('editBtn');       if (editBtn)       editBtn.addEventListener('click', openEditModal);
+    var editInfoBtn   = q('editInfoBtn');   if (editInfoBtn)   editInfoBtn.addEventListener('click', openEditModal);
     var ctaPostJobBtn = q('ctaPostJobBtn'); if (ctaPostJobBtn) ctaPostJobBtn.addEventListener('click', openPostJob);
 
     // Shared header — menu + logout
