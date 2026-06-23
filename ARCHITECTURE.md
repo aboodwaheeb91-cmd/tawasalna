@@ -7009,21 +7009,41 @@ Three explicit cards replace the old 2-button + dropdown:
 
 Defined in `static/company/company.main.js`. Keys in `_CO_CITIES` are Arabic country names (not ISO codes) matching the values saved in `profiles.country`. Do NOT change to ISO codes — the DB stores Arabic names.
 
-### Branches Section
+### Branches Section (PR #250 update)
 
 `company_branches` table **does not exist** yet. The branches UI in the edit modal is in-memory only:
-- `_addBranchRow()` adds a DOM row; deletion removes the DOM row
+- `_addBranchRow()` creates a branch card with 3 fields: country (select), city (select), district (text input)
 - Branch data is **never saved** to DB or localStorage
-- A note `(الحفظ سيتاح بعد إضافة الجدول)` is shown inline
+- Deleting a branch removes only the DOM node — nothing is persisted
+- No "saved" toast is shown for branches — only the main profile save triggers a toast
+- A note `(الحفظ سيتاح بعد إضافة الجدول)` is shown inline on the section title
 - To enable save: add `company_branches` table migration in `server.py`, add `POST /company/branches/{id}` endpoint, update `saveEdit()` — requires explicit user approval before implementing
 
-### Removed Form Fields
+### Removed Form Fields (permanent)
 
-`e-web` (website) and `e-email` (contact_email) have been removed from the edit form. The data remains in the DB (`profiles.website`, `company_profiles.contact_email`) and is untouched. Displaying these fields elsewhere (e.g. About tab) is still valid.
+The following fields are removed from the edit form. Their DB columns are untouched:
 
-### `ep-select` in Company Profile
+| Field | DB Column | Table |
+|-------|-----------|-------|
+| `e-web` (website) | `profiles.website` | `profiles` |
+| `e-email` (contact email) | `company_profiles.contact_email` | `company_profiles` |
+| `e-hq` (headquarters) | `company_profiles.headquarters` | `company_profiles` |
 
-Company profile does NOT load `profile-v2.select.js`. The `.ep-select` class on native `<select>` elements in `company-profile.html` is styled via `company.css` only (native appearance with `appearance:none`). Do NOT add `profile-v2.select.js` to `company-profile.html` without explicit approval.
+Displaying these in the About tab or other surfaces remains valid.
+
+### District / Area Field
+
+No official data source exists for Arabic city neighborhoods/districts. `e-district` is a free-text `<input>` (not a dropdown). This is intentional — do NOT invent a dropdown with made-up district names. If an official neighborhood API/dataset becomes available, convert to `<select>` at that time.
+
+### `ep-select` in Company Profile (CSS-only parity)
+
+Company profile does NOT load `profile-v2.select.js`. Native `<select class="ep-select">` elements are styled via `company.css`:
+- `appearance:none` removes OS default arrow
+- Custom chevron SVG injected via CSS `background-image` (URL-encoded inline SVG)
+- `padding-left:36px` prevents text from overlapping the arrow (RTL end-side)
+- This matches Profile V2's visual appearance without the custom JS component
+
+Do NOT add `profile-v2.select.js` to `company-profile.html` without explicit approval.
 
 ### `PUT /company/profile/{company_id}` Endpoint
 
