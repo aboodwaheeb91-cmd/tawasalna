@@ -121,6 +121,75 @@
     closeContact();
   }
 
+  // ── Country / city data ────────────────────────────────────────
+  var _CO_COUNTRIES = [
+    'الأردن','السعودية','الإمارات','الكويت','قطر','البحرين','عُمان',
+    'مصر','العراق','سوريا','لبنان','فلسطين','اليمن','ليبيا','تونس','الجزائر','المغرب','السودان'
+  ];
+  var _CO_CITIES = {
+    'الأردن':   ['عمان','إربد','الزرقاء','العقبة','السلط','مادبا','الكرك','معان','جرش','عجلون','الطفيلة'],
+    'السعودية': ['الرياض','جدة','مكة المكرمة','المدينة المنورة','الدمام','الخبر','الطائف','أبها','تبوك','القطيف','بريدة'],
+    'الإمارات': ['دبي','أبوظبي','الشارقة','عجمان','رأس الخيمة','الفجيرة','أم القيوين','العين'],
+    'الكويت':   ['مدينة الكويت','حولي','الفروانية','الأحمدي','الجهراء','مبارك الكبير'],
+    'قطر':      ['الدوحة','الريان','الوكرة','أم صلال','الخور','الشمال'],
+    'البحرين':  ['المنامة','المحرق','الرفاع','مدينة عيسى','مدينة حمد'],
+    'عُمان':    ['مسقط','صلالة','نزوى','صحار','السيب','مطرح','البريمي'],
+    'مصر':      ['القاهرة','الإسكندرية','الجيزة','شرم الشيخ','الأقصر','أسوان','طنطا','المنصورة','الفيوم','بورسعيد'],
+    'العراق':   ['بغداد','البصرة','الموصل','أربيل','كربلاء','النجف','السليمانية','كركوك'],
+    'سوريا':    ['دمشق','حلب','حمص','اللاذقية','حماة','دير الزور','الرقة','درعا'],
+    'لبنان':    ['بيروت','طرابلس','صيدا','صور','جونية','زحلة'],
+    'فلسطين':   ['رام الله','القدس','غزة','نابلس','الخليل','جنين','أريحا','بيت لحم'],
+    'اليمن':    ['صنعاء','عدن','تعز','الحديدة','إب','ذمار','مأرب'],
+    'ليبيا':    ['طرابلس','بنغازي','مصراتة','الزاوية','البيضاء','سبها'],
+    'تونس':     ['تونس','صفاقس','سوسة','بنزرت','قابس','القيروان'],
+    'الجزائر':  ['الجزائر','وهران','قسنطينة','عنابة','سطيف','تلمسان'],
+    'المغرب':   ['الرباط','الدار البيضاء','فاس','مراكش','مكناس','أكادير','طنجة'],
+    'السودان':  ['الخرطوم','أم درمان','بورتسودان','كسلا','الأبيض']
+  };
+
+  function _coPopulateCountries() {
+    var sel = document.getElementById('e-country');
+    if (!sel || sel.options.length > 1) return;
+    _CO_COUNTRIES.forEach(function (c) {
+      var opt = document.createElement('option');
+      opt.value = c; opt.textContent = c;
+      sel.appendChild(opt);
+    });
+  }
+
+  function _coLoadCities(country, selectedCity) {
+    var sel = document.getElementById('e-city-sel');
+    if (!sel) return;
+    sel.innerHTML = '<option value="">— اختر المدينة —</option>';
+    var cities = _CO_CITIES[country] || [];
+    cities.forEach(function (c) {
+      var opt = document.createElement('option');
+      opt.value = c; opt.textContent = c;
+      if (c === selectedCity) opt.selected = true;
+      sel.appendChild(opt);
+    });
+  }
+
+  // ── Branches (UI-only — no DB save until company_branches table is added) ──
+  function _addBranchRow(nameVal) {
+    var list = document.getElementById('branchesList');
+    if (!list) return;
+    var row = document.createElement('div');
+    row.className = 'branch-row';
+    var inp = document.createElement('input');
+    inp.type        = 'text';
+    inp.placeholder = 'مثال: فرع الرياض — شارع العليا';
+    inp.value       = nameVal || '';
+    var del = document.createElement('button');
+    del.type      = 'button';
+    del.className = 'branch-row-del';
+    del.textContent = '✕';
+    del.addEventListener('click', function () { list.removeChild(row); });
+    row.appendChild(inp);
+    row.appendChild(del);
+    list.appendChild(row);
+  }
+
   // ── Edit modal ─────────────────────────────────────────────────
   function openEditModal() {
     if (!window.companyState || !companyState.permissions.can_edit) return;
@@ -131,14 +200,22 @@
     };
     setVal('e-name',    p.full_name);
     setVal('e-desc',    p.bio);
-    setVal('e-loc',     p.country || p.location);
-    setVal('e-city',    p.city);
-    setVal('e-web',     p.website);
-    setVal('e-email',   c.contact_email);
     setVal('e-type',    c.industry || c.company_type || '');
     setVal('e-size',    c.company_size || '');
     setVal('e-founded', c.founded_year || '');
     setVal('e-hq',      c.headquarters || '');
+    setVal('e-district', p.location || '');
+
+    // Country & city dropdowns
+    _coPopulateCountries();
+    var savedCountry = p.country || '';
+    setVal('e-country', savedCountry);
+    _coLoadCities(savedCountry, p.city || '');
+
+    // Clear branches list (UI-only state, no persistence)
+    var bList = document.getElementById('branchesList');
+    if (bList) bList.innerHTML = '';
+
     var ov = document.getElementById('editOverlay');
     if (ov) ov.classList.add('show');
     if (window.history) history.pushState({ modal: 'edit' }, '', location.href);
@@ -171,9 +248,9 @@
       body: JSON.stringify({
         full_name: name,
         bio:       val('e-desc'),
-        country:   val('e-loc'),
-        city:      val('e-city'),
-        website:   val('e-web'),
+        country:   val('e-country'),
+        city:      val('e-city-sel'),
+        location:  val('e-district'),
       }),
     }).then(_parseOk);
 
@@ -181,9 +258,8 @@
     var founderVal = parseInt(val('e-founded'), 10);
     var coPayload  = { industry: coType, company_type: coType };
     if (!isNaN(founderVal) && founderVal > 1800) coPayload.founded_year = founderVal;
-    if (val('e-size'))    coPayload.company_size  = val('e-size');
-    if (val('e-email'))   coPayload.contact_email = val('e-email');
-    if (val('e-hq'))      coPayload.headquarters  = val('e-hq');
+    if (val('e-size')) coPayload.company_size = val('e-size');
+    if (val('e-hq'))   coPayload.headquarters = val('e-hq');
 
     var p2 = fetch('/company/profile/' + coId, {
       method: 'PUT', headers: hdrs,
@@ -349,6 +425,14 @@
     if (editCancelBtn) editCancelBtn.addEventListener('click', function () {
       var ov = q('editOverlay'); if (ov) ov.classList.remove('show');
     });
+
+    // Country dropdown → reload city list
+    var eCountry = q('e-country');
+    if (eCountry) eCountry.addEventListener('change', function () { _coLoadCities(this.value, ''); });
+
+    // Add branch row
+    var addBranchBtn = q('addBranchBtn');
+    if (addBranchBtn) addBranchBtn.addEventListener('click', function () { _addBranchRow(''); });
 
     // Contact modal
     var contactOverlay   = q('contactOverlay');   if (contactOverlay)   contactOverlay.addEventListener('click', closeContact);
