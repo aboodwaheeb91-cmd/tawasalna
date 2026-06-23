@@ -52,7 +52,11 @@ body { background:var(--bg); color:var(--t); font-family:'Cairo',sans-serif; min
 /* aspect-ratio:4/1 — 50% taller than 6/1 */
 .sc-cover {
   position:relative; aspect-ratio:4/1; height:auto; overflow:hidden;
-  background:linear-gradient(135deg,#0f2027,#203a43,#2c5364);
+  background-color:#0f2027;
+  background-image:url('/static/img/file_00000000b32471f4866b6403e77d2597.png');
+  background-size:cover;
+  background-position:center;
+  background-repeat:no-repeat;
   border-radius:13px 13px 0 0;
 }
 .sc-cover::after {

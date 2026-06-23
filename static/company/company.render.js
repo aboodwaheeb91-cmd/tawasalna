@@ -51,6 +51,10 @@
     var p    = companyState.profile;
     var name = p.full_name || '—';
 
+    // Cover: show saved cover_url on top of the CSS fallback background
+    var coverUrl = companyState.company && companyState.company.cover_url;
+    if (coverUrl && window.setCover) window.setCover(coverUrl);
+
     _setText('coName',   name);
     _setText('coDesc',   p.bio || 'لا يوجد وصف بعد.');
 
