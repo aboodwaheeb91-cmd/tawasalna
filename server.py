@@ -738,6 +738,16 @@ def get_company_profile(company_id: str, request: Request):
     }
 
 
+class CoProfileInput(BaseModel):
+    company_type:  Optional[str] = None
+    industry:      Optional[str] = None
+    founded_year:  Optional[int] = None
+    company_size:  Optional[str] = None
+    contact_email: Optional[str] = None
+    headquarters:  Optional[str] = None
+    description:   Optional[str] = None
+
+
 @app.put("/company/profile/{company_id}")
 def update_co_profile(company_id: int, data: CoProfileInput, token=Depends(verify_token)):
     """
@@ -852,15 +862,6 @@ class ProfileUpdateInput(BaseModel):
     middle_name: Optional[str] = None
     last_name: Optional[str] = None
     cover_url: Optional[str] = None
-
-class CoProfileInput(BaseModel):
-    company_type:  Optional[str] = None
-    industry:      Optional[str] = None
-    founded_year:  Optional[int] = None
-    company_size:  Optional[str] = None
-    contact_email: Optional[str] = None
-    headquarters:  Optional[str] = None
-    description:   Optional[str] = None
 
 class ExperienceInput(BaseModel):
     title: str

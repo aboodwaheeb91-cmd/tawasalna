@@ -147,6 +147,11 @@
     var el = document.getElementById('editOverlay');
     if (!e || e.target === el) el && el.classList.remove('show');
   }
+  function _parseOk(r) {
+    if (!r.ok) return r.json().then(function (d) { throw new Error(d.detail || ('HTTP ' + r.status)); });
+    return r.json();
+  }
+
   function saveEdit() {
     if (!window.companyState || !companyState.permissions.can_edit) return;
     var val  = function (id) { return (document.getElementById(id) || {}).value || ''; };
@@ -170,7 +175,7 @@
         city:      val('e-city'),
         website:   val('e-web'),
       }),
-    }).then(function (r) { return r.json(); });
+    }).then(_parseOk);
 
     // ── 2. Update company_profiles table ─────────────────────────
     var founderVal = parseInt(val('e-founded'), 10);
@@ -183,15 +188,15 @@
     var p2 = fetch('/company/profile/' + coId, {
       method: 'PUT', headers: hdrs,
       body: JSON.stringify(coPayload),
-    }).then(function (r) { return r.json(); });
+    }).then(_parseOk);
 
     Promise.all([p1, p2])
       .then(function () {
         if (window.showToast) showToast('تم الحفظ ✓');
         if (window.loadData) loadData();
       })
-      .catch(function () {
-        if (window.showToast) showToast('خطأ في الحفظ', 'error');
+      .catch(function (err) {
+        if (window.showToast) showToast((err && err.message) || 'خطأ في الحفظ', 'error');
       });
   }
 
