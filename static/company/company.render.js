@@ -99,8 +99,11 @@
     var metaSep        = document.getElementById('coMetaSep');
     var locEl          = document.getElementById('coLoc');
     var locTextEl      = document.getElementById('coLocText');
-    var pageUrl        = window.location.href;
-    var hasLocation    = !!(p.location);
+    var pageUrl     = window.location.href;
+    var country     = p.country || p.location || '';
+    var city        = p.city || '';
+    var locStr      = (country && city) ? (country + '، ' + city) : (country || city);
+    var hasLocation = !!locStr;
 
     if (websiteEl) websiteEl.style.display = 'inline-flex';
     if (websiteLink) {
@@ -115,7 +118,7 @@
       };
     }
     if (locEl) locEl.style.display = hasLocation ? 'inline-flex' : 'none';
-    if (locTextEl) locTextEl.textContent = hasLocation ? p.location : '';
+    if (locTextEl) locTextEl.textContent = locStr;
     if (metaSep) metaSep.style.display = hasLocation ? 'inline-block' : 'none';
   }
 

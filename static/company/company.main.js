@@ -126,14 +126,19 @@
     if (!window.companyState || !companyState.permissions.can_edit) return;
     var p      = companyState.profile || {};
     var c      = companyState.company || {};
-    var setVal = function (id, val) {
-      var el = document.getElementById(id); if (el) el.value = val || '';
+    var setVal = function (id, v) {
+      var el = document.getElementById(id); if (el) el.value = v || '';
     };
-    setVal('e-name',  p.full_name);
-    setVal('e-desc',  p.bio);
-    setVal('e-loc',   p.location);
-    setVal('e-web',   p.website);
-    setVal('e-email', c.contact_email);
+    setVal('e-name',    p.full_name);
+    setVal('e-desc',    p.bio);
+    setVal('e-loc',     p.country || p.location);
+    setVal('e-city',    p.city);
+    setVal('e-web',     p.website);
+    setVal('e-email',   c.contact_email);
+    setVal('e-type',    c.industry || c.company_type || '');
+    setVal('e-size',    c.company_size || '');
+    setVal('e-founded', c.founded_year || '');
+    setVal('e-hq',      c.headquarters || '');
     var ov = document.getElementById('editOverlay');
     if (ov) ov.classList.add('show');
     if (window.history) history.pushState({ modal: 'edit' }, '', location.href);
@@ -142,30 +147,57 @@
     var el = document.getElementById('editOverlay');
     if (!e || e.target === el) el && el.classList.remove('show');
   }
+  function _parseOk(r) {
+    if (!r.ok) return r.json().then(function (d) { throw new Error(d.detail || ('HTTP ' + r.status)); });
+    return r.json();
+  }
+
   function saveEdit() {
     if (!window.companyState || !companyState.permissions.can_edit) return;
     var val  = function (id) { return (document.getElementById(id) || {}).value || ''; };
     var name = val('e-name').trim();
     if (!name) { if (window.showToast) showToast('أدخل اسم الشركة', 'error'); return; }
+    var coType = val('e-type');
+    if (!coType) { if (window.showToast) showToast('يجب تحديد تصنيف الجهة', 'error'); return; }
     var coId = (companyState.profile || {}).id;
+    var jwt  = _jwt();
+    var hdrs = { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + jwt };
     var ov   = document.getElementById('editOverlay');
     if (ov) ov.classList.remove('show');
-    fetch('/profile/' + coId, {
-      method:  'PUT',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + _jwt() },
-      body:    JSON.stringify({
-        full_name: name, bio: val('e-desc'),
-        location:  val('e-loc'), website: val('e-web'),
+
+    // ── 1. Update base profile (profiles table) ──────────────────
+    var p1 = fetch('/profile/' + coId, {
+      method: 'PUT', headers: hdrs,
+      body: JSON.stringify({
+        full_name: name,
+        bio:       val('e-desc'),
+        country:   val('e-loc'),
+        city:      val('e-city'),
+        website:   val('e-web'),
       }),
-    })
-    .then(function (r) { return r.json(); })
-    .then(function () {
-      if (window.showToast) showToast('تم الحفظ ✓');
-      if (window.loadData) loadData();
-    })
-    .catch(function () {
-      if (window.showToast) showToast('خطأ في الحفظ', 'error');
-    });
+    }).then(_parseOk);
+
+    // ── 2. Update company_profiles table ─────────────────────────
+    var founderVal = parseInt(val('e-founded'), 10);
+    var coPayload  = { industry: coType, company_type: coType };
+    if (!isNaN(founderVal) && founderVal > 1800) coPayload.founded_year = founderVal;
+    if (val('e-size'))    coPayload.company_size  = val('e-size');
+    if (val('e-email'))   coPayload.contact_email = val('e-email');
+    if (val('e-hq'))      coPayload.headquarters  = val('e-hq');
+
+    var p2 = fetch('/company/profile/' + coId, {
+      method: 'PUT', headers: hdrs,
+      body: JSON.stringify(coPayload),
+    }).then(_parseOk);
+
+    Promise.all([p1, p2])
+      .then(function () {
+        if (window.showToast) showToast('تم الحفظ ✓');
+        if (window.loadData) loadData();
+      })
+      .catch(function (err) {
+        if (window.showToast) showToast((err && err.message) || 'خطأ في الحفظ', 'error');
+      });
   }
 
   // ── Cover photo ────────────────────────────────────────────────

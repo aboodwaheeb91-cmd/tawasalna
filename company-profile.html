@@ -124,10 +124,10 @@
     <div class="co-meta-row">
       <div class="co-meta-inline">
         <span id="coWebsite">
-          <a href="#" id="coWebsiteLink" class="co-meta-link" target="_blank" rel="noopener noreferrer"></a>
           <button type="button" class="co-copy-btn" id="coWebsiteCopyBtn" title="نسخ الرابط" aria-label="نسخ الرابط">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
           </button>
+          <a href="#" id="coWebsiteLink" class="co-meta-link" target="_blank" rel="noopener noreferrer"></a>
         </span>
         <span class="co-meta-sep" id="coMetaSep"></span>
         <span id="coLoc">
@@ -320,23 +320,41 @@
     <div class="mf"><label>اسم الشركة</label><input id="e-name" placeholder="اسم الشركة..."></div>
     <div class="mf"><label>وصف مختصر</label><textarea id="e-desc" placeholder="ماذا تعمل شركتك؟"></textarea></div>
     <div class="mrow">
-      <div class="mf"><label>نوع الجهة</label>
-        <select id="e-type">
-          <option>شركة خاصة</option><option>مصنع</option><option>بنك / مؤسسة مالية</option>
-          <option>جامعة / كلية</option><option>مدرسة</option><option>مركز تدريب</option>
-          <option>مستشفى</option><option>جهة حكومية</option><option>أخرى</option>
+      <div class="mf"><label>تصنيف الجهة <span class="req-star">*</span></label>
+        <select id="e-type" required>
+          <option value="" disabled selected>— اختر تصنيف الجهة —</option>
+          <option value="شركة خاصة">شركة خاصة</option>
+          <option value="مصنع">مصنع</option>
+          <option value="مؤسسة تجارية">مؤسسة تجارية</option>
+          <option value="بنك / مؤسسة مالية">بنك / مؤسسة مالية</option>
+          <option value="جامعة / كلية">جامعة / كلية</option>
+          <option value="مدرسة">مدرسة</option>
+          <option value="معهد">معهد</option>
+          <option value="مركز تدريب">مركز تدريب</option>
+          <option value="مستشفى">مستشفى</option>
+          <option value="مطعم">مطعم</option>
+          <option value="جهة حكومية">جهة حكومية</option>
+          <option value="أخرى">أخرى</option>
         </select>
       </div>
       <div class="mf"><label>سنة التأسيس</label><input id="e-founded" placeholder="2010" type="number"></div>
     </div>
     <div class="mrow">
-      <div class="mf"><label>الموقع</label><input id="e-loc" placeholder="عمان، الأردن"></div>
+      <div class="mf"><label>الدولة</label><input id="e-loc" placeholder="الأردن"></div>
+      <div class="mf"><label>المحافظة / المدينة</label><input id="e-city" placeholder="عمان"></div>
+    </div>
+    <div class="mrow">
       <div class="mf"><label>حجم الشركة</label>
         <select id="e-size">
-          <option>1-10 موظفين</option><option>11-50 موظف</option><option>51-200 موظف</option>
-          <option>201-500 موظف</option><option>+500 موظف</option>
+          <option value="">— اختر —</option>
+          <option value="1-10 موظفين">1-10 موظفين</option>
+          <option value="11-50 موظف">11-50 موظف</option>
+          <option value="51-200 موظف">51-200 موظف</option>
+          <option value="201-500 موظف">201-500 موظف</option>
+          <option value="+500 موظف">+500 موظف</option>
         </select>
       </div>
+      <div class="mf"><label>المقر الرئيسي</label><input id="e-hq" placeholder="الرياض، السعودية"></div>
     </div>
     <div class="mf"><label>الموقع الإلكتروني</label><input id="e-web" placeholder="https://..."></div>
     <div class="mf"><label>البريد الإلكتروني للتواصل</label><input id="e-email" placeholder="info@company.com"></div>
