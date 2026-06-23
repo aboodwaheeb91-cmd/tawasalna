@@ -131,7 +131,7 @@
     };
     setVal('e-name',    p.full_name);
     setVal('e-desc',    p.bio);
-    setVal('e-loc',     p.location);
+    setVal('e-loc',     p.country || p.location);
     setVal('e-city',    p.city);
     setVal('e-web',     p.website);
     setVal('e-email',   c.contact_email);
@@ -171,7 +171,7 @@
       body: JSON.stringify({
         full_name: name,
         bio:       val('e-desc'),
-        location:  val('e-loc'),
+        country:   val('e-loc'),
         city:      val('e-city'),
         website:   val('e-web'),
       }),

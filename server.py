@@ -678,7 +678,7 @@ def get_company_profile(company_id: str, request: Request):
     try:
         rows = conn.run(
             "SELECT u.id, u.tw_id, u.full_name, u.email, u.user_type, u.created_at, "
-            "p.bio, p.location, p.avatar_url, p.website, p.is_verified, p.phone, p.city "
+            "p.bio, p.location, p.avatar_url, p.website, p.is_verified, p.phone, p.city, p.country "
             "FROM users u "
             "LEFT JOIN profiles p ON p.user_id = u.id "
             "WHERE u.id = :uid AND u.user_type IN ('co','edu')",

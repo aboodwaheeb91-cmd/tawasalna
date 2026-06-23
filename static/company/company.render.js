@@ -100,8 +100,9 @@
     var locEl          = document.getElementById('coLoc');
     var locTextEl      = document.getElementById('coLocText');
     var pageUrl     = window.location.href;
-    var locStr      = (p.city && p.location) ? (p.location + '، ' + p.city)
-                    : (p.location || p.city || '');
+    var country     = p.country || p.location || '';
+    var city        = p.city || '';
+    var locStr      = (country && city) ? (country + '، ' + city) : (country || city);
     var hasLocation = !!locStr;
 
     if (websiteEl) websiteEl.style.display = 'inline-flex';
