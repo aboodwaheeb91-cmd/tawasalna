@@ -170,8 +170,8 @@ body { background:var(--bg); color:var(--t); font-family:'Cairo',sans-serif; min
 }
 .co-meta-inline svg,
 .co-meta-inline i { width:11px; height:11px; stroke:currentColor; fill:none; stroke-width:2; flex-shrink:0; }
-.co-meta-link { color:var(--ac); text-decoration:none; }
-.co-meta-link:hover { text-decoration:underline; }
+.co-meta-link { color:var(--t3); text-decoration:none; }
+.co-meta-link:hover { text-decoration:none; }
 .co-copy-btn {
   width:18px; height:18px; border:none; background:none; cursor:pointer;
   display:inline-flex; align-items:center; justify-content:center;
@@ -181,7 +181,7 @@ body { background:var(--bg); color:var(--t); font-family:'Cairo',sans-serif; min
 .co-copy-btn svg { width:11px; height:11px; stroke:currentColor; fill:none; stroke-width:2; }
 .co-meta-sep {
   display:inline-block; width:1px; height:10px;
-  background:rgba(255,255,255,.2); border-radius:1px;
+  background:rgba(255,255,255,.12); border-radius:1px;
   margin:0 5px; vertical-align:middle; flex-shrink:0;
 }
 #coMetaSep { display:none; }
@@ -204,14 +204,13 @@ body { background:var(--bg); color:var(--t); font-family:'Cairo',sans-serif; min
 
 /* ══ PROFILE EDIT BTN ═════════════════════════════════════════════ */
 .co-prof-edit-btn {
-  position:absolute; top:38px; right:8px; z-index:10;
-  width:30px; height:30px; border-radius:9px;
-  background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.15);
-  backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
+  position:absolute; top:8px; left:4px; z-index:5;
+  width:22px; height:22px; padding:0; border:none; background:none;
   cursor:pointer; display:flex; align-items:center; justify-content:center;
-  color:rgba(255,255,255,.7); transition:background .15s, color .15s;
+  color:rgba(255,255,255,.5); transition:color .15s, transform .15s;
+  filter:drop-shadow(0 1px 2px rgba(0,0,0,.5));
 }
-.co-prof-edit-btn:hover { background:rgba(255,255,255,.15); color:#fff; }
+.co-prof-edit-btn:hover { color:rgba(255,255,255,.9); transform:scale(1.15); }
 .co-prof-edit-btn svg { width:13px; height:13px; flex-shrink:0; }
 
 /* ══ ACTIONS ══════════════════════════════════════════════════════ */
