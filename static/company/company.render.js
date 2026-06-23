@@ -88,32 +88,32 @@
       badge.textContent = industry || 'تصنيف غير محدد';
     }
 
-    // Website + location inline meta row
+    // Page link + location inline meta row
+    // Always show the company profile page URL — no dependency on p.website
     var websiteEl      = document.getElementById('coWebsite');
     var websiteLink    = document.getElementById('coWebsiteLink');
     var websiteCopyBtn = document.getElementById('coWebsiteCopyBtn');
     var metaSep        = document.getElementById('coMetaSep');
     var locEl          = document.getElementById('coLoc');
     var locTextEl      = document.getElementById('coLocText');
-    var hasWebsite     = !!(p.website);
+    var pageUrl        = window.location.href;
     var hasLocation    = !!(p.location);
 
-    if (locEl) locEl.style.display = hasLocation ? 'inline-flex' : 'none';
-    if (locTextEl) locTextEl.textContent = hasLocation ? p.location : '';
-
-    if (websiteEl) websiteEl.style.display = hasWebsite ? 'inline-flex' : 'none';
-    if (websiteLink && hasWebsite) {
-      websiteLink.href = p.website;
-      websiteLink.textContent = p.website.replace(/^https?:\/\//, '');
+    if (websiteEl) websiteEl.style.display = 'inline-flex';
+    if (websiteLink) {
+      websiteLink.href        = pageUrl;
+      websiteLink.textContent = pageUrl.replace(/^https?:\/\//, '');
     }
-    if (websiteCopyBtn && hasWebsite) {
+    if (websiteCopyBtn) {
       websiteCopyBtn.onclick = function () {
-        navigator.clipboard.writeText(p.website).then(function () {
+        navigator.clipboard.writeText(pageUrl).then(function () {
           if (window.showToast) showToast('تم نسخ الرابط ✓');
         }).catch(function () {});
       };
     }
-    if (metaSep) metaSep.style.display = (hasWebsite && hasLocation) ? 'inline' : 'none';
+    if (locEl) locEl.style.display = hasLocation ? 'inline-flex' : 'none';
+    if (locTextEl) locTextEl.textContent = hasLocation ? p.location : '';
+    if (metaSep) metaSep.style.display = hasLocation ? 'inline' : 'none';
 
     // Social links row — show only platforms that have data
     var links      = (p && p.links) ? p.links : [];
