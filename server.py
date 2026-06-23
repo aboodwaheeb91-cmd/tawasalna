@@ -678,7 +678,7 @@ def get_company_profile(company_id: str, request: Request):
     try:
         rows = conn.run(
             "SELECT u.id, u.tw_id, u.full_name, u.email, u.user_type, u.created_at, "
-            "p.bio, p.location, p.avatar_url, p.website, p.is_verified, p.phone "
+            "p.bio, p.location, p.avatar_url, p.website, p.is_verified, p.phone, p.city "
             "FROM users u "
             "LEFT JOIN profiles p ON p.user_id = u.id "
             "WHERE u.id = :uid AND u.user_type IN ('co','edu')",
@@ -737,6 +737,27 @@ def get_company_profile(company_id: str, request: Request):
         "permissions": permissions,
     }
 
+
+@app.put("/company/profile/{company_id}")
+def update_co_profile(company_id: int, data: CoProfileInput, token=Depends(verify_token)):
+    """
+    PUT /company/profile/{id}
+    Updates company_profiles row only — never touches profiles table or jobs.
+    Auth: JWT Bearer only. Ownership: token.user_id == company_id AND user_type == 'co'.
+    Requires industry (classification) to be non-empty.
+    """
+    tok_uid   = token.get("user_id")
+    tok_utype = token.get("user_type")
+    if str(tok_uid) != str(company_id) or tok_utype != "co":
+        raise HTTPException(403, "غير مصرح")
+    payload = data.dict(exclude_none=True)
+    if not payload.get("industry"):
+        raise HTTPException(400, "يجب تحديد تصنيف الجهة")
+    updated = update_company_profile(company_id, payload)
+    if not updated:
+        raise HTTPException(400, "لا توجد بيانات للحفظ")
+    company = get_company_profile_row(company_id)
+    return {"status": "success", "company": company}
 
 
 @app.get("/edu", response_class=HTMLResponse)
@@ -831,6 +852,15 @@ class ProfileUpdateInput(BaseModel):
     middle_name: Optional[str] = None
     last_name: Optional[str] = None
     cover_url: Optional[str] = None
+
+class CoProfileInput(BaseModel):
+    company_type:  Optional[str] = None
+    industry:      Optional[str] = None
+    founded_year:  Optional[int] = None
+    company_size:  Optional[str] = None
+    contact_email: Optional[str] = None
+    headquarters:  Optional[str] = None
+    description:   Optional[str] = None
 
 class ExperienceInput(BaseModel):
     title: str

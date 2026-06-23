@@ -129,16 +129,17 @@ body { background:var(--bg); color:var(--t); font-family:'Cairo',sans-serif; min
 .co-logo-verify svg,
 .co-logo-verify i { width:13px; height:13px; stroke:#fff; fill:none; stroke-width:2.5; }
 
-/* Logo cam button — Profile V2 .av-cam-btn exactly */
+/* Logo cam button — subtle, matches cv-edit-btn style */
 .av-cam-btn {
   position:absolute; bottom:2px; left:2px;
-  width:28px; height:28px; border-radius:50%;
-  border:2px solid var(--bg); background:var(--ac2);
+  width:22px; height:22px; border-radius:50%;
+  border:1px solid rgba(255,255,255,.15); background:rgba(0,0,0,.32);
   display:flex; align-items:center; justify-content:center;
-  cursor:pointer; z-index:3; transition:transform .15s;
+  cursor:pointer; z-index:3; transition:transform .15s; opacity:.8;
+  backdrop-filter:blur(6px);
 }
-.av-cam-btn svg { width:14px; height:14px; stroke:#fff; fill:none; stroke-width:2; flex-shrink:0; }
-.av-cam-btn:hover { transform:scale(1.12); }
+.av-cam-btn svg { width:10px; height:10px; stroke:#fff; fill:none; stroke-width:2; flex-shrink:0; }
+.av-cam-btn:hover { transform:scale(1.08); opacity:1; }
 
 /* Company info column — centered below logo */
 .sc-info {
@@ -174,8 +175,14 @@ body { background:var(--bg); color:var(--t); font-family:'Cairo',sans-serif; min
 }
 .co-meta-inline svg,
 .co-meta-inline i { width:11px; height:11px; stroke:currentColor; fill:none; stroke-width:2; flex-shrink:0; }
-.co-meta-link { color:var(--t3); text-decoration:none; }
+.co-meta-link {
+  color:var(--t3); text-decoration:none;
+  max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  display:inline-block; vertical-align:middle;
+}
 .co-meta-link:hover { text-decoration:none; }
+/* coLoc span — flex for icon + text alignment (Profile V2 .sc-loc) */
+#coLoc { display:inline-flex; align-items:center; gap:4px; }
 .co-copy-btn {
   width:18px; height:18px; border:none; background:none; cursor:pointer;
   display:inline-flex; align-items:center; justify-content:center;
@@ -474,6 +481,7 @@ i.ico-sm { width:14px; height:14px; stroke:currentColor; fill:none; stroke-width
 .modal-title { font-size:.95rem; font-weight:800; color:#fff; margin-bottom:20px; }
 .mf { margin-bottom:12px; }
 .mf label { display:block; font-size:.72rem; font-weight:700; color:rgba(255,255,255,.4); margin-bottom:5px; }
+.req-star { color:#f87171; margin-right:2px; }
 .mf input,.mf textarea,.mf select {
   width:100%; padding:10px 13px;
   background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.09);
