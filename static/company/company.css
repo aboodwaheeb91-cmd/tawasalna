@@ -546,6 +546,8 @@ i.ico-sm { width:14px; height:14px; stroke:currentColor; fill:none; stroke-width
 .mbtn-no { background:rgba(255,255,255,.06); color:rgba(255,255,255,.5); }
 .mbtn-no:hover { background:rgba(255,255,255,.1); }
 .modal-lg { max-width:520px; }
+/* edit modal scroll: taller content after form sections */
+.modal-edit { max-height:92vh; }
 .modal-hint-text { font-size:.8rem; color:var(--t2); margin-bottom:16px; }
 #msg-subject { margin-bottom:8px; }
 #msg-body    { min-height:100px; }
