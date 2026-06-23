@@ -317,11 +317,13 @@
 <div class="overlay" id="editOverlay">
   <div class="modal">
     <div class="modal-title">تعديل ملف الشركة</div>
+
+    <div class="mf-section-title">معلومات أساسية</div>
     <div class="mf"><label>اسم الشركة</label><input id="e-name" placeholder="اسم الشركة..."></div>
     <div class="mf"><label>وصف مختصر</label><textarea id="e-desc" placeholder="ماذا تعمل شركتك؟"></textarea></div>
     <div class="mrow">
       <div class="mf"><label>تصنيف الجهة <span class="req-star">*</span></label>
-        <select id="e-type" required>
+        <select id="e-type" class="ep-select" required>
           <option value="" disabled selected>— اختر تصنيف الجهة —</option>
           <option value="شركة خاصة">شركة خاصة</option>
           <option value="مصنع">مصنع</option>
@@ -340,12 +342,8 @@
       <div class="mf"><label>سنة التأسيس</label><input id="e-founded" placeholder="2010" type="number"></div>
     </div>
     <div class="mrow">
-      <div class="mf"><label>الدولة</label><input id="e-loc" placeholder="الأردن"></div>
-      <div class="mf"><label>المحافظة / المدينة</label><input id="e-city" placeholder="عمان"></div>
-    </div>
-    <div class="mrow">
       <div class="mf"><label>حجم الشركة</label>
-        <select id="e-size">
+        <select id="e-size" class="ep-select">
           <option value="">— اختر —</option>
           <option value="1-10 موظفين">1-10 موظفين</option>
           <option value="11-50 موظف">11-50 موظف</option>
@@ -356,8 +354,26 @@
       </div>
       <div class="mf"><label>المقر الرئيسي</label><input id="e-hq" placeholder="الرياض، السعودية"></div>
     </div>
-    <div class="mf"><label>الموقع الإلكتروني</label><input id="e-web" placeholder="https://..."></div>
-    <div class="mf"><label>البريد الإلكتروني للتواصل</label><input id="e-email" placeholder="info@company.com"></div>
+
+    <div class="mf-section-title">الموقع الرئيسي</div>
+    <div class="mrow">
+      <div class="mf"><label>الدولة</label>
+        <select id="e-country" class="ep-select">
+          <option value="">— اختر الدولة —</option>
+        </select>
+      </div>
+      <div class="mf"><label>المدينة / المحافظة</label>
+        <select id="e-city-sel" class="ep-select">
+          <option value="">— اختر المدينة —</option>
+        </select>
+      </div>
+    </div>
+    <div class="mf"><label>الحي / الشارع (اختياري)</label><input id="e-district" placeholder="مثال: شارع الملك عبدالله..."></div>
+
+    <div class="mf-section-title">الفروع <span class="mf-section-note">(الحفظ سيتاح بعد إضافة الجدول)</span></div>
+    <div id="branchesList"></div>
+    <button type="button" id="addBranchBtn" class="mbtn-add-branch">+ إضافة فرع</button>
+
     <div class="mact">
       <button id="editSaveBtn" class="mbtn mbtn-ok">حفظ التعديلات</button>
       <button id="editCancelBtn" class="mbtn mbtn-no">إلغاء</button>
