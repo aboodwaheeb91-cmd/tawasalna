@@ -7009,15 +7009,51 @@ Three explicit cards replace the old 2-button + dropdown:
 
 Defined in `static/company/company.main.js`. Keys in `_CO_CITIES` are Arabic country names (not ISO codes) matching the values saved in `profiles.country`. Do NOT change to ISO codes — the DB stores Arabic names.
 
-### Branches Section (PR #250 update)
+### Branches Section (PR feat/company-branches)
 
-`company_branches` table **does not exist** yet. The branches UI in the edit modal is in-memory only:
-- `_addBranchRow()` creates a branch card with 3 fields: country (select), city (select), district (text input)
-- Branch data is **never saved** to DB or localStorage
-- Deleting a branch removes only the DOM node — nothing is persisted
-- No "saved" toast is shown for branches — only the main profile save triggers a toast
-- A note `(الحفظ سيتاح بعد إضافة الجدول)` is shown inline on the section title
-- To enable save: add `company_branches` table migration in `server.py`, add `POST /company/branches/{id}` endpoint, update `saveEdit()` — requires explicit user approval before implementing
+`company_branches` table exists. Full DB persistence enabled:
+
+**DB Table:**
+```sql
+company_branches (
+    id            BIGSERIAL PRIMARY KEY,
+    company_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    branch_name   TEXT,           -- optional
+    country       TEXT NOT NULL,  -- required
+    city          TEXT,           -- optional
+    district      TEXT,           -- optional, free-text
+    display_order INTEGER DEFAULT 0,
+    created_at    TIMESTAMPTZ DEFAULT NOW(),
+    updated_at    TIMESTAMPTZ DEFAULT NOW()
+)
+INDEX idx_company_branches_company ON company_branches(company_id)
+```
+
+**API Endpoints:**
+- `GET /company/branches/{company_id}` — public, no JWT required
+- `PUT /company/branches/{company_id}` — owner only, JWT Bearer, max 10 branches
+
+**Save pattern (snapshot replace):**
+`saveEdit()` sends `Promise.all([p1_profile, p2_company_profiles, p3_branches])`.
+`save_company_branches()` runs `BEGIN → DELETE → INSERT → COMMIT` atomically.
+Empty `country` rows are silently skipped.
+
+**Edit modal:** opens → fetches `GET /company/branches/{id}` → populates rows via `_addBranchRow(data)`.
+`_addBranchRow(data)` accepts `{branch_name, country, city, district}` for pre-fill.
+DOM query classes: `.b-name`, `.b-country`, `.b-city`, `.b-district`.
+
+**Public display:**
+`loadBranches()` in `company.api.js` → `companyState.branches` → `renderBranches()` in `company.render.js`.
+1–3 branches: shown as chips separated by `|` below `#coHqRow`.
+4+ branches: first 3 chips + `+ N فروع أخرى` label.
+0 branches: `#coBranchesRow` hidden.
+
+**Constraints (permanent):**
+- ❌ ممنوع localStorage للفروع
+- ❌ ممنوع X-User-Id في أي call للفروع
+- ❌ ممنوع عرض فروع غير محفوظة للعامة
+- ✅ Max 10 branches enforced server-side (HTTP 400 if exceeded)
+- ✅ Ownership check: `tok_uid == company_id AND tok_utype == "co"`
 
 ### Removed Form Fields (permanent)
 
@@ -7144,11 +7180,13 @@ Profile V2 `epCountry` يستخدم ISO codes كـ values (JO, SA, ...) وكذل
 ### حالة الفروع (company_branches)
 
 ```
-✅ Branches UI في company profile = in-memory فقط
-✅ كل فرع = 3 حقول: country (TW.fillCountries) + city (TW.fillCities) + district (input)
+✅ company_branches table موجود — حفظ حقيقي في DB
+✅ كل فرع = 4 حقول: branch_name (input) + country (TW.fillCountries) + city (TW.fillCities) + district (input)
+✅ حفظ atomic: BEGIN → DELETE → INSERT → COMMIT في save_company_branches()
+✅ GET /company/branches/{id} عام | PUT /company/branches/{id} مالك فقط (JWT)
 ❌ ممنوع حفظ الفروع في localStorage
-❌ ممنوع إرسال الفروع للـ API قبل إضافة company_branches table
-❌ ممنوع toast يوهم أن الفروع انحفظت
+❌ ممنوع X-User-Id في أي call للفروع
+❌ ممنوع عرض فروع غير محفوظة في البروفايل العام
 ```
 
 ---

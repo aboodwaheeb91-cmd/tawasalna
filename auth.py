@@ -2663,3 +2663,96 @@ def is_profile_interest_active(actor_user_id: int, target_user_id: int) -> bool:
     finally:
         release_conn(conn)
 
+
+# ── Company Branches ──────────────────────────────────────────────────────────
+
+def _migrate_company_branches():
+    """Create company_branches table + index if they don't exist (idempotent)."""
+    conn = get_conn()
+    try:
+        conn.run("""
+            CREATE TABLE IF NOT EXISTS company_branches (
+                id            BIGSERIAL PRIMARY KEY,
+                company_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                branch_name   TEXT,
+                country       TEXT NOT NULL,
+                city          TEXT,
+                district      TEXT,
+                display_order INTEGER DEFAULT 0,
+                created_at    TIMESTAMPTZ DEFAULT NOW(),
+                updated_at    TIMESTAMPTZ DEFAULT NOW()
+            )
+        """)
+        conn.run("""
+            CREATE INDEX IF NOT EXISTS idx_company_branches_company
+            ON company_branches(company_id)
+        """)
+    finally:
+        release_conn(conn)
+
+
+def get_company_branches(company_id: int) -> list:
+    """Return all branches for a company ordered by display_order then id."""
+    conn = get_conn()
+    try:
+        rows = conn.run(
+            "SELECT id, branch_name, country, city, district, display_order "
+            "FROM company_branches "
+            "WHERE company_id = :cid "
+            "ORDER BY display_order ASC, id ASC",
+            cid=company_id,
+        )
+        cols = ["id", "branch_name", "country", "city", "district", "display_order"]
+        return [_serialize(_row_to_dict(cols, r)) for r in rows]
+    finally:
+        release_conn(conn)
+
+
+def save_company_branches(company_id: int, branches: list) -> list:
+    """Replace all branches atomically (BEGIN → DELETE → INSERT → COMMIT).
+    Skips rows with empty country. Returns saved list."""
+    if len(branches) > 10:
+        raise ValueError("لا يمكن إضافة أكثر من 10 فروع")
+
+    conn = get_conn()
+    try:
+        conn.run("BEGIN")
+        conn.run(
+            "DELETE FROM company_branches WHERE company_id = :cid",
+            cid=company_id,
+        )
+        saved = []
+        for i, b in enumerate(branches):
+            country = (b.get("country") or "").strip()
+            if not country:
+                continue
+            name     = (b.get("branch_name") or "").strip() or None
+            city     = (b.get("city")        or "").strip() or None
+            district = (b.get("district")    or "").strip() or None
+            rows = conn.run(
+                "INSERT INTO company_branches "
+                "(company_id, branch_name, country, city, district, display_order) "
+                "VALUES (:cid, :name, :country, :city, :district, :ord) "
+                "RETURNING id",
+                cid=company_id, name=name, country=country,
+                city=city, district=district, ord=i,
+            )
+            saved.append(_serialize({
+                "id":            rows[0][0] if rows else None,
+                "branch_name":   name,
+                "country":       country,
+                "city":          city,
+                "district":      district,
+                "display_order": i,
+            }))
+        conn.run("COMMIT")
+        return saved
+    except Exception:
+        try:
+            conn.run("ROLLBACK")
+        except Exception:
+            pass
+        raise
+    finally:
+        release_conn(conn)
+

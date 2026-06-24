@@ -576,7 +576,7 @@ These rules are permanent and apply to all future AI sessions:
 
 10. **`ep-select` in company profile uses the shared custom dropdown.** Company profile loads `static/shared/tw-select.js` and `static/shared/tw-select.css`. The `.ep-select` class triggers the custom dropdown component — do NOT add `profile-v2.select.js` directly; use `tw-select.js` instead. The CSS-only fallback in `company.css` is kept for no-JS degradation only.
 
-11. **Branches UI is in-memory only.** `company_branches` table does not exist. `_addBranchRow()` creates a branch card with 3 fields (country select + city select + district input). Branch data is never saved to DB or localStorage. Never show a "saved" toast for branches. Never add `company_branches` migration or endpoint without explicit user approval.
+11. **Branches are saved to DB via `company_branches` table (PR feat/company-branches).** `_addBranchRow(data)` creates a branch card with 4 fields: branch_name input (`.b-name`) + country select (`.b-country`) + city select (`.b-city`) + district input (`.b-district`). On save, `saveEdit()` collects all `.branch-row` data and sends `PUT /company/branches/{id}` (snapshot replace, atomic). Opening the modal fetches `GET /company/branches/{id}` to pre-populate existing branches. Public profile loads branches via `loadBranches()` → `renderBranches()`. **Permanent constraints:** never use localStorage for branches; never use X-User-Id; never show branches in public profile without a real DB load; max 10 branches enforced server-side.
 
 12. **Three fields are permanently removed from the edit form — DB columns untouched:**
     - `e-web` → `profiles.website` (still in DB; displayable in About tab)

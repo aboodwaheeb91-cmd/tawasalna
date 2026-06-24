@@ -45,6 +45,7 @@
       if (window.renderAll)          window.renderAll();
       if (window.bindEvents)         window.bindEvents();
       if (window.loadJobs)           window.loadJobs();
+      if (window.loadBranches)       window.loadBranches();
     })
     .catch(function (err) {
       if (err.name === 'AbortError') return;
@@ -115,7 +116,25 @@
       .finally(function () { _postsLoading = false; });
   }
 
-  window.loadData  = loadData;
-  window.loadJobs  = loadJobs;
-  window.loadPosts = loadPosts;
+  // Branches — public endpoint, fills companyState.branches then renders
+  function loadBranches() {
+    if (!window.companyState || !companyState.profile) return;
+    var companyId = companyState.profile.id;
+    if (!companyId) return;
+
+    fetch('/company/branches/' + companyId)
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (window.companyState) {
+          companyState.branches = data.branches || [];
+          if (window.renderBranches) renderBranches(companyState.branches);
+        }
+      })
+      .catch(function () {});
+  }
+
+  window.loadData     = loadData;
+  window.loadJobs     = loadJobs;
+  window.loadPosts    = loadPosts;
+  window.loadBranches = loadBranches;
 }());

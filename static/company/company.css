@@ -188,6 +188,18 @@ body { background:var(--bg); color:var(--t); font-family:'Cairo',sans-serif; min
 }
 .co-hq-row i { width:12px; height:12px; stroke:var(--ac,#00c896); fill:none; stroke-width:2; flex-shrink:0; }
 .co-hq-label { color:var(--t3); font-weight:600; white-space:nowrap; }
+/* ── Branches public display row — below HQ row ── */
+.co-branches-row {
+  display:none; align-items:center; justify-content:center; gap:5px; flex-wrap:wrap;
+  margin-top:3px; margin-bottom:2px; font-size:.72rem; color:var(--t2); direction:rtl;
+}
+.co-branches-row i { width:12px; height:12px; stroke:var(--ac,#00c896); fill:none; stroke-width:2; flex-shrink:0; }
+.co-branches-label { color:var(--t3); font-weight:600; white-space:nowrap; }
+.co-branch-chip    { white-space:nowrap; }
+.co-branch-sep     { color:var(--t3); margin:0 4px; }
+.co-branch-more    { color:var(--ac2,#2563ff); font-weight:600; white-space:nowrap; }
+/* Branch name field in edit modal — full-width above the 3-column grid */
+.branch-name-field { grid-column:1 / -1; margin-bottom:4px; }
 .co-copy-btn {
   width:18px; height:18px; border:none; background:none; cursor:pointer;
   display:inline-flex; align-items:center; justify-content:center;
@@ -542,6 +554,8 @@ i.ico-sm { width:14px; height:14px; stroke:currentColor; fill:none; stroke-width
   transition:all .15s; margin-top:4px; margin-bottom:14px;
 }
 .mbtn-add-branch:hover { border-color:var(--ac2); color:var(--ac2); }
+.branch-loading  { font-size:.75rem; color:var(--t3); padding:10px 0; text-align:center; direction:rtl; }
+.branch-load-err { font-size:.75rem; color:#f87171; padding:10px 0; text-align:center; direction:rtl; }
 .modal-btns { display:flex; gap:8px; margin-top:18px; }
 .mbtn {
   flex:1; padding:11px; border:none; border-radius:10px;
@@ -613,6 +627,7 @@ body.co-loading  .visitor-only           { display: none !important; }
 .file-input-hidden { display:none; }
 #coWebsite         { display:none; }
 #coHqRow           { display:none; }
+#coBranchesRow     { display:none; }
 #tab-posts,
 #tab-about,
 #tab-ratings       { display:none; }

@@ -9,7 +9,7 @@ from fastapi import FastAPI, HTTPException, Request, Response, Depends, Backgrou
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 import base64, mimetypes
 from typing import List, Optional
 from datetime import datetime
@@ -76,6 +76,7 @@ from auth import (
     _cache_del, get_profile_style,
     get_company_profile_row, get_company_extras,
     update_company_profile,
+    _migrate_company_branches, get_company_branches, save_company_branches,
     follow_company, unfollow_company, rate_company,
     get_company_posts, create_company_post, get_post_owner, delete_company_post,
     follow_profile, unfollow_profile, get_profile_followers_count, is_profile_following,
@@ -361,6 +362,11 @@ async def on_startup():
         print("✅ feed indexes ready")
     except Exception as e:
         print(f"⚠️ feed indexes migration failed: {e}")
+    try:
+        _migrate_company_branches()
+        print("✅ company_branches table ready")
+    except Exception as e:
+        print(f"⚠️ company_branches migration failed: {e}")
     await _init_asyncpg_pool()
 
 # ── Helpers ──
@@ -750,6 +756,17 @@ class CoProfileInput(BaseModel):
     cover_url:     Optional[str] = None
 
 
+class BranchItemInput(BaseModel):
+    branch_name: Optional[str] = None
+    country:     str
+    city:        Optional[str] = None
+    district:    Optional[str] = None
+
+
+class BranchesInput(BaseModel):
+    branches: List[BranchItemInput] = Field(default_factory=list)
+
+
 @app.put("/company/profile/{company_id}")
 def update_co_profile(company_id: int, data: CoProfileInput, token=Depends(verify_token)):
     """
@@ -770,6 +787,34 @@ def update_co_profile(company_id: int, data: CoProfileInput, token=Depends(verif
         raise HTTPException(400, "لا توجد بيانات للحفظ")
     company = get_company_profile_row(company_id)
     return {"status": "success", "company": company}
+
+
+# ── Company Branches ──────────────────────────────────────────────────────────
+
+@app.get("/company/branches/{company_id}")
+def get_branches(company_id: int):
+    """Public — returns all branches for a company ordered by display_order."""
+    return {"branches": get_company_branches(company_id)}
+
+
+@app.put("/company/branches/{company_id}")
+def put_branches(company_id: int, data: BranchesInput, token=Depends(verify_token)):
+    """Replace all branches atomically. Owner only. Max 10 branches.
+    Auth: JWT Bearer only — X-User-Id forbidden.
+    Ownership: token.user_id == company_id AND user_type == 'co'.
+    """
+    tok_uid   = token.get("user_id")
+    tok_utype = token.get("user_type")
+    if str(tok_uid) != str(company_id) or tok_utype != "co":
+        raise HTTPException(403, "غير مصرح")
+    if len(data.branches) > 10:
+        raise HTTPException(400, "لا يمكن إضافة أكثر من 10 فروع")
+    branches_dicts = [b.dict() for b in data.branches]
+    try:
+        saved = save_company_branches(company_id, branches_dicts)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return {"status": "success", "branches": saved}
 
 
 @app.get("/edu", response_class=HTMLResponse)
