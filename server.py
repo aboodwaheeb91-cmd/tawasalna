@@ -747,6 +747,7 @@ class CoProfileInput(BaseModel):
     contact_email: Optional[str] = None
     headquarters:  Optional[str] = None
     description:   Optional[str] = None
+    cover_url:     Optional[str] = None
 
 
 @app.put("/company/profile/{company_id}")
