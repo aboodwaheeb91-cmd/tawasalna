@@ -24,7 +24,8 @@
   }
 
   // ── Dropdown menu ──────────────────────────────────────────────
-  var _menuOpen = false;
+  var _menuOpen      = false;
+  var _branchesLoaded = false; // true only after GET /company/branches succeeds
   function toggleMenu(e) {
     e.stopPropagation();
     var m = document.getElementById('coMenuDropdown');
@@ -251,19 +252,40 @@
     setVal('e-country', savedCountry);
     _coLoadCities(savedCountry, p.city || '');
 
-    // Load branches from DB — clear list first, then populate from API
+    // Branches: reset flag, disable save, show loading, then fetch
+    _branchesLoaded = false;
+    var saveBtn = document.getElementById('editSaveBtn');
+    if (saveBtn) { saveBtn.disabled = true; saveBtn.style.opacity = '0.5'; }
+
     var bList = document.getElementById('branchesList');
+    var bCoId = (companyState.profile || {}).id;
     if (bList) {
-      bList.innerHTML = '';
-      var bCoId = (companyState.profile || {}).id;
-      if (bCoId) {
-        fetch('/company/branches/' + bCoId)
-          .then(function (r) { return r.json(); })
-          .then(function (d) {
+      bList.innerHTML = '<div class="branch-loading">جاري تحميل الفروع...</div>';
+    }
+    if (bCoId) {
+      fetch('/company/branches/' + bCoId)
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          if (bList) {
+            bList.innerHTML = '';
             (d.branches || []).forEach(function (b) { _addBranchRow(b); });
-          })
-          .catch(function () {});
-      }
+          }
+          _branchesLoaded = true;
+          if (saveBtn) { saveBtn.disabled = false; saveBtn.style.opacity = ''; }
+        })
+        .catch(function () {
+          if (bList) {
+            bList.innerHTML =
+              '<div class="branch-load-err">تعذّر تحميل الفروع، حاول إغلاق المودال وإعادة فتحه</div>';
+          }
+          if (window.showToast) showToast('تعذّر تحميل الفروع', 'error');
+          // save stays disabled — _branchesLoaded remains false
+        });
+    } else {
+      // No company ID yet — treat as empty branches
+      if (bList) bList.innerHTML = '';
+      _branchesLoaded = true;
+      if (saveBtn) { saveBtn.disabled = false; saveBtn.style.opacity = ''; }
     }
 
     var ov = document.getElementById('editOverlay');
@@ -284,6 +306,10 @@
 
   function saveEdit() {
     if (!window.companyState || !companyState.permissions.can_edit) return;
+    if (!_branchesLoaded) {
+      if (window.showToast) showToast('يرجى الانتظار حتى اكتمال تحميل الفروع', 'error');
+      return;
+    }
     var val  = function (id) { return (document.getElementById(id) || {}).value || ''; };
     var name = val('e-name').trim();
     if (!name) { if (window.showToast) showToast('أدخل اسم الشركة', 'error'); return; }

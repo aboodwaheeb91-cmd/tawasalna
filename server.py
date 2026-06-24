@@ -9,7 +9,7 @@ from fastapi import FastAPI, HTTPException, Request, Response, Depends, Backgrou
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 import base64, mimetypes
 from typing import List, Optional
 from datetime import datetime
@@ -764,7 +764,7 @@ class BranchItemInput(BaseModel):
 
 
 class BranchesInput(BaseModel):
-    branches: List[BranchItemInput] = []
+    branches: List[BranchItemInput] = Field(default_factory=list)
 
 
 @app.put("/company/profile/{company_id}")

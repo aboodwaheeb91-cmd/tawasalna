@@ -554,6 +554,8 @@ i.ico-sm { width:14px; height:14px; stroke:currentColor; fill:none; stroke-width
   transition:all .15s; margin-top:4px; margin-bottom:14px;
 }
 .mbtn-add-branch:hover { border-color:var(--ac2); color:var(--ac2); }
+.branch-loading  { font-size:.75rem; color:var(--t3); padding:10px 0; text-align:center; direction:rtl; }
+.branch-load-err { font-size:.75rem; color:#f87171; padding:10px 0; text-align:center; direction:rtl; }
 .modal-btns { display:flex; gap:8px; margin-top:18px; }
 .mbtn {
   flex:1; padding:11px; border:none; border-radius:10px;
