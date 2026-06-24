@@ -751,56 +751,6 @@ body.preview-guest       .owner-only { display: none !important; }
 .sc-exp-menu-del svg { stroke:#f87171; }
 .sc-exp-menu-del:hover:not([disabled]) { background:rgba(248,113,113,.1); }
 
-/* ── Custom Select Component (profile-v2.select.js) ── */
-.sc-sel { position:relative; width:100%; display:block; }
-.sc-sel-trg {
-  width:100%; display:flex; align-items:center; justify-content:space-between; gap:8px;
-  background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.1); border-radius:10px;
-  color:var(--t1,#fff); font-family:inherit; font-size:.84rem; padding:10px 13px;
-  cursor:pointer; text-align:right; direction:rtl; outline:none;
-  transition:border-color .15s; min-height:40px;
-}
-.sc-sel-trg:focus, .sc-sel-open .sc-sel-trg { border-color:var(--ac,#00c896); }
-.sc-sel-txt {
-  flex:1; text-align:right; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-  display:flex; align-items:center; gap:5px;
-}
-.sc-sel-ph { color:var(--t3,#6b7686) !important; }
-.sc-sel-arr {
-  flex-shrink:0; display:flex; align-items:center; color:var(--t3,#6b7686);
-  transition:transform .15s;
-}
-.sc-sel-open .sc-sel-arr { transform:rotate(180deg); }
-/* Dropdown portal — appended to body, position:fixed set by JS */
-.sc-sel-drop {
-  position:fixed; overflow-y:auto;
-  background:rgba(10,14,24,.97); border:1px solid rgba(255,255,255,.12);
-  border-radius:11px; padding:4px;
-  backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px);
-  box-shadow:0 8px 32px rgba(0,0,0,.55); direction:rtl;
-  opacity:0; transform:translateY(-4px); transition:opacity .12s,transform .12s;
-}
-.sc-sel-drop-open { opacity:1; transform:translateY(0); }
-/* Group header (for optgroup) */
-.sc-sel-grp {
-  padding:5px 10px 2px; font-size:.68rem; font-weight:700;
-  color:var(--t3,#6b7686); letter-spacing:.03em;
-  border-top:1px solid rgba(255,255,255,.07); margin-top:3px;
-}
-.sc-sel-grp-first { border-top:none; margin-top:0; }
-/* Options */
-.sc-sel-item {
-  display:flex; align-items:center; gap:6px;
-  padding:8px 10px; border-radius:7px;
-  font-family:inherit; font-size:.82rem; color:var(--t1,#fff);
-  cursor:pointer; direction:rtl; transition:background .1s; white-space:nowrap;
-}
-.sc-sel-item:hover:not(.sc-sel-item-dis),
-.sc-sel-item-kb:not(.sc-sel-item-dis) { background:rgba(255,255,255,.08); }
-.sc-sel-item-sel { color:var(--ac,#00c896); background:rgba(0,200,150,.07); }
-.sc-sel-item-sel:hover { background:rgba(0,200,150,.12) !important; }
-.sc-sel-item-dis { color:var(--t3,#6b7686); opacity:.5; cursor:default; }
-.sc-sel-ico { flex-shrink:0; }
 
 /* ── Cover edit button (owner only) ── */
 .cv-edit-btn {
