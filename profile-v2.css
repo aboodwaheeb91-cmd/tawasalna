@@ -36,17 +36,17 @@
    stays visually balanced with the icon group on the other side of the
    centered logo regardless of which side of the header it sits on. */
 .sc-hicon-bare { width:auto; height:auto; padding:4px; background:none !important; border:none !important; }
-.sc-home-btn {
+.sc-header .sc-home-btn {
   width:32px; height:32px; border-radius:10px; flex-shrink:0;
   background:var(--hdr-home-bg, rgba(0,200,150,.07));
   border:1px solid var(--hdr-home-glow, rgba(0,200,150,.28));
   box-shadow:none;
   color:var(--hdr-home-accent, #00c896);
 }
-.sc-home-btn .ico { width:16px; height:16px; filter:none; }
-.sc-home-btn:hover,
-.sc-home-btn:focus-visible { box-shadow:0 0 8px var(--hdr-home-glow, rgba(0,200,150,.28)); }
-.sc-home-btn:active { transform:scale(.93); }
+.sc-header .sc-home-btn .ico { width:16px; height:16px; filter:none; }
+.sc-header .sc-home-btn:hover,
+.sc-header .sc-home-btn:focus-visible { box-shadow:0 0 8px var(--hdr-home-glow, rgba(0,200,150,.28)); }
+.sc-header .sc-home-btn:active { transform:scale(.93); }
 .sc-head-icons { display:flex; align-items:center; gap:8px; }
 .sc-head-icons .ico { width:20px; height:20px; }
 .sc-hgroup { display:flex; align-items:center; gap:10px; }
