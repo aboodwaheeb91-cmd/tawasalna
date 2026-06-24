@@ -280,10 +280,13 @@
     }
   })();
 
-  // ── Initialize all .ep-select elements ──
+  // ── Initialize all .ep-select elements, then sync all trigger labels ──
+  // Calling scSelectInit() is safe at any time: _init() skips already-wrapped selects,
+  // and _syncAll() re-reads native.value for every initialized trigger (no side-effects).
   window.scSelectInit = function(){
     var sels = document.querySelectorAll('.ep-select:not([data-sc-sel])');
     for(var i=0; i<sels.length; i++) _init(sels[i]);
+    _syncAll();
   };
 
   // Expose close for history.js back-button handler
