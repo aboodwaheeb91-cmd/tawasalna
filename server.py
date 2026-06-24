@@ -75,6 +75,7 @@ from auth import (
     get_site_setting, set_site_setting, release_conn,
     _cache_del, get_profile_style,
     get_company_profile_row, get_company_extras,
+    update_company_profile,
     follow_company, unfollow_company, rate_company,
     get_company_posts, create_company_post, get_post_owner, delete_company_post,
     follow_profile, unfollow_profile, get_profile_followers_count, is_profile_following,
