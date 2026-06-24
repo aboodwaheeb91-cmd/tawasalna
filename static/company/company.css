@@ -181,8 +181,13 @@ body { background:var(--bg); color:var(--t); font-family:'Cairo',sans-serif; min
   display:inline-block; vertical-align:middle;
 }
 .co-meta-link:hover { text-decoration:none; }
-/* coLoc span — flex for icon + text alignment (Profile V2 .sc-loc) */
-#coLoc { display:inline-flex; align-items:center; gap:4px; }
+/* ── Main HQ location row — below bio, before action buttons ── */
+.co-hq-row {
+  display:none; align-items:center; justify-content:center; gap:5px; flex-wrap:wrap;
+  margin-top:6px; margin-bottom:2px; font-size:.72rem; color:var(--t2); direction:rtl;
+}
+.co-hq-row i { width:12px; height:12px; stroke:var(--ac,#00c896); fill:none; stroke-width:2; flex-shrink:0; }
+.co-hq-label { color:var(--t3); font-weight:600; white-space:nowrap; }
 .co-copy-btn {
   width:18px; height:18px; border:none; background:none; cursor:pointer;
   display:inline-flex; align-items:center; justify-content:center;
@@ -195,8 +200,6 @@ body { background:var(--bg); color:var(--t); font-family:'Cairo',sans-serif; min
   background:rgba(255,255,255,.12); border-radius:1px;
   margin:0 5px; vertical-align:middle; flex-shrink:0;
 }
-#coMetaSep { display:none; }
-#coLoc { display:none; }
 /* .co-meta-item kept for legacy — not rendered anymore */
 .co-meta-item { display:flex; align-items:center; gap:4px; }
 .co-social-row {
@@ -609,7 +612,7 @@ body.co-loading  .visitor-only           { display: none !important; }
 /* ══ STATIC INITIAL STATES ═══════════════════════════════════════ */
 .file-input-hidden { display:none; }
 #coWebsite         { display:none; }
-#coMetaSep         { display:none; }
+#coHqRow           { display:none; }
 #tab-posts,
 #tab-about,
 #tab-ratings       { display:none; }

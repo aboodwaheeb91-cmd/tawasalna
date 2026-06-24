@@ -96,16 +96,9 @@
     var websiteEl      = document.getElementById('coWebsite');
     var websiteLink    = document.getElementById('coWebsiteLink');
     var websiteCopyBtn = document.getElementById('coWebsiteCopyBtn');
-    var metaSep        = document.getElementById('coMetaSep');
-    var locEl          = document.getElementById('coLoc');
-    var locTextEl      = document.getElementById('coLocText');
-    var pageUrl     = window.location.href;
-    var country     = p.country || '';
-    var city        = p.city    || '';
-    var locStr      = (country || city)
-      ? (country && city ? country + '، ' + city : country || city)
-      : (p.location || '');
-    var hasLocation = !!locStr;
+    var pageUrl  = window.location.href;
+    var locParts = [p.country || '', p.city || '', p.location || ''].filter(Boolean);
+    var locStr   = locParts.join(' - ');
 
     if (websiteEl) websiteEl.style.display = 'inline-flex';
     if (websiteLink) {
@@ -119,9 +112,10 @@
         }).catch(function () {});
       };
     }
-    if (locEl) locEl.style.display = hasLocation ? 'inline-flex' : 'none';
-    if (locTextEl) locTextEl.textContent = locStr;
-    if (metaSep) metaSep.style.display = hasLocation ? 'inline-block' : 'none';
+    var hqRow  = document.getElementById('coHqRow');
+    var hqText = document.getElementById('coHqText');
+    if (hqRow)  hqRow.style.display  = locStr ? 'flex' : 'none';
+    if (hqText) hqText.textContent   = locStr;
   }
 
   // ── Stats ─────────────────────────────────────────────────────
