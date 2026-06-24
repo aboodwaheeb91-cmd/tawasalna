@@ -168,7 +168,7 @@
     drop.style.width  = w + 'px';
     drop.style.left   = leftPos + 'px';
     drop.style.right  = 'auto';
-    drop.style.zIndex = '600';
+    drop.style.zIndex = getComputedStyle(document.documentElement).getPropertyValue('--tw-drop-z').trim() || '9500';
 
     if(spaceBelow >= maxH + 6 || spaceBelow >= vh - rect.top){
       drop.style.top    = (rect.bottom + 3) + 'px';
