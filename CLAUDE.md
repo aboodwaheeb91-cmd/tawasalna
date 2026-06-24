@@ -574,7 +574,7 @@ These rules are permanent and apply to all future AI sessions:
    - Display order: `country + '، ' + city`; if both empty → fall back to `p.location`
    - **Never** use `p.location` as the country; **never** swap city/country display order
 
-10. **`ep-select` in company profile is native-only (no custom JS).** Company profile does NOT load `profile-v2.select.js`. The `.ep-select` class styles native `<select>` via `company.css`. Do NOT add `profile-v2.select.js` to `company-profile.html`.
+10. **`ep-select` in company profile uses the shared custom dropdown.** Company profile loads `static/shared/tw-select.js` and `static/shared/tw-select.css`. The `.ep-select` class triggers the custom dropdown component — do NOT add `profile-v2.select.js` directly; use `tw-select.js` instead. The CSS-only fallback in `company.css` is kept for no-JS degradation only.
 
 11. **Branches UI is in-memory only.** `company_branches` table does not exist. `_addBranchRow()` creates a branch card with 3 fields (country select + city select + district input). Branch data is never saved to DB or localStorage. Never show a "saved" toast for branches. Never add `company_branches` migration or endpoint without explicit user approval.
 
@@ -587,6 +587,32 @@ These rules are permanent and apply to all future AI sessions:
 
 14. **District / area (`e-district`) is an `<input>` — not a dropdown.** No official source for Arabic neighborhood/district data exists. Do NOT invent a dropdown with made-up district names. If an official dataset is added later, convert then.
 
-15. **`ep-select` style is CSS-only.** A custom chevron arrow is injected via `background-image` (URL-encoded SVG) in `company.css`. `padding-left:36px` prevents text/arrow overlap in RTL. This is the approved approach — do not add `profile-v2.select.js` without explicit approval.
+15. **`ep-select` visual is driven by `tw-select.js` + `tw-select.css`.** The CSS-only chevron in `company.css` is a no-JS fallback only. Do NOT use it as the primary styling mechanism. Any visual change to dropdowns goes in `static/shared/tw-select.css` — not in page CSS.
 
 16. **No merge without user approval.** No PR is to be merged automatically. Every merge requires explicit user instruction.
+
+---
+
+## Shared Form Controls Rules (mandatory for all AI sessions)
+
+These rules are permanent and apply to all future AI sessions:
+
+1. **`static/shared/` is the canonical location** for all shared dropdown/picker UI and data. Files: `tw-select.js`, `tw-select.css`, `tw-options-data.js`. Never duplicate their logic inside a page file.
+
+2. **Any new dropdown, year picker, or date picker must use the shared system.** Adding a new `<select>` with repeated data (countries, years, company types, sizes) without routing it through `TW.*` helpers in `tw-options-data.js` is forbidden.
+
+3. **Forbidden — duplicating dropdown data per page.** Country names, year ranges, company types, company sizes, and city lists must live only in `tw-options-data.js`. Never copy-paste these arrays or objects into an HTML file, a page JS module, or inline `<script>`.
+
+4. **Forbidden — native `<select>` for unified-experience pages.** Any page that uses the `ep-select` class must initialize the custom dropdown via `scSelectInit()` from `tw-select.js`. Do NOT leave a bare native select on a page that is supposed to match the Profile V2 / Company Profile design.
+
+5. **Visual changes to dropdowns go in `static/shared/tw-select.css` only.** Do NOT add `.sc-sel-*` overrides in page CSS files. Per-page color or size overrides must use CSS custom properties (vars) defined in `tw-select.css`.
+
+6. **`TW.fillSelect()`, `TW.fillCountries()`, `TW.fillCities()`, `TW.fillFoundedYears()` are the only approved fill helpers.** Do not write ad-hoc `for` loops to populate `<select>` options for data that already exists in `tw-options-data.js`.
+
+7. **`scSelectInit()` must be called after dynamic option population.** Any time you populate a select's options at runtime (modal open, country-change, row insertion), call `if (window.scSelectInit) scSelectInit();` immediately after. Forgetting this leaves the custom dropdown stale.
+
+8. **`tw-options-data.js` must load before any page module that calls `TW.*`.** In page `<head>`, the load order is: `tw-options-data.js` → `tw-select.js` → page state module → other modules.
+
+9. **Profile V2 country select is an exception.** `profile-v2.select.js` (or its shared copy `tw-select.js`) wraps the Profile V2 country select, but `epCountry` in Profile V2 uses ISO codes (JO, SA, AE…) stored in `profiles.country` for employees — NOT Arabic names. This is a legacy contract difference. Do NOT apply `TW.fillCountries()` to the Profile V2 country field without a DB migration.
+
+10. **No merge without user approval.** No PR touching shared form controls is to be merged automatically. Every merge requires explicit user instruction.

@@ -121,69 +121,23 @@
     closeContact();
   }
 
-  // ── Country / city data ────────────────────────────────────────
-  var _CO_COUNTRIES = [
-    'الأردن','السعودية','الإمارات','الكويت','قطر','البحرين','عُمان',
-    'مصر','العراق','سوريا','لبنان','فلسطين','اليمن','ليبيا','تونس','الجزائر','المغرب','السودان'
-  ];
-  var _CO_CITIES = {
-    'الأردن':   ['عمان','إربد','الزرقاء','العقبة','السلط','مادبا','الكرك','معان','جرش','عجلون','الطفيلة'],
-    'السعودية': ['الرياض','جدة','مكة المكرمة','المدينة المنورة','الدمام','الخبر','الطائف','أبها','تبوك','القطيف','بريدة'],
-    'الإمارات': ['دبي','أبوظبي','الشارقة','عجمان','رأس الخيمة','الفجيرة','أم القيوين','العين'],
-    'الكويت':   ['مدينة الكويت','حولي','الفروانية','الأحمدي','الجهراء','مبارك الكبير'],
-    'قطر':      ['الدوحة','الريان','الوكرة','أم صلال','الخور','الشمال'],
-    'البحرين':  ['المنامة','المحرق','الرفاع','مدينة عيسى','مدينة حمد'],
-    'عُمان':    ['مسقط','صلالة','نزوى','صحار','السيب','مطرح','البريمي'],
-    'مصر':      ['القاهرة','الإسكندرية','الجيزة','شرم الشيخ','الأقصر','أسوان','طنطا','المنصورة','الفيوم','بورسعيد'],
-    'العراق':   ['بغداد','البصرة','الموصل','أربيل','كربلاء','النجف','السليمانية','كركوك'],
-    'سوريا':    ['دمشق','حلب','حمص','اللاذقية','حماة','دير الزور','الرقة','درعا'],
-    'لبنان':    ['بيروت','طرابلس','صيدا','صور','جونية','زحلة'],
-    'فلسطين':   ['رام الله','القدس','غزة','نابلس','الخليل','جنين','أريحا','بيت لحم'],
-    'اليمن':    ['صنعاء','عدن','تعز','الحديدة','إب','ذمار','مأرب'],
-    'ليبيا':    ['طرابلس','بنغازي','مصراتة','الزاوية','البيضاء','سبها'],
-    'تونس':     ['تونس','صفاقس','سوسة','بنزرت','قابس','القيروان'],
-    'الجزائر':  ['الجزائر','وهران','قسنطينة','عنابة','سطيف','تلمسان'],
-    'المغرب':   ['الرباط','الدار البيضاء','فاس','مراكش','مكناس','أكادير','طنجة'],
-    'السودان':  ['الخرطوم','أم درمان','بورتسودان','كسلا','الأبيض']
-  };
+  // ── Country / city / options — delegated to window.TW (tw-options-data.js) ──
+  // _CO_COUNTRIES, _CO_CITIES, _populateFoundedYears removed — use TW helpers.
 
-  // ── Country/city helpers (shared between main form and branch rows) ────────
-  function _fillCountrySel(sel) {
-    if (!sel || sel.options.length > 1) return;
-    _CO_COUNTRIES.forEach(function (c) {
-      var opt = document.createElement('option');
-      opt.value = c; opt.textContent = c;
-      sel.appendChild(opt);
-    });
+  function _coPopulateCountries() {
+    TW.fillCountries(document.getElementById('e-country'), '— اختر الدولة —');
   }
-
-  function _fillCitySel(sel, country, selectedCity) {
-    if (!sel) return;
-    sel.innerHTML = '<option value="">— اختر المدينة —</option>';
-    (_CO_CITIES[country] || []).forEach(function (c) {
-      var opt = document.createElement('option');
-      opt.value = c; opt.textContent = c;
-      if (c === selectedCity) opt.selected = true;
-      sel.appendChild(opt);
-    });
-  }
-
-  function _coPopulateCountries() { _fillCountrySel(document.getElementById('e-country')); }
 
   function _coLoadCities(country, selectedCity) {
-    _fillCitySel(document.getElementById('e-city-sel'), country, selectedCity);
+    TW.fillCities(document.getElementById('e-city-sel'), country, selectedCity);
   }
 
-  // ── Founded year dropdown ──────────────────────────────────────
-  function _populateFoundedYears() {
-    var sel = document.getElementById('e-founded');
-    if (!sel || sel.options.length > 1) return;
-    var curYear = new Date().getFullYear();
-    for (var y = curYear; y >= 1900; y--) {
-      var opt = document.createElement('option');
-      opt.value = String(y); opt.textContent = String(y);
-      sel.appendChild(opt);
-    }
+  function _populateTypeOptions() {
+    TW.fillSelect(document.getElementById('e-type'), TW.COMPANY_TYPES, '— اختر تصنيف الجهة —');
+  }
+
+  function _populateSizeOptions() {
+    TW.fillSelect(document.getElementById('e-size'), TW.COMPANY_SIZES, '— اختر —');
   }
 
   // ── Branches (UI-only — no DB save until company_branches table is added) ──
@@ -224,17 +178,20 @@
     var fields = document.createElement('div');
     fields.className = 'branch-fields';
 
-    // Country select
+    // Country select — filled from TW.COUNTRIES
     var selCountry = document.createElement('select');
     selCountry.className = 'ep-select';
     selCountry.innerHTML = '<option value="">— الدولة —</option>';
-    _fillCountrySel(selCountry);
+    TW.fillCountries(selCountry, '— الدولة —');
 
-    // City select (loaded on country change)
+    // City select — filled on country change via TW.fillCities
     var selCity = document.createElement('select');
     selCity.className = 'ep-select';
     selCity.innerHTML = '<option value="">— المدينة —</option>';
-    selCountry.addEventListener('change', function () { _fillCitySel(selCity, this.value, ''); });
+    selCountry.addEventListener('change', function () {
+      TW.fillCities(selCity, this.value, '');
+      if (window.scSelectInit) scSelectInit();
+    });
 
     // District input (no official source — input temporary)
     var inpDistrict = document.createElement('input');
@@ -248,6 +205,7 @@
     row.appendChild(hdr);
     row.appendChild(fields);
     list.appendChild(row);
+    if (window.scSelectInit) scSelectInit();
   }
 
   // ── Edit modal ─────────────────────────────────────────────────
@@ -260,15 +218,19 @@
     };
     setVal('e-name',     p.full_name);
     setVal('e-desc',     p.bio);
-    setVal('e-type',     c.industry || c.company_type || '');
-    setVal('e-size',     c.company_size || '');
     setVal('e-district', p.location || '');
 
-    // Founded year dropdown
-    _populateFoundedYears();
+    // Type / size — from shared TW data
+    _populateTypeOptions();
+    _populateSizeOptions();
+    setVal('e-type', c.industry || c.company_type || '');
+    setVal('e-size', c.company_size || '');
+
+    // Founded year dropdown — from TW helper
+    TW.fillFoundedYears(document.getElementById('e-founded'));
     setVal('e-founded', c.founded_year ? String(c.founded_year) : '');
 
-    // Country & city dropdowns
+    // Country & city dropdowns — from TW helpers
     _coPopulateCountries();
     var savedCountry = p.country || '';
     setVal('e-country', savedCountry);
@@ -281,6 +243,9 @@
     var ov = document.getElementById('editOverlay');
     if (ov) ov.classList.add('show');
     if (window.history) history.pushState({ modal: 'edit' }, '', location.href);
+
+    // Apply custom dropdown to all ep-select elements inside the modal
+    if (window.scSelectInit) scSelectInit();
   }
   function closeEdit(e) {
     var el = document.getElementById('editOverlay');

@@ -7035,15 +7035,11 @@ Displaying these in the About tab or other surfaces remains valid.
 
 No official data source exists for Arabic city neighborhoods/districts. `e-district` is a free-text `<input>` (not a dropdown). This is intentional — do NOT invent a dropdown with made-up district names. If an official neighborhood API/dataset becomes available, convert to `<select>` at that time.
 
-### `ep-select` in Company Profile (CSS-only parity)
+### `ep-select` in Company Profile — Shared Custom Dropdown (PR #253+)
 
-Company profile does NOT load `profile-v2.select.js`. Native `<select class="ep-select">` elements are styled via `company.css`:
-- `appearance:none` removes OS default arrow
-- Custom chevron SVG injected via CSS `background-image` (URL-encoded inline SVG)
-- `padding-left:36px` prevents text from overlapping the arrow (RTL end-side)
-- This matches Profile V2's visual appearance without the custom JS component
+Company profile loads `static/shared/tw-select.js` and `static/shared/tw-select.css`. All `<select class="ep-select">` elements are wrapped by the shared custom dropdown component — identical behavior and visual to Profile V2. Native `<select>` is hidden by the JS; the styled trigger button takes over.
 
-Do NOT add `profile-v2.select.js` to `company-profile.html` without explicit approval.
+The old CSS-only fallback (appearance:none + SVG chevron in company.css) is kept as a no-JS degradation path only. Do NOT rely on it as the primary visual experience.
 
 ### `PUT /company/profile/{company_id}` Endpoint
 
@@ -7051,3 +7047,120 @@ Do NOT add `profile-v2.select.js` to `company-profile.html` without explicit app
 - Validates: `industry` required
 - Updates: `company_profiles` table only (not `profiles`)
 - Forbidden: `X-User-Id` header, localStorage-based auth, breaking existing endpoints
+
+---
+
+# E — SHARED FORM CONTROLS SYSTEM
+
+> قسم إلزامي — أي dropdown أو select جديد يلتزم بهذه القواعد.
+> تاريخ الإضافة: 2026-06-24
+
+---
+
+## [P1] 36. Shared Form Controls Architecture
+
+### المبدأ
+
+أي حقل إدخال متكرر في الموقع — dropdown / select / year picker — يجب أن يكون:
+1. **مكوّن مرئي مشترك** من `static/shared/tw-select.js` + `static/shared/tw-select.css`
+2. **بيانات مشتركة** من `static/shared/tw-options-data.js`
+
+لا تكرار للكود ولا للبيانات داخل ملفات الصفحات.
+
+---
+
+### ملفات الـ Shared System
+
+| الملف | الوظيفة |
+|-------|---------|
+| `static/shared/tw-select.js` | Custom dropdown component — يستهدف `.ep-select`، يخفي النيتف ويعرض trigger مخصص |
+| `static/shared/tw-select.css` | أنماط `.sc-sel-*` — trigger, dropdown portal, items, groups |
+| `static/shared/tw-options-data.js` | بيانات ثابتة: `TW.COUNTRIES`, `TW.CITIES`, `TW.COMPANY_TYPES`, `TW.COMPANY_SIZES` + helpers |
+
+---
+
+### API العام
+
+```javascript
+// tw-options-data.js — window.TW namespace
+TW.COUNTRIES              // string[] — أسماء عربية كـ values
+TW.CITIES                 // {[country: string]: string[]} — مفاتيح بالاسم العربي
+TW.COMPANY_TYPES          // string[]
+TW.COMPANY_SIZES          // string[]
+TW.fillSelect(sel, items, placeholder)      // يملأ <select> من array
+TW.fillCountries(sel, placeholder)          // idempotent — لا يُعيد الملء
+TW.fillCities(sel, country, selectedCity)   // يمسح ويُعيد بناء options
+TW.fillFoundedYears(sel)                    // current year → 1900، idempotent
+
+// tw-select.js — window.scSelectInit / scSelectClose
+scSelectInit()   // يُطبّق الـ custom dropdown على كل .ep-select:not([data-sc-sel])
+scSelectClose()  // يُغلق الـ dropdown المفتوح (لـ back-button handlers)
+```
+
+---
+
+### قواعد بيانات الدول والمدن
+
+```
+✅ القيم دائماً أسماء عربية: "الأردن", "عمان" (تطابق ما في DB)
+✅ CITIES مفاتيحها أسماء عربية (نفس قيمة country في DB)
+❌ ممنوع ISO codes كـ values: "JO", "SA"
+❌ ممنوع تكرار TW.COUNTRIES أو TW.CITIES داخل ملفات الصفحات
+```
+
+**استثناء موثّق — Profile V2 country field:**
+Profile V2 `epCountry` يستخدم ISO codes كـ values (JO, SA, ...) وكذلك `EP_CITIES` في `profile-v2.edit.js`.
+هذا النظام موجود في DB للموظفين قبل مشروع التوحيد ولا يتغير بدون migration صريح.
+الـ VISUAL COMPONENT (`tw-select.js`) يعمل عليه كما هو — فقط البيانات الجديدة للشركات تستخدم TW.COUNTRIES.
+
+---
+
+### قواعد الصفحات
+
+**صفحة تريد custom dropdown:**
+1. تحمّل `tw-select.css` في `<head>` (قبل CSS الصفحة)
+2. تحمّل `tw-options-data.js` قبل scripts الصفحة
+3. تحمّل `tw-select.js` قبل scripts الصفحة
+4. تُضيف class `ep-select` لأي `<select>` تريده مخصصاً
+5. تستدعي `scSelectInit()` بعد كل عملية تُضيف `ep-select` جديدة ديناميكياً
+
+**لا تفعل:**
+```
+❌ native <select> بدون tw-select.js إذا الصفحة تتطلب تجربة موحدة
+❌ نسخ TW.COUNTRIES داخل ملف الصفحة
+❌ إضافة .sc-sel-* CSS داخل ملف CSS الصفحة
+❌ تعديل tw-select.css لصفحة واحدة فقط — التعديلات تنعكس على الكل
+```
+
+---
+
+### Profile V2 هو المرجع البصري
+
+`tw-select.css` مستخرج من `profile-v2.css` — نفس الشكل، نفس الألوان، نفس الحركة.
+لا يجوز تغيير شكل الـ dropdown من داخل CSS الصفحة — فقط من `tw-select.css`.
+
+---
+
+### حالة الفروع (company_branches)
+
+```
+✅ Branches UI في company profile = in-memory فقط
+✅ كل فرع = 3 حقول: country (TW.fillCountries) + city (TW.fillCities) + district (input)
+❌ ممنوع حفظ الفروع في localStorage
+❌ ممنوع إرسال الفروع للـ API قبل إضافة company_branches table
+❌ ممنوع toast يوهم أن الفروع انحفظت
+```
+
+---
+
+### تسلسل التحميل للصفحات التي تستخدم النظام
+
+```
+lucide (vendor)
+  ↓
+tw-options-data.js    ← TW namespace + helpers
+  ↓
+tw-select.js          ← scSelectInit + scSelectClose
+  ↓
+[page scripts]        ← يستخدمون TW.* و scSelectInit()
+```

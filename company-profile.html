@@ -15,6 +15,7 @@
 <title>تواصلنا - ملف الشركة</title>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/app-header.css">
+<link rel="stylesheet" href="/static/shared/tw-select.css">
 <link rel="stylesheet" href="/static/company/company.css">
 <link rel="stylesheet" href="/static/tw_shared.css">
 </head>
@@ -325,18 +326,6 @@
       <div class="mf"><label>تصنيف الجهة <span class="req-star">*</span></label>
         <select id="e-type" class="ep-select" required>
           <option value="" disabled selected>— اختر تصنيف الجهة —</option>
-          <option value="شركة خاصة">شركة خاصة</option>
-          <option value="مصنع">مصنع</option>
-          <option value="مؤسسة تجارية">مؤسسة تجارية</option>
-          <option value="بنك / مؤسسة مالية">بنك / مؤسسة مالية</option>
-          <option value="جامعة / كلية">جامعة / كلية</option>
-          <option value="مدرسة">مدرسة</option>
-          <option value="معهد">معهد</option>
-          <option value="مركز تدريب">مركز تدريب</option>
-          <option value="مستشفى">مستشفى</option>
-          <option value="مطعم">مطعم</option>
-          <option value="جهة حكومية">جهة حكومية</option>
-          <option value="أخرى">أخرى</option>
         </select>
       </div>
       <div class="mf"><label>سنة التأسيس</label>
@@ -347,11 +336,6 @@
       <div class="mf"><label>حجم الشركة</label>
         <select id="e-size" class="ep-select">
           <option value="">— اختر —</option>
-          <option value="1-10 موظفين">1-10 موظفين</option>
-          <option value="11-50 موظف">11-50 موظف</option>
-          <option value="51-200 موظف">51-200 موظف</option>
-          <option value="201-500 موظف">201-500 موظف</option>
-          <option value="+500 موظف">+500 موظف</option>
         </select>
       </div>
     </div>
@@ -470,9 +454,11 @@
   </div>
 </div>
 
-<!-- Scripts: load order — lucide → shared → state → api → permissions → render → jobs → posts → main -->
+<!-- Scripts: load order — lucide → tw-shared → state → api → permissions → render → jobs → posts → main -->
 <script src="/static/vendor/lucide/lucide.min.js"></script>
 <script src="/tw_shared.js"></script>
+<script src="/static/shared/tw-options-data.js"></script>
+<script src="/static/shared/tw-select.js"></script>
 <script src="/static/company/company.state.js"></script>
 <script src="/static/company/company.api.js"></script>
 <script src="/static/company/company.permissions.js"></script>
