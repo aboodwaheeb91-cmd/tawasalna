@@ -4,6 +4,11 @@
    Do NOT duplicate these rules in page-specific CSS files.
 */
 
+/* ── Z-index token — single source of truth ───────────────────
+   9500: above all modals (max 2000) and below .tw-toast (9999).
+   tw-select.js reads --tw-drop-z at runtime; never hardcode in JS. */
+:root { --tw-drop-z: 9500; }
+
 /* ── Wrapper ──────────────────────────────────────────────────── */
 .sc-sel { position:relative; width:100%; display:block; }
 
