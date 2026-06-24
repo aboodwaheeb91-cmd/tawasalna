@@ -29,7 +29,10 @@ tawasalna/
 ├── Procfile               # Deployment: uvicorn server:app --host 0.0.0.0 --port $PORT
 ├── README.md              # Quick-start guide
 │
-├── index.html             # Login & registration (entry point)
+├── index.html             # Auth Gateway — HTML structure only (login + register)
+├── index.css              # Auth page styles — login/register only, NOT shared
+├── index.auth.js          # Auth logic: redirect(), doLogin(), doRegister(), on-load check
+├── index.ui.js            # UI logic: selectType(), form switching, toast, utilities
 ├── landing.html           # Public marketing page
 ├── home.html              # Employee feed (jobs, courses, news)
 ├── profile.html           # Employee profile editor (largest page ~147KB)
@@ -366,19 +369,38 @@ web: uvicorn server:app --host 0.0.0.0 --port $PORT
 
 ## Documentation Rule (mandatory for all AI sessions)
 
-**Any PR that includes a new feature, system, or architectural change MUST update `ARCHITECTURE.md` in the same PR.**
+**Every PR must include documentation updates in the same PR — PR description is NOT a substitute for `.md` files.**
 
-A PR is not considered complete if it introduces architectural changes without documentation.
+### What to update per change type
 
-Rules:
+| نوع التغيير | الملف المطلوب |
+|------------|--------------|
+| تغيير معماري / routes / صلاحيات / DB schema | `ARCHITECTURE.md` |
+| مكتبة vendor جديدة / CDN → local / اعتمادية build | `ARCHITECTURE.md` قسم Vendor Assets + `README.md` إذا يؤثر على setup |
+| سلوك صفحة أو flow مهم | `ARCHITECTURE.md` في قسم الصفحة المعنية |
+| قاعدة جديدة يجب على AI الالتزام بها | `CLAUDE.md` |
+| تغيير صغير لا أثر معماري له | اكتب في وصف PR: `Docs: not needed — [سبب واضح]` |
+
+### Detailed rules
+
 - New DB tables → document schema + constraints in ARCHITECTURE.md
 - New API endpoints → document endpoint, auth requirements, request/response
 - New Frontend systems → document components, state, behavior rules
 - New Backend modules → document functions, mapping tables, rules
 - Forbidden patterns → document what must NOT be done (ممنوعات)
-- Implementation status → document what is done vs. pending
+- Vendor assets → add to Vendor Assets table in ARCHITECTURE.md with version + license
 
-If `CLAUDE.md` contains AI behavior rules relevant to the new feature, add a summary there too.
+### PR Checklist (mandatory — add to every PR body)
+
+```
+- [ ] Code updated
+- [ ] Docs updated (ARCHITECTURE.md / CLAUDE.md / README.md)
+- [ ] Architecture impact checked
+- [ ] No old routes/contracts broken
+```
+
+If docs are genuinely not needed, replace the "Docs updated" line with:
+`- [x] Docs: not needed — [reason]`
 
 ---
 
@@ -422,3 +444,175 @@ These rules are permanent and apply to all future AI sessions:
 7. **The strip is positioned inside `.sc-main-card`, between `.sc-actions` and `.sc-stats`.** Do not move it outside the main card or below the tabs.
 
 8. **Dismiss state uses a module-level `_dismissed` variable only** (resets on page reload). Do NOT persist dismiss state to localStorage or sessionStorage.
+
+9. **At 100% completion the strip switches to Growth Mode.** It shows one rule-based suggestion at a time from `_buildGrowthSuggestions()`. Button layout (RTL, left to right): "تفاصيل" (expand detail panel) | "↻" (cycle suggestion) | "✕" (dismiss session). Buttons are **solid-filled, not glassmorphic** — styled per ID: `#scGrowthDet` teal, `#scGrowthNext` neutral gray, `#scGrowthHide` red. The `_growthIdx` IIFE variable tracks the current suggestion index (never persisted). Do NOT show a "تم" dismiss button at 100% — growth mode replaces it. Clicking the suggestion **text** shows a **short 1-sentence actionable toast** (`#scGrowthToast`, 4 s) — not the full explanation. The **full explanation** (reason + benefit) is shown **only in the "تفاصيل" panel**. `_toastTimer` holds the active handle and is cleared on ↻ click or new toast.
+
+10. **`_buildGrowthSuggestions()` rules must check that the suggested item is not already in the profile.** Each rule's `cond` must evaluate to `false` if the skill/course/link already exists. When the user adds the suggested item, `_updateCompletion()` is called, `_render()` re-runs `_buildGrowthSuggestions()`, and the satisfied rule drops out automatically. `_growthIdx` is clamped with `% suggs.length`.
+
+11. **Growth mode and completion mode share the same `#scComplCard` container** but use separate row and panel elements (`#scComplRow`/`#scComplPanel` for completion, `#scGrowthRow`/`#scGrowthPanel` for growth). `_render()` shows exactly one mode and hides the other.
+
+12. **All growth suggestion `text` values must follow the "learn/earn first, then document" ethical framing.** Never write text that implies adding a skill or course the user hasn't actually completed. Pattern: "تعلّم X ثم وثّقه" / "احصل على دورة X ثم أضفها". Do NOT write suggestions that could be read as "fake it till you make it".
+
+---
+
+## Auth Gateway Rules (mandatory for all AI sessions)
+
+1. **`/` is the Landing Page.** `GET /` serves `landing.html`. Do not replace it with a login form or a dashboard redirect.
+
+2. **`/login` (index.html) is the Auth Gateway only.** It contains the login form and registration form. It is not a full Landing Page. The page is split into three files: `index.html` (HTML), `index.auth.js` (auth logic), `index.ui.js` (UI effects). Do not merge them back.
+
+3. **`redirect(u)` in `index.auth.js` is the single authority for post-login routing.** Rules:
+   - `emp` → `/u/{tw_id}` (canonical employee public profile)
+   - `co` → `/company-profile`
+   - `edu` → `/edu-profile`
+   - `admin` → `/admin` (defensive; admin auth uses separate flow)
+
+4. **`profile.html?id=` is a forbidden redirect target for new code.** Use `/u/{tw_id}` for employees. The legacy URL `profile.html?id=` must not appear in any new redirect, link, or button.
+
+5. **`company-profile.html?id=` and `edu-profile.html?id=` are forbidden as new redirect targets.** Use `/company-profile` and `/edu-profile` (modern routes without query params).
+
+6. **localStorage is a session cache, not the authority for roles.** `localStorage.tw_user` is populated by the API after login and used as a convenience cache. Never gate security-sensitive behaviour on it. TODO (P1 next): validate the session with `POST /auth/verify-token` before trusting localStorage data.
+
+7. **Exactly one on-load redirect check — in `index.auth.js`.** One IIFE only. Do not re-add redirect checks in `index.ui.js` or inline in `index.html`.
+
+8. **Do NOT redirect to `/messages` or `/notifications` as the post-login landing destination.** These are secondary destinations reachable from the dashboard, not entry points after login.
+
+9. **Role selector is register-only.** The three role cards (`#empBtn`, `#coBtn`, `#eduBtn`) are inside `#typeRow` which is hidden by default. `showRegister()` unhides it; `showLogin()` hides it. Do NOT show the role selector on the login form.
+
+10. **`index.auth.js` must not contain DOM/appearance code.** UI side-effects (show/hide forms, button states, toast) belong in `index.ui.js`. The separation is mandatory — auth logic must remain testable in isolation.
+
+11. **`index.css` is scoped to the auth page.** Do not import it from any other page. Do not put shared/global styles in it.
+
+---
+
+## Home V2 Rules (mandatory for all AI sessions)
+
+These rules are permanent and apply to all future AI sessions:
+
+1. **`/home` serves `home-v2.html`** — `home.html` (القديم) لم يعد production route. لا تعيده لـ `/home`.
+
+2. **Feed-first is mandatory.** أي تعديل على Home V2 يجب أن يبدأ بـ filter tabs ثم feed. ممنوع إعادة Dashboard-first (بطاقة مستخدم ضخمة أول الصفحة).
+
+3. **Files are split — keep them split (modular structure):**
+   - `home-v2.html` — HTML هيكل فقط
+   - `static/app-header.css` — CSS vars + `.sc-header` / `.sc-*` shared header classes
+   - `static/app-header.js` — `initAppHeader(user)` — reserved, not used on Home currently
+   - `static/home-v2.css` — أنماط الصفحة (`.hw-*` namespace)
+   - `static/home-v2.js` — **DEPRECATED** — placeholder فقط، لا تضيف code هنا
+   - `static/home/home.utils.js` — constants + DOM helpers
+   - `static/home/home.state.js` — shared state (`window.Home.state`)
+   - `static/home/home.api.js` — feed fetch (`Home.api.loadFeed`)
+   - `static/home/home.cards.js` — card renderers (opportunity / post / news)
+   - `static/home/home.render.js` — feed UI states (skeleton / empty / error / feed)
+   - `static/home/home.filters.js` — filter tab wiring + orchestration
+   - `static/home/home.header.js` — header buttons (home, menu, logout)
+   - `static/home/home.nav.js` — bottom nav + sidebar + per-user-type setup
+   - `static/home/home.main.js` — bootstrap only (auth guard + init + load)
+   - ممنوع دمج CSS/JS الكبير داخل HTML
+   - **ممنوع** إضافة logic في `static/home-v2.js`
+   - **ممنوع** إضافة feature جديدة قبل تحديد module المناسب لها
+
+4. **`/preview/home-v2` is deleted.** لا تعيد إضافته. Route المعاينة المؤقت أُزيل عند shipping Home V2.
+
+5. **`GET /home/feed` is the feed API.** Auth: `Depends(verify_token)` — `user_id` من JWT فقط، ليس من query param. `filter` مُقيَّد server-side بـ allowlist: `{"all","opportunities","posts","news"}`.
+
+6. **Rendering is always safe:** كل بيانات API تُعرض عبر `createElement` + `textContent`. لا `innerHTML = apiData`. السماح بـ `innerHTML` للـ skeleton الثابت فقط (لا يحتوي بيانات API).
+
+7. **Home feed filters are final: `all / opportunities / posts / news`.**
+   - `opportunities` — يعرض `jobs` حالياً (مع `opp_type="job"`). مستقبلاً يدعم training/scholarship/overseas.
+   - `news` — أخبار رسمية من `news_posts` table، يُنشر من الأدمن فقط.
+   - **ممنوع** إعادة `companies` كـ filter — مكانها صفحة استكشاف/بحث مستقلة في PR منفصل.
+   - **ممنوع** إضافة `questions` أو `courses` أو أي filter آخر قبل بناء جدوله وendpoint حقيقي.
+   - فلتر `news` فارغ بسبب غياب بيانات = **مقبول**. فلتر بدون جدول/API = **ممنوع**.
+
+8. **`tw_jwt` is the auth token.** `localStorage.getItem('tw_jwt')` يُرسل كـ `Authorization: Bearer` في كل API call من Home V2.
+
+9. **CSS offset is single-source:** `body { padding-top: var(--flt) }` — `.sc-header` هو `position:sticky` (في التدفق الطبيعي)، لا يحتاج padding. `.hw-fbar` هو `position:fixed` على `top:var(--ah-h,56px)`. ممنوع إضافة `margin-block-start` على `.hw-page`.
+
+10. **`home.html` is legacy.** يمكن الاحتفاظ به كملف احتياطي لكنه ليس route. ممنوع حذفه أو تعديله دون سبب واضح.
+
+11. **App Header is unified.** `static/app-header.css` هو المرجع الرسمي لـ CSS vars وshared header classes (`.sc-header`, `.sc-hicon`, `.sc-home-btn`, `.sc-menu-*`). ممنوع إنشاء header styles منفصلة لصفحة جديدة — يجب استخدام CSS vars من `app-header.css`. أي تعديل على شكل الهيدر يجب أن يكون في `app-header.css` فقط.
+
+12. **Home مصمم لملايين المستخدمين — لا ديون تقنية.** قواعد إلزامية:
+    - **ممنوع** إضافة feature جديدة فوق ملف واحد كبير — كل feature تذهب لـ module مناسب
+    - **ممنوع** حلول مؤقتة أو TODO داخل production code
+    - **ممنوع** `ORDER BY RANDOM()` في أي query على `/home/feed`
+    - **ممنوع** table scan بدون index على columns مستخدمة في WHERE/ORDER — راجع `_migrate_feed_indexes()`
+    - **مطلوب** اتباع `window.Home` namespace لأي module جديد
+    - **مطلوب** تحديد module المناسب قبل إضافة أي سلوك جديد على Home
+
+---
+
+## Company Profile Rules (mandatory for all AI sessions)
+
+These rules are permanent and apply to all future AI sessions:
+
+1. **`static/company/` is the canonical location** for all Company Profile JS and CSS. Never add inline `<style>` or `<script>` blocks to `company-profile.html`.
+
+2. **`company-profile.html` is HTML structure only.** It loads 7 module scripts and 1 CSS file. No logic lives inside it.
+
+3. **Module load order is mandatory:**
+   `company.state.js` → `company.api.js` → `company.permissions.js` → `company.render.js` → `company.jobs.js` → `company.posts.js` → `company.main.js`
+
+4. **`company-profile.js` (root file) is superseded.** It must not be loaded from `company-profile.html`. The `/company-profile.js` server route remains in `server.py` but is unused.
+
+5. **New features for Company Profile go into the appropriate module** — never a new root-level JS file, never inline in HTML.
+
+6. **Security rules from PR #223 are permanent:**
+   - All fetch calls use `Authorization: Bearer {jwt}` only — X-User-Id is forbidden
+   - `_jwt()` from `company.state.js` is the only token source
+   - Ownership checks stay server-side (DB query in server.py)
+
+7. **`companyState` is the Single Source of Truth.** No other variable may serve as state for company profile data. `localStorage` is never used as an authority for company data.
+
+8. **`window.X` namespace only.** No ES modules, no bundler. All cross-module calls go through `window.X` exposed at the bottom of each IIFE.
+
+9. **Location field mapping is permanent (PR #248):**
+   - `profiles.country` → stores Arabic country name (e.g. "الأردن") — edit field `e-country`
+   - `profiles.city` → stores Arabic city name (e.g. "عمان") — edit field `e-city-sel`
+   - `profiles.location` → stores street/district free text — edit field `e-district`
+   - Display order: `country + '، ' + city`; if both empty → fall back to `p.location`
+   - **Never** use `p.location` as the country; **never** swap city/country display order
+
+10. **`ep-select` in company profile uses the shared custom dropdown.** Company profile loads `static/shared/tw-select.js` and `static/shared/tw-select.css`. The `.ep-select` class triggers the custom dropdown component — do NOT add `profile-v2.select.js` directly; use `tw-select.js` instead. The CSS-only fallback in `company.css` is kept for no-JS degradation only.
+
+11. **Branches UI is in-memory only.** `company_branches` table does not exist. `_addBranchRow()` creates a branch card with 3 fields (country select + city select + district input). Branch data is never saved to DB or localStorage. Never show a "saved" toast for branches. Never add `company_branches` migration or endpoint without explicit user approval.
+
+12. **Three fields are permanently removed from the edit form — DB columns untouched:**
+    - `e-web` → `profiles.website` (still in DB; displayable in About tab)
+    - `e-email` → `company_profiles.contact_email` (still in DB)
+    - `e-hq` → `company_profiles.headquarters` (still in DB)
+
+13. **`e-founded` is a `<select>` dropdown (not `<input type="number">`).** Options are generated by `_populateFoundedYears()` in JS (current year down to 1900). The function is idempotent — it checks `options.length > 1` before populating.
+
+14. **District / area (`e-district`) is an `<input>` — not a dropdown.** No official source for Arabic neighborhood/district data exists. Do NOT invent a dropdown with made-up district names. If an official dataset is added later, convert then.
+
+15. **`ep-select` visual is driven by `tw-select.js` + `tw-select.css`.** The CSS-only chevron in `company.css` is a no-JS fallback only. Do NOT use it as the primary styling mechanism. Any visual change to dropdowns goes in `static/shared/tw-select.css` — not in page CSS.
+
+16. **No merge without user approval.** No PR is to be merged automatically. Every merge requires explicit user instruction.
+
+---
+
+## Shared Form Controls Rules (mandatory for all AI sessions)
+
+These rules are permanent and apply to all future AI sessions:
+
+1. **`static/shared/` is the canonical location** for all shared dropdown/picker UI and data. Files: `tw-select.js`, `tw-select.css`, `tw-options-data.js`. Never duplicate their logic inside a page file.
+
+2. **Any new dropdown, year picker, or date picker must use the shared system.** Adding a new `<select>` with repeated data (countries, years, company types, sizes) without routing it through `TW.*` helpers in `tw-options-data.js` is forbidden.
+
+3. **Forbidden — duplicating dropdown data per page.** Country names, year ranges, company types, company sizes, and city lists must live only in `tw-options-data.js`. Never copy-paste these arrays or objects into an HTML file, a page JS module, or inline `<script>`.
+
+4. **Forbidden — native `<select>` for unified-experience pages.** Any page that uses the `ep-select` class must initialize the custom dropdown via `scSelectInit()` from `tw-select.js`. Do NOT leave a bare native select on a page that is supposed to match the Profile V2 / Company Profile design.
+
+5. **Visual changes to dropdowns go in `static/shared/tw-select.css` only.** Do NOT add `.sc-sel-*` overrides in page CSS files. Per-page color or size overrides must use CSS custom properties (vars) defined in `tw-select.css`.
+
+6. **`TW.fillSelect()`, `TW.fillCountries()`, `TW.fillCities()`, `TW.fillFoundedYears()` are the only approved fill helpers.** Do not write ad-hoc `for` loops to populate `<select>` options for data that already exists in `tw-options-data.js`.
+
+7. **`scSelectInit()` must be called after dynamic option population.** Any time you populate a select's options at runtime (modal open, country-change, row insertion), call `if (window.scSelectInit) scSelectInit();` immediately after. Forgetting this leaves the custom dropdown stale.
+
+8. **`tw-options-data.js` must load before any page module that calls `TW.*`.** In page `<head>`, the load order is: `tw-options-data.js` → `tw-select.js` → page state module → other modules.
+
+9. **Profile V2 country select is an exception.** `profile-v2.select.js` (or its shared copy `tw-select.js`) wraps the Profile V2 country select, but `epCountry` in Profile V2 uses ISO codes (JO, SA, AE…) stored in `profiles.country` for employees — NOT Arabic names. This is a legacy contract difference. Do NOT apply `TW.fillCountries()` to the Profile V2 country field without a DB migration.
+
+10. **No merge without user approval.** No PR touching shared form controls is to be merged automatically. Every merge requires explicit user instruction.

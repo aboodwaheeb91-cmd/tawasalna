@@ -751,12 +751,15 @@ function _mergeCompanyState(apiResponse) {
 
 ### Authorization per Endpoint:
 ```
-GET  /company/profile/{id}   → Optional JWT | Public read
-PUT  /company/profile/{id}   → JWT + token.user_id == id + user_type=='co'
-POST /company/jobs           → JWT + user_type=='co'
-PUT  /company/jobs/{job_id}  → JWT + token.user_id == jobs.company_id
-DELETE /company/jobs/{job_id}→ JWT + token.user_id == jobs.company_id
-POST /company/{id}/follow    → JWT + user_type=='emp'
+GET  /company/profile/{id}          → Optional JWT | Public read
+PUT  /company/profile/{id}          → JWT + token.user_id == id + user_type=='co'
+POST /company/jobs                  → JWT + user_type=='co'
+PUT  /company/jobs/{job_id}         → JWT + token.user_id == jobs.company_id
+DELETE /company/jobs/{job_id}       → JWT + token.user_id == jobs.company_id
+GET  /jobs/{job_id}/applicants      → JWT + token.user_id == jobs.company_id
+PUT  /jobs/applications/{id}/status → JWT + token.user_id == jobs.company_id (via JOIN) + status allowlist
+GET  /my/applications               → JWT + user_id from token only
+POST /company/{id}/follow           → JWT + user_type=='emp'
 ```
 
 ### viewMode Response Contract:
@@ -782,24 +785,32 @@ POST /company/{id}/follow    → JWT + user_type=='emp'
 - **الحد:** profiles لا تحتوي company-only fields بعد اليوم
 - **أمان:** لا يوجد أثر أمني
 
-### Exception 05 — X-User-Id في /company/jobs (مؤقت)
+### Exception 05 — X-User-Id في /company/jobs ~~(مؤقت)~~ ✅ مُغلق
 - **القاعدة:** Rule #1 (API Authorization)
-- **السبب:** migration تدريجية
-- **الحد:** يُزال في Phase 1 قبل أي deploy لـ production
-- **أمان:** ⚠️ قابل للتزوير — مقبول في dev فقط
+- **الحل:** جميع endpoints تستخدم `Depends(verify_token)` الآن — X-User-Id أُزيل بالكامل
+- **المغلق في:** PR security(company): replace X-User-Id job endpoints with JWT ownership checks
 
 ---
 
 ## Phase Roadmap — Company Profile
 
 ```
-Phase 1 — Security Foundation (الحالي):
+Phase 1 — Security Foundation (مكتمل):
   ✅ JWT ownership validation
   ✅ API authorization (Depends verify_token)
   ✅ viewMode system من API
   ✅ CSS visibility system
   ✅ Bootstrap idempotency
   ✅ Duplicate request prevention
+  ✅ X-User-Id أُزيل من /jobs/{id}/applicants, /my/applications, /jobs/applications/{id}/status
+  ✅ Status allowlist validation على PUT /jobs/applications/{id}/status
+
+Phase 1.5 — Modularization (مكتمل — PR #224):
+  ✅ CSS نُقل من company-profile.html → static/company/company.css
+  ✅ JS نُقل من company-profile.html + company-profile.js → static/company/ modules
+  ✅ company-profile.html أصبح HTML هيكل فقط (no inline <style> or <script>)
+  ✅ company-profile.js (القديم) لا يُحمَّل بعد الآن (superseded by modules)
+  ✅ لا تغيير في التصميم / لا تغيير في API / Security P0 محفوظة
 
 Phase 2 — Schema + Real Data:
   company_profiles table migration
@@ -820,6 +831,29 @@ Phase 4 — Polish:
 
 ممنوع الانتقال لـ Phase التالية قبل إغلاق الحالية واختبارها.
 ```
+
+---
+
+## Company Frontend — Modular File Structure (PR #224)
+
+ملفات صفحة الشركة تعيش في `static/company/`. ترتيب التحميل إلزامي:
+
+| الترتيب | الملف | المسؤولية |
+|---------|-------|-----------|
+| 1 | `static/company/company.state.js` | `companyState` SSOT + `_mergeCompanyState` + `_applyViewMode` + `_jwt()` |
+| 2 | `static/company/company.api.js` | `loadData` + `loadJobs` + `loadPosts` — JWT Bearer فقط |
+| 3 | `static/company/company.permissions.js` | `_applyLoadingState` + permission guards |
+| 4 | `static/company/company.render.js` | `renderProfile/Stats/Jobs/All` + `renderFollowBtn/Rating/Posts` + DOM helpers |
+| 5 | `static/company/company.jobs.js` | `_applyJob` + `applyJob` + `bindEvents` + `bindRateStars` + `submitRating` + `openPostJob` + `publishJob` |
+| 6 | `static/company/company.posts.js` | `openPostModal` + `createPost` + `deletePost` |
+| 7 | `static/company/company.main.js` | bootstrap + `initCompanyProfile` + nav + modals + follow + cover + report + pull-to-refresh |
+| CSS | `static/company/company.css` | كل styles الصفحة (منقولة من `<style>` blocks داخل HTML) |
+
+### قواعد إلزامية
+- **ممنوع** إضافة `<style>` أو `<script>` inline في `company-profile.html`
+- **ممنوع** تحميل `company-profile.js` (القديم) — superseded
+- **ممنوع** إضافة module جديد قبل تحديد الترتيب الصحيح له في الجدول أعلاه
+- كل namespace: `window.X` — لا ES modules، لا bundler
 
 ---
 
@@ -4749,38 +4783,352 @@ CREATE TABLE reports (
 
 **File:** `landing.html`
 **Route:** `GET /` (serves landing.html)
+**Last redesign:** PR #203 (June 2026) — complete rebuild
 
 ### Sections
 
-| القسم | ID | المحتوى |
-|-------|-----|---------|
-| Navigation | — | Logo + روابط + Login/Sign up |
-| Hero | — | شعار + CTA + إحصائيات ديناميكية |
-| من للمنصة | `#who` | 3 cards: موظف / شركة / جهة تعليمية |
-| كيف تعمل | `#how` | 3 خطوات مرقّمة |
-| المميزات | `#features` | 6 بطاقات ميزات |
-| نظام التوثيق | `#verify` | 3-step verification flow |
-| شهادات | — | 3 testimonial cards |
-| CTA نهائي | — | 3 أزرار حسب نوع المستخدم |
+| القسم | HTML ID | المحتوى |
+|-------|---------|---------|
+| Navigation | `nav` | Logo (`/static/33333.svg`) + anchor links + دخول / ابدأ مجاناً → `/login` |
+| Hero | `#hero` | 2-column: نص + بطاقة ملف تعريفي (glassmorphism mockup) + floating badges |
+| Value Cards | `#values` | 4 بطاقات: ملف موثوق / رابط وQR / فرص عمل / للجميع |
+| من نخدم | `#who` | 3 cards ملوّنة: موظف (أخضر) / شركة (أزرق) / جهة تعليمية (بنفسجي) |
+| كيف تعمل | `#how` | 3 خطوات مرقّمة بخط gradient رابط (يختفي على موبايل) |
+| المميزات | `#features` | 6 بطاقات: توثيق رسمي / ملف شخصي / مطابقة وظائف / دورات / رسائل / QR |
+| التوثيق | `#verify` | 3 خطوات: رفع وثيقة → مراجعة → اعتماد رسمي |
+| CTA | `#cta` | زر واحد → `/login` + 3 روابط نصية (موظف / شركة / جهة تعليمية) |
+| Footer | `footer` | Logo + نسخة حقوق + روابط دخول/تسجيل |
 
 ### Dynamic Behavior
 
 ```javascript
-// إحصائيات ديناميكية — تُجلب من API
-fetch('/jobs')       → عدد الوظائف في الـ Hero
-fetch('/auth/users') → عدد المستخدمين في الـ Hero
+// لا توجد API calls على هذه الصفحة — جميع المحتوى ثابت
+// السبب: /auth/users يتطلب X-Admin-Token (ممنوع من الصفحة العامة)
+//         /jobs يعيد 0 لعدم وجود بيانات كافية حالياً
 
-// إذا كان المستخدم مسجّلاً (localStorage tawasalna_user):
-// أزرار CTA تُوجَّه للـ dashboard بدلاً من التسجيل
-emp  → /profile.html?id={id}
-co   → /company-profile.html?id={id}
-edu  → /edu-profile.html?id={id}
+// إذا كان المستخدم مسجّلاً (localStorage key: tw_user):
+emp  + tw_id → /u/{tw_id}       ← الملف العام الكنوني
+emp  بدون tw_id → /home
+co           → /company-profile  ← بدون ?id= query params
+edu          → /edu-profile      ← بدون ?id= query params
 ```
 
-**Animations:**
-- Scroll reveal via `IntersectionObserver`
-- Animated counters on stats
-- Smooth scroll لروابط الـ anchor
+### Forbidden Patterns (Landing Page)
+
+- **ممنوع** استدعاء `/auth/users` من `landing.html` — يتطلب `X-Admin-Token`
+- **ممنوع** الرجوع إلى `profile.html?id=`، `company-profile.html?id=`، `edu-profile.html?id=`
+- **ممنوع** قراءة `tawasalna_user` من `localStorage` — المفتاح الصحيح هو `tw_user`
+- **ممنوع** وضع stat counters ديناميكية إلا إذا كان الـ endpoint عاماً ويعيد بيانات حقيقية
+- **ممنوع** وعود تسويقية مبالغة مثل "مؤكدة من مصادرها مباشرة" — استخدم "قابلة للتوثيق والاعتماد"
+
+### Body Visibility Safety
+
+```html
+<!-- في <head>: يمنع بقاء الصفحة فارغة إذا فشل JS -->
+<noscript><style>body{opacity:1!important}</style></noscript>
+```
+
+```javascript
+// في أول سطر داخل IIFE: safety net إذا رمى الكود exception
+setTimeout(function(){ document.body.classList.add('ready'); }, 400);
+```
+
+### Icons
+
+Lucide icons مُحمَّلة من vendor محلي (انظر قسم Vendor Assets أدناه):
+```html
+<script src="/static/vendor/lucide/lucide.min.js"></script>
+```
+Guard إلزامي قبل الاستخدام:
+```javascript
+if (window.lucide) { lucide.createIcons(); }
+```
+
+### Animations
+
+- Scroll reveal: `IntersectionObserver` على `.reveal` elements مع stagger للأشقاء
+- Smooth scroll: `scrollIntoView({behavior:'smooth'})` للـ anchor links
+- Nav `scrolled` class: يُضاف عند `scrollY > 20` لتغميق الخلفية
+
+---
+
+## Vendor Assets
+
+محلي داخل `static/vendor/` لتجنب الاعتماد على CDN خارجي في الإنتاج.
+
+| المكتبة | النسخة | المسار المحلي | الترخيص |
+|---------|--------|--------------|---------|
+| Lucide | 0.460.0 | `static/vendor/lucide/lucide.min.js` | ISC |
+
+### قواعد Vendor Assets
+
+- **ممنوع** تحديث نسخة vendor دون تحديث هذا الجدول
+- عند إضافة مكتبة جديدة: نزّل UMD bundle، ضعه في `static/vendor/{lib}/`، وثّق النسخة هنا
+- FastAPI يخدم المسار عبر `@app.get("/static/{filename:path}")` — يدعم subdirectories تلقائياً
+- الصفحات التي تستخدم Lucide عبر CDN خارجي (مثل `index.html`): يُنقل تدريجياً للـ vendor في PRs مستقلة
+
+---
+
+## Home V2 — `home-v2.html` (Feed-first — Production)
+
+**File:** `home-v2.html` (مُفعَّل في production)
+**Route:** `GET /home` و `GET /home.html` — يخدمان `home-v2.html` (استُبدل `home.html` القديم)
+**Preview Route:** `GET /preview/home-v2` — **محذوف**
+**Design Direction:** **Feed-first** — أول ما يراه المستخدم = filter tabs + feed cards
+
+### Files
+
+#### CSS / HTML
+
+| الملف | الدور |
+|-------|-------|
+| `home-v2.html` | HTML هيكل نظيف فقط — لا منطق، لا styles inline |
+| `static/app-header.css` | CSS vars مشتركة + `.sc-header` / `.sc-hicon` / `.sc-menu-*` classes |
+| `static/home-v2.css` | أنماط الصفحة، namespace `.hw-*` |
+
+#### JS Modules (في `static/home/`) — مُرتّبة حسب ترتيب التحميل
+
+| الملف | المسؤولية |
+|-------|----------|
+| `home.utils.js` | constants (JOB_TYPES, NEWS_CATS, EMPTY_LABELS) + DOM helpers (el, txt, makeAvatar, timeAgo, icons) |
+| `home.state.js` | shared runtime state: `Home.state = { user, jwt, currentFilter, loading, abortCtrl, nextCursor }` |
+| `home.api.js` | `Home.api.loadFeed(filter, limit)` — fetch + abort + error handling |
+| `home.cards.js` | `Home.cards.renderCard / renderOpportunityCard / renderPostCard / renderNewsCard` |
+| `home.render.js` | `Home.render.showSkeleton / showEmpty / showError / renderFeed` |
+| `home.filters.js` | `Home.filters.init() / load(filter)` — tab wiring + orchestration |
+| `home.header.js` | `Home.header.init()` — home btn, menu dropdown, logout |
+| `home.nav.js` | `Home.nav.init(user)` — bottom nav, sidebar, per-user-type adjustments |
+| `home.main.js` | bootstrap only: auth guard, populate state, init modules, load initial feed |
+
+**ممنوع** إضافة منطق في `home-v2.js` — هذا الملف deprecated ويحتوي تعليق redirect فقط.  
+**ممنوع** تضخيم `home.main.js` بمنطق — هو bootstrap فقط.
+
+### Shared Namespace
+
+جميع الـ modules تكتب على `window.Home`:
+
+```js
+window.Home = window.Home || {};
+window.Home.utils   = { ... };
+window.Home.state   = { ... };
+window.Home.api     = { ... };
+window.Home.cards   = { ... };
+window.Home.render  = { ... };
+window.Home.filters = { ... };
+window.Home.header  = { ... };
+window.Home.nav     = { ... };
+```
+
+### App Header (Shared — `static/app-header.css`)
+
+Home V2 و Profile V2 يستخدمان نفس هيكل الهيدر:
+
+```html
+<div class="sc-header">
+  <button class="sc-hicon sc-home-btn" id="hwHomeBtn">← home icon</button>
+  <div class="sc-logo">← logo absolute center</div>
+  <div class="sc-head-icons">← bell / messages / menu dropdown</div>
+</div>
+```
+
+CSS vars مشتركة (من `app-header.css`):
+```css
+:root {
+  --ah-h:    56px;
+  --ah-bg:   rgba(7,11,24,.93);
+  --ah-blur: blur(14px);
+  --ah-brd:  rgba(255,255,255,.09);
+}
+.sc-header { position:sticky; top:0; min-height:var(--ah-h); background:var(--ah-bg); ... }
+.sc-header .sc-logo { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); }
+```
+
+- `static/app-header.js` — يبقى للاستخدام المستقبلي (لا يُستخدم في Home V2 أو Profile V2 حالياً)
+- Profile V2 logout يديره `initGlobalHeaderMenu()` من `tw_shared.js`
+- Home V2 logout يديره `home.header.js` على `#hwLogoutBtn`
+
+### DOM Structure
+
+```
+<div.sc-header>   sticky 56px (var --ah-h): sc-home-btn + sc-logo (absolute center) + sc-head-icons
+<div.hw-fbar>     fixed 46px (below sc-header): filter tabs — الكل/فرص/منشورات/أخبار
+body              padding-top: var(--flt, 46px) only — sc-header is sticky (in flow)
+<div.hw-page>
+  <main.hw-feed>
+    <div#hwBanner>   compact banner for co/edu (hidden for emp)
+    <div#hwFeed>     feed items rendered by Home.cards via DOM API
+    <div#hwEmpty>    empty state per filter
+    <div#hwError>    error state with retry button
+  <aside.hw-sidebar> desktop only (≥1020px): completion strip + quick links
+<nav.hw-bnav>     fixed bottom 60px (mobile ≤1020px): 5 tabs per user type
+```
+
+### API Contract — `GET /home/feed`
+
+**Auth:** `Authorization: Bearer <tw_jwt>` (JWT from localStorage `tw_jwt`) — `Depends(verify_token)`  
+**`user_id` comes from JWT only** — client cannot override
+
+| Query Param | Values | Default |
+|-------------|--------|---------|
+| `filter` | `all\|opportunities\|posts\|news` | `all` |
+| `limit` | 1–50 | 20 |
+
+**Response examples:**
+```json
+{
+  "items": [
+    {"type":"opportunity", "opp_type":"job", "id":1, "title":"...", "company_name":"...",
+     "location":"...", "job_type":"full_time", "salary_min":null, "salary_max":null,
+     "currency":"", "skills":[], "created_at":"2025-...", "company_tw_id":"C...", "company_logo":""},
+    {"type":"post", "id":2, "body":"...", "tags":[], "created_at":"2025-...",
+     "author_name":"...", "author_tw_id":"C...", "author_avatar":""},
+    {"type":"news", "id":3, "title":"...", "summary":"...", "body":"...",
+     "category":"labor_law", "country":"JO", "source_url":"https://...", "created_at":"2025-..."}
+  ],
+  "filter": "all",
+  "total": 3
+}
+```
+
+**Data sources per filter:**
+
+| filter | data source | مصدر البيانات | ملاحظة |
+|--------|-------------|--------------|--------|
+| `all` | opportunities (⅓) + posts (⅓) + news (⅓) → sorted by created_at DESC | مُختلط | مرتب زمنياً |
+| `opportunities` | `jobs` table JOIN `users` + `profiles` WHERE `status='open'` | `jobs` | `opp_type="job"` حالياً |
+| `posts` | `company_posts` table JOIN `users` + `profiles` | `company_posts` | |
+| `news` | `news_posts` WHERE `status='published'` | `news_posts` | admin-only نشر |
+
+> **ملاحظة هامة:** فلتر `news` قد يرجع قائمة فارغة إذا لم يكن الأدمن قد نشر أخباراً بعد. هذا **مقبول ومتوقع** — الجدول والـ API موجودان. الفرق: فلتر فارغ بسبب **غياب البيانات** ≠ فلتر وهمي بدون API/DB (الثاني ممنوع).
+
+### `news_posts` Table Schema
+
+```sql
+CREATE TABLE news_posts (
+    id BIGSERIAL PRIMARY KEY,
+    title TEXT NOT NULL,
+    summary TEXT,
+    body TEXT,
+    category TEXT DEFAULT 'general',   -- general|labor_law|opportunity|ministry|platform|agreement
+    country TEXT,
+    source_url TEXT,
+    status TEXT DEFAULT 'draft',       -- draft|published|archived
+    created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+```
+
+### News Admin Endpoints (require `X-Admin-Token`)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/admin/news` | List all news (all statuses) |
+| `POST` | `/admin/news` | Create news post |
+| `PUT` | `/admin/news/{id}` | Update news post |
+| `DELETE` | `/admin/news/{id}` | Delete news post |
+
+### `opp_type` Field (extensibility)
+
+`type="opportunity"` cards include `opp_type` to allow future sub-types without redesigning the card:
+
+| `opp_type` | الوصف | الجدول |
+|-----------|-------|--------|
+| `"job"` | وظيفة (الحالي) | `jobs` |
+| `"training"` | تدريب (مستقبلي) | جدول مستقبلي |
+| `"scholarship"` | منحة (مستقبلي) | جدول مستقبلي |
+| `"overseas"` | فرصة خارجية (مستقبلي) | جدول مستقبلي |
+
+**ممنوع** إضافة opp_type جديد بدون جدول + API حقيقي.
+
+### Security Notes
+
+- `user_id` extracted from JWT only (never from query/body param)
+- `filter` allowlisted server-side; unknown values → `"all"`
+- `limit` capped at 50 server-side
+- All text from API rendered via `textContent` — no `innerHTML` from API data
+- Skeleton `innerHTML` is static (no API data) — safe
+- Opportunity links: `/job-detail?id=<integer>` — integer cast enforced client-side
+- Profile links: `/u/<tw_id>` — only used when server returns non-empty `tw_id` string
+- News `source_url`: rendered as `<a target="_blank" rel="noopener noreferrer">` — no innerHTML
+
+### Feed State Machine
+
+```
+filter tab click
+  → Home.filters.load(filter)
+      → Home.render.showSkeleton()   — clears #hwFeed, shows static animated placeholders
+      → Home.api.loadFeed(filter)    — AbortController (cancels previous in-flight request)
+          → success + items          → Home.render.renderFeed(items, filter)
+          → success + empty          → Home.render.showEmpty(filter)
+          → abort (null returned)    → no-op (filter changed mid-flight)
+          → network/server error     → Home.render.showError(retryFn)
+```
+
+### DB Indexes (Feed Scalability)
+
+أضيفت في `_migrate_feed_indexes()` — تُنفَّذ على `on_startup` — idempotent:
+
+```sql
+CREATE INDEX IF NOT EXISTS idx_jobs_status_created  ON jobs(status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_cposts_created       ON company_posts(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_news_status_created  ON news_posts(status, created_at DESC);
+```
+
+**ممنوع** حذف هذه الـ indexes — الـ feed يعتمد عليها لـ sequential scan avoidance.
+
+### Cursor Pagination Contract (Reserved — Not Yet Active)
+
+الـ API يرجع `{ items: [...], next_cursor: null }` حالياً (`next_cursor` دائماً `null`).  
+عند التطبيق المستقبلي:
+- Client يرسل `?cursor=<opaque_string>` بدل `?limit=` على load-more requests
+- Server يرجع `next_cursor: "<string>"` أو `null` (نهاية البيانات)
+- **ممنوع** تغيير `?filter=` أو `?limit=` behavior الحالي عند إضافة cursor — backward-compatible فقط
+
+### Card Types
+
+| type | fields used | link/action |
+|------|-------------|-------------|
+| `opportunity` | title, company_name, location, job_type, salary, opp_type, created_at | `/job-detail?id={id}` |
+| `post` | author_name, author_avatar, body, created_at | click → `/u/{author_tw_id}` |
+| `news` | title, summary, body, category, country, source_url, created_at | expand inline / external source |
+
+### Per-Type User Behavior
+
+| user_type | Banner | Bottom nav tab 2 | Profile link |
+|-----------|--------|-----------------|--------------|
+| `emp` | hidden | فرص → filter opportunities | `/u/{tw_id}` or `/profile` |
+| `co` | فرص شركتك | فرصي → `/company-profile` | `/company-profile` |
+| `edu` | دورات مؤسستك | دوراتي → `/edu-profile` | `/edu-profile` |
+
+### CSS Offset System (single source)
+
+```css
+/* sc-header is position:sticky — it occupies natural flow space (no padding-top needed for it) */
+body     { padding-top: var(--flt, 46px); }   /* only filter bar height */
+.sc-header { position: sticky; top: 0; min-height: var(--ah-h, 56px); }
+.hw-fbar   { position: fixed;  top: var(--ah-h, 56px); }
+.hw-page   { padding: 14px 12px 72px; }       /* no margin-block-start */
+```
+
+### Forbidden Patterns (Home V2)
+
+- **ممنوع** `element.innerHTML = apiData.anything` — يجب `createElement` + `textContent`
+- **ممنوع** بيانات وهمية أو hardcoded في أي جزء من الـ feed
+- **ممنوع** `.html?id=` routes — استخدم `/job-detail?id=` و `/u/{tw_id}` فقط
+- **ممنوع** قراءة `user_type` أو `user_id` من أي مكان غير JWT (server) أو `tw_user` (client)
+- **ممنوع** ترك `/preview/home-v2` — تم حذفه
+- **ممنوع** إعادة Dashboard-first (بطاقة مستخدم ضخمة أول الصفحة)
+- **ممنوع** inline CSS/JS كبير في `home-v2.html` — يجب في الملفات المنفصلة
+- **ممنوع** إضافة filter في الواجهة قبل وجود جدول/endpoint حقيقي له — filter بدون بيانات = UX ناقص
+- **ممنوع** إضافة فلتر `companies` للـ Home — الشركات ليست محتوى feed؛ مكانها صفحة استكشاف/بحث مستقلة
+- **ممنوع** إعادة `questions` أو `courses` كـ filters قبل بناء جداولهما الكاملة
+- **ممنوع** إنشاء header مستقل لصفحة جديدة بدون استخدام `static/app-header.css` — الـ App Header موحد
+- **ممنوع** إضافة منطق في `static/home-v2.js` — الملف deprecated؛ أي logic يذهب إلى module مناسب في `static/home/`
+- **ممنوع** إضافة feature جديدة على Home قبل تحديد module المناسب لها في `static/home/`
+- **ممنوع** تضخيم `home.main.js` — bootstrap فقط؛ أي منطق يذهب لـ module مخصص
+- **ممنوع** `ORDER BY RANDOM()` في أي query على `/home/feed` — يكسر pagination ويُحمّل DB
+- **ممنوع** table scan ثقيل بدون index على columns مستخدمة في WHERE/ORDER — راجع indexes section أعلاه
 
 ---
 
@@ -6432,15 +6780,26 @@ The profile share link uses `/u/{tw_id}` (Profile V2 public URL), not the legacy
 
 ### Purpose
 
-Owner-only compact strip placed **inside `.sc-main-card`, between `.sc-actions` and `.sc-stats`**. Shows the owner a one-line progress bar with percentage and a "تفاصيل" button that expands a checklist of missing items. At 100% it shows a celebration state with a "تم" dismiss button. Visitors and preview modes never see this strip.
+Owner-only compact strip placed **inside `.sc-main-card`, between `.sc-actions` and `.sc-stats`**. Operates in two modes depending on completion percentage:
+
+- **Completion mode** (score < 100%): one-line progress bar + "تفاصيل" button that expands a checklist of missing items.
+- **Growth mode** (score = 100%): one-line strip showing one rule-based improvement suggestion at a time, with "التالي" / "تفاصيل" / "إخفاء" buttons.
+
+Visitors and preview modes never see this strip.
 
 ### Design: Compact Strip
 
-- Height: ~44px in collapsed state; expands when "تفاصيل" is clicked
-- Components: title label | progress bar | percentage | toggle button
-- Details panel: missing items (clickable) + done items + optional rule-based suggestions
-- 100% state: label → "ملفك مكتمل 🎉", toggle → "تم" (dismisses for the session)
+- Height: ~44px in collapsed state; expands panel when "تفاصيل" is clicked
+- **Completion mode components**: title label | progress bar | percentage | toggle button
+- **Completion mode panel**: missing items (clickable) + done items + optional domain-tag suggestions
+- **Growth mode components (RTL visual order)**: "اقتراح" badge | suggestion text (clickable → short actionable toast) | تفاصيل button | ↻ cycle button | ✕ إخفاء button
+- **Button style**: solid fills, no glassmorphism. تفاصيل = teal; ↻ = neutral gray; ✕ = red. Each styled by ID (`#scGrowthDet`, `#scGrowthNext`, `#scGrowthHide`).
+- **Suggestion-text toast** (`#scGrowthToast`): 1-sentence actionable tip ("ابحث عن دورة X، وبعد الحصول عليها أضفها لقسم الدورات"). Auto-dismisses after 4 s. Cleared on ↻ click. Does NOT contain the full explanation — that is reserved for the details panel.
+- **Growth mode panel** (`#scGrowthPanel`): shown only via "تفاصيل" button. Contains the full explanation: `reason` (why it matters) + `benefit` (career impact) + "اذهب إلى القسم" action button. This is the only place the full explanation appears.
+- **Growth empty state**: text "ملفك قوي! سنقترح لك فرص تطوير لاحقاً", التالي/تفاصيل buttons hidden
 - Dismiss: IIFE-level `_dismissed` flag (resets on page reload, no persistence)
+- `_growthIdx`: IIFE-level index for cycling through growth suggestions (clamp: `% suggs.length`)
+- `_toastTimer`: IIFE-level setTimeout handle; cleared when a new toast is shown or التالي is clicked
 
 ### Data Source
 
@@ -6505,13 +6864,47 @@ Reads exclusively from `window._scProfile` (the global flat profile state set by
 | `tab-links` | `window._aboutGoTab('links')` + smooth scroll |
 | `none` | No action (e.g. `tw_id` — set server-side) |
 
-### Course Suggestions (rule-based)
+### Completion Mode Suggestions (rule-based topic tags)
 
-`_buildSuggestions()` in `completion.js` matches keywords from `p.title`, `p.profession.name_ar`, `p.bio`, and `p.skills[]` against a fixed map of 8 domain categories. Returns up to 3 matching suggestions. Shown inside the details panel as compact tag chips.
+`_buildCompletionSuggestions()` matches keywords from `p.title`, `p.profession`, `p.bio`, and `p.skills[]` against a fixed map of 8 domain categories. Returns up to 3 matching topic labels shown as compact tag chips inside the details panel.
 
-- No API call — purely local keyword matching
-- Shows only when panel is open and at least one keyword matches
-- Do NOT replace with random/hardcoded suggestions
+### Growth Mode Suggestions (`_buildGrowthSuggestions()`)
+
+Called only when score = 100%. Builds a filtered list of improvement rules from `window._scProfile`. Each rule:
+
+```js
+{ id, cond, text, toast, reason, benefit, action }
+// text   — short ethical framing: "learn/earn first, then document"
+// toast  — 2-3 sentence explanation shown on suggestion-text click (auto-dismiss 4 s)
+// reason — why the item is missing or relevant
+// benefit — how it strengthens the profile
+```
+
+**Ethical framing rule:** All `text` values must frame the suggestion as "do the thing first, then add it to your profile." Never suggest adding a skill or course the user hasn't actually completed. Examples: "تعلّم Git ثم وثّقه ضمن مهاراتك", "احصل على دورة SQL ثم أضفها لملفك".
+
+Rules include: React.js course, Git, Node.js, SQL course, GitHub link, English language, second experience, Python, Laravel course, first course. Each `cond` checks that the suggested item doesn't already exist in the profile — so completing and adding the item removes it from the list automatically on next `_render()` call.
+
+- `_growthIdx` persists across renders within the session; clamped to `% suggs.length` to handle list shrinkage
+- `_toastTimer` holds the active setTimeout; cleared on new toast or التالي click
+- Returns empty array if all conditions are satisfied → shows empty-state message
+- No API call, no randomness — deterministic from `_scProfile`
+
+### HTML Structure (Dual Mode)
+
+```html
+<div class="sc-compl-strip owner-only" id="scComplCard" style="display:none">
+  <!-- Completion mode row -->
+  <div class="sc-compl-row" id="scComplRow"> ... </div>
+  <!-- Completion mode panel -->
+  <div class="sc-compl-panel" id="scComplPanel" style="display:none"> ... </div>
+  <!-- Growth mode row -->
+  <div class="sc-growth-row" id="scGrowthRow" style="display:none"> ... </div>
+  <!-- Growth mode panel -->
+  <div class="sc-growth-panel" id="scGrowthPanel" style="display:none"> ... </div>
+  <!-- Toast (auto-dismiss, shown on suggestion text click) -->
+  <div class="sc-growth-toast" id="scGrowthToast" style="display:none"></div>
+</div>
+```
 
 ### Forbidden Patterns
 
@@ -6522,3 +6915,252 @@ Reads exclusively from `window._scProfile` (the global flat profile state set by
 - Do NOT add a new item without ensuring its weight keeps the total at 100
 - Do NOT call `_renderCompletion` in non-owner contexts
 - Do NOT move the strip outside `.sc-main-card` — it must sit between `.sc-actions` and `.sc-stats`
+- Do NOT show growth mode when score < 100% — growth mode only activates at exactly 100%
+- Do NOT persist `_growthIdx` to localStorage — it resets with the page
+- Do NOT write suggestion `text` that implies adding something without having earned/completed it — all text must follow the "learn/earn first, then document" pattern
+- Do NOT put the full explanation in the toast — toast is 1 short actionable sentence; full explanation belongs in the "تفاصيل" panel only
+- Do NOT style growth buttons as glassmorphic — each button has a solid colored background via its ID selector
+- Do NOT open any new route or add a course automatically from the suggestion — the user must find and complete the course themselves first
+
+---
+
+## Auth Gateway (index.html / `/login`) — P1 Refactor
+
+### File Structure (auth-gw-v1)
+
+| File | Responsibility |
+|------|---------------|
+| `index.html` | HTML structure only — logo, role selector, forms, skip link |
+| `index.css` | Auth page styles only — do NOT import from other pages |
+| `index.auth.js` | `redirect()`, `doLogin()`, `doRegister()`, on-load session check, Enter key handler |
+| `index.ui.js` | `selectType()`, `showRegister()`, `showLogin()`, `toast()`, `checkPassStrength()`, ITQAN utilities, hash auto-route |
+
+**Loading order in `index.html`:** `tw_shared.js` → `index.auth.js` → `index.ui.js`
+
+Auth module loads first so the on-load redirect check fires before any UI initialises. Both modules are loaded before any user interaction can trigger `doLogin()` or `doRegister()`.
+
+### Role
+
+`index.html` is the **Auth Gateway only** — login form + registration form.
+It is NOT a Landing Page and must not be redesigned as one.
+
+- `GET /` → `landing.html` — public marketing page, no auth needed
+- `GET /login` (or `/index.html`) → `index.html` — auth gateway
+
+### Role Selector (register-only)
+
+Three explicit cards replace the old 2-button + dropdown:
+
+| Card | user_type sent to API | Hash route |
+|------|-----------------------|------------|
+| 👤 موظف / باحث عن عمل | `emp` | `/login#register-emp` |
+| 🏢 شركة / صاحب عمل | `co` | `/login#register-co` |
+| 🎓 مؤسسة تعليمية | `edu` | `/login#register-edu` |
+
+- Role selector is **hidden on login view**, shown only when register form is open.
+- Login form derives role from the API response — it never asks the user to pick one.
+
+### Post-Login Redirect Rules (mandatory)
+
+`redirect(u)` in `index.auth.js` is the **single authority** for post-login routing.
+
+| user_type | Redirect target | Notes |
+|-----------|----------------|-------|
+| `emp` | `/u/{tw_id}` | Canonical public profile URL; fallback `/profile-showcase` if tw_id missing |
+| `co` | `/company-profile` | Modern route (no `?id=` query param) |
+| `edu` | `/edu-profile` | Modern route (no `?id=` query param) |
+| `admin` | `/admin` | Defensive branch only — admin auth uses `/tw-ctrl-login` |
+
+### localStorage Rules
+
+- `localStorage.tw_user` — short-lived session cache; populated by `/auth/login` and `/auth/register` responses
+- `localStorage.tw_jwt` — JWT bearer token; 7-day expiry
+- **Neither is the authority for roles** — the user object from the API response is the source of truth
+- TODO (P1 next): call `POST /auth/verify-token` on page load before trusting the cached session
+
+### Forbidden Patterns
+
+- Do NOT put auth logic in `index.ui.js` — keep `redirect()`, `doLogin()`, `doRegister()` in `index.auth.js` only
+- Do NOT put DOM/appearance effects in `index.auth.js` — keep UI in `index.ui.js`
+- Do NOT redirect to `profile.html?id=` — this is a legacy URL; use `/u/{tw_id}` for employees
+- Do NOT redirect to `company-profile.html?id=` or `edu-profile.html?id=` — use `/company-profile` and `/edu-profile`
+- Do NOT redirect to `/messages` or `/notifications` as the post-login landing page
+- Do NOT add more than ONE on-load redirect check — exactly one IIFE in `index.auth.js`
+- Do NOT use `localStorage.tw_user.user_type` to gate features or permissions — only for display/routing hints; validate with API when security matters
+- Do NOT add a role selector inside the login form — role is login-derived from the API only
+
+---
+
+## Company Profile Edit Form (PR #248)
+
+### Location Field Mapping
+
+| Form Field | DB Column | Table | Notes |
+|------------|-----------|-------|-------|
+| `e-country` (select) | `profiles.country` | `profiles` | Arabic country name, e.g. "الأردن" |
+| `e-city-sel` (select) | `profiles.city` | `profiles` | Arabic city name, populated dynamically from `_CO_CITIES` |
+| `e-district` (text) | `profiles.location` | `profiles` | Street / district free text; legacy `location` field repurposed |
+
+**Rule:** `profiles.location` is now the street/area free-text field for company profiles. It is NOT the country. `profiles.country` and `profiles.city` are the canonical location fields.
+
+**Display order in render.js:** `country + '، ' + city`. If both are empty, fall back to `p.location`. Never combine all three in the visible string.
+
+### `_CO_COUNTRIES` / `_CO_CITIES`
+
+Defined in `static/company/company.main.js`. Keys in `_CO_CITIES` are Arabic country names (not ISO codes) matching the values saved in `profiles.country`. Do NOT change to ISO codes — the DB stores Arabic names.
+
+### Branches Section (PR #250 update)
+
+`company_branches` table **does not exist** yet. The branches UI in the edit modal is in-memory only:
+- `_addBranchRow()` creates a branch card with 3 fields: country (select), city (select), district (text input)
+- Branch data is **never saved** to DB or localStorage
+- Deleting a branch removes only the DOM node — nothing is persisted
+- No "saved" toast is shown for branches — only the main profile save triggers a toast
+- A note `(الحفظ سيتاح بعد إضافة الجدول)` is shown inline on the section title
+- To enable save: add `company_branches` table migration in `server.py`, add `POST /company/branches/{id}` endpoint, update `saveEdit()` — requires explicit user approval before implementing
+
+### Removed Form Fields (permanent)
+
+The following fields are removed from the edit form. Their DB columns are untouched:
+
+| Field | DB Column | Table |
+|-------|-----------|-------|
+| `e-web` (website) | `profiles.website` | `profiles` |
+| `e-email` (contact email) | `company_profiles.contact_email` | `company_profiles` |
+| `e-hq` (headquarters) | `company_profiles.headquarters` | `company_profiles` |
+
+Displaying these in the About tab or other surfaces remains valid.
+
+### District / Area Field
+
+No official data source exists for Arabic city neighborhoods/districts. `e-district` is a free-text `<input>` (not a dropdown). This is intentional — do NOT invent a dropdown with made-up district names. If an official neighborhood API/dataset becomes available, convert to `<select>` at that time.
+
+### `ep-select` in Company Profile — Shared Custom Dropdown (PR #253+)
+
+Company profile loads `static/shared/tw-select.js` and `static/shared/tw-select.css`. All `<select class="ep-select">` elements are wrapped by the shared custom dropdown component — identical behavior and visual to Profile V2. Native `<select>` is hidden by the JS; the styled trigger button takes over.
+
+The old CSS-only fallback (appearance:none + SVG chevron in company.css) is kept as a no-JS degradation path only. Do NOT rely on it as the primary visual experience.
+
+### `PUT /company/profile/{company_id}` Endpoint
+
+- Auth: `Depends(verify_token)` — JWT only, ownership checked server-side
+- Validates: `industry` required
+- Updates: `company_profiles` table only (not `profiles`)
+- Forbidden: `X-User-Id` header, localStorage-based auth, breaking existing endpoints
+
+---
+
+# E — SHARED FORM CONTROLS SYSTEM
+
+> قسم إلزامي — أي dropdown أو select جديد يلتزم بهذه القواعد.
+> تاريخ الإضافة: 2026-06-24
+
+---
+
+## [P1] 36. Shared Form Controls Architecture
+
+### المبدأ
+
+أي حقل إدخال متكرر في الموقع — dropdown / select / year picker — يجب أن يكون:
+1. **مكوّن مرئي مشترك** من `static/shared/tw-select.js` + `static/shared/tw-select.css`
+2. **بيانات مشتركة** من `static/shared/tw-options-data.js`
+
+لا تكرار للكود ولا للبيانات داخل ملفات الصفحات.
+
+---
+
+### ملفات الـ Shared System
+
+| الملف | الوظيفة |
+|-------|---------|
+| `static/shared/tw-select.js` | Custom dropdown component — يستهدف `.ep-select`، يخفي النيتف ويعرض trigger مخصص |
+| `static/shared/tw-select.css` | أنماط `.sc-sel-*` — trigger, dropdown portal, items, groups |
+| `static/shared/tw-options-data.js` | بيانات ثابتة: `TW.COUNTRIES`, `TW.CITIES`, `TW.COMPANY_TYPES`, `TW.COMPANY_SIZES` + helpers |
+
+---
+
+### API العام
+
+```javascript
+// tw-options-data.js — window.TW namespace
+TW.COUNTRIES              // string[] — أسماء عربية كـ values
+TW.CITIES                 // {[country: string]: string[]} — مفاتيح بالاسم العربي
+TW.COMPANY_TYPES          // string[]
+TW.COMPANY_SIZES          // string[]
+TW.fillSelect(sel, items, placeholder)      // يملأ <select> من array
+TW.fillCountries(sel, placeholder)          // idempotent — لا يُعيد الملء
+TW.fillCities(sel, country, selectedCity)   // يمسح ويُعيد بناء options
+TW.fillFoundedYears(sel)                    // current year → 1900، idempotent
+
+// tw-select.js — window.scSelectInit / scSelectClose
+scSelectInit()   // يُطبّق الـ custom dropdown على كل .ep-select:not([data-sc-sel])
+scSelectClose()  // يُغلق الـ dropdown المفتوح (لـ back-button handlers)
+```
+
+---
+
+### قواعد بيانات الدول والمدن
+
+```
+✅ القيم دائماً أسماء عربية: "الأردن", "عمان" (تطابق ما في DB)
+✅ CITIES مفاتيحها أسماء عربية (نفس قيمة country في DB)
+❌ ممنوع ISO codes كـ values: "JO", "SA"
+❌ ممنوع تكرار TW.COUNTRIES أو TW.CITIES داخل ملفات الصفحات
+```
+
+**استثناء موثّق — Profile V2 country field:**
+Profile V2 `epCountry` يستخدم ISO codes كـ values (JO, SA, ...) وكذلك `EP_CITIES` في `profile-v2.edit.js`.
+هذا النظام موجود في DB للموظفين قبل مشروع التوحيد ولا يتغير بدون migration صريح.
+الـ VISUAL COMPONENT (`tw-select.js`) يعمل عليه كما هو — فقط البيانات الجديدة للشركات تستخدم TW.COUNTRIES.
+
+---
+
+### قواعد الصفحات
+
+**صفحة تريد custom dropdown:**
+1. تحمّل `tw-select.css` في `<head>` (قبل CSS الصفحة)
+2. تحمّل `tw-options-data.js` قبل scripts الصفحة
+3. تحمّل `tw-select.js` قبل scripts الصفحة
+4. تُضيف class `ep-select` لأي `<select>` تريده مخصصاً
+5. تستدعي `scSelectInit()` بعد كل عملية تُضيف `ep-select` جديدة ديناميكياً
+
+**لا تفعل:**
+```
+❌ native <select> بدون tw-select.js إذا الصفحة تتطلب تجربة موحدة
+❌ نسخ TW.COUNTRIES داخل ملف الصفحة
+❌ إضافة .sc-sel-* CSS داخل ملف CSS الصفحة
+❌ تعديل tw-select.css لصفحة واحدة فقط — التعديلات تنعكس على الكل
+```
+
+---
+
+### Profile V2 هو المرجع البصري
+
+`tw-select.css` مستخرج من `profile-v2.css` — نفس الشكل، نفس الألوان، نفس الحركة.
+لا يجوز تغيير شكل الـ dropdown من داخل CSS الصفحة — فقط من `tw-select.css`.
+
+---
+
+### حالة الفروع (company_branches)
+
+```
+✅ Branches UI في company profile = in-memory فقط
+✅ كل فرع = 3 حقول: country (TW.fillCountries) + city (TW.fillCities) + district (input)
+❌ ممنوع حفظ الفروع في localStorage
+❌ ممنوع إرسال الفروع للـ API قبل إضافة company_branches table
+❌ ممنوع toast يوهم أن الفروع انحفظت
+```
+
+---
+
+### تسلسل التحميل للصفحات التي تستخدم النظام
+
+```
+lucide (vendor)
+  ↓
+tw-options-data.js    ← TW namespace + helpers
+  ↓
+tw-select.js          ← scSelectInit + scSelectClose
+  ↓
+[page scripts]        ← يستخدمون TW.* و scSelectInit()
+```

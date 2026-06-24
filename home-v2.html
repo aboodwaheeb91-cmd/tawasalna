@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>الرئيسية — تواصلنا</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="/static/app-header.css">
+<link rel="stylesheet" href="/static/home-v2.css">
+<script src="/static/vendor/lucide/lucide.min.js"></script>
+</head>
+<body>
+
+<!-- Header — same structure as Profile V2 -->
+<div class="sc-header">
+  <button class="sc-hicon sc-home-btn" id="hwHomeBtn" title="الرئيسية">
+    <i data-lucide="home" class="ico"></i>
+  </button>
+  <div class="sc-logo">
+    <img src="/static/33333.svg" alt="تواصلنا"
+         onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
+    <span class="sc-logo-fallback" style="display:none">تواصلنا</span>
+  </div>
+  <div class="sc-head-icons">
+    <a href="/notifications" class="sc-hicon sc-hicon-bare" title="الإشعارات">
+      <i data-lucide="bell" class="ico"></i>
+    </a>
+    <a href="/messages" class="sc-hicon sc-hicon-bare" title="الرسائل">
+      <i data-lucide="message-circle-more" class="ico"></i>
+    </a>
+    <div class="sc-menu-wrap" id="hwMenuWrap">
+      <button class="sc-hicon sc-hicon-bare" id="hwMenuBtn" title="القائمة">
+        <i data-lucide="menu" class="ico"></i>
+      </button>
+      <div class="sc-menu-dropdown" id="hwMenuDropdown">
+        <a href="/settings" class="sc-menu-item">
+          <i data-lucide="settings" style="width:14px;height:14px;flex-shrink:0"></i>
+          الإعدادات
+        </a>
+        <div class="sc-menu-sep"></div>
+        <button class="sc-menu-item" disabled style="opacity:.4;cursor:default">
+          <i data-lucide="mail" style="width:14px;height:14px;flex-shrink:0"></i>
+          تواصل معنا <span style="font-size:10px;margin-inline-start:auto;color:var(--ah-g)">قريباً</span>
+        </button>
+        <button class="sc-menu-item" disabled style="opacity:.4;cursor:default">
+          <i data-lucide="flag" style="width:14px;height:14px;flex-shrink:0"></i>
+          الإبلاغ عن مشكلة <span style="font-size:10px;margin-inline-start:auto;color:var(--ah-g)">قريباً</span>
+        </button>
+        <button class="sc-menu-item" disabled style="opacity:.4;cursor:default">
+          <i data-lucide="lightbulb" style="width:14px;height:14px;flex-shrink:0"></i>
+          اقترح ميزة <span style="font-size:10px;margin-inline-start:auto;color:var(--ah-g)">قريباً</span>
+        </button>
+        <div class="sc-menu-sep"></div>
+        <button class="sc-menu-item danger" id="hwLogoutBtn">
+          <i data-lucide="log-out" style="width:14px;height:14px;flex-shrink:0"></i>
+          تسجيل الخروج
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Shell — Profile V2 card geometry wraps filters + feed -->
+<div class="hw-shell">
+
+<!-- Filter Bar -->
+<div class="hw-fbar">
+  <div class="hw-fbar-inner">
+    <button class="hw-ft active" data-filter="all">الكل</button>
+    <button class="hw-ft" data-filter="opportunities">فرص</button>
+    <button class="hw-ft" data-filter="posts">منشورات</button>
+    <button class="hw-ft" data-filter="news">أخبار</button>
+  </div>
+</div>
+
+<!-- Page -->
+<div class="hw-page">
+
+  <!-- FEED -->
+  <main class="hw-feed">
+
+    <!-- Type banner — co/edu only -->
+    <div id="hwBanner" class="hw-banner hidden">
+      <div class="hw-banner-ico"><i id="hwBIco" data-lucide="briefcase" width="20" height="20"></i></div>
+      <div class="hw-banner-info">
+        <h3 id="hwBTitle"></h3>
+        <p id="hwBSub"></p>
+      </div>
+      <div class="hw-banner-stats" id="hwBStats"></div>
+    </div>
+
+    <!-- Feed list (populated by Home.render via static/home/ modules) -->
+    <div id="hwFeed"></div>
+
+    <!-- Empty state -->
+    <div id="hwEmpty" class="hw-empty hidden">
+      <div class="hw-state-ico"><i data-lucide="rss" width="22" height="22"></i></div>
+      <h3>لا يوجد محتوى بعد</h3>
+      <p>ارجع لاحقاً أو جرّب فلتراً آخر</p>
+    </div>
+
+    <!-- Error state -->
+    <div id="hwError" class="hw-error hidden">
+      <div class="hw-state-ico"><i data-lucide="wifi-off" width="22" height="22"></i></div>
+      <h3>تعذّر تحميل المحتوى</h3>
+      <p>تحقق من اتصالك بالإنترنت</p>
+      <button class="hw-retry">
+        <i data-lucide="refresh-cw" width="14" height="14"></i>
+        إعادة المحاولة
+      </button>
+    </div>
+
+  </main>
+
+  <!-- SIDEBAR (desktop only) -->
+  <aside class="hw-sidebar">
+
+    <div class="hw-sb-box">
+      <div class="hw-sb-hdr">اكتمال الملف الشخصي</div>
+      <div class="hw-compl-bar"><div class="hw-compl-fill" id="sbFill"></div></div>
+      <div class="hw-compl-row">
+        <span>اكتمال الملف</span>
+        <span id="sbPct">—</span>
+      </div>
+      <a id="sbComplLink" href="/profile"
+         style="display:inline-flex;align-items:center;gap:5px;margin-top:10px;font-size:12px;font-weight:700;color:var(--g)">
+        <i data-lucide="arrow-left" width="13" height="13"></i>
+        تحسين ملفي
+      </a>
+    </div>
+
+    <div class="hw-sb-box">
+      <div class="hw-sb-hdr">روابط سريعة</div>
+      <div id="sbLinks"></div>
+    </div>
+
+  </aside>
+
+</div><!-- .hw-page -->
+
+</div><!-- .hw-shell -->
+
+<!-- Bottom Nav -->
+<nav class="hw-bnav">
+  <a href="/home" class="hw-bn active">
+    <i data-lucide="home" width="20" height="20"></i>
+    الرئيسية
+  </a>
+  <a id="bnJobs" href="#" class="hw-bn">
+    <i id="bnJobsIco" data-lucide="briefcase" width="20" height="20"></i>
+    <span id="bnJobsLbl">فرص</span>
+  </a>
+  <a id="bnProfile" href="/profile" class="hw-bn">
+    <i data-lucide="user" width="20" height="20"></i>
+    <span id="bnProfileLbl">ملفي</span>
+  </a>
+  <a href="/messages" class="hw-bn">
+    <i data-lucide="message-square" width="20" height="20"></i>
+    رسائل
+  </a>
+  <a href="/notifications" class="hw-bn">
+    <i data-lucide="bell" width="20" height="20"></i>
+    إشعارات
+  </a>
+</nav>
+
+<script src="/static/home/home.utils.js"></script>
+<script src="/static/home/home.state.js"></script>
+<script src="/static/home/home.api.js"></script>
+<script src="/static/home/home.cards.js"></script>
+<script src="/static/home/home.render.js"></script>
+<script src="/static/home/home.filters.js"></script>
+<script src="/static/home/home.header.js"></script>
+<script src="/static/home/home.nav.js"></script>
+<script src="/static/home/home.main.js"></script>
+</body>
+</html>

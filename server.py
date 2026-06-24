@@ -75,6 +75,7 @@ from auth import (
     get_site_setting, set_site_setting, release_conn,
     _cache_del, get_profile_style,
     get_company_profile_row, get_company_extras,
+    update_company_profile,
     follow_company, unfollow_company, rate_company,
     get_company_posts, create_company_post, get_post_owner, delete_company_post,
     follow_profile, unfollow_profile, get_profile_followers_count, is_profile_following,
@@ -123,6 +124,14 @@ def _jwt_decode(token: str) -> dict:
         if payload.get('exp', 0) < time.time(): return {}  # Expired
         return payload
     except: return {}
+
+
+def verify_token(request: Request):
+    auth = request.headers.get("Authorization","")
+    token = auth.replace("Bearer ","") if auth.startswith("Bearer ") else ""
+    payload = _jwt_decode(token) if token else {}
+    if not payload: raise HTTPException(401, "Token invalid or expired")
+    return {"valid": True, "user_id": payload.get("user_id"), "user_type": payload.get("user_type")}
 
 
 # ── App ──
@@ -342,6 +351,16 @@ async def on_startup():
         print("✅ DB initialized")
     except Exception as e:
         print(f"⚠️ DB init failed: {e}")
+    try:
+        _migrate_news_posts()
+        print("✅ news_posts table ready")
+    except Exception as e:
+        print(f"⚠️ news_posts migration failed: {e}")
+    try:
+        _migrate_feed_indexes()
+        print("✅ feed indexes ready")
+    except Exception as e:
+        print(f"⚠️ feed indexes migration failed: {e}")
     await _init_asyncpg_pool()
 
 # ── Helpers ──
@@ -364,6 +383,42 @@ def check_admin(request: Request):
     if token != ADMIN_TOKEN:
         raise HTTPException(status_code=403, detail="Forbidden")
 
+
+def _migrate_feed_indexes():
+    """Create feed query indexes (idempotent — CREATE INDEX IF NOT EXISTS).
+    These indexes support the /home/feed endpoint for production scale.
+    """
+    conn = get_conn()
+    try:
+        conn.run("CREATE INDEX IF NOT EXISTS idx_jobs_status_created     ON jobs(status, created_at DESC)")
+        conn.run("CREATE INDEX IF NOT EXISTS idx_cposts_created          ON company_posts(created_at DESC)")
+        conn.run("CREATE INDEX IF NOT EXISTS idx_news_status_created     ON news_posts(status, created_at DESC)")
+    finally:
+        release_conn(conn)
+
+
+def _migrate_news_posts():
+    """Create news_posts table if it doesn't exist (idempotent)."""
+    conn = get_conn()
+    try:
+        conn.run("""
+            CREATE TABLE IF NOT EXISTS news_posts (
+                id BIGSERIAL PRIMARY KEY,
+                title TEXT NOT NULL,
+                summary TEXT,
+                body TEXT,
+                category TEXT DEFAULT 'general',
+                country TEXT,
+                source_url TEXT,
+                status TEXT DEFAULT 'draft',
+                created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                created_at TIMESTAMP DEFAULT NOW(),
+                updated_at TIMESTAMP DEFAULT NOW()
+            )
+        """)
+    finally:
+        release_conn(conn)
+
 # ══════════════════════════════════════════
 # HTML Pages
 # ══════════════════════════════════════════
@@ -385,10 +440,111 @@ def login_page(): return read_html("index.html")
 def login_html(): return read_html("index.html")
 
 @app.get("/home", response_class=HTMLResponse)
-def home(): return read_html("home.html")
+def home(): return read_html("home-v2.html")
 
 @app.get("/home.html", response_class=HTMLResponse)
-def home_html(): return read_html("home.html")
+def home_html(): return read_html("home-v2.html")
+
+@app.get("/home/feed")
+def home_feed(filter: str = "all", limit: int = 20, token=Depends(verify_token)):
+    user_id   = int(token.get("user_id") or 0)
+    user_type = token.get("user_type", "emp")
+    if not user_id:
+        raise HTTPException(401, "رمز غير صالح")
+
+    allowed_filters = {"all", "opportunities", "posts", "news"}
+    if filter not in allowed_filters:
+        filter = "all"
+    lim = min(max(int(limit), 1), 50)
+
+    items = []
+    conn = get_conn()
+    try:
+        # ── Opportunities (jobs table — opp_type="job" now, extensible later) ──
+        if filter in ("all", "opportunities"):
+            opp_lim = lim if filter == "opportunities" else max(1, lim // 3)
+            rows = conn.run(
+                """SELECT j.id, j.title, j.location, j.job_type,
+                          j.salary_min, j.salary_max, j.currency,
+                          j.skills, j.created_at,
+                          u.full_name AS company_name,
+                          u.tw_id    AS company_tw_id,
+                          u.id       AS company_id,
+                          COALESCE(p.avatar_url,'') AS company_logo
+                   FROM jobs j
+                   JOIN users u ON j.company_id = u.id
+                   LEFT JOIN profiles p ON j.company_id = p.user_id
+                   WHERE j.status = 'open'
+                   ORDER BY j.created_at DESC
+                   LIMIT :lim""",
+                lim=opp_lim
+            )
+            cols = ["id","title","location","job_type","salary_min","salary_max","currency",
+                    "skills","created_at","company_name","company_tw_id","company_id","company_logo"]
+            for r in (rows or []):
+                d = dict(zip(cols, r))
+                d["type"] = "opportunity"
+                d["opp_type"] = "job"
+                if d.get("created_at") and hasattr(d["created_at"], "isoformat"):
+                    d["created_at"] = d["created_at"].isoformat()
+                if isinstance(d.get("skills"), list):
+                    d["skills"] = [str(s) for s in d["skills"]]
+                items.append(d)
+
+        # ── Company posts ──
+        if filter in ("all", "posts"):
+            post_lim = lim if filter == "posts" else max(1, lim // 3)
+            rows = conn.run(
+                """SELECT cp.id, cp.body, cp.tags, cp.created_at,
+                          u.full_name AS author_name,
+                          u.tw_id    AS author_tw_id,
+                          u.id       AS author_id,
+                          COALESCE(p.avatar_url,'') AS author_avatar
+                   FROM company_posts cp
+                   JOIN users u ON cp.company_id = u.id
+                   LEFT JOIN profiles p ON cp.company_id = p.user_id
+                   ORDER BY cp.created_at DESC
+                   LIMIT :lim""",
+                lim=post_lim
+            )
+            cols = ["id","body","tags","created_at","author_name","author_tw_id","author_id","author_avatar"]
+            for r in (rows or []):
+                d = dict(zip(cols, r))
+                d["type"] = "post"
+                if d.get("created_at") and hasattr(d["created_at"], "isoformat"):
+                    d["created_at"] = d["created_at"].isoformat()
+                if isinstance(d.get("tags"), list):
+                    d["tags"] = [str(t) for t in d["tags"]]
+                items.append(d)
+
+        # ── News (admin-published content from news_posts table) ──
+        if filter in ("all", "news"):
+            news_lim = lim if filter == "news" else max(1, lim // 3)
+            rows = conn.run(
+                """SELECT id, title, summary, body, category, country, source_url, created_at
+                   FROM news_posts
+                   WHERE status = 'published'
+                   ORDER BY created_at DESC
+                   LIMIT :lim""",
+                lim=news_lim
+            )
+            cols = ["id","title","summary","body","category","country","source_url","created_at"]
+            for r in (rows or []):
+                d = dict(zip(cols, r))
+                d["type"] = "news"
+                if d.get("created_at") and hasattr(d["created_at"], "isoformat"):
+                    d["created_at"] = d["created_at"].isoformat()
+                items.append(d)
+
+    finally:
+        release_conn(conn)
+
+    # For "all": interleave by created_at so recent content surfaces first
+    if filter == "all" and items:
+        items.sort(key=lambda x: x.get("created_at") or "", reverse=True)
+
+    return {"items": items, "filter": filter, "total": len(items), "next_cursor": None}
+
 
 @app.get("/profile", response_class=HTMLResponse)
 def profile(id: str = ""):
@@ -523,7 +679,7 @@ def get_company_profile(company_id: str, request: Request):
     try:
         rows = conn.run(
             "SELECT u.id, u.tw_id, u.full_name, u.email, u.user_type, u.created_at, "
-            "p.bio, p.location, p.avatar_url, p.website, p.is_verified, p.phone "
+            "p.bio, p.location, p.avatar_url, p.website, p.is_verified, p.phone, p.city, p.country "
             "FROM users u "
             "LEFT JOIN profiles p ON p.user_id = u.id "
             "WHERE u.id = :uid AND u.user_type IN ('co','edu')",
@@ -582,6 +738,38 @@ def get_company_profile(company_id: str, request: Request):
         "permissions": permissions,
     }
 
+
+class CoProfileInput(BaseModel):
+    company_type:  Optional[str] = None
+    industry:      Optional[str] = None
+    founded_year:  Optional[int] = None
+    company_size:  Optional[str] = None
+    contact_email: Optional[str] = None
+    headquarters:  Optional[str] = None
+    description:   Optional[str] = None
+    cover_url:     Optional[str] = None
+
+
+@app.put("/company/profile/{company_id}")
+def update_co_profile(company_id: int, data: CoProfileInput, token=Depends(verify_token)):
+    """
+    PUT /company/profile/{id}
+    Updates company_profiles row only — never touches profiles table or jobs.
+    Auth: JWT Bearer only. Ownership: token.user_id == company_id AND user_type == 'co'.
+    Requires industry (classification) to be non-empty.
+    """
+    tok_uid   = token.get("user_id")
+    tok_utype = token.get("user_type")
+    if str(tok_uid) != str(company_id) or tok_utype != "co":
+        raise HTTPException(403, "غير مصرح")
+    payload = data.dict(exclude_none=True)
+    if not payload.get("industry"):
+        raise HTTPException(400, "يجب تحديد تصنيف الجهة")
+    updated = update_company_profile(company_id, payload)
+    if not updated:
+        raise HTTPException(400, "لا توجد بيانات للحفظ")
+    company = get_company_profile_row(company_id)
+    return {"status": "success", "company": company}
 
 
 @app.get("/edu", response_class=HTMLResponse)
@@ -1037,15 +1225,6 @@ class ReportInput(BaseModel):
     report_type: str    # sexual, fraud, harassment, spam, other
     reason: str
     target_url: Optional[str] = None
-
-
-def verify_token(request: Request):
-    auth = request.headers.get("Authorization","")
-    token = auth.replace("Bearer ","") if auth.startswith("Bearer ") else ""
-    payload = _jwt_decode(token) if token else {}
-    if not payload: raise HTTPException(401, "Token invalid or expired")
-    return {"valid": True, "user_id": payload.get("user_id"), "user_type": payload.get("user_type")}
-
 
 
 # ══ Phase 2 Step 4: Company social endpoints (follow / rate) ══
@@ -2535,23 +2714,57 @@ def apply_to_job(job_id: int, data: JobApplyInput, token=Depends(verify_token)):
     return {"status": "success", **result}
 
 @app.get("/jobs/{job_id}/applicants")
-def job_applicants(job_id: int, request: Request):
-    user_id = int(request.headers.get("X-User-Id", 0))
-    if not user_id: raise HTTPException(401, "غير مصرح")
+def job_applicants(job_id: int, token=Depends(verify_token)):
+    user_id = token.get("user_id")
+    if not user_id:
+        print(f"[SECURITY] INVALID_TOKEN: GET /jobs/{job_id}/applicants")
+        raise HTTPException(401, "رمز غير صالح")
+    conn = get_conn()
+    try:
+        rows = conn.run("SELECT company_id FROM jobs WHERE id=:jid", jid=job_id)
+        if not rows:
+            raise HTTPException(404, "الوظيفة غير موجودة")
+        job_company_id = rows[0][0]
+    finally:
+        release_conn(conn)
+    if int(job_company_id) != int(user_id):
+        print(f"[SECURITY] JOB_OWNERSHIP_FAILED: user {user_id} tried to access applicants for job {job_id} owned by {job_company_id}")
+        raise HTTPException(403, "غير مصرح — هذه الوظيفة ليست لشركتك")
     applicants = get_job_applicants(job_id)
     return {"applicants": applicants, "count": len(applicants)}
 
 @app.get("/my/applications")
-def my_applications(request: Request):
-    user_id = int(request.headers.get("X-User-Id", 0))
-    if not user_id: raise HTTPException(401, "غير مصرح")
-    apps = get_user_applications(user_id)
+def my_applications(token=Depends(verify_token)):
+    user_id = token.get("user_id")
+    if not user_id:
+        print(f"[SECURITY] INVALID_TOKEN: GET /my/applications")
+        raise HTTPException(401, "رمز غير صالح")
+    apps = get_user_applications(int(user_id))
     return {"applications": apps, "count": len(apps)}
 
 @app.put("/jobs/applications/{app_id}/status")
-def update_app_status(app_id: int, data: AppStatusInput, request: Request):
-    user_id = int(request.headers.get("X-User-Id", 0))
-    if not user_id: raise HTTPException(401, "غير مصرح")
+def update_app_status(app_id: int, data: AppStatusInput, token=Depends(verify_token)):
+    user_id = token.get("user_id")
+    if not user_id:
+        print(f"[SECURITY] INVALID_TOKEN: PUT /jobs/applications/{app_id}/status")
+        raise HTTPException(401, "رمز غير صالح")
+    allowed_statuses = {"pending", "viewed", "accepted", "rejected"}
+    if data.status not in allowed_statuses:
+        raise HTTPException(400, f"حالة غير صالحة. المسموح: {', '.join(sorted(allowed_statuses))}")
+    conn = get_conn()
+    try:
+        rows = conn.run(
+            "SELECT j.company_id FROM job_applications ja JOIN jobs j ON j.id=ja.job_id WHERE ja.id=:aid",
+            aid=app_id
+        )
+        if not rows:
+            raise HTTPException(404, "الطلب غير موجود")
+        job_company_id = rows[0][0]
+    finally:
+        release_conn(conn)
+    if int(job_company_id) != int(user_id):
+        print(f"[SECURITY] APPLICATION_OWNERSHIP_FAILED: user {user_id} tried to update app {app_id} owned by company {job_company_id}")
+        raise HTTPException(403, "غير مصرح — هذا الطلب ليس لوظيفة شركتك")
     result = update_application_status(app_id, data.status)
     return result
 
@@ -2896,3 +3109,93 @@ def delete_course(course_id: int, token=Depends(verify_token)):
         print(f"[delete_course] error: {e}")
         raise HTTPException(500, detail=str(e))
 
+
+# ══ News Posts (admin-managed editorial content) ══
+
+class NewsPostInput(BaseModel):
+    title: str
+    summary: Optional[str] = None
+    body: Optional[str] = None
+    category: Optional[str] = "general"
+    country: Optional[str] = None
+    source_url: Optional[str] = None
+    status: Optional[str] = "draft"
+
+@app.get("/admin/news")
+def admin_list_news(request: Request):
+    check_admin(request)
+    conn = get_conn()
+    try:
+        rows = conn.run(
+            """SELECT n.id, n.title, n.summary, n.category, n.country,
+                      n.source_url, n.status, n.created_at, n.updated_at,
+                      COALESCE(u.full_name,'') AS created_by_name
+               FROM news_posts n
+               LEFT JOIN users u ON n.created_by = u.id
+               ORDER BY n.created_at DESC"""
+        )
+        cols = ["id","title","summary","category","country","source_url",
+                "status","created_at","updated_at","created_by_name"]
+        result = []
+        for r in (rows or []):
+            d = dict(zip(cols, r))
+            for f in ("created_at","updated_at"):
+                if d.get(f) and hasattr(d[f], "isoformat"):
+                    d[f] = d[f].isoformat()
+            result.append(d)
+        return {"news": result, "total": len(result)}
+    finally:
+        release_conn(conn)
+
+@app.post("/admin/news")
+def admin_create_news(data: NewsPostInput, request: Request):
+    check_admin(request)
+    allowed_statuses = {"draft", "published", "archived"}
+    status = data.status if data.status in allowed_statuses else "draft"
+    conn = get_conn()
+    try:
+        rows = conn.run(
+            """INSERT INTO news_posts (title, summary, body, category, country, source_url, status)
+               VALUES (:title, :summary, :body, :category, :country, :source_url, :status)
+               RETURNING id""",
+            title=data.title.strip(), summary=data.summary or "",
+            body=data.body or "", category=data.category or "general",
+            country=data.country or "", source_url=data.source_url or "",
+            status=status
+        )
+        news_id = rows[0][0] if rows else None
+        return {"success": True, "id": news_id}
+    finally:
+        release_conn(conn)
+
+@app.put("/admin/news/{news_id}")
+def admin_update_news(news_id: int, data: NewsPostInput, request: Request):
+    check_admin(request)
+    allowed_statuses = {"draft", "published", "archived"}
+    status = data.status if data.status in allowed_statuses else "draft"
+    conn = get_conn()
+    try:
+        conn.run(
+            """UPDATE news_posts
+               SET title=:title, summary=:summary, body=:body,
+                   category=:category, country=:country, source_url=:source_url,
+                   status=:status, updated_at=NOW()
+               WHERE id=:id""",
+            title=data.title.strip(), summary=data.summary or "",
+            body=data.body or "", category=data.category or "general",
+            country=data.country or "", source_url=data.source_url or "",
+            status=status, id=news_id
+        )
+        return {"success": True}
+    finally:
+        release_conn(conn)
+
+@app.delete("/admin/news/{news_id}")
+def admin_delete_news(news_id: int, request: Request):
+    check_admin(request)
+    conn = get_conn()
+    try:
+        conn.run("DELETE FROM news_posts WHERE id=:id", id=news_id)
+        return {"success": True}
+    finally:
+        release_conn(conn)

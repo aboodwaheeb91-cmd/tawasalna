@@ -10,18 +10,23 @@
   direction:rtl; min-height:100vh;
 }
 
-/* ── Header ── */
+/* ── Header (uses app-header.css vars for visual identity) ── */
 .sc-header {
   display:flex; align-items:center; justify-content:space-between;
-  padding:7px 16px; position:sticky; top:0; z-index:50;
-  background:rgba(10,14,20,.85); backdrop-filter:blur(12px);
+  padding:0 16px; position:sticky; top:0; z-index:50;
+  height:var(--ah-h,44px); min-height:0; box-sizing:border-box;
+  background:var(--ah-bg,rgba(7,11,24,.93));
+  backdrop-filter:var(--ah-blur,blur(14px));
+  -webkit-backdrop-filter:var(--ah-blur,blur(14px));
+  border-bottom:0 !important;
+  box-shadow:none !important;
 }
 .sc-header .sc-logo {
   position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
   pointer-events:none;
 }
 .sc-hicon {
-  width:34px; height:34px; border-radius:10px; border:none; cursor:pointer;
+  width:32px; height:32px; border-radius:10px; border:none; cursor:pointer;
   background:rgba(255,255,255,.06); color:var(--t1,#fff); font-size:1rem;
   display:flex; align-items:center; justify-content:center;
 }
@@ -31,22 +36,21 @@
    stays visually balanced with the icon group on the other side of the
    centered logo regardless of which side of the header it sits on. */
 .sc-hicon-bare { width:auto; height:auto; padding:4px; background:none !important; border:none !important; }
-/* Home button — deliberately NOT icon-sized like the rest of the header
-   (it's the most important nav action) and NOT the old oversized text pill
-   either: a medium circular button, slightly larger than the other ghost
-   icons, with a brand-identity gradient so it stays visually anchored. */
-.sc-home-btn {
-  width:34px; height:34px; border-radius:50%; flex-shrink:0;
-  background:linear-gradient(135deg,#00c896,#00b8c4,#2563ff);
-  box-shadow:0 2px 10px rgba(0,184,196,.35);
-  color:#06121c;
+.sc-header .sc-home-btn {
+  width:32px; height:32px; border-radius:10px; flex-shrink:0;
+  background:var(--hdr-home-bg, rgba(0,200,150,.07));
+  border:1px solid var(--hdr-home-glow, rgba(0,200,150,.28));
+  box-shadow:none;
+  color:var(--hdr-home-accent, #00c896);
 }
-.sc-home-btn .ico { width:18px; height:18px; }
-.sc-home-btn:active { transform:scale(.94); }
+.sc-header .sc-home-btn .ico { width:16px; height:16px; filter:none; }
+.sc-header .sc-home-btn:hover,
+.sc-header .sc-home-btn:focus-visible { box-shadow:0 0 8px var(--hdr-home-glow, rgba(0,200,150,.28)); }
+.sc-header .sc-home-btn:active { transform:scale(.93); }
 .sc-head-icons { display:flex; align-items:center; gap:8px; }
 .sc-head-icons .ico { width:20px; height:20px; }
 .sc-hgroup { display:flex; align-items:center; gap:10px; }
-.sc-logo img { height:38px; width:auto; max-width:140px; object-fit:contain; display:block; }
+.sc-logo img { height:32px; width:auto; max-width:120px; object-fit:contain; display:block; }
 .sc-logo-fallback { font-weight:800; font-size:1rem; letter-spacing:-.3px;
   background:linear-gradient(135deg,var(--ac,#00c896),var(--ac2,#2563ff));
   -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
@@ -747,56 +751,6 @@ body.preview-guest       .owner-only { display: none !important; }
 .sc-exp-menu-del svg { stroke:#f87171; }
 .sc-exp-menu-del:hover:not([disabled]) { background:rgba(248,113,113,.1); }
 
-/* ── Custom Select Component (profile-v2.select.js) ── */
-.sc-sel { position:relative; width:100%; display:block; }
-.sc-sel-trg {
-  width:100%; display:flex; align-items:center; justify-content:space-between; gap:8px;
-  background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.1); border-radius:10px;
-  color:var(--t1,#fff); font-family:inherit; font-size:.84rem; padding:10px 13px;
-  cursor:pointer; text-align:right; direction:rtl; outline:none;
-  transition:border-color .15s; min-height:40px;
-}
-.sc-sel-trg:focus, .sc-sel-open .sc-sel-trg { border-color:var(--ac,#00c896); }
-.sc-sel-txt {
-  flex:1; text-align:right; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-  display:flex; align-items:center; gap:5px;
-}
-.sc-sel-ph { color:var(--t3,#6b7686) !important; }
-.sc-sel-arr {
-  flex-shrink:0; display:flex; align-items:center; color:var(--t3,#6b7686);
-  transition:transform .15s;
-}
-.sc-sel-open .sc-sel-arr { transform:rotate(180deg); }
-/* Dropdown portal — appended to body, position:fixed set by JS */
-.sc-sel-drop {
-  position:fixed; overflow-y:auto;
-  background:rgba(10,14,24,.97); border:1px solid rgba(255,255,255,.12);
-  border-radius:11px; padding:4px;
-  backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px);
-  box-shadow:0 8px 32px rgba(0,0,0,.55); direction:rtl;
-  opacity:0; transform:translateY(-4px); transition:opacity .12s,transform .12s;
-}
-.sc-sel-drop-open { opacity:1; transform:translateY(0); }
-/* Group header (for optgroup) */
-.sc-sel-grp {
-  padding:5px 10px 2px; font-size:.68rem; font-weight:700;
-  color:var(--t3,#6b7686); letter-spacing:.03em;
-  border-top:1px solid rgba(255,255,255,.07); margin-top:3px;
-}
-.sc-sel-grp-first { border-top:none; margin-top:0; }
-/* Options */
-.sc-sel-item {
-  display:flex; align-items:center; gap:6px;
-  padding:8px 10px; border-radius:7px;
-  font-family:inherit; font-size:.82rem; color:var(--t1,#fff);
-  cursor:pointer; direction:rtl; transition:background .1s; white-space:nowrap;
-}
-.sc-sel-item:hover:not(.sc-sel-item-dis),
-.sc-sel-item-kb:not(.sc-sel-item-dis) { background:rgba(255,255,255,.08); }
-.sc-sel-item-sel { color:var(--ac,#00c896); background:rgba(0,200,150,.07); }
-.sc-sel-item-sel:hover { background:rgba(0,200,150,.12) !important; }
-.sc-sel-item-dis { color:var(--t3,#6b7686); opacity:.5; cursor:default; }
-.sc-sel-ico { flex-shrink:0; }
 
 /* ── Cover edit button (owner only) ── */
 .cv-edit-btn {
@@ -1566,4 +1520,131 @@ body.preview-guest .sc-avail-picker { display:none !important; }
   .sc-compl-strip { padding: 0 14px; }
   .sc-compl-label { font-size: .7rem; }
   .sc-compl-toggle { font-size: .68rem; padding: 2px 9px; }
+}
+
+/* ── Growth Mode Strip (100% complete) ── */
+.sc-growth-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 6px 0;
+}
+.sc-growth-badge {
+  flex-shrink: 0;
+  font-size: .65rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 20px;
+  background: rgba(0,200,150,.12);
+  color: #00c896;
+  border: 1px solid rgba(0,200,150,.25);
+  letter-spacing: .03em;
+}
+.sc-growth-text {
+  flex: 1;
+  font-size: .78rem;
+  color: rgba(255,255,255,.82);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 500;
+}
+/* Shared base — no glass, solid fills defined per-button below */
+.sc-growth-btn {
+  flex-shrink: 0;
+  border: none;
+  border-radius: 6px;
+  font-size: .71rem;
+  font-weight: 600;
+  padding: 4px 11px;
+  cursor: pointer;
+  transition: background .13s, opacity .13s;
+  font-family: inherit;
+  line-height: 1.4;
+}
+/* Details button — teal solid */
+#scGrowthDet {
+  background: rgba(0,200,150,.22);
+  color: #00e0aa;
+}
+#scGrowthDet:hover    { background: rgba(0,200,150,.35); }
+#scGrowthDet.is-open  { background: rgba(0,200,150,.32); outline: 1px solid rgba(0,200,150,.45); }
+/* Cycle button — neutral solid */
+#scGrowthNext {
+  background: rgba(255,255,255,.14);
+  color: rgba(255,255,255,.88);
+  padding: 4px 9px;
+  font-size: .84rem;
+}
+#scGrowthNext:hover { background: rgba(255,255,255,.24); }
+/* Dismiss button — red solid */
+.sc-growth-dismiss,
+#scGrowthHide {
+  background: rgba(248,113,113,.2);
+  color: #f87171;
+  padding: 4px 8px;
+  font-size: .8rem;
+}
+#scGrowthHide:hover { background: rgba(248,113,113,.32); }
+.sc-growth-panel {
+  border-top: 1px solid rgba(255,255,255,.06);
+  padding: 10px 0 6px;
+}
+.sc-growth-reason {
+  font-size: .74rem;
+  color: rgba(255,255,255,.55);
+  margin-bottom: 6px;
+  line-height: 1.55;
+}
+.sc-growth-benefit {
+  font-size: .76rem;
+  color: rgba(0,200,150,.85);
+  font-weight: 600;
+  margin-bottom: 10px;
+  line-height: 1.4;
+}
+.sc-growth-action {
+  font-size: .74rem;
+  padding: 5px 16px;
+  border-radius: 8px;
+  background: transparent;
+  border: 1px solid rgba(0,200,150,.4);
+  color: #00c896;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background .15s;
+}
+.sc-growth-action:hover {
+  background: rgba(0,200,150,.1);
+}
+@media (max-width: 480px) {
+  .sc-growth-text { font-size: .72rem; }
+  .sc-growth-btn  { font-size: .68rem; padding: 2px 8px; }
+}
+
+/* Growth suggestion text — shows pointer to hint it's interactive */
+#scGrowthText {
+  cursor: pointer;
+}
+#scGrowthText:hover {
+  color: #fff;
+  text-decoration: underline dotted rgba(255,255,255,.35);
+  text-underline-offset: 3px;
+}
+
+/* Toast: brief message shown on suggestion-text click, auto-dismisses */
+.sc-growth-toast {
+  padding: 9px 12px;
+  font-size: .73rem;
+  line-height: 1.6;
+  color: rgba(255,255,255,.72);
+  background: rgba(0,200,150,.07);
+  border-top: 1px solid rgba(0,200,150,.15);
+  border-radius: 0 0 10px 10px;
+  animation: sc-toast-in .18s ease;
+}
+@keyframes sc-toast-in {
+  from { opacity: 0; transform: translateY(-3px); }
+  to   { opacity: 1; transform: translateY(0);    }
 }
