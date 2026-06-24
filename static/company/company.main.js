@@ -140,7 +140,6 @@
     TW.fillSelect(document.getElementById('e-size'), TW.COMPANY_SIZES, '— اختر —');
   }
 
-  // ── Branches (UI-only — no DB save until company_branches table is added) ──
   function _makeMf(labelText, child, extraClass) {
     var mf = document.createElement('div');
     mf.className = 'mf' + (extraClass ? ' ' + extraClass : '');
@@ -151,12 +150,14 @@
     return mf;
   }
 
-  function _addBranchRow() {
+  // ── Branches ─────────────────────────────────────────────────
+  function _addBranchRow(data) {
+    data = data || {};
     var list = document.getElementById('branchesList');
     if (!list) return;
 
-    var idx   = list.children.length + 1;
-    var row   = document.createElement('div');
+    var idx = list.children.length + 1;
+    var row = document.createElement('div');
     row.className = 'branch-row';
 
     // Header
@@ -174,35 +175,49 @@
     hdr.appendChild(num);
     hdr.appendChild(del);
 
+    // Branch name — full-width above grid, class b-name for DOM query
+    var inpName = document.createElement('input');
+    inpName.type        = 'text';
+    inpName.className   = 'b-name';
+    inpName.placeholder = 'اسم الفرع (اختياري)';
+    inpName.value       = data.branch_name || '';
+
     // Fields grid
     var fields = document.createElement('div');
     fields.className = 'branch-fields';
 
-    // Country select — filled from TW.COUNTRIES
+    // Country select, class b-country for DOM query
     var selCountry = document.createElement('select');
-    selCountry.className = 'ep-select';
-    selCountry.innerHTML = '<option value="">— الدولة —</option>';
+    selCountry.className = 'ep-select b-country';
     TW.fillCountries(selCountry, '— الدولة —');
+    if (data.country) selCountry.value = data.country;
 
-    // City select — filled on country change via TW.fillCities
+    // City select, class b-city; pre-filled when country is known
     var selCity = document.createElement('select');
-    selCity.className = 'ep-select';
-    selCity.innerHTML = '<option value="">— المدينة —</option>';
+    selCity.className = 'ep-select b-city';
+    if (data.country) {
+      TW.fillCities(selCity, data.country, data.city || '');
+    } else {
+      selCity.innerHTML = '<option value="">— المدينة —</option>';
+    }
     selCountry.addEventListener('change', function () {
       TW.fillCities(selCity, this.value, '');
       if (window.scSelectInit) scSelectInit();
     });
 
-    // District input (no official source — input temporary)
+    // District input, class b-district
     var inpDistrict = document.createElement('input');
     inpDistrict.type        = 'text';
+    inpDistrict.className   = 'b-district';
     inpDistrict.placeholder = 'مثال: حي العليا، شارع...';
+    inpDistrict.value       = data.district || '';
 
-    fields.appendChild(_makeMf('الدولة',                   selCountry));
-    fields.appendChild(_makeMf('المحافظة / المدينة',       selCity));
-    fields.appendChild(_makeMf('المنطقة / الحي (اختياري)', inpDistrict));
+    fields.appendChild(_makeMf('الدولة *',                  selCountry));
+    fields.appendChild(_makeMf('المحافظة / المدينة',        selCity));
+    fields.appendChild(_makeMf('المنطقة / الحي (اختياري)',  inpDistrict));
 
     row.appendChild(hdr);
+    row.appendChild(_makeMf('اسم الفرع (اختياري)', inpName, 'branch-name-field'));
     row.appendChild(fields);
     list.appendChild(row);
     if (window.scSelectInit) scSelectInit();
@@ -236,9 +251,20 @@
     setVal('e-country', savedCountry);
     _coLoadCities(savedCountry, p.city || '');
 
-    // Clear branches list (UI-only state, no persistence)
+    // Load branches from DB — clear list first, then populate from API
     var bList = document.getElementById('branchesList');
-    if (bList) bList.innerHTML = '';
+    if (bList) {
+      bList.innerHTML = '';
+      var bCoId = (companyState.profile || {}).id;
+      if (bCoId) {
+        fetch('/company/branches/' + bCoId)
+          .then(function (r) { return r.json(); })
+          .then(function (d) {
+            (d.branches || []).forEach(function (b) { _addBranchRow(b); });
+          })
+          .catch(function () {});
+      }
+    }
 
     var ov = document.getElementById('editOverlay');
     if (ov) ov.classList.add('show');
@@ -292,7 +318,25 @@
       body: JSON.stringify(coPayload),
     }).then(_parseOk);
 
-    Promise.all([p1, p2])
+    // ── 3. Update branches (snapshot replace) ─────────────────────
+    var branchRows  = document.querySelectorAll('#branchesList .branch-row');
+    var branchesArr = [];
+    [].forEach.call(branchRows, function (row) {
+      var country = ((row.querySelector('.b-country') || {}).value || '').trim();
+      if (!country) return;
+      branchesArr.push({
+        branch_name: ((row.querySelector('.b-name')     || {}).value || '').trim(),
+        country:     country,
+        city:        ((row.querySelector('.b-city')     || {}).value || '').trim(),
+        district:    ((row.querySelector('.b-district') || {}).value || '').trim(),
+      });
+    });
+    var p3 = fetch('/company/branches/' + coId, {
+      method: 'PUT', headers: hdrs,
+      body: JSON.stringify({ branches: branchesArr }),
+    }).then(_parseOk);
+
+    Promise.all([p1, p2, p3])
       .then(function () {
         if (window.showToast) showToast('تم الحفظ ✓');
         if (window.loadData) loadData();
@@ -458,7 +502,7 @@
 
     // Add branch row
     var addBranchBtn = q('addBranchBtn');
-    if (addBranchBtn) addBranchBtn.addEventListener('click', function () { _addBranchRow(''); });
+    if (addBranchBtn) addBranchBtn.addEventListener('click', function () { _addBranchRow({}); });
 
     // Contact modal
     var contactOverlay   = q('contactOverlay');   if (contactOverlay)   contactOverlay.addEventListener('click', closeContact);

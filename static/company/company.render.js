@@ -252,11 +252,53 @@
     list.innerHTML = posts.map(_postCardHtml).join('');
   }
 
+  // ── Branches (public display) ─────────────────────────────────
+  function renderBranches(branches) {
+    var row  = document.getElementById('coBranchesRow');
+    var list = document.getElementById('coBranchesText');
+    if (!row || !list) return;
+
+    if (!branches || !branches.length) {
+      row.style.display = 'none';
+      list.innerHTML    = '';
+      return;
+    }
+
+    var MAX   = 3;
+    var shown = branches.slice(0, MAX);
+    var rest  = branches.length - MAX;
+
+    list.innerHTML = '';
+    shown.forEach(function (b, i) {
+      if (i > 0) {
+        var sep = document.createElement('span');
+        sep.className   = 'co-branch-sep';
+        sep.textContent = '|';
+        list.appendChild(sep);
+      }
+      var parts = [b.branch_name, b.country, b.city, b.district].filter(Boolean);
+      var chip  = document.createElement('span');
+      chip.className   = 'co-branch-chip';
+      chip.textContent = parts.join(' - ');
+      list.appendChild(chip);
+    });
+
+    if (rest > 0) {
+      var more = document.createElement('span');
+      more.className   = 'co-branch-more';
+      more.textContent = '+ ' + rest + ' فروع أخرى';
+      list.appendChild(more);
+    }
+
+    row.style.display = 'flex';
+  }
+
   // ── Orchestrator ──────────────────────────────────────────────
   function renderAll() {
     renderProfile();
     renderStats();
     renderJobs();
+    renderBranches(window.companyState ? (companyState.branches || []) : []);
     if (window.renderFollowBtn) renderFollowBtn();
     if (window.renderRating)    renderRating();
     if (window.lucide) lucide.createIcons();
@@ -276,5 +318,6 @@
   window.renderRating    = renderRating;
   window._postCardHtml   = _postCardHtml;
   window.renderPosts     = renderPosts;
+  window.renderBranches  = renderBranches;
   window.renderAll       = renderAll;
 }());
