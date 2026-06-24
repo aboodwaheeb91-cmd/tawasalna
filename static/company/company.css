@@ -524,9 +524,8 @@ i.ico-sm { width:14px; height:14px; stroke:currentColor; fill:none; stroke-width
 }
 .branch-row-num { font-size:.68rem; color:var(--t3); font-weight:700; }
 .branch-fields {
-  display:grid; grid-template-columns:1fr 1fr; gap:10px;
+  display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px;
 }
-.branch-field-full { grid-column:1 / -1; }
 .branch-row-del {
   background:none; border:none; color:var(--t3); cursor:pointer;
   font-size:.78rem; padding:3px 8px; border-radius:6px;
@@ -638,4 +637,7 @@ body.co-loading  .visitor-only           { display: none !important; }
   .modal { padding:20px 16px; }
   .job-card { gap:10px; padding:12px 14px; }
   .jobs-cta { padding:18px 14px; }
+  /* 3-col grids collapse to 1-col on narrow modal */
+  .mrow-3        { grid-template-columns:1fr; }
+  .branch-fields { grid-template-columns:1fr; }
 }

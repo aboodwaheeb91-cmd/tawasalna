@@ -241,9 +241,9 @@
     inpDistrict.type        = 'text';
     inpDistrict.placeholder = 'مثال: حي العليا، شارع...';
 
-    fields.appendChild(_makeMf('الدولة',                     selCountry));
-    fields.appendChild(_makeMf('المحافظة / المدينة',         selCity));
-    fields.appendChild(_makeMf('المنطقة / الحي (اختياري)',   inpDistrict, 'branch-field-full'));
+    fields.appendChild(_makeMf('الدولة',                   selCountry));
+    fields.appendChild(_makeMf('المحافظة / المدينة',       selCity));
+    fields.appendChild(_makeMf('المنطقة / الحي (اختياري)', inpDistrict));
 
     row.appendChild(hdr);
     row.appendChild(fields);
