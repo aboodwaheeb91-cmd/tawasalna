@@ -502,32 +502,36 @@ i.ico-sm { width:14px; height:14px; stroke:currentColor; fill:none; stroke-width
 .mf-section-title:first-of-type { margin-top:4px; }
 .mf-section-note { font-size:.65rem; font-weight:400; color:var(--t3); text-transform:none; letter-spacing:0; }
 
-/* ep-select — Profile V2 native select parity (no custom JS in this page) */
+/* ep-select — Profile V2 style parity (native select + CSS chevron, no custom JS) */
 .mf select.ep-select {
-  background:rgba(255,255,255,.05);
+  background:rgba(255,255,255,.05) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7686' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E") no-repeat left 12px center;
   border:1px solid rgba(255,255,255,.1);
   border-radius:10px;
   -webkit-appearance:none; appearance:none;
   cursor:pointer;
+  padding-left:36px;
 }
 .mf select.ep-select:focus { border-color:var(--ac2); }
 .mf select.ep-select option { background:#0f1420; }
 
-/* Branch rows (UI-only, no DB save until company_branches table exists) */
+/* Branch cards (UI-only — no DB save until company_branches table is added) */
 .branch-row {
-  display:flex; align-items:center; gap:8px;
   background:rgba(255,255,255,.03); border:1px solid var(--border);
-  border-radius:var(--r-sm); padding:8px 10px; margin-bottom:8px;
+  border-radius:var(--r-sm); padding:12px; margin-bottom:10px;
 }
-.branch-row input {
-  flex:1; background:none; border:none; outline:none;
-  color:var(--t); font-family:'Cairo',sans-serif; font-size:.82rem; direction:rtl;
+.branch-row-hdr {
+  display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;
+}
+.branch-row-num { font-size:.68rem; color:var(--t3); font-weight:700; }
+.branch-fields {
+  display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px;
 }
 .branch-row-del {
   background:none; border:none; color:var(--t3); cursor:pointer;
-  font-size:.85rem; padding:2px 6px; border-radius:6px; transition:all .15s; flex-shrink:0;
+  font-size:.78rem; padding:3px 8px; border-radius:6px;
+  transition:all .15s; border:1px solid rgba(255,255,255,.07);
 }
-.branch-row-del:hover { color:#f87171; background:rgba(239,68,68,.08); }
+.branch-row-del:hover { color:#f87171; background:rgba(239,68,68,.08); border-color:rgba(239,68,68,.2); }
 .mbtn-add-branch {
   width:100%; padding:8px; border:1px dashed rgba(255,255,255,.12);
   border-radius:var(--r-sm); background:none; color:var(--t2);
@@ -546,6 +550,8 @@ i.ico-sm { width:14px; height:14px; stroke:currentColor; fill:none; stroke-width
 .mbtn-no { background:rgba(255,255,255,.06); color:rgba(255,255,255,.5); }
 .mbtn-no:hover { background:rgba(255,255,255,.1); }
 .modal-lg { max-width:520px; }
+/* edit modal scroll: taller content after form sections */
+.modal-edit { max-height:92vh; }
 .modal-hint-text { font-size:.8rem; color:var(--t2); margin-bottom:16px; }
 #msg-subject { margin-bottom:8px; }
 #msg-body    { min-height:100px; }
@@ -631,4 +637,7 @@ body.co-loading  .visitor-only           { display: none !important; }
   .modal { padding:20px 16px; }
   .job-card { gap:10px; padding:12px 14px; }
   .jobs-cta { padding:18px 14px; }
+  /* 3-col grids collapse to 1-col on narrow modal */
+  .mrow-3        { grid-template-columns:1fr; }
+  .branch-fields { grid-template-columns:1fr; }
 }

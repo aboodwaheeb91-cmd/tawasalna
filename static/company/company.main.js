@@ -147,8 +147,8 @@
     'السودان':  ['الخرطوم','أم درمان','بورتسودان','كسلا','الأبيض']
   };
 
-  function _coPopulateCountries() {
-    var sel = document.getElementById('e-country');
+  // ── Country/city helpers (shared between main form and branch rows) ────────
+  function _fillCountrySel(sel) {
     if (!sel || sel.options.length > 1) return;
     _CO_COUNTRIES.forEach(function (c) {
       var opt = document.createElement('option');
@@ -157,12 +157,10 @@
     });
   }
 
-  function _coLoadCities(country, selectedCity) {
-    var sel = document.getElementById('e-city-sel');
+  function _fillCitySel(sel, country, selectedCity) {
     if (!sel) return;
     sel.innerHTML = '<option value="">— اختر المدينة —</option>';
-    var cities = _CO_CITIES[country] || [];
-    cities.forEach(function (c) {
+    (_CO_CITIES[country] || []).forEach(function (c) {
       var opt = document.createElement('option');
       opt.value = c; opt.textContent = c;
       if (c === selectedCity) opt.selected = true;
@@ -170,23 +168,85 @@
     });
   }
 
+  function _coPopulateCountries() { _fillCountrySel(document.getElementById('e-country')); }
+
+  function _coLoadCities(country, selectedCity) {
+    _fillCitySel(document.getElementById('e-city-sel'), country, selectedCity);
+  }
+
+  // ── Founded year dropdown ──────────────────────────────────────
+  function _populateFoundedYears() {
+    var sel = document.getElementById('e-founded');
+    if (!sel || sel.options.length > 1) return;
+    var curYear = new Date().getFullYear();
+    for (var y = curYear; y >= 1900; y--) {
+      var opt = document.createElement('option');
+      opt.value = String(y); opt.textContent = String(y);
+      sel.appendChild(opt);
+    }
+  }
+
   // ── Branches (UI-only — no DB save until company_branches table is added) ──
-  function _addBranchRow(nameVal) {
+  function _makeMf(labelText, child, extraClass) {
+    var mf = document.createElement('div');
+    mf.className = 'mf' + (extraClass ? ' ' + extraClass : '');
+    var lbl = document.createElement('label');
+    lbl.textContent = labelText;
+    mf.appendChild(lbl);
+    mf.appendChild(child);
+    return mf;
+  }
+
+  function _addBranchRow() {
     var list = document.getElementById('branchesList');
     if (!list) return;
-    var row = document.createElement('div');
+
+    var idx   = list.children.length + 1;
+    var row   = document.createElement('div');
     row.className = 'branch-row';
-    var inp = document.createElement('input');
-    inp.type        = 'text';
-    inp.placeholder = 'مثال: فرع الرياض — شارع العليا';
-    inp.value       = nameVal || '';
+
+    // Header
+    var hdr = document.createElement('div');
+    hdr.className = 'branch-row-hdr';
+    var num = document.createElement('span');
+    num.className   = 'branch-row-num';
+    num.textContent = 'فرع ' + idx;
     var del = document.createElement('button');
-    del.type      = 'button';
-    del.className = 'branch-row-del';
-    del.textContent = '✕';
+    del.type        = 'button';
+    del.className   = 'branch-row-del';
+    del.textContent = '✕ حذف';
+    del.setAttribute('aria-label', 'حذف الفرع');
     del.addEventListener('click', function () { list.removeChild(row); });
-    row.appendChild(inp);
-    row.appendChild(del);
+    hdr.appendChild(num);
+    hdr.appendChild(del);
+
+    // Fields grid
+    var fields = document.createElement('div');
+    fields.className = 'branch-fields';
+
+    // Country select
+    var selCountry = document.createElement('select');
+    selCountry.className = 'ep-select';
+    selCountry.innerHTML = '<option value="">— الدولة —</option>';
+    _fillCountrySel(selCountry);
+
+    // City select (loaded on country change)
+    var selCity = document.createElement('select');
+    selCity.className = 'ep-select';
+    selCity.innerHTML = '<option value="">— المدينة —</option>';
+    selCountry.addEventListener('change', function () { _fillCitySel(selCity, this.value, ''); });
+
+    // District input (no official source — input temporary)
+    var inpDistrict = document.createElement('input');
+    inpDistrict.type        = 'text';
+    inpDistrict.placeholder = 'مثال: حي العليا، شارع...';
+
+    fields.appendChild(_makeMf('الدولة',                   selCountry));
+    fields.appendChild(_makeMf('المحافظة / المدينة',       selCity));
+    fields.appendChild(_makeMf('المنطقة / الحي (اختياري)', inpDistrict));
+
+    row.appendChild(hdr);
+    row.appendChild(fields);
     list.appendChild(row);
   }
 
@@ -198,13 +258,15 @@
     var setVal = function (id, v) {
       var el = document.getElementById(id); if (el) el.value = v || '';
     };
-    setVal('e-name',    p.full_name);
-    setVal('e-desc',    p.bio);
-    setVal('e-type',    c.industry || c.company_type || '');
-    setVal('e-size',    c.company_size || '');
-    setVal('e-founded', c.founded_year || '');
-    setVal('e-hq',      c.headquarters || '');
+    setVal('e-name',     p.full_name);
+    setVal('e-desc',     p.bio);
+    setVal('e-type',     c.industry || c.company_type || '');
+    setVal('e-size',     c.company_size || '');
     setVal('e-district', p.location || '');
+
+    // Founded year dropdown
+    _populateFoundedYears();
+    setVal('e-founded', c.founded_year ? String(c.founded_year) : '');
 
     // Country & city dropdowns
     _coPopulateCountries();
@@ -259,7 +321,6 @@
     var coPayload  = { industry: coType, company_type: coType };
     if (!isNaN(founderVal) && founderVal > 1800) coPayload.founded_year = founderVal;
     if (val('e-size')) coPayload.company_size = val('e-size');
-    if (val('e-hq'))   coPayload.headquarters = val('e-hq');
 
     var p2 = fetch('/company/profile/' + coId, {
       method: 'PUT', headers: hdrs,
