@@ -1397,24 +1397,43 @@ def get_full_profile_by_tw_id(tw_id: str) -> Optional[dict]:
 
 # ══ الوظائف ══
 
+def _migrate_jobs_v2():
+    """Add category, work_mode, salary_hidden columns to jobs table (idempotent)."""
+    conn = get_conn()
+    try:
+        conn.run("ALTER TABLE jobs ADD COLUMN IF NOT EXISTS category VARCHAR(100)")
+        conn.run("ALTER TABLE jobs ADD COLUMN IF NOT EXISTS work_mode VARCHAR(50)")
+        conn.run("ALTER TABLE jobs ADD COLUMN IF NOT EXISTS salary_hidden BOOLEAN DEFAULT FALSE")
+    finally:
+        release_conn(conn)
+
+
 def add_job(company_id: int, data: dict) -> dict:
     _cache_del('jobs:')
     conn = get_conn()
     try:
-        skills = data.get("skills") or []
+        skills      = data.get("skills") or []
+        sal_hidden  = bool(data.get("salary_hidden", False))
         rows = conn.run(
             "INSERT INTO jobs (company_id, title, description, location, job_type, "
-            "salary_min, salary_max, currency, experience_years, skills, status) "
-            "VALUES (:cid, :title, :desc, :loc, :jtype, :smin, :smax, :cur, :exp, :skills, 'active') "
+            "salary_min, salary_max, currency, experience_years, skills, status, "
+            "category, work_mode, salary_hidden) "
+            "VALUES (:cid, :title, :desc, :loc, :jtype, :smin, :smax, :cur, :exp, "
+            ":skills, 'active', :cat, :wmode, :shide) "
             "RETURNING id, company_id, title, description, location, job_type, "
-            "salary_min, salary_max, currency, experience_years, skills, status, created_at",
+            "salary_min, salary_max, currency, experience_years, skills, status, created_at, "
+            "category, work_mode, salary_hidden",
             cid=company_id, title=data.get("title",""),
             desc=data.get("description",""), loc=data.get("location",""),
-            jtype=data.get("job_type","full_time"),
-            smin=data.get("salary_min"), smax=data.get("salary_max"),
+            jtype=data.get("job_type","دوام كامل"),
+            smin=None if sal_hidden else data.get("salary_min"),
+            smax=None if sal_hidden else data.get("salary_max"),
             cur=data.get("currency","USD"),
             exp=data.get("experience_years",0),
-            skills=skills if skills else None
+            skills=skills if skills else None,
+            cat=data.get("category"),
+            wmode=data.get("work_mode","في الموقع"),
+            shide=sal_hidden,
         )
         cols = [c["name"] for c in conn.columns]
         return _serialize(_row_to_dict(cols, rows[0]))

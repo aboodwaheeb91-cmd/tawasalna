@@ -77,6 +77,7 @@ from auth import (
     get_company_profile_row, get_company_extras,
     update_company_profile,
     _migrate_company_branches, get_company_branches, save_company_branches,
+    _migrate_jobs_v2,
     follow_company, unfollow_company, rate_company,
     get_company_posts, create_company_post, get_post_owner, delete_company_post,
     follow_profile, unfollow_profile, get_profile_followers_count, is_profile_following,
@@ -367,6 +368,11 @@ async def on_startup():
         print("✅ company_branches table ready")
     except Exception as e:
         print(f"⚠️ company_branches migration failed: {e}")
+    try:
+        _migrate_jobs_v2()
+        print("✅ jobs v2 columns ready")
+    except Exception as e:
+        print(f"⚠️ jobs v2 migration failed: {e}")
     await _init_asyncpg_pool()
 
 # ── Helpers ──
@@ -991,12 +997,15 @@ class JobInput(BaseModel):
     title: str
     description: Optional[str] = None
     location: Optional[str] = None
-    job_type: Optional[str] = "full_time"
+    job_type: Optional[str] = "دوام كامل"
     salary_min: Optional[int] = None
     salary_max: Optional[int] = None
     currency: Optional[str] = "USD"
     experience_years: Optional[int] = 0
     skills: Optional[List[str]] = None
+    category: Optional[str] = None
+    work_mode: Optional[str] = "في الموقع"
+    salary_hidden: Optional[bool] = False
 
 class JobApplyInput(BaseModel):
     user_id: int
