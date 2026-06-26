@@ -10,9 +10,15 @@
   var _postsLoaded    = false;
 
   // Main profile load — AbortController + JWT
-  function loadData() {
-    if (_loadController) _loadController.abort();
-    _loadController = new AbortController();
+  // opts.silent = true → state sync only, no renderAll / bindEvents / loadJobs / loadBranches
+  function loadData(opts) {
+    opts = opts || {};
+    var silent = !!opts.silent;
+
+    if (!silent) {
+      if (_loadController) _loadController.abort();
+      _loadController = new AbortController();
+    }
 
     var urlParams = new URLSearchParams(window.location.search);
     var coId      = urlParams.get('id');
@@ -28,49 +34,55 @@
         coId = String(_u.id);
       } else {
         // No usable id — redirect rather than show placeholder
-        if (window._applyLoadingState) window._applyLoadingState(false);
-        window.location.href = (_u && _u.id) ? '/home' : '/login';
+        if (!silent && window._applyLoadingState) window._applyLoadingState(false);
+        if (!silent) window.location.href = (_u && _u.id) ? '/home' : '/login';
         return;
       }
     }
 
-    fetch('/company/profile/' + coId, {
-      headers: headers,
-      signal:  _loadController.signal,
-    })
+    var fetchOpts = { headers: headers };
+    if (!silent && _loadController) fetchOpts.signal = _loadController.signal;
+
+    fetch('/company/profile/' + coId, fetchOpts)
     .then(function (r) { return r.json(); })
     .then(function (data) {
       if (window._mergeCompanyState) window._mergeCompanyState(data);
-      if (window._applyViewMode)     window._applyViewMode();
-      if (window.renderAll)          window.renderAll();
-      if (window.bindEvents)         window.bindEvents();
-      if (window.loadJobs)           window.loadJobs();
-      if (window.loadBranches)       window.loadBranches();
+      if (!silent) {
+        if (window._applyViewMode)     window._applyViewMode();
+        if (window.renderAll)          window.renderAll();
+        if (window.bindEvents)         window.bindEvents();
+        if (window.loadJobs)           window.loadJobs();
+        if (window.loadBranches)       window.loadBranches();
+      }
     })
     .catch(function (err) {
-      if (err.name === 'AbortError') return;
-      console.error('[Company] loadData error:', err);
+      if (!silent) {
+        if (err.name === 'AbortError') return;
+        console.error('[Company] loadData error:', err);
+      }
     })
     .finally(function () {
-      if (window._applyLoadingState) window._applyLoadingState(false);
-      _loadController = null;
-      // ── Owner-button diagnostic — answers: is body.view-owner set?
-      //    co-loading removed? buttons in DOM? display computed correctly?
-      (function () {
-        var s = window.companyState;
-        if (!s) return;
-        var coverBtn = document.getElementById('coverUploadBtn');
-        var logoBtn  = document.getElementById('coLogoCamBtn');
-        var gc = function (el) { return el ? getComputedStyle(el).display : 'MISSING'; };
-        console.info(
-          '[Company:owner-diag]',
-          'viewMode='    + s.viewMode,
-          '| body=['     + Array.prototype.slice.call(document.body.classList).join(' ') + ']',
-          '| can_edit='  + !!(s.permissions && s.permissions.can_edit),
-          '| coverBtn='  + gc(coverBtn),
-          '| logoCamBtn='+ gc(logoBtn)
-        );
-      }());
+      if (!silent) {
+        if (window._applyLoadingState) window._applyLoadingState(false);
+        _loadController = null;
+        // ── Owner-button diagnostic — answers: is body.view-owner set?
+        //    co-loading removed? buttons in DOM? display computed correctly?
+        (function () {
+          var s = window.companyState;
+          if (!s) return;
+          var coverBtn = document.getElementById('coverUploadBtn');
+          var logoBtn  = document.getElementById('coLogoCamBtn');
+          var gc = function (el) { return el ? getComputedStyle(el).display : 'MISSING'; };
+          console.info(
+            '[Company:owner-diag]',
+            'viewMode='    + s.viewMode,
+            '| body=['     + Array.prototype.slice.call(document.body.classList).join(' ') + ']',
+            '| can_edit='  + !!(s.permissions && s.permissions.can_edit),
+            '| coverBtn='  + gc(coverBtn),
+            '| logoCamBtn='+ gc(logoBtn)
+          );
+        }());
+      }
     });
   }
 

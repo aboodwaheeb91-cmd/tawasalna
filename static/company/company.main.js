@@ -325,6 +325,32 @@
     return r.json();
   }
 
+  // ── Confirmed Immediate Update helper ─────────────────────────
+  // Called only after all 3 PUTs succeed. Updates companyState + partial DOM.
+  // Does NOT call renderAll() — calls renderProfile() + renderBranches() only.
+  function _applyCompanyLocalUpdate(profilePayload, companyPayload, branchesArr) {
+    if (!window.companyState) return;
+    var p = companyState.profile  = companyState.profile  || {};
+    var c = companyState.company  = companyState.company  || {};
+    // Profile fields
+    if (profilePayload.full_name !== undefined) p.full_name = profilePayload.full_name;
+    if (profilePayload.bio       !== undefined) p.bio       = profilePayload.bio;
+    if (profilePayload.country   !== undefined) p.country   = profilePayload.country;
+    if (profilePayload.city      !== undefined) p.city      = profilePayload.city;
+    if (profilePayload.location  !== undefined) p.location  = profilePayload.location;
+    // Company fields
+    if (companyPayload.industry      !== undefined) c.industry      = companyPayload.industry;
+    if (companyPayload.company_type  !== undefined) c.company_type  = companyPayload.company_type;
+    if (companyPayload.founded_year  !== undefined) c.founded_year  = companyPayload.founded_year;
+    if (companyPayload.company_size  !== undefined) c.company_size  = companyPayload.company_size;
+    // Branches
+    companyState.branches = branchesArr;
+    // Partial re-render — profile header + branches only
+    if (window.renderProfile)  renderProfile();
+    if (window.renderBranches) renderBranches(companyState.branches);
+    if (window.lucide)         lucide.createIcons();
+  }
+
   function saveEdit() {
     if (!window.companyState || !companyState.permissions.can_edit) return;
     if (!_branchesLoaded) {
@@ -336,36 +362,31 @@
     if (!name) { if (window.showToast) showToast('أدخل اسم الشركة', 'error'); return; }
     var coType = val('e-type');
     if (!coType) { if (window.showToast) showToast('يجب تحديد تصنيف الجهة', 'error'); return; }
+
+    // Prevent double submit
+    var saveBtn = document.getElementById('editSaveBtn');
+    if (saveBtn && saveBtn.disabled) return;
+    if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'جاري الحفظ…'; }
+
     var coId = (companyState.profile || {}).id;
     var jwt  = _jwt();
     var hdrs = { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + jwt };
-    var ov   = document.getElementById('editOverlay');
-    if (ov) ov.classList.remove('show');
 
-    // ── 1. Update base profile (profiles table) ──────────────────
-    var p1 = fetch('/profile/' + coId, {
-      method: 'PUT', headers: hdrs,
-      body: JSON.stringify({
-        full_name: name,
-        bio:       val('e-desc'),
-        country:   val('e-country'),
-        city:      val('e-city-sel'),
-        location:  val('e-district'),
-      }),
-    }).then(_parseOk);
+    // Capture payloads before modal closes (modal stays open during save)
+    var profilePayload = {
+      full_name: name,
+      bio:       val('e-desc'),
+      country:   val('e-country'),
+      city:      val('e-city-sel'),
+      location:  val('e-district'),
+    };
 
-    // ── 2. Update company_profiles table ─────────────────────────
     var founderVal = parseInt(val('e-founded'), 10);
     var coPayload  = { industry: coType, company_type: coType };
     if (!isNaN(founderVal) && founderVal > 1800) coPayload.founded_year = founderVal;
     if (val('e-size')) coPayload.company_size = val('e-size');
 
-    var p2 = fetch('/company/profile/' + coId, {
-      method: 'PUT', headers: hdrs,
-      body: JSON.stringify(coPayload),
-    }).then(_parseOk);
-
-    // ── 3. Update branches (snapshot replace) ─────────────────────
+    // ── 3. Collect branches from modal DOM ────────────────────────
     var branchRows  = document.querySelectorAll('#branchesList .branch-row');
     var branchesArr = [];
     [].forEach.call(branchRows, function (row) {
@@ -378,6 +399,20 @@
         district:    ((row.querySelector('.b-district') || {}).value || '').trim(),
       });
     });
+
+    // ── 1. Update base profile (profiles table) ───────────────────
+    var p1 = fetch('/profile/' + coId, {
+      method: 'PUT', headers: hdrs,
+      body: JSON.stringify(profilePayload),
+    }).then(_parseOk);
+
+    // ── 2. Update company_profiles table ──────────────────────────
+    var p2 = fetch('/company/profile/' + coId, {
+      method: 'PUT', headers: hdrs,
+      body: JSON.stringify(coPayload),
+    }).then(_parseOk);
+
+    // ── 3. Update branches (snapshot replace) ─────────────────────
     var p3 = fetch('/company/branches/' + coId, {
       method: 'PUT', headers: hdrs,
       body: JSON.stringify({ branches: branchesArr }),
@@ -385,10 +420,18 @@
 
     Promise.all([p1, p2, p3])
       .then(function () {
+        // Close modal only after API confirms success
+        var ov = document.getElementById('editOverlay');
+        if (ov) ov.classList.remove('show');
         if (window.showToast) showToast('تم الحفظ ✓');
-        if (window.loadData) loadData();
+        // Immediate DOM update from captured payloads — no full reload wait
+        _applyCompanyLocalUpdate(profilePayload, coPayload, branchesArr);
+        // Background state sync — silent, no renderAll
+        if (window.loadData) loadData({ silent: true });
       })
       .catch(function (err) {
+        // Keep modal open — user can correct and retry
+        if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'حفظ'; }
         if (window.showToast) showToast((err && err.message) || 'خطأ في الحفظ', 'error');
       });
   }
@@ -483,23 +526,24 @@
   }
 
   // ── Expose ─────────────────────────────────────────────────────
-  window.switchTab         = switchTab;
-  window.doLogout          = doLogout;
-  window.toggleMenu        = toggleMenu;
-  window.toggleFollow      = toggleFollow;
-  window.openContact       = openContact;
-  window.closeContact      = closeContact;
-  window.sendMsg           = sendMsg;
-  window.openEditModal     = openEditModal;
-  window.closeEdit         = closeEdit;
-  window.saveEdit          = saveEdit;
-  window.setCover          = setCover;
-  window.uploadCover       = uploadCover;
-  window.uploadLogo        = uploadLogo;
-  window.openReportModal    = openReportModal;
-  window.closeReportModal   = closeReportModal;
-  window.submitReport       = submitReport;
-  window.initCompanyProfile = initCompanyProfile;
+  window.switchTab                = switchTab;
+  window.doLogout                 = doLogout;
+  window.toggleMenu               = toggleMenu;
+  window.toggleFollow             = toggleFollow;
+  window.openContact              = openContact;
+  window.closeContact             = closeContact;
+  window.sendMsg                  = sendMsg;
+  window.openEditModal            = openEditModal;
+  window.closeEdit                = closeEdit;
+  window.saveEdit                 = saveEdit;
+  window._applyCompanyLocalUpdate = _applyCompanyLocalUpdate;
+  window.setCover                 = setCover;
+  window.uploadCover              = uploadCover;
+  window.uploadLogo               = uploadLogo;
+  window.openReportModal          = openReportModal;
+  window.closeReportModal         = closeReportModal;
+  window.submitReport             = submitReport;
+  window.initCompanyProfile       = initCompanyProfile;
 
   // Expose _branchesLoaded read/write for testability and cross-module access
   Object.defineProperty(window, '_branchesLoaded', {

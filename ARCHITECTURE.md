@@ -7299,3 +7299,94 @@ tw-select.js          ← scSelectInit + scSelectClose
 
 > أي شيء ممكن يتكرر في صفحتين أو أكثر = shared module.
 > لا حلول خاصة بصفحة واحدة لمشاكل مشتركة.
+
+---
+
+# G — CONFIRMED IMMEDIATE UPDATE PATTERN
+
+> **P1 — نمط الحفظ الآمن لـ Company Profile (وأي نموذج مهم مستقبلاً).**
+
+---
+
+## [P1] 38. Confirmed Immediate Update Pattern
+
+### المبدأ
+
+```
+انتظر تأكيد API أولاً → أغلق المودال → حدّث state + DOM محلياً → background sync صامت
+```
+
+### الفرق بينه وبين Optimistic UI
+
+| | Optimistic UI | Confirmed Immediate Update |
+|--|--|--|
+| توقيت تحديث الـ DOM | قبل نجاح API | بعد نجاح API |
+| إذا فشل API | rollback مرئي | لا rollback — المودال ظل مفتوحاً |
+| خطر إيهام المستخدم | نعم — إذا فشل API يرى بيانات خاطئة لحظياً | لا — لا شيء يُحدَّث حتى يأتي التأكيد |
+| مناسب لـ | عمليات بسيطة سريعة (like, follow) | نماذج مهمة (profile، company data) |
+
+### التدفق الكامل
+
+```
+1. المستخدم يضغط "حفظ"
+   ↓
+2. validation + disable زر الحفظ + نص "جاري الحفظ…"
+   ↓
+3. Promise.all([PUT profile, PUT company, PUT branches])
+   ↓
+   ├── فشل أي PUT:
+   │     re-enable زر الحفظ + نص "حفظ"
+   │     toast خطأ
+   │     المودال يبقى مفتوحاً (المستخدم يصحّح ويعيد)
+   │
+   └── نجاح كل PUTs:
+         إغلاق المودال
+         toast نجاح
+         _applyCompanyLocalUpdate(profilePayload, companyPayload, branchesArr)
+           ├── تحديث companyState.profile
+           ├── تحديث companyState.company
+           ├── تحديث companyState.branches
+           ├── renderProfile()  ← جزئي فقط
+           └── renderBranches() ← جزئي فقط
+         loadData({ silent: true }) ← background sync، لا renderAll
+```
+
+### `_applyCompanyLocalUpdate(profilePayload, companyPayload, branchesArr)`
+
+- موقعه: `static/company/company.main.js`
+- مكشوف على `window._applyCompanyLocalUpdate` للاختبار والاستخدام الخارجي
+- يحدّث فقط الحقول الواردة في الـ payloads (strict field-by-field)
+- لا يستخدم `_mergeCompanyState()` — هذه مصممة لـ API response كامل
+- يستدعي `renderProfile()` و `renderBranches()` فقط — لا `renderAll()`
+- يعيد تشغيل `lucide.createIcons()` بعد الـ render
+
+### `loadData({ silent: true })`
+
+- موقعه: `static/company/company.api.js`
+- يرسل fetch لـ `/company/profile/:id`
+- يستدعي `_mergeCompanyState(data)` للمزامنة الكاملة
+- لا يستدعي: `renderAll()`, `_applyViewMode()`, `bindEvents()`, `loadJobs()`, `loadBranches()`
+- لا يستخدم AbortController (يعمل مستقلاً في الخلفية)
+- لا يغيّر loading state (`_applyLoadingState`)
+- الهدف: مزامنة `companyState` بالبيانات الحقيقية من DB بدون إزعاج المستخدم
+
+### قواعد الاستخدام
+
+```
+✅ استخدم هذا النمط لأي نموذج تعديل مهم (بيانات قابلة للتحقق من DB)
+✅ دائماً اعمل _applyCompanyLocalUpdate أولاً ثم loadData({silent}) ثانياً
+✅ إذا فشل API → لا تغلق المودال → لا تحدث companyState
+✅ renderProfile + renderBranches بدل renderAll للسرعة
+❌ لا تستخدم Optimistic UI للبيانات الحساسة (اسم الشركة، التصنيف)
+❌ لا تغلق المودال قبل نجاح API
+❌ لا تخفي فشل الحفظ عن المستخدم
+❌ loadData({silent}) لا يعوّض عن _applyCompanyLocalUpdate — الاثنان معاً
+```
+
+### الملفات المعنية
+
+| الملف | الدور |
+|-------|-------|
+| `static/company/company.main.js` | `saveEdit()` + `_applyCompanyLocalUpdate()` |
+| `static/company/company.api.js` | `loadData(opts)` — opts.silent |
+| `static/company/company.render.js` | `renderProfile()` + `renderBranches()` (partial renders) |
