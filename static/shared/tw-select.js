@@ -68,6 +68,7 @@
     var val  = opt.value;
     var text = (opt.textContent || '').trim();
     var icon = opt.getAttribute('data-icon') || '';
+    var img  = opt.getAttribute('data-img')  || '';
     var isPlaceholder = (val === '');
     var isDis = opt.disabled || isPlaceholder;
     var isSel = (!isPlaceholder && val === native.value);
@@ -82,6 +83,17 @@
 
     if(icon){
       item.innerHTML = '<i data-lucide="' + _esc(icon) + '" class="ico-sm sc-sel-ico"></i><span>' + _esc(text) + '</span>';
+    } else if(img){
+      var imgEl = document.createElement('img');
+      imgEl.src       = img;
+      imgEl.alt       = '';
+      imgEl.className = 'tw-flag sc-sel-ico';
+      imgEl.width     = 18;
+      imgEl.height    = 18;
+      var txtSpan = document.createElement('span');
+      txtSpan.textContent = text;
+      item.appendChild(imgEl);
+      item.appendChild(txtSpan);
     } else {
       item.textContent = text;
     }
@@ -135,10 +147,22 @@
     } else {
       var text = (opt.textContent||'').trim();
       var icon = opt.getAttribute('data-icon') || '';
+      var img  = opt.getAttribute('data-img')  || '';
       txt.classList.remove('sc-sel-ph');
       if(icon){
         txt.innerHTML = '<i data-lucide="' + _esc(icon) + '" class="ico-sm sc-sel-ico" style="margin-left:5px"></i>' + _esc(text);
         if(window.lucide && lucide.createIcons) lucide.createIcons({nodes:[txt]});
+      } else if(img){
+        txt.innerHTML = '';
+        var imgEl = document.createElement('img');
+        imgEl.src       = img;
+        imgEl.alt       = '';
+        imgEl.className = 'tw-flag';
+        imgEl.style.marginLeft = '5px';
+        imgEl.width  = 18;
+        imgEl.height = 18;
+        txt.appendChild(imgEl);
+        txt.appendChild(document.createTextNode(text));
       } else {
         txt.innerHTML = _esc(text);
       }
