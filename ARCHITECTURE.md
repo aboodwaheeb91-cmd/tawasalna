@@ -4859,6 +4859,7 @@ if (window.lucide) { lucide.createIcons(); }
 | المكتبة | النسخة | المسار المحلي | الترخيص |
 |---------|--------|--------------|---------|
 | Lucide | 0.460.0 | `static/vendor/lucide/lucide.min.js` | ISC |
+| circle-flags (HatScripts) | gh-pages @ 2026-06-26 | `static/shared/flags/*.svg` (18 ملف) | MIT |
 
 ### قواعد Vendor Assets
 
@@ -7109,9 +7110,10 @@ The old CSS-only fallback (appearance:none + SVG chevron in company.css) is kept
 
 | الملف | الوظيفة |
 |-------|---------|
-| `static/shared/tw-select.js` | Custom dropdown component — يستهدف `.ep-select`، يخفي النيتف ويعرض trigger مخصص |
-| `static/shared/tw-select.css` | أنماط `.sc-sel-*` — trigger, dropdown portal, items, groups |
-| `static/shared/tw-options-data.js` | بيانات ثابتة: `TW.COUNTRIES`, `TW.CITIES`, `TW.COMPANY_TYPES`, `TW.COMPANY_SIZES` + helpers |
+| `static/shared/tw-select.js` | Custom dropdown — يستهدف `.ep-select`؛ يدعم `data-icon` (Lucide) و `data-img` (صورة/علم) |
+| `static/shared/tw-select.css` | أنماط `.sc-sel-*` + `.tw-flag` (علم دائري) |
+| `static/shared/tw-options-data.js` | Single source of truth: `TW.COUNTRY_MAP`, helpers, بيانات الدول والمدن |
+| `static/shared/flags/*.svg` | 18 علم دائري (HatScripts/circle-flags — MIT) — الأردن، السعودية، الإمارات... |
 
 ---
 
@@ -7119,35 +7121,70 @@ The old CSS-only fallback (appearance:none + SVG chevron in company.css) is kept
 
 ```javascript
 // tw-options-data.js — window.TW namespace
-TW.COUNTRIES              // string[] — أسماء عربية كـ values
-TW.CITIES                 // {[country: string]: string[]} — مفاتيح بالاسم العربي
+
+// بيانات الدول والمدن
+TW.COUNTRY_MAP            // [{code, name_ar, flagPath}] — single source of truth
+TW.COUNTRIES              // string[] — أسماء عربية (مشتق من COUNTRY_MAP للتوافق العكسي)
+TW.CITIES                 // {[name_ar: string]: string[]} — مفاتيح بالاسم العربي
 TW.COMPANY_TYPES          // string[]
 TW.COMPANY_SIZES          // string[]
-TW.fillSelect(sel, items, placeholder)      // يملأ <select> من array
-TW.fillCountries(sel, placeholder)          // idempotent — لا يُعيد الملء
-TW.fillCities(sel, country, selectedCity)   // يمسح ويُعيد بناء options
+
+// helpers للدول
+TW.countryEntry(value)              // قبول ISO أو اسم عربي → {code, name_ar, flagPath} | null
+TW.countryName(value)               // → اسم عربي | value
+TW.countryCode(value)               // → ISO code | null
+TW.countryFlagEl(value, extraClass) // → <img class="tw-flag"> | null
+TW.sameCountry(a, b)                // TW.sameCountry('JO','الأردن') → true (مقارنة مختلطة)
+
+// DOM helpers
+TW.fillSelect(sel, items, placeholder)
+TW.fillCountries(sel, placeholder, opts)
+  // opts = { valueMode: 'name_ar'|'code', withFlags: boolean, force: boolean }
+  // بدون opts → valueMode:'name_ar', withFlags:false (توافق عكسي مع الشركات)
+TW.fillCities(sel, country, selectedCity)   // يقبل ISO أو اسم عربي
 TW.fillFoundedYears(sel)                    // current year → 1900، idempotent
 
-// tw-select.js — window.scSelectInit / scSelectClose
-scSelectInit()   // يُطبّق الـ custom dropdown على كل .ep-select:not([data-sc-sel])
-scSelectClose()  // يُغلق الـ dropdown المفتوح (لـ back-button handlers)
+// tw-select.js
+scSelectInit()   // يطبق custom dropdown على .ep-select:not([data-sc-sel])
+scSelectClose()  // يغلق الـ dropdown المفتوح
 ```
+
+---
+
+### عرض الأعلام (data-img)
+
+`tw-select.js` يدعم `data-img` على `<option>` لعرض صور (أعلام دائرية) في الـ trigger والـ dropdown.
+
+```js
+// TW.fillCountries مع withFlags:true تضع data-img تلقائياً
+TW.fillCountries(selEl, '— اختر —', { valueMode: 'name_ar', withFlags: true });
+// ← كل <option> يحصل على data-img="/static/shared/flags/jo.svg" ...
+
+// tw-select.js يعرض <img class="tw-flag"> بدل نص emoji
+// CSS: .tw-flag { width:18px; height:18px; border-radius:50%; object-fit:cover; }
+```
+
+قواعد الاستخدام:
+- `data-img` و `data-icon` لا يُجمعان — `data-icon` (Lucide) له الأولوية
+- `data-img` يُمنع أن يكون user input — يجب أن يكون من TW.COUNTRY_MAP.flagPath فقط
 
 ---
 
 ### قواعد بيانات الدول والمدن
 
 ```
-✅ القيم دائماً أسماء عربية: "الأردن", "عمان" (تطابق ما في DB)
-✅ CITIES مفاتيحها أسماء عربية (نفس قيمة country في DB)
-❌ ممنوع ISO codes كـ values: "JO", "SA"
-❌ ممنوع تكرار TW.COUNTRIES أو TW.CITIES داخل ملفات الصفحات
+✅ مصدر واحد: TW.COUNTRY_MAP في tw-options-data.js
+✅ CITIES مفاتيحها أسماء عربية (نفس قيمة country في DB الشركات)
+✅ TW.sameCountry() تعالج المقارنة المختلطة: 'JO' == 'الأردن' → true
+✅ TW.fillCities() تقبل ISO code أو اسم عربي
+❌ ممنوع تكرار قائمة الدول أو المدن داخل ملفات الصفحات
+❌ ممنوع hard-code أعلام داخل صفحة — يجب أن يأتي flagPath من TW.COUNTRY_MAP
 ```
 
 **استثناء موثّق — Profile V2 country field:**
-Profile V2 `epCountry` يستخدم ISO codes كـ values (JO, SA, ...) وكذلك `EP_CITIES` في `profile-v2.edit.js`.
-هذا النظام موجود في DB للموظفين قبل مشروع التوحيد ولا يتغير بدون migration صريح.
-الـ VISUAL COMPONENT (`tw-select.js`) يعمل عليه كما هو — فقط البيانات الجديدة للشركات تستخدم TW.COUNTRIES.
+`profiles.country` للموظفين يحمل ISO codes (JO, SA, ...) — عقد DB قائم لا يتغير بدون migration.
+`TW.fillCountries(el, ph, { valueMode:'code', withFlags:true })` تُولّد options بـ ISO values + أعلام.
+`TW.countryEntry(isoCode)` تبني الجسر للوصول لـ TW.CITIES عبر name_ar.
 
 ---
 

@@ -11,27 +11,8 @@
 
   if(!overlay || !editBtn) return;
 
-  // ── Cities data ──
-  var EP_CITIES = {
-    JO:['عمان','إربد','الزرقاء','العقبة','السلط','مادبا','الكرك','معان','جرش','عجلون','الطفيلة'],
-    SA:['الرياض','جدة','مكة المكرمة','المدينة المنورة','الدمام','الخبر','الطائف','أبها','تبوك','القطيف','بريدة'],
-    AE:['دبي','أبوظبي','الشارقة','عجمان','رأس الخيمة','الفجيرة','أم القيوين','العين'],
-    KW:['مدينة الكويت','حولي','الفروانية','الأحمدي','الجهراء','مبارك الكبير'],
-    QA:['الدوحة','الريان','الوكرة','أم صلال','الخور','الشمال'],
-    BH:['المنامة','المحرق','الرفاع','مدينة عيسى','مدينة حمد'],
-    OM:['مسقط','صلالة','نزوى','صحار','السيب','مطرح','البريمي'],
-    EG:['القاهرة','الإسكندرية','الجيزة','شرم الشيخ','الأقصر','أسوان','طنطا','المنصورة','الفيوم','بورسعيد'],
-    IQ:['بغداد','البصرة','الموصل','أربيل','كربلاء','النجف','السليمانية','كركوك'],
-    SY:['دمشق','حلب','حمص','اللاذقية','حماة','دير الزور','الرقة','درعا'],
-    LB:['بيروت','طرابلس','صيدا','صور','جونية','زحلة'],
-    PS:['رام الله','القدس','غزة','نابلس','الخليل','جنين','أريحا','بيت لحم'],
-    YE:['صنعاء','عدن','تعز','الحديدة','إب','ذمار','مأرب'],
-    LY:['طرابلس','بنغازي','مصراتة','الزاوية','البيضاء','سبها'],
-    TN:['تونس','صفاقس','سوسة','بنزرت','قابس','القيروان'],
-    DZ:['الجزائر','وهران','قسنطينة','عنابة','سطيف','تلمسان'],
-    MA:['الرباط','الدار البيضاء','فاس','مراكش','مكناس','أكادير','طنجة'],
-    SD:['الخرطوم','أم درمان','بورتسودان','كسلا','الأبيض']
-  };
+  // EP_CITIES removed — city data is now in TW.CITIES (tw-options-data.js).
+  // City lookup: TW.countryEntry(isoCode).name_ar → TW.CITIES[name_ar]
 
   // cached professions list — set on open, used in applyLocalUpdate
   var _profList = [];
@@ -60,15 +41,19 @@
   })();
 
   // ── City loader — global so onchange="epLoadCities()" works ──
+  // Profile V2 country select stores ISO codes (JO, SA, …); TW.CITIES is keyed by Arabic name.
+  // TW.countryEntry(isoCode) bridges the two.
   window.epLoadCities = function(selectedCity){
     var cc       = (document.getElementById('epCountry')||{}).value || '';
     var cityWrap = document.getElementById('epCityWrap');
     var cityEl   = document.getElementById('epCity');
     if(!cityEl) return;
-    var cities = EP_CITIES[cc] || [];
+    var entry  = window.TW && TW.countryEntry ? TW.countryEntry(cc) : null;
+    var cities = entry ? (TW.CITIES[entry.name_ar] || []) : [];
     if(!cities.length){
       if(cityWrap) cityWrap.style.display = 'none';
       cityEl.innerHTML = '<option value="">— اختر المدينة —</option>';
+      if(window.scSelectInit) scSelectInit();
       return;
     }
     cityEl.innerHTML = '<option value="">— اختر المدينة —</option>';
@@ -79,6 +64,7 @@
       cityEl.appendChild(o);
     });
     if(cityWrap) cityWrap.style.display = 'block';
+    if(window.scSelectInit) scSelectInit();
   };
 
   // ── Confirmed Local Update — runs immediately after PUT succeeds ──
@@ -143,7 +129,18 @@
       if(!_loc || !window._buildLocText) return;
       var _lt = window._buildLocText(_p.country || '', _p.city || '', _p.location || '');
       if(_lt){
-        _loc.innerHTML = '<i data-lucide="map-pin" class="ico-sm"></i> ' + esc(_lt);
+        _loc.innerHTML = '';
+        if(window.TW && TW.countryFlagEl && _p.country){
+          var _fl = TW.countryFlagEl(_p.country);
+          if(_fl) _loc.appendChild(_fl);
+        }
+        var _pin2 = document.createElement('i');
+        _pin2.setAttribute('data-lucide','map-pin');
+        _pin2.className = 'ico-sm';
+        _loc.appendChild(_pin2);
+        var _ltSp = document.createElement('span');
+        _ltSp.textContent = _lt;
+        _loc.appendChild(_ltSp);
         _loc.style.display = 'inline-flex';
         _loc.style.alignItems = 'center';
         _loc.style.gap = '4px';
@@ -203,8 +200,11 @@
       var dd = document.getElementById('epDobD'); if(dd) dd.value = '';
     }
 
-    // Country + City
+    // Country + City — populate with flags via TW (Profile V2 stores ISO codes)
     var countryEl = document.getElementById('epCountry');
+    if(countryEl && window.TW && TW.fillCountries){
+      TW.fillCountries(countryEl, '— اختر البلد —', { valueMode: 'code', withFlags: true, force: true });
+    }
     if(countryEl) countryEl.value = p.country || '';
     epLoadCities(p.city || '');
 
@@ -247,6 +247,7 @@
 
     if(errEl) errEl.style.display = 'none';
     overlay.classList.add('open');
+    if(window.scSelectInit) scSelectInit();
     if(window.lucide && lucide.createIcons) lucide.createIcons();
   }
 

@@ -126,7 +126,8 @@
   // _CO_COUNTRIES, _CO_CITIES, _populateFoundedYears removed — use TW helpers.
 
   function _coPopulateCountries() {
-    TW.fillCountries(document.getElementById('e-country'), '— اختر الدولة —');
+    TW.fillCountries(document.getElementById('e-country'), '— اختر الدولة —',
+      { valueMode: 'name_ar', withFlags: true });
   }
 
   function _coLoadCities(country, selectedCity) {
@@ -188,16 +189,19 @@
     fields.className = 'branch-fields';
 
     // Country select, class b-country for DOM query
+    // Default to HQ country when adding a new branch (data.country empty)
+    var _defaultCountry = data.country ||
+      (window.companyState && companyState.profile ? (companyState.profile.country || '') : '');
     var selCountry = document.createElement('select');
     selCountry.className = 'ep-select b-country';
-    TW.fillCountries(selCountry, '— الدولة —');
-    if (data.country) selCountry.value = data.country;
+    TW.fillCountries(selCountry, '— الدولة —', { valueMode: 'name_ar', withFlags: true });
+    if (_defaultCountry) selCountry.value = _defaultCountry;
 
     // City select, class b-city; pre-filled when country is known
     var selCity = document.createElement('select');
     selCity.className = 'ep-select b-city';
-    if (data.country) {
-      TW.fillCities(selCity, data.country, data.city || '');
+    if (_defaultCountry) {
+      TW.fillCities(selCity, _defaultCountry, data.city || '');
     } else {
       selCity.innerHTML = '<option value="">— المدينة —</option>';
     }
