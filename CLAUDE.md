@@ -620,3 +620,57 @@ These rules are permanent and apply to all future AI sessions:
 11. **Flag images come from `static/shared/flags/*.svg` only.** Never hard-code flag paths inside page JS. Always use `TW.countryFlagEl(value)` or `TW.COUNTRY_MAP[i].flagPath`. Never use CDN or emoji flags. License: MIT (HatScripts/circle-flags) — see `THIRD_PARTY_NOTICES.md`.
 
 12. **No merge without user approval.** No PR touching shared form controls is to be merged automatically. Every merge requires explicit user instruction.
+
+---
+
+## Shared System First — Architecture Pattern Check (mandatory for all AI sessions)
+
+These rules are permanent and apply to all future AI sessions.
+
+**Before implementing any new feature or change, always check:**
+
+1. **Does a shared system already exist for this?** Look for existing helpers, components, CSS classes, data sources, or patterns in `static/shared/`, `ARCHITECTURE.md`, and this file before writing any new code.
+2. **Is there a helper, component, CSS class, or data source already in the project that covers this need?** If yes — use it. Do NOT create a parallel implementation.
+3. **Is this documented in `CLAUDE.md` or `ARCHITECTURE.md`?** If a rule or pattern is documented, follow it exactly. If it conflicts with a new requirement, stop and propose updating the docs first.
+4. **Must this change use the existing shared system instead of a page-specific solution?** Any dropdown, flag, country data, formatter, or UI pattern that already exists in `static/shared/` must be sourced from there — not re-implemented per page.
+5. **If no shared system exists: is it better to build a small clean shared system rather than a one-off solution?** If the same code or data would appear in 2+ pages, it belongs in a shared module — not duplicated. Build the shared module first, then use it.
+6. **If you add a new shared system or pattern: document it in `CLAUDE.md` and/or `ARCHITECTURE.md` in the same PR.** New shared patterns are invisible to future AI sessions until documented.
+
+### Forbidden patterns (ممنوعات ثابتة)
+
+```
+❌ Dropdown with hardcoded country/city data inside a page JS file
+❌ A new modal pattern that doesn't follow the established modal behavior
+❌ A new save flow that diverges from the documented save pattern
+❌ A CSS chip/button/card class unique to one page when a shared class exists
+❌ A formatter function repeated across two modules
+❌ Hardcoded data (company types, sizes, year ranges) outside tw-options-data.js
+❌ A temporary/quick fix when a shared architectural solution exists
+```
+
+### The Golden Rule
+
+> أي شيء ممكن يتكرر في صفحتين أو أكثر، لا تعمله كحل خاص لصفحة واحدة.
+> اعمله أو اربطه بـ shared system.
+
+### Mandatory "Shared System Check" in every plan/report
+
+Every implementation plan or execution report must include a section named **"Shared System Check"** that answers:
+
+| السؤال | الجواب |
+|--------|--------|
+| هل تم فحص النظام الموجود؟ | نعم / لا + تفاصيل |
+| هل استخدمنا shared system موجود؟ | نعم / لا + اسم الـ system |
+| هل أضفنا helper/component/pattern مشترك جديد؟ | نعم / لا + الملف |
+| هل قللنا التكرار أم زدناه؟ | قللنا / زدنا + التوضيح |
+| هل يحتاج التعديل توثيق في CLAUDE.md أو ARCHITECTURE.md؟ | نعم / لا |
+| إذا لا يحتاج توثيق — السبب؟ | [سبب واضح] |
+
+### Examples of correct application
+
+- بيانات الدول والمدن → `TW.COUNTRY_MAP` في `tw-options-data.js` (ليس داخل ملف صفحة)
+- الأعلام → `TW.countryFlagEl()` من `tw-options-data.js` + `flags/*.svg` (ليس CDN أو emoji)
+- القوائم المنسدلة → `tw-select.js` + `.ep-select` class (ليس native select جديد)
+- formatter لعرض الفروع → `_formatBranchLabel()` مشترك بين chips والـ modal (ليس منطقان منفصلان)
+- نمط الحفظ → `applyLocalUpdate()` pattern الموثق (ليس كل modal بطريقة مختلفة)
+- أي بيانات متكررة → `tw-options-data.js` (ليس نسخ لصفحة واحدة)
