@@ -1408,21 +1408,435 @@ def _migrate_jobs_v2():
         release_conn(conn)
 
 
+def _migrate_taxonomy_foundation():
+    """
+    PR feat/taxonomy-db-foundation:
+      1. Create skill_catalog table (official source for all skills).
+      2. Seed ~335 skills from profile-v2.skills.js CATALOG.
+      3. Add jobs.profession_id FK → profession_categories (optional).
+    Idempotent — safe to run on every startup.
+    """
+    conn = get_conn()
+    try:
+        # ── 1. skill_catalog table ────────────────────────────────
+        conn.run("""
+            CREATE TABLE IF NOT EXISTS skill_catalog (
+                id             SERIAL PRIMARY KEY,
+                slug           VARCHAR(100) NOT NULL UNIQUE,
+                name_en        VARCHAR(150) NOT NULL,
+                name_ar        VARCHAR(150),
+                keywords       TEXT DEFAULT '',
+                icon           VARCHAR(60)  NOT NULL DEFAULT 'code',
+                category_group VARCHAR(60),
+                sort_order     SMALLINT DEFAULT 0,
+                is_active      BOOLEAN DEFAULT TRUE,
+                created_at     TIMESTAMPTZ DEFAULT NOW()
+            )
+        """)
+        try:
+            conn.run("CREATE INDEX IF NOT EXISTS idx_skill_catalog_slug   ON skill_catalog(slug)")
+            conn.run("CREATE INDEX IF NOT EXISTS idx_skill_catalog_group  ON skill_catalog(category_group)")
+            conn.run("CREATE INDEX IF NOT EXISTS idx_skill_catalog_active ON skill_catalog(is_active)")
+        except Exception: pass
+
+        # ── 2. jobs.profession_id — guaranteed before seed ───────────
+        # Must run before seed so add_job() never sees a missing column
+        # even if seed fails below.
+        try:
+            conn.run(
+                "ALTER TABLE jobs ADD COLUMN IF NOT EXISTS profession_id INTEGER "
+                "REFERENCES profession_categories(id) ON DELETE SET NULL"
+            )
+        except Exception: pass
+        try:
+            conn.run("CREATE INDEX IF NOT EXISTS idx_jobs_profession ON jobs(profession_id)")
+        except Exception: pass
+
+        # ── 3. Seed — all skills from profile-v2.skills.js CATALOG ─
+        # Wrapped in its own try/except: seed failure must not break job posting.
+        # Format per row: (slug, name_en, name_ar, keywords, icon, category_group, sort_order)
+        try:
+            _SKILL_SEED = [
+            # ── Programming Languages (tech, 10–220) ──
+            ('javascript','JavaScript','جافا سكريبت','js جافاسكريبت web','code','tech',10),
+            ('python','Python','بايثون','بايثون py','code','tech',11),
+            ('java','Java','جافا','جافا oop','code','tech',12),
+            ('typescript','TypeScript','تايب سكريبت','ts','code','tech',13),
+            ('cpp','C++','سي بلس بلس','cpp سي بلس','code','tech',14),
+            ('csharp','C#','سي شارب','dotnet سي شارب','code','tech',15),
+            ('php','PHP','PHP','لارافيل','code','tech',16),
+            ('swift','Swift','سويفت','ios apple','code','tech',17),
+            ('kotlin','Kotlin','كوتلن','android','code','tech',18),
+            ('go','Go','Go','golang','code','tech',19),
+            ('ruby','Ruby','روبي','rails','code','tech',20),
+            ('r_lang','R','R','r language احصاء statistics','code','tech',21),
+            ('dart','Dart','دارت','flutter','code','tech',22),
+            ('scala','Scala','سكالا','','code','tech',23),
+            ('rust','Rust','رست','','code','tech',24),
+            ('matlab','MATLAB','ماتلاب','simulation محاكاة','cpu','tech',25),
+            ('vba','VBA','VBA','excel macro اكسل ماكرو','code','tech',26),
+            ('bash','Bash / Shell Script','باش / سكريبت','bash shell script linux','terminal','tech',27),
+            ('perl','Perl','Perl','perl scripting','code','tech',28),
+            ('lua','Lua','لوا','lua game','code','tech',29),
+            ('solidity','Solidity','سوليديتي','blockchain web3 ethereum','code','tech',30),
+            ('assembly','Assembly','أسمبلي','asm assembly low-level','cpu','tech',31),
+            # ── Web Frontend ──
+            ('html','HTML','HTML','html5 markup','code','tech',40),
+            ('css','CSS','CSS','css3 styling','palette','tech',41),
+            ('react','React','رياكت','reactjs','code','tech',42),
+            ('vuejs','Vue.js','فيو','vue vuejs','code','tech',43),
+            ('angular','Angular','أنغولار','angularjs','code','tech',44),
+            ('nextjs','Next.js','نكست','nextjs','code','tech',45),
+            ('nuxtjs','Nuxt.js','نكست فيو','nuxt','code','tech',46),
+            ('bootstrap','Bootstrap','بوتستراب','css framework','palette','tech',47),
+            ('tailwind','Tailwind CSS','تيلويند','tailwindcss','palette','tech',48),
+            ('jquery','jQuery','jQuery','js library','code','tech',49),
+            ('svelte','Svelte','سفيلت','svelte frontend','code','tech',50),
+            ('redux','Redux','ريدكس','redux state management','code','tech',51),
+            ('graphql','GraphQL','GraphQL','graphql api query','code','tech',52),
+            ('webpack','Webpack','ويب باك','webpack bundler build','settings','tech',53),
+            ('vite','Vite','فيت','vite build tool frontend','zap','tech',54),
+            # ── Backend Frameworks ──
+            ('nodejs','Node.js','نود','nodejs node express','server','tech',60),
+            ('django','Django','دجانغو','python framework','server','tech',61),
+            ('flask','Flask','فلاسك','python flask','server','tech',62),
+            ('fastapi','FastAPI','FastAPI','python api','server','tech',63),
+            ('laravel','Laravel','لارافيل','php','server','tech',64),
+            ('springboot','Spring Boot','سبرينغ','spring java framework','server','tech',65),
+            ('aspnet','ASP.NET','ASP.NET','dotnet csharp','server','tech',66),
+            ('expressjs','Express.js','إكسبريس','nodejs express','server','tech',67),
+            ('nestjs','NestJS','نست','nestjs nodejs typescript','server','tech',68),
+            ('rails','Ruby on Rails','روبي أون ريلز','rails ruby framework','server','tech',69),
+            ('rest_api','REST API','REST API','rest api web services','server','tech',70),
+            # ── Mobile ──
+            ('react_native','React Native','ريأكت نيتف','mobile cross platform','smartphone','tech',80),
+            ('flutter','Flutter','فلاتر','dart mobile','smartphone','tech',81),
+            ('android_dev','Android Development','تطوير أندرويد','android kotlin java mobile','smartphone','tech',82),
+            ('ios_dev','iOS Development','تطوير iOS','ios swift apple','smartphone','tech',83),
+            # ── Databases ──
+            ('sql','SQL','إس كيو إل','قواعد بيانات database استعلامات','database','tech',90),
+            ('mysql','MySQL','ماي إس كيو إل','mysql database','database','tech',91),
+            ('postgresql','PostgreSQL','بوستغريس','postgres postgresql','database','tech',92),
+            ('mongodb','MongoDB','مونغو','nosql mongodb','database','tech',93),
+            ('oracle_db','Oracle Database','أوراكل','oracle plsql','database','tech',94),
+            ('redis','Redis','ريديس','redis cache','database','tech',95),
+            ('firebase','Firebase','فايربيز','firebase google','database','tech',96),
+            ('sqlite','SQLite','إس كيو لايت','sqlite local','database','tech',97),
+            ('elasticsearch','Elasticsearch','إلاستيك سيرش','elastic search','database','tech',98),
+            ('mariadb','MariaDB','ماريا دي بي','mariadb mysql','database','tech',99),
+            ('dynamodb','DynamoDB','دينامو دي بي','dynamodb aws nosql','database','tech',100),
+            ('cassandra','Cassandra','كاساندرا','cassandra nosql','database','tech',101),
+            ('supabase','Supabase','سوبابيس','supabase postgres','database','tech',102),
+            # ── Cloud / DevOps ──
+            ('docker','Docker','دوكر','docker containers','server','tech',110),
+            ('kubernetes','Kubernetes','كوبيرنيتس','k8s orchestration','server','tech',111),
+            ('aws','AWS','أمازون كلاود','amazon aws cloud','cloud','tech',112),
+            ('azure','Microsoft Azure','أزور','azure microsoft cloud','cloud','tech',113),
+            ('gcp','Google Cloud','جوجل كلاود','gcp google cloud','cloud','tech',114),
+            ('git','Git','جيت','git github gitlab version control','git-branch','tech',115),
+            ('linux','Linux','لينكس','linux ubuntu bash terminal','terminal','tech',116),
+            ('cicd','CI/CD','CI/CD','devops cicd jenkins github actions','settings','tech',117),
+            ('terraform','Terraform','تيرافورم','terraform iac infrastructure','layers','tech',118),
+            ('nginx','Nginx','إنجينكس','nginx web server','server','tech',119),
+            ('ansible','Ansible','أنسيبل','ansible automation devops','settings','tech',120),
+            ('jenkins','Jenkins','جينكنز','jenkins ci pipeline','settings','tech',121),
+            ('helm','Helm','هيلم','helm kubernetes charts','layers','tech',122),
+            ('github_actions','GitHub Actions','GitHub Actions','github actions workflow','git-branch','tech',123),
+            # ── Networking ──
+            ('networking','Networking','شبكات','network ccna tcp/ip شبكات','network','tech',130),
+            ('ccna','CCNA','CCNA','ccna cisco networking','router','tech',131),
+            ('cisco','Cisco','سيسكو','cisco networking routers switches','router','tech',132),
+            ('vpn','VPN','VPN','vpn virtual private network','wifi','tech',133),
+            ('lan_wan','LAN / WAN','LAN / WAN','lan wan networking','wifi','tech',134),
+            ('mikrotik','MikroTik','ميكروتيك','mikrotik router networking','router','tech',135),
+            ('network_admin','Network Administration','إدارة الشبكات','network administration إدارة شبكات','network','tech',136),
+            ('routing_switching','Routing & Switching','التوجيه والتبديل','routing switching cisco','router','tech',137),
+            ('network_monitoring','Network Monitoring','مراقبة الشبكات','network monitoring wireshark','signal','tech',138),
+            ('wireshark','Wireshark','وايرشارك','wireshark packet analysis','wifi','tech',139),
+            ('voip','VoIP','VoIP','voip ip telephony','phone','tech',140),
+            # ── AI / Data ──
+            ('machine_learning','Machine Learning','تعلم الآلة','ml ai ذكاء اصطناعي','brain','tech',150),
+            ('deep_learning','Deep Learning','التعلم العميق','dl neural network شبكات عصبية','cpu','tech',151),
+            ('data_analysis','Data Analysis','تحليل البيانات','data analyst تحليل بيانات','bar-chart','tech',152),
+            ('data_science','Data Science','علم البيانات','datascience علم البيانات','brain','tech',153),
+            ('tensorflow','TensorFlow','تنسرفلو','google ai tensorflow','brain','tech',154),
+            ('pytorch','PyTorch','بايتورش','pytorch deep learning','brain','tech',155),
+            ('pandas','Pandas','باندا','python data pandas','database','tech',156),
+            ('numpy','NumPy','نمباي','python math numpy','code','tech',157),
+            ('powerbi','Power BI','باور بي آي','powerbi microsoft bi تحليل','bar-chart','tech',158),
+            ('tableau','Tableau','تابلو','data visualization tableau','bar-chart','tech',159),
+            ('nlp','NLP','معالجة اللغة الطبيعية','natural language processing nlp','brain','tech',160),
+            ('computer_vision','Computer Vision','رؤية الحاسوب','computer vision image recognition','camera','tech',161),
+            ('generative_ai','Generative AI','الذكاء الاصطناعي التوليدي','generative ai llm chatgpt','bot','tech',162),
+            ('mlops','MLOps','MLOps','mlops machine learning operations','settings','tech',163),
+            ('apache_spark','Apache Spark','أباتشي سبارك','spark big data apache','database','tech',164),
+            ('hadoop','Hadoop','هادوب','hadoop big data mapreduce','database','tech',165),
+            ('etl','ETL','ETL','etl extract transform load data','database','tech',166),
+            ('data_warehousing','Data Warehousing','مستودعات البيانات','data warehouse dwh','hard-drive','tech',167),
+            # ── Cybersecurity ──
+            ('cybersecurity','Cybersecurity','الأمن السيبراني','security cyber أمن سيبراني','shield','security',10),
+            ('pen_testing','Penetration Testing','اختبار الاختراق','pen test penetration اختراق','shield-check','security',11),
+            ('network_security','Network Security','أمن الشبكات','network security أمن شبكات','shield','security',12),
+            ('ethical_hacking','Ethical Hacking','القرصنة الأخلاقية','ethical hacking قرصنة أخلاقية','shield-check','security',13),
+            ('vulnerability_assessment','Vulnerability Assessment','تقييم الثغرات','vulnerability assessment ثغرات','shield-check','security',14),
+            ('siem','SIEM','SIEM','siem security information event management','shield','security',15),
+            ('digital_forensics','Digital Forensics','الجنائيات الرقمية','digital forensics جنائيات رقمية','fingerprint','security',16),
+            ('soc','SOC','مركز عمليات الأمن','soc security operations center','shield','security',17),
+            ('malware_analysis','Malware Analysis','تحليل البرمجيات الخبيثة','malware analysis فيروسات','shield','security',18),
+            ('cryptography','Cryptography','التشفير','cryptography encryption تشفير','lock','security',19),
+            ('iso27001','ISO 27001','ISO 27001','iso 27001 security standard','shield','security',20),
+            ('incident_response','Incident Response','الاستجابة للحوادث','incident response security','shield','security',21),
+            ('osint','OSINT','استخبارات المصادر المفتوحة','osint open source intelligence','search','security',22),
+            # ── Design ──
+            ('photoshop','Adobe Photoshop','فوتوشوب','photoshop ps تصميم','palette','design',10),
+            ('illustrator','Adobe Illustrator','إليستريتور','illustrator ai vector','pen-tool','design',11),
+            ('figma','Figma','فيغما','figma ui prototype تصميم','pen-tool','design',12),
+            ('xd','Adobe XD','أدوبي XD','xd ux wireframe','pen-tool','design',13),
+            ('premiere','Adobe Premiere','بريمير','premiere video editing تحرير فيديو','video','design',14),
+            ('aftereffects','Adobe After Effects','أفتر إفيكتس','after effects motion animation','video','design',15),
+            ('ui_design','UI Design','تصميم الواجهات','ui user interface تصميم','monitor','design',16),
+            ('ux_design','UX Design','تجربة المستخدم','ux user experience usability','users','design',17),
+            ('graphic_design','Graphic Design','تصميم جرافيك','graphic جرافيك design','palette','design',18),
+            ('autocad','AutoCAD','أوتوكاد','autocad cad هندسة','hard-hat','design',19),
+            ('three_d','3D Modeling','نمذجة ثلاثية الأبعاد','3d blender modeling','layers','design',20),
+            ('motion_graphics','Motion Graphics','موشن جرافيك','motion graphics animation موشن','video','design',21),
+            ('logo_design','Logo Design','تصميم الشعارات','logo design شعار','pen-tool','design',22),
+            ('brand_identity','Brand Identity','الهوية البصرية','brand identity هوية بصرية','award','design',23),
+            ('canva','Canva','كانفا','canva design تصميم','palette','design',24),
+            ('davinci','DaVinci Resolve','دافنشي','davinci video editing montage','video','design',25),
+            ('indesign','Adobe InDesign','إن ديزاين','indesign print layout','pen-tool','design',26),
+            ('sketch_design','Sketch','سكتش','sketch ui design mac','pen-tool','design',27),
+            ('social_media_design','Social Media Design','تصميم السوشيال ميديا','social media design post','palette','design',28),
+            # ── Office / Productivity ──
+            ('excel','Microsoft Excel','إكسل','excel spreadsheet جداول بيانات','bar-chart','office',10),
+            ('word','Microsoft Word','وورد','word document وورد','file-text','office',11),
+            ('powerpoint','Microsoft PowerPoint','باوربوينت','powerpoint presentation عروض','monitor','office',12),
+            ('access','Microsoft Access','أكسس','access microsoft','database','office',13),
+            ('ms_office','Microsoft Office','مايكروسوفت أوفيس','office أوفيس','briefcase','office',14),
+            ('google_sheets','Google Sheets','جوجل شيتس','sheets google docs','bar-chart','office',15),
+            ('google_workspace','Google Workspace','جوجل ورك سبيس','google drive gmail docs','briefcase','office',16),
+            ('data_entry','Data Entry','إدخال البيانات','data entry إدخال بيانات typing','file-text','office',17),
+            ('jira','Jira','جيرا','jira project management agile','briefcase','office',18),
+            ('trello','Trello','تريلو','trello kanban project','briefcase','office',19),
+            ('notion','Notion','نوشن','notion workspace productivity','file-text','office',20),
+            # ── Management / Soft Skills ──
+            ('project_management','Project Management','إدارة المشاريع','pm pmp إدارة مشاريع','clipboard','management',10),
+            ('agile','Agile / Scrum','أجايل / سكرام','agile scrum sprint kanban','settings','management',11),
+            ('team_leadership','Team Leadership','قيادة الفريق','leadership قيادة فريق','users','management',12),
+            ('communication','Communication Skills','مهارات التواصل','communication تواصل presentation','messages-square','management',13),
+            ('problem_solving','Problem Solving','حل المشكلات','problem solving analytical تحليل','layers','management',14),
+            ('time_management','Time Management','إدارة الوقت','time management productivity وقت','clock','management',15),
+            ('critical_thinking','Critical Thinking','التفكير النقدي','critical thinking تفكير نقدي','brain','management',16),
+            ('strategic_planning','Strategic Planning','التخطيط الاستراتيجي','strategic planning تخطيط استراتيجي','clipboard','management',17),
+            ('operations_mgmt','Operations Management','إدارة العمليات','operations management عمليات','settings','management',18),
+            ('change_management','Change Management','إدارة التغيير','change management تغيير','clock','management',19),
+            ('business_analysis','Business Analysis','تحليل الأعمال','business analysis تحليل أعمال','briefcase','management',20),
+            ('business_dev','Business Development','تطوير الأعمال','business development تطوير','trending-up','management',21),
+            ('okr','OKR','OKR','okr goals objectives','target','management',22),
+            ('kpi','KPIs','مؤشرات الأداء','kpi performance indicators أداء','bar-chart','management',23),
+            ('process_improvement','Process Improvement','تحسين العمليات','process improvement lean','settings','management',24),
+            ('emotional_intelligence','Emotional Intelligence','الذكاء العاطفي','emotional intelligence ذكاء عاطفي eq','heart','management',25),
+            ('adaptability','Adaptability','القدرة على التكيف','adaptability flexibility تكيف','activity','management',26),
+            ('creativity','Creativity','الإبداع','creativity innovation إبداع ابتكار','palette','management',27),
+            ('teamwork','Teamwork','العمل الجماعي','teamwork collaboration عمل فريق','users','management',28),
+            ('presentation_skills','Presentation Skills','مهارات العرض والتقديم','presentation skills عرض تقديم','monitor','management',29),
+            ('writing_skills','Writing Skills','مهارات الكتابة','writing skills كتابة','file-text','management',30),
+            ('active_listening','Active Listening','الاستماع الفعال','active listening استماع','headset','management',31),
+            ('conflict_resolution','Conflict Resolution','حل النزاعات','conflict resolution نزاع','messages-square','management',32),
+            ('decision_making','Decision Making','صنع القرار','decision making قرار','compass','management',33),
+            ('research_skills','Research Skills','مهارات البحث','research skills بحث','search','management',34),
+            # ── Marketing ──
+            ('marketing','Marketing','تسويق','marketing digital تسويق رقمي','megaphone','marketing',10),
+            ('seo','SEO','تحسين محركات البحث','seo search engine تحسين','search','marketing',11),
+            ('social_media','Social Media Marketing','تسويق التواصل الاجتماعي','social media instagram twitter تواصل','megaphone','marketing',12),
+            ('content_writing','Content Writing','كتابة المحتوى','content copywriting كتابة محتوى','file-text','marketing',13),
+            ('email_marketing','Email Marketing','تسويق البريد الإلكتروني','email marketing newsletter','mail','marketing',14),
+            ('google_ads','Google Ads','إعلانات جوجل','google ads ppc sem','target','marketing',15),
+            ('facebook_ads','Facebook Ads','إعلانات فيسبوك','facebook ads meta social','target','marketing',16),
+            ('google_analytics','Google Analytics','جوجل أناليتيكس','google analytics tracking','bar-chart','marketing',17),
+            ('brand_management','Brand Management','إدارة العلامات التجارية','brand management علامة تجارية','award','marketing',18),
+            ('market_research','Market Research','بحث السوق','market research بحث سوق','search','marketing',19),
+            ('public_relations','Public Relations','العلاقات العامة','pr public relations علاقات عامة','share-2','marketing',20),
+            ('influencer_mkt','Influencer Marketing','التسويق عبر المؤثرين','influencer marketing مؤثرين','megaphone','marketing',21),
+            ('affiliate_mkt','Affiliate Marketing','التسويق بالعمولة','affiliate marketing عمولة','trending-up','marketing',22),
+            ('hubspot','HubSpot','هب سبوت','hubspot crm marketing','users','marketing',23),
+            ('crm_tools','CRM','إدارة علاقات العملاء','crm salesforce hubspot','users','marketing',24),
+            ('salesforce','Salesforce','سيلز فورس','salesforce crm sales','users','marketing',25),
+            # ── Sales ──
+            ('sales','Sales','المبيعات','sales selling مبيعات','trending-up','marketing',30),
+            ('b2b_sales','B2B Sales','مبيعات B2B','b2b sales business','briefcase','marketing',31),
+            ('b2c_sales','B2C Sales','مبيعات B2C','b2c sales consumer retail','briefcase','marketing',32),
+            ('negotiation','Negotiation','التفاوض','negotiation تفاوض مفاوضة','messages-square','marketing',33),
+            ('cold_calling','Cold Calling','المكالمات الباردة','cold calling telemarketing','phone','marketing',34),
+            ('sales_strategy','Sales Strategy','استراتيجية المبيعات','sales strategy خطة مبيعات','target','marketing',35),
+            ('retail_sales','Retail Sales','مبيعات التجزئة','retail sales تجزئة','shopping-cart','marketing',36),
+            ('telesales','Telesales','مبيعات هاتفية','telesales phone sales','phone','marketing',37),
+            ('account_management','Account Management','إدارة الحسابات','account management key accounts','users','marketing',38),
+            # ── Accounting & Finance ──
+            ('accounting','Accounting','محاسبة','accounting محاسبة ميزانية','calculator','finance',10),
+            ('financial_analysis','Financial Analysis','تحليل مالي','finance financial مالي','trending-up','finance',11),
+            ('bookkeeping','Bookkeeping','مسك الدفاتر','bookkeeping دفاتر محاسبة','file-text','finance',12),
+            ('ifrs','IFRS','المعايير الدولية للتقارير المالية','ifrs international financial reporting','file-text','finance',13),
+            ('quickbooks','QuickBooks','كويك بوكس','quickbooks accounting software','briefcase','finance',14),
+            ('sap_finance','SAP Finance','ساب مالية','sap fi finance erp','briefcase','finance',15),
+            ('tax_accounting','Tax Accounting','المحاسبة الضريبية','tax accounting ضريبة','calculator','finance',16),
+            ('payroll','Payroll','كشوف الرواتب','payroll رواتب','calculator','finance',17),
+            ('financial_reporting','Financial Reporting','إعداد التقارير المالية','financial reporting تقارير مالية','file-text','finance',18),
+            ('budgeting','Budgeting','إعداد الميزانيات','budgeting ميزانية','calculator','finance',19),
+            ('cost_accounting','Cost Accounting','محاسبة التكاليف','cost accounting تكاليف','calculator','finance',20),
+            ('auditing','Auditing','التدقيق المحاسبي','auditing تدقيق مراجعة','file-text','finance',21),
+            ('investment_analysis','Investment Analysis','تحليل الاستثمار','investment analysis استثمار','trending-up','finance',22),
+            ('risk_management','Risk Management','إدارة المخاطر','risk management مخاطر','shield','finance',23),
+            ('financial_planning','Financial Planning','التخطيط المالي','financial planning تخطيط مالي','trending-up','finance',24),
+            # ── Human Resources ──
+            ('hr','Human Resources','الموارد البشرية','hr human resources موارد بشرية','users','hr',10),
+            ('talent_acquisition','Talent Acquisition','استقطاب المواهب','talent acquisition recruitment استقطاب','users','hr',11),
+            ('performance_mgmt','Performance Management','إدارة الأداء','performance management أداء','bar-chart','hr',12),
+            ('training_dev','Training & Development','التدريب والتطوير','training development تدريب تطوير','graduation-cap','hr',13),
+            ('employee_relations','Employee Relations','علاقات الموظفين','employee relations علاقات','users','hr',14),
+            ('compensation','Compensation & Benefits','التعويضات والمزايا','compensation benefits مزايا','calculator','hr',15),
+            ('onboarding','Onboarding','تأهيل الموظفين','onboarding تأهيل','users','hr',16),
+            ('labor_law','Labor Law','قانون العمل','labor law قانون عمل','file-text','hr',17),
+            ('hris','HRIS','نظام معلومات الموارد البشرية','hris hr system موارد بشرية نظام','database','hr',18),
+            ('hr_analytics','HR Analytics','تحليلات الموارد البشرية','hr analytics تحليل موارد','bar-chart','hr',19),
+            # ── Education & Training ──
+            ('curriculum_design','Curriculum Design','تصميم المناهج','curriculum design مناهج','graduation-cap','education',10),
+            ('elearning','E-Learning','التعليم الإلكتروني','elearning online learning تعلم إلكتروني','monitor','education',11),
+            ('instructional_design','Instructional Design','التصميم التعليمي','instructional design تصميم تعليمي','graduation-cap','education',12),
+            ('lms','LMS','نظام إدارة التعلم','lms learning management system moodle','monitor','education',13),
+            ('coaching','Coaching','الكوتشينج','coaching personal development كوتشينج','users','education',14),
+            ('mentoring','Mentoring','التوجيه والإرشاد','mentoring coaching توجيه','users','education',15),
+            ('toefl_ielts','TOEFL / IELTS','TOEFL / IELTS','toefl ielts english exam','award','education',16),
+            ('edu_technology','Educational Technology','تكنولوجيا التعليم','edtech educational technology','monitor','education',17),
+            ('classroom_mgmt','Classroom Management','إدارة الفصل الدراسي','classroom management فصل دراسي','graduation-cap','education',18),
+            # ── Engineering ──
+            ('solidworks','SolidWorks','سوليدووركس','solidworks cad 3d design','hard-hat','engineering',10),
+            ('revit','Revit','ريفيت','revit bim architecture','hard-hat','engineering',11),
+            ('catia','CATIA','كاتيا','catia cad automotive','hard-hat','engineering',12),
+            ('bim','BIM','نمذجة معلومات البناء','bim building information modeling','hard-hat','engineering',13),
+            ('structural_analysis','Structural Analysis','التحليل الإنشائي','structural analysis engineering تحليل إنشائي','hard-hat','engineering',14),
+            ('plc','PLC Programming','برمجة PLC','plc programming automation','cpu','engineering',15),
+            ('scada','SCADA','SCADA','scada control systems automation','cpu','engineering',16),
+            ('six_sigma','Six Sigma','ستة سيجما','six sigma quality lean','settings','engineering',17),
+            ('lean_manufacturing','Lean Manufacturing','التصنيع الرشيق','lean manufacturing kaizen','settings','engineering',18),
+            ('quality_control','Quality Control','ضبط الجودة','quality control qc جودة','settings','engineering',19),
+            ('hse','HSE / Safety','الصحة والسلامة والبيئة','hse health safety environment سلامة','shield','engineering',20),
+            ('sap_pm','SAP PM','ساب صيانة','sap pm plant maintenance erp','briefcase','engineering',21),
+            # ── Medical & Nursing ──
+            ('patient_care','Patient Care','رعاية المرضى','patient care رعاية مرضى','stethoscope','health',10),
+            ('clinical_skills','Clinical Skills','المهارات السريرية','clinical skills سريري','stethoscope','health',11),
+            ('emr','EMR / EHR','السجلات الطبية الإلكترونية','emr ehr electronic medical records','hospital','health',12),
+            ('medical_coding','Medical Coding','الترميز الطبي','medical coding icd billing','file-text','health',13),
+            ('cpr','CPR / First Aid','الإسعافات الأولية','cpr first aid إسعافات','heart-pulse','health',14),
+            ('phlebotomy','Phlebotomy','سحب الدم','phlebotomy blood draw','syringe','health',15),
+            ('medical_lab','Medical Laboratory','المختبر الطبي','medical laboratory مختبر','hospital','health',16),
+            ('radiology','Radiology','الأشعة','radiology imaging أشعة','scan','health',17),
+            ('pharmacy_skills','Pharmacy','الصيدلة','pharmacy dispensing صيدلة','pill','health',18),
+            ('healthcare_admin','Healthcare Administration','إدارة الرعاية الصحية','healthcare administration رعاية صحية','hospital','health',19),
+            ('infection_control','Infection Control','مكافحة العدوى','infection control prevention عدوى','shield','health',20),
+            # ── Crafts & Technical Trades ──
+            ('electrical_installation','Electrical Installation','التركيبات الكهربائية','electrical installation كهرباء تركيب','zap','trades',10),
+            ('plumbing_craft','Plumbing','السباكة','plumbing سباكة','wrench','trades',11),
+            ('carpentry','Carpentry','النجارة','carpentry woodwork نجارة','hammer','trades',12),
+            ('hvac','HVAC / Air Conditioning','تكييف الهواء','hvac ac air conditioning تكييف','wind','trades',13),
+            ('welding','Welding','اللحام','welding لحام','flame','trades',14),
+            ('auto_mechanics','Auto Mechanics','ميكانيكا السيارات','auto mechanics ميكانيكا سيارات','wrench','trades',15),
+            ('painting_craft','Painting & Finishing','الدهان','painting دهان','paint-bucket','trades',16),
+            ('tiling','Tiling','التبليط والسيراميك','tiling بلاط سيراميك','layers','trades',17),
+            ('cctv','CCTV Installation','تركيب كاميرات المراقبة','cctv surveillance cameras مراقبة','camera','trades',18),
+            ('alarm_systems','Alarm Systems','أنظمة الإنذار','alarm systems إنذار حماية','lock','trades',19),
+            ('fiber_optic','Fiber Optic','الألياف البصرية','fiber optic networking ألياف بصرية','cable','trades',20),
+            # ── Hospitality / Restaurants ──
+            ('food_service','Food Service','خدمة الطعام','food service طعام خدمة','utensils','hospitality',10),
+            ('hotel_management','Hotel Management','إدارة الفندق','hotel management فندق','hotel','hospitality',11),
+            ('hospitality','Hospitality','الضيافة','hospitality ضيافة','building-2','hospitality',12),
+            ('kitchen_management','Kitchen Management','إدارة المطبخ','kitchen chef cooking مطبخ','chef-hat','hospitality',13),
+            ('food_safety','Food Safety / HACCP','سلامة الغذاء','food safety haccp سلامة غذاء','shield','hospitality',14),
+            ('pos_systems','POS Systems','أنظمة نقاط البيع','pos point of sale نقطة بيع','shopping-cart','hospitality',15),
+            ('event_management','Event Management','إدارة الفعاليات','event management فعاليات','calendar','hospitality',16),
+            ('bartending','Bartending','بارتندر','bartending drinks bar','utensils','hospitality',17),
+            ('catering','Catering','خدمات الضيافة والتموين','catering تموين ضيافة','utensils','hospitality',18),
+            # ── Logistics & Supply Chain ──
+            ('supply_chain','Supply Chain Management','إدارة سلسلة التوريد','supply chain سلسلة توريد','truck','logistics',10),
+            ('inventory_management','Inventory Management','إدارة المخزون','inventory management مخزون','warehouse','logistics',11),
+            ('warehouse_management','Warehouse Management','إدارة المستودعات','warehouse management مستودعات','warehouse','logistics',12),
+            ('shipping','Shipping & Freight','الشحن والنقل','shipping freight شحن','ship','logistics',13),
+            ('customs','Customs & Clearance','الجمارك والتخليص','customs clearance جمارك','clipboard','logistics',14),
+            ('fleet_management','Fleet Management','إدارة الأسطول','fleet management أسطول','car','logistics',15),
+            ('demand_planning','Demand Planning','تخطيط الطلب','demand planning forecasting','bar-chart','logistics',16),
+            ('erp','ERP Systems','أنظمة ERP','erp enterprise resource planning','briefcase','logistics',17),
+            ('sap_mm','SAP MM','ساب مشتريات','sap mm materials management erp','briefcase','logistics',18),
+            # ── Customer Service ──
+            ('customer_service','Customer Service','خدمة العملاء','customer service support خدمة عملاء','headset','customer_service',10),
+            ('technical_support','Technical Support','الدعم الفني','technical support دعم فني','headset','customer_service',11),
+            ('help_desk','Help Desk','مكتب المساعدة','help desk support helpdesk','headset','customer_service',12),
+            ('call_center','Call Center','مركز الاتصال','call center مركز اتصال','phone','customer_service',13),
+            ('complaint_handling','Complaint Handling','معالجة الشكاوى','complaint handling شكاوى','inbox','customer_service',14),
+            ('zendesk','Zendesk','زن ديسك','zendesk support crm','headset','customer_service',15),
+            ('after_sales','After-Sales Service','خدمة ما بعد البيع','after sales service ما بعد البيع','headset','customer_service',16),
+            # ── Human Languages ──
+            ('arabic_lang','Arabic Language','اللغة العربية','arabic language عربي','languages','languages',10),
+            ('english_lang','English Language','اللغة الإنجليزية','english language إنجليزي','languages','languages',11),
+            ('french_lang','French Language','اللغة الفرنسية','french français فرنسي','languages','languages',12),
+            ('german_lang','German Language','اللغة الألمانية','german deutsch ألماني','languages','languages',13),
+            ('spanish_lang','Spanish Language','اللغة الإسبانية','spanish español إسباني','languages','languages',14),
+            ('chinese_lang','Chinese Language','اللغة الصينية','chinese mandarin صيني','languages','languages',15),
+            ('turkish_lang','Turkish Language','اللغة التركية','turkish türkçe تركي','languages','languages',16),
+            ('italian_lang','Italian Language','اللغة الإيطالية','italian italiano إيطالي','languages','languages',17),
+            ('korean_lang','Korean Language','اللغة الكورية','korean 한국어 كوري','languages','languages',18),
+            ('japanese_lang','Japanese Language','اللغة اليابانية','japanese 日本語 ياباني','languages','languages',19),
+            ('russian_lang','Russian Language','اللغة الروسية','russian روسي','languages','languages',20),
+            ('portuguese_lang','Portuguese Language','اللغة البرتغالية','portuguese برتغالي','languages','languages',21),
+            ('persian_lang','Persian Language','اللغة الفارسية','persian farsi فارسي','languages','languages',22),
+            ('arabic_typing','Arabic Typing','طباعة عربية','arabic typing طباعة عربية','type','languages',23),
+            ('translation','Translation','ترجمة','translation ترجمة english arabic','globe','languages',24),
+            ('technical_writing','Technical Writing','الكتابة التقنية','technical writing documentation توثيق','file-text','languages',25),
+        ]
+
+            # Insert in batches to stay under param limits
+            BATCH = 50
+            for i in range(0, len(_SKILL_SEED), BATCH):
+                batch = _SKILL_SEED[i:i+BATCH]
+                placeholders = ','.join(
+                    f"(:s{j},:en{j},:ar{j},:kw{j},:ic{j},:cg{j},:so{j})"
+                    for j in range(len(batch))
+                )
+                params = {}
+                for j, row in enumerate(batch):
+                    params[f's{j}']  = row[0]
+                    params[f'en{j}'] = row[1]
+                    params[f'ar{j}'] = row[2]
+                    params[f'kw{j}'] = row[3]
+                    params[f'ic{j}'] = row[4]
+                    params[f'cg{j}'] = row[5]
+                    params[f'so{j}'] = row[6]
+                conn.run(
+                    f"INSERT INTO skill_catalog (slug,name_en,name_ar,keywords,icon,category_group,sort_order) "
+                    f"VALUES {placeholders} ON CONFLICT (slug) DO NOTHING",
+                    **params
+                )
+        except Exception: pass  # seed failure must not break startup
+
+    finally:
+        release_conn(conn)
+
+
 def add_job(company_id: int, data: dict) -> dict:
     _cache_del('jobs:')
     conn = get_conn()
     try:
         skills      = data.get("skills") or []
         sal_hidden  = bool(data.get("salary_hidden", False))
+        prof_id = data.get("profession_id") or None
         rows = conn.run(
             "INSERT INTO jobs (company_id, title, description, location, job_type, "
             "salary_min, salary_max, currency, experience_years, skills, status, "
-            "category, work_mode, salary_hidden) "
+            "category, work_mode, salary_hidden, profession_id) "
             "VALUES (:cid, :title, :desc, :loc, :jtype, :smin, :smax, :cur, :exp, "
-            ":skills, 'active', :cat, :wmode, :shide) "
+            ":skills, 'active', :cat, :wmode, :shide, :profid) "
             "RETURNING id, company_id, title, description, location, job_type, "
             "salary_min, salary_max, currency, experience_years, skills, status, created_at, "
-            "category, work_mode, salary_hidden",
+            "category, work_mode, salary_hidden, profession_id",
             cid=company_id, title=data.get("title",""),
             desc=data.get("description",""), loc=data.get("location",""),
             jtype=data.get("job_type","دوام كامل"),
@@ -1434,6 +1848,7 @@ def add_job(company_id: int, data: dict) -> dict:
             cat=data.get("category"),
             wmode=data.get("work_mode","في الموقع"),
             shide=sal_hidden,
+            profid=prof_id,
         )
         cols = [c["name"] for c in conn.columns]
         return _serialize(_row_to_dict(cols, rows[0]))

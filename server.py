@@ -78,6 +78,7 @@ from auth import (
     update_company_profile,
     _migrate_company_branches, get_company_branches, save_company_branches,
     _migrate_jobs_v2,
+    _migrate_taxonomy_foundation,
     follow_company, unfollow_company, rate_company,
     get_company_posts, create_company_post, get_post_owner, delete_company_post,
     follow_profile, unfollow_profile, get_profile_followers_count, is_profile_following,
@@ -373,6 +374,11 @@ async def on_startup():
         print("✅ jobs v2 columns ready")
     except Exception as e:
         print(f"⚠️ jobs v2 migration failed: {e}")
+    try:
+        _migrate_taxonomy_foundation()
+        print("✅ taxonomy foundation ready (skill_catalog + jobs.profession_id)")
+    except Exception as e:
+        print(f"⚠️ taxonomy foundation migration failed: {e}")
     await _init_asyncpg_pool()
 
 # ── Helpers ──
@@ -1006,6 +1012,7 @@ class JobInput(BaseModel):
     category: Optional[str] = None
     work_mode: Optional[str] = "في الموقع"
     salary_hidden: Optional[bool] = False
+    profession_id: Optional[int] = None
 
 class JobApplyInput(BaseModel):
     user_id: int
@@ -2087,6 +2094,32 @@ def list_professions():
         )
         cols = ["id","name_ar","name_en","slug","icon","category_group"]
         return [dict(zip(cols, r)) for r in rows]
+    finally:
+        release_conn(conn)
+
+_skill_catalog_cache: Optional[list] = None
+_skill_catalog_cache_ts: float = 0.0
+_SKILL_CATALOG_TTL = 3600  # 1 hour
+
+@app.get("/skills/catalog")
+def get_skills_catalog():
+    import time
+    global _skill_catalog_cache, _skill_catalog_cache_ts
+    now = time.time()
+    if _skill_catalog_cache is not None and (now - _skill_catalog_cache_ts) < _SKILL_CATALOG_TTL:
+        return _skill_catalog_cache
+    conn = get_conn()
+    try:
+        rows = conn.run(
+            "SELECT id, slug, name_en, name_ar, keywords, icon, category_group, sort_order "
+            "FROM skill_catalog WHERE is_active = TRUE "
+            "ORDER BY category_group, sort_order, name_ar"
+        )
+        cols = ["id","slug","name_en","name_ar","keywords","icon","category_group","sort_order"]
+        result = [dict(zip(cols, r)) for r in rows]
+        _skill_catalog_cache = result
+        _skill_catalog_cache_ts = now
+        return result
     finally:
         release_conn(conn)
 

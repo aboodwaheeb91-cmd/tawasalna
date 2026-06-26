@@ -7390,3 +7390,100 @@ tw-select.js          ← scSelectInit + scSelectClose
 | `static/company/company.main.js` | `saveEdit()` + `_applyCompanyLocalUpdate()` |
 | `static/company/company.api.js` | `loadData(opts)` — opts.silent |
 | `static/company/company.render.js` | `renderProfile()` + `renderBranches()` (partial renders) |
+
+---
+
+## Unified Professional Taxonomy System (PR 1 — feat/taxonomy-db-foundation)
+
+### Overview
+
+نظام تصنيف مهني موحّد يربط الملفات الشخصية، نشر الوظائف، والمطابقة بمصدر بيانات واحد رسمي.
+
+### DB Tables
+
+#### `profession_categories` (موجود من قبل)
+
+| Column | Type | Notes |
+|--------|------|-------|
+| id | SERIAL PK | — |
+| name_ar | TEXT | الاسم العربي |
+| name_en | TEXT | الاسم الإنجليزي |
+| slug | TEXT UNIQUE | معرّف النص |
+| icon | TEXT | اسم أيقونة Lucide |
+| category_group | TEXT | مجموعة التصنيف |
+| sort_order | INTEGER | ترتيب العرض |
+| is_active | BOOLEAN | يُعرض للمستخدمين |
+
+يُحمَّل عبر: `GET /professions` (public, no auth)
+
+#### `skill_catalog` (جديد — PR 1)
+
+| Column | Type | Notes |
+|--------|------|-------|
+| id | SERIAL PK | — |
+| slug | TEXT UNIQUE NOT NULL | معرّف المهارة (مثال: `python`, `react`) |
+| name_en | TEXT | الاسم الإنجليزي |
+| name_ar | TEXT | الاسم العربي |
+| keywords | TEXT[] | كلمات مفتاحية للبحث |
+| icon | TEXT | اسم أيقونة Lucide |
+| category_group | TEXT | (tech / security / design / management / marketing / finance / hr / education / engineering / health / trades / hospitality / logistics / customer_service / languages) |
+| sort_order | INTEGER DEFAULT 0 | — |
+| is_active | BOOLEAN DEFAULT TRUE | — |
+
+Indexes: `idx_skill_catalog_slug`, `idx_skill_catalog_group`, `idx_skill_catalog_active`
+
+Seed: 335 مهارة مُدمجة من `profile-v2.skills.js` CATALOG بدفعات 50 مع `ON CONFLICT (slug) DO NOTHING`
+
+يُحمَّل عبر: `GET /skills/catalog` (public, no auth, in-memory cache 1hr)
+
+#### `jobs.profession_id` (جديد — PR 1)
+
+```sql
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS profession_id INTEGER
+    REFERENCES profession_categories(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS idx_jobs_profession ON jobs(profession_id);
+```
+
+- اختياري (NULL مسموح) — لن يصبح إلزامياً قبل اكتمال PR 3
+- يُمرَّر من `JobInput.profession_id` (Optional[int] = None) → `add_job()` → DB
+
+### API Endpoints
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | `/professions` | None | قائمة التخصصات المهنية (profession_categories) |
+| GET | `/skills/catalog` | None | قائمة المهارات الرسمية (skill_catalog) مع cache 1hr |
+
+### Frontend Fallback
+
+`TW.SKILL_CATALOG` في `static/shared/tw-options-data.js`:
+- **FALLBACK ONLY** — تُستخدم فقط عند فشل `GET /skills/catalog` أو قبل PR 2
+- تحتوي نسخة مختصرة (~90 مهارة) من الـ 335 مهارة في DB
+- لا تضف مهارات هنا — أضفها في `_SKILL_SEED` داخل `_migrate_taxonomy_foundation()` في `auth.py`
+
+### Migration Function
+
+`_migrate_taxonomy_foundation()` في `auth.py`:
+- يُنفَّذ عند startup بعد `_migrate_jobs_v2()`
+- كامل idempotent: `CREATE IF NOT EXISTS` + `ON CONFLICT DO NOTHING` + `IF NOT EXISTS` column
+- بدفعات 50 لتجنب query string overflow
+
+### ممنوعات
+
+```
+❌ قوائم مهارات hardcoded داخل ملف صفحة JS/HTML
+❌ قوائم تخصصات مهنية hardcoded خارج profession_categories
+❌ skills stored as plain text array only — يجب الربط بـ slug من skill_catalog عند PR 2
+❌ TW.SKILL_CATALOG كمصدر رئيسي — الـ source الرسمي هو GET /skills/catalog
+❌ jobs.profession_id إلزامي قبل اكتمال PR 3
+```
+
+### PR Roadmap
+
+| PR | Branch | Focus |
+|----|--------|-------|
+| PR 1 ✅ | feat/taxonomy-db-foundation | DB + seed + API + fallback |
+| PR 2 | feat/shared-skill-picker | tw-skills.js + Profile V2 يستخدم GET /skills/catalog |
+| PR 3 | feat/job-modal-taxonomy-integration | Job Modal: profession picker + skill picker |
+| PR 4 | feat/taxonomy-aware-matching | Matching algorithm: profession_id boost |
+| PR 5 | cleanup/taxonomy-hardcoded-removal | حذف القوائم القديمة hardcoded |

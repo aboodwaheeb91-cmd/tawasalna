@@ -194,6 +194,125 @@
     });
   };
 
+  // ── Skill catalog — FALLBACK ONLY ────────────────────────────────
+  // الـ source الرسمي هو GET /skills/catalog (يُحمَّل من DB).
+  // هذه القائمة تُستخدم فقط عند فشل التحميل من API أو قبل اكتمال PR 2.
+  // لا تضف مهارات هنا — أضفها في جدول skill_catalog عبر auth.py seed.
+  TW.SKILL_CATALOG = [
+    // tech
+    {slug:'python',      name_ar:'Python',         icon:'code',            group:'tech'},
+    {slug:'javascript',  name_ar:'JavaScript',     icon:'code',            group:'tech'},
+    {slug:'typescript',  name_ar:'TypeScript',     icon:'code',            group:'tech'},
+    {slug:'java',        name_ar:'Java',            icon:'coffee',          group:'tech'},
+    {slug:'csharp',      name_ar:'C#',              icon:'code',            group:'tech'},
+    {slug:'cpp',         name_ar:'C++',             icon:'cpu',             group:'tech'},
+    {slug:'php',         name_ar:'PHP',             icon:'code',            group:'tech'},
+    {slug:'go',          name_ar:'Go',              icon:'zap',             group:'tech'},
+    {slug:'ruby',        name_ar:'Ruby',            icon:'gem',             group:'tech'},
+    {slug:'swift',       name_ar:'Swift',           icon:'zap',             group:'tech'},
+    {slug:'kotlin',      name_ar:'Kotlin',          icon:'code',            group:'tech'},
+    {slug:'rust',        name_ar:'Rust',            icon:'shield',          group:'tech'},
+    {slug:'react',       name_ar:'React',           icon:'atom',            group:'tech'},
+    {slug:'vue',         name_ar:'Vue.js',          icon:'layers',          group:'tech'},
+    {slug:'angular',     name_ar:'Angular',         icon:'layers',          group:'tech'},
+    {slug:'nextjs',      name_ar:'Next.js',         icon:'triangle',        group:'tech'},
+    {slug:'nodejs',      name_ar:'Node.js',         icon:'server',          group:'tech'},
+    {slug:'django',      name_ar:'Django',          icon:'server',          group:'tech'},
+    {slug:'fastapi',     name_ar:'FastAPI',         icon:'zap',             group:'tech'},
+    {slug:'spring',      name_ar:'Spring Boot',     icon:'server',          group:'tech'},
+    {slug:'laravel',     name_ar:'Laravel',         icon:'server',          group:'tech'},
+    {slug:'react_native',name_ar:'React Native',   icon:'smartphone',      group:'tech'},
+    {slug:'flutter',     name_ar:'Flutter',         icon:'smartphone',      group:'tech'},
+    {slug:'android',     name_ar:'Android',         icon:'smartphone',      group:'tech'},
+    {slug:'ios',         name_ar:'iOS',             icon:'smartphone',      group:'tech'},
+    {slug:'postgresql',  name_ar:'PostgreSQL',      icon:'database',        group:'tech'},
+    {slug:'mysql',       name_ar:'MySQL',           icon:'database',        group:'tech'},
+    {slug:'mongodb',     name_ar:'MongoDB',         icon:'database',        group:'tech'},
+    {slug:'redis',       name_ar:'Redis',           icon:'database',        group:'tech'},
+    {slug:'aws',         name_ar:'AWS',             icon:'cloud',           group:'tech'},
+    {slug:'gcp',         name_ar:'Google Cloud',   icon:'cloud',           group:'tech'},
+    {slug:'azure',       name_ar:'Microsoft Azure', icon:'cloud',           group:'tech'},
+    {slug:'docker',      name_ar:'Docker',          icon:'package',         group:'tech'},
+    {slug:'kubernetes',  name_ar:'Kubernetes',      icon:'layers',          group:'tech'},
+    {slug:'git',         name_ar:'Git',             icon:'git-branch',      group:'tech'},
+    {slug:'linux',       name_ar:'Linux',           icon:'terminal',        group:'tech'},
+    {slug:'networking',  name_ar:'شبكات',           icon:'network',         group:'tech'},
+    {slug:'ml',          name_ar:'تعلم الآلة',      icon:'brain',           group:'tech'},
+    {slug:'data_analysis',name_ar:'تحليل البيانات', icon:'bar-chart-2',     group:'tech'},
+    // security
+    {slug:'cybersecurity',name_ar:'أمن المعلومات',  icon:'shield',          group:'security'},
+    {slug:'penetration_testing',name_ar:'اختبار الاختراق',icon:'shield-off',group:'security'},
+    {slug:'network_security',name_ar:'أمن الشبكات', icon:'shield',          group:'security'},
+    // design
+    {slug:'figma',       name_ar:'Figma',           icon:'figma',           group:'design'},
+    {slug:'ui_design',   name_ar:'تصميم UI',        icon:'layout',          group:'design'},
+    {slug:'ux_design',   name_ar:'تصميم UX',        icon:'users',           group:'design'},
+    {slug:'photoshop',   name_ar:'Photoshop',       icon:'image',           group:'design'},
+    {slug:'illustrator', name_ar:'Illustrator',     icon:'pen-tool',        group:'design'},
+    {slug:'after_effects',name_ar:'After Effects',  icon:'film',            group:'design'},
+    {slug:'video_editing',name_ar:'مونتاج الفيديو', icon:'video',           group:'design'},
+    // management
+    {slug:'project_management',name_ar:'إدارة المشاريع',icon:'briefcase',   group:'management'},
+    {slug:'scrum',       name_ar:'Scrum / Agile',   icon:'refresh-cw',      group:'management'},
+    {slug:'leadership',  name_ar:'القيادة',          icon:'users',           group:'management'},
+    {slug:'communication',name_ar:'التواصل',         icon:'message-circle',  group:'management'},
+    {slug:'problem_solving',name_ar:'حل المشكلات',  icon:'zap',             group:'management'},
+    {slug:'teamwork',    name_ar:'العمل الجماعي',   icon:'users',           group:'management'},
+    {slug:'time_management',name_ar:'إدارة الوقت',  icon:'clock',           group:'management'},
+    {slug:'negotiation', name_ar:'التفاوض',          icon:'handshake',       group:'management'},
+    // marketing
+    {slug:'digital_marketing',name_ar:'التسويق الرقمي',icon:'trending-up',  group:'marketing'},
+    {slug:'social_media',name_ar:'وسائل التواصل',   icon:'share-2',         group:'marketing'},
+    {slug:'seo',         name_ar:'SEO',             icon:'search',          group:'marketing'},
+    {slug:'content_writing',name_ar:'كتابة المحتوى',icon:'edit-3',          group:'marketing'},
+    {slug:'sales',       name_ar:'المبيعات',         icon:'trending-up',     group:'marketing'},
+    {slug:'crm',         name_ar:'CRM',             icon:'users',           group:'marketing'},
+    // finance
+    {slug:'accounting',  name_ar:'المحاسبة',         icon:'calculator',      group:'finance'},
+    {slug:'financial_analysis',name_ar:'التحليل المالي',icon:'bar-chart-2',  group:'finance'},
+    {slug:'excel',       name_ar:'Excel',           icon:'table',           group:'finance'},
+    {slug:'quickbooks',  name_ar:'QuickBooks',      icon:'book',            group:'finance'},
+    {slug:'auditing',    name_ar:'التدقيق المالي',  icon:'check-square',    group:'finance'},
+    {slug:'tax',         name_ar:'الضرائب',          icon:'file-text',       group:'finance'},
+    // hr
+    {slug:'recruitment', name_ar:'التوظيف',          icon:'user-plus',       group:'hr'},
+    {slug:'hr_management',name_ar:'إدارة الموارد البشرية',icon:'users',      group:'hr'},
+    {slug:'training',    name_ar:'التدريب',          icon:'book-open',       group:'hr'},
+    {slug:'payroll',     name_ar:'الرواتب',          icon:'dollar-sign',     group:'hr'},
+    // education
+    {slug:'teaching',    name_ar:'التدريس',          icon:'book-open',       group:'education'},
+    {slug:'curriculum_design',name_ar:'تصميم المناهج',icon:'layout',        group:'education'},
+    {slug:'e_learning',  name_ar:'التعليم الإلكتروني',icon:'monitor',        group:'education'},
+    // engineering
+    {slug:'autocad',     name_ar:'AutoCAD',         icon:'pen-tool',        group:'engineering'},
+    {slug:'civil_engineering',name_ar:'الهندسة المدنية',icon:'building',    group:'engineering'},
+    {slug:'electrical_engineering',name_ar:'الهندسة الكهربائية',icon:'zap', group:'engineering'},
+    {slug:'mechanical_engineering',name_ar:'الهندسة الميكانيكية',icon:'settings',group:'engineering'},
+    // health
+    {slug:'patient_care',name_ar:'رعاية المرضى',   icon:'heart',           group:'health'},
+    {slug:'first_aid',   name_ar:'الإسعافات الأولية',icon:'activity',       group:'health'},
+    {slug:'pharmacology',name_ar:'الصيدلة',         icon:'pill',            group:'health'},
+    // trades
+    {slug:'plumbing',    name_ar:'السباكة',          icon:'tool',            group:'trades'},
+    {slug:'electrical_work',name_ar:'الكهرباء',     icon:'zap',             group:'trades'},
+    {slug:'carpentry',   name_ar:'النجارة',          icon:'tool',            group:'trades'},
+    {slug:'welding',     name_ar:'اللحام',           icon:'tool',            group:'trades'},
+    // hospitality
+    {slug:'cooking',     name_ar:'الطبخ',            icon:'utensils',        group:'hospitality'},
+    {slug:'customer_service',name_ar:'خدمة العملاء', icon:'headphones',      group:'customer_service'},
+    // logistics
+    {slug:'logistics',   name_ar:'اللوجستيات',       icon:'truck',           group:'logistics'},
+    {slug:'supply_chain',name_ar:'سلسلة التوريد',   icon:'package',         group:'logistics'},
+    {slug:'warehousing', name_ar:'المستودعات',       icon:'archive',         group:'logistics'},
+    // languages
+    {slug:'arabic',      name_ar:'اللغة العربية',    icon:'type',            group:'languages'},
+    {slug:'english',     name_ar:'اللغة الإنجليزية', icon:'type',            group:'languages'},
+    {slug:'french',      name_ar:'اللغة الفرنسية',  icon:'type',            group:'languages'},
+    {slug:'german',      name_ar:'اللغة الألمانية',  icon:'type',            group:'languages'},
+    {slug:'spanish',     name_ar:'اللغة الإسبانية',  icon:'type',            group:'languages'},
+    {slug:'chinese',     name_ar:'اللغة الصينية',   icon:'type',            group:'languages'},
+  ];
+
   // ── Fill founded-year dropdown (current year → 1900, idempotent) ─
   TW.fillFoundedYears = function (selEl) {
     if (!selEl || selEl.options.length > 1) return;
