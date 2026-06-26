@@ -691,6 +691,53 @@ body.co-loading  .visitor-only           { display: none !important; }
 #tab-about,
 #tab-ratings       { display:none; }
 
+/* ══ JOB MODAL — PROFESSION + SKILL CHIPS ════════════════════════ */
+.j-skill-box-wrap { position:relative; }
+
+.j-skill-box {
+  min-height:44px; display:flex; flex-wrap:wrap; gap:6px; align-items:center;
+  padding:8px 10px; border:1px solid rgba(255,255,255,.12); border-radius:8px;
+  background:rgba(255,255,255,.04); cursor:text; transition:border-color .2s;
+}
+.j-skill-box:focus-within { border-color:var(--ac,#00c896); }
+
+.j-skill-chips { display:contents; }
+
+.j-skill-chip {
+  display:inline-flex; align-items:center; gap:4px;
+  padding:3px 8px 3px 6px; border-radius:20px; font-size:.76rem; font-weight:600;
+  background:rgba(0,200,150,.15); color:#00c896; white-space:nowrap;
+  border:1px solid rgba(0,200,150,.3);
+}
+.j-chip-ic { width:12px; height:12px; stroke:currentColor; flex-shrink:0; }
+.j-skill-chip-del {
+  background:none; border:none; cursor:pointer; padding:0 0 0 2px;
+  color:rgba(0,200,150,.7); font-size:.9rem; line-height:1;
+  display:flex; align-items:center;
+}
+.j-skill-chip-del:hover { color:#ff6b6b; }
+
+.j-skill-inp {
+  flex:1; min-width:120px; background:transparent; border:none; outline:none;
+  color:var(--fg,#e2e8f0); font-family:inherit; font-size:.85rem;
+  padding:2px 0; caret-color:var(--ac,#00c896);
+}
+.j-skill-inp::placeholder { color:rgba(255,255,255,.3); }
+
+.j-skill-drop {
+  position:absolute; top:calc(100% + 4px); right:0; left:0; z-index:400;
+  background:#0f1f36; border:1px solid rgba(255,255,255,.12); border-radius:8px;
+  overflow:hidden; box-shadow:0 8px 24px rgba(0,0,0,.5); max-height:230px; overflow-y:auto;
+}
+.j-skill-drop-item {
+  display:flex; align-items:center; gap:8px; padding:9px 12px; cursor:pointer;
+  transition:background .15s;
+}
+.j-skill-drop-item:hover { background:rgba(0,200,150,.1); }
+.j-drop-ic { width:14px; height:14px; stroke:#00c896; flex-shrink:0; }
+.j-drop-en { font-size:.84rem; color:var(--fg,#e2e8f0); flex:1; }
+.j-drop-ar { font-size:.74rem; color:rgba(255,255,255,.45); }
+
 /* ══ SKIP LINK ═══════════════════════════════════════════════════ */
 .skip-link{position:absolute;top:-40px;right:0;background:var(--ac);color:#0d1a2e;padding:8px 16px;border-radius:0 0 8px 0;font-family:Cairo,sans-serif;font-size:.8rem;font-weight:700;text-decoration:none;transition:top .2s;z-index:10000}
 .skip-link:focus{top:0}

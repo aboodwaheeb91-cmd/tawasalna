@@ -7484,7 +7484,7 @@ CREATE INDEX IF NOT EXISTS idx_jobs_profession ON jobs(profession_id);
 |----|--------|-------|
 | PR 1 ✅ | feat/taxonomy-db-foundation | DB + seed + API + fallback |
 | PR 2 ✅ | feat/shared-skill-picker | tw-skills.js + Profile V2 يستخدم GET /skills/catalog |
-| PR 3 | feat/job-modal-taxonomy-integration | Job Modal: profession picker + skill picker |
+| PR 3 ✅ | feat/job-modal-taxonomy-integration | Job Modal: profession picker + skill picker |
 | PR 4 | feat/taxonomy-aware-matching | Matching algorithm: profession_id boost |
 | PR 5 | cleanup/taxonomy-hardcoded-removal | حذف القوائم القديمة hardcoded |
 
@@ -7550,4 +7550,70 @@ All helpers normalize DB format (`name_en`, `name_ar`, `keywords`) and fallback 
 ❌ Never access TW._catalog directly from page modules — use the helper functions
 ❌ Never add a skill list to a page-specific JS file
 ❌ Never bypass tw-skills.js by calling fetch('/skills/catalog') directly from a page module
+```
+
+---
+
+## Job Modal Taxonomy Integration (PR 3 — feat/job-modal-taxonomy-integration)
+
+### Overview
+
+Replaces the old free-text category dropdown (`j-cat` / `TW.JOB_CATEGORIES`) and comma-separated skills input (`j-skills`) in the Company Profile job-posting modal with:
+
+1. **Profession picker** — `<select id="j-prof">` loaded from `GET /professions` with `<optgroup>` per `category_group`; value = integer `profession_id`
+2. **Skill chip autocomplete** — chip-based input using `TW.searchSkills` + `TW.normalizeSkill` + `TW.getSkillIcon` from `tw-skills.js`
+
+### Changed Files
+
+| File | Change |
+|------|--------|
+| `company-profile.html` | Replaced `j-cat` select with `j-prof` select; replaced `j-skills` text input with `j-skill-box-wrap` chip container; added `tw-skills.js` script tag |
+| `static/company/company.jobs.js` | Added `_loadProfessions()`, `_rebuildProfSelect()`, `_jSkills` state, chip system (`_jRenderChips`, `_jAddSkill`, `_jRemoveSkill`, `_jShowDrop`, `_jHideDrop`, `_jBindSkillAC`); updated `openPostJob()`, `publishJob()`, `_resetPostJobModal()` |
+| `static/company/company.css` | Added `.j-skill-box-wrap`, `.j-skill-box`, `.j-skill-chip`, `.j-skill-chip-del`, `.j-skill-inp`, `.j-skill-drop`, `.j-skill-drop-item` |
+
+### Script Load Order (Company Profile)
+
+```
+lucide → tw_shared.js → tw-options-data.js → tw-select.js → tw-skills.js → company.state.js → ...
+```
+
+`tw-skills.js` must come before `company.state.js` (and all other company modules) so `TW.searchSkills` etc. are available when `company.jobs.js` runs.
+
+### Payload Changes
+
+`POST /company/jobs` now sends:
+
+```json
+{
+  "profession_id": 12,       // integer FK → profession_categories(id), or null
+  "category": "تقنية المعلومات",  // legacy fallback: derived from optgroup label of selected profession
+  "skills": ["Python", "FastAPI"]  // normalized array (via TW.normalizeSkill), replaces comma text
+}
+```
+
+`profession_id` is optional (NULL allowed) — server already accepts it via `JobInput.profession_id: Optional[int] = None`.
+
+### Skill Chip System Rules
+
+```
+✅ _jSkills is the single source of truth for skills in the job modal
+✅ _jAddSkill() normalizes via TW.normalizeSkill before pushing
+✅ _jBindSkillAC() is idempotent (checks _jACBound flag)
+✅ _jHideDrop() is called on blur (180ms delay) and Escape
+✅ Max 15 skills enforced client-side
+✅ Chip delete uses mousedown to prevent blur race (dropdown case uses mousedown + preventDefault)
+❌ Never read j-skills text input for skills (element removed)
+❌ Never call fetch('/skills/catalog') directly — always use TW.searchSkills
+❌ Never call fetch('/professions') more than once per session (_professions cache in module scope)
+```
+
+### Profession Picker Rules
+
+```
+✅ _loadProfessions() caches result in _professions module variable (fetches once per page load)
+✅ _rebuildProfSelect() groups by category_group using <optgroup>
+✅ scSelectInit() called after _rebuildProfSelect() to apply tw-select.js custom UI
+✅ Legacy category field derived from optgroup label of selected option
+❌ Never hardcode profession options in HTML or JS
+❌ Never use j-cat (removed from modal) — it was TW.JOB_CATEGORIES; cleanup in PR 5
 ```
