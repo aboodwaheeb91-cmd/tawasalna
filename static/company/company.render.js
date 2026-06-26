@@ -262,6 +262,27 @@
   }
 
   // ── Branches (public display) ─────────────────────────────────
+  // ── Branch label formatter — shared by compact chips and full sheet ──
+  // Returns { parts: string[], sameAsHq: boolean }
+  // Applies smart dedup: branch_name is omitted if it duplicates city or district.
+  function _formatBranchLabel(b, hqCountry) {
+    var sameAsHq = !!(hqCountry && window.TW && TW.sameCountry
+      && TW.sameCountry(b.country, hqCountry));
+
+    var name = (b.branch_name || '').trim();
+    var city = (b.city        || '').trim();
+    var dist = (b.district    || '').trim();
+    var ctry = (b.country     || '').trim();
+
+    var parts = [];
+    if (name && name !== city && name !== dist) parts.push(name);
+    if (!sameAsHq && ctry) parts.push(ctry);
+    if (city) parts.push(city);
+    if (dist && dist !== city) parts.push(dist);
+
+    return { parts: parts, sameAsHq: sameAsHq };
+  }
+
   function renderBranches(branches) {
     var row  = document.getElementById('coBranchesRow');
     var list = document.getElementById('coBranchesText');
@@ -273,9 +294,9 @@
       return;
     }
 
-    var MAX      = 3;
-    var shown    = branches.slice(0, MAX);
-    var rest     = branches.length - MAX;
+    var MAX       = 3;
+    var shown     = branches.slice(0, MAX);
+    var rest      = branches.length - MAX;
     var hqCountry = (window.companyState && companyState.profile)
       ? (companyState.profile.country || '') : '';
 
@@ -287,37 +308,99 @@
         sep.textContent = '|';
         list.appendChild(sep);
       }
+
       var chip = document.createElement('span');
       chip.className = 'co-branch-chip';
 
-      // Show flag + country only when branch is in a different country from HQ
-      var sameAsHq = hqCountry && window.TW && TW.sameCountry
-        ? TW.sameCountry(b.country, hqCountry) : false;
+      // "فرع N:" prefix
+      var numEl = document.createElement('span');
+      numEl.className   = 'co-branch-num';
+      numEl.textContent = 'فرع ' + (i + 1) + ':';
+      chip.appendChild(numEl);
 
-      if (!sameAsHq && b.country && window.TW && TW.countryFlagEl) {
-        var brFlagEl = TW.countryFlagEl(b.country);
-        if (brFlagEl) { brFlagEl.style.marginLeft = '3px'; chip.appendChild(brFlagEl); }
+      var fmt = _formatBranchLabel(b, hqCountry);
+
+      // Flag only when branch country differs from HQ
+      if (!fmt.sameAsHq && b.country && window.TW && TW.countryFlagEl) {
+        var fl = TW.countryFlagEl(b.country);
+        if (fl) chip.appendChild(fl);
       }
 
-      var parts = [b.branch_name];
-      if (!sameAsHq && b.country) parts.push(b.country);
-      if (b.city)     parts.push(b.city);
-      if (b.district) parts.push(b.district);
-
       var chipTxt = document.createElement('span');
-      chipTxt.textContent = parts.filter(Boolean).join(' - ');
+      chipTxt.textContent = fmt.parts.join(' - ');
       chip.appendChild(chipTxt);
       list.appendChild(chip);
     });
 
     if (rest > 0) {
+      var sep2 = document.createElement('span');
+      sep2.className   = 'co-branch-sep';
+      sep2.textContent = '|';
+      list.appendChild(sep2);
+
       var more = document.createElement('span');
       more.className   = 'co-branch-more';
-      more.textContent = '+ ' + rest + ' فروع أخرى';
+      more.setAttribute('role', 'button');
+      more.setAttribute('tabindex', '0');
+      more.textContent = '+ ' + rest + ' أخرى';
+      more.addEventListener('click', function () {
+        if (window.openAllBranchesModal) openAllBranchesModal();
+      });
+      more.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          if (window.openAllBranchesModal) openAllBranchesModal();
+        }
+      });
       list.appendChild(more);
     }
 
     row.style.display = 'flex';
+  }
+
+  // ── All-branches bottom sheet ─────────────────────────────────
+  function openAllBranchesModal() {
+    var branches  = window.companyState ? (companyState.branches || []) : [];
+    var listEl    = document.getElementById('allBranchesList');
+    var overlayEl = document.getElementById('allBranchesOverlay');
+    if (!listEl || !overlayEl) return;
+
+    var hqCountry = (window.companyState && companyState.profile)
+      ? (companyState.profile.country || '') : '';
+
+    listEl.innerHTML = '';
+    branches.forEach(function (b, i) {
+      var item = document.createElement('div');
+      item.className = 'co-branch-all-item';
+
+      var numEl = document.createElement('span');
+      numEl.className   = 'co-branch-all-num';
+      numEl.textContent = 'فرع ' + (i + 1);
+      item.appendChild(numEl);
+
+      var infoEl = document.createElement('div');
+      infoEl.className = 'co-branch-all-info';
+
+      var fmt = _formatBranchLabel(b, hqCountry);
+      if (!fmt.sameAsHq && b.country && window.TW && TW.countryFlagEl) {
+        var fl = TW.countryFlagEl(b.country);
+        if (fl) infoEl.appendChild(fl);
+      }
+
+      var txtEl = document.createElement('span');
+      txtEl.textContent = fmt.parts.join(' - ');
+      infoEl.appendChild(txtEl);
+      item.appendChild(infoEl);
+      listEl.appendChild(item);
+    });
+
+    overlayEl.classList.add('show');
+    if (window.lucide) lucide.createIcons({ nodes: [listEl] });
+  }
+
+  function closeAllBranchesModal() {
+    var el = document.getElementById('allBranchesOverlay');
+    if (el) el.classList.remove('show');
   }
 
   // ── Orchestrator ──────────────────────────────────────────────
@@ -345,6 +428,8 @@
   window.renderRating    = renderRating;
   window._postCardHtml   = _postCardHtml;
   window.renderPosts     = renderPosts;
-  window.renderBranches  = renderBranches;
-  window.renderAll       = renderAll;
+  window.renderBranches        = renderBranches;
+  window.openAllBranchesModal  = openAllBranchesModal;
+  window.closeAllBranchesModal = closeAllBranchesModal;
+  window.renderAll             = renderAll;
 }());
