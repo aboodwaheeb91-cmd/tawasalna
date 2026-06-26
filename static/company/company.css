@@ -568,7 +568,7 @@ i.ico-sm { width:14px; height:14px; stroke:currentColor; fill:none; stroke-width
 .mf-section-title:first-of-type { margin-top:4px; }
 .mf-section-note { font-size:.65rem; font-weight:400; color:var(--t3); text-transform:none; letter-spacing:0; }
 
-/* ep-select — Profile V2 style parity (native select + CSS chevron, no custom JS) */
+/* ep-select — no-JS CSS fallback only; tw-select.js provides the interactive layer */
 .mf select.ep-select {
   background:rgba(255,255,255,.05) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7686' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E") no-repeat left 12px center;
   border:1px solid rgba(255,255,255,.1);
@@ -579,6 +579,14 @@ i.ico-sm { width:14px; height:14px; stroke:currentColor; fill:none; stroke-width
 }
 .mf select.ep-select:focus { border-color:var(--ac2); }
 .mf select.ep-select option { background:#0f1420; }
+
+/* Salary hidden checkbox row — RTL: label text on right, checkbox on left */
+.sal-hide-label {
+  display:flex; align-items:center; gap:8px;
+  cursor:pointer; font-size:.82rem; font-weight:600;
+  color:rgba(255,255,255,.6);
+  flex-direction:row-reverse; justify-content:flex-end;
+}
 
 /* Branch cards (UI-only — no DB save until company_branches table is added) */
 .branch-row {
