@@ -459,6 +459,17 @@
   </div>
 </div>
 
+<!-- ██ ALL BRANCHES BOTTOM SHEET ██ -->
+<div class="co-branches-sheet-overlay" id="allBranchesOverlay" onclick="if(event.target===this) closeAllBranchesModal()">
+  <div class="co-branches-sheet" role="dialog" aria-modal="true" aria-labelledby="allBranchesTitle">
+    <div class="co-branches-sheet-hdr">
+      <span class="co-branches-sheet-title" id="allBranchesTitle">كل الفروع</span>
+      <button class="co-branches-sheet-close" onclick="closeAllBranchesModal()" type="button" aria-label="إغلاق">✕</button>
+    </div>
+    <div id="allBranchesList"></div>
+  </div>
+</div>
+
 <!-- Scripts: load order — lucide → tw-shared → state → api → permissions → render → jobs → posts → main -->
 <script src="/static/vendor/lucide/lucide.min.js"></script>
 <script src="/tw_shared.js"></script>
