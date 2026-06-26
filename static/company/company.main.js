@@ -264,7 +264,7 @@
     }
     if (bCoId) {
       fetch('/company/branches/' + bCoId)
-        .then(function (r) { return r.json(); })
+        .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
         .then(function (d) {
           if (bList) {
             bList.innerHTML = '';
@@ -475,10 +475,17 @@
   window.setCover          = setCover;
   window.uploadCover       = uploadCover;
   window.uploadLogo        = uploadLogo;
-  window.openReportModal   = openReportModal;
-  window.closeReportModal  = closeReportModal;
-  window.submitReport      = submitReport;
+  window.openReportModal    = openReportModal;
+  window.closeReportModal   = closeReportModal;
+  window.submitReport       = submitReport;
   window.initCompanyProfile = initCompanyProfile;
+
+  // Expose _branchesLoaded read/write for testability and cross-module access
+  Object.defineProperty(window, '_branchesLoaded', {
+    get: function () { return _branchesLoaded; },
+    set: function (v) { _branchesLoaded = v; },
+    configurable: true,
+  });
 
   // ── Event bindings (commit #2 — replaces all inline onclick/onchange) ──
   function _bindMainEvents() {
