@@ -73,4 +73,6 @@
 /* ── Circular flag images (used with data-img on <option>) ─────── */
 .tw-flag {
   width:18px; height:18px; border-radius:50%; object-fit:cover; flex-shrink:0;
+  box-shadow:0 0 0 1.5px rgba(255,255,255,.16), 0 1px 3px rgba(0,0,0,.35);
+  filter:brightness(1.03) saturate(1.08);
 }

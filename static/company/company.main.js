@@ -177,12 +177,20 @@
     hdr.appendChild(num);
     hdr.appendChild(del);
 
-    // Branch name — full-width above grid, class b-name for DOM query
+    // Branch name — hidden by default; shown if data.branch_name exists or user clicks toggle
     var inpName = document.createElement('input');
     inpName.type        = 'text';
     inpName.className   = 'b-name';
     inpName.placeholder = 'اسم الفرع (اختياري)';
     inpName.value       = data.branch_name || '';
+    var hasName       = !!(data.branch_name && data.branch_name.trim());
+    var nameFieldWrap = null;   // assigned below after _makeMf is called
+
+    var toggleBtn       = document.createElement('button');
+    toggleBtn.type      = 'button';
+    toggleBtn.className = 'branch-name-toggle-btn';
+    toggleBtn.textContent = '+ إضافة اسم مخصص للفرع';
+    if (hasName) toggleBtn.style.display = 'none';
 
     // Fields grid
     var fields = document.createElement('div');
@@ -221,8 +229,17 @@
     fields.appendChild(_makeMf('المحافظة / المدينة',        selCity));
     fields.appendChild(_makeMf('المنطقة / الحي (اختياري)',  inpDistrict));
 
+    nameFieldWrap = _makeMf('اسم الفرع (اختياري)', inpName, 'branch-name-field');
+    if (!hasName) nameFieldWrap.style.display = 'none';
+    toggleBtn.addEventListener('click', function () {
+      nameFieldWrap.style.display = '';
+      toggleBtn.style.display     = 'none';
+      inpName.focus();
+    });
+
     row.appendChild(hdr);
-    row.appendChild(_makeMf('اسم الفرع (اختياري)', inpName, 'branch-name-field'));
+    row.appendChild(toggleBtn);
+    row.appendChild(nameFieldWrap);
     row.appendChild(fields);
     list.appendChild(row);
     if (window.scSelectInit) scSelectInit();
