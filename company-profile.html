@@ -395,21 +395,40 @@
 <div class="overlay" id="postJobOverlay">
   <div class="modal modal-lg">
     <div class="modal-title">نشر وظيفة جديدة</div>
-    <div class="mf"><label>المسمى الوظيفي *</label><input id="j-title" placeholder="مثال: مطور Full Stack..."></div>
+    <div class="mf"><label>المسمى الوظيفي *</label><input id="j-title" placeholder="مثال: مطور Full Stack، محاسب، كاشير..."></div>
     <div class="mrow">
-      <div class="mf"><label>الموقع</label><input id="j-loc" placeholder="عمان، الأردن"></div>
-      <div class="mf"><label>نوع الدوام</label>
-        <select id="j-type">
-          <option>دوام كامل</option><option>دوام جزئي</option><option>عن بُعد</option><option>هجين</option>
+      <div class="mf"><label>تصنيف الوظيفة *</label><select id="j-cat"></select></div>
+      <div class="mf"><label>نوع الدوام</label><select id="j-type"></select></div>
+    </div>
+    <div class="mrow">
+      <div class="mf"><label>طبيعة العمل</label><select id="j-wmode"></select></div>
+      <div class="mf"><label>الخبرة المطلوبة</label><select id="j-exp"></select></div>
+    </div>
+    <div class="mf">
+      <label>موقع الوظيفة</label>
+      <select id="j-loc-mode" onchange="window._onJobLocModeChange&&_onJobLocModeChange()">
+        <option value="hq">المقر الرئيسي للشركة</option>
+        <option value="remote">عن بُعد</option>
+        <option value="branch">أحد الفروع</option>
+        <option value="custom">موقع مخصص</option>
+      </select>
+    </div>
+    <div class="mf" id="j-branch-wrap" style="display:none"><label>الفرع</label><select id="j-branch-sel"></select></div>
+    <div class="mf" id="j-custom-wrap" style="display:none"><label>الموقع</label><input id="j-loc" placeholder="مثال: عمان، الأردن"></div>
+    <div class="mrow" id="j-sal-row">
+      <div class="mf"><label>الراتب من</label><input id="j-sal1" type="number" placeholder="800"></div>
+      <div class="mf"><label>الراتب إلى</label><input id="j-sal2" type="number" placeholder="1200"></div>
+      <div class="mf"><label>العملة</label>
+        <select id="j-cur">
+          <option value="USD">USD</option><option value="JOD">JOD</option>
+          <option value="SAR">SAR</option><option value="AED">AED</option>
+          <option value="EGP">EGP</option><option value="IQD">IQD</option>
         </select>
       </div>
     </div>
-    <div class="mrow">
-      <div class="mf"><label>الراتب من</label><input id="j-sal1" type="number" placeholder="800"></div>
-      <div class="mf"><label>الراتب إلى</label><input id="j-sal2" type="number" placeholder="1200"></div>
-    </div>
-    <div class="mf"><label>وصف الوظيفة</label><textarea id="j-desc" placeholder="اكتب وصف الوظيفة والمتطلبات..."></textarea></div>
-    <div class="mf"><label>المهارات المطلوبة (افصل بفاصلة)</label><input id="j-skills" placeholder="React, Python, SQL..."></div>
+    <div class="mf"><label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="j-sal-hide" onchange="window._onSalHideChange&&_onSalHideChange()"> الراتب غير معلن</label></div>
+    <div class="mf"><label>وصف الوظيفة</label><textarea id="j-desc" rows="4" placeholder="اكتب وصف الوظيفة والمتطلبات..."></textarea></div>
+    <div class="mf"><label>المهارات المطلوبة (افصل بفاصلة)</label><input id="j-skills" placeholder="React, Python, Excel..."></div>
     <div class="mact">
       <button id="publishJobBtn" class="mbtn mbtn-ok">نشر الوظيفة</button>
       <button id="postJobCancelBtn" class="mbtn mbtn-no">إلغاء</button>

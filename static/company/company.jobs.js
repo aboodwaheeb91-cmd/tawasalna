@@ -109,9 +109,91 @@
     .finally(function () { isRateLoading = false; });
   }
 
+  // ── Post job helpers ───────────────────────────────────────────
+
+  function _onJobLocModeChange() {
+    var mode       = (document.getElementById('j-loc-mode') || {}).value || 'hq';
+    var branchWrap = document.getElementById('j-branch-wrap');
+    var customWrap = document.getElementById('j-custom-wrap');
+    if (branchWrap) branchWrap.style.display = mode === 'branch' ? '' : 'none';
+    if (customWrap) customWrap.style.display  = mode === 'custom' ? '' : 'none';
+    if (mode === 'branch') _populateBranchSelector();
+  }
+
+  function _populateBranchSelector() {
+    var sel = document.getElementById('j-branch-sel');
+    if (!sel) return;
+    sel.innerHTML = '<option value="">— اختر الفرع —</option>';
+    var branches = (window.companyState && companyState.branches) || [];
+    branches.forEach(function (b) {
+      var o    = document.createElement('option');
+      var label = [b.branch_name, b.country, b.city].filter(Boolean).join(' — ');
+      var locVal = [b.country, b.city, b.district].filter(Boolean).join('، ');
+      o.value      = locVal;
+      o.textContent = label || locVal;
+      sel.appendChild(o);
+    });
+  }
+
+  function _onSalHideChange() {
+    var hide   = document.getElementById('j-sal-hide');
+    var salRow = document.getElementById('j-sal-row');
+    if (salRow) salRow.style.display = (hide && hide.checked) ? 'none' : '';
+  }
+
+  function _resolveJobLocation() {
+    var mode = (document.getElementById('j-loc-mode') || {}).value || 'hq';
+    if (mode === 'remote') return 'عن بُعد';
+    if (mode === 'branch') {
+      var br = document.getElementById('j-branch-sel');
+      return (br && br.value) || '';
+    }
+    if (mode === 'hq') {
+      var p = window.companyState && companyState.profile;
+      if (p) {
+        var parts = [p.country, p.city].filter(Boolean);
+        return parts.join('، ') || p.location || '';
+      }
+      return '';
+    }
+    // custom
+    return (document.getElementById('j-loc') || {}).value || '';
+  }
+
+  function _resetPostJobModal() {
+    ['j-title','j-desc','j-skills','j-sal1','j-sal2','j-loc'].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) el.value = '';
+    });
+    ['j-cat','j-type','j-wmode','j-exp','j-cur','j-branch-sel'].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) el.value = '';
+    });
+    var hide = document.getElementById('j-sal-hide');
+    if (hide) hide.checked = false;
+    var locMode = document.getElementById('j-loc-mode');
+    if (locMode) locMode.value = 'hq';
+    _onSalHideChange();
+    _onJobLocModeChange();
+  }
+
   // ── Post job modal ─────────────────────────────────────────────
   function openPostJob() {
     if (!window.companyState || !companyState.permissions.can_post_jobs) return;
+
+    // Populate selects from shared data (idempotent — only fills when empty)
+    if (window.TW) {
+      var _fill = function (id, arr, ph) {
+        var el = document.getElementById(id);
+        if (el && el.options.length < 2) TW.fillSelect(el, arr || [], ph);
+      };
+      _fill('j-cat',   TW.JOB_CATEGORIES,    '— اختر التصنيف —');
+      _fill('j-type',  TW.JOB_TYPES,         '— نوع الدوام —');
+      _fill('j-wmode', TW.JOB_WORK_MODES,    '— طبيعة العمل —');
+      _fill('j-exp',   TW.EXPERIENCE_LEVELS, '— الخبرة المطلوبة —');
+    }
+
+    _onJobLocModeChange();
     var el = document.getElementById('postJobOverlay');
     if (el) el.classList.add('show');
     if (window.history) history.pushState({ modal: 'postJob' }, '', location.href);
@@ -122,35 +204,71 @@
       if (window.showToast) showToast('غير مصرح', 'error'); return;
     }
     var val = function (id) { return (document.getElementById(id) || {}).value || ''; };
+
     var title = val('j-title').trim();
     if (!title) { if (window.showToast) showToast('أدخل المسمى الوظيفي', 'error'); return; }
-    var ov = document.getElementById('postJobOverlay');
+
+    var cat = val('j-cat');
+    if (!cat) { if (window.showToast) showToast('اختر تصنيف الوظيفة', 'error'); return; }
+
+    var publishBtn = document.getElementById('publishJobBtn');
+    if (publishBtn && publishBtn.disabled) return;  // prevent double submit
+    if (publishBtn) { publishBtn.disabled = true; publishBtn.textContent = 'جاري النشر…'; }
+
+    var salHide   = document.getElementById('j-sal-hide');
+    var isSalHide = salHide && salHide.checked;
+
+    var payload = {
+      title:            title,
+      description:      val('j-desc'),
+      location:         _resolveJobLocation(),
+      job_type:         val('j-type') || 'دوام كامل',
+      work_mode:        val('j-wmode') || 'في الموقع',
+      category:         cat,
+      salary_min:       isSalHide ? null : (parseInt(val('j-sal1')) || null),
+      salary_max:       isSalHide ? null : (parseInt(val('j-sal2')) || null),
+      currency:         val('j-cur') || 'USD',
+      salary_hidden:    isSalHide,
+      experience_years: parseInt(val('j-exp')) || 0,
+      skills:           val('j-skills').split(',').map(function (s) { return s.trim(); }).filter(Boolean),
+    };
+
     fetch('/company/jobs', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + _jwt() },
-      body:    JSON.stringify({
-        title:      title,
-        description: val('j-desc'),
-        location:   val('j-loc'),
-        job_type:   val('j-type'),
-        salary_min: parseInt(val('j-sal1')) || null,
-        salary_max: parseInt(val('j-sal2')) || null,
-      }),
+      body:    JSON.stringify(payload),
     })
-    .then(function (r) { return r.json(); })
+    .then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    })
     .then(function (data) {
-      if (data.status === 'success') {
-        if (ov) ov.classList.remove('show');
-        if (window.showToast) showToast('تم نشر الوظيفة ✓');
-        if (window.loadData) loadData();
-      }
+      if (data.status !== 'success') throw new Error(data.detail || 'فشل النشر');
+
+      // ── Confirmed Immediate Update ────────────────────────────
+      var ov = document.getElementById('postJobOverlay');
+      if (ov) ov.classList.remove('show');
+      if (window.showToast) showToast('تم نشر الوظيفة ✓');
+
+      var newJob = data.job || {};
+      if (!newJob.id) newJob = Object.assign(
+        { id: 0, status: 'active', created_at: new Date().toISOString() }, payload);
+      companyState.jobs = [newJob].concat(companyState.jobs || []);
+      if (window.renderJobs) renderJobs();
+
+      // Increment local jobs counter so stats chip stays in sync
+      if (window.companyState && companyState.stats)
+        companyState.stats.jobs_count = (companyState.stats.jobs_count || 0) + 1;
+      if (window.renderStats) renderStats();
+      _resetPostJobModal();
     })
-    .catch(function () {
-      if (window.showToast) showToast('خطأ في نشر الوظيفة', 'error');
+    .catch(function (err) {
+      if (publishBtn) { publishBtn.disabled = false; publishBtn.textContent = 'نشر الوظيفة'; }
+      if (window.showToast) showToast((err && err.message) || 'خطأ في نشر الوظيفة', 'error');
     });
   }
 
-  // ── Event bindings (commit #2) ──────────────────────────────────
+  // ── Event bindings ─────────────────────────────────────────────
   function _bindJobEvents() {
     var q = function (id) { return document.getElementById(id); };
 
@@ -159,7 +277,8 @@
       if (e.target === this) this.classList.remove('show');
     });
 
-    var publishJobBtn = q('publishJobBtn'); if (publishJobBtn) publishJobBtn.addEventListener('click', publishJob);
+    var publishJobBtn = q('publishJobBtn');
+    if (publishJobBtn) publishJobBtn.addEventListener('click', publishJob);
 
     var postJobCancelBtn = q('postJobCancelBtn');
     if (postJobCancelBtn) postJobCancelBtn.addEventListener('click', function () {
@@ -167,13 +286,15 @@
     });
   }
 
-  window._applyJob     = _applyJob;
-  window.applyJob      = applyJob;
-  window.bindEvents    = bindEvents;
-  window.bindRateStars = bindRateStars;
-  window.submitRating  = submitRating;
-  window.openPostJob   = openPostJob;
-  window.publishJob    = publishJob;
+  window._applyJob             = _applyJob;
+  window.applyJob              = applyJob;
+  window.bindEvents            = bindEvents;
+  window.bindRateStars         = bindRateStars;
+  window.submitRating          = submitRating;
+  window.openPostJob           = openPostJob;
+  window.publishJob            = publishJob;
+  window._onJobLocModeChange   = _onJobLocModeChange;
+  window._onSalHideChange      = _onSalHideChange;
 
   document.addEventListener('DOMContentLoaded', function () {
     bindEvents();
