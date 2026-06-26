@@ -7483,7 +7483,71 @@ CREATE INDEX IF NOT EXISTS idx_jobs_profession ON jobs(profession_id);
 | PR | Branch | Focus |
 |----|--------|-------|
 | PR 1 ✅ | feat/taxonomy-db-foundation | DB + seed + API + fallback |
-| PR 2 | feat/shared-skill-picker | tw-skills.js + Profile V2 يستخدم GET /skills/catalog |
+| PR 2 ✅ | feat/shared-skill-picker | tw-skills.js + Profile V2 يستخدم GET /skills/catalog |
 | PR 3 | feat/job-modal-taxonomy-integration | Job Modal: profession picker + skill picker |
 | PR 4 | feat/taxonomy-aware-matching | Matching algorithm: profession_id boost |
 | PR 5 | cleanup/taxonomy-hardcoded-removal | حذف القوائم القديمة hardcoded |
+
+---
+
+## `static/shared/tw-skills.js` — Shared Skill Catalog Helpers (PR 2)
+
+### Overview
+
+يحمّل `tw-skills.js` قائمة المهارات من DB (`GET /skills/catalog`) ويوفر helpers مشتركة للبحث والتطبيع ولوأيقونات. يستخدمه أي module يحتاج الوصول لـ skill catalog.
+
+### Load Order
+
+```
+tw-options-data.js → tw-select.js → tw-skills.js → profile-v2.skills.js
+```
+
+### Data Flow
+
+```
+startup: TW._catalog = TW.SKILL_CATALOG (static fallback ~90 skills, immediate)
+async:   fetch('/skills/catalog') → TW._catalog = full DB list (335+ skills)
+helpers: always read from TW._catalog (whichever is available at call time)
+```
+
+### Internal Catalog Format
+
+```js
+{ slug: string, en: string, ar: string, kw: string, icon: string }
+```
+
+All helpers normalize DB format (`name_en`, `name_ar`, `keywords`) and fallback format (`name_ar`, `group`) to this unified shape.
+
+### API Reference
+
+| Function | Returns | Description |
+|----------|---------|-------------|
+| `TW.loadSkillCatalog(cb)` | void | Call `cb(catalog)` when DB load completes (or now if already loaded) |
+| `TW.searchSkills(q, maxResults)` | `{slug,en,ar,kw,icon}[]` | Search by en / ar / slug / keywords (max 8 by default) |
+| `TW.normalizeSkill(raw)` | string | Returns canonical `en` name if found, else returns trimmed raw |
+| `TW.getSkillIcon(name)` | string | Lucide icon name (falls back to `circle-check`) |
+| `TW._getSkillEntry(name)` | entry \| null | Full catalog entry matched by `en` / `slug` / `ar` |
+| `TW._isOfficialSkill(name)` | boolean | Whether name exists in catalog |
+| `TW._catalog` | array | Live catalog array (starts with fallback, replaced by DB data) |
+| `TW._catalogReady` | boolean | Whether DB fetch has completed (or failed) |
+
+### Profile V2 Integration
+
+`profile-v2.skills.js` now delegates all catalog access to `TW`:
+- Removed: embedded 335-item `CATALOG` array
+- Replaced: `_search()` → `TW.searchSkills(q, 8)`
+- Replaced: `_normalize()` → `TW.normalizeSkill(raw)`
+- Replaced: `_isOfficial()` → `TW._isOfficialSkill(name)`
+- Replaced: `_getCatalogEntry()` → `TW._getSkillEntry(name)`
+- `window._getSkillIcon()` now delegates to `TW.getSkillIcon()`
+
+### Rules
+
+```
+✅ Use TW.searchSkills / TW.normalizeSkill / TW.getSkillIcon for ALL skill catalog access
+✅ tw-skills.js must load AFTER tw-options-data.js (needs TW.SKILL_CATALOG for fallback)
+✅ tw-skills.js must load BEFORE any page skill module (profile-v2.skills.js, future Job Modal)
+❌ Never access TW._catalog directly from page modules — use the helper functions
+❌ Never add a skill list to a page-specific JS file
+❌ Never bypass tw-skills.js by calling fetch('/skills/catalog') directly from a page module
+```

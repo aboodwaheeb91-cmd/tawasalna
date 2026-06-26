@@ -629,7 +629,7 @@ These rules are permanent and apply to all future AI sessions.
 
 1. **`skill_catalog` DB table is the official source for all skills.** Do NOT maintain hardcoded skill lists inside page JS files, HTML, or any file other than `auth.py` (`_SKILL_SEED` inside `_migrate_taxonomy_foundation()`).
 
-2. **`TW.SKILL_CATALOG` in `tw-options-data.js` is fallback-only.** It is used only when `GET /skills/catalog` fails or before PR 2 (`feat/shared-skill-picker`) is merged. Never treat it as the primary data source.
+2. **`TW.SKILL_CATALOG` in `tw-options-data.js` is fallback-only.** It is used internally by `tw-skills.js` as the initial synchronous catalog before the DB fetch completes. Never use it directly from page modules — always go through `TW.searchSkills / TW.normalizeSkill / TW.getSkillIcon`.
 
 3. **`profession_categories` DB table is the official source for all professional specializations.** The `GET /professions` endpoint is the only approved way to load them on the frontend.
 
@@ -639,16 +639,19 @@ These rules are permanent and apply to all future AI sessions.
 
 6. **Never duplicate skill data across files.** Any skill addition goes into `_SKILL_SEED` in `auth.py` only. The DB → `GET /skills/catalog` → `TW.SKILL_CATALOG` (fallback) flow is the only approved pipeline.
 
-7. **Forbidden patterns:**
+7. **`static/shared/tw-skills.js` is the only approved access point for skill catalog on the frontend (PR 2+).** All skill search, normalization, and icon lookup must go through `TW.searchSkills`, `TW.normalizeSkill`, `TW.getSkillIcon`, `TW._getSkillEntry`, `TW._isOfficialSkill`. Load order: `tw-options-data.js` → `tw-skills.js` → page skill module.
+
+8. **Forbidden patterns:**
    ```
    ❌ Hardcoded skill arrays inside page JS files
    ❌ Hardcoded profession lists outside profession_categories
-   ❌ TW.SKILL_CATALOG as the primary data source
+   ❌ TW.SKILL_CATALOG used directly from page modules
+   ❌ fetch('/skills/catalog') called directly from page modules (use tw-skills.js)
    ❌ jobs.profession_id with NOT NULL constraint before PR 3
    ❌ Direct DB writes to skill_catalog outside auth.py migrations
    ```
 
-8. **PR order is mandatory:** PR 1 (DB foundation) → PR 2 (shared picker) → PR 3 (job modal) → PR 4 (matching) → PR 5 (cleanup). Do NOT start a later PR before the earlier one is reviewed and merged.
+9. **PR order is mandatory:** PR 1 (DB foundation) → PR 2 (shared picker) → PR 3 (job modal) → PR 4 (matching) → PR 5 (cleanup). Do NOT start a later PR before the earlier one is reviewed and merged.
 
 ---
 
