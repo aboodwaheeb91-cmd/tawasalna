@@ -384,6 +384,11 @@
     if (!title) { if (window.showToast) showToast('أدخل المسمى الوظيفي', 'error'); return; }
 
     var profId = parseInt(val('j-prof')) || null;
+    if (!profId) { if (window.showToast) showToast('اختر التخصص الوظيفي', 'error'); return; }
+
+    // Flush any partially typed skill before building payload
+    var inpEl = document.getElementById('j-skill-inp');
+    if (inpEl && inpEl.value.trim()) { _jAddSkill(inpEl.value.trim()); }
 
     // Derive legacy category string from selected profession's optgroup label
     var cat = '';
