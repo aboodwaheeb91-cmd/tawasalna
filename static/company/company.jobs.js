@@ -135,6 +135,15 @@
     });
   }
 
+  function _onWmodeChange() {
+    var wmode = (document.getElementById('j-wmode') || {}).value || '';
+    if (wmode === 'عن بُعد') {
+      var locMode = document.getElementById('j-loc-mode');
+      if (locMode) locMode.value = 'remote';
+      _onJobLocModeChange();
+    }
+  }
+
   function _onSalHideChange() {
     var hide   = document.getElementById('j-sal-hide');
     var salRow = document.getElementById('j-sal-row');
@@ -191,6 +200,7 @@
       _fill('j-type',  TW.JOB_TYPES,         '— نوع الدوام —');
       _fill('j-wmode', TW.JOB_WORK_MODES,    '— طبيعة العمل —');
       _fill('j-exp',   TW.EXPERIENCE_LEVELS, '— الخبرة المطلوبة —');
+      if (window.scSelectInit) scSelectInit();
     }
 
     _onJobLocModeChange();
@@ -294,6 +304,7 @@
   window.openPostJob           = openPostJob;
   window.publishJob            = publishJob;
   window._onJobLocModeChange   = _onJobLocModeChange;
+  window._onWmodeChange        = _onWmodeChange;
   window._onSalHideChange      = _onSalHideChange;
 
   document.addEventListener('DOMContentLoaded', function () {
