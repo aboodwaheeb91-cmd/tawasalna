@@ -623,6 +623,35 @@ These rules are permanent and apply to all future AI sessions:
 
 ---
 
+## Unified Professional Taxonomy Rules (mandatory for all AI sessions)
+
+These rules are permanent and apply to all future AI sessions.
+
+1. **`skill_catalog` DB table is the official source for all skills.** Do NOT maintain hardcoded skill lists inside page JS files, HTML, or any file other than `auth.py` (`_SKILL_SEED` inside `_migrate_taxonomy_foundation()`).
+
+2. **`TW.SKILL_CATALOG` in `tw-options-data.js` is fallback-only.** It is used only when `GET /skills/catalog` fails or before PR 2 (`feat/shared-skill-picker`) is merged. Never treat it as the primary data source.
+
+3. **`profession_categories` DB table is the official source for all professional specializations.** The `GET /professions` endpoint is the only approved way to load them on the frontend.
+
+4. **`jobs.profession_id` is optional (NULL allowed) until PR 3 (`feat/job-modal-taxonomy-integration`) is merged.** Do NOT add a NOT NULL constraint or validation before then.
+
+5. **`GET /skills/catalog` is public (no auth required).** It has a 1-hour in-memory cache (`_skill_catalog_cache` in `server.py`). Do NOT add auth to it or change the cache TTL without a documented reason.
+
+6. **Never duplicate skill data across files.** Any skill addition goes into `_SKILL_SEED` in `auth.py` only. The DB → `GET /skills/catalog` → `TW.SKILL_CATALOG` (fallback) flow is the only approved pipeline.
+
+7. **Forbidden patterns:**
+   ```
+   ❌ Hardcoded skill arrays inside page JS files
+   ❌ Hardcoded profession lists outside profession_categories
+   ❌ TW.SKILL_CATALOG as the primary data source
+   ❌ jobs.profession_id with NOT NULL constraint before PR 3
+   ❌ Direct DB writes to skill_catalog outside auth.py migrations
+   ```
+
+8. **PR order is mandatory:** PR 1 (DB foundation) → PR 2 (shared picker) → PR 3 (job modal) → PR 4 (matching) → PR 5 (cleanup). Do NOT start a later PR before the earlier one is reviewed and merged.
+
+---
+
 ## Shared System First — Architecture Pattern Check (mandatory for all AI sessions)
 
 These rules are permanent and apply to all future AI sessions.
