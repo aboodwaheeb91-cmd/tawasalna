@@ -114,8 +114,17 @@
     }
     var hqRow  = document.getElementById('coHqRow');
     var hqText = document.getElementById('coHqText');
-    if (hqRow)  hqRow.style.display  = locStr ? 'flex' : 'none';
-    if (hqText) hqText.textContent   = locStr;
+    if (hqRow) hqRow.style.display = locStr ? 'flex' : 'none';
+    if (hqText) {
+      hqText.innerHTML = '';
+      if (window.TW && TW.countryFlagEl && p.country) {
+        var flagEl = TW.countryFlagEl(p.country);
+        if (flagEl) { flagEl.style.marginLeft = '4px'; hqText.appendChild(flagEl); }
+      }
+      var hqSpan = document.createElement('span');
+      hqSpan.textContent = locStr;
+      hqText.appendChild(hqSpan);
+    }
   }
 
   // ── Stats ─────────────────────────────────────────────────────
@@ -264,9 +273,11 @@
       return;
     }
 
-    var MAX   = 3;
-    var shown = branches.slice(0, MAX);
-    var rest  = branches.length - MAX;
+    var MAX      = 3;
+    var shown    = branches.slice(0, MAX);
+    var rest     = branches.length - MAX;
+    var hqCountry = (window.companyState && companyState.profile)
+      ? (companyState.profile.country || '') : '';
 
     list.innerHTML = '';
     shown.forEach(function (b, i) {
@@ -276,10 +287,26 @@
         sep.textContent = '|';
         list.appendChild(sep);
       }
-      var parts = [b.branch_name, b.country, b.city, b.district].filter(Boolean);
-      var chip  = document.createElement('span');
-      chip.className   = 'co-branch-chip';
-      chip.textContent = parts.join(' - ');
+      var chip = document.createElement('span');
+      chip.className = 'co-branch-chip';
+
+      // Show flag + country only when branch is in a different country from HQ
+      var sameAsHq = hqCountry && window.TW && TW.sameCountry
+        ? TW.sameCountry(b.country, hqCountry) : false;
+
+      if (!sameAsHq && b.country && window.TW && TW.countryFlagEl) {
+        var brFlagEl = TW.countryFlagEl(b.country);
+        if (brFlagEl) { brFlagEl.style.marginLeft = '3px'; chip.appendChild(brFlagEl); }
+      }
+
+      var parts = [b.branch_name];
+      if (!sameAsHq && b.country) parts.push(b.country);
+      if (b.city)     parts.push(b.city);
+      if (b.district) parts.push(b.district);
+
+      var chipTxt = document.createElement('span');
+      chipTxt.textContent = parts.filter(Boolean).join(' - ');
+      chip.appendChild(chipTxt);
       list.appendChild(chip);
     });
 

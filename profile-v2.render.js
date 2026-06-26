@@ -383,21 +383,30 @@ window._buildExpHTML = function(exp, isOwner){
   }).join('') + '</div>';
 };
 
-// ── Country code → Arabic name (shared with edit modal) ──
-window._SC_COUNTRIES = {
-  JO:'الأردن', SA:'السعودية', AE:'الإمارات', KW:'الكويت',
-  QA:'قطر',    BH:'البحرين', OM:'عُمان',    EG:'مصر',
-  IQ:'العراق', SY:'سوريا',   LB:'لبنان',   PS:'فلسطين',
-  YE:'اليمن',  MA:'المغرب',  DZ:'الجزائر', TN:'تونس',
-  LY:'ليبيا',  SD:'السودان'
-};
-
-// Build display location: "البلد - المدينة", or "البلد", or fallback text
-window._buildLocText = function(country, city, fallback){
-  if(country && window._SC_COUNTRIES[country]){
-    var name = window._SC_COUNTRIES[country];
-    return city ? (name + ' - ' + city) : name;
+// ── Country code → Arabic name — delegated to TW.COUNTRY_MAP ────
+// _SC_COUNTRIES kept for backward compat with any external callers.
+window._SC_COUNTRIES = (function(){
+  var m = {};
+  if(window.TW && TW.COUNTRY_MAP){
+    TW.COUNTRY_MAP.forEach(function(e){ m[e.code] = e.name_ar; });
+  } else {
+    // static fallback (TW may not be loaded yet on first parse)
+    var _s = [['JO','الأردن'],['SA','السعودية'],['AE','الإمارات'],['KW','الكويت'],
+              ['QA','قطر'],['BH','البحرين'],['OM','عُمان'],['EG','مصر'],
+              ['IQ','العراق'],['SY','سوريا'],['LB','لبنان'],['PS','فلسطين'],
+              ['YE','اليمن'],['MA','المغرب'],['DZ','الجزائر'],['TN','تونس'],
+              ['LY','ليبيا'],['SD','السودان']];
+    _s.forEach(function(p){ m[p[0]] = p[1]; });
   }
+  return m;
+})();
+
+// Build display location text: "البلد - المدينة", or "البلد", or fallback
+window._buildLocText = function(country, city, fallback){
+  var name = (window.TW && TW.countryName)
+    ? TW.countryName(country)
+    : (window._SC_COUNTRIES[country] || country || '');
+  if(name){ return city ? (name + ' - ' + city) : name; }
   return fallback || '';
 };
 
@@ -457,7 +466,19 @@ window.renderProfile = function renderProfile(res){
   if(locEl){
     var _locText = window._buildLocText(p.country, p.city, p.location);
     if(_locText){
-      locEl.innerHTML = '<i data-lucide="map-pin" class="ico-sm"></i> ' + esc(_locText);
+      locEl.innerHTML = '';
+      // Flag (circle SVG) — before the map-pin icon
+      if(window.TW && TW.countryFlagEl && p.country){
+        var _flagEl = TW.countryFlagEl(p.country);
+        if(_flagEl) locEl.appendChild(_flagEl);
+      }
+      var _pin = document.createElement('i');
+      _pin.setAttribute('data-lucide','map-pin');
+      _pin.className = 'ico-sm';
+      locEl.appendChild(_pin);
+      var _ltSpan = document.createElement('span');
+      _ltSpan.textContent = _locText;
+      locEl.appendChild(_ltSpan);
       locEl.style.display='inline-flex';
       locEl.style.alignItems='center';
       locEl.style.gap='4px';

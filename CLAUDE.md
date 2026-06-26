@@ -597,7 +597,7 @@ These rules are permanent and apply to all future AI sessions:
 
 These rules are permanent and apply to all future AI sessions:
 
-1. **`static/shared/` is the canonical location** for all shared dropdown/picker UI and data. Files: `tw-select.js`, `tw-select.css`, `tw-options-data.js`. Never duplicate their logic inside a page file.
+1. **`static/shared/` is the canonical location** for all shared dropdown/picker UI and data. Files: `tw-select.js`, `tw-select.css`, `tw-options-data.js`, `flags/*.svg`. Never duplicate their logic inside a page file.
 
 2. **Any new dropdown, year picker, or date picker must use the shared system.** Adding a new `<select>` with repeated data (countries, years, company types, sizes) without routing it through `TW.*` helpers in `tw-options-data.js` is forbidden.
 
@@ -605,14 +605,18 @@ These rules are permanent and apply to all future AI sessions:
 
 4. **Forbidden — native `<select>` for unified-experience pages.** Any page that uses the `ep-select` class must initialize the custom dropdown via `scSelectInit()` from `tw-select.js`. Do NOT leave a bare native select on a page that is supposed to match the Profile V2 / Company Profile design.
 
-5. **Visual changes to dropdowns go in `static/shared/tw-select.css` only.** Do NOT add `.sc-sel-*` overrides in page CSS files. Per-page color or size overrides must use CSS custom properties (vars) defined in `tw-select.css`.
+5. **Visual changes to dropdowns go in `static/shared/tw-select.css` only.** Do NOT add `.sc-sel-*` or `.tw-flag` overrides in page CSS files.
 
-6. **`TW.fillSelect()`, `TW.fillCountries()`, `TW.fillCities()`, `TW.fillFoundedYears()` are the only approved fill helpers.** Do not write ad-hoc `for` loops to populate `<select>` options for data that already exists in `tw-options-data.js`.
+6. **`TW.fillSelect()`, `TW.fillCountries()`, `TW.fillCities()`, `TW.fillFoundedYears()` are the only approved fill helpers.** `TW.fillCountries(el, ph, opts)` accepts optional `opts = { valueMode: 'name_ar'|'code', withFlags: boolean }`. Do not write ad-hoc `for` loops to populate `<select>` options for data that already exists in `tw-options-data.js`.
 
-7. **`scSelectInit()` must be called after dynamic option population.** Any time you populate a select's options at runtime (modal open, country-change, row insertion), call `if (window.scSelectInit) scSelectInit();` immediately after. Forgetting this leaves the custom dropdown stale.
+7. **`scSelectInit()` must be called after dynamic option population.** Any time you populate a select's options at runtime (modal open, country-change, row insertion), call `if (window.scSelectInit) scSelectInit();` immediately after.
 
-8. **`tw-options-data.js` must load before any page module that calls `TW.*`.** In page `<head>`, the load order is: `tw-options-data.js` → `tw-select.js` → page state module → other modules.
+8. **`tw-options-data.js` must load before any page module that calls `TW.*`.** Load order: `tw-options-data.js` → `tw-select.js` → page state module → other modules.
 
-9. **Profile V2 country select is an exception.** `profile-v2.select.js` (or its shared copy `tw-select.js`) wraps the Profile V2 country select, but `epCountry` in Profile V2 uses ISO codes (JO, SA, AE…) stored in `profiles.country` for employees — NOT Arabic names. This is a legacy contract difference. Do NOT apply `TW.fillCountries()` to the Profile V2 country field without a DB migration.
+9. **Profile V2 `epCountry` uses ISO codes (JO, SA, …) — not Arabic names.** This is a legacy DB contract (`profiles.country` for employees). `TW.fillCountries(el, ph, { valueMode:'code', withFlags:true })` is the correct call. `TW.countryEntry(isoCode)` bridges ISO → `TW.CITIES[name_ar]`. Do NOT change this storage without a DB migration.
 
-10. **No merge without user approval.** No PR touching shared form controls is to be merged automatically. Every merge requires explicit user instruction.
+10. **`TW.COUNTRY_MAP` is the single source of truth for country data.** `TW.COUNTRIES` (string array) is derived from it for backward compat. `TW.countryEntry(value)` accepts either ISO code or Arabic name. `TW.sameCountry(a, b)` handles mixed comparison (`'JO' == 'الأردن'` → `true`).
+
+11. **Flag images come from `static/shared/flags/*.svg` only.** Never hard-code flag paths inside page JS. Always use `TW.countryFlagEl(value)` or `TW.COUNTRY_MAP[i].flagPath`. Never use CDN or emoji flags. License: MIT (HatScripts/circle-flags) — see `THIRD_PARTY_NOTICES.md`.
+
+12. **No merge without user approval.** No PR touching shared form controls is to be merged automatically. Every merge requires explicit user instruction.

@@ -69,3 +69,8 @@
 .sc-sel-item-sel:hover { background:rgba(0,200,150,.12) !important; }
 .sc-sel-item-dis { color:var(--t3,#6b7686); opacity:.5; cursor:default; }
 .sc-sel-ico { flex-shrink:0; }
+
+/* ── Circular flag images (used with data-img on <option>) ─────── */
+.tw-flag {
+  width:18px; height:18px; border-radius:50%; object-fit:cover; flex-shrink:0;
+}
