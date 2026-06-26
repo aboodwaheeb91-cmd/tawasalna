@@ -7239,3 +7239,63 @@ tw-select.js          ← scSelectInit + scSelectClose
   ↓
 [page scripts]        ← يستخدمون TW.* و scSelectInit()
 ```
+
+---
+
+# F — SHARED SYSTEM FIRST PATTERN
+
+> **P1 — إلزامي على كل التعديلات.**
+> قبل أي تنفيذ: تحقق من وجود نظام مشترك. استخدمه إن وُجد. وثّقه إن أضفته.
+
+---
+
+## [P1] 37. Shared System First — Architecture Pattern Check
+
+### المبدأ
+
+```
+قبل كتابة أي كود جديد:
+1. هل يوجد helper / component / CSS class / data source موجود يخدم هذه الحاجة؟
+2. هل هذا الشيء موثق في CLAUDE.md أو ARCHITECTURE.md؟
+3. هل التعديل يمكن ربطه بـ shared system بدل حل خاص بصفحة واحدة؟
+4. إذا الكود سيظهر في صفحتين أو أكثر → انقله إلى shared module أولاً.
+5. إذا أضفت نظام مشترك جديد → وثّقه في نفس الـ PR.
+```
+
+### مصادر الـ Shared Systems الحالية
+
+| النظام | الملف | يُغطي |
+|--------|-------|--------|
+| Country / city data | `static/shared/tw-options-data.js` | `TW.COUNTRY_MAP`, `TW.CITIES`, `TW.COMPANY_TYPES`, `TW.COMPANY_SIZES` |
+| Flag images | `static/shared/flags/*.svg` + `TW.countryFlagEl()` | أعلام دائرية — MIT |
+| Custom dropdown UI | `static/shared/tw-select.js` + `tw-select.css` | `.ep-select` + `scSelectInit()` |
+| App header | `static/app-header.css` | `.sc-header`, `.sc-hicon`, CSS vars مشتركة |
+| Immediate UI Update | Profile V2 `applyLocalUpdate()` pattern | محدّث state + DOM بعد تأكيد API — موثق في Rule #36 |
+
+### Mandatory "Shared System Check" في كل خطة/تقرير
+
+كل خطة تنفيذ أو تقرير فحص يجب أن يحتوي جدول:
+
+| السؤال | الجواب |
+|--------|--------|
+| هل تم فحص النظام الموجود؟ | نعم / لا |
+| هل استخدمنا shared system موجود؟ | نعم / لا + الاسم |
+| هل أضفنا shared pattern جديد؟ | نعم / لا + الملف |
+| هل قللنا التكرار أم زدناه؟ | قللنا / زدنا |
+| هل يحتاج توثيق؟ | نعم / لا + السبب |
+
+### ممنوعات ثابتة
+
+```
+❌ بيانات دول/مدن hardcoded داخل ملف صفحة
+❌ formatter متكرر في موديولين منفصلين
+❌ dropdown جديد بدون tw-select.js
+❌ نمط حفظ جديد يخالف Rule #36
+❌ حل مؤقت عندما يوجد نظام مشترك
+❌ pattern جديد يُطبَّق بدون توثيق
+```
+
+### القاعدة الذهبية
+
+> أي شيء ممكن يتكرر في صفحتين أو أكثر = shared module.
+> لا حلول خاصة بصفحة واحدة لمشاكل مشتركة.
