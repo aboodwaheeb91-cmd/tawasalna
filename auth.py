@@ -1439,9 +1439,24 @@ def _migrate_taxonomy_foundation():
             conn.run("CREATE INDEX IF NOT EXISTS idx_skill_catalog_active ON skill_catalog(is_active)")
         except Exception: pass
 
-        # ── 2. Seed — all skills from profile-v2.skills.js CATALOG ─
+        # ── 2. jobs.profession_id — guaranteed before seed ───────────
+        # Must run before seed so add_job() never sees a missing column
+        # even if seed fails below.
+        try:
+            conn.run(
+                "ALTER TABLE jobs ADD COLUMN IF NOT EXISTS profession_id INTEGER "
+                "REFERENCES profession_categories(id) ON DELETE SET NULL"
+            )
+        except Exception: pass
+        try:
+            conn.run("CREATE INDEX IF NOT EXISTS idx_jobs_profession ON jobs(profession_id)")
+        except Exception: pass
+
+        # ── 3. Seed — all skills from profile-v2.skills.js CATALOG ─
+        # Wrapped in its own try/except: seed failure must not break job posting.
         # Format per row: (slug, name_en, name_ar, keywords, icon, category_group, sort_order)
-        _SKILL_SEED = [
+        try:
+            _SKILL_SEED = [
             # ── Programming Languages (tech, 10–220) ──
             ('javascript','JavaScript','جافا سكريبت','js جافاسكريبت web','code','tech',10),
             ('python','Python','بايثون','بايثون py','code','tech',11),
@@ -1778,39 +1793,29 @@ def _migrate_taxonomy_foundation():
             ('technical_writing','Technical Writing','الكتابة التقنية','technical writing documentation توثيق','file-text','languages',25),
         ]
 
-        # Insert in batches to stay under param limits
-        BATCH = 50
-        for i in range(0, len(_SKILL_SEED), BATCH):
-            batch = _SKILL_SEED[i:i+BATCH]
-            placeholders = ','.join(
-                f"(:s{j},:en{j},:ar{j},:kw{j},:ic{j},:cg{j},:so{j})"
-                for j in range(len(batch))
-            )
-            params = {}
-            for j, row in enumerate(batch):
-                params[f's{j}']  = row[0]
-                params[f'en{j}'] = row[1]
-                params[f'ar{j}'] = row[2]
-                params[f'kw{j}'] = row[3]
-                params[f'ic{j}'] = row[4]
-                params[f'cg{j}'] = row[5]
-                params[f'so{j}'] = row[6]
-            conn.run(
-                f"INSERT INTO skill_catalog (slug,name_en,name_ar,keywords,icon,category_group,sort_order) "
-                f"VALUES {placeholders} ON CONFLICT (slug) DO NOTHING",
-                **params
-            )
-
-        # ── 3. jobs.profession_id — optional FK ──────────────────
-        try:
-            conn.run(
-                "ALTER TABLE jobs ADD COLUMN IF NOT EXISTS profession_id INTEGER "
-                "REFERENCES profession_categories(id) ON DELETE SET NULL"
-            )
-        except Exception: pass
-        try:
-            conn.run("CREATE INDEX IF NOT EXISTS idx_jobs_profession ON jobs(profession_id)")
-        except Exception: pass
+            # Insert in batches to stay under param limits
+            BATCH = 50
+            for i in range(0, len(_SKILL_SEED), BATCH):
+                batch = _SKILL_SEED[i:i+BATCH]
+                placeholders = ','.join(
+                    f"(:s{j},:en{j},:ar{j},:kw{j},:ic{j},:cg{j},:so{j})"
+                    for j in range(len(batch))
+                )
+                params = {}
+                for j, row in enumerate(batch):
+                    params[f's{j}']  = row[0]
+                    params[f'en{j}'] = row[1]
+                    params[f'ar{j}'] = row[2]
+                    params[f'kw{j}'] = row[3]
+                    params[f'ic{j}'] = row[4]
+                    params[f'cg{j}'] = row[5]
+                    params[f'so{j}'] = row[6]
+                conn.run(
+                    f"INSERT INTO skill_catalog (slug,name_en,name_ar,keywords,icon,category_group,sort_order) "
+                    f"VALUES {placeholders} ON CONFLICT (slug) DO NOTHING",
+                    **params
+                )
+        except Exception: pass  # seed failure must not break startup
 
     finally:
         release_conn(conn)
