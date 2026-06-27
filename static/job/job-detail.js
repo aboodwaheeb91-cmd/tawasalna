@@ -34,6 +34,25 @@
     return s.skill || s.name_ar || s.name_en || s.slug || '';
   }
 
+  function _lucideIcon(name, size) {
+    var i = document.createElement('i');
+    i.setAttribute('data-lucide', name);
+    i.setAttribute('width', size || '14');
+    i.setAttribute('height', size || '14');
+    return i;
+  }
+
+  function _skillIcon(skillName, size) {
+    var iconName = (window.TW && TW.getSkillIcon) ? (TW.getSkillIcon(skillName) || 'tag') : 'tag';
+    return _lucideIcon(iconName, size || '13');
+  }
+
+  function _iconsRefresh(node) {
+    if (!window.lucide || !lucide.createIcons) return;
+    if (node) { lucide.createIcons({ nodes: [node] }); }
+    else { lucide.createIcons(); }
+  }
+
   function _timeAgo(iso) {
     if (!iso) return '';
     var diff = (Date.now() - new Date(iso).getTime()) / 1000;
@@ -45,10 +64,11 @@
     return Math.floor(diff / 31536000) + ' سنة';
   }
 
-  function _chip(text, cls) {
+  function _chip(iconName, text, cls) {
     var span = document.createElement('span');
     span.className = 'jd-chip' + (cls ? ' ' + cls : '');
-    span.textContent = text;
+    if (iconName) span.appendChild(_lucideIcon(iconName, '12'));
+    span.appendChild(document.createTextNode(text));
     return span;
   }
 
@@ -155,13 +175,15 @@
     // Company logo
     var logoEl = _el('jdLogo');
     if (logoEl) {
+      logoEl.innerHTML = '';
       if (job.company_logo) {
         var img = document.createElement('img');
         img.alt = ''; img.loading = 'lazy'; img.src = job.company_logo;
-        logoEl.innerHTML = '';
         logoEl.appendChild(img);
+      } else if (job.company_name) {
+        logoEl.textContent = job.company_name.charAt(0);
       } else {
-        logoEl.textContent = job.company_name ? job.company_name.charAt(0) : '🏢';
+        logoEl.appendChild(_lucideIcon('building-2', '40'));
       }
     }
 
@@ -187,20 +209,20 @@
     var metaEl = _el('jdMeta');
     if (metaEl) {
       metaEl.innerHTML = '';
-      if (job.location)    metaEl.appendChild(_chip('📍 ' + job.location));
-      if (job.job_type)    metaEl.appendChild(_chip('⏰ ' + (_JOB_TYPES[job.job_type] || job.job_type)));
-      if (job.work_mode)   metaEl.appendChild(_chip('🏠 ' + job.work_mode));
+      if (job.location)    metaEl.appendChild(_chip('map-pin', job.location));
+      if (job.job_type)    metaEl.appendChild(_chip('clock', _JOB_TYPES[job.job_type] || job.job_type));
+      if (job.work_mode)   metaEl.appendChild(_chip('laptop', job.work_mode));
       if (job.experience_years && job.experience_years > 0)
-        metaEl.appendChild(_chip('📊 ' + job.experience_years + ' سنوات خبرة'));
+        metaEl.appendChild(_chip('bar-chart-2', job.experience_years + ' سنوات خبرة'));
       if (job.salary_hidden) {
-        metaEl.appendChild(_chip('💰 الراتب غير معلن'));
+        metaEl.appendChild(_chip('circle-dollar-sign', 'الراتب غير معلن'));
       } else if (job.salary_min) {
         var sal = job.salary_min + (job.salary_max ? '–' + job.salary_max : '+') +
                   (job.currency ? ' ' + job.currency : '');
-        metaEl.appendChild(_chip('💰 ' + sal, 'g'));
+        metaEl.appendChild(_chip('circle-dollar-sign', sal, 'g'));
       }
-      if (job.profession_name_ar) metaEl.appendChild(_chip('💼 ' + job.profession_name_ar, 'b'));
-      if (job.created_at) metaEl.appendChild(_chip('🕐 ' + _timeAgo(job.created_at)));
+      if (job.profession_name_ar) metaEl.appendChild(_chip(job.profession_icon || 'briefcase', job.profession_name_ar, 'b'));
+      if (job.created_at) metaEl.appendChild(_chip('calendar', _timeAgo(job.created_at)));
     }
 
     // Skill tags in header
@@ -208,7 +230,8 @@
     if (tagsEl) {
       tagsEl.innerHTML = '';
       (job.skills || []).slice(0, 8).forEach(function (s) {
-        tagsEl.appendChild(_chip(s, 'g'));
+        var sIcon = (window.TW && TW.getSkillIcon) ? (TW.getSkillIcon(s) || 'tag') : 'tag';
+        tagsEl.appendChild(_chip(sIcon, s, 'g'));
       });
     }
 
@@ -227,7 +250,8 @@
       job.skills.forEach(function (s) {
         var span = document.createElement('span');
         span.className = 'jd-skill-chip';
-        span.textContent = s;
+        span.appendChild(_skillIcon(s, '13'));
+        span.appendChild(document.createTextNode(s));
         skillsEl.appendChild(span);
       });
       var ss = _el('jdSkillsSection');
@@ -256,13 +280,15 @@
     // Sidebar — company card
     var coAvEl = _el('jdCoCardAv');
     if (coAvEl) {
+      coAvEl.innerHTML = '';
       if (job.company_logo) {
         var img2 = document.createElement('img');
         img2.alt = ''; img2.loading = 'lazy'; img2.src = job.company_logo;
-        coAvEl.innerHTML = '';
         coAvEl.appendChild(img2);
+      } else if (job.company_name) {
+        coAvEl.textContent = job.company_name.charAt(0);
       } else {
-        coAvEl.textContent = job.company_name ? job.company_name.charAt(0) : '🏢';
+        coAvEl.appendChild(_lucideIcon('building-2', '24'));
       }
     }
     var cnEl = _el('jdCoCardName');
@@ -278,6 +304,8 @@
     // Apply modal title
     var mt = _el('jdModalTitle');
     if (mt) mt.textContent = 'تقديم على: ' + (job.title || 'الوظيفة');
+
+    _iconsRefresh(_el('jdContent'));
   }
 
   function _sideVal(id, val, onClick) {
@@ -383,12 +411,16 @@
         chips.className = 'jd-match-skills';
         matched.slice(0, 5).forEach(function (s) {
           var sp = document.createElement('span');
-          sp.className = 'jd-ms yes'; sp.textContent = '✓ ' + s;
+          sp.className = 'jd-ms yes';
+          sp.appendChild(_lucideIcon('check', '10'));
+          sp.appendChild(document.createTextNode(' ' + s));
           chips.appendChild(sp);
         });
         missing.slice(0, 4).forEach(function (s) {
           var sp = document.createElement('span');
-          sp.className = 'jd-ms no'; sp.textContent = '✗ ' + s;
+          sp.className = 'jd-ms no';
+          sp.appendChild(_lucideIcon('x', '10'));
+          sp.appendChild(document.createTextNode(' ' + s));
           chips.appendChild(sp);
         });
         body.appendChild(chips);
@@ -396,6 +428,7 @@
     }
 
     sec.classList.remove('hidden');
+    _iconsRefresh(sec);
   }
 
   // ── Similar jobs ─────────────────────────────────────────────
@@ -550,6 +583,8 @@
 
   // ── Init ─────────────────────────────────────────────────────
   function _init() {
+    _iconsRefresh();
+
     var backBtn = _el('jdBackBtn');
     if (backBtn) backBtn.addEventListener('click', function () { history.back(); });
 
