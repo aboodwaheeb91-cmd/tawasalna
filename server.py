@@ -1118,7 +1118,7 @@ class JobInput(BaseModel):
     profession_id: Optional[int] = None
 
 class JobApplyInput(BaseModel):
-    user_id: int
+    user_id: Optional[int] = None  # kept for backward compat — ignored; token user_id is used
     cover_letter: Optional[str] = ""
 
 class AppStatusInput(BaseModel):
@@ -2900,7 +2900,13 @@ def get_company_jobs(token=Depends(verify_token)):
 
 @app.post("/jobs/{job_id}/apply")
 def apply_to_job(job_id: int, data: JobApplyInput, token=Depends(verify_token)):
-    result = apply_job(job_id, data.user_id, data.cover_letter or "")
+    token_uid  = token.get("user_id")
+    token_type = token.get("user_type", "")
+    if not token_uid:
+        raise HTTPException(401, "رمز غير صالح")
+    if token_type != "emp":
+        raise HTTPException(403, "التقديم على الوظائف متاح للموظفين فقط")
+    result = apply_job(job_id, int(token_uid), data.cover_letter or "")
     return {"status": "success", **result}
 
 @app.get("/jobs/{job_id}/applicants")

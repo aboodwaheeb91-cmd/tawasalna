@@ -28,6 +28,12 @@
     remote:    'عن بُعد'
   };
 
+  function _skillName(s) {
+    if (!s) return '';
+    if (typeof s === 'string') return s;
+    return s.skill || s.name_ar || s.name_en || s.slug || '';
+  }
+
   function _timeAgo(iso) {
     if (!iso) return '';
     var diff = (Date.now() - new Date(iso).getTime()) / 1000;
@@ -183,7 +189,12 @@
       metaEl.innerHTML = '';
       if (job.location)    metaEl.appendChild(_chip('📍 ' + job.location));
       if (job.job_type)    metaEl.appendChild(_chip('⏰ ' + (_JOB_TYPES[job.job_type] || job.job_type)));
-      if (job.salary_min) {
+      if (job.work_mode)   metaEl.appendChild(_chip('🏠 ' + job.work_mode));
+      if (job.experience_years && job.experience_years > 0)
+        metaEl.appendChild(_chip('📊 ' + job.experience_years + ' سنوات خبرة'));
+      if (job.salary_hidden) {
+        metaEl.appendChild(_chip('💰 الراتب غير معلن'));
+      } else if (job.salary_min) {
         var sal = job.salary_min + (job.salary_max ? '–' + job.salary_max : '+') +
                   (job.currency ? ' ' + job.currency : '');
         metaEl.appendChild(_chip('💰 ' + sal, 'g'));
@@ -228,9 +239,15 @@
       job.company_tw_id ? function () { location.href = '/u/' + job.company_tw_id; } : null);
     _sideVal('jdSiLoc',  job.location);
     _sideVal('jdSiType', job.job_type ? (_JOB_TYPES[job.job_type] || job.job_type) : null);
-    _sideVal('jdSiSal',  job.salary_min
-      ? job.salary_min + (job.salary_max ? '–' + job.salary_max : '+') + (job.currency ? ' ' + job.currency : '')
+    _sideVal('jdSiMode', job.work_mode || null);
+    _sideVal('jdSiExp',  job.experience_years && job.experience_years > 0
+      ? job.experience_years + ' سنوات'
       : null);
+    _sideVal('jdSiSal',  job.salary_hidden
+      ? 'الراتب غير معلن'
+      : (job.salary_min
+          ? job.salary_min + (job.salary_max ? '–' + job.salary_max : '+') + (job.currency ? ' ' + job.currency : '')
+          : null));
     _sideVal('jdSiViews', job.views ? job.views + ' مشاهدة' : null);
     _sideVal('jdSiDate', job.created_at
       ? new Date(job.created_at).toLocaleDateString('ar-SA', { year: 'numeric', month: 'long', day: 'numeric' })
@@ -284,17 +301,20 @@
     .then(function (r) { return r.ok ? r.json() : null; })
     .then(function (data) {
       var skillSet = new Set();
-      if (data) {
-        (data.profile && data.profile.skills ? data.profile.skills : [])
-          .forEach(function (s) { skillSet.add(String(s).toLowerCase().trim()); });
-        (data.user_skills || [])
-          .forEach(function (s) { skillSet.add(String(s.skill || s).toLowerCase().trim()); });
+      if (data && data.profile && data.profile.skills) {
+        data.profile.skills.forEach(function (s) {
+          var name = _skillName(s).toLowerCase().trim();
+          if (name) skillSet.add(name);
+        });
       }
       // localStorage fallback — not source of truth
       if (!skillSet.size) {
         try {
           var cached = JSON.parse(localStorage.getItem('tw_user') || '{}');
-          (cached.skills || []).forEach(function (s) { skillSet.add(String(s).toLowerCase().trim()); });
+          (cached.skills || []).forEach(function (s) {
+            var name = _skillName(s).toLowerCase().trim();
+            if (name) skillSet.add(name);
+          });
         } catch (e) {}
       }
       _computeAndRenderMatch(_job, skillSet);
@@ -442,9 +462,18 @@
     fetch('/jobs/' + _jobId + '/apply', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + _jwt },
-      body: JSON.stringify({ user_id: _user.id, cover_letter: cover })
+      body: JSON.stringify({ cover_letter: cover })
     })
-    .then(function (r) { return r.json(); })
+    .then(function (r) {
+      return r.json().then(function (data) {
+        if (!r.ok) {
+          var err = new Error(data.detail || 'apply_failed');
+          err.statusCode = r.status;
+          throw err;
+        }
+        return data;
+      });
+    })
     .then(function (data) {
       _applied = true;
       var label = data.already_applied ? '✓ قدّمت مسبقاً' : '✓ تم التقديم';
@@ -454,9 +483,12 @@
       closeApply();
       showToast(data.already_applied ? 'لقد قدّمت على هذه الوظيفة مسبقاً' : 'تم إرسال طلبك بنجاح ✅');
     })
-    .catch(function () {
+    .catch(function (err) {
       triggers.forEach(function (b) { b.disabled = false; b.textContent = 'تقديم الآن ←'; });
-      showToast('حدث خطأ أثناء التقديم، حاول مجدداً', 'error');
+      var msg = (err && err.statusCode === 403)
+        ? 'التقديم متاح للموظفين فقط'
+        : 'حدث خطأ أثناء التقديم، حاول مجدداً';
+      showToast(msg, 'error');
     });
   }
 
