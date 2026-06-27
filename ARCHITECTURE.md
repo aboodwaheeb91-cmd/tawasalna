@@ -7485,7 +7485,7 @@ CREATE INDEX IF NOT EXISTS idx_jobs_profession ON jobs(profession_id);
 | PR 1 ✅ | feat/taxonomy-db-foundation | DB + seed + API + fallback |
 | PR 2 ✅ | feat/shared-skill-picker | tw-skills.js + Profile V2 يستخدم GET /skills/catalog |
 | PR 3 ✅ | feat/job-modal-taxonomy-integration | Job Modal: profession picker + skill picker |
-| PR 4 | feat/taxonomy-aware-matching | Matching algorithm: profession_id boost |
+| PR 4 ✅ | feat/taxonomy-aware-matching | Matching algorithm: profession_id boost |
 | PR 5 | cleanup/taxonomy-hardcoded-removal | حذف القوائم القديمة hardcoded |
 
 ---
@@ -7616,4 +7616,75 @@ lucide → tw_shared.js → tw-options-data.js → tw-select.js → tw-skills.js
 ✅ Legacy category field derived from optgroup label of selected option
 ❌ Never hardcode profession options in HTML or JS
 ❌ Never use j-cat (removed from modal) — it was TW.JOB_CATEGORIES; cleanup in PR 5
+```
+
+---
+
+## Taxonomy-Aware Feed Matching (PR 4 — feat/taxonomy-aware-matching)
+
+### Overview
+
+تحسين `/home/feed` لترتيب الوظائف بناءً على تطابق تخصص وظيفة الموظف، ثم المجال العام، ثم المهارات المشتركة. الوظائف القديمة بدون `profession_id` لا تختفي.
+
+### Changed Files
+
+| File | Change |
+|------|--------|
+| `server.py` | `_FEED_JOB_POOL` constant، `_feed_user_context()`، `_taxonomy_score()`؛ تعديل `home_feed()` — job query يضيف LEFT JOIN profession_categories، يجلب pool أكبر (200)، يطبق scoring + sort |
+| `static/home/home.cards.js` | إضافة profession chip (`hw-chip--prof`) في `renderOpportunityCard` إذا `profession_name_ar` موجود |
+| `static/home-v2.css` | `.hw-chip--prof` style — أزرق فاتح لتمييز profession chips |
+
+### Scoring Logic
+
+```python
+# _taxonomy_score(job, user_pid, user_pgroup, user_skills) → int
+
+if job.profession_id == user.profession_id:
+    score += 100          # exact profession match
+elif job.profession_category_group == user.category_group:
+    score += 40           # same group (elif — no double-count)
+elif not job.profession_id and job.category:
+    score += 10           # legacy job with text category
+
+score += len(shared_skills) * 10   # +10 per matched skill (always additive)
+```
+
+Sorting: stable two-pass — recency DESC first, then score DESC (tiebreak = recency).
+
+### Response Schema Changes (backward-compatible additions)
+
+Each opportunity item now includes:
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `profession_id` | int \| null | FK → profession_categories |
+| `profession_name_ar` | string \| null | Arabic name, null if no profession |
+| `profession_name_en` | string \| null | English name |
+| `profession_icon` | string \| null | Lucide icon slug |
+| `profession_category_group` | string \| null | Category group |
+
+`category` (legacy text) is stripped from the response — `profession_*` fields are the canonical form.
+
+### Helper Functions
+
+| Function | Location | Purpose |
+|----------|----------|---------|
+| `_FEED_JOB_POOL` | `server.py` | Max jobs fetched for scoring (200) |
+| `_feed_user_context(conn, user_id, user_type)` | `server.py` | Returns (profession_id, category_group, skills_set) — always safe, returns (None, None, set()) on error |
+| `_taxonomy_score(job, user_pid, user_pgroup, user_skills)` | `server.py` | Returns integer score; 0 for non-emp users or missing context |
+
+### Rules
+
+```
+✅ _feed_user_context() is always safe — try/except returns (None, None, set()) on any error
+✅ _taxonomy_score() returns 0 for non-emp users (user_pid/user_pgroup/user_skills all None/empty)
+✅ Legacy jobs (profession_id = NULL) still appear — they score via category +10 or skill overlap only
+✅ Jobs without skills still appear — skill overlap is additive and skipped if user_skills is empty
+✅ Non-emp users get same behavior as before (no context fetched, all jobs score 0, sorted by date)
+✅ Pool of 200 jobs fetched → top opp_lim returned after scoring (best-match jobs win the slots)
+❌ Never use ORDER BY RANDOM() in feed queries
+❌ Never add DB migration in PR 4
+❌ Never read user data from localStorage for matching — backend is authoritative
+❌ Never assume every job has profession_id — always defensive null-checks
+❌ Never assume every user has profession_id or skills — always defensive
 ```

@@ -43,6 +43,12 @@
       art.appendChild(head);
 
       var meta = U.el('div', 'hw-jmeta');
+      if (item.profession_name_ar) {
+        var pchip = U.el('span', 'hw-chip hw-chip--prof');
+        pchip.appendChild(_lucideIcon(item.profession_icon || 'briefcase', '11'));
+        pchip.appendChild(document.createTextNode(' ' + item.profession_name_ar));
+        meta.appendChild(pchip);
+      }
       if (item.location)   meta.appendChild(U.txt('span', 'hw-chip',   item.location));
       if (item.job_type)   meta.appendChild(U.txt('span', 'hw-chip',   U.JOB_TYPES[item.job_type] || item.job_type));
       if (item.salary_min) {
