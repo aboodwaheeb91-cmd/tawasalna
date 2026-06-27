@@ -7833,3 +7833,198 @@ No server-side match endpoint — computed entirely in the browser.
 ❌ Separate CSS/JS file per feature added to job-detail — stays in job-detail.css/js
 ❌ Additional inline <style> or <script> blocks in job-detail.html
 ```
+
+---
+
+## Section 63 — Smart Public Profile Router (`/u/{tw_id}`)
+
+> Added: fix/smart-public-profile-router
+
+### Overview
+
+`/u/{tw_id}` is the **unified public URL** for all account types. The server resolves the tw_id to the correct page based on `users.user_type` in the DB — the prefix character (U/C/T) is a **hint only**, never the source of truth.
+
+### Decision Table
+
+| `users.user_type` | Page served | Injected window variable(s) |
+|-------------------|-------------|----------------------------|
+| `emp` | `profile-showcase.html` | `window._scProfileIdFromRoute = {numeric_id}` |
+| `co` | `company-profile.html` | `window._companyProfileIdFromRoute = {numeric_id}` · `window._companyTwIdFromRoute = "{tw_id}"` |
+| `edu` | `edu-profile.html` | `window._eduProfileIdFromRoute = {numeric_id}` · `window._eduTwIdFromRoute = "{tw_id}"` |
+| unknown / not found | HTTP 404 | — |
+
+### Helper: `get_user_info_by_tw_id(tw_id)` — `auth.py`
+
+Returns `{ id, tw_id, user_type }` or `None`. Single DB query on `users.tw_id` (UNIQUE index — O(1)). Used exclusively by the Smart Router. Do NOT use it for authorization — JWT is still required for protected endpoints.
+
+### Injection Safety
+
+- `uid` cast to `int()` before injection (no XSS from integer literal).
+- `tw_id` passed through `json.dumps()` before injection (handles any string safely).
+- Injected `<script>` replaces `</head>` once — safe even if `</head>` appears in content.
+
+### Frontend Load Priority
+
+**Company profile (`company.api.js`):**
+1. `window._companyProfileIdFromRoute` — injected by Smart Router (highest priority)
+2. `?id=` query param — direct link like `/company-profile?id=123`
+3. Session owner fallback — company owner visiting `/company-profile` without any id
+
+**Employee profile (`profile-v2.state.js`):**
+1. `window._scProfileIdFromRoute` — injected by Smart Router (unchanged)
+2. `?id=` query param
+
+**Edu profile (`edu-profile.html` inline script):**
+1. `window._eduProfileIdFromRoute` — injected by Smart Router (via `_urlId` variable)
+2. `?id=` query param
+
+### Ownership Check (edu-profile.html)
+
+Ownership is determined by: `user_type === 'edu'` **AND** (no id in URL **OR** `user.id === urlId`). This prevents an edu account from seeing owner controls on another edu account's public profile.
+
+### Empty URL Handling
+
+- `/u` (no tw_id) → HTTP 404 `"معرف الحساب مفقود"` (dedicated route before `{tw_id}` param route)
+- `/u/` (trailing slash) → FastAPI redirects to `/u` → 404
+- `/u/{non-existent-tw_id}` → HTTP 404 `"الحساب غير موجود"`
+
+### Backward-Compatible Routes (untouched)
+
+```
+/company-profile          → company-profile.html (unchanged)
+/company-profile?id=123   → works; company.api.js reads ?id= as before
+/company-profile.html     → works
+/edu-profile              → edu-profile.html (unchanged)
+/edu-profile?id=123       → works; edu-profile.html reads ?id= as before
+/profile-showcase         → profile-showcase.html (unchanged)
+/u/{employee_tw_id}       → profile-showcase.html (same as before)
+/u/{company_tw_id}        → company-profile.html (NEW — was broken before)
+/u/{edu_tw_id}            → edu-profile.html (NEW)
+```
+
+### Future Public ID System (planned — NOT implemented in this PR)
+
+> PR #277 scope = Smart Router for `/u/{tw_id}` only. The items below are architectural decisions, not executable code.
+
+#### ID Format — Final Decision
+
+```
+{ENTITY_PREFIX}{RANDOM_UNIQUE_CODE}
+
+Examples:
+  U8F3K9Q2L1A  →  Employee
+  C7M2X9P4R0D  →  Company
+  T5Q8L1Z6N3B  →  Education/Training institution
+  J9R2L7N5B1   →  Job posting
+  P6X3A8Q1M4   →  Company post
+  A4K9D2L8Z0   →  Job application
+  V2M7Q5R9A1   →  Verification request
+  D3L6Q8P2N7   →  Course (دورة)
+  E1K5M9R3Z8   →  Enrollment (تسجيل طالب بدورة)
+  L7Q2A5X1D4   →  Lesson (درس)
+  Q8N3K6P0M2   →  Quiz/Exam (اختبار)
+  S5R1L9D7Q3   →  Certificate (شهادة)
+```
+
+**No country code inside public_id — ever.**
+Country data belongs in the DB on the entity/user record. Reasons: country can change, it adds no uniqueness value, and it permanently brands the link with data that may be inaccurate or privacy-sensitive.
+
+#### Prefix Table
+
+| Prefix | Entity (EN) | Entity (AR) | Table field | Public route (future) |
+|--------|-------------|-------------|-------------|----------------------|
+| `U` | Employee | موظف | `users.tw_id` | `/u/{tw_id}` ✅ live |
+| `C` | Company | شركة | `users.tw_id` | `/u/{tw_id}` ✅ live |
+| `T` | Training/Education | تعليم وتدريب | `users.tw_id` | `/u/{tw_id}` ✅ live |
+| `J` | Job posting | وظيفة | `jobs.public_id` | `/j/{public_id}` |
+| `P` | Post | منشور | `company_posts.public_id` | `/post/{public_id}` |
+| `A` | Application | طلب تقديم | `job_applications.public_id` | internal only |
+| `V` | Verification | طلب توثيق | `verify_requests.public_id` | internal only |
+| `D` | Course | دورة تدريبية | `courses.public_id` | `/course/{public_id}` |
+| `E` | Enrollment | تسجيل طالب | `enrollments.public_id` | internal only |
+| `L` | Lesson | درس | `lessons.public_id` | internal only |
+| `Q` | Quiz/Exam | اختبار | `quizzes.public_id` | internal only |
+| `S` | Certificate | شهادة | `certificates.public_id` | `/cert/{public_id}` |
+
+#### Generator Pattern (planned)
+
+One shared function in `auth.py`:
+```python
+def generate_public_id(prefix: str) -> str:
+    """Generates a public ID: {PREFIX}{RANDOM_10_ALPHANUM}
+    No country code. Country data lives on the entity record in DB."""
+    import random, string
+    chars = string.ascii_uppercase + string.digits
+    rand = ''.join(random.choices(chars, k=10))
+    return f"{prefix}{rand}"
+
+# Account IDs (tw_id) migrate to call generate_public_id internally:
+def generate_tw_id(user_type: str, country_code: str = 'DEFAULT') -> str:
+    # country_code kept in signature for backward compat — stored in users.country_code, NOT in the id
+    prefix = TYPE_PREFIX.get(user_type, 'U')
+    return generate_public_id(prefix)
+```
+
+`generate_public_id(prefix)` — single argument, no country code.
+Do NOT write `generate_public_id(prefix, country_code)` or `generate_public_id(prefix, cc)`.
+
+#### Country Catalog (separate concern)
+
+Country data is a separate project/table:
+- Used for: registration, profile display, search/filter, job location, company addresses
+- Stored as: `country_iso2`, `country_name`, `dial_code` on the entity row
+- NOT embedded in `public_id`
+
+#### Course Platform — Access Rules (planned)
+
+Public route `/course/{course_public_id}` may show course info page (title, description, instructor).
+Learning content (lessons, video, quizzes) is always protected:
+
+```
+JWT required
++ DB enrollment check (is user enrolled?)
++ payment/access check (if course is paid)
++ owner/instructor/admin permission per endpoint
+```
+
+`public_id` = identity + shareable URL only. It is NOT an access credential.
+
+#### File & Video Security Rules (planned)
+
+```
+❌ Direct static file URLs for paid/private course content
+❌ Permanent CDN links for lesson videos accessible without auth
+✅ Backend permission check before serving any protected file
+✅ Signed / time-limited URLs for video/file delivery (generated server-side)
+✅ Permission check: JWT + enrollment + payment status, every request
+```
+
+#### Planned PR Sequence
+
+```
+PR #277  /u Smart Router                ← current PR (only this)
+PR +1    jobs.public_id (J)             ← /j/{public_id}, backfill, keep /job-detail?id=
+PR +2    company_posts.public_id (P)    ← /post/{public_id}
+PR +3    job_applications.public_id (A) ← internal; notifications; no public route
+PR +4    verify_requests.public_id (V)  ← internal; admin; no public route
+PR +5    courses public_id (D/E/L/Q/S)  ← after course platform is designed
+```
+
+Each PR is independent. No PR mixes public_id implementation with other features.
+
+### Forbidden Patterns
+
+```
+❌ Using tw_id prefix (U/C/T first character) as the source of truth for routing
+❌ Exposing numeric id in public share URLs (/u/123, /j/456)
+❌ Using localStorage to decide which page to open from /u/{tw_id}
+❌ X-User-Id header — JWT only
+❌ Two separate routes for the same public entity (/u/C… AND /company-public/…)
+❌ Opening an empty profile/company/edu page when tw_id is absent or unknown
+❌ Bypassing the injected window var and re-reading id from the URL in new pages
+❌ Country code / ISO code / dial code inside any public_id field
+❌ generate_public_id(prefix, country_code) — no country param in the generator
+❌ Direct static URLs for protected course/lesson/video content
+❌ Treating public_id as an access credential (it is identity + URL only)
+❌ Mixing public_id implementation with Smart Router in the same PR
+```

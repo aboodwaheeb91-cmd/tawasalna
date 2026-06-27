@@ -429,8 +429,13 @@ let _menuOpen=false;
 
 try{_user=JSON.parse(localStorage.getItem('tw_user'));}catch(e){}
 
-// Determine ownership
-_isOwner = _user && _user.user_type==='edu';
+// Resolve profile id: 1) injected by Smart Router (/u/T…), 2) ?id= query param
+var _urlId = (window._eduProfileIdFromRoute != null)
+  ? String(window._eduProfileIdFromRoute)
+  : new URLSearchParams(window.location.search).get('id');
+
+// Determine ownership: must be edu type AND visiting own profile (no id → own, or id matches session)
+_isOwner = _user && _user.user_type==='edu' && (!_urlId || String(_user.id) === _urlId);
 
 if(_isOwner){
   document.getElementById('ownerActions').style.display='flex';
@@ -600,7 +605,7 @@ document.head.appendChild(style);
 
 // ── Load profile from API ──
 (function(){
-  var urlId = new URLSearchParams(window.location.search).get('id');
+  var urlId = _urlId;
   var uid = urlId || (_user && _user.id);
   if(!uid) return;
   fetch('/profile/'+uid+'/full').then(function(r){return r.json();}).then(function(data){

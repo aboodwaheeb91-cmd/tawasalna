@@ -1383,6 +1383,22 @@ def get_user_id_by_tw_id(tw_id: str) -> Optional[int]:
         release_conn(conn)
 
 
+def get_user_info_by_tw_id(tw_id: str) -> Optional[dict]:
+    """يرجع id, tw_id, user_type من الـ tw_id. None إذا لم يوجد.
+    يُستخدم من Smart Public Router لتحديد الصفحة المناسبة."""
+    conn = get_conn()
+    try:
+        rows = conn.run(
+            "SELECT id, tw_id, user_type FROM users WHERE tw_id = :tw_id",
+            tw_id=tw_id
+        )
+        if not rows:
+            return None
+        return {'id': rows[0][0], 'tw_id': rows[0][1], 'user_type': rows[0][2]}
+    finally:
+        release_conn(conn)
+
+
 def get_profile_by_tw_id(tw_id: str) -> Optional[dict]:
     """يجيب الملف الشخصي العام بالـ tw_id."""
     uid = get_user_id_by_tw_id(tw_id)

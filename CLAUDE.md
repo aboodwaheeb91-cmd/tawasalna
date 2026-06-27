@@ -455,6 +455,36 @@ These rules are permanent and apply to all future AI sessions:
 
 ---
 
+## Smart Public Profile Router Rules (mandatory for all AI sessions)
+
+These rules are permanent and apply to all future AI sessions.
+
+1. **`/u/{tw_id}` is the unified public URL** for ALL account types (emp, co, edu). Do NOT create separate public routes like `/company-public/{tw_id}` or `/edu-public/{tw_id}`.
+
+2. **`users.user_type` is the source of truth** for routing decisions. The tw_id prefix (U/C/T) is a hint only. The server MUST query the DB before serving any page.
+
+3. **Helper `get_user_info_by_tw_id(tw_id)` in `auth.py`** is the only approved lookup for Smart Router. It returns `{ id, tw_id, user_type }`. Do NOT add routing logic that bypasses it.
+
+4. **Injection pattern (mandatory):**
+   - `emp` → inject `window._scProfileIdFromRoute = {int(uid)}` into `profile-showcase.html`
+   - `co` → inject `window._companyProfileIdFromRoute = {int(uid)}` + `window._companyTwIdFromRoute = {json.dumps(tw_id)}` into `company-profile.html`
+   - `edu` → inject `window._eduProfileIdFromRoute = {int(uid)}` + `window._eduTwIdFromRoute = {json.dumps(tw_id)}` into `edu-profile.html`
+
+5. **Frontend load priority for company (`company.api.js`):**
+   1. `window._companyProfileIdFromRoute` (Smart Router)
+   2. `?id=` query param
+   3. session owner fallback (only when both above are absent)
+
+6. **Empty URL must return 404.** `/u` and `/u/` must never open a blank page. A dedicated `GET /u` route returns HTTP 404.
+
+7. **Backward-compatible routes are permanent:** `/company-profile?id=`, `/edu-profile?id=`, `/profile-showcase` must continue to work unchanged.
+
+8. **Numeric id stays internal.** Never put `id` (integer) in a public share URL. Use `tw_id` only.
+
+9. **Future entity public IDs** (J/P/A/V/D/E/L/Q/S) must use one shared generator in `auth.py` with **entity prefix only + random unique code — no country code, no ISO code, no dial code inside the public_id**. Signature: `generate_public_id(prefix)` — NOT `generate_public_id(prefix, country_code)`. Country data lives in the DB on the entity/user record; it must never be baked into the ID. Do NOT create a separate generator per entity type.
+
+---
+
 ## Auth Gateway Rules (mandatory for all AI sessions)
 
 1. **`/` is the Landing Page.** `GET /` serves `landing.html`. Do not replace it with a login form or a dashboard redirect.
