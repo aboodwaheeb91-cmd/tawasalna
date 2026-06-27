@@ -119,6 +119,7 @@ img{display:block;max-width:100%}
 .hw-jmeta{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
 .hw-chip{font-size:11px;font-weight:600;padding:3px 10px;border-radius:20px;background:rgba(255,255,255,.06);color:var(--muted)}
 .hw-chip.g{background:rgba(0,200,150,.12);color:var(--g)}
+.hw-chip--prof{display:inline-flex;align-items:center;gap:4px;background:rgba(37,99,255,.12);color:#60a5fa}
 .hw-jfoot{display:flex;align-items:center;justify-content:space-between}
 
 /* --- Post Card --- */

@@ -463,6 +463,79 @@ def home(): return read_html("home-v2.html")
 @app.get("/home.html", response_class=HTMLResponse)
 def home_html(): return read_html("home-v2.html")
 
+# ── Taxonomy-aware feed helpers ──────────────────────────────────────────────
+
+_FEED_JOB_POOL = 200  # jobs fetched for scoring; top N returned after sort
+
+
+def _feed_user_context(conn, user_id, user_type):
+    """Return (profession_id, category_group, skills_set) for the current user.
+    Always safe: returns (None, None, set()) on any error or for non-emp users.
+    Combines skills from user_skills table + profiles.skills legacy array."""
+    if user_type != "emp":
+        return None, None, set()
+    try:
+        prof_rows = conn.run(
+            "SELECT profession_id, skills FROM profiles WHERE user_id = :uid",
+            uid=user_id,
+        )
+        profession_id = None
+        legacy_skills: set = set()
+        if prof_rows:
+            profession_id = prof_rows[0][0]
+            raw = prof_rows[0][1] or []
+            legacy_skills = {s.lower().strip() for s in raw if s}
+
+        category_group = None
+        if profession_id:
+            pg = conn.run(
+                "SELECT category_group FROM profession_categories WHERE id = :pid",
+                pid=profession_id,
+            )
+            if pg and pg[0][0]:
+                category_group = pg[0][0].strip()
+
+        skill_rows = conn.run(
+            "SELECT skill FROM user_skills WHERE user_id = :uid", uid=user_id
+        )
+        table_skills = {(r[0] or "").lower().strip() for r in (skill_rows or []) if r[0]}
+
+        return profession_id, category_group, (legacy_skills | table_skills)
+    except Exception:
+        return None, None, set()
+
+
+def _taxonomy_score(job, user_pid, user_pgroup, user_skills):
+    """Compute taxonomy relevance score for a feed job item.
+
+    Scoring (additive):
+      +100  exact profession match (job.profession_id == user.profession_id)
+      +40   same category_group, different profession (elif — no double-count)
+      +10   legacy job: has category string but no profession_id (flat boost)
+      +10   per shared skill between user_skills and job.skills
+    Returns 0 for non-emp users or missing context (safe default).
+    """
+    score = 0
+    job_pid    = job.get("profession_id")
+    job_pgroup = (job.get("profession_category_group") or "").strip()
+
+    if job_pid and user_pid:
+        if job_pid == user_pid:
+            score += 100
+        elif job_pgroup and user_pgroup and job_pgroup == user_pgroup:
+            score += 40
+    elif not job_pid and job.get("category"):
+        score += 10  # legacy job with category text — tiny boost over uncategorized
+
+    if user_skills:
+        job_skills_raw = job.get("skills") or []
+        job_skills = {s.lower().strip() for s in job_skills_raw if s}
+        if job_skills:
+            score += len(user_skills & job_skills) * 10
+
+    return score
+
+
 @app.get("/home/feed")
 def home_feed(filter: str = "all", limit: int = 20, token=Depends(verify_token)):
     user_id   = int(token.get("user_id") or 0)
@@ -478,27 +551,44 @@ def home_feed(filter: str = "all", limit: int = 20, token=Depends(verify_token))
     items = []
     conn = get_conn()
     try:
-        # ── Opportunities (jobs table — opp_type="job" now, extensible later) ──
+        # ── User context for taxonomy-aware scoring ────────────────────────────
+        u_pid, u_pgroup, u_skills = _feed_user_context(conn, user_id, user_type)
+
+        # ── Opportunities (jobs) — scored by taxonomy relevance ───────────────
         if filter in ("all", "opportunities"):
             opp_lim = lim if filter == "opportunities" else max(1, lim // 3)
+            # Fetch a larger pool so scoring can promote the most relevant jobs
+            pool = max(opp_lim, _FEED_JOB_POOL)
             rows = conn.run(
                 """SELECT j.id, j.title, j.location, j.job_type,
                           j.salary_min, j.salary_max, j.currency,
                           j.skills, j.created_at,
+                          j.profession_id, j.category,
                           u.full_name AS company_name,
                           u.tw_id    AS company_tw_id,
                           u.id       AS company_id,
-                          COALESCE(p.avatar_url,'') AS company_logo
+                          COALESCE(p.avatar_url,'')          AS company_logo,
+                          COALESCE(pc.name_ar,'')            AS profession_name_ar,
+                          COALESCE(pc.name_en,'')            AS profession_name_en,
+                          COALESCE(pc.icon,'')               AS profession_icon,
+                          COALESCE(pc.category_group,'')     AS profession_category_group
                    FROM jobs j
                    JOIN users u ON j.company_id = u.id
                    LEFT JOIN profiles p ON j.company_id = p.user_id
+                   LEFT JOIN profession_categories pc ON j.profession_id = pc.id
                    WHERE j.status = 'open'
                    ORDER BY j.created_at DESC
-                   LIMIT :lim""",
-                lim=opp_lim
+                   LIMIT :pool""",
+                pool=pool,
             )
-            cols = ["id","title","location","job_type","salary_min","salary_max","currency",
-                    "skills","created_at","company_name","company_tw_id","company_id","company_logo"]
+            cols = [
+                "id","title","location","job_type","salary_min","salary_max","currency",
+                "skills","created_at","profession_id","category",
+                "company_name","company_tw_id","company_id","company_logo",
+                "profession_name_ar","profession_name_en","profession_icon",
+                "profession_category_group",
+            ]
+            job_items = []
             for r in (rows or []):
                 d = dict(zip(cols, r))
                 d["type"] = "opportunity"
@@ -507,7 +597,17 @@ def home_feed(filter: str = "all", limit: int = 20, token=Depends(verify_token))
                     d["created_at"] = d["created_at"].isoformat()
                 if isinstance(d.get("skills"), list):
                     d["skills"] = [str(s) for s in d["skills"]]
-                items.append(d)
+                d["_score"] = _taxonomy_score(d, u_pid, u_pgroup, u_skills)
+                job_items.append(d)
+
+            # Sort: recency first (stable), then score (stable tiebreak = recency)
+            job_items.sort(key=lambda x: x.get("created_at") or "", reverse=True)
+            job_items.sort(key=lambda x: x["_score"], reverse=True)
+
+            for item in job_items[:opp_lim]:
+                item.pop("_score", None)
+                item.pop("category", None)    # internal field; profession_* is the public form
+                items.append(item)
 
         # ── Company posts ──
         if filter in ("all", "posts"):
