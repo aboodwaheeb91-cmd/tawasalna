@@ -333,7 +333,10 @@ Tests: CV matching endpoint, feedback logging, stats endpoint. Tests are minimal
    - The admin URL token `kPuOWhpIYjdLQXmh` is security-through-obscurity; treat it as a secret
    - Passwords are never returned from any endpoint
 
-6. **No real-time layer yet** — messages and notifications use polling (`fetch` on interval). Do not add WebSocket code without being asked.
+6. **Real-time transport is WebSocket for messages, polling for notifications.**
+   - Messaging: WebSocket IS implemented — `/ws/{user_id}` in `server.py` + `messages.ws.js` client. ⚠️ P0 Security Debt: the route accepts any `user_id` without JWT verification (hardening deferred). Do not build new features on top of the WebSocket until the auth debt is resolved.
+   - Notifications: HTTP polling only — `fetch('/notifications/{user_id}')`. No WebSocket for notifications.
+   - Do not add a second WebSocket route for messages or notifications.
 
 7. **Supabase is the only database** — `SUPABASE_DB_URL` must be set. There is no local SQLite fallback.
 
@@ -684,6 +687,40 @@ These rules are permanent and apply to all future AI sessions.
    ```
 
 9. **All 5 PRs of the Unified Taxonomy System are complete.** No further taxonomy PRs are planned. Do NOT re-open or re-introduce any removed pattern.
+
+---
+
+## Pre-PR System Registry Check (mandatory for all AI sessions)
+
+These rules are permanent and apply to all future AI sessions.
+
+**Before implementing any new feature or opening a PR, you MUST:**
+
+1. Read `docs/SYSTEMS_INDEX.md` — the authoritative index of all 33 documented systems.
+2. Find the relevant system entry and note the "Source of Truth" and "Details" pointer.
+3. Read the linked section in ARCHITECTURE.md or CLAUDE.md.
+4. Read any shared files the system depends on.
+
+Then decide:
+- **Use** the existing system if it already covers the need.
+- **Extend** the existing system if the need is a natural addition.
+- **Document as missing** — add to `docs/SYSTEMS_INDEX.md → Systems Needing Documentation` before building anything new.
+
+### Forbidden without checking the index first
+
+```
+❌ Building a system that duplicates an existing one
+❌ Creating a DB table when an official table exists for the same purpose
+❌ Using localStorage as permanent storage when a backend system exists or is planned
+❌ Creating a per-page helper/catalog/mapping that already exists in a shared module
+❌ Adding a new public profile route outside Smart Router
+❌ Implementing skill icons or category lists outside tw-skills.js / tw-options-data.js
+❌ Copying logic from one system into another instead of using the shared helper
+```
+
+### Index location
+
+`docs/SYSTEMS_INDEX.md` — 33 systems, 9 categories. Read it before every PR.
 
 ---
 
