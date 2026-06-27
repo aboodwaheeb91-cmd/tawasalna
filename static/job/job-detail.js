@@ -12,9 +12,11 @@
 
   if (!_jwt) { location.href = '/login'; return; }
 
-  var _jobId   = null;
-  var _job     = null;
-  var _applied = false;
+  var _jobId     = null;
+  var _job       = null;
+  var _applied   = false;
+  var _saved     = false;
+  var _SAVED_KEY = 'tw_saved_jobs';
 
   // ── Utility ─────────────────────────────────────────────────
   function _el(id) { return document.getElementById(id); }
@@ -70,6 +72,52 @@
     if (iconName) span.appendChild(_lucideIcon(iconName, '12'));
     span.appendChild(document.createTextNode(text));
     return span;
+  }
+
+  // C# / C++ / F# / .NET need dir="ltr" inside RTL context
+  function _isLtrSkill(name) {
+    return typeof name === 'string' && /^([CF][#+]|\.NET)/i.test(name);
+  }
+
+  // ── Save (localStorage) ──────────────────────────────────────
+  function _getSavedJobs() {
+    try { return JSON.parse(localStorage.getItem(_SAVED_KEY) || '[]'); } catch (e) { return []; }
+  }
+
+  function _isSaved(id) {
+    return _getSavedJobs().indexOf(String(id)) !== -1;
+  }
+
+  function _updateSaveBtns() {
+    var iconName = _saved ? 'bookmark-check' : 'bookmark';
+    var configs = [{ id: 'jdSaveBtn', sz: '15' }, { id: 'jdStickySaveBtn', sz: '18' }];
+    configs.forEach(function (cfg) {
+      var btn = _el(cfg.id);
+      if (!btn) return;
+      btn.classList.toggle('saved', _saved);
+      var cur = btn.querySelector('i[data-lucide], svg');
+      var newI = _lucideIcon(iconName, cfg.sz);
+      if (cur) cur.parentNode.replaceChild(newI, cur);
+      else btn.insertBefore(newI, btn.firstChild);
+      _iconsRefresh(btn);
+    });
+  }
+
+  function toggleSave() {
+    if (!_jobId) return;
+    var list = _getSavedJobs();
+    var idx = list.indexOf(String(_jobId));
+    if (idx === -1) {
+      list.push(String(_jobId));
+      _saved = true;
+      showToast('تم حفظ الوظيفة ✅');
+    } else {
+      list.splice(idx, 1);
+      _saved = false;
+      showToast('تم إزالة الوظيفة من المحفوظات');
+    }
+    localStorage.setItem(_SAVED_KEY, JSON.stringify(list));
+    _updateSaveBtns();
   }
 
   // ── Toast ───────────────────────────────────────────────────
@@ -180,11 +228,11 @@
         var img = document.createElement('img');
         img.alt = ''; img.loading = 'lazy'; img.src = job.company_logo;
         logoEl.appendChild(img);
-      } else if (job.company_name) {
-        logoEl.textContent = job.company_name.charAt(0);
       } else {
         logoEl.appendChild(_lucideIcon('building-2', '40'));
       }
+      var logoBadge = _el('jdLogoBadge');
+      if (logoBadge) logoBadge.style.display = job.company_verified ? 'flex' : 'none';
     }
 
     // Title
@@ -231,7 +279,9 @@
       tagsEl.innerHTML = '';
       (job.skills || []).slice(0, 8).forEach(function (s) {
         var sIcon = (window.TW && TW.getSkillIcon) ? (TW.getSkillIcon(s) || 'tag') : 'tag';
-        tagsEl.appendChild(_chip(sIcon, s, 'g'));
+        var chip = _chip(sIcon, s, 'g');
+        if (_isLtrSkill(s)) chip.setAttribute('dir', 'ltr');
+        tagsEl.appendChild(chip);
       });
     }
 
@@ -250,6 +300,7 @@
       job.skills.forEach(function (s) {
         var span = document.createElement('span');
         span.className = 'jd-skill-chip';
+        if (_isLtrSkill(s)) span.setAttribute('dir', 'ltr');
         span.appendChild(_skillIcon(s, '13'));
         span.appendChild(document.createTextNode(s));
         skillsEl.appendChild(span);
@@ -285,8 +336,6 @@
         var img2 = document.createElement('img');
         img2.alt = ''; img2.loading = 'lazy'; img2.src = job.company_logo;
         coAvEl.appendChild(img2);
-      } else if (job.company_name) {
-        coAvEl.textContent = job.company_name.charAt(0);
       } else {
         coAvEl.appendChild(_lucideIcon('building-2', '24'));
       }
@@ -304,6 +353,10 @@
     // Apply modal title
     var mt = _el('jdModalTitle');
     if (mt) mt.textContent = 'تقديم على: ' + (job.title || 'الوظيفة');
+
+    // Init save state from localStorage
+    _saved = _isSaved(job.id || _jobId);
+    _updateSaveBtns();
 
     _iconsRefresh(_el('jdContent'));
   }
@@ -372,6 +425,8 @@
         ring.style.background = 'rgba(255,255,255,.06)';
         var pctSpan = ring.querySelector('.jd-match-pct');
         if (pctSpan) pctSpan.textContent = '–';
+        var lblSpanNull = ring.querySelector('.jd-match-lbl');
+        if (lblSpanNull) lblSpanNull.textContent = '';
       }
       if (body) {
         body.innerHTML = '';
@@ -394,6 +449,8 @@
         ', rgba(255,255,255,.08) ' + pStr + ')';
       var pSpan = ring.querySelector('.jd-match-pct');
       if (pSpan) pSpan.textContent = pStr;
+      var lSpan = ring.querySelector('.jd-match-lbl');
+      if (lSpan) lSpan.textContent = pct >= 80 ? 'عالي' : pct >= 50 ? 'جيد' : 'جزئي';
     }
 
     if (body) {
@@ -438,15 +495,21 @@
     })
     .then(function (r) { return r.json(); })
     .then(function (data) {
-      var list = (data.jobs || [])
-        .filter(function (j) { return String(j.id) !== String(_jobId); })
-        .slice(0, 3);
+      var jobProfId = _job && _job.profession_id ? _job.profession_id : null;
+      var all = (data.jobs || []).filter(function (j) { return String(j.id) !== String(_jobId); });
+      // Sort: same profession_id first
+      if (jobProfId) {
+        all.sort(function (a, b) {
+          return (a.profession_id === jobProfId ? 0 : 1) - (b.profession_id === jobProfId ? 0 : 1);
+        });
+      }
+      var list = all.slice(0, 3);
       ['jdSimilarList', 'jdSimilarListMobile'].forEach(function (cid) {
         var el = _el(cid); if (!el) return;
         el.innerHTML = '';
         if (!list.length) {
           var p = document.createElement('p');
-          p.style.cssText = 'font-size:.78rem;color:#94a3b8;padding:4px 0';
+          p.className = 'jd-sim-empty';
           p.textContent = 'لا توجد وظائف أخرى حالياً';
           el.appendChild(p); return;
         }
@@ -455,7 +518,7 @@
           item.className = 'jd-sim-item';
           var av = document.createElement('div');
           av.className = 'jd-sim-av';
-          av.textContent = j.company_name ? j.company_name.charAt(0).toUpperCase() : '🏢';
+          av.appendChild(_lucideIcon('building-2', '16'));
           var info = document.createElement('div');
           var t = document.createElement('div'); t.className = 'jd-sim-title'; t.textContent = j.title || '';
           var c = document.createElement('div'); c.className = 'jd-sim-co';
@@ -467,6 +530,7 @@
           }(j.id));
           el.appendChild(item);
         });
+        _iconsRefresh(el);
       });
     })
     .catch(function () {});
@@ -583,7 +647,17 @@
 
   // ── Init ─────────────────────────────────────────────────────
   function _init() {
+    // Parse job id early so save state can be initialized before API response
+    var _raw = new URLSearchParams(location.search).get('id');
+    _jobId = _raw ? parseInt(_raw, 10) || null : null;
+
     _iconsRefresh();
+
+    // Initialize save state immediately from localStorage
+    if (_jobId) {
+      _saved = _isSaved(_jobId);
+      _updateSaveBtns();
+    }
 
     var backBtn = _el('jdBackBtn');
     if (backBtn) backBtn.addEventListener('click', function () { history.back(); });
@@ -600,6 +674,10 @@
 
     document.querySelectorAll('.jd-share-trigger').forEach(function (btn) {
       btn.addEventListener('click', shareJob);
+    });
+
+    document.querySelectorAll('.jd-save-trigger').forEach(function (btn) {
+      btn.addEventListener('click', toggleSave);
     });
 
     var overlay = _el('jdApplyOverlay');

@@ -51,7 +51,7 @@ img { display: block; max-width: 100%; }
   top: 0; inset-inline: 0;
   z-index: 100;
   height: var(--ah-h);
-  display: flex; align-items: center; gap: 8px; padding: 0 14px;
+  display: flex; align-items: center; justify-content: center; gap: 8px; padding: 0 14px;
   background: rgba(7,11,24,.93);
   backdrop-filter: blur(20px);
   border-bottom: 1px solid var(--brd);
@@ -60,9 +60,10 @@ img { display: block; max-width: 100%; }
   font-size: 1rem; font-weight: 900;
   background: linear-gradient(135deg, var(--ac), var(--ac2));
   -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
-  margin-inline-start: auto; cursor: pointer;
+  cursor: pointer;
 }
 .jd-btn-back {
+  position: absolute; inset-inline-end: 14px;
   padding: 5px 11px; border-radius: 8px;
   background: rgba(255,255,255,.07); color: var(--t2);
   border: 1px solid var(--brd);
@@ -89,15 +90,24 @@ img { display: block; max-width: 100%; }
 .jd-hd-top {
   display: flex; gap: 16px; align-items: flex-start; margin-bottom: 16px;
 }
+.jd-logo-wrap { position: relative; flex-shrink: 0; }
 .jd-logo {
-  width: 104px; height: 104px; border-radius: 50%; flex-shrink: 0;
-  background: rgba(37,99,255,.08);
-  border: 2px solid rgba(0,200,150,.6);
-  box-shadow: 0 0 28px rgba(0,200,150,.12), 0 0 0 5px rgba(0,200,150,.06);
+  width: 88px; height: 88px; border-radius: 18px;
+  background: rgba(10,15,30,.9);
+  border: 1.5px solid rgba(0,200,150,.22);
+  box-shadow: 0 0 16px rgba(0,200,150,.07);
   display: flex; align-items: center; justify-content: center;
-  overflow: hidden; font-size: 2.2rem; font-weight: 900; color: var(--ac);
+  overflow: hidden; font-size: 2rem; font-weight: 900; color: var(--ac);
 }
-.jd-logo img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+.jd-logo img { width: 100%; height: 100%; object-fit: cover; border-radius: 14px; }
+.jd-logo-badge {
+  position: absolute; bottom: -3px; inset-inline-start: -3px;
+  width: 20px; height: 20px; border-radius: 50%;
+  background: #f59e0b; color: #fff;
+  font-size: 9px; font-weight: 900;
+  display: flex; align-items: center; justify-content: center;
+  border: 2px solid #070b18; z-index: 1;
+}
 .jd-info { flex: 1; min-width: 0; }
 .jd-title {
   font-size: 1.25rem; font-weight: 900; margin-bottom: 4px;
@@ -142,19 +152,25 @@ img { display: block; max-width: 100%; }
   display: flex; align-items: flex-start; gap: 14px;
 }
 .jd-match-ring {
-  width: 58px; height: 58px; flex-shrink: 0;
+  width: 66px; height: 66px; flex-shrink: 0;
   border-radius: 50%;
   background: rgba(255,255,255,.06);
   display: flex; align-items: center; justify-content: center;
+  flex-direction: column; gap: 1px;
   position: relative;
 }
 .jd-match-ring::after {
-  content: ''; position: absolute; inset: 6px;
+  content: ''; position: absolute; inset: 7px;
   border-radius: 50%; background: #070b18;
 }
 .jd-match-pct {
   position: relative; z-index: 1;
-  font-size: .72rem; font-weight: 900; color: var(--ac);
+  font-size: .68rem; font-weight: 900; color: var(--ac); line-height: 1;
+}
+.jd-match-lbl {
+  position: relative; z-index: 1;
+  font-size: .42rem; font-weight: 800; color: var(--ac); opacity: .85;
+  line-height: 1;
 }
 .jd-match-body { flex: 1; min-width: 0; }
 .jd-match-title { font-size: .82rem; font-weight: 800; color: var(--ac); margin-bottom: 4px; }
@@ -232,6 +248,9 @@ img { display: block; max-width: 100%; }
   margin-bottom: 14px;
 }
 .jd-apply-title { font-size: .85rem; font-weight: 800; margin-bottom: 14px; }
+.jd-apply-actions {
+  display: flex; gap: 8px; margin-bottom: 8px; align-items: stretch;
+}
 .jd-apply-btn {
   display: block; width: 100%; padding: 12px;
   border-radius: 13px;
@@ -239,10 +258,23 @@ img { display: block; max-width: 100%; }
   color: #fff; font-size: .9rem; font-weight: 900;
   cursor: pointer; transition: all .25s; margin-bottom: 8px; border: none;
 }
+.jd-apply-actions .jd-apply-btn { flex: 1; width: auto; margin-bottom: 0; }
 .jd-apply-btn:hover { opacity: .88; transform: translateY(-1px); box-shadow: 0 6px 20px rgba(0,200,150,.3); }
 .jd-apply-btn.applied {
   background: rgba(0,200,150,.13); color: var(--ac);
   border: 1px solid rgba(0,200,150,.28); transform: none; box-shadow: none;
+}
+.jd-save-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+  padding: 10px 14px; border-radius: 13px;
+  border: 1px solid var(--brd); background: rgba(255,255,255,.05); color: var(--t2);
+  font-size: .8rem; font-weight: 700; cursor: pointer; flex-shrink: 0;
+  transition: all .2s;
+}
+.jd-save-btn:hover { background: rgba(255,255,255,.09); color: var(--t); }
+.jd-save-btn.saved {
+  background: rgba(0,200,150,.1); color: var(--ac);
+  border-color: rgba(0,200,150,.28);
 }
 .jd-share-btn {
   display: flex; align-items: center; justify-content: center; gap: 5px;
@@ -321,13 +353,29 @@ img { display: block; max-width: 100%; }
   background: rgba(0,200,150,.13); color: var(--ac);
   border: 1px solid rgba(0,200,150,.28);
 }
-.jd-sticky-share {
-  padding: 13px 16px;
+.jd-sticky-save {
+  width: 48px; flex-shrink: 0;
   border-radius: 13px; border: 1px solid var(--brd);
   background: rgba(255,255,255,.05); color: var(--t2);
-  font-size: .9rem; cursor: pointer; transition: all .2s;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: all .2s;
+}
+.jd-sticky-save:hover { background: rgba(255,255,255,.09); color: var(--t); }
+.jd-sticky-save.saved {
+  background: rgba(0,200,150,.1); color: var(--ac);
+  border-color: rgba(0,200,150,.28);
+}
+.jd-sticky-share {
+  width: 48px; flex-shrink: 0;
+  border-radius: 13px; border: 1px solid var(--brd);
+  background: rgba(255,255,255,.05); color: var(--t2);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: all .2s;
 }
 .jd-sticky-share:hover { background: rgba(255,255,255,.09); color: var(--t); }
+.jd-sim-empty {
+  font-size: .75rem; color: var(--t3); padding: 8px 4px; text-align: center;
+}
 
 /* === Apply Overlay & Modal === */
 .jd-overlay {
@@ -474,5 +522,5 @@ img { display: block; max-width: 100%; }
   .jd-shell { padding-bottom: 90px; }
   .jd-header { border-radius: 14px; padding: 16px; }
   .jd-title { font-size: 1.1rem; }
-  .jd-logo { width: 80px; height: 80px; font-size: 1.7rem; }
+  .jd-logo { width: 76px; height: 76px; border-radius: 14px; font-size: 1.6rem; }
 }
