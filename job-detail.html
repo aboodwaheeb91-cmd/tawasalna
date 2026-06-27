@@ -13,6 +13,7 @@
   <meta name="apple-mobile-web-app-title" content="تواصلنا">
   <link rel="apple-touch-icon" href="/icon-192.png">
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/app-header.css">
   <link rel="stylesheet" href="/static/job/job-detail.css">
 </head>
 <body>
@@ -20,10 +21,15 @@
 <a href="#jdMain" class="skip-link">تخطى للمحتوى الرئيسي</a>
 
 <!-- Navigation -->
-<nav class="jd-nav" role="navigation" aria-label="التنقل الرئيسي">
-  <button class="jd-btn-back" id="jdBackBtn" aria-label="رجوع">← رجوع</button>
-  <div class="jd-nav-logo" id="jdNavLogo" role="link" tabindex="0" aria-label="الصفحة الرئيسية">تواصلنا</div>
-</nav>
+<div class="sc-header jd-header-bar" role="navigation" aria-label="التنقل الرئيسي">
+  <button class="sc-hicon sc-home-btn" id="jdBackBtn" aria-label="رجوع">
+    <i data-lucide="chevron-right" width="20" height="20"></i>
+  </button>
+  <div class="sc-logo">
+    <span class="sc-logo-fallback">تواصلنا</span>
+  </div>
+  <div style="width:40px" aria-hidden="true"></div>
+</div>
 
 <!-- Main shell -->
 <div class="jd-shell" id="jdMain" role="main">
@@ -242,6 +248,7 @@
 <script src="/static/vendor/lucide/lucide.min.js"></script>
 <script src="/static/shared/tw-options-data.js"></script>
 <script src="/static/shared/tw-skills.js"></script>
+<script src="/static/app-header.js"></script>
 <script src="/static/job/job-detail.js"></script>
 </body>
 </html>

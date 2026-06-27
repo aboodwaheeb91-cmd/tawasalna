@@ -623,15 +623,10 @@
   // ── Init ─────────────────────────────────────────────────────
   function _init() {
     _iconsRefresh();
+    if (window.initAppHeader) initAppHeader(_user);
 
     var backBtn = _el('jdBackBtn');
     if (backBtn) backBtn.addEventListener('click', function () { history.back(); });
-
-    var navLogo = _el('jdNavLogo');
-    if (navLogo) {
-      navLogo.addEventListener('click', goHome);
-      navLogo.addEventListener('keydown', function (e) { if (e.key === 'Enter') goHome(); });
-    }
 
     document.querySelectorAll('.jd-apply-trigger').forEach(function (btn) {
       btn.addEventListener('click', openApply);
