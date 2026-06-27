@@ -164,18 +164,20 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 ## D — Social & Communication
 
 ### 18. Messaging / Direct Messaging
-**Purpose:** Real-time direct messaging between users with typing indicators, delivery/read receipts.
-**Source of Truth:** `messages` table + `conversations` table · WebSocket at `/ws/messages`
+**Purpose:** Direct messaging between users with typing indicators, delivery/read receipts, active-conversation signalling.
+**Source of Truth:** `messages` table + `conversations` table · WebSocket route `/ws/{user_id}` in `server.py` (line 1346) · client in `messages.ws.js` · shared badge client in `tw_shared.js`
+**Transport (current):** WebSocket (`/ws/{user_id}`) — **implemented and in use**. ⚠️ P0 Security Debt: the route currently accepts any `user_id` from the URL without JWT verification. Hardening deferred to "Step 3 — WebSocket Security Hardening" (see `messages.ws.js` header comment).
 **Details:** `ARCHITECTURE.md §47–48` · `ARCHITECTURE.md Messenger Premium UI Contract`
-**Do not recreate:** Do not add polling for messages if WebSocket is available. Do not create a second conversations table.
+**Do not recreate:** Do not create a second WebSocket route for messaging. Do not switch messages back to polling. The security debt (unauthenticated `/ws/{user_id}`) must be resolved in a dedicated security PR — do not ship new features on top of it without fixing auth first.
 
 ---
 
 ### 19. Notifications System
-**Purpose:** User notifications for messages, applications, verifications, profile activity.
-**Source of Truth:** `notifications` table · `GET /notifications` · real-time via WebSocket
+**Purpose:** User notifications for messages, job applications, verification status, profile activity.
+**Source of Truth:** `notifications` table · `GET /notifications/{user_id}` endpoint
+**Transport (current):** HTTP polling — `fetch('/notifications/'+userId)` called on page load and on demand. No WebSocket for notifications.
 **Details:** `ARCHITECTURE.md §49` · `ARCHITECTURE.md §52 (Global Badge System)`
-**Do not recreate:** Do not create per-feature notification logic. Extend the unified notifications table.
+**Do not recreate:** Do not create per-feature notification tables. Do not assume notifications are real-time — they are polled. If real-time notifications are needed in the future, extend the existing `/ws/{user_id}` WebSocket (after its P0 security debt is resolved) rather than opening a new WebSocket.
 
 ---
 

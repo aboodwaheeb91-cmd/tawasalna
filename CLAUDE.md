@@ -333,7 +333,10 @@ Tests: CV matching endpoint, feedback logging, stats endpoint. Tests are minimal
    - The admin URL token `kPuOWhpIYjdLQXmh` is security-through-obscurity; treat it as a secret
    - Passwords are never returned from any endpoint
 
-6. **No real-time layer yet** — messages and notifications use polling (`fetch` on interval). Do not add WebSocket code without being asked.
+6. **Real-time transport is WebSocket for messages, polling for notifications.**
+   - Messaging: WebSocket IS implemented — `/ws/{user_id}` in `server.py` + `messages.ws.js` client. ⚠️ P0 Security Debt: the route accepts any `user_id` without JWT verification (hardening deferred). Do not build new features on top of the WebSocket until the auth debt is resolved.
+   - Notifications: HTTP polling only — `fetch('/notifications/{user_id}')`. No WebSocket for notifications.
+   - Do not add a second WebSocket route for messages or notifications.
 
 7. **Supabase is the only database** — `SUPABASE_DB_URL` must be set. There is no local SQLite fallback.
 
