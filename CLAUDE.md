@@ -481,7 +481,7 @@ These rules are permanent and apply to all future AI sessions.
 
 8. **Numeric id stays internal.** Never put `id` (integer) in a public share URL. Use `tw_id` only.
 
-9. **Future entity public IDs** (J/P/A/V) use the same injection pattern and a shared `_gen_public_id(prefix, cc)` function in `auth.py`. Do NOT create a separate generator per entity type.
+9. **Future entity public IDs** (J/P/A/V/D/E/L/Q/S) must use one shared generator in `auth.py` with **entity prefix only + random unique code — no country code, no ISO code, no dial code inside the public_id**. Signature: `generate_public_id(prefix)` — NOT `generate_public_id(prefix, country_code)`. Country data lives in the DB on the entity/user record; it must never be baked into the ID. Do NOT create a separate generator per entity type.
 
 ---
 
