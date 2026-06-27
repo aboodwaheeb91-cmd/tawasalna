@@ -1,489 +1,222 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-<meta charset="UTF-8">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>تواصلنا - تفاصيل الوظيفة</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
   <link rel="dns-prefetch" href="https://fonts.gstatic.com">
-  <link rel="dns-prefetch" href="https://tawasolna.com">
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#00c896">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="تواصلنا">
   <link rel="apple-touch-icon" href="/icon-192.png">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>تواصلنا - تفاصيل الوظيفة</title>
-<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
-<style>
-:root{--ac:#00c896;--ac2:#2563ff;--bg:#070b18;--card:rgba(255,255,255,.03);--border:rgba(255,255,255,.07);--t:rgba(255,255,255,.87);--t2:rgba(255,255,255,.5);--t3:rgba(255,255,255,.27);}
-*{margin:0;padding:0;box-sizing:border-box;}
-body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-height:100vh;}
-.nav{position:fixed;top:0;left:0;right:0;z-index:100;height:52px;display:flex;align-items:center;gap:8px;padding:0 14px;background:rgba(7,11,24,.93);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);}
-.nav-logo{font-size:1rem;font-weight:900;background:linear-gradient(135deg,var(--ac),var(--ac2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-left:auto;cursor:pointer;}
-.nb{padding:5px 11px;border-radius:8px;border:none;cursor:pointer;font-family:'Cairo',sans-serif;font-size:.73rem;font-weight:700;transition:all .2s;}
-.nb-ghost{background:rgba(255,255,255,.07);color:var(--t2);border:1px solid var(--border);}
-.nb-primary{background:linear-gradient(135deg,var(--ac),var(--ac2));color:#fff;}
-.nb-primary:hover{transform:translateY(-1px);box-shadow:0 4px 14px rgba(0,200,150,.35);}
-
-.main{padding:70px 16px 40px;max-width:860px;margin:0 auto;}
-.grid{display:grid;grid-template-columns:1fr 300px;gap:20px;}
-
-/* JOB HEADER */
-.job-header{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:24px;margin-bottom:18px;}
-.jh-top{display:flex;gap:16px;align-items:flex-start;margin-bottom:16px;}
-.co-logo{width:72px;height:72px;border-radius:16px;background:linear-gradient(135deg,var(--ac2),var(--ac));display:flex;align-items:center;justify-content:center;font-size:1.8rem;flex-shrink:0;}
-.job-title{font-size:1.3rem;font-weight:900;margin-bottom:4px;}
-.co-name{font-size:.82rem;color:var(--ac);font-weight:700;cursor:pointer;margin-bottom:8px;}
-.co-name:hover{text-decoration:underline;}
-.job-meta{display:flex;gap:12px;flex-wrap:wrap;}
-.jm-item{display:flex;align-items:center;gap:5px;font-size:.72rem;color:var(--t2);background:rgba(255,255,255,.05);border-radius:20px;padding:3px 10px;}
-.job-tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:14px;}
-.jtag{padding:3px 10px;border-radius:20px;font-size:.68rem;font-weight:700;}
-.tg{background:rgba(0,200,150,.1);color:#00c896;}
-.tb{background:rgba(37,99,255,.1);color:#60a5fa;}
-.tgr{background:rgba(255,255,255,.06);color:var(--t2);}
-
-/* MATCH BAR */
-.match-bar{background:rgba(0,200,150,.06);border:1px solid rgba(0,200,150,.2);border-radius:14px;padding:14px 16px;margin-bottom:18px;display:flex;align-items:center;gap:14px;}
-.match-ring{width:56px;height:56px;border-radius:50%;background:conic-gradient(var(--ac) 0% 92%,rgba(255,255,255,.08) 92%);display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:900;color:var(--ac);flex-shrink:0;position:relative;}
-.match-ring::after{content:'';position:absolute;inset:5px;border-radius:50%;background:var(--bg);}
-.match-ring span{position:relative;z-index:1;}
-.match-info h3{font-size:.82rem;font-weight:800;color:#00c896;margin-bottom:3px;}
-.match-info p{font-size:.72rem;color:var(--t2);}
-.match-skills{display:flex;gap:5px;flex-wrap:wrap;margin-top:6px;}
-.ms{padding:2px 8px;border-radius:20px;font-size:.63rem;font-weight:700;}
-.ms-yes{background:rgba(0,200,150,.12);color:#00c896;}
-.ms-no{background:rgba(239,68,68,.1);color:#f87171;}
-
-/* SECTIONS */
-.section{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:20px;margin-bottom:14px;}
-.sec-title{font-size:.85rem;font-weight:800;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--border);}
-.body-text{font-size:.8rem;color:var(--t2);line-height:1.8;}
-.req-list{list-style:none;}
-.req-list li{display:flex;align-items:flex-start;gap:8px;padding:6px 0;font-size:.78rem;color:var(--t2);border-bottom:1px solid rgba(255,255,255,.04);}
-.req-list li:last-child{border-bottom:none;}
-.req-list li::before{content:'•';color:var(--ac);flex-shrink:0;font-size:1.2rem;line-height:1;}
-.pref-list li::before{color:rgba(255,255,255,.3);}
-
-/* SIDEBAR */
-.side-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:18px;margin-bottom:14px;}
-.sc-title{font-size:.78rem;font-weight:800;margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid var(--border);}
-.sc-item{display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.04);}
-.sc-item:last-child{border-bottom:none;}
-.sc-ico{font-size:1rem;width:20px;flex-shrink:0;margin-top:1px;}
-.sc-key{font-size:.66rem;color:var(--t3);margin-bottom:1px;}
-.sc-val{font-size:.76rem;font-weight:700;}
-
-.apply-card{background:linear-gradient(135deg,rgba(0,200,150,.08),rgba(37,99,255,.06));border:1px solid rgba(0,200,150,.2);border-radius:16px;padding:18px;text-align:center;margin-bottom:14px;}
-.apply-title{font-size:.85rem;font-weight:800;margin-bottom:6px;}
-.apply-sub{font-size:.72rem;color:var(--t2);margin-bottom:14px;}
-.apply-btn{width:100%;padding:13px;border:none;border-radius:13px;background:linear-gradient(135deg,var(--ac),var(--ac2));color:#fff;font-family:'Cairo',sans-serif;font-size:.9rem;font-weight:900;cursor:pointer;transition:all .25s;margin-bottom:8px;}
-.apply-btn:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,200,150,.35);}
-.apply-btn.applied{background:rgba(0,200,150,.15);color:#00c896;border:1px solid rgba(0,200,150,.3);transform:none;box-shadow:none;}
-.save-btn{width:100%;padding:9px;border:1px solid var(--border);border-radius:11px;background:rgba(255,255,255,.06);color:var(--t2);font-family:'Cairo',sans-serif;font-size:.78rem;font-weight:700;cursor:pointer;transition:all .2s;}
-.save-btn:hover{background:rgba(255,255,255,.1);color:var(--t);}
-.deadline{font-size:.68rem;color:var(--t3);margin-top:8px;}
-
-/* OVERLAY */
-.overlay{position:fixed;inset:0;z-index:2000;background:rgba(0,0,0,.78);display:flex;align-items:center;justify-content:center;padding:16px;opacity:0;pointer-events:none;transition:opacity .2s;}
-.overlay.show{opacity:1;pointer-events:all;}
-.modal{background:#0a0f1e;border:1px solid rgba(255,255,255,.1);border-radius:20px;width:100%;max-width:460px;max-height:88vh;overflow-y:auto;padding:24px;font-family:'Cairo',sans-serif;transform:translateY(12px);transition:transform .2s;}
-.overlay.show .modal{transform:translateY(0);}
-.modal-title{font-size:.95rem;font-weight:800;color:#fff;margin-bottom:18px;}
-.mf{margin-bottom:12px;}
-.mf label{display:block;font-size:.72rem;font-weight:700;color:rgba(255,255,255,.45);margin-bottom:4px;}
-.mf textarea{width:100%;padding:10px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-family:'Cairo',sans-serif;font-size:.82rem;outline:none;resize:vertical;min-height:100px;direction:rtl;}
-.mf textarea:focus{border-color:var(--ac);}
-.mact{display:flex;gap:8px;margin-top:16px;}
-.mbtn{flex:1;padding:10px;border:none;border-radius:10px;font-family:'Cairo',sans-serif;font-size:.82rem;font-weight:700;cursor:pointer;}
-.mbtn-ok{background:linear-gradient(135deg,var(--ac),var(--ac2));color:#fff;}
-.mbtn-no{background:rgba(255,255,255,.07);color:rgba(255,255,255,.55);}
-
-@media(max-width:700px){.grid{grid-template-columns:1fr;}}
-
-
-/* ══ ITQAN - Shared Utilities ══ */
-@keyframes tw-shimmer{0%{background-position:-1000px 0}100%{background-position:1000px 0}}
-@keyframes tw-spin{to{transform:translateY(-50%) rotate(360deg);}}
-@keyframes tw-fadein{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:none;}}
-@keyframes tw-verified{0%,100%{box-shadow:0 0 0 0 rgba(0,200,150,0);}50%{box-shadow:0 0 0 5px rgba(0,200,150,.15);}}
-.tw-toast[aria-live="polite"]{position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(20px);background:rgba(7,11,24,.97);border:1px solid rgba(255,255,255,.1);backdrop-filter:blur(20px);border-radius:14px;padding:12px 20px;display:flex;align-items:center;gap:10px;font-size:.82rem;font-family:Cairo,sans-serif;color:rgba(255,255,255,.92);opacity:0;transition:all .3s cubic-bezier(.34,1.56,.64,1);z-index:9999;white-space:nowrap;min-width:180px;justify-content:center;box-shadow:0 8px 32px rgba(0,0,0,.4);}
-.tw-toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
-.tw-toast.success{border-color:rgba(0,200,150,.3);}
-.tw-toast.error{border-color:rgba(239,68,68,.3);}
-.tw-toast.info{border-color:rgba(37,99,255,.3);}
-.tw-skeleton{background:linear-gradient(90deg,rgba(255,255,255,.04) 25%,rgba(255,255,255,.09) 50%,rgba(255,255,255,.04) 75%);background-size:2000px 100%;animation:tw-shimmer 1.5s infinite linear;border-radius:8px;}
-.tw-btn-loading{position:relative;pointer-events:none;opacity:.8;}
-.tw-btn-loading::after{content:'';position:absolute;width:14px;height:14px;border-radius:50%;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;animation:tw-spin .7s linear infinite;right:12px;top:50%;transform:translateY(-50%);}
-.tw-scroll-prog{position:fixed;top:0;left:0;height:2px;z-index:999;background:linear-gradient(90deg,var(--ac,#00c896),var(--ac2,#2563ff));transition:width .1s;width:0%;}
-.tw-fab{position:fixed;bottom:80px;left:18px;width:50px;height:50px;border-radius:50%;border:none;font-size:1.4rem;background:linear-gradient(135deg,var(--ac,#00c896),var(--ac2,#2563ff));color:#fff;cursor:pointer;box-shadow:0 4px 20px rgba(0,200,150,.35);transition:all .25s cubic-bezier(.34,1.56,.64,1);z-index:50;display:flex;align-items:center;justify-content:center;}
-.tw-fab:hover{transform:scale(1.12) rotate(90deg);}
-.tw-empty{text-align:center;padding:50px 20px;}
-.tw-empty-ico{font-size:2.5rem;margin-bottom:12px;opacity:.7;display:block;}
-.tw-empty-title{font-size:.95rem;font-weight:800;margin-bottom:6px;}
-.tw-empty-sub{font-size:.78rem;color:rgba(255,255,255,.35);margin-bottom:18px;line-height:1.6;}
-.tw-empty-btn{padding:10px 22px;border-radius:12px;background:linear-gradient(135deg,var(--ac,#00c896),var(--ac2,#2563ff));border:none;color:#fff;font-family:Cairo,sans-serif;font-weight:700;font-size:.8rem;cursor:pointer;}
-.tw-card-lift{transition:transform .2s,box-shadow .2s;}
-.tw-card-lift:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.3);}
-.tw-verified{animation:tw-verified 2.5s ease-in-out infinite;}
-
-</style>
-<style>.skip-link{position:absolute;top:-40px;right:0;background:var(--ac,#00c896);color:#0d1a2e;padding:8px 16px;border-radius:0 0 8px 0;font-family:Cairo,sans-serif;font-size:.8rem;font-weight:700;text-decoration:none;transition:top .2s;z-index:10000}.skip-link:focus{top:0}</style><a href="#main-content" class="skip-link">تخطى للمحتوى الرئيسي</a></head>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/job/job-detail.css">
+</head>
 <body>
 
-<nav class="nav" role="navigation" aria-label="القائمة الرئيسية">
-  <button class="nb nb-ghost" onclick="history.back()" aria-label="رجوع">← رجوع</button>
-  <div class="nav-logo" onclick="goHome()">تواصلنا</div>
+<a href="#jdMain" class="skip-link">تخطى للمحتوى الرئيسي</a>
+
+<!-- Navigation -->
+<nav class="jd-nav" role="navigation" aria-label="التنقل الرئيسي">
+  <button class="jd-btn-back" id="jdBackBtn" aria-label="رجوع">← رجوع</button>
+  <div class="jd-nav-logo" id="jdNavLogo" role="link" tabindex="0" aria-label="الصفحة الرئيسية">تواصلنا</div>
 </nav>
 
-<div class="main" role="main" id="main-content">
+<!-- Main shell -->
+<div class="jd-shell" id="jdMain" role="main">
 
-  <!-- Header -->
-  <div class="job-header">
-    <div class="jh-top">
-      <div class="co-logo">🏢</div>
-      <div>
-        <div class="job-title" id="jTitle">مطور Full Stack - React & Python</div>
-        <div class="co-name" id="jCompany" onclick="">شركة تك ستارت</div>
-        <div class="job-meta">
-          <span class="jm-item" id="jLocation">📍 عمان، الأردن</span>
-          <span class="jm-item" id="jType">⏰ دوام كامل</span>
-          <span class="jm-item" id="jSalary">💰 800 - 1200 دينار/شهر</span>
-          <span class="jm-item">🕐 نُشرت منذ يومين</span>
-        </div>
-      </div>
-    </div>
-    <div class="job-tags">
-      <span class="jtag tg">React</span><span class="jtag tg">Python</span>
-      <span class="jtag tg">FastAPI</span><span class="jtag tg">PostgreSQL</span>
-      <span class="jtag tb">Remote جزئي</span>
-      <span class="jtag tgr">3-5 سنوات</span>
-      <span class="jtag tgr">بكالوريوس</span>
-    </div>
+  <!-- Skeleton (shown while loading) -->
+  <div id="jdSkeleton">
+    <div style="height:120px;margin-bottom:16px;border-radius:20px" class="jd-skl"></div>
+    <div style="height:70px;margin-bottom:12px;border-radius:14px" class="jd-skl"></div>
+    <div style="height:160px;margin-bottom:12px;border-radius:16px" class="jd-skl"></div>
+    <div style="height:120px;border-radius:16px" class="jd-skl"></div>
   </div>
 
-  <div class="grid">
-    <div>
+  <!-- Error / empty state -->
+  <div id="jdStateBox" class="jd-state hidden" role="alert"></div>
 
-      <!-- Match -->
-      <div class="match-bar">
-        <div class="match-ring"><span>92%</span></div>
-        <div class="match-info">
-          <h3>ملفك يتطابق بنسبة 92% مع هذه الوظيفة</h3>
-          <p>لديك معظم المهارات المطلوبة</p>
-          <div class="match-skills">
-            <span class="ms ms-yes">✓ React</span>
-            <span class="ms ms-yes">✓ Python</span>
-            <span class="ms ms-yes">✓ FastAPI</span>
-            <span class="ms ms-no">✗ AWS</span>
+  <!-- Content (shown after load) -->
+  <div id="jdContent" class="hidden">
+
+    <!-- Job header -->
+    <div class="jd-header" role="article">
+      <div class="jd-hd-top">
+        <div class="jd-logo" id="jdLogo" aria-hidden="true">🏢</div>
+        <div class="jd-info">
+          <h1 class="jd-title" id="jdTitle"></h1>
+          <div class="jd-co-name" id="jdCoName" role="link" tabindex="0"></div>
+          <div class="jd-meta" id="jdMeta" aria-label="تفاصيل الوظيفة"></div>
+        </div>
+      </div>
+      <div class="jd-tags" id="jdTags" aria-label="المهارات المطلوبة"></div>
+    </div>
+
+    <!-- Content grid -->
+    <div class="jd-grid">
+
+      <!-- Main column -->
+      <div class="jd-main">
+
+        <!-- Match section (revealed after skill load) -->
+        <div id="jdMatchSection" class="jd-match hidden" role="region" aria-label="نسبة التطابق مع ملفك">
+          <div class="jd-match-ring" id="jdMatchRing" aria-hidden="true">
+            <span class="jd-match-pct">–</span>
+          </div>
+          <div class="jd-match-body" id="jdMatchBody"></div>
+        </div>
+
+        <!-- Description -->
+        <div class="jd-section hidden" id="jdDescSection">
+          <div class="jd-sec-title">📋 وصف الوظيفة</div>
+          <div class="jd-body-text" id="jdDesc"></div>
+        </div>
+
+        <!-- Skills required -->
+        <div class="jd-section hidden" id="jdSkillsSection">
+          <div class="jd-sec-title">🛠 المهارات المطلوبة</div>
+          <div class="jd-skill-chips" id="jdSkillChips" aria-label="المهارات"></div>
+        </div>
+
+        <!-- Similar jobs — mobile only -->
+        <div class="jd-section jd-mobile-only">
+          <div class="jd-sec-title">💼 وظائف مشابهة</div>
+          <div id="jdSimilarListMobile"></div>
+        </div>
+
+      </div><!-- end .jd-main -->
+
+      <!-- Sidebar -->
+      <div class="jd-sidebar" role="complementary" aria-label="معلومات إضافية">
+
+        <!-- Apply card -->
+        <div class="jd-apply-card">
+          <div class="jd-apply-title" id="jdApplyCardTitle">هل أنت مهتم؟</div>
+          <button type="button" class="jd-apply-btn jd-apply-trigger" aria-label="تقديم على الوظيفة">
+            تقديم الآن ←
+          </button>
+          <button type="button" class="jd-share-btn jd-share-trigger">
+            🔗 مشاركة الوظيفة
+          </button>
+          <button type="button" class="jd-report-link" id="jdReportBtn">
+            ⚐ إبلاغ عن هذه الوظيفة
+          </button>
+        </div>
+
+        <!-- Job info -->
+        <div class="jd-side-card">
+          <div class="jd-sc-title">معلومات الوظيفة</div>
+          <div class="jd-sc-row">
+            <div class="jd-sc-ico">🏢</div>
+            <div><div class="jd-sc-lbl">الشركة</div><div class="jd-sc-val" id="jdSiCo"></div></div>
+          </div>
+          <div class="jd-sc-row">
+            <div class="jd-sc-ico">📍</div>
+            <div><div class="jd-sc-lbl">الموقع</div><div class="jd-sc-val" id="jdSiLoc"></div></div>
+          </div>
+          <div class="jd-sc-row">
+            <div class="jd-sc-ico">⏰</div>
+            <div><div class="jd-sc-lbl">نوع العمل</div><div class="jd-sc-val" id="jdSiType"></div></div>
+          </div>
+          <div class="jd-sc-row">
+            <div class="jd-sc-ico">💰</div>
+            <div><div class="jd-sc-lbl">الراتب</div><div class="jd-sc-val" id="jdSiSal"></div></div>
+          </div>
+          <div class="jd-sc-row">
+            <div class="jd-sc-ico">👁</div>
+            <div><div class="jd-sc-lbl">المشاهدات</div><div class="jd-sc-val" id="jdSiViews"></div></div>
+          </div>
+          <div class="jd-sc-row">
+            <div class="jd-sc-ico">📅</div>
+            <div><div class="jd-sc-lbl">تاريخ النشر</div><div class="jd-sc-val" id="jdSiDate"></div></div>
           </div>
         </div>
-      </div>
 
-      <!-- Description -->
-      <div class="section">
-        <div class="sec-title">📋 وصف الوظيفة</div>
-        <div class="body-text">
-          نحن في شركة تك ستارت نبحث عن مطور Full Stack موهوب ومتحمس للانضمام إلى فريقنا المتنامي. ستعمل على تطوير تطبيقات ويب متكاملة باستخدام React في الواجهة الأمامية وPython/FastAPI في الواجهة الخلفية.<br><br>
-          ستكون مسؤولاً عن تصميم وتطوير وصيانة ميزات المنتج الأساسية، والتعاون مع فريق التصميم لتحويل النماذج إلى واجهات تفاعلية، وضمان جودة الكود من خلال مراجعات الكود والاختبارات.
+        <!-- Company card -->
+        <div class="jd-side-card">
+          <div class="jd-sc-title">عن الشركة</div>
+          <div class="jd-co-card">
+            <div class="jd-co-av" id="jdCoCardAv" aria-hidden="true">🏢</div>
+            <div>
+              <div class="jd-co-cname" id="jdCoCardName" role="link" tabindex="0"></div>
+              <div class="jd-co-verified" id="jdCoCardVerif"></div>
+            </div>
+          </div>
         </div>
-      </div>
 
-      <!-- Requirements -->
-      <div class="section">
-        <div class="sec-title">✅ المتطلبات الأساسية</div>
-        <ul class="req-list">
-          <li>خبرة 3-5 سنوات في تطوير تطبيقات الويب</li>
-          <li>إتقان React.js مع Hooks و Context API</li>
-          <li>خبرة في Python و FastAPI أو Django</li>
-          <li>معرفة قواعد البيانات PostgreSQL و MySQL</li>
-          <li>معرفة بـ Git وإدارة الكود</li>
-          <li>مهارات تواصل جيدة باللغتين العربية والإنجليزية</li>
-        </ul>
-      </div>
+        <!-- Similar jobs — desktop only -->
+        <div class="jd-side-card jd-desktop-only">
+          <div class="jd-sc-title">وظائف مشابهة</div>
+          <div id="jdSimilarList"></div>
+        </div>
 
-      <!-- Preferred -->
-      <div class="section">
-        <div class="sec-title">⭐ يُفضَّل وجود</div>
-        <ul class="req-list pref-list">
-          <li>خبرة في Docker و AWS</li>
-          <li>معرفة بـ TypeScript</li>
-          <li>تجربة في منهجيات Agile / Scrum</li>
-          <li>مساهمات في مشاريع مفتوحة المصدر</li>
-        </ul>
-      </div>
+      </div><!-- end .jd-sidebar -->
 
-      <!-- Benefits -->
-      <div class="section">
-        <div class="sec-title">🎁 المزايا والمكافآت</div>
-        <ul class="req-list">
-          <li>راتب تنافسي 800-1200 دينار أردني شهرياً</li>
-          <li>تأمين صحي شامل للموظف والعائلة</li>
-          <li>ميزانية تدريب سنوية 500 دينار</li>
-          <li>دوام مرن + إمكانية العمل عن بُعد يومين أسبوعياً</li>
-          <li>مكافآت أداء نصف سنوية</li>
-          <li>بيئة عمل شبابية وديناميكية</li>
-        </ul>
-      </div>
+    </div><!-- end .jd-grid -->
 
+  </div><!-- end #jdContent -->
+
+</div><!-- end .jd-shell -->
+
+<!-- Sticky apply bar — mobile only -->
+<div class="jd-sticky-bar" id="jdStickyBar" role="toolbar" aria-label="تقديم على الوظيفة">
+  <div class="jd-sticky-inner">
+    <button type="button" class="jd-sticky-apply jd-apply-trigger" aria-label="تقديم على الوظيفة">
+      تقديم الآن ←
+    </button>
+    <button type="button" class="jd-sticky-share jd-share-trigger" aria-label="مشاركة الوظيفة">
+      🔗
+    </button>
+  </div>
+</div>
+
+<!-- Apply modal -->
+<div class="jd-overlay" id="jdApplyOverlay" role="dialog" aria-modal="true" aria-labelledby="jdModalTitle">
+  <div class="jd-modal">
+    <div class="jd-modal-title" id="jdModalTitle">تقديم على الوظيفة</div>
+    <div class="jd-modal-hint">سيتم إرفاق ملفك الشخصي تلقائياً مع طلب التوظيف.</div>
+    <div class="jd-mf">
+      <label for="jdCoverLetter">رسالة تغطية (اختياري)</label>
+      <textarea id="jdCoverLetter" placeholder="أخبر الشركة لماذا أنت مناسب لهذه الوظيفة..."></textarea>
     </div>
-
-    <div>
-      <!-- Apply card -->
-      <div class="apply-card">
-        <div class="apply-title">هل أنت مهتم؟</div>
-        <div class="apply-sub">آخر موعد للتقديم: 30 مايو 2025</div>
-        <button type="button" class="apply-btn" id="applyBtn" onclick="openApply()">تقديم الآن ←</button>
-        <button type="button" class="save-btn" id="saveBtn" onclick="saveJob(this)">💾 حفظ الوظيفة</button>
-        <div class="deadline">⏰ تبقى 12 يوم على انتهاء التقديم</div>
-  <!-- Share button -->
-  <button onclick="shareJob()" style="display:flex;align-items:center;gap:6px;padding:10px 16px;border-radius:12px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);color:rgba(255,255,255,.6);font-family:Cairo,sans-serif;font-size:.78rem;cursor:pointer;margin-top:8px">
-    🔗 مشاركة الوظيفة
-  </button>
-      </div>
-
-      <!-- Job info -->
-      <div class="side-card">
-        <div class="sc-title">معلومات الوظيفة</div>
-        <div class="sc-item"><span class="sc-ico">🏢</span><div><div class="sc-key">الشركة</div><div class="sc-val" style="color:var(--ac);cursor:pointer" onclick="window.location.href='company-profile.html'">شركة تك ستارت</div></div></div>
-        <div class="sc-item"><span class="sc-ico">📍</span><div><div class="sc-key">الموقع</div><div class="sc-val">عمان، الأردن</div></div></div>
-        <div class="sc-item"><span class="sc-ico">⏰</span><div><div class="sc-key">نوع العمل</div><div class="sc-val">دوام كامل</div></div></div>
-        <div class="sc-item"><span class="sc-ico">💰</span><div><div class="sc-key">الراتب</div><div class="sc-val">800 - 1200 دينار/شهر</div></div></div>
-        <div class="sc-item"><span class="sc-ico">🎓</span><div><div class="sc-key">المؤهل</div><div class="sc-val">بكالوريوس في الحاسوب أو ما يعادله</div></div></div>
-        <div class="sc-item"><span class="sc-ico">📅</span><div><div class="sc-key">تاريخ النشر</div><div class="sc-val">13 مايو 2025</div></div></div>
-      </div>
-
-      <!-- Similar jobs -->
-      <div class="side-card">
-        <div class="sc-title">وظائف مشابهة</div>
-        <div class="sc-item" style="cursor:pointer" onclick="window.location.reload()">
-          <span class="sc-ico">💻</span>
-          <div><div class="sc-val">مطور Frontend</div><div class="sc-key">إبداع للتقنية · عمان</div></div>
-        </div>
-        <div class="sc-item" style="cursor:pointer" onclick="window.location.reload()">
-          <span class="sc-ico">🚀</span>
-          <div><div class="sc-val">مهندس Backend</div><div class="sc-key">سوفت لاب · الرياض</div></div>
-        </div>
-        <div class="sc-item" style="cursor:pointer" onclick="window.location.reload()">
-          <span class="sc-ico">📱</span>
-          <div><div class="sc-val">مطور Flutter</div><div class="sc-key">تك رايز · دبي</div></div>
-        </div>
-      </div>
+    <div class="jd-mact">
+      <button type="button" class="jd-mbtn jd-mbtn-ok" id="jdApplyConfirm">إرسال الطلب ✓</button>
+      <button type="button" class="jd-mbtn jd-mbtn-no" id="jdApplyCancel">إلغاء</button>
     </div>
   </div>
 </div>
 
-<!-- APPLY MODAL -->
-<div class="overlay" id="applyOverlay" onclick="closeOverlay(event)">
-  <div class="modal">
-    <div class="modal-title">📝 تقديم على وظيفة مطور Full Stack</div>
-    <div style="background:rgba(0,200,150,.06);border:1px solid rgba(0,200,150,.15);border-radius:10px;padding:10px 12px;font-size:.74rem;color:var(--t2);margin-bottom:14px">
-      سيتم إرفاق ملفك الشخصي (TW-EMP-XXXXX) تلقائياً مع الطلب.
-    </div>
-    <div class="mf">
-      <label>رسالة تغطية (اختياري)</label>
-      <textarea id="coverLetter" placeholder="أخبر الشركة لماذا أنت مناسب لهذه الوظيفة..."></textarea>
-    </div>
-    <div class="mact">
-      <button type="button" class="mbtn mbtn-ok" onclick="confirmApply()">إرسال الطلب ✓</button>
-      <button type="button" class="mbtn mbtn-no" onclick="document.getElementById('applyOverlay').classList.remove('show')">إلغاء</button>
-    </div>
-  </div>
-</div>
-
-<script src="/tw_shared.js"></script>
-<script>
-let _user=null;
-try{_user=JSON.parse(localStorage.getItem('tw_user'));}catch(e){}
-if(!_user||!_user.id){window.location.href='/';}
-
-function openApply(){document.getElementById('applyOverlay').classList.add('show');}
-
-function confirmApply(){
-  if(!_user||!_user.id){ alert('يجب تسجيل الدخول أولاً'); return; }
-  const params = new URLSearchParams(window.location.search);
-  const jobId = parseInt(params.get('id'));
-  if(!jobId){ alert('معرّف الوظيفة غير صحيح'); return; }
-  const cover = document.getElementById('coverLetter')?.value||'';
-  const btn=document.getElementById('applyBtn');
-  btn.disabled=true; btn.textContent='جاري التقديم...';
-  fetch('/jobs/'+jobId+'/apply',{
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({user_id:_user.id, cover_letter:cover})
-  }).then(r=>r.json()).then(data=>{
-    if(data.already_applied){
-      btn.textContent='✓ قدّمت مسبقاً';
-    } else {
-      btn.textContent='✓ تم التقديم بنجاح';
-    }
-    btn.classList.add('applied');
-    btn.onclick=null;
-    document.getElementById('applyOverlay').classList.remove('show');
-  }).catch(()=>{
-    btn.textContent='✓ تم التقديم';
-    btn.onclick=null;
-    document.getElementById('applyOverlay').classList.remove('show');
-  });
-}
-
-function saveJob(btn){
-  btn.textContent='✓ محفوظة';
-  btn.style.color='var(--ac)';
-  btn.onclick=null;
-}
-
-function closeOverlay(e){if(e.target.classList.contains('overlay'))e.target.classList.remove('show');}
-function goHome(){window.location.href=_user?'home.html':'/';}
-
-
-// ══ ITQAN Utilities ══
-var _twToast=null;
-function showToast(msg,type,dur){
-  type=type||'success';dur=dur||2800;
-  if(_twToast){_twToast.remove();}
-  var t=document.createElement('div');
-  t.className='tw-toast '+type;
-  var ico=type==='success'?'✅':type==='error'?'❌':'ℹ️';
-  t.innerHTML='<span>'+ico+'</span><span>'+msg+'</span>';
-  document.body.appendChild(t);
-  _twToast=t;
-  requestAnimationFrame(function(){requestAnimationFrame(function(){t.classList.add('show');});});
-  setTimeout(function(){t.classList.remove('show');setTimeout(function(){if(t.parentNode)t.remove();},350);},dur);
-}
-function setBtnLoad(btn,loading){
-  if(!btn)return;
-  if(loading){btn.classList.add('tw-btn-loading');btn._orig=btn.textContent;btn.textContent='';btn.disabled=true;}
-  else{btn.classList.remove('tw-btn-loading');btn.textContent=btn._orig||'حفظ';btn.disabled=false;}
-}
-function twNavigate(url){
-  document.body.style.cssText='opacity:0;transform:translateY(-6px);transition:all .2s ease;';
-  setTimeout(function(){window.location.href=url;},180);
-}
-function initScrollProg(){
-  var p=document.createElement('div');p.className='tw-scroll-prog';
-  document.body.prepend(p);
-  window.addEventListener('scroll',function(){
-    var pct=window.scrollY/(document.body.scrollHeight-window.innerHeight)*100;
-    p.style.width=Math.min(pct,100)+'%';
-  });
-}
-
-
-function shareJob(){
-  var title=document.getElementById('jTitle')?.textContent||'وظيفة';
-  var url=window.location.href;
-  if(navigator.share){
-    navigator.share({title:title,url:url}).catch(function(){});
-  } else {
-    navigator.clipboard?.writeText(url).then(function(){
-      showToast('تم نسخ رابط الوظيفة ✅');
-    }).catch(function(){
-      showToast('رابط الوظيفة: '+url,'info');
-    });
-  }
-}
-
-// ── Similar Jobs ──
-(function(){
-  var params=new URLSearchParams(window.location.search);
-  var jobId=params.get('id');
-  if(!jobId) return;
-  setTimeout(function(){
-    fetch('/jobs').then(function(r){return r.json();}).then(function(data){
-      var jobs=(data.jobs||[]).filter(function(j){return String(j.id)!==String(jobId);}).slice(0,2);
-      var container=document.getElementById('similarJobs');
-      if(!container||!jobs.length){if(container)container.innerHTML='';return;}
-      container.innerHTML=jobs.map(function(j){
-        var d='<div style="display:flex;align-items:center;gap:10px;padding:10px;border-radius:12px;border:1px solid rgba(255,255,255,.06);margin-bottom:8px;cursor:pointer" data-sid="'+j.id+'">';
-        d+='<div style="width:36px;height:36px;border-radius:10px;background:rgba(0,200,150,.1);display:flex;align-items:center;justify-content:center;font-weight:800;color:var(--ac)">'+(j.company_name?j.company_name[0].toUpperCase():'🏢')+'</div>';
-        d+='<div><div style="font-size:.82rem;font-weight:700">'+j.title+'</div>';
-        d+='<div style="font-size:.7rem;color:rgba(255,255,255,.4)">'+(j.location||'')+'</div></div></div>';
-        return d;
-      }).join('');
-    container.querySelectorAll('[data-sid]').forEach(function(el){el.addEventListener('click',function(){window.location.href='job-detail.html?id='+el.getAttribute('data-sid');});});
-    }).catch(function(){document.getElementById('similarJobs').innerHTML='';});
-  },500);
-})();
-
-
-// ── Report System ──
-var _reportTargetId = null;
-var _reportTargetType = 'user';
-var _reportTargetUrl = '';
-
-function openReportModal(targetId, targetType, targetUrl){
-  _reportTargetId = targetId;
-  _reportTargetType = targetType || 'user';
-  _reportTargetUrl = targetUrl || window.location.href;
-  document.getElementById('reportModal').style.display = 'flex';
-  document.getElementById('reportReason').value = '';
-}
-
-function closeReportModal(){
-  document.getElementById('reportModal').style.display = 'none';
-}
-
-async function submitReport(){
-  var type = document.getElementById('reportType').value;
-  var reason = document.getElementById('reportReason').value.trim();
-  if(!reason){ showToast('اكتب سبب البلاغ', 'error'); return; }
-  if(!_reportTargetId){ showToast('خطأ في البلاغ', 'error'); return; }
-  
-  var btn = document.getElementById('reportSubmitBtn');
-  btn.disabled = true; btn.textContent = 'جاري الإرسال...';
-  
-  try{
-    var user = JSON.parse(localStorage.getItem('tw_user')||'{}');
-    var jwt = localStorage.getItem('tw_jwt')||'';
-    var r = await fetch('/reports/submit', {
-      method: 'POST',
-      headers: {'Content-Type':'application/json', 'Authorization': 'Bearer '+jwt},
-      body: JSON.stringify({
-        reported_id: _reportTargetId,
-        reported_type: _reportTargetType,
-        report_type: type,
-        reason: reason,
-        target_url: _reportTargetUrl
-      })
-    });
-    if(r.ok){
-      showToast('تم إرسال البلاغ ✅');
-      closeReportModal();
-    } else {
-      throw new Error();
-    }
-  }catch(e){
-    showToast('خطأ في إرسال البلاغ', 'error');
-  }
-  btn.disabled = false; btn.textContent = '🚨 إرسال البلاغ';
-}
-</script>
-
-<!-- Report Modal -->
-<div id="reportModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:300;align-items:flex-end;justify-content:center">
-  <div style="background:#0d1426;border-radius:20px 20px 0 0;padding:20px;width:100%;max-width:480px">
-    <div style="font-weight:800;font-size:.9rem;margin-bottom:12px">🚨 إبلاغ عن محتوى مخالف</div>
-    <div style="margin-bottom:10px">
-      <div style="font-size:.72rem;color:rgba(255,255,255,.4);margin-bottom:6px">نوع البلاغ</div>
-      <select id="reportType" style="width:100%;padding:9px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.05);color:#fff;font-family:Cairo,sans-serif;font-size:.78rem">
-        <option value="sexual">محتوى جنسي</option>
+<!-- Report sheet -->
+<div id="jdReportSheet" class="jd-report-sheet" role="dialog" aria-modal="true">
+  <div class="jd-report-panel">
+    <div class="jd-report-title">🚨 إبلاغ عن محتوى مخالف</div>
+    <div class="jd-rfield">
+      <label for="jdReportType">نوع البلاغ</label>
+      <select id="jdReportType">
         <option value="fraud">احتيال أو نصب</option>
-        <option value="harassment">تحرش أو مضايقة</option>
         <option value="spam">سبام أو إعلان مزيف</option>
+        <option value="misleading">معلومات مضللة</option>
+        <option value="harassment">تحرش أو مضايقة</option>
         <option value="other">أخرى</option>
       </select>
     </div>
-    <div style="margin-bottom:14px">
-      <div style="font-size:.72rem;color:rgba(255,255,255,.4);margin-bottom:6px">تفاصيل البلاغ</div>
-      <textarea id="reportReason" placeholder="اشرح سبب البلاغ..." rows="3" style="width:100%;padding:9px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.05);color:#fff;font-family:Cairo,sans-serif;font-size:.78rem;resize:none"></textarea>
+    <div class="jd-rfield">
+      <label for="jdReportReason">تفاصيل البلاغ</label>
+      <textarea id="jdReportReason" placeholder="اشرح سبب البلاغ..." rows="3"></textarea>
     </div>
-    <div style="display:flex;gap:8px">
-      <button id="reportSubmitBtn" onclick="submitReport()" style="flex:1;padding:10px;border-radius:10px;border:none;background:linear-gradient(135deg,#dc2626,#7c3aed);color:#fff;font-family:Cairo,sans-serif;font-size:.8rem;font-weight:700;cursor:pointer">🚨 إرسال البلاغ</button>
-      <button onclick="closeReportModal()" style="padding:10px 16px;border-radius:10px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);color:rgba(255,255,255,.6);font-family:Cairo,sans-serif;font-size:.8rem;cursor:pointer">إلغاء</button>
+    <div class="jd-rbtns">
+      <button id="jdReportSubmitBtn" class="jd-rbtn-submit">🚨 إرسال البلاغ</button>
+      <button id="jdReportClose" class="jd-rbtn-cancel">إلغاء</button>
     </div>
   </div>
 </div>
 
+<!-- Toast notification -->
+<div id="jdToast" class="jd-toast" role="alert" aria-live="polite" aria-atomic="true"></div>
+
+<script src="/static/job/job-detail.js"></script>
 </body>
 </html>
