@@ -515,6 +515,9 @@ def _taxonomy_score(job, user_pid, user_pgroup, user_skills):
       +10   per shared skill between user_skills and job.skills
     Returns 0 for non-emp users or missing context (safe default).
     """
+    if not user_pid and not user_pgroup and not user_skills:
+        return 0  # no user context — feed stays sorted by recency only
+
     score = 0
     job_pid    = job.get("profession_id")
     job_pgroup = (job.get("profession_category_group") or "").strip()
