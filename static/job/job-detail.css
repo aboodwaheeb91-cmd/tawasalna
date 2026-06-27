@@ -32,7 +32,6 @@ img { display: block; max-width: 100%; }
   --t: #e2e8f0;
   --t2: #94a3b8;
   --t3: rgba(255,255,255,.27);
-  --ah-h: 52px;
 }
 
 /* === Skip link === */
@@ -45,32 +44,12 @@ img { display: block; max-width: 100%; }
 }
 .skip-link:focus { top: 0; }
 
-/* === Navigation === */
-.jd-nav {
+/* === Navigation — uses shared .sc-header from app-header.css === */
+.jd-header-bar {
   position: fixed;
   top: 0; inset-inline: 0;
   z-index: 100;
-  height: var(--ah-h);
-  display: flex; align-items: center; justify-content: center; gap: 8px; padding: 0 14px;
-  background: rgba(7,11,24,.93);
-  backdrop-filter: blur(20px);
-  border-bottom: 1px solid var(--brd);
 }
-.jd-nav-logo {
-  font-size: 1rem; font-weight: 900;
-  background: linear-gradient(135deg, var(--ac), var(--ac2));
-  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
-  cursor: pointer;
-}
-.jd-btn-back {
-  position: absolute; inset-inline-end: 14px;
-  padding: 5px 11px; border-radius: 8px;
-  background: rgba(255,255,255,.07); color: var(--t2);
-  border: 1px solid var(--brd);
-  font-size: .73rem; font-weight: 700;
-  transition: all .2s;
-}
-.jd-btn-back:hover { background: rgba(255,255,255,.11); color: var(--t); }
 
 /* === Shell === */
 .jd-shell {
