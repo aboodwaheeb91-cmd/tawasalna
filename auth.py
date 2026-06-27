@@ -1897,8 +1897,18 @@ def get_job(job_id: int) -> dict:
     try:
         conn.run("UPDATE jobs SET views=views+1 WHERE id=:id", id=job_id)
         rows = conn.run(
-            "SELECT j.*, u.full_name AS company_name "
-            "FROM jobs j JOIN users u ON u.id=j.company_id "
+            "SELECT j.*, "
+            "u.full_name AS company_name, u.tw_id AS company_tw_id, "
+            "COALESCE(cp.avatar_url,'') AS company_logo, "
+            "COALESCE(cp.is_verified,false) AS company_verified, "
+            "COALESCE(pc.name_ar,'') AS profession_name_ar, "
+            "COALESCE(pc.name_en,'') AS profession_name_en, "
+            "COALESCE(pc.icon,'') AS profession_icon, "
+            "COALESCE(pc.category_group,'') AS profession_category_group "
+            "FROM jobs j "
+            "JOIN users u ON u.id=j.company_id "
+            "LEFT JOIN profiles cp ON j.company_id=cp.user_id "
+            "LEFT JOIN profession_categories pc ON j.profession_id=pc.id "
             "WHERE j.id=:id", id=job_id
         )
         if not rows: return None

@@ -7765,3 +7765,71 @@ All 5 PRs complete. The Unified Professional Taxonomy System is fully operationa
 | PR 3 | ✅ merged | Job Modal: `j-prof` profession picker + skill chip autocomplete |
 | PR 4 | ✅ merged | `/home/feed` taxonomy-aware scoring: +100 exact / +40 group / +10 per skill |
 | PR 5 | ✅ merged | Removed `TW.JOB_CATEGORIES`; confirmed zero dead code; final rules documented |
+
+---
+
+## [P1] 62. Job Detail Page V2
+
+### Overview
+
+`/job-detail` (served from `job-detail.html`) is the real-time job detail page powered by the API.  
+All data is fetched at runtime — zero hardcoded content.
+
+### File Structure
+
+| File | Role |
+|------|------|
+| `job-detail.html` | HTML structure only — no inline `<style>` or `<script>` |
+| `static/job/job-detail.css` | All page styles — `.jd-*` namespace |
+| `static/job/job-detail.js` | All page logic — single IIFE, `(function(){...}())` |
+
+### Backend — `get_job()` in `auth.py`
+
+`GET /jobs/{job_id}` calls `get_job(job_id)` which JOINs:
+- `users u` → `company_name`, `company_tw_id`
+- `LEFT JOIN profiles cp ON j.company_id = cp.user_id` → `company_logo`, `company_verified`
+- `LEFT JOIN profession_categories pc ON j.profession_id = pc.id` → `profession_name_ar`, `profession_name_en`, `profession_icon`, `profession_category_group`
+
+No auth required for `GET /jobs/{job_id}` — public endpoint.  
+`POST /jobs/{job_id}/apply` requires `Authorization: Bearer {jwt}`.
+
+### Auth Guard
+
+```javascript
+var _jwt = localStorage.getItem('tw_jwt') || '';
+if (!_jwt) { location.href = '/login'; return; }
+```
+Redirects immediately if no JWT. Does not wait for DOMContentLoaded.
+
+### Match Section — Client-Side Only
+
+1. Fetch `GET /profile/{user_id}/full` with Bearer JWT → extract skills
+2. If API fails → check `localStorage.tw_user.skills` as fallback (not source of truth)
+3. If no skills found → show "أضف مهاراتك في ملفك الشخصي" + link to `/profile`
+4. If skills found → compute `matched` / `missing` arrays → render conic ring + chips
+5. Match % = `matched.length / job.skills.length * 100`
+
+No server-side match endpoint — computed entirely in the browser.
+
+### Responsive Layout
+
+- **Desktop ≥720px**: 2-column grid (`1fr 300px`) — sidebar with apply card + job info + company card + similar jobs. Sticky bar hidden.
+- **Mobile <720px**: 1-column — sidebar hidden, sticky apply bar fixed at bottom. Similar jobs shown in main column via `.jd-mobile-only` section.
+
+### Security Rules (permanent)
+
+- All fetch calls use `Authorization: Bearer {jwt}` — X-User-Id header forbidden
+- All API data set via `textContent` — `innerHTML = apiData` forbidden
+- `_user.id` (from `localStorage.tw_user`) sent in apply POST body alongside JWT — the JWT is the auth signal; `user_id` is the payload
+- `source_url` from job API: not rendered on job-detail page (no external link needed here; source is always the platform)
+
+### Forbidden Patterns
+
+```
+❌ Hardcoded job data — all content from API
+❌ innerHTML = apiData — always textContent
+❌ X-User-Id header — JWT only
+❌ localStorage as source of truth for user skills — API first, localStorage is fallback
+❌ Separate CSS/JS file per feature added to job-detail — stays in job-detail.css/js
+❌ Additional inline <style> or <script> blocks in job-detail.html
+```
