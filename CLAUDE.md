@@ -633,25 +633,27 @@ These rules are permanent and apply to all future AI sessions.
 
 3. **`profession_categories` DB table is the official source for all professional specializations.** The `GET /professions` endpoint is the only approved way to load them on the frontend.
 
-4. **`jobs.profession_id` is optional (NULL allowed) until PR 3 (`feat/job-modal-taxonomy-integration`) is merged.** Do NOT add a NOT NULL constraint or validation before then.
+4. **`jobs.profession_id` is the canonical job specialization field.** `jobs.category` (legacy text) remains in DB but is NOT a primary UI source. Do NOT use `jobs.category` to drive UI or matching in new features.
 
 5. **`GET /skills/catalog` is public (no auth required).** It has a 1-hour in-memory cache (`_skill_catalog_cache` in `server.py`). Do NOT add auth to it or change the cache TTL without a documented reason.
 
 6. **Never duplicate skill data across files.** Any skill addition goes into `_SKILL_SEED` in `auth.py` only. The DB → `GET /skills/catalog` → `TW.SKILL_CATALOG` (fallback) flow is the only approved pipeline.
 
-7. **`static/shared/tw-skills.js` is the only approved access point for skill catalog on the frontend (PR 2+).** All skill search, normalization, and icon lookup must go through `TW.searchSkills`, `TW.normalizeSkill`, `TW.getSkillIcon`, `TW._getSkillEntry`, `TW._isOfficialSkill`. Load order: `tw-options-data.js` → `tw-skills.js` → page skill module.
+7. **`static/shared/tw-skills.js` is the only approved access point for skill catalog on the frontend.** All skill search, normalization, and icon lookup must go through `TW.searchSkills`, `TW.normalizeSkill`, `TW.getSkillIcon`, `TW._getSkillEntry`, `TW._isOfficialSkill`. Load order: `tw-options-data.js` → `tw-skills.js` → page skill module.
 
-8. **Forbidden patterns:**
+8. **Forbidden patterns (permanent — all 5 PRs complete):**
    ```
    ❌ Hardcoded skill arrays inside page JS files
-   ❌ Hardcoded profession lists outside profession_categories
-   ❌ TW.SKILL_CATALOG used directly from page modules
+   ❌ Hardcoded profession/category lists outside profession_categories DB table
+   ❌ TW.SKILL_CATALOG used directly from page modules (it is fallback-only inside tw-skills.js)
+   ❌ TW.JOB_CATEGORIES — DELETED in PR 5; do NOT re-add
    ❌ fetch('/skills/catalog') called directly from page modules (use tw-skills.js)
-   ❌ jobs.profession_id with NOT NULL constraint before PR 3
+   ❌ jobs.category used as primary UI or matching source in new features
    ❌ Direct DB writes to skill_catalog outside auth.py migrations
+   ❌ New j-cat or category select in Job Modal — replaced by j-prof (profession picker)
    ```
 
-9. **PR order is mandatory:** PR 1 (DB foundation) → PR 2 (shared picker) → PR 3 (job modal) → PR 4 (matching) → PR 5 (cleanup). Do NOT start a later PR before the earlier one is reviewed and merged.
+9. **All 5 PRs of the Unified Taxonomy System are complete.** No further taxonomy PRs are planned. Do NOT re-open or re-introduce any removed pattern.
 
 ---
 
