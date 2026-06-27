@@ -45,7 +45,7 @@
     <!-- Job header -->
     <div class="jd-header" role="article">
       <div class="jd-hd-top">
-        <div class="jd-logo" id="jdLogo" aria-hidden="true">🏢</div>
+        <div class="jd-logo" id="jdLogo" aria-hidden="true"><i data-lucide="building-2" width="40" height="40"></i></div>
         <div class="jd-info">
           <h1 class="jd-title" id="jdTitle"></h1>
           <div class="jd-co-name" id="jdCoName" role="link" tabindex="0"></div>
@@ -71,19 +71,19 @@
 
         <!-- Description -->
         <div class="jd-section hidden" id="jdDescSection">
-          <div class="jd-sec-title">📋 وصف الوظيفة</div>
+          <div class="jd-sec-title"><i data-lucide="file-text" width="15" height="15"></i> وصف الوظيفة</div>
           <div class="jd-body-text" id="jdDesc"></div>
         </div>
 
         <!-- Skills required -->
         <div class="jd-section hidden" id="jdSkillsSection">
-          <div class="jd-sec-title">🛠 المهارات المطلوبة</div>
+          <div class="jd-sec-title"><i data-lucide="wrench" width="15" height="15"></i> المهارات المطلوبة</div>
           <div class="jd-skill-chips" id="jdSkillChips" aria-label="المهارات"></div>
         </div>
 
         <!-- Similar jobs — mobile only -->
         <div class="jd-section jd-mobile-only">
-          <div class="jd-sec-title">💼 وظائف مشابهة</div>
+          <div class="jd-sec-title"><i data-lucide="briefcase" width="15" height="15"></i> وظائف مشابهة</div>
           <div id="jdSimilarListMobile"></div>
         </div>
 
@@ -110,35 +110,35 @@
         <div class="jd-side-card">
           <div class="jd-sc-title">معلومات الوظيفة</div>
           <div class="jd-sc-row">
-            <div class="jd-sc-ico">🏢</div>
+            <div class="jd-sc-ico"><i data-lucide="building-2" width="16" height="16"></i></div>
             <div><div class="jd-sc-lbl">الشركة</div><div class="jd-sc-val" id="jdSiCo"></div></div>
           </div>
           <div class="jd-sc-row">
-            <div class="jd-sc-ico">📍</div>
+            <div class="jd-sc-ico"><i data-lucide="map-pin" width="16" height="16"></i></div>
             <div><div class="jd-sc-lbl">الموقع</div><div class="jd-sc-val" id="jdSiLoc"></div></div>
           </div>
           <div class="jd-sc-row">
-            <div class="jd-sc-ico">⏰</div>
+            <div class="jd-sc-ico"><i data-lucide="clock" width="16" height="16"></i></div>
             <div><div class="jd-sc-lbl">نوع العمل</div><div class="jd-sc-val" id="jdSiType"></div></div>
           </div>
           <div class="jd-sc-row">
-            <div class="jd-sc-ico">🏠</div>
+            <div class="jd-sc-ico"><i data-lucide="laptop" width="16" height="16"></i></div>
             <div><div class="jd-sc-lbl">طريقة العمل</div><div class="jd-sc-val" id="jdSiMode"></div></div>
           </div>
           <div class="jd-sc-row">
-            <div class="jd-sc-ico">📊</div>
+            <div class="jd-sc-ico"><i data-lucide="bar-chart-2" width="16" height="16"></i></div>
             <div><div class="jd-sc-lbl">سنوات الخبرة</div><div class="jd-sc-val" id="jdSiExp"></div></div>
           </div>
           <div class="jd-sc-row">
-            <div class="jd-sc-ico">💰</div>
+            <div class="jd-sc-ico"><i data-lucide="circle-dollar-sign" width="16" height="16"></i></div>
             <div><div class="jd-sc-lbl">الراتب</div><div class="jd-sc-val" id="jdSiSal"></div></div>
           </div>
           <div class="jd-sc-row">
-            <div class="jd-sc-ico">👁</div>
+            <div class="jd-sc-ico"><i data-lucide="eye" width="16" height="16"></i></div>
             <div><div class="jd-sc-lbl">المشاهدات</div><div class="jd-sc-val" id="jdSiViews"></div></div>
           </div>
           <div class="jd-sc-row">
-            <div class="jd-sc-ico">📅</div>
+            <div class="jd-sc-ico"><i data-lucide="calendar" width="16" height="16"></i></div>
             <div><div class="jd-sc-lbl">تاريخ النشر</div><div class="jd-sc-val" id="jdSiDate"></div></div>
           </div>
         </div>
@@ -147,7 +147,7 @@
         <div class="jd-side-card">
           <div class="jd-sc-title">عن الشركة</div>
           <div class="jd-co-card">
-            <div class="jd-co-av" id="jdCoCardAv" aria-hidden="true">🏢</div>
+            <div class="jd-co-av" id="jdCoCardAv" aria-hidden="true"><i data-lucide="building-2" width="24" height="24"></i></div>
             <div>
               <div class="jd-co-cname" id="jdCoCardName" role="link" tabindex="0"></div>
               <div class="jd-co-verified" id="jdCoCardVerif"></div>
@@ -225,6 +225,9 @@
 <!-- Toast notification -->
 <div id="jdToast" class="jd-toast" role="alert" aria-live="polite" aria-atomic="true"></div>
 
+<script src="/static/vendor/lucide/lucide.min.js"></script>
+<script src="/static/shared/tw-options-data.js"></script>
+<script src="/static/shared/tw-skills.js"></script>
 <script src="/static/job/job-detail.js"></script>
 </body>
 </html>
