@@ -111,6 +111,161 @@
 
   // ── Post job helpers ───────────────────────────────────────────
 
+  // XSS-safe escape for use in innerHTML
+  function _esc(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // ── Profession picker ──────────────────────────────────────────
+  var _professions = [];
+
+  function _rebuildProfSelect() {
+    var sel = document.getElementById('j-prof');
+    if (!sel) return;
+    var groups = {}, order = [];
+    _professions.forEach(function(p) {
+      var g = p.category_group || 'عام';
+      if (!groups[g]) { groups[g] = []; order.push(g); }
+      groups[g].push(p);
+    });
+    var html = '<option value="">— اختر التخصص —</option>';
+    order.forEach(function(g) {
+      html += '<optgroup label="' + _esc(g) + '">';
+      groups[g].forEach(function(p) {
+        html += '<option value="' + _esc(String(p.id)) + '">' + _esc(p.name_ar || p.name_en || '') + '</option>';
+      });
+      html += '</optgroup>';
+    });
+    sel.innerHTML = html;
+    if (window.scSelectInit) scSelectInit();
+  }
+
+  function _loadProfessions() {
+    var sel = document.getElementById('j-prof');
+    if (!sel) return;
+    if (_professions.length) { _rebuildProfSelect(); return; }
+    fetch('/professions', { headers: { 'Authorization': 'Bearer ' + _jwt() } })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        _professions = Array.isArray(data) ? data : (data.professions || []);
+        _rebuildProfSelect();
+      })
+      .catch(function() {
+        if (sel) sel.innerHTML = '<option value="">— تعذر التحميل —</option>';
+      });
+  }
+
+  // ── Skill chips ────────────────────────────────────────────────
+  var _jSkills     = [];
+  var _jDropRes    = [];
+  var _jACBound    = false;
+
+  function _jRenderChips() {
+    var box = document.getElementById('j-skill-chips');
+    if (!box) return;
+    if (!_jSkills.length) { box.innerHTML = ''; return; }
+    var html = '';
+    _jSkills.forEach(function(name) {
+      var icon = (window.TW && TW.getSkillIcon) ? TW.getSkillIcon(name) : 'circle-check';
+      html += '<span class="j-skill-chip">'
+        + '<i data-lucide="' + _esc(icon) + '" class="j-chip-ic"></i>'
+        + _esc(name)
+        + '<button type="button" class="j-skill-chip-del" data-skill="' + _esc(name) + '" aria-label="حذف">×</button>'
+        + '</span>';
+    });
+    box.innerHTML = html;
+    if (window.lucide && lucide.createIcons) lucide.createIcons({ nodes: [box] });
+    var dels = box.querySelectorAll('.j-skill-chip-del');
+    for (var k = 0; k < dels.length; k++) {
+      (function(btn) {
+        btn.addEventListener('click', function(e) {
+          e.stopPropagation();
+          _jRemoveSkill(btn.getAttribute('data-skill'));
+        });
+      })(dels[k]);
+    }
+  }
+
+  function _jAddSkill(raw) {
+    var name = (window.TW && TW.normalizeSkill) ? TW.normalizeSkill(raw) : (raw || '').trim();
+    if (!name || name.length < 2) return;
+    var nl = name.toLowerCase();
+    for (var i = 0; i < _jSkills.length; i++) {
+      if (_jSkills[i].toLowerCase() === nl) return;
+    }
+    if (_jSkills.length >= 15) {
+      if (window.showToast) showToast('الحد الأقصى 15 مهارة');
+      return;
+    }
+    _jSkills.push(name);
+    _jRenderChips();
+    var inp = document.getElementById('j-skill-inp');
+    if (inp) inp.value = '';
+  }
+
+  function _jRemoveSkill(name) {
+    var nl = name.toLowerCase();
+    _jSkills = _jSkills.filter(function(s) { return s.toLowerCase() !== nl; });
+    _jRenderChips();
+  }
+
+  function _jShowDrop(results) {
+    var drop = document.getElementById('j-skill-drop');
+    if (!drop) return;
+    _jDropRes = results;
+    if (!results.length) { _jHideDrop(); return; }
+    var html = '';
+    results.forEach(function(s, i) {
+      html += '<div class="j-skill-drop-item" data-idx="' + i + '">'
+        + '<i data-lucide="' + _esc(s.icon || 'circle-check') + '" class="j-drop-ic"></i>'
+        + '<span class="j-drop-en">' + _esc(s.en) + '</span>'
+        + (s.ar !== s.en ? '<span class="j-drop-ar">' + _esc(s.ar) + '</span>' : '')
+        + '</div>';
+    });
+    drop.innerHTML = html;
+    drop.style.display = 'block';
+    if (window.lucide && lucide.createIcons) lucide.createIcons({ nodes: [drop] });
+    var items = drop.querySelectorAll('.j-skill-drop-item');
+    for (var j = 0; j < items.length; j++) {
+      (function(item, res) {
+        item.addEventListener('mousedown', function(e) {
+          e.preventDefault();
+          _jAddSkill(res.en);
+          _jHideDrop();
+        });
+      })(items[j], results[j]);
+    }
+  }
+
+  function _jHideDrop() {
+    var drop = document.getElementById('j-skill-drop');
+    if (drop) { drop.style.display = 'none'; drop.innerHTML = ''; }
+    _jDropRes = [];
+  }
+
+  function _jBindSkillAC() {
+    if (_jACBound) return;
+    _jACBound = true;
+    var inp = document.getElementById('j-skill-inp');
+    if (!inp) return;
+    inp.addEventListener('input', function() {
+      var q = inp.value.trim();
+      if (!q) { _jHideDrop(); return; }
+      var res = (window.TW && TW.searchSkills) ? TW.searchSkills(q, 7) : [];
+      _jShowDrop(res);
+    });
+    inp.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        var q = inp.value.trim();
+        if (q) { _jAddSkill(q); _jHideDrop(); }
+      } else if (e.key === 'Escape') {
+        _jHideDrop();
+      }
+    });
+    inp.addEventListener('blur', function() { setTimeout(_jHideDrop, 180); });
+  }
+
   function _onJobLocModeChange() {
     var mode       = (document.getElementById('j-loc-mode') || {}).value || 'hq';
     var branchWrap = document.getElementById('j-branch-wrap');
@@ -170,14 +325,23 @@
   }
 
   function _resetPostJobModal() {
-    ['j-title','j-desc','j-skills','j-sal1','j-sal2','j-loc'].forEach(function (id) {
+    ['j-title','j-desc','j-sal1','j-sal2','j-loc'].forEach(function (id) {
       var el = document.getElementById(id);
       if (el) el.value = '';
     });
-    ['j-cat','j-type','j-wmode','j-exp','j-cur','j-branch-sel'].forEach(function (id) {
+    ['j-prof','j-type','j-wmode','j-exp','j-cur','j-branch-sel'].forEach(function (id) {
       var el = document.getElementById(id);
       if (el) el.value = '';
     });
+    // clear skill chips
+    _jSkills = [];
+    var chipsEl = document.getElementById('j-skill-chips');
+    if (chipsEl) chipsEl.innerHTML = '';
+    var inpEl = document.getElementById('j-skill-inp');
+    if (inpEl) inpEl.value = '';
+    _jHideDrop();
+    var pBtn = document.getElementById('publishJobBtn');
+    if (pBtn) { pBtn.disabled = false; pBtn.textContent = 'نشر الوظيفة'; }
     var hide = document.getElementById('j-sal-hide');
     if (hide) hide.checked = false;
     var locMode = document.getElementById('j-loc-mode');
@@ -190,19 +354,20 @@
   function openPostJob() {
     if (!window.companyState || !companyState.permissions.can_post_jobs) return;
 
-    // Populate selects from shared data (idempotent — only fills when empty)
+    // Fill static selects (idempotent — only fills when empty)
     if (window.TW) {
       var _fill = function (id, arr, ph) {
         var el = document.getElementById(id);
         if (el && el.options.length < 2) TW.fillSelect(el, arr || [], ph);
       };
-      _fill('j-cat',   TW.JOB_CATEGORIES,    '— اختر التصنيف —');
       _fill('j-type',  TW.JOB_TYPES,         '— نوع الدوام —');
       _fill('j-wmode', TW.JOB_WORK_MODES,    '— طبيعة العمل —');
       _fill('j-exp',   TW.EXPERIENCE_LEVELS, '— الخبرة المطلوبة —');
       if (window.scSelectInit) scSelectInit();
     }
 
+    _loadProfessions();
+    _jBindSkillAC();
     _onJobLocModeChange();
     var el = document.getElementById('postJobOverlay');
     if (el) el.classList.add('show');
@@ -218,11 +383,24 @@
     var title = val('j-title').trim();
     if (!title) { if (window.showToast) showToast('أدخل المسمى الوظيفي', 'error'); return; }
 
-    var cat = val('j-cat');
-    if (!cat) { if (window.showToast) showToast('اختر تصنيف الوظيفة', 'error'); return; }
+    var profId = parseInt(val('j-prof')) || null;
+    if (!profId) { if (window.showToast) showToast('اختر التخصص الوظيفي', 'error'); return; }
+
+    // Flush any partially typed skill before building payload
+    var inpEl = document.getElementById('j-skill-inp');
+    if (inpEl && inpEl.value.trim()) { _jAddSkill(inpEl.value.trim()); }
+
+    // Derive legacy category string from selected profession's optgroup label
+    var cat = '';
+    var profSel = document.getElementById('j-prof');
+    if (profSel && profSel.selectedIndex >= 0) {
+      var selOpt = profSel.options[profSel.selectedIndex];
+      cat = (selOpt && selOpt.parentElement && selOpt.parentElement.tagName === 'OPTGROUP')
+        ? (selOpt.parentElement.label || '') : '';
+    }
 
     var publishBtn = document.getElementById('publishJobBtn');
-    if (publishBtn && publishBtn.disabled) return;  // prevent double submit
+    if (publishBtn && publishBtn.disabled) return;
     if (publishBtn) { publishBtn.disabled = true; publishBtn.textContent = 'جاري النشر…'; }
 
     var salHide   = document.getElementById('j-sal-hide');
@@ -235,12 +413,13 @@
       job_type:         val('j-type') || 'دوام كامل',
       work_mode:        val('j-wmode') || 'في الموقع',
       category:         cat,
+      profession_id:    profId,
       salary_min:       isSalHide ? null : (parseInt(val('j-sal1')) || null),
       salary_max:       isSalHide ? null : (parseInt(val('j-sal2')) || null),
       currency:         val('j-cur') || 'USD',
       salary_hidden:    isSalHide,
       experience_years: parseInt(val('j-exp')) || 0,
-      skills:           val('j-skills').split(',').map(function (s) { return s.trim(); }).filter(Boolean),
+      skills:           _jSkills.slice(),
     };
 
     fetch('/company/jobs', {

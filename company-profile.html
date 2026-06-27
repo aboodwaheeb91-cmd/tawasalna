@@ -396,14 +396,12 @@
   <div class="modal modal-lg">
     <div class="modal-title">نشر وظيفة جديدة</div>
     <div class="mf"><label>المسمى الوظيفي *</label><input id="j-title" placeholder="مثال: مطور Full Stack، محاسب، كاشير..."></div>
+    <div class="mf"><label>التخصص الوظيفي *</label><select id="j-prof" class="j-prof-sel ep-select"><option value="">— جاري التحميل… —</option></select></div>
     <div class="mrow">
-      <div class="mf"><label>تصنيف الوظيفة *</label><select id="j-cat" class="ep-select"></select></div>
       <div class="mf"><label>نوع الدوام</label><select id="j-type" class="ep-select"></select></div>
-    </div>
-    <div class="mrow">
       <div class="mf"><label>طبيعة العمل</label><select id="j-wmode" class="ep-select" onchange="window._onWmodeChange&&_onWmodeChange()"></select></div>
-      <div class="mf"><label>الخبرة المطلوبة</label><select id="j-exp" class="ep-select"></select></div>
     </div>
+    <div class="mf"><label>الخبرة المطلوبة</label><select id="j-exp" class="ep-select"></select></div>
     <div class="mf">
       <label>موقع الوظيفة</label>
       <select id="j-loc-mode" class="ep-select" onchange="window._onJobLocModeChange&&_onJobLocModeChange()">
@@ -428,7 +426,16 @@
     </div>
     <div class="mf"><label class="sal-hide-label">الراتب غير معلن <input type="checkbox" id="j-sal-hide" onchange="window._onSalHideChange&&_onSalHideChange()"></label></div>
     <div class="mf"><label>وصف الوظيفة</label><textarea id="j-desc" rows="4" placeholder="اكتب وصف الوظيفة والمتطلبات..."></textarea></div>
-    <div class="mf"><label>المهارات المطلوبة (افصل بفاصلة)</label><input id="j-skills" placeholder="React, Python, Excel..."></div>
+    <div class="mf">
+      <label>المهارات المطلوبة</label>
+      <div class="j-skill-box-wrap">
+        <div class="j-skill-box" id="j-skill-box" onclick="document.getElementById('j-skill-inp')&&document.getElementById('j-skill-inp').focus()">
+          <div class="j-skill-chips" id="j-skill-chips"></div>
+          <input id="j-skill-inp" class="j-skill-inp" placeholder="ابحث عن مهارة أو اكتبها…" autocomplete="off" maxlength="60">
+        </div>
+        <div class="j-skill-drop" id="j-skill-drop" style="display:none"></div>
+      </div>
+    </div>
     <div class="mact">
       <button id="publishJobBtn" class="mbtn mbtn-ok">نشر الوظيفة</button>
       <button id="postJobCancelBtn" class="mbtn mbtn-no">إلغاء</button>
@@ -494,6 +501,7 @@
 <script src="/tw_shared.js"></script>
 <script src="/static/shared/tw-options-data.js"></script>
 <script src="/static/shared/tw-select.js"></script>
+<script src="/static/shared/tw-skills.js?v=taxonomy-v1"></script>
 <script src="/static/company/company.state.js"></script>
 <script src="/static/company/company.api.js"></script>
 <script src="/static/company/company.permissions.js"></script>
