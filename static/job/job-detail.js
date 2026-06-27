@@ -12,11 +12,9 @@
 
   if (!_jwt) { location.href = '/login'; return; }
 
-  var _jobId     = null;
-  var _job       = null;
-  var _applied   = false;
-  var _saved     = false;
-  var _SAVED_KEY = 'tw_saved_jobs';
+  var _jobId   = null;
+  var _job     = null;
+  var _applied = false;
 
   // ── Utility ─────────────────────────────────────────────────
   function _el(id) { return document.getElementById(id); }
@@ -79,45 +77,9 @@
     return typeof name === 'string' && /^([CF][#+]|\.NET)/i.test(name);
   }
 
-  // ── Save (localStorage) ──────────────────────────────────────
-  function _getSavedJobs() {
-    try { return JSON.parse(localStorage.getItem(_SAVED_KEY) || '[]'); } catch (e) { return []; }
-  }
-
-  function _isSaved(id) {
-    return _getSavedJobs().indexOf(String(id)) !== -1;
-  }
-
-  function _updateSaveBtns() {
-    var iconName = _saved ? 'bookmark-check' : 'bookmark';
-    var configs = [{ id: 'jdSaveBtn', sz: '15' }, { id: 'jdStickySaveBtn', sz: '18' }];
-    configs.forEach(function (cfg) {
-      var btn = _el(cfg.id);
-      if (!btn) return;
-      btn.classList.toggle('saved', _saved);
-      var cur = btn.querySelector('i[data-lucide], svg');
-      var newI = _lucideIcon(iconName, cfg.sz);
-      if (cur) cur.parentNode.replaceChild(newI, cur);
-      else btn.insertBefore(newI, btn.firstChild);
-      _iconsRefresh(btn);
-    });
-  }
-
+  // ── Save (placeholder — full feature in future PR with backend) ──
   function toggleSave() {
-    if (!_jobId) return;
-    var list = _getSavedJobs();
-    var idx = list.indexOf(String(_jobId));
-    if (idx === -1) {
-      list.push(String(_jobId));
-      _saved = true;
-      showToast('تم حفظ الوظيفة ✅');
-    } else {
-      list.splice(idx, 1);
-      _saved = false;
-      showToast('تم إزالة الوظيفة من المحفوظات');
-    }
-    localStorage.setItem(_SAVED_KEY, JSON.stringify(list));
-    _updateSaveBtns();
+    showToast('ميزة حفظ الوظائف قريباً 🔖', 'info');
   }
 
   // ── Toast ───────────────────────────────────────────────────
@@ -354,10 +316,6 @@
     var mt = _el('jdModalTitle');
     if (mt) mt.textContent = 'تقديم على: ' + (job.title || 'الوظيفة');
 
-    // Init save state from localStorage
-    _saved = _isSaved(job.id || _jobId);
-    _updateSaveBtns();
-
     _iconsRefresh(_el('jdContent'));
   }
 
@@ -496,24 +454,41 @@
     .then(function (r) { return r.json(); })
     .then(function (data) {
       var jobProfId = _job && _job.profession_id ? _job.profession_id : null;
+      var jobSkills = (_job && _job.skills ? _job.skills : [])
+        .map(function (s) { return String(_skillName(s)).toLowerCase().trim(); })
+        .filter(Boolean);
+
       var all = (data.jobs || []).filter(function (j) { return String(j.id) !== String(_jobId); });
-      // Sort: same profession_id first
-      if (jobProfId) {
-        all.sort(function (a, b) {
-          return (a.profession_id === jobProfId ? 0 : 1) - (b.profession_id === jobProfId ? 0 : 1);
-        });
-      }
-      var list = all.slice(0, 3);
+
+      // Score each candidate: only jobs with a real signal appear
+      var scored = all.map(function (j) {
+        var score = 0;
+        if (jobProfId && j.profession_id && j.profession_id === jobProfId) score += 3;
+        if (jobSkills.length) {
+          var jSkills = (j.skills || [])
+            .map(function (s) { return String(_skillName(s)).toLowerCase().trim(); })
+            .filter(Boolean);
+          jSkills.forEach(function (s) { if (jobSkills.indexOf(s) !== -1) score += 1; });
+        }
+        return { job: j, score: score };
+      });
+
+      var similar = scored
+        .filter(function (item) { return item.score > 0; })
+        .sort(function (a, b) { return b.score - a.score; })
+        .slice(0, 3)
+        .map(function (item) { return item.job; });
+
       ['jdSimilarList', 'jdSimilarListMobile'].forEach(function (cid) {
         var el = _el(cid); if (!el) return;
         el.innerHTML = '';
-        if (!list.length) {
+        if (!similar.length) {
           var p = document.createElement('p');
           p.className = 'jd-sim-empty';
-          p.textContent = 'لا توجد وظائف أخرى حالياً';
+          p.textContent = 'لا توجد وظائف مشابهة حالياً';
           el.appendChild(p); return;
         }
-        list.forEach(function (j) {
+        similar.forEach(function (j) {
           var item = document.createElement('div');
           item.className = 'jd-sim-item';
           var av = document.createElement('div');
@@ -647,17 +622,7 @@
 
   // ── Init ─────────────────────────────────────────────────────
   function _init() {
-    // Parse job id early so save state can be initialized before API response
-    var _raw = new URLSearchParams(location.search).get('id');
-    _jobId = _raw ? parseInt(_raw, 10) || null : null;
-
     _iconsRefresh();
-
-    // Initialize save state immediately from localStorage
-    if (_jobId) {
-      _saved = _isSaved(_jobId);
-      _updateSaveBtns();
-    }
 
     var backBtn = _el('jdBackBtn');
     if (backBtn) backBtn.addEventListener('click', function () { history.back(); });
