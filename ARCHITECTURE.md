@@ -7486,7 +7486,7 @@ CREATE INDEX IF NOT EXISTS idx_jobs_profession ON jobs(profession_id);
 | PR 2 ✅ | feat/shared-skill-picker | tw-skills.js + Profile V2 يستخدم GET /skills/catalog |
 | PR 3 ✅ | feat/job-modal-taxonomy-integration | Job Modal: profession picker + skill picker |
 | PR 4 ✅ | feat/taxonomy-aware-matching | Matching algorithm: profession_id boost |
-| PR 5 | cleanup/taxonomy-hardcoded-removal | حذف القوائم القديمة hardcoded |
+| PR 5 ✅ | cleanup/taxonomy-hardcoded-removal | حذف القوائم القديمة hardcoded |
 
 ---
 
@@ -7688,3 +7688,80 @@ Each opportunity item now includes:
 ❌ Never assume every job has profession_id — always defensive null-checks
 ❌ Never assume every user has profession_id or skills — always defensive
 ```
+
+---
+
+## Taxonomy Cleanup (PR 5 — cleanup/taxonomy-hardcoded-removal)
+
+### What Was Removed
+
+| Item | File | Reason |
+|------|------|--------|
+| `TW.JOB_CATEGORIES` array | `static/shared/tw-options-data.js` | Replaced by `profession_categories` DB table + `GET /professions`; had zero consumers after PR 3 removed `j-cat` from the Job Modal |
+
+### What Was Confirmed Clean (no action needed)
+
+| Item | Status |
+|------|--------|
+| `j-cat` in HTML/JS | Zero references — removed in PR 3 |
+| Internal CATALOG in `profile-v2.skills.js` | Zero — removed in PR 2 |
+| `TW.SKILL_CATALOG` | Kept as fallback in `tw-options-data.js` — correct, do not remove |
+
+---
+
+## Unified Taxonomy System — Final Canonical Rules
+
+These rules apply to ALL future AI sessions and development on this project.
+
+### Professions (Specializations)
+
+| Rule | Details |
+|------|---------|
+| **Single source of truth** | `profession_categories` DB table |
+| **Official API** | `GET /professions` — only approved way to load professions on frontend |
+| **Job field** | `jobs.profession_id` FK → `profession_categories(id)` |
+| **Profile field** | `profiles.profession_id` FK → `profession_categories(id)` |
+| **Legacy field** | `jobs.category` — DB column kept, used only as legacy fallback in scoring; never as primary UI source |
+
+```
+✅ Profession data always comes from GET /professions
+✅ jobs.profession_id is the canonical job specialization field
+✅ profiles.profession_id is the canonical user specialization field
+❌ Never hardcode profession/category lists inside page JS or HTML
+❌ Never add new entries to profession_categories from frontend — admin only
+❌ Never use jobs.category as a primary UI data source for new features
+❌ Never replace TW.JOB_CATEGORIES — it is deleted; use GET /professions
+```
+
+### Skills
+
+| Rule | Details |
+|------|---------|
+| **Single source of truth** | `skill_catalog` DB table |
+| **Official API** | `GET /skills/catalog` — public, no auth, 1-hour server cache |
+| **Official frontend helper** | `static/shared/tw-skills.js` — `TW.searchSkills`, `TW.normalizeSkill`, `TW.getSkillIcon`, `TW._getSkillEntry`, `TW._isOfficialSkill` |
+| **Static fallback** | `TW.SKILL_CATALOG` in `tw-options-data.js` — used only when API unavailable; never access directly from page modules |
+| **Load order** | `tw-options-data.js` → `tw-skills.js` → page skill module |
+
+```
+✅ All skill search/normalize/icon operations go through tw-skills.js helpers
+✅ TW.SKILL_CATALOG is fallback-only — tw-skills.js uses it automatically
+✅ tw-skills.js must load after tw-options-data.js and before any page skill module
+❌ Never hardcode a skill list inside a page JS file or HTML file
+❌ Never call fetch('/skills/catalog') directly from a page module
+❌ Never access TW._catalog directly from page modules
+❌ Never add skills to skill_catalog outside auth.py _SKILL_SEED migration
+❌ Never remove TW.SKILL_CATALOG — it is the offline fallback
+```
+
+### Taxonomy System — PR Completion Status
+
+All 5 PRs complete. The Unified Professional Taxonomy System is fully operational.
+
+| PR | Status | Deliverable |
+|----|--------|-------------|
+| PR 1 | ✅ merged | `skill_catalog` table + `GET /skills/catalog` + `jobs.profession_id` optional FK |
+| PR 2 | ✅ merged | `tw-skills.js` shared helper; Profile V2 delegates to TW |
+| PR 3 | ✅ merged | Job Modal: `j-prof` profession picker + skill chip autocomplete |
+| PR 4 | ✅ merged | `/home/feed` taxonomy-aware scoring: +100 exact / +40 group / +10 per skill |
+| PR 5 | ✅ merged | Removed `TW.JOB_CATEGORIES`; confirmed zero dead code; final rules documented |
