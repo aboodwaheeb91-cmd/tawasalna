@@ -45,7 +45,10 @@
     <!-- Job header -->
     <div class="jd-header" role="article">
       <div class="jd-hd-top">
-        <div class="jd-logo" id="jdLogo" aria-hidden="true"><i data-lucide="building-2" width="40" height="40"></i></div>
+        <div class="jd-logo-wrap">
+          <div class="jd-logo" id="jdLogo" aria-hidden="true"><i data-lucide="building-2" width="40" height="40"></i></div>
+          <span class="jd-logo-badge" id="jdLogoBadge" style="display:none">★</span>
+        </div>
         <div class="jd-info">
           <h1 class="jd-title" id="jdTitle"></h1>
           <div class="jd-co-name" id="jdCoName" role="link" tabindex="0"></div>
@@ -65,6 +68,7 @@
         <div id="jdMatchSection" class="jd-match hidden" role="region" aria-label="نسبة التطابق مع ملفك">
           <div class="jd-match-ring" id="jdMatchRing" aria-hidden="true">
             <span class="jd-match-pct">–</span>
+            <span class="jd-match-lbl" id="jdMatchLbl"></span>
           </div>
           <div class="jd-match-body" id="jdMatchBody"></div>
         </div>
@@ -95,11 +99,18 @@
         <!-- Apply card -->
         <div class="jd-apply-card">
           <div class="jd-apply-title" id="jdApplyCardTitle">هل أنت مهتم؟</div>
-          <button type="button" class="jd-apply-btn jd-apply-trigger" aria-label="تقديم على الوظيفة">
-            تقديم الآن ←
-          </button>
+          <div class="jd-apply-actions">
+            <button type="button" class="jd-apply-btn jd-apply-trigger" aria-label="تقديم على الوظيفة">
+              تقديم الآن ←
+            </button>
+            <button type="button" class="jd-save-btn jd-save-trigger" id="jdSaveBtn" aria-label="حفظ الوظيفة">
+              <i data-lucide="bookmark" width="15" height="15"></i>
+              حفظ
+            </button>
+          </div>
           <button type="button" class="jd-share-btn jd-share-trigger">
-            🔗 مشاركة الوظيفة
+            <i data-lucide="share-2" width="14" height="14"></i>
+            مشاركة الوظيفة
           </button>
           <button type="button" class="jd-report-link" id="jdReportBtn">
             ⚐ إبلاغ عن هذه الوظيفة
@@ -175,8 +186,11 @@
     <button type="button" class="jd-sticky-apply jd-apply-trigger" aria-label="تقديم على الوظيفة">
       تقديم الآن ←
     </button>
+    <button type="button" class="jd-sticky-save jd-save-trigger" id="jdStickySaveBtn" aria-label="حفظ الوظيفة">
+      <i data-lucide="bookmark" width="18" height="18"></i>
+    </button>
     <button type="button" class="jd-sticky-share jd-share-trigger" aria-label="مشاركة الوظيفة">
-      🔗
+      <i data-lucide="share-2" width="18" height="18"></i>
     </button>
   </div>
 </div>
