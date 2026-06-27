@@ -579,7 +579,7 @@ def home_feed(filter: str = "all", limit: int = 20, token=Depends(verify_token))
                    JOIN users u ON j.company_id = u.id
                    LEFT JOIN profiles p ON j.company_id = p.user_id
                    LEFT JOIN profession_categories pc ON j.profession_id = pc.id
-                   WHERE j.status = 'open'
+                   WHERE j.status IN ('active', 'open')
                    ORDER BY j.created_at DESC
                    LIMIT :pool""",
                 pool=pool,
