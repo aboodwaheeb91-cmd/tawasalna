@@ -20,8 +20,10 @@
       _loadController = new AbortController();
     }
 
-    var urlParams = new URLSearchParams(window.location.search);
-    var coId      = urlParams.get('id');
+    // Priority: 1) injected by Smart Router (/u/C…), 2) ?id= query param, 3) session owner fallback
+    var coId = (window._companyProfileIdFromRoute != null)
+      ? String(window._companyProfileIdFromRoute)
+      : new URLSearchParams(window.location.search).get('id');
     var jwt       = window._jwt ? window._jwt() : '';
     var headers   = { 'Content-Type': 'application/json' };
     if (jwt) headers['Authorization'] = 'Bearer ' + jwt;

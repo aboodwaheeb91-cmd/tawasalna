@@ -61,7 +61,7 @@ from auth import (
     init_db, get_conn,
     create_user, authenticate_user, get_user_by_id,
     get_public_profile, get_full_profile, update_profile,
-    get_profile_by_tw_id, get_full_profile_by_tw_id, get_user_id_by_tw_id,
+    get_profile_by_tw_id, get_full_profile_by_tw_id, get_user_id_by_tw_id, get_user_info_by_tw_id,
     add_experience, update_experience, reorder_experience, add_education, add_course, update_education, update_course, create_verify_request,
     add_job, get_jobs, get_job, apply_job,
     start_kyc, send_email_code, verify_email_code,
@@ -717,21 +717,45 @@ def profile_showcase(): return read_html("profile-showcase.html")
 @app.get("/profile-showcase.html", response_class=HTMLResponse)
 def profile_showcase_html(): return read_html("profile-showcase.html")
 
+@app.get("/u", response_class=HTMLResponse)
+def public_profile_no_id():
+    """Bare /u without a tw_id — return 404 rather than an empty profile."""
+    raise HTTPException(status_code=404, detail="معرف الحساب مفقود")
+
 @app.get("/u/{tw_id}", response_class=HTMLResponse)
-def public_profile_short_url(tw_id: str):
-    """Public share URL for Profile V2. Serves profile-showcase.html with the
-    numeric user id injected so the page can call /profile/{id} API without
-    exposing tw_id in the API request."""
-    numeric_id = get_user_id_by_tw_id(tw_id)
-    if not numeric_id:
-        raise HTTPException(status_code=404, detail="الملف الشخصي غير موجود")
-    base = read_html("profile-showcase.html")
-    # int() call prevents any XSS — numeric_id is always an integer
-    injected = base.replace(
-        '</head>',
-        '<script>window._scProfileIdFromRoute=' + str(int(numeric_id)) + ';</script></head>',
-        1
-    )
+def public_profile_smart_router(tw_id: str):
+    """Smart Public Router — resolves tw_id via DB (users.user_type is the source
+    of truth) and serves the correct page per account type.
+
+    Decision table:
+      emp  → profile-showcase.html  (window._scProfileIdFromRoute)
+      co   → company-profile.html   (window._companyProfileIdFromRoute, _companyTwIdFromRoute)
+      edu  → edu-profile.html       (window._eduProfileIdFromRoute, _eduTwIdFromRoute)
+
+    The prefix (U/C/T) is a hint only; user_type from DB is authoritative.
+    The numeric id is never exposed in the public URL.
+    """
+    info = get_user_info_by_tw_id(tw_id)
+    if not info:
+        raise HTTPException(status_code=404, detail="الحساب غير موجود")
+
+    uid   = int(info['id'])         # safe: always integer from DB
+    utype = info['user_type']
+    tw    = json.dumps(info['tw_id'])   # json.dumps handles any string safely
+
+    if utype == 'emp':
+        base = read_html("profile-showcase.html")
+        snippet = f'<script>window._scProfileIdFromRoute={uid};</script>'
+    elif utype == 'co':
+        base = read_html("company-profile.html")
+        snippet = f'<script>window._companyProfileIdFromRoute={uid};window._companyTwIdFromRoute={tw};</script>'
+    elif utype == 'edu':
+        base = read_html("edu-profile.html")
+        snippet = f'<script>window._eduProfileIdFromRoute={uid};window._eduTwIdFromRoute={tw};</script>'
+    else:
+        raise HTTPException(status_code=404, detail="نوع الحساب غير معروف")
+
+    injected = base.replace('</head>', snippet + '</head>', 1)
     return HTMLResponse(content=injected)
 
 # ══ Company Profile API — Rule #20 ══

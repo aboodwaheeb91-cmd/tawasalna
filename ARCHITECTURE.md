@@ -7833,3 +7833,100 @@ No server-side match endpoint — computed entirely in the browser.
 ❌ Separate CSS/JS file per feature added to job-detail — stays in job-detail.css/js
 ❌ Additional inline <style> or <script> blocks in job-detail.html
 ```
+
+---
+
+## Section 63 — Smart Public Profile Router (`/u/{tw_id}`)
+
+> Added: fix/smart-public-profile-router
+
+### Overview
+
+`/u/{tw_id}` is the **unified public URL** for all account types. The server resolves the tw_id to the correct page based on `users.user_type` in the DB — the prefix character (U/C/T) is a **hint only**, never the source of truth.
+
+### Decision Table
+
+| `users.user_type` | Page served | Injected window variable(s) |
+|-------------------|-------------|----------------------------|
+| `emp` | `profile-showcase.html` | `window._scProfileIdFromRoute = {numeric_id}` |
+| `co` | `company-profile.html` | `window._companyProfileIdFromRoute = {numeric_id}` · `window._companyTwIdFromRoute = "{tw_id}"` |
+| `edu` | `edu-profile.html` | `window._eduProfileIdFromRoute = {numeric_id}` · `window._eduTwIdFromRoute = "{tw_id}"` |
+| unknown / not found | HTTP 404 | — |
+
+### Helper: `get_user_info_by_tw_id(tw_id)` — `auth.py`
+
+Returns `{ id, tw_id, user_type }` or `None`. Single DB query on `users.tw_id` (UNIQUE index — O(1)). Used exclusively by the Smart Router. Do NOT use it for authorization — JWT is still required for protected endpoints.
+
+### Injection Safety
+
+- `uid` cast to `int()` before injection (no XSS from integer literal).
+- `tw_id` passed through `json.dumps()` before injection (handles any string safely).
+- Injected `<script>` replaces `</head>` once — safe even if `</head>` appears in content.
+
+### Frontend Load Priority
+
+**Company profile (`company.api.js`):**
+1. `window._companyProfileIdFromRoute` — injected by Smart Router (highest priority)
+2. `?id=` query param — direct link like `/company-profile?id=123`
+3. Session owner fallback — company owner visiting `/company-profile` without any id
+
+**Employee profile (`profile-v2.state.js`):**
+1. `window._scProfileIdFromRoute` — injected by Smart Router (unchanged)
+2. `?id=` query param
+
+**Edu profile (`edu-profile.html` inline script):**
+1. `window._eduProfileIdFromRoute` — injected by Smart Router (via `_urlId` variable)
+2. `?id=` query param
+
+### Ownership Check (edu-profile.html)
+
+Ownership is determined by: `user_type === 'edu'` **AND** (no id in URL **OR** `user.id === urlId`). This prevents an edu account from seeing owner controls on another edu account's public profile.
+
+### Empty URL Handling
+
+- `/u` (no tw_id) → HTTP 404 `"معرف الحساب مفقود"` (dedicated route before `{tw_id}` param route)
+- `/u/` (trailing slash) → FastAPI redirects to `/u` → 404
+- `/u/{non-existent-tw_id}` → HTTP 404 `"الحساب غير موجود"`
+
+### Backward-Compatible Routes (untouched)
+
+```
+/company-profile          → company-profile.html (unchanged)
+/company-profile?id=123   → works; company.api.js reads ?id= as before
+/company-profile.html     → works
+/edu-profile              → edu-profile.html (unchanged)
+/edu-profile?id=123       → works; edu-profile.html reads ?id= as before
+/profile-showcase         → profile-showcase.html (unchanged)
+/u/{employee_tw_id}       → profile-showcase.html (same as before)
+/u/{company_tw_id}        → company-profile.html (NEW — was broken before)
+/u/{edu_tw_id}            → edu-profile.html (NEW)
+```
+
+### Future Public ID System (planned — not yet implemented)
+
+| Prefix | Entity | Table field | Route (future) |
+|--------|--------|-------------|----------------|
+| `U` | Employee | `users.tw_id` | `/u/{tw_id}` |
+| `C` | Company | `users.tw_id` | `/u/{tw_id}` |
+| `T` | Education | `users.tw_id` | `/u/{tw_id}` |
+| `J` | Job posting | `jobs.public_id` | `/j/{public_id}` |
+| `P` | Company post | `company_posts.public_id` | `/post/{public_id}` |
+| `A` | Job application | `job_applications.public_id` | internal only |
+| `V` | Verify request | `verify_requests.public_id` | internal only |
+
+Generator pattern (planned):
+- `_gen_public_id(prefix, country_code)` → shared inner function in `auth.py`
+- `generate_tw_id(user_type, cc)` delegates to it (no external API change)
+- `generate_job_public_id(cc)` / `generate_post_public_id(cc)` etc. — new wrappers
+
+### Forbidden Patterns
+
+```
+❌ Using tw_id prefix (U/C/T first character) as the source of truth for routing
+❌ Exposing numeric id in public share URLs (/u/123, /j/456)
+❌ Using localStorage to decide which page to open from /u/{tw_id}
+❌ X-User-Id header — JWT only
+❌ Two separate routes for the same public entity (/u/C… AND /company-public/…)
+❌ Opening an empty profile/company/edu page when tw_id is absent or unknown
+❌ Bypassing the injected window var and re-reading id from the URL in new pages
+```
