@@ -2670,6 +2670,9 @@ def read_notifications(user_id: int, token=Depends(verify_token)):
 @app.post("/upload/image")
 async def upload_image(data: ImageUploadInput, token=Depends(verify_token)):
     """Upload image to Supabase Storage and return public URL"""
+    tok_uid = token.get("user_id")
+    if str(tok_uid) != str(data.user_id):
+        raise HTTPException(403, "Unauthorized upload")
     import httpx
     try:
         # Parse data URL: "data:image/jpeg;base64,/9j/4AAQ..."

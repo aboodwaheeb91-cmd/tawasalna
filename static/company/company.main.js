@@ -450,21 +450,73 @@
     reader.readAsDataURL(input.files[0]);
   }
 
-  // ── Logo photo (same local-preview pattern as uploadCover) ─────
+  // ── Logo photo — upload to Supabase + persist url in profiles.avatar_url ──
   function uploadLogo(input) {
     var file = input.files && input.files[0];
     input.value = '';
     if (!file) return;
+
+    if (!/^image\/(jpeg|png|webp)$/.test(file.type)) {
+      if (window.showToast) showToast('يُقبل: JPEG أو PNG أو WebP فقط', 'error');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      if (window.showToast) showToast('حجم الصورة يتجاوز الحد الأقصى 5MB', 'error');
+      return;
+    }
+
+    var userId = window.companyState && companyState.profile && companyState.profile.id;
+    if (!userId) return;
+    var jwt = window._jwt ? _jwt() : '';
+
+    var camBtn = document.getElementById('coLogoCamBtn');
+    var logoEl = document.getElementById('coLogo');
+    if (camBtn) camBtn.disabled = true;
+    if (logoEl) logoEl.style.opacity = '0.5';
+
     var reader = new FileReader();
     reader.onload = function (e) {
-      var logoEl = document.getElementById('coLogo');
-      if (!logoEl) return;
-      logoEl.innerHTML = '';
-      var img = document.createElement('img');
-      img.src       = e.target.result;
-      img.className = 'co-logo-img';
-      img.alt       = (window.companyState && companyState.profile && companyState.profile.full_name) || '';
-      logoEl.appendChild(img);
+      var dataUrl = e.target.result;
+
+      fetch('/upload/image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + jwt },
+        body: JSON.stringify({ user_id: userId, bucket: 'avatars', filename: 'logo', data_url: dataUrl })
+      })
+      .then(function (r) {
+        if (!r.ok) throw new Error('upload_fail');
+        return r.json();
+      })
+      .then(function (res) {
+        var url = res && res.url;
+        // Reject base64 fallback — never persist data: URLs to DB
+        if (!url || res.dev_mode || url.indexOf('data:') === 0) {
+          throw new Error('upload_fail');
+        }
+        return fetch('/profile/' + userId, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + jwt },
+          body: JSON.stringify({ avatar_url: url })
+        })
+        .then(function (r2) {
+          if (!r2.ok) throw new Error('save_fail');
+          return url;
+        });
+      })
+      .then(function (url) {
+        if (window.companyState && companyState.profile) {
+          companyState.profile.avatar_url = url;
+        }
+        if (window.renderProfile) renderProfile();
+        if (window.showToast) showToast('تم حفظ الشعار ✓');
+      })
+      .catch(function () {
+        if (window.showToast) showToast('تعذر رفع الصورة، حاول مرة أخرى', 'error');
+      })
+      .finally(function () {
+        if (camBtn) camBtn.disabled = false;
+        if (logoEl) logoEl.style.opacity = '';
+      });
     };
     reader.readAsDataURL(file);
   }
