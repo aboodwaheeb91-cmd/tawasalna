@@ -488,11 +488,13 @@
         return r.json();
       })
       .then(function (res) {
-        var url = res && res.url;
-        // Reject base64 fallback — never persist data: URLs to DB
-        if (!url || res.dev_mode || url.indexOf('data:') === 0) {
-          throw new Error('upload_fail');
-        }
+        // Use the server URL if it's a real hosted URL; otherwise fall back to
+        // dataUrl directly. This mirrors Profile V2 behavior exactly:
+        // profile-v2.avatar.js saves res.data.url unconditionally — which in
+        // dev_mode is the data: URL itself. Storing base64 in DB is not
+        // production-ideal; see fix/storage-upload-production-mode for the
+        // long-term fix (configure SUPABASE_URL + SUPABASE_SERVICE_KEY).
+        var url = (res && res.url) ? res.url : dataUrl;
         return fetch('/profile/' + userId, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + jwt },
