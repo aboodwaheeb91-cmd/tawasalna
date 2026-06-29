@@ -2946,38 +2946,48 @@ def update_job_endpoint(job_id: int, data: JobInput, token=Depends(verify_token)
         # Extract accepted_profession_ids before building SQL (not a jobs column)
         accepted_pids = raw_fields.pop("accepted_profession_ids", None)
         fields = {k: v for k, v in raw_fields.items() if v is not None}
-        if fields:
-            set_clause = ", ".join(f"{k}=:{k}" for k in fields)
-            # DB ownership check: WHERE company_id=cid ensures only owner can update
-            affected = conn.run(
-                f"UPDATE jobs SET {set_clause} WHERE id=:id AND company_id=:cid",
-                id=job_id, cid=cid, **fields)
-            if not affected:
-                print(f"[SECURITY] JOB_OWNERSHIP_FAILED: user={cid} tried PUT job={job_id}")
-                raise HTTPException(403, "ليست وظيفتك أو غير موجودة")
-        elif accepted_pids is not None:
-            # No core fields changed but accepted_professions may still be updated —
-            # verify ownership with a SELECT first
-            rows = conn.run("SELECT id FROM jobs WHERE id=:id AND company_id=:cid", id=job_id, cid=cid)
-            if not rows:
-                raise HTTPException(403, "ليست وظيفتك أو غير موجودة")
-        # Snapshot-replace accepted professions (only when caller sent the field)
+
+        # ── Step 1: ownership check (SELECT only — no mutation yet) ──────────
+        # We always need the current row for ownership + profession_id fallback.
+        current_rows = conn.run(
+            "SELECT id, profession_id FROM jobs WHERE id=:id AND company_id=:cid",
+            id=job_id, cid=cid
+        )
+        if not current_rows:
+            print(f"[SECURITY] JOB_OWNERSHIP_FAILED: user={cid} tried PUT job={job_id}")
+            raise HTTPException(403, "ليست وظيفتك أو غير موجودة")
+
+        # ── Step 2: validate accepted_profession_ids BEFORE any mutation ─────
         if accepted_pids is not None:
-            # Determine effective primary profession for validation:
-            # use new value from payload if provided, else fetch current from DB
-            primary_pid_for_validation = raw_fields.get("profession_id")
-            if primary_pid_for_validation is None:
-                pid_rows = conn.run(
-                    "SELECT profession_id FROM jobs WHERE id = :id", id=job_id)
-                if pid_rows:
-                    primary_pid_for_validation = pid_rows[0][0]
+            # Effective primary: use incoming value if being changed, else current DB value
+            effective_primary = raw_fields.get("profession_id") or current_rows[0][1]
             try:
-                _save_accepted_professions(
-                    conn, job_id, accepted_pids,
-                    primary_pid=primary_pid_for_validation
+                accepted_pids = _validate_accepted_profession_ids(
+                    conn, effective_primary, accepted_pids
                 )
             except ValueError as e:
                 raise HTTPException(status_code=422, detail=str(e))
+
+        # ── Step 3: mutate only after all validation passed ───────────────────
+        if fields:
+            set_clause = ", ".join(f"{k}=:{k}" for k in fields)
+            conn.run(
+                f"UPDATE jobs SET {set_clause} WHERE id=:id AND company_id=:cid",
+                id=job_id, cid=cid, **fields
+            )
+
+        # ── Step 4: snapshot-replace accepted professions ─────────────────────
+        # Inlined here (not via _save_accepted_professions) because validation
+        # already ran above — no need for a second DB round-trip inside the helper.
+        if accepted_pids is not None:
+            conn.run("DELETE FROM job_profession_targets WHERE job_id = :jid", jid=job_id)
+            for i, pid in enumerate(accepted_pids):
+                conn.run(
+                    "INSERT INTO job_profession_targets (job_id, profession_id, display_order) "
+                    "VALUES (:jid, :pid, :ord)",
+                    jid=job_id, pid=pid, ord=i
+                )
+
         return {"status": "success"}
     finally:
         release_conn(conn)
