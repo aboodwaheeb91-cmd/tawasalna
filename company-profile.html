@@ -320,9 +320,18 @@
 </div><!-- /sc-wrap -->
 
 <!-- ██ EDIT MODAL ██ -->
-<div class="overlay" id="editOverlay">
-  <div class="modal">
-    <div class="modal-title">تعديل ملف الشركة</div>
+<div class="overlay edit-overlay" id="editOverlay">
+  <div class="modal co-edit-sheet">
+    <div class="modal-head">
+      <span class="modal-head-title">
+        <i data-lucide="pencil" class="ico-sm" style="color:var(--ac2);vertical-align:middle;margin-left:6px"></i>
+        تعديل ملف الشركة
+      </span>
+      <button type="button" class="modal-head-close" onclick="document.getElementById('editCancelBtn').click()" aria-label="إغلاق">
+        <i data-lucide="x" class="ico-sm"></i>
+      </button>
+    </div>
+    <div class="modal-scroll-body">
 
     <div class="mf-section-title">معلومات أساسية</div>
     <div class="mf"><label>اسم الشركة</label><input id="e-name" placeholder="اسم الشركة..."></div>
@@ -366,8 +375,8 @@
     <div class="mf-section-title">الفروع</div>
     <div id="branchesList"></div>
     <button type="button" id="addBranchBtn" class="mbtn-add-branch">+ إضافة فرع</button>
-
-    <div class="mact">
+    </div><!-- /modal-scroll-body -->
+    <div class="modal-foot">
       <button id="editSaveBtn" class="mbtn mbtn-ok">حفظ التعديلات</button>
       <button id="editCancelBtn" class="mbtn mbtn-no">إلغاء</button>
     </div>
