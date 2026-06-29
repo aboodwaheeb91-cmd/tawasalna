@@ -7770,6 +7770,74 @@ All 5 PRs complete. The Unified Professional Taxonomy System is fully operationa
 
 ---
 
+## Job Accepted Professions (feat/job-accepted-professions)
+
+### Overview
+
+Many-to-many profession targeting for job postings. A company can mark a job as accepting up to **5 additional professions** beyond the primary `jobs.profession_id`. Applicants from these professions get boosted scoring in the feed (+80 vs +100 for exact match).
+
+### DB Schema
+
+```sql
+CREATE TABLE job_profession_targets (
+    id            SERIAL PRIMARY KEY,
+    job_id        INTEGER NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+    profession_id INTEGER NOT NULL REFERENCES profession_categories(id) ON DELETE CASCADE,
+    display_order SMALLINT DEFAULT 0,
+    created_at    TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(job_id, profession_id)
+);
+CREATE INDEX idx_jpt_job_id ON job_profession_targets(job_id);
+```
+
+### Backend Source of Truth
+
+| Location | Role |
+|----------|------|
+| `auth.py` → `_migrate_job_profession_targets()` | Creates table on startup (idempotent) |
+| `auth.py` → `_fetch_accepted_professions_batch(conn, job_ids)` | Batch-fetches accepted professions for a list of job IDs; returns `{job_id: [{id, name_ar, name_en, icon}]}` |
+| `auth.py` → `add_job()` | INSERT accepted_profession_ids after job INSERT; attaches `accepted_professions` to returned dict |
+| `auth.py` → `get_jobs()` | Attaches `accepted_professions` to every job in result list (no N+1) |
+| `auth.py` → `get_job()` | Attaches `accepted_professions` to single job dict |
+| `server.py` → `_save_accepted_professions(conn, job_id, profession_ids)` | Snapshot-replace: DELETE then INSERT |
+| `server.py` → `JobInput.accepted_profession_ids` | `Optional[List[int]] = None` |
+| `server.py` → `PUT /company/jobs/{job_id}` | Pops `accepted_profession_ids` before SQL UPDATE; calls `_save_accepted_professions` after ownership check |
+
+### Scoring Update (`_taxonomy_score`)
+
+```
++100  exact profession match (job.profession_id == user.profession_id)
++80   user's profession is in accepted_profession_ids (new tier)
++40   same category_group, different profession
++10   legacy job with category text (no profession_id)
++10   per shared skill
+```
+
+Batch-fetch is done in `home_feed` before the scoring loop — single query, no N+1.
+
+### Frontend
+
+| File | Change |
+|------|--------|
+| `company-profile.html` | Accepted professions chip input after `j-prof` field |
+| `static/company/company.jobs.js` | `_jAccProfs[]`, `_jAccRenderChips()`, `_jAccAddProf()`, `_jAccRemoveProf()`, `_jAccShowDrop()`, `_jAccBindAC()`; `publishJob()` sends `accepted_profession_ids`; `_resetPostJobModal()` clears `_jAccProfs` |
+| `job-detail.html` | `#jdAccProfSection` + `#jdAccProfChips` hidden section |
+| `static/job/job-detail.js` | Renders accepted_professions chips; unhides section if non-empty |
+| `static/home/home.cards.js` | Shows count badge "+N تخصص" when `accepted_professions.length > 0` |
+
+### Rules (permanent)
+
+```
+❌ Never store accepted_profession_ids as JSON inside jobs table — use job_profession_targets
+❌ Never call _fetch_accepted_professions_batch with an already-closed connection
+❌ Snapshot replace (DELETE + INSERT) is the only supported update operation — no partial PATCH
+❌ Max 5 accepted professions enforced frontend-only — backend does not hard-limit (UI guard)
+❌ Primary profession (jobs.profession_id) must not appear in accepted_profession_ids — enforced in _jAccAddProf()
+❌ Never batch-fetch accepted professions in a separate request per job — always use _fetch_accepted_professions_batch
+```
+
+---
+
 ## [P1] 62. Job Detail Page V2
 
 ### Overview

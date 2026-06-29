@@ -266,6 +266,120 @@
     inp.addEventListener('blur', function() { setTimeout(_jHideDrop, 180); });
   }
 
+  // ── Accepted professions chips ─────────────────────────────────
+  var _jAccProfs   = [];   // [{id, name_ar, name_en, icon}]
+  var _jAccBound   = false;
+
+  function _jAccRenderChips() {
+    var box = document.getElementById('j-acc-prof-chips');
+    if (!box) return;
+    if (!_jAccProfs.length) { box.innerHTML = ''; return; }
+    var html = '';
+    _jAccProfs.forEach(function(p) {
+      html += '<span class="j-skill-chip">'
+        + '<i data-lucide="' + _esc(p.icon || 'briefcase') + '" class="j-chip-ic"></i>'
+        + _esc(p.name_ar || p.name_en || '')
+        + '<button type="button" class="j-skill-chip-del" data-id="' + _esc(String(p.id)) + '" aria-label="حذف">×</button>'
+        + '</span>';
+    });
+    box.innerHTML = html;
+    if (window.lucide && lucide.createIcons) lucide.createIcons({ nodes: [box] });
+    var dels = box.querySelectorAll('.j-skill-chip-del');
+    for (var k = 0; k < dels.length; k++) {
+      (function(btn) {
+        btn.addEventListener('click', function(e) {
+          e.stopPropagation();
+          _jAccRemoveProf(parseInt(btn.getAttribute('data-id'), 10));
+        });
+      })(dels[k]);
+    }
+  }
+
+  function _jAccAddProf(prof) {
+    if (!prof || !prof.id) return;
+    // Can't duplicate
+    for (var i = 0; i < _jAccProfs.length; i++) {
+      if (_jAccProfs[i].id === prof.id) return;
+    }
+    // Can't be same as primary profession
+    var primSel = document.getElementById('j-prof');
+    if (primSel && parseInt(primSel.value, 10) === prof.id) {
+      if (window.showToast) showToast('هذا هو التخصص الرئيسي بالفعل');
+      return;
+    }
+    if (_jAccProfs.length >= 5) {
+      if (window.showToast) showToast('الحد الأقصى 5 تخصصات إضافية');
+      return;
+    }
+    _jAccProfs.push(prof);
+    _jAccRenderChips();
+    var inp = document.getElementById('j-acc-prof-inp');
+    if (inp) inp.value = '';
+  }
+
+  function _jAccRemoveProf(id) {
+    _jAccProfs = _jAccProfs.filter(function(p) { return p.id !== id; });
+    _jAccRenderChips();
+  }
+
+  function _jAccShowDrop(query) {
+    var drop = document.getElementById('j-acc-prof-drop');
+    if (!drop) return;
+    var q = (query || '').trim().toLowerCase();
+    var primId = parseInt((document.getElementById('j-prof') || {}).value, 10) || 0;
+    var alreadyIds = {};
+    _jAccProfs.forEach(function(p) { alreadyIds[p.id] = true; });
+    var results = _professions.filter(function(p) {
+      if (p.id === primId || alreadyIds[p.id]) return false;
+      if (!q) return true;
+      return (p.name_ar || '').indexOf(q) !== -1 ||
+             (p.name_en || '').toLowerCase().indexOf(q) !== -1;
+    }).slice(0, 8);
+    if (!results.length) { drop.style.display = 'none'; drop.innerHTML = ''; return; }
+    var html = '';
+    results.forEach(function(p, i) {
+      html += '<div class="j-skill-drop-item" data-idx="' + i + '">'
+        + '<i data-lucide="' + _esc(p.icon || 'briefcase') + '" class="j-drop-ic"></i>'
+        + '<span class="j-drop-ar">' + _esc(p.name_ar || p.name_en || '') + '</span>'
+        + '</div>';
+    });
+    drop.innerHTML = html;
+    drop.style.display = 'block';
+    if (window.lucide && lucide.createIcons) lucide.createIcons({ nodes: [drop] });
+    var items = drop.querySelectorAll('.j-skill-drop-item');
+    for (var j = 0; j < items.length; j++) {
+      (function(item, prof) {
+        item.addEventListener('mousedown', function(e) {
+          e.preventDefault();
+          _jAccAddProf(prof);
+          drop.style.display = 'none';
+          drop.innerHTML = '';
+        });
+      })(items[j], results[j]);
+    }
+  }
+
+  function _jAccBindAC() {
+    if (_jAccBound) return;
+    _jAccBound = true;
+    var inp = document.getElementById('j-acc-prof-inp');
+    if (!inp) return;
+    inp.addEventListener('focus', function() { _jAccShowDrop(inp.value); });
+    inp.addEventListener('input', function() { _jAccShowDrop(inp.value); });
+    inp.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') {
+        var drop = document.getElementById('j-acc-prof-drop');
+        if (drop) { drop.style.display = 'none'; drop.innerHTML = ''; }
+      }
+    });
+    inp.addEventListener('blur', function() {
+      setTimeout(function() {
+        var drop = document.getElementById('j-acc-prof-drop');
+        if (drop) { drop.style.display = 'none'; drop.innerHTML = ''; }
+      }, 180);
+    });
+  }
+
   function _onJobLocModeChange() {
     var mode       = (document.getElementById('j-loc-mode') || {}).value || 'hq';
     var branchWrap = document.getElementById('j-branch-wrap');
@@ -339,6 +453,14 @@
     if (chipsEl) chipsEl.innerHTML = '';
     var inpEl = document.getElementById('j-skill-inp');
     if (inpEl) inpEl.value = '';
+    // clear accepted profession chips
+    _jAccProfs = [];
+    var accChipsEl = document.getElementById('j-acc-prof-chips');
+    if (accChipsEl) accChipsEl.innerHTML = '';
+    var accInpEl = document.getElementById('j-acc-prof-inp');
+    if (accInpEl) accInpEl.value = '';
+    var accDrop = document.getElementById('j-acc-prof-drop');
+    if (accDrop) { accDrop.style.display = 'none'; accDrop.innerHTML = ''; }
     _jHideDrop();
     var pBtn = document.getElementById('publishJobBtn');
     if (pBtn) { pBtn.disabled = false; pBtn.textContent = 'نشر الوظيفة'; }
@@ -368,6 +490,7 @@
 
     _loadProfessions();
     _jBindSkillAC();
+    _jAccBindAC();
     _onJobLocModeChange();
     var el = document.getElementById('postJobOverlay');
     if (el) el.classList.add('show');
@@ -407,19 +530,20 @@
     var isSalHide = salHide && salHide.checked;
 
     var payload = {
-      title:            title,
-      description:      val('j-desc'),
-      location:         _resolveJobLocation(),
-      job_type:         val('j-type') || 'دوام كامل',
-      work_mode:        val('j-wmode') || 'في الموقع',
-      category:         cat,
-      profession_id:    profId,
-      salary_min:       isSalHide ? null : (parseInt(val('j-sal1')) || null),
-      salary_max:       isSalHide ? null : (parseInt(val('j-sal2')) || null),
-      currency:         val('j-cur') || 'USD',
-      salary_hidden:    isSalHide,
-      experience_years: parseInt(val('j-exp')) || 0,
-      skills:           _jSkills.slice(),
+      title:                   title,
+      description:             val('j-desc'),
+      location:                _resolveJobLocation(),
+      job_type:                val('j-type') || 'دوام كامل',
+      work_mode:               val('j-wmode') || 'في الموقع',
+      category:                cat,
+      profession_id:           profId,
+      salary_min:              isSalHide ? null : (parseInt(val('j-sal1')) || null),
+      salary_max:              isSalHide ? null : (parseInt(val('j-sal2')) || null),
+      currency:                val('j-cur') || 'USD',
+      salary_hidden:           isSalHide,
+      experience_years:        parseInt(val('j-exp')) || 0,
+      skills:                  _jSkills.slice(),
+      accepted_profession_ids: _jAccProfs.map(function(p) { return p.id; }),
     };
 
     fetch('/company/jobs', {
