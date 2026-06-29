@@ -115,7 +115,7 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 ### 11a. Cross-Tab Auth Sync (`auth-sync.js`)
 **Purpose:** Detects JWT changes across browser tabs and invalidates stale owner mode instantly. Prevents a tab that was loaded as owner from staying in owner mode after logout or account switch in another tab.
 **Source of Truth:** `static/shared/auth-sync.js` · `window.TwAuthSync.onSessionChange(cb)`
-**Details:** Listens to `storage`, `pageshow` (bfcache), `visibilitychange`, `focus` events. Only fires callbacks when `tw_jwt` actually changes. Profile V2 wiring: `profile-v2.render.js` (bottom). Company wiring: `static/company/company.main.js`.
+**Details:** Listens to `storage`, `pageshow` (bfcache), `visibilitychange`, `focus` events. Only fires callbacks when `tw_jwt` actually changes, except `pageshow` from bfcache which forces revalidation because the page may be stale. Profile V2 wiring: `profile-v2.render.js` (bottom). Company wiring: `static/company/company.main.js`.
 **Do not recreate:** Do not add per-page `storage` event listeners for session sync — use `TwAuthSync.onSessionChange`. Do not re-implement the event listener set in any page file.
 
 ---
