@@ -127,15 +127,32 @@
     }
   }
 
+  // ── Helpers ───────────────────────────────────────────────────
+  function _fmtCount(n) {
+    if (n == null || n === '') return '—';
+    n = Number(n);
+    if (isNaN(n)) return '—';
+    if (n >= 1000000) { var m = n / 1000000; return (m % 1 === 0 ? m : m.toFixed(1)) + 'M'; }
+    if (n >= 1000)    { var k = n / 1000;    return (k % 1 === 0 ? k : k.toFixed(1)) + 'K'; }
+    return String(n);
+  }
+
+  function _fmtRating(r) {
+    if (r == null || r === '') return '—';
+    r = Number(r);
+    if (isNaN(r) || r === 0) return '—';
+    return r.toFixed(1);
+  }
+
   // ── Stats ─────────────────────────────────────────────────────
   function renderStats() {
     var s = companyState.stats;
-    _setText('jobsCount',       s.jobs_count       ?? '—');
-    _setText('postsCount',      s.posts_count      ?? '—');
-    _setText('viewsCount',      s.views_count      ?? '—');
-    _setText('followersCount',  s.followers_count  ?? '—');
-    _setText('followersCount2', s.followers_count  ?? '—');
-    _setText('ratingAvg',       s.rating_avg       ?? '—');
+    _setText('jobsCount',       _fmtCount(s.jobs_count));
+    _setText('postsCount',      _fmtCount(s.posts_count));
+    _setText('viewsCount',      _fmtCount(s.views_count));
+    _setText('followersCount',  _fmtCount(s.followers_count));
+    _setText('followersCount2', _fmtCount(s.followers_count));
+    _setText('ratingAvg',       _fmtRating(s.rating_avg));
   }
 
   // ── Jobs ──────────────────────────────────────────────────────
