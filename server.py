@@ -79,6 +79,8 @@ from auth import (
     _migrate_company_branches, get_company_branches, save_company_branches,
     _migrate_jobs_v2,
     _migrate_taxonomy_foundation,
+    _migrate_job_profession_targets,
+    _fetch_accepted_professions_batch,
     follow_company, unfollow_company, rate_company,
     get_company_posts, create_company_post, get_post_owner, delete_company_post,
     follow_profile, unfollow_profile, get_profile_followers_count, is_profile_following,
@@ -379,6 +381,11 @@ async def on_startup():
         print("✅ taxonomy foundation ready (skill_catalog + jobs.profession_id)")
     except Exception as e:
         print(f"⚠️ taxonomy foundation migration failed: {e}")
+    try:
+        _migrate_job_profession_targets()
+        print("✅ job_profession_targets table ready")
+    except Exception as e:
+        print(f"⚠️ job_profession_targets migration failed: {e}")
     await _init_asyncpg_pool()
 
 # ── Helpers ──
@@ -505,11 +512,28 @@ def _feed_user_context(conn, user_id, user_type):
         return None, None, set()
 
 
-def _taxonomy_score(job, user_pid, user_pgroup, user_skills):
+def _save_accepted_professions(conn, job_id: int, profession_ids):
+    """Snapshot-replace accepted professions for a job (DELETE + INSERT). Owner already verified."""
+    if profession_ids is None:
+        return
+    conn.run("DELETE FROM job_profession_targets WHERE job_id = :jid", jid=job_id)
+    for i, pid in enumerate(profession_ids or []):
+        try:
+            conn.run(
+                "INSERT INTO job_profession_targets (job_id, profession_id, display_order) "
+                "VALUES (:jid, :pid, :ord) ON CONFLICT (job_id, profession_id) DO NOTHING",
+                jid=job_id, pid=int(pid), ord=i
+            )
+        except Exception:
+            pass
+
+
+def _taxonomy_score(job, user_pid, user_pgroup, user_skills, accepted_pids=None):
     """Compute taxonomy relevance score for a feed job item.
 
     Scoring (additive):
       +100  exact profession match (job.profession_id == user.profession_id)
+      +80   user's profession is in the job's accepted_profession_ids
       +40   same category_group, different profession (elif — no double-count)
       +10   legacy job: has category string but no profession_id (flat boost)
       +10   per shared skill between user_skills and job.skills
@@ -525,8 +549,12 @@ def _taxonomy_score(job, user_pid, user_pgroup, user_skills):
     if job_pid and user_pid:
         if job_pid == user_pid:
             score += 100
+        elif accepted_pids and user_pid in accepted_pids:
+            score += 80
         elif job_pgroup and user_pgroup and job_pgroup == user_pgroup:
             score += 40
+    elif not job_pid and accepted_pids and user_pid and user_pid in accepted_pids:
+        score += 80
     elif not job_pid and job.get("category"):
         score += 10  # legacy job with category text — tiny boost over uncategorized
 
@@ -600,8 +628,17 @@ def home_feed(filter: str = "all", limit: int = 20, token=Depends(verify_token))
                     d["created_at"] = d["created_at"].isoformat()
                 if isinstance(d.get("skills"), list):
                     d["skills"] = [str(s) for s in d["skills"]]
-                d["_score"] = _taxonomy_score(d, u_pid, u_pgroup, u_skills)
                 job_items.append(d)
+
+            # Batch-fetch accepted profession IDs — single query, no N+1
+            feed_job_ids = [d["id"] for d in job_items if d.get("id")]
+            acc_map = _fetch_accepted_professions_batch(conn, feed_job_ids) if feed_job_ids else {}
+
+            for d in job_items:
+                acc_entries = acc_map.get(d["id"], [])
+                d["accepted_professions"] = acc_entries
+                acc_pids = {e["id"] for e in acc_entries}
+                d["_score"] = _taxonomy_score(d, u_pid, u_pgroup, u_skills, acc_pids)
 
             # Sort: recency first (stable), then score (stable tiebreak = recency)
             job_items.sort(key=lambda x: x.get("created_at") or "", reverse=True)
@@ -1140,6 +1177,7 @@ class JobInput(BaseModel):
     work_mode: Optional[str] = "في الموقع"
     salary_hidden: Optional[bool] = False
     profession_id: Optional[int] = None
+    accepted_profession_ids: Optional[List[int]] = None
 
 class JobApplyInput(BaseModel):
     user_id: Optional[int] = None  # kept for backward compat — ignored; token user_id is used
@@ -2895,7 +2933,10 @@ def update_job_endpoint(job_id: int, data: JobInput, token=Depends(verify_token)
     cid = int(user_id)
     conn = get_conn()
     try:
-        fields = {k:v for k,v in data.dict().items() if v is not None}
+        raw_fields = data.dict()
+        # Extract accepted_profession_ids before building SQL (not a jobs column)
+        accepted_pids = raw_fields.pop("accepted_profession_ids", None)
+        fields = {k: v for k, v in raw_fields.items() if v is not None}
         if fields:
             set_clause = ", ".join(f"{k}=:{k}" for k in fields)
             # DB ownership check: WHERE company_id=cid ensures only owner can update
@@ -2905,6 +2946,15 @@ def update_job_endpoint(job_id: int, data: JobInput, token=Depends(verify_token)
             if not affected:
                 print(f"[SECURITY] JOB_OWNERSHIP_FAILED: user={cid} tried PUT job={job_id}")
                 raise HTTPException(403, "ليست وظيفتك أو غير موجودة")
+        elif accepted_pids is not None:
+            # No core fields changed but accepted_professions may still be updated —
+            # verify ownership with a SELECT first
+            rows = conn.run("SELECT id FROM jobs WHERE id=:id AND company_id=:cid", id=job_id, cid=cid)
+            if not rows:
+                raise HTTPException(403, "ليست وظيفتك أو غير موجودة")
+        # Snapshot-replace accepted professions (only when caller sent the field)
+        if accepted_pids is not None:
+            _save_accepted_professions(conn, job_id, accepted_pids)
         return {"status": "success"}
     finally:
         release_conn(conn)

@@ -1837,6 +1837,64 @@ def _migrate_taxonomy_foundation():
         release_conn(conn)
 
 
+def _migrate_job_profession_targets():
+    """Create job_profession_targets table for many-to-many job ↔ profession targeting."""
+    conn = get_conn()
+    try:
+        conn.run("""
+            CREATE TABLE IF NOT EXISTS job_profession_targets (
+                id            SERIAL PRIMARY KEY,
+                job_id        INTEGER NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+                profession_id INTEGER NOT NULL REFERENCES profession_categories(id) ON DELETE CASCADE,
+                display_order SMALLINT DEFAULT 0,
+                created_at    TIMESTAMPTZ DEFAULT NOW(),
+                UNIQUE(job_id, profession_id)
+            )
+        """)
+        try:
+            conn.run("CREATE INDEX IF NOT EXISTS idx_jpt_job_id ON job_profession_targets(job_id)")
+        except Exception:
+            pass
+    except Exception:
+        pass
+    finally:
+        release_conn(conn)
+
+
+def _fetch_accepted_professions_batch(conn, job_ids):
+    """Batch-fetch accepted professions for a list of job IDs.
+    Returns {job_id: [{"id": int, "name_ar": str, "name_en": str, "icon": str}]}.
+    Never raises — returns {} on any error.
+    """
+    if not job_ids:
+        return {}
+    try:
+        placeholders = ','.join(f':j{i}' for i in range(len(job_ids)))
+        params = {f'j{i}': jid for i, jid in enumerate(job_ids)}
+        rows = conn.run(
+            f"SELECT jpt.job_id, pc.id, pc.name_ar, pc.name_en, pc.icon "
+            f"FROM job_profession_targets jpt "
+            f"JOIN profession_categories pc ON jpt.profession_id = pc.id "
+            f"WHERE jpt.job_id IN ({placeholders}) "
+            f"ORDER BY jpt.job_id, jpt.display_order",
+            **params
+        )
+        result = {}
+        for row in (rows or []):
+            jid, pid, name_ar, name_en, icon = row
+            if jid not in result:
+                result[jid] = []
+            result[jid].append({
+                "id": pid,
+                "name_ar": name_ar or "",
+                "name_en": name_en or "",
+                "icon": icon or "",
+            })
+        return result
+    except Exception:
+        return {}
+
+
 def add_job(company_id: int, data: dict) -> dict:
     _cache_del('jobs:')
     conn = get_conn()
@@ -1867,7 +1925,24 @@ def add_job(company_id: int, data: dict) -> dict:
             profid=prof_id,
         )
         cols = [c["name"] for c in conn.columns]
-        return _serialize(_row_to_dict(cols, rows[0]))
+        result = _serialize(_row_to_dict(cols, rows[0]))
+        # Save accepted_profession_ids (new job — pure INSERT)
+        accepted_pids = data.get("accepted_profession_ids") or []
+        if accepted_pids:
+            job_id = result["id"]
+            for i, pid in enumerate(accepted_pids):
+                try:
+                    conn.run(
+                        "INSERT INTO job_profession_targets (job_id, profession_id, display_order) "
+                        "VALUES (:jid, :pid, :ord) ON CONFLICT (job_id, profession_id) DO NOTHING",
+                        jid=job_id, pid=int(pid), ord=i
+                    )
+                except Exception:
+                    pass
+            result["accepted_professions"] = _fetch_accepted_professions_batch(conn, [job_id]).get(job_id, [])
+        else:
+            result["accepted_professions"] = []
+        return result
     finally:
         release_conn(conn)
 
@@ -1903,6 +1978,11 @@ def get_jobs(filters: dict = None) -> list:
         )
         cols = [c["name"] for c in conn.columns]
         result = [_serialize(_row_to_dict(cols, r)) for r in rows]
+        # Attach accepted_professions — single batch query, no N+1
+        job_ids = [d["id"] for d in result if d.get("id")]
+        acc_map = _fetch_accepted_professions_batch(conn, job_ids)
+        for d in result:
+            d["accepted_professions"] = acc_map.get(d["id"], [])
         _cache_set(cache_key, result)
         return result
     finally:
@@ -1929,7 +2009,9 @@ def get_job(job_id: int) -> dict:
         )
         if not rows: return None
         cols = [c["name"] for c in conn.columns]
-        return _serialize(_row_to_dict(cols, rows[0]))
+        result = _serialize(_row_to_dict(cols, rows[0]))
+        result["accepted_professions"] = _fetch_accepted_professions_batch(conn, [job_id]).get(job_id, [])
+        return result
     finally:
         release_conn(conn)
 
