@@ -83,7 +83,7 @@ from auth import (
     _fetch_accepted_professions_batch,
     _validate_accepted_profession_ids,
     follow_company, unfollow_company, rate_company,
-    get_company_posts, create_company_post, get_post_owner, delete_company_post,
+    get_company_posts, get_company_posts_count, create_company_post, get_post_owner, delete_company_post,
     follow_profile, unfollow_profile, get_profile_followers_count, is_profile_following,
     get_profile_followers_list, get_profile_following_list,
     record_profile_view, get_profile_views_count,
@@ -908,7 +908,7 @@ def get_company_profile(company_id: str, request: Request):
     extras = get_company_extras(resolved_id, token_uid)
 
     # ── Stats (Rule #19: real values from DB) ──
-    posts_count = len(get_company_posts(resolved_id))
+    posts_count = get_company_posts_count(resolved_id)
     views_count = get_profile_views_count(resolved_id)
     stats = {
         "jobs_count":       jobs_count,
