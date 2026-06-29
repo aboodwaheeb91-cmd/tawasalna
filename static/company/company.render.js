@@ -131,10 +131,11 @@
   function renderStats() {
     var s = companyState.stats;
     _setText('jobsCount',       s.jobs_count       ?? '—');
+    _setText('postsCount',      s.posts_count      ?? '—');
+    _setText('viewsCount',      s.views_count      ?? '—');
     _setText('followersCount',  s.followers_count  ?? '—');
     _setText('followersCount2', s.followers_count  ?? '—');
     _setText('ratingAvg',       s.rating_avg       ?? '—');
-    _setText('verifiedCount',   s.verified_count   ?? '—');
   }
 
   // ── Jobs ──────────────────────────────────────────────────────

@@ -908,8 +908,12 @@ def get_company_profile(company_id: str, request: Request):
     extras = get_company_extras(resolved_id, token_uid)
 
     # ── Stats (Rule #19: real values from DB) ──
+    posts_count = len(get_company_posts(resolved_id))
+    views_count = get_profile_views_count(resolved_id)
     stats = {
         "jobs_count":       jobs_count,
+        "posts_count":      posts_count,
+        "views_count":      views_count,
         "followers_count":  extras["followers_count"],
         "verified_count":   verified_count,
         "rating_avg":       extras["rating_avg"],
