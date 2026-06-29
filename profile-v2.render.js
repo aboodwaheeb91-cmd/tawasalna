@@ -1413,9 +1413,9 @@ window.renderProfile = function renderProfile(res){
       document.body.classList.remove('view-owner');
       document.body.classList.add('view-guest');
       window._scViewerType = 'guest';
-      // Close any open edit bottom-sheets
+      // Close any open edit bottom-sheets (Profile V2 uses 'open', fallback 'show')
       document.querySelectorAll('.ep-overlay').forEach(function(ov){
-        ov.classList.remove('show');
+        ov.classList.remove('open', 'show');
       });
     }
 

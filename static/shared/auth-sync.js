@@ -12,9 +12,9 @@
     return localStorage.getItem('tw_jwt') || '';
   }
 
-  function _check(reason) {
+  function _check(reason, force) {
     var jwt = _currentJwt();
-    if (jwt === _prevJwt) return;
+    if (!force && jwt === _prevJwt) return;
     _prevJwt = jwt;
     for (var i = 0; i < _handlers.length; i++) {
       try { _handlers[i]({ jwt: jwt, reason: reason }); } catch (e) {}
@@ -28,12 +28,9 @@
     }
   });
 
-  // bfcache restoration — browser may serve a stale cached page
+  // bfcache restoration — always fire; page may be stale regardless of JWT value
   window.addEventListener('pageshow', function (e) {
-    if (e.persisted) {
-      _prevJwt = ''; // force mismatch so handler always fires
-      _check('pageshow');
-    }
+    if (e.persisted) _check('pageshow', true);
   });
 
   // Tab becomes visible after being hidden (user switched back)
