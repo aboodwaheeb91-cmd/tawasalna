@@ -488,11 +488,14 @@
         return r.json();
       })
       .then(function (res) {
-        var url = res && res.url;
-        // Reject base64 fallback — never persist data: URLs to DB
-        if (!url || res.dev_mode || url.indexOf('data:') === 0) {
-          throw new Error('upload_fail');
-        }
+        // Use server URL when it's a real hosted URL; otherwise fall back to
+        // the original dataUrl. Mirrors Profile V2 (profile-v2.avatar.js)
+        // which always calls updateProfile() regardless of dev_mode — storing
+        // base64 in DB is not production-ideal; follow-up PR
+        // fix/storage-upload-production-mode will resolve this by configuring
+        // SUPABASE_URL + SUPABASE_SERVICE_KEY so the server always returns a
+        // real URL.
+        var url = (res && res.url) ? res.url : dataUrl;
         return fetch('/profile/' + userId, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + jwt },
