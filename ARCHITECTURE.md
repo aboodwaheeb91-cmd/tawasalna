@@ -7770,6 +7770,88 @@ All 5 PRs complete. The Unified Professional Taxonomy System is fully operationa
 
 ---
 
+## Job Accepted Professions (feat/job-accepted-professions)
+
+### Overview
+
+Many-to-many profession targeting for job postings. A company can mark a job as accepting up to **5 additional professions** beyond the primary `jobs.profession_id`. Applicants from these professions get boosted scoring in the feed (+80 vs +100 for exact match).
+
+### DB Schema
+
+```sql
+CREATE TABLE job_profession_targets (
+    id            SERIAL PRIMARY KEY,
+    job_id        INTEGER NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+    profession_id INTEGER NOT NULL REFERENCES profession_categories(id) ON DELETE CASCADE,
+    display_order SMALLINT DEFAULT 0,
+    created_at    TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(job_id, profession_id)
+);
+CREATE INDEX idx_jpt_job_id ON job_profession_targets(job_id);
+```
+
+### Backend Source of Truth
+
+| Location | Role |
+|----------|------|
+| `auth.py` → `_migrate_job_profession_targets()` | Creates table on startup (idempotent) |
+| `auth.py` → `_fetch_accepted_professions_batch(conn, job_ids)` | Batch-fetches accepted professions for a list of job IDs; returns `{job_id: [{id, name_ar, name_en, icon}]}` |
+| `auth.py` → `add_job()` | INSERT accepted_profession_ids after job INSERT; attaches `accepted_professions` to returned dict |
+| `auth.py` → `get_jobs()` | Attaches `accepted_professions` to every job in result list (no N+1) |
+| `auth.py` → `get_job()` | Attaches `accepted_professions` to single job dict |
+| `auth.py` → `_validate_accepted_profession_ids(conn, primary_pid, accepted_ids)` | Server-side validation helper — raises `ValueError` on any rule violation |
+| `server.py` → `_save_accepted_professions(conn, job_id, profession_ids, primary_pid=None)` | Calls validator first (no DELETE if validation fails), then snapshot-replace: DELETE + INSERT |
+| `server.py` → `JobInput.accepted_profession_ids` | `Optional[List[int]] = None` |
+| `server.py` → `PUT /company/jobs/{job_id}` | Pops field before SQL UPDATE; fetches current `profession_id` from DB when not in payload; calls `_save_accepted_professions`; catches `ValueError` → HTTP 422 |
+| `server.py` → `POST /company/jobs` | `add_job()` raises `ValueError` on validation failure; endpoint catches → HTTP 422 |
+
+### Scoring Update (`_taxonomy_score`)
+
+```
++100  exact profession match (job.profession_id == user.profession_id)
++80   user's profession is in accepted_profession_ids (new tier)
++40   same category_group, different profession
++10   legacy job with category text (no profession_id)
++10   per shared skill
+```
+
+Batch-fetch is done in `home_feed` before the scoring loop — single query, no N+1.
+
+### Frontend
+
+| File | Change |
+|------|--------|
+| `company-profile.html` | Accepted professions chip input after `j-prof` field |
+| `static/company/company.jobs.js` | `_jAccProfs[]`, `_jAccRenderChips()`, `_jAccAddProf()`, `_jAccRemoveProf()`, `_jAccShowDrop()`, `_jAccBindAC()`; `publishJob()` sends `accepted_profession_ids`; `_resetPostJobModal()` clears `_jAccProfs` |
+| `job-detail.html` | `#jdAccProfSection` + `#jdAccProfChips` hidden section |
+| `static/job/job-detail.js` | Renders accepted_professions chips; unhides section if non-empty |
+| `static/home/home.cards.js` | Shows count badge "+N تخصص" when `accepted_professions.length > 0` |
+
+### Rules (permanent)
+
+### Validation Rules (server-enforced — `_validate_accepted_profession_ids`)
+
+1. Must be a list of integers
+2. Deduplicated automatically (first-occurrence order preserved)
+3. **Max 5 entries** — HTTP 422 if exceeded
+4. **Primary profession must not appear** — HTTP 422 if `primary_pid` is in the list
+5. **All IDs must exist in `profession_categories` with `is_active = true`** — HTTP 422 for any invalid/inactive ID
+6. Validation runs **before any DB mutation** — a failed validation never wipes existing `job_profession_targets` data
+
+### Forbidden Patterns
+
+```
+❌ Never store accepted_profession_ids as JSON inside jobs table — use job_profession_targets
+❌ Never call _fetch_accepted_professions_batch with an already-closed connection
+❌ Snapshot replace (DELETE + INSERT) is the only supported update operation — no partial PATCH
+❌ Never DELETE job_profession_targets before validation passes — bad input must not wipe existing data
+❌ Never enforce max-5 or primary-profession rules in frontend only — server validates independently
+❌ Never batch-fetch accepted professions in a separate request per job — always use _fetch_accepted_professions_batch
+❌ Never use try/except pass around INSERT into job_profession_targets — validation must guarantee clean input
+```
+
+---
+
 ## [P1] 62. Job Detail Page V2
 
 ### Overview

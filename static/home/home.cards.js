@@ -49,6 +49,12 @@
         pchip.appendChild(document.createTextNode(' ' + item.profession_name_ar));
         meta.appendChild(pchip);
       }
+      if (item.accepted_professions && item.accepted_professions.length) {
+        var apchip = U.el('span', 'hw-chip');
+        apchip.appendChild(_lucideIcon('users', '11'));
+        apchip.appendChild(document.createTextNode(' +' + item.accepted_professions.length + ' تخصص'));
+        meta.appendChild(apchip);
+      }
       if (item.location)   meta.appendChild(U.txt('span', 'hw-chip',   item.location));
       if (item.job_type)   meta.appendChild(U.txt('span', 'hw-chip',   U.JOB_TYPES[item.job_type] || item.job_type));
       if (item.salary_min) {

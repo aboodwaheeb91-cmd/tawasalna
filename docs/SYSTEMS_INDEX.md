@@ -308,6 +308,14 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 
 ---
 
+### 34. Job Accepted Professions
+**Purpose:** Many-to-many profession targeting for job postings. A job can accept up to 5 additional professions beyond the primary `jobs.profession_id`. Applicants from accepted professions get +80 feed scoring boost.
+**Source of Truth:** `job_profession_targets` DB table · `auth.py → _validate_accepted_profession_ids()` (server-enforced rules) · `auth.py → _fetch_accepted_professions_batch()` · `auth.py → add_job()` / `get_jobs()` / `get_job()` · `server.py → _save_accepted_professions()` · `server.py → _taxonomy_score(accepted_pids=)`
+**Details:** `ARCHITECTURE.md → Job Accepted Professions (feat/job-accepted-professions)`
+**Do not recreate:** Never store accepted_profession_ids as JSON in `jobs` table. Never call `_fetch_accepted_professions_batch` per job (always batch). Snapshot replace only — no partial PATCH. All rules (max 5, no-primary-overlap, ID existence + `is_active`) are **backend-enforced** via `_validate_accepted_profession_ids` — the frontend UI is a helper, not the security gate. Invalid input returns HTTP 422.
+
+---
+
 ## H — Pages Index (Quick Map)
 
 | Route | File | User Type |

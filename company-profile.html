@@ -406,6 +406,16 @@
     <div class="modal-title">نشر وظيفة جديدة</div>
     <div class="mf"><label>المسمى الوظيفي *</label><input id="j-title" placeholder="مثال: مطور Full Stack، محاسب، كاشير..."></div>
     <div class="mf"><label>التخصص الوظيفي *</label><select id="j-prof" class="j-prof-sel ep-select"><option value="">— جاري التحميل… —</option></select></div>
+    <div class="mf">
+      <label>التخصصات الإضافية المقبولة <span style="font-size:11px;opacity:.6;font-weight:400">اختياري — يرفع أولوية مقدمي الطلبات من هذه التخصصات</span></label>
+      <div class="j-skill-box-wrap">
+        <div class="j-skill-box" id="j-acc-prof-box" onclick="document.getElementById('j-acc-prof-inp')&&document.getElementById('j-acc-prof-inp').focus()">
+          <div class="j-skill-chips" id="j-acc-prof-chips"></div>
+          <input id="j-acc-prof-inp" class="j-skill-inp" placeholder="ابحث عن تخصص…" autocomplete="off" maxlength="60">
+        </div>
+        <div class="j-skill-drop" id="j-acc-prof-drop" style="display:none"></div>
+      </div>
+    </div>
     <div class="mrow">
       <div class="mf"><label>نوع الدوام</label><select id="j-type" class="ep-select"></select></div>
       <div class="mf"><label>طبيعة العمل</label><select id="j-wmode" class="ep-select" onchange="window._onWmodeChange&&_onWmodeChange()"></select></div>

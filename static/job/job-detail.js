@@ -271,6 +271,21 @@
       if (ss) ss.classList.remove('hidden');
     }
 
+    // Accepted professions section
+    var accProfEl = _el('jdAccProfChips');
+    if (accProfEl && job.accepted_professions && job.accepted_professions.length) {
+      accProfEl.innerHTML = '';
+      job.accepted_professions.forEach(function (p) {
+        var span = document.createElement('span');
+        span.className = 'jd-skill-chip';
+        span.appendChild(_lucideIcon(p.icon || 'briefcase', '13'));
+        span.appendChild(document.createTextNode(' ' + (p.name_ar || p.name_en || '')));
+        accProfEl.appendChild(span);
+      });
+      var as = _el('jdAccProfSection');
+      if (as) as.classList.remove('hidden');
+    }
+
     // Sidebar — job info rows
     _sideVal('jdSiCo',   job.company_name,
       job.company_tw_id ? function () { location.href = '/u/' + job.company_tw_id; } : null);
