@@ -557,10 +557,14 @@ def _taxonomy_score(job, user_pid, user_pgroup, user_skills, accepted_pids=None)
             score += 100
         elif accepted_pids and user_pid in accepted_pids:
             score += 80
+        elif job.get("accepts_all_professions") and user_pid:
+            score += 60
         elif job_pgroup and user_pgroup and job_pgroup == user_pgroup:
             score += 40
     elif not job_pid and accepted_pids and user_pid and user_pid in accepted_pids:
         score += 80
+    elif not job_pid and job.get("accepts_all_professions") and user_pid:
+        score += 60
     elif not job_pid and job.get("category"):
         score += 10  # legacy job with category text — tiny boost over uncategorized
 
@@ -1184,6 +1188,7 @@ class JobInput(BaseModel):
     salary_hidden: Optional[bool] = False
     profession_id: Optional[int] = None
     accepted_profession_ids: Optional[List[int]] = None
+    accepts_all_professions: Optional[bool] = None
 
 class JobApplyInput(BaseModel):
     user_id: Optional[int] = None  # kept for backward compat — ignored; token user_id is used
@@ -2943,12 +2948,12 @@ def update_job_endpoint(job_id: int, data: JobInput, token=Depends(verify_token)
     conn = get_conn()
     try:
         raw_fields = data.dict()
-        # Extract accepted_profession_ids before building SQL (not a jobs column)
-        accepted_pids = raw_fields.pop("accepted_profession_ids", None)
+        # Extract non-column fields before building SQL SET clause
+        accepted_pids  = raw_fields.pop("accepted_profession_ids", None)
+        accepts_all    = raw_fields.get("accepts_all_professions")
         fields = {k: v for k, v in raw_fields.items() if v is not None}
 
         # ── Step 1: ownership check (SELECT only — no mutation yet) ──────────
-        # We always need the current row for ownership + profession_id fallback.
         current_rows = conn.run(
             "SELECT id, profession_id FROM jobs WHERE id=:id AND company_id=:cid",
             id=job_id, cid=cid
@@ -2958,8 +2963,10 @@ def update_job_endpoint(job_id: int, data: JobInput, token=Depends(verify_token)
             raise HTTPException(403, "ليست وظيفتك أو غير موجودة")
 
         # ── Step 2: validate accepted_profession_ids BEFORE any mutation ─────
+        # When accepts_all_professions=True, targets are cleared (empty list)
+        if accepts_all:
+            accepted_pids = []
         if accepted_pids is not None:
-            # Effective primary: use incoming value if being changed, else current DB value
             effective_primary = raw_fields.get("profession_id") or current_rows[0][1]
             try:
                 accepted_pids = _validate_accepted_profession_ids(
@@ -2977,8 +2984,6 @@ def update_job_endpoint(job_id: int, data: JobInput, token=Depends(verify_token)
             )
 
         # ── Step 4: snapshot-replace accepted professions ─────────────────────
-        # Inlined here (not via _save_accepted_professions) because validation
-        # already ran above — no need for a second DB round-trip inside the helper.
         if accepted_pids is not None:
             conn.run("DELETE FROM job_profession_targets WHERE job_id = :jid", jid=job_id)
             for i, pid in enumerate(accepted_pids):

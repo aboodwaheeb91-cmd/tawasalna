@@ -401,63 +401,88 @@
 </div>
 
 <!-- ██ POST JOB MODAL ██ -->
-<div class="overlay" id="postJobOverlay">
-  <div class="modal modal-lg">
-    <div class="modal-title">نشر وظيفة جديدة</div>
-    <div class="mf"><label>المسمى الوظيفي *</label><input id="j-title" placeholder="مثال: مطور Full Stack، محاسب، كاشير..."></div>
-    <div class="mf"><label>التخصص الوظيفي *</label><select id="j-prof" class="j-prof-sel ep-select"><option value="">— جاري التحميل… —</option></select></div>
-    <div class="mf">
-      <label>التخصصات الإضافية المقبولة <span style="font-size:11px;opacity:.6;font-weight:400">اختياري — يرفع أولوية مقدمي الطلبات من هذه التخصصات</span></label>
-      <div class="j-skill-box-wrap">
-        <div class="j-skill-box" id="j-acc-prof-box" onclick="document.getElementById('j-acc-prof-inp')&&document.getElementById('j-acc-prof-inp').focus()">
-          <div class="j-skill-chips" id="j-acc-prof-chips"></div>
-          <input id="j-acc-prof-inp" class="j-skill-inp" placeholder="ابحث عن تخصص…" autocomplete="off" maxlength="60">
-        </div>
-        <div class="j-skill-drop" id="j-acc-prof-drop" style="display:none"></div>
+<div class="overlay edit-overlay" id="postJobOverlay">
+  <div class="modal co-edit-sheet">
+    <div class="modal-head">
+      <span class="modal-head-title">نشر وظيفة جديدة</span>
+      <button class="modal-head-close" id="postJobCancelBtn" aria-label="إغلاق">✕</button>
+    </div>
+    <div class="modal-scroll-body">
+      <div class="mf"><label>المسمى الوظيفي *</label><input id="j-title" placeholder="مثال: مطور Full Stack، محاسب، كاشير..."></div>
+      <div class="mf"><label>التخصص الوظيفي *</label><select id="j-prof" class="j-prof-sel ep-select"><option value="">— جاري التحميل… —</option></select></div>
+
+      <div class="mf j-acc-all-wrap">
+        <label class="j-toggle-label">
+          <input type="checkbox" id="j-acc-all" onchange="window._onAccAllChange&&_onAccAllChange()">
+          <span>قبول جميع التخصصات</span>
+        </label>
       </div>
-    </div>
-    <div class="mrow">
-      <div class="mf"><label>نوع الدوام</label><select id="j-type" class="ep-select"></select></div>
-      <div class="mf"><label>طبيعة العمل</label><select id="j-wmode" class="ep-select" onchange="window._onWmodeChange&&_onWmodeChange()"></select></div>
-    </div>
-    <div class="mf"><label>الخبرة المطلوبة</label><select id="j-exp" class="ep-select"></select></div>
-    <div class="mf">
-      <label>موقع الوظيفة</label>
-      <select id="j-loc-mode" class="ep-select" onchange="window._onJobLocModeChange&&_onJobLocModeChange()">
-        <option value="hq">المقر الرئيسي للشركة</option>
-        <option value="remote">عن بُعد</option>
-        <option value="branch">أحد الفروع</option>
-        <option value="custom">موقع مخصص</option>
-      </select>
-    </div>
-    <div class="mf" id="j-branch-wrap" style="display:none"><label>الفرع</label><select id="j-branch-sel" class="ep-select"></select></div>
-    <div class="mf" id="j-custom-wrap" style="display:none"><label>الموقع</label><input id="j-loc" placeholder="مثال: عمان، الأردن"></div>
-    <div class="mrow" id="j-sal-row">
-      <div class="mf"><label>الراتب من</label><input id="j-sal1" type="number" placeholder="800"></div>
-      <div class="mf"><label>الراتب إلى</label><input id="j-sal2" type="number" placeholder="1200"></div>
-      <div class="mf"><label>العملة</label>
-        <select id="j-cur" class="ep-select">
-          <option value="USD">USD</option><option value="JOD">JOD</option>
-          <option value="SAR">SAR</option><option value="AED">AED</option>
-          <option value="EGP">EGP</option><option value="IQD">IQD</option>
+
+      <div class="mf" id="j-acc-prof-section">
+        <label>التخصصات الإضافية المقبولة (اختياري)</label>
+        <div class="j-skill-box-wrap">
+          <div class="j-skill-box" id="j-acc-prof-box" onclick="document.getElementById('j-acc-prof-inp')&&document.getElementById('j-acc-prof-inp').focus()">
+            <div class="j-skill-chips" id="j-acc-prof-chips"></div>
+            <input id="j-acc-prof-inp" class="j-skill-inp" placeholder="ابحث عن تخصص…" autocomplete="off" maxlength="60">
+          </div>
+          <div class="j-skill-drop" id="j-acc-prof-drop" style="display:none"></div>
+        </div>
+      </div>
+
+      <div class="mrow">
+        <div class="mf"><label>نوع الدوام</label><select id="j-type" class="ep-select"></select></div>
+        <div class="mf"><label>طبيعة العمل</label><select id="j-wmode" class="ep-select" onchange="window._onWmodeChange&&_onWmodeChange()"></select></div>
+      </div>
+      <div class="mf"><label>الخبرة المطلوبة</label><select id="j-exp" class="ep-select"></select></div>
+
+      <div class="mf">
+        <label>موقع الوظيفة</label>
+        <select id="j-loc-mode" class="ep-select" onchange="window._onJobLocModeChange&&_onJobLocModeChange()">
+          <option value="hq">المقر الرئيسي للشركة</option>
+          <option value="remote">عن بُعد</option>
+          <option value="branch">أحد الفروع</option>
+          <option value="custom">موقع مخصص</option>
         </select>
       </div>
-    </div>
-    <div class="mf"><label class="sal-hide-label">الراتب غير معلن <input type="checkbox" id="j-sal-hide" onchange="window._onSalHideChange&&_onSalHideChange()"></label></div>
-    <div class="mf"><label>وصف الوظيفة</label><textarea id="j-desc" rows="4" placeholder="اكتب وصف الوظيفة والمتطلبات..."></textarea></div>
-    <div class="mf">
-      <label>المهارات المطلوبة</label>
-      <div class="j-skill-box-wrap">
-        <div class="j-skill-box" id="j-skill-box" onclick="document.getElementById('j-skill-inp')&&document.getElementById('j-skill-inp').focus()">
-          <div class="j-skill-chips" id="j-skill-chips"></div>
-          <input id="j-skill-inp" class="j-skill-inp" placeholder="ابحث عن مهارة أو اكتبها…" autocomplete="off" maxlength="60">
-        </div>
-        <div class="j-skill-drop" id="j-skill-drop" style="display:none"></div>
+      <div class="mf" id="j-branch-wrap" style="display:none"><label>الفرع</label><select id="j-branch-sel" class="ep-select"></select></div>
+      <div class="mf" id="j-custom-wrap" style="display:none"><label>الموقع</label><input id="j-loc" placeholder="مثال: عمان، الأردن"></div>
+
+      <div class="mf j-sal-toggle-wrap">
+        <label class="j-toggle-label">
+          <input type="checkbox" id="j-sal-show" onchange="window._onSalShowChange&&_onSalShowChange()">
+          <span>الإعلان عن الراتب المتوقع</span>
+        </label>
       </div>
+      <div id="j-sal-row" style="display:none">
+        <div class="mrow">
+          <div class="mf"><label>الراتب من</label><input id="j-sal1" type="number" placeholder="800"></div>
+          <div class="mf"><label>الراتب إلى</label><input id="j-sal2" type="number" placeholder="1200"></div>
+        </div>
+        <div class="mf"><label>العملة</label>
+          <select id="j-cur" class="ep-select">
+            <option value="USD">USD</option><option value="JOD">JOD</option>
+            <option value="SAR">SAR</option><option value="AED">AED</option>
+            <option value="EGP">EGP</option><option value="IQD">IQD</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="mf">
+        <label>المهارات المطلوبة</label>
+        <div class="j-skill-box-wrap">
+          <div class="j-skill-box" id="j-skill-box" onclick="document.getElementById('j-skill-inp')&&document.getElementById('j-skill-inp').focus()">
+            <div class="j-skill-chips" id="j-skill-chips"></div>
+            <input id="j-skill-inp" class="j-skill-inp" placeholder="ابحث عن مهارة أو اكتبها…" autocomplete="off" maxlength="60">
+          </div>
+          <div class="j-skill-drop" id="j-skill-drop" style="display:none"></div>
+        </div>
+      </div>
+
+      <div class="mf"><label>وصف الوظيفة</label><textarea id="j-desc" rows="4" placeholder="اكتب وصف الوظيفة والمتطلبات..."></textarea></div>
     </div>
-    <div class="mact">
+    <div class="modal-foot">
+      <button id="postJobCancelFootBtn" class="mbtn mbtn-no">إلغاء</button>
       <button id="publishJobBtn" class="mbtn mbtn-ok">نشر الوظيفة</button>
-      <button id="postJobCancelBtn" class="mbtn mbtn-no">إلغاء</button>
     </div>
   </div>
 </div>

@@ -49,7 +49,12 @@
         pchip.appendChild(document.createTextNode(' ' + item.profession_name_ar));
         meta.appendChild(pchip);
       }
-      if (item.accepted_professions && item.accepted_professions.length) {
+      if (item.accepts_all_professions) {
+        var apchip = U.el('span', 'hw-chip hw-chip--open');
+        apchip.appendChild(_lucideIcon('users', '11'));
+        apchip.appendChild(document.createTextNode(' جميع التخصصات'));
+        meta.appendChild(apchip);
+      } else if (item.accepted_professions && item.accepted_professions.length) {
         var apchip = U.el('span', 'hw-chip');
         apchip.appendChild(_lucideIcon('users', '11'));
         apchip.appendChild(document.createTextNode(' +' + item.accepted_professions.length + ' تخصص'));
