@@ -147,8 +147,18 @@
       .catch(function () {});
   }
 
-  window.loadData     = loadData;
-  window.loadJobs     = loadJobs;
-  window.loadPosts    = loadPosts;
-  window.loadBranches = loadBranches;
+  function getCompanyFollowersList(companyId, limit, offset, type) {
+    var qs = '?limit=' + (limit || 20) + '&offset=' + (offset || 0) + '&type=' + (type || 'all');
+    var jwt = window._jwt ? window._jwt() : '';
+    var headers = {};
+    if (jwt) headers['Authorization'] = 'Bearer ' + jwt;
+    return fetch('/company/' + companyId + '/followers' + qs, { headers: headers })
+      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); });
+  }
+
+  window.loadData                  = loadData;
+  window.loadJobs                  = loadJobs;
+  window.loadPosts                 = loadPosts;
+  window.loadBranches              = loadBranches;
+  window.getCompanyFollowersList   = getCompanyFollowersList;
 }());
