@@ -425,6 +425,59 @@ These rules are permanent and apply to all future AI sessions:
 
 ---
 
+## Profile V2 Action Buttons Rule (mandatory for all AI sessions)
+
+These rules are permanent and apply to all future AI sessions.
+
+The three action buttons inside `.sc-actions` in `profile-showcase.html` — `#scFollowBtn`, `#scContactBtn`, `#scFullBtn` — have frozen dimensions defined in `profile-v2.css` lines 248–262. These values were inspected on 2026-06-29 and must not change without a dedicated, explicitly-scoped PR.
+
+### Frozen values (source: `profile-v2.css`)
+
+**Container — `.sc-actions` (line 248):**
+- `display: flex; flex-direction: row; align-items: center; justify-content: center`
+- `flex-wrap: nowrap`
+- `gap: 10px` — gap between buttons
+- `padding: 6px 20px 13px`
+
+**Button base — `.sc-btn` (line 252):**
+- `height: 27px`
+- `border-radius: 9px`
+- `font-size: 11px`
+- `font-weight: 700`
+- `gap: 5px` — gap between icon and text
+- `display: inline-flex; align-items: center; justify-content: center`
+- `flex-shrink: 0`
+
+**Variants — `.sc-btn-primary` / `.sc-btn-ghost` (lines 259–260):**
+- `padding: 0 18px` (both variants — identical horizontal padding)
+
+**Icon — `.sc-btn .ico-sm` (line 262):**
+- `width: 14px; height: 14px`
+- `stroke-width: 1.8`
+- `flex-shrink: 0`
+
+**Responsive:** No media queries resize these buttons. Dimensions are identical on all screen sizes.
+
+### Forbidden without a dedicated PR
+
+```
+❌ Changing .sc-btn height from 27px
+❌ Changing .sc-btn padding from 0 18px
+❌ Changing .sc-btn font-size from 11px
+❌ Changing .sc-btn gap (icon ↔ text) from 5px
+❌ Changing .sc-actions gap (between buttons) from 10px
+❌ Changing .sc-actions padding from 6px 20px 13px
+❌ Changing icon size from 14×14px or stroke-width from 1.8
+❌ Changing border-radius from 9px
+❌ Adding a media query that resizes buttons on mobile/desktop
+❌ Splitting .sc-btn-primary and .sc-btn-ghost to different heights
+❌ Restyling these buttons as part of an unrelated PR
+```
+
+Any AI session that needs to change button dimensions must open a **standalone PR with an explicit title** (e.g. `design: resize Profile V2 action buttons`) and must not bundle the change with unrelated work.
+
+---
+
 ## Profile Completion Card Rules (mandatory for all AI sessions)
 
 These rules are permanent and apply to all future AI sessions:

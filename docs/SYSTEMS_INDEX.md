@@ -66,8 +66,9 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 ### 6. Employee Profile V2 / Profile Showcase
 **Purpose:** Full employee profile editor (owner) and public showcase (visitor/guest) with sections: about, experience, education, courses, skills, languages, links, avatar.
 **Source of Truth:** `profiles` + `experience` + `education` + `courses` + `user_skills` + `user_langs` + `user_links` tables · served at `/u/{tw_id}` (public) and `/profile` (editor)
-**Details:** `ARCHITECTURE.md §22–30` · `CLAUDE.md → Profile Completion Card Rules`
+**Details:** `ARCHITECTURE.md §22–30` · `CLAUDE.md → Profile Completion Card Rules` · `CLAUDE.md → Profile V2 Action Buttons Rule`
 **Do not recreate:** Do not add profile sections outside the established modular file structure (`static/profile/profile-v2.*.js`). Do not add a new section save handler without calling `window._updateCompletion()`.
+**Action Buttons:** `.sc-actions` button dimensions are frozen (height/padding/gap/icon size) — see `CLAUDE.md → Profile V2 Action Buttons Rule` before touching `profile-v2.css` or `profile-showcase.html`.
 
 ---
 
