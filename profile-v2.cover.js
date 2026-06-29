@@ -191,7 +191,7 @@
     saveBtn.disabled = true;
     saveBtn.textContent = 'جاري الرفع…';
 
-    uploadCover(uid, dataUrl, window._jwt || '')
+    uploadCover(uid, dataUrl)
       .then(function(res){
         var coverUrl;
         if(res.ok && res.data && res.data.url){

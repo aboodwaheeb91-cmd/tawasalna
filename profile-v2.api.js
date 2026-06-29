@@ -72,20 +72,20 @@ function deleteExperience(expId){
   }).then(function(r){ return r.json().then(function(d){ return { ok: r.ok, data: d }; }); });
 }
 
-function uploadCover(userId, dataUrl, jwt){
+function uploadCover(userId, dataUrl){
   if (_ownerGuard()) return Promise.reject(_STALE);
   return fetch('/upload/image', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (jwt || _currentJwt()) },
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + _currentJwt() },
     body: JSON.stringify({ user_id: userId, bucket: 'covers', filename: 'cover', data_url: dataUrl })
   }).then(function(r){ return r.json().then(function(d){ return { ok: r.ok, data: d }; }); });
 }
 
-function uploadAvatar(userId, dataUrl, jwt){
+function uploadAvatar(userId, dataUrl){
   if (_ownerGuard()) return Promise.reject(_STALE);
   return fetch('/upload/image', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (jwt || _currentJwt()) },
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + _currentJwt() },
     body: JSON.stringify({ user_id: userId, bucket: 'avatars', filename: 'avatar', data_url: dataUrl })
   }).then(function(r){ return r.json().then(function(d){ return { ok: r.ok, data: d }; }); });
 }
