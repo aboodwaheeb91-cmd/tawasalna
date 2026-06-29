@@ -7770,11 +7770,15 @@ All 5 PRs complete. The Unified Professional Taxonomy System is fully operationa
 
 ---
 
-## Job Accepted Professions (feat/job-accepted-professions)
+## Job Accepted Professions (feat/job-accepted-professions + fix/job-post-modal-ux-polish)
 
 ### Overview
 
-Many-to-many profession targeting for job postings. A company can mark a job as accepting up to **5 additional professions** beyond the primary `jobs.profession_id`. Applicants from these professions get boosted scoring in the feed (+80 vs +100 for exact match).
+Many-to-many profession targeting for job postings. A company can either:
+- Mark **up to 5 specific additional professions** beyond `jobs.profession_id` (targeting), OR
+- Toggle **`accepts_all_professions = true`** to broadcast to all professions (+60 feed score tier).
+
+Individual targets and `accepts_all_professions` are mutually exclusive: enabling the toggle clears `job_profession_targets`.
 
 ### DB Schema
 
@@ -7788,6 +7792,11 @@ CREATE TABLE job_profession_targets (
     UNIQUE(job_id, profession_id)
 );
 CREATE INDEX idx_jpt_job_id ON job_profession_targets(job_id);
+```
+
+**`jobs` table additions** (migrated via `_migrate_jobs_v2`, idempotent):
+```sql
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS accepts_all_professions BOOLEAN DEFAULT FALSE;
 ```
 
 ### Backend Source of Truth
@@ -7809,7 +7818,8 @@ CREATE INDEX idx_jpt_job_id ON job_profession_targets(job_id);
 
 ```
 +100  exact profession match (job.profession_id == user.profession_id)
-+80   user's profession is in accepted_profession_ids (new tier)
++80   user's profession is in accepted_profession_ids (targeting)
++60   job.accepts_all_professions = true (open to all professions)
 +40   same category_group, different profession
 +10   legacy job with category text (no profession_id)
 +10   per shared skill
@@ -7821,11 +7831,28 @@ Batch-fetch is done in `home_feed` before the scoring loop — single query, no 
 
 | File | Change |
 |------|--------|
-| `company-profile.html` | Accepted professions chip input after `j-prof` field |
-| `static/company/company.jobs.js` | `_jAccProfs[]`, `_jAccRenderChips()`, `_jAccAddProf()`, `_jAccRemoveProf()`, `_jAccShowDrop()`, `_jAccBindAC()`; `publishJob()` sends `accepted_profession_ids`; `_resetPostJobModal()` clears `_jAccProfs` |
+| `company-profile.html` | Bottom-sheet modal (edit-overlay + co-edit-sheet); accepts_all checkbox; salary show toggle (default OFF); field reorder; simplified labels |
+| `static/company/company.jobs.js` | `_jAccProfs[]`, chip management, autocomplete (type-only, no focus trigger); `_onAccAllChange()` hides/clears individual picker; `_onSalShowChange()` replaces old hide toggle; `publishJob()` sends `accepts_all_professions` + `accepted_profession_ids`; defaults: دوام كامل + في الموقع; `TW.EXP_LEVELS` integer options for experience |
 | `job-detail.html` | `#jdAccProfSection` + `#jdAccProfChips` hidden section |
-| `static/job/job-detail.js` | Renders accepted_professions chips; unhides section if non-empty |
+| `static/job/job-detail.js` | Experience integer → label via `TW.EXP_LEVELS`; renders "مفتوح لجميع التخصصات" when `accepts_all_professions=true` |
 | `static/home/home.cards.js` | Shows count badge "+N تخصص" when `accepted_professions.length > 0` |
+| `static/shared/tw-options-data.js` | `TW.EXP_LEVELS` — array of `{value:int, label:string}` for experience levels |
+| `static/company/company.css` | `.j-toggle-label` style; `.co-edit-sheet .j-skill-drop { z-index:1000 }` for mobile dropdown fix |
+
+### Experience Levels (`TW.EXP_LEVELS`)
+
+Stored as integers in `jobs.experience_years`. Mapping:
+| DB value | Label |
+|----------|-------|
+| 0 | بدون خبرة |
+| 1 | أقل من سنة |
+| 2 | 1-2 سنة |
+| 3 | 3-5 سنوات |
+| 6 | أكثر من 5 سنوات |
+
+### Salary Display
+
+`salary_hidden = true` is the **default** for new jobs. The toggle `#j-sal-show` (OFF by default) must be checked to reveal salary fields. This is stored as `salary_hidden: !isSalShow` in the payload.
 
 ### Rules (permanent)
 
@@ -7848,6 +7875,9 @@ Batch-fetch is done in `home_feed` before the scoring loop — single query, no 
 ❌ Never enforce max-5 or primary-profession rules in frontend only — server validates independently
 ❌ Never batch-fetch accepted professions in a separate request per job — always use _fetch_accepted_professions_batch
 ❌ Never use try/except pass around INSERT into job_profession_targets — validation must guarantee clean input
+❌ accepts_all_professions and individual accepted_profession_ids must not both be active — toggle clears individual targets
+❌ Never show salary fields by default — salary_hidden=true is the default, opt-in via j-sal-show toggle
+❌ Never hardcode experience level labels in HTML — use TW.EXP_LEVELS from tw-options-data.js
 ```
 
 ---
