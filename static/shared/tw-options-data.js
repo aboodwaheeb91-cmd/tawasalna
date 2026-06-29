@@ -136,6 +136,17 @@
     'لا يشترط خبرة','أقل من سنة','1–3 سنوات','3–5 سنوات','أكثر من 5 سنوات'
   ];
 
+  // ── Experience levels with integer DB values ───────────────────
+  // Used by job post modal (j-exp select) and job-detail display mapping.
+  // Values match experience_years INTEGER column: 0=none, 1=<1yr, 2=1-2yr, 3=3-5yr, 6=>5yr
+  TW.EXP_LEVELS = [
+    {value: 0, label: 'بدون خبرة'},
+    {value: 1, label: 'أقل من سنة'},
+    {value: 2, label: '1-2 سنة'},
+    {value: 3, label: '3-5 سنوات'},
+    {value: 6, label: 'أكثر من 5 سنوات'},
+  ];
+
   // ── DOM helper: fill a <select> from a string array ──────────
   TW.fillSelect = function (selEl, items, placeholder) {
     if (!selEl) return;

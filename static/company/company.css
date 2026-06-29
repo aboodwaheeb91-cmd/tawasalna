@@ -857,3 +857,30 @@ body.co-loading  .visitor-only           { display: none !important; }
   .mrow-3        { grid-template-columns:1fr; }
   .branch-fields { grid-template-columns:1fr; }
 }
+
+/* ══ JOB MODAL TOGGLES ═══════════════════════════════════════════ */
+.j-toggle-label {
+  display:flex; align-items:center; gap:8px; cursor:pointer;
+  font-size:.82rem; color:rgba(255,255,255,.75); font-weight:600;
+  user-select:none;
+}
+.j-toggle-label input[type="checkbox"] {
+  width:16px; height:16px; accent-color:var(--ac2,#00c896);
+  cursor:pointer; flex-shrink:0;
+}
+.j-sal-toggle-wrap, .j-acc-all-wrap { margin-bottom:10px; }
+
+/* ══ DROPDOWN MOBILE FIX ══════════════════════════════════════════ */
+/* Inside bottom-sheet (.co-edit-sheet), the scroll body has overflow-y:auto
+   which clips absolutely-positioned children. Force dropdowns to use
+   position:fixed when needed via JS, but also ensure z-index is always high. */
+.co-edit-sheet .j-skill-drop {
+  z-index:1000;
+}
+.co-edit-sheet .modal-scroll-body {
+  overflow-x:visible; /* allow horizontal overflow for dropdowns */
+}
+/* On mobile, limit dropdown height to avoid viewport overflow */
+@media(max-width:640px) {
+  .j-skill-drop { max-height:160px; }
+}

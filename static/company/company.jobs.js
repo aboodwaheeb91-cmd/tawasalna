@@ -364,8 +364,16 @@
     _jAccBound = true;
     var inp = document.getElementById('j-acc-prof-inp');
     if (!inp) return;
-    inp.addEventListener('focus', function() { _jAccShowDrop(inp.value); });
-    inp.addEventListener('input', function() { _jAccShowDrop(inp.value); });
+    // Dropdown only shows after typing — not on focus
+    inp.addEventListener('input', function() {
+      var q = inp.value.trim();
+      if (!q) {
+        var drop = document.getElementById('j-acc-prof-drop');
+        if (drop) { drop.style.display = 'none'; drop.innerHTML = ''; }
+        return;
+      }
+      _jAccShowDrop(q);
+    });
     inp.addEventListener('keydown', function(e) {
       if (e.key === 'Escape') {
         var drop = document.getElementById('j-acc-prof-drop');
@@ -378,6 +386,23 @@
         if (drop) { drop.style.display = 'none'; drop.innerHTML = ''; }
       }, 180);
     });
+  }
+
+  function _onAccAllChange() {
+    var cb = document.getElementById('j-acc-all');
+    var sec = document.getElementById('j-acc-prof-section');
+    if (!cb) return;
+    if (cb.checked) {
+      if (sec) sec.style.display = 'none';
+      // Clear individual targets — accepts all supersedes them
+      _jAccProfs = [];
+      var chips = document.getElementById('j-acc-prof-chips');
+      if (chips) chips.innerHTML = '';
+      var accInp = document.getElementById('j-acc-prof-inp');
+      if (accInp) accInp.value = '';
+    } else {
+      if (sec) sec.style.display = '';
+    }
   }
 
   function _onJobLocModeChange() {
@@ -413,10 +438,11 @@
     }
   }
 
-  function _onSalHideChange() {
-    var hide   = document.getElementById('j-sal-hide');
+  function _onSalShowChange() {
+    var show   = document.getElementById('j-sal-show');
     var salRow = document.getElementById('j-sal-row');
-    if (salRow) salRow.style.display = (hide && hide.checked) ? 'none' : '';
+    // OFF (unchecked) = salary hidden; ON (checked) = show salary fields
+    if (salRow) salRow.style.display = (show && show.checked) ? '' : 'none';
   }
 
   function _resolveJobLocation() {
@@ -443,17 +469,26 @@
       var el = document.getElementById(id);
       if (el) el.value = '';
     });
-    ['j-prof','j-type','j-wmode','j-exp','j-cur','j-branch-sel'].forEach(function (id) {
+    ['j-prof','j-branch-sel'].forEach(function (id) {
       var el = document.getElementById(id);
       if (el) el.value = '';
     });
-    // clear skill chips
+    // Apply defaults
+    var typeEl = document.getElementById('j-type');
+    if (typeEl) typeEl.value = 'دوام كامل';
+    var wmodeEl = document.getElementById('j-wmode');
+    if (wmodeEl) wmodeEl.value = 'في الموقع';
+    var expEl = document.getElementById('j-exp');
+    if (expEl) expEl.value = '0';
+    var curEl = document.getElementById('j-cur');
+    if (curEl) curEl.value = 'USD';
+    // Clear skill chips
     _jSkills = [];
     var chipsEl = document.getElementById('j-skill-chips');
     if (chipsEl) chipsEl.innerHTML = '';
     var inpEl = document.getElementById('j-skill-inp');
     if (inpEl) inpEl.value = '';
-    // clear accepted profession chips
+    // Clear accepted profession chips
     _jAccProfs = [];
     var accChipsEl = document.getElementById('j-acc-prof-chips');
     if (accChipsEl) accChipsEl.innerHTML = '';
@@ -461,15 +496,22 @@
     if (accInpEl) accInpEl.value = '';
     var accDrop = document.getElementById('j-acc-prof-drop');
     if (accDrop) { accDrop.style.display = 'none'; accDrop.innerHTML = ''; }
+    // Reset accepts-all toggle (unchecked = use individual targets)
+    var accAll = document.getElementById('j-acc-all');
+    if (accAll) accAll.checked = false;
+    var accSec = document.getElementById('j-acc-prof-section');
+    if (accSec) accSec.style.display = '';
     _jHideDrop();
     var pBtn = document.getElementById('publishJobBtn');
     if (pBtn) { pBtn.disabled = false; pBtn.textContent = 'نشر الوظيفة'; }
-    var hide = document.getElementById('j-sal-hide');
-    if (hide) hide.checked = false;
+    // Salary toggle: default OFF = hidden
+    var salShow = document.getElementById('j-sal-show');
+    if (salShow) salShow.checked = false;
     var locMode = document.getElementById('j-loc-mode');
     if (locMode) locMode.value = 'hq';
-    _onSalHideChange();
+    _onSalShowChange();
     _onJobLocModeChange();
+    if (window.scSelectInit) scSelectInit();
   }
 
   // ── Post job modal ─────────────────────────────────────────────
@@ -482,11 +524,26 @@
         var el = document.getElementById(id);
         if (el && el.options.length < 2) TW.fillSelect(el, arr || [], ph);
       };
-      _fill('j-type',  TW.JOB_TYPES,         '— نوع الدوام —');
-      _fill('j-wmode', TW.JOB_WORK_MODES,    '— طبيعة العمل —');
-      _fill('j-exp',   TW.EXPERIENCE_LEVELS, '— الخبرة المطلوبة —');
+      _fill('j-type',  TW.JOB_TYPES,      '— نوع الدوام —');
+      _fill('j-wmode', TW.JOB_WORK_MODES, '— طبيعة العمل —');
+      // Populate experience with integer values from TW.EXP_LEVELS
+      var expEl = document.getElementById('j-exp');
+      if (expEl && expEl.options.length < 2 && TW.EXP_LEVELS) {
+        expEl.innerHTML = '<option value="">— الخبرة المطلوبة —</option>';
+        TW.EXP_LEVELS.forEach(function(lv) {
+          var o = document.createElement('option');
+          o.value = lv.value;
+          o.textContent = lv.label;
+          expEl.appendChild(o);
+        });
+      }
       if (window.scSelectInit) scSelectInit();
     }
+    // Apply default selections
+    var typeEl = document.getElementById('j-type');
+    if (typeEl && !typeEl.value) typeEl.value = 'دوام كامل';
+    var wmodeEl = document.getElementById('j-wmode');
+    if (wmodeEl && !wmodeEl.value) wmodeEl.value = 'في الموقع';
 
     _loadProfessions();
     _jBindSkillAC();
@@ -526,8 +583,10 @@
     if (publishBtn && publishBtn.disabled) return;
     if (publishBtn) { publishBtn.disabled = true; publishBtn.textContent = 'جاري النشر…'; }
 
-    var salHide   = document.getElementById('j-sal-hide');
-    var isSalHide = salHide && salHide.checked;
+    var salShow   = document.getElementById('j-sal-show');
+    var isSalShow = salShow && salShow.checked;  // OFF = hidden (default)
+    var accAllCb  = document.getElementById('j-acc-all');
+    var acceptsAll = accAllCb && accAllCb.checked;
 
     var payload = {
       title:                   title,
@@ -537,13 +596,14 @@
       work_mode:               val('j-wmode') || 'في الموقع',
       category:                cat,
       profession_id:           profId,
-      salary_min:              isSalHide ? null : (parseInt(val('j-sal1')) || null),
-      salary_max:              isSalHide ? null : (parseInt(val('j-sal2')) || null),
+      salary_min:              isSalShow ? (parseInt(val('j-sal1')) || null) : null,
+      salary_max:              isSalShow ? (parseInt(val('j-sal2')) || null) : null,
       currency:                val('j-cur') || 'USD',
-      salary_hidden:           isSalHide,
+      salary_hidden:           !isSalShow,
       experience_years:        parseInt(val('j-exp')) || 0,
       skills:                  _jSkills.slice(),
-      accepted_profession_ids: _jAccProfs.map(function(p) { return p.id; }),
+      accepts_all_professions: acceptsAll,
+      accepted_profession_ids: acceptsAll ? [] : _jAccProfs.map(function(p) { return p.id; }),
     };
 
     fetch('/company/jobs', {
@@ -593,9 +653,12 @@
     var publishJobBtn = q('publishJobBtn');
     if (publishJobBtn) publishJobBtn.addEventListener('click', publishJob);
 
-    var postJobCancelBtn = q('postJobCancelBtn');
-    if (postJobCancelBtn) postJobCancelBtn.addEventListener('click', function () {
-      var ov = q('postJobOverlay'); if (ov) ov.classList.remove('show');
+    // Two cancel buttons: header X and footer cancel
+    ['postJobCancelBtn', 'postJobCancelFootBtn'].forEach(function(id) {
+      var btn = q(id);
+      if (btn) btn.addEventListener('click', function () {
+        var ov = q('postJobOverlay'); if (ov) ov.classList.remove('show');
+      });
     });
   }
 
@@ -608,7 +671,8 @@
   window.publishJob            = publishJob;
   window._onJobLocModeChange   = _onJobLocModeChange;
   window._onWmodeChange        = _onWmodeChange;
-  window._onSalHideChange      = _onSalHideChange;
+  window._onSalShowChange      = _onSalShowChange;
+  window._onAccAllChange       = _onAccAllChange;
 
   document.addEventListener('DOMContentLoaded', function () {
     bindEvents();

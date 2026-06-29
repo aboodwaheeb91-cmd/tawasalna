@@ -273,17 +273,27 @@
 
     // Accepted professions section
     var accProfEl = _el('jdAccProfChips');
-    if (accProfEl && job.accepted_professions && job.accepted_professions.length) {
-      accProfEl.innerHTML = '';
-      job.accepted_professions.forEach(function (p) {
-        var span = document.createElement('span');
-        span.className = 'jd-skill-chip';
-        span.appendChild(_lucideIcon(p.icon || 'briefcase', '13'));
-        span.appendChild(document.createTextNode(' ' + (p.name_ar || p.name_en || '')));
-        accProfEl.appendChild(span);
-      });
+    if (accProfEl) {
       var as = _el('jdAccProfSection');
-      if (as) as.classList.remove('hidden');
+      if (job.accepts_all_professions) {
+        accProfEl.innerHTML = '';
+        var allSpan = document.createElement('span');
+        allSpan.className = 'jd-skill-chip';
+        allSpan.appendChild(_lucideIcon('users', '13'));
+        allSpan.appendChild(document.createTextNode(' مفتوح لجميع التخصصات'));
+        accProfEl.appendChild(allSpan);
+        if (as) as.classList.remove('hidden');
+      } else if (job.accepted_professions && job.accepted_professions.length) {
+        accProfEl.innerHTML = '';
+        job.accepted_professions.forEach(function (p) {
+          var span = document.createElement('span');
+          span.className = 'jd-skill-chip';
+          span.appendChild(_lucideIcon(p.icon || 'briefcase', '13'));
+          span.appendChild(document.createTextNode(' ' + (p.name_ar || p.name_en || '')));
+          accProfEl.appendChild(span);
+        });
+        if (as) as.classList.remove('hidden');
+      }
     }
 
     // Sidebar — job info rows
@@ -292,9 +302,16 @@
     _sideVal('jdSiLoc',  job.location);
     _sideVal('jdSiType', job.job_type ? (_JOB_TYPES[job.job_type] || job.job_type) : null);
     _sideVal('jdSiMode', job.work_mode || null);
-    _sideVal('jdSiExp',  job.experience_years && job.experience_years > 0
-      ? job.experience_years + ' سنوات'
-      : null);
+    var _expLabel = (function() {
+      if (job.experience_years === undefined || job.experience_years === null) return null;
+      if (window.TW && TW.EXP_LEVELS) {
+        for (var _ei = 0; _ei < TW.EXP_LEVELS.length; _ei++) {
+          if (TW.EXP_LEVELS[_ei].value === job.experience_years) return TW.EXP_LEVELS[_ei].label;
+        }
+      }
+      return job.experience_years > 0 ? job.experience_years + ' سنوات' : null;
+    }());
+    _sideVal('jdSiExp', _expLabel);
     _sideVal('jdSiSal',  job.salary_hidden
       ? 'الراتب غير معلن'
       : (job.salary_min

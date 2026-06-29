@@ -1414,12 +1414,13 @@ def get_full_profile_by_tw_id(tw_id: str) -> Optional[dict]:
 # ══ الوظائف ══
 
 def _migrate_jobs_v2():
-    """Add category, work_mode, salary_hidden columns to jobs table (idempotent)."""
+    """Add category, work_mode, salary_hidden, accepts_all_professions columns to jobs table (idempotent)."""
     conn = get_conn()
     try:
         conn.run("ALTER TABLE jobs ADD COLUMN IF NOT EXISTS category VARCHAR(100)")
         conn.run("ALTER TABLE jobs ADD COLUMN IF NOT EXISTS work_mode VARCHAR(50)")
         conn.run("ALTER TABLE jobs ADD COLUMN IF NOT EXISTS salary_hidden BOOLEAN DEFAULT FALSE")
+        conn.run("ALTER TABLE jobs ADD COLUMN IF NOT EXISTS accepts_all_professions BOOLEAN DEFAULT FALSE")
     finally:
         release_conn(conn)
 
@@ -1958,23 +1959,25 @@ def add_job(company_id: int, data: dict) -> dict:
     _cache_del('jobs:')
     conn = get_conn()
     try:
-        skills     = data.get("skills") or []
-        sal_hidden = bool(data.get("salary_hidden", False))
-        prof_id    = data.get("profession_id") or None
+        skills      = data.get("skills") or []
+        sal_hidden  = bool(data.get("salary_hidden", False))
+        prof_id     = data.get("profession_id") or None
+        accepts_all = bool(data.get("accepts_all_professions", False))
 
         # Validate accepted_profession_ids BEFORE any mutation — fail fast
-        raw_accepted = data.get("accepted_profession_ids") or []
+        # When accepts_all_professions=True, individual targets are cleared (empty list)
+        raw_accepted = [] if accepts_all else (data.get("accepted_profession_ids") or [])
         accepted_pids = _validate_accepted_profession_ids(conn, prof_id, raw_accepted)
 
         rows = conn.run(
             "INSERT INTO jobs (company_id, title, description, location, job_type, "
             "salary_min, salary_max, currency, experience_years, skills, status, "
-            "category, work_mode, salary_hidden, profession_id) "
+            "category, work_mode, salary_hidden, profession_id, accepts_all_professions) "
             "VALUES (:cid, :title, :desc, :loc, :jtype, :smin, :smax, :cur, :exp, "
-            ":skills, 'active', :cat, :wmode, :shide, :profid) "
+            ":skills, 'active', :cat, :wmode, :shide, :profid, :accall) "
             "RETURNING id, company_id, title, description, location, job_type, "
             "salary_min, salary_max, currency, experience_years, skills, status, created_at, "
-            "category, work_mode, salary_hidden, profession_id",
+            "category, work_mode, salary_hidden, profession_id, accepts_all_professions",
             cid=company_id, title=data.get("title",""),
             desc=data.get("description",""), loc=data.get("location",""),
             jtype=data.get("job_type","دوام كامل"),
@@ -1987,11 +1990,12 @@ def add_job(company_id: int, data: dict) -> dict:
             wmode=data.get("work_mode","في الموقع"),
             shide=sal_hidden,
             profid=prof_id,
+            accall=accepts_all,
         )
         cols = [c["name"] for c in conn.columns]
         result = _serialize(_row_to_dict(cols, rows[0]))
 
-        # Save accepted professions — input is clean, no silent swallowing
+        # Save accepted professions — skipped when accepts_all_professions=True
         if accepted_pids:
             job_id = result["id"]
             for i, pid in enumerate(accepted_pids):
@@ -2032,6 +2036,7 @@ def get_jobs(filters: dict = None) -> list:
             f"SELECT j.id, j.company_id, j.title, j.description, j.location, "
             f"j.job_type, j.salary_min, j.salary_max, j.currency, "
             f"j.experience_years, j.skills, j.status, j.views, j.created_at, "
+            f"COALESCE(j.accepts_all_professions, false) AS accepts_all_professions, "
             f"u.full_name AS company_name "
             f"FROM jobs j JOIN users u ON u.id=j.company_id "
             f"{where} ORDER BY j.created_at DESC LIMIT 50",
