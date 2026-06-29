@@ -132,7 +132,8 @@
     order.forEach(function(g) {
       html += '<optgroup label="' + _esc(g) + '">';
       groups[g].forEach(function(p) {
-        html += '<option value="' + _esc(String(p.id)) + '">' + _esc(p.name_ar || p.name_en || '') + '</option>';
+        var icon = (p.icon || 'briefcase').replace(/"/g, '');
+        html += '<option value="' + _esc(String(p.id)) + '" data-icon="' + _esc(icon) + '">' + _esc(p.name_ar || p.name_en || '') + '</option>';
       });
       html += '</optgroup>';
     });
