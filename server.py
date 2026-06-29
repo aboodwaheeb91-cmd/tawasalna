@@ -1188,7 +1188,7 @@ class JobInput(BaseModel):
     salary_hidden: Optional[bool] = False
     profession_id: Optional[int] = None
     accepted_profession_ids: Optional[List[int]] = None
-    accepts_all_professions: Optional[bool] = False
+    accepts_all_professions: Optional[bool] = None
 
 class JobApplyInput(BaseModel):
     user_id: Optional[int] = None  # kept for backward compat — ignored; token user_id is used

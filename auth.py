@@ -1962,7 +1962,7 @@ def add_job(company_id: int, data: dict) -> dict:
         skills      = data.get("skills") or []
         sal_hidden  = bool(data.get("salary_hidden", False))
         prof_id     = data.get("profession_id") or None
-        accepts_all = bool(data.get("accepts_all_professions", False))
+        accepts_all = bool(data.get("accepts_all_professions") or False)
 
         # Validate accepted_profession_ids BEFORE any mutation — fail fast
         # When accepts_all_professions=True, individual targets are cleared (empty list)
