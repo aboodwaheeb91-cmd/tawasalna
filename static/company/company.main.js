@@ -670,6 +670,29 @@
     var reportCancelBtn = q('reportCancelBtn'); if (reportCancelBtn) reportCancelBtn.addEventListener('click', closeReportModal);
   }
 
+  // ── Auth-sync: cross-tab session invalidation ──
+  // Wires TwAuthSync (static/shared/auth-sync.js) into Company Profile.
+  // On JWT change: immediately strips owner mode, closes edit modal,
+  // then background-reloads to get authoritative viewer_type from server.
+  (function () {
+    if (!window.TwAuthSync) return;
+    TwAuthSync.onSessionChange(function () {
+      // Immediately revoke owner UI
+      if (window.companyState && companyState.viewMode === 'owner') {
+        companyState.viewMode = 'guest';
+        if (window._applyViewMode) _applyViewMode();
+        // Close edit modal if open
+        var ov = document.getElementById('editOverlay');
+        if (ov) ov.classList.remove('show');
+        // Disable save button defensively
+        var saveBtn = document.getElementById('editSaveBtn');
+        if (saveBtn) saveBtn.disabled = true;
+      }
+      // Background re-verify — gets fresh viewer_type from server
+      if (window.loadData) loadData({ silent: true });
+    });
+  }());
+
   // ── DOMContentLoaded ───────────────────────────────────────────
   document.addEventListener('DOMContentLoaded', function () {
     if (window.lucide) lucide.createIcons();

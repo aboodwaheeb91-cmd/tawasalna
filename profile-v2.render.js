@@ -1396,3 +1396,32 @@ window.renderProfile = function renderProfile(res){
     }
   });
 })();
+
+// ── Auth-sync: cross-tab session invalidation ──
+// Wires TwAuthSync (static/shared/auth-sync.js) into Profile V2.
+// On JWT change: immediately strips owner mode, closes open edit sheets,
+// then background-refetches to get authoritative viewer_type from server.
+(function(){
+  if(!window.TwAuthSync) return;
+  TwAuthSync.onSessionChange(function(){
+    // Skip when owner is manually previewing as visitor — not a real session change
+    if(document.body.classList.contains('preview-public-user') ||
+       document.body.classList.contains('preview-guest')) return;
+
+    // Immediately revoke owner UI
+    if(document.body.classList.contains('view-owner')){
+      document.body.classList.remove('view-owner');
+      document.body.classList.add('view-guest');
+      window._scViewerType = 'guest';
+      // Close any open edit bottom-sheets (Profile V2 uses 'open', fallback 'show')
+      document.querySelectorAll('.ep-overlay').forEach(function(ov){
+        ov.classList.remove('open', 'show');
+      });
+    }
+
+    // Background re-verify — gets fresh viewer_type from server
+    if(window.getProfile && window._scProfileId && window.renderProfile){
+      getProfile(_scProfileId).then(window.renderProfile).catch(function(){});
+    }
+  });
+})();
