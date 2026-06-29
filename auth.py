@@ -2906,6 +2906,18 @@ def get_company_posts(company_id: int) -> list:
         release_conn(conn)
 
 
+def get_company_posts_count(company_id: int) -> int:
+    """Return total number of posts for a company (COUNT — no row fetch)."""
+    conn = get_conn()
+    try:
+        rows = conn.run(
+            "SELECT COUNT(*) FROM company_posts WHERE company_id = :cid",
+            cid=company_id)
+        return rows[0][0] if rows else 0
+    finally:
+        release_conn(conn)
+
+
 def create_company_post(company_id: int, body: str, tags=None) -> dict:
     """Insert a post. Returns the created row. body required (non-empty)."""
     conn = get_conn()

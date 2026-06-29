@@ -20,7 +20,7 @@
       cover_url: null, industry: null, headquarters: null, contact_email: null,
     },
     jobs: [],
-    stats: { jobs_count: 0, followers_count: 0, verified_count: 0, rating_avg: null },
+    stats: { jobs_count: 0, posts_count: 0, views_count: 0, followers_count: 0, rating_avg: null },
     permissions: {
       is_owner: false, can_edit: false, can_post_jobs: false,
       can_follow: false, can_rate: false,
