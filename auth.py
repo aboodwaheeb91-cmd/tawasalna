@@ -1895,13 +1895,77 @@ def _fetch_accepted_professions_batch(conn, job_ids):
         return {}
 
 
+def _validate_accepted_profession_ids(conn, primary_pid, accepted_ids):
+    """Validate accepted_profession_ids before any DB mutation.
+
+    Rules (server-enforced):
+      - None / [] → return []
+      - Must be a list; each element must be castable to int
+      - Deduplicate (preserve first-occurrence order)
+      - Max 5 entries
+      - primary_pid must NOT appear in the list
+      - Every ID must exist in profession_categories WITH is_active = true
+
+    Returns clean List[int] or raises ValueError with a descriptive message.
+    """
+    if not accepted_ids:
+        return []
+
+    if not isinstance(accepted_ids, (list, tuple)):
+        raise ValueError("accepted_profession_ids must be a list of integers")
+
+    try:
+        as_ints = [int(x) for x in accepted_ids]
+    except (ValueError, TypeError):
+        raise ValueError("accepted_profession_ids must contain integers only")
+
+    # Deduplicate preserving first-occurrence order
+    seen = set()
+    deduped = []
+    for pid in as_ints:
+        if pid not in seen:
+            seen.add(pid)
+            deduped.append(pid)
+
+    if len(deduped) > 5:
+        raise ValueError(
+            f"accepted_profession_ids: maximum 5 entries allowed, received {len(deduped)}"
+        )
+
+    if primary_pid and int(primary_pid) in seen:
+        raise ValueError(
+            f"accepted_profession_ids must not include the primary profession_id ({primary_pid})"
+        )
+
+    # Batch-verify all IDs exist and are active in profession_categories
+    placeholders = ','.join(f':p{i}' for i in range(len(deduped)))
+    params = {f'p{i}': pid for i, pid in enumerate(deduped)}
+    rows = conn.run(
+        f"SELECT id FROM profession_categories WHERE id IN ({placeholders}) AND is_active = true",
+        **params
+    )
+    valid_ids = {row[0] for row in (rows or [])}
+    invalid = [pid for pid in deduped if pid not in valid_ids]
+    if invalid:
+        raise ValueError(
+            f"accepted_profession_ids contains invalid or inactive profession IDs: {invalid}"
+        )
+
+    return deduped
+
+
 def add_job(company_id: int, data: dict) -> dict:
     _cache_del('jobs:')
     conn = get_conn()
     try:
-        skills      = data.get("skills") or []
-        sal_hidden  = bool(data.get("salary_hidden", False))
-        prof_id = data.get("profession_id") or None
+        skills     = data.get("skills") or []
+        sal_hidden = bool(data.get("salary_hidden", False))
+        prof_id    = data.get("profession_id") or None
+
+        # Validate accepted_profession_ids BEFORE any mutation — fail fast
+        raw_accepted = data.get("accepted_profession_ids") or []
+        accepted_pids = _validate_accepted_profession_ids(conn, prof_id, raw_accepted)
+
         rows = conn.run(
             "INSERT INTO jobs (company_id, title, description, location, job_type, "
             "salary_min, salary_max, currency, experience_years, skills, status, "
@@ -1926,19 +1990,16 @@ def add_job(company_id: int, data: dict) -> dict:
         )
         cols = [c["name"] for c in conn.columns]
         result = _serialize(_row_to_dict(cols, rows[0]))
-        # Save accepted_profession_ids (new job — pure INSERT)
-        accepted_pids = data.get("accepted_profession_ids") or []
+
+        # Save accepted professions — input is clean, no silent swallowing
         if accepted_pids:
             job_id = result["id"]
             for i, pid in enumerate(accepted_pids):
-                try:
-                    conn.run(
-                        "INSERT INTO job_profession_targets (job_id, profession_id, display_order) "
-                        "VALUES (:jid, :pid, :ord) ON CONFLICT (job_id, profession_id) DO NOTHING",
-                        jid=job_id, pid=int(pid), ord=i
-                    )
-                except Exception:
-                    pass
+                conn.run(
+                    "INSERT INTO job_profession_targets (job_id, profession_id, display_order) "
+                    "VALUES (:jid, :pid, :ord)",
+                    jid=job_id, pid=pid, ord=i
+                )
             result["accepted_professions"] = _fetch_accepted_professions_batch(conn, [job_id]).get(job_id, [])
         else:
             result["accepted_professions"] = []

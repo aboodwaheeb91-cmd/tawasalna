@@ -7799,9 +7799,11 @@ CREATE INDEX idx_jpt_job_id ON job_profession_targets(job_id);
 | `auth.py` → `add_job()` | INSERT accepted_profession_ids after job INSERT; attaches `accepted_professions` to returned dict |
 | `auth.py` → `get_jobs()` | Attaches `accepted_professions` to every job in result list (no N+1) |
 | `auth.py` → `get_job()` | Attaches `accepted_professions` to single job dict |
-| `server.py` → `_save_accepted_professions(conn, job_id, profession_ids)` | Snapshot-replace: DELETE then INSERT |
+| `auth.py` → `_validate_accepted_profession_ids(conn, primary_pid, accepted_ids)` | Server-side validation helper — raises `ValueError` on any rule violation |
+| `server.py` → `_save_accepted_professions(conn, job_id, profession_ids, primary_pid=None)` | Calls validator first (no DELETE if validation fails), then snapshot-replace: DELETE + INSERT |
 | `server.py` → `JobInput.accepted_profession_ids` | `Optional[List[int]] = None` |
-| `server.py` → `PUT /company/jobs/{job_id}` | Pops `accepted_profession_ids` before SQL UPDATE; calls `_save_accepted_professions` after ownership check |
+| `server.py` → `PUT /company/jobs/{job_id}` | Pops field before SQL UPDATE; fetches current `profession_id` from DB when not in payload; calls `_save_accepted_professions`; catches `ValueError` → HTTP 422 |
+| `server.py` → `POST /company/jobs` | `add_job()` raises `ValueError` on validation failure; endpoint catches → HTTP 422 |
 
 ### Scoring Update (`_taxonomy_score`)
 
@@ -7827,13 +7829,25 @@ Batch-fetch is done in `home_feed` before the scoring loop — single query, no 
 
 ### Rules (permanent)
 
+### Validation Rules (server-enforced — `_validate_accepted_profession_ids`)
+
+1. Must be a list of integers
+2. Deduplicated automatically (first-occurrence order preserved)
+3. **Max 5 entries** — HTTP 422 if exceeded
+4. **Primary profession must not appear** — HTTP 422 if `primary_pid` is in the list
+5. **All IDs must exist in `profession_categories` with `is_active = true`** — HTTP 422 for any invalid/inactive ID
+6. Validation runs **before any DB mutation** — a failed validation never wipes existing `job_profession_targets` data
+
+### Forbidden Patterns
+
 ```
 ❌ Never store accepted_profession_ids as JSON inside jobs table — use job_profession_targets
 ❌ Never call _fetch_accepted_professions_batch with an already-closed connection
 ❌ Snapshot replace (DELETE + INSERT) is the only supported update operation — no partial PATCH
-❌ Max 5 accepted professions enforced frontend-only — backend does not hard-limit (UI guard)
-❌ Primary profession (jobs.profession_id) must not appear in accepted_profession_ids — enforced in _jAccAddProf()
+❌ Never DELETE job_profession_targets before validation passes — bad input must not wipe existing data
+❌ Never enforce max-5 or primary-profession rules in frontend only — server validates independently
 ❌ Never batch-fetch accepted professions in a separate request per job — always use _fetch_accepted_professions_batch
+❌ Never use try/except pass around INSERT into job_profession_targets — validation must guarantee clean input
 ```
 
 ---

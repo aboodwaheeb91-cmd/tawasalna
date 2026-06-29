@@ -81,6 +81,7 @@ from auth import (
     _migrate_taxonomy_foundation,
     _migrate_job_profession_targets,
     _fetch_accepted_professions_batch,
+    _validate_accepted_profession_ids,
     follow_company, unfollow_company, rate_company,
     get_company_posts, create_company_post, get_post_owner, delete_company_post,
     follow_profile, unfollow_profile, get_profile_followers_count, is_profile_following,
@@ -512,20 +513,25 @@ def _feed_user_context(conn, user_id, user_type):
         return None, None, set()
 
 
-def _save_accepted_professions(conn, job_id: int, profession_ids):
-    """Snapshot-replace accepted professions for a job (DELETE + INSERT). Owner already verified."""
+def _save_accepted_professions(conn, job_id: int, profession_ids, primary_pid=None):
+    """Snapshot-replace accepted professions for a job.
+
+    Validates the full list BEFORE DELETE so a bad request never wipes existing data.
+    Raises ValueError (caught by endpoint → HTTP 422) on any rule violation.
+    Owner must be verified by the caller before invoking this function.
+    """
     if profession_ids is None:
         return
+    # Validate first — no mutation if validation fails
+    clean = _validate_accepted_profession_ids(conn, primary_pid, profession_ids)
+    # Safe to mutate: DELETE old entries, then INSERT validated list
     conn.run("DELETE FROM job_profession_targets WHERE job_id = :jid", jid=job_id)
-    for i, pid in enumerate(profession_ids or []):
-        try:
-            conn.run(
-                "INSERT INTO job_profession_targets (job_id, profession_id, display_order) "
-                "VALUES (:jid, :pid, :ord) ON CONFLICT (job_id, profession_id) DO NOTHING",
-                jid=job_id, pid=int(pid), ord=i
-            )
-        except Exception:
-            pass
+    for i, pid in enumerate(clean):
+        conn.run(
+            "INSERT INTO job_profession_targets (job_id, profession_id, display_order) "
+            "VALUES (:jid, :pid, :ord)",
+            jid=job_id, pid=pid, ord=i
+        )
 
 
 def _taxonomy_score(job, user_pid, user_pgroup, user_skills, accepted_pids=None):
@@ -2916,7 +2922,10 @@ def post_job(data: JobInput, token=Depends(verify_token)):
     if user_type not in ("co", "edu"):
         print(f"[SECURITY] COMPANY_OWNERSHIP_FAILED: user_type={user_type} tried POST /company/jobs")
         raise HTTPException(403, "شركات وجهات فقط")
-    job = add_job(int(user_id), data.dict())
+    try:
+        job = add_job(int(user_id), data.dict())
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
     return {"status": "success", "job": job}
 
 @app.put("/company/jobs/{job_id}")
@@ -2954,7 +2963,21 @@ def update_job_endpoint(job_id: int, data: JobInput, token=Depends(verify_token)
                 raise HTTPException(403, "ليست وظيفتك أو غير موجودة")
         # Snapshot-replace accepted professions (only when caller sent the field)
         if accepted_pids is not None:
-            _save_accepted_professions(conn, job_id, accepted_pids)
+            # Determine effective primary profession for validation:
+            # use new value from payload if provided, else fetch current from DB
+            primary_pid_for_validation = raw_fields.get("profession_id")
+            if primary_pid_for_validation is None:
+                pid_rows = conn.run(
+                    "SELECT profession_id FROM jobs WHERE id = :id", id=job_id)
+                if pid_rows:
+                    primary_pid_for_validation = pid_rows[0][0]
+            try:
+                _save_accepted_professions(
+                    conn, job_id, accepted_pids,
+                    primary_pid=primary_pid_for_validation
+                )
+            except ValueError as e:
+                raise HTTPException(status_code=422, detail=str(e))
         return {"status": "success"}
     finally:
         release_conn(conn)
