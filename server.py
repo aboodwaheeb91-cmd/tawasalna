@@ -2446,12 +2446,17 @@ def delete_user_skill(skill_id: int, token=Depends(verify_token)):
     try:
         conn = get_conn()
         try:
-            # Only delete if belongs to the token user
-            conn.run("DELETE FROM user_skills WHERE id = :id AND user_id = :uid",
-                    id=skill_id, uid=uid)
+            rows = conn.run("SELECT user_id FROM user_skills WHERE id = :id", id=skill_id)
+            if not rows:
+                raise HTTPException(404, "Skill not found")
+            if str(rows[0][0]) != str(uid):
+                raise HTTPException(403, "Forbidden")
+            conn.run("DELETE FROM user_skills WHERE id = :id", id=skill_id)
             return {"success": True}
         finally:
             release_conn(conn)
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(500, str(e))
 
@@ -2486,11 +2491,17 @@ def delete_user_lang(lang_id: int, token=Depends(verify_token)):
     try:
         conn = get_conn()
         try:
-            conn.run("DELETE FROM user_langs WHERE id = :id AND user_id = :uid",
-                    id=lang_id, uid=uid)
+            rows = conn.run("SELECT user_id FROM user_langs WHERE id = :id", id=lang_id)
+            if not rows:
+                raise HTTPException(404, "Language not found")
+            if str(rows[0][0]) != str(uid):
+                raise HTTPException(403, "Forbidden")
+            conn.run("DELETE FROM user_langs WHERE id = :id", id=lang_id)
             return {"success": True}
         finally:
             release_conn(conn)
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(500, str(e))
 
@@ -2519,11 +2530,17 @@ def delete_user_link(link_id: int, token=Depends(verify_token)):
     try:
         conn = get_conn()
         try:
-            conn.run("DELETE FROM user_links WHERE id = :id AND user_id = :uid",
-                    id=link_id, uid=uid)
+            rows = conn.run("SELECT user_id FROM user_links WHERE id = :id", id=link_id)
+            if not rows:
+                raise HTTPException(404, "Link not found")
+            if str(rows[0][0]) != str(uid):
+                raise HTTPException(403, "Forbidden")
+            conn.run("DELETE FROM user_links WHERE id = :id", id=link_id)
             return {"success": True}
         finally:
             release_conn(conn)
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(500, str(e))
 
