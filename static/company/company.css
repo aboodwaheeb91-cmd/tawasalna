@@ -868,6 +868,10 @@ body.co-loading  .visitor-only           { display: none !important; }
   width:16px; height:16px; accent-color:var(--ac2,#00c896);
   cursor:pointer; flex-shrink:0;
 }
+.j-toggle-ico {
+  width:14px; height:14px; stroke:var(--ac2,#00c896);
+  flex-shrink:0; pointer-events:none;
+}
 .j-sal-toggle-wrap, .j-acc-all-wrap { margin-bottom:10px; }
 
 /* ══ DROPDOWN MOBILE FIX ══════════════════════════════════════════ */
