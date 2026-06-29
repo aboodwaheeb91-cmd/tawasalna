@@ -198,6 +198,22 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 
 ---
 
+### 20a. Company Followers Modal
+**Purpose:** Display paginated list of users who follow a company, filterable by user type (emp/co/edu). Accessible by clicking the "المتابعون" tile on the company stats bar.
+**Source of Truth:** `company_follows` DB table · `auth.py → get_company_followers_list()` · `server.py → GET /company/{id}/followers`
+**Responsible files:**
+- `auth.py` — `get_company_followers_list(company_id, viewer_id, limit, offset, user_type)`
+- `server.py` — `GET /company/{company_id}/followers?limit=&offset=&type=`
+- `company-profile.html` — `#coStatFollowersTile` (clickable tile) + `#coFollowListModal` (modal HTML)
+- `static/company/company.api.js` — `getCompanyFollowersList(companyId, limit, offset, type)`
+- `static/company/company.main.js` — Company Followers Modal IIFE + Soft Refresh IIFE
+- `static/company/company.css` — `.co-fl-*` modal styles + `.co-stat-clickable`
+**Details:** `ARCHITECTURE.md §53a`
+**Architecture note:** Uses `company_follows` (separate from `profile_follows`). The two tables are NOT unified — unification is deferred to a future PR with a full migration plan. Companies do not follow others, so there is no "يتابع" tab.
+**Do not recreate:** Do not add a "يتابع" tab to the company followers modal. Do not use `profile_follows` for company follow data. Do not create a new follow table — extend `company_follows`.
+
+---
+
 ### 21. Profile Views Tracking
 **Purpose:** Track and display how many times a profile has been viewed.
 **Source of Truth:** `profile_views` table or `profiles.views_count`
@@ -349,4 +365,4 @@ These systems exist in code but lack formal documentation in ARCHITECTURE.md or 
 
 ---
 
-*Last updated: 2026-06-27 — reflects systems as of PR #278 merge.*
+*Last updated: 2026-06-29 — reflects systems as of PR #295 (Company Followers Modal).*

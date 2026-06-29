@@ -82,7 +82,7 @@ from auth import (
     _migrate_job_profession_targets,
     _fetch_accepted_professions_batch,
     _validate_accepted_profession_ids,
-    follow_company, unfollow_company, rate_company,
+    follow_company, unfollow_company, get_company_followers_list, rate_company,
     get_company_posts, get_company_posts_count, create_company_post, get_post_owner, delete_company_post,
     follow_profile, unfollow_profile, get_profile_followers_count, is_profile_following,
     get_profile_followers_list, get_profile_following_list,
@@ -1496,6 +1496,26 @@ def company_unfollow(company_id: str, token=Depends(verify_token)):
     resolved_id = _resolve_company_id(company_id)
     count = unfollow_company(int(user_id), resolved_id)
     return {"status": "success", "following": False, "followers_count": count}
+
+
+@app.get("/company/{company_id}/followers")
+def company_followers_list(company_id: str, request: Request, limit: int = 20, offset: int = 0, type: str = "all"):
+    """Paginated followers list for a company. Public — no auth required. type: all|emp|co|edu"""
+    if type not in _VALID_FOLLOW_TYPES:
+        raise HTTPException(400, "نوع غير صالح — القيم المسموحة: all, emp, co, edu")
+    resolved_id = _resolve_company_id(company_id)
+    if not resolved_id:
+        raise HTTPException(404, "الشركة غير موجودة")
+    limit  = min(max(limit, 1), 50)
+    offset = max(offset, 0)
+    viewer_id = None
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        payload = _jwt_decode(auth_header[7:])
+        if payload:
+            viewer_id = payload.get("user_id")
+    result = get_company_followers_list(resolved_id, viewer_id, limit, offset, type)
+    return {"status": "success", **result}
 
 
 @app.post("/company/rate/{company_id}")

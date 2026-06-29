@@ -4496,6 +4496,104 @@ invalid type → HTTP 400
 
 ---
 
+## [P1] 53a. Company Followers Modal
+
+**Implemented in:** PR #295 (feat/company-followers-modal)
+
+### Architecture Note — Two Follow Tables (Not Unified)
+
+The platform has **two separate follow tables**:
+
+| Table | Purpose | Key Columns |
+|-------|---------|-------------|
+| `profile_follows` | Employee/user follows any user profile | `follower_id`, `followed_id` |
+| `company_follows` | User follows a company | `follower_id`, `company_id` |
+
+These tables are **not unified**. A migration to unify them is deferred to a future standalone PR with a clear migration plan. Do not attempt to merge them in an unrelated PR.
+
+### Database Table: `company_follows`
+
+```sql
+-- Existing table (created in Phase 2)
+company_follows: id PK, company_id FK(users.id), follower_id FK(users.id), created_at
+  UNIQUE(company_id, follower_id)
+  -- No DB-level self-follow CHECK (only server-level guard)
+```
+
+### API Endpoint
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | `/company/{company_id}/followers?limit=20&offset=0&type=all` | None (public, optional JWT) | قائمة متابعي الشركة |
+
+- `company_id` accepts numeric id or `tw_id` (resolved via `_resolve_company_id()`)
+- `type` values: `all` \| `emp` \| `co` \| `edu` — invalid value → HTTP 400
+- `limit` capped at 50; `offset` min 0
+- Optional JWT: if provided, `is_following` per item is populated via `profile_follows` (cross-entity follow check)
+
+**Response Contract:**
+
+```json
+{
+  "status": "success",
+  "items": [
+    {
+      "id": 42,
+      "tw_id": "U9620...",
+      "full_name": "أحمد الخالد",
+      "user_type": "emp",
+      "avatar_url": "https://...",
+      "profession": { "name_ar": "مطوّر برمجيات", "icon": "code" },
+      "is_following": true,
+      "followed_at": "2026-06-15T00:00:00Z"
+    }
+  ],
+  "filter": { "type": "all" },
+  "counts": { "all": 120, "emp": 80, "co": 25, "edu": 15 },
+  "pagination": { "limit": 20, "offset": 0, "has_more": true, "total": 120 }
+}
+```
+
+### Backend Function
+
+`get_company_followers_list(company_id, viewer_id, limit, offset, user_type="all")` in `auth.py`
+
+- Mirrors `get_profile_followers_list` pattern
+- `is_following` = EXISTS in `profile_follows` (viewer → follower) — no N+1
+- `viewer_id = None` for unauthenticated requests → `is_following = FALSE`
+
+### Frontend — Company Followers Modal
+
+**Files:**
+- `static/company/company.api.js` — `getCompanyFollowersList(companyId, limit, offset, type)`
+- `static/company/company.main.js` — Company Followers Modal IIFE (open/close/fetch/render) + Soft Refresh IIFE
+- `static/company/company.css` — `.co-fl-*` styles + `.co-stat-clickable`
+- `company-profile.html` — `#coStatFollowersTile` (clickable) + `#coFollowListModal` (HTML structure)
+
+**Behaviour:**
+- Clicking `#coStatFollowersTile` → `_open()` → resets state → fetches first page
+- Bottom-sheet on mobile (≤539px), centered panel on desktop (≥540px)
+- Filter chips: `all` / `emp` / `co` / `edu` — filtering done server-side (preserves pagination correctness)
+- Load More: offset-based, `has_more` from backend
+- Per-item follow button: calls `POST/DELETE /profile/{uid}/follow` (cross-entity follow via `profile_follows`)
+- Soft Refresh: `loadData({silent:true})` every 30 s, paused while tab is hidden (`visibilitychange`)
+- Close: `#coFlClose` button, backdrop click, ESC key
+
+**Single Tab Only:**
+The modal has no "يتابع" tab because companies do not follow other users. Any future addition of company-follows-company must be a separate PR.
+
+### ممنوعات
+
+```
+❌ لا تُضيف تبويب "يتابع" لشركة (الشركات لا تتابع حسابات أخرى)
+❌ لا تستخدم profile_follows لبيانات متابعي الشركة
+❌ لا تدمج company_follows و profile_follows في هذا السياق
+❌ لا تعمل DB migration لتوحيد الجدولين إلا في PR مستقل بخطة واضحة
+❌ لا تعرض followers_count من localStorage — استخدم companyState.stats.followers_count فقط
+```
+
+---
+
 ## [P1] 54. QR Card System
 
 **File:** `profile-v2.qr.js`

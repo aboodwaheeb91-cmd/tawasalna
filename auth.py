@@ -2868,6 +2868,75 @@ def unfollow_company(follower_id: int, company_id: int) -> int:
         release_conn(conn)
 
 
+def get_company_followers_list(company_id: int, viewer_id, limit: int, offset: int, user_type: str = "all") -> dict:
+    """Paginated list of accounts following company_id. viewer_id=None for guests."""
+    conn = get_conn()
+    try:
+        # Per-type counts (single query)
+        type_rows = conn.run(
+            "SELECT u.user_type, COUNT(*) FROM company_follows cf "
+            "JOIN users u ON u.id=cf.follower_id "
+            "WHERE cf.company_id=:cid GROUP BY u.user_type",
+            cid=company_id) or []
+        type_counts = {"emp": 0, "co": 0, "edu": 0}
+        for row in type_rows:
+            utype, cnt = row[0], row[1]
+            if utype in type_counts:
+                type_counts[utype] = cnt
+        total_all = sum(type_counts.values())
+        counts = {"all": total_all, **type_counts}
+        total = type_counts.get(user_type, 0) if user_type != "all" else total_all
+
+        where_type = "AND u.user_type=:utype " if user_type != "all" else ""
+        # Check if viewer follows each follower (via profile_follows — cross-entity follow)
+        if viewer_id is not None:
+            is_following_expr = (
+                "EXISTS(SELECT 1 FROM profile_follows v "
+                "WHERE v.follower_id=:vid AND v.followed_id=u.id)")
+        else:
+            is_following_expr = "FALSE"
+
+        query = (
+            "SELECT u.id, u.tw_id, u.full_name, u.user_type, p.avatar_url, "
+            "pc.name_ar, pc.icon, cf.created_at, " + is_following_expr + " "
+            "FROM company_follows cf "
+            "JOIN users u ON u.id=cf.follower_id "
+            "LEFT JOIN profiles p ON p.user_id=u.id "
+            "LEFT JOIN profession_categories pc ON pc.id=p.profession_id "
+            "WHERE cf.company_id=:cid " + where_type +
+            "ORDER BY cf.created_at DESC LIMIT :lim OFFSET :off"
+        )
+        params = {"cid": company_id, "lim": limit, "off": offset}
+        if viewer_id is not None:
+            params["vid"] = int(viewer_id)
+        if user_type != "all":
+            params["utype"] = user_type
+
+        rows = conn.run(query, **params) or []
+        items = []
+        for r in rows:
+            uid, tw_id, full_name, utype, avatar_url, prof_name, prof_icon, followed_at, is_following = r
+            items.append({
+                "id":           uid,
+                "tw_id":        tw_id,
+                "display_name": full_name,
+                "avatar_url":   avatar_url,
+                "user_type":    utype,
+                "profession":   {"name_ar": prof_name, "icon": prof_icon} if prof_name else None,
+                "is_following": bool(is_following),
+                "can_follow":   viewer_id is not None and int(viewer_id) != uid,
+                "followed_at":  followed_at.isoformat() if hasattr(followed_at, "isoformat") else (str(followed_at) if followed_at else None),
+            })
+        return {
+            "items":      items,
+            "filter":     {"type": user_type},
+            "counts":     counts,
+            "pagination": {"limit": limit, "offset": offset, "has_more": (offset + limit) < total, "total": total},
+        }
+    finally:
+        release_conn(conn)
+
+
 def rate_company(rater_id: int, company_id: int, score: int, comment: str = None) -> dict:
     """Rate (UPSERT — one rating per user). Returns new avg + count."""
     conn = get_conn()

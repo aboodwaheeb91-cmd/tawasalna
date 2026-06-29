@@ -719,3 +719,205 @@
     }
   }, { passive: true });
 }());
+
+// ── Company Followers Modal ────────────────────────────────────────
+(function () {
+  'use strict';
+
+  var _overlay  = document.getElementById('coFollowListModal');
+  if (!_overlay) return;
+
+  var _list     = document.getElementById('coFlList');
+  var _loadWrap = document.getElementById('coFlLoad');
+  var _loadBtn  = document.getElementById('coFlLoadMore');
+  var _filtersEl= document.getElementById('coFlFilters');
+
+  var _loading  = false;
+  var _filter   = 'all';
+  var _offset   = 0;
+  var _limit    = 20;
+  var _hasMore  = false;
+
+  var _TYPE_LABELS = { all: 'الكل', emp: 'موظفون', co: 'شركات', edu: 'مؤسسات' };
+  var _TYPE_ORDER  = ['all', 'emp', 'co', 'edu'];
+
+  function _getCompanyId() {
+    return window.companyState && companyState.profile ? companyState.profile.id : null;
+  }
+
+  function _open() {
+    _filter = 'all';
+    _offset = 0;
+    _list.innerHTML = '';
+    _loadWrap.style.display = 'none';
+    _overlay.style.display  = 'flex';
+    document.body.style.overflow = 'hidden';
+    _fetchPage(true);
+  }
+
+  function _close() {
+    _overlay.style.display = 'none';
+    document.body.style.overflow = '';
+  }
+
+  function _renderChips(counts) {
+    if (!_filtersEl) return;
+    var html = '';
+    _TYPE_ORDER.forEach(function (t) {
+      var n = t === 'all' ? (counts.all || 0) : (counts[t] || 0);
+      if (t !== 'all' && n === 0) return;
+      var active = _filter === t ? ' active' : '';
+      html += '<button class="co-fl-chip' + active + '" data-type="' + t + '">' +
+        _TYPE_LABELS[t] + (t !== 'all' ? ' (' + n + ')' : '') + '</button>';
+    });
+    _filtersEl.innerHTML = html;
+    _filtersEl.querySelectorAll('.co-fl-chip').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        _filter = this.dataset.type;
+        _offset = 0;
+        _list.innerHTML = '';
+        _filtersEl.querySelectorAll('.co-fl-chip').forEach(function (b) { b.classList.remove('active'); });
+        this.classList.add('active');
+        _fetchPage(true);
+      });
+    });
+  }
+
+  function _esc(s) {
+    return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  function _renderItems(items) {
+    items.forEach(function (item) {
+      var div = document.createElement('div');
+      div.className = 'co-fl-item';
+
+      // Avatar
+      var avaDiv = document.createElement('div');
+      avaDiv.className = 'co-fl-ava';
+      if (item.avatar_url) {
+        var img = document.createElement('img');
+        img.src = item.avatar_url;
+        img.alt = item.display_name || '';
+        avaDiv.appendChild(img);
+      } else {
+        avaDiv.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>';
+      }
+
+      // Info
+      var infoDiv = document.createElement('div');
+      infoDiv.className = 'co-fl-info';
+
+      var nameEl = document.createElement('div');
+      nameEl.className = 'co-fl-name';
+      nameEl.textContent = item.display_name || '—';
+
+      var metaEl = document.createElement('div');
+      metaEl.className = 'co-fl-meta';
+      var typeLabel  = { emp: 'موظف', co: 'شركة', edu: 'تعليمية' }[item.user_type] || '';
+      var profLabel  = item.profession && item.profession.name_ar ? item.profession.name_ar : '';
+      metaEl.textContent = [profLabel, typeLabel].filter(Boolean).join(' · ');
+
+      infoDiv.appendChild(nameEl);
+      infoDiv.appendChild(metaEl);
+
+      // Follow button (if allowed)
+      var followBtnEl = null;
+      if (item.can_follow) {
+        followBtnEl = document.createElement('button');
+        followBtnEl.className = 'co-fl-follow-btn' + (item.is_following ? ' following' : '');
+        followBtnEl.textContent = item.is_following ? 'متابَع' : 'تابع';
+        (function (it, btn) {
+          btn.addEventListener('click', function () {
+            var jwt = window._jwt ? window._jwt() : '';
+            if (!jwt) { if (window.showToast) showToast('سجّل الدخول أولاً'); return; }
+            var isF = btn.classList.contains('following');
+            var method = isF ? 'DELETE' : 'POST';
+            btn.disabled = true;
+            fetch('/profile/' + it.id + '/follow', {
+              method: method,
+              headers: { 'Authorization': 'Bearer ' + jwt }
+            }).then(function (r) { return r.json(); })
+              .then(function (d) {
+                if (d.status === 'success' || d.is_following != null) {
+                  var nowF = !isF;
+                  btn.classList.toggle('following', nowF);
+                  btn.textContent = nowF ? 'متابَع' : 'تابع';
+                }
+              }).catch(function () {})
+              .finally(function () { btn.disabled = false; });
+          });
+        }(item, followBtnEl));
+      }
+
+      div.appendChild(avaDiv);
+      div.appendChild(infoDiv);
+      if (followBtnEl) div.appendChild(followBtnEl);
+      _list.appendChild(div);
+    });
+  }
+
+  function _fetchPage(replace) {
+    var coId = _getCompanyId();
+    if (_loading || !coId) return;
+    _loading = true;
+    if (replace) _list.innerHTML = '<div class="co-fl-spin">جاري التحميل...</div>';
+    window.getCompanyFollowersList(coId, _limit, _offset, _filter)
+      .then(function (res) {
+        _loading = false;
+        if (!res || !res.ok || !res.data) {
+          if (replace) _list.innerHTML = '<div class="co-fl-empty">تعذّر تحميل القائمة</div>';
+          return;
+        }
+        var d = res.data;
+        if (replace) {
+          _list.innerHTML = '';
+          _renderChips(d.counts || {});
+        }
+        if (!d.items || d.items.length === 0) {
+          if (replace) _list.innerHTML = '<div class="co-fl-empty">لا يوجد متابعون حتى الآن</div>';
+          _loadWrap.style.display = 'none';
+          return;
+        }
+        _renderItems(d.items);
+        _offset += d.items.length;
+        _hasMore = d.pagination && d.pagination.has_more;
+        _loadWrap.style.display = _hasMore ? '' : 'none';
+        if (window.lucide && lucide.createIcons) lucide.createIcons();
+      })
+      .catch(function () {
+        _loading = false;
+        if (replace) _list.innerHTML = '<div class="co-fl-empty">حدث خطأ، حاول مرة أخرى</div>';
+      });
+  }
+
+  // Wire close button
+  document.getElementById('coFlClose').addEventListener('click', _close);
+  _overlay.addEventListener('click', function (e) { if (e.target === _overlay) _close(); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') _close(); });
+  if (_loadBtn) _loadBtn.addEventListener('click', function () { _fetchPage(false); });
+
+  // Wire followers tile click — fires after data loads (tile may not exist yet on DOMContentLoaded)
+  document.addEventListener('DOMContentLoaded', function () {
+    var tile = document.getElementById('coStatFollowersTile');
+    if (tile) tile.addEventListener('click', _open);
+  });
+
+  window._coFlOpen = _open;
+}());
+
+// ── Soft refresh: followers count every 30s while page is visible ─
+(function () {
+  var _interval = null;
+  function _start() {
+    if (_interval) return;
+    _interval = setInterval(function () {
+      if (window.loadData) loadData({ silent: true });
+    }, 30000);
+  }
+  function _stop() { clearInterval(_interval); _interval = null; }
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) _stop(); else _start();
+  });
+  document.addEventListener('DOMContentLoaded', _start);
+}());

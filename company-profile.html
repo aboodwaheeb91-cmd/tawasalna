@@ -180,7 +180,7 @@
     <div class="sc-stat-n" id="viewsCount">0</div>
     <div class="sc-stat-l">المشاهدات</div>
   </div>
-  <div class="sc-stat">
+  <div class="sc-stat co-stat-clickable" id="coStatFollowersTile">
     <i data-lucide="users" class="ico sc-stat-i" style="color:#8b5cf6"></i>
     <div class="sc-stat-n" id="followersCount">0</div>
     <div class="sc-stat-l">المتابعون</div>
@@ -543,6 +543,21 @@
       <button class="co-branches-sheet-close" onclick="closeAllBranchesModal()" type="button" aria-label="إغلاق">✕</button>
     </div>
     <div id="allBranchesList"></div>
+  </div>
+</div>
+
+<!-- ██ COMPANY FOLLOWERS MODAL ██ -->
+<div class="co-fl-overlay" id="coFollowListModal" style="display:none">
+  <div class="co-fl-panel">
+    <div class="co-fl-head">
+      <div class="co-fl-title">المتابعون</div>
+      <button class="co-fl-close" id="coFlClose" aria-label="إغلاق">×</button>
+    </div>
+    <div class="co-fl-filters" id="coFlFilters"></div>
+    <div class="co-fl-list" id="coFlList"></div>
+    <div class="co-fl-load" id="coFlLoad" style="display:none">
+      <button class="co-fl-load-btn" id="coFlLoadMore">تحميل المزيد</button>
+    </div>
   </div>
 </div>
 
