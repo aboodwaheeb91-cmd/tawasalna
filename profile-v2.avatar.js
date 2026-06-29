@@ -184,7 +184,7 @@
     saveBtn.disabled = true;
     saveBtn.textContent = 'جاري الرفع…';
 
-    uploadAvatar(uid, dataUrl, window._jwt || '')
+    uploadAvatar(uid, dataUrl)
       .then(function(res){
         if(!res.ok || !res.data || !res.data.url){
           // dev fallback: save data_url directly to profile
