@@ -4871,6 +4871,7 @@ company_saved_candidates:
 | `remove_company_candidate(company_id, candidate_id)` | DELETE + return count |
 | `get_company_saved_candidates(company_id, limit, offset)` | Paginated list — no sensitive fields |
 | `get_company_saved_candidates_count(company_id)` | Count only (badge) |
+| `get_company_candidate_suggestions(company_id, limit, offset, include_saved)` | **Phase 5A** — scored suggestions based on active jobs |
 
 **Safe fields returned:**
 `candidate_id, tw_id, full_name, avatar_url, profession (from profession_categories), city, country, job_id, status, notes, created_at`
@@ -4888,6 +4889,118 @@ company_saved_candidates:
 ❌ لا تسمح بحفظ شركة أو جهة تعليمية كمرشح (user_type != 'emp' → 400)
 ❌ لا تخلط هذا النظام مع التبويبات العامة لصفحة الشركة
 ❌ لا تضف Frontend في هذا الـ PR — هذه مرحلة 3 (Backend فقط)
+```
+
+---
+
+## [P3] 55b. Company Candidate Suggestions — Phase 5A Backend
+
+**Implemented in:** PR feat/company-candidate-suggestions (Phase 5A)
+**Status:** Backend only. Frontend tab "اقتراحات مناسبة" comes in Phase 5B.
+
+### Purpose
+
+Provides scored employee profile suggestions to a company owner based on its active job postings. Uses existing job taxonomy (profession_id, job_profession_targets, skills) to rank employees by relevance. No new DB table introduced.
+
+### Endpoint
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | `/company/candidate-suggestions` | JWT (co only) | اقتراحات مرشحين مرتبة حسب match_score |
+
+**Query params:**
+- `limit` — int, default 20, max 50
+- `offset` — int, default 0
+- `include_saved` — bool, default false (exclude already-saved candidates)
+
+### Scoring Algorithm (max 100)
+
+| Signal | Points | Source |
+|--------|--------|--------|
+| Candidate profession_id matches any active job's primary `profession_id` | +45 | `jobs.profession_id` |
+| Candidate profession_id is in `job_profession_targets` for any active job (secondary, not already primary-matched) | +35 | `job_profession_targets` |
+| Skill overlap between candidate skills and job required skills (scaled: 1 skill→+5, 4+→+20) | +20 max | `user_skills` + `profiles.skills[]` |
+| City or country match with company location | +10 | `profiles.city/country` |
+| Profile quality (has headline +5, avail=looking +5) | +10 max | `profiles.headline/avail` |
+
+**Total max:** 100 (capped with `min(100, score)`)
+
+### Data Sources
+
+All existing tables — no new table created:
+- `jobs` — active jobs, primary profession_id, skills[], accepts_all_professions
+- `job_profession_targets` — secondary accepted profession IDs
+- `profession_categories` — profession names for display
+- `profiles` — candidate city, country, avail, skills[], headline, profession_id
+- `user_skills` — normalized skills with level (merged with profiles.skills[])
+- `company_saved_candidates` — used to flag/exclude already-saved candidates
+
+### Security & Privacy
+
+- JWT mandatory. `user_type` must be `co` — 403 for all others.
+- `company_id` derived exclusively from `token["user_id"]`. No query param accepted.
+- Cross-company access structurally impossible: company A cannot see company B's suggestions.
+- Excluded fields: `email, phone, dob, location (detailed), password_hash`
+- Excluded user types: `co`, `edu` — only `emp` candidates appear
+- Already-saved candidates: excluded by default (`include_saved=false`)
+
+### Empty State (no active jobs)
+
+```json
+{
+  "status": "no_jobs",
+  "message": "لا توجد اقتراحات بعد — انشر وظيفة أولاً لتحسين الاقتراحات.",
+  "items": [], "count": 0,
+  "pagination": { "limit": 20, "offset": 0, "has_more": false, "total": 0 }
+}
+```
+
+### Response Contract
+
+```json
+{
+  "status": "success",
+  "count": 8,
+  "items": [
+    {
+      "candidate_id": 8,
+      "tw_id": "U9620...",
+      "full_name": "اسم الموظف",
+      "avatar_url": "...",
+      "profession": "محاسب",
+      "city": "عمان",
+      "country": "الأردن",
+      "match_score": 82,
+      "match_reasons": [
+        "تخصصه يطابق إحدى وظائفك",
+        "يمتلك 3 مهارات مشتركة",
+        "في نفس المدينة",
+        "يبحث عن فرص عمل"
+      ],
+      "is_saved": false
+    }
+  ],
+  "pagination": { "limit": 20, "offset": 0, "has_more": false, "total": 8 }
+}
+```
+
+### Performance Notes
+
+- SQL pre-filter: candidates filtered by `profession_id IN (...)` before scoring (unless job `accepts_all_professions=true`)
+- Hard cap: fetches max 500 candidates before Python scoring (sufficient for platform scale)
+- Scoring runs in Python after 3 batch SQL queries (no N+1)
+- Scoring is idempotent and stateless — no cache needed for v1
+
+### ممنوعات
+
+```
+❌ لا تضف Frontend في Phase 5A — الـ tab يأتي في Phase 5B
+❌ لا تُضيف company_id كـ query param — يأتي من JWT فقط
+❌ لا تُرجع email أو phone
+❌ لا تُنشئ جدول جديد للاقتراحات — الأنظمة الموجودة كافية
+❌ لا تُضيف AI أو embeddings قبل decision صريح من المستخدم
+❌ لا تعرض اقتراحات عشوائية بدون وظائف active
+❌ لا تُعدِّل نظام /jobs/match الموجود
 ```
 
 ---
