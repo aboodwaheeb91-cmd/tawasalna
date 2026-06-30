@@ -255,8 +255,9 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 **Auth:** JWT mandatory, `user_type='co'` only. `company_id` from JWT — no query param.
 **Scoring:** profession match (45/35) + skill overlap (20) + location (10) + profile quality (10). Returns `match_score` + `match_reasons` per candidate.
 **Privacy:** Returns `candidate_id, tw_id, full_name, avatar_url, profession, city, country, match_score, match_reasons, is_saved` only. Never returns email, phone, dob, or KYC data.
-**Phase status:** Phase 5A (Backend) + Phase 5B (Frontend tab) — Complete.
+**Phase status:** Phase 5A (Backend) + Phase 5B (Frontend tab) + Phase 6A (Pipeline PATCH) + Phase 6B (Pipeline UI) — Complete.
 **Frontend (Phase 5B):** Tab "اقتراحات مناسبة" inside `#coCandidatesModal` → `getCandidateSuggestions` / `saveSuggestedCandidate` in `company.api.js`. Tab switch handled in `company.main.js` IIFE (`_switchTab`, `_fetchSuggestions`, `_renderSuggestions`). Styles in `company.css` (`.co-sugg-*`).
+**Frontend (Phase 6B):** Pipeline manage panel inside saved tab. Each saved card is `.co-cand-saved-card` (column-flex) with `.co-cand-top` (row) + `.co-cand-manage-panel` (hidden panel). "إدارة" button toggles panel — shows status select, notes textarea (500 char limit + live counter), and job select (sourced from `companyState.jobs`). PATCH called via `updateSavedCandidate()` in `company.api.js`; success → `_applyCardUpdate()` updates badge+notes+job ref in-place. Event delegation on `_body` handles all panel interactions. Styles: `.co-cand-status--*`, `.co-cand-manage-panel`, `.co-cand-panel-*`.
 **Do not recreate:** No new DB table for suggestions. No AI/embeddings without explicit decision. No random suggestions without active jobs. `company_id` always from JWT. Suggestions tab is inside the modal only — not a page-level tab.
 
 ---
@@ -412,4 +413,4 @@ These systems exist in code but lack formal documentation in ARCHITECTURE.md or 
 
 ---
 
-*Last updated: 2026-06-30 — reflects systems as of feat/company-candidate-pipeline-backend (Phase 6A Backend — PATCH pipeline management).*
+*Last updated: 2026-06-30 — reflects systems as of feat/company-candidate-pipeline-ui (Phase 6B Frontend — manage panel in saved tab).*

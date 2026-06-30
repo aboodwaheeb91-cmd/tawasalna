@@ -1205,3 +1205,122 @@ body.co-loading  .visitor-only           { display: none !important; }
 }
 .co-sugg-load-more:hover { background:rgba(255,255,255,.08); }
 .co-sugg-load-more:disabled { opacity:.4; cursor:default; }
+
+/* ── Phase 6B — Pipeline manage panel (saved tab) ────────────── */
+
+/* Outer wrapper: column flex so panel expands below the row */
+.co-cand-saved-card {
+  display:flex; flex-direction:column;
+  border-bottom:1px solid rgba(255,255,255,.05);
+}
+.co-cand-saved-card:last-child { border-bottom:none; }
+
+/* Inner horizontal row — mirrors original .co-cand-item layout */
+.co-cand-top {
+  display:flex; align-items:center; gap:10px;
+  padding:11px 14px;
+}
+
+/* Date + status badge side by side */
+.co-cand-row2 {
+  display:flex; align-items:center; gap:6px; margin-top:3px; flex-wrap:wrap;
+}
+
+/* Status badge */
+.co-cand-status {
+  display:inline-flex; align-items:center;
+  font-size:.58rem; font-weight:700;
+  padding:2px 7px; border-radius:20px; line-height:1.3; white-space:nowrap;
+}
+.co-cand-status--saved       { background:rgba(148,163,184,.12); color:#94a3b8; }
+.co-cand-status--shortlisted { background:rgba(37,99,255,.14);   color:#6699ff; }
+.co-cand-status--contacted   { background:rgba(139,92,246,.14);  color:#a78bfa; }
+.co-cand-status--interview   { background:rgba(251,191,36,.14);  color:#fbbf24; }
+.co-cand-status--hired       { background:rgba(0,200,150,.14);   color:#00c896; }
+.co-cand-status--rejected    { background:rgba(255,80,80,.12);   color:rgba(255,100,100,.8); }
+
+/* Notes preview (2-line clamp, owner-only) */
+.co-cand-notes-pre {
+  font-size:.62rem; color:var(--t2,#94a3b8);
+  margin-top:3px; line-height:1.45;
+  overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
+}
+
+/* Muted job reference */
+.co-cand-job-ref { font-size:.6rem; color:var(--t3,#6b7686); margin-top:2px; }
+
+/* Manage button — purple ghost */
+.co-cand-manage-btn {
+  font-size:.67rem; padding:4px 11px; border-radius:8px; cursor:pointer;
+  border:1px solid rgba(139,92,246,.3); background:rgba(139,92,246,.07);
+  color:#a78bfa; white-space:nowrap;
+  transition:background .15s, border-color .15s;
+}
+.co-cand-manage-btn:hover  { background:rgba(139,92,246,.14); }
+.co-cand-manage-btn.active {
+  background:rgba(139,92,246,.18); border-color:rgba(139,92,246,.55);
+}
+
+/* Manage panel — collapsed by default, expands via .open class */
+.co-cand-manage-panel {
+  padding:10px 14px 14px;
+  border-top:1px solid rgba(255,255,255,.06);
+  background:rgba(255,255,255,.025);
+  display:none; flex-direction:column; gap:8px;
+}
+.co-cand-manage-panel.open { display:flex; }
+
+/* Field label inside panel */
+.co-cand-panel-label {
+  font-size:.68rem; color:var(--t2,#94a3b8); font-weight:600; margin-bottom:-2px;
+}
+
+/* Select inside panel (status + job) */
+.co-cand-panel-sel {
+  width:100%; padding:7px 28px 7px 10px; border-radius:8px;
+  background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.1);
+  color:var(--t1,#fff); font-family:inherit; font-size:.78rem;
+  appearance:none; -webkit-appearance:none; cursor:pointer;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat:no-repeat; background-position:left 10px center;
+}
+.co-cand-panel-sel option { background:#1a2035; color:#fff; }
+.co-cand-panel-sel:focus  { outline:none; border-color:rgba(139,92,246,.45); }
+
+/* Textarea wrapper (relative for counter badge) */
+.co-cand-panel-ta-wrap { position:relative; }
+.co-cand-panel-ta {
+  width:100%; box-sizing:border-box;
+  padding:7px 10px 22px; border-radius:8px;
+  background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.1);
+  color:var(--t1,#fff); font-family:inherit; font-size:.78rem;
+  resize:vertical; min-height:72px; line-height:1.5;
+}
+.co-cand-panel-ta::placeholder { color:var(--t3,#6b7686); }
+.co-cand-panel-ta:focus { outline:none; border-color:rgba(139,92,246,.45); }
+
+/* Character counter */
+.co-cand-panel-counter {
+  position:absolute; left:8px; bottom:6px;
+  font-size:.57rem; color:var(--t3,#6b7686); user-select:none;
+}
+
+/* Action buttons row */
+.co-cand-panel-acts { display:flex; gap:7px; justify-content:flex-end; }
+
+.co-cand-panel-save {
+  font-size:.73rem; font-weight:700; padding:6px 18px;
+  border-radius:9px; cursor:pointer;
+  background:rgba(0,200,150,.14); border:1px solid rgba(0,200,150,.35); color:#00c896;
+  transition:background .15s;
+}
+.co-cand-panel-save:hover    { background:rgba(0,200,150,.22); }
+.co-cand-panel-save:disabled { opacity:.4; cursor:default; }
+
+.co-cand-panel-cancel {
+  font-size:.73rem; padding:6px 14px;
+  border-radius:9px; cursor:pointer;
+  background:transparent; border:1px solid rgba(255,255,255,.1); color:var(--t2,#94a3b8);
+  transition:background .15s;
+}
+.co-cand-panel-cancel:hover { background:rgba(255,255,255,.06); }

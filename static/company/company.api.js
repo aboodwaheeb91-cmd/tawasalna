@@ -214,6 +214,18 @@
     }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, status: r.status, data: d }; }); });
   }
 
+  // ── Pipeline management (Phase 6A endpoint — owner-only) ───────
+
+  function updateSavedCandidate(candidateId, payload) {
+    var jwt = window._jwt ? window._jwt() : '';
+    if (!jwt) return Promise.resolve({ ok: false, data: {} });
+    return fetch('/company/saved-candidates/' + candidateId, {
+      method: 'PATCH',
+      headers: { 'Authorization': 'Bearer ' + jwt, 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, status: r.status, data: d }; }); });
+  }
+
   window.loadData                   = loadData;
   window.loadJobs                   = loadJobs;
   window.loadPosts                  = loadPosts;
@@ -225,4 +237,5 @@
   window.deleteSavedCandidate       = deleteSavedCandidate;
   window.getCandidateSuggestions    = getCandidateSuggestions;
   window.saveSuggestedCandidate     = saveSuggestedCandidate;
+  window.updateSavedCandidate       = updateSavedCandidate;
 }());
