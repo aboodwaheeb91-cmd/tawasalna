@@ -93,7 +93,8 @@ from auth import (
     is_candidate_saved,
     _migrate_company_saved_candidates,
     save_company_candidate, remove_company_candidate,
-    get_company_saved_candidates, get_company_saved_candidates_count
+    get_company_saved_candidates, get_company_saved_candidates_count,
+    get_company_candidate_suggestions
 )
 from auth import ContentValidationError, validate_professional_text
 
@@ -1682,6 +1683,33 @@ def company_remove_candidate(candidate_id: int, token=Depends(verify_token)):
     company_id = _require_company_owner(token)
     count = remove_company_candidate(company_id=company_id, candidate_id=candidate_id)
     return {"status": "success", "saved": False, "count": count}
+
+
+@app.get("/company/candidate-suggestions")
+def company_candidate_suggestions(
+    limit: int = 20,
+    offset: int = 0,
+    include_saved: bool = False,
+    token: dict = Depends(verify_token)
+):
+    """
+    GET /company/candidate-suggestions
+    Scored employee suggestions for this company based on active job postings.
+    Auth: JWT Bearer (user_type='co'). company_id derived from token — no query param.
+    Returns: { status, count, items, pagination }
+    Empty + message if company has no active jobs.
+    Phase 5A Backend only — Frontend tab comes in Phase 5B.
+    """
+    company_id = _require_company_owner(token)
+    if limit < 1:  limit = 1
+    if limit > 50: limit = 50
+    if offset < 0: offset = 0
+    return get_company_candidate_suggestions(
+        company_id=company_id,
+        limit=limit,
+        offset=offset,
+        include_saved=include_saved
+    )
 
 
 @app.post("/reports/submit")

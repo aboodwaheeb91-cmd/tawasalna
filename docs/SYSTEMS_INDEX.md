@@ -244,6 +244,19 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 **Frontend (Phase 4):** `#candidatesBtn` in jobs toolbar (owner-only) + `#coCandidatesModal` + `.co-cand-*` CSS. Badge loads via `_loadCandidatesBadge()` hook in `loadData()`.
 **Do not recreate:** Do not add a `company_id` query param — company identity comes from JWT. Do not expose this list to non-owners. Do not confuse with profile_follows or company_follows tables.
 
+### 20d. Company Candidate Suggestions (Phase 5A Backend)
+**Purpose:** Scored employee suggestions for a company based on its active job postings. Owner-only, private. No new DB table — reuses jobs, job_profession_targets, profiles, user_skills, company_saved_candidates.
+**Source of Truth:** `auth.py → get_company_candidate_suggestions()` · `server.py → GET /company/candidate-suggestions`
+**Responsible files:**
+- `auth.py` — `get_company_candidate_suggestions(company_id, limit, offset, include_saved)`
+- `server.py` — `GET /company/candidate-suggestions` endpoint
+**Details:** `ARCHITECTURE.md §55b`
+**Auth:** JWT mandatory, `user_type='co'` only. `company_id` from JWT — no query param.
+**Scoring:** profession match (45/35) + skill overlap (20) + location (10) + profile quality (10). Returns `match_score` + `match_reasons` per candidate.
+**Privacy:** Returns `candidate_id, tw_id, full_name, avatar_url, profession, city, country, match_score, match_reasons, is_saved` only. Never returns email, phone, dob, or KYC data.
+**Phase status:** Phase 5A = Backend only. Phase 5B = Frontend "اقتراحات مناسبة" tab in the candidates modal.
+**Do not recreate:** No new DB table for suggestions. No AI/embeddings without explicit decision. No random suggestions without active jobs. `company_id` always from JWT.
+
 ---
 
 ### 21. Profile Views Tracking

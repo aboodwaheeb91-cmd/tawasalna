@@ -3663,3 +3663,229 @@ def get_company_saved_candidates_count(company_id: int) -> int:
     finally:
         release_conn(conn)
 
+
+def get_company_candidate_suggestions(
+    company_id: int,
+    limit: int = 20,
+    offset: int = 0,
+    include_saved: bool = False
+) -> dict:
+    """
+    Return scored candidate suggestions for a company based on its active jobs.
+
+    Scoring (max 100):
+      +45  candidate profession_id matches a job's primary profession_id
+      +35  candidate profession_id is in job_profession_targets (secondary, not double-counted)
+      +20  skill overlap between candidate skills and job required skills (scaled)
+      +10  city or country match with company location
+      +10  profile quality (has headline +5, actively looking avail +5)
+
+    Returns empty list with status='no_jobs' if company has no active jobs.
+    Excludes already-saved candidates by default (include_saved=False).
+    Never returns email, phone, dob, or any non-public field.
+    """
+    conn = get_conn()
+    try:
+        # ── 1. Active jobs for this company ─────────────────────────────────
+        job_rows = conn.run(
+            "SELECT j.id, j.profession_id, j.skills, j.accepts_all_professions, "
+            "       pc.name_ar AS profession_name "
+            "FROM jobs j "
+            "LEFT JOIN profession_categories pc ON pc.id = j.profession_id "
+            "WHERE j.company_id = :cid AND j.status = 'active'",
+            cid=company_id)
+
+        if not job_rows:
+            return {
+                "status": "no_jobs",
+                "message": "لا توجد اقتراحات بعد — انشر وظيفة أولاً لتحسين الاقتراحات.",
+                "items": [], "count": 0,
+                "pagination": {"limit": limit, "offset": offset, "has_more": False, "total": 0}
+            }
+
+        # ── 2. Aggregate job signals ─────────────────────────────────────────
+        job_ids = [r[0] for r in job_rows]
+        any_accepts_all = any(bool(r[3]) for r in job_rows)
+        primary_prof_ids = set()
+        all_job_skills = set()
+
+        for r in job_rows:
+            if r[1]:
+                primary_prof_ids.add(r[1])
+            for sk in (r[2] or []):
+                if sk:
+                    all_job_skills.add(sk.strip().lower())
+
+        # ── 3. Secondary professions (job_profession_targets) ────────────────
+        secondary_prof_ids = set()
+        if job_ids:
+            ph = ",".join(f":jid{i}" for i in range(len(job_ids)))
+            p = {f"jid{i}": jid for i, jid in enumerate(job_ids)}
+            if primary_prof_ids:
+                xph = ",".join(f":xp{i}" for i in range(len(primary_prof_ids)))
+                p.update({f"xp{i}": pid for i, pid in enumerate(primary_prof_ids)})
+                rows = conn.run(
+                    f"SELECT DISTINCT profession_id FROM job_profession_targets "
+                    f"WHERE job_id IN ({ph}) AND profession_id NOT IN ({xph})",
+                    **p)
+            else:
+                rows = conn.run(
+                    f"SELECT DISTINCT profession_id FROM job_profession_targets "
+                    f"WHERE job_id IN ({ph})",
+                    **p)
+            secondary_prof_ids = {r[0] for r in rows}
+
+        all_rel_prof_ids = primary_prof_ids | secondary_prof_ids
+
+        # ── 4. Company location for scoring ──────────────────────────────────
+        co_loc = conn.run(
+            "SELECT city, country FROM profiles WHERE user_id = :uid", uid=company_id)
+        co_city    = (co_loc[0][0] or "").strip() if co_loc else ""
+        co_country = (co_loc[0][1] or "").strip() if co_loc else ""
+
+        # ── 5. Already-saved candidate IDs ───────────────────────────────────
+        saved_rows = conn.run(
+            "SELECT candidate_id FROM company_saved_candidates WHERE company_id = :cid",
+            cid=company_id)
+        saved_ids = {r[0] for r in saved_rows}
+
+        # ── 6. Build candidate filter ─────────────────────────────────────────
+        where_parts = ["u.user_type = 'emp'", "u.id != :cid"]
+        qp = {"cid": company_id}
+
+        if not include_saved and saved_ids:
+            sph = ",".join(f":sid{i}" for i in range(len(saved_ids)))
+            qp.update({f"sid{i}": sid for i, sid in enumerate(saved_ids)})
+            where_parts.append(f"u.id NOT IN ({sph})")
+
+        # Profession pre-filter when job doesn't accept all (improves performance)
+        if not any_accepts_all and all_rel_prof_ids:
+            pph = ",".join(f":pf{i}" for i in range(len(all_rel_prof_ids)))
+            qp.update({f"pf{i}": pid for i, pid in enumerate(all_rel_prof_ids)})
+            where_parts.append(f"p.profession_id IN ({pph})")
+
+        where_sql = " AND ".join(where_parts)
+
+        cand_rows = conn.run(
+            f"SELECT u.id, u.tw_id, u.full_name, p.avatar_url, p.profession_id, "
+            f"       p.city, p.country, p.avail, p.skills, p.headline, "
+            f"       pc.name_ar AS profession_name "
+            f"FROM users u "
+            f"JOIN profiles p ON p.user_id = u.id "
+            f"LEFT JOIN profession_categories pc ON pc.id = p.profession_id "
+            f"WHERE {where_sql} "
+            f"ORDER BY u.id LIMIT 500",
+            **qp)
+
+        if not cand_rows:
+            return {
+                "status": "success",
+                "items": [], "count": 0,
+                "pagination": {"limit": limit, "offset": offset, "has_more": False, "total": 0}
+            }
+
+        candidates = [{
+            "id": r[0], "tw_id": r[1], "full_name": r[2],
+            "avatar_url": r[3], "profession_id": r[4],
+            "city": r[5] or "", "country": r[6] or "",
+            "avail": r[7] or "", "profile_skills": [s.strip().lower() for s in (r[8] or []) if s],
+            "headline": r[9] or "", "profession_name": r[10] or ""
+        } for r in cand_rows]
+
+        # ── 7. Batch-fetch user_skills ────────────────────────────────────────
+        cand_ids = [c["id"] for c in candidates]
+        user_skills_map = {}
+        if cand_ids:
+            usph = ",".join(f":us{i}" for i in range(len(cand_ids)))
+            usp  = {f"us{i}": uid for i, uid in enumerate(cand_ids)}
+            us_rows = conn.run(
+                f"SELECT user_id, skill FROM user_skills WHERE user_id IN ({usph})",
+                **usp)
+            for r in us_rows:
+                user_skills_map.setdefault(r[0], set()).add((r[1] or "").strip().lower())
+
+        # ── 8. Score each candidate ───────────────────────────────────────────
+        scored = []
+        for c in candidates:
+            score   = 0
+            reasons = []
+            is_saved_flag = c["id"] in saved_ids
+
+            # Profession (mutually exclusive: primary takes precedence)
+            prof_id = c["profession_id"]
+            if prof_id:
+                if prof_id in primary_prof_ids:
+                    score += 45
+                    reasons.append("تخصصه يطابق إحدى وظائفك")
+                elif prof_id in secondary_prof_ids:
+                    score += 35
+                    reasons.append("تخصصه ضمن التخصصات المقبولة لإحدى وظائفك")
+
+            # Skills
+            cand_skills = set(c["profile_skills"]) | user_skills_map.get(c["id"], set())
+            if all_job_skills and cand_skills:
+                common = cand_skills & all_job_skills
+                if common:
+                    n = len(common)
+                    skill_score = min(20, max(5, n * 5))
+                    score += skill_score
+                    word = "مهارة مشتركة" if n == 1 else "مهارات مشتركة"
+                    reasons.append(f"يمتلك {n} {word}")
+
+            # Location (city preferred over country)
+            if co_city and c["city"] and co_city == c["city"]:
+                score += 10
+                reasons.append("في نفس المدينة")
+            elif co_country and c["country"] and co_country == c["country"]:
+                score += 10
+                reasons.append("في نفس البلد")
+
+            # Profile quality
+            quality = 0
+            if c["headline"]:
+                quality += 5
+            avail = c["avail"]
+            if avail and avail not in ("", "not_looking", "unavailable"):
+                quality += 5
+                reasons.append("يبحث عن فرص عمل")
+            score += quality
+
+            if is_saved_flag:
+                reasons.append("محفوظ مسبقاً")
+
+            score = min(100, score)
+
+            # Only suggest candidates with at least one matching signal
+            if score > 0:
+                scored.append({
+                    "candidate_id": c["id"],
+                    "tw_id":        c["tw_id"],
+                    "full_name":    c["full_name"],
+                    "avatar_url":   c["avatar_url"],
+                    "profession":   c["profession_name"],
+                    "city":         c["city"],
+                    "country":      c["country"],
+                    "match_score":  score,
+                    "match_reasons": reasons,
+                    "is_saved":     is_saved_flag
+                })
+
+        # ── 9. Sort and paginate ──────────────────────────────────────────────
+        scored.sort(key=lambda x: x["match_score"], reverse=True)
+        total = len(scored)
+        page  = scored[offset: offset + limit]
+
+        return {
+            "status": "success",
+            "count": len(page),
+            "items": page,
+            "pagination": {
+                "limit": limit, "offset": offset,
+                "has_more": (offset + limit) < total,
+                "total": total
+            }
+        }
+
+    finally:
+        release_conn(conn)
+
