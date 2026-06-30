@@ -384,6 +384,20 @@ body { background:var(--bg); color:var(--t); font-family:'Cairo',sans-serif; min
   border-bottom:1px solid var(--border);
 }
 
+/* ══ JOBS TAB TOOLBAR ════════════════════════════════════════════ */
+.jobs-tab-head {
+  display:flex; align-items:center; justify-content:space-between;
+  border-bottom:1px solid var(--border);
+  margin-bottom:14px; padding-bottom:10px;
+}
+.jobs-tab-title {
+  font-size:.82rem; font-weight:800; color:var(--t2);
+}
+.jobs-owner-toolbar {
+  /* display controlled by .owner-only / body.view-owner */
+  flex-shrink:0; gap:8px; align-items:center;
+}
+
 /* ══ LUCIDE ICON SIZING ══════════════════════════════════════════ */
 .co-meta-item svg,
 .co-meta-item i { width:12px; height:12px; stroke:currentColor; fill:none; stroke-width:2; flex-shrink:0; }
