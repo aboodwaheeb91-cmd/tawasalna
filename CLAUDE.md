@@ -370,6 +370,45 @@ web: uvicorn server:app --host 0.0.0.0 --port $PORT
 
 ---
 
+## Pre-push GitHub State Check (mandatory for all AI sessions)
+
+هذه القاعدة إلزامية قبل **أي** commit / push / PR / إضافة على PR موجود — بدون استثناء.
+
+### الفحص المطلوب
+
+قبل أي رفع، قم بالتحقق من الحالة الفعلية على GitHub (عبر `mcp__github__pull_request_read`) وأجب على هذه النقاط في تقريرك:
+
+```
+Pre-push GitHub State Check:
+- PR number:        [رقم الـ PR إن وجد]
+- PR state:         open | closed
+- merged:           true | false
+- current branch:   [اسم الـ branch الحالي]
+- base branch:      main | other
+- latest main:      [آخر commit SHA على main]
+- هل هذا PR مفتوح أم مدموج؟
+- هل التعديل لازم يكون على نفس PR أم PR جديد؟
+- القرار:           [push على branch حالي / branch جديد / PR جديد]
+```
+
+### قواعد القرار
+
+- **اسم الـ branch لا يكفي** — تحقق من حالة الـ PR فعلياً على GitHub.
+- **إذا PR مدموج (`merged: true`)** → أنشئ branch جديد من آخر main + PR جديد.
+- **إذا PR مفتوح (`state: open`)** → يمكن الإضافة على نفس الـ branch.
+- **لا تضيف commits على branch قديم** إذا كان الـ PR المرتبط به مدموجاً.
+- **إذا نسيت هذا الفحص** → التقرير ناقص حتى لو الكود صحيح.
+
+### مثال على خطأ يجب تجنبه
+
+```
+❌ إضافة commit على feat/company-followers-modal
+   بعد دمج PR #295 — لأن اسم الـ branch موجود ≠ PR مفتوح
+✅ الصح: fetch origin/main → branch جديد → PR جديد
+```
+
+---
+
 ## Documentation Rule (mandatory for all AI sessions)
 
 **Every PR must include documentation updates in the same PR — PR description is NOT a substitute for `.md` files.**
