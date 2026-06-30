@@ -89,7 +89,10 @@ from auth import (
     get_profile_followers_list, get_profile_following_list,
     record_profile_view, get_profile_views_count,
     save_profile_interest, remove_profile_interest,
-    is_profile_interest_active, get_profile_interest_type, get_profile_interest_label
+    is_profile_interest_active, get_profile_interest_type, get_profile_interest_label,
+    _migrate_company_saved_candidates,
+    save_company_candidate, remove_company_candidate,
+    get_company_saved_candidates, get_company_saved_candidates_count
 )
 from auth import ContentValidationError, validate_professional_text
 
@@ -373,6 +376,11 @@ async def on_startup():
         print("✅ company_branches table ready")
     except Exception as e:
         print(f"⚠️ company_branches migration failed: {e}")
+    try:
+        _migrate_company_saved_candidates()
+        print("✅ company_saved_candidates table ready")
+    except Exception as e:
+        print(f"⚠️ company_saved_candidates migration failed: {e}")
     try:
         _migrate_jobs_v2()
         print("✅ jobs v2 columns ready")
@@ -1597,6 +1605,83 @@ def company_post_delete(post_id: int, token=Depends(verify_token)):
         raise HTTPException(403, "غير مصرح بحذف هذا المنشور")
     delete_company_post(post_id)
     return {"status": "success"}
+
+
+# ── Saved Candidates (Phase 3 — company-owner only, JWT required) ──────────
+
+def _require_company_owner(token: dict) -> int:
+    """Extract and validate company owner from JWT. Returns company_id (int)."""
+    user_id   = token.get("user_id")
+    user_type = token.get("user_type")
+    if not user_id:
+        print("[SECURITY] INVALID_TOKEN: saved-candidates")
+        raise HTTPException(401, "رمز غير صالح")
+    if user_type != "co":
+        print(f"[SECURITY] SAVED_CANDS_FORBIDDEN: user_type={user_type}")
+        raise HTTPException(403, "الشركات فقط يمكنها الوصول للمرشحين المحفوظين")
+    return int(user_id)
+
+
+@app.get("/company/saved-candidates")
+def company_saved_candidates_list(token=Depends(verify_token),
+                                   limit: int = 20, offset: int = 0):
+    """
+    GET /company/saved-candidates
+    Private — company owner only. Returns paginated saved candidates list.
+    Auth: JWT Bearer (user_type='co').
+    """
+    company_id = _require_company_owner(token)
+    limit  = min(max(limit, 1), 50)
+    offset = max(offset, 0)
+    result = get_company_saved_candidates(company_id, limit, offset)
+    return {"status": "success", **result}
+
+
+@app.get("/company/saved-candidates/count")
+def company_saved_candidates_count(token=Depends(verify_token)):
+    """
+    GET /company/saved-candidates/count
+    Private — company owner only. Returns candidate count for badge display.
+    Auth: JWT Bearer (user_type='co').
+    """
+    company_id = _require_company_owner(token)
+    count = get_company_saved_candidates_count(company_id)
+    return {"status": "success", "count": count}
+
+
+@app.post("/company/saved-candidates/{candidate_id}")
+def company_save_candidate(candidate_id: int, token=Depends(verify_token)):
+    """
+    POST /company/saved-candidates/{candidate_id}
+    Save an employee as a candidate. Idempotent (UPSERT).
+    Auth: JWT Bearer (user_type='co').
+    Returns: { status, saved: true, count }
+    """
+    company_id = _require_company_owner(token)
+    if candidate_id == company_id:
+        raise HTTPException(400, "لا يمكن حفظ الشركة نفسها كمرشح")
+    try:
+        count = save_company_candidate(
+            company_id=company_id,
+            candidate_id=candidate_id,
+            saved_by=company_id)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return {"status": "success", "saved": True, "count": count}
+
+
+@app.delete("/company/saved-candidates/{candidate_id}")
+def company_remove_candidate(candidate_id: int, token=Depends(verify_token)):
+    """
+    DELETE /company/saved-candidates/{candidate_id}
+    Remove a candidate from the saved list.
+    Auth: JWT Bearer (user_type='co').
+    Returns: { status, saved: false, count }
+    """
+    company_id = _require_company_owner(token)
+    count = remove_company_candidate(company_id=company_id, candidate_id=candidate_id)
+    return {"status": "success", "saved": False, "count": count}
+
 
 @app.post("/reports/submit")
 async def submit_report(data: ReportInput, request: Request, token=Depends(verify_token)):

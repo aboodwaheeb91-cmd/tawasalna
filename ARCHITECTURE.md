@@ -4766,6 +4766,114 @@ var _QR_HIDDEN_ID = '__qrHiddenContainer';
 
 ---
 
+## [P3] 55a. Company Saved Candidates
+
+**Implemented in:** PR feat/company-saved-candidates
+
+### Purpose
+
+Allows company owners to privately save employee profiles as candidates for future reference. List is strictly private — never exposed to guests, employees, or other companies. Backend-only in Phase 3; Frontend (modal + button) is a separate PR.
+
+### Database Table: `company_saved_candidates`
+
+```sql
+company_saved_candidates:
+  id           BIGSERIAL PRIMARY KEY,
+  company_id   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  candidate_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  job_id       INTEGER NULL REFERENCES jobs(id) ON DELETE SET NULL,
+  status       TEXT NOT NULL DEFAULT 'saved',
+  notes        TEXT,
+  saved_by     INTEGER NULL REFERENCES users(id) ON DELETE SET NULL,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT uq_saved_candidate UNIQUE (company_id, candidate_id)
+  -- candidate_id must be user_type='emp' (enforced server-side, not DB constraint)
+  -- company_id must be user_type='co' (enforced via JWT check in endpoints)
+```
+
+**Indexes:** `idx_saved_cands_company(company_id)`, `idx_saved_cands_candidate(candidate_id)`
+
+### API Endpoints
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | `/company/saved-candidates` | JWT (co only) | قائمة المرشحين المحفوظين |
+| GET | `/company/saved-candidates/count` | JWT (co only) | عدد المرشحين (للـ badge) |
+| POST | `/company/saved-candidates/{candidate_id}` | JWT (co only) | حفظ مرشح (UPSERT) |
+| DELETE | `/company/saved-candidates/{candidate_id}` | JWT (co only) | حذف مرشح |
+
+**Authorization:**
+- JWT is mandatory (no optional auth)
+- `user_type` must be `co` — 403 for all other types
+- `company_id` is derived from `token["user_id"]` — **no cross-company access possible**
+- `_require_company_owner(token)` helper centralizes this check
+
+**Response Contracts:**
+
+```json
+// GET /company/saved-candidates
+{
+  "status": "success",
+  "count": 12,
+  "items": [
+    {
+      "candidate_id": 3,
+      "tw_id": "U9620...",
+      "full_name": "اسم الموظف",
+      "avatar_url": "...",
+      "profession": "محاسب",
+      "city": "عمان",
+      "country": "الأردن",
+      "job_id": null,
+      "status": "saved",
+      "notes": null,
+      "created_at": "2026-06-30T..."
+    }
+  ],
+  "pagination": { "limit": 20, "offset": 0, "has_more": false, "total": 12 }
+}
+
+// GET /company/saved-candidates/count
+{ "status": "success", "count": 12 }
+
+// POST /company/saved-candidates/{id}
+{ "status": "success", "saved": true, "count": 13 }
+
+// DELETE /company/saved-candidates/{id}
+{ "status": "success", "saved": false, "count": 12 }
+```
+
+### Backend Functions (`auth.py`)
+
+| Function | Description |
+|----------|-------------|
+| `_migrate_company_saved_candidates()` | CREATE TABLE IF NOT EXISTS + indexes (idempotent) |
+| `save_company_candidate(company_id, candidate_id, saved_by, job_id, notes)` | UPSERT — raises ValueError if candidate not `emp` |
+| `remove_company_candidate(company_id, candidate_id)` | DELETE + return count |
+| `get_company_saved_candidates(company_id, limit, offset)` | Paginated list — no sensitive fields |
+| `get_company_saved_candidates_count(company_id)` | Count only (badge) |
+
+**Safe fields returned:**
+`candidate_id, tw_id, full_name, avatar_url, profession (from profession_categories), city, country, job_id, status, notes, created_at`
+
+**Withheld fields (privacy):**
+`email, phone, location (detailed), password_hash, any KYC data`
+
+### ممنوعات
+
+```
+❌ لا تُرجع هذه القائمة لأي مستخدم غير صاحب الشركة
+❌ لا تعتمد على CSS أو Frontend لحماية البيانات — الحماية في Backend فقط
+❌ لا تُضيف company_id كـ query param مفتوح — company_id يأتي من JWT دائماً
+❌ لا تُخزن email أو phone في الرد
+❌ لا تسمح بحفظ شركة أو جهة تعليمية كمرشح (user_type != 'emp' → 400)
+❌ لا تخلط هذا النظام مع التبويبات العامة لصفحة الشركة
+❌ لا تضف Frontend في هذا الـ PR — هذه مرحلة 3 (Backend فقط)
+```
+
+---
+
 ## [P1] 55. Score System
 
 **Endpoint:** `GET /profile/{user_id}/score`
