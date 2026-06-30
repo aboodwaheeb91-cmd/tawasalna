@@ -42,6 +42,16 @@
     }
   });
 
+  // ── Shared: resolve numeric company id (works on /u/C0... and ?id= routes) ─
+  function _resolveCoId() {
+    if (window.companyState && companyState.profile && companyState.profile.id)
+      return companyState.profile.id;
+    if (window._companyProfileIdFromRoute != null)
+      return parseInt(window._companyProfileIdFromRoute) || null;
+    var qId = new URLSearchParams(location.search).get('id');
+    return qId ? (parseInt(qId) || null) : null;
+  }
+
   // ── Follow ─────────────────────────────────────────────────────
   var isFollowLoading = false;
 
@@ -50,8 +60,8 @@
     if (!window.companyState || !companyState.permissions.can_follow) return;
     if (isFollowLoading) return;
 
-    var companyId = new URLSearchParams(location.search).get('id');
-    if (!companyId) return;
+    var companyId = _resolveCoId();
+    if (!companyId) { if (window.showToast) showToast('تعذّر تحديد الشركة', 'error'); return; }
 
     var prevFollowing = !!companyState.permissions.is_following;
     var prevCount     = companyState.stats.followers_count || 0;
@@ -110,12 +120,12 @@
     var subject = (document.getElementById('msg-subject') || {}).value || 'رسالة جديدة';
     var body    = ((document.getElementById('msg-body') || {}).value || '').trim();
     if (!body) { if (window.showToast) showToast('أدخل الرسالة', 'error'); return; }
-    var coId = new URLSearchParams(location.search).get('id');
+    var coId = _resolveCoId();
     if (coId && window._jwt && _jwt()) {
       fetch('/admin/message', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + _jwt() },
-        body:    JSON.stringify({ user_id: parseInt(coId) || 0, subject: subject, message: body }),
+        body:    JSON.stringify({ user_id: coId, subject: subject, message: body }),
       }).catch(function () {});
     }
     if (window.showToast) showToast('تم إرسال رسالتك ✓');

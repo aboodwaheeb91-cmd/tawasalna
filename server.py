@@ -864,7 +864,7 @@ def get_company_profile(company_id: str, request: Request):
         "can_edit":      is_owner,
         "can_post_jobs": is_owner,
         "can_follow":    viewer_type == "public-user",
-        "can_rate":      False,  # Phase 3: enabled for ex-employees only
+        "can_rate":      viewer_type == "public-user" and token_utype == "emp",
     }
 
     # ── Fetch company base profile (lightweight — no extras) ──
