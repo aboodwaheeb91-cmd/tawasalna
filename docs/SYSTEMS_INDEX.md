@@ -241,6 +241,7 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 **Details:** `ARCHITECTURE.md §55a`
 **Auth:** JWT mandatory, `user_type='co'` only. `company_id` derived from `token["user_id"]` — no cross-company access.
 **Privacy:** Returns `candidate_id, tw_id, full_name, avatar_url, profession, city, country, job_id, status, notes, created_at` only. Never returns email, phone, or KYC data.
+**Frontend (Phase 4):** `#candidatesBtn` in jobs toolbar (owner-only) + `#coCandidatesModal` + `.co-cand-*` CSS. Badge loads via `_loadCandidatesBadge()` hook in `loadData()`.
 **Do not recreate:** Do not add a `company_id` query param — company identity comes from JWT. Do not expose this list to non-owners. Do not confuse with profile_follows or company_follows tables.
 
 ---
