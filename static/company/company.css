@@ -385,17 +385,21 @@ body { background:var(--bg); color:var(--t); font-family:'Cairo',sans-serif; min
 }
 
 /* ══ JOBS TAB TOOLBAR ════════════════════════════════════════════ */
-.jobs-tab-head {
-  display:flex; align-items:center; justify-content:space-between;
-  border-bottom:1px solid var(--border);
-  margin-bottom:14px; padding-bottom:10px;
-}
-.jobs-tab-title {
-  font-size:.82rem; font-weight:800; color:var(--t2);
-}
 .jobs-owner-toolbar {
   /* display controlled by .owner-only / body.view-owner */
-  flex-shrink:0; gap:8px; align-items:center;
+  justify-content:flex-start;   /* RTL: start = right — button hugs right edge */
+  gap:8px; align-items:center;
+  margin-bottom:14px;
+}
+/* Teal action button — نشر وظيفة (+ future المرشحون beside it) */
+.nb-post-job {
+  background:linear-gradient(135deg,#00c896,#0ea5e9);
+  color:#06121c; font-weight:800; border:none;
+  box-shadow:0 2px 14px rgba(0,200,150,.28);
+}
+.nb-post-job:hover {
+  filter:brightness(1.08);
+  box-shadow:0 4px 20px rgba(0,200,150,.45);
 }
 
 /* ══ LUCIDE ICON SIZING ══════════════════════════════════════════ */
