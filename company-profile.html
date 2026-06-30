@@ -148,11 +148,6 @@
 </div><!-- /sc-prof-row -->
 
 <!-- ██ ACTIONS ██ -->
-<div class="sc-actions owner-only">
-  <button id="postJobBtn" class="nb nb-primary">
-    <i data-lucide="briefcase"></i> نشر وظيفة
-  </button>
-</div>
 <!-- Visitor order (RTL): تواصل معنا (right) | متابعة (left/primary) -->
 <div class="sc-actions visitor-only" id="visitorActions">
   <button id="contactBtn" class="nb nb-outline">
@@ -207,7 +202,14 @@
 
   <!-- JOBS TAB (default) -->
   <div id="tab-jobs">
-    <div class="section-header">الوظائف المفتوحة</div>
+    <div class="jobs-tab-head">
+      <span class="jobs-tab-title">الوظائف المفتوحة</span>
+      <div class="jobs-owner-toolbar owner-only">
+        <button id="postJobBtn" class="nb nb-primary">
+          <i data-lucide="plus"></i> نشر وظيفة
+        </button>
+      </div>
+    </div>
 
     <div id="jobsList">
       <div class="job-card tw-card-lift">
@@ -234,14 +236,6 @@
       </div>
     </div>
 
-    <div class="jobs-cta owner-only">
-      <div class="jobs-cta-inner">
-        <div class="jobs-cta-text">هل تبحث عن المواهب المناسبة؟</div>
-        <button id="ctaPostJobBtn" class="nb nb-cta">
-          <i data-lucide="plus-circle"></i> نشر وظيفة الآن
-        </button>
-      </div>
-    </div>
   </div><!-- /tab-jobs -->
 
   <!-- POSTS TAB -->
