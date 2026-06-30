@@ -906,6 +906,191 @@
   window._coFlOpen = _open;
 }());
 
+// ── Rating Modal ──────────────────────────────────────────────────
+(function () {
+  'use strict';
+
+  var _overlay = document.getElementById('coRatingModal');
+  var _body    = document.getElementById('coRatBody');
+
+  function _open() {
+    if (!_overlay) return;
+    _overlay.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+    _fetch();
+  }
+
+  function _close() {
+    if (!_overlay) return;
+    _overlay.style.display = 'none';
+    document.body.style.overflow = '';
+  }
+
+  function _esc(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function _stars(n) {
+    var s = '';
+    for (var i = 1; i <= 5; i++) s += (i <= n ? '★' : '☆');
+    return s;
+  }
+
+  function _fetch() {
+    if (!_body) return;
+    _body.innerHTML = '<div class="co-fl-spin">جارٍ التحميل…</div>';
+    var coId = (window._companyProfileIdFromRoute != null)
+      ? String(window._companyProfileIdFromRoute)
+      : new URLSearchParams(window.location.search).get('id');
+    if (!coId && window.companyState && companyState.profile)
+      coId = String(companyState.profile.id);
+    if (!coId) { _body.innerHTML = '<div class="co-fl-empty">تعذّر تحميل التقييمات.</div>'; return; }
+
+    window.getCompanyRatingsDetail(coId, 5)
+      .then(function (res) {
+        if (!res.ok) throw new Error('fail');
+        _render(res.data);
+      })
+      .catch(function () {
+        if (_body) _body.innerHTML = '<div class="co-fl-empty">تعذّر تحميل التقييمات.</div>';
+      });
+  }
+
+  function _render(d) {
+    if (!_body) return;
+    var html = '';
+
+    // ── Summary ──
+    if (!d.rating_count || d.rating_count === 0) {
+      html += '<div class="co-fl-empty">لا توجد تقييمات بعد.</div>';
+      html += _rateSection(d);
+      _body.innerHTML = html;
+      _wireRateBtn(d);
+      return;
+    }
+
+    var avg = d.rating_avg ? parseFloat(d.rating_avg).toFixed(1) : '—';
+    html += '<div class="co-rat-summary">';
+    html += '<div class="co-rat-avg">' + _esc(avg) + '</div>';
+    html += '<div class="co-rat-stars">' + _stars(Math.round(d.rating_avg || 0)) + '</div>';
+    html += '<div class="co-rat-count">من ' + _esc(d.rating_count) + ' تقييم</div>';
+    html += '</div>';
+
+    // ── Distribution ──
+    if (d.distribution) {
+      html += '<div class="co-rat-dist">';
+      var total = d.rating_count || 1;
+      for (var s = 5; s >= 1; s--) {
+        var cnt = d.distribution[String(s)] || 0;
+        var pct = Math.round((cnt / total) * 100);
+        html += '<div class="co-rat-dist-row">';
+        html += '<span class="co-rat-dist-lbl">' + s + '★</span>';
+        html += '<div class="co-rat-dist-bar"><div class="co-rat-dist-fill" style="width:' + pct + '%"></div></div>';
+        html += '<span class="co-rat-dist-pct">' + pct + '%</span>';
+        html += '</div>';
+      }
+      html += '</div>';
+    }
+
+    // ── Recent comments ──
+    if (d.recent_comments && d.recent_comments.length) {
+      html += '<div class="co-rat-comments-head">أحدث التعليقات</div>';
+      html += '<div class="co-rat-comments">';
+      d.recent_comments.forEach(function (c) {
+        html += '<div class="co-rat-comment">';
+        html += '<span class="co-rat-comment-stars">' + _stars(c.score) + '</span>';
+        html += '<p class="co-rat-comment-text">' + _esc(c.comment) + '</p>';
+        html += '</div>';
+      });
+      html += '</div>';
+    }
+
+    // ── My rating / rate CTA ──
+    html += _rateSection(d);
+    _body.innerHTML = html;
+    _wireRateBtn(d);
+  }
+
+  function _rateSection(d) {
+    var s = window.companyState;
+    if (!s || !s.permissions || !s.permissions.can_rate) return '';
+    var html = '<div class="co-rat-my" id="coRatMySection">';
+    if (d.my_rating) {
+      html += '<div class="co-rat-my-label">تقييمك الحالي: <span class="co-rat-my-stars">' + _stars(d.my_rating) + '</span></div>';
+      html += '<button class="co-rat-my-btn" id="coRatEditBtn">تعديل التقييم</button>';
+    } else {
+      html += '<button class="co-rat-my-btn" id="coRatEditBtn">قيّم الشركة</button>';
+    }
+    html += '<div class="co-rat-picker" id="coRatPicker" style="display:none">';
+    for (var i = 1; i <= 5; i++) {
+      html += '<span class="co-rat-star" data-score="' + i + '">★</span>';
+    }
+    html += '</div>';
+    html += '</div>';
+    return html;
+  }
+
+  function _wireRateBtn(d) {
+    var editBtn = document.getElementById('coRatEditBtn');
+    var picker  = document.getElementById('coRatPicker');
+    if (!editBtn || !picker) return;
+    editBtn.addEventListener('click', function () {
+      picker.style.display = picker.style.display === 'none' ? 'flex' : 'none';
+    });
+    var stars = picker.querySelectorAll('.co-rat-star');
+    stars.forEach(function (star) {
+      star.addEventListener('mouseenter', function () {
+        var n = parseInt(this.dataset.score);
+        stars.forEach(function (st, idx) { st.classList.toggle('active', idx < n); });
+      });
+      star.addEventListener('mouseleave', function () {
+        stars.forEach(function (st) { st.classList.remove('active'); });
+      });
+      star.addEventListener('click', function () {
+        var score = parseInt(this.dataset.score);
+        _submitRating(score);
+      });
+    });
+  }
+
+  function _submitRating(score) {
+    var s = window.companyState;
+    if (!s || !s.profile) return;
+    var coId = String(s.profile.id);
+    var jwt  = window._jwt ? window._jwt() : '';
+    if (!jwt) return;
+    fetch('/company/rate/' + coId, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + jwt },
+      body: JSON.stringify({ score: score })
+    })
+    .then(function (r) { return r.json(); })
+    .then(function (res) {
+      if (res.status === 'success') {
+        if (window.companyState) {
+          companyState.stats.rating_avg   = res.rating_avg;
+          companyState.stats.rating_count = res.rating_count;
+          if (window.renderStats) renderStats();
+        }
+        _fetch();
+      }
+    })
+    .catch(function () {});
+  }
+
+  // Wire
+  document.addEventListener('DOMContentLoaded', function () {
+    var tile = document.getElementById('coStatRatingTile');
+    if (tile) tile.addEventListener('click', _open);
+    var closeBtn = document.getElementById('coRatClose');
+    if (closeBtn) closeBtn.addEventListener('click', _close);
+    if (_overlay) _overlay.addEventListener('click', function (e) { if (e.target === _overlay) _close(); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && _overlay && _overlay.style.display !== 'none') _close(); });
+  });
+
+  window._coRatOpen = _open;
+}());
+
 // ── Soft refresh: followers count every 30s while page is visible ─
 (function () {
   var _interval = null;

@@ -214,6 +214,22 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 
 ---
 
+### 20b. Company Rating Modal
+**Purpose:** Display rating details for a company (avg, count, distribution, recent comments, rate CTA). Accessible by clicking the "التقييم" tile on the company stats bar.
+**Source of Truth:** `company_ratings` DB table · `auth.py → get_company_ratings_detail()` · `server.py → GET /company/{id}/ratings`
+**Responsible files:**
+- `auth.py` — `get_company_ratings_detail(company_id, viewer_id, limit)`
+- `server.py` — `GET /company/{company_id}/ratings?limit=`
+- `company-profile.html` — `#coStatRatingTile` (clickable tile) + `#coRatingModal` (modal HTML)
+- `static/company/company.api.js` — `getCompanyRatingsDetail(companyId, limit)`
+- `static/company/company.main.js` — Rating Modal IIFE (open/close/fetch/render/star-picker/submit)
+- `static/company/company.css` — `.co-rat-*` styles (shell reuses `.co-fl-overlay/.co-fl-panel`)
+**Details:** `ARCHITECTURE.md §53b`
+**Privacy rule:** `recent_comments` never includes rater name or user_id — only score, comment text, and date.
+**Do not recreate:** Do not add a "التقييمات" tab (removed in PR #301). Do not expose rater names. Do not show rate CTA without checking `companyState.permissions.can_rate`.
+
+---
+
 ### 21. Profile Views Tracking
 **Purpose:** Track and display how many times a profile has been viewed.
 **Source of Truth:** `profile_views` table or `profiles.views_count`
@@ -365,4 +381,4 @@ These systems exist in code but lack formal documentation in ARCHITECTURE.md or 
 
 ---
 
-*Last updated: 2026-06-29 — reflects systems as of PR #295 (Company Followers Modal).*
+*Last updated: 2026-06-30 — reflects systems as of PR feat/company-rating-modal (Company Rating Modal).*

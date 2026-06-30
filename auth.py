@@ -2958,6 +2958,60 @@ def rate_company(rater_id: int, company_id: int, score: int, comment: str = None
         release_conn(conn)
 
 
+def get_company_ratings_detail(company_id: int, viewer_id=None, limit: int = 5) -> dict:
+    """Read-only ratings detail: avg, count, distribution, recent comments, viewer's own score."""
+    conn = get_conn()
+    try:
+        # Aggregate
+        rt = conn.run(
+            "SELECT AVG(score), COUNT(*) FROM company_ratings WHERE company_id=:cid",
+            cid=company_id) or [[None, 0]]
+        rating_avg   = round(float(rt[0][0]), 1) if rt and rt[0][0] is not None else None
+        rating_count = int(rt[0][1]) if rt else 0
+
+        # Distribution 1-5
+        dist_rows = conn.run(
+            "SELECT score, COUNT(*) FROM company_ratings "
+            "WHERE company_id=:cid GROUP BY score",
+            cid=company_id) or []
+        distribution = {"5": 0, "4": 0, "3": 0, "2": 0, "1": 0}
+        for row in dist_rows:
+            distribution[str(row[0])] = int(row[1])
+
+        # Recent comments (no rater name — privacy)
+        limit = min(max(int(limit), 1), 20)
+        c_rows = conn.run(
+            "SELECT score, comment, created_at FROM company_ratings "
+            "WHERE company_id=:cid AND comment IS NOT NULL AND TRIM(comment) != '' "
+            "ORDER BY created_at DESC LIMIT :lim",
+            cid=company_id, lim=limit) or []
+        recent_comments = [
+            {"score": r[0], "comment": r[1],
+             "created_at": _serialize(r[2]) if r[2] else None}
+            for r in c_rows
+        ]
+
+        # Viewer's own rating
+        my_rating = None
+        if viewer_id is not None:
+            my_rows = conn.run(
+                "SELECT score FROM company_ratings "
+                "WHERE company_id=:cid AND rater_id=:vid",
+                cid=company_id, vid=int(viewer_id)) or []
+            if my_rows:
+                my_rating = int(my_rows[0][0])
+
+        return {
+            "rating_avg":      rating_avg,
+            "rating_count":    rating_count,
+            "distribution":    distribution,
+            "recent_comments": recent_comments,
+            "my_rating":       my_rating,
+        }
+    finally:
+        release_conn(conn)
+
+
 # ══ Phase 3: Company Posts Data Layer (Rule #5,#6 — Single Source) ══
 # Pure data layer. No authorization (that lives in server.py). company_id = users.id.
 

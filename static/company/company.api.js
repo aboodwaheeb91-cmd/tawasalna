@@ -156,9 +156,19 @@
       .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); });
   }
 
-  window.loadData                  = loadData;
-  window.loadJobs                  = loadJobs;
-  window.loadPosts                 = loadPosts;
-  window.loadBranches              = loadBranches;
-  window.getCompanyFollowersList   = getCompanyFollowersList;
+  function getCompanyRatingsDetail(companyId, limit) {
+    var qs = limit ? '?limit=' + limit : '';
+    var jwt = window._jwt ? window._jwt() : '';
+    var headers = {};
+    if (jwt) headers['Authorization'] = 'Bearer ' + jwt;
+    return fetch('/company/' + companyId + '/ratings' + qs, { headers: headers })
+      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); });
+  }
+
+  window.loadData                   = loadData;
+  window.loadJobs                   = loadJobs;
+  window.loadPosts                  = loadPosts;
+  window.loadBranches               = loadBranches;
+  window.getCompanyFollowersList    = getCompanyFollowersList;
+  window.getCompanyRatingsDetail    = getCompanyRatingsDetail;
 }());
