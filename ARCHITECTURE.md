@@ -4895,8 +4895,8 @@ company_saved_candidates:
 
 ## [P3] 55b. Company Candidate Suggestions — Phase 5A Backend
 
-**Implemented in:** PR feat/company-candidate-suggestions (Phase 5A)
-**Status:** Backend only. Frontend tab "اقتراحات مناسبة" comes in Phase 5B.
+**Implemented in:** PR feat/company-candidate-suggestions (Phase 5A) + PR feat/phase-5b-suggestions-tab (Phase 5B)
+**Status:** Complete — Backend (Phase 5A) + Frontend tab in candidates modal (Phase 5B).
 
 ### Purpose
 
@@ -4991,16 +4991,36 @@ All existing tables — no new table created:
 - Scoring runs in Python after 3 batch SQL queries (no N+1)
 - Scoring is idempotent and stateless — no cache needed for v1
 
+### Phase 5B — Frontend Tab (PR feat/phase-5b-suggestions-tab)
+
+Added inside the candidates modal (`#coCandidatesModal`) only. No changes to company page tabs.
+
+**Files changed:**
+- `company-profile.html` — added `<button data-tab="suggestions">اقتراحات مناسبة</button>` in `#coCandTabs`
+- `static/company/company.api.js` — `getCandidateSuggestions(limit, offset)`, `saveSuggestedCandidate(candidateId)`
+- `static/company/company.main.js` — tab state machine (`_activeTab`, `_switchTab`), suggestions fetch/render/append/wire
+- `static/company/company.css` — `.co-sugg-score`, `.co-sugg-chip`, `.co-sugg-save-btn`, `.co-sugg-load-more`, `.co-sugg-name-row`, `.co-sugg-reasons`
+
+**Behavior:**
+- Modal opens on "المحفوظون" tab (unchanged default)
+- Switching to "اقتراحات مناسبة": calls `GET /company/candidate-suggestions?limit=20&offset=0`
+- Each suggestion shows: avatar + name + match_score badge + meta + reason chips + "فتح البروفايل" + "حفظ كمرشح"
+- "حفظ كمرشح" → `POST /company/saved-candidates/{id}` → fade-out item → update badge → empty state if list empty
+- "عرض المزيد" → increments offset and appends results
+- Empty state if no active jobs (status=no_jobs): "انشر وظيفة أولاً لتحسين الاقتراحات."
+- Empty state if no matches: "لا توجد اقتراحات إضافية حالياً"
+
 ### ممنوعات
 
 ```
-❌ لا تضف Frontend في Phase 5A — الـ tab يأتي في Phase 5B
 ❌ لا تُضيف company_id كـ query param — يأتي من JWT فقط
 ❌ لا تُرجع email أو phone
 ❌ لا تُنشئ جدول جديد للاقتراحات — الأنظمة الموجودة كافية
 ❌ لا تُضيف AI أو embeddings قبل decision صريح من المستخدم
 ❌ لا تعرض اقتراحات عشوائية بدون وظائف active
 ❌ لا تُعدِّل نظام /jobs/match الموجود
+❌ لا تضف تبويب عام في صفحة الشركة — الاقتراحات داخل المودال فقط
+❌ لا تستدعي endpoint الاقتراحات لغير المالك
 ```
 
 ---

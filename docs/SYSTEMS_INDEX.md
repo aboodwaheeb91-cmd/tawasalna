@@ -254,8 +254,9 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 **Auth:** JWT mandatory, `user_type='co'` only. `company_id` from JWT — no query param.
 **Scoring:** profession match (45/35) + skill overlap (20) + location (10) + profile quality (10). Returns `match_score` + `match_reasons` per candidate.
 **Privacy:** Returns `candidate_id, tw_id, full_name, avatar_url, profession, city, country, match_score, match_reasons, is_saved` only. Never returns email, phone, dob, or KYC data.
-**Phase status:** Phase 5A = Backend only. Phase 5B = Frontend "اقتراحات مناسبة" tab in the candidates modal.
-**Do not recreate:** No new DB table for suggestions. No AI/embeddings without explicit decision. No random suggestions without active jobs. `company_id` always from JWT.
+**Phase status:** Phase 5A (Backend) + Phase 5B (Frontend tab) — Complete.
+**Frontend (Phase 5B):** Tab "اقتراحات مناسبة" inside `#coCandidatesModal` → `getCandidateSuggestions` / `saveSuggestedCandidate` in `company.api.js`. Tab switch handled in `company.main.js` IIFE (`_switchTab`, `_fetchSuggestions`, `_renderSuggestions`). Styles in `company.css` (`.co-sugg-*`).
+**Do not recreate:** No new DB table for suggestions. No AI/embeddings without explicit decision. No random suggestions without active jobs. `company_id` always from JWT. Suggestions tab is inside the modal only — not a page-level tab.
 
 ---
 

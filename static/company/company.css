@@ -1160,3 +1160,48 @@ body.co-loading  .visitor-only           { display: none !important; }
   font-size:.9rem; font-weight:700; color:var(--t2,#94a3b8); margin-bottom:8px;
 }
 .co-cand-empty-sub { font-size:.77rem; color:var(--t3,#6b7686); line-height:1.65; }
+
+/* ── Phase 5B — Suggestions tab ──────────────────────────────── */
+
+/* Name row: name + score badge side by side */
+.co-sugg-name-row { display:flex; align-items:center; gap:6px; }
+
+/* match_score badge */
+.co-sugg-score {
+  flex-shrink:0;
+  font-size:.6rem; font-weight:800; line-height:1;
+  padding:2px 6px; border-radius:6px;
+  background:rgba(0,200,150,.13); color:#00c896;
+  letter-spacing:.02em;
+}
+
+/* Reason chips row */
+.co-sugg-reasons {
+  display:flex; flex-wrap:wrap; gap:4px; margin-top:5px;
+}
+.co-sugg-chip {
+  font-size:.6rem; padding:2px 7px; border-radius:20px;
+  background:rgba(255,255,255,.06); color:var(--t2,#94a3b8);
+  white-space:nowrap;
+}
+
+/* Save button (teal ghost, matches view-btn dimensions) */
+.co-sugg-save-btn {
+  font-size:.67rem; padding:4px 11px; border-radius:8px; cursor:pointer;
+  border:1px solid rgba(37,99,255,.35); background:rgba(37,99,255,.07);
+  color:#6699ff; white-space:nowrap;
+  transition:background .15s, border-color .15s;
+}
+.co-sugg-save-btn:hover { background:rgba(37,99,255,.14); }
+.co-sugg-save-btn:disabled { opacity:.45; cursor:default; }
+
+/* Load more button */
+.co-sugg-load-more {
+  display:block; width:calc(100% - 28px); margin:10px 14px 4px;
+  padding:9px; border-radius:10px; cursor:pointer;
+  border:1px solid rgba(255,255,255,.1); background:rgba(255,255,255,.04);
+  color:var(--t2,#94a3b8); font-size:.78rem; font-weight:600;
+  transition:background .15s;
+}
+.co-sugg-load-more:hover { background:rgba(255,255,255,.08); }
+.co-sugg-load-more:disabled { opacity:.4; cursor:default; }
