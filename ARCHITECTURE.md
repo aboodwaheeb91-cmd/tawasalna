@@ -4820,6 +4820,7 @@ company_saved_candidates:
 | GET | `/company/saved-candidates/count` | JWT (co only) | عدد المرشحين (للـ badge) |
 | POST | `/company/saved-candidates/{candidate_id}` | JWT (co only) | حفظ مرشح (UPSERT) |
 | DELETE | `/company/saved-candidates/{candidate_id}` | JWT (co only) | حذف مرشح |
+| PATCH | `/company/saved-candidates/{candidate_id}` | JWT (co only) | **Phase 6A** — تحديث status / notes / job_id |
 
 **Authorization:**
 - JWT is mandatory (no optional auth)
@@ -4871,6 +4872,7 @@ company_saved_candidates:
 | `remove_company_candidate(company_id, candidate_id)` | DELETE + return count |
 | `get_company_saved_candidates(company_id, limit, offset)` | Paginated list — no sensitive fields |
 | `get_company_saved_candidates_count(company_id)` | Count only (badge) |
+| `update_company_saved_candidate(company_id, candidate_id, updates)` | **Phase 6A** — partial update status/notes/job_id, returns safe item |
 | `get_company_candidate_suggestions(company_id, limit, offset, include_saved)` | **Phase 5A** — scored suggestions based on active jobs |
 
 **Safe fields returned:**
@@ -5021,6 +5023,105 @@ Added inside the candidates modal (`#coCandidatesModal`) only. No changes to com
 ❌ لا تُعدِّل نظام /jobs/match الموجود
 ❌ لا تضف تبويب عام في صفحة الشركة — الاقتراحات داخل المودال فقط
 ❌ لا تستدعي endpoint الاقتراحات لغير المالك
+```
+
+---
+
+## [P3] 55c. Company Candidate Pipeline — Phase 6A Backend
+
+**Implemented in:** PR feat/company-candidate-pipeline-backend (Phase 6A)
+**Status:** Backend only. Frontend pipeline UI comes in Phase 6B.
+
+### Purpose
+
+Allows company owners to manage the pipeline state of each saved candidate: update status (from `saved` → `shortlisted` → `contacted` → `interview` → `hired`/`rejected`), add private notes, and optionally link to a specific job posting.
+
+### New Endpoint
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| PATCH | `/company/saved-candidates/{candidate_id}` | JWT (co only) | Partial update of status / notes / job_id |
+
+**Request body (all fields optional — only sent fields are updated):**
+```json
+{
+  "status": "shortlisted",
+  "notes":  "مناسب لوظيفة المحاسب، تواصل لاحقاً",
+  "job_id": 12
+}
+```
+
+### Pipeline Statuses
+
+| Value | Label (AR) |
+|-------|-----------|
+| `saved` | محفوظ |
+| `shortlisted` | مرشح قوي |
+| `contacted` | تم التواصل |
+| `interview` | مقابلة |
+| `hired` | تم التوظيف |
+| `rejected` | غير مناسب |
+
+Defined in `auth.py` as `VALID_CANDIDATE_STATUSES` (frozenset) and `CANDIDATE_STATUS_LABELS` (dict).
+
+### Validation Rules
+
+| Field | Rule |
+|-------|------|
+| `status` | Must be one of 6 allowed values. Cannot be null/missing if sent. |
+| `notes` | Optional. Max 500 chars after strip. Empty string/null → stored as NULL. |
+| `job_id` | Optional. If non-null: must exist in `jobs` table AND belong to the same company. null → detach from job. |
+
+### Security
+
+- JWT mandatory, `user_type='co'` — enforced by `_require_company_owner(token)`
+- `company_id` from token only — no body/query param accepted
+- Cross-company update structurally impossible: `WHERE company_id=:cid AND candidate_id=:uid`
+- job_id validated as belonging to the same company
+- Returns 404 if candidate is not in this company's saved list (not found vs access denied: safe)
+
+### Response Contract
+
+```json
+// PATCH /company/saved-candidates/{candidate_id}
+{
+  "status": "success",
+  "item": {
+    "candidate_id": 8,
+    "tw_id": "U9620...",
+    "full_name": "اسم الموظف",
+    "avatar_url": "...",
+    "profession": "محاسب",
+    "city": "عمان",
+    "country": "الأردن",
+    "job_id": 12,
+    "status": "shortlisted",
+    "status_label": "مرشح قوي",
+    "notes": "مناسب لوظيفة المحاسب",
+    "created_at": "2026-06-30T...",
+    "updated_at": "2026-06-30T..."
+  }
+}
+```
+
+**Withheld fields:** email, phone, dob, detailed location, password_hash
+
+### Data Layer (`auth.py`)
+
+`update_company_saved_candidate(company_id, candidate_id, updates: dict)`
+- `updates` keys: any subset of `{status, notes, job_id}`
+- Validates → builds dynamic SET clause → updates → returns safe item
+- Returns `None` if row not found (endpoint maps to 404)
+
+### ممنوعات
+
+```
+❌ لا تضف Frontend في Phase 6A — الـ UI يأتي في Phase 6B
+❌ لا تُضيف company_id في body/query — يأتي من JWT فقط
+❌ لا تسمح بـ job_id من شركة أخرى
+❌ لا تسمح لموظف أو زائر باستخدام هذا endpoint
+❌ لا تضف جدول جديد — company_saved_candidates يكفي
+❌ لا تغيّر status_labels بدون تحديث VALID_CANDIDATE_STATUSES و CANDIDATE_STATUS_LABELS معاً
 ```
 
 ---

@@ -3664,6 +3664,125 @@ def get_company_saved_candidates_count(company_id: int) -> int:
         release_conn(conn)
 
 
+# ── Pipeline status constants ────────────────────────────────────────────────
+
+VALID_CANDIDATE_STATUSES = frozenset({
+    "saved", "shortlisted", "contacted", "interview", "hired", "rejected"
+})
+
+CANDIDATE_STATUS_LABELS = {
+    "saved":       "محفوظ",
+    "shortlisted": "مرشح قوي",
+    "contacted":   "تم التواصل",
+    "interview":   "مقابلة",
+    "hired":       "تم التوظيف",
+    "rejected":    "غير مناسب",
+}
+
+
+def update_company_saved_candidate(
+    company_id: int,
+    candidate_id: int,
+    updates: dict
+) -> dict:
+    """
+    Partial update of a saved candidate's pipeline fields (status, notes, job_id).
+    Only keys present in `updates` are written — absent keys are untouched.
+
+    Returns the updated safe item dict, or None if the row doesn't exist.
+    Raises ValueError for invalid status, oversized notes, or foreign job_id.
+    """
+    conn = get_conn()
+    try:
+        # 1. Confirm row exists
+        row_check = conn.run(
+            "SELECT id FROM company_saved_candidates "
+            "WHERE company_id=:cid AND candidate_id=:uid",
+            cid=company_id, uid=candidate_id)
+        if not row_check:
+            return None
+
+        # 2. Validate & normalize each update field
+        if 'status' in updates:
+            s = updates['status']
+            if s not in VALID_CANDIDATE_STATUSES:
+                raise ValueError(
+                    "قيمة status غير مسموحة. القيم المسموحة: "
+                    + ", ".join(sorted(VALID_CANDIDATE_STATUSES)))
+
+        if 'notes' in updates:
+            n = updates['notes']
+            if n is not None:
+                n = n.strip()
+                if len(n) > 500:
+                    raise ValueError("الملاحظات لا يمكن أن تتجاوز 500 حرف")
+                updates['notes'] = n if n else None
+            # else: None → clear (store NULL)
+
+        if 'job_id' in updates and updates['job_id'] is not None:
+            job_check = conn.run(
+                "SELECT id FROM jobs WHERE id=:jid AND company_id=:cid",
+                jid=updates['job_id'], cid=company_id)
+            if not job_check:
+                raise ValueError("الوظيفة غير موجودة أو لا تتبع شركتك")
+
+        # 3. Build dynamic SET clause
+        set_parts = ["updated_at = NOW()"]
+        params = {"cid": company_id, "uid": candidate_id}
+
+        if 'status' in updates:
+            set_parts.append("status = :status")
+            params['status'] = updates['status']
+
+        if 'notes' in updates:
+            set_parts.append("notes = :notes")
+            params['notes'] = updates['notes']
+
+        if 'job_id' in updates:
+            set_parts.append("job_id = :job_id")
+            params['job_id'] = updates['job_id']
+
+        conn.run(
+            "UPDATE company_saved_candidates "
+            "SET " + ", ".join(set_parts) + " "
+            "WHERE company_id=:cid AND candidate_id=:uid",
+            **params)
+
+        # 4. Return updated item (same safe shape as list endpoint + updated_at)
+        r = conn.run(
+            "SELECT u.id, u.tw_id, u.full_name, p.avatar_url, "
+            "       pc.name_ar, p.city, p.country, "
+            "       sc.job_id, sc.status, sc.notes, sc.created_at, sc.updated_at "
+            "FROM company_saved_candidates sc "
+            "JOIN users u ON u.id = sc.candidate_id "
+            "LEFT JOIN profiles p ON p.user_id = u.id "
+            "LEFT JOIN profession_categories pc ON pc.id = p.profession_id "
+            "WHERE sc.company_id=:cid AND sc.candidate_id=:uid",
+            cid=company_id, uid=candidate_id)
+        if not r:
+            return None
+
+        row = r[0]
+        raw_status = row[8] or "saved"
+        return _serialize({
+            "candidate_id":   row[0],
+            "tw_id":          row[1],
+            "full_name":      row[2],
+            "avatar_url":     row[3],
+            "profession":     row[4] or None,
+            "city":           row[5],
+            "country":        row[6],
+            "job_id":         row[7],
+            "status":         raw_status,
+            "status_label":   CANDIDATE_STATUS_LABELS.get(raw_status, raw_status),
+            "notes":          row[9],
+            "created_at":     row[10],
+            "updated_at":     row[11],
+        })
+    finally:
+        release_conn(conn)
+
+
 def get_company_candidate_suggestions(
     company_id: int,
     limit: int = 20,

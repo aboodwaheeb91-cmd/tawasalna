@@ -94,6 +94,7 @@ from auth import (
     _migrate_company_saved_candidates,
     save_company_candidate, remove_company_candidate,
     get_company_saved_candidates, get_company_saved_candidates_count,
+    update_company_saved_candidate, VALID_CANDIDATE_STATUSES,
     get_company_candidate_suggestions
 )
 from auth import ContentValidationError, validate_professional_text
@@ -968,6 +969,12 @@ class BranchesInput(BaseModel):
     branches: List[BranchItemInput] = Field(default_factory=list)
 
 
+class UpdateSavedCandidateInput(BaseModel):
+    status: Optional[str] = None
+    notes:  Optional[str] = None
+    job_id: Optional[int] = None
+
+
 @app.put("/company/profile/{company_id}")
 def update_co_profile(company_id: int, data: CoProfileInput, token=Depends(verify_token)):
     """
@@ -1683,6 +1690,62 @@ def company_remove_candidate(candidate_id: int, token=Depends(verify_token)):
     company_id = _require_company_owner(token)
     count = remove_company_candidate(company_id=company_id, candidate_id=candidate_id)
     return {"status": "success", "saved": False, "count": count}
+
+
+@app.patch("/company/saved-candidates/{candidate_id}")
+def company_update_saved_candidate(
+    candidate_id: int,
+    data: UpdateSavedCandidateInput,
+    token: dict = Depends(verify_token)
+):
+    """
+    PATCH /company/saved-candidates/{candidate_id}
+    Partial update of pipeline status, notes, and/or job_id for a saved candidate.
+    Auth: JWT Bearer (user_type='co'). company_id from token only.
+
+    Body (all fields optional — only sent fields are updated):
+      { "status": "shortlisted", "notes": "...", "job_id": 12 }
+
+    Valid status values: saved | shortlisted | contacted | interview | hired | rejected
+    Returns: { status: "success", item: { ...safe candidate fields... } }
+    """
+    company_id = _require_company_owner(token)
+
+    # Collect only the fields explicitly sent in the request body
+    try:
+        sent = data.model_fields_set        # Pydantic v2
+    except AttributeError:
+        sent = data.__fields_set__          # Pydantic v1
+
+    if not sent:
+        raise HTTPException(400, "لا توجد حقول للتحديث")
+
+    updates = {k: getattr(data, k) for k in sent}
+
+    # status must be a valid non-null string if sent
+    if 'status' in updates:
+        if updates['status'] is None:
+            raise HTTPException(400, "قيمة status لا يمكن أن تكون فارغة")
+        if updates['status'] not in VALID_CANDIDATE_STATUSES:
+            raise HTTPException(
+                400,
+                "قيمة status غير مسموحة. القيم المسموحة: "
+                + ", ".join(sorted(VALID_CANDIDATE_STATUSES))
+            )
+
+    try:
+        result = update_company_saved_candidate(
+            company_id=company_id,
+            candidate_id=candidate_id,
+            updates=updates
+        )
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+    if result is None:
+        raise HTTPException(404, "المرشح غير موجود في قائمة المحفوظين")
+
+    return {"status": "success", "item": result}
 
 
 @app.get("/company/candidate-suggestions")
