@@ -4594,6 +4594,90 @@ The modal has no "يتابع" tab because companies do not follow other users. A
 
 ---
 
+## [P2] 53b. Company Rating Modal
+
+**Implemented in:** PR feat/company-rating-modal
+
+### Purpose
+
+Clicking the rating stat tile (`#coStatRatingTile`) opens a modal with:
+- Overall average + star display + total count
+- Score distribution (1–5 bars with percentages)
+- Up to 5 recent comments (score + text — **no rater names for privacy**)
+- Rate CTA (only shown when `companyState.permissions.can_rate === true`)
+
+### Database Table: `company_ratings`
+
+```sql
+company_ratings: id PK, company_id FK(users.id), rater_id FK(users.id),
+  score INT CHECK(1..5), comment TEXT, created_at, updated_at
+  UNIQUE(company_id, rater_id)  -- UPSERT behaviour
+  -- No self-rate at server level (rater_id ≠ company_id)
+```
+
+### API Endpoint
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | `/company/{company_id}/ratings?limit=5` | None (public, optional JWT) | تفاصيل تقييمات الشركة |
+
+- `company_id` accepts numeric id or `tw_id` (resolved via `_resolve_company_id()`)
+- Optional JWT: if provided, `my_rating` (viewer's own score) is populated
+- `limit` controls number of recent comments returned (default 5)
+
+**Response Contract:**
+
+```json
+{
+  "status": "success",
+  "rating_avg": 4.2,
+  "rating_count": 87,
+  "distribution": { "5": 40, "4": 25, "3": 12, "2": 7, "1": 3 },
+  "recent_comments": [
+    { "score": 5, "comment": "شركة ممتازة", "created_at": "2026-06-20T00:00:00Z" }
+  ],
+  "my_rating": 4
+}
+```
+
+> **Privacy rule:** `recent_comments` never includes rater name or user_id. Only `score`, `comment`, `created_at`.
+
+### Backend Function
+
+`get_company_ratings_detail(company_id, viewer_id=None, limit=5)` in `auth.py`
+
+- Returns `rating_avg` (rounded 1dp), `rating_count`, `distribution` (dict keyed 1–5), `recent_comments` (list, no rater name), `my_rating` (int or null)
+- `viewer_id = None` → `my_rating = null`
+
+### Frontend
+
+**Files:**
+- `static/company/company.api.js` — `getCompanyRatingsDetail(companyId, limit)`
+- `static/company/company.main.js` — Rating Modal IIFE (open/close/fetch/render/star-picker/submit)
+- `static/company/company.css` — `.co-rat-*` styles (reuses `.co-fl-overlay/.co-fl-panel` shell)
+- `company-profile.html` — `#coStatRatingTile` (clickable tile) + `#coRatingModal` (HTML structure)
+
+**Behaviour:**
+- Clicking `#coStatRatingTile` → `_open()` → shows modal → fetches `getCompanyRatingsDetail`
+- Renders summary → distribution → recent comments → rate section
+- Rate section visible only when `companyState.permissions.can_rate === true`
+- Star picker: hover highlights, click selects, calls `POST /company/rate/{id}`
+- After successful rating: updates `companyState.stats.rating_avg/count` optimistically → calls `renderStats()` → re-fetches modal
+- Close: `#coRatClose` button, backdrop click, ESC key
+- Reuses `.co-fl-overlay/.co-fl-panel/.co-fl-head/.co-fl-close/.co-fl-spin/.co-fl-empty` — no duplication
+
+### ممنوعات
+
+```
+❌ لا تعرض اسم المُقيِّم في recent_comments (حماية الخصوصية)
+❌ لا تستخدم X-User-Id في fetch calls — Bearer JWT فقط
+❌ لا تعرض زر التقييم لغير المستحقين (can_rate من companyState.permissions)
+❌ لا تُضيف تبويب "التقييمات" — حُذف في Phase 1 (PR #301)
+❌ لا تفتح هذا الـ modal من أي مكان غير #coStatRatingTile
+```
+
+---
+
 ## [P1] 54. QR Card System
 
 **File:** `profile-v2.qr.js`

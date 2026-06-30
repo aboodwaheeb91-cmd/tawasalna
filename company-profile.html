@@ -180,7 +180,7 @@
     <div class="sc-stat-n" id="followersCount">0</div>
     <div class="sc-stat-l">المتابعون</div>
   </div>
-  <div class="sc-stat">
+  <div class="sc-stat co-stat-clickable" id="coStatRatingTile">
     <i data-lucide="star" class="ico sc-stat-i" style="color:#f59e0b"></i>
     <div class="sc-stat-n" id="ratingAvg">—</div>
     <div class="sc-stat-l">التقييم</div>
@@ -536,6 +536,19 @@
     <div class="co-fl-list" id="coFlList"></div>
     <div class="co-fl-load" id="coFlLoad" style="display:none">
       <button class="co-fl-load-btn" id="coFlLoadMore">تحميل المزيد</button>
+    </div>
+  </div>
+</div>
+
+<!-- Rating Modal -->
+<div class="co-fl-overlay" id="coRatingModal" style="display:none">
+  <div class="co-fl-panel co-rat-panel">
+    <div class="co-fl-head">
+      <div class="co-fl-title">تقييم الشركة</div>
+      <button class="co-fl-close" id="coRatClose" aria-label="إغلاق">×</button>
+    </div>
+    <div class="co-fl-list co-rat-body" id="coRatBody">
+      <div class="co-fl-spin">جارٍ التحميل…</div>
     </div>
   </div>
 </div>

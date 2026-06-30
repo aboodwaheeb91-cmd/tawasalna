@@ -83,6 +83,7 @@ from auth import (
     _fetch_accepted_professions_batch,
     _validate_accepted_profession_ids,
     follow_company, unfollow_company, get_company_followers_list, rate_company,
+    get_company_ratings_detail,
     get_company_posts, get_company_posts_count, create_company_post, get_post_owner, delete_company_post,
     follow_profile, unfollow_profile, get_profile_followers_count, is_profile_following,
     get_profile_followers_list, get_profile_following_list,
@@ -1538,6 +1539,22 @@ def company_rate(company_id: str, data: CompanyRateInput, token=Depends(verify_t
     result = rate_company(int(user_id), resolved_id, data.score, data.comment)
     return {"status": "success", "rating_avg": result["rating_avg"],
             "rating_count": result["rating_count"], "my_score": data.score}
+
+
+@app.get("/company/{company_id}/ratings")
+def company_ratings_detail(company_id: str, request: Request, limit: int = 5):
+    """Public read-only ratings detail. Optional JWT for my_rating field."""
+    resolved_id = _resolve_company_id(company_id)
+    if not resolved_id:
+        raise HTTPException(404, "الشركة غير موجودة")
+    viewer_id = None
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        payload = _jwt_decode(auth_header[7:])
+        if payload:
+            viewer_id = payload.get("user_id")
+    result = get_company_ratings_detail(resolved_id, viewer_id, limit)
+    return {"status": "success", **result}
 
 
 # ══ Phase 3: Company Posts endpoints ══
