@@ -50,11 +50,12 @@
     .then(function (data) {
       if (window._mergeCompanyState) window._mergeCompanyState(data);
       if (!silent) {
-        if (window._applyViewMode)     window._applyViewMode();
-        if (window.renderAll)          window.renderAll();
-        if (window.bindEvents)         window.bindEvents();
-        if (window.loadJobs)           window.loadJobs();
-        if (window.loadBranches)       window.loadBranches();
+        if (window._applyViewMode)          window._applyViewMode();
+        if (window.renderAll)               window.renderAll();
+        if (window.bindEvents)              window.bindEvents();
+        if (window.loadJobs)                window.loadJobs();
+        if (window.loadBranches)            window.loadBranches();
+        if (window._loadCandidatesBadge)    window._loadCandidatesBadge();
       }
     })
     .catch(function (err) {
@@ -165,10 +166,41 @@
       .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); });
   }
 
+  // ── Saved Candidates (Phase 4 — owner-only, JWT required) ────────
+
+  function getSavedCandidatesCount() {
+    var jwt = window._jwt ? window._jwt() : '';
+    if (!jwt) return Promise.resolve({ ok: false, data: { count: 0 } });
+    return fetch('/company/saved-candidates/count', {
+      headers: { 'Authorization': 'Bearer ' + jwt }
+    }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); });
+  }
+
+  function getSavedCandidates(limit, offset) {
+    var jwt = window._jwt ? window._jwt() : '';
+    if (!jwt) return Promise.resolve({ ok: false, data: {} });
+    var qs = '?limit=' + (limit || 20) + '&offset=' + (offset || 0);
+    return fetch('/company/saved-candidates' + qs, {
+      headers: { 'Authorization': 'Bearer ' + jwt }
+    }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); });
+  }
+
+  function deleteSavedCandidate(candidateId) {
+    var jwt = window._jwt ? window._jwt() : '';
+    if (!jwt) return Promise.resolve({ ok: false, data: {} });
+    return fetch('/company/saved-candidates/' + candidateId, {
+      method: 'DELETE',
+      headers: { 'Authorization': 'Bearer ' + jwt }
+    }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); });
+  }
+
   window.loadData                   = loadData;
   window.loadJobs                   = loadJobs;
   window.loadPosts                  = loadPosts;
   window.loadBranches               = loadBranches;
   window.getCompanyFollowersList    = getCompanyFollowersList;
   window.getCompanyRatingsDetail    = getCompanyRatingsDetail;
+  window.getSavedCandidatesCount    = getSavedCandidatesCount;
+  window.getSavedCandidates         = getSavedCandidates;
+  window.deleteSavedCandidate       = deleteSavedCandidate;
 }());

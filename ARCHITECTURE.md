@@ -4772,7 +4772,25 @@ var _QR_HIDDEN_ID = '__qrHiddenContainer';
 
 ### Purpose
 
-Allows company owners to privately save employee profiles as candidates for future reference. List is strictly private — never exposed to guests, employees, or other companies. Backend-only in Phase 3; Frontend (modal + button) is a separate PR.
+Allows company owners to privately save employee profiles as candidates for future reference. List is strictly private — never exposed to guests, employees, or other companies. Backend in Phase 3 (PR #304); Frontend button + modal in Phase 4 (PR feat/company-candidates-modal).
+
+### Frontend — Candidates Button + Modal (Phase 4)
+
+**Files:**
+- `company-profile.html` — `#candidatesBtn` (owner-only, inside `.jobs-owner-toolbar`) + `#coCandidatesModal` (modal HTML)
+- `static/company/company.api.js` — `getSavedCandidatesCount()`, `getSavedCandidates(limit, offset)`, `deleteSavedCandidate(candidateId)` + hook in `loadData()`
+- `static/company/company.main.js` — Candidates Modal IIFE
+- `static/company/company.css` — `.co-cand-*` styles + `.co-cand-badge`
+
+**Behaviour:**
+- Badge `#candidatesBadge` loaded via `_loadCandidatesBadge()` hook in `loadData()` success callback
+- Badge hidden when count=0, shown with actual number when count>0 (max "99+")
+- Clicking `#candidatesBtn` → `_open()` → fetches `getSavedCandidates(50, 0)` → renders list
+- Each item: avatar + name + profession + city/country + saved date + "فتح البروفايل" (→ `/u/{tw_id}`) + "إزالة" button
+- "إزالة" → `deleteSavedCandidate(id)` → fades row out → updates badge → empty state if list is now empty
+- Modal tab bar structured for Phase 5 "اقتراحات" tab addition without rebuild
+- Close: `#coCandClose`, backdrop click, ESC key
+- `_isOwner()` guard on every action: checks `companyState.permissions.can_edit`
 
 ### Database Table: `company_saved_candidates`
 

@@ -1116,3 +1116,201 @@
   });
   document.addEventListener('DOMContentLoaded', _start);
 }());
+
+// ── Candidates Modal (Phase 4 — owner-only) ───────────────────────
+(function () {
+  'use strict';
+
+  var _overlay   = document.getElementById('coCandidatesModal');
+  var _body      = document.getElementById('coCandBody');
+  var _badge     = document.getElementById('candidatesBadge');
+  var _openBtn   = document.getElementById('candidatesBtn');
+  var _closeBtn  = document.getElementById('coCandClose');
+
+  if (!_overlay || !_body) return;
+
+  // ── Safety guard — owner check ────────────────────────────────
+  function _isOwner() {
+    return window.companyState &&
+           companyState.permissions &&
+           companyState.permissions.can_edit;
+  }
+
+  // ── Badge ────────────────────────────────────────────────────
+  function _setBadge(count) {
+    if (!_badge) return;
+    if (count > 0) {
+      _badge.textContent = count > 99 ? '99+' : String(count);
+      _badge.style.display = 'inline-flex';
+    } else {
+      _badge.style.display = 'none';
+    }
+  }
+
+  function _loadBadge() {
+    if (!_isOwner()) return;
+    if (!window.getSavedCandidatesCount) return;
+    window.getSavedCandidatesCount()
+      .then(function (res) {
+        if (res && res.ok && res.data) _setBadge(res.data.count || 0);
+      })
+      .catch(function () {});
+  }
+
+  // ── Open / Close ──────────────────────────────────────────────
+  function _open() {
+    if (!_isOwner()) return;
+    _overlay.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+    _fetchSaved();
+  }
+
+  function _close() {
+    _overlay.style.display = 'none';
+    document.body.style.overflow = '';
+  }
+
+  // ── Text escape helper ────────────────────────────────────────
+  function _esc(s) {
+    if (s == null) return '';
+    return String(s)
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      .replace(/"/g,'&quot;');
+  }
+
+  // ── Fetch & render saved list ─────────────────────────────────
+  function _fetchSaved() {
+    _body.innerHTML = '<div class="co-fl-spin">جارٍ التحميل…</div>';
+    if (!window.getSavedCandidates) return;
+    window.getSavedCandidates(50, 0)
+      .then(function (res) {
+        if (!res || !res.ok) {
+          var code = (res && res.data && res.data.detail) ? res.data.detail : '';
+          if (code === 403 || code === 401)
+            _body.innerHTML = '<div class="co-fl-empty">غير مصرح بالوصول</div>';
+          else
+            _body.innerHTML = '<div class="co-fl-empty">تعذّر تحميل القائمة</div>';
+          return;
+        }
+        var items = (res.data && res.data.items) || [];
+        _setBadge(res.data.count || 0);
+        if (items.length === 0) {
+          _body.innerHTML = _emptyHTML();
+          return;
+        }
+        _renderItems(items);
+      })
+      .catch(function () {
+        _body.innerHTML = '<div class="co-fl-empty">تعذّر تحميل القائمة</div>';
+      });
+  }
+
+  function _emptyHTML() {
+    return '<div class="co-cand-empty">' +
+      '<div class="co-cand-empty-title">لا يوجد مرشحون محفوظون بعد</div>' +
+      '<div class="co-cand-empty-sub">عند حفظ مرشح سيظهر هنا لإدارته لاحقاً.</div>' +
+      '</div>';
+  }
+
+  // ── Format date ───────────────────────────────────────────────
+  function _fmtDate(iso) {
+    if (!iso) return '';
+    try {
+      var d = new Date(iso);
+      return d.toLocaleDateString('ar-SA', { year:'numeric', month:'short', day:'numeric' });
+    } catch (e) { return ''; }
+  }
+
+  function _renderItems(items) {
+    var html = '';
+    items.forEach(function (item) {
+      var meta = [item.profession, item.city, item.country].filter(Boolean).join(' · ');
+      var date = _fmtDate(item.created_at);
+      html += '<div class="co-cand-item" data-cid="' + _esc(item.candidate_id) + '">';
+
+      // Avatar
+      html += '<div class="co-cand-ava">';
+      if (item.avatar_url) {
+        html += '<img src="' + _esc(item.avatar_url) + '" alt="" loading="lazy">';
+      } else {
+        html += '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">' +
+                '<circle cx="12" cy="8" r="4"/>' +
+                '<path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>';
+      }
+      html += '</div>';
+
+      // Info
+      html += '<div class="co-cand-info">';
+      html += '<div class="co-cand-name">' + _esc(item.full_name) + '</div>';
+      if (meta) html += '<div class="co-cand-meta">' + _esc(meta) + '</div>';
+      if (date) html += '<div class="co-cand-date">حُفظ ' + _esc(date) + '</div>';
+      html += '</div>';
+
+      // Actions
+      html += '<div class="co-cand-actions">';
+      html += '<a class="co-cand-view-btn" href="/u/' + _esc(item.tw_id) + '" target="_blank" rel="noopener">فتح البروفايل</a>';
+      html += '<button class="co-cand-remove-btn" data-cid="' + _esc(item.candidate_id) + '">إزالة</button>';
+      html += '</div>';
+
+      html += '</div>';
+    });
+    _body.innerHTML = html;
+    _wireRemoveButtons();
+  }
+
+  // ── Remove candidate handler ──────────────────────────────────
+  function _wireRemoveButtons() {
+    var btns = _body.querySelectorAll('.co-cand-remove-btn');
+    btns.forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var cid = parseInt(btn.getAttribute('data-cid'));
+        if (!cid) return;
+        btn.disabled = true;
+        if (!window.deleteSavedCandidate) return;
+        window.deleteSavedCandidate(cid)
+          .then(function (res) {
+            if (res && res.ok) {
+              var newCount = (res.data && typeof res.data.count === 'number') ? res.data.count : null;
+              if (newCount !== null) _setBadge(newCount);
+              var row = btn.closest('.co-cand-item');
+              if (row) {
+                row.style.transition = 'opacity .2s';
+                row.style.opacity = '0';
+                setTimeout(function () {
+                  if (row.parentNode) row.parentNode.removeChild(row);
+                  // Check if empty after removal
+                  if (!_body.querySelector('.co-cand-item')) {
+                    _body.innerHTML = _emptyHTML();
+                  }
+                }, 220);
+              }
+              if (window.showToast) showToast('تمت إزالة المرشح');
+            } else {
+              btn.disabled = false;
+              if (window.showToast) showToast('تعذّر الإزالة', 'error');
+            }
+          })
+          .catch(function () {
+            btn.disabled = false;
+            if (window.showToast) showToast('تعذّر الإزالة', 'error');
+          });
+      });
+    });
+  }
+
+  // ── Wire events ──────────────────────────────────────────────
+  document.addEventListener('DOMContentLoaded', function () {
+    if (_openBtn) _openBtn.addEventListener('click', _open);
+    if (_closeBtn) _closeBtn.addEventListener('click', _close);
+    if (_overlay) _overlay.addEventListener('click', function (e) {
+      if (e.target === _overlay) _close();
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && _overlay && _overlay.style.display !== 'none') _close();
+    });
+  });
+
+  // ── Expose for loadData hook ──────────────────────────────────
+  window._loadCandidatesBadge = _loadBadge;
+  window._coCandOpen          = _open;
+}());
