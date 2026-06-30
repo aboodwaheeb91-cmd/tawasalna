@@ -3407,6 +3407,19 @@ def is_profile_interest_active(actor_user_id: int, target_user_id: int) -> bool:
         release_conn(conn)
 
 
+def is_candidate_saved(company_id: int, candidate_id: int) -> bool:
+    """Return True if the company has saved this candidate in company_saved_candidates."""
+    conn = get_conn()
+    try:
+        rows = conn.run(
+            "SELECT 1 FROM company_saved_candidates "
+            "WHERE company_id = :cid AND candidate_id = :uid",
+            cid=company_id, uid=candidate_id)
+        return bool(rows)
+    finally:
+        release_conn(conn)
+
+
 # ── Company Branches ──────────────────────────────────────────────────────────
 
 def _migrate_company_branches():

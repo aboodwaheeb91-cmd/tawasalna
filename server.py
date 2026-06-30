@@ -90,6 +90,7 @@ from auth import (
     record_profile_view, get_profile_views_count,
     save_profile_interest, remove_profile_interest,
     is_profile_interest_active, get_profile_interest_type, get_profile_interest_label,
+    is_candidate_saved,
     _migrate_company_saved_candidates,
     save_company_candidate, remove_company_candidate,
     get_company_saved_candidates, get_company_saved_candidates_count
@@ -2117,7 +2118,11 @@ def public_profile(user_id: str, request: Request):
     _interest_active = False
     if viewer_type == "public-user" and token_uid and target_user_type == "emp":
         try:
-            _interest_active = is_profile_interest_active(int(token_uid), profile_id)
+            _actor_utype = payload.get("user_type", "emp") if payload else "emp"
+            if _actor_utype == "co":
+                _interest_active = is_candidate_saved(int(token_uid), profile_id)
+            else:
+                _interest_active = is_profile_interest_active(int(token_uid), profile_id)
         except Exception:
             pass
 
