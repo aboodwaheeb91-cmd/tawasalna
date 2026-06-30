@@ -1117,26 +1117,31 @@
   document.addEventListener('DOMContentLoaded', _start);
 }());
 
-// ── Candidates Modal (Phase 4 — owner-only) ───────────────────────
+// ── Candidates Modal (Phase 4 + Phase 5B — owner-only) ────────────
 (function () {
   'use strict';
 
-  var _overlay   = document.getElementById('coCandidatesModal');
-  var _body      = document.getElementById('coCandBody');
-  var _badge     = document.getElementById('candidatesBadge');
-  var _openBtn   = document.getElementById('candidatesBtn');
-  var _closeBtn  = document.getElementById('coCandClose');
+  var _overlay  = document.getElementById('coCandidatesModal');
+  var _body     = document.getElementById('coCandBody');
+  var _badge    = document.getElementById('candidatesBadge');
+  var _openBtn  = document.getElementById('candidatesBtn');
+  var _closeBtn = document.getElementById('coCandClose');
 
   if (!_overlay || !_body) return;
 
-  // ── Safety guard — owner check ────────────────────────────────
+  // Tab state
+  var _activeTab    = 'saved';
+  var _suggOffset   = 0;
+  var _suggLoading  = false;
+
+  // ── Owner guard ────────────────────────────────────────────────
   function _isOwner() {
     return window.companyState &&
            companyState.permissions &&
            companyState.permissions.can_edit;
   }
 
-  // ── Badge ────────────────────────────────────────────────────
+  // ── Badge ──────────────────────────────────────────────────────
   function _setBadge(count) {
     if (!_badge) return;
     if (count > 0) {
@@ -1157,12 +1162,25 @@
       .catch(function () {});
   }
 
-  // ── Open / Close ──────────────────────────────────────────────
+  // ── Text escape helper ─────────────────────────────────────────
+  function _esc(s) {
+    if (s == null) return '';
+    return String(s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  // ── Avatar SVG fallback ────────────────────────────────────────
+  var _avatarSvg =
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">' +
+    '<circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>';
+
+  // ── Open / Close ───────────────────────────────────────────────
   function _open() {
     if (!_isOwner()) return;
     _overlay.style.display = 'flex';
     document.body.style.overflow = 'hidden';
-    _fetchSaved();
+    _switchTab('saved');
   }
 
   function _close() {
@@ -1170,98 +1188,86 @@
     document.body.style.overflow = '';
   }
 
-  // ── Text escape helper ────────────────────────────────────────
-  function _esc(s) {
-    if (s == null) return '';
-    return String(s)
-      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-      .replace(/"/g,'&quot;');
+  // ── Tab switching ──────────────────────────────────────────────
+  function _switchTab(tab) {
+    _activeTab = tab;
+    var tabs = _overlay.querySelectorAll('.co-cand-tab');
+    tabs.forEach(function (t) {
+      if (t.getAttribute('data-tab') === tab) t.classList.add('active');
+      else t.classList.remove('active');
+    });
+    if (tab === 'saved') {
+      _fetchSaved();
+    } else {
+      _suggOffset  = 0;
+      _suggLoading = false;
+      _fetchSuggestions(0);
+    }
   }
 
-  // ── Fetch & render saved list ─────────────────────────────────
+  // ────────────────────────────────────────────────────────────────
+  // TAB 1 — Saved candidates
+  // ────────────────────────────────────────────────────────────────
+
   function _fetchSaved() {
     _body.innerHTML = '<div class="co-fl-spin">جارٍ التحميل…</div>';
     if (!window.getSavedCandidates) return;
     window.getSavedCandidates(50, 0)
       .then(function (res) {
         if (!res || !res.ok) {
-          var code = (res && res.data && res.data.detail) ? res.data.detail : '';
-          if (code === 403 || code === 401)
-            _body.innerHTML = '<div class="co-fl-empty">غير مصرح بالوصول</div>';
-          else
-            _body.innerHTML = '<div class="co-fl-empty">تعذّر تحميل القائمة</div>';
+          var code = res && res.status;
+          _body.innerHTML = (code === 401 || code === 403)
+            ? '<div class="co-fl-empty">غير مصرح بالوصول</div>'
+            : '<div class="co-fl-empty">تعذّر تحميل القائمة</div>';
           return;
         }
         var items = (res.data && res.data.items) || [];
-        _setBadge(res.data.count || 0);
-        if (items.length === 0) {
-          _body.innerHTML = _emptyHTML();
-          return;
-        }
-        _renderItems(items);
+        _setBadge(res.data && res.data.count || 0);
+        if (items.length === 0) { _body.innerHTML = _savedEmptyHTML(); return; }
+        _renderSaved(items);
       })
       .catch(function () {
         _body.innerHTML = '<div class="co-fl-empty">تعذّر تحميل القائمة</div>';
       });
   }
 
-  function _emptyHTML() {
+  function _savedEmptyHTML() {
     return '<div class="co-cand-empty">' +
       '<div class="co-cand-empty-title">لا يوجد مرشحون محفوظون بعد</div>' +
       '<div class="co-cand-empty-sub">عند حفظ مرشح سيظهر هنا لإدارته لاحقاً.</div>' +
       '</div>';
   }
 
-  // ── Format date ───────────────────────────────────────────────
   function _fmtDate(iso) {
     if (!iso) return '';
     try {
-      var d = new Date(iso);
-      return d.toLocaleDateString('ar-SA', { year:'numeric', month:'short', day:'numeric' });
+      return new Date(iso).toLocaleDateString('ar-SA', { year:'numeric', month:'short', day:'numeric' });
     } catch (e) { return ''; }
   }
 
-  function _renderItems(items) {
+  function _renderSaved(items) {
     var html = '';
     items.forEach(function (item) {
       var meta = [item.profession, item.city, item.country].filter(Boolean).join(' · ');
       var date = _fmtDate(item.created_at);
       html += '<div class="co-cand-item" data-cid="' + _esc(item.candidate_id) + '">';
-
-      // Avatar
-      html += '<div class="co-cand-ava">';
-      if (item.avatar_url) {
-        html += '<img src="' + _esc(item.avatar_url) + '" alt="" loading="lazy">';
-      } else {
-        html += '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">' +
-                '<circle cx="12" cy="8" r="4"/>' +
-                '<path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>';
-      }
-      html += '</div>';
-
-      // Info
+      html += '<div class="co-cand-ava">' + (item.avatar_url ? '<img src="' + _esc(item.avatar_url) + '" alt="" loading="lazy">' : _avatarSvg) + '</div>';
       html += '<div class="co-cand-info">';
       html += '<div class="co-cand-name">' + _esc(item.full_name) + '</div>';
-      if (meta) html += '<div class="co-cand-meta">' + _esc(meta) + '</div>';
-      if (date) html += '<div class="co-cand-date">حُفظ ' + _esc(date) + '</div>';
+      if (meta)  html += '<div class="co-cand-meta">' + _esc(meta) + '</div>';
+      if (date)  html += '<div class="co-cand-date">حُفظ ' + _esc(date) + '</div>';
       html += '</div>';
-
-      // Actions
       html += '<div class="co-cand-actions">';
       html += '<a class="co-cand-view-btn" href="/u/' + _esc(item.tw_id) + '" target="_blank" rel="noopener">فتح البروفايل</a>';
       html += '<button class="co-cand-remove-btn" data-cid="' + _esc(item.candidate_id) + '">إزالة</button>';
-      html += '</div>';
-
-      html += '</div>';
+      html += '</div></div>';
     });
     _body.innerHTML = html;
     _wireRemoveButtons();
   }
 
-  // ── Remove candidate handler ──────────────────────────────────
   function _wireRemoveButtons() {
-    var btns = _body.querySelectorAll('.co-cand-remove-btn');
-    btns.forEach(function (btn) {
+    _body.querySelectorAll('.co-cand-remove-btn').forEach(function (btn) {
       btn.addEventListener('click', function () {
         var cid = parseInt(btn.getAttribute('data-cid'));
         if (!cid) return;
@@ -1270,18 +1276,15 @@
         window.deleteSavedCandidate(cid)
           .then(function (res) {
             if (res && res.ok) {
-              var newCount = (res.data && typeof res.data.count === 'number') ? res.data.count : null;
-              if (newCount !== null) _setBadge(newCount);
+              var c = res.data && typeof res.data.count === 'number' ? res.data.count : null;
+              if (c !== null) _setBadge(c);
               var row = btn.closest('.co-cand-item');
               if (row) {
                 row.style.transition = 'opacity .2s';
                 row.style.opacity = '0';
                 setTimeout(function () {
                   if (row.parentNode) row.parentNode.removeChild(row);
-                  // Check if empty after removal
-                  if (!_body.querySelector('.co-cand-item')) {
-                    _body.innerHTML = _emptyHTML();
-                  }
+                  if (!_body.querySelector('.co-cand-item')) _body.innerHTML = _savedEmptyHTML();
                 }, 220);
               }
               if (window.showToast) showToast('تمت إزالة المرشح');
@@ -1298,7 +1301,169 @@
     });
   }
 
-  // ── Wire events ──────────────────────────────────────────────
+  // ────────────────────────────────────────────────────────────────
+  // TAB 2 — Suggestions (Phase 5B)
+  // ────────────────────────────────────────────────────────────────
+
+  function _fetchSuggestions(offset) {
+    if (_suggLoading) return;
+    _suggLoading = true;
+    if (offset === 0) _body.innerHTML = '<div class="co-fl-spin">جارٍ التحميل…</div>';
+    if (!window.getCandidateSuggestions) { _suggLoading = false; return; }
+    window.getCandidateSuggestions(20, offset)
+      .then(function (res) {
+        if (!res || !res.ok) {
+          var code = res && res.status;
+          if (offset === 0) {
+            _body.innerHTML = (code === 401 || code === 403)
+              ? '<div class="co-fl-empty">غير مصرح بالوصول للاقتراحات</div>'
+              : '<div class="co-fl-empty">تعذّر تحميل الاقتراحات</div>';
+          }
+          return;
+        }
+        var data  = res.data || {};
+        var items = data.items || [];
+        var pg    = data.pagination || {};
+
+        if (data.status === 'no_jobs') {
+          if (offset === 0) _body.innerHTML = _suggNoJobsHTML();
+          return;
+        }
+
+        if (offset === 0) {
+          if (items.length === 0) { _body.innerHTML = _suggEmptyHTML(); return; }
+          _renderSuggestions(items, pg);
+        } else {
+          _appendSuggestions(items, pg);
+        }
+      })
+      .catch(function () {
+        if (offset === 0) _body.innerHTML = '<div class="co-fl-empty">تعذّر تحميل الاقتراحات</div>';
+      })
+      .finally(function () { _suggLoading = false; });
+  }
+
+  function _suggNoJobsHTML() {
+    return '<div class="co-cand-empty">' +
+      '<div class="co-cand-empty-title">لا توجد اقتراحات بعد</div>' +
+      '<div class="co-cand-empty-sub">انشر وظيفة أولاً لتحسين الاقتراحات.</div>' +
+      '</div>';
+  }
+
+  function _suggEmptyHTML() {
+    return '<div class="co-cand-empty">' +
+      '<div class="co-cand-empty-title">لا توجد اقتراحات إضافية حالياً</div>' +
+      '<div class="co-cand-empty-sub">سنقترح مرشحين عند توفر تطابق أفضل.</div>' +
+      '</div>';
+  }
+
+  function _suggItemHTML(item) {
+    var meta    = [item.profession, item.city, item.country].filter(Boolean).join(' · ');
+    var score   = item.match_score || 0;
+    var reasons = item.match_reasons || [];
+    var html = '<div class="co-cand-item co-sugg-item" data-cid="' + _esc(item.candidate_id) + '">';
+    html += '<div class="co-cand-ava">' + (item.avatar_url ? '<img src="' + _esc(item.avatar_url) + '" alt="" loading="lazy">' : _avatarSvg) + '</div>';
+    html += '<div class="co-cand-info">';
+    html += '<div class="co-sugg-name-row">';
+    html += '<div class="co-cand-name">' + _esc(item.full_name) + '</div>';
+    html += '<span class="co-sugg-score">' + score + '%</span>';
+    html += '</div>';
+    if (meta) html += '<div class="co-cand-meta">' + _esc(meta) + '</div>';
+    if (reasons.length) {
+      html += '<div class="co-sugg-reasons">';
+      reasons.forEach(function (r) { html += '<span class="co-sugg-chip">' + _esc(r) + '</span>'; });
+      html += '</div>';
+    }
+    html += '</div>';
+    html += '<div class="co-cand-actions">';
+    html += '<a class="co-cand-view-btn" href="/u/' + _esc(item.tw_id) + '" target="_blank" rel="noopener">فتح البروفايل</a>';
+    html += '<button class="co-sugg-save-btn" data-cid="' + _esc(item.candidate_id) + '">حفظ كمرشح</button>';
+    html += '</div></div>';
+    return html;
+  }
+
+  function _renderSuggestions(items, pg) {
+    var html = '<div id="coCandSuggList">';
+    items.forEach(function (item) { html += _suggItemHTML(item); });
+    html += '</div>';
+    if (pg && pg.has_more) html += '<button class="co-sugg-load-more" id="coCandLoadMore">عرض المزيد</button>';
+    _body.innerHTML = html;
+    _wireSaveButtons();
+    _wireLoadMore(pg);
+  }
+
+  function _appendSuggestions(items, pg) {
+    var oldMore = document.getElementById('coCandLoadMore');
+    if (oldMore && oldMore.parentNode) oldMore.parentNode.removeChild(oldMore);
+    var list = _body.querySelector('#coCandSuggList');
+    if (!list) return;
+    items.forEach(function (item) {
+      var tmp = document.createElement('div');
+      tmp.innerHTML = _suggItemHTML(item);
+      while (tmp.firstChild) list.appendChild(tmp.firstChild);
+    });
+    if (pg && pg.has_more) {
+      var btn = document.createElement('button');
+      btn.className = 'co-sugg-load-more'; btn.id = 'coCandLoadMore'; btn.textContent = 'عرض المزيد';
+      _body.appendChild(btn);
+      _wireLoadMore(pg);
+    }
+    _wireSaveButtons();
+  }
+
+  function _wireLoadMore(pg) {
+    var btn = document.getElementById('coCandLoadMore');
+    if (!btn || !pg || !pg.has_more) return;
+    btn.addEventListener('click', function () {
+      _suggOffset = (pg.offset || 0) + (pg.limit || 20);
+      btn.disabled = true;
+      btn.textContent = 'جارٍ التحميل…';
+      _fetchSuggestions(_suggOffset);
+    });
+  }
+
+  function _wireSaveButtons() {
+    _body.querySelectorAll('.co-sugg-save-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var cid = parseInt(btn.getAttribute('data-cid'));
+        if (!cid) return;
+        btn.disabled = true;
+        btn.textContent = 'جارٍ الحفظ…';
+        if (!window.saveSuggestedCandidate) { btn.disabled = false; return; }
+        window.saveSuggestedCandidate(cid)
+          .then(function (res) {
+            if (res && res.ok) {
+              var c = res.data && typeof res.data.count === 'number' ? res.data.count : null;
+              if (c !== null) _setBadge(c);
+              var row = btn.closest('.co-cand-item');
+              if (row) {
+                row.style.transition = 'opacity .2s';
+                row.style.opacity = '0';
+                setTimeout(function () {
+                  if (row.parentNode) row.parentNode.removeChild(row);
+                  var list = _body.querySelector('#coCandSuggList');
+                  if (list && !list.querySelector('.co-cand-item')) {
+                    _body.innerHTML = _suggEmptyHTML();
+                  }
+                }, 220);
+              }
+              if (window.showToast) showToast('تم حفظ المرشح');
+            } else {
+              btn.disabled = false;
+              btn.textContent = 'حفظ كمرشح';
+              if (window.showToast) showToast('تعذّر الحفظ', 'error');
+            }
+          })
+          .catch(function () {
+            btn.disabled = false;
+            btn.textContent = 'حفظ كمرشح';
+            if (window.showToast) showToast('تعذّر الحفظ', 'error');
+          });
+      });
+    });
+  }
+
+  // ── Wire events ────────────────────────────────────────────────
   document.addEventListener('DOMContentLoaded', function () {
     if (_openBtn) _openBtn.addEventListener('click', _open);
     if (_closeBtn) _closeBtn.addEventListener('click', _close);
@@ -1308,9 +1473,20 @@
     document.addEventListener('keydown', function (e) {
       if (e.key === 'Escape' && _overlay && _overlay.style.display !== 'none') _close();
     });
+
+    // Tab clicks
+    var tabsEl = document.getElementById('coCandTabs');
+    if (tabsEl) {
+      tabsEl.addEventListener('click', function (e) {
+        var t = e.target.closest('.co-cand-tab');
+        if (!t || !_isOwner()) return;
+        var tab = t.getAttribute('data-tab');
+        if (tab && tab !== _activeTab) _switchTab(tab);
+      });
+    }
   });
 
-  // ── Expose for loadData hook ──────────────────────────────────
+  // ── Expose for loadData hook ───────────────────────────────────
   window._loadCandidatesBadge = _loadBadge;
   window._coCandOpen          = _open;
 }());

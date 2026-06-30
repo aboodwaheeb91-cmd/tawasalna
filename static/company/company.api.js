@@ -194,6 +194,26 @@
     }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); });
   }
 
+  // ── Candidate Suggestions (Phase 5A endpoint — owner-only) ──────
+
+  function getCandidateSuggestions(limit, offset) {
+    var jwt = window._jwt ? window._jwt() : '';
+    if (!jwt) return Promise.resolve({ ok: false, data: {} });
+    var qs = '?limit=' + (limit || 20) + '&offset=' + (offset || 0);
+    return fetch('/company/candidate-suggestions' + qs, {
+      headers: { 'Authorization': 'Bearer ' + jwt }
+    }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, status: r.status, data: d }; }); });
+  }
+
+  function saveSuggestedCandidate(candidateId) {
+    var jwt = window._jwt ? window._jwt() : '';
+    if (!jwt) return Promise.resolve({ ok: false, data: {} });
+    return fetch('/company/saved-candidates/' + candidateId, {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + jwt }
+    }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, status: r.status, data: d }; }); });
+  }
+
   window.loadData                   = loadData;
   window.loadJobs                   = loadJobs;
   window.loadPosts                  = loadPosts;
@@ -203,4 +223,6 @@
   window.getSavedCandidatesCount    = getSavedCandidatesCount;
   window.getSavedCandidates         = getSavedCandidates;
   window.deleteSavedCandidate       = deleteSavedCandidate;
+  window.getCandidateSuggestions    = getCandidateSuggestions;
+  window.saveSuggestedCandidate     = saveSuggestedCandidate;
 }());
