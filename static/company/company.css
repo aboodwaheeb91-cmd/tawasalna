@@ -391,15 +391,23 @@ body { background:var(--bg); color:var(--t); font-family:'Cairo',sans-serif; min
   gap:8px; align-items:center;
   margin-bottom:14px;
 }
-/* Teal action button — نشر وظيفة (+ future المرشحون beside it) */
-.nb-post-job {
-  background:linear-gradient(135deg,#00c896,#0ea5e9);
-  color:#06121c; font-weight:800; border:none;
-  box-shadow:0 2px 14px rgba(0,200,150,.28);
+/* Owner admin action buttons — نشر وظيفة / نشر منشور (glass teal, shared class) */
+.nb-owner-action {
+  background:rgba(0,200,150,.06);
+  color:#20e0c0;
+  border:1px solid rgba(32,224,192,.45);
+  box-shadow:inset 0 0 12px rgba(32,224,192,.08), 0 0 16px rgba(32,224,192,.14);
+  padding:4px 16px;
+  min-height:30px;
+  line-height:1.1;
+  border-radius:12px;
+  font-weight:800;
+  gap:6px;
 }
-.nb-post-job:hover {
-  filter:brightness(1.08);
-  box-shadow:0 4px 20px rgba(0,200,150,.45);
+.nb-owner-action:hover {
+  background:rgba(0,200,150,.10);
+  border-color:rgba(32,224,192,.75);
+  box-shadow:inset 0 0 16px rgba(32,224,192,.12), 0 0 22px rgba(32,224,192,.22);
 }
 
 /* ══ LUCIDE ICON SIZING ══════════════════════════════════════════ */
