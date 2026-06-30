@@ -7,7 +7,7 @@
   function switchTab(name, el) {
     document.querySelectorAll('.sc-tab').forEach(function (t) { t.classList.remove('active'); });
     el.classList.add('active');
-    ['jobs', 'posts', 'about', 'ratings'].forEach(function (t) {
+    ['jobs', 'posts', 'about'].forEach(function (t) {
       var el2 = document.getElementById('tab-' + t);
       if (el2) el2.style.display = t === name ? 'block' : 'none';
     });
