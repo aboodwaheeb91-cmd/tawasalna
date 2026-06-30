@@ -134,6 +134,23 @@ function removeProfileInterest(profileId){
 window.saveProfileInterest   = saveProfileInterest;
 window.removeProfileInterest = removeProfileInterest;
 
+function saveCandidateToCompany(profileId){
+  return fetch('/company/saved-candidates/' + profileId, {
+    method: 'POST',
+    headers: { 'Authorization': 'Bearer ' + _currentJwt() }
+  }).then(function(r){ return r.json().then(function(d){ return {ok: r.ok, status: r.status, data: d}; }); });
+}
+
+function removeCandidateFromCompany(profileId){
+  return fetch('/company/saved-candidates/' + profileId, {
+    method: 'DELETE',
+    headers: { 'Authorization': 'Bearer ' + _currentJwt() }
+  }).then(function(r){ return r.json().then(function(d){ return {ok: r.ok, status: r.status, data: d}; }); });
+}
+
+window.saveCandidateToCompany   = saveCandidateToCompany;
+window.removeCandidateFromCompany = removeCandidateFromCompany;
+
 function getFollowersList(profileId, limit, offset, type){
   var qs = '?limit=' + (limit || 20) + '&offset=' + (offset || 0) + '&type=' + (type || 'all');
   return fetch('/profile/' + profileId + '/followers' + qs, {

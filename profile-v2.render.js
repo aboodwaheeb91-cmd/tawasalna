@@ -833,26 +833,43 @@ window.renderProfile = function renderProfile(res){
 
       var curVa    = window._scViewerAction;
       var targetId = p.id;
-      var action   = (curVa && curVa.is_active) ? removeProfileInterest : saveProfileInterest;
+      var action;
+      if(_vaType === 'candidate_save'){
+        action = (curVa && curVa.is_active) ? removeCandidateFromCompany : saveCandidateToCompany;
+      } else {
+        action = (curVa && curVa.is_active) ? removeProfileInterest : saveProfileInterest;
+      }
 
       action(targetId)
         .then(function(r){
-          if(r.ok && r.data && r.data.viewer_action){
-            window._scViewerAction = r.data.viewer_action;
-            _applyVa(r.data.viewer_action);
-            if(_vaType === 'candidate_save'){
-              if(r.data.viewer_action.is_active){
-                _showCandidateHint();
-              } else {
-                var _h = document.getElementById('_scCandidateHint');
-                if(_h) _h.remove();
-                if(window.toast) toast('تم إلغاء حفظ المرشح');
-              }
+          if(!r.ok){
+            if(window.toast) toast('حدث خطأ، حاول مرة أخرى');
+            return;
+          }
+          if(_vaType === 'candidate_save'){
+            var nowActive = !!(r.data && r.data.saved);
+            var syntheticVa = {
+              hidden: false, can_interact: true, is_active: nowActive,
+              label: nowActive ? 'محفوظ كمرشح' : 'حفظ كمرشح',
+              type: 'candidate_save'
+            };
+            window._scViewerAction = syntheticVa;
+            _applyVa(syntheticVa);
+            if(nowActive){
+              _showCandidateHint();
             } else {
-              if(window.toast) toast(r.data.viewer_action.is_active ? 'تم حفظ التفاعل' : 'تم إلغاء التفاعل');
+              var _h = document.getElementById('_scCandidateHint');
+              if(_h) _h.remove();
+              if(window.toast) toast('تم إلغاء حفظ المرشح');
             }
           } else {
-            if(window.toast) toast('حدث خطأ، حاول مرة أخرى');
+            if(r.data && r.data.viewer_action){
+              window._scViewerAction = r.data.viewer_action;
+              _applyVa(r.data.viewer_action);
+              if(window.toast) toast(r.data.viewer_action.is_active ? 'تم حفظ التفاعل' : 'تم إلغاء التفاعل');
+            } else {
+              if(window.toast) toast('حدث خطأ، حاول مرة أخرى');
+            }
           }
         })
         .catch(function(){ if(window.toast) toast('خطأ في الاتصال'); })
