@@ -3499,3 +3499,154 @@ def save_company_branches(company_id: int, branches: list) -> list:
     finally:
         release_conn(conn)
 
+
+# ══ Phase 3: Company Saved Candidates ══════════════════════════════════════
+# Private data — visible only to the company owner. Never returned to guests.
+# candidate_id must be user_type='emp'. company_id must be user_type='co'.
+
+def _migrate_company_saved_candidates():
+    """Create company_saved_candidates table + indexes (idempotent)."""
+    conn = get_conn()
+    try:
+        conn.run("""
+            CREATE TABLE IF NOT EXISTS company_saved_candidates (
+                id           BIGSERIAL PRIMARY KEY,
+                company_id   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                candidate_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                job_id       INTEGER NULL REFERENCES jobs(id) ON DELETE SET NULL,
+                status       TEXT NOT NULL DEFAULT 'saved',
+                notes        TEXT,
+                saved_by     INTEGER NULL REFERENCES users(id) ON DELETE SET NULL,
+                created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                CONSTRAINT uq_saved_candidate UNIQUE (company_id, candidate_id)
+            )
+        """)
+        conn.run("""
+            CREATE INDEX IF NOT EXISTS idx_saved_cands_company
+            ON company_saved_candidates(company_id)
+        """)
+        conn.run("""
+            CREATE INDEX IF NOT EXISTS idx_saved_cands_candidate
+            ON company_saved_candidates(candidate_id)
+        """)
+    finally:
+        release_conn(conn)
+
+
+def save_company_candidate(company_id: int, candidate_id: int, saved_by: int,
+                            job_id: int = None, notes: str = None) -> int:
+    """
+    Save a candidate to the company's private list (UPSERT — idempotent).
+    Returns updated total count.
+    Raises ValueError if candidate is not user_type='emp'.
+    """
+    conn = get_conn()
+    try:
+        check = conn.run("SELECT user_type FROM users WHERE id = :uid", uid=candidate_id)
+        if not check or check[0][0] != "emp":
+            raise ValueError("يجب أن يكون المرشح موظفاً")
+        conn.run(
+            "INSERT INTO company_saved_candidates "
+            "(company_id, candidate_id, job_id, notes, saved_by) "
+            "VALUES (:cid, :uid, :jid, :notes, :sid) "
+            "ON CONFLICT (company_id, candidate_id) DO UPDATE "
+            "SET updated_at=NOW(), job_id=EXCLUDED.job_id, notes=EXCLUDED.notes",
+            cid=company_id, uid=candidate_id,
+            jid=job_id, notes=notes, sid=saved_by)
+        count_row = conn.run(
+            "SELECT COUNT(*) FROM company_saved_candidates WHERE company_id=:cid",
+            cid=company_id)
+        return count_row[0][0] if count_row else 0
+    finally:
+        release_conn(conn)
+
+
+def remove_company_candidate(company_id: int, candidate_id: int) -> int:
+    """
+    Remove a candidate from the company's saved list.
+    Returns new total count after removal.
+    """
+    conn = get_conn()
+    try:
+        conn.run(
+            "DELETE FROM company_saved_candidates "
+            "WHERE company_id=:cid AND candidate_id=:uid",
+            cid=company_id, uid=candidate_id)
+        count_row = conn.run(
+            "SELECT COUNT(*) FROM company_saved_candidates WHERE company_id=:cid",
+            cid=company_id)
+        return count_row[0][0] if count_row else 0
+    finally:
+        release_conn(conn)
+
+
+def get_company_saved_candidates(company_id: int, limit: int = 20, offset: int = 0) -> dict:
+    """
+    Paginated private list of saved candidates for a company.
+    Returns: candidate_id, tw_id, full_name, avatar_url, profession, city, country,
+             job_id, status, notes, created_at.
+    Sensitive fields (email, phone, detailed location) are NOT returned.
+    """
+    conn = get_conn()
+    try:
+        total_row = conn.run(
+            "SELECT COUNT(*) FROM company_saved_candidates WHERE company_id=:cid",
+            cid=company_id)
+        total = total_row[0][0] if total_row else 0
+
+        rows = conn.run(
+            "SELECT u.id, u.tw_id, u.full_name, p.avatar_url, "
+            "pc.name_ar, p.city, p.country, "
+            "sc.job_id, sc.status, sc.notes, sc.created_at "
+            "FROM company_saved_candidates sc "
+            "JOIN users u ON u.id=sc.candidate_id "
+            "LEFT JOIN profiles p ON p.user_id=u.id "
+            "LEFT JOIN profession_categories pc ON pc.id=p.profession_id "
+            "WHERE sc.company_id=:cid "
+            "ORDER BY sc.created_at DESC LIMIT :lim OFFSET :off",
+            cid=company_id, lim=limit, off=offset) or []
+
+        items = []
+        for r in rows:
+            cand_id, tw_id, full_name, avatar_url, prof_name, city, country, \
+                job_id, status, notes, created_at = r
+            items.append(_serialize({
+                "candidate_id": cand_id,
+                "tw_id":        tw_id,
+                "full_name":    full_name,
+                "avatar_url":   avatar_url,
+                "profession":   prof_name or None,
+                "city":         city,
+                "country":      country,
+                "job_id":       job_id,
+                "status":       status or "saved",
+                "notes":        notes,
+                "created_at":   created_at,
+            }))
+
+        return {
+            "count": total,
+            "items": items,
+            "pagination": {
+                "limit":    limit,
+                "offset":   offset,
+                "has_more": (offset + limit) < total,
+                "total":    total,
+            },
+        }
+    finally:
+        release_conn(conn)
+
+
+def get_company_saved_candidates_count(company_id: int) -> int:
+    """Return total count of saved candidates (used for badge display)."""
+    conn = get_conn()
+    try:
+        row = conn.run(
+            "SELECT COUNT(*) FROM company_saved_candidates WHERE company_id=:cid",
+            cid=company_id)
+        return row[0][0] if row else 0
+    finally:
+        release_conn(conn)
+
