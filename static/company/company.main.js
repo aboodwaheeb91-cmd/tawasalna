@@ -1353,7 +1353,7 @@
     var list = document.getElementById('coCandSavedList');
     if (first && list) list.innerHTML = '<div class="co-fl-spin">جارٍ التحميل…</div>';
     var oldBtn = document.getElementById('coCandSavedLoadMore');
-    if (first && oldBtn && oldBtn.parentNode) oldBtn.parentNode.removeChild(oldBtn);
+    if (oldBtn && oldBtn.parentNode) oldBtn.parentNode.removeChild(oldBtn);
 
     var filters = {};
     if (_savedFilter === '_unlinked')  { filters.unlinked = true; }
@@ -1665,10 +1665,9 @@
           _applyCardUpdate(card, updated);
           _closePanelOf(btn);
           _loadSavedStats(null);
-          // Hide card if active status-filter no longer matches
-          var shouldHide = _savedFilter
-            && _savedFilter !== '_unlinked'
-            && updated.status !== _savedFilter;
+          // Hide card if it no longer matches the active filter
+          var shouldHide = (_savedFilter && _savedFilter !== '_unlinked' && updated.status !== _savedFilter)
+            || (_savedFilter === '_unlinked' && updated.job_id != null);
           if (shouldHide) {
             card.style.transition = 'opacity .2s';
             card.style.opacity = '0';
