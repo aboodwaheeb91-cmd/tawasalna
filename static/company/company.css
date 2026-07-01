@@ -1206,7 +1206,8 @@ body.co-loading  .visitor-only           { display: none !important; }
 .co-sugg-load-more:hover { background:rgba(255,255,255,.08); }
 .co-sugg-load-more:disabled { opacity:.4; cursor:default; }
 
-/* ── Phase 6B — Pipeline manage panel (saved tab) ────────────── */
+/* ── Phase 6B — Pipeline manage panel (saved tab) ──────────────
+   Manage button: neutral slate (not purple) */
 
 /* Outer wrapper: column flex so panel expands below the row */
 .co-cand-saved-card {
@@ -1226,18 +1227,18 @@ body.co-loading  .visitor-only           { display: none !important; }
   display:flex; align-items:center; gap:6px; margin-top:3px; flex-wrap:wrap;
 }
 
-/* Status badge */
+/* Status badge — colors match filter chips */
 .co-cand-status {
   display:inline-flex; align-items:center;
   font-size:.58rem; font-weight:700;
   padding:2px 7px; border-radius:20px; line-height:1.3; white-space:nowrap;
 }
 .co-cand-status--saved       { background:rgba(148,163,184,.12); color:#94a3b8; }
-.co-cand-status--shortlisted { background:rgba(37,99,255,.14);   color:#6699ff; }
-.co-cand-status--contacted   { background:rgba(139,92,246,.14);  color:#a78bfa; }
-.co-cand-status--interview   { background:rgba(251,191,36,.14);  color:#fbbf24; }
-.co-cand-status--hired       { background:rgba(0,200,150,.14);   color:#00c896; }
-.co-cand-status--rejected    { background:rgba(255,80,80,.12);   color:rgba(255,100,100,.8); }
+.co-cand-status--shortlisted { background:rgba(96,165,250,.12);  color:#60a5fa; }
+.co-cand-status--contacted   { background:rgba(56,189,248,.12);  color:#38bdf8; }
+.co-cand-status--interview   { background:rgba(251,191,36,.12);  color:#fbbf24; }
+.co-cand-status--hired       { background:rgba(52,211,153,.12);  color:#34d399; }
+.co-cand-status--rejected    { background:rgba(248,113,113,.12); color:#f87171; }
 
 /* Notes preview (2-line clamp, owner-only) */
 .co-cand-notes-pre {
@@ -1249,17 +1250,15 @@ body.co-loading  .visitor-only           { display: none !important; }
 /* Muted job reference */
 .co-cand-job-ref { font-size:.6rem; color:var(--t3,#6b7686); margin-top:2px; }
 
-/* Manage button — purple ghost */
+/* Manage button — neutral slate */
 .co-cand-manage-btn {
   font-size:.67rem; padding:4px 11px; border-radius:8px; cursor:pointer;
-  border:1px solid rgba(139,92,246,.3); background:rgba(139,92,246,.07);
-  color:#a78bfa; white-space:nowrap;
-  transition:background .15s, border-color .15s;
+  border:1px solid rgba(148,163,184,.22); background:rgba(148,163,184,.06);
+  color:#94a3b8; white-space:nowrap;
+  transition:background .15s, border-color .15s, color .15s;
 }
-.co-cand-manage-btn:hover  { background:rgba(139,92,246,.14); }
-.co-cand-manage-btn.active {
-  background:rgba(139,92,246,.18); border-color:rgba(139,92,246,.55);
-}
+.co-cand-manage-btn:hover  { background:rgba(148,163,184,.12); border-color:rgba(148,163,184,.4); color:#cbd5e1; }
+.co-cand-manage-btn.active { background:rgba(148,163,184,.15); border-color:rgba(148,163,184,.5); color:#e2e8f0; }
 
 /* Manage panel — collapsed by default, expands via .open class */
 .co-cand-manage-panel {
@@ -1333,26 +1332,45 @@ body.co-loading  .visitor-only           { display: none !important; }
   display:flex; flex-direction:column; gap:8px;
 }
 
+/* Filter chip grid — 4 columns, rectangular, 44px height */
 .co-cand-chips {
-  display:flex; flex-wrap:wrap; gap:5px;
+  display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:5px; width:100%;
 }
 
 .co-cand-chip {
-  display:inline-flex; align-items:center; gap:5px;
-  padding:4px 10px; border-radius:20px;
-  font-size:.67rem; font-weight:600; white-space:nowrap; cursor:pointer;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:2px; height:44px; padding:4px 3px; box-sizing:border-box; width:100%;
+  border-radius:9px; cursor:pointer;
   border:1px solid rgba(255,255,255,.1); background:rgba(255,255,255,.04);
   color:var(--t2,#94a3b8);
   transition:background .15s, border-color .15s, color .15s;
 }
-.co-cand-chip:hover  { background:rgba(255,255,255,.08); }
-.co-cand-chip.active {
-  background:rgba(0,200,150,.12); border-color:rgba(0,200,150,.35); color:#00c896;
-}
+.co-cand-chip:hover { filter:brightness(1.12); }
 
-.co-cand-chip-count {
-  font-size:.58rem; opacity:.75;
-}
+.co-cand-chip-ico { width:13px; height:13px; flex-shrink:0; }
+.co-cand-chip-ico svg { width:13px; height:13px; display:block; }
+.co-cand-chip-lbl { font-size:.58rem; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%; }
+.co-cand-chip-cnt { font-size:.54rem; opacity:.72; }
+
+/* Per-status chip colors — always visible (base subtle, active stronger) */
+.co-cand-chip.chip-f-null        { color:#00c896; background:rgba(0,200,150,.05);   border-color:rgba(0,200,150,.2); }
+.co-cand-chip.chip-f-saved       { color:#94a3b8; background:rgba(148,163,184,.06); border-color:rgba(148,163,184,.2); }
+.co-cand-chip.chip-f-shortlisted { color:#60a5fa; background:rgba(96,165,250,.06);  border-color:rgba(96,165,250,.2); }
+.co-cand-chip.chip-f-contacted   { color:#38bdf8; background:rgba(56,189,248,.06);  border-color:rgba(56,189,248,.2); }
+.co-cand-chip.chip-f-interview   { color:#fbbf24; background:rgba(251,191,36,.06);  border-color:rgba(251,191,36,.2); }
+.co-cand-chip.chip-f-hired       { color:#34d399; background:rgba(52,211,153,.06);  border-color:rgba(52,211,153,.2); }
+.co-cand-chip.chip-f-rejected    { color:#f87171; background:rgba(248,113,113,.06); border-color:rgba(248,113,113,.2); }
+.co-cand-chip.chip-f-_unlinked   { color:#9ca3af; background:rgba(107,114,128,.06); border-color:rgba(107,114,128,.2); }
+
+/* Active state: stronger bg + border (color inherited from base type rule above) */
+.co-cand-chip.chip-f-null.active        { background:rgba(0,200,150,.15);   border-color:rgba(0,200,150,.48); }
+.co-cand-chip.chip-f-saved.active       { background:rgba(148,163,184,.15); border-color:rgba(148,163,184,.48); }
+.co-cand-chip.chip-f-shortlisted.active { background:rgba(96,165,250,.15);  border-color:rgba(96,165,250,.48); }
+.co-cand-chip.chip-f-contacted.active   { background:rgba(56,189,248,.15);  border-color:rgba(56,189,248,.48); }
+.co-cand-chip.chip-f-interview.active   { background:rgba(251,191,36,.15);  border-color:rgba(251,191,36,.48); }
+.co-cand-chip.chip-f-hired.active       { background:rgba(52,211,153,.15);  border-color:rgba(52,211,153,.48); }
+.co-cand-chip.chip-f-rejected.active    { background:rgba(248,113,113,.15); border-color:rgba(248,113,113,.48); }
+.co-cand-chip.chip-f-_unlinked.active   { background:rgba(107,114,128,.15); border-color:rgba(107,114,128,.48); }
 
 .co-cand-search-row {
   display:flex; gap:6px; align-items:center;
@@ -1366,16 +1384,45 @@ body.co-loading  .visitor-only           { display: none !important; }
 .co-cand-search::placeholder { color:var(--t3,#6b7686); }
 .co-cand-search:focus { outline:none; border-color:rgba(0,200,150,.35); }
 
-.co-cand-sort-sel {
-  padding:7px 28px 7px 10px; border-radius:8px; min-width:110px;
+/* ── Custom dark picker (.co-dp-*) — replaces native selects ─── */
+
+.co-dp-wrap { position:relative; min-width:110px; }
+
+.co-dp-btn {
+  display:flex; align-items:center; justify-content:space-between; gap:6px;
+  width:100%; padding:7px 10px; border-radius:8px; cursor:pointer;
   background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.1);
-  color:var(--t1,#fff); font-family:inherit; font-size:.73rem;
-  appearance:none; -webkit-appearance:none; cursor:pointer;
-  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
-  background-repeat:no-repeat; background-position:left 10px center;
+  color:var(--t1,#fff); font-family:inherit; font-size:.75rem;
+  transition:background .15s, border-color .15s;
 }
-.co-cand-sort-sel option { background:#1a2035; color:#fff; }
-.co-cand-sort-sel:focus  { outline:none; border-color:rgba(0,200,150,.35); }
+.co-dp-btn:hover { background:rgba(255,255,255,.09); border-color:rgba(255,255,255,.2); }
+
+.co-dp-val { flex:1; text-align:start; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+.co-dp-chev { width:13px; height:13px; flex-shrink:0; color:#94a3b8; transition:transform .15s; }
+
+.co-dp-list {
+  background:#141928; border:1px solid rgba(255,255,255,.12);
+  border-radius:10px; overflow:hidden;
+  box-shadow:0 8px 24px rgba(0,0,0,.55);
+  margin-top:4px;
+}
+
+.co-dp-opt {
+  display:flex; align-items:center; gap:8px;
+  width:100%; padding:9px 13px;
+  background:transparent; border:none; cursor:pointer;
+  color:var(--t1,#fff); font-family:inherit; font-size:.78rem;
+  text-align:start; transition:background .12s;
+}
+.co-dp-opt:hover { background:rgba(255,255,255,.07); }
+.co-dp-opt.selected { color:#00c896; background:rgba(0,200,150,.07); }
+
+.co-dp-chk { width:14px; height:14px; flex-shrink:0; opacity:0; transition:opacity .15s; }
+.co-dp-opt.selected .co-dp-chk { opacity:1; }
+
+/* Status picker inside manage panel — full width */
+.co-cand-manage-panel .co-dp-wrap { min-width:0; width:100%; }
 
 .co-cand-load-more {
   display:block; width:calc(100% - 28px); margin:10px 14px 4px;

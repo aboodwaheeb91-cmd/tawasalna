@@ -1198,6 +1198,81 @@
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">' +
     '<circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>';
 
+  // ── Custom dark picker helpers (Phase UI-Polish) ───────────────
+  var _S = 'stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"';
+  function _chevronSvg() {
+    return '<svg class="co-dp-chev" viewBox="0 0 24 24" fill="none" ' + _S + '>'
+         + '<polyline points="6 9 12 15 18 9"/></svg>';
+  }
+  function _checkSvg() {
+    return '<svg class="co-dp-chk" viewBox="0 0 24 24" fill="none" ' + _S + '>'
+         + '<polyline points="20 6 9 17 4 12"/></svg>';
+  }
+  // Filter chip icons (Lucide-style inline SVG)
+  var _FILTER_ICONS = {
+    'null':        '<svg viewBox="0 0 24 24" fill="none" ' + _S + '><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>',
+    'saved':       '<svg viewBox="0 0 24 24" fill="none" ' + _S + '><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>',
+    'shortlisted': '<svg viewBox="0 0 24 24" fill="none" ' + _S + '><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>',
+    'contacted':   '<svg viewBox="0 0 24 24" fill="none" ' + _S + '><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>',
+    'interview':   '<svg viewBox="0 0 24 24" fill="none" ' + _S + '><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>',
+    'hired':       '<svg viewBox="0 0 24 24" fill="none" ' + _S + '><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>',
+    'rejected':    '<svg viewBox="0 0 24 24" fill="none" ' + _S + '><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>',
+    '_unlinked':   '<svg viewBox="0 0 24 24" fill="none" ' + _S + '><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="17" y1="11" x2="23" y2="11"/></svg>'
+  };
+  // Build a custom dark picker (wrapClass + options array + current value)
+  function _dpHTML(wrapClass, opts, current) {
+    var curLabel = '';
+    for (var i = 0; i < opts.length; i++) {
+      if (opts[i].value === current) { curLabel = opts[i].label; break; }
+    }
+    var listHtml = opts.map(function (o) {
+      return '<button class="co-dp-opt' + (o.value === current ? ' selected' : '') + '"'
+           + ' data-value="' + _esc(o.value) + '" type="button">'
+           + _checkSvg()
+           + '<span>' + _esc(o.label) + '</span></button>';
+    }).join('');
+    return '<div class="co-dp-wrap ' + _esc(wrapClass) + '" data-selected="' + _esc(current) + '">'
+      + '<button class="co-dp-btn" type="button">'
+      + '<span class="co-dp-val">' + _esc(curLabel) + '</span>'
+      + _chevronSvg()
+      + '</button>'
+      + '<div class="co-dp-list" style="display:none">' + listHtml + '</div>'
+      + '</div>';
+  }
+  function _closeAllDp() {
+    _body.querySelectorAll('.co-dp-list').forEach(function (l) { l.style.display = 'none'; });
+  }
+  function _toggleDpOf(btn) {
+    var wrap = btn.closest('.co-dp-wrap');
+    if (!wrap) return;
+    var list = wrap.querySelector('.co-dp-list');
+    if (!list) return;
+    var wasOpen = list.style.display !== 'none';
+    _closeAllDp();
+    if (!wasOpen) list.style.display = 'block';
+  }
+  function _handleDpOptClick(opt) {
+    var wrap = opt.closest('.co-dp-wrap');
+    if (!wrap) return;
+    var val  = opt.getAttribute('data-value');
+    var span = opt.querySelector('span');
+    var lbl  = span ? span.textContent : val;
+    wrap.setAttribute('data-selected', val != null ? val : '');
+    var valEl = wrap.querySelector('.co-dp-val');
+    if (valEl) valEl.textContent = lbl;
+    wrap.querySelectorAll('.co-dp-opt').forEach(function (o) {
+      o.classList.toggle('selected', o === opt);
+    });
+    var list = wrap.querySelector('.co-dp-list');
+    if (list) list.style.display = 'none';
+    // Sort picker action
+    if (wrap.classList.contains('co-cand-sort-dp')) {
+      _savedSort   = val;
+      _savedOffset = 0;
+      _doFetchSavedPage(true);
+    }
+  }
+
   // ── Open / Close ───────────────────────────────────────────────
   function _open() {
     if (!_isOwner()) return;
@@ -1236,24 +1311,20 @@
 
   function _savedShellHTML() {
     var sortOpts = [
-      ['updated_desc', 'الأحدث تعديلاً'],
-      ['updated_asc',  'الأقدم تعديلاً'],
-      ['created_desc', 'الأحدث حفظاً'],
-      ['created_asc',  'الأقدم حفظاً'],
-      ['name_asc',     'الاسم أ-ي'],
-      ['status_asc',   'الحالة']
+      {value:'updated_desc', label:'الأحدث تعديلاً'},
+      {value:'updated_asc',  label:'الأقدم تعديلاً'},
+      {value:'created_desc', label:'الأحدث حفظاً'},
+      {value:'created_asc',  label:'الأقدم حفظاً'},
+      {value:'name_asc',     label:'الاسم أ-ي'},
+      {value:'status_asc',   label:'الحالة'}
     ];
-    var sortHtml = sortOpts.map(function (o) {
-      return '<option value="' + o[0] + '"' + (o[0] === _savedSort ? ' selected' : '') + '>'
-           + _esc(o[1]) + '</option>';
-    }).join('');
     return '<div id="coCandSavedShell">'
       + '<div class="co-cand-filter-bar">'
       + '<div id="coCandChips" class="co-cand-chips"></div>'
       + '<div class="co-cand-search-row">'
       + '<input id="coCandSearch" type="text" class="co-cand-search"'
       + ' placeholder="بحث عن مرشح…" dir="rtl" value="' + _esc(_savedSearch) + '">'
-      + '<select id="coCandSortSel" class="co-cand-sort-sel">' + sortHtml + '</select>'
+      + _dpHTML('co-cand-sort-dp', sortOpts, _savedSort)
       + '</div>'
       + '</div>'
       + '<div id="coCandSavedList"></div>'
@@ -1266,23 +1337,27 @@
     var stats    = _savedStats || {};
     var byStatus = stats.by_status || {};
     var chips = [
-      [null,          'الكل',                                   stats.total        || 0],
-      ['saved',       _STATUS_LABELS['saved'],                  byStatus.saved       || 0],
-      ['shortlisted', _STATUS_LABELS['shortlisted'],            byStatus.shortlisted || 0],
-      ['contacted',   _STATUS_LABELS['contacted'],              byStatus.contacted   || 0],
-      ['interview',   _STATUS_LABELS['interview'],              byStatus.interview   || 0],
-      ['hired',       _STATUS_LABELS['hired'],                  byStatus.hired       || 0],
-      ['rejected',    _STATUS_LABELS['rejected'],               byStatus.rejected    || 0],
-      ['_unlinked',   'بدون وظيفة',                             stats.unlinked       || 0]
+      [null,          'الكل',             stats.total        || 0],
+      ['saved',       _STATUS_LABELS['saved'],       byStatus.saved       || 0],
+      ['shortlisted', _STATUS_LABELS['shortlisted'],  byStatus.shortlisted || 0],
+      ['contacted',   _STATUS_LABELS['contacted'],    byStatus.contacted   || 0],
+      ['interview',   _STATUS_LABELS['interview'],    byStatus.interview   || 0],
+      ['hired',       _STATUS_LABELS['hired'],        byStatus.hired       || 0],
+      ['rejected',    _STATUS_LABELS['rejected'],     byStatus.rejected    || 0],
+      ['_unlinked',   'بدون وظيفة',       stats.unlinked       || 0]
     ];
     var html = '';
     chips.forEach(function (c) {
-      var fval = c[0], label = c[1], count = c[2];
+      var fval  = c[0], label = c[1], count = c[2];
+      var fkey  = fval == null ? 'null' : fval;
+      var dataf = fval == null ? '' : _esc(fval);
       var active = (fval === _savedFilter);
-      html += '<button class="co-cand-chip' + (active ? ' active' : '') + '"'
-            + ' data-filter="' + (fval == null ? '' : _esc(fval)) + '">'
-            + _esc(label)
-            + '<span class="co-cand-chip-count">' + count + '</span>'
+      var icon   = _FILTER_ICONS[fkey] || _FILTER_ICONS['null'];
+      html += '<button class="co-cand-chip chip-f-' + fkey + (active ? ' active' : '') + '"'
+            + ' data-filter="' + dataf + '">'
+            + '<span class="co-cand-chip-ico">' + icon + '</span>'
+            + '<span class="co-cand-chip-lbl">' + _esc(label) + '</span>'
+            + '<span class="co-cand-chip-cnt">' + count + '</span>'
             + '</button>';
     });
     el.innerHTML = html;
@@ -1328,14 +1403,7 @@
         }, 300);
       });
     }
-    var sortEl = document.getElementById('coCandSortSel');
-    if (sortEl) {
-      sortEl.addEventListener('change', function () {
-        _savedSort   = sortEl.value;
-        _savedOffset = 0;
-        _doFetchSavedPage(true);
-      });
-    }
+    // Sort picker is handled via _onSavedClick delegation (_handleDpOptClick)
   }
 
   function _fetchSaved() {
@@ -1446,31 +1514,18 @@
   }
 
   // Build status <option> list
-  function _statusOptionsHTML(current) {
-    var html = '';
-    _STATUS_ORDER.forEach(function (s) {
-      html += '<option value="' + s + '"' + (s === current ? ' selected' : '') + '>'
-            + _esc(_STATUS_LABELS[s]) + '</option>';
-    });
-    return html;
-  }
-
-  // Build job <select> from companyState.jobs (open jobs only) — no new endpoint needed
-  function _jobSelectHTML(currentJobId) {
+  // Build custom job picker from companyState.jobs (open jobs only)
+  function _jobDpHTML(currentJobId) {
     var jobs = (window.companyState && companyState.jobs)
       ? companyState.jobs.filter(function (j) { return j.status === 'open'; })
       : [];
     if (!jobs.length) return '';
-    var html = '<label class="co-cand-panel-label">ربط بوظيفة (اختياري)</label>';
-    html += '<select class="co-cand-panel-sel co-cand-panel-job-sel">';
-    html += '<option value="">— بدون وظيفة محددة —</option>';
+    var opts = [{value: '', label: '— بدون وظيفة محددة —'}];
     jobs.forEach(function (j) {
-      var sel = (currentJobId && String(j.id) === String(currentJobId)) ? ' selected' : '';
-      html += '<option value="' + _esc(j.id) + '"' + sel + '>'
-            + _esc(j.title || ('وظيفة #' + j.id)) + '</option>';
+      opts.push({value: String(j.id), label: j.title || ('وظيفة #' + j.id)});
     });
-    html += '</select>';
-    return html;
+    return '<label class="co-cand-panel-label">ربط بوظيفة (اختياري)</label>'
+         + _dpHTML('co-cand-dp-job', opts, currentJobId || '');
   }
 
   // Build a single saved card with embedded manage panel
@@ -1521,10 +1576,10 @@
     html += '</div>'; // .co-cand-top
 
     // ── Manage panel (hidden by default) ─────────────────────────
+    var statusOpts = _STATUS_ORDER.map(function (s) { return {value: s, label: _STATUS_LABELS[s]}; });
     html += '<div class="co-cand-manage-panel">';
     html += '<label class="co-cand-panel-label">الحالة في Pipeline</label>';
-    html += '<select class="co-cand-panel-sel co-cand-panel-status-sel">'
-          + _statusOptionsHTML(status) + '</select>';
+    html += _dpHTML('co-cand-dp-status', statusOpts, status);
     html += '<label class="co-cand-panel-label">ملاحظات</label>';
     html += '<div class="co-cand-panel-ta-wrap">';
     html += '<textarea class="co-cand-panel-ta" maxlength="500"'
@@ -1532,7 +1587,7 @@
           + _esc(notes) + '</textarea>';
     html += '<span class="co-cand-panel-counter">' + notes.length + ' / 500</span>';
     html += '</div>';
-    html += _jobSelectHTML(jobId);
+    html += _jobDpHTML(jobId);
     html += '<div class="co-cand-panel-acts">';
     html += '<button class="co-cand-panel-save" data-cid="' + cid + '">حفظ التعديل</button>';
     html += '<button class="co-cand-panel-cancel" data-cid="' + cid + '">إلغاء</button>';
@@ -1561,6 +1616,17 @@
   }
 
   function _onSavedClick(e) {
+    // Custom dark picker — option selected
+    var dpOpt = e.target.closest('.co-dp-opt');
+    if (dpOpt) { _handleDpOptClick(dpOpt); return; }
+
+    // Custom dark picker — toggle open/close
+    var dpBtn = e.target.closest('.co-dp-btn');
+    if (dpBtn) { _toggleDpOf(dpBtn); return; }
+
+    // Click outside any picker → close all
+    if (!e.target.closest('.co-dp-wrap')) _closeAllDp();
+
     var removeBtn = e.target.closest('.co-cand-remove-btn');
     if (removeBtn) { _handleRemove(removeBtn); return; }
 
@@ -1645,14 +1711,17 @@
     var panel = card ? card.querySelector('.co-cand-manage-panel') : null;
     if (!panel) return;
 
-    var selStatus = panel.querySelector('.co-cand-panel-status-sel');
-    var ta        = panel.querySelector('.co-cand-panel-ta');
-    var selJob    = panel.querySelector('.co-cand-panel-job-sel');
+    var dpStatus = panel.querySelector('.co-cand-dp-status');
+    var ta       = panel.querySelector('.co-cand-panel-ta');
+    var dpJob    = panel.querySelector('.co-cand-dp-job');
 
     var payload = {};
-    if (selStatus) payload.status = selStatus.value;
-    if (ta)        payload.notes  = ta.value;
-    if (selJob)    payload.job_id = selJob.value ? parseInt(selJob.value) : null;
+    if (dpStatus) payload.status = dpStatus.getAttribute('data-selected') || 'saved';
+    if (ta)       payload.notes  = ta.value;
+    if (dpJob) {
+      var jval = dpJob.getAttribute('data-selected');
+      payload.job_id = jval ? parseInt(jval) : null;
+    }
 
     if (!window.updateSavedCandidate) return;
     btn.disabled    = true;
@@ -1747,6 +1816,28 @@
       }
     } else if (jobRef) {
       jobRef.parentNode.removeChild(jobRef);
+    }
+
+    // Sync custom status picker display for next panel open
+    var dpStatus = card.querySelector('.co-cand-dp-status');
+    if (dpStatus) {
+      dpStatus.setAttribute('data-selected', newStatus);
+      var dpSVal = dpStatus.querySelector('.co-dp-val');
+      if (dpSVal) dpSVal.textContent = _statusLabel(newStatus);
+      dpStatus.querySelectorAll('.co-dp-opt').forEach(function (o) {
+        o.classList.toggle('selected', o.getAttribute('data-value') === newStatus);
+      });
+    }
+
+    // Sync custom job picker display
+    var dpJob = card.querySelector('.co-cand-dp-job');
+    if (dpJob) {
+      dpJob.setAttribute('data-selected', newJobId);
+      var dpJVal = dpJob.querySelector('.co-dp-val');
+      if (dpJVal) dpJVal.textContent = newJobId ? ('وظيفة #' + newJobId) : '— بدون وظيفة محددة —';
+      dpJob.querySelectorAll('.co-dp-opt').forEach(function (o) {
+        o.classList.toggle('selected', o.getAttribute('data-value') === newJobId);
+      });
     }
   }
 
