@@ -1345,22 +1345,32 @@ body.co-loading  .visitor-only           { display: none !important; }
   color:var(--t2,#94a3b8);
   transition:background .15s, border-color .15s, color .15s;
 }
-.co-cand-chip:hover { background:rgba(255,255,255,.08); border-color:rgba(255,255,255,.18); }
+.co-cand-chip:hover { filter:brightness(1.12); }
 
 .co-cand-chip-ico { width:13px; height:13px; flex-shrink:0; }
 .co-cand-chip-ico svg { width:13px; height:13px; display:block; }
 .co-cand-chip-lbl { font-size:.58rem; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%; }
 .co-cand-chip-cnt { font-size:.54rem; opacity:.72; }
 
-/* Per-status active colors — base color same as badge */
-.co-cand-chip.chip-f-null.active   { background:rgba(0,200,150,.12);   border-color:rgba(0,200,150,.4);   color:#00c896; }
-.co-cand-chip.chip-f-saved.active  { background:rgba(148,163,184,.13); border-color:rgba(148,163,184,.4); color:#94a3b8; }
-.co-cand-chip.chip-f-shortlisted.active { background:rgba(96,165,250,.12);  border-color:rgba(96,165,250,.4);  color:#60a5fa; }
-.co-cand-chip.chip-f-contacted.active   { background:rgba(56,189,248,.12);  border-color:rgba(56,189,248,.4);  color:#38bdf8; }
-.co-cand-chip.chip-f-interview.active   { background:rgba(251,191,36,.12);  border-color:rgba(251,191,36,.4);  color:#fbbf24; }
-.co-cand-chip.chip-f-hired.active       { background:rgba(52,211,153,.12);  border-color:rgba(52,211,153,.4);  color:#34d399; }
-.co-cand-chip.chip-f-rejected.active    { background:rgba(248,113,113,.12); border-color:rgba(248,113,113,.4); color:#f87171; }
-.co-cand-chip.chip-f-_unlinked.active   { background:rgba(107,114,128,.12); border-color:rgba(107,114,128,.4); color:#9ca3af; }
+/* Per-status chip colors — always visible (base subtle, active stronger) */
+.co-cand-chip.chip-f-null        { color:#00c896; background:rgba(0,200,150,.05);   border-color:rgba(0,200,150,.2); }
+.co-cand-chip.chip-f-saved       { color:#94a3b8; background:rgba(148,163,184,.06); border-color:rgba(148,163,184,.2); }
+.co-cand-chip.chip-f-shortlisted { color:#60a5fa; background:rgba(96,165,250,.06);  border-color:rgba(96,165,250,.2); }
+.co-cand-chip.chip-f-contacted   { color:#38bdf8; background:rgba(56,189,248,.06);  border-color:rgba(56,189,248,.2); }
+.co-cand-chip.chip-f-interview   { color:#fbbf24; background:rgba(251,191,36,.06);  border-color:rgba(251,191,36,.2); }
+.co-cand-chip.chip-f-hired       { color:#34d399; background:rgba(52,211,153,.06);  border-color:rgba(52,211,153,.2); }
+.co-cand-chip.chip-f-rejected    { color:#f87171; background:rgba(248,113,113,.06); border-color:rgba(248,113,113,.2); }
+.co-cand-chip.chip-f-_unlinked   { color:#9ca3af; background:rgba(107,114,128,.06); border-color:rgba(107,114,128,.2); }
+
+/* Active state: stronger bg + border (color inherited from base type rule above) */
+.co-cand-chip.chip-f-null.active        { background:rgba(0,200,150,.15);   border-color:rgba(0,200,150,.48); }
+.co-cand-chip.chip-f-saved.active       { background:rgba(148,163,184,.15); border-color:rgba(148,163,184,.48); }
+.co-cand-chip.chip-f-shortlisted.active { background:rgba(96,165,250,.15);  border-color:rgba(96,165,250,.48); }
+.co-cand-chip.chip-f-contacted.active   { background:rgba(56,189,248,.15);  border-color:rgba(56,189,248,.48); }
+.co-cand-chip.chip-f-interview.active   { background:rgba(251,191,36,.15);  border-color:rgba(251,191,36,.48); }
+.co-cand-chip.chip-f-hired.active       { background:rgba(52,211,153,.15);  border-color:rgba(52,211,153,.48); }
+.co-cand-chip.chip-f-rejected.active    { background:rgba(248,113,113,.15); border-color:rgba(248,113,113,.48); }
+.co-cand-chip.chip-f-_unlinked.active   { background:rgba(107,114,128,.15); border-color:rgba(107,114,128,.48); }
 
 .co-cand-search-row {
   display:flex; gap:6px; align-items:center;
