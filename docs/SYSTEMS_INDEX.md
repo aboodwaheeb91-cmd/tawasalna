@@ -233,17 +233,21 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 ---
 
 ### 20c. Company Saved Candidates
-**Purpose:** Private list of employee profiles saved by a company owner for future consideration. Supports pipeline status tracking (saved → shortlisted → contacted → interview → hired → rejected) and per-candidate notes.
-**Source of Truth:** `company_saved_candidates` DB table · `auth.py → save/remove/get/update_company_saved_candidates` · `server.py → /company/saved-candidates/*`
+**Purpose:** Private list of employee profiles saved by a company owner. Supports pipeline status tracking, notes, job linking, filtering, search, sorting, and statistics.
+**Source of Truth:** `company_saved_candidates` DB table · `auth.py → save/remove/get/update/filter/stats functions` · `server.py → /company/saved-candidates/*`
 **Responsible files:**
-- `auth.py` — `_migrate_company_saved_candidates()`, `save_company_candidate()`, `remove_company_candidate()`, `get_company_saved_candidates()`, `get_company_saved_candidates_count()`, `update_company_saved_candidate()`, `VALID_CANDIDATE_STATUSES`, `CANDIDATE_STATUS_LABELS`
-- `server.py` — 5 endpoints + `_require_company_owner()` helper + `UpdateSavedCandidateInput` Pydantic model
-**Details:** `ARCHITECTURE.md §55a` (base) · `ARCHITECTURE.md §55c` (Phase 6A — pipeline management)
+- `auth.py` — `_migrate_company_saved_candidates()`, `save_company_candidate()`, `remove_company_candidate()`, `get_company_saved_candidates()`, `get_company_saved_candidates_count()`, `get_company_saved_candidates_filtered()`, `get_company_saved_candidates_stats()`, `update_company_saved_candidate()`, `VALID_CANDIDATE_STATUSES`, `CANDIDATE_STATUS_LABELS`, `VALID_CANDIDATE_SORTS`
+- `server.py` — 6 endpoints + `_require_company_owner()` helper + `UpdateSavedCandidateInput` Pydantic model
+**Details:** `ARCHITECTURE.md §55a` (base) · `ARCHITECTURE.md §55c` (Phase 6A — pipeline management) · `ARCHITECTURE.md §55e` (Phase 7A — filters & stats)
 **Auth:** JWT mandatory, `user_type='co'` only. `company_id` derived from `token["user_id"]` — no cross-company access.
-**Privacy:** Returns `candidate_id, tw_id, full_name, avatar_url, profession, city, country, job_id, status, notes, created_at` only. Never returns email, phone, or KYC data.
-**Pipeline statuses:** `saved | shortlisted | contacted | interview | hired | rejected`. Validated server-side via `VALID_CANDIDATE_STATUSES`. Arabic labels via `CANDIDATE_STATUS_LABELS`. `notes` max 500 chars. `job_id` must belong to same company (server validates).
-**Frontend (Phase 4):** `#candidatesBtn` in jobs toolbar (owner-only) + `#coCandidatesModal` + `.co-cand-*` CSS. Badge loads via `_loadCandidatesBadge()` hook in `loadData()`.
-**Do not recreate:** Do not add a `company_id` query param — company identity comes from JWT. Do not expose this list to non-owners. Do not confuse with profile_follows or company_follows tables. Do not add a second status field — `company_saved_candidates.status` is the only pipeline status column.
+**Privacy:** Returns `candidate_id, tw_id, full_name, avatar_url, profession, city, country, job_id, status, notes, created_at, updated_at` only. Never returns email, phone, or KYC data. Notes are never searched.
+**Pipeline statuses:** `saved | shortlisted | contacted | interview | hired | rejected`. Validated via `VALID_CANDIDATE_STATUSES`. `notes` max 500 chars. `job_id` must belong to same company.
+**Filters (Phase 7A):** `status`, `job_id`, `unlinked`, `q` (search), `sort` (6 options via `VALID_CANDIDATE_SORTS`). `job_id` + `unlinked=true` are mutually exclusive (400). `q` max 80 chars.
+**Stats endpoint:** `GET /company/saved-candidates/stats` → `{ total, by_status:{...}, with_job, unlinked }`. All 6 statuses zero-filled. No candidate data returned.
+**Badge:** `/count` endpoint always returns unfiltered total for badge display.
+**Frontend (Phase 4):** `#candidatesBtn` in jobs toolbar (owner-only) + `#coCandidatesModal` + `.co-cand-*` CSS.
+**Frontend (Phase 6B):** Pipeline manage panel inside saved tab. `.co-cand-saved-card` / `.co-cand-manage-panel` / `updateSavedCandidate()` / `_applyCardUpdate()`.
+**Do not recreate:** Do not add `company_id` to query/body. Do not search inside `notes`. Do not use raw user input in ORDER BY — use `VALID_CANDIDATE_SORTS` dict only. Do not change `/count` endpoint behavior.
 
 ### 20d. Company Candidate Suggestions (Phase 5A Backend)
 **Purpose:** Scored employee suggestions for a company based on its active job postings. Owner-only, private. No new DB table — reuses jobs, job_profession_targets, profiles, user_skills, company_saved_candidates.
@@ -413,4 +417,4 @@ These systems exist in code but lack formal documentation in ARCHITECTURE.md or 
 
 ---
 
-*Last updated: 2026-06-30 — reflects systems as of feat/company-candidate-pipeline-ui (Phase 6B Frontend — manage panel in saved tab).*
+*Last updated: 2026-07-01 — reflects systems as of feat/company-candidate-filters-stats-backend (Phase 7A Backend — filters, search, stats).*

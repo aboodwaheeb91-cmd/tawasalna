@@ -94,7 +94,8 @@ from auth import (
     _migrate_company_saved_candidates,
     save_company_candidate, remove_company_candidate,
     get_company_saved_candidates, get_company_saved_candidates_count,
-    update_company_saved_candidate, VALID_CANDIDATE_STATUSES,
+    get_company_saved_candidates_filtered, get_company_saved_candidates_stats,
+    update_company_saved_candidate, VALID_CANDIDATE_STATUSES, VALID_CANDIDATE_SORTS,
     get_company_candidate_suggestions
 )
 from auth import ContentValidationError, validate_professional_text
@@ -1632,17 +1633,73 @@ def _require_company_owner(token: dict) -> int:
 
 
 @app.get("/company/saved-candidates")
-def company_saved_candidates_list(token=Depends(verify_token),
-                                   limit: int = 20, offset: int = 0):
+def company_saved_candidates_list(
+    token=Depends(verify_token),
+    limit: int = 20,
+    offset: int = 0,
+    status: Optional[str] = None,
+    job_id: Optional[int] = None,
+    unlinked: bool = False,
+    q: Optional[str] = None,
+    sort: str = "updated_desc",
+):
     """
     GET /company/saved-candidates
-    Private — company owner only. Returns paginated saved candidates list.
+    Private — company owner only. Returns filtered + paginated saved candidates.
     Auth: JWT Bearer (user_type='co').
+
+    Optional query params (all backward-compatible — omitting all = original behavior):
+      status   — pipeline status filter (saved|shortlisted|contacted|interview|hired|rejected)
+      job_id   — filter by linked job (must belong to this company)
+      unlinked — true: only candidates with no job_id (mutually exclusive with job_id)
+      q        — search full_name / tw_id / profession / city / country (max 80 chars)
+      sort     — updated_desc|updated_asc|created_desc|created_asc|name_asc|status_asc
+      limit    — 1–50, default 20
+      offset   — default 0
+
+    Response: { status, count (filtered total), items, pagination, filters }
+    count == pagination.total. Badge uses /count endpoint for unfiltered total.
     """
     company_id = _require_company_owner(token)
     limit  = min(max(limit, 1), 50)
     offset = max(offset, 0)
-    result = get_company_saved_candidates(company_id, limit, offset)
+
+    if status is not None and status not in VALID_CANDIDATE_STATUSES:
+        raise HTTPException(
+            400,
+            "status غير صالح. القيم المسموحة: " + ", ".join(sorted(VALID_CANDIDATE_STATUSES))
+        )
+
+    if sort not in VALID_CANDIDATE_SORTS:
+        raise HTTPException(
+            400,
+            "sort غير صالح. القيم المسموحة: " + ", ".join(sorted(VALID_CANDIDATE_SORTS))
+        )
+
+    if job_id is not None and unlinked:
+        raise HTTPException(400, "لا يمكن استخدام job_id و unlinked=true معاً")
+
+    if q is not None:
+        q = q.strip()
+        if len(q) > 80:
+            raise HTTPException(400, "q يجب ألا يتجاوز 80 حرفاً")
+        if not q:
+            q = None
+
+    try:
+        result = get_company_saved_candidates_filtered(
+            company_id=company_id,
+            limit=limit,
+            offset=offset,
+            status=status,
+            job_id=job_id,
+            unlinked=unlinked,
+            q=q,
+            sort=sort,
+        )
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
     return {"status": "success", **result}
 
 
@@ -1650,12 +1707,29 @@ def company_saved_candidates_list(token=Depends(verify_token),
 def company_saved_candidates_count(token=Depends(verify_token)):
     """
     GET /company/saved-candidates/count
-    Private — company owner only. Returns candidate count for badge display.
+    Private — company owner only. Returns TOTAL candidate count (unfiltered) for badge.
     Auth: JWT Bearer (user_type='co').
     """
     company_id = _require_company_owner(token)
     count = get_company_saved_candidates_count(company_id)
     return {"status": "success", "count": count}
+
+
+@app.get("/company/saved-candidates/stats")
+def company_saved_candidates_stats(token=Depends(verify_token)):
+    """
+    GET /company/saved-candidates/stats
+    Private — company owner only. Returns pipeline statistics (no candidate data).
+    Auth: JWT Bearer (user_type='co').
+
+    Response:
+      { status, total, by_status: { saved, shortlisted, contacted, interview, hired, rejected },
+        with_job, unlinked }
+    All 6 pipeline statuses are always present (zero-filled if none exist).
+    """
+    company_id = _require_company_owner(token)
+    stats = get_company_saved_candidates_stats(company_id)
+    return {"status": "success", **stats}
 
 
 @app.post("/company/saved-candidates/{candidate_id}")

@@ -5195,6 +5195,136 @@ updateSavedCandidate(candidateId, payload)
 
 ---
 
+## [P3] 55e. Company Candidate Filters & Stats — Phase 7A Backend
+
+**Implemented in:** PR feat/company-candidate-filters-stats-backend (Phase 7A)
+**Status:** Backend only. Frontend filter UI comes in Phase 7B.
+
+### Purpose
+
+Adds filtering, search, sorting, and pipeline statistics to the saved-candidates system. Company owners can filter their saved list by status, job, or free-text search, and retrieve per-status counts for a dashboard view.
+
+### Updated Endpoint
+
+| Method | Path | Auth | Change |
+|--------|------|------|--------|
+| GET | `/company/saved-candidates` | JWT (co only) | Now accepts filter query params (backward-compatible) |
+| GET | `/company/saved-candidates/stats` | JWT (co only) | **New** — pipeline statistics |
+
+#### New Query Params for `GET /company/saved-candidates`
+
+| Param | Type | Default | Description |
+|-------|------|---------|-------------|
+| `status` | string | — | Pipeline status filter (must be valid) |
+| `job_id` | int | — | Filter by linked job (must belong to this company) |
+| `unlinked` | bool | `false` | Only show candidates with no job_id |
+| `q` | string | — | Search in full_name, tw_id, profession, city, country (max 80 chars) |
+| `sort` | string | `updated_desc` | Sort order |
+| `limit` | int | 20 | Max 50 |
+| `offset` | int | 0 | Pagination offset |
+
+**`status` + `job_id` / `unlinked` are mutually exclusive** with each other only for job/unlinked.
+**`job_id` and `unlinked=true` cannot be combined** (400).
+
+#### Sort Values (`VALID_CANDIDATE_SORTS`)
+
+| Value | Order |
+|-------|-------|
+| `updated_desc` | Latest updated first (default) |
+| `updated_asc` | Oldest updated first |
+| `created_desc` | Latest saved first |
+| `created_asc` | Oldest saved first |
+| `name_asc` | Alphabetical by name |
+| `status_asc` | Alphabetical by status value |
+
+#### Updated Response Shape
+
+```json
+{
+  "status": "success",
+  "count": 3,
+  "items": [...],
+  "pagination": {
+    "limit": 20, "offset": 0,
+    "has_more": false,
+    "total": 3
+  },
+  "filters": {
+    "status": "shortlisted",
+    "job_id": null,
+    "unlinked": false,
+    "q": null,
+    "sort": "updated_desc"
+  }
+}
+```
+
+**`count` = `pagination.total` = filtered total.** When no filters applied, equals full list count (badge-safe). The `/count` endpoint remains unchanged for unfiltered badge reads.
+
+**`updated_at`** is now included in each item (was absent before).
+
+#### Stats Endpoint Response
+
+```json
+// GET /company/saved-candidates/stats
+{
+  "status": "success",
+  "total": 14,
+  "by_status": {
+    "saved": 5,
+    "shortlisted": 3,
+    "contacted": 2,
+    "interview": 1,
+    "hired": 1,
+    "rejected": 2
+  },
+  "with_job": 6,
+  "unlinked": 8
+}
+```
+
+All 6 statuses always present (zero-filled). No candidate data — counts only.
+
+### Data Layer (`auth.py`)
+
+| Function | Description |
+|----------|-------------|
+| `get_company_saved_candidates_filtered(company_id, limit, offset, status, job_id, unlinked, q, sort)` | Filtered paginated list. Raises `ValueError` if job_id doesn't belong to this company |
+| `get_company_saved_candidates_stats(company_id)` | Pipeline statistics |
+| `VALID_CANDIDATE_SORTS` | Dict of allowed sort keys → ORDER BY expressions |
+
+### Security
+
+| Rule | Enforcement |
+|------|-------------|
+| JWT Bearer only | `_require_company_owner(token)` |
+| `company_id` from token | Never from query or body |
+| `job_id` ownership | Pre-validated via DB check before filtering |
+| `status` allowlist | Validated against `VALID_CANDIDATE_STATUSES` (400 if invalid) |
+| `sort` allowlist | Validated against `VALID_CANDIDATE_SORTS` keys (400 if invalid) |
+| `q` injection prevention | Values are SQL-parameterized — ORDER BY uses pre-validated dict only |
+| Privacy | Never returns email, phone, dob, detailed location |
+
+### Backward Compatibility
+
+- `GET /company/saved-candidates` with no params = identical to previous behavior
+- `GET /company/saved-candidates/count` — unchanged (always unfiltered total, for badge)
+- POST / DELETE / PATCH `/{candidate_id}` — unchanged
+- `GET /company/candidate-suggestions` — unchanged
+
+### ممنوعات (Phase 7A)
+
+```
+❌ لا تضف Frontend في Phase 7A — الـ UI يأتي في Phase 7B
+❌ لا تستخدم company_id من query أو body
+❌ لا تُغيّر معنى /count endpoint — يبقى unfiltered total للـ badge
+❌ لا تسمح بـ ORDER BY تعتمد على قيم مستخدم مباشرة — استخدم VALID_CANDIDATE_SORTS dict فقط
+❌ لا تبحث داخل notes — حقل خاص للشركة لا يُعرَّض للبحث
+❌ لا تضف جدول جديد
+```
+
+---
+
 ## [P1] 55. Score System
 
 **Endpoint:** `GET /profile/{user_id}/score`
