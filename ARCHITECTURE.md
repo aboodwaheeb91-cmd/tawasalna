@@ -5325,6 +5325,99 @@ All 6 statuses always present (zero-filled). No candidate data — counts only.
 
 ---
 
+## [P3] 55f. Company Candidate Filters & Stats — Phase 7B Frontend
+
+**Implemented in:** PR feat/company-candidate-filters-ui (Phase 7B)
+
+**Files modified:**
+- `static/company/company.api.js` — updated `getSavedCandidates` + added `getSavedCandidatesStats`
+- `static/company/company.main.js` — filter bar, chips, search, sort, load more inside saved tab
+- `static/company/company.css` — `.co-cand-filter-bar`, `.co-cand-chip`, `.co-cand-search`, `.co-cand-sort-sel`, `.co-cand-load-more`
+
+### API changes
+
+| Function | Change |
+|----------|--------|
+| `getSavedCandidates(limit, offset, filters)` | Added `filters` param — appends `status`, `q`, `sort`, `job_id`, `unlinked` to query string |
+| `getSavedCandidatesStats()` | New — `GET /company/saved-candidates/stats`, returns `{total, by_status, with_job, unlinked}` |
+
+### Saved Tab State (module-level)
+
+| Variable | Purpose |
+|----------|---------|
+| `_savedOffset` | Pagination offset for load more |
+| `_savedLoading` | Prevents concurrent page fetches |
+| `_savedFilter` | Active filter: `null`=all, status string, or `'_unlinked'` |
+| `_savedSearch` | Active search query (max 80 chars) |
+| `_savedSort` | Active sort key (default `updated_desc`) |
+| `_savedStats` | Last loaded stats object from `/stats` endpoint |
+| `_savedDebTimer` | setTimeout handle for 300ms search debounce |
+
+### Filter Bar Structure (`_savedShellHTML`)
+
+```
+#coCandSavedShell
+  .co-cand-filter-bar
+    #coCandChips          ← 8 chips: الكل + 6 statuses + بدون وظيفة
+    .co-cand-search-row
+      #coCandSearch       ← debounced text input (300ms)
+      #coCandSortSel      ← 6 sort options, default updated_desc
+  #coCandSavedList        ← cards render here (not full _body)
+  #coCandSavedLoadMore    ← appended conditionally when has_more=true
+```
+
+### Filter Chips (8 total)
+
+| chip data-filter | Label | Count source |
+|-----------------|-------|--------------|
+| `""` (null) | الكل | `stats.total` |
+| `saved` | محفوظ | `stats.by_status.saved` |
+| `shortlisted` | مرشح قوي | `stats.by_status.shortlisted` |
+| `contacted` | تم التواصل | `stats.by_status.contacted` |
+| `interview` | مقابلة | `stats.by_status.interview` |
+| `hired` | تم التوظيف | `stats.by_status.hired` |
+| `rejected` | غير مناسب | `stats.by_status.rejected` |
+| `_unlinked` | بدون وظيفة | `stats.unlinked` |
+
+### Badge Update Rule
+
+Badge is always updated from `stats.total` (unfiltered) — never from `res.data.count` (filtered). This keeps the badge accurate regardless of active filter.
+
+### Empty States (8 messages)
+
+| Filter | Title |
+|--------|-------|
+| null (all) | لا يوجد مرشحون محفوظون بعد |
+| saved | لا يوجد مرشحون بحالة "محفوظ" |
+| shortlisted | لا يوجد مرشحون مرشحون قوياً |
+| contacted | لا يوجد مرشحون تم التواصل معهم |
+| interview | لا يوجد مرشحون في مرحلة المقابلة |
+| hired | لا يوجد مرشحون تم توظيفهم |
+| rejected | لا يوجد مرشحون بحالة "غير مناسب" |
+| _unlinked | لا يوجد مرشحون بدون وظيفة |
+| q search active | لا نتائج للبحث عن "…" |
+
+### Stats Refresh Triggers
+
+| Event | Action |
+|-------|--------|
+| Delete card | `_loadSavedStats(null)` → updates badge + chips |
+| PATCH status change | `_loadSavedStats(null)` → updates badge + chips |
+| PATCH with filter mismatch | Card fades out + shows empty state if list is now empty |
+
+### Forbidden Patterns (Phase 7B)
+
+```
+❌ لا تُحدِّث الـ badge من res.data.count — استخدم stats.total فقط
+❌ لا تضع filter bar خارج #coCandSavedShell — يجب أن يكون داخل _body
+❌ لا تستبدل _body.innerHTML بعد بناء الـ shell — استخدم #coCandSavedList فقط
+❌ لا تضف infinite scroll — load more button فقط (explicit click)
+❌ لا تضف ORDER BY بدون تمريره لـ filters.sort → GET /company/saved-candidates
+❌ لا تبحث في notes (server-side الـ q يبحث في full_name/tw_id/profession/city/country فقط)
+```
+
+---
+
 ## [P1] 55. Score System
 
 **Endpoint:** `GET /profile/{user_id}/score`

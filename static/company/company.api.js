@@ -176,11 +176,26 @@
     }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); });
   }
 
-  function getSavedCandidates(limit, offset) {
+  function getSavedCandidates(limit, offset, filters) {
     var jwt = window._jwt ? window._jwt() : '';
     if (!jwt) return Promise.resolve({ ok: false, data: {} });
     var qs = '?limit=' + (limit || 20) + '&offset=' + (offset || 0);
+    if (filters) {
+      if (filters.status)   qs += '&status='  + encodeURIComponent(filters.status);
+      if (filters.q)        qs += '&q='       + encodeURIComponent(filters.q);
+      if (filters.sort)     qs += '&sort='    + encodeURIComponent(filters.sort);
+      if (filters.job_id)   qs += '&job_id='  + encodeURIComponent(filters.job_id);
+      if (filters.unlinked) qs += '&unlinked=true';
+    }
     return fetch('/company/saved-candidates' + qs, {
+      headers: { 'Authorization': 'Bearer ' + jwt }
+    }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); });
+  }
+
+  function getSavedCandidatesStats() {
+    var jwt = window._jwt ? window._jwt() : '';
+    if (!jwt) return Promise.resolve({ ok: false, data: {} });
+    return fetch('/company/saved-candidates/stats', {
       headers: { 'Authorization': 'Bearer ' + jwt }
     }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); });
   }
@@ -234,6 +249,7 @@
   window.getCompanyRatingsDetail    = getCompanyRatingsDetail;
   window.getSavedCandidatesCount    = getSavedCandidatesCount;
   window.getSavedCandidates         = getSavedCandidates;
+  window.getSavedCandidatesStats    = getSavedCandidatesStats;
   window.deleteSavedCandidate       = deleteSavedCandidate;
   window.getCandidateSuggestions    = getCandidateSuggestions;
   window.saveSuggestedCandidate     = saveSuggestedCandidate;
