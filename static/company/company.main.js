@@ -1355,8 +1355,10 @@
       var icon   = _FILTER_ICONS[fkey] || _FILTER_ICONS['null'];
       html += '<button class="co-cand-chip chip-f-' + fkey + (active ? ' active' : '') + '"'
             + ' data-filter="' + dataf + '">'
-            + '<span class="co-cand-chip-ico">' + icon + '</span>'
-            + '<span class="co-cand-chip-lbl">' + _esc(label) + '</span>'
+            + '<span class="co-cand-chip-main">'
+            +   '<span class="co-cand-chip-ico">' + icon + '</span>'
+            +   '<span class="co-cand-chip-lbl">' + _esc(label) + '</span>'
+            + '</span>'
             + '<span class="co-cand-chip-cnt">' + count + '</span>'
             + '</button>';
     });

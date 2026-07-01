@@ -1332,14 +1332,14 @@ body.co-loading  .visitor-only           { display: none !important; }
   display:flex; flex-direction:column; gap:8px;
 }
 
-/* Filter chip grid — 4 columns, rectangular, 44px height */
+/* Filter chip grid — 4 columns, rectangular */
 .co-cand-chips {
   display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:5px; width:100%;
 }
 
 .co-cand-chip {
   display:flex; flex-direction:column; align-items:center; justify-content:center;
-  gap:2px; height:44px; padding:4px 3px; box-sizing:border-box; width:100%;
+  gap:3px; height:56px; min-height:56px; padding:5px 4px; box-sizing:border-box; width:100%;
   border-radius:9px; cursor:pointer;
   border:1px solid rgba(255,255,255,.1); background:rgba(255,255,255,.04);
   color:var(--t2,#94a3b8);
@@ -1347,10 +1347,18 @@ body.co-loading  .visitor-only           { display: none !important; }
 }
 .co-cand-chip:hover { filter:brightness(1.12); }
 
-.co-cand-chip-ico { width:13px; height:13px; flex-shrink:0; }
-.co-cand-chip-ico svg { width:13px; height:13px; display:block; }
-.co-cand-chip-lbl { font-size:.58rem; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%; }
-.co-cand-chip-cnt { font-size:.54rem; opacity:.72; }
+.co-cand-chip-main {
+  display:inline-flex; align-items:center; justify-content:center;
+  gap:4px; max-width:100%;
+}
+.co-cand-chip-ico { width:12px; height:12px; flex-shrink:0; }
+.co-cand-chip-ico svg { width:12px; height:12px; display:block; }
+.co-cand-chip-lbl {
+  font-size:.65rem; font-weight:700; line-height:1.15; text-align:center;
+  white-space:normal; overflow:hidden; text-overflow:clip;
+  display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
+}
+.co-cand-chip-cnt { font-size:.56rem; line-height:1; opacity:.85; }
 
 /* Per-status chip colors — always visible (base subtle, active stronger) */
 .co-cand-chip.chip-f-null        { color:#00c896; background:rgba(0,200,150,.05);   border-color:rgba(0,200,150,.2); }
