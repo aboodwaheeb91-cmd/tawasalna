@@ -5418,6 +5418,87 @@ Badge is always updated from `stats.total` (unfiltered) — never from `res.data
 
 ---
 
+## [P3] 55g. Company Candidate Modal UI Polish
+
+**Implemented in:** PR fix/candidate-modal-ui-polish  
+**Type:** Frontend-only — no API, no backend, no DB schema changes.
+
+**Files modified:**
+- `static/company/company.main.js` — custom dark picker helpers + chip icons/classes + updated event delegation
+- `static/company/company.css` — grid chips, rectangular shape, per-status colors, `.co-dp-*` picker styles, slate manage button
+
+### Custom Dark Picker (`.co-dp-*`)
+
+Replaces all native `<select>` inside `#coCandidatesModal` with inline-expanding dark pickers. No floating/absolute positioning — expands as a block below the trigger button (mobile-safe, no z-index/overflow issues).
+
+| Picker | Class | Location |
+|--------|-------|---------|
+| Sort | `.co-cand-sort-dp` | Filter bar in saved tab shell |
+| Status | `.co-cand-dp-status` | Manage panel per card |
+| Job (if open jobs exist) | `.co-cand-dp-job` | Manage panel per card |
+
+**How it works:**
+- Trigger: `<button class="co-dp-btn">` shows current label + chevron SVG
+- List: `<div class="co-dp-list">` expands/collapses on click (inline, not absolute)
+- Options: `<button class="co-dp-opt">` with checkmark SVG hidden until `.selected`
+- State: `data-selected` attribute on `.co-dp-wrap` — read by `_handlePanelSave()`
+- Delegation: `_onSavedClick()` handles all `.co-dp-btn` / `.co-dp-opt` clicks; click outside `.co-dp-wrap` closes all open pickers
+
+**Value contracts (unchanged):**
+
+Status values passed to PATCH:
+```
+saved | shortlisted | contacted | interview | hired | rejected
+```
+
+Sort values passed to GET /company/saved-candidates:
+```
+updated_desc | updated_asc | created_desc | created_asc | name_asc | status_asc
+```
+
+### Filter Chips UI
+
+| Property | Value |
+|----------|-------|
+| Layout | CSS Grid — `repeat(4, minmax(0, 1fr))` — always 4 columns, 2 rows |
+| Shape | Rectangular — `border-radius: 9px` (not pill) |
+| Height | `44px` fixed |
+| Direction | `flex-direction: column` — icon (13px) → label → count |
+| Hover effect | `filter: brightness(1.12)` (preserves per-type color on hover) |
+
+**Color system — always visible (base subtle, active stronger):**
+
+| Filter | Color | Base bg alpha | Active bg alpha |
+|--------|-------|--------------|----------------|
+| الكل | `#00c896` teal | `.05` | `.15` |
+| محفوظ | `#94a3b8` slate | `.06` | `.15` |
+| مرشح قوي | `#60a5fa` blue | `.06` | `.15` |
+| تم التواصل | `#38bdf8` sky | `.06` | `.15` |
+| مقابلة | `#fbbf24` amber | `.06` | `.15` |
+| تم التوظيف | `#34d399` emerald | `.06` | `.15` |
+| غير مناسب | `#f87171` red | `.06` | `.15` |
+| بدون وظيفة | `#9ca3af` cool gray | `.06` | `.15` |
+
+Same color values are used in `.co-cand-status--*` badges — unified palette across chips and cards.
+
+### Other Changes
+
+- **Manage button** (`.co-cand-manage-btn`): changed from purple (`#a78bfa`) to neutral slate (`#94a3b8`)
+- **Filter icons**: Lucide-style inline SVGs per filter type via `_FILTER_ICONS` constant
+
+### Forbidden Patterns (UI Polish)
+
+```
+❌ لا تُعيد native <select> داخل مودال المرشحين
+❌ لا تغيّر قيم status أو sort في JS أو Backend
+❌ لا تُعيد filter chips لشكل pill (border-radius: 20px أو أكبر)
+❌ لا تُغيّر layout الـ chips من grid إلى flex-wrap
+❌ لا تستخدم ألواناً مختلفة في filter chips عن .co-cand-status--* badges
+❌ أي تعديل على نظام الـ pickers يجب ألا يغيّر قيم data-selected المُرسَلة للـ PATCH
+```
+
+---
+
 ## [P1] 55. Score System
 
 **Endpoint:** `GET /profile/{user_id}/score`
