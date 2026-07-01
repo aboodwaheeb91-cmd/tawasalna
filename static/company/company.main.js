@@ -1358,8 +1358,8 @@
             + '<span class="co-cand-chip-main">'
             +   '<span class="co-cand-chip-ico">' + icon + '</span>'
             +   '<span class="co-cand-chip-lbl">' + _esc(label) + '</span>'
+            +   '<span class="co-cand-chip-cnt">' + count + '</span>'
             + '</span>'
-            + '<span class="co-cand-chip-cnt">' + count + '</span>'
             + '</button>';
     });
     el.innerHTML = html;
