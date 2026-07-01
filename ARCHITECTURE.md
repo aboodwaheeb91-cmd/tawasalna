@@ -5116,12 +5116,81 @@ Defined in `auth.py` as `VALID_CANDIDATE_STATUSES` (frozenset) and `CANDIDATE_ST
 ### ممنوعات
 
 ```
-❌ لا تضف Frontend في Phase 6A — الـ UI يأتي في Phase 6B
 ❌ لا تُضيف company_id في body/query — يأتي من JWT فقط
 ❌ لا تسمح بـ job_id من شركة أخرى
 ❌ لا تسمح لموظف أو زائر باستخدام هذا endpoint
 ❌ لا تضف جدول جديد — company_saved_candidates يكفي
 ❌ لا تغيّر status_labels بدون تحديث VALID_CANDIDATE_STATUSES و CANDIDATE_STATUS_LABELS معاً
+```
+
+---
+
+## [P3] 55d. Company Candidate Pipeline — Phase 6B Frontend
+
+**Implemented in:** PR feat/company-candidate-pipeline-ui (Phase 6B)
+**Status:** Frontend only. Backend PATCH endpoint from Phase 6A unchanged.
+
+### Purpose
+
+Adds a pipeline management UI inside the "المحفوظون" tab of `#coCandidatesModal`. Company owners can update status, add private notes, and link a saved candidate to an active job — all without leaving the modal.
+
+### Files Changed
+
+| File | Change |
+|------|--------|
+| `static/company/company.api.js` | Added `updateSavedCandidate(candidateId, payload)` → PATCH |
+| `static/company/company.main.js` | Rewrote saved-tab render + wiring; added manage panel logic |
+| `static/company/company.css` | Added `.co-cand-saved-card`, `.co-cand-top`, `.co-cand-status--*`, panel styles |
+
+### Card Structure (saved tab)
+
+Each saved candidate is now a `.co-cand-saved-card` (column-flex) containing:
+1. **`.co-cand-top`** — horizontal row: avatar + info + action buttons
+   - Info shows: name, meta (profession/city/country), date + **status badge**, notes preview (2-line clamp), job ref
+   - Actions: "فتح البروفايل" | **"إدارة" (NEW)** | "إزالة"
+2. **`.co-cand-manage-panel`** — inline panel below the row (hidden by default, toggle with "إدارة")
+   - Status `<select>` — locked to 6 valid values
+   - Notes `<textarea maxlength="500">` + live char counter (`0 / 500`)
+   - Job `<select>` (optional — sourced from `companyState.jobs` open jobs only, no new endpoint)
+   - "حفظ التعديل" / "إلغاء" buttons
+
+### Status Badge Colors
+
+| Status | Color |
+|--------|-------|
+| `saved` | Gray (#94a3b8) |
+| `shortlisted` | Blue (#6699ff) |
+| `contacted` | Purple (#a78bfa) |
+| `interview` | Amber (#fbbf24) |
+| `hired` | Teal (#00c896) |
+| `rejected` | Red (rgba(255,100,100,.8)) |
+
+### Behavior Rules
+
+- **One panel open at a time:** opening a panel closes any other open panel
+- **No optimistic updates:** card only updates after server responds 200 OK
+- **In-place update via `_applyCardUpdate(card, data)`:** updates badge, notes preview, job ref without re-rendering the full list
+- **Job select:** reuses `companyState.jobs` filtered to `status === 'open'` — no new backend call
+- **Notes limit:** `maxlength="500"` on textarea + server-side validation. Counter updates on `input` event
+- **Event delegation on `_body`:** single `click` listener handles remove, manage, panel save, panel cancel
+
+### API Wrapper
+
+```js
+updateSavedCandidate(candidateId, payload)
+// PATCH /company/saved-candidates/{candidateId}
+// payload: { status?, notes?, job_id? }
+// returns: { ok, status, data: { status: "success", item: {...} } }
+```
+
+### ممنوعات (Phase 6B)
+
+```
+❌ لا تعرض notes أو manage panel للزوار أو الموظفين (الحماية: المودال نفسه owner-only)
+❌ لا تحدّث البطاقة محلياً قبل نجاح السيرفر
+❌ لا تضيف endpoint جديد فقط لأسماء الوظائف — استخدم companyState.jobs
+❌ لا تغيّر قائمة الحالات في الـ frontend بدون تحديث VALID_CANDIDATE_STATUSES في auth.py
+❌ لا تلمس تبويب الاقتراحات أو نظام الحذف أو badge المرشحون
 ```
 
 ---

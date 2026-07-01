@@ -1117,7 +1117,7 @@
   document.addEventListener('DOMContentLoaded', _start);
 }());
 
-// ── Candidates Modal (Phase 4 + Phase 5B — owner-only) ────────────
+// ── Candidates Modal (Phase 4 + Phase 5B + Phase 6B — owner-only) ──
 (function () {
   'use strict';
 
@@ -1133,6 +1133,20 @@
   var _activeTab    = 'saved';
   var _suggOffset   = 0;
   var _suggLoading  = false;
+
+  // ── Pipeline status labels & order ───────────────────────────
+  var _STATUS_LABELS = {
+    'saved':       'محفوظ',
+    'shortlisted': 'مرشح قوي',
+    'contacted':   'تم التواصل',
+    'interview':   'مقابلة',
+    'hired':       'تم التوظيف',
+    'rejected':    'غير مناسب'
+  };
+  var _STATUS_ORDER = ['saved','shortlisted','contacted','interview','hired','rejected'];
+
+  function _statusLabel(s) { return _STATUS_LABELS[s] || _STATUS_LABELS['saved']; }
+  function _statusKey(s)   { return _STATUS_LABELS[s] ? s : 'saved'; }
 
   // ── Owner guard ────────────────────────────────────────────────
   function _isOwner() {
@@ -1206,7 +1220,7 @@
   }
 
   // ────────────────────────────────────────────────────────────────
-  // TAB 1 — Saved candidates
+  // TAB 1 — Saved candidates (Phase 6B enhanced)
   // ────────────────────────────────────────────────────────────────
 
   function _fetchSaved() {
@@ -1245,64 +1259,302 @@
     } catch (e) { return ''; }
   }
 
-  function _renderSaved(items) {
+  // Build status <option> list
+  function _statusOptionsHTML(current) {
     var html = '';
-    items.forEach(function (item) {
-      var meta = [item.profession, item.city, item.country].filter(Boolean).join(' · ');
-      var date = _fmtDate(item.created_at);
-      html += '<div class="co-cand-item" data-cid="' + _esc(item.candidate_id) + '">';
-      html += '<div class="co-cand-ava">' + (item.avatar_url ? '<img src="' + _esc(item.avatar_url) + '" alt="" loading="lazy">' : _avatarSvg) + '</div>';
-      html += '<div class="co-cand-info">';
-      html += '<div class="co-cand-name">' + _esc(item.full_name) + '</div>';
-      if (meta)  html += '<div class="co-cand-meta">' + _esc(meta) + '</div>';
-      if (date)  html += '<div class="co-cand-date">حُفظ ' + _esc(date) + '</div>';
-      html += '</div>';
-      html += '<div class="co-cand-actions">';
-      html += '<a class="co-cand-view-btn" href="/u/' + _esc(item.tw_id) + '" target="_blank" rel="noopener">فتح البروفايل</a>';
-      html += '<button class="co-cand-remove-btn" data-cid="' + _esc(item.candidate_id) + '">إزالة</button>';
-      html += '</div></div>';
+    _STATUS_ORDER.forEach(function (s) {
+      html += '<option value="' + s + '"' + (s === current ? ' selected' : '') + '>'
+            + _esc(_STATUS_LABELS[s]) + '</option>';
     });
-    _body.innerHTML = html;
-    _wireRemoveButtons();
+    return html;
   }
 
-  function _wireRemoveButtons() {
-    _body.querySelectorAll('.co-cand-remove-btn').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        var cid = parseInt(btn.getAttribute('data-cid'));
-        if (!cid) return;
-        btn.disabled = true;
-        if (!window.deleteSavedCandidate) return;
-        window.deleteSavedCandidate(cid)
-          .then(function (res) {
-            if (res && res.ok) {
-              var c = res.data && typeof res.data.count === 'number' ? res.data.count : null;
-              if (c !== null) _setBadge(c);
-              var row = btn.closest('.co-cand-item');
-              if (row) {
-                row.style.transition = 'opacity .2s';
-                row.style.opacity = '0';
-                setTimeout(function () {
-                  if (row.parentNode) row.parentNode.removeChild(row);
-                  if (!_body.querySelector('.co-cand-item')) _body.innerHTML = _savedEmptyHTML();
-                }, 220);
-              }
-              if (window.showToast) showToast('تمت إزالة المرشح');
-            } else {
-              btn.disabled = false;
-              if (window.showToast) showToast('تعذّر الإزالة', 'error');
-            }
-          })
-          .catch(function () {
-            btn.disabled = false;
-            if (window.showToast) showToast('تعذّر الإزالة', 'error');
-          });
+  // Build job <select> from companyState.jobs (open jobs only) — no new endpoint needed
+  function _jobSelectHTML(currentJobId) {
+    var jobs = (window.companyState && companyState.jobs)
+      ? companyState.jobs.filter(function (j) { return j.status === 'open'; })
+      : [];
+    if (!jobs.length) return '';
+    var html = '<label class="co-cand-panel-label">ربط بوظيفة (اختياري)</label>';
+    html += '<select class="co-cand-panel-sel co-cand-panel-job-sel">';
+    html += '<option value="">— بدون وظيفة محددة —</option>';
+    jobs.forEach(function (j) {
+      var sel = (currentJobId && String(j.id) === String(currentJobId)) ? ' selected' : '';
+      html += '<option value="' + _esc(j.id) + '"' + sel + '>'
+            + _esc(j.title || ('وظيفة #' + j.id)) + '</option>';
+    });
+    html += '</select>';
+    return html;
+  }
+
+  // Build a single saved card with embedded manage panel
+  function _savedCardHTML(item) {
+    var status = item.status || 'saved';
+    var notes  = item.notes  || '';
+    var jobId  = item.job_id  != null ? String(item.job_id) : '';
+    var meta   = [item.profession, item.city, item.country].filter(Boolean).join(' · ');
+    var date   = _fmtDate(item.created_at);
+    var cid    = _esc(item.candidate_id);
+
+    var html = '<div class="co-cand-saved-card"'
+      + ' data-cid="' + cid + '"'
+      + ' data-status="' + _esc(status) + '"'
+      + ' data-notes="' + _esc(notes) + '"'
+      + ' data-jobid="' + _esc(jobId) + '">';
+
+    // ── Top row (avatar + info + actions) ────────────────────────
+    html += '<div class="co-cand-top">';
+
+    html += '<div class="co-cand-ava">'
+      + (item.avatar_url
+          ? '<img src="' + _esc(item.avatar_url) + '" alt="" loading="lazy">'
+          : _avatarSvg)
+      + '</div>';
+
+    html += '<div class="co-cand-info">';
+    html += '<div class="co-cand-name">' + _esc(item.full_name) + '</div>';
+    if (meta) html += '<div class="co-cand-meta">' + _esc(meta) + '</div>';
+    // Date + status badge
+    html += '<div class="co-cand-row2">';
+    if (date) html += '<span class="co-cand-date">حُفظ ' + _esc(date) + '</span>';
+    html += '<span class="co-cand-status co-cand-status--' + _esc(_statusKey(status)) + '">'
+          + _esc(_statusLabel(status)) + '</span>';
+    html += '</div>';
+    // Notes preview
+    if (notes) html += '<div class="co-cand-notes-pre">' + _esc(notes) + '</div>';
+    // Job reference
+    if (jobId) html += '<div class="co-cand-job-ref">مرتبط بوظيفة #' + _esc(jobId) + '</div>';
+    html += '</div>'; // .co-cand-info
+
+    html += '<div class="co-cand-actions">';
+    html += '<a class="co-cand-view-btn" href="/u/' + _esc(item.tw_id) + '" target="_blank" rel="noopener">فتح البروفايل</a>';
+    html += '<button class="co-cand-manage-btn" data-cid="' + cid + '">إدارة</button>';
+    html += '<button class="co-cand-remove-btn" data-cid="' + cid + '">إزالة</button>';
+    html += '</div>'; // .co-cand-actions
+
+    html += '</div>'; // .co-cand-top
+
+    // ── Manage panel (hidden by default) ─────────────────────────
+    html += '<div class="co-cand-manage-panel">';
+    html += '<label class="co-cand-panel-label">الحالة في Pipeline</label>';
+    html += '<select class="co-cand-panel-sel co-cand-panel-status-sel">'
+          + _statusOptionsHTML(status) + '</select>';
+    html += '<label class="co-cand-panel-label">ملاحظات</label>';
+    html += '<div class="co-cand-panel-ta-wrap">';
+    html += '<textarea class="co-cand-panel-ta" maxlength="500"'
+          + ' placeholder="أضف ملاحظة عن هذا المرشح…" dir="rtl">'
+          + _esc(notes) + '</textarea>';
+    html += '<span class="co-cand-panel-counter">' + notes.length + ' / 500</span>';
+    html += '</div>';
+    html += _jobSelectHTML(jobId);
+    html += '<div class="co-cand-panel-acts">';
+    html += '<button class="co-cand-panel-save" data-cid="' + cid + '">حفظ التعديل</button>';
+    html += '<button class="co-cand-panel-cancel" data-cid="' + cid + '">إلغاء</button>';
+    html += '</div>';
+    html += '</div>'; // .co-cand-manage-panel
+
+    html += '</div>'; // .co-cand-saved-card
+    return html;
+  }
+
+  function _renderSaved(items) {
+    var html = '';
+    items.forEach(function (item) { html += _savedCardHTML(item); });
+    _body.innerHTML = html;
+    _wireSavedCards();
+  }
+
+  // Wire textarea character counters
+  function _wireTextareaCounters() {
+    _body.querySelectorAll('.co-cand-panel-ta').forEach(function (ta) {
+      var counter = ta.parentNode.querySelector('.co-cand-panel-counter');
+      ta.addEventListener('input', function () {
+        if (counter) counter.textContent = ta.value.length + ' / 500';
       });
     });
   }
 
+  // Unified event delegation for saved tab — remove + manage + panel save/cancel
+  function _wireSavedCards() {
+    _wireTextareaCounters();
+    _body.removeEventListener('click', _onSavedClick);
+    _body.addEventListener('click', _onSavedClick);
+  }
+
+  function _onSavedClick(e) {
+    var removeBtn = e.target.closest('.co-cand-remove-btn');
+    if (removeBtn) { _handleRemove(removeBtn); return; }
+
+    var manageBtn = e.target.closest('.co-cand-manage-btn');
+    if (manageBtn) { _togglePanel(manageBtn); return; }
+
+    var saveBtn = e.target.closest('.co-cand-panel-save');
+    if (saveBtn) { _handlePanelSave(saveBtn); return; }
+
+    var cancelBtn = e.target.closest('.co-cand-panel-cancel');
+    if (cancelBtn) { _closePanelOf(cancelBtn); return; }
+  }
+
+  function _handleRemove(btn) {
+    var cid = parseInt(btn.getAttribute('data-cid'));
+    if (!cid) return;
+    btn.disabled = true;
+    if (!window.deleteSavedCandidate) return;
+    window.deleteSavedCandidate(cid)
+      .then(function (res) {
+        if (res && res.ok) {
+          var c = res.data && typeof res.data.count === 'number' ? res.data.count : null;
+          if (c !== null) _setBadge(c);
+          var card = btn.closest('.co-cand-saved-card');
+          if (card) {
+            card.style.transition = 'opacity .2s';
+            card.style.opacity = '0';
+            setTimeout(function () {
+              if (card.parentNode) card.parentNode.removeChild(card);
+              if (!_body.querySelector('.co-cand-saved-card')) _body.innerHTML = _savedEmptyHTML();
+            }, 220);
+          }
+          if (window.showToast) showToast('تمت إزالة المرشح');
+        } else {
+          btn.disabled = false;
+          if (window.showToast) showToast('تعذّر الإزالة', 'error');
+        }
+      })
+      .catch(function () {
+        btn.disabled = false;
+        if (window.showToast) showToast('تعذّر الإزالة', 'error');
+      });
+  }
+
+  function _togglePanel(btn) {
+    var card  = btn.closest('.co-cand-saved-card');
+    var panel = card ? card.querySelector('.co-cand-manage-panel') : null;
+    if (!panel) return;
+
+    // Close other open panels first
+    _body.querySelectorAll('.co-cand-manage-panel.open').forEach(function (p) {
+      if (p !== panel) {
+        p.classList.remove('open');
+        var otherCard = p.closest('.co-cand-saved-card');
+        if (otherCard) {
+          var otherBtn = otherCard.querySelector('.co-cand-manage-btn');
+          if (otherBtn) otherBtn.classList.remove('active');
+        }
+      }
+    });
+
+    var isOpen = panel.classList.contains('open');
+    panel.classList.toggle('open', !isOpen);
+    btn.classList.toggle('active', !isOpen);
+  }
+
+  function _closePanelOf(btn) {
+    var card  = btn.closest('.co-cand-saved-card');
+    var panel = card ? card.querySelector('.co-cand-manage-panel') : null;
+    if (!panel) return;
+    panel.classList.remove('open');
+    var manBtn = card.querySelector('.co-cand-manage-btn');
+    if (manBtn) manBtn.classList.remove('active');
+  }
+
+  function _handlePanelSave(btn) {
+    var cid  = parseInt(btn.getAttribute('data-cid'));
+    if (!cid) return;
+    var card  = btn.closest('.co-cand-saved-card');
+    var panel = card ? card.querySelector('.co-cand-manage-panel') : null;
+    if (!panel) return;
+
+    var selStatus = panel.querySelector('.co-cand-panel-status-sel');
+    var ta        = panel.querySelector('.co-cand-panel-ta');
+    var selJob    = panel.querySelector('.co-cand-panel-job-sel');
+
+    var payload = {};
+    if (selStatus) payload.status = selStatus.value;
+    if (ta)        payload.notes  = ta.value;
+    if (selJob)    payload.job_id = selJob.value ? parseInt(selJob.value) : null;
+
+    if (!window.updateSavedCandidate) return;
+    btn.disabled    = true;
+    btn.textContent = 'جارٍ الحفظ…';
+
+    window.updateSavedCandidate(cid, payload)
+      .then(function (res) {
+        if (res && res.ok && res.data && res.data.item) {
+          _applyCardUpdate(card, res.data.item);
+          _closePanelOf(btn);
+          if (window.showToast) showToast('تم تحديث المرشح');
+        } else {
+          if (window.showToast) showToast('تعذّر الحفظ', 'error');
+        }
+      })
+      .catch(function () {
+        if (window.showToast) showToast('تعذّر الحفظ', 'error');
+      })
+      .finally(function () {
+        btn.disabled    = false;
+        btn.textContent = 'حفظ التعديل';
+      });
+  }
+
+  // Update card in-place after successful PATCH — no full re-render
+  function _applyCardUpdate(card, data) {
+    if (!card || !data) return;
+    var newStatus = data.status  || 'saved';
+    var newNotes  = data.notes   || '';
+    var newJobId  = data.job_id  != null ? String(data.job_id) : '';
+
+    // Update data attributes (source of truth for next panel open)
+    card.setAttribute('data-status', newStatus);
+    card.setAttribute('data-notes',  newNotes);
+    card.setAttribute('data-jobid',  newJobId);
+
+    // Update status badge class + text
+    var badge = card.querySelector('.co-cand-status');
+    if (badge) {
+      _STATUS_ORDER.forEach(function (s) { badge.classList.remove('co-cand-status--' + s); });
+      badge.classList.add('co-cand-status--' + _statusKey(newStatus));
+      badge.textContent = _statusLabel(newStatus);
+    }
+
+    // Update notes preview
+    var notesPre = card.querySelector('.co-cand-notes-pre');
+    if (newNotes) {
+      if (notesPre) {
+        notesPre.textContent = newNotes;
+      } else {
+        var row2 = card.querySelector('.co-cand-row2');
+        if (row2) {
+          var nd = document.createElement('div');
+          nd.className   = 'co-cand-notes-pre';
+          nd.textContent = newNotes;
+          row2.parentNode.insertBefore(nd, row2.nextSibling);
+        }
+      }
+    } else if (notesPre) {
+      notesPre.parentNode.removeChild(notesPre);
+    }
+
+    // Update job reference
+    var jobRef = card.querySelector('.co-cand-job-ref');
+    if (newJobId) {
+      if (jobRef) {
+        jobRef.textContent = 'مرتبط بوظيفة #' + newJobId;
+      } else {
+        var info = card.querySelector('.co-cand-info');
+        if (info) {
+          var jd = document.createElement('div');
+          jd.className   = 'co-cand-job-ref';
+          jd.textContent = 'مرتبط بوظيفة #' + newJobId;
+          info.appendChild(jd);
+        }
+      }
+    } else if (jobRef) {
+      jobRef.parentNode.removeChild(jobRef);
+    }
+  }
+
   // ────────────────────────────────────────────────────────────────
-  // TAB 2 — Suggestions (Phase 5B)
+  // TAB 2 — Suggestions (Phase 5B — unchanged)
   // ────────────────────────────────────────────────────────────────
 
   function _fetchSuggestions(offset) {
