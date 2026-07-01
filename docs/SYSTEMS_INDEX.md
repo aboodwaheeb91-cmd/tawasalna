@@ -238,7 +238,7 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 **Responsible files:**
 - `auth.py` — `_migrate_company_saved_candidates()`, `save_company_candidate()`, `remove_company_candidate()`, `get_company_saved_candidates()`, `get_company_saved_candidates_count()`, `get_company_saved_candidates_filtered()`, `get_company_saved_candidates_stats()`, `update_company_saved_candidate()`, `VALID_CANDIDATE_STATUSES`, `CANDIDATE_STATUS_LABELS`, `VALID_CANDIDATE_SORTS`
 - `server.py` — 6 endpoints + `_require_company_owner()` helper + `UpdateSavedCandidateInput` Pydantic model
-**Details:** `ARCHITECTURE.md §55a` (base) · `ARCHITECTURE.md §55c` (Phase 6A — pipeline management) · `ARCHITECTURE.md §55e` (Phase 7A — filters & stats)
+**Details:** `ARCHITECTURE.md §55a` (base) · `ARCHITECTURE.md §55c` (Phase 6A — pipeline management) · `ARCHITECTURE.md §55e` (Phase 7A — filters & stats) · `ARCHITECTURE.md §55f` (Phase 7B — frontend filters UI)
 **Auth:** JWT mandatory, `user_type='co'` only. `company_id` derived from `token["user_id"]` — no cross-company access.
 **Privacy:** Returns `candidate_id, tw_id, full_name, avatar_url, profession, city, country, job_id, status, notes, created_at, updated_at` only. Never returns email, phone, or KYC data. Notes are never searched.
 **Pipeline statuses:** `saved | shortlisted | contacted | interview | hired | rejected`. Validated via `VALID_CANDIDATE_STATUSES`. `notes` max 500 chars. `job_id` must belong to same company.
@@ -247,7 +247,8 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 **Badge:** `/count` endpoint always returns unfiltered total for badge display.
 **Frontend (Phase 4):** `#candidatesBtn` in jobs toolbar (owner-only) + `#coCandidatesModal` + `.co-cand-*` CSS.
 **Frontend (Phase 6B):** Pipeline manage panel inside saved tab. `.co-cand-saved-card` / `.co-cand-manage-panel` / `updateSavedCandidate()` / `_applyCardUpdate()`.
-**Do not recreate:** Do not add `company_id` to query/body. Do not search inside `notes`. Do not use raw user input in ORDER BY — use `VALID_CANDIDATE_SORTS` dict only. Do not change `/count` endpoint behavior.
+**Frontend (Phase 7B):** Filter bar inside `#coCandSavedShell`: 8 chips (الكل + 6 statuses + بدون وظيفة), search input (300ms debounce), sort select (6 options). Stats loaded via `getSavedCandidatesStats()`. Badge updated from `stats.total` (unfiltered). Load more button when `has_more=true`. Cards render in `#coCandSavedList` (not `_body`). Stats refresh after DELETE and PATCH. Filter-mismatch cards hide after PATCH. 8 empty state messages per filter.
+**Do not recreate:** Do not add `company_id` to query/body. Do not search inside `notes`. Do not use raw user input in ORDER BY — use `VALID_CANDIDATE_SORTS` dict only. Do not change `/count` endpoint behavior. Do not update badge from `res.data.count` — use `stats.total` only.
 
 ### 20d. Company Candidate Suggestions (Phase 5A Backend)
 **Purpose:** Scored employee suggestions for a company based on its active job postings. Owner-only, private. No new DB table — reuses jobs, job_profession_targets, profiles, user_skills, company_saved_candidates.
@@ -417,4 +418,4 @@ These systems exist in code but lack formal documentation in ARCHITECTURE.md or 
 
 ---
 
-*Last updated: 2026-07-01 — reflects systems as of feat/company-candidate-filters-stats-backend (Phase 7A Backend — filters, search, stats).*
+*Last updated: 2026-07-01 — reflects systems as of feat/company-candidate-filters-ui (Phase 7B Frontend — filter bar, chips, search, sort, load more).*
