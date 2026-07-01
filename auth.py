@@ -3679,6 +3679,180 @@ CANDIDATE_STATUS_LABELS = {
     "rejected":    "غير مناسب",
 }
 
+# Allowed sort keys → ORDER BY expression (safe — never interpolated from user input directly)
+VALID_CANDIDATE_SORTS = {
+    "updated_desc": "sc.updated_at DESC NULLS LAST, sc.created_at DESC",
+    "updated_asc":  "sc.updated_at ASC NULLS FIRST, sc.created_at ASC",
+    "created_desc": "sc.created_at DESC",
+    "created_asc":  "sc.created_at ASC",
+    "name_asc":     "u.full_name ASC",
+    "status_asc":   "sc.status ASC",
+}
+
+
+def get_company_saved_candidates_filtered(
+    company_id: int,
+    limit: int = 20,
+    offset: int = 0,
+    status: str = None,
+    job_id: int = None,
+    unlinked: bool = False,
+    q: str = None,
+    sort: str = "updated_desc",
+) -> dict:
+    """
+    Filtered + paginated private list of saved candidates for a company.
+
+    All filter params are optional — omitting all reproduces original
+    get_company_saved_candidates() behavior.
+
+    Raises ValueError if job_id is provided but doesn't belong to this company.
+
+    Returns:
+      { count (=filtered total), items, pagination, filters }
+      'count' == pagination.total == filtered total.
+      When no filters active: count == all saved candidates (badge-safe).
+    """
+    conn = get_conn()
+    try:
+        # Validate job_id ownership before running expensive query
+        if job_id is not None:
+            job_check = conn.run(
+                "SELECT id FROM jobs WHERE id=:jid AND company_id=:cid",
+                jid=job_id, cid=company_id)
+            if not job_check:
+                raise ValueError("الوظيفة غير موجودة أو لا تتبع شركتك")
+
+        # Build WHERE clause dynamically (all user values are parameterized)
+        where_parts = ["sc.company_id = :cid"]
+        params = {"cid": company_id}
+
+        if status:
+            where_parts.append("sc.status = :status")
+            params["status"] = status
+
+        if job_id is not None:
+            where_parts.append("sc.job_id = :job_id")
+            params["job_id"] = job_id
+        elif unlinked:
+            where_parts.append("sc.job_id IS NULL")
+
+        if q:
+            where_parts.append(
+                "(u.full_name ILIKE :q OR u.tw_id ILIKE :q "
+                "OR pc.name_ar ILIKE :q OR p.city ILIKE :q OR p.country ILIKE :q)"
+            )
+            params["q"] = "%" + q + "%"
+
+        where_sql = " AND ".join(where_parts)
+        order_sql = VALID_CANDIDATE_SORTS.get(sort, VALID_CANDIDATE_SORTS["updated_desc"])
+
+        base_from = (
+            "FROM company_saved_candidates sc "
+            "JOIN users u ON u.id = sc.candidate_id "
+            "LEFT JOIN profiles p ON p.user_id = u.id "
+            "LEFT JOIN profession_categories pc ON pc.id = p.profession_id "
+        )
+
+        # Filtered total
+        cnt_row = conn.run(
+            "SELECT COUNT(*) " + base_from + "WHERE " + where_sql,
+            **params)
+        total = cnt_row[0][0] if cnt_row else 0
+
+        # Items
+        rows = conn.run(
+            "SELECT u.id, u.tw_id, u.full_name, p.avatar_url, "
+            "pc.name_ar, p.city, p.country, "
+            "sc.job_id, sc.status, sc.notes, sc.created_at, sc.updated_at "
+            + base_from +
+            "WHERE " + where_sql + " "
+            "ORDER BY " + order_sql + " "
+            "LIMIT :lim OFFSET :off",
+            lim=limit, off=offset, **params
+        ) or []
+
+        items = []
+        for r in rows:
+            (cand_id, tw_id, full_name, avatar_url, prof_name,
+             city, country, sc_job_id, sc_status, notes,
+             created_at, updated_at) = r
+            items.append(_serialize({
+                "candidate_id": cand_id,
+                "tw_id":        tw_id,
+                "full_name":    full_name,
+                "avatar_url":   avatar_url,
+                "profession":   prof_name or None,
+                "city":         city,
+                "country":      country,
+                "job_id":       sc_job_id,
+                "status":       sc_status or "saved",
+                "notes":        notes,
+                "created_at":   created_at,
+                "updated_at":   updated_at,
+            }))
+
+        return {
+            "count": total,
+            "items": items,
+            "pagination": {
+                "limit":    limit,
+                "offset":   offset,
+                "has_more": (offset + limit) < total,
+                "total":    total,
+            },
+            "filters": {
+                "status":   status,
+                "job_id":   job_id,
+                "unlinked": unlinked,
+                "q":        q,
+                "sort":     sort,
+            },
+        }
+    finally:
+        release_conn(conn)
+
+
+def get_company_saved_candidates_stats(company_id: int) -> dict:
+    """
+    Pipeline statistics for a company's saved candidates.
+    All 6 pipeline statuses are always present in by_status (zero-filled).
+    No candidate data is returned — counts only.
+    """
+    conn = get_conn()
+    try:
+        # Counts by status
+        status_rows = conn.run(
+            "SELECT COALESCE(status, 'saved'), COUNT(*) "
+            "FROM company_saved_candidates "
+            "WHERE company_id = :cid "
+            "GROUP BY status",
+            cid=company_id) or []
+
+        # Total, with_job, unlinked — single-pass via FILTER
+        summary_row = conn.run(
+            "SELECT COUNT(*), "
+            "COUNT(*) FILTER (WHERE job_id IS NOT NULL), "
+            "COUNT(*) FILTER (WHERE job_id IS NULL) "
+            "FROM company_saved_candidates WHERE company_id = :cid",
+            cid=company_id) or []
+
+        by_status = {s: 0 for s in VALID_CANDIDATE_STATUSES}
+        for row in status_rows:
+            st, cnt = row
+            if st in by_status:
+                by_status[st] = int(cnt or 0)
+
+        sr = summary_row[0] if summary_row else (0, 0, 0)
+        return {
+            "total":     int(sr[0] or 0),
+            "by_status": by_status,
+            "with_job":  int(sr[1] or 0),
+            "unlinked":  int(sr[2] or 0),
+        }
+    finally:
+        release_conn(conn)
+
 
 def update_company_saved_candidate(
     company_id: int,
