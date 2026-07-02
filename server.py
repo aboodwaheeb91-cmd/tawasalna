@@ -1220,6 +1220,9 @@ class JobApplyInput(BaseModel):
 class AppStatusInput(BaseModel):
     status: str  # pending, viewed, accepted, rejected
 
+class JobStatusInput(BaseModel):
+    status: str  # active, paused
+
 class SkillInput(BaseModel):
     skill: str
     level: Optional[str] = None
@@ -3333,9 +3336,38 @@ def remove_job(job_id: int, token=Depends(verify_token)):
         raise HTTPException(403, "ليست وظيفتك أو غير موجودة")
     return {"success": True}
 
+@app.patch("/company/jobs/{job_id}/status")
+def set_job_status_endpoint(job_id: int, data: JobStatusInput, token=Depends(verify_token)):
+    # JWT + DB ownership check before mutating
+    user_id   = token.get("user_id")
+    user_type = token.get("user_type")
+    if not user_id:
+        print(f"[SECURITY] INVALID_TOKEN: PATCH /company/jobs/{job_id}/status")
+        raise HTTPException(401, "رمز غير صالح")
+    if user_type not in ("co", "edu"):
+        print(f"[SECURITY] COMPANY_OWNERSHIP_FAILED: user_type={user_type} tried PATCH /company/jobs/{job_id}/status")
+        raise HTTPException(403, "شركات وجهات فقط")
+    cid = int(user_id)
+    conn = get_conn()
+    try:
+        rows = conn.run(
+            "SELECT id FROM jobs WHERE id=:id AND company_id=:cid",
+            id=job_id, cid=cid
+        )
+        if not rows:
+            print(f"[SECURITY] JOB_OWNERSHIP_FAILED: user={cid} tried PATCH job={job_id}/status")
+            raise HTTPException(403, "ليست وظيفتك أو غير موجودة")
+    finally:
+        release_conn(conn)
+    try:
+        set_job_status(job_id, cid, data.status)
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+    return {"status": "success"}
+
 @app.get("/company/jobs")
 def get_company_jobs(token=Depends(verify_token)):
-    # Rule #1, #20: JWT only — owner sees their own jobs
+    # Rule #1, #20: JWT only — owner sees ALL their jobs (all statuses)
     user_id   = token.get("user_id")
     user_type = token.get("user_type")
     if not user_id:
@@ -3344,7 +3376,7 @@ def get_company_jobs(token=Depends(verify_token)):
     if user_type not in ("co", "edu"):
         print(f"[SECURITY] COMPANY_OWNERSHIP_FAILED: user_type={user_type} tried GET /company/jobs")
         raise HTTPException(403, "شركات وجهات فقط")
-    jobs = get_jobs({"company_id": int(user_id)})
+    jobs = get_company_jobs_all(int(user_id))
     return {"jobs": jobs, "count": len(jobs)}
 
 @app.post("/jobs/{job_id}/apply")

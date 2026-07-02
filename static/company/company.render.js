@@ -187,14 +187,24 @@
         '</div>' +
         (canApply
           ? '<button class="apply-btn-pill" data-jid="' + _esc(String(j.id)) + '">تقديم الآن</button>'
-          : '<div class="job-owner-row">'
-          +   '<span class="owner-job-badge">وظيفتك ✓</span>'
-          +   (function () {
-              var cnt = parseInt(j.applicant_count, 10) || 0;
-              var lbl = cnt > 0 ? 'المتقدمون ' + cnt : 'المتقدمون';
-              return '<button type="button" class="owner-applicants-btn" data-jid="' + parseInt(j.id, 10) + '">' + _esc(lbl) + '</button>';
-            }())
-          + '</div>') +
+          : (function () {
+              var jid  = parseInt(j.id, 10);
+              var st   = j.status || 'active';
+              var stLbl = st === 'paused' ? 'التقديم موقوف' : st === 'closed' ? 'مغلقة' : 'نشطة';
+              var stCls = 'job-status-badge job-status-badge--' + _esc(st);
+              var cnt  = parseInt(j.applicant_count, 10) || 0;
+              var appLbl = cnt > 0 ? 'المتقدمون ' + cnt : 'المتقدمون';
+              var pauseLbl = st === 'active' ? 'إيقاف التقديم' : 'إعادة فتح';
+              return '<div class="job-owner-row">'
+                + '<span class="' + stCls + '">' + _esc(stLbl) + '</span>'
+                + '<div class="job-mgmt-row">'
+                +   '<button type="button" class="job-mgmt-btn job-edit-btn" data-jid="' + jid + '">تعديل</button>'
+                +   '<button type="button" class="job-mgmt-btn job-pause-btn" data-jid="' + jid + '" data-status="' + _esc(st) + '">' + _esc(pauseLbl) + '</button>'
+                +   '<button type="button" class="owner-applicants-btn" data-jid="' + jid + '">' + _esc(appLbl) + '</button>'
+                +   '<button type="button" class="job-mgmt-btn job-del-btn" data-jid="' + jid + '">حذف</button>'
+                + '</div>'
+                + '</div>';
+            }())) +
       '</div>';
     }).join('');
 

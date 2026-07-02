@@ -2172,6 +2172,45 @@ def delete_job(job_id: int, company_id: int) -> bool:
     finally:
         release_conn(conn)
 
+def get_company_jobs_all(company_id: int) -> list:
+    """Return all jobs for the authenticated owner — all statuses, no cache."""
+    conn = get_conn()
+    try:
+        rows = conn.run(
+            "SELECT j.id, j.company_id, j.title, j.description, j.location, "
+            "j.job_type, j.salary_min, j.salary_max, j.currency, "
+            "j.experience_years, j.skills, j.status, j.views, j.created_at, "
+            "COALESCE(j.accepts_all_professions, false) AS accepts_all_professions, "
+            "u.full_name AS company_name "
+            "FROM jobs j JOIN users u ON u.id=j.company_id "
+            "WHERE j.company_id=:cid ORDER BY j.created_at DESC LIMIT 100",
+            cid=company_id
+        )
+        cols = [c["name"] for c in conn.columns]
+        result = [_serialize(_row_to_dict(cols, r)) for r in rows]
+        job_ids = [d["id"] for d in result if d.get("id")]
+        acc_map = _fetch_accepted_professions_batch(conn, job_ids)
+        cnt_map = _fetch_applicant_counts_batch(conn, job_ids)
+        for d in result:
+            d["accepted_professions"] = acc_map.get(d["id"], [])
+            d["applicant_count"]      = cnt_map.get(d["id"], 0)
+        return result
+    finally:
+        release_conn(conn)
+
+def set_job_status(job_id: int, company_id: int, status: str) -> None:
+    _ALLOWED = ('active', 'paused', 'closed')
+    if status not in _ALLOWED:
+        raise ValueError(f"Invalid status '{status}'. Allowed: {_ALLOWED}")
+    conn = get_conn()
+    try:
+        conn.run(
+            "UPDATE jobs SET status=:s WHERE id=:id AND company_id=:cid",
+            s=status, id=job_id, cid=company_id
+        )
+    finally:
+        release_conn(conn)
+
 
 # ══ KYC System ══
 import random, string

@@ -53,6 +53,27 @@
           if (window.openApplicantsModal) openApplicantsModal(parseInt(card.dataset.jid, 10));
           return;
         }
+        var editBtn = e.target.closest('.job-edit-btn');
+        if (editBtn) {
+          e.preventDefault();
+          e.stopPropagation();
+          openEditJob(parseInt(card.dataset.jid, 10));
+          return;
+        }
+        var pauseBtn = e.target.closest('.job-pause-btn');
+        if (pauseBtn) {
+          e.preventDefault();
+          e.stopPropagation();
+          toggleJobStatus(parseInt(card.dataset.jid, 10), pauseBtn.getAttribute('data-status'));
+          return;
+        }
+        var delBtn = e.target.closest('.job-del-btn');
+        if (delBtn) {
+          e.preventDefault();
+          e.stopPropagation();
+          deleteJob(parseInt(card.dataset.jid, 10));
+          return;
+        }
         if (e.target.closest('button, a')) { return; }
         window.location.href = 'job-detail.html?id=' + card.dataset.jid;
       });
@@ -125,7 +146,9 @@
   }
 
   // ── Profession picker ──────────────────────────────────────────
-  var _professions = [];
+  var _professions  = [];
+  var _editJobId    = null;  // null = create mode, int = edit mode
+  var _pendingProfId = null; // profession_id to select after async professions load
 
   function _rebuildProfSelect() {
     var sel = document.getElementById('j-prof');
@@ -146,6 +169,10 @@
       html += '</optgroup>';
     });
     sel.innerHTML = html;
+    if (_pendingProfId) {
+      sel.value = String(_pendingProfId);
+      _pendingProfId = null;
+    }
     if (window.scSelectInit) scSelectInit();
   }
 
@@ -511,8 +538,12 @@
     var accSec = document.getElementById('j-acc-prof-section');
     if (accSec) accSec.style.display = '';
     _jHideDrop();
+    _editJobId     = null;
+    _pendingProfId = null;
     var pBtn = document.getElementById('publishJobBtn');
     if (pBtn) { pBtn.disabled = false; pBtn.textContent = 'نشر الوظيفة'; }
+    var modalTitle = document.querySelector('#postJobOverlay .modal-head-title');
+    if (modalTitle) modalTitle.textContent = 'نشر وظيفة جديدة';
     // Salary toggle: default OFF = hidden
     var salShow = document.getElementById('j-sal-show');
     if (salShow) salShow.checked = false;
@@ -615,8 +646,13 @@
       accepted_profession_ids: acceptsAll ? [] : _jAccProfs.map(function(p) { return p.id; }),
     };
 
-    fetch('/company/jobs', {
-      method:  'POST',
+    var isEdit  = !!_editJobId;
+    var url     = isEdit ? '/company/jobs/' + _editJobId : '/company/jobs';
+    var method  = isEdit ? 'PUT' : 'POST';
+    var btnOrigText = isEdit ? 'حفظ التعديلات' : 'نشر الوظيفة';
+
+    fetch(url, {
+      method:  method,
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + _jwt() },
       body:    JSON.stringify(payload),
     })
@@ -625,28 +661,153 @@
       return r.json();
     })
     .then(function (data) {
-      if (data.status !== 'success') throw new Error(data.detail || 'فشل النشر');
+      if (data.status !== 'success') throw new Error(data.detail || 'فشل الحفظ');
 
       // ── Confirmed Immediate Update ────────────────────────────
       var ov = document.getElementById('postJobOverlay');
       if (ov) ov.classList.remove('show');
-      if (window.showToast) showToast('تم نشر الوظيفة ✓');
+      if (window.showToast) showToast(isEdit ? 'تم تحديث الوظيفة ✓' : 'تم نشر الوظيفة ✓');
 
-      var newJob = data.job || {};
-      if (!newJob.id) newJob = Object.assign(
-        { id: 0, status: 'active', created_at: new Date().toISOString() }, payload);
-      companyState.jobs = [newJob].concat(companyState.jobs || []);
+      if (isEdit) {
+        // Update existing job in state in-place
+        companyState.jobs = companyState.jobs.map(function (j) {
+          if (String(j.id) === String(_editJobId)) {
+            return Object.assign({}, j, payload, { id: j.id, status: j.status, applicant_count: j.applicant_count });
+          }
+          return j;
+        });
+      } else {
+        var newJob = data.job || {};
+        if (!newJob.id) newJob = Object.assign(
+          { id: 0, status: 'active', created_at: new Date().toISOString() }, payload);
+        companyState.jobs = [newJob].concat(companyState.jobs || []);
+        if (window.companyState && companyState.stats)
+          companyState.stats.jobs_count = (companyState.stats.jobs_count || 0) + 1;
+        if (window.renderStats) renderStats();
+      }
       if (window.renderJobs) renderJobs();
-
-      // Increment local jobs counter so stats chip stays in sync
-      if (window.companyState && companyState.stats)
-        companyState.stats.jobs_count = (companyState.stats.jobs_count || 0) + 1;
-      if (window.renderStats) renderStats();
       _resetPostJobModal();
     })
     .catch(function (err) {
-      if (publishBtn) { publishBtn.disabled = false; publishBtn.textContent = 'نشر الوظيفة'; }
-      if (window.showToast) showToast((err && err.message) || 'خطأ في نشر الوظيفة', 'error');
+      if (publishBtn) { publishBtn.disabled = false; publishBtn.textContent = btnOrigText; }
+      if (window.showToast) showToast((err && err.message) || 'خطأ في حفظ الوظيفة', 'error');
+    });
+  }
+
+  // ── Job management — edit ──────────────────────────────────────
+  function _populatePostJobModal(job) {
+    _resetPostJobModal();
+    _editJobId = job.id;
+
+    var s = function (id, v) {
+      var el = document.getElementById(id);
+      if (el && v !== undefined && v !== null) el.value = String(v);
+    };
+    s('j-title', job.title || '');
+    s('j-desc', job.description || '');
+    s('j-type', job.job_type || 'دوام كامل');
+    s('j-wmode', job.work_mode || 'في الموقع');
+    s('j-exp', String(job.experience_years || 0));
+    s('j-cur', job.currency || 'USD');
+
+    // Location: always custom when editing
+    var locMode = document.getElementById('j-loc-mode');
+    if (locMode) { locMode.value = 'custom'; _onJobLocModeChange(); }
+    s('j-loc', job.location || '');
+
+    // Salary
+    if (!job.salary_hidden && (job.salary_min || job.salary_max)) {
+      var salShow = document.getElementById('j-sal-show');
+      if (salShow) { salShow.checked = true; _onSalShowChange(); }
+      s('j-sal1', job.salary_min || '');
+      s('j-sal2', job.salary_max || '');
+    }
+
+    // Skills
+    if (Array.isArray(job.skills)) {
+      job.skills.forEach(function (sk) {
+        _jAddSkill(typeof sk === 'string' ? sk : (sk.name_ar || sk.name_en || ''));
+      });
+    }
+
+    // Profession — set pending then load (handles async)
+    if (job.profession_id) {
+      _pendingProfId = job.profession_id;
+      _loadProfessions();
+    }
+
+    // Switch modal to edit mode
+    var pBtn = document.getElementById('publishJobBtn');
+    if (pBtn) pBtn.textContent = 'حفظ التعديلات';
+    var modalTitle = document.querySelector('#postJobOverlay .modal-head-title');
+    if (modalTitle) modalTitle.textContent = 'تعديل الوظيفة';
+    if (window.scSelectInit) scSelectInit();
+  }
+
+  function openEditJob(jobId) {
+    if (!window.companyState || !companyState.permissions.can_post_jobs) return;
+    var job = companyState.jobs.find(function (j) { return String(j.id) === String(jobId); });
+    if (!job) return;
+    _jBindSkillAC();
+    _jAccBindAC();
+    _populatePostJobModal(job);
+    var el = document.getElementById('postJobOverlay');
+    if (el) el.classList.add('show');
+    if (window.history) history.pushState({ modal: 'editJob' }, '', location.href);
+  }
+
+  // ── Job management — delete ────────────────────────────────────
+  function deleteJob(jobId) {
+    if (!confirm('هل أنت متأكد من حذف إعلان الوظيفة؟\nلا يمكن التراجع عن هذا الإجراء.')) return;
+    fetch('/company/jobs/' + parseInt(jobId, 10), {
+      method:  'DELETE',
+      headers: { 'Authorization': 'Bearer ' + _jwt() },
+    })
+    .then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    })
+    .then(function () {
+      companyState.jobs = companyState.jobs.filter(function (j) {
+        return String(j.id) !== String(jobId);
+      });
+      if (companyState.stats)
+        companyState.stats.jobs_count = Math.max(0, (companyState.stats.jobs_count || 1) - 1);
+      if (window.renderJobs)  renderJobs();
+      if (window.renderStats) renderStats();
+      if (window.showToast) showToast('تم حذف الوظيفة');
+    })
+    .catch(function (err) {
+      var msg = (err && err.message && err.message.indexOf('403') !== -1)
+        ? 'ليست وظيفتك أو غير موجودة'
+        : 'تعذّر حذف الوظيفة، حاول مجدداً';
+      if (window.showToast) showToast(msg, 'error');
+    });
+  }
+
+  // ── Job management — pause / resume ───────────────────────────
+  function toggleJobStatus(jobId, currentStatus) {
+    var newStatus = (currentStatus === 'active') ? 'paused' : 'active';
+    fetch('/company/jobs/' + parseInt(jobId, 10) + '/status', {
+      method:  'PATCH',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + _jwt() },
+      body:    JSON.stringify({ status: newStatus }),
+    })
+    .then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    })
+    .then(function () {
+      companyState.jobs = companyState.jobs.map(function (j) {
+        if (String(j.id) === String(jobId)) return Object.assign({}, j, { status: newStatus });
+        return j;
+      });
+      if (window.renderJobs) renderJobs();
+      var msg = newStatus === 'paused' ? 'تم إيقاف التقديم' : 'تم إعادة فتح التقديم ✓';
+      if (window.showToast) showToast(msg);
+    })
+    .catch(function () {
+      if (window.showToast) showToast('تعذّر تغيير حالة الوظيفة', 'error');
     });
   }
 
@@ -678,6 +839,9 @@
   window.submitRating          = submitRating;
   window.openPostJob           = openPostJob;
   window.publishJob            = publishJob;
+  window.openEditJob           = openEditJob;
+  window.deleteJob             = deleteJob;
+  window.toggleJobStatus       = toggleJobStatus;
   window._onJobLocModeChange   = _onJobLocModeChange;
   window._onWmodeChange        = _onWmodeChange;
   window._onSalShowChange      = _onSalShowChange;
