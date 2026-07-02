@@ -189,7 +189,11 @@
           ? '<button class="apply-btn-pill" data-jid="' + _esc(String(j.id)) + '">تقديم الآن</button>'
           : '<div class="job-owner-row">'
           +   '<span class="owner-job-badge">وظيفتك ✓</span>'
-          +   '<button class="owner-applicants-btn" onclick="openApplicantsModal(' + parseInt(j.id, 10) + ')">المتقدمون</button>'
+          +   (function () {
+              var cnt = parseInt(j.applicant_count, 10) || 0;
+              var lbl = cnt > 0 ? 'المتقدمون ' + cnt : 'المتقدمون';
+              return '<button class="owner-applicants-btn" onclick="openApplicantsModal(' + parseInt(j.id, 10) + ')">' + _esc(lbl) + '</button>';
+            }())
           + '</div>') +
       '</div>';
     }).join('');
