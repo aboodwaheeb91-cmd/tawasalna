@@ -1896,6 +1896,25 @@ def _fetch_accepted_professions_batch(conn, job_ids):
         return {}
 
 
+def _fetch_applicant_counts_batch(conn, job_ids):
+    """Batch-fetch job_applications counts for a list of job IDs.
+    Returns {job_id: int}. Never raises — returns {} on any error.
+    """
+    if not job_ids:
+        return {}
+    try:
+        placeholders = ','.join(f':j{i}' for i in range(len(job_ids)))
+        params = {f'j{i}': jid for i, jid in enumerate(job_ids)}
+        rows = conn.run(
+            f"SELECT job_id, COUNT(*) AS cnt FROM job_applications "
+            f"WHERE job_id IN ({placeholders}) GROUP BY job_id",
+            **params
+        )
+        return {r[0]: int(r[1]) for r in (rows or [])}
+    except Exception:
+        return {}
+
+
 def _validate_accepted_profession_ids(conn, primary_pid, accepted_ids):
     """Validate accepted_profession_ids before any DB mutation.
 
@@ -2044,11 +2063,13 @@ def get_jobs(filters: dict = None) -> list:
         )
         cols = [c["name"] for c in conn.columns]
         result = [_serialize(_row_to_dict(cols, r)) for r in rows]
-        # Attach accepted_professions — single batch query, no N+1
+        # Attach accepted_professions + applicant_count — single batch query each, no N+1
         job_ids = [d["id"] for d in result if d.get("id")]
         acc_map = _fetch_accepted_professions_batch(conn, job_ids)
+        cnt_map = _fetch_applicant_counts_batch(conn, job_ids)
         for d in result:
             d["accepted_professions"] = acc_map.get(d["id"], [])
+            d["applicant_count"] = cnt_map.get(d["id"], 0)
         _cache_set(cache_key, result)
         return result
     finally:
@@ -2103,7 +2124,7 @@ def get_job_applicants(job_id: int) -> list:
     try:
         rows = conn.run(
             "SELECT ja.id, ja.job_id, ja.user_id, ja.status, ja.cover_letter, ja.applied_at, "
-            "u.full_name, u.email, u.user_type "
+            "u.full_name, u.user_type, u.tw_id "
             "FROM job_applications ja JOIN users u ON u.id=ja.user_id "
             "WHERE ja.job_id=:jid ORDER BY ja.applied_at DESC",
             jid=job_id
