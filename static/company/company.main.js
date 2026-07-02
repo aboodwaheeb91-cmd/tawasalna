@@ -819,6 +819,12 @@
     }
     _astFloat.style.left = left + 'px';
     _astFloat.style.top  = top  + 'px';
+
+    // Mark current status option
+    var currentStatus = triggerBtn.getAttribute('data-status') || '';
+    _astFloat.querySelectorAll('.co-ast-opt').forEach(function (o) {
+      o.classList.toggle('co-ast-current', o.getAttribute('data-val') === currentStatus);
+    });
   }
 
   function _closeAstFloat() {
