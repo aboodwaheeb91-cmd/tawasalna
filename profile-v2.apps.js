@@ -41,7 +41,13 @@
     }
 
     fetch('/my/applications', { headers: { 'Authorization': 'Bearer ' + jwt } })
-      .then(function (r) { return r.json(); })
+      .then(function (r) {
+        if (r.status === 401 || r.status === 403) {
+          var err = new Error('auth'); err.auth = true; throw err;
+        }
+        if (!r.ok) { throw new Error('server'); }
+        return r.json();
+      })
       .then(function (data) {
         _loaded   = true;
         _loading  = false;
@@ -52,9 +58,12 @@
         }
         pane.innerHTML = _buildList(apps);
       })
-      .catch(function () {
+      .catch(function (err) {
         _loading = false;
-        pane.innerHTML = '<div class="sc-app-empty">تعذّر تحميل الطلبات، حاول مجدداً</div>';
+        var msg = (err && err.auth)
+          ? 'انتهت الجلسة، يرجى تسجيل الدخول مجدداً'
+          : 'تعذّر تحميل الطلبات، حاول مجدداً';
+        pane.innerHTML = '<div class="sc-app-empty">' + msg + '</div>';
       });
   }
 

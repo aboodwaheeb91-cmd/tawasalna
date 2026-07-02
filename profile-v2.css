@@ -1650,6 +1650,7 @@ body.preview-guest .sc-avail-picker { display:none !important; }
 }
 
 /* ── My Applications tab — owner-only ────────────────────────── */
+#scTabApps { display:none; }
 body.view-owner #scTabApps { display:inline-flex; }
 
 .sc-app-list { display:flex; flex-direction:column; gap:10px; }
