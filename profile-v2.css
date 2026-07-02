@@ -1648,3 +1648,46 @@ body.preview-guest .sc-avail-picker { display:none !important; }
   from { opacity: 0; transform: translateY(-3px); }
   to   { opacity: 1; transform: translateY(0);    }
 }
+
+/* ── My Applications tab — owner-only ────────────────────────── */
+body.view-owner #scTabApps { display:inline-flex; }
+
+.sc-app-list { display:flex; flex-direction:column; gap:10px; }
+
+.sc-app-card {
+  background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08);
+  border-radius:12px; padding:14px 16px; display:flex; flex-direction:column; gap:8px;
+}
+.sc-app-top { display:flex; align-items:flex-start; justify-content:space-between; gap:8px; }
+.sc-app-info { display:flex; flex-direction:column; gap:2px; min-width:0; }
+.sc-app-title { font-size:.9rem; font-weight:700; color:#f1f5f9; }
+.sc-app-company { font-size:.78rem; color:var(--t2,#94a3b8); }
+.sc-app-meta { font-size:.72rem; color:var(--t3,#64748b); }
+.sc-app-actions { display:flex; gap:8px; flex-wrap:wrap; }
+
+.sc-app-btn {
+  display:inline-flex; align-items:center; padding:5px 14px;
+  border-radius:8px; font-size:.75rem; font-weight:600; text-decoration:none;
+  background:rgba(0,200,150,.1); color:#00c896; border:1px solid rgba(0,200,150,.25);
+  transition:background .15s;
+}
+.sc-app-btn:hover { background:rgba(0,200,150,.18); }
+.sc-app-btn-ghost {
+  background:rgba(255,255,255,.05); color:var(--t2,#94a3b8); border-color:rgba(255,255,255,.1);
+}
+.sc-app-btn-ghost:hover { background:rgba(255,255,255,.1); }
+
+/* Status badge */
+.sc-app-status {
+  flex-shrink:0; padding:3px 9px; border-radius:6px;
+  font-size:.68rem; font-weight:700; white-space:nowrap;
+}
+.sc-app-status--pending  { background:rgba(148,163,184,.12); color:#94a3b8; }
+.sc-app-status--viewed   { background:rgba(96,165,250,.12);  color:#60a5fa; }
+.sc-app-status--accepted { background:rgba(52,211,153,.12);  color:#34d399; }
+.sc-app-status--rejected { background:rgba(248,113,113,.12); color:#f87171; }
+
+/* Empty / loading states */
+.sc-app-empty, .sc-app-loading {
+  text-align:center; padding:32px 16px; color:var(--t3,#64748b); font-size:.85rem;
+}
