@@ -1663,6 +1663,7 @@ body.view-owner #scTabApps { display:inline-flex; }
 .sc-app-info { display:flex; flex-direction:column; gap:2px; min-width:0; }
 .sc-app-title { font-size:.9rem; font-weight:700; color:#f1f5f9; }
 .sc-app-company { font-size:.78rem; color:var(--t2,#94a3b8); }
+.sc-app-loc     { font-size:.72rem; color:var(--t3,#64748b); }
 .sc-app-meta { font-size:.72rem; color:var(--t3,#64748b); }
 .sc-app-actions { display:flex; gap:8px; flex-wrap:wrap; }
 

@@ -1,12 +1,11 @@
 /* profile-v2.apps.js — "My Applications" tab (owner-only)
- * Lazy-loads GET /my/applications on first tab activation.
+ * Re-fetches on every tab activation so company status changes appear immediately.
  * Auth: Authorization: Bearer tw_jwt only — no X-User-Id.
  * Load order: after profile-v2.utils.js (scTab must be defined).
  */
 (function () {
   'use strict';
 
-  var _loaded  = false;
   var _loading = false;
 
   var _STATUS_LABEL = {
@@ -16,26 +15,27 @@
     rejected: 'غير مناسب'
   };
 
-  // Wrap scTab to lazy-load on first 'apps' activation
+  // Re-fetch on every 'apps' tab activation — no _loaded gate — so that
+  // status changes made by companies (via PR #322) are always reflected.
   var _origScTab = window.scTab;
   window.scTab = function (name, el) {
     _origScTab(name, el);
-    if (name === 'apps' && !_loaded && !_loading) { _loadApps(); }
+    if (name === 'apps' && !_loading) { _loadApps(); }
   };
 
   function _loadApps() {
-    if (_loading || _loaded) return;
+    if (_loading) return;
     if (window._scViewerType !== 'owner') return;
 
     var pane = document.getElementById('scAppsPane');
     if (!pane) return;
 
     _loading = true;
-    pane.innerHTML = '<div class="sc-app-loading">جارٍ التحميل…</div>';
+    pane.innerHTML = '<div class="sc-app-loading">جارٍ تحميل طلباتك…</div>';
 
     var jwt = localStorage.getItem('tw_jwt') || '';
     if (!jwt) {
-      pane.innerHTML = '<div class="sc-app-empty">يجب تسجيل الدخول أولاً</div>';
+      pane.innerHTML = '<div class="sc-app-empty">انتهت الجلسة، يرجى تسجيل الدخول مجدداً</div>';
       _loading = false;
       return;
     }
@@ -49,9 +49,8 @@
         return r.json();
       })
       .then(function (data) {
-        _loaded   = true;
-        _loading  = false;
-        var apps  = (data && Array.isArray(data.applications)) ? data.applications : [];
+        _loading = false;
+        var apps = (data && Array.isArray(data.applications)) ? data.applications : [];
         if (!apps.length) {
           pane.innerHTML = '<div class="sc-app-empty">لم تقدم على أي وظيفة بعد</div>';
           return;
@@ -62,7 +61,7 @@
         _loading = false;
         var msg = (err && err.auth)
           ? 'انتهت الجلسة، يرجى تسجيل الدخول مجدداً'
-          : 'تعذّر تحميل الطلبات، حاول مجدداً';
+          : 'تعذّر تحميل طلباتك، حاول مجدداً';
         pane.innerHTML = '<div class="sc-app-empty">' + msg + '</div>';
       });
   }
@@ -86,14 +85,16 @@
   function _buildList(apps) {
     var html = '<div class="sc-app-list">';
     apps.forEach(function (app) {
+      var statusKey = app.status || 'pending';
       html += '<div class="sc-app-card">'
         + '<div class="sc-app-top">'
         +   '<div class="sc-app-info">'
         +     '<div class="sc-app-title">' + _esc(app.title || '—') + '</div>'
         +     '<div class="sc-app-company">' + _esc(app.company_name || '') + '</div>'
+        +     (app.location ? '<div class="sc-app-loc">' + _esc(app.location) + '</div>' : '')
         +   '</div>'
-        +   '<span class="sc-app-status sc-app-status--' + _esc(app.status || 'pending') + '">'
-        +     _esc(_statusLabel(app.status))
+        +   '<span class="sc-app-status sc-app-status--' + _esc(statusKey) + '">'
+        +     _esc(_statusLabel(statusKey))
         +   '</span>'
         + '</div>'
         + '<div class="sc-app-meta">تاريخ التقديم: ' + _esc(_fmtDate(app.applied_at)) + '</div>'
