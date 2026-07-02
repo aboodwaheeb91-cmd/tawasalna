@@ -583,11 +583,12 @@
   }
 
   // ── Applicants Modal — owner-only, per-job ────────────────────
-  var _appJobId          = null;
-  var _appLoading        = false;
-  var _astFloat          = null;   // singleton floating status dropdown (body-level)
-  var _astFloatTrigger   = null;   // trigger button that opened the float
-  var _cardListenerBound = false;  // delegation guard for #coAppList
+  var _appJobId               = null;
+  var _appLoading             = false;
+  var _appModalHistoryPushed  = false; // true after pushState for applicants modal
+  var _astFloat               = null;   // singleton floating status dropdown (body-level)
+  var _astFloatTrigger        = null;   // trigger button that opened the float
+  var _cardListenerBound      = false;  // delegation guard for #coAppList
   var _APP_STATUS_LABEL = {
     pending:  'بانتظار المراجعة',
     viewed:   'تمت المراجعة',
@@ -619,7 +620,10 @@
       ? companyState.jobs.find(function (j) { return j.id == jobId; })
       : null;
     if (title) title.textContent = 'المتقدمون' + (job ? ' — ' + job.title : '');
-    if (window.history) history.pushState({ modal: 'applicants' }, '', location.href);
+    if (window.history && !_appModalHistoryPushed) {
+      history.pushState({ modal: 'applicants' }, '', location.href);
+      _appModalHistoryPushed = true;
+    }
     _loadApplicants(jobId);
   }
 
@@ -628,6 +632,10 @@
     var el = document.getElementById('coApplicantsModal');
     if (el) el.style.display = 'none';
     _appJobId = null;
+    if (_appModalHistoryPushed) {
+      _appModalHistoryPushed = false;
+      if (window.history) history.back();
+    }
   }
 
   function _loadApplicants(jobId) {
@@ -845,10 +853,12 @@
     });
   }
 
-  // Android back button: close applicants modal on popstate
+  // Android back button: close applicants modal on popstate.
+  // Clear flag BEFORE closing so closeApplicantsModal does not call history.back() again.
   window.addEventListener('popstate', function () {
     var modal = document.getElementById('coApplicantsModal');
     if (modal && modal.style.display !== 'none') {
+      _appModalHistoryPushed = false;
       closeApplicantsModal();
     }
   });

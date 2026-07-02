@@ -633,7 +633,7 @@
       _applied = true;
       var label = data.already_applied ? '✓ قدّمت مسبقاً' : '✓ تم التقديم';
       triggers.forEach(function (b) {
-        b.disabled = false; b.textContent = label; b.classList.add('applied');
+        b.disabled = true; b.textContent = label; b.classList.add('applied');
       });
       closeApply();
       showToast(data.already_applied ? 'لقد قدّمت على هذه الوظيفة مسبقاً' : 'تم إرسال طلبك بنجاح ✅');
