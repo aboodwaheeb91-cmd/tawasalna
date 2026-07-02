@@ -164,6 +164,7 @@
       if (!_job) { var e3 = new Error('notfound'); e3.code = 404; throw e3; }
       hideSkeleton();
       renderJob(_job);
+      _applyOwnerMode(_job);
       showContent();
       loadUserSkillsThenMatch();
       loadSimilarJobs();
@@ -541,6 +542,24 @@
       });
     })
     .catch(function () {});
+  }
+
+  // ── Owner mode — hide apply, show ownership badge ────────────
+  function _applyOwnerMode(job) {
+    if (!_user || !job) return;
+    var isOwner = (_user.user_type === 'co' || _user.user_type === 'edu')
+      && parseInt(_user.id, 10) === job.company_id;
+    if (!isOwner) return;
+
+    // Sidebar card: change title, hide actions
+    var title = _el('jdApplyCardTitle');
+    if (title) title.textContent = 'هذه وظيفتك ✓';
+    var actions = document.querySelector('.jd-apply-actions');
+    if (actions) actions.style.display = 'none';
+
+    // Mobile sticky bar: hide entirely
+    var stickyBar = _el('jdStickyBar');
+    if (stickyBar) stickyBar.style.display = 'none';
   }
 
   // ── Apply ────────────────────────────────────────────────────

@@ -4330,7 +4330,7 @@ if(_sessionUser && _sessionUser.id){
 function loadApplications(){
   if(!_sessionUser||!_sessionUser.id) return;
   if(_sessionUser.user_type!=='emp') return;
-  fetch('/my/applications',{headers:{'X-User-Id':_sessionUser.id}})
+  fetch('/my/applications',{headers:{'Authorization':'Bearer '+(localStorage.getItem('tw_jwt')||'')}})
   .then(function(r){return r.json();}).then(function(data){
     var apps=data.applications||[];
     var sec=document.getElementById('secApplications');
