@@ -100,6 +100,7 @@
         + '<div class="sc-app-meta">تاريخ التقديم: ' + _esc(_fmtDate(app.applied_at)) + '</div>'
         + '<div class="sc-app-actions">'
         +   '<a class="sc-app-btn" href="/job-detail?id=' + parseInt(app.job_id || 0, 10) + '">عرض الوظيفة</a>'
+        +   (app.company_tw_id ? '<a class="sc-app-btn" href="/u/' + _esc(app.company_tw_id) + '" target="_blank" rel="noopener">ملف الشركة</a>' : '')
         + '</div>'
         + '</div>';
     });

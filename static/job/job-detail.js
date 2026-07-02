@@ -10,7 +10,7 @@
   var _user = null;
   try { _user = JSON.parse(localStorage.getItem('tw_user') || 'null'); } catch (e) {}
 
-  if (!_jwt) { location.href = '/login'; return; }
+  // Visitors can read job-detail without login; login required only to apply.
 
   var _jobId   = null;
   var _job     = null;
@@ -149,9 +149,8 @@
       return;
     }
     showSkeleton();
-    fetch('/jobs/' + _jobId, {
-      headers: { 'Authorization': 'Bearer ' + _jwt }
-    })
+    var hdrs = _jwt ? { 'Authorization': 'Bearer ' + _jwt } : {};
+    fetch('/jobs/' + _jobId, { headers: hdrs })
     .then(function (r) {
       if (r.status === 404) {
         var err = new Error('notfound'); err.code = 404; throw err;
@@ -168,6 +167,7 @@
       showContent();
       loadUserSkillsThenMatch();
       loadSimilarJobs();
+      _checkAlreadyApplied();
     })
     .catch(function (err) {
       hideSkeleton();
@@ -177,6 +177,25 @@
         showState('error', 'حدث خطأ في التحميل', 'تحقق من اتصال الإنترنت ثم حاول مجدداً');
       }
     });
+  }
+
+  // Check if the logged-in employee has already applied, then disable the button.
+  function _checkAlreadyApplied() {
+    if (!_user || _user.user_type !== 'emp' || !_jwt) return;
+    fetch('/my/applications', { headers: { 'Authorization': 'Bearer ' + _jwt } })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (data) {
+        if (!data || !Array.isArray(data.applications)) return;
+        var already = data.applications.some(function (a) {
+          return String(a.job_id) === String(_jobId);
+        });
+        if (!already) return;
+        _applied = true;
+        document.querySelectorAll('.jd-apply-trigger').forEach(function (b) {
+          b.textContent = '✓ تم التقديم'; b.classList.add('applied'); b.disabled = true;
+        });
+      })
+      .catch(function () {});
   }
 
   // ── Render job ──────────────────────────────────────────────
@@ -366,7 +385,12 @@
 
   // ── Match section ────────────────────────────────────────────
   function loadUserSkillsThenMatch() {
-    if (!_user || !_user.id) { renderMatch(null); return; }
+    // Match is only relevant for employees who may apply.
+    if (!_user || !_user.id || _user.user_type !== 'emp') {
+      var sec = _el('jdMatchSection');
+      if (sec) sec.style.display = 'none';
+      return;
+    }
     fetch('/profile/' + _user.id + '/full', {
       headers: { 'Authorization': 'Bearer ' + _jwt }
     })
@@ -560,10 +584,18 @@
     // Mobile sticky bar: hide entirely
     var stickyBar = _el('jdStickyBar');
     if (stickyBar) stickyBar.style.display = 'none';
+
+    // Match section is irrelevant for the job owner
+    var matchSec = _el('jdMatchSection');
+    if (matchSec) matchSec.style.display = 'none';
   }
 
   // ── Apply ────────────────────────────────────────────────────
   function openApply() {
+    if (!_jwt || !_user) {
+      showToast('يرجى تسجيل الدخول كموظف للتقديم على الوظيفة', 'error', 4000);
+      return;
+    }
     if (_applied) return;
     var ov = _el('jdApplyOverlay');
     if (ov) ov.classList.add('show');
