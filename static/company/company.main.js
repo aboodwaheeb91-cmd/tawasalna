@@ -672,6 +672,7 @@
       var statusKey = a.status || 'pending';
       var statusLbl = _APP_STATUS_LABEL[statusKey] || statusKey;
       var dateStr   = _appFmtDate(a.applied_at);
+      var appId = parseInt(a.id, 10);
       html += '<div class="co-app-item">'
         + '<div class="co-app-ava">' + _escApp(initial) + '</div>'
         + '<div class="co-app-info">'
@@ -679,7 +680,18 @@
         +   (dateStr ? '<div class="co-app-date">تقدّم: ' + _escApp(dateStr) + '</div>' : '')
         + '</div>'
         + '<div class="co-app-right">'
-        +   '<span class="co-app-status co-app-status--' + _escApp(statusKey) + '">' + _escApp(statusLbl) + '</span>'
+        +   '<div class="co-ast-wrap" data-app-id="' + appId + '" data-status="' + _escApp(statusKey) + '">'
+        +     '<button class="co-ast-trigger" onclick="_toggleAst(this)" aria-label="تغيير الحالة">'
+        +       '<span class="co-app-status co-app-status--' + _escApp(statusKey) + '">' + _escApp(statusLbl) + '</span>'
+        +       '<span class="co-ast-chev">▾</span>'
+        +     '</button>'
+        +     '<div class="co-ast-list" style="display:none">'
+        +       '<button class="co-ast-opt" data-val="pending"  onclick="_onAstOpt(this)">بانتظار المراجعة</button>'
+        +       '<button class="co-ast-opt" data-val="viewed"   onclick="_onAstOpt(this)">تمت المراجعة</button>'
+        +       '<button class="co-ast-opt" data-val="accepted" onclick="_onAstOpt(this)">مقبول</button>'
+        +       '<button class="co-ast-opt" data-val="rejected" onclick="_onAstOpt(this)">غير مناسب</button>'
+        +     '</div>'
+        +   '</div>'
         +   (a.tw_id
             ? '<a class="co-app-profile-link" href="/u/' + _escApp(a.tw_id) + '" target="_blank" rel="noopener">البروفايل ←</a>'
             : '')
@@ -717,6 +729,75 @@
     });
   }
 
+  // ── Application status picker ─────────────────────────────────
+  // Closes all open pickers inside the applicants modal
+  function _closeAllAst() {
+    var all = document.querySelectorAll('#coAppList .co-ast-list');
+    for (var i = 0; i < all.length; i++) all[i].style.display = 'none';
+  }
+
+  function _toggleAst(triggerBtn) {
+    var wrap = triggerBtn.parentElement;
+    var list = wrap && wrap.querySelector('.co-ast-list');
+    if (!list) return;
+    var isOpen = list.style.display !== 'none';
+    _closeAllAst();
+    if (!isOpen) list.style.display = 'block';
+  }
+
+  function _onAstOpt(optBtn) {
+    var newStatus = optBtn.getAttribute('data-val');
+    var wrap = optBtn.parentElement && optBtn.parentElement.parentElement;
+    if (!wrap || !newStatus || !wrap.classList.contains('co-ast-wrap')) return;
+    var list      = wrap.querySelector('.co-ast-list');
+    var appId     = parseInt(wrap.getAttribute('data-app-id'), 10);
+    var prevStatus= wrap.getAttribute('data-status');
+    if (list) list.style.display = 'none';
+    if (newStatus === prevStatus) return;
+    // Optimistic UI update
+    var badge = wrap.querySelector('.co-app-status');
+    if (badge) {
+      badge.textContent = _APP_STATUS_LABEL[newStatus] || newStatus;
+      badge.className   = 'co-app-status co-app-status--' + newStatus;
+    }
+    wrap.setAttribute('data-status', newStatus);
+    _updateAppStatus(appId, newStatus, badge, wrap, prevStatus);
+  }
+
+  function _updateAppStatus(appId, newStatus, badge, wrap, prevStatus) {
+    var jwt = window._jwt ? _jwt() : '';
+    fetch('/jobs/applications/' + appId + '/status', {
+      method:  'PUT',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + jwt },
+      body:    JSON.stringify({ status: newStatus })
+    })
+    .then(function (r) {
+      if (!r.ok) { var e = new Error('HTTP ' + r.status); e.status = r.status; throw e; }
+      return r.json();
+    })
+    .then(function () {
+      if (window.showToast) showToast('تم تحديث الحالة ✓');
+    })
+    .catch(function (err) {
+      // Rollback optimistic update
+      if (badge) {
+        badge.textContent = _APP_STATUS_LABEL[prevStatus] || prevStatus;
+        badge.className   = 'co-app-status co-app-status--' + prevStatus;
+      }
+      if (wrap) wrap.setAttribute('data-status', prevStatus);
+      var msg = (err && (err.status === 401 || err.status === 403))
+        ? 'انتهت الجلسة أو لا تملك صلاحية تعديل حالة الطلب'
+        : 'تعذّر تحديث حالة الطلب، حاول مجدداً';
+      if (window.showToast) showToast(msg, 'error');
+    });
+  }
+
+  // Close picker when clicking outside the applicants modal
+  document.addEventListener('click', function (e) {
+    var inWrap = e.target.closest && e.target.closest('.co-ast-wrap');
+    if (!inWrap) _closeAllAst();
+  });
+
   // ── Bootstrap (Rule #10 — idempotent) ──────────────────────────
   function initCompanyProfile() {
     if (window.__companyBooted) return;
@@ -746,6 +827,8 @@
   window.openApplicantsModal      = openApplicantsModal;
   window.closeApplicantsModal     = closeApplicantsModal;
   window._onSaveApplicant         = _onSaveApplicant;
+  window._toggleAst               = _toggleAst;
+  window._onAstOpt                = _onAstOpt;
   window.initCompanyProfile       = initCompanyProfile;
 
   // Expose _branchesLoaded read/write for testability and cross-module access
