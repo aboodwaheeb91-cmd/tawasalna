@@ -652,8 +652,8 @@
     .catch(function (err) {
       _appLoading = false;
       var list2 = document.getElementById('coAppList');
-      var msg = (err && err.status === 403)
-        ? 'غير مصرح لعرض المتقدمين'
+      var msg = (err && (err.status === 401 || err.status === 403))
+        ? 'انتهت الجلسة أو لا تملك صلاحية عرض المتقدمين'
         : 'تعذّر تحميل المتقدمين، حاول مجدداً';
       if (list2) list2.innerHTML = '<div class="co-app-empty">' + msg + '</div>';
     });

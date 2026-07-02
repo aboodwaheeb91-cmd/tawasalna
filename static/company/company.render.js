@@ -189,7 +189,7 @@
           ? '<button class="apply-btn-pill" data-jid="' + _esc(String(j.id)) + '">تقديم الآن</button>'
           : '<div class="job-owner-row">'
           +   '<span class="owner-job-badge">وظيفتك ✓</span>'
-          +   '<button class="owner-applicants-btn" onclick="openApplicantsModal(' + parseInt(j.id, 10) + ')">المتقدمون ←</button>'
+          +   '<button class="owner-applicants-btn" onclick="openApplicantsModal(' + parseInt(j.id, 10) + ')">المتقدمون</button>'
           + '</div>') +
       '</div>';
     }).join('');
