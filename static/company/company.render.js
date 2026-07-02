@@ -192,7 +192,7 @@
           +   (function () {
               var cnt = parseInt(j.applicant_count, 10) || 0;
               var lbl = cnt > 0 ? 'المتقدمون ' + cnt : 'المتقدمون';
-              return '<button class="owner-applicants-btn" onclick="openApplicantsModal(' + parseInt(j.id, 10) + ')">' + _esc(lbl) + '</button>';
+              return '<button type="button" class="owner-applicants-btn" data-jid="' + parseInt(j.id, 10) + '">' + _esc(lbl) + '</button>';
             }())
           + '</div>') +
       '</div>';
