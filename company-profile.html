@@ -560,6 +560,19 @@
   </div>
 </div>
 
+<!-- Applicants Modal — owner-only, per-job -->
+<div class="co-fl-overlay" id="coApplicantsModal" style="display:none" onclick="if(event.target===this) closeApplicantsModal()">
+  <div class="co-fl-panel">
+    <div class="co-fl-head">
+      <div class="co-fl-title" id="coAppModalTitle">المتقدمون</div>
+      <button class="co-fl-close" onclick="closeApplicantsModal()" aria-label="إغلاق">×</button>
+    </div>
+    <div class="co-app-list" id="coAppList">
+      <div class="co-app-spin">جارٍ التحميل…</div>
+    </div>
+  </div>
+</div>
+
 <!-- Rating Modal -->
 <div class="co-fl-overlay" id="coRatingModal" style="display:none">
   <div class="co-fl-panel co-rat-panel">

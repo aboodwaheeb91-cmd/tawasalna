@@ -467,6 +467,52 @@ i.ico-sm { width:14px; height:14px; stroke:currentColor; fill:none; stroke-width
 .apply-btn-pill.applied { border-color:var(--t3); color:var(--t3); cursor:default; }
 .apply-btn-pill:disabled { opacity:.6; cursor:not-allowed; }
 .owner-job-badge { font-size:.68rem; color:var(--t3); font-weight:600; flex-shrink:0; }
+.job-owner-row { display:flex; align-items:center; gap:8px; flex-shrink:0; }
+.owner-applicants-btn {
+  padding:5px 12px; border-radius:20px;
+  border:1px solid rgba(37,99,255,.4); background:rgba(37,99,255,.08);
+  color:#60a5fa; font-family:'Cairo',sans-serif; font-size:.68rem; font-weight:700;
+  cursor:pointer; white-space:nowrap; transition:all .18s;
+}
+.owner-applicants-btn:hover { background:rgba(37,99,255,.18); }
+
+/* ══ APPLICANTS MODAL ════════════════════════════════════════════ */
+.co-app-list  { flex:1; overflow-y:auto; padding:8px 12px 12px; }
+.co-app-empty { padding:32px 0; text-align:center; color:var(--t3,#64748b); font-size:.85rem; }
+.co-app-spin  { padding:32px 0; text-align:center; color:var(--t2,#94a3b8); font-size:.85rem; }
+.co-app-item {
+  display:flex; align-items:center; gap:10px;
+  padding:10px 4px; border-bottom:1px solid rgba(255,255,255,.05);
+}
+.co-app-item:last-child { border-bottom:none; }
+.co-app-ava {
+  width:38px; height:38px; border-radius:50%; flex-shrink:0;
+  background:rgba(255,255,255,.06);
+  display:flex; align-items:center; justify-content:center;
+  font-size:.9rem; font-weight:700; color:var(--t1,#fff);
+}
+.co-app-info { flex:1; min-width:0; }
+.co-app-name { font-size:.82rem; font-weight:700; color:var(--t1,#fff); }
+.co-app-date { font-size:.68rem; color:var(--t3,#64748b); margin-top:2px; }
+.co-app-right { display:flex; flex-direction:column; align-items:flex-end; gap:5px; flex-shrink:0; }
+.co-app-status {
+  font-size:.62rem; font-weight:700; padding:2px 8px; border-radius:20px;
+}
+.co-app-status--pending  { background:rgba(100,116,139,.15); color:#94a3b8; }
+.co-app-status--viewed   { background:rgba(37,99,255,.12);   color:#60a5fa; }
+.co-app-status--accepted { background:rgba(0,200,150,.12);   color:#00c896; }
+.co-app-status--rejected { background:rgba(239,68,68,.12);   color:#f87171; }
+.co-app-save-btn {
+  padding:4px 10px; border-radius:20px;
+  border:1px solid rgba(139,92,246,.4); background:rgba(139,92,246,.08);
+  color:#a78bfa; font-family:'Cairo',sans-serif; font-size:.62rem; font-weight:700;
+  cursor:pointer; white-space:nowrap; transition:all .15s;
+}
+.co-app-save-btn:hover:not(:disabled) { background:rgba(139,92,246,.2); }
+.co-app-save-btn:disabled { opacity:.6; cursor:default; }
+.co-app-save-btn.saved {
+  border-color:rgba(0,200,150,.4); background:rgba(0,200,150,.08); color:#00c896;
+}
 .job-tags { display:flex; gap:5px; flex-wrap:wrap; }
 .jtag { padding:2px 9px; border-radius:20px; font-size:.65rem; font-weight:700; }
 .jtag-blue   { background:rgba(37,99,255,.1);    color:#60a5fa; }

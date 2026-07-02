@@ -582,6 +582,137 @@
     });
   }
 
+  // ── Applicants Modal — owner-only, per-job ────────────────────
+  var _appJobId   = null;
+  var _appLoading = false;
+  var _APP_STATUS_LABEL = {
+    pending:  'بانتظار المراجعة',
+    viewed:   'تمت المراجعة',
+    accepted: 'مقبول',
+    rejected:  'غير مناسب'
+  };
+
+  function _escApp(s) {
+    return String(s || '')
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function _appFmtDate(iso) {
+    if (!iso) return '';
+    try {
+      return new Date(iso).toLocaleDateString('ar-EG',
+        { year: 'numeric', month: 'short', day: 'numeric' });
+    } catch (e) { return ''; }
+  }
+
+  function openApplicantsModal(jobId) {
+    _appJobId   = jobId;
+    _appLoading = false;
+    var el = document.getElementById('coApplicantsModal');
+    if (el) el.style.display = 'flex';
+    var title = document.getElementById('coAppModalTitle');
+    var job = window.companyState && companyState.jobs
+      ? companyState.jobs.find(function (j) { return j.id == jobId; })
+      : null;
+    if (title) title.textContent = 'المتقدمون' + (job ? ' — ' + job.title : '');
+    if (window.history) history.pushState({ modal: 'applicants' }, '', location.href);
+    _loadApplicants(jobId);
+  }
+
+  function closeApplicantsModal() {
+    var el = document.getElementById('coApplicantsModal');
+    if (el) el.style.display = 'none';
+    _appJobId = null;
+  }
+
+  function _loadApplicants(jobId) {
+    if (_appLoading) return;
+    _appLoading = true;
+    var list = document.getElementById('coAppList');
+    if (list) list.innerHTML = '<div class="co-app-spin">جارٍ التحميل…</div>';
+    var jwt = window._jwt ? _jwt() : '';
+    if (!jwt) {
+      if (list) list.innerHTML = '<div class="co-app-empty">يجب تسجيل الدخول أولاً</div>';
+      _appLoading = false;
+      return;
+    }
+    fetch('/jobs/' + parseInt(jobId, 10) + '/applicants', {
+      headers: { 'Authorization': 'Bearer ' + jwt }
+    })
+    .then(function (r) {
+      if (!r.ok) { var err = new Error('HTTP ' + r.status); err.status = r.status; throw err; }
+      return r.json();
+    })
+    .then(function (data) {
+      _appLoading = false;
+      var apps = (data && Array.isArray(data.applicants)) ? data.applicants : [];
+      _renderApplicants(apps);
+    })
+    .catch(function (err) {
+      _appLoading = false;
+      var list2 = document.getElementById('coAppList');
+      var msg = (err && err.status === 403)
+        ? 'غير مصرح لعرض المتقدمين'
+        : 'تعذّر تحميل المتقدمين، حاول مجدداً';
+      if (list2) list2.innerHTML = '<div class="co-app-empty">' + msg + '</div>';
+    });
+  }
+
+  function _renderApplicants(apps) {
+    var list = document.getElementById('coAppList');
+    if (!list) return;
+    if (!apps.length) {
+      list.innerHTML = '<div class="co-app-empty">لا يوجد متقدمون لهذه الوظيفة</div>';
+      return;
+    }
+    var html = '';
+    apps.forEach(function (a) {
+      var initial   = (a.full_name || '؟').charAt(0);
+      var statusKey = a.status || 'pending';
+      var statusLbl = _APP_STATUS_LABEL[statusKey] || statusKey;
+      var dateStr   = _appFmtDate(a.applied_at);
+      html += '<div class="co-app-item">'
+        + '<div class="co-app-ava">' + _escApp(initial) + '</div>'
+        + '<div class="co-app-info">'
+        +   '<div class="co-app-name">' + _escApp(a.full_name || '—') + '</div>'
+        +   (dateStr ? '<div class="co-app-date">تقدّم: ' + _escApp(dateStr) + '</div>' : '')
+        + '</div>'
+        + '<div class="co-app-right">'
+        +   '<span class="co-app-status co-app-status--' + _escApp(statusKey) + '">' + _escApp(statusLbl) + '</span>'
+        +   '<button class="co-app-save-btn" data-uid="' + parseInt(a.user_id, 10) + '" onclick="_onSaveApplicant(this)">+ حفظ المرشح</button>'
+        + '</div>'
+        + '</div>';
+    });
+    list.innerHTML = html;
+  }
+
+  function _onSaveApplicant(btn) {
+    var uid = parseInt(btn.getAttribute('data-uid'), 10);
+    if (!uid || btn.disabled) return;
+    btn.disabled    = true;
+    btn.textContent = 'جارٍ الحفظ…';
+    var jwt = window._jwt ? _jwt() : '';
+    fetch('/company/saved-candidates/' + uid, {
+      method:  'POST',
+      headers: { 'Authorization': 'Bearer ' + jwt }
+    })
+    .then(function (r) {
+      if (!r.ok) return r.json().then(function (d) { throw new Error(d.detail || 'error'); });
+      return r.json();
+    })
+    .then(function () {
+      btn.textContent = 'تم الحفظ ✓';
+      btn.classList.add('saved');
+      btn.disabled = true;
+    })
+    .catch(function (err) {
+      btn.disabled    = false;
+      btn.textContent = '+ حفظ المرشح';
+      if (window.showToast) showToast((err && err.message) || 'تعذّر حفظ المرشح', 'error');
+    });
+  }
+
   // ── Bootstrap (Rule #10 — idempotent) ──────────────────────────
   function initCompanyProfile() {
     if (window.__companyBooted) return;
@@ -608,6 +739,9 @@
   window.openReportModal          = openReportModal;
   window.closeReportModal         = closeReportModal;
   window.submitReport             = submitReport;
+  window.openApplicantsModal      = openApplicantsModal;
+  window.closeApplicantsModal     = closeApplicantsModal;
+  window._onSaveApplicant         = _onSaveApplicant;
   window.initCompanyProfile       = initCompanyProfile;
 
   // Expose _branchesLoaded read/write for testability and cross-module access
