@@ -680,6 +680,9 @@
         + '</div>'
         + '<div class="co-app-right">'
         +   '<span class="co-app-status co-app-status--' + _escApp(statusKey) + '">' + _escApp(statusLbl) + '</span>'
+        +   (a.tw_id
+            ? '<a class="co-app-profile-link" href="/u/' + _escApp(a.tw_id) + '" target="_blank" rel="noopener">البروفايل ←</a>'
+            : '')
         +   '<button class="co-app-save-btn" data-uid="' + parseInt(a.user_id, 10) + '" onclick="_onSaveApplicant(this)">+ حفظ المرشح</button>'
         + '</div>'
         + '</div>';
@@ -692,8 +695,9 @@
     if (!uid || btn.disabled) return;
     btn.disabled    = true;
     btn.textContent = 'جارٍ الحفظ…';
-    var jwt = window._jwt ? _jwt() : '';
-    fetch('/company/saved-candidates/' + uid, {
+    var jwt     = window._jwt ? _jwt() : '';
+    var jobSufx = (_appJobId ? '?job_id=' + parseInt(_appJobId, 10) : '');
+    fetch('/company/saved-candidates/' + uid + jobSufx, {
       method:  'POST',
       headers: { 'Authorization': 'Bearer ' + jwt }
     })
