@@ -1749,11 +1749,18 @@ def company_save_candidate(candidate_id: int, job_id: Optional[int] = None,
     if job_id is not None:
         conn = get_conn()
         try:
-            rows = conn.run(
+            # 1. Verify the job belongs to this company
+            job_rows = conn.run(
                 "SELECT id FROM jobs WHERE id=:jid AND company_id=:cid",
                 jid=job_id, cid=company_id)
-            if not rows:
+            if not job_rows:
                 raise HTTPException(400, "الوظيفة غير موجودة أو لا تتبع شركتك")
+            # 2. Verify the candidate actually applied to this job
+            app_rows = conn.run(
+                "SELECT 1 FROM job_applications WHERE job_id=:jid AND user_id=:uid",
+                jid=job_id, uid=candidate_id)
+            if not app_rows:
+                raise HTTPException(400, "لا يمكن ربط المرشح بوظيفة لم يتقدم عليها")
         finally:
             release_conn(conn)
     try:
