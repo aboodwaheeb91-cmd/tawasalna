@@ -583,8 +583,12 @@
   }
 
   // ── Applicants Modal — owner-only, per-job ────────────────────
-  var _appJobId   = null;
-  var _appLoading = false;
+  var _appJobId               = null;
+  var _appLoading             = false;
+  var _appModalHistoryPushed  = false; // true after pushState for applicants modal
+  var _astFloat               = null;   // singleton floating status dropdown (body-level)
+  var _astFloatTrigger        = null;   // trigger button that opened the float
+  var _cardListenerBound      = false;  // delegation guard for #coAppList
   var _APP_STATUS_LABEL = {
     pending:  'بانتظار المراجعة',
     viewed:   'تمت المراجعة',
@@ -616,14 +620,22 @@
       ? companyState.jobs.find(function (j) { return j.id == jobId; })
       : null;
     if (title) title.textContent = 'المتقدمون' + (job ? ' — ' + job.title : '');
-    if (window.history) history.pushState({ modal: 'applicants' }, '', location.href);
+    if (window.history && !_appModalHistoryPushed) {
+      history.pushState({ modal: 'applicants' }, '', location.href);
+      _appModalHistoryPushed = true;
+    }
     _loadApplicants(jobId);
   }
 
   function closeApplicantsModal() {
+    _closeAstFloat();
     var el = document.getElementById('coApplicantsModal');
     if (el) el.style.display = 'none';
     _appJobId = null;
+    if (_appModalHistoryPushed) {
+      _appModalHistoryPushed = false;
+      if (window.history) history.back();
+    }
   }
 
   function _loadApplicants(jobId) {
@@ -672,34 +684,43 @@
       var statusKey = a.status || 'pending';
       var statusLbl = _APP_STATUS_LABEL[statusKey] || statusKey;
       var dateStr   = _appFmtDate(a.applied_at);
-      var appId = parseInt(a.id, 10);
-      html += '<div class="co-app-item">'
-        + '<div class="co-app-ava">' + _escApp(initial) + '</div>'
-        + '<div class="co-app-info">'
-        +   '<div class="co-app-name">' + _escApp(a.full_name || '—') + '</div>'
-        +   (dateStr ? '<div class="co-app-date">تقدّم: ' + _escApp(dateStr) + '</div>' : '')
-        + '</div>'
-        + '<div class="co-app-right">'
-        +   '<div class="co-ast-wrap" data-app-id="' + appId + '" data-status="' + _escApp(statusKey) + '">'
-        +     '<button class="co-ast-trigger" onclick="_toggleAst(this)" aria-label="تغيير الحالة">'
-        +       '<span class="co-app-status co-app-status--' + _escApp(statusKey) + '">' + _escApp(statusLbl) + '</span>'
-        +       '<span class="co-ast-chev">▾</span>'
-        +     '</button>'
-        +     '<div class="co-ast-list" style="display:none">'
-        +       '<button class="co-ast-opt" data-val="pending"  onclick="_onAstOpt(this)">بانتظار المراجعة</button>'
-        +       '<button class="co-ast-opt" data-val="viewed"   onclick="_onAstOpt(this)">تمت المراجعة</button>'
-        +       '<button class="co-ast-opt" data-val="accepted" onclick="_onAstOpt(this)">مقبول</button>'
-        +       '<button class="co-ast-opt" data-val="rejected" onclick="_onAstOpt(this)">غير مناسب</button>'
-        +     '</div>'
+      var appId     = parseInt(a.id, 10);
+      var isSaved   = !!a.is_saved;
+      html += '<div class="co-app-card" data-app-id="' + appId + '">'
+        + '<div class="co-app-card-head">'
+        +   '<div class="co-app-ava">' + _escApp(initial) + '</div>'
+        +   '<div class="co-app-info">'
+        +     '<div class="co-app-name">' + _escApp(a.full_name || '—') + '</div>'
+        +     (dateStr ? '<div class="co-app-date">تقدّم: ' + _escApp(dateStr) + '</div>' : '')
         +   '</div>'
+        +   '<span class="co-app-status co-app-status--' + _escApp(statusKey) + '">' + _escApp(statusLbl) + '</span>'
+        + '</div>'
+        + '<div class="co-app-card-foot">'
+        +   '<button type="button" class="co-ast-trigger co-app-act" data-app-id="' + appId + '" data-status="' + _escApp(statusKey) + '">'
+        +     'تغيير الحالة <span class="co-ast-chev">▾</span>'
+        +   '</button>'
         +   (a.tw_id
-            ? '<a class="co-app-profile-link" href="/u/' + _escApp(a.tw_id) + '" target="_blank" rel="noopener">البروفايل ←</a>'
-            : '')
-        +   '<button class="co-app-save-btn" data-uid="' + parseInt(a.user_id, 10) + '" onclick="_onSaveApplicant(this)">+ حفظ المرشح</button>'
+              ? '<a class="co-app-view-btn co-app-act" href="/u/' + _escApp(a.tw_id) + '" target="_blank" rel="noopener">عرض البروفايل</a>'
+              : '')
+        +   '<button type="button" class="co-app-save-btn co-app-act' + (isSaved ? ' saved' : '') + '" data-uid="' + parseInt(a.user_id, 10) + '"' + (isSaved ? ' disabled' : '') + '>'
+        +     (isSaved ? 'تم الحفظ ✓' : '+ حفظ المرشح')
+        +   '</button>'
         + '</div>'
         + '</div>';
     });
     list.innerHTML = html;
+    _wireApplicantCards(list);
+  }
+
+  function _wireApplicantCards(list) {
+    if (_cardListenerBound) return;
+    _cardListenerBound = true;
+    list.addEventListener('click', function (e) {
+      var trigger = e.target.closest('.co-ast-trigger');
+      if (trigger) { _openAstFloat(trigger); return; }
+      var saveBtn = e.target.closest('.co-app-save-btn');
+      if (saveBtn && !saveBtn.disabled) { _onSaveApplicant(saveBtn); return; }
+    });
   }
 
   function _onSaveApplicant(btn) {
@@ -729,42 +750,83 @@
     });
   }
 
-  // ── Application status picker ─────────────────────────────────
-  // Closes all open pickers inside the applicants modal
-  function _closeAllAst() {
-    var all = document.querySelectorAll('#coAppList .co-ast-list');
-    for (var i = 0; i < all.length; i++) all[i].style.display = 'none';
+  // ── Application status — floating dropdown ────────────────────
+  function _initAstFloat() {
+    if (_astFloat) return;
+    _astFloat = document.createElement('div');
+    _astFloat.className    = 'co-ast-float';
+    _astFloat.style.display = 'none';
+    _astFloat.innerHTML =
+      '<button class="co-ast-opt" data-val="pending">بانتظار المراجعة</button>'
+      + '<button class="co-ast-opt" data-val="viewed">تمت المراجعة</button>'
+      + '<button class="co-ast-opt" data-val="accepted">مقبول</button>'
+      + '<button class="co-ast-opt" data-val="rejected">غير مناسب</button>';
+    document.body.appendChild(_astFloat);
+
+    _astFloat.addEventListener('click', function (e) {
+      var opt = e.target.closest('.co-ast-opt');
+      if (!opt || !_astFloatTrigger) { _closeAstFloat(); return; }
+      var newStatus  = opt.getAttribute('data-val');
+      var trigger    = _astFloatTrigger;
+      var appId      = parseInt(trigger.getAttribute('data-app-id'), 10);
+      var prevStatus = trigger.getAttribute('data-status');
+      _closeAstFloat();
+      if (newStatus === prevStatus) return;
+      var card  = document.querySelector('#coAppList .co-app-card[data-app-id="' + appId + '"]');
+      var badge = card ? card.querySelector('.co-app-status') : null;
+      if (badge) {
+        badge.textContent = _APP_STATUS_LABEL[newStatus] || newStatus;
+        badge.className   = 'co-app-status co-app-status--' + newStatus;
+      }
+      trigger.setAttribute('data-status', newStatus);
+      _updateAppStatus(appId, newStatus, badge, trigger, prevStatus);
+    });
+
+    document.addEventListener('click', function (e) {
+      if (_astFloat && _astFloat.style.display !== 'none') {
+        if (!_astFloat.contains(e.target) &&
+            (!_astFloatTrigger || !_astFloatTrigger.contains(e.target))) {
+          _closeAstFloat();
+        }
+      }
+    });
+
+    var appList = document.getElementById('coAppList');
+    if (appList) { appList.addEventListener('scroll', _closeAstFloat, { passive: true }); }
   }
 
-  function _toggleAst(triggerBtn) {
-    var wrap = triggerBtn.parentElement;
-    var list = wrap && wrap.querySelector('.co-ast-list');
-    if (!list) return;
-    var isOpen = list.style.display !== 'none';
-    _closeAllAst();
-    if (!isOpen) list.style.display = 'block';
-  }
-
-  function _onAstOpt(optBtn) {
-    var newStatus = optBtn.getAttribute('data-val');
-    var wrap = optBtn.parentElement && optBtn.parentElement.parentElement;
-    if (!wrap || !newStatus || !wrap.classList.contains('co-ast-wrap')) return;
-    var list      = wrap.querySelector('.co-ast-list');
-    var appId     = parseInt(wrap.getAttribute('data-app-id'), 10);
-    var prevStatus= wrap.getAttribute('data-status');
-    if (list) list.style.display = 'none';
-    if (newStatus === prevStatus) return;
-    // Optimistic UI update
-    var badge = wrap.querySelector('.co-app-status');
-    if (badge) {
-      badge.textContent = _APP_STATUS_LABEL[newStatus] || newStatus;
-      badge.className   = 'co-app-status co-app-status--' + newStatus;
+  function _openAstFloat(triggerBtn) {
+    _initAstFloat();
+    var isSame = _astFloatTrigger === triggerBtn && _astFloat.style.display !== 'none';
+    _closeAstFloat();
+    if (isSame) return;
+    _astFloatTrigger        = triggerBtn;
+    _astFloat.style.display = 'block';
+    var rect  = triggerBtn.getBoundingClientRect();
+    var menuW = _astFloat.offsetWidth  || 175;
+    var menuH = _astFloat.offsetHeight || 148;
+    var vpW   = window.innerWidth;
+    var vpH   = window.innerHeight;
+    var left  = rect.right - menuW;
+    if (left < 8) left = 8;
+    if (left + menuW > vpW - 8) left = vpW - menuW - 8;
+    var top;
+    if (vpH - rect.bottom >= menuH + 8) {
+      top = rect.bottom + 4;
+    } else {
+      top = rect.top - menuH - 4;
+      if (top < 8) top = rect.bottom + 4;
     }
-    wrap.setAttribute('data-status', newStatus);
-    _updateAppStatus(appId, newStatus, badge, wrap, prevStatus);
+    _astFloat.style.left = left + 'px';
+    _astFloat.style.top  = top  + 'px';
   }
 
-  function _updateAppStatus(appId, newStatus, badge, wrap, prevStatus) {
+  function _closeAstFloat() {
+    if (_astFloat) _astFloat.style.display = 'none';
+    _astFloatTrigger = null;
+  }
+
+  function _updateAppStatus(appId, newStatus, badge, triggerBtn, prevStatus) {
     var jwt = window._jwt ? _jwt() : '';
     fetch('/jobs/applications/' + appId + '/status', {
       method:  'PUT',
@@ -779,12 +841,11 @@
       if (window.showToast) showToast('تم تحديث الحالة ✓');
     })
     .catch(function (err) {
-      // Rollback optimistic update
       if (badge) {
         badge.textContent = _APP_STATUS_LABEL[prevStatus] || prevStatus;
         badge.className   = 'co-app-status co-app-status--' + prevStatus;
       }
-      if (wrap) wrap.setAttribute('data-status', prevStatus);
+      if (triggerBtn) triggerBtn.setAttribute('data-status', prevStatus);
       var msg = (err && (err.status === 401 || err.status === 403))
         ? 'انتهت الجلسة أو لا تملك صلاحية تعديل حالة الطلب'
         : 'تعذّر تحديث حالة الطلب، حاول مجدداً';
@@ -792,10 +853,14 @@
     });
   }
 
-  // Close picker when clicking outside the applicants modal
-  document.addEventListener('click', function (e) {
-    var inWrap = e.target.closest && e.target.closest('.co-ast-wrap');
-    if (!inWrap) _closeAllAst();
+  // Android back button: close applicants modal on popstate.
+  // Clear flag BEFORE closing so closeApplicantsModal does not call history.back() again.
+  window.addEventListener('popstate', function () {
+    var modal = document.getElementById('coApplicantsModal');
+    if (modal && modal.style.display !== 'none') {
+      _appModalHistoryPushed = false;
+      closeApplicantsModal();
+    }
   });
 
   // ── Bootstrap (Rule #10 — idempotent) ──────────────────────────
@@ -827,8 +892,6 @@
   window.openApplicantsModal      = openApplicantsModal;
   window.closeApplicantsModal     = closeApplicantsModal;
   window._onSaveApplicant         = _onSaveApplicant;
-  window._toggleAst               = _toggleAst;
-  window._onAstOpt                = _onAstOpt;
   window.initCompanyProfile       = initCompanyProfile;
 
   // Expose _branchesLoaded read/write for testability and cross-module access

@@ -2119,15 +2119,19 @@ def apply_job(job_id: int, user_id: int, cover_letter: str = "") -> dict:
     finally:
         release_conn(conn)
 
-def get_job_applicants(job_id: int) -> list:
+def get_job_applicants(job_id: int, company_id: int = 0) -> list:
     conn = get_conn()
     try:
         rows = conn.run(
             "SELECT ja.id, ja.job_id, ja.user_id, ja.status, ja.cover_letter, ja.applied_at, "
-            "u.full_name, u.user_type, u.tw_id "
-            "FROM job_applications ja JOIN users u ON u.id=ja.user_id "
+            "u.full_name, u.user_type, u.tw_id, "
+            "CASE WHEN sc.candidate_id IS NOT NULL THEN true ELSE false END AS is_saved "
+            "FROM job_applications ja "
+            "JOIN users u ON u.id=ja.user_id "
+            "LEFT JOIN company_saved_candidates sc "
+            "  ON sc.company_id=:cid AND sc.candidate_id=ja.user_id "
             "WHERE ja.job_id=:jid ORDER BY ja.applied_at DESC",
-            jid=job_id
+            jid=job_id, cid=company_id
         )
         cols = [c["name"] for c in conn.columns]
         return [_serialize(_row_to_dict(cols, r)) for r in rows]
@@ -2139,7 +2143,8 @@ def get_user_applications(user_id: int) -> list:
     try:
         rows = conn.run(
             "SELECT ja.id, ja.job_id, ja.status, ja.applied_at, "
-            "j.title, j.location, j.company_id, u.full_name AS company_name "
+            "j.title, j.location, j.company_id, "
+            "u.full_name AS company_name, u.tw_id AS company_tw_id "
             "FROM job_applications ja "
             "JOIN jobs j ON j.id=ja.job_id "
             "JOIN users u ON u.id=j.company_id "

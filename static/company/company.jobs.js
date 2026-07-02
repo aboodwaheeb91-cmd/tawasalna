@@ -46,6 +46,14 @@
           _applyJob(e.target, card.dataset.jid);
           return;
         }
+        var appBtn = e.target.closest('.owner-applicants-btn');
+        if (appBtn) {
+          e.preventDefault();
+          e.stopPropagation();
+          if (window.openApplicantsModal) openApplicantsModal(parseInt(card.dataset.jid, 10));
+          return;
+        }
+        if (e.target.closest('button, a')) { return; }
         window.location.href = 'job-detail.html?id=' + card.dataset.jid;
       });
     }

@@ -3375,7 +3375,7 @@ def job_applicants(job_id: int, token=Depends(verify_token)):
     if int(job_company_id) != int(user_id):
         print(f"[SECURITY] JOB_OWNERSHIP_FAILED: user {user_id} tried to access applicants for job {job_id} owned by {job_company_id}")
         raise HTTPException(403, "غير مصرح — هذه الوظيفة ليست لشركتك")
-    applicants = get_job_applicants(job_id)
+    applicants = get_job_applicants(job_id, int(job_company_id))
     return {"applicants": applicants, "count": len(applicants)}
 
 @app.get("/my/applications")
