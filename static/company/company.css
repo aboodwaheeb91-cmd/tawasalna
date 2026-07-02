@@ -1655,3 +1655,72 @@ body.co-loading  .visitor-only           { display: none !important; }
   color: #00c896;
   opacity: .85;
 }
+
+/* ── Job Management Row (.job-mgmt-*) ──────────────────────────── */
+
+.job-owner-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.job-status-badge {
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: .68rem;
+  font-weight: 700;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.job-status-badge--active  { background: rgba(0,200,150,.12); color: #00c896; }
+.job-status-badge--paused  { background: rgba(234,179,8,.12); color: #eab308; }
+.job-status-badge--closed  { background: rgba(100,116,139,.12); color: #94a3b8; }
+
+.job-mgmt-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.job-mgmt-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 28px;
+  padding: 0 11px;
+  border-radius: 7px;
+  border: 1px solid rgba(255,255,255,.1);
+  background: rgba(255,255,255,.05);
+  color: var(--t2, #94a3b8);
+  font-family: inherit;
+  font-size: .7rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background .15s, border-color .15s, color .15s;
+}
+.job-mgmt-btn:hover {
+  background: rgba(255,255,255,.09);
+  border-color: rgba(255,255,255,.18);
+  color: var(--t1, #fff);
+}
+
+.job-pause-btn:hover {
+  background: rgba(234,179,8,.1);
+  border-color: rgba(234,179,8,.3);
+  color: #eab308;
+}
+
+.job-del-btn {
+  color: #f87171;
+  border-color: rgba(239,68,68,.2);
+}
+.job-del-btn:hover {
+  background: rgba(239,68,68,.1);
+  border-color: rgba(239,68,68,.4);
+  color: #f87171;
+}

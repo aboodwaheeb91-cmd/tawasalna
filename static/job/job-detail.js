@@ -165,6 +165,7 @@
       renderJob(_job);
       _applyOwnerMode(_job);
       showContent();
+      _checkJobStatus(_job);
       loadUserSkillsThenMatch();
       loadSimilarJobs();
       _checkAlreadyApplied();
@@ -177,6 +178,18 @@
         showState('error', 'حدث خطأ في التحميل', 'تحقق من اتصال الإنترنت ثم حاول مجدداً');
       }
     });
+  }
+
+  // Disable apply button when job is paused or closed.
+  function _checkJobStatus(job) {
+    if (!job || job.status === 'active') return;
+    var msg = job.status === 'paused' ? 'التقديم موقوف مؤقتاً' : 'انتهى التقديم';
+    document.querySelectorAll('.jd-apply-trigger').forEach(function (b) {
+      b.textContent = msg;
+      b.disabled = true;
+      b.classList.add('applied');
+    });
+    _applied = true;
   }
 
   // Check if the logged-in employee has already applied, then disable the button.
