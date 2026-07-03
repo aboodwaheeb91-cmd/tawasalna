@@ -190,7 +190,7 @@
                 ? companyState.profile.full_name.charAt(0) : '؟'))
             + '</span>';
 
-      // ── Profession sub-title ───────────────────────────────────
+      // ── Profession sub-title (green, no chip) ─────────────────
       var profName = (window._getProfName && j.profession_id)
         ? window._getProfName(j.profession_id) : '';
       var subHtml = profName
@@ -207,23 +207,19 @@
         else                      relDate = 'منذ ' + Math.floor(diffDays / 30) + ' أشهر';
       }
 
-      // ── SVG icons ──────────────────────────────────────────────
-      var icoPin  = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>';
-      var icoBag  = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/><rect width="20" height="14" x="2" y="7" rx="2"/></svg>';
-
-      // ── Meta chips (all viewers) ───────────────────────────────
-      var chips = '';
-      if (j.location)  chips += '<span class="job-meta-chip">' + icoPin + ' ' + _esc(j.location) + '</span>';
-      if (j.job_type)  chips += '<span class="job-meta-chip">' + icoBag + ' ' + _esc(j.job_type) + '</span>';
-      if (j.work_mode) chips += '<span class="job-meta-chip">' + _esc(j.work_mode) + '</span>';
-      if (relDate)     chips += '<span class="job-meta-chip">' + _esc(relDate) + '</span>';
-
-      // ── Owner: add status chip in meta ─────────────────────────
-      if (!canApply) {
-        var st0    = j.status || 'active';
-        var stLbl0 = st0 === 'paused' ? 'موقوف' : st0 === 'closed' ? 'مغلق' : 'نشط';
-        chips += '<span class="job-status-chip job-status-chip--' + _esc(st0) + '">' + stLbl0 + '</span>';
+      // ── Info row: plain text + │ separators (no chips) ────────
+      var sep = '<span class="jmr-sep"> │ </span>';
+      var metaParts = [];
+      if (j.location) {
+        var loc = j.location;
+        metaParts.push('📍 ' + _esc(loc));
       }
+      var typeLabel = '';
+      if (j.job_type)  typeLabel = _esc(j.job_type);
+      if (j.work_mode) typeLabel += (typeLabel ? ' · ' : '') + _esc(j.work_mode);
+      if (typeLabel)   metaParts.push('💼 ' + typeLabel);
+      if (relDate)     metaParts.push('🕒 ' + _esc(relDate));
+      var metaRow = metaParts.join(sep);
 
       // ── Right panel ────────────────────────────────────────────
       var rightHtml;
@@ -234,9 +230,9 @@
         var st  = j.status || 'active';
         var cnt = parseInt(j.applicant_count, 10) || 0;
         rightHtml = '<div class="job-owner-col">'
-          + '<span class="job-applicant-count">عدد المتقدمين: ' + cnt + '</span>'
-          + '<button type="button" class="owner-applicants-btn" data-jid="' + jid + '">عرض المتقدمين</button>'
-          + '<button type="button" class="job-mgmt-btn job-manage-btn" data-jid="' + jid + '" data-status="' + _esc(st) + '">إدارة</button>'
+          + '<span class="job-applicant-count">عدد المتقدمين <span class="job-cnt-badge">' + cnt + '</span></span>'
+          + '<button type="button" class="joc-btn joc-btn--primary owner-applicants-btn" data-jid="' + jid + '">مشاهدة المتقدمين</button>'
+          + '<button type="button" class="joc-btn joc-btn--muted job-manage-btn" data-jid="' + jid + '" data-status="' + _esc(st) + '">الإدارة</button>'
           + '</div>';
       }
 
@@ -245,7 +241,7 @@
         + '<div class="job-card-body">'
           + '<div class="job-title">' + _esc(j.title) + '</div>'
           + subHtml
-          + '<div class="job-card-meta">' + chips + '</div>'
+          + (metaRow ? '<div class="job-meta-row">' + metaRow + '</div>' : '')
         + '</div>'
         + rightHtml
         + '</div>';
