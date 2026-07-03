@@ -171,39 +171,75 @@
 
     jobsList.innerHTML = companyState.jobs.map(function (j) {
       var canApply = companyState.viewMode !== 'owner';
-      // Lucide SVG path strings — no external CDN call, rendered synchronously
-      var icoBuilding = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"/><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/><path d="M10 6h4"/><path d="M10 10h4"/><path d="M10 14h4"/><path d="M10 18h4"/></svg>';
-      var icoMapPin  = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>';
-      var icoClock   = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>';
 
-      return '<div class="job-card tw-card-lift" data-jid="' + _esc(String(j.id)) + '">' +
-        '<div class="job-card-logo">' + icoBuilding + '</div>' +
-        '<div class="job-card-body">' +
-          '<div class="job-title">' + _esc(j.title) + '</div>' +
-          '<div class="job-card-meta">' +
-            '<span class="job-meta-chip">' + icoMapPin + ' ' + _esc(j.location || '—') + '</span>' +
-            '<span class="job-meta-chip">' + icoClock  + ' ' + _esc(j.job_type || '—') + '</span>' +
-          '</div>' +
-        '</div>' +
-        (canApply
-          ? '<button class="apply-btn-pill" data-jid="' + _esc(String(j.id)) + '">تقديم الآن</button>'
-          : (function () {
-              var jid  = parseInt(j.id, 10);
-              var st   = j.status || 'active';
-              var stLbl = st === 'paused' ? 'التقديم موقوف' : st === 'closed' ? 'مغلقة' : 'نشطة';
-              var stCls = 'job-status-badge job-status-badge--' + _esc(st);
-              var cnt  = parseInt(j.applicant_count, 10) || 0;
-              var appLbl = cnt > 0 ? 'المتقدمون ' + cnt : 'المتقدمون';
-              var pauseLbl = st === 'active' ? 'إيقاف التقديم' : 'إعادة فتح';
-              return '<div class="job-owner-row">'
-                + '<span class="' + stCls + '">' + _esc(stLbl) + '</span>'
-                + '<div class="job-mgmt-row">'
-                +   '<button type="button" class="owner-applicants-btn" data-jid="' + jid + '">' + _esc(appLbl) + '</button>'
-                +   '<button type="button" class="job-mgmt-btn job-manage-btn" data-jid="' + jid + '" data-status="' + _esc(st) + '">إدارة</button>'
-                + '</div>'
-                + '</div>';
-            }())) +
-      '</div>';
+      // ── Logo: company avatar or initial fallback ───────────────
+      var avatarUrl = companyState.profile && companyState.profile.avatar_url;
+      var logoHtml = avatarUrl
+        ? '<img src="' + _esc(avatarUrl) + '" alt="" loading="lazy">'
+        : '<span class="job-card-logo-init">'
+            + _esc((companyState.profile && companyState.profile.full_name
+                ? companyState.profile.full_name.charAt(0) : '؟'))
+            + '</span>';
+
+      // ── Profession sub-title ───────────────────────────────────
+      var profName = (window._getProfName && j.profession_id)
+        ? window._getProfName(j.profession_id) : '';
+      var subHtml = profName
+        ? '<div class="job-card-sub">' + _esc(profName) + '</div>' : '';
+
+      // ── Relative date ──────────────────────────────────────────
+      var relDate = '';
+      if (j.created_at) {
+        var diffDays = Math.floor((Date.now() - new Date(j.created_at).getTime()) / 86400000);
+        if (diffDays === 0)       relDate = 'اليوم';
+        else if (diffDays === 1)  relDate = 'أمس';
+        else if (diffDays < 7)   relDate = 'منذ ' + diffDays + ' أيام';
+        else if (diffDays < 30)  relDate = 'منذ ' + Math.floor(diffDays / 7) + ' أسابيع';
+        else                      relDate = 'منذ ' + Math.floor(diffDays / 30) + ' أشهر';
+      }
+
+      // ── SVG icons ──────────────────────────────────────────────
+      var icoPin  = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>';
+      var icoBag  = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/><rect width="20" height="14" x="2" y="7" rx="2"/></svg>';
+
+      // ── Meta chips (all viewers) ───────────────────────────────
+      var chips = '';
+      if (j.location)  chips += '<span class="job-meta-chip">' + icoPin + ' ' + _esc(j.location) + '</span>';
+      if (j.job_type)  chips += '<span class="job-meta-chip">' + icoBag + ' ' + _esc(j.job_type) + '</span>';
+      if (j.work_mode) chips += '<span class="job-meta-chip">' + _esc(j.work_mode) + '</span>';
+      if (relDate)     chips += '<span class="job-meta-chip">' + _esc(relDate) + '</span>';
+
+      // ── Owner: add status chip in meta ─────────────────────────
+      if (!canApply) {
+        var st0    = j.status || 'active';
+        var stLbl0 = st0 === 'paused' ? 'موقوف' : st0 === 'closed' ? 'مغلق' : 'نشط';
+        chips += '<span class="job-status-chip job-status-chip--' + _esc(st0) + '">' + stLbl0 + '</span>';
+      }
+
+      // ── Right panel ────────────────────────────────────────────
+      var rightHtml;
+      if (canApply) {
+        rightHtml = '<button class="apply-btn-pill" data-jid="' + _esc(String(j.id)) + '">تقديم الآن</button>';
+      } else {
+        var jid = parseInt(j.id, 10);
+        var st  = j.status || 'active';
+        var cnt = parseInt(j.applicant_count, 10) || 0;
+        rightHtml = '<div class="job-owner-col">'
+          + '<span class="job-applicant-count">عدد المتقدمين: ' + cnt + '</span>'
+          + '<button type="button" class="owner-applicants-btn" data-jid="' + jid + '">عرض المتقدمين</button>'
+          + '<button type="button" class="job-mgmt-btn job-manage-btn" data-jid="' + jid + '" data-status="' + _esc(st) + '">إدارة</button>'
+          + '</div>';
+      }
+
+      return '<div class="job-card tw-card-lift" data-jid="' + _esc(String(j.id)) + '">'
+        + '<div class="job-card-logo">' + logoHtml + '</div>'
+        + '<div class="job-card-body">'
+          + '<div class="job-title">' + _esc(j.title) + '</div>'
+          + subHtml
+          + '<div class="job-card-meta">' + chips + '</div>'
+        + '</div>'
+        + rightHtml
+        + '</div>';
     }).join('');
 
     if (window.bindEvents) bindEvents();
