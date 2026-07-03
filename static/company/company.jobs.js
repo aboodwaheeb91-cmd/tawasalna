@@ -954,4 +954,21 @@
     bindEvents();
     _bindJobEvents();
   });
+
+  // _loadProfessions() requires #j-prof element (modal). Fetch catalog eagerly here
+  // so _getProfName() is ready when renderJobs() first runs after loadData().
+  (function _prefetchProfCatalog() {
+    if (!window._jwt || !_jwt()) return;
+    fetch('/professions', { headers: { 'Authorization': 'Bearer ' + _jwt() } })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (_professions.length) return; // already populated (modal opened first)
+        _professions = Array.isArray(data) ? data : (data.professions || []);
+        // Re-render job cards now that profession names are available
+        if (window.renderJobs && window.companyState && companyState.jobs && companyState.jobs.length > 0) {
+          window.renderJobs();
+        }
+      })
+      .catch(function () {});
+  }());
 }());

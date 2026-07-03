@@ -178,17 +178,30 @@
       return;
     }
 
+    // Inline SVG icons (Lucide style, no external CDN)
+    var icoPin   = '<svg class="jmr-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>';
+    var icoBriefcase = '<svg class="jmr-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/><rect width="20" height="14" x="2" y="7" rx="2"/></svg>';
+    var icoClock  = '<svg class="jmr-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>';
+
     jobsList.innerHTML = companyState.jobs.map(function (j) {
       var canApply = companyState.viewMode !== 'owner';
+      var st = j.status || 'active';
 
       // ── Logo: company avatar or initial fallback ───────────────
       var avatarUrl = companyState.profile && companyState.profile.avatar_url;
-      var logoHtml = avatarUrl
+      var logoInner = avatarUrl
         ? '<img src="' + _escAttr(avatarUrl) + '" alt="" loading="lazy">'
         : '<span class="job-card-logo-init">'
             + _esc((companyState.profile && companyState.profile.full_name
                 ? companyState.profile.full_name.charAt(0) : '؟'))
             + '</span>';
+
+      // Status badge below logo (owner only)
+      var stLblBadge = st === 'paused' ? 'موقوفة' : st === 'closed' ? 'منتهية' : 'نشطة';
+      var statusBadge = !canApply
+        ? '<span class="job-logo-status job-logo-status--' + _esc(st) + '">' + stLblBadge + '</span>'
+        : '';
+      var logoHtml = '<div class="job-logo-col"><div class="job-card-logo">' + logoInner + '</div>' + statusBadge + '</div>';
 
       // ── Profession sub-title (green, no chip) ─────────────────
       var profName = (window._getProfName && j.profession_id)
@@ -207,18 +220,12 @@
         else                      relDate = 'منذ ' + Math.floor(diffDays / 30) + ' أشهر';
       }
 
-      // ── Info row: plain text + │ separators (no chips) ────────
+      // ── Info row: SVG icons + │ separators, no chips ──────────
       var sep = '<span class="jmr-sep"> │ </span>';
       var metaParts = [];
-      if (j.location) {
-        var loc = j.location;
-        metaParts.push('📍 ' + _esc(loc));
-      }
-      var typeLabel = '';
-      if (j.job_type)  typeLabel = _esc(j.job_type);
-      if (j.work_mode) typeLabel += (typeLabel ? ' · ' : '') + _esc(j.work_mode);
-      if (typeLabel)   metaParts.push('💼 ' + typeLabel);
-      if (relDate)     metaParts.push('🕒 ' + _esc(relDate));
+      if (j.location)  metaParts.push(icoPin + ' ' + _esc(j.location));
+      if (j.job_type)  metaParts.push(icoBriefcase + ' ' + _esc(j.job_type));
+      if (relDate)     metaParts.push(icoClock + ' ' + _esc(relDate));
       var metaRow = metaParts.join(sep);
 
       // ── Right panel ────────────────────────────────────────────
@@ -227,7 +234,6 @@
         rightHtml = '<button class="apply-btn-pill" data-jid="' + _esc(String(j.id)) + '">تقديم الآن</button>';
       } else {
         var jid = parseInt(j.id, 10);
-        var st  = j.status || 'active';
         var cnt = parseInt(j.applicant_count, 10) || 0;
         rightHtml = '<div class="job-owner-col">'
           + '<span class="job-applicant-count">عدد المتقدمين <span class="job-cnt-badge">' + cnt + '</span></span>'
@@ -236,8 +242,8 @@
           + '</div>';
       }
 
-      return '<div class="job-card tw-card-lift" data-jid="' + _esc(String(j.id)) + '">'
-        + '<div class="job-card-logo">' + logoHtml + '</div>'
+      return '<div class="job-card tw-card-lift" data-jid="' + _esc(String(j.id)) + '" data-status="' + _esc(st) + '">'
+        + logoHtml
         + '<div class="job-card-body">'
           + '<div class="job-title">' + _esc(j.title) + '</div>'
           + subHtml
