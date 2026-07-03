@@ -33,7 +33,12 @@
     if (!apiResponse || apiResponse.status !== 'success') return;
     companyState.profile     = apiResponse.profile     || {};
     companyState.company     = apiResponse.company     || {};
-    companyState.jobs        = apiResponse.jobs        || [];
+    // Only replace jobs when the API explicitly returns an array — the silent 30-second
+    // refresh calls /company/profile which doesn't include jobs, so we must not wipe
+    // the already-loaded jobs array in that case.
+    if (Array.isArray(apiResponse.jobs)) {
+      companyState.jobs = apiResponse.jobs;
+    }
     companyState.stats       = apiResponse.stats       || companyState.stats;
     companyState.permissions = apiResponse.permissions || {};
     companyState.viewMode    = apiResponse.viewer_type || 'guest';

@@ -52,8 +52,6 @@
 
     var drop = document.createElement('div');
     drop.className = 'co-jmgmt-float';
-    drop.style.top   = (rect.bottom + 6) + 'px';
-    drop.style.right = (window.innerWidth - rect.right) + 'px';
 
     var editOpt = document.createElement('button');
     editOpt.type = 'button';
@@ -79,6 +77,26 @@
     drop.appendChild(pauseOpt);
     document.body.appendChild(drop);
     _jMgmtDropEl = drop;
+
+    // Viewport-clamped positioning — measure after appending so offsetWidth is available
+    var menuW = drop.offsetWidth  || 170;
+    var menuH = drop.offsetHeight || 90;
+    var vpW   = window.innerWidth;
+    var vpH   = window.innerHeight;
+    // Horizontal: align right edge of menu to right edge of button, clamp to viewport
+    var left = rect.right - menuW;
+    if (left < 8)                    left = 8;
+    if (left + menuW > vpW - 8)      left = vpW - menuW - 8;
+    // Vertical: prefer below button; fall back to above if no room
+    var top;
+    if (vpH - rect.bottom >= menuH + 8) {
+      top = rect.bottom + 4;
+    } else {
+      top = rect.top - menuH - 4;
+      if (top < 8) top = rect.bottom + 4;
+    }
+    drop.style.left = left + 'px';
+    drop.style.top  = top  + 'px';
 
     // Close on scroll (capture phase catches all scrollable containers) or resize
     window.addEventListener('scroll', _closeJobMgmtDrop, true);
@@ -843,13 +861,19 @@
       return r.json();
     })
     .then(function () {
-      companyState.jobs = companyState.jobs.map(function (j) {
-        if (String(j.id) === String(jobId)) return Object.assign({}, j, { status: newStatus });
-        return j;
-      });
-      if (window.renderJobs) renderJobs();
       var msg = newStatus === 'paused' ? 'تم إيقاف التقديم' : 'تم إعادة فتح التقديم ✓';
+      // Optimistic in-place update — only if jobs are already loaded in state
+      if (companyState.jobs && companyState.jobs.length > 0) {
+        companyState.jobs = companyState.jobs.map(function (j) {
+          if (String(j.id) === String(jobId)) return Object.assign({}, j, { status: newStatus });
+          return j;
+        });
+        if (window.renderJobs) renderJobs();
+      }
       if (window.showToast) showToast(msg);
+      // Background sync from DB to ensure state matches server (also handles edge cases
+      // where the optimistic map ran over a stale/empty list)
+      if (window.loadJobs) loadJobs();
     })
     .catch(function () {
       if (window.showToast) showToast('تعذّر تغيير حالة الوظيفة', 'error');
