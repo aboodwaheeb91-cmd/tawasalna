@@ -479,10 +479,15 @@ i.ico-sm { width:14px; height:14px; stroke:currentColor; fill:none; stroke-width
 /* Plain-text info row — no chips, no borders, no backgrounds */
 .job-meta-row {
   display:flex; flex-wrap:wrap; align-items:center;
-  font-size:.62rem; color:var(--t2); font-weight:600; gap:0; line-height:1.5;
+  font-size:.62rem; color:var(--t2); font-weight:600;
+  gap:4px 3px; line-height:1.5;
 }
-.jmr-sep { color:var(--t4); opacity:.55; }
-.jmr-ico { width:10px; height:10px; stroke:currentColor; fill:none; flex-shrink:0; vertical-align:middle; }
+/* Each item: icon + text as an inline-flex pair with gap */
+.jmr-item {
+  display:inline-flex; align-items:center; gap:4px; white-space:nowrap;
+}
+.jmr-sep { color:var(--t4); opacity:.45; padding:0 1px; }
+.jmr-ico { width:10px; height:10px; stroke:currentColor; fill:none; flex-shrink:0; }
 
 /* Keep .job-meta-chip for any legacy path — not used in new render */
 .job-card-meta { display:flex; gap:4px; flex-wrap:wrap; }

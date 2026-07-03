@@ -23,6 +23,14 @@
       .replace(/>/g, '&gt;');
   }
 
+  // Shorten job location to country + city only: "الأردن، عمان، ..." → "الأردن - عمان"
+  function _shortLoc(str) {
+    if (!str) return '';
+    var parts = String(str).split(/[،,]/).map(function (s) { return s.trim(); }).filter(Boolean);
+    if (parts.length >= 2) return parts[0] + ' - ' + parts[1];
+    return parts[0] || str;
+  }
+
   function _escapeHtml(s) {
     var d = document.createElement('div');
     d.textContent = s == null ? '' : String(s);
@@ -220,12 +228,12 @@
         else                      relDate = 'منذ ' + Math.floor(diffDays / 30) + ' أشهر';
       }
 
-      // ── Info row: SVG icons + │ separators, no chips ──────────
-      var sep = '<span class="jmr-sep"> │ </span>';
+      // ── Info row: each item is a jmr-item (icon + text flex pair) ──
+      var sep = '<span class="jmr-sep">│</span>';
       var metaParts = [];
-      if (j.location)  metaParts.push(icoPin + ' ' + _esc(j.location));
-      if (j.job_type)  metaParts.push(icoBriefcase + ' ' + _esc(j.job_type));
-      if (relDate)     metaParts.push(icoClock + ' ' + _esc(relDate));
+      if (j.location) metaParts.push('<span class="jmr-item">' + icoPin + '<span>' + _esc(_shortLoc(j.location)) + '</span></span>');
+      if (j.job_type) metaParts.push('<span class="jmr-item">' + icoBriefcase + '<span>' + _esc(j.job_type) + '</span></span>');
+      if (relDate)    metaParts.push('<span class="jmr-item">' + icoClock + '<span>' + _esc(relDate) + '</span></span>');
       var metaRow = metaParts.join(sep);
 
       // ── Right panel ────────────────────────────────────────────
