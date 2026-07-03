@@ -133,8 +133,10 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 ### 13. Jobs / Job Posting
 **Purpose:** Company posts jobs; employees browse and apply. Job has title, description, location, type, salary, skills, profession_id.
 **Source of Truth:** `jobs` table · `GET /jobs` · `GET /jobs/{id}` · `POST /jobs` (company)
-**Details:** `CLAUDE.md → API Endpoints` · `ARCHITECTURE.md §62`
+**Details:** `CLAUDE.md → API Endpoints` · `ARCHITECTURE.md §62` · `docs/company-jobs-and-applicants.md §1–4 §8`
 **Do not recreate:** `jobs.profession_id` is the canonical specialization field — do not use `jobs.category` (legacy) as primary in new features.
+**Job Card (owner):** Design contract is frozen in `docs/company-jobs-and-applicants.md §2`. Owner card has logo + status badge + profession sub-title + structured location. Action buttons (`.joc-btn`) are pill-shaped and must stay inside the card — never below it at full width.
+**Job Location:** `jobs.location` stores `"البلد - المحافظة"` (country + city). Always use `TW.fillCountries()` / `TW.fillCities()` in the job modal — no free-text input. `_shortLoc()` is fallback for old data only.
 
 ---
 
@@ -147,10 +149,11 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 ---
 
 ### 15. Job Applications / Apply System
-**Purpose:** Employee applies to a job with optional cover letter; company views applicant list.
+**Purpose:** Employee applies to a job with optional cover letter; company views applicant list via the applicants modal.
 **Source of Truth:** `job_applications` table (UNIQUE job_id + user_id) · `POST /jobs/{id}/apply`
-**Details:** `CLAUDE.md → API Endpoints` · `ARCHITECTURE.md §62`
+**Details:** `CLAUDE.md → API Endpoints` · `ARCHITECTURE.md §62` · `docs/company-jobs-and-applicants.md §5–6`
 **Do not recreate:** `user_id` comes from JWT only — never from request body. Apply status check happens server-side.
+**Applicants Modal:** Owner-only. Filters: الكل / محفوظ / مرشح قوي / تم التواصل / مقابلة / تم التوظيف / غير مناسب / بدون وظيفة. Candidate buttons: فتح البروفايل (→ `/u/{tw_id}`) + إدارة + إزالة. Remove button exists only in modal — not in the job card. No phone/email/KYC data exposed. See `docs/company-jobs-and-applicants.md §5` for full spec.
 
 ---
 
@@ -419,4 +422,4 @@ These systems exist in code but lack formal documentation in ARCHITECTURE.md or 
 
 ---
 
-*Last updated: 2026-07-01 — reflects systems as of feat/company-candidate-filters-ui (Phase 7B Frontend — filter bar, chips, search, sort, load more).*
+*Last updated: 2026-07-03 — reflects systems as of PR #339 (design/align-job-card-buttons). Added `docs/company-jobs-and-applicants.md` with full contracts for owner job card, job location system, applicants modal, and QA checklist.*
