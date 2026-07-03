@@ -925,6 +925,16 @@
     });
   }
 
+  // Read-only accessor for profession catalog — used by renderJobs for sub-title display
+  window._getProfName = function (profId) {
+    if (!profId || !_professions.length) return '';
+    var id = parseInt(profId, 10);
+    for (var i = 0; i < _professions.length; i++) {
+      if (_professions[i].id === id) return _professions[i].name_ar || _professions[i].name_en || '';
+    }
+    return '';
+  };
+
   window._applyJob             = _applyJob;
   window.applyJob              = applyJob;
   window.bindEvents            = bindEvents;
