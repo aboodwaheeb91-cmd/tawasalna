@@ -33,6 +33,56 @@
     _applyJob(btn, jobId);
   }
 
+  // ── Job manage dropdown (singleton) ───────────────────────────
+  var _jMgmtDropEl = null;
+
+  function _closeJobMgmtDrop() {
+    if (_jMgmtDropEl && _jMgmtDropEl.parentNode) {
+      _jMgmtDropEl.parentNode.removeChild(_jMgmtDropEl);
+    }
+    _jMgmtDropEl = null;
+  }
+
+  function _openJobMgmtDrop(btn, jobId, currentStatus) {
+    _closeJobMgmtDrop();
+    var rect = btn.getBoundingClientRect();
+    var pauseLbl = currentStatus === 'active' ? 'إيقاف التقديم' : 'إعادة فتح التقديم';
+
+    var drop = document.createElement('div');
+    drop.className = 'co-jmgmt-float';
+    drop.style.top   = (rect.bottom + 6) + 'px';
+    drop.style.right = (window.innerWidth - rect.right) + 'px';
+
+    var editOpt = document.createElement('button');
+    editOpt.type = 'button';
+    editOpt.className = 'co-jmgmt-opt';
+    editOpt.textContent = 'تعديل الإعلان';
+    editOpt.addEventListener('click', function (e) {
+      e.stopPropagation();
+      _closeJobMgmtDrop();
+      openEditJob(jobId);
+    });
+
+    var pauseOpt = document.createElement('button');
+    pauseOpt.type = 'button';
+    pauseOpt.className = 'co-jmgmt-opt';
+    pauseOpt.textContent = pauseLbl;
+    pauseOpt.addEventListener('click', function (e) {
+      e.stopPropagation();
+      _closeJobMgmtDrop();
+      toggleJobStatus(jobId, currentStatus);
+    });
+
+    drop.appendChild(editOpt);
+    drop.appendChild(pauseOpt);
+    document.body.appendChild(drop);
+    _jMgmtDropEl = drop;
+
+    setTimeout(function () {
+      document.addEventListener('click', _closeJobMgmtDrop, { once: true });
+    }, 0);
+  }
+
   // ── Event binding (idempotent) ─────────────────────────────────
   function bindEvents() {
     var jobsList = document.getElementById('jobsList');
@@ -53,25 +103,11 @@
           if (window.openApplicantsModal) openApplicantsModal(parseInt(card.dataset.jid, 10));
           return;
         }
-        var editBtn = e.target.closest('.job-edit-btn');
-        if (editBtn) {
+        var manageBtn = e.target.closest('.job-manage-btn');
+        if (manageBtn) {
           e.preventDefault();
           e.stopPropagation();
-          openEditJob(parseInt(card.dataset.jid, 10));
-          return;
-        }
-        var pauseBtn = e.target.closest('.job-pause-btn');
-        if (pauseBtn) {
-          e.preventDefault();
-          e.stopPropagation();
-          toggleJobStatus(parseInt(card.dataset.jid, 10), pauseBtn.getAttribute('data-status'));
-          return;
-        }
-        var delBtn = e.target.closest('.job-del-btn');
-        if (delBtn) {
-          e.preventDefault();
-          e.stopPropagation();
-          deleteJob(parseInt(card.dataset.jid, 10));
+          _openJobMgmtDrop(manageBtn, parseInt(card.dataset.jid, 10), manageBtn.getAttribute('data-status'));
           return;
         }
         if (e.target.closest('button, a')) { return; }
@@ -554,31 +590,33 @@
     if (window.scSelectInit) scSelectInit();
   }
 
+  // ── Static select population (idempotent — shared by create and edit) ──
+  function _fillStaticSelects() {
+    if (!window.TW) return;
+    var _fill = function (id, arr, ph) {
+      var el = document.getElementById(id);
+      if (el && el.options.length < 2) TW.fillSelect(el, arr || [], ph);
+    };
+    _fill('j-type',  TW.JOB_TYPES,      '— نوع الدوام —');
+    _fill('j-wmode', TW.JOB_WORK_MODES, '— طبيعة العمل —');
+    var expEl = document.getElementById('j-exp');
+    if (expEl && expEl.options.length < 2 && TW.EXP_LEVELS) {
+      expEl.innerHTML = '<option value="">— الخبرة المطلوبة —</option>';
+      TW.EXP_LEVELS.forEach(function (lv) {
+        var o = document.createElement('option');
+        o.value = lv.value;
+        o.textContent = lv.label;
+        expEl.appendChild(o);
+      });
+    }
+    if (window.scSelectInit) scSelectInit();
+  }
+
   // ── Post job modal ─────────────────────────────────────────────
   function openPostJob() {
     if (!window.companyState || !companyState.permissions.can_post_jobs) return;
 
-    // Fill static selects (idempotent — only fills when empty)
-    if (window.TW) {
-      var _fill = function (id, arr, ph) {
-        var el = document.getElementById(id);
-        if (el && el.options.length < 2) TW.fillSelect(el, arr || [], ph);
-      };
-      _fill('j-type',  TW.JOB_TYPES,      '— نوع الدوام —');
-      _fill('j-wmode', TW.JOB_WORK_MODES, '— طبيعة العمل —');
-      // Populate experience with integer values from TW.EXP_LEVELS
-      var expEl = document.getElementById('j-exp');
-      if (expEl && expEl.options.length < 2 && TW.EXP_LEVELS) {
-        expEl.innerHTML = '<option value="">— الخبرة المطلوبة —</option>';
-        TW.EXP_LEVELS.forEach(function(lv) {
-          var o = document.createElement('option');
-          o.value = lv.value;
-          o.textContent = lv.label;
-          expEl.appendChild(o);
-        });
-      }
-      if (window.scSelectInit) scSelectInit();
-    }
+    _fillStaticSelects();
     // Apply default selections
     var typeEl = document.getElementById('j-type');
     if (typeEl && !typeEl.value) typeEl.value = 'دوام كامل';
@@ -748,6 +786,7 @@
     if (!window.companyState || !companyState.permissions.can_post_jobs) return;
     var job = companyState.jobs.find(function (j) { return String(j.id) === String(jobId); });
     if (!job) return;
+    _fillStaticSelects();  // ensure options exist before _populatePostJobModal sets values
     _jBindSkillAC();
     _jAccBindAC();
     _populatePostJobModal(job);
@@ -840,7 +879,6 @@
   window.openPostJob           = openPostJob;
   window.publishJob            = publishJob;
   window.openEditJob           = openEditJob;
-  window.deleteJob             = deleteJob;
   window.toggleJobStatus       = toggleJobStatus;
   window._onJobLocModeChange   = _onJobLocModeChange;
   window._onWmodeChange        = _onWmodeChange;

@@ -2105,6 +2105,11 @@ def get_job(job_id: int) -> dict:
 def apply_job(job_id: int, user_id: int, cover_letter: str = "") -> dict:
     conn = get_conn()
     try:
+        job_rows = conn.run("SELECT status FROM jobs WHERE id=:jid", jid=job_id)
+        if not job_rows:
+            raise ValueError("الوظيفة غير موجودة")
+        if job_rows[0][0] != 'active':
+            raise ValueError("التقديم على هذه الوظيفة موقوف حالياً")
         rows = conn.run(
             "INSERT INTO job_applications (job_id, user_id, cover_letter) "
             "VALUES (:jid, :uid, :cl) "
@@ -2210,6 +2215,7 @@ def set_job_status(job_id: int, company_id: int, status: str) -> None:
         )
     finally:
         release_conn(conn)
+    _cache_del('jobs:')  # Invalidate public job listings so paused jobs disappear immediately
 
 
 # ══ KYC System ══

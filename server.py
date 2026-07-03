@@ -3388,7 +3388,10 @@ def apply_to_job(job_id: int, data: JobApplyInput, token=Depends(verify_token)):
         raise HTTPException(401, "رمز غير صالح")
     if token_type != "emp":
         raise HTTPException(403, "التقديم على الوظائف متاح للموظفين فقط")
-    result = apply_job(job_id, int(token_uid), data.cover_letter or "")
+    try:
+        result = apply_job(job_id, int(token_uid), data.cover_letter or "")
+    except ValueError as e:
+        raise HTTPException(400, str(e))
     return {"status": "success", **result}
 
 @app.get("/jobs/{job_id}/applicants")

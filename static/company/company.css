@@ -1711,21 +1711,36 @@ body.co-loading  .visitor-only           { display: none !important; }
   color: var(--t1, #fff);
 }
 
-.job-pause-btn:hover {
-  background: rgba(234,179,8,.1);
-  border-color: rgba(234,179,8,.3);
-  color: #eab308;
+/* ── Job manage dropdown (.co-jmgmt-float) ──────────────────────── */
+
+.co-jmgmt-float {
+  position: fixed;
+  z-index: 10001;
+  background: #131c2e;
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 10px;
+  padding: 5px 0;
+  min-width: 158px;
+  box-shadow: 0 8px 32px rgba(0,0,0,.55);
 }
 
-.job-del-btn {
-  color: #f87171;
-  border-color: rgba(239,68,68,.2);
+.co-jmgmt-opt {
+  display: block;
+  width: 100%;
+  padding: 10px 16px;
+  background: none;
+  border: none;
+  color: #cbd5e1;
+  font-family: 'Cairo', sans-serif;
+  font-size: .78rem;
+  font-weight: 600;
+  text-align: right;
+  cursor: pointer;
+  border-radius: 0;
+  transition: background .12s;
 }
-.job-del-btn:hover {
-  background: rgba(239,68,68,.1);
-  border-color: rgba(239,68,68,.4);
-  color: #f87171;
-}
+.co-jmgmt-opt:not(:last-child) { border-bottom: 1px solid rgba(255,255,255,.06); }
+.co-jmgmt-opt:hover { background: rgba(255,255,255,.07); color: #fff; }
 
 /* ── Responsive: job management buttons on mobile ───────────────── */
 @media (max-width: 540px) {
@@ -1739,27 +1754,15 @@ body.co-loading  .visitor-only           { display: none !important; }
     justify-content: flex-start;
   }
 
-  /* 2×2 grid — buttons fill their cell, no overflow */
+  /* 2-button row: applicants grows, manage button stays compact */
   .job-mgmt-row {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    display: flex;
     width: 100%;
     gap: 6px;
   }
 
-  /* Management buttons fill grid cells */
-  .job-mgmt-btn {
-    width: 100%;
-    height: 32px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    min-width: 0;
-  }
-
-  /* Applicants button matches grid layout */
   .job-mgmt-row .owner-applicants-btn {
-    width: 100%;
+    flex: 1;
     height: 32px;
     border-radius: 7px;
     font-size: .7rem;
@@ -1768,5 +1771,10 @@ body.co-loading  .visitor-only           { display: none !important; }
     overflow: hidden;
     text-overflow: ellipsis;
     min-width: 0;
+  }
+
+  .job-mgmt-row .job-manage-btn {
+    height: 32px;
+    flex-shrink: 0;
   }
 }

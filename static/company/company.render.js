@@ -198,10 +198,8 @@
               return '<div class="job-owner-row">'
                 + '<span class="' + stCls + '">' + _esc(stLbl) + '</span>'
                 + '<div class="job-mgmt-row">'
-                +   '<button type="button" class="job-mgmt-btn job-edit-btn" data-jid="' + jid + '">تعديل</button>'
-                +   '<button type="button" class="job-mgmt-btn job-pause-btn" data-jid="' + jid + '" data-status="' + _esc(st) + '">' + _esc(pauseLbl) + '</button>'
                 +   '<button type="button" class="owner-applicants-btn" data-jid="' + jid + '">' + _esc(appLbl) + '</button>'
-                +   '<button type="button" class="job-mgmt-btn job-del-btn" data-jid="' + jid + '">حذف</button>'
+                +   '<button type="button" class="job-mgmt-btn job-manage-btn" data-jid="' + jid + '" data-status="' + _esc(st) + '">إدارة</button>'
                 + '</div>'
                 + '</div>';
             }())) +
