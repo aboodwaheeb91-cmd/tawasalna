@@ -2186,6 +2186,8 @@ def get_company_jobs_all(company_id: int) -> list:
             "j.job_type, j.salary_min, j.salary_max, j.currency, "
             "j.experience_years, j.skills, j.status, j.views, j.created_at, "
             "COALESCE(j.accepts_all_professions, false) AS accepts_all_professions, "
+            "j.profession_id, j.work_mode, "
+            "COALESCE(j.salary_hidden, false) AS salary_hidden, "
             "u.full_name AS company_name "
             "FROM jobs j JOIN users u ON u.id=j.company_id "
             "WHERE j.company_id=:cid ORDER BY j.created_at DESC LIMIT 100",
