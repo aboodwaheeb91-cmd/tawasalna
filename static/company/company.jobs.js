@@ -757,7 +757,10 @@
   }
 
   // ── Job management — edit ──────────────────────────────────────
-  function _populatePostJobModal(job) {
+  // hydrateEditJobForm(job) — complete prefill of ALL edit-form fields from a job object.
+  // job must be a full owner-endpoint record (from /company/jobs which includes
+  // profession_id, work_mode, salary_hidden, accepted_professions).
+  function hydrateEditJobForm(job) {
     _resetPostJobModal();
     _editJobId = job.id;
 
@@ -765,40 +768,61 @@
       var el = document.getElementById(id);
       if (el && v !== undefined && v !== null) el.value = String(v);
     };
-    s('j-title', job.title || '');
-    s('j-desc', job.description || '');
-    s('j-type', job.job_type || 'دوام كامل');
-    s('j-wmode', job.work_mode || 'في الموقع');
-    s('j-exp', String(job.experience_years || 0));
-    s('j-cur', job.currency || 'USD');
 
-    // Location: always custom when editing
+    // ── Text / simple select fields ──────────────────────────────
+    s('j-title', job.title || '');
+    s('j-desc',  job.description || '');
+    s('j-type',  job.job_type  || 'دوام كامل');
+    s('j-wmode', job.work_mode || 'في الموقع');
+    s('j-exp',   String(job.experience_years || 0));
+    s('j-cur',   job.currency || 'USD');
+
+    // ── Location: always custom when editing ─────────────────────
     var locMode = document.getElementById('j-loc-mode');
     if (locMode) { locMode.value = 'custom'; _onJobLocModeChange(); }
     s('j-loc', job.location || '');
 
-    // Salary
-    if (!job.salary_hidden && (job.salary_min || job.salary_max)) {
-      var salShow = document.getElementById('j-sal-show');
-      if (salShow) { salShow.checked = true; _onSalShowChange(); }
+    // ── Salary ──────────────────────────────────────────────────
+    var showSal = !job.salary_hidden && !!(job.salary_min || job.salary_max);
+    var salShow = document.getElementById('j-sal-show');
+    if (salShow) { salShow.checked = showSal; _onSalShowChange(); }
+    if (showSal) {
       s('j-sal1', job.salary_min || '');
       s('j-sal2', job.salary_max || '');
     }
 
-    // Skills
+    // ── Skills ──────────────────────────────────────────────────
     if (Array.isArray(job.skills)) {
       job.skills.forEach(function (sk) {
         _jAddSkill(typeof sk === 'string' ? sk : (sk.name_ar || sk.name_en || ''));
       });
     }
 
-    // Profession — set pending then load (handles async)
-    if (job.profession_id) {
-      _pendingProfId = job.profession_id;
-      _loadProfessions();
+    // ── Accepts-all toggle ───────────────────────────────────────
+    var accAllCb = document.getElementById('j-acc-all');
+    if (accAllCb) {
+      accAllCb.checked = !!job.accepts_all_professions;
+      _onAccAllChange(); // shows / hides j-acc-prof-section
     }
 
-    // Switch modal to edit mode
+    // ── Additional accepted professions chips ────────────────────
+    // Backend returns full profession objects in accepted_professions[].
+    // Only hydrate when accepts_all is false — _onAccAllChange() already cleared chips.
+    if (!job.accepts_all_professions && Array.isArray(job.accepted_professions)) {
+      job.accepted_professions.forEach(function (prof) {
+        _jAccAddProf(prof);
+      });
+    }
+
+    // ── Profession (primary) — async-safe via _pendingProfId ─────
+    // _rebuildProfSelect() sets sel.value and calls scSelectInit() once catalog loads.
+    // If catalog is already cached, it runs synchronously here.
+    if (job.profession_id) {
+      _pendingProfId = job.profession_id;
+    }
+    _loadProfessions(); // no-op if already loading; sets value when ready
+
+    // ── Switch modal to edit mode ────────────────────────────────
     var pBtn = document.getElementById('publishJobBtn');
     if (pBtn) pBtn.textContent = 'حفظ التعديلات';
     var modalTitle = document.querySelector('#postJobOverlay .modal-head-title');
@@ -810,10 +834,10 @@
     if (!window.companyState || !companyState.permissions.can_post_jobs) return;
     var job = companyState.jobs.find(function (j) { return String(j.id) === String(jobId); });
     if (!job) return;
-    _fillStaticSelects();  // ensure options exist before _populatePostJobModal sets values
+    _fillStaticSelects(); // ensure static options exist before hydration sets values
     _jBindSkillAC();
     _jAccBindAC();
-    _populatePostJobModal(job);
+    hydrateEditJobForm(job);
     var el = document.getElementById('postJobOverlay');
     if (el) el.classList.add('show');
     if (window.history) history.pushState({ modal: 'editJob' }, '', location.href);
@@ -908,6 +932,7 @@
   window.submitRating          = submitRating;
   window.openPostJob           = openPostJob;
   window.publishJob            = publishJob;
+  window.hydrateEditJobForm    = hydrateEditJobForm;
   window.openEditJob           = openEditJob;
   window.toggleJobStatus       = toggleJobStatus;
   window._onJobLocModeChange   = _onJobLocModeChange;
