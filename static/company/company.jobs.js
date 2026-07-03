@@ -41,6 +41,8 @@
       _jMgmtDropEl.parentNode.removeChild(_jMgmtDropEl);
     }
     _jMgmtDropEl = null;
+    window.removeEventListener('scroll', _closeJobMgmtDrop, true);
+    window.removeEventListener('resize', _closeJobMgmtDrop);
   }
 
   function _openJobMgmtDrop(btn, jobId, currentStatus) {
@@ -78,6 +80,10 @@
     document.body.appendChild(drop);
     _jMgmtDropEl = drop;
 
+    // Close on scroll (capture phase catches all scrollable containers) or resize
+    window.addEventListener('scroll', _closeJobMgmtDrop, true);
+    window.addEventListener('resize', _closeJobMgmtDrop);
+    // Close on outside click
     setTimeout(function () {
       document.addEventListener('click', _closeJobMgmtDrop, { once: true });
     }, 0);

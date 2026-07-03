@@ -89,14 +89,26 @@
     });
   }
 
-  // Jobs — public endpoint, fills companyState.jobs then re-renders
+  // Jobs — owner uses /company/jobs (all statuses); visitor uses public /jobs (active only)
   function loadJobs() {
     if (_jobsLoading) return;
     if (!window.companyState || !companyState.profile) return;
     var numericId = companyState.profile.id;
     if (!numericId) return;
     _jobsLoading = true;
-    fetch('/jobs?company_id=' + encodeURIComponent(numericId))
+
+    var isOwner = window.companyState && companyState.viewMode === 'owner';
+    var jwt = window._jwt ? window._jwt() : '';
+    var url, fetchOpts;
+    if (isOwner && jwt) {
+      url       = '/company/jobs';
+      fetchOpts = { headers: { 'Authorization': 'Bearer ' + jwt } };
+    } else {
+      url       = '/jobs?company_id=' + encodeURIComponent(numericId);
+      fetchOpts = {};
+    }
+
+    fetch(url, fetchOpts)
       .then(function (r) { return r.json(); })
       .then(function (data) {
         if (window.companyState) {
