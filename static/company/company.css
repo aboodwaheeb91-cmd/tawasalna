@@ -602,21 +602,21 @@ i.ico-sm { width:14px; height:14px; stroke:currentColor; fill:none; stroke-width
 
 /* ══ POST CARDS ══════════════════════════════════════════════════ */
 .post-card {
-  background:rgba(255,255,255,.02); border:1px solid var(--border);
-  border-radius:var(--r-md); padding:18px 20px; margin-bottom:12px;
+  background:rgba(255,255,255,.02); border:1px solid rgba(255,255,255,.05);
+  border-radius:var(--r-md); padding:14px 16px; margin-bottom:10px;
   transition:border-color .18s;
 }
-.post-card:hover { border-color:rgba(255,255,255,.12); }
-.post-head { display:flex; align-items:center; gap:12px; margin-bottom:12px; }
+.post-card:hover { border-color:rgba(255,255,255,.1); }
+.post-head { display:flex; align-items:center; gap:10px; margin-bottom:10px; }
 .post-ava {
-  width:38px; height:38px; border-radius:10px; flex-shrink:0;
+  width:34px; height:34px; border-radius:9px; flex-shrink:0;
   background:linear-gradient(135deg,var(--ac),var(--ac2));
   display:flex; align-items:center; justify-content:center;
 }
 .post-head-info { flex:1; }
 .post-nm   { font-size:.8rem; font-weight:800; }
-.post-date { font-size:.64rem; color:var(--t3); margin-top:1px; }
-.post-body { font-size:.8rem; color:var(--t2); line-height:1.7; margin-bottom:10px; }
+.post-date { font-size:.63rem; color:var(--t3); margin-top:1px; }
+.post-body { font-size:.8rem; color:var(--t2); line-height:1.6; margin-bottom:8px; }
 .post-del {
   background:none; border:none; color:var(--t3);
   cursor:pointer; font-size:.95rem; padding:4px 6px;
