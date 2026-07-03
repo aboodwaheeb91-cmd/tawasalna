@@ -44,15 +44,15 @@
 |-------|--------|-------|
 | صورة الشركة | `.job-card-logo` | 44px, border-radius:10px |
 | شارة الحالة | `.job-logo-status--active/paused/closed` | أسفل الصورة مباشرة |
-| اسم الوظيفة | `.job-card-title` | — |
+| اسم الوظيفة | `.job-title` | — |
 | الصنف الرئيسي | `.job-card-sub` | font-size:.67rem; color:#00c896; font-weight:700 |
 | سطر الميتا | `.job-meta-row` | flex-wrap:wrap; gap:4px 3px |
 | عنصر ميتا واحد | `.jmr-item` | inline-flex; align-items:center; gap:4px |
 | فاصل الميتا | `.jmr-sep` | الحرف `│` بلون خافت |
 | أيقونة الميتا | SVG داخل `.jmr-item` | 10×10px، لا emoji |
 | عداد المتقدمين | `.job-applicant-count` + `.job-cnt-badge` | داخل `.job-owner-col` |
-| زر مشاهدة | `.joc-btn.joc-btn--primary` | تيل، pill shape |
-| زر الإدارة | `.joc-btn.joc-btn--muted` | أزرق، pill shape |
+| زر مشاهدة | `.joc-btn.joc-btn--primary` | تيل، rounded rectangle خفيف |
+| زر الإدارة | `.joc-btn.joc-btn--muted` | أزرق، rounded rectangle خفيف |
 
 ### سطر الميتا — ترتيب الحقول
 
@@ -70,7 +70,7 @@
 ✅ .job-owner-col ثابت على اليسار — لا يُكسر إلى سطر جديد
 ✅ .joc-btn--primary و.joc-btn--muted بنفس الحجم والشكل
 ✅ لا زر حذف داخل كرت الوظيفة
-✅ أزرار الكرت pill-shaped (border-radius:20px) مطابقة لأزرار كرت المرشح
+✅ أزرار الكرت rounded rectangle بزوايا خفيفة (border-radius:6px) — متناسقة مع أزرار المرشح من حيث الحجم والإحساس، لكن ليست pill كاملة
 
 ❌ flex-wrap:wrap على .job-card في الموبايل — يكسر layout الكرت
 ❌ height ثابت على .joc-btn — استخدم padding فقط
@@ -191,12 +191,12 @@
 
 ### أزرار كرت الوظيفة — المرجع البصري
 
-أزرار `.joc-btn--primary/muted` في كرت الوظيفة تتبع نفس أسلوب `.co-app-save-btn` في المودال:
-- `border-radius: 20px` (pill shape)
+أزرار `.joc-btn--primary/muted` في كرت الوظيفة تتناسق بصرياً مع أزرار المرشح من حيث الحجم والإحساس، لكن شكلها **rounded rectangle خفيف** وليس pill كاملة:
+- `border-radius: 6px` (rounded rectangle — ليس pill)
 - `padding: 4px 10px`
 - `font-size: .62rem`
 - `font-weight: 700`
-- لكن تحتفظ بألوانها الخاصة (تيل + أزرق)
+- تحتفظ بألوانها الخاصة (تيل + أزرق)، ليس بلون أزرار المرشح
 
 ---
 
