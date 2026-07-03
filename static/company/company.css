@@ -537,13 +537,13 @@ i.ico-sm { width:14px; height:14px; stroke:currentColor; fill:none; stroke-width
   font-size:.6rem; font-weight:800; flex-shrink:0;
 }
 
-/* Unified action buttons — identical height, radius, width */
+/* Unified action buttons — pill style matching candidate card buttons */
 .joc-btn {
   display:flex; align-items:center; justify-content:center;
-  height:24px; border-radius:7px;
-  font-family:'Cairo',sans-serif; font-size:.63rem; font-weight:700;
+  border-radius:20px;
+  font-family:'Cairo',sans-serif; font-size:.62rem; font-weight:700;
   cursor:pointer; white-space:nowrap; transition:all .15s;
-  border:1px solid transparent; padding:0 8px; width:100%;
+  border:1px solid transparent; padding:4px 10px; width:100%;
 }
 .joc-btn--primary {
   background:rgba(0,200,150,.1); border-color:rgba(0,200,150,.35); color:#00c896;
@@ -1850,11 +1850,10 @@ body.co-loading  .visitor-only           { display: none !important; }
 
   .job-owner-col .job-applicant-count { justify-content: flex-start; }
 
-  /* Buttons: compact height, small text, fill column width */
+  /* Buttons: slightly tighter padding on mobile, font same as desktop */
   .job-owner-col .joc-btn {
-    height: 28px;
-    font-size: .6rem;
-    padding: 0 5px;
+    padding: 3px 8px;
+    font-size: .61rem;
   }
 
   /* Legacy responsive — kept for cached renders */
