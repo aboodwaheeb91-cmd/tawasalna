@@ -135,7 +135,7 @@
           return;
         }
         if (e.target.closest('button, a')) { return; }
-        window.location.href = 'job-detail.html?id=' + card.dataset.jid;
+        window.location.href = '/job-detail?id=' + card.dataset.jid;
       });
     }
     if (window.bindRateStars) bindRateStars();
