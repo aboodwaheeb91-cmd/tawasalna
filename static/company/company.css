@@ -469,7 +469,7 @@ i.ico-sm { width:14px; height:14px; stroke:currentColor; fill:none; stroke-width
 .job-logo-status--closed { background:rgba(100,116,139,.1); color:#64748b; }
 
 .job-card-body { flex:1; min-width:0; }
-.job-title { font-size:.82rem; font-weight:800; margin-bottom:0; }
+.job-title { font-size:.76rem; font-weight:800; margin-bottom:0; }
 .job-card-sub { font-size:.67rem; color:#00c896; font-weight:700; margin-bottom:2px; }
 .job-card-logo-init {
   font-size:1.05rem; font-weight:800; color:#fff;
@@ -532,15 +532,15 @@ i.ico-sm { width:14px; height:14px; stroke:currentColor; fill:none; stroke-width
 }
 .job-cnt-badge {
   display:inline-flex; align-items:center; justify-content:center;
-  min-width:16px; height:16px; padding:0 3px;
+  min-width:24px; height:18px; padding:0 5px;
   border-radius:4px; background:rgba(0,200,150,.15); color:#00c896;
   font-size:.6rem; font-weight:800; flex-shrink:0;
 }
 
-/* Unified action buttons — pill style matching candidate card buttons */
+/* Unified action buttons — rounded rectangle matching card proportions */
 .joc-btn {
   display:flex; align-items:center; justify-content:center;
-  border-radius:20px;
+  border-radius:6px;
   font-family:'Cairo',sans-serif; font-size:.62rem; font-weight:700;
   cursor:pointer; white-space:nowrap; transition:all .15s;
   border:1px solid transparent; padding:4px 10px; width:100%;
@@ -1806,21 +1806,21 @@ body.co-loading  .visitor-only           { display: none !important; }
   z-index: 10001;
   background: #131c2e;
   border: 1px solid rgba(255,255,255,.12);
-  border-radius: 10px;
-  padding: 5px 0;
-  min-width: 158px;
-  box-shadow: 0 8px 32px rgba(0,0,0,.55);
+  border-radius: 7px;
+  padding: 3px 0;
+  min-width: 128px;
+  box-shadow: 0 5px 18px rgba(0,0,0,.5);
 }
 
 .co-jmgmt-opt {
   display: block;
   width: 100%;
-  padding: 10px 16px;
+  padding: 7px 12px;
   background: none;
   border: none;
   color: #cbd5e1;
   font-family: 'Cairo', sans-serif;
-  font-size: .78rem;
+  font-size: .72rem;
   font-weight: 600;
   text-align: right;
   cursor: pointer;
