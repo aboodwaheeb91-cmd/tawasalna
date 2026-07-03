@@ -432,25 +432,25 @@ i.ico-sm { width:14px; height:14px; stroke:currentColor; fill:none; stroke-width
 
 /* ══ JOB CARDS ═══════════════════════════════════════════════════ */
 .job-card {
-  background:rgba(255,255,255,.03); border:1px solid var(--border);
-  border-radius:var(--r-md); padding:14px 16px; margin-bottom:10px;
+  background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.05);
+  border-radius:var(--r-md); padding:11px 14px; margin-bottom:8px;
   cursor:pointer; transition:border-color .18s, transform .18s;
-  display:flex; align-items:center; gap:13px;
+  display:flex; align-items:center; gap:10px;
 }
-.job-card:hover { border-color:rgba(37,99,255,.28); transform:translateY(-1px); }
+.job-card:hover { border-color:rgba(37,99,255,.22); transform:translateY(-1px); }
 .job-card-logo {
-  width:42px; height:42px; flex-shrink:0; border-radius:11px;
+  width:38px; height:38px; flex-shrink:0; border-radius:9px;
   background:linear-gradient(135deg,var(--ac),var(--ac2));
   display:flex; align-items:center; justify-content:center; overflow:hidden;
 }
 .job-card-logo img { width:100%; height:100%; object-fit:cover; border-radius:inherit; display:block; }
 .job-card-body { flex:1; min-width:0; }
-.job-title { font-size:.88rem; font-weight:800; margin-bottom:5px; }
-.job-card-meta { display:flex; gap:5px; flex-wrap:wrap; }
+.job-title { font-size:.88rem; font-weight:800; margin-bottom:3px; }
+.job-card-meta { display:flex; gap:4px; flex-wrap:wrap; }
 .job-meta-chip {
   display:inline-flex; align-items:center; gap:4px;
-  padding:2px 9px; border-radius:20px; font-size:.65rem; font-weight:600;
-  background:rgba(255,255,255,.04); border:1px solid var(--border); color:var(--t2);
+  padding:2px 7px; border-radius:20px; font-size:.65rem; font-weight:600;
+  background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.04); color:var(--t2);
 }
 .job-meta-chip svg,
 .job-meta-chip i { width:11px; height:11px; stroke:currentColor; fill:none; stroke-width:2; flex-shrink:0; }
@@ -946,7 +946,7 @@ body.co-loading  .visitor-only           { display: none !important; }
   .sc-content { padding:14px 14px 80px; }
   .about-grid { grid-template-columns:1fr; }
   .modal { padding:20px 16px; }
-  .job-card { gap:10px; padding:12px 14px; }
+  .job-card { gap:8px; padding:9px 12px; }
   .jobs-cta { padding:18px 14px; }
   /* 3-col grids collapse to 1-col on narrow modal */
   .mrow-3        { grid-template-columns:1fr; }
