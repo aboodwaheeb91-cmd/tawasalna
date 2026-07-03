@@ -14,6 +14,15 @@
     return String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
 
+  function _escAttr(str) {
+    return String(str || '')
+      .replace(/&/g, '&amp;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  }
+
   function _escapeHtml(s) {
     var d = document.createElement('div');
     d.textContent = s == null ? '' : String(s);
@@ -175,7 +184,7 @@
       // ── Logo: company avatar or initial fallback ───────────────
       var avatarUrl = companyState.profile && companyState.profile.avatar_url;
       var logoHtml = avatarUrl
-        ? '<img src="' + _esc(avatarUrl) + '" alt="" loading="lazy">'
+        ? '<img src="' + _escAttr(avatarUrl) + '" alt="" loading="lazy">'
         : '<span class="job-card-logo-init">'
             + _esc((companyState.profile && companyState.profile.full_name
                 ? companyState.profile.full_name.charAt(0) : '؟'))
