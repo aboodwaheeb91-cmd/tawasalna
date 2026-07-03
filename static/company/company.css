@@ -1826,31 +1826,38 @@ body.co-loading  .visitor-only           { display: none !important; }
 .co-jmgmt-opt:hover { background: rgba(255,255,255,.07); color: #fff; }
 
 /* ── Responsive: job card on mobile ─────────────────────────────── */
-@media (max-width: 540px) {
-  /* Card wraps: logo+body on top row, owner-col on second row */
-  .job-card { flex-wrap: wrap; padding: 7px 9px; gap: 7px; }
+@media (max-width: 600px) {
+  /* Card stays single row — NO flex-wrap. Owner column stays beside job info. */
+  .job-card { padding: 7px 9px; gap: 7px; }
 
-  /* Owner column: full width, stays as vertical column */
+  /* Job title: truncate if needed */
+  .job-card .job-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* Owner column: fixed width on the left side (RTL: logical left) */
   .job-owner-col {
-    width: 100%;
-    flex-basis: 100%;
-    flex-direction: column; /* intentionally column — NOT row */
+    flex-direction: column;
     align-items: stretch;
-    gap: 4px;
-    min-width: 0;
+    flex-shrink: 0;
+    width: 100px;
+    min-width: 95px;
+    gap: 3px;
   }
 
   .job-owner-col .job-applicant-count { justify-content: flex-start; }
 
-  /* Buttons stay full-width column — both same height via .joc-btn rule */
-  .job-owner-col .joc-btn { height: 26px; font-size: .64rem; }
+  /* Buttons: compact height, small text, fill column width */
+  .job-owner-col .joc-btn {
+    height: 28px;
+    font-size: .6rem;
+    padding: 0 5px;
+  }
 
   /* Legacy responsive — kept for cached renders */
-  .job-owner-row { width:100%; flex-basis:100%; justify-content:flex-start; }
-  .job-mgmt-row { display:flex; width:100%; gap:6px; }
+  .job-owner-row { justify-content: flex-start; }
+  .job-mgmt-row { display:flex; gap:6px; }
   .job-mgmt-row .owner-applicants-btn,
   .job-mgmt-row .job-manage-btn {
     flex:1; height:30px; border-radius:7px;
-    font-size:.68rem; padding:0 8px; white-space:nowrap; min-width:0;
+    font-size:.65rem; padding:0 6px; white-space:nowrap; min-width:0;
   }
 }
