@@ -505,9 +505,28 @@
     var mode       = (document.getElementById('j-loc-mode') || {}).value || 'hq';
     var branchWrap = document.getElementById('j-branch-wrap');
     var customWrap = document.getElementById('j-custom-wrap');
+    var cityWrap   = document.getElementById('j-city-wrap');
+    var countrySel = document.getElementById('j-loc-country');
     if (branchWrap) branchWrap.style.display = mode === 'branch' ? '' : 'none';
     if (customWrap) customWrap.style.display  = mode === 'custom' ? '' : 'none';
+    if (cityWrap)   cityWrap.style.display    = (mode === 'custom' && countrySel && countrySel.value) ? '' : 'none';
     if (mode === 'branch') _populateBranchSelector();
+    if (mode === 'custom' && window.TW && TW.fillCountries) {
+      if (countrySel) TW.fillCountries(countrySel, '— اختر الدولة —', { valueMode: 'name_ar', withFlags: true });
+      if (window.scSelectInit) scSelectInit();
+    }
+  }
+
+  function _onJobLocCountryChange() {
+    var countrySel = document.getElementById('j-loc-country');
+    var citySel    = document.getElementById('j-loc-city');
+    var cityWrap   = document.getElementById('j-city-wrap');
+    if (!countrySel || !citySel) return;
+    var countryVal = countrySel.value;
+    if (!countryVal || !window.TW || !TW.fillCities) return;
+    TW.fillCities(citySel, countryVal, '');
+    if (cityWrap) cityWrap.style.display = '';
+    if (window.scSelectInit) scSelectInit();
   }
 
   function _populateBranchSelector() {
@@ -556,19 +575,25 @@
       }
       return '';
     }
-    // custom
-    return (document.getElementById('j-loc') || {}).value || '';
+    // custom: structured country + city selects
+    var country = (document.getElementById('j-loc-country') || {}).value || '';
+    var city    = (document.getElementById('j-loc-city')    || {}).value || '';
+    if (country && city) return country + ' - ' + city;
+    if (country)         return country;
+    return '';
   }
 
   function _resetPostJobModal() {
-    ['j-title','j-desc','j-sal1','j-sal2','j-loc'].forEach(function (id) {
+    ['j-title','j-desc','j-sal1','j-sal2'].forEach(function (id) {
       var el = document.getElementById(id);
       if (el) el.value = '';
     });
-    ['j-prof','j-branch-sel'].forEach(function (id) {
+    ['j-prof','j-branch-sel','j-loc-country','j-loc-city'].forEach(function (id) {
       var el = document.getElementById(id);
       if (el) el.value = '';
     });
+    var cityWrap = document.getElementById('j-city-wrap');
+    if (cityWrap) cityWrap.style.display = 'none';
     // Apply defaults
     var typeEl = document.getElementById('j-type');
     if (typeEl) typeEl.value = 'دوام كامل';
@@ -777,10 +802,28 @@
     s('j-exp',   String(job.experience_years || 0));
     s('j-cur',   job.currency || 'USD');
 
-    // ── Location: always custom when editing ─────────────────────
+    // ── Location: parse existing value into structured selects ───
     var locMode = document.getElementById('j-loc-mode');
     if (locMode) { locMode.value = 'custom'; _onJobLocModeChange(); }
-    s('j-loc', job.location || '');
+    var _loc = String(job.location || '');
+    if (_loc && _loc !== 'عن بُعد' && window.TW && TW.fillCountries) {
+      var _lp = _loc.indexOf(' - ') !== -1
+        ? _loc.split(' - ').map(function (x) { return x.trim(); })
+        : _loc.split(/[،,]/).map(function (x) { return x.trim(); }).filter(Boolean);
+      var _lCountry = _lp[0] || '';
+      var _lCity    = _lp[1] || '';
+      var _cs = document.getElementById('j-loc-country');
+      if (_cs && _lCountry) {
+        TW.fillCountries(_cs, '— اختر الدولة —', { valueMode: 'name_ar', withFlags: true });
+        _cs.value = _lCountry;
+        if (_lCity && TW.fillCities) {
+          var _ct = document.getElementById('j-loc-city');
+          var _cw = document.getElementById('j-city-wrap');
+          if (_ct) TW.fillCities(_ct, _lCountry, _lCity);
+          if (_cw) _cw.style.display = '';
+        }
+      }
+    }
 
     // ── Salary ──────────────────────────────────────────────────
     var showSal = !job.salary_hidden && !!(job.salary_min || job.salary_max);
@@ -945,8 +988,9 @@
   window.hydrateEditJobForm    = hydrateEditJobForm;
   window.openEditJob           = openEditJob;
   window.toggleJobStatus       = toggleJobStatus;
-  window._onJobLocModeChange   = _onJobLocModeChange;
-  window._onWmodeChange        = _onWmodeChange;
+  window._onJobLocModeChange        = _onJobLocModeChange;
+  window._onJobLocCountryChange     = _onJobLocCountryChange;
+  window._onWmodeChange             = _onWmodeChange;
   window._onSalShowChange      = _onSalShowChange;
   window._onAccAllChange       = _onAccAllChange;
 

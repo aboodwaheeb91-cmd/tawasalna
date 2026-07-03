@@ -434,7 +434,18 @@
         </select>
       </div>
       <div class="mf" id="j-branch-wrap" style="display:none"><label>الفرع</label><select id="j-branch-sel" class="ep-select"></select></div>
-      <div class="mf" id="j-custom-wrap" style="display:none"><label>الموقع</label><input id="j-loc" placeholder="مثال: عمان، الأردن"></div>
+      <div class="mf" id="j-custom-wrap" style="display:none">
+        <label>الدولة</label>
+        <select id="j-loc-country" class="ep-select" onchange="window._onJobLocCountryChange&&_onJobLocCountryChange()">
+          <option value="">— اختر الدولة —</option>
+        </select>
+      </div>
+      <div class="mf" id="j-city-wrap" style="display:none">
+        <label>المحافظة / المدينة</label>
+        <select id="j-loc-city" class="ep-select">
+          <option value="">— اختر المحافظة —</option>
+        </select>
+      </div>
 
       <div class="mf j-sal-toggle-wrap">
         <label class="j-toggle-label">
