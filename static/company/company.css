@@ -1865,3 +1865,31 @@ body.co-loading  .visitor-only           { display: none !important; }
     font-size:.65rem; padding:0 6px; white-space:nowrap; min-width:0;
   }
 }
+
+/* ══ JOB CARD LIFECYCLE TAB ════════════════════════════════════ */
+.job-card-wrap {
+  position: relative;
+  padding-top: 18px;
+}
+.joc-tab {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 8px;
+  border-radius: 4px 4px 0 0;
+  font-family: 'Cairo', sans-serif;
+  font-size: .57rem;
+  font-weight: 700;
+  white-space: nowrap;
+  line-height: 1;
+  pointer-events: none;
+  user-select: none;
+  z-index: 1;
+}
+.joc-tab--active  { background:rgba(0,200,150,.14); color:#00c896; border:1px solid rgba(0,200,150,.26); border-bottom:none; }
+.joc-tab--paused  { background:rgba(234,179,8,.11);  color:#ca8a04; border:1px solid rgba(234,179,8,.22);  border-bottom:none; }
+.joc-tab--closed  { background:rgba(100,116,139,.1); color:#64748b; border:1px solid rgba(100,116,139,.18); border-bottom:none; }
+.joc-tab--expired { background:rgba(100,116,139,.06);color:#475569; border:1px solid rgba(100,116,139,.12); border-bottom:none; }

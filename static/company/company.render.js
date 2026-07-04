@@ -31,6 +31,51 @@
     return parts[0] || str;
   }
 
+  // ── Job card tab (lifecycle countdown / status label) ─────────
+  function _fmtCountdown(expiresStr) {
+    if (!expiresStr) return '';
+    var diffMs = new Date(expiresStr) - new Date();
+    if (diffMs <= 0) return 'أقل من دقيقة';
+    var diffMin = Math.floor(diffMs / 60000);
+    if (diffMin < 1) return 'أقل من دقيقة';
+    var days  = Math.floor(diffMin / 1440);
+    var hours = Math.floor((diffMin % 1440) / 60);
+    var mins  = diffMin % 60;
+    if (days > 0) return days + 'ي ' + hours + 'س ' + mins + 'د';
+    if (hours > 0) return hours + 'س ' + mins + 'د';
+    return mins + 'د';
+  }
+
+  function _buildTabHtml(eff, expiresAt) {
+    var cls, text;
+    if (eff === 'active') {
+      cls  = 'joc-tab--active';
+      text = _fmtCountdown(expiresAt) || '—';
+    } else if (eff === 'paused') {
+      cls  = 'joc-tab--paused';
+      text = 'موقوف مؤقتاً';
+    } else if (eff === 'closed') {
+      cls  = 'joc-tab--closed';
+      text = 'انتهى التقديم';
+    } else {
+      cls  = 'joc-tab--expired';
+      text = 'تم إغلاق الإعلان';
+    }
+    var expAttr = (eff === 'active' && expiresAt)
+      ? ' data-expires="' + _escAttr(String(expiresAt)) + '"' : '';
+    return '<div class="joc-tab ' + cls + '"' + expAttr + '>' + _esc(text) + '</div>';
+  }
+
+  function _startTabCountdown() {
+    clearInterval(window._jocTabTimer);
+    window._jocTabTimer = setInterval(function () {
+      var tabs = document.querySelectorAll('.joc-tab--active[data-expires]');
+      for (var i = 0; i < tabs.length; i++) {
+        tabs[i].textContent = _fmtCountdown(tabs[i].getAttribute('data-expires'));
+      }
+    }, 60000);
+  }
+
   function _escapeHtml(s) {
     var d = document.createElement('div');
     d.textContent = s == null ? '' : String(s);
@@ -272,7 +317,9 @@
         }
       }
 
-      return '<div class="job-card tw-card-lift" data-jid="' + _esc(String(j.id)) + '" data-status="' + _esc(eff) + '">'
+      return '<div class="job-card-wrap">'
+        + _buildTabHtml(eff, j.expires_at)
+        + '<div class="job-card tw-card-lift" data-jid="' + _esc(String(j.id)) + '" data-status="' + _esc(eff) + '">'
         + logoHtml
         + '<div class="job-card-body">'
           + '<div class="job-title">' + _esc(j.title) + '</div>'
@@ -280,8 +327,10 @@
           + (metaRow ? '<div class="job-meta-row">' + metaRow + '</div>' : '')
         + '</div>'
         + rightHtml
+        + '</div>'
         + '</div>';
     }).join('');
+    _startTabCountdown();
 
     // Visitor summary line: "تم إنهاء X إعلانات وظيفية" shown below job list
     var isVisitor = companyState.viewMode !== 'owner';
