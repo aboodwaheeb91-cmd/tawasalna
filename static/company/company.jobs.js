@@ -47,6 +47,9 @@
 
   function _openJobMgmtDrop(btn, jobId, currentStatus) {
     _closeJobMgmtDrop();
+    // expired/closed jobs have no manage button — guard in case called directly
+    if (currentStatus === 'expired' || currentStatus === 'closed') return;
+
     var rect = btn.getBoundingClientRect();
     var pauseLbl = currentStatus === 'active' ? 'إيقاف التقديم' : 'إعادة فتح التقديم';
 
@@ -73,8 +76,19 @@
       toggleJobStatus(jobId, currentStatus);
     });
 
+    var closeOpt = document.createElement('button');
+    closeOpt.type = 'button';
+    closeOpt.className = 'co-jmgmt-opt';
+    closeOpt.textContent = 'إنهاء الإعلان';
+    closeOpt.addEventListener('click', function (e) {
+      e.stopPropagation();
+      _closeJobMgmtDrop();
+      closeJob(jobId);
+    });
+
     drop.appendChild(editOpt);
     drop.appendChild(pauseOpt);
+    drop.appendChild(closeOpt);
     document.body.appendChild(drop);
     _jMgmtDropEl = drop;
 
@@ -904,6 +918,32 @@
     });
   }
 
+  // ── Job management — close (إنهاء الإعلان) ────────────────────
+  function closeJob(jobId) {
+    if (!confirm('هل أنت متأكد من إنهاء هذا الإعلان الوظيفي؟\nلن تتمكن من إعادة فتحه لاحقاً.')) return;
+    fetch('/company/jobs/' + parseInt(jobId, 10) + '/status', {
+      method:  'PATCH',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + _jwt() },
+      body:    JSON.stringify({ status: 'closed' }),
+    })
+    .then(function (r) {
+      if (!r.ok) return r.json().then(function (d) { throw new Error(d.detail || 'HTTP ' + r.status); });
+      return r.json();
+    })
+    .then(function () {
+      companyState.jobs = companyState.jobs.map(function (j) {
+        if (String(j.id) === String(jobId)) return Object.assign({}, j, { status: 'closed', effective_status: 'closed' });
+        return j;
+      });
+      if (window.renderJobs) renderJobs();
+      if (window.showToast) showToast('تم إنهاء الإعلان الوظيفي');
+      if (window.loadJobs) loadJobs(); // background sync
+    })
+    .catch(function (err) {
+      if (window.showToast) showToast((err && err.message) || 'تعذّر إنهاء الإعلان', 'error');
+    });
+  }
+
   // ── Event bindings ─────────────────────────────────────────────
   function _bindJobEvents() {
     var q = function (id) { return document.getElementById(id); };
@@ -945,6 +985,7 @@
   window.hydrateEditJobForm    = hydrateEditJobForm;
   window.openEditJob           = openEditJob;
   window.toggleJobStatus       = toggleJobStatus;
+  window.closeJob              = closeJob;
   window._onJobLocModeChange   = _onJobLocModeChange;
   window._onWmodeChange        = _onWmodeChange;
   window._onSalShowChange      = _onSalShowChange;
