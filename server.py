@@ -1218,7 +1218,7 @@ class JobInput(BaseModel):
     profession_id: Optional[int] = None
     accepted_profession_ids: Optional[List[int]] = None
     accepts_all_professions: Optional[bool] = None
-    duration_days: Optional[int] = 7
+    duration_days: Optional[int] = None
 
 class JobApplyInput(BaseModel):
     user_id: Optional[int] = None  # kept for backward compat — ignored; token user_id is used
@@ -3321,7 +3321,9 @@ def update_job_endpoint(job_id: int, data: JobInput, token=Depends(verify_token)
 
         # ── Step 3b: duration change — validate + reset clock ────────────────
         if duration_days is not None:
-            dur = int(duration_days) if int(duration_days) in _ALLOWED_DURATIONS else 7
+            dur = int(duration_days)
+            if dur not in _ALLOWED_DURATIONS:
+                raise HTTPException(422, "مدة استقبال الطلبات يجب أن تكون: 3، 7، 14، أو 30 يوماً")
             conn.run(
                 f"UPDATE jobs SET duration_days={dur}, "
                 f"expires_at=NOW() + INTERVAL '{dur} days' "

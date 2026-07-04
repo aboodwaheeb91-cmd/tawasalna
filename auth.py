@@ -2046,7 +2046,12 @@ def add_job(company_id: int, data: dict) -> dict:
 
         # Validate and apply listing duration (default 7 days)
         raw_dur = data.get("duration_days")
-        dur = int(raw_dur) if raw_dur and int(raw_dur) in _ALLOWED_DURATIONS else 7
+        if raw_dur is None:
+            dur = 7
+        else:
+            dur = int(raw_dur)
+            if dur not in _ALLOWED_DURATIONS:
+                raise ValueError("مدة استقبال الطلبات يجب أن تكون: 3، 7، 14، أو 30 يوماً")
 
         rows = conn.run(
             "INSERT INTO jobs (company_id, title, description, location, job_type, "
@@ -2129,7 +2134,7 @@ def get_jobs(filters: dict = None) -> list:
             f"SELECT j.id, j.company_id, j.title, j.description, j.location, "
             f"j.job_type, j.salary_min, j.salary_max, j.currency, "
             f"j.experience_years, j.skills, j.status, j.views, j.created_at, "
-            f"j.expires_at, j.closed_at, "
+            f"j.expires_at, j.closed_at, j.duration_days, "
             f"COALESCE(j.accepts_all_professions, false) AS accepts_all_professions, "
             f"u.full_name AS company_name "
             f"FROM jobs j JOIN users u ON u.id=j.company_id "
@@ -2293,7 +2298,7 @@ def get_company_jobs_all(company_id: int) -> list:
             "SELECT j.id, j.company_id, j.title, j.description, j.location, "
             "j.job_type, j.salary_min, j.salary_max, j.currency, "
             "j.experience_years, j.skills, j.status, j.views, j.created_at, "
-            "j.expires_at, j.closed_at, j.paused_at, "
+            "j.expires_at, j.closed_at, j.paused_at, j.duration_days, "
             "COALESCE(j.accepts_all_professions, false) AS accepts_all_professions, "
             "j.profession_id, j.work_mode, "
             "COALESCE(j.salary_hidden, false) AS salary_hidden, "
