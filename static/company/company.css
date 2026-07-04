@@ -1874,7 +1874,7 @@ body.co-loading  .visitor-only           { display: none !important; }
 .joc-tab {
   position: absolute;
   top: 0;
-  left: 0;
+  left: 14px; /* align past card's border-radius (--r-md = 14px) */
   display: inline-flex;
   align-items: center;
   height: 18px;
