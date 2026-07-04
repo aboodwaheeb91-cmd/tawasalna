@@ -2139,27 +2139,29 @@ def get_jobs(filters: dict = None) -> list:
                 d.get("status", "active"), d.get("closed_at"), d.get("expires_at")
             )
 
-        if not has_company_id:
-            _cache_set(cache_key, result)
-
-        response = {"jobs": result, "count": len(result)}
-
-        # Visitor company-profile: include count of closed/expired jobs for summary line
         if has_company_id:
+            # Visitor company-profile:
+            # 1. Filter out any auto-closed/expired jobs from the visible list
+            visible = [d for d in result if d["effective_status"] in ("active", "paused")]
+            auto_closed = len(result) - len(visible)  # jobs DB says active/paused but effectively closed
+
+            # 2. Count manually-closed jobs (status='closed' in DB)
             cid = filters["company_id"]
             cnt_rows = conn.run(
                 "SELECT COUNT(*) FROM jobs WHERE company_id=:cid AND status='closed'",
                 cid=cid
             )
-            closed_cnt = cnt_rows[0][0] if cnt_rows else 0
-            # Also count auto-expired (active/paused with expires_at in the past)
-            exp_rows = conn.run(
-                "SELECT COUNT(*) FROM jobs WHERE company_id=:cid "
-                "AND status IN ('active','paused') AND expires_at IS NOT NULL AND expires_at < NOW()",
-                cid=cid
-            )
-            auto_exp_cnt = exp_rows[0][0] if exp_rows else 0
-            response["closed_count"] = closed_cnt + auto_exp_cnt
+            db_closed_cnt = cnt_rows[0][0] if cnt_rows else 0
+
+            response = {
+                "jobs": visible,
+                "count": len(visible),
+                "closed_count": db_closed_cnt + auto_closed,
+            }
+        else:
+            response = {"jobs": result, "count": len(result)}
+            # Cache the full response dict — same shape on cache hit and cache miss
+            _cache_set(cache_key, response)
 
         return response
     finally:
@@ -2188,6 +2190,9 @@ def get_job(job_id: int) -> dict:
         cols = [c["name"] for c in conn.columns]
         result = _serialize(_row_to_dict(cols, rows[0]))
         result["accepted_professions"] = _fetch_accepted_professions_batch(conn, [job_id]).get(job_id, [])
+        result["effective_status"] = _eff_status(
+            result.get("status", "active"), result.get("closed_at"), result.get("expires_at")
+        )
         return result
     finally:
         release_conn(conn)

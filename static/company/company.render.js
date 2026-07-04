@@ -288,7 +288,7 @@
     var closedCnt = (window.companyState && companyState.closedJobsCount) || 0;
     if (isVisitor && closedCnt > 0) {
       var summaryEl = document.createElement('div');
-      summaryEl.style.cssText = 'text-align:center;color:rgba(255,255,255,.35);font-size:.68rem;padding:10px 0 4px;';
+      summaryEl.className = 'tw-empty-sub';
       summaryEl.textContent = 'تم إنهاء ' + closedCnt + (closedCnt === 1 ? ' إعلان وظيفي' : ' إعلانات وظيفية');
       jobsList.appendChild(summaryEl);
     }
