@@ -1426,11 +1426,12 @@ def _migrate_jobs_v2():
 
 
 def _migrate_job_lifecycle():
-    """Add closed_at, paused_at lifecycle columns and back-fill expires_at (idempotent)."""
+    """Add lifecycle columns (closed_at, paused_at, duration_days) and back-fill (idempotent)."""
     conn = get_conn()
     try:
         conn.run("ALTER TABLE jobs ADD COLUMN IF NOT EXISTS closed_at TIMESTAMP")
         conn.run("ALTER TABLE jobs ADD COLUMN IF NOT EXISTS paused_at TIMESTAMP")
+        conn.run("ALTER TABLE jobs ADD COLUMN IF NOT EXISTS duration_days SMALLINT DEFAULT 7")
         # Back-fill expires_at for active/paused jobs that predate the lifecycle system
         conn.run("""
             UPDATE jobs
@@ -2026,6 +2027,9 @@ def _eff_status(status: str, closed_at, expires_at, paused_at=None) -> str:
     return status
 
 
+_ALLOWED_DURATIONS = frozenset({3, 7, 14, 30})
+
+
 def add_job(company_id: int, data: dict) -> dict:
     _cache_del('jobs:')
     conn = get_conn()
@@ -2040,16 +2044,21 @@ def add_job(company_id: int, data: dict) -> dict:
         raw_accepted = [] if accepts_all else (data.get("accepted_profession_ids") or [])
         accepted_pids = _validate_accepted_profession_ids(conn, prof_id, raw_accepted)
 
+        # Validate and apply listing duration (default 7 days)
+        raw_dur = data.get("duration_days")
+        dur = int(raw_dur) if raw_dur and int(raw_dur) in _ALLOWED_DURATIONS else 7
+
         rows = conn.run(
             "INSERT INTO jobs (company_id, title, description, location, job_type, "
             "salary_min, salary_max, currency, experience_years, skills, status, "
             "category, work_mode, salary_hidden, profession_id, accepts_all_professions, "
-            "expires_at) "
+            f"expires_at, duration_days) "
             "VALUES (:cid, :title, :desc, :loc, :jtype, :smin, :smax, :cur, :exp, "
-            ":skills, 'active', :cat, :wmode, :shide, :profid, :accall, "
-            "NOW() + INTERVAL '30 days') "
+            f":skills, 'active', :cat, :wmode, :shide, :profid, :accall, "
+            f"NOW() + INTERVAL '{dur} days', :dur) "
             "RETURNING id, company_id, title, description, location, job_type, "
             "salary_min, salary_max, currency, experience_years, skills, status, created_at, "
+            "expires_at, duration_days, "
             "category, work_mode, salary_hidden, profession_id, accepts_all_professions",
             cid=company_id, title=data.get("title",""),
             desc=data.get("description",""), loc=data.get("location",""),
@@ -2064,6 +2073,7 @@ def add_job(company_id: int, data: dict) -> dict:
             shide=sal_hidden,
             profid=prof_id,
             accall=accepts_all,
+            dur=dur,
         )
         cols = [c["name"] for c in conn.columns]
         result = _serialize(_row_to_dict(cols, rows[0]))

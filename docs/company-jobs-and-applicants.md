@@ -172,6 +172,16 @@ def _eff_status(status, closed_at, expires_at) -> str:
 | `closed_at` | `TIMESTAMP NULL` | وقت الإغلاق اليدوي |
 | `paused_at` | `TIMESTAMP NULL` | وقت آخر إيقاف (NULL إذا نشط) |
 | `expires_at` | موجود مسبقاً — مستخدم الآن | موعد انتهاء مدة الإعلان |
+| `duration_days` | `SMALLINT DEFAULT 7` | مدة استقبال الطلبات المختارة عند النشر |
+
+### مدة استقبال الطلبات (`duration_days`)
+
+- القيم المسموحة: **3، 7، 14، 30** يوماً فقط.
+- الافتراضي: **7 أيام** (يُطبَّق server-side إذا لم تُرسَل قيمة أو كانت القيمة غير مسموحة).
+- عند الإنشاء: `expires_at = NOW() + duration_days days`.
+- عند التعديل (active/paused فقط): تعيين قيمة جديدة يُعيد ضبط `expires_at = NOW() + duration_days days` (reset للساعة).
+- ممنوع تعديل `duration_days` على إعلان `closed` أو `expired`.
+- الوظائف القديمة (بدون `duration_days`) تُعامَل كـ 7 أيام بفضل `DEFAULT 7` — لا reset لـ `expires_at` الموجود.
 
 ### القاعدة الذهبية
 
