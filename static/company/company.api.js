@@ -113,6 +113,10 @@
       .then(function (data) {
         if (window.companyState) {
           companyState.jobs = (data && data.jobs) ? data.jobs : [];
+          // Visitor view: closed_count for summary line below job list
+          if (!isOwner) {
+            companyState.closedJobsCount = (data && data.closed_count) || 0;
+          }
           if (window.renderAll) window.renderAll();
         }
       })

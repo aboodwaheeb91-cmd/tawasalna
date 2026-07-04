@@ -1425,6 +1425,24 @@ def _migrate_jobs_v2():
         release_conn(conn)
 
 
+def _migrate_job_lifecycle():
+    """Add closed_at, paused_at lifecycle columns and back-fill expires_at (idempotent)."""
+    conn = get_conn()
+    try:
+        conn.run("ALTER TABLE jobs ADD COLUMN IF NOT EXISTS closed_at TIMESTAMP")
+        conn.run("ALTER TABLE jobs ADD COLUMN IF NOT EXISTS paused_at TIMESTAMP")
+        # Back-fill expires_at for active/paused jobs that predate the lifecycle system
+        conn.run("""
+            UPDATE jobs
+            SET expires_at = created_at + INTERVAL '30 days'
+            WHERE expires_at IS NULL AND status IN ('active', 'paused')
+        """)
+    except Exception:
+        pass
+    finally:
+        release_conn(conn)
+
+
 def _migrate_taxonomy_foundation():
     """
     PR feat/taxonomy-db-foundation:
@@ -1974,6 +1992,40 @@ def _validate_accepted_profession_ids(conn, primary_pid, accepted_ids):
     return deduped
 
 
+def _eff_status(status: str, closed_at, expires_at, paused_at=None) -> str:
+    """Compute effective lifecycle status — never stored in DB, always derived at request time.
+
+    Transitions:
+      active/paused + expires_at elapsed       → 'closed' (auto-expired by duration)
+      closed or auto-closed + ref + 30d         → 'expired' (viewer window closed)
+      active/paused within window               → status unchanged
+    """
+    now = datetime.utcnow()
+
+    def _to_dt(v):
+        if v is None: return None
+        if isinstance(v, datetime): return v
+        try: return datetime.fromisoformat(str(v).replace('Z', ''))
+        except Exception: return None
+
+    closed_at_dt  = _to_dt(closed_at)
+    expires_at_dt = _to_dt(expires_at)
+
+    if status == 'closed':
+        ref = closed_at_dt or expires_at_dt
+        if ref and (now - ref).days >= 30:
+            return 'expired'
+        return 'closed'
+
+    # active or paused: check if listing duration elapsed (auto-close)
+    if expires_at_dt and now > expires_at_dt:
+        if (now - expires_at_dt).days >= 30:
+            return 'expired'
+        return 'closed'
+
+    return status
+
+
 def add_job(company_id: int, data: dict) -> dict:
     _cache_del('jobs:')
     conn = get_conn()
@@ -1991,9 +2043,11 @@ def add_job(company_id: int, data: dict) -> dict:
         rows = conn.run(
             "INSERT INTO jobs (company_id, title, description, location, job_type, "
             "salary_min, salary_max, currency, experience_years, skills, status, "
-            "category, work_mode, salary_hidden, profession_id, accepts_all_professions) "
+            "category, work_mode, salary_hidden, profession_id, accepts_all_professions, "
+            "expires_at) "
             "VALUES (:cid, :title, :desc, :loc, :jtype, :smin, :smax, :cur, :exp, "
-            ":skills, 'active', :cat, :wmode, :shide, :profid, :accall) "
+            ":skills, 'active', :cat, :wmode, :shide, :profid, :accall, "
+            "NOW() + INTERVAL '30 days') "
             "RETURNING id, company_id, title, description, location, job_type, "
             "salary_min, salary_max, currency, experience_years, skills, status, created_at, "
             "category, work_mode, salary_hidden, profession_id, accepts_all_professions",
@@ -2031,12 +2085,22 @@ def add_job(company_id: int, data: dict) -> dict:
         release_conn(conn)
 
 def get_jobs(filters: dict = None) -> list:
+    # Company-profile visitor view: show active + paused jobs + closed_count.
+    # Global feed (no company_id): active-only, cached.
+    has_company_id = bool(filters and filters.get("company_id"))
     cache_key = 'jobs:' + str(sorted((filters or {}).items()))
-    cached = _cache_get(cache_key)
-    if cached is not None: return cached
+    if not has_company_id:
+        cached = _cache_get(cache_key)
+        if cached is not None: return cached
+
     conn = get_conn()
     try:
-        where = "WHERE j.status='active'"
+        if has_company_id:
+            # Visitor company-profile: active + paused (visitor cannot apply to paused)
+            where = "WHERE j.status IN ('active','paused')"
+        else:
+            # Global public feed: active only (also exclude auto-expired via expires_at)
+            where = "WHERE j.status='active' AND (j.expires_at IS NULL OR j.expires_at > NOW())"
         params = {}
         if filters:
             if filters.get("search"):
@@ -2055,6 +2119,7 @@ def get_jobs(filters: dict = None) -> list:
             f"SELECT j.id, j.company_id, j.title, j.description, j.location, "
             f"j.job_type, j.salary_min, j.salary_max, j.currency, "
             f"j.experience_years, j.skills, j.status, j.views, j.created_at, "
+            f"j.expires_at, j.closed_at, "
             f"COALESCE(j.accepts_all_professions, false) AS accepts_all_professions, "
             f"u.full_name AS company_name "
             f"FROM jobs j JOIN users u ON u.id=j.company_id "
@@ -2070,8 +2135,35 @@ def get_jobs(filters: dict = None) -> list:
         for d in result:
             d["accepted_professions"] = acc_map.get(d["id"], [])
             d["applicant_count"] = cnt_map.get(d["id"], 0)
-        _cache_set(cache_key, result)
-        return result
+            d["effective_status"] = _eff_status(
+                d.get("status", "active"), d.get("closed_at"), d.get("expires_at")
+            )
+
+        if has_company_id:
+            # Visitor company-profile:
+            # 1. Filter out any auto-closed/expired jobs from the visible list
+            visible = [d for d in result if d["effective_status"] in ("active", "paused")]
+            auto_closed = len(result) - len(visible)  # jobs DB says active/paused but effectively closed
+
+            # 2. Count manually-closed jobs (status='closed' in DB)
+            cid = filters["company_id"]
+            cnt_rows = conn.run(
+                "SELECT COUNT(*) FROM jobs WHERE company_id=:cid AND status='closed'",
+                cid=cid
+            )
+            db_closed_cnt = cnt_rows[0][0] if cnt_rows else 0
+
+            response = {
+                "jobs": visible,
+                "count": len(visible),
+                "closed_count": db_closed_cnt + auto_closed,
+            }
+        else:
+            response = {"jobs": result, "count": len(result)}
+            # Cache the full response dict — same shape on cache hit and cache miss
+            _cache_set(cache_key, response)
+
+        return response
     finally:
         release_conn(conn)
 
@@ -2098,6 +2190,9 @@ def get_job(job_id: int) -> dict:
         cols = [c["name"] for c in conn.columns]
         result = _serialize(_row_to_dict(cols, rows[0]))
         result["accepted_professions"] = _fetch_accepted_professions_batch(conn, [job_id]).get(job_id, [])
+        result["effective_status"] = _eff_status(
+            result.get("status", "active"), result.get("closed_at"), result.get("expires_at")
+        )
         return result
     finally:
         release_conn(conn)
@@ -2105,11 +2200,14 @@ def get_job(job_id: int) -> dict:
 def apply_job(job_id: int, user_id: int, cover_letter: str = "") -> dict:
     conn = get_conn()
     try:
-        job_rows = conn.run("SELECT status FROM jobs WHERE id=:jid", jid=job_id)
+        job_rows = conn.run(
+            "SELECT status, closed_at, expires_at FROM jobs WHERE id=:jid", jid=job_id
+        )
         if not job_rows:
             raise ValueError("الوظيفة غير موجودة")
-        if job_rows[0][0] != 'active':
-            raise ValueError("التقديم على هذه الوظيفة موقوف حالياً")
+        eff = _eff_status(job_rows[0][0], job_rows[0][1], job_rows[0][2])
+        if eff != 'active':
+            raise ValueError("التقديم على هذه الوظيفة غير متاح حالياً")
         rows = conn.run(
             "INSERT INTO job_applications (job_id, user_id, cover_letter) "
             "VALUES (:jid, :uid, :cl) "
@@ -2178,13 +2276,14 @@ def delete_job(job_id: int, company_id: int) -> bool:
         release_conn(conn)
 
 def get_company_jobs_all(company_id: int) -> list:
-    """Return all jobs for the authenticated owner — all statuses, no cache."""
+    """Return all jobs for the authenticated owner — all statuses + effective_status, no cache."""
     conn = get_conn()
     try:
         rows = conn.run(
             "SELECT j.id, j.company_id, j.title, j.description, j.location, "
             "j.job_type, j.salary_min, j.salary_max, j.currency, "
             "j.experience_years, j.skills, j.status, j.views, j.created_at, "
+            "j.expires_at, j.closed_at, j.paused_at, "
             "COALESCE(j.accepts_all_professions, false) AS accepts_all_professions, "
             "j.profession_id, j.work_mode, "
             "COALESCE(j.salary_hidden, false) AS salary_hidden, "
@@ -2201,23 +2300,74 @@ def get_company_jobs_all(company_id: int) -> list:
         for d in result:
             d["accepted_professions"] = acc_map.get(d["id"], [])
             d["applicant_count"]      = cnt_map.get(d["id"], 0)
+            d["effective_status"]     = _eff_status(
+                d.get("status", "active"), d.get("closed_at"), d.get("expires_at")
+            )
         return result
     finally:
         release_conn(conn)
 
-def set_job_status(job_id: int, company_id: int, status: str) -> None:
+def set_job_status(job_id: int, company_id: int, new_status: str) -> None:
     _ALLOWED = ('active', 'paused', 'closed')
-    if status not in _ALLOWED:
-        raise ValueError(f"Invalid status '{status}'. Allowed: {_ALLOWED}")
+    if new_status not in _ALLOWED:
+        raise ValueError(f"Invalid status '{new_status}'. Allowed: {_ALLOWED}")
+
     conn = get_conn()
     try:
-        conn.run(
-            "UPDATE jobs SET status=:s WHERE id=:id AND company_id=:cid",
-            s=status, id=job_id, cid=company_id
+        rows = conn.run(
+            "SELECT status, closed_at, expires_at, paused_at "
+            "FROM jobs WHERE id=:id AND company_id=:cid",
+            id=job_id, cid=company_id
         )
+        if not rows:
+            raise ValueError("الوظيفة غير موجودة أو ليست ملكك")
+
+        cur_status, cur_closed_at, cur_expires_at, cur_paused_at = rows[0]
+        eff = _eff_status(cur_status, cur_closed_at, cur_expires_at, cur_paused_at)
+
+        # Block re-opening closed/expired jobs
+        if eff in ('closed', 'expired') and new_status in ('active', 'paused'):
+            raise ValueError("لا يمكن إعادة فتح إعلان منتهٍ أو انتهت صلاحيته")
+
+        # Block closing an already-closed/expired job
+        if eff in ('closed', 'expired') and new_status == 'closed':
+            raise ValueError("الإعلان منتهٍ بالفعل")
+
+        # Build UPDATE based on transition
+        if new_status == 'paused' and eff == 'active':
+            conn.run(
+                "UPDATE jobs SET status='paused', paused_at=NOW() WHERE id=:id AND company_id=:cid",
+                id=job_id, cid=company_id
+            )
+        elif new_status == 'active' and eff == 'paused' and cur_paused_at:
+            # Resume: extend expires_at by the paused duration so the timer doesn't count paused time
+            conn.run(
+                "UPDATE jobs SET status='active', paused_at=NULL, "
+                "expires_at = expires_at + (NOW() - paused_at) "
+                "WHERE id=:id AND company_id=:cid",
+                id=job_id, cid=company_id
+            )
+        elif new_status == 'active' and eff == 'paused':
+            # paused_at was NULL (edge case) — just resume without extending
+            conn.run(
+                "UPDATE jobs SET status='active', paused_at=NULL WHERE id=:id AND company_id=:cid",
+                id=job_id, cid=company_id
+            )
+        elif new_status == 'closed':
+            conn.run(
+                "UPDATE jobs SET status='closed', closed_at=NOW(), paused_at=NULL "
+                "WHERE id=:id AND company_id=:cid",
+                id=job_id, cid=company_id
+            )
+        else:
+            # Fallback (same-status no-op or unhandled edge)
+            conn.run(
+                "UPDATE jobs SET status=:s WHERE id=:id AND company_id=:cid",
+                s=new_status, id=job_id, cid=company_id
+            )
     finally:
         release_conn(conn)
-    _cache_del('jobs:')  # Invalidate public job listings so paused jobs disappear immediately
+    _cache_del('jobs:')  # Invalidate public listings immediately
 
 
 # ══ KYC System ══

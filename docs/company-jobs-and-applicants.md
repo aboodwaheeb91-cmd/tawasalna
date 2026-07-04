@@ -89,17 +89,104 @@
 
 ---
 
-## 3. حالة الوظيفة داخل الكرت
+## 3. دورة حياة الوظيفة — Job Lifecycle (PR feat/job-lifecycle)
 
-| `data-status` | الشارة | الإضاءة |
-|--------------|--------|---------|
-| `active` | "نشطة" — لون أخضر | ✅ inset box-shadow تيل خفيف |
-| `paused` | "موقوفة" — لون أصفر | ❌ لا إضاءة |
-| `closed` | "منتهية" — لون رمادي | ❌ لا إضاءة |
+### الحالات الأربع
 
-- الإضاءة تُطبَّق عبر `CSS: .job-card[data-status="active"]` فقط — لا JS، لا class إضافي.
-- **لا يوجد** منطق انتهاء تلقائي بعد 7 أيام حالياً. إذا أُضيف لاحقاً يكون في **PR منفصل** مع migration واضح.
-- `data-status` يُضبط من `j.status` في `renderJobs()` داخل `company.render.js`.
+| `effective_status` | الشارة | مخزّن في DB | ما يراه الزائر | ما يراه المالك |
+|-------------------|--------|-------------|----------------|----------------|
+| `active` | "نشطة" — أخضر | `status='active'` | كرت + زر تقديم | كرت + مشاهدة + إدارة |
+| `paused` | "موقوفة" — أصفر | `status='paused'` | كرت فقط (بدون تقديم) | كرت + مشاهدة + إدارة |
+| `closed` | "منتهية" — رمادي | `status='closed'` | يُخفى (يُحسب في closed_count) | كرت + مشاهدة متقدمين فقط |
+| `expired` | "انتهت صلاحيته" — رمادي | `status='closed'` + 30d | يُخفى | كرت فقط (سجل، لا أزرار) |
+
+### قاعدة `effective_status`
+
+**`effective_status` محسوب server-side — لا يُخزَّن أبداً في DB**. يُعاد حسابه في كل طلب API:
+
+```python
+def _eff_status(status, closed_at, expires_at) -> str:
+    if status == 'closed':
+        ref = closed_at or expires_at
+        return 'expired' if ref and (now - ref).days >= 30 else 'closed'
+    if status in ('active', 'paused') and expires_at and now > expires_at:
+        # Auto-close: listing duration (30 days active) elapsed
+        return 'expired' if (now - expires_at).days >= 30 else 'closed'
+    return status  # 'active' or 'paused'
+```
+
+### مدة الإعلان والـ Timer
+
+- كل وظيفة جديدة تحصل على `expires_at = NOW() + 30 days` تلقائياً.
+- عند الإيقاف (`paused`): يُسجَّل `paused_at = NOW()`.
+- عند الاستئناف (`active`): `expires_at = expires_at + (NOW() - paused_at)` → الوقت المتوقف لا يُحسب من مدة الإعلان.
+- عند الإنهاء اليدوي (`closed`): `closed_at = NOW()`.
+- الإغلاق التلقائي يحدث عند `expires_at < NOW()` — محسوب بدون cron job.
+
+### الانتقالات المسموحة والمحجوبة
+
+| من \ إلى | `active` | `paused` | `closed` |
+|---------|---------|---------|---------|
+| `active` | — | ✅ | ✅ |
+| `paused` | ✅ | — | ✅ |
+| `closed` | ❌ | ❌ | — |
+| `expired` | ❌ | ❌ | ❌ |
+
+الحجب يحدث server-side في `set_job_status()` + `apply_job()` + `update_job_endpoint`.
+
+### حماية server-side (ممنوعات)
+
+```
+❌ التقديم على وظيفة موقوفة أو منتهية أو انتهت صلاحيتها
+❌ إعادة فتح وظيفة منتهية أو انتهت صلاحيتها
+❌ تعديل وظيفة انتهت صلاحيتها (PUT /company/jobs/{id})
+```
+
+### ما يراه الزائر (company-profile)
+
+- `GET /jobs?company_id=X` يعيد `active + paused` فقط.
+- يتضمن حقل `closed_count` لعدد الوظائف المنتهية/الموقوفة تلقائياً.
+- `effective_status='active'` → زر "تقديم الآن".
+- `effective_status='paused'` → كرت بدون زر تقديم.
+- إذا `closed_count > 0` → سطر ملخص في أسفل القائمة: "تم إنهاء X إعلانات وظيفية".
+
+### شارة الحالة — CSS
+
+```
+.job-logo-status--active  → أخضر
+.job-logo-status--paused  → أصفر
+.job-logo-status--closed  → رمادي (يُستخدم لـ closed + expired)
+```
+
+`expired` يعيد استخدام `--closed` لأنه نفس الإحساس البصري — لا class CSS جديد.
+
+### الإضاءة
+
+- الإضاءة تُطبَّق عبر `CSS: .job-card[data-status="active"]` فقط.
+- `data-status` يُضبط من `j.effective_status` في `renderJobs()`.
+
+### أعمدة DB الجديدة (migration: `_migrate_job_lifecycle`)
+
+| العمود | النوع | الاستخدام |
+|--------|------|---------|
+| `closed_at` | `TIMESTAMP NULL` | وقت الإغلاق اليدوي |
+| `paused_at` | `TIMESTAMP NULL` | وقت آخر إيقاف (NULL إذا نشط) |
+| `expires_at` | موجود مسبقاً — مستخدم الآن | موعد انتهاء مدة الإعلان |
+
+### القاعدة الذهبية
+
+```
+✅ effective_status يُحسب server-side في كل طلب
+✅ لا cron job — الانتهاء التلقائي computed في _eff_status()
+✅ الحجب يحدث في auth.py: set_job_status + apply_job + update_job_endpoint
+✅ Frontend يعتمد على j.effective_status فقط (لا j.status مباشرة)
+✅ expired يعيد استخدام --closed CSS class (لا CSS جديد)
+
+❌ تخزين 'expired' في DB كـ status value
+❌ فتح إعلان منتهٍ
+❌ تعديل إعلان انتهت صلاحيته
+❌ إضافة cron job لتغيير status تلقائياً
+```
 
 ---
 
@@ -258,6 +345,10 @@
 | #337 | fix/owner-job-card-profession | إصلاح ظهور الصنف: `_prefetchProfCatalog` عند تحميل الموديول |
 | #338 | fix/owner-job-card-mobile-layout | موبايل بدون horizontal overflow + نظام موقع مهيكل (بلد/محافظة) |
 | #339 | design/align-job-card-buttons | محاذاة أزرار كرت الوظيفة مع أزرار كرت المرشح (pill shape) |
+| #340 | docs/company-jobs-applicants | توثيق نظام الوظائف والمتقدمين |
+| #341 | fix/owner-job-card-polish | تلميع كرت المالك: dropdown أصغر، border-radius 6px، رابط job-detail صحيح |
+| #342 | fix/bfcache-owner-state | إصلاح Mixed State عند history.back() بعد bfcache restore |
+| #? | feat/job-lifecycle | 4 حالات + auto-close + effective_status + إنهاء الإعلان |
 
 ### قرارات تقنية تراكمت
 
@@ -265,6 +356,7 @@
 2. **`_prefetchProfCatalog`**: fetch مبكر لـ `/professions` عند تحميل `company.jobs.js`، قبل فتح الـ modal، لأن `_loadProfessions()` تبايكوت إذا لم يكن `#j-prof` موجوداً.
 3. **`_shortLoc`**: fallback للبيانات القديمة فقط. البيانات الجديدة تُخزَّن بصيغة `"بلد - مدينة"`.
 4. **`data-status` attribute**: الإضاءة تُطبَّق بـ CSS فقط — لا JS.
+5. **`effective_status`**: محسوب في `_eff_status()` (auth.py) — لا يُخزَّن. يُعاد حسابه في كل request. الـ frontend يعتمد عليه فقط.
 
 ---
 
@@ -281,14 +373,19 @@
 □ زر "الإدارة" يفتح القائمة
 □ الصنف (profession) يظهر تحت اسم الوظيفة باللون الأخضر
 □ الموقع يظهر بصيغة "بلد - محافظة" فقط (لا تفاصيل زائدة)
-□ الوظيفة النشطة لها إضاءة داخلية خفيفة فقط (paused/closed لا إضاءة)
+□ الوظيفة النشطة لها إضاءة داخلية خفيفة فقط (paused/closed/expired لا إضاءة)
 □ روابط البروفايل تعتمد /u/{tw_id} فقط
 □ لا backend / API / DB changes في PR التوثيق
 □ لا زر حذف داخل كرت الوظيفة
 □ الحالة تظهر كشارة أسفل صورة الشركة داخل الكرت
 □ نموذج نشر/تعديل الوظيفة يستخدم قائمة بلد + قائمة محافظة (لا input نص حر)
+□ الوظيفة المنتهية (closed) تعرض "مشاهدة المتقدمين" فقط لمدة 30 يوم
+□ الوظيفة منتهية الصلاحية (expired) لا أزرار — سجل فقط
+□ زر "إنهاء الإعلان" يظهر فقط للوظائف النشطة أو الموقوفة
+□ الزائر يرى سطر "تم إنهاء X إعلانات وظيفية" إذا كان closed_count > 0
+□ التقديم على وظيفة موقوفة/منتهية يُرفض server-side (422)
 ```
 
 ---
 
-*آخر تحديث: 2026-07-03 — يعكس القرارات كما في PR #339 (design/align-job-card-buttons).*
+*آخر تحديث: 2026-07-04 — يعكس القرارات كما في PR feat/job-lifecycle.*

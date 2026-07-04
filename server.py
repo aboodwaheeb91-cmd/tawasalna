@@ -78,7 +78,7 @@ from auth import (
     get_company_profile_row, get_company_extras,
     update_company_profile,
     _migrate_company_branches, get_company_branches, save_company_branches,
-    _migrate_jobs_v2,
+    _migrate_jobs_v2, _migrate_job_lifecycle, _eff_status,
     _migrate_taxonomy_foundation,
     _migrate_job_profession_targets,
     _fetch_accepted_professions_batch,
@@ -391,6 +391,11 @@ async def on_startup():
         print("✅ jobs v2 columns ready")
     except Exception as e:
         print(f"⚠️ jobs v2 migration failed: {e}")
+    try:
+        _migrate_job_lifecycle()
+        print("✅ jobs lifecycle columns ready (closed_at, paused_at, expires_at back-fill)")
+    except Exception as e:
+        print(f"⚠️ jobs lifecycle migration failed: {e}")
     try:
         _migrate_taxonomy_foundation()
         print("✅ taxonomy foundation ready (skill_catalog + jobs.profession_id)")
@@ -1287,7 +1292,7 @@ def match_jobs_for_user(user_id: int):
         if not profile:
             return {"jobs": [], "count": 0}
         user_skills = set(s.lower() for s in (profile.get("skills") or []))
-        all_jobs = get_jobs({"status": "active"})
+        all_jobs = get_jobs({}).get("jobs", [])
         scored = []
         for job in all_jobs:
             job_skills = set(s.lower() for s in (job.get("skills") or []))
@@ -3228,8 +3233,7 @@ def request_verification(data: VerifyRequestInput, token=Depends(verify_token)):
 def list_jobs(search: str = None, location: str = None,
                job_type: str = None, company_id: int = None):
     filters = {"search":search,"location":location,"job_type":job_type,"company_id":company_id}
-    jobs = get_jobs({k:v for k,v in filters.items() if v})
-    return {"jobs": jobs, "count": len(jobs)}
+    return get_jobs({k:v for k,v in filters.items() if v})
 
 @app.get("/jobs/{job_id}")
 def get_job_detail(job_id: int):
@@ -3274,14 +3278,19 @@ def update_job_endpoint(job_id: int, data: JobInput, token=Depends(verify_token)
         accepts_all    = raw_fields.get("accepts_all_professions")
         fields = {k: v for k, v in raw_fields.items() if v is not None}
 
-        # ── Step 1: ownership check (SELECT only — no mutation yet) ──────────
+        # ── Step 1: ownership check + lifecycle guard (SELECT only — no mutation yet) ──
         current_rows = conn.run(
-            "SELECT id, profession_id FROM jobs WHERE id=:id AND company_id=:cid",
+            "SELECT id, profession_id, status, closed_at, expires_at "
+            "FROM jobs WHERE id=:id AND company_id=:cid",
             id=job_id, cid=cid
         )
         if not current_rows:
             print(f"[SECURITY] JOB_OWNERSHIP_FAILED: user={cid} tried PUT job={job_id}")
             raise HTTPException(403, "ليست وظيفتك أو غير موجودة")
+        # Block editing an expired job (30 days after closure)
+        eff = _eff_status(current_rows[0][2], current_rows[0][3], current_rows[0][4])
+        if eff == 'expired':
+            raise HTTPException(403, "لا يمكن تعديل إعلان انتهت صلاحيته")
 
         # ── Step 2: validate accepted_profession_ids BEFORE any mutation ─────
         # When accepts_all_professions=True, targets are cleared (empty list)
@@ -3452,8 +3461,7 @@ def update_app_status(app_id: int, data: AppStatusInput, token=Depends(verify_to
 @app.get("/admin/jobs")
 def admin_list_jobs(request: Request):
     check_admin(request)
-    jobs = get_jobs({})
-    return {"jobs": jobs, "count": len(jobs)}
+    return get_jobs({})
 
 @app.delete("/admin/jobs/{job_id}")
 def admin_delete_job(job_id: int, request: Request):

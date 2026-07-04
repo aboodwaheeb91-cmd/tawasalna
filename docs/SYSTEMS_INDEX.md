@@ -131,11 +131,11 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 ---
 
 ### 13. Jobs / Job Posting
-**Purpose:** Company posts jobs; employees browse and apply. Job has title, description, location, type, salary, skills, profession_id.
-**Source of Truth:** `jobs` table · `GET /jobs` · `GET /jobs/{id}` · `POST /jobs` (company)
-**Details:** `CLAUDE.md → API Endpoints` · `ARCHITECTURE.md §62` · `docs/company-jobs-and-applicants.md §1–4 §8`
-**Do not recreate:** `jobs.profession_id` is the canonical specialization field — do not use `jobs.category` (legacy) as primary in new features.
-**Job Card (owner):** Design contract is frozen in `docs/company-jobs-and-applicants.md §2`. Owner card has logo + status badge + profession sub-title + structured location. Action buttons (`.joc-btn`) are pill-shaped and must stay inside the card — never below it at full width.
+**Purpose:** Company posts jobs; employees browse and apply. 4-state lifecycle: active → paused ↔ active → closed → (30d) expired. Auto-close after 30 active days via `expires_at`.
+**Source of Truth:** `jobs` table (status, expires_at, closed_at, paused_at) · `_eff_status()` in `auth.py` · `GET /jobs` · `GET /company/jobs` (owner)
+**Details:** `CLAUDE.md → API Endpoints` · `ARCHITECTURE.md §62` · `docs/company-jobs-and-applicants.md §3 §8`
+**Do not recreate:** `effective_status` is computed by `_eff_status()` — never store `'expired'` as a DB status. No cron job for auto-close — it is computed at request time. `jobs.profession_id` is the canonical specialization field.
+**Job Card (owner):** Design contract is frozen in `docs/company-jobs-and-applicants.md §2`. Owner card has logo + status badge + profession sub-title + structured location. Action buttons (`.joc-btn`) are rounded rectangle (border-radius:6px) and must stay inside the card — never below it at full width.
 **Job Location:** `jobs.location` stores `"البلد - المحافظة"` (country + city). Always use `TW.fillCountries()` / `TW.fillCities()` in the job modal — no free-text input. `_shortLoc()` is fallback for old data only.
 
 ---

@@ -193,7 +193,9 @@
 
     jobsList.innerHTML = companyState.jobs.map(function (j) {
       var canApply = companyState.viewMode !== 'owner';
-      var st = j.status || 'active';
+      // effective_status is computed server-side; fall back to stored status
+      var eff = j.effective_status || j.status || 'active';
+      var st  = eff; // use effective status for all UI decisions
 
       // ── Logo: company avatar or initial fallback ───────────────
       var avatarUrl = companyState.profile && companyState.profile.avatar_url;
@@ -205,9 +207,12 @@
             + '</span>';
 
       // Status badge below logo (owner only)
-      var stLblBadge = st === 'paused' ? 'موقوفة' : st === 'closed' ? 'منتهية' : 'نشطة';
+      var stLblMap = { active: 'نشطة', paused: 'موقوفة', closed: 'منتهية', expired: 'انتهت صلاحيته' };
+      var stLblBadge = stLblMap[eff] || 'نشطة';
+      // expired reuses --closed CSS class (same muted color; no new CSS needed)
+      var badgeCls = eff === 'expired' ? 'closed' : eff;
       var statusBadge = !canApply
-        ? '<span class="job-logo-status job-logo-status--' + _esc(st) + '">' + stLblBadge + '</span>'
+        ? '<span class="job-logo-status job-logo-status--' + _esc(badgeCls) + '">' + stLblBadge + '</span>'
         : '';
       var logoHtml = '<div class="job-logo-col"><div class="job-card-logo">' + logoInner + '</div>' + statusBadge + '</div>';
 
@@ -239,18 +244,35 @@
       // ── Right panel ────────────────────────────────────────────
       var rightHtml;
       if (canApply) {
-        rightHtml = '<button class="apply-btn-pill" data-jid="' + _esc(String(j.id)) + '">تقديم الآن</button>';
+        // Visitor: apply button only for truly active jobs; paused shows nothing
+        if (eff === 'active') {
+          rightHtml = '<button class="apply-btn-pill" data-jid="' + _esc(String(j.id)) + '">تقديم الآن</button>';
+        } else {
+          rightHtml = '';
+        }
       } else {
         var jid = parseInt(j.id, 10);
         var cnt = parseInt(j.applicant_count, 10) || 0;
-        rightHtml = '<div class="job-owner-col">'
-          + '<span class="job-applicant-count">عدد المتقدمين <span class="job-cnt-badge">' + cnt + '</span></span>'
-          + '<button type="button" class="joc-btn joc-btn--primary owner-applicants-btn" data-jid="' + jid + '">مشاهدة المتقدمين</button>'
-          + '<button type="button" class="joc-btn joc-btn--muted job-manage-btn" data-jid="' + jid + '" data-status="' + _esc(st) + '">الإدارة</button>'
-          + '</div>';
+        if (eff === 'expired') {
+          // Record only: no actions
+          rightHtml = '<div class="job-owner-col"></div>';
+        } else if (eff === 'closed') {
+          // 30-day viewer window: applicants visible, no manage
+          rightHtml = '<div class="job-owner-col">'
+            + '<span class="job-applicant-count">عدد المتقدمين <span class="job-cnt-badge">' + cnt + '</span></span>'
+            + '<button type="button" class="joc-btn joc-btn--primary owner-applicants-btn" data-jid="' + jid + '">مشاهدة المتقدمين</button>'
+            + '</div>';
+        } else {
+          // active or paused: full controls
+          rightHtml = '<div class="job-owner-col">'
+            + '<span class="job-applicant-count">عدد المتقدمين <span class="job-cnt-badge">' + cnt + '</span></span>'
+            + '<button type="button" class="joc-btn joc-btn--primary owner-applicants-btn" data-jid="' + jid + '">مشاهدة المتقدمين</button>'
+            + '<button type="button" class="joc-btn joc-btn--muted job-manage-btn" data-jid="' + jid + '" data-status="' + _esc(eff) + '">الإدارة</button>'
+            + '</div>';
+        }
       }
 
-      return '<div class="job-card tw-card-lift" data-jid="' + _esc(String(j.id)) + '" data-status="' + _esc(st) + '">'
+      return '<div class="job-card tw-card-lift" data-jid="' + _esc(String(j.id)) + '" data-status="' + _esc(eff) + '">'
         + logoHtml
         + '<div class="job-card-body">'
           + '<div class="job-title">' + _esc(j.title) + '</div>'
@@ -260,6 +282,16 @@
         + rightHtml
         + '</div>';
     }).join('');
+
+    // Visitor summary line: "تم إنهاء X إعلانات وظيفية" shown below job list
+    var isVisitor = companyState.viewMode !== 'owner';
+    var closedCnt = (window.companyState && companyState.closedJobsCount) || 0;
+    if (isVisitor && closedCnt > 0) {
+      var summaryEl = document.createElement('div');
+      summaryEl.className = 'tw-empty-sub';
+      summaryEl.textContent = 'تم إنهاء ' + closedCnt + (closedCnt === 1 ? ' إعلان وظيفي' : ' إعلانات وظيفية');
+      jobsList.appendChild(summaryEl);
+    }
 
     if (window.bindEvents) bindEvents();
   }
