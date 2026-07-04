@@ -1024,15 +1024,16 @@
     if (window.scrollY === 0) _ptr2Start = e.touches[0].clientY;
   }, { passive: true });
   document.addEventListener('touchend', function () {
-    if (_ptr2Active) { _ptr2Active = false; if (window.loadData) loadData(); }
+    if (_ptr2Active) {
+      _ptr2Active = false;
+      if (window.showToast) showToast('جاري التحديث...', 'info', 1200);
+      if (window.loadData) loadData();
+    }
   }, { passive: true });
   document.addEventListener('touchmove', function (e) {
     if (window.scrollY === 0 && _ptr2Start > 0) {
       var diff = e.touches[0].clientY - _ptr2Start;
-      if (diff > 70 && !_ptr2Active) {
-        _ptr2Active = true;
-        if (window.showToast) showToast('جاري التحديث...', 'info', 1500);
-      }
+      if (diff > 120 && !_ptr2Active) { _ptr2Active = true; }
     }
   }, { passive: true });
 }());

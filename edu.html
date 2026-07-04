@@ -800,8 +800,8 @@ function initScrollProg(){
 // ── Pull to Refresh ──
 var _ptrE=0,_ptrEA=false;
 document.addEventListener('touchstart',function(e){if(window.scrollY===0)_ptrE=e.touches[0].clientY;},{passive:true});
-document.addEventListener('touchend',function(e){if(_ptrEA){_ptrEA=false;location.reload();}},{passive:true});
-document.addEventListener('touchmove',function(e){if(window.scrollY===0&&_ptrE>0){var d=e.touches[0].clientY-_ptrE;if(d>70&&!_ptrEA){_ptrEA=true;showToast?showToast('جاري التحديث...','info',1500):null;}}},{passive:true});
+document.addEventListener('touchend',function(e){if(_ptrEA){_ptrEA=false;if(window.showToast)showToast('جاري التحديث...','info',1200);location.reload();}},{passive:true});
+document.addEventListener('touchmove',function(e){if(window.scrollY===0&&_ptrE>0){var d=e.touches[0].clientY-_ptrE;if(d>120&&!_ptrEA){_ptrEA=true;}}},{passive:true});
 
 document.addEventListener('DOMContentLoaded', loadGlobalBadges);
 </script>
