@@ -35,7 +35,7 @@
   function _fmtCountdown(expiresStr) {
     if (!expiresStr) return '';
     var diffMs = new Date(expiresStr) - new Date();
-    if (diffMs <= 0) return 'أقل من دقيقة';
+    if (diffMs <= 0) return 'انتهى التقديم';
     var diffMin = Math.floor(diffMs / 60000);
     if (diffMin < 1) return 'أقل من دقيقة';
     var days  = Math.floor(diffMin / 1440);
