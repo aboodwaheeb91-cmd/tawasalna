@@ -1426,11 +1426,12 @@ def _migrate_jobs_v2():
 
 
 def _migrate_job_lifecycle():
-    """Add closed_at, paused_at lifecycle columns and back-fill expires_at (idempotent)."""
+    """Add lifecycle columns (closed_at, paused_at, duration_days) and back-fill (idempotent)."""
     conn = get_conn()
     try:
         conn.run("ALTER TABLE jobs ADD COLUMN IF NOT EXISTS closed_at TIMESTAMP")
         conn.run("ALTER TABLE jobs ADD COLUMN IF NOT EXISTS paused_at TIMESTAMP")
+        conn.run("ALTER TABLE jobs ADD COLUMN IF NOT EXISTS duration_days SMALLINT DEFAULT 7")
         # Back-fill expires_at for active/paused jobs that predate the lifecycle system
         conn.run("""
             UPDATE jobs
@@ -2026,6 +2027,9 @@ def _eff_status(status: str, closed_at, expires_at, paused_at=None) -> str:
     return status
 
 
+_ALLOWED_DURATIONS = frozenset({3, 7, 14, 30})
+
+
 def add_job(company_id: int, data: dict) -> dict:
     _cache_del('jobs:')
     conn = get_conn()
@@ -2040,16 +2044,26 @@ def add_job(company_id: int, data: dict) -> dict:
         raw_accepted = [] if accepts_all else (data.get("accepted_profession_ids") or [])
         accepted_pids = _validate_accepted_profession_ids(conn, prof_id, raw_accepted)
 
+        # Validate and apply listing duration (default 7 days)
+        raw_dur = data.get("duration_days")
+        if raw_dur is None:
+            dur = 7
+        else:
+            dur = int(raw_dur)
+            if dur not in _ALLOWED_DURATIONS:
+                raise ValueError("مدة استقبال الطلبات يجب أن تكون: 3، 7، 14، أو 30 يوماً")
+
         rows = conn.run(
             "INSERT INTO jobs (company_id, title, description, location, job_type, "
             "salary_min, salary_max, currency, experience_years, skills, status, "
             "category, work_mode, salary_hidden, profession_id, accepts_all_professions, "
-            "expires_at) "
+            f"expires_at, duration_days) "
             "VALUES (:cid, :title, :desc, :loc, :jtype, :smin, :smax, :cur, :exp, "
-            ":skills, 'active', :cat, :wmode, :shide, :profid, :accall, "
-            "NOW() + INTERVAL '30 days') "
+            f":skills, 'active', :cat, :wmode, :shide, :profid, :accall, "
+            f"NOW() + INTERVAL '{dur} days', :dur) "
             "RETURNING id, company_id, title, description, location, job_type, "
             "salary_min, salary_max, currency, experience_years, skills, status, created_at, "
+            "expires_at, duration_days, "
             "category, work_mode, salary_hidden, profession_id, accepts_all_professions",
             cid=company_id, title=data.get("title",""),
             desc=data.get("description",""), loc=data.get("location",""),
@@ -2064,6 +2078,7 @@ def add_job(company_id: int, data: dict) -> dict:
             shide=sal_hidden,
             profid=prof_id,
             accall=accepts_all,
+            dur=dur,
         )
         cols = [c["name"] for c in conn.columns]
         result = _serialize(_row_to_dict(cols, rows[0]))
@@ -2119,7 +2134,7 @@ def get_jobs(filters: dict = None) -> list:
             f"SELECT j.id, j.company_id, j.title, j.description, j.location, "
             f"j.job_type, j.salary_min, j.salary_max, j.currency, "
             f"j.experience_years, j.skills, j.status, j.views, j.created_at, "
-            f"j.expires_at, j.closed_at, "
+            f"j.expires_at, j.closed_at, j.duration_days, "
             f"COALESCE(j.accepts_all_professions, false) AS accepts_all_professions, "
             f"u.full_name AS company_name "
             f"FROM jobs j JOIN users u ON u.id=j.company_id "
@@ -2283,7 +2298,7 @@ def get_company_jobs_all(company_id: int) -> list:
             "SELECT j.id, j.company_id, j.title, j.description, j.location, "
             "j.job_type, j.salary_min, j.salary_max, j.currency, "
             "j.experience_years, j.skills, j.status, j.views, j.created_at, "
-            "j.expires_at, j.closed_at, j.paused_at, "
+            "j.expires_at, j.closed_at, j.paused_at, j.duration_days, "
             "COALESCE(j.accepts_all_professions, false) AS accepts_all_professions, "
             "j.profession_id, j.work_mode, "
             "COALESCE(j.salary_hidden, false) AS salary_hidden, "

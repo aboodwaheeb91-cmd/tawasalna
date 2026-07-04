@@ -592,6 +592,8 @@
     if (expEl) expEl.value = '0';
     var curEl = document.getElementById('j-cur');
     if (curEl) curEl.value = 'USD';
+    var durEl = document.getElementById('j-dur');
+    if (durEl) durEl.value = '7';
     // Clear skill chips
     _jSkills = [];
     var chipsEl = document.getElementById('j-skill-chips');
@@ -720,6 +722,7 @@
       skills:                  _jSkills.slice(),
       accepts_all_professions: acceptsAll,
       accepted_profession_ids: acceptsAll ? [] : _jAccProfs.map(function(p) { return p.id; }),
+      duration_days:           parseInt(val('j-dur')) || 7,
     };
 
     var isEdit  = !!_editJobId;
@@ -748,7 +751,12 @@
         // Update existing job in state in-place
         companyState.jobs = companyState.jobs.map(function (j) {
           if (String(j.id) === String(_editJobId)) {
-            return Object.assign({}, j, payload, { id: j.id, status: j.status, applicant_count: j.applicant_count });
+            var overrides = { id: j.id, status: j.status, applicant_count: j.applicant_count };
+            // Optimistically update expires_at so the countdown tab reflects new duration
+            if (payload.duration_days) {
+              overrides.expires_at = new Date(Date.now() + payload.duration_days * 86400000).toISOString();
+            }
+            return Object.assign({}, j, payload, overrides);
           }
           return j;
         });
@@ -790,6 +798,7 @@
     s('j-wmode', job.work_mode || 'في الموقع');
     s('j-exp',   String(job.experience_years || 0));
     s('j-cur',   job.currency || 'USD');
+    s('j-dur',   String(job.duration_days || 7));
 
     // ── Location: always custom when editing ─────────────────────
     var locMode = document.getElementById('j-loc-mode');

@@ -78,7 +78,7 @@ from auth import (
     get_company_profile_row, get_company_extras,
     update_company_profile,
     _migrate_company_branches, get_company_branches, save_company_branches,
-    _migrate_jobs_v2, _migrate_job_lifecycle, _eff_status,
+    _migrate_jobs_v2, _migrate_job_lifecycle, _eff_status, _ALLOWED_DURATIONS,
     _migrate_taxonomy_foundation,
     _migrate_job_profession_targets,
     _fetch_accepted_professions_batch,
@@ -1218,6 +1218,7 @@ class JobInput(BaseModel):
     profession_id: Optional[int] = None
     accepted_profession_ids: Optional[List[int]] = None
     accepts_all_professions: Optional[bool] = None
+    duration_days: Optional[int] = None
 
 class JobApplyInput(BaseModel):
     user_id: Optional[int] = None  # kept for backward compat — ignored; token user_id is used
@@ -3276,6 +3277,8 @@ def update_job_endpoint(job_id: int, data: JobInput, token=Depends(verify_token)
         # Extract non-column fields before building SQL SET clause
         accepted_pids  = raw_fields.pop("accepted_profession_ids", None)
         accepts_all    = raw_fields.get("accepts_all_professions")
+        # duration_days needs special handling (also updates expires_at)
+        duration_days  = raw_fields.pop("duration_days", None)
         fields = {k: v for k, v in raw_fields.items() if v is not None}
 
         # ── Step 1: ownership check + lifecycle guard (SELECT only — no mutation yet) ──
@@ -3291,6 +3294,9 @@ def update_job_endpoint(job_id: int, data: JobInput, token=Depends(verify_token)
         eff = _eff_status(current_rows[0][2], current_rows[0][3], current_rows[0][4])
         if eff == 'expired':
             raise HTTPException(403, "لا يمكن تعديل إعلان انتهت صلاحيته")
+        # Block duration change on closed/expired jobs
+        if duration_days is not None and eff in ('closed', 'expired'):
+            raise HTTPException(403, "لا يمكن تعديل مدة إعلان منتهٍ")
 
         # ── Step 2: validate accepted_profession_ids BEFORE any mutation ─────
         # When accepts_all_professions=True, targets are cleared (empty list)
@@ -3311,6 +3317,18 @@ def update_job_endpoint(job_id: int, data: JobInput, token=Depends(verify_token)
             conn.run(
                 f"UPDATE jobs SET {set_clause} WHERE id=:id AND company_id=:cid",
                 id=job_id, cid=cid, **fields
+            )
+
+        # ── Step 3b: duration change — validate + reset clock ────────────────
+        if duration_days is not None:
+            dur = int(duration_days)
+            if dur not in _ALLOWED_DURATIONS:
+                raise HTTPException(422, "مدة استقبال الطلبات يجب أن تكون: 3، 7، 14، أو 30 يوماً")
+            conn.run(
+                f"UPDATE jobs SET duration_days={dur}, "
+                f"expires_at=NOW() + INTERVAL '{dur} days' "
+                "WHERE id=:id AND company_id=:cid",
+                id=job_id, cid=cid
             )
 
         # ── Step 4: snapshot-replace accepted professions ─────────────────────
