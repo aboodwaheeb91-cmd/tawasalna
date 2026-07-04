@@ -42,9 +42,15 @@
     var days  = Math.floor(diffMin / 1440);
     var hours = Math.floor((diffMin % 1440) / 60);
     var mins  = diffMin % 60;
-    if (days > 0) return days + 'D ' + hours + 'h ' + mins + 'm';
-    if (hours > 0) return hours + 'h ' + mins + 'm';
-    return mins + 'm';
+    var parts = [];
+    if (days > 0) parts.push(days + 'D');
+    if (days > 0 || hours > 0) parts.push(hours + 'h');
+    parts.push(mins + 'm');
+    while (parts.length > 1) {
+      var last = parts[parts.length - 1];
+      if (last === '0m' || last === '0h') parts.pop(); else break;
+    }
+    return parts.join(' ');
   }
 
   // isOwner = companyState.viewMode === 'owner'
@@ -55,9 +61,9 @@
       cls = 'joc-tab--active';
       var rem = _fmtCountdown(expiresAt);
       if (rem) {
-        text = 'باقي للانتهاء : ' + rem;
+        text = 'ينتهي بعد : ' + rem;
         dataAttrs = ' data-expires="' + _escAttr(String(expiresAt)) + '"'
-          + ' data-label="باقي للانتهاء"'
+          + ' data-label="ينتهي بعد"'
           + ' data-expire-text="انتهى التقديم"';
       } else {
         text = 'انتهى التقديم';
