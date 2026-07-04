@@ -32,46 +32,84 @@
   }
 
   // ── Job card tab (lifecycle countdown / status label) ─────────
+  // Returns English-format time string, or null when the deadline has passed.
   function _fmtCountdown(expiresStr) {
-    if (!expiresStr) return '';
+    if (!expiresStr) return null;
     var diffMs = new Date(expiresStr) - new Date();
-    if (diffMs <= 0) return 'انتهى التقديم';
+    if (diffMs <= 0) return null;
     var diffMin = Math.floor(diffMs / 60000);
-    if (diffMin < 1) return 'أقل من دقيقة';
+    if (diffMin < 1) return '< 1m';
     var days  = Math.floor(diffMin / 1440);
     var hours = Math.floor((diffMin % 1440) / 60);
     var mins  = diffMin % 60;
-    if (days > 0) return days + 'ي ' + hours + 'س ' + mins + 'د';
-    if (hours > 0) return hours + 'س ' + mins + 'د';
-    return mins + 'د';
+    if (days > 0) return days + 'D ' + hours + 'h ' + mins + 'm';
+    if (hours > 0) return hours + 'h ' + mins + 'm';
+    return mins + 'm';
   }
 
-  function _buildTabHtml(eff, expiresAt) {
-    var cls, text;
+  // isOwner = companyState.viewMode === 'owner'
+  function _buildTabHtml(eff, expiresAt, closedAt, isOwner) {
+    var cls, text, dataAttrs = '';
+
     if (eff === 'active') {
-      cls  = 'joc-tab--active';
-      text = _fmtCountdown(expiresAt) || '—';
+      cls = 'joc-tab--active';
+      var rem = _fmtCountdown(expiresAt);
+      if (rem) {
+        text = 'باقي للانتهاء : ' + rem;
+        dataAttrs = ' data-expires="' + _escAttr(String(expiresAt)) + '"'
+          + ' data-label="باقي للانتهاء"'
+          + ' data-expire-text="انتهى التقديم"';
+      } else {
+        text = 'انتهى التقديم';
+      }
+
     } else if (eff === 'paused') {
       cls  = 'joc-tab--paused';
       text = 'موقوف مؤقتاً';
+
     } else if (eff === 'closed') {
-      cls  = 'joc-tab--closed';
-      text = 'انتهى التقديم';
-    } else {
+      cls = 'joc-tab--closed';
+      if (isOwner) {
+        // 30-day management window from closed_at (or expires_at as fallback)
+        var ref = closedAt || expiresAt;
+        var deadline = ref
+          ? new Date(new Date(ref).getTime() + 30 * 86400000).toISOString()
+          : null;
+        var rem2 = deadline ? _fmtCountdown(deadline) : null;
+        if (rem2) {
+          text = 'باقي للاغلاق : ' + rem2;
+          dataAttrs = ' data-expires="' + _escAttr(deadline) + '"'
+            + ' data-label="باقي للاغلاق"'
+            + ' data-expire-text="تم الاغلاق"';
+        } else {
+          text = 'تم الاغلاق';
+        }
+      } else {
+        text = 'انتهى التقديم';
+      }
+
+    } else { // expired
       cls  = 'joc-tab--expired';
-      text = 'تم إغلاق الإعلان';
+      text = isOwner ? 'تم الاغلاق' : 'انتهى التقديم';
     }
-    var expAttr = (eff === 'active' && expiresAt)
-      ? ' data-expires="' + _escAttr(String(expiresAt)) + '"' : '';
-    return '<div class="joc-tab ' + cls + '"' + expAttr + '>' + _esc(text) + '</div>';
+
+    return '<div class="joc-tab ' + cls + '"' + dataAttrs + '>' + _esc(text) + '</div>';
   }
 
   function _startTabCountdown() {
     clearInterval(window._jocTabTimer);
     window._jocTabTimer = setInterval(function () {
-      var tabs = document.querySelectorAll('.joc-tab--active[data-expires]');
+      var tabs = document.querySelectorAll('.joc-tab[data-expires]');
       for (var i = 0; i < tabs.length; i++) {
-        tabs[i].textContent = _fmtCountdown(tabs[i].getAttribute('data-expires'));
+        var tab   = tabs[i];
+        var rem   = _fmtCountdown(tab.getAttribute('data-expires'));
+        var label = tab.getAttribute('data-label') || '';
+        if (rem) {
+          tab.textContent = label ? label + ' : ' + rem : rem;
+        } else {
+          tab.textContent = tab.getAttribute('data-expire-text') || 'انتهى التقديم';
+          tab.removeAttribute('data-expires'); // stop updating this tab
+        }
       }
     }, 60000);
   }
@@ -318,7 +356,7 @@
       }
 
       return '<div class="job-card-wrap">'
-        + _buildTabHtml(eff, j.expires_at)
+        + _buildTabHtml(eff, j.expires_at, j.closed_at, !canApply)
         + '<div class="job-card tw-card-lift" data-jid="' + _esc(String(j.id)) + '" data-status="' + _esc(eff) + '">'
         + logoHtml
         + '<div class="job-card-body">'
