@@ -481,11 +481,73 @@
     img.src = src; img.style.display = 'block';
     setTimeout(function () { img.style.opacity = '1'; }, 50);
   }
+  var isUploadingCover = false;
   function uploadCover(input) {
-    if (!input.files[0]) return;
+    var file = input.files && input.files[0];
+    input.value = '';
+    if (!file) return;
+
+    if (!/^image\/(jpeg|png|webp)$/.test(file.type)) {
+      if (window.showToast) showToast('يُقبل: JPEG أو PNG أو WebP فقط', 'error');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      if (window.showToast) showToast('حجم الصورة يتجاوز الحد الأقصى 5MB', 'error');
+      return;
+    }
+
+    var userId = window.companyState && companyState.profile && companyState.profile.id;
+    if (!userId) return;
+    var jwt = window._jwt ? _jwt() : '';
+    if (!jwt) { window.location.href = '/login'; return; }
+
+    if (isUploadingCover) return;
+    isUploadingCover = true;
+    var uploadBtn = document.getElementById('coverUploadBtn');
+    if (uploadBtn) uploadBtn.style.pointerEvents = 'none';
+
     var reader = new FileReader();
-    reader.onload = function (e) { setCover(e.target.result); };
-    reader.readAsDataURL(input.files[0]);
+    reader.onload = function (e) {
+      var dataUrl = e.target.result;
+
+      fetch('/upload/image', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + jwt },
+        body:    JSON.stringify({ user_id: userId, bucket: 'avatars', filename: 'cover', data_url: dataUrl }),
+      })
+      .then(function (r) {
+        if (!r.ok) throw new Error('upload_fail');
+        return r.json();
+      })
+      .then(function (res) {
+        if (!res || !res.url) throw new Error('no_url');
+        var url = res.url;
+        return fetch('/company/cover/' + userId, {
+          method:  'PUT',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + jwt },
+          body:    JSON.stringify({ cover_url: url }),
+        })
+        .then(function (r2) {
+          if (!r2.ok) throw new Error('save_fail');
+          return url;
+        });
+      })
+      .then(function (url) {
+        if (window.companyState && companyState.company) {
+          companyState.company.cover_url = url;
+        }
+        setCover(url);
+        if (window.showToast) showToast('تم حفظ صورة الغلاف ✓');
+      })
+      .catch(function () {
+        if (window.showToast) showToast('تعذّر رفع الغلاف، حاول مرة أخرى', 'error');
+      })
+      .finally(function () {
+        isUploadingCover = false;
+        if (uploadBtn) uploadBtn.style.pointerEvents = '';
+      });
+    };
+    reader.readAsDataURL(file);
   }
 
   // ── Logo photo — upload to Supabase + persist url in profiles.avatar_url ──

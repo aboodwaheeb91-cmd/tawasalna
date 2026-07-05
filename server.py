@@ -1005,6 +1005,23 @@ def update_co_profile(company_id: int, data: CoProfileInput, token=Depends(verif
     return {"status": "success", "company": company}
 
 
+class CoverUrlInput(BaseModel):
+    cover_url: str
+
+
+@app.put("/company/cover/{company_id}")
+def update_co_cover(company_id: int, data: CoverUrlInput, token=Depends(verify_token)):
+    """Update cover photo URL only. Does not require industry. Owner JWT required."""
+    tok_uid   = token.get("user_id")
+    tok_utype = token.get("user_type")
+    if str(tok_uid) != str(company_id) or tok_utype != "co":
+        raise HTTPException(403, "غير مصرح")
+    updated = update_company_profile(company_id, {"cover_url": data.cover_url})
+    if not updated:
+        raise HTTPException(500, "تعذّر حفظ الغلاف")
+    return {"status": "success"}
+
+
 # ── Company Branches ──────────────────────────────────────────────────────────
 
 @app.get("/company/branches/{company_id}")
