@@ -236,6 +236,7 @@
   var _professions  = [];
   var _editJobId    = null;  // null = create mode, int = edit mode
   var _pendingProfId = null; // profession_id to select after async professions load
+  var _postJobHistoryPushed = false; // true after pushState for postJob/editJob modal
 
   function _rebuildProfSelect() {
     var sel = document.getElementById('j-prof');
@@ -701,7 +702,10 @@
     _onJobLocModeChange();
     var el = document.getElementById('postJobOverlay');
     if (el) el.classList.add('show');
-    if (window.history) history.pushState({ modal: 'postJob' }, '', location.href);
+    if (window.history && !_postJobHistoryPushed) {
+      history.pushState({ modal: 'postJob' }, '', location.href);
+      _postJobHistoryPushed = true;
+    }
   }
 
   function publishJob() {
@@ -775,8 +779,7 @@
       if (data.status !== 'success') throw new Error(data.detail || 'فشل الحفظ');
 
       // ── Confirmed Immediate Update ────────────────────────────
-      var ov = document.getElementById('postJobOverlay');
-      if (ov) ov.classList.remove('show');
+      _closePostJobOverlay();
       if (window.showToast) showToast(isEdit ? 'تم تحديث الوظيفة ✓' : 'تم نشر الوظيفة ✓');
 
       if (isEdit) {
@@ -909,7 +912,23 @@
     hydrateEditJobForm(job);
     var el = document.getElementById('postJobOverlay');
     if (el) el.classList.add('show');
-    if (window.history) history.pushState({ modal: 'editJob' }, '', location.href);
+    if (window.history && !_postJobHistoryPushed) {
+      history.pushState({ modal: 'editJob' }, '', location.href);
+      _postJobHistoryPushed = true;
+    }
+  }
+
+  // ── Close postJob/editJob overlay (Rule #17) ───────────────────
+  // fromPopstate=true means popstate already moved back; skip history.back().
+  function _closePostJobOverlay(fromPopstate) {
+    var el = document.getElementById('postJobOverlay');
+    if (el) el.classList.remove('show');
+    if (_postJobHistoryPushed && !fromPopstate) {
+      _postJobHistoryPushed = false;
+      if (window.history) history.back();
+    } else {
+      _postJobHistoryPushed = false;
+    }
   }
 
   // ── Job management — delete ────────────────────────────────────
@@ -1005,7 +1024,7 @@
 
     var postJobOverlay = q('postJobOverlay');
     if (postJobOverlay) postJobOverlay.addEventListener('click', function (e) {
-      if (e.target === this) this.classList.remove('show');
+      if (e.target === this) _closePostJobOverlay();
     });
 
     var publishJobBtn = q('publishJobBtn');
@@ -1014,9 +1033,7 @@
     // Two cancel buttons: header X and footer cancel
     ['postJobCancelBtn', 'postJobCancelFootBtn'].forEach(function(id) {
       var btn = q(id);
-      if (btn) btn.addEventListener('click', function () {
-        var ov = q('postJobOverlay'); if (ov) ov.classList.remove('show');
-      });
+      if (btn) btn.addEventListener('click', _closePostJobOverlay);
     });
   }
 
@@ -1039,6 +1056,7 @@
   window.publishJob            = publishJob;
   window.hydrateEditJobForm    = hydrateEditJobForm;
   window.openEditJob           = openEditJob;
+  window._closePostJobOverlay  = _closePostJobOverlay;
   window.toggleJobStatus       = toggleJobStatus;
   window.closeJob              = closeJob;
   window._onJobLocModeChange   = _onJobLocModeChange;
