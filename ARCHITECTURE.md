@@ -828,8 +828,8 @@ Phase 3 — Social Features (مكتمل):
   ✅ follow/unfollow real
   ✅ rating display real
 
-Phase 4 — Polish (جزئي):
-  Back button (Rule #17) — pending
+Phase 4 — Polish (مكتمل):
+  ✅ Back button (Rule #17) — contact / edit / postJob / editJob / postOverlay / applicants (PRs #363 #364)
   ✅ Render functions موحدة (modular architecture — static/company/ modules)
   ✅ State deduplication (companyState SSOT — _mergeCompanyState)
 
