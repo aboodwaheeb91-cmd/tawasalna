@@ -335,7 +335,7 @@
       if (canApply) {
         // Visitor: apply button only for truly active jobs; paused shows nothing
         if (eff === 'active') {
-          rightHtml = '<button class="apply-btn-pill" data-jid="' + _esc(String(j.id)) + '">تقديم الآن</button>';
+          rightHtml = '<div class="job-owner-col"><button class="joc-btn joc-btn--primary visitor-detail-btn" data-jid="' + _esc(String(j.id)) + '">عرض التفاصيل</button></div>';
         } else {
           rightHtml = '';
         }
