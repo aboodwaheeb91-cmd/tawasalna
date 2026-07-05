@@ -110,11 +110,20 @@
   function openContact() {
     var el = document.getElementById('contactOverlay');
     if (el) el.classList.add('show');
-    if (window.history) history.pushState({ modal: 'contact' }, '', location.href);
+    if (window.history && !_contactHistoryPushed) {
+      history.pushState({ modal: 'contact' }, '', location.href);
+      _contactHistoryPushed = true;
+    }
   }
   function closeContact(e) {
     var el = document.getElementById('contactOverlay');
-    if (!e || e.target === el) el && el.classList.remove('show');
+    if (!e || e.target === el) {
+      if (el) el.classList.remove('show');
+      if (_contactHistoryPushed) {
+        _contactHistoryPushed = false;
+        if (window.history) history.back();
+      }
+    }
   }
   var isSendingMsg = false;
   function sendMsg() {
@@ -349,14 +358,23 @@
 
     var ov = document.getElementById('editOverlay');
     if (ov) ov.classList.add('show');
-    if (window.history) history.pushState({ modal: 'edit' }, '', location.href);
+    if (window.history && !_editHistoryPushed) {
+      history.pushState({ modal: 'edit' }, '', location.href);
+      _editHistoryPushed = true;
+    }
 
     // Apply custom dropdown to all ep-select elements inside the modal
     if (window.scSelectInit) scSelectInit();
   }
   function closeEdit(e) {
     var el = document.getElementById('editOverlay');
-    if (!e || e.target === el) el && el.classList.remove('show');
+    if (!e || e.target === el) {
+      if (el) el.classList.remove('show');
+      if (_editHistoryPushed) {
+        _editHistoryPushed = false;
+        if (window.history) history.back();
+      }
+    }
   }
   function _parseOk(r) {
     if (!r.ok) return r.json().then(function (d) { throw new Error(d.detail || ('HTTP ' + r.status)); });
@@ -676,6 +694,8 @@
   var _appJobId               = null;
   var _appLoading             = false;
   var _appModalHistoryPushed  = false; // true after pushState for applicants modal
+  var _contactHistoryPushed   = false; // true after pushState for contact modal
+  var _editHistoryPushed      = false; // true after pushState for edit modal
   var _astFloat               = null;   // singleton floating status dropdown (body-level)
   var _astFloatTrigger        = null;   // trigger button that opened the float
   var _cardListenerBound      = false;  // delegation guard for #coAppList
@@ -1020,9 +1040,30 @@
     });
   }
 
-  // Android back button: close applicants modal on popstate.
-  // Clear flag BEFORE closing so closeApplicantsModal does not call history.back() again.
+  // Back button: close the topmost open modal on popstate.
+  // Always clear the flag BEFORE calling close so the close fn does not re-fire history.back().
   window.addEventListener('popstate', function () {
+    // edit modal (highest z-order — check first)
+    var editEl = document.getElementById('editOverlay');
+    if (editEl && editEl.classList.contains('show')) {
+      _editHistoryPushed = false;
+      closeEdit();
+      return;
+    }
+    // contact modal
+    var contactEl = document.getElementById('contactOverlay');
+    if (contactEl && contactEl.classList.contains('show')) {
+      _contactHistoryPushed = false;
+      closeContact();
+      return;
+    }
+    // postJob / editJob modal (handled by company.jobs.js via _closePostJobOverlay)
+    var postJobEl = document.getElementById('postJobOverlay');
+    if (postJobEl && postJobEl.classList.contains('show')) {
+      if (window._closePostJobOverlay) window._closePostJobOverlay(true);
+      return;
+    }
+    // applicants modal
     var modal = document.getElementById('coApplicantsModal');
     if (modal && modal.style.display !== 'none') {
       _appModalHistoryPushed = false;
@@ -1034,6 +1075,8 @@
   function initCompanyProfile() {
     if (window.__companyBooted) return;
     window.__companyBooted = true;
+    // Rule #17: stamp the base history entry once so popstate always has a baseline.
+    if (window.history) history.replaceState({ modal: null }, '', location.href);
     if (window._applyLoadingState) _applyLoadingState(true);
     if (window.loadData) loadData();
   }
@@ -1106,9 +1149,7 @@
     var editOverlay   = q('editOverlay');   if (editOverlay)   editOverlay.addEventListener('click', closeEdit);
     var editSaveBtn   = q('editSaveBtn');   if (editSaveBtn)   editSaveBtn.addEventListener('click', saveEdit);
     var editCancelBtn = q('editCancelBtn');
-    if (editCancelBtn) editCancelBtn.addEventListener('click', function () {
-      var ov = q('editOverlay'); if (ov) ov.classList.remove('show');
-    });
+    if (editCancelBtn) editCancelBtn.addEventListener('click', function () { closeEdit(); });
 
     // Country dropdown → reload city list
     var eCountry = q('e-country');
@@ -1122,9 +1163,7 @@
     var contactOverlay   = q('contactOverlay');   if (contactOverlay)   contactOverlay.addEventListener('click', closeContact);
     var contactSendBtn   = q('contactSendBtn');   if (contactSendBtn)   contactSendBtn.addEventListener('click', sendMsg);
     var contactCancelBtn = q('contactCancelBtn');
-    if (contactCancelBtn) contactCancelBtn.addEventListener('click', function () {
-      var ov = q('contactOverlay'); if (ov) ov.classList.remove('show');
-    });
+    if (contactCancelBtn) contactCancelBtn.addEventListener('click', function () { closeContact(); });
 
     // Report modal
     var reportSubmitBtn = q('reportSubmitBtn'); if (reportSubmitBtn) reportSubmitBtn.addEventListener('click', submitReport);
