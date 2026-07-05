@@ -1063,6 +1063,12 @@
       if (window._closePostJobOverlay) window._closePostJobOverlay(true);
       return;
     }
+    // post (create post) modal (handled by company.posts.js via _closePostOverlay)
+    var postEl = document.getElementById('postOverlay');
+    if (postEl && postEl.classList.contains('show')) {
+      if (window._closePostOverlay) window._closePostOverlay(true);
+      return;
+    }
     // applicants modal
     var modal = document.getElementById('coApplicantsModal');
     if (modal && modal.style.display !== 'none') {

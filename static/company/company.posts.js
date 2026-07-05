@@ -3,14 +3,30 @@
 (function () {
   'use strict';
 
-  var isPostCreating = false;
-  var isPostDeleting = false;
+  var isPostCreating       = false;
+  var isPostDeleting       = false;
+  var _postHistoryPushed   = false; // true after pushState for post modal
 
   function openPostModal() {
     if (!window.companyState || !companyState.permissions.can_edit) return;
     var ov = document.getElementById('postOverlay');
     if (ov) ov.classList.add('show');
-    if (window.history) history.pushState({ modal: 'post' }, '', location.href);
+    if (window.history && !_postHistoryPushed) {
+      history.pushState({ modal: 'post' }, '', location.href);
+      _postHistoryPushed = true;
+    }
+  }
+
+  // fromPopstate=true means popstate already moved back; skip history.back().
+  function _closePostOverlay(fromPopstate) {
+    var ov = document.getElementById('postOverlay');
+    if (ov) ov.classList.remove('show');
+    if (_postHistoryPushed && !fromPopstate) {
+      _postHistoryPushed = false;
+      if (window.history) history.back();
+    } else {
+      _postHistoryPushed = false;
+    }
   }
 
   function createPost() {
@@ -39,8 +55,7 @@
       return r.json();
     })
     .then(function () {
-      var ov = document.getElementById('postOverlay');
-      if (ov) ov.classList.remove('show');
+      _closePostOverlay();
       if (bodyEl) bodyEl.value = '';
       if (tagsEl) tagsEl.value = '';
       if (window.loadPosts) loadPosts(true);
@@ -87,20 +102,19 @@
 
     var postOverlay = q('postOverlay');
     if (postOverlay) postOverlay.addEventListener('click', function (e) {
-      if (e.target === this) this.classList.remove('show');
+      if (e.target === this) _closePostOverlay();
     });
 
     var createPostBtn = q('createPostBtn'); if (createPostBtn) createPostBtn.addEventListener('click', createPost);
 
     var postCancelBtn = q('postCancelBtn');
-    if (postCancelBtn) postCancelBtn.addEventListener('click', function () {
-      var ov = q('postOverlay'); if (ov) ov.classList.remove('show');
-    });
+    if (postCancelBtn) postCancelBtn.addEventListener('click', _closePostOverlay);
   }
 
-  window.openPostModal = openPostModal;
-  window.createPost    = createPost;
-  window.deletePost    = deletePost;
+  window.openPostModal      = openPostModal;
+  window._closePostOverlay  = _closePostOverlay;
+  window.createPost         = createPost;
+  window.deletePost         = deletePost;
 
   document.addEventListener('DOMContentLoaded', function () {
     _bindPostEvents();
