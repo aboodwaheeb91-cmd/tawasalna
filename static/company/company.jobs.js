@@ -134,6 +134,12 @@
           _applyJob(e.target, card.dataset.jid);
           return;
         }
+        var detailBtn = e.target.closest('.visitor-detail-btn');
+        if (detailBtn) {
+          e.stopPropagation();
+          window.location.href = '/job-detail?id=' + card.dataset.jid;
+          return;
+        }
         var appBtn = e.target.closest('.owner-applicants-btn');
         if (appBtn) {
           e.preventDefault();
@@ -149,7 +155,9 @@
           return;
         }
         if (e.target.closest('button, a')) { return; }
-        window.location.href = '/job-detail?id=' + card.dataset.jid;
+        if (window.companyState && companyState.viewMode === 'owner') {
+          window.location.href = '/job-detail?id=' + card.dataset.jid;
+        }
       });
     }
     if (window.bindRateStars) bindRateStars();
@@ -1007,9 +1015,9 @@
 
   // _loadProfessions() requires #j-prof element (modal). Fetch catalog eagerly here
   // so _getProfName() is ready when renderJobs() first runs after loadData().
+  // /professions is public — no JWT needed; fetch for all viewer types.
   (function _prefetchProfCatalog() {
-    if (!window._jwt || !_jwt()) return;
-    fetch('/professions', { headers: { 'Authorization': 'Bearer ' + _jwt() } })
+    fetch('/professions')
       .then(function (r) { return r.json(); })
       .then(function (data) {
         if (_professions.length) return; // already populated (modal opened first)
