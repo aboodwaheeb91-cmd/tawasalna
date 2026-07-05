@@ -5,6 +5,28 @@
 
   var isRateLoading = false;
 
+  // ── Visitor job card actions — share + save ────────────────────
+  function _shareFallback(url) {
+    var ta = document.createElement('textarea');
+    ta.value = url; ta.style.cssText = 'position:fixed;opacity:0;top:0;left:0';
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); if (window.showToast) showToast('تم نسخ رابط الوظيفة ✓'); }
+    catch (e) { if (window.showToast) showToast('الرابط: ' + url); }
+    document.body.removeChild(ta);
+  }
+  function _shareJob(jid) {
+    var url = (location.origin || '') + '/job-detail?id=' + encodeURIComponent(jid);
+    if (navigator.share) {
+      navigator.share({ title: 'وظيفة على تواصلنا', url: url }).catch(function () {});
+    } else if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(url)
+        .then(function () { if (window.showToast) showToast('تم نسخ رابط الوظيفة ✓'); })
+        .catch(function () { _shareFallback(url); });
+    } else {
+      _shareFallback(url);
+    }
+  }
+
   // ── Apply ──────────────────────────────────────────────────────
   function _applyJob(btn, jobId) {
     if (!jobId) return;
@@ -152,6 +174,24 @@
           e.preventDefault();
           e.stopPropagation();
           _openJobMgmtDrop(manageBtn, parseInt(card.dataset.jid, 10), manageBtn.getAttribute('data-status'));
+          return;
+        }
+        var saveBtn = e.target.closest('.vjc-btn--save');
+        if (saveBtn) {
+          e.stopPropagation();
+          if (window.showToast) showToast('ميزة حفظ الوظائف ستتوفر قريباً');
+          return;
+        }
+        var shareBtn = e.target.closest('.vjc-btn--share');
+        if (shareBtn) {
+          e.stopPropagation();
+          _shareJob(card.dataset.jid);
+          return;
+        }
+        var statusBtn = e.target.closest('.vjc-btn--apply-status');
+        if (statusBtn) {
+          e.stopPropagation();
+          window.location.href = '/job-detail?id=' + card.dataset.jid;
           return;
         }
         if (e.target.closest('button, a')) { return; }

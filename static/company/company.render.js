@@ -279,6 +279,11 @@
     var icoPin   = '<svg class="jmr-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>';
     var icoBriefcase = '<svg class="jmr-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/><rect width="20" height="14" x="2" y="7" rx="2"/></svg>';
     var icoClock  = '<svg class="jmr-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>';
+    // Visitor action row icons
+    var icoBookmark = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>';
+    var icoShare    = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>';
+    var icoApplied  = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>';
+    var icoNotApp   = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>';
 
     jobsList.innerHTML = companyState.jobs.map(function (j) {
       var canApply = companyState.viewMode !== 'owner';
@@ -333,9 +338,21 @@
       // ── Right panel ────────────────────────────────────────────
       var rightHtml;
       if (canApply) {
-        // Visitor: apply button only for truly active jobs; paused shows nothing
+        // Visitor: detail button + 3 icon actions for active jobs; paused shows nothing
         if (eff === 'active') {
-          rightHtml = '<div class="job-owner-col"><button class="joc-btn joc-btn--primary visitor-detail-btn" data-jid="' + _escAttr(String(j.id)) + '">عرض التفاصيل</button></div>';
+          var jidStr = _escAttr(String(j.id));
+          var isApplied = (companyState.appliedJobIds instanceof Set)
+            ? companyState.appliedJobIds.has(j.id) : false;
+          var applyStatusCls = isApplied ? 'vjc-btn--applied' : 'vjc-btn--not-applied';
+          var applyTitle     = isApplied ? 'تم التقديم' : 'لم تتقدم بعد';
+          rightHtml = '<div class="job-owner-col">'
+            + '<button class="joc-btn joc-btn--primary visitor-detail-btn" data-jid="' + jidStr + '">عرض التفاصيل</button>'
+            + '<div class="vjc-actions">'
+            + '<button type="button" class="vjc-btn vjc-btn--save" title="حفظ الوظيفة">' + icoBookmark + '</button>'
+            + '<button type="button" class="vjc-btn vjc-btn--share" title="مشاركة الوظيفة">' + icoShare + '</button>'
+            + '<button type="button" class="vjc-btn vjc-btn--apply-status ' + applyStatusCls + '" title="' + _escAttr(applyTitle) + '">' + (isApplied ? icoApplied : icoNotApp) + '</button>'
+            + '</div>'
+            + '</div>';
         } else {
           rightHtml = '';
         }
