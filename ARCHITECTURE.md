@@ -808,29 +808,43 @@ Phase 1 — Security Foundation (مكتمل):
   ✅ X-User-Id أُزيل من /jobs/{id}/applicants, /my/applications, /jobs/applications/{id}/status
   ✅ Status allowlist validation على PUT /jobs/applications/{id}/status
 
-Phase 1.5 — Modularization (مكتمل — PR #224):
+Phase 1.5 — Modularization (مكتمل — PR #224 + PR #361):
   ✅ CSS نُقل من company-profile.html → static/company/company.css
   ✅ JS نُقل من company-profile.html + company-profile.js → static/company/ modules
-  ✅ company-profile.html أصبح HTML هيكل فقط (no inline <style> or <script>)
+  ✅ company-profile.html أصبح HTML هيكل فقط (no inline <style>, <script>, أو event handlers)
   ✅ company-profile.js (القديم) لا يُحمَّل بعد الآن (superseded by modules)
   ✅ لا تغيير في التصميم / لا تغيير في API / Security P0 محفوظة
+  ✅ inline event handlers نُقلت إلى JS delegation في initCompanyProfile() — PR #361
 
-Phase 2 — Schema + Real Data:
-  company_profiles table migration
-  Real data: jobs_count, verified_count من DB
-  Skeleton loader
-  إخفاء hardcoded sections
+Phase 2 — Schema + Real Data (مكتمل):
+  ✅ company_profiles table migration
+  ✅ Real data: jobs_count, verified_count من DB
+  ✅ Skeleton loader (co-loading CSS state + .tw-skeleton animation)
+  ✅ إخفاء hardcoded sections (renderAll() يولد كل المحتوى من companyState)
 
-Phase 3 — Social Features:
-  company_follows table + endpoints
-  company_ratings table + endpoints
-  follow/unfollow real
-  rating display real
+Phase 3 — Social Features (مكتمل):
+  ✅ company_follows table + endpoints
+  ✅ company_ratings table + endpoints
+  ✅ follow/unfollow real
+  ✅ rating display real
 
-Phase 4 — Polish:
-  Back button (Rule #17)
-  Render functions موحدة
-  State deduplication
+Phase 4 — Polish (جزئي):
+  Back button (Rule #17) — pending
+  ✅ Render functions موحدة (modular architecture — static/company/ modules)
+  ✅ State deduplication (companyState SSOT — _mergeCompanyState)
+
+Phase 5 — Quality & Security Fixes (مكتمل — PRs #355–#361):
+  ✅ job location mode guard — TW.fillCountries لا يمسح اختيار المستخدم عند التبديل (PR #355)
+  ✅ effective_status لـ lifecycle الوظيفة (active/paused/closed/expired) — عرض متسق
+  ✅ contact form يرسل عبر /messages/send endpoint
+  ✅ location dropdowns: country + city من TW shared system (لا hardcoded)
+  ✅ rating يعمل عبر /u/{tw_id} (Smart Router)
+  ✅ Applicants Modal: أزرار قبول مبدئي / رفض (PUT /jobs/applications/{id}/status) — PR #356
+  ✅ Applicants Modal: avatar من profiles.avatar_url مع char fallback عند الخطأ — PR #357
+  ✅ saved-candidates badge يعتمد stats.total حصراً (لا res.data.count) — PR #358
+  ✅ _escAttr في HTML attribute positions (بدلاً من _esc) — PR #359
+  ✅ production console.info diagnostic أُزيل من loadData().finally() — PR #360
+  ✅ inline event handlers نُقلت من HTML إلى JS delegation في initCompanyProfile() — PR #361
 
 ممنوع الانتقال لـ Phase التالية قبل إغلاق الحالية واختبارها.
 ```
@@ -943,11 +957,11 @@ function saveEdit() {
 ## [P1] Controlled Exception 06 — Rating eligibility (Phase 2)
 
 - **القاعدة الأصلية:** التقييم من موظف سابق فقط (verified employment via hired status)
-- **الوضع المؤقت (Phase 2):** أي مستخدم user_type='emp' يستطيع التقييم
-- **السبب:** قيد "موظف سابق" يحتاج job_applications مع status='hired' flow — غير جاهز في Phase 2
-- **الحد:** Phase 3 يضيف القيد. الحقل permissions.can_rate يبقى محكوماً من backend فقط
+- **الوضع المؤقت (مستمر):** أي مستخدم user_type='emp' يستطيع التقييم
+- **السبب:** قيد "موظف سابق" يحتاج job_applications مع status='hired' flow — لم يُبنَ بعد
+- **الحد:** الحقل permissions.can_rate يبقى محكوماً من backend فقط
 - **الأمان:** لا أثر أمني — مجرد قيد business يُضيَّق لاحقاً
-- **الإزالة:** عند بناء hired-status flow في Phase 3
+- **الإزالة:** عند بناء hired-status flow (لم يُجدوَل بعد)
 
 ## Phase 2 Schema — company tables (مثبّت)
 
