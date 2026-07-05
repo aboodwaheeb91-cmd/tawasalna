@@ -1852,10 +1852,13 @@
   }
 
   // Build status <option> list
-  // Build custom job picker from companyState.jobs (open jobs only)
+  // Build custom job picker from companyState.jobs (active/paused jobs + legacy 'open')
   function _jobDpHTML(currentJobId) {
     var jobs = (window.companyState && companyState.jobs)
-      ? companyState.jobs.filter(function (j) { return j.status === 'open'; })
+      ? companyState.jobs.filter(function (j) {
+          var eff = j.effective_status || j.status;
+          return eff === 'active' || eff === 'paused' || j.status === 'open';
+        })
       : [];
     if (!jobs.length) return '';
     var opts = [{value: '', label: '— بدون وظيفة محددة —'}];
