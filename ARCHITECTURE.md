@@ -754,7 +754,8 @@ function _mergeCompanyState(apiResponse) {
 ### Authorization per Endpoint:
 ```
 GET  /company/profile/{id}          → Optional JWT | Public read
-PUT  /company/profile/{id}          → JWT + token.user_id == id + user_type=='co'
+PUT  /company/profile/{id}          → JWT + token.user_id == id + user_type=='co' (requires industry)
+PUT  /company/cover/{id}            → JWT + token.user_id == id + user_type=='co' (cover_url only — no industry required)
 POST /company/jobs                  → JWT + user_type=='co'
 PUT  /company/jobs/{job_id}         → JWT + token.user_id == jobs.company_id
 DELETE /company/jobs/{job_id}       → JWT + token.user_id == jobs.company_id
