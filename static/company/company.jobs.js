@@ -538,7 +538,10 @@
     if (mode === 'custom' && window.TW) {
       var countrySel = document.getElementById('j-loc-country');
       if (countrySel) {
-        TW.fillCountries(countrySel, '— اختر الدولة —', { valueMode: 'name_ar' });
+        // Only populate if empty — preserves user selection on mode toggle and edit hydration
+        if (countrySel.options.length <= 1) {
+          TW.fillCountries(countrySel, '— اختر الدولة —', { valueMode: 'name_ar' });
+        }
         if (!countrySel.dataset.cityBound) {
           countrySel.dataset.cityBound = '1';
           countrySel.addEventListener('change', function () {
