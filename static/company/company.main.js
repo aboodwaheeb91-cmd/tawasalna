@@ -520,7 +520,8 @@
         return r.json();
       })
       .then(function (res) {
-        var url = (res && res.url) ? res.url : dataUrl;
+        if (!res || !res.url) throw new Error('no_url');
+        var url = res.url;
         return fetch('/company/cover/' + userId, {
           method:  'PUT',
           headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + jwt },
