@@ -842,6 +842,7 @@
       btn.textContent = 'تم الحفظ ✓';
       btn.classList.add('saved');
       btn.disabled = true;
+      if (window._loadCandidatesBadge) window._loadCandidatesBadge();
     })
     .catch(function (err) {
       btn.disabled    = false;
@@ -1645,12 +1646,7 @@
 
   function _loadBadge() {
     if (!_isOwner()) return;
-    if (!window.getSavedCandidatesCount) return;
-    window.getSavedCandidatesCount()
-      .then(function (res) {
-        if (res && res.ok && res.data) _setBadge(res.data.count || 0);
-      })
-      .catch(function () {});
+    _loadSavedStats(null);
   }
 
   // ── Text escape helper ─────────────────────────────────────────
@@ -2446,8 +2442,7 @@
         window.saveSuggestedCandidate(cid)
           .then(function (res) {
             if (res && res.ok) {
-              var c = res.data && typeof res.data.count === 'number' ? res.data.count : null;
-              if (c !== null) _setBadge(c);
+              _loadSavedStats(null);
               var row = btn.closest('.co-cand-item');
               if (row) {
                 row.style.transition = 'opacity .2s';
