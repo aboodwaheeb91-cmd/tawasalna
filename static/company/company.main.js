@@ -116,20 +116,48 @@
     var el = document.getElementById('contactOverlay');
     if (!e || e.target === el) el && el.classList.remove('show');
   }
+  var isSendingMsg = false;
   function sendMsg() {
-    var subject = (document.getElementById('msg-subject') || {}).value || 'رسالة جديدة';
-    var body    = ((document.getElementById('msg-body') || {}).value || '').trim();
+    var subjectEl = document.getElementById('msg-subject');
+    var bodyEl    = document.getElementById('msg-body');
+    var subject   = (subjectEl ? subjectEl.value : '').trim();
+    var body      = (bodyEl    ? bodyEl.value    : '').trim();
     if (!body) { if (window.showToast) showToast('أدخل الرسالة', 'error'); return; }
+
+    if (!window._jwt || !_jwt()) { window.location.href = '/login'; return; }
+
     var coId = _resolveCoId();
-    if (coId && window._jwt && _jwt()) {
-      fetch('/admin/message', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + _jwt() },
-        body:    JSON.stringify({ user_id: coId, subject: subject, message: body }),
-      }).catch(function () {});
-    }
-    if (window.showToast) showToast('تم إرسال رسالتك ✓');
-    closeContact();
+    if (!coId) { if (window.showToast) showToast('تعذّر تحديد الشركة', 'error'); return; }
+
+    if (isSendingMsg) return;
+    isSendingMsg = true;
+    var sendBtn = document.getElementById('contactSendBtn');
+    if (sendBtn) sendBtn.disabled = true;
+
+    var content = subject ? (subject + '\n' + body) : body;
+
+    fetch('/messages/send', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + _jwt() },
+      body:    JSON.stringify({ receiver_id: coId, content: content }),
+    })
+    .then(function (r) {
+      if (!r.ok) return r.json().then(function (e) { throw new Error(e.detail || String(r.status)); });
+      return r.json();
+    })
+    .then(function () {
+      if (subjectEl) subjectEl.value = '';
+      if (bodyEl)    bodyEl.value    = '';
+      closeContact();
+      if (window.showToast) showToast('تم إرسال رسالتك ✓');
+    })
+    .catch(function () {
+      if (window.showToast) showToast('تعذّر إرسال الرسالة، حاول مجدداً', 'error');
+    })
+    .finally(function () {
+      isSendingMsg = false;
+      if (sendBtn) sendBtn.disabled = false;
+    });
   }
 
   // ── Country / city / options — delegated to window.TW (tw-options-data.js) ──
