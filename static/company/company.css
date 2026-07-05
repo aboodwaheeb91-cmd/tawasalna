@@ -1688,6 +1688,18 @@ body.co-loading  .visitor-only           { display: none !important; }
   background: rgba(0,200,150,.13); border-color: rgba(0,200,150,.35);
 }
 
+/* Accept / reject quick action buttons */
+.co-app-accept-btn.co-app-act { color: #00c896; border-color: rgba(0,200,150,.25); }
+.co-app-accept-btn.co-app-act:hover { background: rgba(0,200,150,.1); border-color: rgba(0,200,150,.4); }
+.co-app-accept-btn.co-app-act.co-app-qact--on { background: rgba(0,200,150,.18); border-color: rgba(0,200,150,.5); color: #00c896; }
+
+.co-app-reject-btn.co-app-act { color: #f87171; border-color: rgba(239,68,68,.25); }
+.co-app-reject-btn.co-app-act:hover { background: rgba(239,68,68,.1); border-color: rgba(239,68,68,.4); }
+.co-app-reject-btn.co-app-act.co-app-qact--on { background: rgba(239,68,68,.18); border-color: rgba(239,68,68,.5); color: #f87171; }
+
+.co-app-accept-btn:disabled,
+.co-app-reject-btn:disabled { opacity: .45; cursor: default; pointer-events: none; }
+
 /* Save/unsave button */
 .co-app-save-btn.co-app-act { color: #f59e0b; border-color: rgba(245,158,11,.2); }
 .co-app-save-btn.co-app-act:hover { background: rgba(245,158,11,.1); border-color: rgba(245,158,11,.35); }
