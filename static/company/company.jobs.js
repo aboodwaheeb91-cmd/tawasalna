@@ -535,6 +535,23 @@
     if (branchWrap) branchWrap.style.display = mode === 'branch' ? '' : 'none';
     if (customWrap) customWrap.style.display  = mode === 'custom' ? '' : 'none';
     if (mode === 'branch') _populateBranchSelector();
+    if (mode === 'custom' && window.TW) {
+      var countrySel = document.getElementById('j-loc-country');
+      if (countrySel) {
+        // Only populate if empty — preserves user selection on mode toggle and edit hydration
+        if (countrySel.options.length <= 1) {
+          TW.fillCountries(countrySel, '— اختر الدولة —', { valueMode: 'name_ar' });
+        }
+        if (!countrySel.dataset.cityBound) {
+          countrySel.dataset.cityBound = '1';
+          countrySel.addEventListener('change', function () {
+            TW.fillCities(document.getElementById('j-loc-city'), this.value, '');
+            if (window.scSelectInit) scSelectInit();
+          });
+        }
+        if (window.scSelectInit) scSelectInit();
+      }
+    }
   }
 
   function _populateBranchSelector() {
@@ -584,15 +601,17 @@
       return '';
     }
     // custom
-    return (document.getElementById('j-loc') || {}).value || '';
+    var country = (document.getElementById('j-loc-country') || {}).value || '';
+    var city    = (document.getElementById('j-loc-city')    || {}).value || '';
+    return [country, city].filter(Boolean).join('، ');
   }
 
   function _resetPostJobModal() {
-    ['j-title','j-desc','j-sal1','j-sal2','j-loc'].forEach(function (id) {
+    ['j-title','j-desc','j-sal1','j-sal2'].forEach(function (id) {
       var el = document.getElementById(id);
       if (el) el.value = '';
     });
-    ['j-prof','j-branch-sel'].forEach(function (id) {
+    ['j-prof','j-branch-sel','j-loc-country','j-loc-city'].forEach(function (id) {
       var el = document.getElementById(id);
       if (el) el.value = '';
     });
@@ -813,10 +832,24 @@
     s('j-cur',   job.currency || 'USD');
     s('j-dur',   String(job.duration_days || 7));
 
-    // ── Location: always custom when editing ─────────────────────
+    // ── Location: parse stored value into country/city dropdowns ─────
     var locMode = document.getElementById('j-loc-mode');
     if (locMode) { locMode.value = 'custom'; _onJobLocModeChange(); }
-    s('j-loc', job.location || '');
+    var locStr   = (job.location || '').trim();
+    var locParts = locStr.split(/،\s*| - /).map(function (p) { return p.trim(); }).filter(Boolean);
+    var locCountry = locParts[0] || '';
+    var locCity    = locParts[1] || '';
+    var countrySel = document.getElementById('j-loc-country');
+    var citySel    = document.getElementById('j-loc-city');
+    if (countrySel && locCountry && window.TW && TW.countryEntry) {
+      var entry = TW.countryEntry(locCountry);
+      if (entry) {
+        countrySel.value = entry.name_ar;
+        TW.fillCities(citySel, entry.name_ar, locCity);
+        if (window.scSelectInit) scSelectInit();
+      }
+      // If country not in catalog, dropdowns stay at placeholder — user re-selects
+    }
 
     // ── Salary ──────────────────────────────────────────────────
     var showSal = !job.salary_hidden && !!(job.salary_min || job.salary_max);
