@@ -778,9 +778,14 @@
       var isSaved    = !!a.is_saved;
       var isAccepted = statusKey === 'accepted';
       var isRejected = statusKey === 'rejected';
+      var avatarHtml = a.avatar_url
+        ? '<img src="' + _escApp(a.avatar_url) + '" alt="" loading="lazy"'
+          + ' onerror="this.style.display=\'none\';this.parentNode.dataset.fb=\'1\'">'
+          + '<span class="co-app-ava-fb">' + _escApp(initial) + '</span>'
+        : _escApp(initial);
       html += '<div class="co-app-card" data-app-id="' + appId + '">'
         + '<div class="co-app-card-head">'
-        +   '<div class="co-app-ava">' + _escApp(initial) + '</div>'
+        +   '<div class="co-app-ava">' + avatarHtml + '</div>'
         +   '<div class="co-app-info">'
         +     '<div class="co-app-name">' + _escApp(a.full_name || '—') + '</div>'
         +     (dateStr ? '<div class="co-app-date">تقدّم: ' + _escApp(dateStr) + '</div>' : '')

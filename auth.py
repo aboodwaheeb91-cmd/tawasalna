@@ -2243,9 +2243,11 @@ def get_job_applicants(job_id: int, company_id: int = 0) -> list:
         rows = conn.run(
             "SELECT ja.id, ja.job_id, ja.user_id, ja.status, ja.cover_letter, ja.applied_at, "
             "u.full_name, u.user_type, u.tw_id, "
+            "p.avatar_url, "
             "CASE WHEN sc.candidate_id IS NOT NULL THEN true ELSE false END AS is_saved "
             "FROM job_applications ja "
             "JOIN users u ON u.id=ja.user_id "
+            "LEFT JOIN profiles p ON p.user_id=ja.user_id "
             "LEFT JOIN company_saved_candidates sc "
             "  ON sc.company_id=:cid AND sc.candidate_id=ja.user_id "
             "WHERE ja.job_id=:jid ORDER BY ja.applied_at DESC",
