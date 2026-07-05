@@ -774,8 +774,10 @@
       var statusKey = a.status || 'pending';
       var statusLbl = _APP_STATUS_LABEL[statusKey] || statusKey;
       var dateStr   = _appFmtDate(a.applied_at);
-      var appId     = parseInt(a.id, 10);
-      var isSaved   = !!a.is_saved;
+      var appId      = parseInt(a.id, 10);
+      var isSaved    = !!a.is_saved;
+      var isAccepted = statusKey === 'accepted';
+      var isRejected = statusKey === 'rejected';
       html += '<div class="co-app-card" data-app-id="' + appId + '">'
         + '<div class="co-app-card-head">'
         +   '<div class="co-app-ava">' + _escApp(initial) + '</div>'
@@ -786,11 +788,10 @@
         +   '<span class="co-app-status co-app-status--' + _escApp(statusKey) + '">' + _escApp(statusLbl) + '</span>'
         + '</div>'
         + '<div class="co-app-card-foot">'
-        +   '<button type="button" class="co-ast-trigger co-app-act" data-app-id="' + appId + '" data-status="' + _escApp(statusKey) + '">'
-        +     'تغيير الحالة <span class="co-ast-chev">▾</span>'
-        +   '</button>'
+        +   '<button type="button" class="co-app-accept-btn co-app-act' + (isAccepted ? ' co-app-qact--on' : '') + '" data-app-id="' + appId + '" data-cur-status="' + _escApp(statusKey) + '">قبول مبدئي</button>'
+        +   '<button type="button" class="co-app-reject-btn co-app-act' + (isRejected ? ' co-app-qact--on' : '') + '" data-app-id="' + appId + '" data-cur-status="' + _escApp(statusKey) + '">رفض</button>'
         +   (a.tw_id
-              ? '<a class="co-app-view-btn co-app-act" href="/u/' + _escApp(a.tw_id) + '" target="_blank" rel="noopener">عرض البروفايل</a>'
+              ? '<a class="co-app-view-btn co-app-act" href="/u/' + _escApp(a.tw_id) + '" target="_blank" rel="noopener">عرض الملف الكامل</a>'
               : '')
         +   '<button type="button" class="co-app-save-btn co-app-act' + (isSaved ? ' saved' : '') + '" data-uid="' + parseInt(a.user_id, 10) + '"' + (isSaved ? ' disabled' : '') + '>'
         +     (isSaved ? 'تم الحفظ ✓' : '+ حفظ المرشح')
@@ -808,6 +809,10 @@
     list.addEventListener('click', function (e) {
       var trigger = e.target.closest('.co-ast-trigger');
       if (trigger) { _openAstFloat(trigger); return; }
+      var acceptBtn = e.target.closest('.co-app-accept-btn');
+      if (acceptBtn && !acceptBtn.disabled) { _onQuickStatus(acceptBtn, 'accepted'); return; }
+      var rejectBtn = e.target.closest('.co-app-reject-btn');
+      if (rejectBtn && !rejectBtn.disabled) { _onQuickStatus(rejectBtn, 'rejected'); return; }
       var saveBtn = e.target.closest('.co-app-save-btn');
       if (saveBtn && !saveBtn.disabled) { _onSaveApplicant(saveBtn); return; }
     });
@@ -840,7 +845,67 @@
     });
   }
 
-  // ── Application status — floating dropdown ────────────────────
+  // ── Quick accept / reject actions ─────────────────────────────
+  function _updateQuickBtnStates(card, status) {
+    if (!card) return;
+    var a = card.querySelector('.co-app-accept-btn');
+    var r = card.querySelector('.co-app-reject-btn');
+    if (a) a.classList.toggle('co-app-qact--on', status === 'accepted');
+    if (r) r.classList.toggle('co-app-qact--on', status === 'rejected');
+  }
+
+  function _onQuickStatus(btn, newStatus) {
+    var appId      = parseInt(btn.getAttribute('data-app-id'), 10);
+    var prevStatus = btn.getAttribute('data-cur-status') || 'pending';
+    if (newStatus === prevStatus) return;
+    var card      = document.querySelector('#coAppList .co-app-card[data-app-id="' + appId + '"]');
+    var badge     = card ? card.querySelector('.co-app-status')     : null;
+    var acceptBtn = card ? card.querySelector('.co-app-accept-btn') : null;
+    var rejectBtn = card ? card.querySelector('.co-app-reject-btn') : null;
+
+    // Optimistic UI update
+    if (badge) {
+      badge.textContent = _APP_STATUS_LABEL[newStatus] || newStatus;
+      badge.className   = 'co-app-status co-app-status--' + newStatus;
+    }
+    _updateQuickBtnStates(card, newStatus);
+    if (acceptBtn) { acceptBtn.setAttribute('data-cur-status', newStatus); acceptBtn.disabled = true; }
+    if (rejectBtn) { rejectBtn.setAttribute('data-cur-status', newStatus); rejectBtn.disabled = true; }
+
+    var jwt = window._jwt ? _jwt() : '';
+    fetch('/jobs/applications/' + appId + '/status', {
+      method:  'PUT',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + jwt },
+      body:    JSON.stringify({ status: newStatus })
+    })
+    .then(function (r) {
+      if (!r.ok) { var e = new Error('HTTP ' + r.status); e.status = r.status; throw e; }
+      return r.json();
+    })
+    .then(function () {
+      if (window.showToast) showToast('تم تحديث حالة الطلب ✓');
+    })
+    .catch(function (err) {
+      // Revert optimistic update on failure
+      if (badge) {
+        badge.textContent = _APP_STATUS_LABEL[prevStatus] || prevStatus;
+        badge.className   = 'co-app-status co-app-status--' + prevStatus;
+      }
+      _updateQuickBtnStates(card, prevStatus);
+      if (acceptBtn) acceptBtn.setAttribute('data-cur-status', prevStatus);
+      if (rejectBtn) rejectBtn.setAttribute('data-cur-status', prevStatus);
+      var msg = (err && (err.status === 401 || err.status === 403))
+        ? 'انتهت الجلسة أو لا تملك صلاحية تعديل حالة الطلب'
+        : 'تعذّر تحديث حالة الطلب، حاول مجدداً';
+      if (window.showToast) showToast(msg, 'error');
+    })
+    .finally(function () {
+      if (acceptBtn) acceptBtn.disabled = false;
+      if (rejectBtn) rejectBtn.disabled = false;
+    });
+  }
+
+  // ── Application status — floating dropdown ─────────────────────
   function _initAstFloat() {
     if (_astFloat) return;
     _astFloat = document.createElement('div');
