@@ -301,7 +301,7 @@
       // expired reuses --closed CSS class (same muted color; no new CSS needed)
       var badgeCls = eff === 'expired' ? 'closed' : eff;
       var statusBadge = !canApply
-        ? '<span class="job-logo-status job-logo-status--' + _esc(badgeCls) + '">' + stLblBadge + '</span>'
+        ? '<span class="job-logo-status job-logo-status--' + _escAttr(badgeCls) + '">' + stLblBadge + '</span>'
         : '';
       var logoHtml = '<div class="job-logo-col"><div class="job-card-logo">' + logoInner + '</div>' + statusBadge + '</div>';
 
@@ -335,7 +335,7 @@
       if (canApply) {
         // Visitor: apply button only for truly active jobs; paused shows nothing
         if (eff === 'active') {
-          rightHtml = '<div class="job-owner-col"><button class="joc-btn joc-btn--primary visitor-detail-btn" data-jid="' + _esc(String(j.id)) + '">عرض التفاصيل</button></div>';
+          rightHtml = '<div class="job-owner-col"><button class="joc-btn joc-btn--primary visitor-detail-btn" data-jid="' + _escAttr(String(j.id)) + '">عرض التفاصيل</button></div>';
         } else {
           rightHtml = '';
         }
@@ -356,14 +356,14 @@
           rightHtml = '<div class="job-owner-col">'
             + '<span class="job-applicant-count">عدد المتقدمين <span class="job-cnt-badge">' + cnt + '</span></span>'
             + '<button type="button" class="joc-btn joc-btn--primary owner-applicants-btn" data-jid="' + jid + '">مشاهدة المتقدمين</button>'
-            + '<button type="button" class="joc-btn joc-btn--muted job-manage-btn" data-jid="' + jid + '" data-status="' + _esc(eff) + '">الإدارة</button>'
+            + '<button type="button" class="joc-btn joc-btn--muted job-manage-btn" data-jid="' + jid + '" data-status="' + _escAttr(eff) + '">الإدارة</button>'
             + '</div>';
         }
       }
 
       return '<div class="job-card-wrap">'
         + _buildTabHtml(eff, j.expires_at, j.closed_at, !canApply)
-        + '<div class="job-card tw-card-lift" data-jid="' + _esc(String(j.id)) + '" data-status="' + _esc(eff) + '">'
+        + '<div class="job-card tw-card-lift" data-jid="' + _escAttr(String(j.id)) + '" data-status="' + _escAttr(eff) + '">'
         + logoHtml
         + '<div class="job-card-body">'
           + '<div class="job-title">' + _esc(j.title) + '</div>'
