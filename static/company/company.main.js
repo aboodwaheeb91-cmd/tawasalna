@@ -1129,6 +1129,29 @@
     // Report modal
     var reportSubmitBtn = q('reportSubmitBtn'); if (reportSubmitBtn) reportSubmitBtn.addEventListener('click', submitReport);
     var reportCancelBtn = q('reportCancelBtn'); if (reportCancelBtn) reportCancelBtn.addEventListener('click', closeReportModal);
+
+    // Inline handlers migrated from HTML (refactor/company-profile-remove-inline-handlers)
+    // Edit modal X button — calls closeEdit() without args; !e path closes unconditionally
+    var editCloseX = document.querySelector('#editOverlay .modal-head-close');
+    if (editCloseX) editCloseX.addEventListener('click', function () { window.closeEdit && window.closeEdit(); });
+    // Job modal — checkboxes and selects
+    var jAccAll  = q('j-acc-all');  if (jAccAll)  jAccAll.addEventListener('change',  function () { window._onAccAllChange      && window._onAccAllChange(); });
+    var jWmode   = q('j-wmode');    if (jWmode)   jWmode.addEventListener('change',   function () { window._onWmodeChange       && window._onWmodeChange(); });
+    var jLocMode = q('j-loc-mode'); if (jLocMode) jLocMode.addEventListener('change', function () { window._onJobLocModeChange  && window._onJobLocModeChange(); });
+    var jSalShow = q('j-sal-show'); if (jSalShow) jSalShow.addEventListener('change', function () { window._onSalShowChange     && window._onSalShowChange(); });
+    // Job modal — click-to-focus on skill/profession chip boxes
+    var jAccProfBox = q('j-acc-prof-box'); if (jAccProfBox) jAccProfBox.addEventListener('click', function () { var inp = q('j-acc-prof-inp'); if (inp) inp.focus(); });
+    var jSkillBox   = q('j-skill-box');    if (jSkillBox)   jSkillBox.addEventListener('click',   function () { var inp = q('j-skill-inp');      if (inp) inp.focus(); });
+    // All Branches bottom sheet — overlay backdrop + close button
+    var brOverlay = q('allBranchesOverlay');
+    if (brOverlay) brOverlay.addEventListener('click', function (e) { if (e.target === brOverlay && window.closeAllBranchesModal) window.closeAllBranchesModal(); });
+    var brClose = document.querySelector('#allBranchesOverlay .co-branches-sheet-close');
+    if (brClose) brClose.addEventListener('click', function () { window.closeAllBranchesModal && window.closeAllBranchesModal(); });
+    // Applicants modal — overlay backdrop + close button
+    var appOverlay = q('coApplicantsModal');
+    if (appOverlay) appOverlay.addEventListener('click', function (e) { if (e.target === appOverlay && window.closeApplicantsModal) window.closeApplicantsModal(); });
+    var appClose = document.querySelector('#coApplicantsModal .co-fl-close');
+    if (appClose) appClose.addEventListener('click', function () { window.closeApplicantsModal && window.closeApplicantsModal(); });
   }
 
   // ── Auth-sync: cross-tab session invalidation ──
