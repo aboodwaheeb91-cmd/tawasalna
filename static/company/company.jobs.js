@@ -180,8 +180,13 @@
     if (!window.companyState) return;
     if (isRateLoading) return;
 
-    var companyId = new URLSearchParams(location.search).get('id');
-    if (!companyId) return;
+    var companyId = (window.companyState && companyState.profile && companyState.profile.id)
+      ? String(companyState.profile.id)
+      : new URLSearchParams(location.search).get('id');
+    if (!companyId) {
+      if (window.showToast) showToast('تعذّر تحديد الشركة', 'error');
+      return;
+    }
 
     var prevMine  = companyState.permissions.my_rating;
     var prevAvg   = companyState.stats.rating_avg;
