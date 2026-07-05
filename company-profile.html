@@ -315,7 +315,7 @@
         <i data-lucide="pencil" class="ico-sm" style="color:var(--ac2);vertical-align:middle;margin-left:6px"></i>
         تعديل ملف الشركة
       </span>
-      <button type="button" class="modal-head-close" onclick="document.getElementById('editCancelBtn').click()" aria-label="إغلاق">
+      <button type="button" class="modal-head-close" aria-label="إغلاق">
         <i data-lucide="x" class="ico-sm"></i>
       </button>
     </div>
@@ -401,7 +401,7 @@
 
       <div class="mf j-acc-all-wrap">
         <label class="j-toggle-label">
-          <input type="checkbox" id="j-acc-all" onchange="window._onAccAllChange&&_onAccAllChange()">
+          <input type="checkbox" id="j-acc-all">
           <i data-lucide="users" class="j-toggle-ico"></i>
           <span>قبول جميع التخصصات</span>
         </label>
@@ -410,7 +410,7 @@
       <div class="mf" id="j-acc-prof-section">
         <label>التخصصات الإضافية المقبولة (اختياري)</label>
         <div class="j-skill-box-wrap">
-          <div class="j-skill-box" id="j-acc-prof-box" onclick="document.getElementById('j-acc-prof-inp')&&document.getElementById('j-acc-prof-inp').focus()">
+          <div class="j-skill-box" id="j-acc-prof-box">
             <div class="j-skill-chips" id="j-acc-prof-chips"></div>
             <input id="j-acc-prof-inp" class="j-skill-inp" placeholder="ابحث عن تخصص…" autocomplete="off" maxlength="60">
           </div>
@@ -420,7 +420,7 @@
 
       <div class="mrow">
         <div class="mf"><label>نوع الدوام</label><select id="j-type" class="ep-select"></select></div>
-        <div class="mf"><label>طبيعة العمل</label><select id="j-wmode" class="ep-select" onchange="window._onWmodeChange&&_onWmodeChange()"></select></div>
+        <div class="mf"><label>طبيعة العمل</label><select id="j-wmode" class="ep-select"></select></div>
       </div>
       <div class="mf"><label>الخبرة المطلوبة</label><select id="j-exp" class="ep-select"></select></div>
 
@@ -435,7 +435,7 @@
 
       <div class="mf">
         <label>موقع الوظيفة</label>
-        <select id="j-loc-mode" class="ep-select" onchange="window._onJobLocModeChange&&_onJobLocModeChange()">
+        <select id="j-loc-mode" class="ep-select">
           <option value="hq">المقر الرئيسي للشركة</option>
           <option value="remote">عن بُعد</option>
           <option value="branch">أحد الفروع</option>
@@ -450,7 +450,7 @@
 
       <div class="mf j-sal-toggle-wrap">
         <label class="j-toggle-label">
-          <input type="checkbox" id="j-sal-show" onchange="window._onSalShowChange&&_onSalShowChange()">
+          <input type="checkbox" id="j-sal-show">
           <span>الإعلان عن الراتب المتوقع</span>
         </label>
       </div>
@@ -471,7 +471,7 @@
       <div class="mf">
         <label>المهارات المطلوبة</label>
         <div class="j-skill-box-wrap">
-          <div class="j-skill-box" id="j-skill-box" onclick="document.getElementById('j-skill-inp')&&document.getElementById('j-skill-inp').focus()">
+          <div class="j-skill-box" id="j-skill-box">
             <div class="j-skill-chips" id="j-skill-chips"></div>
             <input id="j-skill-inp" class="j-skill-inp" placeholder="ابحث عن مهارة أو اكتبها…" autocomplete="off" maxlength="60">
           </div>
@@ -531,11 +531,11 @@
 </div>
 
 <!-- ██ ALL BRANCHES BOTTOM SHEET ██ -->
-<div class="co-branches-sheet-overlay" id="allBranchesOverlay" onclick="if(event.target===this) closeAllBranchesModal()">
+<div class="co-branches-sheet-overlay" id="allBranchesOverlay">
   <div class="co-branches-sheet" role="dialog" aria-modal="true" aria-labelledby="allBranchesTitle">
     <div class="co-branches-sheet-hdr">
       <span class="co-branches-sheet-title" id="allBranchesTitle">كل الفروع</span>
-      <button class="co-branches-sheet-close" onclick="closeAllBranchesModal()" type="button" aria-label="إغلاق">✕</button>
+      <button class="co-branches-sheet-close" type="button" aria-label="إغلاق">✕</button>
     </div>
     <div id="allBranchesList"></div>
   </div>
@@ -573,11 +573,11 @@
 </div>
 
 <!-- Applicants Modal — owner-only, per-job -->
-<div class="co-fl-overlay" id="coApplicantsModal" style="display:none" onclick="if(event.target===this) closeApplicantsModal()">
+<div class="co-fl-overlay" id="coApplicantsModal" style="display:none">
   <div class="co-fl-panel">
     <div class="co-fl-head">
       <div class="co-fl-title" id="coAppModalTitle">المتقدمون</div>
-      <button class="co-fl-close" onclick="closeApplicantsModal()" aria-label="إغلاق">×</button>
+      <button class="co-fl-close" aria-label="إغلاق">×</button>
     </div>
     <div class="co-app-list" id="coAppList">
       <div class="co-app-spin">جارٍ التحميل…</div>
