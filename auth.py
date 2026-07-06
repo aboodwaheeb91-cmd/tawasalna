@@ -2974,6 +2974,20 @@ def ensure_company_tables():
         conn.run("CREATE INDEX IF NOT EXISTS idx_posts_company ON company_posts(company_id)")
         conn.run("ALTER TABLE company_posts ADD COLUMN IF NOT EXISTS theme_color VARCHAR(20) DEFAULT NULL")
         conn.run("ALTER TABLE company_posts ADD COLUMN IF NOT EXISTS comments_enabled BOOLEAN DEFAULT TRUE")
+        # ── company_post_views — unique-per-viewer view tracking ──
+        conn.run("""
+            CREATE TABLE IF NOT EXISTS company_post_views (
+                id              SERIAL PRIMARY KEY,
+                post_id         INTEGER NOT NULL REFERENCES company_posts(id) ON DELETE CASCADE,
+                viewer_user_id  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                visitor_key     VARCHAR(64),
+                viewed_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+        """)
+        conn.run("CREATE INDEX IF NOT EXISTS idx_post_views_post ON company_post_views(post_id)")
+        # Partial unique indexes: one row per logged-in user per post, one per visitor_key per post
+        conn.run("CREATE UNIQUE INDEX IF NOT EXISTS uq_post_view_user    ON company_post_views(post_id, viewer_user_id) WHERE viewer_user_id IS NOT NULL")
+        conn.run("CREATE UNIQUE INDEX IF NOT EXISTS uq_post_view_visitor ON company_post_views(post_id, visitor_key)     WHERE visitor_key   IS NOT NULL")
         release_conn(conn)
         print("✅ company tables ready")
     except Exception as e:
@@ -3258,14 +3272,18 @@ def get_company_ratings_detail(company_id: int, viewer_id=None, limit: int = 5) 
 # Pure data layer. No authorization (that lives in server.py). company_id = users.id.
 
 def get_company_posts(company_id: int) -> list:
-    """Return all posts for a company, newest first. Uses idx_posts_company."""
+    """Return all posts for a company, newest first. Includes views_count via LEFT JOIN."""
     conn = get_conn()
     try:
         rows = conn.run(
-            "SELECT id, body, tags, theme_color, comments_enabled, created_at FROM company_posts "
-            "WHERE company_id = :cid ORDER BY created_at DESC",
+            "SELECT cp.id, cp.body, cp.tags, cp.theme_color, cp.comments_enabled, cp.created_at, "
+            "COALESCE(v.cnt, 0) AS views_count "
+            "FROM company_posts cp "
+            "LEFT JOIN (SELECT post_id, COUNT(*) AS cnt FROM company_post_views GROUP BY post_id) v "
+            "ON cp.id = v.post_id "
+            "WHERE cp.company_id = :cid ORDER BY cp.created_at DESC",
             cid=company_id)
-        cols = ["id", "body", "tags", "theme_color", "comments_enabled", "created_at"]
+        cols = ["id", "body", "tags", "theme_color", "comments_enabled", "created_at", "views_count"]
         return [_serialize(_row_to_dict(cols, r)) for r in rows]
     finally:
         release_conn(conn)
@@ -3332,6 +3350,41 @@ def delete_company_post(post_id: int) -> bool:
     try:
         rows = conn.run("DELETE FROM company_posts WHERE id = :pid RETURNING id", pid=post_id)
         return bool(rows)
+    finally:
+        release_conn(conn)
+
+
+def record_company_post_view(post_id: int, viewer_user_id=None, visitor_key=None) -> bool:
+    """Record a post view. Returns True if a new view was inserted, False if already viewed.
+    One of viewer_user_id or visitor_key must be provided.
+    Uniqueness is enforced via partial indexes (uq_post_view_user / uq_post_view_visitor)."""
+    if not viewer_user_id and not visitor_key:
+        return False
+    conn = get_conn()
+    try:
+        if viewer_user_id:
+            # Check existing view for this logged-in user
+            rows = conn.run(
+                "SELECT 1 FROM company_post_views WHERE post_id=:pid AND viewer_user_id=:uid LIMIT 1",
+                pid=post_id, uid=viewer_user_id)
+            if rows:
+                return False
+            conn.run(
+                "INSERT INTO company_post_views (post_id, viewer_user_id) VALUES (:pid, :uid)",
+                pid=post_id, uid=viewer_user_id)
+        else:
+            # Check existing view for this visitor_key
+            rows = conn.run(
+                "SELECT 1 FROM company_post_views WHERE post_id=:pid AND visitor_key=:vk LIMIT 1",
+                pid=post_id, vk=visitor_key)
+            if rows:
+                return False
+            conn.run(
+                "INSERT INTO company_post_views (post_id, visitor_key) VALUES (:pid, :vk)",
+                pid=post_id, vk=visitor_key)
+        return True
+    except Exception:
+        return False
     finally:
         release_conn(conn)
 
