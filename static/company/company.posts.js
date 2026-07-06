@@ -11,8 +11,10 @@
   // ── Tag Picker ────────────────────────────────────────────────
   function _searchTags(q) {
     if (!window.TW || !Array.isArray(TW.POST_TAGS)) return [];
+    // Strip "ال" prefix so "التوظيف" matches "توظيف"
+    var q2 = (q.length > 2 && q.slice(0, 2) === 'ال') ? q.slice(2) : null;
     return TW.POST_TAGS.filter(function (t) {
-      return t.indexOf(q) !== -1;
+      return t.indexOf(q) !== -1 || (q2 && t.indexOf(q2) !== -1);
     }).slice(0, 10);
   }
 
@@ -85,6 +87,12 @@
     var chipsEl  = document.getElementById('p-tags-chips');
     var ddEl     = document.getElementById('p-tags-dropdown');
 
+    // Portal: move dropdown to <body> so position:fixed is relative to viewport,
+    // not the modal (which has transform:translateY that would break fixed children).
+    if (ddEl && ddEl.parentNode !== document.body) {
+      document.body.appendChild(ddEl);
+    }
+
     if (searchEl) {
       searchEl.addEventListener('input', function () {
         var q = this.value.trim();
@@ -117,9 +125,13 @@
       });
     }
 
-    // Close dropdown on outside click
+    // Close dropdown on outside click.
+    // Must also exclude the dropdown itself (now on body, outside #p-tags-wrap).
     document.addEventListener('click', function (e) {
-      if (!e.target.closest('#p-tags-wrap')) _closeTagDropdown();
+      var dd = document.getElementById('p-tags-dropdown');
+      if (e.target.closest('#p-tags-wrap')) return;
+      if (dd && dd.contains(e.target)) return;
+      _closeTagDropdown();
     });
   }
 
