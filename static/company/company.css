@@ -749,7 +749,7 @@ i.ico-sm { width:14px; height:14px; stroke:currentColor; fill:none; stroke-width
 .post-nm   { font-size:.8rem; font-weight:800; }
 .post-date { display:flex; align-items:center; gap:3px; font-size:.63rem; color:var(--t3); margin-top:1px; }
 .post-date svg { width:10px; height:10px; stroke:var(--t3); fill:none; stroke-width:1.8; flex-shrink:0; }
-.post-body { font-size:.8rem; color:var(--t2); line-height:1.6; margin-bottom:8px; }
+.post-body { font-size:.8rem; color:var(--t2); line-height:1.75; margin-bottom:8px; direction:rtl; text-align:right; overflow-wrap:break-word; }
 .post-del {
   background:none; border:none; color:var(--t3);
   cursor:pointer; font-size:.95rem; padding:4px 6px;
