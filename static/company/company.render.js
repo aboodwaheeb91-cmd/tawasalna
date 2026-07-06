@@ -506,8 +506,10 @@
         + dotsHtml
       + '</div>'
       + '<div class="post-body-wrap">'
-        + '<div class="post-body">' + _esc(post.body) + '</div>'
-        + '<button type="button" class="post-more-btn">المزيد...</button>'
+        + '<div class="post-body">'
+          + '<span class="post-body-text">' + _esc(post.body) + '</span>'
+          + '<button type="button" class="post-more-inline">المزيد...</button>'
+        + '</div>'
         + '<button type="button" class="post-less-btn">عرض أقل</button>'
       + '</div>'
       + tagsHtml
@@ -521,16 +523,45 @@
   }
 
   function _initPostClamps(container) {
-    var wraps = container.querySelectorAll('.post-body-wrap:not(.pc-init)');
-    wraps.forEach(function (wrap) {
-      wrap.classList.add('pc-init');
-      var body = wrap.querySelector('.post-body');
-      if (!body) return;
-      var lh = parseFloat(getComputedStyle(body).lineHeight) || 22;
-      // Add pc-clamped only if text actually exceeds 3 lines (+2px rounding buffer)
-      if (body.scrollHeight > Math.round(lh * 3) + 2) {
-        wrap.classList.add('pc-clamped');
+    container.querySelectorAll('.post-body-wrap').forEach(function (wrap) {
+      var body      = wrap.querySelector('.post-body');
+      var textSpan  = wrap.querySelector('.post-body-text');
+      var moreBtn   = wrap.querySelector('.post-more-inline');
+      if (!body || !textSpan || !moreBtn) return;
+
+      var fullText = textSpan.textContent;
+      var lh       = parseFloat(getComputedStyle(body).lineHeight) || 22;
+      var maxH     = Math.round(lh * 3);
+
+      // scrollHeight works on webkit-line-clamp elements in Chromium (reports true height).
+      // Use it to decide whether truncation is needed.
+      if (body.scrollHeight <= maxH + 2) {
+        // Short post — remove CSS clamp so inline button slot stays hidden & display is normal.
+        body.style.cssText = 'display:block;overflow:visible';
+        return;
       }
+
+      // Need truncation — switch to unclamped block for binary-search measurements.
+      body.style.cssText = 'display:block;overflow:visible';
+      moreBtn.style.display = 'inline'; // button width must be included in measurements
+
+      var lo = 0, hi = fullText.length;
+      while (lo < hi - 1) {
+        var mid = (lo + hi) >> 1;
+        textSpan.textContent = fullText.slice(0, mid);
+        if (body.scrollHeight <= maxH + 2) { lo = mid; } else { hi = mid; }
+      }
+
+      // Snap to nearest Arabic word boundary (last space)
+      var raw       = fullText.slice(0, lo).replace(/\s+$/, '');
+      var lastSpace = raw.lastIndexOf(' ');
+      // Only snap if the space is reasonably close (keeps at least 60% of lo chars)
+      var trimmed   = (lastSpace > lo * 0.6) ? raw.slice(0, lastSpace) : raw;
+
+      textSpan.textContent = trimmed;
+      // Store full/short text on the element for the toggle handlers
+      wrap._pbFull  = fullText;
+      wrap._pbShort = trimmed;
     });
   }
 
@@ -545,7 +576,10 @@
     }
     if (empty) empty.style.display = 'none';
     list.innerHTML = posts.map(_postCardHtml).join('');
-    _initPostClamps(list);
+    // Two rAFs: first lets the browser compute layout, second ensures fonts are measured.
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () { _initPostClamps(list); });
+    });
   }
 
   // ── Branches (public display) ─────────────────────────────────

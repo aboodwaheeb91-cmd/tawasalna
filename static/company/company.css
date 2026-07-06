@@ -759,47 +759,34 @@ i.ico-sm { width:14px; height:14px; stroke:currentColor; fill:none; stroke-width
 .post-nm   { font-size:.8rem; font-weight:800; }
 .post-date { display:flex; align-items:center; gap:3px; font-size:.63rem; color:var(--t3); margin-top:1px; }
 .post-date svg { width:10px; height:10px; stroke:var(--t3); fill:none; stroke-width:1.8; flex-shrink:0; }
-.post-body-wrap { position:relative; margin-bottom:8px; }
-.post-body { font-size:.8rem; color:var(--t2); line-height:1.75; direction:rtl; text-align:right; overflow-wrap:break-word; }
-
-/* Clamped: 3-line limit via -webkit-line-clamp */
-.post-body-wrap.pc-clamped .post-body {
+.post-body-wrap { margin-bottom:8px; }
+/* CSS fallback clamp (3 lines) — active until JS binary-search truncation runs.
+   JS sets display:block on the body element after truncation, removing the webkit clamp. */
+.post-body {
+  font-size:.8rem; color:var(--t2); line-height:1.75;
+  direction:rtl; text-align:right; overflow-wrap:break-word;
   display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden;
 }
 
-/* Gradient fade at truncation edge (left = end of Arabic RTL line)
-   Uses --bg (page bg) not --card: post card is rgba(255,255,255,.02) ≈ transparent,
-   so --bg is the correct background match. Gradient solid→transparent (not the reverse)
-   prevents a visible rectangle. */
-.post-body-wrap.pc-clamped::after {
-  content:''; position:absolute; bottom:0; left:0;
-  width:5em; height:1.6em;
-  background: linear-gradient(to right, var(--bg,#070b18) 0%, transparent 100%);
-  pointer-events:none;
-}
-
-/* "المزيد..." — hidden by default, shown when clamped */
-.post-more-btn {
+/* "المزيد..." inline button — sits naturally after truncated text on line 3.
+   No absolute positioning, no gradient overlay — JS truncates text to make room. */
+.post-more-inline {
   display:none;
   background:none; border:none; cursor:pointer;
-  color:var(--t2); font-size:.8rem; font-family:'Cairo',sans-serif;
-  padding:0; line-height:1.75;
-}
-.post-body-wrap.pc-clamped .post-more-btn {
-  position:absolute; bottom:0; left:0;
-  display:inline; z-index:1;
   color: var(--pa, var(--ac));
+  font-size:.8rem; font-family:'Cairo',sans-serif;
+  padding:0 0 0 1px; line-height:1.75;
+  vertical-align:baseline;
 }
-.post-more-btn:hover { opacity:.8; }
+.post-more-inline:hover { opacity:.8; }
 
-/* "عرض أقل" — shown when expanded */
+/* "عرض أقل" — shown by JS after expand */
 .post-less-btn {
   display:none;
   background:none; border:none; cursor:pointer;
   color:var(--t3); font-size:.72rem; font-family:'Cairo',sans-serif;
   padding:3px 0; direction:rtl;
 }
-.post-body-wrap.pc-expanded .post-less-btn { display:block; }
 .post-del {
   background:none; border:none; color:var(--t3);
   cursor:pointer; font-size:.95rem; padding:4px 6px;

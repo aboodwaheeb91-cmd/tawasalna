@@ -327,17 +327,28 @@
     var postsList = document.getElementById('postsList');
     if (postsList) {
       postsList.addEventListener('click', function (e) {
-        // Read more / read less
-        var moreBtn = e.target.closest('.post-more-btn');
+        // Read more — show full text inline, no overlay
+        var moreBtn = e.target.closest('.post-more-inline');
         if (moreBtn) {
           var wrap = moreBtn.closest('.post-body-wrap');
-          if (wrap) { wrap.classList.remove('pc-clamped'); wrap.classList.add('pc-expanded'); }
+          if (!wrap) return;
+          var textSpan = wrap.querySelector('.post-body-text');
+          var lessBtn  = wrap.querySelector('.post-less-btn');
+          if (textSpan && wrap._pbFull) textSpan.textContent = wrap._pbFull;
+          moreBtn.style.display = 'none';
+          if (lessBtn) lessBtn.style.display = 'block';
           return;
         }
+        // Read less — restore truncated text
         var lessBtn = e.target.closest('.post-less-btn');
         if (lessBtn) {
           var wrap = lessBtn.closest('.post-body-wrap');
-          if (wrap) { wrap.classList.remove('pc-expanded'); wrap.classList.add('pc-clamped'); }
+          if (!wrap) return;
+          var textSpan = wrap.querySelector('.post-body-text');
+          var moreInline = wrap.querySelector('.post-more-inline');
+          if (textSpan && wrap._pbShort) textSpan.textContent = wrap._pbShort;
+          lessBtn.style.display = 'none';
+          if (moreInline) moreInline.style.display = 'inline';
           return;
         }
         // 3-dot toggle
