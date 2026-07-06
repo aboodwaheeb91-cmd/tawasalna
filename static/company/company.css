@@ -759,7 +759,43 @@ i.ico-sm { width:14px; height:14px; stroke:currentColor; fill:none; stroke-width
 .post-nm   { font-size:.8rem; font-weight:800; }
 .post-date { display:flex; align-items:center; gap:3px; font-size:.63rem; color:var(--t3); margin-top:1px; }
 .post-date svg { width:10px; height:10px; stroke:var(--t3); fill:none; stroke-width:1.8; flex-shrink:0; }
-.post-body { font-size:.8rem; color:var(--t2); line-height:1.75; margin-bottom:8px; direction:rtl; text-align:right; overflow-wrap:break-word; }
+.post-body-wrap { position:relative; margin-bottom:8px; }
+.post-body { font-size:.8rem; color:var(--t2); line-height:1.75; direction:rtl; text-align:right; overflow-wrap:break-word; }
+
+/* Clamped: 3-line limit via -webkit-line-clamp */
+.post-body-wrap.pc-clamped .post-body {
+  display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden;
+}
+
+/* Gradient fade at truncation edge (left = end of Arabic RTL line) */
+.post-body-wrap.pc-clamped::after {
+  content:''; position:absolute; bottom:0; left:0;
+  width:7em; height:1.5em;
+  background:linear-gradient(to left, transparent, var(--card,#141a24) 58%);
+  pointer-events:none;
+}
+
+/* "المزيد..." — hidden by default, shown when clamped */
+.post-more-btn {
+  display:none;
+  background:none; border:none; cursor:pointer;
+  color:var(--t2); font-size:.8rem; font-family:'Cairo',sans-serif;
+  padding:0; line-height:1.75;
+}
+.post-body-wrap.pc-clamped .post-more-btn {
+  position:absolute; bottom:0; left:0;
+  display:inline; z-index:1;
+}
+.post-more-btn:hover { color:var(--t); }
+
+/* "عرض أقل" — shown when expanded */
+.post-less-btn {
+  display:none;
+  background:none; border:none; cursor:pointer;
+  color:var(--t3); font-size:.72rem; font-family:'Cairo',sans-serif;
+  padding:3px 0; direction:rtl;
+}
+.post-body-wrap.pc-expanded .post-less-btn { display:block; }
 .post-del {
   background:none; border:none; color:var(--t3);
   cursor:pointer; font-size:.95rem; padding:4px 6px;
