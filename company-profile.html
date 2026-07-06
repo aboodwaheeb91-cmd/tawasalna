@@ -495,8 +495,11 @@
     <div class="mf"><label>المحتوى *</label>
       <textarea id="p-body" rows="4" placeholder="اكتب منشورك هنا..."></textarea>
     </div>
-    <div class="mf"><label>وسوم (افصل بفاصلة)</label>
-      <input id="p-tags" placeholder="توظيف, خبر, إعلان...">
+    <div class="mf ptc-wrapper" id="p-tags-wrap">
+      <label>الوسوم <span class="ptc-count" id="p-tags-count">0/5</span></label>
+      <div class="ptc-chips-row" id="p-tags-chips"></div>
+      <input id="p-tags-search" type="text" placeholder="اكتب للبحث في الوسوم..." autocomplete="off" spellcheck="false">
+      <div class="ptc-dropdown" id="p-tags-dropdown"></div>
     </div>
     <div class="modal-btns">
       <button id="createPostBtn" class="mbtn mbtn-yes">نشر</button>
