@@ -735,6 +735,7 @@ i.ico-sm { width:14px; height:14px; stroke:currentColor; fill:none; stroke-width
 
 /* ══ POST CARDS ══════════════════════════════════════════════════ */
 .post-card {
+  position:relative;
   background:rgba(255,255,255,.02);
   border:1px solid var(--pa-s, rgba(255,255,255,.06));
   border-radius:var(--r-md); padding:14px 16px; margin-bottom:10px;
@@ -757,11 +758,11 @@ i.ico-sm { width:14px; height:14px; stroke:currentColor; fill:none; stroke-width
 }
 .post-head-info { flex:1; }
 .post-nm   { font-size:.8rem; font-weight:800; }
-.post-meta-row { display:flex; flex-direction:column; align-items:flex-start; gap:2px; margin-top:1px; direction:rtl; }
+.post-meta-row { display:flex; flex-direction:row; align-items:center; flex-wrap:wrap; gap:6px; margin-top:1px; }
 .post-date { display:inline-flex; align-items:center; gap:3px; font-size:.63rem; color:var(--t3); }
 .post-date svg { width:10px; height:10px; stroke:var(--t3); fill:none; stroke-width:1.8; flex-shrink:0; }
 .post-views { display:inline-flex; align-items:center; gap:3px; font-size:.63rem; color:var(--t3); }
-.post-views::before { content:none; }
+.post-views::before { content:'·'; margin-inline-end:2px; }
 .post-views svg { width:10px; height:10px; stroke:var(--t3); fill:none; stroke-width:1.8; flex-shrink:0; }
 .post-body-wrap { margin-bottom:8px; }
 /* CSS fallback clamp (3 lines) — active until JS binary-search truncation runs.
@@ -820,7 +821,7 @@ i.ico-sm { width:14px; height:14px; stroke:currentColor; fill:none; stroke-width
 .post-ava--init { font-size:1.1rem; font-weight:800; color:#fff; }
 
 /* 3-dot owner menu */
-.pc-dots { position:relative; flex-shrink:0; }
+.pc-dots { position:absolute; top:14px; left:14px; z-index:5; }
 .pc-dots-btn {
   background:none; border:none; color:var(--t3);
   cursor:pointer; padding:3px 7px; border-radius:6px;
