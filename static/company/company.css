@@ -767,11 +767,14 @@ i.ico-sm { width:14px; height:14px; stroke:currentColor; fill:none; stroke-width
   display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden;
 }
 
-/* Gradient fade at truncation edge (left = end of Arabic RTL line) */
+/* Gradient fade at truncation edge (left = end of Arabic RTL line)
+   Uses --bg (page bg) not --card: post card is rgba(255,255,255,.02) ≈ transparent,
+   so --bg is the correct background match. Gradient solid→transparent (not the reverse)
+   prevents a visible rectangle. */
 .post-body-wrap.pc-clamped::after {
   content:''; position:absolute; bottom:0; left:0;
-  width:7em; height:1.5em;
-  background:linear-gradient(to left, transparent, var(--card,#141a24) 58%);
+  width:5em; height:1.6em;
+  background: linear-gradient(to right, var(--bg,#070b18) 0%, transparent 100%);
   pointer-events:none;
 }
 
@@ -785,8 +788,9 @@ i.ico-sm { width:14px; height:14px; stroke:currentColor; fill:none; stroke-width
 .post-body-wrap.pc-clamped .post-more-btn {
   position:absolute; bottom:0; left:0;
   display:inline; z-index:1;
+  color: var(--pa, var(--ac));
 }
-.post-more-btn:hover { color:var(--t); }
+.post-more-btn:hover { opacity:.8; }
 
 /* "عرض أقل" — shown when expanded */
 .post-less-btn {
