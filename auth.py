@@ -2131,7 +2131,7 @@ def get_jobs(filters: dict = None) -> list:
                 where += " AND j.company_id = :cid"
                 params["cid"] = filters["company_id"]
         rows = conn.run(
-            f"SELECT j.id, j.company_id, j.title, j.description, j.location, "
+            f"SELECT j.id, j.company_id, j.profession_id, j.title, j.description, j.location, "
             f"j.job_type, j.salary_min, j.salary_max, j.currency, "
             f"j.experience_years, j.skills, j.status, j.views, j.created_at, "
             f"j.expires_at, j.closed_at, j.duration_days, "

@@ -56,6 +56,7 @@
         if (window.loadJobs)                window.loadJobs();
         if (window.loadBranches)            window.loadBranches();
         if (window._loadCandidatesBadge)    window._loadCandidatesBadge();
+        if (window.loadMyApplications)      window.loadMyApplications();
       }
     })
     .catch(function (err) {
@@ -128,6 +129,30 @@
         if (window.showToast) showToast('تعذّر تحميل المنشورات', 'error');
       })
       .finally(function () { _postsLoading = false; });
+  }
+
+  // Employee applications — visitor/employee only; populates companyState.appliedJobIds (Set)
+  function loadMyApplications() {
+    if (!window.companyState || companyState.viewMode === 'owner') return;
+    var jwt = window._jwt ? window._jwt() : '';
+    var _u = null;
+    try { _u = JSON.parse(localStorage.getItem('tw_user') || 'null'); } catch (e) {}
+    if (!jwt || !_u || _u.user_type !== 'emp') {
+      if (window.companyState) companyState.appliedJobIds = new Set();
+      return;
+    }
+    fetch('/my/applications', { headers: { 'Authorization': 'Bearer ' + jwt } })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        var apps = Array.isArray(data) ? data : (data.applications || []);
+        if (window.companyState) {
+          companyState.appliedJobIds = new Set(apps.map(function (a) { return a.job_id; }));
+          if (window.renderJobs) renderJobs();
+        }
+      })
+      .catch(function () {
+        if (window.companyState) companyState.appliedJobIds = new Set();
+      });
   }
 
   // Branches — public endpoint, fills companyState.branches then renders
@@ -244,6 +269,7 @@
   window.loadJobs                   = loadJobs;
   window.loadPosts                  = loadPosts;
   window.loadBranches               = loadBranches;
+  window.loadMyApplications         = loadMyApplications;
   window.getCompanyFollowersList    = getCompanyFollowersList;
   window.getCompanyRatingsDetail    = getCompanyRatingsDetail;
   window.getSavedCandidatesCount    = getSavedCandidatesCount;
