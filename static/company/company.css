@@ -768,14 +768,15 @@ i.ico-sm { width:14px; height:14px; stroke:currentColor; fill:none; stroke-width
   display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden;
 }
 
-/* "المزيد..." inline button — sits naturally after truncated text on line 3.
-   No absolute positioning, no gradient overlay — JS truncates text to make room. */
 /* circle-arrow-down — inline icon at end of line 3, no text */
 .post-more-inline {
   display:none;
-  background:none; border:none; cursor:pointer;
+  border:none; cursor:pointer;
   color: var(--pa, var(--ac));
-  padding:0 0 0 3px; line-height:0;
+  background: var(--pa-s, rgba(0,200,150,.12));
+  border-radius:999px;
+  padding:2px;
+  line-height:0;
   vertical-align:middle;
 }
 .post-more-inline:hover { opacity:.7; }
@@ -783,11 +784,22 @@ i.ico-sm { width:14px; height:14px; stroke:currentColor; fill:none; stroke-width
 /* circle-arrow-up — shown below expanded text, icon only */
 .post-less-btn {
   display:none;
-  background:none; border:none; cursor:pointer;
+  border:none; cursor:pointer;
   color: var(--pa, var(--ac));
-  padding:4px 0; line-height:0;
+  background: var(--pa-s, rgba(0,200,150,.12));
+  border-radius:999px;
+  padding:3px;
+  line-height:0;
 }
 .post-less-btn:hover { opacity:.7; }
+
+/* shared icon size for both toggle buttons */
+.post-more-inline svg,
+.post-less-btn svg {
+  width:18px; height:18px;
+  stroke-width:2.3;
+  display:block;
+}
 .post-del {
   background:none; border:none; color:var(--t3);
   cursor:pointer; font-size:.95rem; padding:4px 6px;
