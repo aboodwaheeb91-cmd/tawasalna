@@ -749,7 +749,7 @@ i.ico-sm { width:14px; height:14px; stroke:currentColor; fill:none; stroke-width
 .post-nm   { font-size:.8rem; font-weight:800; }
 .post-date { display:flex; align-items:center; gap:3px; font-size:.63rem; color:var(--t3); margin-top:1px; }
 .post-date svg { width:10px; height:10px; stroke:var(--t3); fill:none; stroke-width:1.8; flex-shrink:0; }
-.post-body { font-size:.8rem; color:var(--t2); line-height:1.6; margin-bottom:8px; }
+.post-body { font-size:.8rem; color:var(--t2); line-height:1.75; margin-bottom:8px; direction:rtl; text-align:right; overflow-wrap:break-word; }
 .post-del {
   background:none; border:none; color:var(--t3);
   cursor:pointer; font-size:.95rem; padding:4px 6px;
@@ -829,12 +829,12 @@ i.ico-sm { width:14px; height:14px; stroke:currentColor; fill:none; stroke-width
 }
 .ptc-chip-x:hover { opacity:1; }
 .ptc-dropdown {
-  position:absolute; top:calc(100% - 1px); right:0; left:0; z-index:40;
-  background:#161b2c; border:1px solid rgba(255,255,255,.1);
-  border-top:none; border-radius:0 0 10px 10px;
+  position:fixed; z-index:9999;
+  background:#161b2c; border:1px solid rgba(255,255,255,.12);
+  border-radius:10px;
   max-height:210px; overflow-y:auto;
   display:none; padding:4px 0;
-  box-shadow:0 6px 20px rgba(0,0,0,.45);
+  box-shadow:0 8px 24px rgba(0,0,0,.6);
 }
 .ptc-dropdown::-webkit-scrollbar { width:4px; }
 .ptc-dropdown::-webkit-scrollbar-thumb { background:rgba(255,255,255,.12); border-radius:4px; }
