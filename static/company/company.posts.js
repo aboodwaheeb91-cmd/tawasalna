@@ -107,10 +107,10 @@
   function _sharePost(postId) {
     var coName = (window.companyState && companyState.profile && companyState.profile.full_name)
       ? companyState.profile.full_name : 'شركة';
-    var idParam = new URLSearchParams(location.search).get('id');
-    if (!idParam && window.companyState && companyState.profile) idParam = String(companyState.profile.id || '');
-    var url = idParam
-      ? (location.origin || '') + '/company-profile?id=' + encodeURIComponent(idParam)
+    var twId = (window.companyState && companyState.profile && companyState.profile.tw_id)
+      ? companyState.profile.tw_id : null;
+    var url = twId
+      ? (location.origin || '') + '/u/' + encodeURIComponent(twId)
       : location.href;
     var shareText = 'منشور من ' + coName + ' على تواصلنا:\n' + url;
     if (navigator.share) {
