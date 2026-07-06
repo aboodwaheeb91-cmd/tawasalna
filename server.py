@@ -85,7 +85,7 @@ from auth import (
     _validate_accepted_profession_ids,
     follow_company, unfollow_company, get_company_followers_list, rate_company,
     get_company_ratings_detail,
-    get_company_posts, get_company_posts_count, create_company_post, update_company_post, get_post_owner, delete_company_post,
+    get_company_posts, get_company_posts_count, create_company_post, update_company_post, get_post_owner, delete_company_post, record_company_post_view,
     follow_profile, unfollow_profile, get_profile_followers_count, is_profile_following,
     get_profile_followers_list, get_profile_following_list,
     record_profile_view, get_profile_views_count,
@@ -1230,6 +1230,9 @@ class CompanyPostUpdateInput(BaseModel):
     theme_color: Optional[str] = None
     comments_enabled: Optional[bool] = True
 
+class PostViewInput(BaseModel):
+    visitor_key: Optional[str] = None  # anonymous visitor key (UUID, max 64 chars)
+
 class JobInput(BaseModel):
     title: str
     description: Optional[str] = None
@@ -1679,6 +1682,36 @@ def company_post_update(post_id: int, data: CompanyPostUpdateInput, token=Depend
     ce = data.comments_enabled if data.comments_enabled is not None else True
     post = update_company_post(post_id, body, data.tags, data.theme_color or None, ce)
     return {"status": "success", "post": post}
+
+
+@app.post("/company/posts/{post_id}/view")
+def company_post_record_view(post_id: int, data: PostViewInput, request: Request):
+    """Record a post view. Auth is optional — logged-in users are deduplicated by user_id,
+    anonymous visitors by visitor_key. Post owner views are silently ignored."""
+    # Verify post exists
+    owner = get_post_owner(post_id)
+    if owner is None:
+        raise HTTPException(404, "المنشور غير موجود")
+
+    # Try to extract user from JWT (optional auth — no error if missing/invalid)
+    auth = request.headers.get("Authorization", "")
+    token_str = auth[7:] if auth.startswith("Bearer ") else ""
+    payload = _jwt_decode(token_str) if token_str else {}
+    user_id = payload.get("user_id")
+
+    # Don't count the post owner's own views
+    if user_id and int(user_id) == owner:
+        return {"status": "skipped", "reason": "owner"}
+
+    if user_id:
+        recorded = record_company_post_view(post_id, viewer_user_id=int(user_id))
+    else:
+        vk = (data.visitor_key or "").strip()[:64]
+        if not vk:
+            return {"status": "skipped", "reason": "no_key"}
+        recorded = record_company_post_view(post_id, visitor_key=vk)
+
+    return {"status": "success", "recorded": recorded}
 
 
 # ── Saved Candidates (Phase 3 — company-owner only, JWT required) ──────────

@@ -757,8 +757,12 @@ i.ico-sm { width:14px; height:14px; stroke:currentColor; fill:none; stroke-width
 }
 .post-head-info { flex:1; }
 .post-nm   { font-size:.8rem; font-weight:800; }
-.post-date { display:flex; align-items:center; gap:3px; font-size:.63rem; color:var(--t3); margin-top:1px; }
+.post-meta-row { display:flex; align-items:center; flex-wrap:wrap; gap:6px; margin-top:1px; }
+.post-date { display:inline-flex; align-items:center; gap:3px; font-size:.63rem; color:var(--t3); }
 .post-date svg { width:10px; height:10px; stroke:var(--t3); fill:none; stroke-width:1.8; flex-shrink:0; }
+.post-views { display:inline-flex; align-items:center; gap:3px; font-size:.63rem; color:var(--t3); opacity:.75; }
+.post-views::before { content:'·'; margin-inline-end:2px; }
+.post-views svg { width:10px; height:10px; stroke:var(--t3); fill:none; stroke-width:1.8; flex-shrink:0; }
 .post-body-wrap { margin-bottom:8px; }
 /* CSS fallback clamp (3 lines) — active until JS binary-search truncation runs.
    JS sets display:block on the body element after truncation, removing the webkit clamp. */
@@ -771,15 +775,21 @@ i.ico-sm { width:14px; height:14px; stroke:currentColor; fill:none; stroke-width
 /* circle-arrow-down — inline icon at end of line 3, no text */
 .post-more-inline {
   display:none;
+  align-items:center; gap:3px;
   border:none; cursor:pointer;
   color: var(--pa, var(--ac));
   background: var(--pa-s, rgba(0,200,150,.12));
   border-radius:999px;
-  padding:2px;
-  line-height:0;
+  padding:2px 5px 2px 3px;
+  line-height:1;
   vertical-align:middle;
 }
 .post-more-inline:hover { opacity:.7; }
+.post-more-ellipsis {
+  font-size:.85rem; line-height:1;
+  color: var(--pa, var(--ac));
+  user-select:none;
+}
 
 /* circle-arrow-up — shown below expanded text, icon only */
 .post-less-btn {

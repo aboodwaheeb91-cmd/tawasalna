@@ -243,6 +243,12 @@
     return String(n);
   }
 
+  function _fmtViews(n) {
+    n = Number(n) || 0;
+    if (n >= 1000) { var k = n / 1000; return (k % 1 === 0 ? k : k.toFixed(1)) + 'K مشاهدة'; }
+    return n + ' مشاهدة';
+  }
+
   function _fmtRating(r) {
     if (r == null || r === '') return '—';
     r = Number(r);
@@ -490,18 +496,22 @@
       : '';
 
     // Inline SVGs
+    var icoEye      = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
     var icoClock    = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>';
     var icoShare    = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>';
     var icoHeart    = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>';
     var icoComment  = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>';
     var icoBookmark = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>';
 
-    return '<div class="post-card" style="' + cardStyle + '">'
+    return '<div class="post-card" data-post-id="' + pid + '" style="' + cardStyle + '">'
       + '<div class="post-head">'
         + '<div class="post-ava">' + avaContent + '</div>'
         + '<div class="post-head-info">'
           + '<div class="post-nm">' + _esc(coName) + '</div>'
-          + '<div class="post-date">' + icoClock + _relativeTime(post.created_at) + '</div>'
+          + '<div class="post-meta-row">'
+            + '<span class="post-date">' + icoClock + _relativeTime(post.created_at) + '</span>'
+            + '<span class="post-views" data-views-count="' + (Number(post.views_count) || 0) + '">' + icoEye + _fmtViews(post.views_count) + '</span>'
+          + '</div>'
         + '</div>'
         + dotsHtml
       + '</div>'
@@ -509,6 +519,7 @@
         + '<div class="post-body">'
           + '<span class="post-body-text">' + _esc(post.body) + '</span>'
           + '<button type="button" class="post-more-inline" aria-label="عرض المزيد">'
+            + '<span class="post-more-ellipsis">…</span>'
             + '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 8v8"/><path d="m8 12 4 4 4-4"/></svg>'
           + '</button>'
         + '</div>'
@@ -547,7 +558,7 @@
 
       // Need truncation — switch to unclamped block for binary-search measurements.
       body.style.cssText = 'display:block;overflow:visible';
-      moreBtn.style.display = 'inline'; // button width must be included in measurements
+      moreBtn.style.display = 'inline-flex'; // button width (ellipsis + icon) must be included in measurements
 
       var lo = 0, hi = fullText.length;
       while (lo < hi - 1) {
@@ -587,7 +598,10 @@
     list.innerHTML = posts.map(_postCardHtml).join('');
     // Two rAFs: first lets the browser compute layout, second ensures fonts are measured.
     requestAnimationFrame(function () {
-      requestAnimationFrame(function () { _initPostClamps(list); });
+      requestAnimationFrame(function () {
+        _initPostClamps(list);
+        if (window.initPostViewTracking) initPostViewTracking(list);
+      });
     });
   }
 

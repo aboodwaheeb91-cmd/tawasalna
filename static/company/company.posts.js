@@ -405,11 +405,94 @@
     if (postCancelBtn) postCancelBtn.addEventListener('click', _closePostOverlay);
   }
 
-  window.openPostModal      = openPostModal;
-  window._closePostOverlay  = _closePostOverlay;
-  window.createPost         = createPost;
-  window.updatePost         = updatePost;
-  window.deletePost         = deletePost;
+  // ── Post View Tracking ────────────────────────────────────────────────────
+  var _viewedThisSession = {};  // post_id → true; resets on page reload
+  var _postViewObserver  = null;
+
+  function _getOrCreateVisitorKey() {
+    var key = localStorage.getItem('cp_vk');
+    if (!key) {
+      key = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+        var r = Math.random() * 16 | 0;
+        return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+      });
+      localStorage.setItem('cp_vk', key);
+    }
+    return key;
+  }
+
+  function _fmtViewsCount(n) {
+    n = Number(n) || 0;
+    if (n >= 1000) { var k = n / 1000; return (k % 1 === 0 ? k : k.toFixed(1)) + 'K مشاهدة'; }
+    return n + ' مشاهدة';
+  }
+
+  function _sendView(postId) {
+    var jwt     = window._jwt ? window._jwt() : '';
+    var headers = { 'Content-Type': 'application/json' };
+    var body    = {};
+    if (jwt) { headers['Authorization'] = 'Bearer ' + jwt; }
+    else      { body.visitor_key = _getOrCreateVisitorKey(); }
+
+    fetch('/company/posts/' + postId + '/view', {
+      method: 'POST', headers: headers, body: JSON.stringify(body)
+    }).then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (d && d.status === 'success' && d.recorded) {
+          // Bump the displayed count +1 without a full reload
+          var card = document.querySelector('.post-card[data-post-id="' + postId + '"]');
+          if (!card) return;
+          var vEl = card.querySelector('.post-views');
+          if (!vEl) return;
+          var cur = parseInt(vEl.dataset.viewsCount, 10) || 0;
+          var next = cur + 1;
+          vEl.dataset.viewsCount = next;
+          var svg = vEl.querySelector('svg');
+          vEl.innerHTML = (svg ? svg.outerHTML : '') + _fmtViewsCount(next);
+        }
+      }).catch(function () { /* best-effort — ignore network errors */ });
+  }
+
+  function initPostViewTracking(container) {
+    // Disconnect previous observer if list was re-rendered
+    if (_postViewObserver) { _postViewObserver.disconnect(); _postViewObserver = null; }
+    if (!container || typeof IntersectionObserver === 'undefined') return;
+
+    var DWELL_MS = 800; // card must be visible for 800ms before counting
+    var timers   = {};  // post_id → timeout handle
+
+    _postViewObserver = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        var pid = entry.target.dataset.postId;
+        if (!pid || _viewedThisSession[pid]) return;
+        if (entry.isIntersecting) {
+          if (!timers[pid]) {
+            timers[pid] = setTimeout(function () {
+              delete timers[pid];
+              if (!_viewedThisSession[pid]) {
+                _viewedThisSession[pid] = true;
+                _sendView(pid);
+              }
+            }, DWELL_MS);
+          }
+        } else {
+          // Card left viewport before dwell time — cancel timer
+          if (timers[pid]) { clearTimeout(timers[pid]); delete timers[pid]; }
+        }
+      });
+    }, { threshold: 0.5 });  // 50% of card must be visible
+
+    container.querySelectorAll('.post-card[data-post-id]').forEach(function (card) {
+      _postViewObserver.observe(card);
+    });
+  }
+
+  window.openPostModal        = openPostModal;
+  window._closePostOverlay    = _closePostOverlay;
+  window.createPost           = createPost;
+  window.updatePost           = updatePost;
+  window.deletePost           = deletePost;
+  window.initPostViewTracking = initPostViewTracking;
 
   document.addEventListener('DOMContentLoaded', function () {
     _bindPostEvents();
@@ -450,7 +533,7 @@
           var moreInline = wrap.querySelector('.post-more-inline');
           if (textSpan && wrap._pbShort) textSpan.textContent = wrap._pbShort;
           lessBtn.style.display = 'none';
-          if (moreInline) moreInline.style.display = 'inline';
+          if (moreInline) moreInline.style.display = 'inline-flex';
           return;
         }
         // 3-dot toggle
