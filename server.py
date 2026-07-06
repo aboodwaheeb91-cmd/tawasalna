@@ -1216,9 +1216,12 @@ class CompanyRateInput(BaseModel):
     score: int
     comment: Optional[str] = None
 
+ALLOWED_POST_COLORS = {"teal", "blue", "purple", "orange", "pink", "red", "gold", "gray"}
+
 class CompanyPostInput(BaseModel):
     body: str
     tags: Optional[list] = None
+    theme_color: Optional[str] = None
 
 class JobInput(BaseModel):
     title: str
@@ -1625,7 +1628,9 @@ def company_post_create(data: CompanyPostInput, token=Depends(verify_token)):
     body = (data.body or "").strip()
     if not body:
         raise HTTPException(400, "المنشور فارغ")
-    post = create_company_post(int(user_id), body, data.tags)
+    if data.theme_color and data.theme_color not in ALLOWED_POST_COLORS:
+        raise HTTPException(400, "لون غير مقبول")
+    post = create_company_post(int(user_id), body, data.tags, data.theme_color or None)
     return {"status": "success", "post": post}
 
 

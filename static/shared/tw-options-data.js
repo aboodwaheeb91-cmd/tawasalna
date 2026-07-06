@@ -417,6 +417,18 @@
     'منشور داخلي','منشور خارجي','إعلان داخلي','إعلان خارجي'
   ];
 
+  // ── Post theme color palette (controlled, 8 named values) ───────
+  TW.POST_THEME_COLORS = {
+    teal:   { name_ar: 'أخضر تواصلنا', accent: '#00c896', soft: 'rgba(0,200,150,.12)',   glow: 'rgba(0,200,150,.18)'   },
+    blue:   { name_ar: 'أزرق',          accent: '#3b82f6', soft: 'rgba(59,130,246,.12)',  glow: 'rgba(59,130,246,.18)'  },
+    purple: { name_ar: 'بنفسجي',        accent: '#8b5cf6', soft: 'rgba(139,92,246,.12)',  glow: 'rgba(139,92,246,.18)'  },
+    orange: { name_ar: 'برتقالي',       accent: '#f97316', soft: 'rgba(249,115,22,.12)',  glow: 'rgba(249,115,22,.18)'  },
+    pink:   { name_ar: 'وردي',          accent: '#ec4899', soft: 'rgba(236,72,153,.12)',  glow: 'rgba(236,72,153,.18)'  },
+    red:    { name_ar: 'أحمر هادئ',     accent: '#ef4444', soft: 'rgba(239,68,68,.12)',   glow: 'rgba(239,68,68,.18)'   },
+    gold:   { name_ar: 'ذهبي',          accent: '#f59e0b', soft: 'rgba(245,158,11,.12)',  glow: 'rgba(245,158,11,.18)'  },
+    gray:   { name_ar: 'رمادي احترافي', accent: '#64748b', soft: 'rgba(100,116,139,.12)', glow: 'rgba(100,116,139,.18)' },
+  };
+
   // ── Fill founded-year dropdown (current year → 1900, idempotent) ─
   TW.fillFoundedYears = function (selEl) {
     if (!selEl || selEl.options.length > 1) return;
