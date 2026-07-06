@@ -770,23 +770,24 @@ i.ico-sm { width:14px; height:14px; stroke:currentColor; fill:none; stroke-width
 
 /* "المزيد..." inline button — sits naturally after truncated text on line 3.
    No absolute positioning, no gradient overlay — JS truncates text to make room. */
+/* circle-arrow-down — inline icon at end of line 3, no text */
 .post-more-inline {
   display:none;
   background:none; border:none; cursor:pointer;
   color: var(--pa, var(--ac));
-  font-size:.8rem; font-family:'Cairo',sans-serif;
-  padding:0 0 0 1px; line-height:1.75;
-  vertical-align:baseline;
+  padding:0 0 0 3px; line-height:0;
+  vertical-align:middle;
 }
-.post-more-inline:hover { opacity:.8; }
+.post-more-inline:hover { opacity:.7; }
 
-/* "عرض أقل" — shown by JS after expand */
+/* circle-arrow-up — shown below expanded text, icon only */
 .post-less-btn {
   display:none;
   background:none; border:none; cursor:pointer;
-  color:var(--t3); font-size:.72rem; font-family:'Cairo',sans-serif;
-  padding:3px 0; direction:rtl;
+  color: var(--pa, var(--ac));
+  padding:4px 0; line-height:0;
 }
+.post-less-btn:hover { opacity:.7; }
 .post-del {
   background:none; border:none; color:var(--t3);
   cursor:pointer; font-size:.95rem; padding:4px 6px;
