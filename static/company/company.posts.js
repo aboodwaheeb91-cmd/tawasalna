@@ -531,7 +531,7 @@
           var moreInline = wrap.querySelector('.post-more-inline');
           if (textSpan && wrap._pbShort) textSpan.textContent = wrap._pbShort;
           lessBtn.style.display = 'none';
-          if (moreInline) moreInline.style.display = 'inline';
+          if (moreInline) moreInline.style.display = 'inline-flex';
           return;
         }
         // 3-dot toggle

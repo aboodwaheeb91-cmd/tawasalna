@@ -519,6 +519,7 @@
         + '<div class="post-body">'
           + '<span class="post-body-text">' + _esc(post.body) + '</span>'
           + '<button type="button" class="post-more-inline" aria-label="عرض المزيد">'
+            + '<span class="post-more-ellipsis">…</span>'
             + '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 8v8"/><path d="m8 12 4 4 4-4"/></svg>'
           + '</button>'
         + '</div>'
@@ -557,7 +558,7 @@
 
       // Need truncation — switch to unclamped block for binary-search measurements.
       body.style.cssText = 'display:block;overflow:visible';
-      moreBtn.style.display = 'inline'; // button width must be included in measurements
+      moreBtn.style.display = 'inline-flex'; // button width (ellipsis + icon) must be included in measurements
 
       var lo = 0, hi = fullText.length;
       while (lo < hi - 1) {

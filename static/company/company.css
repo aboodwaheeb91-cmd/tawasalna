@@ -775,15 +775,21 @@ i.ico-sm { width:14px; height:14px; stroke:currentColor; fill:none; stroke-width
 /* circle-arrow-down — inline icon at end of line 3, no text */
 .post-more-inline {
   display:none;
+  align-items:center; gap:3px;
   border:none; cursor:pointer;
   color: var(--pa, var(--ac));
   background: var(--pa-s, rgba(0,200,150,.12));
   border-radius:999px;
-  padding:2px;
-  line-height:0;
+  padding:2px 5px 2px 3px;
+  line-height:1;
   vertical-align:middle;
 }
 .post-more-inline:hover { opacity:.7; }
+.post-more-ellipsis {
+  font-size:.85rem; line-height:1;
+  color: var(--pa, var(--ac));
+  user-select:none;
+}
 
 /* circle-arrow-up — shown below expanded text, icon only */
 .post-less-btn {
