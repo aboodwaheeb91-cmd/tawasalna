@@ -56,6 +56,14 @@
     dd.innerHTML = results.map(function (t) {
       return '<button type="button" class="ptc-option" data-tag="' + t + '">' + t + '</button>';
     }).join('');
+    // Use fixed positioning to escape modal overflow-y:auto clipping
+    var searchEl = document.getElementById('p-tags-search');
+    if (searchEl) {
+      var rect = searchEl.getBoundingClientRect();
+      dd.style.top   = (rect.bottom + 2) + 'px';
+      dd.style.left  = rect.left + 'px';
+      dd.style.width = rect.width + 'px';
+    }
     dd.style.display = 'block';
   }
 
@@ -80,7 +88,7 @@
     if (searchEl) {
       searchEl.addEventListener('input', function () {
         var q = this.value.trim();
-        if (q.length < 2) { _closeTagDropdown(); return; }
+        if (q.length < 1) { _closeTagDropdown(); return; }
         _openTagDropdown(_searchTags(q));
       });
       searchEl.addEventListener('keydown', function (e) {
@@ -89,7 +97,7 @@
         var dd = document.getElementById('p-tags-dropdown');
         var first = dd ? dd.querySelector('.ptc-option') : null;
         if (first) { _addTag(first.dataset.tag); }
-        else if (this.value.trim().length >= 2) {
+        else if (this.value.trim().length >= 1) {
           if (window.showToast) showToast('اختر الوسم من القائمة المقترحة');
         }
       });
