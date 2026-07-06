@@ -327,6 +327,19 @@
     var postsList = document.getElementById('postsList');
     if (postsList) {
       postsList.addEventListener('click', function (e) {
+        // Read more / read less
+        var moreBtn = e.target.closest('.post-more-btn');
+        if (moreBtn) {
+          var wrap = moreBtn.closest('.post-body-wrap');
+          if (wrap) { wrap.classList.remove('pc-clamped'); wrap.classList.add('pc-expanded'); }
+          return;
+        }
+        var lessBtn = e.target.closest('.post-less-btn');
+        if (lessBtn) {
+          var wrap = lessBtn.closest('.post-body-wrap');
+          if (wrap) { wrap.classList.remove('pc-expanded'); wrap.classList.add('pc-clamped'); }
+          return;
+        }
         // 3-dot toggle
         var dotsBtn = e.target.closest('.pc-dots-btn[data-post-id]');
         if (dotsBtn) {

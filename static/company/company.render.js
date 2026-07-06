@@ -505,7 +505,11 @@
         + '</div>'
         + dotsHtml
       + '</div>'
-      + '<div class="post-body">' + _esc(post.body) + '</div>'
+      + '<div class="post-body-wrap">'
+        + '<div class="post-body">' + _esc(post.body) + '</div>'
+        + '<button type="button" class="post-more-btn">المزيد...</button>'
+        + '<button type="button" class="post-less-btn">عرض أقل</button>'
+      + '</div>'
       + tagsHtml
       + '<div class="pc-actions">'
         + '<button class="pc-btn pc-btn--like"  data-post-id="' + pid + '">' + icoHeart    + 'لايك</button>'
@@ -514,6 +518,20 @@
         + '<button class="pc-btn pc-btn--save"  data-post-id="' + pid + '">' + icoBookmark + 'حفظ</button>'
       + '</div>'
     + '</div>';
+  }
+
+  function _initPostClamps(container) {
+    var wraps = container.querySelectorAll('.post-body-wrap:not(.pc-init)');
+    wraps.forEach(function (wrap) {
+      wrap.classList.add('pc-init');
+      var body = wrap.querySelector('.post-body');
+      if (!body) return;
+      var lh = parseFloat(getComputedStyle(body).lineHeight) || 22;
+      // Add pc-clamped only if text actually exceeds 3 lines (+2px rounding buffer)
+      if (body.scrollHeight > Math.round(lh * 3) + 2) {
+        wrap.classList.add('pc-clamped');
+      }
+    });
   }
 
   function renderPosts(posts) {
@@ -527,6 +545,7 @@
     }
     if (empty) empty.style.display = 'none';
     list.innerHTML = posts.map(_postCardHtml).join('');
+    _initPostClamps(list);
   }
 
   // ── Branches (public display) ─────────────────────────────────
