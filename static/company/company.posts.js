@@ -1,4 +1,4 @@
-// company.posts.js — create post, delete post, open post modal, tag picker
+// company.posts.js — create/edit post, delete post, modal, tag picker, color picker
 // Load order: 6th (after jobs)
 (function () {
   'use strict';
@@ -8,6 +8,8 @@
   var _postHistoryPushed   = false;
   var _selectedTags        = [];       // tag picker state
   var _selectedPostColor   = 'teal';   // color picker state (default = teal)
+  var _editingPostId       = null;     // post id being edited, or null in create mode
+  var _isEditingPost       = false;    // true when modal is in edit mode
 
   // ── Tag Picker ────────────────────────────────────────────────
   function _searchTags(q) {
@@ -110,7 +112,7 @@
 
   function _resetColorPicker() {
     _selectedPostColor = 'teal';
-    _renderColorPicker();
+    _renderColorPicker(); // _renderColorPicker calls _applyPostColorPreview internally
   }
 
   function _bindColorPickerEvents() {
@@ -122,6 +124,7 @@
       if (!btn) return;
       _selectedPostColor = btn.getAttribute('data-color');
       _renderColorPicker();
+      _applyPostColorPreview();
     });
   }
 
@@ -178,13 +181,59 @@
     });
   }
 
+  // ── Modal mode helpers ────────────────────────────────────────
+  function _setModalCreateMode() {
+    var titleEl  = document.getElementById('postModalTitle');
+    var lblEl    = document.getElementById('createPostBtnLabel');
+    var noComEl  = document.getElementById('p-no-comments');
+    var bodyEl   = document.getElementById('p-body');
+    if (titleEl)  titleEl.textContent  = 'نشر منشور جديد';
+    if (lblEl)    lblEl.textContent    = 'نشر';
+    if (noComEl)  noComEl.checked      = false;
+    if (bodyEl)   bodyEl.value         = '';
+    _resetTagPicker();
+    _resetColorPicker();
+  }
+
+  function _setModalEditMode(post) {
+    var titleEl  = document.getElementById('postModalTitle');
+    var lblEl    = document.getElementById('createPostBtnLabel');
+    var noComEl  = document.getElementById('p-no-comments');
+    var bodyEl   = document.getElementById('p-body');
+    if (titleEl)  titleEl.textContent  = 'تعديل المنشور';
+    if (lblEl)    lblEl.textContent    = 'حفظ التعديل';
+    if (bodyEl)   bodyEl.value         = post.body || '';
+    if (noComEl)  noComEl.checked      = (post.comments_enabled === false);
+
+    // Tags
+    _selectedTags = Array.isArray(post.tags) ? post.tags.slice() : [];
+    _renderTagChips();
+    var search = document.getElementById('p-tags-search');
+    if (search) search.value = '';
+    _closeTagDropdown();
+
+    // Color
+    _selectedPostColor = (post.theme_color && window.TW && TW.POST_THEME_COLORS && TW.POST_THEME_COLORS[post.theme_color])
+      ? post.theme_color : 'teal';
+    _renderColorPicker();
+    _applyPostColorPreview();
+  }
+
   // ── Modal ─────────────────────────────────────────────────────
-  function openPostModal() {
+  // postData: pass a post object to open in Edit Mode; omit or null for Create Mode.
+  function openPostModal(postData) {
     if (!window.companyState || !companyState.permissions.can_edit) return;
     var ov = document.getElementById('postOverlay');
     if (ov) ov.classList.add('show');
-    _resetTagPicker();
-    _resetColorPicker();
+    if (postData) {
+      _isEditingPost  = true;
+      _editingPostId  = postData.id;
+      _setModalEditMode(postData);
+    } else {
+      _isEditingPost  = false;
+      _editingPostId  = null;
+      _setModalCreateMode();
+    }
     if (window.history && !_postHistoryPushed) {
       history.pushState({ modal: 'post' }, '', location.href);
       _postHistoryPushed = true;
@@ -195,6 +244,9 @@
   function _closePostOverlay(fromPopstate) {
     var ov = document.getElementById('postOverlay');
     if (ov) ov.classList.remove('show');
+    _editingPostId  = null;
+    _isEditingPost  = false;
+    _setModalCreateMode();
     if (_postHistoryPushed && !fromPopstate) {
       _postHistoryPushed = false;
       if (window.history) history.back();
@@ -204,24 +256,27 @@
   }
 
   function createPost() {
+    if (_isEditingPost) { updatePost(); return; }
     if (!window._jwt || !_jwt()) { window.location.href = '/'; return; }
     if (!window.companyState || !companyState.permissions.can_edit) {
       if (window.showToast) showToast('غير مصرح', 'error'); return;
     }
     if (isPostCreating) return;
 
-    var bodyEl = document.getElementById('p-body');
-    var body   = (bodyEl ? bodyEl.value : '').trim();
+    var bodyEl  = document.getElementById('p-body');
+    var noComEl = document.getElementById('p-no-comments');
+    var body    = (bodyEl ? bodyEl.value : '').trim();
     if (!body) { if (window.showToast) showToast('اكتب محتوى المنشور', 'error'); return; }
 
-    var tags  = _selectedTags.slice();
-    var color = _selectedPostColor || null;
+    var tags            = _selectedTags.slice();
+    var color           = _selectedPostColor || null;
+    var commentsEnabled = !(noComEl && noComEl.checked);
 
     isPostCreating = true;
     fetch('/company/posts', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + _jwt() },
-      body:    JSON.stringify({ body: body, tags: tags.length ? tags : null, theme_color: color }),
+      body:    JSON.stringify({ body: body, tags: tags.length ? tags : null, theme_color: color, comments_enabled: commentsEnabled }),
     })
     .then(function (r) {
       if (!r.ok) throw new Error('create failed: ' + r.status);
@@ -229,13 +284,49 @@
     })
     .then(function () {
       _closePostOverlay();
-      if (bodyEl) bodyEl.value = '';
-      _resetTagPicker();
       if (window.loadPosts) loadPosts(true);
       if (window.showToast) showToast('تم نشر المنشور ✓');
     })
     .catch(function () {
       if (window.showToast) showToast('تعذّر نشر المنشور', 'error');
+    })
+    .finally(function () { isPostCreating = false; });
+  }
+
+  function updatePost() {
+    if (!window._jwt || !_jwt()) { window.location.href = '/'; return; }
+    if (!window.companyState || !companyState.permissions.can_edit) {
+      if (window.showToast) showToast('غير مصرح', 'error'); return;
+    }
+    if (!_editingPostId) return;
+    if (isPostCreating) return;
+
+    var bodyEl  = document.getElementById('p-body');
+    var noComEl = document.getElementById('p-no-comments');
+    var body    = (bodyEl ? bodyEl.value : '').trim();
+    if (!body) { if (window.showToast) showToast('اكتب محتوى المنشور', 'error'); return; }
+
+    var tags            = _selectedTags.slice();
+    var color           = _selectedPostColor || null;
+    var commentsEnabled = !(noComEl && noComEl.checked);
+
+    isPostCreating = true;
+    fetch('/company/posts/' + _editingPostId, {
+      method:  'PATCH',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + _jwt() },
+      body:    JSON.stringify({ body: body, tags: tags.length ? tags : null, theme_color: color, comments_enabled: commentsEnabled }),
+    })
+    .then(function (r) {
+      if (!r.ok) throw new Error('update failed: ' + r.status);
+      return r.json();
+    })
+    .then(function () {
+      _closePostOverlay();
+      if (window.loadPosts) loadPosts(true);
+      if (window.showToast) showToast('تم تعديل المنشور ✓');
+    })
+    .catch(function () {
+      if (window.showToast) showToast('تعذّر تعديل المنشور', 'error');
     })
     .finally(function () { isPostCreating = false; });
   }
@@ -317,6 +408,7 @@
   window.openPostModal      = openPostModal;
   window._closePostOverlay  = _closePostOverlay;
   window.createPost         = createPost;
+  window.updatePost         = updatePost;
   window.deletePost         = deletePost;
 
   document.addEventListener('DOMContentLoaded', function () {
@@ -367,6 +459,16 @@
           e.stopPropagation();
           var menu = document.getElementById('pc-dm-' + dotsBtn.getAttribute('data-post-id'));
           if (menu) menu.classList.toggle('open');
+          return;
+        }
+        // 3-dot edit
+        var editDots = e.target.closest('.pc-dots-edit[data-post-id]');
+        if (editDots) {
+          var epid = parseInt(editDots.getAttribute('data-post-id'), 10);
+          var edm  = document.getElementById('pc-dm-' + epid);
+          if (edm) edm.classList.remove('open');
+          var postData = window._getPostById ? window._getPostById(epid) : null;
+          if (postData) openPostModal(postData);
           return;
         }
         // 3-dot delete

@@ -2973,6 +2973,7 @@ def ensure_company_tables():
         """)
         conn.run("CREATE INDEX IF NOT EXISTS idx_posts_company ON company_posts(company_id)")
         conn.run("ALTER TABLE company_posts ADD COLUMN IF NOT EXISTS theme_color VARCHAR(20) DEFAULT NULL")
+        conn.run("ALTER TABLE company_posts ADD COLUMN IF NOT EXISTS comments_enabled BOOLEAN DEFAULT TRUE")
         release_conn(conn)
         print("✅ company tables ready")
     except Exception as e:
@@ -3261,10 +3262,10 @@ def get_company_posts(company_id: int) -> list:
     conn = get_conn()
     try:
         rows = conn.run(
-            "SELECT id, body, tags, theme_color, created_at FROM company_posts "
+            "SELECT id, body, tags, theme_color, comments_enabled, created_at FROM company_posts "
             "WHERE company_id = :cid ORDER BY created_at DESC",
             cid=company_id)
-        cols = ["id", "body", "tags", "theme_color", "created_at"]
+        cols = ["id", "body", "tags", "theme_color", "comments_enabled", "created_at"]
         return [_serialize(_row_to_dict(cols, r)) for r in rows]
     finally:
         release_conn(conn)
@@ -3282,15 +3283,33 @@ def get_company_posts_count(company_id: int) -> int:
         release_conn(conn)
 
 
-def create_company_post(company_id: int, body: str, tags=None, theme_color=None) -> dict:
+def create_company_post(company_id: int, body: str, tags=None, theme_color=None, comments_enabled=True) -> dict:
     """Insert a post. Returns the created row. body required (non-empty)."""
     conn = get_conn()
     try:
         rows = conn.run(
-            "INSERT INTO company_posts (company_id, body, tags, theme_color) "
-            "VALUES (:cid, :body, :tags, :tc) RETURNING id, body, tags, theme_color, created_at",
-            cid=company_id, body=body, tags=(tags if tags else None), tc=theme_color)
-        cols = ["id", "body", "tags", "theme_color", "created_at"]
+            "INSERT INTO company_posts (company_id, body, tags, theme_color, comments_enabled) "
+            "VALUES (:cid, :body, :tags, :tc, :ce) "
+            "RETURNING id, body, tags, theme_color, comments_enabled, created_at",
+            cid=company_id, body=body, tags=(tags if tags else None), tc=theme_color,
+            ce=(comments_enabled if comments_enabled is not None else True))
+        cols = ["id", "body", "tags", "theme_color", "comments_enabled", "created_at"]
+        return _serialize(_row_to_dict(cols, rows[0])) if rows else {}
+    finally:
+        release_conn(conn)
+
+
+def update_company_post(post_id: int, body: str, tags=None, theme_color=None, comments_enabled=True) -> dict:
+    """Update body/tags/theme_color/comments_enabled of an existing post. Returns updated row."""
+    conn = get_conn()
+    try:
+        rows = conn.run(
+            "UPDATE company_posts SET body=:body, tags=:tags, theme_color=:tc, "
+            "comments_enabled=:ce, updated_at=NOW() WHERE id=:pid "
+            "RETURNING id, body, tags, theme_color, comments_enabled, created_at",
+            body=body, tags=(tags if tags else None), tc=theme_color,
+            ce=(comments_enabled if comments_enabled is not None else True), pid=post_id)
+        cols = ["id", "body", "tags", "theme_color", "comments_enabled", "created_at"]
         return _serialize(_row_to_dict(cols, rows[0])) if rows else {}
     finally:
         release_conn(conn)
