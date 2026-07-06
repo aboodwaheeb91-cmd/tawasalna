@@ -2988,6 +2988,17 @@ def ensure_company_tables():
         # Partial unique indexes: one row per logged-in user per post, one per visitor_key per post
         conn.run("CREATE UNIQUE INDEX IF NOT EXISTS uq_post_view_user    ON company_post_views(post_id, viewer_user_id) WHERE viewer_user_id IS NOT NULL")
         conn.run("CREATE UNIQUE INDEX IF NOT EXISTS uq_post_view_visitor ON company_post_views(post_id, visitor_key)     WHERE visitor_key   IS NOT NULL")
+        # ── company_post_appreciations — one appreciation per user per post ──
+        conn.run("""
+            CREATE TABLE IF NOT EXISTS company_post_appreciations (
+                id         SERIAL PRIMARY KEY,
+                post_id    INTEGER NOT NULL REFERENCES company_posts(id) ON DELETE CASCADE,
+                user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+        """)
+        conn.run("CREATE INDEX IF NOT EXISTS idx_post_appr_post ON company_post_appreciations(post_id)")
+        conn.run("CREATE UNIQUE INDEX IF NOT EXISTS uq_post_appr_user ON company_post_appreciations(post_id, user_id)")
         release_conn(conn)
         print("✅ company tables ready")
     except Exception as e:
@@ -3271,19 +3282,36 @@ def get_company_ratings_detail(company_id: int, viewer_id=None, limit: int = 5) 
 # ══ Phase 3: Company Posts Data Layer (Rule #5,#6 — Single Source) ══
 # Pure data layer. No authorization (that lives in server.py). company_id = users.id.
 
-def get_company_posts(company_id: int) -> list:
-    """Return all posts for a company, newest first. Includes views_count via LEFT JOIN."""
+def get_company_posts(company_id: int, viewer_user_id=None) -> list:
+    """Return all posts for a company, newest first.
+    Includes views_count, appreciations_count, and viewer_appreciated (if viewer_user_id provided)."""
     conn = get_conn()
     try:
-        rows = conn.run(
-            "SELECT cp.id, cp.body, cp.tags, cp.theme_color, cp.comments_enabled, cp.created_at, "
-            "COALESCE(v.cnt, 0) AS views_count "
-            "FROM company_posts cp "
-            "LEFT JOIN (SELECT post_id, COUNT(*) AS cnt FROM company_post_views GROUP BY post_id) v "
-            "ON cp.id = v.post_id "
-            "WHERE cp.company_id = :cid ORDER BY cp.created_at DESC",
-            cid=company_id)
-        cols = ["id", "body", "tags", "theme_color", "comments_enabled", "created_at", "views_count"]
+        if viewer_user_id:
+            rows = conn.run(
+                "SELECT cp.id, cp.body, cp.tags, cp.theme_color, cp.comments_enabled, cp.created_at, "
+                "COALESCE(v.cnt, 0) AS views_count, "
+                "COALESCE(a.cnt, 0) AS appreciations_count, "
+                "(upa.user_id IS NOT NULL) AS viewer_appreciated "
+                "FROM company_posts cp "
+                "LEFT JOIN (SELECT post_id, COUNT(*) AS cnt FROM company_post_views GROUP BY post_id) v ON cp.id = v.post_id "
+                "LEFT JOIN (SELECT post_id, COUNT(*) AS cnt FROM company_post_appreciations GROUP BY post_id) a ON cp.id = a.post_id "
+                "LEFT JOIN company_post_appreciations upa ON upa.post_id = cp.id AND upa.user_id = :viewer_uid "
+                "WHERE cp.company_id = :cid ORDER BY cp.created_at DESC",
+                cid=company_id, viewer_uid=int(viewer_user_id))
+        else:
+            rows = conn.run(
+                "SELECT cp.id, cp.body, cp.tags, cp.theme_color, cp.comments_enabled, cp.created_at, "
+                "COALESCE(v.cnt, 0) AS views_count, "
+                "COALESCE(a.cnt, 0) AS appreciations_count, "
+                "FALSE AS viewer_appreciated "
+                "FROM company_posts cp "
+                "LEFT JOIN (SELECT post_id, COUNT(*) AS cnt FROM company_post_views GROUP BY post_id) v ON cp.id = v.post_id "
+                "LEFT JOIN (SELECT post_id, COUNT(*) AS cnt FROM company_post_appreciations GROUP BY post_id) a ON cp.id = a.post_id "
+                "WHERE cp.company_id = :cid ORDER BY cp.created_at DESC",
+                cid=company_id)
+        cols = ["id", "body", "tags", "theme_color", "comments_enabled", "created_at",
+                "views_count", "appreciations_count", "viewer_appreciated"]
         return [_serialize(_row_to_dict(cols, r)) for r in rows]
     finally:
         release_conn(conn)
@@ -3385,6 +3413,32 @@ def record_company_post_view(post_id: int, viewer_user_id=None, visitor_key=None
         return True
     except Exception:
         return False
+    finally:
+        release_conn(conn)
+
+
+def toggle_company_post_appreciation(post_id: int, user_id: int) -> dict:
+    """Toggle appreciation for a post. Returns {appreciated, appreciations_count}.
+    Uniqueness enforced via uq_post_appr_user index."""
+    conn = get_conn()
+    try:
+        existing = conn.run(
+            "SELECT 1 FROM company_post_appreciations WHERE post_id=:pid AND user_id=:uid",
+            pid=post_id, uid=user_id)
+        if existing:
+            conn.run(
+                "DELETE FROM company_post_appreciations WHERE post_id=:pid AND user_id=:uid",
+                pid=post_id, uid=user_id)
+            appreciated = False
+        else:
+            conn.run(
+                "INSERT INTO company_post_appreciations (post_id, user_id) VALUES (:pid, :uid)",
+                pid=post_id, uid=user_id)
+            appreciated = True
+        cnt_rows = conn.run(
+            "SELECT COUNT(*) FROM company_post_appreciations WHERE post_id=:pid", pid=post_id)
+        count = int(cnt_rows[0][0]) if cnt_rows else 0
+        return {"appreciated": appreciated, "appreciations_count": count}
     finally:
         release_conn(conn)
 

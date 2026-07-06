@@ -119,7 +119,9 @@
       companyId = String(companyState.profile.id);
     if (!companyId) return;
     _postsLoading = true;
-    fetch('/company/posts/' + companyId)
+    var _pJwt = window._jwt ? window._jwt() : '';
+    var _pHeaders = _pJwt ? { 'Authorization': 'Bearer ' + _pJwt } : {};
+    fetch('/company/posts/' + companyId, { headers: _pHeaders })
       .then(function (r) { return r.json(); })
       .then(function (data) {
         _postsLoaded = true;

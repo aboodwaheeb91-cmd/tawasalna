@@ -85,7 +85,7 @@ from auth import (
     _validate_accepted_profession_ids,
     follow_company, unfollow_company, get_company_followers_list, rate_company,
     get_company_ratings_detail,
-    get_company_posts, get_company_posts_count, create_company_post, update_company_post, get_post_owner, delete_company_post, record_company_post_view,
+    get_company_posts, get_company_posts_count, create_company_post, update_company_post, get_post_owner, delete_company_post, record_company_post_view, toggle_company_post_appreciation,
     follow_profile, unfollow_profile, get_profile_followers_count, is_profile_following,
     get_profile_followers_list, get_profile_following_list,
     record_profile_view, get_profile_views_count,
@@ -1618,10 +1618,16 @@ def company_ratings_detail(company_id: str, request: Request, limit: int = 5):
 
 # ══ Phase 3: Company Posts endpoints ══
 @app.get("/company/posts/{company_id}")
-def company_posts_list(company_id: str):
-    # Public read — lazy loaded when posts tab opened
+def company_posts_list(company_id: str, request: Request):
+    # Public read. Optional JWT → viewer_appreciated populated per post.
     resolved_id = _resolve_company_id(company_id)
-    posts = get_company_posts(resolved_id)
+    viewer_uid = None
+    auth = request.headers.get("Authorization", "")
+    token_str = auth.replace("Bearer ", "") if auth.startswith("Bearer ") else ""
+    if token_str:
+        token_data = _jwt_decode(token_str)
+        viewer_uid = token_data.get("user_id") if token_data else None
+    posts = get_company_posts(resolved_id, viewer_user_id=viewer_uid)
     return {"status": "success", "posts": posts}
 
 
@@ -1712,6 +1718,23 @@ def company_post_record_view(post_id: int, data: PostViewInput, request: Request
         recorded = record_company_post_view(post_id, visitor_key=vk)
 
     return {"status": "success", "recorded": recorded}
+
+
+@app.post("/company/posts/{post_id}/appreciate")
+def company_post_appreciate(post_id: int, token=Depends(verify_token)):
+    """Toggle appreciation on a post. Auth required. Owner cannot appreciate own post."""
+    user_id = token.get("user_id")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="يجب تسجيل الدخول لتقدير المنشور")
+    # Verify post exists
+    owner_id = get_post_owner(post_id)
+    if not owner_id:
+        raise HTTPException(status_code=404, detail="المنشور غير موجود")
+    # Owner cannot appreciate own post
+    if int(owner_id) == int(user_id):
+        raise HTTPException(status_code=403, detail="لا يمكنك تقدير منشورك")
+    result = toggle_company_post_appreciation(post_id, int(user_id))
+    return {"status": "success", **result}
 
 
 # ── Saved Candidates (Phase 3 — company-owner only, JWT required) ──────────
