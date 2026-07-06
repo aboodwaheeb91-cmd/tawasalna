@@ -895,6 +895,28 @@ i.ico-sm { width:14px; height:14px; stroke:currentColor; fill:none; stroke-width
 .pcc-dot:hover { transform:scale(1.15); }
 .pcc-dot.selected { outline-color:rgba(255,255,255,.85); transform:scale(1.1); }
 
+/* ══ POST MODAL COLOR LIVE PREVIEW ══════════════════════════════ */
+#p-body {
+  border-color: var(--pa-s, rgba(255,255,255,.09));
+  box-shadow: 0 0 12px var(--pa-g, transparent);
+  transition: border-color .2s, box-shadow .2s;
+}
+#p-body:focus {
+  border-color: var(--pa, var(--ac));
+  box-shadow: 0 0 16px var(--pa-g, transparent);
+}
+#p-tags-search {
+  border-color: var(--pa-s, rgba(255,255,255,.09));
+  transition: border-color .2s;
+}
+#p-tags-search:focus { border-color: var(--pa, var(--ac)); }
+#postOverlay .ptc-chip {
+  background: var(--pa-s, rgba(0,200,150,.1));
+  color: var(--pa, #00c896);
+  border-color: var(--pa-s, rgba(0,200,150,.22));
+}
+#postOverlay .ptc-chip-x { color: var(--pa, #00c896); }
+
 /* ══ EMPTY STATES ════════════════════════════════════════════════ */
 .empty { text-align:center; padding:40px 20px; color:var(--t2); }
 .empty .ei { font-size:2.5rem; margin-bottom:10px; }
