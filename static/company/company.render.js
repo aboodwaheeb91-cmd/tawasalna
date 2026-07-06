@@ -501,9 +501,9 @@
       + '<div class="post-body">' + _esc(post.body) + '</div>'
       + tagsHtml
       + '<div class="pc-actions">'
+        + '<button class="pc-btn pc-btn--like"  data-post-id="' + pid + '">' + icoHeart    + 'لايك</button>'
+        + '<button class="pc-btn pc-btn--cmt"   data-post-id="' + pid + '">' + icoComment  + 'تعليق</button>'
         + '<button class="pc-btn pc-btn--share" data-post-id="' + pid + '">' + icoShare    + 'مشاركة</button>'
-        + '<button class="pc-btn pc-btn--like"  data-post-id="' + pid + '">' + icoHeart   + 'لايك</button>'
-        + '<button class="pc-btn pc-btn--cmt"   data-post-id="' + pid + '">' + icoComment + 'تعليق</button>'
         + '<button class="pc-btn pc-btn--save"  data-post-id="' + pid + '">' + icoBookmark + 'حفظ</button>'
       + '</div>'
     + '</div>';
