@@ -6,24 +6,42 @@
   var isRateLoading = false;
 
   // ── Visitor job card actions — share + save ────────────────────
-  function _shareFallback(url) {
+  function _shareFallback(text) {
     var ta = document.createElement('textarea');
-    ta.value = url; ta.style.cssText = 'position:fixed;opacity:0;top:0;left:0';
+    ta.value = text; ta.style.cssText = 'position:fixed;opacity:0;top:0;left:0';
     document.body.appendChild(ta); ta.select();
-    try { document.execCommand('copy'); if (window.showToast) showToast('تم نسخ رابط الوظيفة ✓'); }
-    catch (e) { if (window.showToast) showToast('الرابط: ' + url); }
+    try { document.execCommand('copy'); if (window.showToast) showToast('تم نسخ تفاصيل الوظيفة ✓'); }
+    catch (e) { if (window.showToast) showToast('تعذّر النسخ تلقائياً'); }
     document.body.removeChild(ta);
   }
   function _shareJob(jid) {
     var url = (location.origin || '') + '/job-detail?id=' + encodeURIComponent(jid);
+    // Look up job title + company name from companyState
+    var job = null;
+    if (window.companyState && companyState.jobs) {
+      for (var i = 0; i < companyState.jobs.length; i++) {
+        if (String(companyState.jobs[i].id) === String(jid)) { job = companyState.jobs[i]; break; }
+      }
+    }
+    var jobTitle    = (job && job.title) ? job.title : '';
+    var companyName = (window.companyState && companyState.profile && companyState.profile.full_name)
+      ? companyState.profile.full_name : '';
+    // Build rich share payload
+    var shareTitle = jobTitle ? 'وظيفة: ' + jobTitle : 'وظيفة على تواصلنا';
+    var parts = ['وظيفة على تواصلنا:'];
+    if (jobTitle)    parts.push(jobTitle);
+    if (companyName) parts.push('لدى: ' + companyName);
+    parts.push('رابط التفاصيل:');
+    parts.push(url);
+    var shareText = parts.join('\n');
     if (navigator.share) {
-      navigator.share({ title: 'وظيفة على تواصلنا', url: url }).catch(function () {});
+      navigator.share({ title: shareTitle, text: shareText, url: url }).catch(function () {});
     } else if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(url)
-        .then(function () { if (window.showToast) showToast('تم نسخ رابط الوظيفة ✓'); })
-        .catch(function () { _shareFallback(url); });
+      navigator.clipboard.writeText(shareText)
+        .then(function () { if (window.showToast) showToast('تم نسخ تفاصيل الوظيفة ✓'); })
+        .catch(function () { _shareFallback(shareText); });
     } else {
-      _shareFallback(url);
+      _shareFallback(shareText);
     }
   }
 
@@ -191,7 +209,8 @@
         var statusBtn = e.target.closest('.vjc-btn--apply-status');
         if (statusBtn) {
           e.stopPropagation();
-          window.location.href = '/job-detail?id=' + card.dataset.jid;
+          var applied = statusBtn.classList.contains('vjc-btn--applied');
+          if (window.showToast) showToast(applied ? 'تم التقديم على هذه الوظيفة' : 'لم تتقدم على هذه الوظيفة بعد');
           return;
         }
         if (e.target.closest('button, a')) { return; }
