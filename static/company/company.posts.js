@@ -94,7 +94,37 @@
     .finally(function () { isPostDeleting = false; });
   }
 
-  // ── Event bindings (commit #2) ──────────────────────────────────
+  // ── Post share ────────────────────────────────────────────────
+  function _sharePostFallback(text) {
+    var ta = document.createElement('textarea');
+    ta.value = text; ta.style.cssText = 'position:fixed;opacity:0;top:0;left:0';
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); if (window.showToast) showToast('تم نسخ رابط المنشور ✓'); }
+    catch (e) { if (window.showToast) showToast('تعذّر النسخ تلقائياً'); }
+    document.body.removeChild(ta);
+  }
+
+  function _sharePost(postId) {
+    var coName = (window.companyState && companyState.profile && companyState.profile.full_name)
+      ? companyState.profile.full_name : 'شركة';
+    var twId = (window.companyState && companyState.profile && companyState.profile.tw_id)
+      ? companyState.profile.tw_id : null;
+    var url = twId
+      ? (location.origin || '') + '/u/' + encodeURIComponent(twId)
+      : location.href;
+    var shareText = 'منشور من ' + coName + ' على تواصلنا:\n' + url;
+    if (navigator.share) {
+      navigator.share({ title: 'منشور: ' + coName, text: shareText, url: url }).catch(function () {});
+    } else if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(shareText)
+        .then(function () { if (window.showToast) showToast('تم نسخ رابط المنشور ✓'); })
+        .catch(function () { _sharePostFallback(shareText); });
+    } else {
+      _sharePostFallback(shareText);
+    }
+  }
+
+  // ── Event bindings ──────────────────────────────────────────────
   function _bindPostEvents() {
     var q = function (id) { return document.getElementById(id); };
 
@@ -118,12 +148,49 @@
 
   document.addEventListener('DOMContentLoaded', function () {
     _bindPostEvents();
-    // Event delegation for dynamically-rendered delete buttons
+
+    // Close 3-dot menus when clicking outside
+    document.addEventListener('click', function (e) {
+      if (!e.target.closest('.pc-dots')) {
+        document.querySelectorAll('.pc-dots-menu.open').forEach(function (m) {
+          m.classList.remove('open');
+        });
+      }
+    });
+
+    // Event delegation for post card buttons
     var postsList = document.getElementById('postsList');
     if (postsList) {
       postsList.addEventListener('click', function (e) {
-        var btn = e.target.closest('.post-del[data-post-id]');
-        if (btn) deletePost(parseInt(btn.getAttribute('data-post-id'), 10));
+        // 3-dot toggle
+        var dotsBtn = e.target.closest('.pc-dots-btn[data-post-id]');
+        if (dotsBtn) {
+          e.stopPropagation();
+          var menu = document.getElementById('pc-dm-' + dotsBtn.getAttribute('data-post-id'));
+          if (menu) menu.classList.toggle('open');
+          return;
+        }
+        // 3-dot delete
+        var delDots = e.target.closest('.pc-dots-delete[data-post-id]');
+        if (delDots) {
+          var pid = parseInt(delDots.getAttribute('data-post-id'), 10);
+          var dm  = document.getElementById('pc-dm-' + pid);
+          if (dm) dm.classList.remove('open');
+          deletePost(pid);
+          return;
+        }
+        // Share
+        var shareBtn = e.target.closest('.pc-btn--share[data-post-id]');
+        if (shareBtn) { _sharePost(shareBtn.getAttribute('data-post-id')); return; }
+        // Like
+        var likeBtn = e.target.closest('.pc-btn--like[data-post-id]');
+        if (likeBtn) { if (window.showToast) showToast('ميزة الإعجاب بالمنشورات ستتوفر قريباً'); return; }
+        // Comment
+        var cmtBtn = e.target.closest('.pc-btn--cmt[data-post-id]');
+        if (cmtBtn) { if (window.showToast) showToast('ميزة التعليقات ستتوفر قريباً'); return; }
+        // Save
+        var saveBtn = e.target.closest('.pc-btn--save[data-post-id]');
+        if (saveBtn) { if (window.showToast) showToast('ميزة حفظ المنشورات ستتوفر قريباً'); return; }
       });
     }
   });
