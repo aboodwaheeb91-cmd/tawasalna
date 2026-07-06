@@ -448,34 +448,65 @@
 
   // ── Posts ─────────────────────────────────────────────────────
   function _postCardHtml(post) {
-    var coName = (window.companyState && companyState.profile)
+    var coName    = (window.companyState && companyState.profile)
       ? (companyState.profile.full_name || 'الشركة') : 'الشركة';
+    var avatarUrl = (window.companyState && companyState.profile)
+      ? (companyState.profile.avatar_url || '') : '';
 
+    // Avatar: real logo or initial letter
+    var avaContent = avatarUrl
+      ? '<img src="' + _escAttr(avatarUrl) + '" alt="">'
+      : '<span class="post-ava--init">' + _esc((coName || '?').charAt(0)) + '</span>';
+
+    // Tags
     var tagsHtml = '';
     if (post.tags && post.tags.length) {
       tagsHtml = '<div class="job-tags">' + post.tags.map(function (t) {
-        return '<span class="jtag jtag-green">' + _escapeHtml(t) + '</span>';
+        return '<span class="jtag jtag-green">' + _esc(t) + '</span>';
       }).join('') + '</div>';
     }
 
+    // 3-dot owner menu
     var canEdit = window.companyState &&
       companyState.permissions && companyState.permissions.can_edit;
-    var delBtn = canEdit
-      ? '<button class="post-del" data-post-id="' + post.id + '" title="حذف">🗑</button>'
+    var pid = _escAttr(String(post.id));
+    var dotsHtml = canEdit
+      ? '<div class="pc-dots">'
+          + '<button class="pc-dots-btn" data-post-id="' + pid + '" aria-label="خيارات">&#8943;</button>'
+          + '<div class="pc-dots-menu" id="pc-dm-' + pid + '">'
+            + '<button class="pc-dots-delete" data-post-id="' + pid + '">'
+              + '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>'
+              + 'حذف'
+            + '</button>'
+          + '</div>'
+        + '</div>'
       : '';
 
-    return '<div class="post-card">' +
-      '<div class="post-head">' +
-        '<div class="post-ava"><svg viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.9)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"/><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/><path d="M10 6h4"/><path d="M10 10h4"/></svg></div>' +
-        '<div class="post-head-info">' +
-          '<div class="post-nm">' + _escapeHtml(coName) + '</div>' +
-          '<div class="post-date">' + _relativeTime(post.created_at) + '</div>' +
-        '</div>' +
-        delBtn +
-      '</div>' +
-      '<div class="post-body">' + _escapeHtml(post.body) + '</div>' +
-      tagsHtml +
-    '</div>';
+    // Inline SVGs
+    var icoClock    = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>';
+    var icoShare    = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>';
+    var icoHeart    = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>';
+    var icoComment  = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>';
+    var icoBookmark = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>';
+
+    return '<div class="post-card">'
+      + '<div class="post-head">'
+        + '<div class="post-ava">' + avaContent + '</div>'
+        + '<div class="post-head-info">'
+          + '<div class="post-nm">' + _esc(coName) + '</div>'
+          + '<div class="post-date">' + icoClock + _relativeTime(post.created_at) + '</div>'
+        + '</div>'
+        + dotsHtml
+      + '</div>'
+      + '<div class="post-body">' + _esc(post.body) + '</div>'
+      + tagsHtml
+      + '<div class="pc-actions">'
+        + '<button class="pc-btn pc-btn--share" data-post-id="' + pid + '">' + icoShare    + 'مشاركة</button>'
+        + '<button class="pc-btn pc-btn--like"  data-post-id="' + pid + '">' + icoHeart   + 'لايك</button>'
+        + '<button class="pc-btn pc-btn--cmt"   data-post-id="' + pid + '">' + icoComment + 'تعليق</button>'
+        + '<button class="pc-btn pc-btn--save"  data-post-id="' + pid + '">' + icoBookmark + 'حفظ</button>'
+      + '</div>'
+    + '</div>';
   }
 
   function renderPosts(posts) {
