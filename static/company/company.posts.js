@@ -84,6 +84,15 @@
   }
 
   // ── Color Picker ──────────────────────────────────────────────
+  function _applyPostColorPreview() {
+    var modal = document.querySelector('#postOverlay .modal');
+    if (!modal || !window.TW || !TW.POST_THEME_COLORS) return;
+    var clr = TW.POST_THEME_COLORS[_selectedPostColor] || TW.POST_THEME_COLORS.teal;
+    modal.style.setProperty('--pa', clr.accent);
+    modal.style.setProperty('--pa-s', clr.soft);
+    modal.style.setProperty('--pa-g', clr.glow);
+  }
+
   function _renderColorPicker() {
     var row = document.getElementById('p-color-row');
     if (!row || !window.TW || !TW.POST_THEME_COLORS) return;
@@ -96,6 +105,7 @@
         + ' style="background:' + clr.accent + '">'
         + '</button>';
     }).join('');
+    _applyPostColorPreview();
   }
 
   function _resetColorPicker() {
