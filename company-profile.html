@@ -491,7 +491,7 @@
 <!-- ██ CREATE POST MODAL ██ -->
 <div class="overlay" id="postOverlay">
   <div class="modal modal-lg">
-    <div class="modal-title">نشر منشور جديد</div>
+    <div class="modal-title" id="postModalTitle">نشر منشور جديد</div>
     <div class="mf"><label>المحتوى *</label>
       <textarea id="p-body" rows="4" placeholder="اكتب منشورك هنا..."></textarea>
     </div>
@@ -505,8 +505,14 @@
       <label>لون المنشور</label>
       <div class="pcc-row" id="p-color-row"></div>
     </div>
+    <div class="mf">
+      <label class="p-no-cmt-label">
+        <input type="checkbox" id="p-no-comments">
+        منع التعليقات على هذا المنشور
+      </label>
+    </div>
     <div class="modal-btns">
-      <button id="createPostBtn" class="mbtn mbtn-yes">نشر</button>
+      <button id="createPostBtn" class="mbtn mbtn-yes"><span id="createPostBtnLabel">نشر</span></button>
       <button id="postCancelBtn" class="mbtn mbtn-no">إلغاء</button>
     </div>
   </div>

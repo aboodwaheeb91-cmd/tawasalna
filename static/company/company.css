@@ -825,6 +825,14 @@ i.ico-sm { width:14px; height:14px; stroke:currentColor; fill:none; stroke-width
   display:none; padding:4px 0; z-index:30;
 }
 .pc-dots-menu.open { display:block; }
+.pc-dots-edit {
+  display:flex; align-items:center; gap:6px; width:100%;
+  padding:8px 14px; background:none; border:none; cursor:pointer;
+  color:var(--t2); font-size:.78rem; font-family:inherit;
+  text-align:right; direction:rtl; transition:background .15s;
+}
+.pc-dots-edit:hover { background:rgba(255,255,255,.06); color:var(--t1); }
+.pc-dots-edit svg { width:13px; height:13px; stroke:currentColor; fill:none; stroke-width:1.8; flex-shrink:0; }
 .pc-dots-delete {
   display:flex; align-items:center; gap:6px; width:100%;
   padding:8px 14px; background:none; border:none; cursor:pointer;
@@ -928,6 +936,16 @@ i.ico-sm { width:14px; height:14px; stroke:currentColor; fill:none; stroke-width
   border-color: var(--pa-s, rgba(0,200,150,.22));
 }
 #postOverlay .ptc-chip-x { color: var(--pa, #00c896); }
+
+/* Comments toggle checkbox */
+.p-no-cmt-label {
+  display:flex; align-items:center; gap:8px;
+  font-size:.78rem; color:var(--t2); cursor:pointer;
+  user-select:none;
+}
+.p-no-cmt-label input[type="checkbox"] {
+  width:15px; height:15px; accent-color:var(--ac); cursor:pointer; flex-shrink:0;
+}
 
 /* ══ EMPTY STATES ════════════════════════════════════════════════ */
 .empty { text-align:center; padding:40px 20px; color:var(--t2); }

@@ -477,14 +477,14 @@
     var canEdit = window.companyState &&
       companyState.permissions && companyState.permissions.can_edit;
     var pid = _escAttr(String(post.id));
+    var icoEdit   = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>';
+    var icoTrash  = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>';
     var dotsHtml = canEdit
       ? '<div class="pc-dots">'
           + '<button class="pc-dots-btn" data-post-id="' + pid + '" aria-label="خيارات">&#8943;</button>'
           + '<div class="pc-dots-menu" id="pc-dm-' + pid + '">'
-            + '<button class="pc-dots-delete" data-post-id="' + pid + '">'
-              + '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>'
-              + 'حذف'
-            + '</button>'
+            + '<button class="pc-dots-edit" data-post-id="' + pid + '">' + icoEdit + 'تعديل</button>'
+            + '<button class="pc-dots-delete" data-post-id="' + pid + '">' + icoTrash + 'حذف</button>'
           + '</div>'
         + '</div>'
       : '';
@@ -519,7 +519,7 @@
       + tagsHtml
       + '<div class="pc-actions">'
         + '<button class="pc-btn pc-btn--like"  data-post-id="' + pid + '">' + icoHeart    + 'لايك</button>'
-        + '<button class="pc-btn pc-btn--cmt"   data-post-id="' + pid + '">' + icoComment  + 'تعليق</button>'
+        + (post.comments_enabled !== false ? '<button class="pc-btn pc-btn--cmt" data-post-id="' + pid + '">' + icoComment + 'تعليق</button>' : '')
         + '<button class="pc-btn pc-btn--share" data-post-id="' + pid + '">' + icoShare    + 'مشاركة</button>'
         + '<button class="pc-btn pc-btn--save"  data-post-id="' + pid + '">' + icoBookmark + 'حفظ</button>'
       + '</div>'
@@ -569,15 +569,20 @@
     });
   }
 
+  // Posts cache — used by company.posts.js to populate edit modal without extra fetch
+  var _postsCache = {};
+
   function renderPosts(posts) {
     var list  = document.getElementById('postsList');
     var empty = document.getElementById('postsEmpty');
     if (!list) return;
+    _postsCache = {};
     if (!posts || !posts.length) {
       list.innerHTML = '';
       if (empty) empty.style.display = 'block';
       return;
     }
+    posts.forEach(function (p) { _postsCache[p.id] = p; });
     if (empty) empty.style.display = 'none';
     list.innerHTML = posts.map(_postCardHtml).join('');
     // Two rAFs: first lets the browser compute layout, second ensures fonts are measured.
@@ -753,6 +758,7 @@
   window.renderRating    = renderRating;
   window._postCardHtml   = _postCardHtml;
   window.renderPosts     = renderPosts;
+  window._getPostById    = function (id) { return _postsCache[id] || null; };
   window.renderBranches        = renderBranches;
   window.openAllBranchesModal  = openAllBranchesModal;
   window.closeAllBranchesModal = closeAllBranchesModal;

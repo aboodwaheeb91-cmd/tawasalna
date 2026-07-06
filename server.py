@@ -85,7 +85,7 @@ from auth import (
     _validate_accepted_profession_ids,
     follow_company, unfollow_company, get_company_followers_list, rate_company,
     get_company_ratings_detail,
-    get_company_posts, get_company_posts_count, create_company_post, get_post_owner, delete_company_post,
+    get_company_posts, get_company_posts_count, create_company_post, update_company_post, get_post_owner, delete_company_post,
     follow_profile, unfollow_profile, get_profile_followers_count, is_profile_following,
     get_profile_followers_list, get_profile_following_list,
     record_profile_view, get_profile_views_count,
@@ -1222,6 +1222,13 @@ class CompanyPostInput(BaseModel):
     body: str
     tags: Optional[list] = None
     theme_color: Optional[str] = None
+    comments_enabled: Optional[bool] = True
+
+class CompanyPostUpdateInput(BaseModel):
+    body: str
+    tags: Optional[list] = None
+    theme_color: Optional[str] = None
+    comments_enabled: Optional[bool] = True
 
 class JobInput(BaseModel):
     title: str
@@ -1630,7 +1637,8 @@ def company_post_create(data: CompanyPostInput, token=Depends(verify_token)):
         raise HTTPException(400, "المنشور فارغ")
     if data.theme_color and data.theme_color not in ALLOWED_POST_COLORS:
         raise HTTPException(400, "لون غير مقبول")
-    post = create_company_post(int(user_id), body, data.tags, data.theme_color or None)
+    ce = data.comments_enabled if data.comments_enabled is not None else True
+    post = create_company_post(int(user_id), body, data.tags, data.theme_color or None, ce)
     return {"status": "success", "post": post}
 
 
@@ -1648,6 +1656,29 @@ def company_post_delete(post_id: int, token=Depends(verify_token)):
         raise HTTPException(403, "غير مصرح بحذف هذا المنشور")
     delete_company_post(post_id)
     return {"status": "success"}
+
+
+@app.patch("/company/posts/{post_id}")
+def company_post_update(post_id: int, data: CompanyPostUpdateInput, token=Depends(verify_token)):
+    """Edit body/tags/theme_color/comments_enabled of own post. Owner-only."""
+    user_id = token.get("user_id")
+    if not user_id:
+        print("[SECURITY] INVALID_TOKEN: PATCH /company/posts")
+        raise HTTPException(401, "رمز غير صالح")
+    owner = get_post_owner(post_id)
+    if owner is None:
+        raise HTTPException(404, "المنشور غير موجود")
+    if int(user_id) != owner:
+        print(f"[SECURITY] POST_EDIT_FORBIDDEN: user={user_id} tried edit post {post_id} owned by {owner}")
+        raise HTTPException(403, "غير مصرح بتعديل هذا المنشور")
+    body = (data.body or "").strip()
+    if not body:
+        raise HTTPException(400, "المنشور فارغ")
+    if data.theme_color and data.theme_color not in ALLOWED_POST_COLORS:
+        raise HTTPException(400, "لون غير مقبول")
+    ce = data.comments_enabled if data.comments_enabled is not None else True
+    post = update_company_post(post_id, body, data.tags, data.theme_color or None, ce)
+    return {"status": "success", "post": post}
 
 
 # ── Saved Candidates (Phase 3 — company-owner only, JWT required) ──────────
