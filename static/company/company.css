@@ -757,11 +757,11 @@ i.ico-sm { width:14px; height:14px; stroke:currentColor; fill:none; stroke-width
 }
 .post-head-info { flex:1; }
 .post-nm   { font-size:.8rem; font-weight:800; }
-.post-meta-row { display:flex; align-items:center; flex-wrap:wrap; gap:6px; margin-top:1px; }
+.post-meta-row { display:flex; flex-direction:column; align-items:flex-start; gap:2px; margin-top:1px; direction:rtl; }
 .post-date { display:inline-flex; align-items:center; gap:3px; font-size:.63rem; color:var(--t3); }
 .post-date svg { width:10px; height:10px; stroke:var(--t3); fill:none; stroke-width:1.8; flex-shrink:0; }
-.post-views { display:inline-flex; align-items:center; gap:3px; font-size:.63rem; color:var(--t3); opacity:.75; }
-.post-views::before { content:'·'; margin-inline-end:2px; }
+.post-views { display:inline-flex; align-items:center; gap:3px; font-size:.63rem; color:var(--t3); }
+.post-views::before { content:none; }
 .post-views svg { width:10px; height:10px; stroke:var(--t3); fill:none; stroke-width:1.8; flex-shrink:0; }
 .post-body-wrap { margin-bottom:8px; }
 /* CSS fallback clamp (3 lines) — active until JS binary-search truncation runs.
