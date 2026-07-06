@@ -453,16 +453,23 @@
     var avatarUrl = (window.companyState && companyState.profile)
       ? (companyState.profile.avatar_url || '') : '';
 
+    // Resolve theme color — null/unknown → teal
+    var colorKey = (post.theme_color && window.TW && TW.POST_THEME_COLORS && TW.POST_THEME_COLORS[post.theme_color])
+      ? post.theme_color : 'teal';
+    var clr = (window.TW && TW.POST_THEME_COLORS && TW.POST_THEME_COLORS[colorKey])
+      || { accent: '#00c896', soft: 'rgba(0,200,150,.12)', glow: 'rgba(0,200,150,.18)' };
+    var cardStyle = '--pa:' + clr.accent + '; --pa-s:' + clr.soft + '; --pa-g:' + clr.glow;
+
     // Avatar: real logo or initial letter
     var avaContent = avatarUrl
       ? '<img src="' + _escAttr(avatarUrl) + '" alt="">'
       : '<span class="post-ava--init">' + _esc((coName || '?').charAt(0)) + '</span>';
 
-    // Tags
+    // Tags — use themed class so they inherit --pa from the card
     var tagsHtml = '';
     if (post.tags && post.tags.length) {
       tagsHtml = '<div class="job-tags">' + post.tags.map(function (t) {
-        return '<span class="jtag jtag-green">' + _esc(t) + '</span>';
+        return '<span class="jtag jtag-themed">' + _esc(t) + '</span>';
       }).join('') + '</div>';
     }
 
@@ -489,7 +496,7 @@
     var icoComment  = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>';
     var icoBookmark = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>';
 
-    return '<div class="post-card">'
+    return '<div class="post-card" style="' + cardStyle + '">'
       + '<div class="post-head">'
         + '<div class="post-ava">' + avaContent + '</div>'
         + '<div class="post-head-info">'

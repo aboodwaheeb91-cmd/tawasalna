@@ -678,6 +678,7 @@ i.ico-sm { width:14px; height:14px; stroke:currentColor; fill:none; stroke-width
 .jtag-green  { background:rgba(0,200,150,.1);    color:#00c896; }
 .jtag-gray   { background:rgba(255,255,255,.05); color:var(--t2); }
 .jtag-purple { background:rgba(139,92,246,.1);   color:#a78bfa; }
+.jtag-themed { background:var(--pa-s, rgba(0,200,150,.1)); color:var(--pa, #00c896); }
 
 /* ══ JOBS CTA BANNER ═════════════════════════════════════════════ */
 .jobs-cta {
@@ -734,16 +735,25 @@ i.ico-sm { width:14px; height:14px; stroke:currentColor; fill:none; stroke-width
 
 /* ══ POST CARDS ══════════════════════════════════════════════════ */
 .post-card {
-  background:rgba(255,255,255,.02); border:1px solid rgba(255,255,255,.05);
+  background:rgba(255,255,255,.02);
+  border:1px solid var(--pa-s, rgba(255,255,255,.06));
   border-radius:var(--r-md); padding:14px 16px; margin-bottom:10px;
-  transition:border-color .18s;
+  box-shadow: 0 4px 18px var(--pa-g, transparent),
+              inset 0 1px 0 var(--pa-s, transparent);
+  transition:border-color .2s, box-shadow .2s;
 }
-.post-card:hover { border-color:rgba(255,255,255,.1); }
+.post-card:hover {
+  border-color:var(--pa, rgba(255,255,255,.14));
+  box-shadow: 0 6px 24px var(--pa-g, transparent),
+              inset 0 1px 0 var(--pa-s, transparent);
+}
 .post-head { display:flex; align-items:center; gap:10px; margin-bottom:10px; }
 .post-ava {
   width:48px; height:48px; border-radius:11px; flex-shrink:0;
   background:linear-gradient(135deg,var(--ac),var(--ac2));
   display:flex; align-items:center; justify-content:center;
+  box-shadow:0 0 14px var(--pa-g, transparent);
+  transition:box-shadow .2s;
 }
 .post-head-info { flex:1; }
 .post-nm   { font-size:.8rem; font-weight:800; }
@@ -845,6 +855,17 @@ i.ico-sm { width:14px; height:14px; stroke:currentColor; fill:none; stroke-width
   text-align:right; direction:rtl; transition:background .12s, color .12s;
 }
 .ptc-option:hover { background:rgba(255,255,255,.06); color:var(--t1); }
+
+/* ══ POST COLOR PICKER ═══════════════════════════════════════════ */
+.pcc-row { display:flex; gap:8px; flex-wrap:wrap; margin-top:4px; }
+.pcc-dot {
+  width:26px; height:26px; border-radius:50%; border:none;
+  cursor:pointer; flex-shrink:0;
+  outline:2px solid transparent; outline-offset:3px;
+  transition:transform .15s, outline-color .15s;
+}
+.pcc-dot:hover { transform:scale(1.15); }
+.pcc-dot.selected { outline-color:rgba(255,255,255,.85); transform:scale(1.1); }
 
 /* ══ EMPTY STATES ════════════════════════════════════════════════ */
 .empty { text-align:center; padding:40px 20px; color:var(--t2); }

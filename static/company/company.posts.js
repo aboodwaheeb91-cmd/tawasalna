@@ -7,6 +7,7 @@
   var isPostDeleting       = false;
   var _postHistoryPushed   = false;
   var _selectedTags        = [];       // tag picker state
+  var _selectedPostColor   = 'teal';   // color picker state (default = teal)
 
   // ── Tag Picker ────────────────────────────────────────────────
   function _searchTags(q) {
@@ -82,6 +83,38 @@
     if (search) search.value = '';
   }
 
+  // ── Color Picker ──────────────────────────────────────────────
+  function _renderColorPicker() {
+    var row = document.getElementById('p-color-row');
+    if (!row || !window.TW || !TW.POST_THEME_COLORS) return;
+    row.innerHTML = Object.keys(TW.POST_THEME_COLORS).map(function (key) {
+      var clr = TW.POST_THEME_COLORS[key];
+      var isSel = key === _selectedPostColor;
+      return '<button type="button" class="pcc-dot' + (isSel ? ' selected' : '') + '"'
+        + ' data-color="' + key + '"'
+        + ' title="' + clr.name_ar + '"'
+        + ' style="background:' + clr.accent + '">'
+        + '</button>';
+    }).join('');
+  }
+
+  function _resetColorPicker() {
+    _selectedPostColor = 'teal';
+    _renderColorPicker();
+  }
+
+  function _bindColorPickerEvents() {
+    _renderColorPicker();
+    var row = document.getElementById('p-color-row');
+    if (!row) return;
+    row.addEventListener('click', function (e) {
+      var btn = e.target.closest('.pcc-dot[data-color]');
+      if (!btn) return;
+      _selectedPostColor = btn.getAttribute('data-color');
+      _renderColorPicker();
+    });
+  }
+
   function _bindTagPickerEvents() {
     var searchEl = document.getElementById('p-tags-search');
     var chipsEl  = document.getElementById('p-tags-chips');
@@ -141,6 +174,7 @@
     var ov = document.getElementById('postOverlay');
     if (ov) ov.classList.add('show');
     _resetTagPicker();
+    _resetColorPicker();
     if (window.history && !_postHistoryPushed) {
       history.pushState({ modal: 'post' }, '', location.href);
       _postHistoryPushed = true;
@@ -170,13 +204,14 @@
     var body   = (bodyEl ? bodyEl.value : '').trim();
     if (!body) { if (window.showToast) showToast('اكتب محتوى المنشور', 'error'); return; }
 
-    var tags = _selectedTags.slice();
+    var tags  = _selectedTags.slice();
+    var color = _selectedPostColor || null;
 
     isPostCreating = true;
     fetch('/company/posts', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + _jwt() },
-      body:    JSON.stringify({ body: body, tags: tags.length ? tags : null }),
+      body:    JSON.stringify({ body: body, tags: tags.length ? tags : null, theme_color: color }),
     })
     .then(function (r) {
       if (!r.ok) throw new Error('create failed: ' + r.status);
@@ -277,6 +312,7 @@
   document.addEventListener('DOMContentLoaded', function () {
     _bindPostEvents();
     _bindTagPickerEvents();
+    _bindColorPickerEvents();
 
     // Close 3-dot menus when clicking outside
     document.addEventListener('click', function (e) {
