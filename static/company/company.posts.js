@@ -444,9 +444,11 @@
           if (!card) return;
           var vEl = card.querySelector('.post-views');
           if (!vEl) return;
-          var cur = parseInt((vEl.textContent || '').replace(/\D/g, ''), 10) || 0;
+          var cur = parseInt(vEl.dataset.viewsCount, 10) || 0;
+          var next = cur + 1;
+          vEl.dataset.viewsCount = next;
           var svg = vEl.querySelector('svg');
-          vEl.innerHTML = (svg ? svg.outerHTML : '') + _fmtViewsCount(cur + 1);
+          vEl.innerHTML = (svg ? svg.outerHTML : '') + _fmtViewsCount(next);
         }
       }).catch(function () { /* best-effort — ignore network errors */ });
   }

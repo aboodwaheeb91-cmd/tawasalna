@@ -510,7 +510,7 @@
           + '<div class="post-nm">' + _esc(coName) + '</div>'
           + '<div class="post-meta-row">'
             + '<span class="post-date">' + icoClock + _relativeTime(post.created_at) + '</span>'
-            + '<span class="post-views">' + icoEye + _fmtViews(post.views_count) + '</span>'
+            + '<span class="post-views" data-views-count="' + (Number(post.views_count) || 0) + '">' + icoEye + _fmtViews(post.views_count) + '</span>'
           + '</div>'
         + '</div>'
         + dotsHtml
