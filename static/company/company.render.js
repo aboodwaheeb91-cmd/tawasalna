@@ -534,7 +534,7 @@
           var appActive = post.viewer_appreciated === true || post.viewer_appreciated === 'true' || post.viewer_appreciated === 1;
           var apprCls = 'pc-btn pc-btn--appr' + (appActive ? ' appr-active' : '');
           var apprIco = appActive ? icoHeartFilled : icoHeartOutline;
-          var apprLabel = appActive ? ('أقدّر · ' + appCount) : 'أقدّر';
+          var apprLabel = appCount > 0 ? ('أقدّر · ' + appCount) : 'أقدّر';
           return '<div class="pc-actions">'
             + '<button class="' + apprCls + '" data-post-id="' + pid + '" data-appr-count="' + appCount + '">' + apprIco + apprLabel + '</button>'
             + (post.comments_enabled !== false ? '<button class="pc-btn pc-btn--cmt" data-post-id="' + pid + '">' + icoComment + 'تعليق</button>' : '')

@@ -488,6 +488,18 @@
   }
 
   // ── Post Appreciation ─────────────────────────────────────────────────────
+  var _ICO_HEART_OUTLINE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>';
+  var _ICO_HEART_FILLED  = '<svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>';
+
+  function _renderAppreciationButton(btn, active, count) {
+    var ico   = active ? _ICO_HEART_FILLED : _ICO_HEART_OUTLINE;
+    var label = count > 0 ? ('أقدّر · ' + count) : 'أقدّر';
+    if (active) { btn.classList.add('appr-active');    }
+    else        { btn.classList.remove('appr-active'); }
+    btn.dataset.apprCount = count;
+    btn.innerHTML = ico + label;
+  }
+
   function _toggleAppreciation(postId) {
     var jwt = window._jwt ? window._jwt() : '';
     if (!jwt) {
@@ -495,45 +507,50 @@
       return;
     }
 
+    var card = document.querySelector('.post-card[data-post-id="' + postId + '"]');
+    if (!card) return;
+    var btn = card.querySelector('.pc-btn--appr');
+    if (!btn) return;
+
+    // Prevent double-click while request is in flight
+    if (btn.dataset.apprPending === '1') return;
+
+    // Capture old state for rollback
+    var wasActive = btn.classList.contains('appr-active');
+    var oldCount  = parseInt(btn.dataset.apprCount, 10) || 0;
+
+    // Compute optimistic next state
+    var nextActive = !wasActive;
+    var nextCount  = nextActive ? oldCount + 1 : Math.max(0, oldCount - 1);
+
+    // ── Optimistic update — immediate, before fetch ──
+    _renderAppreciationButton(btn, nextActive, nextCount);
+    btn.dataset.apprPending = '1';
+
     fetch('/company/posts/' + postId + '/appreciate', {
       method:  'POST',
       headers: { 'Authorization': 'Bearer ' + jwt },
     })
       .then(function (r) {
-        if (r.status === 403) {
+        return r.json().then(function (d) { return { status: r.status, ok: r.ok, data: d }; });
+      })
+      .then(function (res) {
+        if (res.status === 403) {
+          _renderAppreciationButton(btn, wasActive, oldCount); // rollback
           if (window.showToast) showToast('لا يمكنك تقدير منشورك');
-          throw new Error('owner');
-        }
-        if (!r.ok) throw new Error('http ' + r.status);
-        return r.json();
-      })
-      .then(function (d) {
-        if (!d || d.status !== 'success') return;
-        var card = document.querySelector('.post-card[data-post-id="' + postId + '"]');
-        if (!card) return;
-        var btn = card.querySelector('.pc-btn--appr');
-        if (!btn) return;
-
-        var count = Number(d.appreciations_count) || 0;
-        var active = !!d.appreciated;
-
-        // Swap heart icon
-        var icoOutline = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>';
-        var icoFilled  = '<svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>';
-        var label = active ? ('أقدّر · ' + count) : 'أقدّر';
-
-        if (active) {
-          btn.classList.add('appr-active');
-          btn.innerHTML = icoFilled + label;
+        } else if (!res.ok || !res.data || res.data.status !== 'success') {
+          _renderAppreciationButton(btn, wasActive, oldCount); // rollback
+          if (window.showToast) showToast('تعذّر تسجيل التقدير');
         } else {
-          btn.classList.remove('appr-active');
-          btn.innerHTML = icoOutline + label;
+          // Sync with server truth
+          _renderAppreciationButton(btn, !!res.data.appreciated, Number(res.data.appreciations_count) || 0);
         }
-        btn.dataset.apprCount = count;
+        btn.dataset.apprPending = '';
       })
-      .catch(function (err) {
-        if (err && err.message === 'owner') return;
+      .catch(function () {
+        _renderAppreciationButton(btn, wasActive, oldCount); // rollback
         if (window.showToast) showToast('تعذّر تسجيل التقدير');
+        btn.dataset.apprPending = '';
       });
   }
 
