@@ -85,7 +85,7 @@ from auth import (
     _validate_accepted_profession_ids,
     follow_company, unfollow_company, get_company_followers_list, rate_company,
     get_company_ratings_detail,
-    get_company_posts, get_company_posts_count, create_company_post, update_company_post, get_post_owner, delete_company_post, record_company_post_view, toggle_company_post_appreciation,
+    get_company_posts, get_company_posts_count, create_company_post, update_company_post, get_post_owner, delete_company_post, record_company_post_view, toggle_company_post_appreciation, set_company_post_appreciation,
     follow_profile, unfollow_profile, get_profile_followers_count, is_profile_following,
     get_profile_followers_list, get_profile_following_list,
     record_profile_view, get_profile_views_count,
@@ -219,6 +219,23 @@ from collections import defaultdict
 import time as _time
 _rate_store = defaultdict(list)
 _RATE_LIMIT = 60  # requests per minute
+
+# Per-(user, post) rate limit for appreciation endpoints — guards against auto-clickers
+_appr_rate_store: dict = {}   # "{user_id}:{post_id}" -> list[float]
+_APPR_RATE_LIMIT  = 10        # max requests
+_APPR_RATE_WINDOW = 10.0      # seconds
+
+def _check_appr_rate(user_id: int, post_id: int) -> bool:
+    """True = allowed; False = rate-limited. Cleans up old timestamps in-place."""
+    key = f"{user_id}:{post_id}"
+    now = _time.time()
+    if key not in _appr_rate_store:
+        _appr_rate_store[key] = []
+    _appr_rate_store[key] = [t for t in _appr_rate_store[key] if now - t < _APPR_RATE_WINDOW]
+    if len(_appr_rate_store[key]) >= _APPR_RATE_LIMIT:
+        return False
+    _appr_rate_store[key].append(now)
+    return True
 
 @app.middleware("http")
 async def rate_limit_middleware(request, call_next):
@@ -1726,14 +1743,36 @@ def company_post_appreciate(post_id: int, token=Depends(verify_token)):
     user_id = token.get("user_id")
     if not user_id:
         raise HTTPException(status_code=401, detail="يجب تسجيل الدخول لتقدير المنشور")
-    # Verify post exists
+    if not _check_appr_rate(int(user_id), post_id):
+        raise HTTPException(status_code=429, detail="الرجاء التمهّل قليلاً")
     owner_id = get_post_owner(post_id)
     if not owner_id:
         raise HTTPException(status_code=404, detail="المنشور غير موجود")
-    # Owner cannot appreciate own post
     if int(owner_id) == int(user_id):
         raise HTTPException(status_code=403, detail="لا يمكنك تقدير منشورك")
     result = toggle_company_post_appreciation(post_id, int(user_id))
+    return {"status": "success", **result}
+
+
+class AppreciationStateInput(BaseModel):
+    appreciated: bool
+
+
+@app.put("/company/posts/{post_id}/appreciation")
+def company_post_set_appreciation(post_id: int, body: AppreciationStateInput, token=Depends(verify_token)):
+    """Idempotent — sets exact appreciation state. No toggle ambiguity, no unique-constraint errors.
+    Body: {appreciated: bool}. Auth required. Owner gets 403."""
+    user_id = token.get("user_id")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="يجب تسجيل الدخول لتقدير المنشور")
+    if not _check_appr_rate(int(user_id), post_id):
+        raise HTTPException(status_code=429, detail="الرجاء التمهّل قليلاً")
+    owner_id = get_post_owner(post_id)
+    if not owner_id:
+        raise HTTPException(status_code=404, detail="المنشور غير موجود")
+    if int(owner_id) == int(user_id):
+        raise HTTPException(status_code=403, detail="لا يمكنك تقدير منشورك")
+    result = set_company_post_appreciation(post_id, int(user_id), body.appreciated)
     return {"status": "success", **result}
 
 

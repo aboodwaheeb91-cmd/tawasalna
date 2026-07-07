@@ -3443,6 +3443,30 @@ def toggle_company_post_appreciation(post_id: int, user_id: int) -> dict:
         release_conn(conn)
 
 
+def set_company_post_appreciation(post_id: int, user_id: int, appreciated: bool) -> dict:
+    """Idempotent — sets exact appreciation state. No unique-constraint errors.
+    appreciated=True  → INSERT ... ON CONFLICT DO NOTHING
+    appreciated=False → DELETE (no-op if absent)
+    Returns {appreciated, appreciations_count}."""
+    conn = get_conn()
+    try:
+        if appreciated:
+            conn.run(
+                "INSERT INTO company_post_appreciations (post_id, user_id) "
+                "VALUES (:pid, :uid) ON CONFLICT DO NOTHING",
+                pid=post_id, uid=user_id)
+        else:
+            conn.run(
+                "DELETE FROM company_post_appreciations WHERE post_id=:pid AND user_id=:uid",
+                pid=post_id, uid=user_id)
+        cnt_rows = conn.run(
+            "SELECT COUNT(*) FROM company_post_appreciations WHERE post_id=:pid", pid=post_id)
+        count = int(cnt_rows[0][0]) if cnt_rows else 0
+        return {"appreciated": appreciated, "appreciations_count": count}
+    finally:
+        release_conn(conn)
+
+
 # ══ Profile Follow System ══
 
 def follow_profile(follower_id: int, followed_id: int) -> int:

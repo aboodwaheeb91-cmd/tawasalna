@@ -502,6 +502,84 @@
     btn.innerHTML = ico + label;
   }
 
+  // ── Desired State Queue — one request in flight per post, UI always immediate ──
+  var _apprDesired   = {};  // postId -> bool  (last desired state)
+  var _apprInFlight  = {};  // postId -> bool  (request running?)
+  var _apprOrigState = {};  // postId -> {active, count}  (pre-click state for rollback)
+
+  function _apprGetBtn(postId) {
+    var card = document.querySelector('.post-card[data-post-id="' + postId + '"]');
+    return card ? card.querySelector('.pc-btn--appr') : null;
+  }
+
+  function _dispatchAppreciation(postId) {
+    var desired = _apprDesired[postId];
+    if (desired === undefined) return;
+    var jwt = window._jwt ? window._jwt() : '';
+    if (!jwt) return;
+
+    _apprInFlight[postId] = true;
+
+    fetch('/company/posts/' + postId + '/appreciation', {
+      method:  'PUT',
+      headers: { 'Authorization': 'Bearer ' + jwt, 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ appreciated: desired })
+    })
+      .then(function (r) {
+        return r.json().then(function (d) { return { status: r.status, ok: r.ok, data: d }; });
+      })
+      .then(function (res) {
+        _apprInFlight[postId] = false;
+        var btn = _apprGetBtn(postId);
+        var orig = _apprOrigState[postId];
+
+        if (res.status === 403 || res.status === 429) {
+          // Owner / rate-limit — full rollback, clear queue
+          if (btn && orig) _renderAppreciationButton(btn, orig.active, orig.count);
+          delete _apprDesired[postId];
+          delete _apprOrigState[postId];
+          if (window.showToast) {
+            showToast(res.status === 403 ? 'لا يمكنك تقدير منشورك' : 'الرجاء التمهّل قليلاً');
+          }
+          return;
+        }
+
+        if (!res.ok || !res.data || res.data.status !== 'success') {
+          if (btn && orig) _renderAppreciationButton(btn, orig.active, orig.count);
+          delete _apprDesired[postId];
+          delete _apprOrigState[postId];
+          if (window.showToast) showToast('تعذّر تسجيل التقدير');
+          return;
+        }
+
+        var srvActive = !!res.data.appreciated;
+        var srvCount  = Number(res.data.appreciations_count) || 0;
+        var desired   = _apprDesired[postId];
+
+        if (desired !== undefined && desired !== srvActive) {
+          // Server response is stale — user clicked again while request was in flight.
+          // Keep UI on desired (no flicker); update orig for accurate rollback on failure.
+          _apprOrigState[postId] = { active: srvActive, count: srvCount };
+          _dispatchAppreciation(postId);
+          return;
+        }
+
+        // Server matches desired (or no pending desired) — safe to sync UI.
+        if (btn) _renderAppreciationButton(btn, srvActive, srvCount);
+        delete _apprDesired[postId];
+        delete _apprOrigState[postId];
+      })
+      .catch(function () {
+        _apprInFlight[postId] = false;
+        var btn = _apprGetBtn(postId);
+        var orig = _apprOrigState[postId];
+        if (btn && orig) _renderAppreciationButton(btn, orig.active, orig.count);
+        delete _apprDesired[postId];
+        delete _apprOrigState[postId];
+        if (window.showToast) showToast('تعذّر تسجيل التقدير');
+      });
+  }
+
   function _toggleAppreciation(postId) {
     var jwt = window._jwt ? window._jwt() : '';
     if (!jwt) {
@@ -509,51 +587,28 @@
       return;
     }
 
-    var card = document.querySelector('.post-card[data-post-id="' + postId + '"]');
-    if (!card) return;
-    var btn = card.querySelector('.pc-btn--appr');
+    var btn = _apprGetBtn(postId);
     if (!btn) return;
 
-    // Prevent double-click while request is in flight
-    if (btn.dataset.apprPending === '1') return;
+    // Current UI state (reflects latest desired, not server)
+    var currentActive = btn.classList.contains('appr-active');
+    var currentCount  = parseInt(btn.dataset.apprCount, 10) || 0;
+    var desired       = !currentActive;
+    var nextCount     = desired ? currentCount + 1 : Math.max(0, currentCount - 1);
 
-    // Capture old state for rollback
-    var wasActive = btn.classList.contains('appr-active');
-    var oldCount  = parseInt(btn.dataset.apprCount, 10) || 0;
+    // Capture original state only before the first in-flight request
+    if (!_apprInFlight[postId]) {
+      _apprOrigState[postId] = { active: currentActive, count: currentCount };
+    }
 
-    // Compute optimistic next state
-    var nextActive = !wasActive;
-    var nextCount  = nextActive ? oldCount + 1 : Math.max(0, oldCount - 1);
+    // Record desired and update UI immediately
+    _apprDesired[postId] = desired;
+    _renderAppreciationButton(btn, desired, nextCount);
 
-    // ── Optimistic update — immediate, before fetch ──
-    _renderAppreciationButton(btn, nextActive, nextCount);
-    btn.dataset.apprPending = '1';
+    // If already in flight, the response handler will pick up the new desired
+    if (_apprInFlight[postId]) return;
 
-    fetch('/company/posts/' + postId + '/appreciate', {
-      method:  'POST',
-      headers: { 'Authorization': 'Bearer ' + jwt },
-    })
-      .then(function (r) {
-        return r.json().then(function (d) { return { status: r.status, ok: r.ok, data: d }; });
-      })
-      .then(function (res) {
-        if (res.status === 403) {
-          _renderAppreciationButton(btn, wasActive, oldCount); // rollback
-          if (window.showToast) showToast('لا يمكنك تقدير منشورك');
-        } else if (!res.ok || !res.data || res.data.status !== 'success') {
-          _renderAppreciationButton(btn, wasActive, oldCount); // rollback
-          if (window.showToast) showToast('تعذّر تسجيل التقدير');
-        } else {
-          // Sync with server truth
-          _renderAppreciationButton(btn, !!res.data.appreciated, Number(res.data.appreciations_count) || 0);
-        }
-        btn.dataset.apprPending = '';
-      })
-      .catch(function () {
-        _renderAppreciationButton(btn, wasActive, oldCount); // rollback
-        if (window.showToast) showToast('تعذّر تسجيل التقدير');
-        btn.dataset.apprPending = '';
-      });
+    _dispatchAppreciation(postId);
   }
 
   window.openPostModal        = openPostModal;
