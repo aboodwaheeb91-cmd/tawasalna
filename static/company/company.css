@@ -896,7 +896,9 @@ i.ico-sm { width:14px; height:14px; stroke:currentColor; fill:none; stroke-width
 .pc-cmts-list {
   display:flex; flex-direction:column; gap:10px; margin-bottom:10px;
   max-height:280px; overflow-y:auto;
+  scrollbar-width:none; /* hide RTL scrollbar track (appears as vertical line on left) */
 }
+.pc-cmts-list::-webkit-scrollbar { display:none; }
 .pc-cmt-item {
   display:flex; gap:8px; align-items:flex-start;
 }
@@ -933,12 +935,17 @@ i.ico-sm { width:14px; height:14px; stroke:currentColor; fill:none; stroke-width
   font-size:.68rem; color:var(--t3); font-family:inherit;
   padding:0; transition:color .15s;
 }
-/* Flat reply button */
+/* Flat reply button — below comment body */
 .pc-cmt-reply-btn {
   background:none; border:none; cursor:pointer; font-family:inherit;
-  font-size:.63rem; color:var(--t3); padding:0; transition:color .15s;
+  font-size:.65rem; font-weight:600; color:rgba(37,99,255,.65);
+  padding:0; margin-top:3px; display:inline-block; transition:color .15s;
 }
-.pc-cmt-reply-btn:hover { color:var(--ac); }
+.pc-cmt-reply-btn:hover { color:var(--ac2); }
+/* @mention highlight in comment body */
+.pc-cmt-mention { color:var(--ac2); font-weight:700; }
+/* Visual-reply indentation (flat — no DB nesting) */
+.pc-cmt-item.pc-cmt-visual-reply { margin-inline-start:28px; }
 /* "رداً على" strip above input row */
 .pc-cmt-reply-strip {
   display:flex; align-items:center; gap:6px;

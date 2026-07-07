@@ -193,9 +193,9 @@ check(
     "content.insertBefore(editWrap" in posts_js
 )
 
-# ── 24. Edit UX: Optimistic UI — text updated before fetch ────────────────
-# bodyEl.textContent = newBody must appear before fetch(...)
-optimistic_pos = cmt_edit_fn.find("bodyEl.textContent = newBody")
+# ── 24. Edit UX: Optimistic UI — body rendered before fetch ──────────────
+# _renderCommentBody(bodyEl, newBody) must appear before fetch(...)
+optimistic_pos = cmt_edit_fn.find("_renderCommentBody(bodyEl, newBody)")
 fetch_pos      = cmt_edit_fn.find("fetch('/company/posts/comments/")
 check(
     "24. Optimistic UI: bodyEl updated before fetch call",
@@ -204,14 +204,14 @@ check(
 
 # ── 25. Edit UX: rollback on server error ─────────────────────────────────
 check(
-    "25. rollback: bodyEl.textContent = originalText on failure",
-    "bodyEl.textContent = originalText" in cmt_edit_fn
+    "25. rollback: _renderCommentBody(bodyEl, originalText) on failure",
+    "_renderCommentBody(bodyEl, originalText)" in cmt_edit_fn
 )
 
-# ── 26. Edit XSS: optimistic update uses textContent ─────────────────────
+# ── 26. Edit XSS: optimistic update uses _renderCommentBody (no innerHTML) ──
 check(
-    "26. optimistic edit uses textContent (XSS-safe), not innerHTML",
-    "bodyEl.textContent = newBody" in cmt_edit_fn and "bodyEl.innerHTML" not in cmt_edit_fn
+    "26. optimistic edit uses _renderCommentBody (XSS-safe), not innerHTML for API data",
+    "_renderCommentBody(bodyEl, newBody)" in cmt_edit_fn and "bodyEl.innerHTML" not in cmt_edit_fn
 )
 
 # ── UX Improvements (feat/comment-ui-polish) ─────────────────────────────
@@ -358,7 +358,7 @@ check(
 build_fn3 = posts_js[posts_js.find("function _cmtBuildItem"):] if "function _cmtBuildItem" in posts_js else ""
 check(
     "46. pc-cmt-reply-btn class built in _cmtBuildItem",
-    "pc-cmt-reply-btn" in build_fn3[:3000]
+    "pc-cmt-reply-btn" in build_fn3[:5000]
 )
 
 # ── 47. Meta row in _cmtBuildItem ─────────────────────────────────
@@ -384,6 +384,71 @@ check(
 check(
     "50. list scroll listener calls _cmtHidePortalMenu",
     "_cmtHidePortalMenu" in populate_fn3[:3000]
+)
+
+# ── UX Polish 3 (feat/comment-ux-polish-3) ───────────────────────────────
+posts_js    = open("static/company/company.posts.js", encoding="utf-8").read()
+company_css = open("static/company/company.css", encoding="utf-8").read()
+build_fn4   = posts_js[posts_js.find("function _cmtBuildItem"):] if "function _cmtBuildItem" in posts_js else ""
+
+# ── 51. Vertical line fix — scrollbar hidden on .pc-cmts-list ─────
+check(
+    "51. .pc-cmts-list has scrollbar-width:none (hides RTL vertical line)",
+    "scrollbar-width:none" in company_css and "pc-cmts-list" in company_css
+)
+check(
+    "51b. .pc-cmts-list webkit scrollbar hidden",
+    ".pc-cmts-list::-webkit-scrollbar" in company_css
+)
+
+# ── 52. Reply button NOT in metaRow anymore ────────────────────────
+check(
+    "52. replyBtn is no longer appended to metaRow in _cmtBuildItem",
+    "metaRow.appendChild(replyBtn)" not in build_fn4[:4000]
+)
+
+# ── 53. Reply button IS after bodyEl in content ───────────────────
+body_pos4  = build_fn4.find("content.appendChild(bodyEl)")
+reply_pos4 = build_fn4.find("content.appendChild(replyBtn)")
+acts_pos4  = build_fn4.find("content.appendChild(acts)")
+check(
+    "53. Reply button appended to content after bodyEl and before acts",
+    reply_pos4 != -1 and body_pos4 != -1 and acts_pos4 != -1 and
+    body_pos4 < reply_pos4 < acts_pos4
+)
+
+# ── 54. _renderCommentBody helper defined ─────────────────────────
+check(
+    "54. _renderCommentBody function defined",
+    "function _renderCommentBody" in posts_js
+)
+check(
+    "54b. _renderCommentBody called in _cmtBuildItem",
+    "_renderCommentBody(bodyEl" in build_fn4[:4000]
+)
+
+# ── 55. @mention highlight CSS ────────────────────────────────────
+check(
+    "55. .pc-cmt-mention defined in company.css",
+    "pc-cmt-mention" in company_css
+)
+
+# ── 56. Visual reply indentation CSS ──────────────────────────────
+check(
+    "56. .pc-cmt-visual-reply defined in company.css",
+    "pc-cmt-visual-reply" in company_css
+)
+check(
+    "56b. pc-cmt-visual-reply class applied in _cmtBuildItem",
+    "pc-cmt-visual-reply" in build_fn4[:4000]
+)
+
+# ── 57. XSS: _renderCommentBody uses textContent (no innerHTML for API) ──
+render_fn = posts_js[posts_js.find("function _renderCommentBody"):] if "function _renderCommentBody" in posts_js else ""
+render_fn_body = render_fn[:500]
+check(
+    "57. _renderCommentBody uses textContent/createTextNode only (no innerHTML for API data)",
+    "textContent" in render_fn_body and "innerHTML" not in render_fn_body
 )
 
 # ── Summary ──────────────────────────────────────────────────────────────

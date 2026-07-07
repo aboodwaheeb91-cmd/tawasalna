@@ -876,10 +876,32 @@
     btn.appendChild(txt);
   }
 
+  // XSS-safe body renderer — handles optional @mention highlight
+  function _renderCommentBody(bodyEl, text) {
+    bodyEl.textContent = ''; // clears all children safely (no API data in selector)
+    if (!text) return;
+    var match = text.match(/^(@\S+)([\s\S]*)$/);
+    if (match) {
+      var mentionSpan = document.createElement('span');
+      mentionSpan.className = 'pc-cmt-mention';
+      mentionSpan.textContent = match[1]; // XSS-safe: textContent
+      bodyEl.appendChild(mentionSpan);
+      if (match[2]) {
+        bodyEl.appendChild(document.createTextNode(match[2])); // XSS-safe
+      }
+    } else {
+      bodyEl.textContent = text; // XSS-safe
+    }
+  }
+
   function _cmtBuildItem(c) {
     var el = document.createElement('div');
     el.className = 'pc-cmt-item';
     el.dataset.cmtId = String(c.id);
+    // Visual indentation: comments starting with @mention appear as flat-visual replies
+    if (c.body && c.body.charAt(0) === '@') {
+      el.classList.add('pc-cmt-visual-reply');
+    }
 
     // Avatar (32px)
     var ava = document.createElement('div');
@@ -926,15 +948,6 @@
       metaRow.appendChild(timeEl);
     }
 
-    // Flat reply button (creates a regular comment with @mention prefill)
-    var replyBtn = document.createElement('button');
-    replyBtn.type = 'button';
-    replyBtn.className = 'pc-cmt-reply-btn';
-    replyBtn.dataset.cmtId = String(c.id);
-    replyBtn.dataset.authorName = c.author_name || '';
-    replyBtn.textContent = 'رد';
-    metaRow.appendChild(replyBtn);
-
     if (c.updated_at) {
       var editedEl = document.createElement('span');
       editedEl.className = 'pc-cmt-edited';
@@ -959,11 +972,20 @@
 
     content.appendChild(header);
 
-    // Body — XSS-safe: textContent only
+    // Body — XSS-safe via _renderCommentBody (@mention highlighted, rest as text nodes)
     var bodyEl = document.createElement('p');
     bodyEl.className = 'pc-cmt-body';
-    bodyEl.textContent = c.body;
+    _renderCommentBody(bodyEl, c.body);
     content.appendChild(bodyEl);
+
+    // Reply button — below body text (not in meta row)
+    var replyBtn = document.createElement('button');
+    replyBtn.type = 'button';
+    replyBtn.className = 'pc-cmt-reply-btn';
+    replyBtn.dataset.cmtId = String(c.id);
+    replyBtn.dataset.authorName = c.author_name || '';
+    replyBtn.textContent = 'رد';
+    content.appendChild(replyBtn);
 
     // Empty .pc-cmt-acts kept as DOM anchor for _cmtHandleEdit insertBefore
     var acts = document.createElement('div');
@@ -1162,7 +1184,8 @@
     if (!bodyEl) return;
     if (item.querySelector('.pc-cmt-edit-ta')) return; // already in edit mode
 
-    var originalText = bodyEl.textContent;
+    var originalText    = bodyEl.textContent; // textContent returns full text even with child spans
+    var wasVisualReply  = item.classList.contains('pc-cmt-visual-reply');
 
     // 1. Build editWrap fully in memory
     var editWrap  = document.createElement('div');
@@ -1217,7 +1240,9 @@
       // 3. Optimistic UI — update text immediately, remove edit UI
       _cmtEditInFlight[cmtId] = true;
       saveBtn.disabled = true;
-      bodyEl.textContent = newBody; // XSS-safe: textContent only
+      _renderCommentBody(bodyEl, newBody); // XSS-safe: no innerHTML for API data
+      if (newBody.charAt(0) === '@') item.classList.add('pc-cmt-visual-reply');
+      else item.classList.remove('pc-cmt-visual-reply');
       bodyEl.style.display = '';
       editWrap.remove();
 
@@ -1230,14 +1255,19 @@
         .then(function (res) {
           _cmtEditInFlight[cmtId] = false;
           if (!res.ok || !res.data || res.data.status !== 'success') {
-            // Rollback to original text
-            bodyEl.textContent = originalText; // XSS-safe
+            // Rollback to original text + restore visual-reply state
+            _renderCommentBody(bodyEl, originalText); // XSS-safe
+            if (wasVisualReply) item.classList.add('pc-cmt-visual-reply');
+            else item.classList.remove('pc-cmt-visual-reply');
             var msg = (res.data && res.data.detail) ? res.data.detail : 'تعذّر تعديل التعليق';
             if (window.showToast) showToast(res.status === 429 ? 'الرجاء التمهّل قليلاً' : msg);
             return;
           }
-          // Confirm with server body + mark as edited
-          bodyEl.textContent = res.data.comment.body; // XSS-safe
+          // Confirm with server body + mark as edited + update visual-reply class
+          var confirmedBody = res.data.comment.body;
+          _renderCommentBody(bodyEl, confirmedBody); // XSS-safe
+          if (confirmedBody && confirmedBody.charAt(0) === '@') item.classList.add('pc-cmt-visual-reply');
+          else item.classList.remove('pc-cmt-visual-reply');
           var metaRow = item.querySelector('.pc-cmt-meta-row');
           if (metaRow && !metaRow.querySelector('.pc-cmt-edited')) {
             var editedEl = document.createElement('span');
@@ -1248,7 +1278,9 @@
         })
         .catch(function () {
           _cmtEditInFlight[cmtId] = false;
-          bodyEl.textContent = originalText; // XSS-safe rollback
+          _renderCommentBody(bodyEl, originalText); // XSS-safe rollback
+          if (wasVisualReply) item.classList.add('pc-cmt-visual-reply');
+          else item.classList.remove('pc-cmt-visual-reply');
           if (window.showToast) showToast('تعذّر تعديل التعليق');
         });
     });

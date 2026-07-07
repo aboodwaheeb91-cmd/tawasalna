@@ -1112,10 +1112,17 @@ Full technical specification: `ARCHITECTURE.md §65`.
    - **Relative time:** `_formatRelativeTime(ts)` returns Arabic relative strings (`منذ لحظة`, `منذ N دقائق`, …). `_ICO_CLOCK` is a static inline SVG. Both appear inside `.pc-cmt-meta-row`. Do NOT pass API text through `innerHTML`.
    - **Comments list max-height is 280px.** Do NOT increase above 300px without a dedicated PR.
 
-15. **Comment UX contracts (feat/comment-ux-polish-2) — permanent:**
-   - **Column header layout:** `.pc-cmt-header-left` uses `flex-direction:column`. Row 1 = `.pc-cmt-author` (name). Row 2 = `.pc-cmt-meta-row` (time · reply btn · edited badge). Avatar is 32px.
+15. **Comment UX contracts (feat/comment-ux-polish-2, updated feat/comment-ux-polish-3) — permanent:**
+   - **Column header layout:** `.pc-cmt-header-left` uses `flex-direction:column`. Row 1 = `.pc-cmt-author` (name). Row 2 = `.pc-cmt-meta-row` (time · edited badge only). Avatar is 32px.
    - **Portal ⋮ menu is mandatory** — never revert to inline `position:absolute`. See ARCHITECTURE.md §65.
-   - **Flat reply button** in `.pc-cmt-meta-row`: `_cmtHandleReply(postId, authorName)` prefills textarea with `@authorName `, updates `_cmtReplyTarget[postId]`, shows "رداً على" strip. Cancel via `_cmtCancelReply(postId)` strips the mention. No DB changes, no new endpoint, no nested replies.
+   - **"رد" reply button is below `.pc-cmt-body`**, NOT inside `.pc-cmt-meta-row`. DOM order: header → body → replyBtn → acts. Color: `rgba(37,99,255,.65)` (soft blue). Do NOT move it back into the meta row.
+   - `_cmtHandleReply(postId, authorName)` prefills textarea with `@authorName `, updates `_cmtReplyTarget[postId]`, shows "رداً على" strip. Cancel via `_cmtCancelReply(postId)` strips the mention. No DB changes, no new endpoint, no nested replies.
    - **"رداً على" strip** sits between `.pc-cmts-loading` and `.pc-cmts-input-row` in the panel DOM. `_cmtHandleSend` clears it on successful send.
    - **XSS:** all API-sourced text in reply flow uses `textContent`. `nameSpan.textContent = authorName` is the only approved assignment for the strip name.
    - **`_cmtReplyTarget`** is the only state store for active reply per panel (per postId). Do NOT persist to localStorage.
+
+16. **Comment UX contracts (feat/comment-ux-polish-3) — permanent:**
+   - **`_renderCommentBody(bodyEl, text)` is the only approved function** for setting comment body content. It uses `textContent`/`createTextNode` exclusively — never `innerHTML` for API data. If body starts with `@word`, the mention gets a `<span class="pc-cmt-mention">` via `textContent`. Used in: `_cmtBuildItem`, `_cmtHandleEdit` (optimistic, success, rollback).
+   - **`.pc-cmt-visual-reply` class** is added to `.pc-cmt-item` when `c.body.charAt(0) === '@'`. CSS-only indentation (`margin-inline-start:28px`) — no DB, no parent_comment_id. `_cmtHandleEdit` updates the class when body changes.
+   - **Scrollbar hidden on `.pc-cmts-list`** (`scrollbar-width:none` + `::-webkit-scrollbar {display:none}`). This prevents the RTL scrollbar track from appearing as a vertical line on the left side. Do NOT remove these rules.
+   - **No vertical line** in the comments list. Do not add `border-left`, `border-inline-start`, or visible pseudo-elements to `.pc-cmts-list`, `.pc-cmt-item`, or `.pc-cmt-content`.
