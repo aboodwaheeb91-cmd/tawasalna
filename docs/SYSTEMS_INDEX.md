@@ -50,6 +50,7 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 **Source of Truth:** `users.user_type` · `get_user_info_by_tw_id(tw_id)` in `auth.py` · Smart Router route in `server.py`
 **Details:** `ARCHITECTURE.md §63` · `CLAUDE.md → Smart Public Profile Router Rules`
 **Do not recreate:** Do not create separate public routes like `/company-public/` or `/edu-public/`. Do not route by tw_id prefix alone — always query the DB.
+**Legacy redirect (PR #386):** `/company-profile` is a legacy redirect only — it checks `user_type==="co"` → `/u/{tw_id}`; non-co users → `/home`; no JWT → `/login`. `/company-profile?id=123` → server-side 302 → `/u/{tw_id}`. See `CLAUDE.md → Smart Public Profile Router Rules §7`.
 
 ---
 
@@ -287,6 +288,14 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 
 ---
 
+### 22a. Post Appreciation System (أقدّر)
+**Purpose:** Idempotent per-user appreciation (like) on company posts with fast-click safety. One appreciation per user per post; supports rapid toggling without race conditions or unique-constraint errors.
+**Source of Truth:** `company_post_appreciations` table (`post_id FK, user_id FK` — UNIQUE constraint) · `auth.py → set_company_post_appreciation(post_id, user_id, appreciated)` · `PUT /company/posts/{post_id}/appreciation` endpoint · `static/company/company.posts.js` (`_apprDesired`, `_apprInFlight`, `_apprOrigState`, `_dispatchAppreciation`, `_toggleAppreciation`)
+**Details:** `CLAUDE.md → Post Appreciation System Rules`
+**Do not recreate:** Use the idempotent `PUT` endpoint — not the legacy `POST /appreciate` toggle. The button label is **"أقدّر"** — frozen, do not rename it. Do not simplify the Desired State Queue to a plain toggle — rapid clicks require the three-variable queue to prevent flickers and race conditions.
+
+---
+
 ## E — Trust & Safety
 
 ### 23. Credential Verification / KYC
@@ -398,7 +407,7 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 | `/home` | `home-v2.html` + `static/home/*.js` | emp |
 | `/u/{tw_id}` | Smart Router → profile/company/edu | All |
 | `/profile` | `profile.html` (legacy editor) | emp |
-| `/company-profile` | `company-profile.html` + `static/company/*.js` | co |
+| `/company-profile` | legacy redirect → `/u/{tw_id}` (PR #386) | co (redirect only) |
 | `/edu-profile` | `edu-profile.html` | edu |
 | `/job-detail?id=` | `job-detail.html` + `static/job/*.js` | All |
 | `/messages` | `messages.html` | All |
@@ -422,4 +431,4 @@ These systems exist in code but lack formal documentation in ARCHITECTURE.md or 
 
 ---
 
-*Last updated: 2026-07-03 — reflects systems as of PR #339 (design/align-job-card-buttons). Added `docs/company-jobs-and-applicants.md` with full contracts for owner job card, job location system, applicants modal, and QA checklist.*
+*Last updated: 2026-07-07 — reflects systems as of PR #386 (refactor/company-profile-single-canonical-route) and PR #385 (fix/post-appreciation-idempotent-fast-clicks). Added §22a Post Appreciation System. Updated §4 Smart Router with legacy redirect rule. Updated §H Pages Index: `/company-profile` is now a redirect-only route.*
