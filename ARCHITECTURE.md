@@ -9453,22 +9453,26 @@ Each comment item DOM order:
 
 "تم التعديل" badge is appended to `.pc-cmt-meta-row` (not `.pc-cmt-header-left`, not `.pc-cmt-header`).
 
-### XSS-Safe Body Rendering — `_renderCommentBody` (updated feat/comment-author-links)
+### XSS-Safe Body Rendering — `_renderCommentBody` (updated feat/mention-ux-fixes)
 
-`_renderCommentBody(bodyEl, text, mentionName, mentionTwId)` is the only approved function for setting comment body content:
+`_renderCommentBody(bodyEl, text, mentionName, mentionTwId, knownNames)` is the only approved function for setting comment body content:
 - `bodyEl.textContent = ''` clears existing children
-- **Exact compound-name match:** if `mentionName` given and `text` starts with `@mentionName`:
-  - Creates `<a class="pc-cmt-mention" href="/u/{mentionTwId}">` when `mentionTwId` is provided
+- **Step 1 — Exact reply-author match:** if `mentionName` given and `text` starts with `@mentionName`:
+  - Creates `<a class="pc-cmt-mention" href="/u/{mentionTwId}">` when `mentionTwId` is provided (reply @mention, guaranteed tw_id)
   - Creates `<span class="pc-cmt-mention">` when `mentionTwId` is absent
   - Name text set via `textContent` — never `innerHTML`
   - Handles multi-word names like `@الشركة العربية الاردنية`
-- **Fallback:** if no exact match, `@\S+` regex highlights the first `@word` as `<span>` (no link — free mentions have no tw_id in V1)
-- Otherwise: `bodyEl.textContent = text`
+- **Step 2 — Free mention compound match:** if text starts with `@` and `knownNames` is provided, tries each known name (sorted longest-first) as `@name` prefix. Creates `<span class="pc-cmt-mention">` — free mentions are **always `<span>`** (no guaranteed tw_id in V1)
+- **Step 3 — Last resort:** `@\S+` regex highlights first `@word` as `<span>` (used when no `knownNames` and no `mentionName`)
+- **Step 4:** `bodyEl.textContent = text` for non-mention bodies
 - **Never use `bodyEl.innerHTML = apiData` — forbidden**
 
 Arguments:
 - `mentionName` — from `c.reply_to_author_name` (API) or `item.dataset.replyToAuthor` (edit flow)
 - `mentionTwId` — from `c.reply_to_author_tw_id` (API) or `item.dataset.replyToAuthorTwId` (edit flow)
+- `knownNames` — optional; sorted longest-first array of known author names for compound free-mention matching
+
+Helper: `_cmtKnownNames(postId)` — collects candidate names via `_cmtCollectMentionCandidates(postId)`, sorts longest-first. Called by: `_cmtHandleSend` (passes `knownNames` to `_cmtInsertReply` + `_cmtBuildItem`), `_cmtHandleEdit` (as `editKnownNames`). `_cmtRenderComments` builds `knownNames` directly from the `comments` array (no DOM read needed at initial render time).
 
 Used in: `_cmtBuildItem` (initial render), `_cmtHandleEdit` (optimistic update, success confirm, rollback).
 
@@ -9518,7 +9522,7 @@ V1 implements **1-level-max reply threading** with DB storage via `reply_to_comm
 - `GET /comments` returns `reply_to_comment_id`, `reply_to_author_name`, `reply_to_author_tw_id` per comment.
 - `POST /comments` accepts optional `reply_to_comment_id` in `CommentInput`.
 - On initial load, `_cmtRenderComments(comments, list)` groups replies under their parent (top-level first, then each parent's replies, orphans last).
-- On send, `_cmtHandleSend` calls `_cmtInsertReply(list, newComment)` for replies — inserts after the last existing sibling reply under the same parent.
+- On send, `_cmtHandleSend` calls `_cmtInsertReply(list, newComment, knownNames)` for replies — inserts after the last existing sibling reply under the same parent.
 
 **Module variables:**
 - `_cmtReplyTarget[postId]` — authorName of reply target (for `@mention` prefill)
@@ -9596,8 +9600,8 @@ A lightweight portal-based mention dropdown appears inside the comment textarea 
 - `_cmtFilterMentionCandidates(query, candidates)` — substring, max 6
 - `_cmtFindMentionStart(ta)` — backward walk from cursor
 - `_cmtSetMentionActive(idx)` — adds `.pc-cmt-mention-active` class
-- `_cmtPositionMentionMenu(ta)` — getBoundingClientRect + clamping
-- `_cmtOpenMentionMenu(ta, postId, filtered, start)` — builds items, positions, shows
+- `_cmtPositionMentionMenu(ta)` — sets `visibility:hidden; display:block` first, reads `menu.offsetHeight` (real height), then positions and clears visibility; caps at CSS max-height 160px
+- `_cmtOpenMentionMenu(ta, postId, filtered, start)` — builds items, sets `visibility:hidden; display:block`, positions (accurate offsetHeight), clears visibility
 - `_cmtInsertMention(ta, name)` — text replacement + input event + close
 - `_cmtHandleMentionInput(ta, postId)` — wired to textarea `input` listener
 - `_cmtHandleMentionKeydown(e, ta)` — wired to textarea `keydown` listener
@@ -9637,6 +9641,9 @@ A lightweight portal-based mention dropdown appears inside the comment textarea 
 ❌ Adding a new API endpoint for mention autocomplete suggestions (candidates come from DOM only)
 ❌ Using innerHTML to render mention candidate names (always textContent)
 ❌ Creating a second mention menu portal div (one portal, lazy-created)
+❌ Hardcoding menuH=160 in _cmtPositionMentionMenu — use menu.offsetHeight (visibility:hidden trick)
+❌ Using @\S+ as the only free-mention fallback — always try knownNames compound match first
+❌ Passing free @mention as <a> — free mentions are <span> only in V1 (no guaranteed tw_id)
 ❌ Persisting mention state to localStorage or sessionStorage
 ❌ Author name/avatar links using /profile?id= or /company-profile — only /u/{tw_id} is allowed
 ❌ Using numeric id in author or mention links — only tw_id

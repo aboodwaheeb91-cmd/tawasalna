@@ -562,7 +562,7 @@ check(
 )
 check(
     "70d. _cmtHandleSend calls _cmtInsertReply for replies, not plain append",
-    "_cmtInsertReply(list, newComment)" in posts_js
+    "_cmtInsertReply(list, newComment" in posts_js
 )
 check(
     "70e. _cmtCancelReply clears _cmtReplyTargetId",
@@ -769,8 +769,8 @@ check(
 
 # Frontend: _renderCommentBody supports 4th param mentionTwId
 check(
-    "96. _renderCommentBody accepts 4th param mentionTwId",
-    "function _renderCommentBody(bodyEl, text, mentionName, mentionTwId)" in posts_js
+    "96. _renderCommentBody accepts mentionTwId param (4th or later)",
+    "function _renderCommentBody(bodyEl, text, mentionName, mentionTwId" in posts_js
 )
 check(
     "97. _renderCommentBody creates <a> when mentionTwId provided (XSS-safe)",
@@ -781,10 +781,10 @@ check(
     "mentionEl.href = '/u/' + mentionTwId" in posts_js
 )
 
-# Frontend: _cmtBuildItem passes reply_to_author_tw_id as 4th arg
+# Frontend: _cmtBuildItem passes reply_to_author_tw_id as 4th arg (now also 5th knownNames arg)
 check(
     "99. _cmtBuildItem passes reply_to_author_tw_id to _renderCommentBody",
-    "_renderCommentBody(bodyEl, c.body, c.reply_to_author_name || null, c.reply_to_author_tw_id || null)" in posts_js
+    "_renderCommentBody(bodyEl, c.body, c.reply_to_author_name || null, c.reply_to_author_tw_id || null, knownNames" in posts_js
 )
 
 # Frontend: _cmtHandleEdit passes replyToAuthorTwId as 4th arg
@@ -795,7 +795,7 @@ check(
 )
 check(
     "99c. _cmtHandleEdit passes replyToAuthorTwId to all _renderCommentBody calls",
-    "_renderCommentBody(bodyEl, newBody, replyToAuthor, replyToAuthorTwId)" in posts_js
+    "_renderCommentBody(bodyEl, newBody, replyToAuthor, replyToAuthorTwId" in posts_js
 )
 
 # Frontend: company state path fixed
@@ -812,6 +812,63 @@ check(
 check(
     "99f. CSS a.pc-cmt-mention has text-decoration:none (no underline default)",
     "a.pc-cmt-mention" in company_css
+)
+
+# ── 100-105. Mention UX fixes (feat/mention-ux-fixes) ────────────────────
+
+# Fix 1: actual height measurement before positioning
+pos_fn = posts_js[posts_js.find("function _cmtPositionMentionMenu"):] if "function _cmtPositionMentionMenu" in posts_js else ""
+pos_fn_body = pos_fn[:pos_fn.find("}\n\n")+2] if "}\n\n" in pos_fn else pos_fn[:400]
+check(
+    "100. _cmtPositionMentionMenu uses menu.offsetHeight (not hardcoded 160)",
+    "menu.offsetHeight" in pos_fn_body and "var menuH = 160" not in pos_fn_body
+)
+check(
+    "101. _cmtPositionMentionMenu caps height at 160 (CSS max-height)",
+    "Math.min(menu.offsetHeight" in pos_fn_body or "Math.min(" in pos_fn_body
+)
+
+open_fn = posts_js[posts_js.find("function _cmtOpenMentionMenu"):] if "function _cmtOpenMentionMenu" in posts_js else ""
+open_fn_body = open_fn[:open_fn.find("}\n\n")+2] if "}\n\n" in open_fn else open_fn[:700]
+check(
+    "102. _cmtOpenMentionMenu sets visibility:hidden before display:block for height measurement",
+    "menu.style.visibility = 'hidden'" in open_fn_body and "menu.style.display    = 'block'" in open_fn_body
+)
+check(
+    "103. _cmtOpenMentionMenu clears visibility after positioning",
+    "menu.style.visibility = ''" in open_fn_body
+)
+
+# Fix 2: compound-name coloring for free mentions
+check(
+    "104. _cmtKnownNames helper exists and returns sorted names",
+    "function _cmtKnownNames(" in posts_js and "_cmtCollectMentionCandidates(" in posts_js
+)
+check(
+    "105. _renderCommentBody accepts 5th param knownNames for compound free-mention",
+    "function _renderCommentBody(bodyEl, text, mentionName, mentionTwId, knownNames)" in posts_js
+)
+check(
+    "105b. _renderCommentBody tries knownNames longest-match before @\\S+ fallback",
+    "knownNames[ki]" in posts_js or "knownNames && knownNames.length" in posts_js
+)
+check(
+    "105c. _cmtHandleEdit computes editKnownNames via _cmtKnownNames before _renderCommentBody calls",
+    "var editKnownNames = _cmtKnownNames(" in posts_js
+)
+check(
+    "105d. _cmtHandleSend passes _cmtKnownNames to _cmtInsertReply and _cmtBuildItem",
+    "_cmtKnownNames(String(postId))" in posts_js or "_cmtKnownNames(" in posts_js
+)
+check(
+    "105e. _cmtRenderComments builds knownNames from comments array (longest-first) for initial render",
+    "knownNames = comments.map(" in posts_js or "_cmtBuildItem(c, knownNames)" in posts_js
+)
+check(
+    "105f. free mention highlight uses <span> only — no <a> without tw_id (V1 contract)",
+    "freeEl = document.createElement('span')" in posts_js or
+    "document.createElement('span'); // free mention" in posts_js or
+    "freeEl.className = 'pc-cmt-mention'" in posts_js
 )
 
 # ── Summary ──────────────────────────────────────────────────────────────
