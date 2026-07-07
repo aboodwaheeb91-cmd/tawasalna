@@ -7,7 +7,7 @@
 import os
 from fastapi import FastAPI, HTTPException, Request, Response, Depends, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, Field
 import base64, mimetypes
@@ -789,11 +789,51 @@ def company(): return read_html("company.html")
 @app.get("/company.html", response_class=HTMLResponse)
 def company_html(): return read_html("company.html")
 
-@app.get("/company-profile", response_class=HTMLResponse)
-def company_profile(): return read_html("company-profile.html")
+# Minimal client-side redirect page for legacy /company-profile route.
+# Only company owners (user_type === "co") go to /u/{tw_id}.
+# Non-co users go to /home (they're logged in but not a company).
+# No JWT at all → /login.
+_COMPANY_PROFILE_REDIRECT_HTML = (
+    '<!doctype html><html dir="rtl"><head><meta charset="utf-8">'
+    '<title>جاري التوجيه…</title></head><body><script>'
+    '(function(){'
+    'var jwt=localStorage.getItem("tw_jwt");'
+    'if(!jwt){location.replace("/login");return;}'
+    'try{'
+    'var u=JSON.parse(localStorage.getItem("tw_user")||"null");'
+    'if(u&&u.user_type==="co"&&u.tw_id){location.replace("/u/"+u.tw_id);}'
+    'else{location.replace("/home");}'
+    '}catch(e){location.replace("/home");}'
+    '})();'
+    '</script></body></html>'
+)
 
-@app.get("/company-profile.html", response_class=HTMLResponse)
-def company_profile_html(): return read_html("company-profile.html")
+def _get_co_tw_id(user_id: int):
+    """Return tw_id for a company user by numeric id, or None if not found."""
+    conn = get_conn()
+    try:
+        rows = conn.run("SELECT tw_id FROM users WHERE id=:id AND user_type='co'", id=user_id)
+        return rows[0][0] if rows else None
+    finally:
+        release_conn(conn)
+
+@app.get("/company-profile")
+def company_profile(id: Optional[int] = None):
+    """Legacy redirect — canonical URL is /u/{tw_id} for all viewers.
+    /company-profile?id=123 → /u/{tw_id}  (server-side 302)
+    /company-profile         → minimal JS page that reads localStorage → /u/{tw_id}"""
+    if id is not None:
+        tw = _get_co_tw_id(id)
+        return RedirectResponse(url=f'/u/{tw}' if tw else '/login', status_code=302)
+    return HTMLResponse(content=_COMPANY_PROFILE_REDIRECT_HTML)
+
+@app.get("/company-profile.html")
+def company_profile_html(id: Optional[int] = None):
+    """Same as /company-profile (.html extension kept for backward compatibility)."""
+    if id is not None:
+        tw = _get_co_tw_id(id)
+        return RedirectResponse(url=f'/u/{tw}' if tw else '/login', status_code=302)
+    return HTMLResponse(content=_COMPANY_PROFILE_REDIRECT_HTML)
 
 @app.get("/profile-showcase", response_class=HTMLResponse)
 def profile_showcase(): return read_html("profile-showcase.html")

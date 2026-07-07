@@ -14,7 +14,7 @@
       if (homeBtn) {
         var user = window.Home.state.user || {};
         var type = user.user_type || 'emp';
-        var profileUrl = type === 'co'  ? '/company-profile'
+        var profileUrl = type === 'co'  ? (user.tw_id ? '/u/' + user.tw_id : '/company-profile')
                        : type === 'edu' ? '/edu-profile'
                        : user.tw_id    ? '/u/' + user.tw_id
                        : '/profile';

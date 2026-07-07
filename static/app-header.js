@@ -29,7 +29,7 @@ function initAppHeader(user) {
       if (user.user_type === 'emp') {
         av.href = user.tw_id ? '/u/' + user.tw_id : '/profile';
       } else if (user.user_type === 'co') {
-        av.href = '/company-profile';
+        av.href = user.tw_id ? '/u/' + user.tw_id : '/company-profile';
       } else if (user.user_type === 'edu') {
         av.href = '/edu-profile';
       }
