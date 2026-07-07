@@ -572,7 +572,13 @@ These rules are permanent and apply to all future AI sessions.
 
 6. **Empty URL must return 404.** `/u` and `/u/` must never open a blank page. A dedicated `GET /u` route returns HTTP 404.
 
-7. **Backward-compatible routes are permanent:** `/company-profile?id=`, `/edu-profile?id=`, `/profile-showcase` must continue to work unchanged.
+7. **`/company-profile` is a legacy redirect only (PR #386).** It is NOT a canonical URL and must not appear as a final link in share buttons, "شركتي" buttons, "إدارة الصفحة" buttons, or copy-link flows.
+   - `/company-profile` (no params): serves a minimal redirect HTML that checks `tw_user.user_type === "co"` → redirects to `/u/{tw_id}`; non-co users → `/home`; no JWT → `/login`.
+   - `/company-profile?id=123`: server-side 302 → `/u/{that_company_tw_id}`.
+   - `/company-profile.html`: same as above.
+   - **Owner mode is determined by `viewer_type` from the server via JWT** — never by which URL the user arrived at.
+
+8. **Backward-compatible routes are permanent:** `/company-profile?id=`, `/edu-profile?id=`, `/profile-showcase` must continue to work — but they now do so via redirect to `/u/{tw_id}`, not by serving the page directly.
 
 8. **Numeric id stays internal.** Never put `id` (integer) in a public share URL. Use `tw_id` only.
 

@@ -789,7 +789,10 @@ def company(): return read_html("company.html")
 @app.get("/company.html", response_class=HTMLResponse)
 def company_html(): return read_html("company.html")
 
-# Minimal client-side redirect page — reads localStorage and jumps to /u/{tw_id}
+# Minimal client-side redirect page for legacy /company-profile route.
+# Only company owners (user_type === "co") go to /u/{tw_id}.
+# Non-co users go to /home (they're logged in but not a company).
+# No JWT at all → /login.
 _COMPANY_PROFILE_REDIRECT_HTML = (
     '<!doctype html><html dir="rtl"><head><meta charset="utf-8">'
     '<title>جاري التوجيه…</title></head><body><script>'
@@ -798,9 +801,9 @@ _COMPANY_PROFILE_REDIRECT_HTML = (
     'if(!jwt){location.replace("/login");return;}'
     'try{'
     'var u=JSON.parse(localStorage.getItem("tw_user")||"null");'
-    'if(u&&u.tw_id){location.replace("/u/"+u.tw_id);}'
-    'else{location.replace("/login");}'
-    '}catch(e){location.replace("/login");}'
+    'if(u&&u.user_type==="co"&&u.tw_id){location.replace("/u/"+u.tw_id);}'
+    'else{location.replace("/home");}'
+    '}catch(e){location.replace("/home");}'
     '})();'
     '</script></body></html>'
 )
