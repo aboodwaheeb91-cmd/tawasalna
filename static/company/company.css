@@ -1012,6 +1012,28 @@ i.ico-sm { width:14px; height:14px; stroke:currentColor; fill:none; stroke-width
   font-size:.75rem; color:var(--t3); text-align:center; width:100%; padding:6px 0;
 }
 
+/* ══ @ MENTION AUTOCOMPLETE MENU (portal, position:fixed) ═══════ */
+.pc-cmt-mention-menu {
+  position:fixed; display:none;
+  background:var(--card); border:1px solid var(--border);
+  border-radius:8px; overflow:hidden;
+  max-height:160px; overflow-y:auto; width:220px;
+  box-shadow:0 8px 24px rgba(0,0,0,.45); z-index:9999;
+  scrollbar-width:none;
+}
+.pc-cmt-mention-menu::-webkit-scrollbar { display:none; }
+.pc-cmt-mention-item {
+  display:block; width:100%; background:none; border:none;
+  cursor:pointer; font-family:inherit; font-size:.75rem;
+  color:var(--t2); text-align:right; padding:8px 12px;
+  transition:background .12s, color .12s;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.pc-cmt-mention-item:hover,
+.pc-cmt-mention-item.pc-cmt-mention-active {
+  background:rgba(37,99,255,.12); color:var(--ac);
+}
+
 /* ══ POST TAG PICKER ═════════════════════════════════════════════ */
 .ptc-wrapper { position:relative; }
 .ptc-count {

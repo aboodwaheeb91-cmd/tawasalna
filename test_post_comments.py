@@ -632,6 +632,77 @@ check(
     "root_rows[0][1]) != post_id" in auth_src
 )
 
+# ── 77-85. @ Mention Autocomplete (company.posts.js) ─────────────────────
+
+# Module-level state variables
+check(
+    "77. _cmtMentionMenu module variable declared",
+    "var _cmtMentionMenu  = null;" in posts_js or "var _cmtMentionMenu=" in posts_js or "_cmtMentionMenu  = null" in posts_js
+)
+check(
+    "78. _cmtMentionState module variable declared with correct shape",
+    "_cmtMentionState = {" in posts_js and "open:" in posts_js and "activeIdx:" in posts_js
+)
+
+# Core mention functions present
+check(
+    "79. _cmtGetMentionMenu creates portal div with correct id",
+    "_cmtMentionMenu.id = 'pc-cmt-mention-menu'" in posts_js
+)
+check(
+    "80. _cmtCloseMentionMenu resets all state fields",
+    "_cmtMentionState.open      = false" in posts_js and "_cmtMentionState.activeIdx = -1" in posts_js
+)
+check(
+    "81. _cmtCollectMentionCandidates reads .pc-cmt-author textContent (XSS-safe)",
+    "querySelectorAll('.pc-cmt-author')" in posts_js and "textContent" in posts_js
+)
+check(
+    "82. _cmtFilterMentionCandidates limits to 6 results",
+    "result.length < 6" in posts_js
+)
+check(
+    "83. _cmtFindMentionStart stops at space/newline (no false positives)",
+    "val[i] === ' ' || val[i] === '\\n'" in posts_js
+)
+check(
+    "84. _cmtInsertMention builds @name+space and fires input event (XSS-safe — textContent route)",
+    "var insert = '@' + name + ' '" in posts_js and "dispatchEvent(new Event('input'))" in posts_js
+)
+
+# Textarea wiring
+check(
+    "85. _cmtHandleMentionInput wired to textarea input listener in _cmtPopulatePanel",
+    "_cmtHandleMentionInput(ta, String(postId))" in posts_js
+)
+check(
+    "85b. _cmtHandleMentionKeydown wired to textarea keydown listener",
+    "_cmtHandleMentionKeydown(e, ta)" in posts_js
+)
+
+# Mention menu item delegation + close on outside click
+check(
+    "85c. click delegation for .pc-cmt-mention-item uses dataset.mentionName",
+    "item.dataset.mentionName" in posts_js
+)
+check(
+    "85d. DOMContentLoaded closes mention menu on outside click",
+    "!menu.contains(e.target) && e.target !== _cmtMentionState.ta" in posts_js
+)
+
+# CSS
+with open("static/company/company.css") as _f:
+    company_css = _f.read()
+
+check(
+    "85e. CSS .pc-cmt-mention-menu is position:fixed z-index:9999",
+    "pc-cmt-mention-menu" in company_css and "position:fixed" in company_css and "z-index:9999" in company_css
+)
+check(
+    "85f. CSS .pc-cmt-mention-active exists for keyboard highlight",
+    "pc-cmt-mention-active" in company_css
+)
+
 # ── Summary ──────────────────────────────────────────────────────────────
 print()
 passed = sum(1 for _, s, _ in results if s == PASS)

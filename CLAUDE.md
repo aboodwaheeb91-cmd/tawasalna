@@ -1136,3 +1136,15 @@ Full technical specification: `ARCHITECTURE.md §65`.
    - **`_cmtInsertReply(list, newComment)`** inserts a new reply immediately after the parent's last sibling reply in the DOM. Do NOT `list.appendChild` a reply unconditionally.
    - **`_cmtReplyTargetId[postId]`** stores the commentId to send as `reply_to_comment_id`. Both `_cmtReplyTarget` (authorName) and `_cmtReplyTargetId` (commentId) are cleared on send + cancel.
    - **`data-reply-to-id` + `data-reply-to-author`** are set on `.pc-cmt-item` by `_cmtBuildItem` when `reply_to_comment_id != null`. These are used by `_cmtInsertReply` and `_cmtHandleEdit`.
+
+18. **@ Mention Autocomplete contracts (feat/comment-mention-autocomplete) — permanent:**
+   - **One portal `#pc-cmt-mention-menu` on `document.body`.** Lazy-created by `_cmtGetMentionMenu()`. Do NOT create a per-panel dropdown — it would be clipped by `overflow-y:auto`.
+   - **Candidates from DOM only — no API call.** `_cmtCollectMentionCandidates(postId)` reads `.pc-cmt-author` textContent + `window.companyState.full_name`. No new endpoint is needed or allowed.
+   - **`_cmtFindMentionStart(ta)` stops at space/newline.** Do NOT trigger the dropdown for `@` that appears in the middle of a word.
+   - **Insertion via `_cmtInsertMention(ta, name)`.** Replaces from `@` index to current cursor position. Fires `input` event so auto-resize runs. Do NOT call it with `innerHTML` — name insertion always uses string concatenation into `ta.value`.
+   - **Max 6 suggestions.** `_cmtFilterMentionCandidates` returns at most 6 results.
+   - **XSS-safe.** All candidate names are set via `btn.textContent`. Never `innerHTML` for API-sourced or DOM-sourced strings.
+   - **Keyboard nav:** ArrowDown/Up cycles `activeIdx`, Enter inserts only when `activeIdx >= 0`, Escape closes.
+   - **Closes on:** outside click (body delegate checks `!menu.contains(e.target)`), page scroll, list scroll, successful insertion. Do NOT keep the menu open after insertion.
+   - **`_cmtMentionState` is the only store for active mention session.** Do NOT persist to localStorage/sessionStorage. Resets fully on `_cmtCloseMentionMenu()`.
+   - **CSS namespace:** `.pc-cmt-mention-menu`, `.pc-cmt-mention-item`, `.pc-cmt-mention-active` in `static/company/company.css` only.

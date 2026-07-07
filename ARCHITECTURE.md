@@ -9530,6 +9530,44 @@ V1 implements **1-level-max reply threading** with DB storage via `reply_to_comm
 
 XSS: `nameSpan.textContent = authorName` (never innerHTML for API data).
 
+### @ Mention Autocomplete (feat/comment-mention-autocomplete)
+
+A lightweight portal-based mention dropdown appears inside the comment textarea when the user types `@`. No new API endpoint, no DB change, no notifications.
+
+**Design constraints:**
+- Candidates: comment authors visible in the same panel (`.pc-cmt-author` textContent) + `window.companyState.full_name` (post-owning company).
+- Max 6 suggestions; substring match (case-sensitive, Arabic-friendly).
+- `_cmtFindMentionStart(ta)` walks backward from cursor; stops at space or newline → no false positives for mid-word `@`.
+- Insertion: `_cmtInsertMention(ta, name)` replaces from `@` to cursor with `@name `, fires `input` event (triggers auto-resize), closes menu.
+- **Portal pattern:** `#pc-cmt-mention-menu` is a single `position:fixed` div on `document.body` (lazy-created by `_cmtGetMentionMenu()`). Avoids `overflow-y:auto` clipping. z-index:9999.
+- **RTL positioning:** right-aligned with textarea right edge by default; clamped to viewport on all 4 sides.
+- **Prefer above** textarea; falls below if no space.
+- **Keyboard:** ArrowDown/Up cycle, Enter inserts active item (only if `activeIdx >= 0`), Escape closes.
+- **Closes on:** outside click, list scroll, page scroll, successful insertion.
+- **XSS-safe:** all candidate names rendered via `btn.textContent` — never `innerHTML` for API data.
+
+**Module variables added to `company.posts.js`:**
+- `_cmtMentionMenu` — cached portal div (null until first use)
+- `_cmtMentionState` — `{ open, ta, postId, start, filtered, activeIdx }`
+
+**Functions:**
+- `_cmtGetMentionMenu()` — lazy-creates portal div
+- `_cmtCloseMentionMenu()` — hides + resets all state
+- `_cmtCollectMentionCandidates(postId)` — DOM read (textContent), deduped
+- `_cmtFilterMentionCandidates(query, candidates)` — substring, max 6
+- `_cmtFindMentionStart(ta)` — backward walk from cursor
+- `_cmtSetMentionActive(idx)` — adds `.pc-cmt-mention-active` class
+- `_cmtPositionMentionMenu(ta)` — getBoundingClientRect + clamping
+- `_cmtOpenMentionMenu(ta, postId, filtered, start)` — builds items, positions, shows
+- `_cmtInsertMention(ta, name)` — text replacement + input event + close
+- `_cmtHandleMentionInput(ta, postId)` — wired to textarea `input` listener
+- `_cmtHandleMentionKeydown(e, ta)` — wired to textarea `keydown` listener
+
+**CSS classes (in `static/company/company.css`):**
+- `.pc-cmt-mention-menu` — portal container (position:fixed, display:none, max-height:160px, width:220px)
+- `.pc-cmt-mention-item` — button item (textContent, RTL text-align:right)
+- `.pc-cmt-mention-item.pc-cmt-mention-active` — keyboard-active highlight
+
 ### Forbidden Patterns
 
 ```
@@ -9557,4 +9595,8 @@ XSS: `nameSpan.textContent = authorName` (never innerHTML for API data).
 ❌ Changing visual-reply class in _cmtHandleEdit (reply_to_comment_id is immutable per comment)
 ❌ Creating a second reply endpoint — same POST /comments accepts reply_to_comment_id
 ❌ Sending reply_to_comment_id without server-side depth resolution (server must enforce max depth=1)
+❌ Adding a new API endpoint for mention autocomplete suggestions (candidates come from DOM only)
+❌ Using innerHTML to render mention candidate names (always textContent)
+❌ Creating a second mention menu portal div (one portal, lazy-created)
+❌ Persisting mention state to localStorage or sessionStorage
 ```

@@ -727,6 +727,17 @@
   var _cmtReplyTarget  = {};   // postId -> authorName | null (active reply state)
   var _cmtReplyTargetId = {};  // postId -> commentId | null (reply_to_comment_id to send)
 
+  // ── @ Mention Autocomplete state ──────────────────────────────────────────
+  var _cmtMentionMenu  = null; // single portal <div> on document.body (lazy-created)
+  var _cmtMentionState = {
+    open:      false,
+    ta:        null,   // active textarea
+    postId:    null,   // post panel being typed in
+    start:     -1,     // index of the @ character in ta.value
+    filtered:  [],     // current filtered candidate names
+    activeIdx: -1,     // keyboard-highlighted row index (-1 = none)
+  };
+
   function _cmtGetBtn(postId) {
     var card = document.querySelector('.post-card[data-post-id="' + postId + '"]');
     return card ? card.querySelector('.pc-btn--cmt') : null;
@@ -816,6 +827,166 @@
     menu.style.display = 'block';
     _cmtPortalFor  = { cmtId: cmtId, postId: postId };
     _cmtOpenMenuId = cmtId;
+  }
+
+  // ── @ Mention Autocomplete ────────────────────────────────────────────────
+
+  function _cmtGetMentionMenu() {
+    if (!_cmtMentionMenu) {
+      _cmtMentionMenu = document.createElement('div');
+      _cmtMentionMenu.className = 'pc-cmt-mention-menu';
+      _cmtMentionMenu.id = 'pc-cmt-mention-menu';
+      document.body.appendChild(_cmtMentionMenu);
+    }
+    return _cmtMentionMenu;
+  }
+
+  function _cmtCloseMentionMenu() {
+    if (_cmtMentionMenu) _cmtMentionMenu.style.display = 'none';
+    _cmtMentionState.open      = false;
+    _cmtMentionState.ta        = null;
+    _cmtMentionState.postId    = null;
+    _cmtMentionState.start     = -1;
+    _cmtMentionState.filtered  = [];
+    _cmtMentionState.activeIdx = -1;
+  }
+
+  // Collect candidate names from: comment authors in panel + post-owning company.
+  // XSS-safe: reads .textContent from DOM elements, not innerHTML.
+  function _cmtCollectMentionCandidates(postId) {
+    var seen = {};
+    var out  = [];
+    var panel = _cmtGetPanel(postId);
+    if (panel) {
+      var authorEls = panel.querySelectorAll('.pc-cmt-author');
+      for (var i = 0; i < authorEls.length; i++) {
+        var name = authorEls[i].textContent.trim();
+        if (name && !seen[name]) { seen[name] = true; out.push(name); }
+      }
+    }
+    // Add post owner (company) name if available
+    if (window.companyState && window.companyState.full_name) {
+      var cn = window.companyState.full_name;
+      if (cn && !seen[cn]) { seen[cn] = true; out.push(cn); }
+    }
+    return out;
+  }
+
+  // Returns up to 6 candidates that contain the query as a substring.
+  function _cmtFilterMentionCandidates(query, candidates) {
+    if (!query) return candidates.slice(0, 6);
+    var q = query;
+    var result = [];
+    for (var i = 0; i < candidates.length && result.length < 6; i++) {
+      if (candidates[i].indexOf(q) !== -1) result.push(candidates[i]);
+    }
+    return result;
+  }
+
+  // Walk backwards from cursor; return index of @ if found with no space in between, else -1.
+  function _cmtFindMentionStart(ta) {
+    var val    = ta.value;
+    var cursor = ta.selectionStart;
+    for (var i = cursor - 1; i >= 0; i--) {
+      if (val[i] === '@') return i;
+      if (val[i] === ' ' || val[i] === '\n') return -1;
+    }
+    return -1;
+  }
+
+  function _cmtSetMentionActive(idx) {
+    var menu  = _cmtGetMentionMenu();
+    var items = menu.querySelectorAll('.pc-cmt-mention-item');
+    for (var i = 0; i < items.length; i++) {
+      if (i === idx) items[i].classList.add('pc-cmt-mention-active');
+      else           items[i].classList.remove('pc-cmt-mention-active');
+    }
+    _cmtMentionState.activeIdx = idx;
+  }
+
+  function _cmtPositionMentionMenu(ta) {
+    var menu  = _cmtGetMentionMenu();
+    var rect  = ta.getBoundingClientRect();
+    var menuH = 160; // matches max-height in CSS
+    var menuW = 220;
+    // Prefer above textarea; fall below if not enough space
+    var top  = rect.top - menuH - 6;
+    if (top < 8) top = rect.bottom + 4;
+    // Right-align with textarea right edge (RTL)
+    var left = rect.right - menuW;
+    if (left < 8) left = 8;
+    if (left + menuW > window.innerWidth - 8) left = window.innerWidth - menuW - 8;
+    menu.style.top  = top  + 'px';
+    menu.style.left = left + 'px';
+  }
+
+  function _cmtOpenMentionMenu(ta, postId, filtered, start) {
+    if (!filtered.length) { _cmtCloseMentionMenu(); return; }
+    var menu = _cmtGetMentionMenu();
+    menu.innerHTML = ''; // reset — safe: no API data injected here
+    for (var i = 0; i < filtered.length; i++) {
+      var btn = document.createElement('button');
+      btn.type      = 'button';
+      btn.className = 'pc-cmt-mention-item';
+      btn.textContent = filtered[i]; // XSS-safe: textContent only
+      btn.dataset.mentionName = filtered[i];
+      menu.appendChild(btn);
+    }
+    _cmtMentionState.open      = true;
+    _cmtMentionState.ta        = ta;
+    _cmtMentionState.postId    = postId;
+    _cmtMentionState.start     = start;
+    _cmtMentionState.filtered  = filtered;
+    _cmtMentionState.activeIdx = -1;
+    _cmtPositionMentionMenu(ta);
+    menu.style.display = 'block';
+  }
+
+  // Insert @name + space at the @-mention position, reposition cursor.
+  function _cmtInsertMention(ta, name) {
+    var val    = ta.value;
+    var start  = _cmtMentionState.start;
+    var cursor = ta.selectionStart;
+    var before = val.slice(0, start);
+    var after  = val.slice(cursor);
+    var insert = '@' + name + ' ';
+    ta.value   = before + insert + after;
+    var newPos = (before + insert).length;
+    ta.setSelectionRange(newPos, newPos);
+    ta.dispatchEvent(new Event('input')); // trigger auto-resize
+    ta.focus();
+    _cmtCloseMentionMenu();
+  }
+
+  // Called on every textarea input event.
+  function _cmtHandleMentionInput(ta, postId) {
+    var start = _cmtFindMentionStart(ta);
+    if (start === -1) { _cmtCloseMentionMenu(); return; }
+    var query      = ta.value.slice(start + 1, ta.selectionStart);
+    var candidates = _cmtCollectMentionCandidates(postId);
+    var filtered   = _cmtFilterMentionCandidates(query, candidates);
+    _cmtOpenMentionMenu(ta, postId, filtered, start);
+  }
+
+  // Handles Arrow / Enter / Escape inside the textarea.
+  function _cmtHandleMentionKeydown(e, ta) {
+    if (!_cmtMentionState.open) return;
+    var len = _cmtMentionState.filtered.length;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      _cmtSetMentionActive((_cmtMentionState.activeIdx + 1) % len);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      _cmtSetMentionActive((_cmtMentionState.activeIdx - 1 + len) % len);
+    } else if (e.key === 'Enter') {
+      var idx = _cmtMentionState.activeIdx;
+      if (idx >= 0 && idx < len) {
+        e.preventDefault();
+        _cmtInsertMention(ta, _cmtMentionState.filtered[idx]);
+      }
+    } else if (e.key === 'Escape') {
+      _cmtCloseMentionMenu();
+    }
   }
 
   // ── Reply system — prefills @mention + tracks reply_to_comment_id ─────────
@@ -1078,6 +1249,7 @@
     var list = document.createElement('div');
     list.className = 'pc-cmts-list';
     list.addEventListener('scroll', _cmtHidePortalMenu, { passive: true });
+    list.addEventListener('scroll', function () { _cmtCloseMentionMenu(); }, { passive: true });
 
     var loading = document.createElement('div');
     loading.className = 'pc-cmts-loading';
@@ -1092,7 +1264,11 @@
       ta.placeholder = 'اكتب تعليقاً…';
       ta.maxLength   = 1000;
       ta.rows        = 1; // auto-grows via _autoResizeTextarea
-      ta.addEventListener('input', function () { _autoResizeTextarea(ta); });
+      ta.addEventListener('input', function () {
+        _autoResizeTextarea(ta);
+        _cmtHandleMentionInput(ta, String(postId));
+      });
+      ta.addEventListener('keydown', function (e) { _cmtHandleMentionKeydown(e, ta); });
       var sendBtn = document.createElement('button');
       sendBtn.type      = 'button';
       sendBtn.className = 'pc-cmts-send';
@@ -1437,8 +1613,19 @@
       }
     });
 
-    // Close portal menu on page scroll
+    // Close mention menu when clicking outside
+    document.addEventListener('click', function (e) {
+      if (_cmtMentionState.open) {
+        var menu = document.getElementById('pc-cmt-mention-menu');
+        if (menu && !menu.contains(e.target) && e.target !== _cmtMentionState.ta) {
+          _cmtCloseMentionMenu();
+        }
+      }
+    });
+
+    // Close portal menu + mention menu on page scroll
     document.addEventListener('scroll', _cmtHidePortalMenu, { passive: true, capture: true });
+    document.addEventListener('scroll', function () { _cmtCloseMentionMenu(); }, { passive: true, capture: true });
 
     // Portal menu item clicks (edit / delete)
     document.body.addEventListener('click', function (e) {
@@ -1455,6 +1642,15 @@
         _cmtHandleDelete(delItem.getAttribute('data-cmt-id'), delItem.getAttribute('data-post-id'));
         return;
       }
+    });
+
+    // Mention menu item clicks — insert selected name into active textarea
+    document.body.addEventListener('click', function (e) {
+      if (!_cmtMentionState.open) return;
+      var item = e.target.closest('.pc-cmt-mention-item[data-mention-name]');
+      if (!item) return;
+      var ta = _cmtMentionState.ta;
+      if (ta) _cmtInsertMention(ta, item.dataset.mentionName);
     });
 
     // Event delegation for post card buttons
