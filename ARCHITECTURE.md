@@ -9424,15 +9424,57 @@ WHERE id=:cid
 
 All comments panel styles use the `.pc-cmts-*` and `.pc-cmt-*` namespace. Do not add comments styles to any other namespace.
 
-### Comment Item Header Layout (feat/comment-ux-polish-2)
+### Comment Item Header Layout (feat/comment-ux-polish-2, updated feat/comment-ux-polish-3)
 
-Each comment item uses a **two-row column header**:
-- **Row 1:** `.pc-cmt-author` — author name (`.70rem`, bold)
-- **Row 2:** `.pc-cmt-meta-row` — clock + relative time · "رد" button · "· تم التعديل" (if edited)
+Each comment item DOM order:
+```
+.pc-cmt-item  [+ .pc-cmt-visual-reply if body starts with @]
+  .pc-cmt-ava           (32px avatar)
+  .pc-cmt-content
+    .pc-cmt-header
+      .pc-cmt-header-left  (flex-direction:column)
+        .pc-cmt-author       Row 1 — author name (.70rem bold)
+        .pc-cmt-meta-row     Row 2 — clock + time · "· تم التعديل" (if edited)
+      .pc-cmt-menu-btn     ⋮ button (portal-based, no wrapper div)
+    .pc-cmt-body           comment text (via _renderCommentBody)
+    .pc-cmt-reply-btn      "رد" button — below body, NOT in meta row
+    .pc-cmt-acts           empty DOM anchor for _cmtHandleEdit insertBefore
+```
 
-Avatar is 32px. `.pc-cmt-header-left` is `flex-direction:column`. The ⋮ button has no wrapper — it sits directly in `.pc-cmt-header`.
+**"رد" button is below `.pc-cmt-body`, not inside `.pc-cmt-meta-row`.** Do NOT move it back into the meta row.
 
 "تم التعديل" badge is appended to `.pc-cmt-meta-row` (not `.pc-cmt-header-left`, not `.pc-cmt-header`).
+
+### XSS-Safe Body Rendering — `_renderCommentBody` (feat/comment-ux-polish-3)
+
+`_renderCommentBody(bodyEl, text)` is the only approved function for setting comment body content:
+- `bodyEl.textContent = ''` clears existing children
+- If text starts with `@word` → creates `<span class="pc-cmt-mention">` with `textContent = @word`, then `createTextNode(rest)`
+- Otherwise: `bodyEl.textContent = text`
+- **Never use `bodyEl.innerHTML = apiData` — forbidden**
+
+Used in: `_cmtBuildItem` (initial render), `_cmtHandleEdit` (optimistic update, success confirm, rollback).
+
+### Visual Reply Indentation (feat/comment-ux-polish-3)
+
+Comments whose `body` starts with `@` receive `.pc-cmt-visual-reply` class on `.pc-cmt-item`.
+
+```css
+.pc-cmt-item.pc-cmt-visual-reply { margin-inline-start: 28px; }
+```
+
+In RTL: `margin-inline-start` = `margin-right` (physical) — pushes item away from the start/right edge, creating visible left indentation. **Flat storage — no parent_comment_id, no thread, no new endpoint.**
+
+`_cmtHandleEdit` manages the class: updates it after optimistic save, restores it on rollback.
+
+### Scrollbar / Vertical Line Fix (feat/comment-ux-polish-3)
+
+In RTL, `overflow-y:auto` on `.pc-cmts-list` places the scrollbar on the **left** side, appearing as a thin vertical line even when not scrollable. Fixed by:
+```css
+.pc-cmts-list { scrollbar-width:none; }
+.pc-cmts-list::-webkit-scrollbar { display:none; }
+```
+Scroll still works via touch/wheel. Do NOT remove these rules — the scrollbar will reappear as a visual line in RTL.
 
 ### Portal ⋮ Menu (feat/comment-ux-polish-2)
 
@@ -9447,9 +9489,9 @@ Avatar is 32px. `.pc-cmt-header-left` is `flex-direction:column`. The ⋮ button
 
 **Never revert to `position:absolute` inline menu** — it gets clipped by `overflow-y:auto`.
 
-### Flat Reply System (feat/comment-ux-polish-2)
+### Flat Reply System (feat/comment-ux-polish-2, updated feat/comment-ux-polish-3)
 
-Reply is a UX affordance only — **no nested replies, no parent_comment_id, no new endpoint**. A "رد" reply button in each comment's meta row prefills the panel's main textarea with `@authorName ` and shows a "رداً على" strip above the input row.
+Reply is a UX affordance only — **no nested replies, no parent_comment_id, no new endpoint**. A "رد" reply button below each comment body prefills the panel's main textarea with `@authorName ` and shows a "رداً على" strip above the input row.
 
 - `_cmtHandleReply(postId, authorName)` — sets `_cmtReplyTarget[postId]`, prefills textarea
 - `_cmtCancelReply(postId)` — strips mention from textarea, hides strip, clears state
@@ -9478,4 +9520,8 @@ Reply is a UX affordance only — **no nested replies, no parent_comment_id, no 
 ❌ Reverting portal menu to position:absolute inline (gets clipped by overflow-y:auto)
 ❌ Adding parent_comment_id or nested reply threading without a dedicated PR
 ❌ Appending "تم التعديل" badge to .pc-cmt-header or .pc-cmt-header-left (must be .pc-cmt-meta-row)
+❌ Moving "رد" button back into .pc-cmt-meta-row (it belongs below .pc-cmt-body)
+❌ Using bodyEl.innerHTML = apiText — always use _renderCommentBody()
+❌ Removing scrollbar-width:none from .pc-cmts-list (RTL scrollbar appears as vertical line)
+❌ Adding .pc-cmt-visual-reply indentation server-side or via DB column (CSS-only, flat)
 ```
