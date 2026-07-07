@@ -933,7 +933,7 @@
   function _cmtOpenMentionMenu(ta, postId, filtered, start) {
     if (!filtered.length) { _cmtCloseMentionMenu(); return; }
     var menu = _cmtGetMentionMenu();
-    menu.innerHTML = ''; // reset — safe: no API data injected here
+    menu.replaceChildren(); // clear items — no innerHTML (contract: ممنوع innerHTML في mention system)
     for (var i = 0; i < filtered.length; i++) {
       var cand = filtered[i];
       var btn = document.createElement('button');

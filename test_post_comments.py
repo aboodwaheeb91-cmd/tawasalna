@@ -703,6 +703,18 @@ check(
     "pc-cmt-mention-active" in company_css
 )
 
+# ── 85g. menu.replaceChildren() — no innerHTML in mention menu ───────────
+open_menu_fn = posts_js[posts_js.find("function _cmtOpenMentionMenu"):] if "function _cmtOpenMentionMenu" in posts_js else ""
+open_menu_fn_body = open_menu_fn[:open_menu_fn.find("}\n\n")+2] if "}\n\n" in open_menu_fn else open_menu_fn[:500]
+check(
+    "85g. _cmtOpenMentionMenu uses replaceChildren() to clear items (no innerHTML)",
+    "menu.replaceChildren()" in open_menu_fn_body
+)
+check(
+    "85h. _cmtOpenMentionMenu does not use menu.innerHTML",
+    "menu.innerHTML" not in open_menu_fn_body
+)
+
 # ── 86-99. Author links + @mention links + reply_to_author_tw_id ─────────
 
 # Backend: reply_to_author_tw_id in GET comments
