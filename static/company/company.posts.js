@@ -722,6 +722,9 @@
   var _cmtOpenPanelId  = null; // postId whose panel is currently visible
   var _cmtEditInFlight = {};   // commentId -> bool — prevents concurrent PATCH requests
   var _cmtOpenMenuId   = null; // commentId whose ⋮ menu is currently open
+  var _cmtPortalMenu   = null; // single portal <div> on document.body (lazy-created)
+  var _cmtPortalFor    = null; // {cmtId, postId} currently shown in portal
+  var _cmtReplyTarget  = {};   // postId -> authorName | null (active reply state)
 
   function _cmtGetBtn(postId) {
     var card = document.querySelector('.post-card[data-post-id="' + postId + '"]');
@@ -759,6 +762,106 @@
     return 'منذ ' + day + ' يوم';
   }
 
+  // ── Portal ⋮ menu (single div on body, position:fixed — avoids overflow-y clip) ─
+  function _cmtGetPortalMenu() {
+    if (!_cmtPortalMenu) {
+      _cmtPortalMenu = document.createElement('div');
+      _cmtPortalMenu.className = 'pc-cmt-portal-menu';
+      _cmtPortalMenu.id = 'pc-cmt-portal-menu';
+      document.body.appendChild(_cmtPortalMenu);
+    }
+    return _cmtPortalMenu;
+  }
+
+  function _cmtHidePortalMenu() {
+    if (_cmtPortalMenu) _cmtPortalMenu.style.display = 'none';
+    _cmtPortalFor  = null;
+    _cmtOpenMenuId = null;
+  }
+
+  function _cmtShowPortalMenu(btn, cmtId, postId, canEdit, canDelete) {
+    var menu = _cmtGetPortalMenu();
+    menu.innerHTML = '';
+    if (canEdit) {
+      var editItem = document.createElement('button');
+      editItem.type = 'button';
+      editItem.className = 'pc-cmt-menu-item pc-cmt-menu-edit';
+      editItem.dataset.cmtId  = cmtId;
+      editItem.dataset.postId = postId || '';
+      editItem.textContent    = 'تعديل';
+      menu.appendChild(editItem);
+    }
+    if (canDelete) {
+      var delItem = document.createElement('button');
+      delItem.type = 'button';
+      delItem.className = 'pc-cmt-menu-item pc-cmt-menu-del';
+      delItem.dataset.cmtId  = cmtId;
+      delItem.dataset.postId = postId || '';
+      delItem.textContent    = 'حذف';
+      menu.appendChild(delItem);
+    }
+    var rect  = btn.getBoundingClientRect();
+    var itemH = 36;
+    var menuH = (canEdit ? itemH : 0) + (canDelete ? itemH : 0) + 8;
+    var menuW = 108;
+    var top   = rect.bottom + 4;
+    var left  = rect.left - menuW + rect.width;
+    if (top  + menuH > window.innerHeight - 8) top  = rect.top - menuH - 4;
+    if (left + menuW > window.innerWidth  - 8) left = window.innerWidth - menuW - 8;
+    if (left < 8) left = 8;
+    if (top  < 8) top  = 8;
+    menu.style.top     = top  + 'px';
+    menu.style.left    = left + 'px';
+    menu.style.display = 'block';
+    _cmtPortalFor  = { cmtId: cmtId, postId: postId };
+    _cmtOpenMenuId = cmtId;
+  }
+
+  // ── Flat reply (prefills @mention — no nested replies, no new endpoint) ─────
+  function _cmtHandleReply(postId, authorName) {
+    var panel = _cmtGetPanel(postId);
+    if (!panel) return;
+    var ta = panel.querySelector('.pc-cmts-ta:not(.pc-cmt-edit-ta)');
+    if (!ta) return;
+    var strip    = panel.querySelector('.pc-cmt-reply-strip');
+    var nameSpan = strip ? strip.querySelector('.pc-cmt-reply-strip-name') : null;
+    var mention  = '@' + authorName + ' ';
+    var prev     = _cmtReplyTarget[postId];
+    if (prev) {
+      var prevMention = '@' + prev + ' ';
+      if (ta.value.indexOf(prevMention) === 0) {
+        ta.value = mention + ta.value.slice(prevMention.length);
+      } else {
+        ta.value = mention + ta.value;
+      }
+    } else {
+      ta.value = mention + ta.value;
+    }
+    _cmtReplyTarget[postId] = authorName;
+    if (nameSpan) nameSpan.textContent = authorName; // XSS-safe
+    if (strip)    strip.style.display  = 'flex';
+    _autoResizeTextarea(ta);
+    ta.focus();
+    ta.setSelectionRange(mention.length, mention.length);
+  }
+
+  function _cmtCancelReply(postId) {
+    var panel = _cmtGetPanel(postId);
+    if (!panel) return;
+    var ta    = panel.querySelector('.pc-cmts-ta:not(.pc-cmt-edit-ta)');
+    var strip = panel.querySelector('.pc-cmt-reply-strip');
+    var prev  = _cmtReplyTarget[postId];
+    if (ta && prev) {
+      var prevMention = '@' + prev + ' ';
+      if (ta.value.indexOf(prevMention) === 0) {
+        ta.value = ta.value.slice(prevMention.length);
+        _autoResizeTextarea(ta);
+      }
+    }
+    _cmtReplyTarget[postId] = null;
+    if (strip) strip.style.display = 'none';
+  }
+
   function _cmtUpdateCount(postId, delta) {
     var btn = _cmtGetBtn(postId);
     if (!btn) return;
@@ -778,7 +881,7 @@
     el.className = 'pc-cmt-item';
     el.dataset.cmtId = String(c.id);
 
-    // Avatar
+    // Avatar (32px)
     var ava = document.createElement('div');
     ava.className = 'pc-cmt-ava';
     if (c.author_avatar) {
@@ -791,23 +894,26 @@
       ava.textContent = (c.author_name || '؟').charAt(0);
     }
 
-    // Content
     var content = document.createElement('div');
     content.className = 'pc-cmt-content';
 
-    // Header (flex row: header-left + optional menu)
+    // Header: column layout — Row 1: name, Row 2: meta row
     var header = document.createElement('div');
     header.className = 'pc-cmt-header';
 
     var headerLeft = document.createElement('div');
     headerLeft.className = 'pc-cmt-header-left';
 
+    // Row 1: author name
     var nameEl = document.createElement('span');
     nameEl.className = 'pc-cmt-author';
     nameEl.textContent = c.author_name || ''; // XSS-safe
     headerLeft.appendChild(nameEl);
 
-    // Relative time with clock icon (safe: static SVG + textContent)
+    // Row 2: meta row (time + reply + edited)
+    var metaRow = document.createElement('div');
+    metaRow.className = 'pc-cmt-meta-row';
+
     var relTime = _formatRelativeTime(c.created_at);
     if (relTime) {
       var timeEl = document.createElement('span');
@@ -817,53 +923,38 @@
       clockIco.innerHTML = _ICO_CLOCK; // static SVG only — no API data
       timeEl.appendChild(clockIco);
       timeEl.appendChild(document.createTextNode(relTime));
-      headerLeft.appendChild(timeEl);
+      metaRow.appendChild(timeEl);
     }
+
+    // Flat reply button (creates a regular comment with @mention prefill)
+    var replyBtn = document.createElement('button');
+    replyBtn.type = 'button';
+    replyBtn.className = 'pc-cmt-reply-btn';
+    replyBtn.dataset.cmtId = String(c.id);
+    replyBtn.dataset.authorName = c.author_name || '';
+    replyBtn.textContent = 'رد';
+    metaRow.appendChild(replyBtn);
 
     if (c.updated_at) {
       var editedEl = document.createElement('span');
       editedEl.className = 'pc-cmt-edited';
       editedEl.textContent = '· تم التعديل';
-      headerLeft.appendChild(editedEl);
+      metaRow.appendChild(editedEl);
     }
 
+    headerLeft.appendChild(metaRow);
     header.appendChild(headerLeft);
 
-    // Three-dot ⋮ menu (shown only when viewer can act)
+    // Three-dot ⋮ button (portal-based — no inline dropdown)
     if (c.viewer_can_edit || c.viewer_can_delete) {
-      var menuWrap = document.createElement('div');
-      menuWrap.className = 'pc-cmt-menu-wrap';
-
       var menuBtn = document.createElement('button');
       menuBtn.type = 'button';
       menuBtn.className = 'pc-cmt-menu-btn';
-      menuBtn.dataset.cmtId = String(c.id);
+      menuBtn.dataset.cmtId     = String(c.id);
+      menuBtn.dataset.canEdit   = c.viewer_can_edit   ? '1' : '0';
+      menuBtn.dataset.canDelete = c.viewer_can_delete ? '1' : '0';
       menuBtn.textContent = '⋮';
-
-      var menu = document.createElement('div');
-      menu.className = 'pc-cmt-menu';
-      menu.id = 'pc-cmt-menu-' + c.id;
-
-      if (c.viewer_can_edit) {
-        var editItem = document.createElement('button');
-        editItem.type = 'button';
-        editItem.className = 'pc-cmt-menu-item pc-cmt-menu-edit';
-        editItem.dataset.cmtId = String(c.id);
-        editItem.textContent = 'تعديل';
-        menu.appendChild(editItem);
-      }
-      if (c.viewer_can_delete) {
-        var delItem = document.createElement('button');
-        delItem.type = 'button';
-        delItem.className = 'pc-cmt-menu-item pc-cmt-menu-del';
-        delItem.dataset.cmtId = String(c.id);
-        delItem.textContent = 'حذف';
-        menu.appendChild(delItem);
-      }
-
-      menuWrap.appendChild(menuBtn);
-      menuWrap.appendChild(menu);
-      header.appendChild(menuWrap);
+      header.appendChild(menuBtn);
     }
 
     content.appendChild(header);
@@ -891,6 +982,7 @@
 
     var list = document.createElement('div');
     list.className = 'pc-cmts-list';
+    list.addEventListener('scroll', _cmtHidePortalMenu, { passive: true });
 
     var loading = document.createElement('div');
     loading.className = 'pc-cmts-loading';
@@ -921,8 +1013,26 @@
       inputRow.appendChild(guest);
     }
 
+    // "رداً على" strip — shown when a reply target is active
+    var replyStrip = document.createElement('div');
+    replyStrip.className = 'pc-cmt-reply-strip';
+    replyStrip.style.display = 'none';
+    var rText = document.createElement('span');
+    rText.textContent = 'رداً على: ';
+    var rName = document.createElement('span');
+    rName.className = 'pc-cmt-reply-strip-name';
+    var rCancel = document.createElement('button');
+    rCancel.type = 'button';
+    rCancel.className = 'pc-cmt-reply-strip-cancel';
+    rCancel.textContent = '×';
+    rCancel.addEventListener('click', function () { _cmtCancelReply(String(postId)); });
+    replyStrip.appendChild(rText);
+    replyStrip.appendChild(rName);
+    replyStrip.appendChild(rCancel);
+
     panel.appendChild(list);
     panel.appendChild(loading);
+    panel.appendChild(replyStrip);
     panel.appendChild(inputRow);
   }
 
@@ -1020,6 +1130,9 @@
         }
         ta.value = '';
         ta.style.height = ''; // reset auto-resize after send
+        _cmtReplyTarget[String(postId)] = null;
+        var rStrip = panel.querySelector('.pc-cmt-reply-strip');
+        if (rStrip) rStrip.style.display = 'none';
         var list = panel.querySelector('.pc-cmts-list');
         if (list) {
           var empty = list.querySelector('.pc-cmts-empty');
@@ -1125,12 +1238,12 @@
           }
           // Confirm with server body + mark as edited
           bodyEl.textContent = res.data.comment.body; // XSS-safe
-          var headerLeft = item.querySelector('.pc-cmt-header-left');
-          if (headerLeft && !headerLeft.querySelector('.pc-cmt-edited')) {
+          var metaRow = item.querySelector('.pc-cmt-meta-row');
+          if (metaRow && !metaRow.querySelector('.pc-cmt-edited')) {
             var editedEl = document.createElement('span');
             editedEl.className = 'pc-cmt-edited';
             editedEl.textContent = '· تم التعديل';
-            headerLeft.appendChild(editedEl);
+            metaRow.appendChild(editedEl);
           }
         })
         .catch(function () {
@@ -1190,18 +1303,37 @@
     _bindTagPickerEvents();
     _bindColorPickerEvents();
 
-    // Close 3-dot menus (post and comment) when clicking outside
+    // Close 3-dot menus (post and portal comment menu) when clicking outside
     document.addEventListener('click', function (e) {
       if (!e.target.closest('.pc-dots')) {
         document.querySelectorAll('.pc-dots-menu.open').forEach(function (m) {
           m.classList.remove('open');
         });
       }
-      if (!e.target.closest('.pc-cmt-menu-wrap')) {
-        document.querySelectorAll('.pc-cmt-menu.open').forEach(function (m) {
-          m.classList.remove('open');
-        });
-        _cmtOpenMenuId = null;
+      if (_cmtPortalMenu && _cmtPortalMenu.style.display !== 'none') {
+        if (!e.target.closest('#pc-cmt-portal-menu') && !e.target.closest('.pc-cmt-menu-btn')) {
+          _cmtHidePortalMenu();
+        }
+      }
+    });
+
+    // Close portal menu on page scroll
+    document.addEventListener('scroll', _cmtHidePortalMenu, { passive: true, capture: true });
+
+    // Portal menu item clicks (edit / delete)
+    document.body.addEventListener('click', function (e) {
+      if (!e.target.closest('#pc-cmt-portal-menu')) return;
+      var editItem = e.target.closest('.pc-cmt-menu-edit[data-cmt-id]');
+      if (editItem) {
+        _cmtHidePortalMenu();
+        _cmtHandleEdit(editItem.getAttribute('data-cmt-id'), editItem.getAttribute('data-post-id'));
+        return;
+      }
+      var delItem = e.target.closest('.pc-cmt-menu-del[data-cmt-id]');
+      if (delItem) {
+        _cmtHidePortalMenu();
+        _cmtHandleDelete(delItem.getAttribute('data-cmt-id'), delItem.getAttribute('data-post-id'));
+        return;
       }
     });
 
@@ -1272,43 +1404,28 @@
         // Comment send
         var cmtSend = e.target.closest('.pc-cmts-send[data-post-id]');
         if (cmtSend) { _cmtHandleSend(cmtSend.getAttribute('data-post-id')); return; }
-        // Comment three-dot menu toggle
+        // Comment three-dot ⋮ button — open/close portal menu
         var cmtMenuBtn = e.target.closest('.pc-cmt-menu-btn[data-cmt-id]');
         if (cmtMenuBtn) {
           e.stopPropagation();
-          var cmtId = cmtMenuBtn.getAttribute('data-cmt-id');
-          if (_cmtOpenMenuId && _cmtOpenMenuId !== cmtId) {
-            var oldMenu = document.getElementById('pc-cmt-menu-' + _cmtOpenMenuId);
-            if (oldMenu) oldMenu.classList.remove('open');
-            _cmtOpenMenuId = null;
-          }
-          var thisMenu = document.getElementById('pc-cmt-menu-' + cmtId);
-          if (thisMenu) {
-            var isOpen = thisMenu.classList.toggle('open');
-            _cmtOpenMenuId = isOpen ? cmtId : null;
+          var cmtId  = cmtMenuBtn.getAttribute('data-cmt-id');
+          var pnl    = cmtMenuBtn.closest('.pc-cmts-panel');
+          var pId    = pnl ? pnl.dataset.postId : null;
+          var canEd  = cmtMenuBtn.getAttribute('data-can-edit')   === '1';
+          var canDl  = cmtMenuBtn.getAttribute('data-can-delete') === '1';
+          if (_cmtOpenMenuId === cmtId) {
+            _cmtHidePortalMenu();
+          } else {
+            if (_cmtOpenMenuId) _cmtHidePortalMenu();
+            _cmtShowPortalMenu(cmtMenuBtn, cmtId, pId, canEd, canDl);
           }
           return;
         }
-        // Comment edit (via three-dot menu)
-        var cmtEditItem = e.target.closest('.pc-cmt-menu-edit[data-cmt-id]');
-        if (cmtEditItem) {
-          var cmtId = cmtEditItem.getAttribute('data-cmt-id');
-          var m = document.getElementById('pc-cmt-menu-' + cmtId);
-          if (m) m.classList.remove('open');
-          _cmtOpenMenuId = null;
-          var panel = cmtEditItem.closest('.pc-cmts-panel');
-          if (panel) _cmtHandleEdit(cmtId, panel.dataset.postId);
-          return;
-        }
-        // Comment delete (via three-dot menu)
-        var cmtDelItem = e.target.closest('.pc-cmt-menu-del[data-cmt-id]');
-        if (cmtDelItem) {
-          var cmtId = cmtDelItem.getAttribute('data-cmt-id');
-          var m = document.getElementById('pc-cmt-menu-' + cmtId);
-          if (m) m.classList.remove('open');
-          _cmtOpenMenuId = null;
-          var panel = cmtDelItem.closest('.pc-cmts-panel');
-          if (panel) _cmtHandleDelete(cmtId, panel.dataset.postId);
+        // Reply button — prefill @mention in textarea
+        var cmtReplyBtn = e.target.closest('.pc-cmt-reply-btn[data-cmt-id]');
+        if (cmtReplyBtn) {
+          var pnl = cmtReplyBtn.closest('.pc-cmts-panel');
+          if (pnl) _cmtHandleReply(pnl.dataset.postId, cmtReplyBtn.dataset.authorName);
           return;
         }
         // Save

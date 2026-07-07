@@ -255,14 +255,15 @@ check(
     "pc-cmt-menu-btn" in build_fn2[:3000]
 )
 
-# ── 33. Menu edit / delete classes ────────────────────────────────
+# ── 33. Menu edit / delete classes now in portal (_cmtShowPortalMenu) ─────
+portal_fn = posts_js[posts_js.find("function _cmtShowPortalMenu"):] if "function _cmtShowPortalMenu" in posts_js else ""
 check(
-    "33. pc-cmt-menu-edit class in _cmtBuildItem",
-    "pc-cmt-menu-edit" in build_fn2[:3000]
+    "33. pc-cmt-menu-edit class in _cmtShowPortalMenu (portal-based)",
+    "pc-cmt-menu-edit" in portal_fn[:2000]
 )
 check(
-    "33b. pc-cmt-menu-del class in _cmtBuildItem",
-    "pc-cmt-menu-del" in build_fn2[:3000]
+    "33b. pc-cmt-menu-del class in _cmtShowPortalMenu (portal-based)",
+    "pc-cmt-menu-del" in portal_fn[:2000]
 )
 
 # ── 34. RTL order: sendBtn appended before ta ──────────────────────
@@ -305,13 +306,84 @@ check(
     "_autoResizeTextarea(editTa)" in edit_fn
 )
 
-# ── 40. 'تم التعديل' badge appended to header-left (not header) ──
-# Check that the headerLeft querySelector targets .pc-cmt-header-left
+# ── 40. 'تم التعديل' badge appended to meta-row (not header or header-left) ─
 check(
-    "40. 'تم التعديل' badge appended to .pc-cmt-header-left (not .pc-cmt-header)",
-    "pc-cmt-header-left" in edit_fn and
-    # Ensure old pattern (direct .pc-cmt-header) is gone from the edited badge block
+    "40. 'تم التعديل' badge appended to .pc-cmt-meta-row (not .pc-cmt-header)",
+    "pc-cmt-meta-row" in edit_fn and
     "item.querySelector('.pc-cmt-header')" not in edit_fn
+)
+
+# ── Portal ⋮ menu (feat/comment-ux-polish-2) ─────────────────────────────
+posts_js = open("static/company/company.posts.js", encoding="utf-8").read()
+
+# ── 41. Portal menu variable ──────────────────────────────────────
+check(
+    "41. _cmtPortalMenu variable defined",
+    "var _cmtPortalMenu" in posts_js
+)
+
+# ── 42. Portal menu functions ─────────────────────────────────────
+check(
+    "42. _cmtHidePortalMenu function defined",
+    "function _cmtHidePortalMenu" in posts_js
+)
+check(
+    "42b. _cmtShowPortalMenu function defined",
+    "function _cmtShowPortalMenu" in posts_js
+)
+
+# ── 43. Portal menu uses position:fixed in CSS ────────────────────
+check(
+    "43. .pc-cmt-portal-menu uses position:fixed in company.css",
+    "position:fixed" in company_css and "pc-cmt-portal-menu" in company_css
+)
+
+# ── 44. Reply system variables ────────────────────────────────────
+check(
+    "44. _cmtReplyTarget variable defined",
+    "var _cmtReplyTarget" in posts_js
+)
+
+# ── 45. Reply helper functions ────────────────────────────────────
+check(
+    "45. _cmtHandleReply function defined",
+    "function _cmtHandleReply" in posts_js
+)
+check(
+    "45b. _cmtCancelReply function defined",
+    "function _cmtCancelReply" in posts_js
+)
+
+# ── 46. Reply button in _cmtBuildItem ─────────────────────────────
+build_fn3 = posts_js[posts_js.find("function _cmtBuildItem"):] if "function _cmtBuildItem" in posts_js else ""
+check(
+    "46. pc-cmt-reply-btn class built in _cmtBuildItem",
+    "pc-cmt-reply-btn" in build_fn3[:3000]
+)
+
+# ── 47. Meta row in _cmtBuildItem ─────────────────────────────────
+check(
+    "47. pc-cmt-meta-row class built in _cmtBuildItem",
+    "pc-cmt-meta-row" in build_fn3[:3000]
+)
+
+# ── 48. Reply strip in _cmtPopulatePanel ─────────────────────────
+populate_fn3 = posts_js[posts_js.find("function _cmtPopulatePanel"):] if "function _cmtPopulatePanel" in posts_js else ""
+check(
+    "48. pc-cmt-reply-strip built in _cmtPopulatePanel",
+    "pc-cmt-reply-strip" in populate_fn3[:3000]
+)
+
+# ── 49. Reply strip in CSS ────────────────────────────────────────
+check(
+    "49. .pc-cmt-reply-strip defined in company.css",
+    "pc-cmt-reply-strip" in company_css
+)
+
+# ── 50. Scroll listener closes portal menu ────────────────────────
+check(
+    "50. list scroll listener calls _cmtHidePortalMenu",
+    "_cmtHidePortalMenu" in populate_fn3[:3000]
 )
 
 # ── Summary ──────────────────────────────────────────────────────────────

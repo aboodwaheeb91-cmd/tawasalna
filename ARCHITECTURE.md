@@ -9424,6 +9424,39 @@ WHERE id=:cid
 
 All comments panel styles use the `.pc-cmts-*` and `.pc-cmt-*` namespace. Do not add comments styles to any other namespace.
 
+### Comment Item Header Layout (feat/comment-ux-polish-2)
+
+Each comment item uses a **two-row column header**:
+- **Row 1:** `.pc-cmt-author` — author name (`.70rem`, bold)
+- **Row 2:** `.pc-cmt-meta-row` — clock + relative time · "رد" button · "· تم التعديل" (if edited)
+
+Avatar is 32px. `.pc-cmt-header-left` is `flex-direction:column`. The ⋮ button has no wrapper — it sits directly in `.pc-cmt-header`.
+
+"تم التعديل" badge is appended to `.pc-cmt-meta-row` (not `.pc-cmt-header-left`, not `.pc-cmt-header`).
+
+### Portal ⋮ Menu (feat/comment-ux-polish-2)
+
+`.pc-cmts-list` has `overflow-y:auto` which clips `position:absolute` children. The ⋮ menu uses a **portal pattern** to avoid this:
+
+- Single `#pc-cmt-portal-menu` div on `document.body` (`position:fixed`, `z-index:9999`)
+- Lazy-created by `_cmtGetPortalMenu()` on first use
+- Positioned via `getBoundingClientRect()` + edge-of-screen flip logic
+- Closed by: clicking outside, list scroll (`scroll` listener), page scroll (capture)
+- Module-level variables: `_cmtPortalMenu`, `_cmtPortalFor`, `_cmtOpenMenuId`
+- Portal item clicks delegated via `document.body` listener (not `postsList`)
+
+**Never revert to `position:absolute` inline menu** — it gets clipped by `overflow-y:auto`.
+
+### Flat Reply System (feat/comment-ux-polish-2)
+
+Reply is a UX affordance only — **no nested replies, no parent_comment_id, no new endpoint**. A "رد" reply button in each comment's meta row prefills the panel's main textarea with `@authorName ` and shows a "رداً على" strip above the input row.
+
+- `_cmtHandleReply(postId, authorName)` — sets `_cmtReplyTarget[postId]`, prefills textarea
+- `_cmtCancelReply(postId)` — strips mention from textarea, hides strip, clears state
+- On successful send: `_cmtHandleSend` clears `_cmtReplyTarget[postId]` and hides the strip
+- On reply switch: old mention replaced by new mention in textarea
+- XSS: `nameSpan.textContent = authorName` (never innerHTML for API data)
+
 ### Forbidden Patterns
 
 ```
@@ -9437,9 +9470,12 @@ All comments panel styles use the `.pc-cmts-*` and `.pc-cmt-*` namespace. Do not
 ❌ comments_count computed client-side
 ❌ A second DB table for post comments
 ❌ A GET /comments endpoint that requires JWT (read is always public/optional-auth)
-❌ Re-adding .pc-cmt-act--edit / .pc-cmt-act--del inline buttons (replaced by three-dot menu)
+❌ Re-adding .pc-cmt-act--edit / .pc-cmt-act--del inline buttons (replaced by ⋮ portal menu)
 ❌ Reverting .pc-cmts-send to solid fill background
 ❌ Removing .pc-cmt-acts empty div from _cmtBuildItem (it is the DOM anchor for editWrap)
 ❌ Setting rows > 1 as the initial value on the comment textarea
 ❌ Appending ta before sendBtn in _cmtPopulatePanel (RTL order is fixed: sendBtn first)
+❌ Reverting portal menu to position:absolute inline (gets clipped by overflow-y:auto)
+❌ Adding parent_comment_id or nested reply threading without a dedicated PR
+❌ Appending "تم التعديل" badge to .pc-cmt-header or .pc-cmt-header-left (must be .pc-cmt-meta-row)
 ```
