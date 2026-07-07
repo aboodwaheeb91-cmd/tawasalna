@@ -222,6 +222,8 @@
   // ── Modal ─────────────────────────────────────────────────────
   // postData: pass a post object to open in Edit Mode; omit or null for Create Mode.
   function openPostModal(postData) {
+    // Guard: DOM event objects must never be treated as post data
+    if (postData instanceof Event || (postData && typeof postData.id !== 'number')) postData = null;
     if (!window.companyState || !companyState.permissions.can_edit) return;
     var ov = document.getElementById('postOverlay');
     if (ov) ov.classList.add('show');
@@ -392,7 +394,7 @@
   function _bindPostEvents() {
     var q = function (id) { return document.getElementById(id); };
 
-    var postModalBtn = q('postModalBtn'); if (postModalBtn) postModalBtn.addEventListener('click', openPostModal);
+    var postModalBtn = q('postModalBtn'); if (postModalBtn) postModalBtn.addEventListener('click', function () { openPostModal(); });
 
     var postOverlay = q('postOverlay');
     if (postOverlay) postOverlay.addEventListener('click', function (e) {
