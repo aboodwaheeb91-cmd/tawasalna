@@ -868,9 +868,12 @@ i.ico-sm { width:14px; height:14px; stroke:currentColor; fill:none; stroke-width
 .pc-btn:hover { color:var(--t2); background:rgba(255,255,255,.04); }
 .pc-btn svg { width:14px; height:14px; stroke:currentColor; fill:none; stroke-width:1.8; flex-shrink:0; }
 .pc-btn--share:hover { color:var(--ac); }
-.pc-btn--like:hover  { color:#f472b6; }
 .pc-btn--cmt:hover   { color:#60a5fa; }
 .pc-btn--save:hover  { color:#fbbf24; }
+/* Appreciate button */
+.pc-btn--appr:hover  { color:var(--pa, var(--ac)); }
+.pc-btn--appr.appr-active { color:var(--pa, var(--ac)); }
+.pc-btn--appr.appr-active svg { fill:currentColor; }
 
 .posts-owner-bar { margin-bottom:16px; }
 #postsEmpty { display:none; text-align:center; color:var(--t3); padding:40px 0; font-size:.82rem; }

@@ -487,6 +487,56 @@
     });
   }
 
+  // ── Post Appreciation ─────────────────────────────────────────────────────
+  function _toggleAppreciation(postId) {
+    var jwt = window._jwt ? window._jwt() : '';
+    if (!jwt) {
+      if (window.showToast) showToast('سجّل دخولك لتقدّر هذا المنشور');
+      return;
+    }
+
+    fetch('/company/posts/' + postId + '/appreciate', {
+      method:  'POST',
+      headers: { 'Authorization': 'Bearer ' + jwt },
+    })
+      .then(function (r) {
+        if (r.status === 403) {
+          if (window.showToast) showToast('لا يمكنك تقدير منشورك');
+          throw new Error('owner');
+        }
+        if (!r.ok) throw new Error('http ' + r.status);
+        return r.json();
+      })
+      .then(function (d) {
+        if (!d || d.status !== 'success') return;
+        var card = document.querySelector('.post-card[data-post-id="' + postId + '"]');
+        if (!card) return;
+        var btn = card.querySelector('.pc-btn--appr');
+        if (!btn) return;
+
+        var count = Number(d.appreciations_count) || 0;
+        var active = !!d.appreciated;
+
+        // Swap heart icon
+        var icoOutline = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>';
+        var icoFilled  = '<svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>';
+        var label = active ? ('أقدّر · ' + count) : 'أقدّر';
+
+        if (active) {
+          btn.classList.add('appr-active');
+          btn.innerHTML = icoFilled + label;
+        } else {
+          btn.classList.remove('appr-active');
+          btn.innerHTML = icoOutline + label;
+        }
+        btn.dataset.apprCount = count;
+      })
+      .catch(function (err) {
+        if (err && err.message === 'owner') return;
+        if (window.showToast) showToast('تعذّر تسجيل التقدير');
+      });
+  }
+
   window.openPostModal        = openPostModal;
   window._closePostOverlay    = _closePostOverlay;
   window.createPost           = createPost;
@@ -566,9 +616,9 @@
         // Share
         var shareBtn = e.target.closest('.pc-btn--share[data-post-id]');
         if (shareBtn) { _sharePost(shareBtn.getAttribute('data-post-id')); return; }
-        // Like
-        var likeBtn = e.target.closest('.pc-btn--like[data-post-id]');
-        if (likeBtn) { if (window.showToast) showToast('ميزة الإعجاب بالمنشورات ستتوفر قريباً'); return; }
+        // Appreciate
+        var apprBtn = e.target.closest('.pc-btn--appr[data-post-id]');
+        if (apprBtn) { _toggleAppreciation(apprBtn.getAttribute('data-post-id')); return; }
         // Comment
         var cmtBtn = e.target.closest('.pc-btn--cmt[data-post-id]');
         if (cmtBtn) { if (window.showToast) showToast('ميزة التعليقات ستتوفر قريباً'); return; }
