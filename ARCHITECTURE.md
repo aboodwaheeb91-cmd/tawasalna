@@ -9169,9 +9169,11 @@ When `viewer_user_id` is absent (unauthenticated), `viewer_saved` is always `FAL
    - If stale (user clicked again mid-flight): update `_saveOrigState`, dispatch follow-up, `return` without rendering
    - If match: call `_renderSaveButton(btn, srvActive)`, clear queue
 
-**`_renderSaveButton(btn, active)`** — single DOM update point:
-- `active=true` → filled bookmark icon + `save-active` class + `data-saved="1"`
-- `active=false` → outline bookmark icon, class removed, `data-saved="0"`
+**`_renderSaveButton(btn, active)`** — single DOM update point (permanent contract):
+- `active=true` → `_ICO_BOOKMARK_CHECK` (filled bookmark + dark checkmark ✓, `stroke="var(--bg,#070b18)"`) + text `'محفوظ'` + `save-active` class + `data-saved="1"`
+- `active=false` → `_ICO_BOOKMARK_OUTLINE` (outline bookmark) + text `'حفظ'` + class removed + `data-saved="0"`
+
+`company.render.js` initial render must mirror these states using `icoBookmarkCheck` / `icoBookmark`. Any icon/text change requires updating both files in the same PR.
 
 ### CSS
 

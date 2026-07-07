@@ -503,7 +503,7 @@
     var icoHeartFilled  = '<svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>';
     var icoComment     = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>';
     var icoBookmark       = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>';
-    var icoBookmarkFilled = '<svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>';
+    var icoBookmarkCheck  = '<svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/><path d="M8.5 10l2.5 2.5 5-5" fill="none" stroke="var(--bg,#070b18)" stroke-width="2"/></svg>';
 
     return '<div class="post-card" data-post-id="' + pid + '" style="' + cardStyle + '">'
       + '<div class="post-head">'
@@ -543,8 +543,8 @@
             + (function () {
                 var saveActive = post.viewer_saved === true || post.viewer_saved === 'true' || post.viewer_saved === 1;
                 var saveCls  = 'pc-btn pc-btn--save' + (saveActive ? ' save-active' : '');
-                var saveIco  = saveActive ? icoBookmarkFilled : icoBookmark;
-                return '<button class="' + saveCls + '" data-post-id="' + pid + '" data-saved="' + (saveActive ? '1' : '0') + '">' + saveIco + 'حفظ</button>';
+                var saveIco  = saveActive ? icoBookmarkCheck : icoBookmark;
+                return '<button class="' + saveCls + '" data-post-id="' + pid + '" data-saved="' + (saveActive ? '1' : '0') + '">' + saveIco + (saveActive ? 'محفوظ' : 'حفظ') + '</button>';
               })()
             + '</div>';
         })()
