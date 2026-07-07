@@ -851,34 +851,44 @@
     _cmtMentionState.activeIdx = -1;
   }
 
-  // Collect candidate names from: comment authors in panel + post-owning company.
-  // XSS-safe: reads .textContent from DOM elements, not innerHTML.
+  // Collect candidates {name, tw_id, avatar} from comment authors (DOM) + post-owning company.
+  // XSS-safe: reads textContent / data attributes from DOM elements, never innerHTML.
   function _cmtCollectMentionCandidates(postId) {
     var seen = {};
     var out  = [];
     var panel = _cmtGetPanel(postId);
     if (panel) {
-      var authorEls = panel.querySelectorAll('.pc-cmt-author');
-      for (var i = 0; i < authorEls.length; i++) {
-        var name = authorEls[i].textContent.trim();
-        if (name && !seen[name]) { seen[name] = true; out.push(name); }
+      // Each .pc-cmt-item[data-author-tw-id] has the author's tw_id, avatar, and name
+      var items = panel.querySelectorAll('.pc-cmt-item[data-author-tw-id]');
+      for (var i = 0; i < items.length; i++) {
+        var twId   = items[i].dataset.authorTwId;
+        var nameEl = items[i].querySelector('.pc-cmt-author');
+        var name   = nameEl ? nameEl.textContent.trim() : '';
+        var avatar = items[i].dataset.authorAvatar || null;
+        if (name && twId && !seen[twId]) {
+          seen[twId] = true;
+          out.push({ name: name, tw_id: twId, avatar: avatar || null });
+        }
       }
     }
-    // Add post owner (company) name if available
-    if (window.companyState && window.companyState.full_name) {
-      var cn = window.companyState.full_name;
-      if (cn && !seen[cn]) { seen[cn] = true; out.push(cn); }
+    // Add post owner (company) — companyState.profile holds full_name, tw_id, avatar_url
+    var cp = window.companyState && window.companyState.profile;
+    if (cp && cp.full_name) {
+      var cTwId = cp.tw_id || '';
+      if (cTwId && !seen[cTwId]) {
+        seen[cTwId] = true;
+        out.push({ name: cp.full_name, tw_id: cTwId, avatar: cp.avatar_url || null });
+      }
     }
     return out;
   }
 
-  // Returns up to 6 candidates that contain the query as a substring.
+  // Returns up to 6 candidates whose .name contains the query as a substring.
   function _cmtFilterMentionCandidates(query, candidates) {
     if (!query) return candidates.slice(0, 6);
-    var q = query;
     var result = [];
     for (var i = 0; i < candidates.length && result.length < 6; i++) {
-      if (candidates[i].indexOf(q) !== -1) result.push(candidates[i]);
+      if (candidates[i].name.indexOf(query) !== -1) result.push(candidates[i]);
     }
     return result;
   }
@@ -925,11 +935,29 @@
     var menu = _cmtGetMentionMenu();
     menu.innerHTML = ''; // reset — safe: no API data injected here
     for (var i = 0; i < filtered.length; i++) {
+      var cand = filtered[i];
       var btn = document.createElement('button');
       btn.type      = 'button';
       btn.className = 'pc-cmt-mention-item';
-      btn.textContent = filtered[i]; // XSS-safe: textContent only
-      btn.dataset.mentionName = filtered[i];
+      btn.dataset.mentionName = cand.name; // XSS-safe: used via textContent
+      if (cand.tw_id) btn.dataset.mentionTwId = cand.tw_id;
+      // Small avatar circle
+      var avaEl = document.createElement('span');
+      avaEl.className = 'pc-cmt-mention-ava';
+      if (cand.avatar) {
+        var img = document.createElement('img');
+        img.src = cand.avatar;
+        img.alt = '';
+        img.className = 'pc-cmt-mention-ava-img';
+        avaEl.appendChild(img);
+      } else {
+        avaEl.textContent = (cand.name || '؟').charAt(0); // XSS-safe: textContent
+      }
+      var nameSpan = document.createElement('span');
+      nameSpan.className  = 'pc-cmt-mention-name';
+      nameSpan.textContent = cand.name; // XSS-safe: textContent only
+      btn.appendChild(avaEl);
+      btn.appendChild(nameSpan);
       menu.appendChild(btn);
     }
     _cmtMentionState.open      = true;
@@ -1053,7 +1081,10 @@
   // XSS-safe body renderer — handles optional @mention highlight.
   // mentionName: exact author name (may include spaces, e.g. "الشركة العربية الاردنية").
   // Tries exact "@authorName" prefix first; falls back to first @word.
-  function _renderCommentBody(bodyEl, text, mentionName) {
+  // mentionName: exact author name (may include spaces, e.g. "الشركة العربية الاردنية").
+  // mentionTwId: if provided AND text starts with @mentionName → creates <a href="/u/tw_id">.
+  //              If absent or no match → creates <span> (no link). Never uses innerHTML.
+  function _renderCommentBody(bodyEl, text, mentionName, mentionTwId) {
     bodyEl.textContent = ''; // clears all children safely (no API data in selector)
     if (!text) return;
     // Try exact compound-name match (from reply_to_author_name)
@@ -1061,24 +1092,24 @@
       var exactMention = '@' + mentionName;
       if (text.indexOf(exactMention) === 0) {
         var rest = text.slice(exactMention.length);
-        var mentionSpan = document.createElement('span');
-        mentionSpan.className = 'pc-cmt-mention';
-        mentionSpan.textContent = exactMention; // XSS-safe: textContent
-        bodyEl.appendChild(mentionSpan);
+        // <a> if tw_id available (clickable link to /u/{tw_id}), <span> otherwise
+        var mentionEl = mentionTwId ? document.createElement('a') : document.createElement('span');
+        mentionEl.className = 'pc-cmt-mention';
+        mentionEl.textContent = exactMention; // XSS-safe: textContent
+        if (mentionTwId) mentionEl.href = '/u/' + mentionTwId; // safe: tw_id from API, not user input
+        bodyEl.appendChild(mentionEl);
         if (rest) bodyEl.appendChild(document.createTextNode(rest)); // XSS-safe
         return;
       }
     }
-    // Fallback: highlight first @word
+    // Fallback: highlight first @word — span only (no tw_id for free mentions in V1)
     var match = text.match(/^(@\S+)([\s\S]*)$/);
     if (match) {
-      var mentionSpan = document.createElement('span');
-      mentionSpan.className = 'pc-cmt-mention';
-      mentionSpan.textContent = match[1]; // XSS-safe: textContent
-      bodyEl.appendChild(mentionSpan);
-      if (match[2]) {
-        bodyEl.appendChild(document.createTextNode(match[2])); // XSS-safe
-      }
+      var mentionEl = document.createElement('span');
+      mentionEl.className = 'pc-cmt-mention';
+      mentionEl.textContent = match[1]; // XSS-safe: textContent
+      bodyEl.appendChild(mentionEl);
+      if (match[2]) bodyEl.appendChild(document.createTextNode(match[2])); // XSS-safe
     } else {
       bodyEl.textContent = text; // XSS-safe
     }
@@ -1144,12 +1175,21 @@
     if (c.reply_to_comment_id != null) {
       el.classList.add('pc-cmt-visual-reply');
       el.dataset.replyToId = String(c.reply_to_comment_id);
-      if (c.reply_to_author_name) el.dataset.replyToAuthor = c.reply_to_author_name;
+      if (c.reply_to_author_name)  el.dataset.replyToAuthor     = c.reply_to_author_name;
+      if (c.reply_to_author_tw_id) el.dataset.replyToAuthorTwId = c.reply_to_author_tw_id;
+    }
+    // Store author tw_id + avatar for mention candidate collection
+    if (c.author_tw_id) {
+      el.dataset.authorTwId   = c.author_tw_id;
+      el.dataset.authorAvatar = c.author_avatar || '';
     }
 
-    // Avatar (32px)
-    var ava = document.createElement('div');
+    // Avatar (32px) — <a> if author_tw_id available, <div> otherwise
+    var ava = document.createElement(c.author_tw_id ? 'a' : 'div');
     ava.className = 'pc-cmt-ava';
+    if (c.author_tw_id) {
+      ava.href = '/u/' + c.author_tw_id; // safe: tw_id from API
+    }
     if (c.author_avatar) {
       var img = document.createElement('img');
       img.src = c.author_avatar;
@@ -1170,10 +1210,11 @@
     var headerLeft = document.createElement('div');
     headerLeft.className = 'pc-cmt-header-left';
 
-    // Row 1: author name
-    var nameEl = document.createElement('span');
+    // Row 1: author name — <a> if author_tw_id available (opens /u/{tw_id})
+    var nameEl = document.createElement(c.author_tw_id ? 'a' : 'span');
     nameEl.className = 'pc-cmt-author';
     nameEl.textContent = c.author_name || ''; // XSS-safe
+    if (c.author_tw_id) nameEl.href = '/u/' + c.author_tw_id; // safe: tw_id from API
     headerLeft.appendChild(nameEl);
 
     // Row 2: meta row (time + reply + edited)
@@ -1219,7 +1260,7 @@
     // Body — XSS-safe via _renderCommentBody (@mention highlighted, rest as text nodes)
     var bodyEl = document.createElement('p');
     bodyEl.className = 'pc-cmt-body';
-    _renderCommentBody(bodyEl, c.body, c.reply_to_author_name || null);
+    _renderCommentBody(bodyEl, c.body, c.reply_to_author_name || null, c.reply_to_author_tw_id || null);
     content.appendChild(bodyEl);
 
     // Reply button — below body text (not in meta row)
@@ -1450,9 +1491,10 @@
     if (!bodyEl) return;
     if (item.querySelector('.pc-cmt-edit-ta')) return; // already in edit mode
 
-    var originalText    = bodyEl.textContent; // textContent returns full text even with child spans
-    var wasVisualReply  = item.classList.contains('pc-cmt-visual-reply');
-    var replyToAuthor   = item.dataset.replyToAuthor || null;
+    var originalText      = bodyEl.textContent; // textContent returns full text even with child spans
+    var wasVisualReply    = item.classList.contains('pc-cmt-visual-reply');
+    var replyToAuthor     = item.dataset.replyToAuthor    || null;
+    var replyToAuthorTwId = item.dataset.replyToAuthorTwId || null;
 
     // 1. Build editWrap fully in memory
     var editWrap  = document.createElement('div');
@@ -1507,7 +1549,7 @@
       // 3. Optimistic UI — update text immediately, remove edit UI
       _cmtEditInFlight[cmtId] = true;
       saveBtn.disabled = true;
-      _renderCommentBody(bodyEl, newBody, replyToAuthor); // XSS-safe: no innerHTML for API data
+      _renderCommentBody(bodyEl, newBody, replyToAuthor, replyToAuthorTwId); // XSS-safe: no innerHTML
       // visual-reply class is driven by reply_to_comment_id (immutable per comment) — no change
       bodyEl.style.display = '';
       editWrap.remove();
@@ -1522,7 +1564,7 @@
           _cmtEditInFlight[cmtId] = false;
           if (!res.ok || !res.data || res.data.status !== 'success') {
             // Rollback to original text + restore visual-reply state
-            _renderCommentBody(bodyEl, originalText, replyToAuthor); // XSS-safe
+            _renderCommentBody(bodyEl, originalText, replyToAuthor, replyToAuthorTwId); // XSS-safe
             if (wasVisualReply) item.classList.add('pc-cmt-visual-reply');
             else item.classList.remove('pc-cmt-visual-reply');
             var msg = (res.data && res.data.detail) ? res.data.detail : 'تعذّر تعديل التعليق';
@@ -1531,7 +1573,7 @@
           }
           // Confirm with server body + mark as edited (visual-reply class unchanged — driven by reply_to_comment_id)
           var confirmedBody = res.data.comment.body;
-          _renderCommentBody(bodyEl, confirmedBody, replyToAuthor); // XSS-safe
+          _renderCommentBody(bodyEl, confirmedBody, replyToAuthor, replyToAuthorTwId); // XSS-safe
           var metaRow = item.querySelector('.pc-cmt-meta-row');
           if (metaRow && !metaRow.querySelector('.pc-cmt-edited')) {
             var editedEl = document.createElement('span');
@@ -1542,7 +1584,7 @@
         })
         .catch(function () {
           _cmtEditInFlight[cmtId] = false;
-          _renderCommentBody(bodyEl, originalText, replyToAuthor); // XSS-safe rollback
+          _renderCommentBody(bodyEl, originalText, replyToAuthor, replyToAuthorTwId); // XSS-safe rollback
           if (wasVisualReply) item.classList.add('pc-cmt-visual-reply');
           else item.classList.remove('pc-cmt-visual-reply');
           if (window.showToast) showToast('تعذّر تعديل التعليق');

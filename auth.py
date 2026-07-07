@@ -3547,7 +3547,7 @@ def get_company_post_comments(post_id: int, viewer_user_id=None) -> list:
         rows = conn.run(
             "SELECT c.id, c.body, c.created_at, c.updated_at, "
             "u.full_name, u.tw_id, u.user_type, p.avatar_url, c.user_id, "
-            "c.reply_to_comment_id, ru.full_name AS reply_to_author_name "
+            "c.reply_to_comment_id, ru.full_name AS reply_to_author_name, ru.tw_id AS reply_to_author_tw_id "
             "FROM company_post_comments c "
             "JOIN users u ON u.id = c.user_id "
             "LEFT JOIN profiles p ON p.user_id = c.user_id "
@@ -3558,7 +3558,7 @@ def get_company_post_comments(post_id: int, viewer_user_id=None) -> list:
             pid=post_id)
         cols = ["id", "body", "created_at", "updated_at",
                 "author_name", "author_tw_id", "author_user_type", "author_avatar", "user_id",
-                "reply_to_comment_id", "reply_to_author_name"]
+                "reply_to_comment_id", "reply_to_author_name", "reply_to_author_tw_id"]
         viewer_id = int(viewer_user_id) if viewer_user_id else None
         viewer_is_owner = (viewer_id is not None and viewer_id == post_company_id)
         result = []
@@ -3591,7 +3591,8 @@ def create_company_post_comment(post_id: int, user_id: int, body: str, reply_to_
             raise PermissionError("التعليقات معطّلة لهذا المنشور")
         # Validate and resolve reply_to depth (max 1 level)
         resolved_reply_to = None
-        reply_to_author_name = None
+        reply_to_author_name  = None
+        reply_to_author_tw_id = None
         if reply_to_comment_id is not None:
             ref_rows = conn.run(
                 "SELECT id, reply_to_comment_id, post_id, status FROM company_post_comments WHERE id = :cid",
@@ -3609,12 +3610,13 @@ def create_company_post_comment(post_id: int, user_id: int, body: str, reply_to_
                     raise ValueError("التعليق الأصلي غير موجود أو تم حذفه")
             else:
                 resolved_reply_to = int(ref_rows[0][0])
-            # Fetch author name of the resolved parent comment
+            # Fetch author name + tw_id of the resolved parent comment
             ra_rows = conn.run(
-                "SELECT u.full_name FROM company_post_comments c "
+                "SELECT u.full_name, u.tw_id FROM company_post_comments c "
                 "JOIN users u ON u.id = c.user_id WHERE c.id = :cid",
                 cid=resolved_reply_to)
-            reply_to_author_name = ra_rows[0][0] if ra_rows else None
+            reply_to_author_name  = ra_rows[0][0] if ra_rows else None
+            reply_to_author_tw_id = ra_rows[0][1] if ra_rows else None
         rows = conn.run(
             "INSERT INTO company_post_comments (post_id, user_id, body, reply_to_comment_id) "
             "VALUES (:pid, :uid, :body, :rtid) RETURNING id, body, created_at, updated_at, reply_to_comment_id",
@@ -3635,7 +3637,8 @@ def create_company_post_comment(post_id: int, user_id: int, body: str, reply_to_
         d["user_id"]              = user_id
         d["viewer_can_edit"]      = True
         d["viewer_can_delete"]    = True
-        d["reply_to_author_name"] = reply_to_author_name
+        d["reply_to_author_name"]  = reply_to_author_name
+        d["reply_to_author_tw_id"] = reply_to_author_tw_id
         return d
     finally:
         release_conn(conn)

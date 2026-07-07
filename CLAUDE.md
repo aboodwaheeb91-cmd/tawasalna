@@ -1137,14 +1137,25 @@ Full technical specification: `ARCHITECTURE.md §65`.
    - **`_cmtReplyTargetId[postId]`** stores the commentId to send as `reply_to_comment_id`. Both `_cmtReplyTarget` (authorName) and `_cmtReplyTargetId` (commentId) are cleared on send + cancel.
    - **`data-reply-to-id` + `data-reply-to-author`** are set on `.pc-cmt-item` by `_cmtBuildItem` when `reply_to_comment_id != null`. These are used by `_cmtInsertReply` and `_cmtHandleEdit`.
 
-18. **@ Mention Autocomplete contracts (feat/comment-mention-autocomplete) — permanent:**
+18. **@ Mention Autocomplete contracts (feat/comment-mention-autocomplete, updated feat/comment-author-links) — permanent:**
    - **One portal `#pc-cmt-mention-menu` on `document.body`.** Lazy-created by `_cmtGetMentionMenu()`. Do NOT create a per-panel dropdown — it would be clipped by `overflow-y:auto`.
-   - **Candidates from DOM only — no API call.** `_cmtCollectMentionCandidates(postId)` reads `.pc-cmt-author` textContent + `window.companyState.full_name`. No new endpoint is needed or allowed.
+   - **Candidates are objects `{name, tw_id, avatar}` — not plain strings.** `_cmtCollectMentionCandidates(postId)` reads `data-author-tw-id` + `data-author-avatar` from `.pc-cmt-item[data-author-tw-id]` elements + `companyState.profile` (correct path). Do NOT use `companyState.full_name` (wrong — it was a bug).
+   - **`_cmtFilterMentionCandidates` filters on `.name` property.** Do NOT filter on the candidate object itself.
+   - **`_cmtOpenMentionMenu` renders avatar (22px circle) + name text per item.** All text via `textContent`. Stores `btn.dataset.mentionName = cand.name`.
    - **`_cmtFindMentionStart(ta)` stops at space/newline.** Do NOT trigger the dropdown for `@` that appears in the middle of a word.
-   - **Insertion via `_cmtInsertMention(ta, name)`.** Replaces from `@` index to current cursor position. Fires `input` event so auto-resize runs. Do NOT call it with `innerHTML` — name insertion always uses string concatenation into `ta.value`.
+   - **Insertion via `_cmtInsertMention(ta, name)`.** Replaces from `@` index to cursor. Fires `input` event so auto-resize runs. Name insertion always uses string concatenation into `ta.value` — never `innerHTML`.
    - **Max 6 suggestions.** `_cmtFilterMentionCandidates` returns at most 6 results.
-   - **XSS-safe.** All candidate names are set via `btn.textContent`. Never `innerHTML` for API-sourced or DOM-sourced strings.
+   - **XSS-safe.** All candidate names via `btn.textContent`/`nameSpan.textContent`. Never `innerHTML` for any API or DOM-sourced string.
    - **Keyboard nav:** ArrowDown/Up cycles `activeIdx`, Enter inserts only when `activeIdx >= 0`, Escape closes.
-   - **Closes on:** outside click (body delegate checks `!menu.contains(e.target)`), page scroll, list scroll, successful insertion. Do NOT keep the menu open after insertion.
-   - **`_cmtMentionState` is the only store for active mention session.** Do NOT persist to localStorage/sessionStorage. Resets fully on `_cmtCloseMentionMenu()`.
-   - **CSS namespace:** `.pc-cmt-mention-menu`, `.pc-cmt-mention-item`, `.pc-cmt-mention-active` in `static/company/company.css` only.
+   - **Closes on:** outside click, page scroll, list scroll, successful insertion.
+   - **`_cmtMentionState` is the only store for active mention session.** Do NOT persist to localStorage/sessionStorage.
+   - **CSS namespace:** `.pc-cmt-mention-menu`, `.pc-cmt-mention-item`, `.pc-cmt-mention-active`, `.pc-cmt-mention-ava`, `.pc-cmt-mention-name` in `static/company/company.css` only.
+
+19. **Author Links & Clickable @mention contracts (feat/comment-author-links) — permanent:**
+   - **Author avatar and name open `/u/{author_tw_id}`.** They are `<a>` elements when `author_tw_id` is present, plain `<div>`/`<span>` when absent. Created in `_cmtBuildItem`.
+   - **`_renderCommentBody(bodyEl, text, mentionName, mentionTwId)` — 4-arg signature is final.** The 4th param `mentionTwId` makes the @mention a clickable `<a href="/u/{mentionTwId}">` when truthy; a plain `<span>` otherwise. All text is set via `textContent` — never `innerHTML`.
+   - **Guaranteed clickable @mention = replies with `reply_to_author_tw_id` from the API.** Free @mentions (from autocomplete, not replies) are `<span>` only in V1 — no link without a DB-sourced tw_id.
+   - **`mentionTwId` source: `c.reply_to_author_tw_id` (API) / `item.dataset.replyToAuthorTwId` (edit flow).** `_cmtBuildItem` stores `data-reply-to-author-tw-id` when `reply_to_author_tw_id` is present.
+   - **Forbidden link targets:** Never use `/profile?id=`, `/company-profile`, or numeric `id` in author/mention links. Only `/u/{tw_id}`.
+   - **If `author_tw_id` is absent, no `href` is created.** Do NOT construct a link from author_name alone.
+   - **CSS:** `a.pc-cmt-author { text-decoration:none; color:inherit; }` · `a.pc-cmt-ava { display:flex; text-decoration:none; }` · `a.pc-cmt-mention { text-decoration:none; }` — all in `static/company/company.css`.

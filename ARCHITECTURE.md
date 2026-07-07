@@ -9234,8 +9234,8 @@ CREATE INDEX  idx_post_cmts_reply  ON company_post_comments(reply_to_comment_id)
 
 | Helper | Contract |
 |--------|---------|
-| `get_company_post_comments(post_id, viewer_user_id)` | Returns active comments oldest-first. Joins `users` + `profiles` for author data. LEFT JOINs `company_post_comments rc + users ru` to populate `reply_to_author_name`. Sets `viewer_can_edit` / `viewer_can_delete` flags per comment. Returns `reply_to_comment_id` + `reply_to_author_name`. |
-| `create_company_post_comment(post_id, user_id, body, reply_to_comment_id=None)` | Validates body (non-empty, ≤1000 chars), checks `comments_enabled`. If `reply_to_comment_id` given: validates it exists + belongs to `post_id` + is active; resolves depth to 1 (if target is a reply, uses its `reply_to_comment_id` as the resolved parent). Inserts row, returns full comment dict including `reply_to_comment_id` + `reply_to_author_name`. |
+| `get_company_post_comments(post_id, viewer_user_id)` | Returns active comments oldest-first. Joins `users` + `profiles` for author data. LEFT JOINs `company_post_comments rc + users ru` to populate `reply_to_author_name` + `reply_to_author_tw_id`. Sets `viewer_can_edit` / `viewer_can_delete` flags per comment. Returns `reply_to_comment_id`, `reply_to_author_name`, `reply_to_author_tw_id`. |
+| `create_company_post_comment(post_id, user_id, body, reply_to_comment_id=None)` | Validates body (non-empty, ≤1000 chars), checks `comments_enabled`. If `reply_to_comment_id` given: validates it exists + belongs to `post_id` + is active; resolves depth to 1 (if target is a reply, uses its `reply_to_comment_id` as the resolved parent). Inserts row, returns full comment dict including `reply_to_comment_id`, `reply_to_author_name`, `reply_to_author_tw_id`. |
 | `update_company_post_comment(comment_id, user_id, body)` | Validates body. Checks `owner_id == user_id`; raises `PermissionError` if not. Sets `updated_at=NOW()`. |
 | `delete_company_post_comment(comment_id, user_id)` | Checks `owner_id == user_id OR company_id == user_id`; raises `PermissionError` if neither. Sets `status='deleted', deleted_at=NOW()` (soft delete). |
 
@@ -9453,16 +9453,22 @@ Each comment item DOM order:
 
 "تم التعديل" badge is appended to `.pc-cmt-meta-row` (not `.pc-cmt-header-left`, not `.pc-cmt-header`).
 
-### XSS-Safe Body Rendering — `_renderCommentBody` (feat/comment-ux-polish-3, updated feat/reply-threading-v1)
+### XSS-Safe Body Rendering — `_renderCommentBody` (updated feat/comment-author-links)
 
-`_renderCommentBody(bodyEl, text, mentionName)` is the only approved function for setting comment body content:
+`_renderCommentBody(bodyEl, text, mentionName, mentionTwId)` is the only approved function for setting comment body content:
 - `bodyEl.textContent = ''` clears existing children
-- **Exact compound-name match (new):** if `mentionName` given and `text` starts with `@mentionName` → creates `<span class="pc-cmt-mention">` using that exact string, then `createTextNode(rest)`. Handles multi-word names like `@الشركة العربية الاردنية`.
-- **Fallback:** if no exact match, `@\S+` regex highlights the first `@word`
+- **Exact compound-name match:** if `mentionName` given and `text` starts with `@mentionName`:
+  - Creates `<a class="pc-cmt-mention" href="/u/{mentionTwId}">` when `mentionTwId` is provided
+  - Creates `<span class="pc-cmt-mention">` when `mentionTwId` is absent
+  - Name text set via `textContent` — never `innerHTML`
+  - Handles multi-word names like `@الشركة العربية الاردنية`
+- **Fallback:** if no exact match, `@\S+` regex highlights the first `@word` as `<span>` (no link — free mentions have no tw_id in V1)
 - Otherwise: `bodyEl.textContent = text`
 - **Never use `bodyEl.innerHTML = apiData` — forbidden**
 
-Call signature change (feat/reply-threading-v1): the optional `mentionName` comes from `c.reply_to_author_name` (API) or `item.dataset.replyToAuthor` (in `_cmtHandleEdit`).
+Arguments:
+- `mentionName` — from `c.reply_to_author_name` (API) or `item.dataset.replyToAuthor` (edit flow)
+- `mentionTwId` — from `c.reply_to_author_tw_id` (API) or `item.dataset.replyToAuthorTwId` (edit flow)
 
 Used in: `_cmtBuildItem` (initial render), `_cmtHandleEdit` (optimistic update, success confirm, rollback).
 
@@ -9509,7 +9515,7 @@ V1 implements **1-level-max reply threading** with DB storage via `reply_to_comm
 **Key rules:**
 - Max depth = 1. The server auto-resolves deeper replies to the root parent on insert.
 - `reply_to_comment_id` is the authoritative source for the `.pc-cmt-visual-reply` class (not body `@` text).
-- `GET /comments` returns `reply_to_comment_id` + `reply_to_author_name` per comment.
+- `GET /comments` returns `reply_to_comment_id`, `reply_to_author_name`, `reply_to_author_tw_id` per comment.
 - `POST /comments` accepts optional `reply_to_comment_id` in `CommentInput`.
 - On initial load, `_cmtRenderComments(comments, list)` groups replies under their parent (top-level first, then each parent's replies, orphans last).
 - On send, `_cmtHandleSend` calls `_cmtInsertReply(list, newComment)` for replies — inserts after the last existing sibling reply under the same parent.
@@ -9527,8 +9533,41 @@ V1 implements **1-level-max reply threading** with DB storage via `reply_to_comm
 **`data-*` attributes on `.pc-cmt-item`:**
 - `data-reply-to-id` — set when `reply_to_comment_id != null`
 - `data-reply-to-author` — set when `reply_to_author_name` present (for `_renderCommentBody` in edit)
+- `data-reply-to-author-tw-id` — set when `reply_to_author_tw_id` present (for clickable mention link in edit flow)
+- `data-author-tw-id` — set when `author_tw_id` present (for mention candidate collection + author link)
+- `data-author-avatar` — set when `author_tw_id` present (for mention dropdown avatar)
 
 XSS: `nameSpan.textContent = authorName` (never innerHTML for API data).
+
+### Author Links & Clickable @mention (feat/comment-author-links)
+
+**Author avatar and name are clickable** — they open `/u/{author_tw_id}` via standard `<a>` elements.
+
+- `_cmtBuildItem` creates the avatar element as `<a class="pc-cmt-ava" href="/u/{author_tw_id}">` if `author_tw_id` is truthy; otherwise a plain `<div class="pc-cmt-ava">`.
+- Same logic for the author name: `<a class="pc-cmt-author" href="/u/{author_tw_id}">` or `<span class="pc-cmt-author">`.
+- If `author_tw_id` is absent (never happens for valid API data, but safe fallback), no link is created.
+- The `href` uses only `author_tw_id` from the API — never a numeric `id`, never `/profile?id=`, never `/company-profile`.
+- CSS: `a.pc-cmt-author { text-decoration:none; color:inherit; cursor:pointer; }` + `a.pc-cmt-ava { display:flex; text-decoration:none; }`.
+
+**Clickable @mention** — reply mentions link to the replied-to author's profile.
+
+- `_renderCommentBody(bodyEl, text, mentionName, mentionTwId)` now accepts a 4th param.
+- When `mentionTwId` is truthy, the mention element is `<a class="pc-cmt-mention" href="/u/{mentionTwId}">`.
+- When `mentionTwId` is absent, it remains `<span class="pc-cmt-mention">` (no link — V1 free mentions have no tw_id).
+- CSS: `a.pc-cmt-mention { text-decoration:none; cursor:pointer; }` + underline on hover.
+- `mentionTwId` source: `c.reply_to_author_tw_id` from GET comments API / `item.dataset.replyToAuthorTwId` in edit flow.
+
+**V1 contract for free @mentions:**
+- Free mentions inserted via the autocomplete dropdown are styled as `<span>` only (no link).
+- Guaranteed clickable @mentions = replies with `reply_to_comment_id` (have `reply_to_author_tw_id` from API).
+- No DB table or new endpoint needed for V1.
+
+**Candidate data in mention dropdown:**
+- `_cmtCollectMentionCandidates(postId)` returns `[{name, tw_id, avatar}]` objects (not plain strings).
+- Reads `data-author-tw-id` + `data-author-avatar` from `.pc-cmt-item` elements (stored by `_cmtBuildItem`).
+- Company: `companyState.profile.full_name` / `companyState.profile.tw_id` / `companyState.profile.avatar_url`.
+- `_cmtFilterMentionCandidates` filters on `.name` property.
+- `_cmtOpenMentionMenu` shows 22px avatar circle + name text for each candidate.
 
 ### @ Mention Autocomplete (feat/comment-mention-autocomplete)
 
@@ -9599,4 +9638,9 @@ A lightweight portal-based mention dropdown appears inside the comment textarea 
 ❌ Using innerHTML to render mention candidate names (always textContent)
 ❌ Creating a second mention menu portal div (one portal, lazy-created)
 ❌ Persisting mention state to localStorage or sessionStorage
+❌ Author name/avatar links using /profile?id= or /company-profile — only /u/{tw_id} is allowed
+❌ Using numeric id in author or mention links — only tw_id
+❌ Linking free @mention text when only the name (not tw_id) is known (V1: span only)
+❌ Calling _renderCommentBody with 2 args — always pass mentionName + mentionTwId (null if absent)
+❌ Changing companyState.profile.full_name to companyState.full_name (wrong path, pre-existing bug pattern)
 ```
