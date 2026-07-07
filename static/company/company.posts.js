@@ -489,6 +489,110 @@
     });
   }
 
+  // ── Post Save ─────────────────────────────────────────────────────────────
+  var _ICO_BOOKMARK_OUTLINE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>';
+  var _ICO_BOOKMARK_FILLED  = '<svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>';
+
+  function _renderSaveButton(btn, active) {
+    btn.innerHTML = (active ? _ICO_BOOKMARK_FILLED : _ICO_BOOKMARK_OUTLINE) + 'حفظ';
+    if (active) { btn.classList.add('save-active');    }
+    else        { btn.classList.remove('save-active'); }
+    btn.dataset.saved = active ? '1' : '0';
+  }
+
+  var _saveDesired   = {};
+  var _saveInFlight  = {};
+  var _saveOrigState = {};
+
+  function _saveGetBtn(postId) {
+    var card = document.querySelector('.post-card[data-post-id="' + postId + '"]');
+    return card ? card.querySelector('.pc-btn--save') : null;
+  }
+
+  function _dispatchSave(postId) {
+    var desired = _saveDesired[postId];
+    if (desired === undefined) return;
+    var jwt = window._jwt ? window._jwt() : '';
+    if (!jwt) return;
+
+    _saveInFlight[postId] = true;
+
+    fetch('/company/posts/' + postId + '/save', {
+      method:  'PUT',
+      headers: { 'Authorization': 'Bearer ' + jwt, 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ saved: desired })
+    })
+      .then(function (r) {
+        return r.json().then(function (d) { return { status: r.status, ok: r.ok, data: d }; });
+      })
+      .then(function (res) {
+        _saveInFlight[postId] = false;
+        var btn  = _saveGetBtn(postId);
+        var orig = _saveOrigState[postId];
+
+        if (res.status === 429) {
+          if (btn && orig) _renderSaveButton(btn, orig.active);
+          delete _saveDesired[postId];
+          delete _saveOrigState[postId];
+          if (window.showToast) showToast('الرجاء التمهّل قليلاً');
+          return;
+        }
+
+        if (!res.ok || !res.data || res.data.status !== 'success') {
+          if (btn && orig) _renderSaveButton(btn, orig.active);
+          delete _saveDesired[postId];
+          delete _saveOrigState[postId];
+          if (window.showToast) showToast('تعذّر حفظ المنشور');
+          return;
+        }
+
+        var srvActive = !!res.data.saved;
+        var desired   = _saveDesired[postId];
+
+        if (desired !== undefined && desired !== srvActive) {
+          _saveOrigState[postId] = { active: srvActive };
+          _dispatchSave(postId);
+          return;
+        }
+
+        if (btn) _renderSaveButton(btn, srvActive);
+        delete _saveDesired[postId];
+        delete _saveOrigState[postId];
+      })
+      .catch(function () {
+        _saveInFlight[postId] = false;
+        var btn  = _saveGetBtn(postId);
+        var orig = _saveOrigState[postId];
+        if (btn && orig) _renderSaveButton(btn, orig.active);
+        delete _saveDesired[postId];
+        delete _saveOrigState[postId];
+        if (window.showToast) showToast('تعذّر حفظ المنشور');
+      });
+  }
+
+  function _toggleSave(postId) {
+    var jwt = window._jwt ? window._jwt() : '';
+    if (!jwt) {
+      if (window.showToast) showToast('سجّل دخولك لحفظ المنشور');
+      return;
+    }
+    var btn = _saveGetBtn(postId);
+    if (!btn) return;
+
+    var currentActive = btn.classList.contains('save-active');
+    var desired       = !currentActive;
+
+    if (!_saveInFlight[postId]) {
+      _saveOrigState[postId] = { active: currentActive };
+    }
+
+    _saveDesired[postId] = desired;
+    _renderSaveButton(btn, desired);
+
+    if (_saveInFlight[postId]) return;
+    _dispatchSave(postId);
+  }
+
   // ── Post Appreciation ─────────────────────────────────────────────────────
   var _ICO_HEART_OUTLINE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>';
   var _ICO_HEART_FILLED  = '<svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>';
@@ -698,7 +802,7 @@
         if (cmtBtn) { if (window.showToast) showToast('ميزة التعليقات ستتوفر قريباً'); return; }
         // Save
         var saveBtn = e.target.closest('.pc-btn--save[data-post-id]');
-        if (saveBtn) { if (window.showToast) showToast('ميزة حفظ المنشورات ستتوفر قريباً'); return; }
+        if (saveBtn) { _toggleSave(saveBtn.getAttribute('data-post-id')); return; }
       });
     }
   });

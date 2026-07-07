@@ -2999,6 +2999,17 @@ def ensure_company_tables():
         """)
         conn.run("CREATE INDEX IF NOT EXISTS idx_post_appr_post ON company_post_appreciations(post_id)")
         conn.run("CREATE UNIQUE INDEX IF NOT EXISTS uq_post_appr_user ON company_post_appreciations(post_id, user_id)")
+        # ── company_post_saves — one save per user per post ──
+        conn.run("""
+            CREATE TABLE IF NOT EXISTS company_post_saves (
+                id         SERIAL PRIMARY KEY,
+                post_id    INTEGER NOT NULL REFERENCES company_posts(id) ON DELETE CASCADE,
+                user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+        """)
+        conn.run("CREATE INDEX IF NOT EXISTS idx_post_saves_post ON company_post_saves(post_id)")
+        conn.run("CREATE UNIQUE INDEX IF NOT EXISTS uq_post_save_user ON company_post_saves(post_id, user_id)")
         release_conn(conn)
         print("✅ company tables ready")
     except Exception as e:
@@ -3284,7 +3295,7 @@ def get_company_ratings_detail(company_id: int, viewer_id=None, limit: int = 5) 
 
 def get_company_posts(company_id: int, viewer_user_id=None) -> list:
     """Return all posts for a company, newest first.
-    Includes views_count, appreciations_count, and viewer_appreciated (if viewer_user_id provided)."""
+    Includes views_count, appreciations_count, viewer_appreciated, and viewer_saved (if viewer_user_id provided)."""
     conn = get_conn()
     try:
         if viewer_user_id:
@@ -3292,11 +3303,13 @@ def get_company_posts(company_id: int, viewer_user_id=None) -> list:
                 "SELECT cp.id, cp.body, cp.tags, cp.theme_color, cp.comments_enabled, cp.created_at, "
                 "COALESCE(v.cnt, 0) AS views_count, "
                 "COALESCE(a.cnt, 0) AS appreciations_count, "
-                "(upa.user_id IS NOT NULL) AS viewer_appreciated "
+                "(upa.user_id IS NOT NULL) AS viewer_appreciated, "
+                "(ups.user_id IS NOT NULL) AS viewer_saved "
                 "FROM company_posts cp "
                 "LEFT JOIN (SELECT post_id, COUNT(*) AS cnt FROM company_post_views GROUP BY post_id) v ON cp.id = v.post_id "
                 "LEFT JOIN (SELECT post_id, COUNT(*) AS cnt FROM company_post_appreciations GROUP BY post_id) a ON cp.id = a.post_id "
                 "LEFT JOIN company_post_appreciations upa ON upa.post_id = cp.id AND upa.user_id = :viewer_uid "
+                "LEFT JOIN company_post_saves ups ON ups.post_id = cp.id AND ups.user_id = :viewer_uid "
                 "WHERE cp.company_id = :cid ORDER BY cp.created_at DESC",
                 cid=company_id, viewer_uid=int(viewer_user_id))
         else:
@@ -3304,14 +3317,15 @@ def get_company_posts(company_id: int, viewer_user_id=None) -> list:
                 "SELECT cp.id, cp.body, cp.tags, cp.theme_color, cp.comments_enabled, cp.created_at, "
                 "COALESCE(v.cnt, 0) AS views_count, "
                 "COALESCE(a.cnt, 0) AS appreciations_count, "
-                "FALSE AS viewer_appreciated "
+                "FALSE AS viewer_appreciated, "
+                "FALSE AS viewer_saved "
                 "FROM company_posts cp "
                 "LEFT JOIN (SELECT post_id, COUNT(*) AS cnt FROM company_post_views GROUP BY post_id) v ON cp.id = v.post_id "
                 "LEFT JOIN (SELECT post_id, COUNT(*) AS cnt FROM company_post_appreciations GROUP BY post_id) a ON cp.id = a.post_id "
                 "WHERE cp.company_id = :cid ORDER BY cp.created_at DESC",
                 cid=company_id)
         cols = ["id", "body", "tags", "theme_color", "comments_enabled", "created_at",
-                "views_count", "appreciations_count", "viewer_appreciated"]
+                "views_count", "appreciations_count", "viewer_appreciated", "viewer_saved"]
         return [_serialize(_row_to_dict(cols, r)) for r in rows]
     finally:
         release_conn(conn)
@@ -3463,6 +3477,27 @@ def set_company_post_appreciation(post_id: int, user_id: int, appreciated: bool)
             "SELECT COUNT(*) FROM company_post_appreciations WHERE post_id=:pid", pid=post_id)
         count = int(cnt_rows[0][0]) if cnt_rows else 0
         return {"appreciated": appreciated, "appreciations_count": count}
+    finally:
+        release_conn(conn)
+
+
+def set_company_post_save(post_id: int, user_id: int, saved: bool) -> dict:
+    """Idempotent — sets exact save state. No unique-constraint errors.
+    saved=True  → INSERT ... ON CONFLICT DO NOTHING
+    saved=False → DELETE (no-op if absent)
+    Returns {saved}."""
+    conn = get_conn()
+    try:
+        if saved:
+            conn.run(
+                "INSERT INTO company_post_saves (post_id, user_id) "
+                "VALUES (:pid, :uid) ON CONFLICT DO NOTHING",
+                pid=post_id, uid=user_id)
+        else:
+            conn.run(
+                "DELETE FROM company_post_saves WHERE post_id=:pid AND user_id=:uid",
+                pid=post_id, uid=user_id)
+        return {"saved": saved}
     finally:
         release_conn(conn)
 

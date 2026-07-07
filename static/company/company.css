@@ -870,6 +870,8 @@ i.ico-sm { width:14px; height:14px; stroke:currentColor; fill:none; stroke-width
 .pc-btn--share:hover { color:var(--ac); }
 .pc-btn--cmt:hover   { color:#60a5fa; }
 .pc-btn--save:hover  { color:#fbbf24; }
+.pc-btn--save.save-active { color:#fbbf24; }
+.pc-btn--save.save-active svg { fill:currentColor; }
 /* Appreciate button */
 .pc-btn--appr:hover  { color:var(--pa, var(--ac)); }
 .pc-btn--appr.appr-active { color:var(--pa, var(--ac)); }
