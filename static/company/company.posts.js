@@ -715,6 +715,370 @@
     _dispatchAppreciation(postId);
   }
 
+  // ── Post Comments ─────────────────────────────────────────────────────────
+  var _ICO_COMMENT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>';
+
+  var _cmtOpenPanelId = null; // postId whose panel is currently visible
+
+  function _cmtGetBtn(postId) {
+    var card = document.querySelector('.post-card[data-post-id="' + postId + '"]');
+    return card ? card.querySelector('.pc-btn--cmt') : null;
+  }
+
+  function _cmtGetPanel(postId) {
+    return document.getElementById('pc-cmt-panel-' + postId);
+  }
+
+  function _cmtUpdateCount(postId, delta) {
+    var btn = _cmtGetBtn(postId);
+    if (!btn) return;
+    var current = parseInt(btn.dataset.cmtCount, 10) || 0;
+    var next = Math.max(0, current + delta);
+    btn.dataset.cmtCount = next;
+    btn.innerHTML = '';
+    var tmp = document.createElement('div');
+    tmp.innerHTML = _ICO_COMMENT;
+    btn.appendChild(tmp.firstChild);
+    var txt = document.createTextNode(next > 0 ? ('تعليق · ' + next) : 'تعليق');
+    btn.appendChild(txt);
+  }
+
+  function _cmtBuildItem(c) {
+    var el = document.createElement('div');
+    el.className = 'pc-cmt-item';
+    el.dataset.cmtId = String(c.id);
+
+    // Avatar
+    var ava = document.createElement('div');
+    ava.className = 'pc-cmt-ava';
+    if (c.author_avatar) {
+      var img = document.createElement('img');
+      img.src = c.author_avatar;
+      img.alt = '';
+      img.className = 'pc-cmt-ava-img';
+      ava.appendChild(img);
+    } else {
+      ava.textContent = (c.author_name || '؟').charAt(0);
+    }
+
+    // Content
+    var content = document.createElement('div');
+    content.className = 'pc-cmt-content';
+
+    var header = document.createElement('div');
+    header.className = 'pc-cmt-header';
+    var nameEl = document.createElement('span');
+    nameEl.className = 'pc-cmt-author';
+    nameEl.textContent = c.author_name || '';
+    header.appendChild(nameEl);
+    if (c.updated_at) {
+      var editedEl = document.createElement('span');
+      editedEl.className = 'pc-cmt-edited';
+      editedEl.textContent = '· تم التعديل';
+      header.appendChild(editedEl);
+    }
+    content.appendChild(header);
+
+    var bodyEl = document.createElement('p');
+    bodyEl.className = 'pc-cmt-body';
+    bodyEl.textContent = c.body; // XSS-safe: textContent only
+    content.appendChild(bodyEl);
+
+    if (c.viewer_can_edit || c.viewer_can_delete) {
+      var acts = document.createElement('div');
+      acts.className = 'pc-cmt-acts';
+      if (c.viewer_can_edit) {
+        var editBtn = document.createElement('button');
+        editBtn.type = 'button';
+        editBtn.className = 'pc-cmt-act pc-cmt-act--edit';
+        editBtn.dataset.cmtId = String(c.id);
+        editBtn.textContent = 'تعديل';
+        acts.appendChild(editBtn);
+      }
+      if (c.viewer_can_delete) {
+        var delBtn = document.createElement('button');
+        delBtn.type = 'button';
+        delBtn.className = 'pc-cmt-act pc-cmt-act--del';
+        delBtn.dataset.cmtId = String(c.id);
+        delBtn.textContent = 'حذف';
+        acts.appendChild(delBtn);
+      }
+      content.appendChild(acts);
+    }
+
+    el.appendChild(ava);
+    el.appendChild(content);
+    return el;
+  }
+
+  function _cmtPopulatePanel(postId) {
+    var panel = _cmtGetPanel(postId);
+    if (!panel || panel._cmtInitialized) return;
+    panel._cmtInitialized = true;
+
+    var list = document.createElement('div');
+    list.className = 'pc-cmts-list';
+
+    var loading = document.createElement('div');
+    loading.className = 'pc-cmts-loading';
+    loading.textContent = 'جاري التحميل…';
+
+    var jwt = window._jwt ? window._jwt() : '';
+    var inputRow = document.createElement('div');
+    inputRow.className = 'pc-cmts-input-row';
+    if (jwt) {
+      var ta = document.createElement('textarea');
+      ta.className   = 'pc-cmts-ta';
+      ta.placeholder = 'اكتب تعليقاً…';
+      ta.maxLength   = 1000;
+      ta.rows        = 2;
+      var sendBtn = document.createElement('button');
+      sendBtn.type      = 'button';
+      sendBtn.className = 'pc-cmts-send';
+      sendBtn.dataset.postId = String(postId);
+      sendBtn.textContent = 'إرسال';
+      inputRow.appendChild(ta);
+      inputRow.appendChild(sendBtn);
+    } else {
+      var guest = document.createElement('div');
+      guest.className = 'pc-cmts-guest';
+      guest.textContent = 'سجّل دخولك للتعليق';
+      inputRow.appendChild(guest);
+    }
+
+    panel.appendChild(list);
+    panel.appendChild(loading);
+    panel.appendChild(inputRow);
+  }
+
+  function _cmtLoadComments(postId) {
+    var panel = _cmtGetPanel(postId);
+    if (!panel) return;
+    var list    = panel.querySelector('.pc-cmts-list');
+    var loading = panel.querySelector('.pc-cmts-loading');
+    if (list)    list.innerHTML = '';
+    if (loading) loading.style.display = 'block';
+
+    var jwt = window._jwt ? window._jwt() : '';
+    var headers = { 'Content-Type': 'application/json' };
+    if (jwt) headers['Authorization'] = 'Bearer ' + jwt;
+
+    fetch('/company/posts/' + postId + '/comments', { headers: headers })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (loading) loading.style.display = 'none';
+        if (!list) return;
+        var comments = (data && data.comments) ? data.comments : [];
+        if (!comments.length) {
+          var empty = document.createElement('div');
+          empty.className = 'pc-cmts-empty';
+          empty.textContent = 'لا توجد تعليقات بعد';
+          list.appendChild(empty);
+          return;
+        }
+        comments.forEach(function (c) { list.appendChild(_cmtBuildItem(c)); });
+      })
+      .catch(function () {
+        if (loading) loading.style.display = 'none';
+        if (list) {
+          var err = document.createElement('div');
+          err.className = 'pc-cmts-empty';
+          err.textContent = 'تعذّر تحميل التعليقات';
+          list.appendChild(err);
+        }
+      });
+  }
+
+  function _toggleCommentPanel(postId) {
+    var pid = String(postId);
+
+    // Close any other open panel
+    if (_cmtOpenPanelId && _cmtOpenPanelId !== pid) {
+      var old = _cmtGetPanel(_cmtOpenPanelId);
+      if (old) old.style.display = 'none';
+      _cmtOpenPanelId = null;
+    }
+
+    var panel = _cmtGetPanel(pid);
+    if (!panel) return; // comments_enabled=false — no panel in DOM
+
+    if (panel.style.display !== 'none') {
+      panel.style.display = 'none';
+      _cmtOpenPanelId = null;
+      return;
+    }
+
+    // First open: build input row + list shell
+    _cmtPopulatePanel(pid);
+    panel.style.display = '';
+    _cmtLoadComments(pid);
+    _cmtOpenPanelId = pid;
+  }
+
+  function _cmtHandleSend(postId) {
+    var panel = _cmtGetPanel(postId);
+    if (!panel) return;
+    var ta  = panel.querySelector('.pc-cmts-ta');
+    if (!ta) return;
+    var body = ta.value.trim();
+    if (!body) { if (window.showToast) showToast('اكتب تعليقاً أولاً'); return; }
+    if (body.length > 1000) { if (window.showToast) showToast('التعليق طويل جداً (1000 حرف كحد أقصى)'); return; }
+
+    var jwt = window._jwt ? window._jwt() : '';
+    if (!jwt) { if (window.showToast) showToast('سجّل دخولك للتعليق'); return; }
+
+    var sendBtn = panel.querySelector('.pc-cmts-send');
+    if (sendBtn) sendBtn.disabled = true;
+
+    fetch('/company/posts/' + postId + '/comments', {
+      method:  'POST',
+      headers: { 'Authorization': 'Bearer ' + jwt, 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ body: body })
+    })
+      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, status: r.status, data: d }; }); })
+      .then(function (res) {
+        if (sendBtn) sendBtn.disabled = false;
+        if (!res.ok || !res.data || res.data.status !== 'success') {
+          var msg = (res.data && res.data.detail) ? res.data.detail : 'تعذّر إرسال التعليق';
+          if (window.showToast) showToast(res.status === 429 ? 'الرجاء التمهّل قليلاً' : msg);
+          return;
+        }
+        ta.value = '';
+        var list = panel.querySelector('.pc-cmts-list');
+        if (list) {
+          var empty = list.querySelector('.pc-cmts-empty');
+          if (empty) empty.remove();
+          list.appendChild(_cmtBuildItem(res.data.comment));
+          list.scrollTop = list.scrollHeight;
+        }
+        _cmtUpdateCount(postId, 1);
+      })
+      .catch(function () {
+        if (sendBtn) sendBtn.disabled = false;
+        if (window.showToast) showToast('تعذّر إرسال التعليق');
+      });
+  }
+
+  function _cmtHandleEdit(cmtId, postId) {
+    var panel = _cmtGetPanel(postId);
+    if (!panel) return;
+    var item = panel.querySelector('.pc-cmt-item[data-cmt-id="' + cmtId + '"]');
+    if (!item) return;
+    var bodyEl = item.querySelector('.pc-cmt-body');
+    if (!bodyEl) return;
+    if (item.querySelector('.pc-cmt-edit-ta')) return; // already editing
+
+    var originalText = bodyEl.textContent;
+    bodyEl.style.display = 'none';
+
+    var editWrap = document.createElement('div');
+    editWrap.className = 'pc-cmt-edit-wrap';
+    var editTa = document.createElement('textarea');
+    editTa.className  = 'pc-cmts-ta pc-cmt-edit-ta';
+    editTa.maxLength  = 1000;
+    editTa.rows       = 2;
+    editTa.value      = originalText;
+    var saveBtn = document.createElement('button');
+    saveBtn.type      = 'button';
+    saveBtn.className = 'pc-cmts-send pc-cmt-edit-save';
+    saveBtn.textContent = 'حفظ';
+    var cancelBtn = document.createElement('button');
+    cancelBtn.type      = 'button';
+    cancelBtn.className = 'pc-cmt-act pc-cmt-edit-cancel';
+    cancelBtn.textContent = 'إلغاء';
+    editWrap.appendChild(editTa);
+    var editBtns = document.createElement('div');
+    editBtns.className = 'pc-cmt-edit-btns';
+    editBtns.appendChild(saveBtn);
+    editBtns.appendChild(cancelBtn);
+    editWrap.appendChild(editBtns);
+    var acts = item.querySelector('.pc-cmt-acts');
+    if (acts) item.insertBefore(editWrap, acts);
+    else item.querySelector('.pc-cmt-content').appendChild(editWrap);
+
+    cancelBtn.addEventListener('click', function () {
+      bodyEl.style.display = '';
+      editWrap.remove();
+    });
+
+    saveBtn.addEventListener('click', function () {
+      var newBody = editTa.value.trim();
+      if (!newBody) { if (window.showToast) showToast('التعليق لا يمكن أن يكون فارغاً'); return; }
+      if (newBody.length > 1000) { if (window.showToast) showToast('التعليق طويل جداً'); return; }
+      var jwt = window._jwt ? window._jwt() : '';
+      if (!jwt) return;
+      saveBtn.disabled = true;
+
+      fetch('/company/posts/comments/' + cmtId, {
+        method:  'PATCH',
+        headers: { 'Authorization': 'Bearer ' + jwt, 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ body: newBody })
+      })
+        .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, status: r.status, data: d }; }); })
+        .then(function (res) {
+          saveBtn.disabled = false;
+          if (!res.ok || !res.data || res.data.status !== 'success') {
+            var msg = (res.data && res.data.detail) ? res.data.detail : 'تعذّر تعديل التعليق';
+            if (window.showToast) showToast(res.status === 429 ? 'الرجاء التمهّل قليلاً' : msg);
+            return;
+          }
+          var updated = res.data.comment;
+          bodyEl.textContent = updated.body; // XSS-safe
+          bodyEl.style.display = '';
+          editWrap.remove();
+          // Mark as edited
+          var header = item.querySelector('.pc-cmt-header');
+          if (header && !header.querySelector('.pc-cmt-edited')) {
+            var editedEl = document.createElement('span');
+            editedEl.className = 'pc-cmt-edited';
+            editedEl.textContent = '· تم التعديل';
+            header.appendChild(editedEl);
+          }
+        })
+        .catch(function () {
+          saveBtn.disabled = false;
+          if (window.showToast) showToast('تعذّر تعديل التعليق');
+        });
+    });
+  }
+
+  function _cmtHandleDelete(cmtId, postId) {
+    var jwt = window._jwt ? window._jwt() : '';
+    if (!jwt) return;
+
+    fetch('/company/posts/comments/' + cmtId, {
+      method:  'DELETE',
+      headers: { 'Authorization': 'Bearer ' + jwt }
+    })
+      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, status: r.status, data: d }; }); })
+      .then(function (res) {
+        if (!res.ok || !res.data || res.data.status !== 'success') {
+          var msg = (res.data && res.data.detail) ? res.data.detail : 'تعذّر حذف التعليق';
+          if (window.showToast) showToast(msg);
+          return;
+        }
+        var panel = _cmtGetPanel(postId);
+        if (panel) {
+          var item = panel.querySelector('.pc-cmt-item[data-cmt-id="' + cmtId + '"]');
+          if (item) {
+            item.remove();
+            // Show empty state if no comments left
+            var list = panel.querySelector('.pc-cmts-list');
+            if (list && !list.querySelector('.pc-cmt-item')) {
+              var empty = document.createElement('div');
+              empty.className = 'pc-cmts-empty';
+              empty.textContent = 'لا توجد تعليقات بعد';
+              list.appendChild(empty);
+            }
+          }
+        }
+        _cmtUpdateCount(postId, -1);
+      })
+      .catch(function () {
+        if (window.showToast) showToast('تعذّر حذف التعليق');
+      });
+  }
+
   window.openPostModal        = openPostModal;
   window._closePostOverlay    = _closePostOverlay;
   window.createPost           = createPost;
@@ -797,9 +1161,26 @@
         // Appreciate
         var apprBtn = e.target.closest('.pc-btn--appr[data-post-id]');
         if (apprBtn) { _toggleAppreciation(apprBtn.getAttribute('data-post-id')); return; }
-        // Comment
+        // Comment panel toggle
         var cmtBtn = e.target.closest('.pc-btn--cmt[data-post-id]');
-        if (cmtBtn) { if (window.showToast) showToast('ميزة التعليقات ستتوفر قريباً'); return; }
+        if (cmtBtn) { _toggleCommentPanel(cmtBtn.getAttribute('data-post-id')); return; }
+        // Comment send
+        var cmtSend = e.target.closest('.pc-cmts-send[data-post-id]');
+        if (cmtSend) { _cmtHandleSend(cmtSend.getAttribute('data-post-id')); return; }
+        // Comment edit
+        var cmtEditBtn = e.target.closest('.pc-cmt-act--edit[data-cmt-id]');
+        if (cmtEditBtn) {
+          var panel = cmtEditBtn.closest('.pc-cmts-panel');
+          if (panel) _cmtHandleEdit(cmtEditBtn.getAttribute('data-cmt-id'), panel.dataset.postId);
+          return;
+        }
+        // Comment delete
+        var cmtDelBtn = e.target.closest('.pc-cmt-act--del[data-cmt-id]');
+        if (cmtDelBtn) {
+          var panel = cmtDelBtn.closest('.pc-cmts-panel');
+          if (panel) _cmtHandleDelete(cmtDelBtn.getAttribute('data-cmt-id'), panel.dataset.postId);
+          return;
+        }
         // Save
         var saveBtn = e.target.closest('.pc-btn--save[data-post-id]');
         if (saveBtn) { _toggleSave(saveBtn.getAttribute('data-post-id')); return; }

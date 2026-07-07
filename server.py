@@ -86,6 +86,7 @@ from auth import (
     follow_company, unfollow_company, get_company_followers_list, rate_company,
     get_company_ratings_detail,
     get_company_posts, get_company_posts_count, create_company_post, update_company_post, get_post_owner, delete_company_post, record_company_post_view, toggle_company_post_appreciation, set_company_post_appreciation, set_company_post_save,
+    get_company_post_comments, create_company_post_comment, update_company_post_comment, delete_company_post_comment,
     follow_profile, unfollow_profile, get_profile_followers_count, is_profile_following,
     get_profile_followers_list, get_profile_following_list,
     record_profile_view, get_profile_views_count,
@@ -252,6 +253,38 @@ def _check_save_rate(user_id: int, post_id: int) -> bool:
     if len(_save_rate_store[key]) >= _SAVE_RATE_LIMIT:
         return False
     _save_rate_store[key].append(now)
+    return True
+
+# Per-(user, post) rate limit for comment creation
+_cmt_create_rate_store: dict = {}
+_CMT_CREATE_RATE   = 10
+_CMT_CREATE_WINDOW = 60.0
+
+def _check_cmt_create_rate(user_id: int, post_id: int) -> bool:
+    key = f"{user_id}:{post_id}"
+    now = _time.time()
+    if key not in _cmt_create_rate_store:
+        _cmt_create_rate_store[key] = []
+    _cmt_create_rate_store[key] = [t for t in _cmt_create_rate_store[key] if now - t < _CMT_CREATE_WINDOW]
+    if len(_cmt_create_rate_store[key]) >= _CMT_CREATE_RATE:
+        return False
+    _cmt_create_rate_store[key].append(now)
+    return True
+
+# Per-(user, comment) rate limit for comment edits
+_cmt_edit_rate_store: dict = {}
+_CMT_EDIT_RATE   = 10
+_CMT_EDIT_WINDOW = 60.0
+
+def _check_cmt_edit_rate(user_id: int, comment_id: int) -> bool:
+    key = f"{user_id}:{comment_id}"
+    now = _time.time()
+    if key not in _cmt_edit_rate_store:
+        _cmt_edit_rate_store[key] = []
+    _cmt_edit_rate_store[key] = [t for t in _cmt_edit_rate_store[key] if now - t < _CMT_EDIT_WINDOW]
+    if len(_cmt_edit_rate_store[key]) >= _CMT_EDIT_RATE:
+        return False
+    _cmt_edit_rate_store[key].append(now)
     return True
 
 @app.middleware("http")
@@ -1851,6 +1884,82 @@ def company_post_set_save(post_id: int, body: SaveStateInput, token=Depends(veri
         raise HTTPException(status_code=404, detail="المنشور غير موجود")
     result = set_company_post_save(post_id, int(user_id), body.saved)
     return {"status": "success", **result}
+
+
+# ── Post Comments System ──────────────────────────────────────────────────
+
+class CommentInput(BaseModel):
+    body: str
+
+class CommentUpdateInput(BaseModel):
+    body: str
+
+
+@app.get("/company/posts/{post_id}/comments")
+def company_get_post_comments(post_id: int, request: Request):
+    """Public with optional JWT — returns active comments + viewer flags if authenticated."""
+    auth_header = request.headers.get("Authorization", "")
+    viewer_id = None
+    if auth_header.startswith("Bearer "):
+        payload = _jwt_decode(auth_header[7:])
+        viewer_id = payload.get("user_id")
+    comments = get_company_post_comments(post_id, viewer_id)
+    return {"status": "success", "comments": comments}
+
+
+@app.post("/company/posts/{post_id}/comments")
+def company_create_post_comment(post_id: int, body: CommentInput, token=Depends(verify_token)):
+    """Create a comment. JWT required. Validates body, comments_enabled, rate limit."""
+    user_id = token.get("user_id")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="يجب تسجيل الدخول للتعليق")
+    if not _check_cmt_create_rate(int(user_id), post_id):
+        raise HTTPException(status_code=429, detail="الرجاء التمهّل قليلاً")
+    try:
+        comment = create_company_post_comment(post_id, int(user_id), body.body)
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except ValueError as e:
+        msg = str(e)
+        if "غير موجود" in msg:
+            raise HTTPException(status_code=404, detail=msg)
+        raise HTTPException(status_code=422, detail=msg)
+    return {"status": "success", "comment": comment}
+
+
+@app.patch("/company/posts/comments/{comment_id}")
+def company_update_post_comment(comment_id: int, body: CommentUpdateInput, token=Depends(verify_token)):
+    """Edit a comment body. JWT required. Only comment author may edit."""
+    user_id = token.get("user_id")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="يجب تسجيل الدخول")
+    if not _check_cmt_edit_rate(int(user_id), comment_id):
+        raise HTTPException(status_code=429, detail="الرجاء التمهّل قليلاً")
+    try:
+        comment = update_company_post_comment(comment_id, int(user_id), body.body)
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except ValueError as e:
+        msg = str(e)
+        if "غير موجود" in msg:
+            raise HTTPException(status_code=404, detail=msg)
+        raise HTTPException(status_code=422, detail=msg)
+    return {"status": "success", "comment": comment}
+
+
+@app.delete("/company/posts/comments/{comment_id}")
+def company_delete_post_comment(comment_id: int, token=Depends(verify_token)):
+    """Soft-delete a comment. Allowed for: comment author OR company page owner."""
+    user_id = token.get("user_id")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="يجب تسجيل الدخول")
+    try:
+        delete_company_post_comment(comment_id, int(user_id))
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    return {"status": "success"}
 
 
 # ── Saved Candidates (Phase 3 — company-owner only, JWT required) ──────────
