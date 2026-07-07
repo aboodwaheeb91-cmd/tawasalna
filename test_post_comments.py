@@ -214,6 +214,106 @@ check(
     "bodyEl.textContent = newBody" in cmt_edit_fn and "bodyEl.innerHTML" not in cmt_edit_fn
 )
 
+# ── UX Improvements (feat/comment-ui-polish) ─────────────────────────────
+posts_js = open("static/company/company.posts.js", encoding="utf-8").read()
+company_css = open("static/company/company.css", encoding="utf-8").read()
+
+# ── 27. Auto-resize helper ────────────────────────────────────────
+check(
+    "27. _autoResizeTextarea helper defined",
+    "_autoResizeTextarea" in posts_js and "scrollHeight" in posts_js
+)
+
+# ── 28. Clock icon constant ────────────────────────────────────────
+check(
+    "28. _ICO_CLOCK constant defined",
+    "_ICO_CLOCK" in posts_js
+)
+
+# ── 29. Relative time helper ───────────────────────────────────────
+check(
+    "29. _formatRelativeTime function defined",
+    "function _formatRelativeTime" in posts_js
+)
+
+# ── 30. Relative time used in _cmtBuildItem ───────────────────────
+build_fn2 = posts_js[posts_js.find("function _cmtBuildItem"):] if "function _cmtBuildItem" in posts_js else ""
+check(
+    "30. _formatRelativeTime called inside _cmtBuildItem",
+    "_formatRelativeTime" in build_fn2[:3000]
+)
+
+# ── 31. _cmtOpenMenuId guard variable ─────────────────────────────
+check(
+    "31. _cmtOpenMenuId guard variable defined",
+    "var _cmtOpenMenuId" in posts_js
+)
+
+# ── 32. Three-dot menu button built in _cmtBuildItem ──────────────
+check(
+    "32. pc-cmt-menu-btn class in _cmtBuildItem",
+    "pc-cmt-menu-btn" in build_fn2[:3000]
+)
+
+# ── 33. Menu edit / delete classes ────────────────────────────────
+check(
+    "33. pc-cmt-menu-edit class in _cmtBuildItem",
+    "pc-cmt-menu-edit" in build_fn2[:3000]
+)
+check(
+    "33b. pc-cmt-menu-del class in _cmtBuildItem",
+    "pc-cmt-menu-del" in build_fn2[:3000]
+)
+
+# ── 34. RTL order: sendBtn appended before ta ──────────────────────
+populate_fn2 = posts_js[posts_js.find("function _cmtPopulatePanel"):] if "function _cmtPopulatePanel" in posts_js else ""
+snd_pos2 = populate_fn2.find("inputRow.appendChild(sendBtn)")
+ta_pos2  = populate_fn2.find("inputRow.appendChild(ta)")
+check(
+    "34. RTL order: sendBtn appended before ta in _cmtPopulatePanel",
+    snd_pos2 != -1 and ta_pos2 != -1 and snd_pos2 < ta_pos2
+)
+
+# ── 35. Send button is outlined (transparent background) ──────────
+check(
+    "35. .pc-cmts-send uses transparent background (outlined style)",
+    "background: transparent" in company_css or "background:transparent" in company_css
+)
+
+# ── 36. Comments list max-height ≤ 300px ──────────────────────────
+check(
+    "36. .pc-cmts-list max-height is 280px",
+    "max-height:280px" in company_css or "max-height: 280px" in company_css
+)
+
+# ── 37. Textarea max-height ≤ 140px for auto-resize ───────────────
+check(
+    "37. .pc-cmts-ta has max-height 120px for auto-resize cap",
+    "max-height:120px" in company_css or "max-height: 120px" in company_css
+)
+
+# ── 38. Edit textarea rows=1 (not 2) ─────────────────────────────
+edit_fn = posts_js[posts_js.find("function _cmtHandleEdit"):] if "function _cmtHandleEdit" in posts_js else ""
+check(
+    "38. editTa.rows = 1 in _cmtHandleEdit (not 2)",
+    "editTa.rows      = 1" in edit_fn or "editTa.rows = 1" in edit_fn
+)
+
+# ── 39. Edit textarea has auto-resize listener ────────────────────
+check(
+    "39. editTa has _autoResizeTextarea input listener",
+    "_autoResizeTextarea(editTa)" in edit_fn
+)
+
+# ── 40. 'تم التعديل' badge appended to header-left (not header) ──
+# Check that the headerLeft querySelector targets .pc-cmt-header-left
+check(
+    "40. 'تم التعديل' badge appended to .pc-cmt-header-left (not .pc-cmt-header)",
+    "pc-cmt-header-left" in edit_fn and
+    # Ensure old pattern (direct .pc-cmt-header) is gone from the edited badge block
+    "item.querySelector('.pc-cmt-header')" not in edit_fn
+)
+
 # ── Summary ──────────────────────────────────────────────────────────────
 print()
 passed = sum(1 for _, s, _ in results if s == PASS)

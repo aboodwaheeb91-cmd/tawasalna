@@ -717,9 +717,11 @@
 
   // ── Post Comments ─────────────────────────────────────────────────────────
   var _ICO_COMMENT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>';
+  var _ICO_CLOCK   = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>';
 
   var _cmtOpenPanelId  = null; // postId whose panel is currently visible
-  var _cmtEditInFlight = {};  // commentId -> bool — prevents concurrent PATCH requests
+  var _cmtEditInFlight = {};   // commentId -> bool — prevents concurrent PATCH requests
+  var _cmtOpenMenuId   = null; // commentId whose ⋮ menu is currently open
 
   function _cmtGetBtn(postId) {
     var card = document.querySelector('.post-card[data-post-id="' + postId + '"]');
@@ -728,6 +730,33 @@
 
   function _cmtGetPanel(postId) {
     return document.getElementById('pc-cmt-panel-' + postId);
+  }
+
+  function _autoResizeTextarea(ta) {
+    ta.style.height = 'auto';
+    ta.style.height = Math.min(ta.scrollHeight, 120) + 'px';
+  }
+
+  function _formatRelativeTime(ts) {
+    if (!ts) return '';
+    var now  = Date.now();
+    var then = new Date(ts).getTime();
+    if (isNaN(then)) return '';
+    var diff = Math.max(0, now - then);
+    var sec  = Math.floor(diff / 1000);
+    var min  = Math.floor(sec / 60);
+    var hr   = Math.floor(min / 60);
+    var day  = Math.floor(hr / 24);
+    if (sec < 60)  return 'منذ لحظة';
+    if (min === 1) return 'منذ دقيقة';
+    if (min < 11)  return 'منذ ' + min + ' دقائق';
+    if (min < 60)  return 'منذ ' + min + ' دقيقة';
+    if (hr  === 1) return 'منذ ساعة';
+    if (hr  < 11)  return 'منذ ' + hr  + ' ساعات';
+    if (hr  < 24)  return 'منذ ' + hr  + ' ساعة';
+    if (day === 1) return 'منذ يوم';
+    if (day < 11)  return 'منذ ' + day + ' أيام';
+    return 'منذ ' + day + ' يوم';
   }
 
   function _cmtUpdateCount(postId, delta) {
@@ -766,46 +795,89 @@
     var content = document.createElement('div');
     content.className = 'pc-cmt-content';
 
+    // Header (flex row: header-left + optional menu)
     var header = document.createElement('div');
     header.className = 'pc-cmt-header';
+
+    var headerLeft = document.createElement('div');
+    headerLeft.className = 'pc-cmt-header-left';
+
     var nameEl = document.createElement('span');
     nameEl.className = 'pc-cmt-author';
-    nameEl.textContent = c.author_name || '';
-    header.appendChild(nameEl);
+    nameEl.textContent = c.author_name || ''; // XSS-safe
+    headerLeft.appendChild(nameEl);
+
+    // Relative time with clock icon (safe: static SVG + textContent)
+    var relTime = _formatRelativeTime(c.created_at);
+    if (relTime) {
+      var timeEl = document.createElement('span');
+      timeEl.className = 'pc-cmt-time';
+      var clockIco = document.createElement('span');
+      clockIco.className = 'pc-cmt-clock-ico';
+      clockIco.innerHTML = _ICO_CLOCK; // static SVG only — no API data
+      timeEl.appendChild(clockIco);
+      timeEl.appendChild(document.createTextNode(relTime));
+      headerLeft.appendChild(timeEl);
+    }
+
     if (c.updated_at) {
       var editedEl = document.createElement('span');
       editedEl.className = 'pc-cmt-edited';
       editedEl.textContent = '· تم التعديل';
-      header.appendChild(editedEl);
+      headerLeft.appendChild(editedEl);
     }
-    content.appendChild(header);
 
-    var bodyEl = document.createElement('p');
-    bodyEl.className = 'pc-cmt-body';
-    bodyEl.textContent = c.body; // XSS-safe: textContent only
-    content.appendChild(bodyEl);
+    header.appendChild(headerLeft);
 
+    // Three-dot ⋮ menu (shown only when viewer can act)
     if (c.viewer_can_edit || c.viewer_can_delete) {
-      var acts = document.createElement('div');
-      acts.className = 'pc-cmt-acts';
+      var menuWrap = document.createElement('div');
+      menuWrap.className = 'pc-cmt-menu-wrap';
+
+      var menuBtn = document.createElement('button');
+      menuBtn.type = 'button';
+      menuBtn.className = 'pc-cmt-menu-btn';
+      menuBtn.dataset.cmtId = String(c.id);
+      menuBtn.textContent = '⋮';
+
+      var menu = document.createElement('div');
+      menu.className = 'pc-cmt-menu';
+      menu.id = 'pc-cmt-menu-' + c.id;
+
       if (c.viewer_can_edit) {
-        var editBtn = document.createElement('button');
-        editBtn.type = 'button';
-        editBtn.className = 'pc-cmt-act pc-cmt-act--edit';
-        editBtn.dataset.cmtId = String(c.id);
-        editBtn.textContent = 'تعديل';
-        acts.appendChild(editBtn);
+        var editItem = document.createElement('button');
+        editItem.type = 'button';
+        editItem.className = 'pc-cmt-menu-item pc-cmt-menu-edit';
+        editItem.dataset.cmtId = String(c.id);
+        editItem.textContent = 'تعديل';
+        menu.appendChild(editItem);
       }
       if (c.viewer_can_delete) {
-        var delBtn = document.createElement('button');
-        delBtn.type = 'button';
-        delBtn.className = 'pc-cmt-act pc-cmt-act--del';
-        delBtn.dataset.cmtId = String(c.id);
-        delBtn.textContent = 'حذف';
-        acts.appendChild(delBtn);
+        var delItem = document.createElement('button');
+        delItem.type = 'button';
+        delItem.className = 'pc-cmt-menu-item pc-cmt-menu-del';
+        delItem.dataset.cmtId = String(c.id);
+        delItem.textContent = 'حذف';
+        menu.appendChild(delItem);
       }
-      content.appendChild(acts);
+
+      menuWrap.appendChild(menuBtn);
+      menuWrap.appendChild(menu);
+      header.appendChild(menuWrap);
     }
+
+    content.appendChild(header);
+
+    // Body — XSS-safe: textContent only
+    var bodyEl = document.createElement('p');
+    bodyEl.className = 'pc-cmt-body';
+    bodyEl.textContent = c.body;
+    content.appendChild(bodyEl);
+
+    // Empty .pc-cmt-acts kept as DOM anchor for _cmtHandleEdit insertBefore
+    var acts = document.createElement('div');
+    acts.className = 'pc-cmt-acts';
+    content.appendChild(acts);
 
     el.appendChild(ava);
     el.appendChild(content);
@@ -832,14 +904,16 @@
       ta.className   = 'pc-cmts-ta';
       ta.placeholder = 'اكتب تعليقاً…';
       ta.maxLength   = 1000;
-      ta.rows        = 2;
+      ta.rows        = 1; // auto-grows via _autoResizeTextarea
+      ta.addEventListener('input', function () { _autoResizeTextarea(ta); });
       var sendBtn = document.createElement('button');
       sendBtn.type      = 'button';
       sendBtn.className = 'pc-cmts-send';
       sendBtn.dataset.postId = String(postId);
       sendBtn.textContent = 'إرسال';
-      inputRow.appendChild(ta);
+      // RTL layout: sendBtn first → appears on right; ta fills remainder on left
       inputRow.appendChild(sendBtn);
+      inputRow.appendChild(ta);
     } else {
       var guest = document.createElement('div');
       guest.className = 'pc-cmts-guest';
@@ -945,6 +1019,7 @@
           return;
         }
         ta.value = '';
+        ta.style.height = ''; // reset auto-resize after send
         var list = panel.querySelector('.pc-cmts-list');
         if (list) {
           var empty = list.querySelector('.pc-cmts-empty');
@@ -982,8 +1057,9 @@
     var editTa = document.createElement('textarea');
     editTa.className = 'pc-cmts-ta pc-cmt-edit-ta';
     editTa.maxLength = 1000;
-    editTa.rows      = 2;
+    editTa.rows      = 1;
     editTa.value     = originalText;
+    editTa.addEventListener('input', function () { _autoResizeTextarea(editTa); });
     var editBtns = document.createElement('div');
     editBtns.className = 'pc-cmt-edit-btns';
     var saveBtn = document.createElement('button');
@@ -1004,6 +1080,9 @@
     if (acts) content.insertBefore(editWrap, acts);
     else content.appendChild(editWrap);
     bodyEl.style.display = 'none';
+
+    // Size to existing text now that the element is in the DOM (scrollHeight is accurate)
+    _autoResizeTextarea(editTa);
 
     // Focus + move cursor to end
     editTa.focus();
@@ -1046,12 +1125,12 @@
           }
           // Confirm with server body + mark as edited
           bodyEl.textContent = res.data.comment.body; // XSS-safe
-          var header = item.querySelector('.pc-cmt-header');
-          if (header && !header.querySelector('.pc-cmt-edited')) {
+          var headerLeft = item.querySelector('.pc-cmt-header-left');
+          if (headerLeft && !headerLeft.querySelector('.pc-cmt-edited')) {
             var editedEl = document.createElement('span');
             editedEl.className = 'pc-cmt-edited';
             editedEl.textContent = '· تم التعديل';
-            header.appendChild(editedEl);
+            headerLeft.appendChild(editedEl);
           }
         })
         .catch(function () {
@@ -1111,12 +1190,18 @@
     _bindTagPickerEvents();
     _bindColorPickerEvents();
 
-    // Close 3-dot menus when clicking outside
+    // Close 3-dot menus (post and comment) when clicking outside
     document.addEventListener('click', function (e) {
       if (!e.target.closest('.pc-dots')) {
         document.querySelectorAll('.pc-dots-menu.open').forEach(function (m) {
           m.classList.remove('open');
         });
+      }
+      if (!e.target.closest('.pc-cmt-menu-wrap')) {
+        document.querySelectorAll('.pc-cmt-menu.open').forEach(function (m) {
+          m.classList.remove('open');
+        });
+        _cmtOpenMenuId = null;
       }
     });
 
@@ -1187,18 +1272,43 @@
         // Comment send
         var cmtSend = e.target.closest('.pc-cmts-send[data-post-id]');
         if (cmtSend) { _cmtHandleSend(cmtSend.getAttribute('data-post-id')); return; }
-        // Comment edit
-        var cmtEditBtn = e.target.closest('.pc-cmt-act--edit[data-cmt-id]');
-        if (cmtEditBtn) {
-          var panel = cmtEditBtn.closest('.pc-cmts-panel');
-          if (panel) _cmtHandleEdit(cmtEditBtn.getAttribute('data-cmt-id'), panel.dataset.postId);
+        // Comment three-dot menu toggle
+        var cmtMenuBtn = e.target.closest('.pc-cmt-menu-btn[data-cmt-id]');
+        if (cmtMenuBtn) {
+          e.stopPropagation();
+          var cmtId = cmtMenuBtn.getAttribute('data-cmt-id');
+          if (_cmtOpenMenuId && _cmtOpenMenuId !== cmtId) {
+            var oldMenu = document.getElementById('pc-cmt-menu-' + _cmtOpenMenuId);
+            if (oldMenu) oldMenu.classList.remove('open');
+            _cmtOpenMenuId = null;
+          }
+          var thisMenu = document.getElementById('pc-cmt-menu-' + cmtId);
+          if (thisMenu) {
+            var isOpen = thisMenu.classList.toggle('open');
+            _cmtOpenMenuId = isOpen ? cmtId : null;
+          }
           return;
         }
-        // Comment delete
-        var cmtDelBtn = e.target.closest('.pc-cmt-act--del[data-cmt-id]');
-        if (cmtDelBtn) {
-          var panel = cmtDelBtn.closest('.pc-cmts-panel');
-          if (panel) _cmtHandleDelete(cmtDelBtn.getAttribute('data-cmt-id'), panel.dataset.postId);
+        // Comment edit (via three-dot menu)
+        var cmtEditItem = e.target.closest('.pc-cmt-menu-edit[data-cmt-id]');
+        if (cmtEditItem) {
+          var cmtId = cmtEditItem.getAttribute('data-cmt-id');
+          var m = document.getElementById('pc-cmt-menu-' + cmtId);
+          if (m) m.classList.remove('open');
+          _cmtOpenMenuId = null;
+          var panel = cmtEditItem.closest('.pc-cmts-panel');
+          if (panel) _cmtHandleEdit(cmtId, panel.dataset.postId);
+          return;
+        }
+        // Comment delete (via three-dot menu)
+        var cmtDelItem = e.target.closest('.pc-cmt-menu-del[data-cmt-id]');
+        if (cmtDelItem) {
+          var cmtId = cmtDelItem.getAttribute('data-cmt-id');
+          var m = document.getElementById('pc-cmt-menu-' + cmtId);
+          if (m) m.classList.remove('open');
+          _cmtOpenMenuId = null;
+          var panel = cmtDelItem.closest('.pc-cmts-panel');
+          if (panel) _cmtHandleDelete(cmtId, panel.dataset.postId);
           return;
         }
         // Save

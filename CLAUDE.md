@@ -1101,4 +1101,13 @@ Full technical specification: `ARCHITECTURE.md §65`.
    - **Optimistic UI:** `bodyEl.textContent = newBody` (XSS-safe) BEFORE the fetch call. On PATCH failure, rollback: `bodyEl.textContent = originalText`.
    - **XSS contract:** ALL text assignments in the edit flow use `textContent` — never `innerHTML`. This applies to `newBody`, `originalText`, and `res.data.comment.body`.
    - **Cancel:** restores body instantly, no request. `bodyEl.style.display = ''` + `editWrap.remove()`.
-   - **"تم التعديل" badge** added to `.pc-cmt-header` on success (idempotent — only if not already present).
+   - **"تم التعديل" badge** added to `.pc-cmt-header-left` on success (idempotent — only if not already present). Do NOT append it to `.pc-cmt-header` directly — that container also holds the ⋮ menu and the badge would appear next to the menu button instead of next to the author name.
+
+14. **Comment UX contracts (feat/comment-ui-polish) — permanent:**
+   - **Auto-resize textarea (both send and edit):** `_autoResizeTextarea(ta)` sets `ta.style.height = 'auto'` then clamps to `Math.min(ta.scrollHeight, 120)`. Both the send textarea (`_cmtPopulatePanel`) and the edit textarea (`_cmtHandleEdit`) start at `rows=1` and have an `input` listener. For the edit textarea, `_autoResizeTextarea(editTa)` is also called once after `editWrap` is inserted into the DOM (so `scrollHeight` reflects the pre-filled text). Height resets to `''` after a successful send. Do NOT set `rows` > 1 on either textarea.
+   - **RTL input row order:** `sendBtn` is appended to `.pc-cmts-input-row` BEFORE `ta`. In RTL flex row, this makes the button appear on the right and the textarea fill the left. Do NOT reverse this order.
+   - **Send button is outlined, not solid:** `background: transparent`, `border: 1.5px solid var(--ac)`, `color: var(--ac)`. Glow on hover. Never revert to `background: var(--ac)` (solid fill).
+   - **Three-dot ⋮ menu:** `_cmtBuildItem` builds a `.pc-cmt-menu-wrap` → `.pc-cmt-menu-btn` → `.pc-cmt-menu` structure when `viewer_can_edit` or `viewer_can_delete` is true. Items: `.pc-cmt-menu-edit` (if can edit), `.pc-cmt-menu-del` (if can delete). The old `.pc-cmt-act--edit` / `.pc-cmt-act--del` inline buttons are removed. `_cmtOpenMenuId` tracks the open menu; the document-level click handler closes all `.pc-cmt-menu.open` when clicking outside `.pc-cmt-menu-wrap`.
+   - **`.pc-cmt-acts` is kept as an empty DOM anchor** for `_cmtHandleEdit`'s `insertBefore`. Do NOT remove it from `_cmtBuildItem`.
+   - **Relative time:** `_formatRelativeTime(ts)` returns Arabic relative strings (`منذ لحظة`, `منذ N دقائق`, …). `_ICO_CLOCK` is a static inline SVG. Both are appended to `.pc-cmt-time` inside `.pc-cmt-header-left` via `textContent`/`innerHTML` (clock SVG is static — safe). Do NOT pass API text through `innerHTML`.
+   - **Comments list max-height is 280px.** Do NOT increase above 300px without a dedicated PR.

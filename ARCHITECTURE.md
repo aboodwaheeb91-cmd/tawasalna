@@ -9300,21 +9300,61 @@ LEFT JOIN (
 
 **`_cmtPopulatePanel(postId)`** — builds the panel DOM on first open:
 - Creates `.pc-cmts-list` + `.pc-cmts-loading` + `.pc-cmts-input-row`
-- If JWT present: textarea + send button
+- If JWT present: **send button first** (RTL: appears on right), then textarea (`rows=1`, grows via `_autoResizeTextarea`)
 - If no JWT: guest message `'سجّل دخولك للتعليق'`
 - Sets `panel._cmtInitialized = true` to prevent re-building
 
 **`_cmtBuildItem(comment)`** — builds a single comment DOM node:
-- Uses `createElement` + `textContent` exclusively — **no innerHTML for user data** (XSS protection)
-- Shows edit/delete buttons only when `viewer_can_edit` / `viewer_can_delete` are `true`
+- Header: `.pc-cmt-header-left` (author + relative time with clock icon + "تم التعديل" if edited) + `.pc-cmt-menu-wrap` (three-dot ⋮ menu, shown only when `viewer_can_edit` or `viewer_can_delete`)
+- Body: `textContent` only — **no innerHTML for any API-sourced string** (XSS protection)
+- `.pc-cmt-acts` (empty div): kept as DOM anchor for `_cmtHandleEdit`'s `insertBefore`. Never remove it.
+- Three-dot menu: `.pc-cmt-menu-btn` (⋮ button) + `.pc-cmt-menu` dropdown with `.pc-cmt-menu-edit` / `.pc-cmt-menu-del` items
 
 **`_cmtUpdateCount(postId, delta)`** — increments/decrements the count on the "تعليق" button after add/delete.
 
 **Comment button label:** `'تعليق · N'` if count > 0, else `'تعليق'`. Count stored in `data-cmt-count` attribute.
 
+### Comment UX (feat/comment-ui-polish — permanent contract)
+
+**Auto-resize textarea:**
+```javascript
+function _autoResizeTextarea(ta) {
+  ta.style.height = 'auto';
+  ta.style.height = Math.min(ta.scrollHeight, 120) + 'px';
+}
+```
+- Textarea starts at `rows=1`. Grows on `input` event. Max CSS height: `120px`.
+- After successful send: `ta.style.height = ''` (reset).
+- Forbidden: `rows` > 1 as initial value, removing the `input` listener.
+
+**RTL input row order:**
+- `sendBtn` appended BEFORE `ta` in `_cmtPopulatePanel`.
+- In RTL flex row: first child = rightmost → button on right, textarea fills left.
+- Do NOT reverse this order.
+
+**Send button (outlined style):**
+- `background: transparent`, `border: 1.5px solid var(--ac)`, `color: var(--ac)`.
+- Hover: `box-shadow: 0 0 8px rgba(37,99,255,.4); color: #fff`.
+- Forbidden: reverting to solid `background: var(--ac)`.
+
+**Three-dot ⋮ menu:**
+- `_cmtOpenMenuId` (module-level) tracks the commentId whose menu is open.
+- Menu toggle: `e.stopPropagation()`, close previous, toggle `open` class, update `_cmtOpenMenuId`.
+- Document-level click handler closes all `.pc-cmt-menu.open` when clicking outside `.pc-cmt-menu-wrap`.
+- Delegation targets: `.pc-cmt-menu-edit[data-cmt-id]` → `_cmtHandleEdit`, `.pc-cmt-menu-del[data-cmt-id]` → `_cmtHandleDelete`.
+- Old `.pc-cmt-act--edit` / `.pc-cmt-act--del` inline buttons are **removed**. Do not re-add them.
+
+**Relative time:**
+- `_formatRelativeTime(ts)` returns Arabic strings: `منذ لحظة`, `منذ دقيقة`, `منذ N دقائق`, …
+- `_ICO_CLOCK`: static inline SVG (safe to set via `innerHTML` — not API data).
+- Appended to `.pc-cmt-time` span inside `.pc-cmt-header-left`.
+- Forbidden: passing `ts` or any API string through `innerHTML`.
+
+**Comments list:** `max-height: 280px`. Do NOT increase above 300px without a dedicated PR.
+
 ### Comment Edit Flow (fix/comment-edit-ux — permanent contract)
 
-`_cmtHandleEdit(cmtId, postId)` — called via delegation on `.pc-cmt-act--edit`:
+`_cmtHandleEdit(cmtId, postId)` — called via delegation on `.pc-cmt-menu-edit`:
 
 **In-flight guard:**
 ```javascript
@@ -9397,4 +9437,9 @@ All comments panel styles use the `.pc-cmts-*` and `.pc-cmt-*` namespace. Do not
 ❌ comments_count computed client-side
 ❌ A second DB table for post comments
 ❌ A GET /comments endpoint that requires JWT (read is always public/optional-auth)
+❌ Re-adding .pc-cmt-act--edit / .pc-cmt-act--del inline buttons (replaced by three-dot menu)
+❌ Reverting .pc-cmts-send to solid fill background
+❌ Removing .pc-cmt-acts empty div from _cmtBuildItem (it is the DOM anchor for editWrap)
+❌ Setting rows > 1 as the initial value on the comment textarea
+❌ Appending ta before sendBtn in _cmtPopulatePanel (RTL order is fixed: sendBtn first)
 ```
