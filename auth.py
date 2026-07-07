@@ -3011,6 +3011,22 @@ def ensure_company_tables():
         conn.run("CREATE INDEX IF NOT EXISTS idx_post_saves_post ON company_post_saves(post_id)")
         conn.run("CREATE INDEX IF NOT EXISTS idx_post_saves_user ON company_post_saves(user_id)")
         conn.run("CREATE UNIQUE INDEX IF NOT EXISTS uq_post_save_user ON company_post_saves(post_id, user_id)")
+        # ── company_post_comments — threaded comments per post (V1: flat only) ──
+        conn.run("""
+            CREATE TABLE IF NOT EXISTS company_post_comments (
+                id         SERIAL PRIMARY KEY,
+                post_id    INTEGER NOT NULL REFERENCES company_posts(id) ON DELETE CASCADE,
+                user_id    INTEGER NOT NULL REFERENCES users(id)         ON DELETE CASCADE,
+                body       TEXT    NOT NULL,
+                status     VARCHAR(20)  NOT NULL DEFAULT 'active',
+                created_at TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+                updated_at TIMESTAMPTZ,
+                deleted_at TIMESTAMPTZ
+            )
+        """)
+        conn.run("CREATE INDEX IF NOT EXISTS idx_post_cmts_post   ON company_post_comments(post_id, created_at)")
+        conn.run("CREATE INDEX IF NOT EXISTS idx_post_cmts_user   ON company_post_comments(user_id)")
+        conn.run("CREATE INDEX IF NOT EXISTS idx_post_cmts_active ON company_post_comments(post_id, status)")
         release_conn(conn)
         print("✅ company tables ready")
     except Exception as e:
@@ -3305,12 +3321,14 @@ def get_company_posts(company_id: int, viewer_user_id=None) -> list:
                 "COALESCE(v.cnt, 0) AS views_count, "
                 "COALESCE(a.cnt, 0) AS appreciations_count, "
                 "(upa.user_id IS NOT NULL) AS viewer_appreciated, "
-                "(ups.user_id IS NOT NULL) AS viewer_saved "
+                "(ups.user_id IS NOT NULL) AS viewer_saved, "
+                "COALESCE(cmt.cnt, 0) AS comments_count "
                 "FROM company_posts cp "
                 "LEFT JOIN (SELECT post_id, COUNT(*) AS cnt FROM company_post_views GROUP BY post_id) v ON cp.id = v.post_id "
                 "LEFT JOIN (SELECT post_id, COUNT(*) AS cnt FROM company_post_appreciations GROUP BY post_id) a ON cp.id = a.post_id "
                 "LEFT JOIN company_post_appreciations upa ON upa.post_id = cp.id AND upa.user_id = :viewer_uid "
                 "LEFT JOIN company_post_saves ups ON ups.post_id = cp.id AND ups.user_id = :viewer_uid "
+                "LEFT JOIN (SELECT post_id, COUNT(*) AS cnt FROM company_post_comments WHERE status='active' GROUP BY post_id) cmt ON cp.id = cmt.post_id "
                 "WHERE cp.company_id = :cid ORDER BY cp.created_at DESC",
                 cid=company_id, viewer_uid=int(viewer_user_id))
         else:
@@ -3319,14 +3337,17 @@ def get_company_posts(company_id: int, viewer_user_id=None) -> list:
                 "COALESCE(v.cnt, 0) AS views_count, "
                 "COALESCE(a.cnt, 0) AS appreciations_count, "
                 "FALSE AS viewer_appreciated, "
-                "FALSE AS viewer_saved "
+                "FALSE AS viewer_saved, "
+                "COALESCE(cmt.cnt, 0) AS comments_count "
                 "FROM company_posts cp "
                 "LEFT JOIN (SELECT post_id, COUNT(*) AS cnt FROM company_post_views GROUP BY post_id) v ON cp.id = v.post_id "
                 "LEFT JOIN (SELECT post_id, COUNT(*) AS cnt FROM company_post_appreciations GROUP BY post_id) a ON cp.id = a.post_id "
+                "LEFT JOIN (SELECT post_id, COUNT(*) AS cnt FROM company_post_comments WHERE status='active' GROUP BY post_id) cmt ON cp.id = cmt.post_id "
                 "WHERE cp.company_id = :cid ORDER BY cp.created_at DESC",
                 cid=company_id)
         cols = ["id", "body", "tags", "theme_color", "comments_enabled", "created_at",
-                "views_count", "appreciations_count", "viewer_appreciated", "viewer_saved"]
+                "views_count", "appreciations_count", "viewer_appreciated", "viewer_saved",
+                "comments_count"]
         return [_serialize(_row_to_dict(cols, r)) for r in rows]
     finally:
         release_conn(conn)
@@ -3499,6 +3520,140 @@ def set_company_post_save(post_id: int, user_id: int, saved: bool) -> dict:
                 "DELETE FROM company_post_saves WHERE post_id=:pid AND user_id=:uid",
                 pid=post_id, uid=user_id)
         return {"saved": saved}
+    finally:
+        release_conn(conn)
+
+
+# ══ Post Comments System ══
+
+_MAX_COMMENT_BODY = 1000
+
+
+def get_company_post_comments(post_id: int, viewer_user_id=None) -> list:
+    """Return active comments for a post, oldest first.
+    viewer_user_id controls viewer_can_edit / viewer_can_delete flags."""
+    conn = get_conn()
+    try:
+        post_rows = conn.run("SELECT company_id FROM company_posts WHERE id = :pid", pid=post_id)
+        if not post_rows:
+            return []
+        post_company_id = int(post_rows[0][0])
+        rows = conn.run(
+            "SELECT c.id, c.body, c.created_at, c.updated_at, "
+            "u.full_name, u.tw_id, u.user_type, p.avatar_url, c.user_id "
+            "FROM company_post_comments c "
+            "JOIN users u ON u.id = c.user_id "
+            "LEFT JOIN profiles p ON p.user_id = c.user_id "
+            "WHERE c.post_id = :pid AND c.status = 'active' "
+            "ORDER BY c.created_at ASC",
+            pid=post_id)
+        cols = ["id", "body", "created_at", "updated_at",
+                "author_name", "author_tw_id", "author_user_type", "author_avatar", "user_id"]
+        viewer_id = int(viewer_user_id) if viewer_user_id else None
+        viewer_is_owner = (viewer_id is not None and viewer_id == post_company_id)
+        result = []
+        for r in rows:
+            d = _serialize(_row_to_dict(cols, r))
+            uid = d.get("user_id")
+            d["viewer_can_edit"]   = (viewer_id is not None and uid == viewer_id)
+            d["viewer_can_delete"] = (viewer_id is not None and (uid == viewer_id or viewer_is_owner))
+            result.append(d)
+        return result
+    finally:
+        release_conn(conn)
+
+
+def create_company_post_comment(post_id: int, user_id: int, body: str) -> dict:
+    """Create a new active comment. Validates body + checks comments_enabled."""
+    body = body.strip()
+    if not body:
+        raise ValueError("التعليق لا يمكن أن يكون فارغاً")
+    if len(body) > _MAX_COMMENT_BODY:
+        raise ValueError(f"التعليق يتجاوز الحد الأقصى البالغ {_MAX_COMMENT_BODY} حرف")
+    conn = get_conn()
+    try:
+        post_rows = conn.run(
+            "SELECT comments_enabled FROM company_posts WHERE id = :pid", pid=post_id)
+        if not post_rows:
+            raise ValueError("المنشور غير موجود")
+        if post_rows[0][0] is False:
+            raise PermissionError("التعليقات معطّلة لهذا المنشور")
+        rows = conn.run(
+            "INSERT INTO company_post_comments (post_id, user_id, body) "
+            "VALUES (:pid, :uid, :body) RETURNING id, body, created_at, updated_at",
+            pid=post_id, uid=user_id, body=body)
+        if not rows:
+            raise RuntimeError("insert failed")
+        cols = ["id", "body", "created_at", "updated_at"]
+        d = _serialize(_row_to_dict(cols, rows[0]))
+        urows = conn.run(
+            "SELECT u.full_name, u.tw_id, u.user_type, p.avatar_url "
+            "FROM users u LEFT JOIN profiles p ON p.user_id = u.id WHERE u.id = :uid",
+            uid=user_id)
+        if urows:
+            d["author_name"]      = urows[0][0]
+            d["author_tw_id"]     = urows[0][1]
+            d["author_user_type"] = urows[0][2]
+            d["author_avatar"]    = urows[0][3]
+        d["user_id"]           = user_id
+        d["viewer_can_edit"]   = True
+        d["viewer_can_delete"] = True
+        return d
+    finally:
+        release_conn(conn)
+
+
+def update_company_post_comment(comment_id: int, user_id: int, body: str) -> dict:
+    """Edit a comment — only the comment author may edit."""
+    body = body.strip()
+    if not body:
+        raise ValueError("التعليق لا يمكن أن يكون فارغاً")
+    if len(body) > _MAX_COMMENT_BODY:
+        raise ValueError(f"التعليق يتجاوز الحد الأقصى البالغ {_MAX_COMMENT_BODY} حرف")
+    conn = get_conn()
+    try:
+        rows = conn.run(
+            "SELECT user_id, status FROM company_post_comments WHERE id = :cid", cid=comment_id)
+        if not rows:
+            raise ValueError("التعليق غير موجود")
+        owner_id, status = int(rows[0][0]), rows[0][1]
+        if status != 'active':
+            raise ValueError("التعليق غير موجود")
+        if owner_id != user_id:
+            raise PermissionError("لا تملك صلاحية تعديل هذا التعليق")
+        rows = conn.run(
+            "UPDATE company_post_comments SET body=:body, updated_at=NOW() WHERE id=:cid "
+            "RETURNING id, body, created_at, updated_at",
+            body=body, cid=comment_id)
+        if not rows:
+            raise RuntimeError("update failed")
+        cols = ["id", "body", "created_at", "updated_at"]
+        return _serialize(_row_to_dict(cols, rows[0]))
+    finally:
+        release_conn(conn)
+
+
+def delete_company_post_comment(comment_id: int, user_id: int) -> bool:
+    """Soft-delete a comment. Allowed for: comment author OR company page owner."""
+    conn = get_conn()
+    try:
+        rows = conn.run(
+            "SELECT c.user_id, c.status, cp.company_id "
+            "FROM company_post_comments c "
+            "JOIN company_posts cp ON cp.id = c.post_id "
+            "WHERE c.id = :cid",
+            cid=comment_id)
+        if not rows:
+            raise ValueError("التعليق غير موجود")
+        owner_id, status, company_id = int(rows[0][0]), rows[0][1], int(rows[0][2])
+        if status != 'active':
+            raise ValueError("التعليق غير موجود")
+        if owner_id != user_id and company_id != user_id:
+            raise PermissionError("لا تملك صلاحية حذف هذا التعليق")
+        conn.run(
+            "UPDATE company_post_comments SET status='deleted', deleted_at=NOW() WHERE id=:cid",
+            cid=comment_id)
+        return True
     finally:
         release_conn(conn)
 

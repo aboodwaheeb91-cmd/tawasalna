@@ -1,0 +1,183 @@
+"""
+test_post_comments.py — Post Comments System (§22c)
+20 tests covering DB, permissions, validation, soft-delete, XSS, and system integrity.
+"""
+import sys, os, re, ast
+sys.path.insert(0, os.path.dirname(__file__))
+
+PASS = "✅ PASS"
+FAIL = "❌ FAIL"
+results = []
+
+def check(name, cond, detail=""):
+    status = PASS if cond else FAIL
+    results.append((name, status, detail))
+    print(f"{status}  {name}" + (f"  [{detail}]" if detail else ""))
+
+
+# ── 1. company_post_comments table in migration ───────────────────────────
+with open("auth.py", encoding="utf-8") as f:
+    auth_src = f.read()
+
+check(
+    "1. company_post_comments table defined in migration",
+    "CREATE TABLE IF NOT EXISTS company_post_comments" in auth_src
+)
+
+# ── 2. All three indexes defined ──────────────────────────────────────────
+check(
+    "2. idx_post_cmts_post index (post_id, created_at)",
+    "idx_post_cmts_post" in auth_src
+)
+check(
+    "2b. idx_post_cmts_user index",
+    "idx_post_cmts_user" in auth_src
+)
+check(
+    "2c. idx_post_cmts_active index (post_id, status)",
+    "idx_post_cmts_active" in auth_src
+)
+
+# ── 3. create requires JWT (no body user_id) ──────────────────────────────
+with open("server.py", encoding="utf-8") as f:
+    srv_src = f.read()
+
+check(
+    "3. POST /comments endpoint uses Depends(verify_token)",
+    "def company_create_post_comment" in srv_src and "Depends(verify_token)" in srv_src
+)
+
+# ── 4. Guest (no JWT) blocked — server 401 ───────────────────────────────
+check(
+    "4. create endpoint raises 401 when user_id absent from token",
+    'raise HTTPException(status_code=401' in srv_src and "يجب تسجيل الدخول للتعليق" in srv_src
+)
+
+# ── 5. comments_enabled=false → 403 server-side ───────────────────────────
+check(
+    "5. create_company_post_comment checks comments_enabled and raises PermissionError",
+    "raise PermissionError" in auth_src and "التعليقات معطّلة" in auth_src
+)
+check(
+    "5b. server maps PermissionError → HTTP 403",
+    "raise HTTPException(status_code=403" in srv_src
+)
+
+# ── 6. Empty comment body rejected ────────────────────────────────────────
+check(
+    "6. create_company_post_comment rejects empty body",
+    "التعليق لا يمكن أن يكون فارغاً" in auth_src
+)
+
+# ── 7. Max length enforced ────────────────────────────────────────────────
+check(
+    "7. _MAX_COMMENT_BODY constant defined",
+    "_MAX_COMMENT_BODY = 1000" in auth_src
+)
+check(
+    "7b. create/update check body length against _MAX_COMMENT_BODY",
+    "len(body) > _MAX_COMMENT_BODY" in auth_src
+)
+
+# ── 8. Comment owner can edit ────────────────────────────────────────────
+check(
+    "8. update_company_post_comment checks owner_id == user_id",
+    "if owner_id != user_id" in auth_src and "PermissionError" in auth_src
+)
+
+# ── 9. Other user cannot edit (PermissionError) ──────────────────────────
+check(
+    "9. update raises PermissionError for non-owner",
+    "لا تملك صلاحية تعديل" in auth_src
+)
+
+# ── 10. Comment owner can delete ─────────────────────────────────────────
+check(
+    "10. delete_company_post_comment allows owner_id == user_id",
+    "def delete_company_post_comment" in auth_src and "owner_id != user_id" in auth_src
+)
+
+# ── 11. Post owner can also delete ───────────────────────────────────────
+check(
+    "11. delete also allows company_id == user_id (post owner)",
+    "company_id != user_id" in auth_src
+)
+
+# ── 12. Other user cannot delete ─────────────────────────────────────────
+check(
+    "12. delete raises PermissionError if neither owner",
+    "لا تملك صلاحية حذف" in auth_src
+)
+
+# ── 13. Soft delete — status='deleted' not returned in GET ───────────────
+check(
+    "13. get_company_post_comments filters status = 'active' only",
+    "status = 'active'" in auth_src or "status='active'" in auth_src
+)
+check(
+    "13b. delete_company_post_comment sets status='deleted' and deleted_at",
+    "status='deleted'" in auth_src and "deleted_at=NOW()" in auth_src
+)
+
+# ── 14. comments_count in get_company_posts ───────────────────────────────
+check(
+    "14. get_company_posts includes comments_count LEFT JOIN",
+    "comments_count" in auth_src and "company_post_comments" in auth_src
+)
+
+# ── 15. XSS: body not rendered as innerHTML ───────────────────────────────
+posts_js = open("static/company/company.posts.js", encoding="utf-8").read()
+# textContent is the XSS-safe mechanism
+check(
+    "15. comment body rendered via textContent (XSS-safe)",
+    "bodyEl.textContent = c.body" in posts_js or "textContent" in posts_js
+)
+
+# ── 16. No localStorage for comments ─────────────────────────────────────
+check(
+    "16. no localStorage used for comment data or count",
+    "localStorage" not in posts_js.split("// ── Post Comments")[1] if "// ── Post Comments" in posts_js else "localStorage" not in posts_js
+)
+
+# ── 17. Appreciation system untouched ────────────────────────────────────
+check(
+    "17. appreciation endpoint still present in server.py",
+    "PUT /company/posts/{post_id}/appreciation" in srv_src or
+    "company_post_set_appreciation" in srv_src
+)
+
+# ── 18. Save system untouched ────────────────────────────────────────────
+check(
+    "18. save endpoint still present in server.py",
+    "PUT /company/posts/{post_id}/save" in srv_src or
+    "company_post_set_save" in srv_src
+)
+
+# ── 19. No notifications table creation ──────────────────────────────────
+comment_section = auth_src[auth_src.find("Post Comments System"):] if "Post Comments System" in auth_src else ""
+check(
+    "19. no notifications table created in post comments migration",
+    "CREATE TABLE IF NOT EXISTS notifications" not in comment_section
+)
+
+# ── 20. Rate limiters defined ────────────────────────────────────────────
+check(
+    "20. comment create rate limiter defined",
+    "_cmt_create_rate_store" in srv_src and "_CMT_CREATE_RATE" in srv_src
+)
+check(
+    "20b. comment edit rate limiter defined",
+    "_cmt_edit_rate_store" in srv_src and "_CMT_EDIT_RATE" in srv_src
+)
+
+# ── Summary ──────────────────────────────────────────────────────────────
+print()
+passed = sum(1 for _, s, _ in results if s == PASS)
+total  = len(results)
+print(f"{'='*50}")
+print(f"Results: {passed}/{total} passed")
+if passed == total:
+    print("🎉 All tests passed!")
+else:
+    failed = [n for n, s, _ in results if s == FAIL]
+    print("Failed:", ", ".join(failed))

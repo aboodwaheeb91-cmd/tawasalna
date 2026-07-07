@@ -304,6 +304,14 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 
 ---
 
+### 22c. Post Comments System (نظام التعليقات)
+**Purpose:** Flat (V1) per-post comments on company posts. Auth required to create/edit/delete. Server-side permission enforcement. Soft delete. XSS-safe rendering. `comments_count` returned with every post.
+**Source of Truth:** `company_post_comments` table · `auth.py → get_company_post_comments / create_company_post_comment / update_company_post_comment / delete_company_post_comment` · `GET /company/posts/{post_id}/comments` · `POST/PATCH/DELETE /company/posts/comments/{comment_id}` · `static/company/company.posts.js` (`_toggleCommentPanel`, `_cmtBuildItem`, `_cmtUpdateCount`)
+**Details:** `CLAUDE.md → Post Comments System Rules` · `ARCHITECTURE.md §65`
+**Do not recreate:** V1 is flat only — no nested replies. Do not render comment body via innerHTML (XSS risk). Do not create a notifications table in the comments system. Delete is always soft (`status='deleted'`). `viewer_can_edit` / `viewer_can_delete` flags come from the server — never compute permissions on the frontend.
+
+---
+
 ## E — Trust & Safety
 
 ### 23. Credential Verification / KYC
@@ -439,4 +447,4 @@ These systems exist in code but lack formal documentation in ARCHITECTURE.md or 
 
 ---
 
-*Last updated: 2026-07-07 — reflects systems as of PR #386, PR #385, and feat/company-post-save-system. Added §22a Post Appreciation System. Added §22b Post Save System. Updated §4 Smart Router with legacy redirect rule. Updated §H Pages Index: `/company-profile` is now a redirect-only route.*
+*Last updated: 2026-07-07 — reflects systems as of PR #386, PR #385, PR #388, PR #389, and feat/company-post-comments-system. Added §22a Post Appreciation System. Added §22b Post Save System. Added §22c Post Comments System. Updated §4 Smart Router with legacy redirect rule. Updated §H Pages Index: `/company-profile` is now a redirect-only route.*

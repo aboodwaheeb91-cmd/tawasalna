@@ -538,7 +538,11 @@
           var apprLabel = appCount > 0 ? ('أقدّر · ' + appCount) : 'أقدّر';
           return '<div class="pc-actions">'
             + '<button class="' + apprCls + '" data-post-id="' + pid + '" data-appr-count="' + appCount + '">' + apprIco + apprLabel + '</button>'
-            + (post.comments_enabled !== false ? '<button class="pc-btn pc-btn--cmt" data-post-id="' + pid + '">' + icoComment + 'تعليق</button>' : '')
+            + (post.comments_enabled !== false ? (function() {
+                var cmtCount = Number(post.comments_count) || 0;
+                var cmtLabel = cmtCount > 0 ? ('تعليق · ' + cmtCount) : 'تعليق';
+                return '<button class="pc-btn pc-btn--cmt" data-post-id="' + pid + '" data-cmt-count="' + cmtCount + '">' + icoComment + cmtLabel + '</button>';
+              })() : '')
             + '<button class="pc-btn pc-btn--share" data-post-id="' + pid + '">' + icoShare    + 'مشاركة</button>'
             + (function () {
                 var saveActive = post.viewer_saved === true || post.viewer_saved === 'true' || post.viewer_saved === 1;
@@ -548,6 +552,7 @@
               })()
             + '</div>';
         })()
+      + (post.comments_enabled !== false ? '<div class="pc-cmts-panel" id="pc-cmt-panel-' + pid + '" data-post-id="' + pid + '" style="display:none"></div>' : '')
     + '</div>';
   }
 

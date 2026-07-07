@@ -9193,3 +9193,174 @@ When `viewer_user_id` is absent (unauthenticated), `viewer_saved` is always `FAL
 ❌ Updating .save-active or data-saved outside _renderSaveButton()
 ❌ Checking save state from viewer_saved before viewer_user_id is resolved
 ```
+
+---
+
+## [P1] 65. Post Comments System — نظام التعليقات
+
+**Implemented in:** PR feat/company-post-comments-system
+
+### Purpose
+
+Flat (V1) per-post comments for company posts. Auth required to post/edit/delete. Server-side permission enforcement. Soft delete. XSS-safe rendering.
+
+### Database Table: `company_post_comments`
+
+```sql
+CREATE TABLE company_post_comments (
+    id         SERIAL PRIMARY KEY,
+    post_id    INTEGER NOT NULL REFERENCES company_posts(id) ON DELETE CASCADE,
+    user_id    INTEGER NOT NULL REFERENCES users(id)         ON DELETE CASCADE,
+    body       TEXT    NOT NULL,
+    status     VARCHAR(20)  NOT NULL DEFAULT 'active',
+    created_at TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ,
+    deleted_at TIMESTAMPTZ
+);
+
+CREATE INDEX  idx_post_cmts_post   ON company_post_comments(post_id, created_at);
+CREATE INDEX  idx_post_cmts_user   ON company_post_comments(user_id);
+CREATE INDEX  idx_post_cmts_active ON company_post_comments(post_id, status);
+```
+
+`status` values: `'active'` (visible) · `'deleted'` (soft-deleted, never returned).
+
+### auth.py Helpers
+
+| Helper | Contract |
+|--------|---------|
+| `get_company_post_comments(post_id, viewer_user_id)` | Returns active comments oldest-first. Joins `users` + `profiles` for author data. Sets `viewer_can_edit` / `viewer_can_delete` flags per comment. |
+| `create_company_post_comment(post_id, user_id, body)` | Validates body (non-empty, ≤1000 chars), checks `comments_enabled`, inserts row, returns full comment dict with author data + `viewer_can_edit=True`. |
+| `update_company_post_comment(comment_id, user_id, body)` | Validates body. Checks `owner_id == user_id`; raises `PermissionError` if not. Sets `updated_at=NOW()`. |
+| `delete_company_post_comment(comment_id, user_id)` | Checks `owner_id == user_id OR company_id == user_id`; raises `PermissionError` if neither. Sets `status='deleted', deleted_at=NOW()` (soft delete). |
+
+`_MAX_COMMENT_BODY = 1000` — maximum comment length in characters.
+
+### `get_company_posts()` Extension
+
+`get_company_posts()` now includes `comments_count` via LEFT JOIN:
+
+```sql
+LEFT JOIN (
+    SELECT post_id, COUNT(*) AS cnt
+    FROM company_post_comments WHERE status='active'
+    GROUP BY post_id
+) cmt ON cp.id = cmt.post_id
+-- adds: COALESCE(cmt.cnt, 0) AS comments_count
+```
+
+`comments_count` is the only approved source for the comment count on the post card.
+
+### API Endpoints
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | `/company/posts/{post_id}/comments` | Optional JWT | Returns active comments + viewer flags |
+| POST | `/company/posts/{post_id}/comments` | JWT (required) | Create a new comment |
+| PATCH | `/company/posts/comments/{comment_id}` | JWT (required) | Edit comment body (author only) |
+| DELETE | `/company/posts/comments/{comment_id}` | JWT (required) | Soft-delete (author or post owner) |
+
+**GET request (optional JWT):** If `Authorization: Bearer` header is present, `viewer_can_edit` / `viewer_can_delete` flags are set per comment. If absent, both flags are `false`.
+
+**POST body:** `{ "body": "..." }`
+
+**PATCH body:** `{ "body": "..." }`
+
+**Error codes (shared):**
+
+| Code | Condition |
+|------|-----------|
+| 401 | No JWT |
+| 403 | comments_enabled=false / not authorized to edit/delete |
+| 404 | Post or comment not found |
+| 422 | Empty body or body > 1000 chars |
+| 429 | Rate limit (10 create/60s · 10 edit/60s) |
+
+### Permissions (server-side only)
+
+| Action | Who |
+|--------|-----|
+| Read comments | Anyone (no auth required) |
+| Create comment | Any authenticated user (JWT required) |
+| Edit comment | Comment author only |
+| Delete comment | Comment author OR company page owner |
+
+`viewer_can_edit` / `viewer_can_delete` are returned per comment from the GET endpoint and used by the frontend to show/hide action buttons. **Never bypass server-side checks.**
+
+### Frontend Architecture
+
+**Files:** `static/company/company.posts.js` (comments section) · `static/company/company.render.js` (panel shell + count) · `static/company/company.css` (`.pc-cmts-*`)
+
+**Panel shell:** A `<div class="pc-cmts-panel" id="pc-cmt-panel-{pid}">` is embedded inside each post card in the initial HTML render (inside `#postsList`). It is hidden (`display:none`) until the user clicks "تعليق".
+
+**`_toggleCommentPanel(postId)`** — single entry point:
+1. Close any other open panel
+2. If panel hidden → `_cmtPopulatePanel()` (first open only) + `_cmtLoadComments()` + show
+3. If panel visible → hide
+
+**`_cmtPopulatePanel(postId)`** — builds the panel DOM on first open:
+- Creates `.pc-cmts-list` + `.pc-cmts-loading` + `.pc-cmts-input-row`
+- If JWT present: textarea + send button
+- If no JWT: guest message `'سجّل دخولك للتعليق'`
+- Sets `panel._cmtInitialized = true` to prevent re-building
+
+**`_cmtBuildItem(comment)`** — builds a single comment DOM node:
+- Uses `createElement` + `textContent` exclusively — **no innerHTML for user data** (XSS protection)
+- Shows edit/delete buttons only when `viewer_can_edit` / `viewer_can_delete` are `true`
+
+**`_cmtUpdateCount(postId, delta)`** — increments/decrements the count on the "تعليق" button after add/delete.
+
+**Comment button label:** `'تعليق · N'` if count > 0, else `'تعليق'`. Count stored in `data-cmt-count` attribute.
+
+### XSS Rules
+
+```
+✅ bodyEl.textContent = c.body  (safe)
+✅ nameEl.textContent = c.author_name  (safe)
+❌ bodyEl.innerHTML = c.body  (forbidden)
+❌ el.innerHTML = '<p>' + c.body + '</p>'  (forbidden)
+```
+
+Any edit to `_cmtBuildItem` must maintain textContent-only rendering for all API-sourced strings.
+
+### Rate Limiters
+
+```python
+# Create: 10 per 60s per (user_id, post_id)
+_CMT_CREATE_RATE   = 10
+_CMT_CREATE_WINDOW = 60.0  # seconds
+
+# Edit: 10 per 60s per (user_id, comment_id)
+_CMT_EDIT_RATE   = 10
+_CMT_EDIT_WINDOW = 60.0
+```
+
+### Soft Delete Contract
+
+`delete_company_post_comment()` never performs a hard DELETE. It updates:
+```sql
+UPDATE company_post_comments
+SET status='deleted', deleted_at=NOW()
+WHERE id=:cid
+```
+
+`get_company_post_comments()` always filters `WHERE status='active'`. Deleted comments are invisible to all users and never returned by any endpoint.
+
+### CSS Namespace
+
+All comments panel styles use the `.pc-cmts-*` and `.pc-cmt-*` namespace. Do not add comments styles to any other namespace.
+
+### Forbidden Patterns
+
+```
+❌ Nested replies / reply threading in V1
+❌ Hard DELETE on comment rows
+❌ innerHTML for any API-sourced string in comment rendering
+❌ localStorage for comment data, count, or state
+❌ Creating a notifications table in this system
+❌ Sending notifications from comment endpoints
+❌ Trusting viewer_can_edit/delete from the frontend — server flags are authoritative
+❌ comments_count computed client-side
+❌ A second DB table for post comments
+❌ A GET /comments endpoint that requires JWT (read is always public/optional-auth)
+```

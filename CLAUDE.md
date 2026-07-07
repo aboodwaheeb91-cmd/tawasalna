@@ -1058,3 +1058,38 @@ Full technical specification: `ARCHITECTURE.md §64`.
    `company.render.js` initial render must produce the same states using `icoBookmarkCheck` / `icoBookmark`. Any icon/text change must update both files in the same PR.
 
 9. **Guest toast message is fixed:** `'سجّل دخولك لحفظ المنشور'`. Do not change this wording.
+
+---
+
+## Post Comments System Rules (mandatory for all AI sessions)
+
+These rules are permanent and apply to all future AI sessions.
+Full technical specification: `ARCHITECTURE.md §65`.
+
+1. **`company_post_comments` is the only table for post comments.** Do not create a second table for the same purpose.
+
+2. **V1 is flat comments only.** No nested replies, mentions, or reactions on comments in V1. Do not implement reply threading without an explicit PR for that feature.
+
+3. **`comments_enabled` is enforced server-side.** When `comments_enabled=false`, `create_company_post_comment()` raises `PermissionError` → HTTP 403. Do not rely on hiding the button alone.
+
+4. **Permissions are server-side only:**
+   - Edit: comment author only (`owner_id == user_id`)
+   - Delete: comment author OR company page owner (`company_id == user_id`)
+   - `viewer_can_edit` / `viewer_can_delete` flags are returned per-comment from `GET /company/posts/{post_id}/comments`
+   - Never gate permissions on frontend state alone
+
+5. **`comments_count` is the only source of truth for the count.** It comes from `get_company_posts()` LEFT JOIN. Do not count comments client-side or cache a count in localStorage.
+
+6. **Soft delete is mandatory.** `delete_company_post_comment()` sets `status='deleted'` and `deleted_at=NOW()`. Hard delete is forbidden. `get_company_post_comments()` filters `status='active'` only.
+
+7. **XSS protection is mandatory.** Comment `body` must only be rendered via `textContent` — never `innerHTML`. The `_cmtBuildItem()` function enforces this. Do not introduce `innerHTML` rendering of any API text in the comments panel.
+
+8. **No localStorage for comments.** Comment data, counts, and state come from the API only. Do not cache comments or counts in `localStorage` or `sessionStorage`.
+
+9. **`_toggleCommentPanel(postId)` is the single entry point** for opening/closing the comments panel. Do not add a second trigger or duplicate panel-open logic.
+
+10. **No notifications in this PR.** The `comment_created` event is a future hook for Phase 3 (Notifications). Do not create a `notifications` table or send notifications in the comments PR.
+
+11. **Do not change the appreciation system or save system.** The comments implementation must not modify `company_post_appreciations`, `company_post_saves`, their endpoints, or their frontend queue variables.
+
+12. **Rate limits are permanent:** 10 create / 60s per (user, post), 10 edits / 60s per (user, comment). Do not remove or relax without a documented security review.
