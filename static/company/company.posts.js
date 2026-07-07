@@ -552,19 +552,22 @@
           return;
         }
 
-        // Sync UI with server truth
         var srvActive = !!res.data.appreciated;
         var srvCount  = Number(res.data.appreciations_count) || 0;
-        if (btn) _renderAppreciationButton(btn, srvActive, srvCount);
+        var desired   = _apprDesired[postId];
 
-        // If desired changed while this request was in flight, send follow-up
-        if (_apprDesired[postId] !== undefined && _apprDesired[postId] !== srvActive) {
+        if (desired !== undefined && desired !== srvActive) {
+          // Server response is stale — user clicked again while request was in flight.
+          // Keep UI on desired (no flicker); update orig for accurate rollback on failure.
           _apprOrigState[postId] = { active: srvActive, count: srvCount };
           _dispatchAppreciation(postId);
-        } else {
-          delete _apprDesired[postId];
-          delete _apprOrigState[postId];
+          return;
         }
+
+        // Server matches desired (or no pending desired) — safe to sync UI.
+        if (btn) _renderAppreciationButton(btn, srvActive, srvCount);
+        delete _apprDesired[postId];
+        delete _apprOrigState[postId];
       })
       .catch(function () {
         _apprInFlight[postId] = false;
