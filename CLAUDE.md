@@ -1093,3 +1093,12 @@ Full technical specification: `ARCHITECTURE.md §65`.
 11. **Do not change the appreciation system or save system.** The comments implementation must not modify `company_post_appreciations`, `company_post_saves`, their endpoints, or their frontend queue variables.
 
 12. **Rate limits are permanent:** 10 create / 60s per (user, post), 10 edits / 60s per (user, comment). Do not remove or relax without a documented security review.
+
+13. **Comment edit flow is a permanent contract (fix/comment-edit-ux):**
+   - **Insert-first rule:** `editWrap` must be inserted into `.pc-cmt-content` BEFORE `bodyEl.style.display = 'none'`. Never hide the body before the editor is in the DOM.
+   - **Correct parent:** `content.insertBefore(editWrap, acts)` where `content = item.querySelector('.pc-cmt-content')`. Do NOT use `item.insertBefore(editWrap, acts)` — `acts` is not a direct child of `item`.
+   - **In-flight guard:** `_cmtEditInFlight[commentId]` prevents concurrent PATCH requests on the same comment. Check it at the top of `_cmtHandleEdit` AND inside the save handler.
+   - **Optimistic UI:** `bodyEl.textContent = newBody` (XSS-safe) BEFORE the fetch call. On PATCH failure, rollback: `bodyEl.textContent = originalText`.
+   - **XSS contract:** ALL text assignments in the edit flow use `textContent` — never `innerHTML`. This applies to `newBody`, `originalText`, and `res.data.comment.body`.
+   - **Cancel:** restores body instantly, no request. `bodyEl.style.display = ''` + `editWrap.remove()`.
+   - **"تم التعديل" badge** added to `.pc-cmt-header` on success (idempotent — only if not already present).

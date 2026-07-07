@@ -9312,6 +9312,40 @@ LEFT JOIN (
 
 **Comment button label:** `'تعليق · N'` if count > 0, else `'تعليق'`. Count stored in `data-cmt-count` attribute.
 
+### Comment Edit Flow (fix/comment-edit-ux — permanent contract)
+
+`_cmtHandleEdit(cmtId, postId)` — called via delegation on `.pc-cmt-act--edit`:
+
+**In-flight guard:**
+```javascript
+var _cmtEditInFlight = {}; // module-level
+if (_cmtEditInFlight[cmtId]) return; // top of function AND inside save handler
+```
+
+**Insert-first rule (prevents blank gap):**
+```
+1. Build editWrap fully in memory
+2. content.insertBefore(editWrap, acts)  ← correct parent: .pc-cmt-content
+3. bodyEl.style.display = 'none'        ← AFTER editWrap is in DOM
+4. editTa.focus() + setSelectionRange(end)
+```
+
+`item.insertBefore(editWrap, acts)` is **forbidden** — `acts` is a child of `.pc-cmt-content`, not of `item`. Using `item` as parent throws `NotFoundError` and freezes the UI.
+
+**Optimistic UI sequence:**
+```
+1. _cmtEditInFlight[cmtId] = true
+2. bodyEl.textContent = newBody    ← XSS-safe, immediate
+3. bodyEl.style.display = ''
+4. editWrap.remove()
+5. fetch PATCH ...
+   success → bodyEl.textContent = res.data.comment.body + add "تم التعديل" badge
+   failure → bodyEl.textContent = originalText (rollback) + showToast
+6. _cmtEditInFlight[cmtId] = false
+```
+
+**Cancel:** `bodyEl.style.display = ''` + `editWrap.remove()` — no request, instant.
+
 ### XSS Rules
 
 ```
