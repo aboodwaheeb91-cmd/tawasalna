@@ -9072,3 +9072,122 @@ Each PR is independent. No PR mixes public_id implementation with other features
 ❌ Treating public_id as an access credential (it is identity + URL only)
 ❌ Mixing public_id implementation with Smart Router in the same PR
 ```
+
+---
+
+## [P1] 64. Post Save System — حفظ المنشور
+
+**Implemented in:** PR #388 (feat/company-post-save-system)
+
+### Purpose
+
+Private per-user save/bookmark for company posts. State persists in DB, not localStorage. Identical queue architecture to the Post Appreciation System (§22a in SYSTEMS_INDEX.md).
+
+### Database Table: `company_post_saves`
+
+```sql
+CREATE TABLE company_post_saves (
+    id         SERIAL PRIMARY KEY,
+    post_id    INTEGER NOT NULL REFERENCES company_posts(id) ON DELETE CASCADE,
+    user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX  idx_post_saves_post ON company_post_saves(post_id);
+CREATE INDEX  idx_post_saves_user ON company_post_saves(user_id);  -- for future /me/saved-posts
+CREATE UNIQUE INDEX uq_post_save_user ON company_post_saves(post_id, user_id);
+```
+
+**One save per user per post — enforced at DB level via `uq_post_save_user`.**
+
+### auth.py Helper: `set_company_post_save(post_id, user_id, saved)`
+
+```python
+# saved=True  → INSERT INTO company_post_saves ... ON CONFLICT DO NOTHING
+# saved=False → DELETE FROM company_post_saves WHERE post_id=:pid AND user_id=:uid
+# Returns {saved: bool}
+```
+
+`get_company_posts(company_id, viewer_user_id)` was extended to include:
+```sql
+LEFT JOIN company_post_saves ups ON ups.post_id = cp.id AND ups.user_id = :viewer_uid
+-- adds: (ups.user_id IS NOT NULL) AS viewer_saved
+```
+When `viewer_user_id` is absent (unauthenticated), `viewer_saved` is always `FALSE`.
+
+### API Endpoint
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| PUT | `/company/posts/{post_id}/save` | JWT Bearer (required) | حفظ / إلغاء حفظ المنشور |
+
+**Request body:**
+```json
+{ "saved": true }   // or false
+```
+
+**Response:**
+```json
+{ "status": "success", "saved": true }
+```
+
+**Error codes:**
+| Code | Condition |
+|------|-----------|
+| 401 | No JWT |
+| 404 | Post not found |
+| 429 | Rate limit exceeded (10 req / 10s per (user, post)) |
+
+**No 403 for post owner** — owner may save their own post.
+
+### viewer_saved — Source of Truth
+
+`viewer_saved` is returned by `GET /company/posts/{company_id}` when a JWT is present. It is the **only approved source of save state** on the frontend. Do not cache, infer, or compute save state from localStorage.
+
+### Frontend Architecture (`static/company/company.posts.js`)
+
+**Desired State Queue** — identical pattern to the Post Appreciation System:
+
+| Variable | Purpose |
+|----------|---------|
+| `_saveDesired[postId]` | Last desired state from user click |
+| `_saveInFlight[postId]` | `true` while a request is active |
+| `_saveOrigState[postId]` | Pre-click state for rollback on failure |
+
+**`_toggleSave(postId)`** — called on button click:
+1. Check JWT → show guest toast `'سجّل دخولك لحفظ المنشور'` if absent
+2. Capture `_saveOrigState` (first click only, before flight)
+3. Record `_saveDesired`
+4. Call `_renderSaveButton(btn, desired)` immediately (optimistic UI)
+5. If already in-flight → return; handler picks up new desired on resolve
+
+**`_dispatchSave(postId)`** — HTTP request + no-flicker logic:
+1. PUT `/company/posts/{postId}/save` with `{ saved: desired }`
+2. On 429 → rollback to `_saveOrigState`
+3. On error → rollback to `_saveOrigState`
+4. On success → **check `desired !== srvActive` BEFORE render**
+   - If stale (user clicked again mid-flight): update `_saveOrigState`, dispatch follow-up, `return` without rendering
+   - If match: call `_renderSaveButton(btn, srvActive)`, clear queue
+
+**`_renderSaveButton(btn, active)`** — single DOM update point:
+- `active=true` → filled bookmark icon + `save-active` class + `data-saved="1"`
+- `active=false` → outline bookmark icon, class removed, `data-saved="0"`
+
+### CSS
+
+```css
+.pc-btn--save.save-active       { color: #fbbf24; }
+.pc-btn--save.save-active svg   { fill: currentColor; }
+```
+
+### Rules (Forbidden Patterns)
+
+```
+❌ Using localStorage as the source of truth for save state
+❌ Exposing save count publicly (count is private — not shown on the card)
+❌ A second DB table for post saves
+❌ A second endpoint for post saves (POST toggle, etc.)
+❌ Simplifying the Desired State Queue to a plain toggle
+❌ Updating .save-active or data-saved outside _renderSaveButton()
+❌ Checking save state from viewer_saved before viewer_user_id is resolved
+```
