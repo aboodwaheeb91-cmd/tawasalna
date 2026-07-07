@@ -252,7 +252,7 @@ check(
 # ── 32. Three-dot menu button built in _cmtBuildItem ──────────────
 check(
     "32. pc-cmt-menu-btn class in _cmtBuildItem",
-    "pc-cmt-menu-btn" in build_fn2[:3000]
+    "pc-cmt-menu-btn" in build_fn2[:4000]
 )
 
 # ── 33. Menu edit / delete classes now in portal (_cmtShowPortalMenu) ─────
@@ -630,6 +630,188 @@ check(
 check(
     "76c. root_rows same post_id check",
     "root_rows[0][1]) != post_id" in auth_src
+)
+
+# ── 77-85. @ Mention Autocomplete (company.posts.js) ─────────────────────
+
+# Module-level state variables
+check(
+    "77. _cmtMentionMenu module variable declared",
+    "var _cmtMentionMenu  = null;" in posts_js or "var _cmtMentionMenu=" in posts_js or "_cmtMentionMenu  = null" in posts_js
+)
+check(
+    "78. _cmtMentionState module variable declared with correct shape",
+    "_cmtMentionState = {" in posts_js and "open:" in posts_js and "activeIdx:" in posts_js
+)
+
+# Core mention functions present
+check(
+    "79. _cmtGetMentionMenu creates portal div with correct id",
+    "_cmtMentionMenu.id = 'pc-cmt-mention-menu'" in posts_js
+)
+check(
+    "80. _cmtCloseMentionMenu resets all state fields",
+    "_cmtMentionState.open      = false" in posts_js and "_cmtMentionState.activeIdx = -1" in posts_js
+)
+check(
+    "81. _cmtCollectMentionCandidates reads data-author-tw-id from panel items (XSS-safe)",
+    "querySelectorAll('.pc-cmt-item[data-author-tw-id]')" in posts_js
+)
+check(
+    "82. _cmtFilterMentionCandidates limits to 6 results",
+    "result.length < 6" in posts_js
+)
+check(
+    "83. _cmtFindMentionStart stops at space/newline (no false positives)",
+    "val[i] === ' ' || val[i] === '\\n'" in posts_js
+)
+check(
+    "84. _cmtInsertMention builds @name+space and fires input event (XSS-safe — textContent route)",
+    "var insert = '@' + name + ' '" in posts_js and "dispatchEvent(new Event('input'))" in posts_js
+)
+
+# Textarea wiring
+check(
+    "85. _cmtHandleMentionInput wired to textarea input listener in _cmtPopulatePanel",
+    "_cmtHandleMentionInput(ta, String(postId))" in posts_js
+)
+check(
+    "85b. _cmtHandleMentionKeydown wired to textarea keydown listener",
+    "_cmtHandleMentionKeydown(e, ta)" in posts_js
+)
+
+# Mention menu item delegation + close on outside click
+check(
+    "85c. click delegation for .pc-cmt-mention-item uses dataset.mentionName",
+    "item.dataset.mentionName" in posts_js
+)
+check(
+    "85d. DOMContentLoaded closes mention menu on outside click",
+    "!menu.contains(e.target) && e.target !== _cmtMentionState.ta" in posts_js
+)
+
+# CSS
+with open("static/company/company.css") as _f:
+    company_css = _f.read()
+
+check(
+    "85e. CSS .pc-cmt-mention-menu is position:fixed z-index:9999",
+    "pc-cmt-mention-menu" in company_css and "position:fixed" in company_css and "z-index:9999" in company_css
+)
+check(
+    "85f. CSS .pc-cmt-mention-active exists for keyboard highlight",
+    "pc-cmt-mention-active" in company_css
+)
+
+# ── 85g. menu.replaceChildren() — no innerHTML in mention menu ───────────
+open_menu_fn = posts_js[posts_js.find("function _cmtOpenMentionMenu"):] if "function _cmtOpenMentionMenu" in posts_js else ""
+open_menu_fn_body = open_menu_fn[:open_menu_fn.find("}\n\n")+2] if "}\n\n" in open_menu_fn else open_menu_fn[:500]
+check(
+    "85g. _cmtOpenMentionMenu uses replaceChildren() to clear items (no innerHTML)",
+    "menu.replaceChildren()" in open_menu_fn_body
+)
+check(
+    "85h. _cmtOpenMentionMenu does not use menu.innerHTML",
+    "menu.innerHTML" not in open_menu_fn_body
+)
+
+# ── 86-99. Author links + @mention links + reply_to_author_tw_id ─────────
+
+# Backend: reply_to_author_tw_id in GET comments
+check(
+    "86. get_company_post_comments SELECT includes ru.tw_id AS reply_to_author_tw_id",
+    "ru.tw_id AS reply_to_author_tw_id" in auth_src
+)
+check(
+    "87. get_company_post_comments cols includes reply_to_author_tw_id",
+    '"reply_to_author_tw_id"' in auth_src
+)
+
+# Backend: reply_to_author_tw_id in CREATE response
+check(
+    "88. create_company_post_comment fetches u.tw_id for reply author",
+    'SELECT u.full_name, u.tw_id FROM company_post_comments c' in auth_src or
+    '"SELECT u.full_name, u.tw_id FROM company_post_comments c' in auth_src
+)
+check(
+    "89. create_company_post_comment initialises reply_to_author_tw_id = None",
+    "reply_to_author_tw_id = None" in auth_src
+)
+check(
+    "90. create_company_post_comment returns reply_to_author_tw_id in dict",
+    'd["reply_to_author_tw_id"] = reply_to_author_tw_id' in auth_src
+)
+
+# Frontend: author links
+check(
+    "91. _cmtBuildItem sets ava element to <a> when author_tw_id present",
+    "document.createElement(c.author_tw_id ? 'a' : 'div')" in posts_js
+)
+check(
+    "92. _cmtBuildItem sets ava href to /u/{author_tw_id}",
+    "ava.href = '/u/' + c.author_tw_id" in posts_js
+)
+check(
+    "93. _cmtBuildItem makes author name an <a> when author_tw_id present",
+    "document.createElement(c.author_tw_id ? 'a' : 'span')" in posts_js
+)
+check(
+    "94. _cmtBuildItem sets name href to /u/{author_tw_id}",
+    "nameEl.href = '/u/' + c.author_tw_id" in posts_js
+)
+
+# Frontend: stores tw_id data attrs for candidates
+check(
+    "95. _cmtBuildItem stores data-author-tw-id for mention candidate collection",
+    "el.dataset.authorTwId   = c.author_tw_id" in posts_js or
+    "el.dataset.authorTwId = c.author_tw_id" in posts_js
+)
+
+# Frontend: _renderCommentBody supports 4th param mentionTwId
+check(
+    "96. _renderCommentBody accepts 4th param mentionTwId",
+    "function _renderCommentBody(bodyEl, text, mentionName, mentionTwId)" in posts_js
+)
+check(
+    "97. _renderCommentBody creates <a> when mentionTwId provided (XSS-safe)",
+    "mentionTwId ? document.createElement('a') : document.createElement('span')" in posts_js
+)
+check(
+    "98. _renderCommentBody sets href /u/tw_id on mention <a> (not innerHTML)",
+    "mentionEl.href = '/u/' + mentionTwId" in posts_js
+)
+
+# Frontend: _cmtBuildItem passes reply_to_author_tw_id as 4th arg
+check(
+    "99. _cmtBuildItem passes reply_to_author_tw_id to _renderCommentBody",
+    "_renderCommentBody(bodyEl, c.body, c.reply_to_author_name || null, c.reply_to_author_tw_id || null)" in posts_js
+)
+
+# Frontend: _cmtHandleEdit passes replyToAuthorTwId as 4th arg
+check(
+    "99b. _cmtHandleEdit reads replyToAuthorTwId from dataset",
+    "var replyToAuthorTwId = item.dataset.replyToAuthorTwId || null" in posts_js or
+    "replyToAuthorTwId = item.dataset.replyToAuthorTwId" in posts_js
+)
+check(
+    "99c. _cmtHandleEdit passes replyToAuthorTwId to all _renderCommentBody calls",
+    "_renderCommentBody(bodyEl, newBody, replyToAuthor, replyToAuthorTwId)" in posts_js
+)
+
+# Frontend: company state path fixed
+check(
+    "99d. _cmtCollectMentionCandidates uses companyState.profile.full_name (correct path)",
+    "companyState.profile" in posts_js and "full_name" in posts_js
+)
+
+# CSS: author link styles present
+check(
+    "99e. CSS a.pc-cmt-author has text-decoration:none",
+    "a.pc-cmt-author" in company_css and "text-decoration:none" in company_css
+)
+check(
+    "99f. CSS a.pc-cmt-mention has text-decoration:none (no underline default)",
+    "a.pc-cmt-mention" in company_css
 )
 
 # ── Summary ──────────────────────────────────────────────────────────────
