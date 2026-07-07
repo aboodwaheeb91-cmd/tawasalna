@@ -3009,6 +3009,7 @@ def ensure_company_tables():
             )
         """)
         conn.run("CREATE INDEX IF NOT EXISTS idx_post_saves_post ON company_post_saves(post_id)")
+        conn.run("CREATE INDEX IF NOT EXISTS idx_post_saves_user ON company_post_saves(user_id)")
         conn.run("CREATE UNIQUE INDEX IF NOT EXISTS uq_post_save_user ON company_post_saves(post_id, user_id)")
         release_conn(conn)
         print("✅ company tables ready")

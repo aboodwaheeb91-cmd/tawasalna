@@ -1035,6 +1035,7 @@ These rules are permanent and apply to all future AI sessions.
 ## Post Save System Rules (mandatory for all AI sessions)
 
 These rules are permanent and apply to all future AI sessions.
+Full technical specification: `ARCHITECTURE.md §64`.
 
 1. **`company_post_saves` is the only table for post saves.** Schema: `id, post_id FK (ON DELETE CASCADE), user_id FK (ON DELETE CASCADE), created_at` with `UNIQUE(post_id, user_id)`. Do not create a second table for the same purpose.
 

@@ -299,7 +299,7 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 ### 22b. Post Save System (حفظ المنشور)
 **Purpose:** Per-user private save/bookmark of company posts. Idempotent toggle with optimistic UI. Save state persists in DB and is restored on page reload via `viewer_saved`.
 **Source of Truth:** `company_post_saves` table (`post_id FK, user_id FK` — UNIQUE constraint) · `auth.py → set_company_post_save(post_id, user_id, saved)` · `PUT /company/posts/{post_id}/save` endpoint · `static/company/company.posts.js` (`_saveDesired`, `_saveInFlight`, `_saveOrigState`, `_dispatchSave`, `_toggleSave`)
-**Details:** `CLAUDE.md → Post Save System Rules`
+**Details:** `CLAUDE.md → Post Save System Rules` · `ARCHITECTURE.md §64`
 **Do not recreate:** Use the idempotent `PUT` endpoint. Do not use localStorage as the save source of truth — state comes from `viewer_saved` in the posts API response. Owner can save their own post (no self-save restriction). Save count is private — not shown publicly.
 
 ---
