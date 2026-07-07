@@ -14,7 +14,7 @@ var curType = 'emp';
 // P0 rules: no legacy ?id= URLs, no redirect to /messages or /notifications.
 function redirect(u){
   if(!u) return;
-  if(u.user_type === 'co')    { window.location.href = '/company-profile'; return; }
+  if(u.user_type === 'co')    { window.location.href = u.tw_id ? '/u/' + u.tw_id : '/company-profile'; return; }
   if(u.user_type === 'edu')   { window.location.href = '/edu-profile';     return; }
   // Defensive: admin normally uses a separate auth flow.
   if(u.user_type === 'admin') { window.location.href = '/admin';           return; }

@@ -63,19 +63,20 @@
         ]);
 
       } else if (type === 'co') {
-        document.getElementById('bnProfile').href           = '/company-profile';
+        var _coUrl = user.tw_id ? '/u/' + user.tw_id : '/company-profile';
+        document.getElementById('bnProfile').href           = _coUrl;
         document.getElementById('bnProfileLbl').textContent = 'شركتي';
-        document.getElementById('bnJobs').href              = '/company-profile';
+        document.getElementById('bnJobs').href              = _coUrl;
         document.getElementById('bnJobsLbl').textContent    = 'فرصي';
-        document.getElementById('sbComplLink').href         = '/company-profile';
+        document.getElementById('sbComplLink').href         = _coUrl;
         _banner('briefcase', 'فرص شركتك', 'تابع الفرص المنشورة والمتقدمين', [
           { v: '—', l: 'فرصة نشطة' }, { v: '—', l: 'متقدم جديد' }
         ]);
         _sbLinks([
-          { icon: 'layout-dashboard', label: 'لوحة التحكم', href: '/company-profile' },
-          { icon: 'users',            label: 'المرشحون',     href: '/company'         },
-          { icon: 'plus-circle',      label: 'نشر فرصة',    href: '/company-profile' },
-          { icon: 'settings',         label: 'الإعدادات',    href: '/settings'        },
+          { icon: 'layout-dashboard', label: 'لوحة التحكم', href: _coUrl          },
+          { icon: 'users',            label: 'المرشحون',     href: '/company'      },
+          { icon: 'plus-circle',      label: 'نشر فرصة',    href: _coUrl          },
+          { icon: 'settings',         label: 'الإعدادات',    href: '/settings'     },
         ]);
 
       } else if (type === 'edu') {
