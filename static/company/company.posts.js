@@ -943,12 +943,14 @@
   }
 
   // Insert a new reply after the last existing sibling reply under the same parent.
+  // Returns the newly inserted element so callers can scroll it into view.
   function _cmtInsertReply(list, newComment) {
     var parentId = String(newComment.reply_to_comment_id);
     var parentEl = list.querySelector('.pc-cmt-item[data-cmt-id="' + parentId + '"]');
+    var newEl    = _cmtBuildItem(newComment);
     if (!parentEl) {
-      list.appendChild(_cmtBuildItem(newComment));
-      return;
+      list.appendChild(newEl);
+      return newEl;
     }
     // Walk forward until we pass all siblings with the same reply_to-id
     var lastSibling = parentEl;
@@ -957,10 +959,10 @@
       lastSibling = next;
       next = next.nextElementSibling;
     }
-    var newEl    = _cmtBuildItem(newComment);
-    var afterEl  = lastSibling.nextElementSibling;
+    var afterEl = lastSibling.nextElementSibling;
     if (afterEl) list.insertBefore(newEl, afterEl);
     else         list.appendChild(newEl);
+    return newEl;
   }
 
   function _cmtBuildItem(c) {
@@ -1239,11 +1241,16 @@
           if (empty) empty.remove();
           var newComment = res.data.comment;
           if (newComment.reply_to_comment_id != null) {
-            _cmtInsertReply(list, newComment); // insert after parent's last sibling reply
+            // Reply: insert under parent, scroll only the new element into view
+            var newEl = _cmtInsertReply(list, newComment);
+            if (newEl && newEl.scrollIntoView) {
+              newEl.scrollIntoView({ block: 'nearest' });
+            }
           } else {
+            // Top-level comment: append and scroll list to bottom
             list.appendChild(_cmtBuildItem(newComment));
+            list.scrollTop = list.scrollHeight;
           }
-          list.scrollTop = list.scrollHeight;
         }
         _cmtUpdateCount(postId, 1);
       })

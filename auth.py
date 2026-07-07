@@ -3601,6 +3601,12 @@ def create_company_post_comment(post_id: int, user_id: int, body: str, reply_to_
             # If target is itself a reply, resolve to its parent (enforce depth=1)
             if ref_rows[0][1] is not None:
                 resolved_reply_to = int(ref_rows[0][1])
+                # Verify the resolved root parent is also active and on the same post
+                root_rows = conn.run(
+                    "SELECT id, post_id, status FROM company_post_comments WHERE id = :cid",
+                    cid=resolved_reply_to)
+                if not root_rows or root_rows[0][2] != 'active' or int(root_rows[0][1]) != post_id:
+                    raise ValueError("التعليق الأصلي غير موجود أو تم حذفه")
             else:
                 resolved_reply_to = int(ref_rows[0][0])
             # Fetch author name of the resolved parent comment

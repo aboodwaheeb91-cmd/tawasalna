@@ -584,6 +584,54 @@ check(
     "c.reply_to_author_name" in build_fn5[:2000]
 )
 
+# ── Scroll UX fix (reply stays in place, top-level scrolls to bottom) ────
+posts_js = open("static/company/company.posts.js", encoding="utf-8").read()
+auth_src = open("auth.py", encoding="utf-8").read()
+
+# ── 72. _cmtInsertReply returns newEl ──────────────────────────────────────
+insert_reply_fn = posts_js[posts_js.find("function _cmtInsertReply"):] if "function _cmtInsertReply" in posts_js else ""
+insert_reply_body = insert_reply_fn[:700]
+check(
+    "72. _cmtInsertReply returns newEl in all code paths",
+    "return newEl" in insert_reply_body
+)
+
+# ── 73. Reply scroll: scrollIntoView used (not list.scrollTop) ────────────
+send_fn = posts_js[posts_js.find("function _cmtHandleSend"):] if "function _cmtHandleSend" in posts_js else ""
+check(
+    "73. _cmtHandleSend uses scrollIntoView for replies",
+    "scrollIntoView" in send_fn and "block: 'nearest'" in send_fn
+)
+
+# ── 74. Top-level comment still scrolls list to bottom ────────────────────
+check(
+    "74. _cmtHandleSend uses list.scrollTop = list.scrollHeight for top-level comments",
+    "list.scrollTop = list.scrollHeight" in send_fn
+)
+
+# ── 75. scrollTop is NOT used unconditionally (only for top-level branch) ─
+# The scrollTop line must appear AFTER the reply branch (inside the else block)
+scroll_pos        = send_fn.find("list.scrollTop = list.scrollHeight")
+reply_branch_pos  = send_fn.find("reply_to_comment_id != null")
+check(
+    "75. list.scrollTop = list.scrollHeight appears only in the top-level (else) branch",
+    scroll_pos != -1 and reply_branch_pos != -1 and scroll_pos > reply_branch_pos
+)
+
+# ── 76. Backend: root parent active check when resolving depth ────────────
+check(
+    "76. create_company_post_comment validates resolved root parent is active",
+    "التعليق الأصلي غير موجود أو تم حذفه" in auth_src
+)
+check(
+    "76b. root_rows active check uses root_rows[0][2] != 'active'",
+    "root_rows[0][2] != 'active'" in auth_src
+)
+check(
+    "76c. root_rows same post_id check",
+    "root_rows[0][1]) != post_id" in auth_src
+)
+
 # ── Summary ──────────────────────────────────────────────────────────────
 print()
 passed = sum(1 for _, s, _ in results if s == PASS)
