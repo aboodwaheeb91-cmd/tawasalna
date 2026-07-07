@@ -305,10 +305,10 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 ---
 
 ### 22c. Post Comments System (نظام التعليقات)
-**Purpose:** Flat (V1) per-post comments on company posts. Auth required to create/edit/delete. Server-side permission enforcement. Soft delete. XSS-safe rendering. `comments_count` returned with every post.
-**Source of Truth:** `company_post_comments` table · `auth.py → get_company_post_comments / create_company_post_comment / update_company_post_comment / delete_company_post_comment` · `GET /company/posts/{post_id}/comments` · `POST/PATCH/DELETE /company/posts/comments/{comment_id}` · `static/company/company.posts.js` (`_toggleCommentPanel`, `_cmtBuildItem`, `_cmtUpdateCount`)
+**Purpose:** Flat (V1) per-post comments on company posts. Auth required to create/edit/delete. Server-side permission enforcement. Soft delete. XSS-safe rendering. `comments_count` returned with every post. Auto-resize textarea, relative Arabic time, outlined send button, three-dot ⋮ action menu.
+**Source of Truth:** `company_post_comments` table · `auth.py → get_company_post_comments / create_company_post_comment / update_company_post_comment / delete_company_post_comment` · `GET /company/posts/{post_id}/comments` · `POST/PATCH/DELETE /company/posts/comments/{comment_id}` · `static/company/company.posts.js` (`_toggleCommentPanel`, `_cmtBuildItem`, `_cmtUpdateCount`, `_autoResizeTextarea`, `_formatRelativeTime`)
 **Details:** `CLAUDE.md → Post Comments System Rules` · `ARCHITECTURE.md §65`
-**Do not recreate:** V1 is flat only — no nested replies. Do not render comment body via innerHTML (XSS risk). Do not create a notifications table in the comments system. Delete is always soft (`status='deleted'`). `viewer_can_edit` / `viewer_can_delete` flags come from the server — never compute permissions on the frontend. Edit flow: `editWrap` must be inserted into DOM before `bodyEl` is hidden (`content.insertBefore`, not `item.insertBefore`). `_cmtEditInFlight` guards against concurrent PATCH requests.
+**Do not recreate:** V1 is flat only — no nested replies. Do not render comment body via innerHTML (XSS risk). Do not create a notifications table in the comments system. Delete is always soft (`status='deleted'`). `viewer_can_edit` / `viewer_can_delete` flags come from the server — never compute permissions on the frontend. Edit flow: `editWrap` must be inserted into DOM before `bodyEl` is hidden (`content.insertBefore`, not `item.insertBefore`). `_cmtEditInFlight` guards against concurrent PATCH requests. Action buttons are a ⋮ dropdown (`.pc-cmt-menu-btn` + `.pc-cmt-menu`) — do NOT re-add inline `.pc-cmt-act--edit` / `.pc-cmt-act--del` buttons. Send button is outlined (transparent background) — do NOT revert to solid fill. `.pc-cmt-acts` is an empty DOM anchor for edit insertion — do NOT remove it.
 
 ---
 
@@ -447,4 +447,4 @@ These systems exist in code but lack formal documentation in ARCHITECTURE.md or 
 
 ---
 
-*Last updated: 2026-07-07 — reflects systems as of PR #386, PR #385, PR #388, PR #389, and feat/company-post-comments-system. Added §22a Post Appreciation System. Added §22b Post Save System. Added §22c Post Comments System. Updated §4 Smart Router with legacy redirect rule. Updated §H Pages Index: `/company-profile` is now a redirect-only route.*
+*Last updated: 2026-07-07 — reflects systems as of PR #386–#391 and feat/comment-ui-polish. §22c updated: added auto-resize textarea, relative time, clock icon, outlined send button, three-dot ⋮ menu, _cmtOpenMenuId guard.*
