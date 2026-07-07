@@ -3027,6 +3027,12 @@ def ensure_company_tables():
         conn.run("CREATE INDEX IF NOT EXISTS idx_post_cmts_post   ON company_post_comments(post_id, created_at)")
         conn.run("CREATE INDEX IF NOT EXISTS idx_post_cmts_user   ON company_post_comments(user_id)")
         conn.run("CREATE INDEX IF NOT EXISTS idx_post_cmts_active ON company_post_comments(post_id, status)")
+        # Migration: reply threading V1 — add reply_to_comment_id if not yet present
+        try:
+            conn.run("ALTER TABLE company_post_comments ADD COLUMN IF NOT EXISTS reply_to_comment_id INTEGER REFERENCES company_post_comments(id) ON DELETE SET NULL")
+            conn.run("CREATE INDEX IF NOT EXISTS idx_post_cmts_reply ON company_post_comments(reply_to_comment_id) WHERE reply_to_comment_id IS NOT NULL")
+        except Exception as _e_reply:
+            print(f"[DB] reply_to_comment_id migration: {_e_reply}")
         release_conn(conn)
         print("✅ company tables ready")
     except Exception as e:
@@ -3540,15 +3546,19 @@ def get_company_post_comments(post_id: int, viewer_user_id=None) -> list:
         post_company_id = int(post_rows[0][0])
         rows = conn.run(
             "SELECT c.id, c.body, c.created_at, c.updated_at, "
-            "u.full_name, u.tw_id, u.user_type, p.avatar_url, c.user_id "
+            "u.full_name, u.tw_id, u.user_type, p.avatar_url, c.user_id, "
+            "c.reply_to_comment_id, ru.full_name AS reply_to_author_name "
             "FROM company_post_comments c "
             "JOIN users u ON u.id = c.user_id "
             "LEFT JOIN profiles p ON p.user_id = c.user_id "
+            "LEFT JOIN company_post_comments rc ON rc.id = c.reply_to_comment_id "
+            "LEFT JOIN users ru ON ru.id = rc.user_id "
             "WHERE c.post_id = :pid AND c.status = 'active' "
             "ORDER BY c.created_at ASC",
             pid=post_id)
         cols = ["id", "body", "created_at", "updated_at",
-                "author_name", "author_tw_id", "author_user_type", "author_avatar", "user_id"]
+                "author_name", "author_tw_id", "author_user_type", "author_avatar", "user_id",
+                "reply_to_comment_id", "reply_to_author_name"]
         viewer_id = int(viewer_user_id) if viewer_user_id else None
         viewer_is_owner = (viewer_id is not None and viewer_id == post_company_id)
         result = []
@@ -3563,8 +3573,9 @@ def get_company_post_comments(post_id: int, viewer_user_id=None) -> list:
         release_conn(conn)
 
 
-def create_company_post_comment(post_id: int, user_id: int, body: str) -> dict:
-    """Create a new active comment. Validates body + checks comments_enabled."""
+def create_company_post_comment(post_id: int, user_id: int, body: str, reply_to_comment_id=None) -> dict:
+    """Create a new active comment. Validates body + checks comments_enabled.
+    Optional reply_to_comment_id is resolved to max depth 1 (no nested replies)."""
     body = body.strip()
     if not body:
         raise ValueError("التعليق لا يمكن أن يكون فارغاً")
@@ -3578,13 +3589,39 @@ def create_company_post_comment(post_id: int, user_id: int, body: str) -> dict:
             raise ValueError("المنشور غير موجود")
         if post_rows[0][0] is False:
             raise PermissionError("التعليقات معطّلة لهذا المنشور")
+        # Validate and resolve reply_to depth (max 1 level)
+        resolved_reply_to = None
+        reply_to_author_name = None
+        if reply_to_comment_id is not None:
+            ref_rows = conn.run(
+                "SELECT id, reply_to_comment_id, post_id, status FROM company_post_comments WHERE id = :cid",
+                cid=int(reply_to_comment_id))
+            if not ref_rows or ref_rows[0][3] != 'active' or int(ref_rows[0][2]) != post_id:
+                raise ValueError("التعليق المرجعي غير موجود أو لا ينتمي لهذا المنشور")
+            # If target is itself a reply, resolve to its parent (enforce depth=1)
+            if ref_rows[0][1] is not None:
+                resolved_reply_to = int(ref_rows[0][1])
+                # Verify the resolved root parent is also active and on the same post
+                root_rows = conn.run(
+                    "SELECT id, post_id, status FROM company_post_comments WHERE id = :cid",
+                    cid=resolved_reply_to)
+                if not root_rows or root_rows[0][2] != 'active' or int(root_rows[0][1]) != post_id:
+                    raise ValueError("التعليق الأصلي غير موجود أو تم حذفه")
+            else:
+                resolved_reply_to = int(ref_rows[0][0])
+            # Fetch author name of the resolved parent comment
+            ra_rows = conn.run(
+                "SELECT u.full_name FROM company_post_comments c "
+                "JOIN users u ON u.id = c.user_id WHERE c.id = :cid",
+                cid=resolved_reply_to)
+            reply_to_author_name = ra_rows[0][0] if ra_rows else None
         rows = conn.run(
-            "INSERT INTO company_post_comments (post_id, user_id, body) "
-            "VALUES (:pid, :uid, :body) RETURNING id, body, created_at, updated_at",
-            pid=post_id, uid=user_id, body=body)
+            "INSERT INTO company_post_comments (post_id, user_id, body, reply_to_comment_id) "
+            "VALUES (:pid, :uid, :body, :rtid) RETURNING id, body, created_at, updated_at, reply_to_comment_id",
+            pid=post_id, uid=user_id, body=body, rtid=resolved_reply_to)
         if not rows:
             raise RuntimeError("insert failed")
-        cols = ["id", "body", "created_at", "updated_at"]
+        cols = ["id", "body", "created_at", "updated_at", "reply_to_comment_id"]
         d = _serialize(_row_to_dict(cols, rows[0]))
         urows = conn.run(
             "SELECT u.full_name, u.tw_id, u.user_type, p.avatar_url "
@@ -3595,9 +3632,10 @@ def create_company_post_comment(post_id: int, user_id: int, body: str) -> dict:
             d["author_tw_id"]     = urows[0][1]
             d["author_user_type"] = urows[0][2]
             d["author_avatar"]    = urows[0][3]
-        d["user_id"]           = user_id
-        d["viewer_can_edit"]   = True
-        d["viewer_can_delete"] = True
+        d["user_id"]              = user_id
+        d["viewer_can_edit"]      = True
+        d["viewer_can_delete"]    = True
+        d["reply_to_author_name"] = reply_to_author_name
         return d
     finally:
         release_conn(conn)

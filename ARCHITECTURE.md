@@ -9198,39 +9198,44 @@ When `viewer_user_id` is absent (unauthenticated), `viewer_saved` is always `FAL
 
 ## [P1] 65. Post Comments System — نظام التعليقات
 
-**Implemented in:** PR feat/company-post-comments-system
+**Implemented in:** PR feat/company-post-comments-system · feat/comment-ux-polish-{1,2,3} · feat/reply-threading-v1
 
 ### Purpose
 
-Flat (V1) per-post comments for company posts. Auth required to post/edit/delete. Server-side permission enforcement. Soft delete. XSS-safe rendering.
+Per-post comments for company posts with flat reply threading (V1). Auth required to post/edit/delete. Server-side permission enforcement. Soft delete. XSS-safe rendering. Replies are grouped visually under their parent on initial load and inserted after parent on send.
 
 ### Database Table: `company_post_comments`
 
 ```sql
 CREATE TABLE company_post_comments (
-    id         SERIAL PRIMARY KEY,
-    post_id    INTEGER NOT NULL REFERENCES company_posts(id) ON DELETE CASCADE,
-    user_id    INTEGER NOT NULL REFERENCES users(id)         ON DELETE CASCADE,
-    body       TEXT    NOT NULL,
-    status     VARCHAR(20)  NOT NULL DEFAULT 'active',
-    created_at TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ,
-    deleted_at TIMESTAMPTZ
+    id                    SERIAL PRIMARY KEY,
+    post_id               INTEGER NOT NULL REFERENCES company_posts(id) ON DELETE CASCADE,
+    user_id               INTEGER NOT NULL REFERENCES users(id)         ON DELETE CASCADE,
+    body                  TEXT    NOT NULL,
+    reply_to_comment_id   INTEGER REFERENCES company_post_comments(id) ON DELETE SET NULL,
+    status                VARCHAR(20)  NOT NULL DEFAULT 'active',
+    created_at            TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    updated_at            TIMESTAMPTZ,
+    deleted_at            TIMESTAMPTZ
 );
 
 CREATE INDEX  idx_post_cmts_post   ON company_post_comments(post_id, created_at);
 CREATE INDEX  idx_post_cmts_user   ON company_post_comments(user_id);
 CREATE INDEX  idx_post_cmts_active ON company_post_comments(post_id, status);
+CREATE INDEX  idx_post_cmts_reply  ON company_post_comments(reply_to_comment_id)
+    WHERE reply_to_comment_id IS NOT NULL;
 ```
 
 `status` values: `'active'` (visible) · `'deleted'` (soft-deleted, never returned).
+
+`reply_to_comment_id` is `NULL` for top-level comments. Max depth = 1 — replies to replies are auto-resolved to the root comment on insert. Added via `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` migration on startup.
 
 ### auth.py Helpers
 
 | Helper | Contract |
 |--------|---------|
-| `get_company_post_comments(post_id, viewer_user_id)` | Returns active comments oldest-first. Joins `users` + `profiles` for author data. Sets `viewer_can_edit` / `viewer_can_delete` flags per comment. |
-| `create_company_post_comment(post_id, user_id, body)` | Validates body (non-empty, ≤1000 chars), checks `comments_enabled`, inserts row, returns full comment dict with author data + `viewer_can_edit=True`. |
+| `get_company_post_comments(post_id, viewer_user_id)` | Returns active comments oldest-first. Joins `users` + `profiles` for author data. LEFT JOINs `company_post_comments rc + users ru` to populate `reply_to_author_name`. Sets `viewer_can_edit` / `viewer_can_delete` flags per comment. Returns `reply_to_comment_id` + `reply_to_author_name`. |
+| `create_company_post_comment(post_id, user_id, body, reply_to_comment_id=None)` | Validates body (non-empty, ≤1000 chars), checks `comments_enabled`. If `reply_to_comment_id` given: validates it exists + belongs to `post_id` + is active; resolves depth to 1 (if target is a reply, uses its `reply_to_comment_id` as the resolved parent). Inserts row, returns full comment dict including `reply_to_comment_id` + `reply_to_author_name`. |
 | `update_company_post_comment(comment_id, user_id, body)` | Validates body. Checks `owner_id == user_id`; raises `PermissionError` if not. Sets `updated_at=NOW()`. |
 | `delete_company_post_comment(comment_id, user_id)` | Checks `owner_id == user_id OR company_id == user_id`; raises `PermissionError` if neither. Sets `status='deleted', deleted_at=NOW()` (soft delete). |
 
@@ -9262,7 +9267,7 @@ LEFT JOIN (
 
 **GET request (optional JWT):** If `Authorization: Bearer` header is present, `viewer_can_edit` / `viewer_can_delete` flags are set per comment. If absent, both flags are `false`.
 
-**POST body:** `{ "body": "..." }`
+**POST body:** `{ "body": "...", "reply_to_comment_id": 42 }` — `reply_to_comment_id` is optional; omit for top-level comments.
 
 **PATCH body:** `{ "body": "..." }`
 
@@ -9375,13 +9380,15 @@ if (_cmtEditInFlight[cmtId]) return; // top of function AND inside save handler
 **Optimistic UI sequence:**
 ```
 1. _cmtEditInFlight[cmtId] = true
-2. bodyEl.textContent = newBody    ← XSS-safe, immediate
-3. bodyEl.style.display = ''
-4. editWrap.remove()
-5. fetch PATCH ...
-   success → bodyEl.textContent = res.data.comment.body + add "تم التعديل" badge
-   failure → bodyEl.textContent = originalText (rollback) + showToast
-6. _cmtEditInFlight[cmtId] = false
+2. replyToAuthor = item.dataset.replyToAuthor || null
+3. _renderCommentBody(bodyEl, newBody, replyToAuthor)   ← XSS-safe, immediate
+4. bodyEl.style.display = ''
+5. editWrap.remove()
+   (visual-reply class NOT changed — reply_to_comment_id is immutable)
+6. fetch PATCH ...
+   success → _renderCommentBody(bodyEl, confirmedBody, replyToAuthor) + add "تم التعديل" badge
+   failure → _renderCommentBody(bodyEl, originalText, replyToAuthor) (rollback) + restore wasVisualReply + showToast
+7. _cmtEditInFlight[cmtId] = false
 ```
 
 **Cancel:** `bodyEl.style.display = ''` + `editWrap.remove()` — no request, instant.
@@ -9424,11 +9431,12 @@ WHERE id=:cid
 
 All comments panel styles use the `.pc-cmts-*` and `.pc-cmt-*` namespace. Do not add comments styles to any other namespace.
 
-### Comment Item Header Layout (feat/comment-ux-polish-2, updated feat/comment-ux-polish-3)
+### Comment Item Header Layout (feat/comment-ux-polish-2, updated feat/comment-ux-polish-3, feat/reply-threading-v1)
 
 Each comment item DOM order:
 ```
-.pc-cmt-item  [+ .pc-cmt-visual-reply if body starts with @]
+.pc-cmt-item  [+ .pc-cmt-visual-reply if reply_to_comment_id != null]
+              [data-reply-to-id, data-reply-to-author when reply]
   .pc-cmt-ava           (32px avatar)
   .pc-cmt-content
     .pc-cmt-header
@@ -9445,27 +9453,32 @@ Each comment item DOM order:
 
 "تم التعديل" badge is appended to `.pc-cmt-meta-row` (not `.pc-cmt-header-left`, not `.pc-cmt-header`).
 
-### XSS-Safe Body Rendering — `_renderCommentBody` (feat/comment-ux-polish-3)
+### XSS-Safe Body Rendering — `_renderCommentBody` (feat/comment-ux-polish-3, updated feat/reply-threading-v1)
 
-`_renderCommentBody(bodyEl, text)` is the only approved function for setting comment body content:
+`_renderCommentBody(bodyEl, text, mentionName)` is the only approved function for setting comment body content:
 - `bodyEl.textContent = ''` clears existing children
-- If text starts with `@word` → creates `<span class="pc-cmt-mention">` with `textContent = @word`, then `createTextNode(rest)`
+- **Exact compound-name match (new):** if `mentionName` given and `text` starts with `@mentionName` → creates `<span class="pc-cmt-mention">` using that exact string, then `createTextNode(rest)`. Handles multi-word names like `@الشركة العربية الاردنية`.
+- **Fallback:** if no exact match, `@\S+` regex highlights the first `@word`
 - Otherwise: `bodyEl.textContent = text`
 - **Never use `bodyEl.innerHTML = apiData` — forbidden**
 
+Call signature change (feat/reply-threading-v1): the optional `mentionName` comes from `c.reply_to_author_name` (API) or `item.dataset.replyToAuthor` (in `_cmtHandleEdit`).
+
 Used in: `_cmtBuildItem` (initial render), `_cmtHandleEdit` (optimistic update, success confirm, rollback).
 
-### Visual Reply Indentation (feat/comment-ux-polish-3)
+### Visual Reply Indentation (feat/comment-ux-polish-3, updated feat/reply-threading-v1)
 
-Comments whose `body` starts with `@` receive `.pc-cmt-visual-reply` class on `.pc-cmt-item`.
+Replies receive `.pc-cmt-visual-reply` class on `.pc-cmt-item`. **Source of truth: `reply_to_comment_id != null` (not body `@`).**
 
 ```css
 .pc-cmt-item.pc-cmt-visual-reply { margin-inline-start: 28px; }
 ```
 
-In RTL: `margin-inline-start` = `margin-right` (physical) — pushes item away from the start/right edge, creating visible left indentation. **Flat storage — no parent_comment_id, no thread, no new endpoint.**
+In RTL: `margin-inline-start` = `margin-right` (physical) — pushes item away from the start/right edge, creating visible left indentation.
 
-`_cmtHandleEdit` manages the class: updates it after optimistic save, restores it on rollback.
+`_cmtBuildItem` sets the class from `c.reply_to_comment_id != null` and writes `el.dataset.replyToId` + `el.dataset.replyToAuthor` for use by `_cmtInsertReply` and `_cmtHandleEdit`.
+
+`_cmtHandleEdit` does NOT change the visual-reply class — `reply_to_comment_id` is immutable per comment. On rollback, the class is restored to `wasVisualReply` (which equals `!!item.dataset.replyToId`).
 
 ### Scrollbar / Vertical Line Fix (feat/comment-ux-polish-3)
 
@@ -9489,20 +9502,38 @@ Scroll still works via touch/wheel. Do NOT remove these rules — the scrollbar 
 
 **Never revert to `position:absolute` inline menu** — it gets clipped by `overflow-y:auto`.
 
-### Flat Reply System (feat/comment-ux-polish-2, updated feat/comment-ux-polish-3)
+### Reply Threading V1 (feat/reply-threading-v1)
 
-Reply is a UX affordance only — **no nested replies, no parent_comment_id, no new endpoint**. A "رد" reply button below each comment body prefills the panel's main textarea with `@authorName ` and shows a "رداً على" strip above the input row.
+V1 implements **1-level-max reply threading** with DB storage via `reply_to_comment_id`.
 
-- `_cmtHandleReply(postId, authorName)` — sets `_cmtReplyTarget[postId]`, prefills textarea
-- `_cmtCancelReply(postId)` — strips mention from textarea, hides strip, clears state
-- On successful send: `_cmtHandleSend` clears `_cmtReplyTarget[postId]` and hides the strip
-- On reply switch: old mention replaced by new mention in textarea
-- XSS: `nameSpan.textContent = authorName` (never innerHTML for API data)
+**Key rules:**
+- Max depth = 1. The server auto-resolves deeper replies to the root parent on insert.
+- `reply_to_comment_id` is the authoritative source for the `.pc-cmt-visual-reply` class (not body `@` text).
+- `GET /comments` returns `reply_to_comment_id` + `reply_to_author_name` per comment.
+- `POST /comments` accepts optional `reply_to_comment_id` in `CommentInput`.
+- On initial load, `_cmtRenderComments(comments, list)` groups replies under their parent (top-level first, then each parent's replies, orphans last).
+- On send, `_cmtHandleSend` calls `_cmtInsertReply(list, newComment)` for replies — inserts after the last existing sibling reply under the same parent.
+
+**Module variables:**
+- `_cmtReplyTarget[postId]` — authorName of reply target (for `@mention` prefill)
+- `_cmtReplyTargetId[postId]` — commentId of reply target (sent as `reply_to_comment_id`)
+
+**Functions:**
+- `_cmtHandleReply(postId, authorName, commentId)` — sets both `_cmtReplyTarget` and `_cmtReplyTargetId`, prefills textarea with `@authorName `.
+- `_cmtCancelReply(postId)` — clears both, strips mention, hides strip.
+- `_cmtRenderComments(comments, list)` — groups and renders; orphan replies (parent deleted) appended at end.
+- `_cmtInsertReply(list, newComment)` — finds parent el + last sibling with same `replyToId`, inserts after.
+
+**`data-*` attributes on `.pc-cmt-item`:**
+- `data-reply-to-id` — set when `reply_to_comment_id != null`
+- `data-reply-to-author` — set when `reply_to_author_name` present (for `_renderCommentBody` in edit)
+
+XSS: `nameSpan.textContent = authorName` (never innerHTML for API data).
 
 ### Forbidden Patterns
 
 ```
-❌ Nested replies / reply threading in V1
+❌ Nested replies deeper than 1 level (server enforces; client must not bypass)
 ❌ Hard DELETE on comment rows
 ❌ innerHTML for any API-sourced string in comment rendering
 ❌ localStorage for comment data, count, or state
@@ -9518,10 +9549,12 @@ Reply is a UX affordance only — **no nested replies, no parent_comment_id, no 
 ❌ Setting rows > 1 as the initial value on the comment textarea
 ❌ Appending ta before sendBtn in _cmtPopulatePanel (RTL order is fixed: sendBtn first)
 ❌ Reverting portal menu to position:absolute inline (gets clipped by overflow-y:auto)
-❌ Adding parent_comment_id or nested reply threading without a dedicated PR
 ❌ Appending "تم التعديل" badge to .pc-cmt-header or .pc-cmt-header-left (must be .pc-cmt-meta-row)
 ❌ Moving "رد" button back into .pc-cmt-meta-row (it belongs below .pc-cmt-body)
 ❌ Using bodyEl.innerHTML = apiText — always use _renderCommentBody()
 ❌ Removing scrollbar-width:none from .pc-cmts-list (RTL scrollbar appears as vertical line)
-❌ Adding .pc-cmt-visual-reply indentation server-side or via DB column (CSS-only, flat)
+❌ Deriving .pc-cmt-visual-reply from body @-prefix — use reply_to_comment_id only
+❌ Changing visual-reply class in _cmtHandleEdit (reply_to_comment_id is immutable per comment)
+❌ Creating a second reply endpoint — same POST /comments accepts reply_to_comment_id
+❌ Sending reply_to_comment_id without server-side depth resolution (server must enforce max depth=1)
 ```

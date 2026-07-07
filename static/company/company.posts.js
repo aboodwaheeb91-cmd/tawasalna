@@ -725,6 +725,7 @@
   var _cmtPortalMenu   = null; // single portal <div> on document.body (lazy-created)
   var _cmtPortalFor    = null; // {cmtId, postId} currently shown in portal
   var _cmtReplyTarget  = {};   // postId -> authorName | null (active reply state)
+  var _cmtReplyTargetId = {};  // postId -> commentId | null (reply_to_comment_id to send)
 
   function _cmtGetBtn(postId) {
     var card = document.querySelector('.post-card[data-post-id="' + postId + '"]');
@@ -817,8 +818,8 @@
     _cmtOpenMenuId = cmtId;
   }
 
-  // ── Flat reply (prefills @mention — no nested replies, no new endpoint) ─────
-  function _cmtHandleReply(postId, authorName) {
+  // ── Reply system — prefills @mention + tracks reply_to_comment_id ─────────
+  function _cmtHandleReply(postId, authorName, commentId) {
     var panel = _cmtGetPanel(postId);
     if (!panel) return;
     var ta = panel.querySelector('.pc-cmts-ta:not(.pc-cmt-edit-ta)');
@@ -837,7 +838,8 @@
     } else {
       ta.value = mention + ta.value;
     }
-    _cmtReplyTarget[postId] = authorName;
+    _cmtReplyTarget[postId]   = authorName;
+    _cmtReplyTargetId[postId] = commentId || null;
     if (nameSpan) nameSpan.textContent = authorName; // XSS-safe
     if (strip)    strip.style.display  = 'flex';
     _autoResizeTextarea(ta);
@@ -858,7 +860,8 @@
         _autoResizeTextarea(ta);
       }
     }
-    _cmtReplyTarget[postId] = null;
+    _cmtReplyTarget[postId]   = null;
+    _cmtReplyTargetId[postId] = null;
     if (strip) strip.style.display = 'none';
   }
 
@@ -876,10 +879,26 @@
     btn.appendChild(txt);
   }
 
-  // XSS-safe body renderer — handles optional @mention highlight
-  function _renderCommentBody(bodyEl, text) {
+  // XSS-safe body renderer — handles optional @mention highlight.
+  // mentionName: exact author name (may include spaces, e.g. "الشركة العربية الاردنية").
+  // Tries exact "@authorName" prefix first; falls back to first @word.
+  function _renderCommentBody(bodyEl, text, mentionName) {
     bodyEl.textContent = ''; // clears all children safely (no API data in selector)
     if (!text) return;
+    // Try exact compound-name match (from reply_to_author_name)
+    if (mentionName) {
+      var exactMention = '@' + mentionName;
+      if (text.indexOf(exactMention) === 0) {
+        var rest = text.slice(exactMention.length);
+        var mentionSpan = document.createElement('span');
+        mentionSpan.className = 'pc-cmt-mention';
+        mentionSpan.textContent = exactMention; // XSS-safe: textContent
+        bodyEl.appendChild(mentionSpan);
+        if (rest) bodyEl.appendChild(document.createTextNode(rest)); // XSS-safe
+        return;
+      }
+    }
+    // Fallback: highlight first @word
     var match = text.match(/^(@\S+)([\s\S]*)$/);
     if (match) {
       var mentionSpan = document.createElement('span');
@@ -894,13 +913,67 @@
     }
   }
 
+  // Groups replies under their parent — top-level first, then each parent's replies.
+  // Orphan replies (parent deleted) are appended at the end.
+  function _cmtRenderComments(comments, list) {
+    var map      = {};
+    var rendered = {};
+    comments.forEach(function (c) { map[String(c.id)] = c; });
+
+    function renderOne(c) {
+      if (rendered[c.id]) return;
+      rendered[c.id] = true;
+      list.appendChild(_cmtBuildItem(c));
+      // Render direct replies immediately after parent
+      comments.forEach(function (r) {
+        if (r.reply_to_comment_id != null && String(r.reply_to_comment_id) === String(c.id)) {
+          renderOne(r);
+        }
+      });
+    }
+
+    // Top-level comments first
+    comments.forEach(function (c) {
+      if (c.reply_to_comment_id == null) renderOne(c);
+    });
+    // Orphans last (parent was soft-deleted and pruned)
+    comments.forEach(function (c) {
+      if (!rendered[c.id]) renderOne(c);
+    });
+  }
+
+  // Insert a new reply after the last existing sibling reply under the same parent.
+  // Returns the newly inserted element so callers can scroll it into view.
+  function _cmtInsertReply(list, newComment) {
+    var parentId = String(newComment.reply_to_comment_id);
+    var parentEl = list.querySelector('.pc-cmt-item[data-cmt-id="' + parentId + '"]');
+    var newEl    = _cmtBuildItem(newComment);
+    if (!parentEl) {
+      list.appendChild(newEl);
+      return newEl;
+    }
+    // Walk forward until we pass all siblings with the same reply_to-id
+    var lastSibling = parentEl;
+    var next = parentEl.nextElementSibling;
+    while (next && next.dataset && next.dataset.replyToId === parentId) {
+      lastSibling = next;
+      next = next.nextElementSibling;
+    }
+    var afterEl = lastSibling.nextElementSibling;
+    if (afterEl) list.insertBefore(newEl, afterEl);
+    else         list.appendChild(newEl);
+    return newEl;
+  }
+
   function _cmtBuildItem(c) {
     var el = document.createElement('div');
     el.className = 'pc-cmt-item';
     el.dataset.cmtId = String(c.id);
-    // Visual indentation: comments starting with @mention appear as flat-visual replies
-    if (c.body && c.body.charAt(0) === '@') {
+    // Visual indentation: driven by reply_to_comment_id (not body @)
+    if (c.reply_to_comment_id != null) {
       el.classList.add('pc-cmt-visual-reply');
+      el.dataset.replyToId = String(c.reply_to_comment_id);
+      if (c.reply_to_author_name) el.dataset.replyToAuthor = c.reply_to_author_name;
     }
 
     // Avatar (32px)
@@ -975,7 +1048,7 @@
     // Body — XSS-safe via _renderCommentBody (@mention highlighted, rest as text nodes)
     var bodyEl = document.createElement('p');
     bodyEl.className = 'pc-cmt-body';
-    _renderCommentBody(bodyEl, c.body);
+    _renderCommentBody(bodyEl, c.body, c.reply_to_author_name || null);
     content.appendChild(bodyEl);
 
     // Reply button — below body text (not in meta row)
@@ -1083,7 +1156,7 @@
           list.appendChild(empty);
           return;
         }
-        comments.forEach(function (c) { list.appendChild(_cmtBuildItem(c)); });
+        _cmtRenderComments(comments, list);
       })
       .catch(function () {
         if (loading) loading.style.display = 'none';
@@ -1137,10 +1210,16 @@
     var sendBtn = panel.querySelector('.pc-cmts-send');
     if (sendBtn) sendBtn.disabled = true;
 
+    var replyToId = _cmtReplyTargetId[String(postId)]
+      ? parseInt(_cmtReplyTargetId[String(postId)], 10)
+      : null;
+    var payload = { body: body };
+    if (replyToId) payload.reply_to_comment_id = replyToId;
+
     fetch('/company/posts/' + postId + '/comments', {
       method:  'POST',
       headers: { 'Authorization': 'Bearer ' + jwt, 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ body: body })
+      body:    JSON.stringify(payload)
     })
       .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, status: r.status, data: d }; }); })
       .then(function (res) {
@@ -1152,15 +1231,26 @@
         }
         ta.value = '';
         ta.style.height = ''; // reset auto-resize after send
-        _cmtReplyTarget[String(postId)] = null;
+        _cmtReplyTarget[String(postId)]   = null;
+        _cmtReplyTargetId[String(postId)] = null;
         var rStrip = panel.querySelector('.pc-cmt-reply-strip');
         if (rStrip) rStrip.style.display = 'none';
         var list = panel.querySelector('.pc-cmts-list');
         if (list) {
           var empty = list.querySelector('.pc-cmts-empty');
           if (empty) empty.remove();
-          list.appendChild(_cmtBuildItem(res.data.comment));
-          list.scrollTop = list.scrollHeight;
+          var newComment = res.data.comment;
+          if (newComment.reply_to_comment_id != null) {
+            // Reply: insert under parent, scroll only the new element into view
+            var newEl = _cmtInsertReply(list, newComment);
+            if (newEl && newEl.scrollIntoView) {
+              newEl.scrollIntoView({ block: 'nearest' });
+            }
+          } else {
+            // Top-level comment: append and scroll list to bottom
+            list.appendChild(_cmtBuildItem(newComment));
+            list.scrollTop = list.scrollHeight;
+          }
         }
         _cmtUpdateCount(postId, 1);
       })
@@ -1186,6 +1276,7 @@
 
     var originalText    = bodyEl.textContent; // textContent returns full text even with child spans
     var wasVisualReply  = item.classList.contains('pc-cmt-visual-reply');
+    var replyToAuthor   = item.dataset.replyToAuthor || null;
 
     // 1. Build editWrap fully in memory
     var editWrap  = document.createElement('div');
@@ -1240,9 +1331,8 @@
       // 3. Optimistic UI — update text immediately, remove edit UI
       _cmtEditInFlight[cmtId] = true;
       saveBtn.disabled = true;
-      _renderCommentBody(bodyEl, newBody); // XSS-safe: no innerHTML for API data
-      if (newBody.charAt(0) === '@') item.classList.add('pc-cmt-visual-reply');
-      else item.classList.remove('pc-cmt-visual-reply');
+      _renderCommentBody(bodyEl, newBody, replyToAuthor); // XSS-safe: no innerHTML for API data
+      // visual-reply class is driven by reply_to_comment_id (immutable per comment) — no change
       bodyEl.style.display = '';
       editWrap.remove();
 
@@ -1256,18 +1346,16 @@
           _cmtEditInFlight[cmtId] = false;
           if (!res.ok || !res.data || res.data.status !== 'success') {
             // Rollback to original text + restore visual-reply state
-            _renderCommentBody(bodyEl, originalText); // XSS-safe
+            _renderCommentBody(bodyEl, originalText, replyToAuthor); // XSS-safe
             if (wasVisualReply) item.classList.add('pc-cmt-visual-reply');
             else item.classList.remove('pc-cmt-visual-reply');
             var msg = (res.data && res.data.detail) ? res.data.detail : 'تعذّر تعديل التعليق';
             if (window.showToast) showToast(res.status === 429 ? 'الرجاء التمهّل قليلاً' : msg);
             return;
           }
-          // Confirm with server body + mark as edited + update visual-reply class
+          // Confirm with server body + mark as edited (visual-reply class unchanged — driven by reply_to_comment_id)
           var confirmedBody = res.data.comment.body;
-          _renderCommentBody(bodyEl, confirmedBody); // XSS-safe
-          if (confirmedBody && confirmedBody.charAt(0) === '@') item.classList.add('pc-cmt-visual-reply');
-          else item.classList.remove('pc-cmt-visual-reply');
+          _renderCommentBody(bodyEl, confirmedBody, replyToAuthor); // XSS-safe
           var metaRow = item.querySelector('.pc-cmt-meta-row');
           if (metaRow && !metaRow.querySelector('.pc-cmt-edited')) {
             var editedEl = document.createElement('span');
@@ -1278,7 +1366,7 @@
         })
         .catch(function () {
           _cmtEditInFlight[cmtId] = false;
-          _renderCommentBody(bodyEl, originalText); // XSS-safe rollback
+          _renderCommentBody(bodyEl, originalText, replyToAuthor); // XSS-safe rollback
           if (wasVisualReply) item.classList.add('pc-cmt-visual-reply');
           else item.classList.remove('pc-cmt-visual-reply');
           if (window.showToast) showToast('تعذّر تعديل التعليق');
@@ -1453,11 +1541,11 @@
           }
           return;
         }
-        // Reply button — prefill @mention in textarea
+        // Reply button — prefill @mention + track reply_to_comment_id
         var cmtReplyBtn = e.target.closest('.pc-cmt-reply-btn[data-cmt-id]');
         if (cmtReplyBtn) {
           var pnl = cmtReplyBtn.closest('.pc-cmts-panel');
-          if (pnl) _cmtHandleReply(pnl.dataset.postId, cmtReplyBtn.dataset.authorName);
+          if (pnl) _cmtHandleReply(pnl.dataset.postId, cmtReplyBtn.dataset.authorName, cmtReplyBtn.dataset.cmtId);
           return;
         }
         // Save
