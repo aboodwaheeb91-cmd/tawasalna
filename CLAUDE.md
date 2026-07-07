@@ -1051,6 +1051,10 @@ Full technical specification: `ARCHITECTURE.md §64`.
 
 7. **No-flicker rule applies to saves.** In `_dispatchSave`, check `desired !== undefined && desired !== srvActive` BEFORE calling `_renderSaveButton`. If stale, update `_saveOrigState`, dispatch follow-up, and `return` without rendering.
 
-8. **`_renderSaveButton(btn, active)` is the only DOM update point** for save state. Do not update `.save-active` class or `data-saved` anywhere else in `company.posts.js`.
+8. **`_renderSaveButton(btn, active)` is the only DOM update point** for save state. Do not update `.save-active` class, `data-saved`, or the button's icon/text anywhere else in `company.posts.js`. Button states are a permanent contract:
+   - `active=true` → icon: `_ICO_BOOKMARK_CHECK` (filled bookmark + dark checkmark ✓), text: `'محفوظ'`, class: `save-active` (yellow `#fbbf24`)
+   - `active=false` → icon: `_ICO_BOOKMARK_OUTLINE` (outline bookmark), text: `'حفظ'`, class: none (gray)
+
+   `company.render.js` initial render must produce the same states using `icoBookmarkCheck` / `icoBookmark`. Any icon/text change must update both files in the same PR.
 
 9. **Guest toast message is fixed:** `'سجّل دخولك لحفظ المنشور'`. Do not change this wording.
