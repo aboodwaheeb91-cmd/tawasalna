@@ -292,6 +292,28 @@ check(
     "max-height:120px" in company_css or "max-height: 120px" in company_css
 )
 
+# ── 38. Edit textarea rows=1 (not 2) ─────────────────────────────
+edit_fn = posts_js[posts_js.find("function _cmtHandleEdit"):] if "function _cmtHandleEdit" in posts_js else ""
+check(
+    "38. editTa.rows = 1 in _cmtHandleEdit (not 2)",
+    "editTa.rows      = 1" in edit_fn or "editTa.rows = 1" in edit_fn
+)
+
+# ── 39. Edit textarea has auto-resize listener ────────────────────
+check(
+    "39. editTa has _autoResizeTextarea input listener",
+    "_autoResizeTextarea(editTa)" in edit_fn
+)
+
+# ── 40. 'تم التعديل' badge appended to header-left (not header) ──
+# Check that the headerLeft querySelector targets .pc-cmt-header-left
+check(
+    "40. 'تم التعديل' badge appended to .pc-cmt-header-left (not .pc-cmt-header)",
+    "pc-cmt-header-left" in edit_fn and
+    # Ensure old pattern (direct .pc-cmt-header) is gone from the edited badge block
+    "item.querySelector('.pc-cmt-header')" not in edit_fn
+)
+
 # ── Summary ──────────────────────────────────────────────────────────────
 print()
 passed = sum(1 for _, s, _ in results if s == PASS)

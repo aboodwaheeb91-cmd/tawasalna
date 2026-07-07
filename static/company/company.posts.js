@@ -1057,8 +1057,9 @@
     var editTa = document.createElement('textarea');
     editTa.className = 'pc-cmts-ta pc-cmt-edit-ta';
     editTa.maxLength = 1000;
-    editTa.rows      = 2;
+    editTa.rows      = 1;
     editTa.value     = originalText;
+    editTa.addEventListener('input', function () { _autoResizeTextarea(editTa); });
     var editBtns = document.createElement('div');
     editBtns.className = 'pc-cmt-edit-btns';
     var saveBtn = document.createElement('button');
@@ -1079,6 +1080,9 @@
     if (acts) content.insertBefore(editWrap, acts);
     else content.appendChild(editWrap);
     bodyEl.style.display = 'none';
+
+    // Size to existing text now that the element is in the DOM (scrollHeight is accurate)
+    _autoResizeTextarea(editTa);
 
     // Focus + move cursor to end
     editTa.focus();
@@ -1121,12 +1125,12 @@
           }
           // Confirm with server body + mark as edited
           bodyEl.textContent = res.data.comment.body; // XSS-safe
-          var header = item.querySelector('.pc-cmt-header');
-          if (header && !header.querySelector('.pc-cmt-edited')) {
+          var headerLeft = item.querySelector('.pc-cmt-header-left');
+          if (headerLeft && !headerLeft.querySelector('.pc-cmt-edited')) {
             var editedEl = document.createElement('span');
             editedEl.className = 'pc-cmt-edited';
             editedEl.textContent = '· تم التعديل';
-            header.appendChild(editedEl);
+            headerLeft.appendChild(editedEl);
           }
         })
         .catch(function () {
