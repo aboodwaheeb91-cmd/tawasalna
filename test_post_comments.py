@@ -194,8 +194,8 @@ check(
 )
 
 # ── 24. Edit UX: Optimistic UI — body rendered before fetch ──────────────
-# _renderCommentBody(bodyEl, newBody) must appear before fetch(...)
-optimistic_pos = cmt_edit_fn.find("_renderCommentBody(bodyEl, newBody)")
+# _renderCommentBody(bodyEl, newBody, ...) must appear before fetch(...)
+optimistic_pos = cmt_edit_fn.find("_renderCommentBody(bodyEl, newBody")
 fetch_pos      = cmt_edit_fn.find("fetch('/company/posts/comments/")
 check(
     "24. Optimistic UI: bodyEl updated before fetch call",
@@ -204,14 +204,14 @@ check(
 
 # ── 25. Edit UX: rollback on server error ─────────────────────────────────
 check(
-    "25. rollback: _renderCommentBody(bodyEl, originalText) on failure",
-    "_renderCommentBody(bodyEl, originalText)" in cmt_edit_fn
+    "25. rollback: _renderCommentBody(bodyEl, originalText, ...) on failure",
+    "_renderCommentBody(bodyEl, originalText" in cmt_edit_fn
 )
 
 # ── 26. Edit XSS: optimistic update uses _renderCommentBody (no innerHTML) ──
 check(
     "26. optimistic edit uses _renderCommentBody (XSS-safe), not innerHTML for API data",
-    "_renderCommentBody(bodyEl, newBody)" in cmt_edit_fn and "bodyEl.innerHTML" not in cmt_edit_fn
+    "_renderCommentBody(bodyEl, newBody" in cmt_edit_fn and "bodyEl.innerHTML" not in cmt_edit_fn
 )
 
 # ── UX Improvements (feat/comment-ui-polish) ─────────────────────────────
@@ -449,6 +449,139 @@ render_fn_body = render_fn[:500]
 check(
     "57. _renderCommentBody uses textContent/createTextNode only (no innerHTML for API data)",
     "textContent" in render_fn_body and "innerHTML" not in render_fn_body
+)
+
+# ── Reply Threading V1 (feat/reply-threading-v1) ─────────────────────────
+posts_js    = open("static/company/company.posts.js", encoding="utf-8").read()
+auth_src    = open("auth.py", encoding="utf-8").read()
+srv_src     = open("server.py", encoding="utf-8").read()
+
+# ── 58. reply_to_comment_id migration in auth.py ──────────────────────────
+check(
+    "58. reply_to_comment_id column added via ALTER TABLE migration",
+    "ADD COLUMN IF NOT EXISTS reply_to_comment_id" in auth_src
+)
+check(
+    "58b. idx_post_cmts_reply index created for reply_to_comment_id",
+    "idx_post_cmts_reply" in auth_src
+)
+
+# ── 59. get_company_post_comments returns reply fields ────────────────────
+check(
+    "59. get_company_post_comments SELECTs reply_to_comment_id",
+    "c.reply_to_comment_id" in auth_src and "get_company_post_comments" in auth_src
+)
+check(
+    "59b. get_company_post_comments SELECTs reply_to_author_name",
+    "reply_to_author_name" in auth_src
+)
+
+# ── 60. create_company_post_comment accepts reply_to_comment_id ───────────
+check(
+    "60. create_company_post_comment signature accepts reply_to_comment_id",
+    "def create_company_post_comment" in auth_src and "reply_to_comment_id=None" in auth_src
+)
+
+# ── 61. Depth resolution: replying to a reply uses its parent ─────────────
+check(
+    "61. Depth resolution: if ref has reply_to_comment_id, resolve to its parent",
+    "ref_rows[0][1] is not None" in auth_src and "resolved_reply_to = int(ref_rows[0][1])" in auth_src
+)
+
+# ── 62. Cross-post validation ─────────────────────────────────────────────
+check(
+    "62. Validates reply_to belongs to same post_id",
+    "لا ينتمي لهذا المنشور" in auth_src
+)
+
+# ── 63. CommentInput has reply_to_comment_id optional field ──────────────
+check(
+    "63. CommentInput model has reply_to_comment_id: Optional[int] = None",
+    "reply_to_comment_id: Optional[int] = None" in srv_src
+)
+
+# ── 64. Server endpoint passes reply_to_comment_id to helper ─────────────
+check(
+    "64. company_create_post_comment passes body.reply_to_comment_id to create helper",
+    "body.reply_to_comment_id" in srv_src
+)
+
+# ── 65. _cmtReplyTargetId variable defined in JS ──────────────────────────
+check(
+    "65. _cmtReplyTargetId module variable defined",
+    "var _cmtReplyTargetId" in posts_js
+)
+
+# ── 66. _renderCommentBody accepts mentionName (3rd param) ────────────────
+render_fn2 = posts_js[posts_js.find("function _renderCommentBody"):] if "function _renderCommentBody" in posts_js else ""
+render_fn2_sig = render_fn2[:120]
+check(
+    "66. _renderCommentBody signature accepts mentionName as 3rd parameter",
+    "mentionName" in render_fn2_sig
+)
+
+# ── 67. _renderCommentBody exact compound-name match ─────────────────────
+check(
+    "67. _renderCommentBody uses exactMention = '@' + mentionName for exact match",
+    "exactMention" in render_fn2[:600] and "text.indexOf(exactMention) === 0" in render_fn2[:600]
+)
+
+# ── 68. _cmtRenderComments function defined ───────────────────────────────
+check(
+    "68. _cmtRenderComments function defined",
+    "function _cmtRenderComments" in posts_js
+)
+check(
+    "68b. _cmtRenderComments called in _cmtLoadComments",
+    "_cmtRenderComments(comments, list)" in posts_js
+)
+
+# ── 69. _cmtInsertReply function defined ──────────────────────────────────
+check(
+    "69. _cmtInsertReply function defined",
+    "function _cmtInsertReply" in posts_js
+)
+check(
+    "69b. _cmtInsertReply inserts after last sibling reply (walk forward logic)",
+    "lastSibling" in posts_js and "nextElementSibling" in posts_js
+)
+
+# ── 70. _cmtHandleReply accepts commentId + stores in _cmtReplyTargetId ──
+handle_reply_fn = posts_js[posts_js.find("function _cmtHandleReply"):] if "function _cmtHandleReply" in posts_js else ""
+check(
+    "70. _cmtHandleReply accepts commentId as 3rd param",
+    "function _cmtHandleReply(postId, authorName, commentId)" in handle_reply_fn[:200]
+)
+check(
+    "70b. _cmtHandleReply stores commentId in _cmtReplyTargetId",
+    "_cmtReplyTargetId[postId]" in handle_reply_fn[:900]
+)
+check(
+    "70c. _cmtHandleSend sends reply_to_comment_id in payload",
+    "reply_to_comment_id" in posts_js and "payload.reply_to_comment_id = replyToId" in posts_js
+)
+check(
+    "70d. _cmtHandleSend calls _cmtInsertReply for replies, not plain append",
+    "_cmtInsertReply(list, newComment)" in posts_js
+)
+check(
+    "70e. _cmtCancelReply clears _cmtReplyTargetId",
+    "_cmtReplyTargetId[postId] = null" in posts_js
+)
+
+# ── 71. _cmtBuildItem uses reply_to_comment_id (not body @) for visual-reply ─
+build_fn5 = posts_js[posts_js.find("function _cmtBuildItem"):] if "function _cmtBuildItem" in posts_js else ""
+check(
+    "71. _cmtBuildItem uses reply_to_comment_id for visual-reply class (not body.charAt(0))",
+    "c.reply_to_comment_id != null" in build_fn5[:600] and "c.body.charAt(0)" not in build_fn5[:600]
+)
+check(
+    "71b. _cmtBuildItem sets data-reply-to-id attribute",
+    "el.dataset.replyToId" in build_fn5[:600]
+)
+check(
+    "71c. _cmtBuildItem passes reply_to_author_name to _renderCommentBody",
+    "c.reply_to_author_name" in build_fn5[:2000]
 )
 
 # ── Summary ──────────────────────────────────────────────────────────────

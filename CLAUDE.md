@@ -1068,7 +1068,7 @@ Full technical specification: `ARCHITECTURE.md §65`.
 
 1. **`company_post_comments` is the only table for post comments.** Do not create a second table for the same purpose.
 
-2. **V1 is flat comments only.** No nested replies, mentions, or reactions on comments in V1. Do not implement reply threading without an explicit PR for that feature.
+2. **V1 supports 1-level reply threading via `reply_to_comment_id`.** Max depth is 1 — the server auto-resolves deeper replies to the root. Do not implement deeper nesting without a dedicated PR. `reply_to_comment_id` is a nullable FK to `company_post_comments(id) ON DELETE SET NULL`.
 
 3. **`comments_enabled` is enforced server-side.** When `comments_enabled=false`, `create_company_post_comment()` raises `PermissionError` → HTTP 403. Do not rely on hiding the button alone.
 
@@ -1098,10 +1098,11 @@ Full technical specification: `ARCHITECTURE.md §65`.
    - **Insert-first rule:** `editWrap` must be inserted into `.pc-cmt-content` BEFORE `bodyEl.style.display = 'none'`. Never hide the body before the editor is in the DOM.
    - **Correct parent:** `content.insertBefore(editWrap, acts)` where `content = item.querySelector('.pc-cmt-content')`. Do NOT use `item.insertBefore(editWrap, acts)` — `acts` is not a direct child of `item`.
    - **In-flight guard:** `_cmtEditInFlight[commentId]` prevents concurrent PATCH requests on the same comment. Check it at the top of `_cmtHandleEdit` AND inside the save handler.
-   - **Optimistic UI:** `bodyEl.textContent = newBody` (XSS-safe) BEFORE the fetch call. On PATCH failure, rollback: `bodyEl.textContent = originalText`.
-   - **XSS contract:** ALL text assignments in the edit flow use `textContent` — never `innerHTML`. This applies to `newBody`, `originalText`, and `res.data.comment.body`.
+   - **Optimistic UI:** `_renderCommentBody(bodyEl, newBody, replyToAuthor)` (XSS-safe) BEFORE the fetch call. On PATCH failure, rollback: `_renderCommentBody(bodyEl, originalText, replyToAuthor)`. `replyToAuthor = item.dataset.replyToAuthor || null`.
+   - **XSS contract:** ALL text assignments in the edit flow use `textContent`/`_renderCommentBody` — never `innerHTML`. This applies to `newBody`, `originalText`, and `res.data.comment.body`.
    - **Cancel:** restores body instantly, no request. `bodyEl.style.display = ''` + `editWrap.remove()`.
    - **"تم التعديل" badge** added to `.pc-cmt-meta-row` on success (idempotent — only if not already present). Do NOT append it to `.pc-cmt-header` or `.pc-cmt-header-left` — it belongs in the meta row alongside time and reply button.
+   - **visual-reply class is NOT changed in `_cmtHandleEdit`.** `reply_to_comment_id` is immutable per comment. On rollback, restore `wasVisualReply` from `item.classList.contains('pc-cmt-visual-reply')` captured at start.
 
 14. **Comment UX contracts (feat/comment-ui-polish) — permanent:**
    - **Auto-resize textarea (both send and edit):** `_autoResizeTextarea(ta)` sets `ta.style.height = 'auto'` then clamps to `Math.min(ta.scrollHeight, 120)`. Both the send textarea (`_cmtPopulatePanel`) and the edit textarea (`_cmtHandleEdit`) start at `rows=1` and have an `input` listener. For the edit textarea, `_autoResizeTextarea(editTa)` is also called once after `editWrap` is inserted into the DOM (so `scrollHeight` reflects the pre-filled text). Height resets to `''` after a successful send. Do NOT set `rows` > 1 on either textarea.
@@ -1116,13 +1117,22 @@ Full technical specification: `ARCHITECTURE.md §65`.
    - **Column header layout:** `.pc-cmt-header-left` uses `flex-direction:column`. Row 1 = `.pc-cmt-author` (name). Row 2 = `.pc-cmt-meta-row` (time · edited badge only). Avatar is 32px.
    - **Portal ⋮ menu is mandatory** — never revert to inline `position:absolute`. See ARCHITECTURE.md §65.
    - **"رد" reply button is below `.pc-cmt-body`**, NOT inside `.pc-cmt-meta-row`. DOM order: header → body → replyBtn → acts. Color: `rgba(37,99,255,.65)` (soft blue). Do NOT move it back into the meta row.
-   - `_cmtHandleReply(postId, authorName)` prefills textarea with `@authorName `, updates `_cmtReplyTarget[postId]`, shows "رداً على" strip. Cancel via `_cmtCancelReply(postId)` strips the mention. No DB changes, no new endpoint, no nested replies.
+   - `_cmtHandleReply(postId, authorName, commentId)` prefills textarea with `@authorName `, updates `_cmtReplyTarget[postId]` + `_cmtReplyTargetId[postId]`, shows "رداً على" strip. Cancel via `_cmtCancelReply(postId)` strips the mention and clears both state variables.
    - **"رداً على" strip** sits between `.pc-cmts-loading` and `.pc-cmts-input-row` in the panel DOM. `_cmtHandleSend` clears it on successful send.
    - **XSS:** all API-sourced text in reply flow uses `textContent`. `nameSpan.textContent = authorName` is the only approved assignment for the strip name.
-   - **`_cmtReplyTarget`** is the only state store for active reply per panel (per postId). Do NOT persist to localStorage.
+   - **`_cmtReplyTarget` and `_cmtReplyTargetId`** are the only state stores for active reply per panel (per postId). Do NOT persist to localStorage.
 
-16. **Comment UX contracts (feat/comment-ux-polish-3) — permanent:**
-   - **`_renderCommentBody(bodyEl, text)` is the only approved function** for setting comment body content. It uses `textContent`/`createTextNode` exclusively — never `innerHTML` for API data. If body starts with `@word`, the mention gets a `<span class="pc-cmt-mention">` via `textContent`. Used in: `_cmtBuildItem`, `_cmtHandleEdit` (optimistic, success, rollback).
-   - **`.pc-cmt-visual-reply` class** is added to `.pc-cmt-item` when `c.body.charAt(0) === '@'`. CSS-only indentation (`margin-inline-start:28px`) — no DB, no parent_comment_id. `_cmtHandleEdit` updates the class when body changes.
+16. **Comment UX contracts (feat/comment-ux-polish-3, updated feat/reply-threading-v1) — permanent:**
+   - **`_renderCommentBody(bodyEl, text, mentionName)` is the only approved function** for setting comment body content. It uses `textContent`/`createTextNode` exclusively — never `innerHTML` for API data. If `mentionName` is provided and `text` starts with `@mentionName`, the full compound name gets a `<span class="pc-cmt-mention">` — handles names with spaces. Fallback: first `@word` highlight. Used in: `_cmtBuildItem`, `_cmtHandleEdit` (optimistic, success, rollback).
+   - **`.pc-cmt-visual-reply` class** is driven by `c.reply_to_comment_id != null` (not `c.body.charAt(0) === '@'`). CSS-only indentation (`margin-inline-start:28px`). `_cmtHandleEdit` does NOT change this class — it is immutable per comment.
    - **Scrollbar hidden on `.pc-cmts-list`** (`scrollbar-width:none` + `::-webkit-scrollbar {display:none}`). This prevents the RTL scrollbar track from appearing as a vertical line on the left side. Do NOT remove these rules.
    - **No vertical line** in the comments list. Do not add `border-left`, `border-inline-start`, or visible pseudo-elements to `.pc-cmts-list`, `.pc-cmt-item`, or `.pc-cmt-content`.
+
+17. **Reply Threading V1 contracts (feat/reply-threading-v1) — permanent:**
+   - **`reply_to_comment_id` is the single source of truth** for whether a comment is a reply. Do NOT derive this from the body `@` prefix.
+   - **Max depth = 1.** Server resolves depth in `create_company_post_comment`: if the target comment itself has a `reply_to_comment_id`, the server uses that value as the resolved parent. Client must not bypass.
+   - **Same POST endpoint.** `POST /company/posts/{post_id}/comments` accepts optional `reply_to_comment_id`. Do NOT create a separate reply endpoint.
+   - **`_cmtRenderComments(comments, list)`** is the only approved function for rendering the initial comment list. It groups replies under their parent. Orphan replies (parent deleted) are appended at the end. Do NOT use a plain `forEach` over the API array.
+   - **`_cmtInsertReply(list, newComment)`** inserts a new reply immediately after the parent's last sibling reply in the DOM. Do NOT `list.appendChild` a reply unconditionally.
+   - **`_cmtReplyTargetId[postId]`** stores the commentId to send as `reply_to_comment_id`. Both `_cmtReplyTarget` (authorName) and `_cmtReplyTargetId` (commentId) are cleared on send + cancel.
+   - **`data-reply-to-id` + `data-reply-to-author`** are set on `.pc-cmt-item` by `_cmtBuildItem` when `reply_to_comment_id != null`. These are used by `_cmtInsertReply` and `_cmtHandleEdit`.
