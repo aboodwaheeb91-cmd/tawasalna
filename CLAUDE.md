@@ -945,3 +945,87 @@ Every completed task must end with:
 
 > اشتغل بذكاء، مش بكثرة خطوات.
 > إذا المشكلة تحتاج تشخيص طويل، توقف واسأل قبل ما تستهلك الرصيد.
+
+---
+
+## Rule Index First (mandatory for all AI sessions)
+
+This rule is permanent and applies to all future AI sessions.
+
+**Before implementing any new feature, fix, or opening a PR:**
+
+1. Read `docs/SYSTEMS_INDEX.md` — the authoritative index of all documented systems.
+2. Locate the system that matches your change. Note its "Source of Truth" and "Details" pointers.
+3. Follow the documented system; do not rebuild it from scratch.
+
+This rule is a shortcut to the full checklist in `CLAUDE.md → Pre-PR System Registry Check`. Both are mandatory — this one is the quick reminder, the other is the full procedure.
+
+### Forbidden without reading the index first
+
+```
+❌ Building a system that duplicates an existing one
+❌ Creating a DB table when an official table exists for the same purpose
+❌ Adding a new endpoint that overlaps with a documented API contract
+❌ Using localStorage as permanent storage when a backend system exists
+❌ Creating a per-page helper/catalog/mapping that already exists in a shared module
+```
+
+---
+
+## Documentation Completion Rule (mandatory for all AI sessions)
+
+This rule is permanent and applies to all future AI sessions.
+
+**A task is not "done" until all new rules and contracts are indexed.**
+
+Any PR that introduces a new system, rule, contract, or permanent constraint MUST:
+
+1. Add or update an entry in `docs/SYSTEMS_INDEX.md` — following the existing entry format (`**Purpose:**`, `**Source of Truth:**`, `**Details:**`, `**Do not recreate:**`).
+2. Add the rule text in `CLAUDE.md` (for AI-facing rules) and/or `ARCHITECTURE.md` (for technical specs).
+3. Include both documentation files in the same PR as the code change.
+
+### What triggers documentation
+
+| التغيير | الإجراء المطلوب |
+|---------|----------------|
+| نظام جديد (جدول DB + endpoint + frontend) | إدخال جديد في SYSTEMS_INDEX.md + قسم في ARCHITECTURE.md |
+| قاعدة دائمة جديدة للـ AI sessions | قسم في CLAUDE.md + إدخال في SYSTEMS_INDEX.md إذا كان نظاماً |
+| تغيير في contract موجود (endpoint/schema/behavior) | تحديث الإدخال الموجود في SYSTEMS_INDEX.md + ARCHITECTURE.md |
+| تغيير صغير لا أثر معماري | اكتب في PR: `Docs: not needed — [سبب واضح]` |
+
+### Forbidden
+
+```
+❌ Closing a PR with new rules documented only in the PR description
+❌ Adding a new system without an SYSTEMS_INDEX.md entry
+❌ Skipping CLAUDE.md updates for mandatory AI rules "to save time"
+❌ Saying "docs will be added in a follow-up PR" for same-session work
+```
+
+---
+
+## Post Appreciation System Rules — أقدّر (mandatory for all AI sessions)
+
+These rules are permanent and apply to all future AI sessions.
+
+1. **Button label is frozen: "أقدّر".** Do not rename it, translate it, or change it to "أعجبني", "تقدير", or any other word. The word "أقدّر" was chosen deliberately and is permanent.
+
+2. **Use the idempotent `PUT` endpoint.** `PUT /company/posts/{post_id}/appreciation` with `{"appreciated": bool}` is the canonical endpoint. The legacy `POST /appreciate` toggle remains in server.py for backward compatibility only — do not use it in new code.
+
+3. **`INSERT ... ON CONFLICT DO NOTHING` is mandatory.** The DB operation must be idempotent. Never use a simple `INSERT` that can throw a unique-constraint error on rapid clicks.
+
+4. **Rate limiter: 10 requests per 10 seconds per (user, post) pair.** The `_check_appr_rate` function in `server.py` enforces this. Do not remove it or relax the limits without an explicit security review.
+
+5. **Desired State Queue is mandatory (no-flicker architecture).** The three module-level variables in `company.posts.js` are the core of the fast-click safety:
+   - `_apprDesired[postId]` — the user's last-intended state
+   - `_apprInFlight[postId]` — `true` while a request is in flight
+   - `_apprOrigState[postId]` — the known-good state before the first in-flight request
+   Do not simplify this to a plain toggle. Do not remove any of the three variables.
+
+6. **No-flicker rule: check desired BEFORE rendering server response.** In `_dispatchAppreciation`, always check `desired !== undefined && desired !== srvActive` BEFORE calling `_renderAppreciationButton`. If stale, update `_apprOrigState`, dispatch follow-up, and `return` without rendering. Only render when server state matches desired.
+
+7. **Self-appreciation is forbidden server-side.** The endpoint checks `owner_id === user_id` and returns HTTP 403. Do not add client-side bypasses.
+
+8. **`company_post_appreciations` is the only table for post appreciations.** Do not create a second table for the same purpose.
+
+9. **`_renderAppreciationButton(btn, active, count)` is the only DOM update point** for appreciation state. Do not update `.appr-active` class or `data-appr-count` anywhere else in `company.posts.js`.
