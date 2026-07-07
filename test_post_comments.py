@@ -170,6 +170,50 @@ check(
     "_cmt_edit_rate_store" in srv_src and "_CMT_EDIT_RATE" in srv_src
 )
 
+# ── 21. Edit UX: _cmtEditInFlight guard ──────────────────────────────────
+posts_js = open("static/company/company.posts.js", encoding="utf-8").read()
+check(
+    "21. _cmtEditInFlight guard variable defined",
+    "_cmtEditInFlight" in posts_js
+)
+
+# ── 22. Edit UX: editWrap inserted before bodyEl hidden ───────────────────
+# The insert must happen before bodyEl.style.display = 'none'
+cmt_edit_fn = posts_js[posts_js.find("function _cmtHandleEdit"):] if "function _cmtHandleEdit" in posts_js else ""
+insert_pos  = cmt_edit_fn.find("content.insertBefore(editWrap")
+hide_pos    = cmt_edit_fn.find("bodyEl.style.display = 'none'")
+check(
+    "22. editWrap inserted into DOM before bodyEl is hidden",
+    insert_pos != -1 and hide_pos != -1 and insert_pos < hide_pos
+)
+
+# ── 23. Edit UX: correct parent (content, not item) ──────────────────────
+check(
+    "23. insertBefore uses content as parent (not item)",
+    "content.insertBefore(editWrap" in posts_js
+)
+
+# ── 24. Edit UX: Optimistic UI — text updated before fetch ────────────────
+# bodyEl.textContent = newBody must appear before fetch(...)
+optimistic_pos = cmt_edit_fn.find("bodyEl.textContent = newBody")
+fetch_pos      = cmt_edit_fn.find("fetch('/company/posts/comments/")
+check(
+    "24. Optimistic UI: bodyEl updated before fetch call",
+    optimistic_pos != -1 and fetch_pos != -1 and optimistic_pos < fetch_pos
+)
+
+# ── 25. Edit UX: rollback on server error ─────────────────────────────────
+check(
+    "25. rollback: bodyEl.textContent = originalText on failure",
+    "bodyEl.textContent = originalText" in cmt_edit_fn
+)
+
+# ── 26. Edit XSS: optimistic update uses textContent ─────────────────────
+check(
+    "26. optimistic edit uses textContent (XSS-safe), not innerHTML",
+    "bodyEl.textContent = newBody" in cmt_edit_fn and "bodyEl.innerHTML" not in cmt_edit_fn
+)
+
 # ── Summary ──────────────────────────────────────────────────────────────
 print()
 passed = sum(1 for _, s, _ in results if s == PASS)

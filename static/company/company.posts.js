@@ -718,7 +718,8 @@
   // ── Post Comments ─────────────────────────────────────────────────────────
   var _ICO_COMMENT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>';
 
-  var _cmtOpenPanelId = null; // postId whose panel is currently visible
+  var _cmtOpenPanelId  = null; // postId whose panel is currently visible
+  var _cmtEditInFlight = {};  // commentId -> bool — prevents concurrent PATCH requests
 
   function _cmtGetBtn(postId) {
     var card = document.querySelector('.post-card[data-post-id="' + postId + '"]');
@@ -960,24 +961,31 @@
   }
 
   function _cmtHandleEdit(cmtId, postId) {
+    // Guard: prevent re-entry while a PATCH is in flight
+    if (_cmtEditInFlight[cmtId]) return;
+
     var panel = _cmtGetPanel(postId);
     if (!panel) return;
     var item = panel.querySelector('.pc-cmt-item[data-cmt-id="' + cmtId + '"]');
     if (!item) return;
+    var content = item.querySelector('.pc-cmt-content');
+    if (!content) return;
     var bodyEl = item.querySelector('.pc-cmt-body');
     if (!bodyEl) return;
-    if (item.querySelector('.pc-cmt-edit-ta')) return; // already editing
+    if (item.querySelector('.pc-cmt-edit-ta')) return; // already in edit mode
 
     var originalText = bodyEl.textContent;
-    bodyEl.style.display = 'none';
 
-    var editWrap = document.createElement('div');
+    // 1. Build editWrap fully in memory
+    var editWrap  = document.createElement('div');
     editWrap.className = 'pc-cmt-edit-wrap';
     var editTa = document.createElement('textarea');
-    editTa.className  = 'pc-cmts-ta pc-cmt-edit-ta';
-    editTa.maxLength  = 1000;
-    editTa.rows       = 2;
-    editTa.value      = originalText;
+    editTa.className = 'pc-cmts-ta pc-cmt-edit-ta';
+    editTa.maxLength = 1000;
+    editTa.rows      = 2;
+    editTa.value     = originalText;
+    var editBtns = document.createElement('div');
+    editBtns.className = 'pc-cmt-edit-btns';
     var saveBtn = document.createElement('button');
     saveBtn.type      = 'button';
     saveBtn.className = 'pc-cmts-send pc-cmt-edit-save';
@@ -986,15 +994,20 @@
     cancelBtn.type      = 'button';
     cancelBtn.className = 'pc-cmt-act pc-cmt-edit-cancel';
     cancelBtn.textContent = 'إلغاء';
-    editWrap.appendChild(editTa);
-    var editBtns = document.createElement('div');
-    editBtns.className = 'pc-cmt-edit-btns';
     editBtns.appendChild(saveBtn);
     editBtns.appendChild(cancelBtn);
+    editWrap.appendChild(editTa);
     editWrap.appendChild(editBtns);
-    var acts = item.querySelector('.pc-cmt-acts');
-    if (acts) item.insertBefore(editWrap, acts);
-    else item.querySelector('.pc-cmt-content').appendChild(editWrap);
+
+    // 2. Insert editWrap into DOM FIRST, then hide bodyEl — never a blank gap
+    var acts = content.querySelector('.pc-cmt-acts'); // correct parent: content, not item
+    if (acts) content.insertBefore(editWrap, acts);
+    else content.appendChild(editWrap);
+    bodyEl.style.display = 'none';
+
+    // Focus + move cursor to end
+    editTa.focus();
+    editTa.setSelectionRange(editTa.value.length, editTa.value.length);
 
     cancelBtn.addEventListener('click', function () {
       bodyEl.style.display = '';
@@ -1002,12 +1015,19 @@
     });
 
     saveBtn.addEventListener('click', function () {
+      if (_cmtEditInFlight[cmtId]) return; // already saving
       var newBody = editTa.value.trim();
       if (!newBody) { if (window.showToast) showToast('التعليق لا يمكن أن يكون فارغاً'); return; }
-      if (newBody.length > 1000) { if (window.showToast) showToast('التعليق طويل جداً'); return; }
+      if (newBody.length > 1000) { if (window.showToast) showToast('التعليق طويل جداً (1000 حرف كحد أقصى)'); return; }
       var jwt = window._jwt ? window._jwt() : '';
       if (!jwt) return;
+
+      // 3. Optimistic UI — update text immediately, remove edit UI
+      _cmtEditInFlight[cmtId] = true;
       saveBtn.disabled = true;
+      bodyEl.textContent = newBody; // XSS-safe: textContent only
+      bodyEl.style.display = '';
+      editWrap.remove();
 
       fetch('/company/posts/comments/' + cmtId, {
         method:  'PATCH',
@@ -1016,17 +1036,16 @@
       })
         .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, status: r.status, data: d }; }); })
         .then(function (res) {
-          saveBtn.disabled = false;
+          _cmtEditInFlight[cmtId] = false;
           if (!res.ok || !res.data || res.data.status !== 'success') {
+            // Rollback to original text
+            bodyEl.textContent = originalText; // XSS-safe
             var msg = (res.data && res.data.detail) ? res.data.detail : 'تعذّر تعديل التعليق';
             if (window.showToast) showToast(res.status === 429 ? 'الرجاء التمهّل قليلاً' : msg);
             return;
           }
-          var updated = res.data.comment;
-          bodyEl.textContent = updated.body; // XSS-safe
-          bodyEl.style.display = '';
-          editWrap.remove();
-          // Mark as edited
+          // Confirm with server body + mark as edited
+          bodyEl.textContent = res.data.comment.body; // XSS-safe
           var header = item.querySelector('.pc-cmt-header');
           if (header && !header.querySelector('.pc-cmt-edited')) {
             var editedEl = document.createElement('span');
@@ -1036,7 +1055,8 @@
           }
         })
         .catch(function () {
-          saveBtn.disabled = false;
+          _cmtEditInFlight[cmtId] = false;
+          bodyEl.textContent = originalText; // XSS-safe rollback
           if (window.showToast) showToast('تعذّر تعديل التعليق');
         });
     });

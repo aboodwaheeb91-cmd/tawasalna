@@ -308,7 +308,7 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 **Purpose:** Flat (V1) per-post comments on company posts. Auth required to create/edit/delete. Server-side permission enforcement. Soft delete. XSS-safe rendering. `comments_count` returned with every post.
 **Source of Truth:** `company_post_comments` table · `auth.py → get_company_post_comments / create_company_post_comment / update_company_post_comment / delete_company_post_comment` · `GET /company/posts/{post_id}/comments` · `POST/PATCH/DELETE /company/posts/comments/{comment_id}` · `static/company/company.posts.js` (`_toggleCommentPanel`, `_cmtBuildItem`, `_cmtUpdateCount`)
 **Details:** `CLAUDE.md → Post Comments System Rules` · `ARCHITECTURE.md §65`
-**Do not recreate:** V1 is flat only — no nested replies. Do not render comment body via innerHTML (XSS risk). Do not create a notifications table in the comments system. Delete is always soft (`status='deleted'`). `viewer_can_edit` / `viewer_can_delete` flags come from the server — never compute permissions on the frontend.
+**Do not recreate:** V1 is flat only — no nested replies. Do not render comment body via innerHTML (XSS risk). Do not create a notifications table in the comments system. Delete is always soft (`status='deleted'`). `viewer_can_edit` / `viewer_can_delete` flags come from the server — never compute permissions on the frontend. Edit flow: `editWrap` must be inserted into DOM before `bodyEl` is hidden (`content.insertBefore`, not `item.insertBefore`). `_cmtEditInFlight` guards against concurrent PATCH requests.
 
 ---
 
