@@ -1239,3 +1239,37 @@ These rules are permanent and apply to all future AI sessions.
    ❌ Storing base64 data_url as-is in the DB (dev fallback only — do not make it the primary path)
    ❌ Bypassing TW.uploadImage for "simplicity" in a new page
    ```
+
+---
+
+## Image Cropper System Rules (mandatory for all AI sessions)
+
+These rules are permanent and apply to all future AI sessions.
+
+1. **`static/shared/tw-image-cropper.js` does not exist yet.** Do NOT create it without explicit user approval. The file is planned but not built.
+
+2. **`tw-image-cropper.js` and `tw-upload.js` are permanently separate systems.** The cropper outputs a `dataUrl`. The uploader takes a `dataUrl`. Neither knows about the other. Do NOT merge crop logic into `tw-upload.js` or upload logic into `tw-image-cropper.js`.
+
+3. **Do NOT add crop logic per-page** while the planned shared system is pending. Adding inline crop code to `company.main.js` or any other page module duplicates what will be built in the shared cropper.
+
+4. **Each image type has a frozen config** (documented in `ARCHITECTURE.md → Image Cropper Architecture`). Do not deviate:
+   - `employee-avatar`: ratio 1/1, shape circle (preview only), output 260×260, quality 0.85, bucket avatars, filename avatar
+   - `employee-cover`: ratio 6/1, shape rect, output 720×120, quality 0.88, bucket covers, filename cover
+   - `company-logo`: ratio 1/1, shape rect (square), output 300×300, quality 0.85, bucket avatars, filename logo
+   - `company-cover`: ratio 4/1, shape rect, output 800×200, quality 0.88, bucket avatars, filename cover
+
+5. **CSS ratio must match output ratio.** `employee-cover` CSS is `aspect-ratio:6/1`, export is 720×120 (6:1). `company-cover` CSS is `aspect-ratio:4/1`, export must be 800×200 (4:1). A mismatch causes visual distortion.
+
+6. **Implementation phases are ordered** (see `ARCHITECTURE.md → Image Cropper Architecture → مراحل التنفيذ`). Each phase requires explicit user approval before starting. The order is: build shared cropper (no page wiring) → employee-cover → company-logo → company-cover → employee-avatar (last, most sensitive).
+
+7. **`tw-upload.js` must not change** as part of any cropper PR. The upload contract (`TW.uploadImage` signature, return shape, endpoint) is frozen.
+
+8. **Forbidden patterns:**
+   ```
+   ❌ Creating tw-image-cropper.js without user approval
+   ❌ Adding crop canvas/zoom/drag inline to any page module
+   ❌ Merging crop logic into tw-upload.js
+   ❌ Changing output dimensions without updating the config table in ARCHITECTURE.md
+   ❌ Showing crop UI to public/guest viewers (owner-only CSS class is mandatory)
+   ❌ Starting a cropper PR that touches more than one image type at a time
+   ```

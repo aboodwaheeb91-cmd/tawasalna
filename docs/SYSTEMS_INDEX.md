@@ -380,6 +380,23 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 
 ---
 
+### 29b. Image Cropper System (`tw-image-cropper.js`) — مخطط، لم يُبنَ بعد
+**Purpose:** Shared canvas-based cropper with zoom/drag/export for all image types (avatar, cover, logo). Outputs a ready `dataUrl` passed to `TW.uploadImage()`.
+**Source of Truth:** `static/shared/tw-image-cropper.js` (PLANNED — does not exist yet) · `TW.createCropper({ canvas, ratio, shape, outputW, outputH, quality })` · `ARCHITECTURE.md → Image Cropper Architecture`
+**Details:** `ARCHITECTURE.md → Image Cropper Architecture — الحالة والخارطة المستقبلية` · `CLAUDE.md → Image Cropper System Rules`
+**Current state of each image type:**
+
+| نوع الصورة | Crop موجود؟ | الملف الحالي | output |
+|------------|------------|--------------|--------|
+| employee-avatar | ✓ | `profile-v2.avatar.js` | 260×260 JPEG |
+| employee-cover | ✓ | `profile-v2.cover.js` | 720×120 JPEG |
+| company-logo | ✗ | `company.main.js → uploadLogo()` | raw upload |
+| company-cover | ✗ | `company.main.js → uploadCover()` | raw upload |
+
+**Do not recreate:** Do not build `tw-image-cropper.js` without explicit user approval. Do not add crop logic per-page (duplicates the planned shared system). Do not modify `tw-upload.js` to include crop logic — the two systems are permanently separate. Do not start any cropper PR without reading `ARCHITECTURE.md → Image Cropper Architecture`.
+
+---
+
 ### 30. QR Card System
 **Purpose:** Generate QR code linking to the user's public profile (`/u/{tw_id}`).
 **Source of Truth:** Client-side via `qrcode.min.js` · links to `/u/{tw_id}`
@@ -455,4 +472,4 @@ These systems exist in code but lack formal documentation in ARCHITECTURE.md or 
 
 ---
 
-*Last updated: 2026-07-08 — reflects systems as of PR #386–#402. §22c updated (PR #400): 6-arg _renderCommentBody, multi-mention via junction table, atomic transaction, _cmtMentionedCandidates array, full-text @mention scan, backward compat. §29a added (PR #402): shared upload client TW.uploadImage() in static/shared/tw-upload.js replaces duplicate fetch('/upload/image') in company.main.js and profile-v2.api.js.*
+*Last updated: 2026-07-08 — reflects systems as of PR #386–#403. §22c updated (PR #400): 6-arg _renderCommentBody, multi-mention via junction table, atomic transaction, _cmtMentionedCandidates array, full-text @mention scan, backward compat. §29a added (PR #402): shared upload client TW.uploadImage() in static/shared/tw-upload.js. §29b added (PR #403, docs-only): Image Cropper Architecture — current state of 4 image types, planned tw-image-cropper.js API, config table, 6-phase implementation roadmap, risk register.*
