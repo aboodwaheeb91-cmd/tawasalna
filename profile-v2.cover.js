@@ -1,4 +1,4 @@
-// profile-v2.cover.js — Cover Upload + Crop (6:1 ratio)
+// profile-v2.cover.js — Cover Upload + Crop (dynamic ratio matching .sc-cover display)
 // Depends on: profile-v2.state.js, profile-v2.api.js, profile-v2.utils.js, tw-image-cropper.js
 
 (function(){
@@ -14,14 +14,9 @@
 
   if(!editBtn || !canvas) return;
 
-  var _cropper = TW.createCropper({
-    canvas:  canvas,
-    ratio:   6 / 1,
-    shape:   'rect',
-    outputW: 720,
-    outputH: 120,
-    quality: 0.88
-  });
+  // Lazy init: cropper is created in openCrop() with the actual .sc-cover dimensions
+  // so the preview matches the final display exactly.
+  var _cropper = null;
 
   // ── Open file picker ──
   editBtn.addEventListener('click', function(){ fileInput.click(); });
@@ -49,6 +44,30 @@
     zoomSlider.min   = 100;
     zoomSlider.max   = 300;
     zoomSlider.value = 100;
+
+    // Calculate the actual display ratio from the live .sc-cover element.
+    // .sc-cover is height:80px fixed; width varies with screen.
+    // Reading offsetWidth here gives the exact ratio the user will see after save.
+    var coverEl     = document.getElementById('scCover');
+    var coverW      = (coverEl && coverEl.offsetWidth > 0) ? coverEl.offsetWidth : 360;
+    var actualRatio = coverW / 80;
+    var outH = 240;                          // minimum 200px — reduces JPEG blur vs old 120px
+    var outW = Math.round(actualRatio * outH);
+
+    // Align canvas aspect-ratio to the live display ratio before load()
+    canvas.style.aspectRatio = String(actualRatio);
+
+    // Recreate cropper with fresh ratio (destroy old to clean up listeners)
+    if (_cropper) { _cropper.destroy(); }
+    _cropper = TW.createCropper({
+      canvas:  canvas,
+      ratio:   actualRatio,
+      shape:   'rect',
+      outputW: outW,
+      outputH: outH,
+      quality: 0.88
+    });
+
     // Load after overlay is visible so getBoundingClientRect returns real dimensions
     requestAnimationFrame(function(){
       _cropper.load(src);
@@ -57,13 +76,13 @@
 
   // ── Zoom slider ──
   zoomSlider.addEventListener('input', function(){
-    _cropper.setZoom(parseInt(this.value, 10) / 100);
+    if (_cropper) _cropper.setZoom(parseInt(this.value, 10) / 100);
   });
 
   // ── Close ──
   function closeCrop(){
     overlay.classList.remove('open');
-    _cropper.reset();
+    if (_cropper) _cropper.reset();
   }
 
   cancelBtn.addEventListener('click', closeCrop);

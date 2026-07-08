@@ -776,6 +776,7 @@ body.view-owner .cv-edit-btn { display:flex; }
   align-items:center; gap:14px; max-width:560px; width:95%;
 }
 .cv-crop-title { color:#fff; font-size:.95rem; font-weight:700; align-self:flex-start; }
+/* aspect-ratio is set dynamically by profile-v2.cover.js openCrop() to match .sc-cover display */
 #cvCropCanvas {
   width:100%; aspect-ratio:6/1; cursor:grab; touch-action:none;
   border-radius:8px; border:2px solid rgba(0,200,150,.35); display:block;
