@@ -1352,6 +1352,88 @@ check(
     ("violators: " + ", ".join(_violators)) if _violators else ""
 )
 
+# ── 116. Image Cropper Shared Helper (tw-image-cropper.js) ───────────────
+cropper_js_path = os.path.join("static", "shared", "tw-image-cropper.js")
+cropper_exists = os.path.isfile(cropper_js_path)
+check(
+    "116a. static/shared/tw-image-cropper.js exists",
+    cropper_exists
+)
+
+if cropper_exists:
+    with open(cropper_js_path, encoding="utf-8") as f:
+        cropper_src = f.read()
+
+    check(
+        "116b. tw-image-cropper.js defines TW.createCropper",
+        "TW.createCropper" in cropper_src
+    )
+    check(
+        "116c. tw-image-cropper.js exposes load method",
+        "load:" in cropper_src or "load :" in cropper_src
+    )
+    check(
+        "116d. tw-image-cropper.js exposes setZoom method",
+        "setZoom:" in cropper_src or "setZoom :" in cropper_src
+    )
+    check(
+        "116e. tw-image-cropper.js exposes export method",
+        "export:" in cropper_src or "export :" in cropper_src
+    )
+    check(
+        "116f. tw-image-cropper.js exposes reset method",
+        "reset:" in cropper_src or "reset :" in cropper_src
+    )
+    check(
+        "116g. tw-image-cropper.js exposes destroy method",
+        "destroy:" in cropper_src or "destroy :" in cropper_src
+    )
+    check(
+        "116h. tw-image-cropper.js contains no fetch call",
+        "fetch(" not in cropper_src
+    )
+    # Strip single-line JS comments before checking for forbidden identifiers
+    # (comments may legitimately mention what the file does NOT do)
+    import re as _re
+    _code_only = _re.sub(r'//[^\n]*', '', cropper_src)
+    check(
+        "116i. tw-image-cropper.js code (excl. comments) does not call uploadImage",
+        "uploadImage" not in _code_only
+    )
+    check(
+        "116j. tw-image-cropper.js code (excl. comments) has no userId/jwt/bucket/filename",
+        "userId" not in _code_only and
+        "jwt" not in _code_only and
+        "bucket" not in _code_only and
+        "filename" not in _code_only
+    )
+    check(
+        "116k. tw-image-cropper.js uses passive:false for touchmove (blocks page scroll during drag)",
+        "passive: false" in cropper_src or "passive:false" in cropper_src
+    )
+    check(
+        "116l. tw-image-cropper.js supports both rect and circle shapes",
+        "'circle'" in cropper_src and "'rect'" in cropper_src
+    )
+    check(
+        "116m. tw-image-cropper.js uses devicePixelRatio for DPR support",
+        "devicePixelRatio" in cropper_src
+    )
+else:
+    for lbl in ["116b", "116c", "116d", "116e", "116f", "116g",
+                "116h", "116i", "116j", "116k", "116l", "116m"]:
+        check(lbl + ". (skipped — file absent)", False)
+
+# Cropper must NOT be loaded in profile or company pages yet (no page wiring in this PR)
+check(
+    "116n. profile-showcase.html does NOT load tw-image-cropper.js yet",
+    "tw-image-cropper.js" not in open("profile-showcase.html", encoding="utf-8").read()
+)
+check(
+    "116o. company-profile.html does NOT load tw-image-cropper.js yet",
+    "tw-image-cropper.js" not in open("company-profile.html", encoding="utf-8").read()
+)
+
 # ── Summary ──────────────────────────────────────────────────────────────
 print()
 passed = sum(1 for _, s, _ in results if s == PASS)
