@@ -886,6 +886,7 @@ i.ico-sm { width:14px; height:14px; stroke:currentColor; fill:none; stroke-width
   border-top: 1px solid rgba(255,255,255,.05);
   border-radius: 0 0 12px 12px;
   padding: 10px 14px 12px;
+  overflow-x: hidden;
 }
 .pc-cmts-loading {
   color: var(--t3); font-size:.75rem; text-align:center; padding:8px 0;
@@ -1096,7 +1097,7 @@ a.pc-cmt-mention:hover { text-decoration:underline; }
   position:fixed; display:none;
   background:var(--card); border:1px solid var(--border);
   border-radius:8px; overflow:hidden;
-  max-height:160px; overflow-y:auto; width:220px;
+  max-height:160px; overflow-y:auto; width:220px; max-width:calc(100vw - 16px);
   box-shadow:0 8px 24px rgba(0,0,0,.45); z-index:9999;
   scrollbar-width:none;
 }
@@ -1130,6 +1131,17 @@ a.pc-cmt-mention:hover { text-decoration:underline; }
   border-radius:50%; animation:_mention-spin .6s linear infinite; flex-shrink:0;
 }
 @keyframes _mention-spin { to { transform:rotate(360deg); } }
+
+/* ── Mobile comment QA fixes ── */
+/* Shrink list height when viewport is short (mobile keyboard open ~300px) */
+@media (max-height:600px) {
+  .pc-cmts-list { max-height:150px; }
+}
+/* Enlarge touch targets for reply and three-dot buttons on mobile */
+@media (max-width:640px) {
+  .pc-cmt-reply-btn { padding:6px 0; margin-top:0; }
+  .pc-cmt-menu-btn  { padding:6px 8px; }
+}
 
 /* ══ POST TAG PICKER ═════════════════════════════════════════════ */
 .ptc-wrapper { position:relative; }

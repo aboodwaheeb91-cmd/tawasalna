@@ -1982,7 +1982,7 @@ check(
 # Frontend: debounce 100ms
 check(
     "124f. _cmtHandleMentionInput debounce reduced to 100ms",
-    ", 100)" in posts_js and ", 200)" not in posts_js
+    "_cmtMentionDebounce = setTimeout" in posts_js and ", 100);" in posts_js
 )
 
 # Frontend: loading indicator
@@ -2099,6 +2099,99 @@ check(
 check(
     "126k. tw-upload.js not modified — TW.uploadImage signature present",
     "TW.uploadImage" in upload_src_126
+)
+
+# ── 127. Mobile Posts/Comments/Mentions QA (feat/mobile-posts-comments-mentions-qa) ──
+
+posts_js_127 = open("static/company/company.posts.js", encoding="utf-8").read()
+co_css_127   = open("static/company/company.css",      encoding="utf-8").read()
+
+# @mention fetch still uses /mention/search
+check(
+    "127a. @mention fetch still uses /mention/search",
+    "'/mention/search?" in posts_js_127
+)
+# Stale guards preserved
+check(
+    "127b. capturedQuery stale guards still present",
+    "capturedQuery" in posts_js_127 and
+    "currentQuery !== capturedQuery" in posts_js_127 and
+    "postResponseQuery !== capturedQuery" in posts_js_127
+)
+# DOM candidates appear immediately
+check(
+    "127c. DOM candidates collected and shown before API call (_cmtCollectMentionCandidates)",
+    "_cmtCollectMentionCandidates(postId)" in posts_js_127 and
+    "_cmtOpenMentionMenu(ta, postId, filtered, start)" in posts_js_127
+)
+# API candidates merged with DOM candidates
+check(
+    "127d. API candidates merged via _cmtMergeCandidates",
+    "_cmtMergeCandidates(freshDom, res.candidates)" in posts_js_127
+)
+# clearTimeout on mention menu close
+check(
+    "127e. clearTimeout(_cmtMentionDebounce) on menu close",
+    "clearTimeout(_cmtMentionDebounce)" in posts_js_127 and "_cmtCloseMentionMenu" in posts_js_127
+)
+# Send does not break — sendBtn.disabled guard
+check(
+    "127f. comment send has in-flight guard (sendBtn.disabled)",
+    "sendBtn.disabled = true" in posts_js_127 and "_cmtHandleSend" in posts_js_127
+)
+# Reply send: _cmtHandleSend handles reply_to_comment_id
+check(
+    "127g. reply send passes reply_to_comment_id in payload",
+    "_cmtReplyTargetId" in posts_js_127 and "reply_to_comment_id" in posts_js_127
+)
+# mention menu max-width CSS
+check(
+    "127h. .pc-cmt-mention-menu has CSS max-width guard for narrow screens",
+    "max-width:calc(100vw - 16px)" in co_css_127
+)
+# Panel overflow-x hidden
+check(
+    "127i. .pc-cmts-panel has overflow-x:hidden to prevent horizontal bleed",
+    "overflow-x: hidden" in co_css_127 and "pc-cmts-panel" in co_css_127
+)
+# No innerHTML for API mention data (XSS contract)
+check(
+    "127j. _cmtBuildItem uses textContent for comment body — no innerHTML for API data",
+    "textContent" in posts_js_127 and "_cmtBuildItem" in posts_js_127
+)
+# _renderTagChips no longer uses innerHTML
+check(
+    "127k. _renderTagChips uses createElement/textContent — not innerHTML",
+    "chips.replaceChildren()" in posts_js_127 and
+    "createTextNode" in posts_js_127 and
+    "chips.innerHTML" not in posts_js_127
+)
+# iOS viewport fix for mention menu
+check(
+    "127l. _cmtPositionMentionMenu uses visualViewport.height for iOS keyboard awareness",
+    "visualViewport" in posts_js_127 and "_cmtPositionMentionMenu" in posts_js_127
+)
+# iOS viewport fix for portal menu
+check(
+    "127m. portal menu positioning uses visualViewport.height",
+    "visualViewport && window.visualViewport.height" in posts_js_127 and
+    "_cmtShowPortalMenu" in posts_js_127
+)
+# scrollIntoView on reply
+check(
+    "127n. _cmtHandleReply scrolls textarea into view after focus (mobile keyboard)",
+    "scrollIntoView" in posts_js_127 and "_cmtHandleReply" in posts_js_127
+)
+# Mobile list max-height media query
+check(
+    "127o. @media (max-height:600px) shrinks .pc-cmts-list for small viewports",
+    "@media (max-height:600px)" in co_css_127 and "pc-cmts-list" in co_css_127
+)
+# Touch targets improved
+check(
+    "127p. mobile touch targets: reply-btn and menu-btn have padding on small screens",
+    ".pc-cmt-reply-btn { padding:6px 0" in co_css_127 and
+    ".pc-cmt-menu-btn  { padding:6px 8px" in co_css_127
 )
 
 # ── Summary ──────────────────────────────────────────────────────────────
