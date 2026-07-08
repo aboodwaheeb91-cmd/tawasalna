@@ -492,14 +492,31 @@
       });
   }
 
-  // ── Cover photo ────────────────────────────────────────────────
+  // ── Cover photo — crop via shared cropper, then upload ──
   function setCover(src) {
     var img = document.getElementById('coverImg');
     if (!img) return;
     img.src = src; img.style.display = 'block';
     setTimeout(function () { img.style.opacity = '1'; }, 50);
   }
-  var isUploadingCover = false;
+
+  var _coverCropper = null;
+  function _getCoverCropper() {
+    if (!_coverCropper) {
+      var canvas = document.getElementById('coCoverCropCanvas');
+      if (!canvas) return null;
+      _coverCropper = TW.createCropper({
+        canvas:  canvas,
+        ratio:   4 / 1,
+        shape:   'rect',
+        outputW: 800,
+        outputH: 200,
+        quality: 0.88
+      });
+    }
+    return _coverCropper;
+  }
+
   function uploadCover(input) {
     var file = input.files && input.files[0];
     input.value = '';
@@ -514,50 +531,79 @@
       return;
     }
 
+    var reader = new FileReader();
+    reader.onload = function (e) { openCoverCrop(e.target.result); };
+    reader.readAsDataURL(file);
+  }
+
+  function openCoverCrop(src) {
+    var overlay = document.getElementById('coCoverCropOverlay');
+    var slider  = document.getElementById('coCoverZoomSlider');
+    if (!overlay) return;
+    overlay.classList.add('open');
+    if (slider) { slider.min = 100; slider.max = 300; slider.value = 100; }
+    requestAnimationFrame(function () {
+      var cropper = _getCoverCropper();
+      if (cropper) cropper.load(src);
+    });
+  }
+
+  function closeCoverCrop() {
+    var overlay = document.getElementById('coCoverCropOverlay');
+    if (overlay) overlay.classList.remove('open');
+    var cropper = _getCoverCropper();
+    if (cropper) cropper.reset();
+  }
+
+  var isUploadingCover = false;
+  function _doUploadCover() {
+    var cropper = _getCoverCropper();
+    if (!cropper) return;
+    if (isUploadingCover) return;
+
     var userId = window.companyState && companyState.profile && companyState.profile.id;
     if (!userId) return;
     var jwt = window._jwt ? _jwt() : '';
     if (!jwt) { window.location.href = '/login'; return; }
 
-    if (isUploadingCover) return;
     isUploadingCover = true;
+    var saveBtn   = document.getElementById('coCoverCropSaveBtn');
     var uploadBtn = document.getElementById('coverUploadBtn');
+    if (saveBtn)   { saveBtn.disabled = true; saveBtn.textContent = 'جاري الرفع…'; }
     if (uploadBtn) uploadBtn.style.pointerEvents = 'none';
 
-    var reader = new FileReader();
-    reader.onload = function (e) {
-      var dataUrl = e.target.result;
+    var dataUrl = cropper.export();
 
-      TW.uploadImage({ userId: userId, bucket: 'avatars', filename: 'cover', dataUrl: dataUrl, jwt: jwt })
-      .then(function (res) {
-        if (!res.ok || !res.data || !res.data.url) throw new Error('no_url');
-        var url = res.data.url;
-        return fetch('/company/cover/' + userId, {
-          method:  'PUT',
-          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + jwt },
-          body:    JSON.stringify({ cover_url: url }),
-        })
-        .then(function (r2) {
-          if (!r2.ok) throw new Error('save_fail');
-          return url;
-        });
+    TW.uploadImage({ userId: userId, bucket: 'avatars', filename: 'cover', dataUrl: dataUrl, jwt: jwt })
+    .then(function (res) {
+      if (!res.ok || !res.data || !res.data.url) throw new Error('no_url');
+      var url = res.data.url;
+      return fetch('/company/cover/' + userId, {
+        method:  'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + jwt },
+        body:    JSON.stringify({ cover_url: url }),
       })
-      .then(function (url) {
-        if (window.companyState && companyState.company) {
-          companyState.company.cover_url = url;
-        }
-        setCover(url);
-        if (window.showToast) showToast('تم حفظ صورة الغلاف ✓');
-      })
-      .catch(function () {
-        if (window.showToast) showToast('تعذّر رفع الغلاف، حاول مرة أخرى', 'error');
-      })
-      .finally(function () {
-        isUploadingCover = false;
-        if (uploadBtn) uploadBtn.style.pointerEvents = '';
+      .then(function (r2) {
+        if (!r2.ok) throw new Error('save_fail');
+        return url;
       });
-    };
-    reader.readAsDataURL(file);
+    })
+    .then(function (url) {
+      if (window.companyState && companyState.company) {
+        companyState.company.cover_url = url;
+      }
+      setCover(url);
+      if (window.showToast) showToast('تم حفظ صورة الغلاف ✓');
+      closeCoverCrop();
+    })
+    .catch(function () {
+      if (window.showToast) showToast('تعذّر رفع الغلاف، حاول مرة أخرى', 'error');
+    })
+    .finally(function () {
+      isUploadingCover = false;
+      if (saveBtn)   { saveBtn.disabled = false; saveBtn.textContent = 'حفظ الغلاف'; }
+      if (uploadBtn) uploadBtn.style.pointerEvents = '';
+    });
   }
 
   // ── Logo photo — crop via shared cropper, then upload ──
@@ -1126,6 +1172,8 @@
   window._applyCompanyLocalUpdate = _applyCompanyLocalUpdate;
   window.setCover                 = setCover;
   window.uploadCover              = uploadCover;
+  window.openCoverCrop            = openCoverCrop;
+  window.closeCoverCrop           = closeCoverCrop;
   window.uploadLogo               = uploadLogo;
   window.openLogoCrop             = openLogoCrop;
   window.closeLogoCrop            = closeLogoCrop;
@@ -1157,9 +1205,24 @@
     var coMenuBtn   = q('coMenuBtn');   if (coMenuBtn)   coMenuBtn.addEventListener('click', toggleMenu);
     var coLogoutBtn = q('coLogoutBtn'); if (coLogoutBtn) coLogoutBtn.addEventListener('click', doLogout);
 
-    // Cover photo upload
+    // Cover photo upload → crop overlay → upload
     var coverFileInput = q('coverFileInput');
     if (coverFileInput) coverFileInput.addEventListener('change', function () { uploadCover(this); });
+
+    // Cover crop overlay controls
+    var coCoverCropSaveBtn   = q('coCoverCropSaveBtn');
+    var coCoverCropCancelBtn = q('coCoverCropCancelBtn');
+    var coCoverZoomSlider    = q('coCoverZoomSlider');
+    var coCoverCropOverlay   = q('coCoverCropOverlay');
+    if (coCoverCropSaveBtn)   coCoverCropSaveBtn.addEventListener('click', _doUploadCover);
+    if (coCoverCropCancelBtn) coCoverCropCancelBtn.addEventListener('click', closeCoverCrop);
+    if (coCoverZoomSlider)    coCoverZoomSlider.addEventListener('input', function () {
+      var c = _getCoverCropper();
+      if (c) c.setZoom(parseInt(this.value, 10) / 100);
+    });
+    if (coCoverCropOverlay)   coCoverCropOverlay.addEventListener('click', function (e) {
+      if (e.target === coCoverCropOverlay) closeCoverCrop();
+    });
 
     // Logo photo upload → crop overlay → upload
     var coLogoCamBtn    = q('coLogoCamBtn');
