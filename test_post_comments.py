@@ -1759,6 +1759,45 @@ check(
     "TW.uploadImage" in open("static/shared/tw-upload.js", encoding="utf-8").read()
 )
 
+# ── 121. Restore Employee Cover Height ───────────────────────────────────
+with open("profile-v2.css", encoding="utf-8") as f:
+    pv2_css = f.read()
+
+cover_block_start = pv2_css.find(".sc-cover {")
+cover_block = pv2_css[cover_block_start:pv2_css.find("}", cover_block_start)+1] if cover_block_start >= 0 else ""
+
+check(
+    "121a. .sc-cover uses height:80px (restored original fixed height)",
+    "height:80px" in cover_block
+)
+check(
+    "121b. .sc-cover does NOT use aspect-ratio:6/1 (removed responsive ratio)",
+    "aspect-ratio:6/1" not in cover_block and "aspect-ratio: 6/1" not in cover_block
+)
+check(
+    "121c. .sc-cover retains border-radius:13px 13px 0 0 (kept for card clipping)",
+    "border-radius:13px 13px 0 0" in cover_block
+)
+check(
+    "121d. .sc-cover retains overflow:hidden (kept for card clipping)",
+    "overflow:hidden" in cover_block
+)
+
+with open("profile-v2.cover.js", encoding="utf-8") as f:
+    cover_js = f.read()
+check(
+    "121e. profile-v2.cover.js cropper config unchanged (6/1 ratio, 720x120 output)",
+    "ratio:   6 / 1" in cover_js or "ratio: 6/1" in cover_js or "6 / 1" in cover_js
+)
+check(
+    "121f. profile-v2.avatar.js unchanged",
+    "TW.createCropper" in open("profile-v2.avatar.js", encoding="utf-8").read()
+)
+check(
+    "121g. tw-image-cropper.js unchanged",
+    "createCropper" in open("static/shared/tw-image-cropper.js", encoding="utf-8").read()
+)
+
 # ── Summary ──────────────────────────────────────────────────────────────
 print()
 passed = sum(1 for _, s, _ in results if s == PASS)
