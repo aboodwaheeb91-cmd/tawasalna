@@ -560,7 +560,24 @@
     reader.readAsDataURL(file);
   }
 
-  // ── Logo photo — upload to Supabase + persist url in profiles.avatar_url ──
+  // ── Logo photo — crop via shared cropper, then upload ──
+  var _logoCropper = null;
+  function _getLogoCropper() {
+    if (!_logoCropper) {
+      var canvas = document.getElementById('coLogoCropCanvas');
+      if (!canvas) return null;
+      _logoCropper = TW.createCropper({
+        canvas:  canvas,
+        ratio:   1 / 1,
+        shape:   'rect',
+        outputW: 300,
+        outputH: 300,
+        quality: 0.85
+      });
+    }
+    return _logoCropper;
+  }
+
   function uploadLogo(input) {
     var file = input.files && input.files[0];
     input.value = '';
@@ -575,49 +592,79 @@
       return;
     }
 
+    var reader = new FileReader();
+    reader.onload = function (e) { openLogoCrop(e.target.result); };
+    reader.readAsDataURL(file);
+  }
+
+  function openLogoCrop(src) {
+    var overlay = document.getElementById('coLogoCropOverlay');
+    var slider  = document.getElementById('coLogoZoomSlider');
+    if (!overlay) return;
+    overlay.classList.add('open');
+    if (slider) { slider.min = 100; slider.max = 300; slider.value = 100; }
+    requestAnimationFrame(function () {
+      var cropper = _getLogoCropper();
+      if (cropper) cropper.load(src);
+    });
+  }
+
+  function closeLogoCrop() {
+    var overlay = document.getElementById('coLogoCropOverlay');
+    if (overlay) overlay.classList.remove('open');
+    var cropper = _getLogoCropper();
+    if (cropper) cropper.reset();
+  }
+
+  function _doUploadLogo() {
+    var cropper = _getLogoCropper();
+    if (!cropper) return;
+
     var userId = window.companyState && companyState.profile && companyState.profile.id;
     if (!userId) return;
     var jwt = window._jwt ? _jwt() : '';
+    if (!jwt) { window.location.href = '/login'; return; }
 
-    var camBtn = document.getElementById('coLogoCamBtn');
-    var logoEl = document.getElementById('coLogo');
-    if (camBtn) camBtn.disabled = true;
-    if (logoEl) logoEl.style.opacity = '0.5';
+    var saveBtn = document.getElementById('coLogoCropSaveBtn');
+    var camBtn  = document.getElementById('coLogoCamBtn');
+    var logoEl  = document.getElementById('coLogo');
 
-    var reader = new FileReader();
-    reader.onload = function (e) {
-      var dataUrl = e.target.result;
+    var dataUrl = cropper.export();
 
-      TW.uploadImage({ userId: userId, bucket: 'avatars', filename: 'logo', dataUrl: dataUrl, jwt: jwt })
-      .then(function (res) {
-        if (!res.ok) throw new Error('upload_fail');
-        var url = (res.data && res.data.url) ? res.data.url : dataUrl;
-        return fetch('/profile/' + userId, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + jwt },
-          body: JSON.stringify({ avatar_url: url })
-        })
-        .then(function (r2) {
-          if (!r2.ok) throw new Error('save_fail');
-          return url;
-        });
+    if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'جاري الرفع…'; }
+    if (camBtn)  camBtn.disabled = true;
+    if (logoEl)  logoEl.style.opacity = '0.5';
+
+    TW.uploadImage({ userId: userId, bucket: 'avatars', filename: 'logo', dataUrl: dataUrl, jwt: jwt })
+    .then(function (res) {
+      if (!res.ok) throw new Error('upload_fail');
+      var url = (res.data && res.data.url) ? res.data.url : dataUrl;
+      return fetch('/profile/' + userId, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + jwt },
+        body: JSON.stringify({ avatar_url: url })
       })
-      .then(function (url) {
-        if (window.companyState && companyState.profile) {
-          companyState.profile.avatar_url = url;
-        }
-        if (window.renderProfile) renderProfile();
-        if (window.showToast) showToast('تم حفظ الشعار ✓');
-      })
-      .catch(function () {
-        if (window.showToast) showToast('تعذر رفع الصورة، حاول مرة أخرى', 'error');
-      })
-      .finally(function () {
-        if (camBtn) camBtn.disabled = false;
-        if (logoEl) logoEl.style.opacity = '';
+      .then(function (r2) {
+        if (!r2.ok) throw new Error('save_fail');
+        return url;
       });
-    };
-    reader.readAsDataURL(file);
+    })
+    .then(function (url) {
+      if (window.companyState && companyState.profile) {
+        companyState.profile.avatar_url = url;
+      }
+      if (window.renderProfile) renderProfile();
+      if (window.showToast) showToast('تم حفظ الشعار ✓');
+      closeLogoCrop();
+    })
+    .catch(function () {
+      if (window.showToast) showToast('تعذر رفع الصورة، حاول مرة أخرى', 'error');
+    })
+    .finally(function () {
+      if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'حفظ الشعار'; }
+      if (camBtn)  camBtn.disabled = false;
+      if (logoEl)  logoEl.style.opacity = '';
+    });
   }
 
   // ── Report modal ───────────────────────────────────────────────
@@ -1080,6 +1127,8 @@
   window.setCover                 = setCover;
   window.uploadCover              = uploadCover;
   window.uploadLogo               = uploadLogo;
+  window.openLogoCrop             = openLogoCrop;
+  window.closeLogoCrop            = closeLogoCrop;
   window.openReportModal          = openReportModal;
   window.closeReportModal         = closeReportModal;
   window.submitReport             = submitReport;
@@ -1112,13 +1161,28 @@
     var coverFileInput = q('coverFileInput');
     if (coverFileInput) coverFileInput.addEventListener('change', function () { uploadCover(this); });
 
-    // Logo photo upload — analogous to Profile V2 av-cam-btn flow
+    // Logo photo upload → crop overlay → upload
     var coLogoCamBtn    = q('coLogoCamBtn');
     var coLogoFileInput = q('coLogoFileInput');
     if (coLogoCamBtn && coLogoFileInput) {
       coLogoCamBtn.addEventListener('click', function () { coLogoFileInput.click(); });
       coLogoFileInput.addEventListener('change', function () { uploadLogo(this); });
     }
+
+    // Logo crop overlay controls
+    var coLogoCropSaveBtn   = q('coLogoCropSaveBtn');
+    var coLogoCropCancelBtn = q('coLogoCropCancelBtn');
+    var coLogoZoomSlider    = q('coLogoZoomSlider');
+    var coLogoCropOverlay   = q('coLogoCropOverlay');
+    if (coLogoCropSaveBtn)   coLogoCropSaveBtn.addEventListener('click', _doUploadLogo);
+    if (coLogoCropCancelBtn) coLogoCropCancelBtn.addEventListener('click', closeLogoCrop);
+    if (coLogoZoomSlider)    coLogoZoomSlider.addEventListener('input', function () {
+      var c = _getLogoCropper();
+      if (c) c.setZoom(parseInt(this.value, 10) / 100);
+    });
+    if (coLogoCropOverlay)   coLogoCropOverlay.addEventListener('click', function (e) {
+      if (e.target === coLogoCropOverlay) closeLogoCrop();
+    });
 
     // Follow + Contact
     var followBtn  = q('followBtn');  if (followBtn)  followBtn.addEventListener('click', toggleFollow);
