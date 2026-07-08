@@ -2425,7 +2425,8 @@ body.co-loading  .visitor-only           { display: none !important; }
 }
 #coLogoCropCanvas {
   width:260px; height:260px; cursor:grab; touch-action:none;
-  border-radius:12px; border:2px solid rgba(0,200,150,.35); display:block;
+  border-radius:50%; border:2px solid rgba(0,200,150,.35); display:block;
+  overflow:hidden;
 }
 #coLogoCropCanvas:active { cursor:grabbing; }
 .co-logo-zoom-row {

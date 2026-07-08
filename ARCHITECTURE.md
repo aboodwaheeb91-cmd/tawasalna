@@ -2116,7 +2116,7 @@ cropper.reset();
 |------------|-------|-------|---------|---------|---------|--------|----------|--------------|
 | employee-avatar | 1/1 | circle (preview only) | 260 | 260 | 0.85 | avatars | avatar | `profile-v2.avatar.js` |
 | employee-cover | 6/1 | rect | 720 | 120 | 0.88 | covers | cover | `profile-v2.cover.js` |
-| company-logo | 1/1 | rect (square) | 300 | 300 | 0.85 | avatars | logo | `company.main.js` |
+| company-logo | 1/1 | circle (preview only) | 300 | 300 | 0.85 | avatars | logo | `company.main.js` |
 | company-cover | 4/1 | rect | 800 | 200 | 0.88 | avatars | cover | `company.main.js` |
 
 **ملاحظة:** `shape: 'circle'` يعني clip دائري في الـ preview canvas فقط. الـ export دائماً مستطيل/مربع. الدوائر في الـ UI تأتي من CSS `border-radius:50%` على عنصر العرض.

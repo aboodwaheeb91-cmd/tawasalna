@@ -2047,6 +2047,60 @@ check(
     "WHERE pf.followed_id = :vid_b AND u.id != :vid_b2 LIMIT :lim_b)" in srv_src
 )
 
+# ── 126. Company Logo Crop Circle Preview (feat/company-logo-crop-circle) ──
+
+co_main_126 = open("static/company/company.main.js", encoding="utf-8").read()
+co_css_126  = open("static/company/company.css",     encoding="utf-8").read()
+cropper_src_126 = open("static/shared/tw-image-cropper.js", encoding="utf-8").read()
+upload_src_126  = open("static/shared/tw-upload.js",        encoding="utf-8").read()
+av_src_126  = open("profile-v2.avatar.js",  encoding="utf-8").read()
+cov_src_126 = open("profile-v2.cover.js",   encoding="utf-8").read()
+
+check(
+    "126a. company logo cropper uses shape: circle",
+    "shape:   'circle'" in co_main_126 and "coLogoCropCanvas" in co_main_126
+)
+check(
+    "126b. company logo cropper ratio still 1/1",
+    "ratio:   1 / 1" in co_main_126 and "coLogoCropCanvas" in co_main_126
+)
+check(
+    "126c. company logo output still 300x300",
+    "outputW: 300" in co_main_126 and "outputH: 300" in co_main_126
+)
+check(
+    "126d. company logo quality still 0.85",
+    "quality: 0.85" in co_main_126 and "coLogoCropCanvas" in co_main_126
+)
+check(
+    "126e. #coLogoCropCanvas CSS uses border-radius:50% (circle shape)",
+    "border-radius:50%" in co_css_126 and "coLogoCropCanvas" in co_css_126
+)
+check(
+    "126f. #coLogoCropCanvas CSS has overflow:hidden",
+    "overflow:hidden" in co_css_126 and "coLogoCropCanvas" in co_css_126
+)
+check(
+    "126g. company cover cropper unchanged — still shape rect",
+    "shape:   'rect'" in co_main_126 and "coCoverCropCanvas" in co_main_126
+)
+check(
+    "126h. employee avatar cropper unchanged — still shape circle in profile-v2.avatar.js",
+    "shape:   'circle'" in av_src_126
+)
+check(
+    "126i. employee cover cropper unchanged — still shape rect in profile-v2.cover.js",
+    "shape:   'rect'" in cov_src_126
+)
+check(
+    "126j. tw-image-cropper.js not modified — still supports circle and rect",
+    "'circle'" in cropper_src_126 and "'rect'" in cropper_src_126
+)
+check(
+    "126k. tw-upload.js not modified — TW.uploadImage signature present",
+    "TW.uploadImage" in upload_src_126
+)
+
 # ── Summary ──────────────────────────────────────────────────────────────
 print()
 passed = sum(1 for _, s, _ in results if s == PASS)
