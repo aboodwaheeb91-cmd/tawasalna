@@ -9198,7 +9198,7 @@ When `viewer_user_id` is absent (unauthenticated), `viewer_saved` is always `FAL
 
 ## [P1] 65. Post Comments System — نظام التعليقات
 
-**Implemented in:** PR feat/company-post-comments-system · feat/comment-ux-polish-{1,2,3} · feat/reply-threading-v1
+**Implemented in:** PR feat/company-post-comments-system · feat/comment-ux-polish-{1,2,3} · feat/reply-threading-v1 · feat/comment-ux-v2
 
 ### Purpose
 
@@ -9216,14 +9216,17 @@ CREATE TABLE company_post_comments (
     status                VARCHAR(20)  NOT NULL DEFAULT 'active',
     created_at            TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     updated_at            TIMESTAMPTZ,
-    deleted_at            TIMESTAMPTZ
+    deleted_at            TIMESTAMPTZ,
+    mentioned_tw_id       VARCHAR(50) DEFAULT NULL   -- DB-backed free @mention (feat/comment-ux-v2)
 );
 
-CREATE INDEX  idx_post_cmts_post   ON company_post_comments(post_id, created_at);
-CREATE INDEX  idx_post_cmts_user   ON company_post_comments(user_id);
-CREATE INDEX  idx_post_cmts_active ON company_post_comments(post_id, status);
-CREATE INDEX  idx_post_cmts_reply  ON company_post_comments(reply_to_comment_id)
+CREATE INDEX  idx_post_cmts_post     ON company_post_comments(post_id, created_at);
+CREATE INDEX  idx_post_cmts_user     ON company_post_comments(user_id);
+CREATE INDEX  idx_post_cmts_active   ON company_post_comments(post_id, status);
+CREATE INDEX  idx_post_cmts_reply    ON company_post_comments(reply_to_comment_id)
     WHERE reply_to_comment_id IS NOT NULL;
+CREATE INDEX  idx_post_cmts_mentioned ON company_post_comments(mentioned_tw_id)
+    WHERE mentioned_tw_id IS NOT NULL;
 ```
 
 `status` values: `'active'` (visible) · `'deleted'` (soft-deleted, never returned).
@@ -9234,8 +9237,8 @@ CREATE INDEX  idx_post_cmts_reply  ON company_post_comments(reply_to_comment_id)
 
 | Helper | Contract |
 |--------|---------|
-| `get_company_post_comments(post_id, viewer_user_id)` | Returns active comments oldest-first. Joins `users` + `profiles` for author data. LEFT JOINs `company_post_comments rc + users ru` to populate `reply_to_author_name` + `reply_to_author_tw_id`. Sets `viewer_can_edit` / `viewer_can_delete` flags per comment. Returns `reply_to_comment_id`, `reply_to_author_name`, `reply_to_author_tw_id`. |
-| `create_company_post_comment(post_id, user_id, body, reply_to_comment_id=None)` | Validates body (non-empty, ≤1000 chars), checks `comments_enabled`. If `reply_to_comment_id` given: validates it exists + belongs to `post_id` + is active; resolves depth to 1 (if target is a reply, uses its `reply_to_comment_id` as the resolved parent). Inserts row, returns full comment dict including `reply_to_comment_id`, `reply_to_author_name`, `reply_to_author_tw_id`. |
+| `get_company_post_comments(post_id, viewer_user_id)` | Returns active comments oldest-first. Joins `users` + `profiles` for author data. LEFT JOINs `company_post_comments rc + users ru` to populate `reply_to_author_name` + `reply_to_author_tw_id`. LEFT JOINs `users mu ON mu.tw_id = c.mentioned_tw_id` to populate `mentioned_author_name`. Sets `viewer_can_edit` / `viewer_can_delete` flags. Returns `reply_to_comment_id`, `reply_to_author_name`, `reply_to_author_tw_id`, `mentioned_tw_id`, `mentioned_author_name`. |
+| `create_company_post_comment(post_id, user_id, body, reply_to_comment_id=None, mentioned_tw_id=None)` | Validates body (non-empty, ≤1000 chars), checks `comments_enabled`. If `reply_to_comment_id` given: validates it exists + belongs to `post_id` + is active; resolves depth to 1. If `mentioned_tw_id` given: validates user exists in `users` table. Inserts row, returns full comment dict including `reply_to_comment_id`, `reply_to_author_name`, `reply_to_author_tw_id`, `mentioned_tw_id`, `mentioned_author_name`. |
 | `update_company_post_comment(comment_id, user_id, body)` | Validates body. Checks `owner_id == user_id`; raises `PermissionError` if not. Sets `updated_at=NOW()`. |
 | `delete_company_post_comment(comment_id, user_id)` | Checks `owner_id == user_id OR company_id == user_id`; raises `PermissionError` if neither. Sets `status='deleted', deleted_at=NOW()` (soft delete). |
 
@@ -9602,7 +9605,7 @@ A lightweight portal-based mention dropdown appears inside the comment textarea 
 - `_cmtSetMentionActive(idx)` — adds `.pc-cmt-mention-active` class
 - `_cmtPositionMentionMenu(ta)` — sets `visibility:hidden; display:block` first, reads `menu.offsetHeight` (real height), then positions and clears visibility; caps at CSS max-height 160px
 - `_cmtOpenMentionMenu(ta, postId, filtered, start)` — builds items, sets `visibility:hidden; display:block`, positions (accurate offsetHeight), clears visibility
-- `_cmtInsertMention(ta, name)` — text replacement + input event + close
+- `_cmtInsertMention(ta, name, twId)` — text replacement + input event + close; stores `twId` in `_cmtMentionedTwId[postId]` for sending with comment
 - `_cmtHandleMentionInput(ta, postId)` — wired to textarea `input` listener
 - `_cmtHandleMentionKeydown(e, ta)` — wired to textarea `keydown` listener
 
@@ -9648,6 +9651,64 @@ A lightweight portal-based mention dropdown appears inside the comment textarea 
 ❌ Author name/avatar links using /profile?id= or /company-profile — only /u/{tw_id} is allowed
 ❌ Using numeric id in author or mention links — only tw_id
 ❌ Linking free @mention text when only the name (not tw_id) is known (V1: span only)
-❌ Calling _renderCommentBody with 2 args — always pass mentionName + mentionTwId (null if absent)
+❌ Calling _renderCommentBody with fewer than 5 args — always pass all args (null for absent)
 ❌ Changing companyState.profile.full_name to companyState.full_name (wrong path, pre-existing bug pattern)
+❌ Passing a free @mention as <a> without a DB-backed mentioned_tw_id — <span> only without DB backing
+❌ Storing mentioned_tw_id from untrusted client input (server must validate user exists in users table)
+❌ Walking forward in _cmtInsertReply to find sibling — use replies-box DOM pattern instead
+❌ Rendering replies inline in the comments list without toggle+box grouping (feat/comment-ux-v2)
+❌ Removing the .pc-cmt-more-btn element without calling _cmtCheckCollapse (collapse state = always added, then removed if text fits)
 ```
+
+### Comment UX V2 (feat/comment-ux-v2) — permanent contracts
+
+Three UX enhancements added in one PR on top of PR #397:
+
+#### Feature 1 — Clickable free @mention (DB-backed)
+
+When a user selects from the @ suggestion dropdown, `_cmtInsertMention(ta, name, twId)` stores `twId` in `_cmtMentionedTwId[postId]`. On send, `mentioned_tw_id` is included in the `POST /comments` payload. The server validates the user exists and stores it in `company_post_comments.mentioned_tw_id`. On fetch, `get_company_post_comments` LEFT JOINs `users mu` to return `mentioned_author_name`. `_renderCommentBody` (7-arg) renders the free @mention as `<a href="/u/mentionedTwId">` when `mentionedTwId` is present — promoting it from `<span>` to a clickable link. Only DB-backed mentions get `<a>` — fallbacks remain `<span>`.
+
+**`_renderCommentBody` 7-arg signature (final):**
+```
+_renderCommentBody(bodyEl, text, mentionName, mentionTwId, knownNames, mentionedName, mentionedTwId)
+```
+Priority: exact reply-author match → DB-backed free mention → knownNames compound → @\S+ fallback → plain text.
+
+**`_cmtMentionedTwId`** — module-level dict: `postId → tw_id of last selected @mention`. Cleared after send. Never persisted to localStorage.
+
+#### Feature 2 — Collapsible long comments
+
+Every comment body is built with `is-collapsed` CSS class. After insertion into the DOM, `_cmtCheckCollapse(el)` measures `scrollHeight > clientHeight + 2`: if the text fits in 2 CSS lines (`-webkit-line-clamp:2`), it removes `is-collapsed` + the "عرض المزيد" button. If text overflows, the button remains for expand/collapse.
+
+**Key helpers:**
+- `_cmtCheckCollapse(el)` — called after any `_cmtBuildItem` insertion into the DOM
+- `_cmtInitCollapseAll(container)` — runs `_cmtCheckCollapse` on all items (used by `_cmtRenderComments`)
+
+**Toggle delegation** in `postsList` click handler handles `.pc-cmt-more-btn` (expand: remove `is-collapsed`, change to "عرض أقل") and `.pc-cmt-less-btn` (collapse: re-add `is-collapsed`, change back to "عرض المزيد"). `_cmtHandleEdit` hides the moreBtn during edit and restores it on cancel/success/error.
+
+#### Feature 3 — Replies collapsed by default
+
+Replies are no longer rendered inline. DOM structure per parent comment in the list:
+```
+.pc-cmts-list
+  .pc-cmt-item[data-cmt-id="1"]          (parent)
+  .pc-cmt-replies-toggle[data-parent-id="1"]  "▶ عرض N ردود"
+  .pc-cmt-replies-box[data-parent-id="1"][hidden]
+    .pc-cmt-item.pc-cmt-visual-reply (reply 1)
+    .pc-cmt-item.pc-cmt-visual-reply (reply 2)
+```
+
+**Key helpers:**
+- `_cmtReplyCountText(n)` — returns `'عرض رد واحد'` / `'عرض ردّين'` / `'عرض N ردود'`
+- `_cmtSetToggleState(toggle, box, open, count)` — sets toggle text + class + box visibility; stores count in `toggle.dataset.count`
+- `_cmtBuildRepliesGroup(parentId, replies, knownNames)` — returns `{ toggle, box }` with all replies built inside box
+
+**`_cmtRenderComments`** — groups replies by parent id, renders top-level first, then appends their toggle+box. Orphans appended last. Calls `_cmtInitCollapseAll(list)` at the end.
+
+**`_cmtInsertReply`** — finds or creates the replies-box for the parent. Auto-opens the box on new reply (`_cmtSetToggleState(..., true, count)`). Returns the new item element for scrollIntoView.
+
+**`_cmtHandleDelete`**:
+- Reply deleted → remove from box; if box empty: remove toggle+box; else update toggle count
+- Parent deleted → also remove its `.pc-cmt-replies-toggle` + `.pc-cmt-replies-box` from list
+
+**Replies toggle delegation** in `postsList`: `.pc-cmt-replies-toggle[data-parent-id]` click → `_cmtSetToggleState(toggle, box, box.hidden, count)` (toggles between open and closed).

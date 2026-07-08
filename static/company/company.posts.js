@@ -737,6 +737,9 @@
     filtered:  [],     // current filtered candidate names
     activeIdx: -1,     // keyboard-highlighted row index (-1 = none)
   };
+  // postId -> { name, tw_id } of last @mention selected from autocomplete (cleared on send).
+  // Only sent if body still starts with '@' + name at send time — prevents stale mentions.
+  var _cmtMentionedCandidate = {};
 
   function _cmtGetBtn(postId) {
     var card = document.querySelector('.post-card[data-post-id="' + postId + '"]');
@@ -975,7 +978,8 @@
   }
 
   // Insert @name + space at the @-mention position, reposition cursor.
-  function _cmtInsertMention(ta, name) {
+  // twId: optional — stored in _cmtMentionedCandidate so it can be validated+sent with comment.
+  function _cmtInsertMention(ta, name, twId) {
     var val    = ta.value;
     var start  = _cmtMentionState.start;
     var cursor = ta.selectionStart;
@@ -987,6 +991,9 @@
     ta.setSelectionRange(newPos, newPos);
     ta.dispatchEvent(new Event('input')); // trigger auto-resize
     ta.focus();
+    // Capture candidate so we can validate body starts with @name at send time
+    var postId = String(_cmtMentionState.postId || '');
+    if (postId) _cmtMentionedCandidate[postId] = (twId && name) ? { name: name, tw_id: twId } : null;
     _cmtCloseMentionMenu();
   }
 
@@ -1014,7 +1021,8 @@
       var idx = _cmtMentionState.activeIdx;
       if (idx >= 0 && idx < len) {
         e.preventDefault();
-        _cmtInsertMention(ta, _cmtMentionState.filtered[idx]);
+        var cand = _cmtMentionState.filtered[idx];
+        _cmtInsertMention(ta, cand.name, cand.tw_id || null);
       }
     } else if (e.key === 'Escape') {
       _cmtCloseMentionMenu();
@@ -1089,52 +1097,68 @@
   }
 
   // XSS-safe body renderer — handles optional @mention highlight.
-  // mentionName : exact reply author name (may include spaces) — creates <a> if mentionTwId present.
-  // mentionTwId : makes the reply @mention a clickable <a href="/u/tw_id"> (V1: replies only).
-  // knownNames  : optional sorted-longest-first array of known names for free-mention compound match.
-  //               Free mentions remain <span> only — no guaranteed tw_id in V1.
-  function _renderCommentBody(bodyEl, text, mentionName, mentionTwId, knownNames) {
-    bodyEl.textContent = ''; // clears all children safely (no API data in selector)
+  // mentionName   : exact reply author name (spaces OK) — creates <a> if mentionTwId present.
+  // mentionTwId   : makes the reply @mention clickable <a href="/u/tw_id"> (DB-backed, safe).
+  // knownNames    : sorted-longest-first array of known names for free-mention compound match.
+  // mentionedName : author name of free @mention stored in DB (mentioned_author_name from API).
+  // mentionedTwId : tw_id of free @mention stored in DB — creates <a> when present (safe).
+  // Arg 6+7 promote a free @mention from <span> to <a href="/u/tw_id"> when DB-backed.
+  function _renderCommentBody(bodyEl, text, mentionName, mentionTwId, knownNames, mentionedName, mentionedTwId) {
+    bodyEl.textContent = ''; // clears all children safely
     if (!text) return;
-    // 1. Try exact compound-name match (reply_to_author_name → clickable <a> if tw_id present)
+    // 1. Exact reply-author match → <a> if mentionTwId present, else <span>
     if (mentionName) {
       var exactMention = '@' + mentionName;
       if (text.indexOf(exactMention) === 0) {
         var rest1 = text.slice(exactMention.length);
         var mentionEl = mentionTwId ? document.createElement('a') : document.createElement('span');
         mentionEl.className = 'pc-cmt-mention';
-        mentionEl.textContent = exactMention; // XSS-safe: textContent
+        mentionEl.textContent = exactMention; // XSS-safe
         if (mentionTwId) mentionEl.href = '/u/' + mentionTwId; // safe: tw_id from API
         bodyEl.appendChild(mentionEl);
         if (rest1) bodyEl.appendChild(document.createTextNode(rest1)); // XSS-safe
         return;
       }
     }
-    // 2. Free @mention — try known compound names (longest-first) before single-word fallback
+    // 2. DB-backed free @mention (mentioned_tw_id stored in DB) → clickable <a>
+    if (mentionedName && mentionedTwId && text.charAt(0) === '@') {
+      var exactFree = '@' + mentionedName;
+      if (text.indexOf(exactFree) === 0) {
+        var rest2 = text.slice(exactFree.length);
+        var freeAEl = document.createElement('a');
+        freeAEl.className = 'pc-cmt-mention';
+        freeAEl.textContent = exactFree; // XSS-safe
+        freeAEl.href = '/u/' + mentionedTwId; // safe: tw_id from DB via API
+        bodyEl.appendChild(freeAEl);
+        if (rest2) bodyEl.appendChild(document.createTextNode(rest2)); // XSS-safe
+        return;
+      }
+    }
+    // 3. Free @mention — try known compound names (longest-first) → <span> only
     if (text.charAt(0) === '@') {
       var matched = false;
       if (knownNames && knownNames.length) {
         for (var ki = 0; ki < knownNames.length; ki++) {
           var candidate = '@' + knownNames[ki];
           if (text.indexOf(candidate) === 0) {
-            var rest2 = text.slice(candidate.length);
-            var freeEl = document.createElement('span'); // free mention — span only in V1
+            var rest3 = text.slice(candidate.length);
+            var freeEl = document.createElement('span'); // no DB tw_id → span only
             freeEl.className = 'pc-cmt-mention';
-            freeEl.textContent = candidate; // XSS-safe: textContent
+            freeEl.textContent = candidate; // XSS-safe
             bodyEl.appendChild(freeEl);
-            if (rest2) bodyEl.appendChild(document.createTextNode(rest2)); // XSS-safe
+            if (rest3) bodyEl.appendChild(document.createTextNode(rest3)); // XSS-safe
             matched = true;
             break;
           }
         }
       }
       if (!matched) {
-        // Last resort: first @word only (no compound-name info available)
+        // Last resort: first @word only
         var m = text.match(/^(@\S+)([\s\S]*)$/);
         if (m) {
           var wEl = document.createElement('span');
           wEl.className = 'pc-cmt-mention';
-          wEl.textContent = m[1]; // XSS-safe: textContent
+          wEl.textContent = m[1]; // XSS-safe
           bodyEl.appendChild(wEl);
           if (m[2]) bodyEl.appendChild(document.createTextNode(m[2])); // XSS-safe
         } else {
@@ -1146,61 +1170,171 @@
     }
   }
 
-  // Groups replies under their parent — top-level first, then each parent's replies.
-  // Orphan replies (parent deleted) are appended at the end.
+  // Arabic reply count label.
+  function _cmtReplyCountText(n) {
+    if (n === 1) return 'عرض رد واحد';
+    if (n === 2) return 'عرض ردّين';
+    return 'عرض ' + n + ' ردود';
+  }
+
+  // Toggle the open/closed state of a replies group (toggle btn + box).
+  // Stores count in toggle.dataset.count so delete can update it without knowing the text.
+  function _cmtSetToggleState(toggle, box, open, count) {
+    toggle.dataset.count = String(count);
+    if (open) {
+      box.hidden = false;
+      toggle.classList.add('pc-cmt-replies-toggle--open');
+      toggle.textContent = 'إخفاء الردود';
+    } else {
+      box.hidden = true;
+      toggle.classList.remove('pc-cmt-replies-toggle--open');
+      toggle.textContent = _cmtReplyCountText(count);
+    }
+  }
+
+  // Builds the toggle button + replies box for a parent comment.
+  // Both are returned as { toggle, box } — caller inserts them into the list.
+  function _cmtBuildRepliesGroup(parentId, replies, knownNames) {
+    var toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.className = 'pc-cmt-replies-toggle';
+    toggle.dataset.parentId = String(parentId);
+    toggle.dataset.count    = String(replies.length);
+    toggle.textContent = _cmtReplyCountText(replies.length);
+
+    var box = document.createElement('div');
+    box.className = 'pc-cmt-replies-box';
+    box.dataset.parentId = String(parentId);
+    box.hidden = true;
+
+    for (var i = 0; i < replies.length; i++) {
+      box.appendChild(_cmtBuildItem(replies[i], knownNames));
+    }
+    return { toggle: toggle, box: box };
+  }
+
+  // Called after a comment element is inserted into the DOM.
+  // If the body text fits in 2 CSS lines (scrollHeight ≤ clientHeight),
+  // the is-collapsed class and "عرض المزيد" button are removed.
+  function _cmtCheckCollapse(el) {
+    var bodyEl  = el ? el.querySelector('.pc-cmt-body') : null;
+    var moreBtn = el ? el.querySelector('.pc-cmt-more-btn') : null;
+    if (!bodyEl || !moreBtn) return;
+    if (bodyEl.scrollHeight <= bodyEl.clientHeight + 2) {
+      bodyEl.classList.remove('is-collapsed');
+      moreBtn.remove();
+    }
+  }
+
+  // Runs _cmtCheckCollapse on every item inside container.
+  function _cmtInitCollapseAll(container) {
+    var items = container.querySelectorAll('.pc-cmt-item');
+    for (var i = 0; i < items.length; i++) _cmtCheckCollapse(items[i]);
+  }
+
+  // Re-evaluates collapse state after body text changes (e.g. after edit).
+  // Removes any existing more/less button, resets is-collapsed, then calls _cmtCheckCollapse.
+  // If text fits in 2 lines → class + button removed (short). If not → button stays (long).
+  function _cmtRefreshCollapse(item) {
+    var content = item ? item.querySelector('.pc-cmt-content') : null;
+    var bodyEl  = content ? content.querySelector('.pc-cmt-body') : null;
+    if (!bodyEl || bodyEl.style.display === 'none') return; // body must be visible
+    // Remove any stale toggle button before re-measuring
+    var stale = content.querySelector('.pc-cmt-more-btn, .pc-cmt-less-btn');
+    if (stale) stale.remove();
+    // Create fresh "عرض المزيد" button right after bodyEl
+    var freshBtn = document.createElement('button');
+    freshBtn.type = 'button';
+    freshBtn.className = 'pc-cmt-more-btn';
+    freshBtn.textContent = 'عرض المزيد';
+    var afterBody = bodyEl.nextSibling;
+    if (afterBody) content.insertBefore(freshBtn, afterBody);
+    else           content.appendChild(freshBtn);
+    // Reset to collapsed so scrollHeight vs clientHeight is measured correctly
+    bodyEl.classList.add('is-collapsed');
+    _cmtCheckCollapse(item); // removes class+button if text fits
+  }
+
+  // Groups replies under their parent with collapse UI. Orphans appended last.
   function _cmtRenderComments(comments, list) {
-    var map      = {};
     var rendered = {};
-    comments.forEach(function (c) { map[String(c.id)] = c; });
 
     // Collect all author names (longest-first) for compound free-mention highlighting
     var knownNames = comments.map(function (c) { return c.author_name || ''; })
       .filter(Boolean)
       .sort(function (a, b) { return b.length - a.length; });
 
-    function renderOne(c) {
-      if (rendered[c.id]) return;
-      rendered[c.id] = true;
-      list.appendChild(_cmtBuildItem(c, knownNames));
-      // Render direct replies immediately after parent
-      comments.forEach(function (r) {
-        if (r.reply_to_comment_id != null && String(r.reply_to_comment_id) === String(c.id)) {
-          renderOne(r);
-        }
-      });
-    }
+    // Group replies by parent id — do NOT mark rendered here.
+    // Replies are only marked rendered after being inserted into the DOM.
+    var parentReplies = {};
+    comments.forEach(function (c) {
+      if (c.reply_to_comment_id != null) {
+        var pid = String(c.reply_to_comment_id);
+        if (!parentReplies[pid]) parentReplies[pid] = [];
+        parentReplies[pid].push(c);
+      }
+    });
 
-    // Top-level comments first
+    // Top-level comments, each followed by their collapsed replies group
     comments.forEach(function (c) {
-      if (c.reply_to_comment_id == null) renderOne(c);
+      if (c.reply_to_comment_id != null) return;
+      list.appendChild(_cmtBuildItem(c, knownNames));
+      rendered[c.id] = true;
+      var replies = parentReplies[String(c.id)] || [];
+      if (replies.length) {
+        var grp = _cmtBuildRepliesGroup(c.id, replies, knownNames);
+        list.appendChild(grp.toggle);
+        list.appendChild(grp.box);
+        // Mark replies rendered only after their group is in the DOM
+        replies.forEach(function (r) { rendered[r.id] = true; });
+      }
     });
-    // Orphans last (parent was soft-deleted and pruned)
+
+    // Orphans last — replies whose parent is absent (soft-deleted/pruned or itself a reply)
     comments.forEach(function (c) {
-      if (!rendered[c.id]) renderOne(c);
+      if (!rendered[c.id]) list.appendChild(_cmtBuildItem(c, knownNames));
     });
+
+    // Evaluate collapse for all rendered items
+    _cmtInitCollapseAll(list);
   }
 
-  // Insert a new reply after the last existing sibling reply under the same parent.
-  // Returns the newly inserted element so callers can scroll it into view.
+  // Inserts a new reply into the collapsed replies-box for its parent.
+  // Creates toggle+box if this is the first reply. Auto-opens the box.
+  // Returns the inserted element so callers can scroll it into view.
   function _cmtInsertReply(list, newComment, knownNames) {
     var parentId = String(newComment.reply_to_comment_id);
-    var parentEl = list.querySelector('.pc-cmt-item[data-cmt-id="' + parentId + '"]');
-    var newEl    = _cmtBuildItem(newComment, knownNames || null);
-    if (!parentEl) {
-      list.appendChild(newEl);
+    var box    = list.querySelector('.pc-cmt-replies-box[data-parent-id="' + parentId + '"]');
+    var toggle = list.querySelector('.pc-cmt-replies-toggle[data-parent-id="' + parentId + '"]');
+
+    if (box && toggle) {
+      // Existing group: append and auto-open
+      var newEl = _cmtBuildItem(newComment, knownNames || null);
+      box.appendChild(newEl);
+      var count = box.querySelectorAll('.pc-cmt-item').length;
+      _cmtSetToggleState(toggle, box, true, count);
+      _cmtCheckCollapse(newEl);
       return newEl;
     }
-    // Walk forward until we pass all siblings with the same reply_to-id
-    var lastSibling = parentEl;
-    var next = parentEl.nextElementSibling;
-    while (next && next.dataset && next.dataset.replyToId === parentId) {
-      lastSibling = next;
-      next = next.nextElementSibling;
+
+    // First reply — build toggle+box, auto-open
+    var grp = _cmtBuildRepliesGroup(newComment.reply_to_comment_id, [newComment], knownNames || null);
+    var parentEl = list.querySelector('.pc-cmt-item[data-cmt-id="' + parentId + '"]');
+    if (parentEl) {
+      var nxt = parentEl.nextElementSibling;
+      if (nxt) list.insertBefore(grp.toggle, nxt);
+      else     list.appendChild(grp.toggle);
+      var nxt2 = grp.toggle.nextElementSibling;
+      if (nxt2) list.insertBefore(grp.box, nxt2);
+      else      list.appendChild(grp.box);
+    } else {
+      list.appendChild(grp.toggle);
+      list.appendChild(grp.box);
     }
-    var afterEl = lastSibling.nextElementSibling;
-    if (afterEl) list.insertBefore(newEl, afterEl);
-    else         list.appendChild(newEl);
-    return newEl;
+    _cmtSetToggleState(grp.toggle, grp.box, true, 1);
+    var firstEl = grp.box.querySelector('.pc-cmt-item');
+    if (firstEl) _cmtCheckCollapse(firstEl);
+    return firstEl;
   }
 
   function _cmtBuildItem(c, knownNames) {
@@ -1218,6 +1352,11 @@
     if (c.author_tw_id) {
       el.dataset.authorTwId   = c.author_tw_id;
       el.dataset.authorAvatar = c.author_avatar || '';
+    }
+    // Store DB-backed free @mention data (used by _renderCommentBody arg 6+7)
+    if (c.mentioned_tw_id) {
+      el.dataset.mentionedTwId = c.mentioned_tw_id;
+      if (c.mentioned_author_name) el.dataset.mentionedAuthorName = c.mentioned_author_name;
     }
 
     // Avatar (32px) — <a> if author_tw_id available, <div> otherwise
@@ -1295,9 +1434,19 @@
 
     // Body — XSS-safe via _renderCommentBody (@mention highlighted, rest as text nodes)
     var bodyEl = document.createElement('p');
-    bodyEl.className = 'pc-cmt-body';
-    _renderCommentBody(bodyEl, c.body, c.reply_to_author_name || null, c.reply_to_author_tw_id || null, knownNames || null);
+    bodyEl.className = 'pc-cmt-body is-collapsed';
+    _renderCommentBody(bodyEl, c.body,
+      c.reply_to_author_name   || null, c.reply_to_author_tw_id   || null,
+      knownNames               || null,
+      c.mentioned_author_name  || null, c.mentioned_tw_id          || null);
     content.appendChild(bodyEl);
+
+    // "عرض المزيد" / "عرض أقل" collapse button — removed by _cmtCheckCollapse if text fits
+    var moreBtn = document.createElement('button');
+    moreBtn.type = 'button';
+    moreBtn.className = 'pc-cmt-more-btn';
+    moreBtn.textContent = 'عرض المزيد';
+    content.appendChild(moreBtn);
 
     // Reply button — below body text (not in meta row)
     var replyBtn = document.createElement('button');
@@ -1466,8 +1615,12 @@
     var replyToId = _cmtReplyTargetId[String(postId)]
       ? parseInt(_cmtReplyTargetId[String(postId)], 10)
       : null;
+    // Only send mentioned_tw_id if the body still starts with '@name' — prevents stale mentions
+    var _mc = _cmtMentionedCandidate[String(postId)] || null;
+    var mentionedTwIdOut = (_mc && _mc.tw_id && body.indexOf('@' + _mc.name) === 0) ? _mc.tw_id : null;
     var payload = { body: body };
-    if (replyToId) payload.reply_to_comment_id = replyToId;
+    if (replyToId)        payload.reply_to_comment_id = replyToId;
+    if (mentionedTwIdOut) payload.mentioned_tw_id     = mentionedTwIdOut;
 
     fetch('/company/posts/' + postId + '/comments', {
       method:  'POST',
@@ -1484,8 +1637,9 @@
         }
         ta.value = '';
         ta.style.height = ''; // reset auto-resize after send
-        _cmtReplyTarget[String(postId)]   = null;
-        _cmtReplyTargetId[String(postId)] = null;
+        _cmtReplyTarget[String(postId)]    = null;
+        _cmtReplyTargetId[String(postId)]  = null;
+        _cmtMentionedCandidate[String(postId)] = null;
         var rStrip = panel.querySelector('.pc-cmt-reply-strip');
         if (rStrip) rStrip.style.display = 'none';
         var list = panel.querySelector('.pc-cmts-list');
@@ -1501,8 +1655,10 @@
               newEl.scrollIntoView({ block: 'nearest' });
             }
           } else {
-            // Top-level comment: append and scroll list to bottom
-            list.appendChild(_cmtBuildItem(newComment, knownNames));
+            // Top-level comment: append, check collapse, scroll list to bottom
+            var topEl = _cmtBuildItem(newComment, knownNames);
+            list.appendChild(topEl);
+            _cmtCheckCollapse(topEl);
             list.scrollTop = list.scrollHeight;
           }
         }
@@ -1530,8 +1686,10 @@
 
     var originalText      = bodyEl.textContent; // textContent returns full text even with child spans
     var wasVisualReply    = item.classList.contains('pc-cmt-visual-reply');
-    var replyToAuthor     = item.dataset.replyToAuthor    || null;
+    var replyToAuthor     = item.dataset.replyToAuthor     || null;
     var replyToAuthorTwId = item.dataset.replyToAuthorTwId || null;
+    var mentionedAuthorName = item.dataset.mentionedAuthorName || null;
+    var mentionedTwId       = item.dataset.mentionedTwId       || null;
 
     // 1. Build editWrap fully in memory
     var editWrap  = document.createElement('div');
@@ -1557,11 +1715,13 @@
     editWrap.appendChild(editTa);
     editWrap.appendChild(editBtns);
 
-    // 2. Insert editWrap into DOM FIRST, then hide bodyEl — never a blank gap
+    // 2. Insert editWrap into DOM FIRST, then hide bodyEl + moreBtn — never a blank gap
     var acts = content.querySelector('.pc-cmt-acts'); // correct parent: content, not item
     if (acts) content.insertBefore(editWrap, acts);
     else content.appendChild(editWrap);
     bodyEl.style.display = 'none';
+    var moreToggle = content.querySelector('.pc-cmt-more-btn, .pc-cmt-less-btn');
+    if (moreToggle) moreToggle.style.display = 'none';
 
     // Size to existing text now that the element is in the DOM (scrollHeight is accurate)
     _autoResizeTextarea(editTa);
@@ -1572,6 +1732,7 @@
 
     cancelBtn.addEventListener('click', function () {
       bodyEl.style.display = '';
+      if (moreToggle) moreToggle.style.display = '';
       editWrap.remove();
     });
 
@@ -1587,10 +1748,12 @@
       _cmtEditInFlight[cmtId] = true;
       saveBtn.disabled = true;
       var editKnownNames = _cmtKnownNames(String(postId));
-      _renderCommentBody(bodyEl, newBody, replyToAuthor, replyToAuthorTwId, editKnownNames); // XSS-safe
+      _renderCommentBody(bodyEl, newBody, replyToAuthor, replyToAuthorTwId, editKnownNames,
+        mentionedAuthorName, mentionedTwId); // XSS-safe
       // visual-reply class is driven by reply_to_comment_id (immutable per comment) — no change
       bodyEl.style.display = '';
       editWrap.remove();
+      _cmtRefreshCollapse(item); // re-evaluate collapse for new body length
 
       fetch('/company/posts/comments/' + cmtId, {
         method:  'PATCH',
@@ -1601,17 +1764,21 @@
         .then(function (res) {
           _cmtEditInFlight[cmtId] = false;
           if (!res.ok || !res.data || res.data.status !== 'success') {
-            // Rollback to original text + restore visual-reply state
-            _renderCommentBody(bodyEl, originalText, replyToAuthor, replyToAuthorTwId, editKnownNames); // XSS-safe
+            // Rollback — restore original text + visual-reply state + re-evaluate collapse
+            _renderCommentBody(bodyEl, originalText, replyToAuthor, replyToAuthorTwId, editKnownNames,
+              mentionedAuthorName, mentionedTwId); // XSS-safe rollback
+            _cmtRefreshCollapse(item);
             if (wasVisualReply) item.classList.add('pc-cmt-visual-reply');
             else item.classList.remove('pc-cmt-visual-reply');
             var msg = (res.data && res.data.detail) ? res.data.detail : 'تعذّر تعديل التعليق';
             if (window.showToast) showToast(res.status === 429 ? 'الرجاء التمهّل قليلاً' : msg);
             return;
           }
-          // Confirm with server body + mark as edited (visual-reply class unchanged — driven by reply_to_comment_id)
+          // Confirm with server body + mark as edited + re-evaluate collapse for confirmed text
           var confirmedBody = res.data.comment.body;
-          _renderCommentBody(bodyEl, confirmedBody, replyToAuthor, replyToAuthorTwId, editKnownNames); // XSS-safe
+          _renderCommentBody(bodyEl, confirmedBody, replyToAuthor, replyToAuthorTwId, editKnownNames,
+            mentionedAuthorName, mentionedTwId); // XSS-safe
+          _cmtRefreshCollapse(item);
           var metaRow = item.querySelector('.pc-cmt-meta-row');
           if (metaRow && !metaRow.querySelector('.pc-cmt-edited')) {
             var editedEl = document.createElement('span');
@@ -1622,7 +1789,9 @@
         })
         .catch(function () {
           _cmtEditInFlight[cmtId] = false;
-          _renderCommentBody(bodyEl, originalText, replyToAuthor, replyToAuthorTwId, editKnownNames); // XSS-safe rollback
+          _renderCommentBody(bodyEl, originalText, replyToAuthor, replyToAuthorTwId, editKnownNames,
+            mentionedAuthorName, mentionedTwId); // XSS-safe rollback
+          _cmtRefreshCollapse(item);
           if (wasVisualReply) item.classList.add('pc-cmt-visual-reply');
           else item.classList.remove('pc-cmt-visual-reply');
           if (window.showToast) showToast('تعذّر تعديل التعليق');
@@ -1647,11 +1816,36 @@
         }
         var panel = _cmtGetPanel(postId);
         if (panel) {
+          var list = panel.querySelector('.pc-cmts-list');
           var item = panel.querySelector('.pc-cmt-item[data-cmt-id="' + cmtId + '"]');
           if (item) {
-            item.remove();
-            // Show empty state if no comments left
-            var list = panel.querySelector('.pc-cmts-list');
+            var replyBox = item.closest('.pc-cmt-replies-box');
+            if (replyBox) {
+              // Deleted item is a reply inside a box
+              item.remove();
+              var parentId   = replyBox.dataset.parentId;
+              var remaining  = replyBox.querySelectorAll('.pc-cmt-item').length;
+              var toggleEl   = list ? list.querySelector('.pc-cmt-replies-toggle[data-parent-id="' + parentId + '"]') : null;
+              if (remaining === 0) {
+                if (toggleEl) toggleEl.remove();
+                replyBox.remove();
+              } else {
+                if (toggleEl) {
+                  var isOpen = !replyBox.hidden;
+                  _cmtSetToggleState(toggleEl, replyBox, isOpen, remaining);
+                }
+              }
+            } else {
+              // Deleted item is a top-level comment — also remove its replies group
+              if (list) {
+                var childToggle = list.querySelector('.pc-cmt-replies-toggle[data-parent-id="' + cmtId + '"]');
+                var childBox    = list.querySelector('.pc-cmt-replies-box[data-parent-id="' + cmtId + '"]');
+                if (childToggle) childToggle.remove();
+                if (childBox)    childBox.remove();
+              }
+              item.remove();
+            }
+            // Show empty state if no comments remain (top-level or any)
             if (list && !list.querySelector('.pc-cmt-item')) {
               var empty = document.createElement('div');
               empty.className = 'pc-cmts-empty';
@@ -1730,13 +1924,49 @@
       var item = e.target.closest('.pc-cmt-mention-item[data-mention-name]');
       if (!item) return;
       var ta = _cmtMentionState.ta;
-      if (ta) _cmtInsertMention(ta, item.dataset.mentionName);
+      if (ta) _cmtInsertMention(ta, item.dataset.mentionName, item.dataset.mentionTwId || null);
     });
 
     // Event delegation for post card buttons
     var postsList = document.getElementById('postsList');
     if (postsList) {
       postsList.addEventListener('click', function (e) {
+        // Comment body "عرض المزيد" — expand collapsed comment
+        var cmtMoreBtn = e.target.closest('.pc-cmt-more-btn');
+        if (cmtMoreBtn) {
+          var cmtBody = cmtMoreBtn.previousElementSibling;
+          if (cmtBody && cmtBody.classList.contains('pc-cmt-body')) {
+            cmtBody.classList.remove('is-collapsed');
+            cmtMoreBtn.className = 'pc-cmt-less-btn';
+            cmtMoreBtn.textContent = 'عرض أقل';
+          }
+          return;
+        }
+        // Comment body "عرض أقل" — collapse back
+        var cmtLessBtn = e.target.closest('.pc-cmt-less-btn');
+        if (cmtLessBtn) {
+          var cmtBody = cmtLessBtn.previousElementSibling;
+          if (cmtBody && cmtBody.classList.contains('pc-cmt-body')) {
+            cmtBody.classList.add('is-collapsed');
+            cmtLessBtn.className = 'pc-cmt-more-btn';
+            cmtLessBtn.textContent = 'عرض المزيد';
+          }
+          return;
+        }
+        // Replies toggle — open/close replies box
+        var repliesToggle = e.target.closest('.pc-cmt-replies-toggle[data-parent-id]');
+        if (repliesToggle) {
+          var rParentId = repliesToggle.dataset.parentId;
+          var rList = repliesToggle.closest('.pc-cmts-list');
+          if (rList) {
+            var rBox = rList.querySelector('.pc-cmt-replies-box[data-parent-id="' + rParentId + '"]');
+            if (rBox) {
+              var rCount = parseInt(repliesToggle.dataset.count || '0', 10);
+              _cmtSetToggleState(repliesToggle, rBox, rBox.hidden, rCount);
+            }
+          }
+          return;
+        }
         // Read more — show full text inline, no overlay
         var moreBtn = e.target.closest('.post-more-inline');
         if (moreBtn) {
