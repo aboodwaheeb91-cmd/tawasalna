@@ -1897,8 +1897,16 @@ check(
     "if (!_cmtMentionState.open) return;" in posts_js
 )
 check(
-    "123h. debounce guard: aborts if start index changed (caret moved)",
-    "_cmtFindMentionStart(ta) !== capturedStart" in posts_js
+    "123h. debounce guard: aborts if query changed (stale response protection)",
+    "capturedQuery" in posts_js and "currentQuery !== capturedQuery" in posts_js
+)
+check(
+    "123h2. post-response guard: re-verifies query after async gap",
+    "postResponseQuery !== capturedQuery" in posts_js
+)
+check(
+    "123h3. capturedCursor removed — no unused variable",
+    "capturedCursor" not in posts_js
 )
 
 # _cmtCloseMentionMenu clears debounce timer

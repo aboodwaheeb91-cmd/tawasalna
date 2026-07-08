@@ -1040,25 +1040,32 @@
 
     // Debounced API search to surface followers/following beyond visible DOM
     if (_cmtMentionDebounce) clearTimeout(_cmtMentionDebounce);
-    var capturedStart  = start;
-    var capturedCursor = ta.selectionStart;
+    var capturedStart = start;
+    var capturedQuery = query;
     _cmtMentionDebounce = setTimeout(function () {
       _cmtMentionDebounce = null;
-      // Abort if caret moved away from the same @ token
+      // Stale-response guard: abort if panel closed or user typed past this @ token
       if (!_cmtMentionState.open) return;
-      if (_cmtFindMentionStart(ta) !== capturedStart) return;
+      var currentStart = _cmtFindMentionStart(ta);
+      if (currentStart !== capturedStart) return;
+      var currentQuery = ta.value.slice(currentStart + 1, ta.selectionStart);
+      if (currentQuery !== capturedQuery) return;
       var jwt = window._jwt ? window._jwt() : '';
       if (!jwt) return;
-      var url = '/mention/search?q=' + encodeURIComponent(query) + '&limit=8';
+      var url = '/mention/search?q=' + encodeURIComponent(capturedQuery) + '&limit=8';
       fetch(url, { headers: { 'Authorization': 'Bearer ' + jwt } })
         .then(function (r) { return r.json(); })
         .then(function (res) {
+          // Second stale-response guard: re-verify after async gap
           if (!_cmtMentionState.open) return;
-          if (_cmtFindMentionStart(ta) !== capturedStart) return;
+          var postResponseStart = _cmtFindMentionStart(ta);
+          if (postResponseStart !== capturedStart) return;
+          var postResponseQuery = ta.value.slice(postResponseStart + 1, ta.selectionStart);
+          if (postResponseQuery !== capturedQuery) return;
           if (!res.ok || !Array.isArray(res.candidates)) return;
           var freshDom    = _cmtCollectMentionCandidates(postId);
           var merged      = _cmtMergeCandidates(freshDom, res.candidates);
-          var newFiltered = _cmtFilterMentionCandidates(query, merged);
+          var newFiltered = _cmtFilterMentionCandidates(capturedQuery, merged);
           _cmtOpenMentionMenu(ta, postId, newFiltered, capturedStart);
         })
         .catch(function () {});
