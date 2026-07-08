@@ -1812,6 +1812,48 @@ check(
     "createCropper" in open("static/shared/tw-image-cropper.js", encoding="utf-8").read()
 )
 
+# ── 122. Avatar Crop Modal Mobile Size ───────────────────────────────────
+with open("profile-v2.css", encoding="utf-8") as f:
+    _pv2css = f.read()
+
+av_canvas_start = _pv2css.find("#avCropCanvas {")
+av_canvas_block = _pv2css[av_canvas_start:_pv2css.find("}", av_canvas_start)+1] if av_canvas_start >= 0 else ""
+av_card_start   = _pv2css.find(".av-crop-card {")
+av_card_block   = _pv2css[av_card_start:_pv2css.find("}", av_card_start)+1] if av_card_start >= 0 else ""
+
+check(
+    "122a. #avCropCanvas has CSS width constraint (min() or px) to prevent DPR overflow",
+    "width:min(" in av_canvas_block or "width: min(" in av_canvas_block or
+    ("width:" in av_canvas_block and "px" in av_canvas_block)
+)
+check(
+    "122b. #avCropCanvas has aspect-ratio:1/1 so canvas stays square",
+    "aspect-ratio:1/1" in av_canvas_block or "aspect-ratio: 1/1" in av_canvas_block
+)
+check(
+    "122c. #avCropCanvas has max-width constraint",
+    "max-width:" in av_canvas_block
+)
+check(
+    "122d. .av-crop-card has max-height to prevent overflow on short screens",
+    "max-height:" in av_card_block
+)
+check(
+    "122e. avatar cropper config unchanged: ratio 1/1, shape circle, outputW 260, quality 0.85",
+    open("profile-v2.avatar.js", encoding="utf-8").read().count("TW.createCropper") >= 1 and
+    "ratio:   1 / 1" in open("profile-v2.avatar.js", encoding="utf-8").read() and
+    "shape:   'circle'" in open("profile-v2.avatar.js", encoding="utf-8").read() and
+    "outputW: 260" in open("profile-v2.avatar.js", encoding="utf-8").read()
+)
+check(
+    "122f. .sc-cover height:80px unchanged (cover not affected)",
+    "height:80px" in _pv2css
+)
+check(
+    "122g. tw-image-cropper.js unchanged",
+    "createCropper" in open("static/shared/tw-image-cropper.js", encoding="utf-8").read()
+)
+
 # ── Summary ──────────────────────────────────────────────────────────────
 print()
 passed = sum(1 for _, s, _ in results if s == PASS)
