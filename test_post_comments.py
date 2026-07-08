@@ -1854,6 +1854,84 @@ check(
     "createCropper" in open("static/shared/tw-image-cropper.js", encoding="utf-8").read()
 )
 
+# ── 123. @mention API Search (feat/mention-api-search) ───────────────────
+
+posts_js = open("static/company/company.posts.js", encoding="utf-8").read()
+srv_src  = open("server.py", encoding="utf-8").read()
+
+# Module-level debounce timer
+check(
+    "123a. _cmtMentionDebounce module variable declared",
+    "var _cmtMentionDebounce" in posts_js
+)
+
+# _cmtMergeCandidates function
+check(
+    "123b. _cmtMergeCandidates function defined",
+    "function _cmtMergeCandidates(" in posts_js
+)
+check(
+    "123c. _cmtMergeCandidates deduplicates by tw_id (seen dict)",
+    "seen[domCands[i].tw_id]" in posts_js or "seen[apiCands[j].tw_id]" in posts_js
+)
+
+# _cmtHandleMentionInput opens menu immediately with DOM candidates
+check(
+    "123d. _cmtHandleMentionInput shows DOM candidates immediately (no wait for API)",
+    "_cmtOpenMentionMenu(ta, postId, filtered, start)" in posts_js
+)
+
+# Debounce + API call
+check(
+    "123e. _cmtHandleMentionInput uses setTimeout 200ms debounce for API call",
+    "_cmtMentionDebounce = setTimeout(function" in posts_js and ", 200)" in posts_js
+)
+check(
+    "123f. _cmtHandleMentionInput fetches /mention/search with Authorization header",
+    "'/mention/search?q='" in posts_js and "'Authorization'" in posts_js and "Bearer" in posts_js
+)
+
+# Guard: abort if menu closed or caret moved
+check(
+    "123g. debounce guard: aborts if mention state closed before response arrives",
+    "if (!_cmtMentionState.open) return;" in posts_js
+)
+check(
+    "123h. debounce guard: aborts if start index changed (caret moved)",
+    "_cmtFindMentionStart(ta) !== capturedStart" in posts_js
+)
+
+# _cmtCloseMentionMenu clears debounce timer
+check(
+    "123i. _cmtCloseMentionMenu clears _cmtMentionDebounce on close",
+    "if (_cmtMentionDebounce) { clearTimeout(_cmtMentionDebounce)" in posts_js
+)
+
+# Backend endpoint
+check(
+    "123j. server.py has GET /mention/search endpoint",
+    '@app.get("/mention/search")' in srv_src
+)
+check(
+    "123k. GET /mention/search requires JWT (Depends(verify_token))",
+    "mention_search" in srv_src and "verify_token" in srv_src and
+    '/mention/search' in srv_src
+)
+check(
+    "123l. GET /mention/search returns prioritized candidates from followers/following",
+    "profile_follows" in srv_src and "company_follows" in srv_src and
+    "mention_search" in srv_src
+)
+check(
+    "123m. GET /mention/search deduplicates by tw_id (seen set)",
+    "seen" in srv_src and "set()" in srv_src and "mention_search" in srv_src
+)
+check(
+    "123n. GET /mention/search merges DOM candidates via _cmtMergeCandidates in frontend",
+    "function _cmtMergeCandidates(" in posts_js and
+    "_cmtMergeCandidates(freshDom, res.candidates)" in posts_js
+)
+
 # ── Summary ──────────────────────────────────────────────────────────────
 print()
 passed = sum(1 for _, s, _ in results if s == PASS)
