@@ -1424,15 +1424,88 @@ else:
                 "116h", "116i", "116j", "116k", "116l", "116m"]:
         check(lbl + ". (skipped — file absent)", False)
 
-# Cropper must NOT be loaded in profile or company pages yet (no page wiring in this PR)
+# 116n updated: PR #405 adds tw-image-cropper.js to profile-showcase.html
 check(
-    "116n. profile-showcase.html does NOT load tw-image-cropper.js yet",
-    "tw-image-cropper.js" not in open("profile-showcase.html", encoding="utf-8").read()
+    "116n. profile-showcase.html loads tw-image-cropper.js (added by PR #405)",
+    "tw-image-cropper.js" in open("profile-showcase.html", encoding="utf-8").read()
 )
 check(
     "116o. company-profile.html does NOT load tw-image-cropper.js yet",
     "tw-image-cropper.js" not in open("company-profile.html", encoding="utf-8").read()
 )
+
+# ── 117. PR #405 — Connect Employee Cover to Shared Image Cropper ────────
+
+cover_path = "profile-v2.cover.js"
+showcase_html = open("profile-showcase.html", encoding="utf-8").read()
+
+if os.path.exists(cover_path):
+    with open(cover_path, encoding="utf-8") as f:
+        cover_src = f.read()
+    _cover_code = _re.sub(r'//[^\n]*', '', cover_src)
+
+    check(
+        "117a. profile-showcase.html loads tw-image-cropper.js (PR #405 wires cover)",
+        "tw-image-cropper.js" in showcase_html
+    )
+
+    # Script order: tw-image-cropper.js must appear before profile-v2.cover.js
+    idx_cropper = showcase_html.find("tw-image-cropper.js")
+    idx_cover   = showcase_html.find("profile-v2.cover.js")
+    check(
+        "117b. tw-image-cropper.js loads before profile-v2.cover.js in profile-showcase.html",
+        idx_cropper != -1 and idx_cover != -1 and idx_cropper < idx_cover
+    )
+
+    check(
+        "117c. profile-v2.cover.js uses TW.createCropper",
+        "TW.createCropper" in cover_src
+    )
+    check(
+        "117d. profile-v2.cover.js calls _cropper.load",
+        "_cropper.load(" in cover_src
+    )
+    check(
+        "117e. profile-v2.cover.js calls _cropper.setZoom",
+        "_cropper.setZoom(" in cover_src
+    )
+    check(
+        "117f. profile-v2.cover.js calls _cropper.export",
+        "_cropper.export()" in cover_src
+    )
+    check(
+        "117g. profile-v2.cover.js calls _cropper.reset",
+        "_cropper.reset()" in cover_src
+    )
+    check(
+        "117h. profile-v2.cover.js has no inline crop state (CW/CH/_minScale removed)",
+        "var CW" not in _cover_code and
+        "var CH" not in _cover_code and
+        "_minScale" not in _cover_code
+    )
+    check(
+        "117i. profile-v2.cover.js has no inline drag handlers (_clampOffset removed)",
+        "_clampOffset" not in _cover_code and
+        "onMouseDown" not in _cover_code and
+        "onTouchMove" not in _cover_code
+    )
+    check(
+        "117j. profile-v2.cover.js has no exportJpeg function",
+        "exportJpeg" not in _cover_code
+    )
+    check(
+        "117k. profile-v2.cover.js uses requestAnimationFrame before _cropper.load",
+        "requestAnimationFrame" in cover_src and "_cropper.load" in cover_src
+    )
+    check(
+        "117l. profile-v2.cover.js still validates file type and size (UX unchanged)",
+        "MAX_BYTES" in cover_src and
+        "jpeg|png|webp" in cover_src
+    )
+else:
+    for lbl in ["117a", "117b", "117c", "117d", "117e", "117f",
+                "117g", "117h", "117i", "117j", "117k", "117l"]:
+        check(lbl + ". (skipped — file absent)", False)
 
 # ── Summary ──────────────────────────────────────────────────────────────
 print()
