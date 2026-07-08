@@ -2031,20 +2031,20 @@ body.view-owner .av-edit-btn { display:flex; }
 
 ---
 
-## Image Cropper Architecture — الحالة والخارطة المستقبلية
+## Image Cropper Architecture — مكتمل / Implemented & Stable
 
-> **تحذير للـ AI:** هذا قسم توثيقي فقط. لا تنشئ `tw-image-cropper.js` ولا تعدّل أي ملف crop/avatar/cover قبل موافقة صريحة من المستخدم. راجع `CLAUDE.md → Image Cropper System Rules`.
+> **ملاحظة للـ AI:** النظام مكتمل بالكامل (PR #404–#408). `static/shared/tw-image-cropper.js` موجود ومستخدم في جميع أنواع الصور الأربعة. راجع `CLAUDE.md → Image Cropper System Rules` للقواعد الدائمة.
 
-### الحالة الحالية — أربعة أنظمة رفع صور
+### الحالة الحالية — جميع أنواع الصور تستخدم TW.createCropper
 
-| نوع الصورة | الملف المسؤول | Crop | Zoom | Drag | Export |
-|------------|--------------|------|------|------|--------|
-| صورة بروفايل الموظف (avatar) | `profile-v2.avatar.js` | ✓ دائري (preview فقط) | ✓ 1×–3× | ✓ mouse + touch | 260×260 JPEG q0.85 |
-| كفر الموظف (cover) | `profile-v2.cover.js` | ✓ مستطيل 6:1 | ✓ 1×–3× | ✓ mouse + touch | 720×120 JPEG q0.88 |
-| شعار الشركة (logo) | `static/company/company.main.js` → `uploadLogo()` | ✗ لا يوجد | ✗ | ✗ | raw upload |
-| كفر الشركة (cover) | `static/company/company.main.js` → `uploadCover()` | ✗ لا يوجد | ✗ | ✗ | raw upload |
+| نوع الصورة | الملف المسؤول | Cropper | Zoom | Drag | Export |
+|------------|--------------|---------|------|------|--------|
+| صورة بروفايل الموظف (avatar) | `profile-v2.avatar.js` | ✅ `TW.createCropper` — circle preview | ✓ 1×–3× | ✓ mouse + touch | 260×260 JPEG q0.85 |
+| كفر الموظف (cover) | `profile-v2.cover.js` | ✅ `TW.createCropper` — rect 6:1 | ✓ 1×–3× | ✓ mouse + touch | 720×120 JPEG q0.88 |
+| شعار الشركة (logo) | `company.main.js` → `openLogoCrop` | ✅ `TW.createCropper` — rect 1:1 | ✓ 1×–3× | ✓ mouse + touch | 300×300 JPEG q0.85 |
+| كفر الشركة (cover) | `company.main.js` → `openCoverCrop` | ✅ `TW.createCropper` — rect 4:1 | ✓ 1×–3× | ✓ mouse + touch | 800×200 JPEG q0.88 |
 
-**الفجوة الحالية:** شعار وكفر الشركة يُرفعان بأبعاد عشوائية. `object-fit:cover` و`aspect-ratio` في CSS يستوعبانهما لكن النتيجة غير مضمونة.
+**النتيجة:** جميع أنواع الصور تمر عبر `TW.createCropper` قبل الرفع. لا يوجد crop inline في أي page module.
 
 ---
 
@@ -2058,7 +2058,7 @@ body.view-owner .av-edit-btn { display:flex; }
 │  • loading state, toast, DOM update بعد النجاح             │
 │  • DB save (PUT /profile, PUT /company/cover/{id}, ...)     │
 ├─────────────────────────────────────────────────────────────┤
-│  tw-image-cropper.js  (مخطط — لم يُبنَ بعد)                  │
+│  tw-image-cropper.js  (مكتمل — PR #404)                       │
 │  • canvas setup + drawCanvas                               │
 │  • min-scale calculation                                   │
 │  • zoom (stable center)                                    │
@@ -2076,7 +2076,7 @@ body.view-owner .av-edit-btn { display:flex; }
 
 ---
 
-### الـ API المقترح لـ tw-image-cropper.js (مخطط فقط)
+### الـ API الفعلي لـ tw-image-cropper.js (مكتمل — PR #404)
 
 ```js
 // إنشاء instance بربطه بـ canvas element + config
@@ -2110,14 +2110,14 @@ cropper.reset();
 
 ---
 
-### Config المقترح لكل نوع صورة
+### Config النهائي لكل نوع صورة (مُثبَّت — لا يُعدَّل بدون PR مخصص)
 
-| نوع الصورة | ratio | shape | outputW | outputH | quality | bucket | filename |
-|------------|-------|-------|---------|---------|---------|--------|----------|
-| employee-avatar | 1/1 | circle (preview only) | 260 | 260 | 0.85 | avatars | avatar |
-| employee-cover | 6/1 | rect | 720 | 120 | 0.88 | covers | cover |
-| company-logo | 1/1 | rect (square) | 300 | 300 | 0.85 | avatars | logo |
-| company-cover | 4/1 | rect | 800 | 200 | 0.88 | avatars | cover |
+| نوع الصورة | ratio | shape | outputW | outputH | quality | bucket | filename | الملف المسؤول |
+|------------|-------|-------|---------|---------|---------|--------|----------|--------------|
+| employee-avatar | 1/1 | circle (preview only) | 260 | 260 | 0.85 | avatars | avatar | `profile-v2.avatar.js` |
+| employee-cover | 6/1 | rect | 720 | 120 | 0.88 | covers | cover | `profile-v2.cover.js` |
+| company-logo | 1/1 | rect (square) | 300 | 300 | 0.85 | avatars | logo | `company.main.js` |
+| company-cover | 4/1 | rect | 800 | 200 | 0.88 | avatars | cover | `company.main.js` |
 
 **ملاحظة:** `shape: 'circle'` يعني clip دائري في الـ preview canvas فقط. الـ export دائماً مستطيل/مربع. الدوائر في الـ UI تأتي من CSS `border-radius:50%` على عنصر العرض.
 
@@ -2129,31 +2129,46 @@ cropper.reset();
 
 ---
 
-### مراحل التنفيذ (مخطط — تحتاج موافقة قبل كل مرحلة)
+### مراحل التنفيذ — مكتملة بالكامل ✅
 
-| المرحلة | الـ PR | المحتوى | الملفات |
-|---------|--------|---------|---------|
-| 1 | توثيقي (هذا الـ PR) | ARCHITECTURE.md + SYSTEMS_INDEX.md + CLAUDE.md | docs فقط |
-| 2 | `feat/tw-image-cropper` | بناء `static/shared/tw-image-cropper.js` بدون ربطه بأي صفحة. Static checks فقط. | `static/shared/tw-image-cropper.js` |
-| 3 | `feat/employee-cover-cropper` | ربط `profile-v2.cover.js` بـ shared cropper | `profile-v2.cover.js`, `profile-showcase.html` |
-| 4 | `feat/company-logo-cropper` | إضافة crop لشعار الشركة | `company.main.js`, `company-profile.html`, `company.css` |
-| 5 | `feat/company-cover-cropper` | إضافة crop لكفر الشركة | `company.main.js`, `company-profile.html`, `company.css` |
-| 6 | `feat/employee-avatar-cropper` | ربط `profile-v2.avatar.js` (الأكثر حساسية — آخراً) | `profile-v2.avatar.js` |
-
-**كل مرحلة تحتاج موافقة صريحة قبل البدء.**
+| المرحلة | الـ PR | المحتوى | الحالة |
+|---------|--------|---------|--------|
+| 1 | PR #403 | ARCHITECTURE.md + SYSTEMS_INDEX.md + CLAUDE.md (توثيقي) | ✅ مكتمل |
+| 2 | PR #404 | بناء `static/shared/tw-image-cropper.js` بدون ربط بأي صفحة | ✅ مكتمل |
+| 3 | PR #405 | ربط `profile-v2.cover.js` بـ shared cropper | ✅ مكتمل |
+| 4 | PR #406 | إضافة crop لشعار الشركة (`company.main.js` + overlay HTML + CSS) | ✅ مكتمل |
+| 5 | PR #407 | إضافة crop لكفر الشركة (`company.main.js` + overlay HTML + CSS) | ✅ مكتمل |
+| 6 | PR #408 | ربط `profile-v2.avatar.js` (المرحلة الأخيرة) | ✅ مكتمل |
+| 7 | PR #409 | تحديث توثيق النظام ليعكس الاكتمال | ✅ هذا الـ PR |
 
 ---
 
-### المخاطر
+### المخاطر والحمايات المطبّقة
 
-| الخطر | المستوى | الحماية |
-|-------|---------|---------|
-| mismatch بين CSS ratio وoutput ratio | عالٍ | config يُقرأ من جدول واحد موثق هنا |
-| mobile touch passive:false ضروري | متوسط | يجب نقله كما هو للـ shared cropper |
-| devicePixelRatio على Retina | متوسط | إضافة DPR support في المرحلة 2 |
-| crop button يظهر في public/guest view | عالٍ | owner-only CSS class يبقى في HTML كل صفحة |
-| dataUrl يُحفظ في DB (dev mode) | متوسط | TW.uploadImage لا يتغيّر — الصفحة تتعامل مع الـ fallback |
-| تغيير TW.uploadImage | منخفض | tw-upload.js مُجمَّد — لا يُلمَس |
+| الخطر | المستوى | الحماية المطبّقة |
+|-------|---------|-----------------|
+| mismatch بين CSS ratio وoutput ratio | عالٍ | ✅ config مُثبَّت في جدول أعلاه — CSS مطابق للـ output في جميع الأنواع |
+| mobile touch passive:false ضروري | متوسط | ✅ مُطبَّق في `tw-image-cropper.js` على touchstart + touchmove |
+| devicePixelRatio على Retina | متوسط | ✅ DPR support مُطبَّق في `_setupCanvas()` — `canvas.width = _dw * _dpr; ctx.scale(_dpr, _dpr)` |
+| crop button يظهر في public/guest view | عالٍ | ✅ `owner-only` CSS class موجود في HTML كل صفحة |
+| dataUrl يُحفظ في DB (dev mode) | متوسط | ✅ TW.uploadImage لا يتغيّر — الصفحة تتعامل مع الـ fallback |
+| تغيير TW.uploadImage | منخفض | ✅ tw-upload.js مُجمَّد — لا يُلمَس |
+
+### قاعدة الصور الجديدة (دائمة — mandatory)
+
+أي نوع صورة جديد يحتاج crop/zoom/drag في المستقبل **يجب** أن:
+1. يستخدم `TW.createCropper()` من `static/shared/tw-image-cropper.js`
+2. يضيف overlay HTML في صفحته فقط (IDs مخصصة وغير مكررة)
+3. يضيف CSS في ملف CSS الخاص بصفحته
+4. يمرر `cropper.export()` → `TW.uploadImage()` — نفس الـ pipeline المُثبَّت
+
+**ممنوع بشكل دائم:**
+```
+❌ إنشاء crop منطق inline داخل أي page module
+❌ إضافة upload logic داخل tw-image-cropper.js
+❌ تعديل config جدول أعلاه بدون PR مخصص ومستقل
+❌ استخدام canvas/drag/zoom/export مختلف عن TW.createCropper
+```
 
 ---
 

@@ -380,20 +380,20 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 
 ---
 
-### 29b. Image Cropper System (`tw-image-cropper.js`) — مخطط، لم يُبنَ بعد
-**Purpose:** Shared canvas-based cropper with zoom/drag/export for all image types (avatar, cover, logo). Outputs a ready `dataUrl` passed to `TW.uploadImage()`.
-**Source of Truth:** `static/shared/tw-image-cropper.js` (PLANNED — does not exist yet) · `TW.createCropper({ canvas, ratio, shape, outputW, outputH, quality })` · `ARCHITECTURE.md → Image Cropper Architecture`
-**Details:** `ARCHITECTURE.md → Image Cropper Architecture — الحالة والخارطة المستقبلية` · `CLAUDE.md → Image Cropper System Rules`
-**Current state of each image type:**
+### 29b. Image Cropper System (`tw-image-cropper.js`) — مكتمل / Implemented & Stable
+**Purpose:** Shared canvas-based cropper with zoom/drag/export for all image types. Outputs a ready `dataUrl` passed to `TW.uploadImage()`. Supports circle preview (export always rect) and DPR for Retina.
+**Source of Truth:** `static/shared/tw-image-cropper.js` · `TW.createCropper({ canvas, ratio, shape, outputW, outputH, quality })` · `ARCHITECTURE.md → Image Cropper Architecture`
+**Details:** `ARCHITECTURE.md → Image Cropper Architecture — مكتمل / Implemented & Stable` · `CLAUDE.md → Image Cropper System Rules`
+**All 4 image types wired (PR #404–#408):**
 
-| نوع الصورة | Crop موجود؟ | الملف الحالي | output |
-|------------|------------|--------------|--------|
-| employee-avatar | ✓ | `profile-v2.avatar.js` | 260×260 JPEG |
-| employee-cover | ✓ | `profile-v2.cover.js` | 720×120 JPEG |
-| company-logo | ✗ | `company.main.js → uploadLogo()` | raw upload |
-| company-cover | ✗ | `company.main.js → uploadCover()` | raw upload |
+| نوع الصورة | الملف المسؤول | ratio | shape | output | PR |
+|------------|--------------|-------|-------|--------|----|
+| employee-avatar | `profile-v2.avatar.js` | 1/1 | circle (preview) | 260×260 JPEG q0.85 | #408 |
+| employee-cover | `profile-v2.cover.js` | 6/1 | rect | 720×120 JPEG q0.88 | #405 |
+| company-logo | `company.main.js → openLogoCrop` | 1/1 | rect | 300×300 JPEG q0.85 | #406 |
+| company-cover | `company.main.js → openCoverCrop` | 4/1 | rect | 800×200 JPEG q0.88 | #407 |
 
-**Do not recreate:** Do not build `tw-image-cropper.js` without explicit user approval. Do not add crop logic per-page (duplicates the planned shared system). Do not modify `tw-upload.js` to include crop logic — the two systems are permanently separate. Do not start any cropper PR without reading `ARCHITECTURE.md → Image Cropper Architecture`.
+**Do not recreate:** Do not add inline crop/zoom/drag logic to any page module — `TW.createCropper` is the only approved cropper. Do not modify `tw-upload.js` to include crop logic — the two systems are permanently separate. Any new image type must use `TW.createCropper`. See `CLAUDE.md → Image Cropper System Rules` for permanent forbidden patterns.
 
 ---
 
@@ -472,4 +472,4 @@ These systems exist in code but lack formal documentation in ARCHITECTURE.md or 
 
 ---
 
-*Last updated: 2026-07-08 — reflects systems as of PR #386–#403. §22c updated (PR #400): 6-arg _renderCommentBody, multi-mention via junction table, atomic transaction, _cmtMentionedCandidates array, full-text @mention scan, backward compat. §29a added (PR #402): shared upload client TW.uploadImage() in static/shared/tw-upload.js. §29b added (PR #403, docs-only): Image Cropper Architecture — current state of 4 image types, planned tw-image-cropper.js API, config table, 6-phase implementation roadmap, risk register.*
+*Last updated: 2026-07-08 — reflects systems as of PR #386–#409. §22c updated (PR #400): 6-arg _renderCommentBody, multi-mention via junction table, atomic transaction, _cmtMentionedCandidates array, full-text @mention scan, backward compat. §29a added (PR #402): shared upload client TW.uploadImage() in static/shared/tw-upload.js. §29b added (PR #403, docs-only) then fully implemented (PR #404–#408): Image Cropper System — tw-image-cropper.js built and wired to all 4 image types (employee-avatar, employee-cover, company-logo, company-cover). §29b updated (PR #409): status changed from planned to Implemented & Stable.*
