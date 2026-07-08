@@ -528,18 +528,10 @@
     reader.onload = function (e) {
       var dataUrl = e.target.result;
 
-      fetch('/upload/image', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + jwt },
-        body:    JSON.stringify({ user_id: userId, bucket: 'avatars', filename: 'cover', data_url: dataUrl }),
-      })
-      .then(function (r) {
-        if (!r.ok) throw new Error('upload_fail');
-        return r.json();
-      })
+      TW.uploadImage({ userId: userId, bucket: 'avatars', filename: 'cover', dataUrl: dataUrl, jwt: jwt })
       .then(function (res) {
-        if (!res || !res.url) throw new Error('no_url');
-        var url = res.url;
+        if (!res.ok || !res.data || !res.data.url) throw new Error('no_url');
+        var url = res.data.url;
         return fetch('/company/cover/' + userId, {
           method:  'PUT',
           headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + jwt },
@@ -596,24 +588,9 @@
     reader.onload = function (e) {
       var dataUrl = e.target.result;
 
-      fetch('/upload/image', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + jwt },
-        body: JSON.stringify({ user_id: userId, bucket: 'avatars', filename: 'logo', data_url: dataUrl })
-      })
-      .then(function (r) {
-        if (!r.ok) throw new Error('upload_fail');
-        return r.json();
-      })
+      TW.uploadImage({ userId: userId, bucket: 'avatars', filename: 'logo', dataUrl: dataUrl, jwt: jwt })
       .then(function (res) {
-        // Use server URL when it's a real hosted URL; otherwise fall back to
-        // the original dataUrl. Mirrors Profile V2 (profile-v2.avatar.js)
-        // which always calls updateProfile() regardless of dev_mode — storing
-        // base64 in DB is not production-ideal; follow-up PR
-        // fix/storage-upload-production-mode will resolve this by configuring
-        // SUPABASE_URL + SUPABASE_SERVICE_KEY so the server always returns a
-        // real URL.
-        var url = (res && res.url) ? res.url : dataUrl;
+        var url = (res.ok && res.data && res.data.url) ? res.data.url : dataUrl;
         return fetch('/profile/' + userId, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + jwt },

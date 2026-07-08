@@ -368,7 +368,15 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 **Purpose:** Upload and crop profile avatars, company logos, and verification documents. Files stored via Supabase storage.
 **Source of Truth:** `POST /upload/image` endpoint · `profiles.avatar_url` · `profiles.logo_url` (company) · `verify_requests.document_url`
 **Details:** `ARCHITECTURE.md Profile V2 Avatar Module`
-**Do not recreate:** Do not store files in the DB as base64. Do not bypass the upload endpoint.
+**Do not recreate:** Do not store files in the DB as base64. Do not bypass the upload endpoint. Do not call `fetch('/upload/image')` directly from page modules — use `TW.uploadImage()` from `static/shared/tw-upload.js`.
+
+---
+
+### 29a. Shared Upload Client (`tw-upload.js`)
+**Purpose:** Single shared HTTP helper for all `POST /upload/image` calls. Eliminates duplicate fetch logic across company and employee profile pages.
+**Source of Truth:** `static/shared/tw-upload.js` · `TW.uploadImage({ userId, bucket, filename, dataUrl, jwt })` · returns `Promise<{ ok: boolean, data: object }>`
+**Details:** `CLAUDE.md → Shared Upload Client Rules`
+**Do not recreate:** Do not write a new `fetch('/upload/image', ...)` call in any page module. Do not add per-page upload client functions. Load order: `tw-upload.js` must appear before any module that calls `TW.uploadImage` in the HTML file. Pages currently using it: `profile-showcase.html` (via `profile-v2.api.js`) · `company-profile.html` (via `company.main.js`).
 
 ---
 
@@ -447,4 +455,4 @@ These systems exist in code but lack formal documentation in ARCHITECTURE.md or 
 
 ---
 
-*Last updated: 2026-07-08 — reflects systems as of PR #386–#400. §22c updated (PR #400): 6-arg _renderCommentBody(bodyEl, text, mentionName, mentionTwId, knownNames, mentions), multi-mention via company_post_comment_mentions junction table, atomic BEGIN/COMMIT/ROLLBACK transaction for comment+mentions, mentioned_tw_ids[] request / mentions[] response API contract, _cmtMentionedCandidates array (replaces _cmtMentionedTwId), full-text left-to-right @mention scan, backward compat for old mentioned_tw_id column (returns mentions:[]).*
+*Last updated: 2026-07-08 — reflects systems as of PR #386–#402. §22c updated (PR #400): 6-arg _renderCommentBody, multi-mention via junction table, atomic transaction, _cmtMentionedCandidates array, full-text @mention scan, backward compat. §29a added (PR #402): shared upload client TW.uploadImage() in static/shared/tw-upload.js replaces duplicate fetch('/upload/image') in company.main.js and profile-v2.api.js.*

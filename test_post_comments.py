@@ -1255,6 +1255,69 @@ check(
     "elif d.get(\"mentioned_tw_id\")" in auth_src
 )
 
+# ── 115. Shared Upload Client (tw-upload.js) ─────────────────────────────
+import os
+
+upload_js_path = os.path.join("static", "shared", "tw-upload.js")
+upload_exists = os.path.isfile(upload_js_path)
+check(
+    "115a. static/shared/tw-upload.js exists",
+    upload_exists
+)
+
+if upload_exists:
+    with open(upload_js_path, encoding="utf-8") as f:
+        upload_src = f.read()
+    check(
+        "115b. tw-upload.js defines TW.uploadImage",
+        "TW.uploadImage" in upload_src
+    )
+    check(
+        "115c. tw-upload.js calls POST /upload/image",
+        "'/upload/image'" in upload_src or '"/upload/image"' in upload_src
+    )
+else:
+    check("115b. tw-upload.js defines TW.uploadImage", False)
+    check("115c. tw-upload.js calls POST /upload/image", False)
+
+with open(os.path.join("static", "company", "company.main.js"), encoding="utf-8") as f:
+    co_main_src = f.read()
+
+check(
+    "115d. company.main.js uses TW.uploadImage (not inline fetch('/upload/image'))",
+    "TW.uploadImage" in co_main_src and
+    "fetch('/upload/image'" not in co_main_src and
+    'fetch("/upload/image"' not in co_main_src
+)
+
+with open("profile-v2.api.js", encoding="utf-8") as f:
+    pv2_api_src = f.read()
+
+check(
+    "115e. profile-v2.api.js uses TW.uploadImage (not inline fetch('/upload/image'))",
+    "TW.uploadImage" in pv2_api_src and
+    "fetch('/upload/image'" not in pv2_api_src and
+    'fetch("/upload/image"' not in pv2_api_src
+)
+
+check(
+    "115f. profile-showcase.html loads tw-upload.js before profile-v2.api.js",
+    (lambda h: (
+        "tw-upload.js" in h and
+        "profile-v2.api.js" in h and
+        h.index("tw-upload.js") < h.index("profile-v2.api.js")
+    ))(open("profile-showcase.html", encoding="utf-8").read())
+)
+
+check(
+    "115g. company-profile.html loads tw-upload.js before company.main.js",
+    (lambda h: (
+        "tw-upload.js" in h and
+        "company.main.js" in h and
+        h.index("tw-upload.js") < h.index("company.main.js")
+    ))(open("company-profile.html", encoding="utf-8").read())
+)
+
 # ── Summary ──────────────────────────────────────────────────────────────
 print()
 passed = sum(1 for _, s, _ in results if s == PASS)
