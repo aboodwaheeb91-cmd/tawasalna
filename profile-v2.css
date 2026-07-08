@@ -113,10 +113,9 @@ body.view-owner #scMenuEyeSep { display:block !important; }
   box-shadow:0 20px 60px rgba(0,0,0,.35);
 }
 
-/* Cover — aspect-ratio 6:1 matches the 480×80 image exactly, so cover never crops or distorts */
-/* overflow:hidden clips the cover to the card's top rounded corners (now that .sc-main-card is overflow:visible) */
+/* Cover — fixed 80px height (restored from original); overflow:hidden clips to card's top rounded corners */
 .sc-cover {
-  width:100%; aspect-ratio:6/1; height:auto; position:relative;
+  width:100%; height:80px; position:relative;
   border-radius:13px 13px 0 0; overflow:hidden;
   background:url('https://wrxvmdmknhoufoeprpoc.supabase.co/storage/v1/object/public/site/Cover.png') center/cover no-repeat, linear-gradient(135deg,#0f2027,#203a43,#2c5364);
 }
