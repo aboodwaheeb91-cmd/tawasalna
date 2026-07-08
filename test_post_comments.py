@@ -1677,6 +1677,88 @@ check(
     "aspect-ratio:4/1" in co_css_407 or "aspect-ratio: 4/1" in co_css_407
 )
 
+# ── 120. PR #408 — Connect Employee Avatar to Shared Image Cropper ───────
+
+avatar_path  = "profile-v2.avatar.js"
+cover_path2  = "profile-v2.cover.js"
+showcase2    = open("profile-showcase.html", encoding="utf-8").read()
+
+if os.path.exists(avatar_path):
+    with open(avatar_path, encoding="utf-8") as f:
+        av_src = f.read()
+    _av_code = _re.sub(r'//[^\n]*', '', av_src)
+
+    check(
+        "120a. profile-v2.avatar.js uses TW.createCropper",
+        "TW.createCropper" in av_src
+    )
+    check(
+        "120b. avatar config: ratio 1/1, shape circle, outputW 260, outputH 260, quality 0.85",
+        ("1 / 1" in av_src or "1/1" in av_src) and
+        "'circle'" in av_src and
+        "outputW: 260" in av_src and
+        "outputH: 260" in av_src and
+        "quality: 0.85" in av_src
+    )
+    check(
+        "120c. profile-v2.avatar.js has no inline crop state (_minScale/_img removed)",
+        "_minScale" not in _av_code and
+        "var _img" not in _av_code
+    )
+    check(
+        "120d. profile-v2.avatar.js has no inline drag handlers (_clampOffset removed)",
+        "_clampOffset" not in _av_code and
+        "onMouseDown" not in _av_code and
+        "onTouchMove" not in _av_code
+    )
+    check(
+        "120e. profile-v2.avatar.js has no exportJpeg function",
+        "exportJpeg" not in _av_code
+    )
+    check(
+        "120f. profile-v2.avatar.js calls _cropper.load(src)",
+        "_cropper.load(" in av_src
+    )
+    check(
+        "120g. profile-v2.avatar.js calls _cropper.setZoom",
+        "_cropper.setZoom(" in av_src
+    )
+    check(
+        "120h. profile-v2.avatar.js calls _cropper.export()",
+        "_cropper.export()" in av_src
+    )
+    check(
+        "120i. profile-v2.avatar.js calls _cropper.reset()",
+        "_cropper.reset()" in av_src
+    )
+    check(
+        "120j. profile-v2.avatar.js uses requestAnimationFrame before _cropper.load",
+        "requestAnimationFrame" in av_src and "_cropper.load(" in av_src
+    )
+    check(
+        "120k. profile-v2.avatar.js has no direct fetch('/upload/image') call",
+        "fetch('/upload/image'" not in _av_code and
+        'fetch("/upload/image"' not in _av_code
+    )
+    check(
+        "120l. tw-image-cropper.js loads before profile-v2.avatar.js in profile-showcase.html",
+        showcase2.find("tw-image-cropper.js") < showcase2.find("profile-v2.avatar.js")
+    )
+else:
+    for lbl in ["120a","120b","120c","120d","120e","120f",
+                "120g","120h","120i","120j","120k","120l"]:
+        check(lbl + ". (skipped — file absent)", False)
+
+# Unchanged files
+check(
+    "120m. profile-v2.cover.js unchanged (no TW.createCropper for cover added in avatar PR)",
+    "profile-v2" in cover_path2 and open(cover_path2, encoding="utf-8").read().count("TW.createCropper") == 1
+)
+check(
+    "120n. tw-upload.js unchanged",
+    "TW.uploadImage" in open("static/shared/tw-upload.js", encoding="utf-8").read()
+)
+
 # ── Summary ──────────────────────────────────────────────────────────────
 print()
 passed = sum(1 for _, s, _ in results if s == PASS)
