@@ -1786,15 +1786,29 @@ check(
 with open("profile-v2.cover.js", encoding="utf-8") as f:
     cover_js = f.read()
 check(
-    "121e. profile-v2.cover.js cropper config unchanged (6/1 ratio, 720x120 output)",
-    "ratio:   6 / 1" in cover_js or "ratio: 6/1" in cover_js or "6 / 1" in cover_js
+    "121e. profile-v2.cover.js uses lazy init — no static TW.createCropper at module level",
+    "_cropper = null" in cover_js and
+    "TW.createCropper" in cover_js and
+    cover_js.index("TW.createCropper") > cover_js.index("function openCrop")
 )
 check(
-    "121f. profile-v2.avatar.js unchanged",
+    "121f. profile-v2.cover.js reads sc-cover offsetWidth for dynamic ratio",
+    "offsetWidth" in cover_js and "scCover" in cover_js
+)
+check(
+    "121g. profile-v2.cover.js outputH is 240 (increased from 120 for less blur)",
+    "outH = 240" in cover_js
+)
+check(
+    "121h. profile-v2.cover.js calls _cropper.destroy() before recreating",
+    "_cropper.destroy()" in cover_js
+)
+check(
+    "121i. profile-v2.avatar.js unchanged",
     "TW.createCropper" in open("profile-v2.avatar.js", encoding="utf-8").read()
 )
 check(
-    "121g. tw-image-cropper.js unchanged",
+    "121j. tw-image-cropper.js unchanged",
     "createCropper" in open("static/shared/tw-image-cropper.js", encoding="utf-8").read()
 )
 
