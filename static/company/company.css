@@ -929,6 +929,9 @@ i.ico-sm { width:14px; height:14px; stroke:currentColor; fill:none; stroke-width
   font-size:.78rem; color:var(--t2); line-height:1.5;
   margin:0 0 4px; word-break:break-word; white-space:pre-wrap;
 }
+/* Body wrapper — provides position context for the expand icon */
+.pc-cmt-body-wrap { position:relative; }
+
 /* Collapsed comment body — shows max 2 lines */
 .pc-cmt-body.is-collapsed {
   display:-webkit-box;
@@ -937,13 +940,35 @@ i.ico-sm { width:14px; height:14px; stroke:currentColor; fill:none; stroke-width
   overflow:hidden;
   white-space:normal;
 }
-/* "عرض المزيد" / "عرض أقل" buttons for long comments */
-.pc-cmt-more-btn, .pc-cmt-less-btn {
-  background:none; border:none; cursor:pointer; font-family:inherit;
-  font-size:.65rem; font-weight:600; color:var(--ac2);
-  padding:0; margin-bottom:3px; display:inline-block; transition:color .15s;
+
+/* Expand icon — absolutely positioned at bottom-inline-end (= bottom-left in RTL).
+   Appears inline at the end of the clamped 2nd line.
+   Shown only when _cmtCheckCollapse detects overflow. */
+.pc-cmt-expand-btn {
+  position:absolute; bottom:1px; inset-inline-end:0;
+  display:inline-flex; align-items:center; gap:2px;
+  border:none; cursor:pointer; font-family:inherit; line-height:1;
+  color:var(--pa,var(--ac));
+  background:var(--pa-s,rgba(0,200,150,.12));
+  border-radius:999px;
+  padding:1px 4px 1px 3px;
 }
-.pc-cmt-more-btn:hover, .pc-cmt-less-btn:hover { opacity:.75; }
+.pc-cmt-expand-btn:hover { opacity:.7; }
+.pc-cmt-ellipsis { font-size:.78rem; line-height:1; user-select:none; }
+
+/* Collapse icon — shown below expanded text (normal flow, not absolute) */
+.pc-cmt-collapse-btn {
+  display:none; border:none; cursor:pointer; line-height:0;
+  color:var(--pa,var(--ac));
+  background:var(--pa-s,rgba(0,200,150,.12));
+  border-radius:999px; padding:2px; margin-top:2px;
+}
+.pc-cmt-collapse-btn:hover { opacity:.7; }
+
+/* Shared icon size */
+.pc-cmt-expand-btn svg, .pc-cmt-collapse-btn svg {
+  width:12px; height:12px; stroke-width:2.5; display:block; flex-shrink:0;
+}
 /* Replies toggle button */
 .pc-cmt-replies-toggle {
   display:inline-flex; align-items:center; gap:4px;
@@ -958,10 +983,10 @@ i.ico-sm { width:14px; height:14px; stroke:currentColor; fill:none; stroke-width
   display:inline-block;
 }
 .pc-cmt-replies-toggle--open::before { transform:rotate(90deg); }
-/* Replies box — light-bordered container holding collapsed replies */
+/* Replies box — very subtle left border, no inner scroll */
 .pc-cmt-replies-box {
-  border-inline-start:2px solid rgba(255,255,255,.07);
-  padding-inline-start:10px;
+  border-inline-start:1px solid rgba(255,255,255,.05);
+  padding-inline-start:8px;
   margin-inline-start:4px;
   margin-bottom:4px;
 }

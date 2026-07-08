@@ -718,6 +718,9 @@
   // ── Post Comments ─────────────────────────────────────────────────────────
   var _ICO_COMMENT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>';
   var _ICO_CLOCK   = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>';
+  // Comment collapse icons — static SVG only (no API data)
+  var _ICO_CMT_EXPAND   = '<span class="pc-cmt-ellipsis" aria-hidden="true">…</span><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 8v8"/><path d="m8 12 4 4 4-4"/></svg>';
+  var _ICO_CMT_COLLAPSE = '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="m16 12-4-4-4 4"/><path d="M12 16V8"/></svg>';
 
   var _cmtOpenPanelId  = null; // postId whose panel is currently visible
   var _cmtEditInFlight = {};   // commentId -> bool — prevents concurrent PATCH requests
@@ -1213,46 +1216,50 @@
     return { toggle: toggle, box: box };
   }
 
-  // Called after a comment element is inserted into the DOM.
-  // If the body text fits in 2 CSS lines (scrollHeight ≤ clientHeight),
-  // the is-collapsed class and "عرض المزيد" button are removed.
+  // Called after a comment element is inserted into the visible DOM.
+  // Measures body scrollHeight vs clientHeight (accurate only when element is in a visible container).
+  // If text fits in 2 CSS lines: remove is-collapsed, keep expand button hidden.
+  // If text overflows: keep is-collapsed, show expand button (inline icon at end of line 2).
   function _cmtCheckCollapse(el) {
-    var bodyEl  = el ? el.querySelector('.pc-cmt-body') : null;
-    var moreBtn = el ? el.querySelector('.pc-cmt-more-btn') : null;
-    if (!bodyEl || !moreBtn) return;
-    if (bodyEl.scrollHeight <= bodyEl.clientHeight + 2) {
+    var wrap      = el ? el.querySelector('.pc-cmt-body-wrap') : null;
+    var bodyEl    = wrap ? wrap.querySelector('.pc-cmt-body') : null;
+    var expandBtn = wrap ? wrap.querySelector('.pc-cmt-expand-btn') : null;
+    if (!wrap || !bodyEl || !expandBtn) return;
+    if (bodyEl.scrollHeight > bodyEl.clientHeight + 2) {
+      // Long text — show expand icon; body stays clamped
+      expandBtn.style.display = '';
+    } else {
+      // Short text — remove clamp, keep expand button hidden
       bodyEl.classList.remove('is-collapsed');
-      moreBtn.remove();
+      expandBtn.style.display = 'none';
     }
   }
 
-  // Runs _cmtCheckCollapse on every item inside container.
+  // Defers _cmtCheckCollapse to next animation frame — required for elements that were just
+  // inserted into a newly-opened replies-box (layout not computed until next paint cycle).
+  function _cmtScheduleCollapse(el) {
+    requestAnimationFrame(function () { _cmtCheckCollapse(el); });
+  }
+
+  // Runs _cmtCheckCollapse on every item inside container (initial load only).
   function _cmtInitCollapseAll(container) {
     var items = container.querySelectorAll('.pc-cmt-item');
     for (var i = 0; i < items.length; i++) _cmtCheckCollapse(items[i]);
   }
 
-  // Re-evaluates collapse state after body text changes (e.g. after edit).
-  // Removes any existing more/less button, resets is-collapsed, then calls _cmtCheckCollapse.
-  // If text fits in 2 lines → class + button removed (short). If not → button stays (long).
+  // Re-evaluates collapse state after body text changes (edit flow).
+  // Resets to collapsed+expandBtn hidden, then calls _cmtCheckCollapse to re-measure.
   function _cmtRefreshCollapse(item) {
-    var content = item ? item.querySelector('.pc-cmt-content') : null;
-    var bodyEl  = content ? content.querySelector('.pc-cmt-body') : null;
-    if (!bodyEl || bodyEl.style.display === 'none') return; // body must be visible
-    // Remove any stale toggle button before re-measuring
-    var stale = content.querySelector('.pc-cmt-more-btn, .pc-cmt-less-btn');
-    if (stale) stale.remove();
-    // Create fresh "عرض المزيد" button right after bodyEl
-    var freshBtn = document.createElement('button');
-    freshBtn.type = 'button';
-    freshBtn.className = 'pc-cmt-more-btn';
-    freshBtn.textContent = 'عرض المزيد';
-    var afterBody = bodyEl.nextSibling;
-    if (afterBody) content.insertBefore(freshBtn, afterBody);
-    else           content.appendChild(freshBtn);
-    // Reset to collapsed so scrollHeight vs clientHeight is measured correctly
+    var wrap    = item ? item.querySelector('.pc-cmt-body-wrap') : null;
+    var bodyEl  = wrap  ? wrap.querySelector('.pc-cmt-body')     : null;
+    if (!bodyEl || bodyEl.style.display === 'none') return;
+    var expandBtn   = wrap.querySelector('.pc-cmt-expand-btn');
+    var collapseBtn = wrap.querySelector('.pc-cmt-collapse-btn');
+    // Reset to collapsed state before re-measuring
     bodyEl.classList.add('is-collapsed');
-    _cmtCheckCollapse(item); // removes class+button if text fits
+    if (expandBtn)   expandBtn.style.display   = 'none';
+    if (collapseBtn) collapseBtn.style.display = 'none';
+    _cmtCheckCollapse(item); // shows expandBtn if text is long
   }
 
   // Groups replies under their parent with collapse UI. Orphans appended last.
@@ -1313,7 +1320,8 @@
       box.appendChild(newEl);
       var count = box.querySelectorAll('.pc-cmt-item').length;
       _cmtSetToggleState(toggle, box, true, count);
-      _cmtCheckCollapse(newEl);
+      // Schedule collapse check after next paint — box is just opening, layout not yet settled
+      _cmtScheduleCollapse(newEl);
       return newEl;
     }
 
@@ -1333,7 +1341,8 @@
     }
     _cmtSetToggleState(grp.toggle, grp.box, true, 1);
     var firstEl = grp.box.querySelector('.pc-cmt-item');
-    if (firstEl) _cmtCheckCollapse(firstEl);
+    // Schedule collapse check after next paint — box just became visible
+    if (firstEl) _cmtScheduleCollapse(firstEl);
     return firstEl;
   }
 
@@ -1432,6 +1441,10 @@
 
     content.appendChild(header);
 
+    // Body wrapper — anchors the inline expand icon (position:absolute)
+    var bodyWrap = document.createElement('div');
+    bodyWrap.className = 'pc-cmt-body-wrap';
+
     // Body — XSS-safe via _renderCommentBody (@mention highlighted, rest as text nodes)
     var bodyEl = document.createElement('p');
     bodyEl.className = 'pc-cmt-body is-collapsed';
@@ -1439,14 +1452,29 @@
       c.reply_to_author_name   || null, c.reply_to_author_tw_id   || null,
       knownNames               || null,
       c.mentioned_author_name  || null, c.mentioned_tw_id          || null);
-    content.appendChild(bodyEl);
+    bodyWrap.appendChild(bodyEl);
 
-    // "عرض المزيد" / "عرض أقل" collapse button — removed by _cmtCheckCollapse if text fits
-    var moreBtn = document.createElement('button');
-    moreBtn.type = 'button';
-    moreBtn.className = 'pc-cmt-more-btn';
-    moreBtn.textContent = 'عرض المزيد';
-    content.appendChild(moreBtn);
+    // Expand icon — shown by _cmtCheckCollapse only when text overflows 2 lines.
+    // position:absolute at bottom-inline-end so it overlays end of line 2 (RTL: bottom-left).
+    // innerHTML is static SVG only — no API data.
+    var expandBtn = document.createElement('button');
+    expandBtn.type = 'button';
+    expandBtn.className = 'pc-cmt-expand-btn';
+    expandBtn.setAttribute('aria-label', 'عرض المزيد');
+    expandBtn.innerHTML = _ICO_CMT_EXPAND; // static SVG + ellipsis span — XSS safe
+    expandBtn.style.display = 'none'; // hidden until _cmtCheckCollapse shows it
+    bodyWrap.appendChild(expandBtn);
+
+    // Collapse icon — shown below expanded text; hidden by default
+    var collapseBtn = document.createElement('button');
+    collapseBtn.type = 'button';
+    collapseBtn.className = 'pc-cmt-collapse-btn';
+    collapseBtn.setAttribute('aria-label', 'عرض أقل');
+    collapseBtn.innerHTML = _ICO_CMT_COLLAPSE; // static SVG — XSS safe
+    collapseBtn.style.display = 'none';
+    bodyWrap.appendChild(collapseBtn);
+
+    content.appendChild(bodyWrap);
 
     // Reply button — below body text (not in meta row)
     var replyBtn = document.createElement('button');
@@ -1658,7 +1686,7 @@
             // Top-level comment: append, check collapse, scroll list to bottom
             var topEl = _cmtBuildItem(newComment, knownNames);
             list.appendChild(topEl);
-            _cmtCheckCollapse(topEl);
+            _cmtScheduleCollapse(topEl); // defer to next paint for accurate layout
             list.scrollTop = list.scrollHeight;
           }
         }
@@ -1715,13 +1743,12 @@
     editWrap.appendChild(editTa);
     editWrap.appendChild(editBtns);
 
-    // 2. Insert editWrap into DOM FIRST, then hide bodyEl + moreBtn — never a blank gap
+    // 2. Insert editWrap into DOM FIRST, then hide bodyWrap — never a blank gap
     var acts = content.querySelector('.pc-cmt-acts'); // correct parent: content, not item
     if (acts) content.insertBefore(editWrap, acts);
     else content.appendChild(editWrap);
-    bodyEl.style.display = 'none';
-    var moreToggle = content.querySelector('.pc-cmt-more-btn, .pc-cmt-less-btn');
-    if (moreToggle) moreToggle.style.display = 'none';
+    var bodyWrap = content.querySelector('.pc-cmt-body-wrap');
+    if (bodyWrap) bodyWrap.style.display = 'none';
 
     // Size to existing text now that the element is in the DOM (scrollHeight is accurate)
     _autoResizeTextarea(editTa);
@@ -1731,8 +1758,7 @@
     editTa.setSelectionRange(editTa.value.length, editTa.value.length);
 
     cancelBtn.addEventListener('click', function () {
-      bodyEl.style.display = '';
-      if (moreToggle) moreToggle.style.display = '';
+      if (bodyWrap) bodyWrap.style.display = '';
       editWrap.remove();
     });
 
@@ -1751,7 +1777,7 @@
       _renderCommentBody(bodyEl, newBody, replyToAuthor, replyToAuthorTwId, editKnownNames,
         mentionedAuthorName, mentionedTwId); // XSS-safe
       // visual-reply class is driven by reply_to_comment_id (immutable per comment) — no change
-      bodyEl.style.display = '';
+      if (bodyWrap) bodyWrap.style.display = '';
       editWrap.remove();
       _cmtRefreshCollapse(item); // re-evaluate collapse for new body length
 
@@ -1931,25 +1957,29 @@
     var postsList = document.getElementById('postsList');
     if (postsList) {
       postsList.addEventListener('click', function (e) {
-        // Comment body "عرض المزيد" — expand collapsed comment
-        var cmtMoreBtn = e.target.closest('.pc-cmt-more-btn');
-        if (cmtMoreBtn) {
-          var cmtBody = cmtMoreBtn.previousElementSibling;
-          if (cmtBody && cmtBody.classList.contains('pc-cmt-body')) {
-            cmtBody.classList.remove('is-collapsed');
-            cmtMoreBtn.className = 'pc-cmt-less-btn';
-            cmtMoreBtn.textContent = 'عرض أقل';
+        // Comment body expand — show full text, switch to collapse icon
+        var cmtExpandBtn = e.target.closest('.pc-cmt-expand-btn');
+        if (cmtExpandBtn) {
+          var bWrap = cmtExpandBtn.closest('.pc-cmt-body-wrap');
+          if (bWrap) {
+            var bBody = bWrap.querySelector('.pc-cmt-body');
+            var bCol  = bWrap.querySelector('.pc-cmt-collapse-btn');
+            if (bBody) bBody.classList.remove('is-collapsed');
+            cmtExpandBtn.style.display = 'none';
+            if (bCol) bCol.style.display = '';
           }
           return;
         }
-        // Comment body "عرض أقل" — collapse back
-        var cmtLessBtn = e.target.closest('.pc-cmt-less-btn');
-        if (cmtLessBtn) {
-          var cmtBody = cmtLessBtn.previousElementSibling;
-          if (cmtBody && cmtBody.classList.contains('pc-cmt-body')) {
-            cmtBody.classList.add('is-collapsed');
-            cmtLessBtn.className = 'pc-cmt-more-btn';
-            cmtLessBtn.textContent = 'عرض المزيد';
+        // Comment body collapse — re-clamp text, switch back to expand icon
+        var cmtCollapseBtn = e.target.closest('.pc-cmt-collapse-btn');
+        if (cmtCollapseBtn) {
+          var bWrap = cmtCollapseBtn.closest('.pc-cmt-body-wrap');
+          if (bWrap) {
+            var bBody = bWrap.querySelector('.pc-cmt-body');
+            var bExp  = bWrap.querySelector('.pc-cmt-expand-btn');
+            if (bBody) bBody.classList.add('is-collapsed');
+            cmtCollapseBtn.style.display = 'none';
+            if (bExp) bExp.style.display = '';
           }
           return;
         }
