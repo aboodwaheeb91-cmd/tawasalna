@@ -1964,6 +1964,73 @@ def company_delete_post_comment(comment_id: int, token=Depends(verify_token)):
     return {"status": "success"}
 
 
+@app.get("/mention/search")
+def mention_search(q: str = "", limit: int = 8, token=Depends(verify_token)):
+    """
+    Search users to @mention in comments.
+    Priority: profiles viewer follows → profiles following viewer →
+              companies viewer follows → any user matching q.
+    Returns up to `limit` candidates [{tw_id, name, avatar, user_type}].
+    """
+    viewer_id = int(token["user_id"])
+    q_like    = f"%{q}%" if q else "%"
+    seen:    set  = set()
+    results: list = []
+
+    def _add(rows):
+        for r in (rows or []):
+            tw_id, name, avatar, utype = r[0], r[1], r[2], r[3]
+            if tw_id and tw_id not in seen and len(results) < limit:
+                seen.add(tw_id)
+                results.append({"tw_id": tw_id, "name": name or "",
+                                 "avatar": avatar or None, "user_type": utype or ""})
+
+    try:
+        conn = get_conn()
+        # Priority 1 — profiles the viewer follows
+        _add(conn.run(
+            "SELECT u.tw_id, u.full_name, p.avatar_url, u.user_type "
+            "FROM profile_follows pf "
+            "JOIN users u ON u.id = pf.followed_id "
+            "LEFT JOIN profiles p ON p.user_id = u.id "
+            "WHERE pf.follower_id = :vid AND u.full_name ILIKE :q "
+            "ORDER BY u.full_name LIMIT :lim",
+            vid=viewer_id, q=q_like, lim=limit))
+        # Priority 2 — profiles following the viewer
+        if len(results) < limit:
+            _add(conn.run(
+                "SELECT u.tw_id, u.full_name, p.avatar_url, u.user_type "
+                "FROM profile_follows pf "
+                "JOIN users u ON u.id = pf.follower_id "
+                "LEFT JOIN profiles p ON p.user_id = u.id "
+                "WHERE pf.followed_id = :vid AND u.id != :vid AND u.full_name ILIKE :q "
+                "ORDER BY u.full_name LIMIT :lim",
+                vid=viewer_id, q=q_like, lim=limit))
+        # Priority 3 — companies the viewer follows
+        if len(results) < limit:
+            _add(conn.run(
+                "SELECT u.tw_id, u.full_name, cp.avatar_url, u.user_type "
+                "FROM company_follows cf "
+                "JOIN users u ON u.id = cf.company_id "
+                "LEFT JOIN company_profiles cp ON cp.user_id = u.id "
+                "WHERE cf.follower_id = :vid AND u.full_name ILIKE :q "
+                "ORDER BY u.full_name LIMIT :lim",
+                vid=viewer_id, q=q_like, lim=limit))
+        # Priority 4 — any user matching q (only when a query is provided)
+        if q and len(results) < limit:
+            _add(conn.run(
+                "SELECT u.tw_id, u.full_name, p.avatar_url, u.user_type "
+                "FROM users u "
+                "LEFT JOIN profiles p ON p.user_id = u.id "
+                "WHERE u.id != :vid AND u.full_name ILIKE :q "
+                "ORDER BY u.full_name LIMIT :lim",
+                vid=viewer_id, q=q_like, lim=limit))
+    except Exception:
+        pass  # network/db error: return whatever was collected so far
+
+    return {"ok": True, "candidates": results}
+
+
 # ── Saved Candidates (Phase 3 — company-owner only, JWT required) ──────────
 
 def _require_company_owner(token: dict) -> int:

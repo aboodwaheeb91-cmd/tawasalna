@@ -743,6 +743,7 @@
   // postId -> [{name, tw_id}] of @mentions selected from autocomplete (cleared on send).
   // Each entry is only sent if '@' + name appears anywhere in the body at send time.
   var _cmtMentionedCandidates = {};
+  var _cmtMentionDebounce     = null; // timer handle for API search debounce
 
   function _cmtGetBtn(postId) {
     var card = document.querySelector('.post-card[data-post-id="' + postId + '"]');
@@ -848,6 +849,7 @@
   }
 
   function _cmtCloseMentionMenu() {
+    if (_cmtMentionDebounce) { clearTimeout(_cmtMentionDebounce); _cmtMentionDebounce = null; }
     if (_cmtMentionMenu) _cmtMentionMenu.style.display = 'none';
     _cmtMentionState.open      = false;
     _cmtMentionState.ta        = null;
@@ -1007,14 +1009,67 @@
     _cmtCloseMentionMenu();
   }
 
+  // Merge DOM candidates (first) with API candidates, deduplicating by tw_id.
+  function _cmtMergeCandidates(domCands, apiCands) {
+    var seen = {};
+    var out  = [];
+    for (var i = 0; i < domCands.length; i++) {
+      if (domCands[i].tw_id && !seen[domCands[i].tw_id]) {
+        seen[domCands[i].tw_id] = true;
+        out.push(domCands[i]);
+      }
+    }
+    for (var j = 0; j < apiCands.length; j++) {
+      if (apiCands[j].tw_id && !seen[apiCands[j].tw_id]) {
+        seen[apiCands[j].tw_id] = true;
+        out.push(apiCands[j]);
+      }
+    }
+    return out;
+  }
+
   // Called on every textarea input event.
+  // Shows DOM candidates immediately (zero latency), then merges API results after 200 ms.
   function _cmtHandleMentionInput(ta, postId) {
     var start = _cmtFindMentionStart(ta);
     if (start === -1) { _cmtCloseMentionMenu(); return; }
     var query      = ta.value.slice(start + 1, ta.selectionStart);
-    var candidates = _cmtCollectMentionCandidates(postId);
-    var filtered   = _cmtFilterMentionCandidates(query, candidates);
+    var domCands   = _cmtCollectMentionCandidates(postId);
+    var filtered   = _cmtFilterMentionCandidates(query, domCands);
     _cmtOpenMentionMenu(ta, postId, filtered, start);
+
+    // Debounced API search to surface followers/following beyond visible DOM
+    if (_cmtMentionDebounce) clearTimeout(_cmtMentionDebounce);
+    var capturedStart = start;
+    var capturedQuery = query;
+    _cmtMentionDebounce = setTimeout(function () {
+      _cmtMentionDebounce = null;
+      // Stale-response guard: abort if panel closed or user typed past this @ token
+      if (!_cmtMentionState.open) return;
+      var currentStart = _cmtFindMentionStart(ta);
+      if (currentStart !== capturedStart) return;
+      var currentQuery = ta.value.slice(currentStart + 1, ta.selectionStart);
+      if (currentQuery !== capturedQuery) return;
+      var jwt = window._jwt ? window._jwt() : '';
+      if (!jwt) return;
+      var url = '/mention/search?q=' + encodeURIComponent(capturedQuery) + '&limit=8';
+      fetch(url, { headers: { 'Authorization': 'Bearer ' + jwt } })
+        .then(function (r) { return r.json(); })
+        .then(function (res) {
+          // Second stale-response guard: re-verify after async gap
+          if (!_cmtMentionState.open) return;
+          var postResponseStart = _cmtFindMentionStart(ta);
+          if (postResponseStart !== capturedStart) return;
+          var postResponseQuery = ta.value.slice(postResponseStart + 1, ta.selectionStart);
+          if (postResponseQuery !== capturedQuery) return;
+          if (!res.ok || !Array.isArray(res.candidates)) return;
+          var freshDom    = _cmtCollectMentionCandidates(postId);
+          var merged      = _cmtMergeCandidates(freshDom, res.candidates);
+          var newFiltered = _cmtFilterMentionCandidates(capturedQuery, merged);
+          _cmtOpenMentionMenu(ta, postId, newFiltered, capturedStart);
+        })
+        .catch(function () {});
+    }, 200);
   }
 
   // Handles Arrow / Enter / Escape inside the textarea.
