@@ -2008,6 +2008,45 @@ check(
     "postResponseQuery !== capturedQuery" in posts_js
 )
 
+# ── 125. Fix Mention Search Relationship Sources (feat/fix-mention-search-relationship-sources) ──
+
+srv_src  = open("server.py",  encoding="utf-8").read()
+posts_js = open("static/company/company.posts.js", encoding="utf-8").read()
+
+check(
+    "125a. mention_search branches on viewer_type (co vs emp path)",
+    'viewer_type == "co"' in srv_src and 'viewer_type = token.get("user_type"' in srv_src
+)
+check(
+    "125b. company viewer queries people who follow the company (cf.company_id = :vid)",
+    "cf.company_id = :vid" in srv_src
+)
+check(
+    "125c. company viewer retrieves followers by joining on cf.follower_id (not cf.company_id)",
+    "u.id = cf.follower_id" in srv_src
+)
+check(
+    "125d. mention_search exception handler logs error — not a silent pass",
+    "[mention_search]" in srv_src
+)
+check(
+    "125e. mention_search returns ok:False on exception",
+    '"ok": False' in srv_src and "mention_search" in srv_src
+)
+check(
+    "125f. frontend handles ok:false from mention_search (!res.ok check present)",
+    "!res.ok" in posts_js
+)
+check(
+    "125g. company empty-q path uses pure FK scan on company_id (no ILIKE)",
+    "cf.company_id = :vid LIMIT :lim" in srv_src
+)
+check(
+    "125h. employee path is unchanged — profile_follows both directions still present",
+    "WHERE pf.follower_id = :vid_a LIMIT :lim_a)" in srv_src and
+    "WHERE pf.followed_id = :vid_b AND u.id != :vid_b2 LIMIT :lim_b)" in srv_src
+)
+
 # ── Summary ──────────────────────────────────────────────────────────────
 print()
 passed = sum(1 for _, s, _ in results if s == PASS)

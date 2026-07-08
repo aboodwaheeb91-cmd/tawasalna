@@ -1968,17 +1968,22 @@ def company_delete_post_comment(comment_id: int, token=Depends(verify_token)):
 def mention_search(q: str = "", limit: int = 8, token=Depends(verify_token)):
     """
     Search users to @mention in comments.
-    Priority: profiles viewer follows → profiles following viewer →
-              companies viewer follows → any user matching q.
+
+    Results are sourced by viewer account type:
+    - emp / edu / other: profile_follows both directions + companies viewer follows + any user (if q)
+    - co (company):      people who follow this company + any user (if q)
+
     Returns up to `limit` candidates [{tw_id, name, avatar, user_type}].
 
-    Perf notes:
-    - Priorities 1-3 are merged into a single UNION ALL query (1 DB roundtrip).
-    - When q is empty: no ILIKE filter — pure FK-indexed scan, fastest path.
-    - When q is provided: ILIKE applied inside each branch before the union.
-    - Priority 4 (any user) runs only when q is provided and space remains.
+    Perf:
+    - Employee path: single UNION ALL (1 DB roundtrip, unique param names per branch).
+    - Company path: single indexed scan on company_follows.company_id.
+    - When q is empty: pure FK-indexed scan, no ILIKE, no Priority 4.
+    - When q is provided: ILIKE per branch; Priority 4 (any user) fills remaining slots.
+    - Errors are logged and returned as {"ok": False} — never swallowed silently.
     """
-    viewer_id = int(token["user_id"])
+    viewer_id   = int(token["user_id"])
+    viewer_type = token.get("user_type", "emp")
     seen:    set  = set()
     results: list = []
 
@@ -1992,66 +1997,104 @@ def mention_search(q: str = "", limit: int = 8, token=Depends(verify_token)):
 
     try:
         conn = get_conn()
-        # Each UNION ALL branch uses unique named params (:vid_a / :vid_b / :vid_c).
-        # pg8000 converts :name → $N; duplicate names across UNION branches can
-        # produce ambiguous positional mappings and silently return empty rows.
-        # Unique names per branch guarantee a 1:1 mapping and correct execution.
-        if q:
-            q_like = f"%{q}%"
-            _add(conn.run(
-                "(SELECT u.tw_id, u.full_name, p.avatar_url, u.user_type"
-                " FROM profile_follows pf"
-                " JOIN users u ON u.id = pf.followed_id"
-                " LEFT JOIN profiles p ON p.user_id = u.id"
-                " WHERE pf.follower_id = :vid_a AND u.full_name ILIKE :q_a LIMIT :lim_a)"
-                " UNION ALL"
-                " (SELECT u.tw_id, u.full_name, p.avatar_url, u.user_type"
-                " FROM profile_follows pf"
-                " JOIN users u ON u.id = pf.follower_id"
-                " LEFT JOIN profiles p ON p.user_id = u.id"
-                " WHERE pf.followed_id = :vid_b AND u.id != :vid_b2 AND u.full_name ILIKE :q_b LIMIT :lim_b)"
-                " UNION ALL"
-                " (SELECT u.tw_id, u.full_name, cp.avatar_url, u.user_type"
-                " FROM company_follows cf"
-                " JOIN users u ON u.id = cf.company_id"
-                " LEFT JOIN company_profiles cp ON cp.user_id = u.id"
-                " WHERE cf.follower_id = :vid_c AND u.full_name ILIKE :q_c LIMIT :lim_c)",
-                vid_a=viewer_id, q_a=q_like, lim_a=limit,
-                vid_b=viewer_id, vid_b2=viewer_id, q_b=q_like, lim_b=limit,
-                vid_c=viewer_id, q_c=q_like, lim_c=limit))
-            # Priority 4 — any matching user (only when q provided + space left)
-            if len(results) < limit:
+
+        if viewer_type == "co":
+            # Company viewer: return people who follow this company.
+            # company_follows.company_id = the company (viewer)
+            # company_follows.follower_id = the person who follows
+            if q:
+                q_like = f"%{q}%"
                 _add(conn.run(
                     "SELECT u.tw_id, u.full_name, p.avatar_url, u.user_type"
-                    " FROM users u"
+                    " FROM company_follows cf"
+                    " JOIN users u ON u.id = cf.follower_id"
                     " LEFT JOIN profiles p ON p.user_id = u.id"
-                    " WHERE u.id != :vid AND u.full_name ILIKE :q LIMIT :lim",
+                    " WHERE cf.company_id = :vid AND u.full_name ILIKE :q LIMIT :lim",
                     vid=viewer_id, q=q_like, lim=limit))
+                # Priority 4 — any matching user (fills remaining slots)
+                if len(results) < limit:
+                    _add(conn.run(
+                        "SELECT u.tw_id, u.full_name, p.avatar_url, u.user_type"
+                        " FROM users u"
+                        " LEFT JOIN profiles p ON p.user_id = u.id"
+                        " WHERE u.id != :vid AND u.full_name ILIKE :q LIMIT :lim",
+                        vid=viewer_id, q=q_like, lim=limit))
+            else:
+                # No q: pure FK-indexed scan on company_id (idx_follows_company)
+                _add(conn.run(
+                    "SELECT u.tw_id, u.full_name, p.avatar_url, u.user_type"
+                    " FROM company_follows cf"
+                    " JOIN users u ON u.id = cf.follower_id"
+                    " LEFT JOIN profiles p ON p.user_id = u.id"
+                    " WHERE cf.company_id = :vid LIMIT :lim",
+                    vid=viewer_id, lim=limit))
+
         else:
-            # No q: pure FK-indexed scan — no ILIKE, no ORDER BY, no Priority 4
-            _add(conn.run(
-                "(SELECT u.tw_id, u.full_name, p.avatar_url, u.user_type"
-                " FROM profile_follows pf"
-                " JOIN users u ON u.id = pf.followed_id"
-                " LEFT JOIN profiles p ON p.user_id = u.id"
-                " WHERE pf.follower_id = :vid_a LIMIT :lim_a)"
-                " UNION ALL"
-                " (SELECT u.tw_id, u.full_name, p.avatar_url, u.user_type"
-                " FROM profile_follows pf"
-                " JOIN users u ON u.id = pf.follower_id"
-                " LEFT JOIN profiles p ON p.user_id = u.id"
-                " WHERE pf.followed_id = :vid_b AND u.id != :vid_b2 LIMIT :lim_b)"
-                " UNION ALL"
-                " (SELECT u.tw_id, u.full_name, cp.avatar_url, u.user_type"
-                " FROM company_follows cf"
-                " JOIN users u ON u.id = cf.company_id"
-                " LEFT JOIN company_profiles cp ON cp.user_id = u.id"
-                " WHERE cf.follower_id = :vid_c LIMIT :lim_c)",
-                vid_a=viewer_id, lim_a=limit,
-                vid_b=viewer_id, vid_b2=viewer_id, lim_b=limit,
-                vid_c=viewer_id, lim_c=limit))
-    except Exception:
-        pass  # network/db error: return whatever was collected so far
+            # Employee / edu / other viewer:
+            # Branch A: profiles I follow (profile_follows.follower_id = me → followed_id)
+            # Branch B: profiles who follow me (profile_follows.followed_id = me → follower_id)
+            # Branch C: companies I follow (company_follows.follower_id = me → company_id)
+            # Merged in a single UNION ALL (1 DB roundtrip).
+            # Unique param names per branch (:vid_a/b/c, :lim_a/b/c, :q_a/b/c) guarantee
+            # unambiguous pg8000 $N positional mapping across UNION branches.
+            if q:
+                q_like = f"%{q}%"
+                _add(conn.run(
+                    "(SELECT u.tw_id, u.full_name, p.avatar_url, u.user_type"
+                    " FROM profile_follows pf"
+                    " JOIN users u ON u.id = pf.followed_id"
+                    " LEFT JOIN profiles p ON p.user_id = u.id"
+                    " WHERE pf.follower_id = :vid_a AND u.full_name ILIKE :q_a LIMIT :lim_a)"
+                    " UNION ALL"
+                    " (SELECT u.tw_id, u.full_name, p.avatar_url, u.user_type"
+                    " FROM profile_follows pf"
+                    " JOIN users u ON u.id = pf.follower_id"
+                    " LEFT JOIN profiles p ON p.user_id = u.id"
+                    " WHERE pf.followed_id = :vid_b AND u.id != :vid_b2 AND u.full_name ILIKE :q_b LIMIT :lim_b)"
+                    " UNION ALL"
+                    " (SELECT u.tw_id, u.full_name, cp.avatar_url, u.user_type"
+                    " FROM company_follows cf"
+                    " JOIN users u ON u.id = cf.company_id"
+                    " LEFT JOIN company_profiles cp ON cp.user_id = u.id"
+                    " WHERE cf.follower_id = :vid_c AND u.full_name ILIKE :q_c LIMIT :lim_c)",
+                    vid_a=viewer_id, q_a=q_like, lim_a=limit,
+                    vid_b=viewer_id, vid_b2=viewer_id, q_b=q_like, lim_b=limit,
+                    vid_c=viewer_id, q_c=q_like, lim_c=limit))
+                # Priority 4 — any matching user (only when q provided + space left)
+                if len(results) < limit:
+                    _add(conn.run(
+                        "SELECT u.tw_id, u.full_name, p.avatar_url, u.user_type"
+                        " FROM users u"
+                        " LEFT JOIN profiles p ON p.user_id = u.id"
+                        " WHERE u.id != :vid AND u.full_name ILIKE :q LIMIT :lim",
+                        vid=viewer_id, q=q_like, lim=limit))
+            else:
+                # No q: pure FK-indexed scan — no ILIKE, no ORDER BY, no Priority 4
+                _add(conn.run(
+                    "(SELECT u.tw_id, u.full_name, p.avatar_url, u.user_type"
+                    " FROM profile_follows pf"
+                    " JOIN users u ON u.id = pf.followed_id"
+                    " LEFT JOIN profiles p ON p.user_id = u.id"
+                    " WHERE pf.follower_id = :vid_a LIMIT :lim_a)"
+                    " UNION ALL"
+                    " (SELECT u.tw_id, u.full_name, p.avatar_url, u.user_type"
+                    " FROM profile_follows pf"
+                    " JOIN users u ON u.id = pf.follower_id"
+                    " LEFT JOIN profiles p ON p.user_id = u.id"
+                    " WHERE pf.followed_id = :vid_b AND u.id != :vid_b2 LIMIT :lim_b)"
+                    " UNION ALL"
+                    " (SELECT u.tw_id, u.full_name, cp.avatar_url, u.user_type"
+                    " FROM company_follows cf"
+                    " JOIN users u ON u.id = cf.company_id"
+                    " LEFT JOIN company_profiles cp ON cp.user_id = u.id"
+                    " WHERE cf.follower_id = :vid_c LIMIT :lim_c)",
+                    vid_a=viewer_id, lim_a=limit,
+                    vid_b=viewer_id, vid_b2=viewer_id, lim_b=limit,
+                    vid_c=viewer_id, lim_c=limit))
+
+    except Exception as _exc:
+        print(f"[mention_search] ERROR viewer={viewer_id} type={viewer_type} q={q!r}: {_exc}")
+        return {"ok": False, "candidates": []}
 
     return {"ok": True, "candidates": results}
 
