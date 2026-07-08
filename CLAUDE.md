@@ -1153,13 +1153,32 @@ Full technical specification: `ARCHITECTURE.md §65`.
    - **`_cmtPositionMentionMenu(ta)` uses actual `menu.offsetHeight` — NOT hardcoded 160.** Call sequence in `_cmtOpenMentionMenu`: set `visibility:hidden; display:block` → call `_cmtPositionMentionMenu(ta)` (reads accurate `offsetHeight`) → clear `visibility`. Do NOT call `_cmtPositionMentionMenu` while menu is `display:none` (offsetHeight would be 0).
    - **`_cmtKnownNames(postId)` is the helper** that extracts all candidate names sorted longest-first for free-mention compound matching. Returns string array. Do NOT inline this logic inside `_renderCommentBody`.
 
-19. **Author Links & Clickable @mention contracts (feat/comment-author-links, updated feat/mention-ux-fixes) — permanent:**
+19. **Author Links & Clickable @mention contracts (feat/comment-author-links, updated feat/mention-ux-fixes, updated feat/comment-ux-v2) — permanent:**
    - **Author avatar and name open `/u/{author_tw_id}`.** They are `<a>` elements when `author_tw_id` is present, plain `<div>`/`<span>` when absent. Created in `_cmtBuildItem`.
-   - **`_renderCommentBody(bodyEl, text, mentionName, mentionTwId, knownNames)` — 5-arg signature is final.** Args: (1) bodyEl, (2) text, (3) reply author name, (4) reply author tw_id → `<a>` when truthy, (5) optional `knownNames` array for free-mention compound matching. All text via `textContent` — never `innerHTML`.
-   - **Priority order inside `_renderCommentBody`:** exact reply-author match first → `knownNames` longest-match next (free mentions, `<span>` only) → `@\S+` last resort → plain text.
-   - **Free @mentions are always `<span>` — never `<a>`.** No guaranteed tw_id for free mentions in V1. Do NOT create `<a>` for a free @mention.
-   - **Guaranteed clickable @mention = replies with `reply_to_author_tw_id` from the API.** Free @mentions (from autocomplete, not replies) are `<span>` only in V1 — no link without a DB-sourced tw_id.
-   - **`mentionTwId` source: `c.reply_to_author_tw_id` (API) / `item.dataset.replyToAuthorTwId` (edit flow).** `_cmtBuildItem` stores `data-reply-to-author-tw-id` when `reply_to_author_tw_id` is present.
+   - **`_renderCommentBody(bodyEl, text, mentionName, mentionTwId, knownNames, mentionedName, mentionedTwId)` — 7-arg signature is final.** All args after `text` may be `null`. Arg 6 (`mentionedName`) + arg 7 (`mentionedTwId`) are the DB-backed free @mention (from `mentioned_author_name` + `mentioned_tw_id` in API response). All text via `textContent` — never `innerHTML`.
+   - **Priority order inside `_renderCommentBody`:** (1) exact reply-author match → `<a>` if mentionTwId present · (2) DB-backed free mention (`mentionedName` + `mentionedTwId`) → `<a href="/u/mentionedTwId">` · (3) `knownNames` longest compound match → `<span>` only · (4) `@\S+` last resort → `<span>` · (5) plain text.
+   - **Free @mentions from autocomplete are stored in DB via `mentioned_tw_id`.** `_cmtInsertMention(ta, name, twId)` captures `twId` in `_cmtMentionedTwId[postId]`. On send, `mentioned_tw_id` is included in the POST payload. Server validates the user exists before storing. This promotes the free @mention from `<span>` to `<a>` on re-render.
+   - **`_cmtMentionedTwId` is the only state for pending free mention tw_id.** Cleared after send. Never persisted to localStorage.
+   - **Guaranteed clickable @mentions:** (a) replies: `reply_to_author_tw_id` from API, (b) DB-backed free @mention: `mentioned_tw_id` from API. Both rendered as `<a href="/u/tw_id">`. All other @mentions remain `<span>`.
+   - **`mentionTwId` source: `c.reply_to_author_tw_id` (API) / `item.dataset.replyToAuthorTwId` (edit flow).** `mentionedTwId` source: `c.mentioned_tw_id` (API) / `item.dataset.mentionedTwId` (edit flow).
    - **Forbidden link targets:** Never use `/profile?id=`, `/company-profile`, or numeric `id` in author/mention links. Only `/u/{tw_id}`.
    - **If `author_tw_id` is absent, no `href` is created.** Do NOT construct a link from author_name alone.
    - **CSS:** `a.pc-cmt-author { text-decoration:none; color:inherit; }` · `a.pc-cmt-ava { display:flex; text-decoration:none; }` · `a.pc-cmt-mention { text-decoration:none; }` — all in `static/company/company.css`.
+
+20. **Comment UX V2 contracts (feat/comment-ux-v2) — permanent:**
+
+   **Collapsible long comments:**
+   - **`is-collapsed` is always added to `bodyEl` in `_cmtBuildItem`.** `_cmtCheckCollapse(el)` removes it (and the moreBtn) if `scrollHeight ≤ clientHeight + 2` after DOM insertion. Never add `is-collapsed` in the CSS rule — it starts as a JS class.
+   - **`_cmtCheckCollapse(el)` must be called after every `_cmtBuildItem` insertion** in `_cmtRenderComments` (via `_cmtInitCollapseAll`), `_cmtHandleSend` (top-level comment), and `_cmtInsertReply` (new reply).
+   - **`.pc-cmt-more-btn` / `.pc-cmt-less-btn` toggle class is permanent.** Click delegation: `pc-cmt-more-btn` → remove `is-collapsed`, change className to `pc-cmt-less-btn`; `pc-cmt-less-btn` → add `is-collapsed`, change className to `pc-cmt-more-btn`.
+   - **`_cmtHandleEdit` hides moreBtn** (`moreToggle.style.display = 'none'`) when the edit textarea is shown, and restores it on cancel, success, and error.
+
+   **Collapsed replies by default:**
+   - **Reply DOM structure is `toggle + box`, not inline.** Each parent comment is followed by `.pc-cmt-replies-toggle[data-parent-id]` + `.pc-cmt-replies-box[data-parent-id][hidden]` in the list.
+   - **`_cmtSetToggleState(toggle, box, open, count)` is the only function** that changes toggle text, toggle class, and box visibility. Do NOT update them independently.
+   - **`_cmtBuildRepliesGroup(parentId, replies, knownNames)`** builds toggle + box with all replies inside. Never insert replies directly into the list.
+   - **`_cmtInsertReply` finds or creates the replies-box.** Auto-opens on new reply. Returns the new item element.
+   - **`_cmtHandleDelete` cleans up the replies group:**
+     - Reply deleted: count remaining; if 0 → remove toggle+box; else update toggle count.
+     - Parent deleted: also remove `pc-cmt-replies-toggle` + `pc-cmt-replies-box` with matching `data-parent-id`.
+   - **`_cmtReplyCountText(n)` is the Arabic label helper.** Never hardcode reply count text.

@@ -3033,6 +3033,12 @@ def ensure_company_tables():
             conn.run("CREATE INDEX IF NOT EXISTS idx_post_cmts_reply ON company_post_comments(reply_to_comment_id) WHERE reply_to_comment_id IS NOT NULL")
         except Exception as _e_reply:
             print(f"[DB] reply_to_comment_id migration: {_e_reply}")
+        # Migration: free mention tw_id — stores the mentioned user's tw_id from autocomplete
+        try:
+            conn.run("ALTER TABLE company_post_comments ADD COLUMN IF NOT EXISTS mentioned_tw_id VARCHAR(50) DEFAULT NULL")
+            conn.run("CREATE INDEX IF NOT EXISTS idx_post_cmts_mentioned ON company_post_comments(mentioned_tw_id) WHERE mentioned_tw_id IS NOT NULL")
+        except Exception as _e_ment:
+            print(f"[DB] mentioned_tw_id migration: {_e_ment}")
         release_conn(conn)
         print("✅ company tables ready")
     except Exception as e:
@@ -3547,18 +3553,21 @@ def get_company_post_comments(post_id: int, viewer_user_id=None) -> list:
         rows = conn.run(
             "SELECT c.id, c.body, c.created_at, c.updated_at, "
             "u.full_name, u.tw_id, u.user_type, p.avatar_url, c.user_id, "
-            "c.reply_to_comment_id, ru.full_name AS reply_to_author_name, ru.tw_id AS reply_to_author_tw_id "
+            "c.reply_to_comment_id, ru.full_name AS reply_to_author_name, ru.tw_id AS reply_to_author_tw_id, "
+            "c.mentioned_tw_id, mu.full_name AS mentioned_author_name "
             "FROM company_post_comments c "
             "JOIN users u ON u.id = c.user_id "
             "LEFT JOIN profiles p ON p.user_id = c.user_id "
             "LEFT JOIN company_post_comments rc ON rc.id = c.reply_to_comment_id "
             "LEFT JOIN users ru ON ru.id = rc.user_id "
+            "LEFT JOIN users mu ON mu.tw_id = c.mentioned_tw_id "
             "WHERE c.post_id = :pid AND c.status = 'active' "
             "ORDER BY c.created_at ASC",
             pid=post_id)
         cols = ["id", "body", "created_at", "updated_at",
                 "author_name", "author_tw_id", "author_user_type", "author_avatar", "user_id",
-                "reply_to_comment_id", "reply_to_author_name", "reply_to_author_tw_id"]
+                "reply_to_comment_id", "reply_to_author_name", "reply_to_author_tw_id",
+                "mentioned_tw_id", "mentioned_author_name"]
         viewer_id = int(viewer_user_id) if viewer_user_id else None
         viewer_is_owner = (viewer_id is not None and viewer_id == post_company_id)
         result = []
@@ -3573,7 +3582,7 @@ def get_company_post_comments(post_id: int, viewer_user_id=None) -> list:
         release_conn(conn)
 
 
-def create_company_post_comment(post_id: int, user_id: int, body: str, reply_to_comment_id=None) -> dict:
+def create_company_post_comment(post_id: int, user_id: int, body: str, reply_to_comment_id=None, mentioned_tw_id=None) -> dict:
     """Create a new active comment. Validates body + checks comments_enabled.
     Optional reply_to_comment_id is resolved to max depth 1 (no nested replies)."""
     body = body.strip()
@@ -3617,10 +3626,21 @@ def create_company_post_comment(post_id: int, user_id: int, body: str, reply_to_
                 cid=resolved_reply_to)
             reply_to_author_name  = ra_rows[0][0] if ra_rows else None
             reply_to_author_tw_id = ra_rows[0][1] if ra_rows else None
+        # Validate mentioned_tw_id if provided — user must exist
+        resolved_mentioned_tw_id = None
+        mentioned_author_name    = None
+        if mentioned_tw_id:
+            mtw = str(mentioned_tw_id).strip()
+            if mtw:
+                mrows = conn.run(
+                    "SELECT id, full_name FROM users WHERE tw_id = :tid", tid=mtw)
+                if mrows:
+                    resolved_mentioned_tw_id = mtw
+                    mentioned_author_name    = mrows[0][1]
         rows = conn.run(
-            "INSERT INTO company_post_comments (post_id, user_id, body, reply_to_comment_id) "
-            "VALUES (:pid, :uid, :body, :rtid) RETURNING id, body, created_at, updated_at, reply_to_comment_id",
-            pid=post_id, uid=user_id, body=body, rtid=resolved_reply_to)
+            "INSERT INTO company_post_comments (post_id, user_id, body, reply_to_comment_id, mentioned_tw_id) "
+            "VALUES (:pid, :uid, :body, :rtid, :mtid) RETURNING id, body, created_at, updated_at, reply_to_comment_id",
+            pid=post_id, uid=user_id, body=body, rtid=resolved_reply_to, mtid=resolved_mentioned_tw_id)
         if not rows:
             raise RuntimeError("insert failed")
         cols = ["id", "body", "created_at", "updated_at", "reply_to_comment_id"]
@@ -3634,11 +3654,13 @@ def create_company_post_comment(post_id: int, user_id: int, body: str, reply_to_
             d["author_tw_id"]     = urows[0][1]
             d["author_user_type"] = urows[0][2]
             d["author_avatar"]    = urows[0][3]
-        d["user_id"]              = user_id
-        d["viewer_can_edit"]      = True
-        d["viewer_can_delete"]    = True
+        d["user_id"]               = user_id
+        d["viewer_can_edit"]       = True
+        d["viewer_can_delete"]     = True
         d["reply_to_author_name"]  = reply_to_author_name
         d["reply_to_author_tw_id"] = reply_to_author_tw_id
+        d["mentioned_tw_id"]       = resolved_mentioned_tw_id
+        d["mentioned_author_name"] = mentioned_author_name
         return d
     finally:
         release_conn(conn)

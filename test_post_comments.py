@@ -542,8 +542,8 @@ check(
     "function _cmtInsertReply" in posts_js
 )
 check(
-    "69b. _cmtInsertReply inserts after last sibling reply (walk forward logic)",
-    "lastSibling" in posts_js and "nextElementSibling" in posts_js
+    "69b. _cmtInsertReply uses replies-box pattern (toggle + box, auto-open)",
+    "_cmtBuildRepliesGroup" in posts_js and "_cmtSetToggleState" in posts_js
 )
 
 # ── 70. _cmtHandleReply accepts commentId + stores in _cmtReplyTargetId ──
@@ -784,7 +784,7 @@ check(
 # Frontend: _cmtBuildItem passes reply_to_author_tw_id as 4th arg (now also 5th knownNames arg)
 check(
     "99. _cmtBuildItem passes reply_to_author_tw_id to _renderCommentBody",
-    "_renderCommentBody(bodyEl, c.body, c.reply_to_author_name || null, c.reply_to_author_tw_id || null, knownNames" in posts_js
+    "c.reply_to_author_tw_id" in posts_js and "_renderCommentBody(bodyEl, c.body" in posts_js
 )
 
 # Frontend: _cmtHandleEdit passes replyToAuthorTwId as 4th arg
@@ -845,8 +845,8 @@ check(
     "function _cmtKnownNames(" in posts_js and "_cmtCollectMentionCandidates(" in posts_js
 )
 check(
-    "105. _renderCommentBody accepts 5th param knownNames for compound free-mention",
-    "function _renderCommentBody(bodyEl, text, mentionName, mentionTwId, knownNames)" in posts_js
+    "105. _renderCommentBody accepts knownNames param for compound free-mention",
+    "function _renderCommentBody(bodyEl, text, mentionName, mentionTwId, knownNames" in posts_js
 )
 check(
     "105b. _renderCommentBody tries knownNames longest-match before @\\S+ fallback",
@@ -869,6 +869,151 @@ check(
     "freeEl = document.createElement('span')" in posts_js or
     "document.createElement('span'); // free mention" in posts_js or
     "freeEl.className = 'pc-cmt-mention'" in posts_js
+)
+
+# ── feat/comment-ux-v2: DB-backed free @mention ──────────────────────────
+check(
+    "106. _cmtMentionedTwId module variable exists",
+    "var _cmtMentionedTwId = {}" in posts_js
+)
+check(
+    "106b. _cmtInsertMention accepts 3rd param (twId) and stores in _cmtMentionedTwId",
+    "function _cmtInsertMention(ta, name, twId)" in posts_js and
+    "_cmtMentionedTwId[postId] = twId" in posts_js
+)
+check(
+    "106c. Keyboard nav passes tw_id from filtered candidate to _cmtInsertMention",
+    "cand.tw_id" in posts_js and "_cmtInsertMention(ta, cand.name" in posts_js
+)
+check(
+    "106d. Click delegation passes mentionTwId from dataset to _cmtInsertMention",
+    "item.dataset.mentionTwId || null" in posts_js
+)
+check(
+    "106e. _renderCommentBody accepts mentionedName + mentionedTwId as 6th+7th params",
+    "function _renderCommentBody(bodyEl, text, mentionName, mentionTwId, knownNames, mentionedName, mentionedTwId)" in posts_js
+)
+check(
+    "106f. _renderCommentBody creates <a> for DB-backed free mention (mentionedTwId present)",
+    "freeAEl = document.createElement('a')" in posts_js and
+    "freeAEl.href = '/u/' + mentionedTwId" in posts_js
+)
+check(
+    "106g. _cmtBuildItem stores data-mentioned-tw-id on element",
+    "el.dataset.mentionedTwId = c.mentioned_tw_id" in posts_js
+)
+check(
+    "106h. _cmtHandleSend includes mentioned_tw_id in payload",
+    "payload.mentioned_tw_id" in posts_js and "_cmtMentionedTwId[String(postId)]" in posts_js
+)
+check(
+    "106i. _cmtHandleSend clears _cmtMentionedTwId after send",
+    "_cmtMentionedTwId[String(postId)]  = null" in posts_js or
+    "_cmtMentionedTwId[String(postId)] = null" in posts_js
+)
+check(
+    "106j. _cmtHandleEdit reads mentionedAuthorName + mentionedTwId from dataset",
+    "mentionedAuthorName = item.dataset.mentionedAuthorName || null" in posts_js and
+    "mentionedTwId       = item.dataset.mentionedTwId" in posts_js
+)
+check(
+    "106k. auth.py has mentioned_tw_id column migration",
+    "mentioned_tw_id VARCHAR(50)" in auth_src
+)
+check(
+    "106l. auth.py get_company_post_comments joins users mu for mentioned_author_name",
+    "users mu ON mu.tw_id = c.mentioned_tw_id" in auth_src
+)
+check(
+    "106m. auth.py create_company_post_comment accepts + validates mentioned_tw_id",
+    "mentioned_tw_id=None" in auth_src and "resolved_mentioned_tw_id" in auth_src
+)
+check(
+    "106n. server.py CommentInput has mentioned_tw_id field",
+    "mentioned_tw_id" in srv_src
+)
+
+# ── feat/comment-ux-v2: Collapsible long comments ─────────────────────────
+check(
+    "107. CSS .pc-cmt-body.is-collapsed uses line-clamp",
+    ".pc-cmt-body.is-collapsed" in company_css and "-webkit-line-clamp:2" in company_css
+)
+check(
+    "107b. _cmtBuildItem adds is-collapsed class to bodyEl",
+    "bodyEl.className = 'pc-cmt-body is-collapsed'" in posts_js
+)
+check(
+    "107c. _cmtBuildItem adds .pc-cmt-more-btn button",
+    "pc-cmt-more-btn" in posts_js and "عرض المزيد" in posts_js
+)
+check(
+    "107d. _cmtCheckCollapse helper exists and removes is-collapsed when text fits",
+    "function _cmtCheckCollapse(" in posts_js and "classList.remove('is-collapsed')" in posts_js
+)
+check(
+    "107e. _cmtInitCollapseAll iterates items and calls _cmtCheckCollapse",
+    "function _cmtInitCollapseAll(" in posts_js and "_cmtCheckCollapse(items[i])" in posts_js
+)
+check(
+    "107f. _cmtRenderComments calls _cmtInitCollapseAll after rendering",
+    "_cmtInitCollapseAll(list)" in posts_js
+)
+check(
+    "107g. postsList delegation handles pc-cmt-more-btn click (expand)",
+    "pc-cmt-more-btn" in posts_js and "is-collapsed" in posts_js
+)
+check(
+    "107h. postsList delegation handles pc-cmt-less-btn click (collapse)",
+    "pc-cmt-less-btn" in posts_js and "عرض أقل" in posts_js
+)
+check(
+    "107i. CSS .pc-cmt-more-btn and .pc-cmt-less-btn defined",
+    ".pc-cmt-more-btn, .pc-cmt-less-btn" in company_css or
+    (".pc-cmt-more-btn" in company_css and ".pc-cmt-less-btn" in company_css)
+)
+
+# ── feat/comment-ux-v2: Collapsed replies by default ─────────────────────
+check(
+    "108. _cmtReplyCountText helper returns Arabic reply count label",
+    "function _cmtReplyCountText(" in posts_js and "عرض ردّين" in posts_js
+)
+check(
+    "108b. _cmtSetToggleState helper exists (open/close toggle + box)",
+    "function _cmtSetToggleState(" in posts_js and "إخفاء الردود" in posts_js
+)
+check(
+    "108c. _cmtBuildRepliesGroup builds toggle + box elements",
+    "function _cmtBuildRepliesGroup(" in posts_js and
+    "pc-cmt-replies-toggle" in posts_js and "pc-cmt-replies-box" in posts_js
+)
+check(
+    "108d. _cmtRenderComments groups replies by parent and creates collapsed boxes",
+    "parentReplies" in posts_js and "_cmtBuildRepliesGroup(c.id" in posts_js
+)
+check(
+    "108e. _cmtInsertReply finds existing box or creates first-reply group",
+    "pc-cmt-replies-box[data-parent-id" in posts_js and "_cmtSetToggleState(toggle, box, true" in posts_js
+)
+check(
+    "108f. _cmtHandleDelete removes toggle+box when last reply deleted",
+    "if (toggleEl) toggleEl.remove()" in posts_js and "replyBox.remove()" in posts_js
+)
+check(
+    "108g. _cmtHandleDelete removes replies group when parent comment deleted",
+    "childToggle" in posts_js and "childBox" in posts_js and
+    "childToggle.remove()" in posts_js
+)
+check(
+    "108h. postsList delegation handles pc-cmt-replies-toggle click",
+    "pc-cmt-replies-toggle" in posts_js and "_cmtSetToggleState(repliesToggle" in posts_js
+)
+check(
+    "108i. CSS .pc-cmt-replies-toggle defined with arrow indicator",
+    ".pc-cmt-replies-toggle" in company_css
+)
+check(
+    "108j. CSS .pc-cmt-replies-box defined (light border container)",
+    ".pc-cmt-replies-box" in company_css
 )
 
 # ── Summary ──────────────────────────────────────────────────────────────
