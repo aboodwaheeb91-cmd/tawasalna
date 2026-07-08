@@ -3039,6 +3039,20 @@ def ensure_company_tables():
             conn.run("CREATE INDEX IF NOT EXISTS idx_post_cmts_mentioned ON company_post_comments(mentioned_tw_id) WHERE mentioned_tw_id IS NOT NULL")
         except Exception as _e_ment:
             print(f"[DB] mentioned_tw_id migration: {_e_ment}")
+        # Migration: multi-mention junction table — supports multiple @mentions per comment
+        try:
+            conn.run(
+                "CREATE TABLE IF NOT EXISTS company_post_comment_mentions ("
+                "id SERIAL PRIMARY KEY, "
+                "comment_id INTEGER NOT NULL REFERENCES company_post_comments(id) ON DELETE CASCADE, "
+                "mentioned_tw_id VARCHAR(50) NOT NULL, "
+                "created_at TIMESTAMPTZ DEFAULT NOW(), "
+                "UNIQUE(comment_id, mentioned_tw_id)"
+                ")"
+            )
+            conn.run("CREATE INDEX IF NOT EXISTS idx_cpcm_comment ON company_post_comment_mentions(comment_id)")
+        except Exception as _e_multiment:
+            print(f"[DB] company_post_comment_mentions migration: {_e_multiment}")
         release_conn(conn)
         print("✅ company tables ready")
     except Exception as e:
@@ -3577,14 +3591,46 @@ def get_company_post_comments(post_id: int, viewer_user_id=None) -> list:
             d["viewer_can_edit"]   = (viewer_id is not None and uid == viewer_id)
             d["viewer_can_delete"] = (viewer_id is not None and (uid == viewer_id or viewer_is_owner))
             result.append(d)
+        if not result:
+            return result
+        # Batch-fetch mentions from junction table and attach to each comment
+        comment_ids = [d["id"] for d in result]
+        id_placeholders = ", ".join(str(int(cid)) for cid in comment_ids)
+        try:
+            mrows = conn.run(
+                "SELECT m.comment_id, u.full_name, m.mentioned_tw_id "
+                "FROM company_post_comment_mentions m "
+                "JOIN users u ON u.tw_id = m.mentioned_tw_id "
+                "WHERE m.comment_id IN (" + id_placeholders + ") "
+                "ORDER BY m.id ASC"
+            )
+        except Exception:
+            mrows = []
+        # Build map: comment_id -> [{name, tw_id}]
+        mention_map = {}
+        for mr in (mrows or []):
+            cid = int(mr[0])
+            if cid not in mention_map:
+                mention_map[cid] = []
+            mention_map[cid].append({"name": mr[1] or "", "tw_id": mr[2] or ""})
+        for d in result:
+            cid = d["id"]
+            if cid in mention_map and mention_map[cid]:
+                d["mentions"] = mention_map[cid]
+            elif d.get("mentioned_tw_id"):
+                # Backward compat: old single-mention column
+                d["mentions"] = [{"name": d.get("mentioned_author_name") or "", "tw_id": d["mentioned_tw_id"]}]
+            else:
+                d["mentions"] = []
         return result
     finally:
         release_conn(conn)
 
 
-def create_company_post_comment(post_id: int, user_id: int, body: str, reply_to_comment_id=None, mentioned_tw_id=None) -> dict:
+def create_company_post_comment(post_id: int, user_id: int, body: str, reply_to_comment_id=None, mentioned_tw_ids=None) -> dict:
     """Create a new active comment. Validates body + checks comments_enabled.
-    Optional reply_to_comment_id is resolved to max depth 1 (no nested replies)."""
+    Optional reply_to_comment_id is resolved to max depth 1 (no nested replies).
+    mentioned_tw_ids: list of tw_ids for @mentioned users — each must exist and '@name' must be in body."""
     body = body.strip()
     if not body:
         raise ValueError("التعليق لا يمكن أن يكون فارغاً")
@@ -3626,27 +3672,48 @@ def create_company_post_comment(post_id: int, user_id: int, body: str, reply_to_
                 cid=resolved_reply_to)
             reply_to_author_name  = ra_rows[0][0] if ra_rows else None
             reply_to_author_tw_id = ra_rows[0][1] if ra_rows else None
-        # Validate mentioned_tw_id if provided — user must exist AND body must start with @name
-        resolved_mentioned_tw_id = None
-        mentioned_author_name    = None
-        if mentioned_tw_id:
-            mtw = str(mentioned_tw_id).strip()
-            if mtw:
-                mrows = conn.run(
-                    "SELECT id, full_name FROM users WHERE tw_id = :tid", tid=mtw)
-                if not mrows:
-                    raise ValueError("mentioned_tw_id لا يشير لمستخدم موجود")
-                m_name = mrows[0][1]
-                if not body.startswith('@' + m_name):
-                    raise ValueError("mentioned_tw_id لا يطابق بداية نص التعليق")
-                resolved_mentioned_tw_id = mtw
-                mentioned_author_name    = m_name
-        rows = conn.run(
-            "INSERT INTO company_post_comments (post_id, user_id, body, reply_to_comment_id, mentioned_tw_id) "
-            "VALUES (:pid, :uid, :body, :rtid, :mtid) RETURNING id, body, created_at, updated_at, reply_to_comment_id",
-            pid=post_id, uid=user_id, body=body, rtid=resolved_reply_to, mtid=resolved_mentioned_tw_id)
-        if not rows:
-            raise RuntimeError("insert failed")
+        # Validate each mentioned_tw_id — user must exist AND '@name' must appear anywhere in body
+        resolved_mentions = []
+        for mtw_raw in (mentioned_tw_ids or []):
+            mtw = str(mtw_raw).strip()
+            if not mtw:
+                continue
+            mrows = conn.run(
+                "SELECT id, full_name FROM users WHERE tw_id = :tid", tid=mtw)
+            if not mrows:
+                raise ValueError("mentioned_tw_id لا يشير لمستخدم موجود")
+            m_name = mrows[0][1]
+            if ('@' + m_name) not in body:
+                raise ValueError("mentioned_tw_id لا يوجد في نص التعليق")
+            if not any(r["tw_id"] == mtw for r in resolved_mentions):
+                resolved_mentions.append({"name": m_name, "tw_id": mtw})
+        # ── Atomic transaction: comment + mentions succeed or fail together ──
+        # If any mention INSERT fails the whole unit is rolled back — no orphan comments.
+        conn.run("BEGIN")
+        committed = False
+        try:
+            rows = conn.run(
+                "INSERT INTO company_post_comments (post_id, user_id, body, reply_to_comment_id) "
+                "VALUES (:pid, :uid, :body, :rtid) RETURNING id, body, created_at, updated_at, reply_to_comment_id",
+                pid=post_id, uid=user_id, body=body, rtid=resolved_reply_to)
+            if not rows:
+                raise RuntimeError("insert failed")
+            new_comment_id = int(rows[0][0])
+            for rm in resolved_mentions:
+                conn.run(
+                    "INSERT INTO company_post_comment_mentions (comment_id, mentioned_tw_id) "
+                    "VALUES (:cid, :mtw) ON CONFLICT (comment_id, mentioned_tw_id) DO NOTHING",
+                    cid=new_comment_id, mtw=rm["tw_id"])
+            conn.run("COMMIT")
+            committed = True
+        except Exception as _tx_err:
+            if not committed:
+                try:
+                    conn.run("ROLLBACK")
+                except Exception:
+                    pass
+            raise RuntimeError(f"فشل حفظ التعليق والمنشنات: {_tx_err}") from _tx_err
+        # ── Post-commit: read-only queries to build return value ──
         cols = ["id", "body", "created_at", "updated_at", "reply_to_comment_id"]
         d = _serialize(_row_to_dict(cols, rows[0]))
         urows = conn.run(
@@ -3663,8 +3730,7 @@ def create_company_post_comment(post_id: int, user_id: int, body: str, reply_to_
         d["viewer_can_delete"]     = True
         d["reply_to_author_name"]  = reply_to_author_name
         d["reply_to_author_tw_id"] = reply_to_author_tw_id
-        d["mentioned_tw_id"]       = resolved_mentioned_tw_id
-        d["mentioned_author_name"] = mentioned_author_name
+        d["mentions"]              = resolved_mentions
         return d
     finally:
         release_conn(conn)

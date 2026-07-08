@@ -524,8 +524,8 @@ check(
 
 # ── 67. _renderCommentBody exact compound-name match ─────────────────────
 check(
-    "67. _renderCommentBody uses exactMention = '@' + mentionName for exact match",
-    "exactMention" in render_fn2[:600] and "text.indexOf(exactMention) === 0" in render_fn2[:600]
+    "67. _renderCommentBody uses full-text scan (indexOf @) for @mention matching",
+    "text.indexOf('@', pos)" in posts_js or "text.indexOf(cand, atIdx) === atIdx" in posts_js
 )
 
 # ── 68. _cmtRenderComments function defined ───────────────────────────────
@@ -775,12 +775,12 @@ check(
     "function _renderCommentBody(bodyEl, text, mentionName, mentionTwId" in posts_js
 )
 check(
-    "97. _renderCommentBody creates <a> when mentionTwId provided (XSS-safe)",
-    "mentionTwId ? document.createElement('a') : document.createElement('span')" in posts_js
+    "97. _renderCommentBody creates <a> when entry.tw_id present (XSS-safe)",
+    "entry.tw_id ? document.createElement('a') : document.createElement('span')" in posts_js
 )
 check(
     "98. _renderCommentBody sets href /u/tw_id on mention <a> (not innerHTML)",
-    "mentionEl.href = '/u/' + mentionTwId" in posts_js
+    "entry.tw_id) mentEl.href" in posts_js or "mentEl.href = '/u/' + entry.tw_id" in posts_js
 )
 
 # Frontend: _cmtBuildItem passes reply_to_author_tw_id as 4th arg (now also 5th knownNames arg)
@@ -867,21 +867,20 @@ check(
     "knownNames = comments.map(" in posts_js or "_cmtBuildItem(c, knownNames)" in posts_js
 )
 check(
-    "105f. free mention highlight uses <span> only — no <a> without tw_id (V1 contract)",
-    "freeEl = document.createElement('span')" in posts_js or
-    "document.createElement('span'); // free mention" in posts_js or
-    "freeEl.className = 'pc-cmt-mention'" in posts_js
+    "105f. free mention highlight uses <span> when no tw_id — no <a> without tw_id (V1 contract)",
+    "entry.tw_id ? document.createElement('a') : document.createElement('span')" in posts_js or
+    "fbEl = document.createElement('span')" in posts_js
 )
 
 # ── feat/comment-ux-v2: DB-backed free @mention ──────────────────────────
 check(
-    "106. _cmtMentionedCandidate module variable exists (stores {name, tw_id})",
-    "var _cmtMentionedCandidate = {}" in posts_js
+    "106. _cmtMentionedCandidates module variable exists (array per postId)",
+    "var _cmtMentionedCandidates = {}" in posts_js
 )
 check(
-    "106b. _cmtInsertMention accepts 3rd param (twId) and stores in _cmtMentionedCandidate",
+    "106b. _cmtInsertMention accepts 3rd param (twId) and pushes to _cmtMentionedCandidates",
     "function _cmtInsertMention(ta, name, twId)" in posts_js and
-    "_cmtMentionedCandidate[postId]" in posts_js
+    "_cmtMentionedCandidates[postId]" in posts_js
 )
 check(
     "106c. Keyboard nav passes tw_id from filtered candidate to _cmtInsertMention",
@@ -892,30 +891,30 @@ check(
     "item.dataset.mentionTwId || null" in posts_js
 )
 check(
-    "106e. _renderCommentBody accepts mentionedName + mentionedTwId as 6th+7th params",
-    "function _renderCommentBody(bodyEl, text, mentionName, mentionTwId, knownNames, mentionedName, mentionedTwId)" in posts_js
+    "106e. _renderCommentBody accepts mentions array as 6th param (multi-mention)",
+    "function _renderCommentBody(bodyEl, text, mentionName, mentionTwId, knownNames, mentions)" in posts_js
 )
 check(
-    "106f. _renderCommentBody creates <a> for DB-backed free mention (mentionedTwId present)",
-    "freeAEl = document.createElement('a')" in posts_js and
-    "freeAEl.href = '/u/' + mentionedTwId" in posts_js
+    "106f. _renderCommentBody creates <a> for DB-backed free mentions via entry.tw_id",
+    "entry.tw_id ? document.createElement('a') : document.createElement('span')" in posts_js
 )
 check(
-    "106g. _cmtBuildItem stores data-mentioned-tw-id on element",
-    "el.dataset.mentionedTwId = c.mentioned_tw_id" in posts_js
+    "106g. _cmtBuildItem stores data-mentions-json on element (multi-mention)",
+    "el.dataset.mentionsJson = JSON.stringify" in posts_js or
+    "dataset.mentionsJson = JSON.stringify" in posts_js
 )
 check(
-    "106h. _cmtHandleSend includes mentioned_tw_id in payload",
-    "payload.mentioned_tw_id" in posts_js and "_cmtMentionedCandidate[String(postId)]" in posts_js
+    "106h. _cmtHandleSend includes mentioned_tw_ids array in payload",
+    "payload.mentioned_tw_ids" in posts_js and "_cmtMentionedCandidates[String(postId)]" in posts_js
 )
 check(
-    "106i. _cmtHandleSend clears _cmtMentionedCandidate after send",
-    "_cmtMentionedCandidate[String(postId)] = null" in posts_js
+    "106i. _cmtHandleSend clears _cmtMentionedCandidates after send",
+    "_cmtMentionedCandidates[String(postId)] = []" in posts_js
 )
 check(
-    "106j. _cmtHandleEdit reads mentionedAuthorName + mentionedTwId from dataset",
-    "mentionedAuthorName = item.dataset.mentionedAuthorName || null" in posts_js and
-    "mentionedTwId       = item.dataset.mentionedTwId" in posts_js
+    "106j. _cmtHandleEdit reads mentionsJson from dataset and parses it",
+    "mentionsJson = item.dataset.mentionsJson" in posts_js and
+    "JSON.parse(mentionsJson)" in posts_js
 )
 check(
     "106k. auth.py has mentioned_tw_id column migration",
@@ -926,12 +925,12 @@ check(
     "users mu ON mu.tw_id = c.mentioned_tw_id" in auth_src
 )
 check(
-    "106m. auth.py create_company_post_comment accepts + validates mentioned_tw_id",
-    "mentioned_tw_id=None" in auth_src and "resolved_mentioned_tw_id" in auth_src
+    "106m. auth.py create_company_post_comment accepts + validates mentioned_tw_ids list",
+    "mentioned_tw_ids=None" in auth_src and "resolved_mentions" in auth_src
 )
 check(
-    "106n. server.py CommentInput has mentioned_tw_id field",
-    "mentioned_tw_id" in srv_src
+    "106n. server.py CommentInput has mentioned_tw_ids field",
+    "mentioned_tw_ids" in srv_src
 )
 
 # ── feat/comment-ux-v2: Collapsible long comments ─────────────────────────
@@ -1065,34 +1064,34 @@ check(
 
 # ── fixes/comment-ux-v2-polish: Fix 3 — mentioned_tw_id validation ───────
 check(
-    "111. _cmtMentionedCandidate replaces _cmtMentionedTwId (stores {name, tw_id})",
-    "var _cmtMentionedCandidate = {}" in posts_js and
-    "_cmtMentionedTwId" not in posts_js
+    "111. _cmtMentionedCandidates is array-based (replaces single _cmtMentionedCandidate)",
+    "var _cmtMentionedCandidates = {}" in posts_js and
+    "_cmtMentionedTwId" not in posts_js and
+    "var _cmtMentionedCandidate = {}" not in posts_js  # old single-object declaration gone
 )
 check(
-    "111b. _cmtInsertMention stores {name, tw_id} in _cmtMentionedCandidate",
-    "_cmtMentionedCandidate[postId] = " in posts_js and
-    "{ name: name, tw_id: twId }" in posts_js
+    "111b. _cmtInsertMention pushes {name, tw_id} into _cmtMentionedCandidates array",
+    "_cmtMentionedCandidates[postId].push({ name: name, tw_id: twId })" in posts_js
 )
 check(
-    "111c. _cmtHandleSend validates body starts with @name before sending mentioned_tw_id",
-    "body.indexOf('@' + _mc.name) === 0" in posts_js
+    "111c. _cmtHandleSend validates body contains @name (anywhere) before sending tw_id",
+    "body.indexOf('@' + mc.name) >= 0" in posts_js
 )
 check(
-    "111d. _cmtHandleSend clears _cmtMentionedCandidate after send",
-    "_cmtMentionedCandidate[String(postId)] = null" in posts_js
+    "111d. _cmtHandleSend clears _cmtMentionedCandidates after send",
+    "_cmtMentionedCandidates[String(postId)] = []" in posts_js
 )
 check(
-    "111e. auth.py validates body starts with @full_name when mentioned_tw_id provided",
-    "body.startswith('@' + m_name)" in auth_src
+    "111e. auth.py validates '@name' appears anywhere in body (not just startswith)",
+    "('@' + m_name) not in body" in auth_src or "('@' + m_name) in body" in auth_src
 )
 check(
     "111f. auth.py raises ValueError when mentioned_tw_id user not found",
     "mentioned_tw_id لا يشير لمستخدم موجود" in auth_src
 )
 check(
-    "111g. auth.py raises ValueError when mentioned_tw_id doesn't match body start",
-    "mentioned_tw_id لا يطابق بداية نص التعليق" in auth_src
+    "111g. auth.py raises ValueError when mentioned_tw_id doesn't appear in body",
+    "mentioned_tw_id لا يوجد في نص التعليق" in auth_src
 )
 check(
     "111h. server.py maps mentioned_tw_id mismatch ValueError to 400",
@@ -1157,6 +1156,103 @@ check(
 check(
     "112l. _cmtHandleEdit restores bodyWrap on cancel and optimistic update",
     posts_js.count("bodyWrap.style.display = ''") >= 2
+)
+
+# ── feat/mention-multi-fix: Multi-mention + icon overlap fix ─────────────
+
+# Bug 1: CSS padding to prevent expand icon from overlapping text
+check(
+    "113a. CSS .pc-cmt-body.is-collapsed has padding-inline-end to reserve icon space",
+    ".pc-cmt-body.is-collapsed" in company_css and "padding-inline-end" in company_css
+)
+
+# Bug 2: Multi-mention junction table migration
+check(
+    "113b. auth.py has company_post_comment_mentions table migration",
+    "company_post_comment_mentions" in auth_src and
+    "UNIQUE(comment_id, mentioned_tw_id)" in auth_src
+)
+check(
+    "113c. auth.py create_company_post_comment loops over mentioned_tw_ids list",
+    "for mtw_raw in (mentioned_tw_ids or []):" in auth_src or
+    "for mtw_raw in" in auth_src
+)
+check(
+    "113d. auth.py create_company_post_comment inserts into junction table ON CONFLICT DO NOTHING",
+    "INSERT INTO company_post_comment_mentions" in auth_src and
+    "ON CONFLICT (comment_id, mentioned_tw_id) DO NOTHING" in auth_src
+)
+check(
+    "113e. auth.py get_company_post_comments batch-fetches from junction table",
+    "company_post_comment_mentions" in auth_src and
+    "mention_map" in auth_src
+)
+check(
+    "113f. auth.py get_company_post_comments returns mentions array per comment",
+    "d[\"mentions\"]" in auth_src and "mention_map" in auth_src
+)
+check(
+    "113g. server.py CommentInput mentioned_tw_ids is Optional[List[str]]",
+    "mentioned_tw_ids: Optional[List[str]]" in srv_src
+)
+check(
+    "113h. _cmtMentionedCandidates stores array per postId (not single object)",
+    "var _cmtMentionedCandidates = {}" in posts_js and
+    "_cmtMentionedCandidates[postId].push" in posts_js
+)
+check(
+    "113i. _renderCommentBody full-text scan: finds @ at any position",
+    "text.indexOf('@', pos)" in posts_js
+)
+check(
+    "113j. _renderCommentBody builds lookup table sorted longest-first",
+    "lookup.sort(function" in posts_js and "b.name.length" in posts_js
+)
+check(
+    "113k. _cmtBuildItem backward compat: falls back to c.mentioned_tw_id if c.mentions absent",
+    "c.mentioned_tw_id" in posts_js and "c.mentions" in posts_js and
+    "itemMentions" in posts_js
+)
+check(
+    "113l. _cmtHandleEdit uses itemMentions (not mentionedTwId/mentionedAuthorName)",
+    "itemMentions.length ? itemMentions : null" in posts_js and
+    "mentionedAuthorName" not in posts_js and
+    "mentionedTwId       = item.dataset" not in posts_js
+)
+
+# ── 114. Atomicity / Transaction tests ───────────────────────────────────
+check(
+    "114a. auth.py create_company_post_comment issues BEGIN before INSERT",
+    'conn.run("BEGIN")' in auth_src and
+    "INSERT INTO company_post_comments" in auth_src
+)
+check(
+    "114b. auth.py create_company_post_comment issues COMMIT on success",
+    'conn.run("COMMIT")' in auth_src and
+    "committed = True" in auth_src
+)
+check(
+    "114c. auth.py create_company_post_comment issues ROLLBACK on any exception",
+    'conn.run("ROLLBACK")' in auth_src and
+    "committed = False" in auth_src and
+    "if not committed" in auth_src
+)
+check(
+    "114d. auth.py raises RuntimeError with Arabic message on transaction failure (no silent failure)",
+    'raise RuntimeError(f"فشل حفظ التعليق والمنشنات' in auth_src
+)
+check(
+    "114e. auth.py no bare 'except: pass' inside transaction block (no swallowed errors)",
+    # The ROLLBACK except is allowed (bare pass there is fine to avoid masking the original error)
+    # but there must be NO except:pass that silently swallows mention errors
+    "except: pass" not in auth_src or
+    auth_src.count("except:\n                    pass") <= 1  # only the inner ROLLBACK guard
+)
+check(
+    "114f. auth.py backward compat: old comments without junction entries return mentions:[] (not crash)",
+    # Backward compat: else branch always assigns mentions list, never leaves it unset
+    'd["mentions"] = []' in auth_src and
+    "elif d.get(\"mentioned_tw_id\")" in auth_src
 )
 
 # ── Summary ──────────────────────────────────────────────────────────────

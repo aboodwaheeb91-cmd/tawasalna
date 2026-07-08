@@ -932,13 +932,15 @@ i.ico-sm { width:14px; height:14px; stroke:currentColor; fill:none; stroke-width
 /* Body wrapper — provides position context for the expand icon */
 .pc-cmt-body-wrap { position:relative; }
 
-/* Collapsed comment body — shows max 2 lines */
+/* Collapsed comment body — shows max 2 lines.
+   padding-inline-end reserves space so the absolute expand icon never overlaps text. */
 .pc-cmt-body.is-collapsed {
   display:-webkit-box;
   -webkit-line-clamp:2;
   -webkit-box-orient:vertical;
   overflow:hidden;
   white-space:normal;
+  padding-inline-end:36px;
 }
 
 /* Expand icon — absolutely positioned at bottom-inline-end (= bottom-left in RTL).
