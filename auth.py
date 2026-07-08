@@ -3687,22 +3687,33 @@ def create_company_post_comment(post_id: int, user_id: int, body: str, reply_to_
                 raise ValueError("mentioned_tw_id لا يوجد في نص التعليق")
             if not any(r["tw_id"] == mtw for r in resolved_mentions):
                 resolved_mentions.append({"name": m_name, "tw_id": mtw})
-        rows = conn.run(
-            "INSERT INTO company_post_comments (post_id, user_id, body, reply_to_comment_id) "
-            "VALUES (:pid, :uid, :body, :rtid) RETURNING id, body, created_at, updated_at, reply_to_comment_id",
-            pid=post_id, uid=user_id, body=body, rtid=resolved_reply_to)
-        if not rows:
-            raise RuntimeError("insert failed")
-        new_comment_id = int(rows[0][0])
-        # Insert mentions into junction table
-        for rm in resolved_mentions:
-            try:
+        # ── Atomic transaction: comment + mentions succeed or fail together ──
+        # If any mention INSERT fails the whole unit is rolled back — no orphan comments.
+        conn.run("BEGIN")
+        committed = False
+        try:
+            rows = conn.run(
+                "INSERT INTO company_post_comments (post_id, user_id, body, reply_to_comment_id) "
+                "VALUES (:pid, :uid, :body, :rtid) RETURNING id, body, created_at, updated_at, reply_to_comment_id",
+                pid=post_id, uid=user_id, body=body, rtid=resolved_reply_to)
+            if not rows:
+                raise RuntimeError("insert failed")
+            new_comment_id = int(rows[0][0])
+            for rm in resolved_mentions:
                 conn.run(
                     "INSERT INTO company_post_comment_mentions (comment_id, mentioned_tw_id) "
                     "VALUES (:cid, :mtw) ON CONFLICT (comment_id, mentioned_tw_id) DO NOTHING",
                     cid=new_comment_id, mtw=rm["tw_id"])
-            except Exception:
-                pass
+            conn.run("COMMIT")
+            committed = True
+        except Exception as _tx_err:
+            if not committed:
+                try:
+                    conn.run("ROLLBACK")
+                except Exception:
+                    pass
+            raise RuntimeError(f"فشل حفظ التعليق والمنشنات: {_tx_err}") from _tx_err
+        # ── Post-commit: read-only queries to build return value ──
         cols = ["id", "body", "created_at", "updated_at", "reply_to_comment_id"]
         d = _serialize(_row_to_dict(cols, rows[0]))
         urows = conn.run(

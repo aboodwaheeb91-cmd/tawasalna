@@ -9204,7 +9204,9 @@ When `viewer_user_id` is absent (unauthenticated), `viewer_saved` is always `FAL
 
 Per-post comments for company posts with flat reply threading (V1). Auth required to post/edit/delete. Server-side permission enforcement. Soft delete. XSS-safe rendering. Replies are grouped visually under their parent on initial load and inserted after parent on send.
 
-### Database Table: `company_post_comments`
+### Database Tables
+
+#### `company_post_comments`
 
 ```sql
 CREATE TABLE company_post_comments (
@@ -9217,13 +9219,13 @@ CREATE TABLE company_post_comments (
     created_at            TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     updated_at            TIMESTAMPTZ,
     deleted_at            TIMESTAMPTZ,
-    mentioned_tw_id       VARCHAR(50) DEFAULT NULL   -- DB-backed free @mention (feat/comment-ux-v2)
+    mentioned_tw_id       VARCHAR(50) DEFAULT NULL  -- legacy single-mention column (read for backward compat)
 );
 
-CREATE INDEX  idx_post_cmts_post     ON company_post_comments(post_id, created_at);
-CREATE INDEX  idx_post_cmts_user     ON company_post_comments(user_id);
-CREATE INDEX  idx_post_cmts_active   ON company_post_comments(post_id, status);
-CREATE INDEX  idx_post_cmts_reply    ON company_post_comments(reply_to_comment_id)
+CREATE INDEX  idx_post_cmts_post      ON company_post_comments(post_id, created_at);
+CREATE INDEX  idx_post_cmts_user      ON company_post_comments(user_id);
+CREATE INDEX  idx_post_cmts_active    ON company_post_comments(post_id, status);
+CREATE INDEX  idx_post_cmts_reply     ON company_post_comments(reply_to_comment_id)
     WHERE reply_to_comment_id IS NOT NULL;
 CREATE INDEX  idx_post_cmts_mentioned ON company_post_comments(mentioned_tw_id)
     WHERE mentioned_tw_id IS NOT NULL;
@@ -9233,12 +9235,32 @@ CREATE INDEX  idx_post_cmts_mentioned ON company_post_comments(mentioned_tw_id)
 
 `reply_to_comment_id` is `NULL` for top-level comments. Max depth = 1 — replies to replies are auto-resolved to the root comment on insert. Added via `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` migration on startup.
 
+`mentioned_tw_id` — **legacy column (read-only for backward compat)**. New comments store mentions only in `company_post_comment_mentions`. `get_company_post_comments` falls back to this column when the junction table has no rows for a comment.
+
+#### `company_post_comment_mentions` — Multiple @mention support (feat/mention-multi-fix)
+
+```sql
+CREATE TABLE company_post_comment_mentions (
+    id              SERIAL PRIMARY KEY,
+    comment_id      INTEGER NOT NULL REFERENCES company_post_comments(id) ON DELETE CASCADE,
+    mentioned_tw_id VARCHAR(50) NOT NULL,
+    created_at      TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(comment_id, mentioned_tw_id)
+);
+
+CREATE INDEX idx_cpcm_comment ON company_post_comment_mentions(comment_id);
+```
+
+Each row is one @mentioned user for one comment. A comment can have multiple rows (one per mention). `ON DELETE CASCADE` ensures mentions are cleaned up with the comment.
+
+**Atomicity rule (permanent):** `create_company_post_comment` wraps the `company_post_comments INSERT` and all `company_post_comment_mentions INSERTs` in a single `BEGIN/COMMIT` transaction. If any mention INSERT fails, the entire comment is rolled back — **no orphan comments, no silent failure, no inconsistency after page refresh**. This is a permanent invariant; do not break it.
+
 ### auth.py Helpers
 
 | Helper | Contract |
 |--------|---------|
-| `get_company_post_comments(post_id, viewer_user_id)` | Returns active comments oldest-first. Joins `users` + `profiles` for author data. LEFT JOINs `company_post_comments rc + users ru` to populate `reply_to_author_name` + `reply_to_author_tw_id`. LEFT JOINs `users mu ON mu.tw_id = c.mentioned_tw_id` to populate `mentioned_author_name`. Sets `viewer_can_edit` / `viewer_can_delete` flags. Returns `reply_to_comment_id`, `reply_to_author_name`, `reply_to_author_tw_id`, `mentioned_tw_id`, `mentioned_author_name`. |
-| `create_company_post_comment(post_id, user_id, body, reply_to_comment_id=None, mentioned_tw_id=None)` | Validates body (non-empty, ≤1000 chars), checks `comments_enabled`. If `reply_to_comment_id` given: validates it exists + belongs to `post_id` + is active; resolves depth to 1. If `mentioned_tw_id` given: validates user exists in `users` table. Inserts row, returns full comment dict including `reply_to_comment_id`, `reply_to_author_name`, `reply_to_author_tw_id`, `mentioned_tw_id`, `mentioned_author_name`. |
+| `get_company_post_comments(post_id, viewer_user_id)` | Returns active comments oldest-first. Joins `users` + `profiles` for author data. LEFT JOINs for reply author and legacy `mentioned_tw_id`. After building result, **batch-fetches** from `company_post_comment_mentions` for all comment IDs. Per comment: if junction table has rows → `mentions: [{name, tw_id}]`; else falls back to legacy `mentioned_tw_id` column (backward compat). Sets `viewer_can_edit` / `viewer_can_delete` flags. |
+| `create_company_post_comment(post_id, user_id, body, reply_to_comment_id=None, mentioned_tw_ids=None)` | Validates body (non-empty, ≤1000 chars), checks `comments_enabled`. Resolves `reply_to_comment_id` depth to 1. Validates each tw_id in `mentioned_tw_ids`: user must exist AND `'@' + name` must appear anywhere in body. **Atomic transaction:** `BEGIN` → INSERT comment → INSERT all mentions → `COMMIT`. On any failure: `ROLLBACK` (comment not saved). Returns dict with `mentions: [{name, tw_id}]`. |
 | `update_company_post_comment(comment_id, user_id, body)` | Validates body. Checks `owner_id == user_id`; raises `PermissionError` if not. Sets `updated_at=NOW()`. |
 | `delete_company_post_comment(comment_id, user_id)` | Checks `owner_id == user_id OR company_id == user_id`; raises `PermissionError` if neither. Sets `status='deleted', deleted_at=NOW()` (soft delete). |
 
@@ -9270,7 +9292,15 @@ LEFT JOIN (
 
 **GET request (optional JWT):** If `Authorization: Bearer` header is present, `viewer_can_edit` / `viewer_can_delete` flags are set per comment. If absent, both flags are `false`.
 
-**POST body:** `{ "body": "...", "reply_to_comment_id": 42 }` — `reply_to_comment_id` is optional; omit for top-level comments.
+**POST body:**
+```json
+{
+  "body": "...",
+  "reply_to_comment_id": 42,
+  "mentioned_tw_ids": ["U9620...", "C9660..."]
+}
+```
+`reply_to_comment_id` and `mentioned_tw_ids` are optional. `mentioned_tw_ids` is an array of tw_ids selected from the @mention autocomplete. Each tw_id is validated server-side (user exists AND `'@' + name` appears in body). The comment INSERT and all mention INSERTs are atomic — either all succeed or none are saved.
 
 **PATCH body:** `{ "body": "..." }`
 
@@ -9278,11 +9308,13 @@ LEFT JOIN (
 
 | Code | Condition |
 |------|-----------|
+| 400 | `mentioned_tw_ids` user not found or `'@name'` not in body |
 | 401 | No JWT |
 | 403 | comments_enabled=false / not authorized to edit/delete |
 | 404 | Post or comment not found |
 | 422 | Empty body or body > 1000 chars |
 | 429 | Rate limit (10 create/60s · 10 edit/60s) |
+| 500 | Transaction failure (comment rolled back — no orphan saved) |
 
 ### Permissions (server-side only)
 
@@ -9664,17 +9696,40 @@ A lightweight portal-based mention dropdown appears inside the comment textarea 
 
 Three UX enhancements added in one PR on top of PR #397:
 
-#### Feature 1 — Clickable free @mention (DB-backed)
+#### Feature 1 — Clickable free @mention (DB-backed, multi-mention since feat/mention-multi-fix)
 
-When a user selects from the @ suggestion dropdown, `_cmtInsertMention(ta, name, twId)` stores `twId` in `_cmtMentionedTwId[postId]`. On send, `mentioned_tw_id` is included in the `POST /comments` payload. The server validates the user exists and stores it in `company_post_comments.mentioned_tw_id`. On fetch, `get_company_post_comments` LEFT JOINs `users mu` to return `mentioned_author_name`. `_renderCommentBody` (7-arg) renders the free @mention as `<a href="/u/mentionedTwId">` when `mentionedTwId` is present — promoting it from `<span>` to a clickable link. Only DB-backed mentions get `<a>` — fallbacks remain `<span>`.
+**Updated contract (feat/mention-multi-fix replaces the original V1 single-mention contract).**
 
-**`_renderCommentBody` 7-arg signature (final):**
+Multiple @mentions per comment are supported. Each selected @mention is stored in `company_post_comment_mentions` (junction table). See §65 Database Tables for the schema.
+
+**Flow (send):**
+1. User types `@` → autocomplete shows candidates from DOM (`_cmtCollectMentionCandidates`)
+2. User selects → `_cmtInsertMention(ta, name, twId)` inserts `@name ` into textarea and pushes `{ name, tw_id }` to `_cmtMentionedCandidates[postId]` (array, deduped by tw_id)
+3. On send: `_cmtHandleSend` filters `_cmtMentionedCandidates[postId]` to entries whose `'@' + name` appears anywhere in body (`indexOf >= 0`) → sends as `mentioned_tw_ids: [tw_id1, tw_id2, ...]` in POST payload
+4. Server validates each tw_id (user exists + name in body), then atomically INSERTs comment + all mentions
+
+**Flow (fetch):**
+1. `get_company_post_comments` batch-fetches from junction table for all comment IDs
+2. Per comment: junction rows present → `mentions: [{name, tw_id}, ...]`; no junction rows → falls back to legacy `mentioned_tw_id` column (backward compat for pre-PR comments)
+3. `_cmtBuildItem` builds `itemMentions` from `c.mentions` or `c.mentioned_tw_id` fallback; stores as `data-mentions-json` on element
+
+**`_renderCommentBody` 6-arg signature (final since feat/mention-multi-fix):**
 ```
-_renderCommentBody(bodyEl, text, mentionName, mentionTwId, knownNames, mentionedName, mentionedTwId)
+_renderCommentBody(bodyEl, text, mentionName, mentionTwId, knownNames, mentions)
 ```
-Priority: exact reply-author match → DB-backed free mention → knownNames compound → @\S+ fallback → plain text.
+- `mentions`: `[{name, tw_id}]` — DB-backed free @mentions. Multiple supported.
+- Full left-to-right scan: finds `@` at **any** position, not just start of text.
+- Builds lookup `[{name, tw_id}]` sorted longest-first (reply author → DB mentions → knownNames).
+- Match at each `@`: tries lookup longest-first with boundary check → `<a href="/u/tw_id">` if tw_id present, else `<span>`. Fallback for unknown: `@\S+` → `<span>`.
+- All text via `textContent`/`createTextNode` — never `innerHTML` for API data.
 
-**`_cmtMentionedTwId`** — module-level dict: `postId → tw_id of last selected @mention`. Cleared after send. Never persisted to localStorage.
+**`_cmtMentionedCandidates`** — module-level dict: `postId → [{name, tw_id}]` (array). Cleared to `[]` after send. Never persisted to localStorage.
+
+**Linking rules:**
+- `<a href="/u/{tw_id}">` — only when `tw_id` is present from DB (junction table or legacy column)
+- `<span class="pc-cmt-mention">` — when name is known but no DB-backed tw_id
+- **Never** build `href` from author name alone — only from `tw_id`
+- **Never** use `/profile?id=` or `/company-profile` in mention links
 
 #### Feature 2 — Collapsible long comments
 
@@ -9712,3 +9767,93 @@ Replies are no longer rendered inline. DOM structure per parent comment in the l
 - Parent deleted → also remove its `.pc-cmt-replies-toggle` + `.pc-cmt-replies-box` from list
 
 **Replies toggle delegation** in `postsList`: `.pc-cmt-replies-toggle[data-parent-id]` click → `_cmtSetToggleState(toggle, box, box.hidden, count)` (toggles between open and closed).
+
+### Multi-mention System (feat/mention-multi-fix) — permanent contracts
+
+#### Atomicity
+
+**`create_company_post_comment` wraps comment + mentions in a single transaction.**
+
+```python
+conn.run("BEGIN")
+# INSERT INTO company_post_comments → get comment id
+# INSERT INTO company_post_comment_mentions (one row per mention)
+conn.run("COMMIT")
+# On any failure:
+conn.run("ROLLBACK")  # comment is NOT saved — no orphan
+raise RuntimeError("فشل حفظ التعليق والمنشنات: ...")
+```
+
+**Permanent invariants:**
+- No `except: pass` around any mention INSERT — all errors propagate
+- Comment not saved without its mentions — ROLLBACK is called on any failure
+- After ROLLBACK, no comment row exists in `company_post_comments` — no inconsistency after page refresh
+- The `committed` flag prevents double-ROLLBACK if COMMIT itself fails
+
+#### API Contract
+
+**Request (POST /company/posts/{post_id}/comments):**
+```json
+{
+  "body": "شكراً @أحمد على التعليق الرائع، وشكراً @سارة على الدعم",
+  "reply_to_comment_id": null,
+  "mentioned_tw_ids": ["U9620...", "U9610..."]
+}
+```
+
+**Response (on success):**
+```json
+{
+  "status": "success",
+  "comment": {
+    "id": 42,
+    "body": "...",
+    "mentions": [
+      { "name": "أحمد", "tw_id": "U9620..." },
+      { "name": "سارة", "tw_id": "U9610..." }
+    ],
+    ...
+  }
+}
+```
+
+**GET /company/posts/{post_id}/comments response per comment:**
+```json
+{
+  "id": 42,
+  "mentions": [
+    { "name": "أحمد", "tw_id": "U9620..." }
+  ],
+  ...
+}
+```
+`mentions` is always present (may be `[]`). Never `null`.
+
+#### Backward Compatibility
+
+Old comments (created before `company_post_comment_mentions` table existed) have no rows in the junction table but may have `mentioned_tw_id` set on `company_post_comments`. `get_company_post_comments` handles this:
+
+```python
+if junction_rows_for_comment:
+    d["mentions"] = [{name, tw_id}, ...]   # new system
+elif d["mentioned_tw_id"]:
+    d["mentions"] = [{"name": d["mentioned_author_name"], "tw_id": d["mentioned_tw_id"]}]  # compat
+else:
+    d["mentions"] = []
+```
+
+`_cmtBuildItem` in JS mirrors this: checks `c.mentions` first; falls back to `c.mentioned_tw_id` for old API responses.
+
+#### Forbidden Patterns
+
+```
+❌ except: pass around any INSERT into company_post_comment_mentions
+❌ Saving comment before validating all mentions (validation is pre-transaction)
+❌ mentioned_tw_ids as a scalar string instead of array
+❌ Building <a> href from author name alone — must be tw_id from DB
+❌ Using /profile?id= or /company-profile in mention links
+❌ Passing API text through innerHTML in _renderCommentBody
+❌ Single _cmtMentionedCandidate (singular) — must use _cmtMentionedCandidates (array)
+❌ Checking body.indexOf('@' + name) === 0 (start only) — must use >= 0 (any position)
+❌ Sending mentioned_tw_id (singular) in POST payload — must use mentioned_tw_ids (array)
+```

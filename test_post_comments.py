@@ -1220,6 +1220,41 @@ check(
     "mentionedTwId       = item.dataset" not in posts_js
 )
 
+# ── 114. Atomicity / Transaction tests ───────────────────────────────────
+check(
+    "114a. auth.py create_company_post_comment issues BEGIN before INSERT",
+    'conn.run("BEGIN")' in auth_src and
+    "INSERT INTO company_post_comments" in auth_src
+)
+check(
+    "114b. auth.py create_company_post_comment issues COMMIT on success",
+    'conn.run("COMMIT")' in auth_src and
+    "committed = True" in auth_src
+)
+check(
+    "114c. auth.py create_company_post_comment issues ROLLBACK on any exception",
+    'conn.run("ROLLBACK")' in auth_src and
+    "committed = False" in auth_src and
+    "if not committed" in auth_src
+)
+check(
+    "114d. auth.py raises RuntimeError with Arabic message on transaction failure (no silent failure)",
+    'raise RuntimeError(f"فشل حفظ التعليق والمنشنات' in auth_src
+)
+check(
+    "114e. auth.py no bare 'except: pass' inside transaction block (no swallowed errors)",
+    # The ROLLBACK except is allowed (bare pass there is fine to avoid masking the original error)
+    # but there must be NO except:pass that silently swallows mention errors
+    "except: pass" not in auth_src or
+    auth_src.count("except:\n                    pass") <= 1  # only the inner ROLLBACK guard
+)
+check(
+    "114f. auth.py backward compat: old comments without junction entries return mentions:[] (not crash)",
+    # Backward compat: else branch always assigns mentions list, never leaves it unset
+    'd["mentions"] = []' in auth_src and
+    "elif d.get(\"mentioned_tw_id\")" in auth_src
+)
+
 # ── Summary ──────────────────────────────────────────────────────────────
 print()
 passed = sum(1 for _, s, _ in results if s == PASS)

@@ -1098,7 +1098,7 @@ Full technical specification: `ARCHITECTURE.md §65`.
    - **Insert-first rule:** `editWrap` must be inserted into `.pc-cmt-content` BEFORE `bodyEl.style.display = 'none'`. Never hide the body before the editor is in the DOM.
    - **Correct parent:** `content.insertBefore(editWrap, acts)` where `content = item.querySelector('.pc-cmt-content')`. Do NOT use `item.insertBefore(editWrap, acts)` — `acts` is not a direct child of `item`.
    - **In-flight guard:** `_cmtEditInFlight[commentId]` prevents concurrent PATCH requests on the same comment. Check it at the top of `_cmtHandleEdit` AND inside the save handler.
-   - **Optimistic UI:** `_renderCommentBody(bodyEl, newBody, replyToAuthor)` (XSS-safe) BEFORE the fetch call. On PATCH failure, rollback: `_renderCommentBody(bodyEl, originalText, replyToAuthor)`. `replyToAuthor = item.dataset.replyToAuthor || null`.
+   - **Optimistic UI:** `_renderCommentBody(bodyEl, newBody, mentionName, mentionTwId, knownNames, itemMentions)` (XSS-safe) BEFORE the fetch call. On PATCH failure, rollback with original args. `mentionName = item.dataset.replyToAuthor || null`, `mentionTwId = item.dataset.replyToAuthorTwId || null`, `itemMentions` read from `item.dataset.mentionsJson`.
    - **XSS contract:** ALL text assignments in the edit flow use `textContent`/`_renderCommentBody` — never `innerHTML`. This applies to `newBody`, `originalText`, and `res.data.comment.body`.
    - **Cancel:** restores body instantly, no request. `bodyEl.style.display = ''` + `editWrap.remove()`.
    - **"تم التعديل" badge** added to `.pc-cmt-meta-row` on success (idempotent — only if not already present). Do NOT append it to `.pc-cmt-header` or `.pc-cmt-header-left` — it belongs in the meta row alongside time and reply button.
@@ -1123,7 +1123,7 @@ Full technical specification: `ARCHITECTURE.md §65`.
    - **`_cmtReplyTarget` and `_cmtReplyTargetId`** are the only state stores for active reply per panel (per postId). Do NOT persist to localStorage.
 
 16. **Comment UX contracts (feat/comment-ux-polish-3, updated feat/reply-threading-v1) — permanent:**
-   - **`_renderCommentBody(bodyEl, text, mentionName)` is the only approved function** for setting comment body content. It uses `textContent`/`createTextNode` exclusively — never `innerHTML` for API data. If `mentionName` is provided and `text` starts with `@mentionName`, the full compound name gets a `<span class="pc-cmt-mention">` — handles names with spaces. Fallback: first `@word` highlight. Used in: `_cmtBuildItem`, `_cmtHandleEdit` (optimistic, success, rollback).
+   - **`_renderCommentBody(bodyEl, text, mentionName, mentionTwId, knownNames, mentions)` is the only approved function** for setting comment body content. It uses `textContent`/`createTextNode` exclusively — never `innerHTML` for API data. Full-text scan left-to-right — finds `@name` at any position in text, not just the start. Used in: `_cmtBuildItem`, `_cmtHandleEdit` (optimistic, success, rollback).
    - **`.pc-cmt-visual-reply` class** is driven by `c.reply_to_comment_id != null` (not `c.body.charAt(0) === '@'`). CSS-only indentation (`margin-inline-start:28px`). `_cmtHandleEdit` does NOT change this class — it is immutable per comment.
    - **Scrollbar hidden on `.pc-cmts-list`** (`scrollbar-width:none` + `::-webkit-scrollbar {display:none}`). This prevents the RTL scrollbar track from appearing as a vertical line on the left side. Do NOT remove these rules.
    - **No vertical line** in the comments list. Do not add `border-left`, `border-inline-start`, or visible pseudo-elements to `.pc-cmts-list`, `.pc-cmt-item`, or `.pc-cmt-content`.
@@ -1155,12 +1155,12 @@ Full technical specification: `ARCHITECTURE.md §65`.
 
 19. **Author Links & Clickable @mention contracts (feat/comment-author-links, updated feat/mention-ux-fixes, updated feat/comment-ux-v2) — permanent:**
    - **Author avatar and name open `/u/{author_tw_id}`.** They are `<a>` elements when `author_tw_id` is present, plain `<div>`/`<span>` when absent. Created in `_cmtBuildItem`.
-   - **`_renderCommentBody(bodyEl, text, mentionName, mentionTwId, knownNames, mentionedName, mentionedTwId)` — 7-arg signature is final.** All args after `text` may be `null`. Arg 6 (`mentionedName`) + arg 7 (`mentionedTwId`) are the DB-backed free @mention (from `mentioned_author_name` + `mentioned_tw_id` in API response). All text via `textContent` — never `innerHTML`.
-   - **Priority order inside `_renderCommentBody`:** (1) exact reply-author match → `<a>` if mentionTwId present · (2) DB-backed free mention (`mentionedName` + `mentionedTwId`) → `<a href="/u/mentionedTwId">` · (3) `knownNames` longest compound match → `<span>` only · (4) `@\S+` last resort → `<span>` · (5) plain text.
-   - **Free @mentions from autocomplete are stored in DB via `mentioned_tw_id`.** `_cmtInsertMention(ta, name, twId)` captures `twId` in `_cmtMentionedTwId[postId]`. On send, `mentioned_tw_id` is included in the POST payload. Server validates the user exists before storing. This promotes the free @mention from `<span>` to `<a>` on re-render.
-   - **`_cmtMentionedTwId` is the only state for pending free mention tw_id.** Cleared after send. Never persisted to localStorage.
-   - **Guaranteed clickable @mentions:** (a) replies: `reply_to_author_tw_id` from API, (b) DB-backed free @mention: `mentioned_tw_id` from API. Both rendered as `<a href="/u/tw_id">`. All other @mentions remain `<span>`.
-   - **`mentionTwId` source: `c.reply_to_author_tw_id` (API) / `item.dataset.replyToAuthorTwId` (edit flow).** `mentionedTwId` source: `c.mentioned_tw_id` (API) / `item.dataset.mentionedTwId` (edit flow).
+   - **`_renderCommentBody(bodyEl, text, mentionName, mentionTwId, knownNames, mentions)` — 6-arg signature is final.** All args after `text` may be `null`. `mentions` is `[{name, tw_id}]` from `company_post_comment_mentions` junction table (arg 6). All text via `textContent` — never `innerHTML`.
+   - **Priority order inside `_renderCommentBody`:** (1) exact reply-author match → `<a>` if mentionTwId present · (2) junction-table mentions (`mentions[]`) → `<a href="/u/tw_id">` per matched entry · (3) `knownNames` longest compound match → `<span>` only · (4) `@\S+` last resort → `<span>` · (5) plain text. Scan is full-text left-to-right (not just `text.startsWith`).
+   - **Free @mentions from autocomplete are stored in DB via junction table.** `_cmtInsertMention(ta, name, twId)` pushes `{name, tw_id}` into `_cmtMentionedCandidates[postId]` (array). On send, `mentioned_tw_ids: [tw_id1, tw_id2, ...]` is included in the POST payload. Server validates each user exists, inserts into `company_post_comment_mentions` atomically with the comment. Response returns `mentions: [{name, tw_id}, ...]`.
+   - **`_cmtMentionedCandidates[postId]` is the only state for pending @mentions.** It is an array `[{name, tw_id}]` — supports multiple mentions. Cleared to `[]` after successful send. Never persisted to localStorage.
+   - **Guaranteed clickable @mentions:** (a) reply-author: `reply_to_author_tw_id` from API → `<a>` · (b) junction-table mentions: `mentions[]` from API → `<a href="/u/tw_id">` per entry. All other @mentions remain `<span>`.
+   - **`mentionTwId` source: `c.reply_to_author_tw_id` (API) / `item.dataset.replyToAuthorTwId` (edit flow).** `mentions` source: `c.mentions` (API array) / `JSON.parse(item.dataset.mentionsJson)` (edit flow).
    - **Forbidden link targets:** Never use `/profile?id=`, `/company-profile`, or numeric `id` in author/mention links. Only `/u/{tw_id}`.
    - **If `author_tw_id` is absent, no `href` is created.** Do NOT construct a link from author_name alone.
    - **CSS:** `a.pc-cmt-author { text-decoration:none; color:inherit; }` · `a.pc-cmt-ava { display:flex; text-decoration:none; }` · `a.pc-cmt-mention { text-decoration:none; }` — all in `static/company/company.css`.
@@ -1182,3 +1182,38 @@ Full technical specification: `ARCHITECTURE.md §65`.
      - Reply deleted: count remaining; if 0 → remove toggle+box; else update toggle count.
      - Parent deleted: also remove `pc-cmt-replies-toggle` + `pc-cmt-replies-box` with matching `data-parent-id`.
    - **`_cmtReplyCountText(n)` is the Arabic label helper.** Never hardcode reply count text.
+
+---
+
+## Post Comments — Mention Atomicity Rules (mandatory for all AI sessions)
+
+These rules are permanent and apply to all future AI sessions.
+Full technical specification: `ARCHITECTURE.md §65`.
+
+21. **Comment + mentions are a single atomic unit (feat/mention-multi-fix) — permanent:**
+
+   **Transaction contract:**
+   - `create_company_post_comment()` in `auth.py` wraps the comment INSERT + all mention INSERTs in a single `BEGIN / COMMIT / ROLLBACK` transaction.
+   - If any mention INSERT fails → `ROLLBACK` is issued immediately → the comment row is NOT saved → a clear `RuntimeError("فشل حفظ التعليق والمنشنات: ...")` is raised → HTTP 500 is returned to the client.
+   - `except: pass` is **permanently forbidden** inside this transaction block.
+   - The `committed = False / committed = True` guard ensures ROLLBACK is only attempted when COMMIT has not already succeeded.
+
+   **No orphan comments:**
+   - After a transaction failure, no `company_post_comments` row exists. Refreshing the page will not reveal a comment without its mentions.
+   - Never split the operation into separate try/except blocks where the comment survives a mention failure.
+
+   **Junction table is the only store for multi-mention:**
+   - `company_post_comment_mentions(comment_id, mentioned_tw_id)` with `UNIQUE(comment_id, mentioned_tw_id)` and `ON DELETE CASCADE`.
+   - `ON CONFLICT (comment_id, mentioned_tw_id) DO NOTHING` is used for idempotent INSERT (safe for duplicate mention of same user).
+   - Do NOT store multiple mentions as a comma-separated string or JSON blob in `company_post_comments`.
+
+   **API contract (permanent):**
+   - Request payload: `mentioned_tw_ids: [tw_id1, tw_id2, ...]` (array of strings, optional).
+   - Response (create): `mentions: [{name, tw_id}, ...]` (resolved from DB after COMMIT).
+   - Response (list): `mentions: [{name, tw_id}, ...]` per comment, batch-fetched from junction table.
+   - `mentioned_tw_id` (singular) in the response is **removed**. Backward compat: old comments without junction entries get `mentions: []`.
+
+   **No silent failure — ever:**
+   - The server must never return HTTP 200 with a comment that has missing or partially-saved mentions.
+   - If `mentioned_tw_ids` contains an invalid `tw_id` (user not found), the server raises `ValueError` → transaction is aborted → no comment created.
+   - Do NOT add `try/except pass` around any `conn.run()` inside the transaction block.
