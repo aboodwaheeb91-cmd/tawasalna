@@ -1891,7 +1891,7 @@ def company_post_set_save(post_id: int, body: SaveStateInput, token=Depends(veri
 class CommentInput(BaseModel):
     body: str
     reply_to_comment_id: Optional[int] = None
-    mentioned_tw_id: Optional[str] = None
+    mentioned_tw_ids: Optional[List[str]] = None
 
 class CommentUpdateInput(BaseModel):
     body: str
@@ -1918,14 +1918,14 @@ def company_create_post_comment(post_id: int, body: CommentInput, token=Depends(
     if not _check_cmt_create_rate(int(user_id), post_id):
         raise HTTPException(status_code=429, detail="الرجاء التمهّل قليلاً")
     try:
-        comment = create_company_post_comment(post_id, int(user_id), body.body, body.reply_to_comment_id, body.mentioned_tw_id)
+        comment = create_company_post_comment(post_id, int(user_id), body.body, body.reply_to_comment_id, body.mentioned_tw_ids or [])
     except PermissionError as e:
         raise HTTPException(status_code=403, detail=str(e))
     except ValueError as e:
         msg = str(e)
         if "غير موجود" in msg:
             raise HTTPException(status_code=404, detail=msg)
-        raise HTTPException(status_code=400, detail=msg)  # mentioned_tw_id mismatch or invalid
+        raise HTTPException(status_code=400, detail=msg)  # mentioned_tw_ids mismatch or invalid
     return {"status": "success", "comment": comment}
 
 

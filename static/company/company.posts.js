@@ -740,9 +740,9 @@
     filtered:  [],     // current filtered candidate names
     activeIdx: -1,     // keyboard-highlighted row index (-1 = none)
   };
-  // postId -> { name, tw_id } of last @mention selected from autocomplete (cleared on send).
-  // Only sent if body still starts with '@' + name at send time — prevents stale mentions.
-  var _cmtMentionedCandidate = {};
+  // postId -> [{name, tw_id}] of @mentions selected from autocomplete (cleared on send).
+  // Each entry is only sent if '@' + name appears anywhere in the body at send time.
+  var _cmtMentionedCandidates = {};
 
   function _cmtGetBtn(postId) {
     var card = document.querySelector('.post-card[data-post-id="' + postId + '"]');
@@ -981,7 +981,7 @@
   }
 
   // Insert @name + space at the @-mention position, reposition cursor.
-  // twId: optional — stored in _cmtMentionedCandidate so it can be validated+sent with comment.
+  // twId: optional — pushed to _cmtMentionedCandidates[postId] array for validation at send time.
   function _cmtInsertMention(ta, name, twId) {
     var val    = ta.value;
     var start  = _cmtMentionState.start;
@@ -994,9 +994,16 @@
     ta.setSelectionRange(newPos, newPos);
     ta.dispatchEvent(new Event('input')); // trigger auto-resize
     ta.focus();
-    // Capture candidate so we can validate body starts with @name at send time
+    // Push candidate into array — deduplicated by tw_id
     var postId = String(_cmtMentionState.postId || '');
-    if (postId) _cmtMentionedCandidate[postId] = (twId && name) ? { name: name, tw_id: twId } : null;
+    if (postId && twId && name) {
+      if (!_cmtMentionedCandidates[postId]) _cmtMentionedCandidates[postId] = [];
+      var alreadyAdded = false;
+      for (var _mci = 0; _mci < _cmtMentionedCandidates[postId].length; _mci++) {
+        if (_cmtMentionedCandidates[postId][_mci].tw_id === twId) { alreadyAdded = true; break; }
+      }
+      if (!alreadyAdded) _cmtMentionedCandidates[postId].push({ name: name, tw_id: twId });
+    }
     _cmtCloseMentionMenu();
   }
 
@@ -1099,77 +1106,94 @@
     return cands.map(function (c) { return c.name; }).sort(function (a, b) { return b.length - a.length; });
   }
 
-  // XSS-safe body renderer — handles optional @mention highlight.
-  // mentionName   : exact reply author name (spaces OK) — creates <a> if mentionTwId present.
-  // mentionTwId   : makes the reply @mention clickable <a href="/u/tw_id"> (DB-backed, safe).
-  // knownNames    : sorted-longest-first array of known names for free-mention compound match.
-  // mentionedName : author name of free @mention stored in DB (mentioned_author_name from API).
-  // mentionedTwId : tw_id of free @mention stored in DB — creates <a> when present (safe).
-  // Arg 6+7 promote a free @mention from <span> to <a href="/u/tw_id"> when DB-backed.
-  function _renderCommentBody(bodyEl, text, mentionName, mentionTwId, knownNames, mentionedName, mentionedTwId) {
+  // XSS-safe body renderer — full-text scan for @mentions at any position.
+  // mentionName : exact reply author name (spaces OK) → <a href="/u/tw_id"> if mentionTwId present.
+  // mentionTwId : reply author tw_id from DB — makes the reply @mention a clickable link.
+  // knownNames  : sorted-longest-first array of known participant names (no tw_id → <span>).
+  // mentions    : [{name, tw_id}] DB-backed free @mentions (multiple) → <a> when tw_id present.
+  // All text output via textContent/createTextNode — never innerHTML for API data.
+  function _renderCommentBody(bodyEl, text, mentionName, mentionTwId, knownNames, mentions) {
     bodyEl.textContent = ''; // clears all children safely
     if (!text) return;
-    // 1. Exact reply-author match → <a> if mentionTwId present, else <span>
+
+    // Build lookup: [{name, tw_id}] sorted longest-first for compound name matching.
+    // Priority: reply author → DB-backed free mentions → knownNames (no tw_id)
+    var lookup = [];
     if (mentionName) {
-      var exactMention = '@' + mentionName;
-      if (text.indexOf(exactMention) === 0) {
-        var rest1 = text.slice(exactMention.length);
-        var mentionEl = mentionTwId ? document.createElement('a') : document.createElement('span');
-        mentionEl.className = 'pc-cmt-mention';
-        mentionEl.textContent = exactMention; // XSS-safe
-        if (mentionTwId) mentionEl.href = '/u/' + mentionTwId; // safe: tw_id from API
-        bodyEl.appendChild(mentionEl);
-        if (rest1) bodyEl.appendChild(document.createTextNode(rest1)); // XSS-safe
-        return;
+      lookup.push({ name: mentionName, tw_id: mentionTwId || null });
+    }
+    if (mentions && mentions.length) {
+      for (var mi = 0; mi < mentions.length; mi++) {
+        var mEntry = mentions[mi];
+        if (mEntry && mEntry.name) {
+          var dupM = false;
+          for (var di = 0; di < lookup.length; di++) { if (lookup[di].name === mEntry.name) { dupM = true; break; } }
+          if (!dupM) lookup.push({ name: mEntry.name, tw_id: mEntry.tw_id || null });
+        }
       }
     }
-    // 2. DB-backed free @mention (mentioned_tw_id stored in DB) → clickable <a>
-    if (mentionedName && mentionedTwId && text.charAt(0) === '@') {
-      var exactFree = '@' + mentionedName;
-      if (text.indexOf(exactFree) === 0) {
-        var rest2 = text.slice(exactFree.length);
-        var freeAEl = document.createElement('a');
-        freeAEl.className = 'pc-cmt-mention';
-        freeAEl.textContent = exactFree; // XSS-safe
-        freeAEl.href = '/u/' + mentionedTwId; // safe: tw_id from DB via API
-        bodyEl.appendChild(freeAEl);
-        if (rest2) bodyEl.appendChild(document.createTextNode(rest2)); // XSS-safe
-        return;
+    if (knownNames && knownNames.length) {
+      for (var ki = 0; ki < knownNames.length; ki++) {
+        var kn = knownNames[ki];
+        var dupK = false;
+        for (var dk = 0; dk < lookup.length; dk++) { if (lookup[dk].name === kn) { dupK = true; break; } }
+        if (!dupK) lookup.push({ name: kn, tw_id: null });
       }
     }
-    // 3. Free @mention — try known compound names (longest-first) → <span> only
-    if (text.charAt(0) === '@') {
-      var matched = false;
-      if (knownNames && knownNames.length) {
-        for (var ki = 0; ki < knownNames.length; ki++) {
-          var candidate = '@' + knownNames[ki];
-          if (text.indexOf(candidate) === 0) {
-            var rest3 = text.slice(candidate.length);
-            var freeEl = document.createElement('span'); // no DB tw_id → span only
-            freeEl.className = 'pc-cmt-mention';
-            freeEl.textContent = candidate; // XSS-safe
-            bodyEl.appendChild(freeEl);
-            if (rest3) bodyEl.appendChild(document.createTextNode(rest3)); // XSS-safe
-            matched = true;
+    // Longest-first so compound names are matched before their prefixes
+    lookup.sort(function (a, b) { return b.name.length - a.name.length; });
+
+    // Full-text scan left-to-right — matches @mention at any position in text
+    var pos = 0;
+    while (pos < text.length) {
+      var atIdx = text.indexOf('@', pos);
+      if (atIdx === -1) {
+        bodyEl.appendChild(document.createTextNode(text.slice(pos))); // XSS-safe
+        break;
+      }
+      if (atIdx > pos) {
+        bodyEl.appendChild(document.createTextNode(text.slice(pos, atIdx))); // XSS-safe
+      }
+      var scanMatched = false;
+      for (var li = 0; li < lookup.length; li++) {
+        var entry = lookup[li];
+        var cand  = '@' + entry.name;
+        if (text.indexOf(cand, atIdx) === atIdx) {
+          var endPos  = atIdx + cand.length;
+          var nxtCh   = endPos < text.length ? text.charAt(endPos) : '';
+          // Boundary: next char must not be Arabic or Latin alphanumeric (prevents partial matches)
+          var nxtCode = nxtCh ? nxtCh.charCodeAt(0) : 0;
+          var isBound = !nxtCh ||
+            !(nxtCode >= 0x0621 && nxtCode <= 0x06FF) && // not Arabic letter
+            !(nxtCode >= 65 && nxtCode <= 90) &&          // not A-Z
+            !(nxtCode >= 97 && nxtCode <= 122) &&         // not a-z
+            !(nxtCode >= 48 && nxtCode <= 57);            // not 0-9
+          if (isBound) {
+            var mentEl = entry.tw_id ? document.createElement('a') : document.createElement('span');
+            mentEl.className = 'pc-cmt-mention';
+            mentEl.textContent = cand; // XSS-safe
+            if (entry.tw_id) mentEl.href = '/u/' + entry.tw_id; // safe: tw_id from DB/API
+            bodyEl.appendChild(mentEl);
+            pos = endPos;
+            scanMatched = true;
             break;
           }
         }
       }
-      if (!matched) {
-        // Last resort: first @word only
-        var m = text.match(/^(@\S+)([\s\S]*)$/);
-        if (m) {
-          var wEl = document.createElement('span');
-          wEl.className = 'pc-cmt-mention';
-          wEl.textContent = m[1]; // XSS-safe
-          bodyEl.appendChild(wEl);
-          if (m[2]) bodyEl.appendChild(document.createTextNode(m[2])); // XSS-safe
+      if (!scanMatched) {
+        // Fallback: render @\S+ as an unlinked span
+        var fbM = text.slice(atIdx).match(/^@\S+/);
+        if (fbM) {
+          var fbEl = document.createElement('span');
+          fbEl.className = 'pc-cmt-mention';
+          fbEl.textContent = fbM[0]; // XSS-safe
+          bodyEl.appendChild(fbEl);
+          pos = atIdx + fbM[0].length;
         } else {
-          bodyEl.textContent = text; // XSS-safe
+          bodyEl.appendChild(document.createTextNode('@')); // XSS-safe
+          pos = atIdx + 1;
         }
       }
-    } else {
-      bodyEl.textContent = text; // XSS-safe
     }
   }
 
@@ -1362,10 +1386,15 @@
       el.dataset.authorTwId   = c.author_tw_id;
       el.dataset.authorAvatar = c.author_avatar || '';
     }
-    // Store DB-backed free @mention data (used by _renderCommentBody arg 6+7)
-    if (c.mentioned_tw_id) {
-      el.dataset.mentionedTwId = c.mentioned_tw_id;
-      if (c.mentioned_author_name) el.dataset.mentionedAuthorName = c.mentioned_author_name;
+    // Build mentions array: junction table first, fall back to old mentioned_tw_id for backward compat
+    var itemMentions = [];
+    if (c.mentions && c.mentions.length) {
+      itemMentions = c.mentions;
+    } else if (c.mentioned_tw_id) {
+      itemMentions = [{ name: c.mentioned_author_name || '', tw_id: c.mentioned_tw_id }];
+    }
+    if (itemMentions.length) {
+      el.dataset.mentionsJson = JSON.stringify(itemMentions); // used by _cmtHandleEdit
     }
 
     // Avatar (32px) — <a> if author_tw_id available, <div> otherwise
@@ -1449,9 +1478,9 @@
     var bodyEl = document.createElement('p');
     bodyEl.className = 'pc-cmt-body is-collapsed';
     _renderCommentBody(bodyEl, c.body,
-      c.reply_to_author_name   || null, c.reply_to_author_tw_id   || null,
-      knownNames               || null,
-      c.mentioned_author_name  || null, c.mentioned_tw_id          || null);
+      c.reply_to_author_name || null, c.reply_to_author_tw_id || null,
+      knownNames             || null,
+      itemMentions.length    ? itemMentions : null);
     bodyWrap.appendChild(bodyEl);
 
     // Expand icon — shown by _cmtCheckCollapse only when text overflows 2 lines.
@@ -1643,12 +1672,18 @@
     var replyToId = _cmtReplyTargetId[String(postId)]
       ? parseInt(_cmtReplyTargetId[String(postId)], 10)
       : null;
-    // Only send mentioned_tw_id if the body still starts with '@name' — prevents stale mentions
-    var _mc = _cmtMentionedCandidate[String(postId)] || null;
-    var mentionedTwIdOut = (_mc && _mc.tw_id && body.indexOf('@' + _mc.name) === 0) ? _mc.tw_id : null;
+    // Only send mentioned_tw_ids whose '@name' still appears anywhere in body — prevents stale mentions
+    var _mcs = _cmtMentionedCandidates[String(postId)] || [];
+    var mentionedTwIdsOut = [];
+    for (var mci = 0; mci < _mcs.length; mci++) {
+      var mc = _mcs[mci];
+      if (mc && mc.tw_id && mc.name && body.indexOf('@' + mc.name) >= 0) {
+        mentionedTwIdsOut.push(mc.tw_id);
+      }
+    }
     var payload = { body: body };
-    if (replyToId)        payload.reply_to_comment_id = replyToId;
-    if (mentionedTwIdOut) payload.mentioned_tw_id     = mentionedTwIdOut;
+    if (replyToId)                payload.reply_to_comment_id = replyToId;
+    if (mentionedTwIdsOut.length) payload.mentioned_tw_ids    = mentionedTwIdsOut;
 
     fetch('/company/posts/' + postId + '/comments', {
       method:  'POST',
@@ -1667,7 +1702,7 @@
         ta.style.height = ''; // reset auto-resize after send
         _cmtReplyTarget[String(postId)]    = null;
         _cmtReplyTargetId[String(postId)]  = null;
-        _cmtMentionedCandidate[String(postId)] = null;
+        _cmtMentionedCandidates[String(postId)] = [];
         var rStrip = panel.querySelector('.pc-cmt-reply-strip');
         if (rStrip) rStrip.style.display = 'none';
         var list = panel.querySelector('.pc-cmts-list');
@@ -1716,8 +1751,9 @@
     var wasVisualReply    = item.classList.contains('pc-cmt-visual-reply');
     var replyToAuthor     = item.dataset.replyToAuthor     || null;
     var replyToAuthorTwId = item.dataset.replyToAuthorTwId || null;
-    var mentionedAuthorName = item.dataset.mentionedAuthorName || null;
-    var mentionedTwId       = item.dataset.mentionedTwId       || null;
+    var mentionsJson = item.dataset.mentionsJson || '';
+    var itemMentions = [];
+    try { if (mentionsJson) itemMentions = JSON.parse(mentionsJson); } catch (_e) { itemMentions = []; }
 
     // 1. Build editWrap fully in memory
     var editWrap  = document.createElement('div');
@@ -1775,7 +1811,7 @@
       saveBtn.disabled = true;
       var editKnownNames = _cmtKnownNames(String(postId));
       _renderCommentBody(bodyEl, newBody, replyToAuthor, replyToAuthorTwId, editKnownNames,
-        mentionedAuthorName, mentionedTwId); // XSS-safe
+        itemMentions.length ? itemMentions : null); // XSS-safe
       // visual-reply class is driven by reply_to_comment_id (immutable per comment) — no change
       if (bodyWrap) bodyWrap.style.display = '';
       editWrap.remove();
@@ -1792,7 +1828,7 @@
           if (!res.ok || !res.data || res.data.status !== 'success') {
             // Rollback — restore original text + visual-reply state + re-evaluate collapse
             _renderCommentBody(bodyEl, originalText, replyToAuthor, replyToAuthorTwId, editKnownNames,
-              mentionedAuthorName, mentionedTwId); // XSS-safe rollback
+              itemMentions.length ? itemMentions : null); // XSS-safe rollback
             _cmtRefreshCollapse(item);
             if (wasVisualReply) item.classList.add('pc-cmt-visual-reply');
             else item.classList.remove('pc-cmt-visual-reply');
@@ -1803,7 +1839,7 @@
           // Confirm with server body + mark as edited + re-evaluate collapse for confirmed text
           var confirmedBody = res.data.comment.body;
           _renderCommentBody(bodyEl, confirmedBody, replyToAuthor, replyToAuthorTwId, editKnownNames,
-            mentionedAuthorName, mentionedTwId); // XSS-safe
+            itemMentions.length ? itemMentions : null); // XSS-safe
           _cmtRefreshCollapse(item);
           var metaRow = item.querySelector('.pc-cmt-meta-row');
           if (metaRow && !metaRow.querySelector('.pc-cmt-edited')) {
@@ -1816,7 +1852,7 @@
         .catch(function () {
           _cmtEditInFlight[cmtId] = false;
           _renderCommentBody(bodyEl, originalText, replyToAuthor, replyToAuthorTwId, editKnownNames,
-            mentionedAuthorName, mentionedTwId); // XSS-safe rollback
+            itemMentions.length ? itemMentions : null); // XSS-safe rollback
           _cmtRefreshCollapse(item);
           if (wasVisualReply) item.classList.add('pc-cmt-visual-reply');
           else item.classList.remove('pc-cmt-visual-reply');
