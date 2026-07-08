@@ -1430,8 +1430,8 @@ check(
     "tw-image-cropper.js" in open("profile-showcase.html", encoding="utf-8").read()
 )
 check(
-    "116o. company-profile.html does NOT load tw-image-cropper.js yet",
-    "tw-image-cropper.js" not in open("company-profile.html", encoding="utf-8").read()
+    "116o. company-profile.html loads tw-image-cropper.js (added by PR #406)",
+    "tw-image-cropper.js" in open("company-profile.html", encoding="utf-8").read()
 )
 
 # ── 117. PR #405 — Connect Employee Cover to Shared Image Cropper ────────
@@ -1506,6 +1506,93 @@ else:
     for lbl in ["117a", "117b", "117c", "117d", "117e", "117f",
                 "117g", "117h", "117i", "117j", "117k", "117l"]:
         check(lbl + ". (skipped — file absent)", False)
+
+# ── 118. PR #406 — Company Logo Crop Overlay ─────────────────────────────
+
+co_html   = open("company-profile.html", encoding="utf-8").read()
+co_main   = open("static/company/company.main.js", encoding="utf-8").read()
+co_css    = open("static/company/company.css", encoding="utf-8").read()
+co_upload = open("static/shared/tw-upload.js", encoding="utf-8").read()
+_co_code  = _re.sub(r'//[^\n]*', '', co_main)
+
+# Script load order
+idx_crop_co  = co_html.find("tw-image-cropper.js")
+idx_main_co  = co_html.find("company.main.js")
+check(
+    "118a. company-profile.html loads tw-image-cropper.js before company.main.js",
+    idx_crop_co != -1 and idx_main_co != -1 and idx_crop_co < idx_main_co
+)
+
+# Overlay DOM
+check(
+    "118b. company-profile.html contains logo crop overlay (coLogoCropOverlay)",
+    "coLogoCropOverlay" in co_html
+)
+check(
+    "118c. company-profile.html contains logo crop canvas (coLogoCropCanvas)",
+    "coLogoCropCanvas" in co_html
+)
+check(
+    "118d. company-profile.html contains logo zoom slider (coLogoZoomSlider)",
+    "coLogoZoomSlider" in co_html
+)
+
+# TW.createCropper usage in company.main.js
+check(
+    "118e. company.main.js uses TW.createCropper for logo",
+    "TW.createCropper" in co_main
+)
+
+# Config: ratio 1/1, shape rect, 300×300, quality 0.85
+check(
+    "118f. company.main.js logo cropper config: ratio 1/1, outputW 300, outputH 300, quality 0.85",
+    ("1 / 1" in co_main or "1/1" in co_main) and
+    "outputW: 300" in co_main and
+    "outputH: 300" in co_main and
+    "quality: 0.85" in co_main
+)
+
+# uploadLogo no longer reads raw FileReader dataUrl directly into TW.uploadImage
+check(
+    "118g. uploadLogo calls openLogoCrop (not TW.uploadImage directly on FileReader result)",
+    "openLogoCrop" in co_main and
+    "_doUploadLogo" in co_main
+)
+
+# export() from cropper feeds into TW.uploadImage
+check(
+    "118h. company.main.js gets dataUrl from cropper.export() before TW.uploadImage",
+    "cropper.export()" in co_main and
+    "TW.uploadImage" in co_main
+)
+
+# No direct fetch('/upload/image') in company.main.js
+check(
+    "118i. company.main.js has no direct fetch('/upload/image') call",
+    "fetch('/upload/image'" not in _co_code and
+    'fetch("/upload/image"' not in _co_code
+)
+
+# tw-upload.js unchanged
+check(
+    "118j. tw-upload.js is unchanged (still defines TW.uploadImage)",
+    "TW.uploadImage" in co_upload and
+    "fetch('/upload/image'" in co_upload
+)
+
+# Cover cropper untouched (no TW.createCropper for cover in company.main.js)
+check(
+    "118k. company cover is NOT wired to TW.createCropper in this PR",
+    "coverCropper" not in co_main and
+    "coLogoCropCanvas" in co_main  # only logo canvas is used
+)
+
+# CSS namespace for overlay
+check(
+    "118l. company.css contains co-logo-crop-overlay styles",
+    "co-logo-crop-overlay" in co_css and
+    "coLogoCropCanvas" in co_css
+)
 
 # ── Summary ──────────────────────────────────────────────────────────────
 print()

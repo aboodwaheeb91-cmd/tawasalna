@@ -2397,3 +2397,42 @@ body.co-loading  .visitor-only           { display: none !important; }
 .joc-tab--paused  { background:rgba(234,179,8,.11);  color:#ca8a04; border:1px solid rgba(234,179,8,.22);  border-bottom:none; }
 .joc-tab--closed  { background:rgba(100,116,139,.1); color:#64748b; border:1px solid rgba(100,116,139,.18); border-bottom:none; }
 .joc-tab--expired { background:rgba(100,116,139,.06);color:#475569; border:1px solid rgba(100,116,139,.12); border-bottom:none; }
+
+/* ── Logo Crop Overlay (PR #406) ── */
+.co-logo-crop-overlay {
+  display:none; position:fixed; inset:0; z-index:1100;
+  background:rgba(7,11,24,.93); align-items:center; justify-content:center;
+  flex-direction:column; gap:14px;
+}
+.co-logo-crop-overlay.open { display:flex; }
+.co-logo-crop-card {
+  background:#0f1420; border:1px solid rgba(255,255,255,.1);
+  border-radius:18px; padding:20px; display:flex; flex-direction:column;
+  align-items:center; gap:14px; max-width:340px; width:90%;
+}
+.co-logo-crop-title {
+  color:#fff; font-size:.95rem; font-weight:700; align-self:flex-start;
+}
+#coLogoCropCanvas {
+  width:260px; height:260px; cursor:grab; touch-action:none;
+  border-radius:12px; border:2px solid rgba(0,200,150,.35); display:block;
+}
+#coLogoCropCanvas:active { cursor:grabbing; }
+.co-logo-zoom-row {
+  display:flex; align-items:center; gap:10px; width:100%;
+}
+.co-logo-zoom-row svg { width:16px; height:16px; color:#9aa5b4; flex-shrink:0; }
+#coLogoZoomSlider { flex:1; accent-color:#00c896; cursor:pointer; }
+.co-logo-crop-actions { display:flex; gap:10px; width:100%; }
+.co-logo-crop-save {
+  flex:1; height:40px; border-radius:10px; border:none; cursor:pointer;
+  background:linear-gradient(135deg,#00c896,#00b386);
+  color:#fff; font-family:inherit; font-size:.88rem; font-weight:700;
+  transition:opacity .15s;
+}
+.co-logo-crop-save:disabled { opacity:.5; cursor:not-allowed; }
+.co-logo-crop-cancel {
+  height:40px; padding:0 18px; border-radius:10px;
+  border:1px solid rgba(255,255,255,.12); background:none;
+  color:#9aa5b4; font-family:inherit; font-size:.88rem; cursor:pointer;
+}
