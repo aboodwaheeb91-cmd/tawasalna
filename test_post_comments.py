@@ -183,8 +183,10 @@ cmt_edit_fn = posts_js[posts_js.find("function _cmtHandleEdit"):] if "function _
 insert_pos  = cmt_edit_fn.find("content.insertBefore(editWrap")
 hide_pos    = cmt_edit_fn.find("bodyEl.style.display = 'none'")
 check(
-    "22. editWrap inserted into DOM before bodyEl is hidden",
-    insert_pos != -1 and hide_pos != -1 and insert_pos < hide_pos
+    "22. editWrap inserted into DOM before bodyWrap is hidden (insert-first rule)",
+    insert_pos != -1 and
+    (cmt_edit_fn.find("bodyWrap.style.display = 'none'") > insert_pos or
+     cmt_edit_fn.find("bodyEl.style.display = 'none'") > insert_pos)
 )
 
 # ── 23. Edit UX: correct parent (content, not item) ──────────────────────
@@ -358,7 +360,7 @@ check(
 build_fn3 = posts_js[posts_js.find("function _cmtBuildItem"):] if "function _cmtBuildItem" in posts_js else ""
 check(
     "46. pc-cmt-reply-btn class built in _cmtBuildItem",
-    "pc-cmt-reply-btn" in build_fn3[:5000]
+    "pc-cmt-reply-btn" in build_fn3[:8000]
 )
 
 # ── 47. Meta row in _cmtBuildItem ─────────────────────────────────
@@ -408,11 +410,11 @@ check(
 )
 
 # ── 53. Reply button IS after bodyEl in content ───────────────────
-body_pos4  = build_fn4.find("content.appendChild(bodyEl)")
+body_pos4  = build_fn4.find("content.appendChild(bodyWrap)")  # bodyWrap now appended, not bodyEl directly
 reply_pos4 = build_fn4.find("content.appendChild(replyBtn)")
 acts_pos4  = build_fn4.find("content.appendChild(acts)")
 check(
-    "53. Reply button appended to content after bodyEl and before acts",
+    "53. bodyWrap (containing bodyEl) appended to content, then replyBtn, then acts",
     reply_pos4 != -1 and body_pos4 != -1 and acts_pos4 != -1 and
     body_pos4 < reply_pos4 < acts_pos4
 )
@@ -424,7 +426,7 @@ check(
 )
 check(
     "54b. _renderCommentBody called in _cmtBuildItem",
-    "_renderCommentBody(bodyEl" in build_fn4[:4000]
+    "_renderCommentBody(bodyEl" in build_fn4[:8000]
 )
 
 # ── 55. @mention highlight CSS ────────────────────────────────────
@@ -590,7 +592,7 @@ auth_src = open("auth.py", encoding="utf-8").read()
 
 # ── 72. _cmtInsertReply returns newEl ──────────────────────────────────────
 insert_reply_fn = posts_js[posts_js.find("function _cmtInsertReply"):] if "function _cmtInsertReply" in posts_js else ""
-insert_reply_body = insert_reply_fn[:700]
+insert_reply_body = insert_reply_fn[:1200]
 check(
     "72. _cmtInsertReply returns newEl in all code paths",
     "return newEl" in insert_reply_body
@@ -942,8 +944,8 @@ check(
     "bodyEl.className = 'pc-cmt-body is-collapsed'" in posts_js
 )
 check(
-    "107c. _cmtBuildItem adds .pc-cmt-more-btn button",
-    "pc-cmt-more-btn" in posts_js and "عرض المزيد" in posts_js
+    "107c. _cmtBuildItem creates .pc-cmt-body-wrap wrapper containing body + expand + collapse btns",
+    "pc-cmt-body-wrap" in posts_js and "pc-cmt-expand-btn" in posts_js and "pc-cmt-collapse-btn" in posts_js
 )
 check(
     "107d. _cmtCheckCollapse helper exists and removes is-collapsed when text fits",
@@ -958,17 +960,18 @@ check(
     "_cmtInitCollapseAll(list)" in posts_js
 )
 check(
-    "107g. postsList delegation handles pc-cmt-more-btn click (expand)",
-    "pc-cmt-more-btn" in posts_js and "is-collapsed" in posts_js
+    "107g. postsList delegation handles pc-cmt-expand-btn click (expand) — not text button",
+    "pc-cmt-expand-btn" in posts_js and "classList.remove('is-collapsed')" in posts_js and
+    "pc-cmt-more-btn" not in posts_js
 )
 check(
-    "107h. postsList delegation handles pc-cmt-less-btn click (collapse)",
-    "pc-cmt-less-btn" in posts_js and "عرض أقل" in posts_js
+    "107h. postsList delegation handles pc-cmt-collapse-btn click (collapse) — icon only",
+    "pc-cmt-collapse-btn" in posts_js and "classList.add('is-collapsed')" in posts_js
 )
 check(
-    "107i. CSS .pc-cmt-more-btn and .pc-cmt-less-btn defined",
-    ".pc-cmt-more-btn, .pc-cmt-less-btn" in company_css or
-    (".pc-cmt-more-btn" in company_css and ".pc-cmt-less-btn" in company_css)
+    "107i. CSS .pc-cmt-expand-btn and .pc-cmt-collapse-btn defined (replaces old text buttons)",
+    ".pc-cmt-expand-btn" in company_css and ".pc-cmt-collapse-btn" in company_css and
+    ".pc-cmt-more-btn" not in company_css
 )
 
 # ── feat/comment-ux-v2: Collapsed replies by default ─────────────────────
@@ -1038,13 +1041,13 @@ check(
     "function _cmtRefreshCollapse(" in posts_js
 )
 check(
-    "110b. _cmtRefreshCollapse removes stale more/less button before re-measuring",
-    "querySelector('.pc-cmt-more-btn, .pc-cmt-less-btn')" in posts_js and
-    "stale" in posts_js and "stale.remove()" in posts_js
+    "110b. _cmtRefreshCollapse resets is-collapsed + hides expand/collapse buttons before re-measuring",
+    "classList.add('is-collapsed')" in posts_js and
+    "expandBtn.style.display   = 'none'" in posts_js and
+    "collapseBtn.style.display = 'none'" in posts_js
 )
 check(
-    "110c. _cmtRefreshCollapse creates fresh moreBtn and calls _cmtCheckCollapse",
-    "freshBtn" in posts_js and "className = 'pc-cmt-more-btn'" in posts_js and
+    "110c. _cmtRefreshCollapse calls _cmtCheckCollapse(item) to re-measure",
     "_cmtCheckCollapse(item)" in posts_js
 )
 check(
@@ -1095,6 +1098,65 @@ check(
     "111h. server.py maps mentioned_tw_id mismatch ValueError to 400",
     "status_code=400" in srv_src and "400, detail=msg" in srv_src or
     "status_code=400, detail=msg" in srv_src
+)
+
+# ── feat/comment-ux-v3: Inline expand icon + timing fixes ────────────────
+
+# Icon-based collapse system (replaces text "عرض المزيد/أقل")
+check(
+    "112. _cmtCheckCollapse shows expandBtn on overflow (not removes button on fit)",
+    "expandBtn.style.display = ''" in posts_js and  # shows on overflow
+    "bodyEl.scrollHeight > bodyEl.clientHeight + 2" in posts_js
+)
+check(
+    "112b. expand button starts hidden in _cmtBuildItem (display:none until checked)",
+    "expandBtn.style.display = 'none'" in posts_js and
+    "aria-label', 'عرض المزيد'" in posts_js
+)
+check(
+    "112c. No text 'عرض المزيد' or 'عرض أقل' as button textContent (aria-labels OK, text removed)",
+    "textContent = 'عرض المزيد'" not in posts_js and
+    "textContent = 'عرض أقل'" not in posts_js
+)
+check(
+    "112d. _cmtScheduleCollapse helper uses requestAnimationFrame",
+    "function _cmtScheduleCollapse(" in posts_js and
+    "requestAnimationFrame(function" in posts_js
+)
+check(
+    "112e. _cmtInsertReply uses _cmtScheduleCollapse (not direct _cmtCheckCollapse) for new replies",
+    "_cmtScheduleCollapse(newEl)" in posts_js and
+    "_cmtScheduleCollapse(firstEl)" in posts_js
+)
+check(
+    "112f. _cmtHandleSend uses _cmtScheduleCollapse for new top-level comments",
+    "_cmtScheduleCollapse(topEl)" in posts_js
+)
+check(
+    "112g. CSS .pc-cmt-body-wrap has position:relative",
+    ".pc-cmt-body-wrap" in company_css and "position:relative" in company_css
+)
+check(
+    "112h. CSS .pc-cmt-expand-btn has position:absolute and inset-inline-end",
+    "position:absolute" in company_css and "inset-inline-end:0" in company_css
+)
+check(
+    "112i. CSS .pc-cmt-replies-box border is <= 1px (lighter than original 2px)",
+    "border-inline-start:1px" in company_css or "border-inline-start: 1px" in company_css
+)
+check(
+    "112j. XSS: expand/collapse buttons use innerHTML only for static SVG (_ICO_CMT_* constants)",
+    "var _ICO_CMT_EXPAND" in posts_js and "var _ICO_CMT_COLLAPSE" in posts_js and
+    "_ICO_CMT_EXPAND" in posts_js and "innerHTML = _ICO_CMT_EXPAND" in posts_js
+)
+check(
+    "112k. _cmtHandleEdit hides bodyWrap (not just bodyEl) during edit",
+    "bodyWrap = content.querySelector('.pc-cmt-body-wrap')" in posts_js and
+    "bodyWrap.style.display = 'none'" in posts_js
+)
+check(
+    "112l. _cmtHandleEdit restores bodyWrap on cancel and optimistic update",
+    posts_js.count("bodyWrap.style.display = ''") >= 2
 )
 
 # ── Summary ──────────────────────────────────────────────────────────────
