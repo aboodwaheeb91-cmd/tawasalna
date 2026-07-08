@@ -1256,7 +1256,7 @@ These rules are permanent and apply to all future AI sessions.
 4. **Each image type has a frozen config** (documented in `ARCHITECTURE.md → Image Cropper Architecture`). Do not deviate:
    - `employee-avatar`: ratio 1/1, shape circle (preview only), output 260×260, quality 0.85, bucket avatars, filename avatar — `profile-v2.avatar.js`
    - `employee-cover`: ratio 6/1, shape rect, output 720×120, quality 0.88, bucket covers, filename cover — `profile-v2.cover.js`
-   - `company-logo`: ratio 1/1, shape rect (square), output 300×300, quality 0.85, bucket avatars, filename logo — `company.main.js`
+   - `company-logo`: ratio 1/1, shape circle (preview only), output 300×300, quality 0.85, bucket avatars, filename logo — `company.main.js`
    - `company-cover`: ratio 4/1, shape rect, output 800×200, quality 0.88, bucket avatars, filename cover — `company.main.js`
 
 5. **CSS ratio must match output ratio.** `employee-cover` CSS is `aspect-ratio:6/1`, export is 720×120 (6:1). `company-cover` CSS is `aspect-ratio:4/1`, export must be 800×200 (4:1). A mismatch causes visual distortion.
