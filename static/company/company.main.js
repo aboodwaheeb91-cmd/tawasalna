@@ -590,7 +590,8 @@
 
       TW.uploadImage({ userId: userId, bucket: 'avatars', filename: 'logo', dataUrl: dataUrl, jwt: jwt })
       .then(function (res) {
-        var url = (res.ok && res.data && res.data.url) ? res.data.url : dataUrl;
+        if (!res.ok) throw new Error('upload_fail');
+        var url = (res.data && res.data.url) ? res.data.url : dataUrl;
         return fetch('/profile/' + userId, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + jwt },

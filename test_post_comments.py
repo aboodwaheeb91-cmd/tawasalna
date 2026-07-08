@@ -1318,6 +1318,40 @@ check(
     ))(open("company-profile.html", encoding="utf-8").read())
 )
 
+# uploadLogo HTTP failure behavior: must throw, not fall back to dataUrl
+# The broken pattern would be: (res.ok && res.data && res.data.url) ? ... : dataUrl
+# The correct pattern: if (!res.ok) throw, then (res.data && res.data.url) ? ... : dataUrl
+check(
+    "115h. company uploadLogo throws on HTTP failure — broken fallback pattern absent",
+    "(res.ok && res.data && res.data.url) ? res.data.url : dataUrl" not in co_main_src
+)
+check(
+    "115i. company uploadLogo throws on !res.ok before dataUrl fallback",
+    "if (!res.ok) throw new Error('upload_fail')" in co_main_src and
+    "(res.data && res.data.url) ? res.data.url : dataUrl" in co_main_src
+)
+
+# No direct fetch('/upload/image') in any JS file outside tw-upload.js
+import glob as _glob
+_js_files = _glob.glob("**/*.js", recursive=True)
+_violators = []
+for _jf in _js_files:
+    if os.path.normpath(_jf) == os.path.normpath(upload_js_path):
+        continue  # tw-upload.js itself is allowed
+    try:
+        with open(_jf, encoding="utf-8") as _f:
+            _src = _f.read()
+        if "fetch('/upload/image'" in _src or 'fetch("/upload/image"' in _src:
+            _violators.append(_jf)
+    except Exception:
+        pass
+
+check(
+    "115j. no direct fetch('/upload/image') outside static/shared/tw-upload.js",
+    len(_violators) == 0,
+    ("violators: " + ", ".join(_violators)) if _violators else ""
+)
+
 # ── Summary ──────────────────────────────────────────────────────────────
 print()
 passed = sum(1 for _, s, _ in results if s == PASS)
