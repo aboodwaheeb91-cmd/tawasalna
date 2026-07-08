@@ -1582,9 +1582,9 @@ check(
 
 # Cover cropper untouched (no TW.createCropper for cover in company.main.js)
 check(
-    "118k. company cover is NOT wired to TW.createCropper in this PR",
-    "coverCropper" not in co_main and
-    "coLogoCropCanvas" in co_main  # only logo canvas is used
+    "118k. company logo and cover croppers use separate canvas IDs (added by PR #407)",
+    "coLogoCropCanvas" in co_main and
+    "coCoverCropCanvas" in co_main
 )
 
 # CSS namespace for overlay
@@ -1592,6 +1592,89 @@ check(
     "118l. company.css contains co-logo-crop-overlay styles",
     "co-logo-crop-overlay" in co_css and
     "coLogoCropCanvas" in co_css
+)
+
+# ── 119. PR #407 — Company Cover Crop Overlay ────────────────────────────
+
+# Re-read files after PR #407 changes
+co_html_407  = open("company-profile.html", encoding="utf-8").read()
+co_main_407  = open("static/company/company.main.js", encoding="utf-8").read()
+co_css_407   = open("static/company/company.css", encoding="utf-8").read()
+_co_code_407 = _re.sub(r'//[^\n]*', '', co_main_407)
+
+# Overlay DOM
+check(
+    "119a. company-profile.html contains cover crop overlay (coCoverCropOverlay)",
+    "coCoverCropOverlay" in co_html_407
+)
+check(
+    "119b. company-profile.html contains cover crop canvas (coCoverCropCanvas)",
+    "coCoverCropCanvas" in co_html_407
+)
+check(
+    "119c. company-profile.html contains cover zoom slider (coCoverZoomSlider)",
+    "coCoverZoomSlider" in co_html_407
+)
+
+# TW.createCropper for cover in company.main.js
+check(
+    "119d. company.main.js uses TW.createCropper for cover",
+    "coCoverCropCanvas" in co_main_407 and "TW.createCropper" in co_main_407
+)
+
+# Config: ratio 4/1, shape rect, 800×200, quality 0.88
+check(
+    "119e. company.main.js cover cropper config: ratio 4/1, outputW 800, outputH 200, quality 0.88",
+    ("4 / 1" in co_main_407 or "4/1" in co_main_407) and
+    "outputW: 800" in co_main_407 and
+    "outputH: 200" in co_main_407 and
+    "quality: 0.88" in co_main_407
+)
+
+# uploadCover now opens crop overlay, not TW.uploadImage directly
+check(
+    "119f. uploadCover calls openCoverCrop (not TW.uploadImage directly on FileReader result)",
+    "openCoverCrop" in co_main_407 and "_doUploadCover" in co_main_407
+)
+
+# export() from cropper feeds into TW.uploadImage
+check(
+    "119g. company.main.js gets cover dataUrl from cropper.export() before TW.uploadImage",
+    "cropper.export()" in co_main_407 and "TW.uploadImage" in co_main_407
+)
+
+# No direct fetch('/upload/image') in company.main.js
+check(
+    "119h. company.main.js has no direct fetch('/upload/image') call",
+    "fetch('/upload/image'" not in _co_code_407 and
+    'fetch("/upload/image"' not in _co_code_407
+)
+
+# tw-upload.js unchanged
+check(
+    "119i. tw-upload.js is unchanged (still defines TW.uploadImage)",
+    "TW.uploadImage" in open("static/shared/tw-upload.js", encoding="utf-8").read()
+)
+
+# Logo cropper NOT modified in this PR (logo IDs still present, separate from cover)
+check(
+    "119j. company logo cropper (coLogoCropCanvas) still present and separate from cover",
+    "coLogoCropCanvas" in co_main_407 and
+    "coCoverCropCanvas" in co_main_407 and
+    "coLogoCropCanvas" != "coCoverCropCanvas"
+)
+
+# CSS namespace for cover overlay
+check(
+    "119k. company.css contains co-cover-crop-overlay styles",
+    "co-cover-crop-overlay" in co_css_407 and
+    "coCoverCropCanvas" in co_css_407
+)
+
+# CSS aspect-ratio for cover canvas is 4/1
+check(
+    "119l. CSS cover canvas uses aspect-ratio 4/1",
+    "aspect-ratio:4/1" in co_css_407 or "aspect-ratio: 4/1" in co_css_407
 )
 
 # ── Summary ──────────────────────────────────────────────────────────────

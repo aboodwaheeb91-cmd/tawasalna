@@ -2436,3 +2436,42 @@ body.co-loading  .visitor-only           { display: none !important; }
   border:1px solid rgba(255,255,255,.12); background:none;
   color:#9aa5b4; font-family:inherit; font-size:.88rem; cursor:pointer;
 }
+
+/* ── Company Cover Crop Overlay (PR #407) ── */
+.co-cover-crop-overlay {
+  display:none; position:fixed; inset:0; z-index:1100;
+  background:rgba(7,11,24,.93); align-items:center; justify-content:center;
+  flex-direction:column; gap:14px;
+}
+.co-cover-crop-overlay.open { display:flex; }
+.co-cover-crop-card {
+  background:#0f1420; border:1px solid rgba(255,255,255,.1);
+  border-radius:18px; padding:20px; display:flex; flex-direction:column;
+  align-items:center; gap:14px; max-width:600px; width:95%;
+}
+.co-cover-crop-title {
+  color:#fff; font-size:.95rem; font-weight:700; align-self:flex-start;
+}
+#coCoverCropCanvas {
+  width:100%; aspect-ratio:4/1; cursor:grab; touch-action:none;
+  border-radius:8px; border:2px solid rgba(0,200,150,.35); display:block;
+}
+#coCoverCropCanvas:active { cursor:grabbing; }
+.co-cover-zoom-row {
+  display:flex; align-items:center; gap:10px; width:100%;
+}
+.co-cover-zoom-row svg { width:16px; height:16px; color:#9aa5b4; flex-shrink:0; }
+#coCoverZoomSlider { flex:1; accent-color:#00c896; cursor:pointer; }
+.co-cover-crop-actions { display:flex; gap:10px; width:100%; }
+.co-cover-crop-save {
+  flex:1; height:40px; border-radius:10px; border:none; cursor:pointer;
+  background:linear-gradient(135deg,#00c896,#00b386);
+  color:#fff; font-family:inherit; font-size:.88rem; font-weight:700;
+  transition:opacity .15s;
+}
+.co-cover-crop-save:disabled { opacity:.5; cursor:not-allowed; }
+.co-cover-crop-cancel {
+  height:40px; padding:0 18px; border-radius:10px;
+  border:1px solid rgba(255,255,255,.12); background:none;
+  color:#9aa5b4; font-family:inherit; font-size:.88rem; cursor:pointer;
+}
