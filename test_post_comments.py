@@ -1883,8 +1883,8 @@ check(
 
 # Debounce + API call
 check(
-    "123e. _cmtHandleMentionInput uses setTimeout 200ms debounce for API call",
-    "_cmtMentionDebounce = setTimeout(function" in posts_js and ", 200)" in posts_js
+    "123e. _cmtHandleMentionInput uses setTimeout 100ms debounce for API call",
+    "_cmtMentionDebounce = setTimeout(function" in posts_js and ", 100)" in posts_js
 )
 check(
     "123f. _cmtHandleMentionInput fetches /mention/search with Authorization header",
@@ -1938,6 +1938,69 @@ check(
     "123n. GET /mention/search merges DOM candidates via _cmtMergeCandidates in frontend",
     "function _cmtMergeCandidates(" in posts_js and
     "_cmtMergeCandidates(freshDom, res.candidates)" in posts_js
+)
+
+# ── 124. Speed Up Mention Suggestions (feat/mention-search-perf) ─────────
+
+posts_js = open("static/company/company.posts.js", encoding="utf-8").read()
+srv_src  = open("server.py", encoding="utf-8").read()
+company_css = open("static/company/company.css", encoding="utf-8").read()
+
+# Backend: single UNION ALL query (1 roundtrip)
+check(
+    "124a. /mention/search uses UNION ALL (1 roundtrip instead of 3 sequential queries)",
+    "UNION ALL" in srv_src and "mention_search" in srv_src
+)
+check(
+    "124b. /mention/search empty-q path has no ILIKE filter (pure FK scan)",
+    # empty-q branch must exist and must NOT contain ILIKE
+    "WHERE pf.follower_id = :vid LIMIT :lim)" in srv_src and
+    "if q:" in srv_src
+)
+check(
+    "124c. /mention/search does NOT search all users when q is empty (Priority 4 skipped)",
+    # Priority 4 must be inside the 'if q:' block
+    (srv_src.find("any matching user") > srv_src.find("if q:") or
+     srv_src.find("Priority 4") > srv_src.find("if q:"))
+)
+check(
+    "124d. /mention/search empty-q still returns followers/following/company follows",
+    "WHERE pf.follower_id = :vid LIMIT" in srv_src and
+    "WHERE pf.followed_id = :vid AND u.id != :vid LIMIT" in srv_src and
+    "WHERE cf.follower_id = :vid LIMIT" in srv_src
+)
+check(
+    "124e. /mention/search with q uses ILIKE inside each UNION branch",
+    "ILIKE :q LIMIT :lim)" in srv_src
+)
+
+# Frontend: debounce 100ms
+check(
+    "124f. _cmtHandleMentionInput debounce reduced to 100ms",
+    ", 100)" in posts_js and ", 200)" not in posts_js
+)
+
+# Frontend: loading indicator
+check(
+    "124g. loading indicator 'جاري البحث…' appended when menu is open",
+    "'جاري البحث…'" in posts_js and "pc-cmt-mention-loading" in posts_js
+)
+check(
+    "124h. loading indicator removed on API error or stale abort",
+    "getElementById('pc-cmt-mention-loading')" in posts_js and
+    posts_js.count("_ldEl.remove()") >= 2  # error + stale paths
+)
+check(
+    "124h2. loading indicator CSS defined in company.css",
+    ".pc-cmt-mention-loading" in company_css and "_mention-spin" in company_css
+)
+
+# Stale guards preserved
+check(
+    "124i. stale-response guards (capturedQuery) still present after perf fix",
+    "capturedQuery" in posts_js and
+    "currentQuery !== capturedQuery" in posts_js and
+    "postResponseQuery !== capturedQuery" in posts_js
 )
 
 # ── Summary ──────────────────────────────────────────────────────────────

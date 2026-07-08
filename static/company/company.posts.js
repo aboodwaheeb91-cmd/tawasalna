@@ -1052,6 +1052,17 @@
       if (currentQuery !== capturedQuery) return;
       var jwt = window._jwt ? window._jwt() : '';
       if (!jwt) return;
+      // Show loading indicator below existing DOM candidates while fetch is in flight
+      var _menu = _cmtGetMentionMenu();
+      if (_menu.style.display === 'block' && !document.getElementById('pc-cmt-mention-loading')) {
+        var _ld = document.createElement('div');
+        _ld.id = 'pc-cmt-mention-loading';
+        _ld.className = 'pc-cmt-mention-loading';
+        var _ldSpan = document.createElement('span');
+        _ldSpan.textContent = 'جاري البحث…';
+        _ld.appendChild(_ldSpan);
+        _menu.appendChild(_ld);
+      }
       var url = '/mention/search?q=' + encodeURIComponent(capturedQuery) + '&limit=8';
       fetch(url, { headers: { 'Authorization': 'Bearer ' + jwt } })
         .then(function (r) { return r.json(); })
@@ -1062,14 +1073,22 @@
           if (postResponseStart !== capturedStart) return;
           var postResponseQuery = ta.value.slice(postResponseStart + 1, ta.selectionStart);
           if (postResponseQuery !== capturedQuery) return;
-          if (!res.ok || !Array.isArray(res.candidates)) return;
+          if (!res.ok || !Array.isArray(res.candidates)) {
+            var _ldEl = document.getElementById('pc-cmt-mention-loading');
+            if (_ldEl) _ldEl.remove();
+            return;
+          }
           var freshDom    = _cmtCollectMentionCandidates(postId);
           var merged      = _cmtMergeCandidates(freshDom, res.candidates);
           var newFiltered = _cmtFilterMentionCandidates(capturedQuery, merged);
+          // _cmtOpenMentionMenu calls menu.replaceChildren() — removes loading item automatically
           _cmtOpenMentionMenu(ta, postId, newFiltered, capturedStart);
         })
-        .catch(function () {});
-    }, 200);
+        .catch(function () {
+          var _ldEl = document.getElementById('pc-cmt-mention-loading');
+          if (_ldEl) _ldEl.remove();
+        });
+    }, 100);
   }
 
   // Handles Arrow / Enter / Escape inside the textarea.

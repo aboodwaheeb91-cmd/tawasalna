@@ -1971,9 +1971,14 @@ def mention_search(q: str = "", limit: int = 8, token=Depends(verify_token)):
     Priority: profiles viewer follows → profiles following viewer →
               companies viewer follows → any user matching q.
     Returns up to `limit` candidates [{tw_id, name, avatar, user_type}].
+
+    Perf notes:
+    - Priorities 1-3 are merged into a single UNION ALL query (1 DB roundtrip).
+    - When q is empty: no ILIKE filter — pure FK-indexed scan, fastest path.
+    - When q is provided: ILIKE applied inside each branch before the union.
+    - Priority 4 (any user) runs only when q is provided and space remains.
     """
     viewer_id = int(token["user_id"])
-    q_like    = f"%{q}%" if q else "%"
     seen:    set  = set()
     results: list = []
 
@@ -1987,44 +1992,57 @@ def mention_search(q: str = "", limit: int = 8, token=Depends(verify_token)):
 
     try:
         conn = get_conn()
-        # Priority 1 — profiles the viewer follows
-        _add(conn.run(
-            "SELECT u.tw_id, u.full_name, p.avatar_url, u.user_type "
-            "FROM profile_follows pf "
-            "JOIN users u ON u.id = pf.followed_id "
-            "LEFT JOIN profiles p ON p.user_id = u.id "
-            "WHERE pf.follower_id = :vid AND u.full_name ILIKE :q "
-            "ORDER BY u.full_name LIMIT :lim",
-            vid=viewer_id, q=q_like, lim=limit))
-        # Priority 2 — profiles following the viewer
-        if len(results) < limit:
+        if q:
+            q_like = f"%{q}%"
+            # Priorities 1-3: single UNION ALL, 1 roundtrip, ILIKE inside each branch
             _add(conn.run(
-                "SELECT u.tw_id, u.full_name, p.avatar_url, u.user_type "
-                "FROM profile_follows pf "
-                "JOIN users u ON u.id = pf.follower_id "
-                "LEFT JOIN profiles p ON p.user_id = u.id "
-                "WHERE pf.followed_id = :vid AND u.id != :vid AND u.full_name ILIKE :q "
-                "ORDER BY u.full_name LIMIT :lim",
+                "(SELECT u.tw_id, u.full_name, p.avatar_url, u.user_type"
+                " FROM profile_follows pf"
+                " JOIN users u ON u.id = pf.followed_id"
+                " LEFT JOIN profiles p ON p.user_id = u.id"
+                " WHERE pf.follower_id = :vid AND u.full_name ILIKE :q LIMIT :lim)"
+                " UNION ALL"
+                " (SELECT u.tw_id, u.full_name, p.avatar_url, u.user_type"
+                " FROM profile_follows pf"
+                " JOIN users u ON u.id = pf.follower_id"
+                " LEFT JOIN profiles p ON p.user_id = u.id"
+                " WHERE pf.followed_id = :vid AND u.id != :vid AND u.full_name ILIKE :q LIMIT :lim)"
+                " UNION ALL"
+                " (SELECT u.tw_id, u.full_name, cp.avatar_url, u.user_type"
+                " FROM company_follows cf"
+                " JOIN users u ON u.id = cf.company_id"
+                " LEFT JOIN company_profiles cp ON cp.user_id = u.id"
+                " WHERE cf.follower_id = :vid AND u.full_name ILIKE :q LIMIT :lim)",
                 vid=viewer_id, q=q_like, lim=limit))
-        # Priority 3 — companies the viewer follows
-        if len(results) < limit:
+            # Priority 4 — any matching user (only when q provided + space left)
+            if len(results) < limit:
+                _add(conn.run(
+                    "SELECT u.tw_id, u.full_name, p.avatar_url, u.user_type"
+                    " FROM users u"
+                    " LEFT JOIN profiles p ON p.user_id = u.id"
+                    " WHERE u.id != :vid AND u.full_name ILIKE :q LIMIT :lim",
+                    vid=viewer_id, q=q_like, lim=limit))
+        else:
+            # No q: pure FK-indexed scan — no ILIKE, no ORDER BY, no Priority 4
             _add(conn.run(
-                "SELECT u.tw_id, u.full_name, cp.avatar_url, u.user_type "
-                "FROM company_follows cf "
-                "JOIN users u ON u.id = cf.company_id "
-                "LEFT JOIN company_profiles cp ON cp.user_id = u.id "
-                "WHERE cf.follower_id = :vid AND u.full_name ILIKE :q "
-                "ORDER BY u.full_name LIMIT :lim",
-                vid=viewer_id, q=q_like, lim=limit))
-        # Priority 4 — any user matching q (only when a query is provided)
-        if q and len(results) < limit:
-            _add(conn.run(
-                "SELECT u.tw_id, u.full_name, p.avatar_url, u.user_type "
-                "FROM users u "
-                "LEFT JOIN profiles p ON p.user_id = u.id "
-                "WHERE u.id != :vid AND u.full_name ILIKE :q "
-                "ORDER BY u.full_name LIMIT :lim",
-                vid=viewer_id, q=q_like, lim=limit))
+                "(SELECT u.tw_id, u.full_name, p.avatar_url, u.user_type"
+                " FROM profile_follows pf"
+                " JOIN users u ON u.id = pf.followed_id"
+                " LEFT JOIN profiles p ON p.user_id = u.id"
+                " WHERE pf.follower_id = :vid LIMIT :lim)"
+                " UNION ALL"
+                " (SELECT u.tw_id, u.full_name, p.avatar_url, u.user_type"
+                " FROM profile_follows pf"
+                " JOIN users u ON u.id = pf.follower_id"
+                " LEFT JOIN profiles p ON p.user_id = u.id"
+                " WHERE pf.followed_id = :vid AND u.id != :vid LIMIT :lim)"
+                " UNION ALL"
+                " (SELECT u.tw_id, u.full_name, cp.avatar_url, u.user_type"
+                " FROM company_follows cf"
+                " JOIN users u ON u.id = cf.company_id"
+                " LEFT JOIN company_profiles cp ON cp.user_id = u.id"
+                " WHERE cf.follower_id = :vid LIMIT :lim)",
+                vid=viewer_id, lim=limit))
     except Exception:
         pass  # network/db error: return whatever was collected so far
 
