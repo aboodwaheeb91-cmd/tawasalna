@@ -1992,28 +1992,33 @@ def mention_search(q: str = "", limit: int = 8, token=Depends(verify_token)):
 
     try:
         conn = get_conn()
+        # Each UNION ALL branch uses unique named params (:vid_a / :vid_b / :vid_c).
+        # pg8000 converts :name → $N; duplicate names across UNION branches can
+        # produce ambiguous positional mappings and silently return empty rows.
+        # Unique names per branch guarantee a 1:1 mapping and correct execution.
         if q:
             q_like = f"%{q}%"
-            # Priorities 1-3: single UNION ALL, 1 roundtrip, ILIKE inside each branch
             _add(conn.run(
                 "(SELECT u.tw_id, u.full_name, p.avatar_url, u.user_type"
                 " FROM profile_follows pf"
                 " JOIN users u ON u.id = pf.followed_id"
                 " LEFT JOIN profiles p ON p.user_id = u.id"
-                " WHERE pf.follower_id = :vid AND u.full_name ILIKE :q LIMIT :lim)"
+                " WHERE pf.follower_id = :vid_a AND u.full_name ILIKE :q_a LIMIT :lim_a)"
                 " UNION ALL"
                 " (SELECT u.tw_id, u.full_name, p.avatar_url, u.user_type"
                 " FROM profile_follows pf"
                 " JOIN users u ON u.id = pf.follower_id"
                 " LEFT JOIN profiles p ON p.user_id = u.id"
-                " WHERE pf.followed_id = :vid AND u.id != :vid AND u.full_name ILIKE :q LIMIT :lim)"
+                " WHERE pf.followed_id = :vid_b AND u.id != :vid_b2 AND u.full_name ILIKE :q_b LIMIT :lim_b)"
                 " UNION ALL"
                 " (SELECT u.tw_id, u.full_name, cp.avatar_url, u.user_type"
                 " FROM company_follows cf"
                 " JOIN users u ON u.id = cf.company_id"
                 " LEFT JOIN company_profiles cp ON cp.user_id = u.id"
-                " WHERE cf.follower_id = :vid AND u.full_name ILIKE :q LIMIT :lim)",
-                vid=viewer_id, q=q_like, lim=limit))
+                " WHERE cf.follower_id = :vid_c AND u.full_name ILIKE :q_c LIMIT :lim_c)",
+                vid_a=viewer_id, q_a=q_like, lim_a=limit,
+                vid_b=viewer_id, vid_b2=viewer_id, q_b=q_like, lim_b=limit,
+                vid_c=viewer_id, q_c=q_like, lim_c=limit))
             # Priority 4 — any matching user (only when q provided + space left)
             if len(results) < limit:
                 _add(conn.run(
@@ -2029,20 +2034,22 @@ def mention_search(q: str = "", limit: int = 8, token=Depends(verify_token)):
                 " FROM profile_follows pf"
                 " JOIN users u ON u.id = pf.followed_id"
                 " LEFT JOIN profiles p ON p.user_id = u.id"
-                " WHERE pf.follower_id = :vid LIMIT :lim)"
+                " WHERE pf.follower_id = :vid_a LIMIT :lim_a)"
                 " UNION ALL"
                 " (SELECT u.tw_id, u.full_name, p.avatar_url, u.user_type"
                 " FROM profile_follows pf"
                 " JOIN users u ON u.id = pf.follower_id"
                 " LEFT JOIN profiles p ON p.user_id = u.id"
-                " WHERE pf.followed_id = :vid AND u.id != :vid LIMIT :lim)"
+                " WHERE pf.followed_id = :vid_b AND u.id != :vid_b2 LIMIT :lim_b)"
                 " UNION ALL"
                 " (SELECT u.tw_id, u.full_name, cp.avatar_url, u.user_type"
                 " FROM company_follows cf"
                 " JOIN users u ON u.id = cf.company_id"
                 " LEFT JOIN company_profiles cp ON cp.user_id = u.id"
-                " WHERE cf.follower_id = :vid LIMIT :lim)",
-                vid=viewer_id, lim=limit))
+                " WHERE cf.follower_id = :vid_c LIMIT :lim_c)",
+                vid_a=viewer_id, lim_a=limit,
+                vid_b=viewer_id, vid_b2=viewer_id, lim_b=limit,
+                vid_c=viewer_id, lim_c=limit))
     except Exception:
         pass  # network/db error: return whatever was collected so far
 

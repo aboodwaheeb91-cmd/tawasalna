@@ -1953,25 +1953,30 @@ check(
 )
 check(
     "124b. /mention/search empty-q path has no ILIKE filter (pure FK scan)",
-    # empty-q branch must exist and must NOT contain ILIKE
-    "WHERE pf.follower_id = :vid LIMIT :lim)" in srv_src and
+    "WHERE pf.follower_id = :vid_a LIMIT :lim_a)" in srv_src and
     "if q:" in srv_src
 )
 check(
     "124c. /mention/search does NOT search all users when q is empty (Priority 4 skipped)",
-    # Priority 4 must be inside the 'if q:' block
     (srv_src.find("any matching user") > srv_src.find("if q:") or
      srv_src.find("Priority 4") > srv_src.find("if q:"))
 )
 check(
     "124d. /mention/search empty-q still returns followers/following/company follows",
-    "WHERE pf.follower_id = :vid LIMIT" in srv_src and
-    "WHERE pf.followed_id = :vid AND u.id != :vid LIMIT" in srv_src and
-    "WHERE cf.follower_id = :vid LIMIT" in srv_src
+    "WHERE pf.follower_id = :vid_a LIMIT :lim_a)" in srv_src and
+    "WHERE pf.followed_id = :vid_b AND u.id != :vid_b2 LIMIT :lim_b)" in srv_src and
+    "WHERE cf.follower_id = :vid_c LIMIT :lim_c)" in srv_src
 )
 check(
     "124e. /mention/search with q uses ILIKE inside each UNION branch",
-    "ILIKE :q LIMIT :lim)" in srv_src
+    "ILIKE :q_a LIMIT :lim_a)" in srv_src and
+    "ILIKE :q_b LIMIT :lim_b)" in srv_src and
+    "ILIKE :q_c LIMIT :lim_c)" in srv_src
+)
+check(
+    "124j. UNION ALL uses unique param names per branch — no duplicate :vid/:lim across branches",
+    ":vid_a" in srv_src and ":vid_b" in srv_src and ":vid_c" in srv_src and
+    ":lim_a" in srv_src and ":lim_b" in srv_src and ":lim_c" in srv_src
 )
 
 # Frontend: debounce 100ms
