@@ -3626,7 +3626,7 @@ def create_company_post_comment(post_id: int, user_id: int, body: str, reply_to_
                 cid=resolved_reply_to)
             reply_to_author_name  = ra_rows[0][0] if ra_rows else None
             reply_to_author_tw_id = ra_rows[0][1] if ra_rows else None
-        # Validate mentioned_tw_id if provided — user must exist
+        # Validate mentioned_tw_id if provided — user must exist AND body must start with @name
         resolved_mentioned_tw_id = None
         mentioned_author_name    = None
         if mentioned_tw_id:
@@ -3634,9 +3634,13 @@ def create_company_post_comment(post_id: int, user_id: int, body: str, reply_to_
             if mtw:
                 mrows = conn.run(
                     "SELECT id, full_name FROM users WHERE tw_id = :tid", tid=mtw)
-                if mrows:
-                    resolved_mentioned_tw_id = mtw
-                    mentioned_author_name    = mrows[0][1]
+                if not mrows:
+                    raise ValueError("mentioned_tw_id لا يشير لمستخدم موجود")
+                m_name = mrows[0][1]
+                if not body.startswith('@' + m_name):
+                    raise ValueError("mentioned_tw_id لا يطابق بداية نص التعليق")
+                resolved_mentioned_tw_id = mtw
+                mentioned_author_name    = m_name
         rows = conn.run(
             "INSERT INTO company_post_comments (post_id, user_id, body, reply_to_comment_id, mentioned_tw_id) "
             "VALUES (:pid, :uid, :body, :rtid, :mtid) RETURNING id, body, created_at, updated_at, reply_to_comment_id",

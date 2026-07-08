@@ -1925,7 +1925,7 @@ def company_create_post_comment(post_id: int, body: CommentInput, token=Depends(
         msg = str(e)
         if "غير موجود" in msg:
             raise HTTPException(status_code=404, detail=msg)
-        raise HTTPException(status_code=422, detail=msg)
+        raise HTTPException(status_code=400, detail=msg)  # mentioned_tw_id mismatch or invalid
     return {"status": "success", "comment": comment}
 
 

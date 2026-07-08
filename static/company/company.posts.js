@@ -737,8 +737,9 @@
     filtered:  [],     // current filtered candidate names
     activeIdx: -1,     // keyboard-highlighted row index (-1 = none)
   };
-  // postId -> tw_id of last @mention selected from autocomplete (cleared on send)
-  var _cmtMentionedTwId = {};
+  // postId -> { name, tw_id } of last @mention selected from autocomplete (cleared on send).
+  // Only sent if body still starts with '@' + name at send time — prevents stale mentions.
+  var _cmtMentionedCandidate = {};
 
   function _cmtGetBtn(postId) {
     var card = document.querySelector('.post-card[data-post-id="' + postId + '"]');
@@ -977,7 +978,7 @@
   }
 
   // Insert @name + space at the @-mention position, reposition cursor.
-  // twId: optional — stored in _cmtMentionedTwId so it can be sent with the comment.
+  // twId: optional — stored in _cmtMentionedCandidate so it can be validated+sent with comment.
   function _cmtInsertMention(ta, name, twId) {
     var val    = ta.value;
     var start  = _cmtMentionState.start;
@@ -990,9 +991,9 @@
     ta.setSelectionRange(newPos, newPos);
     ta.dispatchEvent(new Event('input')); // trigger auto-resize
     ta.focus();
-    // Capture tw_id of the selected mention so we can send it with the comment
+    // Capture candidate so we can validate body starts with @name at send time
     var postId = String(_cmtMentionState.postId || '');
-    if (postId) _cmtMentionedTwId[postId] = twId || null;
+    if (postId) _cmtMentionedCandidate[postId] = (twId && name) ? { name: name, tw_id: twId } : null;
     _cmtCloseMentionMenu();
   }
 
@@ -1231,6 +1232,29 @@
     for (var i = 0; i < items.length; i++) _cmtCheckCollapse(items[i]);
   }
 
+  // Re-evaluates collapse state after body text changes (e.g. after edit).
+  // Removes any existing more/less button, resets is-collapsed, then calls _cmtCheckCollapse.
+  // If text fits in 2 lines → class + button removed (short). If not → button stays (long).
+  function _cmtRefreshCollapse(item) {
+    var content = item ? item.querySelector('.pc-cmt-content') : null;
+    var bodyEl  = content ? content.querySelector('.pc-cmt-body') : null;
+    if (!bodyEl || bodyEl.style.display === 'none') return; // body must be visible
+    // Remove any stale toggle button before re-measuring
+    var stale = content.querySelector('.pc-cmt-more-btn, .pc-cmt-less-btn');
+    if (stale) stale.remove();
+    // Create fresh "عرض المزيد" button right after bodyEl
+    var freshBtn = document.createElement('button');
+    freshBtn.type = 'button';
+    freshBtn.className = 'pc-cmt-more-btn';
+    freshBtn.textContent = 'عرض المزيد';
+    var afterBody = bodyEl.nextSibling;
+    if (afterBody) content.insertBefore(freshBtn, afterBody);
+    else           content.appendChild(freshBtn);
+    // Reset to collapsed so scrollHeight vs clientHeight is measured correctly
+    bodyEl.classList.add('is-collapsed');
+    _cmtCheckCollapse(item); // removes class+button if text fits
+  }
+
   // Groups replies under their parent with collapse UI. Orphans appended last.
   function _cmtRenderComments(comments, list) {
     var rendered = {};
@@ -1240,14 +1264,14 @@
       .filter(Boolean)
       .sort(function (a, b) { return b.length - a.length; });
 
-    // Group replies by parent id
+    // Group replies by parent id — do NOT mark rendered here.
+    // Replies are only marked rendered after being inserted into the DOM.
     var parentReplies = {};
     comments.forEach(function (c) {
       if (c.reply_to_comment_id != null) {
         var pid = String(c.reply_to_comment_id);
         if (!parentReplies[pid]) parentReplies[pid] = [];
         parentReplies[pid].push(c);
-        rendered[c.id] = true; // mark so orphan loop skips
       }
     });
 
@@ -1261,10 +1285,12 @@
         var grp = _cmtBuildRepliesGroup(c.id, replies, knownNames);
         list.appendChild(grp.toggle);
         list.appendChild(grp.box);
+        // Mark replies rendered only after their group is in the DOM
+        replies.forEach(function (r) { rendered[r.id] = true; });
       }
     });
 
-    // Orphans last (parent soft-deleted and pruned from results)
+    // Orphans last — replies whose parent is absent (soft-deleted/pruned or itself a reply)
     comments.forEach(function (c) {
       if (!rendered[c.id]) list.appendChild(_cmtBuildItem(c, knownNames));
     });
@@ -1589,7 +1615,9 @@
     var replyToId = _cmtReplyTargetId[String(postId)]
       ? parseInt(_cmtReplyTargetId[String(postId)], 10)
       : null;
-    var mentionedTwIdOut = _cmtMentionedTwId[String(postId)] || null;
+    // Only send mentioned_tw_id if the body still starts with '@name' — prevents stale mentions
+    var _mc = _cmtMentionedCandidate[String(postId)] || null;
+    var mentionedTwIdOut = (_mc && _mc.tw_id && body.indexOf('@' + _mc.name) === 0) ? _mc.tw_id : null;
     var payload = { body: body };
     if (replyToId)        payload.reply_to_comment_id = replyToId;
     if (mentionedTwIdOut) payload.mentioned_tw_id     = mentionedTwIdOut;
@@ -1611,7 +1639,7 @@
         ta.style.height = ''; // reset auto-resize after send
         _cmtReplyTarget[String(postId)]    = null;
         _cmtReplyTargetId[String(postId)]  = null;
-        _cmtMentionedTwId[String(postId)]  = null;
+        _cmtMentionedCandidate[String(postId)] = null;
         var rStrip = panel.querySelector('.pc-cmt-reply-strip');
         if (rStrip) rStrip.style.display = 'none';
         var list = panel.querySelector('.pc-cmts-list');
@@ -1724,8 +1752,8 @@
         mentionedAuthorName, mentionedTwId); // XSS-safe
       // visual-reply class is driven by reply_to_comment_id (immutable per comment) — no change
       bodyEl.style.display = '';
-      if (moreToggle) moreToggle.style.display = '';
       editWrap.remove();
+      _cmtRefreshCollapse(item); // re-evaluate collapse for new body length
 
       fetch('/company/posts/comments/' + cmtId, {
         method:  'PATCH',
@@ -1736,19 +1764,21 @@
         .then(function (res) {
           _cmtEditInFlight[cmtId] = false;
           if (!res.ok || !res.data || res.data.status !== 'success') {
-            // Rollback to original text + restore visual-reply state
+            // Rollback — restore original text + visual-reply state + re-evaluate collapse
             _renderCommentBody(bodyEl, originalText, replyToAuthor, replyToAuthorTwId, editKnownNames,
               mentionedAuthorName, mentionedTwId); // XSS-safe rollback
+            _cmtRefreshCollapse(item);
             if (wasVisualReply) item.classList.add('pc-cmt-visual-reply');
             else item.classList.remove('pc-cmt-visual-reply');
             var msg = (res.data && res.data.detail) ? res.data.detail : 'تعذّر تعديل التعليق';
             if (window.showToast) showToast(res.status === 429 ? 'الرجاء التمهّل قليلاً' : msg);
             return;
           }
-          // Confirm with server body + mark as edited
+          // Confirm with server body + mark as edited + re-evaluate collapse for confirmed text
           var confirmedBody = res.data.comment.body;
           _renderCommentBody(bodyEl, confirmedBody, replyToAuthor, replyToAuthorTwId, editKnownNames,
             mentionedAuthorName, mentionedTwId); // XSS-safe
+          _cmtRefreshCollapse(item);
           var metaRow = item.querySelector('.pc-cmt-meta-row');
           if (metaRow && !metaRow.querySelector('.pc-cmt-edited')) {
             var editedEl = document.createElement('span');
@@ -1761,6 +1791,7 @@
           _cmtEditInFlight[cmtId] = false;
           _renderCommentBody(bodyEl, originalText, replyToAuthor, replyToAuthorTwId, editKnownNames,
             mentionedAuthorName, mentionedTwId); // XSS-safe rollback
+          _cmtRefreshCollapse(item);
           if (wasVisualReply) item.classList.add('pc-cmt-visual-reply');
           else item.classList.remove('pc-cmt-visual-reply');
           if (window.showToast) showToast('تعذّر تعديل التعليق');

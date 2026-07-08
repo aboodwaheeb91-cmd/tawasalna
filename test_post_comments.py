@@ -873,13 +873,13 @@ check(
 
 # ── feat/comment-ux-v2: DB-backed free @mention ──────────────────────────
 check(
-    "106. _cmtMentionedTwId module variable exists",
-    "var _cmtMentionedTwId = {}" in posts_js
+    "106. _cmtMentionedCandidate module variable exists (stores {name, tw_id})",
+    "var _cmtMentionedCandidate = {}" in posts_js
 )
 check(
-    "106b. _cmtInsertMention accepts 3rd param (twId) and stores in _cmtMentionedTwId",
+    "106b. _cmtInsertMention accepts 3rd param (twId) and stores in _cmtMentionedCandidate",
     "function _cmtInsertMention(ta, name, twId)" in posts_js and
-    "_cmtMentionedTwId[postId] = twId" in posts_js
+    "_cmtMentionedCandidate[postId]" in posts_js
 )
 check(
     "106c. Keyboard nav passes tw_id from filtered candidate to _cmtInsertMention",
@@ -904,12 +904,11 @@ check(
 )
 check(
     "106h. _cmtHandleSend includes mentioned_tw_id in payload",
-    "payload.mentioned_tw_id" in posts_js and "_cmtMentionedTwId[String(postId)]" in posts_js
+    "payload.mentioned_tw_id" in posts_js and "_cmtMentionedCandidate[String(postId)]" in posts_js
 )
 check(
-    "106i. _cmtHandleSend clears _cmtMentionedTwId after send",
-    "_cmtMentionedTwId[String(postId)]  = null" in posts_js or
-    "_cmtMentionedTwId[String(postId)] = null" in posts_js
+    "106i. _cmtHandleSend clears _cmtMentionedCandidate after send",
+    "_cmtMentionedCandidate[String(postId)] = null" in posts_js
 )
 check(
     "106j. _cmtHandleEdit reads mentionedAuthorName + mentionedTwId from dataset",
@@ -1014,6 +1013,88 @@ check(
 check(
     "108j. CSS .pc-cmt-replies-box defined (light border container)",
     ".pc-cmt-replies-box" in company_css
+)
+
+# ── fixes/comment-ux-v2-polish: Fix 1 — orphan replies ──────────────────
+check(
+    "109. _cmtRenderComments does NOT pre-mark replies as rendered during grouping",
+    # The parentReplies grouping block must not set rendered[c.id] = true
+    # Correct: marks rendered only after DOM insertion (inside the top-level forEach)
+    "parentReplies[pid].push(c);\n        rendered[c.id] = true;" not in posts_js and
+    "parentReplies[pid].push(c)" in posts_js
+)
+check(
+    "109b. _cmtRenderComments marks replies rendered after DOM insertion (inside top-level forEach)",
+    "replies.forEach(function (r) { rendered[r.id] = true; })" in posts_js
+)
+check(
+    "109c. _cmtRenderComments orphan loop appends any comment not in rendered dict",
+    "if (!rendered[c.id]) list.appendChild" in posts_js
+)
+
+# ── fixes/comment-ux-v2-polish: Fix 2 — collapse refresh after edit ──────
+check(
+    "110. _cmtRefreshCollapse helper exists",
+    "function _cmtRefreshCollapse(" in posts_js
+)
+check(
+    "110b. _cmtRefreshCollapse removes stale more/less button before re-measuring",
+    "querySelector('.pc-cmt-more-btn, .pc-cmt-less-btn')" in posts_js and
+    "stale" in posts_js and "stale.remove()" in posts_js
+)
+check(
+    "110c. _cmtRefreshCollapse creates fresh moreBtn and calls _cmtCheckCollapse",
+    "freshBtn" in posts_js and "className = 'pc-cmt-more-btn'" in posts_js and
+    "_cmtCheckCollapse(item)" in posts_js
+)
+check(
+    "110d. _cmtHandleEdit calls _cmtRefreshCollapse after optimistic update",
+    "editWrap.remove();\n      _cmtRefreshCollapse(item)" in posts_js
+)
+check(
+    "110e. _cmtHandleEdit calls _cmtRefreshCollapse on server success",
+    "_cmtRefreshCollapse(item);\n          var metaRow" in posts_js
+)
+check(
+    "110f. _cmtHandleEdit calls _cmtRefreshCollapse on rollback (server error + catch)",
+    posts_js.count("_cmtRefreshCollapse(item)") >= 4  # optimistic, success, server-err, catch
+)
+
+# ── fixes/comment-ux-v2-polish: Fix 3 — mentioned_tw_id validation ───────
+check(
+    "111. _cmtMentionedCandidate replaces _cmtMentionedTwId (stores {name, tw_id})",
+    "var _cmtMentionedCandidate = {}" in posts_js and
+    "_cmtMentionedTwId" not in posts_js
+)
+check(
+    "111b. _cmtInsertMention stores {name, tw_id} in _cmtMentionedCandidate",
+    "_cmtMentionedCandidate[postId] = " in posts_js and
+    "{ name: name, tw_id: twId }" in posts_js
+)
+check(
+    "111c. _cmtHandleSend validates body starts with @name before sending mentioned_tw_id",
+    "body.indexOf('@' + _mc.name) === 0" in posts_js
+)
+check(
+    "111d. _cmtHandleSend clears _cmtMentionedCandidate after send",
+    "_cmtMentionedCandidate[String(postId)] = null" in posts_js
+)
+check(
+    "111e. auth.py validates body starts with @full_name when mentioned_tw_id provided",
+    "body.startswith('@' + m_name)" in auth_src
+)
+check(
+    "111f. auth.py raises ValueError when mentioned_tw_id user not found",
+    "mentioned_tw_id لا يشير لمستخدم موجود" in auth_src
+)
+check(
+    "111g. auth.py raises ValueError when mentioned_tw_id doesn't match body start",
+    "mentioned_tw_id لا يطابق بداية نص التعليق" in auth_src
+)
+check(
+    "111h. server.py maps mentioned_tw_id mismatch ValueError to 400",
+    "status_code=400" in srv_src and "400, detail=msg" in srv_src or
+    "status_code=400, detail=msg" in srv_src
 )
 
 # ── Summary ──────────────────────────────────────────────────────────────
