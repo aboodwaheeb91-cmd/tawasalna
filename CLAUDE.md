@@ -1133,11 +1133,11 @@ Full technical specification: `ARCHITECTURE.md §65`.
    - **Max depth = 1.** Server resolves depth in `create_company_post_comment`: if the target comment itself has a `reply_to_comment_id`, the server uses that value as the resolved parent. Client must not bypass.
    - **Same POST endpoint.** `POST /company/posts/{post_id}/comments` accepts optional `reply_to_comment_id`. Do NOT create a separate reply endpoint.
    - **`_cmtRenderComments(comments, list)`** is the only approved function for rendering the initial comment list. It groups replies under their parent. Orphan replies (parent deleted) are appended at the end. Do NOT use a plain `forEach` over the API array.
-   - **`_cmtInsertReply(list, newComment)`** inserts a new reply immediately after the parent's last sibling reply in the DOM. Do NOT `list.appendChild` a reply unconditionally.
+   - **`_cmtInsertReply(list, newComment, knownNames)`** inserts a new reply immediately after the parent's last sibling reply in the DOM. Do NOT `list.appendChild` a reply unconditionally.
    - **`_cmtReplyTargetId[postId]`** stores the commentId to send as `reply_to_comment_id`. Both `_cmtReplyTarget` (authorName) and `_cmtReplyTargetId` (commentId) are cleared on send + cancel.
    - **`data-reply-to-id` + `data-reply-to-author`** are set on `.pc-cmt-item` by `_cmtBuildItem` when `reply_to_comment_id != null`. These are used by `_cmtInsertReply` and `_cmtHandleEdit`.
 
-18. **@ Mention Autocomplete contracts (feat/comment-mention-autocomplete, updated feat/comment-author-links) — permanent:**
+18. **@ Mention Autocomplete contracts (feat/comment-mention-autocomplete, updated feat/comment-author-links, updated feat/mention-ux-fixes) — permanent:**
    - **One portal `#pc-cmt-mention-menu` on `document.body`.** Lazy-created by `_cmtGetMentionMenu()`. Do NOT create a per-panel dropdown — it would be clipped by `overflow-y:auto`.
    - **Candidates are objects `{name, tw_id, avatar}` — not plain strings.** `_cmtCollectMentionCandidates(postId)` reads `data-author-tw-id` + `data-author-avatar` from `.pc-cmt-item[data-author-tw-id]` elements + `companyState.profile` (correct path). Do NOT use `companyState.full_name` (wrong — it was a bug).
    - **`_cmtFilterMentionCandidates` filters on `.name` property.** Do NOT filter on the candidate object itself.
@@ -1150,10 +1150,14 @@ Full technical specification: `ARCHITECTURE.md §65`.
    - **Closes on:** outside click, page scroll, list scroll, successful insertion.
    - **`_cmtMentionState` is the only store for active mention session.** Do NOT persist to localStorage/sessionStorage.
    - **CSS namespace:** `.pc-cmt-mention-menu`, `.pc-cmt-mention-item`, `.pc-cmt-mention-active`, `.pc-cmt-mention-ava`, `.pc-cmt-mention-name` in `static/company/company.css` only.
+   - **`_cmtPositionMentionMenu(ta)` uses actual `menu.offsetHeight` — NOT hardcoded 160.** Call sequence in `_cmtOpenMentionMenu`: set `visibility:hidden; display:block` → call `_cmtPositionMentionMenu(ta)` (reads accurate `offsetHeight`) → clear `visibility`. Do NOT call `_cmtPositionMentionMenu` while menu is `display:none` (offsetHeight would be 0).
+   - **`_cmtKnownNames(postId)` is the helper** that extracts all candidate names sorted longest-first for free-mention compound matching. Returns string array. Do NOT inline this logic inside `_renderCommentBody`.
 
-19. **Author Links & Clickable @mention contracts (feat/comment-author-links) — permanent:**
+19. **Author Links & Clickable @mention contracts (feat/comment-author-links, updated feat/mention-ux-fixes) — permanent:**
    - **Author avatar and name open `/u/{author_tw_id}`.** They are `<a>` elements when `author_tw_id` is present, plain `<div>`/`<span>` when absent. Created in `_cmtBuildItem`.
-   - **`_renderCommentBody(bodyEl, text, mentionName, mentionTwId)` — 4-arg signature is final.** The 4th param `mentionTwId` makes the @mention a clickable `<a href="/u/{mentionTwId}">` when truthy; a plain `<span>` otherwise. All text is set via `textContent` — never `innerHTML`.
+   - **`_renderCommentBody(bodyEl, text, mentionName, mentionTwId, knownNames)` — 5-arg signature is final.** Args: (1) bodyEl, (2) text, (3) reply author name, (4) reply author tw_id → `<a>` when truthy, (5) optional `knownNames` array for free-mention compound matching. All text via `textContent` — never `innerHTML`.
+   - **Priority order inside `_renderCommentBody`:** exact reply-author match first → `knownNames` longest-match next (free mentions, `<span>` only) → `@\S+` last resort → plain text.
+   - **Free @mentions are always `<span>` — never `<a>`.** No guaranteed tw_id for free mentions in V1. Do NOT create `<a>` for a free @mention.
    - **Guaranteed clickable @mention = replies with `reply_to_author_tw_id` from the API.** Free @mentions (from autocomplete, not replies) are `<span>` only in V1 — no link without a DB-sourced tw_id.
    - **`mentionTwId` source: `c.reply_to_author_tw_id` (API) / `item.dataset.replyToAuthorTwId` (edit flow).** `_cmtBuildItem` stores `data-reply-to-author-tw-id` when `reply_to_author_tw_id` is present.
    - **Forbidden link targets:** Never use `/profile?id=`, `/company-profile`, or numeric `id` in author/mention links. Only `/u/{tw_id}`.

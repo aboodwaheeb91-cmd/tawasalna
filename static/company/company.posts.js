@@ -917,7 +917,8 @@
   function _cmtPositionMentionMenu(ta) {
     var menu  = _cmtGetMentionMenu();
     var rect  = ta.getBoundingClientRect();
-    var menuH = 160; // matches max-height in CSS
+    // Use actual rendered height (menu must be display:block before this call)
+    var menuH = Math.min(menu.offsetHeight || 160, 160);
     var menuW = 220;
     // Prefer above textarea; fall below if not enough space
     var top  = rect.top - menuH - 6;
@@ -966,8 +967,11 @@
     _cmtMentionState.start     = start;
     _cmtMentionState.filtered  = filtered;
     _cmtMentionState.activeIdx = -1;
+    // Measure actual height before final position (visibility:hidden keeps it off-screen)
+    menu.style.visibility = 'hidden';
+    menu.style.display    = 'block';
     _cmtPositionMentionMenu(ta);
-    menu.style.display = 'block';
+    menu.style.visibility = '';
   }
 
   // Insert @name + space at the @-mention position, reposition cursor.
@@ -1078,38 +1082,65 @@
     btn.appendChild(txt);
   }
 
+  // Returns candidate names sorted longest-first (for greedy compound-name matching).
+  function _cmtKnownNames(postId) {
+    var cands = _cmtCollectMentionCandidates(postId);
+    return cands.map(function (c) { return c.name; }).sort(function (a, b) { return b.length - a.length; });
+  }
+
   // XSS-safe body renderer — handles optional @mention highlight.
-  // mentionName: exact author name (may include spaces, e.g. "الشركة العربية الاردنية").
-  // Tries exact "@authorName" prefix first; falls back to first @word.
-  // mentionName: exact author name (may include spaces, e.g. "الشركة العربية الاردنية").
-  // mentionTwId: if provided AND text starts with @mentionName → creates <a href="/u/tw_id">.
-  //              If absent or no match → creates <span> (no link). Never uses innerHTML.
-  function _renderCommentBody(bodyEl, text, mentionName, mentionTwId) {
+  // mentionName : exact reply author name (may include spaces) — creates <a> if mentionTwId present.
+  // mentionTwId : makes the reply @mention a clickable <a href="/u/tw_id"> (V1: replies only).
+  // knownNames  : optional sorted-longest-first array of known names for free-mention compound match.
+  //               Free mentions remain <span> only — no guaranteed tw_id in V1.
+  function _renderCommentBody(bodyEl, text, mentionName, mentionTwId, knownNames) {
     bodyEl.textContent = ''; // clears all children safely (no API data in selector)
     if (!text) return;
-    // Try exact compound-name match (from reply_to_author_name)
+    // 1. Try exact compound-name match (reply_to_author_name → clickable <a> if tw_id present)
     if (mentionName) {
       var exactMention = '@' + mentionName;
       if (text.indexOf(exactMention) === 0) {
-        var rest = text.slice(exactMention.length);
-        // <a> if tw_id available (clickable link to /u/{tw_id}), <span> otherwise
+        var rest1 = text.slice(exactMention.length);
         var mentionEl = mentionTwId ? document.createElement('a') : document.createElement('span');
         mentionEl.className = 'pc-cmt-mention';
         mentionEl.textContent = exactMention; // XSS-safe: textContent
-        if (mentionTwId) mentionEl.href = '/u/' + mentionTwId; // safe: tw_id from API, not user input
+        if (mentionTwId) mentionEl.href = '/u/' + mentionTwId; // safe: tw_id from API
         bodyEl.appendChild(mentionEl);
-        if (rest) bodyEl.appendChild(document.createTextNode(rest)); // XSS-safe
+        if (rest1) bodyEl.appendChild(document.createTextNode(rest1)); // XSS-safe
         return;
       }
     }
-    // Fallback: highlight first @word — span only (no tw_id for free mentions in V1)
-    var match = text.match(/^(@\S+)([\s\S]*)$/);
-    if (match) {
-      var mentionEl = document.createElement('span');
-      mentionEl.className = 'pc-cmt-mention';
-      mentionEl.textContent = match[1]; // XSS-safe: textContent
-      bodyEl.appendChild(mentionEl);
-      if (match[2]) bodyEl.appendChild(document.createTextNode(match[2])); // XSS-safe
+    // 2. Free @mention — try known compound names (longest-first) before single-word fallback
+    if (text.charAt(0) === '@') {
+      var matched = false;
+      if (knownNames && knownNames.length) {
+        for (var ki = 0; ki < knownNames.length; ki++) {
+          var candidate = '@' + knownNames[ki];
+          if (text.indexOf(candidate) === 0) {
+            var rest2 = text.slice(candidate.length);
+            var freeEl = document.createElement('span'); // free mention — span only in V1
+            freeEl.className = 'pc-cmt-mention';
+            freeEl.textContent = candidate; // XSS-safe: textContent
+            bodyEl.appendChild(freeEl);
+            if (rest2) bodyEl.appendChild(document.createTextNode(rest2)); // XSS-safe
+            matched = true;
+            break;
+          }
+        }
+      }
+      if (!matched) {
+        // Last resort: first @word only (no compound-name info available)
+        var m = text.match(/^(@\S+)([\s\S]*)$/);
+        if (m) {
+          var wEl = document.createElement('span');
+          wEl.className = 'pc-cmt-mention';
+          wEl.textContent = m[1]; // XSS-safe: textContent
+          bodyEl.appendChild(wEl);
+          if (m[2]) bodyEl.appendChild(document.createTextNode(m[2])); // XSS-safe
+        } else {
+          bodyEl.textContent = text; // XSS-safe
+        }
+      }
     } else {
       bodyEl.textContent = text; // XSS-safe
     }
@@ -1122,10 +1153,15 @@
     var rendered = {};
     comments.forEach(function (c) { map[String(c.id)] = c; });
 
+    // Collect all author names (longest-first) for compound free-mention highlighting
+    var knownNames = comments.map(function (c) { return c.author_name || ''; })
+      .filter(Boolean)
+      .sort(function (a, b) { return b.length - a.length; });
+
     function renderOne(c) {
       if (rendered[c.id]) return;
       rendered[c.id] = true;
-      list.appendChild(_cmtBuildItem(c));
+      list.appendChild(_cmtBuildItem(c, knownNames));
       // Render direct replies immediately after parent
       comments.forEach(function (r) {
         if (r.reply_to_comment_id != null && String(r.reply_to_comment_id) === String(c.id)) {
@@ -1146,10 +1182,10 @@
 
   // Insert a new reply after the last existing sibling reply under the same parent.
   // Returns the newly inserted element so callers can scroll it into view.
-  function _cmtInsertReply(list, newComment) {
+  function _cmtInsertReply(list, newComment, knownNames) {
     var parentId = String(newComment.reply_to_comment_id);
     var parentEl = list.querySelector('.pc-cmt-item[data-cmt-id="' + parentId + '"]');
-    var newEl    = _cmtBuildItem(newComment);
+    var newEl    = _cmtBuildItem(newComment, knownNames || null);
     if (!parentEl) {
       list.appendChild(newEl);
       return newEl;
@@ -1167,7 +1203,7 @@
     return newEl;
   }
 
-  function _cmtBuildItem(c) {
+  function _cmtBuildItem(c, knownNames) {
     var el = document.createElement('div');
     el.className = 'pc-cmt-item';
     el.dataset.cmtId = String(c.id);
@@ -1260,7 +1296,7 @@
     // Body — XSS-safe via _renderCommentBody (@mention highlighted, rest as text nodes)
     var bodyEl = document.createElement('p');
     bodyEl.className = 'pc-cmt-body';
-    _renderCommentBody(bodyEl, c.body, c.reply_to_author_name || null, c.reply_to_author_tw_id || null);
+    _renderCommentBody(bodyEl, c.body, c.reply_to_author_name || null, c.reply_to_author_tw_id || null, knownNames || null);
     content.appendChild(bodyEl);
 
     // Reply button — below body text (not in meta row)
@@ -1456,16 +1492,17 @@
         if (list) {
           var empty = list.querySelector('.pc-cmts-empty');
           if (empty) empty.remove();
-          var newComment = res.data.comment;
+          var newComment  = res.data.comment;
+          var knownNames  = _cmtKnownNames(String(postId));
           if (newComment.reply_to_comment_id != null) {
             // Reply: insert under parent, scroll only the new element into view
-            var newEl = _cmtInsertReply(list, newComment);
+            var newEl = _cmtInsertReply(list, newComment, knownNames);
             if (newEl && newEl.scrollIntoView) {
               newEl.scrollIntoView({ block: 'nearest' });
             }
           } else {
             // Top-level comment: append and scroll list to bottom
-            list.appendChild(_cmtBuildItem(newComment));
+            list.appendChild(_cmtBuildItem(newComment, knownNames));
             list.scrollTop = list.scrollHeight;
           }
         }
@@ -1549,7 +1586,8 @@
       // 3. Optimistic UI — update text immediately, remove edit UI
       _cmtEditInFlight[cmtId] = true;
       saveBtn.disabled = true;
-      _renderCommentBody(bodyEl, newBody, replyToAuthor, replyToAuthorTwId); // XSS-safe: no innerHTML
+      var editKnownNames = _cmtKnownNames(String(postId));
+      _renderCommentBody(bodyEl, newBody, replyToAuthor, replyToAuthorTwId, editKnownNames); // XSS-safe
       // visual-reply class is driven by reply_to_comment_id (immutable per comment) — no change
       bodyEl.style.display = '';
       editWrap.remove();
@@ -1564,7 +1602,7 @@
           _cmtEditInFlight[cmtId] = false;
           if (!res.ok || !res.data || res.data.status !== 'success') {
             // Rollback to original text + restore visual-reply state
-            _renderCommentBody(bodyEl, originalText, replyToAuthor, replyToAuthorTwId); // XSS-safe
+            _renderCommentBody(bodyEl, originalText, replyToAuthor, replyToAuthorTwId, editKnownNames); // XSS-safe
             if (wasVisualReply) item.classList.add('pc-cmt-visual-reply');
             else item.classList.remove('pc-cmt-visual-reply');
             var msg = (res.data && res.data.detail) ? res.data.detail : 'تعذّر تعديل التعليق';
@@ -1573,7 +1611,7 @@
           }
           // Confirm with server body + mark as edited (visual-reply class unchanged — driven by reply_to_comment_id)
           var confirmedBody = res.data.comment.body;
-          _renderCommentBody(bodyEl, confirmedBody, replyToAuthor, replyToAuthorTwId); // XSS-safe
+          _renderCommentBody(bodyEl, confirmedBody, replyToAuthor, replyToAuthorTwId, editKnownNames); // XSS-safe
           var metaRow = item.querySelector('.pc-cmt-meta-row');
           if (metaRow && !metaRow.querySelector('.pc-cmt-edited')) {
             var editedEl = document.createElement('span');
@@ -1584,7 +1622,7 @@
         })
         .catch(function () {
           _cmtEditInFlight[cmtId] = false;
-          _renderCommentBody(bodyEl, originalText, replyToAuthor, replyToAuthorTwId); // XSS-safe rollback
+          _renderCommentBody(bodyEl, originalText, replyToAuthor, replyToAuthorTwId, editKnownNames); // XSS-safe rollback
           if (wasVisualReply) item.classList.add('pc-cmt-visual-reply');
           else item.classList.remove('pc-cmt-visual-reply');
           if (window.showToast) showToast('تعذّر تعديل التعليق');
