@@ -1255,6 +1255,103 @@ check(
     "elif d.get(\"mentioned_tw_id\")" in auth_src
 )
 
+# ── 115. Shared Upload Client (tw-upload.js) ─────────────────────────────
+import os
+
+upload_js_path = os.path.join("static", "shared", "tw-upload.js")
+upload_exists = os.path.isfile(upload_js_path)
+check(
+    "115a. static/shared/tw-upload.js exists",
+    upload_exists
+)
+
+if upload_exists:
+    with open(upload_js_path, encoding="utf-8") as f:
+        upload_src = f.read()
+    check(
+        "115b. tw-upload.js defines TW.uploadImage",
+        "TW.uploadImage" in upload_src
+    )
+    check(
+        "115c. tw-upload.js calls POST /upload/image",
+        "'/upload/image'" in upload_src or '"/upload/image"' in upload_src
+    )
+else:
+    check("115b. tw-upload.js defines TW.uploadImage", False)
+    check("115c. tw-upload.js calls POST /upload/image", False)
+
+with open(os.path.join("static", "company", "company.main.js"), encoding="utf-8") as f:
+    co_main_src = f.read()
+
+check(
+    "115d. company.main.js uses TW.uploadImage (not inline fetch('/upload/image'))",
+    "TW.uploadImage" in co_main_src and
+    "fetch('/upload/image'" not in co_main_src and
+    'fetch("/upload/image"' not in co_main_src
+)
+
+with open("profile-v2.api.js", encoding="utf-8") as f:
+    pv2_api_src = f.read()
+
+check(
+    "115e. profile-v2.api.js uses TW.uploadImage (not inline fetch('/upload/image'))",
+    "TW.uploadImage" in pv2_api_src and
+    "fetch('/upload/image'" not in pv2_api_src and
+    'fetch("/upload/image"' not in pv2_api_src
+)
+
+check(
+    "115f. profile-showcase.html loads tw-upload.js before profile-v2.api.js",
+    (lambda h: (
+        "tw-upload.js" in h and
+        "profile-v2.api.js" in h and
+        h.index("tw-upload.js") < h.index("profile-v2.api.js")
+    ))(open("profile-showcase.html", encoding="utf-8").read())
+)
+
+check(
+    "115g. company-profile.html loads tw-upload.js before company.main.js",
+    (lambda h: (
+        "tw-upload.js" in h and
+        "company.main.js" in h and
+        h.index("tw-upload.js") < h.index("company.main.js")
+    ))(open("company-profile.html", encoding="utf-8").read())
+)
+
+# uploadLogo HTTP failure behavior: must throw, not fall back to dataUrl
+# The broken pattern would be: (res.ok && res.data && res.data.url) ? ... : dataUrl
+# The correct pattern: if (!res.ok) throw, then (res.data && res.data.url) ? ... : dataUrl
+check(
+    "115h. company uploadLogo throws on HTTP failure — broken fallback pattern absent",
+    "(res.ok && res.data && res.data.url) ? res.data.url : dataUrl" not in co_main_src
+)
+check(
+    "115i. company uploadLogo throws on !res.ok before dataUrl fallback",
+    "if (!res.ok) throw new Error('upload_fail')" in co_main_src and
+    "(res.data && res.data.url) ? res.data.url : dataUrl" in co_main_src
+)
+
+# No direct fetch('/upload/image') in any JS file outside tw-upload.js
+import glob as _glob
+_js_files = _glob.glob("**/*.js", recursive=True)
+_violators = []
+for _jf in _js_files:
+    if os.path.normpath(_jf) == os.path.normpath(upload_js_path):
+        continue  # tw-upload.js itself is allowed
+    try:
+        with open(_jf, encoding="utf-8") as _f:
+            _src = _f.read()
+        if "fetch('/upload/image'" in _src or 'fetch("/upload/image"' in _src:
+            _violators.append(_jf)
+    except Exception:
+        pass
+
+check(
+    "115j. no direct fetch('/upload/image') outside static/shared/tw-upload.js",
+    len(_violators) == 0,
+    ("violators: " + ", ".join(_violators)) if _violators else ""
+)
+
 # ── Summary ──────────────────────────────────────────────────────────────
 print()
 passed = sum(1 for _, s, _ in results if s == PASS)

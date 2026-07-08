@@ -74,20 +74,12 @@ function deleteExperience(expId){
 
 function uploadCover(userId, dataUrl){
   if (_ownerGuard()) return Promise.reject(_STALE);
-  return fetch('/upload/image', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + _currentJwt() },
-    body: JSON.stringify({ user_id: userId, bucket: 'covers', filename: 'cover', data_url: dataUrl })
-  }).then(function(r){ return r.json().then(function(d){ return { ok: r.ok, data: d }; }); });
+  return TW.uploadImage({ userId: userId, bucket: 'covers', filename: 'cover', dataUrl: dataUrl, jwt: _currentJwt() });
 }
 
 function uploadAvatar(userId, dataUrl){
   if (_ownerGuard()) return Promise.reject(_STALE);
-  return fetch('/upload/image', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + _currentJwt() },
-    body: JSON.stringify({ user_id: userId, bucket: 'avatars', filename: 'avatar', data_url: dataUrl })
-  }).then(function(r){ return r.json().then(function(d){ return { ok: r.ok, data: d }; }); });
+  return TW.uploadImage({ userId: userId, bucket: 'avatars', filename: 'avatar', dataUrl: dataUrl, jwt: _currentJwt() });
 }
 
 window.addExperience    = addExperience;
