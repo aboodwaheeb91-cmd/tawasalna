@@ -901,12 +901,13 @@
     return out;
   }
 
-  // Returns up to 6 candidates whose .name contains the query as a substring.
+  // Returns up to 6 candidates whose .name contains the query as a substring (case-insensitive).
   function _cmtFilterMentionCandidates(query, candidates) {
     if (!query) return candidates.slice(0, 6);
+    var q = query.toLowerCase();
     var result = [];
     for (var i = 0; i < candidates.length && result.length < 6; i++) {
-      if (candidates[i].name.indexOf(query) !== -1) result.push(candidates[i]);
+      if (candidates[i].name.toLowerCase().indexOf(q) !== -1) result.push(candidates[i]);
     }
     return result;
   }
@@ -935,14 +936,20 @@
   function _cmtPositionMentionMenu(ta) {
     var menu  = _cmtGetMentionMenu();
     var rect  = ta.getBoundingClientRect();
-    // Use actual rendered height (menu must be display:block before this call)
-    var menuH = Math.min(menu.offsetHeight || 160, 160);
+    // Use actual rendered height — no artificial cap so tall menus position correctly
+    var menuH = menu.offsetHeight || 160;
     var menuW = 220;
-    // Use visualViewport.height so positioning respects the mobile keyboard on iOS Safari
-    var _vph  = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
+    // On iOS Safari with keyboard open, getBoundingClientRect() uses layout-viewport coords
+    // while position:fixed uses visual-viewport coords. visualViewport.offsetTop bridges them.
+    var vp     = window.visualViewport;
+    var _vph   = (vp && vp.height)    || window.innerHeight;
+    var _vpOff = (vp && vp.offsetTop) || 0;
+    // Convert rect to visual-viewport coordinate space
+    var rectTopVis    = rect.top    - _vpOff;
+    var rectBottomVis = rect.bottom - _vpOff;
     // Prefer above textarea; fall below if not enough space above
-    var top  = rect.top - menuH - 6;
-    if (top < 8) top = rect.bottom + 4;
+    var top  = rectTopVis - menuH - 6;
+    if (top < 8) top = rectBottomVis + 4;
     // Clamp so menu doesn't extend below the visible viewport (e.g. behind keyboard)
     if (top + menuH > _vph - 4) top = Math.max(8, _vph - menuH - 4);
     // Right-align with textarea right edge (RTL)
@@ -1640,6 +1647,11 @@
       ta.rows        = 1; // auto-grows via _autoResizeTextarea
       ta.addEventListener('input', function () {
         _autoResizeTextarea(ta);
+        _cmtHandleMentionInput(ta, String(postId));
+      });
+      // compositionend fires after IME commits the character (Arabic/CJK mobile keyboards).
+      // At this point selectionStart is reliable, so filtering produces correct results.
+      ta.addEventListener('compositionend', function () {
         _cmtHandleMentionInput(ta, String(postId));
       });
       ta.addEventListener('keydown', function (e) { _cmtHandleMentionKeydown(e, ta); });

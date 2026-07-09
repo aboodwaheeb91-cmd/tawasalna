@@ -826,8 +826,8 @@ check(
     "menu.offsetHeight" in pos_fn_body and "var menuH = 160" not in pos_fn_body
 )
 check(
-    "101. _cmtPositionMentionMenu caps height at 160 (CSS max-height)",
-    "Math.min(menu.offsetHeight" in pos_fn_body or "Math.min(" in pos_fn_body
+    "101. _cmtPositionMentionMenu uses menu.offsetHeight without artificial cap (PR #421)",
+    "menu.offsetHeight" in pos_fn_body and "Math.min(menu.offsetHeight" not in pos_fn_body
 )
 
 open_fn = posts_js[posts_js.find("function _cmtOpenMentionMenu"):] if "function _cmtOpenMentionMenu" in posts_js else ""
@@ -2317,6 +2317,50 @@ check(
 check(
     "129p. ARCHITECTURE_FOUNDATION.md table lists all 28 rules (F1–F28)",
     "F28" in _foundation_src and "F14" in _foundation_src
+)
+
+# ── 130 — Fix Mobile Mention Dropdown Position And Filtering (PR #421) ───
+_posts130 = open("static/company/company.posts.js", encoding="utf-8").read()
+
+check(
+    "130a. _cmtFilterMentionCandidates uses toLowerCase() for case-insensitive matching",
+    "toLowerCase()" in _posts130 and "_cmtFilterMentionCandidates" in _posts130
+)
+check(
+    "130b. _cmtFilterMentionCandidates lowercases the query variable (q = query.toLowerCase())",
+    "q = query.toLowerCase()" in _posts130
+)
+check(
+    "130c. _cmtFilterMentionCandidates lowercases candidate names before indexOf",
+    ".name.toLowerCase().indexOf(q)" in _posts130
+)
+check(
+    "130d. _cmtPositionMentionMenu removes the 160px cap (no Math.min with 160)",
+    "Math.min(menu.offsetHeight" not in _posts130
+)
+check(
+    "130e. _cmtPositionMentionMenu uses visualViewport.offsetTop for coordinate conversion",
+    "vp.offsetTop" in _posts130 or "visualViewport.offsetTop" in _posts130
+)
+check(
+    "130f. _cmtPositionMentionMenu converts rect.top to visual-viewport coords (rectTopVis)",
+    "rectTopVis" in _posts130
+)
+check(
+    "130g. _cmtPositionMentionMenu converts rect.bottom to visual-viewport coords (rectBottomVis)",
+    "rectBottomVis" in _posts130
+)
+check(
+    "130h. compositionend listener is added to the send textarea in _cmtPopulatePanel",
+    "compositionend" in _posts130
+)
+check(
+    "130i. compositionend listener calls _cmtHandleMentionInput",
+    "compositionend" in _posts130 and "_cmtHandleMentionInput(ta" in _posts130
+)
+check(
+    "130j. _cmtPositionMentionMenu still uses visualViewport.height as _vph",
+    "_vph" in _posts130 and ("vp.height" in _posts130 or "visualViewport.height" in _posts130)
 )
 
 # ── Summary ──────────────────────────────────────────────────────────────
