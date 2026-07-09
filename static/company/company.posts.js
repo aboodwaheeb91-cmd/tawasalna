@@ -901,13 +901,16 @@
     return out;
   }
 
-  // Returns up to 6 candidates whose .name contains the query as a substring (case-insensitive).
+  // Returns up to 6 candidates whose .name or .tw_id contains the query (case-insensitive).
   function _cmtFilterMentionCandidates(query, candidates) {
     if (!query) return candidates.slice(0, 6);
     var q = query.toLowerCase();
     var result = [];
     for (var i = 0; i < candidates.length && result.length < 6; i++) {
-      if (candidates[i].name.toLowerCase().indexOf(q) !== -1) result.push(candidates[i]);
+      var c = candidates[i];
+      var nameMatch  = String(c.name  || '').toLowerCase().indexOf(q) !== -1;
+      var twIdMatch  = String(c.tw_id || '').toLowerCase().indexOf(q) !== -1;
+      if (nameMatch || twIdMatch) result.push(c);
     }
     return result;
   }
@@ -934,25 +937,43 @@
   }
 
   function _cmtPositionMentionMenu(ta) {
-    var menu  = _cmtGetMentionMenu();
-    var rect  = ta.getBoundingClientRect();
-    // Use actual rendered height — no artificial cap so tall menus position correctly
-    var menuH = menu.offsetHeight || 160;
-    var menuW = 220;
-    // On iOS Safari with keyboard open, getBoundingClientRect() uses layout-viewport coords
-    // while position:fixed uses visual-viewport coords. visualViewport.offsetTop bridges them.
+    var menu = _cmtGetMentionMenu();
+    // Anchor on the input-row container for a stable bounding box on mobile.
+    // This keeps the menu anchored to the full input area, not just the textarea element.
+    var anchor = (ta.closest && ta.closest('.pc-cmts-input-row')) || ta;
+    var rect   = anchor.getBoundingClientRect();
     var vp     = window.visualViewport;
     var _vph   = (vp && vp.height)    || window.innerHeight;
     var _vpOff = (vp && vp.offsetTop) || 0;
-    // Convert rect to visual-viewport coordinate space
+    // Convert rect to visual-viewport coordinate space (bridges iOS Safari layout/visual gap)
     var rectTopVis    = rect.top    - _vpOff;
     var rectBottomVis = rect.bottom - _vpOff;
-    // Prefer above textarea; fall below if not enough space above
-    var top  = rectTopVis - menuH - 6;
-    if (top < 8) top = rectBottomVis + 4;
-    // Clamp so menu doesn't extend below the visible viewport (e.g. behind keyboard)
+    // Calculate available space above and below the anchor
+    var spaceAbove = Math.max(0, rectTopVis - 8);
+    var spaceBelow = Math.max(0, _vph - rectBottomVis - 8);
+    // Cap menu height to whichever side has more room (min 60 so menu is always usable)
+    var menuMaxH = Math.min(160, Math.max(spaceAbove, spaceBelow, 60));
+    menu.style.maxHeight = menuMaxH + 'px';
+    // Measure actual rendered height after maxHeight is applied
+    var menuH = menu.offsetHeight || menuMaxH;
+    var menuW = 220;
+    var top;
+    if (spaceAbove >= 90) {
+      // Enough room above — preferred on mobile, keeps menu above the keyboard
+      top = rectTopVis - menuH - 6;
+    } else if (spaceBelow >= 90) {
+      // Not enough above but enough below — place below the anchor
+      top = rectBottomVis + 4;
+    } else {
+      // Both sides limited — pick whichever has more space, stay close to anchor
+      top = spaceAbove >= spaceBelow
+        ? rectTopVis - menuH - 6
+        : rectBottomVis + 4;
+    }
+    // Final clamp: keep menu inside visual viewport
+    if (top < 8) top = 8;
     if (top + menuH > _vph - 4) top = Math.max(8, _vph - menuH - 4);
-    // Right-align with textarea right edge (RTL)
+    // Right-align with anchor right edge (RTL layout)
     var left = rect.right - menuW;
     if (left < 8) left = 8;
     if (left + menuW > window.innerWidth - 8) left = window.innerWidth - menuW - 8;
@@ -1049,12 +1070,42 @@
     return out;
   }
 
-  // Called on every textarea input event.
-  // Shows DOM candidates immediately (zero latency), then merges API results after 200 ms.
+  // Extracts the active @-mention query from text at cursor position.
+  // Returns { active: bool, start: int, query: string }.
+  //
+  // Root-cause fix for mobile Arabic keyboard bug:
+  //   1. selectionStart can be 0 or stale on mobile → fall back to text.length.
+  //   2. iOS/Android inject invisible Unicode directional marks (‎ ‏ ؜)
+  //      between @ and the first Arabic character; these make indexOf() return -1 for
+  //      every real name, causing the menu to close after the 2nd character is typed.
+  function _cmtExtractMentionQuery(text, cursor) {
+    var c = (cursor > 0) ? cursor : text.length;
+    var atIdx = -1;
+    for (var i = c - 1; i >= 0; i--) {
+      if (text[i] === '@') { atIdx = i; break; }
+      // space (32) or newline (10) — no active @ token before cursor
+      if (text.charCodeAt(i) === 32 || text.charCodeAt(i) === 10) break;
+    }
+    if (atIdx === -1) return { active: false, start: -1, query: '' };
+    var raw   = text.slice(atIdx + 1, c);
+    // Strip invisible directional/formatting marks that mobile RTL keyboards inject:
+    // ‎ LRM · ‏ RLM · ؜ ALM
+    // eslint-disable-next-line no-misleading-character-class
+    var clean = raw.replace(/[‎‏؜]/g, '');
+    // If the cleaned string contains a space/newline, @ is not the active trigger
+    if (clean.indexOf(' ') !== -1 || clean.indexOf('\n') !== -1) {
+      return { active: false, start: -1, query: '' };
+    }
+    return { active: true, start: atIdx, query: clean };
+  }
+
+  // Called on every textarea input event (and compositionend for Arabic IME keyboards).
+  // Shows DOM candidates immediately (zero latency), then merges API results after 100 ms.
   function _cmtHandleMentionInput(ta, postId) {
-    var start = _cmtFindMentionStart(ta);
-    if (start === -1) { _cmtCloseMentionMenu(); return; }
-    var query      = ta.value.slice(start + 1, ta.selectionStart);
+    var ex = _cmtExtractMentionQuery(ta.value, ta.selectionStart);
+    if (!ex.active) { _cmtCloseMentionMenu(); return; }
+    var start  = ex.start;
+    var query  = ex.query;
     var domCands   = _cmtCollectMentionCandidates(postId);
     var filtered   = _cmtFilterMentionCandidates(query, domCands);
     _cmtOpenMentionMenu(ta, postId, filtered, start);
@@ -1067,10 +1118,8 @@
       _cmtMentionDebounce = null;
       // Stale-response guard: abort if panel closed or user typed past this @ token
       if (!_cmtMentionState.open) return;
-      var currentStart = _cmtFindMentionStart(ta);
-      if (currentStart !== capturedStart) return;
-      var currentQuery = ta.value.slice(currentStart + 1, ta.selectionStart);
-      if (currentQuery !== capturedQuery) return;
+      var currEx = _cmtExtractMentionQuery(ta.value, ta.selectionStart);
+      if (!currEx.active || currEx.start !== capturedStart || currEx.query !== capturedQuery) return;
       var jwt = window._jwt ? window._jwt() : '';
       if (!jwt) return;
       // Show loading indicator below existing DOM candidates while fetch is in flight
@@ -1090,10 +1139,8 @@
         .then(function (res) {
           // Second stale-response guard: re-verify after async gap
           if (!_cmtMentionState.open) return;
-          var postResponseStart = _cmtFindMentionStart(ta);
-          if (postResponseStart !== capturedStart) return;
-          var postResponseQuery = ta.value.slice(postResponseStart + 1, ta.selectionStart);
-          if (postResponseQuery !== capturedQuery) return;
+          var postEx = _cmtExtractMentionQuery(ta.value, ta.selectionStart);
+          if (!postEx.active || postEx.start !== capturedStart || postEx.query !== capturedQuery) return;
           if (!res.ok || !Array.isArray(res.candidates)) {
             var _ldEl = document.getElementById('pc-cmt-mention-loading');
             if (_ldEl) _ldEl.remove();

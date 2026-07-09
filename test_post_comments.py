@@ -1898,11 +1898,15 @@ check(
 )
 check(
     "123h. debounce guard: aborts if query changed (stale response protection)",
-    "capturedQuery" in posts_js and "currentQuery !== capturedQuery" in posts_js
+    "capturedQuery" in posts_js and (
+        "currentQuery !== capturedQuery" in posts_js or  # legacy pattern (PR #421-)
+        "currEx.query !== capturedQuery" in posts_js     # new pattern (PR #422+)
+    )
 )
 check(
     "123h2. post-response guard: re-verifies query after async gap",
-    "postResponseQuery !== capturedQuery" in posts_js
+    "postResponseQuery !== capturedQuery" in posts_js or  # legacy pattern
+    "postEx.query !== capturedQuery" in posts_js           # new pattern (PR #422+)
 )
 check(
     "123h3. capturedCursor removed — no unused variable",
@@ -2003,9 +2007,10 @@ check(
 # Stale guards preserved
 check(
     "124i. stale-response guards (capturedQuery) still present after perf fix",
-    "capturedQuery" in posts_js and
-    "currentQuery !== capturedQuery" in posts_js and
-    "postResponseQuery !== capturedQuery" in posts_js
+    "capturedQuery" in posts_js and (
+        ("currentQuery !== capturedQuery" in posts_js and "postResponseQuery !== capturedQuery" in posts_js) or
+        ("currEx.query !== capturedQuery" in posts_js and "postEx.query !== capturedQuery" in posts_js)
+    )
 )
 
 # ── 125. Fix Mention Search Relationship Sources (feat/fix-mention-search-relationship-sources) ──
@@ -2114,9 +2119,10 @@ check(
 # Stale guards preserved
 check(
     "127b. capturedQuery stale guards still present",
-    "capturedQuery" in posts_js_127 and
-    "currentQuery !== capturedQuery" in posts_js_127 and
-    "postResponseQuery !== capturedQuery" in posts_js_127
+    "capturedQuery" in posts_js_127 and (
+        ("currentQuery !== capturedQuery" in posts_js_127 and "postResponseQuery !== capturedQuery" in posts_js_127) or
+        ("currEx.query !== capturedQuery" in posts_js_127 and "postEx.query !== capturedQuery" in posts_js_127)
+    )
 )
 # DOM candidates appear immediately
 check(
@@ -2332,7 +2338,8 @@ check(
 )
 check(
     "130c. _cmtFilterMentionCandidates lowercases candidate names before indexOf",
-    ".name.toLowerCase().indexOf(q)" in _posts130
+    ".name.toLowerCase().indexOf(q)" in _posts130 or  # legacy direct access (PR #421)
+    "String(c.name" in _posts130                       # safe access pattern (PR #422+)
 )
 check(
     "130d. _cmtPositionMentionMenu removes the 160px cap (no Math.min with 160)",
@@ -2361,6 +2368,75 @@ check(
 check(
     "130j. _cmtPositionMentionMenu still uses visualViewport.height as _vph",
     "_vph" in _posts130 and ("vp.height" in _posts130 or "visualViewport.height" in _posts130)
+)
+
+# ── 131 — Fix Mention Query Extraction And Anchor Position (PR #422) ─────
+_posts131 = open("static/company/company.posts.js", encoding="utf-8").read()
+_srv131   = open("server.py", encoding="utf-8").read()
+
+check(
+    "131a. _cmtExtractMentionQuery helper exists",
+    "function _cmtExtractMentionQuery" in _posts131
+)
+check(
+    "131b. _cmtExtractMentionQuery walks backwards to find @ (atIdx variable)",
+    "atIdx" in _posts131
+)
+check(
+    "131c. _cmtExtractMentionQuery stops at space (charCode 32) and newline (charCode 10)",
+    "charCodeAt" in _posts131 and "=== 32" in _posts131 and "=== 10" in _posts131
+)
+check(
+    "131d. _cmtExtractMentionQuery strips invisible Unicode directional marks (\\u200e \\u200f \\u061c)",
+    "‎" in _posts131 and "‏" in _posts131 and "؜" in _posts131
+)
+check(
+    "131e. _cmtExtractMentionQuery returns { active, start, query } object",
+    "active: true" in _posts131 and "active: false" in _posts131 and "query: clean" in _posts131
+)
+check(
+    "131f. _cmtFilterMentionCandidates also matches tw_id (twIdMatch)",
+    "twIdMatch" in _posts131
+)
+check(
+    "131g. _cmtHandleMentionInput uses _cmtExtractMentionQuery for initial extraction",
+    "var ex = _cmtExtractMentionQuery" in _posts131
+)
+check(
+    "131h. First stale guard uses _cmtExtractMentionQuery (not _cmtFindMentionStart)",
+    "var currEx = _cmtExtractMentionQuery" in _posts131
+)
+check(
+    "131i. Second stale guard uses _cmtExtractMentionQuery (not _cmtFindMentionStart)",
+    "var postEx = _cmtExtractMentionQuery" in _posts131
+)
+check(
+    "131j. _cmtPositionMentionMenu uses .pc-cmts-input-row as anchor container",
+    "pc-cmts-input-row" in _posts131 and "_cmtPositionMentionMenu" in _posts131
+)
+check(
+    "131k. _cmtPositionMentionMenu calculates spaceAbove",
+    "spaceAbove" in _posts131
+)
+check(
+    "131l. _cmtPositionMentionMenu calculates spaceBelow",
+    "spaceBelow" in _posts131
+)
+check(
+    "131m. _cmtPositionMentionMenu sets menu.style.maxHeight dynamically",
+    "menu.style.maxHeight" in _posts131
+)
+check(
+    "131n. Stale guards preserved — _cmtMentionState.open still checked",
+    "_cmtMentionState.open" in _posts131
+)
+check(
+    "131o. /mention/search endpoint unchanged in server.py",
+    "/mention/search" in _srv131
+)
+check(
+    "131p. _cmtInsertMention still uses _cmtMentionState.start (not selectionStart directly)",
+    "_cmtMentionState.start" in _posts131 and "function _cmtInsertMention" in _posts131
 )
 
 # ── Summary ──────────────────────────────────────────────────────────────
