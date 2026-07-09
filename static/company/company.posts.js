@@ -25,12 +25,20 @@
     var chips = document.getElementById('p-tags-chips');
     var count = document.getElementById('p-tags-count');
     if (!chips) return;
-    chips.innerHTML = _selectedTags.map(function (t, i) {
-      return '<span class="ptc-chip">'
-        + t
-        + '<button type="button" class="ptc-chip-x" data-idx="' + i + '" aria-label="إزالة">&#x2715;</button>'
-        + '</span>';
-    }).join('');
+    chips.replaceChildren();
+    _selectedTags.forEach(function (t, i) {
+      var span = document.createElement('span');
+      span.className = 'ptc-chip';
+      span.appendChild(document.createTextNode(t));
+      var x = document.createElement('button');
+      x.type = 'button';
+      x.className = 'ptc-chip-x';
+      x.dataset.idx = String(i);
+      x.setAttribute('aria-label', 'إزالة');
+      x.textContent = '✕';
+      span.appendChild(x);
+      chips.appendChild(span);
+    });
     if (count) count.textContent = _selectedTags.length + '/5';
   }
 
@@ -825,7 +833,9 @@
     var menuW = 108;
     var top   = rect.bottom + 4;
     var left  = rect.left - menuW + rect.width;
-    if (top  + menuH > window.innerHeight - 8) top  = rect.top - menuH - 4;
+    // Use visualViewport.height so the menu stays above the mobile keyboard on iOS Safari
+    var _vph  = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
+    if (top  + menuH > _vph - 8) top  = rect.top - menuH - 4;
     if (left + menuW > window.innerWidth  - 8) left = window.innerWidth - menuW - 8;
     if (left < 8) left = 8;
     if (top  < 8) top  = 8;
@@ -928,9 +938,13 @@
     // Use actual rendered height (menu must be display:block before this call)
     var menuH = Math.min(menu.offsetHeight || 160, 160);
     var menuW = 220;
-    // Prefer above textarea; fall below if not enough space
+    // Use visualViewport.height so positioning respects the mobile keyboard on iOS Safari
+    var _vph  = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
+    // Prefer above textarea; fall below if not enough space above
     var top  = rect.top - menuH - 6;
     if (top < 8) top = rect.bottom + 4;
+    // Clamp so menu doesn't extend below the visible viewport (e.g. behind keyboard)
+    if (top + menuH > _vph - 4) top = Math.max(8, _vph - menuH - 4);
     // Right-align with textarea right edge (RTL)
     var left = rect.right - menuW;
     if (left < 8) left = 8;
@@ -1140,6 +1154,9 @@
     _autoResizeTextarea(ta);
     ta.focus();
     ta.setSelectionRange(mention.length, mention.length);
+    // On mobile the keyboard opens after focus() but shrinks the viewport asynchronously.
+    // A short delay lets the browser settle before scrolling the input into view.
+    setTimeout(function () { ta.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }, 200);
   }
 
   function _cmtCancelReply(postId) {
