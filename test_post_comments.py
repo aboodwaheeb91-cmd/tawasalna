@@ -2101,6 +2101,65 @@ check(
     "TW.uploadImage" in upload_src_126
 )
 
+# ── 128 — Architecture Foundation (PR #420) ──────────────────────────────
+import os as _os
+
+_foundation_path = _os.path.join(_os.path.dirname(__file__), "ARCHITECTURE_FOUNDATION.md")
+_foundation_exists = _os.path.isfile(_foundation_path)
+_foundation_src = open(_foundation_path).read() if _foundation_exists else ""
+
+_arch_src_128 = open(_os.path.join(_os.path.dirname(__file__), "ARCHITECTURE.md")).read()
+_claude_src_128 = open(_os.path.join(_os.path.dirname(__file__), "CLAUDE.md")).read()
+
+check(
+    "128a. ARCHITECTURE_FOUNDATION.md exists",
+    _foundation_exists
+)
+check(
+    "128b. ARCHITECTURE_FOUNDATION.md contains API-first Rule (F2)",
+    "API-first Rule" in _foundation_src or "API-first" in _foundation_src
+)
+check(
+    "128c. ARCHITECTURE_FOUNDATION.md contains Single Backend / Single Database (F3)",
+    "Single Backend" in _foundation_src and "Single Database" in _foundation_src
+)
+check(
+    "128d. ARCHITECTURE_FOUNDATION.md contains Shared System First (F4)",
+    "Shared System First" in _foundation_src
+)
+check(
+    "128e. ARCHITECTURE_FOUNDATION.md contains One Source of Truth (F5)",
+    "One Source of Truth" in _foundation_src
+)
+check(
+    "128f. ARCHITECTURE_FOUNDATION.md contains Backend Owns Permissions (F6)",
+    "Backend Owns Permissions" in _foundation_src
+)
+check(
+    "128g. ARCHITECTURE_FOUNDATION.md contains Public Routes Contract /u/{tw_id} (F7)",
+    "Public Routes Contract" in _foundation_src and "/u/{tw_id}" in _foundation_src
+)
+check(
+    "128h. ARCHITECTURE_FOUNDATION.md contains No Silent Failures (F9)",
+    "No Silent Failures" in _foundation_src
+)
+check(
+    "128i. ARCHITECTURE_FOUNDATION.md contains Pre-push GitHub State Check (F13)",
+    "Pre-push GitHub State Check" in _foundation_src
+)
+check(
+    "128j. ARCHITECTURE_FOUNDATION.md states higher priority than feature-level docs",
+    "higher priority" in _foundation_src and "foundation file wins" in _foundation_src
+)
+check(
+    "128k. ARCHITECTURE.md references ARCHITECTURE_FOUNDATION.md",
+    "ARCHITECTURE_FOUNDATION.md" in _arch_src_128
+)
+check(
+    "128l. CLAUDE.md references ARCHITECTURE_FOUNDATION.md",
+    "ARCHITECTURE_FOUNDATION.md" in _claude_src_128
+)
+
 # ── Summary ──────────────────────────────────────────────────────────────
 print()
 passed = sum(1 for _, s, _ in results if s == PASS)
