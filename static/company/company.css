@@ -2564,3 +2564,25 @@ body:not(.co-loading) .co-skeleton      { display: none; }
   border:1px solid rgba(255,255,255,.12); background:none;
   color:#9aa5b4; font-family:inherit; font-size:.88rem; cursor:pointer;
 }
+
+/* ── Error state (API load failure) ─────────────────────────── */
+.co-error-state {
+  display:none;
+  flex-direction:column; align-items:center; justify-content:center;
+  text-align:center;
+  padding:60px 24px;
+  gap:12px;
+}
+body.co-error .co-error-state { display:flex; }
+body.co-error .sc-main-card   { display:none; }
+.co-err-ico { color:rgba(255,255,255,.3); flex-shrink:0; }
+.co-err-title { font-size:1rem; font-weight:700; color:rgba(255,255,255,.75); }
+.co-err-sub   { font-size:.82rem; color:rgba(255,255,255,.4); margin-top:-4px; }
+.co-err-btn {
+  margin-top:4px;
+  padding:9px 24px; border-radius:9px; border:none; cursor:pointer;
+  background:rgba(0,200,150,.15); color:#00c896;
+  font-family:inherit; font-size:.85rem; font-weight:700;
+  transition:background .15s;
+}
+.co-err-btn:hover { background:rgba(0,200,150,.25); }

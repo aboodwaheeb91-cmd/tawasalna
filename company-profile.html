@@ -113,6 +113,13 @@
   </div>
 </div>
 
+<div id="coErrorState" class="co-error-state" role="alert" aria-live="polite">
+  <svg class="co-err-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><circle cx="12" cy="16" r="1" fill="currentColor"/></svg>
+  <div class="co-err-title">تعذر تحميل الصفحة</div>
+  <div class="co-err-sub">تحقق من الاتصال وحاول مرة أخرى</div>
+  <button id="coRetryBtn" class="co-err-btn" onclick="if(window._applyLoadingState)_applyLoadingState(true);if(window.loadData)loadData();">إعادة المحاولة</button>
+</div>
+
 <div class="sc-main-card">
 
 <!-- ██ COVER ██ -->

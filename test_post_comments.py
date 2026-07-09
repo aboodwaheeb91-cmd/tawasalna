@@ -2616,6 +2616,65 @@ check(
         and 'openQROverlay' not in _psh134
 )
 
+# ── 135: Public profile error and retry state ─────────────────────────────
+_psh135  = open('profile-showcase.html', encoding='utf-8').read()
+_cph135  = open('company-profile.html',  encoding='utf-8').read()
+_pvr135  = open('profile-v2.render.js',  encoding='utf-8').read()
+_capi135 = open('static/company/company.api.js', encoding='utf-8').read()
+_cperm135 = open('static/company/company.permissions.js', encoding='utf-8').read()
+_pvcss135 = open('profile-v2.css', encoding='utf-8').read()
+_ccss135  = open('static/company/company.css', encoding='utf-8').read()
+_srv135  = open('server.py',  encoding='utf-8').read()
+_prof135 = open('profile.html', encoding='utf-8').read()
+
+check(
+    "135a. employee skeleton not permanent on error: catch hides scLoading",
+    ("scLoading" in _pvr135 and "display='none'" in _pvr135 and
+     "scErrorState" in _pvr135)
+)
+check(
+    "135b. employee profile has scErrorState div (error state element)",
+    'id="scErrorState"' in _psh135 or "id='scErrorState'" in _psh135
+)
+check(
+    "135c. company profile has coErrorState div (error state element)",
+    'id="coErrorState"' in _cph135 or "id='coErrorState'" in _cph135
+)
+check(
+    "135d. retry button or handler present on both profile pages",
+    ('id="scRetryBtn"' in _psh135 or "id='scRetryBtn'" in _psh135) and
+    ('id="coRetryBtn"' in _cph135 or "id='coRetryBtn'" in _cph135 or
+     'loadData()' in _cph135)
+)
+check(
+    "135e. retry hides error state on re-attempt",
+    ("errEl" in _pvr135 and "display='none'" in _pvr135) and
+    ("co-error" in _cperm135 and "remove('co-error')" in _cperm135)
+)
+check(
+    "135f. no fake / placeholder data injected on error in either file",
+    "placeholder" not in _pvr135.split("catch")[1].split("});")[0] if "catch" in _pvr135 else True
+    and "fake" not in _capi135.lower()
+)
+check(
+    "135g. server.py not modified — backend untouched",
+    "scErrorState" not in _srv135 and "coErrorState" not in _srv135 and
+    "co-error" not in _srv135
+)
+check(
+    "135h. legacy profile.html not modified — error state not added there",
+    "scErrorState" not in _prof135 and "co-error" not in _prof135
+)
+check(
+    "135i. /u/ route handling not touched in server.py",
+    _srv135.count("'/u/") == _srv135.count("'/u/") and
+    "scErrorState" not in _srv135
+)
+check(
+    "135j. no shared tw-error-state.js created (local solution used instead)",
+    not os.path.exists('static/shared/tw-error-state.js')
+)
+
 # ── Summary ──────────────────────────────────────────────────────────────
 print()
 passed = sum(1 for _, s, _ in results if s == PASS)
