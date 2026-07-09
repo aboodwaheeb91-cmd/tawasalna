@@ -2496,6 +2496,53 @@ check(
     "#scTabApps { display:none; }" in _pv2css and "view-owner #scTabApps" in _pv2css
 )
 
+# ── 133: Skeleton Loading — static checks ────────────────────────────────
+_sk133    = open('static/shared/tw-skeleton.css', encoding='utf-8').read()
+_cop133   = open('company-profile.html',          encoding='utf-8').read()
+_coc133   = open('static/company/company.css',    encoding='utf-8').read()
+_psh133   = open('profile-showcase.html',         encoding='utf-8').read()
+
+check(
+    "133a. tw-skeleton.css: defines @keyframes tw-shimmer",
+    "@keyframes tw-shimmer" in _sk133
+)
+check(
+    "133b. tw-skeleton.css: defines .tw-skeleton with shimmer gradient",
+    ".tw-skeleton" in _sk133 and "tw-shimmer" in _sk133
+)
+check(
+    "133c. tw-skeleton.css: has prefers-reduced-motion rule (animation: none)",
+    "prefers-reduced-motion" in _sk133 and "animation: none" in _sk133
+)
+check(
+    "133d. company-profile.html: <body> starts with co-loading class (anti-flash guard)",
+    '<body class="co-loading">' in _cop133
+)
+check(
+    "133e. company-profile.html: loads tw-skeleton.css in <head>",
+    "tw-skeleton.css" in _cop133
+)
+check(
+    "133f. company-profile.html: has .co-skeleton block (skeleton markup present)",
+    'class="co-skeleton"' in _cop133
+)
+check(
+    "133g. company-profile.html: coName element has no hardcoded fake text",
+    'id="coName">اسم الشركة' not in _cop133
+)
+check(
+    "133h. company-profile.html: coDesc element has no hardcoded fake text",
+    'id="coDesc">لا يوجد' not in _cop133
+)
+check(
+    "133i. company.css: hides .sc-main-card during co-loading (skeleton shown, real hidden)",
+    "body.co-loading .sc-main-card" in _coc133
+)
+check(
+    "133j. company.css: hides .co-skeleton when not co-loading (skeleton gone after load)",
+    "body:not(.co-loading) .co-skeleton" in _coc133
+)
+
 # ── Summary ──────────────────────────────────────────────────────────────
 print()
 passed = sum(1 for _, s, _ in results if s == PASS)

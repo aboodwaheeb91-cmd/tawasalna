@@ -16,10 +16,11 @@
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/app-header.css">
 <link rel="stylesheet" href="/static/shared/tw-select.css">
+<link rel="stylesheet" href="/static/shared/tw-skeleton.css">
 <link rel="stylesheet" href="/static/company/company.css">
 <link rel="stylesheet" href="/static/tw_shared.css">
 </head>
-<body>
+<body class="co-loading">
 <!--
 ╔══════════════════════════════════════════════╗
 ║  TAWASALNA - COMPANY-PROFILE                 ║
@@ -77,6 +78,26 @@
 
 <!-- ██ SHELL ██ -->
 <div class="sc-wrap">
+
+<!-- ██ SKELETON (visible during co-loading, hidden after) ██ -->
+<div class="co-skeleton" aria-hidden="true" role="presentation">
+  <div class="co-sk-cover tw-skeleton"></div>
+  <div class="co-sk-prof-row">
+    <div class="co-sk-logo tw-skeleton"></div>
+    <div class="co-sk-info">
+      <div class="co-sk-name tw-skeleton"></div>
+      <div class="co-sk-type tw-skeleton"></div>
+      <div class="co-sk-desc tw-skeleton"></div>
+      <div class="co-sk-desc co-sk-desc--short tw-skeleton"></div>
+    </div>
+  </div>
+  <div class="co-sk-stats">
+    <div class="co-sk-stat tw-skeleton"></div>
+    <div class="co-sk-stat tw-skeleton"></div>
+    <div class="co-sk-stat tw-skeleton"></div>
+  </div>
+</div>
+
 <div class="sc-main-card">
 
 <!-- ██ COVER ██ -->
@@ -113,7 +134,7 @@
   <!-- Company info column -->
   <div class="sc-info">
     <div class="co-name-row">
-      <h1 class="co-name" id="coName">اسم الشركة</h1>
+      <h1 class="co-name" id="coName"></h1>
       <span id="coVerifiedBadge" class="co-verified-badge">
         <i data-lucide="badge-check"></i> موثق
       </span>
@@ -121,7 +142,7 @@
     <div class="co-type-badge" id="coTypeBadge">
       <i data-lucide="briefcase"></i> شركة
     </div>
-    <div class="co-desc" id="coDesc">لا يوجد وصف بعد.</div>
+    <div class="co-desc" id="coDesc"></div>
     <div class="co-meta-row">
       <div class="co-meta-inline">
         <span id="coWebsite">
@@ -255,7 +276,7 @@
 
       <div class="about-card">
         <div class="ac-title">عن الشركة</div>
-        <div id="aboutDesc">لا يوجد وصف مفصل بعد.</div>
+        <div id="aboutDesc"></div>
         <div class="ac-item"><span class="ac-icon"><i data-lucide="building-2"></i></span><div><div class="ac-key">نوع الجهة</div><div class="ac-val" id="aboutType">—</div></div></div>
         <div class="ac-item"><span class="ac-icon"><i data-lucide="map-pin"></i></span><div><div class="ac-key">الموقع</div><div class="ac-val" id="aboutLoc">—</div></div></div>
         <div class="ac-item"><span class="ac-icon"><i data-lucide="calendar"></i></span><div><div class="ac-key">سنة التأسيس</div><div class="ac-val" id="aboutFounded">—</div></div></div>
