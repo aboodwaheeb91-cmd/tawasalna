@@ -2675,6 +2675,103 @@ check(
     not os.path.exists('static/shared/tw-error-state.js')
 )
 
+# ── 136: iOS PWA meta tags for public profile pages ───────────────────────
+_psh136  = open('profile-showcase.html',  encoding='utf-8').read()
+_cph136  = open('company-profile.html',   encoding='utf-8').read()
+_edu136  = open('edu-profile.html',       encoding='utf-8').read()
+_srv136  = open('server.py',              encoding='utf-8').read()
+_prof136 = open('profile.html',           encoding='utf-8').read()
+
+check(
+    "136a. profile-showcase.html has apple-mobile-web-app-capable",
+    'apple-mobile-web-app-capable' in _psh136
+)
+check(
+    "136b. profile-showcase.html has apple-mobile-web-app-status-bar-style",
+    'apple-mobile-web-app-status-bar-style' in _psh136
+)
+check(
+    "136c. profile-showcase.html has apple-touch-icon (icon-192.png consistent with manifest)",
+    'apple-touch-icon' in _psh136 and 'icon-192.png' in _psh136
+)
+check(
+    "136d. company-profile.html has apple-mobile-web-app-capable",
+    'apple-mobile-web-app-capable' in _cph136
+)
+check(
+    "136e. company-profile.html has apple-touch-icon",
+    'apple-touch-icon' in _cph136
+)
+check(
+    "136f. edu-profile.html has apple-mobile-web-app-capable",
+    'apple-mobile-web-app-capable' in _edu136
+)
+check(
+    "136g. edu-profile.html has apple-touch-icon",
+    'apple-touch-icon' in _edu136
+)
+check(
+    "136h. server.py not modified — backend untouched",
+    'apple-mobile-web-app-capable' not in _srv136
+        and 'apple-touch-icon' not in _srv136
+)
+check(
+    "136i. legacy profile.html not modified (still has its own tags, unchanged)",
+    'apple-mobile-web-app-capable' in _prof136
+)
+check(
+    "136j. no JS or CSS files modified for iOS meta tags",
+    not os.path.exists('static/shared/tw-pwa.js')
+        and not os.path.exists('static/shared/tw-pwa.css')
+)
+
+# ── 137: Future Roadmap file ──────────────────────────────────────────────
+_rdm137  = open('docs/FUTURE_ROADMAP.md', encoding='utf-8').read()
+_idx137  = open('docs/SYSTEMS_INDEX.md',  encoding='utf-8').read()
+_srv137  = open('server.py',              encoding='utf-8').read()
+
+check(
+    "137a. docs/FUTURE_ROADMAP.md exists",
+    os.path.exists('docs/FUTURE_ROADMAP.md')
+)
+check(
+    "137b. FUTURE_ROADMAP.md has Purpose section",
+    '## Purpose' in _rdm137
+)
+check(
+    "137c. FUTURE_ROADMAP.md has Usage Rules section",
+    '## Usage Rules' in _rdm137
+)
+check(
+    "137d. FUTURE_ROADMAP.md has Areas section with sub-areas",
+    '## Areas' in _rdm137 and '### Platform' in _rdm137
+)
+check(
+    "137e. FUTURE_ROADMAP.md has Needs Decision Before Build section",
+    'Needs Decision Before Build' in _rdm137
+)
+check(
+    "137f. FUTURE_ROADMAP.md has Done section",
+    '## Done' in _rdm137
+)
+check(
+    "137g. FUTURE_ROADMAP.md prohibits execution without explicit request",
+    'طلب صريح' in _rdm137
+)
+check(
+    "137h. SYSTEMS_INDEX.md references FUTURE_ROADMAP.md",
+    'FUTURE_ROADMAP.md' in _idx137
+)
+check(
+    "137i. server.py not modified — backend untouched",
+    'FUTURE_ROADMAP' not in _srv137
+)
+check(
+    "137j. no feature code files modified (docs-only PR)",
+    'FUTURE_ROADMAP' not in open('profile-showcase.html', encoding='utf-8').read()
+    and 'FUTURE_ROADMAP' not in open('company-profile.html', encoding='utf-8').read()
+)
+
 # ── Summary ──────────────────────────────────────────────────────────────
 print()
 passed = sum(1 for _, s, _ in results if s == PASS)
