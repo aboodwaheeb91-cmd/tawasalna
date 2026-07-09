@@ -2439,6 +2439,63 @@ check(
     "_cmtMentionState.start" in _posts131 and "function _cmtInsertMention" in _posts131
 )
 
+# ── 132: Jobs & Applications — static checks ─────────────────────────────
+print("\n── 132: Jobs & Applications — static checks ──")
+
+_jd132  = open('static/job/job-detail.js',   encoding='utf-8').read()
+_apps132 = open('profile-v2.apps.js',        encoding='utf-8').read()
+_css132  = open('static/job/job-detail.css',  encoding='utf-8').read()
+_pv2css  = open('profile-v2.css',             encoding='utf-8').read()
+
+check(
+    "132a. job-detail.js: no X-User-Id header in any fetch call",
+    "X-User-Id" not in _jd132
+)
+check(
+    "132b. job-detail.js: confirmApply sends Authorization Bearer JWT",
+    "'Authorization': 'Bearer ' + _jwt" in _jd132 and "confirmApply" in _jd132
+)
+check(
+    "132c. job-detail.js: _checkAlreadyApplied fetches /my/applications with Bearer JWT",
+    "/my/applications" in _jd132 and "'Authorization': 'Bearer ' + _jwt" in _jd132
+)
+check(
+    "132d. job-detail.js: _applyOwnerMode hides .jd-apply-actions for owner",
+    ".jd-apply-actions" in _jd132 and "display = 'none'" in _jd132
+)
+check(
+    "132e. job-detail.js: _applyOwnerMode hides jdStickyBar for owner",
+    "jdStickyBar" in _jd132 and "display = 'none'" in _jd132
+)
+check(
+    "132f. job-detail.js: openApply guards against unauthenticated users",
+    "!_jwt || !_user" in _jd132
+)
+check(
+    "132g. job-detail.js: openApply guards against non-emp user_type (not just unauthenticated)",
+    "user_type !== 'emp'" in _jd132
+)
+check(
+    "132h. job-detail.js: _checkAlreadyApplied only runs for emp user_type",
+    "_user.user_type !== 'emp'" in _jd132
+)
+check(
+    "132i. profile-v2.apps.js: no X-User-Id header in fetch calls (comment mention is ok)",
+    "'X-User-Id'" not in _apps132 and '"X-User-Id"' not in _apps132
+)
+check(
+    "132j. profile-v2.apps.js: _loadApps checks _scViewerType === owner before fetch",
+    "_scViewerType !== 'owner'" in _apps132
+)
+check(
+    "132k. profile-v2.apps.js: uses Authorization Bearer JWT for /my/applications",
+    "'Authorization': 'Bearer ' + jwt" in _apps132
+)
+check(
+    "132l. profile-v2.css: #scTabApps hidden by default and revealed only for body.view-owner",
+    "#scTabApps { display:none; }" in _pv2css and "view-owner #scTabApps" in _pv2css
+)
+
 # ── Summary ──────────────────────────────────────────────────────────────
 print()
 passed = sum(1 for _, s, _ in results if s == PASS)
