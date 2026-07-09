@@ -2194,6 +2194,131 @@ check(
     ".pc-cmt-menu-btn  { padding:6px 8px" in co_css_127
 )
 
+# ── 128 — Architecture Foundation (PR #420) ──────────────────────────────
+import os as _os
+
+_foundation_path = _os.path.join(_os.path.dirname(__file__), "ARCHITECTURE_FOUNDATION.md")
+_foundation_exists = _os.path.isfile(_foundation_path)
+_foundation_src = open(_foundation_path).read() if _foundation_exists else ""
+
+_arch_src_128 = open(_os.path.join(_os.path.dirname(__file__), "ARCHITECTURE.md")).read()
+_claude_src_128 = open(_os.path.join(_os.path.dirname(__file__), "CLAUDE.md")).read()
+
+check(
+    "128a. ARCHITECTURE_FOUNDATION.md exists",
+    _foundation_exists
+)
+check(
+    "128b. ARCHITECTURE_FOUNDATION.md contains API-first Rule (F2)",
+    "API-first Rule" in _foundation_src or "API-first" in _foundation_src
+)
+check(
+    "128c. ARCHITECTURE_FOUNDATION.md contains Single Backend / Single Database (F3)",
+    "Single Backend" in _foundation_src and "Single Database" in _foundation_src
+)
+check(
+    "128d. ARCHITECTURE_FOUNDATION.md contains Shared System First (F4)",
+    "Shared System First" in _foundation_src
+)
+check(
+    "128e. ARCHITECTURE_FOUNDATION.md contains One Source of Truth (F5)",
+    "One Source of Truth" in _foundation_src
+)
+check(
+    "128f. ARCHITECTURE_FOUNDATION.md contains Backend Owns Permissions (F6)",
+    "Backend Owns Permissions" in _foundation_src
+)
+check(
+    "128g. ARCHITECTURE_FOUNDATION.md contains Public Routes Contract /u/{tw_id} (F7)",
+    "Public Routes Contract" in _foundation_src and "/u/{tw_id}" in _foundation_src
+)
+check(
+    "128h. ARCHITECTURE_FOUNDATION.md contains No Silent Failures (F9)",
+    "No Silent Failures" in _foundation_src
+)
+check(
+    "128i. ARCHITECTURE_FOUNDATION.md contains Pre-push GitHub State Check (F13)",
+    "Pre-push GitHub State Check" in _foundation_src
+)
+check(
+    "128j. ARCHITECTURE_FOUNDATION.md states higher priority than feature-level docs",
+    "higher priority" in _foundation_src and "foundation file wins" in _foundation_src
+)
+check(
+    "128k. ARCHITECTURE.md references ARCHITECTURE_FOUNDATION.md",
+    "ARCHITECTURE_FOUNDATION.md" in _arch_src_128
+)
+check(
+    "128l. CLAUDE.md references ARCHITECTURE_FOUNDATION.md",
+    "ARCHITECTURE_FOUNDATION.md" in _claude_src_128
+)
+
+# ── 129 — Architecture Foundation F14–F28 (PR #420 commit 2) ─────────────
+check(
+    "129a. ARCHITECTURE_FOUNDATION.md contains Backward Compatibility Rule (F14)",
+    "Backward Compatibility Rule" in _foundation_src
+)
+check(
+    "129b. ARCHITECTURE_FOUNDATION.md contains Standard API Response Rule (F15)",
+    "Standard API Response Rule" in _foundation_src
+)
+check(
+    "129c. ARCHITECTURE_FOUNDATION.md contains Database Migration Rule (F16)",
+    "Database Migration Rule" in _foundation_src
+)
+check(
+    "129d. ARCHITECTURE_FOUNDATION.md contains Security by Default (F17)",
+    "Security by Default" in _foundation_src
+)
+check(
+    "129e. ARCHITECTURE_FOUNDATION.md contains Important Actions Audit-ready Rule (F18)",
+    "Audit-ready Rule" in _foundation_src
+)
+check(
+    "129f. ARCHITECTURE_FOUNDATION.md contains Notification-ready Rule (F19)",
+    "Notification-ready Rule" in _foundation_src
+)
+check(
+    "129g. ARCHITECTURE_FOUNDATION.md contains Role and Permission Matrix Rule (F20)",
+    "Role and Permission Matrix Rule" in _foundation_src
+)
+check(
+    "129h. ARCHITECTURE_FOUNDATION.md contains No Client-only Trust (F21)",
+    "No Client-only Trust" in _foundation_src
+)
+check(
+    "129i. ARCHITECTURE_FOUNDATION.md contains Idempotency Rule (F22)",
+    "Idempotency Rule" in _foundation_src
+)
+check(
+    "129j. ARCHITECTURE_FOUNDATION.md contains Observability Rule (F23)",
+    "Observability Rule" in _foundation_src
+)
+check(
+    "129k. ARCHITECTURE_FOUNDATION.md contains Storage Ownership Rule (F24)",
+    "Storage Ownership Rule" in _foundation_src
+)
+check(
+    "129l. ARCHITECTURE_FOUNDATION.md contains Search-ready Data Rule (F25)",
+    "Search-ready Data Rule" in _foundation_src
+)
+check(
+    "129m. ARCHITECTURE_FOUNDATION.md contains Multi-language Ready Rule (F26)",
+    "Multi-language Ready Rule" in _foundation_src
+)
+check(
+    "129n. ARCHITECTURE_FOUNDATION.md contains Soft Delete Rule (F27)",
+    "Soft Delete Rule" in _foundation_src
+)
+check(
+    "129o. ARCHITECTURE_FOUNDATION.md contains Admin-ready Rule (F28)",
+    "Admin-ready Rule" in _foundation_src
+)
+check(
+    "129p. ARCHITECTURE_FOUNDATION.md table lists all 28 rules (F1–F28)",
+    "F28" in _foundation_src and "F14" in _foundation_src
+)
+
 # ── Summary ──────────────────────────────────────────────────────────────
 print()
 passed = sum(1 for _, s, _ in results if s == PASS)

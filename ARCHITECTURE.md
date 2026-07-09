@@ -1,9 +1,13 @@
 # تواصلنا — Architecture Doctrine
 
+> **⚠️ Foundation First:** قبل تغيير أي معمارية أو تنفيذ أي ميزة، اقرأ [`ARCHITECTURE_FOUNDATION.md`](ARCHITECTURE_FOUNDATION.md) أولاً.
+> هذا الملف هو الدستور المعماري للمشروع وله أولوية على أي توثيق تفصيلي.
+> Before changing architecture or implementing features, read `ARCHITECTURE_FOUNDATION.md` first.
+
 > **Single Source of Truth** للمعمارية.  
 > أي تطوير جديد يلتزم بهذا الملف. أي استثناء يُسجَّل هنا قبل التطبيق.
 
-> **Systems Index:** قبل أي PR، اقرأ [`docs/SYSTEMS_INDEX.md`](docs/SYSTEMS_INDEX.md) — فهرس الأنظمة الموجودة (33 نظام). لا تبني نظاماً موجوداً من الصفر.
+> **Systems Index:** قبل أي PR، اقرأ [`docs/SYSTEMS_INDEX.md`](docs/SYSTEMS_INDEX.md) — فهرس الأنظمة الموجودة (35 نظام). لا تبني نظاماً موجوداً من الصفر.
 
 ---
 
