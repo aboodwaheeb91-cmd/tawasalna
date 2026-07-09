@@ -2569,6 +2569,53 @@ check(
     "tw-skeleton" not in _srv133 and "co-skeleton" not in _srv133
 )
 
+# ── 134: Legacy profile.html — Share/QR URL canonical fix ────────────────
+_prof134 = open('profile.html',  encoding='utf-8').read()
+_srv134  = open('server.py',     encoding='utf-8').read()
+_psh134  = open('profile-showcase.html', encoding='utf-8').read()
+
+# Extract only the share/QR-relevant block (openQROverlay + _qrUrl declaration)
+# to avoid false positives from DNS prefetch or canvas watermark text
+import re as _re134
+_qr_block134 = '\n'.join(
+    l for l in _prof134.splitlines()
+    if any(k in l for k in ('openQROverlay', '_qrUrl', '_qrUser', 'redrawQR', 'initQR'))
+)
+
+check(
+    "134a. profile.html share/QR: no /profile?id= in QR/share logic",
+    '/profile?id=' not in _qr_block134
+)
+check(
+    "134b. profile.html share/QR: no hardcoded tawasolna.com/profile URL",
+    'tawasolna.com/profile' not in _qr_block134
+)
+check(
+    "134c. profile.html share/QR: share URL uses /u/ path",
+    "'/u/'" in _qr_block134 or '"/u/"' in _qr_block134
+)
+check(
+    "134d. profile.html share/QR: share URL uses window.location.origin (no hardcoded host)",
+    'window.location.origin' in _qr_block134 or 'location.origin' in _qr_block134
+)
+check(
+    "134e. profile.html QR overlay: openQROverlay uses _qrUrl with /u/ fallback",
+    '_qrUrl' in _qr_block134 and "'/u/'" in _qr_block134
+)
+check(
+    "134f. profile.html: no X-User-Id header in fetch calls",
+    'X-User-Id' not in _prof134
+)
+check(
+    "134g. server.py not modified — no /u/ QR logic injected into backend",
+    'openQROverlay' not in _srv134 and '_qrUrl' not in _srv134
+)
+check(
+    "134h. profile-showcase.html not modified — Profile V2 files untouched",
+    'tawasolna.com/profile?id=' not in _psh134
+        and 'openQROverlay' not in _psh134
+)
+
 # ── Summary ──────────────────────────────────────────────────────────────
 print()
 passed = sum(1 for _, s, _ in results if s == PASS)

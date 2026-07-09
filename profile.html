@@ -3328,6 +3328,11 @@ var SECTION_CONFIG = {
     _dbg('profile loaded', prof.full_name);
     // Fix [A-1]: store in _profileCache so consumers don't re-fetch
     window._profileCache = data;
+    // Update QR URL with authoritative tw_id from API
+    if(data.tw_id){
+      _qrUrl = window.location.origin + '/u/' + data.tw_id;
+      if(typeof redrawQR === 'function') redrawQR();
+    }
 
     // ── Basic info ──
     var apiName = prof.full_name||data.full_name||'';
@@ -4088,8 +4093,7 @@ function roundRect(ctx, x, y, w, h, r){
 
 
 function openQROverlay(){
-  var uid = _urlId||(_qrUser&&_qrUser.id?_qrUser.id:'0');
-  var url = 'https://tawasolna.com/profile?id=' + uid;
+  var url = _qrUrl || (window.location.origin + '/u/' + ((_qrUser&&_qrUser.tw_id)||''));
   var name = (document.getElementById('cvName')||{}).textContent || 'مستخدم';
 
   var ov = document.createElement('div');
@@ -4293,7 +4297,9 @@ function shareLink(platform, url, name){
 }
 
 
-const _qrUrl = 'https://tawasolna.com/profile?id=' + (_qrUser&&_qrUser.id?_qrUser.id:'0');
+let _qrUrl = (_qrUser&&_qrUser.tw_id)
+  ? (window.location.origin + '/u/' + _qrUser.tw_id)
+  : '';
 
 function redrawQR(){
   if(typeof qrcode === 'undefined') return;
