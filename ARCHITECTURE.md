@@ -33,6 +33,7 @@
 | 40 | Clearable Profile Fields — Always Send Null | **P1** |
 | 41 | Experience end_date Nullable Update | **P1** |
 | 42 | About Tab Summary Cards | **P2** |
+| 66 | API-first Architecture — Multi-client Platform | **P0** |
 
 ---
 
@@ -9998,3 +9999,89 @@ else:
 ❌ Checking body.indexOf('@' + name) === 0 (start only) — must use >= 0 (any position)
 ❌ Sending mentioned_tw_id (singular) in POST payload — must use mentioned_tw_ids (array)
 ```
+
+---
+
+## [P0] 66. API-first Architecture Rule — منصة متعددة العملاء
+
+> **تواصلنا = Web Client + Future Mobile App Client + One Shared Backend/DB/API**
+
+### Context
+
+تواصلنا ليست تطبيق ويب فحسب. هي منصة متعددة العملاء (multi-client platform). الويب (HTML/CSS/JS) هو العميل الأول. تطبيق الجوال (iOS/Android) هو العميل الثاني المرتقب. **كلاهما يشتركان في نفس الـ Backend (FastAPI) ونفس الـ Database (PostgreSQL/Supabase) ونفس الـ REST API.**
+
+لا يوجد backend منفصل للتطبيق. لا يوجد DB منفصل. لا يوجد API منفصل.
+
+---
+
+### قواعد إلزامية
+
+| # | القاعدة | Priority |
+|---|---------|----------|
+| 66-1 | كل feature تحمل بيانات أو صلاحيات → API endpoint | **P0** |
+| 66-2 | كل endpoint جديد → توثيق إلزامي في ARCHITECTURE.md | **P0** |
+| 66-3 | لا business logic في frontend JS | **P0** |
+| 66-4 | backend واحد مشترك — `server.py` فقط | **P0** |
+| 66-5 | Auth = JWT فقط — ممنوع X-User-Id أو Cookie | **P0** |
+| 66-6 | Responses مناسبة للجوال (pagination + JSON فقط) | **P1** |
+| 66-7 | localStorage = Web فقط — لا تفترض وجوده عند بناء API | **P1** |
+| 66-8 | Response contract = API contract — لا تغيير صامت | **P1** |
+
+---
+
+### API Documentation Format (mandatory per new endpoint)
+
+كل endpoint جديد يوثَّق بهذه البنية في القسم المناسب من ARCHITECTURE.md:
+
+```
+#### POST /example/endpoint
+
+Auth: Bearer JWT (verify_token)
+Permission: owner only | public | admin only
+
+Request:
+  { "field": str, "other": int }
+
+Response 200:
+  { "ok": true, "data": { ... } }
+
+Response 4xx/5xx:
+  { "ok": false, "error": "رسالة واضحة" }
+
+Notes:
+  - Any edge case or mobile-specific behavior
+```
+
+---
+
+### ممنوعات ثابتة
+
+```
+❌ Feature مهمة للجوال تُنفَّذ فقط في frontend JS بدون endpoint
+❌ صلاحيات تُطبَّق فقط في JS (hide/show) — يجب server-side أيضاً
+❌ State يُخزَّن فقط في localStorage ولا يُزامَن مع DB
+❌ X-User-Id header في أي fetch call
+❌ HTML يُعاد من JSON endpoint
+❌ بيانات مُضمَّنة hard-coded في page JS لا يستطيع الجوال الوصول إليها
+❌ تغيير صامت في response shape بدون version bump أو migration plan
+❌ إنشاء FastAPI app ثانٍ أو router file منفصل بدون قرار معماري موثَّق
+❌ استخدام Cookie-based auth في أي endpoint جديد
+```
+
+---
+
+### مثال على التطبيق الصحيح
+
+```
+✅ زر "أقدّر" → PUT /company/posts/{id}/appreciation (JWT) + frontend calls this
+✅ حفظ منشور → PUT /company/posts/{id}/save (JWT) + frontend calls this
+✅ تعليق → POST /company/posts/{id}/comments (JWT) + frontend calls this
+✅ بحث @mention → GET /mention/search (JWT) — يعمل من الجوال بنفس الـ token
+
+❌ خطأ: حساب عدد المنشورات فقط في JS دون endpoint
+❌ خطأ: إخفاء زر تعديل في JS فقط بدون فحص server-side ownership
+```
+
+---
+
+*أُضيف في PR #419 — بناءً على قرار معماري دائم 2026-07-09. هذا القسم جزء من Architecture Doctrine ولا يمكن تجاهله.*

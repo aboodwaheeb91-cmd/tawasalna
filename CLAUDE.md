@@ -1274,3 +1274,42 @@ These rules are permanent and apply to all future AI sessions.
    ❌ A new image type PR that does not use TW.createCropper
    ❌ Modifying tw-image-cropper.js without stating a documented bug reason first
    ```
+
+---
+
+## API-first Architecture Rule (mandatory for all AI sessions)
+
+These rules are permanent and apply to all future AI sessions.
+Full technical specification: `ARCHITECTURE.md §66`.
+
+**تواصلنا is a multi-client platform.** The Web frontend is one client. A future Mobile App (iOS / Android) is a second client. Both clients share the **same Backend (FastAPI) + the same Database (PostgreSQL/Supabase) + the same REST API**. There is no separate backend, no separate DB, and no separate API for the mobile app.
+
+### Core rules
+
+1. **All features that carry business logic, data, or permissions MUST be implemented as API endpoints.** If a feature is relevant to mobile users, it cannot live only in frontend JS.
+
+2. **Every new API endpoint MUST be documented** — method, path, request body, response shape, auth requirements, and permission model. Documentation lives in `ARCHITECTURE.md` in the relevant system section. PR body alone is not sufficient.
+
+3. **No business logic in frontend JS.** Authorization, validation, scoring, and state transitions belong in `server.py`. Frontend JS handles rendering and UX only.
+
+4. **One backend, shared by all clients.** Do NOT create a separate FastAPI app, router file, or Supabase project for the mobile app. Extend the existing `server.py`.
+
+5. **Endpoints must be stateless and JWT-authenticated.** `Authorization: Bearer {tw_jwt}` is the only auth mechanism. `X-User-Id` header is permanently forbidden. Cookie-based auth is not used.
+
+6. **Mobile-relevant features need mobile-friendly responses.** Pagination (cursor or page-based), consistent error shapes `{"ok": false, "error": "..."}`, and no HTML in API responses.
+
+7. **localStorage is Web-only.** Any state a mobile client needs must come from an API call — never assume the caller has access to `localStorage.tw_user` or `localStorage.tw_jwt`.
+
+8. **No Web-only shortcuts that break mobile.** Examples of forbidden patterns:
+   ```
+   ❌ Feature implemented only as frontend JS with no backing endpoint
+   ❌ Permissions enforced only in JS (UI hide/show) — must also be enforced server-side
+   ❌ State stored only in localStorage and never synced to DB
+   ❌ X-User-Id header used in any fetch call
+   ❌ HTML returned from a JSON endpoint
+   ❌ Hard-coded user data in page JS that a mobile client can't reach
+   ```
+
+9. **Response contract is the API contract.** Any breaking change to an endpoint's response shape requires a version bump or a documented migration plan — not a silent edit.
+
+10. **`server.py` is the single backend file.** No separate routers, modules, or micro-services without an explicit architectural decision documented in `ARCHITECTURE.md`.

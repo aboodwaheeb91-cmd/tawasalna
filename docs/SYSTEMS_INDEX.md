@@ -439,6 +439,14 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 
 ---
 
+### 35. API-first Architecture Rule ✅
+**Purpose:** Governing rule that ensures all business-critical features are backed by API endpoints shared by both the Web client and the future Mobile App client. One backend (`server.py`), one DB, one REST API — no Web-only shortcuts.
+**Source of Truth:** `ARCHITECTURE.md §66` · `CLAUDE.md → API-first Architecture Rule`
+**Details:** `ARCHITECTURE.md §66` (full rules, forbidden patterns, documentation format, examples)
+**Do not recreate:** Do not create a separate FastAPI app or router for mobile. Do not implement features as frontend-only JS with no backing endpoint. Do not use `X-User-Id` header. Do not rely on `localStorage` availability in API design.
+
+---
+
 ## H — Pages Index (Quick Map)
 
 | Route | File | User Type |
@@ -472,4 +480,4 @@ These systems exist in code but lack formal documentation in ARCHITECTURE.md or 
 
 ---
 
-*Last updated: 2026-07-08 — reflects systems as of PR #386–#409. §22c updated (PR #400): 6-arg _renderCommentBody, multi-mention via junction table, atomic transaction, _cmtMentionedCandidates array, full-text @mention scan, backward compat. §29a added (PR #402): shared upload client TW.uploadImage() in static/shared/tw-upload.js. §29b added (PR #403, docs-only) then fully implemented (PR #404–#408): Image Cropper System — tw-image-cropper.js built and wired to all 4 image types (employee-avatar, employee-cover, company-logo, company-cover). §29b updated (PR #409): status changed from planned to Implemented & Stable.*
+*Last updated: 2026-07-09 — reflects systems as of PR #386–#419. §22c updated (PR #400): 6-arg _renderCommentBody, multi-mention via junction table, atomic transaction, _cmtMentionedCandidates array, full-text @mention scan, backward compat. §29a added (PR #402): shared upload client TW.uploadImage() in static/shared/tw-upload.js. §29b added (PR #403, docs-only) then fully implemented (PR #404–#408): Image Cropper System — tw-image-cropper.js built and wired to all 4 image types (employee-avatar, employee-cover, company-logo, company-cover). §29b updated (PR #409): status changed from planned to Implemented & Stable. §35 added (PR #419): API-first Architecture Rule — multi-client platform rule; one backend/DB/API shared by Web and future Mobile App.*
