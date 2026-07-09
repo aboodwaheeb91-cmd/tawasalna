@@ -2832,6 +2832,85 @@ check(
     )
 )
 
+# ═══════════════════════════════════════════════════════════════════════
+# §139 — Notifications Full Delivery Plan (Phase 0 — docs/NOTIFICATIONS_PLAN.md)
+# 17 static checks — docs-only PR — no code files touched
+# ═══════════════════════════════════════════════════════════════════════
+print("\n── §139: Notifications Plan (Phase 0) ──")
+import os as _os139
+_nplan = open('docs/NOTIFICATIONS_PLAN.md', encoding='utf-8').read() if _os139.path.exists('docs/NOTIFICATIONS_PLAN.md') else ''
+_sidx139 = open('docs/SYSTEMS_INDEX.md', encoding='utf-8').read() if _os139.path.exists('docs/SYSTEMS_INDEX.md') else ''
+_srv139  = open('server.py', encoding='utf-8').read() if _os139.path.exists('server.py') else ''
+
+check(
+    "139a. docs/NOTIFICATIONS_PLAN.md exists",
+    bool(_nplan)
+)
+check(
+    "139b. Plan contains Phase 0",
+    'Phase 0' in _nplan
+)
+check(
+    "139c. Plan contains Phase 1",
+    'Phase 1' in _nplan
+)
+check(
+    "139d. Plan contains Phase 11 (real-time — deferred)",
+    'Phase 11' in _nplan
+)
+check(
+    "139e. Plan contains event_key (idempotency)",
+    'event_key' in _nplan
+)
+check(
+    "139f. Plan contains actor_id",
+    'actor_id' in _nplan
+)
+check(
+    "139g. Plan contains JWT security rule",
+    'JWT' in _nplan
+)
+check(
+    "139h. Plan documents security bugs S1-S6",
+    all(f'S{i}' in _nplan for i in range(1, 7))
+)
+check(
+    "139i. Plan contains comment notification hook (Phase 3)",
+    'Phase 3' in _nplan and 'comment' in _nplan.lower()
+)
+check(
+    "139j. Plan contains reply notification hook (Phase 4)",
+    'Phase 4' in _nplan and 'reply' in _nplan.lower()
+)
+check(
+    "139k. Plan contains mention notification hook (Phase 5)",
+    'Phase 5' in _nplan and 'mention' in _nplan.lower()
+)
+check(
+    "139l. Plan contains job_applied hook (Phase 6)",
+    'Phase 6' in _nplan and 'job_applied' in _nplan
+)
+check(
+    "139m. Plan contains follow hook (Phase 7)",
+    'Phase 7' in _nplan and 'follow' in _nplan.lower()
+)
+check(
+    "139n. Plan contains verification hook (Phase 8)",
+    'Phase 8' in _nplan and 'verify' in _nplan.lower()
+)
+check(
+    "139o. SYSTEMS_INDEX.md updated — §36 added for Notifications Plan",
+    '### 36.' in _sidx139 and 'NOTIFICATIONS_PLAN' in _sidx139
+)
+check(
+    "139p. SYSTEMS_INDEX.md §19 updated to reference NOTIFICATIONS_PLAN.md",
+    '### 19.' in _sidx139 and 'NOTIFICATIONS_PLAN' in _sidx139
+)
+check(
+    "139q. server.py not modified — Phase 0 is docs-only (no notification schema changes)",
+    'ADD COLUMN IF NOT EXISTS actor_id' not in _srv139 and 'event_key' not in _srv139
+)
+
 # ── Summary ──────────────────────────────────────────────────────────────
 print()
 passed = sum(1 for _, s, _ in results if s == PASS)
