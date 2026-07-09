@@ -63,6 +63,7 @@
       if (!silent) {
         if (err.name === 'AbortError') return;
         console.error('[Company] loadData error:', err);
+        document.body.classList.add('co-error');
       }
     })
     .finally(function () {

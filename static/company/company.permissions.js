@@ -5,6 +5,7 @@
 
   function _applyLoadingState(loading) {
     document.body.classList.toggle('co-loading', loading);
+    if (loading) document.body.classList.remove('co-error');
   }
 
   window._applyLoadingState = _applyLoadingState;

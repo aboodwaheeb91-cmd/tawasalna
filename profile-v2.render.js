@@ -921,12 +921,24 @@ window.renderProfile = function renderProfile(res){
     if(ld) ld.textContent='لا يوجد معرّف ملف';
     return;
   }
-  getProfile(_scProfileId)
-    .then(window.renderProfile)
-    .catch(function(){
-      var ld=document.getElementById('scLoading');
-      if(ld) ld.textContent='تعذّر تحميل الملف';
-    });
+
+  function _loadProfile(){
+    var ld=document.getElementById('scLoading');
+    var errEl=document.getElementById('scErrorState');
+    if(ld){ ld.style.display=''; }
+    if(errEl){ errEl.style.display='none'; }
+    getProfile(_scProfileId)
+      .then(window.renderProfile)
+      .catch(function(){
+        if(ld){ ld.style.display='none'; }
+        if(errEl){ errEl.style.display=''; }
+      });
+  }
+
+  var retryBtn=document.getElementById('scRetryBtn');
+  if(retryBtn) retryBtn.onclick=_loadProfile;
+
+  _loadProfile();
 })();
 
 // ── Profile Metrics soft refresh ──
