@@ -609,6 +609,10 @@
       showToast('يرجى تسجيل الدخول كموظف للتقديم على الوظيفة', 'error', 4000);
       return;
     }
+    if (_user.user_type !== 'emp') {
+      showToast('التقديم متاح للموظفين فقط', 'error', 4000);
+      return;
+    }
     if (_applied) return;
     var ov = _el('jdApplyOverlay');
     if (ov) ov.classList.add('show');
