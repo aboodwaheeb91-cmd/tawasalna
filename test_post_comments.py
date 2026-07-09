@@ -2675,6 +2675,56 @@ check(
     not os.path.exists('static/shared/tw-error-state.js')
 )
 
+# ── 136: iOS PWA meta tags for public profile pages ───────────────────────
+_psh136  = open('profile-showcase.html',  encoding='utf-8').read()
+_cph136  = open('company-profile.html',   encoding='utf-8').read()
+_edu136  = open('edu-profile.html',       encoding='utf-8').read()
+_srv136  = open('server.py',              encoding='utf-8').read()
+_prof136 = open('profile.html',           encoding='utf-8').read()
+
+check(
+    "136a. profile-showcase.html has apple-mobile-web-app-capable",
+    'apple-mobile-web-app-capable' in _psh136
+)
+check(
+    "136b. profile-showcase.html has apple-mobile-web-app-status-bar-style",
+    'apple-mobile-web-app-status-bar-style' in _psh136
+)
+check(
+    "136c. profile-showcase.html has apple-touch-icon (icon-192.png consistent with manifest)",
+    'apple-touch-icon' in _psh136 and 'icon-192.png' in _psh136
+)
+check(
+    "136d. company-profile.html has apple-mobile-web-app-capable",
+    'apple-mobile-web-app-capable' in _cph136
+)
+check(
+    "136e. company-profile.html has apple-touch-icon",
+    'apple-touch-icon' in _cph136
+)
+check(
+    "136f. edu-profile.html has apple-mobile-web-app-capable",
+    'apple-mobile-web-app-capable' in _edu136
+)
+check(
+    "136g. edu-profile.html has apple-touch-icon",
+    'apple-touch-icon' in _edu136
+)
+check(
+    "136h. server.py not modified — backend untouched",
+    'apple-mobile-web-app-capable' not in _srv136
+        and 'apple-touch-icon' not in _srv136
+)
+check(
+    "136i. legacy profile.html not modified (still has its own tags, unchanged)",
+    'apple-mobile-web-app-capable' in _prof136
+)
+check(
+    "136j. no JS or CSS files modified for iOS meta tags",
+    not os.path.exists('static/shared/tw-pwa.js')
+        and not os.path.exists('static/shared/tw-pwa.css')
+)
+
 # ── Summary ──────────────────────────────────────────────────────────────
 print()
 passed = sum(1 for _, s, _ in results if s == PASS)
