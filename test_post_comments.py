@@ -2772,6 +2772,66 @@ check(
     and 'FUTURE_ROADMAP' not in open('company-profile.html', encoding='utf-8').read()
 )
 
+# ── 138: Future Roadmap — Profile System Ideas update ─────────────────────
+_rdm138 = open('docs/FUTURE_ROADMAP.md', encoding='utf-8').read()
+_srv138 = open('server.py', encoding='utf-8').read()
+
+check(
+    "138a. FUTURE_ROADMAP.md contains Employee Profile Posts",
+    'Employee Profile Posts' in _rdm138
+)
+check(
+    "138b. FUTURE_ROADMAP.md contains Poll Posts / Ask Your Followers",
+    'Poll Posts' in _rdm138 or 'اسأل متابعينك' in _rdm138
+)
+check(
+    "138c. FUTURE_ROADMAP.md contains Unified Profile UI Tokens",
+    'Unified Profile UI Tokens' in _rdm138
+)
+check(
+    "138d. FUTURE_ROADMAP.md contains Unified Profile Media Sizing",
+    'Unified Profile Media Sizing' in _rdm138
+)
+check(
+    "138e. FUTURE_ROADMAP.md contains Unified Profile Settings Menu",
+    'Unified Profile Settings Menu' in _rdm138
+)
+check(
+    "138f. FUTURE_ROADMAP.md contains Generic About Section Label or حول",
+    'Generic About Section Label' in _rdm138 or '"حول"' in _rdm138
+)
+check(
+    "138g. FUTURE_ROADMAP.md contains Verification Badge / Flow",
+    'Verification Badge' in _rdm138
+)
+check(
+    "138h. FUTURE_ROADMAP.md contains Interactive Profile Stats",
+    'Interactive Profile Stats' in _rdm138 or 'Clickable Counters' in _rdm138
+)
+check(
+    "138i. FUTURE_ROADMAP.md contains First-time Profile Setup Wizard",
+    'Setup Wizard' in _rdm138
+)
+check(
+    "138j. FUTURE_ROADMAP.md contains First-time Guided Tour / Page Coach",
+    'Guided Tour' in _rdm138 or 'Page Coach' in _rdm138
+)
+check(
+    "138k. FUTURE_ROADMAP.md Needs Decision includes Employee Polls and followers-only",
+    'Employee Polls' in _rdm138 and 'followers' in _rdm138.lower()
+)
+check(
+    "138l. server.py not modified — backend untouched",
+    'Employee Profile Posts' not in _srv138 and 'Poll Posts' not in _srv138
+)
+check(
+    "138m. no HTML/CSS/JS files modified — docs-only",
+    not any(
+        'Employee Profile Posts' in open(f, encoding='utf-8').read()
+        for f in ['profile-showcase.html', 'company-profile.html', 'edu-profile.html']
+    )
+)
+
 # ── Summary ──────────────────────────────────────────────────────────────
 print()
 passed = sum(1 for _, s, _ in results if s == PASS)

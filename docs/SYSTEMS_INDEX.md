@@ -420,6 +420,7 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 **Source of Truth:** `docs/FUTURE_ROADMAP.md`
 **Details:** `docs/FUTURE_ROADMAP.md → Usage Rules`
 **Do not recreate:** لا تُنشئ ملف roadmap ثانٍ. كل الأفكار المستقبلية تذهب إلى `docs/FUTURE_ROADMAP.md`. الأفكار المنفَّذة تُنقل إلى قسم Done مع رقم PR. أي AI أو مطوّر ممنوع ينفذ أي بند من هذا الملف إلا بطلب صريح من المستخدم.
+**Last update:** تحديث 2026-07-09 — أُضيفت أفكار Profile System / Future UX: Employee Posts, Polls (company/edu), Unified UI Tokens, Media Sizing, Settings Menu, Verification Badge, Interactive Stats, Setup Wizard, Guided Tour.
 
 ---
 
