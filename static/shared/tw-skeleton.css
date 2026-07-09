@@ -6,18 +6,18 @@
  */
 
 @keyframes tw-shimmer {
-  0%   { background-position: -1000px 0; }
-  100% { background-position:  1000px 0; }
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
 }
 
 .tw-skeleton {
   background: linear-gradient(
     90deg,
     rgba(255,255,255,.04) 25%,
-    rgba(255,255,255,.09) 50%,
+    rgba(255,255,255,.10) 50%,
     rgba(255,255,255,.04) 75%
   );
-  background-size: 2000px 100%;
+  background-size: 200% 100%;
   animation: tw-shimmer 1.5s infinite linear;
   border-radius: 8px;
 }
