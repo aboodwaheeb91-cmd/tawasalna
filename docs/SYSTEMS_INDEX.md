@@ -407,6 +407,14 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 
 ## G — Platform Infrastructure
 
+### 30a. Architecture Foundation ✅
+**Purpose:** الدستور المعماري للمشروع — 13 قاعدة عليا (F1–F13) يجب قراءتها قبل أي تعديل. أعلى أولوية من جميع التوثيقات التفصيلية.
+**Source of Truth:** `ARCHITECTURE_FOUNDATION.md`
+**Details:** `ARCHITECTURE_FOUNDATION.md` · مرتبط من `ARCHITECTURE.md` (أول الصفحة) و `CLAUDE.md` (Architecture Foundation section)
+**Do not recreate:** لا تُنشئ ملف "rules" أو "principles" جديد. كل القواعد العليا تذهب إلى `ARCHITECTURE_FOUNDATION.md`. القواعد الخاصة بـ AI sessions تذهب إلى `CLAUDE.md`.
+
+---
+
 ### 31. Theme / Design Tokens
 **Purpose:** CSS custom properties for unified colors, fonts, spacing across all pages.
 **Source of Truth:** CSS `--ac` (#00c896), `--ac2` (#2563ff), `--bg` (#070b18), font Cairo · defined per-page (no global sheet yet)
@@ -472,4 +480,4 @@ These systems exist in code but lack formal documentation in ARCHITECTURE.md or 
 
 ---
 
-*Last updated: 2026-07-08 — reflects systems as of PR #386–#409. §22c updated (PR #400): 6-arg _renderCommentBody, multi-mention via junction table, atomic transaction, _cmtMentionedCandidates array, full-text @mention scan, backward compat. §29a added (PR #402): shared upload client TW.uploadImage() in static/shared/tw-upload.js. §29b added (PR #403, docs-only) then fully implemented (PR #404–#408): Image Cropper System — tw-image-cropper.js built and wired to all 4 image types (employee-avatar, employee-cover, company-logo, company-cover). §29b updated (PR #409): status changed from planned to Implemented & Stable.*
+*Last updated: 2026-07-09 — reflects systems as of PR #386–#420. §22c updated (PR #400): 6-arg _renderCommentBody, multi-mention via junction table, atomic transaction, _cmtMentionedCandidates array, full-text @mention scan, backward compat. §29a added (PR #402): shared upload client TW.uploadImage() in static/shared/tw-upload.js. §29b added (PR #403, docs-only) then fully implemented (PR #404–#408): Image Cropper System — tw-image-cropper.js built and wired to all 4 image types (employee-avatar, employee-cover, company-logo, company-cover). §29b updated (PR #409): status changed from planned to Implemented & Stable. §30a added (PR #420): Architecture Foundation — ARCHITECTURE_FOUNDATION.md created; 13 foundation rules (F1–F13); linked from ARCHITECTURE.md and CLAUDE.md.*

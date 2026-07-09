@@ -362,6 +362,17 @@ web: uvicorn server:app --host 0.0.0.0 --port $PORT
 
 ---
 
+## Architecture Foundation (mandatory for all AI sessions)
+
+**قبل أي تعديل أو ميزة جديدة، اقرأ [`ARCHITECTURE_FOUNDATION.md`](ARCHITECTURE_FOUNDATION.md).**
+
+هذا الملف هو الدستور المعماري للمشروع. له أولوية على جميع التوثيقات التفصيلية.
+إذا تعارض أي توثيق مع `ARCHITECTURE_FOUNDATION.md` — يُعتمد `ARCHITECTURE_FOUNDATION.md`.
+
+القواعد العليا الـ 13 (F1–F13) غير قابلة للكسر إلا بموافقة معمارية صريحة موثَّقة في `ARCHITECTURE.md §C`.
+
+---
+
 ## Git Workflow Rules (mandatory for all AI sessions)
 
 1. **بعد كل `git push` — افتح PR فوراً** بدون انتظار طلب من المستخدم.
