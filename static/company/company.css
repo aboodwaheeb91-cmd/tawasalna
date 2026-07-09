@@ -1485,7 +1485,7 @@ body:not(.co-loading) .co-skeleton      { display: none; }
 .co-sk-cover {
   aspect-ratio: 4/1;
   width: 100%;
-  border-radius: 0;
+  border-radius: 13px 13px 0 0;
 }
 .co-sk-prof-row {
   display: flex;
@@ -1518,6 +1518,22 @@ body:not(.co-loading) .co-skeleton      { display: none; }
   border-top: 1px solid rgba(255,255,255,.04);
 }
 .co-sk-stat  { flex: 1; height: 48px; border-radius: 8px; }
+.co-sk-section {
+  margin: 0 16px 14px;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,.04);
+}
+.co-sk-sec-header { height: 46px; border-radius: 10px 10px 0 0; }
+.co-sk-sec-lines {
+  padding: 12px 14px;
+  background: rgba(255,255,255,.02);
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+.co-sk-sec-line { height: 12px; width: 90%; border-radius: 5px; }
+.co-sk-sec-line--short { width: 60%; }
 
 /* ══ STATIC INITIAL STATES ═══════════════════════════════════════ */
 .file-input-hidden { display:none; }

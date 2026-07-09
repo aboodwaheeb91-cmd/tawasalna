@@ -2501,38 +2501,40 @@ _sk133    = open('static/shared/tw-skeleton.css', encoding='utf-8').read()
 _cop133   = open('company-profile.html',          encoding='utf-8').read()
 _coc133   = open('static/company/company.css',    encoding='utf-8').read()
 _psh133   = open('profile-showcase.html',         encoding='utf-8').read()
+_pv2133   = open('profile-v2.css',                encoding='utf-8').read()
+_srv133   = open('server.py',                     encoding='utf-8').read()
 
 check(
     "133a. tw-skeleton.css: defines @keyframes tw-shimmer",
     "@keyframes tw-shimmer" in _sk133
 )
 check(
-    "133b. tw-skeleton.css: defines .tw-skeleton with shimmer gradient",
-    ".tw-skeleton" in _sk133 and "tw-shimmer" in _sk133
+    "133b. tw-skeleton.css: uses responsive background-size 200% (not fixed 2000px)",
+    "background-size: 200% 100%" in _sk133 and "2000px" not in _sk133
 )
 check(
-    "133c. tw-skeleton.css: has prefers-reduced-motion rule (animation: none)",
+    "133c. tw-skeleton.css: shimmer moves RTL — from 200% to -200%",
+    "background-position: 200% 0" in _sk133 and "background-position: -200% 0" in _sk133
+)
+check(
+    "133d. tw-skeleton.css: has prefers-reduced-motion rule (animation: none)",
     "prefers-reduced-motion" in _sk133 and "animation: none" in _sk133
 )
 check(
-    "133d. company-profile.html: <body> starts with co-loading class (anti-flash guard)",
+    "133e. company-profile.html: <body> starts with co-loading class (anti-flash guard)",
     '<body class="co-loading">' in _cop133
-)
-check(
-    "133e. company-profile.html: loads tw-skeleton.css in <head>",
-    "tw-skeleton.css" in _cop133
 )
 check(
     "133f. company-profile.html: has .co-skeleton block (skeleton markup present)",
     'class="co-skeleton"' in _cop133
 )
 check(
-    "133g. company-profile.html: coName element has no hardcoded fake text",
-    'id="coName">اسم الشركة' not in _cop133
+    "133g. company-profile.html: has co-sk-section block (section cards added)",
+    'co-sk-section' in _cop133
 )
 check(
-    "133h. company-profile.html: coDesc element has no hardcoded fake text",
-    'id="coDesc">لا يوجد' not in _cop133
+    "133h. company-profile.html: coName element has no hardcoded fake text",
+    'id="coName">اسم الشركة' not in _cop133
 )
 check(
     "133i. company.css: hides .sc-main-card during co-loading (skeleton shown, real hidden)",
@@ -2541,6 +2543,30 @@ check(
 check(
     "133j. company.css: hides .co-skeleton when not co-loading (skeleton gone after load)",
     "body:not(.co-loading) .co-skeleton" in _coc133
+)
+check(
+    "133k. company.css: has co-sk-section styling",
+    ".co-sk-section" in _coc133 and ".co-sk-sec-header" in _coc133
+)
+check(
+    "133l. profile-showcase.html: has sc-sk-section block (section cards added)",
+    'sc-sk-section' in _psh133
+)
+check(
+    "133m. profile-v2.css: has sc-sk-section styling",
+    ".sc-sk-section" in _pv2133 and ".sc-sk-sec-header" in _pv2133
+)
+check(
+    "133n. profile-v2.css: .sc-loading styled as card (border-radius + background)",
+    "border-radius: 13px" in _pv2133 and ".sc-loading" in _pv2133
+)
+check(
+    "133o. no fixed 2000px background-size anywhere in skeleton system",
+    "2000px" not in _sk133
+)
+check(
+    "133p. server.py not modified — backend untouched",
+    "tw-skeleton" not in _srv133 and "co-skeleton" not in _srv133
 )
 
 # ── Summary ──────────────────────────────────────────────────────────────
