@@ -1469,6 +1469,56 @@ body.view-guest  .guest-cta              { display: flex !important; }
 body.co-loading  .owner-only,
 body.co-loading  .visitor-only           { display: none !important; }
 
+/* ══ SKELETON VISIBILITY ═════════════════════════════════════════ */
+/* Hide real card while skeleton shown; hide skeleton after load   */
+body.co-loading .sc-main-card           { display: none; }
+body:not(.co-loading) .co-skeleton      { display: none; }
+
+/* ══ SKELETON SIZING ═════════════════════════════════════════════ */
+.co-skeleton {
+  background: var(--card);
+  border-radius: 13px;
+  border: 1px solid var(--border);
+  box-shadow: 0 20px 60px rgba(0,0,0,.35);
+  overflow: hidden;
+}
+.co-sk-cover {
+  aspect-ratio: 4/1;
+  width: 100%;
+  border-radius: 0;
+}
+.co-sk-prof-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 14px;
+  padding: 0 20px;
+  margin-top: -24px;
+}
+.co-sk-logo {
+  width: 72px;
+  height: 72px;
+  border-radius: 14px;
+  flex-shrink: 0;
+}
+.co-sk-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding-bottom: 8px;
+}
+.co-sk-name  { height: 20px; width: 55%; border-radius: 6px; }
+.co-sk-type  { height: 13px; width: 30%; border-radius: 6px; }
+.co-sk-desc  { height: 11px; width: 90%; border-radius: 6px; }
+.co-sk-desc--short { width: 65%; }
+.co-sk-stats {
+  display: flex;
+  gap: 8px;
+  padding: 16px 20px;
+  border-top: 1px solid rgba(255,255,255,.04);
+}
+.co-sk-stat  { flex: 1; height: 48px; border-radius: 8px; }
+
 /* ══ STATIC INITIAL STATES ═══════════════════════════════════════ */
 .file-input-hidden { display:none; }
 #coWebsite         { display:none; }

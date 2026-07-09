@@ -8,6 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/app-header.css">
+  <link rel="stylesheet" href="/static/shared/tw-skeleton.css">
   <link rel="stylesheet" href="/static/shared/tw-select.css">
   <link rel="stylesheet" href="/static/tw_shared.css">
   <link rel="stylesheet" href="/static/profile-v2.css?v=compl-v6">
@@ -72,7 +73,22 @@
   </div>
 
   <div class="sc-wrap">
-    <div id="scLoading" class="sc-loading">جاري التحميل…</div>
+    <div id="scLoading" class="sc-loading" role="status" aria-label="جارٍ التحميل">
+      <div class="sc-sk-cover tw-skeleton"></div>
+      <div class="sc-sk-prof-row">
+        <div class="sc-sk-avatar tw-skeleton"></div>
+        <div class="sc-sk-info">
+          <div class="sc-sk-name tw-skeleton"></div>
+          <div class="sc-sk-hl tw-skeleton"></div>
+          <div class="sc-sk-hl sc-sk-hl--short tw-skeleton"></div>
+        </div>
+      </div>
+      <div class="sc-sk-stats">
+        <div class="sc-sk-stat tw-skeleton"></div>
+        <div class="sc-sk-stat tw-skeleton"></div>
+        <div class="sc-sk-stat tw-skeleton"></div>
+      </div>
+    </div>
 
     <div id="scContent" style="display:none">
       <div class="sc-main-card">

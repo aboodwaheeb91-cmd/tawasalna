@@ -1,0 +1,27 @@
+/*
+ * tw-skeleton.css — Shared skeleton loading shimmer
+ * Source of truth for @keyframes tw-shimmer and .tw-skeleton.
+ * Load before page CSS so it is available before first paint.
+ * Used by: profile-showcase.html, company-profile.html
+ */
+
+@keyframes tw-shimmer {
+  0%   { background-position: -1000px 0; }
+  100% { background-position:  1000px 0; }
+}
+
+.tw-skeleton {
+  background: linear-gradient(
+    90deg,
+    rgba(255,255,255,.04) 25%,
+    rgba(255,255,255,.09) 50%,
+    rgba(255,255,255,.04) 75%
+  );
+  background-size: 2000px 100%;
+  animation: tw-shimmer 1.5s infinite linear;
+  border-radius: 8px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tw-skeleton { animation: none; }
+}

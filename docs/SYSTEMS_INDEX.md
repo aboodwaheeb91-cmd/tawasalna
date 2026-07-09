@@ -439,6 +439,14 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 
 ---
 
+### 35. Skeleton Loading CSS (`tw-skeleton.css`)
+**Purpose:** CSS-only shimmer skeleton loading state for profile pages (`/u/{tw_id}`). Prevents fake placeholder text from flashing on screen before API data loads. Two pages: company profile (`company-profile.html` — via `body.co-loading`) and employee profile showcase (`profile-showcase.html` — via `#scLoading` visibility).
+**Source of Truth:** `static/shared/tw-skeleton.css` — defines `@keyframes tw-shimmer` + `.tw-skeleton` + `prefers-reduced-motion`. Skeleton block sizing: `.co-sk-*` in `static/company/company.css` · `.sc-sk-*` in `profile-v2.css`. Visibility rules: `body.co-loading .sc-main-card { display:none }` + `body:not(.co-loading) .co-skeleton { display:none }` in `company.css`.
+**Details:** `ARCHITECTURE.md → Skeleton Loading` (if added) · implemented in PR #424
+**Do not recreate:** Do not define `@keyframes tw-shimmer` or `.tw-skeleton` in a new page CSS — use `static/shared/tw-skeleton.css`. Do not put placeholder text ("اسم الشركة", "لا يوجد وصف بعد.") back in HTML — all profile text comes from the API. Do not add new `co-loading`-style mechanisms outside this system. Anti-flash rule: `<body class="co-loading">` in `company-profile.html` must stay or the skeleton will flash before JS runs.
+
+---
+
 ### 34. Job Accepted Professions
 **Purpose:** Many-to-many profession targeting for job postings. A job can accept up to 5 additional professions beyond the primary `jobs.profession_id`. Applicants from accepted professions get +80 feed scoring boost.
 **Source of Truth:** `job_profession_targets` DB table · `auth.py → _validate_accepted_profession_ids()` (server-enforced rules) · `auth.py → _fetch_accepted_professions_batch()` · `auth.py → add_job()` / `get_jobs()` / `get_job()` · `server.py → _save_accepted_professions()` · `server.py → _taxonomy_score(accepted_pids=)`
@@ -480,4 +488,4 @@ These systems exist in code but lack formal documentation in ARCHITECTURE.md or 
 
 ---
 
-*Last updated: 2026-07-09 — reflects systems as of PR #386–#420. §22c updated (PR #400): 6-arg _renderCommentBody, multi-mention via junction table, atomic transaction, _cmtMentionedCandidates array, full-text @mention scan, backward compat. §29a added (PR #402): shared upload client TW.uploadImage() in static/shared/tw-upload.js. §29b added (PR #403, docs-only) then fully implemented (PR #404–#408): Image Cropper System — tw-image-cropper.js built and wired to all 4 image types (employee-avatar, employee-cover, company-logo, company-cover). §29b updated (PR #409): status changed from planned to Implemented & Stable. §30a added (PR #420): Architecture Foundation — ARCHITECTURE_FOUNDATION.md created; 13 foundation rules (F1–F13); linked from ARCHITECTURE.md and CLAUDE.md.*
+*Last updated: 2026-07-09 — reflects systems as of PR #386–#424. §22c updated (PR #400): 6-arg _renderCommentBody, multi-mention via junction table, atomic transaction, _cmtMentionedCandidates array, full-text @mention scan, backward compat. §29a added (PR #402): shared upload client TW.uploadImage() in static/shared/tw-upload.js. §29b added (PR #403, docs-only) then fully implemented (PR #404–#408): Image Cropper System — tw-image-cropper.js built and wired to all 4 image types (employee-avatar, employee-cover, company-logo, company-cover). §29b updated (PR #409): status changed from planned to Implemented & Stable. §30a added (PR #420): Architecture Foundation — ARCHITECTURE_FOUNDATION.md created; 13 foundation rules (F1–F13); linked from ARCHITECTURE.md and CLAUDE.md. §35 added (PR #424): Skeleton Loading CSS — static/shared/tw-skeleton.css + co-loading mechanism for company-profile + sc-loading skeleton blocks for profile-showcase. No placeholder text in HTML.*
