@@ -3933,6 +3933,103 @@ check(
     "'Bearer '" in _ah_js155
 )
 
+# ═══════════════════════════════════════════════════════════════════════
+# §156 — Notifications V2 Smart Aggregation Plan — Static Checks
+# 18 static checks: plan presence, aggregation types, click targets,
+# policy recommendation, helper proposal, V2 phases, no-code constraint,
+# security rules, anti-spam, docs-only enforcement
+# ═══════════════════════════════════════════════════════════════════════
+print("\n── §156: Notifications V2 Smart Aggregation Plan ──")
+import os as _os156
+_plan156 = open('docs/NOTIFICATIONS_PLAN.md', encoding='utf-8').read() if _os156.path.exists('docs/NOTIFICATIONS_PLAN.md') else ''
+_si156   = open('docs/SYSTEMS_INDEX.md',     encoding='utf-8').read() if _os156.path.exists('docs/SYSTEMS_INDEX.md')     else ''
+_auth156 = open('auth.py',    encoding='utf-8').read() if _os156.path.exists('auth.py')    else ''
+_srv156  = open('server.py',  encoding='utf-8').read() if _os156.path.exists('server.py')  else ''
+_notif156 = open('notifications.html', encoding='utf-8').read() if _os156.path.exists('notifications.html') else ''
+_ahj156   = open('static/app-header.js',  encoding='utf-8').read() if _os156.path.exists('static/app-header.js')  else ''
+_ahc156   = open('static/app-header.css', encoding='utf-8').read() if _os156.path.exists('static/app-header.css') else ''
+
+check(
+    "156a. docs/NOTIFICATIONS_PLAN.md contains Notifications V2 Smart Aggregation Plan section",
+    'Notifications V2' in _plan156 and 'Smart Aggregation' in _plan156
+)
+check(
+    "156b. plan documents follow aggregation type",
+    'Follow Aggregation' in _plan156 or 'follow aggregation' in _plan156.lower()
+)
+check(
+    "156c. plan documents job application aggregation per job (not per company)",
+    'Job Application Aggregation' in _plan156 and 'job_id' in _plan156
+)
+check(
+    "156d. plan documents comment/reply aggregation per post",
+    ('Comment' in _plan156 and 'Aggregation' in _plan156 and 'post_id' in _plan156)
+)
+check(
+    "156e. plan documents mention aggregation as Needs Decision",
+    'Mention' in _plan156 and 'Needs Decision' in _plan156
+)
+check(
+    "156f. plan documents that verify/application_status/direct messages stay individual (no aggregation)",
+    'verify' in _plan156 and 'فردي' in _plan156 or
+    'Sensitive' in _plan156 and ('verify' in _plan156 or 'تبقى فردية' in _plan156)
+)
+check(
+    "156g. plan documents the golden rule: aggregate only if same click target",
+    ('نفس الوجهة' in _plan156 or 'same click target' in _plan156.lower() or
+     'القاعدة الذهبية' in _plan156)
+)
+check(
+    "156h. plan recommends Option A: aggregate while unread",
+    'Option A' in _plan156 and ('while unread' in _plan156.lower() or 'غير مقروء' in _plan156)
+)
+check(
+    "156i. plan documents click target rules section",
+    'Click Target' in _plan156 or 'click target' in _plan156.lower()
+)
+check(
+    "156j. plan documents create_or_update_aggregated_notification as future helper only",
+    'create_or_update_aggregated_notification' in _plan156 and
+    ('NOT IMPLEMENTED' in _plan156 or 'مستقبلي' in _plan156 or 'future' in _plan156.lower())
+)
+check(
+    "156k. plan documents this PR is docs-only (V2-0)",
+    ('docs only' in _plan156.lower() or 'docs-only' in _plan156.lower() or 'V2-0' in _plan156)
+    and ('لا تنفيذ' in _plan156 or 'no implementation' in _plan156.lower())
+)
+check(
+    "156l. auth.py not modified in this PR — create_notification unchanged",
+    'def create_notification(' in _auth156 and
+    'ON CONFLICT (user_id, event_key) WHERE event_key IS NOT NULL DO NOTHING' in _auth156 and
+    'create_or_update_aggregated_notification' not in _auth156
+)
+check(
+    "156m. server.py not modified — no V2 aggregation endpoint added",
+    'create_or_update_aggregated_notification' not in _srv156 and
+    'aggregation_key' not in _srv156
+)
+check(
+    "156n. notifications.html not modified — V2 UI not added yet",
+    'aggregation_count' not in _notif156 and 'aggregation_key' not in _notif156
+)
+check(
+    "156o. app-header.js and app-header.css not modified for V2",
+    'aggregation' not in _ahj156.lower() and 'aggregation' not in _ahc156.lower()
+)
+check(
+    "156p. plan documents anti-spam rules",
+    'Anti-spam' in _plan156 or 'anti-spam' in _plan156.lower() or
+    ('لا تنشئ 100' in _plan156 or 'actor == recipient' in _plan156)
+)
+check(
+    "156q. SYSTEMS_INDEX.md updated — §19 or §36 references V2 aggregation plan",
+    'V2' in _si156 and ('aggregation' in _si156.lower() or 'Aggregation' in _si156)
+)
+check(
+    "156r. plan documents V2 phases list (V2-0 through V2-6)",
+    'V2-1' in _plan156 and 'V2-2' in _plan156 and 'V2-6' in _plan156
+)
+
 # ── Summary ──────────────────────────────────────────────────────────────
 print()
 passed = sum(1 for _, s, _ in results if s == PASS)
