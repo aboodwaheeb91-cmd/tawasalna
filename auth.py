@@ -3519,6 +3519,9 @@ def get_company_followers_list(company_id: int, viewer_id, limit: int, offset: i
 
 def rate_company(rater_id: int, company_id: int, score: int, comment: str = None) -> dict:
     """Rate (UPSERT — one rating per user). Returns new avg + count."""
+    company_tw_id = None
+    rating_avg    = None
+    rating_count  = 0
     conn = get_conn()
     try:
         conn.run(
@@ -3530,12 +3533,35 @@ def rate_company(rater_id: int, company_id: int, score: int, comment: str = None
         rt = conn.run(
             "SELECT AVG(score), COUNT(*) FROM company_ratings WHERE company_id = :cid",
             cid=company_id)
-        return {
-            "rating_avg":   round(float(rt[0][0]), 1) if rt and rt[0][0] is not None else None,
-            "rating_count": rt[0][1] if rt else 0,
-        }
+        rating_avg   = round(float(rt[0][0]), 1) if rt and rt[0][0] is not None else None
+        rating_count = rt[0][1] if rt else 0
+        tw_rows = conn.run("SELECT tw_id FROM users WHERE id = :cid", cid=company_id)
+        if tw_rows:
+            company_tw_id = tw_rows[0][0]
     finally:
         release_conn(conn)
+    # Notify the company owner after connection is released.
+    # event_key rating:{company_id}:{rater_id} is idempotent — UPSERT updates are silent (ON CONFLICT DO NOTHING in create_notification).
+    if company_tw_id and int(rater_id) != int(company_id):
+        link = f"/u/{company_tw_id}"
+        try:
+            create_notification(
+                user_id=int(company_id),
+                type_="rating_received",
+                title="وصلك تقييم جديد",
+                body=f"قام مستخدم بتقييم شركتك بـ {score} نجوم",
+                link=link,
+                actor_id=rater_id,
+                entity_id=company_id,
+                entity_type="company_rating",
+                event_key=f"rating:{company_id}:{rater_id}",
+            )
+        except Exception as e:
+            print(f"[NOTIF] rating_received failed for company {company_id}: {e}")
+    return {
+        "rating_avg":   rating_avg,
+        "rating_count": rating_count,
+    }
 
 
 def get_company_ratings_detail(company_id: int, viewer_id=None, limit: int = 5) -> dict:
