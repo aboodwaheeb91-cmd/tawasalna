@@ -3016,6 +3016,56 @@ check(
     'Phase 2' in _nplan141 and ('مكتمل' in _nplan141 or 'منفَّذ' in _nplan141)
 )
 
+# §142 — Notifications Phase 3 — Comment Notification Hook
+_auth142 = open("auth.py").read()
+_nplan142 = open("docs/NOTIFICATIONS_PLAN.md").read()
+
+print("\n── §142: Notifications Phase 3 — Comment Notification Hook ──")
+check(
+    "142a. company_posts SELECT now fetches company_id alongside comments_enabled",
+    "SELECT comments_enabled, company_id FROM company_posts" in _auth142
+)
+check(
+    "142b. notification hook present in create_company_post_comment (type comment)",
+    "Phase 3: notify post owner" in _auth142 or "علّق شخص على منشورك" in _auth142
+)
+check(
+    "142c. hook checks post_owner_id != user_id before notifying (no self-notify)",
+    "post_owner_id != user_id" in _auth142
+)
+check(
+    "142d. hook passes entity_type='comment' to create_notification",
+    "entity_type=\"comment\"" in _auth142 or "entity_type='comment'" in _auth142
+)
+check(
+    "142e. hook uses event_key with comment:post:{post_id}:{user_id} pattern",
+    "event_key=f\"comment:post:{post_id}:{user_id}\"" in _auth142 or
+    'event_key=f"comment:post:{post_id}:{user_id}"' in _auth142
+)
+check(
+    "142f. hook passes actor_id=user_id (commenter) to create_notification",
+    "actor_id=user_id" in _auth142
+)
+check(
+    "142g. hook passes entity_id=new_comment_id to create_notification",
+    "entity_id=new_comment_id" in _auth142
+)
+check(
+    "142h. hook is non-fatal — wrapped in try/except with warn log (no silent pass)",
+    "TW-WARN" in _auth142 and "comment notification" in _auth142 and
+    "_notif_err" in _auth142
+)
+check(
+    "142i. hook fires AFTER COMMIT (not inside transaction block)",
+    _auth142.find("Phase 3: notify post owner") > _auth142.find("committed = True")
+    if "Phase 3: notify post owner" in _auth142 else
+    _auth142.find("علّق شخص على منشورك") > _auth142.find("committed = True")
+)
+check(
+    "142j. NOTIFICATIONS_PLAN.md marks Phase 3 as complete",
+    'Phase 3' in _nplan142 and ('مكتمل' in _nplan142 or 'منفَّذ' in _nplan142)
+)
+
 # ── Summary ──────────────────────────────────────────────────────────────
 print()
 passed = sum(1 for _, s, _ in results if s == PASS)
