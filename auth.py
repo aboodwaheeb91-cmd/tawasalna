@@ -3668,7 +3668,7 @@ def create_company_post_comment(post_id: int, user_id: int, body: str, reply_to_
     conn = get_conn()
     try:
         post_rows = conn.run(
-            "SELECT comments_enabled FROM company_posts WHERE id = :pid", pid=post_id)
+            "SELECT comments_enabled, company_id FROM company_posts WHERE id = :pid", pid=post_id)
         if not post_rows:
             raise ValueError("المنشور غير موجود")
         if post_rows[0][0] is False:
@@ -3760,6 +3760,26 @@ def create_company_post_comment(post_id: int, user_id: int, body: str, reply_to_
         d["reply_to_author_name"]  = reply_to_author_name
         d["reply_to_author_tw_id"] = reply_to_author_tw_id
         d["mentions"]              = resolved_mentions
+        # ── Phase 3: notify post owner on new comment (non-fatal, after COMMIT) ──
+        try:
+            post_owner_id = int(post_rows[0][1])
+            if post_owner_id != user_id:
+                tw_rows = conn.run("SELECT tw_id FROM users WHERE id = :uid", uid=post_owner_id)
+                company_tw_id = tw_rows[0][0] if tw_rows else None
+                if company_tw_id:
+                    create_notification(
+                        user_id=post_owner_id,
+                        type_="comment",
+                        title="علّق شخص على منشورك",
+                        body=f"{d.get('author_name') or ''}: {body[:60]}",
+                        link=f"/u/{company_tw_id}#post-{post_id}",
+                        actor_id=user_id,
+                        entity_id=new_comment_id,
+                        entity_type="comment",
+                        event_key=f"comment:post:{post_id}:{user_id}"
+                    )
+        except Exception as _notif_err:
+            print(f"[TW-WARN] comment notification (post {post_id}) failed: {_notif_err}")
         return d
     finally:
         release_conn(conn)

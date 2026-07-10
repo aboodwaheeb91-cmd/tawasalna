@@ -189,7 +189,7 @@ def create_notification(
 
 ---
 
-## Phase 3 — Comment Notification Hook
+## Phase 3 — Comment Notification Hook ✅ (منفَّذ في PR #433)
 
 > يُشعر صاحب المنشور عند التعليق عليه.
 
@@ -401,7 +401,7 @@ def mark_notification_read(user_id: int, notif_id: int) -> bool:
 | **0** | Audit & Plan (هذا الملف) | `docs/NOTIFICATIONS_PLAN.md` (docs only) | ✅ مكتمل |
 | **1** | Security Hardening | `server.py`, `notifications.html` | ✅ مكتمل (PR #431) |
 | **2** | Schema Hardening (`event_key`, `actor_id`) | `auth.py` (migration + helper) | ✅ مكتمل (PR #432) |
-| **3** | Comment Notification Hook | `auth.py` | P1 |
+| **3** | Comment Notification Hook | `auth.py` | ✅ مكتمل (PR #433) |
 | **4** | Reply Notification Hook | `auth.py` | P1 |
 | **5** | Mention Notification Hook | `auth.py` | P1 |
 | **6** | Job Application Hook | `server.py` | P1 |
@@ -425,4 +425,4 @@ def mark_notification_read(user_id: int, notif_id: int) -> bool:
 
 ---
 
-*أُنشئ: 2026-07-09 — Phase 0 audit. حُدِّث: 2026-07-10 — Phase 1 مكتمل (PR #431). حُدِّث: 2026-07-10 — Phase 2 Schema Hardening مكتمل (PR #432). الخطوة التالية: Phase 3 — Comment Notification Hook.*
+*أُنشئ: 2026-07-09 — Phase 0 audit. حُدِّث: 2026-07-10 — Phase 1 مكتمل (PR #431). حُدِّث: 2026-07-10 — Phase 2 Schema Hardening مكتمل (PR #432). حُدِّث: 2026-07-10 — Phase 3 Comment Notification Hook مكتمل (PR #433). الخطوة التالية: Phase 4 — Reply Notification Hook.*
