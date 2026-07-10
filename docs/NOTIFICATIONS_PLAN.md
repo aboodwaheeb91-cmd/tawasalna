@@ -619,8 +619,8 @@ After unfollow + refollow, the `event_key` `follow:user:{company_id}:{follower_i
 
 | Status | Count | الأحداث الرئيسية |
 |--------|-------|-----------------|
-| ✅ implemented | 7 | comment, reply, mention, job_applied, follow×2, verify×2, report (partial) |
-| ❌ missing (P1/P2) | 3 | application_status_changed, rating, job_expiring_soon |
+| ✅ implemented | 8 | comment, reply, mention, job_applied, follow×2, verify×2, report (partial), **application_status_changed** |
+| ❌ missing (P2) | 2 | rating, job_expiring_soon |
 | 🔜 future planned | 12+ | new_post, new_job, new_course, polls, security, announcement, … |
 | 🚫 not needed | 5 | unfollow, refollow, viewed_app, completion_card, soft_delete_comment |
 | ❓ needs decision | 2 | mention agg policy, messaging badge |
@@ -631,12 +631,15 @@ After unfollow + refollow, the `event_key` `follow:user:{company_id}:{follower_i
 
 أحداث `❌ missing` يجب تنفيذها قبل أو خلال V2:
 
-**1. `application_status_changed` (P1 — Missing)**
-- Actor: company, Recipient: applicant (employee)
-- Hook location: `update_application_status()` — `auth.py:2300`
-- event_key مقترح: `application_status:{app_id}:{new_status}`
-- Click target: job detail أو `/home`
-- Aggregation: فردي — كل طلب وظيفة مختلف
+**1. `application_status_changed` (P1 — ✅ Implemented — PR #455)**
+- Actor: company (actor_id = JWT user_id), Recipient: applicant (employee)
+- Hook: `update_application_status(app_id, status, actor_id)` — `auth.py`
+- event_key: `application_status:{app_id}:{status}` — idempotent (ON CONFLICT DO NOTHING)
+- title/body: per-status map (accepted / rejected / viewed / fallback)
+- link: `/job-detail?id={job_id}`
+- Self-guard: `int(applicant_id) != int(actor_id)` — no self-notification
+- Aggregation: فردي — كل تغيير حالة إشعار منفصل
+- Notification exception: caught + logged via `[NOTIF]` prefix — no silent failures (F9)
 
 **2. `rating` (P2 — Missing)**
 - Actor: rater, Recipient: company owner
@@ -1120,10 +1123,11 @@ Fallback: `commenter_name` / `replier_name` → `"مستخدم جديد"` عند
 
 | الميزة | السبب |
 |--------|-------|
-| `application_status_changed` aggregation | Hook موجود بـ V1 — aggregation مرحلة منفصلة |
+| `application_status_changed` V1 hook | ✅ نُفِّذ في PR #455 — event_key idempotency + self-guard |
+| `application_status_changed` aggregation | V1 hook مكتمل — aggregation مرحلة منفصلة (V3+) |
 | Mention aggregation | Mentions تبقى V1 (event_key idempotency) — لا aggregation مطلوبة الآن |
-| Rating notifications | `company_ratings` لا تولد إشعاراً حالياً |
-| Job expiring-soon notifications | مجدولة في Missing Priority Queue |
+| Rating notifications | `company_ratings` لا تولد إشعاراً حالياً (P2) |
+| Job expiring-soon notifications | مجدولة — تحتاج scheduler (P2 Blocked) |
 | Soft delete per-notification | مؤجلة — Phase 9 يدعم only حذف الكل |
 
 ### مؤجل (Deferred)
@@ -1179,4 +1183,4 @@ Fallback: `commenter_name` / `replier_name` → `"مستخدم جديد"` عند
 
 ---
 
-*أُنشئ: 2026-07-09 — Phase 0 audit. حُدِّث: 2026-07-10 — Phase 1 مكتمل (PR #431). حُدِّث: 2026-07-10 — Phase 2 مكتمل (PR #432). حُدِّث: 2026-07-10 — Phase 3 مكتمل (PR #433). حُدِّث: 2026-07-10 — Phase 4 مكتمل (PR #434). حُدِّث: 2026-07-10 — Phase 5 مكتمل (PR #435). حُدِّث: 2026-07-10 — Phase 6 مكتمل (PR #436). حُدِّث: 2026-07-10 — Phase 7 مكتمل (PR #437). حُدِّث: 2026-07-10 — Phase 8 مكتمل (PR #438). حُدِّث: 2026-07-10 — Phase 9 مكتمل (PR #439). حُدِّث: 2026-07-10 — Phase 10 Unread Badge in App Header مكتمل (PR #440). Phase 11 مؤجل — يحتاج قرار معماري. حُدِّث: 2026-07-10 — Notifications V1 Final QA + Closure: إضافة قسم "Notifications V1 Status"، تحديث Phase 11 deferral بتفصيل أكبر، تنظيف test 139q (PR #441). حُدِّث: 2026-07-10 — Runtime QA Bugfix: ON CONFLICT partial-index fix في create_notification، توثيق سلوك refollow، إضافة §153 checks (PR #444). حُدِّث: 2026-07-10 — Notifications V2 Smart Aggregation Plan: إضافة قسم V2-0 (docs only) — تجميع Follow / Job Applications / Comments / Replies — Click Target Rules — Option A (aggregate while unread) — Helper مقترح — V2 Phases V2-0 to V2-6 (PR #447). حُدِّث: 2026-07-10 — Notifications V2-6 Final Runtime QA: تحديث V2-6 ✅ PR #453، إضافة "Notifications V2 Final Status" section، جدول V2-0→V2-6، Manual QA Checklist، Missing Priority Queue، Deferred Phase 11 note، V2 COMPLETE (PR #453).*
+*أُنشئ: 2026-07-09 — Phase 0 audit. حُدِّث: 2026-07-10 — Phase 1 مكتمل (PR #431). حُدِّث: 2026-07-10 — Phase 2 مكتمل (PR #432). حُدِّث: 2026-07-10 — Phase 3 مكتمل (PR #433). حُدِّث: 2026-07-10 — Phase 4 مكتمل (PR #434). حُدِّث: 2026-07-10 — Phase 5 مكتمل (PR #435). حُدِّث: 2026-07-10 — Phase 6 مكتمل (PR #436). حُدِّث: 2026-07-10 — Phase 7 مكتمل (PR #437). حُدِّث: 2026-07-10 — Phase 8 مكتمل (PR #438). حُدِّث: 2026-07-10 — Phase 9 مكتمل (PR #439). حُدِّث: 2026-07-10 — Phase 10 Unread Badge in App Header مكتمل (PR #440). Phase 11 مؤجل — يحتاج قرار معماري. حُدِّث: 2026-07-10 — Notifications V1 Final QA + Closure: إضافة قسم "Notifications V1 Status"، تحديث Phase 11 deferral بتفصيل أكبر، تنظيف test 139q (PR #441). حُدِّث: 2026-07-10 — Runtime QA Bugfix: ON CONFLICT partial-index fix في create_notification، توثيق سلوك refollow، إضافة §153 checks (PR #444). حُدِّث: 2026-07-10 — Notifications V2 Smart Aggregation Plan: إضافة قسم V2-0 (docs only) — تجميع Follow / Job Applications / Comments / Replies — Click Target Rules — Option A (aggregate while unread) — Helper مقترح — V2 Phases V2-0 to V2-6 (PR #447). حُدِّث: 2026-07-10 — Notifications V2-6 Final Runtime QA: تحديث V2-6 ✅ PR #453، إضافة "Notifications V2 Final Status" section، جدول V2-0→V2-6، Manual QA Checklist، Missing Priority Queue، Deferred Phase 11 note، V2 COMPLETE (PR #453). حُدِّث: 2026-07-10 — Missing Priority Queue P1: application_status_changed hook نُفِّذ في update_application_status (auth.py) — event_key idempotency، self-guard، per-status title/body، link=/job-detail، exception logging (PR #455).*

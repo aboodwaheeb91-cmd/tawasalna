@@ -2315,13 +2315,51 @@ def get_user_applications(user_id: int) -> list:
     finally:
         release_conn(conn)
 
-def update_application_status(app_id: int, status: str) -> dict:
+def update_application_status(app_id: int, status: str, actor_id: int = None) -> dict:
+    applicant_id = None
+    job_id = None
+    job_title = ""
     conn = get_conn()
     try:
+        rows = conn.run(
+            "SELECT ja.user_id, j.id AS job_id, j.title "
+            "FROM job_applications ja JOIN jobs j ON j.id = ja.job_id "
+            "WHERE ja.id = :id",
+            id=app_id
+        )
+        if rows:
+            applicant_id = rows[0][0]
+            job_id       = rows[0][1]
+            job_title    = rows[0][2] or ""
         conn.run("UPDATE job_applications SET status=:s WHERE id=:id", s=status, id=app_id)
-        return {"success": True}
     finally:
         release_conn(conn)
+    if applicant_id and (actor_id is None or int(applicant_id) != int(actor_id)):
+        _labels = {
+            "accepted": ("قُبل طلبك ✓",       f"تم قبول طلبك على وظيفة «{job_title}»"),
+            "rejected": ("طلبك لم يُقبل",      f"نأسف، لم يُقبل طلبك على وظيفة «{job_title}»"),
+            "viewed":   ("بدأت مراجعة طلبك",   f"بدأت الشركة مراجعة طلبك على وظيفة «{job_title}»"),
+        }
+        title, body = _labels.get(
+            status,
+            ("تحديث على طلبك", f"تم تحديث حالة طلبك على وظيفة «{job_title}»")
+        )
+        link = f"/job-detail?id={job_id}" if job_id else ""
+        try:
+            create_notification(
+                user_id=int(applicant_id),
+                type_="application_status_changed",
+                title=title,
+                body=body,
+                link=link,
+                actor_id=actor_id,
+                entity_id=app_id,
+                entity_type="job_application",
+                event_key=f"application_status:{app_id}:{status}",
+            )
+        except Exception as e:
+            print(f"[NOTIF] application_status_changed failed for app {app_id}: {e}")
+    return {"success": True}
 
 def delete_job(job_id: int, company_id: int) -> bool:
     conn = get_conn()

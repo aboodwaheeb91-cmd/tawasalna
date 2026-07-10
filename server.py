@@ -3989,7 +3989,7 @@ def update_app_status(app_id: int, data: AppStatusInput, token=Depends(verify_to
     if int(job_company_id) != int(user_id):
         print(f"[SECURITY] APPLICATION_OWNERSHIP_FAILED: user {user_id} tried to update app {app_id} owned by company {job_company_id}")
         raise HTTPException(403, "غير مصرح — هذا الطلب ليس لوظيفة شركتك")
-    result = update_application_status(app_id, data.status)
+    result = update_application_status(app_id, data.status, actor_id=int(user_id))
     return result
 
 @app.get("/admin/jobs")
