@@ -5459,12 +5459,12 @@ check(
 
 # ── Status → Notification Map (checks g–n) ──
 check(
-    "165g. accepted status has a notification title",
-    '"accepted"' in _auth165 and ('قُبل' in _auth165 or 'قبل' in _auth165)
+    "165g. accepted status is now an internal state — blocked by _INTERNAL_STATUSES (policy corrected PR #456)",
+    '_INTERNAL_STATUSES' in _auth165 and '"accepted"' in _auth165
 )
 check(
-    "165h. rejected status has a notification title",
-    '"rejected"' in _auth165 and 'لم يُقبل' in _auth165
+    "165h. rejected status is now an internal state — blocked by _INTERNAL_STATUSES (policy corrected PR #456)",
+    '_INTERNAL_STATUSES' in _auth165 and '"rejected"' in _auth165
 )
 check(
     "165i. viewed status has a notification title",
@@ -5475,12 +5475,12 @@ check(
     'تحديث على طلبك' in _auth165
 )
 check(
-    "165k. accepted body mentions job_title",
-    'job_title' in _auth165 and 'تم قبول طلبك' in _auth165
+    "165k. accepted body no longer in _labels — blocked by _INTERNAL_STATUSES (policy corrected PR #456)",
+    '_INTERNAL_STATUSES' in _auth165 and 'status not in _INTERNAL_STATUSES' in _auth165
 )
 check(
-    "165l. rejected body mentions job_title",
-    'job_title' in _auth165 and 'لم يُقبل طلبك' in _auth165
+    "165l. rejected body no longer in _labels — blocked by _INTERNAL_STATUSES (policy corrected PR #456)",
+    '_INTERNAL_STATUSES' in _auth165 and 'status not in _INTERNAL_STATUSES' in _auth165
 )
 check(
     "165m. viewed body mentions job_title",
@@ -5640,6 +5640,217 @@ check(
     "165ar. No frontend-created notifications — link comes from backend only",
     'create_notification' not in (open('notifications.html', encoding='utf-8').read()
     if _os165.path.exists('notifications.html') else '')
+)
+
+# ════════════════════════════════════════════════════════════════════════
+# §166 — Job Status Notification Policy Correction + Appointments Plan (PR #456)
+# 38 checks: Policy in auth.py (a–d), Allowed notifications (e–h),
+#            Forbidden patterns (i–p), Docs / NOTIFICATIONS_PLAN (q–s),
+#            FUTURE_ROADMAP Appointments (t–ah), SYSTEMS_INDEX (ai),
+#            Next Phase (aj–ak), docs-only verification (al)
+# ════════════════════════════════════════════════════════════════════════
+import os as _os166
+_auth166   = open('auth.py',    encoding='utf-8').read() if _os166.path.exists('auth.py') else ''
+_srv166    = open('server.py',  encoding='utf-8').read() if _os166.path.exists('server.py') else ''
+_nplan166  = open('docs/NOTIFICATIONS_PLAN.md', encoding='utf-8').read() if _os166.path.exists('docs/NOTIFICATIONS_PLAN.md') else ''
+_road166   = open('docs/FUTURE_ROADMAP.md',     encoding='utf-8').read() if _os166.path.exists('docs/FUTURE_ROADMAP.md') else ''
+_sidx166   = open('docs/SYSTEMS_INDEX.md',      encoding='utf-8').read() if _os166.path.exists('docs/SYSTEMS_INDEX.md') else ''
+_notifh166 = open('notifications.html', encoding='utf-8').read() if _os166.path.exists('notifications.html') else ''
+
+# extract update_application_status function body
+_fn166 = (
+    _auth166.split('def update_application_status')[1].split('\ndef ')[0]
+    if 'def update_application_status' in _auth166 else ''
+)
+
+# ── Policy in auth.py (checks a–d) ──
+check(
+    "166a. auth.py: _INTERNAL_STATUSES set includes 'accepted'",
+    '_INTERNAL_STATUSES' in _fn166 and '"accepted"' in _fn166
+)
+check(
+    "166b. auth.py: _INTERNAL_STATUSES set includes 'rejected'",
+    '_INTERNAL_STATUSES' in _fn166 and '"rejected"' in _fn166
+)
+check(
+    "166c. auth.py: notification block guarded by 'status not in _INTERNAL_STATUSES'",
+    'status not in _INTERNAL_STATUSES' in _fn166
+)
+_fn166_labels_body = (
+    _fn166.split('_labels = {')[1].split('}')[0]
+    if '_labels = {' in _fn166 else ''
+)
+check(
+    "166d. auth.py: accepted and rejected keys absent from _labels dict (only 'viewed' + fallback remain)",
+    '"accepted"' not in _fn166_labels_body and '"rejected"' not in _fn166_labels_body
+    if _fn166_labels_body else '_INTERNAL_STATUSES' in _fn166
+)
+
+# ── Allowed notifications still work (checks e–h) ──
+check(
+    "166e. auth.py: 'viewed' notification label still present",
+    '"viewed"' in _fn166 and 'مراجعة' in _fn166
+)
+check(
+    "166f. auth.py: fallback notification still present for non-final statuses",
+    'تحديث على طلبك' in _fn166
+)
+check(
+    "166g. auth.py: create_notification still called inside update_application_status",
+    'create_notification(' in _fn166
+)
+check(
+    "166h. auth.py: self-guard (applicant_id != actor_id) still present",
+    'int(applicant_id) != int(actor_id)' in _fn166
+)
+
+# ── Forbidden patterns (checks i–p) ──
+check(
+    "166i. auth.py: 'قُبل طلبك' (accepted title) no longer used as notification",
+    'قُبل طلبك' not in _fn166.split('_INTERNAL_STATUSES')[1]
+    if '_INTERNAL_STATUSES' in _fn166 else True
+)
+check(
+    "166j. auth.py: 'تم قبول طلبك' (accepted body) no longer used as notification",
+    'تم قبول طلبك' not in _fn166.split('_INTERNAL_STATUSES')[1]
+    if '_INTERNAL_STATUSES' in _fn166 else True
+)
+check(
+    "166k. auth.py: rejected body no longer used as notification",
+    'لم يُقبل طلبك' not in _fn166.split('_INTERNAL_STATUSES')[1]
+    if '_INTERNAL_STATUSES' in _fn166 else True
+)
+check(
+    "166l. auth.py: no schema changes in this PR (no ALTER TABLE in update_application_status)",
+    'ALTER TABLE' not in _fn166
+)
+check(
+    "166m. notifications.html not modified by this PR",
+    'INTERNAL_STATUSES' not in _notifh166 and 'appointment' not in _notifh166.lower()
+)
+check(
+    "166n. No appointments table created (no CREATE TABLE appointments in auth.py)",
+    'CREATE TABLE appointments' not in _auth166 and
+    'CREATE TABLE appointment' not in _auth166
+)
+check(
+    "166o. No WebSocket added for appointments",
+    '@app.websocket("/appointments' not in _srv166 and
+    '@app.websocket("/appointment' not in _srv166
+)
+check(
+    "166p. No scheduler/cron added for appointment reminders",
+    'apscheduler' not in _auth166.lower() and
+    'celery' not in _auth166.lower() and
+    'schedule.every' not in _auth166
+)
+
+# ── Docs / NOTIFICATIONS_PLAN (checks q–s) ──
+check(
+    "166q. NOTIFICATIONS_PLAN.md: policy correction documented",
+    'policy corrected' in _nplan166.lower() or 'Policy corrected' in _nplan166 or
+    'policy correction' in _nplan166.lower()
+)
+check(
+    "166r. NOTIFICATIONS_PLAN.md: accepted/rejected described as internal company states",
+    ('internal' in _nplan166 and 'accepted' in _nplan166 and 'rejected' in _nplan166) or
+    'حالة داخلية' in _nplan166
+)
+check(
+    "166s. NOTIFICATIONS_PLAN.md: Appointments / Interview Requests mentioned as future path",
+    'Appointments' in _nplan166 and ('Interview' in _nplan166 or 'مواعيد' in _nplan166)
+)
+
+# ── FUTURE_ROADMAP Appointments section (checks t–ah) ──
+check(
+    "166t. FUTURE_ROADMAP.md contains Appointments & Interview Rooms System section",
+    'Appointments' in _road166 and 'Interview Rooms' in _road166
+)
+check(
+    "166u. FUTURE_ROADMAP.md mentions appointments button (زر المواعيد)",
+    'زر المواعيد' in _road166 or ('زر' in _road166 and 'المواعيد' in _road166)
+)
+check(
+    "166v. FUTURE_ROADMAP.md mentions appointment cards (بطاقات)",
+    'بطاقات' in _road166 and 'Appointments' in _road166
+)
+check(
+    "166w. FUTURE_ROADMAP.md mentions appointment room (غرفة الموعد)",
+    'غرفة الموعد' in _road166
+)
+check(
+    "166x. FUTURE_ROADMAP.md mentions appointment thread",
+    'appointment thread' in _road166 or 'Appointment Thread' in _road166 or
+    'محادثة الموعد' in _road166
+)
+check(
+    "166y. FUTURE_ROADMAP.md mentions event timeline (سجل الأحداث)",
+    'سجل الأحداث' in _road166 or 'Event Timeline' in _road166 or 'timeline' in _road166
+)
+check(
+    "166z. FUTURE_ROADMAP.md mentions countdown (عداد تنازلي)",
+    'عداد تنازلي' in _road166
+)
+check(
+    "166aa. FUTURE_ROADMAP.md mentions response deadline (مهلة الرد)",
+    'مهلة الرد' in _road166 or 'response deadline' in _road166.lower()
+)
+check(
+    "166ab. FUTURE_ROADMAP.md mentions expired state",
+    'expired' in _road166
+)
+check(
+    "166ac. FUTURE_ROADMAP.md mentions confirmed state",
+    'confirmed' in _road166
+)
+check(
+    "166ad. FUTURE_ROADMAP.md mentions closed / read-only state",
+    'closed' in _road166 and 'read-only' in _road166
+)
+check(
+    "166ae. FUTURE_ROADMAP.md mentions interviewer fallback 'ممثل الشركة'",
+    'ممثل الشركة' in _road166
+)
+check(
+    "166af. FUTURE_ROADMAP.md states approval must be via formal button (زر رسمي), not a message",
+    'زر رسمي' in _road166 and ('لا برسالة' in _road166 or 'برسالة نصية' in _road166 or 'لا' in _road166)
+)
+check(
+    "166ag. FUTURE_ROADMAP.md documents security rules for appointments",
+    ('Security Rules' in _road166 or 'security rules' in _road166.lower() or 'الأمن والصلاحيات' in _road166) and
+    'Appointments' in _road166
+)
+check(
+    "166ah. FUTURE_ROADMAP.md states that appointment reminders need a scheduler (مؤجلة)",
+    'scheduler' in _road166 and ('مؤجل' in _road166 or 'deferred' in _road166.lower())
+)
+
+# ── SYSTEMS_INDEX (check ai) ──
+check(
+    "166ai. SYSTEMS_INDEX.md §19 updated to reflect policy correction (PR #456)",
+    'PR #456' in _sidx166 and ('internal' in _sidx166 or 'داخلية' in _sidx166)
+)
+
+# ── Next Phase Marker (checks aj–ak) ──
+check(
+    "166aj. FUTURE_ROADMAP.md Next Phase Marker updated to 'rating notification hook'",
+    'rating notification hook' in _road166 or
+    ('rating' in _road166 and 'NEXT ACTIVE DEVELOPMENT PHASE' in _road166)
+)
+check(
+    "166ak. FUTURE_ROADMAP.md Next Phase Marker no longer says 'Notifications Missing Priority Queue' as the active phase",
+    not (
+        'NEXT ACTIVE DEVELOPMENT PHASE' in _road166 and
+        'Notifications Missing Priority Queue' in _road166.split('NEXT ACTIVE DEVELOPMENT PHASE')[-1][:100]
+    )
+)
+
+# ── docs-only verification (check al) ──
+check(
+    "166al. This PR is docs-only for appointments — no appointment tables or endpoints in server.py",
+    '/appointments' not in _srv166 and
+    'def create_appointment' not in _auth166 and
+    'def get_appointments' not in _auth166
 )
 
 # ── Summary ──────────────────────────────────────────────────────────────
