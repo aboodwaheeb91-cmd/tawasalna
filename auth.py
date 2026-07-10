@@ -3677,6 +3677,7 @@ def create_company_post_comment(post_id: int, user_id: int, body: str, reply_to_
         resolved_reply_to = None
         reply_to_author_name  = None
         reply_to_author_tw_id = None
+        reply_to_author_id    = None
         if reply_to_comment_id is not None:
             ref_rows = conn.run(
                 "SELECT id, reply_to_comment_id, post_id, status FROM company_post_comments WHERE id = :cid",
@@ -3694,13 +3695,14 @@ def create_company_post_comment(post_id: int, user_id: int, body: str, reply_to_
                     raise ValueError("التعليق الأصلي غير موجود أو تم حذفه")
             else:
                 resolved_reply_to = int(ref_rows[0][0])
-            # Fetch author name + tw_id of the resolved parent comment
+            # Fetch author name + tw_id + user_id of the resolved parent comment
             ra_rows = conn.run(
-                "SELECT u.full_name, u.tw_id FROM company_post_comments c "
+                "SELECT u.full_name, u.tw_id, u.id FROM company_post_comments c "
                 "JOIN users u ON u.id = c.user_id WHERE c.id = :cid",
                 cid=resolved_reply_to)
             reply_to_author_name  = ra_rows[0][0] if ra_rows else None
             reply_to_author_tw_id = ra_rows[0][1] if ra_rows else None
+            reply_to_author_id    = int(ra_rows[0][2]) if ra_rows else None
         # Validate each mentioned_tw_id — user must exist AND '@name' must appear anywhere in body
         resolved_mentions = []
         for mtw_raw in (mentioned_tw_ids or []):
@@ -3760,26 +3762,41 @@ def create_company_post_comment(post_id: int, user_id: int, body: str, reply_to_
         d["reply_to_author_name"]  = reply_to_author_name
         d["reply_to_author_tw_id"] = reply_to_author_tw_id
         d["mentions"]              = resolved_mentions
-        # ── Phase 3: notify post owner on new comment (non-fatal, after COMMIT) ──
+        # ── Phase 3 + 4: Notification hooks (non-fatal, after COMMIT) ──
         try:
             post_owner_id = int(post_rows[0][1])
-            if post_owner_id != user_id:
-                tw_rows = conn.run("SELECT tw_id FROM users WHERE id = :uid", uid=post_owner_id)
-                company_tw_id = tw_rows[0][0] if tw_rows else None
-                if company_tw_id:
+            _ntw = conn.run("SELECT tw_id FROM users WHERE id = :uid", uid=post_owner_id)
+            _company_tw_id = _ntw[0][0] if _ntw else None
+            if _company_tw_id:
+                commenter_name = d.get('author_name') or ''
+                # Phase 3: notify post owner on new comment
+                if post_owner_id != user_id:
                     create_notification(
                         user_id=post_owner_id,
                         type_="comment",
                         title="علّق شخص على منشورك",
-                        body=f"{d.get('author_name') or ''}: {body[:60]}",
-                        link=f"/u/{company_tw_id}#post-{post_id}",
+                        body=f"{commenter_name}: {body[:60]}",
+                        link=f"/u/{_company_tw_id}#post-{post_id}",
                         actor_id=user_id,
                         entity_id=new_comment_id,
                         entity_type="comment",
                         event_key=f"comment:post:{post_id}:{user_id}"
                     )
+                # Phase 4: notify original comment author on reply
+                if resolved_reply_to and reply_to_author_id and reply_to_author_id != user_id:
+                    create_notification(
+                        user_id=reply_to_author_id,
+                        type_="reply",
+                        title="ردّ شخص على تعليقك",
+                        body=f"{commenter_name}: {body[:60]}",
+                        link=f"/u/{_company_tw_id}#comment-{resolved_reply_to}",
+                        actor_id=user_id,
+                        entity_id=new_comment_id,
+                        entity_type="comment",
+                        event_key=f"reply:comment:{resolved_reply_to}:{user_id}"
+                    )
         except Exception as _notif_err:
-            print(f"[TW-WARN] comment notification (post {post_id}) failed: {_notif_err}")
+            print(f"[TW-WARN] notification hook (post {post_id}) failed: {_notif_err}")
         return d
     finally:
         release_conn(conn)
