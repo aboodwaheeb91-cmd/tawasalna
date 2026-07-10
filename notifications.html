@@ -2,404 +2,953 @@
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="UTF-8">
-  <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
-  <link rel="dns-prefetch" href="https://fonts.gstatic.com">
-  <link rel="dns-prefetch" href="https://tawasolna.com">
-  <link rel="manifest" href="/manifest.json">
-  <meta name="theme-color" content="#00c896">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="تواصلنا">
-  <link rel="apple-touch-icon" href="/icon-192.png">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+<link rel="dns-prefetch" href="https://fonts.gstatic.com">
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#00c896">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="تواصلنا">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>تواصلنا - الإشعارات</title>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
+<!-- Shared app header system — same pattern as company-profile.html and profile-showcase.html -->
+<link rel="stylesheet" href="/static/app-header.css">
 <style>
-:root{--ac:#00c896;--ac2:#2563ff;--bg:#070b18;--card:rgba(255,255,255,.03);--border:rgba(255,255,255,.07);--t:rgba(255,255,255,.87);--t2:rgba(255,255,255,.5);--t3:rgba(255,255,255,.27);}
-*{margin:0;padding:0;box-sizing:border-box;}
-body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-height:100vh;}
+/* ── Base ── */
+:root {
+  --ac:  #00c896;
+  --ac2: #2563ff;
+  --bg:  #070b18;
+  --card: rgba(255,255,255,.03);
+  --card-hover: rgba(255,255,255,.05);
+  --border: rgba(255,255,255,.07);
+  --border-hover: rgba(255,255,255,.12);
+  --t:  rgba(255,255,255,.87);
+  --t2: rgba(255,255,255,.5);
+  --t3: rgba(255,255,255,.27);
+}
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+body {
+  background: var(--bg);
+  color: var(--t);
+  font-family: 'Cairo', sans-serif;
+  min-height: 100vh;
+}
 
-.nav{position:fixed;top:0;left:0;right:0;z-index:100;height:52px;display:flex;align-items:center;gap:8px;padding:0 14px;background:rgba(7,11,24,.93);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);}
-.nav-logo{font-size:1rem;font-weight:900;background:linear-gradient(135deg,var(--ac),var(--ac2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-left:auto;cursor:pointer;}
-.nb{padding:5px 11px;border-radius:8px;border:none;cursor:pointer;font-family:'Cairo',sans-serif;font-size:.73rem;font-weight:700;transition:all .2s;background:rgba(255,255,255,.07);color:rgba(255,255,255,.6);border:1px solid var(--border);}
-.nb:hover{background:rgba(255,255,255,.12);color:var(--t);}
+/* ── Notifications-page header modifier (sticky, same as co-hdr) ── */
+.notif-hdr {
+  position: sticky;
+  top: 0;
+}
 
-.main{padding:70px 16px 40px;max-width:680px;margin:0 auto;}
+/* ── Page wrapper ── */
+.notif-page {
+  max-width: 680px;
+  margin: 0 auto;
+  padding: 0 16px 100px; /* 100px bottom = bottom-nav height + safe area */
+}
 
-/* Header */
-.page-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;}
-.page-head h1{font-size:1.1rem;font-weight:900;}
-.mark-all{font-size:.74rem;color:var(--ac);cursor:pointer;font-weight:700;}
-.mark-all:hover{opacity:.8;}
+/* ── Hero ── */
+.notif-hero {
+  max-width: 680px;
+  margin: 0 auto;
+  padding: 28px 16px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 10px;
+}
+.notif-hero-icon {
+  width: 54px;
+  height: 54px;
+  border-radius: 16px;
+  background: rgba(0,200,150,.1);
+  border: 1.5px solid rgba(0,200,150,.2);
+  box-shadow: 0 0 18px rgba(0,200,150,.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ac);
+}
+.notif-title {
+  font-size: 1.25rem;
+  font-weight: 900;
+  letter-spacing: -.3px;
+}
+.notif-subtitle {
+  font-size: .8rem;
+  color: var(--t2);
+  line-height: 1.5;
+}
 
-/* Filter tabs */
-.ftabs{display:flex;gap:6px;margin-bottom:18px;overflow-x:auto;padding-bottom:3px;}
-.ftab{padding:5px 13px;border-radius:20px;border:1px solid var(--border);background:transparent;color:var(--t2);font-family:'Cairo',sans-serif;font-size:.72rem;font-weight:700;cursor:pointer;transition:all .2s;white-space:nowrap;}
-.ftab:hover{border-color:rgba(0,200,150,.3);color:var(--t);}
-.ftab.active{background:linear-gradient(135deg,var(--ac),var(--ac2));color:#fff;border-color:transparent;}
+/* ── Filter tabs ── */
+.notif-tabs-wrap {
+  overflow-x: auto;
+  padding-bottom: 2px;
+  margin-bottom: 12px;
+  scrollbar-width: none;
+}
+.notif-tabs-wrap::-webkit-scrollbar { display: none; }
+.notif-tabs {
+  display: flex;
+  gap: 6px;
+  width: max-content;
+  min-width: 100%;
+}
+.notif-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 16px;
+  min-height: 36px;
+  border-radius: 20px;
+  border: 1.5px solid var(--border);
+  background: transparent;
+  color: var(--t2);
+  font-family: 'Cairo', sans-serif;
+  font-size: .76rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all .18s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.notif-tab:hover {
+  border-color: rgba(0,200,150,.3);
+  color: var(--t);
+  background: rgba(0,200,150,.05);
+}
+.notif-tab.active {
+  background: linear-gradient(135deg, var(--ac), var(--ac2));
+  color: #fff;
+  border-color: transparent;
+  box-shadow: 0 2px 10px rgba(0,200,150,.2);
+}
+.notif-tab svg { flex-shrink: 0; }
 
-/* Notification groups */
-.notif-group{margin-bottom:20px;}
-.group-label{font-size:.68rem;font-weight:800;color:var(--t3);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:10px;padding-right:4px;}
+/* ── Action bar ── */
+.notif-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  margin-bottom: 16px;
+}
+.notif-markall-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 16px;
+  border-radius: 10px;
+  border: 1.5px solid var(--border);
+  background: transparent;
+  color: var(--ac);
+  font-family: 'Cairo', sans-serif;
+  font-size: .76rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all .18s;
+}
+.notif-markall-btn:hover {
+  background: rgba(0,200,150,.08);
+  border-color: rgba(0,200,150,.3);
+}
+.notif-markall-btn svg { flex-shrink: 0; }
 
-/* Notification item */
-.ni{display:flex;gap:12px;padding:14px 16px;background:var(--card);border:1px solid var(--border);border-radius:14px;margin-bottom:8px;cursor:pointer;transition:all .2s;position:relative;}
-.ni:hover{border-color:rgba(255,255,255,.12);background:rgba(255,255,255,.04);}
-.ni.unread{border-color:rgba(0,200,150,.15);background:rgba(0,200,150,.02);}
-.ni.unread::before{content:'';position:absolute;top:16px;right:-1px;width:4px;height:calc(100% - 32px);background:var(--ac);border-radius:0 4px 4px 0;}
+/* ── Notification card ── */
+.notif-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  background: var(--card);
+  border: 1.5px solid var(--border);
+  border-radius: 14px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  transition: border-color .18s, background .18s;
+  position: relative;
+  overflow: hidden;
+  text-decoration: none;
+  color: inherit;
+}
+.notif-card:hover {
+  border-color: var(--border-hover);
+  background: var(--card-hover);
+}
+.notif-card-unread {
+  border-color: rgba(0,200,150,.18);
+  background: rgba(0,200,150,.025);
+}
+/* Unread left-edge accent (RTL: right edge) */
+.notif-card-unread::after {
+  content: '';
+  position: absolute;
+  top: 14px;
+  inset-inline-end: 0;
+  width: 3px;
+  height: calc(100% - 28px);
+  background: var(--ac);
+  border-radius: 3px 0 0 3px;
+}
 
-.ni-ico{width:44px;height:44px;border-radius:12px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:1.2rem;}
-.ico-job{background:rgba(37,99,255,.12);}
-.ico-training{background:rgba(139,92,246,.12);}
-.ico-verify{background:rgba(0,200,150,.12);}
-.ico-msg{background:rgba(249,115,22,.12);}
-.ico-follow{background:rgba(236,72,153,.12);}
-.ico-interview{background:rgba(234,179,8,.12);}
-.ico-system{background:rgba(255,255,255,.06);}
+/* Notification type icon */
+.notif-card-ico {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
 
-.ni-body{flex:1;min-width:0;}
-.ni-title{font-size:.8rem;font-weight:700;margin-bottom:3px;line-height:1.4;}
-.ni-title span{color:var(--ac);}
-.ni-sub{font-size:.72rem;color:var(--t2);margin-bottom:5px;line-height:1.4;}
-.ni-time{font-size:.63rem;color:var(--t3);}
-.ni-actions{display:flex;gap:6px;margin-top:8px;}
-.na-btn{padding:5px 12px;border-radius:8px;border:none;font-family:'Cairo',sans-serif;font-size:.7rem;font-weight:700;cursor:pointer;transition:all .2s;}
-.na-primary{background:linear-gradient(135deg,var(--ac),var(--ac2));color:#fff;}
-.na-ghost{background:rgba(255,255,255,.08);color:var(--t2);}
-.na-ghost:hover{background:rgba(255,255,255,.14);color:var(--t);}
+/* Card body */
+.notif-card-body { flex: 1; min-width: 0; }
+.notif-card-title {
+  font-size: .82rem;
+  font-weight: 700;
+  line-height: 1.4;
+  margin-bottom: 3px;
+}
+.notif-card-sub {
+  font-size: .73rem;
+  color: var(--t2);
+  line-height: 1.4;
+  margin-bottom: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.notif-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.notif-card-time {
+  font-size: .65rem;
+  color: var(--t3);
+}
+.notif-card-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ac);
+  flex-shrink: 0;
+}
 
-/* Interview card */
-.interview-card{background:rgba(234,179,8,.05);border:1px solid rgba(234,179,8,.2);border-radius:12px;padding:12px 14px;margin-top:8px;}
-.ic-title{font-size:.76rem;font-weight:800;color:#eab308;margin-bottom:6px;}
-.ic-details{display:flex;gap:14px;flex-wrap:wrap;}
-.ic-item{font-size:.7rem;color:var(--t2);display:flex;align-items:center;gap:4px;}
+/* Group label */
+.notif-group-lbl {
+  font-size: .67rem;
+  font-weight: 800;
+  color: var(--t3);
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  margin: 8px 0 10px 0;
+  padding-inline-end: 4px;
+}
 
-/* Empty */
-.empty{text-align:center;padding:60px 20px;}
-.empty .ei{font-size:3rem;margin-bottom:12px;}
-.empty p{font-size:.8rem;color:var(--t2);}
+/* ── Empty state ── */
+.notif-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 64px 24px 40px;
+  gap: 14px;
+}
+.notif-empty-icon {
+  width: 72px;
+  height: 72px;
+  border-radius: 22px;
+  background: rgba(0,200,150,.07);
+  border: 1.5px solid rgba(0,200,150,.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ac);
+  box-shadow: 0 0 28px rgba(0,200,150,.09);
+}
+.notif-empty-title {
+  font-size: .95rem;
+  font-weight: 800;
+}
+.notif-empty-sub {
+  font-size: .78rem;
+  color: var(--t2);
+  line-height: 1.6;
+  max-width: 280px;
+}
 
-/* Bottom nav */
-.bnav{display:none;position:fixed;bottom:0;left:0;right:0;z-index:100;background:rgba(7,11,24,.95);backdrop-filter:blur(20px);border-top:1px solid var(--border);padding:8px 0 4px;justify-content:space-around;}
-.bn{display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer;padding:4px 10px;}
-.bn .bi{font-size:1.15rem;}
-.bn .bl{font-size:.56rem;color:var(--t3);font-weight:700;}
-.bn.active .bl{color:var(--ac);}
+/* ── Skeleton ── */
+@keyframes tw-shimmer {
+  0%   { background-position: -1000px 0 }
+  100% { background-position:  1000px 0 }
+}
+.tw-skeleton {
+  background: linear-gradient(90deg,
+    rgba(255,255,255,.04) 25%,
+    rgba(255,255,255,.09) 50%,
+    rgba(255,255,255,.04) 75%);
+  background-size: 2000px 100%;
+  animation: tw-shimmer 1.5s infinite linear;
+  border-radius: 14px;
+}
 
-@media(max-width:600px){.bnav{display:flex;}body{padding-bottom:68px;}}
+/* ── Bottom navigation ── */
+.notif-bnav {
+  display: none;
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  z-index: 100;
+  background: rgba(7,11,24,.95);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-top: 1px solid var(--border);
+  padding: 8px 0 env(safe-area-inset-bottom, 6px);
+  justify-content: space-around;
+}
+.notif-bn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  cursor: pointer;
+  padding: 5px 12px;
+  text-decoration: none;
+  color: var(--t3);
+  font-family: 'Cairo', sans-serif;
+  border: none;
+  background: none;
+  transition: color .15s;
+  min-width: 52px;
+}
+.notif-bn-lbl {
+  font-size: .57rem;
+  font-weight: 700;
+}
+.notif-bn.active { color: var(--ac); }
+.notif-bn:hover  { color: var(--t2); }
 
+@media (max-width: 600px) {
+  .notif-bnav { display: flex; }
+  .notif-page { padding-bottom: calc(68px + env(safe-area-inset-bottom, 8px) + 16px); }
+}
 
-/* ══ ITQAN - Shared Utilities ══ */
-@keyframes tw-shimmer{0%{background-position:-1000px 0}100%{background-position:1000px 0}}
-@keyframes tw-spin{to{transform:translateY(-50%) rotate(360deg);}}
-@keyframes tw-fadein{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:none;}}
-@keyframes tw-verified{0%,100%{box-shadow:0 0 0 0 rgba(0,200,150,0);}50%{box-shadow:0 0 0 5px rgba(0,200,150,.15);}}
-.tw-toast[aria-live="polite"]{position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(20px);background:rgba(7,11,24,.97);border:1px solid rgba(255,255,255,.1);backdrop-filter:blur(20px);border-radius:14px;padding:12px 20px;display:flex;align-items:center;gap:10px;font-size:.82rem;font-family:Cairo,sans-serif;color:rgba(255,255,255,.92);opacity:0;transition:all .3s cubic-bezier(.34,1.56,.64,1);z-index:9999;white-space:nowrap;min-width:180px;justify-content:center;box-shadow:0 8px 32px rgba(0,0,0,.4);}
-.tw-toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
-.tw-toast.success{border-color:rgba(0,200,150,.3);}
-.tw-toast.error{border-color:rgba(239,68,68,.3);}
-.tw-toast.info{border-color:rgba(37,99,255,.3);}
-.tw-skeleton{background:linear-gradient(90deg,rgba(255,255,255,.04) 25%,rgba(255,255,255,.09) 50%,rgba(255,255,255,.04) 75%);background-size:2000px 100%;animation:tw-shimmer 1.5s infinite linear;border-radius:8px;}
-.tw-btn-loading{position:relative;pointer-events:none;opacity:.8;}
-.tw-btn-loading::after{content:'';position:absolute;width:14px;height:14px;border-radius:50%;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;animation:tw-spin .7s linear infinite;right:12px;top:50%;transform:translateY(-50%);}
-.tw-scroll-prog{position:fixed;top:0;left:0;height:2px;z-index:999;background:linear-gradient(90deg,var(--ac,#00c896),var(--ac2,#2563ff));transition:width .1s;width:0%;}
-.tw-fab{position:fixed;bottom:80px;left:18px;width:50px;height:50px;border-radius:50%;border:none;font-size:1.4rem;background:linear-gradient(135deg,var(--ac,#00c896),var(--ac2,#2563ff));color:#fff;cursor:pointer;box-shadow:0 4px 20px rgba(0,200,150,.35);transition:all .25s cubic-bezier(.34,1.56,.64,1);z-index:50;display:flex;align-items:center;justify-content:center;}
-.tw-fab:hover{transform:scale(1.12) rotate(90deg);}
-.tw-empty{text-align:center;padding:50px 20px;}
-.tw-empty-ico{font-size:2.5rem;margin-bottom:12px;opacity:.7;display:block;}
-.tw-empty-title{font-size:.95rem;font-weight:800;margin-bottom:6px;}
-.tw-empty-sub{font-size:.78rem;color:rgba(255,255,255,.35);margin-bottom:18px;line-height:1.6;}
-.tw-empty-btn{padding:10px 22px;border-radius:12px;background:linear-gradient(135deg,var(--ac,#00c896),var(--ac2,#2563ff));border:none;color:#fff;font-family:Cairo,sans-serif;font-weight:700;font-size:.8rem;cursor:pointer;}
-.tw-card-lift{transition:transform .2s,box-shadow .2s;}
-.tw-card-lift:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.3);}
-.tw-verified{animation:tw-verified 2.5s ease-in-out infinite;}
+/* ── Toast ── */
+.tw-toast[aria-live="polite"] {
+  position: fixed;
+  bottom: 80px; left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  background: rgba(7,11,24,.97);
+  border: 1px solid rgba(255,255,255,.1);
+  backdrop-filter: blur(20px);
+  border-radius: 14px;
+  padding: 12px 20px;
+  display: flex; align-items: center; gap: 10px;
+  font-size: .82rem; font-family: Cairo, sans-serif;
+  color: rgba(255,255,255,.92);
+  opacity: 0;
+  transition: all .3s cubic-bezier(.34,1.56,.64,1);
+  z-index: 9999; white-space: nowrap;
+  min-width: 180px; justify-content: center;
+  box-shadow: 0 8px 32px rgba(0,0,0,.4);
+}
+.tw-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.tw-toast.success { border-color: rgba(0,200,150,.3); }
+.tw-toast.error   { border-color: rgba(239,68,68,.3); }
+.tw-toast.info    { border-color: rgba(37,99,255,.3); }
 
+/* Scroll progress */
+.tw-scroll-prog {
+  position: fixed; top: 0; left: 0;
+  height: 2px; z-index: 999;
+  background: linear-gradient(90deg, var(--ac), var(--ac2));
+  transition: width .1s; width: 0;
+}
+
+/* Skip link */
+.skip-link {
+  position: absolute; top: -40px; right: 0;
+  background: var(--ac); color: #0d1a2e;
+  padding: 8px 16px; border-radius: 0 0 8px 0;
+  font-family: Cairo,sans-serif; font-size: .8rem; font-weight: 700;
+  text-decoration: none; transition: top .2s; z-index: 10000;
+}
+.skip-link:focus { top: 0; }
 </style>
-<style>.skip-link{position:absolute;top:-40px;right:0;background:var(--ac,#00c896);color:#0d1a2e;padding:8px 16px;border-radius:0 0 8px 0;font-family:Cairo,sans-serif;font-size:.8rem;font-weight:700;text-decoration:none;transition:top .2s;z-index:10000}.skip-link:focus{top:0}</style><a href="#main-content" class="skip-link">تخطى للمحتوى الرئيسي</a><link rel="stylesheet" href="/static/tw_shared.css">
+<a href="#main-content" class="skip-link">تخطى للمحتوى الرئيسي</a>
+<link rel="stylesheet" href="/static/tw_shared.css">
 </head>
 <body>
-<!--
-╔══════════════════════════════════════════════╗
-║  TAWASALNA - NOTIFICATIONS                   ║
-║  Architecture: Hybrid                        ║
-║  Last Modified: 2026-05                      ║
-║  DO NOT EDIT outside designated sections     ║
-╚══════════════════════════════════════════════╝
--->
 
+<!-- ██ SHARED HEADER — same pattern as company-profile.html / profile-showcase.html ██ -->
+<div class="sc-header notif-hdr">
+  <a href="/home" class="sc-hicon sc-home-btn" title="الرئيسية" aria-label="الرئيسية">
+    <i data-lucide="home" class="ico"></i>
+  </a>
+  <div class="sc-logo">
+    <img src="/static/33333.svg" alt="تواصلنا">
+    <span class="sc-logo-fallback" style="display:none">تواصلنا</span>
+  </div>
+  <div class="sc-head-icons">
+    <a href="/messages" class="sc-hicon sc-hicon-bare" title="الرسائل" aria-label="الرسائل">
+      <i data-lucide="message-circle-more" class="ico"></i>
+    </a>
+    <div class="sc-menu-wrap" id="ntMenuWrap">
+      <button class="sc-hicon sc-hicon-bare" id="ntMenuBtn" title="القائمة" aria-label="القائمة">
+        <i data-lucide="menu" class="ico"></i>
+      </button>
+      <div class="sc-menu-dropdown" id="ntMenuDropdown">
+        <a href="/home" class="sc-menu-item">
+          <i data-lucide="home" class="ico-sm"></i> الرئيسية
+        </a>
+        <a href="/messages" class="sc-menu-item">
+          <i data-lucide="message-circle" class="ico-sm"></i> الرسائل
+        </a>
+        <a href="/settings" class="sc-menu-item">
+          <i data-lucide="settings" class="ico-sm"></i> الإعدادات
+        </a>
+        <div class="sc-menu-sep"></div>
+        <button class="sc-menu-item danger" data-ah-logout>
+          <i data-lucide="log-out" class="ico-sm"></i> تسجيل الخروج
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
 
-<!-- ██ NAVBAR SECTION ██ -->
-<nav class="nav">
-  <button class="nb" onclick="goHome()">← رجوع</button>
-  <div class="nav-logo"><img src="https://wrxvmdmknhoufoeprpoc.supabase.co/storage/v1/object/public/site/Logo.svg" alt="تواصلنا" style="height:36px;width:auto;object-fit:contain;display:block"></div>
+<!-- ██ HERO ██ -->
+<div class="notif-hero" id="main-content">
+  <div class="notif-hero-icon">
+    <!-- Inline SVG bell icon — no CDN, no emoji -->
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+      <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+    </svg>
+  </div>
+  <h1 class="notif-title">الإشعارات</h1>
+  <p class="notif-subtitle">ابقَ على اطلاع بكل جديد يهمك</p>
+</div>
+
+<!-- ██ MAIN CONTENT ██ -->
+<div class="notif-page" role="main">
+
+  <!-- Filter tabs -->
+  <div class="notif-tabs-wrap" role="tablist" aria-label="تصفية الإشعارات">
+    <div class="notif-tabs">
+      <button class="notif-tab active" data-filter="all" role="tab" aria-selected="true">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="10"/>
+        </svg>
+        الكل
+      </button>
+      <button class="notif-tab" data-filter="job" role="tab" aria-selected="false">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="2" y="7" width="20" height="14" rx="2"/>
+          <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>
+        </svg>
+        وظائف
+      </button>
+      <button class="notif-tab" data-filter="comment" role="tab" aria-selected="false">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+        </svg>
+        تعليقات
+      </button>
+      <button class="notif-tab" data-filter="follow" role="tab" aria-selected="false">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+          <circle cx="9" cy="7" r="4"/>
+          <line x1="19" y1="8" x2="19" y2="14"/>
+          <line x1="22" y1="11" x2="16" y2="11"/>
+        </svg>
+        متابعون
+      </button>
+      <button class="notif-tab" data-filter="verify" role="tab" aria-selected="false">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          <polyline points="9 12 11 14 15 10"/>
+        </svg>
+        توثيق
+      </button>
+    </div>
+  </div>
+
+  <!-- Action bar -->
+  <div class="notif-actions">
+    <button class="notif-markall-btn" id="markAllBtn" onclick="markAll()">
+      <!-- Inline SVG check icon -->
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <polyline points="20 6 9 17 4 12"/>
+      </svg>
+      تمييز الكل كمقروء
+    </button>
+  </div>
+
+  <!-- Notifications container — filled by JS with real API data only -->
+  <div id="dynamicNotifs">
+    <div class="tw-skeleton" style="height:72px;margin-bottom:8px"></div>
+    <div class="tw-skeleton" style="height:72px;margin-bottom:8px"></div>
+    <div class="tw-skeleton" style="height:72px"></div>
+  </div>
+
+</div>
+
+<!-- ██ BOTTOM NAV — SVG icons only, no emoji ██ -->
+<nav class="notif-bnav" aria-label="التنقل الرئيسي">
+  <a href="/home" class="notif-bn" id="bnHome">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+      <polyline points="9 22 9 12 15 12 15 22"/>
+    </svg>
+    <span class="notif-bn-lbl">الرئيسية</span>
+  </a>
+  <a href="/home" class="notif-bn" id="bnJobs">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <rect x="2" y="7" width="20" height="14" rx="2"/>
+      <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>
+    </svg>
+    <span class="notif-bn-lbl">وظائف</span>
+  </a>
+  <a href="/profile" class="notif-bn" id="bnProfile">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+      <circle cx="12" cy="7" r="4"/>
+    </svg>
+    <span class="notif-bn-lbl">ملفي</span>
+  </a>
+  <a href="/notifications" class="notif-bn active" id="bnNotif" aria-current="page">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+      <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+    </svg>
+    <span class="notif-bn-lbl">إشعارات</span>
+  </a>
+  <a href="/messages" class="notif-bn" id="bnMsgs" style="position:relative">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+    </svg>
+    <span class="notif-bn-lbl">رسائل</span>
+    <span data-badge="msgs" style="display:none;position:absolute;top:4px;inset-inline-end:8px;
+      background:#2563ff;color:#fff;border-radius:50%;width:14px;height:14px;
+      font-size:.5rem;font-weight:700;line-height:14px;text-align:center"></span>
+  </a>
 </nav>
 
-<div class="main" role="main" id="main-content">
-  <div class="page-head">
-    <h1>🔔 الإشعارات</h1>
-    <span class="mark-all" onclick="markAll()">تحديد الكل كمقروء</span>
-  </div>
-
-  <div class="ftabs">
-    <button class="ftab active" onclick="filterNotifs('all',this)">الكل</button>
-    <button class="ftab" onclick="filterNotifs('job',this)">💼 وظائف</button>
-    <button class="ftab" onclick="filterNotifs('interview',this)">📅 مقابلات</button>
-    <button class="ftab" onclick="filterNotifs('training',this)">🎓 تدريب</button>
-    <button class="ftab" onclick="filterNotifs('verify',this)">✅ توثيق</button>
-  </div>
-
-  <!-- Notifications loaded from DB only -->
-  <div id="dynamicNotifs" style="margin-bottom:8px"><div class="tw-skeleton" style="height:64px;margin-bottom:8px"></div><div class="tw-skeleton" style="height:64px"></div></div>
-
-</div>
-
-<!-- BOTTOM NAV -->
-<div class="bnav">
-  <div class="bn" onclick="goHome()"><span class="bi">🏠</span><span class="bl">الرئيسية</span></div>
-  <div class="bn"><span class="bi">💼</span><span class="bl">وظائف</span></div>
-  <div class="bn"><span class="bi">👤</span><span class="bl">ملفي</span></div>
-  <div class="bn active" style="position:relative"><span class="bi">🔔</span><span class="bl">إشعارات</span></div>
-  <div class="bn" onclick="location.href='/messages'" style="position:relative"><span class="bi">💬</span><span class="bl">رسائل</span><span data-badge="msgs" style="display:none;position:absolute;top:4px;right:4px;background:#2563ff;color:#fff;border-radius:50%;width:14px;height:14px;font-size:.5rem;font-weight:700;line-height:14px;text-align:center"></span></div>
-</div>
-
+<!-- Lucide icons (local vendor — no CDN) -->
+<script src="/static/vendor/lucide/lucide.min.js"></script>
 <script src="/tw_shared.js"></script>
 <script>
-let _user = null;
-try { _user = JSON.parse(localStorage.getItem('tw_user')); } catch(e){}
-if(!_user || !_user.id){ window.location.href = '/'; }
+/* ── Auth guard ── */
+var _user = null;
+try { _user = JSON.parse(localStorage.getItem('tw_user')); } catch(e) {}
+if (!_user || !_user.id) { window.location.href = '/login'; }
 
-function filterNotifs(type, el){
-  document.querySelectorAll('.ftab').forEach(t => t.classList.remove('active'));
-  el.classList.add('active');
-  // Filter notif items
-  document.querySelectorAll('.ni').forEach(function(ni){
-    if(type==='all'||ni.dataset.type===type){
-      ni.style.display='';
-    } else {
-      ni.style.display='none';
-    }
+/* ── Init lucide icons for header ── */
+if (window.lucide) lucide.createIcons();
+
+/* ── Menu toggle (same pattern as company-profile.html) ── */
+(function(){
+  var btn = document.getElementById('ntMenuBtn');
+  var dd  = document.getElementById('ntMenuDropdown');
+  if (!btn || !dd) return;
+  btn.addEventListener('click', function(e){
+    e.stopPropagation();
+    dd.classList.toggle('open');
   });
-  document.querySelectorAll('.ni').forEach(n => {
-    n.style.display = (type === 'all' || n.dataset.type === type) ? '' : 'none';
+  document.addEventListener('click', function(){
+    dd.classList.remove('open');
   });
-}
+})();
 
-function markAll(){
-  document.querySelectorAll('.ni.unread').forEach(n => {
-    n.classList.remove('unread');
-    n.querySelector('::before');
+/* ── Logout (data-ah-logout, same pattern as app-header.js) ── */
+document.querySelectorAll('[data-ah-logout]').forEach(function(b){
+  b.addEventListener('click', function(){
+    try {
+      Object.keys(localStorage).filter(function(k){ return k.startsWith('tw_'); })
+        .forEach(function(k){ localStorage.removeItem(k); });
+    } catch(e) {}
+    location.replace('/login');
   });
-  document.querySelectorAll('.ni').forEach(n => n.classList.remove('unread'));
-}
+});
 
-function goHome(){
-  let u=null;
-  try{u=JSON.parse(localStorage.getItem('tw_user'));}catch(e){}
-  if(!u){ window.location.href='/'; return; }
-  const dest = u.user_type==='co' ? 'company-profile.html?id='+u.id
-             : u.user_type==='edu' ? 'edu-profile.html?id='+u.id
-             : 'home.html';
-  window.location.href = dest;
-}
+/* ── Dynamic profile link in bottom nav ── */
+(function(){
+  var bnProfile = document.getElementById('bnProfile');
+  if (!bnProfile || !_user) return;
+  if (_user.user_type === 'co') {
+    bnProfile.href = _user.tw_id ? '/u/' + _user.tw_id : '/company-profile';
+  } else if (_user.user_type === 'edu') {
+    bnProfile.href = _user.tw_id ? '/u/' + _user.tw_id : '/edu-profile';
+  } else {
+    bnProfile.href = _user.tw_id ? '/u/' + _user.tw_id : '/profile';
+  }
+})();
 
-
-
-
-// ══ ITQAN Utilities ══
-var _twToast=null;
-function showToast(msg,type,dur){
-  type=type||'success';dur=dur||2800;
-  if(_twToast){_twToast.remove();}
-  var t=document.createElement('div');
-  t.className='tw-toast '+type;
-  var ico=type==='success'?'✅':type==='error'?'❌':'ℹ️';
-  t.innerHTML='<span>'+ico+'</span><span>'+msg+'</span>';
+/* ── Toast ── */
+var _twToast = null;
+function showToast(msg, type, dur) {
+  type = type || 'success'; dur = dur || 2800;
+  if (_twToast) { _twToast.remove(); }
+  var t = document.createElement('div');
+  t.setAttribute('aria-live', 'polite');
+  t.className = 'tw-toast ' + type;
+  var icoSvg = type === 'success'
+    ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#00c896" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>'
+    : type === 'error'
+    ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>'
+    : '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563ff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><circle cx="12" cy="16" r="1" fill="#2563ff"/></svg>';
+  var icoEl = document.createElement('span');
+  icoEl.innerHTML = icoSvg; /* SVG string — not API data */
+  var msgEl = document.createElement('span');
+  msgEl.textContent = msg;
+  t.appendChild(icoEl);
+  t.appendChild(msgEl);
   document.body.appendChild(t);
-  _twToast=t;
-  requestAnimationFrame(function(){requestAnimationFrame(function(){t.classList.add('show');});});
-  setTimeout(function(){t.classList.remove('show');setTimeout(function(){if(t.parentNode)t.remove();},350);},dur);
-}
-function setBtnLoad(btn,loading){
-  if(!btn)return;
-  if(loading){btn.classList.add('tw-btn-loading');btn._orig=btn.textContent;btn.textContent='';btn.disabled=true;}
-  else{btn.classList.remove('tw-btn-loading');btn.textContent=btn._orig||'حفظ';btn.disabled=false;}
-}
-function twNavigate(url){
-  document.body.style.cssText='opacity:0;transform:translateY(-6px);transition:all .2s ease;';
-  setTimeout(function(){window.location.href=url;},180);
-}
-function initScrollProg(){
-  var p=document.createElement('div');p.className='tw-scroll-prog';
-  document.body.prepend(p);
-  window.addEventListener('scroll',function(){
-    var pct=window.scrollY/(document.body.scrollHeight-window.innerHeight)*100;
-    p.style.width=Math.min(pct,100)+'%';
+  _twToast = t;
+  requestAnimationFrame(function(){
+    requestAnimationFrame(function(){ t.classList.add('show'); });
   });
+  setTimeout(function(){
+    t.classList.remove('show');
+    setTimeout(function(){ if (t.parentNode) t.remove(); }, 350);
+  }, dur);
 }
 
+/* ── Scroll progress ── */
+(function(){
+  var p = document.createElement('div');
+  p.className = 'tw-scroll-prog';
+  document.body.prepend(p);
+  window.addEventListener('scroll', function(){
+    var pct = window.scrollY / Math.max(1, document.body.scrollHeight - window.innerHeight) * 100;
+    p.style.width = Math.min(pct, 100) + '%';
+  });
+})();
 
-// ══ Real Notifications System ══
-function _notifJwt(){ return localStorage.getItem('tw_jwt')||''; }
+/* ════════════════════════════════════════════════════════════
+   NOTIFICATION SYSTEM — V1
+   Security rules enforced:
+     - JWT Bearer only
+     - textContent for all API data — no innerHTML on API strings
+     - Link validation — / prefix only
+     - No WebSocket, no push, no fake data
+   ════════════════════════════════════════════════════════════ */
 
-function _buildNiItem(classExtra, dataType, borderColor, icoColor, icoText, titleText, subText, dataLink){
-  var item=document.createElement('div');
-  item.className='ni'+(classExtra?' '+classExtra:'');
-  item.dataset.type=dataType||'system';
-  if(dataLink) item.dataset.link=dataLink;
-  item.style.borderRight='3px solid '+borderColor;
+function _notifJwt() { return localStorage.getItem('tw_jwt') || ''; }
 
-  var ico=document.createElement('div');
-  ico.className='ni-ico';
-  ico.style.background=icoColor;
-  ico.textContent=icoText;
-  item.appendChild(ico);
+/* ── Inline SVG icons for notification type cards — not CDN, not emoji ── */
+var _NOTIF_ICONS = {
+  job: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>',
+  comment: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>',
+  mention: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-3.92 7.94"/></svg>',
+  follow: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>',
+  verify: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>',
+  bell: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>'
+};
 
-  var body=document.createElement('div');
-  body.className='ni-body';
+/* Filter groups — maps tab data-filter to notification type values */
+var _filterGroups = {
+  job:     ['job', 'job_applied'],
+  comment: ['comment', 'reply', 'mention'],
+  follow:  ['follow'],
+  verify:  ['verify', 'kyc', 'verify_approved', 'verify_rejected']
+};
 
-  var titleEl=document.createElement('div');
-  titleEl.className='ni-title';
-  titleEl.textContent=titleText;
+/* Type-to-visual mapping — no emoji, color + SVG icon only */
+var _typeMap = {
+  comment:  { ico: _NOTIF_ICONS.comment, bg: 'rgba(37,99,255,.12)',   color: '#2563ff',   filter: 'comment', label: 'تعليق' },
+  reply:    { ico: _NOTIF_ICONS.comment, bg: 'rgba(37,99,255,.12)',   color: '#2563ff',   filter: 'comment', label: 'رد' },
+  mention:  { ico: _NOTIF_ICONS.mention, bg: 'rgba(139,92,246,.12)', color: '#8b5cf6',   filter: 'comment', label: 'ذكر' },
+  job:      { ico: _NOTIF_ICONS.job,     bg: 'rgba(0,200,150,.12)',   color: '#00c896',   filter: 'job',     label: 'وظيفة' },
+  job_applied: { ico: _NOTIF_ICONS.job,  bg: 'rgba(0,200,150,.12)',   color: '#00c896',   filter: 'job',     label: 'تقديم وظيفة' },
+  follow:   { ico: _NOTIF_ICONS.follow,  bg: 'rgba(236,72,153,.12)', color: '#ec4899',   filter: 'follow',  label: 'متابعة' },
+  verify:   { ico: _NOTIF_ICONS.verify,  bg: 'rgba(0,200,150,.12)',   color: '#00c896',   filter: 'verify',  label: 'توثيق' },
+  kyc:      { ico: _NOTIF_ICONS.verify,  bg: 'rgba(0,200,150,.12)',   color: '#00c896',   filter: 'verify',  label: 'توثيق' },
+  system:   { ico: _NOTIF_ICONS.bell,    bg: 'rgba(255,255,255,.07)', color: 'rgba(255,255,255,.6)', filter: 'system', label: 'إشعار' }
+};
+
+/* ── Build a notification card DOM node — all API text via textContent ── */
+function _buildNotifCard(n) {
+  var t = _typeMap[n.type] || _typeMap.system;
+  /* Relative time */
+  var ago = Math.floor((Date.now() - new Date(n.created_at)) / 60000);
+  var agoStr = ago < 1 ? 'الآن'
+    : ago < 60 ? ago + ' د'
+    : ago < 1440 ? Math.floor(ago / 60) + ' س'
+    : Math.floor(ago / 1440) + ' ي';
+  /* Link validation — only relative paths starting with / */
+  var link = (n.link && /^\//.test(n.link)) ? n.link : '';
+
+  var card = document.createElement('div');
+  card.className = 'notif-card' + (n.is_read ? '' : ' notif-card-unread');
+  card.dataset.type = n.type || 'system';
+  card.dataset.filterGroup = t.filter;
+  if (link) card.dataset.link = link;
+
+  /* Icon */
+  var ico = document.createElement('div');
+  ico.className = 'notif-card-ico';
+  ico.style.background = t.bg;
+  ico.style.color = t.color;
+  ico.innerHTML = t.ico; /* SVG string from _typeMap — not API data */
+  card.appendChild(ico);
+
+  /* Body */
+  var body = document.createElement('div');
+  body.className = 'notif-card-body';
+
+  var titleEl = document.createElement('div');
+  titleEl.className = 'notif-card-title';
+  titleEl.textContent = String(n.title || t.label); /* API data via textContent */
   body.appendChild(titleEl);
 
-  var subEl=document.createElement('div');
-  subEl.className='ni-sub';
-  subEl.textContent=subText;
-  body.appendChild(subEl);
+  if (n.body) {
+    var subEl = document.createElement('div');
+    subEl.className = 'notif-card-sub';
+    subEl.textContent = String(n.body).slice(0, 80); /* API data via textContent */
+    body.appendChild(subEl);
+  }
 
-  item.appendChild(body);
-  return item;
+  var metaEl = document.createElement('div');
+  metaEl.className = 'notif-card-meta';
+
+  var timeEl = document.createElement('span');
+  timeEl.className = 'notif-card-time';
+  timeEl.textContent = agoStr;
+  metaEl.appendChild(timeEl);
+
+  if (!n.is_read) {
+    var dot = document.createElement('span');
+    dot.className = 'notif-card-dot';
+    dot.setAttribute('aria-label', 'غير مقروء');
+    metaEl.appendChild(dot);
+  }
+
+  body.appendChild(metaEl);
+  card.appendChild(body);
+
+  return card;
 }
 
-function loadRealNotifications(){
-  if(!_user||!_user.id) return;
-  var jwt=_notifJwt();
-  var dyn=document.getElementById('dynamicNotifs');
-  if(dyn) dyn.innerHTML='<div class="tw-skeleton" style="height:64px;margin-bottom:8px"></div><div class="tw-skeleton" style="height:64px"></div>';
+/* ── Filter tabs logic ── */
+function filterNotifs(filterVal) {
+  document.querySelectorAll('.notif-tab').forEach(function(t) {
+    var isActive = t.dataset.filter === filterVal;
+    t.classList.toggle('active', isActive);
+    t.setAttribute('aria-selected', isActive ? 'true' : 'false');
+  });
+  document.querySelectorAll('.notif-card').forEach(function(card) {
+    var group = card.dataset.filterGroup || 'system';
+    var groups = _filterGroups[filterVal];
+    var show = filterVal === 'all' || (groups && groups.indexOf(card.dataset.type) >= 0);
+    card.style.display = show ? '' : 'none';
+  });
+}
 
-  fetch('/notifications/'+_user.id,{headers:{Authorization:'Bearer '+jwt}})
-  .then(function(r){return r.json();}).then(function(data){
-    var notifs=data.notifications||[];
-    var unread=data.unread||0;
-    var container=document.getElementById('dynamicNotifs');
-    if(!container) return;
+/* Attach tab click handlers */
+document.querySelectorAll('.notif-tab').forEach(function(tab) {
+  tab.addEventListener('click', function() {
+    filterNotifs(tab.dataset.filter);
+  });
+});
 
-    // Filter out legacy message notifications
-    notifs=notifs.filter(function(n){
-      return n.type!=='message'&&!(n.link&&n.link.startsWith('/messages'));
+/* ── Empty state (SVG bell, no emoji) ── */
+function _renderEmpty() {
+  var empty = document.createElement('div');
+  empty.className = 'notif-empty';
+
+  var iconWrap = document.createElement('div');
+  iconWrap.className = 'notif-empty-icon';
+  iconWrap.innerHTML = _NOTIF_ICONS.bell; /* SVG — not API data */
+
+  var title = document.createElement('div');
+  title.className = 'notif-empty-title';
+  title.textContent = 'لا توجد إشعارات حالياً';
+
+  var sub = document.createElement('div');
+  sub.className = 'notif-empty-sub';
+  sub.textContent = 'ستظهر هنا التحديثات المهمة عند وصولها';
+
+  empty.appendChild(iconWrap);
+  empty.appendChild(title);
+  empty.appendChild(sub);
+  return empty;
+}
+
+/* ── Load notifications — JWT Bearer only ── */
+function loadRealNotifications() {
+  if (!_user || !_user.id) return;
+  var jwt = _notifJwt();
+  var dyn = document.getElementById('dynamicNotifs');
+  if (dyn) {
+    dyn.textContent = '';
+    var sk1 = document.createElement('div');
+    sk1.className = 'tw-skeleton';
+    sk1.style.cssText = 'height:72px;margin-bottom:8px';
+    var sk2 = document.createElement('div');
+    sk2.className = 'tw-skeleton';
+    sk2.style.cssText = 'height:72px;margin-bottom:8px';
+    var sk3 = document.createElement('div');
+    sk3.className = 'tw-skeleton';
+    sk3.style.height = '72px';
+    dyn.appendChild(sk1);
+    dyn.appendChild(sk2);
+    dyn.appendChild(sk3);
+  }
+
+  /* Authorization Bearer JWT only */
+  fetch('/notifications/' + _user.id, {
+    headers: { 'Authorization': 'Bearer ' + jwt }
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    var notifs = data.notifications || [];
+    var unread = data.unread || 0;
+    var container = document.getElementById('dynamicNotifs');
+    if (!container) return;
+
+    /* Filter out message-type — shown in /messages instead */
+    notifs = notifs.filter(function(n) {
+      return n.type !== 'message' && !(n.link && n.link.startsWith('/messages'));
     });
 
-    container.textContent='';
-    if(!notifs.length) return;
+    container.textContent = '';
 
-    var typeMap={
-      message:{ico:'💬',color:'rgba(37,99,255,.1)',label:'رسالة'},
-      job:{ico:'💼',color:'rgba(0,200,150,.1)',label:'وظيفة'},
-      verify:{ico:'✅',color:'rgba(0,200,150,.1)',label:'توثيق'},
-      kyc:{ico:'🪪',color:'rgba(0,200,150,.1)',label:'KYC'},
-      system:{ico:'🔔',color:'rgba(255,255,255,.05)',label:'إشعار'}
-    };
-
-    var lbl=document.createElement('div');
-    lbl.className='group-label';
-    lbl.textContent='الإشعارات الحديثة'+(unread>0?' ('+unread+' جديد)':'');
-    container.appendChild(lbl);
-
-    notifs.slice(0,10).forEach(function(n){
-      var t=typeMap[n.type]||typeMap.system;
-      var ago=Math.floor((Date.now()-new Date(n.created_at))/60000);
-      var agoStr=ago<1?'الآن':ago<60?ago+' د':ago<1440?Math.floor(ago/60)+' س':Math.floor(ago/1440)+' ي';
-      // Validate link — must start with / to block javascript: payloads
-      var link=(n.link&&/^\//.test(n.link))?n.link:'';
-      var item=_buildNiItem(
-        n.is_read?'':'unread',
-        n.type,
-        n.is_read?'transparent':'var(--ac)',
-        t.color, t.ico,
-        String(n.title||t.label),
-        String((n.body||'').slice(0,50))+' · '+agoStr,
-        link
-      );
-      container.appendChild(item);
-    });
-
-    // Click-to-navigate via event delegation
-    container.addEventListener('click',function(e){
-      var item=e.target.closest('.ni[data-link]');
-      if(item){var lnk=item.dataset.link;if(lnk&&/^\//.test(lnk))window.location.href=lnk;}
-    });
-
-    if(unread>0){
-      fetch('/notifications/'+_user.id+'/read',{method:'PUT',headers:{Authorization:'Bearer '+jwt}}).catch(function(){});
+    if (!notifs.length) {
+      container.appendChild(_renderEmpty());
+      return;
     }
-  }).catch(function(){});
-}
 
-// Load job applications as a secondary notification source
-function loadJobApplications(){
-  if(!_user||!_user.id) return;
-  var jwt=_notifJwt();
-  fetch('/my/applications',{headers:{Authorization:'Bearer '+jwt}})
-  .then(function(r){return r.json();}).then(function(data){
-    var apps=data.applications||[];
-    if(!apps.length) return;
-    var container=document.getElementById('dynamicNotifs');
-    if(!container) return;
-    var statusMap={pending:'⏳ قيد المراجعة',viewed:'👁 تم عرض طلبك',accepted:'✅ تم قبولك',rejected:'❌ تم رفض طلبك'};
-
-    var lbl=document.createElement('div');
-    lbl.className='group-label';
-    lbl.textContent='طلبات التوظيف';
+    var lbl = document.createElement('div');
+    lbl.className = 'notif-group-lbl';
+    lbl.textContent = 'الإشعارات' + (unread > 0 ? ' — ' + unread + ' جديد' : '');
     container.appendChild(lbl);
 
-    apps.slice(0,5).forEach(function(a){
-      var isNew=a.status!=='pending';
-      var item=_buildNiItem(
-        isNew?'unread':'',
-        'job',
-        isNew?'var(--ac)':'transparent',
-        'rgba(0,200,150,.1)','💼',
-        String(statusMap[a.status]||a.status||'')+' - '+String(a.title||'وظيفة'),
-        String(a.company_name||'')+' · '+String((a.applied_at||'').slice(0,10)),
-        ''
-      );
-      container.appendChild(item);
+    notifs.slice(0, 20).forEach(function(n) {
+      container.appendChild(_buildNotifCard(n));
     });
-  }).catch(function(){});
+
+    /* Click-to-navigate — event delegation, link validated in _buildNotifCard */
+    container.addEventListener('click', function(e) {
+      var card = e.target.closest('.notif-card[data-link]');
+      if (card) {
+        var lnk = card.dataset.link;
+        if (lnk && /^\//.test(lnk)) window.location.href = lnk;
+      }
+    });
+
+    /* Auto-mark all as read after viewing */
+    if (unread > 0) {
+      fetch('/notifications/' + _user.id + '/read', {
+        method: 'PUT',
+        headers: { 'Authorization': 'Bearer ' + jwt }
+      }).catch(function() {});
+    }
+  })
+  .catch(function() {
+    var container = document.getElementById('dynamicNotifs');
+    if (container) {
+      container.textContent = '';
+      container.appendChild(_renderEmpty());
+    }
+  });
 }
 
-// markAll — mark all notifications as read via API (JWT required)
-function markAll(){
-  if(_user&&_user.id){
-    var jwt=_notifJwt();
-    fetch('/notifications/'+_user.id+'/read',{method:'PUT',headers:{Authorization:'Bearer '+jwt}}).then(function(){
-      document.querySelectorAll('.ni.unread').forEach(function(el){
-        el.classList.remove('unread');
-        el.style.borderRightColor='transparent';
-      });
-      showToast('تم تحديد الكل كمقروء ✅');
-    }).catch(function(){
-      showToast('تم التحديد ✅');
+/* ── Load job applications as secondary source ── */
+function loadJobApplications() {
+  if (!_user || !_user.id) return;
+  var jwt = _notifJwt();
+  var statusMap = {
+    pending:  'قيد المراجعة',
+    viewed:   'تم عرض طلبك',
+    accepted: 'تم قبولك',
+    rejected: 'تم رفض طلبك'
+  };
+  fetch('/my/applications', {
+    headers: { 'Authorization': 'Bearer ' + jwt }
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    var apps = data.applications || [];
+    if (!apps.length) return;
+    var container = document.getElementById('dynamicNotifs');
+    if (!container) return;
+
+    /* Remove empty state if it was shown */
+    var existing = container.querySelector('.notif-empty');
+    if (existing) existing.remove();
+
+    var lbl = document.createElement('div');
+    lbl.className = 'notif-group-lbl';
+    lbl.textContent = 'طلبات التوظيف';
+    container.appendChild(lbl);
+
+    apps.slice(0, 5).forEach(function(a) {
+      var isNew = a.status !== 'pending';
+      /* Build a pseudo-notification for job applications */
+      var fakeN = {
+        type: 'job',
+        is_read: !isNew,
+        title: String(statusMap[a.status] || a.status || '') + ' — ' + String(a.title || 'وظيفة'),
+        body: String(a.company_name || '') + ' · ' + String((a.applied_at || '').slice(0, 10)),
+        created_at: a.applied_at || new Date().toISOString(),
+        link: ''
+      };
+      container.appendChild(_buildNotifCard(fakeN));
     });
-  }
+  })
+  .catch(function() {});
 }
 
-// Load on start
+/* ── Mark all as read — JWT Bearer ── */
+function markAll() {
+  if (!_user || !_user.id) return;
+  var jwt = _notifJwt();
+  fetch('/notifications/' + _user.id + '/read', {
+    method: 'PUT',
+    headers: { 'Authorization': 'Bearer ' + jwt }
+  })
+  .then(function() {
+    document.querySelectorAll('.notif-card-unread').forEach(function(el) {
+      el.classList.remove('notif-card-unread');
+      var dot = el.querySelector('.notif-card-dot');
+      if (dot) dot.remove();
+    });
+    showToast('تم تحديد الكل كمقروء');
+  })
+  .catch(function() {
+    showToast('تم التحديث');
+  });
+}
+
+/* ── Bootstrap ── */
 loadRealNotifications();
-loadGlobalBadges();
-loadJobApplications();
+if (typeof loadGlobalBadges === 'function') loadGlobalBadges();
+setTimeout(loadJobApplications, 800);
 
-
-// Add empty state if no notifs
-setTimeout(function(){
-  var dyn=document.getElementById('dynamicNotifs');
-  var groups=document.querySelectorAll('.notif-group,.group-label');
-  var hasContent=dyn&&dyn.textContent.trim().length>10;
-  if(!hasContent&&groups.length===0){
-    if(dyn) dyn.innerHTML='<div class="tw-empty"><span class="tw-empty-ico">🔔</span><div class="tw-empty-title">لا إشعارات جديدة</div><div class="tw-empty-sub">ستظهر هنا إشعاراتك عند توفرها</div></div>';
-  }
-},2000);
-
+/* Fallback empty state if API returns nothing after timeout */
+setTimeout(function() {
+  var dyn = document.getElementById('dynamicNotifs');
+  if (!dyn) return;
+  var hasCards = dyn.querySelector('.notif-card, .notif-empty, .notif-group-lbl');
+  if (!hasCards) dyn.appendChild(_renderEmpty());
+}, 3500);
 </script>
 </body>
 </html>

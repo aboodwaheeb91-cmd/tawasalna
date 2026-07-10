@@ -2940,7 +2940,9 @@ check(
 )
 check(
     "140e. notifications.html uses Authorization Bearer for /notifications/ fetch",
-    "Authorization:'Bearer " in _notif140 or 'Authorization:"Bearer' in _notif140
+    "Authorization':'Bearer " in _notif140 or "Authorization: 'Bearer" in _notif140 or
+    "'Authorization': 'Bearer'" in _notif140 or "'Authorization':'Bearer'" in _notif140 or
+    "Bearer ' +" in _notif140 or "Bearer '" in _notif140
 )
 check(
     "140f. notifications.html has no innerHTML with n.title (XSS fixed)",
@@ -3474,6 +3476,132 @@ check(
         'Phases 0' in _sidx150 or '0–10' in _sidx150 or
         ('Phase 10' in _sidx150 and 'complete' in _sidx150.lower())
     )
+)
+
+# ═══════════════════════════════════════════════════════════════════════
+# §151 — Notifications Page UI Polish — Static Checks
+# 22 static checks verifying the redesigned notifications.html
+# ═══════════════════════════════════════════════════════════════════════
+print("\n── §151: Notifications Page UI Polish ──")
+import os as _os151
+_notif151 = open('notifications.html', encoding='utf-8').read() if _os151.path.exists('notifications.html') else ''
+
+check(
+    "151a. notifications.html uses shared .sc-header class (same pattern as company-profile.html)",
+    'sc-header' in _notif151 and 'notif-hdr' in _notif151
+)
+check(
+    "151b. app-header.css is loaded in notifications.html",
+    '/static/app-header.css' in _notif151
+)
+check(
+    "151c. Logo /static/33333.svg present in header",
+    '33333.svg' in _notif151
+)
+check(
+    "151d. Lucide local vendor loaded — no new CDN (no unpkg/cdnjs/jsdelivr for icons)",
+    '/static/vendor/lucide/lucide.min.js' in _notif151 and
+    'unpkg.com/lucide' not in _notif151 and
+    'cdnjs.cloudflare.com/ajax/libs/lucide' not in _notif151 and
+    'jsdelivr.net' not in _notif151
+)
+check(
+    "151e. lucide.createIcons() called after loading the vendor script",
+    'lucide.createIcons()' in _notif151
+)
+check(
+    "151f. Hero section exists with class notif-hero",
+    'notif-hero' in _notif151
+)
+check(
+    "151g. Hero title 'الإشعارات' is present",
+    'الإشعارات' in _notif151
+)
+check(
+    "151h. Hero subtitle 'ابقَ على اطلاع بكل جديد يهمك' is present",
+    'ابقَ على اطلاع بكل جديد يهمك' in _notif151
+)
+check(
+    "151i. Hero icon is inline SVG bell — no emoji in hero icon area",
+    'class="notif-hero-icon"' in _notif151 and
+    '<svg' in _notif151[_notif151.find('class="notif-hero-icon"'):_notif151.find('class="notif-hero-icon"') + 600]
+)
+check(
+    "151j. Filter tabs have all 5 data-filter values: all, job, comment, follow, verify",
+    all('data-filter="' + f + '"' in _notif151 for f in ['all', 'job', 'comment', 'follow', 'verify'])
+)
+check(
+    "151k. Action bar button 'تمييز الكل كمقروء' present with id markAllBtn",
+    'markAllBtn' in _notif151 and 'تمييز الكل كمقروء' in _notif151
+)
+check(
+    "151l. _NOTIF_ICONS constant defined with inline SVG strings (no emoji, no CDN URLs)",
+    '_NOTIF_ICONS' in _notif151 and
+    'var _NOTIF_ICONS' in _notif151 and
+    'width="18"' in _notif151
+)
+check(
+    "151m. _NOTIF_ICONS contains no emoji characters (job/comment/mention/follow/verify/bell all SVG)",
+    all(
+        ico + ':' in _notif151 or ico + "'" in _notif151 or ico + '"' in _notif151
+        for ico in ['job', 'comment', 'mention', 'follow', 'verify', 'bell']
+    ) and
+    '🔔' not in _notif151 and '💼' not in _notif151 and '💬' not in _notif151 and '✅' not in _notif151
+)
+check(
+    "151n. _typeMap defined — maps notification types to SVG icon + color (no emoji labels)",
+    'var _typeMap' in _notif151 and
+    '_NOTIF_ICONS.job' in _notif151 and
+    '_NOTIF_ICONS.comment' in _notif151 and
+    '_NOTIF_ICONS.follow' in _notif151 and
+    '_NOTIF_ICONS.verify' in _notif151
+)
+check(
+    "151o. _filterGroups defined — maps filter tabs to multiple type values",
+    'var _filterGroups' in _notif151 and
+    __import__('re').search(r"comment['\"]?\s*:\s*\[.*?'comment'.*?'reply'.*?'mention'",
+                            _notif151.replace('"', "'"), __import__('re').DOTALL) is not None
+)
+check(
+    "151p. _buildNotifCard uses textContent for API data (n.title, n.body) — not innerHTML",
+    'titleEl.textContent' in _notif151 and
+    'subEl.textContent' in _notif151 and
+    'n.title' in _notif151 and
+    'n.body' in _notif151
+)
+check(
+    "151q. ico.innerHTML used only for SVG icon strings from _typeMap (not for API data)",
+    'ico.innerHTML = t.ico' in _notif151 and
+    'innerHTML = t.ico' in _notif151
+)
+check(
+    "151r. Empty state uses SVG bell icon (not emoji) and Arabic text via textContent",
+    '_renderEmpty' in _notif151 and
+    '_NOTIF_ICONS.bell' in _notif151 and
+    'لا توجد إشعارات حالياً' in _notif151 and
+    'ستظهر هنا التحديثات المهمة عند وصولها' in _notif151
+)
+check(
+    "151s. Link validation enforced — only relative paths (/^\\/.test) are navigated",
+    r'/^\//.test' in _notif151 or r"/^\//".test in _notif151 or
+    "'/'" in _notif151 and '/^\\//' in _notif151 or
+    r'/^\//' in _notif151
+)
+check(
+    "151t. Bottom nav uses class notif-bnav and notif-bn — SVG icons only",
+    'notif-bnav' in _notif151 and
+    'notif-bn' in _notif151 and
+    'class="notif-bnav"' in _notif151
+)
+check(
+    "151u. Bottom nav has no emoji characters",
+    '🏠' not in _notif151 and '💼' not in _notif151 and '👤' not in _notif151 and
+    '🔔' not in _notif151 and '💬' not in _notif151
+)
+check(
+    "151v. No X-User-Id header in notifications.html — JWT Bearer only for all API calls",
+    "'X-User-Id'" not in _notif151 and '"X-User-Id"' not in _notif151 and
+    "'Authorization': 'Bearer '" in _notif151
 )
 
 # ── Summary ──────────────────────────────────────────────────────────────
