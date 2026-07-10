@@ -3262,6 +3262,53 @@ check(
     'Phase 7' in _nplan146 and ('مكتمل' in _nplan146 or 'منفَّذ' in _nplan146)
 )
 
+# §147 — Notifications Phase 8 — Verification Status Notification Hook
+_srv147 = open("server.py").read()
+_nplan147 = open("docs/NOTIFICATIONS_PLAN.md").read()
+
+print("\n── §147: Notifications Phase 8 — Verification Status Notification Hook ──")
+check(
+    "147a. admin_update_verify fetches verify_requests.user_id before UPDATE",
+    "SELECT user_id FROM verify_requests WHERE id = :id" in _srv147
+)
+check(
+    "147b. Phase 8 notification hook present in admin_update_verify",
+    "Phase 8: notify request owner" in _srv147 or
+    "verify notification" in _srv147
+)
+check(
+    "147c. notification type is 'verify'",
+    "type_=\"verify\"" in _srv147 or "type_='verify'" in _srv147
+)
+check(
+    "147d. notification uses event_key with verify_{status}:verify_request:{req_id}:admin",
+    'event_key=f"verify_{data.status}:verify_request:{req_id}:admin"' in _srv147
+)
+check(
+    "147e. notification entity_type is 'verify_request'",
+    "entity_type=\"verify_request\"" in _srv147 or "entity_type='verify_request'" in _srv147
+)
+check(
+    "147f. notification link is '/settings'",
+    'link="/settings"' in _srv147 or "link='/settings'" in _srv147
+)
+check(
+    "147g. approved vs rejected title/body branch present",
+    "تم مراجعة طلب توثيقك" in _srv147 and "طلب توثيقك يحتاج مراجعة" in _srv147
+)
+check(
+    "147h. hook is non-fatal — try/except with TW-WARN log",
+    "TW-WARN" in _srv147 and "verify notification" in _srv147
+)
+check(
+    "147i. hook does not fire if verify_request row not found (vr_rows guard)",
+    "if vr_rows:" in _srv147
+)
+check(
+    "147j. NOTIFICATIONS_PLAN.md marks Phase 8 as complete",
+    'Phase 8' in _nplan147 and ('مكتمل' in _nplan147 or 'منفَّذ' in _nplan147)
+)
+
 # ── Summary ──────────────────────────────────────────────────────────────
 print()
 passed = sum(1 for _, s, _ in results if s == PASS)
