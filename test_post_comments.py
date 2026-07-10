@@ -3007,8 +3007,12 @@ check(
     '_migrate_notifications_schema_v2' in _srv141 and '_migrate_notifications_schema_v2()' in _srv141
 )
 check(
-    "141i. No new notification hooks added yet (Phase 3+ scope)",
-    'comment_created' not in _auth141 and 'job_applied' not in _auth141 and 'follow:user' not in _auth141
+    "141i. _migrate_notifications_schema_v2 contains no notification hooks (migration-only)",
+    (lambda s: 'create_notification' not in s)(
+        _auth141[_auth141.find('def _migrate_notifications_schema_v2'):
+                 _auth141.find('def _migrate_notifications_schema_v2') + 600]
+        if 'def _migrate_notifications_schema_v2' in _auth141 else ''
+    )
 )
 check(
     "141j. NOTIFICATIONS_PLAN.md marks Phase 2 as complete",
@@ -3159,6 +3163,55 @@ check(
 check(
     "144j. NOTIFICATIONS_PLAN.md marks Phase 5 as complete",
     'Phase 5' in _nplan144 and ('مكتمل' in _nplan144 or 'منفَّذ' in _nplan144)
+)
+
+# §145 — Notifications Phase 6 — Job Application Notification Hook
+_auth145 = open("auth.py").read()
+_nplan145 = open("docs/NOTIFICATIONS_PLAN.md").read()
+
+print("\n── §145: Notifications Phase 6 — Job Application Notification Hook ──")
+check(
+    "145a. apply_job SELECT now fetches company_id and title",
+    "SELECT status, closed_at, expires_at, company_id, title FROM jobs" in _auth145
+)
+check(
+    "145b. job_company_id extracted from job_rows in apply_job",
+    "job_company_id = int(job_rows[0][3])" in _auth145
+)
+check(
+    "145c. job_title extracted from job_rows in apply_job",
+    "job_title = job_rows[0][4]" in _auth145
+)
+check(
+    "145d. Phase 6 notification hook present in apply_job",
+    "Phase 6: notify company" in _auth145 or
+    ("job_applied notification" in _auth145 and "job_applied" in _auth145)
+)
+check(
+    "145e. notification uses type_='job_applied'",
+    "type_=\"job_applied\"" in _auth145 or "type_='job_applied'" in _auth145
+)
+check(
+    "145f. notification event_key uses job_applied:job:{job_id}:{user_id}",
+    'event_key=f"job_applied:job:{job_id}:{user_id}"' in _auth145
+)
+check(
+    "145g. hook only fires for new applications (not already_applied)",
+    _auth145.find("job_applied notification") > _auth145.find("already_applied") or
+    _auth145.find("Phase 6:") > _auth145.find("already_applied")
+)
+check(
+    "145h. hook is non-fatal — wrapped in try/except with TW-WARN log",
+    "TW-WARN" in _auth145 and "job_applied notification" in _auth145
+)
+check(
+    "145i. applicant name fetched from DB (not from token)",
+    "SELECT full_name FROM users WHERE id=:uid" in _auth145 and
+    "applicant_name" in _auth145
+)
+check(
+    "145j. NOTIFICATIONS_PLAN.md marks Phase 6 as complete",
+    'Phase 6' in _nplan145 and ('مكتمل' in _nplan145 or 'منفَّذ' in _nplan145)
 )
 
 # ── Summary ──────────────────────────────────────────────────────────────
