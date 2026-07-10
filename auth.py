@@ -2845,6 +2845,29 @@ def _migrate_notifications_schema_v2():
         release_conn(conn)
 
 
+def _migrate_notifications_schema_v2_1():
+    """Add aggregation columns + partial index to notifications (idempotent, V2-1)."""
+    conn = get_conn()
+    try:
+        conn.run("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS aggregation_key TEXT")
+        conn.run("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS aggregation_count INTEGER DEFAULT 1")
+        conn.run("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS aggregation_kind TEXT")
+        conn.run("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS last_actor_id INTEGER")
+        conn.run("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS last_event_at TIMESTAMPTZ")
+        conn.run("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS target_type TEXT")
+        conn.run("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS target_id INTEGER")
+        conn.run(
+            "CREATE INDEX IF NOT EXISTS idx_notifications_aggregation_unread "
+            "ON notifications (user_id, aggregation_key, is_read) "
+            "WHERE aggregation_key IS NOT NULL"
+        )
+    except Exception as e:
+        print(f"[migration] notifications_schema_v2_1 failed: {e}")
+        raise
+    finally:
+        release_conn(conn)
+
+
 def create_notification(
     user_id: int, type_: str, title: str, body: str, link: str = "",
     actor_id: int = None, entity_id: int = None, entity_type: str = None,
@@ -2867,6 +2890,81 @@ def create_notification(
         return _serialize(_row_to_dict(cols, rows[0]))
     finally:
         release_conn(conn)
+
+
+def create_or_update_aggregated_notification(
+    recipient_user_id: int,
+    type_: str,
+    title: str,
+    body: str,
+    aggregation_key: str,
+    target_type: str,
+    target_id: int,
+    actor_id: int = None,
+    action_url: str = None,
+    payload: dict = None,
+    aggregation_kind: str = None,
+):
+    """
+    V2 aggregation helper (V2-1) — creates or updates an aggregated notification.
+
+    Option A — aggregate while unread:
+      A. No unread aggregate for (recipient_user_id, aggregation_key):
+         → INSERT new notification (aggregation_count=1, is_read=FALSE)
+      B. Unread aggregate exists for same key:
+         → UPDATE same row (aggregation_count += 1, last_actor_id, last_event_at, title, body)
+         → Does NOT create a new row
+      C. Previous aggregate was read (is_read=TRUE):
+         → Treated as case A — new aggregate starts fresh (count=1)
+
+    No hooks activate this helper in V2-1 — schema + helper only, no active aggregation.
+
+    Returns dict {id, aggregation_count, created: bool} on success, None on failure (error logged).
+    payload is accepted for API completeness but not stored until a dedicated column is added.
+    """
+    conn = get_conn()
+    try:
+        existing = conn.run(
+            "SELECT id, aggregation_count FROM notifications "
+            "WHERE user_id = :uid AND aggregation_key = :akey AND is_read = FALSE "
+            "ORDER BY created_at DESC LIMIT 1",
+            uid=recipient_user_id, akey=aggregation_key
+        )
+        ex_cols = [c["name"] for c in conn.columns]
+
+        if existing:
+            row = _row_to_dict(ex_cols, existing[0])
+            new_count = (row.get("aggregation_count") or 1) + 1
+            conn.run(
+                "UPDATE notifications "
+                "SET aggregation_count = :cnt, last_actor_id = :actor, "
+                "    last_event_at = NOW(), title = :title, body = :body "
+                "WHERE id = :nid",
+                cnt=new_count, actor=actor_id, title=title, body=body, nid=row["id"]
+            )
+            return {"id": row["id"], "aggregation_count": new_count, "created": False}
+
+        rows = conn.run(
+            "INSERT INTO notifications "
+            "(user_id, type, title, body, link, actor_id, "
+            " aggregation_key, aggregation_count, aggregation_kind, "
+            " last_actor_id, last_event_at, target_type, target_id) "
+            "VALUES (:uid, :type, :title, :body, :url, :actor, "
+            "        :akey, 1, :akind, :actor, NOW(), :ttype, :tid) "
+            "RETURNING id",
+            uid=recipient_user_id, type=type_, title=title, body=body,
+            url=action_url or "", actor=actor_id, akey=aggregation_key,
+            akind=aggregation_kind or type_, ttype=target_type, tid=target_id
+        )
+        new_id = rows[0][0] if rows else None
+        return {"id": new_id, "aggregation_count": 1, "created": True}
+
+    except Exception as exc:
+        print(f"[create_or_update_aggregated_notification] ERROR uid={recipient_user_id} key={aggregation_key}: {exc}")
+        return None
+    finally:
+        release_conn(conn)
+
 
 def get_notifications(user_id: int, limit: int = 50, offset: int = 0) -> list:
     conn = get_conn()

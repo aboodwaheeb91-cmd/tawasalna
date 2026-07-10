@@ -3998,15 +3998,15 @@ check(
     and ('لا تنفيذ' in _plan156 or 'no implementation' in _plan156.lower())
 )
 check(
-    "156l. auth.py not modified in this PR — create_notification unchanged",
+    "156l. create_notification (V1) exists with ON CONFLICT partial-index fix",
     'def create_notification(' in _auth156 and
-    'ON CONFLICT (user_id, event_key) WHERE event_key IS NOT NULL DO NOTHING' in _auth156 and
-    'create_or_update_aggregated_notification' not in _auth156
+    'ON CONFLICT (user_id, event_key) WHERE event_key IS NOT NULL DO NOTHING' in _auth156
 )
 check(
-    "156m. server.py not modified — no V2 aggregation endpoint added",
-    'create_or_update_aggregated_notification' not in _srv156 and
-    'aggregation_key' not in _srv156
+    "156m. server.py has no V2 aggregation API endpoint handler (import/migration allowed, new @app route not)",
+    '@app.get("/aggregat' not in _srv156 and
+    '@app.post("/aggregat' not in _srv156 and
+    '@app.put("/aggregat' not in _srv156
 )
 check(
     "156n. notifications.html not modified — V2 UI not added yet",
@@ -4136,6 +4136,168 @@ check(
     'Coverage Audit' not in _notif157 and
     'Coverage Audit' not in _ahj157 and
     'Coverage Audit' not in _ahc157
+)
+
+# ═══════════════════════════════════════════════════════════════════════
+# §158 — Notifications V2-1: Aggregation Schema + Helper
+# 27 static checks: migration columns, index, helper logic, V1 unchanged,
+# no hooks activated, no server.py endpoints changed, no UI touched
+# ═══════════════════════════════════════════════════════════════════════
+print("\n── §158: Notifications V2-1 — Aggregation Schema + Helper ──")
+import os as _os158
+_auth158  = open('auth.py',    encoding='utf-8').read() if _os158.path.exists('auth.py')    else ''
+_srv158   = open('server.py',  encoding='utf-8').read() if _os158.path.exists('server.py')  else ''
+_plan158  = open('docs/NOTIFICATIONS_PLAN.md', encoding='utf-8').read() if _os158.path.exists('docs/NOTIFICATIONS_PLAN.md') else ''
+_notif158 = open('notifications.html', encoding='utf-8').read() if _os158.path.exists('notifications.html') else ''
+_ahj158   = open('static/app-header.js',  encoding='utf-8').read() if _os158.path.exists('static/app-header.js')  else ''
+_ahc158   = open('static/app-header.css', encoding='utf-8').read() if _os158.path.exists('static/app-header.css') else ''
+
+# ── Schema migration ──────────────────────────────────────────────────────
+check(
+    "158a. auth.py has _migrate_notifications_schema_v2_1 function",
+    'def _migrate_notifications_schema_v2_1(' in _auth158
+)
+check(
+    "158b. migration adds aggregation_key column (IF NOT EXISTS)",
+    'aggregation_key' in _auth158 and 'ADD COLUMN IF NOT EXISTS' in _auth158
+)
+check(
+    "158c. migration adds aggregation_count column",
+    'aggregation_count' in _auth158 and 'ADD COLUMN IF NOT EXISTS' in _auth158
+)
+check(
+    "158d. migration adds aggregation_kind column",
+    'aggregation_kind' in _auth158
+)
+check(
+    "158e. migration adds last_actor_id column",
+    'last_actor_id' in _auth158
+)
+check(
+    "158f. migration adds last_event_at column",
+    'last_event_at' in _auth158
+)
+check(
+    "158g. migration adds target_type column",
+    'target_type' in _auth158 and 'notifications' in _auth158
+)
+check(
+    "158h. migration adds target_id column",
+    'target_id' in _auth158 and 'notifications' in _auth158
+)
+check(
+    "158i. migration creates idx_notifications_aggregation_unread index",
+    'idx_notifications_aggregation_unread' in _auth158
+)
+check(
+    "158j. index is a partial index WHERE aggregation_key IS NOT NULL",
+    'WHERE aggregation_key IS NOT NULL' in _auth158 and
+    'idx_notifications_aggregation_unread' in _auth158
+)
+
+# ── Helper function ───────────────────────────────────────────────────────
+check(
+    "158k. auth.py has create_or_update_aggregated_notification function",
+    'def create_or_update_aggregated_notification(' in _auth158
+)
+_helper158 = _auth158[_auth158.find('def create_or_update_aggregated_notification('):
+                       _auth158.find('def create_or_update_aggregated_notification(') + 5000] \
+             if 'def create_or_update_aggregated_notification(' in _auth158 else ''
+check(
+    "158l. helper searches for unread aggregate by user_id + aggregation_key + is_read=FALSE",
+    'aggregation_key = :akey AND is_read = FALSE' in _helper158 or
+    'is_read = FALSE' in _helper158 and 'aggregation_key' in _helper158
+)
+check(
+    "158m. helper does INSERT when no existing unread aggregate (creates new row with count=1)",
+    'INSERT INTO notifications' in _helper158 and
+    'aggregation_count' in _helper158 and
+    ("'created': True" in _helper158 or '"created": True' in _helper158)
+)
+check(
+    "158n. helper does UPDATE when unread aggregate exists (no new row)",
+    'UPDATE notifications' in _helper158 and
+    ("'created': False" in _helper158 or '"created": False' in _helper158)
+)
+check(
+    "158o. helper increments aggregation_count on update (count + 1)",
+    '+ 1' in _helper158 and 'aggregation_count' in _helper158
+)
+check(
+    "158p. helper updates last_actor_id on update",
+    'last_actor_id' in _helper158 and 'UPDATE notifications' in _helper158
+)
+check(
+    "158q. helper updates last_event_at via NOW() on update",
+    'last_event_at = NOW()' in _helper158
+)
+check(
+    "158r. helper has no silent failures — logs error and returns None",
+    '[create_or_update_aggregated_notification]' in _auth158 and
+    'return None' in _helper158
+)
+
+# ── V1 backward compatibility ─────────────────────────────────────────────
+check(
+    "158s. create_notification (V1 helper) still exists and is unchanged",
+    'def create_notification(' in _auth158 and
+    'ON CONFLICT (user_id, event_key) WHERE event_key IS NOT NULL DO NOTHING' in _auth158
+)
+check(
+    "158t. ON CONFLICT partial-index fix from PR #444 still present",
+    'ON CONFLICT (user_id, event_key) WHERE event_key IS NOT NULL DO NOTHING' in _auth158
+)
+
+# ── No aggregation hooks activated ───────────────────────────────────────
+check(
+    "158u. no follow_company/follow_profile hook calls create_or_update_aggregated_notification",
+    ('def follow_company(' in _auth158 and
+     _auth158[_auth158.find('def follow_company('):_auth158.find('def follow_company(') + 800].count('create_or_update_aggregated_notification') == 0)
+)
+check(
+    "158v. no apply_job hook calls create_or_update_aggregated_notification",
+    ('def apply_job(' in _auth158 and
+     _auth158[_auth158.find('def apply_job('):_auth158.find('def apply_job(') + 800].count('create_or_update_aggregated_notification') == 0)
+)
+check(
+    "158w. no comment/reply hook calls create_or_update_aggregated_notification",
+    'create_company_post_comment' in _auth158 and
+    _auth158[_auth158.find('def create_company_post_comment'):
+             _auth158.find('def create_company_post_comment') + 3000].count('create_or_update_aggregated_notification') == 0
+)
+
+# ── server.py wired correctly ─────────────────────────────────────────────
+check(
+    "158x. server.py imports _migrate_notifications_schema_v2_1 (only migration, not helper)",
+    '_migrate_notifications_schema_v2_1' in _srv158 and
+    'create_or_update_aggregated_notification' not in _srv158
+)
+check(
+    "158y. server.py calls _migrate_notifications_schema_v2_1() at startup with raise on failure",
+    '_migrate_notifications_schema_v2_1()' in _srv158 and
+    'raise' in _srv158[_srv158.find('_migrate_notifications_schema_v2_1()'):
+                        _srv158.find('_migrate_notifications_schema_v2_1()') + 400]
+)
+
+# ── No UI/CSS/JS changes ──────────────────────────────────────────────────
+check(
+    "158z. notifications.html not modified — no aggregation_count in UI",
+    'aggregation_count' not in _notif158 and 'aggregation_key' not in _notif158
+)
+check(
+    "158aa. app-header.js and app-header.css not modified",
+    'aggregation' not in _ahj158.lower() and 'aggregation' not in _ahc158.lower()
+)
+
+# ── Docs updated ──────────────────────────────────────────────────────────
+check(
+    "158ab. NOTIFICATIONS_PLAN.md marks V2-1 as implemented (PR #448)",
+    'V2-1' in _plan158 and 'PR #448' in _plan158
+)
+check(
+    "158ac. NOTIFICATIONS_PLAN.md states NEXT PHASE is V2-2 Follow Aggregation",
+    'V2-2' in _plan158 and 'Follow Aggregation' in _plan158 and
+    ('NEXT PHASE' in _plan158 or 'V2-2 — Follow' in _plan158)
 )
 
 # ── Summary ──────────────────────────────────────────────────────────────

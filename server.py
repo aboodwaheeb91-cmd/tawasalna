@@ -71,6 +71,7 @@ from auth import (
     mark_message_read_immediate,
     create_notification, get_notifications, mark_notifications_read, mark_notification_read,
     get_unread_notifications, _migrate_notifications_schema_v2,
+    _migrate_notifications_schema_v2_1,
     get_job_applicants, get_user_applications,
     update_application_status, delete_job,
     get_company_jobs_all, set_job_status,
@@ -479,6 +480,12 @@ async def on_startup():
         print("✅ notifications schema v2 ready (actor_id, entity_id, entity_type, event_key)")
     except Exception as e:
         print(f"⚠️ notifications schema v2 migration failed: {e}")
+    try:
+        _migrate_notifications_schema_v2_1()
+        print("✅ notifications schema v2-1 ready (aggregation_key, aggregation_count, aggregation_kind, last_actor_id, last_event_at, target_type, target_id)")
+    except Exception as e:
+        print(f"❌ notifications schema v2-1 migration failed: {e}")
+        raise
     await _init_asyncpg_pool()
 
 # ── Helpers ──
