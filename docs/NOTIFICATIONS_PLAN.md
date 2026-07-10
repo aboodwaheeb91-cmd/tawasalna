@@ -926,7 +926,7 @@ def create_or_update_aggregated_notification(
 |-------|---------|-------|--------|
 | **V2-0** | Smart Aggregation Plan | هذا القسم — docs only | ✅ PR #447 |
 | **V2-1** | Aggregation Schema + Helper | حقول إضافية + helper بدون تفعيل hooks | ✅ PR #448 |
-| **V2-2** | Follow Aggregation | تجميع إشعارات المتابعة | 🔜 مستقبلي |
+| **V2-2** | Follow Aggregation | تجميع إشعارات المتابعة | ✅ PR #449 |
 | **V2-3** | Job Application Aggregation | تجميع المتقدمين لكل وظيفة | 🔜 مستقبلي |
 | **V2-4** | Comment/Reply Aggregation | تجميع التعليقات/الردود لكل منشور أو thread | 🔜 مستقبلي |
 | **V2-5** | UI Support for Aggregated Notifications | تحديث كروت الإشعارات: count + "و X آخرين" | 🔜 مستقبلي |
@@ -940,7 +940,23 @@ def create_or_update_aggregated_notification(
 - V1 (`create_notification`) يعمل كما هو — لا تغيير.
 - لا follow/job/comment aggregation hooks — الـ helper موجود لكن لم يُفعَّل.
 
-**NEXT PHASE AFTER MERGE: Phase V2-2 — Follow Aggregation**
+**V2-2 — ما تم (PR #449):**
+- `follow_profile()` في `auth.py`: استبدال `create_notification` (V1) بـ `create_or_update_aggregated_notification`.
+  - `aggregation_key = "follow_agg:user:{followed_id}"`
+  - `target_type = "user"`, `target_id = followed_id`
+  - `action_url = "/u/{recip_tw_id}#followers"`
+  - `aggregation_kind = "follow"`
+  - Pre-check للـ count قبل الاستدعاء: title/body تعكس العدد الحقيقي.
+  - رداء متعدد: عند count>1 → `"{new_count} أشخاص يتابعونك"` / `"{follower_name} و{n-1} آخرون بدأوا بمتابعتك"`.
+- `follow_company()` في `auth.py`: نفس الاستبدال.
+  - `aggregation_key = "follow_agg:company:{company_id}"`
+  - `target_type = "company"`, `target_id = company_id`
+  - `action_url = "/u/{company_tw_id}#followers"`
+  - حارس self-notification: `if follower_id != company_id` — لا إشعار إذا الشركة تابعت نفسها.
+- V1 `create_notification` باقي في الكود للـ hooks الأخرى (job/comment/reply/mention/verify).
+- لا تغيير على notifications.html أو app-header.
+
+**NEXT PHASE AFTER MERGE: Phase V2-3 — Job Application Aggregation**
 
 ---
 
@@ -974,7 +990,7 @@ def create_or_update_aggregated_notification(
 | **11** | Real-time / Push (WS or SSE or Push API) | TBD — needs decision | P3 — مؤجل |
 | **V2-0** | Smart Aggregation Plan | `docs/NOTIFICATIONS_PLAN.md` (docs only) | ✅ PR #447 |
 | **V2-1** | Aggregation Schema + Helper | `auth.py` migration + helper | ✅ PR #448 |
-| **V2-2** | Follow Aggregation | `auth.py` follow hook | 🔜 مستقبلي |
+| **V2-2** | Follow Aggregation | `auth.py` follow hook | ✅ PR #449 |
 | **V2-3** | Job Application Aggregation | `auth.py` job hook | 🔜 مستقبلي |
 | **V2-4** | Comment/Reply Aggregation | `auth.py` comment hook | 🔜 مستقبلي |
 | **V2-5** | UI Support | `notifications.html` | 🔜 مستقبلي |

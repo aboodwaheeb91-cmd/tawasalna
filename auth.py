@@ -3331,25 +3331,46 @@ def follow_company(follower_id: int, company_id: int) -> int:
         fc = conn.run("SELECT COUNT(*) FROM company_follows WHERE company_id = :cid",
                       cid=company_id)
         count = fc[0][0] if fc else 0
-        # Phase 7: notify company on new follow (non-fatal, fresh follow only)
+        # V2-2: aggregated follow notification (non-fatal, fresh follow only)
         if ins_rows:
-            try:
-                urows = conn.run(
-                    "SELECT full_name, tw_id FROM users WHERE id = :fid", fid=follower_id)
-                if urows:
-                    create_notification(
-                        user_id=company_id,
-                        type_="follow",
-                        title="شخص جديد يتابعك",
-                        body=f"{urows[0][0] or ''} بدأ بمتابعتك",
-                        link=f"/u/{urows[0][1] or ''}",
-                        actor_id=follower_id,
-                        entity_id=follower_id,
-                        entity_type="user",
-                        event_key=f"follow:user:{company_id}:{follower_id}"
-                    )
-            except Exception as _notif_err:
-                print(f"[TW-WARN] follow notification (company {company_id}) failed: {_notif_err}")
+            if follower_id != company_id:
+                try:
+                    urows = conn.run(
+                        "SELECT full_name, tw_id FROM users WHERE id = :fid", fid=follower_id)
+                    crows = conn.run(
+                        "SELECT tw_id FROM users WHERE id = :cid", cid=company_id)
+                    if urows:
+                        follower_name = urows[0][0] or ''
+                        company_tw_id = crows[0][0] if crows else ''
+                        agg_key = f"follow_agg:company:{company_id}"
+                        ex_agg = conn.run(
+                            "SELECT aggregation_count FROM notifications "
+                            "WHERE user_id = :uid AND aggregation_key = :akey AND is_read = FALSE "
+                            "ORDER BY created_at DESC LIMIT 1",
+                            uid=company_id, akey=agg_key
+                        )
+                        ex_count = ex_agg[0][0] if ex_agg else 0
+                        new_count = ex_count + 1
+                        if new_count == 1:
+                            notif_title = "شخص جديد يتابعك"
+                            notif_body = f"{follower_name} بدأ بمتابعتك"
+                        else:
+                            notif_title = f"{new_count} أشخاص يتابعونك"
+                            notif_body = f"{follower_name} و{new_count - 1} آخرون بدأوا بمتابعتك"
+                        create_or_update_aggregated_notification(
+                            recipient_user_id=company_id,
+                            type_="follow",
+                            title=notif_title,
+                            body=notif_body,
+                            aggregation_key=agg_key,
+                            target_type="company",
+                            target_id=company_id,
+                            actor_id=follower_id,
+                            action_url=f"/u/{company_tw_id}#followers",
+                            aggregation_kind="follow",
+                        )
+                except Exception as _notif_err:
+                    print(f"[TW-WARN] follow notification (company {company_id}) failed: {_notif_err}")
         return count
     finally:
         release_conn(conn)
@@ -4039,25 +4060,46 @@ def follow_profile(follower_id: int, followed_id: int) -> int:
             "SELECT COUNT(*) FROM profile_follows WHERE followed_id = :fdid",
             fdid=followed_id)
         count = rows[0][0] if rows else 0
-        # Phase 7: notify profile owner on new follow (non-fatal, fresh follow only)
+        # V2-2: aggregated follow notification (non-fatal, fresh follow only)
         if ins_rows:
-            try:
-                urows = conn.run(
-                    "SELECT full_name, tw_id FROM users WHERE id = :fid", fid=follower_id)
-                if urows:
-                    create_notification(
-                        user_id=followed_id,
-                        type_="follow",
-                        title="شخص جديد يتابعك",
-                        body=f"{urows[0][0] or ''} بدأ بمتابعتك",
-                        link=f"/u/{urows[0][1] or ''}",
-                        actor_id=follower_id,
-                        entity_id=follower_id,
-                        entity_type="user",
-                        event_key=f"follow:user:{followed_id}:{follower_id}"
-                    )
-            except Exception as _notif_err:
-                print(f"[TW-WARN] follow notification (profile {followed_id}) failed: {_notif_err}")
+            if follower_id != followed_id:
+                try:
+                    urows = conn.run(
+                        "SELECT full_name, tw_id FROM users WHERE id = :fid", fid=follower_id)
+                    rrows = conn.run(
+                        "SELECT tw_id FROM users WHERE id = :rid", rid=followed_id)
+                    if urows:
+                        follower_name = urows[0][0] or ''
+                        recip_tw_id = rrows[0][0] if rrows else ''
+                        agg_key = f"follow_agg:user:{followed_id}"
+                        ex_agg = conn.run(
+                            "SELECT aggregation_count FROM notifications "
+                            "WHERE user_id = :uid AND aggregation_key = :akey AND is_read = FALSE "
+                            "ORDER BY created_at DESC LIMIT 1",
+                            uid=followed_id, akey=agg_key
+                        )
+                        ex_count = ex_agg[0][0] if ex_agg else 0
+                        new_count = ex_count + 1
+                        if new_count == 1:
+                            notif_title = "شخص جديد يتابعك"
+                            notif_body = f"{follower_name} بدأ بمتابعتك"
+                        else:
+                            notif_title = f"{new_count} أشخاص يتابعونك"
+                            notif_body = f"{follower_name} و{new_count - 1} آخرون بدأوا بمتابعتك"
+                        create_or_update_aggregated_notification(
+                            recipient_user_id=followed_id,
+                            type_="follow",
+                            title=notif_title,
+                            body=notif_body,
+                            aggregation_key=agg_key,
+                            target_type="user",
+                            target_id=followed_id,
+                            actor_id=follower_id,
+                            action_url=f"/u/{recip_tw_id}#followers",
+                            aggregation_kind="follow",
+                        )
+                except Exception as _notif_err:
+                    print(f"[TW-WARN] follow notification (profile {followed_id}) failed: {_notif_err}")
         return count
     finally:
         release_conn(conn)
