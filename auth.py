@@ -2805,14 +2805,43 @@ def get_profile_style(tw_id: str) -> str:
 
 # ══ Notifications System ══
 
-def create_notification(user_id: int, type_: str, title: str, body: str, link: str = "") -> dict:
+def _migrate_notifications_schema_v2():
+    """Add actor_id, entity_id, entity_type, event_key columns + unique index (idempotent, Phase 2)."""
+    conn = get_conn()
+    try:
+        conn.run("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS actor_id INTEGER REFERENCES users(id) ON DELETE SET NULL")
+        conn.run("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS entity_id INTEGER")
+        conn.run("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS entity_type TEXT")
+        conn.run("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS event_key TEXT")
+        conn.run(
+            "CREATE UNIQUE INDEX IF NOT EXISTS uniq_notif_event_key "
+            "ON notifications (user_id, event_key) WHERE event_key IS NOT NULL"
+        )
+    except Exception as e:
+        print(f"[migration] notifications_schema_v2 failed: {e}")
+        raise
+    finally:
+        release_conn(conn)
+
+
+def create_notification(
+    user_id: int, type_: str, title: str, body: str, link: str = "",
+    actor_id: int = None, entity_id: int = None, entity_type: str = None,
+    event_key: str = None
+):
+    """Create a notification. Returns the created row dict, or None if event_key already exists (idempotent)."""
     conn = get_conn()
     try:
         rows = conn.run(
-            "INSERT INTO notifications (user_id, type, title, body, link) "
-            "VALUES (:uid, :type, :title, :body, :link) RETURNING id, user_id, type, title, body, link, is_read, created_at",
-            uid=user_id, type=type_, title=title, body=body, link=link
+            "INSERT INTO notifications (user_id, type, title, body, link, actor_id, entity_id, entity_type, event_key) "
+            "VALUES (:uid, :type, :title, :body, :link, :actor, :eid, :etype, :ekey) "
+            "ON CONFLICT (user_id, event_key) DO NOTHING "
+            "RETURNING id, user_id, type, title, body, link, is_read, created_at",
+            uid=user_id, type=type_, title=title, body=body, link=link,
+            actor=actor_id, eid=entity_id, etype=entity_type, ekey=event_key
         )
+        if not rows:
+            return None  # duplicate event_key — idempotent skip
         cols = [c["name"] for c in conn.columns]
         return _serialize(_row_to_dict(cols, rows[0]))
     finally:
