@@ -2999,8 +2999,8 @@ check(
     'actor_id: int = None' in _auth141 and 'entity_id: int = None' in _auth141 and 'event_key: str = None' in _auth141
 )
 check(
-    "141f. create_notification uses ON CONFLICT ... DO NOTHING (idempotent)",
-    'ON CONFLICT (user_id, event_key) DO NOTHING' in _auth141
+    "141f. create_notification uses ON CONFLICT (user_id, event_key) WHERE event_key IS NOT NULL DO NOTHING (partial-index-correct, idempotent)",
+    'ON CONFLICT (user_id, event_key) WHERE event_key IS NOT NULL DO NOTHING' in _auth141
 )
 check(
     "141g. create_notification returns None on duplicate (event_key idempotency)",
@@ -3691,6 +3691,85 @@ check(
     "152p. No WebSocket or push instantiation in notifications.html",
     'new WebSocket(' not in _notif152 and 'new EventSource(' not in _notif152 and
     'pushManager' not in _notif152 and 'subscribe(' not in _notif152
+)
+
+# ═══════════════════════════════════════════════════════════════════════
+# §153 — Notifications Runtime QA Bugfix — Applications + Follow Notifications
+# 15 static checks: ON CONFLICT fix, hooks, recipients, event_key, frontend display
+# ═══════════════════════════════════════════════════════════════════════
+print("\n── §153: Notifications Runtime QA Bugfix ──")
+import os as _os153
+_auth153  = open('auth.py', encoding='utf-8').read() if _os153.path.exists('auth.py') else ''
+_notif153 = open('notifications.html', encoding='utf-8').read() if _os153.path.exists('notifications.html') else ''
+_plan153  = open('docs/NOTIFICATIONS_PLAN.md', encoding='utf-8').read() if _os153.path.exists('docs/NOTIFICATIONS_PLAN.md') else ''
+
+check(
+    "153a. create_notification function is defined in auth.py",
+    'def create_notification(' in _auth153
+)
+check(
+    "153b. ON CONFLICT uses correct partial index predicate — WHERE event_key IS NOT NULL DO NOTHING",
+    'ON CONFLICT (user_id, event_key) WHERE event_key IS NOT NULL DO NOTHING' in _auth153
+)
+check(
+    "153c. Old buggy ON CONFLICT without WHERE predicate is absent from auth.py",
+    'ON CONFLICT (user_id, event_key) DO NOTHING' not in _auth153
+)
+check(
+    "153d. apply_job in auth.py calls create_notification for job_applied type",
+    'type_="job_applied"' in _auth153 or "type_='job_applied'" in _auth153
+)
+check(
+    "153e. job_applied event_key format is job_applied:job:{id}:{actor} in auth.py",
+    'job_applied:job:' in _auth153
+)
+check(
+    "153f. job notification guards against self-apply — job_company_id != user_id check present",
+    'job_company_id != user_id' in _auth153
+)
+check(
+    "153g. follow_company in auth.py calls create_notification with follow type",
+    'follow_company' in _auth153 and
+    ('type_="follow"' in _auth153 or "type_='follow'" in _auth153)
+)
+check(
+    "153h. follow event_key format is follow:user:{company_id}:{follower_id} in auth.py",
+    'follow:user:' in _auth153
+)
+check(
+    "153i. follow notification only fires on fresh follow — if ins_rows guards create_notification",
+    'if ins_rows:' in _auth153 and
+    _auth153.find('if ins_rows:') < _auth153.find('follow:user:')
+)
+check(
+    "153j. partial unique index in auth.py has WHERE event_key IS NOT NULL predicate",
+    'WHERE event_key IS NOT NULL' in _auth153 and
+    'uniq_notif_event_key' in _auth153
+)
+check(
+    "153k. _typeMap in notifications.html has job_applied entry",
+    '_typeMap' in _notif153 and
+    'job_applied' in _notif153[_notif153.find('_typeMap'):_notif153.find('_typeMap') + 700]
+)
+check(
+    "153l. _typeMap in notifications.html has follow entry — maps follow type to icon/color",
+    '_typeMap' in _notif153 and
+    'follow' in _notif153[_notif153.find('_typeMap'):_notif153.find('_typeMap') + 700]
+)
+check(
+    "153m. _filterGroups in notifications.html includes job_applied in job group",
+    '_filterGroups' in _notif153 and 'job_applied' in _notif153
+)
+check(
+    "153n. _filterGroups in notifications.html includes follow in follow group",
+    '_filterGroups' in _notif153 and
+    "'follow'" in _notif153[_notif153.find('_filterGroups'):_notif153.find('_filterGroups') + 400]
+    if '_filterGroups' in _notif153 else False
+)
+check(
+    "153o. NOTIFICATIONS_PLAN.md documents runtime QA bugfix and refollow behavior",
+    'Runtime QA' in _plan153 or 'runtime-qa' in _plan153.lower() or
+    'ON CONFLICT' in _plan153 and 'WHERE event_key IS NOT NULL' in _plan153
 )
 
 # ── Summary ──────────────────────────────────────────────────────────────

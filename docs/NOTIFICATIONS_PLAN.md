@@ -397,6 +397,74 @@ def mark_notification_read(user_id: int, notif_id: int) -> bool:
 
 ---
 
+## Runtime QA Bugfix — 2026-07-10 (PR #444)
+
+> **Bug found during manual QA:** job application and follow notifications were never created in production.
+
+### Root Cause
+
+`create_notification()` in `auth.py` used:
+
+```sql
+ON CONFLICT (user_id, event_key) DO NOTHING
+```
+
+But the unique index defined in `_migrate_notifications_schema_v2()` is **partial**:
+
+```sql
+CREATE UNIQUE INDEX IF NOT EXISTS uniq_notif_event_key
+  ON notifications (user_id, event_key) WHERE event_key IS NOT NULL
+```
+
+PostgreSQL requires `ON CONFLICT` to include the matching `WHERE` predicate when referencing a partial unique index. Without it, the engine raises:
+
+```
+ERROR: there is no unique or exclusion constraint matching the ON CONFLICT specification
+```
+
+This exception was caught by all callers' `try/except` and logged as `[TW-WARN]`, **silently preventing every notification from being created**.
+
+### Fix Applied
+
+One-line change in `create_notification()` (`auth.py` line 2859):
+
+```python
+# Before (buggy — fails against partial index):
+"ON CONFLICT (user_id, event_key) DO NOTHING "
+
+# After (correct — matches partial index predicate):
+"ON CONFLICT (user_id, event_key) WHERE event_key IS NOT NULL DO NOTHING "
+```
+
+### Refollow Behavior (by design — documented)
+
+After unfollow + refollow, the `event_key` `follow:user:{company_id}:{follower_id}` is unchanged. The second follow-notification is **silently skipped** (idempotent ON CONFLICT). This is intentional:
+
+- The `if ins_rows:` guard in `follow_company()` ensures the notification block only executes on a **genuine new follow** (when the INSERT returns a row).
+- On re-follow, `company_follows ON CONFLICT DO NOTHING` returns empty rows → `ins_rows` is falsy → notification block is skipped entirely → `create_notification` is never called.
+- If a different requirement is needed (e.g., notify on refollow after N days), a new `event_key` format would be required. Until then, **refollow does not trigger a second notification — by design**.
+
+### Diagnostic Checklist Applied
+
+| الفحص | النتيجة |
+|-------|---------|
+| `create_notification` hook in `apply_job` | ✅ موجود — `auth.py:2244` |
+| `create_notification` hook in `follow_company` | ✅ موجود — `auth.py:3242` |
+| `create_notification` hook in `follow_profile` | ✅ موجود — `auth.py:3950` |
+| Recipient for job notification | ✅ `jobs.company_id` = company's `users.id` |
+| Recipient for follow notification | ✅ `company_id` via `_resolve_company_id()` |
+| `event_key` format for jobs | ✅ `job_applied:job:{job_id}:{applicant_id}` |
+| `event_key` format for follows | ✅ `follow:user:{followed_id}:{follower_id}` |
+| `_typeMap` has `job_applied` | ✅ `notifications.html` line ~678 |
+| `_typeMap` has `follow` | ✅ `notifications.html` line ~679 |
+| `_filterGroups` includes `job_applied` in `job` group | ✅ `['job', 'job_applied']` |
+| `_filterGroups` includes `follow` in `follow` group | ✅ `['follow']` |
+| "all" filter shows both types | ✅ `filterVal === 'all'` shows all |
+| Partial unique index predicate correct | ✅ `WHERE event_key IS NOT NULL` |
+| ON CONFLICT matches partial index | ✅ **Fixed** — `WHERE event_key IS NOT NULL DO NOTHING` |
+
+---
+
 ## Notifications V1 Status
 
 > **Notifications V1 is complete.** All phases 0–10 are implemented and merged. Phase 11 is intentionally deferred.
@@ -454,4 +522,4 @@ def mark_notification_read(user_id: int, notif_id: int) -> bool:
 
 ---
 
-*أُنشئ: 2026-07-09 — Phase 0 audit. حُدِّث: 2026-07-10 — Phase 1 مكتمل (PR #431). حُدِّث: 2026-07-10 — Phase 2 مكتمل (PR #432). حُدِّث: 2026-07-10 — Phase 3 مكتمل (PR #433). حُدِّث: 2026-07-10 — Phase 4 مكتمل (PR #434). حُدِّث: 2026-07-10 — Phase 5 مكتمل (PR #435). حُدِّث: 2026-07-10 — Phase 6 مكتمل (PR #436). حُدِّث: 2026-07-10 — Phase 7 مكتمل (PR #437). حُدِّث: 2026-07-10 — Phase 8 مكتمل (PR #438). حُدِّث: 2026-07-10 — Phase 9 مكتمل (PR #439). حُدِّث: 2026-07-10 — Phase 10 Unread Badge in App Header مكتمل (PR #440). Phase 11 مؤجل — يحتاج قرار معماري. حُدِّث: 2026-07-10 — Notifications V1 Final QA + Closure: إضافة قسم "Notifications V1 Status"، تحديث Phase 11 deferral بتفصيل أكبر، تنظيف test 139q (PR #441).*
+*أُنشئ: 2026-07-09 — Phase 0 audit. حُدِّث: 2026-07-10 — Phase 1 مكتمل (PR #431). حُدِّث: 2026-07-10 — Phase 2 مكتمل (PR #432). حُدِّث: 2026-07-10 — Phase 3 مكتمل (PR #433). حُدِّث: 2026-07-10 — Phase 4 مكتمل (PR #434). حُدِّث: 2026-07-10 — Phase 5 مكتمل (PR #435). حُدِّث: 2026-07-10 — Phase 6 مكتمل (PR #436). حُدِّث: 2026-07-10 — Phase 7 مكتمل (PR #437). حُدِّث: 2026-07-10 — Phase 8 مكتمل (PR #438). حُدِّث: 2026-07-10 — Phase 9 مكتمل (PR #439). حُدِّث: 2026-07-10 — Phase 10 Unread Badge in App Header مكتمل (PR #440). Phase 11 مؤجل — يحتاج قرار معماري. حُدِّث: 2026-07-10 — Notifications V1 Final QA + Closure: إضافة قسم "Notifications V1 Status"، تحديث Phase 11 deferral بتفصيل أكبر، تنظيف test 139q (PR #441). حُدِّث: 2026-07-10 — Runtime QA Bugfix: ON CONFLICT partial-index fix في create_notification، توثيق سلوك refollow، إضافة §153 checks (PR #444).*
