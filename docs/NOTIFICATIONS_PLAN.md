@@ -925,14 +925,22 @@ def create_or_update_aggregated_notification(
 | Phase | العنوان | الوصف | الحالة |
 |-------|---------|-------|--------|
 | **V2-0** | Smart Aggregation Plan | هذا القسم — docs only | ✅ PR #447 |
-| **V2-1** | Aggregation Schema + Helper | حقول إضافية + helper بدون تفعيل hooks | 🔜 مستقبلي |
+| **V2-1** | Aggregation Schema + Helper | حقول إضافية + helper بدون تفعيل hooks | ✅ PR #448 |
 | **V2-2** | Follow Aggregation | تجميع إشعارات المتابعة | 🔜 مستقبلي |
 | **V2-3** | Job Application Aggregation | تجميع المتقدمين لكل وظيفة | 🔜 مستقبلي |
 | **V2-4** | Comment/Reply Aggregation | تجميع التعليقات/الردود لكل منشور أو thread | 🔜 مستقبلي |
 | **V2-5** | UI Support for Aggregated Notifications | تحديث كروت الإشعارات: count + "و X آخرين" | 🔜 مستقبلي |
 | **V2-6** | Final Runtime QA | فحص يدوي + static checks + توثيق نهائي | 🔜 مستقبلي |
 
-> **مهم:** لا تنفيذ لأي Phase V2 غير V2-0 حتى يُطلب صراحةً من المستخدم.
+> **مهم:** لا تنفيذ لأي Phase V2 غير V2-0 و V2-1 حتى يُطلب صراحةً من المستخدم.
+
+**V2-1 — ما تم (PR #448):**
+- `_migrate_notifications_schema_v2_1()` في `auth.py`: يضيف 7 أعمدة جديدة + partial index.
+- `create_or_update_aggregated_notification()` في `auth.py`: helper جاهز، لا hooks تستخدمه بعد.
+- V1 (`create_notification`) يعمل كما هو — لا تغيير.
+- لا follow/job/comment aggregation hooks — الـ helper موجود لكن لم يُفعَّل.
+
+**NEXT PHASE AFTER MERGE: Phase V2-2 — Follow Aggregation**
 
 ---
 
@@ -965,7 +973,7 @@ def create_or_update_aggregated_notification(
 | **10** | Unread Badge in App Header | `server.py`, `static/app-header.js`, `static/app-header.css` | ✅ مكتمل (PR #440) |
 | **11** | Real-time / Push (WS or SSE or Push API) | TBD — needs decision | P3 — مؤجل |
 | **V2-0** | Smart Aggregation Plan | `docs/NOTIFICATIONS_PLAN.md` (docs only) | ✅ PR #447 |
-| **V2-1** | Aggregation Schema + Helper | `auth.py` migration + helper | 🔜 مستقبلي |
+| **V2-1** | Aggregation Schema + Helper | `auth.py` migration + helper | ✅ PR #448 |
 | **V2-2** | Follow Aggregation | `auth.py` follow hook | 🔜 مستقبلي |
 | **V2-3** | Job Application Aggregation | `auth.py` job hook | 🔜 مستقبلي |
 | **V2-4** | Comment/Reply Aggregation | `auth.py` comment hook | 🔜 مستقبلي |
