@@ -4061,11 +4061,32 @@ def admin_update_verify(req_id: int, data: VerifyUpdateInput, request: Request):
     check_admin(request)
     conn = get_conn()
     try:
+        # Fetch request owner before update (needed for notification)
+        vr_rows = conn.run("SELECT user_id FROM verify_requests WHERE id = :id", id=req_id)
         conn.run(
             "UPDATE verify_requests SET status = :s WHERE id = :id",
             s=data.status, id=req_id
         )
+        # Phase 8: notify request owner on verification decision (non-fatal)
+        try:
+            if vr_rows:
+                req_owner_id = int(vr_rows[0][0])
+                approved = data.status == "approved"
+                create_notification(
+                    user_id=req_owner_id,
+                    type_="verify",
+                    title="تم مراجعة طلب توثيقك" if approved else "طلب توثيقك يحتاج مراجعة",
+                    body="تمت الموافقة على طلب التوثيق ✅" if approved else "تم رفض طلب التوثيق",
+                    link="/settings",
+                    entity_id=req_id,
+                    entity_type="verify_request",
+                    event_key=f"verify_{data.status}:verify_request:{req_id}:admin"
+                )
+        except Exception as _ne:
+            print(f"[TW-WARN] verify notification (req {req_id}) failed: {_ne}")
         return {"success": True}
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"update_verify error: {e}")
         raise HTTPException(500, detail=str(e))
