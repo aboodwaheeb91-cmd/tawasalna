@@ -930,7 +930,7 @@ def create_or_update_aggregated_notification(
 | **V2-3** | Job Application Aggregation | تجميع المتقدمين لكل وظيفة | ✅ PR #450 |
 | **V2-4** | Comment/Reply Aggregation | تجميع التعليقات/الردود لكل منشور أو thread | ✅ PR #451 |
 | **V2-5** | UI Support for Aggregated Notifications | تحديث كروت الإشعارات: count + "و X آخرين" | ✅ PR #452 |
-| **V2-6** | Final Runtime QA | فحص يدوي + static checks + توثيق نهائي | 🔜 مستقبلي |
+| **V2-6** | Final Runtime QA | فحص يدوي + static checks + توثيق نهائي | ✅ PR #453 |
 
 > **مهم:** لا تنفيذ لأي Phase V2 غير V2-0 و V2-1 حتى يُطلب صراحةً من المستخدم.
 
@@ -1041,7 +1041,13 @@ Fallback: `commenter_name` / `replier_name` → `"مستخدم جديد"` عند
   - `.notif-agg-badge` هي الـ CSS class الوحيدة المضافة — ممنوع إنشاء class موازية.
   - `aggregation_key` لا يُعرض في الـ UI ولا يُستخدم لتوليد route.
 
-**NEXT PHASE AFTER MERGE: Phase V2-6 — Final Runtime QA**
+**V2-6 — ما تم (PR #453):**
+- فحص نهائي شامل لجميع مراحل V2 (V2-0 → V2-6).
+- لا تغييرات في الكود — docs + static checks فقط.
+- §163: 50 static check يغطي: Schema/Migration · Helper · Follow · Job · Comment/Reply · UI · Documentation.
+- **Notifications V2 مكتملة** — جميع المراحل من V2-0 إلى V2-6 مدمجة في main.
+
+**Notifications V2 COMPLETE — لا مراحل V2 إضافية مخططة.**
 
 ---
 
@@ -1079,7 +1085,85 @@ Fallback: `commenter_name` / `replier_name` → `"مستخدم جديد"` عند
 | **V2-3** | Job Application Aggregation | `auth.py` job hook | ✅ PR #450 |
 | **V2-4** | Comment/Reply Aggregation | `auth.py` comment hook | ✅ PR #451 |
 | **V2-5** | UI Support | `notifications.html` | ✅ PR #452 |
-| **V2-6** | Final Runtime QA | static checks + manual QA | 🔜 مستقبلي |
+| **V2-6** | Final Runtime QA | static checks + manual QA | ✅ PR #453 |
+
+---
+
+## Notifications V2 Final Status ✅
+
+> جميع مراحل V2 مكتملة وموثقة — **Notifications V2 COMPLETE**.
+
+### Final Phase Table (V2-0 → V2-6)
+
+| Phase | العنوان | PR | الحالة |
+|-------|---------|-----|--------|
+| **V2-0** | Smart Aggregation Plan (docs only) | #447 | ✅ |
+| **V2-1** | Aggregation Schema + Helper | #448 | ✅ |
+| **V2-2** | Follow Aggregation | #449 | ✅ |
+| **V2-3** | Job Application Aggregation | #450 | ✅ |
+| **V2-4** | Comment/Reply Aggregation | #451 | ✅ |
+| **V2-5** | UI Support for Aggregated Notifications | #452 | ✅ |
+| **V2-6** | Final Runtime QA | #453 | ✅ |
+
+### ما نُفِّذ في V2
+
+- **Schema:** 7 أعمدة جديدة على جدول `notifications` + partial index (PR #448)
+- **Helper:** `create_or_update_aggregated_notification()` في `auth.py` — Option A (aggregate while unread) — UPDATE أو INSERT (PR #448)
+- **Hooks V2:**
+  - `follow_profile()` + `follow_company()` → `follow_agg:user:{id}` / `follow_agg:company:{id}` (PR #449)
+  - `apply_job()` → `job_applications_agg:job:{id}` (PR #450)
+  - `create_company_post_comment()` → `comments_agg:post:{id}` + `replies_agg:comment:{id}` (PR #451)
+- **UI:** `_buildNotifCard(n)` في `notifications.html` يعرض `.notif-agg-badge` عند `aggregation_count > 1` (PR #452)
+- **QA:** §163 — 50 static checks تغطي جميع V2 phases (PR #453)
+
+### ما لم يُنفَّذ في V2 (Missing Priority Queue)
+
+| الميزة | السبب |
+|--------|-------|
+| `application_status_changed` aggregation | Hook موجود بـ V1 — aggregation مرحلة منفصلة |
+| Mention aggregation | Mentions تبقى V1 (event_key idempotency) — لا aggregation مطلوبة الآن |
+| Rating notifications | `company_ratings` لا تولد إشعاراً حالياً |
+| Job expiring-soon notifications | مجدولة في Missing Priority Queue |
+| Soft delete per-notification | مؤجلة — Phase 9 يدعم only حذف الكل |
+
+### مؤجل (Deferred)
+
+- **Phase 11 — Real-time / Push** (WebSocket أو SSE أو Push API): يحتاج قرار معماري صريح + حل P0 Security Debt على WebSocket. لا تنفيذ بدون موافقة.
+
+### Manual QA Checklist (V2 Final)
+
+الفحوصات اليدوية الموصى بها قبل الاعتبار V2 production-ready:
+
+#### Schema / Migration
+- [ ] `ALTER TABLE notifications ADD COLUMN IF NOT EXISTS aggregation_key TEXT` تُنفَّذ بدون خطأ على DB جديدة وقديمة
+- [ ] `idx_notifications_aggregation_unread` partial index موجود في DB
+- [ ] `SELECT * FROM notifications LIMIT 1` يُعيد 7 أعمدة جديدة (aggregation_key, aggregation_count, aggregation_kind, last_actor_id, last_event_at, target_type, target_id)
+
+#### Follow Aggregation
+- [ ] مستخدم A يتابع مستخدم B → إشعار جديد (count=1) في DB
+- [ ] مستخدم C يتابع مستخدم B → نفس الصف يُحدَّث (count=2)
+- [ ] مستخدم B يقرأ الإشعار → المتابعة التالية تبدأ إشعاراً جديداً (count=1 من جديد)
+- [ ] الشركة لا تُشعر نفسها عند المتابعة (self-guard)
+
+#### Job Application Aggregation
+- [ ] موظف A يتقدم لوظيفة → إشعار count=1 لصاحب الشركة
+- [ ] موظف B يتقدم لنفس الوظيفة → نفس الصف يُحدَّث count=2
+- [ ] الشركة لا تُشعر نفسها عند التقدم (self-guard)
+- [ ] تقدم مكرر (same user, same job) لا يولد إشعاراً
+
+#### Comment/Reply Aggregation
+- [ ] تعليق جديد → إشعار count=1 لصاحب المنشور
+- [ ] تعليق ثانٍ على نفس المنشور → count=2
+- [ ] رد على تعليق → إشعار count=1 لصاحب التعليق
+- [ ] رد ثانٍ على نفس التعليق → count=2
+- [ ] صاحب المنشور يعلق على منشوره → لا إشعار (self-guard)
+
+#### UI (notifications.html)
+- [ ] إشعار عادي (aggregation_count=1 أو NULL): لا badge يظهر
+- [ ] إشعار مجمع (aggregation_count=3): badge يظهر مع العدد "3" وأيقونة
+- [ ] الكارد المجمع غير المقروء: border teal `rgba(0,200,150,.22)`
+- [ ] الكارد المجمع المقروء: لا border إضافي
+- [ ] كل نصوص API تُعرض عبر `textContent` — لا `innerHTML`
 
 ---
 
@@ -1095,4 +1179,4 @@ Fallback: `commenter_name` / `replier_name` → `"مستخدم جديد"` عند
 
 ---
 
-*أُنشئ: 2026-07-09 — Phase 0 audit. حُدِّث: 2026-07-10 — Phase 1 مكتمل (PR #431). حُدِّث: 2026-07-10 — Phase 2 مكتمل (PR #432). حُدِّث: 2026-07-10 — Phase 3 مكتمل (PR #433). حُدِّث: 2026-07-10 — Phase 4 مكتمل (PR #434). حُدِّث: 2026-07-10 — Phase 5 مكتمل (PR #435). حُدِّث: 2026-07-10 — Phase 6 مكتمل (PR #436). حُدِّث: 2026-07-10 — Phase 7 مكتمل (PR #437). حُدِّث: 2026-07-10 — Phase 8 مكتمل (PR #438). حُدِّث: 2026-07-10 — Phase 9 مكتمل (PR #439). حُدِّث: 2026-07-10 — Phase 10 Unread Badge in App Header مكتمل (PR #440). Phase 11 مؤجل — يحتاج قرار معماري. حُدِّث: 2026-07-10 — Notifications V1 Final QA + Closure: إضافة قسم "Notifications V1 Status"، تحديث Phase 11 deferral بتفصيل أكبر، تنظيف test 139q (PR #441). حُدِّث: 2026-07-10 — Runtime QA Bugfix: ON CONFLICT partial-index fix في create_notification، توثيق سلوك refollow، إضافة §153 checks (PR #444). حُدِّث: 2026-07-10 — Notifications V2 Smart Aggregation Plan: إضافة قسم V2-0 (docs only) — تجميع Follow / Job Applications / Comments / Replies — Click Target Rules — Option A (aggregate while unread) — Helper مقترح — V2 Phases V2-0 to V2-6 (PR #447).*
+*أُنشئ: 2026-07-09 — Phase 0 audit. حُدِّث: 2026-07-10 — Phase 1 مكتمل (PR #431). حُدِّث: 2026-07-10 — Phase 2 مكتمل (PR #432). حُدِّث: 2026-07-10 — Phase 3 مكتمل (PR #433). حُدِّث: 2026-07-10 — Phase 4 مكتمل (PR #434). حُدِّث: 2026-07-10 — Phase 5 مكتمل (PR #435). حُدِّث: 2026-07-10 — Phase 6 مكتمل (PR #436). حُدِّث: 2026-07-10 — Phase 7 مكتمل (PR #437). حُدِّث: 2026-07-10 — Phase 8 مكتمل (PR #438). حُدِّث: 2026-07-10 — Phase 9 مكتمل (PR #439). حُدِّث: 2026-07-10 — Phase 10 Unread Badge in App Header مكتمل (PR #440). Phase 11 مؤجل — يحتاج قرار معماري. حُدِّث: 2026-07-10 — Notifications V1 Final QA + Closure: إضافة قسم "Notifications V1 Status"، تحديث Phase 11 deferral بتفصيل أكبر، تنظيف test 139q (PR #441). حُدِّث: 2026-07-10 — Runtime QA Bugfix: ON CONFLICT partial-index fix في create_notification، توثيق سلوك refollow، إضافة §153 checks (PR #444). حُدِّث: 2026-07-10 — Notifications V2 Smart Aggregation Plan: إضافة قسم V2-0 (docs only) — تجميع Follow / Job Applications / Comments / Replies — Click Target Rules — Option A (aggregate while unread) — Helper مقترح — V2 Phases V2-0 to V2-6 (PR #447). حُدِّث: 2026-07-10 — Notifications V2-6 Final Runtime QA: تحديث V2-6 ✅ PR #453، إضافة "Notifications V2 Final Status" section، جدول V2-0→V2-6، Manual QA Checklist، Missing Priority Queue، Deferred Phase 11 note، V2 COMPLETE (PR #453).*

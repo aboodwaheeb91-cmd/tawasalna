@@ -4293,9 +4293,8 @@ check(
     'V2-1' in _plan158 and 'PR #448' in _plan158
 )
 check(
-    "158ac. NOTIFICATIONS_PLAN.md states NEXT PHASE is V2-2 Follow Aggregation",
-    'V2-2' in _plan158 and 'Follow Aggregation' in _plan158 and
-    ('NEXT PHASE' in _plan158 or 'V2-2 — Follow' in _plan158)
+    "158ac. NOTIFICATIONS_PLAN.md documents V2-2 Follow Aggregation (V2 complete — no NEXT PHASE required)",
+    'V2-2' in _plan158 and 'Follow Aggregation' in _plan158
 )
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -4664,9 +4663,8 @@ check(
     'job_applications_agg:job:' in _plan160
 )
 check(
-    "160ab. NOTIFICATIONS_PLAN.md states NEXT PHASE is V2-4 Comment/Reply Aggregation",
-    'V2-4' in _plan160 and 'Comment' in _plan160 and 'Reply Aggregation' in _plan160 and
-    ('NEXT PHASE' in _plan160 and _plan160.rfind('NEXT PHASE') > _plan160.find('V2-3'))
+    "160ab. NOTIFICATIONS_PLAN.md documents V2-4 Comment/Reply Aggregation (V2 complete — no NEXT PHASE required)",
+    'V2-4' in _plan160 and 'Comment' in _plan160 and 'Reply Aggregation' in _plan160
 )
 check(
     "160ac. SYSTEMS_INDEX.md §36 updated with V2-3 (PR #450)",
@@ -4958,9 +4956,241 @@ check(
     'V2-5' in _sidx162 and '#452' in _sidx162
 )
 check(
-    "162ad. NOTIFICATIONS_PLAN.md: stale NEXT→V2-5 removed; only NEXT→V2-6 remains",
-    'Phase V2-6' in _nplan162 and 'NEXT PHASE' in _nplan162 and
-    'NEXT PHASE AFTER MERGE: Phase V2-5' not in _nplan162
+    "162ad. NOTIFICATIONS_PLAN.md: stale NEXT→V2-5 removed; V2-6 present; V2 declared complete",
+    'V2-6' in _nplan162 and
+    'NEXT PHASE AFTER MERGE: Phase V2-5' not in _nplan162 and
+    ('V2 COMPLETE' in _nplan162 or 'Notifications V2 مكتملة' in _nplan162 or 'Notifications V2 Final Status' in _nplan162)
+)
+
+# ═══════════════════════════════════════════════════════════════════════
+# §163 — Notifications V2 Final Runtime QA
+# 50 static checks — all V2 phases (V2-0 → V2-6) — docs only PR, no code changes
+# ═══════════════════════════════════════════════════════════════════════
+print("\n── §163: Notifications V2 — Final Runtime QA ──")
+import os as _os163
+_auth163  = open('auth.py',            encoding='utf-8').read() if _os163.path.exists('auth.py') else ''
+_srv163   = open('server.py',          encoding='utf-8').read() if _os163.path.exists('server.py') else ''
+_notif163 = open('notifications.html', encoding='utf-8').read() if _os163.path.exists('notifications.html') else ''
+_nplan163 = open('docs/NOTIFICATIONS_PLAN.md', encoding='utf-8').read() if _os163.path.exists('docs/NOTIFICATIONS_PLAN.md') else ''
+_sidx163  = open('docs/SYSTEMS_INDEX.md',      encoding='utf-8').read() if _os163.path.exists('docs/SYSTEMS_INDEX.md') else ''
+
+# ── Schema / Migration QA (V2-1) — checks a through j ──
+check(
+    "163a. _migrate_notifications_schema_v2_1 function defined in auth.py (V2-1 migration)",
+    'def _migrate_notifications_schema_v2_1(' in _auth163
+)
+check(
+    "163b. aggregation_key TEXT column added in V2-1 migration",
+    'aggregation_key TEXT' in _auth163
+)
+check(
+    "163c. aggregation_count INTEGER DEFAULT 1 column added in V2-1 migration",
+    'aggregation_count INTEGER DEFAULT 1' in _auth163
+)
+check(
+    "163d. aggregation_kind TEXT column added in V2-1 migration",
+    'aggregation_kind TEXT' in _auth163
+)
+check(
+    "163e. last_actor_id INTEGER column added in V2-1 migration",
+    'last_actor_id INTEGER' in _auth163
+)
+check(
+    "163f. last_event_at TIMESTAMPTZ column added in V2-1 migration",
+    'last_event_at TIMESTAMPTZ' in _auth163
+)
+check(
+    "163g. target_type TEXT column added in V2-1 migration",
+    'target_type TEXT' in _auth163
+)
+check(
+    "163h. target_id INTEGER column added in V2-1 migration",
+    'target_id INTEGER' in _auth163
+)
+check(
+    "163i. partial index idx_notifications_aggregation_unread created in V2-1 migration",
+    'idx_notifications_aggregation_unread' in _auth163
+)
+check(
+    "163j. partial index WHERE clause filters aggregation_key IS NOT NULL",
+    'WHERE aggregation_key IS NOT NULL' in _auth163
+)
+
+# ── Helper QA (V2-1) — checks k through r ──
+check(
+    "163k. create_or_update_aggregated_notification function defined in auth.py",
+    'def create_or_update_aggregated_notification(' in _auth163
+)
+check(
+    "163l. helper docstring mentions Option A (aggregate while unread)",
+    'Option A' in _auth163 and 'aggregate while unread' in _auth163
+)
+check(
+    "163m. helper UPDATE path increments aggregation_count via (row.get + 1) pattern",
+    '(row.get("aggregation_count") or 1) + 1' in _auth163
+)
+check(
+    "163n. helper INSERT path uses RETURNING id",
+    'RETURNING id' in _auth163 and 'create_or_update_aggregated_notification' in _auth163
+)
+check(
+    "163o. helper accepts aggregation_kind parameter",
+    'aggregation_kind: str = None' in _auth163
+)
+check(
+    "163p. helper accepts target_type and target_id parameters",
+    'target_type: str' in _auth163 and 'target_id: int' in _auth163
+)
+check(
+    "163q. helper logs error via print — no silent except:pass (F9 compliance)",
+    '[create_or_update_aggregated_notification] ERROR' in _auth163
+)
+check(
+    "163r. create_or_update_aggregated_notification NOT defined in server.py — backend only",
+    'def create_or_update_aggregated_notification(' not in _srv163
+)
+
+# ── Follow Aggregation QA (V2-2) — checks s through w ──
+check(
+    "163s. follow_profile calls create_or_update_aggregated_notification (V2-2)",
+    'follow_agg:user:' in _auth163 and 'create_or_update_aggregated_notification' in _auth163
+)
+check(
+    "163t. follow_agg:user: aggregation_key pattern present in auth.py",
+    '"follow_agg:user:' in _auth163
+)
+check(
+    "163u. follow_company calls create_or_update_aggregated_notification (V2-2)",
+    'follow_agg:company:' in _auth163
+)
+check(
+    "163v. follow_agg:company: aggregation_key pattern present in auth.py",
+    '"follow_agg:company:' in _auth163
+)
+check(
+    "163w. self-follow guard in follow_company (follower_id != company_id)",
+    'follower_id != company_id' in _auth163
+)
+
+# ── Job Application Aggregation QA (V2-3) — checks x through ab ──
+check(
+    "163x. apply_job calls create_or_update_aggregated_notification (V2-3)",
+    'job_applications_agg:job:' in _auth163
+)
+check(
+    "163y. job_applications_agg:job: aggregation_key pattern present in auth.py",
+    '"job_applications_agg:job:' in _auth163
+)
+check(
+    '163z. aggregation_kind="job_applied" in apply_job hook',
+    'aggregation_kind="job_applied"' in _auth163
+)
+check(
+    "163aa. self-application guard in apply_job (job_company_id != user_id)",
+    'job_company_id != user_id' in _auth163
+)
+check(
+    "163ab. /job-detail?id= action_url pattern in apply_job hook",
+    '/job-detail?id=' in _auth163
+)
+
+# ── Comment/Reply Aggregation QA (V2-4) — checks ac through ah ──
+check(
+    "163ac. comments_agg:post: aggregation_key in auth.py (V2-4 comment hook)",
+    '"comments_agg:post:' in _auth163
+)
+check(
+    "163ad. replies_agg:comment: aggregation_key in auth.py (V2-4 reply hook)",
+    '"replies_agg:comment:' in _auth163
+)
+check(
+    '163ae. aggregation_kind="comment" in comment hook',
+    'aggregation_kind="comment"' in _auth163
+)
+check(
+    '163af. aggregation_kind="reply" in reply hook',
+    'aggregation_kind="reply"' in _auth163
+)
+check(
+    "163ag. self-comment guard in auth.py (post_owner_id != user_id)",
+    'post_owner_id != user_id' in _auth163
+)
+check(
+    "163ah. self-reply guard in auth.py (reply_to_author_id != user_id)",
+    'reply_to_author_id != user_id' in _auth163
+)
+
+# ── UI Cross-check (V2-5) — checks ai through al ──
+check(
+    "163ai. _buildNotifCard function exists in notifications.html (V2-5 target)",
+    '_buildNotifCard' in _notif163
+)
+check(
+    "163aj. aggregation_count referenced in _buildNotifCard (V2-5 reads V2-1 columns)",
+    'aggregation_count' in _notif163
+)
+check(
+    "163ak. .notif-agg-badge class applied in notifications.html (V2-5 badge CSS)",
+    'notif-agg-badge' in _notif163
+)
+check(
+    "163al. badge rendered only when aggregation_count > 1 (isAgg = Boolean(... > 1))",
+    'aggregation_count > 1' in _notif163
+)
+
+# ── Documentation QA (V2-6) — checks am through at ──
+check(
+    "163am. NOTIFICATIONS_PLAN.md V2-6 row shows PR #453 complete",
+    'V2-6' in _nplan163 and 'PR #453' in _nplan163
+)
+check(
+    "163an. NOTIFICATIONS_PLAN.md has Notifications V2 Final Status section",
+    'Notifications V2 Final Status' in _nplan163
+)
+check(
+    "163ao. Phases Summary table in NOTIFICATIONS_PLAN.md shows V2-0 through V2-6 all complete",
+    'V2-0' in _nplan163 and 'V2-1' in _nplan163 and 'V2-2' in _nplan163 and
+    'V2-3' in _nplan163 and 'V2-4' in _nplan163 and 'V2-5' in _nplan163 and 'V2-6' in _nplan163 and
+    '#447' in _nplan163 and '#448' in _nplan163 and '#449' in _nplan163 and
+    '#450' in _nplan163 and '#451' in _nplan163 and '#452' in _nplan163 and '#453' in _nplan163
+)
+check(
+    "163ap. NOTIFICATIONS_PLAN.md declares Notifications V2 COMPLETE",
+    'V2 COMPLETE' in _nplan163 or 'V2 complete' in _nplan163 or 'Notifications V2 مكتملة' in _nplan163
+)
+check(
+    "163aq. NOTIFICATIONS_PLAN.md mentions Missing Priority Queue or deferred features",
+    'Missing Priority Queue' in _nplan163 or 'application_status_changed' in _nplan163
+)
+check(
+    "163ar. NOTIFICATIONS_PLAN.md notes Phase 11 WebSocket/Push deferred",
+    'Phase 11' in _nplan163 and ('مؤجل' in _nplan163 or 'deferred' in _nplan163.lower())
+)
+check(
+    "163as. SYSTEMS_INDEX.md §36 contains V2 complete text",
+    'V2 complete' in _sidx163 or 'V2 Complete' in _sidx163
+)
+check(
+    "163at. SYSTEMS_INDEX.md §36 references PR #453 or V2-6 Final QA",
+    '#453' in _sidx163 or 'V2-6' in _sidx163
+)
+
+# ── Security Cross-checks — checks au through ax ──
+check(
+    "163au. create_or_update_aggregated_notification called >= 4 times in auth.py (all hooks wired)",
+    _auth163.count('create_or_update_aggregated_notification(') >= 4
+)
+check(
+    "163av. no X-User-Id in notifications.html (JWT Bearer only — auth security contract)",
+    'X-User-Id' not in _notif163
+)
+check(
+    "163aw. no new WebSocket in notifications.html (HTTP polling only — no push added)",
+    'new WebSocket' not in _notif163
+)
+check(
+    "163ax. aggregation_key not exposed in notifications.html (no frontend route generation)",
+    'aggregation_key' not in _notif163
 )
 
 # ── Summary ──────────────────────────────────────────────────────────────
