@@ -732,8 +732,7 @@ check(
 # Backend: reply_to_author_tw_id in CREATE response
 check(
     "88. create_company_post_comment fetches u.tw_id for reply author",
-    'SELECT u.full_name, u.tw_id FROM company_post_comments c' in auth_src or
-    '"SELECT u.full_name, u.tw_id FROM company_post_comments c' in auth_src
+    'u.full_name, u.tw_id' in auth_src and 'FROM company_post_comments c' in auth_src
 )
 check(
     "89. create_company_post_comment initialises reply_to_author_tw_id = None",
@@ -3052,8 +3051,8 @@ check(
 )
 check(
     "142h. hook is non-fatal — wrapped in try/except with warn log (no silent pass)",
-    "TW-WARN" in _auth142 and "comment notification" in _auth142 and
-    "_notif_err" in _auth142
+    "TW-WARN" in _auth142 and "_notif_err" in _auth142 and
+    ("comment notification" in _auth142 or "notification hook" in _auth142)
 )
 check(
     "142i. hook fires AFTER COMMIT (not inside transaction block)",
@@ -3064,6 +3063,53 @@ check(
 check(
     "142j. NOTIFICATIONS_PLAN.md marks Phase 3 as complete",
     'Phase 3' in _nplan142 and ('مكتمل' in _nplan142 or 'منفَّذ' in _nplan142)
+)
+
+# §143 — Notifications Phase 4 — Reply Notification Hook
+_auth143 = open("auth.py").read()
+_nplan143 = open("docs/NOTIFICATIONS_PLAN.md").read()
+
+print("\n── §143: Notifications Phase 4 — Reply Notification Hook ──")
+check(
+    "143a. ra_rows query fetches u.id (reply_to_author_id) alongside name+tw_id",
+    "SELECT u.full_name, u.tw_id, u.id FROM company_post_comments" in _auth143
+)
+check(
+    "143b. reply_to_author_id initialized to None before if-block",
+    "reply_to_author_id    = None" in _auth143 or "reply_to_author_id = None" in _auth143
+)
+check(
+    "143c. reply_to_author_id set from ra_rows after COMMIT-safe query",
+    "reply_to_author_id    = int(ra_rows[0][2])" in _auth143 or
+    "reply_to_author_id = int(ra_rows[0][2])" in _auth143
+)
+check(
+    "143d. Phase 4 reply hook present in create_company_post_comment",
+    "ردّ شخص على تعليقك" in _auth143 or "Phase 4: notify" in _auth143
+)
+check(
+    "143e. reply hook checks resolved_reply_to and reply_to_author_id != user_id",
+    "resolved_reply_to and reply_to_author_id and reply_to_author_id != user_id" in _auth143
+)
+check(
+    "143f. reply hook uses event_key with reply:comment:{resolved_reply_to}:{user_id} pattern",
+    'event_key=f"reply:comment:{resolved_reply_to}:{user_id}"' in _auth143
+)
+check(
+    "143g. reply hook passes type_='reply' to create_notification",
+    "type_=\"reply\"" in _auth143 or "type_='reply'" in _auth143
+)
+check(
+    "143h. Phase 3 + Phase 4 share one try/except block (single TW-WARN log)",
+    _auth143.count("[TW-WARN] notification hook") == 1
+)
+check(
+    "143i. company_tw_id fetched once, shared between Phase 3 and Phase 4",
+    "_company_tw_id" in _auth143 and _auth143.count("SELECT tw_id FROM users WHERE id") >= 1
+)
+check(
+    "143j. NOTIFICATIONS_PLAN.md marks Phase 4 as complete",
+    'Phase 4' in _nplan143 and ('مكتمل' in _nplan143 or 'منفَّذ' in _nplan143)
 )
 
 # ── Summary ──────────────────────────────────────────────────────────────
