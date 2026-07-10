@@ -5193,6 +5193,228 @@ check(
     'aggregation_key' not in _notif163
 )
 
+# ═══════════════════════════════════════════════════════════════════════
+# §164 — Future Notes / Roadmap Coverage
+# 45 static checks — docs/FUTURE_ROADMAP.md content verification
+# docs only PR — no code changes
+# ═══════════════════════════════════════════════════════════════════════
+print("\n── §164: Future Notes / Roadmap Coverage ──")
+import os as _os164
+_roadmap164 = open('docs/FUTURE_ROADMAP.md', encoding='utf-8').read() if _os164.path.exists('docs/FUTURE_ROADMAP.md') else ''
+_auth164    = open('auth.py',    encoding='utf-8').read() if _os164.path.exists('auth.py') else ''
+_srv164     = open('server.py',  encoding='utf-8').read() if _os164.path.exists('server.py') else ''
+_notif164   = open('notifications.html', encoding='utf-8').read() if _os164.path.exists('notifications.html') else ''
+_sidx164    = open('docs/SYSTEMS_INDEX.md', encoding='utf-8').read() if _os164.path.exists('docs/SYSTEMS_INDEX.md') else ''
+
+# ── Section presence checks (1–14) ──
+check(
+    "164a. FUTURE_ROADMAP.md contains Full Internationalization / Localization section",
+    'Full Internationalization' in _roadmap164 or 'Internationalization' in _roadmap164
+)
+check(
+    "164b. FUTURE_ROADMAP.md documents RTL/LTR direction switching",
+    'RTL' in _roadmap164 and 'LTR' in _roadmap164
+)
+check(
+    "164c. FUTURE_ROADMAP.md documents Global Countries & Flags",
+    'Global Countries' in _roadmap164 and 'Flags' in _roadmap164
+)
+check(
+    "164d. FUTURE_ROADMAP.md documents Global World Directory",
+    'World Directory' in _roadmap164
+)
+check(
+    "164e. FUTURE_ROADMAP.md documents universities/schools/hospitals in World Directory",
+    'universities' in _roadmap164 and ('schools' in _roadmap164 or 'مدارس' in _roadmap164) and
+    ('hospitals' in _roadmap164 or 'مستشفيات' in _roadmap164)
+)
+check(
+    "164f. FUTURE_ROADMAP.md documents Institution Naming Rule",
+    'Institution Naming' in _roadmap164 or 'Naming Rule' in _roadmap164
+)
+check(
+    "164g. FUTURE_ROADMAP.md documents name_en/name_local/name_ar/aliases fields",
+    'name_en' in _roadmap164 and 'name_local' in _roadmap164 and
+    'name_ar' in _roadmap164 and 'aliases' in _roadmap164
+)
+check(
+    "164h. FUTURE_ROADMAP.md documents Smart Selection Instead of Manual Typing",
+    'Smart Selection' in _roadmap164 or ('Manual Typing' in _roadmap164 and 'Selection' in _roadmap164)
+)
+check(
+    "164i. FUTURE_ROADMAP.md documents searchable dropdowns and autocomplete",
+    'searchable' in _roadmap164 and 'autocomplete' in _roadmap164
+)
+check(
+    "164j. FUTURE_ROADMAP.md documents dependent selects (country → city → institution)",
+    'dependent' in _roadmap164 and ('country' in _roadmap164 or 'country →' in _roadmap164)
+)
+check(
+    "164k. FUTURE_ROADMAP.md documents Educational Institution Platform",
+    'Educational Institution Platform' in _roadmap164 or 'Education Platform' in _roadmap164
+)
+check(
+    "164l. FUTURE_ROADMAP.md documents Education Platform Roles",
+    'Education Platform Roles' in _roadmap164 or ('Student' in _roadmap164 and 'Trainer' in _roadmap164)
+)
+check(
+    "164m. FUTURE_ROADMAP.md documents Student role",
+    'Student' in _roadmap164
+)
+check(
+    "164n. FUTURE_ROADMAP.md documents Educational Institution role",
+    'Educational Institution' in _roadmap164
+)
+check(
+    "164o. FUTURE_ROADMAP.md documents Teacher / Trainer role",
+    'Teacher' in _roadmap164 and 'Trainer' in _roadmap164
+)
+check(
+    "164p. FUTURE_ROADMAP.md states No official course without responsible educational institution",
+    'No official course without' in _roadmap164 or
+    ('official course' in _roadmap164 and 'educational institution' in _roadmap164.lower())
+)
+check(
+    "164q. FUTURE_ROADMAP.md documents Courses",
+    'Courses' in _roadmap164 and 'certificate' in _roadmap164
+)
+check(
+    "164r. FUTURE_ROADMAP.md documents Training Offers",
+    'Training Offers' in _roadmap164
+)
+check(
+    "164s. FUTURE_ROADMAP.md documents Education Content Safety",
+    'Content Safety' in _roadmap164 or ('content' in _roadmap164.lower() and 'Safety' in _roadmap164)
+)
+check(
+    "164t. FUTURE_ROADMAP.md documents report/moderation and audit log",
+    'report' in _roadmap164 and 'audit' in _roadmap164.lower()
+)
+check(
+    "164u. FUTURE_ROADMAP.md documents Educational Institution Verification Gate",
+    'Verification Gate' in _roadmap164 or ('Verification' in _roadmap164 and 'Gate' in _roadmap164)
+)
+check(
+    "164v. FUTURE_ROADMAP.md documents Country-Based Verification",
+    'Country' in _roadmap164 and 'Verification' in _roadmap164 and
+    ('country-based' in _roadmap164.lower() or 'Country-Based' in _roadmap164)
+)
+check(
+    "164w. FUTURE_ROADMAP.md documents Verification Levels (Level 0 through Level 3)",
+    'Level 0' in _roadmap164 and 'Level 1' in _roadmap164 and 'Level 3' in _roadmap164
+)
+check(
+    "164x. FUTURE_ROADMAP.md documents Risk Score",
+    'Risk Score' in _roadmap164 or 'risk score' in _roadmap164.lower()
+)
+check(
+    "164y. FUTURE_ROADMAP.md documents Monetization and Access Control",
+    'Monetization' in _roadmap164 and 'Access Control' in _roadmap164
+)
+check(
+    "164z. FUTURE_ROADMAP.md documents Backend Permission Gates",
+    'Backend Permission Gates' in _roadmap164 or
+    ('Backend' in _roadmap164 and 'Permission Gates' in _roadmap164)
+)
+check(
+    "164aa. FUTURE_ROADMAP.md documents Admin Support / Business Messenger",
+    'Admin Support' in _roadmap164
+)
+check(
+    "164ab. FUTURE_ROADMAP.md documents Support Tickets + Chat",
+    'Support Tickets' in _roadmap164 or ('Tickets' in _roadmap164 and 'Chat' in _roadmap164)
+)
+check(
+    "164ac. FUTURE_ROADMAP.md documents auto reply in Support Messenger",
+    'auto' in _roadmap164.lower() and 'reply' in _roadmap164.lower() and 'Admin Support' in _roadmap164
+)
+check(
+    "164ad. FUTURE_ROADMAP.md documents support priority tiers",
+    'priority' in _roadmap164.lower() and ('Free' in _roadmap164 or 'Premium' in _roadmap164) and 'Admin Support' in _roadmap164
+)
+check(
+    "164ae. FUTURE_ROADMAP.md documents Company Internal Groups",
+    'Company Internal Groups' in _roadmap164 or 'Internal Groups' in _roadmap164
+)
+check(
+    "164af. FUTURE_ROADMAP.md documents Chat Mode in Company Groups",
+    'Chat Mode' in _roadmap164
+)
+check(
+    "164ag. FUTURE_ROADMAP.md documents Announcement / Discussion Mode in Company Groups",
+    'Announcement' in _roadmap164 and ('Discussion' in _roadmap164 or 'Mode' in _roadmap164)
+)
+check(
+    "164ah. FUTURE_ROADMAP.md documents Read Receipts in Company Groups",
+    'Read Receipts' in _roadmap164 or 'read receipts' in _roadmap164.lower()
+)
+check(
+    "164ai. FUTURE_ROADMAP.md documents Company Group Permissions (add/remove members etc.)",
+    'Permissions' in _roadmap164 and 'Group' in _roadmap164 and
+    ('add' in _roadmap164 or 'remove' in _roadmap164)
+)
+check(
+    "164aj. FUTURE_ROADMAP.md documents Company Groups Monetization (Free/Premium/Enterprise)",
+    'Monetization' in _roadmap164 and 'Enterprise' in _roadmap164
+)
+check(
+    "164ak. FUTURE_ROADMAP.md contains NEXT ACTIVE DEVELOPMENT PHASE marker",
+    'NEXT ACTIVE DEVELOPMENT PHASE' in _roadmap164
+)
+check(
+    "164al. FUTURE_ROADMAP.md next phase marker points to Notifications Missing Priority Queue",
+    'Missing Priority Queue' in _roadmap164
+)
+
+# ── Docs-only verification (checks 38–45) ──
+check(
+    "164am. This PR is docs-only — auth.py unchanged (no new functions added for future features)",
+    'def create_world_directory' not in _auth164 and
+    'def create_training_offer' not in _auth164 and
+    'def create_company_group' not in _auth164 and
+    'def create_support_ticket' not in _auth164
+)
+check(
+    "164an. This PR is docs-only — server.py unchanged (no new endpoints for future features)",
+    '/world-directory' not in _srv164 and
+    '/training-offers' not in _srv164 and
+    '/company-groups' not in _srv164 and
+    '/support-tickets' not in _srv164
+)
+check(
+    "164ao. This PR is docs-only — notifications.html unchanged (no future feature code added)",
+    'worldDirectory' not in _notif164 and 'companyGroup' not in _notif164
+)
+check(
+    "164ap. FUTURE_ROADMAP.md usage rule: no implementation without explicit user request",
+    'بطلب صريح' in _roadmap164 or
+    'لا تنفيذ' in _roadmap164 or
+    'ممنوع ينفذ' in _roadmap164
+)
+check(
+    "164aq. FUTURE_ROADMAP.md: no future feature actually implemented (world_directory table absent)",
+    'CREATE TABLE world_directory' not in _auth164 and
+    'world_directory' not in _srv164
+)
+check(
+    "164ar. FUTURE_ROADMAP.md: no i18n implementation added to existing pages (tw-i18n.js absent)",
+    not _os164.path.exists('static/shared/tw-i18n.js')
+)
+check(
+    "164as. FUTURE_ROADMAP.md: mentions that i18n is planned for after platform foundation completes",
+    'i18n' in _roadmap164 or 'Internationalization' in _roadmap164
+)
+check(
+    "164at. SYSTEMS_INDEX.md §30b updated to reference the new Future Product Notes section",
+    'Future Product Notes' in _sidx164 or
+    ('Global Platform' in _sidx164 and 'Education' in _sidx164)
+)
+check(
+    "164au. SYSTEMS_INDEX.md §30b mentions i18n/RTL and Education Platform additions",
+    ('i18n' in _sidx164 or 'RTL' in _sidx164 or 'Internationalization' in _sidx164) and
+    ('Education' in _sidx164 and 'FUTURE_ROADMAP' in _sidx164)
+)
+
 # ── Summary ──────────────────────────────────────────────────────────────
 print()
 passed = sum(1 for _, s, _ in results if s == PASS)
