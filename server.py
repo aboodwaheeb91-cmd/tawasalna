@@ -69,8 +69,8 @@ from auth import (
     get_kyc_status, admin_approve_kyc, admin_reject_kyc, get_all_kyc_submissions, ensure_site_settings_table, ensure_reports_table,
     send_message, send_message_pipeline, mark_message_delivered, get_conversations, get_messages, get_unread_count,
     mark_message_read_immediate,
-    create_notification, get_notifications, mark_notifications_read, get_unread_notifications,
-    _migrate_notifications_schema_v2,
+    create_notification, get_notifications, mark_notifications_read, mark_notification_read,
+    get_unread_notifications, _migrate_notifications_schema_v2,
     get_job_applicants, get_user_applications,
     update_application_status, delete_job,
     get_company_jobs_all, set_job_status,
@@ -3518,14 +3518,19 @@ async def get_msgs(user_id: int, other_id: int, token=Depends(verify_token)):
 
 
 @app.get("/notifications/{user_id}")
-def user_notifications(user_id: int, token=Depends(verify_token)):
+def user_notifications(user_id: int, token=Depends(verify_token),
+                       page: int = 1, per_page: int = 20):
     tok_uid = int(token.get("user_id"))
     if tok_uid != user_id:
         raise HTTPException(403, "Forbidden")
+    per_page = max(1, min(per_page, 100))
+    page = max(1, page)
+    offset = (page - 1) * per_page
     try:
-        notifs = get_notifications(user_id)
+        notifs = get_notifications(user_id, limit=per_page, offset=offset)
         unread = get_unread_notifications(user_id)
-        return {"status": "success", "notifications": notifs, "unread": unread}
+        return {"status": "success", "notifications": notifs, "unread": unread,
+                "page": page, "per_page": per_page}
     except Exception as e:
         raise HTTPException(500, str(e))
 
@@ -3536,6 +3541,17 @@ def read_notifications(user_id: int, token=Depends(verify_token)):
         raise HTTPException(403, "Forbidden")
     try:
         mark_notifications_read(user_id)
+        return {"status": "success"}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+@app.put("/notifications/{user_id}/read/{notif_id}")
+def read_single_notification(user_id: int, notif_id: int, token=Depends(verify_token)):
+    tok_uid = int(token.get("user_id"))
+    if tok_uid != user_id:
+        raise HTTPException(403, "Forbidden")
+    try:
+        mark_notification_read(user_id, notif_id)
         return {"status": "success"}
     except Exception as e:
         raise HTTPException(500, str(e))

@@ -330,7 +330,7 @@ create_notification(
 
 ---
 
-## Phase 9 — Per-Notification Read + Pagination
+## Phase 9 — Per-Notification Read + Pagination ✅ (منفَّذ في PR #439)
 
 > يتيح تحديد إشعار واحد كمقروء ويضيف pagination.
 
@@ -407,7 +407,7 @@ def mark_notification_read(user_id: int, notif_id: int) -> bool:
 | **6** | Job Application Hook | `auth.py` | ✅ مكتمل (PR #436) |
 | **7** | Follow Hook | `auth.py` | ✅ مكتمل (PR #437) |
 | **8** | Verification Hook | `server.py` | ✅ مكتمل (PR #438) |
-| **9** | Per-Notification Read + Pagination | `auth.py`, `server.py` | P1 |
+| **9** | Per-Notification Read + Pagination | `auth.py`, `server.py` | ✅ مكتمل (PR #439) |
 | **10** | Unread Badge in App Header | `server.py`, `static/app-header.js` | P2 |
 | **11** | Real-time / Push (WS or SSE or Push API) | TBD — needs decision | P3 — مؤجل |
 
@@ -425,4 +425,4 @@ def mark_notification_read(user_id: int, notif_id: int) -> bool:
 
 ---
 
-*أُنشئ: 2026-07-09 — Phase 0 audit. حُدِّث: 2026-07-10 — Phase 1 مكتمل (PR #431). حُدِّث: 2026-07-10 — Phase 2 مكتمل (PR #432). حُدِّث: 2026-07-10 — Phase 3 مكتمل (PR #433). حُدِّث: 2026-07-10 — Phase 4 مكتمل (PR #434). حُدِّث: 2026-07-10 — Phase 5 مكتمل (PR #435). حُدِّث: 2026-07-10 — Phase 6 مكتمل (PR #436). حُدِّث: 2026-07-10 — Phase 7 مكتمل (PR #437). حُدِّث: 2026-07-10 — Phase 8 Verification Notification Hook مكتمل (PR #438). الخطوة التالية: Phase 9 — Per-Notification Read + Pagination.*
+*أُنشئ: 2026-07-09 — Phase 0 audit. حُدِّث: 2026-07-10 — Phase 1 مكتمل (PR #431). حُدِّث: 2026-07-10 — Phase 2 مكتمل (PR #432). حُدِّث: 2026-07-10 — Phase 3 مكتمل (PR #433). حُدِّث: 2026-07-10 — Phase 4 مكتمل (PR #434). حُدِّث: 2026-07-10 — Phase 5 مكتمل (PR #435). حُدِّث: 2026-07-10 — Phase 6 مكتمل (PR #436). حُدِّث: 2026-07-10 — Phase 7 مكتمل (PR #437). حُدِّث: 2026-07-10 — Phase 8 مكتمل (PR #438). حُدِّث: 2026-07-10 — Phase 9 Per-Notification Read + Pagination مكتمل (PR #439). الخطوة التالية: Phase 10 — Unread Badge in App Header.*

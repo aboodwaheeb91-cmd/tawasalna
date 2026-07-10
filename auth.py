@@ -2868,13 +2868,13 @@ def create_notification(
     finally:
         release_conn(conn)
 
-def get_notifications(user_id: int, limit: int = 50) -> list:
+def get_notifications(user_id: int, limit: int = 50, offset: int = 0) -> list:
     conn = get_conn()
     try:
         rows = conn.run(
             "SELECT * FROM notifications WHERE user_id=:uid AND type != 'message' "
-            "ORDER BY created_at DESC LIMIT :lim",
-            uid=user_id, lim=limit
+            "ORDER BY created_at DESC LIMIT :lim OFFSET :off",
+            uid=user_id, lim=limit, off=offset
         )
         cols = [c["name"] for c in conn.columns]
         return [_serialize(_row_to_dict(cols, r)) for r in rows]
@@ -2885,6 +2885,18 @@ def mark_notifications_read(user_id: int) -> bool:
     conn = get_conn()
     try:
         conn.run("UPDATE notifications SET is_read=TRUE WHERE user_id=:uid", uid=user_id)
+        return True
+    finally:
+        release_conn(conn)
+
+def mark_notification_read(user_id: int, notif_id: int) -> bool:
+    """Mark single notification as read — only if it belongs to user_id."""
+    conn = get_conn()
+    try:
+        conn.run(
+            "UPDATE notifications SET is_read=TRUE WHERE id=:nid AND user_id=:uid",
+            nid=notif_id, uid=user_id
+        )
         return True
     finally:
         release_conn(conn)
