@@ -41,8 +41,9 @@
     <img src="/static/33333.svg" alt="تواصلنا">
   </div>
   <div class="sc-head-icons">
-    <a href="/notifications" class="sc-hicon sc-hicon-bare" title="الإشعارات" aria-label="الإشعارات">
+    <a href="/notifications" class="sc-hicon sc-hicon-bare sc-notif-wrap" title="الإشعارات" aria-label="الإشعارات">
       <i data-lucide="bell" class="ico"></i>
+      <span data-ah-notif-badge></span>
     </a>
     <a href="/messages" class="sc-hicon sc-hicon-bare" title="الرسائل" aria-label="الرسائل">
       <i data-lucide="message-circle-more" class="ico"></i>
@@ -690,6 +691,7 @@
 
 <!-- Scripts: load order — lucide → tw-shared → state → api → permissions → render → jobs → posts → main -->
 <script src="/static/vendor/lucide/lucide.min.js"></script>
+<script src="/static/app-header.js"></script>
 <script src="/tw_shared.js"></script>
 <script src="/static/shared/tw-options-data.js"></script>
 <script src="/static/shared/tw-select.js"></script>

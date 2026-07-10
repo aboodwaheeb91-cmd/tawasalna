@@ -4,12 +4,20 @@
  * `user` is the object from localStorage tw_user.
  *
  * Targets elements by data attributes — no IDs assumed:
- *   [data-ah-av]      Avatar circle: sets initials + href (if <a>)
- *   [data-ah-logout]  Logout button: clears tw_* localStorage keys → /login
+ *   [data-ah-av]           Avatar circle: sets initials + href (if <a>)
+ *   [data-ah-logout]       Logout button: clears tw_* localStorage keys → /login
+ *   [data-ah-notif-badge]  Notification unread count badge span
  *
  * Bell, message, and home navigation are plain <a href> links in the HTML —
- * they need no JS binding. Page-specific badge counts are handled per-page.
+ * they need no JS binding for navigation.
+ *
+ * Pages that load this script but do NOT call initAppHeader() explicitly
+ * are handled by the DOMContentLoaded auto-init below — they only need
+ * [data-ah-notif-badge] in the DOM and tw_user / tw_jwt in localStorage.
  */
+
+var _ahPollStarted = false; /* guard: prevent double setInterval */
+
 function initAppHeader(user) {
   if (!user) return;
   var initial = (user.full_name || user.name || '?').charAt(0).toUpperCase();
@@ -55,11 +63,15 @@ function initAppHeader(user) {
 }
 
 function _pollUnreadBadge(user) {
+  if (_ahPollStarted) return;
   var jwt = localStorage.getItem('tw_jwt') || '';
   if (!jwt || !user || !user.id) return;
-  var uid = user.id;
   var badge = document.querySelector('[data-ah-notif-badge]');
   if (!badge) return;
+
+  _ahPollStarted = true;
+  var uid = user.id;
+  var bellWrap = badge.parentElement; /* wrapper that holds bell icon + badge */
 
   function _fetchCount() {
     fetch('/notifications/' + uid + '/unread-count', {
@@ -72,9 +84,11 @@ function _pollUnreadBadge(user) {
       if (count > 0) {
         badge.textContent = count > 99 ? '99+' : String(count);
         badge.style.display = '';
+        if (bellWrap) bellWrap.classList.add('ah-bell--active');
       } else {
         badge.textContent = '';
         badge.style.display = 'none';
+        if (bellWrap) bellWrap.classList.remove('ah-bell--active');
       }
     })
     .catch(function() {});
@@ -83,3 +97,14 @@ function _pollUnreadBadge(user) {
   _fetchCount();
   setInterval(_fetchCount, 60000);
 }
+
+/* Auto-init: pages that load app-header.js without calling initAppHeader() explicitly.
+   Reads tw_user from localStorage. Only activates when [data-ah-notif-badge] is in the DOM. */
+document.addEventListener('DOMContentLoaded', function() {
+  if (_ahPollStarted) return;
+  if (!document.querySelector('[data-ah-notif-badge]')) return;
+  try {
+    var u = JSON.parse(localStorage.getItem('tw_user') || 'null');
+    if (u && u.id) _pollUnreadBadge(u);
+  } catch (e) {}
+});

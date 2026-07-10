@@ -137,3 +137,10 @@
   line-height: 16px; text-align: center;
   pointer-events: none; z-index: 10;
 }
+
+/* Bell active glow — shown when unread count > 0 */
+.ah-bell--active .ico {
+  color: var(--ah-g);
+  filter: drop-shadow(0 0 5px rgba(0,200,150,.65));
+  transition: color .2s, filter .2s;
+}
