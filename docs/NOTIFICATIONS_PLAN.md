@@ -929,7 +929,7 @@ def create_or_update_aggregated_notification(
 | **V2-2** | Follow Aggregation | تجميع إشعارات المتابعة | ✅ PR #449 |
 | **V2-3** | Job Application Aggregation | تجميع المتقدمين لكل وظيفة | ✅ PR #450 |
 | **V2-4** | Comment/Reply Aggregation | تجميع التعليقات/الردود لكل منشور أو thread | ✅ PR #451 |
-| **V2-5** | UI Support for Aggregated Notifications | تحديث كروت الإشعارات: count + "و X آخرين" | 🔜 مستقبلي |
+| **V2-5** | UI Support for Aggregated Notifications | تحديث كروت الإشعارات: count + "و X آخرين" | ✅ PR #452 |
 | **V2-6** | Final Runtime QA | فحص يدوي + static checks + توثيق نهائي | 🔜 مستقبلي |
 
 > **مهم:** لا تنفيذ لأي Phase V2 غير V2-0 و V2-1 حتى يُطلب صراحةً من المستخدم.
@@ -982,8 +982,6 @@ def create_or_update_aggregated_notification(
 
 Fallbacks: `applicant_name` → `"متقدم جديد"` · `job_title` → `"هذه الوظيفة"`
 
-**NEXT PHASE AFTER MERGE: Phase V2-5 — UI Support for Aggregated Notifications**
-
 ---
 
 **V2-4 — ما تم (PR #451):**
@@ -1028,6 +1026,25 @@ Fallback: `commenter_name` / `replier_name` → `"مستخدم جديد"` عند
 
 ---
 
+**V2-5 — ما تم (PR #452):**
+- `notifications.html`: تحديث `_buildNotifCard(n)` لعرض `aggregation_count` بصرياً.
+- **CSS إضافي:** `.notif-agg-badge` — badge مدمج مع `metaEl` يعرض count + icon محايد.
+- **لا تغيير backend:** `GET /notifications/{user_id}` يُعيد `SELECT *` — كل أعمدة V2-1 موجودة تلقائياً. لا تعديل على `auth.py` أو `server.py`.
+- **`_buildNotifCard(n)` — التغييرات:**
+  - `var isAgg = Boolean(n.aggregation_count && n.aggregation_count > 1)` — isAgg صحيح فقط عند count>1.
+  - `card.dataset.aggregated = 'true'` + `card.dataset.aggregationKind = String(n.aggregation_kind)` عند isAgg.
+  - Badge DOM: `span.notif-agg-badge` → icon SVG ثابت (static) + `aggNum.textContent = String(aggCount)`.
+  - جميع نصوص API عبر `textContent` فقط — لا `innerHTML` لبيانات API (XSS contract).
+  - Click target: `card.dataset.link = link` من `notification.link` (backend) — لا توليد route من `aggregation_key`.
+- **قواعد V2-5 الدائمة:**
+  - لا WebSocket · لا push · لا `X-User-Id` · لا تعديل على hooks · لا تعديل على schema.
+  - `.notif-agg-badge` هي الـ CSS class الوحيدة المضافة — ممنوع إنشاء class موازية.
+  - `aggregation_key` لا يُعرض في الـ UI ولا يُستخدم لتوليد route.
+
+**NEXT PHASE AFTER MERGE: Phase V2-6 — Final Runtime QA**
+
+---
+
 ### V2 Constraints (mandatory — applies to all V2 phases)
 
 ```
@@ -1061,7 +1078,7 @@ Fallback: `commenter_name` / `replier_name` → `"مستخدم جديد"` عند
 | **V2-2** | Follow Aggregation | `auth.py` follow hook | ✅ PR #449 |
 | **V2-3** | Job Application Aggregation | `auth.py` job hook | ✅ PR #450 |
 | **V2-4** | Comment/Reply Aggregation | `auth.py` comment hook | ✅ PR #451 |
-| **V2-5** | UI Support | `notifications.html` | 🔜 مستقبلي |
+| **V2-5** | UI Support | `notifications.html` | ✅ PR #452 |
 | **V2-6** | Final Runtime QA | static checks + manual QA | 🔜 مستقبلي |
 
 ---
