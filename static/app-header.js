@@ -83,7 +83,7 @@ function _pollUnreadBadge(user) {
       var count = (d.data && d.data.count) || 0;
       if (count > 0) {
         badge.textContent = count > 99 ? '99+' : String(count);
-        badge.style.display = '';
+        badge.style.display = 'inline-flex';
         if (bellWrap) bellWrap.classList.add('ah-bell--active');
       } else {
         badge.textContent = '';
