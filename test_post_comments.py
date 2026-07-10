@@ -4442,6 +4442,61 @@ check(
     'V2-2' in _sidx159 and 'PR #449' in _sidx159
 )
 
+# ── Self-notification guards — symmetric pattern ──────────────────────────
+check(
+    "159z. follow_profile has self-notification guard (follower_id != followed_id)",
+    'follower_id != followed_id' in _fp159
+)
+check(
+    "159aa. follow_profile guard wraps notification call (guard before helper)",
+    _fp159.find('follower_id != followed_id') < _fp159.find('create_or_update_aggregated_notification(')
+)
+check(
+    "159ab. follow_company self-notification guard still present (follower_id != company_id)",
+    'follower_id != company_id' in _fc159
+)
+
+# ── No other aggregation hooks activated ─────────────────────────────────
+_apply_job_159 = _auth159[_auth159.find('def apply_job('):_auth159.find('def apply_job(') + 1000] if 'def apply_job(' in _auth159 else ''
+check(
+    "159ac. no job aggregation — apply_job does not call create_or_update_aggregated_notification",
+    _apply_job_159.count('create_or_update_aggregated_notification') == 0
+)
+_cmt_fn_159 = _auth159[_auth159.find('def create_company_post_comment('):
+                        _auth159.find('def create_company_post_comment(') + 3000] if 'def create_company_post_comment(' in _auth159 else ''
+check(
+    "159ad. no comment aggregation — create_company_post_comment does not call V2 helper",
+    _cmt_fn_159.count('create_or_update_aggregated_notification') == 0
+)
+_notif_mention_159 = _auth159[_auth159.find('def notify_mention(') if 'def notify_mention(' in _auth159 else _auth159.find('mention_notif'):
+                               (_auth159.find('def notify_mention(') if 'def notify_mention(' in _auth159 else _auth159.find('mention_notif')) + 1000]
+check(
+    "159ae. no mention aggregation — mention hook does not call V2 helper",
+    'notify_mention' not in _auth159 or
+    _auth159[_auth159.find('mention') if 'mention' in _auth159 else 0:
+             _auth159.find('mention') + 2000 if 'mention' in _auth159 else 0].count('create_or_update_aggregated_notification') == 0
+)
+
+# ── No frontend changes ───────────────────────────────────────────────────
+with open("notifications.html", encoding="utf-8") as _f159n:
+    _notif_html_159 = _f159n.read()
+with open("static/app-header.js", encoding="utf-8") as _f159aj:
+    _ahj_159 = _f159aj.read()
+with open("static/app-header.css", encoding="utf-8") as _f159ac:
+    _ahc_159 = _f159ac.read()
+check(
+    "159af. notifications.html not modified — no V2 aggregation fields in UI",
+    'aggregation_count' not in _notif_html_159 and 'follow_agg' not in _notif_html_159
+)
+check(
+    "159ag. app-header.js not modified — no aggregation in header",
+    'aggregation' not in _ahj_159.lower()
+)
+check(
+    "159ah. app-header.css not modified — no aggregation in header CSS",
+    'aggregation' not in _ahc_159.lower()
+)
+
 # ── Summary ──────────────────────────────────────────────────────────────
 print()
 passed = sum(1 for _, s, _ in results if s == PASS)
