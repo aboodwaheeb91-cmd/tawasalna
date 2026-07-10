@@ -2334,11 +2334,13 @@ def update_application_status(app_id: int, status: str, actor_id: int = None) ->
         conn.run("UPDATE job_applications SET status=:s WHERE id=:id", s=status, id=app_id)
     finally:
         release_conn(conn)
-    if applicant_id and (actor_id is None or int(applicant_id) != int(actor_id)):
+    # accepted/rejected are internal company workflow states — no direct notification to applicant.
+    # Applicant-facing communication for final decisions will flow through the future
+    # Appointments / Interview Rooms system (see docs/FUTURE_ROADMAP.md §15).
+    _INTERNAL_STATUSES = {"accepted", "rejected"}
+    if applicant_id and status not in _INTERNAL_STATUSES and (actor_id is None or int(applicant_id) != int(actor_id)):
         _labels = {
-            "accepted": ("قُبل طلبك ✓",       f"تم قبول طلبك على وظيفة «{job_title}»"),
-            "rejected": ("طلبك لم يُقبل",      f"نأسف، لم يُقبل طلبك على وظيفة «{job_title}»"),
-            "viewed":   ("بدأت مراجعة طلبك",   f"بدأت الشركة مراجعة طلبك على وظيفة «{job_title}»"),
+            "viewed": ("بدأت مراجعة طلبك", f"بدأت الشركة مراجعة طلبك على وظيفة «{job_title}»"),
         }
         title, body = _labels.get(
             status,
