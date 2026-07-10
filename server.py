@@ -2373,13 +2373,11 @@ async def submit_report(data: ReportInput, request: Request, token=Depends(verif
             rpt=data.report_type, reason=data.reason, url=data.target_url)
         release_conn(conn)
         
-        # Create notification for admin
+        # Create notification for admin (user_id=1 is placeholder — replace with real admin lookup when admin table exists)
         try:
-            create_notification(
-            data.reported_user_id if hasattr(data,'reported_user_id') else 1,
-            f"بلاغ جديد: {data.report_type}", "report"
-        )
-        except: pass
+            create_notification(1, "report", "بلاغ جديد", f"نوع البلاغ: {data.report_type}")
+        except Exception as _ne:
+            print(f"[TW-WARN] create_notification (report flow) failed: {_ne}")
         
         return {"status": "success", "message": "تم إرسال البلاغ"}
     except Exception as e:
@@ -3514,7 +3512,10 @@ async def get_msgs(user_id: int, other_id: int, token=Depends(verify_token)):
 
 
 @app.get("/notifications/{user_id}")
-def user_notifications(user_id: int):
+def user_notifications(user_id: int, token=Depends(verify_token)):
+    tok_uid = int(token.get("user_id"))
+    if tok_uid != user_id:
+        raise HTTPException(403, "Forbidden")
     try:
         notifs = get_notifications(user_id)
         unread = get_unread_notifications(user_id)
@@ -3524,6 +3525,9 @@ def user_notifications(user_id: int):
 
 @app.put("/notifications/{user_id}/read")
 def read_notifications(user_id: int, token=Depends(verify_token)):
+    tok_uid = int(token.get("user_id"))
+    if tok_uid != user_id:
+        raise HTTPException(403, "Forbidden")
     try:
         mark_notifications_read(user_id)
         return {"status": "success"}

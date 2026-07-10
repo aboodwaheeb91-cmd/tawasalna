@@ -61,9 +61,9 @@
 
 ---
 
-## Phase 1 — Security Hardening (الأولوية القصوى)
+## Phase 1 — Security Hardening ✅ (منفَّذ في PR #431)
 
-> **يجب تنفيذ هذه المرحلة قبل أي Phase أخرى. لا hooks ولا features جديدة قبل حل الثغرات.**
+> **مكتمل — جميع ثغرات S1–S6 محلولة.**
 
 ### التغييرات المطلوبة
 
@@ -399,7 +399,7 @@ def mark_notification_read(user_id: int, notif_id: int) -> bool:
 | Phase | العنوان | الملفات | الأولوية |
 |-------|---------|---------|---------|
 | **0** | Audit & Plan (هذا الملف) | `docs/NOTIFICATIONS_PLAN.md` (docs only) | ✅ مكتمل |
-| **1** | Security Hardening | `server.py`, `notifications.html` | **P0 — أولاً** |
+| **1** | Security Hardening | `server.py`, `notifications.html` | ✅ مكتمل (PR #431) |
 | **2** | Schema Hardening (`event_key`, `actor_id`) | `auth.py` (migration + helper) | P0 بعد Phase 1 |
 | **3** | Comment Notification Hook | `auth.py` | P1 |
 | **4** | Reply Notification Hook | `auth.py` | P1 |
@@ -425,4 +425,4 @@ def mark_notification_read(user_id: int, notif_id: int) -> bool:
 
 ---
 
-*أُنشئ: 2026-07-09 — Phase 0 audit. الخطوة التالية بعد دمج هذا الـ PR: Phase 1 — Security Hardening.*
+*أُنشئ: 2026-07-09 — Phase 0 audit. حُدِّث: 2026-07-10 — Phase 1 Security Hardening مكتمل (PR #431). الخطوة التالية بعد الدمج: Phase 2 — Schema Hardening (event_key + actor_id).*

@@ -2911,6 +2911,60 @@ check(
     'ADD COLUMN IF NOT EXISTS actor_id' not in _srv139 and 'event_key' not in _srv139
 )
 
+# ═══════════════════════════════════════════════════════════════════════
+# §140 — Notifications Phase 1 — Security Hardening
+# 10 static checks
+# ═══════════════════════════════════════════════════════════════════════
+print("\n── §140: Notifications Phase 1 — Security Hardening ──")
+import os as _os140
+_srv140  = open('server.py', encoding='utf-8').read() if _os140.path.exists('server.py') else ''
+_notif140 = open('notifications.html', encoding='utf-8').read() if _os140.path.exists('notifications.html') else ''
+_nplan140 = open('docs/NOTIFICATIONS_PLAN.md', encoding='utf-8').read() if _os140.path.exists('docs/NOTIFICATIONS_PLAN.md') else ''
+
+check(
+    "140a. GET /notifications/{user_id} requires JWT (Depends(verify_token))",
+    'def user_notifications(user_id: int, token=Depends(verify_token))' in _srv140
+)
+check(
+    "140b. GET /notifications/{user_id} cross-checks tok_uid == user_id",
+    'tok_uid != user_id' in _srv140 and 'user_notifications' in _srv140
+)
+check(
+    "140c. PUT /notifications/{user_id}/read cross-checks tok_uid == user_id",
+    _srv140.count('tok_uid != user_id') >= 2
+)
+check(
+    "140d. No X-User-Id in notifications.html",
+    'X-User-Id' not in _notif140
+)
+check(
+    "140e. notifications.html uses Authorization Bearer for /notifications/ fetch",
+    "Authorization:'Bearer " in _notif140 or 'Authorization:"Bearer' in _notif140
+)
+check(
+    "140f. notifications.html has no innerHTML with n.title (XSS fixed)",
+    'n.title' not in _notif140 or ('innerHTML' not in _notif140.split('n.title')[0].split('\n')[-1])
+)
+check(
+    "140g. notifications.html has no innerHTML with n.body (XSS fixed)",
+    'n.body' not in _notif140 or 'textContent' in _notif140
+)
+check(
+    "140h. create_notification in report flow called with 4 args (type + title + body)",
+    'create_notification(1, "report", "بلاغ جديد"' in _srv140
+)
+check(
+    "140i. No bare except: pass in the create_notification / report flow block",
+    (lambda s: 'except: pass' not in s)(
+        _srv140[_srv140.find('Create notification for admin'):_srv140.find('تم إرسال البلاغ')+30]
+        if 'Create notification for admin' in _srv140 else ''
+    )
+)
+check(
+    "140j. NOTIFICATIONS_PLAN.md marks Phase 1 as complete",
+    'Phase 1' in _nplan140 and ('مكتمل' in _nplan140 or 'منفذ' in _nplan140 or 'منفَّذ' in _nplan140)
+)
+
 # ── Summary ──────────────────────────────────────────────────────────────
 print()
 passed = sum(1 for _, s, _ in results if s == PASS)

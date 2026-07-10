@@ -202,31 +202,6 @@ function goHome(){
   window.location.href = dest;
 }
 
-// ── Load real notifications from job applications ──
-(function(){
-  if(!_user||!_user.id) return;
-  // Load job applications as notifications
-  fetch('/my/applications', {headers:{'X-User-Id':_user.id}})
-  .then(function(r){return r.json();})
-  .then(function(data){
-    const apps = data.applications||[];
-    if(!apps.length) return;
-    const container = document.getElementById('dynamicNotifs');
-    if(!container) return;
-    const statusMap={pending:'⏳ قيد المراجعة',viewed:'👁 تم عرض طلبك',accepted:'✅ تم قبول طلبك',rejected:'❌ تم رفض طلبك'};
-    const statusColor={pending:'rgba(255,255,255,.1)',viewed:'rgba(37,99,255,.1)',accepted:'rgba(0,200,150,.1)',rejected:'rgba(239,68,68,.1)'};
-    container.innerHTML='<div class="group-label">طلبات التوظيف</div>'
-      +apps.slice(0,5).map(function(a){
-        var isNew=a.status!=='pending';
-        return '<div class="ni '+(isNew?'unread':'')+'" data-type="job" style="border-right:3px solid '+(isNew?'var(--ac)':'transparent')+'">'
-          +'<div class="ni-ico" style="background:'+statusColor[a.status]+'">💼</div>'
-          +'<div class="ni-body">'
-          +'<div class="ni-title">'+statusMap[a.status]+' - '+(a.title||'وظيفة')+'</div>'
-          +'<div class="ni-sub">'+(a.company_name||'')+' · '+(a.applied_at||'').slice(0,10)+'</div>'
-          +'</div></div>';
-      }).join('');
-  }).catch(function(){});
-})();
 
 
 
@@ -264,22 +239,58 @@ function initScrollProg(){
 
 
 // ══ Real Notifications System ══
+function _notifJwt(){ return localStorage.getItem('tw_jwt')||''; }
+
+function _buildNiItem(classExtra, dataType, borderColor, icoColor, icoText, titleText, subText, dataLink){
+  var item=document.createElement('div');
+  item.className='ni'+(classExtra?' '+classExtra:'');
+  item.dataset.type=dataType||'system';
+  if(dataLink) item.dataset.link=dataLink;
+  item.style.borderRight='3px solid '+borderColor;
+
+  var ico=document.createElement('div');
+  ico.className='ni-ico';
+  ico.style.background=icoColor;
+  ico.textContent=icoText;
+  item.appendChild(ico);
+
+  var body=document.createElement('div');
+  body.className='ni-body';
+
+  var titleEl=document.createElement('div');
+  titleEl.className='ni-title';
+  titleEl.textContent=titleText;
+  body.appendChild(titleEl);
+
+  var subEl=document.createElement('div');
+  subEl.className='ni-sub';
+  subEl.textContent=subText;
+  body.appendChild(subEl);
+
+  item.appendChild(body);
+  return item;
+}
+
 function loadRealNotifications(){
   if(!_user||!_user.id) return;
+  var jwt=_notifJwt();
   var dyn=document.getElementById('dynamicNotifs');
   if(dyn) dyn.innerHTML='<div class="tw-skeleton" style="height:64px;margin-bottom:8px"></div><div class="tw-skeleton" style="height:64px"></div>';
 
-  fetch('/notifications/'+_user.id)
+  fetch('/notifications/'+_user.id,{headers:{Authorization:'Bearer '+jwt}})
   .then(function(r){return r.json();}).then(function(data){
     var notifs=data.notifications||[];
     var unread=data.unread||0;
     var container=document.getElementById('dynamicNotifs');
     if(!container) return;
 
-    if(!notifs.length){
-      container.innerHTML='';
-      return;
-    }
+    // Filter out legacy message notifications
+    notifs=notifs.filter(function(n){
+      return n.type!=='message'&&!(n.link&&n.link.startsWith('/messages'));
+    });
+
+    container.textContent='';
+    if(!notifs.length) return;
 
     var typeMap={
       message:{ico:'💬',color:'rgba(37,99,255,.1)',label:'رسالة'},
@@ -289,70 +300,79 @@ function loadRealNotifications(){
       system:{ico:'🔔',color:'rgba(255,255,255,.05)',label:'إشعار'}
     };
 
-    // Defense-in-depth: filter out any legacy message notifications
-    notifs = notifs.filter(function(n){
-      return n.type !== 'message' && !(n.link && n.link.startsWith('/messages'));
-    });
+    var lbl=document.createElement('div');
+    lbl.className='group-label';
+    lbl.textContent='الإشعارات الحديثة'+(unread>0?' ('+unread+' جديد)':'');
+    container.appendChild(lbl);
 
-    if(!notifs.length){ container.innerHTML=''; return; }
-
-    var html='<div class="group-label">الإشعارات الحديثة'+(unread>0?' ('+unread+' جديد)':'')+'</div>';
-    html+=notifs.slice(0,10).map(function(n){
+    notifs.slice(0,10).forEach(function(n){
       var t=typeMap[n.type]||typeMap.system;
       var ago=Math.floor((Date.now()-new Date(n.created_at))/60000);
       var agoStr=ago<1?'الآن':ago<60?ago+' د':ago<1440?Math.floor(ago/60)+' س':Math.floor(ago/1440)+' ي';
-      var linkAttr=n.link?(' data-link="'+n.link+'"'):'';
-      return '<div class="ni '+(n.is_read?'':'unread')+'" data-type="'+n.type+'"'+linkAttr+' style="border-right:3px solid '+(n.is_read?'transparent':'var(--ac)')+'">'+
-        '<div class="ni-ico" style="background:'+t.color+'">'+t.ico+'</div>'+
-        '<div class="ni-body">'+
-        '<div class="ni-title">'+(n.title||t.label)+'</div>'+
-        '<div class="ni-sub">'+(n.body||'').slice(0,50)+' · '+agoStr+'</div>'+
-        '</div></div>';
-    }).join('');
-
-    container.innerHTML=html;
+      // Validate link — must start with / to block javascript: payloads
+      var link=(n.link&&/^\//.test(n.link))?n.link:'';
+      var item=_buildNiItem(
+        n.is_read?'':'unread',
+        n.type,
+        n.is_read?'transparent':'var(--ac)',
+        t.color, t.ico,
+        String(n.title||t.label),
+        String((n.body||'').slice(0,50))+' · '+agoStr,
+        link
+      );
+      container.appendChild(item);
+    });
 
     // Click-to-navigate via event delegation
     container.addEventListener('click',function(e){
       var item=e.target.closest('.ni[data-link]');
-      if(item){var lnk=item.getAttribute('data-link');if(lnk)window.location.href=lnk;}
+      if(item){var lnk=item.dataset.link;if(lnk&&/^\//.test(lnk))window.location.href=lnk;}
     });
 
-    // Mark as read
     if(unread>0){
-      fetch('/notifications/'+_user.id+'/read',{method:'PUT'}).catch(function(){});
+      fetch('/notifications/'+_user.id+'/read',{method:'PUT',headers:{Authorization:'Bearer '+jwt}}).catch(function(){});
     }
   }).catch(function(){});
 }
 
-// Also load job applications as before
+// Load job applications as a secondary notification source
 function loadJobApplications(){
   if(!_user||!_user.id) return;
-  fetch('/my/applications',{headers:{'X-User-Id':_user.id}})
+  var jwt=_notifJwt();
+  fetch('/my/applications',{headers:{Authorization:'Bearer '+jwt}})
   .then(function(r){return r.json();}).then(function(data){
     var apps=data.applications||[];
     if(!apps.length) return;
     var container=document.getElementById('dynamicNotifs');
     if(!container) return;
     var statusMap={pending:'⏳ قيد المراجعة',viewed:'👁 تم عرض طلبك',accepted:'✅ تم قبولك',rejected:'❌ تم رفض طلبك'};
-    var existing=container.innerHTML;
-    var appsHtml=apps.slice(0,5).map(function(a){
+
+    var lbl=document.createElement('div');
+    lbl.className='group-label';
+    lbl.textContent='طلبات التوظيف';
+    container.appendChild(lbl);
+
+    apps.slice(0,5).forEach(function(a){
       var isNew=a.status!=='pending';
-      return '<div class="ni '+(isNew?'unread':'')+'" data-type="job" style="border-right:3px solid '+(isNew?'var(--ac)':'transparent')+'">'
-        +'<div class="ni-ico" style="background:rgba(0,200,150,.1)">💼</div>'
-        +'<div class="ni-body">'
-        +'<div class="ni-title">'+(statusMap[a.status]||a.status)+' - '+(a.title||'وظيفة')+'</div>'
-        +'<div class="ni-sub">'+(a.company_name||'')+' · '+(a.applied_at||'').slice(0,10)+'</div>'
-        +'</div></div>';
-    }).join('');
-    container.innerHTML=existing+appsHtml;
+      var item=_buildNiItem(
+        isNew?'unread':'',
+        'job',
+        isNew?'var(--ac)':'transparent',
+        'rgba(0,200,150,.1)','💼',
+        String(statusMap[a.status]||a.status||'')+' - '+String(a.title||'وظيفة'),
+        String(a.company_name||'')+' · '+String((a.applied_at||'').slice(0,10)),
+        ''
+      );
+      container.appendChild(item);
+    });
   }).catch(function(){});
 }
 
-// Override markAll to use API
+// markAll — mark all notifications as read via API (JWT required)
 function markAll(){
   if(_user&&_user.id){
-    fetch('/notifications/'+_user.id+'/read',{method:'PUT'}).then(function(){
+    var jwt=_notifJwt();
+    fetch('/notifications/'+_user.id+'/read',{method:'PUT',headers:{Authorization:'Bearer '+jwt}}).then(function(){
       document.querySelectorAll('.ni.unread').forEach(function(el){
         el.classList.remove('unread');
         el.style.borderRightColor='transparent';
