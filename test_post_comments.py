@@ -5853,6 +5853,216 @@ check(
     'def get_appointments' not in _auth166
 )
 
+# ════════════════════════════════════════════════════════════════════════
+# §167 — Rating Notification Hook (PR #457)
+# 45 checks: Hook presence (a–c), Notification fields (d–p),
+#            Idempotency/upsert policy (q–s), No-schema/no-frontend (t–ae),
+#            System isolation (af–ah), Docs (ai–am), Next Phase (an–ao)
+# ════════════════════════════════════════════════════════════════════════
+import os as _os167
+_auth167   = open('auth.py',    encoding='utf-8').read() if _os167.path.exists('auth.py') else ''
+_srv167    = open('server.py',  encoding='utf-8').read() if _os167.path.exists('server.py') else ''
+_nplan167  = open('docs/NOTIFICATIONS_PLAN.md', encoding='utf-8').read() if _os167.path.exists('docs/NOTIFICATIONS_PLAN.md') else ''
+_sidx167   = open('docs/SYSTEMS_INDEX.md',      encoding='utf-8').read() if _os167.path.exists('docs/SYSTEMS_INDEX.md') else ''
+_notifh167 = open('notifications.html', encoding='utf-8').read() if _os167.path.exists('notifications.html') else ''
+
+# extract rate_company function body
+_fn167 = (
+    _auth167.split('def rate_company')[1].split('\ndef ')[0]
+    if 'def rate_company' in _auth167 else ''
+)
+
+# ── Hook presence (checks a–c) ──
+check(
+    "167a. rate_company function exists in auth.py",
+    'def rate_company' in _auth167
+)
+check(
+    "167b. rate_company calls create_notification",
+    'create_notification(' in _fn167
+)
+check(
+    "167c. rate_company does NOT use create_or_update_aggregated_notification",
+    'create_or_update_aggregated_notification' not in _fn167
+)
+
+# ── Notification fields (checks d–p) ──
+check(
+    "167d. type_ is 'rating_received'",
+    "type_=\"rating_received\"" in _fn167 or "type_='rating_received'" in _fn167
+)
+check(
+    "167e. recipient is company_id (user_id=company_id in create_notification call)",
+    'user_id=int(company_id)' in _fn167 or 'user_id=company_id' in _fn167
+)
+check(
+    "167f. actor_id is rater_id",
+    'actor_id=rater_id' in _fn167
+)
+check(
+    "167g. rater_id parameter is the function's first positional arg (comes from JWT in endpoint)",
+    _fn167.strip().startswith('(rater_id: int') or '(rater_id: int' in _auth167.split('def rate_company')[1][:40]
+)
+check(
+    "167h. X-User-Id is NOT referenced in rate_company notification block",
+    'X-User-Id' not in _fn167
+)
+check(
+    "167i. self-notification guard: rater_id != company_id",
+    ('int(rater_id) != int(company_id)' in _fn167 or
+     'rater_id != company_id' in _fn167)
+)
+check(
+    "167j. entity_type is 'company_rating'",
+    "entity_type=\"company_rating\"" in _fn167 or "entity_type='company_rating'" in _fn167
+)
+check(
+    "167k. entity_id is company_id",
+    'entity_id=company_id' in _fn167
+)
+check(
+    "167l. event_key starts with 'rating:'",
+    "event_key=f\"rating:" in _fn167 or "event_key=f'rating:" in _fn167
+)
+check(
+    "167m. event_key includes company_id",
+    'rating:{company_id}' in _fn167
+)
+check(
+    "167n. event_key includes rater_id (prevents duplicate per rater/company pair)",
+    'rater_id}' in _fn167 and 'rating:' in _fn167
+)
+check(
+    "167o. title is Arabic — 'وصلك تقييم جديد'",
+    'وصلك تقييم جديد' in _fn167
+)
+check(
+    "167p. body mentions score in Arabic",
+    'نجوم' in _fn167 and ('score' in _fn167 or 'تقييم' in _fn167)
+)
+
+# ── Link target (checks q–s) ──
+check(
+    "167q. link uses /u/ route (canonical public profile — F7)",
+    '"/u/' in _fn167 or "'/u/" in _fn167 or 'f"/u/' in _fn167 or "f'/u/" in _fn167
+)
+check(
+    "167r. link uses company_tw_id (fetched from DB, not hardcoded)",
+    'company_tw_id' in _fn167
+)
+check(
+    "167s. company_tw_id is fetched from users table on same connection",
+    'SELECT tw_id FROM users WHERE id' in _fn167
+)
+
+# ── Idempotency / upsert policy (checks t–v) ──
+check(
+    "167t. UPSERT still uses ON CONFLICT (company_id, rater_id) DO UPDATE",
+    'ON CONFLICT (company_id, rater_id)' in _fn167 and 'DO UPDATE' in _fn167
+)
+check(
+    "167u. notification fires AFTER release_conn (connection released before notification)",
+    _fn167.index('release_conn(conn)') < _fn167.index('create_notification(')
+    if 'release_conn(conn)' in _fn167 and 'create_notification(' in _fn167 else False
+)
+check(
+    "167v. result variables (rating_avg, rating_count) stored before release_conn",
+    'rating_avg' in _fn167.split('release_conn')[0] and
+    'rating_count' in _fn167.split('release_conn')[0]
+    if 'release_conn' in _fn167 else False
+)
+
+# ── Exception logging (check w) ──
+check(
+    "167w. notification exception caught and logged with [NOTIF] prefix (F9)",
+    '[NOTIF]' in _fn167 and 'except Exception as e' in _fn167
+)
+
+# ── No schema / no frontend changes (checks x–ae) ──
+check(
+    "167x. No CREATE TABLE for ratings (schema unchanged)",
+    _auth167.count('CREATE TABLE IF NOT EXISTS company_ratings') <= 1
+)
+check(
+    "167y. No ALTER TABLE company_ratings in this PR context",
+    'ALTER TABLE company_ratings ADD' not in _fn167
+)
+check(
+    "167z. notifications.html not modified for rating",
+    'rating_received' not in _notifh167
+)
+check(
+    "167aa. No app-header changes for rating",
+    'rating_received' not in (open('static/app-header.js', encoding='utf-8').read()
+    if _os167.path.exists('static/app-header.js') else '')
+)
+check(
+    "167ab. No WebSocket for rating notifications",
+    '@app.websocket("/rating' not in _srv167
+)
+check(
+    "167ac. No scheduler/cron for rating",
+    'apscheduler' not in _auth167.lower() and 'schedule.every' not in _auth167
+)
+check(
+    "167ad. No messenger changes for rating",
+    'rating_received' not in (open('messages.html', encoding='utf-8').read()
+    if _os167.path.exists('messages.html') else '')
+)
+check(
+    "167ae. No appointments implementation added",
+    'def create_appointment' not in _auth167 and
+    'CREATE TABLE appointments' not in _auth167
+)
+
+# ── System isolation — no regressions (checks af–ah) ──
+check(
+    "167af. application_status_changed _INTERNAL_STATUSES guard still present",
+    '_INTERNAL_STATUSES' in _auth167 and '"accepted"' in _auth167 and '"rejected"' in _auth167
+)
+check(
+    "167ag. update_application_status still has self-guard for actor_id",
+    'actor_id is None or int(applicant_id) != int(actor_id)' in _auth167
+)
+check(
+    "167ah. create_notification helper signature unchanged",
+    'def create_notification(' in _auth167 and 'event_key: str = None' in _auth167
+)
+
+# ── Docs (checks ai–am) ──
+check(
+    "167ai. NOTIFICATIONS_PLAN.md rating entry updated to ✅ implemented",
+    '✅' in _nplan167 and 'rating_received' in _nplan167 and 'PR #457' in _nplan167
+)
+check(
+    "167aj. NOTIFICATIONS_PLAN.md documents event_key format for rating",
+    'rating:{company_id}:{rater_id}' in _nplan167
+)
+check(
+    "167ak. NOTIFICATIONS_PLAN.md documents upsert/update policy for rating",
+    'UPSERT' in _nplan167 or 'upsert' in _nplan167
+)
+check(
+    "167al. NOTIFICATIONS_PLAN.md mentions job_expiring_soon as blocked by scheduler",
+    'job_expiring_soon' in _nplan167 and ('scheduler' in _nplan167 or 'Blocked' in _nplan167)
+)
+check(
+    "167am. SYSTEMS_INDEX.md §19 updated to reference rating_received PR #457",
+    'rating_received' in _sidx167 and 'PR #457' in _sidx167
+)
+
+# ── Next Phase Marker (checks an–ao) ──
+check(
+    "167an. NOTIFICATIONS_PLAN.md: rating is now implemented (count updated)",
+    'rating_received' in _nplan167 and '✅ implemented' in _nplan167
+)
+check(
+    "167ao. Remaining Missing Priority Queue is job_expiring_soon only",
+    'job_expiring_soon' in _nplan167 and
+    ('Blocked' in _nplan167 or 'blocked' in _nplan167.lower()) and
+    'scheduler' in _nplan167
+)
+
 # ── Summary ──────────────────────────────────────────────────────────────
 print()
 passed = sum(1 for _, s, _ in results if s == PASS)
