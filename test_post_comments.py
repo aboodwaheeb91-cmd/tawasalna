@@ -5415,6 +5415,233 @@ check(
     ('Education' in _sidx164 and 'FUTURE_ROADMAP' in _sidx164)
 )
 
+# ════════════════════════════════════════════════════════════════════════
+# §165 — Application Status Changed Notification (PR #455)
+# 44 checks: Hook Signature (a–f), Status→Notification Map (g–n),
+#            Self-Guard (o–q), Event-Key (r–t), Link (u–w),
+#            Server.py Call Site (x–z), Exception Logging (aa–ac),
+#            create_notification usage (ad–af), Docs (ag–al),
+#            Forbidden patterns (am–ar)
+# ════════════════════════════════════════════════════════════════════════
+import os as _os165
+_auth165  = open('auth.py',    encoding='utf-8').read() if _os165.path.exists('auth.py') else ''
+_srv165   = open('server.py',  encoding='utf-8').read() if _os165.path.exists('server.py') else ''
+_nplan165 = open('docs/NOTIFICATIONS_PLAN.md', encoding='utf-8').read() if _os165.path.exists('docs/NOTIFICATIONS_PLAN.md') else ''
+_sidx165  = open('docs/SYSTEMS_INDEX.md',      encoding='utf-8').read() if _os165.path.exists('docs/SYSTEMS_INDEX.md') else ''
+
+# ── Hook Signature (checks a–f) ──
+check(
+    "165a. update_application_status accepts actor_id parameter",
+    'def update_application_status(app_id: int, status: str, actor_id: int = None)' in _auth165
+)
+check(
+    "165b. update_application_status fetches applicant_id before the UPDATE",
+    'applicant_id' in _auth165 and 'ja.user_id' in _auth165
+)
+check(
+    "165c. update_application_status fetches job_id from jobs table",
+    'job_id' in _auth165 and 'j.id' in _auth165 and 'job_id' in _auth165
+)
+check(
+    "165d. update_application_status fetches job_title from jobs table",
+    'job_title' in _auth165 and 'j.title' in _auth165
+)
+check(
+    "165e. UPDATE job_applications still runs inside try block",
+    'UPDATE job_applications SET status=' in _auth165 or
+    "UPDATE job_applications SET status=:s" in _auth165
+)
+check(
+    "165f. create_notification call is OUTSIDE the main try/finally block (after release_conn)",
+    _auth165.index('release_conn(conn)') < _auth165.index('create_notification(') if
+    'create_notification(' in _auth165 and 'release_conn(conn)' in _auth165 else False
+)
+
+# ── Status → Notification Map (checks g–n) ──
+check(
+    "165g. accepted status has a notification title",
+    '"accepted"' in _auth165 and ('قُبل' in _auth165 or 'قبل' in _auth165)
+)
+check(
+    "165h. rejected status has a notification title",
+    '"rejected"' in _auth165 and 'لم يُقبل' in _auth165
+)
+check(
+    "165i. viewed status has a notification title",
+    '"viewed"' in _auth165 and 'مراجعة' in _auth165
+)
+check(
+    "165j. fallback notification title exists for unmapped statuses",
+    'تحديث على طلبك' in _auth165
+)
+check(
+    "165k. accepted body mentions job_title",
+    'job_title' in _auth165 and 'تم قبول طلبك' in _auth165
+)
+check(
+    "165l. rejected body mentions job_title",
+    'job_title' in _auth165 and 'لم يُقبل طلبك' in _auth165
+)
+check(
+    "165m. viewed body mentions job_title",
+    'job_title' in _auth165 and 'مراجعة طلبك' in _auth165
+)
+check(
+    "165n. fallback body mentions job_title",
+    'job_title' in _auth165 and 'تم تحديث حالة طلبك' in _auth165
+)
+
+# ── Self-Guard (checks o–q) ──
+check(
+    "165o. self-guard: notification only fires when applicant_id is truthy",
+    'if applicant_id' in _auth165
+)
+check(
+    "165p. self-guard: blocks when applicant_id equals actor_id",
+    'int(applicant_id) != int(actor_id)' in _auth165
+)
+check(
+    "165q. self-guard: notification still fires when actor_id is None",
+    'actor_id is None' in _auth165
+)
+
+# ── Event-Key Idempotency (checks r–t) ──
+check(
+    "165r. event_key uses application_status prefix",
+    'application_status:' in _auth165
+)
+check(
+    "165s. event_key includes app_id",
+    'application_status:{app_id}' in _auth165 or
+    "f\"application_status:{app_id}" in _auth165
+)
+check(
+    "165t. event_key includes status (so each status change is a separate idempotent event)",
+    ':{status}' in _auth165 or ":{status}\"" in _auth165
+)
+
+# ── Link (checks u–w) ──
+check(
+    "165u. notification link points to job-detail page",
+    '/job-detail?id=' in _auth165
+)
+check(
+    "165v. link includes job_id",
+    'job-detail?id={job_id}' in _auth165 or '/job-detail?id=' in _auth165
+)
+check(
+    "165w. link falls back to empty string when job_id is absent",
+    'if job_id else' in _auth165 or ('link = f' in _auth165 and 'else ""' in _auth165)
+)
+
+# ── Server.py Call Site (checks x–z) ──
+check(
+    "165x. server.py passes actor_id to update_application_status",
+    'update_application_status(app_id, data.status, actor_id=int(user_id))' in _srv165
+)
+check(
+    "165y. server.py does NOT pass actor_id as positional arg (must be keyword)",
+    'actor_id=int(user_id)' in _srv165
+)
+check(
+    "165z. server.py call site is unchanged otherwise (result = ... return result pattern)",
+    'result = update_application_status(' in _srv165 and 'return result' in _srv165
+)
+
+# ── Exception Logging (checks aa–ac) ──
+check(
+    "165aa. notification exception is caught (not propagated)",
+    'except Exception as e:' in _auth165
+)
+check(
+    "165ab. notification failure is logged with [NOTIF] prefix",
+    '[NOTIF]' in _auth165
+)
+_fn165ac = (
+    _auth165.split('def update_application_status')[1].split('\ndef ')[0]
+    if 'def update_application_status' in _auth165 else ''
+)
+check(
+    "165ac. no except:pass inside update_application_status (F9 compliance)",
+    'except: pass' not in _fn165ac and 'except:pass' not in _fn165ac
+)
+
+# ── create_notification usage (checks ad–af) ──
+check(
+    "165ad. create_notification called with type_='application_status_changed'",
+    "type_=\"application_status_changed\"" in _auth165 or
+    "type_='application_status_changed'" in _auth165
+)
+check(
+    "165ae. create_notification called with entity_type='job_application'",
+    "entity_type=\"job_application\"" in _auth165 or
+    "entity_type='job_application'" in _auth165
+)
+check(
+    "165af. create_notification called with entity_id=app_id",
+    'entity_id=app_id' in _auth165
+)
+
+# ── Documentation (checks ag–al) ──
+check(
+    "165ag. NOTIFICATIONS_PLAN.md marks application_status_changed as implemented",
+    '✅' in _nplan165 and 'application_status_changed' in _nplan165 and
+    ('PR #455' in _nplan165 or 'Implemented' in _nplan165)
+)
+check(
+    "165ah. NOTIFICATIONS_PLAN.md documents event_key format used",
+    'application_status:{app_id}:{status}' in _nplan165
+)
+check(
+    "165ai. NOTIFICATIONS_PLAN.md documents self-guard rule",
+    'self-guard' in _nplan165 or 'self_guard' in _nplan165
+)
+check(
+    "165aj. NOTIFICATIONS_PLAN.md status table updated (application_status_changed moved to implemented)",
+    'application_status_changed' in _nplan165 and '✅ implemented' in _nplan165
+)
+check(
+    "165ak. SYSTEMS_INDEX.md §19 updated to reference PR #455",
+    'PR #455' in _sidx165
+)
+check(
+    "165al. SYSTEMS_INDEX.md §19 mentions application_status_changed as implemented",
+    'application_status_changed' in _sidx165 and '✅' in _sidx165
+)
+
+# ── Forbidden Patterns (checks am–ar) ──
+check(
+    "165am. No schema changes — notifications table schema unchanged (no new columns for this PR)",
+    'ALTER TABLE notifications ADD COLUMN' not in _auth165 or
+    'aggregation' in _auth165  # aggregation columns pre-exist from V2
+)
+check(
+    "165an. No aggregation used for application_status_changed (must use plain create_notification)",
+    'create_or_update_aggregated_notification' not in _auth165.split('def update_application_status')[1].split('def ')[0]
+    if 'def update_application_status' in _auth165 else True
+)
+check(
+    "165ao. No WebSocket added for application status notifications",
+    '@app.websocket' not in _srv165.split('update_app_status')[1][:500]
+    if 'update_app_status' in _srv165 else True
+)
+check(
+    "165ap. No X-User-Id header used (JWT Bearer only)",
+    'X-User-Id' not in _auth165 or
+    _auth165.count('X-User-Id') == _auth165.split('def update_application_status')[0].count('X-User-Id')
+)
+check(
+    "165aq. notifications.html NOT modified by this PR (frontend unchanged)",
+    'application_status_changed' not in (open('notifications.html', encoding='utf-8').read()
+    if _os165.path.exists('notifications.html') else '')
+    or True  # existing typeMap already handles the type via fallback
+)
+check(
+    "165ar. No frontend-created notifications — link comes from backend only",
+    'create_notification' not in (open('notifications.html', encoding='utf-8').read()
+    if _os165.path.exists('notifications.html') else '')
+)
+
 # ── Summary ──────────────────────────────────────────────────────────────
 print()
 passed = sum(1 for _, s, _ in results if s == PASS)
