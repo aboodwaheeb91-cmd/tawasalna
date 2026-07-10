@@ -3517,6 +3517,17 @@ async def get_msgs(user_id: int, other_id: int, token=Depends(verify_token)):
 
 
 
+@app.get("/notifications/{user_id}/unread-count")
+def notifications_unread_count(user_id: int, token=Depends(verify_token)):
+    tok_uid = int(token.get("user_id"))
+    if tok_uid != user_id:
+        raise HTTPException(403, "Forbidden")
+    try:
+        count = get_unread_notifications(user_id)
+        return {"ok": True, "data": {"count": count}}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
 @app.get("/notifications/{user_id}")
 def user_notifications(user_id: int, token=Depends(verify_token),
                        page: int = 1, per_page: int = 20):

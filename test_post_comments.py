@@ -3360,6 +3360,58 @@ check(
     'Phase 9' in _nplan148 and ('مكتمل' in _nplan148 or 'منفَّذ' in _nplan148)
 )
 
+# §149 — Notifications Phase 10 — Unread Badge in App Header
+_srv149 = open("server.py").read()
+_ahjs149 = open("static/app-header.js").read()
+_ahcss149 = open("static/app-header.css").read()
+_nplan149 = open("docs/NOTIFICATIONS_PLAN.md").read()
+
+print("\n── §149: Notifications Phase 10 — Unread Badge in App Header ──")
+check(
+    "149a. GET /notifications/{user_id}/unread-count endpoint exists in server.py",
+    "def notifications_unread_count(user_id: int, token=Depends(verify_token))" in _srv149
+)
+check(
+    "149b. unread-count endpoint has JWT + ownership check",
+    "notifications_unread_count" in _srv149 and
+    "tok_uid != user_id" in _srv149
+)
+check(
+    "149c. unread-count endpoint returns {ok: True, data: {count: ...}}",
+    '"ok": True' in _srv149 and '"data": {"count":' in _srv149
+)
+check(
+    "149d. _pollUnreadBadge function exists in app-header.js",
+    "function _pollUnreadBadge(user)" in _ahjs149
+)
+check(
+    "149e. _pollUnreadBadge uses Authorization Bearer JWT (no X-User-Id)",
+    "'Authorization': 'Bearer ' + jwt" in _ahjs149 or
+    '"Authorization": "Bearer "' in _ahjs149
+)
+check(
+    "149f. polling interval is 60000ms (60 seconds minimum)",
+    "setInterval(_fetchCount, 60000)" in _ahjs149
+)
+check(
+    "149g. badge hidden when count == 0",
+    "style.display = 'none'" in _ahjs149 or "style.display='none'" in _ahjs149
+)
+check(
+    "149h. count is NOT stored in localStorage (only JWT is read from it)",
+    "localStorage.setItem" not in _ahjs149[_ahjs149.find("function _pollUnreadBadge"):
+                                            _ahjs149.find("function _pollUnreadBadge") + 800]
+    if "function _pollUnreadBadge" in _ahjs149 else False
+)
+check(
+    "149i. badge CSS in app-header.css ([data-ah-notif-badge] rule present)",
+    "[data-ah-notif-badge]" in _ahcss149
+)
+check(
+    "149j. NOTIFICATIONS_PLAN.md marks Phase 10 as complete",
+    'Phase 10' in _nplan149 and ('مكتمل' in _nplan149 or 'منفَّذ' in _nplan149)
+)
+
 # ── Summary ──────────────────────────────────────────────────────────────
 print()
 passed = sum(1 for _, s, _ in results if s == PASS)
