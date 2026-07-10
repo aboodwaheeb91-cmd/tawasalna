@@ -286,7 +286,7 @@ create_notification(
 
 ---
 
-## Phase 7 — Follow Notification Hook
+## Phase 7 — Follow Notification Hook ✅ (منفَّذ في PR #437)
 
 > يُشعر المستخدم عند متابعة شخص له.
 
@@ -405,7 +405,7 @@ def mark_notification_read(user_id: int, notif_id: int) -> bool:
 | **4** | Reply Notification Hook | `auth.py` | ✅ مكتمل (PR #434) |
 | **5** | Mention Notification Hook | `auth.py` | ✅ مكتمل (PR #435) |
 | **6** | Job Application Hook | `auth.py` | ✅ مكتمل (PR #436) |
-| **7** | Follow Hook | `server.py` | P1 |
+| **7** | Follow Hook | `auth.py` | ✅ مكتمل (PR #437) |
 | **8** | Verification Hook | `server.py` | P1 |
 | **9** | Per-Notification Read + Pagination | `auth.py`, `server.py` | P1 |
 | **10** | Unread Badge in App Header | `server.py`, `static/app-header.js` | P2 |
@@ -425,4 +425,4 @@ def mark_notification_read(user_id: int, notif_id: int) -> bool:
 
 ---
 
-*أُنشئ: 2026-07-09 — Phase 0 audit. حُدِّث: 2026-07-10 — Phase 1 مكتمل (PR #431). حُدِّث: 2026-07-10 — Phase 2 مكتمل (PR #432). حُدِّث: 2026-07-10 — Phase 3 مكتمل (PR #433). حُدِّث: 2026-07-10 — Phase 4 مكتمل (PR #434). حُدِّث: 2026-07-10 — Phase 5 مكتمل (PR #435). حُدِّث: 2026-07-10 — Phase 6 Job Application Notification Hook مكتمل (PR #436). الخطوة التالية: Phase 7 — Follow Notification Hook.*
+*أُنشئ: 2026-07-09 — Phase 0 audit. حُدِّث: 2026-07-10 — Phase 1 مكتمل (PR #431). حُدِّث: 2026-07-10 — Phase 2 مكتمل (PR #432). حُدِّث: 2026-07-10 — Phase 3 مكتمل (PR #433). حُدِّث: 2026-07-10 — Phase 4 مكتمل (PR #434). حُدِّث: 2026-07-10 — Phase 5 مكتمل (PR #435). حُدِّث: 2026-07-10 — Phase 6 مكتمل (PR #436). حُدِّث: 2026-07-10 — Phase 7 Follow Notification Hook مكتمل (PR #437). الخطوة التالية: Phase 8 — Verification Status Notification Hook.*

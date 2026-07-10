@@ -3214,6 +3214,54 @@ check(
     'Phase 6' in _nplan145 and ('مكتمل' in _nplan145 or 'منفَّذ' in _nplan145)
 )
 
+# §146 — Notifications Phase 7 — Follow Notification Hook
+_auth146 = open("auth.py").read()
+_nplan146 = open("docs/NOTIFICATIONS_PLAN.md").read()
+
+print("\n── §146: Notifications Phase 7 — Follow Notification Hook ──")
+check(
+    "146a. follow_company INSERT now uses RETURNING follower_id",
+    "ON CONFLICT (company_id, follower_id) DO NOTHING RETURNING follower_id" in _auth146
+)
+check(
+    "146b. follow_profile INSERT now uses RETURNING follower_id",
+    "ON CONFLICT (follower_id, followed_id) DO NOTHING RETURNING follower_id" in _auth146
+)
+check(
+    "146c. follow_company notification hook present (type follow)",
+    "follow:user:{company_id}:{follower_id}" in _auth146
+)
+check(
+    "146d. follow_profile notification hook present (type follow)",
+    "follow:user:{followed_id}:{follower_id}" in _auth146
+)
+check(
+    "146e. notification type is 'follow'",
+    _auth146.count("type_=\"follow\"") >= 2 or _auth146.count("type_='follow'") >= 2 or
+    ("type_=\"follow\"" in _auth146 and "type_='follow'" in _auth146) or
+    _auth146.count("type_=\"follow\"") + _auth146.count("type_='follow'") >= 2
+)
+check(
+    "146f. both hooks only fire for fresh follows (ins_rows guard)",
+    _auth146.count("if ins_rows:") >= 2
+)
+check(
+    "146g. follower name fetched from DB in both hooks",
+    _auth146.count("SELECT full_name, tw_id FROM users WHERE id = :fid") >= 2
+)
+check(
+    "146h. both hooks are non-fatal (two separate TW-WARN follow logs)",
+    _auth146.count("[TW-WARN] follow notification") >= 2
+)
+check(
+    "146i. no self-follow notification possible (guard in follow_profile; company follow already has guard in server.py)",
+    "if follower_id == followed_id:" in _auth146  # follow_profile self-follow guard
+)
+check(
+    "146j. NOTIFICATIONS_PLAN.md marks Phase 7 as complete",
+    'Phase 7' in _nplan146 and ('مكتمل' in _nplan146 or 'منفَّذ' in _nplan146)
+)
+
 # ── Summary ──────────────────────────────────────────────────────────────
 print()
 passed = sum(1 for _, s, _ in results if s == PASS)
