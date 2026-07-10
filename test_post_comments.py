@@ -2922,7 +2922,8 @@ _nplan140 = open('docs/NOTIFICATIONS_PLAN.md', encoding='utf-8').read() if _os14
 
 check(
     "140a. GET /notifications/{user_id} requires JWT (Depends(verify_token))",
-    'def user_notifications(user_id: int, token=Depends(verify_token))' in _srv140
+    'def user_notifications(user_id: int, token=Depends(verify_token))' in _srv140 or
+    ('def user_notifications(user_id: int, token=Depends(verify_token),' in _srv140)
 )
 check(
     "140b. GET /notifications/{user_id} cross-checks tok_uid == user_id",
@@ -3307,6 +3308,56 @@ check(
 check(
     "147j. NOTIFICATIONS_PLAN.md marks Phase 8 as complete",
     'Phase 8' in _nplan147 and ('مكتمل' in _nplan147 or 'منفَّذ' in _nplan147)
+)
+
+# §148 — Notifications Phase 9 — Per-Notification Read + Pagination
+_auth148 = open("auth.py").read()
+_srv148 = open("server.py").read()
+_nplan148 = open("docs/NOTIFICATIONS_PLAN.md").read()
+
+print("\n── §148: Notifications Phase 9 — Per-Notification Read + Pagination ──")
+check(
+    "148a. mark_notification_read() exists in auth.py",
+    "def mark_notification_read(user_id: int, notif_id: int)" in _auth148
+)
+check(
+    "148b. mark_notification_read uses WHERE id=:nid AND user_id=:uid (ownership check)",
+    "WHERE id=:nid AND user_id=:uid" in _auth148
+)
+check(
+    "148c. get_notifications accepts offset parameter",
+    "def get_notifications(user_id: int, limit: int" in _auth148 and
+    "offset" in _auth148
+)
+check(
+    "148d. get_notifications uses LIMIT + OFFSET in query",
+    "LIMIT :lim OFFSET :off" in _auth148
+)
+check(
+    "148e. mark_notification_read imported in server.py",
+    "mark_notification_read" in _srv148 and "from" not in "mark_notification_read"  # imported, not just defined
+    and _srv148.count("mark_notification_read") >= 2  # import + usage
+)
+check(
+    "148f. GET /notifications/{user_id} accepts page and per_page query params",
+    "page: int = 1" in _srv148 and "per_page: int = 20" in _srv148
+)
+check(
+    "148g. GET endpoint clamps per_page (max 100) and enforces page >= 1",
+    "max(1, min(per_page, 100))" in _srv148 and "max(1, page)" in _srv148
+)
+check(
+    "148h. GET endpoint returns page and per_page in response",
+    '"page": page' in _srv148 and '"per_page": per_page' in _srv148
+)
+check(
+    "148i. PUT /notifications/{user_id}/read/{notif_id} endpoint exists with JWT + ownership check",
+    "def read_single_notification(user_id: int, notif_id: int" in _srv148 and
+    "tok_uid != user_id" in _srv148
+)
+check(
+    "148j. NOTIFICATIONS_PLAN.md marks Phase 9 as complete",
+    'Phase 9' in _nplan148 and ('مكتمل' in _nplan148 or 'منفَّذ' in _nplan148)
 )
 
 # ── Summary ──────────────────────────────────────────────────────────────
