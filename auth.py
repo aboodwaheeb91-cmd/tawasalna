@@ -2236,21 +2236,39 @@ def apply_job(job_id: int, user_id: int, cover_letter: str = "") -> dict:
             return {"already_applied": True}
         cols = [c["name"] for c in conn.columns]
         result = _serialize(_row_to_dict(cols, rows[0]))
-        # Phase 6: notify company on new job application (non-fatal)
+        # V2-3: aggregated job_applied notification (non-fatal)
         try:
             urows = conn.run("SELECT full_name FROM users WHERE id=:uid", uid=user_id)
             applicant_name = urows[0][0] if urows else ""
             if job_company_id != user_id:
-                create_notification(
-                    user_id=job_company_id,
+                agg_key = f"job_applications_agg:job:{job_id}"
+                jt = job_title or "هذه الوظيفة"
+                ex_agg = conn.run(
+                    "SELECT aggregation_count FROM notifications "
+                    "WHERE user_id = :uid AND aggregation_key = :akey AND is_read = FALSE "
+                    "ORDER BY created_at DESC LIMIT 1",
+                    uid=job_company_id, akey=agg_key
+                )
+                ex_count = ex_agg[0][0] if ex_agg else 0
+                new_count = ex_count + 1
+                applicant_display = applicant_name or "متقدم جديد"
+                if new_count == 1:
+                    notif_title = "متقدم جديد"
+                    notif_body = f"{applicant_display} تقدّم على وظيفة \"{jt}\""
+                else:
+                    notif_title = f"{new_count} متقدمين جدد"
+                    notif_body = f"{applicant_name or 'متقدم'} و{new_count - 1} آخرين تقدموا على وظيفة \"{jt}\""
+                create_or_update_aggregated_notification(
+                    recipient_user_id=job_company_id,
                     type_="job_applied",
-                    title=f"تقدّم شخص لوظيفة {job_title}",
-                    body=f"{applicant_name} تقدّم للوظيفة",
-                    link=f"/company-profile#jobs",
+                    title=notif_title,
+                    body=notif_body,
+                    aggregation_key=agg_key,
+                    target_type="job",
+                    target_id=job_id,
                     actor_id=user_id,
-                    entity_id=job_id,
-                    entity_type="job",
-                    event_key=f"job_applied:job:{job_id}:{user_id}"
+                    action_url=f"/job-detail?id={job_id}",
+                    aggregation_kind="job_applied",
                 )
         except Exception as _notif_err:
             print(f"[TW-WARN] job_applied notification (job {job_id}) failed: {_notif_err}")

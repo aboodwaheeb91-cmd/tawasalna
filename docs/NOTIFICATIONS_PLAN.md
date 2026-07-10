@@ -927,7 +927,7 @@ def create_or_update_aggregated_notification(
 | **V2-0** | Smart Aggregation Plan | هذا القسم — docs only | ✅ PR #447 |
 | **V2-1** | Aggregation Schema + Helper | حقول إضافية + helper بدون تفعيل hooks | ✅ PR #448 |
 | **V2-2** | Follow Aggregation | تجميع إشعارات المتابعة | ✅ PR #449 |
-| **V2-3** | Job Application Aggregation | تجميع المتقدمين لكل وظيفة | 🔜 مستقبلي |
+| **V2-3** | Job Application Aggregation | تجميع المتقدمين لكل وظيفة | ✅ PR #450 |
 | **V2-4** | Comment/Reply Aggregation | تجميع التعليقات/الردود لكل منشور أو thread | 🔜 مستقبلي |
 | **V2-5** | UI Support for Aggregated Notifications | تحديث كروت الإشعارات: count + "و X آخرين" | 🔜 مستقبلي |
 | **V2-6** | Final Runtime QA | فحص يدوي + static checks + توثيق نهائي | 🔜 مستقبلي |
@@ -956,7 +956,33 @@ def create_or_update_aggregated_notification(
 - V1 `create_notification` باقي في الكود للـ hooks الأخرى (job/comment/reply/mention/verify).
 - لا تغيير على notifications.html أو app-header.
 
-**NEXT PHASE AFTER MERGE: Phase V2-3 — Job Application Aggregation**
+**V2-3 — ما تم (PR #450):**
+- `apply_job()` في `auth.py`: استبدال `create_notification` (V1) بـ `create_or_update_aggregated_notification`.
+  - `aggregation_key = "job_applications_agg:job:{job_id}"` — تجميع per job، وليس per company.
+  - `target_type = "job"`, `target_id = job_id`
+  - `recipient = job_company_id` — وهو `jobs.company_id` = `users.id` لحساب الشركة (نفس المعرّف المستخدم في V1).
+  - `action_url = "/job-detail?id={job_id}"` — أفضل route متاحة حالياً لتمثيل الوظيفة. لا توجد route مخصصة لقائمة المتقدمين في هذا المشروع حتى الآن.
+  - `aggregation_kind = "job_applied"`
+  - `actor_id = user_id` (المتقدم)
+  - Self-notification guard موجود: `if job_company_id != user_id`
+  - Pre-check للـ count → title/body ديناميكي.
+  - Duplicate application: لا إشعار — `INSERT ... ON CONFLICT DO NOTHING` يُعيد صفاً فارغاً → `return {"already_applied": True}` قبل الوصول لكود الإشعار.
+- `application_status_changed` (عند تغيير حالة المتقدم) يبقى بدون aggregation — مرحلة منفصلة لاحقاً.
+- V1 `create_notification` باقي في الكود للـ hooks الأخرى (comment/reply/mention/verify/follow V1).
+- لا تغيير على notifications.html أو app-header.
+
+**Click Target الحالي:** `/job-detail?id={job_id}`
+الملاحظة: لا توجد route مخصصة لقائمة المتقدمين حالياً. عند بناء صفحة أو modal مخصص، يجب تحديث `action_url` في هذا الـ hook.
+
+**Title/Body Logic:**
+| count | title | body |
+|-------|-------|------|
+| 1 | `متقدم جديد` | `{name} تقدّم على وظيفة "{job_title}"` |
+| >1 | `{count} متقدمين جدد` | `{name} و{count-1} آخرين تقدموا على وظيفة "{job_title}"` |
+
+Fallbacks: `applicant_name` → `"متقدم جديد"` · `job_title` → `"هذه الوظيفة"`
+
+**NEXT PHASE AFTER MERGE: Phase V2-4 — Comment/Reply Aggregation**
 
 ---
 
@@ -991,7 +1017,7 @@ def create_or_update_aggregated_notification(
 | **V2-0** | Smart Aggregation Plan | `docs/NOTIFICATIONS_PLAN.md` (docs only) | ✅ PR #447 |
 | **V2-1** | Aggregation Schema + Helper | `auth.py` migration + helper | ✅ PR #448 |
 | **V2-2** | Follow Aggregation | `auth.py` follow hook | ✅ PR #449 |
-| **V2-3** | Job Application Aggregation | `auth.py` job hook | 🔜 مستقبلي |
+| **V2-3** | Job Application Aggregation | `auth.py` job hook | ✅ PR #450 |
 | **V2-4** | Comment/Reply Aggregation | `auth.py` comment hook | 🔜 مستقبلي |
 | **V2-5** | UI Support | `notifications.html` | 🔜 مستقبلي |
 | **V2-6** | Final Runtime QA | static checks + manual QA | 🔜 مستقبلي |

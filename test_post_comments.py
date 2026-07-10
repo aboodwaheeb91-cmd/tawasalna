@@ -3196,8 +3196,8 @@ check(
     "type_=\"job_applied\"" in _auth145 or "type_='job_applied'" in _auth145
 )
 check(
-    "145f. notification event_key uses job_applied:job:{job_id}:{user_id}",
-    'event_key=f"job_applied:job:{job_id}:{user_id}"' in _auth145
+    "145f. job_applied hook uses V2 aggregation key (migrated V2-3)",
+    'job_applications_agg:job:' in _auth145
 )
 check(
     "145g. hook only fires for new applications (not already_applied)",
@@ -3720,8 +3720,8 @@ check(
     'type_="job_applied"' in _auth153 or "type_='job_applied'" in _auth153
 )
 check(
-    "153e. job_applied event_key format is job_applied:job:{id}:{actor} in auth.py",
-    'job_applied:job:' in _auth153
+    "153e. job_applied aggregation key present in auth.py (V2-3: job_applications_agg:job:)",
+    'job_applications_agg:job:' in _auth153
 )
 check(
     "153f. job notification guards against self-apply — job_company_id != user_id check present",
@@ -4438,8 +4438,8 @@ check(
     ('NEXT PHASE' in _plan159 or 'V2-3 —' in _plan159)
 )
 check(
-    "159y. SYSTEMS_INDEX.md §36 updated with V2-2 (PR #449)",
-    'V2-2' in _sidx159 and 'PR #449' in _sidx159
+    "159y. SYSTEMS_INDEX.md §36 references V2-2 history (#449)",
+    'V2-2' in _sidx159 and '#449' in _sidx159
 )
 
 # ── Self-notification guards — symmetric pattern ──────────────────────────
@@ -4495,6 +4495,184 @@ check(
 check(
     "159ah. app-header.css not modified — no aggregation in header CSS",
     'aggregation' not in _ahc_159.lower()
+)
+
+# ─────────────────────────────────────────────────────────────────────────
+# §160 — Notifications V2-3: Job Application Aggregation (PR #450)
+# Verifies apply_job() replaced V1 create_notification with V2 aggregation.
+# ─────────────────────────────────────────────────────────────────────────
+with open("auth.py", encoding="utf-8") as f:
+    _auth160 = f.read()
+with open("docs/NOTIFICATIONS_PLAN.md", encoding="utf-8") as f:
+    _plan160 = f.read()
+with open("docs/SYSTEMS_INDEX.md", encoding="utf-8") as f:
+    _sidx160 = f.read()
+with open("server.py", encoding="utf-8") as f:
+    _srv160 = f.read()
+with open("notifications.html", encoding="utf-8") as f:
+    _notif_html_160 = f.read()
+with open("static/app-header.js", encoding="utf-8") as f:
+    _ahj_160 = f.read()
+with open("static/app-header.css", encoding="utf-8") as f:
+    _ahc_160 = f.read()
+
+# Slices for targeted checks (3200 chars covers full function)
+_aj160 = _auth160[_auth160.find('def apply_job('):_auth160.find('def apply_job(') + 3200]
+_uas160 = _auth160[_auth160.find('def update_application_status('):
+                   _auth160.find('def update_application_status(') + 800] \
+          if 'def update_application_status(' in _auth160 else ''
+
+# ── V1 removed from apply_job ─────────────────────────────────────────────
+check(
+    "160a. apply_job no longer calls create_notification (V1 removed from job hook)",
+    'def apply_job(' in _auth160 and
+    _aj160.count('create_notification(') == 0
+)
+
+# ── V2 helper wired to apply_job ─────────────────────────────────────────
+check(
+    "160b. apply_job calls create_or_update_aggregated_notification",
+    _aj160.count('create_or_update_aggregated_notification(') >= 1
+)
+
+# ── Aggregation key correct ───────────────────────────────────────────────
+check(
+    "160c. aggregation_key starts with job_applications_agg:job:",
+    'job_applications_agg:job:' in _aj160
+)
+check(
+    "160d. aggregation_key includes job_id (per-job, not per-company)",
+    'job_applications_agg:job:{job_id}' in _aj160 or
+    "f\"job_applications_agg:job:{job_id}\"" in _aj160 or
+    "f'job_applications_agg:job:{job_id}'" in _aj160
+)
+
+# ── Recipient is company owner (job_company_id) ───────────────────────────
+check(
+    "160e. recipient_user_id is job_company_id (company owner)",
+    'recipient_user_id=job_company_id' in _aj160
+)
+
+# ── No notification if duplicate application ──────────────────────────────
+check(
+    "160f. notification code comes AFTER already_applied early return (no notif on duplicate)",
+    'already_applied' in _aj160 and
+    _aj160.find('already_applied') < _aj160.find('job_applications_agg:job:')
+)
+
+# ── Self-notification guard ───────────────────────────────────────────────
+check(
+    "160g. self-notification guard present in apply_job (job_company_id != user_id)",
+    'job_company_id != user_id' in _aj160
+)
+check(
+    "160h. self-notification guard wraps notification call (guard before helper)",
+    _aj160.find('job_company_id != user_id') < _aj160.find('create_or_update_aggregated_notification(')
+)
+
+# ── Click target is job-specific, not applicant profile ──────────────────
+check(
+    "160i. action_url targets the job (contains job-detail or job_id), not applicant profile",
+    'job-detail' in _aj160 or '/jobs/' in _aj160
+)
+check(
+    "160j. action_url does NOT link to applicant profile (/u/{user} pattern absent in link)",
+    '/u/{' not in _aj160.split('action_url')[1][:200] if 'action_url' in _aj160 else True
+)
+
+# ── Title/body supports count=1 and count>1 ──────────────────────────────
+check(
+    "160k. title/body logic: count=1 case present (متقدم جديد)",
+    'متقدم جديد' in _aj160 and 'new_count == 1' in _aj160
+)
+check(
+    "160l. title/body logic: count>1 case present (آخرين)",
+    'آخرين' in _aj160 and 'new_count - 1' in _aj160
+)
+check(
+    "160m. job_title fallback for missing title (هذه الوظيفة)",
+    'هذه الوظيفة' in _aj160
+)
+
+# ── target_type and aggregation_kind ─────────────────────────────────────
+check(
+    "160n. target_type='job' set in apply_job notification",
+    "target_type=\"job\"" in _aj160 or "target_type='job'" in _aj160
+)
+check(
+    "160o. aggregation_kind='job_applied' set",
+    "aggregation_kind=\"job_applied\"" in _aj160 or "aggregation_kind='job_applied'" in _aj160
+)
+
+# ── Backward compatibility — unchanged systems ────────────────────────────
+_fp160 = _auth160[_auth160.find('def follow_profile('):_auth160.find('def follow_profile(') + 3000]
+_fc160 = _auth160[_auth160.find('def follow_company('):_auth160.find('def follow_company(') + 3000]
+check(
+    "160p. follow_profile aggregation unchanged (follow_agg:user: still present)",
+    'follow_agg:user:' in _fp160
+)
+check(
+    "160q. follow_company aggregation unchanged (follow_agg:company: still present)",
+    'follow_agg:company:' in _fc160
+)
+check(
+    "160r. create_notification (V1 helper) still exists",
+    'def create_notification(' in _auth160
+)
+check(
+    "160s. create_or_update_aggregated_notification helper still exists",
+    'def create_or_update_aggregated_notification(' in _auth160
+)
+check(
+    "160t. ON CONFLICT partial-index fix (PR #444) still present",
+    'ON CONFLICT (user_id, event_key) WHERE event_key IS NOT NULL DO NOTHING' in _auth160
+)
+
+# ── No unwanted aggregation hooks ────────────────────────────────────────
+check(
+    "160u. application_status_changed does NOT call V2 helper",
+    _uas160.count('create_or_update_aggregated_notification') == 0
+)
+_cmt160 = _auth160[_auth160.find('def create_company_post_comment('):
+                   _auth160.find('def create_company_post_comment(') + 3000] \
+          if 'def create_company_post_comment(' in _auth160 else ''
+check(
+    "160v. no comment/reply aggregation (create_company_post_comment unchanged)",
+    _cmt160.count('create_or_update_aggregated_notification') == 0
+)
+
+# ── No new endpoints, no frontend changes ────────────────────────────────
+check(
+    "160w. no new endpoint in server.py for V2-3",
+    'job_applications_agg' not in _srv160
+)
+check(
+    "160x. notifications.html not modified — no V2-3 aggregation fields",
+    'job_applications_agg' not in _notif_html_160 and
+    'aggregation_count' not in _notif_html_160
+)
+check(
+    "160y. app-header.js not modified",
+    'job_applications_agg' not in _ahj_160 and 'aggregation' not in _ahj_160.lower()
+)
+
+# ── Docs updated ──────────────────────────────────────────────────────────
+check(
+    "160z. NOTIFICATIONS_PLAN.md marks V2-3 as implemented (PR #450)",
+    'V2-3' in _plan160 and 'PR #450' in _plan160
+)
+check(
+    "160aa. NOTIFICATIONS_PLAN.md documents job_applications_agg:job: key",
+    'job_applications_agg:job:' in _plan160
+)
+check(
+    "160ab. NOTIFICATIONS_PLAN.md states NEXT PHASE is V2-4 Comment/Reply Aggregation",
+    'V2-4' in _plan160 and 'Comment' in _plan160 and 'Reply Aggregation' in _plan160 and
+    ('NEXT PHASE' in _plan160 and _plan160.rfind('NEXT PHASE') > _plan160.find('V2-3'))
+)
+check(
+    "160ac. SYSTEMS_INDEX.md §36 updated with V2-3 (PR #450)",
+    'V2-3' in _sidx160 and 'PR #450' in _sidx160
 )
 
 # ── Summary ──────────────────────────────────────────────────────────────
