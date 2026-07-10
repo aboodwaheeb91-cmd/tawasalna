@@ -145,6 +145,671 @@
 
 ---
 
+---
+
+## Future Product Notes — Global Platform, Education, Trust, Monetization, and Internal Collaboration
+
+> **هذا القسم يوثّق رؤية المنتج المستقبلية ومتطلباتها المعمارية عالية المستوى.**
+> لا تنفيذ لأي بند إلا بطلب صريح من المستخدم.
+> أُضيف هذا القسم بعد اكتمال Notifications V2 (PR #453) قبل البدء بـ Missing Priority Queue.
+
+---
+
+### 1. Full Internationalization / Localization
+
+الموقع حالياً عربي بالكامل. مستقبلاً يجب أن يدعم نظام لغات عالمي.
+
+**المطلوب مستقبلاً:**
+
+- كل نصوص الموقع قابلة للترجمة — لا hardcoded Arabic داخل HTML/JS في الأنظمة الجديدة.
+- المستخدم يختار اللغة من الإعدادات.
+- عند اختيار English أو أي لغة LTR:
+  - اتجاه الموقع يتحول إلى left-to-right.
+  - التخطيط، المحاذاة، القوائم، spacing، والأيقونات تتحول بشكل صحيح.
+- عند اختيار Arabic أو أي لغة RTL:
+  - اتجاه الموقع يتحول إلى right-to-left.
+- النظام جاهز لأي لغة مستقبلية — ليس فقط Arabic/English.
+- لا حلول متفرقة صفحة بصفحة — i18n architecture موحدة للموقع كله.
+- `dir="rtl"` / `dir="ltr"` يُضبط ديناميكياً حسب اللغة المختارة، ليس hardcoded في HTML.
+
+**الأساس المعماري المطلوب:**
+
+- ملف translations مركزي (مثل `i18n/ar.json`, `i18n/en.json`).
+- helper واحد `t("key")` يُستخدم في كل الصفحات.
+- backend يدعم `Accept-Language` header أو user preference مستقبلاً.
+
+**مهم:** هذا بعد اكتمال أساس الموقع — ليس الآن.
+
+---
+
+### 2. Global Countries & Flags
+
+بيانات الدول يجب أن تكون عالمية وليست محصورة بالدول العربية.
+
+**لكل دولة نحتاج:**
+
+- `name_ar` — الاسم بالعربية.
+- `name_en` — الاسم بالإنجليزية.
+- `name_local` — الاسم باللغة المحلية إذا اختلف.
+- `iso_code` — مثل `JO`, `US`, `CN`, `DE`.
+- `flag` — ملف SVG موثوق (نفس نظام flags/*.svg الموجود، يُوسَّع ليشمل العالم).
+- `dial_code` — مفتاح الاتصال الدولي (+962, +1, +86) إذا احتجناه.
+- دعم البحث داخل قائمة الدول (بالعربية والإنجليزية والاسم المحلي).
+- عرض العلم بجانب اسم الدولة في كل dropdown.
+- مصدر بيانات موثوق وموحد (مثل `restcountries.com` أو `geonames.org` أو حزمة npm موثوقة).
+
+**قاعدة ثابتة:**
+ممنوع مستقبلاً hardcoded country lists عشوائية. كل بيانات الدول تأتي من `TW.COUNTRY_MAP` الموسَّع (الحالي: دول عربية فقط).
+
+**الأولوية:** توسيع `tw-options-data.js` بدول العالم كخطوة مشتركة تسبق أي feature تحتاجها.
+
+---
+
+### 3. Global World Directory
+
+فكرة World Directory عالمي يشمل المؤسسات الأساسية في كل بلد.
+
+**الأنواع المستقبلية:**
+
+- جامعات العالم.
+- مدارس العالم (حسب توفر البيانات المفتوحة).
+- مستشفيات العالم.
+- مراكز تدريب.
+- مؤسسات تعليمية وصحية أساسية.
+- جهات معروفة وأساسية حسب البلد.
+
+**Schema المقترح لكل مؤسسة:**
+
+```
+name_en          TEXT        الاسم الإنجليزي الرسمي
+name_local       TEXT        الاسم باللغة المحلية
+name_ar          TEXT        الاسم العربي إذا توفر
+aliases          TEXT[]      اختصارات وتهجئات مختلفة وأسماء قديمة
+country          TEXT        ISO code مثل JO, CN, DE
+city             TEXT        المدينة الرئيسية
+type             TEXT        university / school / hospital / training_center / institution
+website          TEXT        الموقع الرسمي إذا توفر
+location         TEXT        العنوان التفصيلي إذا توفر
+data_source      TEXT        مصدر البيانات: wikidata / geonames / manual / user_submitted
+verification_status TEXT     imported / user_submitted / verified / needs_review
+```
+
+**قواعد:**
+
+- لا hardcoding عشوائي — البيانات تأتي من datasets مفتوحة أو APIs موثوقة.
+- يمكن لاحقاً السماح للمستخدم باقتراح مؤسسة غير موجودة، لكن تمر بمراجعة قبل اعتمادها.
+- البحث يدعم العربية والإنجليزية والاسم المحلي والـ aliases.
+- المؤسسات المقترحة من المستخدم تبقى `user_submitted` حتى تراجعها الإدارة.
+
+**الأولوية:** يُبنى هذا النظام كـ `world_directory` table في DB قبل أي integration.
+
+---
+
+### 4. Institution Naming Rule
+
+قاعدة ثابتة لتسمية الجامعات والمؤسسات العالمية داخل المنصة.
+
+**لكل مؤسسة:**
+
+| الحقل | الوصف |
+|-------|-------|
+| `name_en` | الاسم الإنجليزي الرسمي أو الأكثر استخداماً دولياً |
+| `name_local` | الاسم باللغة المحلية للبلد |
+| `name_ar` | الاسم العربي إذا كان موجوداً أو مطلوباً للعرض العربي |
+| `aliases` | اختصارات، تهجئات مختلفة، أسماء قديمة، أسماء شائعة |
+
+**أمثلة:**
+
+```
+الأردن:
+  name_en:    University of Jordan
+  name_local: الجامعة الأردنية
+  name_ar:    الجامعة الأردنية
+  aliases:    [UJ, الجامعة]
+
+الصين:
+  name_en:    Tsinghua University
+  name_local: 清华大学
+  name_ar:    جامعة تسينغهوا
+  aliases:    [THU, Qinghua]
+```
+
+**Display logic حسب لغة الموقع:**
+
+- إذا لغة الموقع **English**: اعرض `name_en` أولاً، ويمكن عرض `name_local` تحته.
+- إذا لغة الموقع **Arabic**: اعرض `name_ar` إذا موجود، وإلا `name_en`، ويمكن عرض `name_local` تحته.
+- إذا لغة الموقع **نفس لغة البلد**: اعرض `name_local` أولاً مع `name_en` كاسم عالمي.
+- البحث يعمل عبر `name_en` + `name_ar` + `name_local` + `aliases` معاً.
+
+---
+
+### 5. Smart Selection Instead of Manual Typing
+
+المستخدم لا يكتب إلا عند الضرورة القصوى. الأفضل أن يختار من قوائم ذكية وبيانات موثوقة.
+
+**أمثلة:**
+
+- اختيار الدولة من قائمة عالمية.
+- اختيار المدينة حسب الدولة (dependent select).
+- اختيار الجامعة حسب الدولة.
+- اختيار المدرسة حسب الدولة.
+- اختيار المستشفى حسب الدولة.
+- اختيار التخصصات من قوائم جاهزة.
+- اختيار المسمى الوظيفي من اقتراحات.
+- اختيار القطاع / المجال / نوع المؤسسة.
+- اختيار اللغات والمهارات من قوائم مع بحث.
+
+**UI Patterns المطلوبة:**
+
+```
+searchable dropdowns         — البحث داخل القائمة أثناء الكتابة
+autocomplete                 — اقتراحات تظهر أثناء الكتابة
+dependent selects            — country → city → institution (كل مستوى يعتمد على السابق)
+"غير موجود؟ أضف اقتراحاً"  — خيار أخير عند غياب المؤسسة، يحتاج مراجعة قبل اعتماد
+```
+
+**قاعدة ثابتة مستقبلاً:**
+
+أي نموذج جديد يجيب على هذا السؤال أولاً:
+> هل هذا الحقل يمكن أن يكون اختياراً من قائمة بدل input يدوي؟
+
+إذا نعم → لا نستخدم input عادي إلا لسبب واضح ومبرر.
+
+---
+
+### 6. Educational Institution Platform
+
+المؤسسة التعليمية ليست مجرد نسخة من الشركة — هي product area مستقبلية مستقلة.
+
+**الفكرة:**
+
+Educational Institution Profile يشبه صفحة الشركة من حيث: header، logo/cover، posts، followers، verification، settings، notifications، contact.
+
+لكن بهوية تعليمية خاصة:
+
+```
+courses              دورات تدريبية
+training programs    برامج تدريبية متكاملة
+free / paid courses  دورات مجانية أو مدفوعة
+online / offline / hybrid  طريقة التقديم
+trainers             إدارة المدرّبين والأساتذة
+student registration تسجيل الطلاب
+training offers      إرسال عروض تدريبية للشركات والجهات
+certificates         شهادات (مرحلة لاحقة)
+reviews              تقييمات (مرحلة لاحقة)
+```
+
+**القاعدة المعمارية:**
+
+لا نبني منصة تعليمية منفصلة.
+نبنيها فوق نفس shared backend/profile/notifications/permissions/upload architecture.
+كل شيء من `server.py` و PostgreSQL الحالي (F3).
+
+---
+
+### 7. Education Platform Roles
+
+الأدوار في منظومة التعليم على المنصة:
+
+#### Student (الطالب)
+
+- يبحث عن دورات.
+- يسجّل في دورات.
+- يرى دوراته المسجَّل بها.
+- يستلم إشعارات دوراته.
+- يستطيع حضور الدورة أونلاين إذا متاح.
+- يحصل على شهادة إذا أنهى الدورة وكانت تدعم ذلك (مرحلة لاحقة).
+
+#### Educational Institution (المؤسسة التعليمية)
+
+أنواعها:
+```
+مركز تدريب / معهد / مدرسة / جامعة / أكاديمية / جهة تدريب مرخصة
+```
+
+هي الجهة المسؤولة عن:
+
+- إنشاء الدورات ونشر البرامج.
+- إدارة تسجيل الطلاب.
+- تعيين الأساتذة والمدرّبين.
+- إرسال عروض تدريبية للشركات والمدارس والجامعات.
+- طلب توظيف أساتذة.
+- إصدار شهادات (مرحلة لاحقة).
+
+#### Teacher / Trainer (الأستاذ / المدرّب)
+
+- له بروفايل شخصي (emp account).
+- لا يستطيع نشر دورة رسمية أو مدفوعة من حسابه الشخصي مباشرة.
+- يظهر كمدرّب داخل دورة تابعة لمؤسسة تعليمية مسؤولة.
+- يمكنه الانضمام لمؤسسة أو التقديم كمدرّب.
+- يمكن أن يكون مشهوراً — لكن الدورة تبقى باسم مؤسسة تعليمية مسؤولة.
+
+**القاعدة الذهبية:**
+
+> No official course without a responsible educational institution.
+> الأستاذ يدرّس. الطالب يتعلم. المؤسسة تنشر وتدير وتتحمل المسؤولية.
+
+---
+
+### 8. Courses and Training Offers
+
+#### Courses V1 — مكونات الدورة
+
+```
+title                عنوان الدورة
+description          وصف تفصيلي
+category             التصنيف
+level                beginner / intermediate / advanced
+free / paid          مجانية أم مدفوعة
+price                السعر إذا مدفوعة
+online / offline / hybrid  طريقة التقديم
+location             المكان إذا حضوري
+online_link          رابط الحضور إذا أونلاين
+start_date           تاريخ البداية
+end_date             تاريخ النهاية
+seats                عدد المقاعد
+certificate_available  هل تصدر شهادة؟
+language             لغة التدريس
+instructor           المدرّب
+target_audience      students / employees / companies / schools / universities / public
+```
+
+#### Training Offers — عروض التدريب
+
+المؤسسة التعليمية تقدر ترسل عروض تدريب رسمية إلى:
+- companies (شركات)
+- schools (مدارس)
+- universities (جامعات)
+- other institutions (جهات أخرى)
+
+**العرض يحتوي:**
+
+```
+target_organization  الجهة المستهدفة
+program_title        عنوان البرنامج
+description          وصف مفصّل
+duration             المدة
+free / paid          مجانية أم مدفوعة
+proposed_price       السعر المقترح
+online / offline / hybrid
+expected_participants  عدد المشاركين المتوقع
+proposed_dates       التواريخ المقترحة
+attachments          مرفقات (مرحلة لاحقة)
+status               pending / accepted / rejected / needs_changes / completed
+```
+
+---
+
+### 9. Education Content Safety
+
+**القاعدة الأساسية:**
+
+لا توجد دورة، بث، فيديو، أو محتوى تعليمي رسمي إلا تحت مؤسسة تعليمية معتمدة/مقبولة داخل المنصة.
+الأستاذ لا يفتح دورة فيديو من حسابه الشخصي مباشرة.
+الأستاذ يظهر كمدرّس داخل مؤسسة تعليمية مسؤولة.
+
+**Safety Layers:**
+
+```
+1. المؤسسة التعليمية فقط تنشر الدورات.
+2. المؤسسة تحتاج تحقق أو مراجعة قبل تفعيل الدورات.
+3. الأستاذ مرتبط بمؤسسة — لا يعمل منفرداً.
+4. أي دورة فيديو تكون بحالة:
+   draft → pending_review → approved / rejected / suspended
+5. المحتوى المدفوع أو الفيديوهات لا تظهر للعامة إلا بعد الموافقة.
+6. report button واضح للمحتوى المخالف.
+7. البلاغات الخطيرة تؤدي لإخفاء مؤقت لحين المراجعة (auto-hold).
+8. فحص الروابط الخارجية داخل وصف الدورة (حماية من phishing).
+```
+
+**Audit Log المطلوب لاحقاً:**
+
+```
+من أنشأ الدورة؟
+من رفع الفيديو؟
+من وافق؟
+متى تم التعديل؟
+من أبلغ؟
+```
+
+**Penalties:**
+
+```
+suspend course / suspend institution / ban teacher / request additional verification
+```
+
+**السبب:**
+منع إساءة استخدام "تعليمي" كغطاء لمحتوى مخالف أو احتيالي.
+
+---
+
+### 10. Educational Institution Verification Gate
+
+الصفحة التعليمية لا تستطيع استخدام الميزات الحساسة إلا بعد التحقق المناسب.
+
+**قبل التحقق (Unverified):**
+
+```
+✅ صفحة تعريفية محدودة
+✅ تعديل معلومات أساسية
+❌ لا نشر دورات
+❌ لا رفع فيديوهات
+❌ لا بيع دورات
+❌ لا إصدار شهادات
+❌ لا إرسال عروض تدريب
+❌ لا تعيين مدربين رسميين على دورات منشورة
+```
+
+**بعد التحقق:**
+
+```
+✅ تفعيل الدورات
+✅ تفعيل التسجيل
+✅ تفعيل العروض التدريبية
+✅ تفعيل إدارة المدرّبين
+✅ تفعيل الفيديوهات (حسب سياسة المنصة)
+```
+
+**Country-Based Verification:**
+
+كل بلد له متطلبات تحقق مختلفة. أمثلة على الوثائق المطلوبة:
+
+```
+رقم ترخيص تعليمي
+رقم تسجيل شركة أو مؤسسة
+الاسم القانوني
+وثيقة من وزارة التعليم / وزارة العمل / هيئة التدريب
+رابط حكومي رسمي إن وجد
+بريد رسمي بنطاق المؤسسة (ليس Gmail)
+موقع رسمي
+عنوان فعلي
+رقم هاتف رسمي
+إثبات ملكية الدومين
+إثبات أن مقدم الطلب مخوَّل بإدارة الصفحة
+```
+
+**Verification Levels:**
+
+| المستوى | الوصف |
+|---------|-------|
+| Level 0 | Unverified — صفحة مقيَّدة |
+| Level 1 | Basic Verified — معلومات أساسية تحققت |
+| Level 2 | Licensed Education Provider — مرخصة رسمياً |
+| Level 3 | Trusted / High Trust — موثوقية عالية |
+
+**Risk Score:**
+
+يزيد الثقة:
+```
+بريد رسمي بدومين المؤسسة
+موقع رسمي واضح
+سجل حكومي أو تعليمي قابل للتحقق
+رقم ترخيص قابل للتحقق
+عنوان مطابق + هاتف مطابق + اسم قانوني مطابق
+وجودها على مصادر موثوقة (ويكيبيديا، بيانات وزارات)
+```
+
+يرفع الخطر:
+```
+Gmail فقط (لا دومين مؤسسي)
+لا موقع رسمي
+وثائق غير واضحة أو منقوصة
+اختلاف الأسماء بين الوثائق والصفحة
+رقم شخصي فقط
+عنوان غير واضح
+طلب سريع لنشر فيديوهات أو بيع دورات قبل إتمام التحقق
+```
+
+---
+
+### 11. Monetization and Access Control Before Launch
+
+الموقع حالياً مفتوح أثناء التطوير. قبل الإطلاق الرسمي يجب عمل Access Control + Premium Monetization.
+
+**تقسيم الميزات:**
+
+| المستوى | المعنى |
+|---------|--------|
+| Free | متاح لكل المستخدمين |
+| Verified | يحتاج تحقق مسبق |
+| Premium | اشتراك مدفوع |
+| Premium + Verified | الاثنان معاً |
+| Admin Approved | موافقة يدوية من الإدارة |
+
+**أمثلة Gate Matrix:**
+
+**Employee:**
+```
+profile basic:         Free
+images:               Free
+boosted visibility:   Premium
+profile analytics:    Premium
+verification:         Verified
+high-volume messages: limited أو Premium
+```
+
+**Company:**
+```
+basic page:           Free
+limited jobs (3-5):   Free أو Trial
+many jobs:            Premium
+featured job:         Premium
+applicant analytics:  Premium
+verification:         Verified
+mass outreach:        Premium + Verified
+```
+
+**Educational Institution:**
+```
+basic page:           Free
+publish courses:      Verified
+video uploads:        Verified + Admin Approved
+paid courses:         Verified + Premium
+certificates:         Verified + High Trust (Level 3)
+training offers:      Verified + Premium
+```
+
+**القاعدة المعمارية:**
+
+```
+لا نعتمد على إخفاء الأزرار وحده (F6 + F21).
+أي Premium/Verified feature يُقفل من backend أيضاً.
+Frontend يخفي للـ UX — Backend يمنع التنفيذ.
+```
+
+**مراحل تنفيذ Monetization مستقبلاً:**
+
+```
+1. Feature Inventory         — حصر كل الميزات وتصنيفها
+2. Gate Matrix               — جدول من يرى ماذا
+3. Backend Permission Gates  — فحوصات في server.py
+4. Frontend Upgrade UX       — شاشات الترقية وعرض الفوائد
+5. Subscriptions             — نظام الاشتراكات + plans
+6. Payment Integration       — دفع إلكتروني (يحتاج قرار gateway)
+7. Launch QA                 — اختبار شامل قبل الإطلاق
+```
+
+---
+
+### 12. Admin Support / Business Messenger
+
+نظام تواصل رسمي بين إدارة تواصلنا والحسابات المهمة.
+
+**المستهدفون:**
+
+```
+companies (شركات)
+educational institutions (مؤسسات تعليمية)
+training centers (مراكز تدريب)
+schools / universities (مستقبلاً)
+verified accounts
+premium / business / education accounts
+```
+
+**أنواع الطلبات:**
+
+```
+technical issue       مشكلة تقنية
+verification request  طلب توثيق
+subscription/payment  اشتراك أو دفع
+job issue             مشكلة وظيفة
+course issue          مشكلة دورة
+suggestion            اقتراح
+report                بلاغ
+partnership           طلب شراكة أو تعاون
+```
+
+**النموذج:** Support Tickets + Chat
+
+**من جهة الشركة/المركز:**
+
+```
+يفتح محادثة (ticket) مع تواصلنا
+يختار نوع الطلب
+يكتب الرسالة
+يرفق ملف أو صورة (مرحلة لاحقة)
+يرى الردود وحالة الطلب:
+  open / waiting_reply / in_progress / solved / closed
+```
+
+**من جهة الأدمن:**
+
+```
+inbox لكل الطلبات
+filters حسب النوع والأولوية والحالة
+رد باسم فريق تواصلنا
+internal notes (لا تظهر للمستخدم)
+assign to admin (مرحلة لاحقة)
+close / reopen ticket
+```
+
+**Auto Reply:**
+
+- رد آلي حسب نوع الطلب (confirmation + توقع وقت الرد).
+- لا يستبدل الدعم الحقيقي — للإشعار فقط.
+
+**Support Priority:**
+
+```
+Free:            normal priority
+Verified:        higher priority
+Premium:         higher priority
+Enterprise/Edu+: priority support
+safety/security/content reports: أعلى أولوية بغض النظر عن الخطة
+```
+
+**مهم — التمييز الواضح:**
+
+```
+❌ هذا ليس User Messaging (messages.html)
+❌ هذا ليس Company Internal Groups
+✅ هذا قناة رسمية بين الحساب وإدارة المنصة فقط
+```
+
+---
+
+### 13. Company Internal Groups / Team Channels
+
+الشركة تقدر تنشئ groups داخلية لأعضائها وموظفيها.
+
+**Owner:**
+
+الشركة / صاحب الشركة / company admin
+
+**Members:**
+
+- موظفون داخل الشركة (بروفايلات emp).
+- يُضيفهم صاحب الشركة أو admin الشركة.
+- لاحقاً: أقسام (Departments) مثل HR / Sales / Training / Project Team.
+
+**Group Modes:**
+
+**1. Chat Mode:**
+كل الأعضاء يقدروا يرسلوا رسائل.
+
+**2. Announcement / Discussion Mode:**
+الشركة فقط تنشر رسائل أساسية (announcements).
+الأعضاء يقدروا يعلقوا على رسالة الشركة — حسب إعدادات الجروب.
+
+**Read Receipts:**
+
+صاحب الجروب أو admin الشركة يرى:
+```
+عدد الذين شاهدوا الرسالة
+عدد الذين لم يشاهدوها
+قائمة من شاهد + وقت المشاهدة
+قائمة من لم يشاهد بعد
+```
+
+**Group Permissions:**
+
+```
+create group
+edit name / description / image
+add / remove members
+choose group mode (chat / announcement)
+choose who can send
+choose who can comment
+pin message
+delete / moderate message
+archive group
+```
+
+**أمثلة Groups:**
+
+```
+الإدارة / الموارد البشرية / المبيعات / الدعم الفني
+التدريب / مشروع معين / الموظفون الجدد / إعلانات الشركة
+```
+
+**التمييز الواضح (مهم):**
+
+```
+❌ هذا ليس Direct Messaging (messages.html) — رسائل فردية 1-to-1
+❌ هذا ليس Admin Support Messenger — تواصل مع إدارة المنصة
+✅ هذا قنوات داخلية بين الشركة وموظفيها فقط
+```
+
+**Company Groups Monetization:**
+
+| الخطة | الحد |
+|-------|------|
+| Free | جروبات محدودة (2-3) + أعضاء محدودون (10-20) + لا read receipts |
+| Premium / Business | جروبات أكثر + أعضاء أكثر + read receipts + pinned messages + advanced permissions + archive/search |
+| Enterprise | جروبات غير محدودة + departments + advanced reporting + export (مستقبلاً) |
+
+---
+
+### 14. Next Phase Marker
+
+```
+NEXT ACTIVE DEVELOPMENT PHASE:
+Notifications Missing Priority Queue
+```
+
+بعد اكتمال Notifications V2 (V2-0 → V2-6، PRs #447–#453)، المرحلة التالية هي:
+
+**Missing Priority Queue من `docs/NOTIFICATIONS_PLAN.md`:**
+
+```
+P1: application_status_changed notification/aggregation review
+    — hook V1 موجود، aggregation ومراجعة الـ hook تحتاج PR مستقل.
+
+P1: rating notification hook
+    — company_ratings لا تولّد إشعاراً حالياً — مرحلة منفصلة.
+
+P2: job_expiring_soon notification
+    — يحتاج scheduler أو cron job — مؤجل بسبب غياب infrastructure.
+
+Phase 11: Realtime / Push
+    — مؤجل حتى قرار صريح + حل P0 Security Debt على WebSocket.
+```
+
+**لا تنفيذ لأي Future Product Note** في هذا الملف — هذا توثيق رؤية فقط.
+التنفيذ يبدأ بـ Missing Priority Queue.
+
+---
+
 ## Needs Decision Before Build
 
 هذه بنود تحتاج **قرار معماري صريح** قبل البدء بأي تنفيذ:
@@ -178,4 +843,4 @@
 
 ---
 
-*أُنشئ: 2026-07-09 — آخر تحديث: 2026-07-09 (Profile System Ideas: Employee Posts, Polls, UI Tokens, Media Sizing, Settings Menu, Verification Badge, Interactive Stats, Setup Wizard, Guided Tour)*
+*أُنشئ: 2026-07-09 — آخر تحديث: 2026-07-10 — أُضيف قسم "Future Product Notes" بعد اكتمال Notifications V2 (PR #453): 13 قسماً يغطي i18n / Global Countries / World Directory / Institution Naming / Smart Selection / Education Platform / Education Roles / Courses & Training Offers / Content Safety / Verification Gate / Monetization / Admin Support / Company Internal Groups / Next Phase Marker.*

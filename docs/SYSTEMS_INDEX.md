@@ -421,7 +421,7 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 **Source of Truth:** `docs/FUTURE_ROADMAP.md`
 **Details:** `docs/FUTURE_ROADMAP.md → Usage Rules`
 **Do not recreate:** لا تُنشئ ملف roadmap ثانٍ. كل الأفكار المستقبلية تذهب إلى `docs/FUTURE_ROADMAP.md`. الأفكار المنفَّذة تُنقل إلى قسم Done مع رقم PR. أي AI أو مطوّر ممنوع ينفذ أي بند من هذا الملف إلا بطلب صريح من المستخدم.
-**Last update:** تحديث 2026-07-09 — أُضيفت أفكار Profile System / Future UX: Employee Posts, Polls (company/edu), Unified UI Tokens, Media Sizing, Settings Menu, Verification Badge, Interactive Stats, Setup Wizard, Guided Tour.
+**Last update:** 2026-07-10 — أُضيف قسم "Future Product Notes — Global Platform, Education, Trust, Monetization, and Internal Collaboration" يحتوي: (1) Full Internationalization / i18n + RTL/LTR · (2) Global Countries & Flags · (3) Global World Directory (universities/schools/hospitals) · (4) Institution Naming Rule (name_en/name_local/name_ar/aliases) · (5) Smart Selection Instead of Manual Typing (searchable dropdown/autocomplete/dependent selects) · (6) Educational Institution Platform · (7) Education Platform Roles (Student/Institution/Teacher) · (8) Courses & Training Offers · (9) Education Content Safety (report/moderation/audit log) · (10) Educational Institution Verification Gate + Country-Based Verification + Verification Levels + Risk Score · (11) Monetization & Access Control (Backend Permission Gates + Gate Matrix) · (12) Admin Support / Business Messenger (Support Tickets + Chat + auto reply + support priority) · (13) Company Internal Groups / Team Channels (Chat Mode / Announcement Mode / Read Receipts / Group Permissions / Monetization) · (14) Next Phase Marker → Notifications Missing Priority Queue.
 
 ---
 
