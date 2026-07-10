@@ -185,13 +185,13 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 
 ---
 
-### 19. Notifications System ⚠️ (Phase 0 audit complete — security fixes pending in Phase 1)
-**Purpose:** User notifications for messages, job applications, verification status, profile activity.
-**Source of Truth:** `notifications` table · `auth.py` helpers (`create_notification`, `get_notifications`, `mark_notifications_read`, `get_unread_notifications`) · `GET /notifications/{user_id}` endpoint
-**Transport (current):** HTTP polling — `fetch('/notifications/'+userId)` called on page load and on demand. No WebSocket for notifications.
-**Details:** `docs/NOTIFICATIONS_PLAN.md` (full phased plan, Phase 0–11) · `ARCHITECTURE.md §49` · `ARCHITECTURE.md §52 (Global Badge System)`
-**Status:** Phase 0 (audit) ✅ complete. Phase 1 (security hardening) is the next mandatory step — `GET /notifications/{user_id}` has no JWT, `notifications.html` uses X-User-Id (forbidden). See `docs/NOTIFICATIONS_PLAN.md § Phase 1`.
-**Do not recreate:** Do not create per-feature notification tables. Do not add notification hooks before Phase 1 security fixes are merged. Do not use `X-User-Id` header — JWT Bearer only. Do not use `innerHTML` with notification API data. Real-time notifications are Phase 11 (deferred — requires WebSocket P0 security debt resolution first).
+### 19. Notifications System ✅ (Phases 0–10 complete · Phase 11 deferred)
+**Purpose:** User notifications for messages, job applications, verification status, profile activity. Includes hooks for comment / reply / mention / job-apply / follow / verify actions. Unread badge in app header via polling.
+**Source of Truth:** `notifications` table · `auth.py` helpers (`create_notification` with event_key idempotency, `get_notifications`, `mark_notifications_read`, `mark_notification_read`, `get_unread_notifications`) · `server.py` endpoints: `GET /notifications/{user_id}` (JWT + pagination), `PUT /notifications/{user_id}/read` (bulk), `PUT /notifications/{user_id}/read/{notif_id}` (single), `GET /notifications/{user_id}/unread-count` · `static/app-header.js` (`_pollUnreadBadge`)
+**Transport (current):** HTTP polling — `fetch('/notifications/'+userId, {headers:{Authorization:'Bearer '+jwt}})` in `notifications.html` + 60s `setInterval` polling for badge in `app-header.js`. No WebSocket for notifications.
+**Details:** `docs/NOTIFICATIONS_PLAN.md` (full phased plan, Phase 0–11 + V1 Status) · `ARCHITECTURE.md §49`
+**Status:** Phases 0–10 ✅ complete (PRs #431–#440). Phase 11 (Real-time / Push) is intentionally deferred — requires WebSocket P0 security debt resolution + explicit user decision.
+**Do not recreate:** Do not create per-feature notification tables. Do not use `X-User-Id` header — JWT Bearer only. Do not use `innerHTML` with notification API data. Do not add a WebSocket route for notifications — Phase 11 requires explicit approval. `event_key` format: `{type}:{entity_type}:{entity_id}:{actor_id}` — all hooks must follow this pattern.
 
 ---
 
@@ -457,11 +457,11 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 
 ---
 
-### 36. Notifications Full Delivery Plan ✅ (Phase 0 — docs only)
-**Purpose:** الخطة المرحلية الكاملة لنظام الإشعارات (Phase 0–11). توثّق الـ audit الحالي، الثغرات الأمنية المكتشفة، وكل phase من التنفيذ.
+### 36. Notifications Full Delivery Plan ✅ (Phases 0–10 complete · Phase 11 deferred)
+**Purpose:** الخطة المرحلية الكاملة لنظام الإشعارات (Phase 0–11). توثّق الـ audit، الثغرات المحلولة (S1–S6)، وكل phase منفَّذ من PRs #431–#440.
 **Source of Truth:** `docs/NOTIFICATIONS_PLAN.md`
-**Details:** `docs/NOTIFICATIONS_PLAN.md` — يتضمن: audit الموجود، 6 ثغرات أمنية (S1–S6)، event_key format، hooks لكل نوع إشعار (comment/reply/mention/follow/job_applied/verify).
-**Do not recreate:** لا تبني نظام إشعارات موازياً. كل hook جديد يتبع pattern الـ event_key الموثق. لا تضيف hooks قبل Phase 1 (Security Hardening). لا WebSocket للإشعارات قبل Phase 11 والقرار الصريح.
+**Details:** `docs/NOTIFICATIONS_PLAN.md` — يتضمن: audit الموجود، حلول S1–S6، event_key format، hooks لكل نوع (comment/reply/mention/follow/job_applied/verify)، pagination، unread badge، Notifications V1 Status table، Phase 11 deferral conditions.
+**Do not recreate:** لا تبني نظام إشعارات موازياً. كل hook جديد يتبع pattern الـ event_key الموثق في §2. لا WebSocket للإشعارات قبل حل P0 Security Debt + قرار صريح من المستخدم.
 
 ---
 
@@ -506,4 +506,4 @@ These systems exist in code but lack formal documentation in ARCHITECTURE.md or 
 
 ---
 
-*Last updated: 2026-07-09 — reflects systems as of PR #386–#430 (pending). §22c updated (PR #400): 6-arg _renderCommentBody, multi-mention via junction table, atomic transaction, _cmtMentionedCandidates array, full-text @mention scan, backward compat. §29a added (PR #402): shared upload client TW.uploadImage() in static/shared/tw-upload.js. §29b added (PR #403, docs-only) then fully implemented (PR #404–#408): Image Cropper System — tw-image-cropper.js built and wired to all 4 image types (employee-avatar, employee-cover, company-logo, company-cover). §29b updated (PR #409): status changed from planned to Implemented & Stable. §30a added (PR #420): Architecture Foundation — ARCHITECTURE_FOUNDATION.md created; 28 foundation rules (F1–F28); linked from ARCHITECTURE.md and CLAUDE.md. §35 added (PR #424): Skeleton Loading CSS — static/shared/tw-skeleton.css + co-loading mechanism for company-profile + sc-loading skeleton blocks for profile-showcase. No placeholder text in HTML. §30b added (PR #428–#429): Future Roadmap — docs/FUTURE_ROADMAP.md created as project Backlog/Roadmap file, updated with 11 Profile System ideas. §19 updated + §36 added (this PR): Notifications Full Delivery Plan — docs/NOTIFICATIONS_PLAN.md created; Phase 0 audit complete; 6 security bugs identified (S1–S6); 12-phase plan (Phase 0–11).*
+*Last updated: 2026-07-09 — reflects systems as of PR #386–#430 (pending). §22c updated (PR #400): 6-arg _renderCommentBody, multi-mention via junction table, atomic transaction, _cmtMentionedCandidates array, full-text @mention scan, backward compat. §29a added (PR #402): shared upload client TW.uploadImage() in static/shared/tw-upload.js. §29b added (PR #403, docs-only) then fully implemented (PR #404–#408): Image Cropper System — tw-image-cropper.js built and wired to all 4 image types (employee-avatar, employee-cover, company-logo, company-cover). §29b updated (PR #409): status changed from planned to Implemented & Stable. §30a added (PR #420): Architecture Foundation — ARCHITECTURE_FOUNDATION.md created; 28 foundation rules (F1–F28); linked from ARCHITECTURE.md and CLAUDE.md. §35 added (PR #424): Skeleton Loading CSS — static/shared/tw-skeleton.css + co-loading mechanism for company-profile + sc-loading skeleton blocks for profile-showcase. No placeholder text in HTML. §30b added (PR #428–#429): Future Roadmap — docs/FUTURE_ROADMAP.md created as project Backlog/Roadmap file, updated with 11 Profile System ideas. §19 updated + §36 added (PR #430): Notifications Full Delivery Plan — docs/NOTIFICATIONS_PLAN.md created; Phase 0 audit complete; 6 security bugs identified (S1–S6); 12-phase plan (Phase 0–11). §19 + §36 updated (PR #441): Notifications V1 Final QA + Closure — Phases 0–10 all complete (PRs #431–#440); Phase 11 deferred; Notifications V1 Status table added to NOTIFICATIONS_PLAN.md; test 139q fixed.*

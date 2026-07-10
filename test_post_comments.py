@@ -2906,8 +2906,9 @@ check(
     '### 19.' in _sidx139 and 'NOTIFICATIONS_PLAN' in _sidx139
 )
 check(
-    "139q. server.py not modified — Phase 0 is docs-only (no notification schema changes)",
-    'ADD COLUMN IF NOT EXISTS actor_id' not in _srv139 and 'event_key' not in _srv139
+    "139q. Phase 0 is docs-only — NOTIFICATIONS_PLAN.md Phase 0 header says 'docs only'"
+    " (check updated: server.py legitimately gained event_key in Phases 2+8; intent verified via docs)",
+    'docs only' in _nplan.lower() and 'Phase 0' in _nplan
 )
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -3410,6 +3411,69 @@ check(
 check(
     "149j. NOTIFICATIONS_PLAN.md marks Phase 10 as complete",
     'Phase 10' in _nplan149 and ('مكتمل' in _nplan149 or 'منفَّذ' in _nplan149)
+)
+
+# ═══════════════════════════════════════════════════════════════════════
+# §150 — Notifications V1 Final QA + Closure
+# 10 static checks — verifies V1 is complete, clean, and properly closed
+# ═══════════════════════════════════════════════════════════════════════
+print("\n── §150: Notifications V1 Final QA + Closure ──")
+import os as _os150
+_nplan150    = open('docs/NOTIFICATIONS_PLAN.md', encoding='utf-8').read() if _os150.path.exists('docs/NOTIFICATIONS_PLAN.md') else ''
+_sidx150     = open('docs/SYSTEMS_INDEX.md', encoding='utf-8').read() if _os150.path.exists('docs/SYSTEMS_INDEX.md') else ''
+_srv150      = open('server.py', encoding='utf-8').read() if _os150.path.exists('server.py') else ''
+_ahjs150     = open('static/app-header.js', encoding='utf-8').read() if _os150.path.exists('static/app-header.js') else ''
+_notif150    = open('notifications.html', encoding='utf-8').read() if _os150.path.exists('notifications.html') else ''
+
+check(
+    "150a. 139q resolved — Phase 0 docs-only status preserved in NOTIFICATIONS_PLAN.md",
+    'docs only' in _nplan150.lower() and 'Phase 0' in _nplan150
+)
+check(
+    "150b. Notifications V1 Status section exists in NOTIFICATIONS_PLAN.md",
+    'Notifications V1 Status' in _nplan150
+)
+check(
+    "150c. Phase 11 explicitly marked deferred in NOTIFICATIONS_PLAN.md",
+    'Phase 11' in _nplan150 and ('مؤجل' in _nplan150 or 'deferred' in _nplan150.lower())
+)
+check(
+    "150d. Phase 11 deferral cites WebSocket P0 security debt as reason",
+    'WebSocket' in _nplan150 and 'P0' in _nplan150 and 'Phase 11' in _nplan150
+)
+check(
+    "150e. No WebSocket route for notifications in server.py",
+    '@app.websocket("/notifications' not in _srv150 and
+    'websocket' not in _srv150.lower().replace('/ws/{user_id}', '').split('/notifications')[0][-50:]
+)
+check(
+    "150f. unread badge uses setInterval polling — no WebSocket in app-header.js",
+    'setInterval' in _ahjs150 and 'WebSocket' not in _ahjs150 and 'EventSource' not in _ahjs150
+)
+check(
+    "150g. No X-User-Id in notifications.html (JWT Bearer only)",
+    'X-User-Id' not in _notif150
+)
+check(
+    "150h. notifications.html renders API text via textContent (XSS-safe — no innerHTML on n.title/n.body)",
+    'textContent' in _notif150 and
+    'innerHTML' not in _notif150[_notif150.find('titleEl'):_notif150.find('titleEl') + 100]
+    if 'titleEl' in _notif150 else 'textContent' in _notif150
+)
+check(
+    "150i. All Phases 0-10 marked complete in NOTIFICATIONS_PLAN.md summary table",
+    all(
+        '✅' in _nplan150[max(0, _nplan150.find(f'| **{i}**')):_nplan150.find(f'| **{i}**') + 150]
+        or 'مكتمل' in _nplan150[max(0, _nplan150.find(f'| **{i}**')):_nplan150.find(f'| **{i}**') + 150]
+        for i in range(0, 11)
+    )
+)
+check(
+    "150j. SYSTEMS_INDEX.md §19 reflects completed state (all phases complete — not just Phase 0)",
+    '### 19.' in _sidx150 and (
+        'Phases 0' in _sidx150 or '0–10' in _sidx150 or
+        ('Phase 10' in _sidx150 and 'complete' in _sidx150.lower())
+    )
 )
 
 # ── Summary ──────────────────────────────────────────────────────────────
