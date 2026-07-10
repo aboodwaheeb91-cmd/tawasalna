@@ -2856,7 +2856,7 @@ def create_notification(
         rows = conn.run(
             "INSERT INTO notifications (user_id, type, title, body, link, actor_id, entity_id, entity_type, event_key) "
             "VALUES (:uid, :type, :title, :body, :link, :actor, :eid, :etype, :ekey) "
-            "ON CONFLICT (user_id, event_key) DO NOTHING "
+            "ON CONFLICT (user_id, event_key) WHERE event_key IS NOT NULL DO NOTHING "
             "RETURNING id, user_id, type, title, body, link, is_read, created_at",
             uid=user_id, type=type_, title=title, body=body, link=link,
             actor=actor_id, eid=entity_id, etype=entity_type, ekey=event_key
