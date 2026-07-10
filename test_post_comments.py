@@ -2965,6 +2965,57 @@ check(
     'Phase 1' in _nplan140 and ('مكتمل' in _nplan140 or 'منفذ' in _nplan140 or 'منفَّذ' in _nplan140)
 )
 
+# ═══════════════════════════════════════════════════════════════════════
+# §141 — Notifications Phase 2 — Schema Hardening
+# 10 static checks
+# ═══════════════════════════════════════════════════════════════════════
+print("\n── §141: Notifications Phase 2 — Schema Hardening ──")
+import os as _os141
+_auth141 = open('auth.py', encoding='utf-8').read() if _os141.path.exists('auth.py') else ''
+_srv141  = open('server.py', encoding='utf-8').read() if _os141.path.exists('server.py') else ''
+_nplan141 = open('docs/NOTIFICATIONS_PLAN.md', encoding='utf-8').read() if _os141.path.exists('docs/NOTIFICATIONS_PLAN.md') else ''
+
+check(
+    "141a. _migrate_notifications_schema_v2() exists in auth.py",
+    'def _migrate_notifications_schema_v2' in _auth141
+)
+check(
+    "141b. Migration adds actor_id column (IF NOT EXISTS)",
+    'ADD COLUMN IF NOT EXISTS actor_id' in _auth141
+)
+check(
+    "141c. Migration adds event_key column (IF NOT EXISTS)",
+    'ADD COLUMN IF NOT EXISTS event_key' in _auth141
+)
+check(
+    "141d. Migration creates unique index on (user_id, event_key)",
+    'uniq_notif_event_key' in _auth141 and 'user_id, event_key' in _auth141
+)
+check(
+    "141e. create_notification accepts actor_id, entity_id, entity_type, event_key kwargs",
+    'actor_id: int = None' in _auth141 and 'entity_id: int = None' in _auth141 and 'event_key: str = None' in _auth141
+)
+check(
+    "141f. create_notification uses ON CONFLICT ... DO NOTHING (idempotent)",
+    'ON CONFLICT (user_id, event_key) DO NOTHING' in _auth141
+)
+check(
+    "141g. create_notification returns None on duplicate (event_key idempotency)",
+    'if not rows' in _auth141 and 'return None' in _auth141
+)
+check(
+    "141h. _migrate_notifications_schema_v2 is imported and called in server.py startup",
+    '_migrate_notifications_schema_v2' in _srv141 and '_migrate_notifications_schema_v2()' in _srv141
+)
+check(
+    "141i. No new notification hooks added yet (Phase 3+ scope)",
+    'comment_created' not in _auth141 and 'job_applied' not in _auth141 and 'follow:user' not in _auth141
+)
+check(
+    "141j. NOTIFICATIONS_PLAN.md marks Phase 2 as complete",
+    'Phase 2' in _nplan141 and ('مكتمل' in _nplan141 or 'منفَّذ' in _nplan141)
+)
+
 # ── Summary ──────────────────────────────────────────────────────────────
 print()
 passed = sum(1 for _, s, _ in results if s == PASS)

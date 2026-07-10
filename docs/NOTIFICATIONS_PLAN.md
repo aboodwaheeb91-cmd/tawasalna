@@ -123,9 +123,9 @@ except Exception as _ne:
 
 ---
 
-## Phase 2 — Schema Hardening (Idempotency + Actor)
+## Phase 2 — Schema Hardening (Idempotency + Actor) ✅ (منفَّذ في PR #432)
 
-> يضيف أعمدة لمنع الإشعارات المكررة وتعريف مرسل الإشعار.
+> مكتمل — migration + helper محدَّث.
 
 ### DB migration (في `auth.py` داخل `_migrate_*()`)
 
@@ -400,7 +400,7 @@ def mark_notification_read(user_id: int, notif_id: int) -> bool:
 |-------|---------|---------|---------|
 | **0** | Audit & Plan (هذا الملف) | `docs/NOTIFICATIONS_PLAN.md` (docs only) | ✅ مكتمل |
 | **1** | Security Hardening | `server.py`, `notifications.html` | ✅ مكتمل (PR #431) |
-| **2** | Schema Hardening (`event_key`, `actor_id`) | `auth.py` (migration + helper) | P0 بعد Phase 1 |
+| **2** | Schema Hardening (`event_key`, `actor_id`) | `auth.py` (migration + helper) | ✅ مكتمل (PR #432) |
 | **3** | Comment Notification Hook | `auth.py` | P1 |
 | **4** | Reply Notification Hook | `auth.py` | P1 |
 | **5** | Mention Notification Hook | `auth.py` | P1 |
@@ -425,4 +425,4 @@ def mark_notification_read(user_id: int, notif_id: int) -> bool:
 
 ---
 
-*أُنشئ: 2026-07-09 — Phase 0 audit. حُدِّث: 2026-07-10 — Phase 1 Security Hardening مكتمل (PR #431). الخطوة التالية بعد الدمج: Phase 2 — Schema Hardening (event_key + actor_id).*
+*أُنشئ: 2026-07-09 — Phase 0 audit. حُدِّث: 2026-07-10 — Phase 1 مكتمل (PR #431). حُدِّث: 2026-07-10 — Phase 2 Schema Hardening مكتمل (PR #432). الخطوة التالية: Phase 3 — Comment Notification Hook.*

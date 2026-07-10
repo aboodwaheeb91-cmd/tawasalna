@@ -70,6 +70,7 @@ from auth import (
     send_message, send_message_pipeline, mark_message_delivered, get_conversations, get_messages, get_unread_count,
     mark_message_read_immediate,
     create_notification, get_notifications, mark_notifications_read, get_unread_notifications,
+    _migrate_notifications_schema_v2,
     get_job_applicants, get_user_applications,
     update_application_status, delete_job,
     get_company_jobs_all, set_job_status,
@@ -473,6 +474,11 @@ async def on_startup():
         print("✅ job_profession_targets table ready")
     except Exception as e:
         print(f"⚠️ job_profession_targets migration failed: {e}")
+    try:
+        _migrate_notifications_schema_v2()
+        print("✅ notifications schema v2 ready (actor_id, entity_id, entity_type, event_key)")
+    except Exception as e:
+        print(f"⚠️ notifications schema v2 migration failed: {e}")
     await _init_asyncpg_pool()
 
 # ── Helpers ──
