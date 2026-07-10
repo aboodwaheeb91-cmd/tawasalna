@@ -2216,13 +2216,15 @@ def apply_job(job_id: int, user_id: int, cover_letter: str = "") -> dict:
     conn = get_conn()
     try:
         job_rows = conn.run(
-            "SELECT status, closed_at, expires_at FROM jobs WHERE id=:jid", jid=job_id
+            "SELECT status, closed_at, expires_at, company_id, title FROM jobs WHERE id=:jid", jid=job_id
         )
         if not job_rows:
             raise ValueError("الوظيفة غير موجودة")
         eff = _eff_status(job_rows[0][0], job_rows[0][1], job_rows[0][2])
         if eff != 'active':
             raise ValueError("التقديم على هذه الوظيفة غير متاح حالياً")
+        job_company_id = int(job_rows[0][3])
+        job_title = job_rows[0][4] or ""
         rows = conn.run(
             "INSERT INTO job_applications (job_id, user_id, cover_letter) "
             "VALUES (:jid, :uid, :cl) "
@@ -2233,7 +2235,26 @@ def apply_job(job_id: int, user_id: int, cover_letter: str = "") -> dict:
         if not rows:
             return {"already_applied": True}
         cols = [c["name"] for c in conn.columns]
-        return _serialize(_row_to_dict(cols, rows[0]))
+        result = _serialize(_row_to_dict(cols, rows[0]))
+        # Phase 6: notify company on new job application (non-fatal)
+        try:
+            urows = conn.run("SELECT full_name FROM users WHERE id=:uid", uid=user_id)
+            applicant_name = urows[0][0] if urows else ""
+            if job_company_id != user_id:
+                create_notification(
+                    user_id=job_company_id,
+                    type_="job_applied",
+                    title=f"تقدّم شخص لوظيفة {job_title}",
+                    body=f"{applicant_name} تقدّم للوظيفة",
+                    link=f"/company-profile#jobs",
+                    actor_id=user_id,
+                    entity_id=job_id,
+                    entity_type="job",
+                    event_key=f"job_applied:job:{job_id}:{user_id}"
+                )
+        except Exception as _notif_err:
+            print(f"[TW-WARN] job_applied notification (job {job_id}) failed: {_notif_err}")
+        return result
     finally:
         release_conn(conn)
 

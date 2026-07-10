@@ -264,7 +264,7 @@ for tw_id in mentioned_tw_ids:
 
 ---
 
-## Phase 6 — Job Application Notification Hook
+## Phase 6 — Job Application Notification Hook ✅ (منفَّذ في PR #436)
 
 > يُشعر الشركة عند تقدّم موظف لوظيفتها.
 
@@ -404,7 +404,7 @@ def mark_notification_read(user_id: int, notif_id: int) -> bool:
 | **3** | Comment Notification Hook | `auth.py` | ✅ مكتمل (PR #433) |
 | **4** | Reply Notification Hook | `auth.py` | ✅ مكتمل (PR #434) |
 | **5** | Mention Notification Hook | `auth.py` | ✅ مكتمل (PR #435) |
-| **6** | Job Application Hook | `server.py` | P1 |
+| **6** | Job Application Hook | `auth.py` | ✅ مكتمل (PR #436) |
 | **7** | Follow Hook | `server.py` | P1 |
 | **8** | Verification Hook | `server.py` | P1 |
 | **9** | Per-Notification Read + Pagination | `auth.py`, `server.py` | P1 |
@@ -425,4 +425,4 @@ def mark_notification_read(user_id: int, notif_id: int) -> bool:
 
 ---
 
-*أُنشئ: 2026-07-09 — Phase 0 audit. حُدِّث: 2026-07-10 — Phase 1 مكتمل (PR #431). حُدِّث: 2026-07-10 — Phase 2 مكتمل (PR #432). حُدِّث: 2026-07-10 — Phase 3 مكتمل (PR #433). حُدِّث: 2026-07-10 — Phase 4 مكتمل (PR #434). حُدِّث: 2026-07-10 — Phase 5 @Mention Notification Hook مكتمل (PR #435). الخطوة التالية: Phase 6 — Job Application Notification Hook.*
+*أُنشئ: 2026-07-09 — Phase 0 audit. حُدِّث: 2026-07-10 — Phase 1 مكتمل (PR #431). حُدِّث: 2026-07-10 — Phase 2 مكتمل (PR #432). حُدِّث: 2026-07-10 — Phase 3 مكتمل (PR #433). حُدِّث: 2026-07-10 — Phase 4 مكتمل (PR #434). حُدِّث: 2026-07-10 — Phase 5 مكتمل (PR #435). حُدِّث: 2026-07-10 — Phase 6 Job Application Notification Hook مكتمل (PR #436). الخطوة التالية: Phase 7 — Follow Notification Hook.*
