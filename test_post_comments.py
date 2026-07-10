@@ -4268,12 +4268,15 @@ check(
 
 # ── server.py wired correctly ─────────────────────────────────────────────
 check(
-    "158x. server.py imports _migrate_notifications_schema_v2_1",
-    '_migrate_notifications_schema_v2_1' in _srv158
+    "158x. server.py imports _migrate_notifications_schema_v2_1 (only migration, not helper)",
+    '_migrate_notifications_schema_v2_1' in _srv158 and
+    'create_or_update_aggregated_notification' not in _srv158
 )
 check(
-    "158y. server.py calls _migrate_notifications_schema_v2_1() at startup",
-    '_migrate_notifications_schema_v2_1()' in _srv158
+    "158y. server.py calls _migrate_notifications_schema_v2_1() at startup with raise on failure",
+    '_migrate_notifications_schema_v2_1()' in _srv158 and
+    'raise' in _srv158[_srv158.find('_migrate_notifications_schema_v2_1()'):
+                        _srv158.find('_migrate_notifications_schema_v2_1()') + 400]
 )
 
 # ── No UI/CSS/JS changes ──────────────────────────────────────────────────
