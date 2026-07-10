@@ -491,6 +491,463 @@ After unfollow + refollow, the `event_key` `follow:user:{company_id}:{follower_i
 
 ---
 
+---
+
+## Notification Coverage Audit
+
+> **تاريخ الـ audit: 2026-07-10 — بناءً على V1 Phase 0–10.**
+> هذا الجدول يوثّق كل الأحداث المهمة في النظام وحالة الإشعار لكل منها.
+> يُحدَّث عند إضافة نظام جديد أو feature جديدة.
+
+### Status Legend
+
+| الرمز | المعنى |
+|-------|--------|
+| ✅ impl | منفَّذ في V1 |
+| ❌ missing | يجب تنفيذه — غير موجود |
+| 🔜 future | مخطط في مراحل لاحقة |
+| 🚫 n/a | لا يحتاج إشعار — مبرر واضح |
+| ❓ decide | يحتاج قرار قبل التنفيذ |
+
+---
+
+### Area 1 — Posts / Comments / Replies / Mentions
+
+| Event | Actor → Recipient | Status | Type | Click Target | Aggregation? | Notes |
+|-------|------------------|--------|------|-------------|-------------|-------|
+| علّق شخص على منشورك | commenter → post owner | ✅ impl | `comment` | post `#post-{id}` | V2-4 per post | PR #433 |
+| ردّ شخص على تعليقك | replier → comment author | ✅ impl | `reply` | comment thread | V2-4 per thread | PR #434 |
+| ذكرك شخص في تعليق (@mention) | commenter → mentioned user | ✅ impl | `mention` | `#comment-{id}` | ❓ needs decision | PR #435 |
+| منشور جديد من صفحة تتابعها | company → follower | 🔜 future | `new_post` | post | agg per company | يحتاج قرار follow+feed |
+| @Mention في متن منشور | poster → mentioned | 🔜 future | `mention_post` | post | ❓ | company_posts لا تدعم mentions حالياً |
+| حذف تعليقك (soft delete) | page owner → commenter | 🚫 n/a | — | — | — | soft delete فقط — لا notification |
+
+---
+
+### Area 2 — Jobs / Applications
+
+| Event | Actor → Recipient | Status | Type | Click Target | Aggregation? | Notes |
+|-------|------------------|--------|------|-------------|-------------|-------|
+| موظف تقدّم لوظيفة شركتك | applicant → company | ✅ impl | `job_applied` | applicants list | V2-3 per job | PR #436 |
+| الشركة غيّرت حالة طلبك | company → applicant | ❌ missing | `application_status` | `/home` أو job | No agg (individual) | `update_application_status()` auth.py:2300 — لا hook |
+| اقتراب انتهاء الوظيفة | system → company | ❌ missing | `job_expiring` | job card | No agg | محجوب — يحتاج cron/scheduler |
+| وظيفة انتهت (expires_at) | system → company | 🔜 future | `job_expired` | job card | No agg | computed at request-time — ليس event-driven |
+| شركة شاهدت طلبك | company → applicant | 🚫 n/a | — | — | — | لا يوجد "viewed" status في job_applications حالياً |
+| وظيفة جديدة من شركة تتابعها | company → follower | 🔜 future | `new_job` | job detail | agg per company | يحتاج follow+feed notification |
+
+---
+
+### Area 3 — Follow / Followers
+
+| Event | Actor → Recipient | Status | Type | Click Target | Aggregation? | Notes |
+|-------|------------------|--------|------|-------------|-------------|-------|
+| شخص تابع بروفايلك | follower → user | ✅ impl | `follow` | `/u/{follower_tw_id}` | V2-2 | PR #437 `follow_profile()` |
+| شخص تابع صفحة شركتك | follower → company | ✅ impl | `follow` | `/u/{follower_tw_id}` | V2-2 | PR #437 `follow_company()` |
+| شخص ألغى متابعتك | ex-follower → user | 🚫 n/a | — | — | — | لا notification عند unfollow — by design |
+| إعادة متابعة (refollow) | follower → user | 🚫 n/a | — | — | — | idempotent — موثَّق في Runtime QA §444 |
+
+---
+
+### Area 4 — Verification / Admin Review
+
+| Event | Actor → Recipient | Status | Type | Click Target | Aggregation? | Notes |
+|-------|------------------|--------|------|-------------|-------------|-------|
+| تمت الموافقة على طلب توثيقك | admin → user | ✅ impl | `verify` | `/settings` | No agg | PR #438 |
+| تم رفض طلب توثيقك | admin → user | ✅ impl | `verify` | `/settings` | No agg | PR #438 |
+| طلب توثيق جديد (للأدمن) | user → admin | ✅ impl (partial) | `report` | `/admin` | No agg | user_id=1 placeholder — يحتاج admin lookup |
+| طلب تعديل مستندات | admin → user | 🔜 future | `verify_revision` | `/settings` | No agg | يحتاج status جديد في verify_requests |
+
+---
+
+### Area 5 — Profile / Company / Education Page Updates
+
+| Event | Actor → Recipient | Status | Type | Click Target | Aggregation? | Notes |
+|-------|------------------|--------|------|-------------|-------------|-------|
+| اكتمال إعداد الصفحة لأول مرة | system → user | 🚫 n/a | — | — | — | UI prompt فقط (completion card) — لا notification |
+| تغيير مهم في صفحة تتابعها | page owner → follower | 🔜 future | `profile_update` | `/u/{tw_id}` | ❓ | ليس requirement حالياً |
+| تذكير باكتمال الصفحة | system → user | 🔜 future | `completion_reminder` | profile | No agg | push/email — خارج نطاق V2 |
+
+---
+
+### Area 6 — Messaging / Direct Messages
+
+| Event | Actor → Recipient | Status | Type | Click Target | Aggregation? | Notes |
+|-------|------------------|--------|------|-------------|-------------|-------|
+| رسالة مباشرة جديدة | sender → recipient | ❓ decide | `message` | `/messages?conv={id}` | No agg | `type='message'` مفلتر من notifications.html — نظام WebSocket منفصل |
+| رسائل غير مقروءة تراكمت | sender → recipient | 🔜 future | — | `/messages` | No agg | badge على messages icon — غير منفَّذ |
+
+---
+
+### Area 7 — Education / Courses
+
+| Event | Actor → Recipient | Status | Type | Click Target | Aggregation? | Notes |
+|-------|------------------|--------|------|-------------|-------------|-------|
+| مؤسسة تعليمية أضافت دورة | edu → followers | 🔜 future | `new_course` | course page | agg per edu | لا follow system للـ edu حالياً |
+| قبول/رفض تسجيل دورة | edu → student | 🔜 future | `course_enrollment` | course | No agg | يحتاج enrollment system |
+
+---
+
+### Area 8 — Polls (Roadmap)
+
+| Event | Actor → Recipient | Status | Type | Click Target | Aggregation? | Notes |
+|-------|------------------|--------|------|-------------|-------------|-------|
+| poll جديد من صفحة تتابعها | page owner → follower | 🔜 future | `new_poll` | poll | agg per page | Polls غير موجود في DB بعد — roadmap |
+| poll انتهى — نتائج جاهزة | system → poll owner | 🔜 future | `poll_result` | poll | No agg | يحتاج poll system |
+
+---
+
+### Area 9 — Ratings / Reviews
+
+| Event | Actor → Recipient | Status | Type | Click Target | Aggregation? | Notes |
+|-------|------------------|--------|------|-------------|-------------|-------|
+| شخص قيّم شركتك | rater → company owner | ❌ missing | `rating` | ratings section `#ratings` | agg per company (V3+) | `rate_company()` auth.py:3343 — لا hook |
+| rating يحتاج مراجعة | system → admin | 🔜 future | `rating_review` | admin panel | No agg | يحتاج moderation system |
+
+---
+
+### Area 10 — System / Security / Account
+
+| Event | Actor → Recipient | Status | Type | Click Target | Aggregation? | Notes |
+|-------|------------------|--------|------|-------------|-------------|-------|
+| تسجيل دخول من جهاز جديد | system → user | 🔜 future | `security_login` | `/settings` | No agg | يحتاج device fingerprinting |
+| تغيير كلمة المرور | user → user | 🔜 future | `password_changed` | `/settings` | No agg | لا hook في settings flow |
+| إعلان عام من النظام | admin → all | 🔜 future | `announcement` | — | No agg | يحتاج broadcast system |
+
+---
+
+### Coverage Summary
+
+| Status | Count | الأحداث الرئيسية |
+|--------|-------|-----------------|
+| ✅ implemented | 7 | comment, reply, mention, job_applied, follow×2, verify×2, report (partial) |
+| ❌ missing (P1/P2) | 3 | application_status_changed, rating, job_expiring_soon |
+| 🔜 future planned | 12+ | new_post, new_job, new_course, polls, security, announcement, … |
+| 🚫 not needed | 5 | unfollow, refollow, viewed_app, completion_card, soft_delete_comment |
+| ❓ needs decision | 2 | mention agg policy, messaging badge |
+
+---
+
+### Missing Notifications — Priority Queue
+
+أحداث `❌ missing` يجب تنفيذها قبل أو خلال V2:
+
+**1. `application_status_changed` (P1 — Missing)**
+- Actor: company, Recipient: applicant (employee)
+- Hook location: `update_application_status()` — `auth.py:2300`
+- event_key مقترح: `application_status:{app_id}:{new_status}`
+- Click target: job detail أو `/home`
+- Aggregation: فردي — كل طلب وظيفة مختلف
+
+**2. `rating` (P2 — Missing)**
+- Actor: rater, Recipient: company owner
+- Hook location: `rate_company()` — `auth.py:3343`
+- event_key مقترح: `rating:company:{company_id}:{rater_id}`
+- Click target: ratings section على صفحة الشركة
+- Aggregation: اgg per company — مستقبلاً (V3+)
+
+**3. `job_expiring_soon` (P2 — Missing / Blocked)**
+- Blocked: يحتاج cron job أو background scheduler
+- الوضع الحالي: `_eff_status()` تحسب انتهاء الوظيفة at request-time — ليس event-driven
+- لا تنفيذ حتى يوجد scheduler مناسب
+
+---
+
+---
+
+## Future Notification Decision Rule
+
+> **قاعدة إلزامية لكل الـ PRs المستقبلية. لا استثناء.**
+> أي PR يضيف feature أو action تغيّر حالة مهمة يجب أن يُصرّح بقرار notification.
+
+---
+
+### Checklist — أسئلة يجب الإجابة عليها قبل تنفيذ أي feature
+
+1. هل هذا الحدث يغيّر حالة تهم مستخدماً آخر؟
+2. هل يحتاج أن يعرفه صاحب الحساب أو الشركة أو الموظف؟
+3. من هو **actor**؟ (user_id من JWT — لا hardcoded IDs)
+4. من هو **recipient**؟ (user_id في `users` table — واضح، ليس غامضاً)
+5. هل recipient هو `users.id` مباشرة وليس company_id يحتاج lookup؟
+6. هل يجب منع self-notification؟ (actor != recipient — إلزامي)
+7. ما **notification type**؟ (اسم واضح ومتسق مع `_typeMap` في notifications.html)
+8. ما **click target**؟ (URL أو anchor محدد — لا "صفحة الرئيسية" بدون تفصيل)
+9. هل الإشعار **فردي** أم **قابل للتجميع**؟
+10. إذا قابل للتجميع، ما **aggregation_key**؟ (يتبع format: `{kind}:{entity_type}:{entity_id}`)
+11. هل **event_key** يمنع التكرار بدون حجب أحداث جديدة مشروعة؟
+12. هل يحتاج **unread count** (header badge)?
+13. هل يظهر في **notifications.html**؟ هل يحتاج إدخالاً في `_typeMap` و `_filterGroups`؟
+14. هل يظهر في **header badge** (`/unread-count`)?
+15. هل يحتاج **notification preferences** مستقبلاً؟ (مثلاً: إيقاف تشغيل نوع معين)
+16. هل فيه **privacy concern**؟ (مثلاً: لا تُخبر المتابع بمعلومة خاصة)
+17. هل يجب أن **يبقى بدون إشعار**؟ ولماذا؟ (يجب التصريح بسبب واضح)
+
+---
+
+### Mandatory PR Declaration
+
+كل PR يضيف action جديد يُصرّح في التقرير بواحد من التالي:
+
+```
+Notification: added          — hook مُضاف، event_key: ..., recipient: ..., type: ...
+Notification: not needed     — السبب: [سبب واضح]
+Notification: planned later  — السبب: [...]، الـ Phase المقترح: [...]
+Notification: needs decision — السؤال المفتوح: [...]
+```
+
+```
+❌ ممنوع: إضافة action مهم بدون قرار notification في التقرير
+❌ ممنوع: ترك TODO بدون تصريح في التقرير
+❌ ممنوع: "سيتم لاحقاً" بدون تفصيل Phase أو سبب واضح
+```
+
+### أمثلة على التصريح الصحيح
+
+```
+# مثال 1 — hook مُضاف:
+Notification: added — type: application_status, recipient: applicant_user_id,
+  event_key: application_status:{app_id}:{status}, hook: update_application_status() auth.py
+
+# مثال 2 — غير مطلوب:
+Notification: not needed — السبب: عملية حذف ناعم (soft delete) لا تغير حالة مستخدم آخر
+
+# مثال 3 — مؤجل:
+Notification: planned later — السبب: يحتاج cron scheduler غير موجود حالياً
+  Phase المقترح: يُضاف مع نظام scheduler في V3+
+
+# مثال 4 — يحتاج قرار:
+Notification: needs decision — هل نُشعر المتابعين بكل تحديث على الصفحة؟
+  السؤال: ما الحد الأدنى للتغيير الذي يستدعي إشعاراً؟
+```
+
+---
+
+---
+
+## Notifications V2 — Smart Aggregation Plan ⏳ (Phase V2-0 — docs only, PR #447)
+
+> **هذا القسم خطة توثيقية فقط. لا تنفيذ في هذا PR.**
+> وجود هذا القسم لا يعني إذناً بتنفيذ أي Phase من V2.
+
+---
+
+### المشكلة
+
+Notifications V1 تُنشئ إشعاراً مستقلاً لكل حدث. إذا تابع 100 شخص صفحة شركة، تُنشأ 100 صف في `notifications`. هذا يُحوّل الجرس إلى spam ويُنتج ضجيجاً بدل قيمة.
+
+---
+
+### القاعدة الذهبية للتجميع
+
+> إذا كانت عدة إشعارات تؤدي إلى **نفس الوجهة** عند الضغط عليها، يمكن تجميعها في إشعار واحد.
+> إذا كان لكل إشعار وجهة مختلفة أو قرار مستقل، يجب أن يبقى فردياً.
+
+---
+
+### أنواع التجميع المقررة
+
+#### 1. Follow Aggregation
+
+| | |
+|---|---|
+| **المشكلة** | 100 متابع → 100 إشعار منفصل |
+| **الحل** | "أحمد ومحمد و 8 آخرين تابعوا صفحتك" |
+| **aggregation_key** | `follow_agg:user:{followed_id}` |
+| **Click target** | followers section/page/modal — **يحتاج قرار نهائي قبل التنفيذ** |
+| **ملاحظة** | إذا لا يوجد followers page: يفتح صفحة البروفايل مع anchor `#followers`، أو `/notifications?filter=follow` |
+
+#### 2. Job Application Aggregation Per Job
+
+| | |
+|---|---|
+| **المشكلة** | 20 متقدم على وظيفة واحدة → 20 إشعار |
+| **الحل** | "12 متقدماً جديداً على وظيفة «معلمة صف أول»" |
+| **aggregation_key** | `job_applications_agg:job:{job_id}` |
+| **Click target** | صفحة المتقدمين للوظيفة `job_id` المحدد |
+| **قاعدة** | التجميع لكل `job_id` فقط — ليس لكل الشركة |
+
+#### 3. Comment / Reply Aggregation Per Post
+
+| | |
+|---|---|
+| **المشكلة** | 5 تعليقات على نفس المنشور → 5 إشعارات |
+| **الحل** | "5 تعليقات جديدة على منشورك" |
+| **aggregation_key (تعليقات)** | `comments_agg:post:{post_id}` |
+| **aggregation_key (ردود على تعليق)** | `replies_agg:comment:{comment_id}` |
+| **Click target** | المنشور `post_id` + comments section |
+| **قاعدة** | التجميع لكل `post_id` فقط — ليس لكل تعليقات الحساب |
+
+#### 4. Mention Aggregation — Needs Decision
+
+**الأسئلة المفتوحة (يجب الإجابة قبل V2-4):**
+
+- هل نجمع mentions إذا كانت في نفس المنشور؟
+- هل نبقي mentions فردية دائماً؟
+- إذا تجمّعت، هل click يفتح المنشور أم `/notifications?filter=mention`؟
+
+**التوجه الأولي:** إبقاء mentions فردية في V2 — كل mention يحتاج سياقاً مستقلاً.
+
+---
+
+### الأنواع التي تبقى فردية (لا تجميع)
+
+| النوع | السبب |
+|-------|-------|
+| `verify` — تغيير حالة توثيق | كل طلب قرار مستقل |
+| `application_status_changed` | كل إشعار يمثل وظيفة / قرار مختلف |
+| رسائل مباشرة | كل رسالة لها محادثة خاصة |
+| تنبيهات أمنية / إدارية | حساسة — لا تجميع إطلاقاً |
+| أي إشعار يحتاج إجراء مستقلاً | يبقى فردياً |
+
+---
+
+### اقتراح تصميم البيانات (لا تنفيذ في V2-0)
+
+**Option A — أعمدة إضافية في جدول `notifications` (التوصية):**
+
+```sql
+-- لا تُنفَّذ الآن — V2-1 فقط
+ALTER TABLE notifications
+  ADD COLUMN IF NOT EXISTS aggregation_key    TEXT,
+  ADD COLUMN IF NOT EXISTS aggregation_count  INTEGER DEFAULT 1,
+  ADD COLUMN IF NOT EXISTS aggregation_kind   TEXT,
+  ADD COLUMN IF NOT EXISTS last_actor_id      INTEGER,
+  ADD COLUMN IF NOT EXISTS last_event_at      TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS target_type        TEXT,
+  ADD COLUMN IF NOT EXISTS target_id          INTEGER;
+```
+
+**Option B — payload JSONB مع aggregation بدون تعديل schema:**
+تخزين `aggregation_key + count + last_actors` داخل `payload` JSONB موجود.
+
+| المعيار | Option A (أعمدة) | Option B (payload) |
+|---------|-----------------|-------------------|
+| Performance | ✅ أسرع — indexed columns | ⚠️ أبطأ — JSON extraction |
+| Migration | ⚠️ يحتاج ALTER TABLE | ✅ لا تغيير schema |
+| Queryability | ✅ سهل | ⚠️ يحتاج JSON operators |
+| Type safety | ✅ كل column له type محدد | ⚠️ كل شيء في JSON |
+
+**التوصية: Option A** — أعمدة إضافية مع index على `aggregation_key`.
+
+---
+
+### Helper المقترح (لا تنفيذ في V2-0)
+
+```python
+def create_or_update_aggregated_notification(
+    recipient_user_id: int,
+    type_: str,
+    title_template: str,
+    body_template: str,
+    aggregation_key: str,
+    target_type: str,
+    target_id: int,
+    actor_id: int = None,
+    action_url: str = None,
+    payload: dict = None
+) -> dict | None:
+    """
+    Future helper — لا تُنفَّذ في V2-0 — مقترح فقط.
+
+    الفكرة:
+    1. إذا لا يوجد notification غير مقروء بنفس aggregation_key:
+       → ينشئ notification جديد (aggregation_count=1)
+    2. إذا يوجد notification غير مقروء بنفس aggregation_key:
+       → يُحدَّث نفس الصف:
+         aggregation_count += 1
+         last_actor_id = actor_id
+         last_event_at = NOW()
+         title/body = apply_count_template(title_template, count)
+    3. إذا الإشعار السابق مقروء (is_read=TRUE):
+       → ينشئ aggregate جديد من الصفر (aggregation_count=1)
+    """
+    pass  # NOT IMPLEMENTED — Phase V2-1
+```
+
+---
+
+### سياسة التجميع المقترحة
+
+#### Option A — Aggregate While Unread ✅ (التوصية)
+
+الإشعارات تتجمع طالما الإشعار الأول غير مقروء:
+
+1. أحمد يتابع الشركة → إشعار جديد: `"أحمد تابعك"` (count=1)
+2. محمد يتابع الشركة → يُحدَّث نفس الصف: `"أحمد ومحمد تابعاك"` (count=2)
+3. صاحب الصفحة يقرأ الإشعار (`is_read=TRUE`)
+4. سارة تتابع الشركة → إشعار aggregate جديد: `"سارة تابعتك"` (count=1)
+
+**مميزاته:** بسيط، عملي، لا يحتاج windows زمنية، واضح للمستخدم.
+
+#### Option B — Aggregate by Time Window
+
+التجميع حسب يوم أو window زمنية (24 ساعة). أعقد، يربك read/unread semantics.
+
+**القرار: Option A — aggregate while unread.**
+
+---
+
+### Click Target Rules
+
+```
+القاعدة الذهبية:
+ممنوع aggregate notification يفتح آخر actor فقط إذا يمثل مجموعة.
+الوجهة يجب أن تمثّل المجموعة — وليس فرداً واحداً.
+```
+
+| نوع الـ aggregate | Click target |
+|------------------|--------------|
+| Follow aggregate | followers section / page / modal |
+| Job applications aggregate | applicants list للوظيفة `job_id` |
+| Comments aggregate | المنشور `post_id` + comments section |
+| Replies aggregate | المنشور أو comment thread |
+| Mentions | **Needs Decision** |
+| Sensitive individual | الوجهة الحالية كما هي (لا تغيير) |
+
+---
+
+### Anti-spam Rules
+
+```
+❌ لا تنشئ 100 rows لنفس الحدث المجمع
+❌ لا ترسل إشعار للفاعل نفسه (actor == recipient)
+❌ لا تجمع أحداث مختلفة الوجهة في نفس notification
+❌ لا تجمع job applications لوظائف مختلفة
+❌ لا تجمع comments لمنشورات مختلفة
+❌ لا تكسر event_key format الموجود في V1 بدون migration plan
+❌ لا تحذف إشعارات V1 القديمة
+❌ لا تغيّر read semantics بدون توثيق واضح
+```
+
+---
+
+### Notifications V2 Phases
+
+| Phase | العنوان | الوصف | الحالة |
+|-------|---------|-------|--------|
+| **V2-0** | Smart Aggregation Plan | هذا القسم — docs only | ✅ PR #447 |
+| **V2-1** | Aggregation Schema + Helper | حقول إضافية + helper بدون تفعيل hooks | 🔜 مستقبلي |
+| **V2-2** | Follow Aggregation | تجميع إشعارات المتابعة | 🔜 مستقبلي |
+| **V2-3** | Job Application Aggregation | تجميع المتقدمين لكل وظيفة | 🔜 مستقبلي |
+| **V2-4** | Comment/Reply Aggregation | تجميع التعليقات/الردود لكل منشور أو thread | 🔜 مستقبلي |
+| **V2-5** | UI Support for Aggregated Notifications | تحديث كروت الإشعارات: count + "و X آخرين" | 🔜 مستقبلي |
+| **V2-6** | Final Runtime QA | فحص يدوي + static checks + توثيق نهائي | 🔜 مستقبلي |
+
+> **مهم:** لا تنفيذ لأي Phase V2 غير V2-0 حتى يُطلب صراحةً من المستخدم.
+
+---
+
+### V2 Constraints (mandatory — applies to all V2 phases)
+
+```
+✅ لا تكسر Notifications V1 (Phases 1–10) في أي V2 phase
+✅ V2-0 يعدّل docs فقط — لا auth.py ولا server.py ولا HTML/CSS/JS ولا schema ولا hooks
+✅ event_key format الحالي يبقى — aggregation_key هو field منفصل
+✅ لا WebSocket ولا push (قيد V1 مستمر حتى قرار صريح)
+✅ create_or_update_aggregated_notification هو helper مستقبلي فقط — لا يُنفَّذ في V2-0
+```
+
+---
+
 ## Phases Summary
 
 | Phase | العنوان | الملفات | الأولوية |
@@ -507,6 +964,13 @@ After unfollow + refollow, the `event_key` `follow:user:{company_id}:{follower_i
 | **9** | Per-Notification Read + Pagination | `auth.py`, `server.py` | ✅ مكتمل (PR #439) |
 | **10** | Unread Badge in App Header | `server.py`, `static/app-header.js`, `static/app-header.css` | ✅ مكتمل (PR #440) |
 | **11** | Real-time / Push (WS or SSE or Push API) | TBD — needs decision | P3 — مؤجل |
+| **V2-0** | Smart Aggregation Plan | `docs/NOTIFICATIONS_PLAN.md` (docs only) | ✅ PR #447 |
+| **V2-1** | Aggregation Schema + Helper | `auth.py` migration + helper | 🔜 مستقبلي |
+| **V2-2** | Follow Aggregation | `auth.py` follow hook | 🔜 مستقبلي |
+| **V2-3** | Job Application Aggregation | `auth.py` job hook | 🔜 مستقبلي |
+| **V2-4** | Comment/Reply Aggregation | `auth.py` comment hook | 🔜 مستقبلي |
+| **V2-5** | UI Support | `notifications.html` | 🔜 مستقبلي |
+| **V2-6** | Final Runtime QA | static checks + manual QA | 🔜 مستقبلي |
 
 ---
 
@@ -522,4 +986,4 @@ After unfollow + refollow, the `event_key` `follow:user:{company_id}:{follower_i
 
 ---
 
-*أُنشئ: 2026-07-09 — Phase 0 audit. حُدِّث: 2026-07-10 — Phase 1 مكتمل (PR #431). حُدِّث: 2026-07-10 — Phase 2 مكتمل (PR #432). حُدِّث: 2026-07-10 — Phase 3 مكتمل (PR #433). حُدِّث: 2026-07-10 — Phase 4 مكتمل (PR #434). حُدِّث: 2026-07-10 — Phase 5 مكتمل (PR #435). حُدِّث: 2026-07-10 — Phase 6 مكتمل (PR #436). حُدِّث: 2026-07-10 — Phase 7 مكتمل (PR #437). حُدِّث: 2026-07-10 — Phase 8 مكتمل (PR #438). حُدِّث: 2026-07-10 — Phase 9 مكتمل (PR #439). حُدِّث: 2026-07-10 — Phase 10 Unread Badge in App Header مكتمل (PR #440). Phase 11 مؤجل — يحتاج قرار معماري. حُدِّث: 2026-07-10 — Notifications V1 Final QA + Closure: إضافة قسم "Notifications V1 Status"، تحديث Phase 11 deferral بتفصيل أكبر، تنظيف test 139q (PR #441). حُدِّث: 2026-07-10 — Runtime QA Bugfix: ON CONFLICT partial-index fix في create_notification، توثيق سلوك refollow، إضافة §153 checks (PR #444).*
+*أُنشئ: 2026-07-09 — Phase 0 audit. حُدِّث: 2026-07-10 — Phase 1 مكتمل (PR #431). حُدِّث: 2026-07-10 — Phase 2 مكتمل (PR #432). حُدِّث: 2026-07-10 — Phase 3 مكتمل (PR #433). حُدِّث: 2026-07-10 — Phase 4 مكتمل (PR #434). حُدِّث: 2026-07-10 — Phase 5 مكتمل (PR #435). حُدِّث: 2026-07-10 — Phase 6 مكتمل (PR #436). حُدِّث: 2026-07-10 — Phase 7 مكتمل (PR #437). حُدِّث: 2026-07-10 — Phase 8 مكتمل (PR #438). حُدِّث: 2026-07-10 — Phase 9 مكتمل (PR #439). حُدِّث: 2026-07-10 — Phase 10 Unread Badge in App Header مكتمل (PR #440). Phase 11 مؤجل — يحتاج قرار معماري. حُدِّث: 2026-07-10 — Notifications V1 Final QA + Closure: إضافة قسم "Notifications V1 Status"، تحديث Phase 11 deferral بتفصيل أكبر، تنظيف test 139q (PR #441). حُدِّث: 2026-07-10 — Runtime QA Bugfix: ON CONFLICT partial-index fix في create_notification، توثيق سلوك refollow، إضافة §153 checks (PR #444). حُدِّث: 2026-07-10 — Notifications V2 Smart Aggregation Plan: إضافة قسم V2-0 (docs only) — تجميع Follow / Job Applications / Comments / Replies — Click Target Rules — Option A (aggregate while unread) — Helper مقترح — V2 Phases V2-0 to V2-6 (PR #447).*
