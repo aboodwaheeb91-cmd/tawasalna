@@ -19,6 +19,7 @@
   <link rel="stylesheet" href="/static/tw_shared.css">
   <link rel="stylesheet" href="/static/profile-v2.css?v=compl-v6">
   <script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
+  <script src="/static/app-header.js"></script>
 </head>
 <body>
   <!-- Header -->
@@ -31,9 +32,9 @@
       <span class="sc-logo-fallback" style="display:none">تواصلنا</span>
     </div>
     <div class="sc-head-icons">
-      <button class="sc-hicon sc-hicon-bare" id="scBellBtn" title="الإشعارات" style="position:relative">
+      <button class="sc-hicon sc-hicon-bare sc-notif-wrap" id="scBellBtn" title="الإشعارات">
         <i data-lucide="bell" class="ico"></i>
-        <span data-badge="notif" style="display:none;position:absolute;top:-3px;left:-3px;background:#f87171;color:#fff;border-radius:50%;min-width:14px;height:14px;font-size:.5rem;font-weight:700;line-height:14px;text-align:center;padding:0 2px"></span>
+        <span data-ah-notif-badge></span>
       </button>
       <button class="sc-hicon sc-hicon-bare" id="scMsgBtn" title="الرسائل" style="position:relative">
         <i data-lucide="message-circle-more" class="ico"></i>

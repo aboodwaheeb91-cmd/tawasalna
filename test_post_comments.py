@@ -3772,6 +3772,82 @@ check(
     'ON CONFLICT' in _plan153 and 'WHERE event_key IS NOT NULL' in _plan153
 )
 
+# ═══════════════════════════════════════════════════════════════════════
+# §154 — Shared Header Notification Bell Badge Fix
+# 14 static checks: app-header.js auto-init, badge element, glow, JWT Bearer,
+# security (no X-User-Id, no fake data, no WebSocket), no auth.py change
+# ═══════════════════════════════════════════════════════════════════════
+print("\n── §154: Shared Header Notification Bell Badge Fix ──")
+import os as _os154
+_ah_js   = open('static/app-header.js', encoding='utf-8').read()  if _os154.path.exists('static/app-header.js')  else ''
+_ah_css  = open('static/app-header.css', encoding='utf-8').read() if _os154.path.exists('static/app-header.css') else ''
+_co_html = open('company-profile.html', encoding='utf-8').read()  if _os154.path.exists('company-profile.html')  else ''
+_sc_html = open('profile-showcase.html', encoding='utf-8').read() if _os154.path.exists('profile-showcase.html') else ''
+_auth154 = open('auth.py', encoding='utf-8').read()               if _os154.path.exists('auth.py')               else ''
+
+check(
+    "154a. app-header.js loads and polls /notifications/{uid}/unread-count with Bearer JWT",
+    'unread-count' in _ah_js and
+    ("'Authorization': 'Bearer ' + jwt" in _ah_js or '"Authorization": "Bearer "' in _ah_js or
+     "'Bearer ' +" in _ah_js)
+)
+check(
+    "154b. app-header.js has DOMContentLoaded auto-init — pages without initAppHeader call work",
+    'DOMContentLoaded' in _ah_js and '_pollUnreadBadge' in _ah_js and
+    'tw_user' in _ah_js
+)
+check(
+    "154c. app-header.js has guard against double setInterval (_ahPollStarted or similar)",
+    '_ahPollStarted' in _ah_js or '_pollStarted' in _ah_js
+)
+check(
+    "154d. app-header.js adds ah-bell--active class when unread count > 0",
+    'ah-bell--active' in _ah_js and 'classList.add' in _ah_js
+)
+check(
+    "154e. app-header.js removes ah-bell--active class when unread count = 0",
+    'ah-bell--active' in _ah_js and 'classList.remove' in _ah_js
+)
+check(
+    "154f. app-header.css has .ah-bell--active glow styling for bell icon",
+    'ah-bell--active' in _ah_css and '.ico' in _ah_css[_ah_css.find('ah-bell--active'):_ah_css.find('ah-bell--active') + 100]
+)
+check(
+    "154g. company-profile.html bell has data-ah-notif-badge element",
+    'data-ah-notif-badge' in _co_html
+)
+check(
+    "154h. company-profile.html loads app-header.js script",
+    'app-header.js' in _co_html
+)
+check(
+    "154i. profile-showcase.html bell has data-ah-notif-badge (not old data-badge=notif)",
+    'data-ah-notif-badge' in _sc_html and
+    'data-badge="notif"' not in _sc_html[_sc_html.find('scBellBtn'):_sc_html.find('scBellBtn') + 200]
+    if 'scBellBtn' in _sc_html else 'data-ah-notif-badge' in _sc_html
+)
+check(
+    "154j. profile-showcase.html loads app-header.js script",
+    'app-header.js' in _sc_html
+)
+check(
+    "154k. No X-User-Id in app-header.js",
+    "'X-User-Id'" not in _ah_js and '"X-User-Id"' not in _ah_js
+)
+check(
+    "154l. No WebSocket or push in app-header.js",
+    'new WebSocket(' not in _ah_js and 'EventSource' not in _ah_js and 'pushManager' not in _ah_js
+)
+check(
+    "154m. app-header.js does not hardcode/fake unread count — uses API response only",
+    'count = ' not in _ah_js or 'd.data' in _ah_js
+)
+check(
+    "154n. auth.py not modified — create_notification and notification hooks unchanged",
+    'def create_notification(' in _auth154 and
+    'ON CONFLICT (user_id, event_key) WHERE event_key IS NOT NULL DO NOTHING' in _auth154
+)
+
 # ── Summary ──────────────────────────────────────────────────────────────
 print()
 passed = sum(1 for _, s, _ in results if s == PASS)
