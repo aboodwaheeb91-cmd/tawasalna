@@ -376,21 +376,50 @@ def mark_notification_read(user_id: int, notif_id: int) -> bool:
 
 ---
 
-## Phase 11 — Real-time / Push Notifications (مؤجل)
+## Phase 11 — Real-time / Push Notifications (مؤجل — Intentionally Deferred)
 
-> **هذه المرحلة مؤجلة حتى إشعار آخر.**
+> **هذه المرحلة مؤجلة حتى إشعار آخر. Phase 11 is intentionally deferred and must not start until all three conditions below are met.**
 
-تتطلب:
-1. حل P0 Security Debt في WebSocket (`/ws/{user_id}`) أولاً
-2. قرار صريح من المستخدم: WebSocket vs Server-Sent Events vs Web Push API
-3. تحديث هذا الملف قبل البدء بأي تنفيذ
+**Conditions before Phase 11 can start:**
 
-خيارات مدروسة (لا قرار بعد):
-- **WebSocket** (عبر `/ws/{user_id}` الموجود بعد hardening): أسرع، تعقيد أعلى
-- **Server-Sent Events (SSE)**: أبسط من WS، unidirectional
-- **Web Push API**: تعمل حتى عند إغلاق الصفحة (يحتاج Service Worker)
+1. **WebSocket P0 Security Debt must be resolved first.** `/ws/{user_id}` currently accepts any user_id without JWT verification — this is a P0 security issue (see `SYSTEMS_INDEX.md §18`). Real-time notifications share the same transport risks.
+2. **User must explicitly approve.** Choose from: WebSocket (via `/ws/{user_id}` after hardening) · Server-Sent Events (SSE) · Web Push API. No default choice — user decides.
+3. **Existing polling V1 (Phases 1–10) must remain stable.** Do not break the current HTTP polling system while building Phase 11.
+
+**Options under consideration (no decision made):**
+- **WebSocket** (via `/ws/{user_id}` after hardening): fastest, higher complexity
+- **Server-Sent Events (SSE)**: simpler than WS, unidirectional, no extra auth needed
+- **Web Push API**: works even when page is closed (requires Service Worker)
 
 **لا تنفيذ لأي خيار حتى يُطلب صراحةً.**
+
+---
+
+---
+
+## Notifications V1 Status
+
+> **Notifications V1 is complete.** All phases 0–10 are implemented and merged. Phase 11 is intentionally deferred.
+
+| Phase | Status | PR |
+|-------|--------|----|
+| Phase 0 — Audit & Plan | ✅ complete | (docs only) |
+| Phase 1 — Security Hardening | ✅ complete | PR #431 |
+| Phase 2 — Schema Hardening (event_key, actor_id) | ✅ complete | PR #432 |
+| Phase 3 — Comment Notification Hook | ✅ complete | PR #433 |
+| Phase 4 — Reply Notification Hook | ✅ complete | PR #434 |
+| Phase 5 — Mention Notification Hook | ✅ complete | PR #435 |
+| Phase 6 — Job Application Hook | ✅ complete | PR #436 |
+| Phase 7 — Follow Hook | ✅ complete | PR #437 |
+| Phase 8 — Verification Hook | ✅ complete | PR #438 |
+| Phase 9 — Per-Notification Read + Pagination | ✅ complete | PR #439 |
+| Phase 10 — Unread Badge in App Header | ✅ complete | PR #440 |
+| Phase 11 — Real-time / Push | ⏸ deferred | requires WebSocket P0 fix + user approval |
+
+**Phase 11 — Real-time / Push is intentionally deferred and must not start until:**
+1. WebSocket P0 security debt (`/ws/{user_id}` unauthenticated) is resolved.
+2. User explicitly approves realtime/push work and chooses transport (WS / SSE / Push API).
+3. Existing polling V1 remains stable and is not broken during transition.
 
 ---
 
@@ -425,4 +454,4 @@ def mark_notification_read(user_id: int, notif_id: int) -> bool:
 
 ---
 
-*أُنشئ: 2026-07-09 — Phase 0 audit. حُدِّث: 2026-07-10 — Phase 1 مكتمل (PR #431). حُدِّث: 2026-07-10 — Phase 2 مكتمل (PR #432). حُدِّث: 2026-07-10 — Phase 3 مكتمل (PR #433). حُدِّث: 2026-07-10 — Phase 4 مكتمل (PR #434). حُدِّث: 2026-07-10 — Phase 5 مكتمل (PR #435). حُدِّث: 2026-07-10 — Phase 6 مكتمل (PR #436). حُدِّث: 2026-07-10 — Phase 7 مكتمل (PR #437). حُدِّث: 2026-07-10 — Phase 8 مكتمل (PR #438). حُدِّث: 2026-07-10 — Phase 9 مكتمل (PR #439). حُدِّث: 2026-07-10 — Phase 10 Unread Badge in App Header مكتمل (PR #440). Phase 11 مؤجل — يحتاج قرار معماري.*
+*أُنشئ: 2026-07-09 — Phase 0 audit. حُدِّث: 2026-07-10 — Phase 1 مكتمل (PR #431). حُدِّث: 2026-07-10 — Phase 2 مكتمل (PR #432). حُدِّث: 2026-07-10 — Phase 3 مكتمل (PR #433). حُدِّث: 2026-07-10 — Phase 4 مكتمل (PR #434). حُدِّث: 2026-07-10 — Phase 5 مكتمل (PR #435). حُدِّث: 2026-07-10 — Phase 6 مكتمل (PR #436). حُدِّث: 2026-07-10 — Phase 7 مكتمل (PR #437). حُدِّث: 2026-07-10 — Phase 8 مكتمل (PR #438). حُدِّث: 2026-07-10 — Phase 9 مكتمل (PR #439). حُدِّث: 2026-07-10 — Phase 10 Unread Badge in App Header مكتمل (PR #440). Phase 11 مؤجل — يحتاج قرار معماري. حُدِّث: 2026-07-10 — Notifications V1 Final QA + Closure: إضافة قسم "Notifications V1 Status"، تحديث Phase 11 deferral بتفصيل أكبر، تنظيف test 139q (PR #441).*
