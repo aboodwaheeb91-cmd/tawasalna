@@ -3633,11 +3633,12 @@ check(
     _notif152.find('notif-subtitle') > _notif152.find('notif-hero-row')
 )
 check(
-    "152e. Filter tabs have no pill border — border-radius: 20px removed, no notif-tab border:1.5px pill",
-    'border-radius: 20px' not in _notif152 and
-    'border: 1.5px solid var(--border)' not in
-    _notif152[_notif152.find('.notif-tab {'):_notif152.find('.notif-tab {') + 300]
-    if '.notif-tab {' in _notif152 else True
+    "152e. Filter tabs .notif-tab block has no pill border (border-radius:20px removed from tab rule)",
+    (
+        'border: 1.5px solid var(--border)' not in
+        _notif152[_notif152.find('.notif-tab {'):_notif152.find('.notif-tab {') + 300]
+        if '.notif-tab {' in _notif152 else True
+    )
 )
 check(
     "152f. Filter tabs wrapper has overflow-x:auto — horizontal scroll enabled",
@@ -4006,8 +4007,8 @@ check(
     '@app.put("/aggregat' not in _srv156
 )
 check(
-    "156n. notifications.html not modified — V2 UI not added yet",
-    'aggregation_count' not in _notif156 and 'aggregation_key' not in _notif156
+    "156n. notifications.html V2 UI added in V2-5 (PR #452) — aggregation_count present",
+    'aggregation_count' in _notif156
 )
 check(
     "156o. app-header.js and app-header.css not modified for V2",
@@ -4278,8 +4279,8 @@ check(
 
 # ── No UI/CSS/JS changes ──────────────────────────────────────────────────
 check(
-    "158z. notifications.html not modified — no aggregation_count in UI",
-    'aggregation_count' not in _notif158 and 'aggregation_key' not in _notif158
+    "158z. notifications.html V2 UI added in V2-5 (PR #452) — aggregation_count present",
+    'aggregation_count' in _notif158
 )
 check(
     "158aa. app-header.js and app-header.css not modified",
@@ -4482,8 +4483,8 @@ with open("static/app-header.js", encoding="utf-8") as _f159aj:
 with open("static/app-header.css", encoding="utf-8") as _f159ac:
     _ahc_159 = _f159ac.read()
 check(
-    "159af. notifications.html not modified — no V2 aggregation fields in UI",
-    'aggregation_count' not in _notif_html_159 and 'follow_agg' not in _notif_html_159
+    "159af. notifications.html V2 UI added in V2-5 (PR #452) — aggregation_count present, follow_agg absent",
+    'aggregation_count' in _notif_html_159 and 'follow_agg' not in _notif_html_159
 )
 check(
     "159ag. app-header.js not modified — no aggregation in header",
@@ -4644,9 +4645,9 @@ check(
     'job_applications_agg' not in _srv160
 )
 check(
-    "160x. notifications.html not modified — no V2-3 aggregation fields",
-    'job_applications_agg' not in _notif_html_160 and
-    'aggregation_count' not in _notif_html_160
+    "160x. notifications.html V2 UI added in V2-5 (PR #452) — aggregation_count present, no job_applications_agg routing",
+    'aggregation_count' in _notif_html_160 and
+    'job_applications_agg' not in _notif_html_160
 )
 check(
     "160y. app-header.js not modified",
@@ -4802,6 +4803,160 @@ check(
 check(
     "161ad. SYSTEMS_INDEX.md §36 updated with V2-4 and PR #451",
     "V2-4" in _sidx161 and "#451" in _sidx161
+)
+
+# ═══════════════════════════════════════════════════════════════════════
+# §162 — Notifications V2-5 — UI Support for Aggregated Notifications
+# 30 static checks — notifications.html + docs — no backend changes
+# ═══════════════════════════════════════════════════════════════════════
+print("\n── §162: Notifications V2-5 — UI Support ──")
+import os as _os162
+_notif162 = open('notifications.html', encoding='utf-8').read() if _os162.path.exists('notifications.html') else ''
+_auth162  = open('auth.py',            encoding='utf-8').read() if _os162.path.exists('auth.py') else ''
+_srv162   = open('server.py',          encoding='utf-8').read() if _os162.path.exists('server.py') else ''
+_nplan162 = open('docs/NOTIFICATIONS_PLAN.md', encoding='utf-8').read() if _os162.path.exists('docs/NOTIFICATIONS_PLAN.md') else ''
+_sidx162  = open('docs/SYSTEMS_INDEX.md',      encoding='utf-8').read() if _os162.path.exists('docs/SYSTEMS_INDEX.md') else ''
+
+# --- CSS additions ---
+check(
+    "162a. .notif-agg-badge CSS class defined in notifications.html",
+    '.notif-agg-badge' in _notif162
+)
+check(
+    "162b. .notif-agg-badge uses display: inline-flex",
+    'display: inline-flex' in _notif162 and '.notif-agg-badge' in _notif162
+)
+check(
+    "162c. .notif-agg-badge has border-radius: 20px",
+    'border-radius: 20px' in _notif162 and '.notif-agg-badge' in _notif162
+)
+check(
+    "162d. .notif-card[data-aggregated=true] CSS rule exists (border highlight)",
+    '.notif-card[data-aggregated="true"]' in _notif162
+)
+check(
+    "162e. .notif-card[data-aggregated=true].notif-card-unread CSS rule exists (teal accent)",
+    '.notif-card[data-aggregated="true"].notif-card-unread' in _notif162
+)
+
+# --- isAgg + aggCount declarations ---
+check(
+    "162f. isAgg derived from aggregation_count > 1 (not >= 1)",
+    'var isAgg = Boolean(n.aggregation_count && n.aggregation_count > 1)' in _notif162
+)
+check(
+    "162g. aggCount is 0 when not aggregated (ternary with Number() conversion)",
+    'var aggCount = isAgg ? Number(n.aggregation_count) : 0' in _notif162
+)
+check(
+    "162w. aggregation_count > 1 threshold (not >= 1 — first item is never a badge)",
+    'aggregation_count > 1' in _notif162 and 'aggregation_count >= 1' not in _notif162
+)
+
+# --- data attributes on card ---
+check(
+    "162h. card.dataset.aggregated = 'true' set when isAgg",
+    "card.dataset.aggregated = 'true'" in _notif162
+)
+check(
+    "162i. card.dataset.aggregationKind uses String() for safe conversion",
+    'card.dataset.aggregationKind = String(n.aggregation_kind)' in _notif162
+)
+
+# --- badge DOM construction ---
+check(
+    "162j. aggBadge created via createElement('span') with notif-agg-badge class",
+    "var aggBadge = document.createElement('span')" in _notif162 and
+    "aggBadge.className = 'notif-agg-badge'" in _notif162
+)
+check(
+    "162k. aggNum.textContent = String(aggCount) — count via textContent, not innerHTML",
+    'aggNum.textContent = String(aggCount)' in _notif162
+)
+check(
+    "162l. aria-label on aggBadge for accessibility (أحداث مجمّعة)",
+    "aggBadge.setAttribute('aria-label', aggCount + ' أحداث مجمّعة')" in _notif162
+)
+check(
+    "162m. aggBadge appended to metaEl before timeEl (badge left of time in RTL)",
+    _notif162.find("metaEl.appendChild(aggBadge)") != -1 and
+    _notif162.find("metaEl.appendChild(timeEl)") != -1 and
+    _notif162.find("metaEl.appendChild(aggBadge)") < _notif162.find("metaEl.appendChild(timeEl)")
+)
+check(
+    "162n. aggIco icon uses static SVG via innerHTML (not API data)",
+    "aggIco.innerHTML = '<svg" in _notif162
+)
+check(
+    "162o. aggregation_kind converted via String() before setAttribute (XSS safe)",
+    'String(n.aggregation_kind)' in _notif162
+)
+
+# --- XSS contract ---
+check(
+    "162p. link validation unchanged — test(n.link) + card.dataset.link still present",
+    "test(n.link)" in _notif162 and "card.dataset.link = link" in _notif162
+)
+check(
+    "162q. aggNum and aggBadge never use innerHTML for API data",
+    'aggNum.innerHTML' not in _notif162 and 'aggBadge.innerHTML = String' not in _notif162
+)
+check(
+    "162r. titleEl.textContent and subEl.textContent unchanged (title/body still safe)",
+    'titleEl.textContent = String(n.title' in _notif162 and
+    'subEl.textContent = String(n.body' in _notif162
+)
+
+# --- Security: no new vectors ---
+check(
+    "162s. no WebSocket in notifications.html (no new WebSocket added)",
+    'new WebSocket' not in _notif162
+)
+check(
+    "162t. no X-User-Id in notifications.html (still absent after V2-5)",
+    'X-User-Id' not in _notif162
+)
+check(
+    "162u. JWT Bearer still present in notifications.html fetch calls",
+    "'Authorization'" in _notif162 and 'Bearer' in _notif162
+)
+check(
+    "162v. V2-5 function comment present in _buildNotifCard",
+    'V2-5: adds aggregation_count badge' in _notif162
+)
+
+# --- No route generation from aggregation_key ---
+check(
+    "162x. aggregation_key not referenced in notifications.html (no route generation)",
+    'aggregation_key' not in _notif162
+)
+
+# --- Backend unchanged ---
+check(
+    "162y. auth.py comment/reply aggregation hooks unchanged (comments_agg:post: still present)",
+    'comments_agg:post:' in _auth162 and 'replies_agg:comment:' in _auth162
+)
+check(
+    "162z. auth.py SELECT * notifications query unchanged (no backend modification in V2-5)",
+    'SELECT * FROM notifications WHERE user_id=:uid AND type' in _auth162
+)
+
+# --- Docs ---
+check(
+    "162aa. NOTIFICATIONS_PLAN.md marks V2-5 as complete with PR #452",
+    'V2-5' in _nplan162 and 'PR #452' in _nplan162
+)
+check(
+    "162ab. NOTIFICATIONS_PLAN.md V2-5 section documents .notif-agg-badge",
+    '.notif-agg-badge' in _nplan162
+)
+check(
+    "162ac. SYSTEMS_INDEX.md §36 updated with V2-5 and PR #452",
+    'V2-5' in _sidx162 and '#452' in _sidx162
+)
+check(
+    "162ad. NOTIFICATIONS_PLAN.md mentions V2-6 as NEXT PHASE after V2-5",
+    'Phase V2-6' in _nplan162 and 'NEXT PHASE' in _nplan162
 )
 
 # ── Summary ──────────────────────────────────────────────────────────────

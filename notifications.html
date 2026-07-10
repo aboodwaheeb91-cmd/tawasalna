@@ -375,6 +375,26 @@ body {
   text-decoration: none; transition: top .2s; z-index: 10000;
 }
 .skip-link:focus { top: 0; }
+/* ── V2-5: Aggregated notification badge ── */
+.notif-agg-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 7px;
+  border-radius: 20px;
+  background: rgba(255,255,255,.07);
+  border: 1px solid rgba(255,255,255,.11);
+  font-size: .6rem;
+  font-weight: 800;
+  color: var(--t2);
+  flex-shrink: 0;
+}
+.notif-agg-badge svg { opacity: .7; }
+.notif-card[data-aggregated="true"] { border-color: rgba(255,255,255,.10); }
+.notif-card[data-aggregated="true"].notif-card-unread {
+  border-color: rgba(0,200,150,.22);
+  background: rgba(0,200,150,.03);
+}
 </style>
 <a href="#main-content" class="skip-link">تخطى للمحتوى الرئيسي</a>
 <link rel="stylesheet" href="/static/tw_shared.css">
@@ -682,8 +702,12 @@ var _typeMap = {
 };
 
 /* ── Build a notification card DOM node — all API text via textContent ── */
+/* V2-5: adds aggregation_count badge + data-aggregated / data-aggregation-kind attrs */
 function _buildNotifCard(n) {
   var t = _typeMap[n.type] || _typeMap.system;
+  /* V2-5: aggregation state — read from API response (SELECT * returns all V2-1 columns) */
+  var isAgg = Boolean(n.aggregation_count && n.aggregation_count > 1);
+  var aggCount = isAgg ? Number(n.aggregation_count) : 0;
   /* Relative time */
   var ago = Math.floor((Date.now() - new Date(n.created_at)) / 60000);
   var agoStr = ago < 1 ? 'الآن'
@@ -698,6 +722,11 @@ function _buildNotifCard(n) {
   card.dataset.type = n.type || 'system';
   card.dataset.filterGroup = t.filter;
   if (link) card.dataset.link = link;
+  /* V2-5: aggregation data attributes — safe kind string, no routing */
+  if (isAgg) {
+    card.dataset.aggregated = 'true';
+    if (n.aggregation_kind) card.dataset.aggregationKind = String(n.aggregation_kind);
+  }
 
   /* Icon */
   var ico = document.createElement('div');
@@ -725,6 +754,21 @@ function _buildNotifCard(n) {
 
   var metaEl = document.createElement('div');
   metaEl.className = 'notif-card-meta';
+
+  /* V2-5: aggregation count badge — shown when aggregation_count > 1 */
+  if (isAgg) {
+    var aggBadge = document.createElement('span');
+    aggBadge.className = 'notif-agg-badge';
+    aggBadge.setAttribute('aria-label', aggCount + ' أحداث مجمّعة');
+    var aggIco = document.createElement('span');
+    /* Stacked layers SVG — not emoji, not API data */
+    aggIco.innerHTML = '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>';
+    var aggNum = document.createElement('span');
+    aggNum.textContent = String(aggCount); /* count number via textContent */
+    aggBadge.appendChild(aggIco);
+    aggBadge.appendChild(aggNum);
+    metaEl.appendChild(aggBadge);
+  }
 
   var timeEl = document.createElement('span');
   timeEl.className = 'notif-card-time';
