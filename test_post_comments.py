@@ -6063,6 +6063,123 @@ check(
     'scheduler' in _nplan167
 )
 
+# ══════════════════════════════════════════════════════════════════════════
+# §168 — Notifications Missing Priority Queue Final Closure (docs-only PR)
+# ══════════════════════════════════════════════════════════════════════════
+
+with open('docs/NOTIFICATIONS_PLAN.md', 'r', encoding='utf-8') as _f168:
+    _nplan168 = _f168.read()
+
+with open('docs/SYSTEMS_INDEX.md', 'r', encoding='utf-8') as _f168s:
+    _sidx168 = _f168s.read()
+
+with open('auth.py', 'r', encoding='utf-8') as _f168a:
+    _auth168 = _f168a.read()
+
+with open('server.py', 'r', encoding='utf-8') as _f168sv:
+    _server168 = _f168sv.read()
+
+# ── Core content checks (a–l) ──
+check(
+    "168a. NOTIFICATIONS_PLAN.md contains 'Missing Priority Queue Final Status' section",
+    'Missing Priority Queue Final Status' in _nplan168
+)
+check(
+    "168b. NOTIFICATIONS_PLAN.md: application_status_changed mentioned as implemented",
+    'application_status_changed' in _nplan168 and
+    ('✅ Implemented' in _nplan168 or 'implemented' in _nplan168.lower())
+)
+check(
+    "168c. NOTIFICATIONS_PLAN.md: PR #455 mentioned",
+    '#455' in _nplan168
+)
+check(
+    "168d. NOTIFICATIONS_PLAN.md: PR #456 mentioned",
+    '#456' in _nplan168
+)
+check(
+    "168e. NOTIFICATIONS_PLAN.md: accepted/rejected described as internal company states",
+    'accepted' in _nplan168 and 'rejected' in _nplan168 and
+    'internal' in _nplan168 and 'company' in _nplan168
+)
+check(
+    "168f. NOTIFICATIONS_PLAN.md: rating_received mentioned as implemented",
+    'rating_received' in _nplan168 and '✅' in _nplan168
+)
+check(
+    "168g. NOTIFICATIONS_PLAN.md: PR #457 mentioned",
+    '#457' in _nplan168
+)
+check(
+    "168h. NOTIFICATIONS_PLAN.md: job_expiring_soon mentioned as blocked",
+    'job_expiring_soon' in _nplan168 and
+    ('Blocked' in _nplan168 or 'blocked' in _nplan168.lower())
+)
+check(
+    "168i. NOTIFICATIONS_PLAN.md: scheduler mentioned as the blocker reason for job_expiring_soon",
+    'scheduler' in _nplan168 and 'job_expiring_soon' in _nplan168
+)
+check(
+    "168j. NOTIFICATIONS_PLAN.md: appointment reminders mentioned as scheduler-dependent",
+    'appointment reminders' in _nplan168 or 'Appointments' in _nplan168
+)
+check(
+    "168k. NOTIFICATIONS_PLAN.md: response deadline auto-expire mentioned as scheduler-dependent",
+    'response deadline' in _nplan168 or 'auto-expire' in _nplan168
+)
+check(
+    "168l. NOTIFICATIONS_PLAN.md: Phase 11 realtime/push mentioned as deferred",
+    'Phase 11' in _nplan168 and
+    ('deferred' in _nplan168.lower() or 'مؤجل' in _nplan168)
+)
+
+# ── SYSTEMS_INDEX update (m) ──
+check(
+    "168m. SYSTEMS_INDEX.md §19 updated to reference MPQ Final Closure",
+    'Final Closure' in _sidx168 or 'MPQ Final Closure' in _sidx168 or '#458' in _sidx168
+)
+
+# ── No code changes (n–s) ──
+check(
+    "168n. auth.py NOT modified — no PR #458 marker or mpq-closure comment in auth.py",
+    'PR #458' not in _auth168 and 'mpq-closure' not in _auth168
+)
+check(
+    "168o. server.py NOT modified — no PR #458 marker or mpq-closure comment in server.py",
+    'PR #458' not in _server168 and 'mpq-closure' not in _server168
+)
+check(
+    "168p. No new CREATE TABLE added to docs/NOTIFICATIONS_PLAN.md (schema unchanged)",
+    'CREATE TABLE scheduler' not in _nplan168 and 'CREATE TABLE job_expiring' not in _nplan168
+)
+check(
+    "168q. No inline script/style injected into docs/NOTIFICATIONS_PLAN.md",
+    '<script>' not in _nplan168 and '<style>' not in _nplan168
+)
+_sched_note168 = (
+    _nplan168.split('Scheduler Blocker Note')[1].split('Source of Truth')[0]
+    if 'Scheduler Blocker Note' in _nplan168 else ''
+)
+check(
+    "168r. Scheduler Blocker Note section exists and is non-empty",
+    bool(_sched_note168.strip())
+)
+check(
+    "168s. No WebSocket/push implementation text inside Scheduler Blocker Note section",
+    'WebSocket' not in _sched_note168 and 'push' not in _sched_note168.lower()
+)
+
+# ── PR declaration (t–u) ──
+check(
+    "168t. NOTIFICATIONS_PLAN.md is docs-only (no implementation code block referencing new feature)",
+    'docs-only' in _nplan168.lower() or 'docs only' in _nplan168.lower() or
+    'PR #458' in _nplan168
+)
+check(
+    "168u. NEXT ACTIVE DEVELOPMENT PHASE — Scheduler Infrastructure noted in SYSTEMS_INDEX.md",
+    'Scheduler Infrastructure' in _sidx168 and 'job_expiring_soon' in _sidx168
+)
+
 # ── Summary ──────────────────────────────────────────────────────────────
 print()
 passed = sum(1 for _, s, _ in results if s == PASS)
