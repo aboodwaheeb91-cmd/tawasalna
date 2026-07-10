@@ -3848,6 +3848,91 @@ check(
     'ON CONFLICT (user_id, event_key) WHERE event_key IS NOT NULL DO NOTHING' in _auth154
 )
 
+# ═══════════════════════════════════════════════════════════════════════
+# §155 — Shared Header Notification Badge Number Visibility Fix
+# 16 static checks: badge display inline-flex, physical right positioning,
+# overflow visible, z-index 20, font-size 10px, align-items/justify-content,
+# no inset-inline-end, no fake count, no X-User-Id, no WebSocket,
+# badge hidden at count=0, textContent only, no localStorage count
+# ═══════════════════════════════════════════════════════════════════════
+print("\n── §155: Shared Header Notification Badge Number Visibility Fix ──")
+import os as _os155
+_ah_js155  = open('static/app-header.js',  encoding='utf-8').read() if _os155.path.exists('static/app-header.js')  else ''
+_ah_css155 = open('static/app-header.css', encoding='utf-8').read() if _os155.path.exists('static/app-header.css') else ''
+
+check(
+    "155a. app-header.js sets badge.style.display = 'inline-flex' (not empty string) to show badge",
+    "badge.style.display = 'inline-flex'" in _ah_js155 or
+    'badge.style.display="inline-flex"' in _ah_js155
+)
+check(
+    "155b. app-header.js sets badge.style.display = 'none' to hide badge at count 0",
+    "badge.style.display = 'none'" in _ah_js155
+)
+check(
+    "155c. app-header.css [data-ah-notif-badge] uses physical 'right' — not inset-inline-end",
+    'right:' in _ah_css155.replace(' ', '') and 'inset-inline-end' not in _ah_css155
+)
+check(
+    "155d. app-header.css .sc-notif-wrap has overflow: visible",
+    'overflow: visible' in _ah_css155 or 'overflow:visible' in _ah_css155
+)
+check(
+    "155e. app-header.css [data-ah-notif-badge] z-index is 20 or higher",
+    'z-index: 20' in _ah_css155 or 'z-index: 2' in _ah_css155 or
+    any(f'z-index: {n}' in _ah_css155 for n in range(20, 100))
+)
+check(
+    "155f. app-header.css [data-ah-notif-badge] has align-items: center",
+    'align-items: center' in _ah_css155 or 'align-items:center' in _ah_css155
+)
+check(
+    "155g. app-header.css [data-ah-notif-badge] has justify-content: center",
+    'justify-content: center' in _ah_css155 or 'justify-content:center' in _ah_css155
+)
+check(
+    "155h. app-header.css [data-ah-notif-badge] font-size is 10px or larger (mobile readability)",
+    'font-size: 10px' in _ah_css155 or 'font-size: 11px' in _ah_css155 or
+    'font-size: 12px' in _ah_css155 or 'font-size:10px' in _ah_css155
+)
+check(
+    "155i. app-header.css [data-ah-notif-badge] default display is still none (hidden by default)",
+    'display: none' in _ah_css155 and 'data-ah-notif-badge' in _ah_css155
+)
+check(
+    "155j. app-header.js sets badge textContent from API data — not innerHTML",
+    'badge.textContent' in _ah_js155 and 'badge.innerHTML' not in _ah_js155
+)
+check(
+    "155k. app-header.js uses '99+' cap for counts above 99",
+    "'99+'" in _ah_js155 or '"99+"' in _ah_js155
+)
+check(
+    "155l. app-header.js reads count from API response d.data.count — not localStorage",
+    'd.data' in _ah_js155 and 'localStorage' not in _ah_js155[_ah_js155.find('_fetchCount'):_ah_js155.find('_fetchCount') + 400]
+    if '_fetchCount' in _ah_js155 else 'd.data' in _ah_js155
+)
+check(
+    "155m. No X-User-Id header in app-header.js",
+    "'X-User-Id'" not in _ah_js155 and '"X-User-Id"' not in _ah_js155
+)
+check(
+    "155n. No WebSocket or EventSource or push in app-header.js",
+    'WebSocket(' not in _ah_js155 and 'EventSource' not in _ah_js155 and
+    'pushManager' not in _ah_js155 and 'showNotification' not in _ah_js155
+)
+check(
+    "155o. app-header.css badge uses physical top (not inset-block-start) — valid on all browsers",
+    ('top: -' in _ah_css155 or 'top:-' in _ah_css155) and
+    'inset-block-start' not in _ah_css155
+)
+check(
+    "155p. app-header.js badge poll uses Authorization Bearer JWT — no anonymous fetch",
+    "'Authorization': 'Bearer ' + jwt" in _ah_js155 or
+    '"Authorization": "Bearer "' in _ah_js155 or
+    "'Bearer '" in _ah_js155
+)
+
 # ── Summary ──────────────────────────────────────────────────────────────
 print()
 passed = sum(1 for _, s, _ in results if s == PASS)

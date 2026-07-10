@@ -125,17 +125,18 @@
 .sc-menu-item.danger:hover { background: rgba(248,113,113,.1); }
 
 /* Notification unread badge — positioned relative to bell icon wrapper */
-.sc-notif-wrap { position: relative; display: inline-flex; }
+.sc-notif-wrap { position: relative; display: inline-flex; overflow: visible; }
 [data-ah-notif-badge] {
-  display: none;
+  display: none; /* JS sets inline-flex to show */
   position: absolute;
-  top: -3px; inset-inline-end: -3px;
+  top: -4px; right: -4px; /* physical — no RTL flip */
   min-width: 16px; height: 16px;
   background: #ef4444; color: #fff;
-  font-size: 9px; font-weight: 700;
+  font-size: 10px; font-weight: 700;
   border-radius: 8px; padding: 0 3px;
-  line-height: 16px; text-align: center;
-  pointer-events: none; z-index: 10;
+  line-height: 1; text-align: center;
+  align-items: center; justify-content: center;
+  pointer-events: none; z-index: 20;
 }
 
 /* Bell active glow — shown when unread count > 0 */
