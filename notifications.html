@@ -761,8 +761,22 @@ function _buildNotifCard(n) {
     aggBadge.className = 'notif-agg-badge';
     aggBadge.setAttribute('aria-label', aggCount + ' أحداث مجمّعة');
     var aggIco = document.createElement('span');
-    /* Stacked layers SVG — not emoji, not API data */
-    aggIco.innerHTML = '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>';
+    /* Stacked layers SVG built via createElementNS — no innerHTML, no API data */
+    var _svgNS = 'http://www.w3.org/2000/svg';
+    var _aggSvg = document.createElementNS(_svgNS, 'svg');
+    _aggSvg.setAttribute('width', '10'); _aggSvg.setAttribute('height', '10');
+    _aggSvg.setAttribute('viewBox', '0 0 24 24'); _aggSvg.setAttribute('fill', 'none');
+    _aggSvg.setAttribute('stroke', 'currentColor'); _aggSvg.setAttribute('stroke-width', '2.2');
+    _aggSvg.setAttribute('stroke-linecap', 'round'); _aggSvg.setAttribute('stroke-linejoin', 'round');
+    _aggSvg.setAttribute('aria-hidden', 'true');
+    var _aggPoly = document.createElementNS(_svgNS, 'polygon');
+    _aggPoly.setAttribute('points', '12 2 2 7 12 12 22 7 12 2');
+    var _aggPl1 = document.createElementNS(_svgNS, 'polyline');
+    _aggPl1.setAttribute('points', '2 17 12 22 22 17');
+    var _aggPl2 = document.createElementNS(_svgNS, 'polyline');
+    _aggPl2.setAttribute('points', '2 12 12 17 22 12');
+    _aggSvg.appendChild(_aggPoly); _aggSvg.appendChild(_aggPl1); _aggSvg.appendChild(_aggPl2);
+    aggIco.appendChild(_aggSvg);
     var aggNum = document.createElement('span');
     aggNum.textContent = String(aggCount); /* count number via textContent */
     aggBadge.appendChild(aggIco);

@@ -982,8 +982,6 @@ def create_or_update_aggregated_notification(
 
 Fallbacks: `applicant_name` → `"متقدم جديد"` · `job_title` → `"هذه الوظيفة"`
 
-**NEXT PHASE AFTER MERGE: Phase V2-5 — UI Support for Aggregated Notifications**
-
 ---
 
 **V2-4 — ما تم (PR #451):**
@@ -1025,8 +1023,6 @@ Fallback: `commenter_name` / `replier_name` → `"مستخدم جديد"` عند
 **Click Targets:**
 - تعليق → `/u/{company_tw_id}#post-{post_id}` (المنشور على صفحة الشركة)
 - رد → `/u/{company_tw_id}#comment-{resolved_reply_to}` (التعليق الأصل)
-
-**NEXT PHASE AFTER MERGE: Phase V2-5 — UI Support for Aggregated Notifications**
 
 ---
 

@@ -4884,8 +4884,11 @@ check(
     _notif162.find("metaEl.appendChild(aggBadge)") < _notif162.find("metaEl.appendChild(timeEl)")
 )
 check(
-    "162n. aggIco icon uses static SVG via innerHTML (not API data)",
-    "aggIco.innerHTML = '<svg" in _notif162
+    "162n. aggIco SVG built via createElementNS — no innerHTML used (safe DOM construction)",
+    "aggIco.innerHTML" not in _notif162 and
+    "document.createElementNS(_svgNS, 'svg')" in _notif162 and
+    "document.createElementNS(_svgNS, 'polygon')" in _notif162 and
+    "document.createElementNS(_svgNS, 'polyline')" in _notif162
 )
 check(
     "162o. aggregation_kind converted via String() before setAttribute (XSS safe)",
@@ -4955,8 +4958,9 @@ check(
     'V2-5' in _sidx162 and '#452' in _sidx162
 )
 check(
-    "162ad. NOTIFICATIONS_PLAN.md mentions V2-6 as NEXT PHASE after V2-5",
-    'Phase V2-6' in _nplan162 and 'NEXT PHASE' in _nplan162
+    "162ad. NOTIFICATIONS_PLAN.md: stale NEXT→V2-5 removed; only NEXT→V2-6 remains",
+    'Phase V2-6' in _nplan162 and 'NEXT PHASE' in _nplan162 and
+    'NEXT PHASE AFTER MERGE: Phase V2-5' not in _nplan162
 )
 
 # ── Summary ──────────────────────────────────────────────────────────────
