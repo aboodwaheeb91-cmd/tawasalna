@@ -3214,13 +3214,33 @@ def follow_company(follower_id: int, company_id: int) -> int:
     """Follow (idempotent). Returns new followers_count."""
     conn = get_conn()
     try:
-        conn.run(
+        ins_rows = conn.run(
             "INSERT INTO company_follows (company_id, follower_id) VALUES (:cid, :fid) "
-            "ON CONFLICT (company_id, follower_id) DO NOTHING",
+            "ON CONFLICT (company_id, follower_id) DO NOTHING RETURNING follower_id",
             cid=company_id, fid=follower_id)
         fc = conn.run("SELECT COUNT(*) FROM company_follows WHERE company_id = :cid",
                       cid=company_id)
-        return fc[0][0] if fc else 0
+        count = fc[0][0] if fc else 0
+        # Phase 7: notify company on new follow (non-fatal, fresh follow only)
+        if ins_rows:
+            try:
+                urows = conn.run(
+                    "SELECT full_name, tw_id FROM users WHERE id = :fid", fid=follower_id)
+                if urows:
+                    create_notification(
+                        user_id=company_id,
+                        type_="follow",
+                        title="شخص جديد يتابعك",
+                        body=f"{urows[0][0] or ''} بدأ بمتابعتك",
+                        link=f"/u/{urows[0][1] or ''}",
+                        actor_id=follower_id,
+                        entity_id=follower_id,
+                        entity_type="user",
+                        event_key=f"follow:user:{company_id}:{follower_id}"
+                    )
+            except Exception as _notif_err:
+                print(f"[TW-WARN] follow notification (company {company_id}) failed: {_notif_err}")
+        return count
     finally:
         release_conn(conn)
 
@@ -3901,14 +3921,34 @@ def follow_profile(follower_id: int, followed_id: int) -> int:
         raise ValueError("لا يمكنك متابعة نفسك")
     conn = get_conn()
     try:
-        conn.run(
+        ins_rows = conn.run(
             "INSERT INTO profile_follows (follower_id, followed_id) "
-            "VALUES (:frid, :fdid) ON CONFLICT (follower_id, followed_id) DO NOTHING",
+            "VALUES (:frid, :fdid) ON CONFLICT (follower_id, followed_id) DO NOTHING RETURNING follower_id",
             frid=follower_id, fdid=followed_id)
         rows = conn.run(
             "SELECT COUNT(*) FROM profile_follows WHERE followed_id = :fdid",
             fdid=followed_id)
-        return rows[0][0] if rows else 0
+        count = rows[0][0] if rows else 0
+        # Phase 7: notify profile owner on new follow (non-fatal, fresh follow only)
+        if ins_rows:
+            try:
+                urows = conn.run(
+                    "SELECT full_name, tw_id FROM users WHERE id = :fid", fid=follower_id)
+                if urows:
+                    create_notification(
+                        user_id=followed_id,
+                        type_="follow",
+                        title="شخص جديد يتابعك",
+                        body=f"{urows[0][0] or ''} بدأ بمتابعتك",
+                        link=f"/u/{urows[0][1] or ''}",
+                        actor_id=follower_id,
+                        entity_id=follower_id,
+                        entity_type="user",
+                        event_key=f"follow:user:{followed_id}:{follower_id}"
+                    )
+            except Exception as _notif_err:
+                print(f"[TW-WARN] follow notification (profile {followed_id}) failed: {_notif_err}")
+        return count
     finally:
         release_conn(conn)
 
