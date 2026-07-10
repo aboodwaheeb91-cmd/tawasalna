@@ -3522,9 +3522,10 @@ check(
     'ابقَ على اطلاع بكل جديد يهمك' in _notif151
 )
 check(
-    "151i. Hero icon is inline SVG bell — no emoji in hero icon area",
-    'class="notif-hero-icon"' in _notif151 and
-    '<svg' in _notif151[_notif151.find('class="notif-hero-icon"'):_notif151.find('class="notif-hero-icon"') + 600]
+    "151i. Hero icon is inline SVG bell — no emoji in hero area (notif-hero-bell or notif-hero-icon)",
+    ('notif-hero-bell' in _notif151 or 'notif-hero-icon' in _notif151) and
+    'notif-hero' in _notif151 and
+    '🔔' not in _notif151[max(0,_notif151.find('notif-hero')):_notif151.find('notif-hero') + 600]
 )
 check(
     "151j. Filter tabs have all 5 data-filter values: all, job, comment, follow, verify",
@@ -3602,6 +3603,94 @@ check(
     "151v. No X-User-Id header in notifications.html — JWT Bearer only for all API calls",
     "'X-User-Id'" not in _notif151 and '"X-User-Id"' not in _notif151 and
     "'Authorization': 'Bearer '" in _notif151
+)
+
+# ═══════════════════════════════════════════════════════════════════════
+# §152 — Notifications Page Mobile UI Final Polish — Static Checks
+# 16 static checks verifying hero layout, tabs, markall, and security
+# ═══════════════════════════════════════════════════════════════════════
+print("\n── §152: Notifications Page Mobile UI Final Polish ──")
+import os as _os152
+_notif152 = open('notifications.html', encoding='utf-8').read() if _os152.path.exists('notifications.html') else ''
+_srv152   = open('server.py', encoding='utf-8').read() if _os152.path.exists('server.py') else ''
+_auth152  = open('auth.py', encoding='utf-8').read() if _os152.path.exists('auth.py') else ''
+
+check(
+    "152a. Hero has no box container around bell icon — notif-hero-icon box class absent from HTML body",
+    'class="notif-hero-icon"' not in _notif152
+)
+check(
+    "152b. Bell SVG is beside title — notif-hero-row container exists",
+    'notif-hero-row' in _notif152 and
+    'notif-title' in _notif152[_notif152.find('notif-hero-row'):_notif152.find('notif-hero-row') + 300]
+)
+check(
+    "152c. Bell SVG has notif-hero-bell class — standalone with glow, no border/background box",
+    'notif-hero-bell' in _notif152 and
+    'class="notif-hero-bell"' in _notif152 and
+    '<svg class="notif-hero-bell"' in _notif152
+)
+check(
+    "152d. Subtitle 'ابقَ على اطلاع بكل جديد يهمك' is below the title row, not above/inside it",
+    'notif-subtitle' in _notif152 and
+    _notif152.find('notif-subtitle') > _notif152.find('notif-hero-row')
+)
+check(
+    "152e. Filter tabs have no pill border — border-radius: 20px removed, no notif-tab border:1.5px pill",
+    'border-radius: 20px' not in _notif152 and
+    'border: 1.5px solid var(--border)' not in
+    _notif152[_notif152.find('.notif-tab {'):_notif152.find('.notif-tab {') + 300]
+    if '.notif-tab {' in _notif152 else True
+)
+check(
+    "152f. Filter tabs wrapper has overflow-x:auto — horizontal scroll enabled",
+    'overflow-x: auto' in _notif152 and 'notif-tabs-wrap' in _notif152
+)
+check(
+    "152g. Filter tabs have vertical separators — border-inline-end between tabs",
+    'border-inline-end' in _notif152 and 'notif-tab' in _notif152
+)
+check(
+    "152h. Active filter has underline indicator — notif-tab.active::after defined",
+    '.notif-tab.active::after' in _notif152 or 'notif-tab.active::after' in _notif152
+)
+check(
+    "152i. Mark all button has no border — no border:1.5px on notif-markall-btn",
+    'border: 1.5px solid var(--border)' not in
+    _notif152[_notif152.find('.notif-markall-btn {'):_notif152.find('.notif-markall-btn {') + 300]
+    if '.notif-markall-btn {' in _notif152 else True
+)
+check(
+    "152j. Mark all button is still clickable — markAll function and markAllBtn id present",
+    'markAll()' in _notif152 and 'markAllBtn' in _notif152
+)
+check(
+    "152k. No X-User-Id header in notifications.html",
+    "'X-User-Id'" not in _notif152 and '"X-User-Id"' not in _notif152
+)
+check(
+    "152l. No emoji icons in notifications.html",
+    '🔔' not in _notif152 and '💼' not in _notif152 and '💬' not in _notif152 and
+    '👤' not in _notif152 and '✅' not in _notif152 and '🏠' not in _notif152
+)
+check(
+    "152m. No new CDN in notifications.html (no unpkg/cdnjs/jsdelivr added)",
+    'unpkg.com' not in _notif152 and
+    'cdnjs.cloudflare.com' not in _notif152 and
+    'jsdelivr.net' not in _notif152
+)
+check(
+    "152n. API data rendered via textContent/createElement — no innerHTML on n.title or n.body",
+    'titleEl.textContent' in _notif152 and 'subEl.textContent' in _notif152
+)
+check(
+    "152o. server.py not modified — unread-count endpoint still intact",
+    'unread-count' in _srv152 and 'notifications' in _srv152
+)
+check(
+    "152p. No WebSocket or push instantiation in notifications.html",
+    'new WebSocket(' not in _notif152 and 'new EventSource(' not in _notif152 and
+    'pushManager' not in _notif152 and 'subscribe(' not in _notif152
 )
 
 # ── Summary ──────────────────────────────────────────────────────────────
