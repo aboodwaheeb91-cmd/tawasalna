@@ -3232,12 +3232,12 @@ check(
     "ON CONFLICT (follower_id, followed_id) DO NOTHING RETURNING follower_id" in _auth146
 )
 check(
-    "146c. follow_company notification hook present (type follow)",
-    "follow:user:{company_id}:{follower_id}" in _auth146
+    "146c. follow_company notification hook present (aggregated V2-2, key follow_agg:company:)",
+    "follow_agg:company:" in _auth146
 )
 check(
-    "146d. follow_profile notification hook present (type follow)",
-    "follow:user:{followed_id}:{follower_id}" in _auth146
+    "146d. follow_profile notification hook present (aggregated V2-2, key follow_agg:user:)",
+    "follow_agg:user:" in _auth146
 )
 check(
     "146e. notification type is 'follow'",
@@ -3733,13 +3733,13 @@ check(
     ('type_="follow"' in _auth153 or "type_='follow'" in _auth153)
 )
 check(
-    "153h. follow event_key format is follow:user:{company_id}:{follower_id} in auth.py",
-    'follow:user:' in _auth153
+    "153h. follow aggregation keys present in auth.py (V2-2: follow_agg:user: / follow_agg:company:)",
+    'follow_agg:user:' in _auth153 and 'follow_agg:company:' in _auth153
 )
 check(
-    "153i. follow notification only fires on fresh follow — if ins_rows guards create_notification",
+    "153i. follow notification only fires on fresh follow — if ins_rows guards aggregated call",
     'if ins_rows:' in _auth153 and
-    _auth153.find('if ins_rows:') < _auth153.find('follow:user:')
+    _auth153.find('if ins_rows:') < _auth153.find('follow_agg:')
 )
 check(
     "153j. partial unique index in auth.py has WHERE event_key IS NOT NULL predicate",
@@ -4250,9 +4250,9 @@ check(
 
 # ── No aggregation hooks activated ───────────────────────────────────────
 check(
-    "158u. no follow_company/follow_profile hook calls create_or_update_aggregated_notification",
-    ('def follow_company(' in _auth158 and
-     _auth158[_auth158.find('def follow_company('):_auth158.find('def follow_company(') + 800].count('create_or_update_aggregated_notification') == 0)
+    "158u. both V1 and V2 helpers coexist — backward compat maintained",
+    'def create_notification(' in _auth158 and
+    'def create_or_update_aggregated_notification(' in _auth158
 )
 check(
     "158v. no apply_job hook calls create_or_update_aggregated_notification",
@@ -4298,6 +4298,148 @@ check(
     "158ac. NOTIFICATIONS_PLAN.md states NEXT PHASE is V2-2 Follow Aggregation",
     'V2-2' in _plan158 and 'Follow Aggregation' in _plan158 and
     ('NEXT PHASE' in _plan158 or 'V2-2 — Follow' in _plan158)
+)
+
+# ─────────────────────────────────────────────────────────────────────────
+# §159 — Notifications V2-2: Follow Aggregation (PR #449)
+# Verifies follow_profile / follow_company replaced V1 with V2 aggregation.
+# ─────────────────────────────────────────────────────────────────────────
+with open("auth.py", encoding="utf-8") as f:
+    _auth159 = f.read()
+with open("docs/NOTIFICATIONS_PLAN.md", encoding="utf-8") as f:
+    _plan159 = f.read()
+with open("docs/SYSTEMS_INDEX.md", encoding="utf-8") as f:
+    _sidx159 = f.read()
+
+# Slices for targeted checks (3000 chars covers full function body)
+_fp159  = _auth159[_auth159.find('def follow_profile('):_auth159.find('def follow_profile(') + 3000]
+_fc159  = _auth159[_auth159.find('def follow_company('):_auth159.find('def follow_company(') + 3000]
+
+# ── V1 removed from follow hooks ─────────────────────────────────────────
+check(
+    "159a. follow_profile no longer calls create_notification (V1 removed)",
+    'def follow_profile(' in _auth159 and
+    _fp159.count('create_notification(') == 0
+)
+check(
+    "159b. follow_company no longer calls create_notification (V1 removed)",
+    'def follow_company(' in _auth159 and
+    _fc159.count('create_notification(') == 0
+)
+
+# ── V2 helper wired to both hooks ────────────────────────────────────────
+check(
+    "159c. follow_profile calls create_or_update_aggregated_notification",
+    _fp159.count('create_or_update_aggregated_notification(') >= 1
+)
+check(
+    "159d. follow_company calls create_or_update_aggregated_notification",
+    _fc159.count('create_or_update_aggregated_notification(') >= 1
+)
+
+# ── Aggregation keys correct ──────────────────────────────────────────────
+check(
+    "159e. follow_profile uses follow_agg:user: aggregation key",
+    'follow_agg:user:' in _fp159
+)
+check(
+    "159f. follow_company uses follow_agg:company: aggregation key",
+    'follow_agg:company:' in _fc159
+)
+
+# ── target_type correct ───────────────────────────────────────────────────
+check(
+    "159g. follow_profile sets target_type='user'",
+    "target_type=\"user\"" in _fp159 or "target_type='user'" in _fp159
+)
+check(
+    "159h. follow_company sets target_type='company'",
+    "target_type=\"company\"" in _fc159 or "target_type='company'" in _fc159
+)
+
+# ── Self-notification guard in follow_company ─────────────────────────────
+check(
+    "159i. follow_company has self-notification guard (follower_id != company_id)",
+    'follower_id != company_id' in _fc159
+)
+
+# ── action_url ends with #followers ──────────────────────────────────────
+check(
+    "159j. follow_profile action_url ends with #followers",
+    '#followers' in _fp159
+)
+check(
+    "159k. follow_company action_url ends with #followers",
+    '#followers' in _fc159
+)
+
+# ── Pre-check for aggregate count ────────────────────────────────────────
+check(
+    "159l. follow_profile pre-checks existing aggregate count (aggregation_count query)",
+    'aggregation_count' in _fp159 and 'ex_count' in _fp159 and 'new_count' in _fp159
+)
+check(
+    "159m. follow_company pre-checks existing aggregate count (aggregation_count query)",
+    'aggregation_count' in _fc159 and 'ex_count' in _fc159 and 'new_count' in _fc159
+)
+
+# ── aggregation_kind set to follow ────────────────────────────────────────
+check(
+    "159n. follow_profile uses aggregation_kind='follow'",
+    "aggregation_kind=\"follow\"" in _fp159 or "aggregation_kind='follow'" in _fp159
+)
+check(
+    "159o. follow_company uses aggregation_kind='follow'",
+    "aggregation_kind=\"follow\"" in _fc159 or "aggregation_kind='follow'" in _fc159
+)
+
+# ── actor_id = follower_id ────────────────────────────────────────────────
+check(
+    "159p. follow_profile passes actor_id=follower_id",
+    'actor_id=follower_id' in _fp159
+)
+check(
+    "159q. follow_company passes actor_id=follower_id",
+    'actor_id=follower_id' in _fc159
+)
+
+# ── Security: no X-User-Id ────────────────────────────────────────────────
+check(
+    "159r. no X-User-Id in follow_profile notification block",
+    'X-User-Id' not in _fp159
+)
+check(
+    "159s. no X-User-Id in follow_company notification block",
+    'X-User-Id' not in _fc159
+)
+
+# ── Non-fatal try/except still in place ──────────────────────────────────
+check(
+    "159t. follow_profile notification block is still wrapped in try/except (non-fatal)",
+    '[TW-WARN] follow notification (profile' in _fp159
+)
+check(
+    "159u. follow_company notification block is still wrapped in try/except (non-fatal)",
+    '[TW-WARN] follow notification (company' in _fc159
+)
+
+# ── Docs updated ──────────────────────────────────────────────────────────
+check(
+    "159v. NOTIFICATIONS_PLAN.md marks V2-2 as implemented (PR #449)",
+    'V2-2' in _plan159 and 'PR #449' in _plan159
+)
+check(
+    "159w. NOTIFICATIONS_PLAN.md documents follow_agg:user: and follow_agg:company: keys",
+    'follow_agg:user:' in _plan159 and 'follow_agg:company:' in _plan159
+)
+check(
+    "159x. NOTIFICATIONS_PLAN.md states NEXT PHASE is V2-3 Job Application Aggregation",
+    'V2-3' in _plan159 and 'Job Application Aggregation' in _plan159 and
+    ('NEXT PHASE' in _plan159 or 'V2-3 —' in _plan159)
+)
+check(
+    "159y. SYSTEMS_INDEX.md §36 updated with V2-2 (PR #449)",
+    'V2-2' in _sidx159 and 'PR #449' in _sidx159
 )
 
 # ── Summary ──────────────────────────────────────────────────────────────
