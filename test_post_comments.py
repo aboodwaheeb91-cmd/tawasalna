@@ -3033,8 +3033,8 @@ check(
     "SELECT comments_enabled, company_id FROM company_posts" in _auth142
 )
 check(
-    "142b. notification hook present in create_company_post_comment (type comment)",
-    "Phase 3: notify post owner" in _auth142 or "علّق شخص على منشورك" in _auth142
+    "142b. V2-4 aggregated comment hook present in create_company_post_comment",
+    "V2-4: aggregated comment notification" in _auth142 or "comments_agg:post:" in _auth142
 )
 check(
     "142c. hook checks post_owner_id != user_id before notifying (no self-notify)",
@@ -3045,9 +3045,8 @@ check(
     "entity_type=\"comment\"" in _auth142 or "entity_type='comment'" in _auth142
 )
 check(
-    "142e. hook uses event_key with comment:post:{post_id}:{user_id} pattern",
-    "event_key=f\"comment:post:{post_id}:{user_id}\"" in _auth142 or
-    'event_key=f"comment:post:{post_id}:{user_id}"' in _auth142
+    "142e. hook uses V2 aggregation_key with comments_agg:post: pattern (V2-4)",
+    "comments_agg:post:" in _auth142
 )
 check(
     "142f. hook passes actor_id=user_id (commenter) to create_notification",
@@ -3064,9 +3063,7 @@ check(
 )
 check(
     "142i. hook fires AFTER COMMIT (not inside transaction block)",
-    _auth142.find("Phase 3: notify post owner") > _auth142.find("committed = True")
-    if "Phase 3: notify post owner" in _auth142 else
-    _auth142.find("علّق شخص على منشورك") > _auth142.find("committed = True")
+    _auth142.find("comments_agg:post:") > _auth142.find("committed = True")
 )
 check(
     "142j. NOTIFICATIONS_PLAN.md marks Phase 3 as complete",
@@ -3092,16 +3089,16 @@ check(
     "reply_to_author_id = int(ra_rows[0][2])" in _auth143
 )
 check(
-    "143d. Phase 4 reply hook present in create_company_post_comment",
-    "ردّ شخص على تعليقك" in _auth143 or "Phase 4: notify" in _auth143
+    "143d. V2-4 aggregated reply hook present in create_company_post_comment",
+    "V2-4: aggregated reply notification" in _auth143 or "replies_agg:comment:" in _auth143
 )
 check(
     "143e. reply hook checks resolved_reply_to and reply_to_author_id != user_id",
     "resolved_reply_to and reply_to_author_id and reply_to_author_id != user_id" in _auth143
 )
 check(
-    "143f. reply hook uses event_key with reply:comment:{resolved_reply_to}:{user_id} pattern",
-    'event_key=f"reply:comment:{resolved_reply_to}:{user_id}"' in _auth143
+    "143f. reply hook uses V2 aggregation_key with replies_agg:comment: pattern (V2-4)",
+    "replies_agg:comment:" in _auth143
 )
 check(
     "143g. reply hook passes type_='reply' to create_notification",
@@ -3152,8 +3149,8 @@ check(
     _auth144.count("actor_id=user_id") >= 3  # Phase 3, 4, and 5 all set actor_id=user_id
 )
 check(
-    "144g. mention hook passes entity_id=new_comment_id",
-    _auth144.count("entity_id=new_comment_id") >= 3  # Phase 3, 4, 5
+    "144g. mention hook passes entity_id=new_comment_id (Phase 5 still uses V1)",
+    _auth144.count("entity_id=new_comment_id") >= 1  # Phase 3+4 now V2 aggregated; Phase 5 mention hook remains
 )
 check(
     "144h. mention hook is inside same non-fatal try/except as Phase 3+4",
@@ -4673,6 +4670,138 @@ check(
 check(
     "160ac. SYSTEMS_INDEX.md §36 updated with V2-3 (PR #450)",
     'V2-3' in _sidx160 and 'PR #450' in _sidx160
+)
+
+# §161 — Notifications V2-4 — Comment/Reply Aggregation
+_auth161  = open("auth.py").read()
+_nplan161 = open("docs/NOTIFICATIONS_PLAN.md").read()
+_sidx161  = open("docs/SYSTEMS_INDEX.md").read()
+
+print("\n── §161: Notifications V2-4 — Comment/Reply Aggregation ──")
+# --- Comment Aggregation (Phase 3) ---
+check(
+    "161a. comments_agg:post: aggregation_key format present in auth.py",
+    "comments_agg:post:" in _auth161
+)
+check(
+    "161b. V2-4 aggregated comment notification label present",
+    "V2-4: aggregated comment notification" in _auth161
+)
+check(
+    "161c. comment self-notification guard: post_owner_id != user_id",
+    "post_owner_id != user_id" in _auth161
+)
+check(
+    "161d. comment pre-check uses _cagg_key and _cex_count variables",
+    "_cagg_key" in _auth161 and "_cex_count" in _auth161
+)
+check(
+    "161e. _cagg_key formatted from post_id",
+    'f"comments_agg:post:{post_id}"' in _auth161
+)
+check(
+    "161f. singular comment notification title: تعليق جديد",
+    '"تعليق جديد"' in _auth161
+)
+check(
+    "161g. singular comment body: علّق على منشورك",
+    "علّق على منشورك" in _auth161
+)
+check(
+    "161h. plural comment title: تعليقات جديدة",
+    "تعليقات جديدة" in _auth161
+)
+check(
+    "161i. plural comment body: علّقوا على منشورك",
+    "علّقوا على منشورك" in _auth161
+)
+check(
+    "161j. comment aggregation uses target_type='post'",
+    "target_type=\"post\"" in _auth161 or "target_type='post'" in _auth161
+)
+check(
+    "161k. comment aggregation uses aggregation_kind='comment'",
+    "aggregation_kind=\"comment\"" in _auth161 or "aggregation_kind='comment'" in _auth161
+)
+# --- Reply Aggregation (Phase 4) ---
+check(
+    "161l. replies_agg:comment: aggregation_key format present in auth.py",
+    "replies_agg:comment:" in _auth161
+)
+check(
+    "161m. V2-4 aggregated reply notification label present",
+    "V2-4: aggregated reply notification" in _auth161
+)
+check(
+    "161n. reply condition: resolved_reply_to and reply_to_author_id and reply_to_author_id != user_id",
+    "resolved_reply_to and reply_to_author_id and reply_to_author_id != user_id" in _auth161
+)
+check(
+    "161o. reply pre-check uses _ragg_key and _rex_count variables",
+    "_ragg_key" in _auth161 and "_rex_count" in _auth161
+)
+check(
+    "161p. _ragg_key formatted from resolved_reply_to",
+    'f"replies_agg:comment:{resolved_reply_to}"' in _auth161
+)
+check(
+    "161q. singular reply notification title: رد جديد",
+    '"رد جديد"' in _auth161
+)
+check(
+    "161r. singular reply body: ردّ على تعليقك",
+    "ردّ على تعليقك" in _auth161
+)
+check(
+    "161s. plural reply title: ردود جديدة",
+    "ردود جديدة" in _auth161
+)
+check(
+    "161t. plural reply body: ردّوا على تعليقك",
+    "ردّوا على تعليقك" in _auth161
+)
+check(
+    "161u. reply aggregation uses target_type='comment'",
+    "target_type=\"comment\"" in _auth161 or "target_type='comment'" in _auth161
+)
+check(
+    "161v. reply aggregation uses aggregation_kind='reply'",
+    "aggregation_kind=\"reply\"" in _auth161 or "aggregation_kind='reply'" in _auth161
+)
+# --- Phase 5 V1 mention preservation ---
+check(
+    "161w. Phase 5 mention loop (V1) still present with mention:comment: event_key",
+    "for _m in resolved_mentions" in _auth161 and "mention:comment:" in _auth161
+)
+check(
+    "161x. mention V1 event_key unchanged",
+    'event_key=f"mention:comment:{new_comment_id}:{_m_uid}"' in _auth161
+)
+# --- Ordering + single try/except ---
+check(
+    "161y. V2-4 comment block fires after COMMIT (comments_agg:post: after committed = True)",
+    _auth161.find("comments_agg:post:") > _auth161.find("committed = True")
+)
+check(
+    "161z. V2-4 reply block fires after COMMIT (replies_agg:comment: after committed = True)",
+    _auth161.find("replies_agg:comment:") > _auth161.find("committed = True")
+)
+check(
+    "161aa. single try/except block covers both comment and reply phases",
+    _auth161.count("[TW-WARN] notification hook") == 1
+)
+# --- Docs ---
+check(
+    "161ab. NOTIFICATIONS_PLAN.md marks V2-4 as complete with PR #451",
+    "V2-4" in _nplan161 and "PR #451" in _nplan161
+)
+check(
+    "161ac. NOTIFICATIONS_PLAN.md documents comment aggregation_key (comments_agg:post:)",
+    "comments_agg:post:" in _nplan161
+)
+check(
+    "161ad. SYSTEMS_INDEX.md §36 updated with V2-4 and PR #451",
+    "V2-4" in _sidx161 and "#451" in _sidx161
 )
 
 # ── Summary ──────────────────────────────────────────────────────────────

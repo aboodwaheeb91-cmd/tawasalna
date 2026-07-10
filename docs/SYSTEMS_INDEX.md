@@ -457,11 +457,11 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 
 ---
 
-### 36. Notifications Full Delivery Plan ✅ V1 complete · V2-3 implemented (PR #450)
+### 36. Notifications Full Delivery Plan ✅ V1 complete · V2-4 implemented (PR #451)
 **Purpose:** الخطة المرحلية الكاملة لنظام الإشعارات (Phase 0–11 + V2 Aggregation Plan + Coverage Audit + Decision Rule). توثّق الـ audit، الثغرات المحلولة (S1–S6)، وكل phase منفَّذ من PRs #431–#440، وخطة V2 للتجميع الذكي، وmatrix شامل لكل الأحداث، وقاعدة قرار لكل PR مستقبلي.
 **Source of Truth:** `docs/NOTIFICATIONS_PLAN.md`
 **Details:** `docs/NOTIFICATIONS_PLAN.md` — يتضمن: audit الموجود، حلول S1–S6، event_key format، hooks لكل نوع (comment/reply/mention/follow/job_applied/verify)، pagination، unread badge، Notifications V1 Status table، Phase 11 deferral conditions، **V2 Smart Aggregation Plan (V2-0 to V2-6)**، **Notification Coverage Audit (10 areas, full matrix)**، **Future Notification Decision Rule (17-question checklist + mandatory PR declaration)**.
-**V2 Aggregation (V2-0=#447 · V2-1=#448 · V2-2=#449 · V2-3=#450):** V2-3 فعّل job_applied aggregation: `apply_job()` يستخدم `create_or_update_aggregated_notification` بـ key `job_applications_agg:job:{job_id}` (per job, ليس per company). recipient = `jobs.company_id` = `users.id`. click target = `/job-detail?id={job_id}`. self-notification guard + duplicate application guard. `application_status_changed` يبقى V1. NEXT: V2-4 — Comment/Reply Aggregation.
+**V2 Aggregation (V2-0=#447 · V2-1=#448 · V2-2=#449 · V2-3=PR #450 · V2-4=PR #451):** V2-4 فعّل comment/reply aggregation: `create_company_post_comment()` يستخدم `create_or_update_aggregated_notification` بـ key `comments_agg:post:{post_id}` (per post) للتعليقات و `replies_agg:comment:{parent_id}` (per thread) للردود. Phase 5 mentions تبقى V1. NEXT: V2-5 — UI Support for Aggregated Notifications.
 **Coverage Audit:** جدول شامل (PR #447) لكل الأحداث المهمة في النظام (10 areas، 40+ event). يبيّن الحالة (✅/❌/🔜/🚫/❓)، actor/recipient، click target، aggregation policy، priority. Missing Priority Queue: (P1) `application_status_changed` hook عند `update_application_status()` auth.py:2300; (P1) `rating` hook عند `rate_company()` auth.py:3343; (P2) `job_expiring_soon` محجوب بغياب scheduler.
 **Future Notification Decision Rule:** قاعدة إلزامية (PR #447) — 17 سؤالاً يجب الإجابة عليها قبل أي feature جديدة + تصريح إلزامي في كل PR بأحد 4 خيارات: `Notification: added | not needed | planned later | needs decision`.
 **Do not recreate:** لا تبني نظام إشعارات موازياً. كل hook جديد يتبع pattern الـ event_key الموثق في §2. لا WebSocket للإشعارات قبل حل P0 Security Debt + قرار صريح من المستخدم. لا تبدأ V2 phases قبل طلب صريح. كل PR يضيف action جديد يُصرّح بقرار notification — ممنوع الصمت.

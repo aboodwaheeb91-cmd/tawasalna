@@ -3959,31 +3959,65 @@ def create_company_post_comment(post_id: int, user_id: int, body: str, reply_to_
             _company_tw_id = _ntw[0][0] if _ntw else None
             if _company_tw_id:
                 commenter_name = d.get('author_name') or ''
-                # Phase 3: notify post owner on new comment
+                # V2-4: aggregated comment notification (Phase 3)
                 if post_owner_id != user_id:
-                    create_notification(
-                        user_id=post_owner_id,
-                        type_="comment",
-                        title="علّق شخص على منشورك",
-                        body=f"{commenter_name}: {body[:60]}",
-                        link=f"/u/{_company_tw_id}#post-{post_id}",
-                        actor_id=user_id,
-                        entity_id=new_comment_id,
-                        entity_type="comment",
-                        event_key=f"comment:post:{post_id}:{user_id}"
+                    _cmtr = commenter_name or "مستخدم جديد"
+                    _cagg_key = f"comments_agg:post:{post_id}"
+                    _cex = conn.run(
+                        "SELECT aggregation_count FROM notifications "
+                        "WHERE user_id = :uid AND aggregation_key = :akey AND is_read = FALSE "
+                        "ORDER BY created_at DESC LIMIT 1",
+                        uid=post_owner_id, akey=_cagg_key
                     )
-                # Phase 4: notify original comment author on reply
-                if resolved_reply_to and reply_to_author_id and reply_to_author_id != user_id:
-                    create_notification(
-                        user_id=reply_to_author_id,
-                        type_="reply",
-                        title="ردّ شخص على تعليقك",
-                        body=f"{commenter_name}: {body[:60]}",
-                        link=f"/u/{_company_tw_id}#comment-{resolved_reply_to}",
+                    _cex_count = _cex[0][0] if _cex else 0
+                    _cnew = _cex_count + 1
+                    if _cnew == 1:
+                        _c_title = "تعليق جديد"
+                        _c_body  = f"{_cmtr} علّق على منشورك"
+                    else:
+                        _c_title = f"{_cnew} تعليقات جديدة"
+                        _c_body  = f"{_cmtr} و{_cnew - 1} آخرين علّقوا على منشورك"
+                    create_or_update_aggregated_notification(
+                        recipient_user_id=post_owner_id,
+                        type_="comment",
+                        title=_c_title,
+                        body=_c_body,
+                        aggregation_key=_cagg_key,
+                        target_type="post",
+                        target_id=post_id,
                         actor_id=user_id,
-                        entity_id=new_comment_id,
-                        entity_type="comment",
-                        event_key=f"reply:comment:{resolved_reply_to}:{user_id}"
+                        action_url=f"/u/{_company_tw_id}#post-{post_id}",
+                        aggregation_kind="comment",
+                    )
+                # V2-4: aggregated reply notification (Phase 4)
+                if resolved_reply_to and reply_to_author_id and reply_to_author_id != user_id:
+                    _rplr = commenter_name or "مستخدم جديد"
+                    _ragg_key = f"replies_agg:comment:{resolved_reply_to}"
+                    _rex = conn.run(
+                        "SELECT aggregation_count FROM notifications "
+                        "WHERE user_id = :uid AND aggregation_key = :akey AND is_read = FALSE "
+                        "ORDER BY created_at DESC LIMIT 1",
+                        uid=reply_to_author_id, akey=_ragg_key
+                    )
+                    _rex_count = _rex[0][0] if _rex else 0
+                    _rnew = _rex_count + 1
+                    if _rnew == 1:
+                        _r_title = "رد جديد"
+                        _r_body  = f"{_rplr} ردّ على تعليقك"
+                    else:
+                        _r_title = f"{_rnew} ردود جديدة"
+                        _r_body  = f"{_rplr} و{_rnew - 1} آخرين ردّوا على تعليقك"
+                    create_or_update_aggregated_notification(
+                        recipient_user_id=reply_to_author_id,
+                        type_="reply",
+                        title=_r_title,
+                        body=_r_body,
+                        aggregation_key=_ragg_key,
+                        target_type="comment",
+                        target_id=resolved_reply_to,
+                        actor_id=user_id,
+                        action_url=f"/u/{_company_tw_id}#comment-{resolved_reply_to}",
+                        aggregation_kind="reply",
                     )
                 # Phase 5: notify each @mentioned user (skip self-mention)
                 for _m in resolved_mentions:
