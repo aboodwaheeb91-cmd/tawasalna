@@ -1202,6 +1202,86 @@ Fallback: `commenter_name` / `replier_name` → `"مستخدم جديد"` عند
 
 ---
 
+---
+
+## Missing Priority Queue Final Status
+
+> **تاريخ الإغلاق: 2026-07-10 — بناءً على PRs #455, #456, #457.**
+> هذا القسم يوثّق الحالة النهائية لقائمة الإشعارات المفقودة.
+
+### الحالة النهائية لكل عنصر
+
+| الإشعار | الحالة | التفاصيل |
+|---------|--------|-----------|
+| `application_status_changed` | ✅ Implemented — PR #455 | Hook في `update_application_status()` — auth.py |
+| `application_status_changed` policy | ✅ Policy corrected — PR #456 | accepted/rejected: internal company states — لا إشعار مباشر |
+| `rating_received` | ✅ Implemented — PR #457 | Hook في `rate_company()` — auth.py |
+| `job_expiring_soon` | ⏳ P2 Blocked | Blocked — يحتاج scheduler infrastructure |
+| Phase 11 realtime/push | ⏸ Deferred | يحتاج WebSocket P0 fix + قرار معماري صريح |
+
+### application_status_changed — السياسة النهائية
+
+| الحالة | إشعار للموظف؟ | السبب |
+|--------|--------------|-------|
+| `accepted` | ❌ لا | internal company state — التواصل عبر Appointments (مستقبلاً) |
+| `rejected` | ❌ لا | internal company state — التواصل عبر Appointments (مستقبلاً) |
+| `viewed` | ✅ نعم | حالة قابلة للفعل — المراجعة بدأت |
+| fallback | ✅ نعم | أي حالة غير accepted/rejected |
+
+`accepted` و `rejected` هما حالات workflow داخلية للشركة فقط. الموظف لا يتلقى إشعاراً مباشراً بالقبول أو الرفض. التواصل الرسمي مع الموظف سيكون مستقبلاً عبر نظام Appointments / Interview Requests (خطة: `docs/FUTURE_ROADMAP.md §15`).
+
+### rating_received — السياسة النهائية
+
+- Trigger: بعد UPSERT ناجح في `company_ratings` (أول تقييم فقط — إذا عدّل المستخدم تقييمه يُتخطى الإشعار)
+- event_key: `rating:{company_id}:{rater_id}` — idempotent via ON CONFLICT DO NOTHING
+- Self-guard: `rater_id != company_id`
+- link: `/u/{company_tw_id}` (F7)
+- Individual — لا aggregation
+
+---
+
+## Scheduler Blocker Note
+
+> **قاعدة دائمة: لا تُنفَّذ أي notification تعتمد على الوقت إلا بعد بناء Scheduler Infrastructure بقرار مستقل.**
+
+### الإشعارات المحجوبة بسبب Scheduler
+
+الإشعارات التالية مؤجلة حتى يوجد scheduler مناسب:
+
+| الإشعار | السبب |
+|---------|-------|
+| `job_expiring_soon` | يحتاج cron/background job — لا يمكن حسابه at request-time |
+| appointment reminders | يحتاج scheduler — النظام نفسه غير موجود بعد |
+| response deadline auto-expire | يحتاج scheduler + retry strategy |
+| reminder before interview | يحتاج scheduler + timezone handling |
+
+### لماذا لا يُنفَّذ job_expiring_soon الآن
+
+`job_expiring_soon` محجوب لأسباب تقنية متعددة:
+
+1. **يحتاج scheduler** — لا cron job موجود في النظام الحالي
+2. **يحتاج background job reliability** — ضمان التنفيذ حتى عند restart
+3. **يحتاج retry/failure strategy** — ماذا يحدث إذا فشل الـ job؟
+4. **يحتاج منع duplicate reminders** — نفس الوظيفة لا ترسل إشعاراً مرتين
+5. **يحتاج timezone/date handling** — الشركات في مناطق زمنية مختلفة
+6. **يحتاج قرار معماري مستقل** — APScheduler؟ Celery؟ Heroku Scheduler؟ مؤجل
+
+### الحالة الحالية لـ job expiry
+
+`_eff_status()` في `auth.py` تحسب انتهاء الوظيفة **at request-time** (عند جلب الوظائف). هذا ليس event-driven — لا يوجد لحظة محددة "عند الانتهاء" يمكن hook عليها.
+
+### الشرط قبل التنفيذ
+
+لا يُنفَّذ `job_expiring_soon` أو أي notification يعتمد على الوقت إلا بعد:
+
+```
+✅ بناء Scheduler Infrastructure (قرار مستقل بـ PR مخصص)
+✅ اختيار أداة الـ scheduler (APScheduler / Celery / Heroku Scheduler / ...)
+✅ موافقة صريحة من المستخدم
+```
+
+---
+
 ## Source of Truth
 
 | العنصر | المرجع |
@@ -1214,4 +1294,4 @@ Fallback: `commenter_name` / `replier_name` → `"مستخدم جديد"` عند
 
 ---
 
-*أُنشئ: 2026-07-09 — Phase 0 audit. حُدِّث: 2026-07-10 — Phase 1 مكتمل (PR #431). حُدِّث: 2026-07-10 — Phase 2 مكتمل (PR #432). حُدِّث: 2026-07-10 — Phase 3 مكتمل (PR #433). حُدِّث: 2026-07-10 — Phase 4 مكتمل (PR #434). حُدِّث: 2026-07-10 — Phase 5 مكتمل (PR #435). حُدِّث: 2026-07-10 — Phase 6 مكتمل (PR #436). حُدِّث: 2026-07-10 — Phase 7 مكتمل (PR #437). حُدِّث: 2026-07-10 — Phase 8 مكتمل (PR #438). حُدِّث: 2026-07-10 — Phase 9 مكتمل (PR #439). حُدِّث: 2026-07-10 — Phase 10 Unread Badge in App Header مكتمل (PR #440). Phase 11 مؤجل — يحتاج قرار معماري. حُدِّث: 2026-07-10 — Notifications V1 Final QA + Closure: إضافة قسم "Notifications V1 Status"، تحديث Phase 11 deferral بتفصيل أكبر، تنظيف test 139q (PR #441). حُدِّث: 2026-07-10 — Runtime QA Bugfix: ON CONFLICT partial-index fix في create_notification، توثيق سلوك refollow، إضافة §153 checks (PR #444). حُدِّث: 2026-07-10 — Notifications V2 Smart Aggregation Plan: إضافة قسم V2-0 (docs only) — تجميع Follow / Job Applications / Comments / Replies — Click Target Rules — Option A (aggregate while unread) — Helper مقترح — V2 Phases V2-0 to V2-6 (PR #447). حُدِّث: 2026-07-10 — Notifications V2-6 Final Runtime QA: تحديث V2-6 ✅ PR #453، إضافة "Notifications V2 Final Status" section، جدول V2-0→V2-6، Manual QA Checklist، Missing Priority Queue، Deferred Phase 11 note، V2 COMPLETE (PR #453). حُدِّث: 2026-07-10 — Missing Priority Queue P1: application_status_changed hook نُفِّذ في update_application_status (auth.py) — event_key idempotency، self-guard، per-status title/body، link=/job-detail، exception logging (PR #455). حُدِّث: 2026-07-10 — Policy Correction: accepted/rejected أصبحتا حالات داخلية للشركة — لا إشعار مباشر للموظف. viewed + fallback تبقى. Appointments / Interview Rooms System موثَّق في FUTURE_ROADMAP.md §15 كمسار مستقبلي (PR #456). حُدِّث: 2026-07-10 — rating_received notification hook: نُفِّذ في rate_company() — auth.py. type_=rating_received، event_key=rating:{company_id}:{rater_id}، link=/u/{tw_id}، individual (لا aggregation)، F9 logging. Missing Priority Queue: application_status_changed + rating ✅ — يتبقى job_expiring_soon (Blocked by scheduler) (PR #457).*
+*أُنشئ: 2026-07-09 — Phase 0 audit. حُدِّث: 2026-07-10 — Phase 1 مكتمل (PR #431). حُدِّث: 2026-07-10 — Phase 2 مكتمل (PR #432). حُدِّث: 2026-07-10 — Phase 3 مكتمل (PR #433). حُدِّث: 2026-07-10 — Phase 4 مكتمل (PR #434). حُدِّث: 2026-07-10 — Phase 5 مكتمل (PR #435). حُدِّث: 2026-07-10 — Phase 6 مكتمل (PR #436). حُدِّث: 2026-07-10 — Phase 7 مكتمل (PR #437). حُدِّث: 2026-07-10 — Phase 8 مكتمل (PR #438). حُدِّث: 2026-07-10 — Phase 9 مكتمل (PR #439). حُدِّث: 2026-07-10 — Phase 10 Unread Badge in App Header مكتمل (PR #440). Phase 11 مؤجل — يحتاج قرار معماري. حُدِّث: 2026-07-10 — Notifications V1 Final QA + Closure: إضافة قسم "Notifications V1 Status"، تحديث Phase 11 deferral بتفصيل أكبر، تنظيف test 139q (PR #441). حُدِّث: 2026-07-10 — Runtime QA Bugfix: ON CONFLICT partial-index fix في create_notification، توثيق سلوك refollow، إضافة §153 checks (PR #444). حُدِّث: 2026-07-10 — Notifications V2 Smart Aggregation Plan: إضافة قسم V2-0 (docs only) — تجميع Follow / Job Applications / Comments / Replies — Click Target Rules — Option A (aggregate while unread) — Helper مقترح — V2 Phases V2-0 to V2-6 (PR #447). حُدِّث: 2026-07-10 — Notifications V2-6 Final Runtime QA: تحديث V2-6 ✅ PR #453، إضافة "Notifications V2 Final Status" section، جدول V2-0→V2-6، Manual QA Checklist، Missing Priority Queue، Deferred Phase 11 note، V2 COMPLETE (PR #453). حُدِّث: 2026-07-10 — Missing Priority Queue P1: application_status_changed hook نُفِّذ في update_application_status (auth.py) — event_key idempotency، self-guard، per-status title/body، link=/job-detail، exception logging (PR #455). حُدِّث: 2026-07-10 — Policy Correction: accepted/rejected أصبحتا حالات داخلية للشركة — لا إشعار مباشر للموظف. viewed + fallback تبقى. Appointments / Interview Rooms System موثَّق في FUTURE_ROADMAP.md §15 كمسار مستقبلي (PR #456). حُدِّث: 2026-07-10 — rating_received notification hook: نُفِّذ في rate_company() — auth.py. type_=rating_received، event_key=rating:{company_id}:{rater_id}، link=/u/{tw_id}، individual (لا aggregation)، F9 logging. Missing Priority Queue: application_status_changed + rating ✅ — يتبقى job_expiring_soon (Blocked by scheduler) (PR #457). حُدِّث: 2026-07-10 — Missing Priority Queue Final Closure + Scheduler Blocker Documentation: إضافة قسمَي "Missing Priority Queue Final Status" و"Scheduler Blocker Note" — توثيق الحالة النهائية لكل عنصر، سياسة accepted/rejected، سياسة rating_received، أسباب تأجيل job_expiring_soon، قائمة الإشعارات المحجوبة بـ scheduler، الشروط قبل التنفيذ. docs-only PR — لا تغييرات في الكود (PR #458).*
