@@ -4030,6 +4030,114 @@ check(
     'V2-1' in _plan156 and 'V2-2' in _plan156 and 'V2-6' in _plan156
 )
 
+# ═══════════════════════════════════════════════════════════════════════
+# §157 — Notification Coverage Audit + Future Notification Decision Rule
+# 20 static checks: coverage matrix areas, status legend, missing priority queue,
+# decision rule checklist, mandatory PR declaration options, no-code constraint
+# ═══════════════════════════════════════════════════════════════════════
+print("\n── §157: Notification Coverage Audit + Future Notification Decision Rule ──")
+import os as _os157
+_plan157 = open('docs/NOTIFICATIONS_PLAN.md', encoding='utf-8').read() if _os157.path.exists('docs/NOTIFICATIONS_PLAN.md') else ''
+_si157   = open('docs/SYSTEMS_INDEX.md',     encoding='utf-8').read() if _os157.path.exists('docs/SYSTEMS_INDEX.md')     else ''
+_auth157 = open('auth.py',    encoding='utf-8').read() if _os157.path.exists('auth.py')    else ''
+_srv157  = open('server.py',  encoding='utf-8').read() if _os157.path.exists('server.py')  else ''
+_notif157 = open('notifications.html', encoding='utf-8').read() if _os157.path.exists('notifications.html') else ''
+_ahj157   = open('static/app-header.js',  encoding='utf-8').read() if _os157.path.exists('static/app-header.js')  else ''
+_ahc157   = open('static/app-header.css', encoding='utf-8').read() if _os157.path.exists('static/app-header.css') else ''
+
+# ── Coverage Audit section exists ────────────────────────────────────────
+check(
+    "157a. NOTIFICATIONS_PLAN.md has Notification Coverage Audit section",
+    'Notification Coverage Audit' in _plan157
+)
+check(
+    "157b. Coverage Audit has Status Legend with all 5 status symbols",
+    '✅ impl' in _plan157 and '❌ missing' in _plan157 and
+    '🔜 future' in _plan157 and '🚫 n/a' in _plan157 and '❓ decide' in _plan157
+)
+
+# ── Coverage Matrix areas ────────────────────────────────────────────────
+check(
+    "157c. Coverage Audit covers Posts/Comments/Replies/Mentions area",
+    'Area 1' in _plan157 and ('Posts' in _plan157 or 'Comments' in _plan157)
+)
+check(
+    "157d. Coverage Audit covers Jobs/Applications area",
+    'Area 2' in _plan157 and ('Jobs' in _plan157 or 'Applications' in _plan157 or 'job_applied' in _plan157)
+)
+check(
+    "157e. Coverage Audit covers Follow/Followers area",
+    'Area 3' in _plan157 and 'Follow' in _plan157
+)
+check(
+    "157f. Coverage Audit covers Verification/Admin Review area",
+    'Area 4' in _plan157 and ('Verification' in _plan157 or 'verify' in _plan157)
+)
+check(
+    "157g. Coverage Audit covers Messaging area",
+    'Area 6' in _plan157 and ('Messaging' in _plan157 or 'message' in _plan157.lower())
+)
+check(
+    "157h. Coverage Audit covers Education/Courses area",
+    'Area 7' in _plan157 and ('Education' in _plan157 or 'Courses' in _plan157 or 'new_course' in _plan157)
+)
+check(
+    "157i. Coverage Audit covers Polls as future/roadmap item",
+    'Area 8' in _plan157 and 'Polls' in _plan157 and '🔜 future' in _plan157
+)
+check(
+    "157j. Coverage Audit has Missing Notifications Priority Queue",
+    'Missing' in _plan157 and 'Priority Queue' in _plan157 and 'application_status' in _plan157
+)
+check(
+    "157k. Coverage Audit names auth.py hook location for application_status (P1 missing)",
+    'update_application_status' in _plan157 and 'auth.py' in _plan157
+)
+check(
+    "157l. Coverage Audit names auth.py hook location for rating (P2 missing)",
+    'rate_company' in _plan157 and 'auth.py' in _plan157
+)
+
+# ── Future Notification Decision Rule section ────────────────────────────
+check(
+    "157m. NOTIFICATIONS_PLAN.md has Future Notification Decision Rule section",
+    'Future Notification Decision Rule' in _plan157
+)
+check(
+    "157n. Decision Rule has 17-question checklist (questions 1 through 17)",
+    '17.' in _plan157 or ('1. هل هذا الحدث' in _plan157 and '17.' in _plan157)
+)
+check(
+    "157o. Decision Rule has Mandatory PR Declaration section",
+    'Mandatory PR Declaration' in _plan157
+)
+check(
+    "157p. PR Declaration includes 'Notification: added' option",
+    'Notification: added' in _plan157
+)
+check(
+    "157q. PR Declaration includes 'Notification: not needed' option",
+    'Notification: not needed' in _plan157
+)
+check(
+    "157r. PR Declaration includes 'Notification: planned later' option",
+    'Notification: planned later' in _plan157
+)
+check(
+    "157s. SYSTEMS_INDEX.md §36 references Coverage Audit and Decision Rule",
+    'Coverage Audit' in _si157 and 'Decision Rule' in _si157
+)
+
+# ── No code files modified (docs-only PR) ────────────────────────────────
+check(
+    "157t. auth.py, server.py, notifications.html, app-header.js/css not modified for §157",
+    'Coverage Audit' not in _auth157 and
+    'Coverage Audit' not in _srv157 and
+    'Coverage Audit' not in _notif157 and
+    'Coverage Audit' not in _ahj157 and
+    'Coverage Audit' not in _ahc157
+)
+
 # ── Summary ──────────────────────────────────────────────────────────────
 print()
 passed = sum(1 for _, s, _ in results if s == PASS)
