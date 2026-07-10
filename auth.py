@@ -3717,7 +3717,7 @@ def create_company_post_comment(post_id: int, user_id: int, body: str, reply_to_
             if ('@' + m_name) not in body:
                 raise ValueError("mentioned_tw_id لا يوجد في نص التعليق")
             if not any(r["tw_id"] == mtw for r in resolved_mentions):
-                resolved_mentions.append({"name": m_name, "tw_id": mtw})
+                resolved_mentions.append({"name": m_name, "tw_id": mtw, "id": int(mrows[0][0])})
         # ── Atomic transaction: comment + mentions succeed or fail together ──
         # If any mention INSERT fails the whole unit is rolled back — no orphan comments.
         conn.run("BEGIN")
@@ -3795,6 +3795,21 @@ def create_company_post_comment(post_id: int, user_id: int, body: str, reply_to_
                         entity_type="comment",
                         event_key=f"reply:comment:{resolved_reply_to}:{user_id}"
                     )
+                # Phase 5: notify each @mentioned user (skip self-mention)
+                for _m in resolved_mentions:
+                    _m_uid = _m.get("id")
+                    if _m_uid and _m_uid != user_id:
+                        create_notification(
+                            user_id=_m_uid,
+                            type_="mention",
+                            title=f"ذكرك {commenter_name} في تعليق",
+                            body=body[:60],
+                            link=f"/u/{_company_tw_id}#comment-{new_comment_id}",
+                            actor_id=user_id,
+                            entity_id=new_comment_id,
+                            entity_type="comment",
+                            event_key=f"mention:comment:{new_comment_id}:{_m_uid}"
+                        )
         except Exception as _notif_err:
             print(f"[TW-WARN] notification hook (post {post_id}) failed: {_notif_err}")
         return d

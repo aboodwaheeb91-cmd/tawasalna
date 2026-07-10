@@ -3112,6 +3112,55 @@ check(
     'Phase 4' in _nplan143 and ('مكتمل' in _nplan143 or 'منفَّذ' in _nplan143)
 )
 
+# §144 — Notifications Phase 5 — @Mention Notification Hook
+_auth144 = open("auth.py").read()
+_nplan144 = open("docs/NOTIFICATIONS_PLAN.md").read()
+
+print("\n── §144: Notifications Phase 5 — @Mention Notification Hook ──")
+check(
+    "144a. resolved_mentions entries now include 'id' key (integer user_id)",
+    'resolved_mentions.append({"name": m_name, "tw_id": mtw, "id":' in _auth144 or
+    "resolved_mentions.append({\"name\": m_name, \"tw_id\": mtw, \"id\":" in _auth144
+)
+check(
+    "144b. Phase 5 mention hook iterates resolved_mentions",
+    "Phase 5: notify each @mentioned" in _auth144 or
+    ("for _m in resolved_mentions" in _auth144 and "mention" in _auth144)
+)
+check(
+    "144c. mention hook skips self-mention (_m_uid != user_id)",
+    "_m_uid != user_id" in _auth144
+)
+check(
+    "144d. mention hook uses type_='mention'",
+    "type_=\"mention\"" in _auth144 or "type_='mention'" in _auth144
+)
+check(
+    "144e. mention hook uses event_key with mention:comment:{new_comment_id}:{_m_uid}",
+    'event_key=f"mention:comment:{new_comment_id}:{_m_uid}"' in _auth144
+)
+check(
+    "144f. mention hook passes actor_id=user_id (commenter)",
+    _auth144.count("actor_id=user_id") >= 3  # Phase 3, 4, and 5 all set actor_id=user_id
+)
+check(
+    "144g. mention hook passes entity_id=new_comment_id",
+    _auth144.count("entity_id=new_comment_id") >= 3  # Phase 3, 4, 5
+)
+check(
+    "144h. mention hook is inside same non-fatal try/except as Phase 3+4",
+    _auth144.count("[TW-WARN] notification hook") == 1  # single shared handler
+)
+check(
+    "144i. mention hook fires AFTER COMMIT (position check)",
+    _auth144.find("for _m in resolved_mentions") > _auth144.find("committed = True")
+    if "for _m in resolved_mentions" in _auth144 else False
+)
+check(
+    "144j. NOTIFICATIONS_PLAN.md marks Phase 5 as complete",
+    'Phase 5' in _nplan144 and ('مكتمل' in _nplan144 or 'منفَّذ' in _nplan144)
+)
+
 # ── Summary ──────────────────────────────────────────────────────────────
 print()
 passed = sum(1 for _, s, _ in results if s == PASS)
