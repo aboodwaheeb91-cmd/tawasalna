@@ -123,3 +123,17 @@
 .sc-menu-sep { height: 1px; background: rgba(255,255,255,.08); margin: 3px 8px; }
 .sc-menu-item.danger { color: #f87171; }
 .sc-menu-item.danger:hover { background: rgba(248,113,113,.1); }
+
+/* Notification unread badge — positioned relative to bell icon wrapper */
+.sc-notif-wrap { position: relative; display: inline-flex; }
+[data-ah-notif-badge] {
+  display: none;
+  position: absolute;
+  top: -3px; inset-inline-end: -3px;
+  min-width: 16px; height: 16px;
+  background: #ef4444; color: #fff;
+  font-size: 9px; font-weight: 700;
+  border-radius: 8px; padding: 0 3px;
+  line-height: 16px; text-align: center;
+  pointer-events: none; z-index: 10;
+}

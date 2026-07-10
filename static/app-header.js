@@ -49,4 +49,37 @@ function initAppHeader(user) {
       location.replace('/login');
     });
   });
+
+  /* Phase 10: Unread notification badge */
+  _pollUnreadBadge(user);
+}
+
+function _pollUnreadBadge(user) {
+  var jwt = localStorage.getItem('tw_jwt') || '';
+  if (!jwt || !user || !user.id) return;
+  var uid = user.id;
+  var badge = document.querySelector('[data-ah-notif-badge]');
+  if (!badge) return;
+
+  function _fetchCount() {
+    fetch('/notifications/' + uid + '/unread-count', {
+      headers: { 'Authorization': 'Bearer ' + jwt }
+    })
+    .then(function(r) { return r.ok ? r.json() : null; })
+    .then(function(d) {
+      if (!d || !d.ok) return;
+      var count = (d.data && d.data.count) || 0;
+      if (count > 0) {
+        badge.textContent = count > 99 ? '99+' : String(count);
+        badge.style.display = '';
+      } else {
+        badge.textContent = '';
+        badge.style.display = 'none';
+      }
+    })
+    .catch(function() {});
+  }
+
+  _fetchCount();
+  setInterval(_fetchCount, 60000);
 }
