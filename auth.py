@@ -6505,6 +6505,39 @@ def _execute_scheduler_job(job: dict) -> None:
     raise ValueError(f"_execute_scheduler_job: unsupported job_type={job_type!r}")
 
 
+def _update_scheduler_job_final_status(
+    conn, jid: int, new_status: str, err_msg, runner_id: str
+) -> bool:
+    """
+    Write the final status of one scheduler job: 'done', 'failed', or 'pending' (retry).
+
+    Returns True on success.
+    Returns False and logs clearly if the UPDATE raises — never swallows the error.
+    The caller decides how to count and report the outcome; stuck jobs remain
+    in status='running' until a stale-lock cleanup resets them (deferred to S4).
+    """
+    try:
+        conn.run(
+            """UPDATE scheduler_jobs
+               SET status     = :status,
+                   locked_at  = NULL,
+                   locked_by  = NULL,
+                   last_error = :err,
+                   updated_at = NOW()
+               WHERE id = :id""",
+            status=new_status,
+            err=err_msg,
+            id=jid,
+        )
+        return True
+    except Exception as upd_exc:
+        print(
+            f"[scheduler] ERROR job_id={jid} final-update to {new_status!r} "
+            f"FAILED — job stuck in 'running' — runner={runner_id}: {upd_exc}"
+        )
+        return False
+
+
 def run_due_scheduler_jobs(limit: int = 20, runner_id: str = None) -> dict:
     """
     Pick due jobs from scheduler_jobs, execute them, update their status.
@@ -6527,9 +6560,10 @@ def run_due_scheduler_jobs(limit: int = 20, runner_id: str = None) -> dict:
         On failure, exhausted (attempts >= max_attempts)
                          → UPDATE status='failed', set last_error
 
-    If a Phase 2 UPDATE fails (rare, e.g. DB disconnect), the job
-    stays in status='running'. A future stale-lock cleanup will reset
-    such jobs. This is a known S3 limitation; stale cleanup is S3b/S4.
+    If a Phase 2 final-status UPDATE fails (rare, e.g. DB disconnect),
+    the job is counted in `update_failed` / `stuck_running` and the
+    response returns `"ok": false`. The job stays in status='running'
+    until a stale-lock cleanup resets it (deferred to S4).
 
     Args:
         limit:     Jobs to pick per call. Clamped to [1, 50]. Default 20.
@@ -6537,13 +6571,15 @@ def run_due_scheduler_jobs(limit: int = 20, runner_id: str = None) -> dict:
 
     Returns:
         {
-          "ok":       bool,
-          "picked":   int,
-          "done":     int,
-          "failed":   int,
-          "retried":  int,
-          "runner_id": str,
-          "jobs":     [{"id": int, "job_type": str, "status": str}, ...]
+          "ok":            bool,  # False if any final-status UPDATE failed
+          "picked":        int,
+          "done":          int,
+          "failed":        int,
+          "retried":       int,
+          "update_failed": int,   # jobs whose final UPDATE failed (stuck in 'running')
+          "stuck_running": int,   # alias for update_failed
+          "runner_id":     str,
+          "jobs":          [{"id": int, "job_type": str, "status": str}, ...]
         }
 
     Raises:
@@ -6606,10 +6642,11 @@ def run_due_scheduler_jobs(limit: int = 20, runner_id: str = None) -> dict:
         committed = True
 
         # ── Phase 2: Execute handlers + update final status ───────────────
-        done_cnt    = 0
-        failed_cnt  = 0
-        retried_cnt = 0
-        results     = []
+        done_cnt          = 0
+        failed_cnt        = 0
+        retried_cnt       = 0
+        update_failed_cnt = 0
+        results           = []
 
         for job in jobs_data:
             jid          = job["id"]
@@ -6620,23 +6657,13 @@ def run_due_scheduler_jobs(limit: int = 20, runner_id: str = None) -> dict:
             try:
                 _execute_scheduler_job(job)
 
-                # Handler succeeded → done
-                try:
-                    conn.run(
-                        """UPDATE scheduler_jobs
-                           SET status     = 'done',
-                               locked_at  = NULL,
-                               locked_by  = NULL,
-                               last_error = NULL,
-                               updated_at = NOW()
-                           WHERE id = :id""",
-                        id=jid,
-                    )
-                except Exception as upd_exc:
-                    print(f"[scheduler] WARNING job_id={jid} succeeded but "
-                          f"UPDATE failed: {upd_exc}")
-                done_cnt += 1
-                results.append({"id": jid, "job_type": job_type, "status": "done"})
+                # Handler succeeded → update to done; count only if UPDATE succeeds
+                if _update_scheduler_job_final_status(conn, jid, "done", None, runner_id):
+                    done_cnt += 1
+                    results.append({"id": jid, "job_type": job_type, "status": "done"})
+                else:
+                    update_failed_cnt += 1
+                    results.append({"id": jid, "job_type": job_type, "status": "update_failed"})
 
             except Exception as exc:
                 err_msg = str(exc)[:500]
@@ -6644,48 +6671,32 @@ def run_due_scheduler_jobs(limit: int = 20, runner_id: str = None) -> dict:
                       f"attempt={new_attempts}/{max_attempts} FAILED: {err_msg}")
 
                 if new_attempts >= max_attempts:
-                    # Exhausted → failed (terminal)
-                    try:
-                        conn.run(
-                            """UPDATE scheduler_jobs
-                               SET status     = 'failed',
-                                   locked_at  = NULL,
-                                   locked_by  = NULL,
-                                   last_error = :err,
-                                   updated_at = NOW()
-                               WHERE id = :id""",
-                            err=err_msg, id=jid,
-                        )
-                    except Exception as upd_exc:
-                        print(f"[scheduler] WARNING job_id={jid} failed UPDATE: {upd_exc}")
-                    failed_cnt += 1
-                    results.append({"id": jid, "job_type": job_type, "status": "failed"})
+                    # Exhausted → update to failed (terminal); count only if UPDATE succeeds
+                    if _update_scheduler_job_final_status(conn, jid, "failed", err_msg, runner_id):
+                        failed_cnt += 1
+                        results.append({"id": jid, "job_type": job_type, "status": "failed"})
+                    else:
+                        update_failed_cnt += 1
+                        results.append({"id": jid, "job_type": job_type, "status": "update_failed"})
                 else:
-                    # Retryable → back to pending
-                    try:
-                        conn.run(
-                            """UPDATE scheduler_jobs
-                               SET status     = 'pending',
-                                   locked_at  = NULL,
-                                   locked_by  = NULL,
-                                   last_error = :err,
-                                   updated_at = NOW()
-                               WHERE id = :id""",
-                            err=err_msg, id=jid,
-                        )
-                    except Exception as upd_exc:
-                        print(f"[scheduler] WARNING job_id={jid} retry UPDATE failed: {upd_exc}")
-                    retried_cnt += 1
-                    results.append({"id": jid, "job_type": job_type, "status": "retried"})
+                    # Retryable → update back to pending; count only if UPDATE succeeds
+                    if _update_scheduler_job_final_status(conn, jid, "pending", err_msg, runner_id):
+                        retried_cnt += 1
+                        results.append({"id": jid, "job_type": job_type, "status": "retried"})
+                    else:
+                        update_failed_cnt += 1
+                        results.append({"id": jid, "job_type": job_type, "status": "update_failed"})
 
         return {
-            "ok":        True,
-            "picked":    len(jobs_data),
-            "done":      done_cnt,
-            "failed":    failed_cnt,
-            "retried":   retried_cnt,
-            "runner_id": runner_id,
-            "jobs":      results,
+            "ok":            update_failed_cnt == 0,
+            "picked":        len(jobs_data),
+            "done":          done_cnt,
+            "failed":        failed_cnt,
+            "retried":       retried_cnt,
+            "update_failed": update_failed_cnt,
+            "stuck_running": update_failed_cnt,
+            "runner_id":     runner_id,
+            "jobs":          results,
         }
 
     except Exception as exc:

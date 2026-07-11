@@ -760,13 +760,15 @@ POST /internal/run-due-jobs
 Auth: X-Scheduler-Secret: <secret>  (machine-to-machine only)
 Query: ?limit=20 (optional, clamped 1–50)
 
-Response 200:
+Response 200 — all final UPDATEs succeeded:
 {
   "ok": true,
   "picked": 3,
   "done": 2,
   "failed": 1,
   "retried": 0,
+  "update_failed": 0,
+  "stuck_running": 0,
   "runner_id": "runner-1234",
   "jobs": [
     {"id": 1, "job_type": "noop", "status": "done"},
@@ -774,9 +776,25 @@ Response 200:
   ]
 }
 
+Response 200 — some final UPDATEs failed (jobs stuck in 'running'):
+{
+  "ok": false,
+  "picked": 3,
+  "done": 2,
+  "failed": 0,
+  "retried": 0,
+  "update_failed": 1,
+  "stuck_running": 1,
+  "runner_id": "runner-1234",
+  "jobs": [
+    {"id": 1, "job_type": "noop", "status": "done"},
+    {"id": 2, "job_type": "noop", "status": "update_failed"}
+  ]
+}
+
 Response 403: secret wrong/missing
 Response 503: SCHEDULER_SECRET env var not set
-Response 500: runner error (logged server-side)
+Response 500: Phase 1 (pick+mark) error (logged server-side)
 ```
 
 ### Locking Strategy
@@ -804,13 +822,17 @@ WHERE id = :id;
 
 ### Retry Logic
 
-| الحالة | الشرط | النتيجة |
-|--------|-------|---------|
-| نجاح | handler لم يرفع exception | `status='done'` |
-| فشل قابل للإعادة | `new_attempts < max_attempts` | `status='pending'`, `last_error` محفوظ |
-| فشل منتهٍ | `new_attempts >= max_attempts` | `status='failed'`, `last_error` محفوظ |
+| الحالة | الشرط | النتيجة | ok |
+|--------|-------|---------|-----|
+| نجاح + UPDATE ok | handler لم يرفع، UPDATE نجح | `status='done'` | true |
+| فشل قابل + UPDATE ok | `new_attempts < max_attempts`، UPDATE نجح | `status='pending'`, `last_error` محفوظ | true |
+| فشل منتهٍ + UPDATE ok | `new_attempts >= max_attempts`، UPDATE نجح | `status='failed'`, `last_error` محفوظ | true |
+| أي حالة + UPDATE فشل | final UPDATE رفع exception | `status='running'` يبقى (stuck)، `update_failed++` | **false** |
 
 `new_attempts = old_attempts + 1` (القيمة بعد الـ increment في Phase 1)
+
+**قاعدة دائمة:** `done / failed / retried` تُحسَب فقط بعد نجاح الـ UPDATE الأخير.
+إذا فشل أي final UPDATE → `"ok": false` في الـ response ← المرسِل يتعامل معها.
 
 ### Job Types المدعومة (S3)
 

@@ -7951,20 +7951,21 @@ check(
     'attempts' in _runner177 and 'attempts + 1' in _runner177
 )
 check(
-    "177-09. run_due_scheduler_jobs writes last_error on failure",
-    'last_error' in _runner177
+    "177-09. auth.py: last_error written in _update_scheduler_job_final_status helper",
+    'last_error' in _auth177 and '_update_scheduler_job_final_status' in _auth177
 )
 check(
     "177-10. run_due_scheduler_jobs sets status='done' on success",
-    "'done'" in _runner177
+    "'done'" in _runner177 or '"done"' in _runner177
 )
 check(
     "177-11. run_due_scheduler_jobs sets status='failed' on exhausted attempts",
-    "'failed'" in _runner177
+    "'failed'" in _runner177 or '"failed"' in _runner177
 )
 check(
     "177-12. run_due_scheduler_jobs returns retryable failures to status='pending'",
-    _runner177.count("'pending'") >= 2  # query filter + retry UPDATE
+    # query filter uses 'pending' (single quotes); helper call uses "pending" (double quotes)
+    (_runner177.count("'pending'") + _runner177.count('"pending"')) >= 2
 )
 check(
     "177-13. auth.py: noop job_type supported in _execute_scheduler_job",
@@ -8060,6 +8061,40 @@ check(
 check(
     "177-33. docs/SYSTEMS_INDEX.md §37 documents S4 hooks as deferred/pending",
     'S4' in _sysidx177 and ('مؤجل' in _sysidx177 or 'Pending' in _sysidx177 or '🔜' in _sysidx177)
+)
+
+# ── Final-update failure handling (fix: no silent swallow) ───────────────────
+_helper177 = _auth177.split('def _update_scheduler_job_final_status')[1] if 'def _update_scheduler_job_final_status' in _auth177 else ''
+
+check(
+    "177-34. auth.py: _update_scheduler_job_final_status helper defined",
+    'def _update_scheduler_job_final_status' in _auth177
+)
+check(
+    "177-35. runner: update_failed_cnt tracks failed UPDATEs (no silent swallow)",
+    'update_failed_cnt' in _runner177
+)
+check(
+    "177-36. runner: uses _update_scheduler_job_final_status helper for final updates",
+    '_update_scheduler_job_final_status' in _runner177
+)
+check(
+    "177-37. runner: ok derived from update_failed_cnt (not hardcoded True)",
+    'update_failed_cnt == 0' in _runner177
+)
+check(
+    "177-38. runner: stuck_running and update_failed in return dict",
+    'stuck_running' in _runner177 and 'update_failed' in _runner177
+)
+check(
+    "177-39. runner: done/retried/failed counted only after UPDATE success",
+    # done_cnt is inside 'if _update_scheduler_job_final_status(...):'
+    'done_cnt += 1' in _runner177
+    and _runner177.index('done_cnt += 1') > _runner177.index('_update_scheduler_job_final_status')
+)
+check(
+    "177-40. helper: returns False on UPDATE exception (never swallows)",
+    'return False' in _helper177 and 'return True' in _helper177
 )
 
 # ── Summary ──────────────────────────────────────────────────────────────
