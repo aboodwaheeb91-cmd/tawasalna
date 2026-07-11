@@ -8368,6 +8368,171 @@ check(
     and ('!= "active"' in _jobexp178 or "!= 'active'" in _jobexp178)
 )
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# §179 — Scheduler S5: Minimal Runtime QA (5 checks)
+# PR: scheduler-s5-minimal-runtime-qa
+# Tests actual code-path behavior via unittest.mock — no live DB required.
+# Cases: noop | unknown-type | endpoint-security | dedupe | stale-domain-job
+# ═══════════════════════════════════════════════════════════════════════════════
+
+import sys as _sys179, os as _os179
+_sys179.path.insert(0, _os179.path.dirname(_os179.path.abspath('auth.py')))
+from unittest.mock import patch as _patch179, MagicMock as _MM179
+
+# Import auth module — get_conn() is lazy (calls _parse_db_url only when a
+# real connection is needed), so import is safe without SUPABASE_DB_URL.
+import auth as _auth179
+
+# ── 179-01: noop — _execute_scheduler_job returns with no DB access ──────────
+_179_01_ok = False
+_179_01_err = ''
+try:
+    _auth179._execute_scheduler_job({"job_type": "noop", "payload": {}})
+    _179_01_ok = True
+except Exception as _e:
+    _179_01_err = str(_e)
+check("179-01. noop: _execute_scheduler_job completes with no DB access",
+      _179_01_ok, _179_01_err or None)
+
+# ── 179-02: unknown job type → ValueError referencing the type ───────────────
+_179_02_err = None
+try:
+    _auth179._execute_scheduler_job({"job_type": "__undef_xjob__", "payload": {}})
+except ValueError as _e:
+    _179_02_err = str(_e)
+except Exception as _e:
+    _179_02_err = None
+check("179-02. unknown job type: raises ValueError referencing the unknown type",
+      bool(_179_02_err) and "__undef_xjob__" in _179_02_err)
+
+# ── 179-03: endpoint security — 503 / 403 / correct-secret path ─────────────
+# Import server module (no startup events fire on import — safe without DB).
+_179_03_ok = False
+_179_03_err = ''
+try:
+    import server as _srv179
+    from fastapi import HTTPException as _HE179
+
+    _503_ok = _403_ok = _200_ok = False
+
+    # 503: SCHEDULER_SECRET not configured
+    with _patch179.object(_srv179, 'SCHEDULER_SECRET', ''):
+        _req = _MM179()
+        _req.headers.get.return_value = ''
+        try:
+            _srv179.internal_run_due_jobs(_req, limit=1)
+        except _HE179 as _e:
+            _503_ok = (_e.status_code == 503)
+
+    # 403: wrong secret
+    with _patch179.object(_srv179, 'SCHEDULER_SECRET', 'correct_s5'):
+        _req = _MM179()
+        _req.headers.get.return_value = 'wrong_s5'
+        try:
+            _srv179.internal_run_due_jobs(_req, limit=1)
+        except _HE179 as _e:
+            _403_ok = (_e.status_code == 403)
+
+    # correct secret → runner called, result returned
+    _mock_runner_ret = {
+        "ok": True, "picked": 0, "done": 0, "failed": 0, "retried": 0,
+        "update_failed": 0, "stuck_running": 0, "runner_id": "s5-test", "jobs": [],
+    }
+    with _patch179.object(_srv179, 'SCHEDULER_SECRET', 'correct_s5'), \
+         _patch179.object(_srv179, 'run_due_scheduler_jobs', return_value=_mock_runner_ret):
+        _req = _MM179()
+        _req.headers.get.return_value = 'correct_s5'
+        try:
+            _r = _srv179.internal_run_due_jobs(_req, limit=1)
+            _200_ok = isinstance(_r, dict) and _r.get('ok') is True
+        except Exception:
+            pass
+
+    _179_03_ok = _503_ok and _403_ok and _200_ok
+except Exception as _import_err:
+    _179_03_err = f"server import or test error: {_import_err}"
+check("179-03. endpoint: no-secret→503, wrong-secret→403, correct-secret→runner called",
+      _179_03_ok, _179_03_err or None)
+
+# ── 179-04: dedupe — schedule_job with same dedupe_key → created=False ───────
+_179_04_ok = False
+_179_04_err = ''
+try:
+    from datetime import datetime as _dt179, timezone as _tz179, timedelta as _td179
+
+    # 6 columns that schedule_job's RETURNING / SELECT return
+    _S5_COLS = [{"name": c} for c in
+                ("id", "job_type", "run_at", "status", "dedupe_key", "created_at")]
+    _S5_ROW  = (888, "noop", "2026-07-12T10:00:00", "pending",
+                "s5-dedupe-test-dk", "2026-07-12T00:00:00")
+
+    _insert_calls = [0]
+
+    def _s5_conn_run(sql, **kw):
+        sql_u = sql.strip().upper()
+        if "INSERT" in sql_u:
+            _insert_calls[0] += 1
+            return [_S5_ROW] if _insert_calls[0] == 1 else []
+        if "SELECT" in sql_u and "dedupe_key" in sql.lower():
+            return [_S5_ROW]
+        return []
+
+    _mc = _MM179()
+    _mc.run.side_effect = _s5_conn_run
+    _mc.columns = _S5_COLS
+
+    _run_at = _dt179.now(_tz179.utc) + _td179(hours=2)
+    with _patch179('auth.get_conn', return_value=_mc), _patch179('auth.release_conn'):
+        _r1 = _auth179.schedule_job("noop", {}, _run_at, "s5-dedupe-test-dk")
+        _r2 = _auth179.schedule_job("noop", {}, _run_at, "s5-dedupe-test-dk")
+
+    _179_04_ok = (
+        _r1.get("created") is True
+        and _r2.get("created") is False
+        and _r1.get("id") == _r2.get("id") == 888
+    )
+except Exception as _e:
+    _179_04_err = str(_e)
+check("179-04. dedupe: same dedupe_key → created=True then created=False, same id",
+      _179_04_ok, _179_04_err or None)
+
+# ── 179-05: stale domain job → safe no-op, create_notification not called ────
+_179_05_ok = False
+_179_05_err = ''
+try:
+    # DB returns appointment with scheduled_at = 2026-01-01T12:00:00 UTC
+    # Payload carries stale sched_ts_payload = 1000000 (pre-reschedule epoch)
+    # _ts_from_db_val("2026-01-01T12:00:00") ≠ 1000000 → stale → no-op
+    _S5_APPT_COLS = [
+        "id","job_id","application_id","company_id","applicant_id","created_by",
+        "representative_user_id","representative_name","status","mode",
+        "scheduled_at","response_deadline_at","location_text","online_url",
+        "notes","created_at","updated_at","closed_at",
+    ]
+    _S5_APPT_ROW = (
+        42, 1, 1, 10, 20, 10,
+        None, None, "confirmed", "online",
+        "2026-01-01T12:00:00", None, None, None,
+        None, "2026-01-01T00:00:00", "2026-01-01T00:00:00", None,
+    )
+    _mc5 = _MM179()
+    _mc5.run.return_value = [_S5_APPT_ROW]
+
+    _stale_job = {
+        "job_type": "appointment_reminder",
+        "payload": {"appointment_id": 42, "scheduled_at_ts": 1000000},
+    }
+
+    with _patch179('auth.get_conn', return_value=_mc5), \
+         _patch179('auth.release_conn'), \
+         _patch179('auth.create_notification') as _mock_notif:
+        _auth179._handle_appointment_reminder(_stale_job)
+        _179_05_ok = (_mock_notif.call_count == 0)
+except Exception as _e:
+    _179_05_err = str(_e)
+check("179-05. stale domain job: handler exits safe no-op, create_notification not called",
+      _179_05_ok, _179_05_err or None)
+
 # ── Summary ──────────────────────────────────────────────────────────────
 print()
 passed = sum(1 for _, s, _ in results if s == PASS)
