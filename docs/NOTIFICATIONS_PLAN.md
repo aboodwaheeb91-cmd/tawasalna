@@ -619,8 +619,8 @@ After unfollow + refollow, the `event_key` `follow:user:{company_id}:{follower_i
 
 | Status | Count | الأحداث الرئيسية |
 |--------|-------|-----------------|
-| ✅ implemented | 9 | comment, reply, mention, job_applied, follow×2, verify×2, report (partial), application_status_changed (viewed only), **rating_received** |
-| ❌ missing (P2 Blocked) | 1 | job_expiring_soon (needs scheduler) |
+| ✅ implemented | 10 | comment, reply, mention, job_applied, follow×2, verify×2, report (partial), application_status_changed (viewed only), **rating_received**, **job_expiring_soon** |
+| ❌ missing (P2 Blocked) | 0 | — |
 | 🔜 future planned | 12+ | new_post, new_job, new_course, polls, security, announcement, … |
 | 🚫 not needed | 5 | unfollow, refollow, viewed_app, completion_card, soft_delete_comment |
 | ❓ needs decision | 2 | mention agg policy, messaging badge |
@@ -679,10 +679,11 @@ After unfollow + refollow, the `event_key` `follow:user:{company_id}:{follower_i
 - UPSERT policy: إذا المستخدم عدّل تقييمه السابق → `ON CONFLICT DO NOTHING` في `create_notification` يتخطى الإشعار المكرر (نفس event_key). أول تقييم فقط يرسل إشعاراً.
 - Exception: caught + logged `[NOTIF]` prefix — no silent failures (F9)
 
-**3. `job_expiring_soon` (P2 — Missing / Blocked)**
-- Blocked: يحتاج cron job أو background scheduler
-- الوضع الحالي: `_eff_status()` تحسب انتهاء الوظيفة at request-time — ليس event-driven
-- لا تنفيذ حتى يوجد scheduler مناسب
+**3. `job_expiring_soon` (✅ مُنجز — PR scheduler-s4-domain-handlers)**
+- Unblocked: `_handle_job_expiring_soon` في `auth.py` — handler يُنشر إشعاراً للشركة عند `expires_at - 48h`
+- Hook: `add_job()` يجدول `job_expiring_soon` job عند إنشاء الوظيفة
+- Idempotent: `event_key=f"job_expiring_soon:{job_id}:{company_id}"` + `ON CONFLICT DO NOTHING`
+- الشرط قبل الإشعار: `job.status IN ('active','paused')` — لا إشعار للوظائف المغلقة/المنتهية
 
 ---
 
@@ -1216,7 +1217,7 @@ Fallback: `commenter_name` / `replier_name` → `"مستخدم جديد"` عند
 | `application_status_changed` | ✅ Implemented — PR #455 | Hook في `update_application_status()` — auth.py |
 | `application_status_changed` policy | ✅ Policy corrected — PR #456 | accepted/rejected: internal company states — لا إشعار مباشر |
 | `rating_received` | ✅ Implemented — PR #457 | Hook في `rate_company()` — auth.py |
-| `job_expiring_soon` | ⏳ P2 Blocked | Blocked — يحتاج scheduler infrastructure |
+| `job_expiring_soon` | ✅ Implemented — PR scheduler-s4-domain-handlers | `_handle_job_expiring_soon` في `auth.py` — scheduled at `add_job` time |
 | Phase 11 realtime/push | ⏸ Deferred | يحتاج WebSocket P0 fix + قرار معماري صريح |
 
 ### application_status_changed — السياسة النهائية

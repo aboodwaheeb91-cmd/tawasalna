@@ -503,24 +503,24 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 
 ---
 
-### 37. Scheduler Infrastructure ✅ S0–S3 (S4 Hooks Pending)
+### 37. Scheduler Infrastructure ✅ S0–S4
 **Purpose:** بنية تحتية لتنفيذ الـ jobs الزمنية (appointment reminders، deadline auto-expire، job_expiring_soon، missed status transitions).
-**Source of Truth:** `docs/SCHEDULER_PLAN.md` — Architecture Decision Document | `auth.py → _migrate_scheduler_jobs()` (S1) | `auth.py → schedule_job()` (S2) | `auth.py → run_due_scheduler_jobs()` (S3) | `server.py → POST /internal/run-due-jobs` (S3)
-**Details:** `docs/SCHEDULER_PLAN.md` — §1 (why)، §2 (dependent systems)، §3 (architectural requirements)، §4–§6 (options + recommendation)، §7 (proposed schema docs)، §8 (phases S0–S6)، §9 (constraints)، §10 (S0 decision)، §11 (S1 schema implemented)، §12 (S2 helper contract)، §13 (S3 runner + endpoint implemented).
+**Source of Truth:** `docs/SCHEDULER_PLAN.md` — Architecture Decision Document | `auth.py → _migrate_scheduler_jobs()` (S1) | `auth.py → schedule_job()` (S2) | `auth.py → run_due_scheduler_jobs()` (S3) | `server.py → POST /internal/run-due-jobs` (S3) | `auth.py → _handle_*` handlers + scheduling hooks (S4)
+**Details:** `docs/SCHEDULER_PLAN.md` — §1 (why)، §2 (dependent systems)، §3 (architectural requirements)، §4–§6 (options + recommendation)، §7 (proposed schema docs)، §8 (phases S0–S6)، §9 (constraints)، §10 (S0 decision)، §11 (S1 schema implemented)، §12 (S2 helper contract)، §13 (S3 runner + endpoint implemented)، §14 (S4 domain handlers + hooks implemented).
 **Status:**
 - S0 ✅ Tooling Decision مكتمل (PR: scheduler-s0-tooling-decision) — External Cron + Secure Endpoint
 - S1 ✅ Schema مكتملة (PR: scheduler-s1-schema) — `_migrate_scheduler_jobs()` في `auth.py`
 - S2 ✅ Helper مكتملة (PR: scheduler-s2-helper) — `schedule_job()` في `auth.py` — idempotent INSERT، `created` flag، input validation
 - S3 ✅ Runner + Endpoint مكتملة (PR: scheduler-s3-runner) — `run_due_scheduler_jobs()` في `auth.py` — FOR UPDATE SKIP LOCKED، two-phase transaction، retry/exhaustion logic. `POST /internal/run-due-jobs` في `server.py` — X-Scheduler-Secret header، hmac.compare_digest، SCHEDULER_SECRET env var
-- S4 🔜 Hooks في appointment/notification trigger points — مؤجل
+- S4 ✅ Domain Handlers + Hooks مكتملة (PR: scheduler-s4-domain-handlers) — 4 idempotent handler functions: `_handle_appointment_reminder`، `_handle_appointment_deadline_expire`، `_handle_appointment_missed`، `_handle_job_expiring_soon`. Scheduling hooks في: `accept_appointment`، `send_appointment`، `reschedule_appointment`، `add_job`. Dispatcher `_execute_scheduler_job` مُحدَّث. `_SCHEDULER_HANDLERS` يضم جميع الأنواع الأربعة.
 - S5 🔜 Integration tests — مؤجل
 - S6 🔜 Admin observability — مؤجل
-**Deferred dependent features (deferred until S4):**
-- `appointment_reminder` — إشعار قبل N ساعة من الموعد
-- `appointment_deadline_expire` — انتقال `pending_response` → `expired` في DB
-- `appointment_missed` — انتقال `confirmed` → `missed` في DB بعد مرور وقت الموعد
-- `job_expiring_soon` — إشعار قبل 48 ساعة من انتهاء الوظيفة
-**Do not recreate:** لا تُنشئ `scheduler_jobs` مجدداً (S1). لا تُنشئ helper بديل لـ `schedule_job` (S2). لا تُنشئ runner بديل لـ `run_due_scheduler_jobs` (S3). لا تُضف JWT أو X-User-Id في endpoint `/internal/run-due-jobs`. لا تُضف background thread أو APScheduler. لا تُضف hooks في appointments/notifications قبل S4.
+**Deferred dependent features (now live in S4):**
+- `appointment_reminder` ✅ — إشعار 24 ساعة قبل الموعد (scheduled at accept time)
+- `appointment_deadline_expire` ✅ — انتقال `pending_response` → `expired` في DB (scheduled at send/reschedule time)
+- `appointment_missed` ✅ — انتقال `confirmed` → `missed` في DB بعد 15 دقيقة (scheduled at accept time)
+- `job_expiring_soon` ✅ — إشعار قبل 48 ساعة من انتهاء الوظيفة (scheduled at add_job time)
+**Do not recreate:** لا تُنشئ `scheduler_jobs` مجدداً (S1). لا تُنشئ helper بديل لـ `schedule_job` (S2). لا تُنشئ runner بديل لـ `run_due_scheduler_jobs` (S3). لا تُضف JWT أو X-User-Id في endpoint `/internal/run-due-jobs`. لا تُضف background thread أو APScheduler. لا تُضف handlers جديدة خارج `_execute_scheduler_job`/`_SCHEDULER_HANDLERS` في `auth.py`.
 
 ---
 

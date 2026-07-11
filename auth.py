@@ -2033,6 +2033,7 @@ _ALLOWED_DURATIONS = frozenset({3, 7, 14, 30})
 def add_job(company_id: int, data: dict) -> dict:
     _cache_del('jobs:')
     conn = get_conn()
+    result = None
     try:
         skills      = data.get("skills") or []
         sal_hidden  = bool(data.get("salary_hidden", False))
@@ -2095,9 +2096,29 @@ def add_job(company_id: int, data: dict) -> dict:
             result["accepted_professions"] = _fetch_accepted_professions_batch(conn, [job_id]).get(job_id, [])
         else:
             result["accepted_professions"] = []
-        return result
     finally:
         release_conn(conn)
+    # S4: schedule job_expiring_soon 48h before expiry — non-fatal
+    if result:
+        _expires_str = result.get("expires_at")
+        if _expires_str:
+            try:
+                from datetime import datetime as _dt_j, timezone as _tz_j, timedelta as _td_j
+                _expires = _dt_j.fromisoformat(str(_expires_str).replace('Z', '+00:00'))
+                if _expires.tzinfo is None:
+                    _expires = _expires.replace(tzinfo=_tz_j.utc)
+                _hook_at = _expires - _td_j(hours=48)
+                _exp_ts = int(_expires.timestamp())
+                if _hook_at > _dt_j.now(_tz_j.utc):
+                    schedule_job(
+                        "job_expiring_soon",
+                        {"job_id": result["id"], "expected_expires_at_ts": _exp_ts},
+                        _hook_at,
+                        f"job_expiring_soon:{result['id']}:{_exp_ts}",
+                    )
+            except Exception as _sje:
+                print(f"[add_job] schedule_job(job_expiring_soon) failed: {_sje}")
+    return result
 
 def get_jobs(filters: dict = None) -> list:
     # Company-profile visitor view: show active + paused jobs + closed_count.
@@ -5662,6 +5683,7 @@ def send_appointment(appointment_id: int, user_id: int, scheduled_at_iso: str,
 
     appt_result = None
     notify_payload = None
+    deadline_for_hook = None
     conn = get_conn()
     try:
         appt = _get_appointment_row(conn, appointment_id)
@@ -5723,6 +5745,7 @@ def send_appointment(appointment_id: int, user_id: int, scheduled_at_iso: str,
             j_rows = conn.run("SELECT title FROM jobs WHERE id=:id", id=appt['job_id'])
             job_title = j_rows[0][0] if j_rows else ""
 
+        deadline_for_hook = deadline_dt
         appt_result = _get_appointment_row(conn, appointment_id)
         notify_payload = {
             "user_id": applicant_id, "type_": "appointment_invited",
@@ -5740,6 +5763,18 @@ def send_appointment(appointment_id: int, user_id: int, scheduled_at_iso: str,
             create_notification(**notify_payload)
         except Exception as e:
             print(f"[send_appointment] notification failed: {e}")
+    # S4: schedule appointment_deadline_expire — non-fatal, idempotent dedupe_key
+    if deadline_for_hook:
+        try:
+            _dl_ts = int(deadline_for_hook.timestamp())
+            schedule_job(
+                "appointment_deadline_expire",
+                {"appointment_id": appointment_id, "response_deadline_at_ts": _dl_ts},
+                deadline_for_hook,
+                f"appointment_deadline_expire:{appointment_id}:{_dl_ts}",
+            )
+        except Exception as _sje:
+            print(f"[send_appointment] schedule_job(deadline_expire) failed: {_sje}")
     return appt_result
 
 
@@ -5747,6 +5782,7 @@ def accept_appointment(appointment_id: int, user_id: int) -> dict:
     """Employee accepts: pending_response → confirmed."""
     appt_result = None
     notify_payload = None
+    sched_at_str = None
     conn = get_conn()
     try:
         appt = _get_appointment_row(conn, appointment_id)
@@ -5769,6 +5805,7 @@ def accept_appointment(appointment_id: int, user_id: int) -> dict:
         emp_rows = conn.run("SELECT full_name FROM users WHERE id=:id", id=user_id)
         emp_name = emp_rows[0][0] if emp_rows else "الموظف"
 
+        sched_at_str = appt.get('scheduled_at')
         appt_result = _get_appointment_row(conn, appointment_id)
         notify_payload = {
             "user_id": company_id, "type_": "appointment_accepted",
@@ -5786,6 +5823,39 @@ def accept_appointment(appointment_id: int, user_id: int) -> dict:
             create_notification(**notify_payload)
         except Exception as e:
             print(f"[accept_appointment] notification failed: {e}")
+    # S4: schedule appointment_reminder (24h before) and appointment_missed (15 min after) — non-fatal
+    if sched_at_str:
+        from datetime import datetime as _dt_a, timezone as _tz_a, timedelta as _td_a
+        try:
+            _sched = _dt_a.fromisoformat(str(sched_at_str).replace('Z', '+00:00'))
+            if _sched.tzinfo is None:
+                _sched = _sched.replace(tzinfo=_tz_a.utc)
+            _sched_ts = int(_sched.timestamp())
+            _now_a = _dt_a.now(_tz_a.utc)
+            _reminder_at = _sched - _td_a(hours=24)
+            if _reminder_at > _now_a:
+                schedule_job(
+                    "appointment_reminder",
+                    {"appointment_id": appointment_id, "scheduled_at_ts": _sched_ts},
+                    _reminder_at,
+                    f"appointment_reminder:{appointment_id}:{_sched_ts}",
+                )
+        except Exception as _sje:
+            print(f"[accept_appointment] schedule_job(reminder) failed: {_sje}")
+        try:
+            _sched2 = _dt_a.fromisoformat(str(sched_at_str).replace('Z', '+00:00'))
+            if _sched2.tzinfo is None:
+                _sched2 = _sched2.replace(tzinfo=_tz_a.utc)
+            _sched2_ts = int(_sched2.timestamp())
+            _missed_at = _sched2 + _td_a(minutes=15)
+            schedule_job(
+                "appointment_missed",
+                {"appointment_id": appointment_id, "scheduled_at_ts": _sched2_ts},
+                _missed_at,
+                f"appointment_missed:{appointment_id}:{_sched2_ts}",
+            )
+        except Exception as _sje:
+            print(f"[accept_appointment] schedule_job(missed) failed: {_sje}")
     return appt_result
 
 
@@ -5860,6 +5930,7 @@ def reschedule_appointment(appointment_id: int, user_id: int,
 
     appt_result = None
     notify_payload = None
+    deadline_for_hook = None
     conn = get_conn()
     try:
         appt = _get_appointment_row(conn, appointment_id)
@@ -5916,6 +5987,7 @@ def reschedule_appointment(appointment_id: int, user_id: int,
         co_rows = conn.run("SELECT full_name FROM users WHERE id=:id", id=user_id)
         co_name = co_rows[0][0] if co_rows else "الشركة"
 
+        deadline_for_hook = deadline_dt
         appt_result = _get_appointment_row(conn, appointment_id)
         notify_payload = {
             "user_id": applicant_id, "type_": "appointment_rescheduled",
@@ -5933,6 +6005,18 @@ def reschedule_appointment(appointment_id: int, user_id: int,
             create_notification(**notify_payload)
         except Exception as e:
             print(f"[reschedule_appointment] notification failed: {e}")
+    # S4: schedule appointment_deadline_expire for the new deadline — non-fatal, idempotent dedupe_key
+    if deadline_for_hook:
+        try:
+            _dl_ts = int(deadline_for_hook.timestamp())
+            schedule_job(
+                "appointment_deadline_expire",
+                {"appointment_id": appointment_id, "response_deadline_at_ts": _dl_ts},
+                deadline_for_hook,
+                f"appointment_deadline_expire:{appointment_id}:{_dl_ts}",
+            )
+        except Exception as _sje:
+            print(f"[reschedule_appointment] schedule_job(deadline_expire) failed: {_sje}")
     return appt_result
 
 
@@ -6477,22 +6561,305 @@ def schedule_job(
 # No hooks, no appointment/notification side effects, no cron config.
 # ══════════════════════════════════════════════════════════════════════════
 
-# Supported job types in S3. Extend this dict in S4 when hooks are added.
+# Supported job types (updated in S4 with domain handlers).
 _SCHEDULER_HANDLERS = {
-    "noop",   # Test-only: succeeds immediately with no side effects.
+    "noop",                          # Test-only: succeeds immediately with no side effects.
+    "appointment_reminder",          # S4: 24h-before reminder for confirmed appointments.
+    "appointment_deadline_expire",   # S4: expire pending_response when deadline passes.
+    "appointment_missed",            # S4: mark confirmed appointment missed (15 min after).
+    "job_expiring_soon",             # S4: notify company 48h before job listing expires.
 }
+
+
+# ── S4 Domain Handlers ────────────────────────────────────────────────────────
+# Each handler is idempotent: re-reads DB state before acting so a double-fire
+# is safe.  The conn is released before sending notifications (each notification
+# helper opens its own conn).  All handlers raise on missing payload fields;
+# the runner handles retries / exhaustion through the normal S3 pipeline.
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _ts_from_db_val(val) -> int:
+    """Convert a DB datetime value (ISO string or datetime) to UTC epoch seconds."""
+    from datetime import datetime as _ddt, timezone as _dtz
+    dt = _ddt.fromisoformat(str(val).replace("Z", "+00:00"))
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=_dtz.utc)
+    return int(dt.timestamp())
+
+
+def _handle_appointment_reminder(job: dict) -> None:
+    """Send 24h-before reminder notifications for a confirmed appointment.
+
+    Stale check: payload must carry scheduled_at_ts (epoch s). If the appointment's
+    current scheduled_at differs the job was created for an older cycle — safe no-op.
+    Notification failures are re-raised so the runner retries; event_key idempotency
+    prevents duplicates when a previous notification already succeeded.
+    """
+    from datetime import datetime as _dt, timezone as _tz
+    payload = job.get("payload", {})
+    appt_id = payload.get("appointment_id")
+    sched_ts_payload = payload.get("scheduled_at_ts")
+    if not appt_id:
+        raise ValueError("appointment_reminder: missing appointment_id in payload")
+    conn = get_conn()
+    company_id = applicant_id = None
+    try:
+        appt = _get_appointment_row(conn, int(appt_id))
+        if not appt or appt["status"] != "confirmed":
+            return  # cancelled, expired, missed, etc. — safe no-op
+        # Stale check: if scheduled_at changed (reschedule cycle), this job is outdated
+        if sched_ts_payload is not None:
+            db_sched_val = appt.get("scheduled_at")
+            if db_sched_val and _ts_from_db_val(db_sched_val) != int(sched_ts_payload):
+                return  # stale — safe no-op
+        company_id = appt["company_id"]
+        applicant_id = appt["applicant_id"]
+    finally:
+        release_conn(conn)
+    errors = []
+    for uid in [company_id, applicant_id]:
+        if uid:
+            try:
+                create_notification(
+                    user_id=uid,
+                    type_="appointment_reminder",
+                    title="تذكير: موعد مقابلة خلال 24 ساعة",
+                    body="تذكير بموعد مقابلتك غداً",
+                    link=f"/appointment-room?id={appt_id}",
+                    entity_id=int(appt_id),
+                    entity_type="appointment",
+                    event_key=f"appointment_reminder:{appt_id}:{uid}:{sched_ts_payload}",
+                )
+            except Exception as _ne:
+                print(
+                    f"[scheduler:appointment_reminder] notification failed "
+                    f"uid={uid} appt={appt_id}: {_ne}"
+                )
+                errors.append(_ne)
+    if errors:
+        raise errors[0]
+
+
+def _handle_appointment_deadline_expire(job: dict) -> None:
+    """Transition pending_response → expired when response_deadline_at has passed.
+
+    Stale check: payload carries response_deadline_at_ts. If the DB deadline no
+    longer matches (reschedule set a new deadline) this is a stale job — safe no-op.
+
+    Retry safety: if the transition already happened (status='expired') but the
+    notification failed, allow re-notification without re-transitioning. event_key
+    idempotency prevents duplicate notifications.
+    """
+    from datetime import datetime as _dt, timezone as _tz
+    payload = job.get("payload", {})
+    appt_id = payload.get("appointment_id")
+    dl_ts_payload = payload.get("response_deadline_at_ts")
+    if not appt_id:
+        raise ValueError("appointment_deadline_expire: missing appointment_id in payload")
+    conn = get_conn()
+    company_id = None
+    transitioned = False
+    already_expired = False
+    try:
+        appt = _get_appointment_row(conn, int(appt_id))
+        if not appt:
+            return  # deleted — safe no-op
+        # Stale check: if deadline changed (reschedule), this job is for an old cycle
+        if dl_ts_payload is not None:
+            db_dl_val = appt.get("response_deadline_at")
+            if db_dl_val and _ts_from_db_val(db_dl_val) != int(dl_ts_payload):
+                return  # stale — safe no-op
+        if appt["status"] == "pending_response":
+            deadline_val = appt.get("response_deadline_at")
+            if not deadline_val:
+                return
+            deadline_dt = _dt.fromisoformat(str(deadline_val).replace("Z", "+00:00"))
+            if deadline_dt.tzinfo is None:
+                deadline_dt = deadline_dt.replace(tzinfo=_tz.utc)
+            if _dt.now(_tz.utc) < deadline_dt:
+                return  # too early
+            rows = conn.run(
+                "UPDATE appointments SET status='expired', updated_at=NOW() "
+                "WHERE id=:id AND status='pending_response' RETURNING id",
+                id=int(appt_id),
+            )
+            transitioned = bool(rows)
+            if transitioned:
+                _insert_appointment_event(
+                    conn, int(appt_id), None, "appointment_expired",
+                    old_status="pending_response", new_status="expired",
+                )
+        elif appt["status"] == "expired":
+            already_expired = True  # retry scenario: transition done, notification pending
+        else:
+            return  # confirmed, cancelled, missed, etc. — safe no-op
+        company_id = appt["company_id"]
+    finally:
+        release_conn(conn)
+    if (transitioned or already_expired) and company_id:
+        try:
+            create_notification(
+                user_id=company_id,
+                type_="appointment_expired",
+                title="انتهت مهلة الرد على دعوة المقابلة",
+                body="لم يرد الموظف خلال المهلة المحددة",
+                link=f"/appointment-room?id={appt_id}",
+                entity_id=int(appt_id),
+                entity_type="appointment",
+                event_key=f"appointment_deadline_expired:{appt_id}:{company_id}:{dl_ts_payload}",
+            )
+        except Exception as _ne:
+            print(
+                f"[scheduler:appointment_deadline_expire] notification failed "
+                f"appt={appt_id}: {_ne}"
+            )
+            raise  # re-raise — runner retries; event_key idempotency prevents duplicate
+
+
+def _handle_appointment_missed(job: dict) -> None:
+    """Transition confirmed → missed when scheduled_at + 15 min has passed.
+
+    Stale check: payload carries scheduled_at_ts. If the current DB scheduled_at
+    differs, this job targets an old cycle after a reschedule — safe no-op.
+
+    Time check: NOW() must be >= scheduled_at + 15 minutes before transitioning.
+
+    Retry safety: if transition already happened (status='missed') but notification
+    failed, allow re-notification without re-transitioning.
+    """
+    from datetime import datetime as _dt, timezone as _tz, timedelta as _td
+    payload = job.get("payload", {})
+    appt_id = payload.get("appointment_id")
+    sched_ts_payload = payload.get("scheduled_at_ts")
+    if not appt_id:
+        raise ValueError("appointment_missed: missing appointment_id in payload")
+    conn = get_conn()
+    company_id = applicant_id = None
+    transitioned = False
+    already_missed = False
+    try:
+        appt = _get_appointment_row(conn, int(appt_id))
+        if not appt:
+            return  # deleted — safe no-op
+        # Stale check: if scheduled_at changed (reschedule), this job is outdated
+        if sched_ts_payload is not None:
+            db_sched_val = appt.get("scheduled_at")
+            if db_sched_val and _ts_from_db_val(db_sched_val) != int(sched_ts_payload):
+                return  # stale — safe no-op
+        if appt["status"] == "confirmed":
+            sched_val = appt.get("scheduled_at")
+            if not sched_val:
+                return
+            sched_dt = _dt.fromisoformat(str(sched_val).replace("Z", "+00:00"))
+            if sched_dt.tzinfo is None:
+                sched_dt = sched_dt.replace(tzinfo=_tz.utc)
+            if _dt.now(_tz.utc) < sched_dt + _td(minutes=15):
+                return  # too early — appointment not yet overdue
+            rows = conn.run(
+                "UPDATE appointments SET status='missed', updated_at=NOW() "
+                "WHERE id=:id AND status='confirmed' RETURNING id",
+                id=int(appt_id),
+            )
+            transitioned = bool(rows)
+            if transitioned:
+                _insert_appointment_event(
+                    conn, int(appt_id), None, "appointment_missed",
+                    old_status="confirmed", new_status="missed",
+                )
+        elif appt["status"] == "missed":
+            already_missed = True  # retry scenario: transition done, notification pending
+        else:
+            return  # expired, cancelled, etc. — safe no-op
+        company_id = appt["company_id"]
+        applicant_id = appt["applicant_id"]
+    finally:
+        release_conn(conn)
+    if transitioned or already_missed:
+        errors = []
+        for uid in [company_id, applicant_id]:
+            if uid:
+                try:
+                    create_notification(
+                        user_id=uid,
+                        type_="appointment_missed",
+                        title="فات موعد المقابلة",
+                        body="مرّ وقت الموعد بدون إجراء رسمي",
+                        link=f"/appointment-room?id={appt_id}",
+                        entity_id=int(appt_id),
+                        entity_type="appointment",
+                        event_key=f"appointment_missed:{appt_id}:{uid}:{sched_ts_payload}",
+                    )
+                except Exception as _ne:
+                    print(
+                        f"[scheduler:appointment_missed] notification failed "
+                        f"uid={uid} appt={appt_id}: {_ne}"
+                    )
+                    errors.append(_ne)
+        if errors:
+            raise errors[0]  # re-raise — runner retries; event_key idempotency prevents duplicate
+
+
+def _handle_job_expiring_soon(job: dict) -> None:
+    """Send job-expiring-soon notification to company 48h before listing expires.
+
+    company_id is read from DB — never trusted from payload (F21/F6).
+    Stale check: expected_expires_at_ts in payload must match current DB expires_at.
+    Only active jobs receive notifications (not paused, closed, or expired).
+    Notification failure is re-raised so the runner can retry.
+    """
+    payload = job.get("payload", {})
+    job_id = payload.get("job_id")
+    expected_exp_ts = payload.get("expected_expires_at_ts")
+    if not job_id:
+        raise ValueError("job_expiring_soon: missing job_id in payload")
+    conn = get_conn()
+    company_id = job_title = None
+    try:
+        rows = conn.run(
+            "SELECT title, status, expires_at, company_id FROM jobs WHERE id=:id",
+            id=int(job_id),
+        )
+        if not rows:
+            return  # job deleted — safe no-op
+        job_title, job_status, db_expires_at, company_id = rows[0]
+        # Only notify for active jobs (not paused, closed, or expired)
+        if job_status != "active":
+            return
+        # Stale check: if expires_at changed, this job targets an old expiry cycle
+        if expected_exp_ts is not None and db_expires_at is not None:
+            if _ts_from_db_val(db_expires_at) != int(expected_exp_ts):
+                return  # stale — safe no-op
+    finally:
+        release_conn(conn)
+    try:
+        create_notification(
+            user_id=int(company_id),
+            type_="job_expiring_soon",
+            title="وظيفتك ستنتهي قريباً",
+            body=f'وظيفة "{str(job_title or "")[:60]}" ستنتهي خلال 48 ساعة',
+            link="/company-profile",
+            entity_id=int(job_id),
+            entity_type="job",
+            event_key=f"job_expiring_soon:{job_id}:{company_id}:{expected_exp_ts}",
+        )
+    except Exception as _ne:
+        print(f"[scheduler:job_expiring_soon] notification failed job={job_id}: {_ne}")
+        raise  # re-raise — runner retries; event_key idempotency prevents duplicate
 
 
 def _execute_scheduler_job(job: dict) -> None:
     """
     Dispatch a single scheduler job to the correct handler.
 
-    Supported job types (S3):
-      'noop' — succeeds immediately. No DB writes, no notifications,
-               no appointment changes. Used to test the pipeline end-to-end.
+    Supported job types (S4):
+      'noop'                        — instant success, zero side effects.
+      'appointment_reminder'        — 24h-before reminder notifications.
+      'appointment_deadline_expire' — expire pending_response when deadline passes.
+      'appointment_missed'          — mark confirmed appointment as missed.
+      'job_expiring_soon'           — notify company 48h before job listing expires.
 
-    Unknown job types raise ValueError — the runner treats this as a
-    handler failure subject to normal retry/exhaustion logic.
+    Unknown job types raise ValueError — the runner treats this as a handler
+    failure subject to normal retry/exhaustion logic.
 
     No eval, no dynamic import, no getattr dispatch. All handlers are
     explicitly listed in _SCHEDULER_HANDLERS and branched here.
@@ -6500,7 +6867,15 @@ def _execute_scheduler_job(job: dict) -> None:
     job_type = job.get("job_type", "")
 
     if job_type == "noop":
-        return  # No-op: instant success, zero side effects.
+        return
+    if job_type == "appointment_reminder":
+        _handle_appointment_reminder(job); return
+    if job_type == "appointment_deadline_expire":
+        _handle_appointment_deadline_expire(job); return
+    if job_type == "appointment_missed":
+        _handle_appointment_missed(job); return
+    if job_type == "job_expiring_soon":
+        _handle_job_expiring_soon(job); return
 
     raise ValueError(f"_execute_scheduler_job: unsupported job_type={job_type!r}")
 

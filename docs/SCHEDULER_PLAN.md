@@ -863,18 +863,9 @@ S4 سيضيف: `appointment_reminder`, `appointment_deadline_expire`, `appointme
 ❌ ممنوع: secret في query params أو request body
 ```
 
-### ما يبقى مؤجلاً (S4+)
+### ما يبقى مؤجلاً (S5+)
 
 ```
-مؤجل إلى S4:  Hooks في trigger points:
-  - accept_appointment   → schedule_job('appointment_reminder', ...)
-  - accept_appointment   → schedule_job('appointment_missed', ...)
-  - create_appointment   → schedule_job('appointment_deadline_expire', ...)
-  - create/post_job      → schedule_job('job_expiring_soon', ...)
-مؤجل إلى S4:  Handlers: appointment_reminder, appointment_deadline_expire,
-               appointment_missed, job_expiring_soon في _execute_scheduler_job
-مؤجل إلى S4:  SCHEDULER_SECRET في Heroku Config Vars (cron config)
-مؤجل إلى S4:  External cron setup (GitHub Actions / cron-job.org)
 مؤجل إلى S5:  Integration tests
 مؤجل إلى S6:  Admin observability endpoint
 ```
@@ -882,6 +873,105 @@ S4 سيضيف: `appointment_reminder`, `appointment_deadline_expire`, `appointme
 ---
 
 *S3 مكتملة — 2026-07-11 — runner + endpoint (PR: scheduler-s3-runner).*
+
+---
+
+## 14. S4 Domain Handlers + Scheduling Hooks — مكتملة
+
+**PR:** `scheduler-s4-domain-handlers`  
+**تاريخ:** 2026-07-11 (fix: stale-detection + retry-raise + DB-owned company_id)
+
+### الهدف
+
+إضافة handlers حقيقية للـ job types الأربعة، وربطها بـ trigger points في كود الـ appointments والـ jobs. S3 كانت تعمل مع `noop` فقط — S4 تكمل الدورة.
+
+### التغييرات
+
+#### `auth.py`
+
+**`_SCHEDULER_HANDLERS`** مُحدَّث ليشمل الأنواع الأربعة:
+
+```python
+_SCHEDULER_HANDLERS = {
+    "noop",
+    "appointment_reminder",
+    "appointment_deadline_expire",
+    "appointment_missed",
+    "job_expiring_soon",
+}
+```
+
+**4 Handler Functions** — كل handler:
+- يقرأ حالة DB قبل الفعل (idempotent — double-fire آمن)
+- يُحرر الـ conn قبل استدعاء `create_notification`
+- يرفع `ValueError` إذا كان الـ payload ناقصاً
+- لا يبتلع exceptions بصمت
+
+| Handler | المحفّز | الشرط قبل الفعل | الفعل |
+|---------|---------|---------------|-------|
+| `_handle_appointment_reminder` | run_at = scheduled_at - 24h | `status == 'confirmed'` + stale check | إشعار لـ company + applicant |
+| `_handle_appointment_deadline_expire` | run_at = response_deadline_at | `status == 'pending_response'` AND `NOW() >= deadline` + stale check | `UPDATE ... SET status='expired' RETURNING id` + إشعار للشركة |
+| `_handle_appointment_missed` | run_at = scheduled_at + 15min | `status == 'confirmed'` AND `NOW() >= scheduled_at + 15min` + stale check | `UPDATE ... SET status='missed' RETURNING id` + إشعار للطرفين |
+| `_handle_job_expiring_soon` | run_at = expires_at - 48h | `job.status == 'active'` (paused مستثنى) + stale check | إشعار للشركة (company_id من DB) |
+
+**`_execute_scheduler_job`** مُحدَّث — branches صريحة لكل handler.
+
+**Scheduling Hooks** — غير fatal (try/except مع print):
+
+| Function | Job Scheduled | Dedupe Key | run_at |
+|----------|--------------|-----------|--------|
+| `accept_appointment` | `appointment_reminder` | `appointment_reminder:{appt_id}:{sched_ts}` | `scheduled_at - 24h` (إذا > NOW) |
+| `accept_appointment` | `appointment_missed` | `appointment_missed:{appt_id}:{sched_ts}` | `scheduled_at + 15min` |
+| `send_appointment` | `appointment_deadline_expire` | `appointment_deadline_expire:{appt_id}:{dl_ts}` | `deadline_dt` |
+| `reschedule_appointment` | `appointment_deadline_expire` | `appointment_deadline_expire:{appt_id}:{dl_ts}` | new `deadline_dt` |
+| `add_job` | `job_expiring_soon` | `job_expiring_soon:{job_id}:{exp_ts}` | `expires_at - 48h` (إذا > NOW) |
+
+ملاحظات الـ dedupe (محدَّثة — stale-job protection):
+- جميع المفاتيح تحتوي على **epoch-seconds timestamp** يرتبط بالقيمة المجدولة.
+- عند reschedule: `dl_ts` الجديد → dedupe key مختلف → job جديد آمن. الـ job القديم يُشغَّل لكن يكتشف handler الـ stale عبر `_ts_from_db_val`.
+- `job_expiring_soon`: payload يحتوي `job_id + expected_expires_at_ts` فقط — **بدون `company_id`** (F21/F6: backend يقرأه من DB).
+- `sched_ts`, `dl_ts`, `exp_ts` = epoch seconds (UTC)، وليس تقريب الدقيقة.
+
+**`add_job` restructured**: `return result` نُقل خارج الـ `try` block لتمكين الـ scheduling بعد `release_conn`.
+
+### الإيديمبوتنسية (F22)
+
+- **Handlers**: كل handler يقرأ `status` من DB ويعود فوراً إذا لم يعد الشرط متحققاً (إذا تغيّرت الحالة يدوياً أو بـ handler سابق).
+- **DB transitions**: `UPDATE ... WHERE status='X' RETURNING id` — يضمن أن التحديث يحدث مرة واحدة فقط. Zero rows = لا فعل.
+- **Notifications**: `event_key` + `ON CONFLICT DO NOTHING` في `create_notification`.
+- **Hooks**: `ON CONFLICT (dedupe_key) DO NOTHING` في `schedule_job` — تكرار الاستدعاء لا يُنشئ job مكرر.
+
+### Stale-Job Detection
+
+كل handler يقارن timestamp الـ payload مع القيمة الحالية في DB قبل أي فعل:
+
+```python
+# helper مشترك
+def _ts_from_db_val(val) -> int:
+    """Convert DB datetime (ISO string or datetime) to UTC epoch seconds."""
+    ...
+
+# مثال داخل handler
+if sched_ts_payload is not None:
+    db_val = appt.get("scheduled_at")
+    if db_val and _ts_from_db_val(db_val) != int(sched_ts_payload):
+        return  # stale — safe no-op
+```
+
+إذا اختلف الـ timestamp → reschedule حدث بعد الجدولة → safe no-op (لا transition، لا notification).
+
+### Notification Failure Handling (No Silent Swallowing)
+
+- **Dual-party handlers** (`appointment_reminder`, `appointment_missed`): يحاول إرسال الإشعار لكلا الطرفين، يجمع الأخطاء، يرفع `errors[0]` في النهاية إذا فشل أي طرف. الـ runner يُعيد المحاولة. `event_key` يمنع الإشعارات المكررة.
+- **Single-party handlers** (`appointment_deadline_expire`, `job_expiring_soon`): `except ... raise` مباشرة.
+- **Retry safety**: إذا نجح الـ DB transition لكن فشل الـ notification (أول محاولة) → في المحاولة التالية: `already_expired` / `already_missed` flag يتخطى التحويل ويُعيد محاولة الإشعار فقط.
+
+### ما بقي مؤجلاً
+
+```
+مؤجل إلى S5:  Integration tests — اختبار E2E: job يُجدَّل → يُشغَّل → DB تنتقل → notification تُنشأ
+مؤجل إلى S6:  Admin observability — تفاصيل scheduler في admin panel
+```
 
 ---
 
@@ -893,15 +983,19 @@ S4 سيضيف: `appointment_reminder`, `appointment_deadline_expire`, `appointme
 | schedule_job helper | ✅ S2 | `auth.py → schedule_job()` |
 | Runner | ✅ S3 | `auth.py → run_due_scheduler_jobs()` |
 | Secure endpoint | ✅ S3 | `server.py → POST /internal/run-due-jobs` |
+| Domain handlers (4) | ✅ S4 | `auth.py → _handle_appointment_reminder` / `_deadline_expire` / `_missed` / `_handle_job_expiring_soon` |
+| Scheduling hooks (5) | ✅ S4 | `auth.py → accept_appointment` / `send_appointment` / `reschedule_appointment` / `add_job` |
 | Proposed schema (docs) | §7 + §11 | هذا الملف |
 | S2 contract | §12 | هذا الملف |
 | S3 contract | §13 | هذا الملف |
-| Deferred features | موثَّقة | هذا الملف §2 |
-| Appointments deferral | موثَّق | `docs/APPOINTMENTS_PLAN.md` |
-| Notifications blocked | موثَّق | `docs/NOTIFICATIONS_PLAN.md` |
+| S4 contract | §14 | هذا الملف |
+| Deferred features | موثَّقة | هذا الملف §2 (محدَّث) |
+| Appointments deferral | محدَّث | `docs/APPOINTMENTS_PLAN.md` |
+| Notifications blocked | محدَّث | `docs/NOTIFICATIONS_PLAN.md` |
 | System index entry | مضاف + محدَّث | `docs/SYSTEMS_INDEX.md §37` |
-| S4 hooks | ❌ مؤجلة | موافقة مستخدم مطلوبة |
+| Integration tests | 🔜 S5 | — |
+| Admin observability | 🔜 S6 | — |
 
 ---
 
-*أُنشئ: 2026-07-11 — Architecture Decision Document (PR: scheduler-infrastructure-decision). S0 توثيق (PR: scheduler-s0-tooling-decision). S1 schema (PR: scheduler-s1-schema). S2 helper (PR: scheduler-s2-helper). S3 runner (PR: scheduler-s3-runner).*
+*أُنشئ: 2026-07-11 — Architecture Decision Document (PR: scheduler-infrastructure-decision). S0 توثيق (PR: scheduler-s0-tooling-decision). S1 schema (PR: scheduler-s1-schema). S2 helper (PR: scheduler-s2-helper). S3 runner (PR: scheduler-s3-runner). S4 handlers + hooks (PR: scheduler-s4-domain-handlers).*
