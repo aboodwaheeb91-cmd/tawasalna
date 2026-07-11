@@ -100,7 +100,8 @@ from auth import (
     get_company_saved_candidates, get_company_saved_candidates_count,
     get_company_saved_candidates_filtered, get_company_saved_candidates_stats,
     update_company_saved_candidate, VALID_CANDIDATE_STATUSES, VALID_CANDIDATE_SORTS,
-    get_company_candidate_suggestions
+    get_company_candidate_suggestions,
+    _migrate_appointments,
 )
 from auth import ContentValidationError, validate_professional_text
 
@@ -485,6 +486,12 @@ async def on_startup():
         print("✅ notifications schema v2-1 ready (aggregation_key, aggregation_count, aggregation_kind, last_actor_id, last_event_at, target_type, target_id)")
     except Exception as e:
         print(f"❌ notifications schema v2-1 migration failed: {e}")
+        raise
+    try:
+        _migrate_appointments()
+        print("✅ appointments tables ready (appointments, appointment_participants, appointment_events, appointment_messages)")
+    except Exception as e:
+        print(f"❌ appointments migration failed: {e}")
         raise
     await _init_asyncpg_pool()
 

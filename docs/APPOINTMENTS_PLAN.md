@@ -410,37 +410,122 @@ appointment_closed:{appointment_id}:{affected_party_id}
 
 > **لا تنفيذ لأي مرحلة إلا بطلب صريح من المستخدم.**
 
-| المرحلة | العنوان | ما يشمل | الملفات |
-|---------|---------|---------|---------|
-| **Phase 1** | Schema + Migration only | `_migrate_appointments()` في `auth.py` — الجداول الأربعة — لا endpoints | `auth.py` |
-| **Phase 2** | Backend APIs الأساسية | `auth.py` helpers + `server.py` endpoints (POST/GET/accept/cancel/complete/close) — بدون frontend | `auth.py`, `server.py` |
-| **Phase 3** | Employee Appointments List | صفحة المواعيد للموظف — بطاقات + حالات | `static/appointments/`, `appointments.html` (جديد) |
-| **Phase 4** | Company Appointments List | قائمة المواعيد للشركة في company profile | تعديل على `company-profile.html` + modules |
-| **Phase 5** | Appointment Room | غرفة الموعد — تفاصيل + أزرار + timeline + عداد تنازلي | صفحة جديدة `appointment-room.html` |
-| **Phase 6** | Appointment Thread / Messages | محادثة الموعد داخل الغرفة | endpoint messages + frontend |
-| **Phase 7** | Appointment Notifications | hooks في `auth.py` للإشعارات الفورية (بدون scheduler) | `auth.py` |
-| **Phase 8** | Scheduler-based Reminders | تذكيرات قبل الموعد وقبل انتهاء المهلة | **مؤجل — يحتاج Scheduler Infrastructure** |
+| المرحلة | العنوان | الحالة | ما يشمل | الملفات |
+|---------|---------|--------|---------|---------|
+| **Phase 1** | Schema + Migration only | ✅ **مُنجز — PR #460** | `_migrate_appointments()` في `auth.py` — الجداول الأربعة + indexes + FK — لا endpoints | `auth.py`, `server.py` |
+| **Phase 2** | Backend APIs الأساسية | 🔜 pending | `auth.py` helpers + `server.py` endpoints (POST/GET/accept/cancel/complete/close) — بدون frontend | `auth.py`, `server.py` |
+| **Phase 3** | Employee Appointments List | 🔜 pending | صفحة المواعيد للموظف — بطاقات + حالات | `static/appointments/`, `appointments.html` (جديد) |
+| **Phase 4** | Company Appointments List | 🔜 pending | قائمة المواعيد للشركة في company profile | تعديل على `company-profile.html` + modules |
+| **Phase 5** | Appointment Room | 🔜 pending | غرفة الموعد — تفاصيل + أزرار + timeline + عداد تنازلي | صفحة جديدة `appointment-room.html` |
+| **Phase 6** | Appointment Thread / Messages | 🔜 pending | محادثة الموعد داخل الغرفة | endpoint messages + frontend |
+| **Phase 7** | Appointment Notifications | 🔜 pending | hooks في `auth.py` للإشعارات الفورية (بدون scheduler) | `auth.py` |
+| **Phase 8** | Scheduler-based Reminders | ⏸ مؤجل | تذكيرات قبل الموعد وقبل انتهاء المهلة | **يحتاج Scheduler Infrastructure** |
 
 ---
 
-## 15. Non-goals — ما لا ينفذه هذا PR
+## 15. Phase 1 — Final Schema (PR #460)
+
+> **هذا القسم يوثّق الجداول الفعلية التي أُنشئت في Phase 1.**
+
+### `appointments` table
+
+| العمود | النوع | الوصف |
+|--------|-------|-------|
+| id | SERIAL PK | |
+| job_id | INTEGER NULL → jobs(id) SET NULL | |
+| application_id | INTEGER NULL → job_applications(id) SET NULL | |
+| company_id | INTEGER NOT NULL → users(id) CASCADE | |
+| applicant_id | INTEGER NOT NULL → users(id) CASCADE | |
+| created_by | INTEGER NOT NULL → users(id) CASCADE | |
+| representative_user_id | INTEGER NULL → users(id) SET NULL | |
+| representative_name | TEXT NULL | اسم المندوب إذا لم يكن حساباً مسجلاً |
+| status | TEXT NOT NULL DEFAULT 'draft' | القيم: انظر §6 |
+| mode | TEXT NOT NULL DEFAULT 'online' | online \| onsite |
+| scheduled_at | TIMESTAMPTZ NULL | |
+| response_deadline_at | TIMESTAMPTZ NULL | |
+| location_text | TEXT NULL | للمقابلات onsite |
+| online_url | TEXT NULL | للمقابلات online — محجوب عن غير الأطراف |
+| notes | TEXT NULL | ملاحظات داخلية من المنشئ |
+| created_at | TIMESTAMPTZ DEFAULT NOW() | |
+| updated_at | TIMESTAMPTZ DEFAULT NOW() | |
+| closed_at | TIMESTAMPTZ NULL | يُملأ عند status='closed' |
+
+**Indexes:** company_id · applicant_id · application_id · job_id · status · scheduled_at · response_deadline_at
+
+---
+
+### `appointment_participants` table
+
+| العمود | النوع | الوصف |
+|--------|-------|-------|
+| id | SERIAL PK | |
+| appointment_id | INTEGER NOT NULL → appointments(id) CASCADE | |
+| user_id | INTEGER NOT NULL → users(id) CASCADE | |
+| role | TEXT NOT NULL | company \| applicant \| representative |
+| can_message | BOOLEAN DEFAULT TRUE | |
+| can_decide | BOOLEAN DEFAULT FALSE | |
+| created_at | TIMESTAMPTZ DEFAULT NOW() | |
+| — | UNIQUE(appointment_id, user_id) | لا تكرار لنفس المشارك |
+
+**Indexes:** appointment_id · user_id
+
+---
+
+### `appointment_events` table (immutable — F18/F27)
+
+| العمود | النوع | الوصف |
+|--------|-------|-------|
+| id | SERIAL PK | |
+| appointment_id | INTEGER NOT NULL → appointments(id) CASCADE | |
+| actor_id | INTEGER NULL → users(id) SET NULL | |
+| event_type | TEXT NOT NULL | انظر §11 |
+| old_status | TEXT NULL | |
+| new_status | TEXT NULL | |
+| payload | JSONB NULL | بيانات إضافية |
+| created_at | TIMESTAMPTZ DEFAULT NOW() | |
+
+**Indexes:** appointment_id · event_type · created_at
+
+> **ملاحظة F27:** `appointment_events` لا تُحذف نهائياً أبداً — سجل حوادث دائم.
+
+---
+
+### `appointment_messages` table
+
+| العمود | النوع | الوصف |
+|--------|-------|-------|
+| id | SERIAL PK | |
+| appointment_id | INTEGER NOT NULL → appointments(id) CASCADE | |
+| sender_id | INTEGER NOT NULL → users(id) CASCADE | |
+| body | TEXT NOT NULL | |
+| created_at | TIMESTAMPTZ DEFAULT NOW() | |
+| edited_at | TIMESTAMPTZ NULL | |
+| deleted_at | TIMESTAMPTZ NULL | Soft delete — F27 |
+
+**Indexes:** appointment_id · created_at · sender_id
+
+---
+
+### Phase 1 — Migration Startup Rule
+
+> **Appointments migration is startup-critical.**
+> Failure in `_migrate_appointments()` raises and stops startup — the app must not run with missing appointments tables.
+> Pattern in `server.py`: `print(f"❌ ...") → raise` (not `⚠️` warning-only).
+
+### Phase 1 — Non-goals (ما لا يوجد بعد)
 
 ```
-❌ لا كود
-❌ لا schema أو migrations
-❌ لا UI أو صفحات
 ❌ لا endpoints
-❌ لا scheduler
+❌ لا UI أو صفحات
+❌ لا notifications hooks
 ❌ لا Messenger changes
-❌ لا notifications hook جديد
+❌ لا scheduler
 ❌ لا WebSocket
 ❌ لا push
-❌ لا database tables
 ```
 
-هذا PR: **docs-only** — Phase 0 Architecture Plan فقط.
-
-التنفيذ يبدأ من Phase 1 (Schema) بطلب صريح.
+**Phase 0 Non-goals (للمرجعية):**
+هذا PR الأصلي كان docs-only (PR #459) — Phase 0 Architecture Plan فقط. التنفيذ بدأ من Phase 1.
 
 ---
 
@@ -462,11 +547,12 @@ appointment_closed:{appointment_id}:{affected_party_id}
 
 | العنصر | المرجع |
 |--------|--------|
-| Architecture Plan | هذا الملف (Phase 0) |
+| Architecture Plan | هذا الملف (Phase 0–1) |
 | Vision / Backlog | `docs/FUTURE_ROADMAP.md §15` |
 | Related Systems Index | `docs/SYSTEMS_INDEX.md §21` |
 | Foundation Rules | `ARCHITECTURE_FOUNDATION.md` |
 
 ---
 
-*أُنشئ: 2026-07-10 — Phase 0 Audit & Architecture Plan — docs-only (PR #459). لا تنفيذ. يُحدَّث مع كل مرحلة.*
+*أُنشئ: 2026-07-10 — Phase 0 Audit & Architecture Plan — docs-only (PR #459).*
+*حُدِّث: 2026-07-11 — Phase 1 Schema + Migration — auth.py + server.py (PR #460). جداول: appointments, appointment_participants, appointment_events, appointment_messages. لا endpoints، لا UI، لا notifications.*

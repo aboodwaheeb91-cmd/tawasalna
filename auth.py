@@ -5309,3 +5309,140 @@ def get_company_candidate_suggestions(
     finally:
         release_conn(conn)
 
+
+# ══════════════════════════════════════════════════════════════════════════
+# Appointments & Interview Rooms System — Phase 1: Schema + Migration
+# Phase 0 plan: docs/APPOINTMENTS_PLAN.md
+# No endpoints, no business logic, no notifications — schema only.
+# Status values: draft|pending_response|reschedule_requested|confirmed|
+#                cancelled|expired|missed|completed|closed
+# Mode values:   online|onsite
+# Participant roles: company|applicant|representative
+# Event types: appointment_created|appointment_sent|appointment_accepted|
+#              appointment_reschedule_requested|appointment_rescheduled|
+#              appointment_confirmed|appointment_cancelled|appointment_expired|
+#              appointment_completed|appointment_closed|message_sent
+# ══════════════════════════════════════════════════════════════════════════
+
+def _migrate_appointments():
+    """
+    Create appointments system tables (idempotent — safe to run multiple times).
+
+    Tables created:
+      - appointments               : core scheduling record
+      - appointment_participants   : parties to each appointment
+      - appointment_events         : immutable audit trail (F18/F27 — never hard-deleted)
+      - appointment_messages       : appointment-specific thread (separate from Messenger)
+
+    Foreign keys follow the project pattern (ON DELETE CASCADE / SET NULL).
+    No endpoints, no business logic, no notifications in this migration.
+    """
+    conn = get_conn()
+    try:
+        # ── 1. appointments ──────────────────────────────────────────────
+        conn.run("""
+            CREATE TABLE IF NOT EXISTS appointments (
+                id                    SERIAL PRIMARY KEY,
+                job_id                INTEGER NULL
+                                          REFERENCES jobs(id) ON DELETE SET NULL,
+                application_id        INTEGER NULL
+                                          REFERENCES job_applications(id) ON DELETE SET NULL,
+                company_id            INTEGER NOT NULL
+                                          REFERENCES users(id) ON DELETE CASCADE,
+                applicant_id          INTEGER NOT NULL
+                                          REFERENCES users(id) ON DELETE CASCADE,
+                created_by            INTEGER NOT NULL
+                                          REFERENCES users(id) ON DELETE CASCADE,
+                representative_user_id INTEGER NULL
+                                          REFERENCES users(id) ON DELETE SET NULL,
+                representative_name   TEXT NULL,
+                status                TEXT NOT NULL DEFAULT 'draft',
+                mode                  TEXT NOT NULL DEFAULT 'online',
+                scheduled_at          TIMESTAMPTZ NULL,
+                response_deadline_at  TIMESTAMPTZ NULL,
+                location_text         TEXT NULL,
+                online_url            TEXT NULL,
+                notes                 TEXT NULL,
+                created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                updated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                closed_at             TIMESTAMPTZ NULL
+            )
+        """)
+
+        # ── 2. appointment_participants ───────────────────────────────────
+        conn.run("""
+            CREATE TABLE IF NOT EXISTS appointment_participants (
+                id             SERIAL PRIMARY KEY,
+                appointment_id INTEGER NOT NULL
+                                   REFERENCES appointments(id) ON DELETE CASCADE,
+                user_id        INTEGER NOT NULL
+                                   REFERENCES users(id) ON DELETE CASCADE,
+                role           TEXT NOT NULL,
+                can_message    BOOLEAN NOT NULL DEFAULT TRUE,
+                can_decide     BOOLEAN NOT NULL DEFAULT FALSE,
+                created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                CONSTRAINT uq_appt_participant UNIQUE (appointment_id, user_id)
+            )
+        """)
+
+        # ── 3. appointment_events (immutable audit trail — F18/F27) ──────
+        conn.run("""
+            CREATE TABLE IF NOT EXISTS appointment_events (
+                id             SERIAL PRIMARY KEY,
+                appointment_id INTEGER NOT NULL
+                                   REFERENCES appointments(id) ON DELETE CASCADE,
+                actor_id       INTEGER NULL
+                                   REFERENCES users(id) ON DELETE SET NULL,
+                event_type     TEXT NOT NULL,
+                old_status     TEXT NULL,
+                new_status     TEXT NULL,
+                payload        JSONB NULL,
+                created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+        """)
+
+        # ── 4. appointment_messages ───────────────────────────────────────
+        # Separate from Messenger العام — scoped to a single appointment.
+        # Soft delete via deleted_at (F27) — no hard deletes.
+        conn.run("""
+            CREATE TABLE IF NOT EXISTS appointment_messages (
+                id             SERIAL PRIMARY KEY,
+                appointment_id INTEGER NOT NULL
+                                   REFERENCES appointments(id) ON DELETE CASCADE,
+                sender_id      INTEGER NOT NULL
+                                   REFERENCES users(id) ON DELETE CASCADE,
+                body           TEXT NOT NULL,
+                created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                edited_at      TIMESTAMPTZ NULL,
+                deleted_at     TIMESTAMPTZ NULL
+            )
+        """)
+
+        # ── Indexes: appointments ─────────────────────────────────────────
+        conn.run("CREATE INDEX IF NOT EXISTS idx_appt_company    ON appointments(company_id)")
+        conn.run("CREATE INDEX IF NOT EXISTS idx_appt_applicant  ON appointments(applicant_id)")
+        conn.run("CREATE INDEX IF NOT EXISTS idx_appt_application ON appointments(application_id)")
+        conn.run("CREATE INDEX IF NOT EXISTS idx_appt_job        ON appointments(job_id)")
+        conn.run("CREATE INDEX IF NOT EXISTS idx_appt_status     ON appointments(status)")
+        conn.run("CREATE INDEX IF NOT EXISTS idx_appt_scheduled  ON appointments(scheduled_at)")
+        conn.run("CREATE INDEX IF NOT EXISTS idx_appt_deadline   ON appointments(response_deadline_at)")
+
+        # ── Indexes: appointment_participants ─────────────────────────────
+        # UNIQUE constraint on (appointment_id, user_id) already creates an index;
+        # add a separate user_id index for reverse lookups (all appointments of a user).
+        conn.run("CREATE INDEX IF NOT EXISTS idx_appt_part_appt  ON appointment_participants(appointment_id)")
+        conn.run("CREATE INDEX IF NOT EXISTS idx_appt_part_user  ON appointment_participants(user_id)")
+
+        # ── Indexes: appointment_events ───────────────────────────────────
+        conn.run("CREATE INDEX IF NOT EXISTS idx_appt_evt_appt   ON appointment_events(appointment_id)")
+        conn.run("CREATE INDEX IF NOT EXISTS idx_appt_evt_type   ON appointment_events(event_type)")
+        conn.run("CREATE INDEX IF NOT EXISTS idx_appt_evt_created ON appointment_events(created_at)")
+
+        # ── Indexes: appointment_messages ─────────────────────────────────
+        conn.run("CREATE INDEX IF NOT EXISTS idx_appt_msg_appt   ON appointment_messages(appointment_id)")
+        conn.run("CREATE INDEX IF NOT EXISTS idx_appt_msg_created ON appointment_messages(created_at)")
+        conn.run("CREATE INDEX IF NOT EXISTS idx_appt_msg_sender  ON appointment_messages(sender_id)")
+
+    finally:
+        release_conn(conn)
+
