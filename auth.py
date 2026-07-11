@@ -2108,12 +2108,13 @@ def add_job(company_id: int, data: dict) -> dict:
                 if _expires.tzinfo is None:
                     _expires = _expires.replace(tzinfo=_tz_j.utc)
                 _hook_at = _expires - _td_j(hours=48)
+                _exp_ts = int(_expires.timestamp())
                 if _hook_at > _dt_j.now(_tz_j.utc):
                     schedule_job(
                         "job_expiring_soon",
-                        {"job_id": result["id"], "company_id": company_id},
+                        {"job_id": result["id"], "expected_expires_at_ts": _exp_ts},
                         _hook_at,
-                        f"job_expiring_soon:{result['id']}:{company_id}",
+                        f"job_expiring_soon:{result['id']}:{_exp_ts}",
                     )
             except Exception as _sje:
                 print(f"[add_job] schedule_job(job_expiring_soon) failed: {_sje}")
@@ -5765,12 +5766,12 @@ def send_appointment(appointment_id: int, user_id: int, scheduled_at_iso: str,
     # S4: schedule appointment_deadline_expire — non-fatal, idempotent dedupe_key
     if deadline_for_hook:
         try:
-            _dmin = int(deadline_for_hook.timestamp()) // 60
+            _dl_ts = int(deadline_for_hook.timestamp())
             schedule_job(
                 "appointment_deadline_expire",
-                {"appointment_id": appointment_id},
+                {"appointment_id": appointment_id, "response_deadline_at_ts": _dl_ts},
                 deadline_for_hook,
-                f"appointment_deadline_expire:{appointment_id}:{_dmin}",
+                f"appointment_deadline_expire:{appointment_id}:{_dl_ts}",
             )
         except Exception as _sje:
             print(f"[send_appointment] schedule_job(deadline_expire) failed: {_sje}")
@@ -5829,14 +5830,15 @@ def accept_appointment(appointment_id: int, user_id: int) -> dict:
             _sched = _dt_a.fromisoformat(str(sched_at_str).replace('Z', '+00:00'))
             if _sched.tzinfo is None:
                 _sched = _sched.replace(tzinfo=_tz_a.utc)
+            _sched_ts = int(_sched.timestamp())
             _now_a = _dt_a.now(_tz_a.utc)
             _reminder_at = _sched - _td_a(hours=24)
             if _reminder_at > _now_a:
                 schedule_job(
                     "appointment_reminder",
-                    {"appointment_id": appointment_id},
+                    {"appointment_id": appointment_id, "scheduled_at_ts": _sched_ts},
                     _reminder_at,
-                    f"appointment_reminder:{appointment_id}",
+                    f"appointment_reminder:{appointment_id}:{_sched_ts}",
                 )
         except Exception as _sje:
             print(f"[accept_appointment] schedule_job(reminder) failed: {_sje}")
@@ -5844,12 +5846,13 @@ def accept_appointment(appointment_id: int, user_id: int) -> dict:
             _sched2 = _dt_a.fromisoformat(str(sched_at_str).replace('Z', '+00:00'))
             if _sched2.tzinfo is None:
                 _sched2 = _sched2.replace(tzinfo=_tz_a.utc)
+            _sched2_ts = int(_sched2.timestamp())
             _missed_at = _sched2 + _td_a(minutes=15)
             schedule_job(
                 "appointment_missed",
-                {"appointment_id": appointment_id},
+                {"appointment_id": appointment_id, "scheduled_at_ts": _sched2_ts},
                 _missed_at,
-                f"appointment_missed:{appointment_id}",
+                f"appointment_missed:{appointment_id}:{_sched2_ts}",
             )
         except Exception as _sje:
             print(f"[accept_appointment] schedule_job(missed) failed: {_sje}")
@@ -6005,12 +6008,12 @@ def reschedule_appointment(appointment_id: int, user_id: int,
     # S4: schedule appointment_deadline_expire for the new deadline — non-fatal, idempotent dedupe_key
     if deadline_for_hook:
         try:
-            _dmin = int(deadline_for_hook.timestamp()) // 60
+            _dl_ts = int(deadline_for_hook.timestamp())
             schedule_job(
                 "appointment_deadline_expire",
-                {"appointment_id": appointment_id},
+                {"appointment_id": appointment_id, "response_deadline_at_ts": _dl_ts},
                 deadline_for_hook,
-                f"appointment_deadline_expire:{appointment_id}:{_dmin}",
+                f"appointment_deadline_expire:{appointment_id}:{_dl_ts}",
             )
         except Exception as _sje:
             print(f"[reschedule_appointment] schedule_job(deadline_expire) failed: {_sje}")
@@ -6575,9 +6578,27 @@ _SCHEDULER_HANDLERS = {
 # the runner handles retries / exhaustion through the normal S3 pipeline.
 # ─────────────────────────────────────────────────────────────────────────────
 
+def _ts_from_db_val(val) -> int:
+    """Convert a DB datetime value (ISO string or datetime) to UTC epoch seconds."""
+    from datetime import datetime as _ddt, timezone as _dtz
+    dt = _ddt.fromisoformat(str(val).replace("Z", "+00:00"))
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=_dtz.utc)
+    return int(dt.timestamp())
+
+
 def _handle_appointment_reminder(job: dict) -> None:
-    """Send 24h-before reminder notifications for a confirmed appointment."""
-    appt_id = job.get("payload", {}).get("appointment_id")
+    """Send 24h-before reminder notifications for a confirmed appointment.
+
+    Stale check: payload must carry scheduled_at_ts (epoch s). If the appointment's
+    current scheduled_at differs the job was created for an older cycle — safe no-op.
+    Notification failures are re-raised so the runner retries; event_key idempotency
+    prevents duplicates when a previous notification already succeeded.
+    """
+    from datetime import datetime as _dt, timezone as _tz
+    payload = job.get("payload", {})
+    appt_id = payload.get("appointment_id")
+    sched_ts_payload = payload.get("scheduled_at_ts")
     if not appt_id:
         raise ValueError("appointment_reminder: missing appointment_id in payload")
     conn = get_conn()
@@ -6585,11 +6606,17 @@ def _handle_appointment_reminder(job: dict) -> None:
     try:
         appt = _get_appointment_row(conn, int(appt_id))
         if not appt or appt["status"] != "confirmed":
-            return
+            return  # cancelled, expired, missed, etc. — safe no-op
+        # Stale check: if scheduled_at changed (reschedule cycle), this job is outdated
+        if sched_ts_payload is not None:
+            db_sched_val = appt.get("scheduled_at")
+            if db_sched_val and _ts_from_db_val(db_sched_val) != int(sched_ts_payload):
+                return  # stale — safe no-op
         company_id = appt["company_id"]
         applicant_id = appt["applicant_id"]
     finally:
         release_conn(conn)
+    errors = []
     for uid in [company_id, applicant_id]:
         if uid:
             try:
@@ -6601,51 +6628,75 @@ def _handle_appointment_reminder(job: dict) -> None:
                     link=f"/appointment-room?id={appt_id}",
                     entity_id=int(appt_id),
                     entity_type="appointment",
-                    event_key=f"appointment_reminder:{appt_id}:{uid}",
+                    event_key=f"appointment_reminder:{appt_id}:{uid}:{sched_ts_payload}",
                 )
             except Exception as _ne:
                 print(
                     f"[scheduler:appointment_reminder] notification failed "
                     f"uid={uid} appt={appt_id}: {_ne}"
                 )
+                errors.append(_ne)
+    if errors:
+        raise errors[0]
 
 
 def _handle_appointment_deadline_expire(job: dict) -> None:
-    """Transition pending_response → expired when response_deadline_at has passed."""
+    """Transition pending_response → expired when response_deadline_at has passed.
+
+    Stale check: payload carries response_deadline_at_ts. If the DB deadline no
+    longer matches (reschedule set a new deadline) this is a stale job — safe no-op.
+
+    Retry safety: if the transition already happened (status='expired') but the
+    notification failed, allow re-notification without re-transitioning. event_key
+    idempotency prevents duplicate notifications.
+    """
     from datetime import datetime as _dt, timezone as _tz
-    appt_id = job.get("payload", {}).get("appointment_id")
+    payload = job.get("payload", {})
+    appt_id = payload.get("appointment_id")
+    dl_ts_payload = payload.get("response_deadline_at_ts")
     if not appt_id:
         raise ValueError("appointment_deadline_expire: missing appointment_id in payload")
     conn = get_conn()
     company_id = None
     transitioned = False
+    already_expired = False
     try:
         appt = _get_appointment_row(conn, int(appt_id))
-        if not appt or appt["status"] != "pending_response":
-            return
-        deadline_val = appt.get("response_deadline_at")
-        if not deadline_val:
-            return
-        deadline_dt = _dt.fromisoformat(str(deadline_val).replace("Z", "+00:00"))
-        if deadline_dt.tzinfo is None:
-            deadline_dt = deadline_dt.replace(tzinfo=_tz.utc)
-        if _dt.now(_tz.utc) < deadline_dt:
-            return
-        rows = conn.run(
-            "UPDATE appointments SET status='expired', updated_at=NOW() "
-            "WHERE id=:id AND status='pending_response' RETURNING id",
-            id=int(appt_id),
-        )
-        transitioned = bool(rows)
-        if transitioned:
-            _insert_appointment_event(
-                conn, int(appt_id), None, "appointment_expired",
-                old_status="pending_response", new_status="expired",
+        if not appt:
+            return  # deleted — safe no-op
+        # Stale check: if deadline changed (reschedule), this job is for an old cycle
+        if dl_ts_payload is not None:
+            db_dl_val = appt.get("response_deadline_at")
+            if db_dl_val and _ts_from_db_val(db_dl_val) != int(dl_ts_payload):
+                return  # stale — safe no-op
+        if appt["status"] == "pending_response":
+            deadline_val = appt.get("response_deadline_at")
+            if not deadline_val:
+                return
+            deadline_dt = _dt.fromisoformat(str(deadline_val).replace("Z", "+00:00"))
+            if deadline_dt.tzinfo is None:
+                deadline_dt = deadline_dt.replace(tzinfo=_tz.utc)
+            if _dt.now(_tz.utc) < deadline_dt:
+                return  # too early
+            rows = conn.run(
+                "UPDATE appointments SET status='expired', updated_at=NOW() "
+                "WHERE id=:id AND status='pending_response' RETURNING id",
+                id=int(appt_id),
             )
+            transitioned = bool(rows)
+            if transitioned:
+                _insert_appointment_event(
+                    conn, int(appt_id), None, "appointment_expired",
+                    old_status="pending_response", new_status="expired",
+                )
+        elif appt["status"] == "expired":
+            already_expired = True  # retry scenario: transition done, notification pending
+        else:
+            return  # confirmed, cancelled, missed, etc. — safe no-op
         company_id = appt["company_id"]
     finally:
         release_conn(conn)
-    if transitioned and company_id:
+    if (transitioned or already_expired) and company_id:
         try:
             create_notification(
                 user_id=company_id,
@@ -6655,43 +6706,76 @@ def _handle_appointment_deadline_expire(job: dict) -> None:
                 link=f"/appointment-room?id={appt_id}",
                 entity_id=int(appt_id),
                 entity_type="appointment",
-                event_key=f"appointment_deadline_expired:{appt_id}:{company_id}",
+                event_key=f"appointment_deadline_expired:{appt_id}:{company_id}:{dl_ts_payload}",
             )
         except Exception as _ne:
             print(
                 f"[scheduler:appointment_deadline_expire] notification failed "
                 f"appt={appt_id}: {_ne}"
             )
+            raise  # re-raise — runner retries; event_key idempotency prevents duplicate
 
 
 def _handle_appointment_missed(job: dict) -> None:
-    """Transition confirmed → missed when scheduled_at + 15 min has passed."""
-    appt_id = job.get("payload", {}).get("appointment_id")
+    """Transition confirmed → missed when scheduled_at + 15 min has passed.
+
+    Stale check: payload carries scheduled_at_ts. If the current DB scheduled_at
+    differs, this job targets an old cycle after a reschedule — safe no-op.
+
+    Time check: NOW() must be >= scheduled_at + 15 minutes before transitioning.
+
+    Retry safety: if transition already happened (status='missed') but notification
+    failed, allow re-notification without re-transitioning.
+    """
+    from datetime import datetime as _dt, timezone as _tz, timedelta as _td
+    payload = job.get("payload", {})
+    appt_id = payload.get("appointment_id")
+    sched_ts_payload = payload.get("scheduled_at_ts")
     if not appt_id:
         raise ValueError("appointment_missed: missing appointment_id in payload")
     conn = get_conn()
     company_id = applicant_id = None
     transitioned = False
+    already_missed = False
     try:
         appt = _get_appointment_row(conn, int(appt_id))
-        if not appt or appt["status"] != "confirmed":
-            return
-        rows = conn.run(
-            "UPDATE appointments SET status='missed', updated_at=NOW() "
-            "WHERE id=:id AND status='confirmed' RETURNING id",
-            id=int(appt_id),
-        )
-        transitioned = bool(rows)
-        if transitioned:
-            _insert_appointment_event(
-                conn, int(appt_id), None, "appointment_missed",
-                old_status="confirmed", new_status="missed",
+        if not appt:
+            return  # deleted — safe no-op
+        # Stale check: if scheduled_at changed (reschedule), this job is outdated
+        if sched_ts_payload is not None:
+            db_sched_val = appt.get("scheduled_at")
+            if db_sched_val and _ts_from_db_val(db_sched_val) != int(sched_ts_payload):
+                return  # stale — safe no-op
+        if appt["status"] == "confirmed":
+            sched_val = appt.get("scheduled_at")
+            if not sched_val:
+                return
+            sched_dt = _dt.fromisoformat(str(sched_val).replace("Z", "+00:00"))
+            if sched_dt.tzinfo is None:
+                sched_dt = sched_dt.replace(tzinfo=_tz.utc)
+            if _dt.now(_tz.utc) < sched_dt + _td(minutes=15):
+                return  # too early — appointment not yet overdue
+            rows = conn.run(
+                "UPDATE appointments SET status='missed', updated_at=NOW() "
+                "WHERE id=:id AND status='confirmed' RETURNING id",
+                id=int(appt_id),
             )
+            transitioned = bool(rows)
+            if transitioned:
+                _insert_appointment_event(
+                    conn, int(appt_id), None, "appointment_missed",
+                    old_status="confirmed", new_status="missed",
+                )
+        elif appt["status"] == "missed":
+            already_missed = True  # retry scenario: transition done, notification pending
+        else:
+            return  # expired, cancelled, etc. — safe no-op
         company_id = appt["company_id"]
         applicant_id = appt["applicant_id"]
     finally:
         release_conn(conn)
-    if transitioned:
+    if transitioned or already_missed:
+        errors = []
         for uid in [company_id, applicant_id]:
             if uid:
                 try:
@@ -6703,30 +6787,48 @@ def _handle_appointment_missed(job: dict) -> None:
                         link=f"/appointment-room?id={appt_id}",
                         entity_id=int(appt_id),
                         entity_type="appointment",
-                        event_key=f"appointment_missed:{appt_id}:{uid}",
+                        event_key=f"appointment_missed:{appt_id}:{uid}:{sched_ts_payload}",
                     )
                 except Exception as _ne:
                     print(
                         f"[scheduler:appointment_missed] notification failed "
                         f"uid={uid} appt={appt_id}: {_ne}"
                     )
+                    errors.append(_ne)
+        if errors:
+            raise errors[0]  # re-raise — runner retries; event_key idempotency prevents duplicate
 
 
 def _handle_job_expiring_soon(job: dict) -> None:
-    """Send job-expiring-soon notification to company 48h before listing expires."""
-    job_id = job.get("payload", {}).get("job_id")
-    company_id = job.get("payload", {}).get("company_id")
-    if not job_id or not company_id:
-        raise ValueError("job_expiring_soon: missing job_id or company_id in payload")
+    """Send job-expiring-soon notification to company 48h before listing expires.
+
+    company_id is read from DB — never trusted from payload (F21/F6).
+    Stale check: expected_expires_at_ts in payload must match current DB expires_at.
+    Only active jobs receive notifications (not paused, closed, or expired).
+    Notification failure is re-raised so the runner can retry.
+    """
+    payload = job.get("payload", {})
+    job_id = payload.get("job_id")
+    expected_exp_ts = payload.get("expected_expires_at_ts")
+    if not job_id:
+        raise ValueError("job_expiring_soon: missing job_id in payload")
     conn = get_conn()
-    job_title = None
+    company_id = job_title = None
     try:
-        rows = conn.run("SELECT title, status FROM jobs WHERE id=:id", id=int(job_id))
+        rows = conn.run(
+            "SELECT title, status, expires_at, company_id FROM jobs WHERE id=:id",
+            id=int(job_id),
+        )
         if not rows:
+            return  # job deleted — safe no-op
+        job_title, job_status, db_expires_at, company_id = rows[0]
+        # Only notify for active jobs (not paused, closed, or expired)
+        if job_status != "active":
             return
-        job_title, job_status = rows[0][0], rows[0][1]
-        if job_status not in ("active", "paused"):
-            return
+        # Stale check: if expires_at changed, this job targets an old expiry cycle
+        if expected_exp_ts is not None and db_expires_at is not None:
+            if _ts_from_db_val(db_expires_at) != int(expected_exp_ts):
+                return  # stale — safe no-op
     finally:
         release_conn(conn)
     try:
@@ -6738,10 +6840,11 @@ def _handle_job_expiring_soon(job: dict) -> None:
             link="/company-profile",
             entity_id=int(job_id),
             entity_type="job",
-            event_key=f"job_expiring_soon:{job_id}:{company_id}",
+            event_key=f"job_expiring_soon:{job_id}:{company_id}:{expected_exp_ts}",
         )
     except Exception as _ne:
         print(f"[scheduler:job_expiring_soon] notification failed job={job_id}: {_ne}")
+        raise  # re-raise — runner retries; event_key idempotency prevents duplicate
 
 
 def _execute_scheduler_job(job: dict) -> None:

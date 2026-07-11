@@ -8324,6 +8324,50 @@ check(
     and ('S4' in _sysidx178 and ('✅' in _sysidx178 or 'handler' in _sysidx178.lower()))
 )
 
+# ── Fix checks: timestamps in payload / dedupe / stale / retry / DB ──────────
+# 178-17: Scheduling hooks carry epoch-seconds timestamp in payload AND dedupe key
+check(
+    "178-17. hooks carry epoch-seconds in payload and dedupe key for all 4 job types",
+    'scheduled_at_ts' in _accept178 and 'response_deadline_at_ts' in _send178
+    and 'response_deadline_at_ts' in _resched178 and 'expected_expires_at_ts' in _addjob178
+    and 'f"appointment_reminder:' in _accept178 and 'f"appointment_missed:' in _accept178
+    and 'f"appointment_deadline_expire:' in _send178
+    and 'f"job_expiring_soon:' in _addjob178
+)
+
+# 178-18: All 4 handlers use _ts_from_db_val for stale-detection comparison
+check(
+    "178-18. all 4 handlers call _ts_from_db_val for stale-job detection",
+    all('_ts_from_db_val' in body for body in [_reminder178, _expire178, _missed178, _jobexp178])
+)
+
+# 178-19: appointment_missed checks sched_dt + 15 min before transitioning to 'missed'
+check(
+    "178-19. appointment_missed: guards transition on scheduled_at + 15 minutes",
+    'minutes=15' in _missed178 and 'timedelta' in _missed178
+)
+
+# 178-20: Notification failures re-raised in all 4 handlers (not swallowed)
+check(
+    "178-20. notification failures re-raised in all 4 handlers — not swallowed",
+    'raise errors[0]' in _reminder178 and 'raise errors[0]' in _missed178
+    and 'raise' in _expire178 and 'raise' in _jobexp178
+)
+
+# 178-21: job_expiring_soon handler reads company_id from DB; payload has no company_id;
+#          handler guards on active status only (not paused)
+_jexp_payload178 = (
+    _addjob178.split('"job_expiring_soon"')[1].split(f'"job_expiring_soon:')[0]
+    if '"job_expiring_soon"' in _addjob178 and 'f"job_expiring_soon:' in _addjob178
+    else ''
+)
+check(
+    "178-21. job_expiring_soon: company_id absent from payload, read from DB, active-only guard",
+    'company_id' not in _jexp_payload178
+    and 'company_id' in _jobexp178
+    and ('!= "active"' in _jobexp178 or "!= 'active'" in _jobexp178)
+)
+
 # ── Summary ──────────────────────────────────────────────────────────────
 print()
 passed = sum(1 for _, s, _ in results if s == PASS)

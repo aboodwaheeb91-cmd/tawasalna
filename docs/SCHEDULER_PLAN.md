@@ -879,7 +879,7 @@ S4 سيضيف: `appointment_reminder`, `appointment_deadline_expire`, `appointme
 ## 14. S4 Domain Handlers + Scheduling Hooks — مكتملة
 
 **PR:** `scheduler-s4-domain-handlers`  
-**تاريخ:** 2026-07-11
+**تاريخ:** 2026-07-11 (fix: stale-detection + retry-raise + DB-owned company_id)
 
 ### الهدف
 
@@ -909,10 +909,10 @@ _SCHEDULER_HANDLERS = {
 
 | Handler | المحفّز | الشرط قبل الفعل | الفعل |
 |---------|---------|---------------|-------|
-| `_handle_appointment_reminder` | run_at = scheduled_at - 24h | `status == 'confirmed'` | إشعار لـ company + applicant |
-| `_handle_appointment_deadline_expire` | run_at = response_deadline_at | `status == 'pending_response'` AND `NOW() >= deadline` | `UPDATE ... SET status='expired' RETURNING id` + إشعار للشركة |
-| `_handle_appointment_missed` | run_at = scheduled_at + 15min | `status == 'confirmed'` | `UPDATE ... SET status='missed' RETURNING id` + إشعار للطرفين |
-| `_handle_job_expiring_soon` | run_at = expires_at - 48h | `job.status IN ('active','paused')` | إشعار للشركة |
+| `_handle_appointment_reminder` | run_at = scheduled_at - 24h | `status == 'confirmed'` + stale check | إشعار لـ company + applicant |
+| `_handle_appointment_deadline_expire` | run_at = response_deadline_at | `status == 'pending_response'` AND `NOW() >= deadline` + stale check | `UPDATE ... SET status='expired' RETURNING id` + إشعار للشركة |
+| `_handle_appointment_missed` | run_at = scheduled_at + 15min | `status == 'confirmed'` AND `NOW() >= scheduled_at + 15min` + stale check | `UPDATE ... SET status='missed' RETURNING id` + إشعار للطرفين |
+| `_handle_job_expiring_soon` | run_at = expires_at - 48h | `job.status == 'active'` (paused مستثنى) + stale check | إشعار للشركة (company_id من DB) |
 
 **`_execute_scheduler_job`** مُحدَّث — branches صريحة لكل handler.
 
@@ -920,15 +920,17 @@ _SCHEDULER_HANDLERS = {
 
 | Function | Job Scheduled | Dedupe Key | run_at |
 |----------|--------------|-----------|--------|
-| `accept_appointment` | `appointment_reminder` | `appointment_reminder:{appt_id}` | `scheduled_at - 24h` (إذا > NOW) |
-| `accept_appointment` | `appointment_missed` | `appointment_missed:{appt_id}` | `scheduled_at + 15min` |
-| `send_appointment` | `appointment_deadline_expire` | `appointment_deadline_expire:{appt_id}:{deadline_min_epoch}` | `deadline_dt` |
-| `reschedule_appointment` | `appointment_deadline_expire` | `appointment_deadline_expire:{appt_id}:{deadline_min_epoch}` | new `deadline_dt` |
-| `add_job` | `job_expiring_soon` | `job_expiring_soon:{job_id}:{company_id}` | `expires_at - 48h` (إذا > NOW) |
+| `accept_appointment` | `appointment_reminder` | `appointment_reminder:{appt_id}:{sched_ts}` | `scheduled_at - 24h` (إذا > NOW) |
+| `accept_appointment` | `appointment_missed` | `appointment_missed:{appt_id}:{sched_ts}` | `scheduled_at + 15min` |
+| `send_appointment` | `appointment_deadline_expire` | `appointment_deadline_expire:{appt_id}:{dl_ts}` | `deadline_dt` |
+| `reschedule_appointment` | `appointment_deadline_expire` | `appointment_deadline_expire:{appt_id}:{dl_ts}` | new `deadline_dt` |
+| `add_job` | `job_expiring_soon` | `job_expiring_soon:{job_id}:{exp_ts}` | `expires_at - 48h` (إذا > NOW) |
 
-ملاحظات الـ dedupe:
-- `appointment_reminder` و `appointment_missed`: مفتاح ثابت لأن accept يُستدعى مرة واحدة فقط لكل موعد.
-- `appointment_deadline_expire`: يحتوي على `{deadline_min_epoch}` لأن `reschedule_appointment` يغيّر الـ deadline — كل reschedule ينتج dedupe key مختلفاً وبالتالي job جديد.
+ملاحظات الـ dedupe (محدَّثة — stale-job protection):
+- جميع المفاتيح تحتوي على **epoch-seconds timestamp** يرتبط بالقيمة المجدولة.
+- عند reschedule: `dl_ts` الجديد → dedupe key مختلف → job جديد آمن. الـ job القديم يُشغَّل لكن يكتشف handler الـ stale عبر `_ts_from_db_val`.
+- `job_expiring_soon`: payload يحتوي `job_id + expected_expires_at_ts` فقط — **بدون `company_id`** (F21/F6: backend يقرأه من DB).
+- `sched_ts`, `dl_ts`, `exp_ts` = epoch seconds (UTC)، وليس تقريب الدقيقة.
 
 **`add_job` restructured**: `return result` نُقل خارج الـ `try` block لتمكين الـ scheduling بعد `release_conn`.
 
@@ -938,6 +940,31 @@ _SCHEDULER_HANDLERS = {
 - **DB transitions**: `UPDATE ... WHERE status='X' RETURNING id` — يضمن أن التحديث يحدث مرة واحدة فقط. Zero rows = لا فعل.
 - **Notifications**: `event_key` + `ON CONFLICT DO NOTHING` في `create_notification`.
 - **Hooks**: `ON CONFLICT (dedupe_key) DO NOTHING` في `schedule_job` — تكرار الاستدعاء لا يُنشئ job مكرر.
+
+### Stale-Job Detection
+
+كل handler يقارن timestamp الـ payload مع القيمة الحالية في DB قبل أي فعل:
+
+```python
+# helper مشترك
+def _ts_from_db_val(val) -> int:
+    """Convert DB datetime (ISO string or datetime) to UTC epoch seconds."""
+    ...
+
+# مثال داخل handler
+if sched_ts_payload is not None:
+    db_val = appt.get("scheduled_at")
+    if db_val and _ts_from_db_val(db_val) != int(sched_ts_payload):
+        return  # stale — safe no-op
+```
+
+إذا اختلف الـ timestamp → reschedule حدث بعد الجدولة → safe no-op (لا transition، لا notification).
+
+### Notification Failure Handling (No Silent Swallowing)
+
+- **Dual-party handlers** (`appointment_reminder`, `appointment_missed`): يحاول إرسال الإشعار لكلا الطرفين، يجمع الأخطاء، يرفع `errors[0]` في النهاية إذا فشل أي طرف. الـ runner يُعيد المحاولة. `event_key` يمنع الإشعارات المكررة.
+- **Single-party handlers** (`appointment_deadline_expire`, `job_expiring_soon`): `except ... raise` مباشرة.
+- **Retry safety**: إذا نجح الـ DB transition لكن فشل الـ notification (أول محاولة) → في المحاولة التالية: `already_expired` / `already_missed` flag يتخطى التحويل ويُعيد محاولة الإشعار فقط.
 
 ### ما بقي مؤجلاً
 
