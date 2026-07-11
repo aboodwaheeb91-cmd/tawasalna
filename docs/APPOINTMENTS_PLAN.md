@@ -506,6 +506,12 @@ appointment_closed:{appointment_id}:{affected_party_id}
 
 ---
 
+### Phase 1 — Migration Startup Rule
+
+> **Appointments migration is startup-critical.**
+> Failure in `_migrate_appointments()` raises and stops startup — the app must not run with missing appointments tables.
+> Pattern in `server.py`: `print(f"❌ ...") → raise` (not `⚠️` warning-only).
+
 ### Phase 1 — Non-goals (ما لا يوجد بعد)
 
 ```

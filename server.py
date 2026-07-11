@@ -491,7 +491,8 @@ async def on_startup():
         _migrate_appointments()
         print("✅ appointments tables ready (appointments, appointment_participants, appointment_events, appointment_messages)")
     except Exception as e:
-        print(f"⚠️ appointments migration failed: {e}")
+        print(f"❌ appointments migration failed: {e}")
+        raise
     await _init_asyncpg_pool()
 
 # ── Helpers ──

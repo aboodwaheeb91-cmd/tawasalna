@@ -6586,6 +6586,48 @@ check(
     ('Phase 1' in _sidx170 and 'implemented' in _sidx170)
 )
 
+# ── Fix: startup-critical failure handling (50–57) ────────────────────
+# These checks verify that _migrate_appointments() failure stops startup
+# (raise, not warning-only). Added in fix commit on PR #460.
+_startup_block170 = (
+    _server170.split("_migrate_appointments()")[1].split("await _init_asyncpg_pool")[0]
+    if "_migrate_appointments()" in _server170 else ""
+)
+check(
+    "170-50. server.py: _migrate_appointments() called in startup",
+    "_migrate_appointments()" in _server170
+)
+check(
+    "170-51. server.py: failure prints ❌ error message (not ⚠️ warning)",
+    '❌ appointments migration failed' in _server170
+)
+check(
+    "170-52. server.py: failure raises (startup-critical)",
+    'raise' in _startup_block170
+)
+check(
+    "170-53. server.py: no warning-only (⚠️) handling for appointments migration",
+    '⚠️ appointments migration failed' not in _server170
+)
+check(
+    "170-54. APPOINTMENTS_PLAN.md: startup-critical note documented",
+    'startup-critical' in _aplan170 or 'Startup' in _aplan170
+)
+check(
+    "170-55. No new endpoints added in this fix commit",
+    '@app.post("/appointments' not in _server170 and
+    '@app.get("/appointments' not in _server170
+)
+check(
+    "170-56. No frontend changes in this fix",
+    'appointments.html' not in _server170.split('_migrate_appointments')[0]
+)
+check(
+    "170-57. No notification hooks for appointments in this fix",
+    'create_notification' not in _auth170.split('def _migrate_appointments')[1].split('def ')[0]
+    if 'def _migrate_appointments' in _auth170 else True
+)
+
 # ── Summary ──────────────────────────────────────────────────────────────
 print()
 passed = sum(1 for _, s, _ in results if s == PASS)
