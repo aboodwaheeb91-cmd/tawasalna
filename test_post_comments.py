@@ -6385,9 +6385,11 @@ check(
 
 # ── No code changes (39–42) ───────────────────────────────────────────
 check(
-    "169-39. auth.py NOT modified — no appointments table or appointment function in auth.py",
-    'CREATE TABLE IF NOT EXISTS appointments' not in _auth169 and
-    'def create_appointment' not in _auth169
+    "169-39. auth.py appointments migration — if present, uses IF NOT EXISTS (idempotent pattern)",
+    # PR #459 was docs-only; Phase 1 (PR #460) correctly adds the migration with IF NOT EXISTS.
+    # This check now verifies: if the migration exists, it uses the correct idempotent pattern.
+    ('def _migrate_appointments' not in _auth169) or
+    ('CREATE TABLE IF NOT EXISTS appointments' in _auth169)
 )
 check(
     "169-40. server.py NOT modified — no appointments endpoint added to server.py",
@@ -6400,8 +6402,10 @@ check(
     'ws://appointment' not in _server169.lower()
 )
 check(
-    "169-42. No appointment_participants table created in auth.py migration",
-    'CREATE TABLE IF NOT EXISTS appointment_participants' not in _auth169
+    "169-42. auth.py appointments migration — if present, uses IF NOT EXISTS (idempotent pattern)",
+    # Phase 1 correctly adds appointment_participants with IF NOT EXISTS.
+    ('def _migrate_appointments' not in _auth169) or
+    ('CREATE TABLE IF NOT EXISTS appointment_participants' in _auth169)
 )
 
 # ── SYSTEMS_INDEX update (43–44) ──────────────────────────────────────
@@ -6419,6 +6423,167 @@ check(
     "169-45. APPOINTMENTS_PLAN.md footer declares PR #459 docs-only with no implementation",
     'PR #459' in _aplan169 and
     ('docs-only' in _aplan169.lower() or 'docs only' in _aplan169.lower() or 'لا تنفيذ' in _aplan169)
+)
+
+# ════════════════════════════════════════════════════════════════════════
+# §170 — Appointments Phase 1 Schema (PR #460)
+# 49 static checks: auth.py migration + server.py startup + docs updates
+# ════════════════════════════════════════════════════════════════════════
+
+with open("auth.py", encoding="utf-8") as f:
+    _auth170 = f.read()
+
+with open("server.py", encoding="utf-8") as f:
+    _server170 = f.read()
+
+with open("docs/APPOINTMENTS_PLAN.md", encoding="utf-8") as f:
+    _aplan170 = f.read()
+
+with open("docs/SYSTEMS_INDEX.md", encoding="utf-8") as f:
+    _sidx170 = f.read()
+
+# ── Migration function exists (1–4) ───────────────────────────────────
+check(
+    "170-1. auth.py: _migrate_appointments() function defined",
+    "def _migrate_appointments(" in _auth170
+)
+check(
+    "170-2. auth.py: appointments table created with IF NOT EXISTS",
+    "CREATE TABLE IF NOT EXISTS appointments" in _auth170
+)
+check(
+    "170-3. auth.py: appointment_participants table created with IF NOT EXISTS",
+    "CREATE TABLE IF NOT EXISTS appointment_participants" in _auth170
+)
+check(
+    "170-4. auth.py: appointment_events table created with IF NOT EXISTS",
+    "CREATE TABLE IF NOT EXISTS appointment_events" in _auth170
+)
+check(
+    "170-4b. auth.py: appointment_messages table created with IF NOT EXISTS",
+    "CREATE TABLE IF NOT EXISTS appointment_messages" in _auth170
+)
+
+# Extract the entire _migrate_appointments function body for column checks.
+# Split on function defs to isolate just that function, then search within it.
+_mig170 = (
+    _auth170.split("def _migrate_appointments(")[1].split("\ndef ")[0]
+    if "def _migrate_appointments(" in _auth170 else ""
+)
+
+# ── appointments columns (5–19) ───────────────────────────────────────
+check("170-5.  appointments: job_id column present",             "job_id" in _mig170)
+check("170-6.  appointments: application_id column present",     "application_id" in _mig170)
+check("170-7.  appointments: company_id column present",         "company_id" in _mig170)
+check("170-8.  appointments: applicant_id column present",       "applicant_id" in _mig170)
+check("170-9.  appointments: created_by column present",         "created_by" in _mig170)
+check("170-10. appointments: representative_user_id present",    "representative_user_id" in _mig170)
+check("170-11. appointments: representative_name present",       "representative_name" in _mig170)
+check("170-12. appointments: status column present",             "status" in _mig170)
+check("170-13. appointments: mode column present",               "mode" in _mig170)
+check("170-14. appointments: scheduled_at column present",       "scheduled_at" in _mig170)
+check("170-15. appointments: response_deadline_at present",      "response_deadline_at" in _mig170)
+check("170-16. appointments: location_text column present",      "location_text" in _mig170)
+check("170-17. appointments: online_url column present",         "online_url" in _mig170)
+check("170-18. appointments: notes column present",              "notes" in _mig170)
+check("170-19. appointments: closed_at column present",          "closed_at" in _mig170)
+
+# ── appointment_participants columns (20–24) ──────────────────────────
+check("170-20. appointment_participants: appointment_id present", "appointment_id" in _mig170)
+check("170-21. appointment_participants: user_id present",        "user_id" in _mig170)
+check("170-22. appointment_participants: role present",           "role" in _mig170)
+check("170-23. appointment_participants: can_message present",    "can_message" in _mig170)
+check("170-24. appointment_participants: can_decide present",     "can_decide" in _mig170)
+
+# ── appointment_events columns (25–30) ────────────────────────────────
+check("170-25. appointment_events: appointment_id present",  "appointment_id" in _mig170)
+check("170-26. appointment_events: actor_id present",        "actor_id" in _mig170)
+check("170-27. appointment_events: event_type present",      "event_type" in _mig170)
+check("170-28. appointment_events: old_status present",      "old_status" in _mig170)
+check("170-29. appointment_events: new_status present",      "new_status" in _mig170)
+check("170-30. appointment_events: payload JSONB present",   "payload" in _mig170 and "JSONB" in _mig170)
+
+# ── appointment_messages columns (31–35) ──────────────────────────────
+check("170-31. appointment_messages: appointment_id present", "appointment_id" in _mig170)
+check("170-32. appointment_messages: sender_id present",      "sender_id" in _mig170)
+check("170-33. appointment_messages: body present",           "body" in _mig170)
+check("170-34. appointment_messages: edited_at present",      "edited_at" in _mig170)
+check("170-35. appointment_messages: deleted_at present",     "deleted_at" in _mig170)
+
+# ── Indexes (36–39) ───────────────────────────────────────────────────
+check(
+    "170-36. indexes for appointments exist (company_id, status, scheduled_at)",
+    "idx_appt_company" in _auth170 and "idx_appt_status" in _auth170 and
+    "idx_appt_scheduled" in _auth170
+)
+check(
+    "170-37. indexes for appointment_participants exist",
+    "idx_appt_part_appt" in _auth170 and "idx_appt_part_user" in _auth170
+)
+check(
+    "170-38. indexes for appointment_events exist",
+    "idx_appt_evt_appt" in _auth170 and "idx_appt_evt_type" in _auth170
+)
+check(
+    "170-39. indexes for appointment_messages exist",
+    "idx_appt_msg_appt" in _auth170 and "idx_appt_msg_created" in _auth170
+)
+
+# ── Idempotency (40) ──────────────────────────────────────────────────
+check(
+    "170-40. migration is idempotent — all tables use IF NOT EXISTS",
+    _auth170.count("CREATE TABLE IF NOT EXISTS appointment") == 4 and
+    _auth170.count("CREATE INDEX IF NOT EXISTS idx_appt") >= 12
+)
+
+# ── server.py startup (41) ────────────────────────────────────────────
+check(
+    "170-41. server.py: _migrate_appointments() imported and called in startup",
+    "_migrate_appointments" in _server170 and
+    "_migrate_appointments()" in _server170
+)
+
+# ── No forbidden additions (42–46) ────────────────────────────────────
+check(
+    "170-42. No new API endpoints for appointments in server.py",
+    '@app.post("/appointments' not in _server170 and
+    '@app.get("/appointments' not in _server170
+)
+check(
+    "170-43. No frontend HTML/JS changes (no appointments page yet)",
+    'appointments.html' not in _server170.split('_migrate_appointments')[0]
+)
+check(
+    "170-44. No notification hooks for appointments in auth.py",
+    'create_notification' not in _auth170.split('def _migrate_appointments')[1]
+    if 'def _migrate_appointments' in _auth170 else True
+)
+check(
+    "170-45. No scheduler/WebSocket/push in migration",
+    'WebSocket' not in _auth170.split('def _migrate_appointments')[1].split('def ')[0]
+    if 'def _migrate_appointments' in _auth170 else True
+)
+check(
+    "170-46. No Messenger changes (messages table not modified in migration)",
+    'ALTER TABLE messages' not in _auth170.split('def _migrate_appointments')[1].split('def ')[0]
+    if 'def _migrate_appointments' in _auth170 else True
+)
+
+# ── Docs updated (47–49) ──────────────────────────────────────────────
+check(
+    "170-47. APPOINTMENTS_PLAN.md: Phase 1 marked as implemented (PR #460)",
+    'Phase 1' in _aplan170 and
+    ('✅' in _aplan170 or 'مُنجز' in _aplan170 or 'PR #460' in _aplan170)
+)
+check(
+    "170-48. APPOINTMENTS_PLAN.md: Phase 1 schema section with all 4 tables",
+    'appointment_participants' in _aplan170 and 'appointment_events' in _aplan170 and
+    'appointment_messages' in _aplan170
+)
+check(
+    "170-49. SYSTEMS_INDEX.md §23: status updated to Phase 1 schema implemented",
+    'Phase 1 schema implemented' in _sidx170 or
+    ('Phase 1' in _sidx170 and 'implemented' in _sidx170)
 )
 
 # ── Summary ──────────────────────────────────────────────────────────────
