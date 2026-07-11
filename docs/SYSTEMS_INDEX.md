@@ -513,7 +513,7 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 - S2 ✅ Helper مكتملة (PR: scheduler-s2-helper) — `schedule_job()` في `auth.py` — idempotent INSERT، `created` flag، input validation
 - S3 ✅ Runner + Endpoint مكتملة (PR: scheduler-s3-runner) — `run_due_scheduler_jobs()` في `auth.py` — FOR UPDATE SKIP LOCKED، two-phase transaction، retry/exhaustion logic. `POST /internal/run-due-jobs` في `server.py` — X-Scheduler-Secret header، hmac.compare_digest، SCHEDULER_SECRET env var
 - S4 ✅ Domain Handlers + Hooks مكتملة (PR: scheduler-s4-domain-handlers) — 4 idempotent handler functions: `_handle_appointment_reminder`، `_handle_appointment_deadline_expire`، `_handle_appointment_missed`، `_handle_job_expiring_soon`. Scheduling hooks في: `accept_appointment`، `send_appointment`، `reschedule_appointment`، `add_job`. Dispatcher `_execute_scheduler_job` مُحدَّث. `_SCHEDULER_HANDLERS` يضم جميع الأنواع الأربعة.
-- S5 🔜 Integration tests — مؤجل
+- S5 ✅ Minimal Runtime QA مكتملة (PR: scheduler-s5-minimal-runtime-qa) — 5 runtime checks (unittest.mock): noop dispatch، unknown-type→ValueError، endpoint-security 503/403/200، dedupe created=False on 2nd call، stale domain job→safe no-op (no notification). 1579/1579 pass.
 - S6 🔜 Admin observability — مؤجل
 **Deferred dependent features (now live in S4):**
 - `appointment_reminder` ✅ — إشعار 24 ساعة قبل الموعد (scheduled at accept time)

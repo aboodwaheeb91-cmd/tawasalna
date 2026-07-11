@@ -969,9 +969,27 @@ if sched_ts_payload is not None:
 ### ما بقي مؤجلاً
 
 ```
-مؤجل إلى S5:  Integration tests — اختبار E2E: job يُجدَّل → يُشغَّل → DB تنتقل → notification تُنشأ
 مؤجل إلى S6:  Admin observability — تفاصيل scheduler في admin panel
 ```
+
+---
+
+## 15. S5 Minimal Runtime QA — مكتملة
+
+**PR:** `scheduler-s5-minimal-runtime-qa`  
+**تاريخ:** 2026-07-11
+
+5 runtime checks (§179) تُشغَّل بـ `unittest.mock` بدون DB حقيقي:
+
+| # | الحالة | النتيجة |
+|---|--------|--------|
+| 179-01 | noop: `_execute_scheduler_job` يكتمل بدون DB | ✅ |
+| 179-02 | unknown job type → `ValueError` يذكر النوع | ✅ |
+| 179-03 | endpoint security: no-secret→503, wrong→403, correct→runner | ✅ |
+| 179-04 | dedupe: نفس `dedupe_key` مرتين → `created=False` في الثانية | ✅ |
+| 179-05 | stale domain job: timestamp payload مختلف → safe no-op، no notification | ✅ |
+
+**طريقة الاختبار:** import auth.py مباشرة + `patch('auth.get_conn')` + `patch('auth.create_notification')` للتحقق من السلوك بدون اتصال DB. server.py يُستورد ويُختبر endpoint مباشرة مع mock Request.
 
 ---
 
@@ -985,6 +1003,7 @@ if sched_ts_payload is not None:
 | Secure endpoint | ✅ S3 | `server.py → POST /internal/run-due-jobs` |
 | Domain handlers (4) | ✅ S4 | `auth.py → _handle_appointment_reminder` / `_deadline_expire` / `_missed` / `_handle_job_expiring_soon` |
 | Scheduling hooks (5) | ✅ S4 | `auth.py → accept_appointment` / `send_appointment` / `reschedule_appointment` / `add_job` |
+| Runtime QA (5 checks) | ✅ S5 | `test_post_comments.py §179` |
 | Proposed schema (docs) | §7 + §11 | هذا الملف |
 | S2 contract | §12 | هذا الملف |
 | S3 contract | §13 | هذا الملف |
@@ -993,7 +1012,7 @@ if sched_ts_payload is not None:
 | Appointments deferral | محدَّث | `docs/APPOINTMENTS_PLAN.md` |
 | Notifications blocked | محدَّث | `docs/NOTIFICATIONS_PLAN.md` |
 | System index entry | مضاف + محدَّث | `docs/SYSTEMS_INDEX.md §37` |
-| Integration tests | 🔜 S5 | — |
+| Runtime QA | ✅ S5 | `test_post_comments.py §179` |
 | Admin observability | 🔜 S6 | — |
 
 ---
