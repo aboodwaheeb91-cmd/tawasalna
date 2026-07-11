@@ -7468,6 +7468,110 @@ check(
     'SCHEDULER_PLAN.md' in _notifplan
 )
 
+# ══════════════════════════════════════════════════════════════════════════
+# §174 — Scheduler S0 Tooling Decision (docs-only)
+# ══════════════════════════════════════════════════════════════════════════
+
+import os as _os174
+_sched174  = open('docs/SCHEDULER_PLAN.md',   encoding='utf-8').read() if _os174.path.exists('docs/SCHEDULER_PLAN.md')   else ''
+_sysidx174 = open('docs/SYSTEMS_INDEX.md',    encoding='utf-8').read() if _os174.path.exists('docs/SYSTEMS_INDEX.md')    else ''
+_auth174   = open('auth.py',   encoding='utf-8').read() if _os174.path.exists('auth.py')   else ''
+_server174 = open('server.py', encoding='utf-8').read() if _os174.path.exists('server.py') else ''
+
+_s0_section = _sched174.split('S0 Tooling Decision')[1] if 'S0 Tooling Decision' in _sched174 else ''
+
+# ── S0 section exists and is complete ─────────────────────────────────────
+check(
+    "174-01. SCHEDULER_PLAN.md contains S0 Tooling Decision section",
+    'S0 Tooling Decision' in _sched174
+)
+check(
+    "174-02. S0 section documents External Cron option",
+    'External Cron' in _s0_section
+)
+check(
+    "174-03. S0 section documents APScheduler option",
+    'APScheduler' in _s0_section
+)
+check(
+    "174-04. S0 section documents Background Worker / separate dyno option",
+    'Background Worker' in _s0_section or 'Background worker' in _s0_section or 'Worker Dyno' in _s0_section
+)
+check(
+    "174-05. S0 section documents Platform Scheduler (Heroku Scheduler) option",
+    'Heroku Scheduler' in _s0_section or 'Platform Scheduler' in _s0_section or 'Platform scheduler' in _s0_section
+)
+check(
+    "174-06. S0 section documents Manual/Admin Trigger option for testing only",
+    ('Manual' in _s0_section or 'Admin Trigger' in _s0_section or 'admin trigger' in _s0_section.lower())
+    and ('للاختبار' in _s0_section or 'testing only' in _s0_section.lower() or 'تطوير' in _s0_section)
+)
+check(
+    "174-07. S0 section contains pros/cons comparison (مزايا + سلبيات)",
+    'مزايا' in _s0_section and 'سلبيات' in _s0_section
+)
+check(
+    "174-08. S0 section documents security risks (secret token / hmac)",
+    'secret' in _s0_section.lower() and ('hmac' in _s0_section.lower() or 'أمان' in _s0_section or 'security' in _s0_section.lower())
+)
+check(
+    "174-09. S0 section documents reliability evaluation (اعتمادية)",
+    'اعتمادية' in _s0_section or 'reliability' in _s0_section.lower() or 'Reliability' in _s0_section
+)
+check(
+    "174-10. S0 section has final recommendation (التوصية النهائية)",
+    'التوصية النهائية' in _s0_section or 'التوصية' in _s0_section or 'final recommendation' in _s0_section.lower()
+)
+check(
+    "174-11. S0 final recommendation mentions secure endpoint protection method",
+    'X-Scheduler-Secret' in _s0_section or 'hmac.compare_digest' in _s0_section
+)
+check(
+    "174-12. S0 section references scheduler_jobs as storage layer",
+    'scheduler_jobs' in _s0_section
+)
+check(
+    "174-13. S0 section explicitly states no scheduler code added in this PR",
+    ('لا كود' in _s0_section or 'no code' in _s0_section.lower() or 'docs-only' in _s0_section.lower())
+)
+check(
+    "174-14. S0 section explicitly states no schema changes",
+    'لا schema' in _s0_section or 'no schema' in _s0_section.lower() or 'لم يُنفَّذ' in _s0_section
+)
+check(
+    "174-15. S0 section states no endpoints added in this PR",
+    'لا endpoints' in _s0_section or 'no endpoints' in _s0_section.lower() or 'مؤجل إلى S1' in _s0_section
+)
+
+# ── SYSTEMS_INDEX.md §37 updated with S0 status ───────────────────────────
+check(
+    "174-16. SYSTEMS_INDEX.md §37 updated: mentions S0 completed",
+    'S0' in _sysidx174 and ('Tooling Decision' in _sysidx174 or 'مكتمل' in _sysidx174)
+)
+
+# ── No code added to auth.py or server.py ─────────────────────────────────
+check(
+    "174-17. auth.py: no APScheduler import added",
+    'APScheduler' not in _auth174 and 'apscheduler' not in _auth174.lower()
+)
+check(
+    "174-18. server.py: no scheduler endpoint or run_due_jobs added",
+    'run_due_jobs' not in _server174 and 'X-Scheduler-Secret' not in _server174
+)
+
+# ── No cron config file added ──────────────────────────────────────────────
+check(
+    "174-19. No .github/workflows/scheduler cron config added",
+    not _os174.path.exists('.github/workflows/scheduler.yml')
+    and not _os174.path.exists('.github/workflows/cron.yml')
+)
+
+# ── S0 documents what is deferred to S1 ──────────────────────────────────
+check(
+    "174-20. S0 section documents what remains deferred to S1",
+    'S1' in _s0_section and ('مؤجل' in _s0_section or 'deferred' in _s0_section.lower())
+)
+
 # ── Summary ──────────────────────────────────────────────────────────────
 print()
 passed = sum(1 for _, s, _ in results if s == PASS)

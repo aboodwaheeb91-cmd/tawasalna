@@ -303,6 +303,286 @@ job_expiring_soon:{job_id}:{company_id}
 
 ---
 
+## 10. S0 Tooling Decision — قرار مكتمل
+
+> **S0 مكتمل — docs-only.** القرار موثَّق أدناه. لا كود أُضيف، لا schema تغيَّر، لا endpoints جديدة.
+> التنفيذ يبدأ من S1 بموافقة صريحة.
+
+---
+
+### الخيارات المدروسة (5 خيارات)
+
+---
+
+#### الخيار 1 — External Cron + Secure Endpoint
+
+**كيف يعمل؟**
+خدمة cron خارجية (GitHub Actions، cron-job.org، Render Cron) تستدعي HTTP endpoint محمياً داخل FastAPI كل 60 ثانية. الـ endpoint يستعلم `scheduler_jobs` بـ `FOR UPDATE SKIP LOCKED`، ينفذ الـ jobs المستحقة، ويُحدِّث حالتها في DB.
+
+**المزايا:**
+- التطبيق يبقى stateless — الـ runner خارجي منفصل عن الـ web process
+- Jobs محفوظة في DB → لا ضياع عند dyno restart أو cron miss
+- بسيط: لا process إضافية، لا مكتبات Python جديدة في requirements.txt
+- يندمج مثالياً مع `scheduler_jobs` table (Option D)
+- يمكن اختباره باستقلالية بـ curl أو Postman قبل ربط cron حقيقي
+
+**السلبيات:**
+- الـ endpoint يجب حمايته بـ secret token — خطر إذا أُسيء الإعداد
+- الحد الأدنى 60 ثانية (معظم الخدمات المجانية) — كافٍ لجميع use cases الحالية
+- اعتماد خارجي — لكن مع DB-driven storage، حتى لو فاتت ticks، لا jobs تضيع
+
+**المخاطر الأمنية:**
+- الـ endpoint محمي بـ `X-Scheduler-Secret` header (pre-shared secret في env var)
+- الخادم يتحقق بـ `hmac.compare_digest(incoming, expected)` — مقاوم لـ timing attacks
+- ممنوع JWT (machine-to-machine call، لا user session) — ممنوع X-User-Id (محظور دائماً بـ F17)
+- Secret يُخزَّن فقط في Heroku Config Vars، لا في كود المصدر
+
+**الاعتمادية:**
+- Storage: عالية جداً — jobs في DB تبقى حتى لو توقف الـ cron
+- Timing: متوسطة (1-minute granularity، كافٍ لجميع use cases المخطط لها)
+- إذا فاتت ticks: الـ tick التالية تلتقط جميع الـ jobs المتأخرة تلقائياً
+
+**هل يناسب المشروع الحالي؟** ✅ **نعم — الأنسب لـ FastAPI + Heroku + Postgres.**
+
+**هل يحتاج infra إضافية؟** لا — GitHub Actions مجاني للـ repos، cron-job.org مجاني حتى 5 jobs.
+
+**هل يدعم retry/locking/dedupe بسهولة؟** نعم — كل هذا في `scheduler_jobs` table بـ `dedupe_key` UNIQUE + `FOR UPDATE SKIP LOCKED`.
+
+**هل مناسب للإطلاق الأول؟** ✅ نعم.
+
+---
+
+#### الخيار 2 — APScheduler داخل التطبيق (In-Process)
+
+**كيف يعمل؟**
+مكتبة `apscheduler` تُشغَّل داخل نفس FastAPI process. `BackgroundScheduler` أو `AsyncIOScheduler` يعمل في background thread أو coroutine ويُشغِّل jobs بفترات محددة مباشرةً داخل العملية.
+
+**المزايا:**
+- لا حاجة لخدمات خارجية — مكتفٍ بذاته
+- يمكنه التشغيل بدقة sub-minute (ثوانٍ وليس دقائق)
+- لا تكلفة dyno إضافية
+
+**السلبيات:**
+- يربط دورة حياة الـ scheduler بدورة حياة الـ web process تماماً
+- Heroku يُعيد تشغيل الدينوات يومياً → jobs قد تُقاطع أو تُفقد وسط التنفيذ إذا استُخدمت MemoryJobStore
+- إذا كان هناك dyno ثانٍ (scaling) → scheduler يعمل على كلاهما → تنفيذ مزدوج للـ jobs
+- APScheduler لديه schema خاص به (إذا استُخدم SQLAlchemy jobstore) → يتعارض مع `scheduler_jobs` الذي صمّمناه
+
+**المخاطر الأمنية:**
+- لا endpoint خارجي — لكن فشل في التحكم بـ thread يمكن أن يُعطل الـ API server
+- MemoryJobStore (الافتراضي): jobs تُفقد عند restart = silent failure (يخالف F9)
+
+**الاعتمادية:**
+- منخفضة على Heroku: daily dyno restarts = تهديد حقيقي ومستمر
+- مع SQLAlchemy jobstore → متوسطة، لكن يضيف تعقيداً وتعارضاً مع `scheduler_jobs`
+
+**هل يناسب المشروع الحالي؟** ❌ **لا يُنصح به للإنتاج على Heroku.**
+
+**هل يحتاج infra إضافية؟** لا dyno، لكن يُضيف `apscheduler` لـ requirements.txt.
+
+**هل يدعم retry/locking/dedupe بسهولة؟** لا — يحتاج تخصيصاً كثيراً ويتعارض مع `scheduler_jobs`.
+
+**هل مناسب للإطلاق الأول؟** ❌ لا — خطر الـ silent failure على Heroku غير مقبول (F9).
+
+---
+
+#### الخيار 3 — Background Worker منفصل (Separate Dyno)
+
+**كيف يعمل؟**
+Script منفصل (`worker.py`) يعمل كـ Heroku Worker Dyno مستقل. يستطلع `scheduler_jobs` كل N ثوانٍ بـ `FOR UPDATE SKIP LOCKED` وينفذ الـ jobs المستحقة مباشرةً من DB.
+
+**المزايا:**
+- منفصل تماماً عن الـ web server — crash في أحدهما لا يؤثر على الآخر
+- يدعم `scheduler_jobs` table بشكل مثالي دون تعارض
+- يمكن scale مستقلاً
+- دقة عالية: sub-minute (يستطلع كل 15–30 ثانية)
+
+**السلبيات:**
+- يتطلب Heroku Worker Dyno إضافياً → تكلفة إضافية (~$7+/شهر لـ eco dyno)
+- تعقيد deployment إضافي (Procfile يحتاج `worker:` entry)
+- يحتاج DB connection pool مستقل للـ worker process
+
+**المخاطر الأمنية:**
+- منخفضة — Worker يتصل مباشرة بـ DB، لا HTTP endpoint خارجي
+- Race conditions بين workers متعددة محلولة بـ `FOR UPDATE SKIP LOCKED`
+
+**الاعتمادية:**
+- عالية — process مستقل، jobs في DB، لا يتأثر بـ web server restarts
+
+**هل يناسب المشروع الحالي؟** ⚠️ **جيد معمارياً، لكن تكلفة إضافية غير مبررة للإطلاق الأول.**
+
+**هل يحتاج infra إضافية؟** نعم — Worker Dyno إضافي على Heroku.
+
+**هل يدعم retry/locking/dedupe بسهولة؟** ✅ نعم — مباشرةً من `scheduler_jobs`.
+
+**هل مناسب للإطلاق الأول؟** ⚠️ فقط إذا كانت الميزانية تسمح. يُنصح به كترقية لاحقة.
+
+---
+
+#### الخيار 4 — Platform Scheduler (Heroku Scheduler Add-on)
+
+**كيف يعمل؟**
+Heroku Scheduler Add-on يُشغِّل one-off dynos بفترات ثابتة: كل 10 دقائق، كل ساعة، أو كل يوم. يُنفِّذ script Python يتصل بـ DB.
+
+**المزايا:**
+- تكامل native مع Heroku — لا اعتماد على خدمات خارجية
+- إعداد بسيط جداً من Heroku Dashboard
+- يعمل في نفس بيئة التطبيق
+
+**السلبيات:**
+- الحد الأدنى **10 دقائق** — غير مقبول لـ appointment reminders (المطلوب ≤ 1 دقيقة)
+- "Best-effort" — Heroku يُصرّح صراحةً بعدم ضمان وقت التنفيذ
+- يُشغِّل one-off dynos → يستهلك dyno hours من خطة الاشتراك
+
+**المخاطر الأمنية:**
+- لا endpoint خارجي — لكن one-off dyno يأخذ permissions كاملة للـ app
+
+**الاعتمادية:**
+- منخفضة جداً للمهام الحساسة للوقت — best-effort بدون SLA
+
+**هل يناسب المشروع الحالي؟** ⚠️ **فقط للمهام غير الحساسة للوقت** (أرشفة يومية، تنظيف أسبوعي). **غير مناسب إطلاقاً لـ appointment reminders**.
+
+**هل يحتاج infra إضافية؟** Heroku Scheduler add-on (مجاني).
+
+**هل يدعم retry/locking/dedupe بسهولة؟** فقط بالجمع مع `scheduler_jobs` table.
+
+**هل مناسب للإطلاق الأول؟** ❌ لـ appointment reminders — ⚠️ لـ non-critical daily jobs.
+
+---
+
+#### الخيار 5 — Manual/Admin Trigger (للاختبار فقط — ليس للإنتاج)
+
+**كيف يعمل؟**
+Endpoint admin-only يُشغِّل `run_due_jobs()` يدوياً عند استدعائه. Admin يستدعيه من لوحة التحكم أو curl لاختبار الـ job handlers خلال مراحل التطوير (S1–S4).
+
+**المزايا:**
+- صفر infra إضافية
+- مفيد جداً خلال S1–S4 للتحقق من handlers قبل ربط cron حقيقي
+- يُسرِّع دورة التطوير — لا انتظار لـ cron tick
+
+**السلبيات:**
+- ليس scheduler حقيقي — jobs لا تُنفَّذ تلقائياً أبداً
+- غير صالح للإنتاج بأي حال
+
+**المخاطر الأمنية:**
+- يجب حمايته بـ X-Admin-Token حصراً — إذا أُسيء الإعداد، أي شخص قد يُشغِّل job execution
+- يجب تعطيله أو إزالته قبل الإطلاق الفعلي
+
+**الاعتمادية:** لا ينطبق — أداة تطوير فقط.
+
+**هل يناسب المشروع الحالي؟** ❌ **للاختبار في S1–S4 فقط — ليس للإنتاج بأي شكل.**
+
+**هل يحتاج infra إضافية؟** لا.
+
+**هل مناسب للإطلاق الأول؟** ❌ لا.
+
+---
+
+### جدول المقارنة — S0 Summary
+
+| المعيار | 1. External Cron | 2. APScheduler | 3. Worker Dyno | 4. Heroku Scheduler | 5. Admin Trigger |
+|---------|----------------|----------------|----------------|---------------------|-----------------|
+| الدقة الزمنية | ⚠️ ≥1 دقيقة | ✅ sub-minute | ✅ sub-minute | ❌ ≥10 دقائق | ❌ يدوي |
+| Crash safety | ✅ jobs في DB | ❌ in-memory/تعارض | ✅ jobs في DB | ⚠️ best-effort | ✅ jobs في DB |
+| تكلفة إضافية | ✅ لا | ✅ لا | ⚠️ dyno إضافي | ✅ لا | ✅ لا |
+| أمان الـ endpoint | ⚠️ secret token | N/A | N/A (DB direct) | N/A | ⚠️ admin-only |
+| مناسب لـ Heroku | ✅ | ❌ restarts | ⚠️ + تكلفة | ⚠️ non-critical فقط | للاختبار فقط |
+| يدعم scheduler_jobs | ✅ | ❌ يتعارض | ✅ | ✅ (بالجمع معه) | ✅ |
+| retry/locking/dedupe | ✅ من الجدول | ❌ يحتاج تخصيص | ✅ | ✅ (بالجمع) | ✅ |
+| مناسب للإطلاق الأول | ✅ | ❌ | ⚠️ | ❌ | ❌ |
+
+---
+
+### التوصية النهائية لـ S0
+
+**القرار النهائي: الخيار 1 — External Cron + Secure Endpoint**
+مع `scheduler_jobs` table (Option D من §4) كطبقة تخزين تُنفَّذ في S1.
+
+#### لماذا هذا الخيار؟
+
+1. **التخزين والـ runner مستقلان:** `scheduler_jobs` يخزّن الـ jobs (S1). الـ cron هو runner يستعلم الجدول فقط. يمكن استبدال الـ cron لاحقاً (بـ Worker Dyno مثلاً) دون تغيير الـ schema أو الـ job handlers.
+
+2. **Heroku restarts يومياً:** APScheduler داخل نفس الـ process = مخاطرة حقيقية بـ silent job loss عند كل restart. External Cron لا يتأثر — الـ jobs في DB دائماً.
+
+3. **صفر تكلفة إضافية:** لا Worker Dyno. GitHub Actions مجاني. cron-job.org مجاني.
+
+4. **بسيط للتطوير والاختبار:** خلال S3، الـ endpoint يمكن استدعاؤه يدوياً بـ curl مع الـ secret لاختبار `run_due_jobs()` قبل ربط الـ cron الحقيقي.
+
+5. **قابل للترقية:** إذا احتجنا sub-minute precision مستقبلاً، نُضيف Worker Dyno (الخيار 3) دون تغيير أي شيء في `scheduler_jobs` أو الـ job handlers.
+
+#### لماذا لم نختر APScheduler (الخيار 2)؟
+
+- **Heroku daily restarts = silent job loss** مع MemoryJobStore (الافتراضي) — يخالف F9
+- **Two dynos = double execution** — المنصة قد تُشغِّل dyno ثانٍ عند الضغط دون تنسيق
+- **Schema conflict** — APScheduler مع SQLAlchemy jobstore يستخدم جداوله الخاصة مما يُعارض `scheduler_jobs`
+- **Tight coupling** — failure في web server = failure في scheduler بشكل مباشر
+
+#### كيف سنحمي الـ endpoint في S3؟
+
+```python
+# مخطط التنفيذ في S3 (لم يُنفَّذ بعد في هذا PR):
+import hmac, os
+
+SCHEDULER_SECRET = os.getenv("SCHEDULER_SECRET", "")
+
+@app.post("/internal/run-due-jobs")
+def run_due_jobs_endpoint(request: Request):
+    incoming = request.headers.get("X-Scheduler-Secret", "")
+    if not SCHEDULER_SECRET or not hmac.compare_digest(incoming, SCHEDULER_SECRET):
+        raise HTTPException(401, "Unauthorized")
+    result = run_due_jobs()  # يُشغِّل الـ jobs المستحقة من scheduler_jobs
+    return {"ok": True, "data": result}
+```
+
+- Secret في Heroku Config Vars فقط — لا في كود المصدر أبداً
+- `hmac.compare_digest` — يمنع timing attacks (F17)
+- ممنوع JWT لهذا الـ endpoint (machine-to-machine call، لا user)
+- ممنوع X-User-Id (محظور دائماً — F6 + F17)
+- الـ endpoint prefix `/internal/` يوضّح أنه غير مخصص للعملاء
+
+#### كيف سيمنع الـ scheduler double-run؟
+
+طبقتان تُنفَّذان في S1–S3:
+1. **`FOR UPDATE SKIP LOCKED`** في استعلام الـ jobs: إذا كانت تيكتان cron متزامنتان (نادر)، كل واحدة تأخذ rows مختلفة — لا تعارض
+2. **`dedupe_key` UNIQUE** في `scheduler_jobs`: يمنع إدراج نفس الـ job مرتين في المصدر (عند `schedule_job()`)
+
+#### كيف سيستخدم scheduler_jobs في S1–S4؟
+
+```
+S1: CREATE TABLE scheduler_jobs في auth.py (migration)
+S2: schedule_job(job_type, payload, run_at, dedupe_key) helper في auth.py
+S3: run_due_jobs() + POST /internal/run-due-jobs (protected)
+S4: Hooks في appointment actions:
+    - accept_appointment   → schedule_job('appointment_reminder', ...)
+    - accept_appointment   → schedule_job('appointment_missed', ...)
+    - create_appointment   → schedule_job('appointment_deadline_expire', ...)
+    - create/post_job      → schedule_job('job_expiring_soon', ...)
+```
+
+#### ما الذي يبقى مؤجلاً إلى S1 (لم يُنفَّذ هنا)؟
+
+```
+مؤجل إلى S1+:
+- جدول scheduler_jobs (migration في auth.py)
+- helper schedule_job()
+- endpoint /internal/run-due-jobs
+- أي hooks في appointment / notification code
+- أي cron configuration أو SCHEDULER_SECRET في env
+
+منجز في S0 (هذا الـ PR — docs-only):
+✅ قرار الأداة: External Cron + scheduler_jobs
+✅ توثيق حماية الـ endpoint: X-Scheduler-Secret + hmac.compare_digest
+✅ توثيق منع double-run: FOR UPDATE SKIP LOCKED + dedupe_key UNIQUE
+✅ توثيق integration path كامل (S1–S4)
+✅ رفض APScheduler بأسباب موثَّقة
+```
+
+---
+
+*S0 Tooling Decision مكتمل — 2026-07-11 — docs-only (PR: scheduler-s0-tooling-decision).*
+
+---
+
 ## Source of Truth
 
 | العنصر | الحالة | المرجع |
