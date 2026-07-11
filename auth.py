@@ -5533,13 +5533,12 @@ def _appt_computed_status(appt: dict) -> str:
     return status
 
 
-def create_appointment(company_user_id: int, applicant_id: int,
-                       job_id: int = None, application_id: int = None,
+def create_appointment(company_user_id: int, application_id: int,
                        mode: str = "online", notes: str = None,
                        online_url: str = None, location_text: str = None,
-                       representative_name: str = None,
-                       representative_user_id: int = None) -> dict:
-    """Create appointment in status=draft. Company users only."""
+                       representative_name: str = None) -> dict:
+    """Create appointment in status=draft. Company users only.
+    applicant_id and job_id are derived from job_applications — never trusted from caller."""
     if mode not in _APPT_VALID_MODES:
         raise ValueError(f"نوع الموعد غير صالح: {mode}")
     if online_url:
@@ -5555,34 +5554,55 @@ def create_appointment(company_user_id: int, applicant_id: int,
 
     conn = get_conn()
     try:
+        # Derive applicant_id and job_id from the actual job_applications row
+        app_rows = conn.run(
+            "SELECT id, user_id, job_id FROM job_applications WHERE id = :id",
+            id=application_id
+        )
+        if not app_rows:
+            raise ValueError("طلب التوظيف غير موجود")
+        applicant_id = app_rows[0][1]
+        job_id = app_rows[0][2]
+
+        # Verify that this company owns the job — F6: backend owns permissions
+        job_rows = conn.run(
+            "SELECT company_id FROM jobs WHERE id = :id", id=job_id
+        )
+        if not job_rows:
+            raise ValueError("الوظيفة غير موجودة")
+        db_company_id = job_rows[0][0]
+        if int(db_company_id) != int(company_user_id):
+            raise PermissionError("غير مصرح: هذه الوظيفة لا تخص شركتك")
+
+        # Verify applicant is an employee
         u_rows = conn.run("SELECT id, user_type FROM users WHERE id = :id", id=applicant_id)
         if not u_rows:
             raise ValueError("المتقدم غير موجود")
         if u_rows[0][1] != 'emp':
             raise ValueError("المستخدم المحدد ليس موظفاً")
 
-        if job_id:
-            dup = conn.run(
-                """SELECT id FROM appointments
-                   WHERE job_id = :jid AND applicant_id = :aid
-                     AND status NOT IN ('cancelled','expired','missed','closed','completed')
-                   LIMIT 1""",
-                jid=job_id, aid=applicant_id
-            )
-            if dup:
-                raise ValueError("يوجد موعد نشط لهذا المتقدم على نفس الوظيفة")
+        # Duplicate guard per application_id (not per job+applicant pair)
+        dup = conn.run(
+            """SELECT id FROM appointments
+               WHERE application_id = :appid
+                 AND status NOT IN ('cancelled','expired','missed','closed','completed')
+               LIMIT 1""",
+            appid=application_id
+        )
+        if dup:
+            raise ValueError("يوجد موعد نشط لهذا الطلب")
 
         rows = conn.run(
             """INSERT INTO appointments
                (company_id, applicant_id, created_by, job_id, application_id,
-                mode, representative_user_id, representative_name, notes,
+                mode, representative_name, notes,
                 online_url, location_text, status)
                VALUES (:cid, :aid, :cb, :jid, :appid, :mode,
-                       :rep_uid, :rep_name, :notes, :url, :loc, 'draft')
+                       :rep_name, :notes, :url, :loc, 'draft')
                RETURNING id""",
             cid=company_user_id, aid=applicant_id, cb=company_user_id,
             jid=job_id, appid=application_id, mode=mode,
-            rep_uid=representative_user_id, rep_name=representative_name,
+            rep_name=representative_name,
             notes=notes, url=online_url, loc=location_text
         )
         appt_id = rows[0][0]
@@ -5601,14 +5621,6 @@ def create_appointment(company_user_id: int, applicant_id: int,
                ON CONFLICT (appointment_id, user_id) DO NOTHING""",
             appt=appt_id, uid=applicant_id
         )
-        if representative_user_id and representative_user_id != company_user_id:
-            conn.run(
-                """INSERT INTO appointment_participants
-                   (appointment_id, user_id, role, can_message, can_decide)
-                   VALUES (:appt, :uid, 'representative', TRUE, FALSE)
-                   ON CONFLICT (appointment_id, user_id) DO NOTHING""",
-                appt=appt_id, uid=representative_user_id
-            )
 
         _insert_appointment_event(conn, appt_id, company_user_id,
                                    'appointment_created', new_status='draft')

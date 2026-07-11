@@ -6997,6 +6997,99 @@ check(
     'doAccept' in _roomhtml and 'doComplete' in _roomhtml and 'doClose' in _roomhtml
 )
 
+# ── Security Fix: create_appointment permission-source-of-truth (76–97) ──
+_appt_create_fn = _auth171.split('def create_appointment(')[1].split('\ndef send_appointment')[0] if 'def create_appointment(' in _auth171 else ''
+_appt_create_cls = _server171.split('class AppointmentCreateInput(BaseModel):')[1].split('\nclass ')[0] if 'class AppointmentCreateInput(BaseModel):' in _server171 else ''
+
+check(
+    "171-76. server.py: AppointmentCreateInput does NOT accept applicant_id",
+    'applicant_id' not in _appt_create_cls
+)
+check(
+    "171-77. server.py: AppointmentCreateInput does NOT accept job_id",
+    'job_id' not in _appt_create_cls
+)
+check(
+    "171-78. server.py: AppointmentCreateInput does NOT accept representative_user_id",
+    'representative_user_id' not in _appt_create_cls
+)
+check(
+    "171-79. server.py: AppointmentCreateInput has application_id as required int",
+    'application_id: int' in _appt_create_cls
+)
+check(
+    "171-80. server.py: api_create_appointment does NOT pass applicant_id=body.applicant_id",
+    'applicant_id=body.applicant_id' not in _server171
+)
+check(
+    "171-81. server.py: api_create_appointment does NOT pass job_id=body.job_id",
+    'job_id=body.job_id' not in _server171
+)
+check(
+    "171-82. server.py: api_create_appointment does NOT pass representative_user_id=body",
+    'representative_user_id=body.representative_user_id' not in _server171
+)
+check(
+    "171-83. server.py: api_create_appointment passes application_id=body.application_id",
+    'application_id=body.application_id' in _server171
+)
+check(
+    "171-84. auth.py: create_appointment new secure signature (application_id, not applicant_id)",
+    'def create_appointment(company_user_id: int, application_id: int,' in _auth171
+)
+check(
+    "171-85. auth.py: create_appointment old insecure signature is GONE",
+    'def create_appointment(company_user_id: int, applicant_id: int,' not in _auth171
+)
+check(
+    "171-86. auth.py: create_appointment does NOT accept representative_user_id param",
+    'representative_user_id: int = None' not in _appt_create_fn
+)
+check(
+    "171-87. auth.py: create_appointment fetches from job_applications table",
+    'FROM job_applications WHERE id = :id' in _appt_create_fn
+)
+check(
+    "171-88. auth.py: create_appointment derives applicant_id from DB row",
+    'applicant_id = app_rows[0][1]' in _appt_create_fn
+)
+check(
+    "171-89. auth.py: create_appointment derives job_id from DB row",
+    'job_id = app_rows[0][2]' in _appt_create_fn
+)
+check(
+    "171-90. auth.py: create_appointment queries jobs for company ownership (F6)",
+    'SELECT company_id FROM jobs WHERE id = :id' in _appt_create_fn
+)
+check(
+    "171-91. auth.py: create_appointment raises PermissionError on company_id mismatch",
+    'raise PermissionError' in _appt_create_fn
+)
+check(
+    "171-92. auth.py: create_appointment raises ValueError when application not found",
+    'طلب التوظيف غير موجود' in _appt_create_fn
+)
+check(
+    "171-93. auth.py: create_appointment duplicate guard uses application_id (not job+applicant)",
+    'WHERE application_id = :appid' in _appt_create_fn
+)
+check(
+    "171-94. auth.py: create_appointment INSERT does NOT include representative_user_id column",
+    'representative_user_id' not in _appt_create_fn
+)
+check(
+    "171-95. appointments.html: old fApplicant (manual applicant_id input) is REMOVED",
+    'fApplicant' not in _appthtml
+)
+check(
+    "171-96. appointments.html: fApplication input present (application_id based)",
+    'fApplication' in _appthtml
+)
+check(
+    "171-97. appointments.html: POST body uses application_id not applicant_id",
+    'application_id,' in _appthtml and 'applicant_id,' not in _appthtml
+)
+
 # ── Summary ──────────────────────────────────────────────────────────────
 print()
 passed = sum(1 for _, s, _ in results if s == PASS)

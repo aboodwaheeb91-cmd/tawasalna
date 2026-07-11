@@ -137,8 +137,9 @@ body{background:var(--bg);color:var(--txt);font-family:var(--font);min-height:10
   <div class="modal">
     <div class="modal-title">دعوة مقابلة جديدة</div>
     <div class="form-group">
-      <label class="form-label">معرّف المتقدم (User ID)</label>
-      <input class="form-input" id="fApplicant" type="number" placeholder="مثال: 42">
+      <label class="form-label">رقم طلب التوظيف (application_id)</label>
+      <input class="form-input" id="fApplication" type="number" placeholder="رقم الطلب من صفحة التقديمات">
+      <small style="color:var(--sub);font-size:12px;display:block;margin-top:4px">احصل على الرقم من صفحة تقديمات الوظيفة</small>
     </div>
     <div class="form-group">
       <label class="form-label">نوع المقابلة</label>
@@ -373,11 +374,11 @@ body{background:var(--bg);color:var(--txt);font-family:var(--font);min-height:10
   });
 
   document.getElementById('btnCreateAppt').addEventListener('click', function(){
-    const applicant_id = parseInt(document.getElementById('fApplicant').value);
-    if (!applicant_id) { alert('أدخل معرّف المتقدم'); return; }
+    const application_id = parseInt(document.getElementById('fApplication').value);
+    if (!application_id) { alert('أدخل رقم طلب التوظيف'); return; }
     const mode = fMode.value;
     const payload = {
-      applicant_id,
+      application_id,
       mode,
       online_url: mode === 'online' ? (document.getElementById('fUrl').value.trim() || null) : null,
       location_text: mode === 'onsite' ? (document.getElementById('fLoc').value.trim() || null) : null,

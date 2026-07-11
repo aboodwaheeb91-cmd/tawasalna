@@ -4477,15 +4477,12 @@ def page_appointment_room():
 # ── Pydantic models ───────────────────────────────────────────────────────
 
 class AppointmentCreateInput(BaseModel):
-    applicant_id: int
-    job_id: Optional[int] = None
-    application_id: Optional[int] = None
+    application_id: int
     mode: Optional[str] = "online"
     notes: Optional[str] = None
     online_url: Optional[str] = None
     location_text: Optional[str] = None
     representative_name: Optional[str] = None
-    representative_user_id: Optional[int] = None
 
 class AppointmentSendInput(BaseModel):
     scheduled_at: str          # ISO 8601
@@ -4520,15 +4517,12 @@ def api_create_appointment(body: AppointmentCreateInput,
     try:
         appt = create_appointment(
             company_user_id=user_id,
-            applicant_id=body.applicant_id,
-            job_id=body.job_id,
             application_id=body.application_id,
             mode=body.mode or "online",
             notes=body.notes,
             online_url=body.online_url,
             location_text=body.location_text,
             representative_name=body.representative_name,
-            representative_user_id=body.representative_user_id,
         )
         return {"ok": True, "data": appt}
     except PermissionError as e:

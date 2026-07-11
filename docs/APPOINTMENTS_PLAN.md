@@ -400,7 +400,7 @@ appointment_closed:{appointment_id}:{affected_party_id}
 | **شركة تدّعي أن الموظف وافق** | الحالة `confirmed` لا تتغير إلا بعد `POST /appointments/{id}/accept` من حساب الموظف نفسه (JWT) |
 | **استعمال الشات بدل الأزرار الرسمية** | القرارات لا تُستخلص من نص الرسائل — النظام يتجاهل مضمون الرسائل في قرارات الحالة |
 | **حذف السجل** | `appointment_events` لا يُحذف أبداً — soft delete فقط على الرسائل — F27 |
-| **مواعيد spam من شركة** | rate limiting على `POST /appointments` + server-side check: موعد واحد نشط per (job_id, applicant_id) |
+| **مواعيد spam من شركة** | rate limiting على `POST /appointments` + server-side check: موعد واحد نشط per `application_id` |
 | **روابط خارجية مشبوهة في `online_url`** | validation: URL scheme يجب أن يكون `https://` فقط — لا `javascript:` أو `data:` |
 | **تغيير موعد confirmed بدون موافقة الطرف الثاني** | بعد `confirmed`، أي تعديل يمر عبر `reschedule_requested` flow — لا تعديل مباشر |
 
@@ -413,7 +413,7 @@ appointment_closed:{appointment_id}:{affected_party_id}
 | المرحلة | العنوان | الحالة | ما يشمل | الملفات |
 |---------|---------|--------|---------|---------|
 | **Phase 1** | Schema + Migration only | ✅ **مُنجز — PR #460** | `_migrate_appointments()` في `auth.py` — الجداول الأربعة + indexes + FK — لا endpoints | `auth.py`, `server.py` |
-| **Phase 2** | Backend APIs الأساسية | ✅ **مُنجز — PR #461** | 13 auth.py helpers + 13 server.py endpoints (POST/GET/accept/cancel/complete/close/messages/events) | `auth.py`, `server.py` |
+| **Phase 2** | Backend APIs الأساسية | ✅ **مُنجز — PR #461** | 13 auth.py helpers + 13 server.py endpoints (POST/GET/accept/cancel/complete/close/messages/events). **Security fix (same PR):** `POST /api/appointments` يستقبل `application_id` فقط — يشتق `applicant_id`/`job_id`/`company_id` من DB ويتحقق من ملكية الشركة للوظيفة (F6). | `auth.py`, `server.py` |
 | **Phase 3** | Employee Appointments List | ✅ **مُنجز — PR #461** | صفحة مواعيدي للموظف والشركة — بطاقات + فلتر + modal إنشاء | `appointments.html` |
 | **Phase 4** | Company Appointments List | ✅ **مُنجز — PR #461** | نفس صفحة المواعيد — IS_CO detection يُظهر واجهة الشركة + FAB | `appointments.html` |
 | **Phase 5** | Appointment Room | ✅ **مُنجز — PR #461** | غرفة الموعد — تفاصيل + أزرار + timeline + عداد تنازلي + tabs | `appointment-room.html` |
@@ -554,5 +554,64 @@ appointment_closed:{appointment_id}:{affected_party_id}
 
 ---
 
+---
+
+## 16. POST /api/appointments — Create Contract (Security Fix)
+
+> **هذا هو العقد الصحيح والمُقدَّم للـ `POST /api/appointments` بعد Security Fix على PR #461.**
+
+### Request
+
+```
+Auth: Bearer JWT — company account only (user_type == "co")
+Method: POST /api/appointments
+```
+
+```json
+{
+  "application_id": 123,
+  "mode": "online",
+  "notes": "اختياري",
+  "online_url": "https://meet.google.com/...",
+  "location_text": null,
+  "representative_name": null
+}
+```
+
+**ممنوع في الـ body:**
+- `applicant_id` — مشتق من `job_applications.user_id` في DB
+- `job_id` — مشتق من `job_applications.job_id` في DB
+- `company_id` — من JWT فقط
+- `representative_user_id` — مؤجل (لا نظام صلاحيات موظفي شركة بعد)
+
+### Server-side checks (بالترتيب)
+
+1. JWT صالح + `user_type == "co"` → company_user_id
+2. `job_applications WHERE id = application_id` → يشتق `applicant_id` + `job_id`
+3. `jobs WHERE id = job_id` → يشتق `db_company_id`
+4. `db_company_id == company_user_id` → وإلا PermissionError 403
+5. `applicant_id` له `user_type == 'emp'` → وإلا ValueError 400
+6. لا يوجد موعد نشط لنفس `application_id` → وإلا ValueError 400
+7. INSERT appointments + participants → موعد جديد بحالة `draft`
+
+### Response 200
+
+```json
+{ "ok": true, "data": { "id": 1, "status": "draft", ... } }
+```
+
+### قواعد دائمة
+
+```
+❌ ممنوع قبول applicant_id من body
+❌ ممنوع قبول job_id من body
+❌ ممنوع قبول company_id من body
+✅ application_id هو المرجع الوحيد — من DB تشتق كل باقي المعرفات
+```
+
+---
+
 *أُنشئ: 2026-07-10 — Phase 0 Audit & Architecture Plan — docs-only (PR #459).*
 *حُدِّث: 2026-07-11 — Phase 1 Schema + Migration — auth.py + server.py (PR #460). جداول: appointments, appointment_participants, appointment_events, appointment_messages. لا endpoints، لا UI، لا notifications.*
+*حُدِّث: 2026-07-11 — Phase 2–8 Implementation — PR #461. 13 endpoints + frontend pages + 7 notification hooks.*
+*حُدِّث: 2026-07-11 — Security Fix on PR #461: POST /api/appointments يستقبل application_id فقط. applicant_id/job_id مشتقة من DB. company_id من JWT. §16 يوثّق العقد الصحيح.*
