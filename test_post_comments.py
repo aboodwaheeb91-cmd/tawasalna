@@ -7370,6 +7370,104 @@ check(
     "appointment_closed:{appointment_id}:{uid}" in _close_fn
 )
 
+# ══════════════════════════════════════════════════════════════════════════
+# §173 — Scheduler Infrastructure Decision (docs-only)
+# ══════════════════════════════════════════════════════════════════════════
+
+import os as _os173
+_sched_plan  = open('docs/SCHEDULER_PLAN.md',        encoding='utf-8').read() if _os173.path.exists('docs/SCHEDULER_PLAN.md')        else ''
+_sysidx173   = open('docs/SYSTEMS_INDEX.md',         encoding='utf-8').read() if _os173.path.exists('docs/SYSTEMS_INDEX.md')         else ''
+_apptplan173 = open('docs/APPOINTMENTS_PLAN.md',     encoding='utf-8').read() if _os173.path.exists('docs/APPOINTMENTS_PLAN.md')     else ''
+_notifplan   = open('docs/NOTIFICATIONS_PLAN.md',    encoding='utf-8').read() if _os173.path.exists('docs/NOTIFICATIONS_PLAN.md')    else ''
+_auth173     = open('auth.py',   encoding='utf-8').read() if _os173.path.exists('auth.py')   else ''
+_server173   = open('server.py', encoding='utf-8').read() if _os173.path.exists('server.py') else ''
+
+# ── SCHEDULER_PLAN.md structure ───────────────────────────────────────────
+check(
+    "173-01. SCHEDULER_PLAN.md exists",
+    bool(_sched_plan)
+)
+check(
+    "173-02. SCHEDULER_PLAN.md documents why a scheduler is needed (section 1)",
+    'Why We Need a Scheduler' in _sched_plan or 'لماذا نحتاج' in _sched_plan
+)
+check(
+    "173-03. SCHEDULER_PLAN.md lists dependent/deferred systems (section 2)",
+    'appointment_reminder' in _sched_plan and 'job_expiring_soon' in _sched_plan
+)
+check(
+    "173-04. SCHEDULER_PLAN.md includes Architectural Requirements section",
+    'Architectural Requirements' in _sched_plan or 'المتطلبات المعمارية' in _sched_plan
+)
+check(
+    "173-05. SCHEDULER_PLAN.md documents idempotency + dedupe_key",
+    'dedupe_key' in _sched_plan and ('Idempotency' in _sched_plan or 'idempotency' in _sched_plan.lower())
+)
+check(
+    "173-06. SCHEDULER_PLAN.md documents retry on failure",
+    'Retry' in _sched_plan or 'retry' in _sched_plan
+)
+check(
+    "173-07. SCHEDULER_PLAN.md documents failure logging requirement",
+    'Failure Logging' in _sched_plan or 'failure logging' in _sched_plan.lower()
+)
+check(
+    "173-08. SCHEDULER_PLAN.md documents FOR UPDATE SKIP LOCKED (distributed locking)",
+    'FOR UPDATE SKIP LOCKED' in _sched_plan
+)
+check(
+    "173-09. SCHEDULER_PLAN.md documents four implementation options",
+    'Option A' in _sched_plan and 'Option B' in _sched_plan and 'Option C' in _sched_plan and 'Option D' in _sched_plan
+)
+check(
+    "173-10. SCHEDULER_PLAN.md includes implementation recommendation",
+    'Recommendation' in _sched_plan or 'Recommended' in _sched_plan
+)
+check(
+    "173-11. SCHEDULER_PLAN.md documents proposed scheduler_jobs schema",
+    'scheduler_jobs' in _sched_plan and 'locked_at' in _sched_plan and 'locked_by' in _sched_plan
+)
+check(
+    "173-12. SCHEDULER_PLAN.md schema includes appointment_missed and appointment_deadline_expire job types",
+    'appointment_missed' in _sched_plan and 'appointment_deadline_expire' in _sched_plan
+)
+check(
+    "173-13. SCHEDULER_PLAN.md includes implementation phases (S0–S6)",
+    'S0' in _sched_plan and 'S1' in _sched_plan and 'S6' in _sched_plan
+)
+check(
+    "173-14. SCHEDULER_PLAN.md has Constraints section forbidding scheduler code",
+    'Constraints' in _sched_plan and 'X-User-Id' in _sched_plan
+)
+
+# ── No scheduler code added (docs-only check) ─────────────────────────────
+check(
+    "173-15. auth.py does NOT contain CREATE TABLE scheduler_jobs (not implemented)",
+    'CREATE TABLE' not in _auth173 or 'scheduler_jobs' not in _auth173
+)
+check(
+    "173-16. auth.py does NOT import APScheduler or contain create_task for scheduling",
+    'APScheduler' not in _auth173 and 'apscheduler' not in _auth173.lower()
+)
+check(
+    "173-17. server.py does NOT contain /internal/run-due-jobs endpoint (not implemented yet)",
+    'run-due-jobs' not in _server173 and 'run_due_jobs' not in _server173
+)
+
+# ── Cross-file references ──────────────────────────────────────────────────
+check(
+    "173-18. SYSTEMS_INDEX.md has Scheduler Infrastructure entry (§37)",
+    'Scheduler Infrastructure' in _sysidx173 and 'SCHEDULER_PLAN.md' in _sysidx173
+)
+check(
+    "173-19. APPOINTMENTS_PLAN.md documents scheduler-dependent deferred features",
+    'Scheduler-Dependent' in _apptplan173 or 'scheduler' in _apptplan173.lower()
+)
+check(
+    "173-20. NOTIFICATIONS_PLAN.md references SCHEDULER_PLAN.md in Scheduler Blocker Note",
+    'SCHEDULER_PLAN.md' in _notifplan
+)
+
 # ── Summary ──────────────────────────────────────────────────────────────
 print()
 passed = sum(1 for _, s, _ in results if s == PASS)
