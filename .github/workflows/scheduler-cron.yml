@@ -5,9 +5,10 @@ name: Scheduler Cron
 # Secret never appears in logs — GitHub Actions auto-redacts ${{ secrets.* }}.
 #
 # Setup (one-time, done by repo owner):
-#   1. Heroku Config Var  → SCHEDULER_SECRET = <strong-random-secret>
-#   2. GitHub Secret      → Settings → Secrets → SCHEDULER_SECRET = same value
-#   3. GitHub Variable    → Settings → Variables → APP_URL = https://your-app.herokuapp.com
+#   1. Railway Project → your backend Service → Variables
+#      Add: SCHEDULER_SECRET = <strong-random-secret>
+#   2. GitHub Secret → Settings → Secrets → SCHEDULER_SECRET = same value
+#   3. GitHub Variable → Settings → Variables → APP_URL = https://your-production-domain.com
 
 on:
   schedule:
@@ -34,7 +35,7 @@ jobs:
           echo ""
 
           if [ "$HTTP_STATUS" = "503" ]; then
-            echo "SCHEDULER_SECRET not configured on server — set Heroku Config Var"
+            echo "SCHEDULER_SECRET is not configured on the production server."
             exit 1
           fi
 
