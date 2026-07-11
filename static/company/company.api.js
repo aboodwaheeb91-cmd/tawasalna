@@ -268,6 +268,19 @@
     }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, status: r.status, data: d }; }); });
   }
 
+  // Communication Hub — owner-only, calls existing GET /api/appointments endpoint
+  function loadCompanyAppointments(cb) {
+    var jwt = window._jwt ? window._jwt() : '';
+    if (!jwt) { if (cb) cb([]); return; }
+    fetch('/api/appointments', { headers: { 'Authorization': 'Bearer ' + jwt } })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        var appts = Array.isArray(d) ? d : (d.data || d.appointments || []);
+        if (cb) cb(appts);
+      })
+      .catch(function () { if (cb) cb([]); });
+  }
+
   window.loadData                   = loadData;
   window.loadJobs                   = loadJobs;
   window.loadPosts                  = loadPosts;
@@ -282,4 +295,5 @@
   window.getCandidateSuggestions    = getCandidateSuggestions;
   window.saveSuggestedCandidate     = saveSuggestedCandidate;
   window.updateSavedCandidate       = updateSavedCandidate;
+  window.loadCompanyAppointments    = loadCompanyAppointments;
 }());

@@ -202,6 +202,13 @@
   </button>
 </div>
 
+<!-- ██ OWNER ACTIONS ██ -->
+<div class="sc-actions owner-only" id="ownerActions">
+  <button id="coHubBtn" class="nb nb-hub owner-only">
+    <i data-lucide="messages-square"></i> التواصل والمواعيد
+  </button>
+</div>
+
 <!-- ██ STATS ██ -->
 <div class="sc-stats">
   <div class="sc-stat">
@@ -411,6 +418,47 @@
     <div class="modal-foot">
       <button id="editSaveBtn" class="mbtn mbtn-ok">حفظ التعديلات</button>
       <button id="editCancelBtn" class="mbtn mbtn-no">إلغاء</button>
+    </div>
+  </div>
+</div>
+
+<!-- ██ COMMUNICATION HUB (owner-only) ██ -->
+<div class="overlay co-hub-overlay" id="coHubOverlay" style="display:none">
+  <div class="co-hub-sheet">
+    <div class="co-hub-head">
+      <span class="co-hub-title">
+        <i data-lucide="messages-square" class="ico-sm" style="color:var(--ac);vertical-align:middle;margin-left:6px"></i>
+        التواصل والمواعيد
+      </span>
+      <button class="modal-head-close" id="coHubCloseBtn" aria-label="إغلاق">
+        <i data-lucide="x" class="ico-sm"></i>
+      </button>
+    </div>
+    <div class="co-hub-tabs">
+      <button class="co-hub-tab active" data-hub-tab="messages">
+        <i data-lucide="message-circle" class="ico-sm"></i> المحادثات
+      </button>
+      <button class="co-hub-tab" data-hub-tab="appointments">
+        <i data-lucide="calendar" class="ico-sm"></i> المواعيد والمقابلات
+      </button>
+    </div>
+    <div class="co-hub-body">
+      <div class="co-hub-panel" id="coHubMsgPanel">
+        <a href="/messages" class="co-hub-nav-card">
+          <div class="co-hub-nav-ico"><i data-lucide="message-circle-more"></i></div>
+          <div class="co-hub-nav-info">
+            <div class="co-hub-nav-title">صندوق الرسائل</div>
+            <div class="co-hub-nav-sub">تابع محادثاتك مع المرشحين والشركاء</div>
+          </div>
+          <span class="co-hub-go-ico"><i data-lucide="arrow-left" class="ico-sm"></i></span>
+        </a>
+      </div>
+      <div class="co-hub-panel" id="coHubApptPanel" style="display:none">
+        <div id="coHubApptList"><div class="co-hub-appt-loading">جارٍ التحميل…</div></div>
+        <div class="co-hub-appt-footer">
+          <a href="/appointments" class="nb nb-outline" style="width:100%;justify-content:center">إدارة كل المواعيد</a>
+        </div>
+      </div>
     </div>
   </div>
 </div>
