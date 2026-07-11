@@ -611,6 +611,39 @@ Method: POST /api/appointments
 
 ---
 
+## 17. Scheduler-Dependent Features (مؤجلة — Deferred)
+
+> **قاعدة دائمة:** الميزات التالية لا تُنفَّذ حتى يُوجد Scheduler Infrastructure بقرار مستقل.
+> انظر: `docs/SCHEDULER_PLAN.md` للمواصفة المعمارية الكاملة.
+
+### الميزات المؤجلة
+
+| الميزة | الحالة الحالية | الشرط |
+|--------|--------------|-------|
+| appointment reminders | ❌ مؤجلة | يحتاج scheduler_jobs table + job_type=appointment_reminder |
+| response deadline auto-expire | ❌ مؤجلة | يحتاج job على run_at=response_deadline_at — لا ينتقل status في DB حالياً |
+| `missed` status transition | ❌ مؤجلة | يحتاج job على run_at=scheduled_at+15min — status `missed` غير قابل للوصول حالياً |
+| reminder before interview | ❌ مؤجلة | يحتاج scheduler + timezone handling |
+
+### الحالة الحالية (بدون scheduler)
+
+- `pending_response + response_deadline_at < NOW()` → يُعرض كـ `expired` في `_appt_computed_status()` — **DB تبقى `pending_response`**.
+- `confirmed + scheduled_at < NOW()` → **لا ينتقل** إلى `missed` — يبقى `confirmed` حتى إجراء يدوي.
+- هذا صحيح كحل مؤقت للعرض. لا يمكن استخدامه لإرسال إشعارات في وقت محدد.
+
+### قواعد دائمة
+
+```
+❌ لا تُضف scheduler code إلى auth.py أو server.py
+❌ لا تُضف background threads أو cron configuration
+❌ لا تُضف notifications hooks زمنية حتى Scheduler مُنفَّذ
+❌ لا تنقل appointment status في DB بدون scheduler (إلا بطلب مستخدم)
+✅ _appt_computed_status() مقبول كحل مؤقت للعرض فقط
+✅ docs/SCHEDULER_PLAN.md هو المرجع الوحيد لقرار الـ scheduler
+```
+
+---
+
 *أُنشئ: 2026-07-10 — Phase 0 Audit & Architecture Plan — docs-only (PR #459).*
 *حُدِّث: 2026-07-11 — Phase 1 Schema + Migration — auth.py + server.py (PR #460). جداول: appointments, appointment_participants, appointment_events, appointment_messages. لا endpoints، لا UI، لا notifications.*
 *حُدِّث: 2026-07-11 — Phase 2–8 Implementation — PR #461. 13 endpoints + frontend pages + 7 notification hooks.*
