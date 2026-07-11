@@ -37,6 +37,9 @@
   <a href="/home" class="sc-hicon sc-home-btn" title="الرئيسية" aria-label="الرئيسية">
     <i data-lucide="home" class="ico"></i>
   </a>
+  <button id="coHubBtn" class="sc-hicon sc-hicon-bare owner-only" type="button" title="التواصل والمواعيد" aria-label="التواصل والمواعيد">
+    <i data-lucide="calendar-clock" class="ico"></i>
+  </button>
   <div class="sc-logo">
     <img src="/static/33333.svg" alt="تواصلنا">
   </div>
@@ -199,13 +202,6 @@
   </button>
   <button class="nb nb-follow" id="followBtn">
     <i data-lucide="plus"></i> متابعة
-  </button>
-</div>
-
-<!-- ██ OWNER ACTIONS ██ -->
-<div class="sc-actions owner-only" id="ownerActions">
-  <button id="coHubBtn" class="nb nb-hub owner-only">
-    <i data-lucide="messages-square"></i> التواصل والمواعيد
   </button>
 </div>
 
@@ -423,7 +419,7 @@
 </div>
 
 <!-- ██ COMMUNICATION HUB (owner-only) ██ -->
-<div class="overlay co-hub-overlay" id="coHubOverlay" style="display:none">
+<div class="co-hub-overlay" id="coHubOverlay">
   <div class="co-hub-sheet">
     <div class="co-hub-head">
       <span class="co-hub-title">

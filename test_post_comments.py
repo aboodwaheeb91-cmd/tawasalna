@@ -8538,9 +8538,9 @@ check("179-05. stale domain job: handler exits safe no-op, create_notification n
       _179_05_ok, _179_05_err or None)
 
 # ════════════════════════════════════════════════════════════════════════════
-# §180 — Company Communication Hub (feat/company-communication-hub)
-# 4 static checks: hub button owner-only, hub links to messages/appointments,
-# no new WebSocket, hub JS stays inside existing modules (no new root file).
+# §180 — Company Communication Hub (fix/company-hub-fix)
+# 4 static checks: hub button in header (icon-only, owner-only), hub links to
+# messages/appointments, no new WebSocket, scroll lock uses CSS class not inline.
 # ════════════════════════════════════════════════════════════════════════════
 import os as _os180
 
@@ -8559,15 +8559,31 @@ try:
     with open('static/company/company.api.js', encoding='utf-8') as _f180a: _co_api180 = _f180a.read()
 except Exception: pass
 
-# 180-01: Hub button exists and is owner-only
-_hub_btn_pos = _co_html180.find('id="coHubBtn"')
-_hub_ctx     = _co_html180[max(0, _hub_btn_pos - 200):_hub_btn_pos + 60] if _hub_btn_pos >= 0 else ''
-check("180-01. Hub button #coHubBtn exists and is owner-only",
-      _hub_btn_pos >= 0 and 'owner-only' in _hub_ctx)
+_co_css180 = ''
+try:
+    with open('static/company/company.css', encoding='utf-8') as _f180c: _co_css180 = _f180c.read()
+except Exception: pass
 
-# 180-02: Hub overlay links to /messages and /appointments
-check("180-02. Hub overlay links to /messages and /appointments",
-      'id="coHubOverlay"' in _co_html180
+# 180-01: Hub button is in the header, icon-only, owner-only, matches sc-hicon pattern
+# Button must appear between sc-home-btn and sc-logo (within 400 chars after home btn)
+_home_pos    = _co_html180.find('sc-home-btn')
+_logo_pos    = _co_html180.find('sc-logo', _home_pos)
+_hub_btn_pos = _co_html180.find('id="coHubBtn"')
+_hub_in_hdr  = (_home_pos >= 0 and _logo_pos >= 0 and _hub_btn_pos >= 0
+                and _home_pos < _hub_btn_pos < _logo_pos)
+_hub_ctx180  = _co_html180[max(0, _hub_btn_pos - 10):_hub_btn_pos + 120] if _hub_btn_pos >= 0 else ''
+check("180-01. Hub button #coHubBtn is in header (between home-btn and logo), owner-only, sc-hicon-bare",
+      _hub_in_hdr
+      and 'owner-only' in _hub_ctx180
+      and 'sc-hicon-bare' in _hub_ctx180
+      and 'ownerActions' not in _co_html180)
+
+# 180-02: Hub overlay links to /messages and /appointments; overlay uses standalone class (no .overlay base)
+_hub_ov_pos  = _co_html180.find('id="coHubOverlay"')
+_hub_ov_ctx  = _co_html180[max(0, _hub_ov_pos - 10):_hub_ov_pos + 60] if _hub_ov_pos >= 0 else ''
+check("180-02. Hub overlay is standalone (no .overlay base), links to /messages and /appointments",
+      _hub_ov_pos >= 0
+      and 'class="overlay ' not in _hub_ov_ctx
       and 'href="/messages"' in _co_html180
       and 'href="/appointments"' in _co_html180)
 
@@ -8575,11 +8591,11 @@ check("180-02. Hub overlay links to /messages and /appointments",
 check("180-03. No new WebSocket in company.main.js or company.api.js",
       'new WebSocket' not in _co_main180 and 'new WebSocket' not in _co_api180)
 
-# 180-04: Hub JS added inside existing modules, no standalone root-level hub file
-check("180-04. No standalone hub JS file; hub wired via company.main.js",
-      not _os180.path.exists('hub.js')
-      and not _os180.path.exists('static/company-hub.js')
-      and 'coHubBtn' in _co_main180
+# 180-04: Scroll lock uses CSS class co-hub-open (not inline body.style.overflow)
+check("180-04. Scroll lock uses body.co-hub-open CSS class; no inline overflow in hub IIFE",
+      'body.co-hub-open' in _co_css180
+      and 'classList.add(\'co-hub-open\')' in _co_main180
+      and 'classList.remove(\'co-hub-open\')' in _co_main180
       and 'loadCompanyAppointments' in _co_api180)
 
 # ── Summary ──────────────────────────────────────────────────────────────
