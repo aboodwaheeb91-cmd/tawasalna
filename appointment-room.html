@@ -188,6 +188,14 @@ body{background:var(--bg);color:var(--txt);font-family:var(--font);min-height:10
         <option value="168">7 أيام</option>
       </select>
     </div>
+    <div class="form-group" id="reschedUrlGrp" style="display:none">
+      <label class="form-label">رابط المقابلة (https://)</label>
+      <input class="form-input" id="reschedUrl" type="url" placeholder="https://meet.google.com/...">
+    </div>
+    <div class="form-group" id="reschedLocGrp" style="display:none">
+      <label class="form-label">موقع المقابلة</label>
+      <input class="form-input" id="reschedLoc" type="text" placeholder="العنوان أو الغرفة">
+    </div>
     <button class="btn-submit" id="btnConfirmResched">اقتراح الموعد</button>
     <button class="btn-cancel-modal" id="btnCloseResched">إلغاء</button>
   </div>
@@ -209,6 +217,14 @@ body{background:var(--bg);color:var(--txt);font-family:var(--font);min-height:10
         <option value="72">3 أيام</option>
         <option value="168">7 أيام</option>
       </select>
+    </div>
+    <div class="form-group" id="sendUrlGrp" style="display:none">
+      <label class="form-label">رابط المقابلة (https://)</label>
+      <input class="form-input" id="sendUrl" type="url" placeholder="https://meet.google.com/...">
+    </div>
+    <div class="form-group" id="sendLocGrp" style="display:none">
+      <label class="form-label">موقع المقابلة</label>
+      <input class="form-input" id="sendLoc" type="text" placeholder="العنوان أو الغرفة">
     </div>
     <button class="btn-submit" id="btnConfirmSend">إرسال الدعوة</button>
     <button class="btn-cancel-modal" id="btnCloseSend">إلغاء</button>
@@ -437,7 +453,16 @@ body{background:var(--bg);color:var(--txt);font-family:var(--font);min-height:10
         const b = document.createElement('button');
         b.className = 'btn-act btn-accept';
         safeText(b, '📤 إرسال الدعوة');
-        b.addEventListener('click', function(){ sendModal.classList.add('open'); });
+        b.addEventListener('click', function(){
+          const m = (_appt && _appt.mode) || 'online';
+          document.getElementById('sendUrlGrp').style.display = m === 'online' ? '' : 'none';
+          document.getElementById('sendLocGrp').style.display = m === 'onsite' ? '' : 'none';
+          if (m === 'online' && _appt && _appt.online_url)
+            document.getElementById('sendUrl').value = _appt.online_url;
+          if (m === 'onsite' && _appt && _appt.location_text)
+            document.getElementById('sendLoc').value = _appt.location_text;
+          sendModal.classList.add('open');
+        });
         actDiv.appendChild(b);
       }
       if (IS_EMP && s === 'pending_response') {
@@ -471,7 +496,16 @@ body{background:var(--bg);color:var(--txt);font-family:var(--font);min-height:10
         const b = document.createElement('button');
         b.className = 'btn-act btn-propose';
         safeText(b, '📅 اقتراح موعد جديد');
-        b.addEventListener('click', function(){ reschedModal.classList.add('open'); });
+        b.addEventListener('click', function(){
+          const m = (_appt && _appt.mode) || 'online';
+          document.getElementById('reschedUrlGrp').style.display = m === 'online' ? '' : 'none';
+          document.getElementById('reschedLocGrp').style.display = m === 'onsite' ? '' : 'none';
+          if (m === 'online' && _appt && _appt.online_url)
+            document.getElementById('reschedUrl').value = _appt.online_url;
+          if (m === 'onsite' && _appt && _appt.location_text)
+            document.getElementById('reschedLoc').value = _appt.location_text;
+          reschedModal.classList.add('open');
+        });
         const bc = document.createElement('button');
         bc.className = 'btn-act btn-cancel-act';
         safeText(bc, '❌ إلغاء الموعد');
@@ -791,12 +825,21 @@ body{background:var(--bg);color:var(--txt);font-family:var(--font);min-height:10
     const newSched = document.getElementById('newSchedAt').value;
     if (!newSched) { alert('اختر التاريخ والوقت'); return; }
     const deadlineHrs = parseInt(document.getElementById('newDeadlineHrs').value);
-    // Convert local datetime to ISO
     const iso = new Date(newSched).toISOString();
+    const m = (_appt && _appt.mode) || 'online';
+    const urlVal = document.getElementById('reschedUrl').value.trim() || null;
+    const locVal = document.getElementById('reschedLoc').value.trim() || null;
+    if (m === 'online' && !urlVal && !(_appt && _appt.online_url)) {
+      alert('رابط المقابلة مطلوب للمواعيد الأونلاين'); return;
+    }
+    if (m === 'onsite' && !locVal && !(_appt && _appt.location_text)) {
+      alert('موقع المقابلة مطلوب للمواعيد الحضورية'); return;
+    }
     reschedModal.classList.remove('open');
     api('/api/appointments/'+APPT_ID+'/reschedule',{
       method:'POST',
-      body:JSON.stringify({new_scheduled_at:iso,deadline_hours:deadlineHrs})
+      body:JSON.stringify({new_scheduled_at:iso,deadline_hours:deadlineHrs,
+                           online_url:urlVal,location_text:locVal})
     }).then(res => { if (res.ok) location.reload(); else alert(res.detail||'خطأ'); });
   });
 
@@ -812,10 +855,20 @@ body{background:var(--bg);color:var(--txt);font-family:var(--font);min-height:10
     if (!sched) { alert('اختر التاريخ والوقت'); return; }
     const deadlineHrs = parseInt(document.getElementById('sendDeadlineHrs').value);
     const iso = new Date(sched).toISOString();
+    const m = (_appt && _appt.mode) || 'online';
+    const urlVal = document.getElementById('sendUrl').value.trim() || null;
+    const locVal = document.getElementById('sendLoc').value.trim() || null;
+    if (m === 'online' && !urlVal && !(_appt && _appt.online_url)) {
+      alert('رابط المقابلة مطلوب للمواعيد الأونلاين'); return;
+    }
+    if (m === 'onsite' && !locVal && !(_appt && _appt.location_text)) {
+      alert('موقع المقابلة مطلوب للمواعيد الحضورية'); return;
+    }
     sendModal.classList.remove('open');
     api('/api/appointments/'+APPT_ID+'/send',{
       method:'POST',
-      body:JSON.stringify({scheduled_at:iso,deadline_hours:deadlineHrs})
+      body:JSON.stringify({scheduled_at:iso,deadline_hours:deadlineHrs,
+                           online_url:urlVal,location_text:locVal})
     }).then(res => { if (res.ok) location.reload(); else alert(res.detail||'خطأ'); });
   });
 

@@ -5660,6 +5660,14 @@ def send_appointment(appointment_id: int, user_id: int, scheduled_at_iso: str,
         if appt['status'] != 'draft':
             raise ValueError(f"لا يمكن إرسال موعد بحالة '{appt['status']}'")
 
+        # mode-required field validation — backend is source of truth (F6/F21)
+        effective_url = online_url or appt.get('online_url')
+        effective_loc = location_text or appt.get('location_text')
+        if appt['mode'] == 'online' and not effective_url:
+            raise ValueError("رابط المقابلة مطلوب للمواعيد الأونلاين")
+        if appt['mode'] == 'onsite' and not effective_loc:
+            raise ValueError("موقع المقابلة مطلوب للمواعيد الحضورية")
+
         try:
             scheduled_dt = _dt.fromisoformat(scheduled_at_iso.replace('Z', '+00:00'))
             if scheduled_dt.tzinfo is None:
@@ -5849,6 +5857,14 @@ def reschedule_appointment(appointment_id: int, user_id: int,
             raise PermissionError("غير مصرح: فقط الشركة يمكنها اقتراح موعد جديد")
         if appt['status'] != 'reschedule_requested':
             raise ValueError(f"لا يمكن اقتراح موعد بحالة '{appt['status']}'")
+
+        # mode-required field validation — backend is source of truth (F6/F21)
+        effective_url = online_url or appt.get('online_url')
+        effective_loc = location_text or appt.get('location_text')
+        if appt['mode'] == 'online' and not effective_url:
+            raise ValueError("رابط المقابلة مطلوب للمواعيد الأونلاين")
+        if appt['mode'] == 'onsite' and not effective_loc:
+            raise ValueError("موقع المقابلة مطلوب للمواعيد الحضورية")
 
         try:
             scheduled_dt = _dt.fromisoformat(new_scheduled_at_iso.replace('Z', '+00:00'))

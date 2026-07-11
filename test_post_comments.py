@@ -7090,6 +7090,51 @@ check(
     'application_id,' in _appthtml and 'applicant_id,' not in _appthtml
 )
 
+# ── Mode-required field validation (send + reschedule) (98–107) ───────────
+_send_fn     = _auth171.split('def send_appointment(')[1].split('\ndef accept_appointment')[0] if 'def send_appointment(' in _auth171 else ''
+_resched_fn2 = _auth171.split('def reschedule_appointment(')[1].split('\ndef cancel_appointment')[0] if 'def reschedule_appointment(' in _auth171 else ''
+
+check(
+    "171-98. auth.py: send_appointment enforces online_url for online mode",
+    'رابط المقابلة مطلوب للمواعيد الأونلاين' in _send_fn
+)
+check(
+    "171-99. auth.py: send_appointment enforces location_text for onsite mode",
+    'موقع المقابلة مطلوب للمواعيد الحضورية' in _send_fn
+)
+check(
+    "171-100. auth.py: reschedule_appointment enforces online_url for online mode",
+    'رابط المقابلة مطلوب للمواعيد الأونلاين' in _resched_fn2
+)
+check(
+    "171-101. auth.py: reschedule_appointment enforces location_text for onsite mode",
+    'موقع المقابلة مطلوب للمواعيد الحضورية' in _resched_fn2
+)
+check(
+    "171-102. auth.py: send_appointment https:// validation still present",
+    'يجب أن يبدأ بـ https://' in _send_fn
+)
+check(
+    "171-103. auth.py: send_appointment deadline-before-scheduled validation still present",
+    'مهلة الرد تنتهي بعد وقت الموعد' in _send_fn
+)
+check(
+    "171-104. auth.py: send_appointment uses effective_url from request OR existing appt",
+    'effective_url = online_url or appt.get' in _send_fn
+)
+check(
+    "171-105. auth.py: reschedule_appointment uses effective_url from request OR existing appt",
+    'effective_url = online_url or appt.get' in _resched_fn2
+)
+check(
+    "171-106. appointment-room.html: send modal has online_url field (sendUrlGrp)",
+    'sendUrlGrp' in _roomhtml and 'sendUrl' in _roomhtml
+)
+check(
+    "171-107. appointment-room.html: reschedule modal has online_url field (reschedUrlGrp)",
+    'reschedUrlGrp' in _roomhtml and 'reschedUrl' in _roomhtml
+)
+
 # ── Summary ──────────────────────────────────────────────────────────────
 print()
 passed = sum(1 for _, s, _ in results if s == PASS)
