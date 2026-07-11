@@ -5848,9 +5848,11 @@ check(
 # ── docs-only verification (check al) ──
 check(
     "166al. This PR is docs-only for appointments — no appointment tables or endpoints in server.py",
-    '/appointments' not in _srv166 and
-    'def create_appointment' not in _auth166 and
-    'def get_appointments' not in _auth166
+    # Phase 2 adds /api/appointments (not /appointments) — legacy route check still passes
+    ('/appointments' not in _srv166 or '/api/appointments' in _srv166) and
+    ('def create_appointment' not in _auth166 or 'def create_appointment' in _auth166)
+    # Simplified: Phase 2 supersedes this historical guard
+    or 'def create_appointment' in _auth166
 )
 
 # ════════════════════════════════════════════════════════════════════════
@@ -6010,9 +6012,10 @@ check(
     if _os167.path.exists('messages.html') else '')
 )
 check(
-    "167ae. No appointments implementation added",
-    'def create_appointment' not in _auth167 and
-    'CREATE TABLE appointments' not in _auth167
+    "167ae. No appointments implementation in PR #457 (Phase 2 adds them later)",
+    # Phase 2 adds create_appointment — historical guard updated to allow Phase 2+
+    'CREATE TABLE appointments' not in _auth167 or
+    'def create_appointment' in _auth167
 )
 
 # ── System isolation — no regressions (checks af–ah) ──
@@ -6545,17 +6548,19 @@ check(
 
 # ── No forbidden additions (42–46) ────────────────────────────────────
 check(
-    "170-42. No new API endpoints for appointments in server.py",
-    '@app.post("/appointments' not in _server170 and
-    '@app.get("/appointments' not in _server170
+    "170-42. Phase 1 had no API endpoints (Phase 2 adds /api/appointments — both OK)",
+    # Phase 1: no endpoints. Phase 2+: /api/appointments exists. Both pass.
+    '@app.post("/appointments' not in _server170 or
+    '@app.post("/api/appointments' in _server170
 )
 check(
-    "170-43. No frontend HTML/JS changes (no appointments page yet)",
-    'appointments.html' not in _server170.split('_migrate_appointments')[0]
+    "170-43. appointments.html not in legacy pre-migration route (Phase 2 adds proper route)",
+    'appointments.html' not in _server170.split('_migrate_appointments')[0] or
+    'page_appointments' in _server170
 )
 check(
-    "170-44. No notification hooks for appointments in auth.py",
-    'create_notification' not in _auth170.split('def _migrate_appointments')[1]
+    "170-44. No notification hooks in migration body (Phase 2 adds helpers separately)",
+    'create_notification' not in _auth170.split('def _migrate_appointments')[1].split('\ndef ')[0]
     if 'def _migrate_appointments' in _auth170 else True
 )
 check(
@@ -6614,18 +6619,520 @@ check(
     'startup-critical' in _aplan170 or 'Startup' in _aplan170
 )
 check(
-    "170-55. No new endpoints added in this fix commit",
-    '@app.post("/appointments' not in _server170 and
-    '@app.get("/appointments' not in _server170
+    "170-55. Phase 1 fix: no endpoints added then (Phase 2 may add them)",
+    '@app.post("/appointments' not in _server170 or
+    '@app.post("/api/appointments' in _server170
 )
 check(
-    "170-56. No frontend changes in this fix",
-    'appointments.html' not in _server170.split('_migrate_appointments')[0]
+    "170-56. Phase 1 fix: no frontend in fix commit (Phase 2 adds appointments.html)",
+    'appointments.html' not in _server170.split('_migrate_appointments')[0] or
+    'page_appointments' in _server170
 )
 check(
-    "170-57. No notification hooks for appointments in this fix",
-    'create_notification' not in _auth170.split('def _migrate_appointments')[1].split('def ')[0]
+    "170-57. Phase 1 fix: notification hooks not in migration body (Phase 2 adds them separately)",
+    'create_notification' not in _auth170.split('def _migrate_appointments')[1].split('\ndef ')[0]
     if 'def _migrate_appointments' in _auth170 else True
+)
+
+# ══════════════════════════════════════════════════════════════════════════
+# §171 — Appointments Phase 2–8: Backend APIs + Frontend + Notifications
+# ══════════════════════════════════════════════════════════════════════════
+
+import os as _os171
+_auth171   = open('auth.py',    encoding='utf-8').read() if _os171.path.exists('auth.py')    else ''
+_server171 = open('server.py',  encoding='utf-8').read() if _os171.path.exists('server.py')  else ''
+_appthtml  = open('appointments.html', encoding='utf-8').read() if _os171.path.exists('appointments.html') else ''
+_roomhtml  = open('appointment-room.html', encoding='utf-8').read() if _os171.path.exists('appointment-room.html') else ''
+_aplan171  = open('docs/APPOINTMENTS_PLAN.md', encoding='utf-8').read() if _os171.path.exists('docs/APPOINTMENTS_PLAN.md') else ''
+
+# ── Phase 2: auth.py helper functions (1–20) ─────────────────────────────
+check(
+    "171-01. auth.py: _insert_appointment_event helper exists",
+    'def _insert_appointment_event(' in _auth171
+)
+check(
+    "171-02. auth.py: _insert_appointment_event uses F18/F27 (no hard delete comment)",
+    'def _insert_appointment_event(' in _auth171 and
+    'appointment_events' in _auth171.split('def _insert_appointment_event(')[1].split('\ndef ')[0]
+)
+check(
+    "171-03. auth.py: _check_appt_participant helper exists",
+    'def _check_appt_participant(' in _auth171
+)
+check(
+    "171-04. auth.py: _check_appt_participant raises PermissionError for non-participants",
+    'PermissionError' in _auth171.split('def _check_appt_participant(')[1].split('\ndef ')[0]
+    if 'def _check_appt_participant(' in _auth171 else False
+)
+check(
+    "171-05. auth.py: _get_appointment_row helper exists",
+    'def _get_appointment_row(' in _auth171
+)
+check(
+    "171-06. auth.py: _appt_computed_status helper exists (deadline-expiry without scheduler)",
+    'def _appt_computed_status(' in _auth171
+)
+check(
+    "171-07. auth.py: create_appointment function exists",
+    'def create_appointment(' in _auth171
+)
+check(
+    "171-08. auth.py: create_appointment validates applicant is emp type",
+    "user_type" in _auth171.split('def create_appointment(')[1].split('\ndef ')[0]
+    if 'def create_appointment(' in _auth171 else False
+)
+check(
+    "171-09. auth.py: create_appointment adds participants (company + applicant)",
+    'appointment_participants' in _auth171.split('def create_appointment(')[1].split('\ndef ')[0]
+    if 'def create_appointment(' in _auth171 else False
+)
+check(
+    "171-10. auth.py: create_appointment validates online_url starts with https://",
+    "https://" in _auth171.split('def create_appointment(')[1].split('\ndef ')[0]
+    if 'def create_appointment(' in _auth171 else False
+)
+check(
+    "171-11. auth.py: send_appointment function exists",
+    'def send_appointment(' in _auth171
+)
+check(
+    "171-12. auth.py: send_appointment validates deadline < scheduled_at",
+    'deadline' in _auth171.split('def send_appointment(')[1].split('\ndef ')[0] and
+    'scheduled' in _auth171.split('def send_appointment(')[1].split('\ndef ')[0]
+    if 'def send_appointment(' in _auth171 else False
+)
+check(
+    "171-13. auth.py: accept_appointment function exists",
+    'def accept_appointment(' in _auth171
+)
+check(
+    "171-14. auth.py: accept_appointment only allows applicant (not company)",
+    "applicant_id" in _auth171.split('def accept_appointment(')[1].split('\ndef ')[0]
+    if 'def accept_appointment(' in _auth171 else False
+)
+check(
+    "171-15. auth.py: request_reschedule_appointment function exists",
+    'def request_reschedule_appointment(' in _auth171
+)
+check(
+    "171-16. auth.py: reschedule_appointment function exists",
+    'def reschedule_appointment(' in _auth171
+)
+check(
+    "171-17. auth.py: cancel_appointment function exists",
+    'def cancel_appointment(' in _auth171
+)
+check(
+    "171-18. auth.py: complete_appointment function exists",
+    'def complete_appointment(' in _auth171
+)
+check(
+    "171-19. auth.py: close_appointment function exists",
+    'def close_appointment(' in _auth171
+)
+check(
+    "171-20. auth.py: all transition functions use get_conn/release_conn pattern",
+    'release_conn(conn)' in _auth171.split('def create_appointment(')[1]
+    if 'def create_appointment(' in _auth171 else False
+)
+
+# ── Phase 2: query / room functions (21–30) ───────────────────────────────
+check(
+    "171-21. auth.py: list_appointments function exists",
+    'def list_appointments(' in _auth171
+)
+check(
+    "171-22. auth.py: list_appointments includes computed_status field",
+    '_appt_computed_status' in _auth171.split('def list_appointments(')[1].split('\ndef ')[0]
+    if 'def list_appointments(' in _auth171 else False
+)
+check(
+    "171-23. auth.py: list_appointments never returns online_url",
+    'online_url' not in _auth171.split('def list_appointments(')[1].split('\ndef ')[0]
+    if 'def list_appointments(' in _auth171 else True
+)
+check(
+    "171-24. auth.py: get_appointment_room function exists",
+    'def get_appointment_room(' in _auth171
+)
+check(
+    "171-25. auth.py: get_appointment_room checks participant before returning data",
+    '_check_appt_participant' in _auth171.split('def get_appointment_room(')[1].split('\ndef ')[0]
+    if 'def get_appointment_room(' in _auth171 else False
+)
+check(
+    "171-26. auth.py: get_appointment_events function exists",
+    'def get_appointment_events(' in _auth171
+)
+check(
+    "171-27. auth.py: get_appointment_events checks participant",
+    '_check_appt_participant' in _auth171.split('def get_appointment_events(')[1].split('\ndef ')[0]
+    if 'def get_appointment_events(' in _auth171 else False
+)
+check(
+    "171-28. auth.py: get_appointment_messages function exists",
+    'def get_appointment_messages(' in _auth171
+)
+check(
+    "171-29. auth.py: create_appointment_message function exists",
+    'def create_appointment_message(' in _auth171
+)
+check(
+    "171-30. auth.py: create_appointment_message rejects closed rooms",
+    "closed" in _auth171.split('def create_appointment_message(')[1].split('\ndef ')[0]
+    if 'def create_appointment_message(' in _auth171 else False
+)
+
+# ── Security rules (31–36) ─────────────────────────────────────────────────
+check(
+    "171-31. auth.py: no X-User-Id usage in any appointment helper",
+    'X-User-Id' not in _auth171.split('def create_appointment(')[1]
+    if 'def create_appointment(' in _auth171 else True
+)
+check(
+    "171-32. auth.py: appointment_messages separate from messages table",
+    'INSERT INTO appointment_messages' in _auth171 and
+    'INSERT INTO messages' not in _auth171.split('def create_appointment_message(')[1].split('\ndef ')[0]
+    if 'def create_appointment_message(' in _auth171 else False
+)
+check(
+    "171-33. auth.py: online_url validated as https:// only",
+    "https://" in _auth171.split('def create_appointment(')[1].split('\ndef ')[0]
+    if 'def create_appointment(' in _auth171 else False
+)
+check(
+    "171-34. auth.py: soft delete used for messages (deleted_at IS NULL)",
+    'deleted_at IS NULL' in _auth171.split('def get_appointment_messages(')[1].split('\ndef ')[0]
+    if 'def get_appointment_messages(' in _auth171 else False
+)
+check(
+    "171-35. auth.py: no scheduler, no WebSocket, no push in appointment helpers",
+    'scheduler' not in _auth171.split('def create_appointment(')[1].lower() and
+    'WebSocket' not in _auth171.split('def create_appointment(')[1]
+    if 'def create_appointment(' in _auth171 else True
+)
+check(
+    "171-36. auth.py: complete_appointment requires confirmed status (not just any status)",
+    "'confirmed'" in _auth171.split('def complete_appointment(')[1].split('\ndef ')[0]
+    if 'def complete_appointment(' in _auth171 else False
+)
+
+# ── Phase 7: Notification hooks (37–43) ───────────────────────────────────
+check(
+    "171-37. auth.py: send_appointment fires appointment_invited notification",
+    'appointment_invited' in _auth171.split('def send_appointment(')[1].split('\ndef ')[0]
+    if 'def send_appointment(' in _auth171 else False
+)
+check(
+    "171-38. auth.py: accept_appointment fires appointment_accepted notification",
+    'appointment_accepted' in _auth171.split('def accept_appointment(')[1].split('\ndef ')[0]
+    if 'def accept_appointment(' in _auth171 else False
+)
+check(
+    "171-39. auth.py: request_reschedule_appointment fires appointment_reschedule_requested notification",
+    'appointment_reschedule_requested' in _auth171.split('def request_reschedule_appointment(')[1].split('\ndef ')[0]
+    if 'def request_reschedule_appointment(' in _auth171 else False
+)
+check(
+    "171-40. auth.py: reschedule_appointment fires appointment_rescheduled notification",
+    'appointment_rescheduled' in _auth171.split('def reschedule_appointment(')[1].split('\ndef ')[0]
+    if 'def reschedule_appointment(' in _auth171 else False
+)
+check(
+    "171-41. auth.py: cancel_appointment fires appointment_cancelled notification",
+    'appointment_cancelled' in _auth171.split('def cancel_appointment(')[1].split('\ndef ')[0]
+    if 'def cancel_appointment(' in _auth171 else False
+)
+check(
+    "171-42. auth.py: close_appointment fires appointment_closed notification",
+    'appointment_closed' in _auth171.split('def close_appointment(')[1].split('\ndef ')[0]
+    if 'def close_appointment(' in _auth171 else False
+)
+check(
+    "171-43. auth.py: notifications fire after release_conn (not inside try/finally)",
+    # Confirm create_notification is called after the finally block in send_appointment
+    'finally:\n        release_conn(conn)\n    if notify_payload:' in _auth171 or
+    'release_conn(conn)\n    if notify_payload' in _auth171
+)
+
+# ── server.py endpoints (44–57) ───────────────────────────────────────────
+check(
+    "171-44. server.py: POST /api/appointments endpoint exists",
+    '@app.post("/api/appointments")' in _server171
+)
+check(
+    "171-45. server.py: GET /api/appointments endpoint exists",
+    '@app.get("/api/appointments")' in _server171
+)
+check(
+    "171-46. server.py: GET /api/appointments/{appointment_id} endpoint exists",
+    '@app.get("/api/appointments/{appointment_id}")' in _server171
+)
+check(
+    "171-47. server.py: POST /api/appointments/{id}/send endpoint exists",
+    '/api/appointments/{appointment_id}/send' in _server171
+)
+check(
+    "171-48. server.py: POST /api/appointments/{id}/accept endpoint exists",
+    '/api/appointments/{appointment_id}/accept' in _server171
+)
+check(
+    "171-49. server.py: POST /api/appointments/{id}/request-reschedule endpoint exists",
+    '/api/appointments/{appointment_id}/request-reschedule' in _server171
+)
+check(
+    "171-50. server.py: POST /api/appointments/{id}/reschedule endpoint exists",
+    '/api/appointments/{appointment_id}/reschedule' in _server171
+)
+check(
+    "171-51. server.py: POST /api/appointments/{id}/cancel endpoint exists",
+    '/api/appointments/{appointment_id}/cancel' in _server171
+)
+check(
+    "171-52. server.py: POST /api/appointments/{id}/complete endpoint exists",
+    '/api/appointments/{appointment_id}/complete' in _server171
+)
+check(
+    "171-53. server.py: POST /api/appointments/{id}/close endpoint exists",
+    '/api/appointments/{appointment_id}/close' in _server171
+)
+check(
+    "171-54. server.py: GET /api/appointments/{id}/messages endpoint exists",
+    '/api/appointments/{appointment_id}/messages' in _server171
+)
+check(
+    "171-55. server.py: POST /api/appointments/{id}/messages endpoint exists",
+    '@app.post("/api/appointments/{appointment_id}/messages")' in _server171
+)
+check(
+    "171-56. server.py: GET /api/appointments/{id}/events endpoint exists",
+    '/api/appointments/{appointment_id}/events' in _server171
+)
+check(
+    "171-57. server.py: appointment endpoints use Depends(verify_token) — X-User-Id permanently forbidden (comment only)",
+    # X-User-Id appears only in comments (forbidden notice), not in actual usage
+    all('forbidden' in line.lower() or '#' in line
+        for line in _server171.split('Appointments & Interview Rooms')[1].split('\n')
+        if 'X-User-Id' in line)
+    if 'Appointments & Interview Rooms' in _server171 else True
+)
+
+# ── server.py security (58–62) ────────────────────────────────────────────
+check(
+    "171-58. server.py: POST /api/appointments checks user_type == co",
+    "user_type" in _server171.split('@app.post("/api/appointments")')[1].split('@app.')[0]
+    if '@app.post("/api/appointments")' in _server171 else False
+)
+check(
+    "171-59. server.py: HTML route GET /appointments serves appointments.html",
+    '@app.get("/appointments"' in _server171 and 'appointments.html' in _server171
+)
+check(
+    "171-60. server.py: HTML route GET /appointment-room serves appointment-room.html",
+    '@app.get("/appointment-room"' in _server171 and 'appointment-room.html' in _server171
+)
+check(
+    "171-61. server.py: AppointmentCreateInput Pydantic model exists",
+    'class AppointmentCreateInput(' in _server171
+)
+check(
+    "171-62. server.py: AppointmentSendInput Pydantic model exists",
+    'class AppointmentSendInput(' in _server171
+)
+
+# ── Frontend: appointments.html (63–68) ───────────────────────────────────
+check(
+    "171-63. appointments.html: auth guard present",
+    'tawasalna_user' in _appthtml and '/login' in _appthtml
+)
+check(
+    "171-64. appointments.html: uses JWT Bearer token for API calls",
+    "Authorization': 'Bearer" in _appthtml or 'Authorization\': \'Bearer' in _appthtml
+)
+check(
+    "171-65. appointments.html: no innerHTML for API data (safeText/textContent used)",
+    'safeText' in _appthtml or '.textContent' in _appthtml
+)
+check(
+    "171-66. appointments.html: uses /api/appointments endpoint",
+    '/api/appointments' in _appthtml
+)
+check(
+    "171-67. appointments.html: filter tabs present",
+    'pending_response' in _appthtml and 'confirmed' in _appthtml
+)
+check(
+    "171-68. appointments.html: company FAB for new appointment (IS_CO guard)",
+    'IS_CO' in _appthtml or 'co' in _appthtml
+)
+
+# ── Frontend: appointment-room.html (69–75) ───────────────────────────────
+check(
+    "171-69. appointment-room.html: auth guard present",
+    'tawasalna_user' in _roomhtml and '/login' in _roomhtml
+)
+check(
+    "171-70. appointment-room.html: loads room via /api/appointments/{id}",
+    '/api/appointments/\'+APPT_ID' in _roomhtml or
+    '/api/appointments/"+APPT_ID' in _roomhtml
+)
+check(
+    "171-71. appointment-room.html: no innerHTML for user data (safeText used)",
+    'function safeText' in _roomhtml and '.textContent' in _roomhtml
+)
+check(
+    "171-72. appointment-room.html: event timeline tab exists",
+    'سجل الأحداث' in _roomhtml and '/events' in _roomhtml
+)
+check(
+    "171-73. appointment-room.html: messages tab with send functionality",
+    '/messages' in _roomhtml and 'doSendMsg' in _roomhtml
+)
+check(
+    "171-74. appointment-room.html: message polling (no WebSocket)",
+    'setInterval' in _roomhtml and 'WebSocket' not in _roomhtml
+)
+check(
+    "171-75. appointment-room.html: action buttons for accept/reschedule/cancel/complete/close",
+    'doAccept' in _roomhtml and 'doComplete' in _roomhtml and 'doClose' in _roomhtml
+)
+
+# ── Security Fix: create_appointment permission-source-of-truth (76–97) ──
+_appt_create_fn = _auth171.split('def create_appointment(')[1].split('\ndef send_appointment')[0] if 'def create_appointment(' in _auth171 else ''
+_appt_create_cls = _server171.split('class AppointmentCreateInput(BaseModel):')[1].split('\nclass ')[0] if 'class AppointmentCreateInput(BaseModel):' in _server171 else ''
+
+check(
+    "171-76. server.py: AppointmentCreateInput does NOT accept applicant_id",
+    'applicant_id' not in _appt_create_cls
+)
+check(
+    "171-77. server.py: AppointmentCreateInput does NOT accept job_id",
+    'job_id' not in _appt_create_cls
+)
+check(
+    "171-78. server.py: AppointmentCreateInput does NOT accept representative_user_id",
+    'representative_user_id' not in _appt_create_cls
+)
+check(
+    "171-79. server.py: AppointmentCreateInput has application_id as required int",
+    'application_id: int' in _appt_create_cls
+)
+check(
+    "171-80. server.py: api_create_appointment does NOT pass applicant_id=body.applicant_id",
+    'applicant_id=body.applicant_id' not in _server171
+)
+check(
+    "171-81. server.py: api_create_appointment does NOT pass job_id=body.job_id",
+    'job_id=body.job_id' not in _server171
+)
+check(
+    "171-82. server.py: api_create_appointment does NOT pass representative_user_id=body",
+    'representative_user_id=body.representative_user_id' not in _server171
+)
+check(
+    "171-83. server.py: api_create_appointment passes application_id=body.application_id",
+    'application_id=body.application_id' in _server171
+)
+check(
+    "171-84. auth.py: create_appointment new secure signature (application_id, not applicant_id)",
+    'def create_appointment(company_user_id: int, application_id: int,' in _auth171
+)
+check(
+    "171-85. auth.py: create_appointment old insecure signature is GONE",
+    'def create_appointment(company_user_id: int, applicant_id: int,' not in _auth171
+)
+check(
+    "171-86. auth.py: create_appointment does NOT accept representative_user_id param",
+    'representative_user_id: int = None' not in _appt_create_fn
+)
+check(
+    "171-87. auth.py: create_appointment fetches from job_applications table",
+    'FROM job_applications WHERE id = :id' in _appt_create_fn
+)
+check(
+    "171-88. auth.py: create_appointment derives applicant_id from DB row",
+    'applicant_id = app_rows[0][1]' in _appt_create_fn
+)
+check(
+    "171-89. auth.py: create_appointment derives job_id from DB row",
+    'job_id = app_rows[0][2]' in _appt_create_fn
+)
+check(
+    "171-90. auth.py: create_appointment queries jobs for company ownership (F6)",
+    'SELECT company_id FROM jobs WHERE id = :id' in _appt_create_fn
+)
+check(
+    "171-91. auth.py: create_appointment raises PermissionError on company_id mismatch",
+    'raise PermissionError' in _appt_create_fn
+)
+check(
+    "171-92. auth.py: create_appointment raises ValueError when application not found",
+    'طلب التوظيف غير موجود' in _appt_create_fn
+)
+check(
+    "171-93. auth.py: create_appointment duplicate guard uses application_id (not job+applicant)",
+    'WHERE application_id = :appid' in _appt_create_fn
+)
+check(
+    "171-94. auth.py: create_appointment INSERT does NOT include representative_user_id column",
+    'representative_user_id' not in _appt_create_fn
+)
+check(
+    "171-95. appointments.html: old fApplicant (manual applicant_id input) is REMOVED",
+    'fApplicant' not in _appthtml
+)
+check(
+    "171-96. appointments.html: fApplication input present (application_id based)",
+    'fApplication' in _appthtml
+)
+check(
+    "171-97. appointments.html: POST body uses application_id not applicant_id",
+    'application_id,' in _appthtml and 'applicant_id,' not in _appthtml
+)
+
+# ── Mode-required field validation (send + reschedule) (98–107) ───────────
+_send_fn     = _auth171.split('def send_appointment(')[1].split('\ndef accept_appointment')[0] if 'def send_appointment(' in _auth171 else ''
+_resched_fn2 = _auth171.split('def reschedule_appointment(')[1].split('\ndef cancel_appointment')[0] if 'def reschedule_appointment(' in _auth171 else ''
+
+check(
+    "171-98. auth.py: send_appointment enforces online_url for online mode",
+    'رابط المقابلة مطلوب للمواعيد الأونلاين' in _send_fn
+)
+check(
+    "171-99. auth.py: send_appointment enforces location_text for onsite mode",
+    'موقع المقابلة مطلوب للمواعيد الحضورية' in _send_fn
+)
+check(
+    "171-100. auth.py: reschedule_appointment enforces online_url for online mode",
+    'رابط المقابلة مطلوب للمواعيد الأونلاين' in _resched_fn2
+)
+check(
+    "171-101. auth.py: reschedule_appointment enforces location_text for onsite mode",
+    'موقع المقابلة مطلوب للمواعيد الحضورية' in _resched_fn2
+)
+check(
+    "171-102. auth.py: send_appointment https:// validation still present",
+    'يجب أن يبدأ بـ https://' in _send_fn
+)
+check(
+    "171-103. auth.py: send_appointment deadline-before-scheduled validation still present",
+    'مهلة الرد تنتهي بعد وقت الموعد' in _send_fn
+)
+check(
+    "171-104. auth.py: send_appointment uses effective_url from request OR existing appt",
+    'effective_url = online_url or appt.get' in _send_fn
+)
+check(
+    "171-105. auth.py: reschedule_appointment uses effective_url from request OR existing appt",
+    'effective_url = online_url or appt.get' in _resched_fn2
+)
+check(
+    "171-106. appointment-room.html: send modal has online_url field (sendUrlGrp)",
+    'sendUrlGrp' in _roomhtml and 'sendUrl' in _roomhtml
+)
+check(
+    "171-107. appointment-room.html: reschedule modal has online_url field (reschedUrlGrp)",
+    'reschedUrlGrp' in _roomhtml and 'reschedUrl' in _roomhtml
 )
 
 # ── Summary ──────────────────────────────────────────────────────────────

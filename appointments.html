@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>مواعيدي — تواصلنا</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#070b18;--card:rgba(255,255,255,.03);--border:rgba(255,255,255,.07);
+  --ac:#00c896;--ac2:#2563ff;--ac3:#8b5cf6;
+  --txt:#e8eaf0;--sub:#8892a4;--danger:#ef4444;--warn:#f59e0b;
+  --r:14px;--font:'Cairo',sans-serif
+}
+body{background:var(--bg);color:var(--txt);font-family:var(--font);min-height:100vh;padding-bottom:80px}
+/* Header */
+.hdr{position:sticky;top:0;z-index:100;background:rgba(7,11,24,.95);backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--border);padding:14px 20px;display:flex;align-items:center;gap:12px}
+.hdr-title{font-size:17px;font-weight:700;color:var(--txt);flex:1}
+.hdr-back{width:36px;height:36px;border-radius:10px;border:1px solid var(--border);background:var(--card);
+  display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--sub);
+  text-decoration:none;font-size:18px}
+/* Filter bar */
+.fbar{padding:12px 16px;display:flex;gap:8px;overflow-x:auto;scrollbar-width:none}
+.fbar::-webkit-scrollbar{display:none}
+.ftab{padding:6px 16px;border-radius:20px;border:1px solid var(--border);background:var(--card);
+  color:var(--sub);font-size:13px;font-family:var(--font);cursor:pointer;white-space:nowrap;transition:.2s}
+.ftab.active{background:rgba(0,200,150,.12);border-color:var(--ac);color:var(--ac)}
+/* Content */
+.content{padding:12px 16px}
+/* Cards */
+.appt-card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);
+  padding:16px;margin-bottom:12px;transition:.2s;cursor:pointer}
+.appt-card:hover{border-color:rgba(0,200,150,.3);background:rgba(255,255,255,.05)}
+.card-top{display:flex;align-items:flex-start;gap:12px;margin-bottom:12px}
+.card-ava{width:44px;height:44px;border-radius:50%;background:rgba(37,99,255,.18);
+  display:flex;align-items:center;justify-content:center;color:var(--ac2);font-weight:700;
+  font-size:17px;flex-shrink:0;overflow:hidden}
+.card-ava img{width:100%;height:100%;object-fit:cover}
+.card-info{flex:1;min-width:0}
+.card-name{font-size:15px;font-weight:700;color:var(--txt);margin-bottom:3px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.card-job{font-size:13px;color:var(--sub);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.badge{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;
+  font-size:11px;font-weight:700}
+.badge-pending{background:rgba(245,158,11,.12);color:var(--warn)}
+.badge-confirmed{background:rgba(0,200,150,.12);color:var(--ac)}
+.badge-cancelled{background:rgba(239,68,68,.12);color:var(--danger)}
+.badge-reschedule{background:rgba(139,92,246,.12);color:var(--ac3)}
+.badge-expired{background:rgba(239,68,68,.1);color:#f87171}
+.badge-completed{background:rgba(37,99,255,.12);color:var(--ac2)}
+.badge-closed{background:rgba(255,255,255,.06);color:var(--sub)}
+.badge-draft{background:rgba(255,255,255,.06);color:var(--sub)}
+.badge-missed{background:rgba(239,68,68,.1);color:#f87171}
+.card-meta{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.meta-item{display:flex;align-items:center;gap:4px;font-size:12px;color:var(--sub)}
+.meta-item svg{width:13px;height:13px;flex-shrink:0}
+.card-footer{margin-top:12px;display:flex;justify-content:flex-start}
+.btn-room{display:inline-flex;align-items:center;gap:6px;padding:8px 18px;border-radius:10px;
+  background:rgba(0,200,150,.1);border:1px solid rgba(0,200,150,.25);color:var(--ac);
+  font-size:13px;font-weight:700;font-family:var(--font);cursor:pointer;text-decoration:none;
+  transition:.2s}
+.btn-room:hover{background:rgba(0,200,150,.2)}
+/* New appointment button */
+.fab{position:fixed;bottom:90px;left:20px;width:52px;height:52px;border-radius:50%;
+  background:var(--ac);color:#fff;border:none;font-size:24px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;box-shadow:0 4px 20px rgba(0,200,150,.4);
+  transition:.2s}
+.fab:hover{transform:scale(1.05)}
+/* Empty / loading */
+.empty{text-align:center;padding:60px 20px;color:var(--sub)}
+.empty-icon{font-size:48px;margin-bottom:12px;opacity:.5}
+.empty-txt{font-size:15px;margin-bottom:6px;color:var(--txt)}
+.empty-sub{font-size:13px}
+.skeleton{background:linear-gradient(90deg,rgba(255,255,255,.04) 25%,rgba(255,255,255,.07) 50%,rgba(255,255,255,.04) 75%);
+  background-size:200% 100%;animation:sk 1.4s infinite;border-radius:8px}
+@keyframes sk{0%{background-position:200%}100%{background-position:-200%}}
+.sk-card{height:120px;margin-bottom:12px;border-radius:var(--r)}
+/* Create modal */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:200;display:flex;
+  align-items:flex-end;justify-content:center;opacity:0;pointer-events:none;transition:.2s}
+.modal-bg.open{opacity:1;pointer-events:all}
+.modal{background:#0d1526;border-radius:20px 20px 0 0;padding:24px 20px 40px;
+  width:100%;max-width:480px;max-height:90vh;overflow-y:auto;transform:translateY(20px);transition:.2s}
+.modal-bg.open .modal{transform:translateY(0)}
+.modal-title{font-size:17px;font-weight:700;margin-bottom:20px}
+.form-group{margin-bottom:16px}
+.form-label{font-size:13px;color:var(--sub);margin-bottom:6px;display:block}
+.form-input{width:100%;padding:10px 14px;border-radius:10px;border:1px solid var(--border);
+  background:rgba(255,255,255,.04);color:var(--txt);font-family:var(--font);font-size:14px}
+.form-input:focus{outline:none;border-color:var(--ac)}
+.form-select{width:100%;padding:10px 14px;border-radius:10px;border:1px solid var(--border);
+  background:#0d1526;color:var(--txt);font-family:var(--font);font-size:14px;cursor:pointer}
+.btn-submit{width:100%;padding:12px;border-radius:12px;background:var(--ac);color:#fff;
+  border:none;font-size:15px;font-weight:700;font-family:var(--font);cursor:pointer;margin-top:8px}
+.btn-cancel-modal{width:100%;padding:12px;border-radius:12px;background:var(--card);color:var(--sub);
+  border:1px solid var(--border);font-size:15px;font-family:var(--font);cursor:pointer;margin-top:8px}
+/* Bottom nav */
+.bnav{position:fixed;bottom:0;left:0;right:0;height:65px;background:rgba(7,11,24,.97);
+  backdrop-filter:blur(12px);border-top:1px solid var(--border);display:flex;
+  align-items:center;justify-content:space-around;z-index:100}
+.bnav-item{display:flex;flex-direction:column;align-items:center;gap:3px;color:var(--sub);
+  text-decoration:none;font-size:10px;padding:6px 12px}
+.bnav-item.active{color:var(--ac)}
+.bnav-item svg{width:22px;height:22px}
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <a class="hdr-back" href="/home">&#8249;</a>
+  <span class="hdr-title">مواعيدي</span>
+</div>
+
+<div class="fbar" id="filterBar">
+  <button class="ftab active" data-f="">الكل</button>
+  <button class="ftab" data-f="pending_response">بانتظار الرد</button>
+  <button class="ftab" data-f="confirmed">مؤكَّد</button>
+  <button class="ftab" data-f="reschedule_requested">طلب تغيير</button>
+  <button class="ftab" data-f="cancelled">ملغي</button>
+  <button class="ftab" data-f="completed">مكتمل</button>
+</div>
+
+<div class="content" id="apptList">
+  <div class="skeleton sk-card"></div>
+  <div class="skeleton sk-card"></div>
+  <div class="skeleton sk-card"></div>
+</div>
+
+<!-- Company: New Appointment FAB -->
+<button class="fab" id="fabNew" title="دعوة مقابلة جديدة" style="display:none">+</button>
+
+<!-- New Appointment Modal (company only) -->
+<div class="modal-bg" id="newApptModal">
+  <div class="modal">
+    <div class="modal-title">دعوة مقابلة جديدة</div>
+    <div class="form-group">
+      <label class="form-label">رقم طلب التوظيف (application_id)</label>
+      <input class="form-input" id="fApplication" type="number" placeholder="رقم الطلب من صفحة التقديمات">
+      <small style="color:var(--sub);font-size:12px;display:block;margin-top:4px">احصل على الرقم من صفحة تقديمات الوظيفة</small>
+    </div>
+    <div class="form-group">
+      <label class="form-label">نوع المقابلة</label>
+      <select class="form-select" id="fMode">
+        <option value="online">أونلاين</option>
+        <option value="onsite">حضوري</option>
+      </select>
+    </div>
+    <div class="form-group" id="urlGroup">
+      <label class="form-label">رابط الاجتماع (https://...)</label>
+      <input class="form-input" id="fUrl" type="url" placeholder="https://meet.google.com/...">
+    </div>
+    <div class="form-group" id="locGroup" style="display:none">
+      <label class="form-label">موقع المقابلة</label>
+      <input class="form-input" id="fLoc" type="text" placeholder="العنوان التفصيلي">
+    </div>
+    <div class="form-group">
+      <label class="form-label">ملاحظات (اختياري)</label>
+      <input class="form-input" id="fNotes" type="text" placeholder="أي معلومات إضافية">
+    </div>
+    <button class="btn-submit" id="btnCreateAppt">إنشاء الدعوة</button>
+    <button class="btn-cancel-modal" id="btnCloseModal">إلغاء</button>
+  </div>
+</div>
+
+<nav class="bnav">
+  <a class="bnav-item" href="/home">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+    الرئيسية
+  </a>
+  <a class="bnav-item active" href="/appointments">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+    مواعيد
+  </a>
+  <a class="bnav-item" href="/messages">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+    رسائل
+  </a>
+  <a class="bnav-item" href="/notifications">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+    إشعارات
+  </a>
+</nav>
+
+<script>
+(function(){
+  'use strict';
+  const _u = JSON.parse(localStorage.getItem('tawasalna_user') || 'null');
+  const _jwt = localStorage.getItem('tw_jwt') || '';
+  if (!_u || !_jwt) { location.href = '/login'; return; }
+
+  const IS_CO = _u.user_type === 'co';
+  let _currentFilter = '';
+
+  // Status labels + badge classes
+  const STATUS_LABEL = {
+    draft: 'مسودة', pending_response: 'بانتظار الرد',
+    reschedule_requested: 'طلب تغيير موعد', confirmed: 'مؤكَّد',
+    cancelled: 'ملغي', expired: 'انتهت المهلة', missed: 'فائت',
+    completed: 'مكتملة', closed: 'مغلق'
+  };
+  const STATUS_CLASS = {
+    draft: 'badge-draft', pending_response: 'badge-pending',
+    reschedule_requested: 'badge-reschedule', confirmed: 'badge-confirmed',
+    cancelled: 'badge-cancelled', expired: 'badge-expired',
+    missed: 'badge-missed', completed: 'badge-completed', closed: 'badge-closed'
+  };
+  const MODE_LABEL = { online: 'أونلاين', onsite: 'حضوري' };
+
+  // DOM
+  const listEl = document.getElementById('apptList');
+  const fabNew = document.getElementById('fabNew');
+  const modal  = document.getElementById('newApptModal');
+  const fMode  = document.getElementById('fMode');
+  const urlGrp = document.getElementById('urlGroup');
+  const locGrp = document.getElementById('locGroup');
+
+  if (IS_CO) { fabNew.style.display = 'flex'; }
+
+  // Filter tabs
+  document.getElementById('filterBar').addEventListener('click', function(e){
+    const tab = e.target.closest('.ftab');
+    if (!tab) return;
+    document.querySelectorAll('.ftab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    _currentFilter = tab.dataset.f || '';
+    loadAppointments();
+  });
+
+  function api(path, opts){
+    return fetch(path, Object.assign({
+      headers: { 'Authorization': 'Bearer ' + _jwt, 'Content-Type': 'application/json' }
+    }, opts)).then(r => r.json());
+  }
+
+  function safeText(el, text){
+    el.textContent = String(text || '');
+  }
+
+  function formatDate(iso){
+    if (!iso) return '';
+    try {
+      const d = new Date(iso);
+      return d.toLocaleString('ar-JO', { dateStyle: 'medium', timeStyle: 'short' });
+    } catch(e){ return iso; }
+  }
+
+  function initials(name){
+    if (!name) return '?';
+    const parts = name.trim().split(' ');
+    return (parts[0][0] || '') + (parts[1] ? parts[1][0] : '');
+  }
+
+  function renderCard(a){
+    const s = a.computed_status || a.status;
+    const cls = STATUS_CLASS[s] || 'badge-draft';
+    const lbl = STATUS_LABEL[s] || s;
+
+    const card = document.createElement('div');
+    card.className = 'appt-card';
+    card.addEventListener('click', function(){
+      location.href = '/appointment-room?id=' + a.id;
+    });
+
+    const displayName = IS_CO ? a.applicant_name : a.company_name;
+    const jobTxt = a.job_title ? a.job_title : 'مقابلة عامة';
+    const roleTxt = a.viewer_role === 'company' ? 'شركة' :
+                    a.viewer_role === 'applicant' ? 'موظف' : 'ممثل';
+
+    card.innerHTML = '';
+
+    const top = document.createElement('div');
+    top.className = 'card-top';
+
+    const ava = document.createElement('div');
+    ava.className = 'card-ava';
+    const iniSpan = document.createElement('span');
+    safeText(iniSpan, initials(displayName));
+    ava.appendChild(iniSpan);
+
+    const info = document.createElement('div');
+    info.className = 'card-info';
+    const nameEl = document.createElement('div');
+    nameEl.className = 'card-name';
+    safeText(nameEl, displayName);
+    const jobEl = document.createElement('div');
+    jobEl.className = 'card-job';
+    safeText(jobEl, jobTxt);
+    info.appendChild(nameEl);
+    info.appendChild(jobEl);
+
+    const badge = document.createElement('span');
+    badge.className = 'badge ' + cls;
+    safeText(badge, lbl);
+
+    top.appendChild(ava);
+    top.appendChild(info);
+    top.appendChild(badge);
+    card.appendChild(top);
+
+    const meta = document.createElement('div');
+    meta.className = 'card-meta';
+    if (a.scheduled_at) {
+      const mi = document.createElement('div');
+      mi.className = 'meta-item';
+      mi.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>';
+      const span = document.createElement('span');
+      safeText(span, formatDate(a.scheduled_at));
+      mi.appendChild(span);
+      meta.appendChild(mi);
+    }
+    const mi2 = document.createElement('div');
+    mi2.className = 'meta-item';
+    mi2.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>';
+    const sp2 = document.createElement('span');
+    safeText(sp2, MODE_LABEL[a.mode] || a.mode);
+    mi2.appendChild(sp2);
+    meta.appendChild(mi2);
+    card.appendChild(meta);
+
+    const footer = document.createElement('div');
+    footer.className = 'card-footer';
+    const btnRoom = document.createElement('a');
+    btnRoom.className = 'btn-room';
+    btnRoom.href = '/appointment-room?id=' + a.id;
+    btnRoom.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>';
+    btnRoom.appendChild(document.createTextNode(' فتح غرفة الموعد'));
+    footer.appendChild(btnRoom);
+    card.appendChild(footer);
+
+    return card;
+  }
+
+  function loadAppointments(){
+    listEl.innerHTML = '<div class="skeleton sk-card"></div><div class="skeleton sk-card"></div>';
+    const qs = _currentFilter ? '?status=' + encodeURIComponent(_currentFilter) : '';
+    api('/api/appointments' + qs).then(res => {
+      listEl.innerHTML = '';
+      if (!res.ok || !res.data || res.data.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'empty';
+        empty.innerHTML = '<div class="empty-icon">📅</div>';
+        const t = document.createElement('div');
+        t.className = 'empty-txt';
+        safeText(t, 'لا توجد مواعيد');
+        const s = document.createElement('div');
+        s.className = 'empty-sub';
+        safeText(s, _currentFilter ? 'لا توجد مواعيد بهذه الحالة' : 'لم تصلك دعوات مقابلات بعد');
+        empty.appendChild(t);
+        empty.appendChild(s);
+        listEl.appendChild(empty);
+        return;
+      }
+      res.data.forEach(a => listEl.appendChild(renderCard(a)));
+    }).catch(function(){
+      listEl.innerHTML = '<div class="empty"><div class="empty-icon">⚠️</div><div class="empty-txt">خطأ في تحميل البيانات</div></div>';
+    });
+  }
+
+  // Create appointment modal (company only)
+  fabNew.addEventListener('click', function(){ modal.classList.add('open'); });
+  document.getElementById('btnCloseModal').addEventListener('click', function(){
+    modal.classList.remove('open');
+  });
+  modal.addEventListener('click', function(e){
+    if (e.target === modal) modal.classList.remove('open');
+  });
+
+  fMode.addEventListener('change', function(){
+    urlGrp.style.display = fMode.value === 'online' ? '' : 'none';
+    locGrp.style.display = fMode.value === 'onsite' ? '' : 'none';
+  });
+
+  document.getElementById('btnCreateAppt').addEventListener('click', function(){
+    const application_id = parseInt(document.getElementById('fApplication').value);
+    if (!application_id) { alert('أدخل رقم طلب التوظيف'); return; }
+    const mode = fMode.value;
+    const payload = {
+      application_id,
+      mode,
+      online_url: mode === 'online' ? (document.getElementById('fUrl').value.trim() || null) : null,
+      location_text: mode === 'onsite' ? (document.getElementById('fLoc').value.trim() || null) : null,
+      notes: document.getElementById('fNotes').value.trim() || null
+    };
+    api('/api/appointments', { method: 'POST', body: JSON.stringify(payload) }).then(res => {
+      if (res.ok) {
+        modal.classList.remove('open');
+        location.href = '/appointment-room?id=' + res.data.id;
+      } else {
+        alert(res.detail || 'خطأ في إنشاء الموعد');
+      }
+    }).catch(function(){ alert('خطأ في الاتصال'); });
+  });
+
+  loadAppointments();
+})();
+</script>
+</body>
+</html>
