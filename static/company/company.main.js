@@ -2682,14 +2682,14 @@
     var ov = document.getElementById('coHubOverlay');
     if (!ov) return;
     ov.style.display = 'flex';
-    document.body.style.overflow = 'hidden';
+    document.body.classList.add('co-hub-open');
   }
 
   function _close() {
     var ov = document.getElementById('coHubOverlay');
     if (!ov) return;
     ov.style.display = 'none';
-    document.body.style.overflow = '';
+    document.body.classList.remove('co-hub-open');
   }
 
   function _switchHubTab(tab) {
@@ -2778,6 +2778,7 @@
       var ov2 = document.getElementById('coHubOverlay');
       if (e.key === 'Escape' && ov2 && ov2.style.display === 'flex') _close();
     });
+    window.addEventListener('popstate', _close);
   });
 
   window._coHubOpen  = _open;

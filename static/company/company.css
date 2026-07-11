@@ -2588,19 +2588,12 @@ body.co-error .sc-main-card   { display:none; }
 .co-err-btn:hover { background:rgba(0,200,150,.25); }
 
 /* ══ COMMUNICATION HUB ════════════════════════════════════════ */
-/* Owner-only trigger button */
-.nb-hub {
-  background: linear-gradient(135deg,var(--ac) 0%,#3b82f6 100%);
-  color:#fff; border:none;
-  padding:0 20px; height:34px; border-radius:10px;
-  font-family:inherit; font-size:13px; font-weight:700;
-  display:inline-flex; align-items:center; justify-content:center; gap:6px;
-  cursor:pointer; width:100%;
-}
-.nb-hub:hover { opacity:.88; }
+/* Scroll lock — applied to body when hub is open */
+body.co-hub-open { overflow:hidden; }
 
-/* Overlay backdrop */
+/* Overlay backdrop — standalone (does not extend .overlay base class) */
 .co-hub-overlay {
+  display:none;
   position:fixed; inset:0;
   background:rgba(0,0,0,.6);
   z-index:1200;
