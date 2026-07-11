@@ -5553,6 +5553,7 @@ def create_appointment(company_user_id: int, application_id: int,
         representative_name = representative_name.strip()[:200]
 
     conn = get_conn()
+    committed = False
     try:
         # Derive applicant_id and job_id from the actual job_applications row
         app_rows = conn.run(
@@ -5585,13 +5586,14 @@ def create_appointment(company_user_id: int, application_id: int,
         dup = conn.run(
             """SELECT id FROM appointments
                WHERE application_id = :appid
-                 AND status NOT IN ('cancelled','expired','missed','closed','completed')
+                 AND status NOT IN ('cancelled','expired','missed','closed')
                LIMIT 1""",
             appid=application_id
         )
         if dup:
             raise ValueError("يوجد موعد نشط لهذا الطلب")
 
+        conn.run("BEGIN")
         rows = conn.run(
             """INSERT INTO appointments
                (company_id, applicant_id, created_by, job_id, application_id,
@@ -5624,7 +5626,17 @@ def create_appointment(company_user_id: int, application_id: int,
 
         _insert_appointment_event(conn, appt_id, company_user_id,
                                    'appointment_created', new_status='draft')
-        return _get_appointment_row(conn, appt_id)
+        result = _get_appointment_row(conn, appt_id)
+        conn.run("COMMIT")
+        committed = True
+        return result
+    except Exception:
+        if not committed:
+            try:
+                conn.run("ROLLBACK")
+            except Exception:
+                pass
+        raise
     finally:
         release_conn(conn)
 
@@ -5742,8 +5754,9 @@ def accept_appointment(appointment_id: int, user_id: int) -> dict:
             raise ValueError("الموعد غير موجود")
         if appt['applicant_id'] != user_id:
             raise PermissionError("غير مصرح: فقط الموظف المدعو يمكنه قبول الموعد")
-        if appt['status'] != 'pending_response':
-            raise ValueError(f"لا يمكن قبول موعد بحالة '{appt['status']}'")
+        _current_status = _appt_computed_status(appt)
+        if _current_status != 'pending_response':
+            raise ValueError(f"لا يمكن قبول موعد بحالة '{_current_status}'")
 
         conn.run(
             "UPDATE appointments SET status='confirmed', updated_at=NOW() WHERE id=:id",
@@ -5751,8 +5764,6 @@ def accept_appointment(appointment_id: int, user_id: int) -> dict:
         )
         _insert_appointment_event(conn, appointment_id, user_id, 'appointment_accepted',
                                    old_status='pending_response', new_status='confirmed')
-        _insert_appointment_event(conn, appointment_id, None, 'appointment_confirmed',
-                                   old_status='confirmed', new_status='confirmed')
 
         company_id = appt['company_id']
         emp_rows = conn.run("SELECT full_name FROM users WHERE id=:id", id=user_id)
@@ -5792,8 +5803,9 @@ def request_reschedule_appointment(appointment_id: int, user_id: int,
             raise ValueError("الموعد غير موجود")
         if appt['applicant_id'] != user_id:
             raise PermissionError("غير مصرح: فقط الموظف المدعو يمكنه طلب تغيير الموعد")
-        if appt['status'] != 'pending_response':
-            raise ValueError(f"لا يمكن طلب تغيير موعد بحالة '{appt['status']}'")
+        _current_status = _appt_computed_status(appt)
+        if _current_status != 'pending_response':
+            raise ValueError(f"لا يمكن طلب تغيير موعد بحالة '{_current_status}'")
 
         conn.run(
             "UPDATE appointments SET status='reschedule_requested', updated_at=NOW() WHERE id=:id",
@@ -5988,6 +6000,16 @@ def complete_appointment(appointment_id: int, user_id: int) -> dict:
             raise PermissionError("غير مصرح: فقط الشركة يمكنها إنهاء المقابلة")
         if appt['status'] != 'confirmed':
             raise ValueError(f"لا يمكن إنهاء مقابلة بحالة '{appt['status']}' — يجب confirmed")
+        if appt.get('scheduled_at'):
+            from datetime import datetime as _dt, timezone as _tz
+            _now = _dt.now(_tz.utc)
+            _sched = appt['scheduled_at']
+            if hasattr(_sched, 'tzinfo') and _sched.tzinfo is None:
+                _sched = _sched.replace(tzinfo=_tz.utc)
+            elif isinstance(_sched, str):
+                _sched = _dt.fromisoformat(_sched.replace('Z', '+00:00'))
+            if _sched > _now:
+                raise ValueError("لا يمكن إنهاء المقابلة قبل موعدها المحدد")
 
         conn.run(
             "UPDATE appointments SET status='completed', updated_at=NOW() WHERE id=:id",
@@ -6026,6 +6048,8 @@ def close_appointment(appointment_id: int, user_id: int) -> dict:
         )
 
         for uid in [appt['company_id'], appt['applicant_id']]:
+            if uid == user_id:
+                continue
             notify_payloads.append({
                 "user_id": uid, "type_": "appointment_closed",
                 "title": "تم إغلاق غرفة الموعد",
@@ -6054,9 +6078,13 @@ def list_appointments(user_id: int, status_filter: str = None,
     try:
         params = {"uid": user_id, "limit": min(limit, 50), "offset": max(offset, 0)}
         status_clause = ""
-        if status_filter and status_filter in _APPT_VALID_STATUSES:
-            status_clause = " AND a.status = :status"
-            params["status"] = status_filter
+        if status_filter:
+            if status_filter == 'expired':
+                # expired is computed (pending_response + passed deadline), not stored in DB
+                status_clause = " AND a.status = 'pending_response' AND a.response_deadline_at < NOW()"
+            elif status_filter in _APPT_VALID_STATUSES:
+                status_clause = " AND a.status = :status"
+                params["status"] = status_filter
 
         rows = conn.run(
             f"""SELECT a.id, a.job_id, a.application_id, a.company_id, a.applicant_id,
@@ -6096,10 +6124,10 @@ def get_appointment_room(appointment_id: int, user_id: int) -> dict:
     """Full room details for a verified participant. Includes participants list."""
     conn = get_conn()
     try:
-        participant = _check_appt_participant(conn, appointment_id, user_id)
         appt = _get_appointment_row(conn, appointment_id)
         if not appt:
             raise ValueError("الموعد غير موجود")
+        participant = _check_appt_participant(conn, appointment_id, user_id)
 
         appt['viewer_role'] = participant['role']
         appt['can_message'] = participant['can_message']
@@ -6148,6 +6176,9 @@ def get_appointment_events(appointment_id: int, user_id: int) -> list:
     """Return timeline events for a participant (immutable log)."""
     conn = get_conn()
     try:
+        _appt_exists = _get_appointment_row(conn, appointment_id)
+        if not _appt_exists:
+            raise ValueError("الموعد غير موجود")
         _check_appt_participant(conn, appointment_id, user_id)
         rows = conn.run(
             """SELECT ae.id, ae.event_type, ae.old_status, ae.new_status,
@@ -6189,7 +6220,7 @@ def get_appointment_messages(appointment_id: int, user_id: int,
                WHERE am.appointment_id=:appt AND am.deleted_at IS NULL
                ORDER BY am.created_at ASC
                LIMIT :lim OFFSET :off""",
-            appt=appointment_id, lim=min(limit, 100), off=max(offset, 0)
+            appt=appointment_id, lim=max(1, min(limit, 100)), off=max(offset, 0)
         )
         cols = ["id","appointment_id","sender_id","body","created_at","edited_at","sender_name"]
         result = []
@@ -6215,8 +6246,9 @@ def create_appointment_message(appointment_id: int, user_id: int, body: str) -> 
         appt = _get_appointment_row(conn, appointment_id)
         if not appt:
             raise ValueError("الموعد غير موجود")
-        if appt['status'] == 'closed':
-            raise ValueError("الغرفة مغلقة — لا يمكن إرسال رسائل")
+        _msg_status = _appt_computed_status(appt)
+        if _msg_status in _APPT_TERMINAL_STATUSES:
+            raise ValueError("لا يمكن إرسال رسائل في موعد منتهٍ أو ملغى أو مغلق")
 
         participant = _check_appt_participant(conn, appointment_id, user_id)
         if not participant['can_message']:

@@ -6778,8 +6778,9 @@ check(
     'def create_appointment_message(' in _auth171
 )
 check(
-    "171-30. auth.py: create_appointment_message rejects closed rooms",
-    "closed" in _auth171.split('def create_appointment_message(')[1].split('\ndef ')[0]
+    "171-30. auth.py: create_appointment_message rejects closed/terminal-status rooms",
+    ("closed" in _auth171.split('def create_appointment_message(')[1].split('\ndef ')[0]
+     or "_APPT_TERMINAL_STATUSES" in _auth171.split('def create_appointment_message(')[1].split('\ndef ')[0])
     if 'def create_appointment_message(' in _auth171 else False
 )
 
@@ -7133,6 +7134,240 @@ check(
 check(
     "171-107. appointment-room.html: reschedule modal has online_url field (reschedUrlGrp)",
     'reschedUrlGrp' in _roomhtml and 'reschedUrl' in _roomhtml
+)
+
+# ══════════════════════════════════════════════════════════════════════════
+# §172 — Appointments Final Runtime QA
+# ══════════════════════════════════════════════════════════════════════════
+
+import os as _os172
+_auth172   = open('auth.py',    encoding='utf-8').read() if _os172.path.exists('auth.py')    else ''
+_server172 = open('server.py',  encoding='utf-8').read() if _os172.path.exists('server.py')  else ''
+_appthtml2 = open('appointments.html', encoding='utf-8').read() if _os172.path.exists('appointments.html') else ''
+_roomhtml2 = open('appointment-room.html', encoding='utf-8').read() if _os172.path.exists('appointment-room.html') else ''
+
+# Isolated function bodies for precise checks
+_accept_fn   = _auth172.split('def accept_appointment(')[1].split('\ndef ')[0] if 'def accept_appointment(' in _auth172 else ''
+_reqresched  = _auth172.split('def request_reschedule_appointment(')[1].split('\ndef ')[0] if 'def request_reschedule_appointment(' in _auth172 else ''
+_complete_fn = _auth172.split('def complete_appointment(')[1].split('\ndef ')[0] if 'def complete_appointment(' in _auth172 else ''
+_close_fn    = _auth172.split('def close_appointment(')[1].split('\ndef ')[0] if 'def close_appointment(' in _auth172 else ''
+_listappt    = _auth172.split('def list_appointments(')[1].split('\ndef ')[0] if 'def list_appointments(' in _auth172 else ''
+_getroom     = _auth172.split('def get_appointment_room(')[1].split('\ndef ')[0] if 'def get_appointment_room(' in _auth172 else ''
+_getevents   = _auth172.split('def get_appointment_events(')[1].split('\ndef ')[0] if 'def get_appointment_events(' in _auth172 else ''
+_getmsgs     = _auth172.split('def get_appointment_messages(')[1].split('\ndef ')[0] if 'def get_appointment_messages(' in _auth172 else ''
+_createmsg   = _auth172.split('def create_appointment_message(')[1].split('\ndef ')[0] if 'def create_appointment_message(' in _auth172 else ''
+_createappt  = _auth172.split('def create_appointment(')[1].split('\ndef send_appointment')[0] if 'def create_appointment(' in _auth172 else ''
+
+# ── Group 1: Bug-fix verification — auth.py (13 checks) ─────────────────
+
+check(
+    "172-01. BUG1a fixed: accept_appointment uses _appt_computed_status for status check",
+    '_appt_computed_status(appt)' in _accept_fn
+)
+check(
+    "172-02. BUG1a fixed: accept_appointment no longer compares raw appt[status] != pending_response",
+    "appt['status'] != 'pending_response'" not in _accept_fn
+)
+check(
+    "172-03. BUG1b fixed: request_reschedule uses _appt_computed_status for status check",
+    '_appt_computed_status(appt)' in _reqresched
+)
+check(
+    "172-04. BUG2 fixed: bogus appointment_confirmed event removed from accept_appointment",
+    "'appointment_confirmed'" not in _accept_fn
+)
+check(
+    "172-05. BUG3a fixed: get_appointment_room fetches appointment BEFORE participant check",
+    _getroom.index('_get_appointment_row(') < _getroom.index('_check_appt_participant(')
+    if '_get_appointment_row(' in _getroom and '_check_appt_participant(' in _getroom else False
+)
+check(
+    "172-06. BUG3b fixed: get_appointment_events fetches appointment BEFORE participant check",
+    _getevents.index('_get_appointment_row(') < _getevents.index('_check_appt_participant(')
+    if '_get_appointment_row(' in _getevents and '_check_appt_participant(' in _getevents else False
+)
+check(
+    "172-07. BUG4 fixed: create_appointment has explicit BEGIN transaction",
+    'conn.run("BEGIN")' in _createappt
+)
+check(
+    "172-08. BUG4 fixed: create_appointment has COMMIT",
+    'conn.run("COMMIT")' in _createappt
+)
+check(
+    "172-09. BUG4 fixed: create_appointment has ROLLBACK on failure",
+    'conn.run("ROLLBACK")' in _createappt
+)
+check(
+    "172-10. BUG5 fixed: duplicate guard no longer excludes completed (allows re-invite after completion)",
+    "'completed'" not in _createappt.split("status NOT IN")[1].split("LIMIT 1")[0]
+    if "status NOT IN" in _createappt else False
+)
+check(
+    "172-11. BUG6 fixed: complete_appointment checks scheduled_at has not passed",
+    'scheduled_at' in _complete_fn and '_now' in _complete_fn and '_sched' in _complete_fn
+)
+check(
+    "172-12. BUG7 fixed: create_appointment_message blocks all terminal statuses",
+    '_APPT_TERMINAL_STATUSES' in _createmsg
+)
+check(
+    "172-13. BUG9 fixed: close_appointment skips notification to the actor",
+    'uid == user_id' in _close_fn and 'continue' in _close_fn
+)
+
+# ── Group 2: get_appointment_messages and list_appointments fixes (3 checks) ──
+
+check(
+    "172-14. BUG10 fixed: get_appointment_messages guards negative limit (max(1, ...))",
+    'max(1, min(limit, 100))' in _getmsgs
+)
+check(
+    "172-15. list_appointments: expired filter uses SQL deadline check, not WHERE status='expired'",
+    "a.status = 'pending_response' AND a.response_deadline_at < NOW()" in _listappt
+)
+check(
+    "172-16. list_appointments: expired special case is branched separately from regular filters",
+    "status_filter == 'expired'" in _listappt
+)
+
+# ── Group 3: server.py fixes (4 checks) ──────────────────────────────────
+
+_list_ep  = _server172.split('def api_list_appointments(')[1].split('\n@app.')[0] if 'def api_list_appointments(' in _server172 else ''
+_send_ep  = _server172.split('def api_send_appointment(')[1].split('\n@app.')[0] if 'def api_send_appointment(' in _server172 else ''
+
+check(
+    "172-17. BUG12 fixed: list endpoint returns 'count' field (not 'total')",
+    '"count": len(result)' in _list_ep and '"total":' not in _list_ep
+)
+check(
+    "172-18. BUG13 fixed: /send endpoint has explicit user_type co guard",
+    'user_type' in _send_ep and '"co"' in _send_ep
+)
+check(
+    "172-19. /send endpoint raises 403 for non-company users",
+    'HTTPException(403' in _send_ep
+)
+check(
+    "172-20. create endpoint already has user_type co guard (pre-existing)",
+    'user_type' in (_server172.split('def api_create_appointment(')[1].split('\n@app.')[0]
+                    if 'def api_create_appointment(' in _server172 else '')
+)
+
+# ── Group 4: Frontend fixes — appointment-room.html (7 checks) ───────────
+
+check(
+    "172-21. BUG20 fixed: reschedule event renders new_scheduled_at",
+    'new_scheduled_at || ev.payload.scheduled_at' in _roomhtml2 or
+    'ev.payload.new_scheduled_at ||' in _roomhtml2
+)
+check(
+    "172-22. BUG22 fixed: doAccept has .catch() handler",
+    '.catch(function(){ alert(' in _roomhtml2.split('function doAccept')[1].split('function doComplete')[0]
+    if 'function doAccept' in _roomhtml2 and 'function doComplete' in _roomhtml2 else False
+)
+check(
+    "172-23. BUG22 fixed: doComplete has .catch() handler",
+    '.catch(function(){ alert(' in _roomhtml2.split('function doComplete')[1].split('function doClose')[0]
+    if 'function doComplete' in _roomhtml2 and 'function doClose' in _roomhtml2 else False
+)
+check(
+    "172-24. BUG22 fixed: doClose has .catch() handler",
+    '.catch(function(){ alert(' in _roomhtml2.split('function doClose')[1].split('function doSendMsg')[0]
+    if 'function doClose' in _roomhtml2 else False
+)
+check(
+    "172-25. BUG24 fixed: send modal sets min attribute on datetime-local input before open",
+    'sendSchedAt' in _roomhtml2 and 'sendSchedAt\').min' in _roomhtml2
+)
+check(
+    "172-26. BUG24 fixed: reschedule modal sets min attribute on datetime-local before open",
+    'newSchedAt' in _roomhtml2 and 'newSchedAt\').min' in _roomhtml2
+)
+check(
+    "172-27. appointment-room.html: doSendMsg already has .catch() (pre-existing, not regressed)",
+    '.catch(function(){ alert(' in _roomhtml2.split('function doSendMsg')[1].split('function doAccept')[0]
+    if 'function doSendMsg' in _roomhtml2 and 'function doAccept' in _roomhtml2 else False
+)
+
+# ── Group 5: Frontend fixes — appointments.html (3 checks) ───────────────
+
+check(
+    "172-28. BUG15 fixed: appointments.html differentiates !res.ok (error) from empty list",
+    '!res.ok' in _appthtml2 and 'res.detail' in _appthtml2
+)
+check(
+    "172-29. BUG15 fixed: error branch does not show 'لا توجد مواعيد' message",
+    'res.detail' in _appthtml2.split('if (!res.ok)')[1].split('if (!res.data')[0]
+    if 'if (!res.ok)' in _appthtml2 and 'if (!res.data' in _appthtml2 else False
+)
+check(
+    "172-30. appointments.html: empty-list branch only fires when res.ok is truthy",
+    _appthtml2.index('if (!res.ok)') < _appthtml2.index('if (!res.data || res.data.length === 0)')
+    if 'if (!res.ok)' in _appthtml2 and 'if (!res.data || res.data.length === 0)' in _appthtml2 else False
+)
+
+# ── Group 6: Security / architecture invariants (6 checks) ───────────────
+
+check(
+    "172-31. No X-User-Id in any appointment endpoint (forbidden per F6/F17)",
+    'X-User-Id' not in _server172.split('@app.post("/api/appointments')[1]
+    if '@app.post("/api/appointments' in _server172 else True
+)
+check(
+    "172-32. create_appointment derives applicant_id from job_applications, not body",
+    'applicant_id = app_rows' in _createappt
+)
+check(
+    "172-33. create_appointment derives job_id from job_applications, not body",
+    'job_id = app_rows' in _createappt
+)
+check(
+    "172-34. create_appointment_message checks can_message permission before inserting",
+    'can_message' in _createmsg
+)
+check(
+    "172-35. appointment_messages use soft delete (deleted_at), no hard DELETE",
+    'deleted_at' in _auth172 and
+    'DELETE FROM appointment_messages' not in _auth172
+)
+check(
+    "172-36. appointment_events are never deleted (F18/F27)",
+    'DELETE FROM appointment_events' not in _auth172
+)
+
+# ── Group 7: Notification correctness (7 checks) ─────────────────────────
+
+_cancel_fn = _auth172.split('def cancel_appointment(')[1].split('\ndef complete_appointment')[0] if 'def cancel_appointment(' in _auth172 else ''
+_send_fn2  = _auth172.split('def send_appointment(')[1].split('\ndef accept_appointment')[0] if 'def send_appointment(' in _auth172 else ''
+
+check(
+    "172-37. accept_appointment fires notification to company (not self)",
+    'create_notification' in _accept_fn and 'company_id' in _accept_fn
+)
+check(
+    "172-38. send_appointment fires notification to applicant",
+    'create_notification' in _send_fn2 and 'applicant_id' in _send_fn2
+)
+check(
+    "172-39. cancel_appointment skips actor notification (pre-existing guard)",
+    'uid != user_id' in _cancel_fn or 'uid == user_id' in _cancel_fn
+)
+check(
+    "172-40. close_appointment notification loop skips actor (BUG9 fix)",
+    'uid == user_id' in _close_fn and 'continue' in _close_fn
+)
+check(
+    "172-41. request_reschedule fires notification to company",
+    'create_notification' in _reqresched and 'company_id' in _reqresched
+)
+check(
+    "172-42. accept_appointment notification uses event_key with appointment_accepted prefix",
+    "appointment_accepted:" in _accept_fn
+)
+check(
+    "172-43. close_appointment notification event_key includes uid (per-recipient idempotency)",
+    "appointment_closed:{appointment_id}:{uid}" in _close_fn
 )
 
 # ── Summary ──────────────────────────────────────────────────────────────

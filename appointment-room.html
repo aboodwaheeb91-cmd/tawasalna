@@ -461,6 +461,7 @@ body{background:var(--bg);color:var(--txt);font-family:var(--font);min-height:10
             document.getElementById('sendUrl').value = _appt.online_url;
           if (m === 'onsite' && _appt && _appt.location_text)
             document.getElementById('sendLoc').value = _appt.location_text;
+          document.getElementById('sendSchedAt').min = new Date(Date.now() + 60000).toISOString().slice(0,16);
           sendModal.classList.add('open');
         });
         actDiv.appendChild(b);
@@ -504,6 +505,7 @@ body{background:var(--bg);color:var(--txt);font-family:var(--font);min-height:10
             document.getElementById('reschedUrl').value = _appt.online_url;
           if (m === 'onsite' && _appt && _appt.location_text)
             document.getElementById('reschedLoc').value = _appt.location_text;
+          document.getElementById('newSchedAt').min = new Date(Date.now() + 60000).toISOString().slice(0,16);
           reschedModal.classList.add('open');
         });
         const bc = document.createElement('button');
@@ -638,10 +640,11 @@ body{background:var(--bg);color:var(--txt);font-family:var(--font);min-height:10
       safeText(rEl, 'السبب: ' + ev.payload.reason);
       body.appendChild(rEl);
     }
-    if (ev.payload && ev.payload.scheduled_at) {
+    const _evtDate = ev.payload && (ev.payload.new_scheduled_at || ev.payload.scheduled_at);
+    if (_evtDate) {
       const rEl = document.createElement('div');
       rEl.className = 'evt-reason';
-      safeText(rEl, 'الموعد: ' + formatDate(ev.payload.scheduled_at || ev.payload.new_scheduled_at));
+      safeText(rEl, 'الموعد: ' + formatDate(_evtDate));
       body.appendChild(rEl);
     }
     item.appendChild(dot);
@@ -774,7 +777,7 @@ body{background:var(--bg);color:var(--txt);font-family:var(--font);min-height:10
     api('/api/appointments/'+APPT_ID+'/accept',{method:'POST'}).then(res => {
       if (res.ok) location.reload();
       else alert(res.detail || 'خطأ');
-    });
+    }).catch(function(){ alert('خطأ في الاتصال'); });
   }
 
   // Complete
@@ -783,7 +786,7 @@ body{background:var(--bg);color:var(--txt);font-family:var(--font);min-height:10
     api('/api/appointments/'+APPT_ID+'/complete',{method:'POST'}).then(res => {
       if (res.ok) location.reload();
       else alert(res.detail || 'خطأ');
-    });
+    }).catch(function(){ alert('خطأ في الاتصال'); });
   }
 
   // Close room
@@ -792,7 +795,7 @@ body{background:var(--bg);color:var(--txt);font-family:var(--font);min-height:10
     api('/api/appointments/'+APPT_ID+'/close',{method:'POST'}).then(res => {
       if (res.ok) location.reload();
       else alert(res.detail || 'خطأ');
-    });
+    }).catch(function(){ alert('خطأ في الاتصال'); });
   }
 
   // Reason modal
