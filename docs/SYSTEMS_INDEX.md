@@ -503,15 +503,15 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 
 ---
 
-### 37. Scheduler Infrastructure 🔜 (S1 Schema ✅ — Runner/Helpers/Hooks Pending)
+### 37. Scheduler Infrastructure 🔜 (S2 Helper ✅ — Runner/Endpoint/Hooks Pending)
 **Purpose:** بنية تحتية لتنفيذ الـ jobs الزمنية (appointment reminders، deadline auto-expire، job_expiring_soon، missed status transitions).
-**Source of Truth:** `docs/SCHEDULER_PLAN.md` — Architecture Decision Document | `auth.py → _migrate_scheduler_jobs()` (S1 schema)
-**Details:** `docs/SCHEDULER_PLAN.md` — يتضمن: لماذا نحتاج scheduler (§1)، الأنظمة المعتمدة (§2)، المتطلبات المعمارية (§3: idempotency/retry/failure-logging/duplicate-prevention/timezone/locking/no-double-send/observability)، خيارات التنفيذ (§4)، مصفوفة التقييم (§5)، التوصية (§6)، الـ schema المقترح docs-only (§7)، مراحل التنفيذ (§8: S0–S6)، القواعد الدائمة (§9)، قرار S0 (§10)، S1 schema المُنفَّذ (§11).
+**Source of Truth:** `docs/SCHEDULER_PLAN.md` — Architecture Decision Document | `auth.py → _migrate_scheduler_jobs()` (S1) | `auth.py → schedule_job()` (S2)
+**Details:** `docs/SCHEDULER_PLAN.md` — §1 (why)، §2 (dependent systems)، §3 (architectural requirements)، §4–§6 (options + recommendation)، §7 (proposed schema docs)، §8 (phases S0–S6)، §9 (constraints)، §10 (S0 decision)، §11 (S1 schema implemented)، §12 (S2 helper contract).
 **Status:**
-- S0 ✅ Tooling Decision مكتمل (PR: scheduler-s0-tooling-decision) — External Cron + Secure Endpoint + scheduler_jobs table
-- S1 ✅ Schema مكتملة (PR: scheduler-s1-schema) — `_migrate_scheduler_jobs()` في `auth.py`، مربوطة في `on_startup()`، no-read/no-write حتى S2
-- S2 🔜 `schedule_job()` helper — مؤجل حتى موافقة صريحة
-- S3 🔜 `run_due_jobs()` + `/internal/run-due-jobs` endpoint — مؤجل
+- S0 ✅ Tooling Decision مكتمل (PR: scheduler-s0-tooling-decision) — External Cron + Secure Endpoint
+- S1 ✅ Schema مكتملة (PR: scheduler-s1-schema) — `_migrate_scheduler_jobs()` في `auth.py`
+- S2 ✅ Helper مكتملة (PR: scheduler-s2-helper) — `schedule_job()` في `auth.py` — idempotent INSERT، `created` flag، input validation
+- S3 🔜 `run_due_jobs()` + `/internal/run-due-jobs` endpoint — مؤجل حتى موافقة صريحة
 - S4 🔜 Hooks في appointment/notification trigger points — مؤجل
 - S5 🔜 Integration tests — مؤجل
 - S6 🔜 Admin observability — مؤجل
@@ -520,7 +520,7 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 - `appointment_deadline_expire` — انتقال `pending_response` → `expired` في DB
 - `appointment_missed` — انتقال `confirmed` → `missed` في DB بعد مرور وقت الموعد
 - `job_expiring_soon` — إشعار قبل 48 ساعة من انتهاء الوظيفة
-**Do not recreate:** الجدول موجود بعد S1 — لا تُنشئه مجدداً. لا تُضف background thread أو cron في `server.py`. لا تُضف `asyncio.create_task` لـ scheduled work. لا تُضف `schedule_job()` helper قبل S2. لا تُضف `run_due_jobs()` أو endpoint قبل S3. كل الـ trigger points تنتظر S4.
+**Do not recreate:** لا تُنشئ `scheduler_jobs` مجدداً (S1). لا تُنشئ helper بديل لـ `schedule_job` (S2). لا تُضف background thread أو cron في `server.py`. لا تُضف `run_due_jobs()` أو endpoint قبل S3. لا تُضف hooks في appointments/notifications قبل S4.
 
 ---
 

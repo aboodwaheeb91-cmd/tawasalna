@@ -6337,3 +6337,128 @@ def _migrate_scheduler_jobs():
 
     finally:
         release_conn(conn)
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# Scheduler Infrastructure — S2: schedule_job helper
+# Decision: External Cron + Secure Endpoint (PR #464 — S0)
+# Schema: scheduler_jobs (PR #465 — S1)
+# This helper inserts jobs idempotently. No execution, no notifications,
+# no hooks, no endpoint, no runner.
+# ══════════════════════════════════════════════════════════════════════════
+
+def schedule_job(
+    job_type: str,
+    payload: dict,
+    run_at,
+    dedupe_key: str,
+    max_attempts: int = 5
+) -> dict:
+    """
+    Insert a job into scheduler_jobs idempotently.
+
+    S2 phase — helper only. This function:
+      - Validates all inputs before touching the DB.
+      - Inserts a single row with status='pending', attempts=0.
+      - On dedupe_key conflict (ON CONFLICT DO NOTHING), returns the
+        existing row unchanged with created=False.
+      - Does NOT execute the job.
+      - Does NOT send notifications.
+      - Does NOT modify appointment or job table rows.
+
+    Idempotency:
+      INSERT ... ON CONFLICT (dedupe_key) DO NOTHING RETURNING id, ...
+      - If RETURNING has rows → newly inserted → created=True
+      - If RETURNING is empty → conflict hit → SELECT existing → created=False
+
+    The DO NOTHING approach is chosen over DO UPDATE because:
+      - It never overwrites a job that is already running or done.
+      - All statuses (pending/running/done/failed/cancelled) are preserved.
+      - Callers can inspect created=False and decide whether to act.
+
+    Args:
+        job_type:     Non-empty string (e.g. 'appointment_reminder')
+        payload:      dict — JSON-serializable data for the job handler
+        run_at:       datetime (UTC) — execution target time
+        dedupe_key:   Non-empty unique string; prevents duplicate jobs
+        max_attempts: Maximum retries (default 5, minimum 1)
+
+    Returns:
+        {
+            "id":         int,
+            "job_type":   str,
+            "run_at":     str (ISO 8601),
+            "status":     str,
+            "dedupe_key": str,
+            "created_at": str (ISO 8601),
+            "created":    bool  # True if newly inserted, False if already existed
+        }
+
+    Raises:
+        ValueError:     on invalid inputs
+        RuntimeError:   on unexpected DB failure
+    """
+    # ── Input validation ──────────────────────────────────────────────────
+    if not isinstance(job_type, str) or not job_type.strip():
+        raise ValueError("schedule_job: job_type must be a non-empty string")
+    if not isinstance(payload, dict):
+        raise ValueError("schedule_job: payload must be a dict")
+    if not isinstance(dedupe_key, str) or not dedupe_key.strip():
+        raise ValueError("schedule_job: dedupe_key must be a non-empty string")
+    if not isinstance(max_attempts, int) or max_attempts < 1:
+        raise ValueError("schedule_job: max_attempts must be an integer >= 1")
+
+    payload_str = _json_mod.dumps(payload)
+
+    conn = get_conn()
+    try:
+        # INSERT with RETURNING — only returns rows when INSERT actually succeeds.
+        # ON CONFLICT DO NOTHING produces zero rows if dedupe_key already exists.
+        ins_rows = conn.run(
+            """INSERT INTO scheduler_jobs
+               (job_type, payload, run_at, dedupe_key, max_attempts,
+                status, attempts, locked_at, locked_by)
+               VALUES (:jtype, :payload::jsonb, :run_at, :dk, :maxatt,
+                       'pending', 0, NULL, NULL)
+               ON CONFLICT (dedupe_key) DO NOTHING
+               RETURNING id, job_type, run_at, status, dedupe_key, created_at""",
+            jtype=job_type,
+            payload=payload_str,
+            run_at=run_at,
+            dk=dedupe_key,
+            maxatt=max_attempts,
+        )
+
+        if ins_rows:
+            # Newly inserted — RETURNING row is authoritative.
+            cols = [c["name"] for c in conn.columns]
+            row = _serialize(_row_to_dict(cols, ins_rows[0]))
+            row["created"] = True
+            return row
+
+        # Conflict: dedupe_key already exists. Fetch the existing row.
+        sel_rows = conn.run(
+            """SELECT id, job_type, run_at, status, dedupe_key, created_at
+               FROM scheduler_jobs
+               WHERE dedupe_key = :dk""",
+            dk=dedupe_key,
+        )
+        if not sel_rows:
+            # Should not happen: conflict means the row exists; guard against race.
+            raise RuntimeError(
+                f"schedule_job: ON CONFLICT triggered but SELECT found no row "
+                f"for dedupe_key={dedupe_key!r}"
+            )
+        cols = [c["name"] for c in conn.columns]
+        row = _serialize(_row_to_dict(cols, sel_rows[0]))
+        row["created"] = False
+        return row
+
+    except ValueError:
+        raise
+    except RuntimeError:
+        raise
+    except Exception as exc:
+        raise RuntimeError(f"schedule_job: unexpected DB error: {exc}") from exc
+    finally:
+        release_conn(conn)
