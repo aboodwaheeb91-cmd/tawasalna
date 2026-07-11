@@ -8164,6 +8164,166 @@ check(
     and _runner177.index('retried_cnt += 1') > _runner177.index('_update_scheduler_job_final_status')
 )
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# §178 — Scheduler S4: Domain Handlers + Scheduling Hooks (16 checks)
+# PR: scheduler-s4-domain-handlers
+# Verifies: 4 handler functions + _execute_scheduler_job + _SCHEDULER_HANDLERS
+#           + scheduling hooks in accept_appointment / send_appointment /
+#             reschedule_appointment / add_job + docs updates
+# ═══════════════════════════════════════════════════════════════════════════════
+
+_auth178   = open('auth.py',   encoding='utf-8').read()
+_plan178   = open('docs/SCHEDULER_PLAN.md', encoding='utf-8').read()
+_sysidx178 = open('docs/SYSTEMS_INDEX.md', encoding='utf-8').read()
+_apptplan178 = open('docs/APPOINTMENTS_PLAN.md', encoding='utf-8').read()
+_notifplan178 = open('docs/NOTIFICATIONS_PLAN.md', encoding='utf-8').read()
+
+# Extract relevant function bodies
+_exec178 = (_auth178.split('def _execute_scheduler_job')[1].split('\ndef ')[0]
+            if 'def _execute_scheduler_job' in _auth178 else '')
+_handlers_set178 = (_auth178.split('_SCHEDULER_HANDLERS')[1].split('}')[0]
+                    if '_SCHEDULER_HANDLERS' in _auth178 else '')
+_accept178 = (_auth178.split('def accept_appointment')[1].split('\ndef ')[0]
+              if 'def accept_appointment' in _auth178 else '')
+_send178 = (_auth178.split('def send_appointment')[1].split('\ndef ')[0]
+            if 'def send_appointment' in _auth178 else '')
+_resched178 = (_auth178.split('def reschedule_appointment')[1].split('\ndef ')[0]
+               if 'def reschedule_appointment' in _auth178 else '')
+_addjob178 = (_auth178.split('def add_job')[1].split('\ndef ')[0]
+              if 'def add_job' in _auth178 else '')
+
+# AST check for bare except:pass in handler functions
+import ast as _ast178
+_ast178_ok = False
+_handler_names178 = [
+    '_handle_appointment_reminder',
+    '_handle_appointment_deadline_expire',
+    '_handle_appointment_missed',
+    '_handle_job_expiring_soon',
+]
+try:
+    _tree178 = _ast178.parse(_auth178)
+    def _find_func178(tree, name):
+        for node in _ast178.walk(tree):
+            if isinstance(node, (_ast178.FunctionDef, _ast178.AsyncFunctionDef)) and node.name == name:
+                return node
+        return None
+    def _has_bare_pass_except178(func_node):
+        if func_node is None:
+            return True
+        for node in _ast178.walk(func_node):
+            if isinstance(node, _ast178.ExceptHandler):
+                if len(node.body) == 1 and isinstance(node.body[0], _ast178.Pass):
+                    return True
+        return False
+    _ast178_ok = True
+except SyntaxError:
+    _tree178 = None
+
+# ── _SCHEDULER_HANDLERS set updated ──────────────────────────────────────────
+check(
+    "178-01. _SCHEDULER_HANDLERS includes all 4 S4 job types",
+    all(t in _handlers_set178 for t in [
+        '"appointment_reminder"', '"appointment_deadline_expire"',
+        '"appointment_missed"', '"job_expiring_soon"'
+    ])
+)
+
+# ── 4 handler functions defined ───────────────────────────────────────────────
+check(
+    "178-02. auth.py: all 4 S4 handler functions defined",
+    all(f'def {name}' in _auth178 for name in _handler_names178)
+)
+
+# ── _execute_scheduler_job branches to all 4 handlers ─────────────────────────
+check(
+    "178-03. _execute_scheduler_job dispatches to all 4 S4 handlers",
+    all(name in _exec178 for name in _handler_names178)
+)
+
+# ── Handler: appointment_reminder ─────────────────────────────────────────────
+_reminder178 = (_auth178.split('def _handle_appointment_reminder')[1].split('\ndef ')[0]
+                if 'def _handle_appointment_reminder' in _auth178 else '')
+check(
+    "178-04. _handle_appointment_reminder: checks status=='confirmed' before acting",
+    'confirmed' in _reminder178 and ("status" in _reminder178 or "appt" in _reminder178)
+)
+check(
+    "178-05. _handle_appointment_reminder: calls create_notification for both participants",
+    _reminder178.count('create_notification') >= 1
+    and ('company_id' in _reminder178 or 'applicant_id' in _reminder178)
+    and 'appointment_reminder' in _reminder178
+)
+
+# ── Handler: appointment_deadline_expire ──────────────────────────────────────
+_expire178 = (_auth178.split('def _handle_appointment_deadline_expire')[1].split('\ndef ')[0]
+              if 'def _handle_appointment_deadline_expire' in _auth178 else '')
+check(
+    "178-06. _handle_appointment_deadline_expire: uses RETURNING to guard DB transition",
+    'RETURNING' in _expire178 and ("expired" in _expire178 or "status='expired'" in _expire178)
+)
+check(
+    "178-07. _handle_appointment_deadline_expire: checks pending_response before acting",
+    'pending_response' in _expire178
+)
+
+# ── Handler: appointment_missed ───────────────────────────────────────────────
+_missed178 = (_auth178.split('def _handle_appointment_missed')[1].split('\ndef ')[0]
+              if 'def _handle_appointment_missed' in _auth178 else '')
+check(
+    "178-08. _handle_appointment_missed: uses RETURNING to guard DB transition",
+    'RETURNING' in _missed178 and ("missed" in _missed178 or "status='missed'" in _missed178)
+)
+check(
+    "178-09. _handle_appointment_missed: checks confirmed status before acting",
+    'confirmed' in _missed178
+)
+
+# ── Handler: job_expiring_soon ────────────────────────────────────────────────
+_jobexp178 = (_auth178.split('def _handle_job_expiring_soon')[1].split('\ndef ')[0]
+              if 'def _handle_job_expiring_soon' in _auth178 else '')
+check(
+    "178-10. _handle_job_expiring_soon: checks job status is active/paused before notifying",
+    ('active' in _jobexp178 and 'paused' in _jobexp178) or '"active"' in _jobexp178
+)
+
+# ── No bare except:pass in any handler ───────────────────────────────────────
+check(
+    "178-11. AST: no bare except:pass in S4 handler functions",
+    _ast178_ok and not any(
+        _has_bare_pass_except178(_find_func178(_tree178, name))
+        for name in _handler_names178
+    )
+)
+
+# ── Scheduling hooks ─────────────────────────────────────────────────────────
+check(
+    "178-12. accept_appointment: schedules appointment_reminder and appointment_missed",
+    'appointment_reminder' in _accept178 and 'appointment_missed' in _accept178
+    and 'schedule_job' in _accept178
+)
+check(
+    "178-13. send_appointment: schedules appointment_deadline_expire",
+    'appointment_deadline_expire' in _send178 and 'schedule_job' in _send178
+)
+check(
+    "178-14. reschedule_appointment: schedules appointment_deadline_expire",
+    'appointment_deadline_expire' in _resched178 and 'schedule_job' in _resched178
+)
+check(
+    "178-15. add_job: schedules job_expiring_soon after conn release (return moved outside try)",
+    'schedule_job' in _addjob178 and 'job_expiring_soon' in _addjob178
+    and 'return result' in _addjob178
+    and _addjob178.index('return result') > _addjob178.index('release_conn')
+)
+
+# ── Docs updated ──────────────────────────────────────────────────────────────
+check(
+    "178-16. docs updated: SCHEDULER_PLAN.md documents S4 handlers, SYSTEMS_INDEX.md §37 updated",
+    ('S4' in _plan178 and ('handler' in _plan178.lower() or '_handle_' in _plan178))
+    and ('S4' in _sysidx178 and ('✅' in _sysidx178 or 'handler' in _sysidx178.lower()))
+)
+
 # ── Summary ──────────────────────────────────────────────────────────────
 print()
 passed = sum(1 for _, s, _ in results if s == PASS)

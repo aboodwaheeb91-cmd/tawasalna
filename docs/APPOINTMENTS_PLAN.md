@@ -419,7 +419,7 @@ appointment_closed:{appointment_id}:{affected_party_id}
 | **Phase 5** | Appointment Room | ✅ **مُنجز — PR #461** | غرفة الموعد — تفاصيل + أزرار + timeline + عداد تنازلي + tabs | `appointment-room.html` |
 | **Phase 6** | Appointment Thread / Messages | ✅ **مُنجز — PR #461** | محادثة الموعد داخل الغرفة + polling كل 5 ثواني (no WebSocket) | `appointment-room.html` |
 | **Phase 7** | Appointment Notifications | ✅ **مُنجز — PR #461** | 7 notification hooks في `auth.py` — فورية بدون scheduler — event_key idempotent | `auth.py` |
-| **Phase 8** | Scheduler-based Reminders | ⏸ **مؤجل** | تذكيرات قبل الموعد وقبل انتهاء المهلة | **يحتاج Scheduler Infrastructure** |
+| **Phase 8** | Scheduler-based Reminders | ✅ **مُنجز — PR scheduler-s4-domain-handlers** | تذكير 24h قبل الموعد (`appointment_reminder`) + انتقال `pending_response→expired` عند انتهاء المهلة (`appointment_deadline_expire`) + انتقال `confirmed→missed` بعد 15 دقيقة (`appointment_missed`) | `auth.py → _handle_appointment_*` |
 
 ---
 

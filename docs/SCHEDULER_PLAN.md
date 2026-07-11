@@ -863,18 +863,9 @@ S4 سيضيف: `appointment_reminder`, `appointment_deadline_expire`, `appointme
 ❌ ممنوع: secret في query params أو request body
 ```
 
-### ما يبقى مؤجلاً (S4+)
+### ما يبقى مؤجلاً (S5+)
 
 ```
-مؤجل إلى S4:  Hooks في trigger points:
-  - accept_appointment   → schedule_job('appointment_reminder', ...)
-  - accept_appointment   → schedule_job('appointment_missed', ...)
-  - create_appointment   → schedule_job('appointment_deadline_expire', ...)
-  - create/post_job      → schedule_job('job_expiring_soon', ...)
-مؤجل إلى S4:  Handlers: appointment_reminder, appointment_deadline_expire,
-               appointment_missed, job_expiring_soon في _execute_scheduler_job
-مؤجل إلى S4:  SCHEDULER_SECRET في Heroku Config Vars (cron config)
-مؤجل إلى S4:  External cron setup (GitHub Actions / cron-job.org)
 مؤجل إلى S5:  Integration tests
 مؤجل إلى S6:  Admin observability endpoint
 ```
@@ -882,6 +873,78 @@ S4 سيضيف: `appointment_reminder`, `appointment_deadline_expire`, `appointme
 ---
 
 *S3 مكتملة — 2026-07-11 — runner + endpoint (PR: scheduler-s3-runner).*
+
+---
+
+## 14. S4 Domain Handlers + Scheduling Hooks — مكتملة
+
+**PR:** `scheduler-s4-domain-handlers`  
+**تاريخ:** 2026-07-11
+
+### الهدف
+
+إضافة handlers حقيقية للـ job types الأربعة، وربطها بـ trigger points في كود الـ appointments والـ jobs. S3 كانت تعمل مع `noop` فقط — S4 تكمل الدورة.
+
+### التغييرات
+
+#### `auth.py`
+
+**`_SCHEDULER_HANDLERS`** مُحدَّث ليشمل الأنواع الأربعة:
+
+```python
+_SCHEDULER_HANDLERS = {
+    "noop",
+    "appointment_reminder",
+    "appointment_deadline_expire",
+    "appointment_missed",
+    "job_expiring_soon",
+}
+```
+
+**4 Handler Functions** — كل handler:
+- يقرأ حالة DB قبل الفعل (idempotent — double-fire آمن)
+- يُحرر الـ conn قبل استدعاء `create_notification`
+- يرفع `ValueError` إذا كان الـ payload ناقصاً
+- لا يبتلع exceptions بصمت
+
+| Handler | المحفّز | الشرط قبل الفعل | الفعل |
+|---------|---------|---------------|-------|
+| `_handle_appointment_reminder` | run_at = scheduled_at - 24h | `status == 'confirmed'` | إشعار لـ company + applicant |
+| `_handle_appointment_deadline_expire` | run_at = response_deadline_at | `status == 'pending_response'` AND `NOW() >= deadline` | `UPDATE ... SET status='expired' RETURNING id` + إشعار للشركة |
+| `_handle_appointment_missed` | run_at = scheduled_at + 15min | `status == 'confirmed'` | `UPDATE ... SET status='missed' RETURNING id` + إشعار للطرفين |
+| `_handle_job_expiring_soon` | run_at = expires_at - 48h | `job.status IN ('active','paused')` | إشعار للشركة |
+
+**`_execute_scheduler_job`** مُحدَّث — branches صريحة لكل handler.
+
+**Scheduling Hooks** — غير fatal (try/except مع print):
+
+| Function | Job Scheduled | Dedupe Key | run_at |
+|----------|--------------|-----------|--------|
+| `accept_appointment` | `appointment_reminder` | `appointment_reminder:{appt_id}` | `scheduled_at - 24h` (إذا > NOW) |
+| `accept_appointment` | `appointment_missed` | `appointment_missed:{appt_id}` | `scheduled_at + 15min` |
+| `send_appointment` | `appointment_deadline_expire` | `appointment_deadline_expire:{appt_id}:{deadline_min_epoch}` | `deadline_dt` |
+| `reschedule_appointment` | `appointment_deadline_expire` | `appointment_deadline_expire:{appt_id}:{deadline_min_epoch}` | new `deadline_dt` |
+| `add_job` | `job_expiring_soon` | `job_expiring_soon:{job_id}:{company_id}` | `expires_at - 48h` (إذا > NOW) |
+
+ملاحظات الـ dedupe:
+- `appointment_reminder` و `appointment_missed`: مفتاح ثابت لأن accept يُستدعى مرة واحدة فقط لكل موعد.
+- `appointment_deadline_expire`: يحتوي على `{deadline_min_epoch}` لأن `reschedule_appointment` يغيّر الـ deadline — كل reschedule ينتج dedupe key مختلفاً وبالتالي job جديد.
+
+**`add_job` restructured**: `return result` نُقل خارج الـ `try` block لتمكين الـ scheduling بعد `release_conn`.
+
+### الإيديمبوتنسية (F22)
+
+- **Handlers**: كل handler يقرأ `status` من DB ويعود فوراً إذا لم يعد الشرط متحققاً (إذا تغيّرت الحالة يدوياً أو بـ handler سابق).
+- **DB transitions**: `UPDATE ... WHERE status='X' RETURNING id` — يضمن أن التحديث يحدث مرة واحدة فقط. Zero rows = لا فعل.
+- **Notifications**: `event_key` + `ON CONFLICT DO NOTHING` في `create_notification`.
+- **Hooks**: `ON CONFLICT (dedupe_key) DO NOTHING` في `schedule_job` — تكرار الاستدعاء لا يُنشئ job مكرر.
+
+### ما بقي مؤجلاً
+
+```
+مؤجل إلى S5:  Integration tests — اختبار E2E: job يُجدَّل → يُشغَّل → DB تنتقل → notification تُنشأ
+مؤجل إلى S6:  Admin observability — تفاصيل scheduler في admin panel
+```
 
 ---
 
@@ -893,15 +956,19 @@ S4 سيضيف: `appointment_reminder`, `appointment_deadline_expire`, `appointme
 | schedule_job helper | ✅ S2 | `auth.py → schedule_job()` |
 | Runner | ✅ S3 | `auth.py → run_due_scheduler_jobs()` |
 | Secure endpoint | ✅ S3 | `server.py → POST /internal/run-due-jobs` |
+| Domain handlers (4) | ✅ S4 | `auth.py → _handle_appointment_reminder` / `_deadline_expire` / `_missed` / `_handle_job_expiring_soon` |
+| Scheduling hooks (5) | ✅ S4 | `auth.py → accept_appointment` / `send_appointment` / `reschedule_appointment` / `add_job` |
 | Proposed schema (docs) | §7 + §11 | هذا الملف |
 | S2 contract | §12 | هذا الملف |
 | S3 contract | §13 | هذا الملف |
-| Deferred features | موثَّقة | هذا الملف §2 |
-| Appointments deferral | موثَّق | `docs/APPOINTMENTS_PLAN.md` |
-| Notifications blocked | موثَّق | `docs/NOTIFICATIONS_PLAN.md` |
+| S4 contract | §14 | هذا الملف |
+| Deferred features | موثَّقة | هذا الملف §2 (محدَّث) |
+| Appointments deferral | محدَّث | `docs/APPOINTMENTS_PLAN.md` |
+| Notifications blocked | محدَّث | `docs/NOTIFICATIONS_PLAN.md` |
 | System index entry | مضاف + محدَّث | `docs/SYSTEMS_INDEX.md §37` |
-| S4 hooks | ❌ مؤجلة | موافقة مستخدم مطلوبة |
+| Integration tests | 🔜 S5 | — |
+| Admin observability | 🔜 S6 | — |
 
 ---
 
-*أُنشئ: 2026-07-11 — Architecture Decision Document (PR: scheduler-infrastructure-decision). S0 توثيق (PR: scheduler-s0-tooling-decision). S1 schema (PR: scheduler-s1-schema). S2 helper (PR: scheduler-s2-helper). S3 runner (PR: scheduler-s3-runner).*
+*أُنشئ: 2026-07-11 — Architecture Decision Document (PR: scheduler-infrastructure-decision). S0 توثيق (PR: scheduler-s0-tooling-decision). S1 schema (PR: scheduler-s1-schema). S2 helper (PR: scheduler-s2-helper). S3 runner (PR: scheduler-s3-runner). S4 handlers + hooks (PR: scheduler-s4-domain-handlers).*
