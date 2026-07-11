@@ -814,11 +814,20 @@ SET status='running', attempts=attempts+1,
     locked_at=NOW(), locked_by=:runner_id, updated_at=NOW()
 WHERE id = :id;
 
--- Phase 2 (auto-committed per statement):
--- Success:    status='done',    locked_at=NULL, locked_by=NULL
--- Retryable:  status='pending', locked_at=NULL, locked_by=NULL, last_error=msg
--- Exhausted:  status='failed',  locked_at=NULL, locked_by=NULL, last_error=msg
+-- Phase 2 (auto-committed per statement, via _update_scheduler_job_final_status):
+UPDATE scheduler_jobs
+SET   status='done'|'pending'|'failed', locked_at=NULL, locked_by=NULL,
+      last_error=<msg|NULL>, updated_at=NOW()
+WHERE id = :id
+  AND status = 'running'         -- guard: only update if still ours
+  AND locked_by = :runner_id     -- guard: verify ownership
+RETURNING id;                    -- zero rows → failure (lock stolen or state mismatch)
 ```
+
+**Final UPDATE is considered successful only when RETURNING returns one row.**
+- Zero rows → `update_failed++`, `ok=false` in response.
+- Exception → `update_failed++`, `ok=false` in response.
+- Either failure path is logged clearly; no error is swallowed.
 
 ### Retry Logic
 

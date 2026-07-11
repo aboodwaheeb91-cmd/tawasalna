@@ -6511,25 +6511,40 @@ def _update_scheduler_job_final_status(
     """
     Write the final status of one scheduler job: 'done', 'failed', or 'pending' (retry).
 
-    Returns True on success.
-    Returns False and logs clearly if the UPDATE raises — never swallows the error.
-    The caller decides how to count and report the outcome; stuck jobs remain
-    in status='running' until a stale-lock cleanup resets them (deferred to S4).
+    Uses RETURNING id + ownership guards in WHERE to verify the update was real:
+      AND status = 'running'    — prevents touching jobs not in the expected state
+      AND locked_by = :runner_id — verifies this runner still owns the lock
+
+    Returns True only when RETURNING returns exactly one row.
+    Returns False (with a clear log) when:
+      - RETURNING returns zero rows (lock stolen, job already cleaned, state mismatch)
+      - the UPDATE raised an exception (DB disconnect, etc.)
+    Never swallows errors. Caller decides how to count and report.
     """
     try:
-        conn.run(
+        rows = conn.run(
             """UPDATE scheduler_jobs
                SET status     = :status,
                    locked_at  = NULL,
                    locked_by  = NULL,
                    last_error = :err,
                    updated_at = NOW()
-               WHERE id = :id""",
+               WHERE id = :id
+                 AND status = 'running'
+                 AND locked_by = :runner_id
+               RETURNING id""",
             status=new_status,
             err=err_msg,
             id=jid,
+            runner_id=runner_id,
         )
-        return True
+        if rows:
+            return True
+        print(
+            f"[scheduler] ERROR job_id={jid} final-update to {new_status!r} "
+            f"returned zero rows — lock stolen or state mismatch — runner={runner_id}"
+        )
+        return False
     except Exception as upd_exc:
         print(
             f"[scheduler] ERROR job_id={jid} final-update to {new_status!r} "
@@ -6611,6 +6626,7 @@ def run_due_scheduler_jobs(limit: int = 20, runner_id: str = None) -> dict:
             return {
                 "ok": True, "picked": 0, "done": 0,
                 "failed": 0, "retried": 0,
+                "update_failed": 0, "stuck_running": 0,
                 "runner_id": runner_id, "jobs": [],
             }
 
@@ -6703,8 +6719,8 @@ def run_due_scheduler_jobs(limit: int = 20, runner_id: str = None) -> dict:
         if not committed:
             try:
                 conn.run("ROLLBACK")
-            except Exception:
-                pass
+            except Exception as rollback_exc:
+                print(f"[scheduler] ERROR rollback failed — runner={runner_id}: {rollback_exc}")
         raise RuntimeError(f"run_due_scheduler_jobs: {exc}") from exc
     finally:
         release_conn(conn)

@@ -7914,8 +7914,44 @@ _sysidx177 = open('docs/SYSTEMS_INDEX.md', encoding='utf-8').read()
 
 # Extract runner function body (last function in auth.py)
 _runner177 = _auth177.split('def run_due_scheduler_jobs')[1] if 'def run_due_scheduler_jobs' in _auth177 else ''
+# Extract helper function body (defined just before runner)
+_helper177_body = (
+    _auth177.split('def _update_scheduler_job_final_status')[1].split('\n\ndef ')[0]
+    if 'def _update_scheduler_job_final_status' in _auth177 else ''
+)
 # Extract endpoint section in server.py
 _ep177 = _server177[_server177.find('/internal/run-due-jobs'):] if '/internal/run-due-jobs' in _server177 else ''
+
+# AST analysis for except-pass detection
+import ast as _ast177
+try:
+    _tree177 = _ast177.parse(_auth177)
+
+    def _find_func177(tree, name):
+        for node in _ast177.walk(tree):
+            if isinstance(node, (_ast177.FunctionDef, _ast177.AsyncFunctionDef)) and node.name == name:
+                return node
+        return None
+
+    def _has_bare_pass_except177(func_node):
+        if func_node is None:
+            return True  # conservative: assume bad
+        for node in _ast177.walk(func_node):
+            if isinstance(node, _ast177.ExceptHandler):
+                if len(node.body) == 1 and isinstance(node.body[0], _ast177.Pass):
+                    return True
+        return False
+
+    _runner_func177 = _find_func177(_tree177, 'run_due_scheduler_jobs')
+    _helper_func177 = _find_func177(_tree177, '_update_scheduler_job_final_status')
+    _ast177_ok = True
+except SyntaxError:
+    _runner_func177 = None
+    _helper_func177 = None
+    _ast177_ok = False
+
+# Extract no-jobs early return section (before jobs_data is built)
+_early177 = _runner177.split('jobs_data')[0] if 'jobs_data' in _runner177 else ''
 
 # ── auth.py: runner function exists ──────────────────────────────────────────
 check(
@@ -8094,7 +8130,38 @@ check(
 )
 check(
     "177-40. helper: returns False on UPDATE exception (never swallows)",
-    'return False' in _helper177 and 'return True' in _helper177
+    'return False' in _helper177_body and 'return True' in _helper177_body
+)
+check(
+    "177-41. AST: run_due_scheduler_jobs has no ExceptHandler with bare Pass",
+    _ast177_ok and not _has_bare_pass_except177(_runner_func177)
+)
+check(
+    "177-42. helper uses RETURNING id to verify row was actually updated",
+    'RETURNING id' in _helper177_body or 'RETURNING' in _helper177_body
+)
+check(
+    "177-43. helper WHERE guards: AND status='running' (prevents state mismatch)",
+    "'running'" in _helper177_body
+)
+check(
+    "177-44. helper WHERE guards: AND locked_by verifies ownership before final update",
+    'locked_by' in _helper177_body and 'runner_id' in _helper177_body
+)
+check(
+    "177-45. helper has two return-False paths: zero-row AND exception",
+    _helper177_body.count('return False') >= 2
+)
+check(
+    "177-46. no-jobs early return includes update_failed and stuck_running counters",
+    '"update_failed"' in _early177 and '"stuck_running"' in _early177
+)
+check(
+    "177-47. failed_cnt and retried_cnt also gated on successful UPDATE",
+    'failed_cnt += 1' in _runner177
+    and _runner177.index('failed_cnt += 1') > _runner177.index('_update_scheduler_job_final_status')
+    and 'retried_cnt += 1' in _runner177
+    and _runner177.index('retried_cnt += 1') > _runner177.index('_update_scheduler_job_final_status')
 )
 
 # ── Summary ──────────────────────────────────────────────────────────────
