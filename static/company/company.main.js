@@ -2671,3 +2671,115 @@
   window._loadCandidatesBadge = _loadBadge;
   window._coCandOpen          = _open;
 }());
+
+// ── Communication Hub (owner-only entry point) ─────────────────────────────
+(function () {
+  'use strict';
+  var _activeTab   = 'messages';
+  var _apptsLoaded = false;
+
+  function _open() {
+    var ov = document.getElementById('coHubOverlay');
+    if (!ov) return;
+    ov.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+  }
+
+  function _close() {
+    var ov = document.getElementById('coHubOverlay');
+    if (!ov) return;
+    ov.style.display = 'none';
+    document.body.style.overflow = '';
+  }
+
+  function _switchHubTab(tab) {
+    if (!tab) return;
+    _activeTab = tab;
+    document.querySelectorAll('.co-hub-tab').forEach(function (t) {
+      t.classList.toggle('active', t.getAttribute('data-hub-tab') === tab);
+    });
+    var msg  = document.getElementById('coHubMsgPanel');
+    var appt = document.getElementById('coHubApptPanel');
+    if (msg)  msg.style.display  = (tab === 'messages')      ? '' : 'none';
+    if (appt) appt.style.display = (tab === 'appointments') ? '' : 'none';
+    if (tab === 'appointments' && !_apptsLoaded) _loadAppts();
+  }
+
+  function _fmtDate(iso) {
+    if (!iso) return '';
+    try {
+      return new Date(iso).toLocaleDateString('ar-EG',
+        { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    } catch (e) { return ''; }
+  }
+
+  function _loadAppts() {
+    var list = document.getElementById('coHubApptList');
+    if (!list) return;
+    if (!window.loadCompanyAppointments) {
+      list.innerHTML = '';
+      var msg = document.createElement('div');
+      msg.className = 'co-hub-appt-empty';
+      msg.textContent = 'اذهب إلى صفحة المواعيد لإدارة مقابلاتك';
+      list.appendChild(msg);
+      return;
+    }
+    window.loadCompanyAppointments(function (appts) {
+      _apptsLoaded = true;
+      list.innerHTML = '';
+      var upcoming = appts.filter(function (a) {
+        return a.status === 'confirmed' || a.status === 'pending_response';
+      }).slice(0, 5);
+      if (!upcoming.length) {
+        var empty = document.createElement('div');
+        empty.className = 'co-hub-appt-empty';
+        empty.textContent = 'لا مواعيد قادمة حالياً';
+        list.appendChild(empty);
+        return;
+      }
+      upcoming.forEach(function (a) {
+        var item    = document.createElement('div');
+        item.className = 'co-hub-appt-item';
+        var nameEl  = document.createElement('div');
+        nameEl.className = 'co-hub-appt-name';
+        nameEl.textContent = a.title || a.other_party_name || 'موعد';
+        var dateEl  = document.createElement('div');
+        dateEl.className = 'co-hub-appt-date';
+        dateEl.textContent = _fmtDate(a.scheduled_at);
+        var link    = document.createElement('a');
+        link.href   = '/appointment-room?id=' + encodeURIComponent(a.id);
+        link.className = 'co-hub-appt-link';
+        link.textContent = 'عرض التفاصيل';
+        item.appendChild(nameEl);
+        item.appendChild(dateEl);
+        item.appendChild(link);
+        list.appendChild(item);
+      });
+    });
+  }
+
+  document.addEventListener('DOMContentLoaded', function () {
+    var openBtn  = document.getElementById('coHubBtn');
+    var closeBtn = document.getElementById('coHubCloseBtn');
+    var ov       = document.getElementById('coHubOverlay');
+
+    if (openBtn)  openBtn.addEventListener('click', _open);
+    if (closeBtn) closeBtn.addEventListener('click', _close);
+    if (ov) {
+      ov.addEventListener('click', function (e) {
+        if (e.target === ov) _close();
+      });
+      ov.addEventListener('click', function (e) {
+        var t = e.target.closest('.co-hub-tab');
+        if (t) _switchHubTab(t.getAttribute('data-hub-tab'));
+      });
+    }
+    document.addEventListener('keydown', function (e) {
+      var ov2 = document.getElementById('coHubOverlay');
+      if (e.key === 'Escape' && ov2 && ov2.style.display === 'flex') _close();
+    });
+  });
+
+  window._coHubOpen  = _open;
+  window._coHubClose = _close;
+}());

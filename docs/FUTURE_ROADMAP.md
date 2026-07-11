@@ -143,6 +143,11 @@
 - [ ] **P1** — `POST /auth/verify-token` endpoint: التحقق من صلاحية JWT من client قبل الاعتماد على localStorage (موثَّق في CLAUDE.md §Auth Gateway Rules §6)
 - [ ] **P2** — Rate limiting audit: مراجعة rate limits على endpoints الحساسة (تعليق، تقدير، متابعة)
 
+> **ملاحظة — مراجعة أمنية شاملة مؤجلة:**
+> مراجعة الأمن الشاملة للمنصة (security audit كامل للـ endpoints والـ auth flow والـ permissions) مؤجلة إلى ما بعد اكتمال ميزات المنصة الأساسية.
+> الأولوية الآن هي بناء الوظائف. بعد الانتهاء من الـ core features يُفتح PR مستقل بعنوان واضح للمراجعة الأمنية.
+> ليس معنى التأجيل إهمال الأمن — الـ P0 Security Debt (WebSocket) لا يزال مفتوحاً ويجب حله.
+
 ---
 
 ---

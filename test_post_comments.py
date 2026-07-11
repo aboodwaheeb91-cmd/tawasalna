@@ -8537,6 +8537,51 @@ except Exception as _e:
 check("179-05. stale domain job: handler exits safe no-op, create_notification not called",
       _179_05_ok, _179_05_err or None)
 
+# ════════════════════════════════════════════════════════════════════════════
+# §180 — Company Communication Hub (feat/company-communication-hub)
+# 4 static checks: hub button owner-only, hub links to messages/appointments,
+# no new WebSocket, hub JS stays inside existing modules (no new root file).
+# ════════════════════════════════════════════════════════════════════════════
+import os as _os180
+
+_co_html180 = ''
+try:
+    with open('company-profile.html', encoding='utf-8') as _f180h: _co_html180 = _f180h.read()
+except Exception: pass
+
+_co_main180 = ''
+try:
+    with open('static/company/company.main.js', encoding='utf-8') as _f180m: _co_main180 = _f180m.read()
+except Exception: pass
+
+_co_api180 = ''
+try:
+    with open('static/company/company.api.js', encoding='utf-8') as _f180a: _co_api180 = _f180a.read()
+except Exception: pass
+
+# 180-01: Hub button exists and is owner-only
+_hub_btn_pos = _co_html180.find('id="coHubBtn"')
+_hub_ctx     = _co_html180[max(0, _hub_btn_pos - 200):_hub_btn_pos + 60] if _hub_btn_pos >= 0 else ''
+check("180-01. Hub button #coHubBtn exists and is owner-only",
+      _hub_btn_pos >= 0 and 'owner-only' in _hub_ctx)
+
+# 180-02: Hub overlay links to /messages and /appointments
+check("180-02. Hub overlay links to /messages and /appointments",
+      'id="coHubOverlay"' in _co_html180
+      and 'href="/messages"' in _co_html180
+      and 'href="/appointments"' in _co_html180)
+
+# 180-03: No new WebSocket in company JS (hub is navigation-only, not a new messaging system)
+check("180-03. No new WebSocket in company.main.js or company.api.js",
+      'new WebSocket' not in _co_main180 and 'new WebSocket' not in _co_api180)
+
+# 180-04: Hub JS added inside existing modules, no standalone root-level hub file
+check("180-04. No standalone hub JS file; hub wired via company.main.js",
+      not _os180.path.exists('hub.js')
+      and not _os180.path.exists('static/company-hub.js')
+      and 'coHubBtn' in _co_main180
+      and 'loadCompanyAppointments' in _co_api180)
+
 # ── Summary ──────────────────────────────────────────────────────────────
 print()
 passed = sum(1 for _, s, _ in results if s == PASS)
