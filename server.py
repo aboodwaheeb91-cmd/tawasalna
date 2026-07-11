@@ -109,6 +109,7 @@ from auth import (
     get_company_candidate_suggestions,
     _migrate_appointments,
     _migrate_scheduler_jobs,
+    run_due_scheduler_jobs,
 )
 from auth import ContentValidationError, validate_professional_text
 
@@ -118,6 +119,8 @@ ADMIN_URL_TOKEN = "kPuOWhpIYjdLQXmh"
 # Stable token derived from password - no server storage needed
 ADMIN_TOKEN = hashlib.sha256(ADMIN_PASSWORD.encode()).hexdigest()
 JWT_SECRET = os.environ.get("JWT_SECRET") or ADMIN_TOKEN[:32]
+# Scheduler S3: internal cron secret — set in Heroku Config Vars, never in source.
+SCHEDULER_SECRET = os.environ.get("SCHEDULER_SECRET", "")
 
 
 # ── JWT (stdlib only - no extra deps) ──
@@ -4747,3 +4750,44 @@ def api_create_appointment_message(appointment_id: int,
     except Exception as e:
         print(f"[api_create_appointment_message] {e}")
         raise HTTPException(500, str(e))
+
+
+# ── Scheduler Internal Endpoint — S3 ─────────────────────────────────────────
+# Machine-to-machine only. No JWT, no user session, no X-User-Id.
+# Auth: X-Scheduler-Secret header verified with hmac.compare_digest.
+# Secret: SCHEDULER_SECRET env var (Heroku Config Vars — never in source).
+# Caller: external cron (GitHub Actions / cron-job.org) per S0 decision.
+
+@app.post("/internal/run-due-jobs")
+def internal_run_due_jobs(request: Request, limit: int = 20):
+    """
+    Trigger the scheduler runner from an external cron.
+
+    Security:
+      - No JWT required (machine-to-machine, no user context).
+      - X-Scheduler-Secret header must match SCHEDULER_SECRET env var.
+      - Verification uses hmac.compare_digest (timing-attack safe).
+      - Returns 503 if SCHEDULER_SECRET is not configured on this server.
+      - Returns 403 on missing or wrong secret.
+      - Secret is never logged or returned in any response field.
+
+    Args (query):
+      limit: jobs to pick per call, clamped to [1, 50], default 20.
+
+    Returns:
+      {"ok": true, "picked": N, "done": N, "failed": N,
+       "retried": N, "runner_id": str, "jobs": [...]}
+    """
+    if not SCHEDULER_SECRET:
+        raise HTTPException(503, "Scheduler not configured (SCHEDULER_SECRET env var not set)")
+
+    incoming = request.headers.get("X-Scheduler-Secret", "")
+    if not incoming or not hmac.compare_digest(incoming, SCHEDULER_SECRET):
+        raise HTTPException(403, "Forbidden")
+
+    try:
+        result = run_due_scheduler_jobs(limit=limit)
+        return result
+    except Exception as e:
+        print(f"[internal_run_due_jobs] ERROR: {e}")
+        raise HTTPException(500, "Runner error")

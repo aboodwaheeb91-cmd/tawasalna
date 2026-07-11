@@ -6462,3 +6462,238 @@ def schedule_job(
         raise RuntimeError(f"schedule_job: unexpected DB error: {exc}") from exc
     finally:
         release_conn(conn)
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# Scheduler Infrastructure — S3: Runner + Secure Endpoint
+# Decision: External Cron + Secure Endpoint (PR #464 — S0)
+# Schema: scheduler_jobs (PR #465 — S1)
+# Helper: schedule_job() (PR #466 — S2)
+#
+# Two functions:
+#   _execute_scheduler_job(job) — dispatches to job type handler
+#   run_due_scheduler_jobs(limit, runner_id) — picks + marks + executes + updates
+#
+# No hooks, no appointment/notification side effects, no cron config.
+# ══════════════════════════════════════════════════════════════════════════
+
+# Supported job types in S3. Extend this dict in S4 when hooks are added.
+_SCHEDULER_HANDLERS = {
+    "noop",   # Test-only: succeeds immediately with no side effects.
+}
+
+
+def _execute_scheduler_job(job: dict) -> None:
+    """
+    Dispatch a single scheduler job to the correct handler.
+
+    Supported job types (S3):
+      'noop' — succeeds immediately. No DB writes, no notifications,
+               no appointment changes. Used to test the pipeline end-to-end.
+
+    Unknown job types raise ValueError — the runner treats this as a
+    handler failure subject to normal retry/exhaustion logic.
+
+    No eval, no dynamic import, no getattr dispatch. All handlers are
+    explicitly listed in _SCHEDULER_HANDLERS and branched here.
+    """
+    job_type = job.get("job_type", "")
+
+    if job_type == "noop":
+        return  # No-op: instant success, zero side effects.
+
+    raise ValueError(f"_execute_scheduler_job: unsupported job_type={job_type!r}")
+
+
+def run_due_scheduler_jobs(limit: int = 20, runner_id: str = None) -> dict:
+    """
+    Pick due jobs from scheduler_jobs, execute them, update their status.
+
+    Transaction strategy — two phases to avoid long-held locks:
+
+      Phase 1 (short transaction):
+        BEGIN
+        SELECT … WHERE status='pending' AND run_at<=NOW()
+          ORDER BY run_at ASC LIMIT :limit FOR UPDATE SKIP LOCKED
+        UPDATE each picked job → status='running', attempts+=1,
+          locked_at=NOW(), locked_by=runner_id
+        COMMIT
+
+      Phase 2 (auto-committed per statement):
+        For each job: call _execute_scheduler_job(job)
+        On success       → UPDATE status='done', clear lock fields
+        On failure, retryable (attempts < max_attempts)
+                         → UPDATE status='pending', set last_error
+        On failure, exhausted (attempts >= max_attempts)
+                         → UPDATE status='failed', set last_error
+
+    If a Phase 2 UPDATE fails (rare, e.g. DB disconnect), the job
+    stays in status='running'. A future stale-lock cleanup will reset
+    such jobs. This is a known S3 limitation; stale cleanup is S3b/S4.
+
+    Args:
+        limit:     Jobs to pick per call. Clamped to [1, 50]. Default 20.
+        runner_id: Identifier for locked_by. Defaults to 'runner-{pid}'.
+
+    Returns:
+        {
+          "ok":       bool,
+          "picked":   int,
+          "done":     int,
+          "failed":   int,
+          "retried":  int,
+          "runner_id": str,
+          "jobs":     [{"id": int, "job_type": str, "status": str}, ...]
+        }
+
+    Raises:
+        RuntimeError: on unexpected failure in Phase 1 (Phase 2 errors
+                      are handled per-job and logged, never raised).
+    """
+    limit     = max(1, min(50, int(limit)))
+    runner_id = runner_id or f"runner-{os.getpid()}"
+
+    conn      = get_conn()
+    committed = False
+    try:
+        # ── Phase 1: Pick and mark running (short transaction) ────────────
+        conn.run("BEGIN")
+
+        rows = conn.run(
+            """SELECT id, job_type, payload, max_attempts, attempts
+               FROM scheduler_jobs
+               WHERE status = 'pending' AND run_at <= NOW()
+               ORDER BY run_at ASC
+               LIMIT :limit
+               FOR UPDATE SKIP LOCKED""",
+            limit=limit,
+        )
+
+        if not rows:
+            conn.run("COMMIT")
+            committed = True
+            return {
+                "ok": True, "picked": 0, "done": 0,
+                "failed": 0, "retried": 0,
+                "runner_id": runner_id, "jobs": [],
+            }
+
+        jobs_data = [
+            {
+                "id":           r[0],
+                "job_type":     r[1],
+                "payload":      r[2],
+                "max_attempts": r[3],
+                "old_attempts": r[4],
+            }
+            for r in rows
+        ]
+
+        for job in jobs_data:
+            conn.run(
+                """UPDATE scheduler_jobs
+                   SET status     = 'running',
+                       attempts   = attempts + 1,
+                       locked_at  = NOW(),
+                       locked_by  = :runner,
+                       updated_at = NOW()
+                   WHERE id = :id""",
+                runner=runner_id,
+                id=job["id"],
+            )
+
+        conn.run("COMMIT")
+        committed = True
+
+        # ── Phase 2: Execute handlers + update final status ───────────────
+        done_cnt    = 0
+        failed_cnt  = 0
+        retried_cnt = 0
+        results     = []
+
+        for job in jobs_data:
+            jid          = job["id"]
+            job_type     = job["job_type"]
+            new_attempts = job["old_attempts"] + 1  # matches DB after increment
+            max_attempts = job["max_attempts"]
+
+            try:
+                _execute_scheduler_job(job)
+
+                # Handler succeeded → done
+                try:
+                    conn.run(
+                        """UPDATE scheduler_jobs
+                           SET status     = 'done',
+                               locked_at  = NULL,
+                               locked_by  = NULL,
+                               last_error = NULL,
+                               updated_at = NOW()
+                           WHERE id = :id""",
+                        id=jid,
+                    )
+                except Exception as upd_exc:
+                    print(f"[scheduler] WARNING job_id={jid} succeeded but "
+                          f"UPDATE failed: {upd_exc}")
+                done_cnt += 1
+                results.append({"id": jid, "job_type": job_type, "status": "done"})
+
+            except Exception as exc:
+                err_msg = str(exc)[:500]
+                print(f"[scheduler] job_id={jid} job_type={job_type!r} "
+                      f"attempt={new_attempts}/{max_attempts} FAILED: {err_msg}")
+
+                if new_attempts >= max_attempts:
+                    # Exhausted → failed (terminal)
+                    try:
+                        conn.run(
+                            """UPDATE scheduler_jobs
+                               SET status     = 'failed',
+                                   locked_at  = NULL,
+                                   locked_by  = NULL,
+                                   last_error = :err,
+                                   updated_at = NOW()
+                               WHERE id = :id""",
+                            err=err_msg, id=jid,
+                        )
+                    except Exception as upd_exc:
+                        print(f"[scheduler] WARNING job_id={jid} failed UPDATE: {upd_exc}")
+                    failed_cnt += 1
+                    results.append({"id": jid, "job_type": job_type, "status": "failed"})
+                else:
+                    # Retryable → back to pending
+                    try:
+                        conn.run(
+                            """UPDATE scheduler_jobs
+                               SET status     = 'pending',
+                                   locked_at  = NULL,
+                                   locked_by  = NULL,
+                                   last_error = :err,
+                                   updated_at = NOW()
+                               WHERE id = :id""",
+                            err=err_msg, id=jid,
+                        )
+                    except Exception as upd_exc:
+                        print(f"[scheduler] WARNING job_id={jid} retry UPDATE failed: {upd_exc}")
+                    retried_cnt += 1
+                    results.append({"id": jid, "job_type": job_type, "status": "retried"})
+
+        return {
+            "ok":        True,
+            "picked":    len(jobs_data),
+            "done":      done_cnt,
+            "failed":    failed_cnt,
+            "retried":   retried_cnt,
+            "runner_id": runner_id,
+            "jobs":      results,
+        }
+
+    except Exception as exc:
+        if not committed:
+            try:
+                conn.run("ROLLBACK")
+            except Exception:
+                pass
+        raise RuntimeError(f"run_due_scheduler_jobs: {exc}") from exc
+    finally:
+        release_conn(conn)
