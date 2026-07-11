@@ -7455,8 +7455,8 @@ check(
     'APScheduler' not in _auth173 and 'apscheduler' not in _auth173.lower()
 )
 check(
-    "173-17. server.py does NOT contain /internal/run-due-jobs endpoint (not implemented yet)",
-    'run-due-jobs' not in _server173 and 'run_due_jobs' not in _server173
+    "173-17. server.py: /internal/run-due-jobs endpoint added in S3",
+    '/internal/run-due-jobs' in _server173
 )
 
 # ── Cross-file references ──────────────────────────────────────────────────
@@ -7560,8 +7560,8 @@ check(
     'APScheduler' not in _auth174 and 'apscheduler' not in _auth174.lower()
 )
 check(
-    "174-18. server.py: no scheduler endpoint or run_due_jobs added",
-    'run_due_jobs' not in _server174 and 'X-Scheduler-Secret' not in _server174
+    "174-18. server.py: scheduler endpoint with X-Scheduler-Secret auth added in S3",
+    'X-Scheduler-Secret' in _server174 and 'hmac.compare_digest' in _server174
 )
 
 # ── No cron config file added ──────────────────────────────────────────────
@@ -7707,8 +7707,8 @@ check(
 
 # ── S1 scope: NO extras added ─────────────────────────────────────────────────
 check(
-    "175-25. server.py: no new scheduler endpoint added (/internal/run-due-jobs absent)",
-    '/internal/run-due-jobs' not in _server175
+    "175-25. server.py: /internal/run-due-jobs endpoint added in S3",
+    '/internal/run-due-jobs' in _server175
 )
 check(
     "175-26. auth.py: no run_due_jobs function added",
@@ -7719,8 +7719,8 @@ check(
     'def run_due_jobs' not in _auth175
 )
 check(
-    "175-28. server.py: no /internal/run-due-jobs endpoint added (endpoint is S3)",
-    '/internal/run-due-jobs' not in _server175
+    "175-28. server.py: /internal/run-due-jobs endpoint uses hmac.compare_digest (S3 security)",
+    'hmac.compare_digest' in _server175
 )
 check(
     "175-29. server.py: no appointment hooks calling schedule_job added (hooks are S4)",
@@ -7729,10 +7729,10 @@ check(
     'schedule_job' not in _server175
 )
 check(
-    "175-30. No cron config file added in this PR",
+    "175-30. No cron config file added; SCHEDULER_SECRET env var used in S3",
     not _os175.path.exists('.github/workflows/scheduler.yml')
     and not _os175.path.exists('.github/workflows/cron.yml')
-    and 'SCHEDULER_SECRET' not in _server175
+    and 'SCHEDULER_SECRET' in _server175
 )
 
 # ── Docs updated ──────────────────────────────────────────────────────────────
@@ -7863,18 +7863,18 @@ check(
 
 # ── Server.py: no new endpoint, no runner ─────────────────────────────────────
 check(
-    "176-20. server.py: no /internal/run-due-jobs endpoint added (S3)",
-    '/internal/run-due-jobs' not in _server176
+    "176-20. server.py: /internal/run-due-jobs endpoint now added (S3 implemented)",
+    '/internal/run-due-jobs' in _server176
 )
 check(
     "176-21. auth.py: no run_due_jobs runner added (S3)",
     'def run_due_jobs' not in _auth176
 )
 check(
-    "176-22. No cron config file added in this PR",
+    "176-22. No cron config file; SCHEDULER_SECRET env var used in S3",
     not _os176.path.exists('.github/workflows/scheduler.yml')
     and not _os176.path.exists('.github/workflows/cron.yml')
-    and 'SCHEDULER_SECRET' not in _server176
+    and 'SCHEDULER_SECRET' in _server176
 )
 check(
     "176-23. No background thread or asyncio.create_task for scheduling added",
@@ -7896,6 +7896,272 @@ check(
 check(
     "176-26. docs/SYSTEMS_INDEX.md §37 documents what remains deferred (S3+)",
     'S3' in _sysidx176 and ('مؤجل' in _sysidx176 or 'Pending' in _sysidx176 or '🔜' in _sysidx176)
+)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# §177 — Scheduler S3: Runner + Secure Endpoint (33 checks)
+# PR: scheduler-s3-runner
+# Verifies: run_due_scheduler_jobs() in auth.py + POST /internal/run-due-jobs in server.py
+#           + docs updates + no extras (no hooks, no cron, no background threads)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+import os as _os177
+
+_auth177   = open('auth.py',   encoding='utf-8').read()
+_server177 = open('server.py', encoding='utf-8').read()
+_plan177   = open('docs/SCHEDULER_PLAN.md', encoding='utf-8').read()
+_sysidx177 = open('docs/SYSTEMS_INDEX.md', encoding='utf-8').read()
+
+# Extract runner function body (last function in auth.py)
+_runner177 = _auth177.split('def run_due_scheduler_jobs')[1] if 'def run_due_scheduler_jobs' in _auth177 else ''
+# Extract helper function body (defined just before runner)
+_helper177_body = (
+    _auth177.split('def _update_scheduler_job_final_status')[1].split('\n\ndef ')[0]
+    if 'def _update_scheduler_job_final_status' in _auth177 else ''
+)
+# Extract endpoint section in server.py
+_ep177 = _server177[_server177.find('/internal/run-due-jobs'):] if '/internal/run-due-jobs' in _server177 else ''
+
+# AST analysis for except-pass detection
+import ast as _ast177
+try:
+    _tree177 = _ast177.parse(_auth177)
+
+    def _find_func177(tree, name):
+        for node in _ast177.walk(tree):
+            if isinstance(node, (_ast177.FunctionDef, _ast177.AsyncFunctionDef)) and node.name == name:
+                return node
+        return None
+
+    def _has_bare_pass_except177(func_node):
+        if func_node is None:
+            return True  # conservative: assume bad
+        for node in _ast177.walk(func_node):
+            if isinstance(node, _ast177.ExceptHandler):
+                if len(node.body) == 1 and isinstance(node.body[0], _ast177.Pass):
+                    return True
+        return False
+
+    _runner_func177 = _find_func177(_tree177, 'run_due_scheduler_jobs')
+    _helper_func177 = _find_func177(_tree177, '_update_scheduler_job_final_status')
+    _ast177_ok = True
+except SyntaxError:
+    _runner_func177 = None
+    _helper_func177 = None
+    _ast177_ok = False
+
+# Extract no-jobs early return section (before jobs_data is built)
+_early177 = _runner177.split('jobs_data')[0] if 'jobs_data' in _runner177 else ''
+
+# ── auth.py: runner function exists ──────────────────────────────────────────
+check(
+    "177-01. auth.py: run_due_scheduler_jobs function defined",
+    'def run_due_scheduler_jobs' in _auth177
+)
+check(
+    "177-02. run_due_scheduler_jobs queries scheduler_jobs table",
+    'scheduler_jobs' in _runner177
+)
+check(
+    "177-03. run_due_scheduler_jobs filters status='pending'",
+    "status = 'pending'" in _runner177 or "status='pending'" in _runner177
+)
+check(
+    "177-04. run_due_scheduler_jobs filters run_at <= NOW()",
+    'run_at <= NOW()' in _runner177 or 'run_at<=NOW()' in _runner177
+)
+check(
+    "177-05. run_due_scheduler_jobs uses FOR UPDATE SKIP LOCKED",
+    'FOR UPDATE SKIP LOCKED' in _runner177
+)
+check(
+    "177-06. run_due_scheduler_jobs writes locked_at",
+    'locked_at' in _runner177
+)
+check(
+    "177-07. run_due_scheduler_jobs writes locked_by",
+    'locked_by' in _runner177
+)
+check(
+    "177-08. run_due_scheduler_jobs increments attempts counter",
+    'attempts' in _runner177 and 'attempts + 1' in _runner177
+)
+check(
+    "177-09. auth.py: last_error written in _update_scheduler_job_final_status helper",
+    'last_error' in _auth177 and '_update_scheduler_job_final_status' in _auth177
+)
+check(
+    "177-10. run_due_scheduler_jobs sets status='done' on success",
+    "'done'" in _runner177 or '"done"' in _runner177
+)
+check(
+    "177-11. run_due_scheduler_jobs sets status='failed' on exhausted attempts",
+    "'failed'" in _runner177 or '"failed"' in _runner177
+)
+check(
+    "177-12. run_due_scheduler_jobs returns retryable failures to status='pending'",
+    # query filter uses 'pending' (single quotes); helper call uses "pending" (double quotes)
+    (_runner177.count("'pending'") + _runner177.count('"pending"')) >= 2
+)
+check(
+    "177-13. auth.py: noop job_type supported in _execute_scheduler_job",
+    "'noop'" in _auth177 or '"noop"' in _auth177
+)
+check(
+    "177-14. _execute_scheduler_job raises ValueError for unknown job_type",
+    'ValueError' in _auth177 and 'unsupported job_type' in _auth177
+)
+check(
+    "177-15. scheduler runner: no eval() call",
+    'eval(' not in _runner177
+)
+check(
+    "177-16. scheduler runner: no dynamic import or importlib",
+    '__import__(' not in _runner177 and 'importlib' not in _runner177
+)
+check(
+    "177-17. run_due_scheduler_jobs: no create_notification call (hooks are S4)",
+    'create_notification' not in _runner177
+)
+check(
+    "177-18. run_due_scheduler_jobs: no UPDATE appointments (appointment hooks are S4)",
+    'UPDATE appointments' not in _runner177
+)
+check(
+    "177-19. run_due_scheduler_jobs: no job_expiring_soon hook (deferred to S4)",
+    'job_expiring_soon' not in _runner177
+)
+
+# ── server.py: endpoint exists with correct security ─────────────────────────
+check(
+    "177-20. server.py: POST /internal/run-due-jobs endpoint defined",
+    '@app.post("/internal/run-due-jobs")' in _server177
+)
+check(
+    "177-21. server.py: SCHEDULER_SECRET read from os.environ",
+    'SCHEDULER_SECRET' in _server177 and 'os.environ' in _server177
+)
+check(
+    "177-22. server.py: endpoint reads X-Scheduler-Secret header",
+    'X-Scheduler-Secret' in _server177
+)
+check(
+    "177-23. server.py: hmac.compare_digest used for timing-safe comparison",
+    'hmac.compare_digest' in _server177
+)
+check(
+    "177-24. server.py: /internal/run-due-jobs does not use verify_token / JWT",
+    'verify_token' not in _ep177
+)
+check(
+    "177-25. server.py: /internal/run-due-jobs does not use X-User-Id header",
+    'X-User-Id' not in _ep177
+)
+check(
+    "177-26. server.py: SCHEDULER_SECRET not returned in response; read via header only",
+    'return SCHEDULER_SECRET' not in _server177
+    and 'request.headers.get("X-Scheduler-Secret"' in _server177
+)
+
+# ── No extras added ───────────────────────────────────────────────────────────
+check(
+    "177-27. No .github/workflows/scheduler cron config file added",
+    not _os177.path.exists('.github/workflows/scheduler.yml')
+    and not _os177.path.exists('.github/workflows/cron.yml')
+)
+check(
+    "177-28. No GitHub Actions scheduler workflow file added",
+    not _os177.path.exists('.github/workflows/scheduler.yml')
+    and not _os177.path.exists('.github/workflows/scheduler-cron.yml')
+)
+check(
+    "177-29. auth.py: no APScheduler import added",
+    'APScheduler' not in _auth177 and 'apscheduler' not in _auth177.lower()
+)
+check(
+    "177-30. scheduler runner: no threading.Thread or asyncio.create_task",
+    'threading.Thread' not in _runner177 and 'create_task' not in _runner177
+)
+
+# ── Docs updated ──────────────────────────────────────────────────────────────
+check(
+    "177-31. docs/SCHEDULER_PLAN.md mentions S3 as implemented/complete",
+    'S3' in _plan177 and ('مكتملة' in _plan177 or 'run_due_scheduler_jobs' in _plan177
+                          or 'runner' in _plan177.lower())
+)
+check(
+    "177-32. docs/SYSTEMS_INDEX.md §37 updated: S3 runner/endpoint marked complete",
+    ('S3 ✅' in _sysidx177 or ('S3' in _sysidx177 and '✅' in _sysidx177
+                                 and ('runner' in _sysidx177.lower() or 'run_due_scheduler_jobs' in _sysidx177)))
+)
+check(
+    "177-33. docs/SYSTEMS_INDEX.md §37 documents S4 hooks as deferred/pending",
+    'S4' in _sysidx177 and ('مؤجل' in _sysidx177 or 'Pending' in _sysidx177 or '🔜' in _sysidx177)
+)
+
+# ── Final-update failure handling (fix: no silent swallow) ───────────────────
+_helper177 = _auth177.split('def _update_scheduler_job_final_status')[1] if 'def _update_scheduler_job_final_status' in _auth177 else ''
+
+check(
+    "177-34. auth.py: _update_scheduler_job_final_status helper defined",
+    'def _update_scheduler_job_final_status' in _auth177
+)
+check(
+    "177-35. runner: update_failed_cnt tracks failed UPDATEs (no silent swallow)",
+    'update_failed_cnt' in _runner177
+)
+check(
+    "177-36. runner: uses _update_scheduler_job_final_status helper for final updates",
+    '_update_scheduler_job_final_status' in _runner177
+)
+check(
+    "177-37. runner: ok derived from update_failed_cnt (not hardcoded True)",
+    'update_failed_cnt == 0' in _runner177
+)
+check(
+    "177-38. runner: stuck_running and update_failed in return dict",
+    'stuck_running' in _runner177 and 'update_failed' in _runner177
+)
+check(
+    "177-39. runner: done/retried/failed counted only after UPDATE success",
+    # done_cnt is inside 'if _update_scheduler_job_final_status(...):'
+    'done_cnt += 1' in _runner177
+    and _runner177.index('done_cnt += 1') > _runner177.index('_update_scheduler_job_final_status')
+)
+check(
+    "177-40. helper: returns False on UPDATE exception (never swallows)",
+    'return False' in _helper177_body and 'return True' in _helper177_body
+)
+check(
+    "177-41. AST: run_due_scheduler_jobs has no ExceptHandler with bare Pass",
+    _ast177_ok and not _has_bare_pass_except177(_runner_func177)
+)
+check(
+    "177-42. helper uses RETURNING id to verify row was actually updated",
+    'RETURNING id' in _helper177_body or 'RETURNING' in _helper177_body
+)
+check(
+    "177-43. helper WHERE guards: AND status='running' (prevents state mismatch)",
+    "'running'" in _helper177_body
+)
+check(
+    "177-44. helper WHERE guards: AND locked_by verifies ownership before final update",
+    'locked_by' in _helper177_body and 'runner_id' in _helper177_body
+)
+check(
+    "177-45. helper has two return-False paths: zero-row AND exception",
+    _helper177_body.count('return False') >= 2
+)
+check(
+    "177-46. no-jobs early return includes update_failed and stuck_running counters",
+    '"update_failed"' in _early177 and '"stuck_running"' in _early177
+)
+check(
+    "177-47. failed_cnt and retried_cnt also gated on successful UPDATE",
+    'failed_cnt += 1' in _runner177
+    and _runner177.index('failed_cnt += 1') > _runner177.index('_update_scheduler_job_final_status')
+    and 'retried_cnt += 1' in _runner177
+    and _runner177.index('retried_cnt += 1') > _runner177.index('_update_scheduler_job_final_status')
 )
 
 # ── Summary ──────────────────────────────────────────────────────────────

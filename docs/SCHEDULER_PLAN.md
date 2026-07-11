@@ -728,20 +728,180 @@ RETURNING has rows?
 
 ---
 
+## 13. S3 Runner + Secure Endpoint — مكتملة
+
+> **S3 مكتملة.** تم إضافة runner + endpoint فقط. لا hooks، لا cron config.
+
+### ما تم في S3 (هذا الـ PR)
+
+```
+✅ _execute_scheduler_job(job) في auth.py — handler dispatcher
+   - 'noop': ينجح فوراً، لا side effects (للاختبار)
+   - unknown job_type: يرفع ValueError (يُعامَل كـ handler failure)
+   - لا eval، لا dynamic import
+✅ run_due_scheduler_jobs(limit, runner_id) في auth.py — runner
+   - Two-phase strategy: Phase 1 (short tx: pick+mark running) + Phase 2 (execute+update)
+   - SELECT FOR UPDATE SKIP LOCKED — آمن للتوازي
+   - attempts += 1 عند التقاط الـ job
+   - Success → done | Retryable → pending | Exhausted → failed
+   - limit مُقيَّد [1, 50]، default 20
+✅ SCHEDULER_SECRET = os.environ.get("SCHEDULER_SECRET", "") في server.py
+✅ POST /internal/run-due-jobs في server.py
+   - X-Scheduler-Secret header + hmac.compare_digest (timing-attack safe)
+   - 503 إذا SCHEDULER_SECRET غير مضبوط
+   - 403 إذا secret ناقص أو خاطئ
+   - لا JWT، لا X-User-Id، لا user session
+```
+
+### Endpoint Contract
+
+```
+POST /internal/run-due-jobs
+Auth: X-Scheduler-Secret: <secret>  (machine-to-machine only)
+Query: ?limit=20 (optional, clamped 1–50)
+
+Response 200 — all final UPDATEs succeeded:
+{
+  "ok": true,
+  "picked": 3,
+  "done": 2,
+  "failed": 1,
+  "retried": 0,
+  "update_failed": 0,
+  "stuck_running": 0,
+  "runner_id": "runner-1234",
+  "jobs": [
+    {"id": 1, "job_type": "noop", "status": "done"},
+    ...
+  ]
+}
+
+Response 200 — some final UPDATEs failed (jobs stuck in 'running'):
+{
+  "ok": false,
+  "picked": 3,
+  "done": 2,
+  "failed": 0,
+  "retried": 0,
+  "update_failed": 1,
+  "stuck_running": 1,
+  "runner_id": "runner-1234",
+  "jobs": [
+    {"id": 1, "job_type": "noop", "status": "done"},
+    {"id": 2, "job_type": "noop", "status": "update_failed"}
+  ]
+}
+
+Response 403: secret wrong/missing
+Response 503: SCHEDULER_SECRET env var not set
+Response 500: Phase 1 (pick+mark) error (logged server-side)
+```
+
+### Locking Strategy
+
+```sql
+-- Phase 1 (inside BEGIN/COMMIT):
+SELECT id, job_type, payload, max_attempts, attempts
+FROM scheduler_jobs
+WHERE status = 'pending' AND run_at <= NOW()
+ORDER BY run_at ASC
+LIMIT :limit
+FOR UPDATE SKIP LOCKED;
+
+-- Mark running (inside same tx):
+UPDATE scheduler_jobs
+SET status='running', attempts=attempts+1,
+    locked_at=NOW(), locked_by=:runner_id, updated_at=NOW()
+WHERE id = :id;
+
+-- Phase 2 (auto-committed per statement, via _update_scheduler_job_final_status):
+UPDATE scheduler_jobs
+SET   status='done'|'pending'|'failed', locked_at=NULL, locked_by=NULL,
+      last_error=<msg|NULL>, updated_at=NOW()
+WHERE id = :id
+  AND status = 'running'         -- guard: only update if still ours
+  AND locked_by = :runner_id     -- guard: verify ownership
+RETURNING id;                    -- zero rows → failure (lock stolen or state mismatch)
+```
+
+**Final UPDATE is considered successful only when RETURNING returns one row.**
+- Zero rows → `update_failed++`, `ok=false` in response.
+- Exception → `update_failed++`, `ok=false` in response.
+- Either failure path is logged clearly; no error is swallowed.
+
+### Retry Logic
+
+| الحالة | الشرط | النتيجة | ok |
+|--------|-------|---------|-----|
+| نجاح + UPDATE ok | handler لم يرفع، UPDATE نجح | `status='done'` | true |
+| فشل قابل + UPDATE ok | `new_attempts < max_attempts`، UPDATE نجح | `status='pending'`, `last_error` محفوظ | true |
+| فشل منتهٍ + UPDATE ok | `new_attempts >= max_attempts`، UPDATE نجح | `status='failed'`, `last_error` محفوظ | true |
+| أي حالة + UPDATE فشل | final UPDATE رفع exception | `status='running'` يبقى (stuck)، `update_failed++` | **false** |
+
+`new_attempts = old_attempts + 1` (القيمة بعد الـ increment في Phase 1)
+
+**قاعدة دائمة:** `done / failed / retried` تُحسَب فقط بعد نجاح الـ UPDATE الأخير.
+إذا فشل أي final UPDATE → `"ok": false` في الـ response ← المرسِل يتعامل معها.
+
+### Job Types المدعومة (S3)
+
+| job_type | السلوك |
+|----------|--------|
+| `noop` | ينجح فوراً، لا side effects، للاختبار فقط |
+| أي نوع آخر | `ValueError` → failure → retry/fail عادي |
+
+S4 سيضيف: `appointment_reminder`, `appointment_deadline_expire`, `appointment_missed`, `job_expiring_soon`
+
+### حد Secret
+
+```
+✅ SCHEDULER_SECRET من env var فقط — لا في source code
+✅ hmac.compare_digest — مقاوم لـ timing attacks
+✅ لا يُطبع في logs، لا يُرجع في responses
+❌ ممنوع: JWT للـ endpoint
+❌ ممنوع: X-User-Id
+❌ ممنوع: secret في query params أو request body
+```
+
+### ما يبقى مؤجلاً (S4+)
+
+```
+مؤجل إلى S4:  Hooks في trigger points:
+  - accept_appointment   → schedule_job('appointment_reminder', ...)
+  - accept_appointment   → schedule_job('appointment_missed', ...)
+  - create_appointment   → schedule_job('appointment_deadline_expire', ...)
+  - create/post_job      → schedule_job('job_expiring_soon', ...)
+مؤجل إلى S4:  Handlers: appointment_reminder, appointment_deadline_expire,
+               appointment_missed, job_expiring_soon في _execute_scheduler_job
+مؤجل إلى S4:  SCHEDULER_SECRET في Heroku Config Vars (cron config)
+مؤجل إلى S4:  External cron setup (GitHub Actions / cron-job.org)
+مؤجل إلى S5:  Integration tests
+مؤجل إلى S6:  Admin observability endpoint
+```
+
+---
+
+*S3 مكتملة — 2026-07-11 — runner + endpoint (PR: scheduler-s3-runner).*
+
+---
+
 ## Source of Truth
 
 | العنصر | الحالة | المرجع |
 |--------|--------|--------|
-| Scheduler schema | ✅ مُنفَّذة في S1 | `auth.py → _migrate_scheduler_jobs()` |
-| schedule_job helper | ✅ مُنفَّذة في S2 | `auth.py → schedule_job()` |
-| Proposed schema (docs) | §7 (reference) + §11 (actual) | هذا الملف |
+| Scheduler schema | ✅ S1 | `auth.py → _migrate_scheduler_jobs()` |
+| schedule_job helper | ✅ S2 | `auth.py → schedule_job()` |
+| Runner | ✅ S3 | `auth.py → run_due_scheduler_jobs()` |
+| Secure endpoint | ✅ S3 | `server.py → POST /internal/run-due-jobs` |
+| Proposed schema (docs) | §7 + §11 | هذا الملف |
 | S2 contract | §12 | هذا الملف |
+| S3 contract | §13 | هذا الملف |
 | Deferred features | موثَّقة | هذا الملف §2 |
-| Appointments deferral | موثَّق | `docs/APPOINTMENTS_PLAN.md § Scheduler-Dependent Features` |
-| Notifications blocked | موثَّق | `docs/NOTIFICATIONS_PLAN.md § Scheduler Blocker Note` |
+| Appointments deferral | موثَّق | `docs/APPOINTMENTS_PLAN.md` |
+| Notifications blocked | موثَّق | `docs/NOTIFICATIONS_PLAN.md` |
 | System index entry | مضاف + محدَّث | `docs/SYSTEMS_INDEX.md §37` |
-| S3 runner/endpoint/hooks | ❌ مؤجلة إلى S3–S4 | موافقة مستخدم مطلوبة |
+| S4 hooks | ❌ مؤجلة | موافقة مستخدم مطلوبة |
 
 ---
 
-*أُنشئ: 2026-07-11 — Architecture Decision Document (PR: scheduler-infrastructure-decision). S0 توثيق (PR: scheduler-s0-tooling-decision). S1 schema (PR: scheduler-s1-schema).*
+*أُنشئ: 2026-07-11 — Architecture Decision Document (PR: scheduler-infrastructure-decision). S0 توثيق (PR: scheduler-s0-tooling-decision). S1 schema (PR: scheduler-s1-schema). S2 helper (PR: scheduler-s2-helper). S3 runner (PR: scheduler-s3-runner).*
