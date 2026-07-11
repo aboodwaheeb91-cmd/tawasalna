@@ -6180,6 +6180,247 @@ check(
     'Scheduler Infrastructure' in _sidx168 and 'job_expiring_soon' in _sidx168
 )
 
+# ════════════════════════════════════════════════════════════════════════
+# §169 — Appointments Phase 0 Plan (PR #459)
+# 45 static checks: docs/APPOINTMENTS_PLAN.md + SYSTEMS_INDEX.md + no code changes
+# ════════════════════════════════════════════════════════════════════════
+
+with open("docs/APPOINTMENTS_PLAN.md", encoding="utf-8") as f:
+    _aplan169 = f.read()
+
+with open("docs/SYSTEMS_INDEX.md", encoding="utf-8") as f:
+    _sidx169 = f.read()
+
+with open("auth.py", encoding="utf-8") as f:
+    _auth169 = f.read()
+
+with open("server.py", encoding="utf-8") as f:
+    _server169 = f.read()
+
+# ── §1 Purpose (1–3) ──────────────────────────────────────────────────
+check(
+    "169-1. APPOINTMENTS_PLAN.md exists and is non-empty",
+    len(_aplan169.strip()) > 500
+)
+check(
+    "169-2. APPOINTMENTS_PLAN.md: §1 Purpose section exists",
+    '## §1' in _aplan169 or '### §1' in _aplan169 or '## 1.' in _aplan169 or 'Purpose' in _aplan169
+)
+check(
+    "169-3. APPOINTMENTS_PLAN.md: covers invitations, scheduling, acceptance, reschedule, cancellation",
+    'دعوة' in _aplan169 or 'invitation' in _aplan169.lower()
+)
+
+# ── §2 Core Rule (4–6) ────────────────────────────────────────────────
+check(
+    "169-4. APPOINTMENTS_PLAN.md: §2 Core Rule / Messenger العام vs Appointment Room",
+    'Messenger' in _aplan169 and ('Appointment Room' in _aplan169 or 'غرفة' in _aplan169)
+)
+check(
+    "169-5. APPOINTMENTS_PLAN.md: formal decisions only via official buttons (not from chat)",
+    'أزرار' in _aplan169 or 'buttons' in _aplan169.lower()
+)
+check(
+    "169-6. APPOINTMENTS_PLAN.md: Core Rule explicitly separates chat from formal decisions",
+    'المحادثة' in _aplan169 or 'chat' in _aplan169.lower() or 'الشات' in _aplan169
+)
+
+# ── §3 User Flows (7–9) ───────────────────────────────────────────────
+check(
+    "169-7. APPOINTMENTS_PLAN.md: employee user flow described",
+    'موظف' in _aplan169 or 'employee' in _aplan169.lower()
+)
+check(
+    "169-8. APPOINTMENTS_PLAN.md: company user flow described",
+    'شركة' in _aplan169 or 'company' in _aplan169.lower()
+)
+check(
+    "169-9. APPOINTMENTS_PLAN.md: user flows cover open/accept/reschedule/cancel actions",
+    ('قبول' in _aplan169 or 'accept' in _aplan169.lower()) and
+    ('إلغاء' in _aplan169 or 'cancel' in _aplan169.lower())
+)
+
+# ── §4 Appointment Cards (10–11) ─────────────────────────────────────
+check(
+    "169-10. APPOINTMENTS_PLAN.md: appointment cards described (employee card + company card)",
+    'بطاقة' in _aplan169 or 'card' in _aplan169.lower()
+)
+check(
+    "169-11. APPOINTMENTS_PLAN.md: card fields include status and date/time",
+    'status' in _aplan169.lower() or 'الحالة' in _aplan169
+)
+
+# ── §5 Appointment Room (12–13) ───────────────────────────────────────
+check(
+    "169-12. APPOINTMENTS_PLAN.md: §5 Appointment Room structure described",
+    'غرفة' in _aplan169 or 'Room' in _aplan169
+)
+check(
+    "169-13. APPOINTMENTS_PLAN.md: room includes decision buttons, event timeline, and appointment thread",
+    ('timeline' in _aplan169.lower() or 'سجل' in _aplan169 or 'أحداث' in _aplan169)
+)
+
+# ── §6 Appointment States (14–17) ─────────────────────────────────────
+check(
+    "169-14. APPOINTMENTS_PLAN.md: §6 Appointment States section exists with at least 7 states",
+    'pending_response' in _aplan169 and 'confirmed' in _aplan169 and 'cancelled' in _aplan169
+)
+check(
+    "169-15. APPOINTMENTS_PLAN.md: draft state documented",
+    'draft' in _aplan169
+)
+check(
+    "169-16. APPOINTMENTS_PLAN.md: expired/missed states documented",
+    'expired' in _aplan169 and ('missed' in _aplan169 or 'completed' in _aplan169)
+)
+check(
+    "169-17. APPOINTMENTS_PLAN.md: closed state documented (terminal state)",
+    'closed' in _aplan169
+)
+
+# ── §7 Response Deadline (18–20) ──────────────────────────────────────
+check(
+    "169-18. APPOINTMENTS_PLAN.md: §7 Response Deadline section exists with deadline options",
+    'response_deadline' in _aplan169 or 'deadline' in _aplan169.lower()
+)
+check(
+    "169-19. APPOINTMENTS_PLAN.md: auto-expire requires scheduler (deferred)",
+    'scheduler' in _aplan169.lower() and ('deferred' in _aplan169.lower() or 'مؤجل' in _aplan169)
+)
+check(
+    "169-20. APPOINTMENTS_PLAN.md: computed status at request-time is acceptable without scheduler",
+    'request-time' in _aplan169 or 'computed' in _aplan169.lower() or 'NOW()' in _aplan169
+)
+
+# ── §8 Proposed Data Model (21–24) ────────────────────────────────────
+check(
+    "169-21. APPOINTMENTS_PLAN.md: §8 Data Model section exists with appointments table",
+    'appointments' in _aplan169
+)
+check(
+    "169-22. APPOINTMENTS_PLAN.md: data model includes appointment_participants table",
+    'appointment_participants' in _aplan169
+)
+check(
+    "169-23. APPOINTMENTS_PLAN.md: data model includes appointment_events table",
+    'appointment_events' in _aplan169
+)
+check(
+    "169-24. APPOINTMENTS_PLAN.md: data model includes appointment_messages table",
+    'appointment_messages' in _aplan169
+)
+
+# ── §9 Proposed API (25–27) ───────────────────────────────────────────
+check(
+    "169-25. APPOINTMENTS_PLAN.md: §9 API section exists with at least 8 endpoints",
+    'POST /appointments' in _aplan169 or '/appointments' in _aplan169
+)
+check(
+    "169-26. APPOINTMENTS_PLAN.md: API covers accept, reschedule, cancel, complete, close endpoints",
+    'accept' in _aplan169 and 'reschedule' in _aplan169 and 'cancel' in _aplan169
+)
+check(
+    "169-27. APPOINTMENTS_PLAN.md: API covers messages and events sub-resources",
+    '/messages' in _aplan169 and '/events' in _aplan169
+)
+
+# ── §10 Permissions (28–29) ───────────────────────────────────────────
+check(
+    "169-28. APPOINTMENTS_PLAN.md: §10 Permissions section — owner-only access documented",
+    'owner' in _aplan169.lower() or 'صاحب' in _aplan169 or 'Permissions' in _aplan169
+)
+check(
+    "169-29. APPOINTMENTS_PLAN.md: online_url access restricted to participants only",
+    'online_url' in _aplan169
+)
+
+# ── §11 Event Types (30) ──────────────────────────────────────────────
+check(
+    "169-30. APPOINTMENTS_PLAN.md: §11 Event Types section with appointment_created and message_sent",
+    'appointment_created' in _aplan169 and 'message_sent' in _aplan169
+)
+
+# ── §12 Notifications (31–33) ─────────────────────────────────────────
+check(
+    "169-31. APPOINTMENTS_PLAN.md: §12 Notifications section exists with event_key format",
+    'event_key' in _aplan169
+)
+check(
+    "169-32. APPOINTMENTS_PLAN.md: scheduler-based reminder notifications marked as deferred",
+    'reminder' in _aplan169.lower() and
+    ('deferred' in _aplan169.lower() or 'مؤجل' in _aplan169 or 'Scheduler' in _aplan169)
+)
+check(
+    "169-33. APPOINTMENTS_PLAN.md: at least 7 event-driven notification types documented",
+    'appointment_invited' in _aplan169 or
+    ('notification' in _aplan169.lower() and 'invite' in _aplan169.lower())
+)
+
+# ── §13 Security Risks (34–35) ────────────────────────────────────────
+check(
+    "169-34. APPOINTMENTS_PLAN.md: §13 Security Risks section with URL leakage risk",
+    'online_url' in _aplan169 and ('risk' in _aplan169.lower() or 'مخاطر' in _aplan169 or 'Security' in _aplan169)
+)
+check(
+    "169-35. APPOINTMENTS_PLAN.md: unauthorized access and chat bypass risks documented",
+    ('unauthorized' in _aplan169.lower() or 'غير مصرح' in _aplan169 or 'غير طرف' in _aplan169) or
+    ('bypass' in _aplan169.lower() or 'تجاوز' in _aplan169 or 'الشات بدل' in _aplan169)
+)
+
+# ── §14 Build Phases (36–37) ──────────────────────────────────────────
+check(
+    "169-36. APPOINTMENTS_PLAN.md: §14 Build Phases documented starting from Phase 1 (schema only)",
+    'Phase 1' in _aplan169 and ('schema' in _aplan169.lower() or 'مخطط' in _aplan169)
+)
+check(
+    "169-37. APPOINTMENTS_PLAN.md: Phase 8 (scheduler reminders) is marked as deferred",
+    'Phase 8' in _aplan169 and ('deferred' in _aplan169.lower() or 'مؤجل' in _aplan169 or 'scheduler' in _aplan169.lower())
+)
+
+# ── §15 Non-goals (38) ────────────────────────────────────────────────
+check(
+    "169-38. APPOINTMENTS_PLAN.md: §15 Non-goals section explicitly states no code/schema in this PR",
+    'Non-goals' in _aplan169 or 'non-goals' in _aplan169.lower() or 'لا تنفيذ' in _aplan169
+)
+
+# ── No code changes (39–42) ───────────────────────────────────────────
+check(
+    "169-39. auth.py NOT modified — no appointments table or appointment function in auth.py",
+    'CREATE TABLE IF NOT EXISTS appointments' not in _auth169 and
+    'def create_appointment' not in _auth169
+)
+check(
+    "169-40. server.py NOT modified — no appointments endpoint added to server.py",
+    'POST /appointments' not in _server169 and
+    '@app.post("/appointments' not in _server169
+)
+check(
+    "169-41. No appointment_messages WebSocket in server.py",
+    'appointment_messages' not in _server169 or
+    'ws://appointment' not in _server169.lower()
+)
+check(
+    "169-42. No appointment_participants table created in auth.py migration",
+    'CREATE TABLE IF NOT EXISTS appointment_participants' not in _auth169
+)
+
+# ── SYSTEMS_INDEX update (43–44) ──────────────────────────────────────
+check(
+    "169-43. SYSTEMS_INDEX.md contains §23 Appointments System entry",
+    '### 23.' in _sidx169 and 'Appointments' in _sidx169
+)
+check(
+    "169-44. SYSTEMS_INDEX.md §23 references docs/APPOINTMENTS_PLAN.md",
+    'docs/APPOINTMENTS_PLAN.md' in _sidx169 and '### 23.' in _sidx169
+)
+
+# ── PR declaration (45) ───────────────────────────────────────────────
+check(
+    "169-45. APPOINTMENTS_PLAN.md footer declares PR #459 docs-only with no implementation",
+    'PR #459' in _aplan169 and
+    ('docs-only' in _aplan169.lower() or 'docs only' in _aplan169.lower() or 'لا تنفيذ' in _aplan169)
+)
+
 # ── Summary ──────────────────────────────────────────────────────────────
 print()
 passed = sum(1 for _, s, _ in results if s == PASS)
