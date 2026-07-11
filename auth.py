@@ -5446,3 +5446,768 @@ def _migrate_appointments():
     finally:
         release_conn(conn)
 
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# Appointments & Interview Rooms System — Phase 2: Backend Helpers + Phase 7: Notifications
+# ══════════════════════════════════════════════════════════════════════════
+
+_APPT_VALID_STATUSES = {
+    'draft', 'pending_response', 'reschedule_requested', 'confirmed',
+    'cancelled', 'expired', 'missed', 'completed', 'closed'
+}
+_APPT_TERMINAL_STATUSES = {'cancelled', 'expired', 'missed', 'closed'}
+_APPT_VALID_MODES = {'online', 'onsite'}
+_APPT_DEADLINE_HOURS_ALLOWED = {24, 48, 72, 168}
+
+
+def _insert_appointment_event(conn, appointment_id: int, actor_id, event_type: str,
+                               old_status=None, new_status=None, payload=None):
+    """Insert immutable event into appointment_events. Caller owns the connection (F18/F27)."""
+    payload_str = _json_mod.dumps(payload) if payload else None
+    conn.run(
+        """INSERT INTO appointment_events
+           (appointment_id, actor_id, event_type, old_status, new_status, payload)
+           VALUES (:appt, :actor, :etype, :old, :new,
+                   CASE WHEN :payload IS NULL THEN NULL ELSE :payload::jsonb END)""",
+        appt=appointment_id, actor=actor_id, etype=event_type,
+        old=old_status, new=new_status, payload=payload_str
+    )
+
+
+def _check_appt_participant(conn, appointment_id: int, user_id: int) -> dict:
+    """Returns {role, can_message, can_decide} if participant, else raises PermissionError."""
+    rows = conn.run(
+        """SELECT role, can_message, can_decide
+           FROM appointment_participants
+           WHERE appointment_id = :appt AND user_id = :uid""",
+        appt=appointment_id, uid=user_id
+    )
+    if not rows:
+        raise PermissionError("غير مصرح: لست طرفاً في هذا الموعد")
+    return {"role": rows[0][0], "can_message": rows[0][1], "can_decide": rows[0][2]}
+
+
+def _get_appointment_row(conn, appointment_id: int):
+    """Fetch single appointment row as dict, or None."""
+    rows = conn.run(
+        """SELECT id, job_id, application_id, company_id, applicant_id, created_by,
+                  representative_user_id, representative_name, status, mode,
+                  scheduled_at, response_deadline_at, location_text, online_url,
+                  notes, created_at, updated_at, closed_at
+           FROM appointments WHERE id = :id""",
+        id=appointment_id
+    )
+    if not rows:
+        return None
+    cols = ["id","job_id","application_id","company_id","applicant_id","created_by",
+            "representative_user_id","representative_name","status","mode",
+            "scheduled_at","response_deadline_at","location_text","online_url",
+            "notes","created_at","updated_at","closed_at"]
+    return _serialize(_row_to_dict(cols, rows[0]))
+
+
+def _appt_computed_status(appt: dict) -> str:
+    """
+    Returns computed status: if pending_response and deadline passed → 'expired'.
+    Does NOT write to DB (no scheduler). Read-time computation only.
+    """
+    from datetime import datetime as _dt, timezone as _tz
+    status = appt.get('status', '')
+    if status == 'pending_response':
+        deadline = appt.get('response_deadline_at')
+        if deadline:
+            if isinstance(deadline, str):
+                try:
+                    deadline_dt = _dt.fromisoformat(deadline.replace('Z', '+00:00'))
+                    if deadline_dt.tzinfo is None:
+                        deadline_dt = deadline_dt.replace(tzinfo=_tz.utc)
+                except Exception:
+                    return status
+            else:
+                deadline_dt = deadline
+                if hasattr(deadline_dt, 'tzinfo') and deadline_dt.tzinfo is None:
+                    deadline_dt = deadline_dt.replace(tzinfo=_tz.utc)
+            if _dt.now(_tz.utc) > deadline_dt:
+                return 'expired'
+    return status
+
+
+def create_appointment(company_user_id: int, applicant_id: int,
+                       job_id: int = None, application_id: int = None,
+                       mode: str = "online", notes: str = None,
+                       online_url: str = None, location_text: str = None,
+                       representative_name: str = None,
+                       representative_user_id: int = None) -> dict:
+    """Create appointment in status=draft. Company users only."""
+    if mode not in _APPT_VALID_MODES:
+        raise ValueError(f"نوع الموعد غير صالح: {mode}")
+    if online_url:
+        if not online_url.startswith("https://"):
+            raise ValueError("رابط المقابلة يجب أن يبدأ بـ https://")
+        online_url = online_url.strip()[:2000]
+    if notes:
+        notes = notes.strip()[:1000]
+    if location_text:
+        location_text = location_text.strip()[:500]
+    if representative_name:
+        representative_name = representative_name.strip()[:200]
+
+    conn = get_conn()
+    try:
+        u_rows = conn.run("SELECT id, user_type FROM users WHERE id = :id", id=applicant_id)
+        if not u_rows:
+            raise ValueError("المتقدم غير موجود")
+        if u_rows[0][1] != 'emp':
+            raise ValueError("المستخدم المحدد ليس موظفاً")
+
+        if job_id:
+            dup = conn.run(
+                """SELECT id FROM appointments
+                   WHERE job_id = :jid AND applicant_id = :aid
+                     AND status NOT IN ('cancelled','expired','missed','closed','completed')
+                   LIMIT 1""",
+                jid=job_id, aid=applicant_id
+            )
+            if dup:
+                raise ValueError("يوجد موعد نشط لهذا المتقدم على نفس الوظيفة")
+
+        rows = conn.run(
+            """INSERT INTO appointments
+               (company_id, applicant_id, created_by, job_id, application_id,
+                mode, representative_user_id, representative_name, notes,
+                online_url, location_text, status)
+               VALUES (:cid, :aid, :cb, :jid, :appid, :mode,
+                       :rep_uid, :rep_name, :notes, :url, :loc, 'draft')
+               RETURNING id""",
+            cid=company_user_id, aid=applicant_id, cb=company_user_id,
+            jid=job_id, appid=application_id, mode=mode,
+            rep_uid=representative_user_id, rep_name=representative_name,
+            notes=notes, url=online_url, loc=location_text
+        )
+        appt_id = rows[0][0]
+
+        conn.run(
+            """INSERT INTO appointment_participants
+               (appointment_id, user_id, role, can_message, can_decide)
+               VALUES (:appt, :uid, 'company', TRUE, TRUE)
+               ON CONFLICT (appointment_id, user_id) DO NOTHING""",
+            appt=appt_id, uid=company_user_id
+        )
+        conn.run(
+            """INSERT INTO appointment_participants
+               (appointment_id, user_id, role, can_message, can_decide)
+               VALUES (:appt, :uid, 'applicant', TRUE, TRUE)
+               ON CONFLICT (appointment_id, user_id) DO NOTHING""",
+            appt=appt_id, uid=applicant_id
+        )
+        if representative_user_id and representative_user_id != company_user_id:
+            conn.run(
+                """INSERT INTO appointment_participants
+                   (appointment_id, user_id, role, can_message, can_decide)
+                   VALUES (:appt, :uid, 'representative', TRUE, FALSE)
+                   ON CONFLICT (appointment_id, user_id) DO NOTHING""",
+                appt=appt_id, uid=representative_user_id
+            )
+
+        _insert_appointment_event(conn, appt_id, company_user_id,
+                                   'appointment_created', new_status='draft')
+        return _get_appointment_row(conn, appt_id)
+    finally:
+        release_conn(conn)
+
+
+def send_appointment(appointment_id: int, user_id: int, scheduled_at_iso: str,
+                     deadline_hours: int = 48, online_url: str = None,
+                     location_text: str = None, notes: str = None,
+                     representative_name: str = None) -> dict:
+    """Send invitation: draft → pending_response. Company only."""
+    from datetime import datetime as _dt, timezone as _tz, timedelta as _td
+    if deadline_hours not in _APPT_DEADLINE_HOURS_ALLOWED:
+        raise ValueError("مهلة الرد: 24 أو 48 أو 72 أو 168 ساعة فقط")
+    if online_url:
+        if not online_url.startswith("https://"):
+            raise ValueError("رابط المقابلة يجب أن يبدأ بـ https://")
+        online_url = online_url.strip()[:2000]
+    if notes:
+        notes = notes.strip()[:1000]
+    if location_text:
+        location_text = location_text.strip()[:500]
+    if representative_name:
+        representative_name = representative_name.strip()[:200]
+
+    appt_result = None
+    notify_payload = None
+    conn = get_conn()
+    try:
+        appt = _get_appointment_row(conn, appointment_id)
+        if not appt:
+            raise ValueError("الموعد غير موجود")
+        if appt['company_id'] != user_id:
+            raise PermissionError("غير مصرح: فقط الشركة المنشئة يمكنها إرسال الدعوة")
+        if appt['status'] != 'draft':
+            raise ValueError(f"لا يمكن إرسال موعد بحالة '{appt['status']}'")
+
+        try:
+            scheduled_dt = _dt.fromisoformat(scheduled_at_iso.replace('Z', '+00:00'))
+            if scheduled_dt.tzinfo is None:
+                scheduled_dt = scheduled_dt.replace(tzinfo=_tz.utc)
+        except Exception:
+            raise ValueError("تنسيق التاريخ غير صالح — استخدم ISO 8601")
+
+        now_utc = _dt.now(_tz.utc)
+        if scheduled_dt <= now_utc:
+            raise ValueError("وقت الموعد يجب أن يكون في المستقبل")
+
+        deadline_dt = now_utc + _td(hours=deadline_hours)
+        if deadline_dt >= scheduled_dt:
+            raise ValueError("مهلة الرد تنتهي بعد وقت الموعد — اختر مهلة أقصر أو موعداً أبعد")
+
+        conn.run(
+            """UPDATE appointments
+               SET status='pending_response', scheduled_at=:sched,
+                   response_deadline_at=:deadline,
+                   online_url=COALESCE(:url, online_url),
+                   location_text=COALESCE(:loc, location_text),
+                   notes=COALESCE(:notes, notes),
+                   representative_name=COALESCE(:rep, representative_name),
+                   updated_at=NOW()
+               WHERE id=:id""",
+            sched=scheduled_dt.isoformat(), deadline=deadline_dt.isoformat(),
+            url=online_url, loc=location_text, notes=notes,
+            rep=representative_name, id=appointment_id
+        )
+        _insert_appointment_event(
+            conn, appointment_id, user_id, 'appointment_sent',
+            old_status='draft', new_status='pending_response',
+            payload={"scheduled_at": scheduled_dt.isoformat(), "deadline_hours": deadline_hours}
+        )
+
+        applicant_id = appt['applicant_id']
+        co_rows = conn.run("SELECT full_name FROM users WHERE id=:id", id=user_id)
+        co_name = co_rows[0][0] if co_rows else "شركة"
+        job_title = ""
+        if appt.get('job_id'):
+            j_rows = conn.run("SELECT title FROM jobs WHERE id=:id", id=appt['job_id'])
+            job_title = j_rows[0][0] if j_rows else ""
+
+        appt_result = _get_appointment_row(conn, appointment_id)
+        notify_payload = {
+            "user_id": applicant_id, "type_": "appointment_invited",
+            "title": f"دعوة مقابلة من {co_name}",
+            "body": f"وصلتك دعوة مقابلة{(' للوظيفة: ' + job_title) if job_title else ''}",
+            "link": f"/appointment-room?id={appointment_id}",
+            "actor_id": user_id, "entity_id": appointment_id,
+            "entity_type": "appointment",
+            "event_key": f"appointment_invited:{appointment_id}:{applicant_id}"
+        }
+    finally:
+        release_conn(conn)
+    if notify_payload:
+        try:
+            create_notification(**notify_payload)
+        except Exception as e:
+            print(f"[send_appointment] notification failed: {e}")
+    return appt_result
+
+
+def accept_appointment(appointment_id: int, user_id: int) -> dict:
+    """Employee accepts: pending_response → confirmed."""
+    appt_result = None
+    notify_payload = None
+    conn = get_conn()
+    try:
+        appt = _get_appointment_row(conn, appointment_id)
+        if not appt:
+            raise ValueError("الموعد غير موجود")
+        if appt['applicant_id'] != user_id:
+            raise PermissionError("غير مصرح: فقط الموظف المدعو يمكنه قبول الموعد")
+        if appt['status'] != 'pending_response':
+            raise ValueError(f"لا يمكن قبول موعد بحالة '{appt['status']}'")
+
+        conn.run(
+            "UPDATE appointments SET status='confirmed', updated_at=NOW() WHERE id=:id",
+            id=appointment_id
+        )
+        _insert_appointment_event(conn, appointment_id, user_id, 'appointment_accepted',
+                                   old_status='pending_response', new_status='confirmed')
+        _insert_appointment_event(conn, appointment_id, None, 'appointment_confirmed',
+                                   old_status='confirmed', new_status='confirmed')
+
+        company_id = appt['company_id']
+        emp_rows = conn.run("SELECT full_name FROM users WHERE id=:id", id=user_id)
+        emp_name = emp_rows[0][0] if emp_rows else "الموظف"
+
+        appt_result = _get_appointment_row(conn, appointment_id)
+        notify_payload = {
+            "user_id": company_id, "type_": "appointment_accepted",
+            "title": f"{emp_name} وافق على الموعد",
+            "body": "تم تأكيد موعد المقابلة",
+            "link": f"/appointment-room?id={appointment_id}",
+            "actor_id": user_id, "entity_id": appointment_id,
+            "entity_type": "appointment",
+            "event_key": f"appointment_accepted:{appointment_id}:{company_id}"
+        }
+    finally:
+        release_conn(conn)
+    if notify_payload:
+        try:
+            create_notification(**notify_payload)
+        except Exception as e:
+            print(f"[accept_appointment] notification failed: {e}")
+    return appt_result
+
+
+def request_reschedule_appointment(appointment_id: int, user_id: int,
+                                    reason: str = "") -> dict:
+    """Employee requests reschedule: pending_response → reschedule_requested."""
+    if reason:
+        reason = reason.strip()[:500]
+    appt_result = None
+    notify_payload = None
+    conn = get_conn()
+    try:
+        appt = _get_appointment_row(conn, appointment_id)
+        if not appt:
+            raise ValueError("الموعد غير موجود")
+        if appt['applicant_id'] != user_id:
+            raise PermissionError("غير مصرح: فقط الموظف المدعو يمكنه طلب تغيير الموعد")
+        if appt['status'] != 'pending_response':
+            raise ValueError(f"لا يمكن طلب تغيير موعد بحالة '{appt['status']}'")
+
+        conn.run(
+            "UPDATE appointments SET status='reschedule_requested', updated_at=NOW() WHERE id=:id",
+            id=appointment_id
+        )
+        _insert_appointment_event(
+            conn, appointment_id, user_id, 'appointment_reschedule_requested',
+            old_status='pending_response', new_status='reschedule_requested',
+            payload={"reason": reason} if reason else None
+        )
+
+        company_id = appt['company_id']
+        emp_rows = conn.run("SELECT full_name FROM users WHERE id=:id", id=user_id)
+        emp_name = emp_rows[0][0] if emp_rows else "الموظف"
+
+        appt_result = _get_appointment_row(conn, appointment_id)
+        notify_payload = {
+            "user_id": company_id, "type_": "appointment_reschedule_requested",
+            "title": f"{emp_name} طلب موعداً آخر",
+            "body": reason[:80] if reason else "الموظف طلب تغيير موعد المقابلة",
+            "link": f"/appointment-room?id={appointment_id}",
+            "actor_id": user_id, "entity_id": appointment_id,
+            "entity_type": "appointment",
+            "event_key": f"appointment_reschedule_requested:{appointment_id}:{company_id}"
+        }
+    finally:
+        release_conn(conn)
+    if notify_payload:
+        try:
+            create_notification(**notify_payload)
+        except Exception as e:
+            print(f"[request_reschedule_appointment] notification failed: {e}")
+    return appt_result
+
+
+def reschedule_appointment(appointment_id: int, user_id: int,
+                            new_scheduled_at_iso: str, deadline_hours: int = 48,
+                            online_url: str = None, location_text: str = None,
+                            notes: str = None) -> dict:
+    """Company proposes new time: reschedule_requested → pending_response."""
+    from datetime import datetime as _dt, timezone as _tz, timedelta as _td
+    if deadline_hours not in _APPT_DEADLINE_HOURS_ALLOWED:
+        raise ValueError("مهلة الرد: 24 أو 48 أو 72 أو 168 ساعة فقط")
+    if online_url:
+        if not online_url.startswith("https://"):
+            raise ValueError("رابط المقابلة يجب أن يبدأ بـ https://")
+        online_url = online_url.strip()[:2000]
+    if notes:
+        notes = notes.strip()[:1000]
+    if location_text:
+        location_text = location_text.strip()[:500]
+
+    appt_result = None
+    notify_payload = None
+    conn = get_conn()
+    try:
+        appt = _get_appointment_row(conn, appointment_id)
+        if not appt:
+            raise ValueError("الموعد غير موجود")
+        if appt['company_id'] != user_id:
+            raise PermissionError("غير مصرح: فقط الشركة يمكنها اقتراح موعد جديد")
+        if appt['status'] != 'reschedule_requested':
+            raise ValueError(f"لا يمكن اقتراح موعد بحالة '{appt['status']}'")
+
+        try:
+            scheduled_dt = _dt.fromisoformat(new_scheduled_at_iso.replace('Z', '+00:00'))
+            if scheduled_dt.tzinfo is None:
+                scheduled_dt = scheduled_dt.replace(tzinfo=_tz.utc)
+        except Exception:
+            raise ValueError("تنسيق التاريخ غير صالح — استخدم ISO 8601")
+
+        now_utc = _dt.now(_tz.utc)
+        if scheduled_dt <= now_utc:
+            raise ValueError("وقت الموعد الجديد يجب أن يكون في المستقبل")
+
+        deadline_dt = now_utc + _td(hours=deadline_hours)
+        if deadline_dt >= scheduled_dt:
+            raise ValueError("مهلة الرد تنتهي بعد وقت الموعد — اختر مهلة أقصر أو موعداً أبعد")
+
+        conn.run(
+            """UPDATE appointments
+               SET status='pending_response', scheduled_at=:sched,
+                   response_deadline_at=:deadline,
+                   online_url=COALESCE(:url, online_url),
+                   location_text=COALESCE(:loc, location_text),
+                   notes=COALESCE(:notes, notes),
+                   updated_at=NOW()
+               WHERE id=:id""",
+            sched=scheduled_dt.isoformat(), deadline=deadline_dt.isoformat(),
+            url=online_url, loc=location_text, notes=notes, id=appointment_id
+        )
+        _insert_appointment_event(
+            conn, appointment_id, user_id, 'appointment_rescheduled',
+            old_status='reschedule_requested', new_status='pending_response',
+            payload={"new_scheduled_at": scheduled_dt.isoformat(),
+                     "deadline_hours": deadline_hours}
+        )
+
+        applicant_id = appt['applicant_id']
+        co_rows = conn.run("SELECT full_name FROM users WHERE id=:id", id=user_id)
+        co_name = co_rows[0][0] if co_rows else "الشركة"
+
+        appt_result = _get_appointment_row(conn, appointment_id)
+        notify_payload = {
+            "user_id": applicant_id, "type_": "appointment_rescheduled",
+            "title": f"{co_name} اقترحت موعداً جديداً",
+            "body": f"تاريخ مقترح جديد: {scheduled_dt.strftime('%Y-%m-%d %H:%M')} UTC",
+            "link": f"/appointment-room?id={appointment_id}",
+            "actor_id": user_id, "entity_id": appointment_id,
+            "entity_type": "appointment",
+            "event_key": f"appointment_rescheduled:{appointment_id}:{applicant_id}"
+        }
+    finally:
+        release_conn(conn)
+    if notify_payload:
+        try:
+            create_notification(**notify_payload)
+        except Exception as e:
+            print(f"[reschedule_appointment] notification failed: {e}")
+    return appt_result
+
+
+def cancel_appointment(appointment_id: int, user_id: int, reason: str = "") -> dict:
+    """Any participant cancels: pending_response|confirmed|reschedule_requested|draft → cancelled."""
+    if reason:
+        reason = reason.strip()[:500]
+    appt_result = None
+    notify_payloads = []
+    conn = get_conn()
+    try:
+        appt = _get_appointment_row(conn, appointment_id)
+        if not appt:
+            raise ValueError("الموعد غير موجود")
+        _check_appt_participant(conn, appointment_id, user_id)
+
+        if appt['status'] not in ('draft', 'pending_response', 'confirmed', 'reschedule_requested'):
+            raise ValueError(f"لا يمكن إلغاء موعد بحالة '{appt['status']}'")
+
+        conn.run(
+            "UPDATE appointments SET status='cancelled', updated_at=NOW() WHERE id=:id",
+            id=appointment_id
+        )
+        _insert_appointment_event(
+            conn, appointment_id, user_id, 'appointment_cancelled',
+            old_status=appt['status'], new_status='cancelled',
+            payload={"reason": reason} if reason else None
+        )
+
+        actor_rows = conn.run("SELECT full_name FROM users WHERE id=:id", id=user_id)
+        actor_name = actor_rows[0][0] if actor_rows else "أحد الأطراف"
+
+        for uid in [appt['company_id'], appt['applicant_id']]:
+            if uid != user_id:
+                notify_payloads.append({
+                    "user_id": uid, "type_": "appointment_cancelled",
+                    "title": "تم إلغاء موعد المقابلة",
+                    "body": f"قام {actor_name} بإلغاء الموعد." + (
+                        f" السبب: {reason[:60]}" if reason else ""),
+                    "link": f"/appointment-room?id={appointment_id}",
+                    "actor_id": user_id, "entity_id": appointment_id,
+                    "entity_type": "appointment",
+                    "event_key": f"appointment_cancelled:{appointment_id}:{uid}"
+                })
+
+        appt_result = _get_appointment_row(conn, appointment_id)
+    finally:
+        release_conn(conn)
+    for payload in notify_payloads:
+        try:
+            create_notification(**payload)
+        except Exception as e:
+            print(f"[cancel_appointment] notification failed: {e}")
+    return appt_result
+
+
+def complete_appointment(appointment_id: int, user_id: int) -> dict:
+    """Company marks interview done: confirmed → completed."""
+    conn = get_conn()
+    try:
+        appt = _get_appointment_row(conn, appointment_id)
+        if not appt:
+            raise ValueError("الموعد غير موجود")
+        if appt['company_id'] != user_id:
+            raise PermissionError("غير مصرح: فقط الشركة يمكنها إنهاء المقابلة")
+        if appt['status'] != 'confirmed':
+            raise ValueError(f"لا يمكن إنهاء مقابلة بحالة '{appt['status']}' — يجب confirmed")
+
+        conn.run(
+            "UPDATE appointments SET status='completed', updated_at=NOW() WHERE id=:id",
+            id=appointment_id
+        )
+        _insert_appointment_event(
+            conn, appointment_id, user_id, 'appointment_completed',
+            old_status='confirmed', new_status='completed'
+        )
+        return _get_appointment_row(conn, appointment_id)
+    finally:
+        release_conn(conn)
+
+
+def close_appointment(appointment_id: int, user_id: int) -> dict:
+    """Company closes room: completed|cancelled → closed."""
+    appt_result = None
+    notify_payloads = []
+    conn = get_conn()
+    try:
+        appt = _get_appointment_row(conn, appointment_id)
+        if not appt:
+            raise ValueError("الموعد غير موجود")
+        if appt['company_id'] != user_id:
+            raise PermissionError("غير مصرح: فقط الشركة يمكنها إغلاق الغرفة")
+        if appt['status'] not in ('completed', 'cancelled'):
+            raise ValueError(f"لا يمكن إغلاق موعد بحالة '{appt['status']}' — يجب completed أو cancelled")
+
+        conn.run(
+            "UPDATE appointments SET status='closed', closed_at=NOW(), updated_at=NOW() WHERE id=:id",
+            id=appointment_id
+        )
+        _insert_appointment_event(
+            conn, appointment_id, user_id, 'appointment_closed',
+            old_status=appt['status'], new_status='closed'
+        )
+
+        for uid in [appt['company_id'], appt['applicant_id']]:
+            notify_payloads.append({
+                "user_id": uid, "type_": "appointment_closed",
+                "title": "تم إغلاق غرفة الموعد",
+                "body": "الغرفة أصبحت للقراءة فقط",
+                "link": f"/appointment-room?id={appointment_id}",
+                "actor_id": user_id, "entity_id": appointment_id,
+                "entity_type": "appointment",
+                "event_key": f"appointment_closed:{appointment_id}:{uid}"
+            })
+
+        appt_result = _get_appointment_row(conn, appointment_id)
+    finally:
+        release_conn(conn)
+    for payload in notify_payloads:
+        try:
+            create_notification(**payload)
+        except Exception as e:
+            print(f"[close_appointment] notification failed: {e}")
+    return appt_result
+
+
+def list_appointments(user_id: int, status_filter: str = None,
+                      limit: int = 20, offset: int = 0) -> list:
+    """List appointments where user is a participant. Enriched with names and computed status."""
+    conn = get_conn()
+    try:
+        params = {"uid": user_id, "limit": min(limit, 50), "offset": max(offset, 0)}
+        status_clause = ""
+        if status_filter and status_filter in _APPT_VALID_STATUSES:
+            status_clause = " AND a.status = :status"
+            params["status"] = status_filter
+
+        rows = conn.run(
+            f"""SELECT a.id, a.job_id, a.application_id, a.company_id, a.applicant_id,
+                       a.status, a.mode, a.scheduled_at, a.response_deadline_at,
+                       a.created_at, a.updated_at, a.closed_at,
+                       a.representative_name,
+                       ap.role AS viewer_role,
+                       co.full_name AS company_name,
+                       emp.full_name AS applicant_name,
+                       j.title AS job_title
+                FROM appointments a
+                JOIN appointment_participants ap
+                     ON ap.appointment_id = a.id AND ap.user_id = :uid
+                JOIN users co ON co.id = a.company_id
+                JOIN users emp ON emp.id = a.applicant_id
+                LEFT JOIN jobs j ON j.id = a.job_id
+                WHERE 1=1{status_clause}
+                ORDER BY a.updated_at DESC
+                LIMIT :limit OFFSET :offset""",
+            **params
+        )
+        cols = ["id","job_id","application_id","company_id","applicant_id",
+                "status","mode","scheduled_at","response_deadline_at",
+                "created_at","updated_at","closed_at","representative_name",
+                "viewer_role","company_name","applicant_name","job_title"]
+        result = []
+        for r in (rows or []):
+            d = _serialize(_row_to_dict(cols, r))
+            d['computed_status'] = _appt_computed_status(d)
+            result.append(d)
+        return result
+    finally:
+        release_conn(conn)
+
+
+def get_appointment_room(appointment_id: int, user_id: int) -> dict:
+    """Full room details for a verified participant. Includes participants list."""
+    conn = get_conn()
+    try:
+        participant = _check_appt_participant(conn, appointment_id, user_id)
+        appt = _get_appointment_row(conn, appointment_id)
+        if not appt:
+            raise ValueError("الموعد غير موجود")
+
+        appt['viewer_role'] = participant['role']
+        appt['can_message'] = participant['can_message']
+        appt['can_decide'] = participant['can_decide']
+        appt['computed_status'] = _appt_computed_status(appt)
+
+        co_rows = conn.run(
+            "SELECT u.full_name, COALESCE(p.avatar_url,'') FROM users u "
+            "LEFT JOIN profiles p ON p.user_id=u.id WHERE u.id=:id",
+            id=appt['company_id']
+        )
+        emp_rows = conn.run(
+            "SELECT u.full_name, COALESCE(p.avatar_url,'') FROM users u "
+            "LEFT JOIN profiles p ON p.user_id=u.id WHERE u.id=:id",
+            id=appt['applicant_id']
+        )
+        appt['company_name'] = co_rows[0][0] if co_rows else ""
+        appt['company_avatar'] = co_rows[0][1] if co_rows else ""
+        appt['applicant_name'] = emp_rows[0][0] if emp_rows else ""
+        appt['applicant_avatar'] = emp_rows[0][1] if emp_rows else ""
+
+        if appt.get('job_id'):
+            j_rows = conn.run("SELECT title FROM jobs WHERE id=:id", id=appt['job_id'])
+            appt['job_title'] = j_rows[0][0] if j_rows else None
+        else:
+            appt['job_title'] = None
+
+        p_rows = conn.run(
+            """SELECT ap.user_id, ap.role, ap.can_message, ap.can_decide, u.full_name
+               FROM appointment_participants ap
+               JOIN users u ON u.id=ap.user_id
+               WHERE ap.appointment_id=:appt ORDER BY ap.created_at""",
+            appt=appointment_id
+        )
+        appt['participants'] = [
+            {"user_id": r[0], "role": r[1], "can_message": r[2],
+             "can_decide": r[3], "full_name": r[4]}
+            for r in (p_rows or [])
+        ]
+        return appt
+    finally:
+        release_conn(conn)
+
+
+def get_appointment_events(appointment_id: int, user_id: int) -> list:
+    """Return timeline events for a participant (immutable log)."""
+    conn = get_conn()
+    try:
+        _check_appt_participant(conn, appointment_id, user_id)
+        rows = conn.run(
+            """SELECT ae.id, ae.event_type, ae.old_status, ae.new_status,
+                      ae.payload, ae.created_at, ae.actor_id,
+                      COALESCE(u.full_name, 'النظام') AS actor_name
+               FROM appointment_events ae
+               LEFT JOIN users u ON u.id=ae.actor_id
+               WHERE ae.appointment_id=:appt
+               ORDER BY ae.created_at ASC""",
+            appt=appointment_id
+        )
+        cols = ["id","event_type","old_status","new_status","payload",
+                "created_at","actor_id","actor_name"]
+        result = []
+        for r in (rows or []):
+            d = _serialize(_row_to_dict(cols, r))
+            if d.get('payload') and isinstance(d['payload'], str):
+                try:
+                    d['payload'] = _json_mod.loads(d['payload'])
+                except Exception:
+                    pass
+            result.append(d)
+        return result
+    finally:
+        release_conn(conn)
+
+
+def get_appointment_messages(appointment_id: int, user_id: int,
+                              limit: int = 50, offset: int = 0) -> list:
+    """Return active messages (excludes soft-deleted) for a participant."""
+    conn = get_conn()
+    try:
+        _check_appt_participant(conn, appointment_id, user_id)
+        rows = conn.run(
+            """SELECT am.id, am.appointment_id, am.sender_id, am.body,
+                      am.created_at, am.edited_at, u.full_name AS sender_name
+               FROM appointment_messages am
+               JOIN users u ON u.id=am.sender_id
+               WHERE am.appointment_id=:appt AND am.deleted_at IS NULL
+               ORDER BY am.created_at ASC
+               LIMIT :lim OFFSET :off""",
+            appt=appointment_id, lim=min(limit, 100), off=max(offset, 0)
+        )
+        cols = ["id","appointment_id","sender_id","body","created_at","edited_at","sender_name"]
+        result = []
+        for r in (rows or []):
+            d = _serialize(_row_to_dict(cols, r))
+            d['is_own'] = (d['sender_id'] == user_id)
+            result.append(d)
+        return result
+    finally:
+        release_conn(conn)
+
+
+def create_appointment_message(appointment_id: int, user_id: int, body: str) -> dict:
+    """Send message in appointment thread. Participants only. Closed rooms reject."""
+    body = (body or "").strip()
+    if not body:
+        raise ValueError("نص الرسالة مطلوب")
+    if len(body) > 2000:
+        raise ValueError("الرسالة طويلة جداً — الحد الأقصى 2000 حرف")
+
+    conn = get_conn()
+    try:
+        appt = _get_appointment_row(conn, appointment_id)
+        if not appt:
+            raise ValueError("الموعد غير موجود")
+        if appt['status'] == 'closed':
+            raise ValueError("الغرفة مغلقة — لا يمكن إرسال رسائل")
+
+        participant = _check_appt_participant(conn, appointment_id, user_id)
+        if not participant['can_message']:
+            raise PermissionError("غير مصرح: لا صلاحية إرسال رسائل في هذا الموعد")
+
+        rows = conn.run(
+            """INSERT INTO appointment_messages (appointment_id, sender_id, body)
+               VALUES (:appt, :uid, :body)
+               RETURNING id, appointment_id, sender_id, body, created_at""",
+            appt=appointment_id, uid=user_id, body=body
+        )
+        sndr_rows = conn.run("SELECT full_name FROM users WHERE id=:id", id=user_id)
+        sender_name = sndr_rows[0][0] if sndr_rows else ""
+        r = rows[0]
+        return {
+            "id": r[0], "appointment_id": r[1], "sender_id": r[2],
+            "body": r[3],
+            "created_at": r[4].isoformat() if r[4] else None,
+            "edited_at": None, "sender_name": sender_name, "is_own": True
+        }
+    finally:
+        release_conn(conn)

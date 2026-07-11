@@ -413,13 +413,13 @@ appointment_closed:{appointment_id}:{affected_party_id}
 | المرحلة | العنوان | الحالة | ما يشمل | الملفات |
 |---------|---------|--------|---------|---------|
 | **Phase 1** | Schema + Migration only | ✅ **مُنجز — PR #460** | `_migrate_appointments()` في `auth.py` — الجداول الأربعة + indexes + FK — لا endpoints | `auth.py`, `server.py` |
-| **Phase 2** | Backend APIs الأساسية | 🔜 pending | `auth.py` helpers + `server.py` endpoints (POST/GET/accept/cancel/complete/close) — بدون frontend | `auth.py`, `server.py` |
-| **Phase 3** | Employee Appointments List | 🔜 pending | صفحة المواعيد للموظف — بطاقات + حالات | `static/appointments/`, `appointments.html` (جديد) |
-| **Phase 4** | Company Appointments List | 🔜 pending | قائمة المواعيد للشركة في company profile | تعديل على `company-profile.html` + modules |
-| **Phase 5** | Appointment Room | 🔜 pending | غرفة الموعد — تفاصيل + أزرار + timeline + عداد تنازلي | صفحة جديدة `appointment-room.html` |
-| **Phase 6** | Appointment Thread / Messages | 🔜 pending | محادثة الموعد داخل الغرفة | endpoint messages + frontend |
-| **Phase 7** | Appointment Notifications | 🔜 pending | hooks في `auth.py` للإشعارات الفورية (بدون scheduler) | `auth.py` |
-| **Phase 8** | Scheduler-based Reminders | ⏸ مؤجل | تذكيرات قبل الموعد وقبل انتهاء المهلة | **يحتاج Scheduler Infrastructure** |
+| **Phase 2** | Backend APIs الأساسية | ✅ **مُنجز — PR #461** | 13 auth.py helpers + 13 server.py endpoints (POST/GET/accept/cancel/complete/close/messages/events) | `auth.py`, `server.py` |
+| **Phase 3** | Employee Appointments List | ✅ **مُنجز — PR #461** | صفحة مواعيدي للموظف والشركة — بطاقات + فلتر + modal إنشاء | `appointments.html` |
+| **Phase 4** | Company Appointments List | ✅ **مُنجز — PR #461** | نفس صفحة المواعيد — IS_CO detection يُظهر واجهة الشركة + FAB | `appointments.html` |
+| **Phase 5** | Appointment Room | ✅ **مُنجز — PR #461** | غرفة الموعد — تفاصيل + أزرار + timeline + عداد تنازلي + tabs | `appointment-room.html` |
+| **Phase 6** | Appointment Thread / Messages | ✅ **مُنجز — PR #461** | محادثة الموعد داخل الغرفة + polling كل 5 ثواني (no WebSocket) | `appointment-room.html` |
+| **Phase 7** | Appointment Notifications | ✅ **مُنجز — PR #461** | 7 notification hooks في `auth.py` — فورية بدون scheduler — event_key idempotent | `auth.py` |
+| **Phase 8** | Scheduler-based Reminders | ⏸ **مؤجل** | تذكيرات قبل الموعد وقبل انتهاء المهلة | **يحتاج Scheduler Infrastructure** |
 
 ---
 

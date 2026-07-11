@@ -1,0 +1,836 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>غرفة الموعد — تواصلنا</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#070b18;--card:rgba(255,255,255,.03);--border:rgba(255,255,255,.07);
+  --ac:#00c896;--ac2:#2563ff;--ac3:#8b5cf6;
+  --txt:#e8eaf0;--sub:#8892a4;--danger:#ef4444;--warn:#f59e0b;
+  --r:14px;--font:'Cairo',sans-serif
+}
+body{background:var(--bg);color:var(--txt);font-family:var(--font);min-height:100vh;
+  display:flex;flex-direction:column}
+/* Header */
+.hdr{position:sticky;top:0;z-index:100;background:rgba(7,11,24,.97);backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--border);padding:12px 16px;display:flex;align-items:center;gap:10px}
+.hdr-back{width:34px;height:34px;border-radius:10px;border:1px solid var(--border);
+  background:var(--card);display:flex;align-items:center;justify-content:center;
+  color:var(--sub);text-decoration:none;font-size:18px;flex-shrink:0}
+.hdr-info{flex:1;min-width:0}
+.hdr-title{font-size:15px;font-weight:700;color:var(--txt)}
+.hdr-sub{font-size:12px;color:var(--sub)}
+.badge{display:inline-flex;align-items:center;padding:2px 10px;border-radius:20px;
+  font-size:11px;font-weight:700}
+.badge-pending{background:rgba(245,158,11,.12);color:var(--warn)}
+.badge-confirmed{background:rgba(0,200,150,.12);color:var(--ac)}
+.badge-cancelled{background:rgba(239,68,68,.12);color:var(--danger)}
+.badge-reschedule{background:rgba(139,92,246,.12);color:var(--ac3)}
+.badge-expired{background:rgba(239,68,68,.1);color:#f87171}
+.badge-completed{background:rgba(37,99,255,.12);color:var(--ac2)}
+.badge-closed{background:rgba(255,255,255,.06);color:var(--sub)}
+.badge-draft{background:rgba(255,255,255,.06);color:var(--sub)}
+.badge-missed{background:rgba(239,68,68,.1);color:#f87171}
+/* Main layout: scrollable area above fixed bottom */
+.main{flex:1;overflow-y:auto;padding:12px 16px;padding-bottom:8px}
+/* Info card */
+.info-card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);
+  padding:16px;margin-bottom:12px}
+.ic-row{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.ic-ava{width:48px;height:48px;border-radius:50%;background:rgba(37,99,255,.18);
+  display:flex;align-items:center;justify-content:center;font-weight:700;font-size:18px;
+  color:var(--ac2);flex-shrink:0;overflow:hidden}
+.ic-ava img{width:100%;height:100%;object-fit:cover}
+.ic-names{flex:1;min-width:0}
+.ic-main{font-size:15px;font-weight:700;color:var(--txt)}
+.ic-sub{font-size:12px;color:var(--sub);margin-top:2px}
+.ic-detail{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.ic-meta{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--sub)}
+.ic-meta svg{width:13px;height:13px;flex-shrink:0}
+/* countdown */
+.countdown{font-size:12px;color:var(--warn);font-weight:700;margin-top:6px}
+/* Online URL */
+.url-card{background:rgba(37,99,255,.06);border:1px solid rgba(37,99,255,.2);
+  border-radius:10px;padding:10px 14px;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.url-lbl{font-size:12px;color:var(--sub);margin-bottom:2px}
+.url-link{font-size:13px;color:var(--ac2);word-break:break-all}
+/* Action buttons */
+.actions{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+.btn-act{flex:1;min-width:140px;padding:10px 14px;border-radius:10px;border:none;
+  font-size:13px;font-weight:700;font-family:var(--font);cursor:pointer;transition:.2s}
+.btn-accept{background:rgba(0,200,150,.15);border:1px solid rgba(0,200,150,.3);color:var(--ac)}
+.btn-accept:hover{background:rgba(0,200,150,.25)}
+.btn-reschedule{background:rgba(139,92,246,.12);border:1px solid rgba(139,92,246,.25);color:var(--ac3)}
+.btn-cancel-act{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.2);color:var(--danger)}
+.btn-complete{background:rgba(37,99,255,.12);border:1px solid rgba(37,99,255,.25);color:var(--ac2)}
+.btn-close-room{background:rgba(255,255,255,.06);border:1px solid var(--border);color:var(--sub)}
+.btn-propose{background:rgba(0,200,150,.12);border:1px solid rgba(0,200,150,.25);color:var(--ac)}
+/* Tabs */
+.tabs{display:flex;border-bottom:1px solid var(--border);margin-bottom:12px}
+.tab{padding:10px 18px;font-size:13px;font-weight:600;color:var(--sub);cursor:pointer;
+  border-bottom:2px solid transparent;transition:.2s}
+.tab.active{color:var(--ac);border-bottom-color:var(--ac)}
+.tab-panel{display:none}
+.tab-panel.active{display:block}
+/* Events timeline */
+.evt-item{display:flex;gap:10px;margin-bottom:12px;align-items:flex-start}
+.evt-dot{width:10px;height:10px;border-radius:50%;background:var(--ac);margin-top:4px;flex-shrink:0}
+.evt-dot.system{background:var(--sub)}
+.evt-dot.cancel{background:var(--danger)}
+.evt-body{flex:1}
+.evt-type{font-size:13px;color:var(--txt);font-weight:600}
+.evt-meta{font-size:11px;color:var(--sub);margin-top:2px}
+.evt-reason{font-size:12px;color:var(--warn);margin-top:3px}
+/* Messages thread */
+.msgs-list{display:flex;flex-direction:column;gap:8px;padding-bottom:4px}
+.msg-item{max-width:80%;padding:9px 12px;border-radius:12px;font-size:14px;line-height:1.5}
+.msg-own{align-self:flex-start;background:rgba(0,200,150,.1);border:1px solid rgba(0,200,150,.15);color:var(--txt)}
+.msg-other{align-self:flex-end;background:var(--card);border:1px solid var(--border);color:var(--txt)}
+.msg-name{font-size:11px;font-weight:700;color:var(--sub);margin-bottom:4px}
+.msg-time{font-size:10px;color:var(--sub);margin-top:3px;text-align:left}
+.msgs-empty{text-align:center;padding:30px;color:var(--sub);font-size:13px}
+/* Fixed bottom input */
+.msg-input-bar{position:sticky;bottom:0;background:rgba(7,11,24,.97);border-top:1px solid var(--border);
+  padding:10px 16px;display:flex;gap:8px;align-items:flex-end}
+.msg-input-bar.hidden{display:none}
+.msg-ta{flex:1;padding:9px 12px;border-radius:10px;border:1px solid var(--border);
+  background:rgba(255,255,255,.04);color:var(--txt);font-family:var(--font);
+  font-size:14px;resize:none;rows:1;min-height:38px;max-height:100px}
+.msg-ta:focus{outline:none;border-color:var(--ac)}
+.msg-send-btn{padding:9px 16px;border-radius:10px;background:transparent;
+  border:1.5px solid var(--ac);color:var(--ac);font-family:var(--font);font-size:13px;
+  font-weight:700;cursor:pointer;flex-shrink:0;transition:.2s;height:38px}
+.msg-send-btn:hover{background:rgba(0,200,150,.15)}
+/* Reschedule/reason modal */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:200;
+  display:flex;align-items:flex-end;justify-content:center;opacity:0;pointer-events:none;transition:.2s}
+.modal-bg.open{opacity:1;pointer-events:all}
+.modal{background:#0d1526;border-radius:20px 20px 0 0;padding:24px 20px 40px;
+  width:100%;max-width:480px;max-height:90vh;overflow-y:auto;transform:translateY(20px);transition:.2s}
+.modal-bg.open .modal{transform:translateY(0)}
+.modal-title{font-size:16px;font-weight:700;margin-bottom:16px}
+.form-group{margin-bottom:14px}
+.form-label{font-size:12px;color:var(--sub);margin-bottom:5px;display:block}
+.form-input{width:100%;padding:10px 14px;border-radius:10px;border:1px solid var(--border);
+  background:rgba(255,255,255,.04);color:var(--txt);font-family:var(--font);font-size:14px}
+.form-input:focus{outline:none;border-color:var(--ac)}
+.form-select{width:100%;padding:10px 14px;border-radius:10px;border:1px solid var(--border);
+  background:#0d1526;color:var(--txt);font-family:var(--font);font-size:14px}
+.btn-submit{width:100%;padding:12px;border-radius:12px;background:var(--ac);color:#fff;
+  border:none;font-size:15px;font-weight:700;font-family:var(--font);cursor:pointer;margin-top:4px}
+.btn-cancel-modal{width:100%;padding:12px;border-radius:12px;background:var(--card);
+  color:var(--sub);border:1px solid var(--border);font-size:15px;font-family:var(--font);
+  cursor:pointer;margin-top:8px}
+/* closed overlay */
+.closed-banner{background:rgba(255,255,255,.04);border:1px solid var(--border);
+  border-radius:10px;padding:12px 16px;text-align:center;color:var(--sub);font-size:13px;
+  margin-bottom:12px}
+.error-page{text-align:center;padding:80px 20px;color:var(--sub)}
+.skeleton{background:linear-gradient(90deg,rgba(255,255,255,.04) 25%,rgba(255,255,255,.07) 50%,rgba(255,255,255,.04) 75%);
+  background-size:200% 100%;animation:sk 1.4s infinite;border-radius:8px;margin-bottom:10px}
+@keyframes sk{0%{background-position:200%}100%{background-position:-200%}}
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <a class="hdr-back" href="/appointments">&#8249;</a>
+  <div class="hdr-info">
+    <div class="hdr-title" id="hdrTitle">غرفة الموعد</div>
+    <div class="hdr-sub" id="hdrSub"></div>
+  </div>
+  <span id="hdrBadge" class="badge"></span>
+</div>
+
+<div class="main" id="mainContent">
+  <div class="skeleton" style="height:100px"></div>
+  <div class="skeleton" style="height:60px"></div>
+  <div class="skeleton" style="height:200px"></div>
+</div>
+
+<div class="msg-input-bar hidden" id="msgInputBar">
+  <textarea class="msg-ta" id="msgTa" rows="1" placeholder="اكتب رسالة..."></textarea>
+  <button class="msg-send-btn" id="msgSendBtn">إرسال</button>
+</div>
+
+<!-- Reason modal (cancel / request reschedule) -->
+<div class="modal-bg" id="reasonModal">
+  <div class="modal">
+    <div class="modal-title" id="reasonModalTitle">السبب</div>
+    <div class="form-group">
+      <label class="form-label">اكتب سبباً (اختياري)</label>
+      <input class="form-input" id="reasonInput" type="text" placeholder="السبب...">
+    </div>
+    <button class="btn-submit" id="btnConfirmReason">تأكيد</button>
+    <button class="btn-cancel-modal" id="btnCloseReason">إلغاء</button>
+  </div>
+</div>
+
+<!-- Reschedule proposal modal (company) -->
+<div class="modal-bg" id="reschedModal">
+  <div class="modal">
+    <div class="modal-title">اقتراح موعد جديد</div>
+    <div class="form-group">
+      <label class="form-label">التاريخ والوقت الجديد</label>
+      <input class="form-input" id="newSchedAt" type="datetime-local">
+    </div>
+    <div class="form-group">
+      <label class="form-label">مهلة الرد</label>
+      <select class="form-select" id="newDeadlineHrs">
+        <option value="24">24 ساعة</option>
+        <option value="48" selected>48 ساعة</option>
+        <option value="72">3 أيام</option>
+        <option value="168">7 أيام</option>
+      </select>
+    </div>
+    <button class="btn-submit" id="btnConfirmResched">اقتراح الموعد</button>
+    <button class="btn-cancel-modal" id="btnCloseResched">إلغاء</button>
+  </div>
+</div>
+
+<!-- Send appointment modal (draft state, company only) -->
+<div class="modal-bg" id="sendModal">
+  <div class="modal">
+    <div class="modal-title">إرسال الدعوة</div>
+    <div class="form-group">
+      <label class="form-label">التاريخ والوقت</label>
+      <input class="form-input" id="sendSchedAt" type="datetime-local">
+    </div>
+    <div class="form-group">
+      <label class="form-label">مهلة الرد</label>
+      <select class="form-select" id="sendDeadlineHrs">
+        <option value="24">24 ساعة</option>
+        <option value="48" selected>48 ساعة</option>
+        <option value="72">3 أيام</option>
+        <option value="168">7 أيام</option>
+      </select>
+    </div>
+    <button class="btn-submit" id="btnConfirmSend">إرسال الدعوة</button>
+    <button class="btn-cancel-modal" id="btnCloseSend">إلغاء</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  'use strict';
+  const _u = JSON.parse(localStorage.getItem('tawasalna_user') || 'null');
+  const _jwt = localStorage.getItem('tw_jwt') || '';
+  if (!_u || !_jwt) { location.href = '/login'; return; }
+
+  const params = new URLSearchParams(location.search);
+  const APPT_ID = parseInt(params.get('id'));
+  if (!APPT_ID) { location.href = '/appointments'; return; }
+
+  let _appt = null;
+  let _activeTab = 'events';
+  let _reasonAction = null; // 'cancel' | 'request-reschedule'
+  let _msgPollTimer = null;
+
+  const STATUS_LABEL = {
+    draft:'مسودة', pending_response:'بانتظار الرد',
+    reschedule_requested:'طلب تغيير موعد', confirmed:'مؤكَّد',
+    cancelled:'ملغي', expired:'انتهت المهلة', missed:'فائت',
+    completed:'مكتملة', closed:'مغلق'
+  };
+  const STATUS_CLASS = {
+    draft:'badge-draft', pending_response:'badge-pending',
+    reschedule_requested:'badge-reschedule', confirmed:'badge-confirmed',
+    cancelled:'badge-cancelled', expired:'badge-expired',
+    missed:'badge-missed', completed:'badge-completed', closed:'badge-closed'
+  };
+  const EVT_LABEL = {
+    appointment_created:'تم إنشاء الدعوة',
+    appointment_sent:'أُرسلت الدعوة للموظف',
+    appointment_accepted:'الموظف وافق على الموعد',
+    appointment_reschedule_requested:'الموظف طلب موعداً آخر',
+    appointment_rescheduled:'الشركة اقترحت موعداً جديداً',
+    appointment_confirmed:'تم تأكيد الموعد',
+    appointment_cancelled:'تم إلغاء الموعد',
+    appointment_completed:'تمت المقابلة',
+    appointment_closed:'تم إغلاق غرفة الموعد',
+    appointment_expired:'انتهت مهلة الرد',
+    message_sent:'رسالة في thread الموعد'
+  };
+  const MODE_LABEL = { online:'أونلاين', onsite:'حضوري' };
+
+  function api(path, opts){
+    return fetch(path, Object.assign({
+      headers:{'Authorization':'Bearer '+_jwt,'Content-Type':'application/json'}
+    }, opts)).then(r => r.json());
+  }
+
+  function safeText(el, text){ el.textContent = String(text || ''); }
+
+  function formatDate(iso){
+    if (!iso) return '';
+    try {
+      return new Date(iso).toLocaleString('ar-JO',{dateStyle:'medium',timeStyle:'short'});
+    } catch(e){ return iso; }
+  }
+
+  function initials(name){
+    if (!name) return '?';
+    const p = name.trim().split(' ');
+    return (p[0][0]||'')+(p[1]?p[1][0]:'');
+  }
+
+  function countdown(iso){
+    if (!iso) return '';
+    const diff = new Date(iso) - Date.now();
+    if (diff <= 0) return 'انتهى الوقت';
+    const h = Math.floor(diff/3600000);
+    const m = Math.floor((diff%3600000)/60000);
+    if (h > 48) return Math.floor(h/24) + ' أيام';
+    if (h > 0) return h + ' ساعة و' + m + ' دقيقة';
+    return m + ' دقيقة';
+  }
+
+  // DOM refs
+  const mainContent = document.getElementById('mainContent');
+  const msgInputBar = document.getElementById('msgInputBar');
+  const msgTa       = document.getElementById('msgTa');
+  const msgSendBtn  = document.getElementById('msgSendBtn');
+  const hdrTitle    = document.getElementById('hdrTitle');
+  const hdrSub      = document.getElementById('hdrSub');
+  const hdrBadge    = document.getElementById('hdrBadge');
+  const reasonModal = document.getElementById('reasonModal');
+  const reschedModal= document.getElementById('reschedModal');
+  const sendModal   = document.getElementById('sendModal');
+
+  function renderRoom(appt){
+    _appt = appt;
+    const s = appt.computed_status || appt.status;
+    const isClosed = s === 'closed';
+    const IS_CO = appt.viewer_role === 'company';
+    const IS_EMP = appt.viewer_role === 'applicant';
+
+    // Header
+    safeText(hdrTitle, IS_CO ? (appt.applicant_name||'الموظف') : (appt.company_name||'الشركة'));
+    safeText(hdrSub, appt.job_title || 'مقابلة');
+    hdrBadge.className = 'badge ' + (STATUS_CLASS[s]||'badge-draft');
+    safeText(hdrBadge, STATUS_LABEL[s]||s);
+
+    mainContent.innerHTML = '';
+
+    // Info card
+    const infoCard = document.createElement('div');
+    infoCard.className = 'info-card';
+    const icRow = document.createElement('div');
+    icRow.className = 'ic-row';
+
+    const ava = document.createElement('div');
+    ava.className = 'ic-ava';
+    const iniEl = document.createElement('span');
+    safeText(iniEl, IS_CO ? initials(appt.applicant_name) : initials(appt.company_name));
+    ava.appendChild(iniEl);
+
+    const names = document.createElement('div');
+    names.className = 'ic-names';
+    const mainName = document.createElement('div');
+    mainName.className = 'ic-main';
+    safeText(mainName, IS_CO ? (appt.applicant_name||'الموظف') : (appt.company_name||'الشركة'));
+    const subName = document.createElement('div');
+    subName.className = 'ic-sub';
+    safeText(subName, appt.job_title || 'مقابلة عامة');
+    names.appendChild(mainName);
+    names.appendChild(subName);
+    icRow.appendChild(ava);
+    icRow.appendChild(names);
+    infoCard.appendChild(icRow);
+
+    const details = document.createElement('div');
+    details.className = 'ic-detail';
+
+    function addMeta(iconPath, text){
+      if (!text) return;
+      const d = document.createElement('div');
+      d.className = 'ic-meta';
+      d.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">' + iconPath + '</svg>';
+      const sp = document.createElement('span');
+      safeText(sp, text);
+      d.appendChild(sp);
+      details.appendChild(d);
+    }
+
+    addMeta('<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
+            appt.scheduled_at ? formatDate(appt.scheduled_at) : 'لم يُحدَّد بعد');
+    addMeta('<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>',
+            MODE_LABEL[appt.mode]||appt.mode);
+    if (appt.representative_name) {
+      addMeta('<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+              'ممثل الشركة: ' + appt.representative_name);
+    }
+
+    infoCard.appendChild(details);
+
+    // Countdown
+    if (s === 'pending_response' && appt.response_deadline_at) {
+      const cd = document.createElement('div');
+      cd.className = 'countdown';
+      safeText(cd, 'المتبقي على المهلة: ' + countdown(appt.response_deadline_at));
+      infoCard.appendChild(cd);
+    }
+    if (s === 'confirmed' && appt.scheduled_at) {
+      const cd = document.createElement('div');
+      cd.className = 'countdown';
+      safeText(cd, 'المتبقي على الموعد: ' + countdown(appt.scheduled_at));
+      infoCard.appendChild(cd);
+    }
+
+    mainContent.appendChild(infoCard);
+
+    // Online URL (participants only — already verified server-side)
+    if (appt.online_url && appt.mode === 'online' && !isClosed) {
+      const urlCard = document.createElement('div');
+      urlCard.className = 'url-card';
+      urlCard.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>';
+      const info2 = document.createElement('div');
+      const lbl2 = document.createElement('div');
+      lbl2.className = 'url-lbl';
+      safeText(lbl2, 'رابط الاجتماع');
+      const urlA = document.createElement('a');
+      urlA.className = 'url-link';
+      urlA.href = appt.online_url;
+      urlA.target = '_blank';
+      urlA.rel = 'noopener noreferrer';
+      safeText(urlA, appt.online_url);
+      info2.appendChild(lbl2);
+      info2.appendChild(urlA);
+      urlCard.appendChild(info2);
+      mainContent.appendChild(urlCard);
+    }
+
+    // Location (onsite)
+    if (appt.location_text && appt.mode === 'onsite') {
+      const locCard = document.createElement('div');
+      locCard.style.cssText = 'background:rgba(245,158,11,.06);border:1px solid rgba(245,158,11,.2);border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:13px';
+      const ll = document.createElement('div');
+      ll.style.cssText = 'font-size:11px;color:var(--sub);margin-bottom:3px';
+      safeText(ll, 'موقع المقابلة');
+      const lt = document.createElement('div');
+      lt.style.cssText = 'color:var(--txt)';
+      safeText(lt, appt.location_text);
+      locCard.appendChild(ll);
+      locCard.appendChild(lt);
+      mainContent.appendChild(locCard);
+    }
+
+    // Closed banner
+    if (isClosed) {
+      const banner = document.createElement('div');
+      banner.className = 'closed-banner';
+      safeText(banner, '🔒 هذه الغرفة مغلقة — القراءة فقط');
+      mainContent.appendChild(banner);
+    }
+
+    // Action buttons
+    if (!isClosed && s !== 'expired' && s !== 'missed') {
+      const actDiv = document.createElement('div');
+      actDiv.className = 'actions';
+
+      if (IS_CO && s === 'draft') {
+        const b = document.createElement('button');
+        b.className = 'btn-act btn-accept';
+        safeText(b, '📤 إرسال الدعوة');
+        b.addEventListener('click', function(){ sendModal.classList.add('open'); });
+        actDiv.appendChild(b);
+      }
+      if (IS_EMP && s === 'pending_response') {
+        const b1 = document.createElement('button');
+        b1.className = 'btn-act btn-accept';
+        safeText(b1, '✅ موافق على الموعد');
+        b1.addEventListener('click', function(){ doAccept(); });
+        const b2 = document.createElement('button');
+        b2.className = 'btn-act btn-reschedule';
+        safeText(b2, '📅 طلب موعد آخر');
+        b2.addEventListener('click', function(){
+          _reasonAction = 'request-reschedule';
+          document.getElementById('reasonModalTitle').textContent = 'طلب تغيير الموعد';
+          document.getElementById('reasonInput').value = '';
+          reasonModal.classList.add('open');
+        });
+        const b3 = document.createElement('button');
+        b3.className = 'btn-act btn-cancel-act';
+        safeText(b3, '❌ اعتذار / إلغاء');
+        b3.addEventListener('click', function(){
+          _reasonAction = 'cancel';
+          document.getElementById('reasonModalTitle').textContent = 'إلغاء الموعد';
+          document.getElementById('reasonInput').value = '';
+          reasonModal.classList.add('open');
+        });
+        actDiv.appendChild(b1);
+        actDiv.appendChild(b2);
+        actDiv.appendChild(b3);
+      }
+      if (IS_CO && s === 'reschedule_requested') {
+        const b = document.createElement('button');
+        b.className = 'btn-act btn-propose';
+        safeText(b, '📅 اقتراح موعد جديد');
+        b.addEventListener('click', function(){ reschedModal.classList.add('open'); });
+        const bc = document.createElement('button');
+        bc.className = 'btn-act btn-cancel-act';
+        safeText(bc, '❌ إلغاء الموعد');
+        bc.addEventListener('click', function(){
+          _reasonAction = 'cancel';
+          document.getElementById('reasonModalTitle').textContent = 'إلغاء الموعد';
+          document.getElementById('reasonInput').value = '';
+          reasonModal.classList.add('open');
+        });
+        actDiv.appendChild(b);
+        actDiv.appendChild(bc);
+      }
+      if (IS_CO && s === 'confirmed') {
+        const b = document.createElement('button');
+        b.className = 'btn-act btn-complete';
+        safeText(b, '🏁 إنهاء المقابلة');
+        b.addEventListener('click', function(){ doComplete(); });
+        actDiv.appendChild(b);
+      }
+      if (IS_CO && (s === 'completed' || s === 'cancelled')) {
+        const b = document.createElement('button');
+        b.className = 'btn-act btn-close-room';
+        safeText(b, '🔒 إغلاق الغرفة');
+        b.addEventListener('click', function(){ doClose(); });
+        actDiv.appendChild(b);
+      }
+      // Any participant can cancel confirmed/pending
+      if (IS_EMP && (s === 'confirmed')) {
+        const b = document.createElement('button');
+        b.className = 'btn-act btn-cancel-act';
+        safeText(b, '❌ إلغاء الموعد');
+        b.addEventListener('click', function(){
+          _reasonAction = 'cancel';
+          document.getElementById('reasonModalTitle').textContent = 'إلغاء الموعد';
+          document.getElementById('reasonInput').value = '';
+          reasonModal.classList.add('open');
+        });
+        actDiv.appendChild(b);
+      }
+
+      if (actDiv.childElementCount > 0) mainContent.appendChild(actDiv);
+    }
+
+    // Tabs
+    const tabsDiv = document.createElement('div');
+    tabsDiv.className = 'tabs';
+    const tEvents = document.createElement('div');
+    tEvents.className = 'tab' + (_activeTab==='events'?' active':'');
+    safeText(tEvents, 'سجل الأحداث');
+    tEvents.addEventListener('click', function(){
+      _activeTab='events';
+      tEvents.classList.add('active'); tMsgs.classList.remove('active');
+      pEvents.classList.add('active'); pMsgs.classList.remove('active');
+    });
+    const tMsgs = document.createElement('div');
+    tMsgs.className = 'tab' + (_activeTab==='messages'?' active':'');
+    safeText(tMsgs, 'المحادثة');
+    tMsgs.addEventListener('click', function(){
+      _activeTab='messages';
+      tMsgs.classList.add('active'); tEvents.classList.remove('active');
+      pMsgs.classList.add('active'); pEvents.classList.remove('active');
+      scrollMsgsToBottom();
+    });
+    tabsDiv.appendChild(tEvents);
+    tabsDiv.appendChild(tMsgs);
+    mainContent.appendChild(tabsDiv);
+
+    // Events panel
+    const pEvents = document.createElement('div');
+    pEvents.className = 'tab-panel' + (_activeTab==='events'?' active':'');
+    pEvents.id = 'pEvents';
+    mainContent.appendChild(pEvents);
+    loadEvents(pEvents);
+
+    // Messages panel
+    const pMsgs = document.createElement('div');
+    pMsgs.className = 'tab-panel' + (_activeTab==='messages'?' active':'');
+    pMsgs.id = 'pMsgs';
+    mainContent.appendChild(pMsgs);
+    loadMessages(pMsgs);
+
+    // Message input bar
+    const canMsg = appt.can_message && !isClosed;
+    if (canMsg) {
+      msgInputBar.classList.remove('hidden');
+      startMsgPoll();
+    } else {
+      msgInputBar.classList.add('hidden');
+    }
+  }
+
+  function loadEvents(container){
+    container.innerHTML = '<div style="color:var(--sub);font-size:13px;padding:10px">جاري التحميل...</div>';
+    api('/api/appointments/'+APPT_ID+'/events').then(res => {
+      container.innerHTML = '';
+      if (!res.ok || !res.data || res.data.length === 0) {
+        const e = document.createElement('div');
+        e.style.cssText = 'text-align:center;padding:20px;color:var(--sub);font-size:13px';
+        safeText(e, 'لا توجد أحداث بعد');
+        container.appendChild(e);
+        return;
+      }
+      res.data.forEach(ev => container.appendChild(buildEvtItem(ev)));
+    }).catch(function(){
+      container.innerHTML = '<div style="color:var(--danger);padding:10px;font-size:13px">خطأ في تحميل الأحداث</div>';
+    });
+  }
+
+  function buildEvtItem(ev){
+    const dotClass = ev.event_type.includes('cancel')||ev.event_type.includes('expired')
+      ? 'evt-dot cancel' : ev.actor_id ? 'evt-dot' : 'evt-dot system';
+    const item = document.createElement('div');
+    item.className = 'evt-item';
+    const dot = document.createElement('div');
+    dot.className = dotClass;
+    const body = document.createElement('div');
+    body.className = 'evt-body';
+    const typeEl = document.createElement('div');
+    typeEl.className = 'evt-type';
+    safeText(typeEl, EVT_LABEL[ev.event_type] || ev.event_type);
+    const metaEl = document.createElement('div');
+    metaEl.className = 'evt-meta';
+    const who = ev.actor_name ? ev.actor_name : 'النظام';
+    safeText(metaEl, who + ' · ' + formatDate(ev.created_at));
+    body.appendChild(typeEl);
+    body.appendChild(metaEl);
+    if (ev.payload && ev.payload.reason) {
+      const rEl = document.createElement('div');
+      rEl.className = 'evt-reason';
+      safeText(rEl, 'السبب: ' + ev.payload.reason);
+      body.appendChild(rEl);
+    }
+    if (ev.payload && ev.payload.scheduled_at) {
+      const rEl = document.createElement('div');
+      rEl.className = 'evt-reason';
+      safeText(rEl, 'الموعد: ' + formatDate(ev.payload.scheduled_at || ev.payload.new_scheduled_at));
+      body.appendChild(rEl);
+    }
+    item.appendChild(dot);
+    item.appendChild(body);
+    return item;
+  }
+
+  let _msgs = [];
+  function loadMessages(container){
+    api('/api/appointments/'+APPT_ID+'/messages').then(res => {
+      container.innerHTML = '';
+      if (!res.ok || !res.data || res.data.length === 0) {
+        const e = document.createElement('div');
+        e.className = 'msgs-empty';
+        safeText(e, 'لا رسائل بعد — ابدأ المحادثة');
+        container.appendChild(e);
+        _msgs = [];
+        return;
+      }
+      _msgs = res.data;
+      const list = document.createElement('div');
+      list.className = 'msgs-list';
+      list.id = 'msgsList';
+      res.data.forEach(m => list.appendChild(buildMsgItem(m)));
+      container.appendChild(list);
+      scrollMsgsToBottom();
+    }).catch(function(){
+      container.innerHTML = '<div style="color:var(--danger);padding:10px;font-size:13px">خطأ في تحميل الرسائل</div>';
+    });
+  }
+
+  function buildMsgItem(m){
+    const item = document.createElement('div');
+    item.className = 'msg-item ' + (m.is_own ? 'msg-own' : 'msg-other');
+    item.dataset.id = m.id;
+    if (!m.is_own) {
+      const nameEl = document.createElement('div');
+      nameEl.className = 'msg-name';
+      safeText(nameEl, m.sender_name || '');
+      item.appendChild(nameEl);
+    }
+    const bodyEl = document.createElement('div');
+    safeText(bodyEl, m.body);
+    item.appendChild(bodyEl);
+    const timeEl = document.createElement('div');
+    timeEl.className = 'msg-time';
+    safeText(timeEl, formatDate(m.created_at));
+    item.appendChild(timeEl);
+    return item;
+  }
+
+  function scrollMsgsToBottom(){
+    const list = document.getElementById('msgsList');
+    if (list) list.scrollIntoView({block:'end'});
+    mainContent.scrollTop = mainContent.scrollHeight;
+  }
+
+  function pollMessages(){
+    if (_activeTab !== 'messages') return;
+    api('/api/appointments/'+APPT_ID+'/messages').then(res => {
+      if (!res.ok || !res.data) return;
+      const newMsgs = res.data.filter(m => !_msgs.some(old => old.id === m.id));
+      if (newMsgs.length === 0) return;
+      _msgs = res.data;
+      let list = document.getElementById('msgsList');
+      const pMsgs = document.getElementById('pMsgs');
+      if (!list && pMsgs) {
+        pMsgs.innerHTML = '';
+        list = document.createElement('div');
+        list.className = 'msgs-list';
+        list.id = 'msgsList';
+        pMsgs.appendChild(list);
+      }
+      if (list) {
+        newMsgs.forEach(m => list.appendChild(buildMsgItem(m)));
+        scrollMsgsToBottom();
+      }
+    }).catch(function(){});
+  }
+
+  function startMsgPoll(){
+    if (_msgPollTimer) clearInterval(_msgPollTimer);
+    _msgPollTimer = setInterval(pollMessages, 5000);
+  }
+
+  // Send message
+  msgTa.addEventListener('input', function(){
+    this.style.height = 'auto';
+    this.style.height = Math.min(this.scrollHeight, 100) + 'px';
+  });
+  msgTa.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); doSendMsg(); }
+  });
+  msgSendBtn.addEventListener('click', doSendMsg);
+
+  function doSendMsg(){
+    const body = msgTa.value.trim();
+    if (!body) return;
+    msgSendBtn.disabled = true;
+    api('/api/appointments/'+APPT_ID+'/messages', {method:'POST',body:JSON.stringify({body})})
+      .then(res => {
+        if (res.ok) {
+          msgTa.value = '';
+          msgTa.style.height = '';
+          const msg = res.data;
+          let list = document.getElementById('msgsList');
+          const pMsgs = document.getElementById('pMsgs');
+          if (!list && pMsgs) {
+            pMsgs.innerHTML = '';
+            list = document.createElement('div');
+            list.className = 'msgs-list';
+            list.id = 'msgsList';
+            pMsgs.appendChild(list);
+          }
+          if (list) {
+            list.appendChild(buildMsgItem(msg));
+            _msgs.push(msg);
+            scrollMsgsToBottom();
+          }
+        } else {
+          alert(res.detail || 'خطأ في إرسال الرسالة');
+        }
+      }).catch(function(){ alert('خطأ في الاتصال'); })
+      .finally(function(){ msgSendBtn.disabled = false; });
+  }
+
+  // Accept
+  function doAccept(){
+    if (!confirm('هل تؤكد قبول الموعد؟')) return;
+    api('/api/appointments/'+APPT_ID+'/accept',{method:'POST'}).then(res => {
+      if (res.ok) location.reload();
+      else alert(res.detail || 'خطأ');
+    });
+  }
+
+  // Complete
+  function doComplete(){
+    if (!confirm('هل تؤكد إنهاء المقابلة؟')) return;
+    api('/api/appointments/'+APPT_ID+'/complete',{method:'POST'}).then(res => {
+      if (res.ok) location.reload();
+      else alert(res.detail || 'خطأ');
+    });
+  }
+
+  // Close room
+  function doClose(){
+    if (!confirm('هل تريد إغلاق الغرفة نهائياً؟ لن يمكن إرسال رسائل بعد الإغلاق.')) return;
+    api('/api/appointments/'+APPT_ID+'/close',{method:'POST'}).then(res => {
+      if (res.ok) location.reload();
+      else alert(res.detail || 'خطأ');
+    });
+  }
+
+  // Reason modal
+  document.getElementById('btnCloseReason').addEventListener('click', function(){
+    reasonModal.classList.remove('open');
+  });
+  reasonModal.addEventListener('click', function(e){
+    if (e.target === reasonModal) reasonModal.classList.remove('open');
+  });
+  document.getElementById('btnConfirmReason').addEventListener('click', function(){
+    const reason = document.getElementById('reasonInput').value.trim();
+    reasonModal.classList.remove('open');
+    if (_reasonAction === 'cancel') {
+      api('/api/appointments/'+APPT_ID+'/cancel',{method:'POST',body:JSON.stringify({reason})})
+        .then(res => { if (res.ok) location.reload(); else alert(res.detail||'خطأ'); });
+    } else if (_reasonAction === 'request-reschedule') {
+      api('/api/appointments/'+APPT_ID+'/request-reschedule',{method:'POST',body:JSON.stringify({reason})})
+        .then(res => { if (res.ok) location.reload(); else alert(res.detail||'خطأ'); });
+    }
+  });
+
+  // Reschedule modal
+  document.getElementById('btnCloseResched').addEventListener('click', function(){
+    reschedModal.classList.remove('open');
+  });
+  reschedModal.addEventListener('click', function(e){
+    if (e.target === reschedModal) reschedModal.classList.remove('open');
+  });
+  document.getElementById('btnConfirmResched').addEventListener('click', function(){
+    const newSched = document.getElementById('newSchedAt').value;
+    if (!newSched) { alert('اختر التاريخ والوقت'); return; }
+    const deadlineHrs = parseInt(document.getElementById('newDeadlineHrs').value);
+    // Convert local datetime to ISO
+    const iso = new Date(newSched).toISOString();
+    reschedModal.classList.remove('open');
+    api('/api/appointments/'+APPT_ID+'/reschedule',{
+      method:'POST',
+      body:JSON.stringify({new_scheduled_at:iso,deadline_hours:deadlineHrs})
+    }).then(res => { if (res.ok) location.reload(); else alert(res.detail||'خطأ'); });
+  });
+
+  // Send modal
+  document.getElementById('btnCloseSend').addEventListener('click', function(){
+    sendModal.classList.remove('open');
+  });
+  sendModal.addEventListener('click', function(e){
+    if (e.target === sendModal) sendModal.classList.remove('open');
+  });
+  document.getElementById('btnConfirmSend').addEventListener('click', function(){
+    const sched = document.getElementById('sendSchedAt').value;
+    if (!sched) { alert('اختر التاريخ والوقت'); return; }
+    const deadlineHrs = parseInt(document.getElementById('sendDeadlineHrs').value);
+    const iso = new Date(sched).toISOString();
+    sendModal.classList.remove('open');
+    api('/api/appointments/'+APPT_ID+'/send',{
+      method:'POST',
+      body:JSON.stringify({scheduled_at:iso,deadline_hours:deadlineHrs})
+    }).then(res => { if (res.ok) location.reload(); else alert(res.detail||'خطأ'); });
+  });
+
+  // Load room
+  api('/api/appointments/'+APPT_ID).then(res => {
+    if (!res.ok) {
+      mainContent.innerHTML = '<div class="error-page"><div style="font-size:40px;margin-bottom:12px">🔒</div><div style="font-size:15px;color:var(--txt)">غير مصرح</div><div style="font-size:13px;margin-top:6px">لا تملك صلاحية الوصول لهذه الغرفة</div><br><a href="/appointments" style="color:var(--ac);font-size:13px">العودة للمواعيد</a></div>';
+      msgInputBar.classList.add('hidden');
+      return;
+    }
+    renderRoom(res.data);
+  }).catch(function(){
+    mainContent.innerHTML = '<div class="error-page"><div style="font-size:13px;color:var(--danger)">خطأ في تحميل بيانات الغرفة</div></div>';
+  });
+})();
+</script>
+</body>
+</html>

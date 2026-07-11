@@ -313,21 +313,30 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 
 ---
 
-### 23. Appointments & Interview Rooms System ✅ Phase 1 schema implemented (PR #460) — APIs pending
+### 23. Appointments & Interview Rooms System ✅ Phases 1–7 implemented (PR #460 + PR #461)
 **Purpose:** مجدولة المقابلات الرسمية وغرف الاجتماعات المرتبطة بطلبات التوظيف. يُتيح للشركة إرسال دعوة مقابلة لمتقدم محدد، وللمتقدم قبولها / إعادة الجدولة / الإلغاء. كل قرار رسمي يتم عبر أزرار رسمية لا من خلال المحادثة النصية.
-**Status:** ✅ Phase 1 schema implemented (PR #460) — 4 tables + FK + indexes in DB. No API, no frontend, no notifications yet. Scheduler-based reminders deferred to Phase 8.
+**Status:** ✅ Phases 1–7 complete (PR #460 + #461). Phase 8 (scheduler reminders) deferred.
+**Implemented:**
+- Phase 1 (PR #460): 4 DB tables + 14 indexes. Migration: `_migrate_appointments()`.
+- Phase 2 (PR #461): 13 auth.py helpers + 13 server.py endpoints at `/api/appointments/*`.
+- Phase 3+4 (PR #461): `appointments.html` — list page for both employee + company (IS_CO detection).
+- Phase 5+6 (PR #461): `appointment-room.html` — room detail + events timeline + message thread (5s polling).
+- Phase 7 (PR #461): 7 event-driven notification hooks in auth.py — appointment_invited / accepted / reschedule_requested / rescheduled / cancelled / closed. Notifications fire after release_conn (no in-flight conn during notification insert).
 **Tables:** `appointments` · `appointment_participants` · `appointment_events` · `appointment_messages`
-**Source of Truth:** `docs/APPOINTMENTS_PLAN.md` — full architecture plan (Phase 0–1 complete, Phase 2–8 pending). §15 contains final Phase 1 schema with all columns and indexes.
-**Migration function:** `_migrate_appointments()` in `auth.py` — called from `server.py` on_startup (idempotent, IF NOT EXISTS).
-**Details:** `docs/APPOINTMENTS_PLAN.md §15` (Phase 1 final schema) · `docs/APPOINTMENTS_PLAN.md §6` (states) · `docs/APPOINTMENTS_PLAN.md §9` (planned API) · `docs/APPOINTMENTS_PLAN.md §12` (planned notifications)
-**Related systems:** §14 (Jobs) · §15 (Job Applications) · §18 (Messaging — Messenger العام separate from Appointment Room) · §19 (Notifications — 7 event-driven hooks planned; 3 reminder hooks deferred to scheduler) · §2 (JWT Bearer token — only approved auth method)
+**API base:** `/api/appointments` (JWT Bearer only — no X-User-Id ever)
+**HTML pages:** `/appointments` → `appointments.html` · `/appointment-room` → `appointment-room.html`
+**Source of Truth:** `docs/APPOINTMENTS_PLAN.md` — §14 updated with phase statuses.
+**Migration function:** `_migrate_appointments()` in `auth.py` — startup-critical (raise on failure).
+**Details:** `docs/APPOINTMENTS_PLAN.md §15` (Phase 1 final schema) · `docs/APPOINTMENTS_PLAN.md §6` (states) · `docs/APPOINTMENTS_PLAN.md §14` (phase completion table)
+**Related systems:** §14 (Jobs) · §15 (Job Applications) · §18 (Messaging — Messenger العام separate from Appointment Room) · §19 (Notifications — 7 event-driven hooks live; 3 reminder hooks deferred to scheduler) · §2 (JWT Bearer token — only approved auth method)
 **Do not recreate:**
-- لا تُنشئ جداول مواعيد إضافية — الجداول الأربعة هي المصدر الوحيد. الـ schema موثق في `docs/APPOINTMENTS_PLAN.md §15`.
+- لا تُنشئ جداول مواعيد إضافية — الجداول الأربعة هي المصدر الوحيد.
 - لا تدمج Appointment Room مع Messenger العام — نظامان منفصلان تماماً.
 - لا تقبل قرار رسمي (قبول/رفض/إعادة جدولة) من المحادثة النصية — الأزرار الرسمية فقط.
-- لا تُنشئ route منفصل `/appointments-public/{tw_id}` — أي صفحة appointment تستخدم auth guard.
+- لا تُضيف X-User-Id لأي appointment endpoint — JWT فقط.
+- لا تحذف appointment_events — سجل دائم (F18/F27).
+- لا تستخدم innerHTML لبيانات المستخدم في الصفحتين — safeText/textContent فقط.
 - لا تبني Phase 8 (scheduler reminders) قبل Scheduler Infrastructure PR مستقل.
-- لا تبدأ Phase 2 (APIs) إلا بطلب صريح من المستخدم.
 
 ---
 

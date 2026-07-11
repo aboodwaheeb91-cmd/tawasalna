@@ -59,6 +59,12 @@ def get_client_ip(request) -> str:
 
 from auth import (
     init_db, get_conn,
+    create_appointment, send_appointment, accept_appointment,
+    request_reschedule_appointment, reschedule_appointment,
+    cancel_appointment, complete_appointment, close_appointment,
+    list_appointments, get_appointment_room,
+    get_appointment_events, get_appointment_messages,
+    create_appointment_message,
     create_user, authenticate_user, get_user_by_id,
     get_public_profile, get_full_profile, update_profile,
     get_profile_by_tw_id, get_full_profile_by_tw_id, get_user_id_by_tw_id, get_user_info_by_tw_id,
@@ -4450,3 +4456,291 @@ def admin_delete_news(news_id: int, request: Request):
         return {"success": True}
     finally:
         release_conn(conn)
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# Appointments & Interview Rooms — API Endpoints (Phase 2–6)
+# JWT Bearer only — X-User-Id permanently forbidden
+# ══════════════════════════════════════════════════════════════════════════
+
+# ── HTML pages ────────────────────────────────────────────────────────────
+
+@app.get("/appointments", response_class=HTMLResponse)
+def page_appointments():
+    return HTMLResponse(read_html("appointments.html"))
+
+@app.get("/appointment-room", response_class=HTMLResponse)
+def page_appointment_room():
+    return HTMLResponse(read_html("appointment-room.html"))
+
+
+# ── Pydantic models ───────────────────────────────────────────────────────
+
+class AppointmentCreateInput(BaseModel):
+    applicant_id: int
+    job_id: Optional[int] = None
+    application_id: Optional[int] = None
+    mode: Optional[str] = "online"
+    notes: Optional[str] = None
+    online_url: Optional[str] = None
+    location_text: Optional[str] = None
+    representative_name: Optional[str] = None
+    representative_user_id: Optional[int] = None
+
+class AppointmentSendInput(BaseModel):
+    scheduled_at: str          # ISO 8601
+    deadline_hours: Optional[int] = 48
+    online_url: Optional[str] = None
+    location_text: Optional[str] = None
+    notes: Optional[str] = None
+    representative_name: Optional[str] = None
+
+class RescheduleInput(BaseModel):
+    new_scheduled_at: str      # ISO 8601
+    deadline_hours: Optional[int] = 48
+    online_url: Optional[str] = None
+    location_text: Optional[str] = None
+    notes: Optional[str] = None
+
+class CancelInput(BaseModel):
+    reason: Optional[str] = ""
+
+class AppointmentMessageInput(BaseModel):
+    body: str
+
+
+# ── Endpoints ─────────────────────────────────────────────────────────────
+
+@app.post("/api/appointments")
+def api_create_appointment(body: AppointmentCreateInput,
+                            token=Depends(verify_token)):
+    user_id = int(token["user_id"])
+    if token.get("user_type") != "co":
+        raise HTTPException(403, "فقط حسابات الشركات يمكنها إنشاء مواعيد")
+    try:
+        appt = create_appointment(
+            company_user_id=user_id,
+            applicant_id=body.applicant_id,
+            job_id=body.job_id,
+            application_id=body.application_id,
+            mode=body.mode or "online",
+            notes=body.notes,
+            online_url=body.online_url,
+            location_text=body.location_text,
+            representative_name=body.representative_name,
+            representative_user_id=body.representative_user_id,
+        )
+        return {"ok": True, "data": appt}
+    except PermissionError as e:
+        raise HTTPException(403, str(e))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:
+        print(f"[api_create_appointment] {e}")
+        raise HTTPException(500, str(e))
+
+
+@app.get("/api/appointments")
+def api_list_appointments(status: Optional[str] = None,
+                           limit: int = 20, offset: int = 0,
+                           token=Depends(verify_token)):
+    user_id = int(token["user_id"])
+    try:
+        result = list_appointments(user_id, status_filter=status,
+                                    limit=limit, offset=offset)
+        return {"ok": True, "data": result, "total": len(result)}
+    except Exception as e:
+        print(f"[api_list_appointments] {e}")
+        raise HTTPException(500, str(e))
+
+
+@app.get("/api/appointments/{appointment_id}")
+def api_get_appointment_room(appointment_id: int, token=Depends(verify_token)):
+    user_id = int(token["user_id"])
+    try:
+        room = get_appointment_room(appointment_id, user_id)
+        return {"ok": True, "data": room}
+    except PermissionError as e:
+        raise HTTPException(403, str(e))
+    except ValueError as e:
+        raise HTTPException(404, str(e))
+    except Exception as e:
+        print(f"[api_get_appointment_room] {e}")
+        raise HTTPException(500, str(e))
+
+
+@app.post("/api/appointments/{appointment_id}/send")
+def api_send_appointment(appointment_id: int, body: AppointmentSendInput,
+                          token=Depends(verify_token)):
+    user_id = int(token["user_id"])
+    try:
+        appt = send_appointment(
+            appointment_id=appointment_id,
+            user_id=user_id,
+            scheduled_at_iso=body.scheduled_at,
+            deadline_hours=body.deadline_hours or 48,
+            online_url=body.online_url,
+            location_text=body.location_text,
+            notes=body.notes,
+            representative_name=body.representative_name,
+        )
+        return {"ok": True, "data": appt}
+    except PermissionError as e:
+        raise HTTPException(403, str(e))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:
+        print(f"[api_send_appointment] {e}")
+        raise HTTPException(500, str(e))
+
+
+@app.post("/api/appointments/{appointment_id}/accept")
+def api_accept_appointment(appointment_id: int, token=Depends(verify_token)):
+    user_id = int(token["user_id"])
+    try:
+        appt = accept_appointment(appointment_id, user_id)
+        return {"ok": True, "data": appt}
+    except PermissionError as e:
+        raise HTTPException(403, str(e))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:
+        print(f"[api_accept_appointment] {e}")
+        raise HTTPException(500, str(e))
+
+
+@app.post("/api/appointments/{appointment_id}/request-reschedule")
+def api_request_reschedule(appointment_id: int, body: CancelInput,
+                             token=Depends(verify_token)):
+    user_id = int(token["user_id"])
+    try:
+        appt = request_reschedule_appointment(appointment_id, user_id,
+                                               reason=body.reason or "")
+        return {"ok": True, "data": appt}
+    except PermissionError as e:
+        raise HTTPException(403, str(e))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:
+        print(f"[api_request_reschedule] {e}")
+        raise HTTPException(500, str(e))
+
+
+@app.post("/api/appointments/{appointment_id}/reschedule")
+def api_reschedule_appointment(appointment_id: int, body: RescheduleInput,
+                                token=Depends(verify_token)):
+    user_id = int(token["user_id"])
+    try:
+        appt = reschedule_appointment(
+            appointment_id=appointment_id,
+            user_id=user_id,
+            new_scheduled_at_iso=body.new_scheduled_at,
+            deadline_hours=body.deadline_hours or 48,
+            online_url=body.online_url,
+            location_text=body.location_text,
+            notes=body.notes,
+        )
+        return {"ok": True, "data": appt}
+    except PermissionError as e:
+        raise HTTPException(403, str(e))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:
+        print(f"[api_reschedule_appointment] {e}")
+        raise HTTPException(500, str(e))
+
+
+@app.post("/api/appointments/{appointment_id}/cancel")
+def api_cancel_appointment(appointment_id: int, body: CancelInput,
+                             token=Depends(verify_token)):
+    user_id = int(token["user_id"])
+    try:
+        appt = cancel_appointment(appointment_id, user_id, reason=body.reason or "")
+        return {"ok": True, "data": appt}
+    except PermissionError as e:
+        raise HTTPException(403, str(e))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:
+        print(f"[api_cancel_appointment] {e}")
+        raise HTTPException(500, str(e))
+
+
+@app.post("/api/appointments/{appointment_id}/complete")
+def api_complete_appointment(appointment_id: int, token=Depends(verify_token)):
+    user_id = int(token["user_id"])
+    try:
+        appt = complete_appointment(appointment_id, user_id)
+        return {"ok": True, "data": appt}
+    except PermissionError as e:
+        raise HTTPException(403, str(e))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:
+        print(f"[api_complete_appointment] {e}")
+        raise HTTPException(500, str(e))
+
+
+@app.post("/api/appointments/{appointment_id}/close")
+def api_close_appointment(appointment_id: int, token=Depends(verify_token)):
+    user_id = int(token["user_id"])
+    try:
+        appt = close_appointment(appointment_id, user_id)
+        return {"ok": True, "data": appt}
+    except PermissionError as e:
+        raise HTTPException(403, str(e))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:
+        print(f"[api_close_appointment] {e}")
+        raise HTTPException(500, str(e))
+
+
+@app.get("/api/appointments/{appointment_id}/events")
+def api_get_appointment_events(appointment_id: int, token=Depends(verify_token)):
+    user_id = int(token["user_id"])
+    try:
+        events = get_appointment_events(appointment_id, user_id)
+        return {"ok": True, "data": events}
+    except PermissionError as e:
+        raise HTTPException(403, str(e))
+    except ValueError as e:
+        raise HTTPException(404, str(e))
+    except Exception as e:
+        print(f"[api_get_appointment_events] {e}")
+        raise HTTPException(500, str(e))
+
+
+@app.get("/api/appointments/{appointment_id}/messages")
+def api_get_appointment_messages(appointment_id: int,
+                                  limit: int = 50, offset: int = 0,
+                                  token=Depends(verify_token)):
+    user_id = int(token["user_id"])
+    try:
+        msgs = get_appointment_messages(appointment_id, user_id,
+                                         limit=limit, offset=offset)
+        return {"ok": True, "data": msgs}
+    except PermissionError as e:
+        raise HTTPException(403, str(e))
+    except ValueError as e:
+        raise HTTPException(404, str(e))
+    except Exception as e:
+        print(f"[api_get_appointment_messages] {e}")
+        raise HTTPException(500, str(e))
+
+
+@app.post("/api/appointments/{appointment_id}/messages")
+def api_create_appointment_message(appointment_id: int,
+                                    body: AppointmentMessageInput,
+                                    token=Depends(verify_token)):
+    user_id = int(token["user_id"])
+    try:
+        msg = create_appointment_message(appointment_id, user_id, body.body)
+        return {"ok": True, "data": msg}
+    except PermissionError as e:
+        raise HTTPException(403, str(e))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:
+        print(f"[api_create_appointment_message] {e}")
+        raise HTTPException(500, str(e))
