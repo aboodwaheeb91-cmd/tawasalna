@@ -645,17 +645,102 @@ CREATE INDEX IF NOT EXISTS idx_sched_created   ON scheduler_jobs(created_at DESC
 
 ---
 
+## 12. S2 Helper — مكتملة
+
+> **S2 مكتملة.** تم إضافة `schedule_job()` helper فقط. لا endpoints، لا runner، لا hooks، لا cron.
+
+### ما تم في S2 (هذا الـ PR)
+
+```
+✅ schedule_job() في auth.py — idempotent INSERT helper
+✅ Input validation: job_type غير فارغ، payload dict، dedupe_key غير فارغ، max_attempts >= 1
+✅ Idempotency: INSERT ... ON CONFLICT (dedupe_key) DO NOTHING RETURNING
+✅ created=True إذا INSERT جديد، created=False إذا dedupe_key موجود مسبقاً
+✅ Return shape: {id, job_type, run_at, status, dedupe_key, created_at, created}
+✅ payload مُخزَّن كـ JSONB عبر json.dumps + ::jsonb cast
+✅ لا تنفيذ jobs، لا notifications، لا تغيير في appointments/jobs tables
+```
+
+### Contract النهائي
+
+```python
+schedule_job(
+    job_type: str,      # Non-empty. e.g. 'appointment_reminder'
+    payload: dict,      # JSON-serializable. e.g. {'appointment_id': 42, 'hours_before': 1}
+    run_at,             # datetime (UTC). e.g. datetime(2026, 7, 11, 10, 0, tzinfo=timezone.utc)
+    dedupe_key: str,    # Non-empty unique string. e.g. 'appointment_reminder:42:1:7'
+    max_attempts: int = 5
+) -> dict
+```
+
+### Input Validation (تُطبَّق قبل لمس DB)
+
+| الحقل | القاعدة | الخطأ |
+|-------|---------|-------|
+| `job_type` | `isinstance(str) and strip() != ''` | `ValueError` |
+| `payload` | `isinstance(dict)` | `ValueError` |
+| `dedupe_key` | `isinstance(str) and strip() != ''` | `ValueError` |
+| `max_attempts` | `isinstance(int) and >= 1` | `ValueError` |
+
+### Idempotency Behavior
+
+```
+INSERT ... ON CONFLICT (dedupe_key) DO NOTHING RETURNING id, ...
+    ↓
+RETURNING has rows?
+    Yes → newly inserted → {"created": True, ...}
+    No  → conflict hit  → SELECT by dedupe_key → {"created": False, ...}
+```
+
+**لماذا DO NOTHING وليس DO UPDATE؟**
+- `DO NOTHING` لا يلمس job موجود بأي حالة (pending/running/done/failed/cancelled)
+- `DO UPDATE` قد يُعيد كتابة `run_at` أو `payload` على job قيد التنفيذ → خطر
+- المُتصل يتحقق من `created=False` ويقرر ما إذا كان يريد اتخاذ إجراء
+
+### Return Shape
+
+```json
+{
+  "id":         42,
+  "job_type":   "appointment_reminder",
+  "run_at":     "2026-07-11T09:00:00+00:00",
+  "status":     "pending",
+  "dedupe_key": "appointment_reminder:10:1:7",
+  "created_at": "2026-07-11T08:00:00+00:00",
+  "created":    true
+}
+```
+
+### ما يبقى مؤجلاً (S3+)
+
+```
+مؤجل إلى S3:  run_due_jobs() + POST /internal/run-due-jobs endpoint
+مؤجل إلى S4:  Hooks في appointment/notification trigger points
+مؤجل إلى S5:  Integration tests
+مؤجل إلى S6:  Admin observability endpoint
+```
+
+`schedule_job()` يمكن استدعاؤه الآن لكن لا job سيُنفَّذ حتى S3.
+
+---
+
+*S2 مكتملة — 2026-07-11 — helper-only (PR: scheduler-s2-helper).*
+
+---
+
 ## Source of Truth
 
 | العنصر | الحالة | المرجع |
 |--------|--------|--------|
 | Scheduler schema | ✅ مُنفَّذة في S1 | `auth.py → _migrate_scheduler_jobs()` |
+| schedule_job helper | ✅ مُنفَّذة في S2 | `auth.py → schedule_job()` |
 | Proposed schema (docs) | §7 (reference) + §11 (actual) | هذا الملف |
+| S2 contract | §12 | هذا الملف |
 | Deferred features | موثَّقة | هذا الملف §2 |
 | Appointments deferral | موثَّق | `docs/APPOINTMENTS_PLAN.md § Scheduler-Dependent Features` |
 | Notifications blocked | موثَّق | `docs/NOTIFICATIONS_PLAN.md § Scheduler Blocker Note` |
 | System index entry | مضاف + محدَّث | `docs/SYSTEMS_INDEX.md §37` |
-| S1 helpers/runner/hooks | ❌ مؤجلة إلى S2–S4 | موافقة مستخدم مطلوبة |
+| S3 runner/endpoint/hooks | ❌ مؤجلة إلى S3–S4 | موافقة مستخدم مطلوبة |
 
 ---
 

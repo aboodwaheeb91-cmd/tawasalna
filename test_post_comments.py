@@ -7443,13 +7443,12 @@ check(
     'Constraints' in _sched_plan and 'X-User-Id' in _sched_plan
 )
 
-# ── No scheduler code added (docs-only check — S1 was not yet approved at §173 time) ──
-# NOTE: S1 (scheduler-s1-schema PR) subsequently added _migrate_scheduler_jobs() to auth.py.
-# This check now verifies the §173 intent: no schedule_job() helper or runner was added
-# (only the schema migration is acceptable as of S1).
+# ── No scheduler runner added (docs-only check updated for S2) ─────────────────
+# NOTE: S1 added _migrate_scheduler_jobs(); S2 added schedule_job() — both legitimate.
+# §173 intent was "no runner/executor" — run_due_jobs() is still S3 and must remain absent.
 check(
-    "173-15. auth.py: no schedule_job() helper or run_due_jobs() runner added (schema-only is fine)",
-    'def schedule_job' not in _auth173 and 'def run_due_jobs' not in _auth173
+    "173-15. auth.py: no run_due_jobs() runner added (runner is S3)",
+    'def run_due_jobs' not in _auth173
 )
 check(
     "173-16. auth.py does NOT import APScheduler or contain create_task for scheduling",
@@ -7716,19 +7715,18 @@ check(
     'def run_due_jobs' not in _auth175
 )
 check(
-    "175-27. auth.py: no schedule_job helper added",
-    'def schedule_job' not in _auth175
+    "175-27. auth.py: no run_due_jobs runner added (runner is S3)",
+    'def run_due_jobs' not in _auth175
 )
 check(
-    "175-28. server.py: no appointment-related scheduler hooks added in this scope",
-    # The scheduler hooks (schedule_job calls inside accept_appointment etc.) are S4
-    # We verify no new scheduler-specific hook call was introduced by checking
-    # that accept_appointment/create_appointment don't yet call schedule_job
+    "175-28. server.py: no /internal/run-due-jobs endpoint added (endpoint is S3)",
+    '/internal/run-due-jobs' not in _server175
+)
+check(
+    "175-29. server.py: no appointment hooks calling schedule_job added (hooks are S4)",
+    # schedule_job calls inside accept_appointment/create_appointment are S4
+    # server.py must not contain schedule_job calls until S4
     'schedule_job' not in _server175
-)
-check(
-    "175-29. auth.py: no schedule_job() helper function added in S1 (helper is S2)",
-    'def schedule_job' not in _auth175
 )
 check(
     "175-30. No cron config file added in this PR",
@@ -7750,6 +7748,154 @@ check(
 check(
     "175-33. docs/SYSTEMS_INDEX.md §37 documents what remains deferred (S2+)",
     'S2' in _sysidx175 and ('مؤجل' in _sysidx175 or 'Pending' in _sysidx175 or 'pending' in _sysidx175)
+)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# §176 — Scheduler S2: schedule_job helper (26 checks)
+# PR: scheduler-s2-helper
+# Verifies: schedule_job() in auth.py + docs updates + no extras added
+# ═══════════════════════════════════════════════════════════════════════════════
+
+import os as _os176
+
+_auth176   = open('auth.py',   encoding='utf-8').read()
+_server176 = open('server.py', encoding='utf-8').read()
+_plan176   = open('docs/SCHEDULER_PLAN.md', encoding='utf-8').read()
+_sysidx176 = open('docs/SYSTEMS_INDEX.md', encoding='utf-8').read()
+
+# Extract schedule_job function body for targeted checks
+_sj176_start = _auth176.find('def schedule_job(')
+_sj176 = _auth176[_sj176_start:] if _sj176_start >= 0 else ''
+# Limit to the function body (stops at next top-level def)
+_next_def176 = _sj176.find('\ndef ', 5)
+_sj176 = _sj176[:_next_def176] if _next_def176 > 0 else _sj176
+
+# ── Function exists ────────────────────────────────────────────────────────────
+check(
+    "176-01. auth.py: schedule_job function defined",
+    'def schedule_job(' in _auth176
+)
+
+# ── Parameters ────────────────────────────────────────────────────────────────
+check(
+    "176-02. schedule_job accepts job_type parameter",
+    'job_type' in _sj176
+)
+check(
+    "176-03. schedule_job accepts payload parameter",
+    'payload' in _sj176
+)
+check(
+    "176-04. schedule_job accepts run_at parameter",
+    'run_at' in _sj176
+)
+check(
+    "176-05. schedule_job accepts dedupe_key parameter",
+    'dedupe_key' in _sj176
+)
+check(
+    "176-06. schedule_job accepts max_attempts with default 5",
+    'max_attempts' in _sj176 and '= 5' in _sj176
+)
+
+# ── Input validation ──────────────────────────────────────────────────────────
+check(
+    "176-07. schedule_job validates job_type is non-empty",
+    ('job_type' in _sj176 and 'ValueError' in _sj176
+     and ('strip()' in _sj176 or 'not job_type' in _sj176 or 'job_type.strip' in _sj176))
+)
+check(
+    "176-08. schedule_job validates payload is dict",
+    'isinstance' in _sj176 and 'payload' in _sj176 and 'dict' in _sj176
+)
+check(
+    "176-09. schedule_job validates dedupe_key is non-empty",
+    'dedupe_key' in _sj176 and 'ValueError' in _sj176
+    and ('strip()' in _sj176 or 'not dedupe_key' in _sj176 or 'dedupe_key.strip' in _sj176)
+)
+check(
+    "176-10. schedule_job validates max_attempts >= 1",
+    'max_attempts' in _sj176 and '>= 1' in _sj176 and 'ValueError' in _sj176
+)
+
+# ── DB: uses scheduler_jobs table ─────────────────────────────────────────────
+check(
+    "176-11. schedule_job inserts into scheduler_jobs",
+    'scheduler_jobs' in _sj176
+)
+check(
+    "176-12. schedule_job uses dedupe_key in SQL",
+    'dedupe_key' in _sj176 and ('INSERT' in _sj176 or ':dk' in _sj176)
+)
+check(
+    "176-13. schedule_job uses ON CONFLICT for idempotency",
+    'ON CONFLICT' in _sj176
+)
+check(
+    "176-14. schedule_job does not allow duplicate jobs (DO NOTHING or DO UPDATE)",
+    'DO NOTHING' in _sj176 or 'DO UPDATE' in _sj176
+)
+
+# ── Return shape: created flag ─────────────────────────────────────────────────
+check(
+    "176-15. schedule_job returns created=True or created=False",
+    '"created"' in _sj176 or "'created'" in _sj176
+    or ('created' in _sj176 and ('True' in _sj176 or 'False' in _sj176))
+)
+
+# ── Scope: no execution, no side effects ──────────────────────────────────────
+check(
+    "176-16. schedule_job does not execute jobs (no run_due_jobs call)",
+    'run_due_jobs' not in _sj176
+)
+check(
+    "176-17. schedule_job does not send notifications (no create_notification call)",
+    'create_notification' not in _sj176
+)
+check(
+    "176-18. schedule_job does not modify appointments table",
+    'UPDATE appointments' not in _sj176 and 'appointments SET' not in _sj176
+)
+check(
+    "176-19. schedule_job does not modify jobs table",
+    'UPDATE jobs' not in _sj176 and 'jobs SET status' not in _sj176
+)
+
+# ── Server.py: no new endpoint, no runner ─────────────────────────────────────
+check(
+    "176-20. server.py: no /internal/run-due-jobs endpoint added (S3)",
+    '/internal/run-due-jobs' not in _server176
+)
+check(
+    "176-21. auth.py: no run_due_jobs runner added (S3)",
+    'def run_due_jobs' not in _auth176
+)
+check(
+    "176-22. No cron config file added in this PR",
+    not _os176.path.exists('.github/workflows/scheduler.yml')
+    and not _os176.path.exists('.github/workflows/cron.yml')
+    and 'SCHEDULER_SECRET' not in _server176
+)
+check(
+    "176-23. No background thread or asyncio.create_task for scheduling added",
+    'create_task' not in _auth176.split('def schedule_job(')[-1].split('\ndef ')[0]
+    and 'threading.Thread' not in _auth176.split('def schedule_job(')[-1].split('\ndef ')[0]
+)
+
+# ── Docs updated ──────────────────────────────────────────────────────────────
+check(
+    "176-24. docs/SCHEDULER_PLAN.md mentions S2 as implemented/complete",
+    'S2' in _plan176 and ('مكتملة' in _plan176 or 'helper-only' in _plan176.lower()
+                          or 'schedule_job' in _plan176)
+)
+check(
+    "176-25. docs/SYSTEMS_INDEX.md §37 updated: S2 helper marked complete",
+    'S2 ✅' in _sysidx176 or ('S2' in _sysidx176 and 'schedule_job' in _sysidx176
+                               and ('✅' in _sysidx176 or 'مكتملة' in _sysidx176))
+)
+check(
+    "176-26. docs/SYSTEMS_INDEX.md §37 documents what remains deferred (S3+)",
+    'S3' in _sysidx176 and ('مؤجل' in _sysidx176 or 'Pending' in _sysidx176 or '🔜' in _sysidx176)
 )
 
 # ── Summary ──────────────────────────────────────────────────────────────
