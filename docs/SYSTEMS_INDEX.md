@@ -503,17 +503,24 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 
 ---
 
-### 37. Scheduler Infrastructure 🔜 (Decision Pending)
-**Purpose:** بنية تحتية لتنفيذ الـ jobs الزمنية (appointment reminders، deadline auto-expire، job_expiring_soon، missed status transitions). لا يوجد حالياً — القرار والتنفيذ مؤجلان.
-**Source of Truth:** `docs/SCHEDULER_PLAN.md` — Architecture Decision Document (docs-only)
-**Details:** `docs/SCHEDULER_PLAN.md` — يتضمن: لماذا نحتاج scheduler، الأنظمة المعتمدة (§2)، المتطلبات المعمارية (§3: idempotency/retry/failure-logging/duplicate-prevention/timezone/locking/no-double-send/observability)، خيارات التنفيذ الأربعة (§4: A=External Cron، B=Heroku Scheduler، C=Background Thread، D=DB-driven)، مصفوفة التقييم (§5)، التوصية (§6: D+A)، الـ schema المقترح (§7: جدول scheduler_jobs)، مراحل التنفيذ (§8: S0–S6)، القواعد الدائمة (§9).
-**Status:** S0 ✅ Tooling Decision مكتمل (PR: scheduler-s0-tooling-decision) — القرار: External Cron + Secure Endpoint (X-Scheduler-Secret + hmac.compare_digest) + `scheduler_jobs` table كطبقة تخزين. APScheduler مرفوض (Heroku restarts + double execution risk). S1 (schema migration) مؤجل حتى موافقة صريحة. لا كود، لا schema، لا endpoints بعد.
-**Deferred dependent features (deferred until scheduler is implemented):**
+### 37. Scheduler Infrastructure 🔜 (S1 Schema ✅ — Runner/Helpers/Hooks Pending)
+**Purpose:** بنية تحتية لتنفيذ الـ jobs الزمنية (appointment reminders، deadline auto-expire، job_expiring_soon، missed status transitions).
+**Source of Truth:** `docs/SCHEDULER_PLAN.md` — Architecture Decision Document | `auth.py → _migrate_scheduler_jobs()` (S1 schema)
+**Details:** `docs/SCHEDULER_PLAN.md` — يتضمن: لماذا نحتاج scheduler (§1)، الأنظمة المعتمدة (§2)، المتطلبات المعمارية (§3: idempotency/retry/failure-logging/duplicate-prevention/timezone/locking/no-double-send/observability)، خيارات التنفيذ (§4)، مصفوفة التقييم (§5)، التوصية (§6)، الـ schema المقترح docs-only (§7)، مراحل التنفيذ (§8: S0–S6)، القواعد الدائمة (§9)، قرار S0 (§10)، S1 schema المُنفَّذ (§11).
+**Status:**
+- S0 ✅ Tooling Decision مكتمل (PR: scheduler-s0-tooling-decision) — External Cron + Secure Endpoint + scheduler_jobs table
+- S1 ✅ Schema مكتملة (PR: scheduler-s1-schema) — `_migrate_scheduler_jobs()` في `auth.py`، مربوطة في `on_startup()`، no-read/no-write حتى S2
+- S2 🔜 `schedule_job()` helper — مؤجل حتى موافقة صريحة
+- S3 🔜 `run_due_jobs()` + `/internal/run-due-jobs` endpoint — مؤجل
+- S4 🔜 Hooks في appointment/notification trigger points — مؤجل
+- S5 🔜 Integration tests — مؤجل
+- S6 🔜 Admin observability — مؤجل
+**Deferred dependent features (deferred until S3–S4):**
 - `appointment_reminder` — إشعار قبل N ساعة من الموعد
 - `appointment_deadline_expire` — انتقال `pending_response` → `expired` في DB
 - `appointment_missed` — انتقال `confirmed` → `missed` في DB بعد مرور وقت الموعد
 - `job_expiring_soon` — إشعار قبل 48 ساعة من انتهاء الوظيفة
-**Do not recreate:** لا تُنشئ جدول `scheduler_jobs` في `auth.py` مباشرةً. لا تُضف background thread أو cron في `server.py`. لا تُضف `asyncio.create_task` لـ scheduled work. كل الـ trigger points موثَّقة في `docs/SCHEDULER_PLAN.md §2` — تنتظر قرار S0.
+**Do not recreate:** الجدول موجود بعد S1 — لا تُنشئه مجدداً. لا تُضف background thread أو cron في `server.py`. لا تُضف `asyncio.create_task` لـ scheduled work. لا تُضف `schedule_job()` helper قبل S2. لا تُضف `run_due_jobs()` أو endpoint قبل S3. كل الـ trigger points تنتظر S4.
 
 ---
 

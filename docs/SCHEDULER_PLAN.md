@@ -583,17 +583,80 @@ S4: Hooks في appointment actions:
 
 ---
 
+## 11. S1 Schema — مكتملة
+
+> **S1 مكتملة.** تم إضافة migration فقط. لا endpoints، لا runner، لا helpers، لا hooks.
+
+### ما تم في S1 (هذا الـ PR)
+
+```
+✅ _migrate_scheduler_jobs() في auth.py — idempotent CREATE TABLE IF NOT EXISTS
+✅ ربط Migration في on_startup() بنفس نمط migrations الموجودة (❌ + raise عند الفشل)
+✅ scheduler_jobs table بجميع الأعمدة: id, job_type, payload, run_at, status, attempts,
+   max_attempts, last_error, dedupe_key, locked_at, locked_by, created_at, updated_at
+✅ Constraints: uq_sched_dedupe (UNIQUE dedupe_key), ck_sched_status, ck_sched_attempts, ck_sched_maxatt
+✅ 4 indexes: idx_sched_due (status+run_at), idx_sched_locked_at, idx_sched_job_type, idx_sched_created
+```
+
+### Schema المُنفَّذ فعلياً (S1)
+
+```sql
+CREATE TABLE IF NOT EXISTS scheduler_jobs (
+    id           BIGSERIAL PRIMARY KEY,
+    job_type     TEXT NOT NULL,
+    payload      JSONB NOT NULL DEFAULT '{}'::jsonb,
+    run_at       TIMESTAMPTZ NOT NULL,
+    status       TEXT NOT NULL DEFAULT 'pending',
+    attempts     INTEGER NOT NULL DEFAULT 0,
+    max_attempts INTEGER NOT NULL DEFAULT 5,
+    last_error   TEXT,
+    dedupe_key   TEXT NOT NULL,
+    locked_at    TIMESTAMPTZ,
+    locked_by    TEXT,
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT uq_sched_dedupe   UNIQUE (dedupe_key),
+    CONSTRAINT ck_sched_status   CHECK (status IN ('pending','running','done','failed','cancelled')),
+    CONSTRAINT ck_sched_attempts CHECK (attempts >= 0),
+    CONSTRAINT ck_sched_maxatt   CHECK (max_attempts >= 1)
+);
+
+CREATE INDEX IF NOT EXISTS idx_sched_due       ON scheduler_jobs(status, run_at);
+CREATE INDEX IF NOT EXISTS idx_sched_locked_at ON scheduler_jobs(locked_at);
+CREATE INDEX IF NOT EXISTS idx_sched_job_type  ON scheduler_jobs(job_type);
+CREATE INDEX IF NOT EXISTS idx_sched_created   ON scheduler_jobs(created_at DESC);
+```
+
+### ما يبقى مؤجلاً (S2+)
+
+```
+مؤجل إلى S2:  schedule_job(job_type, payload, run_at, dedupe_key) helper في auth.py
+مؤجل إلى S3:  run_due_jobs() + POST /internal/run-due-jobs endpoint
+مؤجل إلى S4:  Hooks في appointment/notification trigger points
+مؤجل إلى S5:  Integration tests
+مؤجل إلى S6:  Admin observability endpoint
+```
+
+الجدول يُنشأ عند startup لكنه لا يُقرأ ولا يُكتب فيه حتى S2. لا تأثير على runtime behavior الحالي.
+
+---
+
+*S1 مكتملة — 2026-07-11 — schema-only (PR: scheduler-s1-schema).*
+
+---
+
 ## Source of Truth
 
 | العنصر | الحالة | المرجع |
 |--------|--------|--------|
-| Scheduler schema | docs-only — لم يُنفَّذ | هذا الملف §7 |
+| Scheduler schema | ✅ مُنفَّذة في S1 | `auth.py → _migrate_scheduler_jobs()` |
+| Proposed schema (docs) | §7 (reference) + §11 (actual) | هذا الملف |
 | Deferred features | موثَّقة | هذا الملف §2 |
 | Appointments deferral | موثَّق | `docs/APPOINTMENTS_PLAN.md § Scheduler-Dependent Features` |
 | Notifications blocked | موثَّق | `docs/NOTIFICATIONS_PLAN.md § Scheduler Blocker Note` |
-| System index entry | مضاف | `docs/SYSTEMS_INDEX.md §37` |
-| Implementation decision | ❌ لم يُتَّخذ | موافقة مستخدم مطلوبة |
+| System index entry | مضاف + محدَّث | `docs/SYSTEMS_INDEX.md §37` |
+| S1 helpers/runner/hooks | ❌ مؤجلة إلى S2–S4 | موافقة مستخدم مطلوبة |
 
 ---
 
-*أُنشئ: 2026-07-11 — Architecture Decision Document — docs-only (PR: scheduler-infrastructure-decision). لا كود، لا schema، لا endpoints. فقط توثيق القرار وإرشادات التنفيذ المستقبلي.*
+*أُنشئ: 2026-07-11 — Architecture Decision Document (PR: scheduler-infrastructure-decision). S0 توثيق (PR: scheduler-s0-tooling-decision). S1 schema (PR: scheduler-s1-schema).*
