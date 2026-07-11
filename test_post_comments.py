@@ -6808,8 +6808,11 @@ check(
 )
 check(
     "171-35. auth.py: no scheduler, no WebSocket, no push in appointment helpers",
-    'scheduler' not in _auth171.split('def create_appointment(')[1].lower() and
-    'WebSocket' not in _auth171.split('def create_appointment(')[1]
+    (
+        'WebSocket' not in _auth171.split('def create_appointment(')[1].split('\ndef ')[0]
+        and 'push_notification' not in _auth171.split('def create_appointment(')[1].split('\ndef ')[0]
+        and 'schedule_job(' not in _auth171.split('def create_appointment(')[1].split('\ndef ')[0]
+    )
     if 'def create_appointment(' in _auth171 else True
 )
 check(
@@ -7440,10 +7443,13 @@ check(
     'Constraints' in _sched_plan and 'X-User-Id' in _sched_plan
 )
 
-# ── No scheduler code added (docs-only check) ─────────────────────────────
+# ── No scheduler code added (docs-only check — S1 was not yet approved at §173 time) ──
+# NOTE: S1 (scheduler-s1-schema PR) subsequently added _migrate_scheduler_jobs() to auth.py.
+# This check now verifies the §173 intent: no schedule_job() helper or runner was added
+# (only the schema migration is acceptable as of S1).
 check(
-    "173-15. auth.py does NOT contain CREATE TABLE scheduler_jobs (not implemented)",
-    'CREATE TABLE' not in _auth173 or 'scheduler_jobs' not in _auth173
+    "173-15. auth.py: no schedule_job() helper or run_due_jobs() runner added (schema-only is fine)",
+    'def schedule_job' not in _auth173 and 'def run_due_jobs' not in _auth173
 )
 check(
     "173-16. auth.py does NOT import APScheduler or contain create_task for scheduling",
@@ -7570,6 +7576,180 @@ check(
 check(
     "174-20. S0 section documents what remains deferred to S1",
     'S1' in _s0_section and ('مؤجل' in _s0_section or 'deferred' in _s0_section.lower())
+)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# §175 — Scheduler S1: Schema Only (33 checks)
+# PR: scheduler-s1-schema
+# Verifies: _migrate_scheduler_jobs() in auth.py + startup wiring in server.py
+#           + docs updates + no endpoints/runner/helpers/hooks added
+# ═══════════════════════════════════════════════════════════════════════════════
+
+import os as _os175
+
+_auth175   = open('auth.py',   encoding='utf-8').read()
+_server175 = open('server.py', encoding='utf-8').read()
+_plan175   = open('docs/SCHEDULER_PLAN.md', encoding='utf-8').read()
+_sysidx175 = open('docs/SYSTEMS_INDEX.md', encoding='utf-8').read()
+
+# ── auth.py: migration function exists ────────────────────────────────────────
+check(
+    "175-01. auth.py: _migrate_scheduler_jobs function defined",
+    'def _migrate_scheduler_jobs' in _auth175
+)
+
+# ── server.py: import + startup wiring ────────────────────────────────────────
+check(
+    "175-02. server.py: imports _migrate_scheduler_jobs from auth",
+    '_migrate_scheduler_jobs' in _server175
+)
+check(
+    "175-03. server.py: migration failure prints ❌ and raises",
+    ('❌' in _server175 or 'scheduler_jobs migration failed' in _server175)
+    and 'raise' in _server175
+)
+
+# ── Table DDL ─────────────────────────────────────────────────────────────────
+_mig175 = _auth175[_auth175.find('def _migrate_scheduler_jobs'):]
+_mig175 = _mig175[:_mig175.find('\ndef ', 5)] if '\ndef ' in _mig175[5:] else _mig175
+
+check(
+    "175-04. migration SQL creates scheduler_jobs table",
+    'scheduler_jobs' in _mig175 and 'CREATE TABLE' in _mig175
+)
+check(
+    "175-05. scheduler_jobs has id BIGSERIAL PRIMARY KEY",
+    'BIGSERIAL' in _mig175 and 'PRIMARY KEY' in _mig175
+)
+check(
+    "175-06. scheduler_jobs has job_type TEXT NOT NULL",
+    'job_type' in _mig175 and 'NOT NULL' in _mig175
+)
+check(
+    "175-07. scheduler_jobs has payload JSONB with empty-object default",
+    'payload' in _mig175 and 'JSONB' in _mig175
+    and ("'{}'::jsonb" in _mig175 or "'{}'::JSONB" in _mig175 or "DEFAULT '{}'" in _mig175)
+)
+check(
+    "175-08. scheduler_jobs has run_at TIMESTAMPTZ NOT NULL",
+    'run_at' in _mig175 and 'TIMESTAMPTZ' in _mig175
+)
+check(
+    "175-09. scheduler_jobs has status with DEFAULT 'pending'",
+    'status' in _mig175 and "'pending'" in _mig175
+)
+check(
+    "175-10. scheduler_jobs has attempts INTEGER DEFAULT 0",
+    'attempts' in _mig175 and 'DEFAULT 0' in _mig175
+)
+check(
+    "175-11. scheduler_jobs has max_attempts with DEFAULT 5",
+    'max_attempts' in _mig175 and 'DEFAULT 5' in _mig175
+)
+check(
+    "175-12. scheduler_jobs has last_error TEXT column",
+    'last_error' in _mig175
+)
+check(
+    "175-13. scheduler_jobs has dedupe_key TEXT NOT NULL",
+    'dedupe_key' in _mig175
+)
+check(
+    "175-14. scheduler_jobs has locked_at TIMESTAMPTZ column",
+    'locked_at' in _mig175 and 'TIMESTAMPTZ' in _mig175
+)
+check(
+    "175-15. scheduler_jobs has locked_by TEXT column",
+    'locked_by' in _mig175
+)
+check(
+    "175-16. scheduler_jobs has created_at with TIMESTAMPTZ and NOW() default",
+    'created_at' in _mig175 and 'NOW()' in _mig175
+)
+check(
+    "175-17. scheduler_jobs has updated_at TIMESTAMPTZ column",
+    'updated_at' in _mig175
+)
+check(
+    "175-18. migration has UNIQUE constraint on dedupe_key",
+    ('UNIQUE' in _mig175 and 'dedupe_key' in _mig175)
+    or 'uq_sched_dedupe' in _mig175
+)
+check(
+    "175-19. migration has CHECK constraint on status values",
+    ("CHECK" in _mig175 and 'status' in _mig175 and 'pending' in _mig175
+     and 'done' in _mig175 and 'failed' in _mig175)
+    or 'ck_sched_status' in _mig175
+)
+check(
+    "175-20. migration has CHECK constraint on attempts >= 0",
+    ('attempts' in _mig175 and '>= 0' in _mig175)
+    or 'ck_sched_attempts' in _mig175
+)
+check(
+    "175-21. migration has CHECK constraint on max_attempts >= 1",
+    ('max_attempts' in _mig175 and '>= 1' in _mig175)
+    or 'ck_sched_maxatt' in _mig175
+)
+
+# ── Indexes ───────────────────────────────────────────────────────────────────
+check(
+    "175-22. migration creates due-jobs index on (status, run_at)",
+    'idx_sched_due' in _mig175 or ('status, run_at' in _mig175 and 'INDEX' in _mig175)
+)
+check(
+    "175-23. migration creates locked_at index for stale lock cleanup",
+    'idx_sched_locked_at' in _mig175 or ('locked_at' in _mig175 and 'INDEX' in _mig175)
+)
+check(
+    "175-24. migration creates job_type index for monitoring",
+    'idx_sched_job_type' in _mig175 or ('job_type' in _mig175 and 'INDEX' in _mig175)
+)
+
+# ── S1 scope: NO extras added ─────────────────────────────────────────────────
+check(
+    "175-25. server.py: no new scheduler endpoint added (/internal/run-due-jobs absent)",
+    '/internal/run-due-jobs' not in _server175
+)
+check(
+    "175-26. auth.py: no run_due_jobs function added",
+    'def run_due_jobs' not in _auth175
+)
+check(
+    "175-27. auth.py: no schedule_job helper added",
+    'def schedule_job' not in _auth175
+)
+check(
+    "175-28. server.py: no appointment-related scheduler hooks added in this scope",
+    # The scheduler hooks (schedule_job calls inside accept_appointment etc.) are S4
+    # We verify no new scheduler-specific hook call was introduced by checking
+    # that accept_appointment/create_appointment don't yet call schedule_job
+    'schedule_job' not in _server175
+)
+check(
+    "175-29. auth.py: no schedule_job() helper function added in S1 (helper is S2)",
+    'def schedule_job' not in _auth175
+)
+check(
+    "175-30. No cron config file added in this PR",
+    not _os175.path.exists('.github/workflows/scheduler.yml')
+    and not _os175.path.exists('.github/workflows/cron.yml')
+    and 'SCHEDULER_SECRET' not in _server175
+)
+
+# ── Docs updated ──────────────────────────────────────────────────────────────
+check(
+    "175-31. docs/SCHEDULER_PLAN.md mentions S1 as implemented/complete",
+    'S1' in _plan175 and ('مكتملة' in _plan175 or 'مكتمل' in _plan175 or 'Implemented' in _plan175 or 'schema-only' in _plan175.lower())
+)
+check(
+    "175-32. docs/SYSTEMS_INDEX.md §37 updated: S1 schema marked complete",
+    'S1' in _sysidx175 and ('✅' in _sysidx175 or 'Schema' in _sysidx175 or 'schema' in _sysidx175)
+    and 'scheduler-s1' in _sysidx175.lower() or ('S1 ✅' in _sysidx175 or 'S1 Schema' in _sysidx175)
+)
+check(
+    "175-33. docs/SYSTEMS_INDEX.md §37 documents what remains deferred (S2+)",
+    'S2' in _sysidx175 and ('مؤجل' in _sysidx175 or 'Pending' in _sysidx175 or 'pending' in _sysidx175)
 )
 
 # ── Summary ──────────────────────────────────────────────────────────────

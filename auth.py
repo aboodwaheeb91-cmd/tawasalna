@@ -6271,3 +6271,69 @@ def create_appointment_message(appointment_id: int, user_id: int, body: str) -> 
         }
     finally:
         release_conn(conn)
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# Scheduler Infrastructure — S1: Schema Only
+# Decision: External Cron + Secure Endpoint (PR #464 — S0 Tooling Decision)
+# No runner, no helpers, no hooks, no endpoints in this migration.
+# ══════════════════════════════════════════════════════════════════════════
+
+def _migrate_scheduler_jobs():
+    """
+    Create scheduler_jobs table for time-based background job scheduling.
+
+    S1 phase — schema only. This migration:
+      - Creates the scheduler_jobs table with all required columns.
+      - Adds dedupe_key UNIQUE constraint (idempotency at DB level).
+      - Adds status / attempts / max_attempts CHECK constraints.
+      - Adds 4 indexes for due-jobs lookup, lock cleanup, monitoring, audit.
+
+    What is NOT included (deferred to S2/S3):
+      - No schedule_job() helper function.
+      - No run_due_jobs() runner.
+      - No /internal/run-due-jobs endpoint.
+      - No hooks in appointment or notification code.
+      - The table will not be read or written at runtime until S2/S3.
+
+    Idempotent — safe to run on every startup (CREATE IF NOT EXISTS).
+    """
+    conn = get_conn()
+    try:
+        conn.run("""
+            CREATE TABLE IF NOT EXISTS scheduler_jobs (
+                id           BIGSERIAL PRIMARY KEY,
+                job_type     TEXT NOT NULL,
+                payload      JSONB NOT NULL DEFAULT '{}'::jsonb,
+                run_at       TIMESTAMPTZ NOT NULL,
+                status       TEXT NOT NULL DEFAULT 'pending',
+                attempts     INTEGER NOT NULL DEFAULT 0,
+                max_attempts INTEGER NOT NULL DEFAULT 5,
+                last_error   TEXT,
+                dedupe_key   TEXT NOT NULL,
+                locked_at    TIMESTAMPTZ,
+                locked_by    TEXT,
+                created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                CONSTRAINT uq_sched_dedupe   UNIQUE (dedupe_key),
+                CONSTRAINT ck_sched_status   CHECK (status IN ('pending','running','done','failed','cancelled')),
+                CONSTRAINT ck_sched_attempts CHECK (attempts >= 0),
+                CONSTRAINT ck_sched_maxatt   CHECK (max_attempts >= 1)
+            )
+        """)
+
+        # Due-jobs lookup: pending jobs whose run_at has passed.
+        # Primary query in run_due_jobs(): WHERE status='pending' AND run_at<=NOW()
+        conn.run("CREATE INDEX IF NOT EXISTS idx_sched_due       ON scheduler_jobs(status, run_at)")
+
+        # Stale lock cleanup: find running jobs with old locked_at for reset.
+        conn.run("CREATE INDEX IF NOT EXISTS idx_sched_locked_at ON scheduler_jobs(locked_at)")
+
+        # Monitoring / debug: group or count by job type.
+        conn.run("CREATE INDEX IF NOT EXISTS idx_sched_job_type  ON scheduler_jobs(job_type)")
+
+        # Audit review: most recent jobs first.
+        conn.run("CREATE INDEX IF NOT EXISTS idx_sched_created   ON scheduler_jobs(created_at DESC)")
+
+    finally:
+        release_conn(conn)

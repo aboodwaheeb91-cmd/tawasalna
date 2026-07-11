@@ -108,6 +108,7 @@ from auth import (
     update_company_saved_candidate, VALID_CANDIDATE_STATUSES, VALID_CANDIDATE_SORTS,
     get_company_candidate_suggestions,
     _migrate_appointments,
+    _migrate_scheduler_jobs,
 )
 from auth import ContentValidationError, validate_professional_text
 
@@ -498,6 +499,12 @@ async def on_startup():
         print("✅ appointments tables ready (appointments, appointment_participants, appointment_events, appointment_messages)")
     except Exception as e:
         print(f"❌ appointments migration failed: {e}")
+        raise
+    try:
+        _migrate_scheduler_jobs()
+        print("✅ scheduler_jobs table ready")
+    except Exception as e:
+        print(f"❌ scheduler_jobs migration failed: {e}")
         raise
     await _init_asyncpg_pool()
 
