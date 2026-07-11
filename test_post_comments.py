@@ -8070,9 +8070,13 @@ check(
     and not _os177.path.exists('.github/workflows/cron.yml')
 )
 check(
-    "177-28. No GitHub Actions scheduler workflow file added",
+    "177-28. GitHub Actions workflow file is the correct canonical name (scheduler-cron.yml)",
+    # S3 guard updated: scheduler-cron.yml is now legitimate (added in cron-activation PR).
+    # Still guard against wrong names (scheduler.yml, cron.yml).
     not _os177.path.exists('.github/workflows/scheduler.yml')
-    and not _os177.path.exists('.github/workflows/scheduler-cron.yml')
+    and not _os177.path.exists('.github/workflows/cron.yml')
+    and (not _os177.path.exists('.github/workflows/scheduler-cron.yml')
+         or open('.github/workflows/scheduler-cron.yml', encoding='utf-8').read().count('X-Scheduler-Secret') >= 1)
 )
 check(
     "177-29. auth.py: no APScheduler import added",

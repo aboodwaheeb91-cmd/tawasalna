@@ -1,0 +1,45 @@
+name: Scheduler Cron
+
+# Runs every 5 minutes and triggers the scheduler runner endpoint.
+# The endpoint is secured with X-Scheduler-Secret (hmac.compare_digest).
+# Secret never appears in logs — GitHub Actions auto-redacts ${{ secrets.* }}.
+#
+# Setup (one-time, done by repo owner):
+#   1. Railway Project → your backend Service → Variables
+#      Add: SCHEDULER_SECRET = <strong-random-secret>
+#   2. GitHub Secret → Settings → Secrets → SCHEDULER_SECRET = same value
+#   3. GitHub Variable → Settings → Variables → APP_URL = https://your-production-domain.com
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'   # every 5 minutes (UTC)
+  workflow_dispatch:          # allow manual trigger for testing
+
+jobs:
+  run-due-jobs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+
+    steps:
+      - name: Run due scheduler jobs
+        run: |
+          HTTP_STATUS=$(curl -s \
+            -o /tmp/sched_response.json \
+            -w "%{http_code}" \
+            -X POST "${{ vars.APP_URL }}/internal/run-due-jobs" \
+            -H "X-Scheduler-Secret: ${{ secrets.SCHEDULER_SECRET }}" \
+            --max-time 90)
+
+          echo "HTTP status: $HTTP_STATUS"
+          cat /tmp/sched_response.json
+          echo ""
+
+          if [ "$HTTP_STATUS" = "503" ]; then
+            echo "SCHEDULER_SECRET is not configured on the production server."
+            exit 1
+          fi
+
+          if [ "$HTTP_STATUS" != "200" ]; then
+            echo "Scheduler run failed — HTTP $HTTP_STATUS"
+            exit 1
+          fi

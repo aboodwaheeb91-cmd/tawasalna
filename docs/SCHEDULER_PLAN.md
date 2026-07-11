@@ -1004,6 +1004,7 @@ if sched_ts_payload is not None:
 | Domain handlers (4) | ✅ S4 | `auth.py → _handle_appointment_reminder` / `_deadline_expire` / `_missed` / `_handle_job_expiring_soon` |
 | Scheduling hooks (5) | ✅ S4 | `auth.py → accept_appointment` / `send_appointment` / `reschedule_appointment` / `add_job` |
 | Runtime QA (5 checks) | ✅ S5 | `test_post_comments.py §179` |
+| External Cron | 🔧 جاهز — بانتظار ضبط SCHEDULER_SECRET وAPP_URL وتشغيل اختبار الإنتاج | `.github/workflows/scheduler-cron.yml` — كل 5 دقائق |
 | Proposed schema (docs) | §7 + §11 | هذا الملف |
 | S2 contract | §12 | هذا الملف |
 | S3 contract | §13 | هذا الملف |
@@ -1013,6 +1014,7 @@ if sched_ts_payload is not None:
 | Notifications blocked | محدَّث | `docs/NOTIFICATIONS_PLAN.md` |
 | System index entry | مضاف + محدَّث | `docs/SYSTEMS_INDEX.md §37` |
 | Runtime QA | ✅ S5 | `test_post_comments.py §179` |
+| External Cron | 🔧 جاهز — بانتظار تفعيل الإنتاج | `.github/workflows/scheduler-cron.yml` |
 | Admin observability | 🔜 S6 | — |
 
 ---
