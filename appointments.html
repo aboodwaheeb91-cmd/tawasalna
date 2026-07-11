@@ -338,7 +338,21 @@ body{background:var(--bg);color:var(--txt);font-family:var(--font);min-height:10
     const qs = _currentFilter ? '?status=' + encodeURIComponent(_currentFilter) : '';
     api('/api/appointments' + qs).then(res => {
       listEl.innerHTML = '';
-      if (!res.ok || !res.data || res.data.length === 0) {
+      if (!res.ok) {
+        const errEl = document.createElement('div');
+        errEl.className = 'empty';
+        const t = document.createElement('div');
+        t.className = 'empty-txt';
+        safeText(t, 'خطأ في تحميل البيانات');
+        const s = document.createElement('div');
+        s.className = 'empty-sub';
+        safeText(s, res.detail || 'تحقق من اتصالك وحاول مرة أخرى');
+        errEl.appendChild(t);
+        errEl.appendChild(s);
+        listEl.appendChild(errEl);
+        return;
+      }
+      if (!res.data || res.data.length === 0) {
         const empty = document.createElement('div');
         empty.className = 'empty';
         empty.innerHTML = '<div class="empty-icon">📅</div>';

@@ -4542,7 +4542,7 @@ def api_list_appointments(status: Optional[str] = None,
     try:
         result = list_appointments(user_id, status_filter=status,
                                     limit=limit, offset=offset)
-        return {"ok": True, "data": result, "total": len(result)}
+        return {"ok": True, "data": result, "count": len(result)}
     except Exception as e:
         print(f"[api_list_appointments] {e}")
         raise HTTPException(500, str(e))
@@ -4567,6 +4567,8 @@ def api_get_appointment_room(appointment_id: int, token=Depends(verify_token)):
 def api_send_appointment(appointment_id: int, body: AppointmentSendInput,
                           token=Depends(verify_token)):
     user_id = int(token["user_id"])
+    if token.get("user_type") != "co":
+        raise HTTPException(403, "فقط حسابات الشركات يمكنها إرسال دعوات المقابلة")
     try:
         appt = send_appointment(
             appointment_id=appointment_id,

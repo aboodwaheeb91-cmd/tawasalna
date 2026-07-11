@@ -313,9 +313,9 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 
 ---
 
-### 23. Appointments & Interview Rooms System ✅ Phases 1–7 implemented (PR #460 + PR #461)
+### 23. Appointments & Interview Rooms System ✅ Phases 1–7 + QA implemented (PR #460 + PR #461 + QA PR)
 **Purpose:** مجدولة المقابلات الرسمية وغرف الاجتماعات المرتبطة بطلبات التوظيف. يُتيح للشركة إرسال دعوة مقابلة لمتقدم محدد، وللمتقدم قبولها / إعادة الجدولة / الإلغاء. كل قرار رسمي يتم عبر أزرار رسمية لا من خلال المحادثة النصية.
-**Status:** ✅ Phases 1–7 complete (PR #460 + #461). Phase 8 (scheduler reminders) deferred.
+**Status:** ✅ Phases 1–7 complete (PR #460 + #461). QA pass complete (QA PR). Phase 8 (scheduler reminders) deferred.
 **Implemented:**
 - Phase 1 (PR #460): 4 DB tables + 14 indexes. Migration: `_migrate_appointments()`.
 - Phase 2 (PR #461): 13 auth.py helpers + 13 server.py endpoints at `/api/appointments/*`.
