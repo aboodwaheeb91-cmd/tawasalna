@@ -10002,3 +10002,161 @@ else:
 ❌ Checking body.indexOf('@' + name) === 0 (start only) — must use >= 0 (any position)
 ❌ Sending mentioned_tw_id (singular) in POST payload — must use mentioned_tw_ids (array)
 ```
+
+---
+
+## [P1] 66. Promote Application to Shortlist — عملية الترقية الذرية
+
+**Implemented in:** PR #475 (feat/promote-application-to-shortlist)
+
+### Purpose
+
+Replaces the old "قبول مبدئي" single-system action with a dual-system atomic business operation.
+A single endpoint atomically:
+1. Sets `job_applications.status = 'accepted'`
+2. UPSERTs `company_saved_candidates` → `status = 'shortlisted'` with the application's `job_id`
+
+### Endpoint
+
+#### POST /jobs/applications/{app_id}/promote
+
+**Auth:** Bearer JWT (`verify_token`) — company owner only (derived from token)  
+**Permission:** JWT `user_id` must match `jobs.company_id` for the application's job
+
+**Request:** no body required
+
+**Response 200:**
+```json
+{
+  "application": { "id": 123, "status": "accepted" },
+  "candidate": {
+    "candidate_id": 456,
+    "status": "shortlisted",
+    "status_label": "مرشح قوي",
+    "job_id": 789,
+    "action": "created"
+  }
+}
+```
+
+`action` values:
+- `"created"` — candidate was new to the pipeline
+- `"updated"` — candidate was at `saved`, now promoted to `shortlisted`
+- `"unchanged"` — candidate was already at `shortlisted` or higher (idempotent)
+
+**Error responses:**
+
+| HTTP | Trigger |
+|------|---------|
+| 401 | Invalid or missing JWT |
+| 403 | Application does not belong to the caller's company |
+| 404 | `app_id` not found |
+| 409 | Candidate is `rejected` — must be re-activated manually before promoting |
+| 500 | Unexpected DB failure |
+
+### Transaction Contract
+
+All reads and writes happen inside a single `BEGIN / COMMIT / ROLLBACK` transaction.
+
+```
+BEGIN
+  SELECT ... FOR UPDATE OF ja              -- lock application row (prevent concurrent promote)
+  SELECT ... FOR UPDATE                    -- lock candidate row IF EXISTS (cannot lock non-existent row)
+  -- pre-UPSERT: if existing row is rejected → raise ValueError → ROLLBACK → HTTP 409
+  UPDATE job_applications SET status = 'accepted'
+  INSERT INTO company_saved_candidates ...
+    ON CONFLICT DO UPDATE SET ... (CASE safety)
+    RETURNING status, job_id, (xmax = 0) AS was_inserted    ← authoritative final state
+  -- post-UPSERT, pre-COMMIT: if RETURNING status == 'rejected' → raise ValueError → ROLLBACK → HTTP 409
+COMMIT
+```
+
+**Key invariant:** UPSERT always runs — it is never gated on a skip condition.
+**RETURNING is the authoritative source** for `final_status`, `final_job_id`, and `was_inserted` — no post-COMMIT re-query.
+No partial state is possible: if any step raises, the transaction rolls back atomically.
+
+#### Why FOR UPDATE Cannot Fully Protect Against Concurrent Inserts
+
+`SELECT ... FOR UPDATE` acquires a row-level lock on an **existing** row. If no candidate row exists yet, there is no row to lock — a concurrent writer can INSERT a `rejected` row between the lock-attempt SELECT and the UPSERT.
+
+The post-UPSERT, pre-COMMIT check on `RETURNING status` closes this gap:
+
+```
+Timeline (race):
+  Thread A: SELECT candidate — no row found (nothing to lock)
+  Thread B: INSERT candidate with status='rejected'
+  Thread A: UPSERT → conflict → DO UPDATE CASE preserves 'rejected'
+  Thread A: RETURNING status = 'rejected'
+  Thread A: if final_status == "rejected" → raise ValueError → ROLLBACK → HTTP 409
+  Thread A: application.status stays 'pending' (rollback includes the UPDATE)
+```
+
+Without the RETURNING check, Thread A would COMMIT with `application.status = 'accepted'` and `candidate.status = 'rejected'` — an inconsistent state.
+
+### Candidate Status Policy
+
+| Current status | Concurrent scenario | Application result | Candidate result |
+|---------------|--------------------|--------------------|-----------------|
+| not in table (no race) | — | `accepted` | inserted as `shortlisted` |
+| `saved` | — | `accepted` | updated to `shortlisted` |
+| `shortlisted` | — | `accepted` | unchanged (idempotent) |
+| `contacted` | — | `accepted` | unchanged (don't downgrade) |
+| `interview` | — | `accepted` | unchanged (don't downgrade) |
+| `hired` | — | `accepted` | unchanged (don't downgrade) |
+| `rejected` (existing row) | pre-UPSERT check | ROLLBACK | HTTP 409 |
+| not in table → concurrent `rejected` INSERT | post-UPSERT RETURNING check | ROLLBACK | HTTP 409 |
+
+### Defense in Depth (Three Layers)
+
+**Layer 1 — Pre-UPSERT Python check:** catches rejected for existing rows (fast path, good UX).
+
+**Layer 2 — UPSERT CASE in SQL:** independently enforces status policy at the DB layer regardless of application-level logic:
+- `contacted / interview / hired / rejected` → preserved (no downgrade, no reactivation)
+- `saved / shortlisted` → updated to `shortlisted`
+
+**Layer 3 — Post-UPSERT RETURNING check (pre-COMMIT):** reads the authoritative final state from the DB after the UPSERT runs. If `status = 'rejected'` (due to CASE preserving a concurrently-inserted rejected row), raises ValueError and triggers ROLLBACK before COMMIT is reached.
+
+All three layers must remain in place. Removing any one layer weakens the guarantee.
+
+### Backend Function (`auth.py`)
+
+| Symbol | Description |
+|--------|-------------|
+| `_CANDIDATE_STATUS_RANK` | `{saved:1, shortlisted:2, contacted:3, interview:4, hired:5}` — reference dict for ranking |
+| `promote_application_to_shortlist(app_id, company_id)` | Full atomic operation; raises `KeyError/PermissionError/ValueError/RuntimeError` |
+
+`candidate_action` is computed from RETURNING after COMMIT:
+- `was_inserted = True` → `"created"` (fresh row, `xmax = 0`)
+- `was_inserted = False`, `final_status == current_cand_status` → `"unchanged"` (DO UPDATE preserved)
+- `was_inserted = False`, `final_status != current_cand_status` → `"updated"` (status moved up)
+
+### Exception → HTTP Mapping (server.py)
+
+| Exception | HTTP | Reason |
+|-----------|------|--------|
+| `KeyError` | 404 | `app_id` not found |
+| `PermissionError` | 403 | Company doesn't own the job |
+| `ValueError` | 409 | Not emp, or candidate is rejected (either pre- or post-UPSERT path) |
+| `RuntimeError` | 500 | Unexpected DB error or empty RETURNING result |
+
+### Security Notes
+
+- `company_id` is always taken from JWT — never from the request body
+- Ownership verified inside the transaction: `job.company_id == token.user_id`
+- Ownership failures are logged: `[SECURITY] PROMOTE_OWNERSHIP_FAILED`
+- No notification sent to applicant — `accepted` is an internal company state
+
+### Forbidden Patterns
+
+```
+❌ Reading candidate status BEFORE BEGIN (race condition window)
+❌ FOR UPDATE after other reads inside the transaction
+❌ Gating UPSERT behind a skip condition — UPSERT must always run unconditionally
+❌ Using post-COMMIT SELECT to get final state — RETURNING is the authority
+❌ Fallback: final_rows[0][0] if final_rows else "shortlisted" — missing row is a RuntimeError
+❌ Checking only the pre-UPSERT state for rejected — concurrent insert slips through without RETURNING check
+❌ Catching KeyError/PermissionError/ValueError and wrapping in RuntimeError (loses HTTP status)
+❌ UPSERT without CASE safety — can downgrade higher statuses or reactivate rejected
+❌ Using PUT /jobs/applications/{id}/status to do dual-system writes
+❌ Reactivating a rejected candidate automatically without explicit human decision
+```
