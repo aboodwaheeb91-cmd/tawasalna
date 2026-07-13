@@ -79,7 +79,7 @@ from auth import (
     get_unread_notifications, _migrate_notifications_schema_v2,
     _migrate_notifications_schema_v2_1,
     get_job_applicants, get_user_applications,
-    update_application_status, delete_job,
+    update_application_status, promote_application_to_shortlist, delete_job,
     get_company_jobs_all, set_job_status,
     get_site_setting, set_site_setting, release_conn,
     _cache_del, get_profile_style,
@@ -4014,6 +4014,33 @@ def update_app_status(app_id: int, data: AppStatusInput, token=Depends(verify_to
         raise HTTPException(403, "غير مصرح — هذا الطلب ليس لوظيفة شركتك")
     result = update_application_status(app_id, data.status, actor_id=int(user_id))
     return result
+
+
+@app.post("/jobs/applications/{app_id}/promote")
+def promote_applicant(app_id: int, token=Depends(verify_token)):
+    """
+    Atomic business operation: mark application 'accepted' + UPSERT candidate to 'shortlisted'.
+    Replaces the old 'قبول مبدئي' single-system action with a dual-system atomic one.
+
+    Returns: { application: {id, status}, candidate: {candidate_id, status, status_label, job_id, action} }
+    """
+    user_id = token.get("user_id")
+    if not user_id:
+        print(f"[SECURITY] INVALID_TOKEN: POST /jobs/applications/{app_id}/promote")
+        raise HTTPException(401, "رمز غير صالح")
+    try:
+        return promote_application_to_shortlist(app_id, int(user_id))
+    except KeyError as e:
+        raise HTTPException(404, str(e))
+    except PermissionError as e:
+        print(f"[SECURITY] PROMOTE_OWNERSHIP_FAILED: user {user_id} → app {app_id}: {e}")
+        raise HTTPException(403, str(e))
+    except ValueError as e:
+        raise HTTPException(409, str(e))
+    except RuntimeError as e:
+        print(f"[ERROR] promote_application_to_shortlist app {app_id}: {e}")
+        raise HTTPException(500, str(e))
+
 
 @app.get("/admin/jobs")
 def admin_list_jobs(request: Request):

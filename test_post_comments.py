@@ -8638,6 +8638,104 @@ check("181-04. auth guard in appointments.html still redirects unauthenticated t
       "location.href = '/login'" in _appt_html181
       and "localStorage.getItem('tw_jwt')" in _appt_html181)
 
+# ════════════════════════════════════════════════════════════════════════════
+# §182 — Promote Application to Shortlist: PR-B backend (feat/promote-application)
+# 14 static checks covering: auth.py helper, transaction, status policy, endpoint,
+# import wiring, and exception → HTTP status code mapping.
+# ════════════════════════════════════════════════════════════════════════════
+
+_auth182 = ''
+try:
+    with open('auth.py', encoding='utf-8') as _f182a: _auth182 = _f182a.read()
+except Exception: pass
+
+_srv182 = _srv181  # already loaded above
+
+# 182-01: promote_application_to_shortlist function exists in auth.py
+check("182-01. promote_application_to_shortlist function defined in auth.py",
+      "def promote_application_to_shortlist(" in _auth182)
+
+# 182-02: _CANDIDATE_STATUS_RANK dict exists with all valid statuses
+check("182-02. _CANDIDATE_STATUS_RANK defined with all non-rejected statuses",
+      "_CANDIDATE_STATUS_RANK" in _auth182
+      and '"saved"' in _auth182
+      and '"shortlisted"' in _auth182
+      and '"contacted"' in _auth182
+      and '"interview"' in _auth182
+      and '"hired"' in _auth182)
+
+# 182-03: transaction pattern (BEGIN / COMMIT / ROLLBACK) is used inside the function
+_promote_fn182 = ""
+if "def promote_application_to_shortlist(" in _auth182:
+    _start182 = _auth182.index("def promote_application_to_shortlist(")
+    _end182   = _auth182.index("\ndef get_company_candidate_suggestions(", _start182)
+    _promote_fn182 = _auth182[_start182:_end182]
+check("182-03. promote_application_to_shortlist uses BEGIN/COMMIT/ROLLBACK transaction",
+      'conn.run("BEGIN")' in _promote_fn182
+      and 'conn.run("COMMIT")' in _promote_fn182
+      and 'conn.run("ROLLBACK")' in _promote_fn182
+      and 'committed = False' in _promote_fn182
+      and 'committed = True' in _promote_fn182)
+
+# 182-04: ownership check — job_company_id must equal company_id
+check("182-04. ownership check: job_company_id vs company_id",
+      "job_company_id" in _promote_fn182
+      and "int(job_company_id) != int(company_id)" in _promote_fn182
+      and "PermissionError" in _promote_fn182)
+
+# 182-05: applicant type is validated as 'emp'
+check("182-05. applicant user_type must be 'emp'",
+      "applicant_type != \"emp\"" in _promote_fn182
+      and "ValueError" in _promote_fn182)
+
+# 182-06: rejected candidate raises ValueError (Conflict policy)
+check("182-06. rejected candidate raises ValueError",
+      'current_cand_status == "rejected"' in _promote_fn182
+      and 'raise ValueError' in _promote_fn182)
+
+# 182-07: higher-status candidates are not downgraded (contacted/interview/hired preserved)
+check("182-07. higher-status candidates skip candidate update (no downgrade)",
+      'skip_candidate_update' in _promote_fn182
+      and '_CANDIDATE_STATUS_RANK["contacted"]' in _promote_fn182)
+
+# 182-08: UPSERT into company_saved_candidates uses ON CONFLICT ... DO UPDATE with shortlisted
+check("182-08. UPSERT sets status='shortlisted' on conflict",
+      "ON CONFLICT (company_id, candidate_id) DO UPDATE" in _promote_fn182
+      and "'shortlisted'" in _promote_fn182)
+
+# 182-09: application is always updated to 'accepted' in the transaction
+check("182-09. application status set to 'accepted' inside transaction",
+      "UPDATE job_applications SET status = 'accepted'" in _promote_fn182)
+
+# 182-10: function returns application dict + candidate dict with action field
+check("182-10. return value contains application + candidate + action",
+      '"application"' in _promote_fn182
+      and '"candidate"' in _promote_fn182
+      and '"action"' in _promote_fn182
+      and '"status_label"' in _promote_fn182)
+
+# 182-11: POST /jobs/applications/{app_id}/promote endpoint defined in server.py
+check("182-11. POST /jobs/applications/{app_id}/promote endpoint exists",
+      '@app.post("/jobs/applications/{app_id}/promote")' in _srv182)
+
+# 182-12: promote_application_to_shortlist imported in server.py
+check("182-12. promote_application_to_shortlist imported in server.py",
+      "promote_application_to_shortlist" in _srv182)
+
+# 182-13: endpoint maps KeyError→404, PermissionError→403, ValueError→409, RuntimeError→500
+_ep_start182 = _srv182.find('@app.post("/jobs/applications/{app_id}/promote")')
+_ep_end182   = _srv182.find('\n@app.', _ep_start182 + 10)
+_ep_block182 = _srv182[_ep_start182:_ep_end182] if _ep_start182 >= 0 else ""
+check("182-13. endpoint maps KeyError→404, PermissionError→403, ValueError→409, RuntimeError→500",
+      "KeyError" in _ep_block182 and "404" in _ep_block182
+      and "PermissionError" in _ep_block182 and "403" in _ep_block182
+      and "ValueError" in _ep_block182 and "409" in _ep_block182
+      and "RuntimeError" in _ep_block182 and "500" in _ep_block182)
+
+# 182-14: security log for ownership failure (same pattern as existing endpoint)
+check("182-14. endpoint logs PROMOTE_OWNERSHIP_FAILED on PermissionError",
+      "PROMOTE_OWNERSHIP_FAILED" in _ep_block182)
+
 # ── Summary ──────────────────────────────────────────────────────────────
 print()
 passed = sum(1 for _, s, _ in results if s == PASS)
