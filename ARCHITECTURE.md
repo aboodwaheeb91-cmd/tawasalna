@@ -10002,3 +10002,124 @@ else:
 ❌ Checking body.indexOf('@' + name) === 0 (start only) — must use >= 0 (any position)
 ❌ Sending mentioned_tw_id (singular) in POST payload — must use mentioned_tw_ids (array)
 ```
+
+---
+
+## [P1] 66. Promote Application to Shortlist — عملية الترقية الذرية
+
+**Implemented in:** PR #475 (feat/promote-application-to-shortlist)
+
+### Purpose
+
+Replaces the old "قبول مبدئي" single-system action with a dual-system atomic business operation.
+A single endpoint atomically:
+1. Sets `job_applications.status = 'accepted'`
+2. UPSERTs `company_saved_candidates` → `status = 'shortlisted'` with the application's `job_id`
+
+### Endpoint
+
+#### POST /jobs/applications/{app_id}/promote
+
+**Auth:** Bearer JWT (`verify_token`) — company owner only (derived from token)  
+**Permission:** JWT `user_id` must match `jobs.company_id` for the application's job
+
+**Request:** no body required
+
+**Response 200:**
+```json
+{
+  "application": { "id": 123, "status": "accepted" },
+  "candidate": {
+    "candidate_id": 456,
+    "status": "shortlisted",
+    "status_label": "مرشح قوي",
+    "job_id": 789,
+    "action": "created"
+  }
+}
+```
+
+`action` values:
+- `"created"` — candidate was new to the pipeline
+- `"updated"` — candidate was at `saved`, now promoted to `shortlisted`
+- `"unchanged"` — candidate was already at `shortlisted` or higher (idempotent)
+
+**Error responses:**
+
+| HTTP | Trigger |
+|------|---------|
+| 401 | Invalid or missing JWT |
+| 403 | Application does not belong to the caller's company |
+| 404 | `app_id` not found |
+| 409 | Candidate is `rejected` — must be re-activated manually before promoting |
+| 500 | Unexpected DB failure |
+
+### Transaction Contract
+
+All reads and writes happen inside a single `BEGIN / COMMIT / ROLLBACK` transaction:
+
+```
+BEGIN
+  SELECT ... FOR UPDATE OF ja       -- lock application row (prevent concurrent promote)
+  SELECT ... FOR UPDATE             -- lock candidate row if exists (prevent concurrent PATCH)
+  -- if rejected → raise ValueError → ROLLBACK → HTTP 409
+  UPDATE job_applications SET status = 'accepted'
+  INSERT INTO company_saved_candidates ... ON CONFLICT DO UPDATE (with CASE safety)
+COMMIT
+```
+
+No partial state is possible. If any step fails, the transaction rolls back atomically.
+
+### Candidate Status Policy
+
+| Current status | Application result | Candidate result |
+|---------------|-------------------|-----------------|
+| not in table | `accepted` | inserted as `shortlisted` |
+| `saved` | `accepted` | updated to `shortlisted` |
+| `shortlisted` | `accepted` | unchanged (idempotent) |
+| `contacted` | `accepted` | unchanged (don't downgrade) |
+| `interview` | `accepted` | unchanged (don't downgrade) |
+| `hired` | `accepted` | unchanged (don't downgrade) |
+| `rejected` | ROLLBACK | HTTP 409 Conflict |
+
+### Defense in Depth (UPSERT CASE)
+
+The UPSERT `DO UPDATE SET` clause uses a `CASE` expression that independently enforces the status policy at the SQL level. Even if a future code path bypasses the Python checks, the SQL will never:
+- Downgrade `contacted / interview / hired` to `shortlisted`
+- Reactivate a `rejected` candidate
+- Change `job_id` for candidates already at `contacted / interview / hired / rejected`
+
+### Backend Function (`auth.py`)
+
+| Symbol | Description |
+|--------|-------------|
+| `_CANDIDATE_STATUS_RANK` | `{saved:1, shortlisted:2, contacted:3, interview:4, hired:5}` — rank for don't-downgrade logic |
+| `promote_application_to_shortlist(app_id, company_id)` | Full atomic operation; raises `KeyError/PermissionError/ValueError/RuntimeError` |
+
+### Exception → HTTP Mapping (server.py)
+
+| Exception | HTTP | Reason |
+|-----------|------|--------|
+| `KeyError` | 404 | `app_id` not found |
+| `PermissionError` | 403 | Company doesn't own the job |
+| `ValueError` | 409 | Not emp, or candidate is rejected |
+| `RuntimeError` | 500 | Unexpected DB error or post-COMMIT integrity failure |
+
+### Security Notes
+
+- `company_id` is always taken from JWT — never from the request body
+- Ownership verified inside the transaction: `job.company_id == token.user_id`
+- Ownership failures are logged: `[SECURITY] PROMOTE_OWNERSHIP_FAILED`
+- No notification sent to applicant — `accepted` is an internal company state
+
+### Forbidden Patterns
+
+```
+❌ Reading candidate status BEFORE BEGIN (race condition window)
+❌ FOR UPDATE after other reads inside the transaction
+❌ Fallback: final_rows[0][0] if final_rows else "shortlisted" — missing row is a RuntimeError
+❌ Catching KeyError/PermissionError/ValueError and wrapping in RuntimeError (loses HTTP status)
+❌ UPSERT without CASE safety — can downgrade higher statuses or reactivate rejected
+❌ Using PUT /jobs/applications/{id}/status to do dual-system writes
+❌ Reactivating a rejected candidate automatically without explicit human decision
+```

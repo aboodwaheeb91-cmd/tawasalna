@@ -155,6 +155,7 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 **Details:** `CLAUDE.md → API Endpoints` · `ARCHITECTURE.md §62` · `docs/company-jobs-and-applicants.md §5–6`
 **Do not recreate:** `user_id` comes from JWT only — never from request body. Apply status check happens server-side.
 **Applicants Modal:** Owner-only. Filters: الكل / محفوظ / مرشح قوي / تم التواصل / مقابلة / تم التوظيف / غير مناسب / بدون وظيفة. Candidate buttons: فتح البروفايل (→ `/u/{tw_id}`) + إدارة + إزالة. Remove button exists only in modal — not in the job card. No phone/email/KYC data exposed. See `docs/company-jobs-and-applicants.md §5` for full spec.
+**Promote endpoint (§66):** `POST /jobs/applications/{app_id}/promote` — atomic dual-write: application → `accepted` + candidate → `shortlisted` in one transaction. Use this instead of `PUT /status` for the promote action. See `ARCHITECTURE.md §66`.
 
 ---
 
@@ -255,6 +256,7 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 **Frontend (Phase 7B):** Filter bar inside `#coCandSavedShell`: 8 chips (الكل + 6 statuses + بدون وظيفة), search input (300ms debounce), sort select (6 options). Stats loaded via `getSavedCandidatesStats()`. Badge updated from `stats.total` (unfiltered). Load more button when `has_more=true`. Cards render in `#coCandSavedList` (not `_body`). Stats refresh after DELETE and PATCH. Filter-mismatch cards hide after PATCH. 8 empty state messages per filter.
 **Frontend (UI Polish — PR fix/candidate-modal-ui-polish):** Custom dark inline pickers replace native `<select>` for status and job in manage panel and sort in filter bar. Chips: 4×2 grid, `44px` height, `9px` border-radius, per-status color always visible (not only on active). Manage button: neutral slate. Status badge colors unified with chip palette. See `ARCHITECTURE.md §55g` for full spec, picker DOM contract, value contracts, and forbidden patterns.
 **Do not recreate:** Do not add `company_id` to query/body. Do not search inside `notes`. Do not use raw user input in ORDER BY — use `VALID_CANDIDATE_SORTS` dict only. Do not change `/count` endpoint behavior. Do not update badge from `res.data.count` — use `stats.total` only.
+**Promote entry point (§66):** Candidates are promoted into this table via `POST /jobs/applications/{app_id}/promote` (not a direct `POST /company/saved-candidates`). This is the only atomic entry point that simultaneously marks the application `accepted`. See §15 (Job Applications) and `ARCHITECTURE.md §66`.
 
 ### 20d. Company Candidate Suggestions (Phase 5A Backend)
 **Purpose:** Scored employee suggestions for a company based on its active job postings. Owner-only, private. No new DB table — reuses jobs, job_profession_targets, profiles, user_skills, company_saved_candidates.

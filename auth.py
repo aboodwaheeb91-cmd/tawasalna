@@ -5117,88 +5117,126 @@ def update_company_saved_candidate(
 
 def promote_application_to_shortlist(app_id: int, company_id: int) -> dict:
     """
-    Business operation: mark application 'accepted' + UPSERT candidate to 'shortlisted'.
-    Both writes are in a single transaction — partial state is impossible.
+    Atomic business operation: mark application 'accepted' + UPSERT candidate to 'shortlisted'.
+
+    All critical reads happen INSIDE BEGIN with FOR UPDATE row locks — no race condition.
+    Both writes complete atomically or roll back together — no partial state.
 
     Status policy (candidate):
-      • not saved yet / saved / shortlisted → promoted to shortlisted  (action: created|updated|unchanged)
-      • contacted / interview / hired       → application accepted, candidate status preserved  (action: unchanged)
-      • rejected                            → raises ValueError → caller returns HTTP 409
+      • not saved / saved / shortlisted → promoted to 'shortlisted'   (action: created|updated|unchanged)
+      • contacted / interview / hired   → application accepted, candidate status preserved  (action: unchanged)
+      • rejected                        → ROLLBACK + raises ValueError → caller returns HTTP 409
 
-    Idempotent: repeated calls succeed; action field reflects what actually changed.
+    Defense in depth: the UPSERT SQL itself also preserves higher/rejected statuses via CASE
+    (protects against any future code path that skips the pre-check).
+
+    Idempotent: repeated calls succeed; `action` field reports what actually changed.
 
     Raises:
-      KeyError       → app not found (→ 404)
-      PermissionError→ company doesn't own the job (→ 403)
-      ValueError     → applicant not emp, or candidate is rejected (→ 409)
-      RuntimeError   → transaction failed (→ 500)
+      KeyError        → app_id not found (→ 404)
+      PermissionError → caller doesn't own the job (→ 403)
+      ValueError      → applicant not emp, or candidate is rejected (→ 409)
+      RuntimeError    → unexpected DB error (→ 500)
     """
     conn = get_conn()
     try:
-        # 1. Fetch application row + ownership + applicant type in one query
-        rows = conn.run(
-            "SELECT ja.user_id, ja.job_id, ja.status, j.company_id, u.user_type "
-            "FROM job_applications ja "
-            "JOIN jobs j ON j.id = ja.job_id "
-            "JOIN users u ON u.id = ja.user_id "
-            "WHERE ja.id = :id",
-            id=app_id)
-        if not rows:
-            raise KeyError("الطلب غير موجود")
-
-        applicant_id, job_id, current_app_status, job_company_id, applicant_type = rows[0]
-
-        if int(job_company_id) != int(company_id):
-            raise PermissionError("غير مصرح — هذا الطلب ليس لوظيفة شركتك")
-
-        if applicant_type != "emp":
-            raise ValueError("المتقدم ليس موظفاً — لا يمكن ترقيته للـ pipeline")
-
-        # 2. Check existing candidate status (pre-transaction read)
-        cand_rows = conn.run(
-            "SELECT status FROM company_saved_candidates "
-            "WHERE company_id = :cid AND candidate_id = :uid",
-            cid=company_id, uid=applicant_id)
-        current_cand_status = cand_rows[0][0] if cand_rows else None
-
-        if current_cand_status == "rejected":
-            raise ValueError(
-                "المرشح محدد كـ'غير مناسب' — يجب تغيير حالته يدوياً قبل الترقية")
-
-        # Don't downgrade if already at a higher engagement stage
-        current_rank = _CANDIDATE_STATUS_RANK.get(current_cand_status, 0)
-        skip_candidate_update = current_rank >= _CANDIDATE_STATUS_RANK["contacted"]
-
-        # Determine optimistic action label before the write
-        if skip_candidate_update:
-            candidate_action = "unchanged"
-        elif current_cand_status is None:
-            candidate_action = "created"
-        elif current_cand_status == "shortlisted":
-            candidate_action = "unchanged"
-        else:
-            candidate_action = "updated"  # was 'saved' → now 'shortlisted'
-
-        # 3. Atomic transaction
         conn.run("BEGIN")
         committed = False
         try:
+            # ── 1. Lock application row + fetch ownership/type inside transaction ──
+            # FOR UPDATE OF ja prevents concurrent promotes on the same application.
+            rows = conn.run(
+                "SELECT ja.user_id, ja.job_id, ja.status, j.company_id, u.user_type "
+                "FROM job_applications ja "
+                "JOIN jobs j ON j.id = ja.job_id "
+                "JOIN users u ON u.id = ja.user_id "
+                "WHERE ja.id = :id "
+                "FOR UPDATE OF ja",
+                id=app_id)
+            if not rows:
+                raise KeyError("الطلب غير موجود")
+
+            applicant_id, job_id, _app_status, job_company_id, applicant_type = rows[0]
+
+            if int(job_company_id) != int(company_id):
+                raise PermissionError("غير مصرح — هذا الطلب ليس لوظيفة شركتك")
+
+            if applicant_type != "emp":
+                raise ValueError("المتقدم ليس موظفاً — لا يمكن ترقيته للـ pipeline")
+
+            # ── 2. Lock candidate row (if exists) inside transaction ──
+            # FOR UPDATE prevents concurrent PATCH /company/saved-candidates/{id}
+            # from changing the status between our read and our write.
+            cand_rows = conn.run(
+                "SELECT id, status "
+                "FROM company_saved_candidates "
+                "WHERE company_id = :cid AND candidate_id = :uid "
+                "FOR UPDATE",
+                cid=company_id, uid=applicant_id)
+            current_cand_status = cand_rows[0][1] if cand_rows else None
+
+            # ── 3. Rejected = Conflict — no reactivation without explicit decision ──
+            if current_cand_status == "rejected":
+                raise ValueError(
+                    "المرشح محدد كـ'غير مناسب' — يجب تغيير حالته يدوياً قبل الترقية")
+
+            # ── 4. Determine action (from locked read — no race) ──
+            current_rank = _CANDIDATE_STATUS_RANK.get(current_cand_status, 0)
+            skip_candidate_update = current_rank >= _CANDIDATE_STATUS_RANK["contacted"]
+
+            if skip_candidate_update:
+                candidate_action = "unchanged"
+            elif current_cand_status is None:
+                candidate_action = "created"
+            elif current_cand_status == "shortlisted":
+                candidate_action = "unchanged"
+            else:
+                candidate_action = "updated"  # 'saved' → 'shortlisted'
+
+            # ── 5. Always mark application as accepted ──
             conn.run(
                 "UPDATE job_applications SET status = 'accepted' WHERE id = :id",
                 id=app_id)
 
+            # ── 6. UPSERT candidate (only when below 'contacted' rank) ──
+            # CASE in DO UPDATE = defense in depth: even if skip logic has a bug,
+            # the SQL will never downgrade a higher status or reactivate a rejected one.
             if not skip_candidate_update:
                 conn.run(
                     "INSERT INTO company_saved_candidates "
-                    "(company_id, candidate_id, job_id, saved_by, status) "
+                    "  (company_id, candidate_id, job_id, saved_by, status) "
                     "VALUES (:cid, :uid, :jid, :cid, 'shortlisted') "
-                    "ON CONFLICT (company_id, candidate_id) DO UPDATE "
-                    "SET status = 'shortlisted', job_id = EXCLUDED.job_id, updated_at = NOW()",
+                    "ON CONFLICT (company_id, candidate_id) DO UPDATE SET "
+                    "  status = CASE "
+                    "    WHEN company_saved_candidates.status "
+                    "         IN ('contacted','interview','hired','rejected') "
+                    "    THEN company_saved_candidates.status "
+                    "    ELSE 'shortlisted' "
+                    "  END, "
+                    "  job_id = CASE "
+                    "    WHEN company_saved_candidates.status "
+                    "         IN ('contacted','interview','hired','rejected') "
+                    "    THEN company_saved_candidates.job_id "
+                    "    ELSE EXCLUDED.job_id "
+                    "  END, "
+                    "  updated_at = NOW()",
                     cid=company_id, uid=applicant_id, jid=job_id)
 
             conn.run("COMMIT")
             committed = True
+
+        except (KeyError, PermissionError, ValueError):
+            # Known, expected exceptions — ROLLBACK then re-raise as-is
+            # so the endpoint maps them to the correct HTTP status.
+            if not committed:
+                try:
+                    conn.run("ROLLBACK")
+                except Exception:
+                    pass
+            raise
+
         except Exception as _tx_err:
+            # Unexpected DB failure — ROLLBACK then wrap for HTTP 500
             if not committed:
                 try:
                     conn.run("ROLLBACK")
@@ -5206,14 +5244,21 @@ def promote_application_to_shortlist(app_id: int, company_id: int) -> dict:
                     pass
             raise RuntimeError(f"فشلت عملية الترقية: {_tx_err}") from _tx_err
 
-        # 4. Post-commit: fetch final candidate state
+        # ── 7. Post-commit: fetch final state — no fallback ──
+        # Missing row after a successful COMMIT is an unexpected error, not a normal case.
         final_rows = conn.run(
             "SELECT sc.status, sc.job_id "
             "FROM company_saved_candidates sc "
             "WHERE sc.company_id = :cid AND sc.candidate_id = :uid",
             cid=company_id, uid=applicant_id)
-        final_status = final_rows[0][0] if final_rows else "shortlisted"
-        final_job_id = final_rows[0][1] if final_rows else job_id
+
+        if not final_rows:
+            raise RuntimeError(
+                f"فشل غير متوقع: لم يُنشأ سجل المرشح بعد COMMIT "
+                f"(app={app_id}, candidate={applicant_id})")
+
+        final_status  = final_rows[0][0]
+        final_job_id  = final_rows[0][1]
 
         return {
             "application": {
