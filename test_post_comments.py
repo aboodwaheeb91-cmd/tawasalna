@@ -8564,16 +8564,16 @@ try:
     with open('static/company/company.css', encoding='utf-8') as _f180c: _co_css180 = _f180c.read()
 except Exception: pass
 
-# 180-01: Hub button is in the header, icon-only, owner-only, matches sc-hicon pattern
-# Button must appear between sc-home-btn and sc-logo (within 400 chars after home btn)
-_home_pos    = _co_html180.find('sc-home-btn')
-_logo_pos    = _co_html180.find('sc-logo', _home_pos)
+# 180-01: Hub button is inside sc-head-right wrapper (alongside home-btn), owner-only
+# sc-head-right must contain BOTH home-btn and coHubBtn so logo stays absolute-centered
+_right_pos   = _co_html180.find('sc-head-right')
+_right_end   = _co_html180.find('</div>', _right_pos) if _right_pos >= 0 else -1
 _hub_btn_pos = _co_html180.find('id="coHubBtn"')
-_hub_in_hdr  = (_home_pos >= 0 and _logo_pos >= 0 and _hub_btn_pos >= 0
-                and _home_pos < _hub_btn_pos < _logo_pos)
+_hub_in_right = (_right_pos >= 0 and _hub_btn_pos >= 0
+                 and _right_pos < _hub_btn_pos < _right_end)
 _hub_ctx180  = _co_html180[max(0, _hub_btn_pos - 10):_hub_btn_pos + 120] if _hub_btn_pos >= 0 else ''
-check("180-01. Hub button #coHubBtn is in header (between home-btn and logo), owner-only, sc-hicon-bare",
-      _hub_in_hdr
+check("180-01. Hub button #coHubBtn is inside sc-head-right wrapper, owner-only, sc-hicon-bare",
+      _hub_in_right
       and 'owner-only' in _hub_ctx180
       and 'sc-hicon-bare' in _hub_ctx180
       and 'ownerActions' not in _co_html180)

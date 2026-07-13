@@ -99,7 +99,11 @@
 }
 .sc-home-btn:active { transform: scale(.93); }
 
-/* Icon group on the right side (RTL end) */
+/* Right group (RTL-start: visually right) — wraps home button + any owner-only icon.
+   Keeps logo absolute-centered by ensuring sc-header has only 2 flex children. */
+.sc-head-right { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+
+/* Icon group on the left side (RTL end: visually left) */
 .sc-head-icons { display: flex; align-items: center; gap: 8px; }
 
 /* ── Dropdown menu ── */
