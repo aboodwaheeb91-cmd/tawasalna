@@ -8804,6 +8804,79 @@ check("182-24. empty RETURNING result raises RuntimeError (no silent fallback)",
       'if not upsert_rows:' in _promote_fn182
       and 'raise RuntimeError' in _promote_fn182)
 
+
+# ═══════════════════════════════════════════════════════════════════════════
+# §183 — Applicants Modal UI (PR-A)
+# Static checks on company.main.js
+# ═══════════════════════════════════════════════════════════════════════════
+with open("static/company/company.main.js", encoding="utf-8") as _f183:
+    _main183 = _f183.read()
+
+# 183-01: accepted label renamed to "مرشح قوي" in _APP_STATUS_LABEL
+check("183-01. _APP_STATUS_LABEL['accepted'] is 'مرشح قوي'",
+      "accepted: 'مرشح قوي'" in _main183 or 'accepted: "مرشح قوي"' in _main183)
+
+# 183-02: promote button rendered for pending/viewed cards
+check("183-02. co-app-promote-btn rendered for pending/viewed status cards",
+      'co-app-promote-btn' in _main183
+      and "statusKey === 'pending' || statusKey === 'viewed'" in _main183)
+
+# 183-03: interview button rendered (disabled) for accepted cards
+check("183-03. co-app-interview-btn rendered disabled for accepted cards",
+      'co-app-interview-btn' in _main183
+      and 'disabled' in _main183.split('co-app-interview-btn')[1][:200])
+
+# 183-04: no primary button for rejected (no promote/interview btn rendered when rejected)
+check("183-04. no primary button rendered for rejected status",
+      "// rejected: no primary button" in _main183
+      or "rejected" in _main183.split("primaryBtn = ''")[0].split("statusKey")[-1])
+
+# 183-05: _wireApplicantCards delegates to .co-app-promote-btn (not .co-app-accept-btn)
+check("183-05. _wireApplicantCards uses co-app-promote-btn, not co-app-accept-btn",
+      'co-app-promote-btn' in _main183
+      and 'co-app-accept-btn' not in _main183.split('function _wireApplicantCards')[1].split('function _onSaveApplicant')[0])
+
+# 183-06: _onPromote function defined
+check("183-06. _onPromote function defined",
+      'function _onPromote(' in _main183)
+
+# 183-07: _execPromote calls POST /jobs/applications/.../promote (not PUT /status)
+_exec183 = _main183.split('function _execPromote')[1].split('function _onSaveApplicant')[0] if 'function _execPromote' in _main183 else ''
+check("183-07. _execPromote calls POST /jobs/applications/{id}/promote",
+      "'/jobs/applications/' + appId + '/promote'" in _exec183
+      and "method:  'POST'" in _exec183 or "method: 'POST'" in _exec183)
+
+# 183-08: _execPromote disables button during in-flight request
+check("183-08. _execPromote disables promote button during in-flight",
+      'promoteBtn.disabled    = true' in _main183 or 'promoteBtn.disabled = true' in _main183)
+
+# 183-09: success path swaps promote btn → interview btn in DOM
+check("183-09. success: replaceChild swaps promote btn to interview btn",
+      'replaceChild(interviewBtn, promoteBtn)' in _main183)
+
+# 183-10: 409 error shows specific "غير مناسب" toast
+check("183-10. 409 error shows 'غير مناسب' toast message",
+      'status === 409' in _main183 and 'غير مناسب' in _main183.split('status === 409')[1][:200])
+
+# 183-11: _astFloat option label for accepted is "مرشح قوي" (not "مقبول")
+check("183-11. _astFloat accepted option label is 'مرشح قوي'",
+      "data-val=\"accepted\">مرشح قوي" in _main183 or "data-val='accepted'>مرشح قوي" in _main183)
+
+# 183-12: _astFloat click handler routes accepted → _execPromote
+check("183-12. _astFloat click routes 'accepted' → _execPromote",
+      "_execPromote(" in _main183.split("newStatus === 'accepted'")[1][:300]
+      if "newStatus === 'accepted'" in _main183 else False)
+
+# 183-13: dead code removed — _updateQuickBtnStates and _onQuickStatus are gone
+check("183-13. _updateQuickBtnStates and _onQuickStatus are removed",
+      'function _updateQuickBtnStates' not in _main183
+      and 'function _onQuickStatus' not in _main183)
+
+# 183-14: Bearer JWT — no X-User-Id header in promote fetch
+check("183-14. promote fetch uses Bearer JWT only — no X-User-Id",
+      'X-User-Id' not in _main183.split('function _execPromote')[1].split('function _onSaveApplicant')[0]
+      if 'function _execPromote' in _main183 else False)
+
 # ── Summary ──────────────────────────────────────────────────────────────
 print()
 passed = sum(1 for _, s, _ in results if s == PASS)
