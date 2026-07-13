@@ -10056,45 +10056,79 @@ A single endpoint atomically:
 
 ### Transaction Contract
 
-All reads and writes happen inside a single `BEGIN / COMMIT / ROLLBACK` transaction:
+All reads and writes happen inside a single `BEGIN / COMMIT / ROLLBACK` transaction.
 
 ```
 BEGIN
-  SELECT ... FOR UPDATE OF ja       -- lock application row (prevent concurrent promote)
-  SELECT ... FOR UPDATE             -- lock candidate row if exists (prevent concurrent PATCH)
-  -- if rejected → raise ValueError → ROLLBACK → HTTP 409
+  SELECT ... FOR UPDATE OF ja              -- lock application row (prevent concurrent promote)
+  SELECT ... FOR UPDATE                    -- lock candidate row IF EXISTS (cannot lock non-existent row)
+  -- pre-UPSERT: if existing row is rejected → raise ValueError → ROLLBACK → HTTP 409
   UPDATE job_applications SET status = 'accepted'
-  INSERT INTO company_saved_candidates ... ON CONFLICT DO UPDATE (with CASE safety)
+  INSERT INTO company_saved_candidates ...
+    ON CONFLICT DO UPDATE SET ... (CASE safety)
+    RETURNING status, job_id, (xmax = 0) AS was_inserted    ← authoritative final state
+  -- post-UPSERT, pre-COMMIT: if RETURNING status == 'rejected' → raise ValueError → ROLLBACK → HTTP 409
 COMMIT
 ```
 
-No partial state is possible. If any step fails, the transaction rolls back atomically.
+**Key invariant:** UPSERT always runs — it is never gated on a skip condition.
+**RETURNING is the authoritative source** for `final_status`, `final_job_id`, and `was_inserted` — no post-COMMIT re-query.
+No partial state is possible: if any step raises, the transaction rolls back atomically.
+
+#### Why FOR UPDATE Cannot Fully Protect Against Concurrent Inserts
+
+`SELECT ... FOR UPDATE` acquires a row-level lock on an **existing** row. If no candidate row exists yet, there is no row to lock — a concurrent writer can INSERT a `rejected` row between the lock-attempt SELECT and the UPSERT.
+
+The post-UPSERT, pre-COMMIT check on `RETURNING status` closes this gap:
+
+```
+Timeline (race):
+  Thread A: SELECT candidate — no row found (nothing to lock)
+  Thread B: INSERT candidate with status='rejected'
+  Thread A: UPSERT → conflict → DO UPDATE CASE preserves 'rejected'
+  Thread A: RETURNING status = 'rejected'
+  Thread A: if final_status == "rejected" → raise ValueError → ROLLBACK → HTTP 409
+  Thread A: application.status stays 'pending' (rollback includes the UPDATE)
+```
+
+Without the RETURNING check, Thread A would COMMIT with `application.status = 'accepted'` and `candidate.status = 'rejected'` — an inconsistent state.
 
 ### Candidate Status Policy
 
-| Current status | Application result | Candidate result |
-|---------------|-------------------|-----------------|
-| not in table | `accepted` | inserted as `shortlisted` |
-| `saved` | `accepted` | updated to `shortlisted` |
-| `shortlisted` | `accepted` | unchanged (idempotent) |
-| `contacted` | `accepted` | unchanged (don't downgrade) |
-| `interview` | `accepted` | unchanged (don't downgrade) |
-| `hired` | `accepted` | unchanged (don't downgrade) |
-| `rejected` | ROLLBACK | HTTP 409 Conflict |
+| Current status | Concurrent scenario | Application result | Candidate result |
+|---------------|--------------------|--------------------|-----------------|
+| not in table (no race) | — | `accepted` | inserted as `shortlisted` |
+| `saved` | — | `accepted` | updated to `shortlisted` |
+| `shortlisted` | — | `accepted` | unchanged (idempotent) |
+| `contacted` | — | `accepted` | unchanged (don't downgrade) |
+| `interview` | — | `accepted` | unchanged (don't downgrade) |
+| `hired` | — | `accepted` | unchanged (don't downgrade) |
+| `rejected` (existing row) | pre-UPSERT check | ROLLBACK | HTTP 409 |
+| not in table → concurrent `rejected` INSERT | post-UPSERT RETURNING check | ROLLBACK | HTTP 409 |
 
-### Defense in Depth (UPSERT CASE)
+### Defense in Depth (Three Layers)
 
-The UPSERT `DO UPDATE SET` clause uses a `CASE` expression that independently enforces the status policy at the SQL level. Even if a future code path bypasses the Python checks, the SQL will never:
-- Downgrade `contacted / interview / hired` to `shortlisted`
-- Reactivate a `rejected` candidate
-- Change `job_id` for candidates already at `contacted / interview / hired / rejected`
+**Layer 1 — Pre-UPSERT Python check:** catches rejected for existing rows (fast path, good UX).
+
+**Layer 2 — UPSERT CASE in SQL:** independently enforces status policy at the DB layer regardless of application-level logic:
+- `contacted / interview / hired / rejected` → preserved (no downgrade, no reactivation)
+- `saved / shortlisted` → updated to `shortlisted`
+
+**Layer 3 — Post-UPSERT RETURNING check (pre-COMMIT):** reads the authoritative final state from the DB after the UPSERT runs. If `status = 'rejected'` (due to CASE preserving a concurrently-inserted rejected row), raises ValueError and triggers ROLLBACK before COMMIT is reached.
+
+All three layers must remain in place. Removing any one layer weakens the guarantee.
 
 ### Backend Function (`auth.py`)
 
 | Symbol | Description |
 |--------|-------------|
-| `_CANDIDATE_STATUS_RANK` | `{saved:1, shortlisted:2, contacted:3, interview:4, hired:5}` — rank for don't-downgrade logic |
+| `_CANDIDATE_STATUS_RANK` | `{saved:1, shortlisted:2, contacted:3, interview:4, hired:5}` — reference dict for ranking |
 | `promote_application_to_shortlist(app_id, company_id)` | Full atomic operation; raises `KeyError/PermissionError/ValueError/RuntimeError` |
+
+`candidate_action` is computed from RETURNING after COMMIT:
+- `was_inserted = True` → `"created"` (fresh row, `xmax = 0`)
+- `was_inserted = False`, `final_status == current_cand_status` → `"unchanged"` (DO UPDATE preserved)
+- `was_inserted = False`, `final_status != current_cand_status` → `"updated"` (status moved up)
 
 ### Exception → HTTP Mapping (server.py)
 
@@ -10102,8 +10136,8 @@ The UPSERT `DO UPDATE SET` clause uses a `CASE` expression that independently en
 |-----------|------|--------|
 | `KeyError` | 404 | `app_id` not found |
 | `PermissionError` | 403 | Company doesn't own the job |
-| `ValueError` | 409 | Not emp, or candidate is rejected |
-| `RuntimeError` | 500 | Unexpected DB error or post-COMMIT integrity failure |
+| `ValueError` | 409 | Not emp, or candidate is rejected (either pre- or post-UPSERT path) |
+| `RuntimeError` | 500 | Unexpected DB error or empty RETURNING result |
 
 ### Security Notes
 
@@ -10117,7 +10151,10 @@ The UPSERT `DO UPDATE SET` clause uses a `CASE` expression that independently en
 ```
 ❌ Reading candidate status BEFORE BEGIN (race condition window)
 ❌ FOR UPDATE after other reads inside the transaction
+❌ Gating UPSERT behind a skip condition — UPSERT must always run unconditionally
+❌ Using post-COMMIT SELECT to get final state — RETURNING is the authority
 ❌ Fallback: final_rows[0][0] if final_rows else "shortlisted" — missing row is a RuntimeError
+❌ Checking only the pre-UPSERT state for rejected — concurrent insert slips through without RETURNING check
 ❌ Catching KeyError/PermissionError/ValueError and wrapping in RuntimeError (loses HTTP status)
 ❌ UPSERT without CASE safety — can downgrade higher statuses or reactivate rejected
 ❌ Using PUT /jobs/applications/{id}/status to do dual-system writes

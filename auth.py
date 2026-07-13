@@ -5122,13 +5122,18 @@ def promote_application_to_shortlist(app_id: int, company_id: int) -> dict:
     All critical reads happen INSIDE BEGIN with FOR UPDATE row locks — no race condition.
     Both writes complete atomically or roll back together — no partial state.
 
+    UPSERT always runs (not gated on skip logic). RETURNING is the authoritative final state.
+    This closes the race where a concurrent INSERT with status='rejected' could slip through
+    while no candidate row existed to lock with FOR UPDATE.
+
     Status policy (candidate):
       • not saved / saved / shortlisted → promoted to 'shortlisted'   (action: created|updated|unchanged)
       • contacted / interview / hired   → application accepted, candidate status preserved  (action: unchanged)
-      • rejected                        → ROLLBACK + raises ValueError → caller returns HTTP 409
+      • rejected (existing row)         → pre-UPSERT check → ROLLBACK → HTTP 409
+      • rejected (RETURNING after race) → post-UPSERT check BEFORE COMMIT → ROLLBACK → HTTP 409
 
-    Defense in depth: the UPSERT SQL itself also preserves higher/rejected statuses via CASE
-    (protects against any future code path that skips the pre-check).
+    Defense in depth: UPSERT CASE in DO UPDATE independently preserves higher/rejected statuses
+    at the SQL layer, regardless of application-level state.
 
     Idempotent: repeated calls succeed; `action` field reports what actually changed.
 
@@ -5165,8 +5170,9 @@ def promote_application_to_shortlist(app_id: int, company_id: int) -> dict:
                 raise ValueError("المتقدم ليس موظفاً — لا يمكن ترقيته للـ pipeline")
 
             # ── 2. Lock candidate row (if exists) inside transaction ──
-            # FOR UPDATE prevents concurrent PATCH /company/saved-candidates/{id}
-            # from changing the status between our read and our write.
+            # FOR UPDATE prevents concurrent PATCH on the existing row.
+            # NOTE: FOR UPDATE cannot lock a non-existent row — concurrent INSERT-as-rejected
+            # is handled by the post-UPSERT RETURNING check in step 6.
             cand_rows = conn.run(
                 "SELECT id, status "
                 "FROM company_saved_candidates "
@@ -5175,52 +5181,57 @@ def promote_application_to_shortlist(app_id: int, company_id: int) -> dict:
                 cid=company_id, uid=applicant_id)
             current_cand_status = cand_rows[0][1] if cand_rows else None
 
-            # ── 3. Rejected = Conflict — no reactivation without explicit decision ──
+            # ── 3. Pre-UPSERT rejected check (fast path for existing rejected row) ──
             if current_cand_status == "rejected":
                 raise ValueError(
                     "المرشح محدد كـ'غير مناسب' — يجب تغيير حالته يدوياً قبل الترقية")
 
-            # ── 4. Determine action (from locked read — no race) ──
-            current_rank = _CANDIDATE_STATUS_RANK.get(current_cand_status, 0)
-            skip_candidate_update = current_rank >= _CANDIDATE_STATUS_RANK["contacted"]
-
-            if skip_candidate_update:
-                candidate_action = "unchanged"
-            elif current_cand_status is None:
-                candidate_action = "created"
-            elif current_cand_status == "shortlisted":
-                candidate_action = "unchanged"
-            else:
-                candidate_action = "updated"  # 'saved' → 'shortlisted'
-
-            # ── 5. Always mark application as accepted ──
+            # ── 4. Always mark application as accepted ──
             conn.run(
                 "UPDATE job_applications SET status = 'accepted' WHERE id = :id",
                 id=app_id)
 
-            # ── 6. UPSERT candidate (only when below 'contacted' rank) ──
-            # CASE in DO UPDATE = defense in depth: even if skip logic has a bug,
-            # the SQL will never downgrade a higher status or reactivate a rejected one.
-            if not skip_candidate_update:
-                conn.run(
-                    "INSERT INTO company_saved_candidates "
-                    "  (company_id, candidate_id, job_id, saved_by, status) "
-                    "VALUES (:cid, :uid, :jid, :cid, 'shortlisted') "
-                    "ON CONFLICT (company_id, candidate_id) DO UPDATE SET "
-                    "  status = CASE "
-                    "    WHEN company_saved_candidates.status "
-                    "         IN ('contacted','interview','hired','rejected') "
-                    "    THEN company_saved_candidates.status "
-                    "    ELSE 'shortlisted' "
-                    "  END, "
-                    "  job_id = CASE "
-                    "    WHEN company_saved_candidates.status "
-                    "         IN ('contacted','interview','hired','rejected') "
-                    "    THEN company_saved_candidates.job_id "
-                    "    ELSE EXCLUDED.job_id "
-                    "  END, "
-                    "  updated_at = NOW()",
-                    cid=company_id, uid=applicant_id, jid=job_id)
+            # ── 5. UPSERT always runs — RETURNING is the authoritative final state ──
+            # Rationale: FOR UPDATE cannot lock a non-existent row.
+            # A concurrent writer could INSERT status='rejected' between step 2 and here.
+            # The CASE in DO UPDATE preserves rejected/higher statuses at the SQL layer.
+            # (xmax = 0) is true when a fresh INSERT happened; false when DO UPDATE ran.
+            upsert_rows = conn.run(
+                "INSERT INTO company_saved_candidates "
+                "  (company_id, candidate_id, job_id, saved_by, status) "
+                "VALUES (:cid, :uid, :jid, :cid, 'shortlisted') "
+                "ON CONFLICT (company_id, candidate_id) DO UPDATE SET "
+                "  status = CASE "
+                "    WHEN company_saved_candidates.status "
+                "         IN ('contacted','interview','hired','rejected') "
+                "    THEN company_saved_candidates.status "
+                "    ELSE 'shortlisted' "
+                "  END, "
+                "  job_id = CASE "
+                "    WHEN company_saved_candidates.status "
+                "         IN ('contacted','interview','hired','rejected') "
+                "    THEN company_saved_candidates.job_id "
+                "    ELSE EXCLUDED.job_id "
+                "  END, "
+                "  updated_at = NOW() "
+                "RETURNING status, job_id, (xmax = 0) AS was_inserted",
+                cid=company_id, uid=applicant_id, jid=job_id)
+
+            if not upsert_rows:
+                raise RuntimeError(
+                    f"UPSERT لم يُرجع نتيجة — حالة غير متوقعة "
+                    f"(app={app_id}, candidate={applicant_id})")
+
+            final_status = upsert_rows[0][0]
+            final_job_id = upsert_rows[0][1]
+            was_inserted = upsert_rows[0][2]
+
+            # ── 6. Post-UPSERT, pre-COMMIT: RETURNING is the authoritative decision ──
+            # Catches race: concurrent INSERT-as-rejected while no row existed to lock.
+            # Application update (step 4) will be rolled back with the transaction.
+            if final_status == "rejected":
+                raise ValueError(
+                    "المرشح محدد كـ'غير مناسب' (تعارض متزامن) — يجب تغيير حالته يدوياً")
 
             conn.run("COMMIT")
             committed = True
@@ -5244,21 +5255,16 @@ def promote_application_to_shortlist(app_id: int, company_id: int) -> dict:
                     pass
             raise RuntimeError(f"فشلت عملية الترقية: {_tx_err}") from _tx_err
 
-        # ── 7. Post-commit: fetch final state — no fallback ──
-        # Missing row after a successful COMMIT is an unexpected error, not a normal case.
-        final_rows = conn.run(
-            "SELECT sc.status, sc.job_id "
-            "FROM company_saved_candidates sc "
-            "WHERE sc.company_id = :cid AND sc.candidate_id = :uid",
-            cid=company_id, uid=applicant_id)
-
-        if not final_rows:
-            raise RuntimeError(
-                f"فشل غير متوقع: لم يُنشأ سجل المرشح بعد COMMIT "
-                f"(app={app_id}, candidate={applicant_id})")
-
-        final_status  = final_rows[0][0]
-        final_job_id  = final_rows[0][1]
+        # ── 7. Compute action from locked pre-state + RETURNING result ──
+        # was_inserted=True → fresh row (no prior row existed)
+        # was_inserted=False + status changed → DO UPDATE ran and status moved up
+        # was_inserted=False + status same → DO UPDATE ran but CASE preserved existing
+        if was_inserted:
+            candidate_action = "created"
+        elif final_status == current_cand_status:
+            candidate_action = "unchanged"
+        else:
+            candidate_action = "updated"
 
         return {
             "application": {

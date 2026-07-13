@@ -8640,9 +8640,10 @@ check("181-04. auth guard in appointments.html still redirects unauthenticated t
 
 # ════════════════════════════════════════════════════════════════════════════
 # §182 — Promote Application to Shortlist: PR-B backend (feat/promote-application)
-# 20 static checks covering: race-condition-safe transaction (BEGIN before SELECTs,
-# FOR UPDATE locks), UPSERT CASE defense-in-depth, correct exception re-raise,
-# no post-COMMIT fallback, endpoint wiring, and documentation.
+# 24 static checks covering: race-condition-safe transaction (BEGIN before SELECTs,
+# FOR UPDATE locks), UPSERT always runs (no skip gate), RETURNING as authoritative
+# final state, post-UPSERT pre-COMMIT rejected check closes the non-existent-row
+# race, UPSERT CASE defense-in-depth, correct exception re-raise, endpoint wiring.
 # ════════════════════════════════════════════════════════════════════════════
 
 _auth182 = ''
@@ -8715,10 +8716,12 @@ check("182-10. UPSERT CASE preserves contacted/interview/hired — no downgrade 
       "'contacted','interview','hired','rejected'" in _promote_fn182
       or "('contacted','interview','hired','rejected')" in _promote_fn182)
 
-# 182-11: higher-status candidates skip candidate update entirely (primary check)
-check("182-11. higher-status candidates skip UPSERT (don't-downgrade primary path)",
-      'skip_candidate_update' in _promote_fn182
-      and '_CANDIDATE_STATUS_RANK["contacted"]' in _promote_fn182)
+# 182-11: UPSERT is never gated by skip_candidate_update — always runs unconditionally
+# (changed from PR-B v1 which had if not skip_candidate_update: — removed to close
+#  the non-existent-row race where FOR UPDATE cannot lock a row that doesn't yet exist)
+check("182-11. UPSERT always runs — no skip_candidate_update gate",
+      'skip_candidate_update' not in _promote_fn182
+      and "ON CONFLICT (company_id, candidate_id) DO UPDATE" in _promote_fn182)
 
 # 182-12: application is always updated to 'accepted' inside the transaction
 check("182-12. application status set to 'accepted' inside transaction",
@@ -8734,11 +8737,12 @@ check("182-14. unexpected DB errors wrapped in RuntimeError (separate except blo
       "except Exception as _tx_err:" in _promote_fn182
       and "raise RuntimeError" in _promote_fn182)
 
-# 182-15: no fallback to 'shortlisted' in post-COMMIT read — missing row is a RuntimeError
-check("182-15. post-COMMIT missing row raises RuntimeError (no silent fallback)",
-      'if not final_rows:' in _promote_fn182
-      and 'raise RuntimeError' in _promote_fn182
-      and 'final_rows[0][0] if final_rows else "shortlisted"' not in _promote_fn182)
+# 182-15: UPSERT uses RETURNING to get final state — no post-COMMIT re-query needed
+# RETURNING is the authoritative source for final_status / final_job_id / was_inserted
+check("182-15. UPSERT uses RETURNING status, job_id, (xmax=0) AS was_inserted",
+      "RETURNING status, job_id" in _promote_fn182
+      and "was_inserted" in _promote_fn182
+      and "(xmax = 0)" in _promote_fn182)
 
 # 182-16: return value contains application + candidate + action + status_label
 check("182-16. return value shape: application + candidate + action + status_label",
@@ -8768,6 +8772,37 @@ check("182-19. endpoint maps KeyError→404, PermissionError→403, ValueError�
 # 182-20: security log for ownership failure
 check("182-20. endpoint logs PROMOTE_OWNERSHIP_FAILED on PermissionError",
       "PROMOTE_OWNERSHIP_FAILED" in _ep_block182)
+
+# 182-21: post-UPSERT, pre-COMMIT rejected check — closes the non-existent-row race
+# A concurrent INSERT-as-rejected between FOR UPDATE SELECT (which found no row)
+# and the UPSERT would be caught here via RETURNING, and the transaction is ROLLED BACK.
+check("182-21. post-UPSERT pre-COMMIT check: final_status==rejected → raise ValueError",
+      'final_status == "rejected"' in _promote_fn182
+      and 'raise ValueError' in _promote_fn182
+      and _promote_fn182.index('final_status == "rejected"') < _promote_fn182.index('conn.run("COMMIT")'))
+
+# 182-22: COMMIT appears AFTER the post-UPSERT rejected guard (ordering invariant)
+# Ensures that if RETURNING returns rejected, ROLLBACK fires before COMMIT is reached.
+check("182-22. COMMIT appears after post-UPSERT rejected guard in function body",
+      'conn.run("COMMIT")' in _promote_fn182
+      and 'final_status == "rejected"' in _promote_fn182
+      and _promote_fn182.index('final_status == "rejected"') < _promote_fn182.index('conn.run("COMMIT")'))
+
+# 182-23: was_inserted derived from RETURNING (xmax=0) used to compute candidate_action
+# Ensures action is computed from RETURNING result, not from a pre-COMMIT assumption.
+# rindex finds the LAST occurrence of 'was_inserted' (in the post-COMMIT action block),
+# not the first (inside the UPSERT SQL string, which is before COMMIT).
+check("182-23. candidate_action computed from was_inserted (RETURNING xmax=0) after COMMIT",
+      'was_inserted' in _promote_fn182
+      and 'candidate_action = "created"' in _promote_fn182
+      and 'candidate_action = "unchanged"' in _promote_fn182
+      and 'candidate_action = "updated"' in _promote_fn182
+      and _promote_fn182.rindex('was_inserted') > _promote_fn182.index('conn.run("COMMIT")'))
+
+# 182-24: upsert_rows empty raises RuntimeError — no silent fallback for missing RETURNING
+check("182-24. empty RETURNING result raises RuntimeError (no silent fallback)",
+      'if not upsert_rows:' in _promote_fn182
+      and 'raise RuntimeError' in _promote_fn182)
 
 # ── Summary ──────────────────────────────────────────────────────────────
 print()
