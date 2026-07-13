@@ -6947,7 +6947,7 @@ check(
 # ── Frontend: appointments.html (63–68) ───────────────────────────────────
 check(
     "171-63. appointments.html: auth guard present",
-    'tawasalna_user' in _appthtml and '/login' in _appthtml
+    'tw_user' in _appthtml and '/login' in _appthtml
 )
 check(
     "171-64. appointments.html: uses JWT Bearer token for API calls",
@@ -6973,7 +6973,7 @@ check(
 # ── Frontend: appointment-room.html (69–75) ───────────────────────────────
 check(
     "171-69. appointment-room.html: auth guard present",
-    'tawasalna_user' in _roomhtml and '/login' in _roomhtml
+    'tw_user' in _roomhtml and '/login' in _roomhtml
 )
 check(
     "171-70. appointment-room.html: loads room via /api/appointments/{id}",
@@ -8597,6 +8597,46 @@ check("180-04. Scroll lock uses body.co-hub-open CSS class; no inline overflow i
       and 'classList.add(\'co-hub-open\')' in _co_main180
       and 'classList.remove(\'co-hub-open\')' in _co_main180
       and 'loadCompanyAppointments' in _co_api180)
+
+# §181 — Appointments auth guard key fix (fix/appointments-auth-fix)
+# 4 static checks: appointments.html and appointment-room.html must read
+# tw_user (not the legacy tawasalna_user key) so company/employee sessions
+# are recognised and no redirect loop to /login → /company-profile occurs.
+# ════════════════════════════════════════════════════════════════════════════
+
+_appt_html181 = ''
+try:
+    with open('appointments.html', encoding='utf-8') as _f181a: _appt_html181 = _f181a.read()
+except Exception: pass
+
+_room_html181 = ''
+try:
+    with open('appointment-room.html', encoding='utf-8') as _f181r: _room_html181 = _f181r.read()
+except Exception: pass
+
+# 181-01: appointments.html reads tw_user (correct key) not tawasalna_user
+check("181-01. appointments.html auth guard reads tw_user (not tawasalna_user)",
+      "localStorage.getItem('tw_user')" in _appt_html181
+      and "localStorage.getItem('tawasalna_user')" not in _appt_html181)
+
+# 181-02: appointment-room.html reads tw_user (correct key) not tawasalna_user
+check("181-02. appointment-room.html auth guard reads tw_user (not tawasalna_user)",
+      "localStorage.getItem('tw_user')" in _room_html181
+      and "localStorage.getItem('tawasalna_user')" not in _room_html181)
+
+# 181-03: /appointments route exists in server.py (no new route added)
+_srv181 = ''
+try:
+    with open('server.py', encoding='utf-8') as _f181s: _srv181 = _f181s.read()
+except Exception: pass
+check("181-03. /appointments route in server.py serves appointments.html",
+      '@app.get("/appointments"' in _srv181
+      and 'appointments.html' in _srv181)
+
+# 181-04: Guest redirect preserved — auth guard still sends unauthenticated to /login
+check("181-04. auth guard in appointments.html still redirects unauthenticated to /login",
+      "location.href = '/login'" in _appt_html181
+      and "localStorage.getItem('tw_jwt')" in _appt_html181)
 
 # ── Summary ──────────────────────────────────────────────────────────────
 print()

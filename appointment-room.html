@@ -234,7 +234,7 @@ body{background:var(--bg);color:var(--txt);font-family:var(--font);min-height:10
 <script>
 (function(){
   'use strict';
-  const _u = JSON.parse(localStorage.getItem('tawasalna_user') || 'null');
+  const _u = JSON.parse(localStorage.getItem('tw_user') || 'null');
   const _jwt = localStorage.getItem('tw_jwt') || '';
   if (!_u || !_jwt) { location.href = '/login'; return; }
 
