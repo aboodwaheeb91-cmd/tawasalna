@@ -2279,12 +2279,82 @@ body:not(.co-loading) .co-skeleton      { display: none; }
 }
 .co-app-promote-btn:disabled { opacity: .5; cursor: default; pointer-events: none; }
 
-/* Schedule interview — muted secondary (wired in PR-C) */
+/* Schedule interview — enabled, blue accent */
 .co-app-interview-btn.co-app-act {
-  background: rgba(255,255,255,.04); color: #64748b;
-  border-color: rgba(255,255,255,.08);
+  background: rgba(37,99,255,.1); color: #60a5fa;
+  border-color: rgba(37,99,255,.3);
+  font-weight: 600;
+}
+.co-app-interview-btn.co-app-act:hover {
+  background: rgba(37,99,255,.18); border-color: rgba(37,99,255,.5);
 }
 .co-app-interview-btn:disabled { opacity: .5; cursor: default; pointer-events: none; }
+
+/* Open appointment room link — replaces interview btn after scheduling */
+.co-app-open-appt-btn.co-app-act {
+  background: rgba(139,92,246,.12); color: #a78bfa;
+  border-color: rgba(139,92,246,.3);
+  text-decoration: none; font-weight: 600;
+}
+.co-app-open-appt-btn.co-app-act:hover {
+  background: rgba(139,92,246,.2); border-color: rgba(139,92,246,.5);
+}
+
+/* Appointment scheduling modal */
+.co-appt-panel { max-width: 520px; }
+.co-appt-body {
+  padding: 16px 20px 20px;
+  display: flex; flex-direction: column; gap: 14px;
+  overflow-y: auto; max-height: calc(90vh - 60px);
+}
+.co-appt-meta {
+  display: flex; gap: 8px; align-items: baseline;
+  font-size: 13px; color: rgba(255,255,255,.8);
+}
+.co-appt-meta-label {
+  color: rgba(255,255,255,.4); font-size: 11px;
+  min-width: 56px;
+}
+.co-appt-mode-row { display: flex; gap: 8px; }
+.co-appt-mode-btn {
+  flex: 1; padding: 7px 12px;
+  background: rgba(255,255,255,.04); color: rgba(255,255,255,.5);
+  border: 1px solid rgba(255,255,255,.1); border-radius: 8px;
+  font-family: 'Cairo', sans-serif; font-size: 13px;
+  cursor: pointer; transition: background .15s, color .15s, border-color .15s;
+}
+.co-appt-mode-btn.active {
+  background: rgba(0,200,150,.15); color: #00c896;
+  border-color: rgba(0,200,150,.4); font-weight: 600;
+}
+.co-appt-field-row { display: flex; gap: 12px; }
+.co-appt-field-row .co-appt-field { flex: 1; }
+.co-appt-field { display: flex; flex-direction: column; gap: 5px; }
+.co-appt-lbl   { font-size: 11px; color: rgba(255,255,255,.45); }
+.co-appt-inp {
+  background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.1);
+  border-radius: 8px; padding: 8px 10px; color: #fff;
+  font-family: 'Cairo', sans-serif; font-size: 13px;
+  outline: none; width: 100%; box-sizing: border-box;
+}
+.co-appt-inp:focus   { border-color: rgba(0,200,150,.4); }
+.co-appt-textarea    { resize: none; }
+.co-appt-submit {
+  width: 100%; padding: 10px;
+  background: rgba(0,200,150,.2); color: #00c896;
+  border: 1.5px solid rgba(0,200,150,.4); border-radius: 10px;
+  font-family: 'Cairo', sans-serif; font-size: 14px; font-weight: 700;
+  cursor: pointer; transition: background .15s, border-color .15s; margin-top: 4px;
+}
+.co-appt-submit:hover    { background: rgba(0,200,150,.3); border-color: rgba(0,200,150,.6); }
+.co-appt-submit:disabled { opacity: .5; cursor: default; pointer-events: none; }
+@media (prefers-color-scheme: light) {
+  .co-appt-inp { background: rgba(0,0,0,.04); border-color: rgba(0,0,0,.1); color: #1e293b; }
+  .co-appt-lbl { color: rgba(0,0,0,.5); }
+  .co-appt-meta { color: #1e293b; }
+  .co-appt-meta-label { color: rgba(0,0,0,.4); }
+  .co-appt-mode-btn { background: rgba(0,0,0,.03); color: rgba(0,0,0,.5); border-color: rgba(0,0,0,.1); }
+}
 
 /* Save/unsave button */
 .co-app-save-btn.co-app-act { color: #f59e0b; border-color: rgba(245,158,11,.2); }

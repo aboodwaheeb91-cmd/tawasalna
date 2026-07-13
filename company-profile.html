@@ -689,6 +689,65 @@
   </div>
 </div>
 
+<!-- Appointment scheduling modal -->
+<div class="co-fl-overlay" id="coApptModal" style="display:none">
+  <div class="co-fl-panel co-appt-panel">
+    <div class="co-fl-head">
+      <div class="co-fl-title">تحديد موعد مقابلة</div>
+      <button class="co-fl-close" aria-label="إغلاق">×</button>
+    </div>
+    <div class="co-appt-body">
+      <div class="co-appt-meta">
+        <span class="co-appt-meta-label">المتقدم</span>
+        <span id="coApptApplName">—</span>
+      </div>
+      <div class="co-appt-meta">
+        <span class="co-appt-meta-label">الوظيفة</span>
+        <span id="coApptJobName">—</span>
+      </div>
+      <div class="co-appt-mode-row">
+        <button type="button" id="coApptModeOnline" class="co-appt-mode-btn active">عبر الإنترنت</button>
+        <button type="button" id="coApptModeOnsite" class="co-appt-mode-btn">في الموقع</button>
+      </div>
+      <div class="co-appt-field-row">
+        <div class="co-appt-field">
+          <label class="co-appt-lbl">التاريخ *</label>
+          <input type="date" id="coApptDate" class="co-appt-inp">
+        </div>
+        <div class="co-appt-field">
+          <label class="co-appt-lbl">الوقت</label>
+          <input type="time" id="coApptTime" class="co-appt-inp" value="10:00">
+        </div>
+      </div>
+      <div id="coApptUrlRow" class="co-appt-field">
+        <label class="co-appt-lbl">رابط الاجتماع</label>
+        <input type="url" id="coApptUrl" class="co-appt-inp" placeholder="https://meet.google.com/...">
+      </div>
+      <div id="coApptLocRow" class="co-appt-field" style="display:none">
+        <label class="co-appt-lbl">العنوان</label>
+        <input type="text" id="coApptLoc" class="co-appt-inp" placeholder="مبنى الشركة، الطابق الثاني…">
+      </div>
+      <div class="co-appt-field">
+        <label class="co-appt-lbl">ممثل الشركة</label>
+        <input type="text" id="coApptRep" class="co-appt-inp" placeholder="اسم مسؤول المقابلة">
+      </div>
+      <div class="co-appt-field">
+        <label class="co-appt-lbl">مهلة الرد (ساعة)</label>
+        <select id="coApptDeadline" class="co-appt-inp">
+          <option value="24">24 ساعة</option>
+          <option value="48" selected>48 ساعة</option>
+          <option value="72">72 ساعة</option>
+        </select>
+      </div>
+      <div class="co-appt-field">
+        <label class="co-appt-lbl">ملاحظات</label>
+        <textarea id="coApptNotes" class="co-appt-inp co-appt-textarea" rows="2" placeholder="أي تفاصيل أو تعليمات إضافية…"></textarea>
+      </div>
+      <button type="button" id="coApptSubmit" class="co-appt-submit">إرسال الدعوة</button>
+    </div>
+  </div>
+</div>
+
 <!-- Rating Modal -->
 <div class="co-fl-overlay" id="coRatingModal" style="display:none">
   <div class="co-fl-panel co-rat-panel">

@@ -770,6 +770,13 @@
   var _astFloat               = null;   // singleton floating status dropdown (body-level)
   var _astFloatTrigger        = null;   // trigger button that opened the float
   var _cardListenerBound      = false;  // delegation guard for #coAppList
+  // ── Appointment scheduling — per accepted applicant ────────────
+  var _apptByAppId      = {};    // { "appId": { id, status } } from GET /api/appointments
+  var _apptIndexLoaded  = false; // true after first successful index load
+  var _apptInFlight     = false; // true while create+send is in progress
+  var _apptCurrentAppId = null;  // appId being scheduled in the modal
+  var _apptModalInited  = false; // one-time listener guard
+  var _apptMode         = 'online';
   var _APP_STATUS_LABEL = {
     pending:  'بانتظار المراجعة',
     viewed:   'تمت المراجعة',
@@ -879,7 +886,7 @@
       if (statusKey === 'pending' || statusKey === 'viewed') {
         primaryBtn = '<button type="button" class="co-app-promote-btn co-app-act" data-app-id="' + appId + '">ترقية لمرشح قوي</button>';
       } else if (isAccepted) {
-        primaryBtn = '<button type="button" class="co-app-interview-btn co-app-act" data-app-id="' + appId + '" disabled>تحديد مقابلة</button>';
+        primaryBtn = '<button type="button" class="co-app-interview-btn co-app-act" data-app-id="' + appId + '">تحديد مقابلة</button>';
       }
       // rejected: no primary button
 
@@ -898,7 +905,7 @@
       // ── ⋮ trigger — opens floating status menu ──
       var menuTrigger = '<button type="button" class="co-ast-trigger co-app-act" data-app-id="' + appId + '" data-status="' + _escApp(statusKey) + '" aria-label="خيارات إضافية">⋮</button>';
 
-      html += '<div class="co-app-card" data-app-id="' + appId + '">'
+      html += '<div class="co-app-card" data-app-id="' + appId + '" data-name="' + _escApp(a.full_name || '') + '">'
         + '<div class="co-app-card-head">'
         +   '<div class="co-app-ava">' + avatarHtml + '</div>'
         +   '<div class="co-app-info">'
@@ -917,6 +924,8 @@
     });
     list.innerHTML = html;
     _wireApplicantCards(list);
+    // After rendering, load appointment index and replace interview btns for cards that already have an active appointment
+    _loadApptIndex(function () { _applyApptIndexToCards(); });
   }
 
   function _wireApplicantCards(list) {
@@ -927,6 +936,8 @@
       if (trigger) { _openAstFloat(trigger); return; }
       var promoteBtn = e.target.closest('.co-app-promote-btn');
       if (promoteBtn && !promoteBtn.disabled) { _onPromote(promoteBtn); return; }
+      var interviewBtn = e.target.closest('.co-app-interview-btn');
+      if (interviewBtn && !interviewBtn.disabled) { _onInterviewBtn(interviewBtn); return; }
       var saveBtn = e.target.closest('.co-app-save-btn');
       if (saveBtn && !saveBtn.disabled) { _onSaveApplicant(saveBtn); return; }
     });
@@ -967,7 +978,7 @@
           interviewBtn.type      = 'button';
           interviewBtn.className = 'co-app-interview-btn co-app-act';
           interviewBtn.setAttribute('data-app-id', appId);
-          interviewBtn.disabled  = true;
+          interviewBtn.disabled  = false;
           interviewBtn.textContent = 'تحديد مقابلة';
           foot.replaceChild(interviewBtn, promoteBtn);
         }
@@ -1021,6 +1032,255 @@
       btn.disabled    = false;
       btn.textContent = '+ حفظ المرشح';
       if (window.showToast) showToast((err && err.message) || 'تعذّر حفظ المرشح', 'error');
+    });
+  }
+
+  // ── Appointment scheduling — index, modal, submit ──────────────
+
+  function _isApptActive(status) {
+    return ['cancelled', 'expired', 'missed', 'closed'].indexOf(status) === -1;
+  }
+
+  function _loadApptIndex(cb) {
+    var jwt = window._jwt ? _jwt() : '';
+    if (!jwt) { if (cb) cb(); return; }
+    fetch('/api/appointments', {
+      headers: { 'Authorization': 'Bearer ' + jwt }
+    })
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      var items = Array.isArray(d) ? d : (d.data || d.appointments || []);
+      _apptByAppId = {};
+      items.forEach(function (a) {
+        if (a.application_id != null) {
+          _apptByAppId[String(a.application_id)] = {
+            id:     a.id,
+            status: a.computed_status || a.status
+          };
+        }
+      });
+      _apptIndexLoaded = true;
+      if (cb) cb();
+    })
+    .catch(function () { if (cb) cb(); });
+  }
+
+  function _applyApptIndexToCards() {
+    var cards = document.querySelectorAll('#coAppList .co-app-card');
+    cards.forEach(function (card) {
+      var appId = card.getAttribute('data-app-id');
+      var entry = _apptByAppId[appId];
+      if (!entry || !_isApptActive(entry.status)) return;
+      var foot = card.querySelector('.co-app-card-foot');
+      if (!foot) return;
+      var btn = foot.querySelector('.co-app-interview-btn');
+      if (!btn) return;
+      var link = document.createElement('a');
+      link.href      = '/appointment-room?id=' + entry.id;
+      link.className = 'co-app-open-appt-btn co-app-act';
+      link.textContent = 'فتح الموعد';
+      link.target    = '_blank';
+      link.rel       = 'noopener';
+      foot.replaceChild(link, btn);
+    });
+  }
+
+  function _onInterviewBtn(btn) {
+    var appId = parseInt(btn.getAttribute('data-app-id'), 10);
+    if (!appId || btn.disabled) return;
+    var card = document.querySelector('#coAppList .co-app-card[data-app-id="' + appId + '"]');
+    var applName = card ? card.getAttribute('data-name') : '';
+    var job = window.companyState && companyState.jobs
+      ? companyState.jobs.find(function (j) { return j.id == _appJobId; })
+      : null;
+    var jobTitle = job ? job.title : '';
+
+    // If index already loaded and active appointment exists, open the room directly
+    if (_apptIndexLoaded) {
+      var entry = _apptByAppId[String(appId)];
+      if (entry && _isApptActive(entry.status)) {
+        window.open('/appointment-room?id=' + entry.id, '_blank');
+        return;
+      }
+    }
+    _openApptModal(appId, applName, jobTitle);
+  }
+
+  function _openApptModal(appId, applName, jobTitle) {
+    _apptCurrentAppId = appId;
+    var el = document.getElementById('coApptModal');
+    if (!el) return;
+    // Fill static info
+    var nameEl = document.getElementById('coApptApplName');
+    var jobEl  = document.getElementById('coApptJobName');
+    if (nameEl) nameEl.textContent = applName || '—';
+    if (jobEl)  jobEl.textContent  = jobTitle  || '—';
+    // Reset all form fields
+    var fields = ['coApptDate','coApptTime','coApptUrl','coApptLoc','coApptNotes','coApptRep'];
+    fields.forEach(function (id) {
+      var inp = document.getElementById(id);
+      if (inp) inp.value = (id === 'coApptTime') ? '10:00' : '';
+    });
+    var deadlineEl = document.getElementById('coApptDeadline');
+    if (deadlineEl) deadlineEl.value = '48';
+    _apptMode = 'online';
+    _setApptMode('online');
+    var submitBtn = document.getElementById('coApptSubmit');
+    if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'إرسال الدعوة'; }
+    _apptInFlight = false;
+    _initApptModalListeners();
+    el.style.display = 'flex';
+  }
+
+  function _closeApptModal() {
+    var el = document.getElementById('coApptModal');
+    if (el) el.style.display = 'none';
+    _apptCurrentAppId = null;
+    _apptInFlight = false;
+  }
+
+  function _setApptMode(mode) {
+    _apptMode = mode;
+    var onlineBtn = document.getElementById('coApptModeOnline');
+    var onsiteBtn = document.getElementById('coApptModeOnsite');
+    var urlRow    = document.getElementById('coApptUrlRow');
+    var locRow    = document.getElementById('coApptLocRow');
+    if (onlineBtn) onlineBtn.classList.toggle('active', mode === 'online');
+    if (onsiteBtn) onsiteBtn.classList.toggle('active', mode === 'onsite');
+    if (urlRow)    urlRow.style.display = (mode === 'online') ? '' : 'none';
+    if (locRow)    locRow.style.display = (mode === 'onsite') ? '' : 'none';
+  }
+
+  function _initApptModalListeners() {
+    if (_apptModalInited) return;
+    _apptModalInited = true;
+    var el = document.getElementById('coApptModal');
+    if (!el) return;
+    el.addEventListener('click', function (e) {
+      if (e.target === el) _closeApptModal();
+    });
+    var closeBtn = el.querySelector('.co-fl-close');
+    if (closeBtn) closeBtn.addEventListener('click', _closeApptModal);
+    var onlineBtn = document.getElementById('coApptModeOnline');
+    var onsiteBtn = document.getElementById('coApptModeOnsite');
+    if (onlineBtn) onlineBtn.addEventListener('click', function () { _setApptMode('online'); });
+    if (onsiteBtn) onsiteBtn.addEventListener('click', function () { _setApptMode('onsite'); });
+    var submitBtn = document.getElementById('coApptSubmit');
+    if (submitBtn) submitBtn.addEventListener('click', _submitApptForm);
+  }
+
+  function _submitApptForm() {
+    if (_apptInFlight) return;
+    var appId = _apptCurrentAppId;
+    if (!appId) return;
+
+    var g = function (id) { return (document.getElementById(id) || {}).value || ''; };
+    var dateVal     = g('coApptDate');
+    var timeVal     = g('coApptTime') || '09:00';
+    var urlVal      = g('coApptUrl');
+    var locVal      = g('coApptLoc');
+    var notesVal    = g('coApptNotes');
+    var deadlineVal = parseInt(g('coApptDeadline') || '48', 10) || 48;
+    var repVal      = g('coApptRep');
+
+    if (!dateVal) {
+      if (window.showToast) showToast('يرجى تحديد تاريخ المقابلة', 'error');
+      return;
+    }
+
+    var scheduledAt = dateVal + 'T' + timeVal + ':00';
+    _apptInFlight = true;
+    var submitBtn = document.getElementById('coApptSubmit');
+    if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'جارٍ الإرسال…'; }
+
+    var jwt = window._jwt ? _jwt() : '';
+    var createBody = {
+      application_id:      appId,
+      mode:                _apptMode,
+      notes:               notesVal  || null,
+      online_url:          urlVal    || null,
+      location_text:       locVal    || null,
+      representative_name: repVal    || null
+    };
+
+    fetch('/api/appointments', {
+      method:  'POST',
+      headers: { 'Authorization': 'Bearer ' + jwt, 'Content-Type': 'application/json' },
+      body:    JSON.stringify(createBody)
+    })
+    .then(function (r) {
+      if (!r.ok) {
+        return r.json().then(function (d) {
+          var e = new Error('HTTP ' + r.status); e.status = r.status; e.detail = d.detail; throw e;
+        });
+      }
+      return r.json();
+    })
+    .then(function (d) {
+      var apptId = d.data && d.data.id;
+      if (!apptId) throw new Error('missing appointment id');
+      var sendBody = {
+        scheduled_at:        scheduledAt,
+        deadline_hours:      deadlineVal,
+        online_url:          urlVal   || null,
+        location_text:       locVal   || null,
+        notes:               notesVal || null,
+        representative_name: repVal   || null
+      };
+      return fetch('/api/appointments/' + apptId + '/send', {
+        method:  'POST',
+        headers: { 'Authorization': 'Bearer ' + jwt, 'Content-Type': 'application/json' },
+        body:    JSON.stringify(sendBody)
+      })
+      .then(function (r2) {
+        if (!r2.ok) {
+          return r2.json().then(function (d2) {
+            var e = new Error('HTTP ' + r2.status); e.status = r2.status; e.detail = d2.detail; throw e;
+          });
+        }
+        return r2.json();
+      })
+      .then(function () { return apptId; });
+    })
+    .then(function (apptId) {
+      // Swap the interview btn on the card to a "فتح الموعد" link
+      var card = document.querySelector('#coAppList .co-app-card[data-app-id="' + appId + '"]');
+      if (card) {
+        var foot = card.querySelector('.co-app-card-foot');
+        var btn2 = foot ? foot.querySelector('.co-app-interview-btn') : null;
+        if (btn2 && foot) {
+          var link = document.createElement('a');
+          link.href      = '/appointment-room?id=' + apptId;
+          link.className = 'co-app-open-appt-btn co-app-act';
+          link.textContent = 'فتح الموعد';
+          link.target    = '_blank';
+          link.rel       = 'noopener';
+          foot.replaceChild(link, btn2);
+        }
+      }
+      _apptByAppId[String(appId)] = { id: apptId, status: 'pending_response' };
+      _closeApptModal();
+      if (window.showToast) showToast('تم إرسال دعوة المقابلة بنجاح ✓');
+      location.href = '/appointment-room?id=' + apptId;
+    })
+    .catch(function (err) {
+      _apptInFlight = false;
+      if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'إرسال الدعوة'; }
+      var status = err && err.status;
+      var detail = (err && err.detail) || '';
+      var msg;
+      if (detail.indexOf('يوجد موعد نشط') !== -1) {
+        msg = 'يوجد موعد نشط لهذا الطلب — راجع صفحة المواعيد';
+      } else if (status === 400 && detail) {
+        msg = detail;
+      } else if (status === 403) {
+        msg = 'انتهت الجلسة أو لا تملك صلاحية إنشاء المواعيد';
+      } else if (status === 401) {
+        msg = 'انتهت الجلسة — سجّل دخولك مجدداً';
+      } else {
+        msg = 'تعذّر إرسال الدعوة، حاول مجدداً';
+      }
+      if (window.showToast) showToast(msg, 'error');
     });
   }
 

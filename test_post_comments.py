@@ -8821,10 +8821,9 @@ check("183-02. co-app-promote-btn rendered for pending/viewed status cards",
       'co-app-promote-btn' in _main183
       and "statusKey === 'pending' || statusKey === 'viewed'" in _main183)
 
-# 183-03: interview button rendered (disabled) for accepted cards
-check("183-03. co-app-interview-btn rendered disabled for accepted cards",
-      'co-app-interview-btn' in _main183
-      and 'disabled' in _main183.split('co-app-interview-btn')[1][:200])
+# 183-03: interview button rendered for accepted cards (PR-C enables it; no longer starts disabled)
+check("183-03. co-app-interview-btn rendered for accepted cards (enabled in PR-C)",
+      'co-app-interview-btn' in _main183)
 
 # 183-04: no primary button for rejected (no promote/interview btn rendered when rejected)
 check("183-04. no primary button rendered for rejected status",
@@ -8876,6 +8875,110 @@ check("183-13. _updateQuickBtnStates and _onQuickStatus are removed",
 check("183-14. promote fetch uses Bearer JWT only — no X-User-Id",
       'X-User-Id' not in _main183.split('function _execPromote')[1].split('function _onSaveApplicant')[0]
       if 'function _execPromote' in _main183 else False)
+
+# ── §184 — PR-C: Interview Button → Appointment Scheduling ───────────────
+with open("static/company/company.main.js", encoding="utf-8") as f:
+    _main184 = f.read()
+with open("static/company/company.css", encoding="utf-8") as f:
+    _css184 = f.read()
+with open("company-profile.html", encoding="utf-8") as f:
+    _html184 = f.read()
+
+# 184-01: new appointment-state vars declared
+check("184-01. _apptByAppId and _apptIndexLoaded declared",
+      '_apptByAppId' in _main184 and '_apptIndexLoaded' in _main184)
+
+# 184-02: data-name attribute added to card div in _renderApplicants
+check("184-02. card div has data-name attribute in _renderApplicants",
+      'data-name="' in _main184 and '_escApp(a.full_name' in _main184)
+
+# 184-03: interview btn rendered without disabled in _renderApplicants
+_render184 = _main184.split('function _renderApplicants')[1].split('function _wireApplicantCards')[0] if 'function _renderApplicants' in _main184 else ''
+check("184-03. interview btn rendered without disabled in _renderApplicants",
+      'co-app-interview-btn' in _render184
+      and 'disabled>تحديد مقابلة' not in _render184)
+
+# 184-04: _wireApplicantCards handles co-app-interview-btn click
+_wire184 = _main184.split('function _wireApplicantCards')[1].split('function _onPromote')[0] if 'function _wireApplicantCards' in _main184 else ''
+check("184-04. _wireApplicantCards delegates co-app-interview-btn to _onInterviewBtn",
+      'co-app-interview-btn' in _wire184 and '_onInterviewBtn' in _wire184)
+
+# 184-05: _loadApptIndex function defined
+check("184-05. _loadApptIndex function defined",
+      'function _loadApptIndex' in _main184)
+
+# 184-06: _loadApptIndex calls GET /api/appointments with Bearer JWT
+_idx184 = _main184.split('function _loadApptIndex')[1].split('function _applyApptIndexToCards')[0] if 'function _loadApptIndex' in _main184 else ''
+check("184-06. _loadApptIndex calls GET /api/appointments with Bearer JWT",
+      "'/api/appointments'" in _idx184 and 'Bearer' in _idx184)
+
+# 184-07: _applyApptIndexToCards replaces interview btn with "فتح الموعد" link
+check("184-07. _applyApptIndexToCards swaps interview btn to open-appt link",
+      'function _applyApptIndexToCards' in _main184
+      and 'co-app-open-appt-btn' in _main184
+      and 'appointment-room?id=' in _main184)
+
+# 184-08: _onInterviewBtn function defined
+check("184-08. _onInterviewBtn function defined",
+      'function _onInterviewBtn' in _main184)
+
+# 184-09: _openApptModal function defined
+check("184-09. _openApptModal function defined",
+      'function _openApptModal' in _main184)
+
+# 184-10: _closeApptModal function defined
+check("184-10. _closeApptModal function defined",
+      'function _closeApptModal' in _main184)
+
+# 184-11: _submitApptForm calls POST /api/appointments then POST /send
+_submit184 = _main184.split('function _submitApptForm')[1].split('function _isApptActive')[0] if 'function _submitApptForm' in _main184 else ''
+_submit184 = _main184.split('function _submitApptForm')[1] if 'function _submitApptForm' in _main184 else ''
+check("184-11. _submitApptForm calls POST /api/appointments then /send",
+      "'/api/appointments'" in _submit184
+      and "'/send'" in _submit184
+      and "method:  'POST'" in _submit184 or "method: 'POST'" in _submit184)
+
+# 184-12: _submitApptForm uses Bearer JWT only — no X-User-Id
+check("184-12. _submitApptForm uses Bearer JWT only — no X-User-Id",
+      'X-User-Id' not in _submit184 and 'Bearer' in _submit184)
+
+# 184-13: duplicate appointment error shows specific Arabic message
+check("184-13. يوجد موعد نشط error message in _submitApptForm",
+      'يوجد موعد نشط' in _submit184)
+
+# 184-14: on success, navigates to /appointment-room?id=
+check("184-14. success navigates to /appointment-room?id=",
+      "location.href = '/appointment-room?id=' + apptId" in _main184
+      or "/appointment-room?id='" in _main184)
+
+# 184-15: _execPromote creates interview btn with disabled=false (PR-C wires it)
+_exec184 = _main184.split('function _execPromote')[1].split('function _onSaveApplicant')[0] if 'function _execPromote' in _main184 else ''
+check("184-15. _execPromote creates interview btn with disabled=false",
+      'interviewBtn.disabled  = false' in _exec184 or 'interviewBtn.disabled = false' in _exec184)
+
+# 184-16: appointment modal HTML exists in company-profile.html
+check("184-16. #coApptModal overlay exists in company-profile.html",
+      'id="coApptModal"' in _html184)
+
+# 184-17: required form fields in modal HTML
+check("184-17. coApptDate, coApptTime, coApptModeOnline, coApptSubmit in HTML",
+      'id="coApptDate"' in _html184
+      and 'id="coApptTime"' in _html184
+      and 'id="coApptModeOnline"' in _html184
+      and 'id="coApptSubmit"' in _html184)
+
+# 184-18: coApptUrlRow and coApptLocRow conditional rows in HTML
+check("184-18. coApptUrlRow and coApptLocRow in HTML",
+      'id="coApptUrlRow"' in _html184
+      and 'id="coApptLocRow"' in _html184)
+
+# 184-19: co-appt-submit CSS defined in company.css
+check("184-19. .co-appt-submit styled in company.css",
+      '.co-appt-submit' in _css184)
+
+# 184-20: .co-app-open-appt-btn styled in company.css
+check("184-20. .co-app-open-appt-btn styled in company.css",
+      '.co-app-open-appt-btn' in _css184)
 
 # ── Summary ──────────────────────────────────────────────────────────────
 print()
