@@ -9209,6 +9209,16 @@ check("186-12. stats with_job/unlinked counts use refs subquery not sc.job_id IS
       and 'job_id IS NULL' not in _stats186
       and 'job_id IS NOT NULL' not in _stats186)
 
+# 186-00b: backfill INSERT is inside _migrate_company_candidate_job_refs
+_mig186 = (_auth186.split('def _migrate_company_candidate_job_refs')[1].split('def save_company_candidate')[0]
+           if 'def _migrate_company_candidate_job_refs' in _auth186 else '')
+check("186-00b. migration backfills refs from company_saved_candidates WHERE job_id IS NOT NULL",
+      'INSERT INTO company_candidate_job_refs' in _mig186
+      and 'SELECT company_id, candidate_id, job_id' in _mig186
+      and 'FROM company_saved_candidates' in _mig186
+      and 'WHERE job_id IS NOT NULL' in _mig186
+      and 'ON CONFLICT DO NOTHING' in _mig186)
+
 # 186-13: per_job_accepted still sourced from job_applications.status='accepted' (not from refs)
 # The filtered function has a dedicated acc_rows query on job_applications for this
 check("186-13. per_job_accepted still sourced from job_applications.status='accepted'",

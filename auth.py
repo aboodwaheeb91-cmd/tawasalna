@@ -4745,6 +4745,14 @@ def _migrate_company_candidate_job_refs():
             CREATE INDEX IF NOT EXISTS idx_ccjr_company_candidate
             ON company_candidate_job_refs(company_id, candidate_id)
         """)
+        # Backfill existing saved candidates that already have a job_id
+        conn.run("""
+            INSERT INTO company_candidate_job_refs(company_id, candidate_id, job_id)
+            SELECT company_id, candidate_id, job_id
+            FROM company_saved_candidates
+            WHERE job_id IS NOT NULL
+            ON CONFLICT DO NOTHING
+        """)
     finally:
         release_conn(conn)
 
