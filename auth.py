@@ -2314,7 +2314,33 @@ def get_job_applicants(job_id: int, company_id: int = 0) -> list:
             jid=job_id, cid=company_id
         )
         cols = [c["name"] for c in conn.columns]
-        return [_serialize(_row_to_dict(cols, r)) for r in rows]
+        items = [_serialize(_row_to_dict(cols, r)) for r in rows]
+
+        # Batch-fetch other job titles for saved candidates
+        if company_id:
+            saved_uids = [a['user_id'] for a in items if a.get('is_saved') and a.get('user_id')]
+            other_titles_map = {}
+            if saved_uids:
+                id_clause = ','.join(str(int(uid)) for uid in saved_uids)
+                trows = conn.run(
+                    f"SELECT ja2.user_id, j2.title "
+                    f"FROM job_applications ja2 "
+                    f"JOIN jobs j2 ON j2.id = ja2.job_id "
+                    f"WHERE ja2.user_id IN ({id_clause}) AND j2.company_id = :cid "
+                    f"AND ja2.job_id != :jid ORDER BY j2.id",
+                    cid=company_id, jid=job_id) or []
+                for trow in trows:
+                    uid, title = int(trow[0]), trow[1]
+                    if uid not in other_titles_map:
+                        other_titles_map[uid] = []
+                    other_titles_map[uid].append(title)
+            for a in items:
+                a['other_job_titles'] = other_titles_map.get(a.get('user_id', 0), [])
+        else:
+            for a in items:
+                a['other_job_titles'] = []
+
+        return items
     finally:
         release_conn(conn)
 
@@ -4712,7 +4738,7 @@ def save_company_candidate(company_id: int, candidate_id: int, saved_by: int,
             "(company_id, candidate_id, job_id, notes, saved_by) "
             "VALUES (:cid, :uid, :jid, :notes, :sid) "
             "ON CONFLICT (company_id, candidate_id) DO UPDATE "
-            "SET updated_at=NOW(), job_id=EXCLUDED.job_id, notes=EXCLUDED.notes",
+            "SET updated_at=NOW(), notes=EXCLUDED.notes",
             cid=company_id, uid=candidate_id,
             jid=job_id, notes=notes, sid=saved_by)
         count_row = conn.run(
@@ -4785,6 +4811,25 @@ def get_company_saved_candidates(company_id: int, limit: int = 20, offset: int =
                 "notes":        notes,
                 "created_at":   created_at,
             }))
+
+        # Batch-fetch job titles from job_applications
+        if items:
+            id_clause = ','.join(str(r['candidate_id']) for r in items)
+            trows = conn.run(
+                f"SELECT ja.user_id, j.title "
+                f"FROM job_applications ja "
+                f"JOIN jobs j ON j.id = ja.job_id "
+                f"WHERE ja.user_id IN ({id_clause}) AND j.company_id = :cid "
+                f"ORDER BY j.id",
+                cid=company_id) or []
+            jtmap = {}
+            for trow in trows:
+                uid, title = int(trow[0]), trow[1]
+                if uid not in jtmap:
+                    jtmap[uid] = []
+                jtmap[uid].append(title)
+            for item in items:
+                item['job_titles'] = jtmap.get(item['candidate_id'], [])
 
         return {
             "count": total,
@@ -4949,6 +4994,36 @@ def get_company_saved_candidates_filtered(
                 "created_at":   created_at,
                 "updated_at":   updated_at,
             }))
+
+        # Batch-fetch job titles + per_job_accepted
+        if items:
+            id_clause = ','.join(str(r['candidate_id']) for r in items)
+            trows = conn.run(
+                f"SELECT ja.user_id, j.title "
+                f"FROM job_applications ja "
+                f"JOIN jobs j ON j.id = ja.job_id "
+                f"WHERE ja.user_id IN ({id_clause}) AND j.company_id = :cid "
+                f"ORDER BY j.id",
+                cid=company_id) or []
+            jtmap = {}
+            for trow in trows:
+                uid, title = int(trow[0]), trow[1]
+                if uid not in jtmap:
+                    jtmap[uid] = []
+                jtmap[uid].append(title)
+            accepted_ids = set()
+            if job_id is not None:
+                acc_rows = conn.run(
+                    f"SELECT ja.user_id "
+                    f"FROM job_applications ja "
+                    f"WHERE ja.job_id = :jid AND ja.status = 'accepted' "
+                    f"AND ja.user_id IN ({id_clause})",
+                    jid=job_id) or []
+                accepted_ids = {int(r[0]) for r in acc_rows}
+            for item in items:
+                item['job_titles'] = jtmap.get(item['candidate_id'], [])
+                if job_id is not None:
+                    item['per_job_accepted'] = item['candidate_id'] in accepted_ids
 
         return {
             "count": total,
@@ -5207,14 +5282,8 @@ def promote_application_to_shortlist(app_id: int, company_id: int) -> dict:
                 "    THEN company_saved_candidates.status "
                 "    ELSE 'shortlisted' "
                 "  END, "
-                "  job_id = CASE "
-                "    WHEN company_saved_candidates.status "
-                "         IN ('contacted','interview','hired','rejected') "
-                "    THEN company_saved_candidates.job_id "
-                "    ELSE EXCLUDED.job_id "
-                "  END, "
                 "  updated_at = NOW() "
-                "RETURNING status, job_id, (xmax = 0) AS was_inserted",
+                "RETURNING status, (xmax = 0) AS was_inserted",
                 cid=company_id, uid=applicant_id, jid=job_id)
 
             if not upsert_rows:
@@ -5223,8 +5292,7 @@ def promote_application_to_shortlist(app_id: int, company_id: int) -> dict:
                     f"(app={app_id}, candidate={applicant_id})")
 
             final_status = upsert_rows[0][0]
-            final_job_id = upsert_rows[0][1]
-            was_inserted = upsert_rows[0][2]
+            was_inserted = upsert_rows[0][1]
 
             # ── 6. Post-UPSERT, pre-COMMIT: RETURNING is the authoritative decision ──
             # Catches race: concurrent INSERT-as-rejected while no row existed to lock.
@@ -5275,7 +5343,6 @@ def promote_application_to_shortlist(app_id: int, company_id: int) -> dict:
                 "candidate_id": int(applicant_id),
                 "status":       final_status,
                 "status_label": CANDIDATE_STATUS_LABELS.get(final_status, final_status),
-                "job_id":       final_job_id,
                 "action":       candidate_action,
             },
         }

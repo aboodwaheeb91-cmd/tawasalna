@@ -873,7 +873,8 @@
       var statusLbl = _APP_STATUS_LABEL[statusKey] || statusKey;
       var dateStr   = _appFmtDate(a.applied_at);
       var appId      = parseInt(a.id, 10);
-      var isSaved    = !!a.is_saved;
+      var isSaved         = !!a.is_saved;
+      var otherJobTitles  = Array.isArray(a.other_job_titles) ? a.other_job_titles : [];
       var isAccepted = statusKey === 'accepted';
       var avatarHtml = a.avatar_url
         ? '<img src="' + _escApp(a.avatar_url) + '" alt="" loading="lazy"'
@@ -905,6 +906,14 @@
       // ── ⋮ trigger — opens floating status menu ──
       var menuTrigger = '<button type="button" class="co-ast-trigger co-app-act" data-app-id="' + appId + '" data-status="' + _escApp(statusKey) + '" aria-label="خيارات إضافية">⋮</button>';
 
+      // Context: other jobs this candidate is linked to in the pipeline
+      var savedCtx = isSaved && otherJobTitles.length > 0
+        ? '<div class="co-app-saved-ctx">محفوظ · أيضاً في: '
+          + otherJobTitles.slice(0, 2).map(function (t) { return _escApp(t); }).join(' · ')
+          + (otherJobTitles.length > 2 ? ' · +' + (otherJobTitles.length - 2) : '')
+          + '</div>'
+        : '';
+
       html += '<div class="co-app-card" data-app-id="' + appId + '" data-name="' + _escApp(a.full_name || '') + '">'
         + '<div class="co-app-card-head">'
         +   '<div class="co-app-ava">' + avatarHtml + '</div>'
@@ -914,6 +923,7 @@
         +   '</div>'
         +   '<span class="co-app-status co-app-status--' + _escApp(statusKey) + '">' + _escApp(statusLbl) + '</span>'
         + '</div>'
+        + savedCtx
         + '<div class="co-app-card-foot">'
         + primaryBtn
         + viewBtn
@@ -2538,8 +2548,15 @@
     html += '</div>';
     // Notes preview
     if (notes) html += '<div class="co-cand-notes-pre">' + _esc(notes) + '</div>';
-    // Job reference
-    if (jobId) html += '<div class="co-cand-job-ref">مرتبط بوظيفة #' + _esc(jobId) + '</div>';
+    // Job titles chips (from job_applications — names not IDs)
+    var jobTitles = Array.isArray(item.job_titles) ? item.job_titles : [];
+    if (jobTitles.length) {
+      var dispTitles = jobTitles.slice(0, 3);
+      html += '<div class="co-cand-job-chips">';
+      dispTitles.forEach(function (t) { html += '<span class="co-cand-job-chip">' + _esc(t) + '</span>'; });
+      if (jobTitles.length > 3) html += '<span class="co-cand-job-chip co-cand-job-chip--more">+' + (jobTitles.length - 3) + '</span>';
+      html += '</div>';
+    }
     html += '</div>'; // .co-cand-info
 
     html += '<div class="co-cand-actions">';
@@ -2775,23 +2792,10 @@
       notesPre.parentNode.removeChild(notesPre);
     }
 
-    // Update job reference
+    // data-jobid stays in sync for the manage panel dropdown
+    // .co-cand-job-chips derive from job_applications (unchanged by PATCH — no DOM update needed)
     var jobRef = card.querySelector('.co-cand-job-ref');
-    if (newJobId) {
-      if (jobRef) {
-        jobRef.textContent = 'مرتبط بوظيفة #' + newJobId;
-      } else {
-        var info = card.querySelector('.co-cand-info');
-        if (info) {
-          var jd = document.createElement('div');
-          jd.className   = 'co-cand-job-ref';
-          jd.textContent = 'مرتبط بوظيفة #' + newJobId;
-          info.appendChild(jd);
-        }
-      }
-    } else if (jobRef) {
-      jobRef.parentNode.removeChild(jobRef);
-    }
+    if (jobRef) jobRef.parentNode.removeChild(jobRef); // Remove legacy raw ID display
 
     // Sync custom status picker display for next panel open
     var dpStatus = card.querySelector('.co-cand-dp-status');

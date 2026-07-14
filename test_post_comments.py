@@ -8737,10 +8737,10 @@ check("182-14. unexpected DB errors wrapped in RuntimeError (separate except blo
       "except Exception as _tx_err:" in _promote_fn182
       and "raise RuntimeError" in _promote_fn182)
 
-# 182-15: UPSERT uses RETURNING to get final state — no post-COMMIT re-query needed
-# RETURNING is the authoritative source for final_status / final_job_id / was_inserted
-check("182-15. UPSERT uses RETURNING status, job_id, (xmax=0) AS was_inserted",
-      "RETURNING status, job_id" in _promote_fn182
+# 182-15: UPSERT uses RETURNING to get final state — job_id removed (Option B: job_applications is source)
+# RETURNING is the authoritative source for final_status / was_inserted
+check("182-15. UPSERT uses RETURNING status and was_inserted (job_id removed per Option B)",
+      "RETURNING status" in _promote_fn182
       and "was_inserted" in _promote_fn182
       and "(xmax = 0)" in _promote_fn182)
 
@@ -9013,6 +9013,115 @@ check("184-24. draft stored in _apptByAppId before _execSendStep — no orphan o
 # 184-25: _execSendStep defined — handles send step independently, preserves draft on failure
 check("184-25. _execSendStep defined — send isolated so draft survives send failure",
       'function _execSendStep' in _main184)
+
+# ══════════════════════════════════════════════════════════════════════════
+# §185 — Option B: job_applications as per-job source of truth
+#   - save_company_candidate UPSERT no longer overwrites job_id
+#   - promote UPSERT no longer overwrites job_id
+#   - get_job_applicants returns other_job_titles
+#   - saved candidates list returns job_titles[]
+#   - saved candidates filtered returns per_job_accepted
+#   - frontend shows job title chips not raw IDs
+# ══════════════════════════════════════════════════════════════════════════
+
+_auth185  = open('auth.py', encoding='utf-8').read()
+_main185  = open('static/company/company.main.js', encoding='utf-8').read()
+_css185   = open('static/company/company.css', encoding='utf-8').read()
+
+# 185-01: save_company_candidate ON CONFLICT no longer writes job_id=EXCLUDED.job_id
+_save185 = (_auth185.split('def save_company_candidate')[1].split('def get_company_saved_candidates')[0]
+            if 'def save_company_candidate' in _auth185 else '')
+check("185-01. save_company_candidate UPSERT does not overwrite job_id",
+      'job_id=EXCLUDED.job_id' not in _save185
+      and 'ON CONFLICT (company_id, candidate_id) DO UPDATE' in _save185)
+
+# 185-02: promote UPSERT no longer has job_id = CASE block
+_prom185 = (_auth185.split('def promote_application_to_shortlist')[1].split('def get_company_candidate_suggestions')[0]
+            if 'def promote_application_to_shortlist' in _auth185 else '')
+check("185-02. promote UPSERT no longer overwrites job_id",
+      'job_id = CASE' not in _prom185
+      and 'ON CONFLICT (company_id, candidate_id) DO UPDATE' in _prom185)
+
+# 185-03: promote RETURNING only 2 columns (status, was_inserted — no job_id)
+check("185-03. promote RETURNING has no job_id column",
+      'RETURNING status, (xmax = 0) AS was_inserted' in _prom185
+      and 'RETURNING status, job_id' not in _prom185)
+
+# 185-04: promote return dict has no final_job_id / job_id field
+check("185-04. promote return dict has no final_job_id",
+      'final_job_id' not in _prom185
+      and '"job_id":       final_job_id' not in _prom185)
+
+# 185-05: get_job_applicants batch-fetches other_job_titles for saved candidates
+_gjapp185 = (_auth185.split('def get_job_applicants')[1].split('def get_user_applications')[0]
+             if 'def get_job_applicants' in _auth185 else '')
+check("185-05. get_job_applicants batch-fetches other_job_titles",
+      'other_job_titles' in _gjapp185
+      and 'other_titles_map' in _gjapp185
+      and 'ja2.job_id != :jid' in _gjapp185)
+
+# 185-06: get_company_saved_candidates batch-fetches job_titles from job_applications
+_gsc185 = (_auth185.split('def get_company_saved_candidates(')[1].split('def get_company_saved_candidates_count')[0]
+           if 'def get_company_saved_candidates(' in _auth185 else '')
+check("185-06. get_company_saved_candidates returns job_titles",
+      'job_titles' in _gsc185
+      and 'jtmap' in _gsc185
+      and 'job_applications' in _gsc185)
+
+# 185-07: get_company_saved_candidates_filtered returns job_titles + per_job_accepted
+_gscf185 = (_auth185.split('def get_company_saved_candidates_filtered')[1].split('def get_company_saved_candidates_stats')[0]
+            if 'def get_company_saved_candidates_filtered' in _auth185 else '')
+check("185-07. get_company_saved_candidates_filtered returns job_titles and per_job_accepted",
+      'job_titles' in _gscf185
+      and 'per_job_accepted' in _gscf185
+      and 'accepted_ids' in _gscf185)
+
+# 185-08: per_job_accepted only computed when job_id param is provided (not always)
+check("185-08. per_job_accepted is conditional on job_id filter param",
+      'if job_id is not None' in _gscf185
+      and 'per_job_accepted' in _gscf185)
+
+# 185-09: _savedCardHTML shows co-cand-job-chips instead of raw job-ref ID
+_scard185 = (_main185.split('function _savedCardHTML')[1].split('// Wire textarea')[0]
+             if 'function _savedCardHTML' in _main185 else '')
+check("185-09. _savedCardHTML shows co-cand-job-chips not raw job_id",
+      'co-cand-job-chips' in _scard185
+      and 'co-cand-job-chip' in _scard185
+      and 'مرتبط بوظيفة #' not in _scard185)
+
+# 185-10: _savedCardHTML uses item.job_titles array
+check("185-10. _savedCardHTML sources from item.job_titles array",
+      'item.job_titles' in _scard185)
+
+# 185-11: _renderApplicants builds savedCtx for other_job_titles
+_rappl185 = (_main185.split('function _renderApplicants')[1].split('function _wireApplicantCards')[0]
+             if 'function _renderApplicants' in _main185 else '')
+check("185-11. _renderApplicants renders savedCtx for other_job_titles",
+      'savedCtx' in _rappl185
+      and 'other_job_titles' in _rappl185
+      and 'co-app-saved-ctx' in _rappl185)
+
+# 185-12: savedCtx is inserted between card-head and card-foot in the html string building
+check("185-12. savedCtx placed between card-head and card-foot",
+      'card-head' in _rappl185
+      and '+ savedCtx' in _rappl185
+      and _rappl185.index('+ savedCtx') > _rappl185.index('card-head')
+      and _rappl185.index('+ savedCtx') < _rappl185.index('card-foot'))
+
+# 185-13: _applyCardUpdate no longer creates raw .co-cand-job-ref element
+_acu185 = (_main185.split('function _applyCardUpdate')[1].split('// Sync custom status')[0]
+           if 'function _applyCardUpdate' in _main185 else '')
+check("185-13. _applyCardUpdate does not re-create raw job_id display",
+      'مرتبط بوظيفة #' not in _acu185)
+
+# 185-14: .co-cand-job-chips styled in company.css
+check("185-14. .co-cand-job-chips styled in company.css",
+      '.co-cand-job-chips' in _css185
+      and '.co-cand-job-chip' in _css185)
+
+# 185-15: .co-app-saved-ctx styled in company.css
+check("185-15. .co-app-saved-ctx styled in company.css",
+      '.co-app-saved-ctx' in _css185)
 
 # ── Summary ──────────────────────────────────────────────────────────────
 print()
