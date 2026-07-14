@@ -2936,11 +2936,10 @@
     _jobPopPositionFromChip(chip, pop);
     _jobPopTarget = chip;
 
-    // Close on outside click
+    // Close on outside click — _closeJobPop is named so it can be removed in _closeJobPop()
     setTimeout(function () {
-      document.addEventListener('click', _closeJobPop, { once: true, capture: true });
+      document.addEventListener('click', _closeJobPop, { capture: true });
     }, 0);
-    // Close (don't reposition) on scroll or resize — simplest correct behavior
     window.addEventListener('scroll', _closeJobPop, { once: true, passive: true });
     window.addEventListener('resize', _closeJobPop, { once: true });
   }
@@ -2963,13 +2962,16 @@
     if (left + popW > winW - 8) left = winW - popW - 8;
     if (left < 8) left = 8;
 
-    pop.style.top  = Math.max(8, top) + 'px';
+    // Full vertical clamp: 8 <= top <= innerHeight - popH - 8
+    var maxTop = winH - popH - 8;
+    pop.style.top  = Math.min(Math.max(8, top), maxTop) + 'px';
     pop.style.left = left + 'px';
   }
 
   function _closeJobPop() {
     var pop = document.getElementById('co-cand-job-pop');
     if (pop) pop.style.display = 'none';
+    document.removeEventListener('click', _closeJobPop, { capture: true });
     window.removeEventListener('scroll', _closeJobPop);
     window.removeEventListener('resize', _closeJobPop);
     _jobPopTarget = null;

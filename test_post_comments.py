@@ -9651,6 +9651,27 @@ check("484-06. hidden chips use co-cand-job-chip--hidden; _onSavedClick reveals 
       and "classList.remove('co-cand-job-chip--hidden')" in _on_click484
       and "co-cand-chip-more-btn" in _on_click484)
 
+# §484b — two targeted amendments: full vertical clamp + named outside-click handler
+
+# Extract _jobPopPositionFromChip body
+_pos_fn484b = (
+    _cand_iife484.split('function _jobPopPositionFromChip(')[1].split('\n  function ')[0]
+    if 'function _jobPopPositionFromChip(' in _cand_iife484 else ''
+)
+
+# 484b-01: vertical clamp includes lower bound (innerHeight - popH - margin)
+#          ensures popover never exits viewport bottom even when both above and below are cramped
+check("484b-01. _jobPopPositionFromChip clamps top to window.innerHeight - pop.offsetHeight - 8 (lower bound)",
+      'winH - popH - 8' in _pos_fn484b
+      and 'Math.min(' in _pos_fn484b
+      and 'Math.max(8,' in _pos_fn484b)
+
+# 484b-02: _closeJobPop removes the document click listener via removeEventListener
+#          (not once:true — so any close path cleans up the handler, no accumulation)
+check("484b-02. _closeJobPop removes document click listener (named handler, no once:true accumulation)",
+      "document.removeEventListener('click',  _closeJobPop" in _close_pop484
+      or "document.removeEventListener('click', _closeJobPop" in _close_pop484)
+
 
 # ── Summary ──────────────────────────────────────────────────────────────
 print()
