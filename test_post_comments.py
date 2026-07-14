@@ -9053,20 +9053,22 @@ check("185-04. promote return dict has no final_job_id",
       and '"job_id":       final_job_id' not in _prom185)
 
 # 185-05: get_job_applicants batch-fetches other_job_titles for saved candidates
+# Updated §186: now reads from company_candidate_job_refs not job_applications
 _gjapp185 = (_auth185.split('def get_job_applicants')[1].split('def get_user_applications')[0]
              if 'def get_job_applicants' in _auth185 else '')
 check("185-05. get_job_applicants batch-fetches other_job_titles",
       'other_job_titles' in _gjapp185
       and 'other_titles_map' in _gjapp185
-      and 'ja2.job_id != :jid' in _gjapp185)
+      and 'r.job_id != :jid' in _gjapp185)
 
-# 185-06: get_company_saved_candidates batch-fetches job_titles from job_applications
+# 185-06: get_company_saved_candidates batch-fetches job_titles
+# Updated §186: now reads from company_candidate_job_refs not job_applications
 _gsc185 = (_auth185.split('def get_company_saved_candidates(')[1].split('def get_company_saved_candidates_count')[0]
            if 'def get_company_saved_candidates(' in _auth185 else '')
 check("185-06. get_company_saved_candidates returns job_titles",
       'job_titles' in _gsc185
       and 'jtmap' in _gsc185
-      and 'job_applications' in _gsc185)
+      and 'company_candidate_job_refs' in _gsc185)
 
 # 185-07: get_company_saved_candidates_filtered returns job_titles + per_job_accepted
 _gscf185 = (_auth185.split('def get_company_saved_candidates_filtered')[1].split('def get_company_saved_candidates_stats')[0]
@@ -9122,6 +9124,98 @@ check("185-14. .co-cand-job-chips styled in company.css",
 # 185-15: .co-app-saved-ctx styled in company.css
 check("185-15. .co-app-saved-ctx styled in company.css",
       '.co-app-saved-ctx' in _css185)
+
+# ── §186 — company_candidate_job_refs (Option B v2) ──────────────────────
+# Tests that company_candidate_job_refs is the authoritative source for
+# job_titles[] and that job_applications is NOT used for display.
+
+_auth186 = auth_src
+_srv186 = open("server.py", encoding="utf-8").read()
+
+# 186-01: _migrate_company_candidate_job_refs defined in auth.py
+check("186-01. _migrate_company_candidate_job_refs defined in auth.py",
+      'def _migrate_company_candidate_job_refs' in _auth186)
+
+# 186-02: company_candidate_job_refs table has the correct PRIMARY KEY columns
+check("186-02. company_candidate_job_refs PRIMARY KEY (company_id, candidate_id, job_id)",
+      'company_candidate_job_refs' in _auth186
+      and 'PRIMARY KEY (company_id, candidate_id, job_id)' in _auth186)
+
+# 186-03: idx_ccjr_company_candidate index defined
+check("186-03. idx_ccjr_company_candidate index defined",
+      'idx_ccjr_company_candidate' in _auth186)
+
+# 186-04: _migrate_company_candidate_job_refs imported and called in server.py
+check("186-04. _migrate_company_candidate_job_refs imported and called in server.py",
+      '_migrate_company_candidate_job_refs' in _srv186)
+
+# 186-05: save_company_candidate inserts into refs when job_id provided (atomic)
+_save186 = (_auth186.split('def save_company_candidate')[1].split('def remove_company_candidate')[0]
+            if 'def save_company_candidate' in _auth186 else '')
+check("186-05. save_company_candidate writes to company_candidate_job_refs atomically",
+      'company_candidate_job_refs' in _save186
+      and 'ON CONFLICT DO NOTHING' in _save186
+      and 'BEGIN' in _save186
+      and 'COMMIT' in _save186)
+
+# 186-06: promote_application_to_shortlist writes to refs inside transaction
+_promote186 = (_auth186.split('def promote_application_to_shortlist')[1].split('def get_company_candidate_suggestions')[0]
+               if 'def promote_application_to_shortlist' in _auth186 else '')
+_commit_run186 = 'conn.run("COMMIT")'
+check("186-06. promote_application_to_shortlist writes to company_candidate_job_refs inside transaction",
+      'company_candidate_job_refs' in _promote186
+      and 'ON CONFLICT DO NOTHING' in _promote186
+      and _commit_run186 in _promote186
+      and _promote186.index('company_candidate_job_refs') < _promote186.index(_commit_run186))
+
+# 186-07: get_company_saved_candidates reads job_titles from refs, not job_applications
+_gsc186 = (_auth186.split('def get_company_saved_candidates(')[1].split('def get_company_saved_candidates_count')[0]
+           if 'def get_company_saved_candidates(' in _auth186 else '')
+check("186-07. get_company_saved_candidates reads job_titles from refs not job_applications",
+      'company_candidate_job_refs' in _gsc186
+      and 'FROM job_applications ja' not in _gsc186.split('# Batch-fetch job titles')[1])
+
+# 186-08: get_company_saved_candidates_filtered reads job_titles from refs
+_gscf186 = (_auth186.split('def get_company_saved_candidates_filtered')[1].split('def get_company_saved_candidates_stats')[0]
+            if 'def get_company_saved_candidates_filtered' in _auth186 else '')
+check("186-08. get_company_saved_candidates_filtered reads job_titles from refs",
+      'company_candidate_job_refs' in _gscf186
+      and 'r.candidate_id, j.title' in _gscf186)
+
+# 186-09: job_id filter in filtered view uses EXISTS subquery on refs (not sc.job_id =)
+check("186-09. job_id filter uses EXISTS on company_candidate_job_refs not sc.job_id =",
+      'EXISTS (SELECT 1 FROM company_candidate_job_refs r' in _gscf186
+      and 'AND r.job_id = :job_id' in _gscf186
+      and 'sc.job_id = :job_id' not in _gscf186)
+
+# 186-10: unlinked filter uses NOT EXISTS on refs (not sc.job_id IS NULL)
+check("186-10. unlinked filter uses NOT EXISTS on refs not sc.job_id IS NULL",
+      'NOT EXISTS (SELECT 1 FROM company_candidate_job_refs r' in _gscf186
+      and 'sc.job_id IS NULL' not in _gscf186)
+
+# 186-11: get_job_applicants reads other_job_titles from refs not job_applications
+_gjapp186 = (_auth186.split('def get_job_applicants')[1].split('def get_user_applications')[0]
+             if 'def get_job_applicants' in _auth186 else '')
+check("186-11. get_job_applicants other_job_titles from refs not job_applications",
+      'company_candidate_job_refs' in _gjapp186
+      and 'r.candidate_id, j2.title' in _gjapp186
+      and 'FROM job_applications ja2' not in _gjapp186)
+
+# 186-12: get_company_saved_candidates_stats uses refs for with_job/unlinked counts
+_stats186 = (_auth186.split('def get_company_saved_candidates_stats')[1].split('def update_company_saved_candidate')[0]
+             if 'def get_company_saved_candidates_stats' in _auth186 else '')
+check("186-12. stats with_job/unlinked counts use refs subquery not sc.job_id IS NULL",
+      'company_candidate_job_refs' in _stats186
+      and 'job_id IS NULL' not in _stats186
+      and 'job_id IS NOT NULL' not in _stats186)
+
+# 186-13: per_job_accepted still sourced from job_applications.status='accepted' (not from refs)
+# The filtered function has a dedicated acc_rows query on job_applications for this
+check("186-13. per_job_accepted still sourced from job_applications.status='accepted'",
+      "status = 'accepted'" in _gscf186
+      and 'acc_rows' in _gscf186
+      and 'job_applications' in _gscf186
+      and 'accepted_ids' in _gscf186)
 
 # ── Summary ──────────────────────────────────────────────────────────────
 print()
