@@ -777,7 +777,8 @@ window.renderProfile = function renderProfile(res){
     }
 
     function _applyVa(v){
-      intBtn.innerHTML = '<i data-lucide="' + _icon(v.is_active) + '" class="ico-sm"></i> ' + esc(v.label);
+      var displayLabel = (_vaType === 'candidate_save' && v.is_active) ? 'إدارة المرشح' : v.label;
+      intBtn.innerHTML = '<i data-lucide="' + _icon(v.is_active) + '" class="ico-sm"></i> ' + esc(displayLabel);
       if(v.is_active){
         intBtn.classList.add('sc-btn--interested');
         intBtn.classList.remove('sc-btn-ghost');
@@ -808,8 +809,10 @@ window.renderProfile = function renderProfile(res){
       row.parentNode.insertBefore(hint, row.nextSibling);
       if(window.lucide && lucide.createIcons) lucide.createIcons();
       document.getElementById('_scNoteBtn').onclick = function(){
-        if(window.toast) toast('سيتم إضافة ملاحظات المرشحين قريباً');
-        hint.remove();
+        var _coU2 = JSON.parse(localStorage.getItem('tw_user') || '{}');
+        var _coTwId2 = _coU2.tw_id || '';
+        if(!_coTwId2){ if(window.toast) toast('خطأ: لم يتم التعرف على حسابك'); return; }
+        location.href = '/u/' + _coTwId2 + '?cand=' + p.id + '&notes=1';
       };
       document.getElementById('_scDismissBtn').onclick = function(){ hint.remove(); };
     }
@@ -835,7 +838,16 @@ window.renderProfile = function renderProfile(res){
       var targetId = p.id;
       var action;
       if(_vaType === 'candidate_save'){
-        action = (curVa && curVa.is_active) ? removeCandidateFromCompany : saveCandidateToCompany;
+        if(curVa && curVa.is_active){
+          // Already saved — navigate to manage panel via canonical Smart Router URL
+          var _coU = JSON.parse(localStorage.getItem('tw_user') || '{}');
+          var _coTwId = _coU.tw_id || '';
+          if(!_coTwId){ if(window.toast) toast('خطأ: لم يتم التعرف على حسابك'); _busy = false; intBtn.disabled = false; return; }
+          location.href = '/u/' + _coTwId + '?cand=' + targetId;
+          _busy = false; intBtn.disabled = false;
+          return;
+        }
+        action = saveCandidateToCompany;
       } else {
         action = (curVa && curVa.is_active) ? removeProfileInterest : saveProfileInterest;
       }

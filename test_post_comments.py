@@ -9417,6 +9417,117 @@ check("188-02. all 7 pipeline statuses are in _INTERNAL_STATUSES",
       all(s in _ias188 for s in _seven))
 
 
+# ════════════════════════════════════════════════════════════════
+# §481 — Saved candidates job-link system integrity
+# ════════════════════════════════════════════════════════════════
+
+_auth481 = open('auth.py', encoding='utf-8').read()
+_main481 = open('static/company/company.main.js', encoding='utf-8').read()
+
+# ── Function bodies for targeted checks ──────────────────────────
+_save_fn481 = (_auth481.split('def save_company_candidate')[1].split('\ndef ')[0]
+               if 'def save_company_candidate' in _auth481 else '')
+_upd_fn481  = (_auth481.split('def update_company_saved_candidate')[1].split('\ndef ')[0]
+               if 'def update_company_saved_candidate' in _auth481 else '')
+_filter_fn481 = (_auth481.split('def get_company_saved_candidates_filtered')[1].split('\ndef ')[0]
+                 if 'def get_company_saved_candidates_filtered' in _auth481 else '')
+
+# 481-01: job-ref INSERT uses ON CONFLICT DO NOTHING — no dup on re-link
+check("481-01. company_candidate_job_refs INSERT uses ON CONFLICT DO NOTHING (idempotent)",
+      'company_candidate_job_refs' in _save_fn481
+      and 'ON CONFLICT DO NOTHING' in _save_fn481)
+
+# 481-02: same idempotency pattern present when save_company_candidate is called with job_id
+_jid_branch481 = (_save_fn481.split('if job_id is not None:')[1]
+                  if 'if job_id is not None:' in _save_fn481 else '')
+check("481-02. job_id branch in save_company_candidate writes to company_candidate_job_refs idempotently",
+      'company_candidate_job_refs' in _jid_branch481
+      and 'ON CONFLICT DO NOTHING' in _jid_branch481)
+
+# 481-03: no job_id → no company_candidate_job_refs insert (else branch only touches saved_candidates)
+_no_jid_branch481 = (_save_fn481.split('else:\n')[1]
+                     if 'else:\n' in _save_fn481 else '')
+check("481-03. save with job_id=None does NOT insert into company_candidate_job_refs",
+      'company_candidate_job_refs' not in _no_jid_branch481)
+
+# 481-04: job_links query uses LEFT JOIN job_applications so apply_date/status can be null
+check("481-04. job_links batch query uses LEFT JOIN job_applications (null apply_date/status allowed)",
+      'LEFT JOIN job_applications' in _filter_fn481)
+
+# 481-05: update_company_saved_candidate only touches company_saved_candidates, not job_applications
+check("481-05. update_company_saved_candidate does not write to job_applications",
+      'job_applications' not in _upd_fn481)
+
+# 481-06: disabled linked jobs show co-dp-opt--disabled class in job picker HTML builder
+_dp481 = (_main481.split('function _dpHTML')[1].split('\n  function ')[0]
+          if 'function _dpHTML' in _main481 else '')
+check("481-06. _dpHTML adds co-dp-opt--disabled class and data-linked=1 for disabled options",
+      'co-dp-opt--disabled' in _dp481
+      and 'data-linked' in _dp481)
+
+
+# ════════════════════════════════════════════════════════════════
+# §482 — Deep-link + إدارة المرشح button from public profile
+# ════════════════════════════════════════════════════════════════
+
+_render482 = open('profile-v2.render.js', encoding='utf-8').read()
+_main482   = open('static/company/company.main.js', encoding='utf-8').read()
+
+# ── Source sections for targeted checks ──────────────────────────
+# candidate_save onclick block (from the if(_vaType==='candidate_save') to action = saveCandidateToCompany)
+_cs_onclick482 = (_render482.split("if(_vaType === 'candidate_save'){")[1].split('action = saveCandidateToCompany')[0]
+                  if "if(_vaType === 'candidate_save'){" in _render482 else '')
+# _showCandidateHint function
+_hint482 = (_render482.split('function _showCandidateHint')[1].split('function _applyVa')[0]
+            if 'function _showCandidateHint' in _render482 else '')
+# _applyVa function
+_applyva482 = (_render482.split('function _applyVa')[1].split('function _showCandidateHint')[0]
+               if 'function _applyVa' in _render482 else '')
+# Deep-link init block: full section from _urlDeepLinkPending declaration to next var
+_deeplink482 = (_main482.split('var _urlDeepLinkPending = false;')[1].split('var _jobPopTarget')[0]
+                if 'var _urlDeepLinkPending = false;' in _main482 else '')
+# _loadBadge function
+_badge482 = (_main482.split('function _loadBadge')[1].split('\n  function ')[0]
+             if 'function _loadBadge' in _main482 else '')
+# _open function with _isOwner guard — target the candidates IIFE _open specifically
+_cand_iife482 = (_main482.split('// ── Candidates Modal')[1] if '// ── Candidates Modal' in _main482 else _main482)
+_open482 = (_cand_iife482.split('function _open() {')[1].split('\n  }')[0]
+            if 'function _open() {' in _cand_iife482 else '')
+
+# 482-01: _applyVa shows "إدارة المرشح" when candidate_save is active
+check("482-01. _applyVa shows إدارة المرشح when candidate_save.is_active",
+      'إدارة المرشح' in _applyva482
+      and 'candidate_save' in _applyva482)
+
+# 482-02: navigation uses /u/ prefix + tw_user.tw_id — not /company-profile
+check("482-02. intBtn navigate-when-active uses /u/ route and tw_user.tw_id (not /company-profile)",
+      '/u/' in _cs_onclick482
+      and 'tw_user' in _cs_onclick482
+      and '/company-profile' not in _cs_onclick482)
+
+# 482-03: "إضافة ملاحظة" adds notes=1 to the URL
+check("482-03. _scNoteBtn onclick appends notes=1 to deep-link URL",
+      'notes=1' in _hint482
+      and '/u/' in _hint482
+      and 'tw_user' in _hint482)
+
+# 482-04: ?cand= sets _pendingManageOpen and triggers _urlDeepLinkPending
+check("482-04. URL ?cand= param sets _pendingManageOpen and _urlDeepLinkPending = true",
+      '_pendingManageOpen' in _deeplink482
+      and '_urlDeepLinkPending     = true' in _deeplink482
+      and "sp.get('cand')" in _deeplink482)
+
+# 482-05: ?notes=1 sets _pendingManageOpenNotes = true
+check("482-05. URL ?notes=1 sets _pendingManageOpenNotes = true",
+      "_pendingManageOpenNotes" in _deeplink482
+      and "notes" in _deeplink482
+      and "'1'" in _deeplink482)
+
+# 482-06: _open() is guarded by _isOwner() — deep-link silent for non-owner
+check("482-06. _open() has _isOwner() guard — deep-link panel does not open for non-owners",
+      '_isOwner' in _open482)
+
+
 # ── Summary ──────────────────────────────────────────────────────────────
 print()
 passed = sum(1 for _, s, _ in results if s == PASS)
