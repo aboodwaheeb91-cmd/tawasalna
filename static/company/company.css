@@ -2002,6 +2002,17 @@ body:not(.co-loading) .co-skeleton      { display: none; }
   background:rgba(255,255,255,.05); color:var(--t3,#6b7686);
   border-color:rgba(255,255,255,.1);
 }
+.co-cand-job-chip--hidden { display:none; }
+.co-cand-chip-more-btn {
+  font-size:.58rem; padding:2px 7px; border-radius:20px;
+  background:rgba(255,255,255,.05); color:var(--t2,#94a3b8);
+  border:1px solid rgba(255,255,255,.1);
+  font-family:inherit; line-height:1.6; cursor:pointer;
+  white-space:nowrap; transition:background .12s, color .12s;
+}
+.co-cand-chip-more-btn:hover {
+  background:rgba(255,255,255,.1); color:var(--t1,#e2e8f0);
+}
 
 /* Manage button — neutral slate */
 .co-cand-manage-btn {
@@ -2203,7 +2214,7 @@ body:not(.co-loading) .co-skeleton      { display: none; }
 
 /* Job chip popover */
 .co-cand-job-pop {
-  position:absolute; z-index:10000; display:none;
+  position:fixed; z-index:10000; display:none;
   min-width:180px; max-width:240px;
   background:#141928; border:1px solid rgba(255,255,255,.14);
   border-radius:10px; padding:10px 13px;
@@ -2221,6 +2232,7 @@ body:not(.co-loading) .co-skeleton      { display: none; }
 .co-cjp-row span:last-child { color:var(--t1,#e2e8f0); text-align:start; }
 .co-cjp-status { color:#a78bfa; }
 .co-cjp-no-app { color:var(--t3,#6b7686); font-style:italic; }
+.co-cjp-cand-status { color:#34d399; }
 
 /* Suggestions save → confirmation card (Reqs 5 & 6) */
 .co-sugg-confirm {

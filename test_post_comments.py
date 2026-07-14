@@ -9578,6 +9578,101 @@ check("483-06. candidates with no refs get empty job_titles[] and job_links[] vi
       and "jlmap.get(item['candidate_id'], [])" in _get_saved483)
 
 
+# §484 — Candidates modal: job popover UX + dual status rows + +N button
+# Fixes: (1) popover position:fixed + above/below flip + scroll/resize close
+#        (2) two separate rows: job_applications.status vs company classification
+#        (3) +N as <button> that reveals hidden chips in same card
+# ════════════════════════════════════════════════════════════════
+
+_comain484 = open('static/company/company.main.js', encoding='utf-8').read()
+_cocss484  = open('static/company/company.css',     encoding='utf-8').read()
+
+# Extract candidates IIFE section for targeted checks
+_cand_iife484 = (
+    _comain484.split('// ── Candidates Modal')[1]
+    if '// ── Candidates Modal' in _comain484 else _comain484
+)
+
+# Extract _showJobChipPop body
+_show_pop484 = (
+    _cand_iife484.split('function _showJobChipPop(')[1].split('\n  function ')[0]
+    if 'function _showJobChipPop(' in _cand_iife484 else ''
+)
+
+# Extract _closeJobPop body
+_close_pop484 = (
+    _cand_iife484.split('function _closeJobPop(')[1].split('\n  function ')[0]
+    if 'function _closeJobPop(' in _cand_iife484 else ''
+)
+
+# Extract _savedCardHTML body
+_card_html484 = (
+    _cand_iife484.split('function _savedCardHTML(')[1].split('\n  function ')[0]
+    if 'function _savedCardHTML(' in _cand_iife484 else ''
+)
+
+# Extract _onSavedClick body
+_on_click484 = (
+    _cand_iife484.split('function _onSavedClick(')[1].split('\n  function ')[0]
+    if 'function _onSavedClick(' in _cand_iife484 else ''
+)
+
+# 484-01: popover uses position:fixed (not position:absolute) so it stays in viewport on scroll
+check("484-01. co-cand-job-pop uses position:fixed (not absolute) for viewport-relative placement",
+      'position:fixed' in _cocss484
+      and '.co-cand-job-pop' in _cocss484
+      and 'position:absolute' not in _cocss484.split('.co-cand-job-pop')[1].split('}')[0])
+
+# 484-02: _showJobChipPop closes on scroll + resize via once:true listeners
+check("484-02. _closeJobPop removes scroll and resize listeners on close (no ghost handlers)",
+      "window.removeEventListener('scroll', _closeJobPop)" in _close_pop484
+      and "window.removeEventListener('resize', _closeJobPop)" in _close_pop484)
+
+# 484-03: popover shows row for حالة الطلب (job_applications source) AND تصنيف الشركة (company classification)
+check("484-03. _showJobChipPop renders two separate rows: حالة الطلب and تصنيف الشركة",
+      'حالة الطلب' in _show_pop484
+      and 'تصنيف الشركة' in _show_pop484)
+
+# 484-04: company classification row reads data-status from the parent card (not from chip data)
+check("484-04. company classification row reads data-status from card, not chip attribute",
+      "card.getAttribute('data-status')" in _show_pop484
+      and 'co-cjp-cand-status' in _show_pop484)
+
+# 484-05: +N is a <button class="co-cand-chip-more-btn"> — not a <span>
+check("484-05. +N more button is a <button class=co-cand-chip-more-btn> not a <span>",
+      'co-cand-chip-more-btn' in _card_html484
+      and '<button class="co-cand-chip-more-btn"' in _card_html484
+      and 'co-cand-job-chip--more' not in _card_html484)
+
+# 484-06: clicking +N removes co-cand-job-chip--hidden class from hidden chips; _savedCardHTML
+#         adds co-cand-job-chip--hidden to chips at index >= 3
+check("484-06. hidden chips use co-cand-job-chip--hidden; _onSavedClick reveals them via classList.remove",
+      'co-cand-job-chip--hidden' in _card_html484
+      and "classList.remove('co-cand-job-chip--hidden')" in _on_click484
+      and "co-cand-chip-more-btn" in _on_click484)
+
+# §484b — two targeted amendments: full vertical clamp + named outside-click handler
+
+# Extract _jobPopPositionFromChip body
+_pos_fn484b = (
+    _cand_iife484.split('function _jobPopPositionFromChip(')[1].split('\n  function ')[0]
+    if 'function _jobPopPositionFromChip(' in _cand_iife484 else ''
+)
+
+# 484b-01: vertical clamp includes lower bound (innerHeight - popH - margin)
+#          ensures popover never exits viewport bottom even when both above and below are cramped
+check("484b-01. _jobPopPositionFromChip clamps top to window.innerHeight - pop.offsetHeight - 8 (lower bound)",
+      'winH - popH - 8' in _pos_fn484b
+      and 'Math.min(' in _pos_fn484b
+      and 'Math.max(8,' in _pos_fn484b)
+
+# 484b-02: _closeJobPop removes the document click listener via removeEventListener
+#          (not once:true — so any close path cleans up the handler, no accumulation)
+check("484b-02. _closeJobPop removes document click listener (named handler, no once:true accumulation)",
+      "document.removeEventListener('click',  _closeJobPop" in _close_pop484
+      or "document.removeEventListener('click', _closeJobPop" in _close_pop484)
+
+
 # ── Summary ──────────────────────────────────────────────────────────────
 print()
 passed = sum(1 for _, s, _ in results if s == PASS)
