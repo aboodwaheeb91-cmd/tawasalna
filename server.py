@@ -1139,7 +1139,9 @@ class UpdateSavedCandidateInput(BaseModel):
 
 
 class UpdateCandidateJobStatusInput(BaseModel):
-    candidate_status: Optional[str] = None
+    # Required field — must be present in body. Accepts a valid status string or null to clear.
+    # Body {} (missing field) returns 422. candidate_status=null explicitly clears the classification.
+    candidate_status: Optional[str]
 
 
 @app.put("/company/profile/{company_id}")

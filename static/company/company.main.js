@@ -1207,10 +1207,17 @@
       return;
     }
 
-    var scheduledAt = dateVal + 'T' + timeVal + ':00';
+    // Convert user's local datetime to UTC ISO (Z-suffix) so backend always receives
+    // a timezone-aware string. Avoids ±hours shift when user is not in UTC.
+    var localScheduled = new Date(dateVal + 'T' + timeVal + ':00');
+    if (!Number.isFinite(localScheduled.getTime())) {
+      if (window.showToast) showToast('تاريخ أو وقت غير صالح', 'error');
+      return;
+    }
+    var scheduledAt = localScheduled.toISOString(); // e.g. "2025-08-15T06:00:00.000Z"
 
     // Deadline vs appointment time: scheduled must be > now + deadline_hours
-    var scheduledMs = new Date(scheduledAt).getTime();
+    var scheduledMs = localScheduled.getTime();
     var deadlineMs  = deadlineVal * 60 * 60 * 1000;
     if (scheduledMs - Date.now() <= deadlineMs) {
       if (window.showToast) showToast('مهلة الرد تنتهي بعد وقت الموعد — اختر موعداً أبعد أو مهلة أقصر', 'error');
@@ -2927,12 +2934,18 @@
           if (window.showToast) showToast(detail || 'تعذّر حفظ التصنيف', 'error');
           return;
         }
-        // Commit: update prev-val to new value and sync chip
+        // Commit: update canonical data-job-links, then re-render all job-link UI
         sel.setAttribute('data-prev-val', cs || '');
         var card = sel.closest('.co-cand-saved-card');
         if (card) {
-          var chip = card.querySelector('.co-cand-job-chip[data-jid="' + jid + '"]');
-          if (chip) chip.setAttribute('data-cand-status', cs || '');
+          var links = [];
+          try { links = JSON.parse(card.getAttribute('data-job-links') || '[]'); } catch (e) {}
+          links = links.map(function (jl) {
+            return String(jl.job_id) === String(jid)
+              ? Object.assign({}, jl, { candidate_status: cs || null })
+              : jl;
+          });
+          _renderCandidateJobLinksUI(card, links);
         }
         if (window.showToast) showToast('تم حفظ التصنيف ✓');
       })
@@ -3072,10 +3085,19 @@
     _jobPopTarget = null;
   }
 
-  // Rebuild job chips on a card in-place and update data-job-links
-  function _updateChips(card, links) {
+  // Unified helper: syncs all job-link UI on a card from a canonical links array.
+  // Responsibilities:
+  //   1. Updates data-job-links (single source of truth for client state)
+  //   2. Rebuilds job chip strip (preserves candidate_status per chip)
+  //   3. Rebuilds "تصنيف المرشح لكل وظيفة" section in manage panel
+  //   4. Updates job picker disabled/linked states
+  //   5. Adds or removes the status section when links appear / disappear
+  function _renderCandidateJobLinksUI(card, links) {
+    // 1. Canonical store
     card.setAttribute('data-job-links', JSON.stringify(links));
-    var newHtml = links.map(function (jl, idx) {
+
+    // 2. Chip strip
+    var chipsHtml = links.map(function (jl, idx) {
       var applyDate = jl.apply_date ? _fmtDate(jl.apply_date) : '';
       var hiddenCls = idx >= 3 ? ' co-cand-job-chip--hidden' : '';
       return '<button class="co-cand-job-chip' + hiddenCls + '" type="button"'
@@ -3087,33 +3109,87 @@
            + _esc(jl.title || ('وظيفة #' + jl.job_id)) + '</button>';
     }).join('');
     if (links.length > 3) {
-      newHtml += '<button class="co-cand-chip-more-btn" type="button" aria-label="عرض المزيد من الوظائف">+'
-               + (links.length - 3) + '</button>';
+      chipsHtml += '<button class="co-cand-chip-more-btn" type="button" aria-label="عرض المزيد من الوظائف">+'
+                 + (links.length - 3) + '</button>';
     }
-
     var chipsWrap = card.querySelector('.co-cand-job-chips');
     if (chipsWrap) {
-      chipsWrap.innerHTML = newHtml;
-    } else if (newHtml) {
+      chipsWrap.innerHTML = chipsHtml;
+    } else if (chipsHtml) {
       var wrap = document.createElement('div');
       wrap.className = 'co-cand-job-chips';
-      wrap.innerHTML = newHtml;
+      wrap.innerHTML = chipsHtml;
       var infoDiv = card.querySelector('.co-cand-info');
       if (infoDiv) infoDiv.appendChild(wrap);
     }
 
-    // Update disabled states in job picker if panel is open
+    // 3. Per-job status section in manage panel
+    var panel = card.querySelector('.co-cand-manage-panel');
+    if (panel) {
+      var statusList  = panel.querySelector('.co-cand-job-status-list');
+      var actsDiv     = panel.querySelector('.co-cand-panel-acts');
+      var cid         = card.getAttribute('data-cid') || '';
+      if (links.length === 0) {
+        // Remove label + list when no jobs remain
+        if (statusList) {
+          var prevEl = statusList.previousElementSibling;
+          if (prevEl && prevEl.classList.contains('co-cand-panel-label')) prevEl.remove();
+          statusList.remove();
+        }
+      } else {
+        var rowsHtml = links.map(function (jl) {
+          var cs = jl.candidate_status || '';
+          var opts = '<option value="">— غير مصنف —</option>'
+            + _STATUS_ORDER.map(function (s) {
+                return '<option value="' + _esc(s) + '"' + (cs === s ? ' selected' : '') + '>'
+                     + _esc(_STATUS_LABELS[s]) + '</option>';
+              }).join('');
+          return '<div class="co-cand-job-status-row" data-jid="' + _esc(String(jl.job_id)) + '">'
+               + '<span class="co-cand-job-status-title">' + _esc(jl.title || ('وظيفة #' + jl.job_id)) + '</span>'
+               + '<select class="co-cand-job-status-sel"'
+               + ' data-jid="' + _esc(String(jl.job_id)) + '"'
+               + ' data-cid="' + _esc(cid) + '"'
+               + ' data-prev-val="' + _esc(cs) + '">'
+               + opts + '</select></div>';
+        }).join('');
+        if (statusList) {
+          statusList.innerHTML = rowsHtml;
+        } else {
+          // Create label + list and insert before the action buttons
+          var labelEl = document.createElement('label');
+          labelEl.className = 'co-cand-panel-label';
+          labelEl.textContent = 'تصنيف المرشح لكل وظيفة';
+          var listEl = document.createElement('div');
+          listEl.className = 'co-cand-job-status-list';
+          listEl.innerHTML = rowsHtml;
+          if (actsDiv) {
+            panel.insertBefore(listEl, actsDiv);
+            panel.insertBefore(labelEl, listEl);
+          } else {
+            panel.appendChild(labelEl);
+            panel.appendChild(listEl);
+          }
+        }
+      }
+    }
+
+    // 4. Job picker disabled states
     var linkedIds = links.map(function (jl) { return String(jl.job_id); });
     var dpJob = card.querySelector('.co-cand-dp-job');
     if (dpJob) {
       dpJob.querySelectorAll('.co-dp-opt').forEach(function (o) {
-        var val = o.getAttribute('data-value');
+        var val      = o.getAttribute('data-value');
         var isLinked = val && linkedIds.indexOf(val) !== -1;
         o.classList.toggle('co-dp-opt--disabled', isLinked);
         if (isLinked) o.setAttribute('data-linked', '1');
         else o.removeAttribute('data-linked');
       });
     }
+  }
+
+  // Thin wrapper kept for any external callers — delegates to unified helper
+  function _updateChips(card, links) {
+    _renderCandidateJobLinksUI(card, links);
   }
 
   function _handleRemove(btn) {
@@ -3251,6 +3327,7 @@
               title:                jobObj ? jobObj.title : ('وظيفة #' + newJobId),
               apply_date:           null,
               application_status:   null,
+              status:               null,  // deprecated alias = application_status
               candidate_status:     null,
             };
             var links = [];

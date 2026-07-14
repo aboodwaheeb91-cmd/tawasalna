@@ -691,11 +691,13 @@ These rules are permanent and apply to all future AI sessions.
 
 The saved candidates system has **three independent status sources**. Never conflate them, never auto-copy between them:
 
-1. **`job_applications.status`** — applicant-driven application status. Set by company via the classify flow (`PATCH /company/saved-candidates/{id}` is NOT the entry point for this). Modified by `update_application_status()` only.
-2. **`company_saved_candidates.status`** — general pipeline classification (one per company-candidate pair). Modified by `PATCH /company/saved-candidates/{id}` via `update_company_saved_candidate()`.
-3. **`company_candidate_job_refs.candidate_status`** — per-job classification (one per company-candidate-job triple). Modified ONLY by `PATCH /company/saved-candidates/{id}/jobs/{job_id}` via `update_candidate_job_status()`. NULL = not classified. Never auto-populated from the other two.
+1. **`job_applications.status`** — application lifecycle status tracking the candidate's progress through a job's hiring pipeline (`pending / viewed / accepted / contacted / interview / hired / rejected`). The company manages transitions; it is NOT purely applicant-driven. Modified by `update_application_status()` only. `PATCH /company/saved-candidates/{id}` is NOT the entry point for this.
+2. **`company_saved_candidates.status`** — general pipeline classification (one per company-candidate pair). Allowed values: `saved / shortlisted / contacted / interview / hired / rejected` (via `VALID_CANDIDATE_STATUSES`). Modified by `PATCH /company/saved-candidates/{id}` via `update_company_saved_candidate()`.
+3. **`company_candidate_job_refs.candidate_status`** — per-job classification of the candidate (one per company-candidate-job triple). Same allowed values as source 2 (`VALID_CANDIDATE_STATUSES`). Modified ONLY by `PATCH /company/saved-candidates/{id}/jobs/{job_id}` via `update_candidate_job_status()`. NULL = not yet classified. Never auto-populated from either other source.
 
-**`job_links[]` contract (permanent after feat/candidate-status-per-job):** Each entry is `{job_id, title, apply_date, application_status, candidate_status}`. The old key `status` is permanently renamed to `application_status`. Do NOT re-add `status` to `job_links[]` entries.
+**Note:** `VALID_CANDIDATE_STATUSES` applies to sources 2 and 3 only. Source 1 (`job_applications.status`) uses a separate set of lifecycle values and is never validated against `VALID_CANDIDATE_STATUSES`.
+
+**`job_links[]` contract:** `{job_id, title, apply_date, application_status, status (deprecated alias), candidate_status}`. `application_status` is the canonical name. `status` is a backward-compat alias equal to `application_status` — present in all API responses, but **do not use `status` in new code**. The `status` alias will be removed only in an explicit API breaking-change release. Full spec: `docs/SYSTEMS_INDEX.md §20c`.
 
 **`PATCH /company/saved-candidates/{id}/jobs/{jid}` security rules (permanent):**
 - JWT only — `company_id` NEVER accepted from frontend.

@@ -4757,37 +4757,59 @@ def _migrate_company_candidate_job_refs():
 
 
 def _migrate_candidate_status_per_job():
-    """Add candidate_status column + CHECK constraint to company_candidate_job_refs (idempotent).
+    """Add candidate_status + CHECK constraint to company_candidate_job_refs (idempotent, race-safe).
 
-    Adds the company's independent per-job classification of a candidate.
-    Separate from job_applications.status (applicant-driven) and
-    company_saved_candidates.status (general pipeline status).
-    NULL means the company has not classified the candidate for that specific job.
+    candidate_status is the company's independent per-job classification of a candidate.
+    It is separate from:
+      - job_applications.status  (application lifecycle, different allowed values)
+      - company_saved_candidates.status  (general pipeline classification)
+    NULL means the company has not yet classified the candidate for that specific job.
 
-    Constraint is added only if absent (pg_constraint check) — no DROP/ADD on every restart,
-    no unnecessary table lock on an existing constraint.
+    Race-safety:
+      ADD CONSTRAINT uses NOT VALID to avoid a full table scan under strong lock.
+      A duplicate_object race (42710) is caught and ignored — both instances end
+      in the same state (constraint present, not yet validated).
+      VALIDATE CONSTRAINT runs only when convalidated=False — idempotent on restart.
     """
     conn = get_conn()
     try:
-        # Column: IF NOT EXISTS is safe and no-op when already present
+        # Column: IF NOT EXISTS is no-op when already present
         conn.run("""
             ALTER TABLE company_candidate_job_refs
             ADD COLUMN IF NOT EXISTS candidate_status TEXT NULL
         """)
-        # Constraint: check pg_constraint rather than DROP+ADD every startup
-        existing = conn.run(
-            "SELECT 1 FROM pg_constraint "
+        # Query current constraint state (absent / present-not-validated / validated)
+        rows = conn.run(
+            "SELECT convalidated FROM pg_constraint "
             "WHERE conname = 'ck_ccjr_candidate_status' "
             "AND conrelid = 'company_candidate_job_refs'::regclass"
         )
-        if not existing:
+        if not rows:
+            # Constraint absent — add NOT VALID first (skips full scan under strong lock)
+            try:
+                conn.run("""
+                    ALTER TABLE company_candidate_job_refs
+                    ADD CONSTRAINT ck_ccjr_candidate_status
+                    CHECK (
+                        candidate_status IS NULL OR
+                        candidate_status IN ('saved','shortlisted','contacted','interview','hired','rejected')
+                    ) NOT VALID
+                """)
+            except Exception as e:
+                # 42710 = duplicate_object — another instance won the race; safe to ignore
+                if '42710' not in str(e) and 'duplicate_object' not in str(e):
+                    raise
+            # Re-read after possible race so VALIDATE decision is up-to-date
+            rows = conn.run(
+                "SELECT convalidated FROM pg_constraint "
+                "WHERE conname = 'ck_ccjr_candidate_status' "
+                "AND conrelid = 'company_candidate_job_refs'::regclass"
+            )
+        # Validate existing rows if the constraint was added NOT VALID
+        if rows and not rows[0][0]:
             conn.run("""
                 ALTER TABLE company_candidate_job_refs
-                ADD CONSTRAINT ck_ccjr_candidate_status
-                CHECK (
-                    candidate_status IS NULL OR
-                    candidate_status IN ('saved','shortlisted','contacted','interview','hired','rejected')
-                )
+                VALIDATE CONSTRAINT ck_ccjr_candidate_status
             """)
     finally:
         release_conn(conn)

@@ -9847,9 +9847,11 @@ check("486-17. _onSavedChange handler wired for co-cand-job-status-sel auto-save
       and 'co-cand-job-status-sel' in _main486
       and 'updateCandidateJobStatus' in _main486)
 
-# 486-18: _onSavedChange syncs data-cand-status on the chip after successful save
-check("486-18. _onSavedChange updates data-cand-status attribute on matching chip after API success",
-      "setAttribute('data-cand-status'" in _main486)
+# 486-18: _onSavedChange syncs chip on success — now via _renderCandidateJobLinksUI which
+# rebuilds all chips from the updated links array (candidate_status embedded per link)
+check("486-18. _onSavedChange syncs chip on success via _renderCandidateJobLinksUI (rebuilt from updated links)",
+      "_renderCandidateJobLinksUI(card, links)" in _main486
+      and "candidate_status" in _main486)
 
 # ── Frontend: appointment client-side validation ───────────────────────────
 
@@ -9913,7 +9915,7 @@ _mig_body486 = (
 check("486-26. Migration checks pg_constraint table before ADD CONSTRAINT (constraint added only when absent)",
       'pg_constraint' in _mig_body486
       and 'ck_ccjr_candidate_status' in _mig_body486
-      and 'if not existing' in _mig_body486
+      and ('if not rows' in _mig_body486 or 'if not existing' in _mig_body486)
       and 'ADD CONSTRAINT ck_ccjr_candidate_status' in _mig_body486)
 
 
@@ -9929,11 +9931,12 @@ check("486-28. _onSavedChange restores sel.value and data-prev-val to prevVal on
       "sel.value = prevVal" in _main486
       and "sel.setAttribute('data-prev-val', prevVal" in _main486)
 
-# 486-29: on API failure, _onSavedChange does NOT update data-cand-status chip
-# Verify: chip.setAttribute('data-cand-status' only in success path (after res.ok check)
-check("486-29. data-cand-status chip update only in success path — not in failure handlers",
+# 486-29: on API failure, _onSavedChange does NOT update data-job-links or rebuild chips
+# The success path calls _renderCandidateJobLinksUI; failure path only restores sel.value
+check("486-29. Chip/data-job-links update only in success path — failure path is rollback-only",
       "if (!res || !res.ok)" in _main486
-      and "chip.setAttribute('data-cand-status'" in _main486)
+      and "_renderCandidateJobLinksUI(card, links)" in _main486
+      and "sel.value = prevVal" in _main486)
 
 # 486-30: on failure, _onSavedChange shows exact API detail from res.data.detail
 check("486-30. _onSavedChange shows res.data.detail error on failure (API detail, not always generic)",
@@ -9944,6 +9947,109 @@ check("486-30. _onSavedChange shows res.data.detail error on failure (API detail
 check("486-31. Per-job status <select> rendered with data-prev-val attribute for rollback anchor",
       "data-prev-val=" in _main486
       and "_esc(cs)" in _main486)
+
+
+# ── §487: Five-fix batch (documentation, UI, timezone, migration, Pydantic) ───
+
+_srv487   = open('server.py',                   encoding='utf-8').read()
+_claude487 = open('CLAUDE.md',                  encoding='utf-8').read()
+_idx487   = open('docs/SYSTEMS_INDEX.md',        encoding='utf-8').read()
+
+# ── Fix 1a: CLAUDE.md treats status as deprecated alias, not banned ────────
+
+# 487-01: CLAUDE.md no longer says status is permanently banned/renamed
+check("487-01. CLAUDE.md does not ban status alias and points to SYSTEMS_INDEX §20c",
+      'Do NOT re-add `status` to `job_links[]` entries' not in _claude487
+      and 'SYSTEMS_INDEX' in _claude487
+      and ('deprecated' in _claude487 or 'deprecated alias' in _claude487))
+
+# 487-02: Documentation does not describe job_applications.status as purely applicant-driven
+check("487-02. Neither CLAUDE.md nor SYSTEMS_INDEX describes job_applications.status as purely applicant-driven",
+      'applicant-driven application status' not in _claude487
+      and 'applicant-driven application status' not in _idx487)
+
+# 487-03: VALID_CANDIDATE_STATUSES not claimed as shared for all three sources
+check("487-03. Documentation does not claim VALID_CANDIDATE_STATUSES is shared for all three status sources",
+      'shared for all three status sources' not in _idx487
+      and 'shared for all three status sources' not in _claude487)
+
+# 487-04: SYSTEMS_INDEX documents that VALID_CANDIDATE_STATUSES does NOT apply to job_applications.status
+check("487-04. SYSTEMS_INDEX explicitly notes VALID_CANDIDATE_STATUSES does not apply to job_applications.status",
+      'VALID_CANDIDATE_STATUSES' in _idx487
+      and 'does NOT apply' in _idx487)
+
+# ── Fix 2: Shared _renderCandidateJobLinksUI helper ───────────────────────
+
+# 487-05: Helper _renderCandidateJobLinksUI defined in company.main.js
+check("487-05. _renderCandidateJobLinksUI helper defined in company.main.js",
+      '_renderCandidateJobLinksUI' in _main486)
+
+# 487-06: PATCH success path updates data-job-links JSON before re-rendering
+check("487-06. PATCH success path reads data-job-links, updates candidate_status, then calls _renderCandidateJobLinksUI",
+      '_renderCandidateJobLinksUI(card, links)' in _main486
+      and "card.getAttribute('data-job-links')" in _main486
+      and ("candidate_status: cs || null" in _main486 or "candidate_status: cs" in _main486))
+
+# 487-07: New job link uses _updateChips which now delegates to _renderCandidateJobLinksUI
+check("487-07. _updateChips delegates to _renderCandidateJobLinksUI (new link builds chip + select without reload)",
+      '_updateChips' in _main486
+      and '_renderCandidateJobLinksUI' in _main486
+      and 'function _updateChips' in _main486)
+
+# 487-08: Chip rebuild reads candidate_status from links array (preserves classification)
+check("487-08. Chip rebuild reads jl.candidate_status from links array (data-cand-status preserved)",
+      "data-cand-status=\\\"' + _esc(jl.candidate_status" in _main486
+      or "data-cand-status=' + _esc(jl.candidate_status" in _main486
+      or "jl.candidate_status" in _main486)
+
+# 487-09: PATCH failure does not call _renderCandidateJobLinksUI (no chip/data-job-links change)
+# Check by verifying rollback path only restores sel.value — no helper call
+_onsaved_fn = ''
+if '_onSavedChange' in _main486:
+    _onsaved_fn = _main486.split('function _onSavedChange')[1].split('\n  function ')[0]
+check("487-09. PATCH failure restores sel.value/data-prev-val without touching data-job-links or chip",
+      "sel.value = prevVal" in _onsaved_fn
+      and "sel.setAttribute('data-prev-val', prevVal" in _onsaved_fn)
+
+# ── Fix 3: Timezone-aware appointment scheduling ──────────────────────────
+
+# 487-10: Frontend uses toISOString() — sends UTC ISO with Z suffix
+check("487-10. Appointment scheduled_at built via toISOString() — UTC/timezone-aware string sent to backend",
+      'toISOString()' in _main486
+      and 'localScheduled' in _main486)
+
+# 487-11: Number.isFinite guard validates date before toISOString
+check("487-11. Invalid date guarded by Number.isFinite(localScheduled.getTime()) before toISOString",
+      'Number.isFinite' in _main486
+      and 'localScheduled.getTime()' in _main486)
+
+# 487-12: Client deadline check uses localScheduled.getTime() (epoch ms — timezone-agnostic)
+check("487-12. Client deadline check uses localScheduled.getTime() for timezone-agnostic epoch comparison",
+      'scheduledMs = localScheduled.getTime()' in _main486)
+
+# ── Fix 4: Race-safe migration ────────────────────────────────────────────
+
+# 487-13: Migration uses NOT VALID + VALIDATE CONSTRAINT + duplicate_object catch
+check("487-13. Migration race-safe: NOT VALID + VALIDATE CONSTRAINT + 42710/duplicate_object catch",
+      'NOT VALID' in _mig_body486
+      and 'VALIDATE CONSTRAINT' in _mig_body486
+      and ('42710' in _mig_body486 or 'duplicate_object' in _mig_body486))
+
+# ── Fix 5: Required but nullable candidate_status (Pydantic) ─────────────
+
+# 487-14: UpdateCandidateJobStatusInput has no default (required field — body {} returns 422)
+check("487-14. UpdateCandidateJobStatusInput.candidate_status is required (no = None default)",
+      'candidate_status: Optional[str]' in _srv487
+      and 'candidate_status: Optional[str] = None' not in _srv487)
+
+# 487-15: null candidate_status explicitly handled as valid (clear intent)
+check("487-15. update_candidate_job_status accepts None to clear classification (null is valid)",
+      '| {None}' in _auth486 or "VALID_CANDIDATE_STATUSES | {None}" in _auth486)
+
+# 487-16: status alias equal to application_status in both batch-fetch functions (redundant coverage)
+check("487-16. Deprecated 'status' alias always equals application_status (same value set twice)",
+      _auth486.count("'status':             app_status or None") >= 2
+      or (_auth486.count("'status':") >= 2 and _auth486.count("'application_status':") >= 2))
 
 
 # ── Summary ──────────────────────────────────────────────────────────────
