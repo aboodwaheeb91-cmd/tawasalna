@@ -1550,16 +1550,20 @@
         if (onSuccess) onSuccess();
       })
       .catch(function (err) {
-        if (card) _applyClassifyBadge(card, prevStatus);
-        if (classifyBtn) {
-          classifyBtn.disabled    = false;
-          var wasFresh = !wasSaved && (!prevStatus || prevStatus === 'pending');
-          classifyBtn.textContent = wasFresh ? 'حفظ وتصنيف ▾' : 'تعديل التصنيف ▾';
-        }
         var msg = (err && (err.status === 401 || err.status === 403))
           ? 'انتهت الجلسة أو لا تملك صلاحية التصنيف'
           : 'تعذّر التصنيف، حاول مجدداً';
         if (window.showToast) showToast(msg, 'error');
+        if (_appJobId) {
+          _loadApplicants(_appJobId);
+        } else {
+          if (card) _applyClassifyBadge(card, prevStatus);
+          if (classifyBtn) {
+            classifyBtn.disabled    = false;
+            var wasFresh = !wasSaved && (!prevStatus || prevStatus === 'pending');
+            classifyBtn.textContent = wasFresh ? 'حفظ وتصنيف ▾' : 'تعديل التصنيف ▾';
+          }
+        }
       });
   }
 

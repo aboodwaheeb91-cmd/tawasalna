@@ -9372,6 +9372,19 @@ check("187-22. save failure branch does not call showToast success or _reRenderC
       'تم التصنيف' not in _save_fail_branch187
       and '_reRenderCardFoot' not in _save_fail_branch187)
 
+# 187-23: catch block calls _loadApplicants when _appJobId is available (not just badge rollback)
+_ec187b = (_main187.split('function _execClassify')[1].split('function _applyClassifyBadge')[0]
+           if 'function _execClassify' in _main187 else '')
+_catch187 = (_ec187b.split('.catch(function (err)')[1]
+             if '.catch(function (err)' in _ec187b else '')
+check("187-23. catch block calls _loadApplicants when _appJobId is available",
+      '_loadApplicants' in _catch187 and '_appJobId' in _catch187)
+
+# 187-24: catch block only does manual rollback in the else branch (when no _appJobId)
+_else187 = (_catch187.split('} else {')[1] if '} else {' in _catch187 else '')
+check("187-24. catch manual rollback (_applyClassifyBadge + classifyBtn) is in the else branch only",
+      '_applyClassifyBadge' in _else187 and 'classifyBtn' in _else187)
+
 # ════════════════════════════════════════════════════════════════
 # §188 — viewed is fully internal: no notification for "للمراجعة"
 # ════════════════════════════════════════════════════════════════

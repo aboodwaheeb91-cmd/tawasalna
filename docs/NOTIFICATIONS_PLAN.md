@@ -639,23 +639,22 @@ After unfollow + refollow, the `event_key` `follow:user:{company_id}:{follower_i
 
 | الحالة | إشعار للموظف؟ | السبب |
 |--------|--------------|-------|
-| `accepted` | ❌ لا | حالة داخلية للشركة — التواصل الرسمي عبر Appointments |
-| `rejected` | ❌ لا | حالة داخلية للشركة — التواصل الرسمي عبر Appointments |
-| `viewed` | ✅ نعم | حالة قابلة للفعل — المراجعة بدأت |
-| fallback | ✅ نعم | أي حالة غير `accepted`/`rejected` |
+| `pending` | ❌ لا | حالة داخلية للشركة |
+| `viewed` | ❌ لا | حالة داخلية للشركة (PR #479) |
+| `accepted` | ❌ لا | حالة داخلية للشركة |
+| `contacted` | ❌ لا | حالة داخلية للشركة |
+| `interview` | ❌ لا | حالة داخلية للشركة — الإشعار عبر Appointments فقط |
+| `hired` | ❌ لا | حالة داخلية للشركة |
+| `rejected` | ❌ لا | حالة داخلية للشركة |
 
-**القاعدة الدائمة:**
-- `accepted` و `rejected` هما حالات workflow داخلية للشركة فقط.
-- الموظف لا يتلقى إشعاراً مباشراً بالقبول أو الرفض.
-- التواصل الرسمي مع الموظف يكون مستقبلاً عبر نظام **Appointments / Interview Requests** (خطة: `docs/FUTURE_ROADMAP.md §15`).
-- نظام Appointments مستقبلي — لا يُبنى الآن.
+**القاعدة الدائمة (محدَّثة PR #479):**
+- جميع الحالات السبع داخلية للشركة — الموظف لا يتلقى أي إشعار لأي تصنيف.
+- التواصل الرسمي الوحيد مع الموظف يكون عبر نظام **Appointments / Interview Requests**.
 
 **التفاصيل التقنية:**
 - Actor: company (actor_id = JWT user_id), Recipient: applicant (employee)
 - Hook: `update_application_status(app_id, status, actor_id)` — `auth.py`
-- Guard: `_INTERNAL_STATUSES = {"accepted", "rejected"}` — أي status في هذه المجموعة يتخطى hook الإشعار
-- event_key: `application_status:{app_id}:{status}` — idempotent (ON CONFLICT DO NOTHING) للحالات المسموحة
-- link: `/job-detail?id={job_id}`
+- Guard: `_INTERNAL_STATUSES = {"pending", "viewed", "accepted", "rejected", "contacted", "interview", "hired"}` — جميع الحالات السبع في هذه المجموعة؛ block الإشعار لا يُنفَّذ أبداً
 - Self-guard: `int(applicant_id) != int(actor_id)` — no self-notification
 - Aggregation: فردي — لا aggregation لهذا النوع
 - Exception: caught + logged `[NOTIF]` prefix — no silent failures (F9)
