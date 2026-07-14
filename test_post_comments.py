@@ -9926,17 +9926,18 @@ check("486-27. _onSavedChange reads data-prev-val attribute to capture previous 
       "getAttribute('data-prev-val')" in _main486
       and 'prevVal' in _main486)
 
-# 486-28: on API failure, _onSavedChange restores sel.value and data-prev-val (rollback)
-check("486-28. _onSavedChange restores sel.value and data-prev-val to prevVal on failure (rollback)",
-      "sel.value = prevVal" in _main486
-      and "sel.setAttribute('data-prev-val', prevVal" in _main486)
+# 486-28: on API failure, _onSavedChange re-renders from data-job-links (card-level lock arch)
+# Old pattern was sel.value = prevVal; new pattern uses _renderCandidateJobLinksUI(card, rollLinks)
+check("486-28. _onSavedChange re-renders from data-job-links on failure (card-level lock rollback)",
+      "_renderCandidateJobLinksUI(card, rollLinks)" in _main486
+      and "data-job-links" in _main486)
 
-# 486-29: on API failure, _onSavedChange does NOT update data-job-links or rebuild chips
-# The success path calls _renderCandidateJobLinksUI; failure path only restores sel.value
+# 486-29: failure path calls _renderCandidateJobLinksUI(card, rollLinks) — no direct sel.value mutation
+# Success path updates links array then also calls _renderCandidateJobLinksUI(card, links)
 check("486-29. Chip/data-job-links update only in success path — failure path is rollback-only",
       "if (!res || !res.ok)" in _main486
       and "_renderCandidateJobLinksUI(card, links)" in _main486
-      and "sel.value = prevVal" in _main486)
+      and "_renderCandidateJobLinksUI(card, rollLinks)" in _main486)
 
 # 486-30: on failure, _onSavedChange shows exact API detail from res.data.detail
 check("486-30. _onSavedChange shows res.data.detail error on failure (API detail, not always generic)",
@@ -10002,14 +10003,14 @@ check("487-08. Chip rebuild reads jl.candidate_status from links array (data-can
       or "data-cand-status=' + _esc(jl.candidate_status" in _main486
       or "jl.candidate_status" in _main486)
 
-# 487-09: PATCH failure does not call _renderCandidateJobLinksUI (no chip/data-job-links change)
-# Check by verifying rollback path only restores sel.value — no helper call
+# 487-09: PATCH failure re-renders from data-job-links via _renderCandidateJobLinksUI(card, rollLinks)
+# Old test checked sel.value = prevVal; new card-level lock arch uses re-render from stored links
 _onsaved_fn = ''
 if '_onSavedChange' in _main486:
     _onsaved_fn = _main486.split('function _onSavedChange')[1].split('\n  function ')[0]
-check("487-09. PATCH failure restores sel.value/data-prev-val without touching data-job-links or chip",
-      "sel.value = prevVal" in _onsaved_fn
-      and "sel.setAttribute('data-prev-val', prevVal" in _onsaved_fn)
+check("487-09. PATCH failure restores state via _renderCandidateJobLinksUI(card, rollLinks) — card-level lock arch",
+      "_renderCandidateJobLinksUI(card, rollLinks)" in _onsaved_fn
+      and "card.getAttribute('data-job-links')" in _onsaved_fn)
 
 # ── Fix 3: Timezone-aware appointment scheduling ──────────────────────────
 
@@ -10051,6 +10052,143 @@ check("487-16. Deprecated 'status' alias always equals application_status (same 
       _auth486.count("'status':             app_status or None") >= 2
       or (_auth486.count("'status':") >= 2 and _auth486.count("'application_status':") >= 2))
 
+
+# ── §488: Four-fix batch (race condition, Field, timezone, terminology) ───────
+
+_main488  = open('static/company/company.main.js', encoding='utf-8').read()
+_auth488  = open('auth.py',    encoding='utf-8').read()
+_srv488   = open('server.py',  encoding='utf-8').read()
+_idx488   = open('docs/SYSTEMS_INDEX.md', encoding='utf-8').read()
+
+# Extract _onSavedChange function body for targeted checks
+_onsaved488 = (
+    _main488.split('function _onSavedChange(e)')[1].split('\n  function ')[0]
+    if 'function _onSavedChange(e)' in _main488 else ''
+)
+# Extract _renderCandidateJobLinksUI function body
+_render488 = (
+    _main488.split('function _renderCandidateJobLinksUI(card, links)')[1].split('\n  function ')[0]
+    if 'function _renderCandidateJobLinksUI(card, links)' in _main488 else ''
+)
+# Extract _migrate_candidate_status_per_job body
+_mig488 = (
+    _auth488.split('def _migrate_candidate_status_per_job')[1].split('\ndef ')[0]
+    if '_migrate_candidate_status_per_job' in _auth488 else ''
+)
+
+# ── Fix 1: Race condition — card-level lock ────────────────────────────────
+
+# 488-01: card captured BEFORE async call (not inside .then)
+check("488-01. card captured from sel.closest BEFORE updateCandidateJobStatus call (not inside .then)",
+      'var card = sel.closest' in _onsaved488
+      and _onsaved488.index('var card = sel.closest') < _onsaved488.index('updateCandidateJobStatus'))
+
+# 488-02: card-level lock checked at entry — second call on same card is rejected
+check("488-02. Card-level lock (data-job-status-saving) checked at start — returns if locked",
+      "card.getAttribute('data-job-status-saving')" in _onsaved488
+      and 'return' in _onsaved488)
+
+# 488-03: lock set on card + ALL selects disabled (not just touched sel)
+check("488-03. Lock set on card + ALL .co-cand-job-status-sel disabled at request start",
+      "card.setAttribute('data-job-status-saving', '1')" in _onsaved488
+      and "card.querySelectorAll('.co-cand-job-status-sel')" in _onsaved488
+      and '.forEach' in _onsaved488
+      and 's.disabled = true' in _onsaved488)
+
+# 488-04: failure path calls _renderCandidateJobLinksUI from data-job-links (not sel.value)
+check("488-04. Failure path re-renders from card data-job-links — never restores sel.value directly",
+      '_renderCandidateJobLinksUI(card, rollLinks)' in _onsaved488
+      and "card.getAttribute('data-job-links')" in _onsaved488
+      and 'sel.value = prevVal' not in _onsaved488)
+
+# 488-05: success path reads data-job-links AT response time (fresh, not stale)
+check("488-05. Success path reads card.getAttribute('data-job-links') at response time — not stale capture",
+      '_renderCandidateJobLinksUI(card, links)' in _onsaved488
+      and "card.getAttribute('data-job-links')" in _onsaved488)
+
+# 488-06: finally removes lock + enables ALL selects in card (not original sel only)
+check("488-06. finally removes data-job-status-saving and re-enables all selects currently in card",
+      "card.removeAttribute('data-job-status-saving')" in _onsaved488
+      and "card.querySelectorAll('.co-cand-job-status-sel')" in _onsaved488
+      and 's.disabled = false' in _onsaved488)
+
+# 488-07: _renderCandidateJobLinksUI respects lock — renders selects as disabled when card is saving
+check("488-07. _renderCandidateJobLinksUI reads data-job-status-saving and renders selects disabled when locked",
+      "data-job-status-saving" in _render488
+      and 'isLocked' in _render488
+      and 'isLocked ? ' in _render488
+      and 'disabled' in _render488)
+
+# 488-08: catch block also re-renders from data-job-links (not sel)
+check("488-08. catch block re-renders from card data-job-links — handles detached sel safely",
+      _onsaved488.count('_renderCandidateJobLinksUI(card, rollLinks)') >= 2)
+
+# ── Fix 2: Field(...) — explicit required nullable ─────────────────────────
+
+# 488-09: Field(...) used in UpdateCandidateJobStatusInput
+check("488-09. UpdateCandidateJobStatusInput uses Field(...) — explicit required in both Pydantic v1 and v2",
+      'candidate_status: Optional[str] = Field(...)' in _srv488)
+
+# 488-10: Functional test — actually instantiate the model to verify required behavior
+from pydantic import BaseModel, Field, ValidationError
+from typing import Optional as _Opt
+
+class _TestUpdateInput(BaseModel):
+    candidate_status: _Opt[str] = Field(...)
+
+_pydantic_empty_raises = False
+try:
+    _TestUpdateInput()
+except (ValidationError, TypeError):
+    _pydantic_empty_raises = True
+
+_pydantic_null_ok = False
+try:
+    _pydantic_null_ok = _TestUpdateInput(candidate_status=None).candidate_status is None
+except Exception:
+    pass
+
+_pydantic_str_ok = False
+try:
+    _pydantic_str_ok = _TestUpdateInput(candidate_status='saved').candidate_status == 'saved'
+except Exception:
+    pass
+
+check("488-10. Functional: Field(...) model rejects empty body, accepts null, accepts valid string",
+      _pydantic_empty_raises and _pydantic_null_ok and _pydantic_str_ok)
+
+# ── Fix 3: Timezone contract ───────────────────────────────────────────────
+
+# 488-11: Backend has deprecated-fallback comment for naive ISO (not promoted as official)
+check("488-11. Backend has Legacy/deprecated fallback comment for naive ISO in send_appointment",
+      ('Legacy/deprecated' in _auth488 or 'deprecated fallback' in _auth488)
+      and 'tzinfo is None' in _auth488)
+
+# 488-12: SYSTEMS_INDEX §23 documents timezone contract
+check("488-12. SYSTEMS_INDEX §23 documents timezone-aware contract and deprecated naive fallback",
+      'toISOString' in _idx488
+      and 'deprecated' in _idx488
+      and 'timezone-aware' in _idx488
+      and 'scheduled_at' in _idx488)
+
+# 488-13: Frontend uses toISOString — sends UTC ISO (already covered but re-checked in context of doc)
+check("488-13. Frontend sends timezone-aware scheduledAt via toISOString() (Z suffix guaranteed)",
+      'toISOString()' in _main488
+      and 'localScheduled' in _main488)
+
+# ── Fix 4: No "applicant-driven" in modified files ────────────────────────
+
+# 488-14: auth.py update_candidate_job_status docstring has no "applicant-driven"
+_ucjs_body = (
+    _auth488.split('def update_candidate_job_status')[1].split('\ndef ')[0]
+    if 'def update_candidate_job_status' in _auth488 else ''
+)
+check("488-14. update_candidate_job_status() docstring does not say 'applicant-driven'",
+      'applicant-driven' not in _ucjs_body)
+
+# 488-15: company.main.js _showJobChipPop comment has no "applicant-driven"
+check("488-15. _showJobChipPop comment does not say 'applicant-driven'",
+      'applicant-driven' not in _main488)
 
 # ── Summary ──────────────────────────────────────────────────────────────
 print()

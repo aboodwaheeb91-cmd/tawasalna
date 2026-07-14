@@ -5366,7 +5366,7 @@ def update_candidate_job_status(
     Update the per-job candidate_status in company_candidate_job_refs.
 
     Three independent sources of truth:
-      - job_applications.status         — applicant-driven application status
+      - job_applications.status         — application lifecycle status (company-managed transitions after submission)
       - company_saved_candidates.status — general pipeline classification
       - company_candidate_job_refs.candidate_status — THIS FIELD: per-job classification
 
@@ -6163,8 +6163,13 @@ def send_appointment(appointment_id: int, user_id: int, scheduled_at_iso: str,
             raise ValueError("موقع المقابلة مطلوب للمواعيد الحضورية")
 
         try:
+            # Official contract: timezone-aware ISO 8601 (e.g. "2025-08-15T06:00:00.000Z").
+            # The frontend sends toISOString() which always includes the Z suffix.
+            # `.replace('Z', '+00:00')` normalises Z to a form fromisoformat() accepts.
             scheduled_dt = _dt.fromisoformat(scheduled_at_iso.replace('Z', '+00:00'))
             if scheduled_dt.tzinfo is None:
+                # Legacy/deprecated fallback: treat naive ISO as UTC.
+                # New clients must always send timezone-aware ISO. Do not rely on this path.
                 scheduled_dt = scheduled_dt.replace(tzinfo=_tz.utc)
         except Exception:
             raise ValueError("تنسيق التاريخ غير صالح — استخدم ISO 8601")

@@ -2909,37 +2909,60 @@
     }
   }
 
-  // Delegated change handler — fires when user changes a per-job status select
+  // Delegated change handler — fires when user changes a per-job status select.
+  //
+  // Race-safety contract:
+  //   - card is captured BEFORE the async call (sel may be detached after DOM rebuild).
+  //   - card-level lock (data-job-status-saving) blocks a second request on the same card
+  //     while one is in-flight, preventing interleaved writes and stale responses.
+  //   - ALL selects in the card are disabled on lock (not just the touched one), so
+  //     a concurrent DOM rebuild via _renderCandidateJobLinksUI cannot open a race window.
+  //   - Success/failure paths read card.getAttribute('data-job-links') at response time
+  //     (always fresh) instead of relying on the original sel reference.
+  //   - finally: removes lock + re-enables all selects currently in card DOM.
   function _onSavedChange(e) {
     var sel = e.target.closest('.co-cand-job-status-sel');
     if (!sel) return;
-    var cid      = parseInt(sel.getAttribute('data-cid'), 10);
-    var jid      = parseInt(sel.getAttribute('data-jid'), 10);
-    var cs       = sel.value || null;
-    var prevVal  = sel.getAttribute('data-prev-val') !== null
-                     ? sel.getAttribute('data-prev-val')
-                     : cs;  // first save — prev unknown, treat as current
+
+    // Capture card NOW — sel will be detached once _renderCandidateJobLinksUI runs
+    var card = sel.closest('.co-cand-saved-card');
+    if (!card) return;
+
+    // Card-level lock: one in-flight PATCH per card at a time
+    if (card.getAttribute('data-job-status-saving')) return;
+
+    var cid     = parseInt(sel.getAttribute('data-cid'), 10);
+    var jid     = parseInt(sel.getAttribute('data-jid'), 10);
+    var cs      = sel.value || null;
+    var prevVal = sel.getAttribute('data-prev-val') !== null
+                    ? sel.getAttribute('data-prev-val')
+                    : cs;
     if (!cid || !jid) return;
     if (!window.updateCandidateJobStatus) return;
 
     sel.setAttribute('data-prev-val', cs || '');
-    sel.disabled = true;
+
+    // Set lock + disable ALL per-job selects inside this card
+    card.setAttribute('data-job-status-saving', '1');
+    card.querySelectorAll('.co-cand-job-status-sel').forEach(function (s) { s.disabled = true; });
+
     window.updateCandidateJobStatus(cid, jid, cs)
       .then(function (res) {
         if (!res || !res.ok) {
-          // Rollback: restore previous value without triggering another change event
-          sel.value = prevVal || '';
-          sel.setAttribute('data-prev-val', prevVal || '');
+          // Rollback: re-render from authoritative data-job-links (sel may be detached — never touch it)
           var detail = (res && res.data && res.data.detail) || '';
+          if (card.parentNode) {
+            var rollLinks = [];
+            try { rollLinks = JSON.parse(card.getAttribute('data-job-links') || '[]'); } catch (err) {}
+            _renderCandidateJobLinksUI(card, rollLinks);
+          }
           if (window.showToast) showToast(detail || 'تعذّر حفظ التصنيف', 'error');
           return;
         }
-        // Commit: update canonical data-job-links, then re-render all job-link UI
-        sel.setAttribute('data-prev-val', cs || '');
-        var card = sel.closest('.co-cand-saved-card');
-        if (card) {
+        // Commit: read most-recent data-job-links at response time, update matching entry, re-render
+        if (card.parentNode) {
           var links = [];
-          try { links = JSON.parse(card.getAttribute('data-job-links') || '[]'); } catch (e) {}
+          try { links = JSON.parse(card.getAttribute('data-job-links') || '[]'); } catch (err) {}
           links = links.map(function (jl) {
             return String(jl.job_id) === String(jid)
               ? Object.assign({}, jl, { candidate_status: cs || null })
@@ -2950,13 +2973,19 @@
         if (window.showToast) showToast('تم حفظ التصنيف ✓');
       })
       .catch(function () {
-        // Network/parse failure — rollback unconditionally
-        sel.value = prevVal || '';
-        sel.setAttribute('data-prev-val', prevVal || '');
+        // Network/parse failure — re-render from authoritative state, never use detached sel
+        if (card.parentNode) {
+          var rollLinks = [];
+          try { rollLinks = JSON.parse(card.getAttribute('data-job-links') || '[]'); } catch (err) {}
+          _renderCandidateJobLinksUI(card, rollLinks);
+        }
         if (window.showToast) showToast('تعذّر حفظ التصنيف', 'error');
       })
       .finally(function () {
-        sel.disabled = false;
+        // Remove lock — safe even if card was removed from DOM
+        card.removeAttribute('data-job-status-saving');
+        // Re-enable all selects that exist in card at this point (rebuilt by _renderCandidateJobLinksUI)
+        card.querySelectorAll('.co-cand-job-status-sel').forEach(function (s) { s.disabled = false; });
       });
   }
 
@@ -3026,7 +3055,7 @@
       document.body.appendChild(pop);
     }
 
-    // Row 1: job application status (job_applications.status — applicant-driven)
+    // Row 1: job application status (job_applications.status — application lifecycle, company-managed transitions)
     // Row 2: per-job candidate classification (company_candidate_job_refs.candidate_status)
     // Row 3: general pipeline status (company_saved_candidates.status)
     var appCls     = appStatus  ? 'co-cjp-status'      : 'co-cjp-no-app';
@@ -3092,7 +3121,12 @@
   //   3. Rebuilds "تصنيف المرشح لكل وظيفة" section in manage panel
   //   4. Updates job picker disabled/linked states
   //   5. Adds or removes the status section when links appear / disappear
+  //   6. Renders selects as disabled when card has data-job-status-saving lock
   function _renderCandidateJobLinksUI(card, links) {
+    // Respect card-level lock: if a PATCH is in-flight, new selects must be disabled
+    // so a second change event cannot race the first request.
+    var isLocked = !!card.getAttribute('data-job-status-saving');
+
     // 1. Canonical store
     card.setAttribute('data-job-links', JSON.stringify(links));
 
@@ -3149,7 +3183,8 @@
                + '<select class="co-cand-job-status-sel"'
                + ' data-jid="' + _esc(String(jl.job_id)) + '"'
                + ' data-cid="' + _esc(cid) + '"'
-               + ' data-prev-val="' + _esc(cs) + '">'
+               + ' data-prev-val="' + _esc(cs) + '"'
+               + (isLocked ? ' disabled' : '') + '>'
                + opts + '</select></div>';
         }).join('');
         if (statusList) {

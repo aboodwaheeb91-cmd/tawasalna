@@ -1139,9 +1139,9 @@ class UpdateSavedCandidateInput(BaseModel):
 
 
 class UpdateCandidateJobStatusInput(BaseModel):
-    # Required field — must be present in body. Accepts a valid status string or null to clear.
-    # Body {} (missing field) returns 422. candidate_status=null explicitly clears the classification.
-    candidate_status: Optional[str]
+    # Field(...) makes this required in both Pydantic v1 and v2 — no implicit None default.
+    # Body {} → 422. {"candidate_status": null} → valid (explicit clear). "saved" etc. → valid.
+    candidate_status: Optional[str] = Field(...)
 
 
 @app.put("/company/profile/{company_id}")

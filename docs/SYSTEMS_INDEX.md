@@ -348,6 +348,12 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 **Migration function:** `_migrate_appointments()` in `auth.py` — startup-critical (raise on failure).
 **Details:** `docs/APPOINTMENTS_PLAN.md §15` (Phase 1 final schema) · `docs/APPOINTMENTS_PLAN.md §6` (states) · `docs/APPOINTMENTS_PLAN.md §14` (phase completion table)
 **Related systems:** §14 (Jobs) · §15 (Job Applications) · §18 (Messaging — Messenger العام separate from Appointment Room) · §19 (Notifications — 7 event-driven hooks live; 3 reminder hooks deferred to scheduler) · §2 (JWT Bearer token — only approved auth method)
+**`scheduled_at` timezone contract (PR feat/candidate-status-per-job):**
+- **Official contract:** timezone-aware ISO 8601 string ending with `Z` or `+HH:MM`.
+- **Frontend:** `new Date(dateVal + 'T' + timeVal + ':00').toISOString()` — always produces UTC with `Z` suffix. `Number.isFinite(localScheduled.getTime())` guards invalid dates. `localScheduled.getTime()` used for client-side deadline check (epoch ms — timezone-agnostic, matches backend comparison).
+- **Backend:** `fromisoformat(iso.replace('Z', '+00:00'))` parses aware datetimes correctly. If `tzinfo is None` (naive ISO): **legacy/deprecated fallback** — treat as UTC for backward compat only. New code must always send timezone-aware ISO. Do not promote naive ISO as the official contract.
+- **Do not revert to naive string concatenation** — `dateVal + 'T' + timeVal + ':00'` is deprecated; use `toISOString()` only.
+
 **Do not recreate:**
 - لا تُنشئ جداول مواعيد إضافية — الجداول الأربعة هي المصدر الوحيد.
 - لا تدمج Appointment Room مع Messenger العام — نظامان منفصلان تماماً.
