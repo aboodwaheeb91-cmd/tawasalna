@@ -2843,7 +2843,7 @@
         var cs = jl.candidate_status || '';
         html += '<div class="co-cand-job-status-row" data-jid="' + _esc(String(jl.job_id)) + '">';
         html += '<span class="co-cand-job-status-title">' + _esc(jl.title || ('وظيفة #' + jl.job_id)) + '</span>';
-        html += '<select class="co-cand-job-status-sel" data-jid="' + _esc(String(jl.job_id)) + '" data-cid="' + cid + '">';
+        html += '<select class="co-cand-job-status-sel" data-jid="' + _esc(String(jl.job_id)) + '" data-cid="' + cid + '" data-prev-val="' + _esc(cs) + '">';
         html += '<option value="">— غير مصنف —</option>';
         _STATUS_ORDER.forEach(function (s) {
           html += '<option value="' + _esc(s) + '"' + (cs === s ? ' selected' : '') + '>'
@@ -2906,20 +2906,29 @@
   function _onSavedChange(e) {
     var sel = e.target.closest('.co-cand-job-status-sel');
     if (!sel) return;
-    var cid   = parseInt(sel.getAttribute('data-cid'), 10);
-    var jid   = parseInt(sel.getAttribute('data-jid'), 10);
-    var cs    = sel.value || null;
+    var cid      = parseInt(sel.getAttribute('data-cid'), 10);
+    var jid      = parseInt(sel.getAttribute('data-jid'), 10);
+    var cs       = sel.value || null;
+    var prevVal  = sel.getAttribute('data-prev-val') !== null
+                     ? sel.getAttribute('data-prev-val')
+                     : cs;  // first save — prev unknown, treat as current
     if (!cid || !jid) return;
     if (!window.updateCandidateJobStatus) return;
 
+    sel.setAttribute('data-prev-val', cs || '');
     sel.disabled = true;
     window.updateCandidateJobStatus(cid, jid, cs)
       .then(function (res) {
         if (!res || !res.ok) {
-          if (window.showToast) showToast('تعذّر حفظ التصنيف', 'error');
+          // Rollback: restore previous value without triggering another change event
+          sel.value = prevVal || '';
+          sel.setAttribute('data-prev-val', prevVal || '');
+          var detail = (res && res.data && res.data.detail) || '';
+          if (window.showToast) showToast(detail || 'تعذّر حفظ التصنيف', 'error');
           return;
         }
-        // Sync data-cand-status on matching chip so popover shows fresh value
+        // Commit: update prev-val to new value and sync chip
+        sel.setAttribute('data-prev-val', cs || '');
         var card = sel.closest('.co-cand-saved-card');
         if (card) {
           var chip = card.querySelector('.co-cand-job-chip[data-jid="' + jid + '"]');
@@ -2928,6 +2937,9 @@
         if (window.showToast) showToast('تم حفظ التصنيف ✓');
       })
       .catch(function () {
+        // Network/parse failure — rollback unconditionally
+        sel.value = prevVal || '';
+        sel.setAttribute('data-prev-val', prevVal || '');
         if (window.showToast) showToast('تعذّر حفظ التصنيف', 'error');
       })
       .finally(function () {

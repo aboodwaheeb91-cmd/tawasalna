@@ -9882,6 +9882,70 @@ check("486-22. CSS rules for co-cand-job-status-list and co-cand-job-status-sel 
       and '.co-cand-job-status-sel' in _css486)
 
 
+# ── Amendment 1: backward-compat 'status' alias ───────────────────────────
+
+# 486-23: 'status' alias present alongside 'application_status' in both batch-fetch functions
+# Both keys must be in the jlmap dict append and must carry the same value (app_status)
+check("486-23. 'status' deprecated alias present alongside 'application_status' in batch-fetch jlmap (both functions)",
+      "'status':             app_status or None" in _auth486
+      and "'application_status': app_status or None" in _auth486
+      and _auth486.count("'status':             app_status or None") >= 2
+      and _auth486.count("'application_status': app_status or None") >= 2)
+
+# 486-24: 'status' alias documented as deprecated (not hidden — visible in docs)
+check("486-24. SYSTEMS_INDEX.md documents 'status' as deprecated backward-compat alias for application_status",
+      'deprecated' in open('docs/SYSTEMS_INDEX.md', encoding='utf-8').read()
+      and 'application_status' in open('docs/SYSTEMS_INDEX.md', encoding='utf-8').read())
+
+
+# ── Amendment 2: idempotent migration — no DROP CONSTRAINT ────────────────
+
+# 486-25: migration code must NOT contain DROP CONSTRAINT (it used to, but fixed)
+check("486-25. _migrate_candidate_status_per_job() does NOT use DROP CONSTRAINT",
+      'DROP CONSTRAINT' not in _auth486.split('def _migrate_candidate_status_per_job')[1].split('\ndef ')[0]
+      if '_migrate_candidate_status_per_job' in _auth486 else False)
+
+# 486-26: migration checks pg_constraint before adding the constraint (conditional add)
+_mig_body486 = (
+    _auth486.split('def _migrate_candidate_status_per_job')[1].split('\ndef ')[0]
+    if '_migrate_candidate_status_per_job' in _auth486 else ''
+)
+check("486-26. Migration checks pg_constraint table before ADD CONSTRAINT (constraint added only when absent)",
+      'pg_constraint' in _mig_body486
+      and 'ck_ccjr_candidate_status' in _mig_body486
+      and 'if not existing' in _mig_body486
+      and 'ADD CONSTRAINT ck_ccjr_candidate_status' in _mig_body486)
+
+
+# ── Amendment 3: optimistic UI rollback in _onSavedChange ─────────────────
+
+# 486-27: _onSavedChange saves prevVal from data-prev-val before PATCH
+check("486-27. _onSavedChange reads data-prev-val attribute to capture previous value before PATCH",
+      "getAttribute('data-prev-val')" in _main486
+      and 'prevVal' in _main486)
+
+# 486-28: on API failure, _onSavedChange restores sel.value and data-prev-val (rollback)
+check("486-28. _onSavedChange restores sel.value and data-prev-val to prevVal on failure (rollback)",
+      "sel.value = prevVal" in _main486
+      and "sel.setAttribute('data-prev-val', prevVal" in _main486)
+
+# 486-29: on API failure, _onSavedChange does NOT update data-cand-status chip
+# Verify: chip.setAttribute('data-cand-status' only in success path (after res.ok check)
+check("486-29. data-cand-status chip update only in success path — not in failure handlers",
+      "if (!res || !res.ok)" in _main486
+      and "chip.setAttribute('data-cand-status'" in _main486)
+
+# 486-30: on failure, _onSavedChange shows exact API detail from res.data.detail
+check("486-30. _onSavedChange shows res.data.detail error on failure (API detail, not always generic)",
+      "res.data.detail" in _main486
+      or "res && res.data && res.data.detail" in _main486)
+
+# 486-31: select element rendered with data-prev-val attribute initialized at render time
+check("486-31. Per-job status <select> rendered with data-prev-val attribute for rollback anchor",
+      "data-prev-val=" in _main486
+      and "_esc(cs)" in _main486)
+
+
 # ── Summary ──────────────────────────────────────────────────────────────
 print()
 passed = sum(1 for _, s, _ in results if s == PASS)

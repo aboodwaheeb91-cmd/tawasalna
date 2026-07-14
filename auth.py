@@ -4757,31 +4757,38 @@ def _migrate_company_candidate_job_refs():
 
 
 def _migrate_candidate_status_per_job():
-    """Add candidate_status column to company_candidate_job_refs (idempotent).
+    """Add candidate_status column + CHECK constraint to company_candidate_job_refs (idempotent).
 
     Adds the company's independent per-job classification of a candidate.
     Separate from job_applications.status (applicant-driven) and
     company_saved_candidates.status (general pipeline status).
     NULL means the company has not classified the candidate for that specific job.
+
+    Constraint is added only if absent (pg_constraint check) — no DROP/ADD on every restart,
+    no unnecessary table lock on an existing constraint.
     """
     conn = get_conn()
     try:
+        # Column: IF NOT EXISTS is safe and no-op when already present
         conn.run("""
             ALTER TABLE company_candidate_job_refs
             ADD COLUMN IF NOT EXISTS candidate_status TEXT NULL
         """)
-        conn.run("""
-            ALTER TABLE company_candidate_job_refs
-            DROP CONSTRAINT IF EXISTS ck_ccjr_candidate_status
-        """)
-        conn.run("""
-            ALTER TABLE company_candidate_job_refs
-            ADD CONSTRAINT ck_ccjr_candidate_status
-            CHECK (
-                candidate_status IS NULL OR
-                candidate_status IN ('saved','shortlisted','contacted','interview','hired','rejected')
-            )
-        """)
+        # Constraint: check pg_constraint rather than DROP+ADD every startup
+        existing = conn.run(
+            "SELECT 1 FROM pg_constraint "
+            "WHERE conname = 'ck_ccjr_candidate_status' "
+            "AND conrelid = 'company_candidate_job_refs'::regclass"
+        )
+        if not existing:
+            conn.run("""
+                ALTER TABLE company_candidate_job_refs
+                ADD CONSTRAINT ck_ccjr_candidate_status
+                CHECK (
+                    candidate_status IS NULL OR
+                    candidate_status IN ('saved','shortlisted','contacted','interview','hired','rejected')
+                )
+            """)
     finally:
         release_conn(conn)
 
@@ -4932,6 +4939,7 @@ def get_company_saved_candidates(company_id: int, limit: int = 20, offset: int =
                     'title':              title,
                     'apply_date':         apply_date.isoformat() if apply_date else None,
                     'application_status': app_status or None,
+                    'status':             app_status or None,  # deprecated alias — equals application_status
                     'candidate_status':   cand_status or None,
                 })
             for item in items:
@@ -5137,6 +5145,7 @@ def get_company_saved_candidates_filtered(
                     'title':              title,
                     'apply_date':         apply_date.isoformat() if apply_date else None,
                     'application_status': app_status or None,
+                    'status':             app_status or None,  # deprecated alias — equals application_status
                     'candidate_status':   cand_status or None,
                 })
             accepted_ids  = set()
