@@ -2314,7 +2314,34 @@ def get_job_applicants(job_id: int, company_id: int = 0) -> list:
             jid=job_id, cid=company_id
         )
         cols = [c["name"] for c in conn.columns]
-        return [_serialize(_row_to_dict(cols, r)) for r in rows]
+        items = [_serialize(_row_to_dict(cols, r)) for r in rows]
+
+        # Batch-fetch other job refs for saved candidates
+        # Source: company_candidate_job_refs (only company-intentional links, not all applications)
+        if company_id:
+            saved_uids = [a['user_id'] for a in items if a.get('is_saved') and a.get('user_id')]
+            other_titles_map = {}
+            if saved_uids:
+                id_clause = ','.join(str(int(uid)) for uid in saved_uids)
+                trows = conn.run(
+                    f"SELECT r.candidate_id, j2.title "
+                    f"FROM company_candidate_job_refs r "
+                    f"JOIN jobs j2 ON j2.id = r.job_id "
+                    f"WHERE r.candidate_id IN ({id_clause}) AND r.company_id = :cid "
+                    f"AND r.job_id != :jid ORDER BY j2.id",
+                    cid=company_id, jid=job_id) or []
+                for trow in trows:
+                    uid, title = int(trow[0]), trow[1]
+                    if uid not in other_titles_map:
+                        other_titles_map[uid] = []
+                    other_titles_map[uid].append(title)
+            for a in items:
+                a['other_job_titles'] = other_titles_map.get(a.get('user_id', 0), [])
+        else:
+            for a in items:
+                a['other_job_titles'] = []
+
+        return items
     finally:
         release_conn(conn)
 
@@ -4695,6 +4722,41 @@ def _migrate_company_saved_candidates():
         release_conn(conn)
 
 
+def _migrate_company_candidate_job_refs():
+    """Create company_candidate_job_refs junction table (idempotent).
+
+    Records every company-initiated intentional link between a saved candidate
+    and a specific job. Populated on save (with job_id) and on promote.
+    This is the authoritative source for job_titles[] in saved candidate
+    and applicant responses — job_applications is NOT used for this purpose.
+    """
+    conn = get_conn()
+    try:
+        conn.run("""
+            CREATE TABLE IF NOT EXISTS company_candidate_job_refs (
+                company_id   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                candidate_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                job_id       INTEGER NOT NULL REFERENCES jobs(id)  ON DELETE CASCADE,
+                created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                PRIMARY KEY (company_id, candidate_id, job_id)
+            )
+        """)
+        conn.run("""
+            CREATE INDEX IF NOT EXISTS idx_ccjr_company_candidate
+            ON company_candidate_job_refs(company_id, candidate_id)
+        """)
+        # Backfill existing saved candidates that already have a job_id
+        conn.run("""
+            INSERT INTO company_candidate_job_refs(company_id, candidate_id, job_id)
+            SELECT company_id, candidate_id, job_id
+            FROM company_saved_candidates
+            WHERE job_id IS NOT NULL
+            ON CONFLICT DO NOTHING
+        """)
+    finally:
+        release_conn(conn)
+
+
 def save_company_candidate(company_id: int, candidate_id: int, saved_by: int,
                             job_id: int = None, notes: str = None) -> int:
     """
@@ -4707,14 +4769,43 @@ def save_company_candidate(company_id: int, candidate_id: int, saved_by: int,
         check = conn.run("SELECT user_type FROM users WHERE id = :uid", uid=candidate_id)
         if not check or check[0][0] != "emp":
             raise ValueError("يجب أن يكون المرشح موظفاً")
-        conn.run(
-            "INSERT INTO company_saved_candidates "
-            "(company_id, candidate_id, job_id, notes, saved_by) "
-            "VALUES (:cid, :uid, :jid, :notes, :sid) "
-            "ON CONFLICT (company_id, candidate_id) DO UPDATE "
-            "SET updated_at=NOW(), job_id=EXCLUDED.job_id, notes=EXCLUDED.notes",
-            cid=company_id, uid=candidate_id,
-            jid=job_id, notes=notes, sid=saved_by)
+        if job_id is not None:
+            # Atomic: both writes succeed or both roll back
+            conn.run("BEGIN")
+            committed = False
+            try:
+                conn.run(
+                    "INSERT INTO company_saved_candidates "
+                    "(company_id, candidate_id, job_id, notes, saved_by) "
+                    "VALUES (:cid, :uid, :jid, :notes, :sid) "
+                    "ON CONFLICT (company_id, candidate_id) DO UPDATE "
+                    "SET updated_at=NOW(), notes=EXCLUDED.notes",
+                    cid=company_id, uid=candidate_id,
+                    jid=job_id, notes=notes, sid=saved_by)
+                conn.run(
+                    "INSERT INTO company_candidate_job_refs "
+                    "(company_id, candidate_id, job_id) "
+                    "VALUES (:cid, :uid, :jid) "
+                    "ON CONFLICT DO NOTHING",
+                    cid=company_id, uid=candidate_id, jid=job_id)
+                conn.run("COMMIT")
+                committed = True
+            except Exception:
+                if not committed:
+                    try:
+                        conn.run("ROLLBACK")
+                    except Exception:
+                        pass
+                raise
+        else:
+            conn.run(
+                "INSERT INTO company_saved_candidates "
+                "(company_id, candidate_id, job_id, notes, saved_by) "
+                "VALUES (:cid, :uid, :jid, :notes, :sid) "
+                "ON CONFLICT (company_id, candidate_id) DO UPDATE "
+                "SET updated_at=NOW(), notes=EXCLUDED.notes",
+                cid=company_id, uid=candidate_id,
+                jid=job_id, notes=notes, sid=saved_by)
         count_row = conn.run(
             "SELECT COUNT(*) FROM company_saved_candidates WHERE company_id=:cid",
             cid=company_id)
@@ -4785,6 +4876,25 @@ def get_company_saved_candidates(company_id: int, limit: int = 20, offset: int =
                 "notes":        notes,
                 "created_at":   created_at,
             }))
+
+        # Batch-fetch job titles from company_candidate_job_refs (company-intentional links only)
+        if items:
+            id_clause = ','.join(str(r['candidate_id']) for r in items)
+            trows = conn.run(
+                f"SELECT r.candidate_id, j.title "
+                f"FROM company_candidate_job_refs r "
+                f"JOIN jobs j ON j.id = r.job_id "
+                f"WHERE r.candidate_id IN ({id_clause}) AND r.company_id = :cid "
+                f"ORDER BY j.id",
+                cid=company_id) or []
+            jtmap = {}
+            for trow in trows:
+                uid, title = int(trow[0]), trow[1]
+                if uid not in jtmap:
+                    jtmap[uid] = []
+                jtmap[uid].append(title)
+            for item in items:
+                item['job_titles'] = jtmap.get(item['candidate_id'], [])
 
         return {
             "count": total,
@@ -4890,10 +5000,19 @@ def get_company_saved_candidates_filtered(
             params["status"] = status
 
         if job_id is not None:
-            where_parts.append("sc.job_id = :job_id")
+            where_parts.append(
+                "EXISTS (SELECT 1 FROM company_candidate_job_refs r "
+                "WHERE r.company_id = sc.company_id "
+                "AND r.candidate_id = sc.candidate_id "
+                "AND r.job_id = :job_id)"
+            )
             params["job_id"] = job_id
         elif unlinked:
-            where_parts.append("sc.job_id IS NULL")
+            where_parts.append(
+                "NOT EXISTS (SELECT 1 FROM company_candidate_job_refs r "
+                "WHERE r.company_id = sc.company_id "
+                "AND r.candidate_id = sc.candidate_id)"
+            )
 
         if q:
             where_parts.append(
@@ -4950,6 +5069,36 @@ def get_company_saved_candidates_filtered(
                 "updated_at":   updated_at,
             }))
 
+        # Batch-fetch job titles from refs + per_job_accepted from job_applications
+        if items:
+            id_clause = ','.join(str(r['candidate_id']) for r in items)
+            trows = conn.run(
+                f"SELECT r.candidate_id, j.title "
+                f"FROM company_candidate_job_refs r "
+                f"JOIN jobs j ON j.id = r.job_id "
+                f"WHERE r.candidate_id IN ({id_clause}) AND r.company_id = :cid "
+                f"ORDER BY j.id",
+                cid=company_id) or []
+            jtmap = {}
+            for trow in trows:
+                uid, title = int(trow[0]), trow[1]
+                if uid not in jtmap:
+                    jtmap[uid] = []
+                jtmap[uid].append(title)
+            accepted_ids = set()
+            if job_id is not None:
+                acc_rows = conn.run(
+                    f"SELECT ja.user_id "
+                    f"FROM job_applications ja "
+                    f"WHERE ja.job_id = :jid AND ja.status = 'accepted' "
+                    f"AND ja.user_id IN ({id_clause})",
+                    jid=job_id) or []
+                accepted_ids = {int(r[0]) for r in acc_rows}
+            for item in items:
+                item['job_titles'] = jtmap.get(item['candidate_id'], [])
+                if job_id is not None:
+                    item['per_job_accepted'] = item['candidate_id'] in accepted_ids
+
         return {
             "count": total,
             "items": items,
@@ -4987,12 +5136,18 @@ def get_company_saved_candidates_stats(company_id: int) -> dict:
             "GROUP BY status",
             cid=company_id) or []
 
-        # Total, with_job, unlinked — single-pass via FILTER
+        # Total, with_job, unlinked — derived from refs table for consistency with filters
         summary_row = conn.run(
             "SELECT COUNT(*), "
-            "COUNT(*) FILTER (WHERE job_id IS NOT NULL), "
-            "COUNT(*) FILTER (WHERE job_id IS NULL) "
-            "FROM company_saved_candidates WHERE company_id = :cid",
+            "COUNT(*) FILTER (WHERE EXISTS ("
+            "  SELECT 1 FROM company_candidate_job_refs r "
+            "  WHERE r.company_id = sc.company_id AND r.candidate_id = sc.candidate_id"
+            ")), "
+            "COUNT(*) FILTER (WHERE NOT EXISTS ("
+            "  SELECT 1 FROM company_candidate_job_refs r "
+            "  WHERE r.company_id = sc.company_id AND r.candidate_id = sc.candidate_id"
+            ")) "
+            "FROM company_saved_candidates sc WHERE sc.company_id = :cid",
             cid=company_id) or []
 
         by_status = {s: 0 for s in VALID_CANDIDATE_STATUSES}
@@ -5207,14 +5362,8 @@ def promote_application_to_shortlist(app_id: int, company_id: int) -> dict:
                 "    THEN company_saved_candidates.status "
                 "    ELSE 'shortlisted' "
                 "  END, "
-                "  job_id = CASE "
-                "    WHEN company_saved_candidates.status "
-                "         IN ('contacted','interview','hired','rejected') "
-                "    THEN company_saved_candidates.job_id "
-                "    ELSE EXCLUDED.job_id "
-                "  END, "
                 "  updated_at = NOW() "
-                "RETURNING status, job_id, (xmax = 0) AS was_inserted",
+                "RETURNING status, (xmax = 0) AS was_inserted",
                 cid=company_id, uid=applicant_id, jid=job_id)
 
             if not upsert_rows:
@@ -5223,8 +5372,7 @@ def promote_application_to_shortlist(app_id: int, company_id: int) -> dict:
                     f"(app={app_id}, candidate={applicant_id})")
 
             final_status = upsert_rows[0][0]
-            final_job_id = upsert_rows[0][1]
-            was_inserted = upsert_rows[0][2]
+            was_inserted = upsert_rows[0][1]
 
             # ── 6. Post-UPSERT, pre-COMMIT: RETURNING is the authoritative decision ──
             # Catches race: concurrent INSERT-as-rejected while no row existed to lock.
@@ -5232,6 +5380,15 @@ def promote_application_to_shortlist(app_id: int, company_id: int) -> dict:
             if final_status == "rejected":
                 raise ValueError(
                     "المرشح محدد كـ'غير مناسب' (تعارض متزامن) — يجب تغيير حالته يدوياً")
+
+            # ── 6.5. Record company-job link in refs table (inside transaction) ──
+            # This is the authoritative write for job_titles[] in saved candidate views.
+            conn.run(
+                "INSERT INTO company_candidate_job_refs "
+                "(company_id, candidate_id, job_id) "
+                "VALUES (:cid, :uid, :jid) "
+                "ON CONFLICT DO NOTHING",
+                cid=company_id, uid=applicant_id, jid=job_id)
 
             conn.run("COMMIT")
             committed = True
@@ -5275,7 +5432,6 @@ def promote_application_to_shortlist(app_id: int, company_id: int) -> dict:
                 "candidate_id": int(applicant_id),
                 "status":       final_status,
                 "status_label": CANDIDATE_STATUS_LABELS.get(final_status, final_status),
-                "job_id":       final_job_id,
                 "action":       candidate_action,
             },
         }

@@ -101,7 +101,7 @@ from auth import (
     save_profile_interest, remove_profile_interest,
     is_profile_interest_active, get_profile_interest_type, get_profile_interest_label,
     is_candidate_saved,
-    _migrate_company_saved_candidates,
+    _migrate_company_saved_candidates, _migrate_company_candidate_job_refs,
     save_company_candidate, remove_company_candidate,
     get_company_saved_candidates, get_company_saved_candidates_count,
     get_company_saved_candidates_filtered, get_company_saved_candidates_stats,
@@ -466,6 +466,11 @@ async def on_startup():
         print("✅ company_saved_candidates table ready")
     except Exception as e:
         print(f"⚠️ company_saved_candidates migration failed: {e}")
+    try:
+        _migrate_company_candidate_job_refs()
+        print("✅ company_candidate_job_refs table ready")
+    except Exception as e:
+        print(f"⚠️ company_candidate_job_refs migration failed: {e}")
     try:
         _migrate_jobs_v2()
         print("✅ jobs v2 columns ready")
