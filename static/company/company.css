@@ -2348,6 +2348,11 @@ body:not(.co-loading) .co-skeleton      { display: none; }
 }
 .co-appt-submit:hover    { background: rgba(0,200,150,.3); border-color: rgba(0,200,150,.6); }
 .co-appt-submit:disabled { opacity: .5; cursor: default; pointer-events: none; }
+.co-appt-retry-hint {
+  background: rgba(251,191,36,.08); color: #fbbf24;
+  border: 1px solid rgba(251,191,36,.25); border-radius: 8px;
+  padding: 8px 12px; font-size: 12px; line-height: 1.5;
+}
 @media (prefers-color-scheme: light) {
   .co-appt-inp { background: rgba(0,0,0,.04); border-color: rgba(0,0,0,.1); color: #1e293b; }
   .co-appt-lbl { color: rgba(0,0,0,.5); }

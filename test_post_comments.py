@@ -8980,6 +8980,40 @@ check("184-19. .co-appt-submit styled in company.css",
 check("184-20. .co-app-open-appt-btn styled in company.css",
       '.co-app-open-appt-btn' in _css184)
 
+# ── §184-21–25 — draft-orphan recovery (create succeeds, send fails) ─────
+# These checks verify the invariant: a failed send never leaves the user stuck.
+
+# 184-21: _isApptDraft function defined
+check("184-21. _isApptDraft function defined",
+      'function _isApptDraft' in _main184)
+
+# 184-22: _applyApptIndexToCards skips draft entries (keeps interview btn for retry)
+_apply184 = (_main184.split('function _applyApptIndexToCards')[1]
+             .split('function _onInterviewBtn')[0]
+             if 'function _applyApptIndexToCards' in _main184 else '')
+check("184-22. _applyApptIndexToCards skips draft entries — interview btn stays for retry",
+      '_isApptDraft' in _apply184)
+
+# 184-23: _onInterviewBtn routes draft entries to _openApptModal (not window.open)
+_onint184 = (_main184.split('function _onInterviewBtn')[1]
+             .split('function _openApptModal')[0]
+             if 'function _onInterviewBtn' in _main184 else '')
+check("184-23. _onInterviewBtn routes draft entries to _openApptModal (not room)",
+      '_isApptDraft' in _onint184 and '_openApptModal' in _onint184)
+
+# 184-24: after create success, draft stored in _apptByAppId BEFORE _execSendStep is called
+_sub184 = (_main184.split('function _submitApptForm')[1]
+           .split('function _execSendStep')[0]
+           if 'function _submitApptForm' in _main184
+           and 'function _execSendStep' in _main184 else '')
+check("184-24. draft stored in _apptByAppId before _execSendStep — no orphan on send failure",
+      "_apptByAppId[String(appId)] = { id: apptId, status: 'draft' }" in _sub184
+      and '_execSendStep' in _sub184)
+
+# 184-25: _execSendStep defined — handles send step independently, preserves draft on failure
+check("184-25. _execSendStep defined — send isolated so draft survives send failure",
+      'function _execSendStep' in _main184)
+
 # ── Summary ──────────────────────────────────────────────────────────────
 print()
 passed = sum(1 for _, s, _ in results if s == PASS)

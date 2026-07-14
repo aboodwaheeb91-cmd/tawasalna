@@ -1041,6 +1041,8 @@
     return ['cancelled', 'expired', 'missed', 'closed'].indexOf(status) === -1;
   }
 
+  function _isApptDraft(status) { return status === 'draft'; }
+
   function _loadApptIndex(cb) {
     var jwt = window._jwt ? _jwt() : '';
     if (!jwt) { if (cb) cb(); return; }
@@ -1070,7 +1072,7 @@
     cards.forEach(function (card) {
       var appId = card.getAttribute('data-app-id');
       var entry = _apptByAppId[appId];
-      if (!entry || !_isApptActive(entry.status)) return;
+      if (!entry || !_isApptActive(entry.status) || _isApptDraft(entry.status)) return;
       var foot = card.querySelector('.co-app-card-foot');
       if (!foot) return;
       var btn = foot.querySelector('.co-app-interview-btn');
@@ -1095,10 +1097,14 @@
       : null;
     var jobTitle = job ? job.title : '';
 
-    // If index already loaded and active appointment exists, open the room directly
     if (_apptIndexLoaded) {
       var entry = _apptByAppId[String(appId)];
       if (entry && _isApptActive(entry.status)) {
+        if (_isApptDraft(entry.status)) {
+          // Orphaned draft — open modal so user can retry sending
+          _openApptModal(appId, applName, jobTitle);
+          return;
+        }
         window.open('/appointment-room?id=' + entry.id, '_blank');
         return;
       }
@@ -1115,6 +1121,11 @@
     var jobEl  = document.getElementById('coApptJobName');
     if (nameEl) nameEl.textContent = applName || '—';
     if (jobEl)  jobEl.textContent  = jobTitle  || '—';
+    // Show retry hint if an orphaned draft exists for this application
+    var existEntry = _apptByAppId[String(appId)];
+    var isDraftRetry = !!(existEntry && _isApptDraft(existEntry.status));
+    var retryHint = document.getElementById('coApptRetryHint');
+    if (retryHint) retryHint.style.display = isDraftRetry ? '' : 'none';
     // Reset all form fields
     var fields = ['coApptDate','coApptTime','coApptUrl','coApptLoc','coApptNotes','coApptRep'];
     fields.forEach(function (id) {
@@ -1126,7 +1137,7 @@
     _apptMode = 'online';
     _setApptMode('online');
     var submitBtn = document.getElementById('coApptSubmit');
-    if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'إرسال الدعوة'; }
+    if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = isDraftRetry ? 'إعادة الإرسال' : 'إرسال الدعوة'; }
     _apptInFlight = false;
     _initApptModalListeners();
     el.style.display = 'flex';
@@ -1194,6 +1205,14 @@
     if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'جارٍ الإرسال…'; }
 
     var jwt = window._jwt ? _jwt() : '';
+
+    // If an orphaned draft exists for this application, skip create and retry send directly
+    var existingEntry = _apptByAppId[String(appId)];
+    if (existingEntry && _isApptDraft(existingEntry.status)) {
+      _execSendStep(existingEntry.id, appId, jwt, scheduledAt, deadlineVal, urlVal, locVal, notesVal, repVal, submitBtn);
+      return;
+    }
+
     var createBody = {
       application_id:      appId,
       mode:                _apptMode,
@@ -1219,49 +1238,9 @@
     .then(function (d) {
       var apptId = d.data && d.data.id;
       if (!apptId) throw new Error('missing appointment id');
-      var sendBody = {
-        scheduled_at:        scheduledAt,
-        deadline_hours:      deadlineVal,
-        online_url:          urlVal   || null,
-        location_text:       locVal   || null,
-        notes:               notesVal || null,
-        representative_name: repVal   || null
-      };
-      return fetch('/api/appointments/' + apptId + '/send', {
-        method:  'POST',
-        headers: { 'Authorization': 'Bearer ' + jwt, 'Content-Type': 'application/json' },
-        body:    JSON.stringify(sendBody)
-      })
-      .then(function (r2) {
-        if (!r2.ok) {
-          return r2.json().then(function (d2) {
-            var e = new Error('HTTP ' + r2.status); e.status = r2.status; e.detail = d2.detail; throw e;
-          });
-        }
-        return r2.json();
-      })
-      .then(function () { return apptId; });
-    })
-    .then(function (apptId) {
-      // Swap the interview btn on the card to a "فتح الموعد" link
-      var card = document.querySelector('#coAppList .co-app-card[data-app-id="' + appId + '"]');
-      if (card) {
-        var foot = card.querySelector('.co-app-card-foot');
-        var btn2 = foot ? foot.querySelector('.co-app-interview-btn') : null;
-        if (btn2 && foot) {
-          var link = document.createElement('a');
-          link.href      = '/appointment-room?id=' + apptId;
-          link.className = 'co-app-open-appt-btn co-app-act';
-          link.textContent = 'فتح الموعد';
-          link.target    = '_blank';
-          link.rel       = 'noopener';
-          foot.replaceChild(link, btn2);
-        }
-      }
-      _apptByAppId[String(appId)] = { id: apptId, status: 'pending_response' };
-      _closeApptModal();
-      if (window.showToast) showToast('تم إرسال دعوة المقابلة بنجاح ✓');
-      location.href = '/appointment-room?id=' + apptId;
+      // Store draft in index immediately — if send fails, next retry reuses this id
+      _apptByAppId[String(appId)] = { id: apptId, status: 'draft' };
+      _execSendStep(apptId, appId, jwt, scheduledAt, deadlineVal, urlVal, locVal, notesVal, repVal, submitBtn);
     })
     .catch(function (err) {
       _apptInFlight = false;
@@ -1270,15 +1249,80 @@
       var detail = (err && err.detail) || '';
       var msg;
       if (detail.indexOf('يوجد موعد نشط') !== -1) {
-        msg = 'يوجد موعد نشط لهذا الطلب — راجع صفحة المواعيد';
-      } else if (status === 400 && detail) {
-        msg = detail;
+        // Draft exists in DB but not our index (page reload / race) — reload index
+        _loadApptIndex(function () { _applyApptIndexToCards(); });
+        msg = 'يوجد موعد نشط — تحقق من صفحة المواعيد';
       } else if (status === 403) {
         msg = 'انتهت الجلسة أو لا تملك صلاحية إنشاء المواعيد';
       } else if (status === 401) {
         msg = 'انتهت الجلسة — سجّل دخولك مجدداً';
       } else {
-        msg = 'تعذّر إرسال الدعوة، حاول مجدداً';
+        msg = 'تعذّر إنشاء الموعد، حاول مجدداً';
+      }
+      if (window.showToast) showToast(msg, 'error');
+    });
+  }
+
+  // Handles the /send step independently — draft is preserved in _apptByAppId on failure,
+  // so _submitApptForm will skip create and call _execSendStep directly on the next attempt.
+  function _execSendStep(apptId, appId, jwt, scheduledAt, deadlineVal, urlVal, locVal, notesVal, repVal, submitBtn) {
+    var sendBody = {
+      scheduled_at:        scheduledAt,
+      deadline_hours:      deadlineVal,
+      online_url:          urlVal   || null,
+      location_text:       locVal   || null,
+      notes:               notesVal || null,
+      representative_name: repVal   || null
+    };
+    fetch('/api/appointments/' + apptId + '/send', {
+      method:  'POST',
+      headers: { 'Authorization': 'Bearer ' + jwt, 'Content-Type': 'application/json' },
+      body:    JSON.stringify(sendBody)
+    })
+    .then(function (r) {
+      if (!r.ok) {
+        return r.json().then(function (d) {
+          var e = new Error('HTTP ' + r.status); e.status = r.status; e.detail = d.detail; throw e;
+        });
+      }
+      return r.json();
+    })
+    .then(function () {
+      // Update index to sent state and swap card btn to "فتح الموعد"
+      _apptByAppId[String(appId)] = { id: apptId, status: 'pending_response' };
+      var card = document.querySelector('#coAppList .co-app-card[data-app-id="' + appId + '"]');
+      if (card) {
+        var foot = card.querySelector('.co-app-card-foot');
+        var oldBtn = foot ? (foot.querySelector('.co-app-interview-btn') || foot.querySelector('.co-app-open-appt-btn')) : null;
+        if (oldBtn && foot) {
+          var link = document.createElement('a');
+          link.href      = '/appointment-room?id=' + apptId;
+          link.className = 'co-app-open-appt-btn co-app-act';
+          link.textContent = 'فتح الموعد';
+          link.target    = '_blank';
+          link.rel       = 'noopener';
+          foot.replaceChild(link, oldBtn);
+        }
+      }
+      _closeApptModal();
+      if (window.showToast) showToast('تم إرسال دعوة المقابلة بنجاح ✓');
+      location.href = '/appointment-room?id=' + apptId;
+    })
+    .catch(function (err) {
+      // Draft entry stays in _apptByAppId — next open of the modal shows retry UI
+      _apptInFlight = false;
+      if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'إعادة الإرسال'; }
+      var status = err && err.status;
+      var detail = (err && err.detail) || '';
+      var msg;
+      if (status === 403) {
+        msg = 'انتهت الجلسة أو لا تملك صلاحية إرسال الدعوة';
+      } else if (status === 401) {
+        msg = 'انتهت الجلسة — سجّل دخولك مجدداً';
+      } else if (detail) {
+        msg = detail;
+      } else {
+        msg = 'أُنشئ الموعد لكن تعذّر الإرسال — اضغط "إعادة الإرسال"';
       }
       if (window.showToast) showToast(msg, 'error');
     });
