@@ -1513,7 +1513,10 @@
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + jwt },
       body:    JSON.stringify({ status: newStatus })
     });
-    var saveP = (!wasSaved && uid)
+    // Always call save when in a job context so company_candidate_job_refs gets the new entry.
+    // ON CONFLICT DO NOTHING on both tables makes this idempotent.
+    // Never call save without job_id from this interface.
+    var saveP = (uid && _appJobId)
       ? fetch('/company/saved-candidates/' + uid + jobSufx, {
           method: 'POST', headers: { 'Authorization': 'Bearer ' + jwt }
         })

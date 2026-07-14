@@ -9320,9 +9320,12 @@ _ec187 = (_main187.split('function _execClassify')[1].split('function _applyClas
 check("187-13. _execClassify routes accepted to _execPromote, others to PUT /status",
       '_execPromote' in _ec187 and '/jobs/applications/' in _ec187)
 
-# 187-14: _execClassify saves candidate when wasSaved=false (POST to saved-candidates)
-check("187-14. _execClassify calls save-candidates endpoint when wasSaved is false",
-      '/company/saved-candidates/' in _ec187 and 'wasSaved' in _ec187)
+# 187-14: _execClassify always calls save when _appJobId is present (not gated on wasSaved)
+_saveP187 = (_ec187.split('var saveP')[1].split('Promise.resolve(null)')[0]
+             if 'var saveP' in _ec187 else '')
+check("187-14. _execClassify saveP condition is (uid && _appJobId) not (!wasSaved && uid)",
+      'uid && _appJobId' in _saveP187
+      and '!wasSaved' not in _saveP187)
 
 # 187-15: _reRenderCardFoot rebuilds footer with new classify btn + sched btn for interview
 _rrf187 = (_main187.split('function _reRenderCardFoot')[1]
@@ -9371,6 +9374,17 @@ _save_fail_branch187 = (_ec187b.split('saveRes && !saveRes.ok')[1].split('\n    
 check("187-22. save failure branch does not call showToast success or _reRenderCardFoot",
       'تم التصنيف' not in _save_fail_branch187
       and '_reRenderCardFoot' not in _save_fail_branch187)
+
+# 187-25: saveP is null (Promise.resolve(null)) when _appJobId is absent — no job-less save
+_sp187 = (_ec187.split('var saveP')[1].split('var statusP')[0]
+          if 'var saveP' in _ec187 and _ec187.index('var saveP') > _ec187.index('var statusP') - 1
+          else (_ec187.split('var saveP')[1].split('Promise.resolve')[0]
+                if 'var saveP' in _ec187 else ''))
+_sp187 = (_ec187b.split('var saveP')[1].split('Promise.resolve(null)')[0]
+          if 'var saveP' in _ec187b else '')
+check("187-25. saveP falls back to null when _appJobId is absent (no job-less save)",
+      '_appJobId' in _sp187 and 'Promise.resolve(null)' in
+      (_ec187b.split('var saveP')[1] if 'var saveP' in _ec187b else ''))
 
 # 187-23: catch block calls _loadApplicants when _appJobId is available (not just badge rollback)
 _ec187b = (_main187.split('function _execClassify')[1].split('function _applyClassifyBadge')[0]
