@@ -1197,7 +1197,25 @@
       return;
     }
 
+    // Client-side validation matching backend rules
+    if (_apptMode === 'online' && !urlVal) {
+      if (window.showToast) showToast('يرجى إدخال رابط المقابلة الأونلاين', 'error');
+      return;
+    }
+    if (_apptMode === 'onsite' && !locVal) {
+      if (window.showToast) showToast('يرجى إدخال موقع المقابلة', 'error');
+      return;
+    }
+
     var scheduledAt = dateVal + 'T' + timeVal + ':00';
+
+    // Deadline vs appointment time: scheduled must be > now + deadline_hours
+    var scheduledMs = new Date(scheduledAt).getTime();
+    var deadlineMs  = deadlineVal * 60 * 60 * 1000;
+    if (scheduledMs - Date.now() <= deadlineMs) {
+      if (window.showToast) showToast('مهلة الرد تنتهي بعد وقت الموعد — اختر موعداً أبعد أو مهلة أقصر', 'error');
+      return;
+    }
     _apptInFlight = true;
     var submitBtn = document.getElementById('coApptSubmit');
     if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'جارٍ الإرسال…'; }
@@ -1255,7 +1273,7 @@
       } else if (status === 401) {
         msg = 'انتهت الجلسة — سجّل دخولك مجدداً';
       } else {
-        msg = 'تعذّر إنشاء الموعد، حاول مجدداً';
+        msg = detail || 'تعذّر إنشاء الموعد، حاول مجدداً';
       }
       if (window.showToast) showToast(msg, 'error');
     });
@@ -2782,7 +2800,8 @@
               + ' data-jid="' + _esc(String(jl.job_id)) + '"'
               + ' data-title="' + _esc(jl.title || '') + '"'
               + ' data-apply-date="' + _esc(applyDate) + '"'
-              + ' data-app-status="' + _esc(jl.status || '') + '">'
+              + ' data-app-status="' + _esc(jl.application_status || '') + '"'
+              + ' data-cand-status="' + _esc(jl.candidate_status || '') + '">'
               + _esc(jl.title || ('وظيفة #' + jl.job_id)) + '</button>';
       });
       if (jobLinks.length > 3) {
@@ -2814,6 +2833,27 @@
     html += '<span class="co-cand-panel-counter">' + notes.length + ' / 500</span>';
     html += '</div>';
     html += _jobDpHTML('', linkedIds);
+    // Per-job candidate status section — one select per linked job
+    // Each select auto-saves via PATCH /company/saved-candidates/{cid}/jobs/{jid}
+    // Source of truth: company_candidate_job_refs.candidate_status (independent of application status)
+    if (jobLinks.length) {
+      html += '<label class="co-cand-panel-label">تصنيف المرشح لكل وظيفة</label>';
+      html += '<div class="co-cand-job-status-list">';
+      jobLinks.forEach(function (jl) {
+        var cs = jl.candidate_status || '';
+        html += '<div class="co-cand-job-status-row" data-jid="' + _esc(String(jl.job_id)) + '">';
+        html += '<span class="co-cand-job-status-title">' + _esc(jl.title || ('وظيفة #' + jl.job_id)) + '</span>';
+        html += '<select class="co-cand-job-status-sel" data-jid="' + _esc(String(jl.job_id)) + '" data-cid="' + cid + '">';
+        html += '<option value="">— غير مصنف —</option>';
+        _STATUS_ORDER.forEach(function (s) {
+          html += '<option value="' + _esc(s) + '"' + (cs === s ? ' selected' : '') + '>'
+               + _esc(_STATUS_LABELS[s]) + '</option>';
+        });
+        html += '</select>';
+        html += '</div>';
+      });
+      html += '</div>';
+    }
     html += '<div class="co-cand-panel-acts">';
     html += '<button class="co-cand-panel-save" data-cid="' + cid + '">حفظ التعديل</button>';
     html += '<button class="co-cand-panel-cancel" data-cid="' + cid + '">إلغاء</button>';
@@ -2839,6 +2879,8 @@
     _wireTextareaCounters();
     _body.removeEventListener('click', _onSavedClick);
     _body.addEventListener('click', _onSavedClick);
+    _body.removeEventListener('change', _onSavedChange);
+    _body.addEventListener('change', _onSavedChange);
 
     // Req 5 & 6: auto-open manage panel after switching from suggestions tab
     if (_pendingManageOpen != null) {
@@ -2858,6 +2900,39 @@
         }
       }
     }
+  }
+
+  // Delegated change handler — fires when user changes a per-job status select
+  function _onSavedChange(e) {
+    var sel = e.target.closest('.co-cand-job-status-sel');
+    if (!sel) return;
+    var cid   = parseInt(sel.getAttribute('data-cid'), 10);
+    var jid   = parseInt(sel.getAttribute('data-jid'), 10);
+    var cs    = sel.value || null;
+    if (!cid || !jid) return;
+    if (!window.updateCandidateJobStatus) return;
+
+    sel.disabled = true;
+    window.updateCandidateJobStatus(cid, jid, cs)
+      .then(function (res) {
+        if (!res || !res.ok) {
+          if (window.showToast) showToast('تعذّر حفظ التصنيف', 'error');
+          return;
+        }
+        // Sync data-cand-status on matching chip so popover shows fresh value
+        var card = sel.closest('.co-cand-saved-card');
+        if (card) {
+          var chip = card.querySelector('.co-cand-job-chip[data-jid="' + jid + '"]');
+          if (chip) chip.setAttribute('data-cand-status', cs || '');
+        }
+        if (window.showToast) showToast('تم حفظ التصنيف ✓');
+      })
+      .catch(function () {
+        if (window.showToast) showToast('تعذّر حفظ التصنيف', 'error');
+      })
+      .finally(function () {
+        sel.disabled = false;
+      });
   }
 
   function _onSavedClick(e) {
@@ -2906,15 +2981,17 @@
   }
 
   // ── Job chip popover ────────────────────────────────────────────
-  // Shows two separate rows: job application status + company classification
+  // Shows three separate rows: application status + per-job candidate status + general pipeline status
   function _showJobChipPop(chip) {
     var title      = chip.getAttribute('data-title') || '';
     var applyDate  = chip.getAttribute('data-apply-date') || '';
     var appStatus  = chip.getAttribute('data-app-status') || '';
-    var appLbl     = appStatus ? (_APP_STATUS_LABELS[appStatus] || appStatus) : 'لم يتقدم بعد';
+    var candJobSt  = chip.getAttribute('data-cand-status') || '';
+    var appLbl     = appStatus  ? (_APP_STATUS_LABELS[appStatus]  || appStatus)  : 'لم يتقدم بعد';
+    var candJobLbl = candJobSt  ? (_STATUS_LABELS[candJobSt]     || candJobSt)   : 'غير مصنف';
     var card       = chip.closest('.co-cand-saved-card');
-    var candStatus = card ? (card.getAttribute('data-status') || '') : '';
-    var candLbl    = _statusLabel(candStatus);
+    var genStatus  = card ? (card.getAttribute('data-status') || '') : '';
+    var genLbl     = _statusLabel(genStatus);
 
     var pop = document.getElementById('co-cand-job-pop');
     if (!pop) {
@@ -2924,12 +3001,15 @@
       document.body.appendChild(pop);
     }
 
-    // Row 1: job application status (from job_applications.status)
-    // Row 2: company classification of candidate (from company_saved_candidates.status)
-    var appCls = appStatus ? 'co-cjp-status' : 'co-cjp-no-app';
+    // Row 1: job application status (job_applications.status — applicant-driven)
+    // Row 2: per-job candidate classification (company_candidate_job_refs.candidate_status)
+    // Row 3: general pipeline status (company_saved_candidates.status)
+    var appCls     = appStatus  ? 'co-cjp-status'      : 'co-cjp-no-app';
+    var candJobCls = candJobSt  ? 'co-cjp-cand-job-st' : 'co-cjp-no-app';
     var html = '<div class="co-cjp-title">' + _esc(title) + '</div>';
     html += '<div class="co-cjp-row"><span>حالة الطلب</span><span class="' + appCls + '">' + _esc(appLbl) + '</span></div>';
-    html += '<div class="co-cjp-row"><span>تصنيف الشركة</span><span class="co-cjp-cand-status">' + _esc(candLbl) + '</span></div>';
+    html += '<div class="co-cjp-row"><span>تصنيف في الوظيفة</span><span class="' + candJobCls + '">' + _esc(candJobLbl) + '</span></div>';
+    html += '<div class="co-cjp-row"><span>التصنيف العام</span><span class="co-cjp-cand-status">' + _esc(genLbl) + '</span></div>';
     if (applyDate) {
       html += '<div class="co-cjp-row co-cjp-row--date"><span>تاريخ التقدم</span><span>' + _esc(applyDate) + '</span></div>';
     }
@@ -2990,7 +3070,8 @@
            + ' data-jid="' + _esc(String(jl.job_id)) + '"'
            + ' data-title="' + _esc(jl.title || '') + '"'
            + ' data-apply-date="' + _esc(applyDate) + '"'
-           + ' data-app-status="' + _esc(jl.status || '') + '">'
+           + ' data-app-status="' + _esc(jl.application_status || '') + '"'
+           + ' data-cand-status="' + _esc(jl.candidate_status || '') + '">'
            + _esc(jl.title || ('وظيفة #' + jl.job_id)) + '</button>';
     }).join('');
     if (links.length > 3) {
@@ -3154,10 +3235,11 @@
               ? companyState.jobs.find(function (j) { return String(j.id) === String(newJobId); })
               : null;
             var newLink = {
-              job_id:     newJobId,
-              title:      jobObj ? jobObj.title : ('وظيفة #' + newJobId),
-              apply_date: null,
-              status:     null,
+              job_id:               newJobId,
+              title:                jobObj ? jobObj.title : ('وظيفة #' + newJobId),
+              apply_date:           null,
+              application_status:   null,
+              candidate_status:     null,
             };
             var links = [];
             try { links = JSON.parse(card.getAttribute('data-job-links') || '[]'); } catch (e) {}

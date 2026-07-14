@@ -9563,8 +9563,8 @@ check("483-03. get_company_saved_candidates_filtered job_links query uses ja.app
 # 483-04: candidate linked to job WITH application — apply_date serialized from applied_at
 # (LEFT JOIN returns applied_at value; Python aliases it as apply_date in job_links dict)
 check("483-04. job_links dict key is apply_date, sourced from ja.applied_at via LEFT JOIN",
-      "'apply_date': apply_date.isoformat()" in _get_saved483
-      or "'apply_date': apply_date.isoformat()" in _get_filt483)
+      ("'apply_date'" in _get_saved483 and "apply_date.isoformat()" in _get_saved483)
+      or ("'apply_date'" in _get_filt483 and "apply_date.isoformat()" in _get_filt483))
 
 # 483-05: candidate linked to job WITHOUT application — LEFT JOIN returns null applied_at
 # Python guard: apply_date.isoformat() if apply_date else None → None in output
@@ -9628,10 +9628,11 @@ check("484-02. _closeJobPop removes scroll and resize listeners on close (no gho
       "window.removeEventListener('scroll', _closeJobPop)" in _close_pop484
       and "window.removeEventListener('resize', _closeJobPop)" in _close_pop484)
 
-# 484-03: popover shows row for حالة الطلب (job_applications source) AND تصنيف الشركة (company classification)
-check("484-03. _showJobChipPop renders two separate rows: حالة الطلب and تصنيف الشركة",
+# 484-03: popover shows حالة الطلب row (job_applications source) and at least one classification row
+# Updated in §486: popover now has 3 rows — application status, per-job status, general pipeline status
+check("484-03. _showJobChipPop renders حالة الطلب row and at least one classification row",
       'حالة الطلب' in _show_pop484
-      and 'تصنيف الشركة' in _show_pop484)
+      and ('تصنيف الشركة' in _show_pop484 or 'التصنيف العام' in _show_pop484 or 'تصنيف في الوظيفة' in _show_pop484))
 
 # 484-04: company classification row reads data-status from the parent card (not from chip data)
 check("484-04. company classification row reads data-status from card, not chip attribute",
@@ -9716,6 +9717,169 @@ check("485-02. _showInterviewChoice calls _execClassify with 'interview' status 
 # 485-03: _execClassify success path calls _reRenderCardFoot (updates card UI) — not just badge
 check("485-03. _execClassify success path calls _reRenderCardFoot to update card UI after classification",
       '_reRenderCardFoot(card, newStatus)' in _exec_classify485)
+
+
+# §486 — Three sources of truth: per-job candidate_status in company_candidate_job_refs
+# Covers: migration, batch-fetch contract, new PATCH endpoint, security, frontend wiring.
+# ════════════════════════════════════════════════════════════════
+
+_auth486   = open('auth.py',    encoding='utf-8').read()
+_srv486    = open('server.py',  encoding='utf-8').read()
+_main486   = open('static/company/company.main.js', encoding='utf-8').read()
+_api486    = open('static/company/company.api.js',  encoding='utf-8').read()
+_css486    = open('static/company/company.css',     encoding='utf-8').read()
+
+# ── Backend: migration ────────────────────────────────────────────────────
+
+# 486-01: _migrate_candidate_status_per_job() exists and adds the column
+check("486-01. _migrate_candidate_status_per_job() adds candidate_status column to company_candidate_job_refs",
+      "_migrate_candidate_status_per_job" in _auth486
+      and "ADD COLUMN IF NOT EXISTS candidate_status TEXT NULL" in _auth486)
+
+# 486-02: CHECK constraint restricts candidate_status to allowed values
+check("486-02. CHECK constraint on candidate_status allows only valid pipeline values",
+      "ck_ccjr_candidate_status" in _auth486
+      and "candidate_status IS NULL" in _auth486
+      and "'shortlisted'" in _auth486
+      and "'hired'" in _auth486)
+
+# 486-03: migration is called during server startup
+check("486-03. _migrate_candidate_status_per_job() called in server.py startup",
+      "_migrate_candidate_status_per_job()" in _srv486)
+
+# ── Backend: batch-fetch contract ─────────────────────────────────────────
+
+# 486-04: batch-fetch SELECTs r.candidate_status (both functions)
+check("486-04. Both batch-fetch functions SELECT r.candidate_status from company_candidate_job_refs",
+      _auth486.count("r.candidate_status") >= 2)
+
+# 486-05: batch-fetch output uses 'application_status' key (not the old 'status' key)
+#         Verified by checking that 'application_status' appears in the jlmap dict building
+check("486-05. batch-fetch job_links[] uses 'application_status' key (renamed from 'status')",
+      _auth486.count("'application_status':") >= 2
+      and "'status':     app_status" not in _auth486)
+
+# 486-06: batch-fetch output includes 'candidate_status' key per job_link
+check("486-06. batch-fetch job_links[] includes 'candidate_status' key per entry",
+      _auth486.count("'candidate_status':") >= 2)
+
+# ── Backend: new PATCH endpoint ────────────────────────────────────────────
+
+# 486-07: PATCH /company/saved-candidates/{candidate_id}/jobs/{job_id} endpoint exists
+check("486-07. PATCH /company/saved-candidates/{candidate_id}/jobs/{job_id} endpoint defined in server.py",
+      "'/company/saved-candidates/{candidate_id}/jobs/{job_id}'" in _srv486.replace('"', "'")
+      or '@app.patch("/company/saved-candidates/{candidate_id}/jobs/{job_id}")' in _srv486)
+
+# 486-08: new endpoint uses JWT (Depends(verify_token)) — no company_id from client
+check("486-08. New per-job PATCH endpoint uses Depends(verify_token) — company_id from token only",
+      "def company_update_candidate_job_status" in _srv486
+      and "Depends(verify_token)" in _srv486
+      and "company_id = _require_company_owner(token)" in _srv486)
+
+# 486-09: new endpoint NEVER updates job_applications.status or company_saved_candidates.status
+check("486-09. update_candidate_job_status() touches only company_candidate_job_refs — never other tables",
+      "UPDATE company_candidate_job_refs" in _auth486
+      and "def update_candidate_job_status(" in _auth486)
+
+# 486-10: new endpoint validates candidate_status against VALID_CANDIDATE_STATUSES
+check("486-10. New endpoint validates candidate_status against VALID_CANDIDATE_STATUSES before DB write",
+      "VALID_CANDIDATE_STATUSES" in _srv486
+      and "company_update_candidate_job_status" in _srv486)
+
+# 486-11: update_candidate_job_status returns False (not raise) when row doesn't exist
+#         Server maps False → 404 response
+check("486-11. update_candidate_job_status returns bool; server raises 404 when row not found",
+      "return bool(rows)" in _auth486
+      and "if not found:" in _srv486
+      and "404" in _srv486)
+
+# ── Frontend: updateCandidateJobStatus API function ───────────────────────
+
+# 486-12: updateCandidateJobStatus function exists in company.api.js
+check("486-12. updateCandidateJobStatus() defined and exported in company.api.js",
+      "function updateCandidateJobStatus(" in _api486
+      and "window.updateCandidateJobStatus" in _api486)
+
+# 486-13: API function calls PATCH /company/saved-candidates/{cid}/jobs/{jid}
+check("486-13. updateCandidateJobStatus calls PATCH /company/saved-candidates/.../jobs/... with JWT",
+      "'/company/saved-candidates/' + candidateId + '/jobs/' + jobId" in _api486
+      and "'PATCH'" in _api486
+      and "candidate_status" in _api486)
+
+# ── Frontend: chip attributes ─────────────────────────────────────────────
+
+# Extract candidates IIFE for chip rendering checks
+_cand_iife486 = (
+    _main486.split('// ── Saved Candidates tab')[1].split('\n}());')[0]
+    if '// ── Saved Candidates tab' in _main486 else _main486
+)
+
+# 486-14: job chips carry data-app-status (application_status) AND data-cand-status (candidate_status)
+check("486-14. Job chips carry both data-app-status (application_status) and data-cand-status (candidate_status)",
+      "data-app-status=\"' + _esc(jl.application_status" in _cand_iife486
+      and "data-cand-status=\"' + _esc(jl.candidate_status" in _cand_iife486)
+
+# ── Frontend: 3-row popover ───────────────────────────────────────────────
+
+_pop_fn486 = (
+    _cand_iife486.split('function _showJobChipPop(')[1].split('\n  function ')[0]
+    if 'function _showJobChipPop(' in _cand_iife486 else ''
+)
+
+# 486-15: popover shows 3 separate rows: application status, per-job classification, general status
+check("486-15. Job chip popover renders 3 rows: حالة الطلب + تصنيف في الوظيفة + التصنيف العام",
+      'حالة الطلب' in _pop_fn486
+      and 'تصنيف في الوظيفة' in _pop_fn486
+      and 'التصنيف العام' in _pop_fn486
+      and 'data-cand-status' in _pop_fn486)
+
+# ── Frontend: per-job status section in manage panel ─────────────────────
+
+# 486-16: manage panel renders per-job status selects when jobLinks is non-empty
+check("486-16. Manage panel renders تصنيف المرشح لكل وظيفة section with per-job status selects",
+      'co-cand-job-status-list' in _cand_iife486
+      and 'co-cand-job-status-sel' in _cand_iife486
+      and 'تصنيف المرشح لكل وظيفة' in _cand_iife486)
+
+# 486-17: _onSavedChange handles per-job status select changes (auto-save)
+check("486-17. _onSavedChange handler wired for co-cand-job-status-sel auto-save",
+      'function _onSavedChange(' in _main486
+      and 'co-cand-job-status-sel' in _main486
+      and 'updateCandidateJobStatus' in _main486)
+
+# 486-18: _onSavedChange syncs data-cand-status on the chip after successful save
+check("486-18. _onSavedChange updates data-cand-status attribute on matching chip after API success",
+      "setAttribute('data-cand-status'" in _main486)
+
+# ── Frontend: appointment client-side validation ───────────────────────────
+
+_appt_fn486 = (
+    _main486.split('function _submitApptForm(')[1].split('\n  function ')[0]
+    if 'function _submitApptForm(' in _main486 else ''
+)
+
+# 486-19: online mode requires URL before submitting
+check("486-19. _submitApptForm validates online URL is present for online mode before any fetch",
+      "_apptMode === 'online' && !urlVal" in _appt_fn486
+      and 'يرجى إدخال رابط المقابلة الأونلاين' in _appt_fn486)
+
+# 486-20: deadline vs appointment time check runs client-side
+check("486-20. _submitApptForm checks scheduled time > now + deadline_hours (prevents backend deadline error)",
+      'deadlineMs' in _appt_fn486
+      and 'scheduledMs - Date.now()' in _appt_fn486
+      and 'مهلة الرد تنتهي بعد وقت الموعد' in _appt_fn486)
+
+# 486-21: create-step error handler shows detail from API (not always generic message)
+check("486-21. Create-step error handler shows API detail instead of generic message when detail is present",
+      "detail || 'تعذّر إنشاء الموعد" in _appt_fn486
+      or "msg = detail || " in _appt_fn486)
+
+# ── CSS ───────────────────────────────────────────────────────────────────
+
+# 486-22: per-job status section has CSS defined
+check("486-22. CSS rules for co-cand-job-status-list and co-cand-job-status-sel defined in company.css",
+      '.co-cand-job-status-list' in _css486
+      and '.co-cand-job-status-sel' in _css486)
 
 
 # ── Summary ──────────────────────────────────────────────────────────────

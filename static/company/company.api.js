@@ -268,6 +268,19 @@
     }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, status: r.status, data: d }; }); });
   }
 
+  // Per-job candidate classification — PATCH /company/saved-candidates/{cid}/jobs/{jid}
+  // Touches only company_candidate_job_refs.candidate_status.
+  // Never modifies job_applications.status or company_saved_candidates.status.
+  function updateCandidateJobStatus(candidateId, jobId, candidateStatus) {
+    var jwt = window._jwt ? window._jwt() : '';
+    if (!jwt) return Promise.resolve({ ok: false, data: {} });
+    return fetch('/company/saved-candidates/' + candidateId + '/jobs/' + jobId, {
+      method: 'PATCH',
+      headers: { 'Authorization': 'Bearer ' + jwt, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ candidate_status: candidateStatus || null })
+    }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, status: r.status, data: d }; }); });
+  }
+
   // Communication Hub — owner-only, calls existing GET /api/appointments endpoint
   function loadCompanyAppointments(cb) {
     var jwt = window._jwt ? window._jwt() : '';
@@ -295,5 +308,6 @@
   window.getCandidateSuggestions    = getCandidateSuggestions;
   window.saveSuggestedCandidate     = saveSuggestedCandidate;
   window.updateSavedCandidate       = updateSavedCandidate;
+  window.updateCandidateJobStatus   = updateCandidateJobStatus;
   window.loadCompanyAppointments    = loadCompanyAppointments;
 }());

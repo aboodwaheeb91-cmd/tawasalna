@@ -4756,6 +4756,36 @@ def _migrate_company_candidate_job_refs():
         release_conn(conn)
 
 
+def _migrate_candidate_status_per_job():
+    """Add candidate_status column to company_candidate_job_refs (idempotent).
+
+    Adds the company's independent per-job classification of a candidate.
+    Separate from job_applications.status (applicant-driven) and
+    company_saved_candidates.status (general pipeline status).
+    NULL means the company has not classified the candidate for that specific job.
+    """
+    conn = get_conn()
+    try:
+        conn.run("""
+            ALTER TABLE company_candidate_job_refs
+            ADD COLUMN IF NOT EXISTS candidate_status TEXT NULL
+        """)
+        conn.run("""
+            ALTER TABLE company_candidate_job_refs
+            DROP CONSTRAINT IF EXISTS ck_ccjr_candidate_status
+        """)
+        conn.run("""
+            ALTER TABLE company_candidate_job_refs
+            ADD CONSTRAINT ck_ccjr_candidate_status
+            CHECK (
+                candidate_status IS NULL OR
+                candidate_status IN ('saved','shortlisted','contacted','interview','hired','rejected')
+            )
+        """)
+    finally:
+        release_conn(conn)
+
+
 def save_company_candidate(company_id: int, candidate_id: int, saved_by: int,
                             job_id: int = None, notes: str = None) -> int:
     """
@@ -4880,7 +4910,7 @@ def get_company_saved_candidates(company_id: int, limit: int = 20, offset: int =
         if items:
             id_clause = ','.join(str(r['candidate_id']) for r in items)
             trows = conn.run(
-                f"SELECT r.candidate_id, j.id, j.title, ja.applied_at, ja.status "
+                f"SELECT r.candidate_id, j.id, j.title, ja.applied_at, ja.status, r.candidate_status "
                 f"FROM company_candidate_job_refs r "
                 f"JOIN jobs j ON j.id = r.job_id "
                 f"LEFT JOIN job_applications ja ON ja.job_id = j.id AND ja.user_id = r.candidate_id "
@@ -4891,16 +4921,18 @@ def get_company_saved_candidates(company_id: int, limit: int = 20, offset: int =
             jlmap = {}
             for trow in trows:
                 uid  = int(trow[0])
-                jid, title, apply_date, app_status = int(trow[1]), trow[2], trow[3], trow[4]
+                jid, title, apply_date, app_status, cand_status = (
+                    int(trow[1]), trow[2], trow[3], trow[4], trow[5])
                 if uid not in jtmap:
                     jtmap[uid] = []
                     jlmap[uid] = []
                 jtmap[uid].append(title)
                 jlmap[uid].append({
-                    'job_id':     jid,
-                    'title':      title,
-                    'apply_date': apply_date.isoformat() if apply_date else None,
-                    'status':     app_status or None,
+                    'job_id':             jid,
+                    'title':              title,
+                    'apply_date':         apply_date.isoformat() if apply_date else None,
+                    'application_status': app_status or None,
+                    'candidate_status':   cand_status or None,
                 })
             for item in items:
                 item['job_titles'] = jtmap.get(item['candidate_id'], [])
@@ -5083,7 +5115,7 @@ def get_company_saved_candidates_filtered(
         if items:
             id_clause = ','.join(str(r['candidate_id']) for r in items)
             trows = conn.run(
-                f"SELECT r.candidate_id, j.id, j.title, ja.applied_at, ja.status "
+                f"SELECT r.candidate_id, j.id, j.title, ja.applied_at, ja.status, r.candidate_status "
                 f"FROM company_candidate_job_refs r "
                 f"JOIN jobs j ON j.id = r.job_id "
                 f"LEFT JOIN job_applications ja ON ja.job_id = j.id AND ja.user_id = r.candidate_id "
@@ -5094,18 +5126,20 @@ def get_company_saved_candidates_filtered(
             jlmap = {}
             for trow in trows:
                 uid  = int(trow[0])
-                jid, title, apply_date, app_status = int(trow[1]), trow[2], trow[3], trow[4]
+                jid, title, apply_date, app_status, cand_status = (
+                    int(trow[1]), trow[2], trow[3], trow[4], trow[5])
                 if uid not in jtmap:
                     jtmap[uid] = []
                     jlmap[uid] = []
                 jtmap[uid].append(title)
                 jlmap[uid].append({
-                    'job_id':     jid,
-                    'title':      title,
-                    'apply_date': apply_date.isoformat() if apply_date else None,
-                    'status':     app_status or None,
+                    'job_id':             jid,
+                    'title':              title,
+                    'apply_date':         apply_date.isoformat() if apply_date else None,
+                    'application_status': app_status or None,
+                    'candidate_status':   cand_status or None,
                 })
-            accepted_ids = set()
+            accepted_ids  = set()
             if job_id is not None:
                 acc_rows = conn.run(
                     f"SELECT ja.user_id "
@@ -5287,6 +5321,46 @@ def update_company_saved_candidate(
             "created_at":     row[10],
             "updated_at":     row[11],
         })
+    finally:
+        release_conn(conn)
+
+
+def update_candidate_job_status(
+    company_id: int,
+    candidate_id: int,
+    job_id: int,
+    candidate_status: str | None,
+) -> bool:
+    """
+    Update the per-job candidate_status in company_candidate_job_refs.
+
+    Three independent sources of truth:
+      - job_applications.status         — applicant-driven application status
+      - company_saved_candidates.status — general pipeline classification
+      - company_candidate_job_refs.candidate_status — THIS FIELD: per-job classification
+
+    This function only touches company_candidate_job_refs.candidate_status.
+    It never reads or modifies job_applications.status or company_saved_candidates.status.
+
+    Returns True on success, False if the row doesn't exist.
+    Raises ValueError for invalid status values.
+    """
+    allowed = VALID_CANDIDATE_STATUSES | {None}
+    if candidate_status not in allowed:
+        raise ValueError(
+            "قيمة candidate_status غير مسموحة. القيم المسموحة: "
+            + ", ".join(sorted(VALID_CANDIDATE_STATUSES))
+        )
+
+    conn = get_conn()
+    try:
+        rows = conn.run(
+            "UPDATE company_candidate_job_refs "
+            "SET candidate_status = :cs "
+            "WHERE company_id = :cid AND candidate_id = :uid AND job_id = :jid "
+            "RETURNING job_id",
+            cs=candidate_status, cid=company_id, uid=candidate_id, jid=job_id)
+        return bool(rows)
     finally:
         release_conn(conn)
 

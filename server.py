@@ -102,10 +102,12 @@ from auth import (
     is_profile_interest_active, get_profile_interest_type, get_profile_interest_label,
     is_candidate_saved,
     _migrate_company_saved_candidates, _migrate_company_candidate_job_refs,
+    _migrate_candidate_status_per_job,
     save_company_candidate, remove_company_candidate,
     get_company_saved_candidates, get_company_saved_candidates_count,
     get_company_saved_candidates_filtered, get_company_saved_candidates_stats,
-    update_company_saved_candidate, VALID_CANDIDATE_STATUSES, VALID_CANDIDATE_SORTS,
+    update_company_saved_candidate, update_candidate_job_status,
+    VALID_CANDIDATE_STATUSES, VALID_CANDIDATE_SORTS,
     get_company_candidate_suggestions,
     _migrate_appointments,
     _migrate_scheduler_jobs,
@@ -471,6 +473,11 @@ async def on_startup():
         print("✅ company_candidate_job_refs table ready")
     except Exception as e:
         print(f"⚠️ company_candidate_job_refs migration failed: {e}")
+    try:
+        _migrate_candidate_status_per_job()
+        print("✅ company_candidate_job_refs.candidate_status column ready")
+    except Exception as e:
+        print(f"⚠️ candidate_status_per_job migration failed: {e}")
     try:
         _migrate_jobs_v2()
         print("✅ jobs v2 columns ready")
@@ -1129,6 +1136,10 @@ class UpdateSavedCandidateInput(BaseModel):
     status: Optional[str] = None
     notes:  Optional[str] = None
     job_id: Optional[int] = None
+
+
+class UpdateCandidateJobStatusInput(BaseModel):
+    candidate_status: Optional[str] = None
 
 
 @app.put("/company/profile/{company_id}")
@@ -2364,6 +2375,60 @@ def company_update_saved_candidate(
         raise HTTPException(404, "المرشح غير موجود في قائمة المحفوظين")
 
     return {"status": "success", "item": result}
+
+
+@app.patch("/company/saved-candidates/{candidate_id}/jobs/{job_id}")
+def company_update_candidate_job_status(
+    candidate_id: int,
+    job_id: int,
+    data: UpdateCandidateJobStatusInput,
+    token: dict = Depends(verify_token)
+):
+    """
+    PATCH /company/saved-candidates/{candidate_id}/jobs/{job_id}
+    Update the per-job candidate_status in company_candidate_job_refs.
+
+    Auth: JWT Bearer only. company_id is always derived from token — never accepted from client.
+
+    Body: { "candidate_status": "shortlisted" | "contacted" | ... | null }
+
+    Three independent sources of truth:
+      - job_applications.status           → applicant's application status (NEVER touched here)
+      - company_saved_candidates.status   → general pipeline status (NEVER touched here)
+      - company_candidate_job_refs.candidate_status → this endpoint only
+
+    Valid values: saved | shortlisted | contacted | interview | hired | rejected | null (clears)
+    Returns: { status: "success", candidate_id, job_id, candidate_status }
+    """
+    company_id = _require_company_owner(token)
+
+    cs = data.candidate_status
+    if cs is not None and cs not in VALID_CANDIDATE_STATUSES:
+        raise HTTPException(
+            400,
+            "قيمة candidate_status غير مسموحة. القيم المسموحة: "
+            + ", ".join(sorted(VALID_CANDIDATE_STATUSES))
+        )
+
+    try:
+        found = update_candidate_job_status(
+            company_id=company_id,
+            candidate_id=candidate_id,
+            job_id=job_id,
+            candidate_status=cs,
+        )
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+    if not found:
+        raise HTTPException(404, "الربط بين المرشح والوظيفة غير موجود أو لا تملك صلاحية تعديله")
+
+    return {
+        "status":           "success",
+        "candidate_id":     candidate_id,
+        "job_id":           job_id,
+        "candidate_status": cs,
+    }
 
 
 @app.get("/company/candidate-suggestions")
