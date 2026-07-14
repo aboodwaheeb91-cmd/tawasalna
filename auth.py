@@ -2382,10 +2382,9 @@ def update_application_status(app_id: int, status: str, actor_id: int = None) ->
         conn.run("UPDATE job_applications SET status=:s WHERE id=:id", s=status, id=app_id)
     finally:
         release_conn(conn)
-    # accepted/rejected are internal company workflow states — no direct notification to applicant.
-    # Applicant-facing communication for final decisions will flow through the future
-    # Appointments / Interview Rooms system (see docs/FUTURE_ROADMAP.md §15).
-    _INTERNAL_STATUSES = {"accepted", "rejected"}
+    # All pipeline classification states are internal to the company — no notification to applicant.
+    # The only applicant-visible action is a formal appointment invitation via the Appointments system.
+    _INTERNAL_STATUSES = {"accepted", "rejected", "contacted", "interview", "hired"}
     if applicant_id and status not in _INTERNAL_STATUSES and (actor_id is None or int(applicant_id) != int(actor_id)):
         _labels = {
             "viewed": ("بدأت مراجعة طلبك", f"بدأت الشركة مراجعة طلبك على وظيفة «{job_title}»"),

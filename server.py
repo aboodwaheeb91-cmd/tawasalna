@@ -1404,7 +1404,7 @@ class JobApplyInput(BaseModel):
     cover_letter: Optional[str] = ""
 
 class AppStatusInput(BaseModel):
-    status: str  # pending, viewed, accepted, rejected
+    status: str  # pending, viewed, accepted, contacted, interview, hired, rejected
 
 class JobStatusInput(BaseModel):
     status: str  # active, paused
@@ -4000,7 +4000,7 @@ def update_app_status(app_id: int, data: AppStatusInput, token=Depends(verify_to
     if not user_id:
         print(f"[SECURITY] INVALID_TOKEN: PUT /jobs/applications/{app_id}/status")
         raise HTTPException(401, "رمز غير صالح")
-    allowed_statuses = {"pending", "viewed", "accepted", "rejected"}
+    allowed_statuses = {"pending", "viewed", "accepted", "contacted", "interview", "hired", "rejected"}
     if data.status not in allowed_statuses:
         raise HTTPException(400, f"حالة غير صالحة. المسموح: {', '.join(sorted(allowed_statuses))}")
     conn = get_conn()

@@ -8812,28 +8812,32 @@ check("182-24. empty RETURNING result raises RuntimeError (no silent fallback)",
 with open("static/company/company.main.js", encoding="utf-8") as _f183:
     _main183 = _f183.read()
 
-# 183-01: accepted label renamed to "مرشح قوي" in _APP_STATUS_LABEL
+# 183-01: accepted label is "مرشح قوي" in _APP_STATUS_LABEL
+_asl183 = _main183.split('_APP_STATUS_LABEL')[1][:300] if '_APP_STATUS_LABEL' in _main183 else ''
 check("183-01. _APP_STATUS_LABEL['accepted'] is 'مرشح قوي'",
-      "accepted: 'مرشح قوي'" in _main183 or 'accepted: "مرشح قوي"' in _main183)
+      'مرشح قوي' in _asl183)
 
-# 183-02: promote button rendered for pending/viewed cards
-check("183-02. co-app-promote-btn rendered for pending/viewed status cards",
-      'co-app-promote-btn' in _main183
-      and "statusKey === 'pending' || statusKey === 'viewed'" in _main183)
+# 183-02: classify button rendered (replaces old promote-btn)
+check("183-02. co-classify-btn rendered in _renderApplicants (replaces promote-btn)",
+      'co-classify-btn' in _main183
+      and 'حفظ وتصنيف' in _main183)
 
-# 183-03: interview button rendered for accepted cards (PR-C enables it; no longer starts disabled)
-check("183-03. co-app-interview-btn rendered for accepted cards (enabled in PR-C)",
-      'co-app-interview-btn' in _main183)
+# 183-03: sched button rendered for interview status (replaces interview-btn on accepted)
+check("183-03. co-app-sched-btn rendered for interview status in _renderApplicants",
+      'co-app-sched-btn' in _main183
+      and "isInterview" in _main183)
 
-# 183-04: no primary button for rejected (no promote/interview btn rendered when rejected)
-check("183-04. no primary button rendered for rejected status",
-      "// rejected: no primary button" in _main183
-      or "rejected" in _main183.split("primaryBtn = ''")[0].split("statusKey")[-1])
+# 183-04: rejected cards get co-app-card--rejected class and show reclassify btn
+check("183-04. rejected card gets co-app-card--rejected class and إعادة التصنيف",
+      'co-app-card--rejected' in _main183
+      and 'إعادة التصنيف' in _main183)
 
-# 183-05: _wireApplicantCards delegates to .co-app-promote-btn (not .co-app-accept-btn)
-check("183-05. _wireApplicantCards uses co-app-promote-btn, not co-app-accept-btn",
-      'co-app-promote-btn' in _main183
-      and 'co-app-accept-btn' not in _main183.split('function _wireApplicantCards')[1].split('function _onSaveApplicant')[0])
+# 183-05: _wireApplicantCards delegates to co-classify-btn (not old promote/save/menu)
+_wire183 = (_main183.split('function _wireApplicantCards')[1].split('function _onSchedBtn')[0]
+            if 'function _wireApplicantCards' in _main183 else '')
+check("183-05. _wireApplicantCards uses co-classify-btn, not old co-app-promote-btn",
+      'co-classify-btn' in _wire183
+      and 'co-app-promote-btn' not in _wire183)
 
 # 183-06: _onPromote function defined
 check("183-06. _onPromote function defined",
@@ -8849,13 +8853,15 @@ check("183-07. _execPromote calls POST /jobs/applications/{id}/promote",
 check("183-08. _execPromote disables promote button during in-flight",
       'promoteBtn.disabled    = true' in _main183 or 'promoteBtn.disabled = true' in _main183)
 
-# 183-09: success path swaps promote btn → interview btn in DOM
-check("183-09. success: replaceChild swaps promote btn to interview btn",
-      'replaceChild(interviewBtn, promoteBtn)' in _main183)
+# 183-09: success path calls _reRenderCardFoot (replaces old replaceChild promote→interview)
+_exec183p = (_main183.split('function _execPromote')[1].split('function _onSchedBtn')[0]
+             if 'function _execPromote' in _main183 else '')
+check("183-09. success: _execPromote calls _reRenderCardFoot instead of DOM swap",
+      '_reRenderCardFoot' in _exec183p)
 
-# 183-10: 409 error shows specific "غير مناسب" toast
-check("183-10. 409 error shows 'غير مناسب' toast message",
-      'status === 409' in _main183 and 'غير مناسب' in _main183.split('status === 409')[1][:200])
+# 183-10: 409 error removed (غير مناسب classification now via dropdown, not reject endpoint)
+check("183-10. 409 status === 409 check removed from _execPromote (new flow has no 409)",
+      'status === 409' not in _exec183p)
 
 # 183-11: _astFloat option label for accepted is "مرشح قوي" (not "مقبول")
 check("183-11. _astFloat accepted option label is 'مرشح قوي'",
@@ -8892,16 +8898,16 @@ check("184-01. _apptByAppId and _apptIndexLoaded declared",
 check("184-02. card div has data-name attribute in _renderApplicants",
       'data-name="' in _main184 and '_escApp(a.full_name' in _main184)
 
-# 184-03: interview btn rendered without disabled in _renderApplicants
+# 184-03: sched button rendered for interview status in _renderApplicants
 _render184 = _main184.split('function _renderApplicants')[1].split('function _wireApplicantCards')[0] if 'function _renderApplicants' in _main184 else ''
-check("184-03. interview btn rendered without disabled in _renderApplicants",
-      'co-app-interview-btn' in _render184
-      and 'disabled>تحديد مقابلة' not in _render184)
+check("184-03. co-app-sched-btn rendered for interview status in _renderApplicants",
+      'co-app-sched-btn' in _render184
+      and 'isInterview' in _render184)
 
-# 184-04: _wireApplicantCards handles co-app-interview-btn click
-_wire184 = _main184.split('function _wireApplicantCards')[1].split('function _onPromote')[0] if 'function _wireApplicantCards' in _main184 else ''
-check("184-04. _wireApplicantCards delegates co-app-interview-btn to _onInterviewBtn",
-      'co-app-interview-btn' in _wire184 and '_onInterviewBtn' in _wire184)
+# 184-04: _wireApplicantCards delegates co-app-sched-btn to _onSchedBtn
+_wire184 = _main184.split('function _wireApplicantCards')[1].split('function _onSchedBtn')[0] if 'function _wireApplicantCards' in _main184 else ''
+check("184-04. _wireApplicantCards delegates co-app-sched-btn to _onSchedBtn",
+      'co-app-sched-btn' in _wire184 and '_onSchedBtn' in _wire184)
 
 # 184-05: _loadApptIndex function defined
 check("184-05. _loadApptIndex function defined",
@@ -8918,9 +8924,9 @@ check("184-07. _applyApptIndexToCards swaps interview btn to open-appt link",
       and 'co-app-open-appt-btn' in _main184
       and 'appointment-room?id=' in _main184)
 
-# 184-08: _onInterviewBtn function defined
-check("184-08. _onInterviewBtn function defined",
-      'function _onInterviewBtn' in _main184)
+# 184-08: _onSchedBtn function defined (renamed from _onInterviewBtn)
+check("184-08. _onSchedBtn function defined (replaces _onInterviewBtn)",
+      'function _onSchedBtn' in _main184)
 
 # 184-09: _openApptModal function defined
 check("184-09. _openApptModal function defined",
@@ -8951,10 +8957,10 @@ check("184-14. success navigates to /appointment-room?id=",
       "location.href = '/appointment-room?id=' + apptId" in _main184
       or "/appointment-room?id='" in _main184)
 
-# 184-15: _execPromote creates interview btn with disabled=false (PR-C wires it)
+# 184-15: _execPromote calls _reRenderCardFoot on success (replaces manual interview-btn creation)
 _exec184 = _main184.split('function _execPromote')[1].split('function _onSaveApplicant')[0] if 'function _execPromote' in _main184 else ''
-check("184-15. _execPromote creates interview btn with disabled=false",
-      'interviewBtn.disabled  = false' in _exec184 or 'interviewBtn.disabled = false' in _exec184)
+check("184-15. _execPromote calls _reRenderCardFoot on success (no manual interview-btn DOM swap)",
+      '_reRenderCardFoot' in _exec184 and 'interviewBtn' not in _exec184)
 
 # 184-16: appointment modal HTML exists in company-profile.html
 check("184-16. #coApptModal overlay exists in company-profile.html",
@@ -8994,11 +9000,11 @@ _apply184 = (_main184.split('function _applyApptIndexToCards')[1]
 check("184-22. _applyApptIndexToCards skips draft entries — interview btn stays for retry",
       '_isApptDraft' in _apply184)
 
-# 184-23: _onInterviewBtn routes draft entries to _openApptModal (not window.open)
-_onint184 = (_main184.split('function _onInterviewBtn')[1]
+# 184-23: _onSchedBtn routes draft entries to _openApptModal (not window.open)
+_onint184 = (_main184.split('function _onSchedBtn')[1]
              .split('function _openApptModal')[0]
-             if 'function _onInterviewBtn' in _main184 else '')
-check("184-23. _onInterviewBtn routes draft entries to _openApptModal (not room)",
+             if 'function _onSchedBtn' in _main184 else '')
+check("184-23. _onSchedBtn routes draft entries to _openApptModal (not room)",
       '_isApptDraft' in _onint184 and '_openApptModal' in _onint184)
 
 # 184-24: after create success, draft stored in _apptByAppId BEFORE _execSendStep is called
@@ -9226,6 +9232,129 @@ check("186-13. per_job_accepted still sourced from job_applications.status='acce
       and 'acc_rows' in _gscf186
       and 'job_applications' in _gscf186
       and 'accepted_ids' in _gscf186)
+
+# ═══════════════════════════════════════════════════════════════════════════
+# §187 — New Applicant Card UI (feat/applicant-classify-ui)
+#   - 7-option classify dropdown replaces promote-btn + ⋮ menu
+#   - Interview choice mini-portal (الآن / لاحقاً)
+#   - Rejected card dimming + إعادة التصنيف
+#   - Hired state hides غير مناسب from dropdown
+#   - _execClassify unified save+status action
+#   - Backend: 'contacted','interview','hired' in allowed_statuses + _INTERNAL_STATUSES
+# ═══════════════════════════════════════════════════════════════════════════
+with open("static/company/company.main.js", encoding="utf-8") as _f187:
+    _main187 = _f187.read()
+with open("static/company/company.css", encoding="utf-8") as _f187c:
+    _css187 = _f187c.read()
+with open("server.py", encoding="utf-8") as _f187s:
+    _srv187 = _f187s.read()
+with open("auth.py", encoding="utf-8") as _f187a:
+    _auth187 = _f187a.read()
+
+# 187-01: server.py allowed_statuses includes contacted, interview, hired (double-quoted in set)
+_allowed187 = (_srv187.split('allowed_statuses = {')[1][:200]
+               if 'allowed_statuses = {' in _srv187 else '')
+check("187-01. server.py allowed_statuses includes contacted, interview, hired",
+      'contacted' in _allowed187 and 'interview' in _allowed187 and 'hired' in _allowed187)
+
+# 187-02: _INTERNAL_STATUSES in auth.py includes contacted, interview, hired
+check("187-02. _INTERNAL_STATUSES includes contacted, interview, hired",
+      'contacted' in _auth187.split('_INTERNAL_STATUSES')[1][:200]
+      and 'interview' in _auth187.split('_INTERNAL_STATUSES')[1][:200]
+      and 'hired' in _auth187.split('_INTERNAL_STATUSES')[1][:200])
+
+# 187-03: _APP_STATUS_LABEL has all 7 statuses
+_asl187 = _main187.split('_APP_STATUS_LABEL')[1][:400] if '_APP_STATUS_LABEL' in _main187 else ''
+check("187-03. _APP_STATUS_LABEL has all 7 statuses",
+      'contacted' in _asl187 and 'interview' in _asl187 and 'hired' in _asl187
+      and 'مرشح قوي' in _asl187 and 'غير مناسب' in _asl187)
+
+# 187-04: _renderApplicants shows co-classify-btn with data-uid attribute
+_rend187 = (_main187.split('function _renderApplicants')[1].split('function _wireApplicantCards')[0]
+            if 'function _renderApplicants' in _main187 else '')
+check("187-04. _renderApplicants renders co-classify-btn with data-uid",
+      'co-classify-btn' in _rend187 and 'data-uid' in _rend187)
+
+# 187-05: _renderApplicants shows حفظ وتصنيف label for fresh unclassified applicants
+check("187-05. حفظ وتصنيف label for unclassified applicants in _renderApplicants",
+      'حفظ وتصنيف' in _rend187 and 'isClassified' in _rend187)
+
+# 187-06: _renderApplicants shows إعادة التصنيف for rejected
+check("187-06. إعادة التصنيف label for rejected applicants in _renderApplicants",
+      'إعادة التصنيف' in _rend187 and 'isRejected' in _rend187)
+
+# 187-07: _renderApplicants adds co-app-card--rejected class for rejected cards
+check("187-07. co-app-card--rejected class added for rejected cards",
+      'co-app-card--rejected' in _rend187)
+
+# 187-08: _initClassifyFloat has all 7 options (use full function boundary)
+_clf187 = (_main187.split('function _initClassifyFloat')[1].split('function _openClassifyFloat')[0]
+           if 'function _initClassifyFloat' in _main187 else '')
+check("187-08. classify float has 7 options including contacted, interview, hired",
+      'data-val="contacted"' in _clf187 and 'data-val="interview"' in _clf187 and 'data-val="hired"' in _clf187)
+
+# 187-09: hired state hides غير مناسب option (data-hired check in _openClassifyFloat)
+_ocf187 = (_main187.split('function _openClassifyFloat')[1].split('function _closeClassifyFloat')[0]
+           if 'function _openClassifyFloat' in _main187 else '')
+check("187-09. _openClassifyFloat hides reject option when data-hired='1'",
+      'data-hired' in _ocf187 and 'rejectOpt' in _ocf187 and "isHired ? 'none'" in _ocf187)
+
+# 187-10: interview choice mini-portal (co-ic-float) created lazily in _showInterviewChoice
+_sic187 = (_main187.split('function _showInterviewChoice')[1].split('function _closeInterviewChoice')[0]
+           if 'function _showInterviewChoice' in _main187 else '')
+check("187-10. _showInterviewChoice creates co-ic-float mini-portal lazily",
+      'co-ic-float' in _sic187 and '_icFloat' in _sic187 and 'الآن' in _sic187 and 'لاحقاً' in _sic187)
+
+# 187-11: الآن path calls _execClassify then _openApptModal
+check("187-11. الآن choice calls _execClassify then _openApptModal",
+      '_execClassify' in _sic187 and '_openApptModal' in _sic187)
+
+# 187-12: لاحقاً path calls _execClassify with null (no appt modal)
+_later187 = _sic187.split('laterBtn')[1] if 'laterBtn' in _sic187 else ''
+check("187-12. لاحقاً choice calls _execClassify with null onSuccess",
+      '_execClassify' in _later187 and 'null' in _later187)
+
+# 187-13: _execClassify defined; routes accepted→_execPromote, others→PUT /status
+_ec187 = (_main187.split('function _execClassify')[1].split('function _applyClassifyBadge')[0]
+          if 'function _execClassify' in _main187 else '')
+check("187-13. _execClassify routes accepted to _execPromote, others to PUT /status",
+      '_execPromote' in _ec187 and '/jobs/applications/' in _ec187)
+
+# 187-14: _execClassify saves candidate when wasSaved=false (POST to saved-candidates)
+check("187-14. _execClassify calls save-candidates endpoint when wasSaved is false",
+      '/company/saved-candidates/' in _ec187 and 'wasSaved' in _ec187)
+
+# 187-15: _reRenderCardFoot rebuilds footer with new classify btn + sched btn for interview
+_rrf187 = (_main187.split('function _reRenderCardFoot')[1]
+           if 'function _reRenderCardFoot' in _main187 else '')
+check("187-15. _reRenderCardFoot rebuilds footer: classify btn + sched btn for interview",
+      'co-classify-btn' in _rrf187 and 'co-app-sched-btn' in _rrf187 and 'isInterview' in _rrf187)
+
+# 187-16: _applyApptIndexToCards looks for co-app-sched-btn (not old interview-btn)
+_aaic187 = (_main187.split('function _applyApptIndexToCards')[1].split('function _isApptActive')[0]
+            if 'function _applyApptIndexToCards' in _main187 else '')
+check("187-16. _applyApptIndexToCards looks for co-app-sched-btn not co-app-interview-btn",
+      'co-app-sched-btn' in _aaic187 and 'co-app-interview-btn' not in _aaic187)
+
+# 187-17: _execSendStep success swaps co-app-sched-btn (not old interview-btn)
+_ess187 = (_main187.split('function _execSendStep')[1].split('function _isApptActive')[0]
+           if 'function _execSendStep' in _main187 else '')
+check("187-17. _execSendStep success swaps co-app-sched-btn to open-appt link",
+      'co-app-sched-btn' in _ess187 and 'co-app-interview-btn' not in _ess187)
+
+# 187-18: CSS has co-app-card--rejected and co-classify-btn styles
+check("187-18. company.css has co-app-card--rejected and co-classify-btn styles",
+      '.co-app-card--rejected' in _css187 and '.co-classify-btn' in _css187)
+
+# 187-19: CSS has co-ic-float styles for interview choice dialog
+check("187-19. company.css has co-ic-float interview choice dialog styles",
+      '.co-ic-float' in _css187 and '.co-ic-btn' in _css187)
+
+# 187-20: CSS has status colors for all 7 statuses including contacted, interview, hired
+check("187-20. company.css has status badge colors for contacted, interview, hired",
+      'co-app-status--contacted' in _css187 and 'co-app-status--interview' in _css187
+      and 'co-app-status--hired' in _css187)
+
 
 # ── Summary ──────────────────────────────────────────────────────────────
 print()

@@ -2243,10 +2243,13 @@ body:not(.co-loading) .co-skeleton      { display: none; }
   padding: 3px 9px; border-radius: 20px; font-size: .7rem; font-weight: 700;
   white-space: nowrap; flex-shrink: 0;
 }
-.co-app-status--pending  { background: rgba(234,179,8,.15);  color: #eab308; }
-.co-app-status--viewed   { background: rgba(99,102,241,.15); color: #818cf8; }
-.co-app-status--accepted { background: rgba(0,200,150,.15);  color: #00c896; }
-.co-app-status--rejected { background: rgba(239,68,68,.15);  color: #f87171; }
+.co-app-status--pending   { background: rgba(234,179,8,.15);   color: #eab308; }
+.co-app-status--viewed    { background: rgba(99,102,241,.15);  color: #818cf8; }
+.co-app-status--accepted  { background: rgba(0,200,150,.15);   color: #00c896; }
+.co-app-status--contacted { background: rgba(37,99,255,.15);   color: #60a5fa; }
+.co-app-status--interview { background: rgba(139,92,246,.15);  color: #a78bfa; }
+.co-app-status--hired     { background: rgba(16,185,129,.18);  color: #34d399; }
+.co-app-status--rejected  { background: rgba(239,68,68,.15);   color: #f87171; }
 
 .co-app-card-foot {
   display: flex;
@@ -2383,11 +2386,82 @@ body:not(.co-loading) .co-skeleton      { display: none; }
   .co-appt-mode-btn { background: rgba(0,0,0,.03); color: rgba(0,0,0,.5); border-color: rgba(0,0,0,.1); }
 }
 
-/* Save/unsave button */
+/* Save/unsave button (legacy — kept for compat) */
 .co-app-save-btn.co-app-act { color: #f59e0b; border-color: rgba(245,158,11,.2); }
 .co-app-save-btn.co-app-act:hover { background: rgba(245,158,11,.1); border-color: rgba(245,158,11,.35); }
 .co-app-save-btn.co-app-act.saved { color: #00c896; border-color: rgba(0,200,150,.2); }
 .co-app-save-btn.co-app-act.saved:hover { background: rgba(0,200,150,.1); border-color: rgba(0,200,150,.35); }
+
+/* Rejected card — dimmed state */
+.co-app-card--rejected {
+  opacity: .55;
+  border-color: rgba(239,68,68,.15);
+}
+.co-app-card--rejected:hover { opacity: .75; border-color: rgba(239,68,68,.25); }
+
+/* Classify / reclassify button */
+.co-classify-btn.co-app-act {
+  color: #00c896; border-color: rgba(0,200,150,.25);
+  background: rgba(0,200,150,.07);
+  font-weight: 600;
+}
+.co-classify-btn.co-app-act:hover {
+  background: rgba(0,200,150,.13); border-color: rgba(0,200,150,.4);
+}
+.co-classify-btn:disabled { opacity: .5; cursor: default; pointer-events: none; }
+
+.co-classify-btn--reclassify.co-app-act {
+  color: #94a3b8; border-color: rgba(148,163,184,.2);
+  background: rgba(148,163,184,.06);
+}
+.co-classify-btn--reclassify.co-app-act:hover {
+  background: rgba(148,163,184,.12); border-color: rgba(148,163,184,.35);
+}
+
+/* Schedule interview button */
+.co-app-sched-btn.co-app-act {
+  background: rgba(139,92,246,.1); color: #a78bfa;
+  border-color: rgba(139,92,246,.3); font-weight: 600;
+}
+.co-app-sched-btn.co-app-act:hover {
+  background: rgba(139,92,246,.18); border-color: rgba(139,92,246,.5);
+}
+.co-app-sched-btn:disabled { opacity: .5; cursor: default; pointer-events: none; }
+
+/* Interview choice mini-portal */
+.co-ic-float {
+  position: fixed;
+  z-index: 10002;
+  background: #0d1526;
+  border: 1px solid rgba(255,255,255,.18);
+  border-radius: 12px;
+  box-shadow: 0 4px 8px rgba(0,0,0,.4), 0 12px 32px rgba(0,0,0,.7);
+  padding: 12px 14px;
+  min-width: 168px;
+}
+.co-ic-prompt {
+  font-size: .72rem; font-weight: 600; color: rgba(255,255,255,.65);
+  margin-bottom: 10px; text-align: center;
+}
+.co-ic-btns {
+  display: flex; gap: 8px;
+}
+.co-ic-btn {
+  flex: 1; height: 30px;
+  border-radius: 8px; border: 1px solid rgba(255,255,255,.12);
+  background: rgba(255,255,255,.06);
+  color: var(--t1, #fff); font-family: inherit; font-size: .72rem; font-weight: 700;
+  cursor: pointer; transition: background .12s, border-color .12s;
+}
+.co-ic-btn:hover { background: rgba(255,255,255,.12); border-color: rgba(255,255,255,.22); }
+.co-ic-btn--now  { color: #a78bfa; border-color: rgba(139,92,246,.3); background: rgba(139,92,246,.1); }
+.co-ic-btn--now:hover { background: rgba(139,92,246,.2); border-color: rgba(139,92,246,.5); }
+.co-ic-btn--later { color: #94a3b8; }
+@media (prefers-color-scheme: light) {
+  .co-ic-float { background: #fff; border-color: rgba(0,0,0,.12); }
+  .co-ic-prompt { color: rgba(0,0,0,.55); }
+  .co-ic-btn { background: rgba(0,0,0,.04); border-color: rgba(0,0,0,.1); color: #1e293b; }
+}
 
 /* ── Floating status dropdown (.co-ast-float) ───────────────────── */
 
@@ -2419,9 +2493,12 @@ body:not(.co-loading) .co-skeleton      { display: none; }
 }
 .co-ast-float .co-ast-opt:hover { background: rgba(255,255,255,.08); }
 
-.co-ast-float .co-ast-opt[data-val="accepted"] { color: #00c896; }
-.co-ast-float .co-ast-opt[data-val="rejected"] { color: #f87171; }
-.co-ast-float .co-ast-opt[data-val="viewed"]   { color: #818cf8; }
+.co-ast-float .co-ast-opt[data-val="accepted"]  { color: #00c896; }
+.co-ast-float .co-ast-opt[data-val="contacted"] { color: #60a5fa; }
+.co-ast-float .co-ast-opt[data-val="interview"] { color: #a78bfa; }
+.co-ast-float .co-ast-opt[data-val="hired"]     { color: #34d399; }
+.co-ast-float .co-ast-opt[data-val="rejected"]  { color: #f87171; }
+.co-ast-float .co-ast-opt[data-val="viewed"]    { color: #818cf8; }
 
 /* Current status highlight + checkmark */
 .co-ast-float .co-ast-opt.co-ast-current {

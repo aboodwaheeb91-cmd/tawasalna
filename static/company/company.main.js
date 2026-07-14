@@ -767,9 +767,13 @@
   var _appModalHistoryPushed  = false; // true after pushState for applicants modal
   var _contactHistoryPushed   = false; // true after pushState for contact modal
   var _editHistoryPushed      = false; // true after pushState for edit modal
-  var _astFloat               = null;   // singleton floating status dropdown (body-level)
-  var _astFloatTrigger        = null;   // trigger button that opened the float
+  var _astFloat               = null;   // singleton classify dropdown (body-level)
+  var _astFloatTrigger        = null;   // classify btn that opened it
   var _cardListenerBound      = false;  // delegation guard for #coAppList
+  var _icFloat                = null;   // interview choice mini-portal (body-level)
+  var _icFloatTrigger         = null;   // classify btn that opened it
+  var _icFloatAppId           = null;   // appId awaiting interview choice
+  var _icPrevStatus           = null;   // prev status for rollback if classify fails
   // ── Appointment scheduling — per accepted applicant ────────────
   var _apptByAppId      = {};    // { "appId": { id, status } } from GET /api/appointments
   var _apptIndexLoaded  = false; // true after first successful index load
@@ -778,9 +782,12 @@
   var _apptModalInited  = false; // one-time listener guard
   var _apptMode         = 'online';
   var _APP_STATUS_LABEL = {
-    pending:  'بانتظار المراجعة',
-    viewed:   'تمت المراجعة',
-    accepted: 'مرشح قوي',
+    pending:   'محفوظ',
+    viewed:    'للمراجعة',
+    accepted:  'مرشح قوي',
+    contacted: 'تم التواصل',
+    interview: 'مقابلة',
+    hired:     'تم التوظيف',
     rejected:  'غير مناسب'
   };
 
@@ -816,7 +823,8 @@
   }
 
   function closeApplicantsModal() {
-    _closeAstFloat();
+    _closeClassifyFloat();
+    _closeInterviewChoice();
     var el = document.getElementById('coApplicantsModal');
     if (el) el.style.display = 'none';
     _appJobId = null;
@@ -868,45 +876,50 @@
     }
     var html = '';
     apps.forEach(function (a) {
-      var initial   = (a.full_name || '؟').charAt(0);
-      var statusKey = a.status || 'pending';
-      var statusLbl = _APP_STATUS_LABEL[statusKey] || statusKey;
-      var dateStr   = _appFmtDate(a.applied_at);
-      var appId      = parseInt(a.id, 10);
-      var isSaved         = !!a.is_saved;
-      var otherJobTitles  = Array.isArray(a.other_job_titles) ? a.other_job_titles : [];
-      var isAccepted = statusKey === 'accepted';
+      var initial        = (a.full_name || '؟').charAt(0);
+      var statusKey      = a.status || 'pending';
+      var statusLbl      = _APP_STATUS_LABEL[statusKey] || statusKey;
+      var dateStr        = _appFmtDate(a.applied_at);
+      var appId          = parseInt(a.id, 10);
+      var uid            = parseInt(a.user_id, 10);
+      var twId           = a.tw_id || '';
+      var isSaved        = !!a.is_saved;
+      var otherJobTitles = Array.isArray(a.other_job_titles) ? a.other_job_titles : [];
+
+      var isRejected   = statusKey === 'rejected';
+      var isHired      = statusKey === 'hired';
+      var isInterview  = statusKey === 'interview';
+      var isClassified = isSaved || statusKey !== 'pending';
+
       var avatarHtml = a.avatar_url
         ? '<img src="' + _escApp(a.avatar_url) + '" alt="" loading="lazy"'
           + ' onerror="this.style.display=\'none\';this.parentNode.dataset.fb=\'1\'">'
           + '<span class="co-app-ava-fb">' + _escApp(initial) + '</span>'
         : _escApp(initial);
 
-      // ── Primary button — exactly one per card, context-sensitive ──
-      var primaryBtn = '';
-      if (statusKey === 'pending' || statusKey === 'viewed') {
-        primaryBtn = '<button type="button" class="co-app-promote-btn co-app-act" data-app-id="' + appId + '">ترقية لمرشح قوي</button>';
-      } else if (isAccepted) {
-        primaryBtn = '<button type="button" class="co-app-interview-btn co-app-act" data-app-id="' + appId + '">تحديد مقابلة</button>';
-      }
-      // rejected: no primary button
-
-      // ── Secondary: profile link (always) ──
-      var viewBtn = a.tw_id
-        ? '<a class="co-app-view-btn co-app-act" href="/u/' + _escApp(a.tw_id) + '" target="_blank" rel="noopener">عرض الملف الكامل</a>'
+      var statusBadge = isClassified
+        ? '<span class="co-app-status co-app-status--' + _escApp(statusKey) + '">' + _escApp(statusLbl) + '</span>'
         : '';
 
-      // ── Secondary: save (only before promotion, hidden after) ──
-      var saveBtn = !isAccepted
-        ? '<button type="button" class="co-app-save-btn co-app-act' + (isSaved ? ' saved' : '') + '" data-uid="' + parseInt(a.user_id, 10) + '"' + (isSaved ? ' disabled' : '') + '>'
-          + (isSaved ? 'محفوظ ✓' : '+ حفظ')
-          + '</button>'
+      var viewBtn = twId
+        ? '<a class="co-app-view-btn co-app-act" href="/u/' + _escApp(twId) + '" target="_blank" rel="noopener">عرض الملف الكامل</a>'
         : '';
 
-      // ── ⋮ trigger — opens floating status menu ──
-      var menuTrigger = '<button type="button" class="co-ast-trigger co-app-act" data-app-id="' + appId + '" data-status="' + _escApp(statusKey) + '" aria-label="خيارات إضافية">⋮</button>';
+      var classifyLbl = !isClassified ? 'حفظ وتصنيف ▾'
+        : isRejected                  ? 'إعادة التصنيف ▾'
+        : 'تعديل التصنيف ▾';
 
-      // Context: other jobs this candidate is linked to in the pipeline
+      var classifyBtn = '<button type="button" class="co-classify-btn co-app-act'
+        + (isRejected ? ' co-classify-btn--reclassify' : '')
+        + '" data-app-id="' + appId + '" data-status="' + _escApp(statusKey) + '"'
+        + ' data-saved="' + (isSaved ? '1' : '0') + '" data-uid="' + uid + '"'
+        + (isHired ? ' data-hired="1"' : '')
+        + '>' + classifyLbl + '</button>';
+
+      var schedBtn = isInterview
+        ? '<button type="button" class="co-app-sched-btn co-app-act" data-app-id="' + appId + '">تحديد موعد</button>'
+        : '';
+
       var savedCtx = isSaved && otherJobTitles.length > 0
         ? '<div class="co-app-saved-ctx">محفوظ · أيضاً في: '
           + otherJobTitles.slice(0, 2).map(function (t) { return _escApp(t); }).join(' · ')
@@ -914,27 +927,27 @@
           + '</div>'
         : '';
 
-      html += '<div class="co-app-card" data-app-id="' + appId + '" data-name="' + _escApp(a.full_name || '') + '">'
+      html += '<div class="co-app-card' + (isRejected ? ' co-app-card--rejected' : '') + '"'
+        + ' data-app-id="' + appId + '" data-name="' + _escApp(a.full_name || '') + '"'
+        + ' data-uid="' + uid + '" data-tw-id="' + _escApp(twId) + '">'
         + '<div class="co-app-card-head">'
         +   '<div class="co-app-ava">' + avatarHtml + '</div>'
         +   '<div class="co-app-info">'
         +     '<div class="co-app-name">' + _escApp(a.full_name || '—') + '</div>'
-        +     (dateStr ? '<div class="co-app-date">تقدّم: ' + _escApp(dateStr) + '</div>' : '')
+        +     (dateStr ? '<div class="co-app-meta-line">تقدّم: ' + _escApp(dateStr) + '</div>' : '')
         +   '</div>'
-        +   '<span class="co-app-status co-app-status--' + _escApp(statusKey) + '">' + _escApp(statusLbl) + '</span>'
+        +   statusBadge
         + '</div>'
         + savedCtx
         + '<div class="co-app-card-foot">'
-        + primaryBtn
         + viewBtn
-        + saveBtn
-        + menuTrigger
+        + classifyBtn
+        + schedBtn
         + '</div>'
         + '</div>';
     });
     list.innerHTML = html;
     _wireApplicantCards(list);
-    // After rendering, load appointment index and replace interview btns for cards that already have an active appointment
     _loadApptIndex(function () { _applyApptIndexToCards(); });
   }
 
@@ -942,14 +955,10 @@
     if (_cardListenerBound) return;
     _cardListenerBound = true;
     list.addEventListener('click', function (e) {
-      var trigger = e.target.closest('.co-ast-trigger');
-      if (trigger) { _openAstFloat(trigger); return; }
-      var promoteBtn = e.target.closest('.co-app-promote-btn');
-      if (promoteBtn && !promoteBtn.disabled) { _onPromote(promoteBtn); return; }
-      var interviewBtn = e.target.closest('.co-app-interview-btn');
-      if (interviewBtn && !interviewBtn.disabled) { _onInterviewBtn(interviewBtn); return; }
-      var saveBtn = e.target.closest('.co-app-save-btn');
-      if (saveBtn && !saveBtn.disabled) { _onSaveApplicant(saveBtn); return; }
+      var classifyBtn = e.target.closest('.co-classify-btn');
+      if (classifyBtn && !classifyBtn.disabled) { _openClassifyFloat(classifyBtn); return; }
+      var schedBtn = e.target.closest('.co-app-sched-btn');
+      if (schedBtn && !schedBtn.disabled) { _onSchedBtn(schedBtn); return; }
     });
   }
 
@@ -975,41 +984,21 @@
       return r.json();
     })
     .then(function () {
-      // Success: update badge, swap primary btn to "تحديد مقابلة", hide save btn
       if (card) {
-        var badge = card.querySelector('.co-app-status');
-        if (badge) {
-          badge.textContent = _APP_STATUS_LABEL['accepted'] || 'مرشح قوي';
-          badge.className   = 'co-app-status co-app-status--accepted';
-        }
-        var foot = card.querySelector('.co-app-card-foot');
-        if (promoteBtn && foot) {
-          var interviewBtn = document.createElement('button');
-          interviewBtn.type      = 'button';
-          interviewBtn.className = 'co-app-interview-btn co-app-act';
-          interviewBtn.setAttribute('data-app-id', appId);
-          interviewBtn.disabled  = false;
-          interviewBtn.textContent = 'تحديد مقابلة';
-          foot.replaceChild(interviewBtn, promoteBtn);
-        }
-        var saveBtn = card.querySelector('.co-app-save-btn');
-        if (saveBtn) saveBtn.style.display = 'none';
-        // Update ⋮ trigger current status
-        var trigger = card.querySelector('.co-ast-trigger');
-        if (trigger) trigger.setAttribute('data-status', 'accepted');
+        _reRenderCardFoot(card, 'accepted');
       }
+      if (promoteBtn) { promoteBtn.disabled = false; }
       if (window._loadCandidatesBadge) window._loadCandidatesBadge();
-      if (window.showToast) showToast('تمت ترقية المرشح بنجاح ✓');
+      if (window.showToast) showToast('تم تصنيف المرشح بنجاح ✓');
     })
     .catch(function (err) {
       if (promoteBtn) {
         promoteBtn.disabled    = false;
-        promoteBtn.textContent = 'ترقية لمرشح قوي';
+        promoteBtn.textContent = promoteBtn.dataset.origText || 'حفظ وتصنيف ▾';
       }
       var status = err && err.status;
       var msg;
-      if (status === 409)      msg = 'المرشح محدد كغير مناسب — يجب تغيير حالته أولاً';
-      else if (status === 403) msg = 'انتهت الجلسة أو لا تملك صلاحية الترقية';
+      if (status === 403) msg = 'انتهت الجلسة أو لا تملك صلاحية الترقية';
       else if (status === 404) msg = 'الطلب غير موجود';
       else if (status === 401) msg = 'انتهت الجلسة — سجّل دخولك مجدداً';
       else                     msg = 'تعذّرت الترقية، حاول مجدداً';
@@ -1085,7 +1074,7 @@
       if (!entry || !_isApptActive(entry.status) || _isApptDraft(entry.status)) return;
       var foot = card.querySelector('.co-app-card-foot');
       if (!foot) return;
-      var btn = foot.querySelector('.co-app-interview-btn');
+      var btn = foot.querySelector('.co-app-sched-btn');
       if (!btn) return;
       var link = document.createElement('a');
       link.href      = '/appointment-room?id=' + entry.id;
@@ -1097,7 +1086,7 @@
     });
   }
 
-  function _onInterviewBtn(btn) {
+  function _onSchedBtn(btn) {
     var appId = parseInt(btn.getAttribute('data-app-id'), 10);
     if (!appId || btn.disabled) return;
     var card = document.querySelector('#coAppList .co-app-card[data-app-id="' + appId + '"]');
@@ -1111,7 +1100,6 @@
       var entry = _apptByAppId[String(appId)];
       if (entry && _isApptActive(entry.status)) {
         if (_isApptDraft(entry.status)) {
-          // Orphaned draft — open modal so user can retry sending
           _openApptModal(appId, applName, jobTitle);
           return;
         }
@@ -1303,7 +1291,7 @@
       var card = document.querySelector('#coAppList .co-app-card[data-app-id="' + appId + '"]');
       if (card) {
         var foot = card.querySelector('.co-app-card-foot');
-        var oldBtn = foot ? (foot.querySelector('.co-app-interview-btn') || foot.querySelector('.co-app-open-appt-btn')) : null;
+        var oldBtn = foot ? (foot.querySelector('.co-app-sched-btn') || foot.querySelector('.co-app-open-appt-btn')) : null;
         if (oldBtn && foot) {
           var link = document.createElement('a');
           link.href      = '/appointment-room?id=' + apptId;
@@ -1338,68 +1326,75 @@
     });
   }
 
-  // ── Application status — floating dropdown ─────────────────────
-  function _initAstFloat() {
+  // ── Classify dropdown — 7-option save/classify portal ─────────
+  function _initClassifyFloat() {
     if (_astFloat) return;
     _astFloat = document.createElement('div');
-    _astFloat.className    = 'co-ast-float';
+    _astFloat.className     = 'co-ast-float';
     _astFloat.style.display = 'none';
     _astFloat.innerHTML =
-      '<button class="co-ast-opt" data-val="pending">بانتظار المراجعة</button>'
-      + '<button class="co-ast-opt" data-val="viewed">تمت المراجعة</button>'
+      '<button class="co-ast-opt" data-val="pending">محفوظ</button>'
+      + '<button class="co-ast-opt" data-val="viewed">للمراجعة</button>'
       + '<button class="co-ast-opt" data-val="accepted">مرشح قوي</button>'
-      + '<button class="co-ast-opt" data-val="rejected">غير مناسب</button>';
+      + '<button class="co-ast-opt" data-val="contacted">تم التواصل</button>'
+      + '<button class="co-ast-opt" data-val="interview">مقابلة</button>'
+      + '<button class="co-ast-opt" data-val="hired">تم التوظيف</button>'
+      + '<button class="co-ast-opt co-ast-opt--reject" data-val="rejected">غير مناسب</button>';
     document.body.appendChild(_astFloat);
 
     _astFloat.addEventListener('click', function (e) {
       var opt = e.target.closest('.co-ast-opt');
-      if (!opt || !_astFloatTrigger) { _closeAstFloat(); return; }
+      if (!opt || !_astFloatTrigger) { _closeClassifyFloat(); return; }
       var newStatus  = opt.getAttribute('data-val');
       var trigger    = _astFloatTrigger;
       var appId      = parseInt(trigger.getAttribute('data-app-id'), 10);
       var prevStatus = trigger.getAttribute('data-status');
-      _closeAstFloat();
-      if (newStatus === prevStatus) return;
-      // "مرشح قوي" goes through the dedicated promote endpoint
-      if (newStatus === 'accepted') {
-        var card = document.querySelector('#coAppList .co-app-card[data-app-id="' + appId + '"]');
-        var promoteBtn = card ? card.querySelector('.co-app-promote-btn') : null;
-        _execPromote(appId, card, promoteBtn);
+      var isSaved    = trigger.getAttribute('data-saved') === '1';
+      var card       = document.querySelector('#coAppList .co-app-card[data-app-id="' + appId + '"]');
+      _closeClassifyFloat();
+      if (newStatus === prevStatus && isSaved) return;
+      if (newStatus === 'interview') {
+        _showInterviewChoice(trigger, appId, prevStatus, isSaved, card);
         return;
       }
-      var card  = document.querySelector('#coAppList .co-app-card[data-app-id="' + appId + '"]');
-      var badge = card ? card.querySelector('.co-app-status') : null;
-      if (badge) {
-        badge.textContent = _APP_STATUS_LABEL[newStatus] || newStatus;
-        badge.className   = 'co-app-status co-app-status--' + newStatus;
-      }
-      trigger.setAttribute('data-status', newStatus);
-      _updateAppStatus(appId, newStatus, badge, trigger, prevStatus);
+      _execClassify(appId, newStatus, card, trigger, prevStatus, isSaved, null);
     });
 
     document.addEventListener('click', function (e) {
       if (_astFloat && _astFloat.style.display !== 'none') {
         if (!_astFloat.contains(e.target) &&
             (!_astFloatTrigger || !_astFloatTrigger.contains(e.target))) {
-          _closeAstFloat();
+          _closeClassifyFloat();
+        }
+      }
+      if (_icFloat && _icFloat.style.display !== 'none') {
+        if (!_icFloat.contains(e.target) &&
+            (!_icFloatTrigger || !_icFloatTrigger.contains(e.target))) {
+          _closeInterviewChoice();
         }
       }
     });
 
     var appList = document.getElementById('coAppList');
-    if (appList) { appList.addEventListener('scroll', _closeAstFloat, { passive: true }); }
+    if (appList) { appList.addEventListener('scroll', _closeClassifyFloat, { passive: true }); }
   }
 
-  function _openAstFloat(triggerBtn) {
-    _initAstFloat();
+  function _openClassifyFloat(triggerBtn) {
+    _initClassifyFloat();
     var isSame = _astFloatTrigger === triggerBtn && _astFloat.style.display !== 'none';
-    _closeAstFloat();
+    _closeClassifyFloat();
     if (isSame) return;
-    _astFloatTrigger        = triggerBtn;
+    _astFloatTrigger = triggerBtn;
+
+    var currentStatus = triggerBtn.getAttribute('data-status') || '';
+    var isHired       = triggerBtn.getAttribute('data-hired') === '1';
+    var rejectOpt     = _astFloat.querySelector('.co-ast-opt--reject');
+    if (rejectOpt) rejectOpt.style.display = isHired ? 'none' : '';
+
     _astFloat.style.display = 'block';
     var rect  = triggerBtn.getBoundingClientRect();
-    var menuW = _astFloat.offsetWidth  || 175;
-    var menuH = _astFloat.offsetHeight || 148;
+    var menuW = _astFloat.offsetWidth  || 180;
+    var menuH = _astFloat.offsetHeight || 220;
     var vpW   = window.innerWidth;
     var vpH   = window.innerHeight;
     var left  = rect.right - menuW;
@@ -1415,43 +1410,198 @@
     _astFloat.style.left = left + 'px';
     _astFloat.style.top  = top  + 'px';
 
-    // Mark current status option
-    var currentStatus = triggerBtn.getAttribute('data-status') || '';
     _astFloat.querySelectorAll('.co-ast-opt').forEach(function (o) {
       o.classList.toggle('co-ast-current', o.getAttribute('data-val') === currentStatus);
     });
   }
 
-  function _closeAstFloat() {
+  function _closeClassifyFloat() {
     if (_astFloat) _astFloat.style.display = 'none';
     _astFloatTrigger = null;
   }
 
-  function _updateAppStatus(appId, newStatus, badge, triggerBtn, prevStatus) {
+  // ── Interview choice mini-portal (الآن / لاحقاً) ───────────────
+  function _showInterviewChoice(classifyBtn, appId, prevStatus, isSaved, card) {
+    if (!_icFloat) {
+      _icFloat = document.createElement('div');
+      _icFloat.className     = 'co-ic-float';
+      _icFloat.style.display = 'none';
+      _icFloat.innerHTML =
+        '<div class="co-ic-prompt">تحديد موعد المقابلة؟</div>'
+        + '<div class="co-ic-btns">'
+        +   '<button class="co-ic-btn co-ic-btn--now">الآن</button>'
+        +   '<button class="co-ic-btn co-ic-btn--later">لاحقاً</button>'
+        + '</div>';
+      document.body.appendChild(_icFloat);
+    }
+    _icFloatTrigger = classifyBtn;
+    _icFloatAppId   = appId;
+    _icPrevStatus   = prevStatus;
+
+    _icFloat.style.display = 'block';
+    var rect  = classifyBtn.getBoundingClientRect();
+    var menuW = _icFloat.offsetWidth  || 170;
+    var menuH = _icFloat.offsetHeight || 80;
+    var vpW   = window.innerWidth;
+    var vpH   = window.innerHeight;
+    var left  = rect.right - menuW;
+    if (left < 8) left = 8;
+    if (left + menuW > vpW - 8) left = vpW - menuW - 8;
+    var top = (vpH - rect.bottom >= menuH + 8) ? rect.bottom + 4 : rect.top - menuH - 4;
+    if (top < 8) top = rect.bottom + 4;
+    _icFloat.style.left = left + 'px';
+    _icFloat.style.top  = top  + 'px';
+
+    var nowBtn   = _icFloat.querySelector('.co-ic-btn--now');
+    var laterBtn = _icFloat.querySelector('.co-ic-btn--later');
+
+    if (nowBtn) nowBtn.onclick = function () {
+      var aId = _icFloatAppId, prv = _icPrevStatus, sv = isSaved;
+      var c = card, cBtn = _icFloatTrigger;
+      _closeInterviewChoice();
+      _execClassify(aId, 'interview', c, cBtn, prv, sv, function () {
+        var name = c ? c.getAttribute('data-name') : '';
+        var job  = window.companyState && companyState.jobs
+          ? companyState.jobs.find(function (j) { return j.id == _appJobId; })
+          : null;
+        _openApptModal(aId, name, job ? job.title : '');
+      });
+    };
+
+    if (laterBtn) laterBtn.onclick = function () {
+      var aId = _icFloatAppId, prv = _icPrevStatus, sv = isSaved;
+      var c = card, cBtn = _icFloatTrigger;
+      _closeInterviewChoice();
+      _execClassify(aId, 'interview', c, cBtn, prv, sv, null);
+    };
+  }
+
+  function _closeInterviewChoice() {
+    if (_icFloat) _icFloat.style.display = 'none';
+    _icFloatTrigger = null;
+    _icFloatAppId   = null;
+    _icPrevStatus   = null;
+  }
+
+  // ── Classify: save candidate + set application status ──────────
+  function _execClassify(appId, newStatus, card, classifyBtn, prevStatus, wasSaved, onSuccess) {
     var jwt = window._jwt ? _jwt() : '';
-    fetch('/jobs/applications/' + appId + '/status', {
+
+    // "مرشح قوي" uses the promote endpoint (atomic save + accept)
+    if (newStatus === 'accepted') {
+      if (classifyBtn) {
+        classifyBtn.dataset.origText = classifyBtn.textContent;
+        classifyBtn.disabled    = true;
+        classifyBtn.textContent = 'جارٍ التصنيف…';
+      }
+      _execPromote(appId, card, classifyBtn);
+      return;
+    }
+
+    // Optimistic badge update
+    if (card) _applyClassifyBadge(card, newStatus);
+    if (classifyBtn) {
+      classifyBtn.disabled    = true;
+      classifyBtn.textContent = 'جارٍ التصنيف…';
+    }
+
+    var uid     = classifyBtn ? parseInt(classifyBtn.getAttribute('data-uid'), 10) : 0;
+    var jobSufx = (_appJobId ? '?job_id=' + parseInt(_appJobId, 10) : '');
+
+    var statusP = fetch('/jobs/applications/' + appId + '/status', {
       method:  'PUT',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + jwt },
       body:    JSON.stringify({ status: newStatus })
-    })
-    .then(function (r) {
-      if (!r.ok) { var e = new Error('HTTP ' + r.status); e.status = r.status; throw e; }
-      return r.json();
-    })
-    .then(function () {
-      if (window.showToast) showToast('تم تحديث الحالة ✓');
-    })
-    .catch(function (err) {
-      if (badge) {
-        badge.textContent = _APP_STATUS_LABEL[prevStatus] || prevStatus;
-        badge.className   = 'co-app-status co-app-status--' + prevStatus;
-      }
-      if (triggerBtn) triggerBtn.setAttribute('data-status', prevStatus);
-      var msg = (err && (err.status === 401 || err.status === 403))
-        ? 'انتهت الجلسة أو لا تملك صلاحية تعديل حالة الطلب'
-        : 'تعذّر تحديث حالة الطلب، حاول مجدداً';
-      if (window.showToast) showToast(msg, 'error');
     });
+    var saveP = (!wasSaved && uid)
+      ? fetch('/company/saved-candidates/' + uid + jobSufx, {
+          method: 'POST', headers: { 'Authorization': 'Bearer ' + jwt }
+        })
+      : Promise.resolve(null);
+
+    Promise.all([statusP, saveP])
+      .then(function (results) {
+        var sRes = results[0];
+        if (!sRes.ok) { var e = new Error('HTTP ' + sRes.status); e.status = sRes.status; throw e; }
+        if (card) {
+          _reRenderCardFoot(card, newStatus);
+          if (_apptIndexLoaded) _applyApptIndexToCards();
+        }
+        if (window._loadCandidatesBadge) window._loadCandidatesBadge();
+        if (window.showToast) showToast('تم التصنيف بنجاح ✓');
+        if (onSuccess) onSuccess();
+      })
+      .catch(function (err) {
+        if (card) _applyClassifyBadge(card, prevStatus);
+        if (classifyBtn) {
+          classifyBtn.disabled    = false;
+          var wasFresh = !wasSaved && (!prevStatus || prevStatus === 'pending');
+          classifyBtn.textContent = wasFresh ? 'حفظ وتصنيف ▾' : 'تعديل التصنيف ▾';
+        }
+        var msg = (err && (err.status === 401 || err.status === 403))
+          ? 'انتهت الجلسة أو لا تملك صلاحية التصنيف'
+          : 'تعذّر التصنيف، حاول مجدداً';
+        if (window.showToast) showToast(msg, 'error');
+      });
+  }
+
+  function _applyClassifyBadge(card, statusKey) {
+    if (!statusKey) return;
+    var badge = card.querySelector('.co-app-status');
+    if (badge) {
+      badge.textContent = _APP_STATUS_LABEL[statusKey] || statusKey;
+      badge.className   = 'co-app-status co-app-status--' + statusKey;
+    }
+  }
+
+  function _reRenderCardFoot(card, statusKey) {
+    var appId       = parseInt(card.getAttribute('data-app-id'), 10);
+    var uid         = parseInt(card.getAttribute('data-uid'), 10);
+    var twId        = card.getAttribute('data-tw-id') || '';
+    var isRejected  = statusKey === 'rejected';
+    var isHired     = statusKey === 'hired';
+    var isInterview = statusKey === 'interview';
+
+    // Update or create status badge
+    var statusLbl = _APP_STATUS_LABEL[statusKey] || statusKey;
+    var badge = card.querySelector('.co-app-status');
+    if (badge) {
+      badge.textContent = statusLbl;
+      badge.className   = 'co-app-status co-app-status--' + statusKey;
+    } else {
+      var head = card.querySelector('.co-app-card-head');
+      if (head) {
+        var nb = document.createElement('span');
+        nb.className   = 'co-app-status co-app-status--' + statusKey;
+        nb.textContent = statusLbl;
+        head.appendChild(nb);
+      }
+    }
+
+    if (isRejected) {
+      card.classList.add('co-app-card--rejected');
+    } else {
+      card.classList.remove('co-app-card--rejected');
+    }
+
+    var viewHtml = twId
+      ? '<a class="co-app-view-btn co-app-act" href="/u/' + _escApp(twId) + '" target="_blank" rel="noopener">عرض الملف الكامل</a>'
+      : '';
+
+    var classifyLbl  = isRejected ? 'إعادة التصنيف ▾' : 'تعديل التصنيف ▾';
+    var classifyHtml = '<button type="button" class="co-classify-btn co-app-act'
+      + (isRejected ? ' co-classify-btn--reclassify' : '')
+      + '" data-app-id="' + appId + '" data-status="' + _escApp(statusKey) + '"'
+      + ' data-saved="1" data-uid="' + uid + '"'
+      + (isHired ? ' data-hired="1"' : '')
+      + '>' + classifyLbl + '</button>';
+
+    var schedHtml = isInterview
+      ? '<button type="button" class="co-app-sched-btn co-app-act" data-app-id="' + appId + '">تحديد موعد</button>'
+      : '';
+
+    var foot = card.querySelector('.co-app-card-foot');
+    if (foot) foot.innerHTML = viewHtml + classifyHtml + schedHtml;
   }
 
   // Back button: close the topmost open modal on popstate.
