@@ -1523,6 +1523,24 @@
       .then(function (results) {
         var sRes = results[0];
         if (!sRes.ok) { var e = new Error('HTTP ' + sRes.status); e.status = sRes.status; throw e; }
+
+        var saveRes = results[1];
+        if (saveRes && !saveRes.ok) {
+          // Status written to DB but candidate save failed — reload from server to avoid misleading UI.
+          if (window.showToast) showToast('تعذّر الحفظ، جارٍ إعادة التحميل…', 'error');
+          if (_appJobId) {
+            _loadApplicants(_appJobId);
+          } else {
+            if (card) _applyClassifyBadge(card, prevStatus);
+            if (classifyBtn) {
+              classifyBtn.disabled    = false;
+              classifyBtn.textContent = (!wasSaved && (!prevStatus || prevStatus === 'pending'))
+                ? 'حفظ وتصنيف ▾' : 'تعديل التصنيف ▾';
+            }
+          }
+          return;
+        }
+
         if (card) {
           _reRenderCardFoot(card, newStatus);
           if (_apptIndexLoaded) _applyApptIndexToCards();

@@ -9356,6 +9356,22 @@ check("187-20. company.css has status badge colors for contacted, interview, hir
       and 'co-app-status--hired' in _css187)
 
 
+# 187-21: _execClassify checks saveRes.ok and reloads on save failure
+_ec187b = (_main187.split('function _execClassify')[1].split('function _applyClassifyBadge')[0]
+           if 'function _execClassify' in _main187 else '')
+check("187-21. _execClassify checks saveRes.ok and calls _loadApplicants on save failure",
+      'saveRes' in _ec187b and 'saveRes.ok' in _ec187b
+      and '_loadApplicants' in _ec187b
+      and 'تعذّر الحفظ' in _ec187b)
+
+# 187-22: on save failure, success toast and _reRenderCardFoot are NOT called in the save-fail branch
+# (they appear only after the early return — i.e., the save-fail block ends with return)
+_save_fail_branch187 = (_ec187b.split('saveRes && !saveRes.ok')[1].split('\n          return;')[0]
+                        if 'saveRes && !saveRes.ok' in _ec187b else '')
+check("187-22. save failure branch does not call showToast success or _reRenderCardFoot",
+      'تم التصنيف' not in _save_fail_branch187
+      and '_reRenderCardFoot' not in _save_fail_branch187)
+
 # ════════════════════════════════════════════════════════════════
 # §188 — viewed is fully internal: no notification for "للمراجعة"
 # ════════════════════════════════════════════════════════════════
