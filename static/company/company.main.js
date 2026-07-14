@@ -2329,6 +2329,18 @@
   var _pendingManageOpen      = null;   // candidate_id to auto-open after saved tab loads
   var _pendingManageOpenNotes = false;  // also focus notes textarea
 
+  // Deep-link from ?cand=<id>[&notes=1] in URL — set at init, consumed in _loadBadge
+  var _urlDeepLinkPending = false;
+  (function () {
+    var sp = new URLSearchParams(location.search);
+    var cand = sp.get('cand');
+    if (cand) {
+      _pendingManageOpen      = cand;
+      _pendingManageOpenNotes = sp.get('notes') === '1';
+      _urlDeepLinkPending     = true;
+    }
+  }());
+
   // Job chip popover state
   var _jobPopTarget = null;
 
@@ -2356,6 +2368,10 @@
   function _loadBadge() {
     if (!_isOwner()) return;
     _loadSavedStats(null);
+    if (_urlDeepLinkPending) {
+      _urlDeepLinkPending = false;
+      setTimeout(_open, 0);
+    }
   }
 
   // ── Text escape helper ─────────────────────────────────────────

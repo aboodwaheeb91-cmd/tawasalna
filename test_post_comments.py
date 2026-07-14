@@ -9417,6 +9417,55 @@ check("188-02. all 7 pipeline statuses are in _INTERNAL_STATUSES",
       all(s in _ias188 for s in _seven))
 
 
+# ════════════════════════════════════════════════════════════════
+# §481 — Saved candidates job-link system integrity
+# ════════════════════════════════════════════════════════════════
+
+_auth481 = open('auth.py', encoding='utf-8').read()
+_main481 = open('static/company/company.main.js', encoding='utf-8').read()
+
+# ── Function bodies for targeted checks ──────────────────────────
+_save_fn481 = (_auth481.split('def save_company_candidate')[1].split('\ndef ')[0]
+               if 'def save_company_candidate' in _auth481 else '')
+_upd_fn481  = (_auth481.split('def update_company_saved_candidate')[1].split('\ndef ')[0]
+               if 'def update_company_saved_candidate' in _auth481 else '')
+_filter_fn481 = (_auth481.split('def get_company_saved_candidates_filtered')[1].split('\ndef ')[0]
+                 if 'def get_company_saved_candidates_filtered' in _auth481 else '')
+
+# 481-01: job-ref INSERT uses ON CONFLICT DO NOTHING — no dup on re-link
+check("481-01. company_candidate_job_refs INSERT uses ON CONFLICT DO NOTHING (idempotent)",
+      'company_candidate_job_refs' in _save_fn481
+      and 'ON CONFLICT DO NOTHING' in _save_fn481)
+
+# 481-02: same idempotency pattern present when save_company_candidate is called with job_id
+_jid_branch481 = (_save_fn481.split('if job_id is not None:')[1]
+                  if 'if job_id is not None:' in _save_fn481 else '')
+check("481-02. job_id branch in save_company_candidate writes to company_candidate_job_refs idempotently",
+      'company_candidate_job_refs' in _jid_branch481
+      and 'ON CONFLICT DO NOTHING' in _jid_branch481)
+
+# 481-03: no job_id → no company_candidate_job_refs insert (else branch only touches saved_candidates)
+_no_jid_branch481 = (_save_fn481.split('else:\n')[1]
+                     if 'else:\n' in _save_fn481 else '')
+check("481-03. save with job_id=None does NOT insert into company_candidate_job_refs",
+      'company_candidate_job_refs' not in _no_jid_branch481)
+
+# 481-04: job_links query uses LEFT JOIN job_applications so apply_date/status can be null
+check("481-04. job_links batch query uses LEFT JOIN job_applications (null apply_date/status allowed)",
+      'LEFT JOIN job_applications' in _filter_fn481)
+
+# 481-05: update_company_saved_candidate only touches company_saved_candidates, not job_applications
+check("481-05. update_company_saved_candidate does not write to job_applications",
+      'job_applications' not in _upd_fn481)
+
+# 481-06: disabled linked jobs show co-dp-opt--disabled class in job picker HTML builder
+_dp481 = (_main481.split('function _dpHTML')[1].split('\n  function ')[0]
+          if 'function _dpHTML' in _main481 else '')
+check("481-06. _dpHTML adds co-dp-opt--disabled class and data-linked=1 for disabled options",
+      'co-dp-opt--disabled' in _dp481
+      and 'data-linked' in _dp481)
+
+
 # ── Summary ──────────────────────────────────────────────────────────────
 print()
 passed = sum(1 for _, s, _ in results if s == PASS)
