@@ -1354,6 +1354,9 @@
       _closeClassifyFloat();
       if (newStatus === prevStatus && isSaved) return;
       if (newStatus === 'interview') {
+        // Stop propagation: without this, the document outside-click handler
+        // immediately closes _icFloat on the same click event that opened it.
+        e.stopPropagation();
         _showInterviewChoice(trigger, appId, prevStatus, isSaved, card);
         return;
       }

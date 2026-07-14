@@ -9673,6 +9673,51 @@ check("484b-02. _closeJobPop removes document click listener (named handler, no 
       or "document.removeEventListener('click', _closeJobPop" in _close_pop484)
 
 
+# §485 — Applicants modal: interview option event-propagation bug fix
+# Root cause: clicking "مقابلة" opens _icFloat (interview choice mini-portal),
+# but the same click event bubbles to the document outside-click handler which
+# immediately closes _icFloat because e.target is not inside it.
+# Fix: e.stopPropagation() in the interview branch of _astFloat click handler.
+# ════════════════════════════════════════════════════════════════
+
+_comain485 = open('static/company/company.main.js', encoding='utf-8').read()
+
+# Extract the _initClassifyFloat function body (contains the astFloat click handler)
+_init_classify485 = (
+    _comain485.split('function _initClassifyFloat(')[1].split('\n  function ')[0]
+    if 'function _initClassifyFloat(' in _comain485 else ''
+)
+
+# Extract _showInterviewChoice body (must call _execClassify with 'interview')
+_show_ic485 = (
+    _comain485.split('function _showInterviewChoice(')[1].split('\n  function ')[0]
+    if 'function _showInterviewChoice(' in _comain485 else ''
+)
+
+# Extract _execClassify success path (must call _reRenderCardFoot)
+_exec_classify485 = (
+    _comain485.split('function _execClassify(')[1].split('\n  function ')[0]
+    if 'function _execClassify(' in _comain485 else ''
+)
+
+# 485-01: e.stopPropagation() is called in the interview branch of the astFloat click handler.
+# Without this, the document outside-click handler closes _icFloat immediately on the same
+# click event, making "مقابلة" appear to do nothing.
+check("485-01. _astFloat click handler calls e.stopPropagation() before _showInterviewChoice (prevents immediate _icFloat close)",
+      "e.stopPropagation()" in _init_classify485
+      and "interview" in _init_classify485
+      and "_showInterviewChoice" in _init_classify485)
+
+# 485-02: both laterBtn and nowBtn in _showInterviewChoice call _execClassify with 'interview'
+check("485-02. _showInterviewChoice calls _execClassify with 'interview' status for both Ã\x84لآن and لاحقاً paths",
+      "_execClassify(aId, 'interview'" in _show_ic485
+      and _show_ic485.count("_execClassify(aId, 'interview'") >= 2)
+
+# 485-03: _execClassify success path calls _reRenderCardFoot (updates card UI) — not just badge
+check("485-03. _execClassify success path calls _reRenderCardFoot to update card UI after classification",
+      '_reRenderCardFoot(card, newStatus)' in _exec_classify485)
+
+
 # ── Summary ──────────────────────────────────────────────────────────────
 print()
 passed = sum(1 for _, s, _ in results if s == PASS)
