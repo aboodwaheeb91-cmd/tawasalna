@@ -4880,7 +4880,7 @@ def get_company_saved_candidates(company_id: int, limit: int = 20, offset: int =
         if items:
             id_clause = ','.join(str(r['candidate_id']) for r in items)
             trows = conn.run(
-                f"SELECT r.candidate_id, j.id, j.title, ja.created_at, ja.status "
+                f"SELECT r.candidate_id, j.id, j.title, ja.applied_at, ja.status "
                 f"FROM company_candidate_job_refs r "
                 f"JOIN jobs j ON j.id = r.job_id "
                 f"LEFT JOIN job_applications ja ON ja.job_id = j.id AND ja.user_id = r.candidate_id "
@@ -5083,7 +5083,7 @@ def get_company_saved_candidates_filtered(
         if items:
             id_clause = ','.join(str(r['candidate_id']) for r in items)
             trows = conn.run(
-                f"SELECT r.candidate_id, j.id, j.title, ja.created_at, ja.status "
+                f"SELECT r.candidate_id, j.id, j.title, ja.applied_at, ja.status "
                 f"FROM company_candidate_job_refs r "
                 f"JOIN jobs j ON j.id = r.job_id "
                 f"LEFT JOIN job_applications ja ON ja.job_id = j.id AND ja.user_id = r.candidate_id "

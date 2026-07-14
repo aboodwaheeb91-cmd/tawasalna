@@ -9528,6 +9528,56 @@ check("482-06. _open() has _isOwner() guard — deep-link panel does not open fo
       '_isOwner' in _open482)
 
 
+# ════════════════════════════════════════════════════════════════
+# §483 — job_links batch-fetch uses applied_at (not created_at)
+# Root cause of "تعذّر تحميل القائمة" — job_applications table
+# has applied_at TIMESTAMP, not created_at.
+# ════════════════════════════════════════════════════════════════
+
+_auth483 = open('auth.py', encoding='utf-8').read()
+
+# Extract both batch-fetch functions to verify the column name
+_get_saved483 = (_auth483.split('def get_company_saved_candidates(')[1].split('\ndef ')[0]
+                 if 'def get_company_saved_candidates(' in _auth483 else '')
+_get_filt483  = (_auth483.split('def get_company_saved_candidates_filtered(')[1].split('\ndef ')[0]
+                 if 'def get_company_saved_candidates_filtered(' in _auth483 else '')
+
+# 483-01: job_applications table schema defines applied_at, NOT created_at
+# Split by the UNIQUE constraint which closes the column list
+_ja_schema483 = (_auth483.split('CREATE TABLE IF NOT EXISTS job_applications')[1].split('UNIQUE(job_id')[0]
+                 if 'CREATE TABLE IF NOT EXISTS job_applications' in _auth483 else '')
+check("483-01. job_applications table has applied_at column, NOT created_at",
+      'applied_at' in _ja_schema483
+      and 'created_at' not in _ja_schema483)
+
+# 483-02: get_company_saved_candidates batch-fetch uses ja.applied_at (was ja.created_at — bug)
+check("483-02. get_company_saved_candidates job_links query uses ja.applied_at (not ja.created_at)",
+      'ja.applied_at' in _get_saved483
+      and 'ja.created_at' not in _get_saved483)
+
+# 483-03: get_company_saved_candidates_filtered batch-fetch uses ja.applied_at
+check("483-03. get_company_saved_candidates_filtered job_links query uses ja.applied_at (not ja.created_at)",
+      'ja.applied_at' in _get_filt483
+      and 'ja.created_at' not in _get_filt483)
+
+# 483-04: candidate linked to job WITH application — apply_date serialized from applied_at
+# (LEFT JOIN returns applied_at value; Python aliases it as apply_date in job_links dict)
+check("483-04. job_links dict key is apply_date, sourced from ja.applied_at via LEFT JOIN",
+      "'apply_date': apply_date.isoformat()" in _get_saved483
+      or "'apply_date': apply_date.isoformat()" in _get_filt483)
+
+# 483-05: candidate linked to job WITHOUT application — LEFT JOIN returns null applied_at
+# Python guard: apply_date.isoformat() if apply_date else None → None in output
+check("483-05. null apply_date guarded with isoformat() if apply_date else None",
+      'apply_date.isoformat() if apply_date else None' in _get_saved483
+      or 'apply_date.isoformat() if apply_date else None' in _get_filt483)
+
+# 483-06: candidate with no job links — job_titles[] and job_links[] default to []
+check("483-06. candidates with no refs get empty job_titles[] and job_links[] via .get(id, [])",
+      "jtmap.get(item['candidate_id'], [])" in _get_saved483
+      and "jlmap.get(item['candidate_id'], [])" in _get_saved483)
+
+
 # ── Summary ──────────────────────────────────────────────────────────────
 print()
 passed = sum(1 for _, s, _ in results if s == PASS)
