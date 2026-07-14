@@ -2769,19 +2769,23 @@
     // Notes preview
     if (notes) html += '<div class="co-cand-notes-pre">' + _esc(notes) + '</div>';
     // Job chips — clickable, from company_candidate_job_refs + job_applications
+    // All chips rendered; chips beyond index 2 start hidden; +N button reveals them
     if (jobLinks.length) {
-      var dispLinks = jobLinks.slice(0, 3);
       html += '<div class="co-cand-job-chips">';
-      dispLinks.forEach(function (jl) {
+      jobLinks.forEach(function (jl, idx) {
         var applyDate = jl.apply_date ? _fmtDate(jl.apply_date) : '';
-        html += '<button class="co-cand-job-chip" type="button"'
+        var hiddenCls = idx >= 3 ? ' co-cand-job-chip--hidden' : '';
+        html += '<button class="co-cand-job-chip' + hiddenCls + '" type="button"'
               + ' data-jid="' + _esc(String(jl.job_id)) + '"'
               + ' data-title="' + _esc(jl.title || '') + '"'
               + ' data-apply-date="' + _esc(applyDate) + '"'
               + ' data-app-status="' + _esc(jl.status || '') + '">'
               + _esc(jl.title || ('وظيفة #' + jl.job_id)) + '</button>';
       });
-      if (jobLinks.length > 3) html += '<span class="co-cand-job-chip co-cand-job-chip--more">+' + (jobLinks.length - 3) + '</span>';
+      if (jobLinks.length > 3) {
+        html += '<button class="co-cand-chip-more-btn" type="button" aria-label="عرض المزيد من الوظائف">+'
+              + (jobLinks.length - 3) + '</button>';
+      }
       html += '</div>';
     }
     html += '</div>'; // .co-cand-info
@@ -2854,9 +2858,22 @@
   }
 
   function _onSavedClick(e) {
+    // +N expand button — reveal hidden job chips in this card
+    var moreBtn = e.target.closest('.co-cand-chip-more-btn');
+    if (moreBtn) {
+      var chipsRow = moreBtn.closest('.co-cand-job-chips');
+      if (chipsRow) {
+        chipsRow.querySelectorAll('.co-cand-job-chip--hidden').forEach(function (c) {
+          c.classList.remove('co-cand-job-chip--hidden');
+        });
+      }
+      moreBtn.remove();
+      return;
+    }
+
     // Job chip popover
     var chipBtn = e.target.closest('.co-cand-job-chip');
-    if (chipBtn && !chipBtn.classList.contains('co-cand-job-chip--more')) {
+    if (chipBtn && !chipBtn.classList.contains('co-cand-job-chip--hidden')) {
       _showJobChipPop(chipBtn, e);
       return;
     }
@@ -2885,12 +2902,16 @@
     if (cancelBtn) { _closePanelOf(cancelBtn); return; }
   }
 
-  // ── Job chip popover (Req 3) ────────────────────────────────────
+  // ── Job chip popover ────────────────────────────────────────────
+  // Shows two separate rows: job application status + company classification
   function _showJobChipPop(chip) {
-    var title     = chip.getAttribute('data-title') || '';
-    var applyDate = chip.getAttribute('data-apply-date') || '';
-    var appStatus = chip.getAttribute('data-app-status') || '';
-    var statusLbl = _APP_STATUS_LABELS[appStatus] || '';
+    var title      = chip.getAttribute('data-title') || '';
+    var applyDate  = chip.getAttribute('data-apply-date') || '';
+    var appStatus  = chip.getAttribute('data-app-status') || '';
+    var appLbl     = appStatus ? (_APP_STATUS_LABELS[appStatus] || appStatus) : 'لم يتقدم بعد';
+    var card       = chip.closest('.co-cand-saved-card');
+    var candStatus = card ? (card.getAttribute('data-status') || '') : '';
+    var candLbl    = _statusLabel(candStatus);
 
     var pop = document.getElementById('co-cand-job-pop');
     if (!pop) {
@@ -2900,54 +2921,77 @@
       document.body.appendChild(pop);
     }
 
+    // Row 1: job application status (from job_applications.status)
+    // Row 2: company classification of candidate (from company_saved_candidates.status)
+    var appCls = appStatus ? 'co-cjp-status' : 'co-cjp-no-app';
     var html = '<div class="co-cjp-title">' + _esc(title) + '</div>';
+    html += '<div class="co-cjp-row"><span>حالة الطلب</span><span class="' + appCls + '">' + _esc(appLbl) + '</span></div>';
+    html += '<div class="co-cjp-row"><span>تصنيف الشركة</span><span class="co-cjp-cand-status">' + _esc(candLbl) + '</span></div>';
     if (applyDate) {
-      html += '<div class="co-cjp-row"><span>تاريخ التقدم</span><span>' + _esc(applyDate) + '</span></div>';
-      if (statusLbl) {
-        html += '<div class="co-cjp-row"><span>حالة الطلب</span><span class="co-cjp-status">' + _esc(statusLbl) + '</span></div>';
-      }
-    } else {
-      html += '<div class="co-cjp-no-app">لم يتقدم بعد</div>';
+      html += '<div class="co-cjp-row co-cjp-row--date"><span>تاريخ التقدم</span><span>' + _esc(applyDate) + '</span></div>';
     }
     pop.innerHTML = html;
     pop.style.display = 'block';
 
-    var rect = chip.getBoundingClientRect();
-    var top  = rect.bottom + window.scrollY + 6;
-    var left = rect.left  + window.scrollX;
-    pop.style.top  = top + 'px';
-    pop.style.left = left + 'px';
-
-    var popW = pop.offsetWidth;
-    var winW = window.innerWidth;
-    if (left + popW > winW - 8) pop.style.left = Math.max(8, winW - popW - 8) + 'px';
-
+    _jobPopPositionFromChip(chip, pop);
     _jobPopTarget = chip;
+
+    // Close on outside click
     setTimeout(function () {
       document.addEventListener('click', _closeJobPop, { once: true, capture: true });
     }, 0);
+    // Close (don't reposition) on scroll or resize — simplest correct behavior
+    window.addEventListener('scroll', _closeJobPop, { once: true, passive: true });
+    window.addEventListener('resize', _closeJobPop, { once: true });
+  }
+
+  // Position popover below chip; flip above when not enough room below
+  function _jobPopPositionFromChip(chip, pop) {
+    var rect  = chip.getBoundingClientRect();
+    var popH  = pop.offsetHeight;
+    var popW  = pop.offsetWidth;
+    var winH  = window.innerHeight;
+    var winW  = window.innerWidth;
+
+    // Prefer below; flip above if insufficient space and above has room
+    var top = (rect.bottom + popH + 6 > winH - 8 && rect.top > popH + 6)
+      ? rect.top - popH - 6
+      : rect.bottom + 6;
+
+    // Clamp horizontally within viewport
+    var left = rect.left;
+    if (left + popW > winW - 8) left = winW - popW - 8;
+    if (left < 8) left = 8;
+
+    pop.style.top  = Math.max(8, top) + 'px';
+    pop.style.left = left + 'px';
   }
 
   function _closeJobPop() {
     var pop = document.getElementById('co-cand-job-pop');
     if (pop) pop.style.display = 'none';
+    window.removeEventListener('scroll', _closeJobPop);
+    window.removeEventListener('resize', _closeJobPop);
     _jobPopTarget = null;
   }
 
   // Rebuild job chips on a card in-place and update data-job-links
   function _updateChips(card, links) {
     card.setAttribute('data-job-links', JSON.stringify(links));
-    var dispLinks = links.slice(0, 3);
-    var newHtml = dispLinks.map(function (jl) {
+    var newHtml = links.map(function (jl, idx) {
       var applyDate = jl.apply_date ? _fmtDate(jl.apply_date) : '';
-      return '<button class="co-cand-job-chip" type="button"'
+      var hiddenCls = idx >= 3 ? ' co-cand-job-chip--hidden' : '';
+      return '<button class="co-cand-job-chip' + hiddenCls + '" type="button"'
            + ' data-jid="' + _esc(String(jl.job_id)) + '"'
            + ' data-title="' + _esc(jl.title || '') + '"'
            + ' data-apply-date="' + _esc(applyDate) + '"'
            + ' data-app-status="' + _esc(jl.status || '') + '">'
            + _esc(jl.title || ('وظيفة #' + jl.job_id)) + '</button>';
     }).join('');
-    if (links.length > 3) newHtml += '<span class="co-cand-job-chip co-cand-job-chip--more">+' + (links.length - 3) + '</span>';
+    if (links.length > 3) {
+      newHtml += '<button class="co-cand-chip-more-btn" type="button" aria-label="عرض المزيد من الوظائف">+'
+               + (links.length - 3) + '</button>';
+    }
 
     var chipsWrap = card.querySelector('.co-cand-job-chips');
     if (chipsWrap) {
