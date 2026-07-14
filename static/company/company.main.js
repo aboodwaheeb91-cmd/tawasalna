@@ -2314,6 +2314,24 @@
   };
   var _STATUS_ORDER = ['saved','shortlisted','contacted','interview','hired','rejected'];
 
+  // Job application status labels (for chip popover)
+  var _APP_STATUS_LABELS = {
+    'pending':   'قيد المراجعة',
+    'viewed':    'تمت المشاهدة',
+    'accepted':  'مقبول',
+    'contacted': 'تم التواصل',
+    'interview': 'مقابلة',
+    'hired':     'تم التوظيف',
+    'rejected':  'مرفوض',
+  };
+
+  // Pending manage panel open after tab switch (Reqs 5 & 6)
+  var _pendingManageOpen      = null;   // candidate_id to auto-open after saved tab loads
+  var _pendingManageOpenNotes = false;  // also focus notes textarea
+
+  // Job chip popover state
+  var _jobPopTarget = null;
+
   function _statusLabel(s) { return _STATUS_LABELS[s] || _STATUS_LABELS['saved']; }
   function _statusKey(s)   { return _STATUS_LABELS[s] ? s : 'saved'; }
 
@@ -2381,8 +2399,10 @@
       if (opts[i].value === current) { curLabel = opts[i].label; break; }
     }
     var listHtml = opts.map(function (o) {
-      return '<button class="co-dp-opt' + (o.value === current ? ' selected' : '') + '"'
-           + ' data-value="' + _esc(o.value) + '" type="button">'
+      var cls = 'co-dp-opt' + (o.value === current ? ' selected' : '') + (o.disabled ? ' co-dp-opt--disabled' : '');
+      return '<button class="' + cls + '"'
+           + ' data-value="' + _esc(o.value) + '" type="button"'
+           + (o.disabled ? ' data-linked="1"' : '') + '>'
            + _checkSvg()
            + '<span>' + _esc(o.label) + '</span></button>';
     }).join('');
@@ -2407,6 +2427,7 @@
     if (!wasOpen) list.style.display = 'block';
   }
   function _handleDpOptClick(opt) {
+    if (opt.getAttribute('data-linked') === '1') return;
     var wrap = opt.closest('.co-dp-wrap');
     if (!wrap) return;
     var val  = opt.getAttribute('data-value');
@@ -2670,9 +2691,9 @@
     } catch (e) { return ''; }
   }
 
-  // Build status <option> list
-  // Build custom job picker from companyState.jobs (active/paused jobs + legacy 'open')
-  function _jobDpHTML(currentJobId) {
+  // Build custom job picker — linked jobs (in company_candidate_job_refs) shown disabled+✓
+  function _jobDpHTML(currentJobId, linkedJobIds) {
+    var linked = Array.isArray(linkedJobIds) ? linkedJobIds : [];
     var jobs = (window.companyState && companyState.jobs)
       ? companyState.jobs.filter(function (j) {
           var eff = j.effective_status || j.status;
@@ -2680,28 +2701,36 @@
         })
       : [];
     if (!jobs.length) return '';
-    var opts = [{value: '', label: '— بدون وظيفة محددة —'}];
+    var opts = [{value: '', label: '— اختر وظيفة لربطها —'}];
     jobs.forEach(function (j) {
-      opts.push({value: String(j.id), label: j.title || ('وظيفة #' + j.id)});
+      var isLinked = linked.indexOf(String(j.id)) !== -1;
+      opts.push({
+        value:    String(j.id),
+        label:    (isLinked ? '✓ ' : '') + (j.title || ('وظيفة #' + j.id)),
+        disabled: isLinked,
+      });
     });
-    return '<label class="co-cand-panel-label">ربط بوظيفة (اختياري)</label>'
+    return '<label class="co-cand-panel-label">ربط بوظيفة</label>'
          + _dpHTML('co-cand-dp-job', opts, currentJobId || '');
   }
 
   // Build a single saved card with embedded manage panel
   function _savedCardHTML(item) {
-    var status = item.status || 'saved';
-    var notes  = item.notes  || '';
-    var jobId  = item.job_id  != null ? String(item.job_id) : '';
-    var meta   = [item.profession, item.city, item.country].filter(Boolean).join(' · ');
-    var date   = _fmtDate(item.created_at);
-    var cid    = _esc(item.candidate_id);
+    var status   = item.status || 'saved';
+    var notes    = item.notes  || '';
+    var jobId    = item.job_id  != null ? String(item.job_id) : '';
+    var meta     = [item.profession, item.city, item.country].filter(Boolean).join(' · ');
+    var date     = _fmtDate(item.created_at);
+    var cid      = _esc(item.candidate_id);
+    var jobLinks = Array.isArray(item.job_links) ? item.job_links : [];
+    var linkedIds = jobLinks.map(function(jl) { return String(jl.job_id); });
 
     var html = '<div class="co-cand-saved-card"'
       + ' data-cid="' + cid + '"'
       + ' data-status="' + _esc(status) + '"'
       + ' data-notes="' + _esc(notes) + '"'
-      + ' data-jobid="' + _esc(jobId) + '">';
+      + ' data-jobid="' + _esc(jobId) + '"'
+      + ' data-job-links="' + _esc(JSON.stringify(jobLinks)) + '">';
 
     // ── Top row (avatar + info + actions) ────────────────────────
     html += '<div class="co-cand-top">';
@@ -2723,13 +2752,20 @@
     html += '</div>';
     // Notes preview
     if (notes) html += '<div class="co-cand-notes-pre">' + _esc(notes) + '</div>';
-    // Job titles chips (from job_applications — names not IDs)
-    var jobTitles = Array.isArray(item.job_titles) ? item.job_titles : [];
-    if (jobTitles.length) {
-      var dispTitles = jobTitles.slice(0, 3);
+    // Job chips — clickable, from company_candidate_job_refs + job_applications
+    if (jobLinks.length) {
+      var dispLinks = jobLinks.slice(0, 3);
       html += '<div class="co-cand-job-chips">';
-      dispTitles.forEach(function (t) { html += '<span class="co-cand-job-chip">' + _esc(t) + '</span>'; });
-      if (jobTitles.length > 3) html += '<span class="co-cand-job-chip co-cand-job-chip--more">+' + (jobTitles.length - 3) + '</span>';
+      dispLinks.forEach(function (jl) {
+        var applyDate = jl.apply_date ? _fmtDate(jl.apply_date) : '';
+        html += '<button class="co-cand-job-chip" type="button"'
+              + ' data-jid="' + _esc(String(jl.job_id)) + '"'
+              + ' data-title="' + _esc(jl.title || '') + '"'
+              + ' data-apply-date="' + _esc(applyDate) + '"'
+              + ' data-app-status="' + _esc(jl.status || '') + '">'
+              + _esc(jl.title || ('وظيفة #' + jl.job_id)) + '</button>';
+      });
+      if (jobLinks.length > 3) html += '<span class="co-cand-job-chip co-cand-job-chip--more">+' + (jobLinks.length - 3) + '</span>';
       html += '</div>';
     }
     html += '</div>'; // .co-cand-info
@@ -2754,7 +2790,7 @@
           + _esc(notes) + '</textarea>';
     html += '<span class="co-cand-panel-counter">' + notes.length + ' / 500</span>';
     html += '</div>';
-    html += _jobDpHTML(jobId);
+    html += _jobDpHTML('', linkedIds);
     html += '<div class="co-cand-panel-acts">';
     html += '<button class="co-cand-panel-save" data-cid="' + cid + '">حفظ التعديل</button>';
     html += '<button class="co-cand-panel-cancel" data-cid="' + cid + '">إلغاء</button>';
@@ -2780,9 +2816,35 @@
     _wireTextareaCounters();
     _body.removeEventListener('click', _onSavedClick);
     _body.addEventListener('click', _onSavedClick);
+
+    // Req 5 & 6: auto-open manage panel after switching from suggestions tab
+    if (_pendingManageOpen != null) {
+      var pendCid   = _pendingManageOpen;
+      var focusNotes = _pendingManageOpenNotes;
+      _pendingManageOpen      = null;
+      _pendingManageOpenNotes = false;
+      var targetCard = _body.querySelector('.co-cand-saved-card[data-cid="' + pendCid + '"]');
+      if (targetCard) {
+        var manBtn = targetCard.querySelector('.co-cand-manage-btn');
+        if (manBtn) {
+          _togglePanel(manBtn);
+          if (focusNotes) {
+            var ta = targetCard.querySelector('.co-cand-panel-ta');
+            if (ta) setTimeout(function () { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }, 50);
+          }
+        }
+      }
+    }
   }
 
   function _onSavedClick(e) {
+    // Job chip popover
+    var chipBtn = e.target.closest('.co-cand-job-chip');
+    if (chipBtn && !chipBtn.classList.contains('co-cand-job-chip--more')) {
+      _showJobChipPop(chipBtn, e);
+      return;
+    }
+
     // Custom dark picker — option selected
     var dpOpt = e.target.closest('.co-dp-opt');
     if (dpOpt) { _handleDpOptClick(dpOpt); return; }
@@ -2805,6 +2867,95 @@
 
     var cancelBtn = e.target.closest('.co-cand-panel-cancel');
     if (cancelBtn) { _closePanelOf(cancelBtn); return; }
+  }
+
+  // ── Job chip popover (Req 3) ────────────────────────────────────
+  function _showJobChipPop(chip) {
+    var title     = chip.getAttribute('data-title') || '';
+    var applyDate = chip.getAttribute('data-apply-date') || '';
+    var appStatus = chip.getAttribute('data-app-status') || '';
+    var statusLbl = _APP_STATUS_LABELS[appStatus] || '';
+
+    var pop = document.getElementById('co-cand-job-pop');
+    if (!pop) {
+      pop = document.createElement('div');
+      pop.id = 'co-cand-job-pop';
+      pop.className = 'co-cand-job-pop';
+      document.body.appendChild(pop);
+    }
+
+    var html = '<div class="co-cjp-title">' + _esc(title) + '</div>';
+    if (applyDate) {
+      html += '<div class="co-cjp-row"><span>تاريخ التقدم</span><span>' + _esc(applyDate) + '</span></div>';
+      if (statusLbl) {
+        html += '<div class="co-cjp-row"><span>حالة الطلب</span><span class="co-cjp-status">' + _esc(statusLbl) + '</span></div>';
+      }
+    } else {
+      html += '<div class="co-cjp-no-app">لم يتقدم بعد</div>';
+    }
+    pop.innerHTML = html;
+    pop.style.display = 'block';
+
+    var rect = chip.getBoundingClientRect();
+    var top  = rect.bottom + window.scrollY + 6;
+    var left = rect.left  + window.scrollX;
+    pop.style.top  = top + 'px';
+    pop.style.left = left + 'px';
+
+    var popW = pop.offsetWidth;
+    var winW = window.innerWidth;
+    if (left + popW > winW - 8) pop.style.left = Math.max(8, winW - popW - 8) + 'px';
+
+    _jobPopTarget = chip;
+    setTimeout(function () {
+      document.addEventListener('click', _closeJobPop, { once: true, capture: true });
+    }, 0);
+  }
+
+  function _closeJobPop() {
+    var pop = document.getElementById('co-cand-job-pop');
+    if (pop) pop.style.display = 'none';
+    _jobPopTarget = null;
+  }
+
+  // Rebuild job chips on a card in-place and update data-job-links
+  function _updateChips(card, links) {
+    card.setAttribute('data-job-links', JSON.stringify(links));
+    var dispLinks = links.slice(0, 3);
+    var newHtml = dispLinks.map(function (jl) {
+      var applyDate = jl.apply_date ? _fmtDate(jl.apply_date) : '';
+      return '<button class="co-cand-job-chip" type="button"'
+           + ' data-jid="' + _esc(String(jl.job_id)) + '"'
+           + ' data-title="' + _esc(jl.title || '') + '"'
+           + ' data-apply-date="' + _esc(applyDate) + '"'
+           + ' data-app-status="' + _esc(jl.status || '') + '">'
+           + _esc(jl.title || ('وظيفة #' + jl.job_id)) + '</button>';
+    }).join('');
+    if (links.length > 3) newHtml += '<span class="co-cand-job-chip co-cand-job-chip--more">+' + (links.length - 3) + '</span>';
+
+    var chipsWrap = card.querySelector('.co-cand-job-chips');
+    if (chipsWrap) {
+      chipsWrap.innerHTML = newHtml;
+    } else if (newHtml) {
+      var wrap = document.createElement('div');
+      wrap.className = 'co-cand-job-chips';
+      wrap.innerHTML = newHtml;
+      var infoDiv = card.querySelector('.co-cand-info');
+      if (infoDiv) infoDiv.appendChild(wrap);
+    }
+
+    // Update disabled states in job picker if panel is open
+    var linkedIds = links.map(function (jl) { return String(jl.job_id); });
+    var dpJob = card.querySelector('.co-cand-dp-job');
+    if (dpJob) {
+      dpJob.querySelectorAll('.co-dp-opt').forEach(function (o) {
+        var val = o.getAttribute('data-value');
+        var isLinked = val && linkedIds.indexOf(val) !== -1;
+        o.classList.toggle('co-dp-opt--disabled', isLinked);
+        if (isLinked) o.setAttribute('data-linked', '1');
+        else o.removeAttribute('data-linked');
+      });
+    }
   }
 
   function _handleRemove(btn) {
@@ -2899,6 +3050,51 @@
         if (res && res.ok && res.data && res.data.item) {
           var updated = res.data.item;
           _applyCardUpdate(card, updated);
+
+          // Req 1: if a new unlinked job was selected, add job ref via POST
+          var newJobId = payload.job_id;
+          if (newJobId) {
+            var curLinks = [];
+            try { curLinks = JSON.parse(card.getAttribute('data-job-links') || '[]'); } catch (e) {}
+            var alreadyLinked = curLinks.some(function (jl) { return String(jl.job_id) === String(newJobId); });
+            if (!alreadyLinked) {
+              var jwt2 = window._jwt ? window._jwt() : '';
+              fetch('/company/saved-candidates/' + cid + '?job_id=' + newJobId, {
+                method: 'POST',
+                headers: { 'Authorization': 'Bearer ' + jwt2 }
+              })
+              .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+              .then(function (postRes) {
+                if (postRes && postRes.ok) {
+                  var jobObj = (window.companyState && companyState.jobs)
+                    ? companyState.jobs.find(function (j) { return String(j.id) === String(newJobId); })
+                    : null;
+                  var newLink = {
+                    job_id:     newJobId,
+                    title:      jobObj ? jobObj.title : ('وظيفة #' + newJobId),
+                    apply_date: null,
+                    status:     null,
+                  };
+                  var links = [];
+                  try { links = JSON.parse(card.getAttribute('data-job-links') || '[]'); } catch (e) {}
+                  links.push(newLink);
+                  _updateChips(card, links);
+                  // Reset job picker to empty after linking
+                  var dpJob2 = card.querySelector('.co-cand-dp-job');
+                  if (dpJob2) {
+                    dpJob2.setAttribute('data-selected', '');
+                    var dpJVal2 = dpJob2.querySelector('.co-dp-val');
+                    if (dpJVal2) dpJVal2.textContent = '— اختر وظيفة لربطها —';
+                    dpJob2.querySelectorAll('.co-dp-opt').forEach(function (o) {
+                      o.classList.remove('selected');
+                    });
+                  }
+                }
+              })
+              .catch(function () {});
+            }
+          }
+
           _closePanelOf(btn);
           _loadSavedStats(null);
           // Hide card if it no longer matches the active filter
@@ -2967,10 +3163,9 @@
       notesPre.parentNode.removeChild(notesPre);
     }
 
-    // data-jobid stays in sync for the manage panel dropdown
-    // .co-cand-job-chips derive from job_applications (unchanged by PATCH — no DOM update needed)
+    // Remove legacy raw ID display if present
     var jobRef = card.querySelector('.co-cand-job-ref');
-    if (jobRef) jobRef.parentNode.removeChild(jobRef); // Remove legacy raw ID display
+    if (jobRef) jobRef.parentNode.removeChild(jobRef);
 
     // Sync custom status picker display for next panel open
     var dpStatus = card.querySelector('.co-cand-dp-status');
@@ -2983,14 +3178,14 @@
       });
     }
 
-    // Sync custom job picker display
+    // Reset job picker to empty (picker is for adding new links, not showing current)
     var dpJob = card.querySelector('.co-cand-dp-job');
     if (dpJob) {
-      dpJob.setAttribute('data-selected', newJobId);
+      dpJob.setAttribute('data-selected', '');
       var dpJVal = dpJob.querySelector('.co-dp-val');
-      if (dpJVal) dpJVal.textContent = newJobId ? ('وظيفة #' + newJobId) : '— بدون وظيفة محددة —';
+      if (dpJVal) dpJVal.textContent = '— اختر وظيفة لربطها —';
       dpJob.querySelectorAll('.co-dp-opt').forEach(function (o) {
-        o.classList.toggle('selected', o.getAttribute('data-value') === newJobId);
+        o.classList.remove('selected');
       });
     }
   }
@@ -3129,18 +3324,37 @@
             if (res && res.ok) {
               _loadSavedStats(null);
               var row = btn.closest('.co-cand-item');
+              // Req 5: swap save btn for manage btn (clone removes old listener)
+              var newBtn = document.createElement('button');
+              newBtn.className = 'co-sugg-save-btn co-sugg-manage-mode';
+              newBtn.type      = 'button';
+              newBtn.textContent = 'إدارة المرشح';
+              newBtn.addEventListener('click', function () {
+                _pendingManageOpen      = cid;
+                _pendingManageOpenNotes = false;
+                _switchTab('saved');
+              });
+              if (btn.parentNode) btn.parentNode.replaceChild(newBtn, btn);
+              // Req 6: show inline confirmation card
               if (row) {
-                row.style.transition = 'opacity .2s';
-                row.style.opacity = '0';
-                setTimeout(function () {
-                  if (row.parentNode) row.parentNode.removeChild(row);
-                  var list = _body.querySelector('#coCandSuggList');
-                  if (list && !list.querySelector('.co-cand-item')) {
-                    _body.innerHTML = _suggEmptyHTML();
-                  }
-                }, 220);
+                var existing = row.querySelector('.co-sugg-confirm');
+                if (!existing) {
+                  var conf = document.createElement('div');
+                  conf.className = 'co-sugg-confirm';
+                  conf.innerHTML = '<span class="co-sugg-conf-msg">✓ تم حفظ المرشح</span>'
+                    + '<button class="co-sugg-conf-notes" type="button">إضافة ملاحظة</button>'
+                    + '<button class="co-sugg-conf-later" type="button">ليس الآن</button>';
+                  conf.querySelector('.co-sugg-conf-notes').addEventListener('click', function () {
+                    _pendingManageOpen      = cid;
+                    _pendingManageOpenNotes = true;
+                    _switchTab('saved');
+                  });
+                  conf.querySelector('.co-sugg-conf-later').addEventListener('click', function () {
+                    conf.parentNode && conf.parentNode.removeChild(conf);
+                  });
+                  row.appendChild(conf);
+                }
               }
-              if (window.showToast) showToast('تم حفظ المرشح');
             } else {
               btn.disabled = false;
               btn.textContent = 'حفظ كمرشح';

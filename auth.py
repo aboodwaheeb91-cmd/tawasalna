@@ -4876,24 +4876,35 @@ def get_company_saved_candidates(company_id: int, limit: int = 20, offset: int =
                 "created_at":   created_at,
             }))
 
-        # Batch-fetch job titles from company_candidate_job_refs (company-intentional links only)
+        # Batch-fetch job titles + rich job_links from company_candidate_job_refs
         if items:
             id_clause = ','.join(str(r['candidate_id']) for r in items)
             trows = conn.run(
-                f"SELECT r.candidate_id, j.title "
+                f"SELECT r.candidate_id, j.id, j.title, ja.created_at, ja.status "
                 f"FROM company_candidate_job_refs r "
                 f"JOIN jobs j ON j.id = r.job_id "
+                f"LEFT JOIN job_applications ja ON ja.job_id = j.id AND ja.user_id = r.candidate_id "
                 f"WHERE r.candidate_id IN ({id_clause}) AND r.company_id = :cid "
                 f"ORDER BY j.id",
                 cid=company_id) or []
             jtmap = {}
+            jlmap = {}
             for trow in trows:
-                uid, title = int(trow[0]), trow[1]
+                uid  = int(trow[0])
+                jid, title, apply_date, app_status = int(trow[1]), trow[2], trow[3], trow[4]
                 if uid not in jtmap:
                     jtmap[uid] = []
+                    jlmap[uid] = []
                 jtmap[uid].append(title)
+                jlmap[uid].append({
+                    'job_id':     jid,
+                    'title':      title,
+                    'apply_date': apply_date.isoformat() if apply_date else None,
+                    'status':     app_status or None,
+                })
             for item in items:
                 item['job_titles'] = jtmap.get(item['candidate_id'], [])
+                item['job_links']  = jlmap.get(item['candidate_id'], [])
 
         return {
             "count": total,
@@ -5068,22 +5079,32 @@ def get_company_saved_candidates_filtered(
                 "updated_at":   updated_at,
             }))
 
-        # Batch-fetch job titles from refs + per_job_accepted from job_applications
+        # Batch-fetch job titles + rich job_links from refs + per_job_accepted
         if items:
             id_clause = ','.join(str(r['candidate_id']) for r in items)
             trows = conn.run(
-                f"SELECT r.candidate_id, j.title "
+                f"SELECT r.candidate_id, j.id, j.title, ja.created_at, ja.status "
                 f"FROM company_candidate_job_refs r "
                 f"JOIN jobs j ON j.id = r.job_id "
+                f"LEFT JOIN job_applications ja ON ja.job_id = j.id AND ja.user_id = r.candidate_id "
                 f"WHERE r.candidate_id IN ({id_clause}) AND r.company_id = :cid "
                 f"ORDER BY j.id",
                 cid=company_id) or []
             jtmap = {}
+            jlmap = {}
             for trow in trows:
-                uid, title = int(trow[0]), trow[1]
+                uid  = int(trow[0])
+                jid, title, apply_date, app_status = int(trow[1]), trow[2], trow[3], trow[4]
                 if uid not in jtmap:
                     jtmap[uid] = []
+                    jlmap[uid] = []
                 jtmap[uid].append(title)
+                jlmap[uid].append({
+                    'job_id':     jid,
+                    'title':      title,
+                    'apply_date': apply_date.isoformat() if apply_date else None,
+                    'status':     app_status or None,
+                })
             accepted_ids = set()
             if job_id is not None:
                 acc_rows = conn.run(
@@ -5095,6 +5116,7 @@ def get_company_saved_candidates_filtered(
                 accepted_ids = {int(r[0]) for r in acc_rows}
             for item in items:
                 item['job_titles'] = jtmap.get(item['candidate_id'], [])
+                item['job_links']  = jlmap.get(item['candidate_id'], [])
                 if job_id is not None:
                     item['per_job_accepted'] = item['candidate_id'] in accepted_ids
 
