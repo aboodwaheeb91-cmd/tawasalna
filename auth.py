@@ -2384,7 +2384,7 @@ def update_application_status(app_id: int, status: str, actor_id: int = None) ->
         release_conn(conn)
     # All pipeline classification states are internal to the company — no notification to applicant.
     # The only applicant-visible action is a formal appointment invitation via the Appointments system.
-    _INTERNAL_STATUSES = {"accepted", "rejected", "contacted", "interview", "hired"}
+    _INTERNAL_STATUSES = {"pending", "viewed", "accepted", "rejected", "contacted", "interview", "hired"}
     if applicant_id and status not in _INTERNAL_STATUSES and (actor_id is None or int(applicant_id) != int(actor_id)):
         _labels = {
             "viewed": ("بدأت مراجعة طلبك", f"بدأت الشركة مراجعة طلبك على وظيفة «{job_title}»"),

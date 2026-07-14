@@ -9356,6 +9356,24 @@ check("187-20. company.css has status badge colors for contacted, interview, hir
       and 'co-app-status--hired' in _css187)
 
 
+# ════════════════════════════════════════════════════════════════
+# §188 — viewed is fully internal: no notification for "للمراجعة"
+# ════════════════════════════════════════════════════════════════
+
+_auth188 = open('auth.py', encoding='utf-8').read()
+_ias188  = (_auth188.split('_INTERNAL_STATUSES')[1].split('\n')[0]
+            if '_INTERNAL_STATUSES' in _auth188 else '')
+
+# 188-01: viewed is in _INTERNAL_STATUSES so no notification fires for "للمراجعة"
+check("188-01. viewed is in _INTERNAL_STATUSES (no notification for للمراجعة)",
+      'viewed' in _ias188)
+
+# 188-02: all 7 classify statuses are internal — notification block can never fire for any of them
+_seven = ['pending', 'viewed', 'accepted', 'rejected', 'contacted', 'interview', 'hired']
+check("188-02. all 7 pipeline statuses are in _INTERNAL_STATUSES",
+      all(s in _ias188 for s in _seven))
+
+
 # ── Summary ──────────────────────────────────────────────────────────────
 print()
 passed = sum(1 for _, s, _ in results if s == PASS)
