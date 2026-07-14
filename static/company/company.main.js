@@ -3047,59 +3047,74 @@
 
     window.updateSavedCandidate(cid, payload)
       .then(function (res) {
-        if (res && res.ok && res.data && res.data.item) {
-          var updated = res.data.item;
-          _applyCardUpdate(card, updated);
+        if (!res || !res.ok || !res.data || !res.data.item) {
+          if (window.showToast) showToast('تعذّر الحفظ', 'error');
+          return;
+        }
+        var updated  = res.data.item;
+        var newJobId = payload.job_id;
 
-          // Req 1: if a new unlinked job was selected, add job ref via POST
-          var newJobId = payload.job_id;
-          if (newJobId) {
-            var curLinks = [];
-            try { curLinks = JSON.parse(card.getAttribute('data-job-links') || '[]'); } catch (e) {}
-            var alreadyLinked = curLinks.some(function (jl) { return String(jl.job_id) === String(newJobId); });
-            if (!alreadyLinked) {
+        var curLinks = [];
+        try { curLinks = JSON.parse(card.getAttribute('data-job-links') || '[]'); } catch (e) {}
+        var alreadyLinked = newJobId && curLinks.some(function (jl) { return String(jl.job_id) === String(newJobId); });
+
+        // Build POST promise for new unlinked job; null means no POST needed.
+        // .catch normalises network errors to {ok:false} so the chain never rejects silently.
+        var postP = (newJobId && !alreadyLinked)
+          ? (function () {
               var jwt2 = window._jwt ? window._jwt() : '';
-              fetch('/company/saved-candidates/' + cid + '?job_id=' + newJobId, {
+              return fetch('/company/saved-candidates/' + cid + '?job_id=' + newJobId, {
                 method: 'POST',
                 headers: { 'Authorization': 'Bearer ' + jwt2 }
               })
               .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
-              .then(function (postRes) {
-                if (postRes && postRes.ok) {
-                  var jobObj = (window.companyState && companyState.jobs)
-                    ? companyState.jobs.find(function (j) { return String(j.id) === String(newJobId); })
-                    : null;
-                  var newLink = {
-                    job_id:     newJobId,
-                    title:      jobObj ? jobObj.title : ('وظيفة #' + newJobId),
-                    apply_date: null,
-                    status:     null,
-                  };
-                  var links = [];
-                  try { links = JSON.parse(card.getAttribute('data-job-links') || '[]'); } catch (e) {}
-                  links.push(newLink);
-                  _updateChips(card, links);
-                  // Reset job picker to empty after linking
-                  var dpJob2 = card.querySelector('.co-cand-dp-job');
-                  if (dpJob2) {
-                    dpJob2.setAttribute('data-selected', '');
-                    var dpJVal2 = dpJob2.querySelector('.co-dp-val');
-                    if (dpJVal2) dpJVal2.textContent = '— اختر وظيفة لربطها —';
-                    dpJob2.querySelectorAll('.co-dp-opt').forEach(function (o) {
-                      o.classList.remove('selected');
-                    });
-                  }
-                }
-              })
-              .catch(function () {});
+              .catch(function () { return { ok: false }; });
+            })()
+          : Promise.resolve(null);
+
+        // Return postP so the outer .finally waits for it
+        return postP.then(function (postRes) {
+          // POST was required but failed — block all success side-effects
+          if (postRes !== null && (!postRes || !postRes.ok)) {
+            if (window.showToast) showToast('تعذّر ربط الوظيفة، جارٍ إعادة التحميل…', 'error');
+            _fetchSaved(); // reload list from company_candidate_job_refs (source of truth)
+            return;
+          }
+
+          // Both PATCH and POST (if needed) succeeded
+          _applyCardUpdate(card, updated);
+
+          if (postRes && postRes.ok) {
+            var jobObj = (window.companyState && companyState.jobs)
+              ? companyState.jobs.find(function (j) { return String(j.id) === String(newJobId); })
+              : null;
+            var newLink = {
+              job_id:     newJobId,
+              title:      jobObj ? jobObj.title : ('وظيفة #' + newJobId),
+              apply_date: null,
+              status:     null,
+            };
+            var links = [];
+            try { links = JSON.parse(card.getAttribute('data-job-links') || '[]'); } catch (e) {}
+            links.push(newLink);
+            _updateChips(card, links);
+            var dpJob2 = card.querySelector('.co-cand-dp-job');
+            if (dpJob2) {
+              dpJob2.setAttribute('data-selected', '');
+              var dpJVal2 = dpJob2.querySelector('.co-dp-val');
+              if (dpJVal2) dpJVal2.textContent = '— اختر وظيفة لربطها —';
+              dpJob2.querySelectorAll('.co-dp-opt').forEach(function (o) { o.classList.remove('selected'); });
             }
           }
 
           _closePanelOf(btn);
           _loadSavedStats(null);
-          // Hide card if it no longer matches the active filter
+
+          // _unlinked filter uses data-job-links (company_candidate_job_refs), not updated.job_id
+          var linksAfter = [];
+          try { linksAfter = JSON.parse(card.getAttribute('data-job-links') || '[]'); } catch (e) {}
           var shouldHide = (_savedFilter && _savedFilter !== '_unlinked' && updated.status !== _savedFilter)
-            || (_savedFilter === '_unlinked' && updated.job_id != null);
+            || (_savedFilter === '_unlinked' && linksAfter.length > 0);
           if (shouldHide) {
             card.style.transition = 'opacity .2s';
             card.style.opacity = '0';
@@ -3112,9 +3127,7 @@
             }, 220);
           }
           if (window.showToast) showToast('تم تحديث المرشح');
-        } else {
-          if (window.showToast) showToast('تعذّر الحفظ', 'error');
-        }
+        });
       })
       .catch(function () {
         if (window.showToast) showToast('تعذّر الحفظ', 'error');
