@@ -2553,6 +2553,8 @@ def admin_errors(request: Request):
     return {"errors": list(reversed(_error_log)), "count": len(_error_log)}
 
 @app.post("/auth/verify-token")
+def verify_token_endpoint(token=Depends(verify_token)):
+    return {"valid": True, "user_id": token["user_id"], "user_type": token["user_type"]}
 
 def _calc_profile_score(uid: int, conn) -> dict:
     """Shared scoring helper — used by /score and /metrics (no duplication).
