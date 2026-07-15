@@ -10157,6 +10157,7 @@ All three layers must remain in place. Removing any one layer weakens the guaran
 ❌ Checking only the pre-UPSERT state for rejected — concurrent insert slips through without RETURNING check
 ❌ Catching KeyError/PermissionError/ValueError and wrapping in RuntimeError (loses HTTP status)
 ❌ UPSERT without CASE safety — can downgrade higher statuses or reactivate rejected
-❌ Using PUT /jobs/applications/{id}/status to do dual-system writes
+✅ PUT /jobs/applications/{id}/status now atomically writes BOTH job_applications.status AND company_candidate_job_refs.candidate_status via _APP_TO_CANDIDATE_STATUS mapping inside update_application_status() — this is the intentional Applicant Classification Sync design (feat/applicant-classification-sync). See CLAUDE.md Saved Candidates §3 carve-out.
+❌ Adding a SECOND synchronous write from the frontend after PUT /jobs/applications/{id}/status — backend handles all writes atomically
 ❌ Reactivating a rejected candidate automatically without explicit human decision
 ```

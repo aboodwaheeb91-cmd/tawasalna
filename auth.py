@@ -2363,27 +2363,114 @@ def get_user_applications(user_id: int) -> list:
     finally:
         release_conn(conn)
 
+# Mapping from job_applications.status to company_candidate_job_refs.candidate_status.
+# Applied atomically inside update_application_status() — intentional business operation only.
+# The reverse direction (candidate_status → application_status) is permanently forbidden.
+_APP_TO_CANDIDATE_STATUS: dict = {
+    "pending":   "saved",
+    "viewed":    "saved",
+    "accepted":  "shortlisted",
+    "contacted": "contacted",
+    "interview": "interview",
+    "hired":     "hired",
+    "rejected":  "rejected",
+}
+
+
 def update_application_status(app_id: int, status: str, actor_id: int = None) -> dict:
-    applicant_id = None
-    job_id = None
-    job_title = ""
+    """
+    Atomic applicant classification: writes job_applications.status AND
+    company_candidate_job_refs.candidate_status in a single transaction.
+
+    Also ensures company_saved_candidates and company_candidate_job_refs rows exist,
+    replacing the separate POST /company/saved-candidates call that _execClassify used to make.
+
+    actor_id is the company_id (from JWT user_id). Ownership is verified inside the transaction.
+
+    Returns: {success, application_id, candidate_id, job_id, application_status, candidate_status, general_status}
+    """
+    candidate_status  = _APP_TO_CANDIDATE_STATUS.get(status)
+    applicant_id: int = 0
+    job_id_int: int   = 0
+    company_id: int   = 0
+    job_title: str    = ""
+
     conn = get_conn()
     try:
-        rows = conn.run(
-            "SELECT ja.user_id, j.id AS job_id, j.title "
-            "FROM job_applications ja JOIN jobs j ON j.id = ja.job_id "
-            "WHERE ja.id = :id",
-            id=app_id
-        )
-        if rows:
-            applicant_id = rows[0][0]
-            job_id       = rows[0][1]
-            job_title    = rows[0][2] or ""
-        conn.run("UPDATE job_applications SET status=:s WHERE id=:id", s=status, id=app_id)
+        conn.run("BEGIN")
+        committed = False
+        try:
+            # Lock application row + fetch ownership in one query
+            rows = conn.run(
+                "SELECT ja.user_id, ja.job_id, j.company_id, j.title "
+                "FROM job_applications ja JOIN jobs j ON j.id = ja.job_id "
+                "WHERE ja.id = :id FOR UPDATE OF ja",
+                id=app_id
+            )
+            if not rows:
+                raise KeyError("الطلب غير موجود")
+
+            applicant_id = int(rows[0][0])
+            job_id_int   = int(rows[0][1])
+            company_id   = int(rows[0][2])
+            job_title    = rows[0][3] or ""
+
+            if actor_id and company_id != int(actor_id):
+                raise PermissionError("غير مصرح — هذا الطلب ليس لوظيفة شركتك")
+
+            # 1. Update job_applications.status
+            conn.run(
+                "UPDATE job_applications SET status=:s WHERE id=:id",
+                s=status, id=app_id
+            )
+
+            # 2. Ensure company_saved_candidates row exists (FK prerequisite for job refs).
+            #    ON CONFLICT DO NOTHING preserves any existing pipeline status.
+            conn.run(
+                "INSERT INTO company_saved_candidates "
+                "(company_id, candidate_id, job_id, saved_by, status) "
+                "VALUES (:cid, :uid, :jid, :cid, 'saved') "
+                "ON CONFLICT (company_id, candidate_id) DO NOTHING",
+                cid=company_id, uid=applicant_id, jid=job_id_int
+            )
+
+            # 3. UPSERT company_candidate_job_refs with the mapped candidate_status.
+            #    Creates the row if it doesn't exist; overwrites candidate_status if it does.
+            if candidate_status:
+                conn.run(
+                    "INSERT INTO company_candidate_job_refs "
+                    "(company_id, candidate_id, job_id, candidate_status) "
+                    "VALUES (:cid, :uid, :jid, :cs) "
+                    "ON CONFLICT (company_id, candidate_id, job_id) DO UPDATE "
+                    "SET candidate_status = EXCLUDED.candidate_status",
+                    cid=company_id, uid=applicant_id, jid=job_id_int, cs=candidate_status
+                )
+
+            conn.run("COMMIT")
+            committed = True
+
+        except (KeyError, PermissionError):
+            if not committed:
+                try:
+                    conn.run("ROLLBACK")
+                except Exception:
+                    pass
+            raise
+
+        except Exception as _tx_err:
+            if not committed:
+                try:
+                    conn.run("ROLLBACK")
+                except Exception:
+                    pass
+            raise RuntimeError(f"فشل تحديث حالة الطلب: {_tx_err}") from _tx_err
+
     finally:
         release_conn(conn)
-    # All pipeline classification states are internal to the company — no notification to applicant.
-    # The only applicant-visible action is a formal appointment invitation via the Appointments system.
+
+    # Notification block — runs after connection is released.
+    # All pipeline classification statuses are internal to the company — no notification to applicant.
+    # The only applicant-visible action is a formal appointment invitation (Appointments system).
     _INTERNAL_STATUSES = {"pending", "viewed", "accepted", "rejected", "contacted", "interview", "hired"}
     if applicant_id and status not in _INTERNAL_STATUSES and (actor_id is None or int(applicant_id) != int(actor_id)):
         _labels = {
@@ -2393,7 +2480,7 @@ def update_application_status(app_id: int, status: str, actor_id: int = None) ->
             status,
             ("تحديث على طلبك", f"تم تحديث حالة طلبك على وظيفة «{job_title}»")
         )
-        link = f"/job-detail?id={job_id}" if job_id else ""
+        link = f"/job-detail?id={job_id_int}" if job_id_int else ""
         try:
             create_notification(
                 user_id=int(applicant_id),
@@ -2408,7 +2495,16 @@ def update_application_status(app_id: int, status: str, actor_id: int = None) ->
             )
         except Exception as e:
             print(f"[NOTIF] application_status_changed failed for app {app_id}: {e}")
-    return {"success": True}
+
+    return {
+        "success":            True,
+        "application_id":     app_id,
+        "candidate_id":       applicant_id,
+        "job_id":             job_id_int,
+        "application_status": status,
+        "candidate_status":   candidate_status,
+        "general_status":     None,
+    }
 
 def delete_job(job_id: int, company_id: int) -> bool:
     conn = get_conn()
@@ -5528,13 +5624,14 @@ def promote_application_to_shortlist(app_id: int, company_id: int) -> dict:
                 raise ValueError(
                     "المرشح محدد كـ'غير مناسب' (تعارض متزامن) — يجب تغيير حالته يدوياً")
 
-            # ── 6.5. Record company-job link in refs table (inside transaction) ──
-            # This is the authoritative write for job_titles[] in saved candidate views.
+            # ── 6.5. UPSERT company-job link + candidate_status='shortlisted' (inside transaction) ──
+            # Also writes candidate_status so Saved Candidates per-job picker reflects the promote.
             conn.run(
                 "INSERT INTO company_candidate_job_refs "
-                "(company_id, candidate_id, job_id) "
-                "VALUES (:cid, :uid, :jid) "
-                "ON CONFLICT DO NOTHING",
+                "(company_id, candidate_id, job_id, candidate_status) "
+                "VALUES (:cid, :uid, :jid, 'shortlisted') "
+                "ON CONFLICT (company_id, candidate_id, job_id) DO UPDATE "
+                "SET candidate_status = 'shortlisted'",
                 cid=company_id, uid=applicant_id, jid=job_id)
 
             conn.run("COMMIT")
@@ -5579,8 +5676,16 @@ def promote_application_to_shortlist(app_id: int, company_id: int) -> dict:
                 "candidate_id": int(applicant_id),
                 "status":       final_status,
                 "status_label": CANDIDATE_STATUS_LABELS.get(final_status, final_status),
+                "job_id":       int(job_id),
                 "action":       candidate_action,
             },
+            # Top-level fields for tw:candidate-job-classification-updated event dispatch
+            "application_id":     app_id,
+            "candidate_id":       int(applicant_id),
+            "job_id":             int(job_id),
+            "application_status": "accepted",
+            "candidate_status":   "shortlisted",
+            "general_status":     final_status,
         }
     finally:
         release_conn(conn)

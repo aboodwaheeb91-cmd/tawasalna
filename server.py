@@ -4063,6 +4063,12 @@ def my_applications(token=Depends(verify_token)):
 
 @app.put("/jobs/applications/{app_id}/status")
 def update_app_status(app_id: int, data: AppStatusInput, token=Depends(verify_token)):
+    """
+    Atomic applicant classification: updates job_applications.status AND
+    company_candidate_job_refs.candidate_status in a single transaction.
+    Ownership is verified inside the transaction (FOR UPDATE lock).
+    Returns: {application_id, candidate_id, job_id, application_status, candidate_status, general_status}
+    """
     user_id = token.get("user_id")
     if not user_id:
         print(f"[SECURITY] INVALID_TOKEN: PUT /jobs/applications/{app_id}/status")
@@ -4070,22 +4076,17 @@ def update_app_status(app_id: int, data: AppStatusInput, token=Depends(verify_to
     allowed_statuses = {"pending", "viewed", "accepted", "contacted", "interview", "hired", "rejected"}
     if data.status not in allowed_statuses:
         raise HTTPException(400, f"حالة غير صالحة. المسموح: {', '.join(sorted(allowed_statuses))}")
-    conn = get_conn()
     try:
-        rows = conn.run(
-            "SELECT j.company_id FROM job_applications ja JOIN jobs j ON j.id=ja.job_id WHERE ja.id=:aid",
-            aid=app_id
-        )
-        if not rows:
-            raise HTTPException(404, "الطلب غير موجود")
-        job_company_id = rows[0][0]
-    finally:
-        release_conn(conn)
-    if int(job_company_id) != int(user_id):
-        print(f"[SECURITY] APPLICATION_OWNERSHIP_FAILED: user {user_id} tried to update app {app_id} owned by company {job_company_id}")
-        raise HTTPException(403, "غير مصرح — هذا الطلب ليس لوظيفة شركتك")
-    result = update_application_status(app_id, data.status, actor_id=int(user_id))
-    return result
+        result = update_application_status(app_id, data.status, actor_id=int(user_id))
+        return result
+    except KeyError as e:
+        raise HTTPException(404, str(e))
+    except PermissionError as e:
+        print(f"[SECURITY] APPLICATION_OWNERSHIP_FAILED: user {user_id} → app {app_id}: {e}")
+        raise HTTPException(403, str(e))
+    except RuntimeError as e:
+        print(f"[ERROR] update_application_status app {app_id}: {e}")
+        raise HTTPException(500, str(e))
 
 
 @app.post("/jobs/applications/{app_id}/promote")
