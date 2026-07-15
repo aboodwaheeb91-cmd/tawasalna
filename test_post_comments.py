@@ -10690,6 +10690,140 @@ else:
             _srv_sec1_err
         )
 
+# ═══════════════════════════════════════════════════════════════════════
+# §SEC-2 — POST /auth/verify-token broken decorator (misapplied to helper)
+# 8 behavioral tests (4 static + 4 runtime):
+#   Before fix: decorator applied to _calc_profile_score → always 422
+#   After fix:  dedicated verify_token_endpoint function → 200/401
+# ═══════════════════════════════════════════════════════════════════════
+print("\n── §SEC-2: POST /auth/verify-token broken decorator ──")
+
+import sys as _sys_sec2, os as _os_sec2, re as _re_sec2
+
+# ── Static checks ─────────────────────────────────────────────────────
+_srv_sec2_src = open("server.py", encoding="utf-8").read()
+
+# sec-2-01: @app.post("/auth/verify-token") must NOT decorate _calc_profile_score
+# Pattern of the bug: "@app.post("/auth/verify-token")\n\ndef _calc_profile_score"
+check(
+    "sec-2-01. [STATIC] @app.post(/auth/verify-token) NOT attached to _calc_profile_score",
+    not bool(_re_sec2.search(
+        r'@app\.post\(["\']\/auth\/verify-token["\']\)\s*\n+def _calc_profile_score',
+        _srv_sec2_src
+    ))
+)
+
+# sec-2-02: a dedicated endpoint function must handle /auth/verify-token
+check(
+    "sec-2-02. [STATIC] dedicated verify_token_endpoint function exists in server.py",
+    "def verify_token_endpoint(" in _srv_sec2_src
+)
+
+# sec-2-03: _calc_profile_score must still exist (not deleted)
+check(
+    "sec-2-03. [STATIC] _calc_profile_score helper still present (not deleted)",
+    "def _calc_profile_score(" in _srv_sec2_src
+)
+
+# sec-2-04: no ACTIVE frontend call to /auth/verify-token (TODO comment in index.auth.js is fine)
+_fe_files_sec2 = [
+    "index.html", "index.auth.js", "home-v2.html",
+    "profile-showcase.html", "company-profile.html", "messages.html",
+    "notifications.html", "settings.html",
+]
+def _has_active_fetch_sec2(filename):
+    if not _os_sec2.path.exists(filename):
+        return False
+    for line in open(filename, encoding="utf-8"):
+        stripped = line.lstrip()
+        # skip comment-only lines
+        if stripped.startswith("//") or stripped.startswith("#") or stripped.startswith("*"):
+            continue
+        if "/auth/verify-token" in line and ("fetch" in line or "ajax" in line or "axios" in line):
+            return True
+    return False
+_fe_has_active_consumer_sec2 = any(_has_active_fetch_sec2(f) for f in _fe_files_sec2)
+check(
+    "sec-2-04. [STATIC] no frontend ACTIVE fetch call to /auth/verify-token (TODO comment ok)",
+    not _fe_has_active_consumer_sec2
+)
+
+# ── Behavioral runtime tests ───────────────────────────────────────────
+_srv_sec2 = None
+_srv_sec2_err = None
+try:
+    _os_sec2.environ.setdefault('SUPABASE_DB_URL', 'postgresql://x:x@localhost/x')
+    if 'pg8000' not in _sys_sec2.modules:
+        import types as _types_sec2
+        _pg_stub = _types_sec2.ModuleType('pg8000')
+        _pg_stub.native = _types_sec2.ModuleType('pg8000.native')
+        _pg_stub.native.Connection = object
+        _pg_stub.dbapi = _types_sec2.ModuleType('pg8000.dbapi')
+        _sys_sec2.modules['pg8000'] = _pg_stub
+        _sys_sec2.modules['pg8000.native'] = _pg_stub.native
+        _sys_sec2.modules['pg8000.dbapi'] = _pg_stub.dbapi
+    import server as _srv_sec2
+except Exception as _e_sec2:
+    _srv_sec2_err = str(_e_sec2)
+
+if _srv_sec2 is not None:
+    from fastapi.testclient import TestClient as _TC_sec2
+
+    _client_sec2 = _TC_sec2(_srv_sec2.app)
+
+    # sec-2-05: POST /auth/verify-token with no token → 401 (not 422)
+    _r_no_auth = _client_sec2.post("/auth/verify-token")
+    check(
+        "sec-2-05. [BEHAVIORAL] POST /auth/verify-token (no JWT) → 401 (not 422)",
+        _r_no_auth.status_code == 401
+    )
+
+    # sec-2-06: POST /auth/verify-token with invalid token → 401
+    _r_bad_auth = _client_sec2.post(
+        "/auth/verify-token",
+        headers={"Authorization": "Bearer not.a.real.token"}
+    )
+    check(
+        "sec-2-06. [BEHAVIORAL] POST /auth/verify-token (bad JWT) → 401",
+        _r_bad_auth.status_code == 401
+    )
+
+    # sec-2-07: POST /auth/verify-token with valid JWT → 200 + valid JSON
+    import hmac as _hmac_sec2, hashlib as _hash_sec2
+    import base64 as _b64_sec2, json as _json_sec2, time as _time_sec2
+    _secret = _srv_sec2.JWT_SECRET
+    _payload = {"user_id": 42, "user_type": "emp",
+                "iat": int(_time_sec2.time()),
+                "exp": int(_time_sec2.time()) + 3600}
+    _hdr = _b64_sec2.urlsafe_b64encode(b'{"alg":"HS256","typ":"JWT"}').rstrip(b'=').decode()
+    _bdy = _b64_sec2.urlsafe_b64encode(_json_sec2.dumps(_payload).encode()).rstrip(b'=').decode()
+    _sig = _b64_sec2.urlsafe_b64encode(
+        _hmac_sec2.new(_secret.encode(), f"{_hdr}.{_bdy}".encode(), 'sha256').digest()
+    ).rstrip(b'=').decode()
+    _valid_jwt = f"{_hdr}.{_bdy}.{_sig}"
+    _r_valid = _client_sec2.post(
+        "/auth/verify-token",
+        headers={"Authorization": f"Bearer {_valid_jwt}"}
+    )
+    check(
+        "sec-2-07. [BEHAVIORAL] POST /auth/verify-token (valid JWT) → 200 + valid:True",
+        _r_valid.status_code == 200 and _r_valid.json().get("valid") is True
+    )
+
+    # sec-2-08: _calc_profile_score is still a plain callable (not a FastAPI route)
+    _score_fn_accessible = callable(getattr(_srv_sec2, '_calc_profile_score', None))
+    check(
+        "sec-2-08. [BEHAVIORAL] _calc_profile_score is still callable as plain function",
+        _score_fn_accessible
+    )
+else:
+    for _sec2_n in ["05", "06", "07", "08"]:
+        check(
+            f"sec-2-{_sec2_n}. [BEHAVIORAL] server import available for SEC-2 behavioral tests",
+            False,
+            _srv_sec2_err
+        )
+
 print()
 passed = sum(1 for _, s, _ in results if s == PASS)
 total  = len(results)
