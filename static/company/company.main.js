@@ -2436,8 +2436,11 @@
     'rejected':    '<svg viewBox="0 0 24 24" fill="none" ' + _S + '><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>',
     '_unlinked':   '<svg viewBox="0 0 24 24" fill="none" ' + _S + '><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="17" y1="11" x2="23" y2="11"/></svg>'
   };
-  // Build a custom dark picker (wrapClass + options array + current value)
-  function _dpHTML(wrapClass, opts, current) {
+  // Build a custom dark picker (wrapClass + options array + current value).
+  // meta (optional 4th arg): { cid, jid, locked } — adds data-cid/data-jid to wrap,
+  // disables .co-dp-btn when locked. Backward-compatible (existing 3-arg callers unaffected).
+  function _dpHTML(wrapClass, opts, current, meta) {
+    meta = meta || {};
     var curLabel = '';
     for (var i = 0; i < opts.length; i++) {
       if (opts[i].value === current) { curLabel = opts[i].label; break; }
@@ -2450,8 +2453,11 @@
            + _checkSvg()
            + '<span>' + _esc(o.label) + '</span></button>';
     }).join('');
-    return '<div class="co-dp-wrap ' + _esc(wrapClass) + '" data-selected="' + _esc(current) + '">'
-      + '<button class="co-dp-btn" type="button">'
+    var extraAttrs = '';
+    if (meta.cid != null) extraAttrs += ' data-cid="' + _esc(String(meta.cid)) + '"';
+    if (meta.jid != null) extraAttrs += ' data-jid="' + _esc(String(meta.jid)) + '"';
+    return '<div class="co-dp-wrap ' + _esc(wrapClass) + '" data-selected="' + _esc(current) + '"' + extraAttrs + '>'
+      + '<button class="co-dp-btn" type="button"' + (meta.locked ? ' disabled' : '') + '>'
       + '<span class="co-dp-val">' + _esc(curLabel) + '</span>'
       + _chevronSvg()
       + '</button>'
@@ -2462,6 +2468,7 @@
     _body.querySelectorAll('.co-dp-list').forEach(function (l) { l.style.display = 'none'; });
   }
   function _toggleDpOf(btn) {
+    if (btn.disabled) return;  // respect card-level lock
     var wrap = btn.closest('.co-dp-wrap');
     if (!wrap) return;
     var list = wrap.querySelector('.co-dp-list');
@@ -2474,6 +2481,11 @@
     if (opt.getAttribute('data-linked') === '1') return;
     var wrap = opt.closest('.co-dp-wrap');
     if (!wrap) return;
+    // Per-job candidate status picker — PATCH auto-save with card-level lock
+    if (wrap.classList.contains('co-cand-job-status-dp')) {
+      _handleJobStatusDpSelect(opt, wrap);
+      return;
+    }
     var val  = opt.getAttribute('data-value');
     var span = opt.querySelector('span');
     var lbl  = span ? span.textContent : val;
@@ -2491,6 +2503,64 @@
       _savedOffset = 0;
       _doFetchSavedPage(true);
     }
+  }
+
+  // Auto-save per-job candidate status via PATCH when user selects from co-cand-job-status-dp.
+  // Uses card-level lock so concurrent picks on the same card are blocked, not queued.
+  // data-job-links on card is the single client-side truth; all DOM rebuilds come from it.
+  function _handleJobStatusDpSelect(opt, wrap) {
+    var card = wrap.closest('.co-cand-saved-card');
+    if (!card) return;
+    if (card.getAttribute('data-job-status-saving')) return;
+
+    var cs  = opt.getAttribute('data-value') || null;   // '' → null  (clears classification)
+    var cid = parseInt(wrap.getAttribute('data-cid'), 10);
+    var jid = parseInt(wrap.getAttribute('data-jid'), 10);
+    if (!cid || !jid) return;
+    if (!window.updateCandidateJobStatus) return;
+
+    // Lock card: close open lists, disable all per-job picker buttons
+    card.setAttribute('data-job-status-saving', '1');
+    card.querySelectorAll('.co-cand-job-status-dp .co-dp-list').forEach(function (l) { l.style.display = 'none'; });
+    card.querySelectorAll('.co-cand-job-status-dp .co-dp-btn').forEach(function (b) { b.disabled = true; });
+
+    window.updateCandidateJobStatus(cid, jid, cs)
+      .then(function (res) {
+        if (!res || !res.ok) {
+          var detail = (res && res.data && res.data.detail) || '';
+          if (card.parentNode) {
+            var rollLinks = [];
+            try { rollLinks = JSON.parse(card.getAttribute('data-job-links') || '[]'); } catch (err) {}
+            _renderCandidateJobLinksUI(card, rollLinks);
+          }
+          if (window.showToast) showToast(detail || 'تعذّر حفظ التصنيف', 'error');
+          return;
+        }
+        if (card.parentNode) {
+          var links = [];
+          try { links = JSON.parse(card.getAttribute('data-job-links') || '[]'); } catch (err) {}
+          links = links.map(function (jl) {
+            return String(jl.job_id) === String(jid)
+              ? Object.assign({}, jl, { candidate_status: cs || null })
+              : jl;
+          });
+          _renderCandidateJobLinksUI(card, links);
+        }
+        if (window.showToast) showToast('تم حفظ التصنيف ✓');
+      })
+      .catch(function () {
+        if (card.parentNode) {
+          var rollLinks = [];
+          try { rollLinks = JSON.parse(card.getAttribute('data-job-links') || '[]'); } catch (err) {}
+          _renderCandidateJobLinksUI(card, rollLinks);
+        }
+        if (window.showToast) showToast('تعذّر حفظ التصنيف', 'error');
+      })
+      .finally(function () {
+        card.removeAttribute('data-job-status-saving');
+        // Re-enable buttons on the freshly rebuilt DOM (_renderCandidateJobLinksUI rebuilt them)
+        card.querySelectorAll('.co-cand-job-status-dp .co-dp-btn').forEach(function (b) { b.disabled = false; });
+      });
   }
 
   // ── Open / Close ───────────────────────────────────────────────
@@ -2840,23 +2910,20 @@
     html += '<span class="co-cand-panel-counter">' + notes.length + ' / 500</span>';
     html += '</div>';
     html += _jobDpHTML('', linkedIds);
-    // Per-job candidate status section — one select per linked job
-    // Each select auto-saves via PATCH /company/saved-candidates/{cid}/jobs/{jid}
-    // Source of truth: company_candidate_job_refs.candidate_status (independent of application status)
+    // Per-job candidate status section — one custom picker per linked job.
+    // Source of truth: company_candidate_job_refs.candidate_status (independent of all other status fields).
+    // Picker auto-saves via _handleJobStatusDpSelect → PATCH /company/saved-candidates/{cid}/jobs/{jid}.
     if (jobLinks.length) {
+      var jsOpts = [{value: '', label: '— غير مصنف —'}].concat(
+        _STATUS_ORDER.map(function (s) { return {value: s, label: _STATUS_LABELS[s]}; })
+      );
       html += '<label class="co-cand-panel-label">تصنيف المرشح لكل وظيفة</label>';
       html += '<div class="co-cand-job-status-list">';
       jobLinks.forEach(function (jl) {
         var cs = jl.candidate_status || '';
         html += '<div class="co-cand-job-status-row" data-jid="' + _esc(String(jl.job_id)) + '">';
         html += '<span class="co-cand-job-status-title">' + _esc(jl.title || ('وظيفة #' + jl.job_id)) + '</span>';
-        html += '<select class="co-cand-job-status-sel" data-jid="' + _esc(String(jl.job_id)) + '" data-cid="' + cid + '" data-prev-val="' + _esc(cs) + '">';
-        html += '<option value="">— غير مصنف —</option>';
-        _STATUS_ORDER.forEach(function (s) {
-          html += '<option value="' + _esc(s) + '"' + (cs === s ? ' selected' : '') + '>'
-               + _esc(_STATUS_LABELS[s]) + '</option>';
-        });
-        html += '</select>';
+        html += _dpHTML('co-cand-job-status-dp', jsOpts, cs, {cid: item.candidate_id, jid: jl.job_id});
         html += '</div>';
       });
       html += '</div>';
@@ -2886,8 +2953,6 @@
     _wireTextareaCounters();
     _body.removeEventListener('click', _onSavedClick);
     _body.addEventListener('click', _onSavedClick);
-    _body.removeEventListener('change', _onSavedChange);
-    _body.addEventListener('change', _onSavedChange);
 
     // Req 5 & 6: auto-open manage panel after switching from suggestions tab
     if (_pendingManageOpen != null) {
@@ -2907,86 +2972,6 @@
         }
       }
     }
-  }
-
-  // Delegated change handler — fires when user changes a per-job status select.
-  //
-  // Race-safety contract:
-  //   - card is captured BEFORE the async call (sel may be detached after DOM rebuild).
-  //   - card-level lock (data-job-status-saving) blocks a second request on the same card
-  //     while one is in-flight, preventing interleaved writes and stale responses.
-  //   - ALL selects in the card are disabled on lock (not just the touched one), so
-  //     a concurrent DOM rebuild via _renderCandidateJobLinksUI cannot open a race window.
-  //   - Success/failure paths read card.getAttribute('data-job-links') at response time
-  //     (always fresh) instead of relying on the original sel reference.
-  //   - finally: removes lock + re-enables all selects currently in card DOM.
-  function _onSavedChange(e) {
-    var sel = e.target.closest('.co-cand-job-status-sel');
-    if (!sel) return;
-
-    // Capture card NOW — sel will be detached once _renderCandidateJobLinksUI runs
-    var card = sel.closest('.co-cand-saved-card');
-    if (!card) return;
-
-    // Card-level lock: one in-flight PATCH per card at a time
-    if (card.getAttribute('data-job-status-saving')) return;
-
-    var cid     = parseInt(sel.getAttribute('data-cid'), 10);
-    var jid     = parseInt(sel.getAttribute('data-jid'), 10);
-    var cs      = sel.value || null;
-    var prevVal = sel.getAttribute('data-prev-val') !== null
-                    ? sel.getAttribute('data-prev-val')
-                    : cs;
-    if (!cid || !jid) return;
-    if (!window.updateCandidateJobStatus) return;
-
-    sel.setAttribute('data-prev-val', cs || '');
-
-    // Set lock + disable ALL per-job selects inside this card
-    card.setAttribute('data-job-status-saving', '1');
-    card.querySelectorAll('.co-cand-job-status-sel').forEach(function (s) { s.disabled = true; });
-
-    window.updateCandidateJobStatus(cid, jid, cs)
-      .then(function (res) {
-        if (!res || !res.ok) {
-          // Rollback: re-render from authoritative data-job-links (sel may be detached — never touch it)
-          var detail = (res && res.data && res.data.detail) || '';
-          if (card.parentNode) {
-            var rollLinks = [];
-            try { rollLinks = JSON.parse(card.getAttribute('data-job-links') || '[]'); } catch (err) {}
-            _renderCandidateJobLinksUI(card, rollLinks);
-          }
-          if (window.showToast) showToast(detail || 'تعذّر حفظ التصنيف', 'error');
-          return;
-        }
-        // Commit: read most-recent data-job-links at response time, update matching entry, re-render
-        if (card.parentNode) {
-          var links = [];
-          try { links = JSON.parse(card.getAttribute('data-job-links') || '[]'); } catch (err) {}
-          links = links.map(function (jl) {
-            return String(jl.job_id) === String(jid)
-              ? Object.assign({}, jl, { candidate_status: cs || null })
-              : jl;
-          });
-          _renderCandidateJobLinksUI(card, links);
-        }
-        if (window.showToast) showToast('تم حفظ التصنيف ✓');
-      })
-      .catch(function () {
-        // Network/parse failure — re-render from authoritative state, never use detached sel
-        if (card.parentNode) {
-          var rollLinks = [];
-          try { rollLinks = JSON.parse(card.getAttribute('data-job-links') || '[]'); } catch (err) {}
-          _renderCandidateJobLinksUI(card, rollLinks);
-        }
-        if (window.showToast) showToast('تعذّر حفظ التصنيف', 'error');
-      })
-      .finally(function () {
-        // Remove lock — safe even if card was removed from DOM
-        card.removeAttribute('data-job-status-saving');
-        // Re-enable all selects that exist in card at this point (rebuilt by _renderCandidateJobLinksUI)
-        card.querySelectorAll('.co-cand-job-status-sel').forEach(function (s) { s.disabled = false; });
-      });
   }
 
   function _onSavedClick(e) {
@@ -3116,15 +3101,15 @@
 
   // Unified helper: syncs all job-link UI on a card from a canonical links array.
   // Responsibilities:
-  //   1. Updates data-job-links (single source of truth for client state)
+  //   1. Updates data-job-links (single client-side source of truth)
   //   2. Rebuilds job chip strip (preserves candidate_status per chip)
-  //   3. Rebuilds "تصنيف المرشح لكل وظيفة" section in manage panel
+  //   3. Rebuilds "تصنيف المرشح لكل وظيفة" section (custom pickers, not native selects)
   //   4. Updates job picker disabled/linked states
   //   5. Adds or removes the status section when links appear / disappear
-  //   6. Renders selects as disabled when card has data-job-status-saving lock
+  //   6. Renders picker buttons as disabled when card has data-job-status-saving lock
   function _renderCandidateJobLinksUI(card, links) {
-    // Respect card-level lock: if a PATCH is in-flight, new selects must be disabled
-    // so a second change event cannot race the first request.
+    // Respect card-level lock: pickers rebuilt with locked buttons so a second pick
+    // cannot race the in-flight PATCH. finally() re-enables them after lock removal.
     var isLocked = !!card.getAttribute('data-job-status-saving');
 
     // 1. Canonical store
@@ -3171,21 +3156,15 @@
           statusList.remove();
         }
       } else {
+        var jsOpts2 = [{value: '', label: '— غير مصنف —'}].concat(
+          _STATUS_ORDER.map(function (s) { return {value: s, label: _STATUS_LABELS[s]}; })
+        );
         var rowsHtml = links.map(function (jl) {
           var cs = jl.candidate_status || '';
-          var opts = '<option value="">— غير مصنف —</option>'
-            + _STATUS_ORDER.map(function (s) {
-                return '<option value="' + _esc(s) + '"' + (cs === s ? ' selected' : '') + '>'
-                     + _esc(_STATUS_LABELS[s]) + '</option>';
-              }).join('');
           return '<div class="co-cand-job-status-row" data-jid="' + _esc(String(jl.job_id)) + '">'
                + '<span class="co-cand-job-status-title">' + _esc(jl.title || ('وظيفة #' + jl.job_id)) + '</span>'
-               + '<select class="co-cand-job-status-sel"'
-               + ' data-jid="' + _esc(String(jl.job_id)) + '"'
-               + ' data-cid="' + _esc(cid) + '"'
-               + ' data-prev-val="' + _esc(cs) + '"'
-               + (isLocked ? ' disabled' : '') + '>'
-               + opts + '</select></div>';
+               + _dpHTML('co-cand-job-status-dp', jsOpts2, cs, {cid: cid, jid: jl.job_id, locked: isLocked})
+               + '</div>';
         }).join('');
         if (statusList) {
           statusList.innerHTML = rowsHtml;

@@ -473,11 +473,11 @@ async def on_startup():
         print("✅ company_candidate_job_refs table ready")
     except Exception as e:
         print(f"⚠️ company_candidate_job_refs migration failed: {e}")
-    try:
-        _migrate_candidate_status_per_job()
-        print("✅ company_candidate_job_refs.candidate_status column ready")
-    except Exception as e:
-        print(f"⚠️ candidate_status_per_job migration failed: {e}")
+    # Startup-critical: both batch-fetch functions always SELECT candidate_status.
+    # A failed migration means every saved-candidates API call returns HTTP 500.
+    # Let the exception propagate — FastAPI will refuse to start in a broken schema state.
+    _migrate_candidate_status_per_job()
+    print("✅ company_candidate_job_refs.candidate_status column ready")
     try:
         _migrate_jobs_v2()
         print("✅ jobs v2 columns ready")

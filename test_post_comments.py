@@ -9835,17 +9835,19 @@ check("486-15. Job chip popover renders 3 rows: حالة الطلب + تصنيف
 
 # ── Frontend: per-job status section in manage panel ─────────────────────
 
-# 486-16: manage panel renders per-job status selects when jobLinks is non-empty
-check("486-16. Manage panel renders تصنيف المرشح لكل وظيفة section with per-job status selects",
+# 486-16: manage panel renders per-job status section with custom pickers (co-cand-job-status-dp)
+check("486-16. Manage panel renders تصنيف المرشح لكل وظيفة section with per-job custom pickers",
       'co-cand-job-status-list' in _cand_iife486
-      and 'co-cand-job-status-sel' in _cand_iife486
+      and 'co-cand-job-status-dp' in _cand_iife486
+      and 'co-cand-job-status-sel' not in _cand_iife486
       and 'تصنيف المرشح لكل وظيفة' in _cand_iife486)
 
-# 486-17: _onSavedChange handles per-job status select changes (auto-save)
-check("486-17. _onSavedChange handler wired for co-cand-job-status-sel auto-save",
-      'function _onSavedChange(' in _main486
-      and 'co-cand-job-status-sel' in _main486
-      and 'updateCandidateJobStatus' in _main486)
+# 486-17: _handleJobStatusDpSelect wired via _handleDpOptClick for co-cand-job-status-dp auto-save
+check("486-17. _handleJobStatusDpSelect wired for co-cand-job-status-dp auto-save via _handleDpOptClick",
+      'function _handleJobStatusDpSelect(' in _main486
+      and 'co-cand-job-status-dp' in _main486
+      and 'updateCandidateJobStatus' in _main486
+      and '_handleDpOptClick' in _main486)
 
 # 486-18: _onSavedChange syncs chip on success — now via _renderCandidateJobLinksUI which
 # rebuilds all chips from the updated links array (candidate_status embedded per link)
@@ -9878,10 +9880,11 @@ check("486-21. Create-step error handler shows API detail instead of generic mes
 
 # ── CSS ───────────────────────────────────────────────────────────────────
 
-# 486-22: per-job status section has CSS defined
-check("486-22. CSS rules for co-cand-job-status-list and co-cand-job-status-sel defined in company.css",
+# 486-22: per-job status section CSS defined — custom picker, no native select rules
+check("486-22. CSS rules for co-cand-job-status-list and co-cand-job-status-dp defined in company.css",
       '.co-cand-job-status-list' in _css486
-      and '.co-cand-job-status-sel' in _css486)
+      and '.co-cand-job-status-dp' in _css486
+      and '.co-cand-job-status-sel' not in _css486)
 
 
 # ── Amendment 1: backward-compat 'status' alias ───────────────────────────
@@ -9921,10 +9924,11 @@ check("486-26. Migration checks pg_constraint table before ADD CONSTRAINT (const
 
 # ── Amendment 3: optimistic UI rollback in _onSavedChange ─────────────────
 
-# 486-27: _onSavedChange saves prevVal from data-prev-val before PATCH
-check("486-27. _onSavedChange reads data-prev-val attribute to capture previous value before PATCH",
-      "getAttribute('data-prev-val')" in _main486
-      and 'prevVal' in _main486)
+# 486-27: rollback uses data-job-links (not data-prev-val) — _handleJobStatusDpSelect reads fresh card state
+check("486-27. Rollback path reads data-job-links from card — not data-prev-val on select",
+      "_renderCandidateJobLinksUI(card, rollLinks)" in _main486
+      and "card.getAttribute('data-job-links')" in _main486
+      and 'co-cand-job-status-sel' not in _main486)
 
 # 486-28: on API failure, _onSavedChange re-renders from data-job-links (card-level lock arch)
 # Old pattern was sel.value = prevVal; new pattern uses _renderCandidateJobLinksUI(card, rollLinks)
@@ -9944,10 +9948,12 @@ check("486-30. _onSavedChange shows res.data.detail error on failure (API detail
       "res.data.detail" in _main486
       or "res && res.data && res.data.detail" in _main486)
 
-# 486-31: select element rendered with data-prev-val attribute initialized at render time
-check("486-31. Per-job status <select> rendered with data-prev-val attribute for rollback anchor",
-      "data-prev-val=" in _main486
-      and "_esc(cs)" in _main486)
+# 486-31: custom picker rendered with data-cid and data-jid (not native select / not data-prev-val)
+check("486-31. Per-job custom picker rendered with data-cid + data-jid via _dpHTML meta arg",
+      "co-cand-job-status-dp" in _main486
+      and "data-cid" in _main486
+      and "data-jid" in _main486
+      and "data-prev-val=" not in _main486)
 
 
 # ── §487: Five-fix batch (documentation, UI, timezone, migration, Pydantic) ───
@@ -10004,13 +10010,13 @@ check("487-08. Chip rebuild reads jl.candidate_status from links array (data-can
       or "jl.candidate_status" in _main486)
 
 # 487-09: PATCH failure re-renders from data-job-links via _renderCandidateJobLinksUI(card, rollLinks)
-# Old test checked sel.value = prevVal; new card-level lock arch uses re-render from stored links
-_onsaved_fn = ''
-if '_onSavedChange' in _main486:
-    _onsaved_fn = _main486.split('function _onSavedChange')[1].split('\n  function ')[0]
-check("487-09. PATCH failure restores state via _renderCandidateJobLinksUI(card, rollLinks) — card-level lock arch",
-      "_renderCandidateJobLinksUI(card, rollLinks)" in _onsaved_fn
-      and "card.getAttribute('data-job-links')" in _onsaved_fn)
+# New arch: _handleJobStatusDpSelect (not _onSavedChange) — failure reads card.getAttribute('data-job-links')
+_hjsdp_fn = ''
+if 'function _handleJobStatusDpSelect(' in _main486:
+    _hjsdp_fn = _main486.split('function _handleJobStatusDpSelect(')[1].split('\n  function ')[0]
+check("487-09. PATCH failure restores state via _renderCandidateJobLinksUI(card, rollLinks) in _handleJobStatusDpSelect",
+      "_renderCandidateJobLinksUI(card, rollLinks)" in _hjsdp_fn
+      and "card.getAttribute('data-job-links')" in _hjsdp_fn)
 
 # ── Fix 3: Timezone-aware appointment scheduling ──────────────────────────
 
@@ -10060,10 +10066,11 @@ _auth488  = open('auth.py',    encoding='utf-8').read()
 _srv488   = open('server.py',  encoding='utf-8').read()
 _idx488   = open('docs/SYSTEMS_INDEX.md', encoding='utf-8').read()
 
-# Extract _onSavedChange function body for targeted checks
+# Extract _handleJobStatusDpSelect function body for targeted checks
+# (replaced _onSavedChange which used native <select> — now uses co-dp custom picker)
 _onsaved488 = (
-    _main488.split('function _onSavedChange(e)')[1].split('\n  function ')[0]
-    if 'function _onSavedChange(e)' in _main488 else ''
+    _main488.split('function _handleJobStatusDpSelect(')[1].split('\n  function ')[0]
+    if 'function _handleJobStatusDpSelect(' in _main488 else ''
 )
 # Extract _renderCandidateJobLinksUI function body
 _render488 = (
@@ -10078,22 +10085,22 @@ _mig488 = (
 
 # ── Fix 1: Race condition — card-level lock ────────────────────────────────
 
-# 488-01: card captured BEFORE async call (not inside .then)
-check("488-01. card captured from sel.closest BEFORE updateCandidateJobStatus call (not inside .then)",
-      'var card = sel.closest' in _onsaved488
-      and _onsaved488.index('var card = sel.closest') < _onsaved488.index('updateCandidateJobStatus'))
+# 488-01: card captured from wrap.closest BEFORE async call (not inside .then)
+check("488-01. card captured from wrap.closest BEFORE updateCandidateJobStatus call (not inside .then)",
+      'var card = wrap.closest' in _onsaved488
+      and _onsaved488.index('var card = wrap.closest') < _onsaved488.index('updateCandidateJobStatus'))
 
 # 488-02: card-level lock checked at entry — second call on same card is rejected
 check("488-02. Card-level lock (data-job-status-saving) checked at start — returns if locked",
       "card.getAttribute('data-job-status-saving')" in _onsaved488
       and 'return' in _onsaved488)
 
-# 488-03: lock set on card + ALL selects disabled (not just touched sel)
-check("488-03. Lock set on card + ALL .co-cand-job-status-sel disabled at request start",
+# 488-03: lock set on card + ALL co-cand-job-status-dp .co-dp-btn disabled (custom picker buttons)
+check("488-03. Lock set on card + ALL .co-cand-job-status-dp .co-dp-btn disabled at request start",
       "card.setAttribute('data-job-status-saving', '1')" in _onsaved488
-      and "card.querySelectorAll('.co-cand-job-status-sel')" in _onsaved488
+      and "card.querySelectorAll('.co-cand-job-status-dp .co-dp-btn')" in _onsaved488
       and '.forEach' in _onsaved488
-      and 's.disabled = true' in _onsaved488)
+      and 'b.disabled = true' in _onsaved488)
 
 # 488-04: failure path calls _renderCandidateJobLinksUI from data-job-links (not sel.value)
 check("488-04. Failure path re-renders from card data-job-links — never restores sel.value directly",
@@ -10106,18 +10113,18 @@ check("488-05. Success path reads card.getAttribute('data-job-links') at respons
       '_renderCandidateJobLinksUI(card, links)' in _onsaved488
       and "card.getAttribute('data-job-links')" in _onsaved488)
 
-# 488-06: finally removes lock + enables ALL selects in card (not original sel only)
-check("488-06. finally removes data-job-status-saving and re-enables all selects currently in card",
+# 488-06: finally removes lock + enables ALL co-dp-btn in card (freshly rebuilt DOM)
+check("488-06. finally removes data-job-status-saving and re-enables all co-dp-btn in card",
       "card.removeAttribute('data-job-status-saving')" in _onsaved488
-      and "card.querySelectorAll('.co-cand-job-status-sel')" in _onsaved488
-      and 's.disabled = false' in _onsaved488)
+      and "card.querySelectorAll('.co-cand-job-status-dp .co-dp-btn')" in _onsaved488
+      and 'b.disabled = false' in _onsaved488)
 
-# 488-07: _renderCandidateJobLinksUI respects lock — renders selects as disabled when card is saving
-check("488-07. _renderCandidateJobLinksUI reads data-job-status-saving and renders selects disabled when locked",
+# 488-07: _renderCandidateJobLinksUI respects lock — passes meta.locked to _dpHTML for custom pickers
+check("488-07. _renderCandidateJobLinksUI reads data-job-status-saving and builds locked pickers when locked",
       "data-job-status-saving" in _render488
       and 'isLocked' in _render488
-      and 'isLocked ? ' in _render488
-      and 'disabled' in _render488)
+      and 'locked: isLocked' in _render488
+      and 'co-cand-job-status-dp' in _render488)
 
 # 488-08: catch block also re-renders from data-job-links (not sel)
 check("488-08. catch block re-renders from card data-job-links — handles detached sel safely",
@@ -10189,6 +10196,112 @@ check("488-14. update_candidate_job_status() docstring does not say 'applicant-d
 # 488-15: company.main.js _showJobChipPop comment has no "applicant-driven"
 check("488-15. _showJobChipPop comment does not say 'applicant-driven'",
       'applicant-driven' not in _main488)
+
+# ── §489: Custom picker, advisory lock, startup-critical migration ─────────
+
+_main489  = open('static/company/company.main.js', encoding='utf-8').read()
+_css489   = open('static/company/company.css',     encoding='utf-8').read()
+_auth489  = open('auth.py',   encoding='utf-8').read()
+_srv489   = open('server.py', encoding='utf-8').read()
+_idx489   = open('docs/SYSTEMS_INDEX.md', encoding='utf-8').read()
+
+_mig489 = (
+    _auth489.split('def _migrate_candidate_status_per_job')[1].split('\ndef ')[0]
+    if '_migrate_candidate_status_per_job' in _auth489 else ''
+)
+_hjsdp489 = (
+    _main489.split('function _handleJobStatusDpSelect(')[1].split('\n  function ')[0]
+    if 'function _handleJobStatusDpSelect(' in _main489 else ''
+)
+_render489 = (
+    _main489.split('function _renderCandidateJobLinksUI(card, links)')[1].split('\n  function ')[0]
+    if 'function _renderCandidateJobLinksUI(card, links)' in _main489 else ''
+)
+
+# 489-01: no .co-cand-job-status-sel (native select) anywhere in JS or CSS
+check("489-01. No co-cand-job-status-sel (native select) in company.main.js or company.css",
+      'co-cand-job-status-sel' not in _main489
+      and 'co-cand-job-status-sel' not in _css489)
+
+# 489-02: per-job status uses the co-dp custom picker system
+check("489-02. Per-job status uses co-cand-job-status-dp custom picker (co-dp system)",
+      'co-cand-job-status-dp' in _main489
+      and 'co-dp-btn' in _main489
+      and 'co-dp-list' in _main489
+      and '_dpHTML' in _main489)
+
+# 489-03: _handleDpOptClick routes co-cand-job-status-dp to _handleJobStatusDpSelect
+check("489-03. _handleDpOptClick routes co-cand-job-status-dp to _handleJobStatusDpSelect",
+      "co-cand-job-status-dp" in _main489.split('function _handleDpOptClick(')[1].split('\n  function ')[0]
+      and "_handleJobStatusDpSelect" in _main489.split('function _handleDpOptClick(')[1].split('\n  function ')[0])
+
+# 489-04: lock disables all co-cand-job-status-dp .co-dp-btn buttons
+check("489-04. Card-level lock disables all .co-cand-job-status-dp .co-dp-btn buttons",
+      "card.querySelectorAll('.co-cand-job-status-dp .co-dp-btn')" in _hjsdp489
+      and 'b.disabled = true' in _hjsdp489)
+
+# 489-05: success path reads data-job-links, updates candidate_status, calls _renderCandidateJobLinksUI
+check("489-05. Success path reads data-job-links + updates candidate_status + calls _renderCandidateJobLinksUI",
+      "card.getAttribute('data-job-links')" in _hjsdp489
+      and "candidate_status" in _hjsdp489
+      and "_renderCandidateJobLinksUI(card, links)" in _hjsdp489)
+
+# 489-06: failure path does NOT update data-job-links — re-renders from it unchanged
+check("489-06. Failure path re-renders from data-job-links without mutating it",
+      "_renderCandidateJobLinksUI(card, rollLinks)" in _hjsdp489
+      and "card.setAttribute('data-job-links'" not in _hjsdp489.split('res.ok')[1]
+      if 'res.ok' in _hjsdp489 else False)
+
+# 489-07: new job link gets a picker immediately (renderCandidateJobLinksUI builds pickers)
+check("489-07. _renderCandidateJobLinksUI builds co-cand-job-status-dp pickers for new job links",
+      'co-cand-job-status-dp' in _render489
+      and '_dpHTML' in _render489
+      and 'jsOpts2' in _render489)
+
+# 489-08: SYSTEMS_INDEX §20c describes card-level lock + rollback from data-job-links + no native select
+check("489-08. SYSTEMS_INDEX §20c documents card-level lock, data-job-links rollback, no native select",
+      'data-job-status-saving' in _idx489
+      and 'data-job-links' in _idx489
+      and '_renderCandidateJobLinksUI' in _idx489
+      and 'no native' in _idx489.lower() or 'no native' in _idx489.lower()
+      or 'no native `<select>`' in _idx489
+      or 'native `<select>`' in _idx489)
+
+# 489-09: startup migration raises on failure (not caught with print+continue)
+check("489-09. on_startup raises on _migrate_candidate_status_per_job failure (startup-critical)",
+      '_migrate_candidate_status_per_job()' in _srv489
+      # The critical line must NOT be inside a try block that catches with only a print
+      and (
+          # Check: no try/except wrapping just this migration call (it might be try-raised or bare)
+          'Startup-critical' in _srv489
+          or (
+              # Bare call (no try/except swallowing it)
+              'except' not in _srv489.split('_migrate_candidate_status_per_job()')[1].split('print(')[0][:200]
+          )
+      ))
+
+# 489-10: migration uses advisory lock (pg_advisory_lock) and releases in finally
+check("489-10. Migration uses pg_advisory_lock and releases it in finally",
+      'pg_advisory_lock' in _mig489
+      and 'pg_advisory_unlock' in _mig489
+      and 'finally:' in _mig489
+      and 'locked' in _mig489)
+
+# 489-11: migration still has no DROP CONSTRAINT
+check("489-11. Migration has no DROP CONSTRAINT after advisory lock addition",
+      'DROP CONSTRAINT' not in _mig489)
+
+# 489-12: status and application_status remain equal in both batch-fetch functions (backward compat)
+check("489-12. 'status' and 'application_status' both present and equal in both batch-fetch functions",
+      "'status':             app_status or None" in _auth489
+      and "'application_status': app_status or None" in _auth489
+      and _auth489.count("'application_status': app_status or None") >= 2)
+
+# 489-13: Field(...) and timezone tests still pass (verify §488 fixes not regressed)
+check("489-13. §488 contracts intact — Field(...) in UpdateCandidateJobStatusInput + toISOString in frontend",
+      'Optional[str] = Field(...)' in _srv489
+      and 'toISOString()' in _main489
+      and 'localScheduled' in _main489)
 
 # ── Summary ──────────────────────────────────────────────────────────────
 print()

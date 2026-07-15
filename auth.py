@@ -4765,14 +4765,29 @@ def _migrate_candidate_status_per_job():
       - company_saved_candidates.status  (general pipeline classification)
     NULL means the company has not yet classified the candidate for that specific job.
 
-    Race-safety:
+    Race-safety (multi-instance):
+      A PostgreSQL session advisory lock (key 4862026) serialises this migration across
+      Railway/Heroku instances — only one instance executes the body at a time; others
+      block on pg_advisory_lock() until the holder completes.  The lock is released in
+      finally, even on error.
+
       ADD CONSTRAINT uses NOT VALID to avoid a full table scan under strong lock.
-      A duplicate_object race (42710) is caught and ignored — both instances end
+      A duplicate_object race (42710) inside the body is caught — both instances end
       in the same state (constraint present, not yet validated).
       VALIDATE CONSTRAINT runs only when convalidated=False — idempotent on restart.
+
+    This migration is startup-critical: both batch-fetch functions always SELECT
+    candidate_status; if the column is missing the server returns HTTP 500 on every
+    saved-candidates call.  Failure propagates to the caller (on_startup raises).
     """
+    _LOCK_KEY = 4862026  # stable unique key for this specific migration
     conn = get_conn()
+    locked = False
     try:
+        # Block until we hold the advisory lock — serialises across instances
+        conn.run("SELECT pg_advisory_lock(:key)", key=_LOCK_KEY)
+        locked = True
+
         # Column: IF NOT EXISTS is no-op when already present
         conn.run("""
             ALTER TABLE company_candidate_job_refs
@@ -4796,7 +4811,8 @@ def _migrate_candidate_status_per_job():
                     ) NOT VALID
                 """)
             except Exception as e:
-                # 42710 = duplicate_object — another instance won the race; safe to ignore
+                # 42710 = duplicate_object — another instance added it between our SELECT
+                # and our ADD CONSTRAINT; safe to ignore, re-read below.
                 if '42710' not in str(e) and 'duplicate_object' not in str(e):
                     raise
             # Re-read after possible race so VALIDATE decision is up-to-date
@@ -4812,6 +4828,11 @@ def _migrate_candidate_status_per_job():
                 VALIDATE CONSTRAINT ck_ccjr_candidate_status
             """)
     finally:
+        if locked:
+            try:
+                conn.run("SELECT pg_advisory_unlock(:key)", key=_LOCK_KEY)
+            except Exception:
+                pass
         release_conn(conn)
 
 

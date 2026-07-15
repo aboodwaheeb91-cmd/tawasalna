@@ -2248,14 +2248,13 @@ body:not(.co-loading) .co-skeleton      { display: none; }
   font-size:.72rem; color:var(--t2); white-space:nowrap; overflow:hidden;
   text-overflow:ellipsis; max-width:55%;
 }
-.co-cand-job-status-sel {
-  font-size:.72rem; background:#0d1120; color:var(--t);
-  border:1px solid rgba(255,255,255,.1); border-radius:6px;
-  padding:3px 6px; cursor:pointer; max-width:44%;
-}
-.co-cand-job-status-sel:focus { outline:none; border-color:rgba(37,99,255,.45); }
-.co-cand-job-status-sel:disabled { opacity:.5; cursor:wait; }
-.co-cand-job-status-sel option { background:#1a2035; color:#fff; }
+/* Per-job status custom picker — compact variant inside .co-cand-job-status-row */
+.co-cand-manage-panel .co-cand-job-status-dp { min-width:0; width:auto; max-width:44%; }
+.co-cand-job-status-dp .co-dp-btn { padding:3px 8px; font-size:.72rem; }
+.co-cand-job-status-dp .co-dp-val { font-size:.72rem; }
+.co-cand-job-status-dp .co-dp-list { font-size:.72rem; min-width:130px; }
+.co-cand-job-status-dp .co-dp-opt { padding:7px 11px; font-size:.72rem; }
+.co-cand-job-status-dp .co-dp-btn:disabled { opacity:.5; cursor:wait; }
 
 /* Suggestions save → confirmation card (Reqs 5 & 6) */
 .co-sugg-confirm {
