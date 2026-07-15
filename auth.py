@@ -7059,9 +7059,9 @@ def _migrate_pipeline_schema_v1():
         )
 
         # ── 2. job_pipeline_entries ──────────────────────────────────────────
-        # One row per (company, candidate, job). RESTRICT FKs on the three core
-        # dimensions prevent orphan entries; application_id is optional (SET NULL
-        # when the application is hard-deleted, though we currently soft-delete).
+        # One row per (company, candidate, job). company_id / candidate_id → CASCADE;
+        # job_id → RESTRICT (prevents orphan entries while the job exists);
+        # application_id / stage_updated_by / archived_by / created_by → SET NULL.
         conn.run("""
             CREATE TABLE IF NOT EXISTS job_pipeline_entries (
                 id                 BIGSERIAL    PRIMARY KEY,

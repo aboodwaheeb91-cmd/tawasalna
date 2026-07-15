@@ -16,8 +16,12 @@ Tests verify that:
   - RESTRICT on job_id blocks job deletion
   - SET NULL on application_id (application deletion → NULL)
   - SET NULL on appointments.pipeline_entry_id (entry deletion → NULL)
-  - application_id allows multiple NULL rows (no partial unique)
+  - application_id: no partial UNIQUE verified via pg_indexes catalog + functional test
+    (same non-NULL application_id in two entries with different company/candidate/job triples)
+  - save_source CHECK: approved (applicant/suggestion/manual/legacy_unknown/NULL); rejected (profile/application/unknown)
+  - jobs.archived_at / archived_by: prerequisites table omits them; migration must add them
   - body CHECK rejects empty/whitespace-only strings in both note tables
+  - Exit code: 0 on all pass, 1 on any failure
 """
 
 import sys, os, time
@@ -81,15 +85,15 @@ def _create_prerequisites(conn):
             user_type TEXT NOT NULL DEFAULT 'emp'
         )
     """)
+    # Deliberately created WITHOUT archived_at / archived_by so the migration
+    # can prove it actually adds them via ADD COLUMN IF NOT EXISTS.
     conn.run("""
         CREATE TABLE IF NOT EXISTS jobs (
             id         SERIAL PRIMARY KEY,
             company_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
             title      TEXT NOT NULL DEFAULT '',
             status     TEXT NOT NULL DEFAULT 'active',
-            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-            archived_at TIMESTAMPTZ NULL,
-            archived_by INTEGER NULL REFERENCES users(id) ON DELETE SET NULL
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         )
     """)
     conn.run("""
@@ -301,6 +305,11 @@ try:
         _constraint_exists('pipeline_notes', 'ck_pn_body_nonempty'))
     check("it-03p. ck_cbn_body_nonempty exists on candidate_bank_notes",
         _constraint_exists('candidate_bank_notes', 'ck_cbn_body_nonempty'))
+    # Archive columns: prerequisites table did NOT include them — migration must add them
+    check("it-03q. jobs.archived_at added by migration (not in prerequisites)",
+        _col_exists('jobs', 'archived_at'))
+    check("it-03r. jobs.archived_by added by migration (not in prerequisites)",
+        _col_exists('jobs', 'archived_by'))
 
 finally:
     _vc.close()
@@ -416,6 +425,47 @@ try:
 finally:
     _pc.close()
 
+# ── it-06l–s: save_source CHECK ──────────────────────────────────────────────
+print("\n── save_source CHECK ──")
+_ssc = _get_test_conn()
+try:
+    _ssc.run("INSERT INTO users(tw_id,user_type) VALUES('C_SS','co') ON CONFLICT DO NOTHING")
+    _ssc.run("INSERT INTO users(tw_id,user_type) VALUES('U_SS','emp') ON CONFLICT DO NOTHING")
+    _co_ss = _ssc.run("SELECT id FROM users WHERE tw_id='C_SS'")[0][0]
+    _u_ss  = _ssc.run("SELECT id FROM users WHERE tw_id='U_SS'")[0][0]
+    _ssc.run(
+        "INSERT INTO company_saved_candidates(company_id,candidate_id) "
+        "VALUES(:c,:u) ON CONFLICT DO NOTHING",
+        c=_co_ss, u=_u_ss
+    )
+
+    def _try_save_source(val):
+        try:
+            _ssc.run(
+                "UPDATE company_saved_candidates SET save_source=:v "
+                "WHERE company_id=:c AND candidate_id=:u",
+                v=val, c=_co_ss, u=_u_ss
+            )
+            _ssc.run(
+                "UPDATE company_saved_candidates SET save_source=NULL "
+                "WHERE company_id=:c AND candidate_id=:u",
+                c=_co_ss, u=_u_ss
+            )
+            return True
+        except Exception:
+            return False
+
+    check("it-06l. save_source='applicant' accepted",      _try_save_source('applicant'))
+    check("it-06m. save_source='suggestion' accepted",     _try_save_source('suggestion'))
+    check("it-06n. save_source='manual' accepted",         _try_save_source('manual'))
+    check("it-06o. save_source='legacy_unknown' accepted", _try_save_source('legacy_unknown'))
+    check("it-06p. save_source=NULL accepted",             _try_save_source(None))
+    check("it-06q. save_source='profile' rejected",        not _try_save_source('profile'))
+    check("it-06r. save_source='application' rejected",    not _try_save_source('application'))
+    check("it-06s. save_source='unknown' rejected",        not _try_save_source('unknown'))
+finally:
+    _ssc.close()
+
 # ── it-07: body CHECK — empty/whitespace rejected ────────────────────────────
 print("\n── body NOT empty CHECK ──")
 _bc = _get_test_conn()
@@ -515,6 +565,66 @@ try:
     except Exception as _e:
         _null_ok = False
     check("it-08b. application_id allows multiple NULLs (no partial unique)", _null_ok)
+
+    # Catalog check: verify pg_indexes has no UNIQUE index on application_id alone
+    _no_apid_unique_idx = True
+    try:
+        _apid_idx_rows = _uc.run(
+            "SELECT indexdef FROM pg_indexes "
+            "WHERE tablename='job_pipeline_entries' "
+            "AND indexdef ILIKE '%UNIQUE%' AND indexdef ILIKE '%application_id%'"
+        )
+        for _row in (_apid_idx_rows or []):
+            _idef = _row[0].lower()
+            # A partial UNIQUE on application_id alone would NOT contain the three-column triple
+            if 'company_id' not in _idef and 'candidate_id' not in _idef and 'job_id' not in _idef:
+                _no_apid_unique_idx = False
+    except Exception:
+        _no_apid_unique_idx = False
+    check("it-08b-catalog. No UNIQUE index targeting application_id alone (pg_indexes)", _no_apid_unique_idx)
+
+    # Functional: same non-NULL application_id in two entries with different (company,candidate,job)
+    _same_appid_ok = False
+    try:
+        # Create a real job_application row to use as shared FK reference
+        _uc.run(
+            "INSERT INTO job_applications(job_id,user_id) VALUES(:j,:u)",
+            j=_j_u, u=_u_u
+        )
+        _app_shared = _uc.run(
+            "SELECT id FROM job_applications WHERE job_id=:j AND user_id=:u LIMIT 1",
+            j=_j_u, u=_u_u
+        )[0][0]
+        # Triple A: new company / candidate / job
+        _uc.run("INSERT INTO users(tw_id,user_type) VALUES('C_SA','co') ON CONFLICT DO NOTHING")
+        _uc.run("INSERT INTO users(tw_id,user_type) VALUES('U_SA','emp') ON CONFLICT DO NOTHING")
+        _co_sa = _uc.run("SELECT id FROM users WHERE tw_id='C_SA'")[0][0]
+        _u_sa  = _uc.run("SELECT id FROM users WHERE tw_id='U_SA'")[0][0]
+        _uc.run("INSERT INTO jobs(company_id,title) VALUES(:c,'SA Job')", c=_co_sa)
+        _j_sa  = _uc.run("SELECT id FROM jobs WHERE company_id=:c LIMIT 1", c=_co_sa)[0][0]
+        _uc.run(
+            "INSERT INTO job_pipeline_entries"
+            "(company_id,candidate_id,job_id,stage,source,application_id)"
+            " VALUES(:c,:u,:j,'new','application',:a)",
+            c=_co_sa, u=_u_sa, j=_j_sa, a=_app_shared
+        )
+        # Triple B: another new company / candidate / job — same application_id
+        _uc.run("INSERT INTO users(tw_id,user_type) VALUES('C_SB','co') ON CONFLICT DO NOTHING")
+        _uc.run("INSERT INTO users(tw_id,user_type) VALUES('U_SB','emp') ON CONFLICT DO NOTHING")
+        _co_sb = _uc.run("SELECT id FROM users WHERE tw_id='C_SB'")[0][0]
+        _u_sb  = _uc.run("SELECT id FROM users WHERE tw_id='U_SB'")[0][0]
+        _uc.run("INSERT INTO jobs(company_id,title) VALUES(:c,'SB Job')", c=_co_sb)
+        _j_sb  = _uc.run("SELECT id FROM jobs WHERE company_id=:c LIMIT 1", c=_co_sb)[0][0]
+        _uc.run(
+            "INSERT INTO job_pipeline_entries"
+            "(company_id,candidate_id,job_id,stage,source,application_id)"
+            " VALUES(:c,:u,:j,'reviewing','application',:a)",
+            c=_co_sb, u=_u_sb, j=_j_sb, a=_app_shared
+        )
+        _same_appid_ok = True
+    except Exception:
+        pass
+    check("it-08b-func. Same application_id in two entries (different triple) is allowed", _same_appid_ok)
 
     # migration_source_key: multiple NULLs allowed, duplicate non-NULL rejected
     _uc.run(
@@ -697,3 +807,6 @@ else:
 # Restore auth connection functions
 _auth.get_conn     = _orig_get
 _auth.release_conn = _orig_rel
+
+if passed != total:
+    sys.exit(1)
