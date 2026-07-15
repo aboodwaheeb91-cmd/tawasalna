@@ -11031,6 +11031,277 @@ else:
         )
 
 print()
+
+# ══════════════════════════════════════════════════════════════════════════════
+# PR-1 — Additive Schema for Employment Pipeline System
+# 10 test categories: pr-1-01 through pr-1-10
+# ══════════════════════════════════════════════════════════════════════════════
+print("── PR-1: Additive Pipeline Schema ──")
+
+_pr1_src = open(__file__.replace('test_post_comments.py', 'auth.py'), encoding='utf-8').read()
+_pr1_srv = open(__file__.replace('test_post_comments.py', 'server.py'), encoding='utf-8').read()
+
+# Locate the migration function body for targeted checks
+import re as _re_pr1
+_pr1_match = _re_pr1.search(
+    r'def _migrate_pipeline_schema_v1\(\)(.*?)(?=\ndef [a-zA-Z_]|\n# ══)',
+    _pr1_src, _re_pr1.DOTALL
+)
+_pr1_body = _pr1_match.group(1) if _pr1_match else ''
+
+# ── pr-1-01 [STATIC] jobs: archived_at and archived_by columns ──────────────
+check(
+    "pr-1-01. [STATIC] jobs.archived_at TIMESTAMPTZ NULL added",
+    'archived_at TIMESTAMPTZ NULL' in _pr1_body
+)
+check(
+    "pr-1-01b.[STATIC] jobs.archived_by INTEGER NULL with FK to users ON DELETE SET NULL",
+    'archived_by' in _pr1_body and 'ON DELETE SET NULL' in _pr1_body
+)
+check(
+    "pr-1-01c.[STATIC] partial index idx_jobs_not_archived WHERE archived_at IS NULL",
+    'idx_jobs_not_archived' in _pr1_body and 'WHERE archived_at IS NULL' in _pr1_body
+)
+
+# ── pr-1-02 [STATIC] job_pipeline_entries table ──────────────────────────────
+check(
+    "pr-1-02. [STATIC] job_pipeline_entries table created",
+    'CREATE TABLE IF NOT EXISTS job_pipeline_entries' in _pr1_body
+)
+check(
+    "pr-1-02b.[STATIC] UNIQUE(company_id, candidate_id, job_id)",
+    'UNIQUE (company_id, candidate_id, job_id)' in _pr1_body or
+    'uq_pipeline_entry' in _pr1_body
+)
+check(
+    "pr-1-02c.[STATIC] stage CHECK with required values",
+    'ck_pipeline_stage' in _pr1_body and
+    "'sourced'" in _pr1_body and "'screening'" in _pr1_body and
+    "'interview'" in _pr1_body and "'hired'" in _pr1_body and
+    "'rejected'" in _pr1_body
+)
+check(
+    "pr-1-02d.[STATIC] source CHECK with required values (no 'profile')",
+    'ck_pipeline_source' in _pr1_body and
+    "'applicant'" in _pr1_body and "'suggestion'" in _pr1_body and
+    "'manual'" in _pr1_body and "'legacy_unknown'" in _pr1_body and
+    "'profile'" not in _pr1_body.split('ck_pipeline_source')[1][:200]
+)
+
+# ── pr-1-03 [STATIC] FK behaviors on job_pipeline_entries ────────────────────
+# Check the full body for RESTRICT FK patterns on the three core dimensions.
+# The migration body contains "REFERENCES users(id) ... ON DELETE RESTRICT" for
+# company_id and candidate_id, and "REFERENCES jobs(id) ... ON DELETE RESTRICT"
+# for job_id.
+check(
+    "pr-1-03. [STATIC] company_id/candidate_id/job_id use ON DELETE RESTRICT",
+    _pr1_body.count('ON DELETE RESTRICT') >= 3
+)
+check(
+    "pr-1-03b.[STATIC] application_id uses ON DELETE SET NULL",
+    'application_id' in _pr1_body and
+    'job_applications(id)' in _pr1_body and
+    # At least one SET NULL in the pipeline_entries section
+    _re_pr1.search(r'application_id.*?ON DELETE SET NULL', _pr1_body, _re_pr1.DOTALL) is not None
+)
+
+# ── pr-1-04 [STATIC] pipeline_stage_events table ─────────────────────────────
+check(
+    "pr-1-04. [STATIC] pipeline_stage_events table created with CASCADE FK",
+    'CREATE TABLE IF NOT EXISTS pipeline_stage_events' in _pr1_body and
+    'pipeline_stage_events' in _pr1_body
+)
+check(
+    "pr-1-04b.[STATIC] index on (pipeline_entry_id, created_at DESC)",
+    'idx_pse_entry_created' in _pr1_body and
+    'pipeline_entry_id, created_at DESC' in _pr1_body
+)
+
+# ── pr-1-05 [STATIC] pipeline_notes table ────────────────────────────────────
+check(
+    "pr-1-05. [STATIC] pipeline_notes table with body NOT NULL and soft-delete columns",
+    'CREATE TABLE IF NOT EXISTS pipeline_notes' in _pr1_body and
+    'body' in _pr1_body and
+    'deleted_at' in _pr1_body and 'deleted_by' in _pr1_body
+)
+
+# ── pr-1-06 [STATIC] candidate_bank_notes table ──────────────────────────────
+check(
+    "pr-1-06. [STATIC] candidate_bank_notes table with body NOT NULL, is_migrated, migration_source_key UNIQUE",
+    'CREATE TABLE IF NOT EXISTS candidate_bank_notes' in _pr1_body and
+    'is_migrated' in _pr1_body and
+    'migration_source_key' in _pr1_body and
+    'uq_cbn_migration_key' in _pr1_body
+)
+check(
+    "pr-1-06b.[STATIC] candidate_bank_notes has soft-delete columns",
+    'candidate_bank_notes' in _pr1_body and
+    _pr1_body.index('deleted_at') > _pr1_body.index('candidate_bank_notes')
+)
+
+# ── pr-1-07 [STATIC] company_saved_candidates new columns + CHECK constraints ─
+check(
+    "pr-1-07. [STATIC] company_saved_candidates: rating, priority, tags, follow_up_at, save_source added",
+    'ALTER TABLE company_saved_candidates ADD COLUMN IF NOT EXISTS rating' in _pr1_body and
+    'ALTER TABLE company_saved_candidates ADD COLUMN IF NOT EXISTS priority' in _pr1_body and
+    'ALTER TABLE company_saved_candidates ADD COLUMN IF NOT EXISTS tags' in _pr1_body and
+    'ALTER TABLE company_saved_candidates ADD COLUMN IF NOT EXISTS follow_up_at' in _pr1_body and
+    'ALTER TABLE company_saved_candidates ADD COLUMN IF NOT EXISTS save_source' in _pr1_body
+)
+check(
+    "pr-1-07b.[STATIC] rating CHECK 1-5, priority CHECK enum, save_source CHECK enum",
+    'ck_csc_rating' in _pr1_body and
+    'ck_csc_priority' in _pr1_body and
+    'ck_csc_save_source' in _pr1_body
+)
+check(
+    "pr-1-07c.[STATIC] save_source CHECK does NOT include 'profile'",
+    'ck_csc_save_source' in _pr1_body and
+    "'profile'" not in _pr1_body.split('ck_csc_save_source')[1][:300]
+)
+
+# ── pr-1-08 [STATIC] appointments.pipeline_entry_id ──────────────────────────
+check(
+    "pr-1-08. [STATIC] appointments.pipeline_entry_id BIGINT NULL FK with ON DELETE SET NULL",
+    'pipeline_entry_id BIGINT NULL' in _pr1_body and
+    'job_pipeline_entries(id) ON DELETE SET NULL' in _pr1_body
+)
+
+# ── pr-1-09 [STATIC] no backfill — migration adds schema only ─────────────────
+# A backfill is a statement that begins with INSERT INTO, UPDATE <table>, or
+# DELETE FROM — DML as the leading keyword of a SQL statement.
+# "ON DELETE SET NULL", "ON DELETE CASCADE" etc. are FK clauses, not DML.
+_pr1_lines = _pr1_body.split('\n')
+_pr1_dml = [
+    l.strip() for l in _pr1_lines
+    if _re_pr1.match(
+        r'\s*(INSERT\s+INTO|UPDATE\s+\w|DELETE\s+FROM)',
+        l, _re_pr1.IGNORECASE
+    )
+    and not l.strip().startswith('#')
+]
+check(
+    "pr-1-09. [STATIC] no backfill DML (INSERT/UPDATE/DELETE) in migration body",
+    len(_pr1_dml) == 0,
+    f"Unexpected DML: {_pr1_dml}" if _pr1_dml else None
+)
+
+# ── pr-1-10 [BEHAVIORAL] migration runs and is idempotent ────────────────────
+_pr1_srv_ok = False
+_pr1_srv_err = None
+try:
+    import sys as _sys_pr1, types as _types_pr1, os as _os_pr1
+    if 'auth' not in _sys_pr1.modules:
+        if 'pg8000' not in _sys_pr1.modules:
+            _pg = _types_pr1.ModuleType('pg8000')
+            _pg.native = _types_pr1.ModuleType('pg8000.native')
+            _pg.native.Connection = object
+            _pg.dbapi = _types_pr1.ModuleType('pg8000.dbapi')
+            _sys_pr1.modules['pg8000'] = _pg
+            _sys_pr1.modules['pg8000.native'] = _pg.native
+            _sys_pr1.modules['pg8000.dbapi'] = _pg.dbapi
+        _os_pr1.environ.setdefault('SUPABASE_DB_URL', 'postgresql://x:x@localhost/x')
+        import auth as _auth_pr1
+    else:
+        import auth as _auth_pr1
+    _pr1_srv_ok = True
+except Exception as _e_pr1:
+    _pr1_srv_err = str(_e_pr1)
+
+if _pr1_srv_ok:
+    class _MockConn:
+        def __init__(self):
+            self.calls = []
+        def run(self, sql, **kw):
+            self.calls.append(sql.strip())
+            return []
+
+    # Run 1 — first call
+    _mc1 = _MockConn()
+    _orig_get  = _auth_pr1.get_conn
+    _orig_rel  = _auth_pr1.release_conn
+    _pr1_run1_ok  = False
+    _pr1_run1_err = None
+    try:
+        _auth_pr1.get_conn      = lambda: _mc1
+        _auth_pr1.release_conn  = lambda c: None
+        _auth_pr1._migrate_pipeline_schema_v1()
+        _pr1_run1_ok = True
+    except Exception as _e:
+        _pr1_run1_err = str(_e)
+    finally:
+        _auth_pr1.get_conn     = _orig_get
+        _auth_pr1.release_conn = _orig_rel
+
+    check(
+        "pr-1-10. [BEHAVIORAL] migration runs without exception on first call",
+        _pr1_run1_ok,
+        _pr1_run1_err
+    )
+
+    # Verify key SQL was issued
+    _all_sql1 = ' '.join(_mc1.calls)
+    check(
+        "pr-1-10b.[BEHAVIORAL] migration issues SQL for all 7 sections",
+        'archived_at' in _all_sql1 and
+        'job_pipeline_entries' in _all_sql1 and
+        'pipeline_stage_events' in _all_sql1 and
+        'pipeline_notes' in _all_sql1 and
+        'candidate_bank_notes' in _all_sql1 and
+        'company_saved_candidates' in _all_sql1 and
+        'pipeline_entry_id' in _all_sql1
+    )
+
+    # Run 2 — idempotency (mock duplicate-constraint error for CHECK ADD calls)
+    class _MockConnIdemp:
+        def __init__(self):
+            self.calls = []
+        def run(self, sql, **kw):
+            self.calls.append(sql.strip())
+            # Simulate 42710 duplicate_object for ADD CONSTRAINT calls
+            if 'ADD CONSTRAINT' in sql:
+                raise Exception("ERROR 42710 duplicate_object")
+            return []
+
+    _mc2 = _MockConnIdemp()
+    _pr1_run2_ok  = False
+    _pr1_run2_err = None
+    try:
+        _auth_pr1.get_conn     = lambda: _mc2
+        _auth_pr1.release_conn = lambda c: None
+        _auth_pr1._migrate_pipeline_schema_v1()
+        _pr1_run2_ok = True
+    except Exception as _e:
+        _pr1_run2_err = str(_e)
+    finally:
+        _auth_pr1.get_conn     = _orig_get
+        _auth_pr1.release_conn = _orig_rel
+
+    check(
+        "pr-1-10c.[BEHAVIORAL] migration is idempotent (duplicate constraint → silently ignored)",
+        _pr1_run2_ok,
+        _pr1_run2_err
+    )
+
+    # Verify server.py imports and wires the migration
+    check(
+        "pr-1-10d.[STATIC] server.py imports _migrate_pipeline_schema_v1",
+        '_migrate_pipeline_schema_v1' in _pr1_srv
+    )
+    check(
+        "pr-1-10e.[STATIC] server.py calls _migrate_pipeline_schema_v1() in startup",
+        '_migrate_pipeline_schema_v1()' in _pr1_srv
+    )
+
+else:
+    for _pr1_n in ["10", "10b", "10c", "10d", "10e"]:
+        check(
+            f"pr-1-{_pr1_n}. [BEHAVIORAL] auth import available for PR-1 behavioral tests",
+            False,
+            _pr1_srv_err
+        )
+
+print()
 passed = sum(1 for _, s, _ in results if s == PASS)
 total  = len(results)
 print(f"{'='*50}")

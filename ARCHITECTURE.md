@@ -10161,3 +10161,134 @@ All three layers must remain in place. Removing any one layer weakens the guaran
 ❌ Adding a SECOND synchronous write from the frontend after PUT /jobs/applications/{id}/status — backend handles all writes atomically
 ❌ Reactivating a rejected candidate automatically without explicit human decision
 ```
+
+
+---
+
+## §66 — Employment Pipeline System — PR-1: Additive Schema
+
+**Status:** Schema Foundation Only (PR-1). No behaviour, no endpoints, no frontend.
+
+### What PR-1 adds
+
+Seven additive schema changes — all idempotent, no backfill, no behaviour change.
+
+#### 1. `jobs` table: archive columns
+
+| Column | Type | Constraint |
+|--------|------|------------|
+| `archived_at` | TIMESTAMPTZ NULL | — |
+| `archived_by` | INTEGER NULL | FK → `users(id)` ON DELETE SET NULL |
+
+Partial index `idx_jobs_not_archived ON jobs(id) WHERE archived_at IS NULL` — speeds up active-job list queries.
+
+#### 2. `job_pipeline_entries` — NEW TABLE
+
+One row per (company, candidate, job). The main pipeline record.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | BIGSERIAL PK | — |
+| `company_id` | INTEGER NOT NULL | FK → users ON DELETE **RESTRICT** |
+| `candidate_id` | INTEGER NOT NULL | FK → users ON DELETE **RESTRICT** |
+| `job_id` | INTEGER NOT NULL | FK → jobs ON DELETE **RESTRICT** |
+| `application_id` | INTEGER NULL | FK → job_applications ON DELETE SET NULL |
+| `stage` | TEXT NOT NULL | CHECK: sourced / screening / interview / assessment / offer / hired / rejected / withdrawn |
+| `source` | TEXT NOT NULL | CHECK: applicant / suggestion / manual / legacy_unknown |
+| `created_by` | INTEGER NULL | FK → users ON DELETE SET NULL |
+| `moved_at` | TIMESTAMPTZ NULL | When stage was last changed |
+| `moved_by` | INTEGER NULL | FK → users ON DELETE SET NULL |
+| `created_at / updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() |
+
+**UNIQUE:** `(company_id, candidate_id, job_id)` — one pipeline entry per candidate per job per company.
+
+**No partial UNIQUE on application_id** — deferred to PR-2+.
+
+**RESTRICT FKs are intentional:** prevent orphan entries by blocking deletion of the three core dimensions (company, candidate, job) while an entry exists.
+
+#### 3. `pipeline_stage_events` — NEW TABLE
+
+Immutable audit trail — one row per stage transition. CASCADE delete from parent entry.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | BIGSERIAL PK | — |
+| `pipeline_entry_id` | BIGINT NOT NULL | FK → job_pipeline_entries ON DELETE **CASCADE** |
+| `from_stage` | TEXT NULL | NULL for first entry |
+| `to_stage` | TEXT NOT NULL | — |
+| `changed_by` | INTEGER NULL | FK → users ON DELETE SET NULL |
+| `note` | TEXT NULL | — |
+| `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() |
+
+Index: `idx_pse_entry_created ON pipeline_stage_events(pipeline_entry_id, created_at DESC)`
+
+#### 4. `pipeline_notes` — NEW TABLE
+
+Structured notes scoped to one pipeline entry. Soft-delete via `deleted_at`.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | BIGSERIAL PK | — |
+| `pipeline_entry_id` | BIGINT NOT NULL | FK → job_pipeline_entries ON DELETE CASCADE |
+| `company_id` | INTEGER NOT NULL | FK → users ON DELETE CASCADE |
+| `author_id` | INTEGER NULL | FK → users ON DELETE SET NULL |
+| `body` | TEXT NOT NULL | — |
+| `deleted_at / deleted_by` | TIMESTAMPTZ / INTEGER NULL | Soft delete |
+
+#### 5. `candidate_bank_notes` — NEW TABLE
+
+Company-level notes about a candidate independent of any specific job. Supports future one-time migration from `company_saved_candidates.notes`.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | BIGSERIAL PK | — |
+| `company_id` | INTEGER NOT NULL | FK → users ON DELETE CASCADE |
+| `candidate_id` | INTEGER NOT NULL | FK → users ON DELETE CASCADE |
+| `author_id` | INTEGER NULL | FK → users ON DELETE SET NULL |
+| `body` | TEXT NOT NULL | — |
+| `is_migrated` | BOOLEAN NOT NULL DEFAULT FALSE | True if migrated from legacy notes |
+| `migration_source_key` | TEXT NULL | UNIQUE — prevents duplicate migration inserts |
+| `deleted_at / deleted_by` | TIMESTAMPTZ / INTEGER NULL | Soft delete |
+
+#### 6. `company_saved_candidates`: new columns
+
+| Column | Type | Constraint |
+|--------|------|------------|
+| `rating` | SMALLINT NULL | CHECK: NULL OR 1–5 (`ck_csc_rating`) |
+| `priority` | TEXT NULL | CHECK: NULL OR low/normal/high/urgent (`ck_csc_priority`) |
+| `tags` | TEXT[] NULL | — |
+| `follow_up_at` | TIMESTAMPTZ NULL | — |
+| `save_source` | TEXT NULL | CHECK: NULL OR applicant/suggestion/manual/legacy_unknown (`ck_csc_save_source`) — **'profile' is intentionally excluded** |
+
+#### 7. `appointments`: pipeline_entry_id
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `pipeline_entry_id` | BIGINT NULL | FK → job_pipeline_entries(id) ON DELETE SET NULL |
+
+Partial index `idx_appt_pipeline_entry WHERE pipeline_entry_id IS NOT NULL`.
+
+### Migration function
+
+`_migrate_pipeline_schema_v1()` in `auth.py` — called from `on_startup()` in `server.py`. Idempotent (IF NOT EXISTS + duplicate-constraint catch for CHECK constraints).
+
+### What PR-1 does NOT include
+
+- No backfill of existing data
+- No dual-write or behaviour change
+- No new API endpoints
+- No frontend changes
+- No change to `job_applications.status` or any existing pipeline/candidate logic
+- No automatic creation of pipeline entries
+- No Quota enforcement
+
+### Forbidden Patterns
+
+```
+❌ Adding a second pipeline-entry table for the same purpose
+❌ Changing RESTRICT FKs on job_pipeline_entries to CASCADE
+❌ Adding save_source='profile' to the CHECK constraint
+❌ Creating pipeline entries automatically from any existing code path
+❌ Adding endpoints or frontend in the same PR as schema
+❌ Using company_saved_candidates.rating for company-review ratings (different system)
+```

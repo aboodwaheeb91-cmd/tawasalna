@@ -111,6 +111,7 @@ from auth import (
     get_company_candidate_suggestions,
     _migrate_appointments,
     _migrate_scheduler_jobs,
+    _migrate_pipeline_schema_v1,
     run_due_scheduler_jobs,
 )
 from auth import ContentValidationError, validate_professional_text
@@ -520,6 +521,12 @@ async def on_startup():
         print("✅ scheduler_jobs table ready")
     except Exception as e:
         print(f"❌ scheduler_jobs migration failed: {e}")
+        raise
+    try:
+        _migrate_pipeline_schema_v1()
+        print("✅ pipeline schema v1 ready (jobs archive, job_pipeline_entries, pipeline_stage_events, pipeline_notes, candidate_bank_notes, company_saved_candidates fields, appointments.pipeline_entry_id)")
+    except Exception as e:
+        print(f"❌ pipeline schema v1 migration failed: {e}")
         raise
     await _init_asyncpg_pool()
 
