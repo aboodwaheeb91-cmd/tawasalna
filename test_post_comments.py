@@ -9634,16 +9634,17 @@ check("484-02. _closeJobPop removes scroll and resize listeners on close (no gho
       "window.removeEventListener('scroll', _closeJobPop)" in _close_pop484
       and "window.removeEventListener('resize', _closeJobPop)" in _close_pop484)
 
-# 484-03: popover shows حالة الطلب row (job_applications source) and at least one classification row
-# Updated in §486: popover now has 3 rows — application status, per-job status, general pipeline status
-check("484-03. _showJobChipPop renders حالة الطلب row and at least one classification row",
-      'حالة الطلب' in _show_pop484
-      and ('تصنيف الشركة' in _show_pop484 or 'التصنيف العام' in _show_pop484 or 'تصنيف في الوظيفة' in _show_pop484))
+# 484-03 (updated §492): popover simplified — shows only حالة المرشح في هذه الوظيفة (candidate_status)
+# حالة الطلب and التصنيف العام rows were removed in fix/job-chip-pop-simplify
+check("484-03. _showJobChipPop renders «حالة المرشح في هذه الوظيفة» row — updated §492",
+      'حالة المرشح في هذه الوظيفة' in _show_pop484
+      and 'data-cand-status' in _show_pop484)
 
-# 484-04: company classification row reads data-status from the parent card (not from chip data)
-check("484-04. company classification row reads data-status from card, not chip attribute",
-      "card.getAttribute('data-status')" in _show_pop484
-      and 'co-cjp-cand-status' in _show_pop484)
+# 484-04 (updated §492): general pipeline status (data-status from card) no longer shown in popover
+# It remains in the manage panel; popover now shows only per-job candidate_status from chip's data-cand-status
+check("484-04. popover no longer reads card data-status; per-job status from chip data-cand-status — updated §492",
+      "getAttribute('data-cand-status')" in _show_pop484
+      and 'co-cjp-cand-status' not in _show_pop484)
 
 # 484-05: +N is a <button class="co-cand-chip-more-btn"> — not a <span>
 check("484-05. +N more button is a <button class=co-cand-chip-more-btn> not a <span>",
@@ -9832,11 +9833,12 @@ _pop_fn486 = (
     if 'function _showJobChipPop(' in _cand_iife486 else ''
 )
 
-# 486-15: popover shows 3 separate rows: application status, per-job classification, general status
-check("486-15. Job chip popover renders 3 rows: حالة الطلب + تصنيف في الوظيفة + التصنيف العام",
-      'حالة الطلب' in _pop_fn486
-      and 'تصنيف في الوظيفة' in _pop_fn486
-      and 'التصنيف العام' in _pop_fn486
+# 486-15 (updated §492): popover simplified to 2 rows — حالة المرشح في هذه الوظيفة + تاريخ التقدم (conditional)
+# Rows حالة الطلب and التصنيف العام removed in fix/job-chip-pop-simplify
+check("486-15. Job chip popover: حالة الطلب and التصنيف العام removed; حالة المرشح في هذه الوظيفة present — updated §492",
+      'حالة المرشح في هذه الوظيفة' in _pop_fn486
+      and 'حالة الطلب' not in _pop_fn486
+      and 'التصنيف العام' not in _pop_fn486
       and 'data-cand-status' in _pop_fn486)
 
 # ── Frontend: per-job status section in manage panel ─────────────────────
@@ -10487,6 +10489,78 @@ check("491-12. CLAUDE.md source-3 lists update_application_status() as writer + 
       and 'Reverse direction is permanently forbidden' in _claude491)
 
 # ── Summary ──────────────────────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════
+# §492 — Job chip popover simplified (fix/job-chip-pop-simplify)
+# ═══════════════════════════════════════════════════════════════════
+
+_main492  = open('static/company/company.main.js', encoding='utf-8').read()
+_css492   = open('static/company/company.css', encoding='utf-8').read()
+_sysidx492 = open('docs/SYSTEMS_INDEX.md', encoding='utf-8').read()
+
+# Extract _showJobChipPop function body
+_pop492 = (_main492.split('function _showJobChipPop')[1].split('function _jobPopPositionFromChip')[0]
+           if 'function _showJobChipPop' in _main492 else '')
+
+# 492-01: Popover shows «حالة المرشح في هذه الوظيفة» as the row label
+check("492-01. _showJobChipPop uses «حالة المرشح في هذه الوظيفة» as row label",
+      'حالة المرشح في هذه الوظيفة' in _pop492)
+
+# 492-02: Source is data-cand-status / candidate_status
+check("492-02. _showJobChipPop reads data-cand-status for candidate classification",
+      "getAttribute('data-cand-status')" in _pop492)
+
+# 492-03: «حالة الطلب» row is removed from popover
+check("492-03. حالة الطلب row no longer appears in _showJobChipPop",
+      'حالة الطلب' not in _pop492)
+
+# 492-04: «التصنيف العام» row is removed from popover
+check("492-04. التصنيف العام row no longer appears in _showJobChipPop",
+      'التصنيف العام' not in _pop492)
+
+# 492-05: apply_date row is conditional — rendered only inside `if (applyDate)` block
+_date_block492 = (_pop492.split('if (applyDate)')[1].split('\n    }')[0]
+                  if 'if (applyDate)' in _pop492 else '')
+check("492-05. تاريخ التقدم row only rendered inside if(applyDate) — not unconditional",
+      'تاريخ التقدم' in _date_block492
+      and 'تاريخ التقدم' not in _pop492.split('if (applyDate)')[0])
+
+# 492-06: null candidate_status → «غير مصنف» label
+check("492-06. null candidate_status displays «غير مصنف»",
+      'غير مصنف' in _pop492)
+
+# 492-07: application_status field stays in job_links[] API contract (backward compat — not removed)
+check("492-07. application_status still present in job_links[] chip HTML (API backward compat)",
+      "data-app-status" in _main492
+      and "application_status" in _main492)
+
+# 492-08: _jobPopPositionFromChip and _closeJobPop positioning/close logic unchanged
+check("492-08. _jobPopPositionFromChip and _closeJobPop still present and wired",
+      'function _jobPopPositionFromChip' in _main492
+      and 'function _closeJobPop' in _main492
+      and "_closeJobPop" in _pop492)
+
+# 492-09: Removed CSS classes co-cjp-status and co-cjp-cand-status no longer in company.css
+check("492-09. co-cjp-status and co-cjp-cand-status CSS classes removed",
+      'co-cjp-status {' not in _css492
+      and 'co-cjp-cand-status {' not in _css492)
+
+# 492-10: Kept CSS classes co-cjp-no-app and co-cjp-cand-job-st still present
+check("492-10. co-cjp-no-app and co-cjp-cand-job-st CSS classes still present",
+      'co-cjp-no-app' in _css492
+      and 'co-cjp-cand-job-st' in _css492)
+
+# 492-11: SYSTEMS_INDEX §20c popover description updated to 2-row format
+check("492-11. SYSTEMS_INDEX §20c popover updated: 2 rows, حالة المرشح في هذه الوظيفة, apply_date conditional",
+      'حالة المرشح في هذه الوظيفة' in _sysidx492
+      and 'apply_date' in _sysidx492
+      and 'only when non-null' in _sysidx492
+      and 'fix/job-chip-pop-simplify' in _sysidx492)
+
+# 492-12: genStatus / genLbl variables no longer in _showJobChipPop (clean removal)
+check("492-12. genStatus and genLbl variables removed from _showJobChipPop",
+      'genStatus' not in _pop492
+      and 'genLbl' not in _pop492)
+
 print()
 passed = sum(1 for _, s, _ in results if s == PASS)
 total  = len(results)

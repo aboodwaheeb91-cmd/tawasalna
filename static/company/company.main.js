@@ -3062,17 +3062,14 @@
   }
 
   // ── Job chip popover ────────────────────────────────────────────
-  // Shows three separate rows: application status + per-job candidate status + general pipeline status
+  // Row 1: per-job candidate classification (company_candidate_job_refs.candidate_status)
+  // Row 2: apply_date — shown only when the candidate actually applied (not null)
   function _showJobChipPop(chip) {
     var title      = chip.getAttribute('data-title') || '';
     var applyDate  = chip.getAttribute('data-apply-date') || '';
-    var appStatus  = chip.getAttribute('data-app-status') || '';
     var candJobSt  = chip.getAttribute('data-cand-status') || '';
-    var appLbl     = appStatus  ? (_APP_STATUS_LABELS[appStatus]  || appStatus)  : 'لم يتقدم بعد';
-    var candJobLbl = candJobSt  ? (_STATUS_LABELS[candJobSt]     || candJobSt)   : 'غير مصنف';
-    var card       = chip.closest('.co-cand-saved-card');
-    var genStatus  = card ? (card.getAttribute('data-status') || '') : '';
-    var genLbl     = _statusLabel(genStatus);
+    var candJobLbl = candJobSt ? (_STATUS_LABELS[candJobSt] || candJobSt) : 'غير مصنف';
+    var candJobCls = candJobSt ? 'co-cjp-cand-job-st' : 'co-cjp-no-app';
 
     var pop = document.getElementById('co-cand-job-pop');
     if (!pop) {
@@ -3082,15 +3079,8 @@
       document.body.appendChild(pop);
     }
 
-    // Row 1: job application status (job_applications.status — application lifecycle, company-managed transitions)
-    // Row 2: per-job candidate classification (company_candidate_job_refs.candidate_status)
-    // Row 3: general pipeline status (company_saved_candidates.status)
-    var appCls     = appStatus  ? 'co-cjp-status'      : 'co-cjp-no-app';
-    var candJobCls = candJobSt  ? 'co-cjp-cand-job-st' : 'co-cjp-no-app';
     var html = '<div class="co-cjp-title">' + _esc(title) + '</div>';
-    html += '<div class="co-cjp-row"><span>حالة الطلب</span><span class="' + appCls + '">' + _esc(appLbl) + '</span></div>';
-    html += '<div class="co-cjp-row"><span>تصنيف في الوظيفة</span><span class="' + candJobCls + '">' + _esc(candJobLbl) + '</span></div>';
-    html += '<div class="co-cjp-row"><span>التصنيف العام</span><span class="co-cjp-cand-status">' + _esc(genLbl) + '</span></div>';
+    html += '<div class="co-cjp-row"><span>حالة المرشح في هذه الوظيفة</span><span class="' + candJobCls + '">' + _esc(candJobLbl) + '</span></div>';
     if (applyDate) {
       html += '<div class="co-cjp-row co-cjp-row--date"><span>تاريخ التقدم</span><span>' + _esc(applyDate) + '</span></div>';
     }

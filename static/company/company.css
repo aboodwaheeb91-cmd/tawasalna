@@ -2230,10 +2230,8 @@ body:not(.co-loading) .co-skeleton      { display: none; }
   color:var(--t2,#94a3b8); margin-bottom:3px;
 }
 .co-cjp-row span:last-child { color:var(--t1,#e2e8f0); text-align:start; }
-.co-cjp-status { color:#a78bfa; }
 .co-cjp-no-app { color:var(--t3,#6b7686); font-style:italic; }
 .co-cjp-cand-job-st { color:#60a5fa; }
-.co-cjp-cand-status { color:#34d399; }
 
 /* Per-job candidate status section in manage panel */
 .co-cand-job-status-list {
