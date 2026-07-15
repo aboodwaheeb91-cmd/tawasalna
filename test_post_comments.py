@@ -11059,8 +11059,11 @@ check(
     'archived_by' in _pr1_body and 'ON DELETE SET NULL' in _pr1_body
 )
 check(
-    "pr-1-01c.[STATIC] partial index idx_jobs_not_archived WHERE archived_at IS NULL",
-    'idx_jobs_not_archived' in _pr1_body and 'WHERE archived_at IS NULL' in _pr1_body
+    "pr-1-01c.[STATIC] composite index idx_jobs_company_not_archived_created on (company_id, created_at DESC) WHERE archived_at IS NULL",
+    'idx_jobs_company_not_archived_created' in _pr1_body and
+    'company_id, created_at DESC' in _pr1_body and
+    'WHERE archived_at IS NULL' in _pr1_body and
+    'idx_jobs_not_archived' not in _pr1_body
 )
 
 # ── pr-1-02 [STATIC] job_pipeline_entries table ──────────────────────────────
@@ -11147,10 +11150,15 @@ check(
 
 # ── pr-1-05 [STATIC] pipeline_notes table ────────────────────────────────────
 check(
-    "pr-1-05. [STATIC] pipeline_notes table with body NOT NULL and soft-delete columns",
+    "pr-1-05. [STATIC] pipeline_notes: body, created_by, soft-delete, body CHECK; no company_id/author_id/deleted_by",
     'CREATE TABLE IF NOT EXISTS pipeline_notes' in _pr1_body and
-    'body' in _pr1_body and
-    'deleted_at' in _pr1_body and 'deleted_by' in _pr1_body
+    'body' in _pr1_body and 'created_by' in _pr1_body and
+    'deleted_at' in _pr1_body and
+    'ck_pn_body_nonempty' in _pr1_body and
+    # company_id and author_id and deleted_by must not appear in the pipeline_notes block
+    _re_pr1.search(r'CREATE TABLE IF NOT EXISTS pipeline_notes.*?(?=CREATE TABLE|# ──)', _pr1_body, _re_pr1.DOTALL) is not None and
+    'company_id' not in (_re_pr1.search(r'CREATE TABLE IF NOT EXISTS pipeline_notes(.*?)(?=CREATE TABLE|# ──)', _pr1_body, _re_pr1.DOTALL) or type('', (), {'group': lambda s,x: ''})()).group(1) and
+    'author_id' not in (_re_pr1.search(r'CREATE TABLE IF NOT EXISTS pipeline_notes(.*?)(?=CREATE TABLE|# ──)', _pr1_body, _re_pr1.DOTALL) or type('', (), {'group': lambda s,x: ''})()).group(1)
 )
 
 # ── pr-1-06 [STATIC] candidate_bank_notes table ──────────────────────────────

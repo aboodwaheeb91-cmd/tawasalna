@@ -7051,10 +7051,11 @@ def _migrate_pipeline_schema_v1():
             "ALTER TABLE jobs ADD COLUMN IF NOT EXISTS "
             "archived_by INTEGER NULL REFERENCES users(id) ON DELETE SET NULL"
         )
-        # Partial index: active-job list queries scan only non-archived rows.
+        # Composite index: company job-list queries scan only non-archived rows,
+        # ordered by newest first — matches the primary listing query pattern.
         conn.run(
-            "CREATE INDEX IF NOT EXISTS idx_jobs_not_archived "
-            "ON jobs(id) WHERE archived_at IS NULL"
+            "CREATE INDEX IF NOT EXISTS idx_jobs_company_not_archived_created "
+            "ON jobs(company_id, created_at DESC) WHERE archived_at IS NULL"
         )
 
         # ── 2. job_pipeline_entries ──────────────────────────────────────────
@@ -7113,7 +7114,7 @@ def _migrate_pipeline_schema_v1():
                 to_stage          TEXT         NOT NULL,
                 changed_by        INTEGER      NULL
                                       REFERENCES users(id) ON DELETE SET NULL,
-                note              TEXT         NULL,
+                reason            TEXT         NULL,
                 created_at        TIMESTAMPTZ  NOT NULL DEFAULT NOW()
             )
         """)
@@ -7124,26 +7125,23 @@ def _migrate_pipeline_schema_v1():
 
         # ── 4. pipeline_notes ─────────────────────────────────────────────────
         # Structured notes scoped to a single pipeline entry.
-        # Soft-delete via deleted_at (body intentionally kept for audit).
+        # Soft-delete via deleted_at (body kept for audit; ownership inferred from
+        # pipeline_entry_id → company_id at query time).
         conn.run("""
             CREATE TABLE IF NOT EXISTS pipeline_notes (
                 id                BIGSERIAL    PRIMARY KEY,
                 pipeline_entry_id BIGINT       NOT NULL
                                       REFERENCES job_pipeline_entries(id) ON DELETE CASCADE,
-                company_id        INTEGER      NOT NULL
-                                      REFERENCES users(id) ON DELETE CASCADE,
-                author_id         INTEGER      NULL
-                                      REFERENCES users(id) ON DELETE SET NULL,
                 body              TEXT         NOT NULL,
+                created_by        INTEGER      NULL
+                                      REFERENCES users(id) ON DELETE SET NULL,
                 created_at        TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
                 updated_at        TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
                 deleted_at        TIMESTAMPTZ  NULL,
-                deleted_by        INTEGER      NULL
-                                      REFERENCES users(id) ON DELETE SET NULL
+                CONSTRAINT ck_pn_body_nonempty CHECK (length(btrim(body)) > 0)
             )
         """)
-        conn.run("CREATE INDEX IF NOT EXISTS idx_pn_entry    ON pipeline_notes(pipeline_entry_id)")
-        conn.run("CREATE INDEX IF NOT EXISTS idx_pn_company  ON pipeline_notes(company_id)")
+        conn.run("CREATE INDEX IF NOT EXISTS idx_pn_entry  ON pipeline_notes(pipeline_entry_id)")
         conn.run(
             "CREATE INDEX IF NOT EXISTS idx_pn_active "
             "ON pipeline_notes(pipeline_entry_id) WHERE deleted_at IS NULL"
@@ -7161,17 +7159,16 @@ def _migrate_pipeline_schema_v1():
                                          REFERENCES users(id) ON DELETE CASCADE,
                 candidate_id         INTEGER      NOT NULL
                                          REFERENCES users(id) ON DELETE CASCADE,
-                author_id            INTEGER      NULL
-                                         REFERENCES users(id) ON DELETE SET NULL,
                 body                 TEXT         NOT NULL,
                 is_migrated          BOOLEAN      NOT NULL DEFAULT FALSE,
                 migration_source_key TEXT         NULL,
+                created_by           INTEGER      NULL
+                                         REFERENCES users(id) ON DELETE SET NULL,
                 created_at           TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
                 updated_at           TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
                 deleted_at           TIMESTAMPTZ  NULL,
-                deleted_by           INTEGER      NULL
-                                         REFERENCES users(id) ON DELETE SET NULL,
-                CONSTRAINT uq_cbn_migration_key UNIQUE (migration_source_key)
+                CONSTRAINT uq_cbn_migration_key  UNIQUE (migration_source_key),
+                CONSTRAINT ck_cbn_body_nonempty  CHECK (length(btrim(body)) > 0)
             )
         """)
         conn.run("CREATE INDEX IF NOT EXISTS idx_cbn_company      ON candidate_bank_notes(company_id)")
@@ -7196,12 +7193,12 @@ def _migrate_pipeline_schema_v1():
             if '42710' not in str(_e) and 'duplicate_object' not in str(_e):
                 raise
 
-        # CHECK: priority enum (nullable)
+        # CHECK: priority enum (nullable) — approved values: low / medium / high
         try:
             conn.run(
                 "ALTER TABLE company_saved_candidates "
                 "ADD CONSTRAINT ck_csc_priority "
-                "CHECK (priority IS NULL OR priority IN ('low','normal','high','urgent'))"
+                "CHECK (priority IS NULL OR priority IN ('low','medium','high'))"
             )
         except Exception as _e:
             if '42710' not in str(_e) and 'duplicate_object' not in str(_e):

@@ -919,6 +919,23 @@ def admin_hide_post(post_id: int, token = Depends(verify_admin)):
 
 ---
 
+## أنظمة الحالة الأساسية (System State References)
+
+### Employment Pipeline — مصدر الحالة الوحيد لكل مرشح داخل وظيفة
+
+**المبدأ (F5 — One Source of Truth):**
+
+- `job_pipeline_entries` هو مصدر الحالة الوحيد لكل مرشح داخل وظيفة محددة.
+  - كل سجل (company, candidate, job) → مرحلة واحدة (stage) + مصدر واحد (source).
+  - لا يوجد جدول ثانٍ يُتتبّع فيه تقدم المرشح داخل وظيفة.
+- بنك المواهب (`company_saved_candidates`) مستقل عن الـ Pipeline:
+  - يُمثّل علاقة الشركة بالمرشح بغض النظر عن وظيفة بعينها.
+  - لا يُستخدم لتتبع مرحلة المقابلة أو العرض أو التوظيف — ذلك من صلاحية `job_pipeline_entries`.
+
+**المرجع التفصيلي:** `ARCHITECTURE.md §66`
+
+---
+
 ## ملاحظات التطبيق
 
 ### الإشارات المرجعية

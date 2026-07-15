@@ -10180,7 +10180,7 @@ Seven additive schema changes — all idempotent, no backfill, no behaviour chan
 | `archived_at` | TIMESTAMPTZ NULL | — |
 | `archived_by` | INTEGER NULL | FK → `users(id)` ON DELETE SET NULL |
 
-Partial index `idx_jobs_not_archived ON jobs(id) WHERE archived_at IS NULL` — speeds up active-job list queries.
+Composite partial index `idx_jobs_company_not_archived_created ON jobs(company_id, created_at DESC) WHERE archived_at IS NULL` — covers the primary company job-list query: filter by company, exclude archived, order by newest first.
 
 #### 2. `job_pipeline_entries` — NEW TABLE
 
@@ -10219,48 +10219,55 @@ Immutable audit trail — one row per stage transition. CASCADE delete from pare
 |--------|------|-------|
 | `id` | BIGSERIAL PK | — |
 | `pipeline_entry_id` | BIGINT NOT NULL | FK → job_pipeline_entries ON DELETE **CASCADE** |
-| `from_stage` | TEXT NULL | NULL for first entry |
+| `from_stage` | TEXT NULL | NULL for first transition |
 | `to_stage` | TEXT NOT NULL | — |
 | `changed_by` | INTEGER NULL | FK → users ON DELETE SET NULL |
-| `note` | TEXT NULL | — |
+| `reason` | TEXT NULL | Optional human-readable reason for the stage change |
 | `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() |
 
 Index: `idx_pse_entry_created ON pipeline_stage_events(pipeline_entry_id, created_at DESC)`
 
 #### 4. `pipeline_notes` — NEW TABLE
 
-Structured notes scoped to one pipeline entry. Soft-delete via `deleted_at`.
+Structured notes scoped to a pipeline entry. Company ownership is inferred at query time via `pipeline_entry_id → company_id`. Soft-delete via `deleted_at`.
 
 | Column | Type | Notes |
 |--------|------|-------|
 | `id` | BIGSERIAL PK | — |
 | `pipeline_entry_id` | BIGINT NOT NULL | FK → job_pipeline_entries ON DELETE CASCADE |
-| `company_id` | INTEGER NOT NULL | FK → users ON DELETE CASCADE |
-| `author_id` | INTEGER NULL | FK → users ON DELETE SET NULL |
-| `body` | TEXT NOT NULL | — |
-| `deleted_at / deleted_by` | TIMESTAMPTZ / INTEGER NULL | Soft delete |
+| `body` | TEXT NOT NULL | CHECK: `length(btrim(body)) > 0` — empty/whitespace rejected |
+| `created_by` | INTEGER NULL | FK → users ON DELETE SET NULL |
+| `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() |
+| `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() |
+| `deleted_at` | TIMESTAMPTZ NULL | Soft delete — NULL = active |
+
+**Not present:** `company_id`, `author_id`, `deleted_by` — deliberately excluded.
 
 #### 5. `candidate_bank_notes` — NEW TABLE
 
-Company-level notes about a candidate independent of any specific job. Supports future one-time migration from `company_saved_candidates.notes`.
+Company-level notes about a candidate independent of any specific job. Supports future one-time migration from `company_saved_candidates.notes` via `migration_source_key`.
 
 | Column | Type | Notes |
 |--------|------|-------|
 | `id` | BIGSERIAL PK | — |
 | `company_id` | INTEGER NOT NULL | FK → users ON DELETE CASCADE |
 | `candidate_id` | INTEGER NOT NULL | FK → users ON DELETE CASCADE |
-| `author_id` | INTEGER NULL | FK → users ON DELETE SET NULL |
-| `body` | TEXT NOT NULL | — |
-| `is_migrated` | BOOLEAN NOT NULL DEFAULT FALSE | True if migrated from legacy notes |
-| `migration_source_key` | TEXT NULL | UNIQUE — prevents duplicate migration inserts |
-| `deleted_at / deleted_by` | TIMESTAMPTZ / INTEGER NULL | Soft delete |
+| `body` | TEXT NOT NULL | CHECK: `length(btrim(body)) > 0` — empty/whitespace rejected |
+| `is_migrated` | BOOLEAN NOT NULL DEFAULT FALSE | True if row was migrated from legacy notes |
+| `migration_source_key` | TEXT NULL | UNIQUE — multiple NULLs allowed; duplicate non-NULL rejected |
+| `created_by` | INTEGER NULL | FK → users ON DELETE SET NULL |
+| `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() |
+| `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() |
+| `deleted_at` | TIMESTAMPTZ NULL | Soft delete |
+
+**Not present:** `author_id`, `deleted_by` — deliberately excluded.
 
 #### 6. `company_saved_candidates`: new columns
 
 | Column | Type | Constraint |
 |--------|------|------------|
 | `rating` | SMALLINT NULL | CHECK: NULL OR 1–5 (`ck_csc_rating`) |
-| `priority` | TEXT NULL | CHECK: NULL OR low/normal/high/urgent (`ck_csc_priority`) |
+| `priority` | TEXT NULL | CHECK: NULL OR **low / medium / high** (`ck_csc_priority`) — `normal` and `urgent` are permanently excluded |
 | `tags` | TEXT[] NULL | — |
 | `follow_up_at` | TIMESTAMPTZ NULL | — |
 | `save_source` | TEXT NULL | CHECK: NULL OR applicant/suggestion/manual/legacy_unknown (`ck_csc_save_source`) — **'profile' is intentionally excluded** |
@@ -10292,13 +10299,19 @@ Partial index `idx_appt_pipeline_entry WHERE pipeline_entry_id IS NOT NULL`.
 ```
 ❌ Adding a second pipeline-entry table for the same purpose
 ❌ Changing company_id/candidate_id FKs from CASCADE to RESTRICT (breaks account deletion)
-❌ Changing job_id FK from RESTRICT to CASCADE (would create orphan pipeline entries)
-❌ Adding stage values outside the approved set (new/reviewing/shortlisted/contacted/interview/offer/hired/rejected/withdrawn)
-❌ Adding source values outside the approved set (application/company_add/bank_link/migration/legacy_unknown)
-❌ Using applicant/suggestion/manual as source values — these belong in save_source only
+❌ Changing job_id FK from RESTRICT to CASCADE (would create orphan pipeline entries without job context)
+❌ Adding stage values outside the approved set: new/reviewing/shortlisted/contacted/interview/offer/hired/rejected/withdrawn
+❌ Adding source values outside the approved set: application/company_add/bank_link/migration/legacy_unknown
+❌ Using applicant/suggestion/manual as pipeline source values — these belong in save_source only
 ❌ Using moved_at/moved_by column names — approved names are stage_updated_at/stage_updated_by
+❌ Using note column in pipeline_stage_events — approved name is reason
+❌ Using company_id, author_id, deleted_by in pipeline_notes — deliberately excluded
+❌ Using author_id, deleted_by in candidate_bank_notes — use created_by instead
+❌ Using priority='normal' or priority='urgent' — approved values: low/medium/high only
+❌ Using idx_jobs_not_archived index name — replaced by idx_jobs_company_not_archived_created
 ❌ Adding save_source='profile' to the CHECK constraint
 ❌ Creating pipeline entries automatically from any existing code path
 ❌ Adding endpoints or frontend in the same PR as schema
 ❌ Using company_saved_candidates.rating for company-review ratings (different system)
+❌ Using empty string or whitespace-only body in pipeline_notes or candidate_bank_notes
 ```
