@@ -983,11 +983,21 @@
       if (!r.ok) { var e = new Error('HTTP ' + r.status); e.status = r.status; throw e; }
       return r.json();
     })
-    .then(function () {
+    .then(function (data) {
       if (card) {
         _reRenderCardFoot(card, 'accepted');
       }
       if (promoteBtn) { promoteBtn.disabled = false; }
+      // Dispatch cross-IIFE event so Saved Candidates screen syncs without refresh
+      if (data && data.candidate_id && data.job_id) {
+        document.dispatchEvent(new CustomEvent('tw:candidate-job-classification-updated', { detail: {
+          candidateId:       data.candidate_id,
+          jobId:             data.job_id,
+          applicationStatus: data.application_status || 'accepted',
+          candidateStatus:   data.candidate_status   || 'shortlisted',
+          generalStatus:     data.general_status      || null
+        }}));
+      }
       if (window._loadCandidatesBadge) window._loadCandidatesBadge();
       if (window.showToast) showToast('تم تصنيف المرشح بنجاح ✓');
     })
@@ -1533,48 +1543,33 @@
       classifyBtn.textContent = 'جارٍ التصنيف…';
     }
 
-    var uid     = classifyBtn ? parseInt(classifyBtn.getAttribute('data-uid'), 10) : 0;
-    var jobSufx = (_appJobId ? '?job_id=' + parseInt(_appJobId, 10) : '');
-
-    var statusP = fetch('/jobs/applications/' + appId + '/status', {
+    // Single atomic request — backend writes job_applications.status AND
+    // company_candidate_job_refs.candidate_status in one transaction, and ensures
+    // company_saved_candidates + job refs rows exist. No parallel save call needed.
+    fetch('/jobs/applications/' + appId + '/status', {
       method:  'PUT',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + jwt },
       body:    JSON.stringify({ status: newStatus })
-    });
-    // Always call save when in a job context so company_candidate_job_refs gets the new entry.
-    // ON CONFLICT DO NOTHING on both tables makes this idempotent.
-    // Never call save without job_id from this interface.
-    var saveP = (uid && _appJobId)
-      ? fetch('/company/saved-candidates/' + uid + jobSufx, {
-          method: 'POST', headers: { 'Authorization': 'Bearer ' + jwt }
-        })
-      : Promise.resolve(null);
-
-    Promise.all([statusP, saveP])
-      .then(function (results) {
-        var sRes = results[0];
-        if (!sRes.ok) { var e = new Error('HTTP ' + sRes.status); e.status = sRes.status; throw e; }
-
-        var saveRes = results[1];
-        if (saveRes && !saveRes.ok) {
-          // Status written to DB but candidate save failed — reload from server to avoid misleading UI.
-          if (window.showToast) showToast('تعذّر الحفظ، جارٍ إعادة التحميل…', 'error');
-          if (_appJobId) {
-            _loadApplicants(_appJobId);
-          } else {
-            if (card) _applyClassifyBadge(card, prevStatus);
-            if (classifyBtn) {
-              classifyBtn.disabled    = false;
-              classifyBtn.textContent = (!wasSaved && (!prevStatus || prevStatus === 'pending'))
-                ? 'حفظ وتصنيف ▾' : 'تعديل التصنيف ▾';
-            }
-          }
-          return;
-        }
-
+    })
+      .then(function (r) {
+        if (!r.ok) { var e = new Error('HTTP ' + r.status); e.status = r.status; throw e; }
+        return r.json();
+      })
+      .then(function (data) {
         if (card) {
           _reRenderCardFoot(card, newStatus);
           if (_apptIndexLoaded) _applyApptIndexToCards();
+        }
+        // Dispatch cross-IIFE event so Saved Candidates screen syncs without refresh.
+        // Event is only dispatched on success — never on error.
+        if (data && data.candidate_id && data.job_id) {
+          document.dispatchEvent(new CustomEvent('tw:candidate-job-classification-updated', { detail: {
+            candidateId:       data.candidate_id,
+            jobId:             data.job_id,
+            applicationStatus: data.application_status || newStatus,
+            candidateStatus:   data.candidate_status   !== undefined ? data.candidate_status : null,
+            generalStatus:     data.general_status      || null
+          }}));
         }
         if (window._loadCandidatesBadge) window._loadCandidatesBadge();
         if (window.showToast) showToast('تم التصنيف بنجاح ✓');
@@ -3708,6 +3703,30 @@
   // ── Expose for loadData hook ───────────────────────────────────
   window._loadCandidatesBadge = _loadBadge;
   window._coCandOpen          = _open;
+
+  // Listen for applicant classification events → sync live saved-candidate cards immediately.
+  // Dispatched by _execClassify and _execPromote in the Applicants IIFE on success only.
+  document.addEventListener('tw:candidate-job-classification-updated', function (evt) {
+    var d = evt && evt.detail;
+    if (!d || !d.candidateId || !d.jobId) return;
+    var card = _findLiveSavedCandidateCard(d.candidateId);
+    if (!card) return;
+    var links = [];
+    try { links = JSON.parse(card.getAttribute('data-job-links') || '[]'); } catch (e) {}
+    var matched = false;
+    links = links.map(function (jl) {
+      if (String(jl.job_id) === String(d.jobId)) {
+        matched = true;
+        return Object.assign({}, jl, {
+          application_status: d.applicationStatus != null ? d.applicationStatus : jl.application_status,
+          status:             d.applicationStatus != null ? d.applicationStatus : jl.status,
+          candidate_status:   d.candidateStatus   !== undefined ? d.candidateStatus : jl.candidate_status
+        });
+      }
+      return jl;
+    });
+    if (matched) _renderCandidateJobLinksUI(card, links);
+  });
 }());
 
 // ── Communication Hub (owner-only entry point) ─────────────────────────────

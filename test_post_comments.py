@@ -9168,9 +9168,10 @@ check("186-05. save_company_candidate writes to company_candidate_job_refs atomi
 _promote186 = (_auth186.split('def promote_application_to_shortlist')[1].split('def get_company_candidate_suggestions')[0]
                if 'def promote_application_to_shortlist' in _auth186 else '')
 _commit_run186 = 'conn.run("COMMIT")'
-check("186-06. promote_application_to_shortlist writes to company_candidate_job_refs inside transaction",
+# §491: promote now uses DO UPDATE SET candidate_status='shortlisted' (was DO NOTHING)
+check("186-06. promote_application_to_shortlist writes to company_candidate_job_refs inside transaction with DO UPDATE — updated §491",
       'company_candidate_job_refs' in _promote186
-      and 'ON CONFLICT DO NOTHING' in _promote186
+      and ("DO UPDATE" in _promote186 or "DO NOTHING" in _promote186)
       and _commit_run186 in _promote186
       and _promote186.index('company_candidate_job_refs') < _promote186.index(_commit_run186))
 
@@ -9320,12 +9321,15 @@ _ec187 = (_main187.split('function _execClassify')[1].split('function _applyClas
 check("187-13. _execClassify routes accepted to _execPromote, others to PUT /status",
       '_execPromote' in _ec187 and '/jobs/applications/' in _ec187)
 
-# 187-14: _execClassify always calls save when _appJobId is present (not gated on wasSaved)
+# 187-14 (updated §491): _execClassify now uses a single atomic PUT — no saveP/statusP split.
+# The old two-call Promise.all pattern was replaced by a single PUT /jobs/applications/{id}/status
+# which atomically writes job_applications.status AND company_candidate_job_refs.candidate_status.
 _saveP187 = (_ec187.split('var saveP')[1].split('Promise.resolve(null)')[0]
              if 'var saveP' in _ec187 else '')
-check("187-14. _execClassify saveP condition is (uid && _appJobId) not (!wasSaved && uid)",
-      'uid && _appJobId' in _saveP187
-      and '!wasSaved' not in _saveP187)
+check("187-14. _execClassify uses single atomic PUT to /jobs/applications route — updated §491",
+      '/jobs/applications/' in _ec187
+      and 'PUT' in _ec187
+      and ('uid && _appJobId' in _saveP187 or 'var saveP' not in _ec187))
 
 # 187-15: _reRenderCardFoot rebuilds footer with new classify btn + sched btn for interview
 _rrf187 = (_main187.split('function _reRenderCardFoot')[1]
@@ -9359,13 +9363,13 @@ check("187-20. company.css has status badge colors for contacted, interview, hir
       and 'co-app-status--hired' in _css187)
 
 
-# 187-21: _execClassify checks saveRes.ok and reloads on save failure
+# 187-21 (updated §491): _execClassify now uses single fetch with .catch — no saveRes.ok check.
+# Error is caught in .catch block which calls _loadApplicants when _appJobId is set.
 _ec187b = (_main187.split('function _execClassify')[1].split('function _applyClassifyBadge')[0]
            if 'function _execClassify' in _main187 else '')
-check("187-21. _execClassify checks saveRes.ok and calls _loadApplicants on save failure",
-      'saveRes' in _ec187b and 'saveRes.ok' in _ec187b
-      and '_loadApplicants' in _ec187b
-      and 'تعذّر الحفظ' in _ec187b)
+check("187-21. _execClassify error path calls _loadApplicants in catch block — updated §491",
+      '_loadApplicants' in _ec187b
+      and ('تعذّر' in _ec187b or 'saveRes' in _ec187b))
 
 # 187-22: on save failure, success toast and _reRenderCardFoot are NOT called in the save-fail branch
 # (they appear only after the early return — i.e., the save-fail block ends with return)
@@ -9375,16 +9379,18 @@ check("187-22. save failure branch does not call showToast success or _reRenderC
       'تم التصنيف' not in _save_fail_branch187
       and '_reRenderCardFoot' not in _save_fail_branch187)
 
-# 187-25: saveP is null (Promise.resolve(null)) when _appJobId is absent — no job-less save
+# 187-25 (updated §491): saveP no longer exists — _execClassify uses a single PUT.
+# The backend handles everything atomically; no separate save call from frontend.
 _sp187 = (_ec187.split('var saveP')[1].split('var statusP')[0]
           if 'var saveP' in _ec187 and _ec187.index('var saveP') > _ec187.index('var statusP') - 1
           else (_ec187.split('var saveP')[1].split('Promise.resolve')[0]
                 if 'var saveP' in _ec187 else ''))
 _sp187 = (_ec187b.split('var saveP')[1].split('Promise.resolve(null)')[0]
           if 'var saveP' in _ec187b else '')
-check("187-25. saveP falls back to null when _appJobId is absent (no job-less save)",
-      '_appJobId' in _sp187 and 'Promise.resolve(null)' in
-      (_ec187b.split('var saveP')[1] if 'var saveP' in _ec187b else ''))
+check("187-25. _execClassify uses single atomic backend request — no saveP or Promise.resolve(null) needed — updated §491",
+      '/jobs/applications/' in _ec187b
+      and ('var saveP' not in _ec187b or ('_appJobId' in _sp187 and 'Promise.resolve(null)' in
+      (_ec187b.split('var saveP')[1] if 'var saveP' in _ec187b else ''))))
 
 # 187-23: catch block calls _loadApplicants when _appJobId is available (not just badge rollback)
 _ec187b = (_main187.split('function _execClassify')[1].split('function _applyClassifyBadge')[0]
@@ -10362,9 +10368,11 @@ check("490-09a. CLAUDE.md source-1 Writers include promote_application_to_shortl
 check("490-09b. CLAUDE.md source-2 Writers include promote_application_to_shortlist (shortlisted upsert)",
       "promote_application_to_shortlist()` (creates or upserts record" in _claude490)
 
-# 490-09c: CLAUDE.md source-3 clarifies promote_application_to_shortlist does NOT write candidate_status
-check("490-09c. CLAUDE.md source-3 states promote_application_to_shortlist does NOT write candidate_status",
-      'promote_application_to_shortlist()` does NOT write to this field' in _claude490)
+# 490-09c (updated §491): CLAUDE.md source-3 now lists promote_application_to_shortlist as a writer (sets shortlisted)
+# §491 extended promote to also write candidate_status='shortlisted' into company_candidate_job_refs.
+check("490-09c. CLAUDE.md source-3 lists promote_application_to_shortlist as writer (sets to shortlisted) — updated by §491",
+      'promote_application_to_shortlist()' in _claude490
+      and 'shortlisted' in _claude490)
 
 # 490-10a: SYSTEMS_INDEX §20c Writers for source-1 include both update_application_status and promote
 check("490-10a. SYSTEMS_INDEX §20c source-1 Writers: update_application_status AND promote_application_to_shortlist",
@@ -10375,15 +10383,108 @@ check("490-10a. SYSTEMS_INDEX §20c source-1 Writers: update_application_status 
 check("490-10b. SYSTEMS_INDEX §20c source-2 Writers include promote_application_to_shortlist shortlisted upsert",
       "promote_application_to_shortlist()` (creates or upserts record to `'shortlisted'" in _sysidx490)
 
-# 490-10c: SYSTEMS_INDEX §20c source-3 clarifies sole writer and that promote does NOT touch candidate_status
-check("490-10c. SYSTEMS_INDEX §20c source-3 sole Writer: update_candidate_job_status, promote excluded",
-      'promote_application_to_shortlist()` does NOT write to this field' in _sysidx490)
+# 490-10c (updated §491): SYSTEMS_INDEX §20c now reflects atomic dual-write and classification sync carve-out
+# §491 changed update_application_status() and promote to both write company_candidate_job_refs.candidate_status.
+check("490-10c. SYSTEMS_INDEX §20c reflects applicant-classification-sync: atomic dual-write + carve-out present",
+      'tw:candidate-job-classification-updated' in _sysidx490
+      and 'feat/applicant-classification-sync' in _sysidx490)
 
 # 490-11: Removed incorrect async contract; registry-based contract present instead
 check("490-11. SYSTEMS_INDEX §20c no longer contains stale 'captured before the PATCH call' async contract",
       'No async path reads a DOM element captured before the PATCH call' not in _sysidx490
       and '_findLiveSavedCandidateCard' in _sysidx490
       and 'Registry-based lock' in _sysidx490)
+
+# ═══════════════════════════════════════════════════════════════════
+# §491 — Applicant Classification Sync (feat/applicant-classification-sync)
+# ═══════════════════════════════════════════════════════════════════
+
+_auth491  = open('auth.py').read()
+_srv491   = open('server.py').read()
+_main491  = open('static/company/company.main.js').read()
+_claude491 = open('CLAUDE.md').read()
+_sysidx491 = open('docs/SYSTEMS_INDEX.md').read()
+_arch491   = open('ARCHITECTURE.md').read()
+
+# 491-01: _APP_TO_CANDIDATE_STATUS dict exists in auth.py with all 7 mappings
+check("491-01. _APP_TO_CANDIDATE_STATUS dict defined in auth.py with complete status mapping",
+      '_APP_TO_CANDIDATE_STATUS' in _auth491
+      and '"pending":' in _auth491
+      and '"viewed":' in _auth491
+      and '"accepted":' in _auth491
+      and '"contacted":' in _auth491
+      and '"interview":' in _auth491
+      and '"hired":' in _auth491
+      and '"rejected":' in _auth491)
+
+# 491-02: update_application_status uses BEGIN/COMMIT/ROLLBACK with FOR UPDATE OF ja
+check("491-02. update_application_status uses atomic transaction with FOR UPDATE OF ja row lock",
+      'def update_application_status' in _auth491
+      and 'BEGIN' in _auth491
+      and 'COMMIT' in _auth491
+      and 'ROLLBACK' in _auth491
+      and 'FOR UPDATE OF ja' in _auth491)
+
+# 491-03: update_application_status writes company_candidate_job_refs atomically
+check("491-03. update_application_status UPSERTs company_candidate_job_refs inside the same transaction",
+      'company_candidate_job_refs' in _auth491
+      and 'ON CONFLICT (company_id, candidate_id, job_id) DO UPDATE' in _auth491
+      and 'candidate_status = EXCLUDED.candidate_status' in _auth491)
+
+# 491-04: update_application_status ensures company_saved_candidates FK row first
+check("491-04. update_application_status inserts company_saved_candidates row before job refs upsert",
+      'ON CONFLICT (company_id, candidate_id) DO NOTHING' in _auth491)
+
+# 491-05: update_application_status returns candidate_id, job_id, application_status, candidate_status
+check("491-05. update_application_status returns candidate_id, job_id, application_status, candidate_status",
+      '"candidate_id":       applicant_id' in _auth491
+      and '"job_id":             job_id_int' in _auth491
+      and '"application_status": status' in _auth491
+      and '"candidate_status":   candidate_status' in _auth491)
+
+# 491-06: server.py update_app_status endpoint maps KeyError → 404, PermissionError → 403, RuntimeError → 500
+check("491-06. server.py update_app_status maps KeyError→404, PermissionError→403, RuntimeError→500",
+      'except KeyError' in _srv491
+      and 'raise HTTPException(404' in _srv491
+      and 'except PermissionError' in _srv491
+      and 'raise HTTPException(403' in _srv491
+      and 'except RuntimeError' in _srv491
+      and 'raise HTTPException(500' in _srv491)
+
+# 491-07: promote_application_to_shortlist writes candidate_status='shortlisted' to company_candidate_job_refs
+check("491-07. promote_application_to_shortlist UPSERTs candidate_status=shortlisted into company_candidate_job_refs",
+      "SET candidate_status = 'shortlisted'" in _auth491
+      and "'shortlisted')" in _auth491)
+
+# 491-08: promote return value includes top-level candidate_id, job_id, application_status, candidate_status
+check("491-08. promote_application_to_shortlist return value includes top-level sync fields",
+      '"application_id":     app_id' in _auth491
+      and '"candidate_id":       int(applicant_id)' in _auth491
+      and '"application_status": "accepted"' in _auth491
+      and '"candidate_status":   "shortlisted"' in _auth491)
+
+# 491-09: _execClassify dispatches tw:candidate-job-classification-updated CustomEvent on success
+check("491-09. _execClassify dispatches tw:candidate-job-classification-updated on success only",
+      'tw:candidate-job-classification-updated' in _main491
+      and 'new CustomEvent' in _main491
+      and 'applicationStatus' in _main491
+      and 'candidateStatus' in _main491)
+
+# 491-10: _execPromote dispatches tw:candidate-job-classification-updated with accepted/shortlisted
+check("491-10. _execPromote dispatches tw:candidate-job-classification-updated on promote success",
+      _main491.count('tw:candidate-job-classification-updated') >= 2)
+
+# 491-11: Saved Candidates IIFE listens for tw:candidate-job-classification-updated and updates card
+check("491-11. Saved Candidates IIFE has document.addEventListener for tw:candidate-job-classification-updated",
+      "document.addEventListener('tw:candidate-job-classification-updated'" in _main491
+      and '_renderCandidateJobLinksUI(card, links)' in _main491)
+
+# 491-12: CLAUDE.md source-3 now lists update_application_status as a writer and has carve-out
+check("491-12. CLAUDE.md source-3 lists update_application_status() as writer + carve-out present",
+      'update_application_status()' in _claude491
+      and '_APP_TO_CANDIDATE_STATUS' in _claude491
+      and 'Applicant Classification Sync carve-out' in _claude491
+      and 'Reverse direction is permanently forbidden' in _claude491)
 
 # ── Summary ──────────────────────────────────────────────────────────────
 print()
