@@ -7015,6 +7015,225 @@ def _migrate_scheduler_jobs():
 
 
 # ══════════════════════════════════════════════════════════════════════════
+# Employment Pipeline System — PR-1: Additive Schema
+# ══════════════════════════════════════════════════════════════════════════
+
+def _migrate_pipeline_schema_v1():
+    """
+    PR-1 — Additive schema for Employment Pipeline System (idempotent).
+
+    What this migration adds (7 sections):
+      1. jobs            : archived_at, archived_by + partial index
+      2. job_pipeline_entries : new table — one entry per (company, candidate, job)
+      3. pipeline_stage_events : new table — immutable stage-transition audit trail
+      4. pipeline_notes  : new table — structured notes per pipeline entry
+      5. candidate_bank_notes : new table — talent-bank notes, migration-aware
+      6. company_saved_candidates : rating, priority, tags, follow_up_at, save_source
+      7. appointments    : pipeline_entry_id FK → job_pipeline_entries
+
+    What this migration does NOT do:
+      - No Backfill of existing rows
+      - No Dual-write or behaviour change
+      - No new API endpoints
+      - No frontend changes
+      - No change to job_applications.status or existing pipeline logic
+      - No automatic creation of pipeline entries
+      - No change to any production behaviour
+
+    All operations are idempotent (IF NOT EXISTS / ADD COLUMN IF NOT EXISTS /
+    duplicate-constraint catch).
+    """
+    conn = get_conn()
+    try:
+        # ── 1. jobs: archived_at, archived_by + partial index ────────────────
+        conn.run("ALTER TABLE jobs ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ NULL")
+        conn.run(
+            "ALTER TABLE jobs ADD COLUMN IF NOT EXISTS "
+            "archived_by INTEGER NULL REFERENCES users(id) ON DELETE SET NULL"
+        )
+        # Composite index: company job-list queries scan only non-archived rows,
+        # ordered by newest first — matches the primary listing query pattern.
+        conn.run(
+            "CREATE INDEX IF NOT EXISTS idx_jobs_company_not_archived_created "
+            "ON jobs(company_id, created_at DESC) WHERE archived_at IS NULL"
+        )
+
+        # ── 2. job_pipeline_entries ──────────────────────────────────────────
+        # One row per (company, candidate, job). company_id / candidate_id → CASCADE;
+        # job_id → RESTRICT (prevents orphan entries while the job exists);
+        # application_id / stage_updated_by / archived_by / created_by → SET NULL.
+        conn.run("""
+            CREATE TABLE IF NOT EXISTS job_pipeline_entries (
+                id                 BIGSERIAL    PRIMARY KEY,
+                company_id         INTEGER      NOT NULL
+                                       REFERENCES users(id)            ON DELETE CASCADE,
+                candidate_id       INTEGER      NOT NULL
+                                       REFERENCES users(id)            ON DELETE CASCADE,
+                job_id             INTEGER      NOT NULL
+                                       REFERENCES jobs(id)             ON DELETE RESTRICT,
+                application_id     INTEGER      NULL
+                                       REFERENCES job_applications(id) ON DELETE SET NULL,
+                stage              TEXT         NOT NULL,
+                source             TEXT         NOT NULL,
+                created_by         INTEGER      NULL
+                                       REFERENCES users(id)            ON DELETE SET NULL,
+                stage_updated_at   TIMESTAMPTZ  NULL,
+                stage_updated_by   INTEGER      NULL
+                                       REFERENCES users(id)            ON DELETE SET NULL,
+                created_at         TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+                updated_at         TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+                archived_at        TIMESTAMPTZ  NULL,
+                archived_by        INTEGER      NULL
+                                       REFERENCES users(id)            ON DELETE SET NULL,
+                job_title_snapshot TEXT         NULL,
+                CONSTRAINT uq_pipeline_entry  UNIQUE (company_id, candidate_id, job_id),
+                CONSTRAINT ck_pipeline_stage  CHECK (stage IN (
+                    'new','reviewing','shortlisted','contacted',
+                    'interview','offer','hired','rejected','withdrawn'
+                )),
+                CONSTRAINT ck_pipeline_source CHECK (source IN (
+                    'application','company_add','bank_link','migration','legacy_unknown'
+                ))
+            )
+        """)
+        conn.run("CREATE INDEX IF NOT EXISTS idx_jpe_company     ON job_pipeline_entries(company_id)")
+        conn.run("CREATE INDEX IF NOT EXISTS idx_jpe_candidate   ON job_pipeline_entries(candidate_id)")
+        conn.run("CREATE INDEX IF NOT EXISTS idx_jpe_job         ON job_pipeline_entries(job_id)")
+        conn.run("CREATE INDEX IF NOT EXISTS idx_jpe_stage       ON job_pipeline_entries(stage)")
+        conn.run("CREATE INDEX IF NOT EXISTS idx_jpe_application ON job_pipeline_entries(application_id)")
+
+        # ── 3. pipeline_stage_events ─────────────────────────────────────────
+        # Immutable audit trail — one row per stage transition.
+        # Cascade-delete when the parent entry is deleted (no orphan audit rows).
+        conn.run("""
+            CREATE TABLE IF NOT EXISTS pipeline_stage_events (
+                id                BIGSERIAL    PRIMARY KEY,
+                pipeline_entry_id BIGINT       NOT NULL
+                                      REFERENCES job_pipeline_entries(id) ON DELETE CASCADE,
+                from_stage        TEXT         NULL,
+                to_stage          TEXT         NOT NULL,
+                changed_by        INTEGER      NULL
+                                      REFERENCES users(id) ON DELETE SET NULL,
+                reason            TEXT         NULL,
+                created_at        TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+            )
+        """)
+        conn.run(
+            "CREATE INDEX IF NOT EXISTS idx_pse_entry_created "
+            "ON pipeline_stage_events(pipeline_entry_id, created_at DESC)"
+        )
+
+        # ── 4. pipeline_notes ─────────────────────────────────────────────────
+        # Structured notes scoped to a single pipeline entry.
+        # Soft-delete via deleted_at (body kept for audit; ownership inferred from
+        # pipeline_entry_id → company_id at query time).
+        conn.run("""
+            CREATE TABLE IF NOT EXISTS pipeline_notes (
+                id                BIGSERIAL    PRIMARY KEY,
+                pipeline_entry_id BIGINT       NOT NULL
+                                      REFERENCES job_pipeline_entries(id) ON DELETE CASCADE,
+                body              TEXT         NOT NULL,
+                created_by        INTEGER      NULL
+                                      REFERENCES users(id) ON DELETE SET NULL,
+                created_at        TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+                updated_at        TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+                deleted_at        TIMESTAMPTZ  NULL,
+                CONSTRAINT ck_pn_body_nonempty CHECK (length(btrim(body)) > 0)
+            )
+        """)
+        conn.run("CREATE INDEX IF NOT EXISTS idx_pn_entry  ON pipeline_notes(pipeline_entry_id)")
+        conn.run(
+            "CREATE INDEX IF NOT EXISTS idx_pn_active "
+            "ON pipeline_notes(pipeline_entry_id) WHERE deleted_at IS NULL"
+        )
+
+        # ── 5. candidate_bank_notes ───────────────────────────────────────────
+        # Company-level notes about a candidate independent of any specific job.
+        # is_migrated + migration_source_key support future one-time migration from
+        # company_saved_candidates.notes without re-running or duplicating rows.
+        # migration_source_key UNIQUE: prevents duplicate migration inserts.
+        conn.run("""
+            CREATE TABLE IF NOT EXISTS candidate_bank_notes (
+                id                   BIGSERIAL    PRIMARY KEY,
+                company_id           INTEGER      NOT NULL
+                                         REFERENCES users(id) ON DELETE CASCADE,
+                candidate_id         INTEGER      NOT NULL
+                                         REFERENCES users(id) ON DELETE CASCADE,
+                body                 TEXT         NOT NULL,
+                is_migrated          BOOLEAN      NOT NULL DEFAULT FALSE,
+                migration_source_key TEXT         NULL,
+                created_by           INTEGER      NULL
+                                         REFERENCES users(id) ON DELETE SET NULL,
+                created_at           TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+                updated_at           TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+                deleted_at           TIMESTAMPTZ  NULL,
+                CONSTRAINT uq_cbn_migration_key  UNIQUE (migration_source_key),
+                CONSTRAINT ck_cbn_body_nonempty  CHECK (length(btrim(body)) > 0)
+            )
+        """)
+        conn.run("CREATE INDEX IF NOT EXISTS idx_cbn_company      ON candidate_bank_notes(company_id)")
+        conn.run("CREATE INDEX IF NOT EXISTS idx_cbn_candidate    ON candidate_bank_notes(candidate_id)")
+        conn.run("CREATE INDEX IF NOT EXISTS idx_cbn_company_cand ON candidate_bank_notes(company_id, candidate_id)")
+
+        # ── 6. company_saved_candidates: new columns + CHECK constraints ──────
+        conn.run("ALTER TABLE company_saved_candidates ADD COLUMN IF NOT EXISTS rating      SMALLINT    NULL")
+        conn.run("ALTER TABLE company_saved_candidates ADD COLUMN IF NOT EXISTS priority    TEXT        NULL")
+        conn.run("ALTER TABLE company_saved_candidates ADD COLUMN IF NOT EXISTS tags        TEXT[]      NULL")
+        conn.run("ALTER TABLE company_saved_candidates ADD COLUMN IF NOT EXISTS follow_up_at TIMESTAMPTZ NULL")
+        conn.run("ALTER TABLE company_saved_candidates ADD COLUMN IF NOT EXISTS save_source TEXT        NULL")
+
+        # CHECK: rating 1–5 (nullable)
+        try:
+            conn.run(
+                "ALTER TABLE company_saved_candidates "
+                "ADD CONSTRAINT ck_csc_rating "
+                "CHECK (rating IS NULL OR (rating >= 1 AND rating <= 5))"
+            )
+        except Exception as _e:
+            if '42710' not in str(_e) and 'duplicate_object' not in str(_e):
+                raise
+
+        # CHECK: priority enum (nullable) — approved values: low / medium / high
+        try:
+            conn.run(
+                "ALTER TABLE company_saved_candidates "
+                "ADD CONSTRAINT ck_csc_priority "
+                "CHECK (priority IS NULL OR priority IN ('low','medium','high'))"
+            )
+        except Exception as _e:
+            if '42710' not in str(_e) and 'duplicate_object' not in str(_e):
+                raise
+
+        # CHECK: save_source enum — 'profile' is intentionally excluded
+        try:
+            conn.run(
+                "ALTER TABLE company_saved_candidates "
+                "ADD CONSTRAINT ck_csc_save_source "
+                "CHECK (save_source IS NULL OR "
+                "save_source IN ('applicant','suggestion','manual','legacy_unknown'))"
+            )
+        except Exception as _e:
+            if '42710' not in str(_e) and 'duplicate_object' not in str(_e):
+                raise
+
+        # ── 7. appointments: pipeline_entry_id ────────────────────────────────
+        # Optional link: an appointment may be associated with a pipeline entry.
+        # SET NULL on delete — appointment stays if the pipeline entry is removed.
+        conn.run(
+            "ALTER TABLE appointments ADD COLUMN IF NOT EXISTS "
+            "pipeline_entry_id BIGINT NULL "
+            "REFERENCES job_pipeline_entries(id) ON DELETE SET NULL"
+        )
+        conn.run(
+            "CREATE INDEX IF NOT EXISTS idx_appt_pipeline_entry "
+            "ON appointments(pipeline_entry_id) WHERE pipeline_entry_id IS NOT NULL"
+        )
+
+    finally:
+        release_conn(conn)
+
+
+# ══════════════════════════════════════════════════════════════════════════
 # Scheduler Infrastructure — S2: schedule_job helper
 # Decision: External Cron + Secure Endpoint (PR #464 — S0)
 # Schema: scheduler_jobs (PR #465 — S1)
