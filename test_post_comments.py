@@ -10085,20 +10085,26 @@ _mig488 = (
 
 # ── Fix 1: Race condition — card-level lock ────────────────────────────────
 
-# 488-01: card captured from wrap.closest BEFORE async call (not inside .then)
-check("488-01. card captured from wrap.closest BEFORE updateCandidateJobStatus call (not inside .then)",
-      'var card = wrap.closest' in _onsaved488
-      and _onsaved488.index('var card = wrap.closest') < _onsaved488.index('updateCandidateJobStatus'))
+# 488-01: registry-based lock checked BEFORE the actual PATCH dispatch (replaces card capture)
+# §490 upgrade: registry (_jobStatusInFlight) replaces card DOM reference as lock authority.
+# Checks index against 'updateCandidateJobStatus(cidInt' to target the PATCH dispatch,
+# not the earlier null-guard 'if (!window.updateCandidateJobStatus) return'.
+check("488-01. Registry _jobStatusInFlight[cidStr] checked BEFORE updateCandidateJobStatus PATCH dispatch",
+      '_jobStatusInFlight[cidStr]' in _onsaved488
+      and 'updateCandidateJobStatus(cidInt' in _onsaved488
+      and _onsaved488.index('_jobStatusInFlight[cidStr]') < _onsaved488.index('updateCandidateJobStatus(cidInt'))
 
-# 488-02: card-level lock checked at entry — second call on same card is rejected
-check("488-02. Card-level lock (data-job-status-saving) checked at start — returns if locked",
-      "card.getAttribute('data-job-status-saving')" in _onsaved488
+# 488-02: registry (not DOM attribute) blocks second call for same candidate
+# §490 upgrade: _jobStatusInFlight is the authoritative lock; data-job-status-saving is visual only.
+check("488-02. Registry lock (_jobStatusInFlight[cidStr]) at entry returns early if in-flight",
+      '_jobStatusInFlight[cidStr]' in _onsaved488
       and 'return' in _onsaved488)
 
-# 488-03: lock set on card + ALL co-cand-job-status-dp .co-dp-btn disabled (custom picker buttons)
-check("488-03. Lock set on card + ALL .co-cand-job-status-dp .co-dp-btn disabled at request start",
-      "card.setAttribute('data-job-status-saving', '1')" in _onsaved488
-      and "card.querySelectorAll('.co-cand-job-status-dp .co-dp-btn')" in _onsaved488
+# 488-03: visual lock still set on live card + co-cand-job-status-dp .co-dp-btn disabled
+# §490 upgrade: liveCard reference replaces captured card; visual lock still applied for UX.
+check("488-03. Visual lock set on liveCard + ALL .co-cand-job-status-dp .co-dp-btn disabled at request start",
+      "liveCard.setAttribute('data-job-status-saving', '1')" in _onsaved488
+      and "liveCard.querySelectorAll('.co-cand-job-status-dp .co-dp-btn')" in _onsaved488
       and '.forEach' in _onsaved488
       and 'b.disabled = true' in _onsaved488)
 
@@ -10302,6 +10308,82 @@ check("489-13. §488 contracts intact — Field(...) in UpdateCandidateJobStatus
       'Optional[str] = Field(...)' in _srv489
       and 'toISOString()' in _main489
       and 'localScheduled' in _main489)
+
+# ═══════════════════════════════════════════════════════════════════
+# §490 — DOM-independent lock registry + correct Writers docs
+# ═══════════════════════════════════════════════════════════════════
+
+_main490 = open('static/company/company.main.js').read()
+_claude490 = open('CLAUDE.md').read()
+_sysidx490 = open('docs/SYSTEMS_INDEX.md').read()
+
+# 490-01: _jobStatusInFlight registry exists at IIFE level
+check("490-01. _jobStatusInFlight = Object.create(null) declared at IIFE level",
+      'var _jobStatusInFlight = Object.create(null)' in _main490)
+
+# 490-02: _handleJobStatusDpSelect checks registry (not card DOM) to block second PATCH
+check("490-02. _handleJobStatusDpSelect guards with _jobStatusInFlight[cidStr] before PATCH",
+      '_jobStatusInFlight[cidStr]' in _main490
+      and '_handleJobStatusDpSelect' in _main490)
+
+# 490-03: _savedCardHTML passes registry lock to _dpHTML for newly built cards
+check("490-03. _savedCardHTML passes locked: !!_jobStatusInFlight[String(item.candidate_id)] to _dpHTML",
+      '_jobStatusInFlight[String(item.candidate_id)]' in _main490)
+
+# 490-04: _renderCandidateJobLinksUI checks registry (not only data-job-status-saving)
+check("490-04. _renderCandidateJobLinksUI derives isLocked from _jobStatusInFlight[cidStr]",
+      '_jobStatusInFlight[cidStr]' in _main490
+      and '_renderCandidateJobLinksUI' in _main490)
+
+# 490-05: _findLiveSavedCandidateCard helper exists and queries by data-cid attribute
+check("490-05. _findLiveSavedCandidateCard searches _body for .co-cand-saved-card[data-cid]",
+      '_findLiveSavedCandidateCard' in _main490
+      and '.co-cand-saved-card[data-cid="' in _main490)
+
+# 490-06: success/failure/finally all use _findLiveSavedCandidateCard (live card lookup)
+check("490-06. success/failure/finally use _findLiveSavedCandidateCard at response time (not stale reference)",
+      _main490.count('_findLiveSavedCandidateCard(cidInt)') >= 3)
+
+# 490-07: No-op guard: same-value selection skips PATCH
+check("490-07. No-op guard present: if selected cs matches current data-job-links entry, skip PATCH",
+      'currentCs' in _main490
+      and 'Same value' in _main490)
+
+# 490-08: finally deletes from registry (not just card attribute removal)
+check("490-08. finally deletes _jobStatusInFlight[cidStr] before card cleanup",
+      'delete _jobStatusInFlight[cidStr]' in _main490)
+
+# 490-09a: CLAUDE.md writers for job_applications.status include promote_application_to_shortlist
+check("490-09a. CLAUDE.md source-1 Writers include promote_application_to_shortlist (sets to accepted)",
+      'promote_application_to_shortlist' in _claude490
+      and "atomically sets to `'accepted'`" in _claude490)
+
+# 490-09b: CLAUDE.md writers for company_saved_candidates.status include promote_application_to_shortlist
+check("490-09b. CLAUDE.md source-2 Writers include promote_application_to_shortlist (shortlisted upsert)",
+      "promote_application_to_shortlist()` (creates or upserts record" in _claude490)
+
+# 490-09c: CLAUDE.md source-3 clarifies promote_application_to_shortlist does NOT write candidate_status
+check("490-09c. CLAUDE.md source-3 states promote_application_to_shortlist does NOT write candidate_status",
+      'promote_application_to_shortlist()` does NOT write to this field' in _claude490)
+
+# 490-10a: SYSTEMS_INDEX §20c Writers for source-1 include both update_application_status and promote
+check("490-10a. SYSTEMS_INDEX §20c source-1 Writers: update_application_status AND promote_application_to_shortlist",
+      'update_application_status()' in _sysidx490
+      and "promote_application_to_shortlist()` (atomically sets to `'accepted'`)" in _sysidx490)
+
+# 490-10b: SYSTEMS_INDEX §20c Writers for source-2 include promote_application_to_shortlist (shortlisted)
+check("490-10b. SYSTEMS_INDEX §20c source-2 Writers include promote_application_to_shortlist shortlisted upsert",
+      "promote_application_to_shortlist()` (creates or upserts record to `'shortlisted'" in _sysidx490)
+
+# 490-10c: SYSTEMS_INDEX §20c source-3 clarifies sole writer and that promote does NOT touch candidate_status
+check("490-10c. SYSTEMS_INDEX §20c source-3 sole Writer: update_candidate_job_status, promote excluded",
+      'promote_application_to_shortlist()` does NOT write to this field' in _sysidx490)
+
+# 490-11: Removed incorrect async contract; registry-based contract present instead
+check("490-11. SYSTEMS_INDEX §20c no longer contains stale 'captured before the PATCH call' async contract",
+      'No async path reads a DOM element captured before the PATCH call' not in _sysidx490
+      and '_findLiveSavedCandidateCard' in _sysidx490
+      and 'Registry-based lock' in _sysidx490)
 
 # ── Summary ──────────────────────────────────────────────────────────────
 print()

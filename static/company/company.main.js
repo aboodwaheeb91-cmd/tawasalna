@@ -2369,6 +2369,13 @@
     }
   }());
 
+  // DOM-independent per-job status PATCH lock.
+  // Keyed by String(candidateId). Survives list rebuilds (filter/search/tab switch/pagination).
+  // A candidate's entry is present while a PATCH is in-flight; absent otherwise.
+  // _savedCardHTML and _renderCandidateJobLinksUI check this registry (not only data-job-status-saving)
+  // so newly built cards for a candidate mid-flight start with pickers already disabled.
+  var _jobStatusInFlight = Object.create(null);
+
   // Job chip popover state
   var _jobPopTarget = null;
 
@@ -2505,30 +2512,65 @@
     }
   }
 
+  // Find the live card for a candidate from the current DOM.
+  // Must not use a stale reference captured before a list rebuild.
+  function _findLiveSavedCandidateCard(candidateId) {
+    return _body
+      ? _body.querySelector('.co-cand-saved-card[data-cid="' + String(candidateId) + '"]')
+      : null;
+  }
+
   // Auto-save per-job candidate status via PATCH when user selects from co-cand-job-status-dp.
-  // Uses card-level lock so concurrent picks on the same card are blocked, not queued.
+  // Uses _jobStatusInFlight registry (keyed by candidateId) — independent of DOM card references.
+  // Registry-based lock survives list rebuilds (filter/search/tab switch/pagination).
   // data-job-links on card is the single client-side truth; all DOM rebuilds come from it.
   function _handleJobStatusDpSelect(opt, wrap) {
-    var card = wrap.closest('.co-cand-saved-card');
-    if (!card) return;
-    if (card.getAttribute('data-job-status-saving')) return;
-
-    var cs  = opt.getAttribute('data-value') || null;   // '' → null  (clears classification)
-    var cid = parseInt(wrap.getAttribute('data-cid'), 10);
-    var jid = parseInt(wrap.getAttribute('data-jid'), 10);
-    if (!cid || !jid) return;
+    var cidStr = wrap.getAttribute('data-cid') || '';
+    var cidInt = parseInt(cidStr, 10);
+    var jid    = parseInt(wrap.getAttribute('data-jid'), 10);
+    if (!cidInt || !jid) return;
     if (!window.updateCandidateJobStatus) return;
 
-    // Lock card: close open lists, disable all per-job picker buttons
-    card.setAttribute('data-job-status-saving', '1');
-    card.querySelectorAll('.co-cand-job-status-dp .co-dp-list').forEach(function (l) { l.style.display = 'none'; });
-    card.querySelectorAll('.co-cand-job-status-dp .co-dp-btn').forEach(function (b) { b.disabled = true; });
+    // Registry-based lock: one in-flight PATCH per candidate, not per card.
+    if (_jobStatusInFlight[cidStr]) return;
 
-    window.updateCandidateJobStatus(cid, jid, cs)
+    var cs = opt.getAttribute('data-value') || null;   // '' → null  (clears classification)
+
+    // No-op guard: if selected value already matches current data-job-links, close picker and skip PATCH.
+    var liveCard0 = _findLiveSavedCandidateCard(cidInt);
+    var currentLinks = [];
+    if (liveCard0) {
+      try { currentLinks = JSON.parse(liveCard0.getAttribute('data-job-links') || '[]'); } catch (e) {}
+    }
+    var existingEntry = null;
+    for (var _i = 0; _i < currentLinks.length; _i++) {
+      if (String(currentLinks[_i].job_id) === String(jid)) { existingEntry = currentLinks[_i]; break; }
+    }
+    if (existingEntry !== null) {
+      var currentCs = existingEntry.candidate_status || null;
+      if ((cs || null) === currentCs) {
+        // Same value — just close the open picker list, no PATCH
+        var dpList = wrap.querySelector('.co-dp-list');
+        if (dpList) dpList.style.display = 'none';
+        return;
+      }
+    }
+
+    // Mark in-flight in registry; apply visual lock on live card
+    _jobStatusInFlight[cidStr] = true;
+    var liveCard = _findLiveSavedCandidateCard(cidInt);
+    if (liveCard) {
+      liveCard.setAttribute('data-job-status-saving', '1');
+      liveCard.querySelectorAll('.co-cand-job-status-dp .co-dp-list').forEach(function (l) { l.style.display = 'none'; });
+      liveCard.querySelectorAll('.co-cand-job-status-dp .co-dp-btn').forEach(function (b) { b.disabled = true; });
+    }
+
+    window.updateCandidateJobStatus(cidInt, jid, cs)
       .then(function (res) {
+        var card = _findLiveSavedCandidateCard(cidInt);
         if (!res || !res.ok) {
           var detail = (res && res.data && res.data.detail) || '';
-          if (card.parentNode) {
+          if (card && card.parentNode) {
             var rollLinks = [];
             try { rollLinks = JSON.parse(card.getAttribute('data-job-links') || '[]'); } catch (err) {}
             _renderCandidateJobLinksUI(card, rollLinks);
@@ -2536,7 +2578,7 @@
           if (window.showToast) showToast(detail || 'تعذّر حفظ التصنيف', 'error');
           return;
         }
-        if (card.parentNode) {
+        if (card && card.parentNode) {
           var links = [];
           try { links = JSON.parse(card.getAttribute('data-job-links') || '[]'); } catch (err) {}
           links = links.map(function (jl) {
@@ -2549,7 +2591,8 @@
         if (window.showToast) showToast('تم حفظ التصنيف ✓');
       })
       .catch(function () {
-        if (card.parentNode) {
+        var card = _findLiveSavedCandidateCard(cidInt);
+        if (card && card.parentNode) {
           var rollLinks = [];
           try { rollLinks = JSON.parse(card.getAttribute('data-job-links') || '[]'); } catch (err) {}
           _renderCandidateJobLinksUI(card, rollLinks);
@@ -2557,9 +2600,13 @@
         if (window.showToast) showToast('تعذّر حفظ التصنيف', 'error');
       })
       .finally(function () {
-        card.removeAttribute('data-job-status-saving');
-        // Re-enable buttons on the freshly rebuilt DOM (_renderCandidateJobLinksUI rebuilt them)
-        card.querySelectorAll('.co-cand-job-status-dp .co-dp-btn').forEach(function (b) { b.disabled = false; });
+        delete _jobStatusInFlight[cidStr];
+        var card = _findLiveSavedCandidateCard(cidInt);
+        if (card) {
+          card.removeAttribute('data-job-status-saving');
+          // Re-enable buttons on the freshly rebuilt DOM (_renderCandidateJobLinksUI rebuilt them)
+          card.querySelectorAll('.co-cand-job-status-dp .co-dp-btn').forEach(function (b) { b.disabled = false; });
+        }
       });
   }
 
@@ -2923,7 +2970,7 @@
         var cs = jl.candidate_status || '';
         html += '<div class="co-cand-job-status-row" data-jid="' + _esc(String(jl.job_id)) + '">';
         html += '<span class="co-cand-job-status-title">' + _esc(jl.title || ('وظيفة #' + jl.job_id)) + '</span>';
-        html += _dpHTML('co-cand-job-status-dp', jsOpts, cs, {cid: item.candidate_id, jid: jl.job_id});
+        html += _dpHTML('co-cand-job-status-dp', jsOpts, cs, {cid: item.candidate_id, jid: jl.job_id, locked: !!_jobStatusInFlight[String(item.candidate_id)]});
         html += '</div>';
       });
       html += '</div>';
@@ -3108,9 +3155,11 @@
   //   5. Adds or removes the status section when links appear / disappear
   //   6. Renders picker buttons as disabled when card has data-job-status-saving lock
   function _renderCandidateJobLinksUI(card, links) {
-    // Respect card-level lock: pickers rebuilt with locked buttons so a second pick
-    // cannot race the in-flight PATCH. finally() re-enables them after lock removal.
-    var isLocked = !!card.getAttribute('data-job-status-saving');
+    // Registry-based lock check: a candidate in _jobStatusInFlight gets pickers rebuilt
+    // as disabled even when the card DOM was replaced by a list rebuild mid-flight.
+    // data-job-status-saving is kept as a secondary visual signal only.
+    var cidStr   = card.getAttribute('data-cid') || '';
+    var isLocked = !!(cidStr && _jobStatusInFlight[cidStr]) || !!card.getAttribute('data-job-status-saving');
 
     // 1. Canonical store
     card.setAttribute('data-job-links', JSON.stringify(links));
