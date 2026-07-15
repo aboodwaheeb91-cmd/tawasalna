@@ -4269,6 +4269,8 @@ def admin_get_profile(user_id: int, request: Request):
 @app.delete("/auth/user/{user_id}/delete")
 def delete_own_account(user_id: int, request: Request, token=Depends(verify_token)):
     """User deletes their own account"""
+    if token["user_id"] != user_id:
+        raise HTTPException(403, "لا يمكنك حذف حساب شخص آخر")
     conn = get_conn()
     try:
         conn.run("DELETE FROM users WHERE id = :uid", uid=user_id)

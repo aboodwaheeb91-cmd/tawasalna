@@ -10561,6 +10561,40 @@ check("492-12. genStatus and genLbl variables removed from _showJobChipPop",
       'genStatus' not in _pop492
       and 'genLbl' not in _pop492)
 
+# ── §SEC-1 — IDOR: DELETE /auth/user/{user_id}/delete ────────────────────────
+# Vulnerability: delete_own_account calls Depends(verify_token) but never
+# compares token["user_id"] with the {user_id} path parameter.
+# Any authenticated user can delete any other user's account.
+# Tests sec-1-01 and sec-1-02 FAIL on main (proving the IDOR), PASS after fix.
+# Test sec-1-03 is a regression guard (passes both before and after).
+
+import re as _re_sec
+
+_del_fn_match = _re_sec.search(
+    r'def delete_own_account\(.+?\n(?:[ \t].+\n?)*',
+    srv_src
+)
+_del_body = _del_fn_match.group(0) if _del_fn_match else ""
+
+check(
+    "sec-1-01. delete_own_account validates JWT user_id matches path user_id [IDOR guard]",
+    bool(_del_body) and (
+        'token["user_id"] != user_id' in _del_body or
+        "token.get('user_id') != user_id" in _del_body or
+        "token.get(\"user_id\") != user_id" in _del_body
+    )
+)
+
+check(
+    "sec-1-02. delete_own_account raises HTTPException(403) on ownership mismatch",
+    bool(_del_body) and "403" in _del_body and "HTTPException" in _del_body
+)
+
+check(
+    "sec-1-03. delete_own_account still contains DELETE FROM users query [regression guard]",
+    bool(_del_body) and "DELETE FROM users WHERE id" in _del_body
+)
+
 print()
 passed = sum(1 for _, s, _ in results if s == PASS)
 total  = len(results)
