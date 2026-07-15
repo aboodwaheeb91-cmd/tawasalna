@@ -10824,6 +10824,173 @@ else:
             _srv_sec2_err
         )
 
+# ═══════════════════════════════════════════════════════════════════════
+# §SEC-3 — VerifyRequestInput duplicate user_id + IDOR on POST /verify-request
+# 10 tests (5 static + 5 behavioral):
+#   Bug A: duplicate field overrides int → Optional[str]=None, frontend gets 422
+#   Bug B: endpoint uses data.user_id from body → IDOR (any user can forge owner)
+#   After fix: user_id=Optional[int]=None, endpoint uses token["user_id"]
+# ═══════════════════════════════════════════════════════════════════════
+print("\n── §SEC-3: VerifyRequestInput duplicate user_id + IDOR ──")
+
+import sys as _sys_sec3, os as _os_sec3, re as _re_sec3
+
+_srv_sec3_src = open("server.py", encoding="utf-8").read()
+
+# Extract VerifyRequestInput class block once
+_vri_block_sec3 = _srv_sec3_src[
+    _srv_sec3_src.find('class VerifyRequestInput'):
+    _srv_sec3_src.find('class FeedbackInput')
+] if 'class VerifyRequestInput' in _srv_sec3_src else ''
+
+# ── Static checks ─────────────────────────────────────────────────────
+
+# sec-3-01: duplicate user_id field must be gone — check only within VRI block
+check(
+    "sec-3-01. [STATIC] VerifyRequestInput has no duplicate user_id: Optional[str] = None",
+    not bool(_re_sec3.search(
+        r'user_id\s*:\s*Optional\[str\]',
+        _vri_block_sec3
+    ))
+)
+
+# sec-3-02: stray top_k field removed from VerifyRequestInput
+check(
+    "sec-3-02. [STATIC] stray top_k field removed from VerifyRequestInput",
+    'top_k' not in _vri_block_sec3
+)
+
+# sec-3-03: user_id in VerifyRequestInput must be int-compatible (not str)
+check(
+    "sec-3-03. [STATIC] VerifyRequestInput.user_id is Optional[int] (not str)",
+    not bool(_re_sec3.search(r'user_id\s*:\s*Optional\[str\]', _vri_block_sec3)) and
+    bool(_re_sec3.search(r'user_id\s*:\s*Optional\[int\]', _vri_block_sec3))
+)
+
+# sec-3-04: endpoint uses token["user_id"] not data.user_id (IDOR fix)
+_rv_block_sec3 = _srv_sec3_src[
+    _srv_sec3_src.find('def request_verification('):
+    _srv_sec3_src.find('def request_verification(') + 400
+] if 'def request_verification(' in _srv_sec3_src else ''
+check(
+    "sec-3-04. [STATIC] request_verification uses token[user_id] not data.user_id",
+    'token["user_id"]' in _rv_block_sec3 or "token['user_id']" in _rv_block_sec3
+)
+
+# sec-3-05: data.user_id not passed to create_verify_request
+check(
+    "sec-3-05. [STATIC] create_verify_request not called with data.user_id",
+    'create_verify_request(data.user_id' not in _rv_block_sec3
+)
+
+# ── Behavioral runtime tests ───────────────────────────────────────────
+import types as _types_sec3, hmac as _hmac_sec3
+import base64 as _b64_sec3, json as _json_sec3, time as _time_sec3
+from unittest.mock import patch as _Patch_sec3, MagicMock as _MM_sec3
+
+_srv_sec3 = None
+_srv_sec3_err = None
+try:
+    _os_sec3.environ.setdefault('SUPABASE_DB_URL', 'postgresql://x:x@localhost/x')
+    if 'pg8000' not in _sys_sec3.modules:
+        _pg3 = _types_sec3.ModuleType('pg8000')
+        _pg3.native = _types_sec3.ModuleType('pg8000.native')
+        _pg3.native.Connection = object
+        _pg3.dbapi = _types_sec3.ModuleType('pg8000.dbapi')
+        _sys_sec3.modules['pg8000'] = _pg3
+        _sys_sec3.modules['pg8000.native'] = _pg3.native
+        _sys_sec3.modules['pg8000.dbapi'] = _pg3.dbapi
+    import server as _srv_sec3
+except Exception as _e_sec3:
+    _srv_sec3_err = str(_e_sec3)
+
+if _srv_sec3 is not None:
+    from fastapi.testclient import TestClient as _TC_sec3
+
+    _client_sec3 = _TC_sec3(_srv_sec3.app)
+
+    # Build a valid JWT for user_id=1
+    _sec3_secret = _srv_sec3.JWT_SECRET
+    _sec3_payload = {'user_id': 1, 'user_type': 'emp',
+                     'iat': int(_time_sec3.time()), 'exp': int(_time_sec3.time()) + 3600}
+    _sec3_hdr = _b64_sec3.urlsafe_b64encode(b'{"alg":"HS256","typ":"JWT"}').rstrip(b'=').decode()
+    _sec3_bdy = _b64_sec3.urlsafe_b64encode(
+        _json_sec3.dumps(_sec3_payload).encode()).rstrip(b'=').decode()
+    _sec3_sig = _b64_sec3.urlsafe_b64encode(
+        _hmac_sec3.new(_sec3_secret.encode(),
+                       f'{_sec3_hdr}.{_sec3_bdy}'.encode(), 'sha256').digest()
+    ).rstrip(b'=').decode()
+    _sec3_jwt = f'{_sec3_hdr}.{_sec3_bdy}.{_sec3_sig}'
+    _sec3_hdrs = {'Authorization': f'Bearer {_sec3_jwt}',
+                  'Content-Type': 'application/json'}
+
+    # sec-3-06: integer user_id in body → must NOT get 422 (fixed validation)
+    _r3_int = _client_sec3.post('/verify-request',
+        json={'user_id': 1, 'item_type': 'exp', 'document_url': 'http://x.com'},
+        headers=_sec3_hdrs)
+    check(
+        "sec-3-06. [BEHAVIORAL] integer user_id in body no longer causes 422",
+        _r3_int.status_code != 422
+    )
+
+    # sec-3-07: IDOR fixed — body user_id ignored, JWT user_id used
+    _sec3_called_uid = []
+    def _fake_create_sec3(uid, data):
+        _sec3_called_uid.append(uid)
+        return {'id': 1, 'user_id': uid, 'status': 'pending'}
+    with _Patch_sec3('server.create_verify_request', side_effect=_fake_create_sec3):
+        _r3_idor = _client_sec3.post('/verify-request',
+            json={'user_id': 99, 'item_type': 'exp', 'document_url': 'http://x.com'},
+            headers=_sec3_hdrs)
+    check(
+        "sec-3-07. [BEHAVIORAL] IDOR fixed: body user_id=99 with JWT=1 → create called with 1",
+        _sec3_called_uid == [1] or _sec3_called_uid == ['1']
+    )
+
+    # sec-3-08: missing user_id in body — JWT user_id is used (no null to DB)
+    _sec3_called_uid2 = []
+    def _fake_create_sec3b(uid, data):
+        _sec3_called_uid2.append(uid)
+        return {'id': 1, 'user_id': uid, 'status': 'pending'}
+    with _Patch_sec3('server.create_verify_request', side_effect=_fake_create_sec3b):
+        _r3_missing = _client_sec3.post('/verify-request',
+            json={'item_type': 'exp', 'document_url': 'http://x.com'},
+            headers=_sec3_hdrs)
+    check(
+        "sec-3-08. [BEHAVIORAL] missing body user_id → create called with JWT user_id (not None)",
+        _sec3_called_uid2 and _sec3_called_uid2[0] is not None
+    )
+
+    # sec-3-09: valid request succeeds end-to-end with JWT user_id
+    _sec3_called_uid3 = []
+    def _fake_create_sec3c(uid, data):
+        _sec3_called_uid3.append(uid)
+        return {'id': 7, 'user_id': uid, 'status': 'pending'}
+    with _Patch_sec3('server.create_verify_request', side_effect=_fake_create_sec3c):
+        _r3_ok = _client_sec3.post('/verify-request',
+            json={'item_type': 'edu', 'document_url': 'http://x.com'},
+            headers=_sec3_hdrs)
+    check(
+        "sec-3-09. [BEHAVIORAL] valid request returns success with JWT user_id",
+        _r3_ok.status_code == 200 and
+        (_sec3_called_uid3 == [1] or _sec3_called_uid3 == ['1'])
+    )
+
+    # sec-3-10: no JWT → 401 (auth guard unchanged)
+    _r3_noauth = _client_sec3.post('/verify-request',
+        json={'item_type': 'exp', 'document_url': 'http://x.com'})
+    check(
+        "sec-3-10. [BEHAVIORAL] no JWT → 401 (auth guard still enforced)",
+        _r3_noauth.status_code == 401
+    )
+else:
+    for _sec3_n in ["06", "07", "08", "09", "10"]:
+        check(
+            f"sec-3-{_sec3_n}. [BEHAVIORAL] server import available for SEC-3 behavioral tests",
+            False,
+            _srv_sec3_err
+        )
+
 print()
 passed = sum(1 for _, s, _ in results if s == PASS)
 total  = len(results)

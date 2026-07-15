@@ -1443,17 +1443,13 @@ class CourseInput(BaseModel):
     description: Optional[str] = None
 
 class VerifyRequestInput(BaseModel):
-    user_id: int
+    user_id: Optional[int] = None   # ignored server-side — owner determined from JWT
     item_type: Optional[str] = None   # exp / edu / course
     item_id: Optional[int] = None
     item_title: Optional[str] = None
     item_company: Optional[str] = None
     document_url: Optional[str] = None
     notes: Optional[str] = None
-
-
-    user_id: Optional[str] = None
-    top_k: Optional[int] = 5
 
 class FeedbackInput(BaseModel):
     cv_text: str
@@ -3831,7 +3827,7 @@ def admin_kyc_reject(user_id: int, data: KYCAdminInput, request: Request):
 @app.post("/verify-request")
 def request_verification(data: VerifyRequestInput, token=Depends(verify_token)):
     try:
-        req = create_verify_request(data.user_id, data.dict())
+        req = create_verify_request(int(token["user_id"]), data.dict())
         return {"status": "success", "request": req}
     except ValueError as e:
         raise HTTPException(404, detail=str(e))
