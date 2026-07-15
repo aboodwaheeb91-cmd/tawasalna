@@ -3827,7 +3827,8 @@ def admin_kyc_reject(user_id: int, data: KYCAdminInput, request: Request):
 @app.post("/verify-request")
 def request_verification(data: VerifyRequestInput, token=Depends(verify_token)):
     try:
-        req = create_verify_request(int(token["user_id"]), data.dict())
+        payload = data.dict(exclude={"user_id"})
+        req = create_verify_request(int(token["user_id"]), payload)
         return {"status": "success", "request": req}
     except ValueError as e:
         raise HTTPException(404, detail=str(e))

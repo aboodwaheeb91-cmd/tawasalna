@@ -10883,6 +10883,12 @@ check(
     'create_verify_request(data.user_id' not in _rv_block_sec3
 )
 
+# sec-3-05b: payload explicitly excludes user_id before reaching data layer
+check(
+    "sec-3-05b. [STATIC] payload built with exclude={user_id} before create_verify_request",
+    'exclude={"user_id"}' in _rv_block_sec3 or "exclude={'user_id'}" in _rv_block_sec3
+)
+
 # ── Behavioral runtime tests ───────────────────────────────────────────
 import types as _types_sec3, hmac as _hmac_sec3
 import base64 as _b64_sec3, json as _json_sec3, time as _time_sec3
@@ -10983,8 +10989,41 @@ if _srv_sec3 is not None:
         "sec-3-10. [BEHAVIORAL] no JWT → 401 (auth guard still enforced)",
         _r3_noauth.status_code == 401
     )
+
+    # sec-3-11: payload contract — IDOR body: first arg=1 AND user_id absent from payload
+    _sec3_call11 = []
+    def _fake_create_sec3_11(uid, payload):
+        _sec3_call11.append({'uid': uid, 'payload': dict(payload)})
+        return {'id': 1, 'user_id': uid, 'status': 'pending'}
+    with _Patch_sec3('server.create_verify_request', side_effect=_fake_create_sec3_11):
+        _client_sec3.post('/verify-request',
+            json={'user_id': 99, 'item_type': 'exp', 'document_url': 'http://x.com'},
+            headers=_sec3_hdrs)
+    check(
+        "sec-3-11. [BEHAVIORAL] payload clean: body user_id=99, JWT=1 → uid=1 AND user_id NOT in payload",
+        bool(_sec3_call11) and
+        (_sec3_call11[0]['uid'] == 1 or _sec3_call11[0]['uid'] == '1') and
+        'user_id' not in _sec3_call11[0]['payload']
+    )
+
+    # sec-3-12: payload contract — missing body user_id: first arg=1 AND user_id absent from payload
+    _sec3_call12 = []
+    def _fake_create_sec3_12(uid, payload):
+        _sec3_call12.append({'uid': uid, 'payload': dict(payload)})
+        return {'id': 1, 'user_id': uid, 'status': 'pending'}
+    with _Patch_sec3('server.create_verify_request', side_effect=_fake_create_sec3_12):
+        _client_sec3.post('/verify-request',
+            json={'item_type': 'edu', 'document_url': 'http://x.com'},
+            headers=_sec3_hdrs)
+    check(
+        "sec-3-12. [BEHAVIORAL] payload clean: no user_id in body, JWT=1 → uid=1 AND user_id NOT in payload",
+        bool(_sec3_call12) and
+        (_sec3_call12[0]['uid'] == 1 or _sec3_call12[0]['uid'] == '1') and
+        'user_id' not in _sec3_call12[0]['payload']
+    )
+
 else:
-    for _sec3_n in ["06", "07", "08", "09", "10"]:
+    for _sec3_n in ["06", "07", "08", "09", "10", "11", "12"]:
         check(
             f"sec-3-{_sec3_n}. [BEHAVIORAL] server import available for SEC-3 behavioral tests",
             False,
