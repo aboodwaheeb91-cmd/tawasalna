@@ -4756,6 +4756,86 @@ def _migrate_company_candidate_job_refs():
         release_conn(conn)
 
 
+def _migrate_candidate_status_per_job():
+    """Add candidate_status + CHECK constraint to company_candidate_job_refs (idempotent, race-safe).
+
+    candidate_status is the company's independent per-job classification of a candidate.
+    It is separate from:
+      - job_applications.status  (application lifecycle, different allowed values)
+      - company_saved_candidates.status  (general pipeline classification)
+    NULL means the company has not yet classified the candidate for that specific job.
+
+    Race-safety (multi-instance):
+      A PostgreSQL session advisory lock (key 4862026) serialises this migration across
+      Railway/Heroku instances — only one instance executes the body at a time; others
+      block on pg_advisory_lock() until the holder completes.  The lock is released in
+      finally, even on error.
+
+      ADD CONSTRAINT uses NOT VALID to avoid a full table scan under strong lock.
+      A duplicate_object race (42710) inside the body is caught — both instances end
+      in the same state (constraint present, not yet validated).
+      VALIDATE CONSTRAINT runs only when convalidated=False — idempotent on restart.
+
+    This migration is startup-critical: both batch-fetch functions always SELECT
+    candidate_status; if the column is missing the server returns HTTP 500 on every
+    saved-candidates call.  Failure propagates to the caller (on_startup raises).
+    """
+    _LOCK_KEY = 4862026  # stable unique key for this specific migration
+    conn = get_conn()
+    locked = False
+    try:
+        # Block until we hold the advisory lock — serialises across instances
+        conn.run("SELECT pg_advisory_lock(:key)", key=_LOCK_KEY)
+        locked = True
+
+        # Column: IF NOT EXISTS is no-op when already present
+        conn.run("""
+            ALTER TABLE company_candidate_job_refs
+            ADD COLUMN IF NOT EXISTS candidate_status TEXT NULL
+        """)
+        # Query current constraint state (absent / present-not-validated / validated)
+        rows = conn.run(
+            "SELECT convalidated FROM pg_constraint "
+            "WHERE conname = 'ck_ccjr_candidate_status' "
+            "AND conrelid = 'company_candidate_job_refs'::regclass"
+        )
+        if not rows:
+            # Constraint absent — add NOT VALID first (skips full scan under strong lock)
+            try:
+                conn.run("""
+                    ALTER TABLE company_candidate_job_refs
+                    ADD CONSTRAINT ck_ccjr_candidate_status
+                    CHECK (
+                        candidate_status IS NULL OR
+                        candidate_status IN ('saved','shortlisted','contacted','interview','hired','rejected')
+                    ) NOT VALID
+                """)
+            except Exception as e:
+                # 42710 = duplicate_object — another instance added it between our SELECT
+                # and our ADD CONSTRAINT; safe to ignore, re-read below.
+                if '42710' not in str(e) and 'duplicate_object' not in str(e):
+                    raise
+            # Re-read after possible race so VALIDATE decision is up-to-date
+            rows = conn.run(
+                "SELECT convalidated FROM pg_constraint "
+                "WHERE conname = 'ck_ccjr_candidate_status' "
+                "AND conrelid = 'company_candidate_job_refs'::regclass"
+            )
+        # Validate existing rows if the constraint was added NOT VALID
+        if rows and not rows[0][0]:
+            conn.run("""
+                ALTER TABLE company_candidate_job_refs
+                VALIDATE CONSTRAINT ck_ccjr_candidate_status
+            """)
+    finally:
+        if locked:
+            try:
+                conn.run("SELECT pg_advisory_unlock(:key)", key=_LOCK_KEY)
+            except Exception:
+                pass
+        release_conn(conn)
+
+
 def save_company_candidate(company_id: int, candidate_id: int, saved_by: int,
                             job_id: int = None, notes: str = None) -> int:
     """
@@ -4880,7 +4960,7 @@ def get_company_saved_candidates(company_id: int, limit: int = 20, offset: int =
         if items:
             id_clause = ','.join(str(r['candidate_id']) for r in items)
             trows = conn.run(
-                f"SELECT r.candidate_id, j.id, j.title, ja.applied_at, ja.status "
+                f"SELECT r.candidate_id, j.id, j.title, ja.applied_at, ja.status, r.candidate_status "
                 f"FROM company_candidate_job_refs r "
                 f"JOIN jobs j ON j.id = r.job_id "
                 f"LEFT JOIN job_applications ja ON ja.job_id = j.id AND ja.user_id = r.candidate_id "
@@ -4891,16 +4971,19 @@ def get_company_saved_candidates(company_id: int, limit: int = 20, offset: int =
             jlmap = {}
             for trow in trows:
                 uid  = int(trow[0])
-                jid, title, apply_date, app_status = int(trow[1]), trow[2], trow[3], trow[4]
+                jid, title, apply_date, app_status, cand_status = (
+                    int(trow[1]), trow[2], trow[3], trow[4], trow[5])
                 if uid not in jtmap:
                     jtmap[uid] = []
                     jlmap[uid] = []
                 jtmap[uid].append(title)
                 jlmap[uid].append({
-                    'job_id':     jid,
-                    'title':      title,
-                    'apply_date': apply_date.isoformat() if apply_date else None,
-                    'status':     app_status or None,
+                    'job_id':             jid,
+                    'title':              title,
+                    'apply_date':         apply_date.isoformat() if apply_date else None,
+                    'application_status': app_status or None,
+                    'status':             app_status or None,  # deprecated alias — equals application_status
+                    'candidate_status':   cand_status or None,
                 })
             for item in items:
                 item['job_titles'] = jtmap.get(item['candidate_id'], [])
@@ -5083,7 +5166,7 @@ def get_company_saved_candidates_filtered(
         if items:
             id_clause = ','.join(str(r['candidate_id']) for r in items)
             trows = conn.run(
-                f"SELECT r.candidate_id, j.id, j.title, ja.applied_at, ja.status "
+                f"SELECT r.candidate_id, j.id, j.title, ja.applied_at, ja.status, r.candidate_status "
                 f"FROM company_candidate_job_refs r "
                 f"JOIN jobs j ON j.id = r.job_id "
                 f"LEFT JOIN job_applications ja ON ja.job_id = j.id AND ja.user_id = r.candidate_id "
@@ -5094,18 +5177,21 @@ def get_company_saved_candidates_filtered(
             jlmap = {}
             for trow in trows:
                 uid  = int(trow[0])
-                jid, title, apply_date, app_status = int(trow[1]), trow[2], trow[3], trow[4]
+                jid, title, apply_date, app_status, cand_status = (
+                    int(trow[1]), trow[2], trow[3], trow[4], trow[5])
                 if uid not in jtmap:
                     jtmap[uid] = []
                     jlmap[uid] = []
                 jtmap[uid].append(title)
                 jlmap[uid].append({
-                    'job_id':     jid,
-                    'title':      title,
-                    'apply_date': apply_date.isoformat() if apply_date else None,
-                    'status':     app_status or None,
+                    'job_id':             jid,
+                    'title':              title,
+                    'apply_date':         apply_date.isoformat() if apply_date else None,
+                    'application_status': app_status or None,
+                    'status':             app_status or None,  # deprecated alias — equals application_status
+                    'candidate_status':   cand_status or None,
                 })
-            accepted_ids = set()
+            accepted_ids  = set()
             if job_id is not None:
                 acc_rows = conn.run(
                     f"SELECT ja.user_id "
@@ -5287,6 +5373,46 @@ def update_company_saved_candidate(
             "created_at":     row[10],
             "updated_at":     row[11],
         })
+    finally:
+        release_conn(conn)
+
+
+def update_candidate_job_status(
+    company_id: int,
+    candidate_id: int,
+    job_id: int,
+    candidate_status: str | None,
+) -> bool:
+    """
+    Update the per-job candidate_status in company_candidate_job_refs.
+
+    Three independent sources of truth:
+      - job_applications.status         — application lifecycle status (company-managed transitions after submission)
+      - company_saved_candidates.status — general pipeline classification
+      - company_candidate_job_refs.candidate_status — THIS FIELD: per-job classification
+
+    This function only touches company_candidate_job_refs.candidate_status.
+    It never reads or modifies job_applications.status or company_saved_candidates.status.
+
+    Returns True on success, False if the row doesn't exist.
+    Raises ValueError for invalid status values.
+    """
+    allowed = VALID_CANDIDATE_STATUSES | {None}
+    if candidate_status not in allowed:
+        raise ValueError(
+            "قيمة candidate_status غير مسموحة. القيم المسموحة: "
+            + ", ".join(sorted(VALID_CANDIDATE_STATUSES))
+        )
+
+    conn = get_conn()
+    try:
+        rows = conn.run(
+            "UPDATE company_candidate_job_refs "
+            "SET candidate_status = :cs "
+            "WHERE company_id = :cid AND candidate_id = :uid AND job_id = :jid "
+            "RETURNING job_id",
+            cs=candidate_status, cid=company_id, uid=candidate_id, jid=job_id)
+        return bool(rows)
     finally:
         release_conn(conn)
 
@@ -6058,8 +6184,13 @@ def send_appointment(appointment_id: int, user_id: int, scheduled_at_iso: str,
             raise ValueError("موقع المقابلة مطلوب للمواعيد الحضورية")
 
         try:
+            # Official contract: timezone-aware ISO 8601 (e.g. "2025-08-15T06:00:00.000Z").
+            # The frontend sends toISOString() which always includes the Z suffix.
+            # `.replace('Z', '+00:00')` normalises Z to a form fromisoformat() accepts.
             scheduled_dt = _dt.fromisoformat(scheduled_at_iso.replace('Z', '+00:00'))
             if scheduled_dt.tzinfo is None:
+                # Legacy/deprecated fallback: treat naive ISO as UTC.
+                # New clients must always send timezone-aware ISO. Do not rely on this path.
                 scheduled_dt = scheduled_dt.replace(tzinfo=_tz.utc)
         except Exception:
             raise ValueError("تنسيق التاريخ غير صالح — استخدم ISO 8601")

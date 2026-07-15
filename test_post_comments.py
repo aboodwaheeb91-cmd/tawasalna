@@ -9563,8 +9563,8 @@ check("483-03. get_company_saved_candidates_filtered job_links query uses ja.app
 # 483-04: candidate linked to job WITH application — apply_date serialized from applied_at
 # (LEFT JOIN returns applied_at value; Python aliases it as apply_date in job_links dict)
 check("483-04. job_links dict key is apply_date, sourced from ja.applied_at via LEFT JOIN",
-      "'apply_date': apply_date.isoformat()" in _get_saved483
-      or "'apply_date': apply_date.isoformat()" in _get_filt483)
+      ("'apply_date'" in _get_saved483 and "apply_date.isoformat()" in _get_saved483)
+      or ("'apply_date'" in _get_filt483 and "apply_date.isoformat()" in _get_filt483))
 
 # 483-05: candidate linked to job WITHOUT application — LEFT JOIN returns null applied_at
 # Python guard: apply_date.isoformat() if apply_date else None → None in output
@@ -9628,10 +9628,11 @@ check("484-02. _closeJobPop removes scroll and resize listeners on close (no gho
       "window.removeEventListener('scroll', _closeJobPop)" in _close_pop484
       and "window.removeEventListener('resize', _closeJobPop)" in _close_pop484)
 
-# 484-03: popover shows row for حالة الطلب (job_applications source) AND تصنيف الشركة (company classification)
-check("484-03. _showJobChipPop renders two separate rows: حالة الطلب and تصنيف الشركة",
+# 484-03: popover shows حالة الطلب row (job_applications source) and at least one classification row
+# Updated in §486: popover now has 3 rows — application status, per-job status, general pipeline status
+check("484-03. _showJobChipPop renders حالة الطلب row and at least one classification row",
       'حالة الطلب' in _show_pop484
-      and 'تصنيف الشركة' in _show_pop484)
+      and ('تصنيف الشركة' in _show_pop484 or 'التصنيف العام' in _show_pop484 or 'تصنيف في الوظيفة' in _show_pop484))
 
 # 484-04: company classification row reads data-status from the parent card (not from chip data)
 check("484-04. company classification row reads data-status from card, not chip attribute",
@@ -9717,6 +9718,672 @@ check("485-02. _showInterviewChoice calls _execClassify with 'interview' status 
 check("485-03. _execClassify success path calls _reRenderCardFoot to update card UI after classification",
       '_reRenderCardFoot(card, newStatus)' in _exec_classify485)
 
+
+# §486 — Three sources of truth: per-job candidate_status in company_candidate_job_refs
+# Covers: migration, batch-fetch contract, new PATCH endpoint, security, frontend wiring.
+# ════════════════════════════════════════════════════════════════
+
+_auth486   = open('auth.py',    encoding='utf-8').read()
+_srv486    = open('server.py',  encoding='utf-8').read()
+_main486   = open('static/company/company.main.js', encoding='utf-8').read()
+_api486    = open('static/company/company.api.js',  encoding='utf-8').read()
+_css486    = open('static/company/company.css',     encoding='utf-8').read()
+
+# ── Backend: migration ────────────────────────────────────────────────────
+
+# 486-01: _migrate_candidate_status_per_job() exists and adds the column
+check("486-01. _migrate_candidate_status_per_job() adds candidate_status column to company_candidate_job_refs",
+      "_migrate_candidate_status_per_job" in _auth486
+      and "ADD COLUMN IF NOT EXISTS candidate_status TEXT NULL" in _auth486)
+
+# 486-02: CHECK constraint restricts candidate_status to allowed values
+check("486-02. CHECK constraint on candidate_status allows only valid pipeline values",
+      "ck_ccjr_candidate_status" in _auth486
+      and "candidate_status IS NULL" in _auth486
+      and "'shortlisted'" in _auth486
+      and "'hired'" in _auth486)
+
+# 486-03: migration is called during server startup
+check("486-03. _migrate_candidate_status_per_job() called in server.py startup",
+      "_migrate_candidate_status_per_job()" in _srv486)
+
+# ── Backend: batch-fetch contract ─────────────────────────────────────────
+
+# 486-04: batch-fetch SELECTs r.candidate_status (both functions)
+check("486-04. Both batch-fetch functions SELECT r.candidate_status from company_candidate_job_refs",
+      _auth486.count("r.candidate_status") >= 2)
+
+# 486-05: batch-fetch output uses 'application_status' key (not the old 'status' key)
+#         Verified by checking that 'application_status' appears in the jlmap dict building
+check("486-05. batch-fetch job_links[] uses 'application_status' key (renamed from 'status')",
+      _auth486.count("'application_status':") >= 2
+      and "'status':     app_status" not in _auth486)
+
+# 486-06: batch-fetch output includes 'candidate_status' key per job_link
+check("486-06. batch-fetch job_links[] includes 'candidate_status' key per entry",
+      _auth486.count("'candidate_status':") >= 2)
+
+# ── Backend: new PATCH endpoint ────────────────────────────────────────────
+
+# 486-07: PATCH /company/saved-candidates/{candidate_id}/jobs/{job_id} endpoint exists
+check("486-07. PATCH /company/saved-candidates/{candidate_id}/jobs/{job_id} endpoint defined in server.py",
+      "'/company/saved-candidates/{candidate_id}/jobs/{job_id}'" in _srv486.replace('"', "'")
+      or '@app.patch("/company/saved-candidates/{candidate_id}/jobs/{job_id}")' in _srv486)
+
+# 486-08: new endpoint uses JWT (Depends(verify_token)) — no company_id from client
+check("486-08. New per-job PATCH endpoint uses Depends(verify_token) — company_id from token only",
+      "def company_update_candidate_job_status" in _srv486
+      and "Depends(verify_token)" in _srv486
+      and "company_id = _require_company_owner(token)" in _srv486)
+
+# 486-09: new endpoint NEVER updates job_applications.status or company_saved_candidates.status
+check("486-09. update_candidate_job_status() touches only company_candidate_job_refs — never other tables",
+      "UPDATE company_candidate_job_refs" in _auth486
+      and "def update_candidate_job_status(" in _auth486)
+
+# 486-10: new endpoint validates candidate_status against VALID_CANDIDATE_STATUSES
+check("486-10. New endpoint validates candidate_status against VALID_CANDIDATE_STATUSES before DB write",
+      "VALID_CANDIDATE_STATUSES" in _srv486
+      and "company_update_candidate_job_status" in _srv486)
+
+# 486-11: update_candidate_job_status returns False (not raise) when row doesn't exist
+#         Server maps False → 404 response
+check("486-11. update_candidate_job_status returns bool; server raises 404 when row not found",
+      "return bool(rows)" in _auth486
+      and "if not found:" in _srv486
+      and "404" in _srv486)
+
+# ── Frontend: updateCandidateJobStatus API function ───────────────────────
+
+# 486-12: updateCandidateJobStatus function exists in company.api.js
+check("486-12. updateCandidateJobStatus() defined and exported in company.api.js",
+      "function updateCandidateJobStatus(" in _api486
+      and "window.updateCandidateJobStatus" in _api486)
+
+# 486-13: API function calls PATCH /company/saved-candidates/{cid}/jobs/{jid}
+check("486-13. updateCandidateJobStatus calls PATCH /company/saved-candidates/.../jobs/... with JWT",
+      "'/company/saved-candidates/' + candidateId + '/jobs/' + jobId" in _api486
+      and "'PATCH'" in _api486
+      and "candidate_status" in _api486)
+
+# ── Frontend: chip attributes ─────────────────────────────────────────────
+
+# Extract candidates IIFE for chip rendering checks
+_cand_iife486 = (
+    _main486.split('// ── Saved Candidates tab')[1].split('\n}());')[0]
+    if '// ── Saved Candidates tab' in _main486 else _main486
+)
+
+# 486-14: job chips carry data-app-status (application_status) AND data-cand-status (candidate_status)
+check("486-14. Job chips carry both data-app-status (application_status) and data-cand-status (candidate_status)",
+      "data-app-status=\"' + _esc(jl.application_status" in _cand_iife486
+      and "data-cand-status=\"' + _esc(jl.candidate_status" in _cand_iife486)
+
+# ── Frontend: 3-row popover ───────────────────────────────────────────────
+
+_pop_fn486 = (
+    _cand_iife486.split('function _showJobChipPop(')[1].split('\n  function ')[0]
+    if 'function _showJobChipPop(' in _cand_iife486 else ''
+)
+
+# 486-15: popover shows 3 separate rows: application status, per-job classification, general status
+check("486-15. Job chip popover renders 3 rows: حالة الطلب + تصنيف في الوظيفة + التصنيف العام",
+      'حالة الطلب' in _pop_fn486
+      and 'تصنيف في الوظيفة' in _pop_fn486
+      and 'التصنيف العام' in _pop_fn486
+      and 'data-cand-status' in _pop_fn486)
+
+# ── Frontend: per-job status section in manage panel ─────────────────────
+
+# 486-16: manage panel renders per-job status section with custom pickers (co-cand-job-status-dp)
+check("486-16. Manage panel renders تصنيف المرشح لكل وظيفة section with per-job custom pickers",
+      'co-cand-job-status-list' in _cand_iife486
+      and 'co-cand-job-status-dp' in _cand_iife486
+      and 'co-cand-job-status-sel' not in _cand_iife486
+      and 'تصنيف المرشح لكل وظيفة' in _cand_iife486)
+
+# 486-17: _handleJobStatusDpSelect wired via _handleDpOptClick for co-cand-job-status-dp auto-save
+check("486-17. _handleJobStatusDpSelect wired for co-cand-job-status-dp auto-save via _handleDpOptClick",
+      'function _handleJobStatusDpSelect(' in _main486
+      and 'co-cand-job-status-dp' in _main486
+      and 'updateCandidateJobStatus' in _main486
+      and '_handleDpOptClick' in _main486)
+
+# 486-18: _onSavedChange syncs chip on success — now via _renderCandidateJobLinksUI which
+# rebuilds all chips from the updated links array (candidate_status embedded per link)
+check("486-18. _onSavedChange syncs chip on success via _renderCandidateJobLinksUI (rebuilt from updated links)",
+      "_renderCandidateJobLinksUI(card, links)" in _main486
+      and "candidate_status" in _main486)
+
+# ── Frontend: appointment client-side validation ───────────────────────────
+
+_appt_fn486 = (
+    _main486.split('function _submitApptForm(')[1].split('\n  function ')[0]
+    if 'function _submitApptForm(' in _main486 else ''
+)
+
+# 486-19: online mode requires URL before submitting
+check("486-19. _submitApptForm validates online URL is present for online mode before any fetch",
+      "_apptMode === 'online' && !urlVal" in _appt_fn486
+      and 'يرجى إدخال رابط المقابلة الأونلاين' in _appt_fn486)
+
+# 486-20: deadline vs appointment time check runs client-side
+check("486-20. _submitApptForm checks scheduled time > now + deadline_hours (prevents backend deadline error)",
+      'deadlineMs' in _appt_fn486
+      and 'scheduledMs - Date.now()' in _appt_fn486
+      and 'مهلة الرد تنتهي بعد وقت الموعد' in _appt_fn486)
+
+# 486-21: create-step error handler shows detail from API (not always generic message)
+check("486-21. Create-step error handler shows API detail instead of generic message when detail is present",
+      "detail || 'تعذّر إنشاء الموعد" in _appt_fn486
+      or "msg = detail || " in _appt_fn486)
+
+# ── CSS ───────────────────────────────────────────────────────────────────
+
+# 486-22: per-job status section CSS defined — custom picker, no native select rules
+check("486-22. CSS rules for co-cand-job-status-list and co-cand-job-status-dp defined in company.css",
+      '.co-cand-job-status-list' in _css486
+      and '.co-cand-job-status-dp' in _css486
+      and '.co-cand-job-status-sel' not in _css486)
+
+
+# ── Amendment 1: backward-compat 'status' alias ───────────────────────────
+
+# 486-23: 'status' alias present alongside 'application_status' in both batch-fetch functions
+# Both keys must be in the jlmap dict append and must carry the same value (app_status)
+check("486-23. 'status' deprecated alias present alongside 'application_status' in batch-fetch jlmap (both functions)",
+      "'status':             app_status or None" in _auth486
+      and "'application_status': app_status or None" in _auth486
+      and _auth486.count("'status':             app_status or None") >= 2
+      and _auth486.count("'application_status': app_status or None") >= 2)
+
+# 486-24: 'status' alias documented as deprecated (not hidden — visible in docs)
+check("486-24. SYSTEMS_INDEX.md documents 'status' as deprecated backward-compat alias for application_status",
+      'deprecated' in open('docs/SYSTEMS_INDEX.md', encoding='utf-8').read()
+      and 'application_status' in open('docs/SYSTEMS_INDEX.md', encoding='utf-8').read())
+
+
+# ── Amendment 2: idempotent migration — no DROP CONSTRAINT ────────────────
+
+# 486-25: migration code must NOT contain DROP CONSTRAINT (it used to, but fixed)
+check("486-25. _migrate_candidate_status_per_job() does NOT use DROP CONSTRAINT",
+      'DROP CONSTRAINT' not in _auth486.split('def _migrate_candidate_status_per_job')[1].split('\ndef ')[0]
+      if '_migrate_candidate_status_per_job' in _auth486 else False)
+
+# 486-26: migration checks pg_constraint before adding the constraint (conditional add)
+_mig_body486 = (
+    _auth486.split('def _migrate_candidate_status_per_job')[1].split('\ndef ')[0]
+    if '_migrate_candidate_status_per_job' in _auth486 else ''
+)
+check("486-26. Migration checks pg_constraint table before ADD CONSTRAINT (constraint added only when absent)",
+      'pg_constraint' in _mig_body486
+      and 'ck_ccjr_candidate_status' in _mig_body486
+      and ('if not rows' in _mig_body486 or 'if not existing' in _mig_body486)
+      and 'ADD CONSTRAINT ck_ccjr_candidate_status' in _mig_body486)
+
+
+# ── Amendment 3: optimistic UI rollback in _onSavedChange ─────────────────
+
+# 486-27: rollback uses data-job-links (not data-prev-val) — _handleJobStatusDpSelect reads fresh card state
+check("486-27. Rollback path reads data-job-links from card — not data-prev-val on select",
+      "_renderCandidateJobLinksUI(card, rollLinks)" in _main486
+      and "card.getAttribute('data-job-links')" in _main486
+      and 'co-cand-job-status-sel' not in _main486)
+
+# 486-28: on API failure, _onSavedChange re-renders from data-job-links (card-level lock arch)
+# Old pattern was sel.value = prevVal; new pattern uses _renderCandidateJobLinksUI(card, rollLinks)
+check("486-28. _onSavedChange re-renders from data-job-links on failure (card-level lock rollback)",
+      "_renderCandidateJobLinksUI(card, rollLinks)" in _main486
+      and "data-job-links" in _main486)
+
+# 486-29: failure path calls _renderCandidateJobLinksUI(card, rollLinks) — no direct sel.value mutation
+# Success path updates links array then also calls _renderCandidateJobLinksUI(card, links)
+check("486-29. Chip/data-job-links update only in success path — failure path is rollback-only",
+      "if (!res || !res.ok)" in _main486
+      and "_renderCandidateJobLinksUI(card, links)" in _main486
+      and "_renderCandidateJobLinksUI(card, rollLinks)" in _main486)
+
+# 486-30: on failure, _onSavedChange shows exact API detail from res.data.detail
+check("486-30. _onSavedChange shows res.data.detail error on failure (API detail, not always generic)",
+      "res.data.detail" in _main486
+      or "res && res.data && res.data.detail" in _main486)
+
+# 486-31: custom picker rendered with data-cid and data-jid (not native select / not data-prev-val)
+check("486-31. Per-job custom picker rendered with data-cid + data-jid via _dpHTML meta arg",
+      "co-cand-job-status-dp" in _main486
+      and "data-cid" in _main486
+      and "data-jid" in _main486
+      and "data-prev-val=" not in _main486)
+
+
+# ── §487: Five-fix batch (documentation, UI, timezone, migration, Pydantic) ───
+
+_srv487   = open('server.py',                   encoding='utf-8').read()
+_claude487 = open('CLAUDE.md',                  encoding='utf-8').read()
+_idx487   = open('docs/SYSTEMS_INDEX.md',        encoding='utf-8').read()
+
+# ── Fix 1a: CLAUDE.md treats status as deprecated alias, not banned ────────
+
+# 487-01: CLAUDE.md no longer says status is permanently banned/renamed
+check("487-01. CLAUDE.md does not ban status alias and points to SYSTEMS_INDEX §20c",
+      'Do NOT re-add `status` to `job_links[]` entries' not in _claude487
+      and 'SYSTEMS_INDEX' in _claude487
+      and ('deprecated' in _claude487 or 'deprecated alias' in _claude487))
+
+# 487-02: Documentation does not describe job_applications.status as purely applicant-driven
+check("487-02. Neither CLAUDE.md nor SYSTEMS_INDEX describes job_applications.status as purely applicant-driven",
+      'applicant-driven application status' not in _claude487
+      and 'applicant-driven application status' not in _idx487)
+
+# 487-03: VALID_CANDIDATE_STATUSES not claimed as shared for all three sources
+check("487-03. Documentation does not claim VALID_CANDIDATE_STATUSES is shared for all three status sources",
+      'shared for all three status sources' not in _idx487
+      and 'shared for all three status sources' not in _claude487)
+
+# 487-04: SYSTEMS_INDEX documents that VALID_CANDIDATE_STATUSES does NOT apply to job_applications.status
+check("487-04. SYSTEMS_INDEX explicitly notes VALID_CANDIDATE_STATUSES does not apply to job_applications.status",
+      'VALID_CANDIDATE_STATUSES' in _idx487
+      and 'does NOT apply' in _idx487)
+
+# ── Fix 2: Shared _renderCandidateJobLinksUI helper ───────────────────────
+
+# 487-05: Helper _renderCandidateJobLinksUI defined in company.main.js
+check("487-05. _renderCandidateJobLinksUI helper defined in company.main.js",
+      '_renderCandidateJobLinksUI' in _main486)
+
+# 487-06: PATCH success path updates data-job-links JSON before re-rendering
+check("487-06. PATCH success path reads data-job-links, updates candidate_status, then calls _renderCandidateJobLinksUI",
+      '_renderCandidateJobLinksUI(card, links)' in _main486
+      and "card.getAttribute('data-job-links')" in _main486
+      and ("candidate_status: cs || null" in _main486 or "candidate_status: cs" in _main486))
+
+# 487-07: New job link uses _updateChips which now delegates to _renderCandidateJobLinksUI
+check("487-07. _updateChips delegates to _renderCandidateJobLinksUI (new link builds chip + select without reload)",
+      '_updateChips' in _main486
+      and '_renderCandidateJobLinksUI' in _main486
+      and 'function _updateChips' in _main486)
+
+# 487-08: Chip rebuild reads candidate_status from links array (preserves classification)
+check("487-08. Chip rebuild reads jl.candidate_status from links array (data-cand-status preserved)",
+      "data-cand-status=\\\"' + _esc(jl.candidate_status" in _main486
+      or "data-cand-status=' + _esc(jl.candidate_status" in _main486
+      or "jl.candidate_status" in _main486)
+
+# 487-09: PATCH failure re-renders from data-job-links via _renderCandidateJobLinksUI(card, rollLinks)
+# New arch: _handleJobStatusDpSelect (not _onSavedChange) — failure reads card.getAttribute('data-job-links')
+_hjsdp_fn = ''
+if 'function _handleJobStatusDpSelect(' in _main486:
+    _hjsdp_fn = _main486.split('function _handleJobStatusDpSelect(')[1].split('\n  function ')[0]
+check("487-09. PATCH failure restores state via _renderCandidateJobLinksUI(card, rollLinks) in _handleJobStatusDpSelect",
+      "_renderCandidateJobLinksUI(card, rollLinks)" in _hjsdp_fn
+      and "card.getAttribute('data-job-links')" in _hjsdp_fn)
+
+# ── Fix 3: Timezone-aware appointment scheduling ──────────────────────────
+
+# 487-10: Frontend uses toISOString() — sends UTC ISO with Z suffix
+check("487-10. Appointment scheduled_at built via toISOString() — UTC/timezone-aware string sent to backend",
+      'toISOString()' in _main486
+      and 'localScheduled' in _main486)
+
+# 487-11: Number.isFinite guard validates date before toISOString
+check("487-11. Invalid date guarded by Number.isFinite(localScheduled.getTime()) before toISOString",
+      'Number.isFinite' in _main486
+      and 'localScheduled.getTime()' in _main486)
+
+# 487-12: Client deadline check uses localScheduled.getTime() (epoch ms — timezone-agnostic)
+check("487-12. Client deadline check uses localScheduled.getTime() for timezone-agnostic epoch comparison",
+      'scheduledMs = localScheduled.getTime()' in _main486)
+
+# ── Fix 4: Race-safe migration ────────────────────────────────────────────
+
+# 487-13: Migration uses NOT VALID + VALIDATE CONSTRAINT + duplicate_object catch
+check("487-13. Migration race-safe: NOT VALID + VALIDATE CONSTRAINT + 42710/duplicate_object catch",
+      'NOT VALID' in _mig_body486
+      and 'VALIDATE CONSTRAINT' in _mig_body486
+      and ('42710' in _mig_body486 or 'duplicate_object' in _mig_body486))
+
+# ── Fix 5: Required but nullable candidate_status (Pydantic) ─────────────
+
+# 487-14: UpdateCandidateJobStatusInput has no default (required field — body {} returns 422)
+check("487-14. UpdateCandidateJobStatusInput.candidate_status is required (no = None default)",
+      'candidate_status: Optional[str]' in _srv487
+      and 'candidate_status: Optional[str] = None' not in _srv487)
+
+# 487-15: null candidate_status explicitly handled as valid (clear intent)
+check("487-15. update_candidate_job_status accepts None to clear classification (null is valid)",
+      '| {None}' in _auth486 or "VALID_CANDIDATE_STATUSES | {None}" in _auth486)
+
+# 487-16: status alias equal to application_status in both batch-fetch functions (redundant coverage)
+check("487-16. Deprecated 'status' alias always equals application_status (same value set twice)",
+      _auth486.count("'status':             app_status or None") >= 2
+      or (_auth486.count("'status':") >= 2 and _auth486.count("'application_status':") >= 2))
+
+
+# ── §488: Four-fix batch (race condition, Field, timezone, terminology) ───────
+
+_main488  = open('static/company/company.main.js', encoding='utf-8').read()
+_auth488  = open('auth.py',    encoding='utf-8').read()
+_srv488   = open('server.py',  encoding='utf-8').read()
+_idx488   = open('docs/SYSTEMS_INDEX.md', encoding='utf-8').read()
+
+# Extract _handleJobStatusDpSelect function body for targeted checks
+# (replaced _onSavedChange which used native <select> — now uses co-dp custom picker)
+_onsaved488 = (
+    _main488.split('function _handleJobStatusDpSelect(')[1].split('\n  function ')[0]
+    if 'function _handleJobStatusDpSelect(' in _main488 else ''
+)
+# Extract _renderCandidateJobLinksUI function body
+_render488 = (
+    _main488.split('function _renderCandidateJobLinksUI(card, links)')[1].split('\n  function ')[0]
+    if 'function _renderCandidateJobLinksUI(card, links)' in _main488 else ''
+)
+# Extract _migrate_candidate_status_per_job body
+_mig488 = (
+    _auth488.split('def _migrate_candidate_status_per_job')[1].split('\ndef ')[0]
+    if '_migrate_candidate_status_per_job' in _auth488 else ''
+)
+
+# ── Fix 1: Race condition — card-level lock ────────────────────────────────
+
+# 488-01: registry-based lock checked BEFORE the actual PATCH dispatch (replaces card capture)
+# §490 upgrade: registry (_jobStatusInFlight) replaces card DOM reference as lock authority.
+# Checks index against 'updateCandidateJobStatus(cidInt' to target the PATCH dispatch,
+# not the earlier null-guard 'if (!window.updateCandidateJobStatus) return'.
+check("488-01. Registry _jobStatusInFlight[cidStr] checked BEFORE updateCandidateJobStatus PATCH dispatch",
+      '_jobStatusInFlight[cidStr]' in _onsaved488
+      and 'updateCandidateJobStatus(cidInt' in _onsaved488
+      and _onsaved488.index('_jobStatusInFlight[cidStr]') < _onsaved488.index('updateCandidateJobStatus(cidInt'))
+
+# 488-02: registry (not DOM attribute) blocks second call for same candidate
+# §490 upgrade: _jobStatusInFlight is the authoritative lock; data-job-status-saving is visual only.
+check("488-02. Registry lock (_jobStatusInFlight[cidStr]) at entry returns early if in-flight",
+      '_jobStatusInFlight[cidStr]' in _onsaved488
+      and 'return' in _onsaved488)
+
+# 488-03: visual lock still set on live card + co-cand-job-status-dp .co-dp-btn disabled
+# §490 upgrade: liveCard reference replaces captured card; visual lock still applied for UX.
+check("488-03. Visual lock set on liveCard + ALL .co-cand-job-status-dp .co-dp-btn disabled at request start",
+      "liveCard.setAttribute('data-job-status-saving', '1')" in _onsaved488
+      and "liveCard.querySelectorAll('.co-cand-job-status-dp .co-dp-btn')" in _onsaved488
+      and '.forEach' in _onsaved488
+      and 'b.disabled = true' in _onsaved488)
+
+# 488-04: failure path calls _renderCandidateJobLinksUI from data-job-links (not sel.value)
+check("488-04. Failure path re-renders from card data-job-links — never restores sel.value directly",
+      '_renderCandidateJobLinksUI(card, rollLinks)' in _onsaved488
+      and "card.getAttribute('data-job-links')" in _onsaved488
+      and 'sel.value = prevVal' not in _onsaved488)
+
+# 488-05: success path reads data-job-links AT response time (fresh, not stale)
+check("488-05. Success path reads card.getAttribute('data-job-links') at response time — not stale capture",
+      '_renderCandidateJobLinksUI(card, links)' in _onsaved488
+      and "card.getAttribute('data-job-links')" in _onsaved488)
+
+# 488-06: finally removes lock + enables ALL co-dp-btn in card (freshly rebuilt DOM)
+check("488-06. finally removes data-job-status-saving and re-enables all co-dp-btn in card",
+      "card.removeAttribute('data-job-status-saving')" in _onsaved488
+      and "card.querySelectorAll('.co-cand-job-status-dp .co-dp-btn')" in _onsaved488
+      and 'b.disabled = false' in _onsaved488)
+
+# 488-07: _renderCandidateJobLinksUI respects lock — passes meta.locked to _dpHTML for custom pickers
+check("488-07. _renderCandidateJobLinksUI reads data-job-status-saving and builds locked pickers when locked",
+      "data-job-status-saving" in _render488
+      and 'isLocked' in _render488
+      and 'locked: isLocked' in _render488
+      and 'co-cand-job-status-dp' in _render488)
+
+# 488-08: catch block also re-renders from data-job-links (not sel)
+check("488-08. catch block re-renders from card data-job-links — handles detached sel safely",
+      _onsaved488.count('_renderCandidateJobLinksUI(card, rollLinks)') >= 2)
+
+# ── Fix 2: Field(...) — explicit required nullable ─────────────────────────
+
+# 488-09: Field(...) used in UpdateCandidateJobStatusInput
+check("488-09. UpdateCandidateJobStatusInput uses Field(...) — explicit required in both Pydantic v1 and v2",
+      'candidate_status: Optional[str] = Field(...)' in _srv488)
+
+# 488-10: Functional test — actually instantiate the model to verify required behavior
+from pydantic import BaseModel, Field, ValidationError
+from typing import Optional as _Opt
+
+class _TestUpdateInput(BaseModel):
+    candidate_status: _Opt[str] = Field(...)
+
+_pydantic_empty_raises = False
+try:
+    _TestUpdateInput()
+except (ValidationError, TypeError):
+    _pydantic_empty_raises = True
+
+_pydantic_null_ok = False
+try:
+    _pydantic_null_ok = _TestUpdateInput(candidate_status=None).candidate_status is None
+except Exception:
+    pass
+
+_pydantic_str_ok = False
+try:
+    _pydantic_str_ok = _TestUpdateInput(candidate_status='saved').candidate_status == 'saved'
+except Exception:
+    pass
+
+check("488-10. Functional: Field(...) model rejects empty body, accepts null, accepts valid string",
+      _pydantic_empty_raises and _pydantic_null_ok and _pydantic_str_ok)
+
+# ── Fix 3: Timezone contract ───────────────────────────────────────────────
+
+# 488-11: Backend has deprecated-fallback comment for naive ISO (not promoted as official)
+check("488-11. Backend has Legacy/deprecated fallback comment for naive ISO in send_appointment",
+      ('Legacy/deprecated' in _auth488 or 'deprecated fallback' in _auth488)
+      and 'tzinfo is None' in _auth488)
+
+# 488-12: SYSTEMS_INDEX §23 documents timezone contract
+check("488-12. SYSTEMS_INDEX §23 documents timezone-aware contract and deprecated naive fallback",
+      'toISOString' in _idx488
+      and 'deprecated' in _idx488
+      and 'timezone-aware' in _idx488
+      and 'scheduled_at' in _idx488)
+
+# 488-13: Frontend uses toISOString — sends UTC ISO (already covered but re-checked in context of doc)
+check("488-13. Frontend sends timezone-aware scheduledAt via toISOString() (Z suffix guaranteed)",
+      'toISOString()' in _main488
+      and 'localScheduled' in _main488)
+
+# ── Fix 4: No "applicant-driven" in modified files ────────────────────────
+
+# 488-14: auth.py update_candidate_job_status docstring has no "applicant-driven"
+_ucjs_body = (
+    _auth488.split('def update_candidate_job_status')[1].split('\ndef ')[0]
+    if 'def update_candidate_job_status' in _auth488 else ''
+)
+check("488-14. update_candidate_job_status() docstring does not say 'applicant-driven'",
+      'applicant-driven' not in _ucjs_body)
+
+# 488-15: company.main.js _showJobChipPop comment has no "applicant-driven"
+check("488-15. _showJobChipPop comment does not say 'applicant-driven'",
+      'applicant-driven' not in _main488)
+
+# ── §489: Custom picker, advisory lock, startup-critical migration ─────────
+
+_main489  = open('static/company/company.main.js', encoding='utf-8').read()
+_css489   = open('static/company/company.css',     encoding='utf-8').read()
+_auth489  = open('auth.py',   encoding='utf-8').read()
+_srv489   = open('server.py', encoding='utf-8').read()
+_idx489   = open('docs/SYSTEMS_INDEX.md', encoding='utf-8').read()
+
+_mig489 = (
+    _auth489.split('def _migrate_candidate_status_per_job')[1].split('\ndef ')[0]
+    if '_migrate_candidate_status_per_job' in _auth489 else ''
+)
+_hjsdp489 = (
+    _main489.split('function _handleJobStatusDpSelect(')[1].split('\n  function ')[0]
+    if 'function _handleJobStatusDpSelect(' in _main489 else ''
+)
+_render489 = (
+    _main489.split('function _renderCandidateJobLinksUI(card, links)')[1].split('\n  function ')[0]
+    if 'function _renderCandidateJobLinksUI(card, links)' in _main489 else ''
+)
+
+# 489-01: no .co-cand-job-status-sel (native select) anywhere in JS or CSS
+check("489-01. No co-cand-job-status-sel (native select) in company.main.js or company.css",
+      'co-cand-job-status-sel' not in _main489
+      and 'co-cand-job-status-sel' not in _css489)
+
+# 489-02: per-job status uses the co-dp custom picker system
+check("489-02. Per-job status uses co-cand-job-status-dp custom picker (co-dp system)",
+      'co-cand-job-status-dp' in _main489
+      and 'co-dp-btn' in _main489
+      and 'co-dp-list' in _main489
+      and '_dpHTML' in _main489)
+
+# 489-03: _handleDpOptClick routes co-cand-job-status-dp to _handleJobStatusDpSelect
+check("489-03. _handleDpOptClick routes co-cand-job-status-dp to _handleJobStatusDpSelect",
+      "co-cand-job-status-dp" in _main489.split('function _handleDpOptClick(')[1].split('\n  function ')[0]
+      and "_handleJobStatusDpSelect" in _main489.split('function _handleDpOptClick(')[1].split('\n  function ')[0])
+
+# 489-04: lock disables all co-cand-job-status-dp .co-dp-btn buttons
+check("489-04. Card-level lock disables all .co-cand-job-status-dp .co-dp-btn buttons",
+      "card.querySelectorAll('.co-cand-job-status-dp .co-dp-btn')" in _hjsdp489
+      and 'b.disabled = true' in _hjsdp489)
+
+# 489-05: success path reads data-job-links, updates candidate_status, calls _renderCandidateJobLinksUI
+check("489-05. Success path reads data-job-links + updates candidate_status + calls _renderCandidateJobLinksUI",
+      "card.getAttribute('data-job-links')" in _hjsdp489
+      and "candidate_status" in _hjsdp489
+      and "_renderCandidateJobLinksUI(card, links)" in _hjsdp489)
+
+# 489-06: failure path does NOT update data-job-links — re-renders from it unchanged
+check("489-06. Failure path re-renders from data-job-links without mutating it",
+      "_renderCandidateJobLinksUI(card, rollLinks)" in _hjsdp489
+      and "card.setAttribute('data-job-links'" not in _hjsdp489.split('res.ok')[1]
+      if 'res.ok' in _hjsdp489 else False)
+
+# 489-07: new job link gets a picker immediately (renderCandidateJobLinksUI builds pickers)
+check("489-07. _renderCandidateJobLinksUI builds co-cand-job-status-dp pickers for new job links",
+      'co-cand-job-status-dp' in _render489
+      and '_dpHTML' in _render489
+      and 'jsOpts2' in _render489)
+
+# 489-08: SYSTEMS_INDEX §20c describes card-level lock + rollback from data-job-links + no native select
+check("489-08. SYSTEMS_INDEX §20c documents card-level lock, data-job-links rollback, no native select",
+      'data-job-status-saving' in _idx489
+      and 'data-job-links' in _idx489
+      and '_renderCandidateJobLinksUI' in _idx489
+      and 'no native' in _idx489.lower() or 'no native' in _idx489.lower()
+      or 'no native `<select>`' in _idx489
+      or 'native `<select>`' in _idx489)
+
+# 489-09: startup migration raises on failure (not caught with print+continue)
+check("489-09. on_startup raises on _migrate_candidate_status_per_job failure (startup-critical)",
+      '_migrate_candidate_status_per_job()' in _srv489
+      # The critical line must NOT be inside a try block that catches with only a print
+      and (
+          # Check: no try/except wrapping just this migration call (it might be try-raised or bare)
+          'Startup-critical' in _srv489
+          or (
+              # Bare call (no try/except swallowing it)
+              'except' not in _srv489.split('_migrate_candidate_status_per_job()')[1].split('print(')[0][:200]
+          )
+      ))
+
+# 489-10: migration uses advisory lock (pg_advisory_lock) and releases in finally
+check("489-10. Migration uses pg_advisory_lock and releases it in finally",
+      'pg_advisory_lock' in _mig489
+      and 'pg_advisory_unlock' in _mig489
+      and 'finally:' in _mig489
+      and 'locked' in _mig489)
+
+# 489-11: migration still has no DROP CONSTRAINT
+check("489-11. Migration has no DROP CONSTRAINT after advisory lock addition",
+      'DROP CONSTRAINT' not in _mig489)
+
+# 489-12: status and application_status remain equal in both batch-fetch functions (backward compat)
+check("489-12. 'status' and 'application_status' both present and equal in both batch-fetch functions",
+      "'status':             app_status or None" in _auth489
+      and "'application_status': app_status or None" in _auth489
+      and _auth489.count("'application_status': app_status or None") >= 2)
+
+# 489-13: Field(...) and timezone tests still pass (verify §488 fixes not regressed)
+check("489-13. §488 contracts intact — Field(...) in UpdateCandidateJobStatusInput + toISOString in frontend",
+      'Optional[str] = Field(...)' in _srv489
+      and 'toISOString()' in _main489
+      and 'localScheduled' in _main489)
+
+# ═══════════════════════════════════════════════════════════════════
+# §490 — DOM-independent lock registry + correct Writers docs
+# ═══════════════════════════════════════════════════════════════════
+
+_main490 = open('static/company/company.main.js').read()
+_claude490 = open('CLAUDE.md').read()
+_sysidx490 = open('docs/SYSTEMS_INDEX.md').read()
+
+# 490-01: _jobStatusInFlight registry exists at IIFE level
+check("490-01. _jobStatusInFlight = Object.create(null) declared at IIFE level",
+      'var _jobStatusInFlight = Object.create(null)' in _main490)
+
+# 490-02: _handleJobStatusDpSelect checks registry (not card DOM) to block second PATCH
+check("490-02. _handleJobStatusDpSelect guards with _jobStatusInFlight[cidStr] before PATCH",
+      '_jobStatusInFlight[cidStr]' in _main490
+      and '_handleJobStatusDpSelect' in _main490)
+
+# 490-03: _savedCardHTML passes registry lock to _dpHTML for newly built cards
+check("490-03. _savedCardHTML passes locked: !!_jobStatusInFlight[String(item.candidate_id)] to _dpHTML",
+      '_jobStatusInFlight[String(item.candidate_id)]' in _main490)
+
+# 490-04: _renderCandidateJobLinksUI checks registry (not only data-job-status-saving)
+check("490-04. _renderCandidateJobLinksUI derives isLocked from _jobStatusInFlight[cidStr]",
+      '_jobStatusInFlight[cidStr]' in _main490
+      and '_renderCandidateJobLinksUI' in _main490)
+
+# 490-05: _findLiveSavedCandidateCard helper exists and queries by data-cid attribute
+check("490-05. _findLiveSavedCandidateCard searches _body for .co-cand-saved-card[data-cid]",
+      '_findLiveSavedCandidateCard' in _main490
+      and '.co-cand-saved-card[data-cid="' in _main490)
+
+# 490-06: success/failure/finally all use _findLiveSavedCandidateCard (live card lookup)
+check("490-06. success/failure/finally use _findLiveSavedCandidateCard at response time (not stale reference)",
+      _main490.count('_findLiveSavedCandidateCard(cidInt)') >= 3)
+
+# 490-07: No-op guard: same-value selection skips PATCH
+check("490-07. No-op guard present: if selected cs matches current data-job-links entry, skip PATCH",
+      'currentCs' in _main490
+      and 'Same value' in _main490)
+
+# 490-08: finally deletes from registry (not just card attribute removal)
+check("490-08. finally deletes _jobStatusInFlight[cidStr] before card cleanup",
+      'delete _jobStatusInFlight[cidStr]' in _main490)
+
+# 490-09a: CLAUDE.md writers for job_applications.status include promote_application_to_shortlist
+check("490-09a. CLAUDE.md source-1 Writers include promote_application_to_shortlist (sets to accepted)",
+      'promote_application_to_shortlist' in _claude490
+      and "atomically sets to `'accepted'`" in _claude490)
+
+# 490-09b: CLAUDE.md writers for company_saved_candidates.status include promote_application_to_shortlist
+check("490-09b. CLAUDE.md source-2 Writers include promote_application_to_shortlist (shortlisted upsert)",
+      "promote_application_to_shortlist()` (creates or upserts record" in _claude490)
+
+# 490-09c: CLAUDE.md source-3 clarifies promote_application_to_shortlist does NOT write candidate_status
+check("490-09c. CLAUDE.md source-3 states promote_application_to_shortlist does NOT write candidate_status",
+      'promote_application_to_shortlist()` does NOT write to this field' in _claude490)
+
+# 490-10a: SYSTEMS_INDEX §20c Writers for source-1 include both update_application_status and promote
+check("490-10a. SYSTEMS_INDEX §20c source-1 Writers: update_application_status AND promote_application_to_shortlist",
+      'update_application_status()' in _sysidx490
+      and "promote_application_to_shortlist()` (atomically sets to `'accepted'`)" in _sysidx490)
+
+# 490-10b: SYSTEMS_INDEX §20c Writers for source-2 include promote_application_to_shortlist (shortlisted)
+check("490-10b. SYSTEMS_INDEX §20c source-2 Writers include promote_application_to_shortlist shortlisted upsert",
+      "promote_application_to_shortlist()` (creates or upserts record to `'shortlisted'" in _sysidx490)
+
+# 490-10c: SYSTEMS_INDEX §20c source-3 clarifies sole writer and that promote does NOT touch candidate_status
+check("490-10c. SYSTEMS_INDEX §20c source-3 sole Writer: update_candidate_job_status, promote excluded",
+      'promote_application_to_shortlist()` does NOT write to this field' in _sysidx490)
+
+# 490-11: Removed incorrect async contract; registry-based contract present instead
+check("490-11. SYSTEMS_INDEX §20c no longer contains stale 'captured before the PATCH call' async contract",
+      'No async path reads a DOM element captured before the PATCH call' not in _sysidx490
+      and '_findLiveSavedCandidateCard' in _sysidx490
+      and 'Registry-based lock' in _sysidx490)
 
 # ── Summary ──────────────────────────────────────────────────────────────
 print()

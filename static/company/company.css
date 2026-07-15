@@ -2232,7 +2232,29 @@ body:not(.co-loading) .co-skeleton      { display: none; }
 .co-cjp-row span:last-child { color:var(--t1,#e2e8f0); text-align:start; }
 .co-cjp-status { color:#a78bfa; }
 .co-cjp-no-app { color:var(--t3,#6b7686); font-style:italic; }
+.co-cjp-cand-job-st { color:#60a5fa; }
 .co-cjp-cand-status { color:#34d399; }
+
+/* Per-job candidate status section in manage panel */
+.co-cand-job-status-list {
+  display:flex; flex-direction:column; gap:6px; margin-bottom:10px;
+}
+.co-cand-job-status-row {
+  display:flex; align-items:center; justify-content:space-between; gap:8px;
+  background:rgba(255,255,255,.03); border:1px solid var(--border);
+  border-radius:7px; padding:6px 10px;
+}
+.co-cand-job-status-title {
+  font-size:.72rem; color:var(--t2); white-space:nowrap; overflow:hidden;
+  text-overflow:ellipsis; max-width:55%;
+}
+/* Per-job status custom picker — compact variant inside .co-cand-job-status-row */
+.co-cand-manage-panel .co-cand-job-status-dp { min-width:0; width:auto; max-width:44%; }
+.co-cand-job-status-dp .co-dp-btn { padding:3px 8px; font-size:.72rem; }
+.co-cand-job-status-dp .co-dp-val { font-size:.72rem; }
+.co-cand-job-status-dp .co-dp-list { font-size:.72rem; min-width:130px; }
+.co-cand-job-status-dp .co-dp-opt { padding:7px 11px; font-size:.72rem; }
+.co-cand-job-status-dp .co-dp-btn:disabled { opacity:.5; cursor:wait; }
 
 /* Suggestions save → confirmation card (Reqs 5 & 6) */
 .co-sugg-confirm {
