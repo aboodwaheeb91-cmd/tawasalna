@@ -48,6 +48,11 @@ class ProfanityError(ContentValidationError):
         super().__init__(field, "لا يسمح باستخدام كلمات غير لائقة أو غير مهنية داخل هذا الحقل")
 
 
+class JobArchivedError(Exception):
+    """Raised when an action is attempted on a soft-archived job that no longer accepts it."""
+    pass
+
+
 def validate_no_emoji(value, field: str = "هذا الحقل") -> None:
     """Raise EmojiError if value contains emoji. Reusable across all text fields."""
     if value and _EMOJI_RE.search(str(value)):
@@ -2133,10 +2138,10 @@ def get_jobs(filters: dict = None) -> list:
     try:
         if has_company_id:
             # Visitor company-profile: active + paused (visitor cannot apply to paused)
-            where = "WHERE j.status IN ('active','paused')"
+            where = "WHERE j.status IN ('active','paused') AND j.archived_at IS NULL"
         else:
             # Global public feed: active only (also exclude auto-expired via expires_at)
-            where = "WHERE j.status='active' AND (j.expires_at IS NULL OR j.expires_at > NOW())"
+            where = "WHERE j.status='active' AND (j.expires_at IS NULL OR j.expires_at > NOW()) AND j.archived_at IS NULL"
         params = {}
         if filters:
             if filters.get("search"):
@@ -2184,7 +2189,7 @@ def get_jobs(filters: dict = None) -> list:
             # 2. Count manually-closed jobs (status='closed' in DB)
             cid = filters["company_id"]
             cnt_rows = conn.run(
-                "SELECT COUNT(*) FROM jobs WHERE company_id=:cid AND status='closed'",
+                "SELECT COUNT(*) FROM jobs WHERE company_id=:cid AND status='closed' AND archived_at IS NULL",
                 cid=cid
             )
             db_closed_cnt = cnt_rows[0][0] if cnt_rows else 0
@@ -2206,7 +2211,7 @@ def get_jobs(filters: dict = None) -> list:
 def get_job(job_id: int) -> dict:
     conn = get_conn()
     try:
-        conn.run("UPDATE jobs SET views=views+1 WHERE id=:id", id=job_id)
+        # Archived jobs are invisible to the public — treated as not found (returns None).
         rows = conn.run(
             "SELECT j.*, "
             "u.full_name AS company_name, u.tw_id AS company_tw_id, "
@@ -2220,10 +2225,11 @@ def get_job(job_id: int) -> dict:
             "JOIN users u ON u.id=j.company_id "
             "LEFT JOIN profiles cp ON j.company_id=cp.user_id "
             "LEFT JOIN profession_categories pc ON j.profession_id=pc.id "
-            "WHERE j.id=:id", id=job_id
+            "WHERE j.id=:id AND j.archived_at IS NULL", id=job_id
         )
         if not rows: return None
-        cols = [c["name"] for c in conn.columns]
+        cols = [c["name"] for c in conn.columns]   # capture before the UPDATE changes conn.columns
+        conn.run("UPDATE jobs SET views=views+1 WHERE id=:id", id=job_id)
         result = _serialize(_row_to_dict(cols, rows[0]))
         result["accepted_professions"] = _fetch_accepted_professions_batch(conn, [job_id]).get(job_id, [])
         result["effective_status"] = _eff_status(
@@ -2237,10 +2243,12 @@ def apply_job(job_id: int, user_id: int, cover_letter: str = "") -> dict:
     conn = get_conn()
     try:
         job_rows = conn.run(
-            "SELECT status, closed_at, expires_at, company_id, title FROM jobs WHERE id=:jid", jid=job_id
+            "SELECT status, closed_at, expires_at, company_id, title, archived_at FROM jobs WHERE id=:jid", jid=job_id
         )
         if not job_rows:
             raise ValueError("الوظيفة غير موجودة")
+        if job_rows[0][5] is not None:
+            raise JobArchivedError()
         eff = _eff_status(job_rows[0][0], job_rows[0][1], job_rows[0][2])
         if eff != 'active':
             raise ValueError("التقديم على هذه الوظيفة غير متاح حالياً")
@@ -2514,8 +2522,48 @@ def delete_job(job_id: int, company_id: int) -> bool:
     finally:
         release_conn(conn)
 
-def get_company_jobs_all(company_id: int) -> list:
-    """Return all jobs for the authenticated owner — all statuses + effective_status, no cache."""
+def archive_job(job_id: int, company_id: int, archived_by: int) -> dict:
+    """
+    Soft-archive a job owned by company_id.
+    Idempotent: calling twice on the same job is safe.
+    Raises LookupError if job_id doesn't exist.
+    Raises PermissionError if company_id doesn't own the job.
+    Never deletes data: sets archived_at=NOW() and archived_by.
+    """
+    conn = get_conn()
+    try:
+        rows = conn.run(
+            "SELECT company_id, archived_at FROM jobs WHERE id=:id", id=job_id
+        )
+        if not rows:
+            raise LookupError("الوظيفة غير موجودة")
+        db_company_id  = int(rows[0][0])
+        current_archived = rows[0][1]
+        if db_company_id != company_id:
+            raise PermissionError("ليست وظيفتك")
+        # Idempotent: already archived — return success without side effects
+        if current_archived is not None:
+            return {"archived": True, "was_already_archived": True}
+        conn.run(
+            "UPDATE jobs SET archived_at=NOW(), archived_by=:uid "
+            "WHERE id=:id AND company_id=:cid AND archived_at IS NULL",
+            uid=archived_by, id=job_id, cid=company_id
+        )
+        return {"archived": True, "was_already_archived": False}
+    finally:
+        release_conn(conn)
+
+def get_company_jobs_all(company_id: int, view: str = 'active') -> list:
+    """
+    Return jobs for the authenticated owner.
+    view='active'   → non-archived only (default)
+    view='archived' → archived only
+    Includes archived_at in the response for frontend badge display.
+    """
+    if view == 'archived':
+        archive_filter = "AND j.archived_at IS NOT NULL"
+    else:
+        archive_filter = "AND j.archived_at IS NULL"
     conn = get_conn()
     try:
         rows = conn.run(
@@ -2526,9 +2574,10 @@ def get_company_jobs_all(company_id: int) -> list:
             "COALESCE(j.accepts_all_professions, false) AS accepts_all_professions, "
             "j.profession_id, j.work_mode, "
             "COALESCE(j.salary_hidden, false) AS salary_hidden, "
-            "u.full_name AS company_name "
-            "FROM jobs j JOIN users u ON u.id=j.company_id "
-            "WHERE j.company_id=:cid ORDER BY j.created_at DESC LIMIT 100",
+            "u.full_name AS company_name, "
+            "j.archived_at, j.archived_by "
+            f"FROM jobs j JOIN users u ON u.id=j.company_id "
+            f"WHERE j.company_id=:cid {archive_filter} ORDER BY j.created_at DESC LIMIT 100",
             cid=company_id
         )
         cols = [c["name"] for c in conn.columns]
@@ -5719,7 +5768,7 @@ def get_company_candidate_suggestions(
             "       pc.name_ar AS profession_name "
             "FROM jobs j "
             "LEFT JOIN profession_categories pc ON pc.id = j.profession_id "
-            "WHERE j.company_id = :cid AND j.status = 'active'",
+            "WHERE j.company_id = :cid AND j.status = 'active' AND j.archived_at IS NULL",
             cid=company_id)
 
         if not job_rows:

@@ -566,13 +566,15 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 
 ---
 
-### 38. Employment Pipeline System 🔜 PR-1 Schema Only
-**Purpose:** نظام Pipeline الوظيفي — تتبع كل مرشح داخل الشركة من مصدر الاكتشاف حتى التوظيف أو الرفض. يشمل: أرشفة الوظائف، إدخالات Pipeline لكل (شركة، مرشح، وظيفة)، سجل انتقالات المراحل، ملاحظات Pipeline، ملاحظات بنك المواهب، وحقول تصنيف موسّعة في بنك المواهب.
+### 38. Employment Pipeline System ✅ PR-1 Schema + PR-JOB Soft Archive
+**Purpose:** نظام Pipeline الوظيفي — تتبع كل مرشح داخل الشركة من مصدر الاكتشاف حتى التوظيف أو الرفض. يشمل: أرشفة الوظائف (soft archive)، إدخالات Pipeline لكل (شركة، مرشح، وظيفة)، سجل انتقالات المراحل، ملاحظات Pipeline، ملاحظات بنك المواهب، وحقول تصنيف موسّعة في بنك المواهب.
 
-**Status:** PR-1 Schema Foundation ✅ — سكيما إضافية فقط، لا سلوك إنتاجي، لا endpoints، لا frontend.
+**Status:** PR-1 Schema Foundation ✅ (merged) · PR-JOB Soft Archive ✅ (merged) — أرشفة ناعمة للوظائف بدلاً من الحذف مع tabs في لوحة التحكم.
 
 **Source of Truth:**
-- `jobs.archived_at / archived_by` — حقلا الأرشفة · Index: `idx_jobs_company_not_archived_created ON jobs(company_id, created_at DESC) WHERE archived_at IS NULL`
+- `jobs.archived_at` — **مصدر الحقيقة الوحيد** لأرشفة الوظيفة · NULL = نشطة · NOT NULL = مؤرشفة · لا تستخدم `status` لتحديد الأرشفة
+- `jobs.archived_by` — user_id من JWT فقط عند الأرشفة · لا يُقرأ من body أو query param
+- Index: `idx_jobs_company_not_archived_created ON jobs(company_id, created_at DESC) WHERE archived_at IS NULL`
 - `job_pipeline_entries` — سجل Pipeline واحد لكل (company_id, candidate_id, job_id) · `company_id / candidate_id → ON DELETE CASCADE` · `job_id → ON DELETE RESTRICT` · `application_id / stage_updated_by / archived_by / created_by → ON DELETE SET NULL`
 - `pipeline_stage_events` — سجل تدقيق غير قابل للتعديل لكل انتقال مرحلة · عمود `reason` (ليس `note`)
 - `pipeline_notes` — ملاحظات مرتبطة بإدخال Pipeline · `created_by` فقط (لا `company_id`، لا `author_id`، لا `deleted_by`) · `CHECK (length(btrim(body)) > 0)`
@@ -580,14 +582,23 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 - `company_saved_candidates.rating / priority / tags / follow_up_at / save_source` — حقول تصنيف موسّعة · priority: `low | medium | high` فقط (لا `normal`، لا `urgent`)
 - `appointments.pipeline_entry_id` — ربط اختياري بإدخال Pipeline · `ON DELETE SET NULL`
 - `auth.py → _migrate_pipeline_schema_v1()` — migration إضافية idempotent
-- `server.py → on_startup()` — استدعاء المigration عند التشغيل
+- `auth.py → archive_job(job_id, company_id, archived_by)` — دالة الأرشفة الناعمة · LookupError (404) / PermissionError (403) / idempotent
+- `auth.py → get_company_jobs_all(company_id, view='active')` — `view='active'|'archived'`
+- `server.py → DELETE /company/jobs/{id}` — يستدعي `archive_job()` بدلاً من `delete_job()`
+- `server.py → GET /company/jobs?view=active|archived` — تصفية بالـ view param
+- `server.py → POST /jobs/{id}/apply` — HTTP 409 عند التقديم على وظيفة مؤرشفة
+- `company.html → switchJobTab() / loadCompanyJobs() / archiveCompanyJob()` — تبويبان: المنشورة / المؤرشفة
 
-**Details:** PR-1 — Additive Schema (هذا الملف § 38) · `ARCHITECTURE_FOUNDATION.md` (قواعد F1–F13) · `ARCHITECTURE.md §66` · اختبارات pr-1-01 إلى pr-1-10e في `test_post_comments.py` (static/behavioral) · 68 اختبار تكاملي في `test_pipeline_integration.py` (PostgreSQL real DB)
+**Details:** PR-1 — Additive Schema · PR-JOB — Soft Archive · `ARCHITECTURE_FOUNDATION.md` (قواعد F1–F13) · `ARCHITECTURE.md §66` (PR-1) · `ARCHITECTURE.md §66b` (PR-JOB) · اختبارات pr-1-01 إلى pr-1-10e في `test_post_comments.py` (static/behavioral) · 80 اختبار تكاملي في `test_pipeline_integration.py` (PR-1 PostgreSQL) · 23 اختبار تكاملي في `test_job_archive_integration.py` (PR-JOB PostgreSQL)
 
 **Do not recreate:**
 - `job_pipeline_entries` موجودة — لا تُنشئ جدول pipeline بديلاً
+- `DELETE /company/jobs/{id}` لا يحذف فعلياً — أرشفة ناعمة فقط · Admin hard delete منفصل
+- الأرشفة one-way — لا unarchive endpoint
+- `archived_at IS NULL` هو الفلتر الإلزامي في كل public query للوظائف
+- HTTP 409 `{"code":"job_archived","message":"..."}` هو الرد الوحيد المسموح لـ apply على وظيفة مؤرشفة
 - الـ UNIQUE constraint هو `(company_id, candidate_id, job_id)` — لا تُضف partial UNIQUE على application_id حتى PR مخصص
-- `company_id / candidate_id → ON DELETE CASCADE` · `job_id → ON DELETE RESTRICT` — لا تعكسها (الخطأ القديم: "RESTRICT على الثلاثة" — ❌ خاطئ ومُصحَّح)
+- `company_id / candidate_id → ON DELETE CASCADE` · `job_id → ON DELETE RESTRICT` — لا تعكسها
 - `stage_updated_at / stage_updated_by` (ليس `moved_at / moved_by`) — الأسماء القديمة محظورة
 - `reason` في `pipeline_stage_events` (ليس `note`) — الاسم القديم محظور
 - `created_by` في `pipeline_notes` و `candidate_bank_notes` (ليس `author_id`) — الاسم القديم محظور
@@ -596,7 +607,8 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 - priority القيم المسموح بها: `low | medium | high` فقط — `normal` و `urgent` محظوران نهائياً
 - `save_source` القيم المسموح بها: `applicant | suggestion | manual | legacy_unknown` — كلمة `profile` محظورة صراحةً
 - Index الوظائف: `idx_jobs_company_not_archived_created` (ليس `idx_jobs_not_archived`) — الاسم القديم محظور
-- لا backfill، لا endpoints، لا dual-write، لا تغيير في `job_applications.status` حتى PR-2+
+- لا backfill، لا dual-write، لا تغيير في `job_applications.status` في PR-JOB
+- لا تبدأ PR-2 قبل موافقة صريحة من المستخدم بعد دمج PR-JOB
 - `stage` القيم: new/reviewing/shortlisted/contacted/interview/offer/hired/rejected/withdrawn (لا sourced/screening/assessment)
 - `source` القيم: application/company_add/bank_link/migration/legacy_unknown (لا applicant/suggestion/manual)
 

@@ -79,7 +79,7 @@ from auth import (
     get_unread_notifications, _migrate_notifications_schema_v2,
     _migrate_notifications_schema_v2_1,
     get_job_applicants, get_user_applications,
-    update_application_status, promote_application_to_shortlist, delete_job,
+    update_application_status, promote_application_to_shortlist, delete_job, archive_job,
     get_company_jobs_all, set_job_status,
     get_site_setting, set_site_setting, release_conn,
     _cache_del, get_profile_style,
@@ -114,7 +114,7 @@ from auth import (
     _migrate_pipeline_schema_v1,
     run_due_scheduler_jobs,
 )
-from auth import ContentValidationError, validate_professional_text
+from auth import ContentValidationError, validate_professional_text, JobArchivedError
 
 # ── Config ──
 ADMIN_PASSWORD = "tw@admin2025"
@@ -3964,7 +3964,7 @@ def update_job_endpoint(job_id: int, data: JobInput, token=Depends(verify_token)
 
 @app.delete("/company/jobs/{job_id}")
 def remove_job(job_id: int, token=Depends(verify_token)):
-    # Rule #1, #20: JWT + DB ownership via delete_job WHERE
+    # Soft archive — never hard-deletes the row; archived_by comes from JWT only.
     user_id   = token.get("user_id")
     user_type = token.get("user_type")
     if not user_id:
@@ -3974,12 +3974,14 @@ def remove_job(job_id: int, token=Depends(verify_token)):
         print(f"[SECURITY] COMPANY_OWNERSHIP_FAILED: user_type={user_type} tried DELETE /company/jobs/{job_id}")
         raise HTTPException(403, "شركات وجهات فقط")
     cid = int(user_id)
-    deleted = delete_job(job_id, cid)
-    # delete_job uses WHERE id=job_id AND company_id=cid → DB ownership check
-    if not deleted:
-        print(f"[SECURITY] JOB_OWNERSHIP_FAILED: user={cid} tried DELETE job={job_id}")
-        raise HTTPException(403, "ليست وظيفتك أو غير موجودة")
-    return {"success": True}
+    try:
+        result = archive_job(job_id, cid, cid)
+    except LookupError as e:
+        raise HTTPException(404, str(e))
+    except PermissionError as e:
+        print(f"[SECURITY] JOB_OWNERSHIP_FAILED: user={cid} tried archive job={job_id}")
+        raise HTTPException(403, str(e))
+    return {"success": True, **result}
 
 @app.patch("/company/jobs/{job_id}/status")
 def set_job_status_endpoint(job_id: int, data: JobStatusInput, token=Depends(verify_token)):
@@ -4011,8 +4013,8 @@ def set_job_status_endpoint(job_id: int, data: JobStatusInput, token=Depends(ver
     return {"status": "success"}
 
 @app.get("/company/jobs")
-def get_company_jobs(token=Depends(verify_token)):
-    # Rule #1, #20: JWT only — owner sees ALL their jobs (all statuses)
+def get_company_jobs(view: str = Query("active"), token=Depends(verify_token)):
+    # Rule #1, #20: JWT only — owner sees their jobs filtered by view param.
     user_id   = token.get("user_id")
     user_type = token.get("user_type")
     if not user_id:
@@ -4021,8 +4023,10 @@ def get_company_jobs(token=Depends(verify_token)):
     if user_type not in ("co", "edu"):
         print(f"[SECURITY] COMPANY_OWNERSHIP_FAILED: user_type={user_type} tried GET /company/jobs")
         raise HTTPException(403, "شركات وجهات فقط")
-    jobs = get_company_jobs_all(int(user_id))
-    return {"jobs": jobs, "count": len(jobs)}
+    if view not in ("active", "archived"):
+        raise HTTPException(422, "view must be 'active' or 'archived'")
+    jobs = get_company_jobs_all(int(user_id), view=view)
+    return {"jobs": jobs, "count": len(jobs), "view": view}
 
 @app.post("/jobs/{job_id}/apply")
 def apply_to_job(job_id: int, data: JobApplyInput, token=Depends(verify_token)):
@@ -4034,6 +4038,8 @@ def apply_to_job(job_id: int, data: JobApplyInput, token=Depends(verify_token)):
         raise HTTPException(403, "التقديم على الوظائف متاح للموظفين فقط")
     try:
         result = apply_job(job_id, int(token_uid), data.cover_letter or "")
+    except JobArchivedError:
+        raise HTTPException(409, detail={"code": "job_archived", "message": "هذه الوظيفة مؤرشفة ولا تستقبل طلبات جديدة"})
     except ValueError as e:
         raise HTTPException(400, str(e))
     return {"status": "success", **result}

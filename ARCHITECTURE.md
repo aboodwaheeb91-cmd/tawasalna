@@ -10315,3 +10315,102 @@ Partial index `idx_appt_pipeline_entry WHERE pipeline_entry_id IS NOT NULL`.
 ❌ Using company_saved_candidates.rating for company-review ratings (different system)
 ❌ Using empty string or whitespace-only body in pipeline_notes or candidate_bank_notes
 ```
+
+---
+
+## §66b — Employment Pipeline System — PR-JOB: Soft Archive for Jobs
+
+**Status:** Implemented. Replaces the hard-delete company endpoint with a soft archive. Zero data loss.
+
+### What PR-JOB changes
+
+#### 1. `jobs` table: `archived_at` / `archived_by` — now behaviorally active
+
+The two columns added in PR-1 are now enforced by business logic:
+
+| Column | Behavior |
+|--------|----------|
+| `archived_at` | `NULL` = live; non-NULL = archived. Set to `NOW()` on archive. **Source of truth.** |
+| `archived_by` | User id from JWT at archive time. Never from request body or query param. |
+
+**Idempotency:** Archive is safe to call twice. The UPDATE uses `WHERE archived_at IS NULL`, so a second call is a no-op. The `archive_job()` function detects this and returns `{"archived": True, "was_already_archived": True}`.
+
+#### 2. `DELETE /company/jobs/{job_id}` — converted to Soft Archive
+
+| Before (PR-JOB) | After (PR-JOB) |
+|----------------|----------------|
+| `DELETE FROM jobs WHERE id=... AND company_id=...` | `UPDATE jobs SET archived_at=NOW(), archived_by=:uid WHERE id=... AND company_id=... AND archived_at IS NULL` |
+| Returns 403 for not found or wrong owner | Returns 404 for missing job, 403 for wrong owner |
+| Response: `{"success": True}` | Response: `{"success": True, "archived": True, "was_already_archived": bool}` |
+
+**`archived_by` source:** JWT token only (`token.get("user_id")`). Never from request body, query param, or header. The server calls `archive_job(job_id, cid, cid)` where both `company_id` and `archived_by` are the same verified JWT user id.
+
+#### 3. `GET /company/jobs` — new `view` query parameter
+
+| Parameter | Default | Values | Behavior |
+|-----------|---------|--------|----------|
+| `view` | `active` | `active` / `archived` | Filters `get_company_jobs_all(user_id, view=view)` |
+
+Returns: `{"jobs": [...], "count": N, "view": "active"|"archived"}`
+
+Invalid `view` values are rejected with HTTP 422 before reaching `auth.py`.
+
+Each job object in `view=archived` includes `archived_at` (ISO timestamp) and `archived_by` (int) for frontend badge display.
+
+#### 4. `GET /jobs` and `GET /job/{id}` — archived jobs excluded
+
+- `get_jobs()` public feed: `WHERE j.status='active' AND j.archived_at IS NULL` (global feed) or `WHERE j.status IN ('active','paused') AND j.archived_at IS NULL` (company profile visitor view).
+- `get_job(job_id)` public detail: `WHERE j.id=:id AND j.archived_at IS NULL`. Returns `None` → HTTP 404. Treats archived jobs exactly as "not found" — does not reveal their existence to public visitors.
+- `get_company_candidate_suggestions()`: `WHERE j.company_id=:cid AND j.status='active' AND j.archived_at IS NULL` — archived jobs don't contribute to candidate scoring.
+
+#### 5. `POST /jobs/{job_id}/apply` — HTTP 409 for archived jobs
+
+`apply_job()` in `auth.py` now selects `archived_at` alongside `status`. If `archived_at IS NOT NULL`, it raises `JobArchivedError` (before any duplicate-application check). The server catches this and returns:
+
+```http
+HTTP 409 Conflict
+{"code": "job_archived", "message": "هذه الوظيفة مؤرشفة ولا تستقبل طلبات جديدة"}
+```
+
+`JobArchivedError` is defined in `auth.py` and imported in `server.py` from a dedicated `from auth import ... JobArchivedError` line.
+
+#### 6. Company dashboard — archived jobs tab
+
+`company.html` gains a two-tab UI ("المنشورة" / "المؤرشفة") using the `_jobView` variable and `switchJobTab(view)` function. `loadCompanyJobs()` now fetches `/company/jobs?view=<_jobView>`. Archived job cards show a grey "مؤرشفة" badge and no archive button (archive is a one-way operation). The confirm dialog wording is `"أرشفة هذه الوظيفة؟ (لا يمكن التراجع)"`.
+
+### What PR-JOB does NOT include
+
+- No backfill — all archived jobs have `NULL` until archived post-PR
+- No unarchive endpoint — archive is one-way
+- No change to `job_applications.status`
+- No change to pipeline entry lifecycle (`job_pipeline_entries` is RESTRICT FK — entries must be resolved before a job can be hard-deleted by admin)
+- No new hard-delete path for company users
+- No frontend changes beyond `company.html`
+
+### admin hard delete unchanged
+
+`DELETE /admin/jobs/{job_id}` remains a true hard DELETE (admin-only). Admin hard delete still requires resolving pipeline entries first (RESTRICT FK enforced at DB level).
+
+### Source functions (auth.py)
+
+| Function | Role |
+|----------|------|
+| `archive_job(job_id, company_id, archived_by)` | Core archive — raises LookupError or PermissionError; idempotent |
+| `get_company_jobs_all(company_id, view='active')` | Extended with view param; includes archived_at/archived_by in SELECT |
+| `get_jobs(filters)` | Both WHERE clauses updated with `AND j.archived_at IS NULL` |
+| `get_job(job_id)` | WHERE includes `AND j.archived_at IS NULL`; captures `conn.columns` before view update |
+| `apply_job(job_id, user_id, cover_letter)` | Selects `archived_at`; raises `JobArchivedError` if non-NULL |
+| `get_company_candidate_suggestions(company_id)` | WHERE includes `AND j.archived_at IS NULL` |
+
+### Forbidden Patterns (PR-JOB — permanent)
+
+```
+❌ Hard-deleting a job row via DELETE /company/jobs/{id} — converted to soft archive
+❌ Reading archived_by from request body, query param, or any source other than JWT
+❌ Unarchiving a job (no unarchive endpoint exists; no reverse path)
+❌ Using job.status as the archive signal — archived_at IS NULL is the sole source of truth
+❌ Showing archived jobs in any public feed, search, or suggestion result
+❌ Returning HTTP 200 (or any non-409) when apply_job() hits an archived job
+❌ Changing job_applications.status or pipeline behavior as part of archive
+❌ Starting PR-2 without explicit user approval after PR-JOB merge
+```
