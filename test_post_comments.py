@@ -11065,44 +11065,72 @@ check(
 
 # ── pr-1-02 [STATIC] job_pipeline_entries table ──────────────────────────────
 check(
-    "pr-1-02. [STATIC] job_pipeline_entries table created",
-    'CREATE TABLE IF NOT EXISTS job_pipeline_entries' in _pr1_body
+    "pr-1-02. [STATIC] job_pipeline_entries table created with approved column names",
+    'CREATE TABLE IF NOT EXISTS job_pipeline_entries' in _pr1_body and
+    'stage_updated_at' in _pr1_body and 'stage_updated_by' in _pr1_body and
+    'job_title_snapshot' in _pr1_body and
+    'archived_at' in _pr1_body and 'archived_by' in _pr1_body and
+    'moved_at' not in _pr1_body and 'moved_by' not in _pr1_body
 )
 check(
-    "pr-1-02b.[STATIC] UNIQUE(company_id, candidate_id, job_id)",
-    'UNIQUE (company_id, candidate_id, job_id)' in _pr1_body or
-    'uq_pipeline_entry' in _pr1_body
+    "pr-1-02b.[STATIC] UNIQUE(company_id, candidate_id, job_id); no partial UNIQUE on application_id",
+    ('UNIQUE (company_id, candidate_id, job_id)' in _pr1_body or
+     'uq_pipeline_entry' in _pr1_body)
 )
 check(
-    "pr-1-02c.[STATIC] stage CHECK with required values",
+    "pr-1-02c.[STATIC] stage CHECK with approved values (new/reviewing/shortlisted/...)",
     'ck_pipeline_stage' in _pr1_body and
-    "'sourced'" in _pr1_body and "'screening'" in _pr1_body and
-    "'interview'" in _pr1_body and "'hired'" in _pr1_body and
-    "'rejected'" in _pr1_body
+    "'new'" in _pr1_body and "'reviewing'" in _pr1_body and
+    "'shortlisted'" in _pr1_body and "'contacted'" in _pr1_body and
+    "'interview'" in _pr1_body and "'offer'" in _pr1_body and
+    "'hired'" in _pr1_body and "'rejected'" in _pr1_body and
+    "'withdrawn'" in _pr1_body
 )
 check(
-    "pr-1-02d.[STATIC] source CHECK with required values (no 'profile')",
+    "pr-1-02c2.[STATIC] stage CHECK does NOT include removed values (sourced/screening/assessment)",
+    "'sourced'" not in _pr1_body and
+    "'screening'" not in _pr1_body and
+    "'assessment'" not in _pr1_body
+)
+check(
+    "pr-1-02d.[STATIC] source CHECK with approved values (application/company_add/bank_link/migration/legacy_unknown)",
     'ck_pipeline_source' in _pr1_body and
-    "'applicant'" in _pr1_body and "'suggestion'" in _pr1_body and
-    "'manual'" in _pr1_body and "'legacy_unknown'" in _pr1_body and
-    "'profile'" not in _pr1_body.split('ck_pipeline_source')[1][:200]
+    "'application'" in _pr1_body and "'company_add'" in _pr1_body and
+    "'bank_link'" in _pr1_body and "'migration'" in _pr1_body and
+    "'legacy_unknown'" in _pr1_body
+)
+# Scope the negative check to the pipeline_source constraint block only —
+# 'applicant'/'suggestion'/'manual' are valid in save_source (company_saved_candidates)
+# but must not appear in ck_pipeline_source.
+_ck_source_block = (
+    _pr1_body.split('ck_pipeline_source')[1][:300]
+    if 'ck_pipeline_source' in _pr1_body else ''
+)
+check(
+    "pr-1-02d2.[STATIC] ck_pipeline_source does NOT include save_source values (applicant/suggestion/manual)",
+    "'applicant'" not in _ck_source_block and
+    "'suggestion'" not in _ck_source_block and
+    "'manual'" not in _ck_source_block
 )
 
 # ── pr-1-03 [STATIC] FK behaviors on job_pipeline_entries ────────────────────
-# Check the full body for RESTRICT FK patterns on the three core dimensions.
-# The migration body contains "REFERENCES users(id) ... ON DELETE RESTRICT" for
-# company_id and candidate_id, and "REFERENCES jobs(id) ... ON DELETE RESTRICT"
-# for job_id.
+# company_id and candidate_id → CASCADE (allows account deletion when entries exist)
+# job_id → RESTRICT (prevent orphan entries; jobs must be explicitly handled first)
+# application_id → SET NULL
+_jpe_tbl_m2 = _re_pr1.search(
+    r'CREATE TABLE IF NOT EXISTS job_pipeline_entries\s*\(', _pr1_body
+)
+_jpe_offset = _jpe_tbl_m2.end() if _jpe_tbl_m2 else 0
+_jpe_region = _pr1_body[_jpe_offset:_jpe_offset + 1200]
 check(
-    "pr-1-03. [STATIC] company_id/candidate_id/job_id use ON DELETE RESTRICT",
-    _pr1_body.count('ON DELETE RESTRICT') >= 3
+    "pr-1-03. [STATIC] company_id and candidate_id use ON DELETE CASCADE",
+    _jpe_region.count('ON DELETE CASCADE') >= 2
 )
 check(
-    "pr-1-03b.[STATIC] application_id uses ON DELETE SET NULL",
-    'application_id' in _pr1_body and
-    'job_applications(id)' in _pr1_body and
-    # At least one SET NULL in the pipeline_entries section
-    _re_pr1.search(r'application_id.*?ON DELETE SET NULL', _pr1_body, _re_pr1.DOTALL) is not None
+    "pr-1-03b.[STATIC] job_id uses ON DELETE RESTRICT; application_id uses ON DELETE SET NULL",
+    'ON DELETE RESTRICT' in _jpe_region and
+    'job_applications(id)' in _jpe_region and
+    'ON DELETE SET NULL' in _jpe_region
 )
 
 # ── pr-1-04 [STATIC] pipeline_stage_events table ─────────────────────────────

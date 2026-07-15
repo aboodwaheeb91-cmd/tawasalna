@@ -10189,22 +10189,27 @@ One row per (company, candidate, job). The main pipeline record.
 | Column | Type | Notes |
 |--------|------|-------|
 | `id` | BIGSERIAL PK | — |
-| `company_id` | INTEGER NOT NULL | FK → users ON DELETE **RESTRICT** |
-| `candidate_id` | INTEGER NOT NULL | FK → users ON DELETE **RESTRICT** |
-| `job_id` | INTEGER NOT NULL | FK → jobs ON DELETE **RESTRICT** |
+| `company_id` | INTEGER NOT NULL | FK → users ON DELETE **CASCADE** — account deletion removes entries |
+| `candidate_id` | INTEGER NOT NULL | FK → users ON DELETE **CASCADE** — account deletion removes entries |
+| `job_id` | INTEGER NOT NULL | FK → jobs ON DELETE **RESTRICT** — must handle entries before deleting a job |
 | `application_id` | INTEGER NULL | FK → job_applications ON DELETE SET NULL |
-| `stage` | TEXT NOT NULL | CHECK: sourced / screening / interview / assessment / offer / hired / rejected / withdrawn |
-| `source` | TEXT NOT NULL | CHECK: applicant / suggestion / manual / legacy_unknown |
+| `stage` | TEXT NOT NULL | CHECK: new / reviewing / shortlisted / contacted / interview / offer / hired / rejected / withdrawn |
+| `source` | TEXT NOT NULL | CHECK: application / company_add / bank_link / migration / legacy_unknown |
 | `created_by` | INTEGER NULL | FK → users ON DELETE SET NULL |
-| `moved_at` | TIMESTAMPTZ NULL | When stage was last changed |
-| `moved_by` | INTEGER NULL | FK → users ON DELETE SET NULL |
+| `stage_updated_at` | TIMESTAMPTZ NULL | When stage was last changed |
+| `stage_updated_by` | INTEGER NULL | FK → users ON DELETE SET NULL |
 | `created_at / updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() |
+| `archived_at` | TIMESTAMPTZ NULL | When this pipeline entry was archived |
+| `archived_by` | INTEGER NULL | FK → users ON DELETE SET NULL |
+| `job_title_snapshot` | TEXT NULL | Job title at time of entry creation |
 
 **UNIQUE:** `(company_id, candidate_id, job_id)` — one pipeline entry per candidate per job per company.
 
 **No partial UNIQUE on application_id** — deferred to PR-2+.
 
-**RESTRICT FKs are intentional:** prevent orphan entries by blocking deletion of the three core dimensions (company, candidate, job) while an entry exists.
+**FK rationale:**
+- `company_id` / `candidate_id` → CASCADE: when a company or candidate account is deleted, their pipeline entries must be cleaned up. RESTRICT would break account deletion.
+- `job_id` → RESTRICT: pipeline entries for a job must be resolved before the job can be deleted, preventing orphan entries with no job context.
 
 #### 3. `pipeline_stage_events` — NEW TABLE
 
@@ -10286,7 +10291,12 @@ Partial index `idx_appt_pipeline_entry WHERE pipeline_entry_id IS NOT NULL`.
 
 ```
 ❌ Adding a second pipeline-entry table for the same purpose
-❌ Changing RESTRICT FKs on job_pipeline_entries to CASCADE
+❌ Changing company_id/candidate_id FKs from CASCADE to RESTRICT (breaks account deletion)
+❌ Changing job_id FK from RESTRICT to CASCADE (would create orphan pipeline entries)
+❌ Adding stage values outside the approved set (new/reviewing/shortlisted/contacted/interview/offer/hired/rejected/withdrawn)
+❌ Adding source values outside the approved set (application/company_add/bank_link/migration/legacy_unknown)
+❌ Using applicant/suggestion/manual as source values — these belong in save_source only
+❌ Using moved_at/moved_by column names — approved names are stage_updated_at/stage_updated_by
 ❌ Adding save_source='profile' to the CHECK constraint
 ❌ Creating pipeline entries automatically from any existing code path
 ❌ Adding endpoints or frontend in the same PR as schema

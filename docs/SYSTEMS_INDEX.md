@@ -573,7 +573,7 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 
 **Source of Truth:**
 - `jobs.archived_at / archived_by` — حقلا الأرشفة
-- `job_pipeline_entries` — سجل Pipeline واحد لكل (company_id, candidate_id, job_id)
+- `job_pipeline_entries` — سجل Pipeline واحد لكل (company_id, candidate_id, job_id) · CASCADE على company_id/candidate_id، RESTRICT على job_id
 - `pipeline_stage_events` — سجل تدقيق غير قابل للتعديل لكل انتقال مرحلة
 - `pipeline_notes` — ملاحظات مرتبطة بإدخال Pipeline
 - `candidate_bank_notes` — ملاحظات بنك مواهب على مستوى الشركة
@@ -590,6 +590,9 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 - FKs على `company_id / candidate_id / job_id` هي `ON DELETE RESTRICT` — لا تُغيّرها إلى CASCADE
 - `save_source` القيم المسموح بها: `applicant | suggestion | manual | legacy_unknown` — كلمة `profile` محظورة صراحةً
 - لا backfill، لا endpoints، لا dual-write، لا تغيير في `job_applications.status` حتى PR-2+
+- أعمدة `stage_updated_at`/`stage_updated_by` (ليس `moved_at`/`moved_by`) + `job_title_snapshot` + `archived_at`/`archived_by` داخل `job_pipeline_entries`
+- `stage` القيم: new/reviewing/shortlisted/contacted/interview/offer/hired/rejected/withdrawn
+- `source` القيم: application/company_add/bank_link/migration/legacy_unknown
 
 ---
 

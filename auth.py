@@ -7063,31 +7063,35 @@ def _migrate_pipeline_schema_v1():
         # when the application is hard-deleted, though we currently soft-delete).
         conn.run("""
             CREATE TABLE IF NOT EXISTS job_pipeline_entries (
-                id             BIGSERIAL    PRIMARY KEY,
-                company_id     INTEGER      NOT NULL
-                                   REFERENCES users(id)           ON DELETE RESTRICT,
-                candidate_id   INTEGER      NOT NULL
-                                   REFERENCES users(id)           ON DELETE RESTRICT,
-                job_id         INTEGER      NOT NULL
-                                   REFERENCES jobs(id)            ON DELETE RESTRICT,
-                application_id INTEGER      NULL
-                                   REFERENCES job_applications(id) ON DELETE SET NULL,
-                stage          TEXT         NOT NULL,
-                source         TEXT         NOT NULL,
-                created_by     INTEGER      NULL
-                                   REFERENCES users(id)           ON DELETE SET NULL,
-                moved_at       TIMESTAMPTZ  NULL,
-                moved_by       INTEGER      NULL
-                                   REFERENCES users(id)           ON DELETE SET NULL,
-                created_at     TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
-                updated_at     TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+                id                 BIGSERIAL    PRIMARY KEY,
+                company_id         INTEGER      NOT NULL
+                                       REFERENCES users(id)            ON DELETE CASCADE,
+                candidate_id       INTEGER      NOT NULL
+                                       REFERENCES users(id)            ON DELETE CASCADE,
+                job_id             INTEGER      NOT NULL
+                                       REFERENCES jobs(id)             ON DELETE RESTRICT,
+                application_id     INTEGER      NULL
+                                       REFERENCES job_applications(id) ON DELETE SET NULL,
+                stage              TEXT         NOT NULL,
+                source             TEXT         NOT NULL,
+                created_by         INTEGER      NULL
+                                       REFERENCES users(id)            ON DELETE SET NULL,
+                stage_updated_at   TIMESTAMPTZ  NULL,
+                stage_updated_by   INTEGER      NULL
+                                       REFERENCES users(id)            ON DELETE SET NULL,
+                created_at         TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+                updated_at         TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+                archived_at        TIMESTAMPTZ  NULL,
+                archived_by        INTEGER      NULL
+                                       REFERENCES users(id)            ON DELETE SET NULL,
+                job_title_snapshot TEXT         NULL,
                 CONSTRAINT uq_pipeline_entry  UNIQUE (company_id, candidate_id, job_id),
                 CONSTRAINT ck_pipeline_stage  CHECK (stage IN (
-                    'sourced','screening','interview','assessment',
-                    'offer','hired','rejected','withdrawn'
+                    'new','reviewing','shortlisted','contacted',
+                    'interview','offer','hired','rejected','withdrawn'
                 )),
                 CONSTRAINT ck_pipeline_source CHECK (source IN (
-                    'applicant','suggestion','manual','legacy_unknown'
+                    'application','company_add','bank_link','migration','legacy_unknown'
                 ))
             )
         """)
