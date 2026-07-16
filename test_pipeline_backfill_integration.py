@@ -1325,6 +1325,8 @@ except Exception as e:
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # §42 stage_source_disagreement detected in dry_run
+#     Correct definition: CCJR.candidate_status maps to different stage than
+#     JA.status for the same (company, candidate, job) triple.
 # ═══════════════════════════════════════════════════════════════════════════════
 _setup()
 try:
@@ -1333,24 +1335,216 @@ try:
         sd_co  = _user(conn, "co")
         sd_emp = _user(conn)
         sd_job = _job(conn, sd_co)
-        sd_app = _app(conn, sd_job, sd_emp, "accepted")  # accepted → shortlisted
-        # But pipeline entry says 'new' and is already linked
-        conn.run("BEGIN")
-        conn.run(
-            "INSERT INTO job_pipeline_entries "
-            "(company_id, candidate_id, job_id, application_id, stage, source) "
-            "VALUES (:c, :u, :j, :app, 'new', 'application')",
-            c=sd_co, u=sd_emp, j=sd_job, app=sd_app,
-        )
-        conn.run("COMMIT")
+        # JA status 'pending' → maps to 'new'
+        sd_app = _app(conn, sd_job, sd_emp, "pending")
+        # CCJR candidate_status 'shortlisted' → maps to 'shortlisted' ≠ 'new'
+        _ccjr(conn, sd_co, sd_emp, sd_job, "shortlisted")
     finally:
         release_conn(conn)
 
     dr42 = pipeline_backfill_dry_run()
-    check("42-01. stage_source_disagreement detected",
+    check("42-01. stage_source_disagreement detected (CCJR vs JA)",
           dr42["conflicts_by_type"].get("stage_source_disagreement", 0) >= 1)
 except Exception as e:
     fail("42-01. stage_source_disagreement", e)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# §43 update_candidate_job_status: CCJR not found → returns False, no pipeline change
+# ═══════════════════════════════════════════════════════════════════════════════
+_setup()
+try:
+    conn43 = get_conn()
+    try:
+        cj43_co  = _user(conn43, "co")
+        cj43_emp = _user(conn43)
+        cj43_job = _job(conn43, cj43_co)
+        # Create a pipeline entry WITHOUT a CCJR row
+        conn43.run("BEGIN")
+        _pipeline_upsert_entry(conn43, company_id=cj43_co, candidate_id=cj43_emp,
+                               job_id=cj43_job, stage="new", source="migration")
+        conn43.run("COMMIT")
+    finally:
+        release_conn(conn43)
+
+    # No CCJR row exists → should return False without touching pipeline
+    result43 = update_candidate_job_status(
+        company_id=cj43_co, candidate_id=cj43_emp, job_id=cj43_job,
+        candidate_status="shortlisted"
+    )
+    check("43-01. update_candidate_job_status returns False when CCJR not found",
+          result43 is False)
+
+    # Pipeline entry stage must not have changed
+    conn43b = get_conn()
+    try:
+        row43 = _entry(conn43b, cj43_co, cj43_emp, cj43_job)
+        check("43-02. Pipeline entry stage unchanged when CCJR not found",
+              row43 is not None and row43[1] == "new")
+    finally:
+        release_conn(conn43b)
+except Exception as e:
+    fail("43-01. CCJR not found returns False", e)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# §44 source normalization: Pass-2 sets source='application' on already-linked entry
+#     An entry with matching application_id but source='migration' must be normalized.
+# ═══════════════════════════════════════════════════════════════════════════════
+_setup()
+try:
+    conn44 = get_conn()
+    try:
+        cj44_co  = _user(conn44, "co")
+        cj44_emp = _user(conn44)
+        cj44_job = _job(conn44, cj44_co)
+        cj44_app = _app(conn44, cj44_job, cj44_emp, "pending")
+        # Manually create an entry with source='migration' but already linked
+        conn44.run("BEGIN")
+        conn44.run(
+            "INSERT INTO job_pipeline_entries "
+            "(company_id, candidate_id, job_id, application_id, stage, source) "
+            "VALUES (:c, :u, :j, :a, 'new', 'migration')",
+            c=cj44_co, u=cj44_emp, j=cj44_job, a=cj44_app,
+        )
+        conn44.run("COMMIT")
+    finally:
+        release_conn(conn44)
+
+    # run_pipeline_backfill in dry_run=False should normalize the source
+    run_pipeline_backfill(dry_run=False)
+
+    conn44b = get_conn()
+    try:
+        row44 = _entry(conn44b, cj44_co, cj44_emp, cj44_job)
+        check("44-01. source normalized to 'application' on already-linked entry",
+              row44 is not None and row44[2] == "application",
+              f"source={row44[2] if row44 else 'no entry'}")
+    finally:
+        release_conn(conn44b)
+except Exception as e:
+    fail("44-01. source normalization", e)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# §45 update_application_status: initial_event_reason='application_status_changed'
+#     After calling update_application_status, the pipeline stage event's reason
+#     must contain 'application_status_changed'.
+# ═══════════════════════════════════════════════════════════════════════════════
+_setup()
+try:
+    from auth import update_application_status
+
+    conn45 = get_conn()
+    try:
+        cj45_co  = _user(conn45, "co")
+        cj45_emp = _user(conn45)
+        cj45_job = _job(conn45, cj45_co)
+        cj45_app = _app(conn45, cj45_job, cj45_emp, "pending")
+        # Create a saved-candidate record so update_application_status can find it
+        conn45.run(
+            "INSERT INTO company_saved_candidates "
+            "(company_id, candidate_id, job_id, status) "
+            "VALUES (:c, :u, :j, 'saved')",
+            c=cj45_co, u=cj45_emp, j=cj45_job,
+        )
+        conn45.run(
+            "INSERT INTO company_candidate_job_refs "
+            "(company_id, candidate_id, job_id, candidate_status) "
+            "VALUES (:c, :u, :j, NULL)",
+            c=cj45_co, u=cj45_emp, j=cj45_job,
+        )
+    finally:
+        release_conn(conn45)
+
+    update_application_status(cj45_app, "viewed", actor_id=cj45_co)
+
+    conn45b = get_conn()
+    try:
+        entry45 = _entry(conn45b, cj45_co, cj45_emp, cj45_job)
+        events45 = _events(conn45b, entry45[0]) if entry45 else []
+        check("45-01. Pipeline stage event exists after update_application_status",
+              len(events45) >= 1)
+        reasons45 = [e[2] for e in events45]
+        check("45-02. Event reason contains 'application_status_changed'",
+              any("application_status_changed" in (r or "") for r in reasons45),
+              f"reasons={reasons45}")
+    finally:
+        release_conn(conn45b)
+except Exception as e:
+    fail("45-01. initial_event_reason=application_status_changed", e)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# §46 promote_application_to_shortlist: response candidate dict has action='unchanged'
+# ═══════════════════════════════════════════════════════════════════════════════
+_setup()
+try:
+    conn46 = get_conn()
+    try:
+        cj46_co  = _user(conn46, "co")
+        cj46_emp = _user(conn46)
+        cj46_job = _job(conn46, cj46_co)
+        cj46_app = _app(conn46, cj46_job, cj46_emp, "pending")
+        # Create company_saved_candidates so promote can find the candidate
+        conn46.run(
+            "INSERT INTO company_saved_candidates "
+            "(company_id, candidate_id, job_id, status) "
+            "VALUES (:c, :u, :j, 'saved')",
+            c=cj46_co, u=cj46_emp, j=cj46_job,
+        )
+    finally:
+        release_conn(conn46)
+
+    resp46 = promote_application_to_shortlist(
+        app_id=cj46_app,
+        company_id=cj46_co,
+    )
+    cand46 = resp46.get("candidate", {})
+    check("46-01. promote_application_to_shortlist response has 'candidate' dict",
+          isinstance(cand46, dict))
+    check("46-02. candidate dict has 'action' key",
+          "action" in cand46, f"candidate={cand46}")
+    check("46-03. candidate['action'] == 'unchanged'",
+          cand46.get("action") == "unchanged", f"action={cand46.get('action')}")
+except Exception as e:
+    fail("46-01. candidate.action='unchanged'", e)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# §47 _migrate_partial_unique_application_id: pg_index + pg_get_expr verification
+#     After index creation, UNIQUE property and IS NOT NULL predicate must be confirmed.
+# ═══════════════════════════════════════════════════════════════════════════════
+_setup()
+try:
+    _migrate_partial_unique_application_id()
+
+    conn47 = get_conn()
+    try:
+        idx_rows = conn47.run(
+            "SELECT i.indisunique, pg_get_expr(i.indpred, i.indrelid) "
+            "FROM pg_index i "
+            "JOIN pg_class c ON c.oid = i.indrelid "
+            "JOIN pg_class ic ON ic.oid = i.indexrelid "
+            "WHERE c.relname = 'job_pipeline_entries' "
+            "AND ic.relname = 'uq_jpe_application_id'"
+        )
+        check("47-01. uq_jpe_application_id index exists",
+              bool(idx_rows), f"rows={idx_rows}")
+        if idx_rows:
+            is_unique = bool(idx_rows[0][0])
+            predicate = (idx_rows[0][1] or "").lower()
+            check("47-02. Index is UNIQUE (indisunique=true)",
+                  is_unique, f"indisunique={idx_rows[0][0]}")
+            check("47-03. Index predicate contains 'application_id'",
+                  "application_id" in predicate, f"predicate={predicate}")
+            check("47-04. Index predicate contains 'not null' or 'is not null'",
+                  "not null" in predicate or "is not null" in predicate,
+                  f"predicate={predicate}")
+    finally:
+        release_conn(conn47)
+except Exception as e:
+    fail("47-01. pg_index+pg_get_expr verification", e)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

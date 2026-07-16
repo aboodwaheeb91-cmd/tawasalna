@@ -2423,12 +2423,10 @@ _APP_TO_CANDIDATE_STATUS: dict = {
 def update_application_status(app_id: int, status: str, actor_id: int = None) -> dict:
     """
     Atomic applicant classification: writes job_applications.status AND
-    company_candidate_job_refs.candidate_status in a single transaction.
-
-    Also ensures company_saved_candidates and company_candidate_job_refs rows exist,
-    replacing the separate POST /company/saved-candidates call that _execClassify used to make.
+    company_candidate_job_refs.candidate_status AND job_pipeline_entries in one transaction.
 
     actor_id is the company_id (from JWT user_id). Ownership is verified inside the transaction.
+    Does NOT write to company_saved_candidates (Talent Bank independence — Option B).
 
     Returns: {success, application_id, candidate_id, job_id, application_status, candidate_status, general_status}
     """
@@ -2497,6 +2495,7 @@ def update_application_status(app_id: int, status: str, actor_id: int = None) ->
                     source="application",
                     created_by=actor_id,
                     job_title_snapshot=job_title,
+                    initial_event_reason="application_status_changed",
                 )
                 _pipeline_update_stage(
                     conn,
@@ -5623,8 +5622,79 @@ def update_candidate_job_status(
     try:
         conn.run("BEGIN")
 
-        # ── Find application for this (company, candidate, job) triple ────────
-        # Used to determine source and app_id for ensure-entry, and to handle None.
+        # ── Lock CCJR row first (FOR UPDATE) — return False if not found ──────
+        ccjr_rows = conn.run(
+            "SELECT job_id FROM company_candidate_job_refs "
+            "WHERE company_id = :cid AND candidate_id = :uid AND job_id = :jid "
+            "FOR UPDATE",
+            cid=company_id, uid=candidate_id, jid=job_id,
+        )
+        if not ccjr_rows:
+            conn.run("ROLLBACK")
+            committed = True
+            return False
+
+        # ── Handle candidate_status=None: revert pipeline or reject ───────────
+        if candidate_status is None:
+            # Lock application row FOR UPDATE before reading status
+            app_rows = conn.run(
+                "SELECT ja.id, ja.status FROM job_applications ja "
+                "JOIN jobs j ON j.id = ja.job_id AND j.company_id = :cid "
+                "WHERE ja.user_id = :uid AND ja.job_id = :jid "
+                "LIMIT 1 "
+                "FOR UPDATE OF ja",
+                cid=company_id, uid=candidate_id, jid=job_id,
+            )
+            app_id     = int(app_rows[0][0]) if app_rows else None
+            app_status = app_rows[0][1] if app_rows else None
+
+            if app_id is None:
+                conn.run("ROLLBACK")
+                committed = True
+                raise ValueError(
+                    "لا يمكن إعادة تصنيف الوظيفة إلى NULL — لا يوجد طلب مرتبط بهذا الثلاثي "
+                    f"(company={company_id}, candidate={candidate_id}, job={job_id})"
+                )
+            revert_stage = LEGACY_APP_STATUS_TO_PIPELINE_STAGE.get(app_status)
+            if not revert_stage:
+                conn.run("ROLLBACK")
+                committed = True
+                raise ValueError(
+                    "لا يمكن إعادة تصنيف الوظيفة إلى NULL — حالة الطلب غير معروفة: "
+                    f"{app_status!r}"
+                )
+            _pipeline_upsert_entry(
+                conn,
+                company_id=company_id,
+                candidate_id=candidate_id,
+                job_id=job_id,
+                application_id=app_id,
+                stage=revert_stage,
+                source="application",
+                created_by=actor_id,
+                initial_event_reason="candidate_job_status_changed",
+            )
+            _pipeline_update_stage(
+                conn,
+                company_id=company_id,
+                candidate_id=candidate_id,
+                job_id=job_id,
+                new_stage=revert_stage,
+                changed_by=actor_id,
+                reason="candidate_job_status_changed",
+            )
+            conn.run(
+                "UPDATE company_candidate_job_refs "
+                "SET candidate_status = NULL "
+                "WHERE company_id = :cid AND candidate_id = :uid AND job_id = :jid",
+                cid=company_id, uid=candidate_id, jid=job_id,
+            )
+            conn.run("COMMIT")
+            committed = True
+            return True
+
+        # ── Standard update path (candidate_status is not None) ───────────────
+        # Find application for pipeline dual-write (no lock needed for read-only use)
         app_rows = conn.run(
             "SELECT ja.id, ja.status FROM job_applications ja "
             "JOIN jobs j ON j.id = ja.job_id AND j.company_id = :cid "
@@ -5635,49 +5705,6 @@ def update_candidate_job_status(
         app_id     = int(app_rows[0][0]) if app_rows else None
         app_status = app_rows[0][1] if app_rows else None
 
-        # ── Handle candidate_status=None: revert pipeline or reject ───────────
-        if candidate_status is None:
-            if app_id is None:
-                raise ValueError(
-                    "لا يمكن إعادة تصنيف الوظيفة إلى NULL — لا يوجد طلب مرتبط بهذا الثلاثي "
-                    f"(company={company_id}, candidate={candidate_id}, job={job_id})"
-                )
-            # Revert pipeline to app-derived stage
-            revert_stage = LEGACY_APP_STATUS_TO_PIPELINE_STAGE.get(app_status)
-            if revert_stage:
-                _pipeline_upsert_entry(
-                    conn,
-                    company_id=company_id,
-                    candidate_id=candidate_id,
-                    job_id=job_id,
-                    application_id=app_id,
-                    stage=revert_stage,
-                    source="application",
-                    created_by=actor_id,
-                    initial_event_reason="candidate_job_status_changed",
-                )
-                _pipeline_update_stage(
-                    conn,
-                    company_id=company_id,
-                    candidate_id=candidate_id,
-                    job_id=job_id,
-                    new_stage=revert_stage,
-                    changed_by=actor_id,
-                    reason="candidate_job_status_changed",
-                )
-            # Update CCJR to NULL
-            rows = conn.run(
-                "UPDATE company_candidate_job_refs "
-                "SET candidate_status = NULL "
-                "WHERE company_id = :cid AND candidate_id = :uid AND job_id = :jid "
-                "RETURNING job_id",
-                cid=company_id, uid=candidate_id, jid=job_id,
-            )
-            conn.run("COMMIT")
-            committed = True
-            return bool(rows)
-
-        # ── Standard update path (candidate_status is not None) ───────────────
         rows = conn.run(
             "UPDATE company_candidate_job_refs "
             "SET candidate_status = :cs "
@@ -5689,7 +5716,6 @@ def update_candidate_job_status(
         if updated:
             pipeline_stage = LEGACY_CANDIDATE_STATUS_TO_PIPELINE_STAGE.get(candidate_status)
             if pipeline_stage:
-                # Ensure-entry before update_stage (Bnd-5): create entry if missing
                 entry_source = "application" if app_id else "migration"
                 _pipeline_upsert_entry(
                     conn,
@@ -5850,6 +5876,7 @@ def promote_application_to_shortlist(app_id: int, company_id: int) -> dict:
                 "status":       "shortlisted",
                 "status_label": CANDIDATE_STATUS_LABELS.get("shortlisted", "shortlisted"),
                 "job_id":       int(job_id),
+                "action":       "unchanged",
             },
             # Top-level fields for tw:candidate-job-classification-updated event dispatch
             "application_id":     app_id,
@@ -7472,7 +7499,7 @@ def _pipeline_upsert_entry(
       - Existing row, no new application_id → no-op; returns id.
     """
     rows = conn.run(
-        "SELECT id, application_id FROM job_pipeline_entries "
+        "SELECT id, application_id, source FROM job_pipeline_entries "
         "WHERE company_id = :cid AND candidate_id = :uid AND job_id = :jid "
         "FOR UPDATE",
         cid=company_id, uid=candidate_id, jid=job_id,
@@ -7500,8 +7527,9 @@ def _pipeline_upsert_entry(
             return entry_id
         return None
 
-    entry_id      = int(rows[0][0])
-    existing_app  = rows[0][1]
+    entry_id     = int(rows[0][0])
+    existing_app = rows[0][1]
+    existing_src = rows[0][2]
 
     if application_id is not None:
         if existing_app is None:
@@ -7517,6 +7545,15 @@ def _pipeline_upsert_entry(
                 f"pipeline_entry {entry_id}: application_id conflict "
                 f"(existing={existing_app}, new={application_id})"
             )
+        else:
+            # application_id already matches — normalize source to 'application' (Blocker 3)
+            if existing_src != 'application':
+                conn.run(
+                    "UPDATE job_pipeline_entries "
+                    "SET source = 'application', updated_at = NOW() "
+                    "WHERE id = :id",
+                    id=entry_id,
+                )
     return entry_id
 
 
@@ -7570,17 +7607,244 @@ def _pipeline_update_stage(
     return bool(rows)
 
 
+# ── Blocking conflict types (all 8 halt backfill and index creation) ──────────
+_BLOCKING_CONFLICT_TYPES: frozenset = frozenset({
+    "missing_job",
+    "missing_candidate",
+    "missing_company",
+    "candidate_not_employee",
+    "job_owner_mismatch",
+    "application_identity_mismatch",
+    "duplicate_application_claim",
+    "application_id_mismatch",
+})
+
+
+def _pipeline_build_conflict_report(conn) -> dict:
+    """
+    Build a comprehensive conflict report on an already-open connection.
+    Does NOT commit, rollback, or acquire advisory locks — caller is responsible.
+    Returns:
+      {
+        conflicts_by_type, conflicts_count, blocking,
+        unknown_ja_statuses, unknown_ccjr_statuses,
+        null_ccjr_without_application, stage_source_disagreement,
+      }
+    """
+    known_ja   = "('pending','viewed','accepted','contacted','interview','hired','rejected')"
+    known_ccjr = "('saved','shortlisted','contacted','interview','hired','rejected')"
+
+    def _cnt(sql):
+        return int((conn.run(sql) or [[0]])[0][0])
+
+    # ── application_id_mismatch ──────────────────────────────────────────────
+    application_id_mismatch = _cnt(
+        "SELECT COUNT(*) FROM job_applications ja "
+        "LEFT JOIN jobs j ON j.id = ja.job_id "
+        "LEFT JOIN job_pipeline_entries jpe "
+        "  ON jpe.company_id=j.company_id "
+        "  AND jpe.candidate_id=ja.user_id "
+        "  AND jpe.job_id=ja.job_id "
+        "WHERE jpe.id IS NOT NULL "
+        "AND jpe.application_id IS NOT NULL "
+        "AND jpe.application_id != ja.id"
+    )
+
+    # ── application_identity_mismatch ─────────────────────────────────────────
+    application_identity_mismatch = _cnt(
+        "SELECT COUNT(*) FROM job_pipeline_entries jpe "
+        "LEFT JOIN job_applications ja ON ja.id = jpe.application_id "
+        "LEFT JOIN jobs j ON j.id = ja.job_id "
+        "WHERE jpe.application_id IS NOT NULL "
+        "AND (ja.id IS NULL "
+        "     OR j.company_id != jpe.company_id "
+        "     OR ja.user_id   != jpe.candidate_id "
+        "     OR ja.job_id    != jpe.job_id)"
+    )
+
+    # ── duplicate_application_claim ──────────────────────────────────────────
+    duplicate_application_claim = _cnt(
+        "SELECT COUNT(*) FROM ("
+        "  SELECT application_id FROM job_pipeline_entries "
+        "  WHERE application_id IS NOT NULL "
+        "  GROUP BY application_id HAVING COUNT(*) > 1"
+        ") AS dupes"
+    )
+
+    # ── job_owner_mismatch ────────────────────────────────────────────────────
+    job_owner_mismatch = _cnt(
+        "SELECT COUNT(*) FROM company_candidate_job_refs r "
+        "LEFT JOIN jobs j ON j.id = r.job_id "
+        "WHERE j.id IS NOT NULL AND j.company_id != r.company_id"
+    )
+
+    # ── missing_job ───────────────────────────────────────────────────────────
+    missing_job_ccjr = _cnt(
+        "SELECT COUNT(*) FROM company_candidate_job_refs r "
+        "LEFT JOIN jobs j ON j.id = r.job_id WHERE j.id IS NULL"
+    )
+    missing_job_ja = _cnt(
+        "SELECT COUNT(*) FROM job_applications ja "
+        "LEFT JOIN jobs j ON j.id = ja.job_id WHERE j.id IS NULL"
+    )
+    missing_job = missing_job_ccjr + missing_job_ja
+
+    # ── missing_candidate ─────────────────────────────────────────────────────
+    missing_candidate_ccjr = _cnt(
+        "SELECT COUNT(*) FROM company_candidate_job_refs r "
+        "LEFT JOIN users u ON u.id = r.candidate_id WHERE u.id IS NULL"
+    )
+    missing_candidate_ja = _cnt(
+        "SELECT COUNT(*) FROM job_applications ja "
+        "LEFT JOIN users u ON u.id = ja.user_id WHERE u.id IS NULL"
+    )
+    missing_candidate = missing_candidate_ccjr + missing_candidate_ja
+
+    # ── missing_company ───────────────────────────────────────────────────────
+    missing_company_ccjr = _cnt(
+        "SELECT COUNT(*) FROM company_candidate_job_refs r "
+        "LEFT JOIN users cu ON cu.id = r.company_id AND cu.user_type = 'co' "
+        "WHERE cu.id IS NULL"
+    )
+    missing_company_ja = _cnt(
+        "SELECT COUNT(*) FROM job_applications ja "
+        "LEFT JOIN jobs j ON j.id = ja.job_id "
+        "LEFT JOIN users cu ON cu.id = j.company_id AND cu.user_type = 'co' "
+        "WHERE j.id IS NOT NULL AND cu.id IS NULL"
+    )
+    missing_company = missing_company_ccjr + missing_company_ja
+
+    # ── candidate_not_employee ────────────────────────────────────────────────
+    candidate_not_emp_ccjr = _cnt(
+        "SELECT COUNT(*) FROM company_candidate_job_refs r "
+        "LEFT JOIN users u ON u.id = r.candidate_id "
+        "WHERE u.id IS NOT NULL AND u.user_type != 'emp'"
+    )
+    candidate_not_emp_ja = _cnt(
+        "SELECT COUNT(*) FROM job_applications ja "
+        "LEFT JOIN users u ON u.id = ja.user_id "
+        "WHERE u.id IS NOT NULL AND u.user_type != 'emp'"
+    )
+    candidate_not_employee = candidate_not_emp_ccjr + candidate_not_emp_ja
+
+    # ── null_ccjr_without_application ─────────────────────────────────────────
+    null_ccjr_without_application = _cnt(
+        "SELECT COUNT(*) FROM company_candidate_job_refs r "
+        "WHERE r.candidate_status IS NULL "
+        "AND NOT EXISTS ("
+        "  SELECT 1 FROM job_applications ja "
+        "  JOIN jobs j ON j.id = ja.job_id AND j.company_id = r.company_id "
+        "  WHERE ja.user_id = r.candidate_id AND ja.job_id = r.job_id"
+        ")"
+    )
+
+    # ── unknown statuses ──────────────────────────────────────────────────────
+    ja_unknown_rows = conn.run(
+        "SELECT status, COUNT(*) FROM job_applications "
+        f"WHERE status NOT IN {known_ja} "
+        "GROUP BY status ORDER BY COUNT(*) DESC"
+    ) or []
+    unknown_ja_statuses = {(r[0] or "null"): int(r[1]) for r in ja_unknown_rows}
+
+    ccjr_unknown_rows = conn.run(
+        "SELECT candidate_status, COUNT(*) FROM company_candidate_job_refs "
+        f"WHERE candidate_status IS NOT NULL AND candidate_status NOT IN {known_ccjr} "
+        "GROUP BY candidate_status ORDER BY COUNT(*) DESC"
+    ) or []
+    unknown_ccjr_statuses = {r[0]: int(r[1]) for r in ccjr_unknown_rows}
+
+    # ── stage_source_disagreement: CCJR vs JA (not pipeline entry vs JA) ─────
+    # Both CCJR and JA have known statuses for same (company, candidate, job) triple
+    # but the stages they map to differ. Informational — not in _BLOCKING_CONFLICT_TYPES.
+    stage_source_disagreement = _cnt(
+        "SELECT COUNT(*) FROM company_candidate_job_refs r "
+        "JOIN jobs j ON j.id = r.job_id "
+        "JOIN job_applications ja "
+        "  ON ja.user_id = r.candidate_id "
+        "  AND ja.job_id = r.job_id "
+        "  AND j.company_id = r.company_id "
+        f"WHERE r.candidate_status IN {known_ccjr} "
+        f"AND ja.status IN {known_ja} "
+        "AND ("
+        "  CASE r.candidate_status "
+        "    WHEN 'saved'       THEN 'new' "
+        "    WHEN 'shortlisted' THEN 'shortlisted' "
+        "    WHEN 'contacted'   THEN 'contacted' "
+        "    WHEN 'interview'   THEN 'interview' "
+        "    WHEN 'hired'       THEN 'hired' "
+        "    WHEN 'rejected'    THEN 'rejected' "
+        "    ELSE r.candidate_status "
+        "  END"
+        ") != ("
+        "  CASE ja.status "
+        "    WHEN 'pending'   THEN 'new' "
+        "    WHEN 'viewed'    THEN 'reviewing' "
+        "    WHEN 'accepted'  THEN 'shortlisted' "
+        "    WHEN 'contacted' THEN 'contacted' "
+        "    WHEN 'interview' THEN 'interview' "
+        "    WHEN 'hired'     THEN 'hired' "
+        "    WHEN 'rejected'  THEN 'rejected' "
+        "    ELSE ja.status "
+        "  END"
+        ")"
+    )
+
+    # ── Assemble conflicts_by_type ────────────────────────────────────────────
+    conflicts_by_type: dict = {}
+    if application_id_mismatch:
+        conflicts_by_type["application_id_mismatch"]       = application_id_mismatch
+    if application_identity_mismatch:
+        conflicts_by_type["application_identity_mismatch"] = application_identity_mismatch
+    if duplicate_application_claim:
+        conflicts_by_type["duplicate_application_claim"]   = duplicate_application_claim
+    if job_owner_mismatch:
+        conflicts_by_type["job_owner_mismatch"]            = job_owner_mismatch
+    if missing_job:
+        conflicts_by_type["missing_job"]                   = missing_job
+    if missing_candidate:
+        conflicts_by_type["missing_candidate"]             = missing_candidate
+    if missing_company:
+        conflicts_by_type["missing_company"]               = missing_company
+    if candidate_not_employee:
+        conflicts_by_type["candidate_not_employee"]        = candidate_not_employee
+    if null_ccjr_without_application:
+        conflicts_by_type["null_ccjr_without_application"] = null_ccjr_without_application
+    if stage_source_disagreement:
+        conflicts_by_type["stage_source_disagreement"]     = stage_source_disagreement
+    if unknown_ja_statuses:
+        conflicts_by_type["unknown_ja_status"]  = sum(unknown_ja_statuses.values())
+    if unknown_ccjr_statuses:
+        conflicts_by_type["unknown_ccjr_status"] = sum(unknown_ccjr_statuses.values())
+
+    conflicts_count = sum(conflicts_by_type.values())
+    blocking = bool(conflicts_by_type.keys() & _BLOCKING_CONFLICT_TYPES)
+
+    return {
+        "conflicts_by_type":             conflicts_by_type,
+        "conflicts_count":               conflicts_count,
+        "blocking":                      blocking,
+        "unknown_ja_statuses":           unknown_ja_statuses,
+        "unknown_ccjr_statuses":         unknown_ccjr_statuses,
+        "null_ccjr_without_application": null_ccjr_without_application,
+        "stage_source_disagreement":     stage_source_disagreement,
+    }
+
+
 def pipeline_backfill_dry_run() -> dict:
     """
     Read-only analysis of legacy data that would be backfilled.
     Reports comprehensive conflict types, unknown statuses, and migration estimates.
-    Uses LEFT JOINs throughout so no conflicts are hidden by missing rows.
+    Delegates all conflict detection to _pipeline_build_conflict_report() which uses
+    LEFT JOINs throughout so no conflicts are hidden by missing rows.
     No writes — safe to call at any time.
     """
     conn = get_conn()
     try:
         known_ja   = "('pending','viewed','accepted','contacted','interview','hired','rejected')"
         known_ccjr = "('saved','shortlisted','contacted','interview','hired','rejected')"
+
+        # ── Conflict detection (all types via unified helper) ─────────────────
+        cr = _pipeline_build_conflict_report(conn)
 
         # ── Existing pipeline entries ─────────────────────────────────────────
         existing_count = int((conn.run(
@@ -7592,15 +7856,6 @@ def pipeline_backfill_dry_run() -> dict:
             "SELECT COUNT(*) FROM job_applications"
         ) or [[0]])[0][0])
 
-        # Unknown statuses (not in LEGACY_APP_STATUS_TO_PIPELINE_STAGE → conflict)
-        ja_unknown_rows = conn.run(
-            "SELECT status, COUNT(*) FROM job_applications "
-            f"WHERE status NOT IN {known_ja} "
-            "GROUP BY status ORDER BY COUNT(*) DESC"
-        ) or []
-        unknown_ja_statuses = {(r[0] or "null"): int(r[1]) for r in ja_unknown_rows}
-
-        # New inserts: no existing pipeline entry for this triple (LEFT JOIN to detect missing job)
         ja_new = int((conn.run(
             "SELECT COUNT(*) FROM job_applications ja "
             "LEFT JOIN jobs j ON j.id = ja.job_id "
@@ -7614,7 +7869,6 @@ def pipeline_backfill_dry_run() -> dict:
             ")"
         ) or [[0]])[0][0])
 
-        # application_id links: existing entry with NULL application_id (linkable)
         ja_linkable = int((conn.run(
             "SELECT COUNT(*) FROM job_applications ja "
             "LEFT JOIN jobs j ON j.id = ja.job_id "
@@ -7629,140 +7883,11 @@ def pipeline_backfill_dry_run() -> dict:
             ")"
         ) or [[0]])[0][0])
 
-        # Blocking conflict: entry exists with a DIFFERENT application_id
-        ja_app_id_mismatch = int((conn.run(
-            "SELECT COUNT(*) FROM job_applications ja "
-            "LEFT JOIN jobs j ON j.id = ja.job_id "
-            "LEFT JOIN job_pipeline_entries jpe "
-            "  ON jpe.company_id=j.company_id "
-            "  AND jpe.candidate_id=ja.user_id "
-            "  AND jpe.job_id=ja.job_id "
-            "WHERE jpe.id IS NOT NULL "
-            "AND jpe.application_id IS NOT NULL "
-            "AND jpe.application_id != ja.id"
-        ) or [[0]])[0][0])
-
-        # ── Comprehensive conflict categories (Bnd-3) ─────────────────────────
-
-        # job_owner_mismatch: job.company_id doesn't match ccjr.company_id
-        job_owner_mismatch = int((conn.run(
-            "SELECT COUNT(*) FROM company_candidate_job_refs r "
-            "LEFT JOIN jobs j ON j.id = r.job_id "
-            "WHERE j.id IS NOT NULL AND j.company_id != r.company_id"
-        ) or [[0]])[0][0])
-
-        # missing_job: job_id in ccjr/ja has no corresponding jobs row
-        missing_job_ccjr = int((conn.run(
-            "SELECT COUNT(*) FROM company_candidate_job_refs r "
-            "LEFT JOIN jobs j ON j.id = r.job_id "
-            "WHERE j.id IS NULL"
-        ) or [[0]])[0][0])
-        missing_job_ja = int((conn.run(
-            "SELECT COUNT(*) FROM job_applications ja "
-            "LEFT JOIN jobs j ON j.id = ja.job_id "
-            "WHERE j.id IS NULL"
-        ) or [[0]])[0][0])
-        missing_job = missing_job_ccjr + missing_job_ja
-
-        # missing_candidate: candidate_id has no corresponding users row
-        missing_candidate_ccjr = int((conn.run(
-            "SELECT COUNT(*) FROM company_candidate_job_refs r "
-            "LEFT JOIN users u ON u.id = r.candidate_id "
-            "WHERE u.id IS NULL"
-        ) or [[0]])[0][0])
-        missing_candidate_ja = int((conn.run(
-            "SELECT COUNT(*) FROM job_applications ja "
-            "LEFT JOIN users u ON u.id = ja.user_id "
-            "WHERE u.id IS NULL"
-        ) or [[0]])[0][0])
-        missing_candidate = missing_candidate_ccjr + missing_candidate_ja
-
-        # candidate_not_employee: candidate exists but user_type != 'emp'
-        candidate_not_emp_ccjr = int((conn.run(
-            "SELECT COUNT(*) FROM company_candidate_job_refs r "
-            "LEFT JOIN users u ON u.id = r.candidate_id "
-            "WHERE u.id IS NOT NULL AND u.user_type != 'emp'"
-        ) or [[0]])[0][0])
-        candidate_not_emp_ja = int((conn.run(
-            "SELECT COUNT(*) FROM job_applications ja "
-            "LEFT JOIN users u ON u.id = ja.user_id "
-            "WHERE u.id IS NOT NULL AND u.user_type != 'emp'"
-        ) or [[0]])[0][0])
-        candidate_not_employee = candidate_not_emp_ccjr + candidate_not_emp_ja
-
-        # null_ccjr_without_application: ccjr.candidate_status IS NULL
-        # but no job_applications row for same (company, candidate, job) triple
-        null_ccjr_without_application = int((conn.run(
-            "SELECT COUNT(*) FROM company_candidate_job_refs r "
-            "WHERE r.candidate_status IS NULL "
-            "AND NOT EXISTS ("
-            "  SELECT 1 FROM job_applications ja "
-            "  JOIN jobs j ON j.id = ja.job_id AND j.company_id = r.company_id "
-            "  WHERE ja.user_id = r.candidate_id AND ja.job_id = r.job_id"
-            ")"
-        ) or [[0]])[0][0])
-
-        # stage_source_disagreement: existing pipeline entry stage doesn't match
-        # what the application status would imply (informational, non-blocking)
-        stage_source_disagreement = int((conn.run(
-            "SELECT COUNT(*) FROM job_applications ja "
-            "LEFT JOIN jobs j ON j.id = ja.job_id "
-            "LEFT JOIN job_pipeline_entries jpe "
-            "  ON jpe.company_id=j.company_id "
-            "  AND jpe.candidate_id=ja.user_id "
-            "  AND jpe.job_id=ja.job_id "
-            "WHERE jpe.id IS NOT NULL "
-            "AND jpe.application_id = ja.id "
-            f"AND ja.status IN {known_ja} "
-            "AND jpe.stage != ("
-            "  CASE ja.status "
-            "    WHEN 'pending'   THEN 'new' "
-            "    WHEN 'viewed'    THEN 'reviewing' "
-            "    WHEN 'accepted'  THEN 'shortlisted' "
-            "    WHEN 'contacted' THEN 'contacted' "
-            "    WHEN 'interview' THEN 'interview' "
-            "    WHEN 'hired'     THEN 'hired' "
-            "    WHEN 'rejected'  THEN 'rejected' "
-            "    ELSE jpe.stage "
-            "  END"
-            ")"
-        ) or [[0]])[0][0])
-
-        # application_identity_mismatch: pipeline entry linked to application_id
-        # but the triple (company_id, candidate_id, job_id) doesn't match
-        application_identity_mismatch = int((conn.run(
-            "SELECT COUNT(*) FROM job_pipeline_entries jpe "
-            "LEFT JOIN job_applications ja ON ja.id = jpe.application_id "
-            "LEFT JOIN jobs j ON j.id = ja.job_id "
-            "WHERE jpe.application_id IS NOT NULL "
-            "AND (ja.id IS NULL "
-            "     OR j.company_id != jpe.company_id "
-            "     OR ja.user_id   != jpe.candidate_id "
-            "     OR ja.job_id    != jpe.job_id)"
-        ) or [[0]])[0][0])
-
-        # duplicate_application_claim: two pipeline entries claim the same application_id
-        duplicate_application_claim = int((conn.run(
-            "SELECT COUNT(*) FROM ("
-            "  SELECT application_id FROM job_pipeline_entries "
-            "  WHERE application_id IS NOT NULL "
-            "  GROUP BY application_id HAVING COUNT(*) > 1"
-            ") AS dupes"
-        ) or [[0]])[0][0])
-
         # ── company_candidate_job_refs analysis ───────────────────────────────
         ccjr_total = int((conn.run(
             "SELECT COUNT(*) FROM company_candidate_job_refs"
         ) or [[0]])[0][0])
 
-        ccjr_unknown_rows = conn.run(
-            "SELECT candidate_status, COUNT(*) FROM company_candidate_job_refs "
-            f"WHERE candidate_status IS NOT NULL AND candidate_status NOT IN {known_ccjr} "
-            "GROUP BY candidate_status ORDER BY COUNT(*) DESC"
-        ) or []
-        unknown_ccjr_statuses = {r[0]: int(r[1]) for r in ccjr_unknown_rows}
-
-        # New entries from ccjr (no existing pipeline entry, and NOT null_ccjr_without_application)
         ccjr_new = int((conn.run(
             "SELECT COUNT(*) FROM company_candidate_job_refs r "
             "WHERE (r.candidate_status IS NOT NULL "
@@ -7797,41 +7922,6 @@ def pipeline_backfill_dry_run() -> dict:
             "SELECT COUNT(*) FROM candidate_bank_notes WHERE is_migrated = TRUE"
         ) or [[0]])[0][0])
 
-        # ── Conflict summary ──────────────────────────────────────────────────
-        # Blocking conflicts halt the backfill; informational conflicts are logged only.
-        conflicts_by_type: dict = {}
-        if ja_app_id_mismatch:
-            conflicts_by_type["application_id_mismatch"] = ja_app_id_mismatch
-        if application_identity_mismatch:
-            conflicts_by_type["application_identity_mismatch"] = application_identity_mismatch
-        if duplicate_application_claim:
-            conflicts_by_type["duplicate_application_claim"] = duplicate_application_claim
-        if job_owner_mismatch:
-            conflicts_by_type["job_owner_mismatch"] = job_owner_mismatch
-        if missing_job:
-            conflicts_by_type["missing_job"] = missing_job
-        if missing_candidate:
-            conflicts_by_type["missing_candidate"] = missing_candidate
-        if candidate_not_employee:
-            conflicts_by_type["candidate_not_employee"] = candidate_not_employee
-        if null_ccjr_without_application:
-            conflicts_by_type["null_ccjr_without_application"] = null_ccjr_without_application
-        if stage_source_disagreement:
-            conflicts_by_type["stage_source_disagreement"] = stage_source_disagreement
-        if unknown_ja_statuses:
-            conflicts_by_type["unknown_ja_status"] = sum(unknown_ja_statuses.values())
-        if unknown_ccjr_statuses:
-            conflicts_by_type["unknown_ccjr_status"] = sum(unknown_ccjr_statuses.values())
-        total_conflicts = sum(conflicts_by_type.values())
-
-        # Blocking = identity/ownership/application_id conflicts that corrupt data if ignored
-        blocking = any([
-            ja_app_id_mismatch > 0,
-            application_identity_mismatch > 0,
-            duplicate_application_claim > 0,
-            job_owner_mismatch > 0,
-        ])
-
         return {
             "dry_run": True,
             "existing_pipeline_entries": existing_count,
@@ -7839,21 +7929,21 @@ def pipeline_backfill_dry_run() -> dict:
                 "total":            ja_total,
                 "to_insert":        ja_new,
                 "to_link_app_id":   ja_linkable,
-                "unknown_statuses": unknown_ja_statuses,
+                "unknown_statuses": cr["unknown_ja_statuses"],
             },
             "company_candidate_job_refs": {
                 "total":              ccjr_total,
                 "to_insert":          ccjr_new,
                 "existing_skipped":   ccjr_existing,
-                "unknown_statuses":   unknown_ccjr_statuses,
+                "unknown_statuses":   cr["unknown_ccjr_statuses"],
             },
             "notes": {
                 "to_migrate":       notes_to_migrate,
                 "already_migrated": notes_migrated,
             },
-            "conflicts_by_type": conflicts_by_type,
-            "conflicts_count":   total_conflicts,
-            "blocking_conflicts": blocking,
+            "conflicts_by_type": cr["conflicts_by_type"],
+            "conflicts_count":   cr["conflicts_count"],
+            "blocking_conflicts": cr["blocking"],
             # backward-compat fields
             "candidate_notes_to_migrate":   notes_to_migrate,
             "existing_migrated_bank_notes": notes_migrated,
@@ -7919,52 +8009,12 @@ def run_pipeline_backfill(dry_run: bool = False) -> dict:
 
         # ── Atomic blocking-conflict check (Bnd-8) ────────────────────────────
         # Must run INSIDE the advisory lock to prevent race between check and write.
-        blocking_check: dict = {}
-
-        _bc_app_id_mismatch = int((conn.run(
-            "SELECT COUNT(*) FROM job_applications ja "
-            "LEFT JOIN jobs j ON j.id = ja.job_id "
-            "LEFT JOIN job_pipeline_entries jpe "
-            "  ON jpe.company_id=j.company_id "
-            "  AND jpe.candidate_id=ja.user_id "
-            "  AND jpe.job_id=ja.job_id "
-            "WHERE jpe.id IS NOT NULL "
-            "AND jpe.application_id IS NOT NULL "
-            "AND jpe.application_id != ja.id"
-        ) or [[0]])[0][0])
-        if _bc_app_id_mismatch:
-            blocking_check["application_id_mismatch"] = _bc_app_id_mismatch
-
-        _bc_identity = int((conn.run(
-            "SELECT COUNT(*) FROM job_pipeline_entries jpe "
-            "LEFT JOIN job_applications ja ON ja.id = jpe.application_id "
-            "LEFT JOIN jobs j ON j.id = ja.job_id "
-            "WHERE jpe.application_id IS NOT NULL "
-            "AND (ja.id IS NULL "
-            "     OR j.company_id != jpe.company_id "
-            "     OR ja.user_id   != jpe.candidate_id "
-            "     OR ja.job_id    != jpe.job_id)"
-        ) or [[0]])[0][0])
-        if _bc_identity:
-            blocking_check["application_identity_mismatch"] = _bc_identity
-
-        _bc_dupes = int((conn.run(
-            "SELECT COUNT(*) FROM ("
-            "  SELECT application_id FROM job_pipeline_entries "
-            "  WHERE application_id IS NOT NULL "
-            "  GROUP BY application_id HAVING COUNT(*) > 1"
-            ") AS dupes"
-        ) or [[0]])[0][0])
-        if _bc_dupes:
-            blocking_check["duplicate_application_claim"] = _bc_dupes
-
-        _bc_owner = int((conn.run(
-            "SELECT COUNT(*) FROM company_candidate_job_refs r "
-            "LEFT JOIN jobs j ON j.id = r.job_id "
-            "WHERE j.id IS NOT NULL AND j.company_id != r.company_id"
-        ) or [[0]])[0][0])
-        if _bc_owner:
-            blocking_check["job_owner_mismatch"] = _bc_owner
+        # Uses _pipeline_build_conflict_report for all 8 blocking types.
+        _cr = _pipeline_build_conflict_report(conn)
+        blocking_check = {
+            k: v for k, v in _cr["conflicts_by_type"].items()
+            if k in _BLOCKING_CONFLICT_TYPES
+        }
 
         if blocking_check:
             conn.run("ROLLBACK")
@@ -7982,13 +8032,32 @@ def run_pipeline_backfill(dry_run: bool = False) -> dict:
         # Timestamps preserved from r.created_at; fallback to NOW() if missing.
         ccjr_rows = conn.run(
             "SELECT r.company_id, r.candidate_id, r.job_id, "
-            "       r.candidate_status, j.title, r.created_at "
+            "       r.candidate_status, j.title, r.created_at, "
+            "       j.company_id, u.user_type "
             "FROM company_candidate_job_refs r "
             "LEFT JOIN jobs j ON j.id = r.job_id "
             "LEFT JOIN users u ON u.id = r.candidate_id"
         )
         for row in (ccjr_rows or []):
-            cid, uid, jid, cand_status, job_title, legacy_ts = row
+            cid, uid, jid, cand_status, job_title, legacy_ts, job_cid, u_type = row
+
+            # Per-row blocking conflict checks (belt-and-suspenders after pre-flight)
+            if job_cid is None:
+                conflicts_count += 1
+                conflicts_by_type["missing_job"] = conflicts_by_type.get("missing_job", 0) + 1
+                continue
+            if int(job_cid) != int(cid):
+                conflicts_count += 1
+                conflicts_by_type["job_owner_mismatch"] = conflicts_by_type.get("job_owner_mismatch", 0) + 1
+                continue
+            if u_type is None:
+                conflicts_count += 1
+                conflicts_by_type["missing_candidate"] = conflicts_by_type.get("missing_candidate", 0) + 1
+                continue
+            if u_type != 'emp':
+                conflicts_count += 1
+                conflicts_by_type["candidate_not_employee"] = conflicts_by_type.get("candidate_not_employee", 0) + 1
+                continue
 
             # Unknown status → conflict, skip row
             if cand_status is not None and cand_status not in LEGACY_CANDIDATE_STATUS_TO_PIPELINE_STAGE:
@@ -8111,18 +8180,32 @@ def run_pipeline_backfill(dry_run: bool = False) -> dict:
         # and ALSO update source='application' (Bnd-2).
         ja_rows = conn.run(
             "SELECT ja.id, j.company_id, ja.user_id, ja.job_id, "
-            "       ja.status, j.title, ja.applied_at "
+            "       ja.status, j.title, ja.applied_at, "
+            "       u.user_type "
             "FROM job_applications ja "
-            "LEFT JOIN jobs j ON j.id = ja.job_id"
+            "LEFT JOIN jobs j ON j.id = ja.job_id "
+            "LEFT JOIN users u ON u.id = ja.user_id"
         )
         for row in (ja_rows or []):
-            app_id, cid, uid, jid, app_status, job_title, applied_at = row
+            app_id, cid, uid, jid, app_status, job_title, applied_at, u_type = row
 
-            # Skip if job doesn't exist
+            # Per-row blocking conflict checks (belt-and-suspenders after pre-flight)
             if cid is None:
                 conflicts_count += 1
                 conflicts_by_type["missing_job"] = (
                     conflicts_by_type.get("missing_job", 0) + 1
+                )
+                continue
+            if u_type is None:
+                conflicts_count += 1
+                conflicts_by_type["missing_candidate"] = (
+                    conflicts_by_type.get("missing_candidate", 0) + 1
+                )
+                continue
+            if u_type != 'emp':
+                conflicts_count += 1
+                conflicts_by_type["candidate_not_employee"] = (
+                    conflicts_by_type.get("candidate_not_employee", 0) + 1
                 )
                 continue
 
@@ -8184,13 +8267,23 @@ def run_pipeline_backfill(dry_run: bool = False) -> dict:
                 # RETURNING empty: DO UPDATE WHERE clause not satisfied.
                 # Distinguish: already correct (same app_id) vs real mismatch.
                 existing = conn.run(
-                    "SELECT application_id FROM job_pipeline_entries "
+                    "SELECT application_id, source FROM job_pipeline_entries "
                     "WHERE company_id=:cid AND candidate_id=:uid AND job_id=:jid",
                     cid=int(cid), uid=int(uid), jid=int(jid),
                 )
                 if existing and existing[0][0] is not None and int(existing[0][0]) == int(app_id):
-                    # Already correctly linked — idempotent no-op
-                    skipped_entries += 1
+                    # Already correctly linked — normalize source if needed (Blocker 3)
+                    existing_src = existing[0][1]
+                    if existing_src != 'application':
+                        conn.run(
+                            "UPDATE job_pipeline_entries "
+                            "SET source = 'application', updated_at = NOW() "
+                            "WHERE company_id=:cid AND candidate_id=:uid AND job_id=:jid",
+                            cid=int(cid), uid=int(uid), jid=int(jid),
+                        )
+                        application_links_added += 1
+                    else:
+                        skipped_entries += 1
                 else:
                     # Different application_id → blocking conflict
                     conflicts_count += 1
@@ -8285,44 +8378,21 @@ def _migrate_partial_unique_application_id() -> None:
         conn.run("BEGIN")
         conn.run("SELECT pg_advisory_xact_lock(20260716)")
 
-        # Recheck duplicate application_ids (Bnd-9)
-        dupe_rows = conn.run(
-            "SELECT application_id, COUNT(*) AS cnt "
-            "FROM job_pipeline_entries "
-            "WHERE application_id IS NOT NULL "
-            "GROUP BY application_id HAVING COUNT(*) > 1"
-        ) or []
-
-        # Recheck application_identity_mismatches
-        identity_rows = conn.run(
-            "SELECT jpe.id, jpe.application_id "
-            "FROM job_pipeline_entries jpe "
-            "LEFT JOIN job_applications ja ON ja.id = jpe.application_id "
-            "LEFT JOIN jobs j ON j.id = ja.job_id "
-            "WHERE jpe.application_id IS NOT NULL "
-            "AND (ja.id IS NULL "
-            "     OR j.company_id != jpe.company_id "
-            "     OR ja.user_id   != jpe.candidate_id "
-            "     OR ja.job_id    != jpe.job_id)"
-        ) or []
-
-        blocking_check: dict = {}
-        if dupe_rows:
-            blocking_check["duplicate_application_claim"] = len(dupe_rows)
-        if identity_rows:
-            blocking_check["application_identity_mismatch"] = len(identity_rows)
+        # Recheck all 8 blocking conflict types (Bnd-9) via unified helper
+        _cr_idx = _pipeline_build_conflict_report(conn)
+        blocking_check = {
+            k: v for k, v in _cr_idx["conflicts_by_type"].items()
+            if k in _BLOCKING_CONFLICT_TYPES
+        }
 
         if blocking_check:
             conn.run("ROLLBACK")
             committed = True
             raise BlockingConflictError({
                 "error":             "blocking_conflicts",
-                "detail":            "لا يمكن إنشاء الـ unique index — يوجد تعارض في application_id.",
+                "detail":            "لا يمكن إنشاء الـ unique index — يوجد تعارض حاجب.",
                 "conflicts_by_type": blocking_check,
                 "conflicts_count":   sum(blocking_check.values()),
-                "duplicate_details": [
-                    {"application_id": int(r[0]), "count": int(r[1])} for r in dupe_rows
-                ],
             })
 
         conn.run(
@@ -8331,11 +8401,21 @@ def _migrate_partial_unique_application_id() -> None:
             "WHERE application_id IS NOT NULL"
         )
 
-        # Verify index exists
+        # Verify index presence via pg_indexes (basic check)
         idx_check = conn.run(
             "SELECT indexname FROM pg_indexes "
             "WHERE tablename = 'job_pipeline_entries' "
             "AND indexname = 'uq_jpe_application_id'"
+        ) or []
+
+        # Verify uniqueness + predicate via pg_index + pg_get_expr (Blocker 7)
+        idx_props = conn.run(
+            "SELECT i.indisunique, pg_get_expr(i.indpred, i.indrelid) "
+            "FROM pg_index i "
+            "JOIN pg_class c ON c.oid = i.indrelid "
+            "JOIN pg_class ic ON ic.oid = i.indexrelid "
+            "WHERE c.relname = 'job_pipeline_entries' "
+            "AND ic.relname = 'uq_jpe_application_id'"
         ) or []
 
         conn.run("COMMIT")
@@ -8344,6 +8424,15 @@ def _migrate_partial_unique_application_id() -> None:
         if not idx_check:
             raise RuntimeError(
                 "تم تشغيل CREATE INDEX بدون خطأ لكن الـ index غير موجود في pg_indexes"
+            )
+        if not idx_props:
+            raise RuntimeError("الـ index موجود في pg_indexes لكن غير موجود في pg_index")
+        if not bool(idx_props[0][0]):
+            raise RuntimeError("الـ index موجود لكن ليس UNIQUE")
+        _pred = str(idx_props[0][1] or "").lower()
+        if "application_id" not in _pred or "not null" not in _pred:
+            raise RuntimeError(
+                f"الـ index predicate غير متوقع: {idx_props[0][1]!r}"
             )
 
     except BlockingConflictError:

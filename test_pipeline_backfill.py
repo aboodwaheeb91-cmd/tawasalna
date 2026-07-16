@@ -1,24 +1,31 @@
 """
 PR-2: Pipeline Backfill + Dual-write — static (source-inspection) tests.
 
-Tests validate source-code structure for all 12 correction points (Bnd-1 through Bnd-12).
+Tests validate source-code structure for all 12 correction points (Bnd-1 through Bnd-12)
+and 11 second-round blockers.
 
   §A  Mapping constants
   §B  _pipeline_upsert_entry helper — source='application' on link (Bnd-2)
   §C  _pipeline_update_stage helper — reason parameter present
-  §D  pipeline_backfill_dry_run — comprehensive conflicts, LEFT JOINs (Bnd-3)
+  §D  pipeline_backfill_dry_run — uses _pipeline_build_conflict_report (unified helper)
   §E  run_pipeline_backfill — atomic conflict check (Bnd-8), NULL CCJR (Bnd-1),
                               source='application' in Pass-2 DO UPDATE (Bnd-2),
                               notes.strip() in Pass-3 (Bnd-7)
-  §F  _migrate_partial_unique_application_id — advisory lock, BlockingConflictError (Bnd-9)
+  §F  _migrate_partial_unique_application_id — advisory lock, BlockingConflictError (Bnd-9),
+                                               pg_index + pg_get_expr verification
   §G  apply_job — created_by=user_id (Bnd-6), initial_event_reason='application_submitted'
-  §H  update_application_status — reason='application_status_changed' (Bnd-6)
+  §H  update_application_status — reason='application_status_changed' (Bnd-6),
+                                   initial_event_reason='application_status_changed'
   §I  promote_application_to_shortlist — Option B: no company_saved_candidates write (Bnd-4),
-                                         reason='application_shortlisted' (Bnd-6)
+                                         reason='application_shortlisted' (Bnd-6),
+                                         candidate.action='unchanged'
   §J  update_candidate_job_status — ensure-entry (Bnd-5), None handling (Bnd-5),
-                                    reason='candidate_job_status_changed' (Bnd-6)
+                                    reason='candidate_job_status_changed' (Bnd-6),
+                                    CCJR FOR UPDATE first
   §K  Compatibility — legacy tables still writable, no read switch
   §L  BlockingConflictError class + server.py JSONResponse (Bnd-8, Bnd-9)
+  §M  Second-round blockers — _BLOCKING_CONFLICT_TYPES, _pipeline_build_conflict_report,
+                              source normalization on match, per-row validation
 """
 
 import sys, os, re
@@ -55,6 +62,18 @@ def _block(src, marker, window=3000):
     if idx == -1:
         return ""
     return src[idx: idx + window]
+
+def _fn_strict(src, name, window=15000):
+    """Extract only the body of a function (up to the next top-level def)."""
+    idx = src.find(f"def {name}(")
+    if idx == -1:
+        return ""
+    next_def = src.find("\ndef ", idx + 1)
+    if next_def == -1:
+        end = idx + window
+    else:
+        end = min(idx + window, next_def)
+    return src[idx:end]
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # §A  Mapping constants
@@ -152,12 +171,12 @@ check("C-06. Does NOT commit/rollback",
 # ═══════════════════════════════════════════════════════════════════════════════
 # §D  pipeline_backfill_dry_run
 # ═══════════════════════════════════════════════════════════════════════════════
-# Narrow the dry_run body to only the function itself (ends before run_pipeline_backfill)
+# Conflict detection now lives in _pipeline_build_conflict_report (unified helper).
+# §D checks the dry_run body AND the helper body (_pbcr) for conflict patterns.
 def _fn_body(src, name, window=5000):
     idx = src.find(f"def {name}(")
     if idx == -1:
         return ""
-    # Find next top-level def after this function
     next_def = src.find("\ndef ", idx + 1)
     if next_def == -1:
         end = idx + window
@@ -165,14 +184,15 @@ def _fn_body(src, name, window=5000):
         end = min(idx + window, next_def)
     return src[idx:end]
 
-_dr = _fn_body(_auth, "pipeline_backfill_dry_run", window=20000)
+_dr   = _fn_body(_auth, "pipeline_backfill_dry_run", window=20000)
+_pbcr = _fn_body(_auth, "_pipeline_build_conflict_report", window=15000)
 
 check("D-01. pipeline_backfill_dry_run defined",
       "def pipeline_backfill_dry_run(" in _auth)
 check("D-02. Reads job_applications",
-      "FROM job_applications" in _dr)
+      "FROM job_applications" in _dr or "FROM job_applications" in _pbcr)
 check("D-03. Reads company_candidate_job_refs",
-      "FROM company_candidate_job_refs" in _dr)
+      "FROM company_candidate_job_refs" in _dr or "FROM company_candidate_job_refs" in _pbcr)
 check("D-04. Reads company_saved_candidates notes",
       "company_saved_candidates" in _dr and "notes" in _dr)
 check("D-05. Returns dry_run=True in result",
@@ -180,17 +200,17 @@ check("D-05. Returns dry_run=True in result",
 check("D-06. No INSERT/UPDATE/DELETE (read-only)",
       "INSERT" not in _dr and "UPDATE" not in _dr and "DELETE" not in _dr)
 check("D-07. Uses LEFT JOIN (no hidden rows) for comprehensive conflicts (Bnd-3)",
-      "LEFT JOIN" in _dr)
+      "LEFT JOIN" in _dr or "LEFT JOIN" in _pbcr)
 check("D-08. Detects null_ccjr_without_application (Bnd-1/Bnd-3)",
-      "null_ccjr_without_application" in _dr)
+      "null_ccjr_without_application" in _dr or "null_ccjr_without_application" in _pbcr)
 check("D-09. Detects job_owner_mismatch (Bnd-3)",
-      "job_owner_mismatch" in _dr)
+      "job_owner_mismatch" in _dr or "job_owner_mismatch" in _pbcr)
 check("D-10. Detects application_identity_mismatch (Bnd-3)",
-      "application_identity_mismatch" in _dr)
+      "application_identity_mismatch" in _dr or "application_identity_mismatch" in _pbcr)
 check("D-11. Detects duplicate_application_claim (Bnd-3)",
-      "duplicate_application_claim" in _dr)
+      "duplicate_application_claim" in _dr or "duplicate_application_claim" in _pbcr)
 check("D-12. Blocking is a bool (not just one field) (Bnd-3)",
-      "blocking = " in _dr or "blocking=" in _dr)
+      "blocking = " in _dr or "blocking=" in _dr or "blocking = " in _pbcr or "blocking=" in _pbcr)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # §E  run_pipeline_backfill
@@ -252,12 +272,17 @@ check("F-05. Handles duplicate_object / 42710 silently",
       "42710" in _pui or "duplicate_object" in _pui)
 check("F-06. Advisory lock before index creation (Bnd-9)",
       "pg_advisory_xact_lock" in _pui)
-check("F-07. Rechecks duplicate application_ids before creating index (Bnd-9)",
-      "HAVING COUNT(*) > 1" in _pui or "duplicate_application_claim" in _pui)
+check("F-07. Rechecks blocking conflicts before creating index (Bnd-9)",
+      "duplicate_application_claim" in _pui or "_pipeline_build_conflict_report" in _pui
+      or "HAVING COUNT(*) > 1" in _pui)
 check("F-08. Raises BlockingConflictError on blocking conflicts (Bnd-9)",
       "BlockingConflictError" in _pui)
 check("F-09. Verifies index exists via pg_indexes (Bnd-9)",
       "pg_indexes" in _pui)
+check("F-10. Verifies UNIQUE + predicate via pg_index + pg_get_expr (Blocker 7)",
+      "pg_index" in _pui and "pg_get_expr" in _pui)
+check("F-11. indisunique check present (Blocker 7)",
+      "indisunique" in _pui)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # §G  apply_job dual-write
@@ -297,6 +322,9 @@ check("H-05. Legacy company_candidate_job_refs UPSERT still present",
       "company_candidate_job_refs" in _uas)
 check("H-06. reason='application_status_changed' passed to _pipeline_update_stage (Bnd-6)",
       "application_status_changed" in _uas)
+check("H-07. initial_event_reason='application_status_changed' in _pipeline_upsert_entry call",
+      "initial_event_reason='application_status_changed'" in _uas
+      or 'initial_event_reason="application_status_changed"' in _uas)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # §I  promote_application_to_shortlist dual-write
@@ -316,6 +344,9 @@ check("I-05. Reads general_status via SELECT only (no FOR UPDATE, no write) (Bnd
       and "FOR UPDATE" not in _pa.split("SELECT status FROM company_saved_candidates")[0][-200:])
 check("I-06. reason='application_shortlisted' passed (Bnd-6)",
       "application_shortlisted" in _pa)
+check("I-07. candidate dict contains 'action': 'unchanged' (Blocker 6)",
+      '"action"' in _pa and '"unchanged"' in _pa
+      or "'action'" in _pa and "'unchanged'" in _pa)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # §J  update_candidate_job_status transaction + dual-write
@@ -344,6 +375,12 @@ check("J-08. Raises ValueError when None + no application (Bnd-5)",
       "ValueError" in _ucjs and "null" in _ucjs.lower())
 check("J-09. reason='candidate_job_status_changed' (Bnd-6)",
       "candidate_job_status_changed" in _ucjs)
+check("J-10. CCJR SELECT FOR UPDATE appears before application lookup (Blocker 5)",
+      "company_candidate_job_refs" in _ucjs
+      and "FOR UPDATE" in _ucjs
+      and _ucjs.find("company_candidate_job_refs") < _ucjs.find("job_applications"))
+check("J-11. Returns False (not raises) when CCJR row not found (Blocker 5)",
+      "return False" in _ucjs)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # §K  Compatibility — legacy tables stay, no read switch, no frontend change
@@ -388,6 +425,51 @@ check("L-07. run_pipeline_backfill raises BlockingConflictError (not RuntimeErro
       "raise BlockingConflictError" in _bf)
 check("L-08. run_pipeline_backfill re-raises BlockingConflictError without wrapping",
       "except BlockingConflictError:" in _bf and "raise" in _bf)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# §M  Second-round blockers (Blockers 1–8)
+# ═══════════════════════════════════════════════════════════════════════════════
+_pbcr_full = _fn(_auth, "_pipeline_build_conflict_report", window=10000)
+
+check("M-01. _BLOCKING_CONFLICT_TYPES frozenset defined in auth.py",
+      "_BLOCKING_CONFLICT_TYPES" in _auth and "frozenset" in _auth)
+check("M-02. _BLOCKING_CONFLICT_TYPES contains all 8 blocking types",
+      all(t in _auth for t in [
+          "missing_job", "missing_candidate", "missing_company",
+          "candidate_not_employee", "job_owner_mismatch",
+          "application_identity_mismatch", "duplicate_application_claim",
+          "application_id_mismatch",
+      ]))
+check("M-03. _pipeline_build_conflict_report defined",
+      "def _pipeline_build_conflict_report(" in _auth)
+check("M-04. stage_source_disagreement compares CCJR vs JA (not pipeline entry vs JA)",
+      "r.candidate_status" in _pbcr_full and "ja.status" in _pbcr_full
+      and "jpe.stage" not in _pbcr_full)
+check("M-05. _pipeline_upsert_entry normalizes source='application' when app_id matches",
+      "existing_src" in _fn(_auth, "_pipeline_upsert_entry", window=3000)
+      and "source = 'application'" in _fn(_auth, "_pipeline_upsert_entry", window=3000))
+check("M-06. initial_event_reason='application_status_changed' in update_application_status",
+      "application_status_changed" in _fn(_auth, "update_application_status", window=4000)
+      and "initial_event_reason" in _fn(_auth, "update_application_status", window=4000))
+check("M-07. update_candidate_job_status: CCJR FOR UPDATE appears before app lookup",
+      "company_candidate_job_refs" in _ucjs and "FOR UPDATE" in _ucjs)
+check("M-08. update_candidate_job_status: returns False when CCJR not found (not raise)",
+      "return False" in _ucjs and "ROLLBACK" in _ucjs)
+check("M-09. promote_application_to_shortlist: candidate dict has action='unchanged'",
+      '"action"' in _pa and '"unchanged"' in _pa
+      or "'action'" in _pa and "'unchanged'" in _pa)
+check("M-10. Pass-1 in run_pipeline_backfill: fetches j.company_id and u.user_type",
+      "j.company_id" in _bf and "u.user_type" in _bf)
+check("M-11. Pass-2 in run_pipeline_backfill: LEFT JOIN users for per-row candidate check",
+      "LEFT JOIN users u ON u.id = ja.user_id" in _bf)
+check("M-12. _migrate_partial_unique_application_id uses pg_index and pg_get_expr",
+      "pg_index" in _pui and "pg_get_expr" in _pui)
+check("M-13. _pipeline_build_conflict_report checks missing_company",
+      "missing_company" in _pbcr_full)
+check("M-14. run_pipeline_backfill uses _pipeline_build_conflict_report for blocking check",
+      "_pipeline_build_conflict_report" in _bf)
+check("M-15. _migrate_partial_unique_application_id uses _pipeline_build_conflict_report",
+      "_pipeline_build_conflict_report" in _pui)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Summary
