@@ -7,7 +7,7 @@
 import os
 from fastapi import FastAPI, HTTPException, Request, Response, Depends, BackgroundTasks, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, Field
 import base64, mimetypes
@@ -112,7 +112,13 @@ from auth import (
     _migrate_appointments,
     _migrate_scheduler_jobs,
     _migrate_pipeline_schema_v1,
+    _migrate_partial_unique_application_id,
+    run_pipeline_backfill,
+    pipeline_backfill_dry_run,
+    LEGACY_APP_STATUS_TO_PIPELINE_STAGE,
+    LEGACY_CANDIDATE_STATUS_TO_PIPELINE_STAGE,
     run_due_scheduler_jobs,
+    BlockingConflictError,
 )
 from auth import ContentValidationError, validate_professional_text, JobArchivedError
 
@@ -528,6 +534,10 @@ async def on_startup():
     except Exception as e:
         print(f"❌ pipeline schema v1 migration failed: {e}")
         raise
+    # NOTE: _migrate_partial_unique_application_id() is NOT called here on startup.
+    # The partial UNIQUE index on job_pipeline_entries(application_id) must be created AFTER
+    # the backfill + conflict check passes (POST /admin/pipeline/migrate-index).
+    # This prevents duplicate application_id conflicts during migration.
     await _init_asyncpg_pool()
 
 # ── Helpers ──
@@ -2422,6 +2432,7 @@ def company_update_candidate_job_status(
             candidate_id=candidate_id,
             job_id=job_id,
             candidate_status=cs,
+            actor_id=company_id,
         )
     except ValueError as e:
         raise HTTPException(400, str(e))
@@ -4906,3 +4917,85 @@ def internal_run_due_jobs(request: Request, limit: int = 20):
     except Exception as e:
         print(f"[internal_run_due_jobs] ERROR: {e}")
         raise HTTPException(500, "Runner error")
+
+
+# ── Pipeline Backfill — Admin endpoints ──────────────────────────────────────
+
+@app.post("/admin/pipeline/backfill")
+def admin_pipeline_backfill(
+    request: Request,
+    dry_run: bool = False,
+    confirm: bool = False,
+):
+    """
+    POST /admin/pipeline/backfill[?dry_run=true][&confirm=true]
+    Trigger Pipeline Backfill (PR-2).
+
+    dry_run=true  → read-only analysis, no writes.
+    dry_run=false → executes backfill in a single atomic transaction.
+                    confirm=true is REQUIRED for dry_run=false.
+
+    HTTP 400 — confirm=false when dry_run=false (safety guard).
+    HTTP 409 — blocking conflicts detected (application_id mismatches); resolve first.
+
+    Requires X-Admin-Token header.
+    """
+    check_admin(request)
+    if not dry_run and not confirm:
+        raise HTTPException(
+            400,
+            "يجب تمرير confirm=true للتنفيذ الفعلي. شغّل dry_run=true أولاً للتحقق."
+        )
+    try:
+        result = run_pipeline_backfill(dry_run=dry_run)
+        return result
+    except BlockingConflictError as e:
+        # Atomic conflict check ran inside the advisory lock → return structured 409
+        return JSONResponse(status_code=409, content=e.report)
+    except HTTPException:
+        raise
+    except RuntimeError as e:
+        raise HTTPException(500, str(e))
+
+
+@app.get("/admin/pipeline/backfill/dry-run")
+def admin_pipeline_backfill_dry_run(request: Request):
+    """
+    GET /admin/pipeline/backfill/dry-run
+    Read-only analysis of legacy data eligible for backfill. No writes.
+    Requires X-Admin-Token header.
+    """
+    check_admin(request)
+    try:
+        return pipeline_backfill_dry_run()
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
+@app.post("/admin/pipeline/migrate-index")
+def admin_pipeline_migrate_index(
+    request: Request,
+    confirm: bool = False,
+):
+    """
+    POST /admin/pipeline/migrate-index[?confirm=true]
+    Create the partial UNIQUE index on job_pipeline_entries(application_id).
+
+    MUST be called AFTER backfill + conflict check — not at startup.
+    confirm=true required for safety.
+
+    Requires X-Admin-Token header.
+    """
+    check_admin(request)
+    if not confirm:
+        raise HTTPException(
+            400,
+            "يجب تمرير confirm=true. تأكد أن الـ backfill اكتمل بدون blocking_conflicts أولاً."
+        )
+    try:
+        _migrate_partial_unique_application_id()
+        return {"status": "ok", "message": "partial UNIQUE index on application_id created (or already exists)"}
+    except BlockingConflictError as e:
+        return JSONResponse(status_code=409, content=e.report)
+    except Exception as e:
+        raise HTTPException(500, str(e))
