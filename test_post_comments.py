@@ -8701,28 +8701,32 @@ check("182-07. applicant user_type must be 'emp'",
       'applicant_type != "emp"' in _promote_fn182
       and "ValueError" in _promote_fn182)
 
-# 182-08: rejected candidate raises ValueError (ROLLBACK triggered via exception catch)
-check("182-08. rejected candidate raises ValueError inside transaction",
-      'current_cand_status == "rejected"' in _promote_fn182
-      and 'raise ValueError' in _promote_fn182)
+# 182-08 (Option B): no FOR UPDATE on company_saved_candidates — CSC is read-only in this function.
+# The old rejected-candidate guard was a CSC lock that's no longer needed under Option B.
+check("182-08. Option B: no FOR UPDATE of company_saved_candidates (SELECT-only)",
+      'current_cand_status == "rejected"' not in _promote_fn182
+      and (
+          "WHERE company_id = :cid AND candidate_id = :uid" in _promote_fn182
+          or "company_saved_candidates" not in _promote_fn182
+          or "FOR UPDATE OF ja" in _promote_fn182
+      ))
 
-# 182-09: UPSERT CASE prevents rejected from being reactivated (SQL-level defense)
-check("182-09. UPSERT CASE preserves 'rejected' status — cannot be reactivated via UPSERT",
-      "ON CONFLICT (company_id, candidate_id) DO UPDATE" in _promote_fn182
-      and "'rejected'" in _promote_fn182
-      and "CASE" in _promote_fn182)
+# 182-09 (Option B): NO UPSERT to company_saved_candidates — Option B forbids any write to CSC.
+# The old UPSERT CASE guard is replaced by a SELECT-only read.
+check("182-09. Option B: no UPSERT ON CONFLICT to company_saved_candidates",
+      "ON CONFLICT (company_id, candidate_id) DO UPDATE" not in _promote_fn182)
 
-# 182-10: UPSERT CASE prevents contacted/interview/hired from being downgraded
-check("182-10. UPSERT CASE preserves contacted/interview/hired — no downgrade possible",
-      "'contacted','interview','hired','rejected'" in _promote_fn182
-      or "('contacted','interview','hired','rejected')" in _promote_fn182)
+# 182-10 (Option B): NO downgrade-protection CASE on CSC — Option B has no CSC UPSERT.
+# The CCJR upsert always sets candidate_status='shortlisted' unconditionally.
+check("182-10. Option B: no downgrade-protection CASE expression on company_saved_candidates",
+      "'contacted','interview','hired','rejected'" not in _promote_fn182
+      and "('contacted','interview','hired','rejected')" not in _promote_fn182)
 
-# 182-11: UPSERT is never gated by skip_candidate_update — always runs unconditionally
-# (changed from PR-B v1 which had if not skip_candidate_update: — removed to close
-#  the non-existent-row race where FOR UPDATE cannot lock a row that doesn't yet exist)
-check("182-11. UPSERT always runs — no skip_candidate_update gate",
+# 182-11 (Option B): no skip_candidate_update gate AND no CSC UPSERT.
+# Option B removed both the gate and the UPSERT. The CCJR UPSERT (different table) is present.
+check("182-11. Option B: no skip_candidate_update gate; CCJR upsert always runs",
       'skip_candidate_update' not in _promote_fn182
-      and "ON CONFLICT (company_id, candidate_id) DO UPDATE" in _promote_fn182)
+      and "ON CONFLICT (company_id, candidate_id, job_id) DO UPDATE" in _promote_fn182)
 
 # 182-12: application is always updated to 'accepted' inside the transaction
 check("182-12. application status set to 'accepted' inside transaction",
@@ -8738,12 +8742,12 @@ check("182-14. unexpected DB errors wrapped in RuntimeError (separate except blo
       "except Exception as _tx_err:" in _promote_fn182
       and "raise RuntimeError" in _promote_fn182)
 
-# 182-15: UPSERT uses RETURNING to get final state — job_id removed (Option B: job_applications is source)
-# RETURNING is the authoritative source for final_status / was_inserted
-check("182-15. UPSERT uses RETURNING status and was_inserted (job_id removed per Option B)",
-      "RETURNING status" in _promote_fn182
-      and "was_inserted" in _promote_fn182
-      and "(xmax = 0)" in _promote_fn182)
+# 182-15 (Option B): no CSC RETURNING — Option B has no UPSERT to company_saved_candidates.
+# candidate.action = 'unchanged' is hardcoded, not derived from RETURNING xmax.
+check("182-15. Option B: no RETURNING from company_saved_candidates; action='unchanged' hardcoded",
+      "(xmax = 0)" not in _promote_fn182
+      and '"action"' in _promote_fn182
+      and '"unchanged"' in _promote_fn182)
 
 # 182-16: return value contains application + candidate + action + status_label
 check("182-16. return value shape: application + candidate + action + status_label",
@@ -8774,36 +8778,31 @@ check("182-19. endpoint maps KeyError→404, PermissionError→403, ValueError�
 check("182-20. endpoint logs PROMOTE_OWNERSHIP_FAILED on PermissionError",
       "PROMOTE_OWNERSHIP_FAILED" in _ep_block182)
 
-# 182-21: post-UPSERT, pre-COMMIT rejected check — closes the non-existent-row race
-# A concurrent INSERT-as-rejected between FOR UPDATE SELECT (which found no row)
-# and the UPSERT would be caught here via RETURNING, and the transaction is ROLLED BACK.
-check("182-21. post-UPSERT pre-COMMIT check: final_status==rejected → raise ValueError",
-      'final_status == "rejected"' in _promote_fn182
-      and 'raise ValueError' in _promote_fn182
-      and _promote_fn182.index('final_status == "rejected"') < _promote_fn182.index('conn.run("COMMIT")'))
+# 182-21 (Option B): no final_status == 'rejected' post-UPSERT check — no CSC UPSERT exists.
+# Option B removed the rejected-via-concurrent-insert race because CSC is not written at all.
+check("182-21. Option B: no final_status rejected check (no CSC UPSERT to race against)",
+      'final_status == "rejected"' not in _promote_fn182)
 
-# 182-22: COMMIT appears AFTER the post-UPSERT rejected guard (ordering invariant)
-# Ensures that if RETURNING returns rejected, ROLLBACK fires before COMMIT is reached.
-check("182-22. COMMIT appears after post-UPSERT rejected guard in function body",
+# 182-22 (Option B): COMMIT is present after all writes (job_applications + CCJR + pipeline).
+# No rejected guard needed because Option B does no CSC write.
+check("182-22. Option B: COMMIT present after job_applications UPDATE and CCJR UPSERT",
       'conn.run("COMMIT")' in _promote_fn182
-      and 'final_status == "rejected"' in _promote_fn182
-      and _promote_fn182.index('final_status == "rejected"') < _promote_fn182.index('conn.run("COMMIT")'))
+      and "UPDATE job_applications SET status = 'accepted'" in _promote_fn182
+      and _promote_fn182.index("UPDATE job_applications") < _promote_fn182.index('conn.run("COMMIT")'))
 
-# 182-23: was_inserted derived from RETURNING (xmax=0) used to compute candidate_action
-# Ensures action is computed from RETURNING result, not from a pre-COMMIT assumption.
-# rindex finds the LAST occurrence of 'was_inserted' (in the post-COMMIT action block),
-# not the first (inside the UPSERT SQL string, which is before COMMIT).
-check("182-23. candidate_action computed from was_inserted (RETURNING xmax=0) after COMMIT",
-      'was_inserted' in _promote_fn182
-      and 'candidate_action = "created"' in _promote_fn182
-      and 'candidate_action = "unchanged"' in _promote_fn182
-      and 'candidate_action = "updated"' in _promote_fn182
-      and _promote_fn182.rindex('was_inserted') > _promote_fn182.index('conn.run("COMMIT")'))
+# 182-23 (Option B): action = 'unchanged' always — not computed from was_inserted.
+# Option B: no CSC UPSERT, no RETURNING, no was_inserted logic.
+# candidate.action is hardcoded 'unchanged' regardless of whether a bank row existed.
+check("182-23. Option B: candidate action is always 'unchanged' — no was_inserted branching",
+      'was_inserted' not in _promote_fn182
+      and '"action"' in _promote_fn182
+      and '"unchanged"' in _promote_fn182
+      and 'candidate_action = "created"' not in _promote_fn182
+      and 'candidate_action = "updated"' not in _promote_fn182)
 
-# 182-24: upsert_rows empty raises RuntimeError — no silent fallback for missing RETURNING
-check("182-24. empty RETURNING result raises RuntimeError (no silent fallback)",
-      'if not upsert_rows:' in _promote_fn182
-      and 'raise RuntimeError' in _promote_fn182)
+# 182-24: Option B: no CSC UPSERT → no RETURNING guard needed
+check("182-24. Option B: no RETURNING guard (no CSC UPSERT means no upsert_rows check needed)",
+      'if not upsert_rows:' not in _promote_fn182)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -9042,16 +9041,16 @@ check("185-01. save_company_candidate UPSERT does not overwrite job_id",
       'job_id=EXCLUDED.job_id' not in _save185
       and 'ON CONFLICT (company_id, candidate_id) DO UPDATE' in _save185)
 
-# 185-02: promote UPSERT no longer has job_id = CASE block
+# 185-02: Option B: promote has no CSC UPSERT at all (2-column conflict removed)
 _prom185 = (_auth185.split('def promote_application_to_shortlist')[1].split('def get_company_candidate_suggestions')[0]
             if 'def promote_application_to_shortlist' in _auth185 else '')
-check("185-02. promote UPSERT no longer overwrites job_id",
-      'job_id = CASE' not in _prom185
-      and 'ON CONFLICT (company_id, candidate_id) DO UPDATE' in _prom185)
+check("185-02. Option B: promote has no CSC UPSERT — ON CONFLICT (company_id, candidate_id) DO UPDATE absent",
+      'ON CONFLICT (company_id, candidate_id) DO UPDATE' not in _prom185
+      and 'ON CONFLICT (company_id, candidate_id, job_id) DO UPDATE' in _prom185)
 
-# 185-03: promote RETURNING only 2 columns (status, was_inserted — no job_id)
-check("185-03. promote RETURNING has no job_id column",
-      'RETURNING status, (xmax = 0) AS was_inserted' in _prom185
+# 185-03: Option B: no RETURNING from company_saved_candidates (no CSC UPSERT)
+check("185-03. Option B: no RETURNING from CSC (no CSC UPSERT means no was_inserted column)",
+      'RETURNING status, (xmax = 0) AS was_inserted' not in _prom185
       and 'RETURNING status, job_id' not in _prom185)
 
 # 185-04: promote return dict has no final_job_id / job_id field
@@ -10434,9 +10433,9 @@ check("491-03. update_application_status UPSERTs company_candidate_job_refs insi
       and 'ON CONFLICT (company_id, candidate_id, job_id) DO UPDATE' in _auth491
       and 'candidate_status = EXCLUDED.candidate_status' in _auth491)
 
-# 491-04: update_application_status ensures company_saved_candidates FK row first
-check("491-04. update_application_status inserts company_saved_candidates row before job refs upsert",
-      'ON CONFLICT (company_id, candidate_id) DO NOTHING' in _auth491)
+# 491-04: Talent Bank independence: update_application_status does NOT insert CSC row
+check("491-04. Talent Bank independence: update_application_status has no CSC INSERT (ON CONFLICT (company_id, candidate_id) DO NOTHING absent)",
+      'ON CONFLICT (company_id, candidate_id) DO NOTHING' not in _auth491)
 
 # 491-05: update_application_status returns candidate_id, job_id, application_status, candidate_status
 check("491-05. update_application_status returns candidate_id, job_id, application_status, candidate_status",
