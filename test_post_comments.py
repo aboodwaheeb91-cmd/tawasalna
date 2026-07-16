@@ -8817,10 +8817,11 @@ _asl183 = _main183.split('_APP_STATUS_LABEL')[1][:300] if '_APP_STATUS_LABEL' in
 check("183-01. _APP_STATUS_LABEL['accepted'] is 'مرشح قوي'",
       'مرشح قوي' in _asl183)
 
-# 183-02: classify button rendered (replaces old promote-btn)
-check("183-02. co-classify-btn rendered in _renderApplicants (replaces promote-btn)",
+# 183-02: classify button rendered; PR-3 replaces 'حفظ وتصنيف' with 'ترشيح للوظيفة'
+check("183-02. co-classify-btn rendered in _renderApplicants with PR-3 label 'ترشيح للوظيفة'",
       'co-classify-btn' in _main183
-      and 'حفظ وتصنيف' in _main183)
+      and 'ترشيح للوظيفة' in _main183
+      and 'حفظ وتصنيف' not in _main183)
 
 # 183-03: sched button rendered for interview status (replaces interview-btn on accepted)
 check("183-03. co-app-sched-btn rendered for interview status in _renderApplicants",
@@ -8854,7 +8855,7 @@ check("183-08. _execPromote disables promote button during in-flight",
       'promoteBtn.disabled    = true' in _main183 or 'promoteBtn.disabled = true' in _main183)
 
 # 183-09: success path calls _reRenderCardFoot (replaces old replaceChild promote→interview)
-_exec183p = (_main183.split('function _execPromote')[1].split('function _onSchedBtn')[0]
+_exec183p = (_main183.split('function _execPromote')[1].split('function _onSaveApplicant')[0]
              if 'function _execPromote' in _main183 else '')
 check("183-09. success: _execPromote calls _reRenderCardFoot instead of DOM swap",
       '_reRenderCardFoot' in _exec183p)
@@ -9034,12 +9035,13 @@ _auth185  = open('auth.py', encoding='utf-8').read()
 _main185  = open('static/company/company.main.js', encoding='utf-8').read()
 _css185   = open('static/company/company.css', encoding='utf-8').read()
 
-# 185-01: save_company_candidate ON CONFLICT no longer writes job_id=EXCLUDED.job_id
+# 185-01: PR-3 — save_company_candidate no longer uses UPSERT ON CONFLICT; uses SELECT-first + INSERT
 _save185 = (_auth185.split('def save_company_candidate')[1].split('def get_company_saved_candidates')[0]
             if 'def save_company_candidate' in _auth185 else '')
-check("185-01. save_company_candidate UPSERT does not overwrite job_id",
-      'job_id=EXCLUDED.job_id' not in _save185
-      and 'ON CONFLICT (company_id, candidate_id) DO UPDATE' in _save185)
+check("185-01. PR-3: save_company_candidate uses quota check (no UPSERT ON CONFLICT DO UPDATE for insert path)",
+      'ON CONFLICT (company_id, candidate_id) DO UPDATE' not in _save185
+      and 'pg_advisory_xact_lock' in _save185
+      and 'TALENT_BANK_FREE_LIMIT' in _save185)
 
 # 185-02: Option B: promote has no CSC UPSERT at all (2-column conflict removed)
 _prom185 = (_auth185.split('def promote_application_to_shortlist')[1].split('def get_company_candidate_suggestions')[0]
@@ -9155,12 +9157,11 @@ check("186-03. idx_ccjr_company_candidate index defined",
 check("186-04. _migrate_company_candidate_job_refs imported and called in server.py",
       '_migrate_company_candidate_job_refs' in _srv186)
 
-# 186-05: save_company_candidate inserts into refs when job_id provided (atomic)
+# 186-05: PR-3 Talent Bank Independence — save_company_candidate does NOT write to company_candidate_job_refs
 _save186 = (_auth186.split('def save_company_candidate')[1].split('def remove_company_candidate')[0]
             if 'def save_company_candidate' in _auth186 else '')
-check("186-05. save_company_candidate writes to company_candidate_job_refs atomically",
-      'company_candidate_job_refs' in _save186
-      and 'ON CONFLICT DO NOTHING' in _save186
+check("186-05. PR-3: save_company_candidate does NOT INSERT INTO company_candidate_job_refs (talent bank independence)",
+      'INSERT INTO company_candidate_job_refs' not in _save186
       and 'BEGIN' in _save186
       and 'COMMIT' in _save186)
 
@@ -9276,9 +9277,10 @@ _rend187 = (_main187.split('function _renderApplicants')[1].split('function _wir
 check("187-04. _renderApplicants renders co-classify-btn with data-uid",
       'co-classify-btn' in _rend187 and 'data-uid' in _rend187)
 
-# 187-05: _renderApplicants shows حفظ وتصنيف label for fresh unclassified applicants
-check("187-05. حفظ وتصنيف label for unclassified applicants in _renderApplicants",
-      'حفظ وتصنيف' in _rend187 and 'isClassified' in _rend187)
+# 187-05: PR-3 — _renderApplicants shows 'ترشيح للوظيفة' (replaces 'حفظ وتصنيف') for unclassified
+check("187-05. PR-3: ترشيح للوظيفة label for unclassified applicants in _renderApplicants (no حفظ وتصنيف)",
+      'ترشيح للوظيفة' in _rend187 and 'isClassified' in _rend187
+      and 'حفظ وتصنيف' not in _rend187)
 
 # 187-06: _renderApplicants shows إعادة التصنيف for rejected
 check("187-06. إعادة التصنيف label for rejected applicants in _renderApplicants",
@@ -9438,17 +9440,14 @@ _upd_fn481  = (_auth481.split('def update_company_saved_candidate')[1].split('\n
 _filter_fn481 = (_auth481.split('def get_company_saved_candidates_filtered')[1].split('\ndef ')[0]
                  if 'def get_company_saved_candidates_filtered' in _auth481 else '')
 
-# 481-01: job-ref INSERT uses ON CONFLICT DO NOTHING — no dup on re-link
-check("481-01. company_candidate_job_refs INSERT uses ON CONFLICT DO NOTHING (idempotent)",
-      'company_candidate_job_refs' in _save_fn481
-      and 'ON CONFLICT DO NOTHING' in _save_fn481)
+# 481-01: PR-3 Talent Bank Independence — save_company_candidate does NOT INSERT INTO company_candidate_job_refs
+check("481-01. PR-3: save_company_candidate does NOT INSERT INTO company_candidate_job_refs (talent bank independence)",
+      'INSERT INTO company_candidate_job_refs' not in _save_fn481)
 
-# 481-02: same idempotency pattern present when save_company_candidate is called with job_id
-_jid_branch481 = (_save_fn481.split('if job_id is not None:')[1]
-                  if 'if job_id is not None:' in _save_fn481 else '')
-check("481-02. job_id branch in save_company_candidate writes to company_candidate_job_refs idempotently",
-      'company_candidate_job_refs' in _jid_branch481
-      and 'ON CONFLICT DO NOTHING' in _jid_branch481)
+# 481-02: PR-3 — save_company_candidate accepts job_id but stores it in CSC only (no CCJR insert)
+check("481-02. PR-3: save_company_candidate stores job_id in company_saved_candidates but not in company_candidate_job_refs",
+      'job_id' in _save_fn481
+      and 'INSERT INTO company_candidate_job_refs' not in _save_fn481)
 
 # 481-03: no job_id → no company_candidate_job_refs insert (else branch only touches saved_candidates)
 _no_jid_branch481 = (_save_fn481.split('else:\n')[1]

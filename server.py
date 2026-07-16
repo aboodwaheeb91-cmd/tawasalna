@@ -108,6 +108,7 @@ from auth import (
     get_company_saved_candidates_filtered, get_company_saved_candidates_stats,
     update_company_saved_candidate, update_candidate_job_status,
     VALID_CANDIDATE_STATUSES, VALID_CANDIDATE_SORTS,
+    get_talent_bank_quota, TALENT_BANK_FREE_LIMIT,
     get_company_candidate_suggestions,
     _migrate_appointments,
     _migrate_scheduler_jobs,
@@ -119,6 +120,7 @@ from auth import (
     LEGACY_CANDIDATE_STATUS_TO_PIPELINE_STAGE,
     run_due_scheduler_jobs,
     BlockingConflictError,
+    TalentBankLimitError,
 )
 from auth import ContentValidationError, validate_professional_text, JobArchivedError
 
@@ -2282,46 +2284,76 @@ def company_saved_candidates_stats(token=Depends(verify_token)):
     return {"status": "success", **stats}
 
 
+@app.get("/company/saved-candidates/quota")
+def company_talent_bank_quota(token=Depends(verify_token)):
+    """
+    GET /company/saved-candidates/quota
+    Returns the current Talent Bank usage and quota for the authenticated company.
+    Auth: JWT Bearer (user_type='co').
+    Returns: { used, limit, can_save }
+    """
+    company_id = _require_company_owner(token)
+    return get_talent_bank_quota(company_id)
+
+
 @app.post("/company/saved-candidates/{candidate_id}")
 def company_save_candidate(candidate_id: int, job_id: Optional[int] = None,
                            token=Depends(verify_token)):
     """
     POST /company/saved-candidates/{candidate_id}
-    Save an employee as a candidate. Idempotent (UPSERT).
-    Auth: JWT Bearer (user_type='co').
-    Optional query param: job_id — must belong to this company; links the saved
-    record to the specific job. Omit for a general (unlinked) save.
-    Returns: { status, saved: true, count }
+    Save an employee to the company's Talent Bank (quota-enforced, idempotent).
+
+    Auth: JWT Bearer (user_type='co'). company_id is always from the token — never from the client.
+    Optional query param: job_id — must belong to this company AND the candidate must have applied;
+    used to set save_source='applicant'. Omit for a general save (save_source='manual').
+
+    Quota: TALENT_BANK_FREE_LIMIT (25) unique saved candidates per company.
+    - Already-saved candidates always succeed idempotently regardless of quota.
+    - New candidates over the limit return HTTP 409 with a structured top-level body.
+
+    Returns: { status, saved, already_saved, count, used, limit, can_save }
+    409 body (top-level, not wrapped): { code, limit, used, can_save }
     """
     company_id = _require_company_owner(token)
     if candidate_id == company_id:
         raise HTTPException(400, "لا يمكن حفظ الشركة نفسها كمرشح")
+
+    # Determine save_source server-side — never trust client input for this field.
+    save_source = 'manual'
     if job_id is not None:
         conn = get_conn()
         try:
-            # 1. Verify the job belongs to this company
             job_rows = conn.run(
                 "SELECT id FROM jobs WHERE id=:jid AND company_id=:cid",
                 jid=job_id, cid=company_id)
             if not job_rows:
                 raise HTTPException(400, "الوظيفة غير موجودة أو لا تتبع شركتك")
-            # 2. Verify the candidate actually applied to this job
             app_rows = conn.run(
                 "SELECT 1 FROM job_applications WHERE job_id=:jid AND user_id=:uid",
                 jid=job_id, uid=candidate_id)
             if not app_rows:
                 raise HTTPException(400, "لا يمكن ربط المرشح بوظيفة لم يتقدم عليها")
+            save_source = 'applicant'
         finally:
             release_conn(conn)
+
     try:
-        count = save_company_candidate(
+        result = save_company_candidate(
             company_id=company_id,
             candidate_id=candidate_id,
             saved_by=company_id,
-            job_id=job_id)
+            job_id=job_id,
+            save_source=save_source)
+    except TalentBankLimitError as e:
+        return JSONResponse(status_code=409, content={
+            "code":     "talent_bank_limit_reached",
+            "limit":    e.limit,
+            "used":     e.used,
+            "can_save": False,
+        })
     except ValueError as e:
         raise HTTPException(400, str(e))
-    return {"status": "success", "saved": True, "count": count}
+    return result
 
 
 @app.delete("/company/saved-candidates/{candidate_id}")

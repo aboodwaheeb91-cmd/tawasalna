@@ -249,7 +249,7 @@
 
   function saveSuggestedCandidate(candidateId) {
     var jwt = window._jwt ? window._jwt() : '';
-    if (!jwt) return Promise.resolve({ ok: false, data: {} });
+    if (!jwt) return Promise.resolve({ ok: false, status: 401, data: {} });
     return fetch('/company/saved-candidates/' + candidateId, {
       method: 'POST',
       headers: { 'Authorization': 'Bearer ' + jwt }
