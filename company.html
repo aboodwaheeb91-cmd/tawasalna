@@ -326,11 +326,15 @@ body{background:var(--bg);color:var(--t);font-family:'Cairo',sans-serif;min-heig
     </div>
   </div>
 
-  <!-- Active Jobs -->
+  <!-- Active / Archived Jobs -->
   <div class="jobs-sec">
     <div class="jobs-sec-hd">
-      <h3>💼 وظائفي المنشورة</h3>
+      <h3>💼 وظائفي</h3>
       <button class="nb nb-primary" style="font-size:.7rem" onclick="openPostJob()">+ نشر وظيفة</button>
+    </div>
+    <div style="display:flex;gap:6px;margin-bottom:10px">
+      <button id="jobTabActive" onclick="switchJobTab('active')" style="flex:1;padding:5px 0;border-radius:8px;border:1.5px solid var(--ac);background:var(--ac);color:#fff;font-size:.72rem;cursor:pointer;font-family:inherit">المنشورة</button>
+      <button id="jobTabArchived" onclick="switchJobTab('archived')" style="flex:1;padding:5px 0;border-radius:8px;border:1.5px solid rgba(255,255,255,.15);background:transparent;color:var(--t3);font-size:.72rem;cursor:pointer;font-family:inherit">المؤرشفة</button>
     </div>
     <div id="companyJobsList">
       <div style="text-align:center;padding:20px;color:var(--t3);font-size:.8rem">جاري التحميل...</div>
@@ -542,35 +546,84 @@ function submitPostJob(){
   }).catch(()=>alert('خطأ في نشر الوظيفة'));
 }
 
+var _jobView = 'active';
+
+function switchJobTab(view){
+  _jobView = view;
+  var btnActive   = document.getElementById('jobTabActive');
+  var btnArchived = document.getElementById('jobTabArchived');
+  if(btnActive && btnArchived){
+    var onStyle  = 'flex:1;padding:5px 0;border-radius:8px;border:1.5px solid var(--ac);background:var(--ac);color:#fff;font-size:.72rem;cursor:pointer;font-family:inherit';
+    var offStyle = 'flex:1;padding:5px 0;border-radius:8px;border:1.5px solid rgba(255,255,255,.15);background:transparent;color:var(--t3);font-size:.72rem;cursor:pointer;font-family:inherit';
+    btnActive.style.cssText   = view==='active'   ? onStyle : offStyle;
+    btnArchived.style.cssText = view==='archived' ? onStyle : offStyle;
+  }
+  loadCompanyJobs();
+}
+
 function loadCompanyJobs(){
-  if(!_u||!_u.id) return;
-  fetch('/company/jobs',{headers:{'Authorization':'Bearer '+_jwt}})
+  if(!_user||!_user.id) return;
+  fetch('/company/jobs?view='+_jobView,{headers:{'Authorization':'Bearer '+_jwt}})
   .then(r=>r.json()).then(data=>{
     const jobs = data.jobs||[];
+    const isArchived = _jobView === 'archived';
     const container = document.getElementById('companyJobsList');
     if(!container) return;
     if(!jobs.length){
-      container.innerHTML='<div class="tw-empty"><span class="tw-empty-ico">💼</span><div class="tw-empty-title">لم تنشر أي وظيفة بعد</div><div class="tw-empty-sub">انشر أول وظيفة لاستقطاب المواهب</div><button class="tw-empty-btn" onclick="openPostJob()">+ نشر وظيفة</button></div>';
+      var emptyMsg = isArchived
+        ? '<div class="tw-empty"><span class="tw-empty-ico">🗂️</span><div class="tw-empty-title">لا توجد وظائف مؤرشفة</div></div>'
+        : '<div class="tw-empty"><span class="tw-empty-ico">💼</span><div class="tw-empty-title">لم تنشر أي وظيفة بعد</div><div class="tw-empty-sub">انشر أول وظيفة لاستقطاب المواهب</div><button class="tw-empty-btn" onclick="openPostJob()">+ نشر وظيفة</button></div>';
+      container.innerHTML = emptyMsg;
       return;
     }
-    container.innerHTML = jobs.map(j=>`
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.05)">
-        <div>
-          <div style="font-weight:700;font-size:.85rem">${j.title}</div>
-          <div style="font-size:.72rem;color:var(--t3)">${j.location||''} · ${j.views||0} مشاهدة</div>
-        </div>
-        <div style="display:flex;align-items:center;gap:8px">
-          <span style="font-size:.68rem;padding:2px 8px;border-radius:20px;background:rgba(0,200,150,.1);color:var(--ac)">${j.status==='active'?'نشطة':'مغلقة'}</span>
-          <button onclick="deleteCompanyJob(${j.id})" style="background:rgba(239,68,68,.1);color:#f87171;border:none;border-radius:8px;padding:4px 8px;cursor:pointer;font-size:.7rem">حذف</button>
-        </div>
-      </div>`).join('');
+    container.innerHTML = jobs.map(j=>{
+      var archived = !!j.archived_at;
+      // sanitize() from tw_shared.js — prevents XSS from API data in innerHTML
+      var safeTitle    = sanitize(j.title    || '');
+      var safeLocation = sanitize(j.location || '');
+      var statusBadge = archived
+        ? '<span style="font-size:.68rem;padding:2px 8px;border-radius:20px;background:rgba(156,163,175,.12);color:#9ca3af">مؤرشفة</span>'
+        : '<span style="font-size:.68rem;padding:2px 8px;border-radius:20px;background:rgba(0,200,150,.1);color:var(--ac)">'+(j.status==='active'?'نشطة':'مغلقة')+'</span>';
+      var archiveBtn = archived
+        ? '<button onclick="viewJobApplicants('+j.id+')" style="background:rgba(37,99,255,.1);color:#60a5fa;border:none;border-radius:8px;padding:4px 8px;cursor:pointer;font-size:.7rem">المتقدمون</button>'
+        : '<button onclick="archiveCompanyJob('+j.id+')" style="background:rgba(239,68,68,.1);color:#f87171;border:none;border-radius:8px;padding:4px 8px;cursor:pointer;font-size:.7rem">أرشفة</button>';
+      return '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.05)">'
+        +'<div>'
+        +'<div style="font-weight:700;font-size:.85rem">'+safeTitle+'</div>'
+        +'<div style="font-size:.72rem;color:var(--t3)">'+safeLocation+' · '+(j.views||0)+' مشاهدة</div>'
+        +'</div>'
+        +'<div style="display:flex;align-items:center;gap:8px">'+statusBadge+archiveBtn+'</div>'
+        +'</div>';
+    }).join('');
   }).catch(()=>{});
 }
 
-function deleteCompanyJob(jobId){
-  if(!confirm('حذف هذه الوظيفة؟')) return;
+function archiveCompanyJob(jobId){
+  if(!confirm('أرشفة هذه الوظيفة؟ (لا يمكن التراجع)')) return;
   fetch('/company/jobs/'+jobId,{method:'DELETE',headers:{'Authorization':'Bearer '+_jwt}})
-  .then(()=>loadCompanyJobs()).catch(()=>{});
+  .then(r=>{
+    if(r.ok) loadCompanyJobs();
+    else r.json().then(d=>alert('خطأ: '+(d.error||d.detail||'فشل الأرشفة'))).catch(()=>alert('فشل الأرشفة'));
+  }).catch(()=>alert('فشل الاتصال بالخادم'));
+}
+
+function viewJobApplicants(jobId){
+  fetch('/jobs/'+jobId+'/applicants',{headers:{'Authorization':'Bearer '+_jwt}})
+  .then(function(r){
+    if(!r.ok){
+      return r.json().catch(function(){return {};}).then(function(d){
+        alert('تعذّر تحميل المتقدمين: '+(d.error||d.detail||r.status));
+      });
+    }
+    return r.json().then(function(data){
+      var applicants = Array.isArray(data.applicants) ? data.applicants
+                     : Array.isArray(data) ? data : [];
+      var names = applicants.length
+        ? applicants.map(function(a){return a.full_name||'متقدم';}).join('، ')
+        : 'لا يوجد متقدمون';
+      alert('المتقدمون ('+applicants.length+'): '+names);
+    });
+  }).catch(function(){alert('تعذّر تحميل المتقدمين');});
 }
 
 // Load company jobs on page load
