@@ -112,6 +112,11 @@ from auth import (
     _migrate_appointments,
     _migrate_scheduler_jobs,
     _migrate_pipeline_schema_v1,
+    _migrate_partial_unique_application_id,
+    run_pipeline_backfill,
+    pipeline_backfill_dry_run,
+    LEGACY_APP_STATUS_TO_PIPELINE_STAGE,
+    LEGACY_CANDIDATE_STATUS_TO_PIPELINE_STAGE,
     run_due_scheduler_jobs,
 )
 from auth import ContentValidationError, validate_professional_text, JobArchivedError
@@ -527,6 +532,12 @@ async def on_startup():
         print("✅ pipeline schema v1 ready (jobs archive, job_pipeline_entries, pipeline_stage_events, pipeline_notes, candidate_bank_notes, company_saved_candidates fields, appointments.pipeline_entry_id)")
     except Exception as e:
         print(f"❌ pipeline schema v1 migration failed: {e}")
+        raise
+    try:
+        _migrate_partial_unique_application_id()
+        print("✅ pipeline partial unique index on application_id ready")
+    except Exception as e:
+        print(f"❌ pipeline partial unique index migration failed: {e}")
         raise
     await _init_asyncpg_pool()
 
@@ -4906,3 +4917,41 @@ def internal_run_due_jobs(request: Request, limit: int = 20):
     except Exception as e:
         print(f"[internal_run_due_jobs] ERROR: {e}")
         raise HTTPException(500, "Runner error")
+
+
+# ── Pipeline Backfill — Admin endpoints ──────────────────────────────────────
+
+@app.post("/admin/pipeline/backfill")
+def admin_pipeline_backfill(
+    request: Request,
+    dry_run: bool = False,
+):
+    """
+    POST /admin/pipeline/backfill[?dry_run=true]
+    Trigger Pipeline Backfill (PR-2).
+
+    dry_run=true  → read-only analysis, no writes.
+    dry_run=false → executes backfill in a single atomic transaction.
+
+    Requires X-Admin-Token header.
+    """
+    check_admin(request)
+    try:
+        result = run_pipeline_backfill(dry_run=dry_run)
+        return result
+    except RuntimeError as e:
+        raise HTTPException(500, str(e))
+
+
+@app.get("/admin/pipeline/backfill/dry-run")
+def admin_pipeline_backfill_dry_run(request: Request):
+    """
+    GET /admin/pipeline/backfill/dry-run
+    Read-only analysis of legacy data eligible for backfill. No writes.
+    Requires X-Admin-Token header.
+    """
+    check_admin(request)
+    try:
+        return pipeline_backfill_dry_run()
+    except Exception as e:
+        raise HTTPException(500, str(e))

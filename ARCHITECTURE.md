@@ -10476,3 +10476,138 @@ Archived job cards in `company.html` include a "المتقدمون" button that 
 ❌ Using HTTPException for the 409 archive body (wraps in {"error":...})
 ❌ Re-adding delete_job() helper function — use inline SQL or archive_job()
 ```
+
+---
+
+## §66c — Employment Pipeline System — PR-2: Backfill + Dual-write
+
+### Overview
+
+PR-2 extends the Pipeline foundation from PR-1 with three capabilities:
+
+1. **Idempotent backfill** — populates `job_pipeline_entries` from legacy data (priority: `company_candidate_job_refs` → `job_applications`), and migrates `company_saved_candidates.notes` → `candidate_bank_notes`.
+2. **Dual-write on all write paths** — every function that writes to a legacy pipeline-adjacent table also atomically writes to `job_pipeline_entries` (same transaction, same ROLLBACK on failure).
+3. **Partial UNIQUE index** — `uq_jpe_application_id ON job_pipeline_entries(application_id) WHERE application_id IS NOT NULL`.
+
+### Status Mapping Constants (auth.py)
+
+```python
+LEGACY_APP_STATUS_TO_PIPELINE_STAGE = {
+    "pending":   "new",
+    "viewed":    "reviewing",
+    "accepted":  "shortlisted",
+    "contacted": "contacted",
+    "interview": "interview",
+    "hired":     "hired",
+    "rejected":  "rejected",
+}
+
+LEGACY_CANDIDATE_STATUS_TO_PIPELINE_STAGE = {
+    "saved":       "new",
+    "shortlisted": "shortlisted",
+    "contacted":   "contacted",
+    "interview":   "interview",
+    "hired":       "hired",
+    "rejected":    "rejected",
+}
+```
+
+These are the **only** approved mapping tables. Do NOT define per-function equivalents.
+
+### New Helpers (auth.py)
+
+| Function | Purpose |
+|----------|---------|
+| `_pipeline_upsert_entry(conn, *, company_id, candidate_id, job_id, stage, source, ...)` | INSERT ON CONFLICT DO NOTHING — creates pipeline entry if the triple (company, candidate, job) doesn't exist. Returns `id` if created, `None` on conflict. Must be called inside an open transaction. |
+| `_pipeline_update_stage(conn, *, company_id, candidate_id, job_id, new_stage, changed_by=None)` | UPDATE stage + timestamps. Returns `True` if a row was updated, `False` if no entry exists (not an error). Must be called inside an open transaction. |
+| `pipeline_backfill_dry_run()` | Read-only analysis. Returns counts of eligible legacy rows, existing pipeline entries, and conflicts. No writes. |
+| `run_pipeline_backfill(dry_run=False)` | Executes backfill in a single transaction when `dry_run=False`. Delegates to `pipeline_backfill_dry_run()` when `dry_run=True`. |
+| `_migrate_partial_unique_application_id()` | Creates the partial UNIQUE index idempotently. Called from server.py startup after `_migrate_pipeline_schema_v1()`. |
+
+### Backfill Priority Order
+
+Pass 1 — `company_candidate_job_refs` → `job_pipeline_entries`
+- Source: `source='migration'`; stage derived via `LEGACY_CANDIDATE_STATUS_TO_PIPELINE_STAGE`
+- `ON CONFLICT (company_id, candidate_id, job_id) DO NOTHING`
+- `application_id` left NULL (filled in pass 2)
+
+Pass 2 — `job_applications` → `job_pipeline_entries`
+- Source: `source='migration'`; stage derived via `LEGACY_APP_STATUS_TO_PIPELINE_STAGE`
+- `ON CONFLICT (company_id, candidate_id, job_id) DO UPDATE SET application_id = EXCLUDED.application_id WHERE job_pipeline_entries.application_id IS NULL`
+- If entry exists from pass 1 and `application_id` is already set → no-op
+
+Pass 3 — `company_saved_candidates.notes` → `candidate_bank_notes`
+- Skips NULL/empty notes
+- `migration_source_key = 'legacy:company_saved_candidates:{row_id}:notes'`
+- `ON CONFLICT (migration_source_key) DO NOTHING` — idempotent
+
+### Dual-write Write Paths
+
+| Function | Legacy write | Pipeline write | Transaction |
+|----------|-------------|----------------|-------------|
+| `apply_job()` | INSERT `job_applications` | `_pipeline_upsert_entry(stage='new', source='application')` | Same BEGIN/COMMIT/ROLLBACK |
+| `update_application_status()` | UPDATE `job_applications.status` + UPSERT `company_candidate_job_refs` | `_pipeline_update_stage(new_stage=LEGACY_APP_STATUS_TO_PIPELINE_STAGE[status])` | Same BEGIN/COMMIT/ROLLBACK |
+| `promote_application_to_shortlist()` | `job_applications` → `accepted`; UPSERT `company_saved_candidates`; UPSERT `company_candidate_job_refs` | `_pipeline_update_stage(new_stage='shortlisted')` | Same BEGIN/COMMIT/ROLLBACK |
+| `update_candidate_job_status()` | UPDATE `company_candidate_job_refs.candidate_status` | `_pipeline_update_stage(new_stage=LEGACY_CANDIDATE_STATUS_TO_PIPELINE_STAGE[status])` | New BEGIN/COMMIT/ROLLBACK added (previously no transaction) |
+
+**Rule:** `_pipeline_update_stage` returning `False` (entry not yet in pipeline) is not an error — the legacy write still succeeds.
+
+**Rule:** If the pipeline write fails, the entire transaction rolls back — no partial writes (legacy succeeds but pipeline fails).
+
+### Partial UNIQUE Index
+
+```sql
+CREATE UNIQUE INDEX IF NOT EXISTS uq_jpe_application_id
+ON job_pipeline_entries(application_id)
+WHERE application_id IS NOT NULL
+```
+
+- Added by `_migrate_partial_unique_application_id()` in startup
+- Prevents two pipeline entries from claiming the same application_id
+- NULL `application_id` rows are not covered — each company-add or bank-link may lack an application_id
+
+### Admin Endpoints (server.py)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/admin/pipeline/backfill` | Execute backfill (`?dry_run=true` for analysis only). Requires `X-Admin-Token`. |
+| `GET` | `/admin/pipeline/backfill/dry-run` | Read-only dry-run shortcut. Requires `X-Admin-Token`. |
+
+### Compatibility Rules (permanent)
+
+- Legacy tables (`job_applications`, `company_saved_candidates`, `company_candidate_job_refs`) are NOT dropped, NOT altered. All existing columns stay.
+- `company_saved_candidates.notes` is NOT removed. The migration copies it to `candidate_bank_notes` — both exist.
+- `job_pipeline_entries` is NOT yet the primary read source — no endpoint reads from it in PR-2.
+- No frontend changes in PR-2.
+- Response contracts are unchanged in PR-2.
+
+### Tests
+
+`test_pipeline_backfill.py` — 73 static checks (expanded from original 39-test spec):
+- §A (A-01 to A-11): Mapping constants
+- §B (B-01 to B-07): `_pipeline_upsert_entry`
+- §C (C-01 to C-06): `_pipeline_update_stage`
+- §D (D-01 to D-06): `pipeline_backfill_dry_run`
+- §E (E-01 to E-12): `run_pipeline_backfill`
+- §F (F-01 to F-05): `_migrate_partial_unique_application_id`
+- §G (G-01 to G-04): `apply_job` dual-write
+- §H (H-01 to H-05): `update_application_status` dual-write
+- §I (I-01 to I-04): `promote_application_to_shortlist` dual-write
+- §J (J-01 to J-05): `update_candidate_job_status` transaction + dual-write
+- §K (K-01 to K-08): Compatibility checks
+
+### Forbidden Patterns (PR-2 — permanent)
+
+```
+❌ Removing or dropping any legacy table (company_saved_candidates, job_applications, company_candidate_job_refs)
+❌ Removing company_saved_candidates.notes column
+❌ Switching reads to job_pipeline_entries in PR-2 (read switch is PR-3)
+❌ Adding a frontend change in PR-2
+❌ Changing existing API response contracts in PR-2
+❌ Running cleanup of legacy tables in PR-2
+❌ Per-function status-to-stage mapping dicts — use only LEGACY_APP_STATUS_TO_PIPELINE_STAGE and LEGACY_CANDIDATE_STATUS_TO_PIPELINE_STAGE
+❌ Calling _pipeline_upsert_entry or _pipeline_update_stage outside an open transaction
+❌ Silent failure on pipeline write error — the whole transaction must roll back
+❌ Creating pipeline entries for save_company_candidate or remove_company_candidate (Talent Bank; no job context → no pipeline entry)
+❌ Starting PR-3 before PR-2 is reviewed and merged by the user
+```

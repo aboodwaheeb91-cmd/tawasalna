@@ -566,10 +566,10 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 
 ---
 
-### 38. Employment Pipeline System ✅ PR-1 Schema + PR-JOB Soft Archive
-**Purpose:** نظام Pipeline الوظيفي — تتبع كل مرشح داخل الشركة من مصدر الاكتشاف حتى التوظيف أو الرفض. يشمل: أرشفة الوظائف (soft archive)، إدخالات Pipeline لكل (شركة، مرشح، وظيفة)، سجل انتقالات المراحل، ملاحظات Pipeline، ملاحظات بنك المواهب، وحقول تصنيف موسّعة في بنك المواهب.
+### 38. Employment Pipeline System ✅ PR-1 + PR-JOB + PR-2 Backfill + Dual-write
+**Purpose:** نظام Pipeline الوظيفي — تتبع كل مرشح داخل الشركة من مصدر الاكتشاف حتى التوظيف أو الرفض. يشمل: أرشفة الوظائف (soft archive)، إدخالات Pipeline لكل (شركة، مرشح، وظيفة)، سجل انتقالات المراحل، ملاحظات Pipeline، ملاحظات بنك المواهب، وحقول تصنيف موسّعة في بنك المواهب، وbackfill من البيانات الموروثة + dual-write على مسارات الكتابة.
 
-**Status:** PR-1 Schema Foundation ✅ (merged) · PR-JOB Soft Archive ✅ (merged) — أرشفة ناعمة للوظائف بدلاً من الحذف مع tabs في لوحة التحكم.
+**Status:** PR-1 Schema Foundation ✅ (merged) · PR-JOB Soft Archive ✅ (merged) · PR-2 Backfill + Dual-write ✅ (merged) — idempotent backfill من بيانات pipeline الموروثة + dual-write داخل transactions + partial UNIQUE index + admin endpoints للـ backfill.
 
 **Source of Truth:**
 - `jobs.archived_at` — **مصدر الحقيقة الوحيد** لأرشفة الوظيفة · NULL = نشطة · NOT NULL = مؤرشفة · لا تستخدم `status` لتحديد الأرشفة
@@ -589,7 +589,17 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 - `server.py → POST /jobs/{id}/apply` — HTTP 409 عند التقديم على وظيفة مؤرشفة
 - `company.html → switchJobTab() / loadCompanyJobs() / archiveCompanyJob()` — تبويبان: المنشورة / المؤرشفة
 
-**Details:** PR-1 — Additive Schema · PR-JOB — Soft Archive · `ARCHITECTURE_FOUNDATION.md` (قواعد F1–F13) · `ARCHITECTURE.md §66` (PR-1) · `ARCHITECTURE.md §66b` (PR-JOB) · اختبارات pr-1-01 إلى pr-1-10e في `test_post_comments.py` (static/behavioral) · 80 اختبار تكاملي في `test_pipeline_integration.py` (PR-1 PostgreSQL) · 23 اختبار تكاملي في `test_job_archive_integration.py` (PR-JOB PostgreSQL)
+**Details:** PR-1 — Additive Schema · PR-JOB — Soft Archive · PR-2 — Backfill + Dual-write · `ARCHITECTURE_FOUNDATION.md` (قواعد F1–F13) · `ARCHITECTURE.md §66` (PR-1) · `ARCHITECTURE.md §66b` (PR-JOB) · `ARCHITECTURE.md §66c` (PR-2) · اختبارات pr-1-01 إلى pr-1-10e في `test_post_comments.py` · 80 اختبار في `test_pipeline_integration.py` · 23 اختبار في `test_job_archive_integration.py` · 73 اختبار في `test_pipeline_backfill.py` (§A–§K)
+
+**Source of Truth (PR-2 additions):**
+- `auth.py → LEGACY_APP_STATUS_TO_PIPELINE_STAGE` — mapping وحيد من `job_applications.status` → pipeline stage
+- `auth.py → LEGACY_CANDIDATE_STATUS_TO_PIPELINE_STAGE` — mapping وحيد من `candidate_status` → pipeline stage
+- `auth.py → _pipeline_upsert_entry(conn, ...)` — INSERT ON CONFLICT DO NOTHING داخل transaction
+- `auth.py → _pipeline_update_stage(conn, ...)` — UPDATE stage داخل transaction
+- `auth.py → run_pipeline_backfill(dry_run=False)` — backfill idempotent في transaction واحدة
+- `auth.py → _migrate_partial_unique_application_id()` — partial UNIQUE index على application_id
+- `server.py → POST /admin/pipeline/backfill` — admin endpoint للـ backfill
+- `server.py → GET /admin/pipeline/backfill/dry-run` — read-only analysis
 
 **Do not recreate:**
 - `job_pipeline_entries` موجودة — لا تُنشئ جدول pipeline بديلاً
@@ -597,7 +607,7 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 - الأرشفة one-way — لا unarchive endpoint
 - `archived_at IS NULL` هو الفلتر الإلزامي في كل public query للوظائف
 - HTTP 409 `{"code":"job_archived","message":"..."}` هو الرد الوحيد المسموح لـ apply على وظيفة مؤرشفة
-- الـ UNIQUE constraint هو `(company_id, candidate_id, job_id)` — لا تُضف partial UNIQUE على application_id حتى PR مخصص
+- Partial UNIQUE index اسمه `uq_jpe_application_id` — لا تُنشئ index بديلاً
 - `company_id / candidate_id → ON DELETE CASCADE` · `job_id → ON DELETE RESTRICT` — لا تعكسها
 - `stage_updated_at / stage_updated_by` (ليس `moved_at / moved_by`) — الأسماء القديمة محظورة
 - `reason` في `pipeline_stage_events` (ليس `note`) — الاسم القديم محظور
@@ -607,8 +617,10 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 - priority القيم المسموح بها: `low | medium | high` فقط — `normal` و `urgent` محظوران نهائياً
 - `save_source` القيم المسموح بها: `applicant | suggestion | manual | legacy_unknown` — كلمة `profile` محظورة صراحةً
 - Index الوظائف: `idx_jobs_company_not_archived_created` (ليس `idx_jobs_not_archived`) — الاسم القديم محظور
-- لا backfill، لا dual-write، لا تغيير في `job_applications.status` في PR-JOB
-- لا تبدأ PR-2 قبل موافقة صريحة من المستخدم بعد دمج PR-JOB
+- لا تُعرّف mapping dicts للـ status→stage داخل functions — استخدم `LEGACY_APP_STATUS_TO_PIPELINE_STAGE` و `LEGACY_CANDIDATE_STATUS_TO_PIPELINE_STAGE` فقط
+- `_pipeline_upsert_entry` و `_pipeline_update_stage` لا تُستدعى خارج transaction مفتوحة
+- `job_pipeline_entries` ليس مصدر القراءة في PR-2 — تحويل القراءة مؤجل لـ PR-3
+- لا تُنشئ pipeline entries في `save_company_candidate` أو `remove_company_candidate` — Talent Bank بلا job context
 - `stage` القيم: new/reviewing/shortlisted/contacted/interview/offer/hired/rejected/withdrawn (لا sourced/screening/assessment)
 - `source` القيم: application/company_add/bank_link/migration/legacy_unknown (لا applicant/suggestion/manual)
 
