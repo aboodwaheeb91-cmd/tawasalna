@@ -109,8 +109,8 @@ check("B-01. _pipeline_upsert_entry defined",
       "def _pipeline_upsert_entry(" in _auth)
 check("B-02. Inserts into job_pipeline_entries",
       "INSERT INTO job_pipeline_entries" in _pu)
-check("B-03. ON CONFLICT DO NOTHING",
-      "ON CONFLICT" in _pu and "DO NOTHING" in _pu)
+check("B-03. Uses SELECT ... FOR UPDATE (race-safe upsert — no ON CONFLICT DO NOTHING)",
+      "FOR UPDATE" in _pu)
 check("B-04. RETURNING id",
       "RETURNING id" in _pu)
 check("B-05. application_id parameter accepted",
@@ -154,7 +154,7 @@ def _fn_body(src, name, window=5000):
         end = min(idx + window, next_def)
     return src[idx:end]
 
-_dr = _fn_body(_auth, "pipeline_backfill_dry_run")
+_dr = _fn_body(_auth, "pipeline_backfill_dry_run", window=8000)
 
 check("D-01. pipeline_backfill_dry_run defined",
       "def pipeline_backfill_dry_run(" in _auth)
@@ -172,7 +172,7 @@ check("D-06. No INSERT/UPDATE/DELETE (read-only)",
 # ═══════════════════════════════════════════════════════════════════════════════
 # §E  run_pipeline_backfill
 # ═══════════════════════════════════════════════════════════════════════════════
-_bf = _fn(_auth, "run_pipeline_backfill")
+_bf = _fn(_auth, "run_pipeline_backfill", window=12000)
 
 check("E-01. run_pipeline_backfill defined",
       "def run_pipeline_backfill(" in _auth)
@@ -196,10 +196,11 @@ check("E-09. Wrapped in single transaction (BEGIN/COMMIT/ROLLBACK)",
       and 'conn.run("ROLLBACK")' in _bf)
 check("E-10. committed guard present",
       "committed = False" in _bf and "committed = True" in _bf)
-check("E-11. Returns inserted_entries, skipped_entries counts",
-      "inserted_entries" in _bf and "skipped_entries" in _bf)
-check("E-12. Returns inserted_notes, skipped_notes counts",
-      "inserted_notes" in _bf and "skipped_notes" in _bf)
+check("E-11. Returns entries_created + application_links_added + backward-compat aliases",
+      "entries_created" in _bf and "application_links_added" in _bf
+      and "inserted_entries" in _bf and "skipped_entries" in _bf)
+check("E-12. Returns bank_notes_created + backward-compat aliases",
+      "bank_notes_created" in _bf and "inserted_notes" in _bf and "skipped_notes" in _bf)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # §F  _migrate_partial_unique_application_id
@@ -298,12 +299,13 @@ check("K-04. No SELECT from job_pipeline_entries in get_company_saved_candidates
 check("K-05. server.py imports new pipeline functions",
       "run_pipeline_backfill" in _server
       and "_migrate_partial_unique_application_id" in _server)
-check("K-06. startup calls _migrate_partial_unique_application_id",
-      "_migrate_partial_unique_application_id()" in _server)
-check("K-07. Admin backfill endpoint exists",
-      '"/admin/pipeline/backfill"' in _server)
+check("K-06. Admin migrate-index endpoint calls _migrate_partial_unique_application_id",
+      "_migrate_partial_unique_application_id()" in _server
+      and '"/admin/pipeline/migrate-index"' in _server)
+check("K-07. Admin backfill endpoint exists with confirm= guard",
+      '"/admin/pipeline/backfill"' in _server and "confirm" in _server)
 check("K-08. Backfill endpoint requires X-Admin-Token (uses check_admin)",
-      "check_admin(request)" in _block(_server, '"/admin/pipeline/backfill"', 400))
+      "check_admin(request)" in _block(_server, '"/admin/pipeline/backfill"', 800))
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Summary

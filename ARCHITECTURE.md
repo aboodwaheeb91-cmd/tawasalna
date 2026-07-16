@@ -10487,7 +10487,7 @@ PR-2 extends the Pipeline foundation from PR-1 with three capabilities:
 
 1. **Idempotent backfill** — populates `job_pipeline_entries` from legacy data (priority: `company_candidate_job_refs` → `job_applications`), and migrates `company_saved_candidates.notes` → `candidate_bank_notes`.
 2. **Dual-write on all write paths** — every function that writes to a legacy pipeline-adjacent table also atomically writes to `job_pipeline_entries` (same transaction, same ROLLBACK on failure).
-3. **Partial UNIQUE index** — `uq_jpe_application_id ON job_pipeline_entries(application_id) WHERE application_id IS NOT NULL`.
+3. **Partial UNIQUE index** — `uq_jpe_application_id ON job_pipeline_entries(application_id) WHERE application_id IS NOT NULL`. Created by `_migrate_partial_unique_application_id()` called from an explicit admin endpoint (`POST /admin/pipeline/migrate-index`), **NOT from server startup**, to avoid race conditions before backfill runs.
 
 ### Status Mapping Constants (auth.py)
 
@@ -10512,47 +10512,93 @@ LEGACY_CANDIDATE_STATUS_TO_PIPELINE_STAGE = {
 }
 ```
 
-These are the **only** approved mapping tables. Do NOT define per-function equivalents.
+These are the **only** approved mapping tables. Do NOT define per-function equivalents. An unknown status is a **conflict** — there is no `.get(val, "new")` fallback.
 
 ### New Helpers (auth.py)
 
 | Function | Purpose |
 |----------|---------|
-| `_pipeline_upsert_entry(conn, *, company_id, candidate_id, job_id, stage, source, ...)` | INSERT ON CONFLICT DO NOTHING — creates pipeline entry if the triple (company, candidate, job) doesn't exist. Returns `id` if created, `None` on conflict. Must be called inside an open transaction. |
-| `_pipeline_update_stage(conn, *, company_id, candidate_id, job_id, new_stage, changed_by=None)` | UPDATE stage + timestamps. Returns `True` if a row was updated, `False` if no entry exists (not an error). Must be called inside an open transaction. |
-| `pipeline_backfill_dry_run()` | Read-only analysis. Returns counts of eligible legacy rows, existing pipeline entries, and conflicts. No writes. |
-| `run_pipeline_backfill(dry_run=False)` | Executes backfill in a single transaction when `dry_run=False`. Delegates to `pipeline_backfill_dry_run()` when `dry_run=True`. |
-| `_migrate_partial_unique_application_id()` | Creates the partial UNIQUE index idempotently. Called from server.py startup after `_migrate_pipeline_schema_v1()`. |
+| `_pipeline_upsert_entry(conn, *, company_id, candidate_id, job_id, stage, source, ...)` | **SELECT FOR UPDATE** then INSERT (or link application_id if entry exists with NULL). Returns `int id`. Raises `ValueError` if `application_id` conflicts with the stored one. Must be called inside an open transaction. |
+| `_pipeline_update_stage(conn, *, company_id, candidate_id, job_id, new_stage, changed_by=None, reason=None)` | **SELECT FOR UPDATE** + UPDATE stage + timestamps + INSERT `pipeline_stage_events` event. Returns `True` if row found, `False` if no entry (not an error). Idempotent: same-stage call creates no event. Must be called inside an open transaction. |
+| `pipeline_backfill_dry_run()` | Read-only analysis. Returns granular counts for `job_applications`, `company_candidate_job_refs`, `notes`, `conflicts_by_type`, and `blocking_conflicts` flag. No writes. |
+| `run_pipeline_backfill(dry_run=False)` | Executes backfill in a single transaction with `pg_advisory_xact_lock(20260716)` to serialize concurrent runs. `dry_run=True` delegates to `pipeline_backfill_dry_run()`. |
+| `_migrate_partial_unique_application_id()` | Creates the partial UNIQUE index idempotently. Called from `POST /admin/pipeline/migrate-index` (NOT from server startup). |
+
+### `_pipeline_upsert_entry` — Detailed Behaviour
+
+```
+1. SELECT FOR UPDATE on (company_id, candidate_id, job_id)
+2. If no row → INSERT; return new id
+3. If row exists and application_id is NULL → UPDATE application_id if provided; return id
+4. If row exists and application_id matches → no-op; return id
+5. If row exists and application_id CONFLICTS → raise ValueError
+```
+
+SELECT FOR UPDATE prevents TOCTOU races in concurrent dual-write paths (e.g. two simultaneous applications to the same job).
+
+### `_pipeline_update_stage` — Detailed Behaviour
+
+```
+1. SELECT FOR UPDATE on (company_id, candidate_id, job_id)
+2. If no row → return False (entry doesn't exist yet; legacy write still succeeds)
+3. If current_stage == new_stage → return True (idempotent; no event)
+4. UPDATE job_pipeline_entries SET stage=new_stage, stage_updated_at=NOW(), ...
+5. INSERT pipeline_stage_events (pipeline_entry_id, from_stage, to_stage, changed_by, reason)
+6. Return True
+```
 
 ### Backfill Priority Order
 
+**Advisory lock:** `SELECT pg_advisory_xact_lock(20260716)` acquired at start of the transaction — serializes concurrent backfill runs.
+
 Pass 1 — `company_candidate_job_refs` → `job_pipeline_entries`
 - Source: `source='migration'`; stage derived via `LEGACY_CANDIDATE_STATUS_TO_PIPELINE_STAGE`
-- `ON CONFLICT (company_id, candidate_id, job_id) DO NOTHING`
-- `application_id` left NULL (filled in pass 2)
+- Unknown status → recorded in `conflicts_by_type['unknown_ccjr_status']`, row skipped
+- Timestamps: `created_at` and `stage_updated_at` preserved from `ccjr.created_at`
+- `application_id` left NULL (filled in Pass 2)
+- Creates initial `pipeline_stage_events` row per entry: `from_stage=NULL, to_stage=<stage>, reason='legacy_backfill'`
 
 Pass 2 — `job_applications` → `job_pipeline_entries`
-- Source: `source='migration'`; stage derived via `LEGACY_APP_STATUS_TO_PIPELINE_STAGE`
+- Source: `source='application'` (NOT `'migration'`)
+- Unknown status → recorded in `conflicts_by_type['unknown_ja_status']`, row skipped
 - `ON CONFLICT (company_id, candidate_id, job_id) DO UPDATE SET application_id = EXCLUDED.application_id WHERE job_pipeline_entries.application_id IS NULL`
-- If entry exists from pass 1 and `application_id` is already set → no-op
+- `(xmax = 0)` used to detect INSERT vs UPDATE in RETURNING clause
+- `application_id_mismatch` → recorded in `conflicts_by_type['application_id_mismatch']` (blocking conflict)
+- Timestamps: `applied_at` preserved from `job_applications`
 
 Pass 3 — `company_saved_candidates.notes` → `candidate_bank_notes`
 - Skips NULL/empty notes
 - `migration_source_key = 'legacy:company_saved_candidates:{row_id}:notes'`
 - `ON CONFLICT (migration_source_key) DO NOTHING` — idempotent
 
+### Backfill Result Counters
+
+| Counter | Description |
+|---------|-------------|
+| `entries_created` | New `job_pipeline_entries` rows inserted |
+| `application_links_added` | Existing entries where `application_id` was NULL and was now linked |
+| `initial_events_created` | `pipeline_stage_events` rows created during Pass 1 (initial stage events) |
+| `stage_events_created` | `pipeline_stage_events` rows created during live dual-write (not backfill) |
+| `bank_notes_created` | New `candidate_bank_notes` rows inserted in Pass 3 |
+| `conflicts_count` | Total rows skipped due to conflicts |
+| `conflicts_by_type` | Dict: `{unknown_ja_status, unknown_ccjr_status, application_id_mismatch}` |
+| `unknown_statuses` | List of unrecognised status strings encountered |
+| `fallback_dates_used` | Count of entries where timestamp was NULL and `NOW()` was used instead |
+
+**Backward-compat aliases:** `inserted_entries = entries_created`, `skipped_entries = conflicts_count`, `inserted_notes = bank_notes_created`, `skipped_notes` = notes skipped (empty). Always present.
+
 ### Dual-write Write Paths
 
-| Function | Legacy write | Pipeline write | Transaction |
-|----------|-------------|----------------|-------------|
-| `apply_job()` | INSERT `job_applications` | `_pipeline_upsert_entry(stage='new', source='application')` | Same BEGIN/COMMIT/ROLLBACK |
-| `update_application_status()` | UPDATE `job_applications.status` + UPSERT `company_candidate_job_refs` | `_pipeline_update_stage(new_stage=LEGACY_APP_STATUS_TO_PIPELINE_STAGE[status])` | Same BEGIN/COMMIT/ROLLBACK |
-| `promote_application_to_shortlist()` | `job_applications` → `accepted`; UPSERT `company_saved_candidates`; UPSERT `company_candidate_job_refs` | `_pipeline_update_stage(new_stage='shortlisted')` | Same BEGIN/COMMIT/ROLLBACK |
-| `update_candidate_job_status()` | UPDATE `company_candidate_job_refs.candidate_status` | `_pipeline_update_stage(new_stage=LEGACY_CANDIDATE_STATUS_TO_PIPELINE_STAGE[status])` | New BEGIN/COMMIT/ROLLBACK added (previously no transaction) |
+| Function | Legacy write | Pipeline write | Notes |
+|----------|-------------|----------------|-------|
+| `apply_job()` | INSERT `job_applications` | `_pipeline_upsert_entry(stage='new', source='application')` then `_pipeline_update_stage` if entry existed | Same BEGIN/COMMIT/ROLLBACK |
+| `update_application_status()` | UPDATE `job_applications.status` + UPSERT `company_candidate_job_refs` | `_pipeline_upsert_entry` (ensure-entry) then `_pipeline_update_stage` | Same BEGIN/COMMIT/ROLLBACK. Does **NOT** auto-save to `company_saved_candidates`. |
+| `promote_application_to_shortlist()` | `job_applications` → `accepted`; UPSERT `company_saved_candidates`; UPSERT `company_candidate_job_refs` | `_pipeline_upsert_entry` (ensure-entry) then `_pipeline_update_stage(new_stage='shortlisted')` | Explicit HR action — legitimate Talent Bank write. |
+| `update_candidate_job_status()` | UPDATE `company_candidate_job_refs.candidate_status` | `_pipeline_update_stage` | `actor_id` passed as `changed_by`. |
 
-**Rule:** `_pipeline_update_stage` returning `False` (entry not yet in pipeline) is not an error — the legacy write still succeeds.
+**Ensure-entry pattern:** Before `_pipeline_update_stage`, `_pipeline_upsert_entry` is called to guarantee the entry exists. If missing pipeline write causes ROLLBACK, the whole transaction rolls back (correction #12).
 
-**Rule:** If the pipeline write fails, the entire transaction rolls back — no partial writes (legacy succeeds but pipeline fails).
+**Talent Bank independence:** `update_application_status()` does **NOT** auto-save to `company_saved_candidates`. Only `promote_application_to_shortlist()` (explicit HR shortlisting action) writes to `company_saved_candidates`. See `CLAUDE.md §Saved Candidates`.
 
 ### Partial UNIQUE Index
 
@@ -10562,16 +10608,49 @@ ON job_pipeline_entries(application_id)
 WHERE application_id IS NOT NULL
 ```
 
-- Added by `_migrate_partial_unique_application_id()` in startup
-- Prevents two pipeline entries from claiming the same application_id
-- NULL `application_id` rows are not covered — each company-add or bank-link may lack an application_id
+- Added by `_migrate_partial_unique_application_id()` called from `POST /admin/pipeline/migrate-index`
+- **NOT called from server startup** — must run after backfill to avoid index conflicts during migration
+- Prevents two pipeline entries from claiming the same `application_id`
+- NULL `application_id` rows not covered — company-add or bank-link entries may have no application
 
 ### Admin Endpoints (server.py)
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `POST` | `/admin/pipeline/backfill` | Execute backfill (`?dry_run=true` for analysis only). Requires `X-Admin-Token`. |
+| `POST` | `/admin/pipeline/backfill` | Execute backfill. `?dry_run=true` for analysis only. `?confirm=true` required when `dry_run=false`. HTTP 409 if `blocking_conflicts=true`. Requires `X-Admin-Token`. |
 | `GET` | `/admin/pipeline/backfill/dry-run` | Read-only dry-run shortcut. Requires `X-Admin-Token`. |
+| `POST` | `/admin/pipeline/migrate-index` | Creates partial UNIQUE index. `?confirm=true` required. Idempotent. Run AFTER backfill. Requires `X-Admin-Token`. |
+
+### Dry-run Response Shape
+
+```json
+{
+  "dry_run": true,
+  "existing_pipeline_entries": 0,
+  "job_applications": {
+    "total": 3,
+    "to_insert": 2,
+    "to_link_app_id": 1,
+    "unknown_statuses": []
+  },
+  "company_candidate_job_refs": {
+    "total": 4,
+    "to_insert": 3,
+    "existing_skipped": 1,
+    "unknown_statuses": ["INVALID_X"]
+  },
+  "notes": {"to_migrate": 1, "already_migrated": 0},
+  "conflicts_by_type": {
+    "unknown_ja_status": 0,
+    "unknown_ccjr_status": 1,
+    "application_id_mismatch": 0
+  },
+  "conflicts_count": 1,
+  "blocking_conflicts": false
+}
+```
+
+`blocking_conflicts=true` (HTTP 409 on execute) only when `application_id_mismatch > 0`.
 
 ### Compatibility Rules (permanent)
 
@@ -10583,18 +10662,34 @@ WHERE application_id IS NOT NULL
 
 ### Tests
 
-`test_pipeline_backfill.py` — 73 static checks (expanded from original 39-test spec):
+`test_pipeline_backfill.py` — 73 static checks (§A–§K):
 - §A (A-01 to A-11): Mapping constants
-- §B (B-01 to B-07): `_pipeline_upsert_entry`
-- §C (C-01 to C-06): `_pipeline_update_stage`
+- §B (B-01 to B-07): `_pipeline_upsert_entry` (SELECT FOR UPDATE pattern)
+- §C (C-01 to C-06): `_pipeline_update_stage` (stage events)
 - §D (D-01 to D-06): `pipeline_backfill_dry_run`
-- §E (E-01 to E-12): `run_pipeline_backfill`
+- §E (E-01 to E-12): `run_pipeline_backfill` (counters + source values)
 - §F (F-01 to F-05): `_migrate_partial_unique_application_id`
 - §G (G-01 to G-04): `apply_job` dual-write
-- §H (H-01 to H-05): `update_application_status` dual-write
+- §H (H-01 to H-05): `update_application_status` dual-write (no auto-save)
 - §I (I-01 to I-04): `promote_application_to_shortlist` dual-write
-- §J (J-01 to J-05): `update_candidate_job_status` transaction + dual-write
-- §K (K-01 to K-08): Compatibility checks
+- §J (J-01 to J-05): `update_candidate_job_status` transaction + dual-write + `actor_id`
+- §K (K-01 to K-08): Compatibility checks (migrate-index endpoint, confirm guard)
+
+`test_pipeline_backfill_integration.py` — 82 PostgreSQL integration checks (§1–§27):
+- §1: Schema migrations (4 tables)
+- §2–§5: `_pipeline_upsert_entry` INSERT / idempotent / link-app-id / conflict
+- §6–§8: `_pipeline_update_stage` False / event / idempotent
+- §9–§10: dry_run delegates + counts (3 ja, 4 ccjr, 1 note)
+- §11–§15: Backfill execution (Pass 1/2/3, unknown skipped, notes)
+- §16: Idempotency (2nd run → 0 new)
+- §17: ROLLBACK atomicity
+- §18–§19: No auto-save + pipeline stage update
+- §20: `actor_id` passthrough
+- §21: `apply_job` pipeline entry
+- §22: `blocking_conflicts` detection
+- §24: index idempotent
+- §25–§26: Initial stage events with `reason='legacy_backfill'`, `from_stage=NULL`
+- §27: Stage event chain (new→reviewing→shortlisted)
 
 ### Forbidden Patterns (PR-2 — permanent)
 
@@ -10606,8 +10701,13 @@ WHERE application_id IS NOT NULL
 ❌ Changing existing API response contracts in PR-2
 ❌ Running cleanup of legacy tables in PR-2
 ❌ Per-function status-to-stage mapping dicts — use only LEGACY_APP_STATUS_TO_PIPELINE_STAGE and LEGACY_CANDIDATE_STATUS_TO_PIPELINE_STAGE
+❌ .get(status, "new") fallback — unknown status is a conflict, not a default
+❌ source='migration' for job_applications pass — use source='application'
 ❌ Calling _pipeline_upsert_entry or _pipeline_update_stage outside an open transaction
 ❌ Silent failure on pipeline write error — the whole transaction must roll back
+❌ _pipeline_update_stage without a prior _pipeline_upsert_entry in dual-write paths (entry must exist)
+❌ Auto-save to company_saved_candidates from update_application_status (Talent Bank independence)
+❌ Calling _migrate_partial_unique_application_id from server startup (must run via admin endpoint after backfill)
 ❌ Creating pipeline entries for save_company_candidate or remove_company_candidate (Talent Bank; no job context → no pipeline entry)
 ❌ Starting PR-3 before PR-2 is reviewed and merged by the user
 ```

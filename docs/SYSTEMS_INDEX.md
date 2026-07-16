@@ -569,16 +569,16 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 ### 38. Employment Pipeline System ✅ PR-1 + PR-JOB + PR-2 Backfill + Dual-write
 **Purpose:** نظام Pipeline الوظيفي — تتبع كل مرشح داخل الشركة من مصدر الاكتشاف حتى التوظيف أو الرفض. يشمل: أرشفة الوظائف (soft archive)، إدخالات Pipeline لكل (شركة، مرشح، وظيفة)، سجل انتقالات المراحل، ملاحظات Pipeline، ملاحظات بنك المواهب، وحقول تصنيف موسّعة في بنك المواهب، وbackfill من البيانات الموروثة + dual-write على مسارات الكتابة.
 
-**Status:** PR-1 Schema Foundation ✅ (merged) · PR-JOB Soft Archive ✅ (merged) · PR-2 Backfill + Dual-write ✅ (merged) — idempotent backfill من بيانات pipeline الموروثة + dual-write داخل transactions + partial UNIQUE index + admin endpoints للـ backfill.
+**Status:** PR-1 Schema Foundation ✅ (merged) · PR-JOB Soft Archive ✅ (merged) · PR-2 Backfill + Dual-write ✅ (correction round complete, ready for review) — idempotent backfill من بيانات pipeline الموروثة + dual-write داخل transactions + partial UNIQUE index + admin endpoints للـ backfill. تصحيحات PR-2: SELECT FOR UPDATE في `_pipeline_upsert_entry`، `pipeline_stage_events` في `_pipeline_update_stage`، source='application' لـ Pass-2، عداد كامل (12 counter)، إزالة auto-save من `update_application_status`، `_migrate_partial_unique_application_id` عبر admin endpoint فقط، 82 اختبار PostgreSQL integration.
 
 **Source of Truth:**
 - `jobs.archived_at` — **مصدر الحقيقة الوحيد** لأرشفة الوظيفة · NULL = نشطة · NOT NULL = مؤرشفة · لا تستخدم `status` لتحديد الأرشفة
 - `jobs.archived_by` — user_id من JWT فقط عند الأرشفة · لا يُقرأ من body أو query param
 - Index: `idx_jobs_company_not_archived_created ON jobs(company_id, created_at DESC) WHERE archived_at IS NULL`
 - `job_pipeline_entries` — سجل Pipeline واحد لكل (company_id, candidate_id, job_id) · `company_id / candidate_id → ON DELETE CASCADE` · `job_id → ON DELETE RESTRICT` · `application_id / stage_updated_by / archived_by / created_by → ON DELETE SET NULL`
-- `pipeline_stage_events` — سجل تدقيق غير قابل للتعديل لكل انتقال مرحلة · عمود `reason` (ليس `note`)
+- `pipeline_stage_events` — سجل تدقيق غير قابل للتعديل لكل انتقال مرحلة · عمود `pipeline_entry_id` (ليس `entry_id`) · عمود `reason` (ليس `note`)
 - `pipeline_notes` — ملاحظات مرتبطة بإدخال Pipeline · `created_by` فقط (لا `company_id`، لا `author_id`، لا `deleted_by`) · `CHECK (length(btrim(body)) > 0)`
-- `candidate_bank_notes` — ملاحظات بنك مواهب على مستوى الشركة · `created_by` (ليس `author_id`) · لا `deleted_by` · `CHECK (length(btrim(body)) > 0)`
+- `candidate_bank_notes` — ملاحظات بنك مواهب على مستوى الشركة · `created_by` (ليس `author_id`) · لا `deleted_by` · `CHECK (length(btrim(body)) > 0)` · مصدر ترحيل الـ notes من `company_saved_candidates.notes`
 - `company_saved_candidates.rating / priority / tags / follow_up_at / save_source` — حقول تصنيف موسّعة · priority: `low | medium | high` فقط (لا `normal`، لا `urgent`)
 - `appointments.pipeline_entry_id` — ربط اختياري بإدخال Pipeline · `ON DELETE SET NULL`
 - `auth.py → _migrate_pipeline_schema_v1()` — migration إضافية idempotent
@@ -589,17 +589,19 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 - `server.py → POST /jobs/{id}/apply` — HTTP 409 عند التقديم على وظيفة مؤرشفة
 - `company.html → switchJobTab() / loadCompanyJobs() / archiveCompanyJob()` — تبويبان: المنشورة / المؤرشفة
 
-**Details:** PR-1 — Additive Schema · PR-JOB — Soft Archive · PR-2 — Backfill + Dual-write · `ARCHITECTURE_FOUNDATION.md` (قواعد F1–F13) · `ARCHITECTURE.md §66` (PR-1) · `ARCHITECTURE.md §66b` (PR-JOB) · `ARCHITECTURE.md §66c` (PR-2) · اختبارات pr-1-01 إلى pr-1-10e في `test_post_comments.py` · 80 اختبار في `test_pipeline_integration.py` · 23 اختبار في `test_job_archive_integration.py` · 73 اختبار في `test_pipeline_backfill.py` (§A–§K)
+**Details:** PR-1 — Additive Schema · PR-JOB — Soft Archive · PR-2 — Backfill + Dual-write · `ARCHITECTURE_FOUNDATION.md` (قواعد F1–F13) · `ARCHITECTURE.md §66` (PR-1) · `ARCHITECTURE.md §66b` (PR-JOB) · `ARCHITECTURE.md §66c` (PR-2) · اختبارات pr-1-01 إلى pr-1-10e في `test_post_comments.py` · 80 اختبار في `test_pipeline_integration.py` · 23 اختبار في `test_job_archive_integration.py` · 73 اختبار في `test_pipeline_backfill.py` (§A–§K) · **82 اختبار في `test_pipeline_backfill_integration.py`** (§1–§27، PostgreSQL فعلي)
 
 **Source of Truth (PR-2 additions):**
-- `auth.py → LEGACY_APP_STATUS_TO_PIPELINE_STAGE` — mapping وحيد من `job_applications.status` → pipeline stage
-- `auth.py → LEGACY_CANDIDATE_STATUS_TO_PIPELINE_STAGE` — mapping وحيد من `candidate_status` → pipeline stage
-- `auth.py → _pipeline_upsert_entry(conn, ...)` — INSERT ON CONFLICT DO NOTHING داخل transaction
-- `auth.py → _pipeline_update_stage(conn, ...)` — UPDATE stage داخل transaction
-- `auth.py → run_pipeline_backfill(dry_run=False)` — backfill idempotent في transaction واحدة
-- `auth.py → _migrate_partial_unique_application_id()` — partial UNIQUE index على application_id
-- `server.py → POST /admin/pipeline/backfill` — admin endpoint للـ backfill
+- `auth.py → LEGACY_APP_STATUS_TO_PIPELINE_STAGE` — mapping وحيد من `job_applications.status` → pipeline stage · status غير معروف = conflict (لا `.get(val, "new")`)
+- `auth.py → LEGACY_CANDIDATE_STATUS_TO_PIPELINE_STAGE` — mapping وحيد من `candidate_status` → pipeline stage · status غير معروف = conflict
+- `auth.py → _pipeline_upsert_entry(conn, ...)` — **SELECT FOR UPDATE** ثم INSERT أو ربط application_id · يُرفع ValueError عند تعارض application_id · داخل transaction
+- `auth.py → _pipeline_update_stage(conn, ...)` — **SELECT FOR UPDATE** + UPDATE stage + INSERT `pipeline_stage_events` · idempotent (نفس المرحلة = لا حدث) · داخل transaction · يقبل `changed_by` و`reason`
+- `auth.py → pipeline_backfill_dry_run()` — تحليل read-only مع `conflicts_by_type` و`blocking_conflicts`
+- `auth.py → run_pipeline_backfill(dry_run=False)` — backfill idempotent بـ advisory lock · Pass-1: source='migration' · Pass-2: source='application' · 12 counter + backward-compat aliases
+- `auth.py → _migrate_partial_unique_application_id()` — partial UNIQUE index · يُستدعى من `POST /admin/pipeline/migrate-index` فقط (ليس من startup)
+- `server.py → POST /admin/pipeline/backfill` — يتطلب `?confirm=true` عند `dry_run=false` · HTTP 409 عند `blocking_conflicts=true`
 - `server.py → GET /admin/pipeline/backfill/dry-run` — read-only analysis
+- `server.py → POST /admin/pipeline/migrate-index` — إنشاء partial UNIQUE index · يتطلب `?confirm=true`
 
 **Do not recreate:**
 - `job_pipeline_entries` موجودة — لا تُنشئ جدول pipeline بديلاً
@@ -610,8 +612,12 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 - Partial UNIQUE index اسمه `uq_jpe_application_id` — لا تُنشئ index بديلاً
 - `company_id / candidate_id → ON DELETE CASCADE` · `job_id → ON DELETE RESTRICT` — لا تعكسها
 - `stage_updated_at / stage_updated_by` (ليس `moved_at / moved_by`) — الأسماء القديمة محظورة
-- `reason` في `pipeline_stage_events` (ليس `note`) — الاسم القديم محظور
+- `reason` في `pipeline_stage_events` (ليس `note`) — الاسم القديم محظور · عمود FK اسمه `pipeline_entry_id` (ليس `entry_id`)
 - `created_by` في `pipeline_notes` و `candidate_bank_notes` (ليس `author_id`) — الاسم القديم محظور
+- لا `.get(status, "new")` في backfill — status غير معروف = conflict مُسجَّل + skip
+- لا auto-save إلى `company_saved_candidates` من `update_application_status` — فقط `promote_application_to_shortlist`
+- لا استدعاء `_migrate_partial_unique_application_id` من startup — عبر admin endpoint فقط بعد backfill
+- `_pipeline_upsert_entry` و`_pipeline_update_stage` — يجب أن تكون داخل transaction مفتوحة دائماً
 - لا `company_id` ولا `deleted_by` في `pipeline_notes`
 - لا `deleted_by` في `candidate_bank_notes`
 - priority القيم المسموح بها: `low | medium | high` فقط — `normal` و `urgent` محظوران نهائياً

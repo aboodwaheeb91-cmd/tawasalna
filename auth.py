@@ -2465,18 +2465,10 @@ def update_application_status(app_id: int, status: str, actor_id: int = None) ->
                 s=status, id=app_id
             )
 
-            # 2. Ensure company_saved_candidates row exists (FK prerequisite for job refs).
-            #    ON CONFLICT DO NOTHING preserves any existing pipeline status.
-            conn.run(
-                "INSERT INTO company_saved_candidates "
-                "(company_id, candidate_id, job_id, saved_by, status) "
-                "VALUES (:cid, :uid, :jid, :cid, 'saved') "
-                "ON CONFLICT (company_id, candidate_id) DO NOTHING",
-                cid=company_id, uid=applicant_id, jid=job_id_int
-            )
-
-            # 3. UPSERT company_candidate_job_refs with the mapped candidate_status.
+            # 2. UPSERT company_candidate_job_refs with the mapped candidate_status.
             #    Creates the row if it doesn't exist; overwrites candidate_status if it does.
+            #    NOTE: does NOT auto-save to company_saved_candidates — Talent Bank
+            #    independence rule: explicit HR save required (CLAUDE.md §Saved Candidates).
             if candidate_status:
                 conn.run(
                     "INSERT INTO company_candidate_job_refs "
@@ -2487,10 +2479,23 @@ def update_application_status(app_id: int, status: str, actor_id: int = None) ->
                     cid=company_id, uid=applicant_id, jid=job_id_int, cs=candidate_status
                 )
 
-            # 4. Pipeline dual-write: update stage in job_pipeline_entries.
-            #    No-op (returns False) when no entry exists yet — not an error.
+            # 3. Pipeline dual-write: ensure entry exists, then advance stage.
+            #    _pipeline_upsert_entry is idempotent — links application_id when entry
+            #    already exists with NULL application_id (e.g. created by backfill).
+            #    Missing entry → created here atomically; never silently skipped.
             pipeline_stage = LEGACY_APP_STATUS_TO_PIPELINE_STAGE.get(status)
             if pipeline_stage:
+                _pipeline_upsert_entry(
+                    conn,
+                    company_id=company_id,
+                    candidate_id=applicant_id,
+                    job_id=job_id_int,
+                    application_id=app_id,
+                    stage=pipeline_stage,
+                    source="application",
+                    created_by=actor_id,
+                    job_title_snapshot=job_title,
+                )
                 _pipeline_update_stage(
                     conn,
                     company_id=company_id,
@@ -5581,6 +5586,7 @@ def update_candidate_job_status(
     candidate_id: int,
     job_id: int,
     candidate_status: str | None,
+    actor_id: int = None,
 ) -> bool:
     """
     Update the per-job candidate_status in company_candidate_job_refs.
@@ -5592,6 +5598,8 @@ def update_candidate_job_status(
 
     This function only touches company_candidate_job_refs.candidate_status.
     It never reads or modifies job_applications.status or company_saved_candidates.status.
+
+    actor_id: the company user who made the change — passed to _pipeline_update_stage.
 
     Returns True on success, False if the row doesn't exist.
     Raises ValueError for invalid status values.
@@ -5623,6 +5631,7 @@ def update_candidate_job_status(
                     candidate_id=candidate_id,
                     job_id=job_id,
                     new_stage=pipeline_stage,
+                    changed_by=actor_id,
                 )
         conn.run("COMMIT")
         committed = True
@@ -5759,8 +5768,21 @@ def promote_application_to_shortlist(app_id: int, company_id: int) -> dict:
                 "SET candidate_status = 'shortlisted'",
                 cid=company_id, uid=applicant_id, jid=job_id)
 
-            # ── 6.6. Pipeline dual-write: advance stage to 'shortlisted' ────────
-            # No-op (returns False) when no entry exists yet — not an error.
+            # ── 6.6. Pipeline dual-write: ensure entry exists, advance to 'shortlisted' ─
+            # _pipeline_upsert_entry is idempotent — this is an EXPLICIT HR action
+            # (shortlisting a candidate), not auto-save. See CLAUDE.md §Saved Candidates.
+            # Missing entry → created atomically; never silently skipped (correction #12).
+            _pipeline_upsert_entry(
+                conn,
+                company_id=int(company_id),
+                candidate_id=int(applicant_id),
+                job_id=int(job_id),
+                application_id=app_id,
+                stage="shortlisted",
+                source="application",
+                created_by=int(company_id),
+                job_title_snapshot=None,
+            )
             _pipeline_update_stage(
                 conn,
                 company_id=int(company_id),
@@ -7408,22 +7430,52 @@ def _pipeline_upsert_entry(
     job_title_snapshot=None,
 ):
     """
-    INSERT job_pipeline_entries ON CONFLICT (company_id, candidate_id, job_id) DO NOTHING.
-    Returns the new pipeline entry id if created, None if the row already existed.
+    Idempotent upsert of job_pipeline_entries using SELECT ... FOR UPDATE.
     Must be called inside an open transaction — does NOT commit/rollback.
+
+    Behavior:
+      - No existing row → INSERT; returns new id.
+      - Existing row, application_id=NULL, new application_id provided → UPDATE to link; returns id.
+      - Existing row, application_id already matches → no-op; returns id.
+      - Existing row, application_id differs → raises ValueError (blocking conflict).
+      - Existing row, no new application_id → no-op; returns id.
     """
     rows = conn.run(
-        "INSERT INTO job_pipeline_entries "
-        "(company_id, candidate_id, job_id, application_id, stage, source, "
-        " created_by, stage_updated_at, stage_updated_by, job_title_snapshot) "
-        "VALUES (:cid, :uid, :jid, :app, :stage, :src, :by, NOW(), :by, :snap) "
-        "ON CONFLICT (company_id, candidate_id, job_id) DO NOTHING "
-        "RETURNING id",
+        "SELECT id, application_id FROM job_pipeline_entries "
+        "WHERE company_id = :cid AND candidate_id = :uid AND job_id = :jid "
+        "FOR UPDATE",
         cid=company_id, uid=candidate_id, jid=job_id,
-        app=application_id, stage=stage, src=source,
-        by=created_by, snap=job_title_snapshot,
     )
-    return int(rows[0][0]) if rows else None
+    if not rows:
+        inserted = conn.run(
+            "INSERT INTO job_pipeline_entries "
+            "(company_id, candidate_id, job_id, application_id, stage, source, "
+            " created_by, stage_updated_at, stage_updated_by, job_title_snapshot) "
+            "VALUES (:cid, :uid, :jid, :app, :stage, :src, :by, NOW(), :by, :snap) "
+            "RETURNING id",
+            cid=company_id, uid=candidate_id, jid=job_id,
+            app=application_id, stage=stage, src=source,
+            by=created_by, snap=job_title_snapshot,
+        )
+        return int(inserted[0][0]) if inserted else None
+
+    entry_id      = int(rows[0][0])
+    existing_app  = rows[0][1]
+
+    if application_id is not None:
+        if existing_app is None:
+            conn.run(
+                "UPDATE job_pipeline_entries "
+                "SET application_id = :app, updated_at = NOW() "
+                "WHERE id = :id",
+                app=application_id, id=entry_id,
+            )
+        elif int(existing_app) != int(application_id):
+            raise ValueError(
+                f"pipeline_entry {entry_id}: application_id conflict "
+                f"(existing={existing_app}, new={application_id})"
+            )
+    return entry_id
 
 
 def _pipeline_update_stage(
@@ -7434,21 +7486,44 @@ def _pipeline_update_stage(
     job_id: int,
     new_stage: str,
     changed_by=None,
+    reason: str = None,
 ) -> bool:
     """
-    UPDATE job_pipeline_entries stage for an existing entry.
-    Returns True if a row was updated, False if no entry exists yet.
+    Update stage on an existing job_pipeline_entries row and create an audit event.
+    Uses SELECT ... FOR UPDATE to prevent races.
+    Returns True if the row was found (updated or same-stage idempotent), False if not found.
+    Same-stage calls are idempotent — no event is created.
     Must be called inside an open transaction — does NOT commit/rollback.
-    A False return is NOT an error: the entry may not exist for legacy rows.
     """
     rows = conn.run(
+        "SELECT id, stage FROM job_pipeline_entries "
+        "WHERE company_id = :cid AND candidate_id = :uid AND job_id = :jid "
+        "FOR UPDATE",
+        cid=company_id, uid=candidate_id, jid=job_id,
+    )
+    if not rows:
+        return bool(rows)
+
+    entry_id      = int(rows[0][0])
+    current_stage = rows[0][1]
+
+    if current_stage == new_stage:
+        return bool(rows)
+
+    conn.run(
         "UPDATE job_pipeline_entries "
         "SET stage = :stage, stage_updated_at = NOW(), "
         "    stage_updated_by = :by, updated_at = NOW() "
-        "WHERE company_id = :cid AND candidate_id = :uid AND job_id = :jid "
+        "WHERE id = :id "
         "RETURNING id",
-        stage=new_stage, by=changed_by,
-        cid=company_id, uid=candidate_id, jid=job_id,
+        stage=new_stage, by=changed_by, id=entry_id,
+    )
+    conn.run(
+        "INSERT INTO pipeline_stage_events "
+        "(pipeline_entry_id, from_stage, to_stage, changed_by, reason) "
+        "VALUES (:eid, :from_s, :to_s, :by, :reason)",
+        eid=entry_id, from_s=current_stage, to_s=new_stage,
+        by=changed_by, reason=reason,
     )
     return bool(rows)
 
@@ -7456,83 +7531,155 @@ def _pipeline_update_stage(
 def pipeline_backfill_dry_run() -> dict:
     """
     Read-only analysis of legacy data that would be backfilled.
+    Reports conflict types, unknown statuses, and migration estimates.
     No writes — safe to call at any time.
     """
     conn = get_conn()
     try:
-        ja_rows = conn.run(
-            "SELECT COUNT(*), "
-            "COUNT(CASE WHEN status='pending'   THEN 1 END), "
-            "COUNT(CASE WHEN status='viewed'    THEN 1 END), "
-            "COUNT(CASE WHEN status='accepted'  THEN 1 END), "
-            "COUNT(CASE WHEN status='contacted' THEN 1 END), "
-            "COUNT(CASE WHEN status='interview' THEN 1 END), "
-            "COUNT(CASE WHEN status='hired'     THEN 1 END), "
-            "COUNT(CASE WHEN status='rejected'  THEN 1 END) "
-            "FROM job_applications"
-        )
-        r = ja_rows[0] if ja_rows else [0]*8
+        known_ja   = "('pending','viewed','accepted','contacted','interview','hired','rejected')"
+        known_ccjr = "('saved','shortlisted','contacted','interview','hired','rejected')"
 
-        ccjr_rows = conn.run(
-            "SELECT COUNT(*), "
-            "COUNT(CASE WHEN candidate_status IS NULL         THEN 1 END), "
-            "COUNT(CASE WHEN candidate_status='saved'         THEN 1 END), "
-            "COUNT(CASE WHEN candidate_status='shortlisted'   THEN 1 END), "
-            "COUNT(CASE WHEN candidate_status='contacted'     THEN 1 END), "
-            "COUNT(CASE WHEN candidate_status='interview'     THEN 1 END), "
-            "COUNT(CASE WHEN candidate_status='hired'         THEN 1 END), "
-            "COUNT(CASE WHEN candidate_status='rejected'      THEN 1 END) "
-            "FROM company_candidate_job_refs"
-        )
-        cr = ccjr_rows[0] if ccjr_rows else [0]*8
+        # ── Existing pipeline entries ─────────────────────────────────────────
+        existing_count = int((conn.run(
+            "SELECT COUNT(*) FROM job_pipeline_entries"
+        ) or [[0]])[0][0])
 
-        csc_notes = conn.run(
+        # ── job_applications analysis ─────────────────────────────────────────
+        ja_total = int((conn.run(
+            "SELECT COUNT(*) FROM job_applications"
+        ) or [[0]])[0][0])
+
+        # Unknown statuses (not in LEGACY_APP_STATUS_TO_PIPELINE_STAGE → conflict)
+        ja_unknown_rows = conn.run(
+            "SELECT status, COUNT(*) FROM job_applications "
+            f"WHERE status NOT IN {known_ja} "
+            "GROUP BY status ORDER BY COUNT(*) DESC"
+        ) or []
+        unknown_ja_statuses = {(r[0] or "null"): int(r[1]) for r in ja_unknown_rows}
+
+        # New inserts: no existing pipeline entry for this triple
+        ja_new = int((conn.run(
+            "SELECT COUNT(*) FROM job_applications ja "
+            "JOIN jobs j ON j.id = ja.job_id "
+            f"WHERE ja.status IN {known_ja} "
+            "AND NOT EXISTS ("
+            "  SELECT 1 FROM job_pipeline_entries jpe "
+            "  WHERE jpe.company_id=j.company_id "
+            "  AND jpe.candidate_id=ja.user_id "
+            "  AND jpe.job_id=ja.job_id"
+            ")"
+        ) or [[0]])[0][0])
+
+        # application_id links: existing entry with NULL application_id (linkable)
+        ja_linkable = int((conn.run(
+            "SELECT COUNT(*) FROM job_applications ja "
+            "JOIN jobs j ON j.id = ja.job_id "
+            f"WHERE ja.status IN {known_ja} "
+            "AND EXISTS ("
+            "  SELECT 1 FROM job_pipeline_entries jpe "
+            "  WHERE jpe.company_id=j.company_id "
+            "  AND jpe.candidate_id=ja.user_id "
+            "  AND jpe.job_id=ja.job_id "
+            "  AND jpe.application_id IS NULL"
+            ")"
+        ) or [[0]])[0][0])
+
+        # Blocking conflict: entry exists with a DIFFERENT application_id
+        ja_app_id_mismatch = int((conn.run(
+            "SELECT COUNT(*) FROM job_applications ja "
+            "JOIN jobs j ON j.id = ja.job_id "
+            "JOIN job_pipeline_entries jpe "
+            "  ON jpe.company_id=j.company_id "
+            "  AND jpe.candidate_id=ja.user_id "
+            "  AND jpe.job_id=ja.job_id "
+            "WHERE jpe.application_id IS NOT NULL "
+            "AND jpe.application_id != ja.id"
+        ) or [[0]])[0][0])
+
+        # ── company_candidate_job_refs analysis ───────────────────────────────
+        ccjr_total = int((conn.run(
+            "SELECT COUNT(*) FROM company_candidate_job_refs"
+        ) or [[0]])[0][0])
+
+        ccjr_unknown_rows = conn.run(
+            "SELECT candidate_status, COUNT(*) FROM company_candidate_job_refs "
+            f"WHERE candidate_status IS NOT NULL AND candidate_status NOT IN {known_ccjr} "
+            "GROUP BY candidate_status ORDER BY COUNT(*) DESC"
+        ) or []
+        unknown_ccjr_statuses = {r[0]: int(r[1]) for r in ccjr_unknown_rows}
+
+        # New entries from ccjr (no existing pipeline entry)
+        ccjr_new = int((conn.run(
+            "SELECT COUNT(*) FROM company_candidate_job_refs r "
+            "WHERE (r.candidate_status IS NULL "
+            f"  OR r.candidate_status IN {known_ccjr}) "
+            "AND NOT EXISTS ("
+            "  SELECT 1 FROM job_pipeline_entries jpe "
+            "  WHERE jpe.company_id=r.company_id "
+            "  AND jpe.candidate_id=r.candidate_id "
+            "  AND jpe.job_id=r.job_id"
+            ")"
+        ) or [[0]])[0][0])
+
+        ccjr_existing = int((conn.run(
+            "SELECT COUNT(*) FROM company_candidate_job_refs r "
+            "WHERE (r.candidate_status IS NULL "
+            f"  OR r.candidate_status IN {known_ccjr}) "
+            "AND EXISTS ("
+            "  SELECT 1 FROM job_pipeline_entries jpe "
+            "  WHERE jpe.company_id=r.company_id "
+            "  AND jpe.candidate_id=r.candidate_id "
+            "  AND jpe.job_id=r.job_id"
+            ")"
+        ) or [[0]])[0][0])
+
+        # ── company_saved_candidates notes analysis ───────────────────────────
+        notes_to_migrate = int((conn.run(
             "SELECT COUNT(*) FROM company_saved_candidates "
             "WHERE notes IS NOT NULL AND btrim(notes) <> ''"
-        )
-        jpe_existing = conn.run("SELECT COUNT(*) FROM job_pipeline_entries")
-        cbn_migrated = conn.run(
+        ) or [[0]])[0][0])
+
+        notes_migrated = int((conn.run(
             "SELECT COUNT(*) FROM candidate_bank_notes WHERE is_migrated = TRUE"
-        )
-        conflicts_app = conn.run(
-            "SELECT COUNT(*) FROM job_applications ja "
-            "JOIN job_pipeline_entries jpe ON jpe.application_id = ja.id"
-        )
-        conflicts_triple = conn.run(
-            "SELECT COUNT(*) FROM ("
-            "  SELECT DISTINCT j.company_id, ja.user_id, ja.job_id "
-            "  FROM job_applications ja JOIN jobs j ON j.id = ja.job_id"
-            ") src JOIN job_pipeline_entries jpe "
-            "  ON jpe.company_id=src.company_id "
-            "  AND jpe.candidate_id=src.user_id "
-            "  AND jpe.job_id=src.job_id"
-        )
+        ) or [[0]])[0][0])
+
+        # ── Conflict summary ──────────────────────────────────────────────────
+        conflicts_by_type = {}
+        if ja_app_id_mismatch:
+            conflicts_by_type["application_id_mismatch"] = ja_app_id_mismatch
+        if unknown_ja_statuses:
+            conflicts_by_type["unknown_ja_status"]  = sum(unknown_ja_statuses.values())
+        if unknown_ccjr_statuses:
+            conflicts_by_type["unknown_ccjr_status"] = sum(unknown_ccjr_statuses.values())
+        total_conflicts = sum(conflicts_by_type.values())
+
+        blocking = ja_app_id_mismatch > 0
 
         return {
             "dry_run": True,
+            "existing_pipeline_entries": existing_count,
             "job_applications": {
-                "total":  int(r[0]),
-                "by_status": {
-                    "pending": int(r[1]), "viewed": int(r[2]),
-                    "accepted": int(r[3]), "contacted": int(r[4]),
-                    "interview": int(r[5]), "hired": int(r[6]),
-                    "rejected": int(r[7]),
-                },
+                "total":            ja_total,
+                "to_insert":        ja_new,
+                "to_link_app_id":   ja_linkable,
+                "unknown_statuses": unknown_ja_statuses,
             },
             "company_candidate_job_refs": {
-                "total": int(cr[0]),
-                "by_status": {
-                    "null": int(cr[1]), "saved": int(cr[2]),
-                    "shortlisted": int(cr[3]), "contacted": int(cr[4]),
-                    "interview": int(cr[5]), "hired": int(cr[6]),
-                    "rejected": int(cr[7]),
-                },
+                "total":              ccjr_total,
+                "to_insert":          ccjr_new,
+                "existing_skipped":   ccjr_existing,
+                "unknown_statuses":   unknown_ccjr_statuses,
             },
-            "candidate_notes_to_migrate":    int(csc_notes[0][0])     if csc_notes     else 0,
-            "existing_pipeline_entries":     int(jpe_existing[0][0])  if jpe_existing  else 0,
-            "existing_migrated_bank_notes":  int(cbn_migrated[0][0])  if cbn_migrated  else 0,
-            "conflicts_by_application_id":   int(conflicts_app[0][0]) if conflicts_app else 0,
-            "conflicts_by_triple_key":       int(conflicts_triple[0][0]) if conflicts_triple else 0,
+            "notes": {
+                "to_migrate":       notes_to_migrate,
+                "already_migrated": notes_migrated,
+            },
+            "conflicts_by_type": conflicts_by_type,
+            "conflicts_count":   total_conflicts,
+            "blocking_conflicts": blocking,
+            # backward-compat fields
+            "candidate_notes_to_migrate":   notes_to_migrate,
+            "existing_migrated_bank_notes": notes_migrated,
         }
     finally:
         release_conn(conn)
@@ -7540,18 +7687,19 @@ def pipeline_backfill_dry_run() -> dict:
 
 def run_pipeline_backfill(dry_run: bool = False) -> dict:
     """
-    Idempotent backfill: populates job_pipeline_entries and candidate_bank_notes
-    from legacy tables.
+    Idempotent backfill: populates job_pipeline_entries, pipeline_stage_events,
+    and candidate_bank_notes from legacy tables.
 
     Priority order for pipeline entries:
-      Pass 1 — company_candidate_job_refs (explicit per-job status, no application_id)
-      Pass 2 — job_applications (links application_id; DO UPDATE sets application_id
-                where pass-1 left it NULL; falls back to 'migration' source when the
-                triple-key conflict already existed from pass 1)
+      Pass 1 — company_candidate_job_refs (source='migration', preserves legacy timestamps)
+      Pass 2 — job_applications (source='application'; ON CONFLICT links application_id
+                where pass-1 left it NULL; skips if application_id already set)
+      Pass 3 — company_saved_candidates.notes → candidate_bank_notes (is_migrated=TRUE)
 
-    Notes migration:
-      company_saved_candidates.notes → candidate_bank_notes (is_migrated=TRUE)
-      migration_source_key UNIQUE prevents re-insertion.
+    Unknown statuses (not in mapping tables) → counted as conflicts, row skipped.
+    Timestamps preserved from legacy data; fallback_dates_used counts rows lacking a ts.
+
+    Serialized by pg_advisory_xact_lock to prevent concurrent backfill runs.
 
     dry_run=True: delegates to pipeline_backfill_dry_run(), no writes.
     dry_run=False: executes in a single transaction; rolls back on any failure.
@@ -7561,69 +7709,160 @@ def run_pipeline_backfill(dry_run: bool = False) -> dict:
 
     conn = get_conn()
     committed = False
-    inserted_entries = 0
-    updated_app_links = 0
-    inserted_notes   = 0
-    skipped_entries  = 0
-    skipped_notes    = 0
+
+    # ── counters ──────────────────────────────────────────────────────────────
+    entries_created         = 0
+    application_links_added = 0
+    initial_events_created  = 0
+    stage_events_created    = 0   # reserved for future live-stage migration pass
+    bank_notes_created      = 0
+    conflicts_count         = 0
+    conflicts_by_type: dict = {}
+    unknown_statuses: list  = []
+    fallback_dates_used     = 0
+    # backward-compat aliases
+    inserted_entries  = 0
+    skipped_entries   = 0
+    inserted_notes    = 0
+    skipped_notes     = 0
 
     try:
         conn.run("BEGIN")
 
+        # Serialize concurrent backfill runs (transaction-scoped advisory lock)
+        conn.run("SELECT pg_advisory_xact_lock(20260716)")
+
         # ── Pass 1: company_candidate_job_refs → job_pipeline_entries ──────────
+        # source='migration': these entries were created by the company without an application.
+        # Timestamps preserved from r.created_at; fallback to NOW() if missing.
         ccjr_rows = conn.run(
             "SELECT r.company_id, r.candidate_id, r.job_id, "
-            "       r.candidate_status, j.title "
+            "       r.candidate_status, j.title, r.created_at "
             "FROM company_candidate_job_refs r "
             "JOIN jobs j ON j.id = r.job_id"
         )
         for row in (ccjr_rows or []):
-            cid, uid, jid, cand_status, job_title = row
-            stage = LEGACY_CANDIDATE_STATUS_TO_PIPELINE_STAGE.get(
-                cand_status or "", "new"
-            )
+            cid, uid, jid, cand_status, job_title, legacy_ts = row
+
+            # Unknown status → conflict, skip row
+            if cand_status is not None and cand_status not in LEGACY_CANDIDATE_STATUS_TO_PIPELINE_STAGE:
+                unknown_statuses.append({
+                    "source": "company_candidate_job_refs",
+                    "company_id": int(cid), "candidate_id": int(uid), "job_id": int(jid),
+                    "status": cand_status,
+                })
+                conflicts_count += 1
+                conflicts_by_type["unknown_ccjr_status"] = (
+                    conflicts_by_type.get("unknown_ccjr_status", 0) + 1
+                )
+                continue
+
+            stage = LEGACY_CANDIDATE_STATUS_TO_PIPELINE_STAGE.get(cand_status) if cand_status else "new"
+            if legacy_ts is None:
+                fallback_dates_used += 1
+
             result = conn.run(
                 "INSERT INTO job_pipeline_entries "
-                "(company_id, candidate_id, job_id, stage, source, job_title_snapshot) "
-                "VALUES (:cid, :uid, :jid, :stage, 'migration', :snap) "
+                "(company_id, candidate_id, job_id, stage, source, job_title_snapshot, "
+                " created_at, stage_updated_at) "
+                "VALUES (:cid, :uid, :jid, :stage, 'migration', :snap, "
+                "        COALESCE(:ts::timestamptz, NOW()), COALESCE(:ts::timestamptz, NOW())) "
                 "ON CONFLICT (company_id, candidate_id, job_id) DO NOTHING "
                 "RETURNING id",
                 cid=int(cid), uid=int(uid), jid=int(jid),
-                stage=stage, snap=job_title,
+                stage=stage, snap=job_title, ts=str(legacy_ts) if legacy_ts else None,
             )
             if result:
+                entry_id = int(result[0][0])
+                entries_created  += 1
                 inserted_entries += 1
+                # Initial stage event with preserved legacy timestamp
+                ev = conn.run(
+                    "INSERT INTO pipeline_stage_events "
+                    "(pipeline_entry_id, from_stage, to_stage, changed_by, reason, created_at) "
+                    "VALUES (:eid, NULL, :to_s, NULL, 'legacy_backfill', "
+                    "        COALESCE(:ts::timestamptz, NOW())) "
+                    "RETURNING id",
+                    eid=entry_id, to_s=stage,
+                    ts=str(legacy_ts) if legacy_ts else None,
+                )
+                if ev:
+                    initial_events_created += 1
             else:
                 skipped_entries += 1
 
         # ── Pass 2: job_applications → job_pipeline_entries ───────────────────
-        # ON CONFLICT: if the triple already exists (from pass 1), update application_id
-        # only when it is currently NULL — this preserves stage from pass-1 (higher priority).
+        # source='application': these entries come from an applicant action.
+        # ON CONFLICT: link application_id to existing entry when it's NULL (from pass 1).
+        # Blocking conflict (different application_id) → counted, skipped.
         ja_rows = conn.run(
             "SELECT ja.id, j.company_id, ja.user_id, ja.job_id, "
-            "       ja.status, j.title "
+            "       ja.status, j.title, ja.applied_at "
             "FROM job_applications ja "
             "JOIN jobs j ON j.id = ja.job_id"
         )
         for row in (ja_rows or []):
-            app_id, cid, uid, jid, app_status, job_title = row
-            stage = LEGACY_APP_STATUS_TO_PIPELINE_STAGE.get(app_status or "", "new")
+            app_id, cid, uid, jid, app_status, job_title, applied_at = row
+
+            # Unknown status → conflict, skip row (no .get fallback to 'new')
+            if app_status not in LEGACY_APP_STATUS_TO_PIPELINE_STAGE:
+                unknown_statuses.append({
+                    "source": "job_applications",
+                    "application_id": int(app_id),
+                    "company_id": int(cid), "candidate_id": int(uid), "job_id": int(jid),
+                    "status": app_status,
+                })
+                conflicts_count += 1
+                conflicts_by_type["unknown_ja_status"] = (
+                    conflicts_by_type.get("unknown_ja_status", 0) + 1
+                )
+                continue
+
+            stage = LEGACY_APP_STATUS_TO_PIPELINE_STAGE[app_status]
+            if applied_at is None:
+                fallback_dates_used += 1
+
             result = conn.run(
                 "INSERT INTO job_pipeline_entries "
-                "(company_id, candidate_id, job_id, application_id, stage, "
-                " source, job_title_snapshot) "
-                "VALUES (:cid, :uid, :jid, :app, :stage, 'migration', :snap) "
+                "(company_id, candidate_id, job_id, application_id, stage, source, "
+                " job_title_snapshot, created_at, stage_updated_at) "
+                "VALUES (:cid, :uid, :jid, :app, :stage, 'application', :snap, "
+                "        COALESCE(:ts::timestamptz, NOW()), COALESCE(:ts::timestamptz, NOW())) "
                 "ON CONFLICT (company_id, candidate_id, job_id) DO UPDATE "
                 "SET application_id = EXCLUDED.application_id, "
                 "    updated_at = NOW() "
                 "WHERE job_pipeline_entries.application_id IS NULL "
-                "RETURNING id",
+                "RETURNING id, (xmax = 0) AS was_inserted",
                 cid=int(cid), uid=int(uid), jid=int(jid),
                 app=int(app_id), stage=stage, snap=job_title,
+                ts=str(applied_at) if applied_at else None,
             )
             if result:
-                inserted_entries += 1
-            # else: triple conflict existed AND application_id was already set — no-op
+                entry_id    = int(result[0][0])
+                was_inserted = result[0][1]
+                if was_inserted:
+                    entries_created  += 1
+                    inserted_entries += 1
+                    ev = conn.run(
+                        "INSERT INTO pipeline_stage_events "
+                        "(pipeline_entry_id, from_stage, to_stage, changed_by, reason, created_at) "
+                        "VALUES (:eid, NULL, :to_s, NULL, 'legacy_backfill', "
+                        "        COALESCE(:ts::timestamptz, NOW())) "
+                        "RETURNING id",
+                        eid=entry_id, to_s=stage,
+                        ts=str(applied_at) if applied_at else None,
+                    )
+                    if ev:
+                        initial_events_created += 1
+                else:
+                    # DO UPDATE ran: application_id was NULL, now linked
+                    application_links_added += 1
+            else:
+                # DO UPDATE WHERE clause not satisfied: entry exists with different application_id
+                conflicts_count += 1
+                conflicts_by_type["application_id_mismatch"] = (
+                    conflicts_by_type.get("application_id_mismatch", 0) + 1
+                )
 
         # ── Pass 3: company_saved_candidates.notes → candidate_bank_notes ─────
         notes_rows = conn.run(
@@ -7644,7 +7883,8 @@ def run_pipeline_backfill(dry_run: bool = False) -> dict:
                 body=str(notes_body), mkey=mkey,
             )
             if result:
-                inserted_notes += 1
+                bank_notes_created += 1
+                inserted_notes     += 1
             else:
                 skipped_notes += 1
 
@@ -7663,12 +7903,22 @@ def run_pipeline_backfill(dry_run: bool = False) -> dict:
         release_conn(conn)
 
     return {
-        "status":           "done",
-        "dry_run":          False,
-        "inserted_entries": inserted_entries,
-        "skipped_entries":  skipped_entries,
-        "inserted_notes":   inserted_notes,
-        "skipped_notes":    skipped_notes,
+        "status":                  "done",
+        "dry_run":                 False,
+        "entries_created":         entries_created,
+        "application_links_added": application_links_added,
+        "initial_events_created":  initial_events_created,
+        "stage_events_created":    stage_events_created,
+        "bank_notes_created":      bank_notes_created,
+        "conflicts_count":         conflicts_count,
+        "conflicts_by_type":       conflicts_by_type,
+        "unknown_statuses":        unknown_statuses,
+        "fallback_dates_used":     fallback_dates_used,
+        # backward-compat aliases
+        "inserted_entries":        inserted_entries,
+        "skipped_entries":         skipped_entries,
+        "inserted_notes":          inserted_notes,
+        "skipped_notes":           skipped_notes,
     }
 
 

@@ -533,12 +533,10 @@ async def on_startup():
     except Exception as e:
         print(f"❌ pipeline schema v1 migration failed: {e}")
         raise
-    try:
-        _migrate_partial_unique_application_id()
-        print("✅ pipeline partial unique index on application_id ready")
-    except Exception as e:
-        print(f"❌ pipeline partial unique index migration failed: {e}")
-        raise
+    # NOTE: _migrate_partial_unique_application_id() is NOT called here on startup.
+    # The partial UNIQUE index on job_pipeline_entries(application_id) must be created AFTER
+    # the backfill + conflict check passes (POST /admin/pipeline/migrate-index).
+    # This prevents duplicate application_id conflicts during migration.
     await _init_asyncpg_pool()
 
 # ── Helpers ──
@@ -2433,6 +2431,7 @@ def company_update_candidate_job_status(
             candidate_id=candidate_id,
             job_id=job_id,
             candidate_status=cs,
+            actor_id=company_id,
         )
     except ValueError as e:
         raise HTTPException(400, str(e))
@@ -4925,20 +4924,45 @@ def internal_run_due_jobs(request: Request, limit: int = 20):
 def admin_pipeline_backfill(
     request: Request,
     dry_run: bool = False,
+    confirm: bool = False,
 ):
     """
-    POST /admin/pipeline/backfill[?dry_run=true]
+    POST /admin/pipeline/backfill[?dry_run=true][&confirm=true]
     Trigger Pipeline Backfill (PR-2).
 
     dry_run=true  → read-only analysis, no writes.
     dry_run=false → executes backfill in a single atomic transaction.
+                    confirm=true is REQUIRED for dry_run=false.
+
+    HTTP 400 — confirm=false when dry_run=false (safety guard).
+    HTTP 409 — blocking conflicts detected (application_id mismatches); resolve first.
 
     Requires X-Admin-Token header.
     """
     check_admin(request)
+    if not dry_run and not confirm:
+        raise HTTPException(
+            400,
+            "يجب تمرير confirm=true للتنفيذ الفعلي. شغّل dry_run=true أولاً للتحقق."
+        )
     try:
+        if not dry_run:
+            # Blocking-conflict check before executing
+            preview = pipeline_backfill_dry_run()
+            if preview.get("blocking_conflicts"):
+                raise HTTPException(
+                    409,
+                    {
+                        "error": "blocking_conflicts",
+                        "detail": "يوجد تعارض في application_id — راجع conflicts_by_type وأصلح قبل التنفيذ.",
+                        "conflicts_by_type": preview.get("conflicts_by_type", {}),
+                        "conflicts_count":   preview.get("conflicts_count", 0),
+                    }
+                )
         result = run_pipeline_backfill(dry_run=dry_run)
         return result
+    except HTTPException:
+        raise
     except RuntimeError as e:
         raise HTTPException(500, str(e))
 
@@ -4953,5 +4977,32 @@ def admin_pipeline_backfill_dry_run(request: Request):
     check_admin(request)
     try:
         return pipeline_backfill_dry_run()
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
+@app.post("/admin/pipeline/migrate-index")
+def admin_pipeline_migrate_index(
+    request: Request,
+    confirm: bool = False,
+):
+    """
+    POST /admin/pipeline/migrate-index[?confirm=true]
+    Create the partial UNIQUE index on job_pipeline_entries(application_id).
+
+    MUST be called AFTER backfill + conflict check — not at startup.
+    confirm=true required for safety.
+
+    Requires X-Admin-Token header.
+    """
+    check_admin(request)
+    if not confirm:
+        raise HTTPException(
+            400,
+            "يجب تمرير confirm=true. تأكد أن الـ backfill اكتمل بدون blocking_conflicts أولاً."
+        )
+    try:
+        _migrate_partial_unique_application_id()
+        return {"status": "ok", "message": "partial UNIQUE index on application_id created (or already exists)"}
     except Exception as e:
         raise HTTPException(500, str(e))
