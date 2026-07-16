@@ -1,19 +1,24 @@
 """
-PR-2: Pipeline Backfill + Dual-write — 39 PostgreSQL Unit Tests.
+PR-2: Pipeline Backfill + Dual-write — static (source-inspection) tests.
 
-Tests validate:
-  §A  Mapping constants (LEGACY_APP_STATUS_TO_PIPELINE_STAGE,
-                         LEGACY_CANDIDATE_STATUS_TO_PIPELINE_STAGE)
-  §B  _pipeline_upsert_entry helper
-  §C  _pipeline_update_stage helper
-  §D  pipeline_backfill_dry_run (read-only analysis)
-  §E  run_pipeline_backfill (pass-1 ccjr, pass-2 ja, pass-3 notes)
-  §F  _migrate_partial_unique_application_id (partial UNIQUE index)
-  §G  apply_job dual-write (pipeline entry created atomically)
-  §H  update_application_status dual-write (stage updated atomically)
-  §I  promote_application_to_shortlist dual-write
-  §J  update_candidate_job_status transaction + dual-write
+Tests validate source-code structure for all 12 correction points (Bnd-1 through Bnd-12).
+
+  §A  Mapping constants
+  §B  _pipeline_upsert_entry helper — source='application' on link (Bnd-2)
+  §C  _pipeline_update_stage helper — reason parameter present
+  §D  pipeline_backfill_dry_run — comprehensive conflicts, LEFT JOINs (Bnd-3)
+  §E  run_pipeline_backfill — atomic conflict check (Bnd-8), NULL CCJR (Bnd-1),
+                              source='application' in Pass-2 DO UPDATE (Bnd-2),
+                              notes.strip() in Pass-3 (Bnd-7)
+  §F  _migrate_partial_unique_application_id — advisory lock, BlockingConflictError (Bnd-9)
+  §G  apply_job — created_by=user_id (Bnd-6), initial_event_reason='application_submitted'
+  §H  update_application_status — reason='application_status_changed' (Bnd-6)
+  §I  promote_application_to_shortlist — Option B: no company_saved_candidates write (Bnd-4),
+                                         reason='application_shortlisted' (Bnd-6)
+  §J  update_candidate_job_status — ensure-entry (Bnd-5), None handling (Bnd-5),
+                                    reason='candidate_job_status_changed' (Bnd-6)
   §K  Compatibility — legacy tables still writable, no read switch
+  §L  BlockingConflictError class + server.py JSONResponse (Bnd-8, Bnd-9)
 """
 
 import sys, os, re
@@ -119,6 +124,12 @@ check("B-06. source parameter accepted",
       "source" in _pu and ":src" in _pu)
 check("B-07. Does NOT commit/rollback",
       "conn.run(\"COMMIT\")" not in _pu and "COMMIT" not in _pu)
+check("B-08. Updates source='application' when linking application_id (Bnd-2)",
+      "source = 'application'" in _pu or "source='application'" in _pu)
+check("B-09. initial_event_reason parameter accepted",
+      "initial_event_reason" in _pu)
+check("B-10. Creates initial stage event when initial_event_reason provided",
+      "INSERT INTO pipeline_stage_events" in _pu)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # §C  _pipeline_update_stage helper
@@ -154,7 +165,7 @@ def _fn_body(src, name, window=5000):
         end = min(idx + window, next_def)
     return src[idx:end]
 
-_dr = _fn_body(_auth, "pipeline_backfill_dry_run", window=8000)
+_dr = _fn_body(_auth, "pipeline_backfill_dry_run", window=20000)
 
 check("D-01. pipeline_backfill_dry_run defined",
       "def pipeline_backfill_dry_run(" in _auth)
@@ -168,11 +179,23 @@ check("D-05. Returns dry_run=True in result",
       '"dry_run": True' in _dr or "'dry_run': True" in _dr)
 check("D-06. No INSERT/UPDATE/DELETE (read-only)",
       "INSERT" not in _dr and "UPDATE" not in _dr and "DELETE" not in _dr)
+check("D-07. Uses LEFT JOIN (no hidden rows) for comprehensive conflicts (Bnd-3)",
+      "LEFT JOIN" in _dr)
+check("D-08. Detects null_ccjr_without_application (Bnd-1/Bnd-3)",
+      "null_ccjr_without_application" in _dr)
+check("D-09. Detects job_owner_mismatch (Bnd-3)",
+      "job_owner_mismatch" in _dr)
+check("D-10. Detects application_identity_mismatch (Bnd-3)",
+      "application_identity_mismatch" in _dr)
+check("D-11. Detects duplicate_application_claim (Bnd-3)",
+      "duplicate_application_claim" in _dr)
+check("D-12. Blocking is a bool (not just one field) (Bnd-3)",
+      "blocking = " in _dr or "blocking=" in _dr)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # §E  run_pipeline_backfill
 # ═══════════════════════════════════════════════════════════════════════════════
-_bf = _fn(_auth, "run_pipeline_backfill", window=12000)
+_bf = _fn(_auth, "run_pipeline_backfill", window=25000)
 
 check("E-01. run_pipeline_backfill defined",
       "def run_pipeline_backfill(" in _auth)
@@ -201,6 +224,16 @@ check("E-11. Returns entries_created + application_links_added + backward-compat
       and "inserted_entries" in _bf and "skipped_entries" in _bf)
 check("E-12. Returns bank_notes_created + backward-compat aliases",
       "bank_notes_created" in _bf and "inserted_notes" in _bf and "skipped_notes" in _bf)
+check("E-13. Atomic blocking conflict check inside advisory lock (Bnd-8)",
+      "blocking_check" in _bf and "BlockingConflictError" in _bf)
+check("E-14. NULL CCJR fallback: looks up application (Bnd-1)",
+      "cand_status is None" in _bf or "null_ccjr_without_application" in _bf)
+check("E-15. Pass-2 DO UPDATE also sets source='application' (Bnd-2)",
+      "source = 'application'" in _bf or "source='application'" in _bf)
+check("E-16. Pass-3 notes.strip() (Bnd-7)",
+      ".strip()" in _bf)
+check("E-17. Pass-3 preserves created_at (Bnd-7)",
+      "created_at" in _bf and "legacy_created_at" in _bf)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # §F  _migrate_partial_unique_application_id
@@ -217,6 +250,14 @@ check("F-04. IF NOT EXISTS (idempotent)",
       "IF NOT EXISTS" in _pui)
 check("F-05. Handles duplicate_object / 42710 silently",
       "42710" in _pui or "duplicate_object" in _pui)
+check("F-06. Advisory lock before index creation (Bnd-9)",
+      "pg_advisory_xact_lock" in _pui)
+check("F-07. Rechecks duplicate application_ids before creating index (Bnd-9)",
+      "HAVING COUNT(*) > 1" in _pui or "duplicate_application_claim" in _pui)
+check("F-08. Raises BlockingConflictError on blocking conflicts (Bnd-9)",
+      "BlockingConflictError" in _pui)
+check("F-09. Verifies index exists via pg_indexes (Bnd-9)",
+      "pg_indexes" in _pui)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # §G  apply_job dual-write
@@ -234,6 +275,10 @@ check("G-03. source='application'",
       "source=\"application\"" in _aj or "source='application'" in _aj)
 check("G-04. stage='new'",
       "stage=\"new\"" in _aj or "stage='new'" in _aj)
+check("G-05. created_by=user_id (employee, NOT company) (Bnd-6)",
+      "created_by=user_id" in _aj or "created_by = user_id" in _aj)
+check("G-06. initial_event_reason='application_submitted' (Bnd-6)",
+      "application_submitted" in _aj)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # §H  update_application_status dual-write
@@ -250,6 +295,8 @@ check("H-04. Legacy table writes are NOT removed (job_applications UPDATE still 
       "UPDATE job_applications SET status" in _uas)
 check("H-05. Legacy company_candidate_job_refs UPSERT still present",
       "company_candidate_job_refs" in _uas)
+check("H-06. reason='application_status_changed' passed to _pipeline_update_stage (Bnd-6)",
+      "application_status_changed" in _uas)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # §I  promote_application_to_shortlist dual-write
@@ -262,13 +309,20 @@ check("I-02. Pipeline update is before COMMIT",
       _pa.find("_pipeline_update_stage(") < _pa.find('conn.run("COMMIT")'))
 check("I-03. new_stage='shortlisted'",
       "new_stage=\"shortlisted\"" in _pa or "new_stage='shortlisted'" in _pa)
-check("I-04. Legacy UPSERT company_saved_candidates still present",
-      "INSERT INTO company_saved_candidates" in _pa)
+check("I-04. Option B: NO INSERT/UPSERT to company_saved_candidates (Bnd-4)",
+      "INSERT INTO company_saved_candidates" not in _pa)
+check("I-05. Reads general_status via SELECT only (no FOR UPDATE, no write) (Bnd-4)",
+      "SELECT status FROM company_saved_candidates" in _pa
+      and "FOR UPDATE" not in _pa.split("SELECT status FROM company_saved_candidates")[0][-200:])
+check("I-06. reason='application_shortlisted' passed (Bnd-6)",
+      "application_shortlisted" in _pa)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # §J  update_candidate_job_status transaction + dual-write
 # ═══════════════════════════════════════════════════════════════════════════════
 _ucjs = _fn(_auth, "update_candidate_job_status", window=3000)
+
+_ucjs = _fn(_auth, "update_candidate_job_status", window=9000)
 
 check("J-01. update_candidate_job_status calls _pipeline_update_stage",
       "_pipeline_update_stage(" in _ucjs)
@@ -282,6 +336,14 @@ check("J-04. Legacy UPDATE company_candidate_job_refs still present",
       "UPDATE company_candidate_job_refs" in _ucjs)
 check("J-05. committed guard present",
       "committed = False" in _ucjs and "committed = True" in _ucjs)
+check("J-06. Calls _pipeline_upsert_entry (ensure-entry before update_stage) (Bnd-5)",
+      "_pipeline_upsert_entry(" in _ucjs)
+check("J-07. Handles candidate_status=None: looks up application (Bnd-5)",
+      "candidate_status is None" in _ucjs)
+check("J-08. Raises ValueError when None + no application (Bnd-5)",
+      "ValueError" in _ucjs and "null" in _ucjs.lower())
+check("J-09. reason='candidate_job_status_changed' (Bnd-6)",
+      "candidate_job_status_changed" in _ucjs)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # §K  Compatibility — legacy tables stay, no read switch, no frontend change
@@ -306,6 +368,26 @@ check("K-07. Admin backfill endpoint exists with confirm= guard",
       '"/admin/pipeline/backfill"' in _server and "confirm" in _server)
 check("K-08. Backfill endpoint requires X-Admin-Token (uses check_admin)",
       "check_admin(request)" in _block(_server, '"/admin/pipeline/backfill"', 800))
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# §L  BlockingConflictError class + server.py JSONResponse (Bnd-8, Bnd-9)
+# ═══════════════════════════════════════════════════════════════════════════════
+check("L-01. BlockingConflictError class defined in auth.py (Bnd-8)",
+      "class BlockingConflictError(Exception):" in _auth)
+check("L-02. BlockingConflictError has .report attribute",
+      "self.report = report" in _auth)
+check("L-03. BlockingConflictError imported in server.py (Bnd-8)",
+      "BlockingConflictError" in _server)
+check("L-04. server.py uses JSONResponse (not HTTPException with dict) for 409 (Bnd-9)",
+      "JSONResponse" in _server and "JSONResponse(status_code=409" in _server)
+check("L-05. Backfill endpoint catches BlockingConflictError → JSONResponse (Bnd-8)",
+      "BlockingConflictError" in _block(_server, '"/admin/pipeline/backfill"', 1200))
+check("L-06. migrate-index endpoint catches BlockingConflictError → JSONResponse (Bnd-9)",
+      "BlockingConflictError" in _block(_server, '"/admin/pipeline/migrate-index"', 1200))
+check("L-07. run_pipeline_backfill raises BlockingConflictError (not RuntimeError) on conflicts",
+      "raise BlockingConflictError" in _bf)
+check("L-08. run_pipeline_backfill re-raises BlockingConflictError without wrapping",
+      "except BlockingConflictError:" in _bf and "raise" in _bf)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Summary

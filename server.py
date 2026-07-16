@@ -7,7 +7,7 @@
 import os
 from fastapi import FastAPI, HTTPException, Request, Response, Depends, BackgroundTasks, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, Field
 import base64, mimetypes
@@ -118,6 +118,7 @@ from auth import (
     LEGACY_APP_STATUS_TO_PIPELINE_STAGE,
     LEGACY_CANDIDATE_STATUS_TO_PIPELINE_STAGE,
     run_due_scheduler_jobs,
+    BlockingConflictError,
 )
 from auth import ContentValidationError, validate_professional_text, JobArchivedError
 
@@ -4946,21 +4947,11 @@ def admin_pipeline_backfill(
             "يجب تمرير confirm=true للتنفيذ الفعلي. شغّل dry_run=true أولاً للتحقق."
         )
     try:
-        if not dry_run:
-            # Blocking-conflict check before executing
-            preview = pipeline_backfill_dry_run()
-            if preview.get("blocking_conflicts"):
-                raise HTTPException(
-                    409,
-                    {
-                        "error": "blocking_conflicts",
-                        "detail": "يوجد تعارض في application_id — راجع conflicts_by_type وأصلح قبل التنفيذ.",
-                        "conflicts_by_type": preview.get("conflicts_by_type", {}),
-                        "conflicts_count":   preview.get("conflicts_count", 0),
-                    }
-                )
         result = run_pipeline_backfill(dry_run=dry_run)
         return result
+    except BlockingConflictError as e:
+        # Atomic conflict check ran inside the advisory lock → return structured 409
+        return JSONResponse(status_code=409, content=e.report)
     except HTTPException:
         raise
     except RuntimeError as e:
@@ -5004,5 +4995,7 @@ def admin_pipeline_migrate_index(
     try:
         _migrate_partial_unique_application_id()
         return {"status": "ok", "message": "partial UNIQUE index on application_id created (or already exists)"}
+    except BlockingConflictError as e:
+        return JSONResponse(status_code=409, content=e.report)
     except Exception as e:
         raise HTTPException(500, str(e))

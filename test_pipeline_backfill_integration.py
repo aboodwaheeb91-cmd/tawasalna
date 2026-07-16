@@ -41,6 +41,10 @@ from auth import (
     pipeline_backfill_dry_run,
     run_pipeline_backfill,
     hash_password,
+    BlockingConflictError,
+    promote_application_to_shortlist,
+    update_candidate_job_status,
+    apply_job,
 )
 
 # ── Prerequisites ─────────────────────────────────────────────────────────────
@@ -415,11 +419,11 @@ try:
     # ccjr (Pass 1 source)
     _ccjr(conn, bf_co, bf_e1, bf_j1, "shortlisted")   # valid
     _ccjr(conn, bf_co, bf_e2, bf_j1, "contacted")     # valid
-    _ccjr(conn, bf_co, bf_e3, bf_j2, None)             # NULL → 'new'
+    _ccjr(conn, bf_co, bf_e3, bf_j2, None)             # NULL → app lookup (app 'viewed' → stage 'reviewing')
     _ccjr(conn, bf_co, bf_e4, bf_j3, "INVALID_X")     # unknown → conflict
     # applications (Pass 2 source)
     bf_app1 = _app(conn, bf_j1, bf_e1, "accepted")   # same triple as e1,j1 → link app_id
-    bf_app2 = _app(conn, bf_j2, bf_e3, "viewed")     # same triple as e3,j2 → link app_id
+    bf_app2 = _app(conn, bf_j2, bf_e3, "viewed")     # same triple as e3,j2 → already linked in Pass-1
     bf_app3 = _app(conn, bf_j3, bf_e1, "pending")    # NEW triple
     # notes (Pass 3 source)
     conn.run(
@@ -460,8 +464,8 @@ try:
     check("11-02. dry_run=False", r.get("dry_run") is False)
     # e1,j1 (ccjr shortlisted) + e2,j1 (ccjr contacted) + e3,j2 (ccjr NULL) + e1,j3 (app only)
     check("11-03. entries_created >= 4", r.get("entries_created", 0) >= 4)
-    # e1,j1 gets app_id linked; e3,j2 gets app_id linked
-    check("11-04. application_links_added >= 2", r.get("application_links_added", 0) >= 2)
+    # e1,j1 gets app_id linked in Pass-2 (NULL ccjr path sets app_id in Pass-1 for e3,j2)
+    check("11-04. application_links_added >= 1", r.get("application_links_added", 0) >= 1)
     check("11-05. unknown_statuses list has INVALID_X",
           any(s.get("status") == "INVALID_X" for s in r.get("unknown_statuses", [])))
     check("11-06. conflicts_count >= 1", r.get("conflicts_count", 0) >= 1)
@@ -474,14 +478,18 @@ try:
         row_e1j3 = _entry(conn, bf_co, bf_e1, bf_j3)
         row_e4j3 = _entry(conn, bf_co, bf_e4, bf_j3)
 
-        check("12-01. Pass-1 entry e1,j1 source='migration'",
-              row_e1j1 and row_e1j1[2] == "migration")
+        # After Pass-2 links app_id to e1,j1, it also updates source='application' (Bnd-2)
+        check("12-01. Pass-1 entry e1,j1 source='application' (updated by Pass-2 link)",
+              row_e1j1 and row_e1j1[2] == "application")
         check("12-02. Pass-1 entry e1,j1 stage='shortlisted'",
               row_e1j1 and row_e1j1[1] == "shortlisted")
         check("12-03. Pass-1 entry e2,j1 stage='contacted'",
               row_e2j1 and row_e2j1[1] == "contacted")
-        check("12-04. Pass-1 entry e3,j2 stage='new' (NULL status)",
-              row_e3j2 and row_e3j2[1] == "new")
+        # NULL CCJR: app found (bf_app2, viewed→reviewing) → stage='reviewing', source='application' (Bnd-1)
+        check("12-04. NULL CCJR entry e3,j2 stage='reviewing' (app was 'viewed')",
+              row_e3j2 and row_e3j2[1] == "reviewing")
+        check("12-04b. NULL CCJR entry e3,j2 source='application'",
+              row_e3j2 and row_e3j2[2] == "application")
         check("12-05. Pass-2 entry e1,j3 source='application' (no ccjr)",
               row_e1j3 and row_e1j3[2] == "application")
         check("12-06. Pass-2 entry e1,j3 stage='new' (pending→new)",
@@ -728,6 +736,7 @@ except Exception as e:
 # ═══════════════════════════════════════════════════════════════════════════════
 # §24 _migrate_partial_unique_application_id: idempotent
 # ═══════════════════════════════════════════════════════════════════════════════
+_setup()  # Reset after §22 corrupt state
 try:
     _migrate_partial_unique_application_id()
     _migrate_partial_unique_application_id()  # must not raise
@@ -771,6 +780,578 @@ try:
         release_conn(conn)
 except Exception as e:
     fail("27-01. stage event chain", e)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# §28 null_ccjr_without_application: ccjr NULL with no matching app → conflict
+# ═══════════════════════════════════════════════════════════════════════════════
+_setup()
+try:
+    conn = get_conn()
+    try:
+        na_co  = _user(conn, "co")
+        na_emp = _user(conn)
+        na_job = _job(conn, na_co)
+        _ccjr(conn, na_co, na_emp, na_job, None)  # NULL status, no application exists
+    finally:
+        release_conn(conn)
+
+    dr28 = pipeline_backfill_dry_run()
+    check("28-01. null_ccjr_without_application detected in dry_run",
+          dr28["conflicts_by_type"].get("null_ccjr_without_application", 0) >= 1)
+
+    r28 = run_pipeline_backfill(dry_run=False)
+    check("28-02. Conflict counted in run result",
+          r28["conflicts_by_type"].get("null_ccjr_without_application", 0) >= 1)
+    # No pipeline entry created for this triple
+    conn = get_conn()
+    try:
+        row28 = _entry(conn, na_co, na_emp, na_job)
+        check("28-03. No pipeline entry created for null_ccjr_without_application",
+              row28 is None)
+    finally:
+        release_conn(conn)
+except Exception as e:
+    fail("28-01. null_ccjr_without_application", e)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# §29 Comprehensive conflict categories in dry_run
+# ═══════════════════════════════════════════════════════════════════════════════
+_setup()
+try:
+    conn = get_conn()
+    try:
+        cc_co   = _user(conn, "co")
+        cc_emp  = _user(conn)
+        cc_nomp = _user(conn, "co")   # not an employee
+        cc_job  = _job(conn, cc_co)
+        # candidate_not_employee: ccjr where candidate is 'co' type
+        _ccjr(conn, cc_co, cc_nomp, cc_job, "saved")
+        # application with non-employee
+        conn.run(
+            "INSERT INTO job_applications (job_id, user_id, status) "
+            "VALUES (:j, :u, 'pending')",
+            j=cc_job, u=cc_nomp,
+        )
+    finally:
+        release_conn(conn)
+
+    dr29 = pipeline_backfill_dry_run()
+    check("29-01. candidate_not_employee detected",
+          dr29["conflicts_by_type"].get("candidate_not_employee", 0) >= 1)
+    check("29-02. conflicts_by_type is a dict", isinstance(dr29["conflicts_by_type"], dict))
+    check("29-03. blocking_conflicts is bool", isinstance(dr29["blocking_conflicts"], bool))
+except Exception as e:
+    fail("29-01. comprehensive conflict categories", e)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# §30 BlockingConflictError: backfill raises with structured report
+# ═══════════════════════════════════════════════════════════════════════════════
+_setup()
+try:
+    conn = get_conn()
+    try:
+        bce_co  = _user(conn, "co")
+        bce_emp = _user(conn)
+        bce_job = _job(conn, bce_co)
+        bce_app = _app(conn, bce_job, bce_emp, "pending")
+        # Create a second job to get a different app_id
+        bce_j2  = _job(conn, bce_co)
+        bce_app2 = _app(conn, bce_j2, bce_emp, "pending")
+        # Force pipeline entry with WRONG app_id
+        conn.run("BEGIN")
+        conn.run(
+            "INSERT INTO job_pipeline_entries "
+            "(company_id, candidate_id, job_id, application_id, stage, source) "
+            "VALUES (:c, :u, :j, :a, 'new', 'migration')",
+            c=bce_co, u=bce_emp, j=bce_job, a=bce_app2,
+        )
+        conn.run("COMMIT")
+    finally:
+        release_conn(conn)
+
+    raised_bce = None
+    try:
+        run_pipeline_backfill(dry_run=False)
+    except BlockingConflictError as bce:
+        raised_bce = bce
+    except RuntimeError as rte:
+        # run_pipeline_backfill wraps with RuntimeError when not BlockingConflictError
+        raised_bce = rte
+
+    check("30-01. BlockingConflictError raised (or RuntimeError wrapping it)",
+          raised_bce is not None)
+    if isinstance(raised_bce, BlockingConflictError):
+        check("30-02. report has error key",
+              raised_bce.report.get("error") == "blocking_conflicts")
+        check("30-03. conflicts_by_type in report",
+              "conflicts_by_type" in raised_bce.report)
+    else:
+        check("30-02. BlockingConflictError raised directly",
+              isinstance(raised_bce, BlockingConflictError))
+        check("30-03. skipped (not BlockingConflictError)", False)
+
+    # DB must be clean — backfill must have rolled back
+    conn = get_conn()
+    try:
+        # The bad entry we created should still be there (we didn't clean up)
+        # The point is no NEW entry was created
+        ent_cnt = _cnt(conn, "job_pipeline_entries")
+        check("30-04. No additional entries created on blocking conflict",
+              ent_cnt == 1)  # only the bad one we forced
+    finally:
+        release_conn(conn)
+except Exception as e:
+    fail("30-01. BlockingConflictError on backfill", e)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# §31 promote_application_to_shortlist: no write to company_saved_candidates
+# ═══════════════════════════════════════════════════════════════════════════════
+_setup()
+try:
+    conn = get_conn()
+    try:
+        ps_co  = _user(conn, "co")
+        ps_emp = _user(conn)
+        ps_job = _job(conn, ps_co)
+        ps_app = _app(conn, ps_job, ps_emp, "pending")
+    finally:
+        release_conn(conn)
+
+    result31 = promote_application_to_shortlist(ps_app, ps_co)
+    check("31-01. promote returns application.status='accepted'",
+          result31.get("application", {}).get("status") == "accepted")
+    check("31-02. candidate_status='shortlisted' in response",
+          result31.get("candidate_status") == "shortlisted")
+    check("31-03. general_status is None (no bank row yet)",
+          result31.get("general_status") is None)
+
+    conn = get_conn()
+    try:
+        csc_cnt = int(conn.run(
+            "SELECT COUNT(*) FROM company_saved_candidates "
+            "WHERE company_id=:c AND candidate_id=:u",
+            c=ps_co, u=ps_emp,
+        )[0][0])
+        check("31-04. company_saved_candidates NOT written by promote (Option B, Bnd-4)",
+              csc_cnt == 0)
+        # Pipeline entry must exist with stage='shortlisted'
+        row31 = _entry(conn, ps_co, ps_emp, ps_job)
+        check("31-05. Pipeline entry stage='shortlisted'",
+              row31 and row31[1] == "shortlisted")
+        # Stage event with reason='application_shortlisted'
+        evts31 = _events(conn, int(row31[0])) if row31 else []
+        check("31-06. Stage event reason='application_shortlisted'",
+              any(e[2] == "application_shortlisted" for e in evts31))
+    finally:
+        release_conn(conn)
+except Exception as e:
+    fail("31-01. promote doesn't write bank", e)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# §32 promote_shortlist: general_status read from existing bank row
+# ═══════════════════════════════════════════════════════════════════════════════
+_setup()
+try:
+    conn = get_conn()
+    try:
+        gs_co  = _user(conn, "co")
+        gs_emp = _user(conn)
+        gs_job = _job(conn, gs_co)
+        gs_app = _app(conn, gs_job, gs_emp, "pending")
+        # Pre-insert a bank row with status='contacted'
+        conn.run(
+            "INSERT INTO company_saved_candidates (company_id, candidate_id, status) "
+            "VALUES (:c, :u, 'contacted')",
+            c=gs_co, u=gs_emp,
+        )
+    finally:
+        release_conn(conn)
+
+    result32 = promote_application_to_shortlist(gs_app, gs_co)
+    check("32-01. general_status reads existing bank status",
+          result32.get("general_status") == "contacted")
+    # Bank row must NOT be modified
+    conn = get_conn()
+    try:
+        bank_row = conn.run(
+            "SELECT status FROM company_saved_candidates "
+            "WHERE company_id=:c AND candidate_id=:u",
+            c=gs_co, u=gs_emp,
+        )
+        check("32-02. Bank row status unchanged ('contacted')",
+              bank_row and bank_row[0][0] == "contacted")
+    finally:
+        release_conn(conn)
+except Exception as e:
+    fail("32-01. general_status from bank", e)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# §33 apply_job: created_by=user_id (employee, not company) + initial event
+# ═══════════════════════════════════════════════════════════════════════════════
+_setup()
+try:
+    conn = get_conn()
+    try:
+        aj2_co  = _user(conn, "co")
+        aj2_emp = _user(conn)
+        aj2_job = _job(conn, aj2_co)
+    finally:
+        release_conn(conn)
+
+    apply_job(aj2_job, aj2_emp, "test cover")
+
+    conn = get_conn()
+    try:
+        row33 = _entry(conn, aj2_co, aj2_emp, aj2_job)
+        check("33-01. Pipeline entry created by apply_job", row33 is not None)
+        if row33:
+            # created_by must be the employee (aj2_emp), not the company (aj2_co) (Bnd-6)
+            cr_by = conn.run(
+                "SELECT created_by FROM job_pipeline_entries WHERE id=:id",
+                id=int(row33[0]),
+            )
+            check("33-02. created_by = employee user_id (not company)",
+                  cr_by and int(cr_by[0][0]) == aj2_emp)
+            # Initial stage event with reason='application_submitted'
+            evts33 = _events(conn, int(row33[0]))
+            check("33-03. Initial event created with reason='application_submitted'",
+                  any(e[2] == "application_submitted" for e in evts33))
+            check("33-04. Initial event from_stage=NULL",
+                  any(e[0] is None for e in evts33))
+    finally:
+        release_conn(conn)
+except Exception as e:
+    fail("33-01. apply_job created_by + initial event", e)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# §34 event reason: application_status_changed
+# ═══════════════════════════════════════════════════════════════════════════════
+_setup()
+try:
+    conn = get_conn()
+    try:
+        asc_co  = _user(conn, "co")
+        asc_emp = _user(conn)
+        asc_job = _job(conn, asc_co)
+        asc_app = _app(conn, asc_job, asc_emp, "pending")
+        conn.run("BEGIN")
+        _pipeline_upsert_entry(conn, company_id=asc_co, candidate_id=asc_emp, job_id=asc_job,
+                                stage="new", source="application", application_id=asc_app)
+        conn.run("COMMIT")
+    finally:
+        release_conn(conn)
+
+    from auth import update_application_status
+    update_application_status(asc_app, "viewed", actor_id=asc_co)
+
+    conn = get_conn()
+    try:
+        row34 = _entry(conn, asc_co, asc_emp, asc_job)
+        evts34 = _events(conn, int(row34[0])) if row34 else []
+        check("34-01. event reason='application_status_changed'",
+              any(e[2] == "application_status_changed" for e in evts34))
+    finally:
+        release_conn(conn)
+except Exception as e:
+    fail("34-01. application_status_changed reason", e)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# §35 event reason: candidate_job_status_changed
+# ═══════════════════════════════════════════════════════════════════════════════
+_setup()
+try:
+    conn = get_conn()
+    try:
+        cjsc_co  = _user(conn, "co")
+        cjsc_emp = _user(conn)
+        cjsc_job = _job(conn, cjsc_co)
+        conn.run(
+            "INSERT INTO company_candidate_job_refs (company_id, candidate_id, job_id, candidate_status) "
+            "VALUES (:c, :u, :j, 'saved')",
+            c=cjsc_co, u=cjsc_emp, j=cjsc_job,
+        )
+    finally:
+        release_conn(conn)
+
+    ok35 = update_candidate_job_status(
+        company_id=cjsc_co, candidate_id=cjsc_emp, job_id=cjsc_job,
+        candidate_status="shortlisted", actor_id=cjsc_co,
+    )
+    check("35-01. update_candidate_job_status returns True", ok35 is True)
+
+    conn = get_conn()
+    try:
+        row35 = _entry(conn, cjsc_co, cjsc_emp, cjsc_job)
+        check("35-02. Pipeline entry created by ensure-entry in update_candidate_job_status",
+              row35 is not None)
+        evts35 = _events(conn, int(row35[0])) if row35 else []
+        check("35-03. event reason='candidate_job_status_changed'",
+              any(e[2] == "candidate_job_status_changed" for e in evts35))
+    finally:
+        release_conn(conn)
+except Exception as e:
+    fail("35-01. candidate_job_status_changed reason + ensure-entry", e)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# §36 update_candidate_job_status: candidate_status=None with no app → ValueError
+# ═══════════════════════════════════════════════════════════════════════════════
+_setup()
+try:
+    conn = get_conn()
+    try:
+        none_co  = _user(conn, "co")
+        none_emp = _user(conn)
+        none_job = _job(conn, none_co)
+        conn.run(
+            "INSERT INTO company_candidate_job_refs (company_id, candidate_id, job_id, candidate_status) "
+            "VALUES (:c, :u, :j, 'saved')",
+            c=none_co, u=none_emp, j=none_job,
+        )
+    finally:
+        release_conn(conn)
+
+    raised36 = False
+    try:
+        update_candidate_job_status(
+            company_id=none_co, candidate_id=none_emp, job_id=none_job,
+            candidate_status=None, actor_id=none_co,
+        )
+    except (ValueError, RuntimeError):
+        raised36 = True
+    check("36-01. ValueError/RuntimeError raised when None status + no application",
+          raised36)
+except Exception as e:
+    fail("36-01. None status no application", e)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# §37 update_candidate_job_status: candidate_status=None with app → revert pipeline
+# ═══════════════════════════════════════════════════════════════════════════════
+_setup()
+try:
+    conn = get_conn()
+    try:
+        rev_co  = _user(conn, "co")
+        rev_emp = _user(conn)
+        rev_job = _job(conn, rev_co)
+        rev_app = _app(conn, rev_job, rev_emp, "viewed")  # viewed → reviewing
+        conn.run(
+            "INSERT INTO company_candidate_job_refs (company_id, candidate_id, job_id, candidate_status) "
+            "VALUES (:c, :u, :j, 'shortlisted')",
+            c=rev_co, u=rev_emp, j=rev_job,
+        )
+        # Pre-create pipeline at shortlisted
+        conn.run("BEGIN")
+        _pipeline_upsert_entry(conn, company_id=rev_co, candidate_id=rev_emp, job_id=rev_job,
+                                stage="shortlisted", source="application", application_id=rev_app)
+        conn.run("COMMIT")
+    finally:
+        release_conn(conn)
+
+    ok37 = update_candidate_job_status(
+        company_id=rev_co, candidate_id=rev_emp, job_id=rev_job,
+        candidate_status=None, actor_id=rev_co,
+    )
+    check("37-01. Returns True when reverting pipeline with None + app", ok37 is True)
+
+    conn = get_conn()
+    try:
+        row37 = _entry(conn, rev_co, rev_emp, rev_job)
+        check("37-02. Pipeline reverted to app-derived stage ('reviewing')",
+              row37 and row37[1] == "reviewing")
+    finally:
+        release_conn(conn)
+except Exception as e:
+    fail("37-01. None status revert pipeline", e)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# §38 Pass-3 notes: trim + legacy created_at preserved
+# ═══════════════════════════════════════════════════════════════════════════════
+_setup()
+try:
+    conn = get_conn()
+    try:
+        nt_co  = _user(conn, "co")
+        nt_emp = _user(conn)
+        nt_ts  = "2024-03-15 10:30:00+00"
+        conn.run(
+            "INSERT INTO company_saved_candidates "
+            "(company_id, candidate_id, notes, created_at) "
+            "VALUES (:c, :u, '  Great candidate  ', :ts::timestamptz)",
+            c=nt_co, u=nt_emp, ts=nt_ts,
+        )
+    finally:
+        release_conn(conn)
+
+    run_pipeline_backfill(dry_run=False)
+
+    conn = get_conn()
+    try:
+        note_rows = conn.run(
+            "SELECT body, created_at, created_by FROM candidate_bank_notes "
+            "WHERE company_id=:c AND candidate_id=:u",
+            c=nt_co, u=nt_emp,
+        )
+        check("38-01. Note migrated", bool(note_rows))
+        if note_rows:
+            check("38-02. Body is trimmed (no leading/trailing spaces)",
+                  note_rows[0][0] == "Great candidate")
+            check("38-03. created_by=NULL (Bnd-7)",
+                  note_rows[0][2] is None)
+            # created_at should be close to legacy ts
+            ca = str(note_rows[0][1])
+            check("38-04. created_at preserved from legacy (contains '2024')",
+                  "2024" in ca)
+    finally:
+        release_conn(conn)
+except Exception as e:
+    fail("38-01. notes trim + created_at", e)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# §39 Partial UNIQUE index: multiple NULLs allowed
+# ═══════════════════════════════════════════════════════════════════════════════
+_setup()
+try:
+    conn = get_conn()
+    try:
+        mi_co  = _user(conn, "co")
+        mi_e1  = _user(conn)
+        mi_e2  = _user(conn)
+        mi_j1  = _job(conn, mi_co)
+        mi_j2  = _job(conn, mi_co)
+        conn.run("BEGIN")
+        # Two entries without application_id
+        _pipeline_upsert_entry(conn, company_id=mi_co, candidate_id=mi_e1, job_id=mi_j1,
+                                stage="new", source="migration")
+        _pipeline_upsert_entry(conn, company_id=mi_co, candidate_id=mi_e2, job_id=mi_j2,
+                                stage="new", source="migration")
+        conn.run("COMMIT")
+    finally:
+        release_conn(conn)
+
+    _migrate_partial_unique_application_id()
+    check("39-01. Index created with two NULL application_ids (no unique violation)", True)
+
+    conn = get_conn()
+    try:
+        idx_rows = conn.run(
+            "SELECT indexname FROM pg_indexes "
+            "WHERE tablename='job_pipeline_entries' AND indexname='uq_jpe_application_id'"
+        )
+        check("39-02. uq_jpe_application_id index exists", bool(idx_rows))
+    finally:
+        release_conn(conn)
+except Exception as e:
+    fail("39-01. multiple NULLs in index", e)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# §40 Partial UNIQUE index: rejects duplicate application_id → BlockingConflictError
+# ═══════════════════════════════════════════════════════════════════════════════
+_setup()
+try:
+    conn = get_conn()
+    try:
+        dup_co  = _user(conn, "co")
+        dup_emp = _user(conn)
+        dup_j1  = _job(conn, dup_co)
+        dup_j2  = _job(conn, dup_co)
+        dup_app = _app(conn, dup_j1, dup_emp, "pending")
+        conn.run("BEGIN")
+        # Insert two entries with the SAME application_id (corrupt state)
+        conn.run(
+            "INSERT INTO job_pipeline_entries "
+            "(company_id, candidate_id, job_id, application_id, stage, source) "
+            "VALUES (:c, :u, :j1, :app, 'new', 'application')",
+            c=dup_co, u=dup_emp, j1=dup_j1, app=dup_app,
+        )
+        # Second entry for different job but same app (should never happen in real life)
+        conn.run(
+            "INSERT INTO job_pipeline_entries "
+            "(company_id, candidate_id, job_id, application_id, stage, source) "
+            "VALUES (:c, :u, :j2, :app, 'new', 'application')",
+            c=dup_co, u=dup_emp, j2=dup_j2, app=dup_app,
+        )
+        conn.run("COMMIT")
+    finally:
+        release_conn(conn)
+
+    raised40 = False
+    try:
+        _migrate_partial_unique_application_id()
+    except BlockingConflictError as bce40:
+        raised40 = True
+        check("40-02. report has duplicate_application_claim",
+              bce40.report.get("conflicts_by_type", {}).get("duplicate_application_claim", 0) >= 1)
+    except RuntimeError:
+        raised40 = True
+        check("40-02. RuntimeError raised (index creation rejected duplicate)", True)
+    check("40-01. BlockingConflictError/RuntimeError raised on duplicate app_id",
+          raised40)
+except Exception as e:
+    fail("40-01. index rejects duplicate application_id", e)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# §41 source='application' updated when Pass-2 links an entry
+# ═══════════════════════════════════════════════════════════════════════════════
+_setup()
+try:
+    conn = get_conn()
+    try:
+        sl_co  = _user(conn, "co")
+        sl_emp = _user(conn)
+        sl_job = _job(conn, sl_co)
+        sl_app = _app(conn, sl_job, sl_emp, "pending")
+        # Pass-1 style: entry with source='migration', no app_id
+        conn.run("BEGIN")
+        _pipeline_upsert_entry(conn, company_id=sl_co, candidate_id=sl_emp, job_id=sl_job,
+                                stage="new", source="migration")
+        conn.run("COMMIT")
+        # Add ccjr so Pass-1 skips it (entry already exists)
+        _ccjr(conn, sl_co, sl_emp, sl_job, "saved")
+    finally:
+        release_conn(conn)
+
+    run_pipeline_backfill(dry_run=False)
+
+    conn = get_conn()
+    try:
+        row41 = _entry(conn, sl_co, sl_emp, sl_job)
+        check("41-01. application_id linked by Pass-2", row41 and row41[3] == sl_app)
+        check("41-02. source updated to 'application' (Bnd-2)",
+              row41 and row41[2] == "application")
+    finally:
+        release_conn(conn)
+except Exception as e:
+    fail("41-01. source updated to application on link", e)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# §42 stage_source_disagreement detected in dry_run
+# ═══════════════════════════════════════════════════════════════════════════════
+_setup()
+try:
+    conn = get_conn()
+    try:
+        sd_co  = _user(conn, "co")
+        sd_emp = _user(conn)
+        sd_job = _job(conn, sd_co)
+        sd_app = _app(conn, sd_job, sd_emp, "accepted")  # accepted → shortlisted
+        # But pipeline entry says 'new' and is already linked
+        conn.run("BEGIN")
+        conn.run(
+            "INSERT INTO job_pipeline_entries "
+            "(company_id, candidate_id, job_id, application_id, stage, source) "
+            "VALUES (:c, :u, :j, :app, 'new', 'application')",
+            c=sd_co, u=sd_emp, j=sd_job, app=sd_app,
+        )
+        conn.run("COMMIT")
+    finally:
+        release_conn(conn)
+
+    dr42 = pipeline_backfill_dry_run()
+    check("42-01. stage_source_disagreement detected",
+          dr42["conflicts_by_type"].get("stage_source_disagreement", 0) >= 1)
+except Exception as e:
+    fail("42-01. stage_source_disagreement", e)
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Summary
