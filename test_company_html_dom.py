@@ -245,12 +245,13 @@ print("=" * 60)
 print("PR-JOB — Frontend DOM Smoke Tests (Node.js + inline harness)")
 print("=" * 60)
 
-# Check Node.js is available
+# Check Node.js is available — exit 1 if missing (tests not run ≠ tests passed)
 node_check = subprocess.run(['node', '--version'], capture_output=True, text=True)
 if node_check.returncode != 0:
-    print("❌  Node.js not available — skipping DOM tests")
-    print("    Install Node.js to enable frontend smoke tests.")
-    sys.exit(0)
+    print("❌  Node.js not available — cannot run Frontend DOM tests")
+    print("    Node.js is REQUIRED. Install it and re-run.")
+    print("    Exiting with code 1: unrun tests must not count as passed.")
+    sys.exit(1)
 
 # Extract the JS from company.html
 try:

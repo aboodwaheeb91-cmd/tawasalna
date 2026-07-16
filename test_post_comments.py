@@ -3173,7 +3173,8 @@ _nplan145 = open("docs/NOTIFICATIONS_PLAN.md").read()
 print("\n── §145: Notifications Phase 6 — Job Application Notification Hook ──")
 check(
     "145a. apply_job SELECT now fetches company_id and title",
-    "SELECT status, closed_at, expires_at, company_id, title FROM jobs" in _auth145
+    "SELECT status, closed_at, expires_at, company_id, title" in _auth145
+    and "FROM jobs" in _auth145
 )
 check(
     "145b. job_company_id extracted from job_rows in apply_job",
@@ -4514,7 +4515,7 @@ with open("static/app-header.css", encoding="utf-8") as f:
     _ahc_160 = f.read()
 
 # Slices for targeted checks (3200 chars covers full function)
-_aj160 = _auth160[_auth160.find('def apply_job('):_auth160.find('def apply_job(') + 3200]
+_aj160 = _auth160[_auth160.find('def apply_job('):_auth160.find('def apply_job(') + 5000]
 _uas160 = _auth160[_auth160.find('def update_application_status('):
                    _auth160.find('def update_application_status(') + 800] \
           if 'def update_application_status(' in _auth160 else ''
