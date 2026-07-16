@@ -28,6 +28,15 @@ Tests verify:
   ja-20  archived_at is a TIMESTAMPTZ column (nullable) — verify via information_schema
   ja-21  archived_by is an INTEGER column (nullable FK) — verify via information_schema
   ja-22  archive_job archived_by matches the supplied user id in the DB
+  ja-23  apply_job on non-archived job inserts a DB row (verified in DB)
+  ja-24  job_pipeline_entries preserved after soft archive
+  ja-25  pipeline_stage_events preserved after soft archive
+  ja-26  pipeline_notes preserved after soft archive
+  ja-27  appointments row with pipeline_entry_id preserved after soft archive
+  ja-28  get_job_applicants() returns applicants for archived job (owner view)
+  ja-29  Concurrency: FOR UPDATE lock → apply_job sees archived state → JobArchivedError
+  ja-30  Concurrent double archive → exactly 1 real archive + 1 idempotent
+  ja-31  Cache invalidation: get_jobs() excludes archived job immediately after archive
   Exit code: 0 on all pass, 1 on any failure
 """
 
@@ -147,6 +156,7 @@ def _create_schema(conn):
             user_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
             status       TEXT NOT NULL DEFAULT 'pending',
             cover_letter TEXT NOT NULL DEFAULT '',
+            applied_at   TIMESTAMPTZ DEFAULT NOW(),
             UNIQUE(job_id, user_id)
         )
     """)
@@ -522,6 +532,272 @@ try:
 finally:
     _dc.close()
 check("ja-22. archived_by in DB == co_id supplied to archive_job", int(_aby or -1) == co_id, f"archived_by={_aby}, expected={co_id}")
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ja-23  apply_job on non-archived job inserted a DB row (verify in DB)
+# ─────────────────────────────────────────────────────────────────────────────
+# ja-12 called apply_job(j1, emp_id, ...) — verify the row actually exists
+_dc23 = _get_test_conn()
+try:
+    _cnt23 = _dc23.run(
+        "SELECT COUNT(*) FROM job_applications WHERE job_id=:jid AND user_id=:uid",
+        jid=j1, uid=emp_id
+    )[0][0]
+finally:
+    _dc23.close()
+check("ja-23. apply_job on non-archived job inserts a DB row (verified in DB)", int(_cnt23) >= 1, f"count={_cnt23}")
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SETUP FOR ja-24..ja-28: pipeline + appointments schema (PR-1 migration)
+# ─────────────────────────────────────────────────────────────────────────────
+_sc3 = _get_test_conn()
+try:
+    _sc3.run("""
+        CREATE TABLE IF NOT EXISTS company_saved_candidates (
+            id           SERIAL PRIMARY KEY,
+            company_id   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            candidate_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            status       TEXT NOT NULL DEFAULT 'saved',
+            UNIQUE(company_id, candidate_id)
+        )
+    """)
+    # applied_at needed by get_job_applicants query
+    _sc3.run(
+        "ALTER TABLE job_applications ADD COLUMN IF NOT EXISTS "
+        "applied_at TIMESTAMPTZ DEFAULT NOW()"
+    )
+finally:
+    _sc3.close()
+
+_auth._migrate_appointments()
+_auth._migrate_pipeline_schema_v1()
+
+# Seed: fresh job + full pipeline chain for history preservation tests
+_dc_h = _get_test_conn()
+_j_hist = _pe_id = _pse_id = _pn_id = _appt_id = _app_h_id = None
+try:
+    _j_hist = _dc_h.run(
+        "INSERT INTO jobs(company_id,title,status) VALUES(:cid,'وظيفة تاريخ','active') RETURNING id",
+        cid=co_id
+    )[0][0]
+    _app_h_rows = _dc_h.run(
+        "INSERT INTO job_applications(job_id,user_id,cover_letter) VALUES(:jid,:uid,'test') "
+        "ON CONFLICT DO NOTHING RETURNING id",
+        jid=_j_hist, uid=emp_id
+    )
+    _app_h_id = _app_h_rows[0][0] if _app_h_rows else _dc_h.run(
+        "SELECT id FROM job_applications WHERE job_id=:jid AND user_id=:uid",
+        jid=_j_hist, uid=emp_id
+    )[0][0]
+    _pe_id = _dc_h.run(
+        "INSERT INTO job_pipeline_entries "
+        "(company_id, candidate_id, job_id, application_id, stage, source, created_by) "
+        "VALUES (:cid,:uid,:jid,:aid,'new','application',:cid) RETURNING id",
+        cid=co_id, uid=emp_id, jid=_j_hist, aid=_app_h_id
+    )[0][0]
+    _pse_id = _dc_h.run(
+        "INSERT INTO pipeline_stage_events "
+        "(pipeline_entry_id, from_stage, to_stage, changed_by) "
+        "VALUES (:pid, NULL, 'new', :uid) RETURNING id",
+        pid=_pe_id, uid=co_id
+    )[0][0]
+    _pn_id = _dc_h.run(
+        "INSERT INTO pipeline_notes "
+        "(pipeline_entry_id, body, created_by) "
+        "VALUES (:pid, 'ملاحظة اختبار', :uid) RETURNING id",
+        pid=_pe_id, uid=co_id
+    )[0][0]
+    _appt_id = _dc_h.run(
+        "INSERT INTO appointments "
+        "(job_id, application_id, company_id, applicant_id, created_by, pipeline_entry_id) "
+        "VALUES (:jid,:aid,:cid,:uid,:cid,:pid) RETURNING id",
+        jid=_j_hist, aid=_app_h_id, cid=co_id, uid=emp_id, pid=_pe_id
+    )[0][0]
+finally:
+    _dc_h.close()
+
+_r_hist = None
+_e_hist = None
+try:
+    _r_hist = _auth.archive_job(_j_hist, co_id, co_id)
+except Exception as e:
+    _e_hist = str(e)
+check("ja-24-pre. Archive of history-test job succeeded", _r_hist is not None and _r_hist.get('archived') is True, _e_hist)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ja-24  Pipeline entries preserved after soft archive
+# ─────────────────────────────────────────────────────────────────────────────
+_dc24 = _get_test_conn()
+try:
+    _pe_cnt = _dc24.run("SELECT COUNT(*) FROM job_pipeline_entries WHERE id=:id", id=_pe_id)[0][0]
+finally:
+    _dc24.close()
+check("ja-24. job_pipeline_entries row preserved after soft archive", int(_pe_cnt) == 1, f"count={_pe_cnt}")
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ja-25  Pipeline stage events preserved after soft archive
+# ─────────────────────────────────────────────────────────────────────────────
+_dc25 = _get_test_conn()
+try:
+    _pse_cnt = _dc25.run("SELECT COUNT(*) FROM pipeline_stage_events WHERE id=:id", id=_pse_id)[0][0]
+finally:
+    _dc25.close()
+check("ja-25. pipeline_stage_events row preserved after soft archive", int(_pse_cnt) == 1, f"count={_pse_cnt}")
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ja-26  Pipeline notes preserved after soft archive
+# ─────────────────────────────────────────────────────────────────────────────
+_dc26 = _get_test_conn()
+try:
+    _pn_cnt = _dc26.run("SELECT COUNT(*) FROM pipeline_notes WHERE id=:id", id=_pn_id)[0][0]
+finally:
+    _dc26.close()
+check("ja-26. pipeline_notes row preserved after soft archive", int(_pn_cnt) == 1, f"count={_pn_cnt}")
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ja-27  Appointment with pipeline_entry_id preserved after soft archive
+# ─────────────────────────────────────────────────────────────────────────────
+_dc27 = _get_test_conn()
+try:
+    _appt_cnt = _dc27.run(
+        "SELECT COUNT(*) FROM appointments WHERE id=:id AND pipeline_entry_id=:pid",
+        id=_appt_id, pid=_pe_id
+    )[0][0]
+finally:
+    _dc27.close()
+check("ja-27. appointments row with pipeline_entry_id preserved after soft archive", int(_appt_cnt) == 1, f"count={_appt_cnt}")
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ja-28  get_job_applicants still returns applicants for archived job (owner view)
+# ─────────────────────────────────────────────────────────────────────────────
+_e28 = None
+_appl28 = []
+try:
+    _appl28 = _auth.get_job_applicants(_j_hist, co_id)
+except Exception as e:
+    _e28 = str(e)
+check("ja-28. get_job_applicants() returns ≥1 applicant for archived job (owner view)", len(_appl28) >= 1, f"count={len(_appl28)}, e={_e28}")
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ja-29  Concurrency: archive FOR UPDATE lock prevents stale-read apply
+# Thread 1 holds FOR UPDATE, Thread 2 apply_job blocks, then sees archived row
+# ─────────────────────────────────────────────────────────────────────────────
+import threading as _thr, time as _ttime
+
+_dc29 = _get_test_conn()
+try:
+    _j_conc = _dc29.run(
+        "INSERT INTO jobs(company_id,title,status) VALUES(:cid,'وظيفة تزامن','active') RETURNING id",
+        cid=co_id
+    )[0][0]
+    _dc29.run("INSERT INTO users(tw_id,user_type,full_name) VALUES('U002','emp','موظف 2') ON CONFLICT DO NOTHING")
+    _emp2_id = _dc29.run("SELECT id FROM users WHERE tw_id='U002'")[0][0]
+    _dc29.run("INSERT INTO profiles(user_id) VALUES(:uid) ON CONFLICT DO NOTHING", uid=_emp2_id)
+finally:
+    _dc29.close()
+
+_t1_ready29 = _thr.Event()
+_t2_exc29 = []
+_t2_res29 = []
+
+def _t1_lock_and_archive29():
+    _c = _get_test_conn()
+    try:
+        _c.run("BEGIN")
+        _c.run("SELECT id FROM jobs WHERE id=:id FOR UPDATE", id=_j_conc)
+        _t1_ready29.set()           # lock acquired — T2 can now start
+        _ttime.sleep(0.25)          # hold lock while T2 blocks on its FOR UPDATE
+        _c.run("UPDATE jobs SET archived_at=NOW(), archived_by=:uid WHERE id=:id", uid=co_id, id=_j_conc)
+        _c.run("COMMIT")
+    finally:
+        _c.close()
+
+def _t2_apply29():
+    try:
+        _r = _auth.apply_job(_j_conc, _emp2_id, "test")
+        _t2_res29.append(_r)
+    except _auth.JobArchivedError:
+        _t2_exc29.append("JobArchivedError")
+    except Exception as e:
+        _t2_exc29.append(f"other:{e}")
+
+_th1_29 = _thr.Thread(target=_t1_lock_and_archive29)
+_th1_29.start()
+_t1_ready29.wait(timeout=5)    # wait until T1 holds the FOR UPDATE lock
+
+_th2_29 = _thr.Thread(target=_t2_apply29)
+_th2_29.start()                # T2 starts → should block on its own SELECT FOR UPDATE
+
+_th1_29.join(timeout=5)
+_th2_29.join(timeout=10)
+
+check(
+    "ja-29. apply_job after concurrent archive raises JobArchivedError (no stale-read)",
+    "JobArchivedError" in _t2_exc29,
+    f"t2_exc={_t2_exc29}, t2_res={_t2_res29}"
+)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ja-30  Concurrent double archive: exactly 1 real, 1 idempotent
+# ─────────────────────────────────────────────────────────────────────────────
+_dc30 = _get_test_conn()
+try:
+    _j_dbl = _dc30.run(
+        "INSERT INTO jobs(company_id,title,status) VALUES(:cid,'أرشفة مزدوجة','active') RETURNING id",
+        cid=co_id
+    )[0][0]
+finally:
+    _dc30.close()
+
+_res30 = []
+_err30 = []
+
+def _archive_worker30():
+    try:
+        _r = _auth.archive_job(_j_dbl, co_id, co_id)
+        _res30.append(_r)
+    except Exception as e:
+        _err30.append(str(e))
+
+_ta30 = _thr.Thread(target=_archive_worker30)
+_tb30 = _thr.Thread(target=_archive_worker30)
+_ta30.start()
+_tb30.start()
+_ta30.join(timeout=10)
+_tb30.join(timeout=10)
+
+_real30 = [r for r in _res30 if r.get('was_already_archived') is False]
+_idem30 = [r for r in _res30 if r.get('was_already_archived') is True]
+
+check("ja-30a. Concurrent double archive: exactly 1 real archive (was_already_archived=False)", len(_real30) == 1, f"real={_real30}, errs={_err30}")
+check("ja-30b. Concurrent double archive: exactly 1 idempotent (was_already_archived=True)", len(_idem30) == 1, f"idem={_idem30}, errs={_err30}")
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ja-31  Cache invalidation: get_jobs() reflects archive without stale data
+# ─────────────────────────────────────────────────────────────────────────────
+_dc31 = _get_test_conn()
+try:
+    _j_cache31 = _dc31.run(
+        "INSERT INTO jobs(company_id,title,status) VALUES(:cid,'وظيفة كاش','active') RETURNING id",
+        cid=co_id
+    )[0][0]
+finally:
+    _dc31.close()
+
+# Ensure fresh cache that includes j_cache31
+for _ck in list(_auth._query_cache.keys()):
+    if _ck.startswith('jobs:'):
+        del _auth._query_cache[_ck]
+
+_jobs31_before = _auth.get_jobs()
+_ids31_before = [j['id'] for j in _jobs31_before.get('jobs', [])]
+check("ja-31-pre. j_cache31 appears in get_jobs() before archive (cache sanity)", _j_cache31 in _ids31_before, f"ids={_ids31_before}")
+
+_auth.archive_job(_j_cache31, co_id, co_id)   # archives + calls _cache_del("jobs:")
+
+_jobs31_after = _auth.get_jobs()              # must hit DB, not stale cache
+_ids31_after = [j['id'] for j in _jobs31_after.get('jobs', [])]
+check("ja-31. Cache invalidated: get_jobs() excludes archived job immediately", _j_cache31 not in _ids31_after, f"ids={_ids31_after}")
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Summary

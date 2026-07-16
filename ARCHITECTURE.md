@@ -10402,6 +10402,65 @@ HTTP 409 Conflict
 | `apply_job(job_id, user_id, cover_letter)` | Selects `archived_at`; raises `JobArchivedError` if non-NULL |
 | `get_company_candidate_suggestions(company_id)` | WHERE includes `AND j.archived_at IS NULL` |
 
+### Round-2 hardening (PR #493 — same PR)
+
+#### Atomic transactions with row-level locking
+
+Both `archive_job` and `apply_job` use explicit PostgreSQL transactions with `SELECT ... FOR UPDATE` to eliminate TOCTOU races:
+
+```python
+# Pattern in both functions:
+conn.run("BEGIN")
+rows = conn.run("SELECT ... FROM jobs WHERE id=:id FOR UPDATE", id=job_id)
+# ...check conditions...
+conn.run("UPDATE/INSERT ...")
+conn.run("COMMIT")
+committed = True
+```
+
+The `FOR UPDATE` lock on the jobs row ensures:
+- An `apply_job` that reads `archived_at IS NULL` cannot proceed to INSERT if `archive_job` commits between the read and the INSERT — PostgreSQL blocks the second `SELECT FOR UPDATE` until the first transaction commits.
+- Concurrent double-archive: one transaction wins the lock, sets `archived_at`; the other blocks, then sees `archived_at IS NOT NULL` and returns `was_already_archived=True`.
+
+`committed = False` guard prevents double-ROLLBACK in the except block.
+
+#### Cache invalidation
+
+`archive_job` calls `_cache_del("jobs:")` after a successful COMMIT. This invalidates all in-memory `_query_cache` entries whose key starts with `"jobs:"`. Subsequent `get_jobs()` calls hit the DB and exclude the archived job immediately.
+
+#### HTTP 409 body format
+
+The 409 for `JobArchivedError` uses `JSONResponse` directly (not `HTTPException`):
+
+```python
+# server.py apply_to_job():
+except JobArchivedError:
+    return JSONResponse(status_code=409, content={"code": "job_archived", "message": "..."})
+```
+
+**Why JSONResponse, not HTTPException?** server.py has a custom exception handler that wraps `HTTPException.detail` in `{"error": str(detail)}`. Using `HTTPException(409, detail={"code":...})` would produce `{"error": "{'code': ...}"}` — the wrong shape. `JSONResponse` bypasses the custom handler and writes the body directly.
+
+#### `delete_job` helper removed
+
+`auth.py`'s `delete_job()` helper (which did `DELETE FROM jobs WHERE id=:id`) has been removed entirely. The only callers were the old hard-delete endpoint, which is now `archive_job`. Admin hard delete uses an inline `conn.run("DELETE FROM jobs WHERE id=:id")` directly in its endpoint. `delete_job` is no longer imported in server.py.
+
+#### Query audit (all public paths)
+
+All public SQL queries were audited for missing `archived_at IS NULL` filters. Three fixes applied:
+1. `/stats` jobs_count query: `WHERE status='active' AND archived_at IS NULL`
+2. Home feed query (`GET /home/feed`): `AND j.archived_at IS NULL` added
+3. Company profile visitor job count: `AND archived_at IS NULL` added
+
+The `GET /jobs/{job_id}/applicants` ownership check does **not** filter by `archived_at` — the owner can still view applicants for archived jobs.
+
+#### `Query` import added to server.py
+
+`fastapi.Query` was missing from server.py's top-level import. Added to the `from fastapi import ...` line to support the `view: str = Query("active")` parameter in `GET /company/jobs`.
+
+#### Company dashboard — archived job management button
+
+Archived job cards in `company.html` include a "المتقدمون" button that calls `GET /jobs/{id}/applicants` (existing ownership-checked endpoint) and displays the applicant names in a toast/alert. No new endpoint created.
+
 ### Forbidden Patterns (PR-JOB — permanent)
 
 ```
@@ -10413,4 +10472,7 @@ HTTP 409 Conflict
 ❌ Returning HTTP 200 (or any non-409) when apply_job() hits an archived job
 ❌ Changing job_applications.status or pipeline behavior as part of archive
 ❌ Starting PR-2 without explicit user approval after PR-JOB merge
+❌ Issuing SELECT without FOR UPDATE in archive_job or apply_job (TOCTOU race)
+❌ Using HTTPException for the 409 archive body (wraps in {"error":...})
+❌ Re-adding delete_job() helper function — use inline SQL or archive_job()
 ```

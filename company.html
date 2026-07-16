@@ -582,7 +582,7 @@ function loadCompanyJobs(){
         ? '<span style="font-size:.68rem;padding:2px 8px;border-radius:20px;background:rgba(156,163,175,.12);color:#9ca3af">مؤرشفة</span>'
         : '<span style="font-size:.68rem;padding:2px 8px;border-radius:20px;background:rgba(0,200,150,.1);color:var(--ac)">'+(j.status==='active'?'نشطة':'مغلقة')+'</span>';
       var archiveBtn = archived
-        ? ''
+        ? '<button onclick="viewJobApplicants('+j.id+')" style="background:rgba(37,99,255,.1);color:#60a5fa;border:none;border-radius:8px;padding:4px 8px;cursor:pointer;font-size:.7rem">المتقدمون</button>'
         : '<button onclick="archiveCompanyJob('+j.id+')" style="background:rgba(239,68,68,.1);color:#f87171;border:none;border-radius:8px;padding:4px 8px;cursor:pointer;font-size:.7rem">أرشفة</button>';
       return '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.05)">'
         +'<div>'
@@ -602,6 +602,18 @@ function archiveCompanyJob(jobId){
     if(r.ok) loadCompanyJobs();
     else r.json().then(d=>alert('خطأ: '+(d.detail||'فشل الأرشفة'))).catch(()=>alert('فشل الأرشفة'));
   }).catch(()=>alert('فشل الاتصال بالخادم'));
+}
+
+function viewJobApplicants(jobId){
+  fetch('/jobs/'+jobId+'/applicants',{headers:{'Authorization':'Bearer '+_jwt}})
+  .then(r=>r.json()).then(data=>{
+    var applicants = data.applicants||data||[];
+    if(!Array.isArray(applicants)) applicants=[];
+    var names = applicants.length
+      ? applicants.map(function(a){return a.full_name||'متقدم'}).join('، ')
+      : 'لا يوجد متقدمون';
+    alert('المتقدمون ('+applicants.length+'): '+names);
+  }).catch(function(){alert('تعذّر تحميل المتقدمين');});
 }
 
 // Load company jobs on page load

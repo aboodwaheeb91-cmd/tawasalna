@@ -5,7 +5,7 @@
 """
 
 import os
-from fastapi import FastAPI, HTTPException, Request, Response, Depends, BackgroundTasks
+from fastapi import FastAPI, HTTPException, Request, Response, Depends, BackgroundTasks, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -79,7 +79,7 @@ from auth import (
     get_unread_notifications, _migrate_notifications_schema_v2,
     _migrate_notifications_schema_v2_1,
     get_job_applicants, get_user_applications,
-    update_application_status, promote_application_to_shortlist, delete_job, archive_job,
+    update_application_status, promote_application_to_shortlist, archive_job,
     get_company_jobs_all, set_job_status,
     get_site_setting, set_site_setting, release_conn,
     _cache_del, get_profile_style,
@@ -759,6 +759,7 @@ def home_feed(filter: str = "all", limit: int = 20, token=Depends(verify_token))
                    LEFT JOIN profiles p ON j.company_id = p.user_id
                    LEFT JOIN profession_categories pc ON j.profession_id = pc.id
                    WHERE j.status IN ('active', 'open')
+                     AND j.archived_at IS NULL
                      AND (j.expires_at IS NULL OR j.expires_at > NOW())
                    ORDER BY j.created_at DESC
                    LIMIT :pool""",
@@ -1067,7 +1068,7 @@ def get_company_profile(company_id: str, request: Request):
 
         # ── jobs_count from DB (Rule #19: no hardcoded) ──
         j_rows = conn.run(
-            "SELECT COUNT(*) FROM jobs WHERE company_id = :cid AND status = 'active'",
+            "SELECT COUNT(*) FROM jobs WHERE company_id = :cid AND status = 'active' AND archived_at IS NULL",
             cid=resolved_id
         )
         jobs_count = j_rows[0][0] if j_rows else 0
@@ -4039,7 +4040,7 @@ def apply_to_job(job_id: int, data: JobApplyInput, token=Depends(verify_token)):
     try:
         result = apply_job(job_id, int(token_uid), data.cover_letter or "")
     except JobArchivedError:
-        raise HTTPException(409, detail={"code": "job_archived", "message": "هذه الوظيفة مؤرشفة ولا تستقبل طلبات جديدة"})
+        return JSONResponse(status_code=409, content={"code": "job_archived", "message": "هذه الوظيفة مؤرشفة ولا تستقبل طلبات جديدة"})
     except ValueError as e:
         raise HTTPException(400, str(e))
     return {"status": "success", **result}
@@ -4160,7 +4161,7 @@ def stats():
             "emp_count": emp_count,
             "co_count": co_count,
             "edu_count": edu_count,
-            "jobs_count": conn.run("SELECT COUNT(*) FROM jobs WHERE status='active'")[0][0] if True else 0
+            "jobs_count": conn.run("SELECT COUNT(*) FROM jobs WHERE status='active' AND archived_at IS NULL")[0][0] if True else 0
         }
     except Exception as e:
         raise HTTPException(500, str(e))

@@ -2240,10 +2240,20 @@ def get_job(job_id: int) -> dict:
         release_conn(conn)
 
 def apply_job(job_id: int, user_id: int, cover_letter: str = "") -> dict:
+    # The SELECT + INSERT are wrapped in a single transaction with FOR UPDATE on the
+    # jobs row so that a concurrent archive_job cannot land between the archive check
+    # and the INSERT.  Notifications run after COMMIT (non-fatal side effects).
     conn = get_conn()
+    committed = False
+    result = None
+    job_company_id = None
+    job_title = None
     try:
+        conn.run("BEGIN")
         job_rows = conn.run(
-            "SELECT status, closed_at, expires_at, company_id, title, archived_at FROM jobs WHERE id=:jid", jid=job_id
+            "SELECT status, closed_at, expires_at, company_id, title, archived_at "
+            "FROM jobs WHERE id=:jid FOR UPDATE",
+            jid=job_id
         )
         if not job_rows:
             raise ValueError("الوظيفة غير موجودة")
@@ -2262,10 +2272,14 @@ def apply_job(job_id: int, user_id: int, cover_letter: str = "") -> dict:
             jid=job_id, uid=user_id, cl=cover_letter
         )
         if not rows:
+            conn.run("COMMIT")
+            committed = True
             return {"already_applied": True}
         cols = [c["name"] for c in conn.columns]
         result = _serialize(_row_to_dict(cols, rows[0]))
-        # V2-3: aggregated job_applied notification (non-fatal)
+        conn.run("COMMIT")
+        committed = True
+        # V2-3: aggregated job_applied notification — runs after COMMIT (non-fatal)
         try:
             urows = conn.run("SELECT full_name FROM users WHERE id=:uid", uid=user_id)
             applicant_name = urows[0][0] if urows else ""
@@ -2302,6 +2316,13 @@ def apply_job(job_id: int, user_id: int, cover_letter: str = "") -> dict:
         except Exception as _notif_err:
             print(f"[TW-WARN] job_applied notification (job {job_id}) failed: {_notif_err}")
         return result
+    except Exception:
+        if not committed:
+            try:
+                conn.run("ROLLBACK")
+            except Exception:
+                pass
+        raise
     finally:
         release_conn(conn)
 
@@ -2514,42 +2535,50 @@ def update_application_status(app_id: int, status: str, actor_id: int = None) ->
         "general_status":     None,
     }
 
-def delete_job(job_id: int, company_id: int) -> bool:
-    conn = get_conn()
-    try:
-        conn.run("DELETE FROM jobs WHERE id=:id AND company_id=:cid", id=job_id, cid=company_id)
-        return True
-    finally:
-        release_conn(conn)
-
 def archive_job(job_id: int, company_id: int, archived_by: int) -> dict:
     """
     Soft-archive a job owned by company_id.
-    Idempotent: calling twice on the same job is safe.
+    Uses SELECT ... FOR UPDATE so a concurrent apply_job cannot slip through
+    after the archive check and before the UPDATE commits.
+    Idempotent: calling twice is safe.
     Raises LookupError if job_id doesn't exist.
     Raises PermissionError if company_id doesn't own the job.
-    Never deletes data: sets archived_at=NOW() and archived_by.
+    Invalidates the public jobs cache on success.
     """
     conn = get_conn()
+    committed = False
     try:
+        conn.run("BEGIN")
         rows = conn.run(
-            "SELECT company_id, archived_at FROM jobs WHERE id=:id", id=job_id
+            "SELECT company_id, archived_at FROM jobs WHERE id=:id FOR UPDATE",
+            id=job_id
         )
         if not rows:
             raise LookupError("الوظيفة غير موجودة")
-        db_company_id  = int(rows[0][0])
+        db_company_id   = int(rows[0][0])
         current_archived = rows[0][1]
         if db_company_id != company_id:
             raise PermissionError("ليست وظيفتك")
-        # Idempotent: already archived — return success without side effects
         if current_archived is not None:
+            conn.run("ROLLBACK")
+            committed = True
             return {"archived": True, "was_already_archived": True}
         conn.run(
             "UPDATE jobs SET archived_at=NOW(), archived_by=:uid "
             "WHERE id=:id AND company_id=:cid AND archived_at IS NULL",
             uid=archived_by, id=job_id, cid=company_id
         )
+        conn.run("COMMIT")
+        committed = True
+        _cache_del("jobs:")
         return {"archived": True, "was_already_archived": False}
+    except Exception:
+        if not committed:
+            try:
+                conn.run("ROLLBACK")
+            except Exception:
+                pass
+        raise
     finally:
         release_conn(conn)
 
