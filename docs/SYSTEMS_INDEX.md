@@ -611,13 +611,16 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 - `auth.py → pipeline_backfill_dry_run()` — تحليل read-only · يستدعي `_pipeline_build_conflict_report()` · `blocking` bool (ليس count)
 - `auth.py → run_pipeline_backfill(dry_run=False)` — backfill idempotent بـ advisory lock · `_pipeline_build_conflict_report()` inside lock → `BlockingConflictError` إذا أي blocking > 0 · Pass-1 per-row: يتحقق من missing_job, job_owner_mismatch, missing_candidate, candidate_not_employee · Pass-1 NULL CCJR: lookup job_applications؛ إذا لم يجد → `null_ccjr_without_application` conflict · Pass-2 per-row checks + source normalization للـ already-linked entries · Pass-3 يحفظ legacy created_at و created_by=NULL
 - `auth.py → _migrate_partial_unique_application_id()` — advisory lock + `_pipeline_build_conflict_report()` للـ 8 blocking types + BlockingConflictError + CREATE INDEX + **verify via pg_index + pg_get_expr** (indisunique=TRUE + predicate يحتوي 'not null') · يُستدعى من `POST /admin/pipeline/migrate-index` فقط (ليس من startup)
+- `auth.py → get_pipeline_application_index_status() → dict` — **read-only** · يُعيد `{exists, is_unique, predicate_valid, ready}` · يستعلم `pg_indexes` (وجود) + `pg_index + pg_get_expr` (uniqueness + predicate) · `ready=True` فقط عند تحقق الثلاثة · لا يُعدِّل DB أبداً · try/finally + release_conn · يُستدعى من startup check + `GET /admin/pipeline/index-status` + `POST /admin/pipeline/migrate-index` (تحقق بعد الإنشاء)
 - `auth.py → apply_job(...)` — `created_by=user_id` (ليس job_company_id) · `initial_event_reason='application_submitted'`
 - `auth.py → update_application_status(...)` — `initial_event_reason='application_status_changed'` في upsert + `reason='application_status_changed'` في stage event (Bnd-R2-4)
 - `auth.py → promote_application_to_shortlist(...)` — **Option B (دائم)**: لا كتابة إلى `company_saved_candidates` · SELECT فقط لقراءة `general_status` (بلا FOR UPDATE) · `reason='application_shortlisted'` · **`candidate.action='unchanged'`** في response (Bnd-R2-6)
 - `auth.py → update_candidate_job_status(...)` — **يقفل CCJR FOR UPDATE أولاً** (Bnd-R2-5) · إذا لم يجد CCJR → ROLLBACK + `return False` · `candidate_status=None` بلا تطبيق → ValueError · `candidate_status=None` مع تطبيق → lock app FOR UPDATE → revert pipeline → CCJR=NULL · `reason='candidate_job_status_changed'`
 - `server.py → POST /admin/pipeline/backfill` — يتطلب `?confirm=true` عند `dry_run=false` · `BlockingConflictError` → `JSONResponse(409, e.report)` (ليس HTTPException)
 - `server.py → GET /admin/pipeline/backfill/dry-run` — read-only analysis
-- `server.py → POST /admin/pipeline/migrate-index` — إنشاء partial UNIQUE index · يتطلب `?confirm=true` · `BlockingConflictError` → `JSONResponse(409, e.report)`
+- `server.py → GET /admin/pipeline/index-status` — read-only · يُعيد `get_pipeline_application_index_status()` مباشرةً · يتطلب `X-Admin-Token`
+- `server.py → POST /admin/pipeline/migrate-index` — إنشاء partial UNIQUE index · يتطلب `?confirm=true` · `BlockingConflictError` → `JSONResponse(409, e.report)` · response يتضمن `index_status` (نتيجة `get_pipeline_application_index_status()` بعد الإنشاء)
+- `server.py startup` — يتحقق من حالة الـ index عبر `get_pipeline_application_index_status()` بعد `_migrate_pr5_pipeline_linking()` · `ready=True` → INFO log · `ready=False` → WARNING log يشير إلى `POST /admin/pipeline/migrate-index?confirm=true` · محاط بـ try/except (non-blocking)
 
 **Do not recreate:**
 - `job_pipeline_entries` موجودة — لا تُنشئ جدول pipeline بديلاً

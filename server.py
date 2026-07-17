@@ -127,6 +127,7 @@ from auth import (
     PipelineApplicationConflictError,
     create_pipeline_note, list_pipeline_notes,
     update_pipeline_note, delete_pipeline_note,
+    get_pipeline_application_index_status,
 )
 from auth import ContentValidationError, validate_professional_text, JobArchivedError
 
@@ -552,6 +553,19 @@ async def on_startup():
     # The partial UNIQUE index on job_pipeline_entries(application_id) must be created AFTER
     # the backfill + conflict check passes (POST /admin/pipeline/migrate-index).
     # This prevents duplicate application_id conflicts during migration.
+    try:
+        _idx_status = get_pipeline_application_index_status()
+        if _idx_status.get("ready"):
+            print("✅ [pipeline] partial UNIQUE index uq_jpe_application_id is ready.")
+        else:
+            print(
+                "⚠️  [pipeline] partial UNIQUE index uq_jpe_application_id is NOT ready "
+                f"(exists={_idx_status.get('exists')}, is_unique={_idx_status.get('is_unique')}, "
+                f"predicate_valid={_idx_status.get('predicate_valid')}). "
+                "Run POST /admin/pipeline/migrate-index?confirm=true after backfill completes."
+            )
+    except Exception as _idx_exc:
+        print(f"⚠️  [pipeline] Could not check index status at startup: {_idx_exc}")
     await _init_asyncpg_pool()
 
 # ── Helpers ──
@@ -5159,6 +5173,19 @@ def admin_pipeline_backfill_dry_run(request: Request):
         raise HTTPException(500, str(e))
 
 
+@app.get("/admin/pipeline/index-status")
+def admin_pipeline_index_status(request: Request):
+    """
+    GET /admin/pipeline/index-status
+    Read-only check of the partial UNIQUE index uq_jpe_application_id.
+    Returns: {exists, is_unique, predicate_valid, ready}
+
+    Requires X-Admin-Token header.
+    """
+    check_admin(request)
+    return get_pipeline_application_index_status()
+
+
 @app.post("/admin/pipeline/migrate-index")
 def admin_pipeline_migrate_index(
     request: Request,
@@ -5181,7 +5208,12 @@ def admin_pipeline_migrate_index(
         )
     try:
         _migrate_partial_unique_application_id()
-        return {"status": "ok", "message": "partial UNIQUE index on application_id created (or already exists)"}
+        idx_status = get_pipeline_application_index_status()
+        return {
+            "status":     "ok",
+            "message":    "partial UNIQUE index on application_id created (or already exists)",
+            "index_status": idx_status,
+        }
     except BlockingConflictError as e:
         return JSONResponse(status_code=409, content=e.report)
     except Exception as e:

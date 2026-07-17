@@ -8979,6 +8979,69 @@ def _migrate_partial_unique_application_id() -> None:
         release_conn(conn)
 
 
+def get_pipeline_application_index_status() -> dict:
+    """
+    Read-only check: is the partial UNIQUE index uq_jpe_application_id ready?
+
+    Returns:
+        {
+          "exists":          bool  — index row in pg_indexes
+          "is_unique":       bool  — indisunique = true in pg_index
+          "predicate_valid": bool  — WHERE clause references application_id IS NOT NULL
+          "ready":           bool  — all three conditions met
+        }
+
+    Never raises; on DB error returns all-False with an "error" key.
+    """
+    conn = get_conn()
+    try:
+        # Check pg_indexes (basic presence)
+        idx_check = conn.run(
+            "SELECT indexname FROM pg_indexes "
+            "WHERE tablename = 'job_pipeline_entries' "
+            "AND indexname = 'uq_jpe_application_id'"
+        ) or []
+
+        if not idx_check:
+            return {"exists": False, "is_unique": False, "predicate_valid": False, "ready": False}
+
+        # Check pg_index for uniqueness + predicate
+        idx_props = conn.run(
+            "SELECT i.indisunique, pg_get_expr(i.indpred, i.indrelid) "
+            "FROM pg_index i "
+            "JOIN pg_class c  ON c.oid  = i.indrelid "
+            "JOIN pg_class ic ON ic.oid = i.indexrelid "
+            "WHERE c.relname  = 'job_pipeline_entries' "
+            "AND ic.relname = 'uq_jpe_application_id'"
+        ) or []
+
+        if not idx_props:
+            return {"exists": True, "is_unique": False, "predicate_valid": False, "ready": False}
+
+        is_unique = bool(idx_props[0][0])
+        pred_text = str(idx_props[0][1] or "").lower()
+        predicate_valid = "application_id" in pred_text and "not null" in pred_text
+
+        return {
+            "exists":          True,
+            "is_unique":       is_unique,
+            "predicate_valid": predicate_valid,
+            "ready":           is_unique and predicate_valid,
+        }
+
+    except Exception as _e:
+        return {
+            "exists":          False,
+            "is_unique":       False,
+            "predicate_valid": False,
+            "ready":           False,
+            "error":           str(_e),
+        }
+
+    finally:
+        release_conn(conn)
+
+
 # ══════════════════════════════════════════════════════════════════════════
 # Scheduler Infrastructure — S2: schedule_job helper
 # Decision: External Cron + Secure Endpoint (PR #464 — S0)

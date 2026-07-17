@@ -10558,6 +10558,7 @@ These are the only approved reason values. Do NOT use free-form strings or per-c
 | `pipeline_backfill_dry_run()` | Read-only analysis using LEFT JOINs. Calls `_pipeline_build_conflict_report()` internally. Returns granular counts for `job_applications`, `company_candidate_job_refs`, `notes`, `conflicts_by_type` (all categories), and `blocking` bool. No writes. |
 | `run_pipeline_backfill(dry_run=False)` | Executes backfill in a single transaction with `pg_advisory_xact_lock(20260716)` to serialize concurrent runs. After the lock, calls `_pipeline_build_conflict_report()` and raises `BlockingConflictError` with ROLLBACK if any **blocking** type is > 0. Per-row validation in Pass-1 and Pass-2 (missing_job, job_owner_mismatch, missing_candidate, candidate_not_employee). `dry_run=True` delegates to `pipeline_backfill_dry_run()`. |
 | `_migrate_partial_unique_application_id()` | Creates the partial UNIQUE index idempotently. Acquires advisory lock, calls `_pipeline_build_conflict_report()` for all 8 blocking types, raises `BlockingConflictError` if any found, then creates index and verifies via **`pg_index + pg_get_expr`** (confirms `indisunique=TRUE` and predicate contains `application_id IS NOT NULL`). Called from `POST /admin/pipeline/migrate-index` (NOT from server startup). |
+| `get_pipeline_application_index_status() → dict` | **Read-only** index health check. Queries `pg_indexes` (existence) + `pg_index + pg_get_expr` (uniqueness + predicate validity). Returns `{exists: bool, is_unique: bool, predicate_valid: bool, ready: bool}`. `ready=True` only when all three conditions are met. Never raises; returns all-False + `error` key on DB failure. Uses try/finally + `release_conn`. Called from: startup WARNING check · `GET /admin/pipeline/index-status` · post-creation verify in `POST /admin/pipeline/migrate-index`. |
 
 ### `_pipeline_upsert_entry` — Detailed Behaviour
 
@@ -10699,7 +10700,8 @@ WHERE application_id IS NOT NULL
 |--------|------|-------------|
 | `POST` | `/admin/pipeline/backfill` | Execute backfill. `?dry_run=true` for analysis only. `?confirm=true` required when `dry_run=false`. `BlockingConflictError` → `JSONResponse(status_code=409, content=e.report)`. Requires `X-Admin-Token`. |
 | `GET` | `/admin/pipeline/backfill/dry-run` | Read-only dry-run shortcut. Requires `X-Admin-Token`. |
-| `POST` | `/admin/pipeline/migrate-index` | Creates partial UNIQUE index. `?confirm=true` required. Idempotent. Run AFTER backfill. `BlockingConflictError` → `JSONResponse(status_code=409, content=e.report)`. Requires `X-Admin-Token`. |
+| `GET` | `/admin/pipeline/index-status` | Read-only index health check. Returns `{exists, is_unique, predicate_valid, ready}`. No writes. Requires `X-Admin-Token`. |
+| `POST` | `/admin/pipeline/migrate-index` | Creates partial UNIQUE index. `?confirm=true` required. Idempotent. Run AFTER backfill. `BlockingConflictError` → `JSONResponse(status_code=409, content=e.report)`. Response includes `index_status` (result of `get_pipeline_application_index_status()` post-creation). Requires `X-Admin-Token`. |
 
 **HTTP 409 format:** Both endpoints return `JSONResponse(status_code=409, content=e.report)` — NOT `HTTPException(status_code=409, detail=dict)`. The `e.report` dict has the structured conflict report from `BlockingConflictError.report`.
 
