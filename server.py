@@ -1153,9 +1153,14 @@ class BranchesInput(BaseModel):
 
 
 class UpdateSavedCandidateInput(BaseModel):
-    status: Optional[str] = None
-    notes:  Optional[str] = None
-    job_id: Optional[int] = None
+    status:           Optional[str]       = None
+    notes:            Optional[str]       = None
+    job_id:           Optional[int]       = None
+    rating:           Optional[int]       = None
+    priority:         Optional[str]       = None
+    tags:             Optional[List[str]] = None
+    follow_up_at:     Optional[str]       = None
+    follow_up_status: Optional[str]       = None
 
 
 class UpdateCandidateJobStatusInput(BaseModel):
@@ -2194,6 +2199,10 @@ def company_saved_candidates_list(
     unlinked: bool = False,
     q: Optional[str] = None,
     sort: str = "updated_desc",
+    priority: Optional[str] = None,
+    min_rating: Optional[int] = None,
+    tag: Optional[str] = None,
+    save_source_filter: Optional[str] = None,
 ):
     """
     GET /company/saved-candidates
@@ -2201,13 +2210,17 @@ def company_saved_candidates_list(
     Auth: JWT Bearer (user_type='co').
 
     Optional query params (all backward-compatible — omitting all = original behavior):
-      status   — pipeline status filter (saved|shortlisted|contacted|interview|hired|rejected)
-      job_id   — filter by linked job (must belong to this company)
-      unlinked — true: only candidates with no job_id (mutually exclusive with job_id)
-      q        — search full_name / tw_id / profession / city / country (max 80 chars)
-      sort     — updated_desc|updated_asc|created_desc|created_asc|name_asc|status_asc
-      limit    — 1–50, default 20
-      offset   — default 0
+      status             — pipeline status filter (saved|shortlisted|contacted|interview|hired|rejected)
+      job_id             — filter by linked job (must belong to this company)
+      unlinked           — true: only candidates with no job_id (mutually exclusive with job_id)
+      q                  — search full_name / tw_id / profession / city / country (max 80 chars)
+      sort               — updated_desc|updated_asc|created_desc|created_asc|name_asc|status_asc|rating_desc|priority_asc
+      limit              — 1–50, default 20
+      offset             — default 0
+      priority           — low|medium|high (Talent Bank V2)
+      min_rating         — 1–5 (Talent Bank V2)
+      tag                — exact tag string (Talent Bank V2)
+      save_source_filter — manual|applicant|suggestion|legacy_unknown (Talent Bank V2)
 
     Response: { status, count (filtered total), items, pagination, filters }
     count == pagination.total. Badge uses /count endpoint for unfiltered total.
@@ -2238,6 +2251,16 @@ def company_saved_candidates_list(
         if not q:
             q = None
 
+    if priority is not None and priority not in ('low', 'medium', 'high'):
+        raise HTTPException(400, "priority غير صالح. القيم المسموحة: low, medium, high")
+
+    if min_rating is not None and (min_rating < 1 or min_rating > 5):
+        raise HTTPException(400, "min_rating يجب أن يكون بين 1 و 5")
+
+    _VALID_SAVE_SOURCES = {'manual', 'applicant', 'suggestion', 'legacy_unknown'}
+    if save_source_filter is not None and save_source_filter not in _VALID_SAVE_SOURCES:
+        raise HTTPException(400, "save_source_filter غير صالح")
+
     try:
         result = get_company_saved_candidates_filtered(
             company_id=company_id,
@@ -2248,6 +2271,10 @@ def company_saved_candidates_list(
             unlinked=unlinked,
             q=q,
             sort=sort,
+            priority=priority,
+            min_rating=min_rating,
+            tag=tag,
+            save_source_filter=save_source_filter,
         )
     except ValueError as e:
         raise HTTPException(400, str(e))
@@ -2408,6 +2435,24 @@ def company_update_saved_candidate(
                 "قيمة status غير مسموحة. القيم المسموحة: "
                 + ", ".join(sorted(VALID_CANDIDATE_STATUSES))
             )
+
+    # rating: 1–5 or null (clear)
+    if 'rating' in updates:
+        r_val = updates['rating']
+        if r_val is not None and (not isinstance(r_val, int) or r_val < 1 or r_val > 5):
+            raise HTTPException(400, "rating يجب أن يكون رقماً بين 1 و 5 أو null")
+
+    # priority: low|medium|high or null (clear)
+    if 'priority' in updates:
+        p_val = updates['priority']
+        if p_val is not None and p_val not in ('low', 'medium', 'high'):
+            raise HTTPException(400, "priority يجب أن يكون 'low' أو 'medium' أو 'high' أو null")
+
+    # follow_up_status: none|pending|done or null (clear)
+    if 'follow_up_status' in updates:
+        fs_val = updates['follow_up_status']
+        if fs_val is not None and fs_val not in ('none', 'pending', 'done'):
+            raise HTTPException(400, "follow_up_status يجب أن يكون 'none' أو 'pending' أو 'done' أو null")
 
     try:
         result = update_company_saved_candidate(

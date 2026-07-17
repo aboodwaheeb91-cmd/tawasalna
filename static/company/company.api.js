@@ -208,11 +208,15 @@
     if (!jwt) return Promise.resolve({ ok: false, data: {} });
     var qs = '?limit=' + (limit || 20) + '&offset=' + (offset || 0);
     if (filters) {
-      if (filters.status)   qs += '&status='  + encodeURIComponent(filters.status);
-      if (filters.q)        qs += '&q='       + encodeURIComponent(filters.q);
-      if (filters.sort)     qs += '&sort='    + encodeURIComponent(filters.sort);
-      if (filters.job_id)   qs += '&job_id='  + encodeURIComponent(filters.job_id);
-      if (filters.unlinked) qs += '&unlinked=true';
+      if (filters.status)             qs += '&status='             + encodeURIComponent(filters.status);
+      if (filters.q)                  qs += '&q='                  + encodeURIComponent(filters.q);
+      if (filters.sort)               qs += '&sort='               + encodeURIComponent(filters.sort);
+      if (filters.job_id)             qs += '&job_id='             + encodeURIComponent(filters.job_id);
+      if (filters.unlinked)           qs += '&unlinked=true';
+      if (filters.priority)           qs += '&priority='           + encodeURIComponent(filters.priority);
+      if (filters.min_rating)         qs += '&min_rating='         + encodeURIComponent(filters.min_rating);
+      if (filters.tag)                qs += '&tag='                + encodeURIComponent(filters.tag);
+      if (filters.save_source_filter) qs += '&save_source_filter=' + encodeURIComponent(filters.save_source_filter);
     }
     return fetch('/company/saved-candidates' + qs, {
       headers: { 'Authorization': 'Bearer ' + jwt }

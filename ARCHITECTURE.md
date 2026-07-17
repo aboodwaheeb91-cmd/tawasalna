@@ -11008,3 +11008,215 @@ The `pg_advisory_xact_lock(1_000_000_000 + company_id)` ensures that when N conc
 | C-01 | 1 | Concurrency: 24 saved + 2 threads → 1×200 + 1×409, final count=25 |
 
 All 65 tests run against the real test database (`tawasalna_test_pipeline`). No tests are skipped.
+
+---
+
+## §68 — PR-4: Talent Bank V2 UI + General Talent Management
+
+**Branch:** `feat/talent-bank-v2-ui`
+**Depends on:** §67 (PR-3 — Atomic Talent Bank Quota)
+
+---
+
+### Purpose
+
+Adds rich general-management fields to saved candidates, a compact V2 card UI, an expandable manage panel, quota display, and server-side filtering by the new fields.
+
+---
+
+### New DB Column
+
+| Column | Type | Constraint | Migration |
+|--------|------|-----------|-----------|
+| `follow_up_status` | `TEXT NULL` | `CHECK (follow_up_status IS NULL OR follow_up_status IN ('none','pending','done'))` | `_migrate_pipeline_schema_v1()` — added after `ck_csc_save_source` block |
+
+Existing columns already present from PR-1 / PR-3: `rating SMALLINT NULL`, `priority TEXT NULL`, `tags TEXT[] NULL`, `follow_up_at TIMESTAMPTZ NULL`, `save_source TEXT NULL`.
+
+---
+
+### Backend Changes (`auth.py`)
+
+#### `VALID_CANDIDATE_SORTS` — extended
+
+Two new sort keys added:
+
+```python
+"rating_desc":   "sc.rating DESC NULLS LAST, sc.updated_at DESC"
+"priority_asc":  "CASE sc.priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 WHEN 'low' THEN 3 ELSE 4 END ASC, sc.updated_at DESC"
+```
+
+#### `get_company_saved_candidates_filtered` — extended
+
+New optional params: `priority: str = None`, `min_rating: int = None`, `tag: str = None`, `save_source_filter: str = None`.
+
+New WHERE clauses:
+- `sc.priority = :priority` (when priority set)
+- `sc.rating >= :min_rating` (when min_rating set)
+- `:tag = ANY(sc.tags)` (when tag set)
+- `sc.save_source = :save_source_filter` (when save_source_filter set)
+
+SELECT extended to include all new fields; `filters` dict in return includes new params.
+
+#### `update_company_saved_candidate` — extended
+
+New field validation:
+- `rating`: `1–5` or `null` (0 and 6+ rejected with ValueError)
+- `priority`: `low/medium/high` or `null` (any other value rejected)
+- `tags`: list of strings, case-insensitive dedup, max 20 items, each max 30 chars, empty strings removed
+- `follow_up_at`: ISO date format (`YYYY-MM-DD`) validated via datetime.fromisoformat
+- `follow_up_status`: `none/pending/done` or `null` (any other value rejected)
+
+---
+
+### Backend Changes (`server.py`)
+
+#### `UpdateSavedCandidateInput`
+
+Extended with 5 new optional fields:
+
+```python
+rating:           Optional[int]       = None
+priority:         Optional[str]       = None
+tags:             Optional[List[str]] = None
+follow_up_at:     Optional[str]       = None
+follow_up_status: Optional[str]       = None
+```
+
+#### `GET /company/saved-candidates`
+
+New accepted query params: `priority`, `min_rating` (int), `tag`, `save_source_filter`.
+Validation: `priority` must be in `{low, medium, high}`; `min_rating` must be 1–5; `save_source_filter` must be in `VALID_SAVE_SOURCES`. Returns 400 on invalid values.
+
+#### `PATCH /company/saved-candidates/{id}`
+
+Pre-delegation validation added for `rating` (1–5), `priority` (low/medium/high), `follow_up_status` (none/pending/done). Returns 400 with Arabic error message on invalid values.
+
+---
+
+### Frontend Changes (`static/company/`)
+
+#### New state vars (`company.main.js`)
+
+```javascript
+var _savedPriority   = '';   // filter: priority value
+var _savedMinRating  = '';   // filter: minimum rating (1-5)
+var _savedTag        = '';   // filter: tag text
+var _savedSaveSource = '';   // filter: save_source value
+var _quotaUsed       = null; // current quota used count
+var _quotaLimit      = 25;   // TALENT_BANK_FREE_LIMIT
+```
+
+#### Quota bar
+
+`_loadTalentBankQuota()` calls `GET /company/saved-candidates/count` and renders `.co-tb-quota-bar` + `.co-tb-quota-lbl` showing "بنك المواهب: X من 25" in the shell header.
+
+#### Sort options (8 total)
+
+Shell sort dropdown extended from 6 to 8 options:
+- `rating_desc` — "الأعلى تقييماً"
+- `priority_asc` — "حسب الأولوية"
+
+#### Advanced filter dropdowns (3 new)
+
+- `co-cand-priority-dp` — low/medium/high + "الكل"
+- `co-cand-rating-dp` — 1–5 stars + "الكل"
+- `co-cand-source-dp` — manual/applicant/suggestion + "الكل"
+- Tag text input with 400ms debounce
+
+#### V2 Card (`_savedCardHTML`)
+
+Compact card layout:
+- `.co-cand-name-row`: name + priority badge (color-coded: high=red, medium=amber, low=gray)
+- `.co-cand-row2`: rating stars + save date + status badge
+- `.co-cand-tags-row`: top 3 tags as chips + "+N" overflow chip
+- `.co-cand-followup-strip`: follow-up status label (pending/done) + date (only when status ≠ none/null)
+- `.co-cand-source-lbl`: source label for non-manual sources
+- Action buttons: "عرض الملف العام" (opens `/u/{tw_id}`) + "إدارة الموهبة" (expands manage panel)
+
+#### V2 Manage Panel (6 sections)
+
+The manage panel is scoped to **talent management fields only**. Pipeline status and job linking are NOT in this panel — they are managed separately via the applicants screen and job-specific flows.
+
+1. **تقييم** — 5-star widget (`.co-panel-star`), click same star to toggle off, `.co-panel-star-clear` button
+2. **الأولوية** — custom picker: low/medium/high/none
+3. **تصنيفات** — tag chips with × delete + add input + "+" button; dedup enforced client-side before send
+4. **ملاحظات** — free-text textarea
+5. **متابعة** — date input + follow-up status picker (none/pending/done)
+6. **مصدر الحفظ** — read-only `.co-panel-source-val` label
+
+**`_handlePanelSave` payload contract (permanent):** sends ONLY `rating`, `priority`, `tags`, `notes`, `follow_up_at`, `follow_up_status`. The fields `status` and `job_id` are explicitly excluded — never sent from this panel.
+
+Panel footer: "حفظ التعديلات" | "إلغاء" | "إزالة من بنك المواهب" (red, `window.confirm()` guard)
+
+#### New CSS classes (`company.css`)
+
+| Class | Purpose |
+|-------|---------|
+| `.co-tb-quota-bar` | Quota progress bar container |
+| `.co-tb-quota-lbl` | "X من 25" label |
+| `.co-cand-name-row` | Name + priority badge row |
+| `.co-cand-priority` | Priority badge base |
+| `.co-cand-priority--high/medium/low` | Color variants |
+| `.co-cand-stars` | Star rating display row |
+| `.co-cand-star` / `.co-cand-star--on` | Star icon (off/on) |
+| `.co-cand-tags-row` | Tags chip row |
+| `.co-cand-tag-chip` | Tag chip |
+| `.co-cand-tag-more` | "+N" overflow chip |
+| `.co-cand-followup-strip` | Follow-up indicator strip |
+| `.co-cand-followup--pending/done` | Follow-up color variants |
+| `.co-cand-source-lbl` | Source label |
+| `.co-cand-adv-filters` | Advanced filter bar |
+| `.co-cand-tag-input` | Tag filter text input |
+| `.co-panel-stars` / `.co-panel-star` | Stars widget in panel |
+| `.co-panel-star-clear` | Clear rating button |
+| `.co-panel-tags-wrap` | Tags wrap in panel |
+| `.co-panel-tag` / `.co-panel-tag-del` | Tag chip + delete button |
+| `.co-panel-tag-add-row` / `.co-panel-tag-input` / `.co-panel-tag-add-btn` | Add tag row |
+| `.co-panel-followup-row` / `.co-panel-followup-date` | Follow-up date row |
+| `.co-panel-source-val` | Source read-only value |
+| `.co-cand-panel-remove` | Red destructive remove button |
+
+---
+
+### Forbidden Patterns (PR-4 — permanent)
+
+```
+❌ Showing follow_up_status strip when status is 'none' or null
+❌ Accepting save_source from client in PATCH (read-only, server-set)
+❌ Using rating=0 as "clear rating" (use null — 0 is rejected as invalid)
+❌ Modifying job_applications.status from the manage panel PATCH
+❌ Modifying company_candidate_job_refs from the manage panel save
+❌ Modifying job_pipeline_entries from the manage panel save
+❌ Modifying pipeline_stage_events from the manage panel save
+❌ Calling getCandidateJobStatus or updateCandidateJobStatus from the manage panel
+❌ Adding a Pipeline status picker to the manage panel (belongs in applicants screen)
+❌ Adding a Job link picker to the manage panel (belongs in applicants/pipeline screen)
+❌ Sending status or job_id from _handlePanelSave (explicitly excluded from payload)
+❌ Creating fake job-link DOM entries after a panel save (job_links are DB-sourced only)
+❌ Adding appointment scheduling to the manage panel (PR-5 scope)
+❌ Adding pipeline notes (separate from general notes) in this PR
+❌ sort='rating_asc' — only rating_desc is implemented (ascending not useful UX)
+```
+
+---
+
+### Tests
+
+`test_talent_bank_v2.py` — **51 tests, 51/51 on real PostgreSQL, no Skips**:
+
+| Group | Tests | Scope |
+|-------|-------|-------|
+| Group 1 | 01–02 | `follow_up_status` column schema — PATCH + GET |
+| Group 2 | 03–08 | Rating CRUD: set 1, set 5, update, clear, invalid (0, 6) |
+| Group 3 | 09–13 | Priority CRUD: high/medium/low, clear, invalid |
+| Group 4 | 14–19 | Tags CRUD: set, dedup, clear (null), clear (empty list), too-long, too-many |
+| Group 5 | 20–24 | Follow-up CRUD: pending, done, none, clear, invalid status |
+| Group 6 | 25–31 | New filters: priority, min_rating, tag, save_source_filter, invalid values |
+| Group 7 | 32–34 | New sorts: rating_desc, priority_asc, invalid sort |
+| Group 8 | 35–37 | GET/PATCH response shape includes all new fields; filters echoed |
+| Group 9 | 38–40 | Backward compat: old fields, old sorts, quota endpoint |
+| Group 10 | 41–43 | Multi-field patch: all at once, partial (only sent fields change), empty body |
+| Group 11 | 44–45 | Security: cross-company access (404), unauthenticated (401) |
+| Group 12 | 46–51 | Panel isolation: status unchanged, no fake job_links, no new DB rows in ccjr/pipeline_entries/pipeline_events, payload without status/job_id accepted |
+
+Test architecture: each class uses `setUpClass` (one register+login per class) to stay under the 60-requests/minute rate limit. Per-test `setUp` resets mutable fields via PATCH (not rate-limited).
