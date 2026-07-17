@@ -5028,7 +5028,7 @@ company_saved_candidates:
 | Function | Description |
 |----------|-------------|
 | `_migrate_company_saved_candidates()` | CREATE TABLE IF NOT EXISTS + indexes (idempotent) |
-| `save_company_candidate(company_id, candidate_id, saved_by, job_id, notes)` | UPSERT — raises ValueError if candidate not `emp` |
+| `save_company_candidate(company_id, candidate_id, saved_by, notes, save_source)` | Atomic quota-enforced INSERT — raises ValueError if not `emp`, TalentBankLimitError at quota |
 | `remove_company_candidate(company_id, candidate_id)` | DELETE + return count |
 | `get_company_saved_candidates(company_id, limit, offset)` | Paginated list — no sensitive fields |
 | `get_company_saved_candidates_count(company_id)` | Count only (badge) |
@@ -10870,9 +10870,11 @@ Raised by `save_company_candidate` when the company has reached `TALENT_BANK_FRE
 **Signature:**
 ```python
 def save_company_candidate(company_id: int, candidate_id: int, saved_by: int,
-                            job_id: int = None, notes: str = None,
+                            notes: str = None,
                             save_source: str = 'manual') -> dict
 ```
+
+> **Talent Bank Independence:** `job_id` is NOT a parameter. The function saves Talent Bank membership only — no job context is stored. `save_source` (`'applicant'` vs `'manual'`) is resolved by the endpoint BEFORE calling this function and passed in as a plain string.
 
 **Guarantee:** uses `pg_advisory_xact_lock(1_000_000_000 + company_id)` to serialize concurrent saves for the same company. The lock is acquired inside the transaction; no two threads can pass the quota check simultaneously for the same company.
 
@@ -10912,10 +10914,10 @@ Returns `{used: int, limit: int, can_save: bool}` — a fast read (no lock, no t
 #### `POST /company/saved-candidates/{candidate_id}`
 
 - **Auth:** `Depends(verify_token)` — `company_id` from JWT only, never from client
-- **Request body:** `{job_id?: int, notes?: str}` — `save_source` is NOT accepted from client; server determines it
-- **Server-side `save_source` determination:**
+- **Query param (optional):** `job_id: int` — used ONLY to verify the candidate applied to that job and set `save_source='applicant'`. **Never passed to `save_company_candidate` and never stored in `company_saved_candidates`.**
+- **`save_source` determination (server-side only, client cannot override):**
   - `'applicant'` if `job_id` provided AND candidate has applied to that job
-  - `'manual'` otherwise
+  - `'manual'` otherwise (including when `job_id` is absent)
 - **Success (200):**
   ```json
   {"status": "success", "saved": true, "already_saved": false,
@@ -10972,6 +10974,8 @@ Two **separate** buttons are rendered for each applicant card:
 ❌ Using "المرشحين" as the talent bank name in any UI label (use "بنك المواهب")
 ❌ Accepting save_source from the client (it is server-side only)
 ❌ save_source='profile' — permanently excluded from VALID_SAVE_SOURCES
+❌ Passing job_id as a parameter to save_company_candidate (it is not a parameter — PR-3 removed it)
+❌ Storing job_id in company_saved_candidates when saving a new candidate
 ❌ Writing to company_candidate_job_refs from save_company_candidate
 ❌ Writing to job_pipeline_entries from save_company_candidate
 ❌ Updating job_applications.status from save_company_candidate
@@ -10992,15 +10996,15 @@ The `pg_advisory_xact_lock(1_000_000_000 + company_id)` ensures that when N conc
 
 ### Tests
 
-`test_talent_bank_quota.py` — **62 checks** (Groups 1–5 + concurrency):
+`test_talent_bank_quota.py` — **65 checks** (Groups 1–5 + concurrency) — **65/65 on real PostgreSQL, no Skips**:
 
 | Group | Count | Scope |
 |-------|-------|-------|
-| Group 1 | 15 | Static: auth.py constant, exception, save function |
-| Group 2 | 8 | Static: server.py endpoints |
+| Group 1 | 16 | Static: auth.py constant, exception, save function signature (incl. 1-16: job_id absent) |
+| Group 2 | 9 | Static: server.py endpoints (incl. 2-09: job_id NOT passed to save_company_candidate) |
 | Group 3 | 12 | Static: frontend button separation + forbidden text |
-| Group 4 | 6 | Behavioral: in-process (no DB) — runtime attribute checks |
-| Group 5 | 20 | HTTP: TestClient (requires SUPABASE_DB_URL) — quota lifecycle |
-| C-01 | 1 | Concurrency: 24 saved + 2 threads → 1×200 + 1×409 |
+| Group 4 | 7 | Behavioral: in-process (no DB) — runtime attribute checks (incl. 4-07: job_id not in varnames) |
+| Group 5 | 20 | HTTP: TestClient on real PostgreSQL — quota lifecycle |
+| C-01 | 1 | Concurrency: 24 saved + 2 threads → 1×200 + 1×409, final count=25 |
 
-Static tests (Groups 1–4) always run. HTTP/concurrency tests auto-skip when `SUPABASE_DB_URL` is not set.
+All 65 tests run against the real test database (`tawasalna_test_pipeline`). No tests are skipped.
