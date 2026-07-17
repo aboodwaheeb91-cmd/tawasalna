@@ -11423,19 +11423,23 @@ pg8000 native `Connection.run()` sends Python `None` as untyped NULL (OID 0). Po
 
 ### Tests
 
-`test_pipeline_pr5.py` — **41 tests, 7 groups (A–G)**:
+`test_pipeline_pr5.py` — **49 tests, 9 groups (A–H)**:
 
 | Group | Tests | Scope |
 |-------|-------|-------|
 | A — Pipeline Notes CRUD | 01–06 | Create/list/edit/delete notes, empty body rejected, general notes isolation |
-| B — Appointment Creation (Path B) | 07–15 | Create via `POST /api/appointments` with `{candidate_id, job_id}`; no-entry 409; role='applicant' in DB (test 13, new); participant uniqueness; pipeline_application_conflict 409 (test 15, rewritten); real before/after counts (tests 10–11, rewritten) |
-| C — Appointment Validation | 16–22 | Past date, wrong job_id, archived job, no JWT, mode=hybrid → 400 (test 18, new), naive ISO → 400 (test 19, new) |
+| B — Appointment Creation (Path B) | 07–15 | Create via `POST /api/appointments` with `{candidate_id, job_id}`; no-entry 409; role='applicant' in DB (test 13); participant uniqueness; pipeline_application_conflict 409 (test 15); real before/after counts |
+| C — Appointment Validation | 16–22 | Past date, wrong job_id, archived job, no JWT, mode=hybrid → 400, naive ISO → 400 |
 | D — Security | 23–27 | Cross-company isolation (notes + appointments), employee account rejected |
-| E — System Isolation | 28–32 | `PATCH /company/saved-candidates/{candidate_id}` correct route (test 28, fixed); applicants endpoint field shape (test 30, fixed — explicit assert); `next_appointment` present (test 31, new); archived job readable (test 32, new) |
-| F — Concurrency + Lifecycle | 33–40 | Path B returns DB `application_id` (test 33); concurrent creates serialized (test 34, threading); UTC storage check (test 35); `send_appointment` preserves `pipeline_entry_id` (test 36); `cancel_appointment` preserves `pipeline_entry_id` (test 37); talent bank removal does not delete appointments (test 38); talent bank removal does not delete notes (test 39); dup guard returns 400 (test 40) |
-| G — Ambiguous Payload | 41 | Sending `application_id + candidate_id + job_id` together → 400 `ambiguous_appointment_context`; verifies no DB row created |
+| E — System Isolation | 28–32 | `PATCH /company/saved-candidates/{candidate_id}` correct route + DB verification; applicants endpoint field shape; `next_appointment` present; archived job readable |
+| F — Concurrency + Lifecycle | 33–40 | Path B returns DB `application_id`; concurrent creates serialized (threading); UTC storage; send/cancel preserve `pipeline_entry_id`; talent bank removal does not delete appointments/notes; dup guard → 400 |
+| G — Payload Contract | 41–45 | All 5 bad payload cases rejected: `app_id+cand_id+job_id` (41), `app_id+cand_id` (42), `app_id+job_id` (43), `cand_id` alone (44), `job_id` alone (45) — each verifies no DB row created |
+| H — Backfill Migration | 46–49 | `_migrate_pr5_pipeline_linking()` Step 7: old appt linked (46); linked appt in next_appointment API (47); dup guard still blocks new appt (48); no-match case stays NULL (49) |
 
-**All appointment creates use `POST /api/appointments` with Path B (`{candidate_id, job_id, appointment_type}`) — no calls to the removed `POST /company/appointments/pipeline` route.**
+**All appointment creates use `POST /api/appointments` — Path A (`application_id`) or Path B (`{candidate_id, job_id}`). No parallel endpoint.**
 
-**DB migrations tested on startup:** `appointment_type`, `end_at`, `mode` columns; `applicant_id` backfill.  
-**Bug fixed in this PR:** `_insert_appointment_event` pg8000 `42P08` NULL-typing error.
+**Payload contract (permanent):** Path A = `application_id` only; Path B = `candidate_id + job_id` only. Any mix or incomplete combination → HTTP 400 structured error with `code` field.
+
+**DB migrations tested on startup:** `appointment_type`, `end_at`, `mode` columns; `applicant_id` backfill; Step 7 `pipeline_entry_id` backfill (HAVING COUNT=1, idempotent).
+
+**job_links extended fields (Section 2):** `pipeline_entry_id`, `application_id`, `pipeline_notes_count`, `next_appointment` — returned from both `get_company_saved_candidates` and `get_company_saved_candidates_filtered`.
