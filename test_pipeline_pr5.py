@@ -1,14 +1,15 @@
 """
 PR-5 Integration Tests — Pipeline Notes + Unified Appointment Endpoint
 
-41 tests covering:
+49 tests covering:
   Group A  (01–06): Pipeline notes CRUD
   Group B  (07–13): Appointment creation via POST /api/appointments (unified endpoint)
   Group C  (14–20): Appointment validation and rejection
   Group D  (21–24): Security / ownership isolation
   Group E  (25–32): System isolation + PR-5 field correctness
   Group F  (33–40): New correctness tests (atomic guards, UTC, lifecycle)
-  Group G  (41):    Ambiguous payload guard (application_id + candidate_id + job_id → 400)
+  Group G  (41–45): Ambiguous / incomplete payload guard (all 5 bad payload cases → 400)
+  Group H  (46–49): Safe backfill migration (_migrate_pr5_pipeline_linking Step 7)
 
 All appointment creates use POST /api/appointments (parallel route removed).
 Runs against real PostgreSQL (SUPABASE_DB_URL env var).
@@ -825,11 +826,12 @@ class TestSystemIsolation(unittest.TestCase):
         finally:
             conn.close()
 
-        requests.post(
+        rn26 = requests.post(
             f"{BASE_URL}/company/pipeline/{self.pe_id}/notes",
             json={"body": "ملاحظة لا تغير المرحلة"},
             headers=_headers(self.co_jwt)
         )
+        self.assertEqual(rn26.status_code, 200, rn26.text)
 
         conn = _db_conn()
         try:
@@ -856,11 +858,12 @@ class TestSystemIsolation(unittest.TestCase):
         finally:
             conn.close()
 
-        requests.post(
+        rn27 = requests.post(
             f"{BASE_URL}/company/pipeline/{self.pe_id}/notes",
             json={"body": "لا أغير الحالة"},
             headers=_headers(self.co_jwt)
         )
+        self.assertEqual(rn27.status_code, 200, rn27.text)
 
         conn = _db_conn()
         try:
@@ -875,23 +878,27 @@ class TestSystemIsolation(unittest.TestCase):
 
     def test_28_manage_panel_patch_does_not_create_pipeline_note(self):
         """PATCH /company/saved-candidates/{candidate_id} must not create pipeline_notes rows."""
-        # Save the candidate first (may already be saved — ignore error)
-        requests.post(
-            f"{BASE_URL}/company/saved-candidates",
-            json={"candidate_id": self.emp_id, "save_source": "manual"},
+        # Save the candidate first — POST /company/saved-candidates/{candidate_id}
+        # 409 is acceptable when already saved
+        rs28 = requests.post(
+            f"{BASE_URL}/company/saved-candidates/{self.emp_id}",
+            json={"save_source": "manual"},
             headers=_headers(self.co_jwt)
         )
+        self.assertIn(rs28.status_code, (200, 201, 409), rs28.text)
 
         before_notes = _db_count(
             "pipeline_notes",
             "pipeline_entry_id=:eid", eid=self.pe_id
         )
         # PATCH the manage panel — correct route: /company/saved-candidates/{candidate_id}
-        requests.patch(
+        rp28 = requests.patch(
             f"{BASE_URL}/company/saved-candidates/{self.emp_id}",
-            json={"notes": "ملاحظة عامة", "rating": 4},
+            json={"notes": "ملاحظة عامة test_28", "rating": 4},
             headers=_headers(self.co_jwt)
         )
+        self.assertEqual(rp28.status_code, 200, rp28.text)
+
         after_notes = _db_count(
             "pipeline_notes",
             "pipeline_entry_id=:eid", eid=self.pe_id
@@ -899,22 +906,51 @@ class TestSystemIsolation(unittest.TestCase):
         self.assertEqual(before_notes, after_notes,
                          "Manage panel PATCH must not create pipeline_notes rows")
 
+        # Verify general note actually changed in company_saved_candidates
+        conn = _db_conn()
+        try:
+            row = conn.run(
+                "SELECT notes FROM company_saved_candidates "
+                "WHERE company_id=:cid AND candidate_id=:uid",
+                cid=self.co_id, uid=self.emp_id
+            )
+        finally:
+            conn.close()
+        self.assertTrue(row and row[0][0] == "ملاحظة عامة test_28",
+                        f"General note not persisted in DB: {row}")
+
     def test_29_general_note_does_not_affect_pipeline_notes(self):
         """Editing general note in manage panel does not change pipeline_notes."""
         before = _db_count(
             "pipeline_notes",
             "pipeline_entry_id=:eid", eid=self.pe_id
         )
-        requests.patch(
+        rp29 = requests.patch(
             f"{BASE_URL}/company/saved-candidates/{self.emp_id}",
-            json={"notes": "ملاحظة عامة معدّلة"},
+            json={"notes": "ملاحظة عامة معدّلة test_29"},
             headers=_headers(self.co_jwt)
         )
+        self.assertEqual(rp29.status_code, 200, rp29.text)
+
         after = _db_count(
             "pipeline_notes",
             "pipeline_entry_id=:eid", eid=self.pe_id
         )
-        self.assertEqual(before, after)
+        self.assertEqual(before, after,
+                         "General note PATCH must not change pipeline_notes count")
+
+        # Verify general note actually changed in company_saved_candidates
+        conn = _db_conn()
+        try:
+            row = conn.run(
+                "SELECT notes FROM company_saved_candidates "
+                "WHERE company_id=:cid AND candidate_id=:uid",
+                cid=self.co_id, uid=self.emp_id
+            )
+        finally:
+            conn.close()
+        self.assertTrue(row and row[0][0] == "ملاحظة عامة معدّلة test_29",
+                        f"General note not persisted in DB: {row}")
 
     def test_30_applicants_endpoint_includes_pipeline_entry_id(self):
         """GET /jobs/{job_id}/applicants returns pipeline_entry_id per applicant."""
@@ -1402,6 +1438,330 @@ class TestAmbiguousPayload(unittest.TestCase):
         )
         self.assertEqual(before_count, after_count,
                          "Ambiguous payload must not create any appointments row")
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Group G expansion — Additional payload guard cases (tests 42–45)
+# ══════════════════════════════════════════════════════════════════════════════
+
+class TestPayloadGuardExpansion(unittest.TestCase):
+    """
+    Tests 42–45: Complete payload contract.
+    Path A: application_id only.
+    Path B: candidate_id + job_id only.
+    All mixed or incomplete combinations → 400 structured error.
+    """
+    @classmethod
+    def setUpClass(cls):
+        cls.co_jwt, cls.co_id, cls.emp_id, cls.emp_tw, \
+            cls.job_id, cls.pe_id, cls.app_id = \
+            _make_company_with_pipeline_entry(with_application=True)
+
+    def _appt_count(self):
+        return _db_count(
+            "appointments",
+            "company_id=:cid", cid=self.co_id
+        )
+
+    def test_42_application_id_plus_candidate_id_rejected(self):
+        """application_id + candidate_id (no job_id) → 400 ambiguous_appointment_context."""
+        before = self._appt_count()
+        r = requests.post(
+            f"{BASE_URL}/api/appointments",
+            json={
+                "application_id": self.app_id,
+                "candidate_id":   self.emp_id,
+                "appointment_type": "interview",
+                "mode": "online",
+            },
+            headers=_headers(self.co_jwt)
+        )
+        self.assertEqual(r.status_code, 400, r.text)
+        self.assertEqual(r.json().get("code"), "ambiguous_appointment_context",
+                         f"Unexpected response: {r.json()}")
+        self.assertEqual(self._appt_count(), before,
+                         "No appointment row must be created")
+
+    def test_43_application_id_plus_job_id_rejected(self):
+        """application_id + job_id (no candidate_id) → 400 ambiguous_appointment_context."""
+        before = self._appt_count()
+        r = requests.post(
+            f"{BASE_URL}/api/appointments",
+            json={
+                "application_id": self.app_id,
+                "job_id":         self.job_id,
+                "appointment_type": "interview",
+                "mode": "online",
+            },
+            headers=_headers(self.co_jwt)
+        )
+        self.assertEqual(r.status_code, 400, r.text)
+        self.assertEqual(r.json().get("code"), "ambiguous_appointment_context",
+                         f"Unexpected response: {r.json()}")
+        self.assertEqual(self._appt_count(), before,
+                         "No appointment row must be created")
+
+    def test_44_candidate_id_without_job_id_rejected(self):
+        """candidate_id alone (no job_id) → 400 invalid_appointment_context."""
+        before = self._appt_count()
+        r = requests.post(
+            f"{BASE_URL}/api/appointments",
+            json={
+                "candidate_id":   self.emp_id,
+                "appointment_type": "interview",
+                "mode": "online",
+            },
+            headers=_headers(self.co_jwt)
+        )
+        self.assertEqual(r.status_code, 400, r.text)
+        self.assertEqual(r.json().get("code"), "invalid_appointment_context",
+                         f"Unexpected response: {r.json()}")
+        self.assertEqual(self._appt_count(), before,
+                         "No appointment row must be created")
+
+    def test_45_job_id_without_candidate_id_rejected(self):
+        """job_id alone (no candidate_id) → 400 invalid_appointment_context."""
+        before = self._appt_count()
+        r = requests.post(
+            f"{BASE_URL}/api/appointments",
+            json={
+                "job_id":         self.job_id,
+                "appointment_type": "interview",
+                "mode": "online",
+            },
+            headers=_headers(self.co_jwt)
+        )
+        self.assertEqual(r.status_code, 400, r.text)
+        self.assertEqual(r.json().get("code"), "invalid_appointment_context",
+                         f"Unexpected response: {r.json()}")
+        self.assertEqual(self._appt_count(), before,
+                         "No appointment row must be created")
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Group H — Safe Backfill Migration (tests 46–49)
+# ══════════════════════════════════════════════════════════════════════════════
+
+class TestBackfillMigration(unittest.TestCase):
+    """
+    Tests 46–49: _migrate_pr5_pipeline_linking() Step 7 — safe backfill of
+    appointments.pipeline_entry_id for old appointments where it is NULL.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.co_jwt, cls.co_id, cls.emp_id, cls.emp_tw, \
+            cls.job_id, cls.pe_id, cls.app_id = \
+            _make_company_with_pipeline_entry(with_application=True)
+
+        # Ensure emp is in company_saved_candidates and company_candidate_job_refs
+        # so that the saved-candidates API returns job_links with pipeline_entry_id
+        conn = _db_conn()
+        try:
+            conn.run(
+                "INSERT INTO company_saved_candidates(company_id, candidate_id, status) "
+                "VALUES (:cid, :uid, 'saved') ON CONFLICT DO NOTHING",
+                cid=cls.co_id, uid=cls.emp_id
+            )
+            conn.run(
+                "INSERT INTO company_candidate_job_refs(company_id, candidate_id, job_id) "
+                "VALUES (:cid, :uid, :jid) ON CONFLICT DO NOTHING",
+                cid=cls.co_id, uid=cls.emp_id, jid=cls.job_id
+            )
+        finally:
+            conn.close()
+
+        # Create second pipeline entry (same company, different applicant) for dup-guard test
+        suf = _suffix()
+        _register(f"emp2bk_{suf}@ex.com", "pass123", "emp", f"Employee2BK {suf}")
+        conn = _db_conn()
+        try:
+            emp2_rows = conn.run("SELECT id FROM users WHERE email=:e", e=f"emp2bk_{suf}@ex.com")
+            cls.emp2_id = emp2_rows[0][0]
+            job2_rows = conn.run(
+                "INSERT INTO jobs(company_id, title, status) VALUES (:cid, 'مهندس ثاني', 'active') "
+                "RETURNING id",
+                cid=cls.co_id
+            )
+            cls.job2_id = job2_rows[0][0]
+            app2_rows = conn.run(
+                "INSERT INTO job_applications(job_id, user_id, status) "
+                "VALUES (:jid, :uid, 'pending') RETURNING id",
+                jid=cls.job2_id, uid=cls.emp2_id
+            )
+            cls.app2_id = app2_rows[0][0]
+            pe2_rows = conn.run(
+                "INSERT INTO job_pipeline_entries"
+                "(company_id, candidate_id, job_id, application_id, stage, source, created_by) "
+                "VALUES (:cid, :uid, :jid, :appid, 'new', 'application', :cb) RETURNING id",
+                cid=cls.co_id, uid=cls.emp2_id, jid=cls.job2_id,
+                appid=cls.app2_id, cb=cls.co_id
+            )
+            cls.pe2_id = pe2_rows[0][0]
+        finally:
+            conn.close()
+
+    def test_46_backfill_links_old_appointment(self):
+        """Old appointment with NULL pipeline_entry_id gets backfilled to the matching entry."""
+        # Insert a legacy appointment with no pipeline_entry_id
+        conn = _db_conn()
+        try:
+            row = conn.run(
+                "INSERT INTO appointments("
+                "  company_id, application_id, applicant_id, job_id,"
+                "  appointment_type, status, mode, created_by,"
+                "  scheduled_at, response_deadline_at"
+                ") VALUES ("
+                "  :cid, :appid, :uid, :jid,"
+                "  'interview', 'draft', 'online', :cb,"
+                "  NOW() + INTERVAL '3 days', NOW() + INTERVAL '2 days'"
+                ") RETURNING id",
+                cid=self.co_id, appid=self.app_id,
+                uid=self.emp_id, jid=self.job_id, cb=self.co_id
+            )
+            legacy_appt_id = row[0][0]
+        finally:
+            conn.close()
+
+        # Verify it starts without a pipeline_entry_id
+        conn = _db_conn()
+        try:
+            pe_before = conn.run(
+                "SELECT pipeline_entry_id FROM appointments WHERE id=:aid",
+                aid=legacy_appt_id
+            )[0][0]
+        finally:
+            conn.close()
+        self.assertIsNone(pe_before, "Test setup: legacy appt must start with NULL pipeline_entry_id")
+
+        # Run the migration function directly
+        from auth import _migrate_pr5_pipeline_linking
+        _migrate_pr5_pipeline_linking()
+
+        # Verify backfill linked the appointment to the correct pipeline entry
+        conn = _db_conn()
+        try:
+            pe_after = conn.run(
+                "SELECT pipeline_entry_id FROM appointments WHERE id=:aid",
+                aid=legacy_appt_id
+            )[0][0]
+        finally:
+            conn.close()
+        self.assertEqual(int(pe_after), self.pe_id,
+                         f"Backfill should set pipeline_entry_id={self.pe_id}, got {pe_after}")
+
+    def test_47_backfill_appears_in_next_appointment(self):
+        """After backfill, the linked appointment appears as next_appointment in job_links."""
+        # Get saved candidates (will trigger batch next_appointment fetch)
+        # First ensure candidate is saved — POST /company/saved-candidates/{candidate_id}
+        rs47 = requests.post(
+            f"{BASE_URL}/company/saved-candidates/{self.emp_id}",
+            json={"save_source": "manual"},
+            headers=_headers(self.co_jwt)
+        )
+        self.assertIn(rs47.status_code, (200, 201, 409), rs47.text)
+
+        r = requests.get(
+            f"{BASE_URL}/company/saved-candidates",
+            headers=_headers(self.co_jwt)
+        )
+        self.assertEqual(r.status_code, 200, r.text)
+        items = r.json().get("items", [])
+        our_item = next((i for i in items if int(i["candidate_id"]) == self.emp_id), None)
+        self.assertIsNotNone(our_item, "Saved candidate not found in response")
+
+        # Find job_link for our job
+        job_links = our_item.get("job_links", [])
+        our_link = next((jl for jl in job_links if int(jl["job_id"]) == self.job_id), None)
+        self.assertIsNotNone(our_link, f"job_link for job {self.job_id} not found in {job_links}")
+
+        # next_appointment must be populated (backfilled appointment was linked in test_46)
+        self.assertIsNotNone(our_link.get("pipeline_entry_id"),
+                             "pipeline_entry_id must be set in job_links after backfill")
+
+    def test_48_dup_guard_rejects_new_appt_when_active_exists(self):
+        """Dup guard blocks new appointment creation when an active appointment already exists."""
+        # Create a valid Path B appointment first
+        r1 = _create_draft_appt_path_b(self.co_jwt, self.emp2_id, self.job2_id)
+        self.assertEqual(r1.status_code, 200, r1.text)
+
+        # Second attempt — must be rejected (dup guard raises ValueError → HTTP 400)
+        r2 = requests.post(
+            f"{BASE_URL}/api/appointments",
+            json={
+                "candidate_id":     self.emp2_id,
+                "job_id":           self.job2_id,
+                "appointment_type": "interview",
+                "mode":             "online",
+            },
+            headers=_headers(self.co_jwt)
+        )
+        self.assertEqual(r2.status_code, 400, r2.text)
+        self.assertIn("موعد نشط", r2.text,
+                      f"Dup error should mention active appointment: {r2.text}")
+
+    def test_49_no_match_stays_null(self):
+        """Appointment with no matching pipeline entry is left with pipeline_entry_id NULL."""
+        # Create a legacy appointment where the application_id refers to a job with
+        # NO pipeline entry — so backfill finds zero matches and leaves NULL.
+        suf = _suffix()
+        _register(f"conm_{suf}@ex.com", "pass123", "co", f"CoNoMatch {suf}")
+        _register(f"empnm_{suf}@ex.com", "pass123", "emp", f"EmpNoMatch {suf}")
+
+        conn = _db_conn()
+        try:
+            conm_rows  = conn.run("SELECT id FROM users WHERE email=:e", e=f"conm_{suf}@ex.com")
+            empnm_rows = conn.run("SELECT id FROM users WHERE email=:e", e=f"empnm_{suf}@ex.com")
+            conm_id  = conm_rows[0][0]
+            empnm_id = empnm_rows[0][0]
+
+            # Create a job + application but NO pipeline entry
+            jnm_rows = conn.run(
+                "INSERT INTO jobs(company_id, title, status) VALUES (:cid, 'وظيفة بلا pipeline', 'active') "
+                "RETURNING id", cid=conm_id
+            )
+            jnm_id = jnm_rows[0][0]
+
+            appnm_rows = conn.run(
+                "INSERT INTO job_applications(job_id, user_id, status) "
+                "VALUES (:jid, :uid, 'pending') RETURNING id",
+                jid=jnm_id, uid=empnm_id
+            )
+            appnm_id = appnm_rows[0][0]
+
+            # Insert a legacy appointment — no pipeline entry exists to match
+            nmap_row = conn.run(
+                "INSERT INTO appointments("
+                "  company_id, application_id, applicant_id, job_id,"
+                "  appointment_type, status, mode, created_by,"
+                "  scheduled_at, response_deadline_at"
+                ") VALUES ("
+                "  :cid, :appid, :uid, :jid,"
+                "  'interview', 'draft', 'online', :cb,"
+                "  NOW() + INTERVAL '3 days', NOW() + INTERVAL '2 days'"
+                ") RETURNING id",
+                cid=conm_id, appid=appnm_id,
+                uid=empnm_id, jid=jnm_id, cb=conm_id
+            )
+            nmap_id = nmap_row[0][0]
+        finally:
+            conn.close()
+
+        # Run migration — no pipeline entry exists, so nothing to link
+        from auth import _migrate_pr5_pipeline_linking
+        _migrate_pr5_pipeline_linking()
+
+        # Must remain NULL — no match found
+        conn = _db_conn()
+        try:
+            pe_after = conn.run(
+                "SELECT pipeline_entry_id FROM appointments WHERE id=:aid",
+                aid=nmap_id
+            )[0][0]
+        finally:
+            conn.close()
+        self.assertIsNone(pe_after,
+                          f"No-match case must leave pipeline_entry_id NULL, got {pe_after}")
 
 
 if __name__ == "__main__":

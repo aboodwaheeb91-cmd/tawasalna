@@ -4754,12 +4754,17 @@ def api_create_appointment(body: AppointmentCreateInput,
     if token.get("user_type") != "co":
         raise HTTPException(403, "فقط حسابات الشركات يمكنها إنشاء مواعيد")
 
-    # Reject ambiguous payloads: Path A (application_id) and Path B (candidate_id+job_id)
-    # must not be sent together. Silently ignoring IDs is a data-integrity risk.
-    has_path_a = body.application_id is not None
-    has_path_b = body.candidate_id is not None and body.job_id is not None
-    if has_path_a and has_path_b:
-        from fastapi.responses import JSONResponse as _JR
+    # Complete payload contract enforcement:
+    # Path A: application_id only (candidate_id and job_id must be absent)
+    # Path B: candidate_id + job_id only (application_id must be absent)
+    # All other combinations are rejected with structured 400 errors.
+    from fastapi.responses import JSONResponse as _JR
+    _app_set  = body.application_id is not None
+    _cand_set = body.candidate_id is not None
+    _job_set  = body.job_id is not None
+
+    if _app_set and (_cand_set or _job_set):
+        # application_id mixed with any Path B field — ambiguous context
         return _JR(
             status_code=400,
             content={
@@ -4769,6 +4774,36 @@ def api_create_appointment(body: AppointmentCreateInput,
                     "Payload غير واضح: أرسل application_id فقط (Path A) "
                     "أو candidate_id + job_id فقط (Path B) — وليس كليهما معاً."
                 ),
+            }
+        )
+    if _cand_set and not _job_set:
+        # candidate_id without job_id — incomplete Path B
+        return _JR(
+            status_code=400,
+            content={
+                "ok": False,
+                "code": "invalid_appointment_context",
+                "message": "candidate_id يتطلب job_id (Path B غير مكتمل).",
+            }
+        )
+    if _job_set and not _cand_set:
+        # job_id without candidate_id — incomplete Path B
+        return _JR(
+            status_code=400,
+            content={
+                "ok": False,
+                "code": "invalid_appointment_context",
+                "message": "job_id يتطلب candidate_id (Path B غير مكتمل).",
+            }
+        )
+    if not _app_set and not (_cand_set and _job_set):
+        # Neither path provided
+        return _JR(
+            status_code=400,
+            content={
+                "ok": False,
+                "code": "invalid_appointment_context",
+                "message": "يجب إرسال application_id (Path A) أو candidate_id + job_id (Path B).",
             }
         )
 

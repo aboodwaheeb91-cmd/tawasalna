@@ -5280,31 +5280,83 @@ def get_company_saved_candidates(company_id: int, limit: int = 20, offset: int =
         if items:
             id_clause = ','.join(str(r['candidate_id']) for r in items)
             trows = conn.run(
-                f"SELECT r.candidate_id, j.id, j.title, ja.applied_at, ja.status, r.candidate_status "
+                f"SELECT r.candidate_id, j.id, j.title, ja.applied_at, ja.status, "
+                f"       r.candidate_status, jpe.id, ja.id "
                 f"FROM company_candidate_job_refs r "
                 f"JOIN jobs j ON j.id = r.job_id "
                 f"LEFT JOIN job_applications ja ON ja.job_id = j.id AND ja.user_id = r.candidate_id "
+                f"LEFT JOIN job_pipeline_entries jpe "
+                f"       ON jpe.job_id = r.job_id AND jpe.candidate_id = r.candidate_id "
+                f"      AND jpe.company_id = r.company_id "
                 f"WHERE r.candidate_id IN ({id_clause}) AND r.company_id = :cid "
                 f"ORDER BY j.id",
                 cid=company_id) or []
             jtmap = {}
             jlmap = {}
+            pe_ids = []  # collect pipeline_entry_ids for batch sub-queries
             for trow in trows:
                 uid  = int(trow[0])
-                jid, title, apply_date, app_status, cand_status = (
-                    int(trow[1]), trow[2], trow[3], trow[4], trow[5])
+                jid, title, apply_date, app_status, cand_status, pe_id, app_id = (
+                    int(trow[1]), trow[2], trow[3], trow[4], trow[5],
+                    int(trow[6]) if trow[6] is not None else None,
+                    int(trow[7]) if trow[7] is not None else None,
+                )
                 if uid not in jtmap:
                     jtmap[uid] = []
                     jlmap[uid] = []
                 jtmap[uid].append(title)
                 jlmap[uid].append({
-                    'job_id':             jid,
-                    'title':              title,
-                    'apply_date':         apply_date.isoformat() if apply_date else None,
-                    'application_status': app_status or None,
-                    'status':             app_status or None,  # deprecated alias — equals application_status
-                    'candidate_status':   cand_status or None,
+                    'job_id':              jid,
+                    'title':               title,
+                    'apply_date':          apply_date.isoformat() if apply_date else None,
+                    'application_status':  app_status or None,
+                    'status':              app_status or None,  # deprecated alias — equals application_status
+                    'candidate_status':    cand_status or None,
+                    'pipeline_entry_id':   pe_id,
+                    'application_id':      app_id,
+                    'pipeline_notes_count': 0,
+                    'next_appointment':    None,
                 })
+                if pe_id is not None:
+                    pe_ids.append(pe_id)
+
+            # Batch-fetch pipeline notes counts
+            if pe_ids:
+                pe_clause = ','.join(str(x) for x in set(pe_ids))
+                nc_rows = conn.run(
+                    f"SELECT pipeline_entry_id, COUNT(*) "
+                    f"FROM pipeline_notes "
+                    f"WHERE pipeline_entry_id IN ({pe_clause}) "
+                    f"GROUP BY pipeline_entry_id"
+                ) or []
+                nc_map = {int(r[0]): int(r[1]) for r in nc_rows}
+
+                # Batch-fetch next active appointment per pipeline entry
+                na_rows = conn.run(
+                    f"SELECT DISTINCT ON (pipeline_entry_id) "
+                    f"       pipeline_entry_id, id, scheduled_at, appointment_type, status "
+                    f"FROM appointments "
+                    f"WHERE pipeline_entry_id IN ({pe_clause}) "
+                    f"  AND status NOT IN ('cancelled','rejected') "
+                    f"ORDER BY pipeline_entry_id, scheduled_at ASC"
+                ) or []
+                na_map = {}
+                for nr in na_rows:
+                    na_map[int(nr[0])] = {
+                        'id':               int(nr[1]),
+                        'scheduled_at':     nr[2].isoformat() if nr[2] else None,
+                        'appointment_type': nr[3],
+                        'status':           nr[4],
+                    }
+
+                # Apply counts + next_appointment to jlmap entries
+                for uid_entries in jlmap.values():
+                    for entry in uid_entries:
+                        pe = entry.get('pipeline_entry_id')
+                        if pe is not None:
+                            entry['pipeline_notes_count'] = nc_map.get(pe, 0)
+                            entry['next_appointment']     = na_map.get(pe)
+
             for item in items:
                 item['job_titles'] = jtmap.get(item['candidate_id'], [])
                 item['job_links']  = jlmap.get(item['candidate_id'], [])
@@ -5521,31 +5573,81 @@ def get_company_saved_candidates_filtered(
         if items:
             id_clause = ','.join(str(r['candidate_id']) for r in items)
             trows = conn.run(
-                f"SELECT r.candidate_id, j.id, j.title, ja.applied_at, ja.status, r.candidate_status "
+                f"SELECT r.candidate_id, j.id, j.title, ja.applied_at, ja.status, "
+                f"       r.candidate_status, jpe.id, ja.id "
                 f"FROM company_candidate_job_refs r "
                 f"JOIN jobs j ON j.id = r.job_id "
                 f"LEFT JOIN job_applications ja ON ja.job_id = j.id AND ja.user_id = r.candidate_id "
+                f"LEFT JOIN job_pipeline_entries jpe "
+                f"       ON jpe.job_id = r.job_id AND jpe.candidate_id = r.candidate_id "
+                f"      AND jpe.company_id = r.company_id "
                 f"WHERE r.candidate_id IN ({id_clause}) AND r.company_id = :cid "
                 f"ORDER BY j.id",
                 cid=company_id) or []
             jtmap = {}
             jlmap = {}
+            pe_ids = []
             for trow in trows:
                 uid  = int(trow[0])
-                jid, title, apply_date, app_status, cand_status = (
-                    int(trow[1]), trow[2], trow[3], trow[4], trow[5])
+                jid, title, apply_date, app_status, cand_status, pe_id, app_id = (
+                    int(trow[1]), trow[2], trow[3], trow[4], trow[5],
+                    int(trow[6]) if trow[6] is not None else None,
+                    int(trow[7]) if trow[7] is not None else None,
+                )
                 if uid not in jtmap:
                     jtmap[uid] = []
                     jlmap[uid] = []
                 jtmap[uid].append(title)
                 jlmap[uid].append({
-                    'job_id':             jid,
-                    'title':              title,
-                    'apply_date':         apply_date.isoformat() if apply_date else None,
-                    'application_status': app_status or None,
-                    'status':             app_status or None,  # deprecated alias — equals application_status
-                    'candidate_status':   cand_status or None,
+                    'job_id':              jid,
+                    'title':               title,
+                    'apply_date':          apply_date.isoformat() if apply_date else None,
+                    'application_status':  app_status or None,
+                    'status':              app_status or None,  # deprecated alias — equals application_status
+                    'candidate_status':    cand_status or None,
+                    'pipeline_entry_id':   pe_id,
+                    'application_id':      app_id,
+                    'pipeline_notes_count': 0,
+                    'next_appointment':    None,
                 })
+                if pe_id is not None:
+                    pe_ids.append(pe_id)
+
+            # Batch-fetch pipeline notes counts
+            if pe_ids:
+                pe_clause = ','.join(str(x) for x in set(pe_ids))
+                nc_rows = conn.run(
+                    f"SELECT pipeline_entry_id, COUNT(*) "
+                    f"FROM pipeline_notes "
+                    f"WHERE pipeline_entry_id IN ({pe_clause}) "
+                    f"GROUP BY pipeline_entry_id"
+                ) or []
+                nc_map = {int(r[0]): int(r[1]) for r in nc_rows}
+
+                na_rows = conn.run(
+                    f"SELECT DISTINCT ON (pipeline_entry_id) "
+                    f"       pipeline_entry_id, id, scheduled_at, appointment_type, status "
+                    f"FROM appointments "
+                    f"WHERE pipeline_entry_id IN ({pe_clause}) "
+                    f"  AND status NOT IN ('cancelled','rejected') "
+                    f"ORDER BY pipeline_entry_id, scheduled_at ASC"
+                ) or []
+                na_map = {}
+                for nr in na_rows:
+                    na_map[int(nr[0])] = {
+                        'id':               int(nr[1]),
+                        'scheduled_at':     nr[2].isoformat() if nr[2] else None,
+                        'appointment_type': nr[3],
+                        'status':           nr[4],
+                    }
+
+                for uid_entries in jlmap.values():
+                    for entry in uid_entries:
+                        pe = entry.get('pipeline_entry_id')
+                        if pe is not None:
+                            entry['pipeline_notes_count'] = nc_map.get(pe, 0)
+                            entry['next_appointment']     = na_map.get(pe)
+
             accepted_ids  = set()
             if job_id is not None:
                 acc_rows = conn.run(
@@ -9617,6 +9719,34 @@ def _migrate_pr5_pipeline_linking():
         conn.run(
             "CREATE INDEX IF NOT EXISTS idx_appt_end_at ON appointments(end_at)"
         )
+
+        # 7. Backfill appointments.pipeline_entry_id for old rows where it is NULL.
+        #    Uses a 4-field match (application_id + company_id + job_id + applicant_id).
+        #    Only links when exactly ONE unambiguous pipeline entry matches (HAVING COUNT=1).
+        #    Ambiguous cases (COUNT > 1) remain NULL — safe by design.
+        #    Idempotent: WHERE pipeline_entry_id IS NULL ensures no re-processing.
+        try:
+            conn.run(
+                "UPDATE appointments AS a "
+                "SET pipeline_entry_id = sub.jpe_id "
+                "FROM ( "
+                "    SELECT a2.id AS appt_id, MIN(jpe.id) AS jpe_id "
+                "    FROM appointments a2 "
+                "    JOIN job_pipeline_entries jpe "
+                "      ON jpe.application_id = a2.application_id "
+                "     AND jpe.company_id     = a2.company_id "
+                "     AND jpe.job_id         = a2.job_id "
+                "     AND jpe.candidate_id   = a2.applicant_id "
+                "    WHERE a2.pipeline_entry_id IS NULL "
+                "      AND a2.application_id IS NOT NULL "
+                "      AND a2.applicant_id   IS NOT NULL "
+                "    GROUP BY a2.id "
+                "    HAVING COUNT(jpe.id) = 1 "
+                ") AS sub "
+                "WHERE a.id = sub.appt_id"
+            )
+        except Exception:
+            pass  # pipeline_entry_id column may not yet exist on very old DBs — skip
 
     finally:
         release_conn(conn)

@@ -3316,6 +3316,7 @@
 
     var html = '<div class="co-cand-saved-card"'
       + ' data-cid="' + cid + '"'
+      + ' data-name="' + _esc(item.full_name || '') + '"'
       + ' data-status="' + _esc(status) + '"'
       + ' data-notes="' + _esc(notes) + '"'
       + ' data-jobid="' + _esc(jobId) + '"'
@@ -3386,14 +3387,24 @@
     if (jobLinks.length) {
       html += '<div class="co-cand-job-chips">';
       jobLinks.forEach(function (jl, idx) {
-        var applyDate = jl.apply_date ? _fmtDate(jl.apply_date) : '';
-        var hiddenCls = idx >= 3 ? ' co-cand-job-chip--hidden' : '';
+        var applyDate   = jl.apply_date ? _fmtDate(jl.apply_date) : '';
+        var hiddenCls   = idx >= 3 ? ' co-cand-job-chip--hidden' : '';
+        var peId        = jl.pipeline_entry_id != null ? String(jl.pipeline_entry_id) : '';
+        var appId       = jl.application_id    != null ? String(jl.application_id)    : '';
+        var notesCount  = jl.pipeline_notes_count != null ? String(jl.pipeline_notes_count) : '0';
+        var nextApptId  = (jl.next_appointment && jl.next_appointment.id) ? String(jl.next_appointment.id) : '';
+        var nextApptSt  = (jl.next_appointment && jl.next_appointment.status) ? jl.next_appointment.status : '';
         html += '<button class="co-cand-job-chip' + hiddenCls + '" type="button"'
               + ' data-jid="' + _esc(String(jl.job_id)) + '"'
               + ' data-title="' + _esc(jl.title || '') + '"'
               + ' data-apply-date="' + _esc(applyDate) + '"'
               + ' data-app-status="' + _esc(jl.application_status || '') + '"'
-              + ' data-cand-status="' + _esc(jl.candidate_status || '') + '">'
+              + ' data-cand-status="' + _esc(jl.candidate_status || '') + '"'
+              + ' data-pe-id="' + _esc(peId) + '"'
+              + ' data-app-id="' + _esc(appId) + '"'
+              + ' data-notes-count="' + _esc(notesCount) + '"'
+              + ' data-next-appt-id="' + _esc(nextApptId) + '"'
+              + ' data-next-appt-status="' + _esc(nextApptSt) + '">'
               + _esc(jl.title || ('وظيفة #' + jl.job_id)) + '</button>';
       });
       if (jobLinks.length > 3) {
@@ -3552,6 +3563,43 @@
       return;
     }
 
+    // Pipeline notes button inside job chip popover
+    var notesPopBtn = e.target.closest('.co-cjp-btn--notes');
+    if (notesPopBtn) {
+      var notesEntryId = notesPopBtn.getAttribute('data-pe-id');
+      if (notesEntryId && typeof _openNotesPanel === 'function') {
+        _closeJobPop();
+        _openNotesPanel(parseInt(notesEntryId, 10));
+      }
+      return;
+    }
+
+    // Appointment button inside job chip popover (Path B: candidate_id + job_id)
+    var apptPopBtn = e.target.closest('.co-cjp-btn--appt');
+    if (apptPopBtn) {
+      var apptEntryId  = apptPopBtn.getAttribute('data-pe-id')       || null;
+      var apptAppId    = apptPopBtn.getAttribute('data-app-id')       || null;
+      var apptCandId   = apptPopBtn.getAttribute('data-cand-id')      || null;
+      var apptCandName = apptPopBtn.getAttribute('data-cand-name')    || '';
+      var apptJobTitle = apptPopBtn.getAttribute('data-job-title')    || '';
+      var apptJobId    = apptPopBtn.getAttribute('data-job-id')       || null;
+      if (apptEntryId && typeof _openApptModal === 'function') {
+        _closeJobPop();
+        // Path B: set _appJobId before opening modal so the endpoint uses candidate_id + job_id
+        if (typeof _appJobId !== 'undefined' && apptJobId) {
+          _appJobId = parseInt(apptJobId, 10);
+        }
+        _openApptModal(
+          apptAppId  ? parseInt(apptAppId, 10)  : null,
+          apptCandName,
+          apptJobTitle,
+          parseInt(apptEntryId, 10),
+          apptCandId ? parseInt(apptCandId, 10) : null
+        );
+      }
+      return;
+    }
+
     // Job chip popover
     var chipBtn = e.target.closest('.co-cand-job-chip');
     if (chipBtn && !chipBtn.classList.contains('co-cand-job-chip--hidden')) {
@@ -3660,12 +3708,24 @@
   // ── Job chip popover ────────────────────────────────────────────
   // Row 1: per-job candidate classification (company_candidate_job_refs.candidate_status)
   // Row 2: apply_date — shown only when the candidate actually applied (not null)
+  // Row 3 (pipeline only): ملاحظات الوظيفة + تحديد موعد / فتح الموعد buttons
   function _showJobChipPop(chip) {
-    var title      = chip.getAttribute('data-title') || '';
-    var applyDate  = chip.getAttribute('data-apply-date') || '';
-    var candJobSt  = chip.getAttribute('data-cand-status') || '';
-    var candJobLbl = candJobSt ? (_STATUS_LABELS[candJobSt] || candJobSt) : 'غير مصنف';
-    var candJobCls = candJobSt ? 'co-cjp-cand-job-st' : 'co-cjp-no-app';
+    var title         = chip.getAttribute('data-title') || '';
+    var applyDate     = chip.getAttribute('data-apply-date') || '';
+    var candJobSt     = chip.getAttribute('data-cand-status') || '';
+    var candJobLbl    = candJobSt ? (_STATUS_LABELS[candJobSt] || candJobSt) : 'غير مصنف';
+    var candJobCls    = candJobSt ? 'co-cjp-cand-job-st' : 'co-cjp-no-app';
+    var peId          = chip.getAttribute('data-pe-id') || '';
+    var appId         = chip.getAttribute('data-app-id') || '';
+    var notesCount    = parseInt(chip.getAttribute('data-notes-count') || '0', 10) || 0;
+    var nextApptId    = chip.getAttribute('data-next-appt-id') || '';
+    var nextApptSt    = chip.getAttribute('data-next-appt-status') || '';
+    var jobId         = chip.getAttribute('data-jid') || '';
+
+    // Candidate name from parent card
+    var card          = chip.closest('.co-cand-saved-card');
+    var candId        = card ? (card.getAttribute('data-cid') || '') : '';
+    var candName      = card ? (card.getAttribute('data-name') || '') : '';
 
     var pop = document.getElementById('co-cand-job-pop');
     if (!pop) {
@@ -3679,6 +3739,24 @@
     html += '<div class="co-cjp-row"><span>حالة المرشح في هذه الوظيفة</span><span class="' + candJobCls + '">' + _esc(candJobLbl) + '</span></div>';
     if (applyDate) {
       html += '<div class="co-cjp-row co-cjp-row--date"><span>تاريخ التقدم</span><span>' + _esc(applyDate) + '</span></div>';
+    }
+    // Pipeline action buttons — only when this chip has a real pipeline entry
+    if (peId) {
+      var notesLbl  = notesCount > 0 ? ('ملاحظات الوظيفة (' + notesCount + ')') : 'ملاحظات الوظيفة';
+      var apptLabel = nextApptId ? 'فتح الموعد' : 'تحديد موعد';
+      html += '<div class="co-cjp-actions">'
+            + '<button type="button" class="co-cjp-btn co-cjp-btn--notes"'
+            + ' data-pe-id="' + _esc(peId) + '">' + _esc(notesLbl) + '</button>'
+            + '<button type="button" class="co-cjp-btn co-cjp-btn--appt"'
+            + ' data-pe-id="' + _esc(peId) + '"'
+            + ' data-app-id="' + _esc(appId) + '"'
+            + ' data-cand-id="' + _esc(candId) + '"'
+            + ' data-cand-name="' + _esc(candName) + '"'
+            + ' data-job-title="' + _esc(title) + '"'
+            + ' data-job-id="' + _esc(jobId) + '"'
+            + ' data-next-appt-id="' + _esc(nextApptId) + '">'
+            + _esc(apptLabel) + '</button>'
+            + '</div>';
     }
     pop.innerHTML = html;
     pop.style.display = 'block';
@@ -3747,14 +3825,24 @@
 
     // 2. Chip strip
     var chipsHtml = links.map(function (jl, idx) {
-      var applyDate = jl.apply_date ? _fmtDate(jl.apply_date) : '';
-      var hiddenCls = idx >= 3 ? ' co-cand-job-chip--hidden' : '';
+      var applyDate  = jl.apply_date ? _fmtDate(jl.apply_date) : '';
+      var hiddenCls  = idx >= 3 ? ' co-cand-job-chip--hidden' : '';
+      var peId       = jl.pipeline_entry_id != null ? String(jl.pipeline_entry_id) : '';
+      var appId      = jl.application_id    != null ? String(jl.application_id)    : '';
+      var notesCount = jl.pipeline_notes_count != null ? String(jl.pipeline_notes_count) : '0';
+      var nextApptId = (jl.next_appointment && jl.next_appointment.id) ? String(jl.next_appointment.id) : '';
+      var nextApptSt = (jl.next_appointment && jl.next_appointment.status) ? jl.next_appointment.status : '';
       return '<button class="co-cand-job-chip' + hiddenCls + '" type="button"'
            + ' data-jid="' + _esc(String(jl.job_id)) + '"'
            + ' data-title="' + _esc(jl.title || '') + '"'
            + ' data-apply-date="' + _esc(applyDate) + '"'
            + ' data-app-status="' + _esc(jl.application_status || '') + '"'
-           + ' data-cand-status="' + _esc(jl.candidate_status || '') + '">'
+           + ' data-cand-status="' + _esc(jl.candidate_status || '') + '"'
+           + ' data-pe-id="' + _esc(peId) + '"'
+           + ' data-app-id="' + _esc(appId) + '"'
+           + ' data-notes-count="' + _esc(notesCount) + '"'
+           + ' data-next-appt-id="' + _esc(nextApptId) + '"'
+           + ' data-next-appt-status="' + _esc(nextApptSt) + '">'
            + _esc(jl.title || ('وظيفة #' + jl.job_id)) + '</button>';
     }).join('');
     if (links.length > 3) {
