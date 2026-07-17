@@ -5322,12 +5322,14 @@ _CANDIDATE_STATUS_RANK = {
 
 # Allowed sort keys → ORDER BY expression (safe — never interpolated from user input directly)
 VALID_CANDIDATE_SORTS = {
-    "updated_desc": "sc.updated_at DESC NULLS LAST, sc.created_at DESC",
-    "updated_asc":  "sc.updated_at ASC NULLS FIRST, sc.created_at ASC",
-    "created_desc": "sc.created_at DESC",
-    "created_asc":  "sc.created_at ASC",
-    "name_asc":     "u.full_name ASC",
-    "status_asc":   "sc.status ASC",
+    "updated_desc":  "sc.updated_at DESC NULLS LAST, sc.created_at DESC",
+    "updated_asc":   "sc.updated_at ASC NULLS FIRST, sc.created_at ASC",
+    "created_desc":  "sc.created_at DESC",
+    "created_asc":   "sc.created_at ASC",
+    "name_asc":      "u.full_name ASC",
+    "status_asc":    "sc.status ASC",
+    "rating_desc":   "sc.rating DESC NULLS LAST, sc.updated_at DESC",
+    "priority_asc":  "CASE sc.priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 WHEN 'low' THEN 3 ELSE 4 END ASC, sc.updated_at DESC",
 }
 
 
@@ -5340,6 +5342,10 @@ def get_company_saved_candidates_filtered(
     unlinked: bool = False,
     q: str = None,
     sort: str = "updated_desc",
+    priority: str = None,
+    min_rating: int = None,
+    tag: str = None,
+    save_source_filter: str = None,
 ) -> dict:
     """
     Filtered + paginated private list of saved candidates for a company.
@@ -5394,6 +5400,22 @@ def get_company_saved_candidates_filtered(
             )
             params["q"] = "%" + q + "%"
 
+        if priority:
+            where_parts.append("sc.priority = :priority")
+            params["priority"] = priority
+
+        if min_rating is not None:
+            where_parts.append("sc.rating >= :min_rating")
+            params["min_rating"] = min_rating
+
+        if tag:
+            where_parts.append(":tag = ANY(sc.tags)")
+            params["tag"] = tag
+
+        if save_source_filter:
+            where_parts.append("sc.save_source = :save_source_filter")
+            params["save_source_filter"] = save_source_filter
+
         where_sql = " AND ".join(where_parts)
         order_sql = VALID_CANDIDATE_SORTS.get(sort, VALID_CANDIDATE_SORTS["updated_desc"])
 
@@ -5414,7 +5436,8 @@ def get_company_saved_candidates_filtered(
         rows = conn.run(
             "SELECT u.id, u.tw_id, u.full_name, p.avatar_url, "
             "pc.name_ar, p.city, p.country, "
-            "sc.job_id, sc.status, sc.notes, sc.created_at, sc.updated_at "
+            "sc.job_id, sc.status, sc.notes, sc.created_at, sc.updated_at, "
+            "sc.rating, sc.priority, sc.tags, sc.follow_up_at, sc.follow_up_status, sc.save_source "
             + base_from +
             "WHERE " + where_sql + " "
             "ORDER BY " + order_sql + " "
@@ -5426,20 +5449,28 @@ def get_company_saved_candidates_filtered(
         for r in rows:
             (cand_id, tw_id, full_name, avatar_url, prof_name,
              city, country, sc_job_id, sc_status, notes,
-             created_at, updated_at) = r
+             created_at, updated_at,
+             sc_rating, sc_priority, sc_tags, sc_follow_up_at,
+             sc_follow_up_status, sc_save_source) = r
             items.append(_serialize({
-                "candidate_id": cand_id,
-                "tw_id":        tw_id,
-                "full_name":    full_name,
-                "avatar_url":   avatar_url,
-                "profession":   prof_name or None,
-                "city":         city,
-                "country":      country,
-                "job_id":       sc_job_id,
-                "status":       sc_status or "saved",
-                "notes":        notes,
-                "created_at":   created_at,
-                "updated_at":   updated_at,
+                "candidate_id":    cand_id,
+                "tw_id":           tw_id,
+                "full_name":       full_name,
+                "avatar_url":      avatar_url,
+                "profession":      prof_name or None,
+                "city":            city,
+                "country":         country,
+                "job_id":          sc_job_id,
+                "status":          sc_status or "saved",
+                "notes":           notes,
+                "created_at":      created_at,
+                "updated_at":      updated_at,
+                "rating":          int(sc_rating) if sc_rating is not None else None,
+                "priority":        sc_priority,
+                "tags":            list(sc_tags) if sc_tags else [],
+                "follow_up_at":    sc_follow_up_at,
+                "follow_up_status": sc_follow_up_status,
+                "save_source":     sc_save_source,
             }))
 
         # Batch-fetch job titles + rich job_links from refs + per_job_accepted
@@ -5496,11 +5527,15 @@ def get_company_saved_candidates_filtered(
                 "total":    total,
             },
             "filters": {
-                "status":   status,
-                "job_id":   job_id,
-                "unlinked": unlinked,
-                "q":        q,
-                "sort":     sort,
+                "status":             status,
+                "job_id":             job_id,
+                "unlinked":           unlinked,
+                "q":                  q,
+                "sort":               sort,
+                "priority":           priority,
+                "min_rating":         min_rating,
+                "tag":                tag,
+                "save_source_filter": save_source_filter,
             },
         }
     finally:
@@ -5560,11 +5595,14 @@ def update_company_saved_candidate(
     updates: dict
 ) -> dict:
     """
-    Partial update of a saved candidate's pipeline fields (status, notes, job_id).
+    Partial update of a saved candidate's talent bank fields.
     Only keys present in `updates` are written — absent keys are untouched.
 
+    Supported fields: status, notes, job_id, rating, priority, tags,
+                      follow_up_at, follow_up_status.
+
     Returns the updated safe item dict, or None if the row doesn't exist.
-    Raises ValueError for invalid status, oversized notes, or foreign job_id.
+    Raises ValueError for invalid values.
     """
     conn = get_conn()
     try:
@@ -5600,6 +5638,55 @@ def update_company_saved_candidate(
             if not job_check:
                 raise ValueError("الوظيفة غير موجودة أو لا تتبع شركتك")
 
+        if 'rating' in updates:
+            r_val = updates['rating']
+            if r_val is not None:
+                if not isinstance(r_val, int) or r_val < 1 or r_val > 5:
+                    raise ValueError("rating يجب أن يكون رقماً بين 1 و 5 أو null")
+            # None → clear (store NULL)
+
+        if 'priority' in updates:
+            p_val = updates['priority']
+            if p_val is not None and p_val not in ('low', 'medium', 'high'):
+                raise ValueError("priority يجب أن يكون 'low' أو 'medium' أو 'high' أو null")
+
+        if 'tags' in updates:
+            t_val = updates['tags']
+            if t_val is not None:
+                if not isinstance(t_val, list):
+                    raise ValueError("tags يجب أن تكون قائمة نصوص")
+                cleaned = []
+                seen = set()
+                for t in t_val:
+                    if not isinstance(t, str):
+                        raise ValueError("كل tag يجب أن يكون نصاً")
+                    t = t.strip()
+                    if not t:
+                        continue
+                    if len(t) > 30:
+                        raise ValueError("الـ tag لا يمكن أن يتجاوز 30 حرفاً")
+                    tl = t.lower()
+                    if tl not in seen:
+                        seen.add(tl)
+                        cleaned.append(t)
+                if len(cleaned) > 20:
+                    raise ValueError("لا يمكن إضافة أكثر من 20 tag")
+                updates['tags'] = cleaned if cleaned else None
+            # None → clear (store NULL)
+
+        if 'follow_up_status' in updates:
+            fs_val = updates['follow_up_status']
+            if fs_val is not None and fs_val not in ('none', 'pending', 'done'):
+                raise ValueError("follow_up_status يجب أن يكون 'none' أو 'pending' أو 'done' أو null")
+
+        if 'follow_up_at' in updates:
+            fa_val = updates['follow_up_at']
+            if fa_val is not None:
+                import re as _re
+                if not _re.match(r'^\d{4}-\d{2}-\d{2}', str(fa_val)):
+                    raise ValueError("follow_up_at يجب أن يكون تاريخاً بصيغة YYYY-MM-DD")
+            # None → clear (store NULL)
+
         # 3. Build dynamic SET clause
         set_parts = ["updated_at = NOW()"]
         params = {"cid": company_id, "uid": candidate_id}
@@ -5616,6 +5703,26 @@ def update_company_saved_candidate(
             set_parts.append("job_id = :job_id")
             params['job_id'] = updates['job_id']
 
+        if 'rating' in updates:
+            set_parts.append("rating = :rating")
+            params['rating'] = updates['rating']
+
+        if 'priority' in updates:
+            set_parts.append("priority = :priority")
+            params['priority'] = updates['priority']
+
+        if 'tags' in updates:
+            set_parts.append("tags = :tags")
+            params['tags'] = updates['tags']
+
+        if 'follow_up_at' in updates:
+            set_parts.append("follow_up_at = :follow_up_at")
+            params['follow_up_at'] = updates['follow_up_at']
+
+        if 'follow_up_status' in updates:
+            set_parts.append("follow_up_status = :follow_up_status")
+            params['follow_up_status'] = updates['follow_up_status']
+
         conn.run(
             "UPDATE company_saved_candidates "
             "SET " + ", ".join(set_parts) + " "
@@ -5626,7 +5733,8 @@ def update_company_saved_candidate(
         r = conn.run(
             "SELECT u.id, u.tw_id, u.full_name, p.avatar_url, "
             "       pc.name_ar, p.city, p.country, "
-            "       sc.job_id, sc.status, sc.notes, sc.created_at, sc.updated_at "
+            "       sc.job_id, sc.status, sc.notes, sc.created_at, sc.updated_at, "
+            "       sc.rating, sc.priority, sc.tags, sc.follow_up_at, sc.follow_up_status, sc.save_source "
             "FROM company_saved_candidates sc "
             "JOIN users u ON u.id = sc.candidate_id "
             "LEFT JOIN profiles p ON p.user_id = u.id "
@@ -5638,20 +5746,27 @@ def update_company_saved_candidate(
 
         row = r[0]
         raw_status = row[8] or "saved"
+        sc_tags = row[14]
         return _serialize({
-            "candidate_id":   row[0],
-            "tw_id":          row[1],
-            "full_name":      row[2],
-            "avatar_url":     row[3],
-            "profession":     row[4] or None,
-            "city":           row[5],
-            "country":        row[6],
-            "job_id":         row[7],
-            "status":         raw_status,
-            "status_label":   CANDIDATE_STATUS_LABELS.get(raw_status, raw_status),
-            "notes":          row[9],
-            "created_at":     row[10],
-            "updated_at":     row[11],
+            "candidate_id":    row[0],
+            "tw_id":           row[1],
+            "full_name":       row[2],
+            "avatar_url":      row[3],
+            "profession":      row[4] or None,
+            "city":            row[5],
+            "country":         row[6],
+            "job_id":          row[7],
+            "status":          raw_status,
+            "status_label":    CANDIDATE_STATUS_LABELS.get(raw_status, raw_status),
+            "notes":           row[9],
+            "created_at":      row[10],
+            "updated_at":      row[11],
+            "rating":          int(row[12]) if row[12] is not None else None,
+            "priority":        row[13],
+            "tags":            list(sc_tags) if sc_tags else [],
+            "follow_up_at":    row[15],
+            "follow_up_status": row[16],
+            "save_source":     row[17],
         })
     finally:
         release_conn(conn)
@@ -6297,6 +6412,20 @@ def _migrate_appointments():
                 deleted_at     TIMESTAMPTZ NULL
             )
         """)
+
+        # Backfill columns that may be missing on older test-DB instances
+        _appt_backfill = [
+            ("applicant_id",           "INTEGER NULL REFERENCES users(id) ON DELETE CASCADE"),
+            ("application_id",         "INTEGER NULL REFERENCES job_applications(id) ON DELETE SET NULL"),
+            ("representative_user_id", "INTEGER NULL REFERENCES users(id) ON DELETE SET NULL"),
+            ("representative_name",    "TEXT NULL"),
+            ("response_deadline_at",   "TIMESTAMPTZ NULL"),
+            ("location_text",          "TEXT NULL"),
+            ("online_url",             "TEXT NULL"),
+            ("closed_at",              "TIMESTAMPTZ NULL"),
+        ]
+        for _col, _def in _appt_backfill:
+            conn.run(f"ALTER TABLE appointments ADD COLUMN IF NOT EXISTS {_col} {_def}")
 
         # ── Indexes: appointments ─────────────────────────────────────────
         conn.run("CREATE INDEX IF NOT EXISTS idx_appt_company    ON appointments(company_id)")
@@ -7270,6 +7399,14 @@ def _migrate_scheduler_jobs():
             )
         """)
 
+        # Backfill columns that may be missing on older test-DB instances
+        _sched_backfill = [
+            ("locked_at", "TIMESTAMPTZ"),
+            ("locked_by", "TEXT"),
+        ]
+        for _col, _def in _sched_backfill:
+            conn.run(f"ALTER TABLE scheduler_jobs ADD COLUMN IF NOT EXISTS {_col} {_def}")
+
         # Due-jobs lookup: pending jobs whose run_at has passed.
         # Primary query in run_due_jobs(): WHERE status='pending' AND run_at<=NOW()
         conn.run("CREATE INDEX IF NOT EXISTS idx_sched_due       ON scheduler_jobs(status, run_at)")
@@ -7484,6 +7621,22 @@ def _migrate_pipeline_schema_v1():
                 "ADD CONSTRAINT ck_csc_save_source "
                 "CHECK (save_source IS NULL OR "
                 "save_source IN ('applicant','suggestion','manual','legacy_unknown'))"
+            )
+        except Exception as _e:
+            if '42710' not in str(_e) and 'duplicate_object' not in str(_e):
+                raise
+
+        # follow_up_status — added in PR-4 (Talent Bank V2 UI)
+        conn.run(
+            "ALTER TABLE company_saved_candidates "
+            "ADD COLUMN IF NOT EXISTS follow_up_status TEXT NULL"
+        )
+        try:
+            conn.run(
+                "ALTER TABLE company_saved_candidates "
+                "ADD CONSTRAINT ck_csc_follow_up_status "
+                "CHECK (follow_up_status IS NULL OR "
+                "follow_up_status IN ('none','pending','done'))"
             )
         except Exception as _e:
             if '42710' not in str(_e) and 'duplicate_object' not in str(_e):

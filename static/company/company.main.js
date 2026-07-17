@@ -2396,6 +2396,14 @@
   var _savedStats    = null;
   var _savedDebTimer = null;
 
+  // Talent Bank V2 advanced filter state (PR-4)
+  var _savedPriority         = '';   // ''=all, 'low'/'medium'/'high'
+  var _savedMinRating        = '';   // ''=all, '1'-'5'
+  var _savedTag              = '';   // ''=all, tag string
+  var _savedSaveSource       = '';   // ''=all, 'manual'/'applicant'/'suggestion'
+  var _quotaUsed             = null;
+  var _quotaLimit            = 25;
+
   // ── Pipeline status labels & order ───────────────────────────
   var _STATUS_LABELS = {
     'saved':       'محفوظ',
@@ -2574,6 +2582,13 @@
       _savedSort   = val;
       _savedOffset = 0;
       _doFetchSavedPage(true);
+      return;
+    }
+    // Advanced filter pickers
+    if (wrap.classList.contains('co-cand-priority-dp') ||
+        wrap.classList.contains('co-cand-rating-dp')   ||
+        wrap.classList.contains('co-cand-source-dp')) {
+      _handleAdvDpSelect(wrap, val || '');
     }
   }
 
@@ -2713,20 +2728,55 @@
 
   function _savedShellHTML() {
     var sortOpts = [
-      {value:'updated_desc', label:'الأحدث تعديلاً'},
-      {value:'updated_asc',  label:'الأقدم تعديلاً'},
-      {value:'created_desc', label:'الأحدث حفظاً'},
-      {value:'created_asc',  label:'الأقدم حفظاً'},
-      {value:'name_asc',     label:'الاسم أ-ي'},
-      {value:'status_asc',   label:'الحالة'}
+      {value:'updated_desc',  label:'الأحدث تعديلاً'},
+      {value:'updated_asc',   label:'الأقدم تعديلاً'},
+      {value:'created_desc',  label:'الأحدث حفظاً'},
+      {value:'created_asc',   label:'الأقدم حفظاً'},
+      {value:'name_asc',      label:'الاسم أ-ي'},
+      {value:'status_asc',    label:'الحالة'},
+      {value:'rating_desc',   label:'التقييم الأعلى'},
+      {value:'priority_asc',  label:'الأولوية'}
     ];
+    var priorityOpts = [
+      {value:'',       label:'كل الأولويات'},
+      {value:'high',   label:'عالية'},
+      {value:'medium', label:'متوسطة'},
+      {value:'low',    label:'منخفضة'}
+    ];
+    var ratingOpts = [
+      {value:'',  label:'كل التقييمات'},
+      {value:'5', label:'★★★★★ فقط'},
+      {value:'4', label:'★★★★ فأعلى'},
+      {value:'3', label:'★★★ فأعلى'},
+      {value:'2', label:'★★ فأعلى'},
+      {value:'1', label:'★ فأعلى'}
+    ];
+    var sourceOpts = [
+      {value:'',           label:'كل المصادر'},
+      {value:'manual',     label:'حفظ يدوي'},
+      {value:'applicant',  label:'من المتقدمين'},
+      {value:'suggestion', label:'من الاقتراحات'}
+    ];
+    var quotaStr = (_quotaUsed !== null)
+      ? ('بنك المواهب: ' + _quotaUsed + ' من ' + _quotaLimit)
+      : 'بنك المواهب';
     return '<div id="coCandSavedShell">'
+      + '<div class="co-tb-quota-bar" id="coTbQuotaBar">'
+      + '<span class="co-tb-quota-lbl" id="coTbQuotaLbl">' + _esc(quotaStr) + '</span>'
+      + '</div>'
       + '<div class="co-cand-filter-bar">'
       + '<div id="coCandChips" class="co-cand-chips"></div>'
       + '<div class="co-cand-search-row">'
       + '<input id="coCandSearch" type="text" class="co-cand-search"'
       + ' placeholder="بحث عن مرشح…" dir="rtl" value="' + _esc(_savedSearch) + '">'
       + _dpHTML('co-cand-sort-dp', sortOpts, _savedSort)
+      + '</div>'
+      + '<div class="co-cand-adv-filters">'
+      + _dpHTML('co-cand-priority-dp', priorityOpts, _savedPriority)
+      + _dpHTML('co-cand-rating-dp',   ratingOpts,   _savedMinRating)
+      + _dpHTML('co-cand-source-dp',   sourceOpts,   _savedSaveSource)
+      + '<input id="coCandTagFilter" type="text" class="co-cand-tag-input"'
+      + ' placeholder="فلترة بـ tag…" dir="rtl" value="' + _esc(_savedTag) + '">'
       + '</div>'
       + '</div>'
       + '<div id="coCandSavedList"></div>'
@@ -2807,7 +2857,55 @@
         }, 300);
       });
     }
-    // Sort picker is handled via _onSavedClick delegation (_handleDpOptClick)
+    // Tag filter input
+    var tagEl = document.getElementById('coCandTagFilter');
+    if (tagEl) {
+      tagEl.addEventListener('input', function () {
+        clearTimeout(_savedDebTimer);
+        var val = tagEl.value.slice(0, 30).trim();
+        _savedDebTimer = setTimeout(function () {
+          _savedTag = val;
+          _savedOffset = 0;
+          _doFetchSavedPage(true);
+        }, 400);
+      });
+    }
+    // Advanced filter pickers handled via _onSavedClick delegation (_handleAdvDpSelect)
+  }
+
+  // Called when an advanced filter picker option is selected
+  function _handleAdvDpSelect(dpEl, val) {
+    var cls = dpEl.className;
+    if (cls.indexOf('co-cand-priority-dp') >= 0) {
+      _savedPriority = val;
+    } else if (cls.indexOf('co-cand-rating-dp') >= 0) {
+      _savedMinRating = val;
+    } else if (cls.indexOf('co-cand-source-dp') >= 0) {
+      _savedSaveSource = val;
+    } else {
+      return; // not an advanced filter
+    }
+    _savedOffset = 0;
+    _doFetchSavedPage(true);
+  }
+
+  // Load talent bank quota from server
+  function _loadTalentBankQuota() {
+    var jwt = window._jwt ? window._jwt() : '';
+    if (!jwt) return;
+    fetch('/company/saved-candidates/quota', {
+      headers: { 'Authorization': 'Bearer ' + jwt }
+    })
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      if (d && d.used !== undefined) {
+        _quotaUsed  = d.used;
+        _quotaLimit = d.limit || 25;
+        var lbl = document.getElementById('coTbQuotaLbl');
+        if (lbl) lbl.textContent = 'بنك المواهب: ' + _quotaUsed + ' من ' + _quotaLimit;
+      }
+    })
+    .catch(function () {});
   }
 
   function _fetchSaved() {
@@ -2816,6 +2914,7 @@
     _body.innerHTML = _savedShellHTML();
     _wireSavedFilterBar();
     _loadSavedStats(null);
+    _loadTalentBankQuota();
     _doFetchSavedPage(true);
   }
 
@@ -2830,7 +2929,11 @@
     var filters = {};
     if (_savedFilter === '_unlinked')  { filters.unlinked = true; }
     else if (_savedFilter)             { filters.status = _savedFilter; }
-    if (_savedSearch) filters.q = _savedSearch;
+    if (_savedSearch)         filters.q                  = _savedSearch;
+    if (_savedPriority)       filters.priority           = _savedPriority;
+    if (_savedMinRating)      filters.min_rating         = _savedMinRating;
+    if (_savedTag)            filters.tag                = _savedTag;
+    if (_savedSaveSource)     filters.save_source_filter = _savedSaveSource;
     filters.sort = _savedSort;
 
     if (!window.getSavedCandidates) { _savedLoading = false; return; }
@@ -2940,22 +3043,63 @@
          + _dpHTML('co-cand-dp-job', opts, currentJobId || '');
   }
 
-  // Build a single saved card with embedded manage panel
+  // Rating stars HTML (display-only, 1-5)
+  function _starsHTML(rating) {
+    if (!rating) return '';
+    var s = '';
+    for (var i = 1; i <= 5; i++) {
+      s += '<span class="co-cand-star' + (i <= rating ? ' co-cand-star--on' : '') + '">★</span>';
+    }
+    return '<span class="co-cand-stars">' + s + '</span>';
+  }
+
+  // Priority badge HTML
+  var _PRIORITY_LABELS = { high: 'عالية', medium: 'متوسطة', low: 'منخفضة' };
+  function _priorityBadgeHTML(priority) {
+    if (!priority) return '';
+    return '<span class="co-cand-priority co-cand-priority--' + _esc(priority) + '">'
+      + _esc(_PRIORITY_LABELS[priority] || priority) + '</span>';
+  }
+
+  // Save source Arabic labels
+  var _SOURCE_LABELS = {
+    manual:         'حفظ يدوي',
+    applicant:      'من المتقدمين',
+    suggestion:     'من الاقتراحات',
+    legacy_unknown: 'قديم'
+  };
+
+  // Follow-up status labels
+  var _FU_STATUS_LABELS = { pending: 'قيد المتابعة', done: 'تمت المتابعة', none: '' };
+
+  // Build a single saved card with embedded manage panel (V2)
   function _savedCardHTML(item) {
-    var status   = item.status || 'saved';
-    var notes    = item.notes  || '';
-    var jobId    = item.job_id  != null ? String(item.job_id) : '';
-    var meta     = [item.profession, item.city, item.country].filter(Boolean).join(' · ');
-    var date     = _fmtDate(item.created_at);
-    var cid      = _esc(item.candidate_id);
-    var jobLinks = Array.isArray(item.job_links) ? item.job_links : [];
-    var linkedIds = jobLinks.map(function(jl) { return String(jl.job_id); });
+    var status       = item.status        || 'saved';
+    var notes        = item.notes         || '';
+    var jobId        = item.job_id  != null ? String(item.job_id) : '';
+    var rating       = item.rating        || null;
+    var priority     = item.priority      || null;
+    var tags         = Array.isArray(item.tags) ? item.tags : [];
+    var followUpAt   = item.follow_up_at  || null;
+    var followUpSt   = item.follow_up_status || null;
+    var saveSource   = item.save_source   || null;
+    var meta         = [item.profession, item.city, item.country].filter(Boolean).join(' · ');
+    var date         = _fmtDate(item.created_at);
+    var cid          = _esc(item.candidate_id);
+    var jobLinks     = Array.isArray(item.job_links) ? item.job_links : [];
+    var linkedIds    = jobLinks.map(function(jl) { return String(jl.job_id); });
 
     var html = '<div class="co-cand-saved-card"'
       + ' data-cid="' + cid + '"'
       + ' data-status="' + _esc(status) + '"'
       + ' data-notes="' + _esc(notes) + '"'
       + ' data-jobid="' + _esc(jobId) + '"'
+      + ' data-rating="' + (rating || '') + '"'
+      + ' data-priority="' + _esc(priority || '') + '"'
+      + ' data-tags="' + _esc(JSON.stringify(tags)) + '"'
+      + ' data-follow-up-at="' + _esc(followUpAt || '') + '"'
+      + ' data-follow-up-status="' + _esc(followUpSt || '') + '"'
+      + ' data-save-source="' + _esc(saveSource || '') + '"'
       + ' data-job-links="' + _esc(JSON.stringify(jobLinks)) + '">';
 
     // ── Top row (avatar + info + actions) ────────────────────────
@@ -2968,18 +3112,52 @@
       + '</div>';
 
     html += '<div class="co-cand-info">';
-    html += '<div class="co-cand-name">' + _esc(item.full_name) + '</div>';
+    html += '<div class="co-cand-name-row">';
+    html += '<span class="co-cand-name">' + _esc(item.full_name) + '</span>';
+    if (priority) html += _priorityBadgeHTML(priority);
+    html += '</div>';
     if (meta) html += '<div class="co-cand-meta">' + _esc(meta) + '</div>';
-    // Date + status badge
+
+    // Rating stars + status badge row
     html += '<div class="co-cand-row2">';
+    if (rating) html += _starsHTML(rating);
     if (date) html += '<span class="co-cand-date">حُفظ ' + _esc(date) + '</span>';
     html += '<span class="co-cand-status co-cand-status--' + _esc(_statusKey(status)) + '">'
           + _esc(_statusLabel(status)) + '</span>';
     html += '</div>';
-    // Notes preview
+
+    // Tags (top 3)
+    if (tags.length) {
+      html += '<div class="co-cand-tags-row">';
+      var displayTags = tags.slice(0, 3);
+      displayTags.forEach(function (t) {
+        html += '<span class="co-cand-tag-chip">' + _esc(t) + '</span>';
+      });
+      if (tags.length > 3) {
+        html += '<span class="co-cand-tag-chip co-cand-tag-more">+' + (tags.length - 3) + '</span>';
+      }
+      html += '</div>';
+    }
+
+    // Follow-up indicator
+    if (followUpAt && followUpSt && followUpSt !== 'none') {
+      html += '<div class="co-cand-followup-strip co-cand-followup--' + _esc(followUpSt) + '">'
+        + '<span class="co-cand-followup-lbl">' + _esc(_FU_STATUS_LABELS[followUpSt] || followUpSt) + '</span>'
+        + '<span class="co-cand-followup-date">' + _esc(_fmtDate(followUpAt)) + '</span>'
+        + '</div>';
+    }
+
+    // Save source label
+    if (saveSource && saveSource !== 'manual') {
+      html += '<div class="co-cand-source-lbl">'
+        + _esc(_SOURCE_LABELS[saveSource] || saveSource)
+        + '</div>';
+    }
+
+    // Notes preview (truncated)
     if (notes) html += '<div class="co-cand-notes-pre">' + _esc(notes) + '</div>';
-    // Job chips — clickable, from company_candidate_job_refs + job_applications
-    // All chips rendered; chips beyond index 2 start hidden; +N button reveals them
+
+    // Job chips
     if (jobLinks.length) {
       html += '<div class="co-cand-job-chips">';
       jobLinks.forEach(function (jl, idx) {
@@ -3002,33 +3180,107 @@
     html += '</div>'; // .co-cand-info
 
     html += '<div class="co-cand-actions">';
-    html += '<a class="co-cand-view-btn" href="/u/' + _esc(item.tw_id) + '" target="_blank" rel="noopener">فتح البروفايل</a>';
-    html += '<button class="co-cand-manage-btn" data-cid="' + cid + '">إدارة</button>';
-    html += '<button class="co-cand-remove-btn" data-cid="' + cid + '">إزالة</button>';
+    html += '<a class="co-cand-view-btn" href="/u/' + _esc(item.tw_id) + '" target="_blank" rel="noopener">عرض الملف العام</a>';
+    html += '<button class="co-cand-manage-btn" data-cid="' + cid + '">إدارة الموهبة</button>';
     html += '</div>'; // .co-cand-actions
 
     html += '</div>'; // .co-cand-top
 
-    // ── Manage panel (hidden by default) ─────────────────────────
+    // ── Manage panel (hidden by default) — V2 ────────────────────
     var statusOpts = _STATUS_ORDER.map(function (s) { return {value: s, label: _STATUS_LABELS[s]}; });
+    var fuStatusOpts = [
+      {value: 'none',    label: 'لا متابعة'},
+      {value: 'pending', label: 'قيد المتابعة'},
+      {value: 'done',    label: 'تمت المتابعة'}
+    ];
     html += '<div class="co-cand-manage-panel">';
+
+    // Row 1: Rating (clearable 1-5 stars)
+    html += '<div class="co-panel-section">';
+    html += '<label class="co-cand-panel-label">التقييم</label>';
+    html += '<div class="co-panel-stars" data-rating="' + (rating || 0) + '">';
+    for (var si = 1; si <= 5; si++) {
+      html += '<button type="button" class="co-panel-star' + (rating && si <= rating ? ' on' : '') + '"'
+            + ' data-val="' + si + '">' + '★' + '</button>';
+    }
+    html += '<button type="button" class="co-panel-star-clear" title="مسح التقييم">✕</button>';
+    html += '</div>';
+    html += '</div>';
+
+    // Row 2: Priority
+    var priorityOpts2 = [
+      {value: '',       label: '— بدون أولوية —'},
+      {value: 'high',   label: 'عالية'},
+      {value: 'medium', label: 'متوسطة'},
+      {value: 'low',    label: 'منخفضة'}
+    ];
+    html += '<div class="co-panel-section">';
+    html += '<label class="co-cand-panel-label">الأولوية</label>';
+    html += _dpHTML('co-cand-dp-priority', priorityOpts2, priority || '');
+    html += '</div>';
+
+    // Row 3: Tags
+    html += '<div class="co-panel-section">';
+    html += '<label class="co-cand-panel-label">التصنيفات (tags)</label>';
+    html += '<div class="co-panel-tags-wrap" id="coPanelTags_' + cid + '">';
+    tags.forEach(function (t) {
+      html += '<span class="co-panel-tag">'
+            + '<span class="co-panel-tag-txt">' + _esc(t) + '</span>'
+            + '<button type="button" class="co-panel-tag-del" data-tag="' + _esc(t) + '">✕</button>'
+            + '</span>';
+    });
+    html += '</div>';
+    html += '<div class="co-panel-tag-add-row">';
+    html += '<input type="text" class="co-panel-tag-input" placeholder="أضف tag…" dir="rtl" maxlength="30">';
+    html += '<button type="button" class="co-panel-tag-add-btn">+</button>';
+    html += '</div>';
+    html += '</div>';
+
+    // Row 4: Pipeline status
+    html += '<div class="co-panel-section">';
     html += '<label class="co-cand-panel-label">الحالة في Pipeline</label>';
     html += _dpHTML('co-cand-dp-status', statusOpts, status);
-    html += '<label class="co-cand-panel-label">ملاحظات</label>';
+    html += '</div>';
+
+    // Row 5: General notes
+    html += '<div class="co-panel-section">';
+    html += '<label class="co-cand-panel-label">ملاحظات عامة</label>';
     html += '<div class="co-cand-panel-ta-wrap">';
     html += '<textarea class="co-cand-panel-ta" maxlength="500"'
           + ' placeholder="أضف ملاحظة عن هذا المرشح…" dir="rtl">'
           + _esc(notes) + '</textarea>';
     html += '<span class="co-cand-panel-counter">' + notes.length + ' / 500</span>';
     html += '</div>';
+    html += '</div>';
+
+    // Row 6: Follow-up date + status
+    html += '<div class="co-panel-section">';
+    html += '<label class="co-cand-panel-label">المتابعة</label>';
+    html += '<div class="co-panel-followup-row">';
+    html += '<input type="date" class="co-panel-followup-date" value="' + _esc(followUpAt ? followUpAt.slice(0, 10) : '') + '">';
+    html += _dpHTML('co-cand-dp-fu-status', fuStatusOpts, followUpSt || 'none');
+    html += '</div>';
+    html += '</div>';
+
+    // Row 7: Save source (read-only)
+    if (saveSource) {
+      html += '<div class="co-panel-section co-panel-section--readonly">';
+      html += '<label class="co-cand-panel-label">مصدر الحفظ</label>';
+      html += '<span class="co-panel-source-val">' + _esc(_SOURCE_LABELS[saveSource] || saveSource) + '</span>';
+      html += '</div>';
+    }
+
+    // Link job picker (existing)
+    html += '<div class="co-panel-section">';
     html += _jobDpHTML('', linkedIds);
-    // Per-job candidate status section — one custom picker per linked job.
-    // Source of truth: company_candidate_job_refs.candidate_status (independent of all other status fields).
-    // Picker auto-saves via _handleJobStatusDpSelect → PATCH /company/saved-candidates/{cid}/jobs/{jid}.
+    html += '</div>';
+
+    // Per-job candidate status
     if (jobLinks.length) {
       var jsOpts = [{value: '', label: '— غير مصنف —'}].concat(
         _STATUS_ORDER.map(function (s) { return {value: s, label: _STATUS_LABELS[s]}; })
       );
+      html += '<div class="co-panel-section">';
       html += '<label class="co-cand-panel-label">تصنيف المرشح لكل وظيفة</label>';
       html += '<div class="co-cand-job-status-list">';
       jobLinks.forEach(function (jl) {
@@ -3039,10 +3291,14 @@
         html += '</div>';
       });
       html += '</div>';
+      html += '</div>';
     }
+
+    // Panel actions: Save + Cancel + Remove
     html += '<div class="co-cand-panel-acts">';
     html += '<button class="co-cand-panel-save" data-cid="' + cid + '">حفظ التعديل</button>';
     html += '<button class="co-cand-panel-cancel" data-cid="' + cid + '">إلغاء</button>';
+    html += '<button class="co-cand-panel-remove" data-cid="' + cid + '">إزالة من بنك المواهب</button>';
     html += '</div>';
     html += '</div>'; // .co-cand-manage-panel
 
@@ -3121,6 +3377,9 @@
     var removeBtn = e.target.closest('.co-cand-remove-btn');
     if (removeBtn) { _handleRemove(removeBtn); return; }
 
+    var panelRemoveBtn = e.target.closest('.co-cand-panel-remove');
+    if (panelRemoveBtn) { _handlePanelRemove(panelRemoveBtn); return; }
+
     var manageBtn = e.target.closest('.co-cand-manage-btn');
     if (manageBtn) { _togglePanel(manageBtn); return; }
 
@@ -3129,6 +3388,77 @@
 
     var cancelBtn = e.target.closest('.co-cand-panel-cancel');
     if (cancelBtn) { _closePanelOf(cancelBtn); return; }
+
+    // Star button click — update .co-panel-stars data-rating
+    var starBtn = e.target.closest('.co-panel-star');
+    if (starBtn) {
+      var starsWrap2 = starBtn.closest('.co-panel-stars');
+      if (starsWrap2) {
+        var newR = parseInt(starBtn.getAttribute('data-val') || '0');
+        var curR = parseInt(starsWrap2.getAttribute('data-rating') || '0');
+        // Click same star = clear (toggle off)
+        newR = (newR === curR) ? 0 : newR;
+        starsWrap2.setAttribute('data-rating', newR);
+        starsWrap2.querySelectorAll('.co-panel-star').forEach(function (sb) {
+          sb.classList.toggle('on', parseInt(sb.getAttribute('data-val')) <= newR && newR > 0);
+        });
+      }
+      return;
+    }
+
+    // Clear star button
+    var starClear = e.target.closest('.co-panel-star-clear');
+    if (starClear) {
+      var starsWrap3 = starClear.closest('.co-panel-stars');
+      if (starsWrap3) {
+        starsWrap3.setAttribute('data-rating', '0');
+        starsWrap3.querySelectorAll('.co-panel-star').forEach(function (sb) { sb.classList.remove('on'); });
+      }
+      return;
+    }
+
+    // Tag delete button
+    var tagDelBtn = e.target.closest('.co-panel-tag-del');
+    if (tagDelBtn) {
+      var tagEl2 = tagDelBtn.closest('.co-panel-tag');
+      if (tagEl2) tagEl2.parentNode.removeChild(tagEl2);
+      return;
+    }
+
+    // Tag add button
+    var tagAddBtn = e.target.closest('.co-panel-tag-add-btn');
+    if (tagAddBtn) {
+      var addRow = tagAddBtn.closest('.co-panel-tag-add-row');
+      if (addRow) {
+        var tagInput = addRow.querySelector('.co-panel-tag-input');
+        if (tagInput) {
+          var tagVal = tagInput.value.trim().slice(0, 30);
+          if (!tagVal) return;
+          var panelWrap = tagInput.closest('.co-cand-manage-panel');
+          var tw = panelWrap && panelWrap.querySelector('.co-panel-tags-wrap');
+          if (tw) {
+            // Dedup check
+            var existingTags = tw.querySelectorAll('.co-panel-tag-txt');
+            var isDup = false;
+            existingTags.forEach(function (el) {
+              if (el.textContent.trim().toLowerCase() === tagVal.toLowerCase()) isDup = true;
+            });
+            if (isDup) return;
+            if (existingTags.length >= 20) {
+              if (window.showToast) showToast('الحد الأقصى 20 tag', 'error');
+              return;
+            }
+            var tagSpan = document.createElement('span');
+            tagSpan.className = 'co-panel-tag';
+            tagSpan.innerHTML = '<span class="co-panel-tag-txt">' + _esc(tagVal) + '</span>'
+              + '<button type="button" class="co-panel-tag-del" data-tag="' + _esc(tagVal) + '">✕</button>';
+            tw.appendChild(tagSpan);
+            tagInput.value = '';
+          }
+        }
+      }
+      return;
+    }
   }
 
   // ── Job chip popover ────────────────────────────────────────────
@@ -3343,6 +3673,45 @@
       });
   }
 
+  // Panel remove button — confirm before deleting
+  function _handlePanelRemove(btn) {
+    var cid = parseInt(btn.getAttribute('data-cid'));
+    if (!cid) return;
+    if (!window.confirm('هل تريد إزالة هذا المرشح من بنك المواهب نهائياً؟')) return;
+    btn.disabled    = true;
+    btn.textContent = 'جارٍ الإزالة…';
+    if (!window.deleteSavedCandidate) return;
+    window.deleteSavedCandidate(cid)
+      .then(function (res) {
+        if (res && res.ok) {
+          var card = btn.closest('.co-cand-saved-card');
+          if (card) {
+            card.style.transition = 'opacity .2s';
+            card.style.opacity = '0';
+            setTimeout(function () {
+              if (card.parentNode) card.parentNode.removeChild(card);
+              var list = document.getElementById('coCandSavedList');
+              if (list && !list.querySelector('.co-cand-saved-card')) {
+                list.innerHTML = _savedEmptyHTML(_savedFilter, _savedSearch);
+              }
+            }, 220);
+          }
+          _loadSavedStats(null);
+          _loadTalentBankQuota();
+          if (window.showToast) showToast('تمت إزالة المرشح من بنك المواهب');
+        } else {
+          btn.disabled    = false;
+          btn.textContent = 'إزالة من بنك المواهب';
+          if (window.showToast) showToast('تعذّر الإزالة', 'error');
+        }
+      })
+      .catch(function () {
+        btn.disabled    = false;
+        btn.textContent = 'إزالة من بنك المواهب';
+        if (window.showToast) showToast('تعذّر الإزالة', 'error');
+      });
+  }
+
   function _togglePanel(btn) {
     var card  = btn.closest('.co-cand-saved-card');
     var panel = card ? card.querySelector('.co-cand-manage-panel') : null;
@@ -3381,13 +3750,43 @@
     var panel = card ? card.querySelector('.co-cand-manage-panel') : null;
     if (!panel) return;
 
-    var dpStatus = panel.querySelector('.co-cand-dp-status');
-    var ta       = panel.querySelector('.co-cand-panel-ta');
-    var dpJob    = panel.querySelector('.co-cand-dp-job');
+    var dpStatus   = panel.querySelector('.co-cand-dp-status');
+    var ta         = panel.querySelector('.co-cand-panel-ta');
+    var dpJob      = panel.querySelector('.co-cand-dp-job');
+    var dpPriority = panel.querySelector('.co-cand-dp-priority');
+    var starsWrap  = panel.querySelector('.co-panel-stars');
+    var dpFuStatus = panel.querySelector('.co-cand-dp-fu-status');
+    var fuDateEl   = panel.querySelector('.co-panel-followup-date');
+    var tagsWrap   = panel.querySelector('.co-panel-tags-wrap');
 
     var payload = {};
-    if (dpStatus) payload.status = dpStatus.getAttribute('data-selected') || 'saved';
-    if (ta)       payload.notes  = ta.value;
+    if (dpStatus)   payload.status   = dpStatus.getAttribute('data-selected') || 'saved';
+    if (ta)         payload.notes    = ta.value;
+    if (dpPriority) {
+      var pval = dpPriority.getAttribute('data-selected') || '';
+      payload.priority = pval || null;
+    }
+    if (starsWrap) {
+      var rval = parseInt(starsWrap.getAttribute('data-rating') || '0');
+      payload.rating = rval > 0 ? rval : null;
+    }
+    if (dpFuStatus) {
+      var fsval = dpFuStatus.getAttribute('data-selected') || 'none';
+      payload.follow_up_status = fsval || 'none';
+    }
+    if (fuDateEl) {
+      payload.follow_up_at = fuDateEl.value || null;
+    }
+    // Collect tags from .co-panel-tags-wrap
+    if (tagsWrap) {
+      var tagEls = tagsWrap.querySelectorAll('.co-panel-tag-txt');
+      var collectedTags = [];
+      tagEls.forEach(function (el) {
+        var t = el.textContent.trim();
+        if (t) collectedTags.push(t);
+      });
+      payload.tags = collectedTags.length ? collectedTags : null;
+    }
     if (dpJob) {
       var jval = dpJob.getAttribute('data-selected');
       payload.job_id = jval ? parseInt(jval) : null;
@@ -3495,14 +3894,24 @@
   // Update card in-place after successful PATCH — no full re-render
   function _applyCardUpdate(card, data) {
     if (!card || !data) return;
-    var newStatus = data.status  || 'saved';
-    var newNotes  = data.notes   || '';
-    var newJobId  = data.job_id  != null ? String(data.job_id) : '';
+    var newStatus      = data.status          || 'saved';
+    var newNotes       = data.notes           || '';
+    var newJobId       = data.job_id  != null ? String(data.job_id) : '';
+    var newRating      = data.rating  != null ? data.rating  : null;
+    var newPriority    = data.priority        || null;
+    var newTags        = Array.isArray(data.tags) ? data.tags : [];
+    var newFuAt        = data.follow_up_at    || null;
+    var newFuStatus    = data.follow_up_status || null;
 
     // Update data attributes (source of truth for next panel open)
-    card.setAttribute('data-status', newStatus);
-    card.setAttribute('data-notes',  newNotes);
-    card.setAttribute('data-jobid',  newJobId);
+    card.setAttribute('data-status',          newStatus);
+    card.setAttribute('data-notes',           newNotes);
+    card.setAttribute('data-jobid',           newJobId);
+    card.setAttribute('data-rating',          newRating || '');
+    card.setAttribute('data-priority',        newPriority || '');
+    card.setAttribute('data-tags',            JSON.stringify(newTags));
+    card.setAttribute('data-follow-up-at',    newFuAt || '');
+    card.setAttribute('data-follow-up-status', newFuStatus || '');
 
     // Update status badge class + text
     var badge = card.querySelector('.co-cand-status');
@@ -3553,6 +3962,71 @@
       if (dpJVal) dpJVal.textContent = '— اختر وظيفة لربطها —';
       dpJob.querySelectorAll('.co-dp-opt').forEach(function (o) {
         o.classList.remove('selected');
+      });
+    }
+
+    // Update stars display on card
+    var starsDisplay = card.querySelector('.co-cand-stars');
+    if (starsDisplay) {
+      starsDisplay.innerHTML = '';
+      for (var _si = 1; _si <= 5; _si++) {
+        var s = document.createElement('span');
+        s.className = 'co-cand-star' + (_si <= newRating ? ' co-cand-star--on' : '');
+        s.textContent = '★';
+        starsDisplay.appendChild(s);
+      }
+    } else if (newRating) {
+      var row2b = card.querySelector('.co-cand-row2');
+      if (row2b) {
+        var sd = document.createElement('span');
+        sd.className = 'co-cand-stars';
+        sd.innerHTML = _starsHTML(newRating).replace(/<span class="co-cand-stars">|<\/span>$/g, '');
+        row2b.insertBefore(sd, row2b.firstChild);
+      }
+    }
+
+    // Update priority badge on card
+    var nameRow = card.querySelector('.co-cand-name-row');
+    var oldBadge = nameRow && nameRow.querySelector('.co-cand-priority');
+    if (oldBadge) oldBadge.parentNode.removeChild(oldBadge);
+    if (newPriority && nameRow) {
+      var tmp = document.createElement('div');
+      tmp.innerHTML = _priorityBadgeHTML(newPriority);
+      if (tmp.firstChild) nameRow.appendChild(tmp.firstChild);
+    }
+
+    // Update tags display on card
+    var oldTagsRow = card.querySelector('.co-cand-tags-row');
+    if (oldTagsRow) oldTagsRow.parentNode.removeChild(oldTagsRow);
+    if (newTags.length) {
+      var tagsRowEl = document.createElement('div');
+      tagsRowEl.className = 'co-cand-tags-row';
+      newTags.slice(0, 3).forEach(function (t) {
+        var tc = document.createElement('span');
+        tc.className = 'co-cand-tag-chip';
+        tc.textContent = t;
+        tagsRowEl.appendChild(tc);
+      });
+      if (newTags.length > 3) {
+        var moreChip = document.createElement('span');
+        moreChip.className = 'co-cand-tag-chip co-cand-tag-more';
+        moreChip.textContent = '+' + (newTags.length - 3);
+        tagsRowEl.appendChild(moreChip);
+      }
+      var notesPre2 = card.querySelector('.co-cand-notes-pre');
+      var insertAfter = notesPre2 || card.querySelector('.co-cand-followup-strip') || card.querySelector('.co-cand-row2');
+      if (insertAfter && insertAfter.parentNode) {
+        insertAfter.parentNode.insertBefore(tagsRowEl, insertAfter.nextSibling);
+      }
+    }
+
+    // Sync panel stars widget data-rating
+    var panelStars = card.querySelector('.co-panel-stars');
+    if (panelStars) {
+      panelStars.setAttribute('data-rating', newRating || 0);
+      panelStars.querySelectorAll('.co-panel-star').forEach(function (sb) {
+        var sv = parseInt(sb.getAttribute('data-val') || '0');
+        sb.classList.toggle('on', sv <= newRating);
       });
     }
   }
