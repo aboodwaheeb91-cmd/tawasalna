@@ -2713,7 +2713,11 @@
   // ── Badge ──────────────────────────────────────────────────────
   function _setBadge(count) {
     if (!_badge) return;
-    if (count > 0) {
+    // Prefer quota format (used / limit) when quota is loaded
+    if (_quotaUsed !== null) {
+      _badge.textContent = _quotaUsed + ' / ' + _quotaLimit;
+      _badge.style.display = 'inline-flex';
+    } else if (count > 0) {
       _badge.textContent = count > 99 ? '99+' : String(count);
       _badge.style.display = 'inline-flex';
     } else {
@@ -3002,8 +3006,8 @@
     var sourceOpts = [
       {value:'',           label:'كل المصادر'},
       {value:'manual',     label:'حفظ يدوي'},
-      {value:'applicant',  label:'من المتقدمين'},
-      {value:'suggestion', label:'من الاقتراحات'}
+      {value:'applicant',  label:'متقدم لوظيفة'},
+      {value:'suggestion', label:'اقتراح'}
     ];
     var quotaStr = (_quotaUsed !== null)
       ? ('بنك المواهب: ' + _quotaUsed + ' من ' + _quotaLimit)
@@ -3016,7 +3020,7 @@
       + '<div id="coCandChips" class="co-cand-chips"></div>'
       + '<div class="co-cand-search-row">'
       + '<input id="coCandSearch" type="text" class="co-cand-search"'
-      + ' placeholder="بحث عن مرشح…" dir="rtl" value="' + _esc(_savedSearch) + '">'
+      + ' placeholder="بحث في بنك المواهب…" dir="rtl" value="' + _esc(_savedSearch) + '">'
       + _dpHTML('co-cand-sort-dp', sortOpts, _savedSort)
       + '</div>'
       + '<div class="co-cand-adv-filters">'
@@ -3024,7 +3028,7 @@
       + _dpHTML('co-cand-rating-dp',   ratingOpts,   _savedMinRating)
       + _dpHTML('co-cand-source-dp',   sourceOpts,   _savedSaveSource)
       + '<input id="coCandTagFilter" type="text" class="co-cand-tag-input"'
-      + ' placeholder="فلترة بـ tag…" dir="rtl" value="' + _esc(_savedTag) + '">'
+      + ' placeholder="بحث بالوسم…" dir="rtl" value="' + _esc(_savedTag) + '">'
       + '</div>'
       + '</div>'
       + '<div id="coCandSavedList"></div>'
@@ -3036,15 +3040,9 @@
     if (!el) return;
     var stats    = _savedStats || {};
     var byStatus = stats.by_status || {};
+    // Only the "الكل" total chip — pipeline status filters removed from Talent Bank
     var chips = [
-      [null,          'الكل',             stats.total        || 0],
-      ['saved',       _STATUS_LABELS['saved'],       byStatus.saved       || 0],
-      ['shortlisted', _STATUS_LABELS['shortlisted'],  byStatus.shortlisted || 0],
-      ['contacted',   _STATUS_LABELS['contacted'],    byStatus.contacted   || 0],
-      ['interview',   _STATUS_LABELS['interview'],    byStatus.interview   || 0],
-      ['hired',       _STATUS_LABELS['hired'],        byStatus.hired       || 0],
-      ['rejected',    _STATUS_LABELS['rejected'],     byStatus.rejected    || 0],
-      ['_unlinked',   'بدون وظيفة',       stats.unlinked       || 0]
+      [null, 'الكل', stats.total || 0],
     ];
     var html = '';
     chips.forEach(function (c) {
@@ -3149,6 +3147,7 @@
       if (d && d.used !== undefined) {
         _quotaUsed  = d.used;
         _quotaLimit = d.limit || 25;
+        _setBadge(_quotaUsed);
         var lbl = document.getElementById('coTbQuotaLbl');
         if (lbl) lbl.textContent = 'بنك المواهب: ' + _quotaUsed + ' من ' + _quotaLimit;
       }
@@ -3175,8 +3174,6 @@
     if (oldBtn && oldBtn.parentNode) oldBtn.parentNode.removeChild(oldBtn);
 
     var filters = {};
-    if (_savedFilter === '_unlinked')  { filters.unlinked = true; }
-    else if (_savedFilter)             { filters.status = _savedFilter; }
     if (_savedSearch)         filters.q                  = _savedSearch;
     if (_savedPriority)       filters.priority           = _savedPriority;
     if (_savedMinRating)      filters.min_rating         = _savedMinRating;
@@ -3289,9 +3286,9 @@
   // Save source Arabic labels
   var _SOURCE_LABELS = {
     manual:         'حفظ يدوي',
-    applicant:      'من المتقدمين',
-    suggestion:     'من الاقتراحات',
-    legacy_unknown: 'قديم'
+    applicant:      'متقدم لوظيفة',
+    suggestion:     'اقتراح',
+    legacy_unknown: 'بيانات سابقة'
   };
 
   // Follow-up status labels
@@ -3328,7 +3325,7 @@
       + ' data-save-source="' + _esc(saveSource || '') + '"'
       + ' data-job-links="' + _esc(JSON.stringify(jobLinks)) + '">';
 
-    // ── Top row (avatar + info + actions) ────────────────────────
+    // ── Top row: avatar + compact name/meta + action buttons ─────
     html += '<div class="co-cand-top">';
 
     html += '<div class="co-cand-ava">'
@@ -3337,32 +3334,37 @@
           : _avatarSvg)
       + '</div>';
 
-    html += '<div class="co-cand-info">';
+    // Compact head: name + profession/location only (no priority here)
+    html += '<div class="co-cand-info-head">';
     html += '<div class="co-cand-name-row">';
     html += '<span class="co-cand-name">' + _esc(item.full_name) + '</span>';
-    if (priority) html += _priorityBadgeHTML(priority);
     html += '</div>';
     if (meta) html += '<div class="co-cand-meta">' + _esc(meta) + '</div>';
+    html += '</div>'; // .co-cand-info-head
 
-    // Rating stars + status badge row
-    html += '<div class="co-cand-row2">';
-    if (rating) html += _starsHTML(rating);
-    if (date) html += '<span class="co-cand-date">حُفظ ' + _esc(date) + '</span>';
-    html += '<span class="co-cand-status co-cand-status--' + _esc(_statusKey(status)) + '">'
-          + _esc(_statusLabel(status)) + '</span>';
-    html += '</div>';
+    // Action buttons — opposite side (RTL: left; LTR: right)
+    html += '<div class="co-cand-actions">';
+    html += '<button class="co-cand-manage-btn co-cand-manage-btn--primary" data-cid="' + cid + '">إدارة الموهبة</button>';
+    html += '<a class="co-cand-view-btn" href="/u/' + _esc(item.tw_id) + '" target="_blank" rel="noopener">'
+          + '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:11px;height:11px;flex-shrink:0">'
+          + '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>'
+          + 'عرض الملف</a>';
+    html += '</div>'; // .co-cand-actions
 
-    // Tags (top 3)
-    if (tags.length) {
-      html += '<div class="co-cand-tags-row">';
-      var displayTags = tags.slice(0, 3);
-      displayTags.forEach(function (t) {
-        html += '<span class="co-cand-tag-chip">' + _esc(t) + '</span>';
-      });
-      if (tags.length > 3) {
-        html += '<span class="co-cand-tag-chip co-cand-tag-more">+' + (tags.length - 3) + '</span>';
+    html += '</div>'; // .co-cand-top
+
+    // ── Meta strip: rating · priority · date · source ──────────
+    var hasStrip = rating || priority || date || saveSource;
+    if (hasStrip) {
+      html += '<div class="co-cand-strip">';
+      if (rating) html += _starsHTML(rating);
+      if (priority) html += _priorityBadgeHTML(priority);
+      if (date) html += '<span class="co-cand-date">حُفظ ' + _esc(date) + '</span>';
+      if (saveSource) {
+        html += '<span class="co-cand-source-lbl">'
+              + _esc(_SOURCE_LABELS[saveSource] || saveSource) + '</span>';
       }
-      html += '</div>';
+      html += '</div>'; // .co-cand-strip
     }
 
     // Follow-up indicator
@@ -3373,54 +3375,74 @@
         + '</div>';
     }
 
-    // Save source label
-    if (saveSource && saveSource !== 'manual') {
-      html += '<div class="co-cand-source-lbl">'
-        + _esc(_SOURCE_LABELS[saveSource] || saveSource)
-        + '</div>';
+    // Tags (top 3 + "+N")
+    if (tags.length) {
+      html += '<div class="co-cand-tags-row">';
+      tags.slice(0, 3).forEach(function (t) {
+        html += '<span class="co-cand-tag-chip">' + _esc(t) + '</span>';
+      });
+      if (tags.length > 3) {
+        html += '<span class="co-cand-tag-chip co-cand-tag-more">+' + (tags.length - 3) + '</span>';
+      }
+      html += '</div>';
     }
 
     // Notes preview (truncated)
     if (notes) html += '<div class="co-cand-notes-pre">' + _esc(notes) + '</div>';
 
-    // Job chips
-    if (jobLinks.length) {
-      html += '<div class="co-cand-job-chips">';
-      jobLinks.forEach(function (jl, idx) {
-        var applyDate   = jl.apply_date ? _fmtDate(jl.apply_date) : '';
-        var hiddenCls   = idx >= 3 ? ' co-cand-job-chip--hidden' : '';
-        var peId        = jl.pipeline_entry_id != null ? String(jl.pipeline_entry_id) : '';
-        var appId       = jl.application_id    != null ? String(jl.application_id)    : '';
-        var notesCount  = jl.pipeline_notes_count != null ? String(jl.pipeline_notes_count) : '0';
-        var nextApptId  = (jl.next_appointment && jl.next_appointment.id) ? String(jl.next_appointment.id) : '';
-        var nextApptSt  = (jl.next_appointment && jl.next_appointment.status) ? jl.next_appointment.status : '';
-        html += '<button class="co-cand-job-chip' + hiddenCls + '" type="button"'
-              + ' data-jid="' + _esc(String(jl.job_id)) + '"'
-              + ' data-title="' + _esc(jl.title || '') + '"'
-              + ' data-apply-date="' + _esc(applyDate) + '"'
-              + ' data-app-status="' + _esc(jl.application_status || '') + '"'
-              + ' data-cand-status="' + _esc(jl.candidate_status || '') + '"'
-              + ' data-pe-id="' + _esc(peId) + '"'
-              + ' data-app-id="' + _esc(appId) + '"'
-              + ' data-notes-count="' + _esc(notesCount) + '"'
-              + ' data-next-appt-id="' + _esc(nextApptId) + '"'
-              + ' data-next-appt-status="' + _esc(nextApptSt) + '">'
-              + _esc(jl.title || ('وظيفة #' + jl.job_id)) + '</button>';
-      });
-      if (jobLinks.length > 3) {
-        html += '<button class="co-cand-chip-more-btn" type="button" aria-label="عرض المزيد من الوظائف">+'
-              + (jobLinks.length - 3) + '</button>';
-      }
-      html += '</div>';
+    // Job chips — split into two sections: real applications vs pipeline-only
+    // Build a shared chip helper
+    function _buildChip(jl, idx, maxVisible) {
+      var applyDate   = jl.apply_date ? _fmtDate(jl.apply_date) : '';
+      var hiddenCls   = idx >= maxVisible ? ' co-cand-job-chip--hidden' : '';
+      var peId        = jl.pipeline_entry_id != null ? String(jl.pipeline_entry_id) : '';
+      var appId       = jl.application_id    != null ? String(jl.application_id)    : '';
+      var notesCount  = jl.pipeline_notes_count != null ? String(jl.pipeline_notes_count) : '0';
+      var nextApptId  = (jl.next_appointment && jl.next_appointment.id) ? String(jl.next_appointment.id) : '';
+      var nextApptSt  = (jl.next_appointment && jl.next_appointment.status) ? jl.next_appointment.status : '';
+      var extraCls    = appId ? ' co-cand-job-chip--applied' : '';
+      return '<button class="co-cand-job-chip' + hiddenCls + extraCls + '" type="button"'
+           + ' data-jid="' + _esc(String(jl.job_id)) + '"'
+           + ' data-title="' + _esc(jl.title || '') + '"'
+           + ' data-apply-date="' + _esc(applyDate) + '"'
+           + ' data-app-status="' + _esc(jl.application_status || '') + '"'
+           + ' data-cand-status="' + _esc(jl.candidate_status || '') + '"'
+           + ' data-pe-id="' + _esc(peId) + '"'
+           + ' data-app-id="' + _esc(appId) + '"'
+           + ' data-notes-count="' + _esc(notesCount) + '"'
+           + ' data-next-appt-id="' + _esc(nextApptId) + '"'
+           + ' data-next-appt-status="' + _esc(nextApptSt) + '">'
+           + _esc(jl.title || ('وظيفة #' + jl.job_id)) + '</button>';
     }
-    html += '</div>'; // .co-cand-info
 
-    html += '<div class="co-cand-actions">';
-    html += '<a class="co-cand-view-btn" href="/u/' + _esc(item.tw_id) + '" target="_blank" rel="noopener">عرض الملف العام</a>';
-    html += '<button class="co-cand-manage-btn" data-cid="' + cid + '">إدارة الموهبة</button>';
-    html += '</div>'; // .co-cand-actions
+    if (jobLinks.length) {
+      var appliedLinks  = jobLinks.filter(function (jl) { return jl.application_id != null; });
+      var linkedOnly    = jobLinks.filter(function (jl) { return jl.application_id == null; });
 
-    html += '</div>'; // .co-cand-top
+      if (appliedLinks.length) {
+        html += '<div class="co-cand-job-section">';
+        html += '<span class="co-cand-job-section-title">تقدّم إلى:</span>';
+        html += '<div class="co-cand-job-chips">';
+        appliedLinks.forEach(function (jl, idx) { html += _buildChip(jl, idx, 2); });
+        if (appliedLinks.length > 2) {
+          html += '<button class="co-cand-chip-more-btn" type="button" aria-label="عرض المزيد">+'
+                + (appliedLinks.length - 2) + '</button>';
+        }
+        html += '</div></div>';
+      }
+
+      if (linkedOnly.length) {
+        html += '<div class="co-cand-job-section">';
+        html += '<span class="co-cand-job-section-title">مرتبط بوظيفة:</span>';
+        html += '<div class="co-cand-job-chips">';
+        linkedOnly.forEach(function (jl, idx) { html += _buildChip(jl, idx, 2); });
+        if (linkedOnly.length > 2) {
+          html += '<button class="co-cand-chip-more-btn" type="button" aria-label="عرض المزيد">+'
+                + (linkedOnly.length - 2) + '</button>';
+        }
+        html += '</div></div>';
+      }
+    }
 
     // ── Manage panel (hidden by default) — V2 ────────────────────
     // Sections: Rating · Priority · Tags · Notes · Follow-up · Save source (read-only)
@@ -3480,15 +3502,18 @@
     html += '<textarea class="co-cand-panel-ta" maxlength="500"'
           + ' placeholder="أضف ملاحظة عن هذا المرشح…" dir="rtl">'
           + _esc(notes) + '</textarea>';
-    html += '<span class="co-cand-panel-counter">' + notes.length + ' / 500</span>';
+    html += '<span class="co-cand-panel-counter" dir="ltr">' + notes.length + ' / 500</span>';
     html += '</div>';
     html += '</div>';
 
-    // Row 5: Follow-up date + status
+    // Row 5: Follow-up — split into two clearly labelled sub-sections
     html += '<div class="co-panel-section">';
-    html += '<label class="co-cand-panel-label">المتابعة</label>';
-    html += '<div class="co-panel-followup-row">';
+    html += '<div class="co-panel-subsection">';
+    html += '<label class="co-cand-panel-sublabel">تاريخ المتابعة</label>';
     html += '<input type="date" class="co-panel-followup-date" value="' + _esc(followUpAt ? followUpAt.slice(0, 10) : '') + '">';
+    html += '</div>';
+    html += '<div class="co-panel-subsection">';
+    html += '<label class="co-cand-panel-sublabel">حالة المتابعة</label>';
     html += _dpHTML('co-cand-dp-fu-status', fuStatusOpts, followUpSt || 'none');
     html += '</div>';
     html += '</div>';
@@ -3676,7 +3701,7 @@
     var title         = chip.getAttribute('data-title') || '';
     var applyDate     = chip.getAttribute('data-apply-date') || '';
     var candJobSt     = chip.getAttribute('data-cand-status') || '';
-    var candJobLbl    = candJobSt ? (_STATUS_LABELS[candJobSt] || candJobSt) : 'غير مصنف';
+    var candJobLbl    = candJobSt ? (_STATUS_LABELS[candJobSt] || candJobSt) : 'لم يتم ترشيحه بعد';
     var candJobCls    = candJobSt ? 'co-cjp-cand-job-st' : 'co-cjp-no-app';
     var peId          = chip.getAttribute('data-pe-id') || '';
     var appId         = chip.getAttribute('data-app-id') || '';
@@ -3700,7 +3725,7 @@
 
     var html = '<div class="co-cjp-title">' + _esc(title) + '</div>';
     html += '<div class="co-cjp-row"><span>حالة المرشح في هذه الوظيفة</span><span class="' + candJobCls + '">' + _esc(candJobLbl) + '</span></div>';
-    if (applyDate) {
+    if (appId && applyDate) {
       html += '<div class="co-cjp-row co-cjp-row--date"><span>تاريخ التقدم</span><span>' + _esc(applyDate) + '</span></div>';
     }
     // Pipeline action buttons — only when this chip has a real pipeline entry

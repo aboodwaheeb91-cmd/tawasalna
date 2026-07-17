@@ -5505,8 +5505,12 @@ def get_company_saved_candidates_filtered(
             params["min_rating"] = min_rating
 
         if tag:
-            where_parts.append(":tag = ANY(sc.tags)")
-            params["tag"] = tag
+            # Prefix match (case-insensitive) — escape LIKE special chars
+            _tag_esc = tag.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+            where_parts.append(
+                "EXISTS (SELECT 1 FROM unnest(sc.tags) AS _t WHERE _t ILIKE :tag_prefix ESCAPE '\\\\')"
+            )
+            params["tag_prefix"] = _tag_esc + "%"
 
         if save_source_filter:
             where_parts.append("sc.save_source = :save_source_filter")

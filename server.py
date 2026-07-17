@@ -2263,6 +2263,13 @@ def company_saved_candidates_list(
         if not q:
             q = None
 
+    if tag is not None:
+        tag = tag.strip()
+        if len(tag) > 50:
+            raise HTTPException(400, "tag يجب ألا يتجاوز 50 حرفاً")
+        if not tag:
+            tag = None
+
     if priority is not None and priority not in ('low', 'medium', 'high'):
         raise HTTPException(400, "priority غير صالح. القيم المسموحة: low, medium, high")
 
