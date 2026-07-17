@@ -3020,29 +3020,6 @@
     } catch (e) { return ''; }
   }
 
-  // Build custom job picker — linked jobs (in company_candidate_job_refs) shown disabled+✓
-  function _jobDpHTML(currentJobId, linkedJobIds) {
-    var linked = Array.isArray(linkedJobIds) ? linkedJobIds : [];
-    var jobs = (window.companyState && companyState.jobs)
-      ? companyState.jobs.filter(function (j) {
-          var eff = j.effective_status || j.status;
-          return eff === 'active' || eff === 'paused' || j.status === 'open';
-        })
-      : [];
-    if (!jobs.length) return '';
-    var opts = [{value: '', label: '— اختر وظيفة لربطها —'}];
-    jobs.forEach(function (j) {
-      var isLinked = linked.indexOf(String(j.id)) !== -1;
-      opts.push({
-        value:    String(j.id),
-        label:    (isLinked ? '✓ ' : '') + (j.title || ('وظيفة #' + j.id)),
-        disabled: isLinked,
-      });
-    });
-    return '<label class="co-cand-panel-label">ربط بوظيفة</label>'
-         + _dpHTML('co-cand-dp-job', opts, currentJobId || '');
-  }
-
   // Rating stars HTML (display-only, 1-5)
   function _starsHTML(rating) {
     if (!rating) return '';
@@ -3187,7 +3164,8 @@
     html += '</div>'; // .co-cand-top
 
     // ── Manage panel (hidden by default) — V2 ────────────────────
-    var statusOpts = _STATUS_ORDER.map(function (s) { return {value: s, label: _STATUS_LABELS[s]}; });
+    // Sections: Rating · Priority · Tags · Notes · Follow-up · Save source (read-only)
+    // Pipeline status and Job link are NOT in this panel (managed separately).
     var fuStatusOpts = [
       {value: 'none',    label: 'لا متابعة'},
       {value: 'pending', label: 'قيد المتابعة'},
@@ -3236,13 +3214,7 @@
     html += '</div>';
     html += '</div>';
 
-    // Row 4: Pipeline status
-    html += '<div class="co-panel-section">';
-    html += '<label class="co-cand-panel-label">الحالة في Pipeline</label>';
-    html += _dpHTML('co-cand-dp-status', statusOpts, status);
-    html += '</div>';
-
-    // Row 5: General notes
+    // Row 4: General notes
     html += '<div class="co-panel-section">';
     html += '<label class="co-cand-panel-label">ملاحظات عامة</label>';
     html += '<div class="co-cand-panel-ta-wrap">';
@@ -3253,7 +3225,7 @@
     html += '</div>';
     html += '</div>';
 
-    // Row 6: Follow-up date + status
+    // Row 5: Follow-up date + status
     html += '<div class="co-panel-section">';
     html += '<label class="co-cand-panel-label">المتابعة</label>';
     html += '<div class="co-panel-followup-row">';
@@ -3262,35 +3234,11 @@
     html += '</div>';
     html += '</div>';
 
-    // Row 7: Save source (read-only)
+    // Row 6: Save source (read-only)
     if (saveSource) {
       html += '<div class="co-panel-section co-panel-section--readonly">';
       html += '<label class="co-cand-panel-label">مصدر الحفظ</label>';
       html += '<span class="co-panel-source-val">' + _esc(_SOURCE_LABELS[saveSource] || saveSource) + '</span>';
-      html += '</div>';
-    }
-
-    // Link job picker (existing)
-    html += '<div class="co-panel-section">';
-    html += _jobDpHTML('', linkedIds);
-    html += '</div>';
-
-    // Per-job candidate status
-    if (jobLinks.length) {
-      var jsOpts = [{value: '', label: '— غير مصنف —'}].concat(
-        _STATUS_ORDER.map(function (s) { return {value: s, label: _STATUS_LABELS[s]}; })
-      );
-      html += '<div class="co-panel-section">';
-      html += '<label class="co-cand-panel-label">تصنيف المرشح لكل وظيفة</label>';
-      html += '<div class="co-cand-job-status-list">';
-      jobLinks.forEach(function (jl) {
-        var cs = jl.candidate_status || '';
-        html += '<div class="co-cand-job-status-row" data-jid="' + _esc(String(jl.job_id)) + '">';
-        html += '<span class="co-cand-job-status-title">' + _esc(jl.title || ('وظيفة #' + jl.job_id)) + '</span>';
-        html += _dpHTML('co-cand-job-status-dp', jsOpts, cs, {cid: item.candidate_id, jid: jl.job_id, locked: !!_jobStatusInFlight[String(item.candidate_id)]});
-        html += '</div>';
-      });
-      html += '</div>';
       html += '</div>';
     }
 
@@ -3576,63 +3524,6 @@
       if (infoDiv) infoDiv.appendChild(wrap);
     }
 
-    // 3. Per-job status section in manage panel
-    var panel = card.querySelector('.co-cand-manage-panel');
-    if (panel) {
-      var statusList  = panel.querySelector('.co-cand-job-status-list');
-      var actsDiv     = panel.querySelector('.co-cand-panel-acts');
-      var cid         = card.getAttribute('data-cid') || '';
-      if (links.length === 0) {
-        // Remove label + list when no jobs remain
-        if (statusList) {
-          var prevEl = statusList.previousElementSibling;
-          if (prevEl && prevEl.classList.contains('co-cand-panel-label')) prevEl.remove();
-          statusList.remove();
-        }
-      } else {
-        var jsOpts2 = [{value: '', label: '— غير مصنف —'}].concat(
-          _STATUS_ORDER.map(function (s) { return {value: s, label: _STATUS_LABELS[s]}; })
-        );
-        var rowsHtml = links.map(function (jl) {
-          var cs = jl.candidate_status || '';
-          return '<div class="co-cand-job-status-row" data-jid="' + _esc(String(jl.job_id)) + '">'
-               + '<span class="co-cand-job-status-title">' + _esc(jl.title || ('وظيفة #' + jl.job_id)) + '</span>'
-               + _dpHTML('co-cand-job-status-dp', jsOpts2, cs, {cid: cid, jid: jl.job_id, locked: isLocked})
-               + '</div>';
-        }).join('');
-        if (statusList) {
-          statusList.innerHTML = rowsHtml;
-        } else {
-          // Create label + list and insert before the action buttons
-          var labelEl = document.createElement('label');
-          labelEl.className = 'co-cand-panel-label';
-          labelEl.textContent = 'تصنيف المرشح لكل وظيفة';
-          var listEl = document.createElement('div');
-          listEl.className = 'co-cand-job-status-list';
-          listEl.innerHTML = rowsHtml;
-          if (actsDiv) {
-            panel.insertBefore(listEl, actsDiv);
-            panel.insertBefore(labelEl, listEl);
-          } else {
-            panel.appendChild(labelEl);
-            panel.appendChild(listEl);
-          }
-        }
-      }
-    }
-
-    // 4. Job picker disabled states
-    var linkedIds = links.map(function (jl) { return String(jl.job_id); });
-    var dpJob = card.querySelector('.co-cand-dp-job');
-    if (dpJob) {
-      dpJob.querySelectorAll('.co-dp-opt').forEach(function (o) {
-        var val      = o.getAttribute('data-value');
-        var isLinked = val && linkedIds.indexOf(val) !== -1;
-        o.classList.toggle('co-dp-opt--disabled', isLinked);
-        if (isLinked) o.setAttribute('data-linked', '1');
-        else o.removeAttribute('data-linked');
-      });
-    }
   }
 
   // Thin wrapper kept for any external callers — delegates to unified helper
@@ -3743,25 +3634,25 @@
     if (manBtn) manBtn.classList.remove('active');
   }
 
+  // Talent Bank manage panel save — sends ONLY talent management fields.
+  // Pipeline status (status) and Job link (job_id) are NEVER sent from this panel.
   function _handlePanelSave(btn) {
-    var cid  = parseInt(btn.getAttribute('data-cid'));
+    var cid = parseInt(btn.getAttribute('data-cid'));
     if (!cid) return;
     var card  = btn.closest('.co-cand-saved-card');
     var panel = card ? card.querySelector('.co-cand-manage-panel') : null;
     if (!panel) return;
 
-    var dpStatus   = panel.querySelector('.co-cand-dp-status');
     var ta         = panel.querySelector('.co-cand-panel-ta');
-    var dpJob      = panel.querySelector('.co-cand-dp-job');
     var dpPriority = panel.querySelector('.co-cand-dp-priority');
     var starsWrap  = panel.querySelector('.co-panel-stars');
     var dpFuStatus = panel.querySelector('.co-cand-dp-fu-status');
     var fuDateEl   = panel.querySelector('.co-panel-followup-date');
     var tagsWrap   = panel.querySelector('.co-panel-tags-wrap');
 
+    // Build payload — talent fields only; status and job_id are explicitly excluded.
     var payload = {};
-    if (dpStatus)   payload.status   = dpStatus.getAttribute('data-selected') || 'saved';
-    if (ta)         payload.notes    = ta.value;
+    if (ta) payload.notes = ta.value;
     if (dpPriority) {
       var pval = dpPriority.getAttribute('data-selected') || '';
       payload.priority = pval || null;
@@ -3777,7 +3668,6 @@
     if (fuDateEl) {
       payload.follow_up_at = fuDateEl.value || null;
     }
-    // Collect tags from .co-panel-tags-wrap
     if (tagsWrap) {
       var tagEls = tagsWrap.querySelectorAll('.co-panel-tag-txt');
       var collectedTags = [];
@@ -3786,10 +3676,6 @@
         if (t) collectedTags.push(t);
       });
       payload.tags = collectedTags.length ? collectedTags : null;
-    }
-    if (dpJob) {
-      var jval = dpJob.getAttribute('data-selected');
-      payload.job_id = jval ? parseInt(jval) : null;
     }
 
     if (!window.updateSavedCandidate) return;
@@ -3802,85 +3688,12 @@
           if (window.showToast) showToast('تعذّر الحفظ', 'error');
           return;
         }
-        var updated  = res.data.item;
-        var newJobId = payload.job_id;
+        var updated = res.data.item;
+        _applyCardUpdate(card, updated);
+        _closePanelOf(btn);
+        _loadSavedStats(null);
 
-        var curLinks = [];
-        try { curLinks = JSON.parse(card.getAttribute('data-job-links') || '[]'); } catch (e) {}
-        var alreadyLinked = newJobId && curLinks.some(function (jl) { return String(jl.job_id) === String(newJobId); });
-
-        // Build POST promise for new unlinked job; null means no POST needed.
-        // .catch normalises network errors to {ok:false} so the chain never rejects silently.
-        var postP = (newJobId && !alreadyLinked)
-          ? (function () {
-              var jwt2 = window._jwt ? window._jwt() : '';
-              return fetch('/company/saved-candidates/' + cid + '?job_id=' + newJobId, {
-                method: 'POST',
-                headers: { 'Authorization': 'Bearer ' + jwt2 }
-              })
-              .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
-              .catch(function () { return { ok: false }; });
-            })()
-          : Promise.resolve(null);
-
-        // Return postP so the outer .finally waits for it
-        return postP.then(function (postRes) {
-          // POST was required but failed — block all success side-effects
-          if (postRes !== null && (!postRes || !postRes.ok)) {
-            if (window.showToast) showToast('تعذّر ربط الوظيفة، جارٍ إعادة التحميل…', 'error');
-            _fetchSaved(); // reload list from company_candidate_job_refs (source of truth)
-            return;
-          }
-
-          // Both PATCH and POST (if needed) succeeded
-          _applyCardUpdate(card, updated);
-
-          if (postRes && postRes.ok) {
-            var jobObj = (window.companyState && companyState.jobs)
-              ? companyState.jobs.find(function (j) { return String(j.id) === String(newJobId); })
-              : null;
-            var newLink = {
-              job_id:               newJobId,
-              title:                jobObj ? jobObj.title : ('وظيفة #' + newJobId),
-              apply_date:           null,
-              application_status:   null,
-              status:               null,  // deprecated alias = application_status
-              candidate_status:     null,
-            };
-            var links = [];
-            try { links = JSON.parse(card.getAttribute('data-job-links') || '[]'); } catch (e) {}
-            links.push(newLink);
-            _updateChips(card, links);
-            var dpJob2 = card.querySelector('.co-cand-dp-job');
-            if (dpJob2) {
-              dpJob2.setAttribute('data-selected', '');
-              var dpJVal2 = dpJob2.querySelector('.co-dp-val');
-              if (dpJVal2) dpJVal2.textContent = '— اختر وظيفة لربطها —';
-              dpJob2.querySelectorAll('.co-dp-opt').forEach(function (o) { o.classList.remove('selected'); });
-            }
-          }
-
-          _closePanelOf(btn);
-          _loadSavedStats(null);
-
-          // _unlinked filter uses data-job-links (company_candidate_job_refs), not updated.job_id
-          var linksAfter = [];
-          try { linksAfter = JSON.parse(card.getAttribute('data-job-links') || '[]'); } catch (e) {}
-          var shouldHide = (_savedFilter && _savedFilter !== '_unlinked' && updated.status !== _savedFilter)
-            || (_savedFilter === '_unlinked' && linksAfter.length > 0);
-          if (shouldHide) {
-            card.style.transition = 'opacity .2s';
-            card.style.opacity = '0';
-            setTimeout(function () {
-              if (card.parentNode) card.parentNode.removeChild(card);
-              var list = document.getElementById('coCandSavedList');
-              if (list && !list.querySelector('.co-cand-saved-card')) {
-                list.innerHTML = _savedEmptyHTML(_savedFilter, _savedSearch);
-              }
-            }, 220);
-          }
-          if (window.showToast) showToast('تم تحديث المرشح');
-        });
+        if (window.showToast) showToast('تم تحديث المرشح');
       })
       .catch(function () {
         if (window.showToast) showToast('تعذّر الحفظ', 'error');
@@ -3942,28 +3755,6 @@
     // Remove legacy raw ID display if present
     var jobRef = card.querySelector('.co-cand-job-ref');
     if (jobRef) jobRef.parentNode.removeChild(jobRef);
-
-    // Sync custom status picker display for next panel open
-    var dpStatus = card.querySelector('.co-cand-dp-status');
-    if (dpStatus) {
-      dpStatus.setAttribute('data-selected', newStatus);
-      var dpSVal = dpStatus.querySelector('.co-dp-val');
-      if (dpSVal) dpSVal.textContent = _statusLabel(newStatus);
-      dpStatus.querySelectorAll('.co-dp-opt').forEach(function (o) {
-        o.classList.toggle('selected', o.getAttribute('data-value') === newStatus);
-      });
-    }
-
-    // Reset job picker to empty (picker is for adding new links, not showing current)
-    var dpJob = card.querySelector('.co-cand-dp-job');
-    if (dpJob) {
-      dpJob.setAttribute('data-selected', '');
-      var dpJVal = dpJob.querySelector('.co-dp-val');
-      if (dpJVal) dpJVal.textContent = '— اختر وظيفة لربطها —';
-      dpJob.querySelectorAll('.co-dp-opt').forEach(function (o) {
-        o.classList.remove('selected');
-      });
-    }
 
     // Update stars display on card
     var starsDisplay = card.querySelector('.co-cand-stars');

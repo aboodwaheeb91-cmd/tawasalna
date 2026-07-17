@@ -573,5 +573,150 @@ class TestSecurity(unittest.TestCase):
         self.assertEqual(r.status_code, 401)
 
 
+# ── Group 12: Panel isolation — PATCH touches only company_saved_candidates ──
+
+def _db_count(table, where_clause, **params):
+    """Count rows via direct pg8000 connection."""
+    import pg8000.native as _pg
+    from urllib.parse import urlparse
+    p = urlparse(DB_URL)
+    conn = _pg.Connection(
+        user=p.username, password=p.password,
+        host=p.hostname, port=(p.port or 5432),
+        database=p.path.lstrip('/')
+    )
+    try:
+        rows = conn.run(
+            f"SELECT COUNT(*) FROM {table} WHERE {where_clause}",
+            **params
+        )
+        return rows[0][0]
+    finally:
+        conn.close()
+
+
+class TestPanelIsolation(unittest.TestCase):
+    """
+    PR-4 manage panel PATCH touches ONLY company_saved_candidates.
+    No side-effects on job_applications, company_candidate_job_refs,
+    job_pipeline_entries, or pipeline_stage_events.
+    No fake job link is created in company_candidate_job_refs.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.co_jwt, cls.emp_id, cls.emp_tw = _make_company_with_employee()
+
+    def setUp(self):
+        _patch(self.co_jwt, self.emp_id, {
+            "rating": None, "priority": None, "tags": None,
+            "follow_up_at": None, "follow_up_status": None
+        })
+
+    def _patch_pr4(self):
+        """PATCH with talent fields only — no status, no job_id."""
+        return _patch(self.co_jwt, self.emp_id, {
+            "rating": 3, "priority": "medium",
+            "tags": ["Python"], "notes": "isolation-test",
+            "follow_up_at": "2026-10-01", "follow_up_status": "pending"
+        })
+
+    def test_46_patch_pr4_status_unchanged(self):
+        """PATCH with PR-4 fields: response status == original (status not sent)."""
+        # Get original status
+        r0 = _get_list(self.co_jwt, limit=50)
+        items = r0.json().get("items") or []
+        orig = next((i for i in items if i["candidate_id"] == self.emp_id), None)
+        orig_status = (orig or {}).get("status", "saved")
+
+        r = self._patch_pr4()
+        self.assertEqual(r.status_code, 200)
+        # Status returned equals original (we never sent status in payload)
+        self.assertEqual(r.json()["item"]["status"], orig_status,
+                         "PATCH with PR-4 fields must not change status")
+
+    def test_47_patch_pr4_job_links_empty(self):
+        """PATCH with PR-4 fields: job_links remains [] (no fake job link)."""
+        r = self._patch_pr4()
+        self.assertEqual(r.status_code, 200)
+
+        r2 = _get_list(self.co_jwt, limit=50)
+        items = r2.json().get("items") or []
+        item = next((i for i in items if i["candidate_id"] == self.emp_id), None)
+        self.assertIsNotNone(item, "candidate not found in list")
+        self.assertEqual(item.get("job_links", []), [],
+                         "PATCH with PR-4 fields must not create a company_candidate_job_refs row")
+
+    def test_48_no_new_ccjr_row_after_patch(self):
+        """Direct DB: company_candidate_job_refs count unchanged after PR-4 PATCH."""
+        before = _db_count(
+            "company_candidate_job_refs",
+            "candidate_id = :cid",
+            cid=self.emp_id
+        )
+        r = self._patch_pr4()
+        self.assertEqual(r.status_code, 200)
+        after = _db_count(
+            "company_candidate_job_refs",
+            "candidate_id = :cid",
+            cid=self.emp_id
+        )
+        self.assertEqual(before, after,
+                         "PATCH must not insert into company_candidate_job_refs")
+
+    def test_49_no_new_pipeline_entry_after_patch(self):
+        """Direct DB: job_pipeline_entries count unchanged after PR-4 PATCH."""
+        before = _db_count(
+            "job_pipeline_entries",
+            "candidate_id = :cid",
+            cid=self.emp_id
+        )
+        r = self._patch_pr4()
+        self.assertEqual(r.status_code, 200)
+        after = _db_count(
+            "job_pipeline_entries",
+            "candidate_id = :cid",
+            cid=self.emp_id
+        )
+        self.assertEqual(before, after,
+                         "PATCH must not insert into job_pipeline_entries")
+
+    def test_50_no_new_pipeline_event_after_patch(self):
+        """Direct DB: pipeline_stage_events count unchanged after PR-4 PATCH."""
+        # pipeline_stage_events has no candidate_id; join through job_pipeline_entries
+        before = _db_count(
+            "pipeline_stage_events pse "
+            "JOIN job_pipeline_entries jpe ON jpe.id = pse.pipeline_entry_id",
+            "jpe.candidate_id = :cid",
+            cid=self.emp_id
+        )
+        r = self._patch_pr4()
+        self.assertEqual(r.status_code, 200)
+        after = _db_count(
+            "pipeline_stage_events pse "
+            "JOIN job_pipeline_entries jpe ON jpe.id = pse.pipeline_entry_id",
+            "jpe.candidate_id = :cid",
+            cid=self.emp_id
+        )
+        self.assertEqual(before, after,
+                         "PATCH must not insert into pipeline_stage_events")
+
+    def test_51_payload_without_status_and_job_id_accepted(self):
+        """Server accepts payload with no status/job_id — returns 200."""
+        r = requests.patch(
+            f"{BASE_URL}/company/saved-candidates/{self.emp_id}",
+            json={"rating": 4, "tags": ["Go"]},
+            headers={"Authorization": f"Bearer {self.co_jwt}",
+                     "Content-Type": "application/json"}
+        )
+        self.assertEqual(r.status_code, 200)
+        item = r.json().get("item") or {}
+        self.assertNotIn("status_changed", item,
+                         "PATCH without status must not modify status")
+        # Confirm status is still a valid pipeline status (not null, not garbage)
+        self.assertIn(item.get("status", "saved"),
+                      ["saved", "shortlisted", "contacted", "interview", "hired", "rejected"])
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

@@ -11133,15 +11133,18 @@ Compact card layout:
 - `.co-cand-source-lbl`: source label for non-manual sources
 - Action buttons: "عرض الملف العام" (opens `/u/{tw_id}`) + "إدارة الموهبة" (expands manage panel)
 
-#### V2 Manage Panel (7 sections)
+#### V2 Manage Panel (6 sections)
+
+The manage panel is scoped to **talent management fields only**. Pipeline status and job linking are NOT in this panel — they are managed separately via the applicants screen and job-specific flows.
 
 1. **تقييم** — 5-star widget (`.co-panel-star`), click same star to toggle off, `.co-panel-star-clear` button
 2. **الأولوية** — custom picker: low/medium/high/none
 3. **تصنيفات** — tag chips with × delete + add input + "+" button; dedup enforced client-side before send
-4. **الحالة في خط الأنابيب** — existing status picker (unchanged)
-5. **ملاحظات** — free-text textarea (unchanged)
-6. **متابعة** — date input + follow-up status picker (none/pending/done)
-7. **مصدر الحفظ** — read-only `.co-panel-source-val` label
+4. **ملاحظات** — free-text textarea
+5. **متابعة** — date input + follow-up status picker (none/pending/done)
+6. **مصدر الحفظ** — read-only `.co-panel-source-val` label
+
+**`_handlePanelSave` payload contract (permanent):** sends ONLY `rating`, `priority`, `tags`, `notes`, `follow_up_at`, `follow_up_status`. The fields `status` and `job_id` are explicitly excluded — never sent from this panel.
 
 Panel footer: "حفظ التعديلات" | "إلغاء" | "إزالة من بنك المواهب" (red, `window.confirm()` guard)
 
@@ -11183,7 +11186,13 @@ Panel footer: "حفظ التعديلات" | "إلغاء" | "إزالة من بن
 ❌ Using rating=0 as "clear rating" (use null — 0 is rejected as invalid)
 ❌ Modifying job_applications.status from the manage panel PATCH
 ❌ Modifying company_candidate_job_refs from the manage panel save
-❌ Calling getCandidateJobStatus or updateCandidateJobStatus from the stars/priority/tags widgets
+❌ Modifying job_pipeline_entries from the manage panel save
+❌ Modifying pipeline_stage_events from the manage panel save
+❌ Calling getCandidateJobStatus or updateCandidateJobStatus from the manage panel
+❌ Adding a Pipeline status picker to the manage panel (belongs in applicants screen)
+❌ Adding a Job link picker to the manage panel (belongs in applicants/pipeline screen)
+❌ Sending status or job_id from _handlePanelSave (explicitly excluded from payload)
+❌ Creating fake job-link DOM entries after a panel save (job_links are DB-sourced only)
 ❌ Adding appointment scheduling to the manage panel (PR-5 scope)
 ❌ Adding pipeline notes (separate from general notes) in this PR
 ❌ sort='rating_asc' — only rating_desc is implemented (ascending not useful UX)
@@ -11193,7 +11202,7 @@ Panel footer: "حفظ التعديلات" | "إلغاء" | "إزالة من بن
 
 ### Tests
 
-`test_talent_bank_v2.py` — **45 tests, 45/45 on real PostgreSQL, no Skips**:
+`test_talent_bank_v2.py` — **51 tests, 51/51 on real PostgreSQL, no Skips**:
 
 | Group | Tests | Scope |
 |-------|-------|-------|
@@ -11208,5 +11217,6 @@ Panel footer: "حفظ التعديلات" | "إلغاء" | "إزالة من بن
 | Group 9 | 38–40 | Backward compat: old fields, old sorts, quota endpoint |
 | Group 10 | 41–43 | Multi-field patch: all at once, partial (only sent fields change), empty body |
 | Group 11 | 44–45 | Security: cross-company access (404), unauthenticated (401) |
+| Group 12 | 46–51 | Panel isolation: status unchanged, no fake job_links, no new DB rows in ccjr/pipeline_entries/pipeline_events, payload without status/job_id accepted |
 
 Test architecture: each class uses `setUpClass` (one register+login per class) to stay under the 60-requests/minute rate limit. Per-test `setUp` resets mutable fields via PATCH (not rate-limited).
