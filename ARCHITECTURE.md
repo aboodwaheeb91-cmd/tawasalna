@@ -11220,3 +11220,182 @@ Panel footer: "حفظ التعديلات" | "إلغاء" | "إزالة من بن
 | Group 12 | 46–51 | Panel isolation: status unchanged, no fake job_links, no new DB rows in ccjr/pipeline_entries/pipeline_events, payload without status/job_id accepted |
 
 Test architecture: each class uses `setUpClass` (one register+login per class) to stay under the 60-requests/minute rate limit. Per-test `setUp` resets mutable fields via PATCH (not rate-limited).
+
+---
+
+## §69 — PR-5: Job-Specific Pipeline Notes + Appointment Pipeline Linking
+
+**Depends on:** §67 (PR-3), §68 (PR-4)
+
+**Base SHA:** `33e79db` (main after PR #496 merge)  
+**Branch:** `feat/pipeline-pr5`
+
+---
+
+### Purpose
+
+PR-5 adds two independently-scoped features on top of the employment pipeline:
+
+1. **Pipeline Notes CRUD** — job-specific notes attached to a `job_pipeline_entries` row (distinct from general talent-bank notes on `company_saved_candidates.notes`)
+2. **Pipeline Appointment Linking** — creates appointments that are bound to a pipeline entry via `appointments.pipeline_entry_id`; also extends `GET /jobs/{job_id}/applicants/v2` with per-applicant pipeline data
+
+---
+
+### DB Schema — New / Changed
+
+| Object | Change | Notes |
+|--------|--------|-------|
+| `pipeline_notes` | NEW table (PR-1 migration) | `id, pipeline_entry_id FK, body TEXT CHECK (≥1 non-space char), created_by INT FK, created_at, deleted_at (soft-delete)` |
+| `appointments.appointment_type` | NEW column | `TEXT NULL` CHECK `IN ('interview','call','task','other')` |
+| `appointments.end_at` | NEW column | `TIMESTAMPTZ NULL` |
+| `appointments.mode` | BACKFILL column | `TEXT NOT NULL DEFAULT 'online'` — existed in CREATE TABLE but was missing from `_appt_backfill` list; added in `_migrate_pr5_pipeline_linking()` |
+| `appointments.applicant_id` | BACKFILL | Filled from `candidate_id` where NULL for schema-compat |
+
+**Migration:** `_migrate_pr5_pipeline_linking()` — idempotent, runs on startup after `_migrate_pipeline_schema_v1()`.
+
+---
+
+### Source of Truth
+
+| Concept | Source |
+|---------|--------|
+| Pipeline note ownership | `job_pipeline_entries.company_id` (JOIN — no `company_id` column on `pipeline_notes`) |
+| Pipeline note soft-delete | `pipeline_notes.deleted_at IS NOT NULL` |
+| Pipeline entry resolution | `_resolve_pipeline_entry(conn, company_id, candidate_id, job_id, application_id)` in `auth.py` |
+| Pipeline-linked appointment | `appointments.pipeline_entry_id FK` |
+| Applicant pipeline data | `GET /jobs/{job_id}/applicants/v2` — LEFT JOINs pipeline data |
+
+---
+
+### Key Helpers (auth.py)
+
+#### `_resolve_pipeline_entry(conn, company_id, candidate_id, job_id, application_id=None) → dict`
+
+Unified helper for all pipeline-context operations:
+1. Verifies job belongs to company
+2. Verifies candidate is a valid employee
+3. If `application_id` provided, validates it matches candidate + job + company
+4. Looks up the `job_pipeline_entries` row
+5. Raises `PipelineEntryRequiredError` if no entry exists
+
+Returns: `{pipeline_entry_id, candidate_id, job_id, application_id}`
+
+#### `PipelineEntryRequiredError`
+
+Structured error → HTTP 409 `{code: "pipeline_entry_required", message: "..."}`. Used only for the appointment endpoint (notes do not auto-create pipeline entries).
+
+#### `_insert_appointment_event(conn, ..., payload=None)` — Bug Fix
+
+The CASE WHEN `:payload IS NULL THEN NULL ELSE :payload::jsonb END` pattern caused pg8000 to raise PostgreSQL error `42P08` ("could not determine data type of parameter $6") when `payload=None`. Fixed by branching in Python: bind `:payload::jsonb` only when payload_str is not None; use literal SQL `NULL` otherwise. **This fix applies globally** — not scoped to PR-5 callers.
+
+---
+
+### Pipeline Notes API Contract
+
+| Endpoint | Auth | Description |
+|----------|------|-------------|
+| `GET /company/pipeline/{entry_id}/notes` | JWT (co only) | List active (non-deleted) notes for the entry |
+| `POST /company/pipeline/{entry_id}/notes` | JWT (co only) | Create note (body required, max 5000 chars) |
+| `PATCH /company/pipeline/notes/{note_id}` | JWT (co only) | Edit note body |
+| `DELETE /company/pipeline/notes/{note_id}` | JWT (co only) | Soft-delete (sets `deleted_at = NOW()`) |
+
+**Ownership verification:** every endpoint verifies `job_pipeline_entries.company_id = JWT.user_id` via JOIN. No `company_id` column on `pipeline_notes`.
+
+**Isolation rules:**
+- Creating/editing pipeline notes NEVER changes `company_saved_candidates.notes`
+- Creating/editing pipeline notes NEVER changes `job_pipeline_entries.stage`
+- Creating/editing pipeline notes NEVER changes `job_applications.status`
+- Notes per pipeline entry are independent (entry A notes ≠ entry B notes for same candidate)
+- `PATCH /company/saved-candidates/{id}` (manage panel) NEVER creates `pipeline_notes` rows
+
+---
+
+### Pipeline Appointment API Contract
+
+| Endpoint | Auth | Description |
+|----------|------|-------------|
+| `POST /company/appointments/pipeline` | JWT (co only) | Create pipeline-linked appointment |
+| `GET /jobs/{job_id}/applicants/v2` | JWT (co/owner) | Applicants + pipeline data |
+
+**`POST /company/appointments/pipeline` input:**
+```json
+{
+  "candidate_id": int,
+  "job_id": int,
+  "start_at": "ISO 8601",
+  "end_at": "ISO 8601 | null",
+  "application_id": "int | null",
+  "appointment_type": "interview | call | task | other",
+  "mode": "online | onsite | hybrid",
+  "notes": "string | null",
+  "representative_name": "string | null",
+  "duration_minutes": 60
+}
+```
+
+**Error codes:**
+- `409 {code: "pipeline_entry_required"}` — candidate not in pipeline for this job
+- `400` — past date, end < start, wrong application_id, wrong job_id, archived job
+- `403` — non-company JWT
+
+**Duplicate guard:** only one active appointment per pipeline_entry_id (status NOT IN cancelled/expired/missed/closed).
+
+**`GET /jobs/{job_id}/applicants/v2` additions per applicant:**
+- `pipeline_entry_id` — nullable bigint
+- `notes_count` — count of active pipeline notes
+- `next_appointment` — `{id, scheduled_at, appointment_type, status}` or null
+
+---
+
+### Security Invariants (permanent)
+
+- `company_id` ALWAYS from JWT — never from request body
+- `pipeline_entry_id` ALWAYS resolved server-side via `_resolve_pipeline_entry()`
+- Cross-company isolation: Company B cannot read/write Company A's notes or appointments
+- Employee accounts (user_type ≠ 'co') get 403 on all pipeline endpoints
+- Hard delete of pipeline notes is permanently forbidden — use soft-delete only
+
+---
+
+### pg8000 NULL-typing Rules (permanent, applies to all future DB code)
+
+pg8000 native `Connection.run()` sends Python `None` as untyped NULL (OID 0). PostgreSQL can usually infer the type from column context, but fails with error `42P08` when the same parameter appears in multiple type contexts within a single expression (e.g., `CASE WHEN :p IS NULL THEN NULL ELSE :p::jsonb END`).
+
+**Rules:**
+1. **Literal SQL `NULL`** — use for nullable non-TEXT columns when the value is definitely None (eliminates the parameter entirely from the prepared statement)
+2. **Dynamic SQL** — build INSERT column/value lists conditionally, excluding None FK/TIMESTAMPTZ columns from the SQL text
+3. **TEXT NULL** — pg8000 handles `None` for TEXT columns without error (PostgreSQL infers TEXT from column type)
+4. **CASE WHEN :param IS NULL** — permanently forbidden pattern; branch in Python instead
+
+---
+
+### Forbidden Patterns (PR-5 — permanent)
+
+```
+❌ Creating pipeline notes via PATCH /company/saved-candidates/{id} (manage panel)
+❌ Writing pipeline_entry_id from client body (always resolved server-side)
+❌ Creating a pipeline_entry on-the-fly when none exists for appointment (raise 409 instead)
+❌ Hard-deleting pipeline notes (soft-delete only)
+❌ Returning pipeline_entry_id from /u/{tw_id} public profile routes
+❌ CASE WHEN :param IS NULL pattern in any pg8000 conn.run() call
+❌ Passing None to non-TEXT typed parameters without using literal NULL in SQL
+❌ Adding appointment scheduling to the manage panel (stays in pipeline/applicants screen)
+❌ Starting PR-6 before this PR is reviewed and merged by the user
+```
+
+---
+
+### Tests
+
+`test_pipeline_pr5.py` — **30 tests, 30/30 on real PostgreSQL, no Skips**:
+
+| Class | Tests | Scope |
+|-------|-------|-------|
+| `TestPipelineNotesCRUD` | 01–06 | Create/list/edit/delete notes, empty body rejected, general notes isolation |
+| `TestPipelineAppointmentCreation` | 07–12 | Create with/without application, no-entry 409, no side effects on ja/saved_candidates, pipeline_entry_id in DB |
+| `TestPipelineAppointmentValidation` | 13–18 | Past date, end<start, wrong app_id, wrong job_id, archived job, no JWT |
+| `TestPipelineSecurity` | 19–24 | Cross-company isolation (notes CRUD + appointments), employee account rejected |
+| `TestSystemIsolation` | 25–30 | Notes isolated per entry, no stage change, no app status change, manage panel isolation, applicants/v2 shape |
+
+**DB migrations tested on startup:** `appointment_type`, `end_at`, `mode` columns; `applicant_id` backfill.  
+**Bug fixed in this PR:** `_insert_appointment_event` pg8000 `42P08` NULL-typing error.

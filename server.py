@@ -121,6 +121,13 @@ from auth import (
     run_due_scheduler_jobs,
     BlockingConflictError,
     TalentBankLimitError,
+    _migrate_pr5_pipeline_linking,
+    _resolve_pipeline_entry,
+    PipelineEntryRequiredError,
+    create_pipeline_note, list_pipeline_notes,
+    update_pipeline_note, delete_pipeline_note,
+    create_pipeline_appointment,
+    get_job_applicants_v2,
 )
 from auth import ContentValidationError, validate_professional_text, JobArchivedError
 
@@ -535,6 +542,12 @@ async def on_startup():
         print("✅ pipeline schema v1 ready (jobs archive, job_pipeline_entries, pipeline_stage_events, pipeline_notes, candidate_bank_notes, company_saved_candidates fields, appointments.pipeline_entry_id)")
     except Exception as e:
         print(f"❌ pipeline schema v1 migration failed: {e}")
+        raise
+    try:
+        _migrate_pr5_pipeline_linking()
+        print("✅ PR-5 pipeline linking ready (appointment_type, end_at, applicant_id backfill)")
+    except Exception as e:
+        print(f"❌ PR-5 pipeline linking migration failed: {e}")
         raise
     # NOTE: _migrate_partial_unique_application_id() is NOT called here on startup.
     # The partial UNIQUE index on job_pipeline_entries(application_id) must be created AFTER
@@ -5074,4 +5087,191 @@ def admin_pipeline_migrate_index(
     except BlockingConflictError as e:
         return JSONResponse(status_code=409, content=e.report)
     except Exception as e:
+        raise HTTPException(500, str(e))
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# PR-5: Pipeline Notes + Pipeline Appointment endpoints
+# ══════════════════════════════════════════════════════════════════════════════
+
+# ── Input models ─────────────────────────────────────────────────────────────
+
+class PipelineNoteCreateInput(BaseModel):
+    body: str
+
+class PipelineNoteUpdateInput(BaseModel):
+    body: str
+
+class AppointmentPipelineInput(BaseModel):
+    candidate_id: int
+    job_id: int
+    start_at: str                               # ISO 8601 — maps to scheduled_at
+    end_at: Optional[str] = None                # ISO 8601 — optional
+    application_id: Optional[int] = None        # optional — for real applicants
+    appointment_type: Optional[str] = "interview"
+    mode: Optional[str] = "online"
+    notes: Optional[str] = None
+    representative_name: Optional[str] = None
+    duration_minutes: Optional[int] = 60
+
+
+# ── Pipeline Notes endpoints ──────────────────────────────────────────────────
+
+@app.get("/company/pipeline/{entry_id}/notes")
+def api_list_pipeline_notes(entry_id: int, token=Depends(verify_token)):
+    """GET /company/pipeline/{entry_id}/notes — list active notes for a pipeline entry."""
+    company_id = int(token["user_id"])
+    if token.get("user_type") != "co":
+        raise HTTPException(403, "فقط حسابات الشركات يمكنها قراءة ملاحظات Pipeline")
+    try:
+        notes = list_pipeline_notes(entry_id, company_id)
+        return {"ok": True, "data": {"notes": notes, "count": len(notes)}}
+    except PermissionError as e:
+        raise HTTPException(403, str(e))
+    except Exception as e:
+        print(f"[api_list_pipeline_notes] {e}")
+        raise HTTPException(500, str(e))
+
+
+@app.post("/company/pipeline/{entry_id}/notes")
+def api_create_pipeline_note(entry_id: int, body: PipelineNoteCreateInput,
+                              token=Depends(verify_token)):
+    """POST /company/pipeline/{entry_id}/notes — create a note on a pipeline entry."""
+    company_id = int(token["user_id"])
+    if token.get("user_type") != "co":
+        raise HTTPException(403, "فقط حسابات الشركات يمكنها إضافة ملاحظات Pipeline")
+    try:
+        note = create_pipeline_note(entry_id, body.body, company_id, company_id)
+        return {"ok": True, "data": {"note": note}}
+    except PermissionError as e:
+        raise HTTPException(403, str(e))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:
+        print(f"[api_create_pipeline_note] {e}")
+        raise HTTPException(500, str(e))
+
+
+@app.patch("/company/pipeline/notes/{note_id}")
+def api_update_pipeline_note(note_id: int, body: PipelineNoteUpdateInput,
+                              token=Depends(verify_token)):
+    """PATCH /company/pipeline/notes/{note_id} — edit a pipeline note."""
+    company_id = int(token["user_id"])
+    if token.get("user_type") != "co":
+        raise HTTPException(403, "فقط حسابات الشركات يمكنها تعديل ملاحظات Pipeline")
+    try:
+        note = update_pipeline_note(note_id, company_id, body.body)
+        return {"ok": True, "data": {"note": note}}
+    except PermissionError as e:
+        raise HTTPException(403, str(e))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:
+        print(f"[api_update_pipeline_note] {e}")
+        raise HTTPException(500, str(e))
+
+
+@app.delete("/company/pipeline/notes/{note_id}")
+def api_delete_pipeline_note(note_id: int, token=Depends(verify_token)):
+    """DELETE /company/pipeline/notes/{note_id} — soft-delete a pipeline note."""
+    company_id = int(token["user_id"])
+    if token.get("user_type") != "co":
+        raise HTTPException(403, "فقط حسابات الشركات يمكنها حذف ملاحظات Pipeline")
+    try:
+        delete_pipeline_note(note_id, company_id)
+        return {"ok": True}
+    except PermissionError as e:
+        raise HTTPException(403, str(e))
+    except Exception as e:
+        print(f"[api_delete_pipeline_note] {e}")
+        raise HTTPException(500, str(e))
+
+
+# ── Pipeline Appointment endpoint ─────────────────────────────────────────────
+
+@app.post("/company/appointments/pipeline")
+def api_create_pipeline_appointment(body: AppointmentPipelineInput,
+                                     token=Depends(verify_token)):
+    """
+    POST /company/appointments/pipeline
+
+    Create a pipeline-aware appointment (with or without job_application).
+    company_id is derived from JWT — never from body.
+    pipeline_entry_id is resolved server-side from (company, candidate, job).
+
+    Returns 409 with code=pipeline_entry_required when no pipeline entry exists.
+    """
+    company_id = int(token["user_id"])
+    if token.get("user_type") != "co":
+        raise HTTPException(403, "فقط حسابات الشركات يمكنها إنشاء مواعيد")
+    try:
+        appt = create_pipeline_appointment(
+            company_user_id=company_id,
+            candidate_id=body.candidate_id,
+            job_id=body.job_id,
+            scheduled_at_iso=body.start_at,
+            application_id=body.application_id,
+            end_at_iso=body.end_at,
+            appointment_type=body.appointment_type or "interview",
+            notes=body.notes,
+            mode=body.mode or "online",
+            representative_name=body.representative_name,
+            duration_minutes=body.duration_minutes or 60,
+        )
+        return {"ok": True, "data": appt}
+    except PipelineEntryRequiredError as e:
+        from fastapi.responses import JSONResponse as _JR
+        return _JR(
+            status_code=409,
+            content={
+                "ok": False,
+                "code": "pipeline_entry_required",
+                "message": str(e),
+            }
+        )
+    except PermissionError as e:
+        raise HTTPException(403, str(e))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:
+        print(f"[api_create_pipeline_appointment] {e}")
+        raise HTTPException(500, str(e))
+
+
+# ── Extended job applicants endpoint (V2 — includes pipeline data) ────────────
+
+@app.get("/jobs/{job_id}/applicants/v2")
+def api_get_applicants_v2(job_id: int, token=Depends(verify_token)):
+    """
+    GET /jobs/{job_id}/applicants/v2
+
+    Same as /jobs/{job_id}/applicants but adds per-applicant:
+      - pipeline_entry_id
+      - notes_count  (active pipeline notes)
+      - next_appointment (scheduled_at, status, appointment_type)
+
+    Company owner only.
+    """
+    user_id = int(token["user_id"])
+    if token.get("user_type") != "co":
+        raise HTTPException(403, "غير مصرح")
+    try:
+        _conn = get_conn()
+        try:
+            jrows = _conn.run(
+                "SELECT company_id FROM jobs WHERE id = :jid AND archived_at IS NULL",
+                jid=job_id
+            )
+        finally:
+            release_conn(_conn)
+        if not jrows:
+            raise HTTPException(404, "الوظيفة غير موجودة")
+        if int(jrows[0][0]) != user_id:
+            raise HTTPException(403, "غير مصرح")
+        items = get_job_applicants_v2(job_id, user_id)
+        return {"ok": True, "data": {"applicants": items, "count": len(items)}}
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[api_get_applicants_v2] {e}")
         raise HTTPException(500, str(e))

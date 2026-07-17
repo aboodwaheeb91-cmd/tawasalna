@@ -361,6 +361,12 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 - **Backend:** `fromisoformat(iso.replace('Z', '+00:00'))` parses aware datetimes correctly. If `tzinfo is None` (naive ISO): **legacy/deprecated fallback** — treat as UTC for backward compat only. New code must always send timezone-aware ISO. Do not promote naive ISO as the official contract.
 - **Do not revert to naive string concatenation** — `dateVal + 'T' + timeVal + ':00'` is deprecated; use `toISOString()` only.
 
+**PR-5 Pipeline Linking (feat/pipeline-pr5):**
+- `appointments.pipeline_entry_id` is now actively used — FK to `job_pipeline_entries(id) ON DELETE SET NULL`.
+- `POST /company/appointments/pipeline` is the dedicated endpoint for creating pipeline-linked appointments (company owner JWT only; `pipeline_entry_id` resolved server-side via `_resolve_pipeline_entry()`).
+- `_insert_appointment_event()` 42P08 bug fixed globally in PR-5: `CASE WHEN :payload IS NULL` pattern permanently replaced with Python branching (literal SQL `NULL` when payload is None). See `ARCHITECTURE.md §69 → pg8000 NULL-typing Rules`.
+- `GET /jobs/{job_id}/applicants/v2` returns per-applicant pipeline data including `pipeline_entry_id`, `stage_name`, `pipeline_notes_count`.
+
 **Do not recreate:**
 - لا تُنشئ جداول مواعيد إضافية — الجداول الأربعة هي المصدر الوحيد.
 - لا تدمج Appointment Room مع Messenger العام — نظامان منفصلان تماماً.
@@ -369,6 +375,7 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 - لا تحذف appointment_events — سجل دائم (F18/F27).
 - لا تستخدم innerHTML لبيانات المستخدم في الصفحتين — safeText/textContent فقط.
 - لا تبني Phase 8 (scheduler reminders) قبل Scheduler Infrastructure PR مستقل.
+- لا تستخدم CASE WHEN :param IS NULL في pg8000 queries — استخدم Python branching بدلاً منه (ARCHITECTURE.md §69).
 
 ---
 
@@ -566,10 +573,10 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 
 ---
 
-### 38. Employment Pipeline System ✅ PR-1 + PR-JOB + PR-2 Backfill + Dual-write + PR-3 Talent Bank Quota + PR-4 Talent Bank V2 UI
+### 38. Employment Pipeline System ✅ PR-1 + PR-JOB + PR-2 Backfill + Dual-write + PR-3 Talent Bank Quota + PR-4 Talent Bank V2 UI + PR-5 Job-Specific Notes + Appointment Linking
 **Purpose:** نظام Pipeline الوظيفي — تتبع كل مرشح داخل الشركة من مصدر الاكتشاف حتى التوظيف أو الرفض. يشمل: أرشفة الوظائف (soft archive)، إدخالات Pipeline لكل (شركة، مرشح، وظيفة)، سجل انتقالات المراحل، ملاحظات Pipeline، ملاحظات بنك المواهب، وحقول تصنيف موسّعة في بنك المواهب، وbackfill من البيانات الموروثة + dual-write على مسارات الكتابة.
 
-**Status:** PR-1 Schema Foundation ✅ (merged) · PR-JOB Soft Archive ✅ (merged) · PR-2 Backfill + Dual-write ✅ (merged) · PR-3 Applicant Flow Separation + Atomic Talent Bank Quota ✅ (جاهز للمراجعة) — idempotent backfill من بيانات pipeline الموروثة + dual-write داخل transactions + partial UNIQUE index + admin endpoints. تصحيحات دور 1 (Bnd-1–Bnd-12): SELECT FOR UPDATE في `_pipeline_upsert_entry`، pipeline_stage_events في `_pipeline_update_stage`، source='application' لـ Pass-2، NULL CCJR handling، إزالة auto-save، `_migrate_partial_unique_application_id` عبر admin endpoint، 8-category conflicts_by_type. تصحيحات دور 2 (Bnd-R2-1–Bnd-R2-8): `_pipeline_build_conflict_report()` helper موحد للكشف عن 8 أنواع blocking + 4 informational؛ missing_job/missing_candidate/missing_company/candidate_not_employee أصبحت blocking؛ stage_source_disagreement تعريف صحيح (CCJR vs JA ليس pipeline entry vs JA)؛ source normalization لـ already-matched entries؛ initial_event_reason='application_status_changed'؛ update_candidate_job_status يقفل CCJR FOR UPDATE أولاً (returns False إذا غير موجود)؛ candidate.action='unchanged' في promote_application_to_shortlist؛ _migrate_partial_unique_application_id يتحقق عبر pg_index+pg_get_expr (indisunique + predicate).
+**Status:** PR-1 Schema Foundation ✅ (merged) · PR-JOB Soft Archive ✅ (merged) · PR-2 Backfill + Dual-write ✅ (merged) · PR-3 Applicant Flow Separation + Atomic Talent Bank Quota ✅ · PR-4 Talent Bank V2 UI ✅ (merged #496) · **PR-5 Job-Specific Pipeline Notes + Appointment Linking ✅ (جاهز للمراجعة)** — idempotent backfill من بيانات pipeline الموروثة + dual-write داخل transactions + partial UNIQUE index + admin endpoints. تصحيحات دور 1 (Bnd-1–Bnd-12): SELECT FOR UPDATE في `_pipeline_upsert_entry`، pipeline_stage_events في `_pipeline_update_stage`، source='application' لـ Pass-2، NULL CCJR handling، إزالة auto-save، `_migrate_partial_unique_application_id` عبر admin endpoint، 8-category conflicts_by_type. تصحيحات دور 2 (Bnd-R2-1–Bnd-R2-8): `_pipeline_build_conflict_report()` helper موحد للكشف عن 8 أنواع blocking + 4 informational؛ missing_job/missing_candidate/missing_company/candidate_not_employee أصبحت blocking؛ stage_source_disagreement تعريف صحيح (CCJR vs JA ليس pipeline entry vs JA)؛ source normalization لـ already-matched entries؛ initial_event_reason='application_status_changed'؛ update_candidate_job_status يقفل CCJR FOR UPDATE أولاً (returns False إذا غير موجود)؛ candidate.action='unchanged' في promote_application_to_shortlist؛ _migrate_partial_unique_application_id يتحقق عبر pg_index+pg_get_expr (indisunique + predicate).
 
 **Source of Truth:**
 - `jobs.archived_at` — **مصدر الحقيقة الوحيد** لأرشفة الوظيفة · NULL = نشطة · NOT NULL = مؤرشفة · لا تستخدم `status` لتحديد الأرشفة
@@ -589,7 +596,7 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 - `server.py → POST /jobs/{id}/apply` — HTTP 409 عند التقديم على وظيفة مؤرشفة
 - `company.html → switchJobTab() / loadCompanyJobs() / archiveCompanyJob()` — تبويبان: المنشورة / المؤرشفة
 
-**Details:** PR-1 — Additive Schema · PR-JOB — Soft Archive · PR-2 — Backfill + Dual-write (+ Bnd-1–Bnd-12 + Bnd-R2-1–Bnd-R2-8 correction rounds) · **PR-3 — Applicant Flow Separation + Atomic Talent Bank Quota** · `ARCHITECTURE_FOUNDATION.md` (قواعد F1–F13) · `ARCHITECTURE.md §66` (PR-1) · `ARCHITECTURE.md §66b` (PR-JOB) · `ARCHITECTURE.md §66c` (PR-2 + تصحيحات دور 1 و2) · `ARCHITECTURE.md §67` (PR-3 — Talent Bank Quota + Button Separation) · اختبارات pr-1-01 إلى pr-1-10e في `test_post_comments.py` · 80 اختبار في `test_pipeline_integration.py` · 23 اختبار في `test_job_archive_integration.py` · **129 اختبار في `test_pipeline_backfill.py`** (§A–§M) · **135 اختبار في `test_pipeline_backfill_integration.py`** (§1–§47، PostgreSQL فعلي) · **27 اختبار في `test_pipeline_backfill_http.py`** (TestClient، لا DB) · **62 اختبار في `test_talent_bank_quota.py`** (PR-3، static + behavioral + HTTP + concurrency)
+**Details:** PR-1 — Additive Schema · PR-JOB — Soft Archive · PR-2 — Backfill + Dual-write (+ Bnd-1–Bnd-12 + Bnd-R2-1–Bnd-R2-8 correction rounds) · **PR-3 — Applicant Flow Separation + Atomic Talent Bank Quota** · **PR-4 — Talent Bank V2 UI** · **PR-5 — Job-Specific Notes + Appointment Linking** · `ARCHITECTURE_FOUNDATION.md` (قواعد F1–F13) · `ARCHITECTURE.md §66` (PR-1) · `ARCHITECTURE.md §66b` (PR-JOB) · `ARCHITECTURE.md §66c` (PR-2 + تصحيحات دور 1 و2) · `ARCHITECTURE.md §67` (PR-3 — Talent Bank Quota + Button Separation) · `ARCHITECTURE.md §68` (PR-4 — Talent Bank V2 UI) · `ARCHITECTURE.md §69` (PR-5 — Pipeline Notes + Appointment Linking + pg8000 NULL-typing fix) · اختبارات pr-1-01 إلى pr-1-10e في `test_post_comments.py` · 80 اختبار في `test_pipeline_integration.py` · 23 اختبار في `test_job_archive_integration.py` · **129 اختبار في `test_pipeline_backfill.py`** (§A–§M) · **135 اختبار في `test_pipeline_backfill_integration.py`** (§1–§47، PostgreSQL فعلي) · **27 اختبار في `test_pipeline_backfill_http.py`** (TestClient، لا DB) · **62 اختبار في `test_talent_bank_quota.py`** (PR-3، static + behavioral + HTTP + concurrency) · **51 اختبار في `test_talent_bank_v2.py`** (PR-4، groups 1–12) · **30 اختبار في `test_pipeline_pr5.py`** (PR-5، notes CRUD + appointment linking + security + isolation)
 
 **Source of Truth (PR-2 additions + Bnd-1–Bnd-12 + Bnd-R2-1–Bnd-R2-8):**
 - `auth.py → BlockingConflictError` — exception class مع `.report` dict · يُستدعى من backfill و migrate-index · `except BlockingConflictError` clause منفصل قبل `except Exception`

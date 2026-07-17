@@ -6474,14 +6474,25 @@ def _insert_appointment_event(conn, appointment_id: int, actor_id, event_type: s
                                old_status=None, new_status=None, payload=None):
     """Insert immutable event into appointment_events. Caller owns the connection (F18/F27)."""
     payload_str = _json_mod.dumps(payload) if payload else None
-    conn.run(
-        """INSERT INTO appointment_events
-           (appointment_id, actor_id, event_type, old_status, new_status, payload)
-           VALUES (:appt, :actor, :etype, :old, :new,
-                   CASE WHEN :payload IS NULL THEN NULL ELSE :payload::jsonb END)""",
-        appt=appointment_id, actor=actor_id, etype=event_type,
-        old=old_status, new=new_status, payload=payload_str
-    )
+    # Avoid CASE WHEN :param IS NULL pattern — pg8000 sends untyped OID 0 for None,
+    # and PostgreSQL 42P08 fires when the same param appears in two type contexts.
+    # Use literal NULL when payload is absent; bind :payload only when it has a value.
+    if payload_str is not None:
+        conn.run(
+            """INSERT INTO appointment_events
+               (appointment_id, actor_id, event_type, old_status, new_status, payload)
+               VALUES (:appt, :actor, :etype, :old, :new, :payload::jsonb)""",
+            appt=appointment_id, actor=actor_id, etype=event_type,
+            old=old_status, new=new_status, payload=payload_str
+        )
+    else:
+        conn.run(
+            """INSERT INTO appointment_events
+               (appointment_id, actor_id, event_type, old_status, new_status, payload)
+               VALUES (:appt, :actor, :etype, :old, :new, NULL)""",
+            appt=appointment_id, actor=actor_id, etype=event_type,
+            old=old_status, new=new_status
+        )
 
 
 def _check_appt_participant(conn, appointment_id: int, user_id: int) -> dict:
@@ -9368,5 +9379,616 @@ def run_due_scheduler_jobs(limit: int = 20, runner_id: str = None) -> dict:
             except Exception as rollback_exc:
                 print(f"[scheduler] ERROR rollback failed — runner={runner_id}: {rollback_exc}")
         raise RuntimeError(f"run_due_scheduler_jobs: {exc}") from exc
+    finally:
+        release_conn(conn)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# PR-5: Job-Specific Notes + Appointment Pipeline Linking
+# ══════════════════════════════════════════════════════════════════════════════
+
+# ── Migration ─────────────────────────────────────────────────────────────────
+
+def _migrate_pr5_pipeline_linking():
+    """
+    PR-5 additive migration — idempotent, safe to run multiple times.
+
+    Changes:
+      1. appointments.appointment_type — new nullable column
+      2. appointments.end_at          — new nullable column (complements scheduled_at)
+      3. Backfill appointments.applicant_id from candidate_id (schema-compat fix)
+    """
+    conn = get_conn()
+    try:
+        # 1. appointment_type
+        conn.run(
+            "ALTER TABLE appointments ADD COLUMN IF NOT EXISTS "
+            "appointment_type TEXT NULL"
+        )
+        try:
+            conn.run(
+                "ALTER TABLE appointments ADD CONSTRAINT ck_appt_type "
+                "CHECK (appointment_type IS NULL OR appointment_type IN "
+                "('interview','call','task','other'))"
+            )
+        except Exception:
+            pass  # constraint already exists
+
+        # 2. end_at
+        conn.run(
+            "ALTER TABLE appointments ADD COLUMN IF NOT EXISTS end_at TIMESTAMPTZ NULL"
+        )
+
+        # 3. Schema-compat: older DBs use candidate_id (NOT NULL) while newer code
+        #    writes applicant_id. Backfill applicant_id from candidate_id where
+        #    candidate_id exists and applicant_id is NULL.
+        try:
+            conn.run(
+                "ALTER TABLE appointments ADD COLUMN IF NOT EXISTS "
+                "applicant_id INTEGER NULL REFERENCES users(id) ON DELETE CASCADE"
+            )
+        except Exception:
+            pass
+        # Backfill: applicant_id = candidate_id when candidate_id column exists
+        try:
+            conn.run(
+                "UPDATE appointments SET applicant_id = candidate_id "
+                "WHERE applicant_id IS NULL AND candidate_id IS NOT NULL"
+            )
+        except Exception:
+            pass  # candidate_id may not exist on newer schema — that's fine
+
+        # 4. mode — was in CREATE TABLE but missing from older backfill list
+        conn.run(
+            "ALTER TABLE appointments ADD COLUMN IF NOT EXISTS "
+            "mode TEXT NOT NULL DEFAULT 'online'"
+        )
+
+        # 5. Index on appointment_type
+        conn.run(
+            "CREATE INDEX IF NOT EXISTS idx_appt_type "
+            "ON appointments(appointment_type)"
+        )
+        # 6. Index on end_at
+        conn.run(
+            "CREATE INDEX IF NOT EXISTS idx_appt_end_at ON appointments(end_at)"
+        )
+
+    finally:
+        release_conn(conn)
+
+
+# ── Structured error for missing pipeline entry ───────────────────────────────
+
+class PipelineEntryRequiredError(Exception):
+    """Raised when a pipeline entry is required but not found."""
+    code = "pipeline_entry_required"
+    def __init__(self, message="يجب ربط الشخص بالوظيفة قبل تحديد موعد."):
+        super().__init__(message)
+        self.message = message
+
+
+# ── Helper: resolve pipeline entry ───────────────────────────────────────────
+
+def _resolve_pipeline_entry(conn, company_id: int, candidate_id: int,
+                             job_id: int, application_id=None) -> dict:
+    """
+    Unified helper for resolving the correct pipeline entry for a given context.
+
+    Inputs (all from JWT or trusted server state — never from client):
+      company_id    — from JWT
+      candidate_id  — from request body (validated here)
+      job_id        — from request body (validated here)
+      application_id — optional; if provided, must match candidate + job + company
+
+    Returns:
+      {pipeline_entry_id, candidate_id, job_id, application_id}
+
+    Raises:
+      ValueError              — ownership or existence check failed
+      PipelineEntryRequiredError — no pipeline entry found
+    """
+    # 1. Verify the job belongs to this company
+    job_rows = conn.run(
+        "SELECT id, archived_at FROM jobs WHERE id = :jid AND company_id = :cid",
+        jid=job_id, cid=company_id
+    )
+    if not job_rows:
+        raise ValueError("الوظيفة غير موجودة أو لا تخص شركتك")
+
+    # 2. Verify candidate is a valid employee
+    u_rows = conn.run(
+        "SELECT id, user_type FROM users WHERE id = :uid",
+        uid=candidate_id
+    )
+    if not u_rows:
+        raise ValueError("المرشح غير موجود")
+    if u_rows[0][1] != 'emp':
+        raise ValueError("المستخدم المحدد ليس موظفاً")
+
+    # 3. If application_id provided — validate it matches candidate + job + company
+    resolved_application_id = None
+    if application_id is not None:
+        app_rows = conn.run(
+            "SELECT ja.id, ja.user_id, ja.job_id "
+            "FROM job_applications ja "
+            "JOIN jobs j ON j.id = ja.job_id "
+            "WHERE ja.id = :aid AND ja.user_id = :uid AND ja.job_id = :jid "
+            "  AND j.company_id = :cid",
+            aid=application_id, uid=candidate_id, jid=job_id, cid=company_id
+        )
+        if not app_rows:
+            raise ValueError(
+                "application_id غير صالح: لا يطابق المرشح أو الوظيفة أو الشركة"
+            )
+        resolved_application_id = int(app_rows[0][0])
+
+    # 4. Find pipeline entry
+    entry_rows = conn.run(
+        "SELECT id, application_id FROM job_pipeline_entries "
+        "WHERE company_id = :cid AND candidate_id = :uid AND job_id = :jid "
+        "ORDER BY id DESC LIMIT 2",
+        cid=company_id, uid=candidate_id, jid=job_id
+    )
+    if not entry_rows:
+        raise PipelineEntryRequiredError()
+
+    # 5. Conflict guard: more than one entry for same (company, candidate, job) is
+    #    theoretically impossible given UNIQUE constraint, but guard anyway.
+    if len(entry_rows) > 1:
+        raise ValueError(
+            f"تعارض: يوجد أكثر من pipeline entry للسياق نفسه — "
+            f"company={company_id} candidate={candidate_id} job={job_id}"
+        )
+
+    entry = entry_rows[0]
+    return {
+        "pipeline_entry_id": int(entry[0]),
+        "candidate_id": candidate_id,
+        "job_id": job_id,
+        "application_id": resolved_application_id,
+    }
+
+
+# ── Pipeline Notes CRUD ───────────────────────────────────────────────────────
+
+_PIPELINE_NOTE_MAX_LEN = 5000
+
+
+def _verify_pipeline_entry_ownership(conn, pipeline_entry_id: int, company_id: int):
+    """Verify that pipeline_entry_id belongs to company_id. Raises PermissionError."""
+    rows = conn.run(
+        "SELECT id FROM job_pipeline_entries WHERE id = :eid AND company_id = :cid",
+        eid=pipeline_entry_id, cid=company_id
+    )
+    if not rows:
+        raise PermissionError("غير مصرح: pipeline entry غير موجود أو لا يخص شركتك")
+
+
+def create_pipeline_note(pipeline_entry_id: int, body: str,
+                          company_id: int, created_by: int) -> dict:
+    """Create a new note on a pipeline entry. Company ownership verified."""
+    if not body or not body.strip():
+        raise ValueError("لا يمكن أن تكون الملاحظة فارغة")
+    body = body.strip()
+    if len(body) > _PIPELINE_NOTE_MAX_LEN:
+        raise ValueError(f"الملاحظة أطول من الحد المسموح ({_PIPELINE_NOTE_MAX_LEN} حرف)")
+
+    conn = get_conn()
+    try:
+        _verify_pipeline_entry_ownership(conn, pipeline_entry_id, company_id)
+        rows = conn.run(
+            "INSERT INTO pipeline_notes (pipeline_entry_id, body, created_by) "
+            "VALUES (:eid, :body, :cb) RETURNING id, created_at, updated_at",
+            eid=pipeline_entry_id, body=body, cb=created_by
+        )
+        row = rows[0]
+        return _serialize({
+            "id": row[0],
+            "pipeline_entry_id": pipeline_entry_id,
+            "body": body,
+            "created_by": created_by,
+            "created_at": row[1],
+            "updated_at": row[2],
+            "deleted_at": None,
+        })
+    finally:
+        release_conn(conn)
+
+
+def list_pipeline_notes(pipeline_entry_id: int, company_id: int) -> list:
+    """List active (non-deleted) notes for a pipeline entry. Company ownership verified."""
+    conn = get_conn()
+    try:
+        _verify_pipeline_entry_ownership(conn, pipeline_entry_id, company_id)
+        rows = conn.run(
+            "SELECT id, pipeline_entry_id, body, created_by, created_at, updated_at "
+            "FROM pipeline_notes "
+            "WHERE pipeline_entry_id = :eid AND deleted_at IS NULL "
+            "ORDER BY created_at ASC",
+            eid=pipeline_entry_id
+        )
+        cols = ["id", "pipeline_entry_id", "body", "created_by", "created_at", "updated_at"]
+        items = []
+        for r in rows:
+            d = dict(zip(cols, r))
+            d["deleted_at"] = None
+            items.append(_serialize(d))
+        return items
+    finally:
+        release_conn(conn)
+
+
+def update_pipeline_note(note_id: int, company_id: int, body: str) -> dict:
+    """Edit a pipeline note. Company ownership verified via pipeline_entry join."""
+    if not body or not body.strip():
+        raise ValueError("لا يمكن أن تكون الملاحظة فارغة")
+    body = body.strip()
+    if len(body) > _PIPELINE_NOTE_MAX_LEN:
+        raise ValueError(f"الملاحظة أطول من الحد المسموح ({_PIPELINE_NOTE_MAX_LEN} حرف)")
+
+    conn = get_conn()
+    try:
+        # Verify ownership: pipeline_notes → pipeline_entry → company
+        rows = conn.run(
+            "SELECT pn.id FROM pipeline_notes pn "
+            "JOIN job_pipeline_entries jpe ON jpe.id = pn.pipeline_entry_id "
+            "WHERE pn.id = :nid AND jpe.company_id = :cid AND pn.deleted_at IS NULL",
+            nid=note_id, cid=company_id
+        )
+        if not rows:
+            raise PermissionError("الملاحظة غير موجودة أو لا تخص شركتك")
+
+        updated = conn.run(
+            "UPDATE pipeline_notes SET body = :body, updated_at = NOW() "
+            "WHERE id = :nid "
+            "RETURNING id, pipeline_entry_id, body, created_by, created_at, updated_at",
+            body=body, nid=note_id
+        )
+        r = updated[0]
+        cols = ["id", "pipeline_entry_id", "body", "created_by", "created_at", "updated_at"]
+        d = dict(zip(cols, r))
+        d["deleted_at"] = None
+        return _serialize(d)
+    finally:
+        release_conn(conn)
+
+
+def delete_pipeline_note(note_id: int, company_id: int) -> None:
+    """Soft-delete a pipeline note. Company ownership verified."""
+    conn = get_conn()
+    try:
+        rows = conn.run(
+            "SELECT pn.id FROM pipeline_notes pn "
+            "JOIN job_pipeline_entries jpe ON jpe.id = pn.pipeline_entry_id "
+            "WHERE pn.id = :nid AND jpe.company_id = :cid AND pn.deleted_at IS NULL",
+            nid=note_id, cid=company_id
+        )
+        if not rows:
+            raise PermissionError("الملاحظة غير موجودة أو لا تخص شركتك")
+        conn.run(
+            "UPDATE pipeline_notes SET deleted_at = NOW() WHERE id = :nid",
+            nid=note_id
+        )
+    finally:
+        release_conn(conn)
+
+
+# ── Pipeline Appointment Creation ─────────────────────────────────────────────
+
+_APPT_PIPELINE_VALID_TYPES = {'interview', 'call', 'task', 'other'}
+
+
+def create_pipeline_appointment(company_user_id: int, candidate_id: int,
+                                 job_id: int, scheduled_at_iso: str,
+                                 application_id=None, end_at_iso: str = None,
+                                 appointment_type: str = "interview",
+                                 notes: str = None, mode: str = "online",
+                                 representative_name: str = None,
+                                 duration_minutes: int = 60) -> dict:
+    """
+    Create a pipeline-aware appointment.
+
+    Resolves pipeline_entry_id internally via _resolve_pipeline_entry().
+    Supports both applicants (application_id provided) and non-applicants
+    (pipeline entry exists without application).
+
+    company_id comes from JWT (company_user_id) — never trusted from client.
+    pipeline_entry_id is resolved server-side — never trusted from client.
+
+    Raises:
+      PipelineEntryRequiredError — if no pipeline entry exists for the context
+      ValueError                 — validation failure
+      PermissionError            — ownership check failed
+    """
+    from datetime import datetime as _dt, timezone as _tz, timedelta as _td
+
+    if appointment_type not in _APPT_PIPELINE_VALID_TYPES:
+        raise ValueError(f"نوع الموعد غير صالح: {appointment_type}. "
+                         f"القيم المسموحة: {', '.join(sorted(_APPT_PIPELINE_VALID_TYPES))}")
+
+    # Parse and validate scheduled_at
+    try:
+        sched_dt = _dt.fromisoformat(scheduled_at_iso.replace('Z', '+00:00'))
+        if sched_dt.tzinfo is None:
+            sched_dt = sched_dt.replace(tzinfo=_tz.utc)
+        sched_utc = sched_dt.astimezone(_tz.utc)
+    except Exception:
+        raise ValueError("تنسيق start_at غير صالح — يجب أن يكون ISO 8601")
+
+    if sched_utc <= _dt.now(_tz.utc):
+        raise ValueError("لا يمكن تحديد موعد في الماضي")
+
+    # Parse and validate end_at / duration_minutes
+    end_utc = None
+    if end_at_iso:
+        try:
+            end_dt = _dt.fromisoformat(end_at_iso.replace('Z', '+00:00'))
+            if end_dt.tzinfo is None:
+                end_dt = end_dt.replace(tzinfo=_tz.utc)
+            end_utc = end_dt.astimezone(_tz.utc)
+        except Exception:
+            raise ValueError("تنسيق end_at غير صالح — يجب أن يكون ISO 8601")
+        if end_utc <= sched_utc:
+            raise ValueError("end_at يجب أن يكون بعد start_at")
+        computed_minutes = int((end_utc - sched_utc).total_seconds() / 60)
+        if computed_minutes < 5:
+            raise ValueError("مدة الموعد يجب أن تكون 5 دقائق على الأقل")
+        if computed_minutes > 480:
+            raise ValueError("مدة الموعد لا يمكن أن تتجاوز 8 ساعات")
+        duration_minutes = computed_minutes
+    elif duration_minutes:
+        if duration_minutes < 5 or duration_minutes > 480:
+            raise ValueError("مدة الموعد يجب أن تكون بين 5 و480 دقيقة")
+        end_utc = sched_utc + _td(minutes=duration_minutes)
+
+    mode = mode or "online"
+    if mode not in _APPT_VALID_MODES:
+        raise ValueError(f"نوع الموعد غير صالح: {mode}")
+    if notes:
+        notes = notes.strip()[:1000]
+    if representative_name:
+        representative_name = representative_name.strip()[:200]
+
+    conn = get_conn()
+    committed = False
+    try:
+        # Resolve pipeline entry — raises PipelineEntryRequiredError if missing
+        ctx = _resolve_pipeline_entry(
+            conn, company_user_id, candidate_id, job_id, application_id
+        )
+        pipeline_entry_id = ctx["pipeline_entry_id"]
+        resolved_app_id = ctx["application_id"]
+
+        # Check job is not archived (cannot schedule for archived job)
+        archived_row = conn.run(
+            "SELECT archived_at FROM jobs WHERE id = :jid", jid=job_id
+        )
+        if archived_row and archived_row[0][0] is not None:
+            raise ValueError("لا يمكن تحديد موعد لوظيفة مؤرشفة")
+
+        # Duplicate guard: no active appointment for same pipeline_entry_id
+        dup = conn.run(
+            "SELECT id FROM appointments "
+            "WHERE pipeline_entry_id = :eid "
+            "  AND status NOT IN ('cancelled','expired','missed','closed') "
+            "LIMIT 1",
+            eid=pipeline_entry_id
+        )
+        if dup:
+            raise ValueError("يوجد موعد نشط مرتبط بهذا المرشح في هذه الوظيفة")
+
+        conn.run("BEGIN")
+
+        # pg8000 native cannot determine types for None/NULL parameters in ambiguous
+        # positions (FK columns, TIMESTAMPTZ). Build SQL dynamically to use literal NULL
+        # for None values and only bind parameters for non-None values. This avoids the
+        # "could not determine data type of parameter $N" error entirely.
+        _end_str = end_utc.isoformat() if end_utc else None
+
+        def _build_appt_insert(include_candidate_col: bool) -> tuple:
+            """Return (sql, kwargs) for the appointments INSERT."""
+            cols = ["company_id", "applicant_id", "created_by",
+                    "job_id", "pipeline_entry_id",
+                    "appointment_type", "scheduled_at",
+                    "mode", "status"]
+            vals = [":cid", ":cand", ":cb",
+                    ":jid", ":eid",
+                    ":atype", ":sched",
+                    ":mode", "'draft'"]
+            kw = dict(cid=company_user_id, cand=candidate_id, cb=company_user_id,
+                      jid=job_id, eid=pipeline_entry_id,
+                      atype=appointment_type, sched=sched_utc.isoformat(), mode=mode)
+
+            if include_candidate_col:
+                cols.insert(1, "candidate_id")
+                vals.insert(1, ":cand2")
+                kw["cand2"] = candidate_id
+
+            # application_id — nullable FK: use literal NULL to avoid type-ambiguity
+            cols.append("application_id")
+            if resolved_app_id is not None:
+                vals.append(":appid")
+                kw["appid"] = resolved_app_id
+            else:
+                vals.append("NULL")
+
+            # end_at — nullable TIMESTAMPTZ: same pattern
+            cols.append("end_at")
+            if _end_str is not None:
+                vals.append(":enddt")
+                kw["enddt"] = _end_str
+            else:
+                vals.append("NULL")
+
+            # representative_name, notes — nullable TEXT (pg8000 handles TEXT NULL ok)
+            cols.append("representative_name")
+            if representative_name is not None:
+                vals.append(":repname")
+                kw["repname"] = representative_name
+            else:
+                vals.append("NULL")
+
+            cols.append("notes")
+            if notes is not None:
+                vals.append(":notes")
+                kw["notes"] = notes
+            else:
+                vals.append("NULL")
+
+            sql = (
+                "INSERT INTO appointments ("
+                + ", ".join(cols)
+                + ") VALUES ("
+                + ", ".join(vals)
+                + ") RETURNING id"
+            )
+            return sql, kw
+
+        try:
+            _sql, _kw = _build_appt_insert(include_candidate_col=True)
+            rows = conn.run(_sql, **_kw)
+        except Exception:
+            # Fallback for DB schema without candidate_id column
+            conn.run("ROLLBACK")
+            conn.run("BEGIN")
+            _sql, _kw = _build_appt_insert(include_candidate_col=False)
+            rows = conn.run(_sql, **_kw)
+
+        appt_id = rows[0][0]
+
+        # Add participants
+        conn.run(
+            "INSERT INTO appointment_participants "
+            "(appointment_id, user_id, role, can_message, can_decide) "
+            "VALUES (:appt, :uid, 'company', TRUE, TRUE) "
+            "ON CONFLICT (appointment_id, user_id) DO NOTHING",
+            appt=appt_id, uid=company_user_id
+        )
+        conn.run(
+            "INSERT INTO appointment_participants "
+            "(appointment_id, user_id, role, can_message, can_decide) "
+            "VALUES (:appt, :uid, 'candidate', TRUE, TRUE) "
+            "ON CONFLICT (appointment_id, user_id) DO NOTHING",
+            appt=appt_id, uid=candidate_id
+        )
+
+        # Audit event
+        _insert_appointment_event(conn, appt_id, company_user_id,
+                                   'appointment_created', new_status='draft')
+
+        conn.run("COMMIT")
+        committed = True
+
+        return _serialize({
+            "id": appt_id,
+            "company_id": company_user_id,
+            "candidate_id": candidate_id,
+            "job_id": job_id,
+            "application_id": resolved_app_id,
+            "pipeline_entry_id": pipeline_entry_id,
+            "appointment_type": appointment_type,
+            "scheduled_at": sched_utc.isoformat(),
+            "end_at": end_utc.isoformat() if end_utc else None,
+            "duration_minutes": duration_minutes,
+            "mode": mode,
+            "representative_name": representative_name,
+            "notes": notes,
+            "status": "draft",
+        })
+
+    except Exception:
+        if not committed:
+            try:
+                conn.run("ROLLBACK")
+            except Exception:
+                pass
+        raise
+    finally:
+        release_conn(conn)
+
+
+# ── Extended get_job_applicants with pipeline data ────────────────────────────
+
+def get_job_applicants_v2(job_id: int, company_id: int) -> list:
+    """
+    Extended applicant list — includes pipeline_entry_id, notes_count, next_appointment.
+    Used by company owner viewing applicants for a specific job.
+    """
+    conn = get_conn()
+    try:
+        rows = conn.run(
+            "SELECT ja.id, ja.job_id, ja.user_id, ja.status, ja.cover_letter, ja.applied_at, "
+            "u.full_name, u.user_type, u.tw_id, "
+            "p.avatar_url, "
+            "CASE WHEN sc.candidate_id IS NOT NULL THEN true ELSE false END AS is_saved, "
+            "jpe.id AS pipeline_entry_id, "
+            "COALESCE(nc.cnt, 0) AS notes_count "
+            "FROM job_applications ja "
+            "JOIN users u ON u.id = ja.user_id "
+            "LEFT JOIN profiles p ON p.user_id = ja.user_id "
+            "LEFT JOIN company_saved_candidates sc "
+            "  ON sc.company_id = :cid AND sc.candidate_id = ja.user_id "
+            "LEFT JOIN job_pipeline_entries jpe "
+            "  ON jpe.company_id = :cid AND jpe.candidate_id = ja.user_id "
+            "  AND jpe.job_id = :jid "
+            "LEFT JOIN ("
+            "  SELECT pn.pipeline_entry_id, COUNT(*) AS cnt "
+            "  FROM pipeline_notes pn WHERE pn.deleted_at IS NULL "
+            "  GROUP BY pn.pipeline_entry_id"
+            ") nc ON nc.pipeline_entry_id = jpe.id "
+            "WHERE ja.job_id = :jid ORDER BY ja.applied_at DESC",
+            cid=company_id, jid=job_id
+        )
+        cols = [c["name"] for c in conn.columns]
+        items = [_serialize(_row_to_dict(cols, r)) for r in rows]
+
+        # Batch-fetch next active appointment per pipeline_entry_id
+        entry_ids = [a['pipeline_entry_id'] for a in items if a.get('pipeline_entry_id')]
+        appt_map = {}
+        if entry_ids:
+            id_clause = ','.join(str(int(eid)) for eid in entry_ids)
+            appt_rows = conn.run(
+                f"SELECT DISTINCT ON (pipeline_entry_id) "
+                f"pipeline_entry_id, id AS appointment_id, scheduled_at, status, appointment_type "
+                f"FROM appointments "
+                f"WHERE pipeline_entry_id IN ({id_clause}) "
+                f"  AND status NOT IN ('cancelled','expired','missed','closed') "
+                f"ORDER BY pipeline_entry_id, scheduled_at ASC"
+            )
+            for ar in appt_rows:
+                appt_map[int(ar[0])] = _serialize({
+                    "appointment_id": ar[1],
+                    "scheduled_at": ar[2],
+                    "status": ar[3],
+                    "appointment_type": ar[4],
+                })
+
+        for a in items:
+            eid = a.get('pipeline_entry_id')
+            a['next_appointment'] = appt_map.get(int(eid)) if eid else None
+
+        # Batch-fetch other job refs (existing pattern)
+        saved_uids = [a['user_id'] for a in items if a.get('is_saved') and a.get('user_id')]
+        other_titles_map = {}
+        if saved_uids:
+            id_clause = ','.join(str(int(uid)) for uid in saved_uids)
+            trows = conn.run(
+                f"SELECT r.candidate_id, j2.title "
+                f"FROM company_candidate_job_refs r "
+                f"JOIN jobs j2 ON j2.id = r.job_id "
+                f"WHERE r.candidate_id IN ({id_clause}) AND r.company_id = :cid "
+                f"AND r.job_id != :jid ORDER BY j2.id",
+                cid=company_id, jid=job_id
+            ) or []
+            for trow in trows:
+                uid, title = int(trow[0]), trow[1]
+                if uid not in other_titles_map:
+                    other_titles_map[uid] = []
+                other_titles_map[uid].append(title)
+        for a in items:
+            a['other_job_titles'] = other_titles_map.get(a.get('user_id', 0), [])
+
+        return items
     finally:
         release_conn(conn)
