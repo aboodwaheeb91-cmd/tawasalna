@@ -131,9 +131,10 @@ Sessions are stored in **localStorage** (client-side only) as JSON:
 ```
 
 ### Admin Authentication
-- Password: `tw@admin2025`
-- All admin API endpoints require the header: `X-Admin-Token: <sha256_of_password>`
-- Admin panel URL: `/tw-ctrl-kPuOWhpIYjdLQXmh`
+- All secrets are environment variables — no hardcoded values in source
+- `ADMIN_TOKEN` (Railway Variable): random 32+ byte hex used as both login password and API header value
+- All admin API endpoints require the header: `X-Admin-Token: <ADMIN_TOKEN>`
+- Admin panel URL: `/tw-ctrl-{ADMIN_URL_TOKEN}` — ADMIN_URL_TOKEN is an environment variable
 
 ---
 
@@ -217,7 +218,7 @@ Tables are auto-created on startup (with migrations for legacy data):
 | `/messages` | messages.html | All |
 | `/notifications` | notifications.html | All |
 | `/settings` | settings.html | All |
-| `/tw-ctrl-kPuOWhpIYjdLQXmh` | admin.html | Admin only |
+| `/tw-ctrl-{ADMIN_URL_TOKEN}` | admin.html | Admin only |
 
 ---
 
@@ -282,7 +283,7 @@ if (!_u) { location.href = '/login'; }
 
 ### 2. Credential Verification Flow
 1. Employee submits `POST /verify-request` with document URL
-2. Admin reviews at `/tw-ctrl-kPuOWhpIYjdLQXmh`
+2. Admin reviews at `/tw-ctrl-{ADMIN_URL_TOKEN}`
 3. Admin calls `PUT /admin/verify/{req_id}` with `{ status: "approved" | "rejected" }`
 4. Approved credentials show a verified badge on the employee's public profile
 
@@ -329,8 +330,9 @@ Tests: CV matching endpoint, feedback logging, stats endpoint. Tests are minimal
 4. **Respect RTL** — all UI text is Arabic. Use `dir="rtl"` and the Cairo font. Avoid left-to-right assumptions in CSS (use `margin-inline-start` instead of `margin-left` when adding new styles).
 
 5. **Security notes:**
-   - Admin token is hardcoded as a SHA256 hash in `auth.py` — do not log it or expose it
-   - The admin URL token `kPuOWhpIYjdLQXmh` is security-through-obscurity; treat it as a secret
+   - `ADMIN_TOKEN`, `JWT_SECRET`, `ADMIN_URL_TOKEN` are all environment variables — never hardcoded in source
+   - `hmac.compare_digest` is used for all token comparisons (timing-safe)
+   - No secrets are logged or returned in error responses
    - Passwords are never returned from any endpoint
 
 6. **Real-time transport is WebSocket for messages, polling for notifications.**

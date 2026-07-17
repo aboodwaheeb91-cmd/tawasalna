@@ -3576,7 +3576,7 @@ API calls use: `Authorization: Bearer ${_jwt || ''}`
 
 ```
 ✅ Expiry: 7 days — no refresh tokens
-✅ Secret: derived from ADMIN_PASSWORD hash (deterministic, no DB storage)
+✅ Secret: read from JWT_SECRET environment variable — independent of ADMIN_TOKEN
 ✅ No token blacklist — logout is client-side only (localStorage.removeItem)
 ❌ لا تخزين الـ token في الـ DB
 ❌ لا تمرير الـ token في الـ URL
@@ -5760,27 +5760,43 @@ score_data       = _calc_profile_score(uid, conn)  # يُعيد exp/edu/skill/li
 
 ## [P1] 57. Admin System
 
-**URL:** `/tw-ctrl-kPuOWhpIYjdLQXmh`
+**URL:** `/tw-ctrl-{ADMIN_URL_TOKEN}` — ADMIN_URL_TOKEN is an environment variable, never hardcoded
 **Files:** `admin.html`, `admin-view.html`
 
 ### Token Authentication
 
+All three secrets are independent environment variables — no hardcoded values, no fallbacks:
+
+```
+ADMIN_TOKEN     — random 32+ byte hex (e.g. openssl rand -hex 32)
+JWT_SECRET      — random 32+ byte hex, INDEPENDENT of ADMIN_TOKEN
+ADMIN_URL_TOKEN — random slug for the admin panel URL path
+```
+
 ```python
-ADMIN_PASSWORD  = "tw@admin2025"
-ADMIN_URL_TOKEN = "kPuOWhpIYjdLQXmh"  # في الـ URL — security-through-obscurity
-ADMIN_TOKEN     = hashlib.sha256(ADMIN_PASSWORD.encode()).hexdigest()  # 64-char hex
+# server.py — all values from environment only
+ADMIN_TOKEN     = os.environ.get("ADMIN_TOKEN", "").strip()
+JWT_SECRET      = os.environ.get("JWT_SECRET", "").strip()
+ADMIN_URL_TOKEN = os.environ.get("ADMIN_URL_TOKEN", "").strip()
 
 def check_admin(request: Request):
+    if not ADMIN_TOKEN or len(ADMIN_TOKEN) < 32:
+        raise HTTPException(503, "Service temporarily unavailable")
     token = request.headers.get("X-Admin-Token", "")
-    if token != ADMIN_TOKEN:
+    if not hmac.compare_digest(token.encode(), ADMIN_TOKEN.encode()):
         raise HTTPException(403, "Forbidden")
 ```
 
+**Startup behaviour:**
+- `JWT_SECRET` missing → `RuntimeError` at startup → server refuses to start
+- `ADMIN_TOKEN` missing → warning logged → all admin endpoints return 503
+- `ADMIN_URL_TOKEN` missing → warning logged → admin panel URL not accessible
+
 **Admin Login Flow:**
-1. POST `/tw-ctrl-login` بكلمة المرور
-2. Server يُعيد JWT token
-3. يُخزَّن في `sessionStorage` (لا localStorage)
-4. كل استدعاء API يُرسل `X-Admin-Token: <sha256>`
+1. POST `/tw-ctrl-login` with `password = ADMIN_TOKEN` value
+2. Server compares using `hmac.compare_digest` (timing-safe)
+3. Returns `{"success": true, "token": ADMIN_TOKEN}` — stored in `sessionStorage`
+4. Every admin API call sends `X-Admin-Token: <token>`
 
 ### admin.html — Sections
 
@@ -5808,9 +5824,14 @@ def check_admin(request: Request):
 ### Rules
 
 ```
-✅ Admin token مشتق من كلمة المرور — لا DB storage
+✅ ADMIN_TOKEN, JWT_SECRET, ADMIN_URL_TOKEN — environment variables only, no hardcoded values
+✅ hmac.compare_digest used in check_admin and admin_login (timing-safe)
 ✅ ADMIN_URL_TOKEN سري — لا يُكشف في logs أو responses
-❌ لا تُعيد ADMIN_TOKEN في أي response
+✅ JWT_SECRET مستقل تماماً عن ADMIN_TOKEN
+❌ ممنوع اشتقاق ADMIN_TOKEN من كلمة مرور
+❌ ممنوع استخدام ADMIN_TOKEN كـ JWT_SECRET
+❌ ممنوع fallback ثابت أو معروف لأي من الثلاثة
+❌ لا تُطبع قيمة أي secret في logs
 ❌ لا تُضف admin endpoints بدون check_admin dependency
 ```
 

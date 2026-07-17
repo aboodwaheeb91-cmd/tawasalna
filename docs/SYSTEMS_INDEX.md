@@ -31,9 +31,9 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 
 ### 2. JWT Token System
 **Purpose:** Issue and validate signed JWT tokens for all API calls; payload carries `user_id`, `user_type`, `country_code`.
-**Source of Truth:** JWT generation in `auth.py`; algorithm HS256; token stored in `localStorage.tw_jwt`
-**Details:** `ARCHITECTURE.md §46`
-**Do not recreate:** Do not pass `user_id` in request body — always extract from `token.get("user_id")` server-side. Do not use `X-User-Id` header — Bearer token only.
+**Source of Truth:** JWT generation in `server.py` (`_jwt_encode`/`_jwt_decode`); algorithm HS256; secret from `JWT_SECRET` env var (independent of `ADMIN_TOKEN`); token stored in `localStorage.tw_jwt`
+**Details:** `ARCHITECTURE.md §46` · `ARCHITECTURE.md §57`
+**Do not recreate:** Do not pass `user_id` in request body — always extract from `token.get("user_id")` server-side. Do not use `X-User-Id` header — Bearer token only. Do not use `ADMIN_TOKEN` as `JWT_SECRET`. Do not hardcode `JWT_SECRET`.
 
 ---
 
@@ -400,10 +400,10 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 ---
 
 ### 25. Admin Panel
-**Purpose:** Manage all users, approve verifications, analytics, send messages. Protected by SHA256 token header.
-**Source of Truth:** `X-Admin-Token` header (SHA256 of admin password) · admin routes in `server.py` · `admin.html` at `/tw-ctrl-kPuOWhpIYjdLQXmh`
+**Purpose:** Manage all users, approve verifications, analytics, send messages. Protected by environment-variable token.
+**Source of Truth:** `X-Admin-Token` header (= `ADMIN_TOKEN` env var) · `hmac.compare_digest` in `check_admin()` · admin routes in `server.py` · `admin.html` at `/tw-ctrl-{ADMIN_URL_TOKEN}`
 **Details:** `ARCHITECTURE.md §57` · `CLAUDE.md → Admin Authentication`
-**Do not recreate:** Do not expose the admin URL. Do not add admin features accessible without the token.
+**Do not recreate:** Do not hardcode secrets. Do not add admin features accessible without `check_admin`. Do not derive `ADMIN_TOKEN` from a password. Do not use `ADMIN_TOKEN` as `JWT_SECRET`.
 
 ---
 
@@ -699,7 +699,7 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 | `/messages` | `messages.html` | All |
 | `/notifications` | `notifications.html` | All |
 | `/settings` | `settings.html` | All |
-| `/tw-ctrl-kPuOWhpIYjdLQXmh` | `admin.html` | admin |
+| `/tw-ctrl-{ADMIN_URL_TOKEN}` | `admin.html` | admin |
 | `/admin` | `admin-view.html` | admin |
 
 ---
