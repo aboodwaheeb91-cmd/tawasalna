@@ -5173,19 +5173,6 @@ def admin_pipeline_backfill_dry_run(request: Request):
         raise HTTPException(500, str(e))
 
 
-@app.get("/admin/pipeline/index-status")
-def admin_pipeline_index_status(request: Request):
-    """
-    GET /admin/pipeline/index-status
-    Read-only check of the partial UNIQUE index uq_jpe_application_id.
-    Returns: {exists, is_unique, predicate_valid, ready}
-
-    Requires X-Admin-Token header.
-    """
-    check_admin(request)
-    return get_pipeline_application_index_status()
-
-
 @app.post("/admin/pipeline/migrate-index")
 def admin_pipeline_migrate_index(
     request: Request,
@@ -5198,6 +5185,12 @@ def admin_pipeline_migrate_index(
     MUST be called AFTER backfill + conflict check — not at startup.
     confirm=true required for safety.
 
+    Response:
+      200 {"status":"ok", "action":"created"|"already_exists", "index_status":{...}}
+      400 if confirm not passed
+      409 BlockingConflictError (conflicts block index creation)
+      500 if index not ready after creation attempt
+
     Requires X-Admin-Token header.
     """
     check_admin(request)
@@ -5207,11 +5200,26 @@ def admin_pipeline_migrate_index(
             "يجب تمرير confirm=true. تأكد أن الـ backfill اكتمل بدون blocking_conflicts أولاً."
         )
     try:
+        # Check status before to determine action label
+        pre_status = get_pipeline_application_index_status()
+        already_ready = pre_status.get("ready", False)
+
         _migrate_partial_unique_application_id()
+
+        # Verify index is genuinely ready after creation
         idx_status = get_pipeline_application_index_status()
+        if not idx_status.get("ready") or "error" in idx_status:
+            return JSONResponse(
+                status_code=500,
+                content={
+                    "code":         "pipeline_index_not_ready",
+                    "index_status": idx_status,
+                },
+            )
+
         return {
-            "status":     "ok",
-            "message":    "partial UNIQUE index on application_id created (or already exists)",
+            "status":       "ok",
+            "action":       "already_exists" if already_ready else "created",
             "index_status": idx_status,
         }
     except BlockingConflictError as e:

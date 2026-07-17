@@ -8991,10 +8991,12 @@ def get_pipeline_application_index_status() -> dict:
           "ready":           bool  — all three conditions met
         }
 
-    Never raises; on DB error returns all-False with an "error" key.
+    Never raises; on any DB failure returns all-False with an "error" key.
     """
-    conn = get_conn()
+    conn = None
     try:
+        conn = get_conn()
+
         # Check pg_indexes (basic presence)
         idx_check = conn.run(
             "SELECT indexname FROM pg_indexes "
@@ -9039,7 +9041,8 @@ def get_pipeline_application_index_status() -> dict:
         }
 
     finally:
-        release_conn(conn)
+        if conn is not None:
+            release_conn(conn)
 
 
 # ══════════════════════════════════════════════════════════════════════════
