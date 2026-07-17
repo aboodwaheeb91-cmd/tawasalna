@@ -11220,3 +11220,226 @@ Panel footer: "حفظ التعديلات" | "إلغاء" | "إزالة من بن
 | Group 12 | 46–51 | Panel isolation: status unchanged, no fake job_links, no new DB rows in ccjr/pipeline_entries/pipeline_events, payload without status/job_id accepted |
 
 Test architecture: each class uses `setUpClass` (one register+login per class) to stay under the 60-requests/minute rate limit. Per-test `setUp` resets mutable fields via PATCH (not rate-limited).
+
+---
+
+## §69 — PR-5: Job-Specific Pipeline Notes + Appointment Pipeline Linking
+
+**Depends on:** §67 (PR-3), §68 (PR-4)
+
+**Base SHA:** `33e79db` (main after PR #496 merge)  
+**Branch:** `feat/pipeline-pr5`
+
+---
+
+### Purpose
+
+PR-5 adds two independently-scoped features on top of the employment pipeline:
+
+1. **Pipeline Notes CRUD** — job-specific notes attached to a `job_pipeline_entries` row (distinct from general talent-bank notes on `company_saved_candidates.notes`)
+2. **Pipeline Appointment Linking** — creates appointments bound to a pipeline entry via `appointments.pipeline_entry_id`; implemented as an additive extension to the existing unified `POST /api/appointments` endpoint (Path B); also extends `GET /jobs/{job_id}/applicants` additively with per-applicant pipeline data
+
+---
+
+### DB Schema — New / Changed
+
+| Object | Change | Notes |
+|--------|--------|-------|
+| `pipeline_notes` | NEW table (PR-1 migration) | `id, pipeline_entry_id FK, body TEXT CHECK (≥1 non-space char), created_by INT FK, created_at, deleted_at (soft-delete)` |
+| `appointments.appointment_type` | NEW column | `TEXT NULL` CHECK `IN ('interview','call','task','other')` |
+| `appointments.end_at` | NEW column | `TIMESTAMPTZ NULL` |
+| `appointments.mode` | BACKFILL column | `TEXT NOT NULL DEFAULT 'online'` — existed in CREATE TABLE but was missing from `_appt_backfill` list; added in `_migrate_pr5_pipeline_linking()` |
+| `appointments.applicant_id` | BACKFILL | Filled from `candidate_id` where NULL for schema-compat |
+
+**Migration:** `_migrate_pr5_pipeline_linking()` — idempotent, runs on startup after `_migrate_pipeline_schema_v1()`.
+
+---
+
+### Source of Truth
+
+| Concept | Source |
+|---------|--------|
+| Pipeline note ownership | `job_pipeline_entries.company_id` (JOIN — no `company_id` column on `pipeline_notes`) |
+| Pipeline note soft-delete | `pipeline_notes.deleted_at IS NOT NULL` |
+| Pipeline entry resolution | `_resolve_pipeline_entry(conn, company_id, candidate_id, job_id, application_id)` in `auth.py` |
+| Pipeline-linked appointment | `appointments.pipeline_entry_id FK` |
+| Applicant pipeline data | `GET /jobs/{job_id}/applicants/v2` — LEFT JOINs pipeline data |
+
+---
+
+### Key Helpers (auth.py)
+
+#### `_resolve_pipeline_entry(conn, company_id, candidate_id, job_id, application_id=None) → dict`
+
+Unified helper for all pipeline-context operations:
+1. Verifies job belongs to company
+2. Verifies candidate is a valid employee
+3. Looks up the `job_pipeline_entries` row — raises `PipelineEntryRequiredError` if none exists
+4. Reads `db_app_id = row.application_id` — **DB value is the authority**, not the client-supplied param
+5. If client provides `application_id` AND `db_app_id IS NOT NULL` AND they differ → raises `PipelineApplicationConflictError` (HTTP 409)
+6. If client provides no `application_id`: falls back to `db_app_id` from DB (never drops to None when DB has a value)
+
+Returns: `{pipeline_entry_id, candidate_id, job_id, application_id}` — `application_id` is always the DB-authoritative value.
+
+#### `PipelineEntryRequiredError`
+
+Structured error → HTTP 409 `{code: "pipeline_entry_required", message: "..."}`. Raised when no `job_pipeline_entries` row exists for the (company, candidate, job) triple.
+
+#### `PipelineApplicationConflictError`
+
+Structured error → HTTP 409 `{code: "pipeline_application_conflict", message: "..."}`. Raised when the client-supplied `application_id` conflicts with the `application_id` already stored in the pipeline entry row. The DB value is always authoritative.
+
+#### `_insert_appointment_event(conn, ..., payload=None)` — Bug Fix
+
+The CASE WHEN `:payload IS NULL THEN NULL ELSE :payload::jsonb END` pattern caused pg8000 to raise PostgreSQL error `42P08` ("could not determine data type of parameter $6") when `payload=None`. Fixed by branching in Python: bind `:payload::jsonb` only when payload_str is not None; use literal SQL `NULL` otherwise. **This fix applies globally** — not scoped to PR-5 callers.
+
+---
+
+### Pipeline Notes API Contract
+
+| Endpoint | Auth | Description |
+|----------|------|-------------|
+| `GET /company/pipeline/{entry_id}/notes` | JWT (co only) | List active (non-deleted) notes for the entry |
+| `POST /company/pipeline/{entry_id}/notes` | JWT (co only) | Create note (body required, max 5000 chars) |
+| `PATCH /company/pipeline/notes/{note_id}` | JWT (co only) | Edit note body |
+| `DELETE /company/pipeline/notes/{note_id}` | JWT (co only) | Soft-delete (sets `deleted_at = NOW()`) |
+
+**Ownership verification:** every endpoint verifies `job_pipeline_entries.company_id = JWT.user_id` via JOIN. No `company_id` column on `pipeline_notes`.
+
+**Isolation rules:**
+- Creating/editing pipeline notes NEVER changes `company_saved_candidates.notes`
+- Creating/editing pipeline notes NEVER changes `job_pipeline_entries.stage`
+- Creating/editing pipeline notes NEVER changes `job_applications.status`
+- Notes per pipeline entry are independent (entry A notes ≠ entry B notes for same candidate)
+- `PATCH /company/saved-candidates/{id}` (manage panel) NEVER creates `pipeline_notes` rows
+
+---
+
+### Pipeline Appointment API Contract
+
+**There is NO separate pipeline appointment endpoint.** Pipeline-linked appointments are created through the unified `POST /api/appointments` using **Path B** (candidate_id + job_id). The parallel route `POST /company/appointments/pipeline` was removed in the PR-5 correction round.
+
+**`POST /api/appointments` — Path B (Pipeline):**
+
+| Endpoint | Auth | Description |
+|----------|------|-------------|
+| `POST /api/appointments` | JWT (co only) | Unified appointment creation — Path A or Path B |
+
+Path B is triggered when `candidate_id` + `job_id` are provided (no `application_id`):
+
+```json
+{
+  "candidate_id": int,
+  "job_id": int,
+  "appointment_type": "interview | call | task | other",
+  "mode": "online | onsite",
+  "notes": "string | null",
+  "online_url": "string | null",
+  "location_text": "string | null",
+  "representative_name": "string | null"
+}
+```
+
+Path A (backward compat) is triggered when `application_id` is provided.
+
+**Error codes:**
+- `409 {code: "pipeline_entry_required"}` — candidate not in pipeline for this job (Path B only)
+- `409 {code: "pipeline_application_conflict"}` — client `application_id` conflicts with DB-stored value
+- `400` — naive ISO datetime (missing timezone), mode=hybrid, past date, archived job
+- `403` — non-company JWT
+
+**Modes:** only `"online"` and `"onsite"` are valid. `"hybrid"` is permanently rejected.
+
+**Strict timezone:** `scheduled_at` ISO must contain timezone offset (Z or ±HH:MM). Naive ISO is rejected with HTTP 400 — no legacy fallback.
+
+**Atomic duplicate guard:** `SELECT FOR UPDATE` inside `BEGIN` on the pipeline entry row; if an active appointment already exists for the same `pipeline_entry_id` → 400.
+
+**`pipeline_entry_id` preservation:** `send_appointment()`, `reschedule_appointment()`, and `cancel_appointment()` all preserve `pipeline_entry_id` — it is never cleared by lifecycle transitions.
+
+---
+
+### Applicants API — Pipeline Fields (Additive Extension)
+
+**`GET /jobs/{job_id}/applicants`** now returns pipeline data per applicant. No `/v2` endpoint was created — the original endpoint was extended additively.
+
+**New fields per applicant:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `pipeline_entry_id` | `int \| null` | FK to `job_pipeline_entries.id` |
+| `stage` | `string \| null` | Current pipeline stage (from `job_pipeline_entries.stage`) |
+| `pipeline_notes_count` | `int` | Count of active (non-deleted) notes for this entry |
+| `next_appointment` | `object \| null` | `{id, status, scheduled_at, appointment_type}` — next future non-terminal appointment |
+
+**`next_appointment` definition:** `scheduled_at > NOW()` AND `status NOT IN ('cancelled','expired','missed','closed')`, ordered by `scheduled_at ASC`, first row per `pipeline_entry_id`.
+
+**Implementation:** correlated subquery for `pipeline_notes_count`; batch `DISTINCT ON (pipeline_entry_id)` query for `next_appointment` (avoids N+1). Archived jobs can still be read (archived_at check is creation-only).
+
+---
+
+### Security Invariants (permanent)
+
+- `company_id` ALWAYS from JWT — never from request body
+- `pipeline_entry_id` ALWAYS resolved server-side via `_resolve_pipeline_entry()`
+- Cross-company isolation: Company B cannot read/write Company A's notes or appointments
+- Employee accounts (user_type ≠ 'co') get 403 on all pipeline endpoints
+- Hard delete of pipeline notes is permanently forbidden — use soft-delete only
+
+---
+
+### pg8000 NULL-typing Rules (permanent, applies to all future DB code)
+
+pg8000 native `Connection.run()` sends Python `None` as untyped NULL (OID 0). PostgreSQL can usually infer the type from column context, but fails with error `42P08` when the same parameter appears in multiple type contexts within a single expression (e.g., `CASE WHEN :p IS NULL THEN NULL ELSE :p::jsonb END`).
+
+**Rules:**
+1. **Literal SQL `NULL`** — use for nullable non-TEXT columns when the value is definitely None (eliminates the parameter entirely from the prepared statement)
+2. **Dynamic SQL** — build INSERT column/value lists conditionally, excluding None FK/TIMESTAMPTZ columns from the SQL text
+3. **TEXT NULL** — pg8000 handles `None` for TEXT columns without error (PostgreSQL infers TEXT from column type)
+4. **CASE WHEN :param IS NULL** — permanently forbidden pattern; branch in Python instead
+
+---
+
+### Forbidden Patterns (PR-5 — permanent)
+
+```
+❌ Creating pipeline notes via PATCH /company/saved-candidates/{id} (manage panel)
+❌ Writing pipeline_entry_id from client body (always resolved server-side)
+❌ Creating a pipeline_entry on-the-fly when none exists for appointment (raise 409 instead)
+❌ Hard-deleting pipeline notes (soft-delete only)
+❌ Returning pipeline_entry_id from /u/{tw_id} public profile routes
+❌ CASE WHEN :param IS NULL pattern in any pg8000 conn.run() call
+❌ Passing None to non-TEXT typed parameters without using literal NULL in SQL
+❌ Adding appointment scheduling to the manage panel (stays in pipeline/applicants screen)
+❌ Starting PR-6 before this PR is reviewed and merged by the user
+❌ Creating a separate POST /company/appointments/pipeline endpoint — removed; use POST /api/appointments Path B
+❌ Creating a GET /jobs/{job_id}/applicants/v2 endpoint — removed; extend the original endpoint additively
+❌ Using mode="hybrid" for appointments (only "online" and "onsite" are valid)
+❌ Accepting naive ISO datetimes in send_appointment (strict timezone required)
+❌ Dropping pipeline_entry_id during appointment lifecycle transitions (send/reschedule/cancel must preserve it)
+❌ Using client-supplied application_id as authority when DB has a conflicting value (DB is always authoritative)
+```
+
+---
+
+### Tests
+
+`test_pipeline_pr5.py` — **49 tests, 9 groups (A–H)**:
+
+| Group | Tests | Scope |
+|-------|-------|-------|
+| A — Pipeline Notes CRUD | 01–06 | Create/list/edit/delete notes, empty body rejected, general notes isolation |
+| B — Appointment Creation (Path B) | 07–15 | Create via `POST /api/appointments` with `{candidate_id, job_id}`; no-entry 409; role='applicant' in DB (test 13); participant uniqueness; pipeline_application_conflict 409 (test 15); real before/after counts |
+| C — Appointment Validation | 16–22 | Past date, wrong job_id, archived job, no JWT, mode=hybrid → 400, naive ISO → 400 |
+| D — Security | 23–27 | Cross-company isolation (notes + appointments), employee account rejected |
+| E — System Isolation | 28–32 | `PATCH /company/saved-candidates/{candidate_id}` correct route + DB verification; applicants endpoint field shape; `next_appointment` present; archived job readable |
+| F — Concurrency + Lifecycle | 33–40 | Path B returns DB `application_id`; concurrent creates serialized (threading); UTC storage; send/cancel preserve `pipeline_entry_id`; talent bank removal does not delete appointments/notes; dup guard → 400 |
+| G — Payload Contract | 41–45 | All 5 bad payload cases rejected: `app_id+cand_id+job_id` (41), `app_id+cand_id` (42), `app_id+job_id` (43), `cand_id` alone (44), `job_id` alone (45) — each verifies no DB row created |
+| H — Backfill Migration | 46–49 | `_migrate_pr5_pipeline_linking()` Step 7: old appt linked (46); linked appt in next_appointment API (47); dup guard still blocks new appt (48); no-match case stays NULL (49) |
+
+**All appointment creates use `POST /api/appointments` — Path A (`application_id`) or Path B (`{candidate_id, job_id}`). No parallel endpoint.**
+
+**Payload contract (permanent):** Path A = `application_id` only; Path B = `candidate_id + job_id` only. Any mix or incomplete combination → HTTP 400 structured error with `code` field.
+
+**DB migrations tested on startup:** `appointment_type`, `end_at`, `mode` columns; `applicant_id` backfill; Step 7 `pipeline_entry_id` backfill (HAVING COUNT=1, idempotent).
+
+**job_links extended fields (Section 2):** `pipeline_entry_id`, `application_id`, `pipeline_notes_count`, `next_appointment` — returned from both `get_company_saved_candidates` and `get_company_saved_candidates_filtered`.

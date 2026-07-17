@@ -121,6 +121,12 @@ from auth import (
     run_due_scheduler_jobs,
     BlockingConflictError,
     TalentBankLimitError,
+    _migrate_pr5_pipeline_linking,
+    _resolve_pipeline_entry,
+    PipelineEntryRequiredError,
+    PipelineApplicationConflictError,
+    create_pipeline_note, list_pipeline_notes,
+    update_pipeline_note, delete_pipeline_note,
 )
 from auth import ContentValidationError, validate_professional_text, JobArchivedError
 
@@ -535,6 +541,12 @@ async def on_startup():
         print("✅ pipeline schema v1 ready (jobs archive, job_pipeline_entries, pipeline_stage_events, pipeline_notes, candidate_bank_notes, company_saved_candidates fields, appointments.pipeline_entry_id)")
     except Exception as e:
         print(f"❌ pipeline schema v1 migration failed: {e}")
+        raise
+    try:
+        _migrate_pr5_pipeline_linking()
+        print("✅ PR-5 pipeline linking ready (appointment_type, end_at, applicant_id backfill)")
+    except Exception as e:
+        print(f"❌ PR-5 pipeline linking migration failed: {e}")
         raise
     # NOTE: _migrate_partial_unique_application_id() is NOT called here on startup.
     # The partial UNIQUE index on job_pipeline_entries(application_id) must be created AFTER
@@ -4689,7 +4701,12 @@ def page_appointment_room():
 # ── Pydantic models ───────────────────────────────────────────────────────
 
 class AppointmentCreateInput(BaseModel):
-    application_id: int
+    # Path A (backward-compat): supply application_id only
+    application_id: Optional[int] = None
+    # Path B (pipeline): supply candidate_id + job_id (pipeline entry must exist)
+    candidate_id: Optional[int] = None
+    job_id: Optional[int] = None
+    appointment_type: Optional[str] = None
     mode: Optional[str] = "online"
     notes: Optional[str] = None
     online_url: Optional[str] = None
@@ -4723,13 +4740,80 @@ class AppointmentMessageInput(BaseModel):
 @app.post("/api/appointments")
 def api_create_appointment(body: AppointmentCreateInput,
                             token=Depends(verify_token)):
+    """
+    POST /api/appointments
+
+    Path A (backward-compat): { application_id }
+    Path B (pipeline):        { candidate_id, job_id, appointment_type }
+
+    company_id always derived from JWT.
+    Returns 409 with code=pipeline_entry_required when no pipeline entry exists (Path B).
+    Returns 409 with code=pipeline_application_conflict on application_id mismatch.
+    """
     user_id = int(token["user_id"])
     if token.get("user_type") != "co":
         raise HTTPException(403, "فقط حسابات الشركات يمكنها إنشاء مواعيد")
+
+    # Complete payload contract enforcement:
+    # Path A: application_id only (candidate_id and job_id must be absent)
+    # Path B: candidate_id + job_id only (application_id must be absent)
+    # All other combinations are rejected with structured 400 errors.
+    from fastapi.responses import JSONResponse as _JR
+    _app_set  = body.application_id is not None
+    _cand_set = body.candidate_id is not None
+    _job_set  = body.job_id is not None
+
+    if _app_set and (_cand_set or _job_set):
+        # application_id mixed with any Path B field — ambiguous context
+        return _JR(
+            status_code=400,
+            content={
+                "ok": False,
+                "code": "ambiguous_appointment_context",
+                "message": (
+                    "Payload غير واضح: أرسل application_id فقط (Path A) "
+                    "أو candidate_id + job_id فقط (Path B) — وليس كليهما معاً."
+                ),
+            }
+        )
+    if _cand_set and not _job_set:
+        # candidate_id without job_id — incomplete Path B
+        return _JR(
+            status_code=400,
+            content={
+                "ok": False,
+                "code": "invalid_appointment_context",
+                "message": "candidate_id يتطلب job_id (Path B غير مكتمل).",
+            }
+        )
+    if _job_set and not _cand_set:
+        # job_id without candidate_id — incomplete Path B
+        return _JR(
+            status_code=400,
+            content={
+                "ok": False,
+                "code": "invalid_appointment_context",
+                "message": "job_id يتطلب candidate_id (Path B غير مكتمل).",
+            }
+        )
+    if not _app_set and not (_cand_set and _job_set):
+        # Neither path provided
+        return _JR(
+            status_code=400,
+            content={
+                "ok": False,
+                "code": "invalid_appointment_context",
+                "message": "يجب إرسال application_id (Path A) أو candidate_id + job_id (Path B).",
+            }
+        )
+
     try:
         appt = create_appointment(
             company_user_id=user_id,
             application_id=body.application_id,
+            candidate_id=body.candidate_id,
+            job_id=body.job_id,
+            appointment_type=body.appointment_type,
             mode=body.mode or "online",
             notes=body.notes,
             online_url=body.online_url,
@@ -4737,6 +4821,26 @@ def api_create_appointment(body: AppointmentCreateInput,
             representative_name=body.representative_name,
         )
         return {"ok": True, "data": appt}
+    except PipelineApplicationConflictError as e:
+        from fastapi.responses import JSONResponse as _JR
+        return _JR(
+            status_code=409,
+            content={
+                "ok": False,
+                "code": "pipeline_application_conflict",
+                "message": str(e),
+            }
+        )
+    except PipelineEntryRequiredError as e:
+        from fastapi.responses import JSONResponse as _JR
+        return _JR(
+            status_code=409,
+            content={
+                "ok": False,
+                "code": "pipeline_entry_required",
+                "message": str(e),
+            }
+        )
     except PermissionError as e:
         raise HTTPException(403, str(e))
     except ValueError as e:
@@ -5075,3 +5179,89 @@ def admin_pipeline_migrate_index(
         return JSONResponse(status_code=409, content=e.report)
     except Exception as e:
         raise HTTPException(500, str(e))
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# PR-5: Pipeline Notes + Pipeline Appointment endpoints
+# ══════════════════════════════════════════════════════════════════════════════
+
+# ── Input models ─────────────────────────────────────────────────────────────
+
+class PipelineNoteCreateInput(BaseModel):
+    body: str
+
+class PipelineNoteUpdateInput(BaseModel):
+    body: str
+
+# ── Pipeline Notes endpoints ──────────────────────────────────────────────────
+
+@app.get("/company/pipeline/{entry_id}/notes")
+def api_list_pipeline_notes(entry_id: int, token=Depends(verify_token)):
+    """GET /company/pipeline/{entry_id}/notes — list active notes for a pipeline entry."""
+    company_id = int(token["user_id"])
+    if token.get("user_type") != "co":
+        raise HTTPException(403, "فقط حسابات الشركات يمكنها قراءة ملاحظات Pipeline")
+    try:
+        notes = list_pipeline_notes(entry_id, company_id)
+        return {"ok": True, "data": {"notes": notes, "count": len(notes)}}
+    except PermissionError as e:
+        raise HTTPException(403, str(e))
+    except Exception as e:
+        print(f"[api_list_pipeline_notes] {e}")
+        raise HTTPException(500, str(e))
+
+
+@app.post("/company/pipeline/{entry_id}/notes")
+def api_create_pipeline_note(entry_id: int, body: PipelineNoteCreateInput,
+                              token=Depends(verify_token)):
+    """POST /company/pipeline/{entry_id}/notes — create a note on a pipeline entry."""
+    company_id = int(token["user_id"])
+    if token.get("user_type") != "co":
+        raise HTTPException(403, "فقط حسابات الشركات يمكنها إضافة ملاحظات Pipeline")
+    try:
+        note = create_pipeline_note(entry_id, body.body, company_id, company_id)
+        return {"ok": True, "data": {"note": note}}
+    except PermissionError as e:
+        raise HTTPException(403, str(e))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:
+        print(f"[api_create_pipeline_note] {e}")
+        raise HTTPException(500, str(e))
+
+
+@app.patch("/company/pipeline/notes/{note_id}")
+def api_update_pipeline_note(note_id: int, body: PipelineNoteUpdateInput,
+                              token=Depends(verify_token)):
+    """PATCH /company/pipeline/notes/{note_id} — edit a pipeline note."""
+    company_id = int(token["user_id"])
+    if token.get("user_type") != "co":
+        raise HTTPException(403, "فقط حسابات الشركات يمكنها تعديل ملاحظات Pipeline")
+    try:
+        note = update_pipeline_note(note_id, company_id, body.body)
+        return {"ok": True, "data": {"note": note}}
+    except PermissionError as e:
+        raise HTTPException(403, str(e))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:
+        print(f"[api_update_pipeline_note] {e}")
+        raise HTTPException(500, str(e))
+
+
+@app.delete("/company/pipeline/notes/{note_id}")
+def api_delete_pipeline_note(note_id: int, token=Depends(verify_token)):
+    """DELETE /company/pipeline/notes/{note_id} — soft-delete a pipeline note."""
+    company_id = int(token["user_id"])
+    if token.get("user_type") != "co":
+        raise HTTPException(403, "فقط حسابات الشركات يمكنها حذف ملاحظات Pipeline")
+    try:
+        delete_pipeline_note(note_id, company_id)
+        return {"ok": True}
+    except PermissionError as e:
+        raise HTTPException(403, str(e))
+    except Exception as e:
+        print(f"[api_delete_pipeline_note] {e}")
+        raise HTTPException(500, str(e))
+
+
