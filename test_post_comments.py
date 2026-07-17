@@ -9440,13 +9440,23 @@ _upd_fn481  = (_auth481.split('def update_company_saved_candidate')[1].split('\n
 _filter_fn481 = (_auth481.split('def get_company_saved_candidates_filtered')[1].split('\ndef ')[0]
                  if 'def get_company_saved_candidates_filtered' in _auth481 else '')
 
+# Extract only the function SIGNATURE of save_company_candidate (stops before docstring/body)
+_save_fn481_sig = ''
+if 'def save_company_candidate' in _auth481:
+    _after481 = _auth481.split('def save_company_candidate')[1]
+    _sig_end481 = _after481.find(') -> dict:')
+    if _sig_end481 == -1:
+        _sig_end481 = _after481.find('):')
+    _save_fn481_sig = _after481[:_sig_end481] if _sig_end481 > 0 else _after481[:300]
+
 # 481-01: PR-3 Talent Bank Independence — save_company_candidate does NOT INSERT INTO company_candidate_job_refs
 check("481-01. PR-3: save_company_candidate does NOT INSERT INTO company_candidate_job_refs (talent bank independence)",
       'INSERT INTO company_candidate_job_refs' not in _save_fn481)
 
-# 481-02: PR-3 — save_company_candidate accepts job_id but stores it in CSC only (no CCJR insert)
-check("481-02. PR-3: save_company_candidate stores job_id in company_saved_candidates but not in company_candidate_job_refs",
-      'job_id' in _save_fn481
+# 481-02: PR-3 — save_company_candidate does NOT accept job_id at all (full talent bank independence)
+# Check the SIGNATURE only (docstring may legitimately mention "job_id is NOT accepted")
+check("481-02. PR-3: save_company_candidate does NOT accept or store job_id (talent bank independence)",
+      'job_id' not in _save_fn481_sig
       and 'INSERT INTO company_candidate_job_refs' not in _save_fn481)
 
 # 481-03: no job_id → no company_candidate_job_refs insert (else branch only touches saved_candidates)

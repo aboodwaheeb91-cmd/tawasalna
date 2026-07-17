@@ -2342,7 +2342,6 @@ def company_save_candidate(candidate_id: int, job_id: Optional[int] = None,
             company_id=company_id,
             candidate_id=candidate_id,
             saved_by=company_id,
-            job_id=job_id,
             save_source=save_source)
     except TalentBankLimitError as e:
         return JSONResponse(status_code=409, content={

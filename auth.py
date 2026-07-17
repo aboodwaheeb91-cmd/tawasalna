@@ -5043,12 +5043,14 @@ def _migrate_candidate_status_per_job():
 
 
 def save_company_candidate(company_id: int, candidate_id: int, saved_by: int,
-                            job_id: int = None, notes: str = None,
+                            notes: str = None,
                             save_source: str = 'manual') -> dict:
     """
     Atomically save a candidate to the company's Talent Bank with quota enforcement.
 
     Rules (PR-3 Talent Bank Independence):
+    - Saves Talent Bank MEMBERSHIP ONLY — no job context stored here.
+    - job_id is NOT accepted; the endpoint resolves save_source before calling this.
     - Does NOT write to company_candidate_job_refs, job_pipeline_entries, or pipeline_stage_events.
     - Quota (TALENT_BANK_FREE_LIMIT) is enforced inside an advisory-locked transaction.
     - Re-saving an already-saved candidate is always idempotent (success, already_saved=True),
@@ -5119,10 +5121,10 @@ def save_company_candidate(company_id: int, candidate_id: int, saved_by: int,
 
             conn.run(
                 "INSERT INTO company_saved_candidates "
-                "(company_id, candidate_id, job_id, notes, saved_by, save_source) "
-                "VALUES (:cid, :uid, :jid, :notes, :sid, :src)",
+                "(company_id, candidate_id, notes, saved_by, save_source) "
+                "VALUES (:cid, :uid, :notes, :sid, :src)",
                 cid=company_id, uid=candidate_id,
-                jid=job_id, notes=notes, sid=saved_by, src=save_source)
+                notes=notes, sid=saved_by, src=save_source)
             conn.run("COMMIT")
             committed = True
 
