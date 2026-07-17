@@ -5505,10 +5505,14 @@ def get_company_saved_candidates_filtered(
             params["min_rating"] = min_rating
 
         if tag:
-            # Prefix match (case-insensitive) — escape LIKE special chars
+            # Prefix match (case-insensitive).
+            # PostgreSQL default ILIKE escape char is '\', so we escape special
+            # LIKE metacharacters in the value and append '%' for the prefix wildcard.
+            # No explicit ESCAPE clause — avoids the 2-char '\\\' ambiguity with
+            # standard_conforming_strings=on and is safe across all pg versions.
             _tag_esc = tag.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
             where_parts.append(
-                "EXISTS (SELECT 1 FROM unnest(sc.tags) AS _t WHERE _t ILIKE :tag_prefix ESCAPE '\\\\')"
+                "EXISTS (SELECT 1 FROM unnest(sc.tags) AS _t WHERE _t ILIKE :tag_prefix)"
             )
             params["tag_prefix"] = _tag_esc + "%"
 

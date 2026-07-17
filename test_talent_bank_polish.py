@@ -133,12 +133,14 @@ class B_FiltersRemoved(unittest.TestCase):
 class C_TagSearch(unittest.TestCase):
 
     def test_08_tag_ilike_prefix_in_auth(self):
-        """auth.py: tag filter uses ILIKE prefix (not exact = ANY)"""
-        # New code must use ILIKE with _tag_esc + '%'
+        """auth.py: tag filter uses ILIKE prefix without explicit ESCAPE clause"""
         self.assertIn("ILIKE :tag_prefix", AUTH)
+        # No ESCAPE clause — rely on PostgreSQL default backslash escape
+        # An explicit ESCAPE clause with '\\\\' sends 2-char string to PG which is an error
+        self.assertNotIn("ESCAPE '\\\\'", AUTH)
 
     def test_09_tag_escape_percent_in_auth(self):
-        """auth.py: LIKE special chars escaped (%, _, \\)"""
+        """auth.py: LIKE special chars escaped (%, _, \\) in parameter value"""
         self.assertIn('.replace("%", "\\\\%")', AUTH)
         self.assertIn('.replace("_", "\\\\_")', AUTH)
 
@@ -306,6 +308,70 @@ class J_PR5Regression(unittest.TestCase):
 
 
 # ══════════════════════════════════════════════════════════════════
+# Group K — Badge loads on page open (quota called from _loadBadge)
+# ══════════════════════════════════════════════════════════════════
+class K_BadgeOnLoad(unittest.TestCase):
+
+    def test_33_loadBadge_calls_loadTalentBankQuota(self):
+        """JS: _loadBadge() calls _loadTalentBankQuota() so badge shows on page load"""
+        # Find the _loadBadge function body
+        fn = re.search(r'function _loadBadge\(\)\s*\{([^}]+)\}', JS, re.S)
+        self.assertIsNotNone(fn, "_loadBadge not found")
+        self.assertIn("_loadTalentBankQuota()", fn.group(1))
+
+    def test_34_loadSavedStats_guards_badge_against_overwrite(self):
+        """JS: _loadSavedStats only calls _setBadge when _quotaUsed === null"""
+        fn = re.search(r'function _loadSavedStats\(cb\)\s*\{.*?^\s*\}', JS, re.M | re.S)
+        self.assertIsNotNone(fn, "_loadSavedStats not found")
+        body = fn.group()
+        # Must guard with _quotaUsed === null before calling _setBadge
+        self.assertIn("_quotaUsed === null", body)
+        self.assertIn("_setBadge", body)
+
+    def test_35_setBadge_shows_quota_for_zero(self):
+        """JS: _setBadge shows 'used / limit' even when used=0 (_quotaUsed !== null)"""
+        # The condition must be _quotaUsed !== null (not _quotaUsed > 0)
+        fn = re.search(r'function _setBadge\(\w+\)\s*\{([^}]+)\}', JS, re.S)
+        self.assertIsNotNone(fn, "_setBadge not found")
+        body = fn.group(1)
+        self.assertIn("_quotaUsed !== null", body)
+        # Must NOT hide badge when quota is loaded with 0
+        # i.e., the display:none branch must be in the else (not inside quota check)
+        lines = body.split('\n')
+        quota_idx = next((i for i, l in enumerate(lines) if "_quotaUsed !== null" in l), None)
+        self.assertIsNotNone(quota_idx)
+        # The inline-flex display line must be inside the quota block
+        found_quota_show = any("inline-flex" in l for l in lines[quota_idx:quota_idx+5])
+        self.assertTrue(found_quota_show, "Badge must be visible (inline-flex) when quota is loaded")
+
+
+# ══════════════════════════════════════════════════════════════════
+# Group L — Sort and source filter cleanup
+# ══════════════════════════════════════════════════════════════════
+class L_FilterCleanup(unittest.TestCase):
+
+    def test_36_status_asc_removed_from_sort_opts(self):
+        """JS: status_asc sort option is removed from Talent Bank"""
+        sort_block = re.search(r'var sortOpts\s*=\s*\[(.*?)\];', JS, re.S)
+        self.assertIsNotNone(sort_block)
+        self.assertNotIn("status_asc", sort_block.group(1))
+        self.assertNotIn("الحالة", sort_block.group(1).split("الأولوية")[0]
+                         if "الأولوية" in sort_block.group(1) else sort_block.group(1))
+
+    def test_37_legacy_unknown_in_source_opts(self):
+        """JS: sourceOpts includes legacy_unknown → بيانات سابقة"""
+        src_block = re.search(r'var sourceOpts\s*=\s*\[(.*?)\];', JS, re.S)
+        self.assertIsNotNone(src_block)
+        self.assertIn("legacy_unknown", src_block.group(1))
+        self.assertIn("بيانات سابقة", src_block.group(1))
+
+    def test_38_empty_state_text_updated(self):
+        """JS: empty state for no-filter case says 'لا توجد مواهب محفوظة بعد'"""
+        self.assertIn("لا توجد مواهب محفوظة بعد", JS)
+        self.assertNotIn("لا يوجد مرشحون محفوظون بعد", JS)
+
+
+# ══════════════════════════════════════════════════════════════════
 if __name__ == "__main__":
     loader = unittest.TestLoader()
     loader.sortTestMethodsUsing = None   # preserve definition order
@@ -314,7 +380,7 @@ if __name__ == "__main__":
         A_ButtonRename, B_FiltersRemoved, C_TagSearch,
         D_CardLayout, E_SourceLabels, F_JobSections,
         G_Popover, H_ManagePanel, I_ForbiddenSideEffects,
-        J_PR5Regression,
+        J_PR5Regression, K_BadgeOnLoad, L_FilterCleanup,
     ]:
         suite.addTests(loader.loadTestsFromTestCase(cls))
 

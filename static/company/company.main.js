@@ -2727,6 +2727,7 @@
 
   function _loadBadge() {
     if (!_isOwner()) return;
+    _loadTalentBankQuota();   // sets _quotaUsed; shows "0 / 25" even before modal opens
     _loadSavedStats(null);
     if (_urlDeepLinkPending) {
       _urlDeepLinkPending = false;
@@ -2985,7 +2986,6 @@
       {value:'created_desc',  label:'الأحدث حفظاً'},
       {value:'created_asc',   label:'الأقدم حفظاً'},
       {value:'name_asc',      label:'الاسم أ-ي'},
-      {value:'status_asc',    label:'الحالة'},
       {value:'rating_desc',   label:'التقييم الأعلى'},
       {value:'priority_asc',  label:'الأولوية'}
     ];
@@ -3004,10 +3004,11 @@
       {value:'1', label:'★ فأعلى'}
     ];
     var sourceOpts = [
-      {value:'',           label:'كل المصادر'},
-      {value:'manual',     label:'حفظ يدوي'},
-      {value:'applicant',  label:'متقدم لوظيفة'},
-      {value:'suggestion', label:'اقتراح'}
+      {value:'',               label:'كل المصادر'},
+      {value:'manual',         label:'حفظ يدوي'},
+      {value:'applicant',      label:'متقدم لوظيفة'},
+      {value:'suggestion',     label:'اقتراح'},
+      {value:'legacy_unknown', label:'بيانات سابقة'}
     ];
     var quotaStr = (_quotaUsed !== null)
       ? ('بنك المواهب: ' + _quotaUsed + ' من ' + _quotaLimit)
@@ -3081,7 +3082,9 @@
       .then(function (res) {
         if (res && res.ok && res.data) {
           _savedStats = res.data;
-          _setBadge(_savedStats.total || 0);
+          // Only fall back to stats.total if quota has not loaded yet —
+          // prevents a slow stats response from overwriting "used / limit"
+          if (_quotaUsed === null) _setBadge(_savedStats.total || 0);
           _renderChips();
         }
         if (cb) cb();
@@ -3241,7 +3244,7 @@
       + '<div class="co-cand-empty-title">لا نتائج للبحث عن "' + _esc(q) + '"</div>'
       + '<div class="co-cand-empty-sub">جرّب كلمات بحث مختلفة.</div></div>';
     var msgs = {
-      'null':        ['لا يوجد مرشحون محفوظون بعد',          'عند حفظ مرشح سيظهر هنا لإدارته لاحقاً.'],
+      'null':        ['لا توجد مواهب محفوظة بعد',             'عند حفظ موهبة ستظهر هنا لإدارتها لاحقاً.'],
       'saved':       ['لا يوجد مرشحون بحالة "محفوظ"',        'يمكنك تغيير حالة المرشح من لوحة الإدارة.'],
       'shortlisted': ['لا يوجد مرشحون مرشحون قوياً',         ''],
       'contacted':   ['لا يوجد مرشحون تم التواصل معهم',      ''],
