@@ -3563,43 +3563,6 @@
       return;
     }
 
-    // Pipeline notes button inside job chip popover
-    var notesPopBtn = e.target.closest('.co-cjp-btn--notes');
-    if (notesPopBtn) {
-      var notesEntryId = notesPopBtn.getAttribute('data-pe-id');
-      if (notesEntryId && typeof _openNotesPanel === 'function') {
-        _closeJobPop();
-        _openNotesPanel(parseInt(notesEntryId, 10));
-      }
-      return;
-    }
-
-    // Appointment button inside job chip popover (Path B: candidate_id + job_id)
-    var apptPopBtn = e.target.closest('.co-cjp-btn--appt');
-    if (apptPopBtn) {
-      var apptEntryId  = apptPopBtn.getAttribute('data-pe-id')       || null;
-      var apptAppId    = apptPopBtn.getAttribute('data-app-id')       || null;
-      var apptCandId   = apptPopBtn.getAttribute('data-cand-id')      || null;
-      var apptCandName = apptPopBtn.getAttribute('data-cand-name')    || '';
-      var apptJobTitle = apptPopBtn.getAttribute('data-job-title')    || '';
-      var apptJobId    = apptPopBtn.getAttribute('data-job-id')       || null;
-      if (apptEntryId && typeof _openApptModal === 'function') {
-        _closeJobPop();
-        // Path B: set _appJobId before opening modal so the endpoint uses candidate_id + job_id
-        if (typeof _appJobId !== 'undefined' && apptJobId) {
-          _appJobId = parseInt(apptJobId, 10);
-        }
-        _openApptModal(
-          apptAppId  ? parseInt(apptAppId, 10)  : null,
-          apptCandName,
-          apptJobTitle,
-          parseInt(apptEntryId, 10),
-          apptCandId ? parseInt(apptCandId, 10) : null
-        );
-      }
-      return;
-    }
-
     // Job chip popover
     var chipBtn = e.target.closest('.co-cand-job-chip');
     if (chipBtn && !chipBtn.classList.contains('co-cand-job-chip--hidden')) {
@@ -3761,10 +3724,52 @@
     pop.innerHTML = html;
     pop.style.display = 'block';
 
+    // Wire buttons directly — popover lives on document.body, outside _body delegation
+    var notesBtn = pop.querySelector('.co-cjp-btn--notes');
+    if (notesBtn) {
+      notesBtn.addEventListener('click', function () {
+        var entryId = notesBtn.getAttribute('data-pe-id');
+        _closeJobPop();
+        if (entryId && typeof _openNotesPanel === 'function') {
+          _openNotesPanel(parseInt(entryId, 10));
+        }
+      });
+    }
+    var apptBtn = pop.querySelector('.co-cjp-btn--appt');
+    if (apptBtn) {
+      apptBtn.addEventListener('click', function () {
+        var nextId  = apptBtn.getAttribute('data-next-appt-id') || '';
+        _closeJobPop();
+        if (nextId) {
+          // Existing appointment — navigate to appointment room
+          window.location.href = '/appointment-room?id=' + encodeURIComponent(nextId);
+        } else {
+          // No appointment yet — open creation modal (Path B)
+          var entryId  = apptBtn.getAttribute('data-pe-id');
+          var appId    = apptBtn.getAttribute('data-app-id');
+          var cndId    = apptBtn.getAttribute('data-cand-id');
+          var cndName  = apptBtn.getAttribute('data-cand-name') || '';
+          var jTitle   = apptBtn.getAttribute('data-job-title') || '';
+          var jId      = apptBtn.getAttribute('data-job-id');
+          if (entryId && typeof _openApptModal === 'function') {
+            if (typeof _appJobId !== 'undefined' && jId) {
+              _appJobId = parseInt(jId, 10);
+            }
+            _openApptModal(
+              appId   ? parseInt(appId, 10)   : null,
+              cndName, jTitle,
+              parseInt(entryId, 10),
+              cndId   ? parseInt(cndId, 10)   : null
+            );
+          }
+        }
+      });
+    }
+
     _jobPopPositionFromChip(chip, pop);
     _jobPopTarget = chip;
 
-    // Close on outside click — _closeJobPop is named so it can be removed in _closeJobPop()
+    // Close on outside click — guard inside _closeJobPop allows clicks within the pop
     setTimeout(function () {
       document.addEventListener('click', _closeJobPop, { capture: true });
     }, 0);
@@ -3796,8 +3801,10 @@
     pop.style.left = left + 'px';
   }
 
-  function _closeJobPop() {
+  function _closeJobPop(e) {
     var pop = document.getElementById('co-cand-job-pop');
+    // Don't close when the click originates inside the popover itself
+    if (e && pop && pop.contains(e.target)) return;
     if (pop) pop.style.display = 'none';
     document.removeEventListener('click', _closeJobPop, { capture: true });
     window.removeEventListener('scroll', _closeJobPop);
