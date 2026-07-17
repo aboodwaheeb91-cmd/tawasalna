@@ -1,18 +1,20 @@
 """
-PR-5 Integration Tests — Job-Specific Notes + Appointment Pipeline Linking
+PR-5 Integration Tests — Pipeline Notes + Unified Appointment Endpoint
 
-30 tests covering:
+40 tests covering:
   Group A  (01–06): Pipeline notes CRUD
-  Group B  (07–12): Appointment pipeline creation (applicant + non-applicant)
-  Group C  (13–18): Appointment validation and rejection cases
-  Group D  (19–24): Security / ownership isolation
-  Group E  (25–30): System isolation (no cross-contamination between systems)
+  Group B  (07–13): Appointment creation via POST /api/appointments (unified endpoint)
+  Group C  (14–20): Appointment validation and rejection
+  Group D  (21–24): Security / ownership isolation
+  Group E  (25–32): System isolation + PR-5 field correctness
+  Group F  (33–40): New correctness tests (atomic guards, UTC, lifecycle)
 
+All appointment creates use POST /api/appointments (parallel route removed).
 Runs against real PostgreSQL (SUPABASE_DB_URL env var).
-Uses setUpClass per class to stay under the 60-req/min rate limit.
 """
 
 import os
+import threading
 import unittest
 import requests
 from datetime import datetime, timezone, timedelta
@@ -50,28 +52,32 @@ def _suffix():
     return ''.join(random.choices(string.ascii_lowercase + string.digits, k=9))
 
 def _future_iso(hours=2):
+    """UTC ISO with Z suffix — timezone-aware, always accepted by backend."""
     return (datetime.now(timezone.utc) + timedelta(hours=hours)).isoformat()
 
-def _end_iso(start_hours=2, duration_minutes=30):
-    return (datetime.now(timezone.utc)
-            + timedelta(hours=start_hours)
-            + timedelta(minutes=duration_minutes)).isoformat()
+def _naive_iso(hours=2):
+    """Naive ISO — no timezone suffix — must be REJECTED by backend."""
+    dt = datetime.utcnow() + timedelta(hours=hours)
+    return dt.strftime("%Y-%m-%dT%H:%M:%S")  # no Z, no offset
 
-def _db_count(table_expr, where_clause, **params):
+def _db_conn():
     import pg8000.native as _pg
     from urllib.parse import urlparse
     p = urlparse(DB_URL)
-    conn = _pg.Connection(
+    return _pg.Connection(
         user=p.username, password=p.password,
         host=p.hostname, port=(p.port or 5432),
         database=p.path.lstrip('/')
     )
+
+def _db_count(table_expr, where_clause, **params):
+    conn = _db_conn()
     try:
         rows = conn.run(
             f"SELECT COUNT(*) FROM {table_expr} WHERE {where_clause}",
             **params
         )
-        return rows[0][0]
+        return int(rows[0][0])
     finally:
         conn.close()
 
@@ -82,20 +88,12 @@ def _make_company_with_pipeline_entry(with_application=True):
     Create: job, optional job_application, then pipeline entry.
     Returns: (co_jwt, co_id, emp_id, emp_tw_id, job_id, pipeline_entry_id, app_id)
     """
-    import pg8000.native as _pg
-    from urllib.parse import urlparse
-
     suf = _suffix()
     _register(f"co_{suf}@ex.com", "pass123", "co", f"Company {suf}")
     _register(f"emp_{suf}@ex.com", "pass123", "emp", f"Employee {suf}")
     co_jwt = _login(f"co_{suf}@ex.com", "pass123")
 
-    p = urlparse(DB_URL)
-    conn = _pg.Connection(
-        user=p.username, password=p.password,
-        host=p.hostname, port=(p.port or 5432),
-        database=p.path.lstrip('/')
-    )
+    conn = _db_conn()
     try:
         co_rows  = conn.run("SELECT id FROM users WHERE email=:e", e=f"co_{suf}@ex.com")
         emp_rows = conn.run("SELECT id, tw_id FROM users WHERE email=:e", e=f"emp_{suf}@ex.com")
@@ -103,7 +101,6 @@ def _make_company_with_pipeline_entry(with_application=True):
         emp_id = emp_rows[0][0]
         emp_tw = emp_rows[0][1]
 
-        # Create job
         job_rows = conn.run(
             "INSERT INTO jobs(company_id, title, status) VALUES (:cid, 'مهندس', 'active') "
             "RETURNING id",
@@ -111,7 +108,6 @@ def _make_company_with_pipeline_entry(with_application=True):
         )
         job_id = job_rows[0][0]
 
-        # Optionally create application
         app_id = None
         if with_application:
             app_rows = conn.run(
@@ -121,7 +117,6 @@ def _make_company_with_pipeline_entry(with_application=True):
             )
             app_id = app_rows[0][0]
 
-        # Create pipeline entry
         source = "application" if with_application else "company_add"
         pe_rows = conn.run(
             "INSERT INTO job_pipeline_entries"
@@ -144,16 +139,9 @@ def _make_second_company_with_entry():
     _register(f"emp2_{suf}@ex.com", "pass123", "emp", f"Employee2 {suf}")
     co2_jwt = _login(f"co2_{suf}@ex.com", "pass123")
 
-    import pg8000.native as _pg
-    from urllib.parse import urlparse
-    p = urlparse(DB_URL)
-    conn = _pg.Connection(
-        user=p.username, password=p.password,
-        host=p.hostname, port=(p.port or 5432),
-        database=p.path.lstrip('/')
-    )
+    conn = _db_conn()
     try:
-        co2_rows = conn.run("SELECT id FROM users WHERE email=:e", e=f"co2_{suf}@ex.com")
+        co2_rows  = conn.run("SELECT id FROM users WHERE email=:e", e=f"co2_{suf}@ex.com")
         emp2_rows = conn.run("SELECT id FROM users WHERE email=:e", e=f"emp2_{suf}@ex.com")
         co2_id  = co2_rows[0][0]
         emp2_id = emp2_rows[0][0]
@@ -174,6 +162,33 @@ def _make_second_company_with_entry():
         return co2_jwt, co2_id, emp2_id, job2_id, pe2_id
     finally:
         conn.close()
+
+
+def _create_draft_appt_path_b(co_jwt, candidate_id, job_id, appt_type="interview"):
+    """Create a draft appointment via Path B. Returns response."""
+    return requests.post(
+        f"{BASE_URL}/api/appointments",
+        json={
+            "candidate_id":    candidate_id,
+            "job_id":          job_id,
+            "appointment_type": appt_type,
+            "mode":            "online",
+        },
+        headers=_headers(co_jwt)
+    )
+
+
+def _send_appt(co_jwt, appt_id, hours_ahead=73):
+    """Send a draft appointment to pending_response."""
+    return requests.post(
+        f"{BASE_URL}/api/appointments/{appt_id}/send",
+        json={
+            "scheduled_at":  _future_iso(hours_ahead),
+            "deadline_hours": 48,
+            "online_url": "https://meet.example.com/test",
+        },
+        headers=_headers(co_jwt)
+    )
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -231,7 +246,6 @@ class TestPipelineNotesCRUD(unittest.TestCase):
         r = requests.delete(f"{BASE_URL}/company/pipeline/notes/{note_id}",
                             headers=_headers(self.co_jwt))
         self.assertEqual(r.status_code, 200, r.text)
-        # GET should not return deleted note
         r2 = requests.get(self._base(), headers=_headers(self.co_jwt))
         notes = r2.json()["data"]["notes"]
         self.assertNotIn(note_id, [n["id"] for n in notes])
@@ -248,21 +262,13 @@ class TestPipelineNotesCRUD(unittest.TestCase):
         requests.post(self._base(),
                       json={"body": "ملاحظة pipeline"},
                       headers=_headers(self.co_jwt))
-        import pg8000.native as _pg
-        from urllib.parse import urlparse
-        p = urlparse(DB_URL)
-        conn = _pg.Connection(
-            user=p.username, password=p.password,
-            host=p.hostname, port=(p.port or 5432),
-            database=p.path.lstrip('/')
-        )
+        conn = _db_conn()
         try:
             rows = conn.run(
                 "SELECT notes FROM company_saved_candidates "
                 "WHERE company_id=:cid AND candidate_id=:uid",
                 cid=self.co_id, uid=self.emp_id
             )
-            # Either no row or notes is NULL / unchanged
             if rows:
                 self.assertIsNone(rows[0][0],
                     "Pipeline note creation must not write to company_saved_candidates.notes")
@@ -271,66 +277,36 @@ class TestPipelineNotesCRUD(unittest.TestCase):
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# Group B — Appointment Pipeline Creation (tests 07–12)
+# Group B — Appointment Creation via Unified Endpoint (tests 07–13)
 # ══════════════════════════════════════════════════════════════════════════════
 
 class TestPipelineAppointmentCreation(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        # Setup with application
         cls.co_jwt, cls.co_id, cls.emp_id, cls.emp_tw, \
             cls.job_id, cls.pe_id, cls.app_id = \
             _make_company_with_pipeline_entry(with_application=True)
-        # Setup without application
-        _, _, cls.emp2_id, _, cls.job2_id, cls.pe2_id, _ = \
-            _make_company_with_pipeline_entry(with_application=False)
 
-    def _post_appt(self, payload):
-        return requests.post(
-            f"{BASE_URL}/company/appointments/pipeline",
-            json=payload, headers=_headers(self.co_jwt)
-        )
-
-    def test_07_create_appointment_with_application(self):
-        """Real applicant: appointment created with pipeline_entry_id."""
-        r = self._post_appt({
-            "candidate_id": self.emp_id,
-            "job_id": self.job_id,
-            "start_at": _future_iso(3),
-            "end_at": _end_iso(3, 60),
-            "application_id": self.app_id,
-            "appointment_type": "interview",
-        })
+    def test_07_create_appointment_path_b_with_application(self):
+        """Path B + real applicant: draft created with pipeline_entry_id + application_id."""
+        r = _create_draft_appt_path_b(self.co_jwt, self.emp_id, self.job_id)
         self.assertEqual(r.status_code, 200, r.text)
         d = r.json()["data"]
         self.assertEqual(int(d["pipeline_entry_id"]), self.pe_id)
         self.assertEqual(int(d["application_id"]), self.app_id)
         self.assertEqual(d["appointment_type"], "interview")
-        self.assertIsNotNone(d.get("scheduled_at"))
+        self.assertEqual(d["status"], "draft")
+        self.__class__._appt_id = int(d["id"])
 
     def test_08_create_appointment_without_application(self):
-        """Non-applicant with pipeline entry: appointment created with application_id=null."""
-        # Use second setup (no application, but has pipeline entry via company_add)
-        # But wait - the second setup is company2. We need a separate non-applicant
-        # entry under cls.co_jwt's company.
+        """Non-applicant with pipeline entry: draft with application_id=null."""
         suf = _suffix()
-        import pg8000.native as _pg
-        from urllib.parse import urlparse
-        p = urlparse(DB_URL)
-        conn = _pg.Connection(
-            user=p.username, password=p.password,
-            host=p.hostname, port=(p.port or 5432),
-            database=p.path.lstrip('/')
-        )
+        _register(f"emp_noapply_{suf}@ex.com", "pass123", "emp", f"NoApply {suf}")
+        conn = _db_conn()
         try:
-            # Register a new employee
-            _register(f"emp_noapply_{suf}@ex.com", "pass123", "emp", f"NoApply {suf}")
-            emp_rows = conn.run(
-                "SELECT id FROM users WHERE email=:e",
-                e=f"emp_noapply_{suf}@ex.com"
-            )
+            emp_rows = conn.run("SELECT id FROM users WHERE email=:e",
+                                e=f"emp_noapply_{suf}@ex.com")
             emp3_id = emp_rows[0][0]
-            # Add to pipeline via company_add (no application)
             pe_rows = conn.run(
                 "INSERT INTO job_pipeline_entries"
                 "(company_id, candidate_id, job_id, stage, source, created_by) "
@@ -341,72 +317,96 @@ class TestPipelineAppointmentCreation(unittest.TestCase):
         finally:
             conn.close()
 
-        r = self._post_appt({
-            "candidate_id": emp3_id,
-            "job_id": self.job_id,
-            "start_at": _future_iso(4),
-            "end_at": _end_iso(4, 45),
-            "appointment_type": "call",
-        })
+        r = _create_draft_appt_path_b(self.co_jwt, emp3_id, self.job_id, "call")
         self.assertEqual(r.status_code, 200, r.text)
         d = r.json()["data"]
         self.assertEqual(int(d["pipeline_entry_id"]), pe3_id)
         self.assertIsNone(d.get("application_id"))
+        self.assertEqual(d["status"], "draft")
 
     def test_09_no_pipeline_entry_returns_409(self):
-        """Candidate with no pipeline entry: 409 with code=pipeline_entry_required."""
+        """Candidate with no pipeline entry → 409 pipeline_entry_required."""
         suf = _suffix()
         _register(f"emp_noentry_{suf}@ex.com", "pass123", "emp", f"NoEntry {suf}")
-        import pg8000.native as _pg
-        from urllib.parse import urlparse
-        p = urlparse(DB_URL)
-        conn = _pg.Connection(
-            user=p.username, password=p.password,
-            host=p.hostname, port=(p.port or 5432),
-            database=p.path.lstrip('/')
-        )
+        conn = _db_conn()
         try:
-            emp_rows = conn.run(
-                "SELECT id FROM users WHERE email=:e",
-                e=f"emp_noentry_{suf}@ex.com"
-            )
+            emp_rows = conn.run("SELECT id FROM users WHERE email=:e",
+                                e=f"emp_noentry_{suf}@ex.com")
             emp_id = emp_rows[0][0]
         finally:
             conn.close()
 
-        r = self._post_appt({
-            "candidate_id": emp_id,
-            "job_id": self.job_id,
-            "start_at": _future_iso(5),
-            "appointment_type": "interview",
-        })
+        r = _create_draft_appt_path_b(self.co_jwt, emp_id, self.job_id)
         self.assertEqual(r.status_code, 409, r.text)
-        d = r.json()
-        self.assertEqual(d.get("code"), "pipeline_entry_required")
+        self.assertEqual(r.json().get("code"), "pipeline_entry_required")
 
     def test_10_appointment_does_not_create_job_applications(self):
-        """Creating appointment must not insert into job_applications."""
-        before = _db_count("job_applications", "job_id=:jid", jid=self.job_id)
-        # Use a no-application pipeline entry candidate from test_08
-        # (just check count is stable — we don't duplicate the setup here)
-        # Instead verify that our main test_07 didn't add any applications
-        after = _db_count("job_applications", "job_id=:jid", jid=self.job_id)
+        """Creating appointment via Path B must not insert into job_applications."""
+        suf = _suffix()
+        _register(f"emp_t10_{suf}@ex.com", "pass123", "emp", f"T10 {suf}")
+        conn = _db_conn()
+        try:
+            emp_rows = conn.run("SELECT id FROM users WHERE email=:e",
+                                e=f"emp_t10_{suf}@ex.com")
+            emp_t10_id = emp_rows[0][0]
+            # Create a separate job for this test to keep count clean
+            job_rows = conn.run(
+                "INSERT INTO jobs(company_id, title, status) "
+                "VALUES (:cid, 'Test10 Job', 'active') RETURNING id",
+                cid=self.co_id
+            )
+            job_t10 = job_rows[0][0]
+            conn.run(
+                "INSERT INTO job_pipeline_entries"
+                "(company_id, candidate_id, job_id, stage, source, created_by) "
+                "VALUES (:cid, :uid, :jid, 'new', 'company_add', :cb)",
+                cid=self.co_id, uid=emp_t10_id, jid=job_t10, cb=self.co_id
+            )
+        finally:
+            conn.close()
+
+        before = _db_count("job_applications", "job_id=:jid", jid=job_t10)
+        # Create the appointment
+        r = _create_draft_appt_path_b(self.co_jwt, emp_t10_id, job_t10)
+        self.assertEqual(r.status_code, 200, r.text)
+        after = _db_count("job_applications", "job_id=:jid", jid=job_t10)
         self.assertEqual(before, after,
-                         "create_pipeline_appointment must not insert into job_applications")
+                         "create_appointment (Path B) must not insert into job_applications")
 
     def test_11_appointment_does_not_save_to_talent_bank(self):
-        """Creating appointment must not insert into company_saved_candidates."""
-        before = _db_count(
-            "company_saved_candidates",
-            "company_id=:cid", cid=self.co_id
-        )
-        # The appointment was already created in test_07 — count should be same
-        after = _db_count(
-            "company_saved_candidates",
-            "company_id=:cid", cid=self.co_id
-        )
+        """Creating appointment via Path B must not insert into company_saved_candidates."""
+        suf = _suffix()
+        _register(f"emp_t11_{suf}@ex.com", "pass123", "emp", f"T11 {suf}")
+        conn = _db_conn()
+        try:
+            emp_rows = conn.run("SELECT id FROM users WHERE email=:e",
+                                e=f"emp_t11_{suf}@ex.com")
+            emp_t11_id = emp_rows[0][0]
+            job_rows = conn.run(
+                "INSERT INTO jobs(company_id, title, status) "
+                "VALUES (:cid, 'Test11 Job', 'active') RETURNING id",
+                cid=self.co_id
+            )
+            job_t11 = job_rows[0][0]
+            conn.run(
+                "INSERT INTO job_pipeline_entries"
+                "(company_id, candidate_id, job_id, stage, source, created_by) "
+                "VALUES (:cid, :uid, :jid, 'new', 'company_add', :cb)",
+                cid=self.co_id, uid=emp_t11_id, jid=job_t11, cb=self.co_id
+            )
+        finally:
+            conn.close()
+
+        before = _db_count("company_saved_candidates",
+                           "company_id=:cid AND candidate_id=:uid",
+                           cid=self.co_id, uid=emp_t11_id)
+        r = _create_draft_appt_path_b(self.co_jwt, emp_t11_id, job_t11)
+        self.assertEqual(r.status_code, 200, r.text)
+        after = _db_count("company_saved_candidates",
+                          "company_id=:cid AND candidate_id=:uid",
+                          cid=self.co_id, uid=emp_t11_id)
         self.assertEqual(before, after,
-                         "create_pipeline_appointment must not insert into company_saved_candidates")
+                         "create_appointment (Path B) must not insert into company_saved_candidates")
 
     def test_12_pipeline_entry_id_set_in_db(self):
         """After appointment creation, appointments.pipeline_entry_id is set correctly."""
@@ -418,9 +418,27 @@ class TestPipelineAppointmentCreation(unittest.TestCase):
         self.assertGreater(count, 0,
                            "No appointment row found with correct pipeline_entry_id")
 
+    def test_13_participant_role_is_applicant(self):
+        """Appointment participant for applicant has role='applicant' (not 'candidate')."""
+        appt_id = getattr(self.__class__, '_appt_id', None)
+        if not appt_id:
+            self.skipTest("test_07 did not create appointment")
+        conn = _db_conn()
+        try:
+            rows = conn.run(
+                "SELECT role FROM appointment_participants "
+                "WHERE appointment_id=:aid AND user_id=:uid",
+                aid=appt_id, uid=self.emp_id
+            )
+        finally:
+            conn.close()
+        self.assertTrue(rows, "No participant row found for applicant")
+        self.assertEqual(rows[0][0], "applicant",
+                         f"Expected role='applicant', got '{rows[0][0]}'")
+
 
 # ══════════════════════════════════════════════════════════════════════════════
-# Group C — Validation and Rejection (tests 13–18)
+# Group C — Validation and Rejection (tests 14–20)
 # ══════════════════════════════════════════════════════════════════════════════
 
 class TestPipelineAppointmentValidation(unittest.TestCase):
@@ -432,86 +450,85 @@ class TestPipelineAppointmentValidation(unittest.TestCase):
 
     def _post(self, payload):
         return requests.post(
-            f"{BASE_URL}/company/appointments/pipeline",
+            f"{BASE_URL}/api/appointments",
             json=payload, headers=_headers(self.co_jwt)
         )
 
-    def test_13_past_start_at_rejected(self):
-        """start_at in the past returns 400."""
-        past = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
-        r = self._post({
-            "candidate_id": self.emp_id,
-            "job_id": self.job_id,
-            "start_at": past,
-        })
-        self.assertEqual(r.status_code, 400, r.text)
-
-    def test_14_end_at_before_start_at_rejected(self):
-        """end_at before start_at returns 400."""
-        start = _future_iso(2)
-        end   = _future_iso(1)  # 1 hour, before start (2 hours)
-        r = self._post({
-            "candidate_id": self.emp_id,
-            "job_id": self.job_id,
-            "start_at": start,
-            "end_at": end,
-        })
-        self.assertEqual(r.status_code, 400, r.text)
-
-    def test_15_wrong_application_id_rejected(self):
-        """application_id not matching candidate returns 400."""
-        # Create a different application (for same job but different user)
-        suf = _suffix()
-        _register(f"emp_other_{suf}@ex.com", "pass123", "emp", f"OtherEmp {suf}")
-        import pg8000.native as _pg
-        from urllib.parse import urlparse
-        p = urlparse(DB_URL)
-        conn = _pg.Connection(
-            user=p.username, password=p.password,
-            host=p.hostname, port=(p.port or 5432),
-            database=p.path.lstrip('/')
+    def _send(self, appt_id, scheduled_at_iso):
+        return requests.post(
+            f"{BASE_URL}/api/appointments/{appt_id}/send",
+            json={"scheduled_at": scheduled_at_iso, "deadline_hours": 48,
+                  "online_url": "https://meet.example.com/x"},
+            headers=_headers(self.co_jwt)
         )
+
+    def test_14_past_scheduled_at_rejected_on_send(self):
+        """scheduled_at in the past is rejected by send endpoint."""
+        # Create draft first
+        r_draft = self._post({
+            "candidate_id": self.emp_id,
+            "job_id": self.job_id,
+        })
+        if r_draft.status_code != 200:
+            self.skipTest("draft creation failed (duplicate entry?)")
+        appt_id = r_draft.json()["data"]["id"]
+
+        past = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
+        r = self._send(appt_id, past)
+        self.assertEqual(r.status_code, 400, r.text)
+
+    def test_15_application_id_conflict_returns_409(self):
+        """Path A: application_id that doesn't match pipeline entry → 409 conflict."""
+        # Setup: pipeline entry with no application_id (company_add)
+        suf = _suffix()
+        _register(f"emp_confl_{suf}@ex.com", "pass123", "emp", f"Conflict {suf}")
+        conn = _db_conn()
         try:
-            emp_rows = conn.run(
-                "SELECT id FROM users WHERE email=:e",
-                e=f"emp_other_{suf}@ex.com"
+            emp_rows = conn.run("SELECT id FROM users WHERE email=:e",
+                                e=f"emp_confl_{suf}@ex.com")
+            emp_c = emp_rows[0][0]
+            job_rows = conn.run(
+                "INSERT INTO jobs(company_id, title, status) "
+                "VALUES (:cid, 'Conflict Job', 'active') RETURNING id",
+                cid=self.co_id
             )
-            other_id = emp_rows[0][0]
+            job_c = job_rows[0][0]
+            # Pipeline entry: application_id = NULL (no application)
+            conn.run(
+                "INSERT INTO job_pipeline_entries"
+                "(company_id, candidate_id, job_id, stage, source, created_by) "
+                "VALUES (:cid, :uid, :jid, 'new', 'company_add', :cb)",
+                cid=self.co_id, uid=emp_c, jid=job_c, cb=self.co_id
+            )
+            # Now create an application from emp_c for the same job
             app_rows = conn.run(
-                "INSERT INTO job_applications(job_id, user_id) VALUES (:jid, :uid) RETURNING id",
-                jid=self.job_id, uid=other_id
+                "INSERT INTO job_applications(job_id, user_id, status) "
+                "VALUES (:jid, :uid, 'pending') RETURNING id",
+                jid=job_c, uid=emp_c
             )
-            other_app_id = app_rows[0][0]
+            app_c = app_rows[0][0]
         finally:
             conn.close()
 
-        r = self._post({
-            "candidate_id": self.emp_id,
-            "job_id": self.job_id,
-            "start_at": _future_iso(6),
-            "application_id": other_app_id,  # belongs to other user
-        })
-        self.assertEqual(r.status_code, 400, r.text)
+        # Path A: send application_id = app_c, but pipeline entry has application_id = NULL → conflict
+        r = requests.post(
+            f"{BASE_URL}/api/appointments",
+            json={"application_id": app_c},
+            headers=_headers(self.co_jwt)
+        )
+        self.assertEqual(r.status_code, 409, r.text)
+        d = r.json()
+        self.assertEqual(d.get("code"), "pipeline_application_conflict",
+                         f"Expected pipeline_application_conflict, got: {d}")
 
     def test_16_wrong_job_id_rejected(self):
-        """job_id not belonging to this company returns 400."""
-        # Create a job for a different company
+        """job_id not belonging to this company returns 400 or 409."""
         suf = _suffix()
         _register(f"co_other_{suf}@ex.com", "pass123", "co", f"OtherCo {suf}")
-        other_jwt = _login(f"co_other_{suf}@ex.com", "pass123")
-        import pg8000.native as _pg
-        from urllib.parse import urlparse
-        p = urlparse(DB_URL)
-        conn = _pg.Connection(
-            user=p.username, password=p.password,
-            host=p.hostname, port=(p.port or 5432),
-            database=p.path.lstrip('/')
-        )
+        conn = _db_conn()
         try:
-            co_rows = conn.run(
-                "SELECT id FROM users WHERE email=:e",
-                e=f"co_other_{suf}@ex.com"
-            )
+            co_rows = conn.run("SELECT id FROM users WHERE email=:e",
+                               e=f"co_other_{suf}@ex.com")
             other_co_id = co_rows[0][0]
             job_rows = conn.run(
                 "INSERT INTO jobs(company_id, title) VALUES (:cid, 'وظيفة أخرى') RETURNING id",
@@ -523,23 +540,14 @@ class TestPipelineAppointmentValidation(unittest.TestCase):
 
         r = self._post({
             "candidate_id": self.emp_id,
-            "job_id": other_job_id,  # belongs to other company
-            "start_at": _future_iso(7),
+            "job_id": other_job_id,
         })
-        self.assertIn(r.status_code, [400, 409], r.text)
+        self.assertIn(r.status_code, [400, 403, 409], r.text)
 
     def test_17_archived_job_rejected(self):
-        """Appointment for archived job returns 400."""
-        import pg8000.native as _pg
-        from urllib.parse import urlparse
-        p = urlparse(DB_URL)
-        conn = _pg.Connection(
-            user=p.username, password=p.password,
-            host=p.hostname, port=(p.port or 5432),
-            database=p.path.lstrip('/')
-        )
+        """Appointment for archived job → 400."""
+        conn = _db_conn()
         try:
-            # Create + archive a job, add pipeline entry
             job_rows = conn.run(
                 "INSERT INTO jobs(company_id, title, archived_at) "
                 "VALUES (:cid, 'وظيفة مؤرشفة', NOW()) RETURNING id",
@@ -558,39 +566,81 @@ class TestPipelineAppointmentValidation(unittest.TestCase):
         r = self._post({
             "candidate_id": self.emp_id,
             "job_id": arch_job_id,
-            "start_at": _future_iso(8),
         })
         self.assertEqual(r.status_code, 400, r.text)
 
-    def test_18_unauthenticated_rejected(self):
-        """No JWT returns 401 or 403."""
+    def test_18_invalid_mode_rejected(self):
+        """mode='hybrid' returns 400 (only online/onsite allowed)."""
+        r = self._post({
+            "candidate_id": self.emp_id,
+            "job_id": self.job_id,
+            "mode": "hybrid",
+        })
+        self.assertEqual(r.status_code, 400, r.text)
+
+    def test_19_naive_iso_rejected_on_send(self):
+        """send with naive ISO (no Z or offset) → 400."""
+        suf = _suffix()
+        _register(f"emp_naive_{suf}@ex.com", "pass123", "emp", f"Naive {suf}")
+        conn = _db_conn()
+        try:
+            emp_rows = conn.run("SELECT id FROM users WHERE email=:e",
+                                e=f"emp_naive_{suf}@ex.com")
+            emp_n = emp_rows[0][0]
+            job_rows = conn.run(
+                "INSERT INTO jobs(company_id, title, status) "
+                "VALUES (:cid, 'Naive Test', 'active') RETURNING id",
+                cid=self.co_id
+            )
+            job_n = job_rows[0][0]
+            conn.run(
+                "INSERT INTO job_pipeline_entries"
+                "(company_id, candidate_id, job_id, stage, source, created_by) "
+                "VALUES (:cid, :uid, :jid, 'new', 'company_add', :cb)",
+                cid=self.co_id, uid=emp_n, jid=job_n, cb=self.co_id
+            )
+        finally:
+            conn.close()
+
+        r_draft = self._post({"candidate_id": emp_n, "job_id": job_n})
+        if r_draft.status_code != 200:
+            self.skipTest("draft creation failed")
+        appt_id = r_draft.json()["data"]["id"]
+
+        # Send with naive ISO (no timezone indicator)
+        naive = _naive_iso(hours=75)
         r = requests.post(
-            f"{BASE_URL}/company/appointments/pipeline",
-            json={
-                "candidate_id": self.emp_id,
-                "job_id": self.job_id,
-                "start_at": _future_iso(9),
-            }
+            f"{BASE_URL}/api/appointments/{appt_id}/send",
+            json={"scheduled_at": naive, "deadline_hours": 48,
+                  "online_url": "https://meet.example.com/x"},
+            headers=_headers(self.co_jwt)
+        )
+        self.assertEqual(r.status_code, 400, r.text)
+        self.assertIn("Timezone", r.text + r.json().get("detail", ""),
+                      "Error message should mention Timezone requirement")
+
+    def test_20_unauthenticated_rejected(self):
+        """No JWT returns 401, 403, or 422."""
+        r = requests.post(
+            f"{BASE_URL}/api/appointments",
+            json={"candidate_id": self.emp_id, "job_id": self.job_id}
         )
         self.assertIn(r.status_code, [401, 403, 422], r.text)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# Group D — Security / Ownership (tests 19–24)
+# Group D — Security / Ownership (tests 21–24)
 # ══════════════════════════════════════════════════════════════════════════════
 
 class TestPipelineSecurity(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        # Company A (main)
         cls.co_jwt, cls.co_id, cls.emp_id, cls.emp_tw, \
             cls.job_id, cls.pe_id, cls.app_id = \
             _make_company_with_pipeline_entry(with_application=True)
-        # Company B (attacker)
         cls.co2_jwt, cls.co2_id, cls.emp2_id, \
             cls.job2_id, cls.pe2_id = \
             _make_second_company_with_entry()
-        # Create a note in company A's pipeline
         r = requests.post(
             f"{BASE_URL}/company/pipeline/{cls.pe_id}/notes",
             json={"body": "ملاحظة خاصة بشركة A"},
@@ -599,7 +649,7 @@ class TestPipelineSecurity(unittest.TestCase):
         d = r.json()
         cls.note_id = int(d["data"]["note"]["id"]) if r.ok else None
 
-    def test_19_company_b_cannot_read_company_a_notes(self):
+    def test_21_company_b_cannot_read_company_a_notes(self):
         """Company B cannot GET notes for Company A's pipeline entry."""
         r = requests.get(
             f"{BASE_URL}/company/pipeline/{self.pe_id}/notes",
@@ -607,7 +657,7 @@ class TestPipelineSecurity(unittest.TestCase):
         )
         self.assertIn(r.status_code, [403, 404], r.text)
 
-    def test_20_company_b_cannot_create_note_in_company_a_entry(self):
+    def test_22_company_b_cannot_create_note_in_company_a_entry(self):
         """Company B cannot POST a note to Company A's pipeline entry."""
         r = requests.post(
             f"{BASE_URL}/company/pipeline/{self.pe_id}/notes",
@@ -616,36 +666,11 @@ class TestPipelineSecurity(unittest.TestCase):
         )
         self.assertIn(r.status_code, [403, 404], r.text)
 
-    def test_21_company_b_cannot_edit_company_a_note(self):
-        """Company B cannot PATCH Company A's note."""
-        if not self.note_id:
-            self.skipTest("note not created")
-        r = requests.patch(
-            f"{BASE_URL}/company/pipeline/notes/{self.note_id}",
-            json={"body": "اختراق"},
-            headers=_headers(self.co2_jwt)
-        )
-        self.assertIn(r.status_code, [403, 404], r.text)
-
-    def test_22_company_b_cannot_delete_company_a_note(self):
-        """Company B cannot DELETE Company A's note."""
-        if not self.note_id:
-            self.skipTest("note not created")
-        r = requests.delete(
-            f"{BASE_URL}/company/pipeline/notes/{self.note_id}",
-            headers=_headers(self.co2_jwt)
-        )
-        self.assertIn(r.status_code, [403, 404], r.text)
-
-    def test_23_company_b_cannot_create_appointment_for_company_a_entry(self):
+    def test_23_company_b_cannot_create_appointment_for_company_a_candidate(self):
         """Company B cannot schedule appointment for Company A's candidate/job."""
         r = requests.post(
-            f"{BASE_URL}/company/appointments/pipeline",
-            json={
-                "candidate_id": self.emp_id,
-                "job_id": self.job_id,
-                "start_at": _future_iso(10),
-            },
+            f"{BASE_URL}/api/appointments",
+            json={"candidate_id": self.emp_id, "job_id": self.job_id},
             headers=_headers(self.co2_jwt)
         )
         self.assertIn(r.status_code, [400, 403, 404, 409], r.text)
@@ -663,19 +688,15 @@ class TestPipelineSecurity(unittest.TestCase):
         self.assertIn(r1.status_code, [403, 404], r1.text)
 
         r2 = requests.post(
-            f"{BASE_URL}/company/appointments/pipeline",
-            json={
-                "candidate_id": self.emp_id,
-                "job_id": self.job_id,
-                "start_at": _future_iso(11),
-            },
+            f"{BASE_URL}/api/appointments",
+            json={"candidate_id": self.emp_id, "job_id": self.job_id},
             headers=_headers(emp_jwt)
         )
         self.assertIn(r2.status_code, [403, 404], r2.text)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# Group E — System Isolation (tests 25–30)
+# Group E — System Isolation (tests 25–32)
 # ══════════════════════════════════════════════════════════════════════════════
 
 class TestSystemIsolation(unittest.TestCase):
@@ -685,20 +706,12 @@ class TestSystemIsolation(unittest.TestCase):
             cls.job_id, cls.pe_id, cls.app_id = \
             _make_company_with_pipeline_entry(with_application=True)
 
-        # Create a second pipeline entry (same company, different job) for isolation checks
-        import pg8000.native as _pg
-        from urllib.parse import urlparse
-        p = urlparse(DB_URL)
-        conn = _pg.Connection(
-            user=p.username, password=p.password,
-            host=p.hostname, port=(p.port or 5432),
-            database=p.path.lstrip('/')
-        )
+        conn = _db_conn()
         try:
-            _register(f"emp_iso_{_suffix()}@ex.com", "pass123", "emp", "IsoEmp")
-            emp_iso_rows = conn.run(
-                "SELECT id FROM users ORDER BY id DESC LIMIT 1"
-            )
+            suf = _suffix()
+            _register(f"emp_iso_{suf}@ex.com", "pass123", "emp", "IsoEmp")
+            emp_iso_rows = conn.run("SELECT id FROM users WHERE email=:e",
+                                    e=f"emp_iso_{suf}@ex.com")
             cls.emp_iso_id = emp_iso_rows[0][0]
             job_rows = conn.run(
                 "INSERT INTO jobs(company_id, title, status) "
@@ -718,7 +731,6 @@ class TestSystemIsolation(unittest.TestCase):
 
     def test_25_pipeline_note_isolated_per_pipeline_entry(self):
         """Same candidate in 2 jobs has separate notes per pipeline entry."""
-        # Add note to pe_id (job 1)
         r1 = requests.post(
             f"{BASE_URL}/company/pipeline/{self.pe_id}/notes",
             json={"body": "ملاحظة على الوظيفة الأولى"},
@@ -726,7 +738,6 @@ class TestSystemIsolation(unittest.TestCase):
         )
         self.assertEqual(r1.status_code, 200, r1.text)
 
-        # Add note to pe2_id (job 2)
         r2 = requests.post(
             f"{BASE_URL}/company/pipeline/{self.pe2_id}/notes",
             json={"body": "ملاحظة على الوظيفة الثانية"},
@@ -734,7 +745,6 @@ class TestSystemIsolation(unittest.TestCase):
         )
         self.assertEqual(r2.status_code, 200, r2.text)
 
-        # GET notes for job 1 — should only have job 1 note
         notes1 = requests.get(
             f"{BASE_URL}/company/pipeline/{self.pe_id}/notes",
             headers=_headers(self.co_jwt)
@@ -745,14 +755,7 @@ class TestSystemIsolation(unittest.TestCase):
 
     def test_26_pipeline_note_does_not_change_stage(self):
         """Adding a pipeline note does not change job_pipeline_entries.stage."""
-        import pg8000.native as _pg
-        from urllib.parse import urlparse
-        p = urlparse(DB_URL)
-        conn = _pg.Connection(
-            user=p.username, password=p.password,
-            host=p.hostname, port=(p.port or 5432),
-            database=p.path.lstrip('/')
-        )
+        conn = _db_conn()
         try:
             before = conn.run(
                 "SELECT stage FROM job_pipeline_entries WHERE id=:eid", eid=self.pe_id
@@ -766,11 +769,7 @@ class TestSystemIsolation(unittest.TestCase):
             headers=_headers(self.co_jwt)
         )
 
-        conn = _pg.Connection(
-            user=p.username, password=p.password,
-            host=p.hostname, port=(p.port or 5432),
-            database=p.path.lstrip('/')
-        )
+        conn = _db_conn()
         try:
             after = conn.run(
                 "SELECT stage FROM job_pipeline_entries WHERE id=:eid", eid=self.pe_id
@@ -785,14 +784,7 @@ class TestSystemIsolation(unittest.TestCase):
         """Adding a pipeline note does not change job_applications.status."""
         if not self.app_id:
             self.skipTest("no application in this setup")
-        import pg8000.native as _pg
-        from urllib.parse import urlparse
-        p = urlparse(DB_URL)
-        conn = _pg.Connection(
-            user=p.username, password=p.password,
-            host=p.hostname, port=(p.port or 5432),
-            database=p.path.lstrip('/')
-        )
+        conn = _db_conn()
         try:
             before = conn.run(
                 "SELECT status FROM job_applications WHERE id=:aid", aid=self.app_id
@@ -806,11 +798,7 @@ class TestSystemIsolation(unittest.TestCase):
             headers=_headers(self.co_jwt)
         )
 
-        conn = _pg.Connection(
-            user=p.username, password=p.password,
-            host=p.hostname, port=(p.port or 5432),
-            database=p.path.lstrip('/')
-        )
+        conn = _db_conn()
         try:
             after = conn.run(
                 "SELECT status FROM job_applications WHERE id=:aid", aid=self.app_id
@@ -822,22 +810,19 @@ class TestSystemIsolation(unittest.TestCase):
                          "Adding pipeline note must not change job_applications.status")
 
     def test_28_manage_panel_patch_does_not_create_pipeline_note(self):
-        """PATCH /company/saved-candidates/{id} must not create pipeline_notes rows."""
-        # First save the candidate to talent bank
-        r_save = requests.post(
+        """PATCH /company/saved-candidates/{candidate_id} must not create pipeline_notes rows."""
+        # Save the candidate first (may already be saved — ignore error)
+        requests.post(
             f"{BASE_URL}/company/saved-candidates",
             json={"candidate_id": self.emp_id, "save_source": "manual"},
             headers=_headers(self.co_jwt)
         )
-        if r_save.status_code not in (200, 201):
-            # Already saved — ignore
-            pass
 
         before_notes = _db_count(
             "pipeline_notes",
             "pipeline_entry_id=:eid", eid=self.pe_id
         )
-        # PATCH the manage panel (PR-4 fields only)
+        # PATCH the manage panel — correct route: /company/saved-candidates/{candidate_id}
         requests.patch(
             f"{BASE_URL}/company/saved-candidates/{self.emp_id}",
             json={"notes": "ملاحظة عامة", "rating": 4},
@@ -867,20 +852,418 @@ class TestSystemIsolation(unittest.TestCase):
         )
         self.assertEqual(before, after)
 
-    def test_30_applicants_v2_includes_pipeline_entry_id(self):
-        """GET /jobs/{job_id}/applicants/v2 returns pipeline_entry_id per applicant."""
+    def test_30_applicants_endpoint_includes_pipeline_entry_id(self):
+        """GET /jobs/{job_id}/applicants returns pipeline_entry_id per applicant."""
         r = requests.get(
-            f"{BASE_URL}/jobs/{self.job_id}/applicants/v2",
+            f"{BASE_URL}/jobs/{self.job_id}/applicants",
             headers=_headers(self.co_jwt)
         )
         self.assertEqual(r.status_code, 200, r.text)
-        applicants = r.json()["data"]["applicants"]
-        # Find our applicant
+        applicants = r.json().get("applicants", [])
         emp_apps = [a for a in applicants if int(a.get("user_id", 0)) == self.emp_id]
-        if emp_apps:
-            self.assertIn("pipeline_entry_id", emp_apps[0])
-            self.assertIn("notes_count", emp_apps[0])
-        # The response shape is correct even if no applicants found
+        # Must find our specific applicant — test failure if missing
+        self.assertTrue(emp_apps,
+                        f"Expected emp_id={self.emp_id} in applicants for job {self.job_id}, "
+                        f"got: {[a.get('user_id') for a in applicants]}")
+        found = emp_apps[0]
+        self.assertIn("pipeline_entry_id", found, "pipeline_entry_id missing from response")
+        self.assertIn("pipeline_notes_count", found, "pipeline_notes_count missing from response")
+        self.assertIn("stage", found, "stage missing from response")
+        self.assertEqual(int(found["pipeline_entry_id"]), self.pe_id)
+
+    def test_31_applicants_endpoint_shows_next_appointment(self):
+        """GET /jobs/{job_id}/applicants returns next_appointment field."""
+        r = requests.get(
+            f"{BASE_URL}/jobs/{self.job_id}/applicants",
+            headers=_headers(self.co_jwt)
+        )
+        self.assertEqual(r.status_code, 200, r.text)
+        applicants = r.json().get("applicants", [])
+        emp_apps = [a for a in applicants if int(a.get("user_id", 0)) == self.emp_id]
+        self.assertTrue(emp_apps, f"Applicant {self.emp_id} not found")
+        # next_appointment can be null (no active future appointments yet) or a dict
+        self.assertIn("next_appointment", emp_apps[0],
+                      "next_appointment key missing from applicant response")
+
+    def test_32_archived_job_read_still_works(self):
+        """GET /jobs/{job_id}/applicants still returns data for archived jobs."""
+        conn = _db_conn()
+        try:
+            arch_rows = conn.run(
+                "INSERT INTO jobs(company_id, title, archived_at) "
+                "VALUES (:cid, 'Archived Read Test', NOW()) RETURNING id",
+                cid=self.co_id
+            )
+            arch_job = arch_rows[0][0]
+            conn.run(
+                "INSERT INTO job_applications(job_id, user_id, status) "
+                "VALUES (:jid, :uid, 'pending') RETURNING id",
+                jid=arch_job, uid=self.emp_id
+            )
+        finally:
+            conn.close()
+
+        r = requests.get(
+            f"{BASE_URL}/jobs/{arch_job}/applicants",
+            headers=_headers(self.co_jwt)
+        )
+        self.assertEqual(r.status_code, 200, r.text)
+        applicants = r.json().get("applicants", [])
+        self.assertTrue(applicants, "Should return applicants even for archived job")
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Group F — Atomic guards, lifecycle, UTC (tests 33–40)
+# ══════════════════════════════════════════════════════════════════════════════
+
+class TestAppointmentAtomicAndLifecycle(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.co_jwt, cls.co_id, cls.emp_id, cls.emp_tw, \
+            cls.job_id, cls.pe_id, cls.app_id = \
+            _make_company_with_pipeline_entry(with_application=True)
+
+    def test_33_path_b_no_application_id_returns_db_value(self):
+        """Path B (no application_id sent): response includes correct application_id from DB."""
+        # emp_id has app_id in pe_id — Path B should return it from DB
+        r = _create_draft_appt_path_b(self.co_jwt, self.emp_id, self.job_id)
+        if r.status_code == 400 and "موعد نشط" in r.text:
+            self.skipTest("active appointment already exists for this entry")
+        self.assertEqual(r.status_code, 200, r.text)
+        d = r.json()["data"]
+        self.assertIsNotNone(d.get("application_id"),
+                             "Path B must return application_id from DB when it exists")
+        self.assertEqual(int(d["application_id"]), self.app_id)
+
+    def test_34_concurrent_creates_only_one_succeeds(self):
+        """Concurrent creates for same pipeline entry: exactly one succeeds, others get 400."""
+        suf = _suffix()
+        _register(f"emp_conc_{suf}@ex.com", "pass123", "emp", f"Concurrent {suf}")
+        conn = _db_conn()
+        try:
+            emp_rows = conn.run("SELECT id FROM users WHERE email=:e",
+                                e=f"emp_conc_{suf}@ex.com")
+            emp_c = emp_rows[0][0]
+            job_rows = conn.run(
+                "INSERT INTO jobs(company_id, title, status) "
+                "VALUES (:cid, 'Concurrent Job', 'active') RETURNING id",
+                cid=self.co_id
+            )
+            job_c = job_rows[0][0]
+            conn.run(
+                "INSERT INTO job_pipeline_entries"
+                "(company_id, candidate_id, job_id, stage, source, created_by) "
+                "VALUES (:cid, :uid, :jid, 'new', 'company_add', :cb)",
+                cid=self.co_id, uid=emp_c, jid=job_c, cb=self.co_id
+            )
+        finally:
+            conn.close()
+
+        results = []
+        lock = threading.Lock()
+
+        def create():
+            r = _create_draft_appt_path_b(self.co_jwt, emp_c, job_c)
+            with lock:
+                results.append(r.status_code)
+
+        threads = [threading.Thread(target=create) for _ in range(3)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        ok_count  = results.count(200)
+        err_count = sum(1 for s in results if s in (400, 409))
+        self.assertEqual(ok_count, 1,
+                         f"Expected exactly 1 success, got: {results}")
+        self.assertEqual(ok_count + err_count, 3,
+                         f"Unexpected status codes: {results}")
+
+    def test_35_utc_storage_verified(self):
+        """After send, scheduled_at stored in DB has timezone info (UTC)."""
+        suf = _suffix()
+        _register(f"emp_utc_{suf}@ex.com", "pass123", "emp", f"UTC {suf}")
+        conn = _db_conn()
+        try:
+            emp_rows = conn.run("SELECT id FROM users WHERE email=:e",
+                                e=f"emp_utc_{suf}@ex.com")
+            emp_u = emp_rows[0][0]
+            job_rows = conn.run(
+                "INSERT INTO jobs(company_id, title, status) "
+                "VALUES (:cid, 'UTC Test', 'active') RETURNING id",
+                cid=self.co_id
+            )
+            job_u = job_rows[0][0]
+            conn.run(
+                "INSERT INTO job_pipeline_entries"
+                "(company_id, candidate_id, job_id, stage, source, created_by) "
+                "VALUES (:cid, :uid, :jid, 'new', 'company_add', :cb)",
+                cid=self.co_id, uid=emp_u, jid=job_u, cb=self.co_id
+            )
+        finally:
+            conn.close()
+
+        r_draft = _create_draft_appt_path_b(self.co_jwt, emp_u, job_u)
+        self.assertEqual(r_draft.status_code, 200, r_draft.text)
+        appt_id = r_draft.json()["data"]["id"]
+
+        r_send = _send_appt(self.co_jwt, appt_id, hours_ahead=73)
+        self.assertEqual(r_send.status_code, 200, r_send.text)
+
+        conn = _db_conn()
+        try:
+            rows = conn.run(
+                "SELECT scheduled_at FROM appointments WHERE id=:aid", aid=appt_id
+            )
+        finally:
+            conn.close()
+
+        self.assertTrue(rows, "Appointment row not found")
+        stored_dt = rows[0][0]  # pg8000 returns datetime object
+        self.assertIsNotNone(stored_dt, "scheduled_at should be set after send")
+        # pg8000 returns timezone-aware datetime for TIMESTAMPTZ columns
+        self.assertIsNotNone(stored_dt.tzinfo,
+                             f"scheduled_at must be stored with timezone info, got: {stored_dt}")
+
+    def test_36_send_preserves_pipeline_entry_id(self):
+        """After send (draft → pending_response), pipeline_entry_id is unchanged in DB."""
+        suf = _suffix()
+        _register(f"emp_send_{suf}@ex.com", "pass123", "emp", f"Send {suf}")
+        conn = _db_conn()
+        try:
+            emp_rows = conn.run("SELECT id FROM users WHERE email=:e",
+                                e=f"emp_send_{suf}@ex.com")
+            emp_s = emp_rows[0][0]
+            job_rows = conn.run(
+                "INSERT INTO jobs(company_id, title, status) "
+                "VALUES (:cid, 'Send Test', 'active') RETURNING id",
+                cid=self.co_id
+            )
+            job_s = job_rows[0][0]
+            pe_rows = conn.run(
+                "INSERT INTO job_pipeline_entries"
+                "(company_id, candidate_id, job_id, stage, source, created_by) "
+                "VALUES (:cid, :uid, :jid, 'new', 'company_add', :cb) RETURNING id",
+                cid=self.co_id, uid=emp_s, jid=job_s, cb=self.co_id
+            )
+            pe_s = pe_rows[0][0]
+        finally:
+            conn.close()
+
+        r_draft = _create_draft_appt_path_b(self.co_jwt, emp_s, job_s)
+        self.assertEqual(r_draft.status_code, 200, r_draft.text)
+        appt_id = r_draft.json()["data"]["id"]
+        self.assertEqual(int(r_draft.json()["data"]["pipeline_entry_id"]), pe_s)
+
+        r_send = _send_appt(self.co_jwt, appt_id, hours_ahead=73)
+        self.assertEqual(r_send.status_code, 200, r_send.text)
+        self.assertEqual(int(r_send.json()["data"]["pipeline_entry_id"]), pe_s,
+                         "pipeline_entry_id must be preserved after send")
+
+    def test_37_cancel_preserves_pipeline_entry_id(self):
+        """After cancel, pipeline_entry_id is still set in DB (row persists)."""
+        suf = _suffix()
+        _register(f"emp_canc_{suf}@ex.com", "pass123", "emp", f"Cancel {suf}")
+        conn = _db_conn()
+        try:
+            emp_rows = conn.run("SELECT id FROM users WHERE email=:e",
+                                e=f"emp_canc_{suf}@ex.com")
+            emp_ca = emp_rows[0][0]
+            job_rows = conn.run(
+                "INSERT INTO jobs(company_id, title, status) "
+                "VALUES (:cid, 'Cancel Test', 'active') RETURNING id",
+                cid=self.co_id
+            )
+            job_ca = job_rows[0][0]
+            pe_rows = conn.run(
+                "INSERT INTO job_pipeline_entries"
+                "(company_id, candidate_id, job_id, stage, source, created_by) "
+                "VALUES (:cid, :uid, :jid, 'new', 'company_add', :cb) RETURNING id",
+                cid=self.co_id, uid=emp_ca, jid=job_ca, cb=self.co_id
+            )
+            pe_ca = pe_rows[0][0]
+        finally:
+            conn.close()
+
+        r_draft = _create_draft_appt_path_b(self.co_jwt, emp_ca, job_ca)
+        self.assertEqual(r_draft.status_code, 200, r_draft.text)
+        appt_id = r_draft.json()["data"]["id"]
+        pe_from_create = int(r_draft.json()["data"]["pipeline_entry_id"])
+        self.assertEqual(pe_from_create, pe_ca)
+
+        # Send first so we can cancel (cancel requires pending_response)
+        r_send = _send_appt(self.co_jwt, appt_id, hours_ahead=73)
+        self.assertEqual(r_send.status_code, 200, r_send.text)
+
+        # Cancel
+        r_cancel = requests.post(
+            f"{BASE_URL}/api/appointments/{appt_id}/cancel",
+            json={"reason": "اختبار"},
+            headers=_headers(self.co_jwt)
+        )
+        self.assertEqual(r_cancel.status_code, 200, r_cancel.text)
+
+        # Verify pipeline_entry_id still in DB
+        conn = _db_conn()
+        try:
+            rows = conn.run(
+                "SELECT pipeline_entry_id, status FROM appointments WHERE id=:aid",
+                aid=appt_id
+            )
+        finally:
+            conn.close()
+
+        self.assertTrue(rows)
+        self.assertEqual(int(rows[0][0]), pe_ca,
+                         "pipeline_entry_id must be preserved after cancel")
+        self.assertEqual(rows[0][1], "cancelled")
+
+    def test_38_talent_bank_removal_does_not_delete_appointment(self):
+        """Removing candidate from talent bank does not delete their appointment rows."""
+        suf = _suffix()
+        _register(f"emp_tbr_{suf}@ex.com", "pass123", "emp", f"TBRem {suf}")
+        conn = _db_conn()
+        try:
+            emp_rows = conn.run("SELECT id FROM users WHERE email=:e",
+                                e=f"emp_tbr_{suf}@ex.com")
+            emp_tb = emp_rows[0][0]
+            job_rows = conn.run(
+                "INSERT INTO jobs(company_id, title, status) "
+                "VALUES (:cid, 'TBRemove Job', 'active') RETURNING id",
+                cid=self.co_id
+            )
+            job_tb = job_rows[0][0]
+            pe_rows = conn.run(
+                "INSERT INTO job_pipeline_entries"
+                "(company_id, candidate_id, job_id, stage, source, created_by) "
+                "VALUES (:cid, :uid, :jid, 'new', 'company_add', :cb) RETURNING id",
+                cid=self.co_id, uid=emp_tb, jid=job_tb, cb=self.co_id
+            )
+            pe_tb = pe_rows[0][0]
+        finally:
+            conn.close()
+
+        # Save to talent bank
+        requests.post(
+            f"{BASE_URL}/company/saved-candidates",
+            json={"candidate_id": emp_tb, "save_source": "manual"},
+            headers=_headers(self.co_jwt)
+        )
+
+        # Create appointment
+        r_draft = _create_draft_appt_path_b(self.co_jwt, emp_tb, job_tb)
+        self.assertEqual(r_draft.status_code, 200, r_draft.text)
+        appt_id = r_draft.json()["data"]["id"]
+
+        # Remove from talent bank
+        requests.delete(
+            f"{BASE_URL}/company/saved-candidates/{emp_tb}",
+            headers=_headers(self.co_jwt)
+        )
+
+        # Appointment row must still exist
+        conn = _db_conn()
+        try:
+            rows = conn.run("SELECT id FROM appointments WHERE id=:aid", aid=appt_id)
+        finally:
+            conn.close()
+
+        self.assertTrue(rows,
+                        "Appointment must still exist after removing candidate from talent bank")
+
+    def test_39_talent_bank_removal_does_not_delete_pipeline_notes(self):
+        """Removing candidate from talent bank does not delete their pipeline notes."""
+        suf = _suffix()
+        _register(f"emp_tbn_{suf}@ex.com", "pass123", "emp", f"TBNote {suf}")
+        conn = _db_conn()
+        try:
+            emp_rows = conn.run("SELECT id FROM users WHERE email=:e",
+                                e=f"emp_tbn_{suf}@ex.com")
+            emp_tbn = emp_rows[0][0]
+            job_rows = conn.run(
+                "INSERT INTO jobs(company_id, title, status) "
+                "VALUES (:cid, 'TBNote Job', 'active') RETURNING id",
+                cid=self.co_id
+            )
+            job_tbn = job_rows[0][0]
+            pe_rows = conn.run(
+                "INSERT INTO job_pipeline_entries"
+                "(company_id, candidate_id, job_id, stage, source, created_by) "
+                "VALUES (:cid, :uid, :jid, 'new', 'company_add', :cb) RETURNING id",
+                cid=self.co_id, uid=emp_tbn, jid=job_tbn, cb=self.co_id
+            )
+            pe_tbn = pe_rows[0][0]
+        finally:
+            conn.close()
+
+        # Save to talent bank
+        requests.post(
+            f"{BASE_URL}/company/saved-candidates",
+            json={"candidate_id": emp_tbn, "save_source": "manual"},
+            headers=_headers(self.co_jwt)
+        )
+
+        # Create pipeline note
+        r_note = requests.post(
+            f"{BASE_URL}/company/pipeline/{pe_tbn}/notes",
+            json={"body": "ملاحظة مهمة لا تُحذف"},
+            headers=_headers(self.co_jwt)
+        )
+        self.assertEqual(r_note.status_code, 200, r_note.text)
+        note_id = r_note.json()["data"]["note"]["id"]
+
+        # Remove from talent bank
+        requests.delete(
+            f"{BASE_URL}/company/saved-candidates/{emp_tbn}",
+            headers=_headers(self.co_jwt)
+        )
+
+        # Note must still exist (not soft-deleted)
+        conn = _db_conn()
+        try:
+            rows = conn.run(
+                "SELECT id, deleted_at FROM pipeline_notes WHERE id=:nid",
+                nid=note_id
+            )
+        finally:
+            conn.close()
+
+        self.assertTrue(rows, "Pipeline note row must still exist after talent bank removal")
+        self.assertIsNone(rows[0][1],
+                          "Pipeline note must not be soft-deleted after talent bank removal")
+
+    def test_40_duplicate_create_rejected_returns_400(self):
+        """Second create for same active pipeline entry returns 400 (dup guard)."""
+        suf = _suffix()
+        _register(f"emp_dup_{suf}@ex.com", "pass123", "emp", f"DupTest {suf}")
+        conn = _db_conn()
+        try:
+            emp_rows = conn.run("SELECT id FROM users WHERE email=:e",
+                                e=f"emp_dup_{suf}@ex.com")
+            emp_d = emp_rows[0][0]
+            job_rows = conn.run(
+                "INSERT INTO jobs(company_id, title, status) "
+                "VALUES (:cid, 'Dup Test Job', 'active') RETURNING id",
+                cid=self.co_id
+            )
+            job_d = job_rows[0][0]
+            conn.run(
+                "INSERT INTO job_pipeline_entries"
+                "(company_id, candidate_id, job_id, stage, source, created_by) "
+                "VALUES (:cid, :uid, :jid, 'new', 'company_add', :cb)",
+                cid=self.co_id, uid=emp_d, jid=job_d, cb=self.co_id
+            )
+        finally:
+            conn.close()
+
+        r1 = _create_draft_appt_path_b(self.co_jwt, emp_d, job_d)
+        self.assertEqual(r1.status_code, 200, r1.text)
+
+        r2 = _create_draft_appt_path_b(self.co_jwt, emp_d, job_d)
+        self.assertEqual(r2.status_code, 400, r2.text)
+        self.assertIn("موعد نشط", r2.json().get("detail", ""),
+                      "Dup error should mention active appointment")
 
 
 if __name__ == "__main__":

@@ -775,12 +775,19 @@
   var _icFloatAppId           = null;   // appId awaiting interview choice
   var _icPrevStatus           = null;   // prev status for rollback if classify fails
   // ── Appointment scheduling — per accepted applicant ────────────
-  var _apptByAppId      = {};    // { "appId": { id, status } } from GET /api/appointments
-  var _apptIndexLoaded  = false; // true after first successful index load
-  var _apptInFlight     = false; // true while create+send is in progress
-  var _apptCurrentAppId = null;  // appId being scheduled in the modal
-  var _apptModalInited  = false; // one-time listener guard
-  var _apptMode         = 'online';
+  var _apptByAppId         = {};    // { "appId": { id, status } } from GET /api/appointments
+  var _apptByEntryId       = {};    // { "entryId": { id, status } } — pipeline Path B
+  var _apptIndexLoaded     = false; // true after first successful index load
+  var _apptInFlight        = false; // true while create+send is in progress
+  var _apptCurrentAppId    = null;  // appId for Path A (application-based)
+  var _apptCurrentEntryId  = null;  // pipeline_entry_id for Path B
+  var _apptCurrentCandidateId = null; // candidate user_id for Path B
+  var _apptModalInited     = false; // one-time listener guard
+  var _apptMode            = 'online';
+  // ── Pipeline Notes panel ────────────────────────────────────────
+  var _notesCurrentEntryId = null;  // entry_id whose notes are open
+  var _notesInFlight       = false; // create-note in-flight guard
+  var _notesModalInited    = false; // one-time listener guard
   var _APP_STATUS_LABEL = {
     pending:   'محفوظ',
     viewed:    'للمراجعة',
@@ -885,10 +892,13 @@
       var twId           = a.tw_id || '';
       var isSaved        = !!a.is_saved;
       var otherJobTitles = Array.isArray(a.other_job_titles) ? a.other_job_titles : [];
+      var entryId        = a.pipeline_entry_id ? parseInt(a.pipeline_entry_id, 10) : 0;
+      var stage          = a.stage || '';
+      var notesCount     = parseInt(a.pipeline_notes_count || 0, 10);
+      var nextAppt       = a.next_appointment || null;
 
       var isRejected   = statusKey === 'rejected';
       var isHired      = statusKey === 'hired';
-      var isInterview  = statusKey === 'interview';
       var isClassified = statusKey !== 'pending';
 
       var avatarHtml = a.avatar_url
@@ -900,6 +910,18 @@
       var statusBadge = isClassified
         ? '<span class="co-app-status co-app-status--' + _escApp(statusKey) + '">' + _escApp(statusLbl) + '</span>'
         : '';
+
+      var stageHtml = (entryId && stage)
+        ? '<div class="co-app-meta-line co-app-stage">المرحلة: ' + _escApp(stage) + '</div>'
+        : '';
+
+      var nextApptHtml = '';
+      if (nextAppt && nextAppt.scheduled_at) {
+        var apptTypeLbl = nextAppt.appointment_type || 'مقابلة';
+        nextApptHtml = '<div class="co-app-next-appt">'
+          + _escApp(apptTypeLbl) + ' · ' + _escApp(_appFmtDate(nextAppt.scheduled_at))
+          + '</div>';
+      }
 
       var viewBtn = twId
         ? '<a class="co-app-view-btn co-app-act" href="/u/' + _escApp(twId) + '" target="_blank" rel="noopener">عرض الملف الكامل</a>'
@@ -923,8 +945,20 @@
         + (isSaved ? ' disabled' : '')
         + '>' + tbLbl + '</button>';
 
-      var schedBtn = isInterview
-        ? '<button type="button" class="co-app-sched-btn co-app-act" data-app-id="' + appId + '">تحديد موعد</button>'
+      // "ملاحظات الوظيفة" — only when pipeline entry exists
+      var notesCountBadge = notesCount > 0 ? ' (' + notesCount + ')' : '';
+      var notesBtn = entryId
+        ? '<button type="button" class="co-notes-btn co-app-act" data-entry-id="' + entryId + '"'
+          + '>ملاحظات الوظيفة' + notesCountBadge + '</button>'
+        : '';
+
+      // "تحديد موعد" — for ALL pipeline candidates (not limited to interview status)
+      var schedBtn = entryId
+        ? '<button type="button" class="co-app-sched-btn co-app-act"'
+          + ' data-app-id="' + appId + '"'
+          + ' data-entry-id="' + entryId + '"'
+          + ' data-uid="' + uid + '"'
+          + '>تحديد موعد</button>'
         : '';
 
       var savedCtx = isSaved && otherJobTitles.length > 0
@@ -936,20 +970,25 @@
 
       html += '<div class="co-app-card' + (isRejected ? ' co-app-card--rejected' : '') + '"'
         + ' data-app-id="' + appId + '" data-name="' + _escApp(a.full_name || '') + '"'
-        + ' data-uid="' + uid + '" data-tw-id="' + _escApp(twId) + '">'
+        + ' data-uid="' + uid + '" data-tw-id="' + _escApp(twId) + '"'
+        + (entryId ? ' data-entry-id="' + entryId + '"' : '')
+        + '>'
         + '<div class="co-app-card-head">'
         +   '<div class="co-app-ava">' + avatarHtml + '</div>'
         +   '<div class="co-app-info">'
         +     '<div class="co-app-name">' + _escApp(a.full_name || '—') + '</div>'
         +     (dateStr ? '<div class="co-app-meta-line">تقدّم: ' + _escApp(dateStr) + '</div>' : '')
+        +     stageHtml
         +   '</div>'
         +   statusBadge
         + '</div>'
+        + nextApptHtml
         + savedCtx
         + '<div class="co-app-card-foot">'
         + viewBtn
         + classifyBtn
         + talentBankBtn
+        + notesBtn
         + schedBtn
         + '</div>'
         + '</div>';
@@ -969,6 +1008,8 @@
       if (tbBtn && !tbBtn.disabled) { _onSaveToTalentBank(tbBtn); return; }
       var schedBtn = e.target.closest('.co-app-sched-btn');
       if (schedBtn && !schedBtn.disabled) { _onSchedBtn(schedBtn); return; }
+      var notesBtn = e.target.closest('.co-notes-btn');
+      if (notesBtn && !notesBtn.disabled) { _onNotesBtn(notesBtn); return; }
     });
   }
 
@@ -1121,13 +1162,15 @@
     .then(function (r) { return r.json(); })
     .then(function (d) {
       var items = Array.isArray(d) ? d : (d.data || d.appointments || []);
-      _apptByAppId = {};
+      _apptByAppId   = {};
+      _apptByEntryId = {};
       items.forEach(function (a) {
+        var info = { id: a.id, status: a.computed_status || a.status };
         if (a.application_id != null) {
-          _apptByAppId[String(a.application_id)] = {
-            id:     a.id,
-            status: a.computed_status || a.status
-          };
+          _apptByAppId[String(a.application_id)] = info;
+        }
+        if (a.pipeline_entry_id != null) {
+          _apptByEntryId[String(a.pipeline_entry_id)] = info;
         }
       });
       _apptIndexLoaded = true;
@@ -1139,8 +1182,11 @@
   function _applyApptIndexToCards() {
     var cards = document.querySelectorAll('#coAppList .co-app-card');
     cards.forEach(function (card) {
-      var appId = card.getAttribute('data-app-id');
-      var entry = _apptByAppId[appId];
+      var appId   = card.getAttribute('data-app-id');
+      var entryId = card.getAttribute('data-entry-id');
+      // Prefer entry-id lookup (more specific), fall back to app-id
+      var entry   = (entryId && _apptByEntryId[entryId])
+                    || (appId && _apptByAppId[appId]);
       if (!entry || !_isApptActive(entry.status) || _isApptDraft(entry.status)) return;
       var foot = card.querySelector('.co-app-card-foot');
       if (!foot) return;
@@ -1157,9 +1203,14 @@
   }
 
   function _onSchedBtn(btn) {
-    var appId = parseInt(btn.getAttribute('data-app-id'), 10);
-    if (!appId || btn.disabled) return;
-    var card = document.querySelector('#coAppList .co-app-card[data-app-id="' + appId + '"]');
+    if (btn.disabled) return;
+    var appId   = parseInt(btn.getAttribute('data-app-id'), 10) || 0;
+    var entryId = parseInt(btn.getAttribute('data-entry-id'), 10) || 0;
+    var uid     = parseInt(btn.getAttribute('data-uid'), 10) || 0;
+
+    var card = appId
+      ? document.querySelector('#coAppList .co-app-card[data-app-id="' + appId + '"]')
+      : document.querySelector('#coAppList .co-app-card[data-entry-id="' + entryId + '"]');
     var applName = card ? card.getAttribute('data-name') : '';
     var job = window.companyState && companyState.jobs
       ? companyState.jobs.find(function (j) { return j.id == _appJobId; })
@@ -1167,21 +1218,24 @@
     var jobTitle = job ? job.title : '';
 
     if (_apptIndexLoaded) {
-      var entry = _apptByAppId[String(appId)];
+      var entry = (entryId && _apptByEntryId[String(entryId)])
+                  || (appId && _apptByAppId[String(appId)]);
       if (entry && _isApptActive(entry.status)) {
         if (_isApptDraft(entry.status)) {
-          _openApptModal(appId, applName, jobTitle);
+          _openApptModal(appId || null, applName, jobTitle, entryId || null, uid || null);
           return;
         }
         window.open('/appointment-room?id=' + entry.id, '_blank');
         return;
       }
     }
-    _openApptModal(appId, applName, jobTitle);
+    _openApptModal(appId || null, applName, jobTitle, entryId || null, uid || null);
   }
 
-  function _openApptModal(appId, applName, jobTitle) {
-    _apptCurrentAppId = appId;
+  function _openApptModal(appId, applName, jobTitle, entryId, candidateId) {
+    _apptCurrentAppId       = appId       || null;
+    _apptCurrentEntryId     = entryId     || null;
+    _apptCurrentCandidateId = candidateId || null;
     var el = document.getElementById('coApptModal');
     if (!el) return;
     // Fill static info
@@ -1189,8 +1243,9 @@
     var jobEl  = document.getElementById('coApptJobName');
     if (nameEl) nameEl.textContent = applName || '—';
     if (jobEl)  jobEl.textContent  = jobTitle  || '—';
-    // Show retry hint if an orphaned draft exists for this application
-    var existEntry = _apptByAppId[String(appId)];
+    // Show retry hint if an orphaned draft exists (check both indexes)
+    var existEntry = (_apptCurrentEntryId && _apptByEntryId[String(_apptCurrentEntryId)])
+                     || (_apptCurrentAppId && _apptByAppId[String(_apptCurrentAppId)]);
     var isDraftRetry = !!(existEntry && _isApptDraft(existEntry.status));
     var retryHint = document.getElementById('coApptRetryHint');
     if (retryHint) retryHint.style.display = isDraftRetry ? '' : 'none';
@@ -1214,7 +1269,9 @@
   function _closeApptModal() {
     var el = document.getElementById('coApptModal');
     if (el) el.style.display = 'none';
-    _apptCurrentAppId = null;
+    _apptCurrentAppId       = null;
+    _apptCurrentEntryId     = null;
+    _apptCurrentCandidateId = null;
     _apptInFlight = false;
   }
 
@@ -1250,8 +1307,14 @@
 
   function _submitApptForm() {
     if (_apptInFlight) return;
-    var appId = _apptCurrentAppId;
-    if (!appId) return;
+    var appId   = _apptCurrentAppId;
+    var entryId = _apptCurrentEntryId;
+    var uid     = _apptCurrentCandidateId;
+    // Must have either application_id (Path A) or candidate_id + job_id (Path B)
+    if (!appId && !(uid && _appJobId)) {
+      if (window.showToast) showToast('بيانات الموعد غير مكتملة', 'error');
+      return;
+    }
 
     var g = function (id) { return (document.getElementById(id) || {}).value || ''; };
     var dateVal     = g('coApptDate');
@@ -1267,7 +1330,6 @@
       return;
     }
 
-    // Client-side validation matching backend rules
     if (_apptMode === 'online' && !urlVal) {
       if (window.showToast) showToast('يرجى إدخال رابط المقابلة الأونلاين', 'error');
       return;
@@ -1277,16 +1339,14 @@
       return;
     }
 
-    // Convert user's local datetime to UTC ISO (Z-suffix) so backend always receives
-    // a timezone-aware string. Avoids ±hours shift when user is not in UTC.
+    // Convert user's local datetime to UTC ISO (Z-suffix) — backend rejects naive ISO
     var localScheduled = new Date(dateVal + 'T' + timeVal + ':00');
     if (!Number.isFinite(localScheduled.getTime())) {
       if (window.showToast) showToast('تاريخ أو وقت غير صالح', 'error');
       return;
     }
-    var scheduledAt = localScheduled.toISOString(); // e.g. "2025-08-15T06:00:00.000Z"
+    var scheduledAt = localScheduled.toISOString(); // always Z-suffix
 
-    // Deadline vs appointment time: scheduled must be > now + deadline_hours
     var scheduledMs = localScheduled.getTime();
     var deadlineMs  = deadlineVal * 60 * 60 * 1000;
     if (scheduledMs - Date.now() <= deadlineMs) {
@@ -1299,21 +1359,39 @@
 
     var jwt = window._jwt ? _jwt() : '';
 
-    // If an orphaned draft exists for this application, skip create and retry send directly
-    var existingEntry = _apptByAppId[String(appId)];
+    // If an orphaned draft exists, skip create and retry send directly
+    var existingEntry = (entryId && _apptByEntryId[String(entryId)])
+                        || (appId && _apptByAppId[String(appId)]);
     if (existingEntry && _isApptDraft(existingEntry.status)) {
       _execSendStep(existingEntry.id, appId, jwt, scheduledAt, deadlineVal, urlVal, locVal, notesVal, repVal, submitBtn);
       return;
     }
 
-    var createBody = {
-      application_id:      appId,
-      mode:                _apptMode,
-      notes:               notesVal  || null,
-      online_url:          urlVal    || null,
-      location_text:       locVal    || null,
-      representative_name: repVal    || null
-    };
+    // Build create body: Path A (application_id) or Path B (candidate_id + job_id)
+    var createBody;
+    if (appId) {
+      // Path A
+      createBody = {
+        application_id:      appId,
+        mode:                _apptMode,
+        notes:               notesVal  || null,
+        online_url:          urlVal    || null,
+        location_text:       locVal    || null,
+        representative_name: repVal    || null
+      };
+    } else {
+      // Path B — pipeline
+      createBody = {
+        candidate_id:        uid,
+        job_id:              parseInt(_appJobId, 10),
+        appointment_type:    'interview',
+        mode:                _apptMode,
+        notes:               notesVal  || null,
+        online_url:          urlVal    || null,
+        location_text:       locVal    || null,
+        representative_name: repVal    || null
+      };
+    }
 
     fetch('/api/appointments', {
       method:  'POST',
@@ -1323,7 +1401,7 @@
     .then(function (r) {
       if (!r.ok) {
         return r.json().then(function (d) {
-          var e = new Error('HTTP ' + r.status); e.status = r.status; e.detail = d.detail; throw e;
+          var e = new Error('HTTP ' + r.status); e.status = r.status; e.detail = d.detail || d.message; throw e;
         });
       }
       return r.json();
@@ -1331,8 +1409,10 @@
     .then(function (d) {
       var apptId = d.data && d.data.id;
       if (!apptId) throw new Error('missing appointment id');
-      // Store draft in index immediately — if send fails, next retry reuses this id
-      _apptByAppId[String(appId)] = { id: apptId, status: 'draft' };
+      // Store draft in index — if send fails, next retry reuses this id
+      var info = { id: apptId, status: 'draft' };
+      if (appId)   _apptByAppId[String(appId)]     = info;
+      if (entryId) _apptByEntryId[String(entryId)] = info;
       _execSendStep(apptId, appId, jwt, scheduledAt, deadlineVal, urlVal, locVal, notesVal, repVal, submitBtn);
     })
     .catch(function (err) {
@@ -1342,9 +1422,10 @@
       var detail = (err && err.detail) || '';
       var msg;
       if (detail.indexOf('يوجد موعد نشط') !== -1) {
-        // Draft exists in DB but not our index (page reload / race) — reload index
         _loadApptIndex(function () { _applyApptIndexToCards(); });
         msg = 'يوجد موعد نشط — تحقق من صفحة المواعيد';
+      } else if (status === 409) {
+        msg = detail || 'لا يمكن إنشاء الموعد — تحقق من البيانات';
       } else if (status === 403) {
         msg = 'انتهت الجلسة أو لا تملك صلاحية إنشاء المواعيد';
       } else if (status === 401) {
@@ -1381,9 +1462,15 @@
       return r.json();
     })
     .then(function () {
-      // Update index to sent state and swap card btn to "فتح الموعد"
-      _apptByAppId[String(appId)] = { id: apptId, status: 'pending_response' };
-      var card = document.querySelector('#coAppList .co-app-card[data-app-id="' + appId + '"]');
+      // Update both indexes to sent state
+      var sentInfo = { id: apptId, status: 'pending_response' };
+      if (appId) _apptByAppId[String(appId)] = sentInfo;
+      if (_apptCurrentEntryId) _apptByEntryId[String(_apptCurrentEntryId)] = sentInfo;
+      var card = appId
+        ? document.querySelector('#coAppList .co-app-card[data-app-id="' + appId + '"]')
+        : (_apptCurrentEntryId
+            ? document.querySelector('#coAppList .co-app-card[data-entry-id="' + _apptCurrentEntryId + '"]')
+            : null);
       if (card) {
         var foot = card.querySelector('.co-app-card-foot');
         var oldBtn = foot ? (foot.querySelector('.co-app-sched-btn') || foot.querySelector('.co-app-open-appt-btn')) : null;
@@ -1419,6 +1506,167 @@
       }
       if (window.showToast) showToast(msg, 'error');
     });
+  }
+
+  // ── Pipeline Notes Panel ────────────────────────────────────────
+  function _onNotesBtn(btn) {
+    var entryId = parseInt(btn.getAttribute('data-entry-id'), 10);
+    if (!entryId) return;
+    _openNotesPanel(entryId);
+  }
+
+  function _openNotesPanel(entryId) {
+    _notesCurrentEntryId = entryId;
+    var el = document.getElementById('coNotesModal');
+    if (!el) return;
+    var listEl = document.getElementById('coNotesList');
+    if (listEl) listEl.innerHTML = '<div class="co-app-spin">جارٍ التحميل…</div>';
+    var inp = document.getElementById('coNotesInput');
+    if (inp) inp.value = '';
+    _notesInFlight = false;
+    _initNotesModalListeners();
+    el.style.display = 'flex';
+    _loadPanelNotes(entryId);
+  }
+
+  function _closeNotesPanel() {
+    var el = document.getElementById('coNotesModal');
+    if (el) el.style.display = 'none';
+    _notesCurrentEntryId = null;
+    _notesInFlight = false;
+  }
+
+  function _initNotesModalListeners() {
+    if (_notesModalInited) return;
+    _notesModalInited = true;
+    var el = document.getElementById('coNotesModal');
+    if (!el) return;
+    el.addEventListener('click', function (e) {
+      if (e.target === el) _closeNotesPanel();
+    });
+    var closeBtn = document.getElementById('coNotesClose');
+    if (closeBtn) closeBtn.addEventListener('click', _closeNotesPanel);
+    var submitBtn = document.getElementById('coNotesSubmit');
+    if (submitBtn) submitBtn.addEventListener('click', _submitNote);
+    var listEl = document.getElementById('coNotesList');
+    if (listEl) listEl.addEventListener('click', function (e) {
+      var delBtn = e.target.closest('.co-note-del');
+      if (delBtn && !delBtn.disabled) _deleteNote(delBtn);
+    });
+  }
+
+  function _loadPanelNotes(entryId) {
+    var listEl = document.getElementById('coNotesList');
+    if (!listEl) return;
+    var jwt = window._jwt ? _jwt() : '';
+    if (!jwt) {
+      listEl.innerHTML = '<div class="co-app-empty">يجب تسجيل الدخول أولاً</div>';
+      return;
+    }
+    fetch('/company/pipeline/' + entryId + '/notes', {
+      headers: { 'Authorization': 'Bearer ' + jwt }
+    })
+    .then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    })
+    .then(function (d) {
+      var notes = (d && d.data && Array.isArray(d.data.notes)) ? d.data.notes : [];
+      _renderPanelNotes(notes, listEl);
+    })
+    .catch(function () {
+      if (listEl) listEl.innerHTML = '<div class="co-app-empty">تعذّر تحميل الملاحظات</div>';
+    });
+  }
+
+  function _renderPanelNotes(notes, listEl) {
+    if (!listEl) return;
+    if (!notes.length) {
+      listEl.innerHTML = '<div class="co-app-empty">لا توجد ملاحظات بعد</div>';
+      return;
+    }
+    var html = '';
+    notes.forEach(function (n) {
+      var noteId = parseInt(n.id, 10);
+      html += '<div class="co-note-item" data-note-id="' + noteId + '">'
+        + '<div class="co-note-body"></div>'
+        + '<button type="button" class="co-note-del" data-note-id="' + noteId + '">×</button>'
+        + '</div>';
+    });
+    listEl.innerHTML = html;
+    // Set body text safely (XSS: textContent only)
+    var items = listEl.querySelectorAll('.co-note-item');
+    notes.forEach(function (n, i) {
+      var bodyEl = items[i] && items[i].querySelector('.co-note-body');
+      if (bodyEl) bodyEl.textContent = n.body || '';
+    });
+  }
+
+  function _submitNote() {
+    if (_notesInFlight) return;
+    var entryId = _notesCurrentEntryId;
+    if (!entryId) return;
+    var inp = document.getElementById('coNotesInput');
+    var body = inp ? inp.value.trim() : '';
+    if (!body) {
+      if (window.showToast) showToast('أدخل نص الملاحظة', 'error');
+      return;
+    }
+    _notesInFlight = true;
+    var submitBtn = document.getElementById('coNotesSubmit');
+    if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'جارٍ الحفظ…'; }
+    var jwt = window._jwt ? _jwt() : '';
+    fetch('/company/pipeline/' + entryId + '/notes', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + jwt, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ body: body })
+    })
+    .then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    })
+    .then(function () {
+      if (inp) inp.value = '';
+      _notesInFlight = false;
+      if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'إضافة'; }
+      _loadPanelNotes(entryId);
+      // Refresh notes count on the card
+      _refreshCardNotesCount(entryId);
+    })
+    .catch(function () {
+      _notesInFlight = false;
+      if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'إضافة'; }
+      if (window.showToast) showToast('تعذّر حفظ الملاحظة', 'error');
+    });
+  }
+
+  function _deleteNote(delBtn) {
+    var noteId = parseInt(delBtn.getAttribute('data-note-id'), 10);
+    if (!noteId) return;
+    var entryId = _notesCurrentEntryId;
+    delBtn.disabled = true;
+    var jwt = window._jwt ? _jwt() : '';
+    fetch('/company/pipeline/notes/' + noteId, {
+      method: 'DELETE',
+      headers: { 'Authorization': 'Bearer ' + jwt }
+    })
+    .then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    })
+    .then(function () {
+      _loadPanelNotes(entryId);
+      _refreshCardNotesCount(entryId);
+    })
+    .catch(function () {
+      delBtn.disabled = false;
+      if (window.showToast) showToast('تعذّر حذف الملاحظة', 'error');
+    });
+  }
+
+  function _refreshCardNotesCount(entryId) {
+    // Reload applicants to get updated count — lightweight approach
+    if (_appJobId) _loadApplicants(_appJobId);
   }
 
   // ── Classify dropdown — 7-option save/classify portal ─────────

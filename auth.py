@@ -2341,23 +2341,67 @@ def apply_job(job_id: int, user_id: int, cover_letter: str = "") -> dict:
         release_conn(conn)
 
 def get_job_applicants(job_id: int, company_id: int = 0) -> list:
+    """
+    Returns applicants for a job. Additive pipeline fields (PR-5):
+      pipeline_entry_id, stage, pipeline_notes_count, next_appointment.
+    Reading is allowed even for archived jobs (archived_at check is creation-only).
+    """
     conn = get_conn()
     try:
         rows = conn.run(
             "SELECT ja.id, ja.job_id, ja.user_id, ja.status, ja.cover_letter, ja.applied_at, "
             "u.full_name, u.user_type, u.tw_id, "
             "p.avatar_url, "
-            "CASE WHEN sc.candidate_id IS NOT NULL THEN true ELSE false END AS is_saved "
+            "CASE WHEN sc.candidate_id IS NOT NULL THEN true ELSE false END AS is_saved, "
+            "jpe.id AS pipeline_entry_id, "
+            "jpe.stage, "
+            "(SELECT COUNT(*) FROM pipeline_notes pn "
+            " WHERE pn.pipeline_entry_id = jpe.id AND pn.deleted_at IS NULL) "
+            " AS pipeline_notes_count "
             "FROM job_applications ja "
             "JOIN users u ON u.id=ja.user_id "
             "LEFT JOIN profiles p ON p.user_id=ja.user_id "
             "LEFT JOIN company_saved_candidates sc "
             "  ON sc.company_id=:cid AND sc.candidate_id=ja.user_id "
+            "LEFT JOIN job_pipeline_entries jpe ON jpe.application_id=ja.id "
             "WHERE ja.job_id=:jid ORDER BY ja.applied_at DESC",
             jid=job_id, cid=company_id
         )
         cols = [c["name"] for c in conn.columns]
         items = [_serialize(_row_to_dict(cols, r)) for r in rows]
+
+        # Convert pipeline_notes_count to int (pg8000 may return Decimal)
+        for a in items:
+            a['pipeline_notes_count'] = int(a.get('pipeline_notes_count') or 0)
+            a['next_appointment'] = None
+
+        # Batch-fetch next future active appointment per pipeline entry
+        entry_ids = [a['pipeline_entry_id'] for a in items if a.get('pipeline_entry_id')]
+        if entry_ids:
+            id_clause = ','.join(str(int(eid)) for eid in entry_ids)
+            appt_rows = conn.run(
+                f"SELECT DISTINCT ON (a.pipeline_entry_id) "
+                f"a.pipeline_entry_id, a.id, a.status, a.scheduled_at, a.appointment_type "
+                f"FROM appointments a "
+                f"WHERE a.pipeline_entry_id IN ({id_clause}) "
+                f"AND a.scheduled_at IS NOT NULL AND a.scheduled_at > NOW() "
+                f"AND a.status NOT IN ('cancelled','expired','missed','closed') "
+                f"ORDER BY a.pipeline_entry_id, a.scheduled_at ASC"
+            ) or []
+            next_appt_map = {}
+            for ar in appt_rows:
+                entry_id = int(ar[0])
+                sched = ar[3]
+                next_appt_map[entry_id] = {
+                    "id": ar[1],
+                    "status": ar[2],
+                    "scheduled_at": sched.isoformat() if isinstance(sched, datetime) else sched,
+                    "appointment_type": ar[4],
+                }
+            for a in items:
+                eid = a.get('pipeline_entry_id')
+                if eid:
+                    a['next_appointment'] = next_appt_map.get(int(eid))
 
         # Batch-fetch other job refs for saved candidates
         # Source: company_candidate_job_refs (only company-intentional links, not all applications)
@@ -6514,7 +6558,8 @@ def _get_appointment_row(conn, appointment_id: int):
         """SELECT id, job_id, application_id, company_id, applicant_id, created_by,
                   representative_user_id, representative_name, status, mode,
                   scheduled_at, response_deadline_at, location_text, online_url,
-                  notes, created_at, updated_at, closed_at
+                  notes, created_at, updated_at, closed_at,
+                  pipeline_entry_id, appointment_type, end_at
            FROM appointments WHERE id = :id""",
         id=appointment_id
     )
@@ -6523,7 +6568,8 @@ def _get_appointment_row(conn, appointment_id: int):
     cols = ["id","job_id","application_id","company_id","applicant_id","created_by",
             "representative_user_id","representative_name","status","mode",
             "scheduled_at","response_deadline_at","location_text","online_url",
-            "notes","created_at","updated_at","closed_at"]
+            "notes","created_at","updated_at","closed_at",
+            "pipeline_entry_id","appointment_type","end_at"]
     return _serialize(_row_to_dict(cols, rows[0]))
 
 
@@ -6553,14 +6599,42 @@ def _appt_computed_status(appt: dict) -> str:
     return status
 
 
-def create_appointment(company_user_id: int, application_id: int,
-                       mode: str = "online", notes: str = None,
-                       online_url: str = None, location_text: str = None,
+def create_appointment(company_user_id: int,
+                       application_id: int = None,
+                       candidate_id: int = None,
+                       job_id: int = None,
+                       appointment_type: str = None,
+                       mode: str = "online",
+                       notes: str = None,
+                       online_url: str = None,
+                       location_text: str = None,
                        representative_name: str = None) -> dict:
-    """Create appointment in status=draft. Company users only.
-    applicant_id and job_id are derived from job_applications — never trusted from caller."""
+    """
+    Create appointment in status=draft. Company users only.
+
+    Two paths:
+      Path A (backward-compat): application_id supplied — derive applicant + job from it.
+                                 Optionally links pipeline entry if found (best-effort).
+      Path B (pipeline):        candidate_id + job_id supplied — pipeline entry required.
+                                 application_id resolved server-side from pipeline entry.
+
+    Security invariants:
+      - company_id always from JWT (company_user_id) — never trusted from caller
+      - applicant_id + job_id derived server-side — never trusted from caller
+      - pipeline_entry_id resolved server-side — never trusted from caller
+      - participant role is always 'applicant'
+      - Duplicate guard is atomic (SELECT FOR UPDATE inside BEGIN)
+    """
+    # ── Input validation ───────────────────────────────────────────────────────
+    if application_id is None and (candidate_id is None or job_id is None):
+        raise ValueError(
+            "يجب إرسال application_id أو (candidate_id + job_id) معاً"
+        )
+    if appointment_type is not None and appointment_type not in _APPT_PIPELINE_VALID_TYPES:
+        raise ValueError(f"نوع الموعد غير صالح: {appointment_type}. "
+                         f"القيم المسموحة: {', '.join(sorted(_APPT_PIPELINE_VALID_TYPES))}")
     if mode not in _APPT_VALID_MODES:
-        raise ValueError(f"نوع الموعد غير صالح: {mode}")
+        raise ValueError(f"وضع الموعد غير صالح: {mode}")
     if online_url:
         if not online_url.startswith("https://"):
             raise ValueError("رابط المقابلة يجب أن يبدأ بـ https://")
@@ -6575,72 +6649,159 @@ def create_appointment(company_user_id: int, application_id: int,
     conn = get_conn()
     committed = False
     try:
-        # Derive applicant_id and job_id from the actual job_applications row
-        app_rows = conn.run(
-            "SELECT id, user_id, job_id FROM job_applications WHERE id = :id",
-            id=application_id
-        )
-        if not app_rows:
-            raise ValueError("طلب التوظيف غير موجود")
-        applicant_id = app_rows[0][1]
-        job_id = app_rows[0][2]
-
-        # Verify that this company owns the job — F6: backend owns permissions
-        job_rows = conn.run(
-            "SELECT company_id FROM jobs WHERE id = :id", id=job_id
-        )
-        if not job_rows:
-            raise ValueError("الوظيفة غير موجودة")
-        db_company_id = job_rows[0][0]
-        if int(db_company_id) != int(company_user_id):
-            raise PermissionError("غير مصرح: هذه الوظيفة لا تخص شركتك")
-
-        # Verify applicant is an employee
-        u_rows = conn.run("SELECT id, user_type FROM users WHERE id = :id", id=applicant_id)
-        if not u_rows:
-            raise ValueError("المتقدم غير موجود")
-        if u_rows[0][1] != 'emp':
-            raise ValueError("المستخدم المحدد ليس موظفاً")
-
-        # Duplicate guard per application_id (not per job+applicant pair)
-        dup = conn.run(
-            """SELECT id FROM appointments
-               WHERE application_id = :appid
-                 AND status NOT IN ('cancelled','expired','missed','closed')
-               LIMIT 1""",
-            appid=application_id
-        )
-        if dup:
-            raise ValueError("يوجد موعد نشط لهذا الطلب")
-
         conn.run("BEGIN")
+
+        if application_id is not None:
+            # ── Path A: derive applicant_id + job_id from job_applications ──────────
+            app_rows = conn.run(
+                "SELECT id, user_id, job_id FROM job_applications WHERE id = :id FOR UPDATE",
+                id=application_id
+            )
+            if not app_rows:
+                raise ValueError("طلب التوظيف غير موجود")
+            applicant_id   = app_rows[0][1]
+            resolved_job_id = app_rows[0][2]
+
+            job_rows = conn.run(
+                "SELECT company_id, archived_at FROM jobs WHERE id = :id", id=resolved_job_id
+            )
+            if not job_rows:
+                raise ValueError("الوظيفة غير موجودة")
+            if int(job_rows[0][0]) != int(company_user_id):
+                raise PermissionError("غير مصرح: هذه الوظيفة لا تخص شركتك")
+            if job_rows[0][1] is not None:
+                raise ValueError("لا يمكن تحديد موعد لوظيفة مؤرشفة")
+
+            u_rows = conn.run("SELECT id, user_type FROM users WHERE id = :id", id=applicant_id)
+            if not u_rows or u_rows[0][1] != 'emp':
+                raise ValueError("المتقدم غير موجود أو ليس موظفاً")
+
+            # Try to link pipeline entry — best-effort (backward-compat: OK if absent)
+            pipeline_entry_id = None
+            resolved_app_id   = application_id
+            try:
+                ctx = _resolve_pipeline_entry(
+                    conn, company_user_id, applicant_id, resolved_job_id, application_id
+                )
+                pipeline_entry_id = ctx['pipeline_entry_id']
+                resolved_app_id   = ctx['application_id'] or application_id
+            except (PipelineEntryRequiredError, PipelineApplicationConflictError, ValueError):
+                pass  # No entry or conflict — OK for Path A backward compat
+
+            # Atomic dup guard
+            if pipeline_entry_id:
+                conn.run(
+                    "SELECT id FROM job_pipeline_entries WHERE id = :eid FOR UPDATE",
+                    eid=pipeline_entry_id
+                )
+                dup = conn.run(
+                    "SELECT id FROM appointments WHERE pipeline_entry_id = :eid "
+                    "AND status NOT IN ('cancelled','expired','missed','closed') LIMIT 1",
+                    eid=pipeline_entry_id
+                )
+            else:
+                dup = conn.run(
+                    "SELECT id FROM appointments WHERE application_id = :appid "
+                    "AND status NOT IN ('cancelled','expired','missed','closed') LIMIT 1",
+                    appid=application_id
+                )
+            if dup:
+                raise ValueError("يوجد موعد نشط لهذا الطلب")
+
+        else:
+            # ── Path B: candidate_id + job_id — pipeline entry required ───────────
+            u_rows = conn.run("SELECT id, user_type FROM users WHERE id = :id", id=candidate_id)
+            if not u_rows:
+                raise ValueError("المرشح غير موجود")
+            if u_rows[0][1] != 'emp':
+                raise ValueError("المستخدم المحدد ليس موظفاً")
+
+            applicant_id    = candidate_id
+            resolved_job_id = job_id
+
+            job_rows = conn.run(
+                "SELECT company_id, archived_at FROM jobs WHERE id = :id", id=resolved_job_id
+            )
+            if not job_rows:
+                raise ValueError("الوظيفة غير موجودة")
+            if int(job_rows[0][0]) != int(company_user_id):
+                raise PermissionError("غير مصرح: هذه الوظيفة لا تخص شركتك")
+            if job_rows[0][1] is not None:
+                raise ValueError("لا يمكن تحديد موعد لوظيفة مؤرشفة")
+
+            # Pipeline entry required — also validates candidate+job+company
+            ctx = _resolve_pipeline_entry(
+                conn, company_user_id, candidate_id, job_id, None
+            )
+            pipeline_entry_id = ctx['pipeline_entry_id']
+            resolved_app_id   = ctx['application_id']  # None for non-applicant entries
+
+            # Lock entry to serialize concurrent create attempts
+            conn.run(
+                "SELECT id FROM job_pipeline_entries WHERE id = :eid FOR UPDATE",
+                eid=pipeline_entry_id
+            )
+
+            dup = conn.run(
+                "SELECT id FROM appointments WHERE pipeline_entry_id = :eid "
+                "AND status NOT IN ('cancelled','expired','missed','closed') LIMIT 1",
+                eid=pipeline_entry_id
+            )
+            if dup:
+                raise ValueError("يوجد موعد نشط مرتبط بهذا المرشح في هذه الوظيفة")
+
+        # ── Dynamic INSERT — literal NULL for nullable FKs (avoids pg8000 42P08) ──
+        _cols = ["company_id", "applicant_id", "created_by", "job_id", "mode", "status"]
+        _vals = [":cid", ":aid", ":cb", ":jid", ":mode", "'draft'"]
+        _kw   = dict(cid=company_user_id, aid=applicant_id, cb=company_user_id,
+                     jid=resolved_job_id, mode=mode)
+
+        if appointment_type is not None:
+            _cols.append("appointment_type"); _vals.append(":atype"); _kw["atype"] = appointment_type
+
+        _cols.append("pipeline_entry_id")
+        if pipeline_entry_id is not None:
+            _vals.append(":peid"); _kw["peid"] = pipeline_entry_id
+        else:
+            _vals.append("NULL")
+
+        _cols.append("application_id")
+        if resolved_app_id is not None:
+            _vals.append(":appid"); _kw["appid"] = resolved_app_id
+        else:
+            _vals.append("NULL")
+
+        if representative_name is not None:
+            _cols.append("representative_name"); _vals.append(":repname"); _kw["repname"] = representative_name
+
+        if notes is not None:
+            _cols.append("notes"); _vals.append(":notes"); _kw["notes"] = notes
+
+        if online_url is not None:
+            _cols.append("online_url"); _vals.append(":url"); _kw["url"] = online_url
+
+        if location_text is not None:
+            _cols.append("location_text"); _vals.append(":loc"); _kw["loc"] = location_text
+
         rows = conn.run(
-            """INSERT INTO appointments
-               (company_id, applicant_id, created_by, job_id, application_id,
-                mode, representative_name, notes,
-                online_url, location_text, status)
-               VALUES (:cid, :aid, :cb, :jid, :appid, :mode,
-                       :rep_name, :notes, :url, :loc, 'draft')
-               RETURNING id""",
-            cid=company_user_id, aid=applicant_id, cb=company_user_id,
-            jid=job_id, appid=application_id, mode=mode,
-            rep_name=representative_name,
-            notes=notes, url=online_url, loc=location_text
+            "INSERT INTO appointments (" + ", ".join(_cols) + ") "
+            "VALUES (" + ", ".join(_vals) + ") RETURNING id",
+            **_kw
         )
         appt_id = rows[0][0]
 
         conn.run(
-            """INSERT INTO appointment_participants
-               (appointment_id, user_id, role, can_message, can_decide)
-               VALUES (:appt, :uid, 'company', TRUE, TRUE)
-               ON CONFLICT (appointment_id, user_id) DO NOTHING""",
+            "INSERT INTO appointment_participants "
+            "(appointment_id, user_id, role, can_message, can_decide) "
+            "VALUES (:appt, :uid, 'company', TRUE, TRUE) "
+            "ON CONFLICT (appointment_id, user_id) DO NOTHING",
             appt=appt_id, uid=company_user_id
         )
         conn.run(
-            """INSERT INTO appointment_participants
-               (appointment_id, user_id, role, can_message, can_decide)
-               VALUES (:appt, :uid, 'applicant', TRUE, TRUE)
-               ON CONFLICT (appointment_id, user_id) DO NOTHING""",
+            "INSERT INTO appointment_participants "
+            "(appointment_id, user_id, role, can_message, can_decide) "
+            "VALUES (:appt, :uid, 'applicant', TRUE, TRUE) "
+            "ON CONFLICT (appointment_id, user_id) DO NOTHING",
             appt=appt_id, uid=applicant_id
         )
 
@@ -6650,6 +6811,7 @@ def create_appointment(company_user_id: int, application_id: int,
         conn.run("COMMIT")
         committed = True
         return result
+
     except Exception:
         if not committed:
             try:
@@ -6706,12 +6868,12 @@ def send_appointment(appointment_id: int, user_id: int, scheduled_at_iso: str,
             # The frontend sends toISOString() which always includes the Z suffix.
             # `.replace('Z', '+00:00')` normalises Z to a form fromisoformat() accepts.
             scheduled_dt = _dt.fromisoformat(scheduled_at_iso.replace('Z', '+00:00'))
-            if scheduled_dt.tzinfo is None:
-                # Legacy/deprecated fallback: treat naive ISO as UTC.
-                # New clients must always send timezone-aware ISO. Do not rely on this path.
-                scheduled_dt = scheduled_dt.replace(tzinfo=_tz.utc)
         except Exception:
             raise ValueError("تنسيق التاريخ غير صالح — استخدم ISO 8601")
+        if scheduled_dt.tzinfo is None:
+            raise ValueError(
+                "تنسيق التاريخ غير صالح — يجب أن يحتوي الوقت على Timezone (Z أو +HH:MM)"
+            )
 
         now_utc = _dt.now(_tz.utc)
         if scheduled_dt <= now_utc:
@@ -9468,6 +9630,22 @@ class PipelineEntryRequiredError(Exception):
         self.message = message
 
 
+class PipelineApplicationConflictError(Exception):
+    """
+    Raised when the client-supplied application_id doesn't match the pipeline entry's
+    stored application_id. This is a data-integrity conflict, returned as HTTP 409.
+    """
+    code = "pipeline_application_conflict"
+    def __init__(self, provided, expected):
+        self.provided = provided
+        self.expected = expected
+        super().__init__(
+            f"تعارض: application_id المُرسل ({provided}) لا يتطابق مع "
+            f"application_id المسجّل في Pipeline Entry ({expected}). "
+            "تحقق من البيانات قبل إعادة الإرسال."
+        )
+
+
 # ── Helper: resolve pipeline entry ───────────────────────────────────────────
 
 def _resolve_pipeline_entry(conn, company_id: int, candidate_id: int,
@@ -9507,7 +9685,7 @@ def _resolve_pipeline_entry(conn, company_id: int, candidate_id: int,
         raise ValueError("المستخدم المحدد ليس موظفاً")
 
     # 3. If application_id provided — validate it matches candidate + job + company
-    resolved_application_id = None
+    validated_app_id = None
     if application_id is not None:
         app_rows = conn.run(
             "SELECT ja.id, ja.user_id, ja.job_id "
@@ -9521,7 +9699,7 @@ def _resolve_pipeline_entry(conn, company_id: int, candidate_id: int,
             raise ValueError(
                 "application_id غير صالح: لا يطابق المرشح أو الوظيفة أو الشركة"
             )
-        resolved_application_id = int(app_rows[0][0])
+        validated_app_id = int(app_rows[0][0])
 
     # 4. Find pipeline entry
     entry_rows = conn.run(
@@ -9541,12 +9719,29 @@ def _resolve_pipeline_entry(conn, company_id: int, candidate_id: int,
             f"company={company_id} candidate={candidate_id} job={job_id}"
         )
 
-    entry = entry_rows[0]
+    entry       = entry_rows[0]
+    entry_id    = int(entry[0])
+    db_app_id   = entry[1]  # application_id stored in the pipeline entry — authoritative
+
+    # 6. Reconcile client-supplied application_id against DB value.
+    #    The DB value is the source of truth; the client value is a hint for validation.
+    if validated_app_id is not None:
+        # Client sent an application_id — it must match what the DB stores.
+        if db_app_id is None:
+            raise PipelineApplicationConflictError(validated_app_id, None)
+        if int(db_app_id) != validated_app_id:
+            raise PipelineApplicationConflictError(validated_app_id, int(db_app_id))
+        final_app_id = validated_app_id
+    else:
+        # No client-supplied id — use whatever the DB has (may be None for non-applicants).
+        # Never silently drop a real application_id to None.
+        final_app_id = int(db_app_id) if db_app_id is not None else None
+
     return {
-        "pipeline_entry_id": int(entry[0]),
+        "pipeline_entry_id": entry_id,
         "candidate_id": candidate_id,
         "job_id": job_id,
-        "application_id": resolved_application_id,
+        "application_id": final_app_id,
     }
 
 
