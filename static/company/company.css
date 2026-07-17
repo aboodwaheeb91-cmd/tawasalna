@@ -410,6 +410,26 @@ body { background:var(--bg); color:var(--t); font-family:'Cairo',sans-serif; min
   box-shadow:inset 0 0 16px rgba(32,224,192,.12), 0 0 22px rgba(32,224,192,.22);
 }
 
+/* بنك المواهب button — distinct purple/indigo so it doesn't clash with teal owner actions */
+.nb-talent-bank {
+  background:rgba(99,102,241,.08);
+  color:#a5b4fc;
+  border:1px solid rgba(99,102,241,.38);
+  box-shadow:inset 0 0 12px rgba(99,102,241,.08), 0 0 14px rgba(99,102,241,.12);
+}
+.nb-talent-bank:hover {
+  background:rgba(99,102,241,.14);
+  border-color:rgba(99,102,241,.65);
+  box-shadow:inset 0 0 16px rgba(99,102,241,.12), 0 0 20px rgba(99,102,241,.2);
+}
+/* Badge on بنك المواهب — wider to fit "N / M" format */
+.nb-talent-bank .co-cand-badge {
+  min-width:36px;
+  background:rgba(99,102,241,.22);
+  color:#a5b4fc;
+  letter-spacing:.04em;
+}
+
 /* ══ LUCIDE ICON SIZING ══════════════════════════════════════════ */
 .co-meta-item svg,
 .co-meta-item i { width:12px; height:12px; stroke:currentColor; fill:none; stroke-width:2; flex-shrink:0; }
@@ -1959,6 +1979,86 @@ body:not(.co-loading) .co-skeleton      { display: none; }
 .co-cand-top {
   display:flex; align-items:center; gap:10px;
   padding:11px 14px;
+}
+
+/* Compact name + profession/location column inside .co-cand-top */
+.co-cand-info-head {
+  flex:1; min-width:0;
+  display:flex; flex-direction:column; gap:2px;
+}
+.co-cand-info-head .co-cand-name {
+  font-size:.82rem; font-weight:700; color:var(--t1,#e2e8f0);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.co-cand-info-head .co-cand-meta {
+  font-size:.64rem; color:var(--t2,#94a3b8);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+
+/* Action buttons column (manage + view) — inside .co-cand-top */
+.co-cand-actions {
+  display:flex; flex-direction:column; gap:5px; align-items:stretch; flex-shrink:0;
+}
+/* Primary manage button */
+.co-cand-manage-btn--primary {
+  font-size:.67rem; padding:4px 12px; border-radius:8px; cursor:pointer;
+  border:1px solid rgba(0,200,150,.35); background:rgba(0,200,150,.1);
+  color:#00c896; white-space:nowrap;
+  transition:background .15s, border-color .15s;
+}
+.co-cand-manage-btn--primary:hover  { background:rgba(0,200,150,.18); border-color:rgba(0,200,150,.6); }
+.co-cand-manage-btn--primary.active { background:rgba(0,200,150,.22); border-color:rgba(0,200,150,.7); }
+/* View-profile button (lighter) */
+.co-cand-view-btn {
+  font-size:.62rem; padding:3px 10px; border-radius:8px; cursor:pointer;
+  border:1px solid rgba(255,255,255,.1); background:rgba(255,255,255,.04);
+  color:var(--t2,#94a3b8); white-space:nowrap; display:flex; align-items:center; gap:4px;
+  transition:background .15s, color .15s;
+  text-decoration:none;
+}
+.co-cand-view-btn svg { width:12px; height:12px; stroke-width:2; flex-shrink:0; }
+.co-cand-view-btn:hover { background:rgba(255,255,255,.09); color:var(--t1,#e2e8f0); }
+
+/* Meta strip — rating + priority + date + source; sits below .co-cand-top */
+.co-cand-strip {
+  display:flex; align-items:center; flex-wrap:wrap; gap:6px;
+  padding:0 14px 8px;
+}
+.co-cand-strip-rating { display:flex; gap:2px; }
+.co-cand-strip-rating .co-panel-star { font-size:.7rem; background:none; border:none; padding:0; cursor:default; color:var(--t3,#6b7686); }
+.co-cand-strip-rating .co-panel-star.on { color:#fbbf24; }
+.co-cand-strip-dot { color:var(--t3,#6b7686); font-size:.6rem; }
+.co-cand-strip-src { font-size:.6rem; color:var(--t2,#94a3b8); }
+.co-cand-strip-date { font-size:.6rem; color:var(--t3,#6b7686); }
+
+/* Job section wrappers — "تقدّم إلى:" vs "مرتبط بوظيفة:" */
+.co-cand-job-section {
+  padding:0 14px 6px;
+}
+.co-cand-job-section-title {
+  display:block; font-size:.58rem; color:var(--t3,#6b7686);
+  font-weight:600; margin-bottom:3px; letter-spacing:.02em;
+}
+/* Applied chips visually distinct — teal/green tint */
+.co-cand-job-chip--applied {
+  background:rgba(0,200,150,.1);
+  color:#34d399;
+  border-color:rgba(0,200,150,.22);
+}
+
+/* Follow-up sub-sections (split label above each field) */
+.co-panel-subsection {
+  display:flex; flex-direction:column; gap:3px;
+}
+.co-cand-panel-sublabel {
+  font-size:.62rem; color:var(--t3,#6b7686); font-weight:600;
+}
+
+/* Mobile — tighten card when narrow */
+@media (max-width:420px) {
+  .co-cand-actions { flex-direction:row; flex-wrap:wrap; }
+  .co-cand-manage-btn--primary,
+  .co-cand-view-btn { font-size:.6rem; padding:3px 8px; }
 }
 
 /* Date + status badge side by side */

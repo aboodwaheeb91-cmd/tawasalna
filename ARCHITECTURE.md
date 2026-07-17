@@ -5379,6 +5379,7 @@ Adds filtering, search, sorting, and pipeline statistics to the saved-candidates
 | `job_id` | int | — | Filter by linked job (must belong to this company) |
 | `unlinked` | bool | `false` | Only show candidates with no job_id |
 | `q` | string | — | Search in full_name, tw_id, profession, city, country (max 80 chars) |
+| `tag` | string | — | Prefix filter on `company_saved_candidates.tags[]` — case-insensitive ILIKE `tag%`. LIKE special chars (`%`, `_`, `\`) are escaped server-side. Stripped and max 50 chars enforced before query. Empty string treated as absent. |
 | `sort` | string | `updated_desc` | Sort order |
 | `limit` | int | 20 | Max 50 |
 | `offset` | int | 0 | Pagination offset |
