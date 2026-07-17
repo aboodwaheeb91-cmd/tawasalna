@@ -5043,58 +5043,111 @@ def _migrate_candidate_status_per_job():
 
 
 def save_company_candidate(company_id: int, candidate_id: int, saved_by: int,
-                            job_id: int = None, notes: str = None) -> int:
+                            notes: str = None,
+                            save_source: str = 'manual') -> dict:
     """
-    Save a candidate to the company's private list (UPSERT — idempotent).
-    Returns updated total count.
-    Raises ValueError if candidate is not user_type='emp'.
+    Atomically save a candidate to the company's Talent Bank with quota enforcement.
+
+    Rules (PR-3 Talent Bank Independence):
+    - Saves Talent Bank MEMBERSHIP ONLY — no job context stored here.
+    - job_id is NOT accepted; the endpoint resolves save_source before calling this.
+    - Does NOT write to company_candidate_job_refs, job_pipeline_entries, or pipeline_stage_events.
+    - Quota (TALENT_BANK_FREE_LIMIT) is enforced inside an advisory-locked transaction.
+    - Re-saving an already-saved candidate is always idempotent (success, already_saved=True),
+      even when the company is at or above the quota.
+    - Raises TalentBankLimitError if quota is reached and candidate is not already saved.
+    - Raises ValueError if candidate is not user_type='emp'.
+
+    Returns dict: {status, saved, already_saved, count, used, limit, can_save}
     """
     conn = get_conn()
     try:
+        # Early validation outside transaction
         check = conn.run("SELECT user_type FROM users WHERE id = :uid", uid=candidate_id)
         if not check or check[0][0] != "emp":
             raise ValueError("يجب أن يكون المرشح موظفاً")
-        if job_id is not None:
-            # Atomic: both writes succeed or both roll back
-            conn.run("BEGIN")
-            committed = False
-            try:
-                conn.run(
-                    "INSERT INTO company_saved_candidates "
-                    "(company_id, candidate_id, job_id, notes, saved_by) "
-                    "VALUES (:cid, :uid, :jid, :notes, :sid) "
-                    "ON CONFLICT (company_id, candidate_id) DO UPDATE "
-                    "SET updated_at=NOW(), notes=EXCLUDED.notes",
-                    cid=company_id, uid=candidate_id,
-                    jid=job_id, notes=notes, sid=saved_by)
-                conn.run(
-                    "INSERT INTO company_candidate_job_refs "
-                    "(company_id, candidate_id, job_id) "
-                    "VALUES (:cid, :uid, :jid) "
-                    "ON CONFLICT DO NOTHING",
-                    cid=company_id, uid=candidate_id, jid=job_id)
+
+        if save_source not in ('applicant', 'suggestion', 'manual', 'legacy_unknown'):
+            save_source = 'manual'
+
+        conn.run("BEGIN")
+        committed = False
+        try:
+            # Per-company advisory lock — serializes concurrent saves for the same company.
+            # 1_000_000_000 offset prevents collision with other advisory locks (e.g. pipeline).
+            conn.run("SELECT pg_advisory_xact_lock(:key)",
+                     key=1_000_000_000 + company_id)
+
+            existing = conn.run(
+                "SELECT id FROM company_saved_candidates "
+                "WHERE company_id=:cid AND candidate_id=:uid",
+                cid=company_id, uid=candidate_id)
+
+            if existing:
+                # Idempotent path — already saved; update notes if provided
+                if notes is not None:
+                    conn.run(
+                        "UPDATE company_saved_candidates SET updated_at=NOW(), notes=:notes "
+                        "WHERE company_id=:cid AND candidate_id=:uid",
+                        notes=notes, cid=company_id, uid=candidate_id)
                 conn.run("COMMIT")
                 committed = True
-            except Exception:
-                if not committed:
-                    try:
-                        conn.run("ROLLBACK")
-                    except Exception:
-                        pass
-                raise
-        else:
+                count_row = conn.run(
+                    "SELECT COUNT(*) FROM company_saved_candidates WHERE company_id=:cid",
+                    cid=company_id)
+                used = int(count_row[0][0]) if count_row else 0
+                limit = TALENT_BANK_FREE_LIMIT
+                return {
+                    "status":       "success",
+                    "saved":        True,
+                    "already_saved": True,
+                    "count":        used,
+                    "used":         used,
+                    "limit":        limit,
+                    "can_save":     used < limit,
+                }
+
+            # New candidate — check quota inside the same lock
+            count_row = conn.run(
+                "SELECT COUNT(*) FROM company_saved_candidates WHERE company_id=:cid",
+                cid=company_id)
+            used  = int(count_row[0][0]) if count_row else 0
+            limit = TALENT_BANK_FREE_LIMIT
+
+            if used >= limit:
+                conn.run("ROLLBACK")
+                committed = True   # prevent double-rollback in finally
+                raise TalentBankLimitError(used=used, limit=limit)
+
             conn.run(
                 "INSERT INTO company_saved_candidates "
-                "(company_id, candidate_id, job_id, notes, saved_by) "
-                "VALUES (:cid, :uid, :jid, :notes, :sid) "
-                "ON CONFLICT (company_id, candidate_id) DO UPDATE "
-                "SET updated_at=NOW(), notes=EXCLUDED.notes",
+                "(company_id, candidate_id, notes, saved_by, save_source) "
+                "VALUES (:cid, :uid, :notes, :sid, :src)",
                 cid=company_id, uid=candidate_id,
-                jid=job_id, notes=notes, sid=saved_by)
-        count_row = conn.run(
-            "SELECT COUNT(*) FROM company_saved_candidates WHERE company_id=:cid",
-            cid=company_id)
-        return count_row[0][0] if count_row else 0
+                notes=notes, sid=saved_by, src=save_source)
+            conn.run("COMMIT")
+            committed = True
+
+            new_used = used + 1
+            return {
+                "status":       "success",
+                "saved":        True,
+                "already_saved": False,
+                "count":        new_used,
+                "used":         new_used,
+                "limit":        limit,
+                "can_save":     new_used < limit,
+            }
+
+        except TalentBankLimitError:
+            raise
+        except Exception:
+            if not committed:
+                try:
+                    conn.run("ROLLBACK")
+                except Exception:
+                    pass
+            raise
     finally:
         release_conn(conn)
 
@@ -5114,6 +5167,23 @@ def remove_company_candidate(company_id: int, candidate_id: int) -> int:
             "SELECT COUNT(*) FROM company_saved_candidates WHERE company_id=:cid",
             cid=company_id)
         return count_row[0][0] if count_row else 0
+    finally:
+        release_conn(conn)
+
+
+def get_talent_bank_quota(company_id: int) -> dict:
+    """
+    Returns current Talent Bank usage and quota for a company.
+    Result: {used, limit, can_save}
+    """
+    conn = get_conn()
+    try:
+        row = conn.run(
+            "SELECT COUNT(*) FROM company_saved_candidates WHERE company_id=:cid",
+            cid=company_id)
+        used = int(row[0][0]) if row else 0
+        limit = TALENT_BANK_FREE_LIMIT
+        return {"used": used, "limit": limit, "can_save": used < limit}
     finally:
         release_conn(conn)
 
@@ -5220,6 +5290,10 @@ def get_company_saved_candidates_count(company_id: int) -> int:
     finally:
         release_conn(conn)
 
+
+# ── Talent Bank quota ───────────────────────────────────────────────────────
+
+TALENT_BANK_FREE_LIMIT = 25   # free tier max saved candidates per company
 
 # ── Pipeline status constants ────────────────────────────────────────────────
 
@@ -7437,6 +7511,21 @@ def _migrate_pipeline_schema_v1():
 # All dual-write helpers must be called INSIDE an open transaction.
 # Mappings are the only approved translation tables — do not duplicate per-function.
 # ══════════════════════════════════════════════════════════════════════════
+
+
+class TalentBankLimitError(Exception):
+    """
+    Raised by save_company_candidate when the company has reached TALENT_BANK_FREE_LIMIT
+    and the candidate is not already saved (re-saves are always idempotent).
+
+    Attributes:
+        used  (int): current saved-candidate count for this company.
+        limit (int): the active limit that was reached.
+    """
+    def __init__(self, used: int, limit: int):
+        self.used  = used
+        self.limit = limit
+        super().__init__(f"talent_bank_limit_reached: {used}/{limit}")
 
 
 class BlockingConflictError(Exception):

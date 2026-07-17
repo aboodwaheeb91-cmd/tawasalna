@@ -889,7 +889,7 @@
       var isRejected   = statusKey === 'rejected';
       var isHired      = statusKey === 'hired';
       var isInterview  = statusKey === 'interview';
-      var isClassified = isSaved || statusKey !== 'pending';
+      var isClassified = statusKey !== 'pending';
 
       var avatarHtml = a.avatar_url
         ? '<img src="' + _escApp(a.avatar_url) + '" alt="" loading="lazy"'
@@ -905,16 +905,23 @@
         ? '<a class="co-app-view-btn co-app-act" href="/u/' + _escApp(twId) + '" target="_blank" rel="noopener">عرض الملف الكامل</a>'
         : '';
 
-      var classifyLbl = !isClassified ? 'حفظ وتصنيف ▾'
+      var classifyLbl = !isClassified ? 'ترشيح للوظيفة ▾'
         : isRejected                  ? 'إعادة التصنيف ▾'
         : 'تعديل التصنيف ▾';
 
       var classifyBtn = '<button type="button" class="co-classify-btn co-app-act'
         + (isRejected ? ' co-classify-btn--reclassify' : '')
         + '" data-app-id="' + appId + '" data-status="' + _escApp(statusKey) + '"'
-        + ' data-saved="' + (isSaved ? '1' : '0') + '" data-uid="' + uid + '"'
+        + ' data-uid="' + uid + '"'
         + (isHired ? ' data-hired="1"' : '')
         + '>' + classifyLbl + '</button>';
+
+      var tbLbl = isSaved ? 'محفوظ في بنك المواهب ✓' : 'حفظ في بنك المواهب';
+      var talentBankBtn = '<button type="button" class="co-talentbank-btn co-app-act'
+        + (isSaved ? ' co-talentbank-btn--saved' : '')
+        + '" data-uid="' + uid + '" data-saved="' + (isSaved ? '1' : '0') + '"'
+        + (isSaved ? ' disabled' : '')
+        + '>' + tbLbl + '</button>';
 
       var schedBtn = isInterview
         ? '<button type="button" class="co-app-sched-btn co-app-act" data-app-id="' + appId + '">تحديد موعد</button>'
@@ -942,6 +949,7 @@
         + '<div class="co-app-card-foot">'
         + viewBtn
         + classifyBtn
+        + talentBankBtn
         + schedBtn
         + '</div>'
         + '</div>';
@@ -957,6 +965,8 @@
     list.addEventListener('click', function (e) {
       var classifyBtn = e.target.closest('.co-classify-btn');
       if (classifyBtn && !classifyBtn.disabled) { _openClassifyFloat(classifyBtn); return; }
+      var tbBtn = e.target.closest('.co-talentbank-btn');
+      if (tbBtn && !tbBtn.disabled) { _onSaveToTalentBank(tbBtn); return; }
       var schedBtn = e.target.closest('.co-app-sched-btn');
       if (schedBtn && !schedBtn.disabled) { _onSchedBtn(schedBtn); return; }
     });
@@ -1004,7 +1014,7 @@
     .catch(function (err) {
       if (promoteBtn) {
         promoteBtn.disabled    = false;
-        promoteBtn.textContent = promoteBtn.dataset.origText || 'حفظ وتصنيف ▾';
+        promoteBtn.textContent = promoteBtn.dataset.origText || 'ترشيح للوظيفة ▾';
       }
       var status = err && err.status;
       var msg;
@@ -1041,6 +1051,56 @@
       btn.disabled    = false;
       btn.textContent = '+ حفظ المرشح';
       if (window.showToast) showToast((err && err.message) || 'تعذّر حفظ المرشح', 'error');
+    });
+  }
+
+  // ── Save applicant to Talent Bank ──────────────────────────────
+  function _onSaveToTalentBank(btn) {
+    var uid = parseInt(btn.getAttribute('data-uid'), 10);
+    if (!uid || btn.disabled || btn.getAttribute('data-saved') === '1') return;
+    btn.disabled    = true;
+    btn.textContent = 'جارٍ الحفظ…';
+    var jwt     = window._jwt ? _jwt() : '';
+    var jobSufx = (_appJobId ? '?job_id=' + parseInt(_appJobId, 10) : '');
+    fetch('/company/saved-candidates/' + uid + jobSufx, {
+      method:  'POST',
+      headers: { 'Authorization': 'Bearer ' + jwt }
+    })
+    .then(function (r) {
+      return r.json().then(function (d) { return { ok: r.ok, status: r.status, data: d }; });
+    })
+    .then(function (res) {
+      if (res.status === 409 && res.data && res.data.code === 'talent_bank_limit_reached') {
+        btn.disabled    = false;
+        btn.textContent = 'حفظ في بنك المواهب';
+        var body = res.data;
+        if (window.showToast) showToast(
+          'وصلت للحد المجاني لبنك المواهب: ' + body.used + ' من ' + body.limit
+          + '. احذف موهبة محفوظة أو قم بترقية الخطة لإضافة شخص جديد.',
+          'error');
+        return;
+      }
+      if (!res.ok) {
+        btn.disabled    = false;
+        btn.textContent = 'حفظ في بنك المواهب';
+        var status = res.status;
+        var msg = (status === 401 || status === 403)
+          ? 'انتهت الجلسة أو لا تملك صلاحية الحفظ'
+          : 'تعذّر الحفظ في بنك المواهب، حاول مجدداً';
+        if (window.showToast) showToast(msg, 'error');
+        return;
+      }
+      btn.textContent = 'محفوظ في بنك المواهب ✓';
+      btn.setAttribute('data-saved', '1');
+      btn.classList.add('co-talentbank-btn--saved');
+      btn.disabled = true;
+      if (window.showToast) showToast('تم الحفظ في بنك المواهب ✓');
+      if (window._loadCandidatesBadge) window._loadCandidatesBadge();
+    })
+    .catch(function () {
+      btn.disabled    = false;
+      btn.textContent = 'حفظ في بنك المواهب';
+      if (window.showToast) showToast('تعذّر الحفظ في بنك المواهب، حاول مجدداً', 'error');
     });
   }
 
@@ -1544,8 +1604,8 @@
     }
 
     // Single atomic request — backend writes job_applications.status AND
-    // company_candidate_job_refs.candidate_status in one transaction, and ensures
-    // company_saved_candidates + job refs rows exist. No parallel save call needed.
+    // company_candidate_job_refs.candidate_status in one transaction (pipeline dual-write).
+    // Does NOT write to company_saved_candidates (Talent Bank independence — PR-3).
     fetch('/jobs/applications/' + appId + '/status', {
       method:  'PUT',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + jwt },
@@ -1587,7 +1647,7 @@
           if (classifyBtn) {
             classifyBtn.disabled    = false;
             var wasFresh = !wasSaved && (!prevStatus || prevStatus === 'pending');
-            classifyBtn.textContent = wasFresh ? 'حفظ وتصنيف ▾' : 'تعديل التصنيف ▾';
+            classifyBtn.textContent = wasFresh ? 'ترشيح للوظيفة ▾' : 'تعديل التصنيف ▾';
           }
         }
       });
@@ -1640,16 +1700,26 @@
     var classifyHtml = '<button type="button" class="co-classify-btn co-app-act'
       + (isRejected ? ' co-classify-btn--reclassify' : '')
       + '" data-app-id="' + appId + '" data-status="' + _escApp(statusKey) + '"'
-      + ' data-saved="1" data-uid="' + uid + '"'
+      + ' data-uid="' + uid + '"'
       + (isHired ? ' data-hired="1"' : '')
       + '>' + classifyLbl + '</button>';
+
+    // Preserve talent bank saved state from the existing DOM
+    var existingTb   = card.querySelector('.co-talentbank-btn');
+    var tbAlreadySaved = existingTb ? existingTb.getAttribute('data-saved') === '1' : false;
+    var tbLbl        = tbAlreadySaved ? 'محفوظ في بنك المواهب ✓' : 'حفظ في بنك المواهب';
+    var talentHtml   = '<button type="button" class="co-talentbank-btn co-app-act'
+      + (tbAlreadySaved ? ' co-talentbank-btn--saved' : '')
+      + '" data-uid="' + uid + '" data-saved="' + (tbAlreadySaved ? '1' : '0') + '"'
+      + (tbAlreadySaved ? ' disabled' : '')
+      + '>' + tbLbl + '</button>';
 
     var schedHtml = isInterview
       ? '<button type="button" class="co-app-sched-btn co-app-act" data-app-id="' + appId + '">تحديد موعد</button>'
       : '';
 
     var foot = card.querySelector('.co-app-card-foot');
-    if (foot) foot.innerHTML = viewHtml + classifyHtml + schedHtml;
+    if (foot) foot.innerHTML = viewHtml + classifyHtml + talentHtml + schedHtml;
   }
 
   // Back button: close the topmost open modal on popstate.
@@ -3655,7 +3725,15 @@
             } else {
               btn.disabled = false;
               btn.textContent = 'حفظ كمرشح';
-              if (window.showToast) showToast('تعذّر الحفظ', 'error');
+              if (res && res.status === 409 && res.data && res.data.code === 'talent_bank_limit_reached') {
+                var body = res.data;
+                if (window.showToast) showToast(
+                  'وصلت للحد المجاني لبنك المواهب: ' + body.used + ' من ' + body.limit
+                  + '. احذف موهبة محفوظة أو قم بترقية الخطة لإضافة شخص جديد.',
+                  'error');
+              } else {
+                if (window.showToast) showToast('تعذّر الحفظ', 'error');
+              }
             }
           })
           .catch(function () {

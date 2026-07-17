@@ -5028,7 +5028,7 @@ company_saved_candidates:
 | Function | Description |
 |----------|-------------|
 | `_migrate_company_saved_candidates()` | CREATE TABLE IF NOT EXISTS + indexes (idempotent) |
-| `save_company_candidate(company_id, candidate_id, saved_by, job_id, notes)` | UPSERT — raises ValueError if candidate not `emp` |
+| `save_company_candidate(company_id, candidate_id, saved_by, notes, save_source)` | Atomic quota-enforced INSERT — raises ValueError if not `emp`, TalentBankLimitError at quota |
 | `remove_company_candidate(company_id, candidate_id)` | DELETE + return count |
 | `get_company_saved_candidates(company_id, limit, offset)` | Paginated list — no sensitive fields |
 | `get_company_saved_candidates_count(company_id)` | Count only (badge) |
@@ -10825,3 +10825,186 @@ WHERE application_id IS NOT NULL
 ❌ Creating pipeline entries for save_company_candidate or remove_company_candidate (Talent Bank; no job context → no pipeline entry)
 ❌ Starting PR-3 before PR-2 is reviewed and merged by the user
 ```
+
+---
+
+## §67 — PR-3: Applicant Flow Separation + Atomic Talent Bank Quota
+
+**Status:** Implemented (PR-3, branch `claude/add-claude-documentation-giKNS`)
+
+---
+
+### Overview
+
+PR-3 introduces two strictly separated actions for company owners:
+
+1. **"ترشيح للوظيفة" (Classify / Nominate)** — moves the candidate through the applicant pipeline. Writes to `job_applications`, `company_candidate_job_refs`, `job_pipeline_entries`, `pipeline_stage_events`. Never touches `company_saved_candidates`.
+
+2. **"حفظ في بنك المواهب" (Save to Talent Bank)** — stores the candidate in the company's Talent Bank with a free-tier quota of 25. Writes only to `company_saved_candidates`. Never changes job stage, pipeline entries, JA status, or CCJR entries.
+
+These two actions are permanently decoupled. The old combined label "حفظ وتصنيف" is permanently removed.
+
+---
+
+### Constants (auth.py)
+
+| Constant | Value | Purpose |
+|----------|-------|---------|
+| `TALENT_BANK_FREE_LIMIT` | `25` | Free-tier hard quota per company |
+
+### Custom Exception (auth.py)
+
+```python
+class TalentBankLimitError(Exception):
+    def __init__(self, used: int, limit: int):
+        self.used  = used
+        self.limit = limit
+```
+
+Raised by `save_company_candidate` when the company has reached `TALENT_BANK_FREE_LIMIT` and tries to add a NEW candidate (re-saves of existing candidates bypass the quota check — they are idempotent).
+
+---
+
+### `save_company_candidate` — Atomic Quota Contract (auth.py)
+
+**Signature:**
+```python
+def save_company_candidate(company_id: int, candidate_id: int, saved_by: int,
+                            notes: str = None,
+                            save_source: str = 'manual') -> dict
+```
+
+> **Talent Bank Independence:** `job_id` is NOT a parameter. The function saves Talent Bank membership only — no job context is stored. `save_source` (`'applicant'` vs `'manual'`) is resolved by the endpoint BEFORE calling this function and passed in as a plain string.
+
+**Guarantee:** uses `pg_advisory_xact_lock(1_000_000_000 + company_id)` to serialize concurrent saves for the same company. The lock is acquired inside the transaction; no two threads can pass the quota check simultaneously for the same company.
+
+**Flow:**
+1. Validate candidate is `user_type='emp'`
+2. Normalize `save_source` (must be one of: `applicant | suggestion | manual | legacy_unknown`)
+3. `BEGIN`
+4. `SELECT pg_advisory_xact_lock(1_000_000_000 + company_id)` (per-company lock)
+5. `SELECT id FROM company_saved_candidates WHERE ...` — check if already saved
+   - **Idempotent path:** already saved → optionally UPDATE notes → `COMMIT` → return `already_saved: true` (quota NOT checked; always succeeds)
+6. `SELECT COUNT(*) FROM company_saved_candidates WHERE company_id = :cid` — count current bank size
+7. If `used >= TALENT_BANK_FREE_LIMIT` → `ROLLBACK` → raise `TalentBankLimitError(used, limit)`
+8. `INSERT INTO company_saved_candidates ...`
+9. `COMMIT`
+10. Return `{status: "success", saved: true, already_saved: false, used: N+1, limit: 25, can_save: bool}`
+
+**Never writes to:**
+- `company_candidate_job_refs`
+- `job_pipeline_entries`
+- `pipeline_stage_events`
+- `job_applications`
+
+---
+
+### `get_talent_bank_quota` (auth.py)
+
+```python
+def get_talent_bank_quota(company_id: int) -> dict
+```
+
+Returns `{used: int, limit: int, can_save: bool}` — a fast read (no lock, no transaction) for display purposes.
+
+---
+
+### API Endpoints (server.py)
+
+#### `POST /company/saved-candidates/{candidate_id}`
+
+- **Auth:** `Depends(verify_token)` — `company_id` from JWT only, never from client
+- **Query param (optional):** `job_id: int` — used ONLY to verify the candidate applied to that job and set `save_source='applicant'`. **Never passed to `save_company_candidate` and never stored in `company_saved_candidates`.**
+- **`save_source` determination (server-side only, client cannot override):**
+  - `'applicant'` if `job_id` provided AND candidate has applied to that job
+  - `'manual'` otherwise (including when `job_id` is absent)
+- **Success (200):**
+  ```json
+  {"status": "success", "saved": true, "already_saved": false,
+   "used": 24, "limit": 25, "can_save": true}
+  ```
+- **At/over quota (409):**
+  ```json
+  {"code": "talent_bank_limit_reached", "limit": 25, "used": 25, "can_save": false}
+  ```
+  Returned as `JSONResponse(status_code=409, content={...})` — NOT `HTTPException`.
+  Body is **top-level** (not wrapped in `detail` or any other key).
+
+#### `GET /company/saved-candidates/quota`
+
+- **Auth:** `Depends(verify_token)` — owner only
+- **Response (200):**
+  ```json
+  {"used": 12, "limit": 25, "can_save": true}
+  ```
+
+---
+
+### Frontend Separation (static/company/company.main.js)
+
+#### Applicant card buttons (inside `_renderApplicants`)
+
+Two **separate** buttons are rendered for each applicant card:
+
+| Button class | Label | Data attributes |
+|---|---|---|
+| `.co-classify-btn` | `'ترشيح للوظيفة ▾'` | `data-uid`, `data-app-id`, `data-status` |
+| `.co-talentbank-btn` | `'حفظ في بنك المواهب'` or `'محفوظ في بنك المواهب ✓'` | `data-uid`, `data-saved` |
+
+#### `_onSaveToTalentBank(btn)` (company.main.js)
+
+- Calls `POST /company/saved-candidates/{uid}`
+- On 409 `talent_bank_limit_reached`: shows Arabic toast with used/limit counts; restores button; does NOT update DOM saved state
+- On success: disables button, sets `data-saved="1"`, adds `.co-talentbank-btn--saved` class
+- Does NOT call any pipeline, stage, or classify endpoint
+
+#### `_execClassify(btn, ...)` (company.main.js)
+
+- Calls PATCH to the classify/pipeline endpoint
+- Does NOT call `POST /company/saved-candidates/`
+- Does NOT modify `company_saved_candidates` rows
+
+---
+
+### Forbidden Patterns (PR-3 — permanent)
+
+```
+❌ Using "حفظ وتصنيف" anywhere in company.main.js or company.api.js
+❌ Using "القائمة المختصرة" as the talent bank name in any UI label
+❌ Using "المرشحين" as the talent bank name in any UI label (use "بنك المواهب")
+❌ Accepting save_source from the client (it is server-side only)
+❌ save_source='profile' — permanently excluded from VALID_SAVE_SOURCES
+❌ Passing job_id as a parameter to save_company_candidate (it is not a parameter — PR-3 removed it)
+❌ Storing job_id in company_saved_candidates when saving a new candidate
+❌ Writing to company_candidate_job_refs from save_company_candidate
+❌ Writing to job_pipeline_entries from save_company_candidate
+❌ Updating job_applications.status from save_company_candidate
+❌ Removing from talent bank deletes pipeline entries or applications
+❌ Blocking re-save (idempotent path) even when at quota
+❌ Using HTTPException for 409 talent_bank_limit_reached — must be JSONResponse with top-level body
+❌ Accepting company_id from client body in POST /company/saved-candidates/{id}
+❌ Starting PR-4 before this PR is reviewed and merged by the user
+```
+
+---
+
+### Concurrency Safety
+
+The `pg_advisory_xact_lock(1_000_000_000 + company_id)` ensures that when N concurrent requests try to save new candidates for the same company at quota=24, exactly 1 succeeds (the one that commits first) and the rest get `TalentBankLimitError` → HTTP 409. The lock is released automatically on `COMMIT` or `ROLLBACK`.
+
+---
+
+### Tests
+
+`test_talent_bank_quota.py` — **65 checks** (Groups 1–5 + concurrency) — **65/65 on real PostgreSQL, no Skips**:
+
+| Group | Count | Scope |
+|-------|-------|-------|
+| Group 1 | 16 | Static: auth.py constant, exception, save function signature (incl. 1-16: job_id absent) |
+| Group 2 | 9 | Static: server.py endpoints (incl. 2-09: job_id NOT passed to save_company_candidate) |
+| Group 3 | 12 | Static: frontend button separation + forbidden text |
+| Group 4 | 7 | Behavioral: in-process (no DB) — runtime attribute checks (incl. 4-07: job_id not in varnames) |
+| Group 5 | 20 | HTTP: TestClient on real PostgreSQL — quota lifecycle |
+| C-01 | 1 | Concurrency: 24 saved + 2 threads → 1×200 + 1×409, final count=25 |
+
+All 65 tests run against the real test database (`tawasalna_test_pipeline`). No tests are skipped.
