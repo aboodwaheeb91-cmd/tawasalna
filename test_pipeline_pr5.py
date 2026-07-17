@@ -1,13 +1,14 @@
 """
 PR-5 Integration Tests — Pipeline Notes + Unified Appointment Endpoint
 
-40 tests covering:
+41 tests covering:
   Group A  (01–06): Pipeline notes CRUD
   Group B  (07–13): Appointment creation via POST /api/appointments (unified endpoint)
   Group C  (14–20): Appointment validation and rejection
   Group D  (21–24): Security / ownership isolation
   Group E  (25–32): System isolation + PR-5 field correctness
   Group F  (33–40): New correctness tests (atomic guards, UTC, lifecycle)
+  Group G  (41):    Ambiguous payload guard (application_id + candidate_id + job_id → 400)
 
 All appointment creates use POST /api/appointments (parallel route removed).
 Runs against real PostgreSQL (SUPABASE_DB_URL env var).
@@ -228,27 +229,39 @@ class TestPipelineNotesCRUD(unittest.TestCase):
         self.assertIn("أول ملاحظة على الوظيفة", bodies)
 
     def test_03_update_note(self):
-        """PATCH updates the note body."""
-        note_id = getattr(self.__class__, '_note_id', None)
-        if not note_id:
-            self.skipTest("test_01 didn't create note")
-        r = requests.patch(f"{BASE_URL}/company/pipeline/notes/{note_id}",
-                           json={"body": "ملاحظة معدّلة"},
-                           headers=_headers(self.co_jwt))
+        """PATCH updates the note body — self-contained (own note created inside test)."""
+        r_create = requests.post(
+            self._base(), json={"body": "ملاحظة للتعديل"},
+            headers=_headers(self.co_jwt)
+        )
+        self.assertEqual(r_create.status_code, 200, r_create.text)
+        note_id = int(r_create.json()["data"]["note"]["id"])
+
+        r = requests.patch(
+            f"{BASE_URL}/company/pipeline/notes/{note_id}",
+            json={"body": "ملاحظة معدّلة"},
+            headers=_headers(self.co_jwt)
+        )
         self.assertEqual(r.status_code, 200, r.text)
         self.assertEqual(r.json()["data"]["note"]["body"], "ملاحظة معدّلة")
 
     def test_04_delete_note(self):
-        """DELETE soft-deletes the note; GET no longer returns it."""
-        note_id = getattr(self.__class__, '_note_id', None)
-        if not note_id:
-            self.skipTest("test_01 didn't create note")
-        r = requests.delete(f"{BASE_URL}/company/pipeline/notes/{note_id}",
-                            headers=_headers(self.co_jwt))
+        """DELETE soft-deletes the note — self-contained (own note created inside test)."""
+        r_create = requests.post(
+            self._base(), json={"body": "ملاحظة للحذف"},
+            headers=_headers(self.co_jwt)
+        )
+        self.assertEqual(r_create.status_code, 200, r_create.text)
+        note_id = int(r_create.json()["data"]["note"]["id"])
+
+        r = requests.delete(
+            f"{BASE_URL}/company/pipeline/notes/{note_id}",
+            headers=_headers(self.co_jwt)
+        )
         self.assertEqual(r.status_code, 200, r.text)
         r2 = requests.get(self._base(), headers=_headers(self.co_jwt))
         notes = r2.json()["data"]["notes"]
-        self.assertNotIn(note_id, [n["id"] for n in notes])
+        self.assertNotIn(note_id, [int(n["id"]) for n in notes])
 
     def test_05_empty_body_rejected(self):
         """POST with whitespace-only body returns 400."""
@@ -419,20 +432,44 @@ class TestPipelineAppointmentCreation(unittest.TestCase):
                            "No appointment row found with correct pipeline_entry_id")
 
     def test_13_participant_role_is_applicant(self):
-        """Appointment participant for applicant has role='applicant' (not 'candidate')."""
-        appt_id = getattr(self.__class__, '_appt_id', None)
-        if not appt_id:
-            self.skipTest("test_07 did not create appointment")
+        """Appointment participant for applicant has role='applicant' — self-contained."""
+        # Create a fresh emp+job+entry for this test to avoid dup-guard conflicts
+        suf = _suffix()
+        _register(f"emp_role_{suf}@ex.com", "pass123", "emp", f"Role {suf}")
+        conn = _db_conn()
+        try:
+            emp_rows = conn.run("SELECT id FROM users WHERE email=:e",
+                                e=f"emp_role_{suf}@ex.com")
+            emp_r = emp_rows[0][0]
+            job_rows = conn.run(
+                "INSERT INTO jobs(company_id, title, status) "
+                "VALUES (:cid, 'RoleTest Job', 'active') RETURNING id",
+                cid=self.co_id
+            )
+            job_r = job_rows[0][0]
+            conn.run(
+                "INSERT INTO job_pipeline_entries"
+                "(company_id, candidate_id, job_id, stage, source, created_by) "
+                "VALUES (:cid, :uid, :jid, 'new', 'company_add', :cb)",
+                cid=self.co_id, uid=emp_r, jid=job_r, cb=self.co_id
+            )
+        finally:
+            conn.close()
+
+        r = _create_draft_appt_path_b(self.co_jwt, emp_r, job_r, "interview")
+        self.assertEqual(r.status_code, 200, r.text)
+        appt_id = int(r.json()["data"]["id"])
+
         conn = _db_conn()
         try:
             rows = conn.run(
                 "SELECT role FROM appointment_participants "
                 "WHERE appointment_id=:aid AND user_id=:uid",
-                aid=appt_id, uid=self.emp_id
+                aid=appt_id, uid=emp_r
             )
         finally:
             conn.close()
-        self.assertTrue(rows, "No participant row found for applicant")
+        self.assertTrue(rows, "No participant row found for new applicant")
         self.assertEqual(rows[0][0], "applicant",
                          f"Expected role='applicant', got '{rows[0][0]}'")
 
@@ -463,14 +500,32 @@ class TestPipelineAppointmentValidation(unittest.TestCase):
         )
 
     def test_14_past_scheduled_at_rejected_on_send(self):
-        """scheduled_at in the past is rejected by send endpoint."""
-        # Create draft first
-        r_draft = self._post({
-            "candidate_id": self.emp_id,
-            "job_id": self.job_id,
-        })
-        if r_draft.status_code != 200:
-            self.skipTest("draft creation failed (duplicate entry?)")
+        """scheduled_at in the past is rejected by send endpoint — self-contained."""
+        # Create isolated emp+job+entry so dup guard cannot fire from other tests
+        suf = _suffix()
+        _register(f"emp_past_{suf}@ex.com", "pass123", "emp", f"Past {suf}")
+        conn = _db_conn()
+        try:
+            emp_rows = conn.run("SELECT id FROM users WHERE email=:e",
+                                e=f"emp_past_{suf}@ex.com")
+            emp_p = emp_rows[0][0]
+            job_rows = conn.run(
+                "INSERT INTO jobs(company_id, title, status) "
+                "VALUES (:cid, 'Past Test Job', 'active') RETURNING id",
+                cid=self.co_id
+            )
+            job_p = job_rows[0][0]
+            conn.run(
+                "INSERT INTO job_pipeline_entries"
+                "(company_id, candidate_id, job_id, stage, source, created_by) "
+                "VALUES (:cid, :uid, :jid, 'new', 'company_add', :cb)",
+                cid=self.co_id, uid=emp_p, jid=job_p, cb=self.co_id
+            )
+        finally:
+            conn.close()
+
+        r_draft = self._post({"candidate_id": emp_p, "job_id": job_p})
+        self.assertEqual(r_draft.status_code, 200, r_draft.text)
         appt_id = r_draft.json()["data"]["id"]
 
         past = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
@@ -510,6 +565,9 @@ class TestPipelineAppointmentValidation(unittest.TestCase):
         finally:
             conn.close()
 
+        # Count appointments before the conflict attempt
+        before_count = _db_count("appointments", "application_id=:aid", aid=app_c)
+
         # Path A: send application_id = app_c, but pipeline entry has application_id = NULL → conflict
         r = requests.post(
             f"{BASE_URL}/api/appointments",
@@ -520,6 +578,11 @@ class TestPipelineAppointmentValidation(unittest.TestCase):
         d = r.json()
         self.assertEqual(d.get("code"), "pipeline_application_conflict",
                          f"Expected pipeline_application_conflict, got: {d}")
+
+        # Verify no appointment row was created during the conflict
+        after_count = _db_count("appointments", "application_id=:aid", aid=app_c)
+        self.assertEqual(before_count, after_count,
+                         "Conflict must not create any appointments row")
 
     def test_16_wrong_job_id_rejected(self):
         """job_id not belonging to this company returns 400 or 409."""
@@ -603,8 +666,7 @@ class TestPipelineAppointmentValidation(unittest.TestCase):
             conn.close()
 
         r_draft = self._post({"candidate_id": emp_n, "job_id": job_n})
-        if r_draft.status_code != 200:
-            self.skipTest("draft creation failed")
+        self.assertEqual(r_draft.status_code, 200, f"Draft creation must succeed: {r_draft.text}")
         appt_id = r_draft.json()["data"]["id"]
 
         # Send with naive ISO (no timezone indicator)
@@ -782,8 +844,10 @@ class TestSystemIsolation(unittest.TestCase):
 
     def test_27_pipeline_note_does_not_change_application_status(self):
         """Adding a pipeline note does not change job_applications.status."""
-        if not self.app_id:
-            self.skipTest("no application in this setup")
+        self.assertIsNotNone(
+            self.app_id,
+            "setUpClass must supply a real app_id (with_application=True)"
+        )
         conn = _db_conn()
         try:
             before = conn.run(
@@ -925,15 +989,43 @@ class TestAppointmentAtomicAndLifecycle(unittest.TestCase):
 
     def test_33_path_b_no_application_id_returns_db_value(self):
         """Path B (no application_id sent): response includes correct application_id from DB."""
-        # emp_id has app_id in pe_id — Path B should return it from DB
-        r = _create_draft_appt_path_b(self.co_jwt, self.emp_id, self.job_id)
-        if r.status_code == 400 and "موعد نشط" in r.text:
-            self.skipTest("active appointment already exists for this entry")
+        # Create a fresh emp+job+entry with an application so the DB value is non-null
+        suf = _suffix()
+        _register(f"emp_t33_{suf}@ex.com", "pass123", "emp", f"T33 {suf}")
+        conn = _db_conn()
+        try:
+            emp_rows = conn.run("SELECT id FROM users WHERE email=:e",
+                                e=f"emp_t33_{suf}@ex.com")
+            emp_33 = emp_rows[0][0]
+            job_rows = conn.run(
+                "INSERT INTO jobs(company_id, title, status) "
+                "VALUES (:cid, 'T33 Job', 'active') RETURNING id",
+                cid=self.co_id
+            )
+            job_33 = job_rows[0][0]
+            app_rows = conn.run(
+                "INSERT INTO job_applications(job_id, user_id, status) "
+                "VALUES (:jid, :uid, 'pending') RETURNING id",
+                jid=job_33, uid=emp_33
+            )
+            app_33 = app_rows[0][0]
+            conn.run(
+                "INSERT INTO job_pipeline_entries"
+                "(company_id, candidate_id, job_id, application_id, stage, source, created_by) "
+                "VALUES (:cid, :uid, :jid, :appid, 'new', 'application', :cb)",
+                cid=self.co_id, uid=emp_33, jid=job_33, appid=app_33, cb=self.co_id
+            )
+        finally:
+            conn.close()
+
+        # Path B: send only candidate_id + job_id — no application_id
+        r = _create_draft_appt_path_b(self.co_jwt, emp_33, job_33)
         self.assertEqual(r.status_code, 200, r.text)
         d = r.json()["data"]
         self.assertIsNotNone(d.get("application_id"),
                              "Path B must return application_id from DB when it exists")
-        self.assertEqual(int(d["application_id"]), self.app_id)
+        self.assertEqual(int(d["application_id"]), app_33,
+                         "Path B must return the DB-stored application_id, not null")
 
     def test_34_concurrent_creates_only_one_succeeds(self):
         """Concurrent creates for same pipeline entry: exactly one succeeds, others get 400."""
@@ -1262,8 +1354,54 @@ class TestAppointmentAtomicAndLifecycle(unittest.TestCase):
 
         r2 = _create_draft_appt_path_b(self.co_jwt, emp_d, job_d)
         self.assertEqual(r2.status_code, 400, r2.text)
-        self.assertIn("موعد نشط", r2.json().get("detail", ""),
+        self.assertIn("موعد نشط", r2.text,
                       "Dup error should mention active appointment")
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Group G — Ambiguous Payload (test 41)
+# ══════════════════════════════════════════════════════════════════════════════
+
+class TestAmbiguousPayload(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.co_jwt, cls.co_id, cls.emp_id, cls.emp_tw, \
+            cls.job_id, cls.pe_id, cls.app_id = \
+            _make_company_with_pipeline_entry(with_application=True)
+
+    def test_41_ambiguous_payload_rejected(self):
+        """Sending application_id + candidate_id + job_id together → 400 ambiguous_appointment_context."""
+        # Count appointments before to verify no row is created
+        before_count = _db_count(
+            "appointments",
+            "company_id=:cid AND application_id=:aid",
+            cid=self.co_id, aid=self.app_id
+        )
+
+        r = requests.post(
+            f"{BASE_URL}/api/appointments",
+            json={
+                "application_id": self.app_id,
+                "candidate_id":   self.emp_id,
+                "job_id":         self.job_id,
+                "appointment_type": "interview",
+                "mode": "online",
+            },
+            headers=_headers(self.co_jwt)
+        )
+        self.assertEqual(r.status_code, 400, r.text)
+        d = r.json()
+        self.assertEqual(d.get("code"), "ambiguous_appointment_context",
+                         f"Expected ambiguous_appointment_context, got: {d}")
+
+        # Must not create any appointment row
+        after_count = _db_count(
+            "appointments",
+            "company_id=:cid AND application_id=:aid",
+            cid=self.co_id, aid=self.app_id
+        )
+        self.assertEqual(before_count, after_count,
+                         "Ambiguous payload must not create any appointments row")
 
 
 if __name__ == "__main__":

@@ -11423,7 +11423,7 @@ pg8000 native `Connection.run()` sends Python `None` as untyped NULL (OID 0). Po
 
 ### Tests
 
-`test_pipeline_pr5.py` — **40 tests, 6 groups (A–F)**:
+`test_pipeline_pr5.py` — **41 tests, 7 groups (A–G)**:
 
 | Group | Tests | Scope |
 |-------|-------|-------|
@@ -11433,6 +11433,7 @@ pg8000 native `Connection.run()` sends Python `None` as untyped NULL (OID 0). Po
 | D — Security | 23–27 | Cross-company isolation (notes + appointments), employee account rejected |
 | E — System Isolation | 28–32 | `PATCH /company/saved-candidates/{candidate_id}` correct route (test 28, fixed); applicants endpoint field shape (test 30, fixed — explicit assert); `next_appointment` present (test 31, new); archived job readable (test 32, new) |
 | F — Concurrency + Lifecycle | 33–40 | Path B returns DB `application_id` (test 33); concurrent creates serialized (test 34, threading); UTC storage check (test 35); `send_appointment` preserves `pipeline_entry_id` (test 36); `cancel_appointment` preserves `pipeline_entry_id` (test 37); talent bank removal does not delete appointments (test 38); talent bank removal does not delete notes (test 39); dup guard returns 400 (test 40) |
+| G — Ambiguous Payload | 41 | Sending `application_id + candidate_id + job_id` together → 400 `ambiguous_appointment_context`; verifies no DB row created |
 
 **All appointment creates use `POST /api/appointments` with Path B (`{candidate_id, job_id, appointment_type}`) — no calls to the removed `POST /company/appointments/pipeline` route.**
 

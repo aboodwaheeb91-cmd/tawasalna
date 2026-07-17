@@ -4753,6 +4753,25 @@ def api_create_appointment(body: AppointmentCreateInput,
     user_id = int(token["user_id"])
     if token.get("user_type") != "co":
         raise HTTPException(403, "فقط حسابات الشركات يمكنها إنشاء مواعيد")
+
+    # Reject ambiguous payloads: Path A (application_id) and Path B (candidate_id+job_id)
+    # must not be sent together. Silently ignoring IDs is a data-integrity risk.
+    has_path_a = body.application_id is not None
+    has_path_b = body.candidate_id is not None and body.job_id is not None
+    if has_path_a and has_path_b:
+        from fastapi.responses import JSONResponse as _JR
+        return _JR(
+            status_code=400,
+            content={
+                "ok": False,
+                "code": "ambiguous_appointment_context",
+                "message": (
+                    "Payload غير واضح: أرسل application_id فقط (Path A) "
+                    "أو candidate_id + job_id فقط (Path B) — وليس كليهما معاً."
+                ),
+            }
+        )
+
     try:
         appt = create_appointment(
             company_user_id=user_id,
