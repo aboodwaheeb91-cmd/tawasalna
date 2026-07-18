@@ -44,6 +44,7 @@
 - [ ] **P1** — Field validation shared helper: دالة مشتركة للـ validation بدلاً من تكرار المنطق في كل صفحة
 - [ ] **P1** — Unified Profile Settings Menu: توحيد زر وقائمة إعدادات البروفايل عبر employee/company/education — نفس الشكل والسلوك والخيارات المشتركة، مع إضافات حسب نوع الحساب. القائمة تُبنى حسب صلاحيات viewer من backend فقط — ممنوع الاعتماد على localStorage.
 - [ ] **P1** — Unified Profile UI Tokens: قواعد موحدة لأحجام الواجهة (أيقونات، خطوط، مسافات، border radius، أزرار هيدر، meta text) عبر صفحات employee/company/education. لاحقاً تُنفَّذ عبر `static/shared/tw-ui-tokens.css` — لا تنشئ الملف حتى يُطلب صراحةً.
+  - **[2026-07-18] Design System Button System V1 documentation مكتمل** (`docs/design-system/BUTTONS.md` + `docs/DESIGN_SYSTEM.md`). هذا يُغطي الـ button contract فقط — لا يُعتبر تنفيذاً لـ Unified Profile UI Tokens. طبقة الـ CSS (`tw-ui-tokens.css`) **لم تُنشأ بعد** وتبقى على هذه القائمة حتى يُطلب صراحةً.
 - [ ] **P1** — Unified Profile Media Sizing: توحيد قواعد عرض الصور في صفحات البروفايل (avatar دائري للموظف، rounded square logo للشركة والمؤسسة، نظام موحد للكفر). لا يعني تعديل upload/cropper الآن.
 - [ ] **P1** — First-time Profile Setup Wizard: flow إعداد أولي خطوة بخطوة لحسابات جديدة بدلاً من صفحة فارغة. يختلف حسب نوع الحساب. يفرّق بين Required وRecommended. يدعم حفظ جزئي. لا يعتمد على frontend فقط — يحتاج backend support.
 - [ ] **P1** — Unified section IDs: تعريف section IDs موحدة (`#posts`, `#jobs`, `#courses`, `#experience`, `#skills`, `#followers`) لدعم clickable stats وguided tour بشكل متسق وغير هش.
