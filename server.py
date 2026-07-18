@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 import base64, mimetypes
 from typing import List, Optional
 from datetime import datetime
-import hashlib, secrets, json, os, time, asyncio
+import secrets, json, os, time, asyncio
 try:
     import asyncpg as _asyncpg
 except ImportError:
@@ -131,13 +131,16 @@ from auth import (
 )
 from auth import ContentValidationError, validate_professional_text, JobArchivedError
 
-# ── Config ──
-ADMIN_PASSWORD = "tw@admin2025"
-ADMIN_URL_TOKEN = "kPuOWhpIYjdLQXmh"
-# Stable token derived from password - no server storage needed
-ADMIN_TOKEN = hashlib.sha256(ADMIN_PASSWORD.encode()).hexdigest()
-JWT_SECRET = os.environ.get("JWT_SECRET") or ADMIN_TOKEN[:32]
-# Scheduler S3: internal cron secret — set in Heroku Config Vars, never in source.
+# ── Secrets from environment — NEVER hardcoded in source ──
+# Required Railway Variables:
+#   ADMIN_TOKEN     — random 32+ byte hex (e.g. openssl rand -hex 32)
+#   JWT_SECRET      — random 32+ byte hex, INDEPENDENT of ADMIN_TOKEN
+#   ADMIN_URL_TOKEN — random slug for admin panel URL path
+# Rotating JWT_SECRET invalidates all active sessions (users must re-login). This is expected.
+ADMIN_TOKEN     = os.environ.get("ADMIN_TOKEN", "").strip()
+JWT_SECRET      = os.environ.get("JWT_SECRET", "").strip()
+ADMIN_URL_TOKEN = os.environ.get("ADMIN_URL_TOKEN", "").strip()
+# Scheduler S3: internal cron secret — set in Railway Variables, never in source.
 SCHEDULER_SECRET = os.environ.get("SCHEDULER_SECRET", "")
 
 
@@ -146,6 +149,8 @@ import hmac, base64 as _b64
 
 def _jwt_encode(payload: dict) -> str:
     import json, time
+    if not JWT_SECRET or len(JWT_SECRET) < 32:
+        raise RuntimeError("JWT_SECRET is not configured or too short")
     payload['iat'] = int(time.time())
     payload['exp'] = int(time.time()) + 86400 * 7  # 7 days
     header = _b64.urlsafe_b64encode(b'{"alg":"HS256","typ":"JWT"}').rstrip(b'=').decode()
@@ -157,18 +162,18 @@ def _jwt_encode(payload: dict) -> str:
 
 def _jwt_decode(token: str) -> dict:
     import json, time
+    if not JWT_SECRET or len(JWT_SECRET) < 32:
+        return {}
     try:
         parts = token.split('.')
         if len(parts) != 3: return {}
-        # Verify signature first
         expected_sig = _b64.urlsafe_b64encode(
             hmac.new(JWT_SECRET.encode(), f"{parts[0]}.{parts[1]}".encode(), 'sha256').digest()
         ).rstrip(b'=').decode()
-        if parts[2] != expected_sig: return {}  # Invalid signature
-        # Decode payload
+        if not hmac.compare_digest(parts[2], expected_sig): return {}
         body = parts[1] + '=='
         payload = json.loads(_b64.urlsafe_b64decode(body.encode()))
-        if payload.get('exp', 0) < time.time(): return {}  # Expired
+        if payload.get('exp', 0) < time.time(): return {}
         return payload
     except: return {}
 
@@ -459,6 +464,16 @@ async def _pipeline_asyncpg(
 # ── Startup ──
 @app.on_event("startup")
 async def on_startup():
+    # ── Secret validation — fail hard if JWT_SECRET missing ──
+    if not JWT_SECRET or len(JWT_SECRET) < 32:
+        raise RuntimeError(
+            "❌ JWT_SECRET must be set as an environment variable (min 32 chars). "
+            "Generate with: openssl rand -hex 32"
+        )
+    if not ADMIN_TOKEN or len(ADMIN_TOKEN) < 32:
+        print("⚠️  ADMIN_TOKEN not configured — admin endpoints will return 503 for all requests")
+    if not ADMIN_URL_TOKEN:
+        print("⚠️  ADMIN_URL_TOKEN not configured — admin panel URL will not be accessible")
     try:
         init_db()
         print("✅ DB initialized")
@@ -583,9 +598,10 @@ def read_html(name: str) -> str:
         return f"<h1>الصفحة غير موجودة: {name}</h1>"
 
 def check_admin(request: Request):
-    """Check admin token from header X-Admin-Token"""
+    if not ADMIN_TOKEN or len(ADMIN_TOKEN) < 32:
+        raise HTTPException(status_code=503, detail="Service temporarily unavailable")
     token = request.headers.get("X-Admin-Token", "")
-    if token != ADMIN_TOKEN:
+    if not hmac.compare_digest(token.encode(), ADMIN_TOKEN.encode()):
         raise HTTPException(status_code=403, detail="Forbidden")
 
 
@@ -4293,9 +4309,10 @@ def stats():
 # ══════════════════════════════════════════
 @app.post("/tw-ctrl-login")
 def admin_login(data: AdminLoginInput):
-    if data.password != ADMIN_PASSWORD:
+    if not ADMIN_TOKEN or len(ADMIN_TOKEN) < 32:
+        raise HTTPException(status_code=503, detail="Service temporarily unavailable")
+    if not hmac.compare_digest(data.password.encode(), ADMIN_TOKEN.encode()):
         raise HTTPException(status_code=401, detail="Unauthorized")
-    # Return stable token (derived from password - no server storage)
     return {"success": True, "token": ADMIN_TOKEN}
 
 # ══════════════════════════════════════════
