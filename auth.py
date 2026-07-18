@@ -2340,39 +2340,103 @@ def apply_job(job_id: int, user_id: int, cover_letter: str = "") -> dict:
     finally:
         release_conn(conn)
 
-def get_job_applicants(job_id: int, company_id: int = 0,
-                       view: str = "", page: int = 1, limit: int = 50) -> dict:
+# Applicants/Candidates list sort whitelist — ORDER BY injection guard.
+# match_desc / match_asc are reserved; they fall back to applied_at until
+# match_score column is added to job_applications (schema pending approval).
+# When match_score column is added, replace the fallback values here and activate.
+_APPLICANT_SORT_MAP: dict = {
+    "applied_desc": "ja.applied_at DESC",
+    "applied_asc":  "ja.applied_at ASC",
+    "match_desc":   "ja.applied_at DESC",   # fallback — activates after match_score schema
+    "match_asc":    "ja.applied_at ASC",    # fallback — activates after match_score schema
+}
+
+
+def get_job_applicants(
+    job_id:         int,
+    company_id:     int = 0,
+    view:           str = "",
+    page:           int = 1,
+    limit:          int = 50,
+    sort:           str = "applied_desc",
+    city:           str = "",
+    country:        str = "",
+    applied_after:  str = "",
+    applied_before: str = "",
+    q:              str = "",
+) -> dict:
     """
-    Returns applicants (and/or candidates) for a job.
+    Returns applicants (and/or candidates) for a job with server-side
+    filtering, sorting, and pagination.
 
-    view:  ""           → legacy mode — no filter, no pagination, returns all
-           "applicants" → promoted_at IS NULL (not yet promoted to candidate)
-           "candidates" → promoted_at IS NOT NULL (explicitly promoted)
+    view:          ""           → legacy mode (no filter, no pagination)
+                   "applicants" → promoted_at IS NULL
+                   "candidates" → promoted_at IS NOT NULL
 
-    page:  1-based (for paginated views only)
-    limit: rows per page, clamped to 1-100 (for paginated views only)
+    sort:          applied_desc (default) | applied_asc | match_desc | match_asc
+                   match_* fall back to applied_* until match_score schema is added.
 
-    Returns a dict:
-      { applicants: [...], total: N, total_applicants: A, total_candidates: C,
-        total_all: T, page: P, limit: L, view: V }
-    When view="" (legacy), total_applicants/total_candidates/total_all are omitted
-    and the server.py endpoint returns {applicants:[...], count:N} unchanged.
+    city:          case-insensitive exact match on profiles.city
+    country:       case-insensitive exact match on profiles.country
+    applied_after: ISO date YYYY-MM-DD — inclusive lower bound on applied_at
+    applied_before:ISO date YYYY-MM-DD — inclusive upper bound on applied_at
+    q:             substring search on full_name or headline (ILIKE)
+
+    total:         filtered count for the current view + active filters (pagination math)
+    total_applicants / total_candidates / total_all: unfiltered job-wide membership
+      counters — never affected by city/country/date/q filters so tab labels stay stable.
+
+    match_score:   always null in every applicant item until schema is activated.
+
+    Legacy (view=""): returns {applicants:[...], count:N} unchanged via server.py.
     """
     safe_limit = min(max(1, limit), 100)
     safe_page  = max(1, page)
     offset     = (safe_page - 1) * safe_limit
 
-    # Build the view-specific WHERE fragment (safe — no user input interpolated into SQL)
+    # Resolve sort — unknown values fall back to default (validated in server.py too)
+    order_sql  = _APPLICANT_SORT_MAP.get(sort, _APPLICANT_SORT_MAP["applied_desc"])
+
+    # View-specific WHERE fragment (safe — no user input reaches SQL)
     view_filter = ""
     if view == "applicants":
         view_filter = " AND (jpe.promoted_at IS NULL)"
     elif view == "candidates":
         view_filter = " AND (jpe.promoted_at IS NOT NULL)"
 
+    # Build extra filter WHERE clauses (all parameterized — no SQL injection risk)
+    extra_parts: list  = []
+    extra_params: dict = {}
+
+    if city:
+        extra_parts.append("LOWER(p.city) = LOWER(:f_city)")
+        extra_params["f_city"] = city.strip()
+
+    if country:
+        extra_parts.append("LOWER(p.country) = LOWER(:f_country)")
+        extra_params["f_country"] = country.strip()
+
+    if applied_after:
+        extra_parts.append("ja.applied_at >= :f_after::date")
+        extra_params["f_after"] = applied_after
+
+    if applied_before:
+        # applied_before is inclusive — include the whole day
+        extra_parts.append("ja.applied_at < (:f_before::date + INTERVAL '1 day')")
+        extra_params["f_before"] = applied_before
+
+    if q:
+        extra_parts.append("(u.full_name ILIKE :f_q OR p.headline ILIKE :f_q)")
+        extra_params["f_q"] = "%" + q.strip() + "%"
+
+    extra_clause = (" AND " + " AND ".join(extra_parts)) if extra_parts else ""
+    has_extra    = bool(extra_parts)
+
+    # Select columns — p.city, p.country, p.headline added for filter support + response
     _SELECT_COLS = (
         "SELECT ja.id, ja.job_id, ja.user_id, ja.status, ja.cover_letter, ja.applied_at, "
         "u.full_name, u.user_type, u.tw_id, "
-        "p.avatar_url, "
+        "p.avatar_url, p.city, p.country, p.headline, "
         "CASE WHEN sc.candidate_id IS NOT NULL THEN true ELSE false END AS is_saved, "
         "jpe.id AS pipeline_entry_id, "
         "jpe.stage, "
@@ -2397,11 +2461,8 @@ def get_job_applicants(job_id: int, company_id: int = 0,
         total_all        = None
 
         if view:
-            # Single aggregate: fetch all three tab counters in one DB round-trip.
-            # COUNT(*) FILTER is standard PostgreSQL and avoids two extra queries.
-            #   total_applicants = promoted_at IS NULL  (includes rejected-before-promotion)
-            #   total_candidates = promoted_at IS NOT NULL (includes promoted-then-rejected)
-            #   total_all        = all applications for this job regardless of membership
+            # Membership aggregate — always unfiltered (tab counters are job-wide,
+            # never shrink due to city/date/q filters so tab labels stay stable).
             agg_rows = conn.run(
                 "SELECT "
                 "COUNT(*) AS total_all, "
@@ -2419,16 +2480,30 @@ def get_job_applicants(job_id: int, company_id: int = 0,
             else:
                 total_all = total_applicants = total_candidates = 0
 
-            # total = count for the current view (used for pagination math)
-            total = total_applicants if view == "applicants" else total_candidates
+            if has_extra:
+                # Separate filtered COUNT for pagination math (filters applied)
+                cnt_rows = conn.run(
+                    "SELECT COUNT(*) "
+                    "FROM job_applications ja "
+                    "JOIN users u ON u.id=ja.user_id "
+                    "LEFT JOIN profiles p ON p.user_id=ja.user_id "
+                    "LEFT JOIN job_pipeline_entries jpe ON jpe.application_id=ja.id "
+                    "WHERE ja.job_id=:jid" + view_filter + extra_clause,
+                    jid=job_id, **extra_params
+                )
+                total = int(cnt_rows[0][0] or 0) if cnt_rows else 0
+            else:
+                # No extra filters — derive from aggregate (no extra query needed)
+                total = total_applicants if view == "applicants" else total_candidates
 
             rows = conn.run(
-                _SELECT_COLS + _FROM_WHERE
-                + " ORDER BY ja.applied_at DESC LIMIT :lmt OFFSET :off",
-                jid=job_id, cid=company_id, lmt=safe_limit, off=offset
+                _SELECT_COLS + _FROM_WHERE + extra_clause
+                + f" ORDER BY {order_sql} LIMIT :lmt OFFSET :off",
+                jid=job_id, cid=company_id, lmt=safe_limit, off=offset,
+                **extra_params
             )
         else:
-            # Legacy path: no pagination — fetch everything
+            # Legacy path — no pagination, no filters, returns everything
             rows = conn.run(
                 _SELECT_COLS + _FROM_WHERE + " ORDER BY ja.applied_at DESC",
                 jid=job_id, cid=company_id
@@ -2441,9 +2516,11 @@ def get_job_applicants(job_id: int, company_id: int = 0,
             total = len(items)
 
         # Convert pipeline_notes_count to int (pg8000 may return Decimal)
+        # match_score is null for all items until schema is activated (see ARCHITECTURE.md §70)
         for a in items:
             a['pipeline_notes_count'] = int(a.get('pipeline_notes_count') or 0)
             a['next_appointment'] = None
+            a['match_score']      = None
 
         # Batch-fetch next future active appointment per pipeline entry
         entry_ids = [a['pipeline_entry_id'] for a in items if a.get('pipeline_entry_id')]
@@ -2474,7 +2551,6 @@ def get_job_applicants(job_id: int, company_id: int = 0,
                     a['next_appointment'] = next_appt_map.get(int(eid))
 
         # Batch-fetch other job refs for saved candidates
-        # Source: company_candidate_job_refs (only company-intentional links, not all applications)
         if company_id:
             saved_uids = [a['user_id'] for a in items if a.get('is_saved') and a.get('user_id')]
             other_titles_map = {}
@@ -2498,7 +2574,7 @@ def get_job_applicants(job_id: int, company_id: int = 0,
             for a in items:
                 a['other_job_titles'] = []
 
-        result = {
+        result: dict = {
             "applicants": items,
             "total":      total,
             "page":       safe_page if view else 1,
@@ -2509,6 +2585,15 @@ def get_job_applicants(job_id: int, company_id: int = 0,
             result["total_applicants"] = total_applicants
             result["total_candidates"] = total_candidates
             result["total_all"]        = total_all
+            result["sort"]             = sort
+            result["filters"] = {
+                "city":          city or None,
+                "country":       country or None,
+                "applied_after": applied_after or None,
+                "applied_before":applied_before or None,
+                "q":             q or None,
+                "min_match":     None,   # reserved — activates with match_score schema
+            }
         return result
     finally:
         release_conn(conn)

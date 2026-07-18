@@ -11525,37 +11525,104 @@ Return shape (always a dict now):
 }
 ```
 
-### `GET /jobs/{job_id}/applicants` endpoint update
+### `GET /jobs/{job_id}/applicants` endpoint (PR-6 + PR-7)
 
-New query params: `view`, `page`, `limit`.
+**PR-6 params:** `view`, `page`, `limit`  
+**PR-7 additions:** `sort`, `city`, `country`, `applied_after`, `applied_before`, `q`, `min_match` (reserved)
 
 **Backward compatibility:** when `view=""` (not provided), the response is returned in the legacy shape `{"applicants": [...], "count": N}` so the existing frontend (`data.applicants`) keeps working unchanged.
 
-When `view` is provided, the full paginated dict is returned:
+When `view` is provided, the full response shape is:
 
 ```json
 {
-  "applicants": [...],
-  "total":            100,
+  "applicants": [
+    {
+      "id": 1, "job_id": 42, "user_id": 7, "status": "pending",
+      "cover_letter": "...", "applied_at": "2026-01-15T...",
+      "full_name": "أحمد", "user_type": "emp", "tw_id": "U96...",
+      "avatar_url": "...", "city": "عمّان", "country": "الأردن", "headline": "...",
+      "is_saved": false, "pipeline_entry_id": 100, "stage": "new",
+      "pipeline_notes_count": 0, "next_appointment": null,
+      "match_score": null,
+      "other_job_titles": []
+    }
+  ],
+  "total":            35,
   "page":             1,
   "limit":            50,
   "view":             "applicants",
-  "total_applicants": 80,
-  "total_candidates": 20,
-  "total_all":        100
+  "sort":             "applied_desc",
+  "total_applicants": 1250,
+  "total_candidates": 47,
+  "total_all":        1297,
+  "filters": {
+    "city":          "عمّان",
+    "country":       null,
+    "applied_after": null,
+    "applied_before":null,
+    "q":             null,
+    "min_match":     null
+  }
 }
 ```
 
-**Tab counter fields (view-mode only):**
+#### Tab counter semantics (critical distinction)
 
-| Field | Meaning | SQL |
+| Field | Affected by filters? | Meaning |
 |---|---|---|
-| `total_applicants` | Applications never promoted (`promoted_at IS NULL`) | `COUNT(*) FILTER (WHERE jpe.promoted_at IS NULL)` |
-| `total_candidates` | Applications promoted to pipeline (`promoted_at IS NOT NULL`) | `COUNT(*) FILTER (WHERE jpe.promoted_at IS NOT NULL)` |
-| `total_all` | All applications for the job (no membership filter) | `COUNT(*)` |
-| `total` | Count for the current view (drives pagination math) | `= total_applicants` when `view='applicants'`, else `total_candidates` |
+| `total` | **YES** — view + city/country/date/q filters | Filtered count for pagination math |
+| `total_applicants` | **NO** — job-wide always | Tab label: المتقدمون (X) — stays stable while user filters |
+| `total_candidates` | **NO** — job-wide always | Tab label: المرشحون (Y) — stays stable while user filters |
+| `total_all` | **NO** — job-wide always | All applications for the job |
 
-All four counters come from **one aggregate SQL query** (`COUNT(*) FILTER (WHERE …)`) — no extra round-trips. `total_applicants`, `total_candidates`, `total_all` are absent from the legacy no-view response.
+`total_applicants`, `total_candidates`, `total_all` come from **one aggregate SQL query** (no extra round-trips) and are never affected by city/country/date/q filters. When filters are active, `total` comes from a separate lightweight COUNT query.
+
+#### Sort values
+
+| value | SQL | Status |
+|---|---|---|
+| `applied_desc` (default) | `ORDER BY ja.applied_at DESC` | Active |
+| `applied_asc` | `ORDER BY ja.applied_at ASC` | Active |
+| `match_desc` | `ORDER BY ja.match_score DESC NULLS LAST` | Falls back to `applied_desc` until match_score schema added |
+| `match_asc` | `ORDER BY ja.match_score ASC NULLS LAST` | Falls back to `applied_asc` until match_score schema added |
+
+Unknown sort values → HTTP 400. `_APPLICANT_SORT_MAP` in `auth.py` is the single whitelist — never build ORDER BY from raw user input.
+
+#### Filter params
+
+| param | SQL | Notes |
+|---|---|---|
+| `city` | `LOWER(p.city) = LOWER(:f_city)` | case-insensitive exact match |
+| `country` | `LOWER(p.country) = LOWER(:f_country)` | case-insensitive exact match |
+| `applied_after` | `ja.applied_at >= :f_after::date` | YYYY-MM-DD inclusive lower bound |
+| `applied_before` | `ja.applied_at < (:f_before::date + INTERVAL '1 day')` | YYYY-MM-DD inclusive upper bound |
+| `q` | `(u.full_name ILIKE :f_q OR p.headline ILIKE :f_q)` | substring match, `%query%` |
+| `min_match` | reserved — activates when match_score schema is added | validated 0–100, currently no-op |
+
+#### match_score field
+
+`match_score` is set to `null` on every applicant item. This is the correct null contract — `null` means "not computed", not "0% match". It is **not** treated as 0 unless explicitly documented. Activates after schema approval (see next section).
+
+#### match_score schema (pending approval — PR-2)
+
+The recommended schema is:
+
+```sql
+ALTER TABLE job_applications
+  ADD COLUMN IF NOT EXISTS match_score SMALLINT NULL,
+  ADD COLUMN IF NOT EXISTS match_alg   SMALLINT NOT NULL DEFAULT 1;
+CREATE INDEX IF NOT EXISTS idx_ja_match_score ON job_applications(job_id, match_score DESC NULLS LAST);
+```
+
+- `match_score` computed at apply time in `apply_job()` using skill-overlap formula:  
+  `|job_skills ∩ user_skills| / |job_skills| × 100` (same formula as `match_jobs_for_user()`)
+- `match_score = NULL` when job has no skills
+- `match_alg = 1` is the current version; increment when algorithm changes
+- Backfill in `_migrate_match_score()` runs on startup (evidence-based, does not overwrite existing values)
+- Once column exists: `_APPLICANT_SORT_MAP["match_desc"]` and `["match_asc"]` get their real SQL expressions activated
+
+Do NOT activate match_desc/match_asc in `_APPLICANT_SORT_MAP` before the column exists — it would cause a SQL error.
 
 ### Forbidden patterns (permanent)
 
@@ -11565,4 +11632,10 @@ All four counters come from **one aggregate SQL query** (`COUNT(*) FILTER (WHERE
 ❌ Writing promoted_at from any path other than promote_application_to_shortlist
 ❌ Frontend reading promoted_at directly — use the view filter in the API
 ❌ Adding a separate "candidates" table — promoted_at on job_pipeline_entries is the source
+❌ Injecting raw sort param into ORDER BY — always use _APPLICANT_SORT_MAP whitelist
+❌ Treating match_score null as 0 — null means "not computed", not "0% match"
+❌ Activating match_desc/match_asc in _APPLICANT_SORT_MAP before match_score column exists
+❌ Computing match_score per-row in a Python loop (N+1 risk) — use SQL or stored column
+❌ Using city/country/date/q filters on the membership aggregate query — tab counters must stay job-wide
+❌ Accepting company_id from the frontend — always fetch from DB via job ownership lookup
 ```

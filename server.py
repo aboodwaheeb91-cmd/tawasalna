@@ -129,6 +129,7 @@ from auth import (
     create_pipeline_note, list_pipeline_notes,
     update_pipeline_note, delete_pipeline_note,
     get_pipeline_application_index_status,
+    _APPLICANT_SORT_MAP,
 )
 from auth import ContentValidationError, validate_professional_text, JobArchivedError
 
@@ -4189,29 +4190,71 @@ def apply_to_job(job_id: int, data: JobApplyInput, token=Depends(verify_token)):
 
 @app.get("/jobs/{job_id}/applicants")
 def job_applicants(
-    job_id: int,
-    view: str = "",
-    page: int = 1,
-    limit: int = 50,
+    job_id:         int,
+    view:           str = "",
+    page:           int = 1,
+    limit:          int = 50,
+    sort:           str = "applied_desc",
+    city:           str = "",
+    country:        str = "",
+    applied_after:  str = "",
+    applied_before: str = "",
+    q:              str = "",
+    min_match:      str = "",
     token=Depends(verify_token),
 ):
     """
     GET /jobs/{job_id}/applicants
 
     Query params (all optional):
-      view=applicants  → promoted_at IS NULL (applicants not yet promoted)
-      view=candidates  → promoted_at IS NOT NULL (promoted candidates)
-      page=N           → 1-based page number (paginated views only)
-      limit=N          → rows per page, 1-100, default 50 (paginated views only)
+      view=applicants|candidates  membership filter (no view → legacy response)
+      page=N           1-based page (paginated views only)
+      limit=N          1-100, default 50
+      sort=applied_desc|applied_asc|match_desc|match_asc  (default applied_desc)
+      city=...         case-insensitive filter on profiles.city
+      country=...      case-insensitive filter on profiles.country
+      applied_after=YYYY-MM-DD   inclusive lower bound on applied_at
+      applied_before=YYYY-MM-DD  inclusive upper bound on applied_at
+      q=...            substring search on full_name or headline
+      min_match=N      0-100 integer; reserved — activates with match_score schema
 
-    No view param → legacy behavior: returns all rows without pagination.
+    No view → legacy: {applicants:[...], count:N} unchanged.
     """
+    import re as _re
+
     user_id = token.get("user_id")
     if not user_id:
         print(f"[SECURITY] INVALID_TOKEN: GET /jobs/{job_id}/applicants")
         raise HTTPException(401, "رمز غير صالح")
+
+    # ── Validation ────────────────────────────────────────────────────────────
     if view not in ("", "applicants", "candidates"):
         raise HTTPException(400, "view يجب أن يكون: applicants أو candidates")
+
+    if sort not in _APPLICANT_SORT_MAP:
+        raise HTTPException(400,
+            "sort يجب أن يكون: applied_desc | applied_asc | match_desc | match_asc")
+
+    _DATE_RE = _re.compile(r"^\d{4}-\d{2}-\d{2}$")
+    if applied_after  and not _DATE_RE.match(applied_after):
+        raise HTTPException(400, "applied_after يجب أن يكون بصيغة YYYY-MM-DD")
+    if applied_before and not _DATE_RE.match(applied_before):
+        raise HTTPException(400, "applied_before يجب أن يكون بصيغة YYYY-MM-DD")
+
+    # min_match: validated but reserved until match_score schema is active
+    parsed_min_match: int | None = None
+    if min_match:
+        try:
+            parsed_min_match = int(min_match)
+            if not (0 <= parsed_min_match <= 100):
+                raise ValueError()
+        except (ValueError, TypeError):
+            raise HTTPException(400, "min_match يجب أن يكون رقماً بين 0 و 100")
+
+    if page < 1:
+        raise HTTPException(400, "page يجب أن يكون 1 أو أكثر")
+
+    # ── Ownership check ───────────────────────────────────────────────────────
     conn = get_conn()
     try:
         rows = conn.run("SELECT company_id FROM jobs WHERE id=:jid", jid=job_id)
@@ -4220,11 +4263,19 @@ def job_applicants(
         job_company_id = rows[0][0]
     finally:
         release_conn(conn)
+
     if int(job_company_id) != int(user_id):
         print(f"[SECURITY] JOB_OWNERSHIP_FAILED: user {user_id} tried to access applicants "
               f"for job {job_id} owned by {job_company_id}")
         raise HTTPException(403, "غير مصرح — هذه الوظيفة ليست لشركتك")
-    result = get_job_applicants(job_id, int(job_company_id), view=view, page=page, limit=limit)
+
+    result = get_job_applicants(
+        job_id, int(job_company_id),
+        view=view, page=page, limit=limit, sort=sort,
+        city=city, country=country,
+        applied_after=applied_after, applied_before=applied_before,
+        q=q,
+    )
     if not view:
         # Legacy response format — backward compatible with existing frontend
         return {"applicants": result["applicants"], "count": result["total"]}
