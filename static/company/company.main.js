@@ -3015,10 +3015,9 @@
       : 'بنك المواهب';
     return '<div id="coCandSavedShell">'
       + '<div class="co-tb-quota-bar" id="coTbQuotaBar">'
-      + '<span class="co-tb-quota-lbl" id="coTbQuotaLbl">' + _esc(quotaStr) + '</span>'
+      + '<span class="co-tb-quota-lbl" id="coTbQuotaLbl" dir="rtl">' + _esc(quotaStr) + '</span>'
       + '</div>'
       + '<div class="co-cand-filter-bar">'
-      + '<div id="coCandChips" class="co-cand-chips"></div>'
       + '<div class="co-cand-search-row">'
       + '<input id="coCandSearch" type="text" class="co-cand-search"'
       + ' placeholder="بحث في بنك المواهب…" dir="rtl" value="' + _esc(_savedSearch) + '">'
@@ -3297,7 +3296,7 @@
   // Follow-up status labels
   var _FU_STATUS_LABELS = { pending: 'قيد المتابعة', done: 'تمت المتابعة', none: '' };
 
-  // Build a single saved card with embedded manage panel (V2)
+  // Build compact expandable card (V3: single-column, no left/right split)
   function _savedCardHTML(item) {
     var status       = item.status        || 'saved';
     var notes        = item.notes         || '';
@@ -3308,11 +3307,14 @@
     var followUpAt   = item.follow_up_at  || null;
     var followUpSt   = item.follow_up_status || null;
     var saveSource   = item.save_source   || null;
-    var meta         = [item.profession, item.city, item.country].filter(Boolean).join(' · ');
     var date         = _fmtDate(item.created_at);
     var cid          = _esc(item.candidate_id);
+    var twId         = _esc(item.tw_id || '');
     var jobLinks     = Array.isArray(item.job_links) ? item.job_links : [];
-    var linkedIds    = jobLinks.map(function(jl) { return String(jl.job_id); });
+
+    // Location line for expanded body
+    var locationParts = [item.city, item.country].filter(Boolean);
+    var locationStr   = locationParts.join(' - ');
 
     var html = '<div class="co-cand-saved-card"'
       + ' data-cid="' + cid + '"'
@@ -3326,61 +3328,70 @@
       + ' data-follow-up-at="' + _esc(followUpAt || '') + '"'
       + ' data-follow-up-status="' + _esc(followUpSt || '') + '"'
       + ' data-save-source="' + _esc(saveSource || '') + '"'
-      + ' data-job-links="' + _esc(JSON.stringify(jobLinks)) + '">';
+      + ' data-job-links="' + _esc(JSON.stringify(jobLinks)) + '"'
+      + ' data-expanded="false">';
 
-    // ── Top row: avatar + compact name/meta + action buttons ─────
-    html += '<div class="co-cand-top">';
+    // ── Compact header (always visible) ──────────────────────────
+    html += '<div class="co-csc-header">';
 
-    html += '<div class="co-cand-ava">'
+    // Avatar
+    html += '<div class="co-csc-ava">'
       + (item.avatar_url
           ? '<img src="' + _esc(item.avatar_url) + '" alt="" loading="lazy">'
           : _avatarSvg)
       + '</div>';
 
-    // Compact head: name + profession/location only (no priority here)
-    html += '<div class="co-cand-info-head">';
-    html += '<div class="co-cand-name-row">';
-    html += '<span class="co-cand-name">' + _esc(item.full_name) + '</span>';
+    // Name + priority + profession + stars column
+    html += '<div class="co-csc-main">';
+    html += '<div class="co-csc-name-row">';
+    html += '<span class="co-csc-name">' + _esc(item.full_name || '') + '</span>';
+    if (priority) html += _priorityBadgeHTML(priority);
     html += '</div>';
-    if (meta) html += '<div class="co-cand-meta">' + _esc(meta) + '</div>';
-    html += '</div>'; // .co-cand-info-head
+    if (item.profession) html += '<div class="co-csc-profession">' + _esc(item.profession) + '</div>';
+    if (rating) html += '<div class="co-csc-stars">' + _starsHTML(rating) + '</div>';
+    html += '</div>'; // .co-csc-main
 
-    // Action buttons — opposite side (RTL: left; LTR: right)
-    html += '<div class="co-cand-actions">';
-    html += '<button class="co-cand-manage-btn co-cand-manage-btn--primary" data-cid="' + cid + '">إدارة الموهبة</button>';
-    html += '<a class="co-cand-view-btn" href="/u/' + _esc(item.tw_id) + '" target="_blank" rel="noopener">'
-          + '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:11px;height:11px;flex-shrink:0">'
-          + '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>'
-          + 'عرض الملف</a>';
-    html += '</div>'; // .co-cand-actions
+    // Expand/collapse toggle button
+    html += '<button type="button" class="co-csc-toggle"'
+          + ' aria-expanded="false"'
+          + ' aria-label="عرض تفاصيل الموهبة">'
+          + '<svg class="co-csc-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor"'
+          + ' stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+          + '<polyline points="6 9 12 15 18 9"></polyline>'
+          + '</svg>'
+          + '</button>';
 
-    html += '</div>'; // .co-cand-top
+    html += '</div>'; // .co-csc-header
 
-    // ── Meta strip: rating · priority · date · source ──────────
-    var hasStrip = rating || priority || date || saveSource;
-    if (hasStrip) {
-      html += '<div class="co-cand-strip">';
-      if (rating) html += _starsHTML(rating);
-      if (priority) html += _priorityBadgeHTML(priority);
-      if (date) html += '<span class="co-cand-date">حُفظ ' + _esc(date) + '</span>';
-      if (saveSource) {
-        html += '<span class="co-cand-source-lbl">'
-              + _esc(_SOURCE_LABELS[saveSource] || saveSource) + '</span>';
-      }
-      html += '</div>'; // .co-cand-strip
+    // ── Expandable body (hidden by default) ──────────────────────
+    html += '<div class="co-csc-body" hidden>';
+
+    // Row 1: location + save date
+    var line1Parts = [];
+    if (locationStr) line1Parts.push(locationStr);
+    if (date)        line1Parts.push('حُفظ ' + date);
+    if (line1Parts.length) {
+      html += '<div class="co-csc-detail-row">' + _esc(line1Parts.join(' | ')) + '</div>';
     }
 
-    // Follow-up indicator
-    if (followUpAt && followUpSt && followUpSt !== 'none') {
-      html += '<div class="co-cand-followup-strip co-cand-followup--' + _esc(followUpSt) + '">'
-        + '<span class="co-cand-followup-lbl">' + _esc(_FU_STATUS_LABELS[followUpSt] || followUpSt) + '</span>'
-        + '<span class="co-cand-followup-date">' + _esc(_fmtDate(followUpAt)) + '</span>'
-        + '</div>';
+    // Row 2: follow-up status + date (only if status is not 'none')
+    if (followUpSt && followUpSt !== 'none') {
+      var fuLabel = _FU_STATUS_LABELS[followUpSt] || followUpSt;
+      var fuLine  = fuLabel;
+      if (followUpAt) fuLine += ' | ' + _fmtDate(followUpAt);
+      html += '<div class="co-csc-detail-row co-csc-fu-row co-csc-followup--' + _esc(followUpSt) + '">'
+            + _esc(fuLine) + '</div>';
     }
 
-    // Tags (top 3 + "+N")
+    // Row 3: save source (always shown)
+    var sourceLbl = _SOURCE_LABELS[saveSource] || (saveSource || 'غير معروف');
+    html += '<div class="co-csc-detail-row co-csc-source-row">'
+          + 'مصدر الحفظ: <span class="co-csc-source-val">' + _esc(sourceLbl) + '</span>'
+          + '</div>';
+
+    // Row 4: Tags (top 3 + "+N")
     if (tags.length) {
-      html += '<div class="co-cand-tags-row">';
+      html += '<div class="co-csc-tags">';
       tags.slice(0, 3).forEach(function (t) {
         html += '<span class="co-cand-tag-chip">' + _esc(t) + '</span>';
       });
@@ -3390,11 +3401,10 @@
       html += '</div>';
     }
 
-    // Notes preview (truncated)
-    if (notes) html += '<div class="co-cand-notes-pre">' + _esc(notes) + '</div>';
+    // Row 5: Notes (only if non-empty)
+    if (notes) html += '<div class="co-csc-notes">' + _esc(notes) + '</div>';
 
-    // Job chips — split into two sections: real applications vs pipeline-only
-    // Build a shared chip helper
+    // Row 6: Job chips — split: real applications vs pipeline-only links
     function _buildChip(jl, idx, maxVisible) {
       var applyDate   = jl.apply_date ? _fmtDate(jl.apply_date) : '';
       var hiddenCls   = idx >= maxVisible ? ' co-cand-job-chip--hidden' : '';
@@ -3419,8 +3429,8 @@
     }
 
     if (jobLinks.length) {
-      var appliedLinks  = jobLinks.filter(function (jl) { return jl.application_id != null; });
-      var linkedOnly    = jobLinks.filter(function (jl) { return jl.application_id == null; });
+      var appliedLinks = jobLinks.filter(function (jl) { return jl.application_id != null; });
+      var linkedOnly   = jobLinks.filter(function (jl) { return jl.application_id == null; });
 
       if (appliedLinks.length) {
         html += '<div class="co-cand-job-section">';
@@ -3446,6 +3456,14 @@
         html += '</div></div>';
       }
     }
+
+    // Row 7: Action buttons (stacked vertically, same right-aligned edge)
+    html += '<div class="co-csc-actions">';
+    html += '<a class="co-csc-btn co-csc-btn--view" href="/u/' + twId + '" target="_blank" rel="noopener">'
+          + 'عرض الملف العام</a>';
+    html += '<button type="button" class="co-csc-btn co-csc-btn--manage co-cand-manage-btn" data-cid="' + cid + '">'
+          + 'إدارة الموهبة</button>';
+    html += '</div>';
 
     // ── Manage panel (hidden by default) — V2 ────────────────────
     // Sections: Rating · Priority · Tags · Notes · Follow-up · Save source (read-only)
@@ -3537,6 +3555,7 @@
     html += '</div>';
     html += '</div>'; // .co-cand-manage-panel
 
+    html += '</div>'; // .co-csc-body
     html += '</div>'; // .co-cand-saved-card
     return html;
   }
@@ -3551,6 +3570,50 @@
     });
   }
 
+  // Accordion expand/collapse for compact cards (V3)
+  function _toggleCard(btn) {
+    var card = btn.closest('.co-cand-saved-card');
+    if (!card) return;
+    var cardBody = card.querySelector('.co-csc-body');
+    if (!cardBody) return;
+    var isOpen = card.getAttribute('data-expanded') === 'true';
+
+    // Close all other open cards first (and their manage panels)
+    _body.querySelectorAll('.co-cand-saved-card[data-expanded="true"]').forEach(function (c) {
+      if (c === card) return;
+      c.setAttribute('data-expanded', 'false');
+      var ob = c.querySelector('.co-csc-body');
+      if (ob) ob.hidden = true;
+      var ot = c.querySelector('.co-csc-toggle');
+      if (ot) {
+        ot.setAttribute('aria-expanded', 'false');
+        ot.setAttribute('aria-label', 'عرض تفاصيل الموهبة');
+      }
+      var op = c.querySelector('.co-cand-manage-panel.open');
+      if (op) {
+        op.classList.remove('open');
+        var omBtn = c.querySelector('.co-cand-manage-btn');
+        if (omBtn) omBtn.classList.remove('active');
+      }
+    });
+
+    var nowOpen = !isOpen;
+    card.setAttribute('data-expanded', nowOpen ? 'true' : 'false');
+    cardBody.hidden = !nowOpen;
+    btn.setAttribute('aria-expanded', nowOpen ? 'true' : 'false');
+    btn.setAttribute('aria-label', nowOpen ? 'إخفاء تفاصيل الموهبة' : 'عرض تفاصيل الموهبة');
+
+    // If collapsing, also close manage panel
+    if (!nowOpen) {
+      var mp = card.querySelector('.co-cand-manage-panel.open');
+      if (mp) {
+        mp.classList.remove('open');
+        var mb = card.querySelector('.co-cand-manage-btn');
+        if (mb) mb.classList.remove('active');
+      }
+    }
+  }
+
   // Unified event delegation for saved tab — remove + manage + panel save/cancel
   function _wireSavedCards() {
     _wireTextareaCounters();
@@ -3559,12 +3622,17 @@
 
     // Req 5 & 6: auto-open manage panel after switching from suggestions tab
     if (_pendingManageOpen != null) {
-      var pendCid   = _pendingManageOpen;
+      var pendCid    = _pendingManageOpen;
       var focusNotes = _pendingManageOpenNotes;
       _pendingManageOpen      = null;
       _pendingManageOpenNotes = false;
       var targetCard = _body.querySelector('.co-cand-saved-card[data-cid="' + pendCid + '"]');
       if (targetCard) {
+        // First expand the card so the manage panel is accessible
+        if (targetCard.getAttribute('data-expanded') !== 'true') {
+          var toggleBtn = targetCard.querySelector('.co-csc-toggle');
+          if (toggleBtn) _toggleCard(toggleBtn);
+        }
         var manBtn = targetCard.querySelector('.co-cand-manage-btn');
         if (manBtn) {
           _togglePanel(manBtn);
@@ -3578,6 +3646,10 @@
   }
 
   function _onSavedClick(e) {
+    // Card expand/collapse toggle — must be first to avoid other handlers intercepting
+    var toggleBtn = e.target.closest('.co-csc-toggle');
+    if (toggleBtn) { _toggleCard(toggleBtn); return; }
+
     // +N expand button — reveal hidden job chips in this card
     var moreBtn = e.target.closest('.co-cand-chip-more-btn');
     if (moreBtn) {
@@ -4075,80 +4147,50 @@
       });
   }
 
-  // Update card in-place after successful PATCH — no full re-render
+  // Update card in-place after successful PATCH — no full re-render (V3 compact cards)
   function _applyCardUpdate(card, data) {
     if (!card || !data) return;
-    var newStatus      = data.status          || 'saved';
-    var newNotes       = data.notes           || '';
-    var newJobId       = data.job_id  != null ? String(data.job_id) : '';
-    var newRating      = data.rating  != null ? data.rating  : null;
-    var newPriority    = data.priority        || null;
-    var newTags        = Array.isArray(data.tags) ? data.tags : [];
-    var newFuAt        = data.follow_up_at    || null;
-    var newFuStatus    = data.follow_up_status || null;
+    var newStatus   = data.status          || 'saved';
+    var newNotes    = data.notes           || '';
+    var newJobId    = data.job_id  != null ? String(data.job_id) : '';
+    var newRating   = data.rating  != null ? data.rating  : null;
+    var newPriority = data.priority        || null;
+    var newTags     = Array.isArray(data.tags) ? data.tags : [];
+    var newFuAt     = data.follow_up_at    || null;
+    var newFuStatus = data.follow_up_status || null;
 
     // Update data attributes (source of truth for next panel open)
-    card.setAttribute('data-status',          newStatus);
-    card.setAttribute('data-notes',           newNotes);
-    card.setAttribute('data-jobid',           newJobId);
-    card.setAttribute('data-rating',          newRating || '');
-    card.setAttribute('data-priority',        newPriority || '');
-    card.setAttribute('data-tags',            JSON.stringify(newTags));
-    card.setAttribute('data-follow-up-at',    newFuAt || '');
+    card.setAttribute('data-status',           newStatus);
+    card.setAttribute('data-notes',            newNotes);
+    card.setAttribute('data-jobid',            newJobId);
+    card.setAttribute('data-rating',           newRating || '');
+    card.setAttribute('data-priority',         newPriority || '');
+    card.setAttribute('data-tags',             JSON.stringify(newTags));
+    card.setAttribute('data-follow-up-at',     newFuAt || '');
     card.setAttribute('data-follow-up-status', newFuStatus || '');
+    // CSS data-rating attribute selector auto-updates border/glow
 
-    // Update status badge class + text
-    var badge = card.querySelector('.co-cand-status');
-    if (badge) {
-      _STATUS_ORDER.forEach(function (s) { badge.classList.remove('co-cand-status--' + s); });
-      badge.classList.add('co-cand-status--' + _statusKey(newStatus));
-      badge.textContent = _statusLabel(newStatus);
-    }
-
-    // Update notes preview
-    var notesPre = card.querySelector('.co-cand-notes-pre');
-    if (newNotes) {
-      if (notesPre) {
-        notesPre.textContent = newNotes;
+    // Update stars in compact header
+    var starsWrap = card.querySelector('.co-csc-stars');
+    if (newRating) {
+      if (starsWrap) {
+        starsWrap.innerHTML = _starsHTML(newRating);
       } else {
-        var row2 = card.querySelector('.co-cand-row2');
-        if (row2) {
-          var nd = document.createElement('div');
-          nd.className   = 'co-cand-notes-pre';
-          nd.textContent = newNotes;
-          row2.parentNode.insertBefore(nd, row2.nextSibling);
+        // Create stars element and insert into header main column
+        var mainCol = card.querySelector('.co-csc-main');
+        if (mainCol) {
+          var sd = document.createElement('div');
+          sd.className = 'co-csc-stars';
+          sd.innerHTML = _starsHTML(newRating);
+          mainCol.appendChild(sd);
         }
       }
-    } else if (notesPre) {
-      notesPre.parentNode.removeChild(notesPre);
+    } else if (starsWrap) {
+      starsWrap.parentNode.removeChild(starsWrap);
     }
 
-    // Remove legacy raw ID display if present
-    var jobRef = card.querySelector('.co-cand-job-ref');
-    if (jobRef) jobRef.parentNode.removeChild(jobRef);
-
-    // Update stars display on card
-    var starsDisplay = card.querySelector('.co-cand-stars');
-    if (starsDisplay) {
-      starsDisplay.innerHTML = '';
-      for (var _si = 1; _si <= 5; _si++) {
-        var s = document.createElement('span');
-        s.className = 'co-cand-star' + (_si <= newRating ? ' co-cand-star--on' : '');
-        s.textContent = '★';
-        starsDisplay.appendChild(s);
-      }
-    } else if (newRating) {
-      var row2b = card.querySelector('.co-cand-row2');
-      if (row2b) {
-        var sd = document.createElement('span');
-        sd.className = 'co-cand-stars';
-        sd.innerHTML = _starsHTML(newRating).replace(/<span class="co-cand-stars">|<\/span>$/g, '');
-        row2b.insertBefore(sd, row2b.firstChild);
-      }
-    }
-
-    // Update priority badge on card
-    var nameRow = card.querySelector('.co-cand-name-row');
+    // Update priority badge in compact header name row
+    var nameRow = card.querySelector('.co-csc-name-row');
     var oldBadge = nameRow && nameRow.querySelector('.co-cand-priority');
     if (oldBadge) oldBadge.parentNode.removeChild(oldBadge);
     if (newPriority && nameRow) {
@@ -4157,29 +4199,69 @@
       if (tmp.firstChild) nameRow.appendChild(tmp.firstChild);
     }
 
-    // Update tags display on card
-    var oldTagsRow = card.querySelector('.co-cand-tags-row');
-    if (oldTagsRow) oldTagsRow.parentNode.removeChild(oldTagsRow);
+    // Update notes in expanded body
+    var notesEl = card.querySelector('.co-csc-notes');
+    if (newNotes) {
+      if (notesEl) {
+        notesEl.textContent = newNotes;
+      } else {
+        // Insert before .co-csc-actions
+        var actEl = card.querySelector('.co-csc-actions');
+        if (actEl) {
+          var nd = document.createElement('div');
+          nd.className   = 'co-csc-notes';
+          nd.textContent = newNotes;
+          actEl.parentNode.insertBefore(nd, actEl);
+        }
+      }
+    } else if (notesEl) {
+      notesEl.parentNode.removeChild(notesEl);
+    }
+
+    // Update tags in expanded body
+    var oldTagsEl = card.querySelector('.co-csc-tags');
+    if (oldTagsEl) oldTagsEl.parentNode.removeChild(oldTagsEl);
     if (newTags.length) {
-      var tagsRowEl = document.createElement('div');
-      tagsRowEl.className = 'co-cand-tags-row';
+      var tagsEl = document.createElement('div');
+      tagsEl.className = 'co-csc-tags';
       newTags.slice(0, 3).forEach(function (t) {
         var tc = document.createElement('span');
         tc.className = 'co-cand-tag-chip';
         tc.textContent = t;
-        tagsRowEl.appendChild(tc);
+        tagsEl.appendChild(tc);
       });
       if (newTags.length > 3) {
-        var moreChip = document.createElement('span');
-        moreChip.className = 'co-cand-tag-chip co-cand-tag-more';
-        moreChip.textContent = '+' + (newTags.length - 3);
-        tagsRowEl.appendChild(moreChip);
+        var mc = document.createElement('span');
+        mc.className = 'co-cand-tag-chip co-cand-tag-more';
+        mc.textContent = '+' + (newTags.length - 3);
+        tagsEl.appendChild(mc);
       }
-      var notesPre2 = card.querySelector('.co-cand-notes-pre');
-      var insertAfter = notesPre2 || card.querySelector('.co-cand-followup-strip') || card.querySelector('.co-cand-row2');
-      if (insertAfter && insertAfter.parentNode) {
-        insertAfter.parentNode.insertBefore(tagsRowEl, insertAfter.nextSibling);
+      // Insert before notes (or actions if no notes)
+      var refEl = card.querySelector('.co-csc-notes') || card.querySelector('.co-csc-actions');
+      if (refEl) refEl.parentNode.insertBefore(tagsEl, refEl);
+    }
+
+    // Update follow-up row in expanded body
+    var fuRow = card.querySelector('.co-csc-fu-row');
+    if (newFuStatus && newFuStatus !== 'none') {
+      var fuLabel = _FU_STATUS_LABELS[newFuStatus] || newFuStatus;
+      var fuLine  = fuLabel;
+      if (newFuAt) fuLine += ' | ' + _fmtDate(newFuAt);
+      if (fuRow) {
+        fuRow.className = 'co-csc-detail-row co-csc-fu-row co-csc-followup--' + newFuStatus;
+        fuRow.textContent = fuLine;
+      } else {
+        // Insert after source row
+        var srcRow = card.querySelector('.co-csc-source-row');
+        if (srcRow) {
+          var fr = document.createElement('div');
+          fr.className = 'co-csc-detail-row co-csc-fu-row co-csc-followup--' + newFuStatus;
+          fr.textContent = fuLine;
+          srcRow.parentNode.insertBefore(fr, srcRow);
+        }
       }
+    } else if (fuRow) {
+      fuRow.parentNode.removeChild(fuRow);
     }
 
     // Sync panel stars widget data-rating
