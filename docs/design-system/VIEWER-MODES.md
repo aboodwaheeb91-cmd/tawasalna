@@ -70,7 +70,9 @@
 
 **التعريف:** زائر بدون JWT صالح.
 
-**الشرط:** لا يوجد `localStorage.tw_jwt`، أو JWT منتهي الصلاحية.
+**الشرط:** الطلب يصل إلى الـ Backend بدون credentials صالحة — لا JWT مرفق، أو JWT منتهٍ، أو JWT غير صالح.
+
+> **ملاحظة frontend:** يستطيع الـ frontend استخدام غياب token محلياً لتقديم تجربة أولية مناسبة — هذا مقبول كـ UX hint. لكنه لا يُثبت Guest status أمنياً، ولا يُغني عن التحقق server-side. المصدر الفعلي هو نتيجة Authentication server-side (VM-04).
 
 **ما يتيحه:**
 - رؤية المحتوى العام فقط (الذي يُرسله الـ backend لطلبات بلا JWT)
@@ -91,7 +93,8 @@
 | `emp` (موظف) | التقديم للوظائف، متابعة الشركات، طلب التحقق، إرسال رسالة |
 | `co` (شركة) | البحث عن المرشحين، حفظهم في بنك المواهب، إرسال موعد |
 | `edu` (جهة تعليمية) | نشر الدورات، التحقق من شهادات الطلاب |
-| `admin` | صلاحيات الإدارة الكاملة عبر endpoints محمية بـ `X-Admin-Token` |
+
+> **ملاحظة — Admin Authentication:** صلاحيات لوحة الإدارة محمية بـ `X-Admin-Token` عبر `check_admin()` في server.py (hmac.compare_digest) — وهو Authentication Contract مستقل عن JWT تماماً. `user_type=admin` في JWT لا يمنح صلاحيات admin وحده. انظر VM-06 + CLAUDE.md → Admin Authentication + SYSTEMS_INDEX §25.
 
 **مصدر هذا التمييز:** `jwt.user_type` — لا يُقرأ من `localStorage` ولا من الـ URL، بل يُستخرج من الـ JWT server-side.
 
@@ -173,9 +176,11 @@
 **السؤال:** هل لديك الإذن للوصول إلى هذا المورد بهذه العملية؟
 
 - **الآلية:** server-side check بعد التحقق من الـ JWT
-- **يعتمد على:** `user_type` + `user_id` + طبيعة المورد + نوع العملية
+- **يعتمد على:** `user_type` + `user_id` (مستخرجَان من JWT) + طبيعة المورد + نوع العملية
 - **مثال:** موظف لا يستطيع نشر وظيفة؛ شركة لا تستطيع التقديم للوظائف
-- **لا يعتمد أبداً على:** URL، query param، request body، localStorage
+- **Resource Identifiers:** مُعرِّفات الموارد (مثل `job_id`، `profile_id`، `company_id`) تأتي من الـ URL/query/body وتُستخدَم كمدخل لتحديد المورد الذي سيُجرى عليه الفحص. الـ Backend يُحمِّل الحقيقة من DB ثم يُجري Authorization/Ownership check باستخدام الهوية الموثَّقة من الـ JWT.
+- **ممنوع قبوله من العميل كمصدر هوية أو صلاحية:** `user_id`، `owner_id`، `user_type`، أو أي claim أمني — هذه تُستخرج دائماً من الـ JWT server-side.
+- **لا يعتمد أبداً على:** `localStorage`، DOM state، أي frontend variable
 
 ### 3. Ownership (الملكية)
 
@@ -204,24 +209,37 @@
 Backend Permissions > Frontend Visibility
 ```
 
-كل عملية تُغيِّر بيانات (POST / PUT / PATCH / DELETE) تتطلب:
+كل عملية user-facing تُغيِّر بيانات تتطلب authentication وauthorization server-side حسب الـ Authentication Contract المُوثَّق للـ endpoint. JWT هو المصدر الرسمي لهوية المستخدم العادي:
 
 1. JWT صالح مرفق في `Authorization: Bearer`
-2. استخراج `user_id` و `user_type` من الـ JWT (لا من الـ body أو الـ header المخصص)
+2. استخراج `user_id` و `user_type` من الـ JWT server-side (لا من الـ body أو header مخصص)
 3. تحقق server-side من صلاحية المستخدم للعملية المطلوبة
 4. تحقق من الـ ownership إذا كان المورد شخصياً
+
+**Authentication Contracts الأخرى الموثَّقة في هذا المشروع:**
+
+| النوع | الآلية | المرجع |
+|-------|--------|--------|
+| User-facing endpoints | `Authorization: Bearer {jwt}` | SYSTEMS_INDEX §2 |
+| Admin endpoints | `X-Admin-Token` → `check_admin()` → `hmac.compare_digest` | CLAUDE.md → Admin Authentication · SYSTEMS_INDEX §25 |
+| Internal/Scheduler endpoints | `X-Scheduler-Secret` → `hmac.compare_digest` | SYSTEMS_INDEX §37 |
+
+لكل endpoint نوعه الخاص من الـ authentication — لا يجوز اعتبار Admin أو Internal endpoints استثناءات غير محمية.
 
 ### قاعدة إرسال البيانات
 
 ```
-البيانات التي لا يحق لمستخدم رؤيتها → يُفضَّل عدم إرسالها من الـ backend أصلاً.
-إخفاؤها client-side فقط هو آخر خيار — ليس الحل الآمن.
+البيانات الخاصة أو الحساسة التي لا يملك المشاهد صلاحية رؤيتها:
+يجب ألا يرسلها الـ Backend أصلاً — هذا إلزامي، ليس تفضيلاً.
+إخفاؤها client-side بعد إرسالها ليس حلاً أمنياً بأي شكل.
+Frontend hiding مقبول فقط لعناصر UX غير الحساسة،
+بعد أن تكون البيانات الحساسة محمية من الإرسال في الـ Backend أصلاً.
 ```
 
 **تطبيق عملي:**
 - بيانات الملف الشخصي الخاصة بالمالك (مثل إعدادات الـ privacy) لا تُرسَل في طلبات الزوار
 - ملاحظات Pipeline الداخلية للشركة لا تُرسَل لغير موظفي الشركة
-- البيانات المحمية server-side: تحقق أولاً → إرسال فقط عند الإذن
+- القاعدة: تحقق من الصلاحية server-side أولاً → أرسل البيانات فقط عند الإذن الصريح
 
 ### استجابات الـ backend لمحاولات الوصول غير المُصرَّح بها
 
@@ -302,7 +320,7 @@ companyState.permissions.isOwner = true | false
 ```
 أي implementation يُضاف مستقبلاً يجب أن:
 ✓ يُطابق أحد الأوضاع الثلاثة في VM-01
-✓ يستخدم JWT للتحقق server-side (VM-06)
+✓ يستخدم Authentication Contract المُوثَّق للتحقق server-side (VM-06)
 ✓ يعتبر frontend signal مجرد UX (VM-07)
 ✓ لا ينشئ وضعاً رابعاً دون تحديث هذا الملف
 ```
@@ -330,4 +348,5 @@ companyState.permissions.isOwner = true | false
 
 *آخر تحديث: 2026-07-18 — V1: Viewer Modes & Permissions System foundation.
 يُغطي: VM-00 (Routing Protocol) → VM-09 (Forbidden Patterns).
-موثَّق في: docs/DESIGN_SYSTEM.md + docs/SYSTEMS_INDEX.md §40.*
+موثَّق في: docs/DESIGN_SYSTEM.md + docs/SYSTEMS_INDEX.md §40.
+rev.2: تصحيح VM-01 (Guest بدون localStorage)، VM-02 (admin auth contract مستقل)، VM-05 (Resource Identifiers vs identity claims)، VM-06 (JWT ليس مطلقاً + قاعدة البيانات الحساسة إلزامية)، VM-08 (Authentication Contract بدلاً من JWT).*

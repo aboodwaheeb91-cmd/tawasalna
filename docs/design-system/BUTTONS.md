@@ -666,7 +666,8 @@ Before → Click → Loading → Result → Back → Refresh
 
 ```
 ✓ كل زر مرتبط بصلاحية يجب توثيق البنود السبعة قبل التنفيذ
-✓ Hidden يُعني عدم وجود الزر في DOM — ليس display:none فقط إذا كان أمنياً
+✓ Hidden هو قرار UX/Visibility فقط — سواء كان غياباً من DOM أو display:none،
+  كلاهما ليس حماية أمنية. الحماية الفعلية دائماً في Backend endpoint بصرف النظر عن DOM state
 ✓ Disabled يُعني حالة وظيفية، لا صلاحية — أوضح للمستخدم لماذا
 ✓ الـ Backend endpoint مُؤمَّن دائماً بصرف النظر عن الـ UI
 ✓ مصدر الصلاحية دائماً server-side — Visibility Source مجرد UX
