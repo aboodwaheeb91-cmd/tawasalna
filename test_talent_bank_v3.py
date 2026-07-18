@@ -229,6 +229,64 @@ class TestApplyCardUpdateFunction(unittest.TestCase):
             "_applyCardUpdate must target .co-csc-fu-row for follow-up update")
 
 
+class TestQuotaBadgeFormat(unittest.TestCase):
+    """candidatesBadge and quota label must use Arabic 'من' — never ' / '."""
+
+    def _set_badge_fn(self):
+        m = re.search(
+            r"function _setBadge\(count\)(.*?)(?=\n  function |\n  var |\Z)",
+            JS_SRC, re.DOTALL
+        )
+        self.assertIsNotNone(m, "_setBadge function not found")
+        return m.group(1)
+
+    def test_badge_uses_min_not_slash(self):
+        body = self._set_badge_fn()
+        self.assertNotIn("' / '", body,
+            "candidatesBadge must NOT use ' / ' separator (RTL display bug)")
+        self.assertNotIn('" / "', body,
+            "candidatesBadge must NOT use ' / ' separator (RTL display bug)")
+
+    def test_badge_uses_arabic_min(self):
+        body = self._set_badge_fn()
+        self.assertIn("' من '", body,
+            "candidatesBadge must use Arabic ' من ' separator")
+
+    def test_quota_label_in_shell_uses_min(self):
+        m = re.search(
+            r"function _savedShellHTML\(\)(.*?)(?=\n  function |\n  var |\Z)",
+            JS_SRC, re.DOTALL
+        )
+        self.assertIsNotNone(m, "_savedShellHTML function not found")
+        body = m.group(1)
+        self.assertIn("' من '", body,
+            "Quota label inside talent bank modal must use ' من '")
+        self.assertNotIn("' / '", body,
+            "Quota label inside talent bank modal must NOT use ' / '")
+
+    def test_load_quota_callback_uses_min(self):
+        m = re.search(
+            r"_loadTalentBankQuota\s*=\s*function\s*\(\)(.*?)(?=\n  function |\n  var |\Z)",
+            JS_SRC, re.DOTALL
+        )
+        # Allow for either named or inline function form
+        if m is None:
+            m = re.search(
+                r"function _loadTalentBankQuota\s*\(\)(.*?)(?=\n  function |\n  var |\Z)",
+                JS_SRC, re.DOTALL
+            )
+        if m is None:
+            # Broad search for the quota callback block
+            m = re.search(
+                r"_quotaUsed\s*=.*?_quotaLimit.*?lbl\.textContent.*?(?=\n  [a-z}])",
+                JS_SRC, re.DOTALL
+            )
+        if m:
+            body = m.group(0)
+            self.assertNotIn("' / '", body,
+                "_loadTalentBankQuota callback must not use ' / '")
+
+
 class TestCSSCompactCards(unittest.TestCase):
     """company.css must contain the V3 compact card styles."""
 

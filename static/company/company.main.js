@@ -2713,9 +2713,9 @@
   // ── Badge ──────────────────────────────────────────────────────
   function _setBadge(count) {
     if (!_badge) return;
-    // Prefer quota format (used / limit) when quota is loaded
+    // Prefer quota format "used من limit" (RTL-safe Arabic) when quota is loaded
     if (_quotaUsed !== null) {
-      _badge.textContent = _quotaUsed + ' / ' + _quotaLimit;
+      _badge.textContent = _quotaUsed + ' من ' + _quotaLimit;
       _badge.style.display = 'inline-flex';
     } else if (count > 0) {
       _badge.textContent = count > 99 ? '99+' : String(count);
@@ -2727,7 +2727,7 @@
 
   function _loadBadge() {
     if (!_isOwner()) return;
-    _loadTalentBankQuota();   // sets _quotaUsed; shows "0 / 25" even before modal opens
+    _loadTalentBankQuota();   // sets _quotaUsed; shows "0 من 25" even before modal opens
     _loadSavedStats(null);
     if (_urlDeepLinkPending) {
       _urlDeepLinkPending = false;
