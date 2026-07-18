@@ -11531,7 +11531,31 @@ New query params: `view`, `page`, `limit`.
 
 **Backward compatibility:** when `view=""` (not provided), the response is returned in the legacy shape `{"applicants": [...], "count": N}` so the existing frontend (`data.applicants`) keeps working unchanged.
 
-When `view` is provided, the full paginated dict is returned.
+When `view` is provided, the full paginated dict is returned:
+
+```json
+{
+  "applicants": [...],
+  "total":            100,
+  "page":             1,
+  "limit":            50,
+  "view":             "applicants",
+  "total_applicants": 80,
+  "total_candidates": 20,
+  "total_all":        100
+}
+```
+
+**Tab counter fields (view-mode only):**
+
+| Field | Meaning | SQL |
+|---|---|---|
+| `total_applicants` | Applications never promoted (`promoted_at IS NULL`) | `COUNT(*) FILTER (WHERE jpe.promoted_at IS NULL)` |
+| `total_candidates` | Applications promoted to pipeline (`promoted_at IS NOT NULL`) | `COUNT(*) FILTER (WHERE jpe.promoted_at IS NOT NULL)` |
+| `total_all` | All applications for the job (no membership filter) | `COUNT(*)` |
+| `total` | Count for the current view (drives pagination math) | `= total_applicants` when `view='applicants'`, else `total_candidates` |
+
+All four counters come from **one aggregate SQL query** (`COUNT(*) FILTER (WHERE …)`) — no extra round-trips. `total_applicants`, `total_candidates`, `total_all` are absent from the legacy no-view response.
 
 ### Forbidden patterns (permanent)
 

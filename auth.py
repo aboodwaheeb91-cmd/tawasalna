@@ -2353,9 +2353,10 @@ def get_job_applicants(job_id: int, company_id: int = 0,
     limit: rows per page, clamped to 1-100 (for paginated views only)
 
     Returns a dict:
-      { applicants: [...], total: N, page: P, limit: L, view: V }
-    Legacy callers that don't pass view receive total = count of all rows and
-    limit = total (i.e. a single "page" covering everything).
+      { applicants: [...], total: N, total_applicants: A, total_candidates: C,
+        total_all: T, page: P, limit: L, view: V }
+    When view="" (legacy), total_applicants/total_candidates/total_all are omitted
+    and the server.py endpoint returns {applicants:[...], count:N} unchanged.
     """
     safe_limit = min(max(1, limit), 100)
     safe_page  = max(1, page)
@@ -2390,18 +2391,36 @@ def get_job_applicants(job_id: int, company_id: int = 0,
 
     conn = get_conn()
     try:
-        total = None
+        total            = None
+        total_applicants = None
+        total_candidates = None
+        total_all        = None
 
         if view:
-            # Paginated path: count total rows matching the filter first
-            count_rows = conn.run(
-                "SELECT COUNT(*) "
+            # Single aggregate: fetch all three tab counters in one DB round-trip.
+            # COUNT(*) FILTER is standard PostgreSQL and avoids two extra queries.
+            #   total_applicants = promoted_at IS NULL  (includes rejected-before-promotion)
+            #   total_candidates = promoted_at IS NOT NULL (includes promoted-then-rejected)
+            #   total_all        = all applications for this job regardless of membership
+            agg_rows = conn.run(
+                "SELECT "
+                "COUNT(*) AS total_all, "
+                "COUNT(*) FILTER (WHERE jpe.promoted_at IS NULL) AS total_applicants, "
+                "COUNT(*) FILTER (WHERE jpe.promoted_at IS NOT NULL) AS total_candidates "
                 "FROM job_applications ja "
                 "LEFT JOIN job_pipeline_entries jpe ON jpe.application_id=ja.id "
-                "WHERE ja.job_id=:jid" + view_filter,
+                "WHERE ja.job_id=:jid",
                 jid=job_id
             )
-            total = int(count_rows[0][0]) if count_rows else 0
+            if agg_rows:
+                total_all        = int(agg_rows[0][0] or 0)
+                total_applicants = int(agg_rows[0][1] or 0)
+                total_candidates = int(agg_rows[0][2] or 0)
+            else:
+                total_all = total_applicants = total_candidates = 0
+
+            # total = count for the current view (used for pagination math)
+            total = total_applicants if view == "applicants" else total_candidates
 
             rows = conn.run(
                 _SELECT_COLS + _FROM_WHERE
@@ -2479,13 +2498,18 @@ def get_job_applicants(job_id: int, company_id: int = 0,
             for a in items:
                 a['other_job_titles'] = []
 
-        return {
+        result = {
             "applicants": items,
             "total":      total,
             "page":       safe_page if view else 1,
             "limit":      safe_limit if view else total,
             "view":       view,
         }
+        if view:
+            result["total_applicants"] = total_applicants
+            result["total_candidates"] = total_candidates
+            result["total_all"]        = total_all
+        return result
     finally:
         release_conn(conn)
 
