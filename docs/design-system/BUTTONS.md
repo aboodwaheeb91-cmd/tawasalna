@@ -512,10 +512,11 @@ Before → Click → Loading → Result → Back → Refresh
 ❌ outline: none بدون :focus-visible بديل
 ❌ user-select: text على button
 ❌ Loading state بـ setTimeout وهمي
-❌ حذف مباشر بدون feedback لإجراء غير قابل للتراجع
+❌ تنفيذ إجراء غير قابل للتراجع أو عالي الخطورة بدون Confirmation مناسب
+❌ تنفيذ Action بدون Feedback مناسب عندما يحتاج المستخدم معرفة نتيجة العملية
 ❌ Primary button أحمر اللون
 ❌ Danger button أخضر اللون
-❌ زر بدون تعريف حالة disabled
+❌ استخدام Disabled State بدون تعريف سلوكه والسبب الذي يستدعيه
 ❌ إخفاء الزر في حالة Loading بدلاً من تعطيله
 ❌ تغيير width/height عند hover
 ❌ <button> داخل <button>
