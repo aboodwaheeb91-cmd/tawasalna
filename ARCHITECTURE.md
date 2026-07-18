@@ -11561,8 +11561,7 @@ When `view` is provided, the full response shape is:
     "country":       null,
     "applied_after": null,
     "applied_before":null,
-    "q":             null,
-    "min_match":     null
+    "q":             null
   }
 }
 ```
@@ -11584,10 +11583,12 @@ When `view` is provided, the full response shape is:
 |---|---|---|
 | `applied_desc` (default) | `ORDER BY ja.applied_at DESC` | Active |
 | `applied_asc` | `ORDER BY ja.applied_at ASC` | Active |
-| `match_desc` | `ORDER BY ja.match_score DESC NULLS LAST` | Falls back to `applied_desc` until match_score schema added |
-| `match_asc` | `ORDER BY ja.match_score ASC NULLS LAST` | Falls back to `applied_asc` until match_score schema added |
+| `match_desc` | `ORDER BY ja.match_score DESC NULLS LAST` | **HTTP 400** — activates after match_score schema added |
+| `match_asc` | `ORDER BY ja.match_score ASC NULLS LAST` | **HTTP 400** — activates after match_score schema added |
 
-Unknown sort values → HTTP 400. `_APPLICANT_SORT_MAP` in `auth.py` is the single whitelist — never build ORDER BY from raw user input.
+`match_desc`/`match_asc` are checked **before** the general whitelist in `server.py` and return a specific HTTP 400: `"sort=match_desc/match_asc غير متاح بعد — يُفعَّل عند إضافة match_score schema"`. They are **not** in `_APPLICANT_SORT_MAP` — adding them with a fallback to `applied_at` would silently sort by the wrong field while echoing the requested sort value (contract lie).
+
+Unknown sort values → HTTP 400 `"sort يجب أن يكون: applied_desc | applied_asc"`. `_APPLICANT_SORT_MAP` in `auth.py` is the single ORDER BY injection guard — never build ORDER BY from raw user input.
 
 #### Filter params
 
@@ -11598,7 +11599,10 @@ Unknown sort values → HTTP 400. `_APPLICANT_SORT_MAP` in `auth.py` is the sing
 | `applied_after` | `ja.applied_at >= :f_after::date` | YYYY-MM-DD inclusive lower bound |
 | `applied_before` | `ja.applied_at < (:f_before::date + INTERVAL '1 day')` | YYYY-MM-DD inclusive upper bound |
 | `q` | `(u.full_name ILIKE :f_q OR p.headline ILIKE :f_q)` | substring match, `%query%` |
-| `min_match` | reserved — activates when match_score schema is added | validated 0–100, currently no-op |
+| `min_match` | **HTTP 400** — activates when match_score schema is added | `"min_match غير متاح بعد"` — no silent no-op |
+
+Date parameters (`applied_after`, `applied_before`) are validated with `datetime.strptime(val, "%Y-%m-%d")`, **not** regex alone — this rejects semantically invalid dates like `2026-99-99` that would pass a format regex but fail in PostgreSQL.  
+`min_match` is not echoed in the `filters` response object (only active filters appear there).
 
 #### match_score field
 
@@ -11620,9 +11624,9 @@ CREATE INDEX IF NOT EXISTS idx_ja_match_score ON job_applications(job_id, match_
 - `match_score = NULL` when job has no skills
 - `match_alg = 1` is the current version; increment when algorithm changes
 - Backfill in `_migrate_match_score()` runs on startup (evidence-based, does not overwrite existing values)
-- Once column exists: `_APPLICANT_SORT_MAP["match_desc"]` and `["match_asc"]` get their real SQL expressions activated
+- Once column exists: add `match_desc` and `match_asc` to `_APPLICANT_SORT_MAP` **and** remove the dedicated HTTP 400 check in `server.py`. Both changes must land in the same PR.
 
-Do NOT activate match_desc/match_asc in `_APPLICANT_SORT_MAP` before the column exists — it would cause a SQL error.
+Do NOT add match_desc/match_asc to `_APPLICANT_SORT_MAP` before the column exists — it would cause a SQL error. Do NOT add them as fallbacks to `applied_at` — that silently lies about the sort being applied.
 
 ### Forbidden patterns (permanent)
 
@@ -11634,7 +11638,11 @@ Do NOT activate match_desc/match_asc in `_APPLICANT_SORT_MAP` before the column 
 ❌ Adding a separate "candidates" table — promoted_at on job_pipeline_entries is the source
 ❌ Injecting raw sort param into ORDER BY — always use _APPLICANT_SORT_MAP whitelist
 ❌ Treating match_score null as 0 — null means "not computed", not "0% match"
-❌ Activating match_desc/match_asc in _APPLICANT_SORT_MAP before match_score column exists
+❌ Adding match_desc/match_asc to _APPLICANT_SORT_MAP before match_score column exists
+❌ Adding match_desc/match_asc as fallbacks to applied_at in _APPLICANT_SORT_MAP (silent contract lie)
+❌ Using regex alone for date validation — must use datetime.strptime to reject 2026-99-99 style dates
+❌ Accepting min_match and silently ignoring it — it must return HTTP 400 until activated
+❌ Echoing min_match in the filters response when it is not an active filter
 ❌ Computing match_score per-row in a Python loop (N+1 risk) — use SQL or stored column
 ❌ Using city/country/date/q filters on the membership aggregate query — tab counters must stay job-wide
 ❌ Accepting company_id from the frontend — always fetch from DB via job ownership lookup

@@ -4216,12 +4216,10 @@ def job_applicants(
       applied_after=YYYY-MM-DD   inclusive lower bound on applied_at
       applied_before=YYYY-MM-DD  inclusive upper bound on applied_at
       q=...            substring search on full_name or headline
-      min_match=N      0-100 integer; reserved — activates with match_score schema
+      min_match=N      returns HTTP 400 — activates when match_score schema is added
 
     No view → legacy: {applicants:[...], count:N} unchanged.
     """
-    import re as _re
-
     user_id = token.get("user_id")
     if not user_id:
         print(f"[SECURITY] INVALID_TOKEN: GET /jobs/{job_id}/applicants")
@@ -4231,25 +4229,27 @@ def job_applicants(
     if view not in ("", "applicants", "candidates"):
         raise HTTPException(400, "view يجب أن يكون: applicants أو candidates")
 
+    if sort in {"match_desc", "match_asc"}:
+        raise HTTPException(400,
+            "sort=match_desc/match_asc غير متاح بعد — يُفعَّل عند إضافة match_score schema")
     if sort not in _APPLICANT_SORT_MAP:
         raise HTTPException(400,
-            "sort يجب أن يكون: applied_desc | applied_asc | match_desc | match_asc")
+            "sort يجب أن يكون: applied_desc | applied_asc")
 
-    _DATE_RE = _re.compile(r"^\d{4}-\d{2}-\d{2}$")
-    if applied_after  and not _DATE_RE.match(applied_after):
-        raise HTTPException(400, "applied_after يجب أن يكون بصيغة YYYY-MM-DD")
-    if applied_before and not _DATE_RE.match(applied_before):
-        raise HTTPException(400, "applied_before يجب أن يكون بصيغة YYYY-MM-DD")
-
-    # min_match: validated but reserved until match_score schema is active
-    parsed_min_match: int | None = None
-    if min_match:
+    def _parse_date(val: str, param: str) -> None:
         try:
-            parsed_min_match = int(min_match)
-            if not (0 <= parsed_min_match <= 100):
-                raise ValueError()
-        except (ValueError, TypeError):
-            raise HTTPException(400, "min_match يجب أن يكون رقماً بين 0 و 100")
+            datetime.strptime(val, "%Y-%m-%d")
+        except ValueError:
+            raise HTTPException(400, f"{param} تاريخ غير صالح — يجب أن يكون بصيغة YYYY-MM-DD")
+
+    if applied_after:
+        _parse_date(applied_after, "applied_after")
+    if applied_before:
+        _parse_date(applied_before, "applied_before")
+
+    if min_match:
+        raise HTTPException(400,
+            "min_match غير متاح بعد — يُفعَّل عند إضافة match_score schema")
 
     if page < 1:
         raise HTTPException(400, "page يجب أن يكون 1 أو أكثر")

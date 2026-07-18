@@ -22,7 +22,7 @@ SERVER_SRC = (ROOT / "server.py").read_text()
 # ── 1. Sort map and whitelist ────────────────────────────────────────────────
 
 class TestSortWhitelist(unittest.TestCase):
-    """_APPLICANT_SORT_MAP must exist and contain the four approved values."""
+    """_APPLICANT_SORT_MAP must exist and contain exactly the two active sort values."""
 
     def test_sort_map_exists(self):
         self.assertIn("_APPLICANT_SORT_MAP", AUTH_SRC,
@@ -36,13 +36,20 @@ class TestSortWhitelist(unittest.TestCase):
         self.assertIn('"applied_asc"', AUTH_SRC,
             "applied_asc must be a key in _APPLICANT_SORT_MAP")
 
-    def test_match_desc_in_sort_map(self):
-        self.assertIn('"match_desc"', AUTH_SRC,
-            "match_desc must be a key in _APPLICANT_SORT_MAP (reserved placeholder)")
+    def test_match_desc_not_in_sort_map(self):
+        # match_desc must NOT be in the map — server.py returns HTTP 400 for it.
+        # Adding it would cause silent misleading sort (returns applied_at ordering).
+        map_block = re.search(r"_APPLICANT_SORT_MAP.*?\}", AUTH_SRC, re.DOTALL)
+        self.assertIsNotNone(map_block, "_APPLICANT_SORT_MAP block not found")
+        self.assertNotIn('"match_desc"', map_block.group(0),
+            "match_desc must NOT be in _APPLICANT_SORT_MAP — it returns HTTP 400 until activated")
 
-    def test_match_asc_in_sort_map(self):
-        self.assertIn('"match_asc"', AUTH_SRC,
-            "match_asc must be a key in _APPLICANT_SORT_MAP (reserved placeholder)")
+    def test_match_asc_not_in_sort_map(self):
+        # match_asc must NOT be in the map — server.py returns HTTP 400 for it.
+        map_block = re.search(r"_APPLICANT_SORT_MAP.*?\}", AUTH_SRC, re.DOTALL)
+        self.assertIsNotNone(map_block, "_APPLICANT_SORT_MAP block not found")
+        self.assertNotIn('"match_asc"', map_block.group(0),
+            "match_asc must NOT be in _APPLICANT_SORT_MAP — it returns HTTP 400 until activated")
 
     def test_sort_not_injected_raw(self):
         # ORDER BY must use the mapped value, not the raw user-supplied sort param
@@ -289,10 +296,15 @@ class TestResponseContract(unittest.TestCase):
         self.assertIn('"applied_before"', body,
             "filters echo must include 'applied_before' field")
 
-    def test_filters_echo_min_match_reserved(self):
-        body = self._fn_body()
-        self.assertIn('"min_match"', body,
-            "filters echo must include 'min_match' field (reserved null placeholder)")
+    def test_filters_echo_no_min_match(self):
+        # min_match must NOT appear in the filters echo — it returns 400 at the endpoint,
+        # so including it in the response would imply it's an active filter.
+        filter_block = re.search(
+            r'result\["filters"\]\s*=\s*\{[^}]*\}', self._fn_body(), re.DOTALL
+        )
+        self.assertIsNotNone(filter_block, "result[\"filters\"] = {...} dict not found in response")
+        self.assertNotIn('"min_match"', filter_block.group(0),
+            "filters echo must NOT include 'min_match' — it is not an active filter")
 
     def test_match_score_null_in_items(self):
         body = self._fn_body()
@@ -361,12 +373,37 @@ class TestServerEndpoint(unittest.TestCase):
         self.assertIn("YYYY-MM-DD", body,
             "Endpoint must validate date format and mention YYYY-MM-DD in error message")
 
-    def test_min_match_range_validation(self):
+    def test_date_validation_uses_strptime(self):
         body = self._endpoint_body()
-        self.assertIn("min_match", body,
-            "min_match must be validated in endpoint")
-        self.assertIn("0 <= parsed_min_match <= 100", body,
-            "min_match must be constrained to 0-100")
+        self.assertIn("strptime", body,
+            "Date validation must use datetime.strptime to catch semantically invalid dates "
+            "like 2026-99-99 that pass the regex but are not real dates")
+
+    def test_min_match_returns_400_when_provided(self):
+        body = self._endpoint_body()
+        self.assertIn("min_match غير متاح بعد", body,
+            "min_match must return HTTP 400 'غير متاح بعد' when provided — not silently ignored")
+        self.assertNotIn("0 <= parsed_min_match <= 100", body,
+            "min_match must not be range-validated and then silently ignored")
+
+    def test_match_desc_returns_400(self):
+        body = self._endpoint_body()
+        self.assertIn('"match_desc"', body,
+            "Endpoint must explicitly check for match_desc and return 400")
+        self.assertIn("match_desc/match_asc غير متاح بعد", body,
+            "HTTP 400 message for match_desc/match_asc must mention they are not yet active")
+
+    def test_match_asc_returns_400(self):
+        body = self._endpoint_body()
+        self.assertIn('"match_asc"', body,
+            "Endpoint must explicitly check for match_asc and return 400")
+
+    def test_active_sort_error_message_is_honest(self):
+        body = self._endpoint_body()
+        # Error message for unknown sort must only list the two active values
+        self.assertIn("applied_desc | applied_asc", body,
+            "Unknown sort error message must only list the two active values, "
+            "not match_desc/match_asc which have a separate dedicated 400")
 
     def test_sort_400_for_invalid(self):
         body = self._endpoint_body()

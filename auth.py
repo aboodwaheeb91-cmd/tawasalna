@@ -2341,14 +2341,11 @@ def apply_job(job_id: int, user_id: int, cover_letter: str = "") -> dict:
         release_conn(conn)
 
 # Applicants/Candidates list sort whitelist — ORDER BY injection guard.
-# match_desc / match_asc are reserved; they fall back to applied_at until
-# match_score column is added to job_applications (schema pending approval).
-# When match_score column is added, replace the fallback values here and activate.
+# match_desc / match_asc are NOT in this map — server.py returns HTTP 400 for them.
+# When match_score column is added, add them here and remove the 400 in server.py.
 _APPLICANT_SORT_MAP: dict = {
     "applied_desc": "ja.applied_at DESC",
     "applied_asc":  "ja.applied_at ASC",
-    "match_desc":   "ja.applied_at DESC",   # fallback — activates after match_score schema
-    "match_asc":    "ja.applied_at ASC",    # fallback — activates after match_score schema
 }
 
 
@@ -2373,8 +2370,8 @@ def get_job_applicants(
                    "applicants" → promoted_at IS NULL
                    "candidates" → promoted_at IS NOT NULL
 
-    sort:          applied_desc (default) | applied_asc | match_desc | match_asc
-                   match_* fall back to applied_* until match_score schema is added.
+    sort:          applied_desc (default) | applied_asc
+                   match_desc / match_asc return HTTP 400 until match_score schema is added.
 
     city:          case-insensitive exact match on profiles.city
     country:       case-insensitive exact match on profiles.country
@@ -2592,7 +2589,6 @@ def get_job_applicants(
                 "applied_after": applied_after or None,
                 "applied_before":applied_before or None,
                 "q":             q or None,
-                "min_match":     None,   # reserved — activates with match_score schema
             }
         return result
     finally:
