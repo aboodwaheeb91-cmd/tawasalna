@@ -122,6 +122,7 @@ from auth import (
     BlockingConflictError,
     TalentBankLimitError,
     _migrate_pr5_pipeline_linking,
+    _migrate_applicants_candidates_split,
     _resolve_pipeline_entry,
     PipelineEntryRequiredError,
     PipelineApplicationConflictError,
@@ -563,6 +564,11 @@ async def on_startup():
         print("✅ PR-5 pipeline linking ready (appointment_type, end_at, applicant_id backfill)")
     except Exception as e:
         print(f"❌ PR-5 pipeline linking migration failed: {e}")
+        raise
+    try:
+        _migrate_applicants_candidates_split()
+    except Exception as e:
+        print(f"❌ PR-6 (applicants-candidates-split) migration failed: {e}")
         raise
     # NOTE: _migrate_partial_unique_application_id() is NOT called here on startup.
     # The partial UNIQUE index on job_pipeline_entries(application_id) must be created AFTER
@@ -4182,11 +4188,30 @@ def apply_to_job(job_id: int, data: JobApplyInput, token=Depends(verify_token)):
     return {"status": "success", **result}
 
 @app.get("/jobs/{job_id}/applicants")
-def job_applicants(job_id: int, token=Depends(verify_token)):
+def job_applicants(
+    job_id: int,
+    view: str = "",
+    page: int = 1,
+    limit: int = 50,
+    token=Depends(verify_token),
+):
+    """
+    GET /jobs/{job_id}/applicants
+
+    Query params (all optional):
+      view=applicants  → promoted_at IS NULL (applicants not yet promoted)
+      view=candidates  → promoted_at IS NOT NULL (promoted candidates)
+      page=N           → 1-based page number (paginated views only)
+      limit=N          → rows per page, 1-100, default 50 (paginated views only)
+
+    No view param → legacy behavior: returns all rows without pagination.
+    """
     user_id = token.get("user_id")
     if not user_id:
         print(f"[SECURITY] INVALID_TOKEN: GET /jobs/{job_id}/applicants")
         raise HTTPException(401, "رمز غير صالح")
+    if view not in ("", "applicants", "candidates"):
+        raise HTTPException(400, "view يجب أن يكون: applicants أو candidates")
     conn = get_conn()
     try:
         rows = conn.run("SELECT company_id FROM jobs WHERE id=:jid", jid=job_id)
@@ -4196,10 +4221,14 @@ def job_applicants(job_id: int, token=Depends(verify_token)):
     finally:
         release_conn(conn)
     if int(job_company_id) != int(user_id):
-        print(f"[SECURITY] JOB_OWNERSHIP_FAILED: user {user_id} tried to access applicants for job {job_id} owned by {job_company_id}")
+        print(f"[SECURITY] JOB_OWNERSHIP_FAILED: user {user_id} tried to access applicants "
+              f"for job {job_id} owned by {job_company_id}")
         raise HTTPException(403, "غير مصرح — هذه الوظيفة ليست لشركتك")
-    applicants = get_job_applicants(job_id, int(job_company_id))
-    return {"applicants": applicants, "count": len(applicants)}
+    result = get_job_applicants(job_id, int(job_company_id), view=view, page=page, limit=limit)
+    if not view:
+        # Legacy response format — backward compatible with existing frontend
+        return {"applicants": result["applicants"], "count": result["total"]}
+    return result
 
 @app.get("/my/applications")
 def my_applications(token=Depends(verify_token)):

@@ -11466,3 +11466,103 @@ pg8000 native `Connection.run()` sends Python `None` as untyped NULL (OID 0). Po
 **DB migrations tested on startup:** `appointment_type`, `end_at`, `mode` columns; `applicant_id` backfill; Step 7 `pipeline_entry_id` backfill (HAVING COUNT=1, idempotent).
 
 **job_links extended fields (Section 2):** `pipeline_entry_id`, `application_id`, `pipeline_notes_count`, `next_appointment` — returned from both `get_company_saved_candidates` and `get_company_saved_candidates_filtered`.
+
+## §70 — Applicants vs Candidates Split (PR-6)
+
+**System purpose:** Architectural separation of applicants (anyone who submitted a job application) from candidates (applicants explicitly promoted to the hiring pipeline by the company).
+
+### The Candidate Membership Marker
+
+`job_pipeline_entries.promoted_at TIMESTAMPTZ NULL` is the single source of truth for candidate membership:
+
+| `promoted_at` value | Meaning |
+|---------------------|---------|
+| `NULL` | Applicant only — submitted application, not yet promoted |
+| `NOT NULL` | Confirmed candidate — explicitly promoted via `promote_application_to_shortlist()` |
+
+**Never** derive candidate membership from `stage` alone. An applicant can be directly rejected (`stage='rejected'`, `promoted_at=NULL`) without ever becoming a candidate.
+
+### DB Migration (`_migrate_applicants_candidates_split`)
+
+Runs on startup after `_migrate_pr5_pipeline_linking()`. Idempotent.
+
+1. `ALTER TABLE job_pipeline_entries ADD COLUMN IF NOT EXISTS promoted_at TIMESTAMPTZ NULL`
+2. Evidence-based backfill: sets `promoted_at = MIN(pse.created_at)` for entries that have a `pipeline_stage_events` row with `to_stage='shortlisted'` and `promoted_at IS NULL`. Never overwrites an existing value.
+3. Reports ambiguous entries (advanced stage, no shortlisted event) as warnings — they remain `promoted_at=NULL` and are treated as applicants.
+
+### `promote_application_to_shortlist` — new step
+
+Inside the existing atomic transaction, after `_pipeline_upsert_entry` and before `_pipeline_update_stage`:
+
+```sql
+UPDATE job_pipeline_entries
+SET promoted_at = COALESCE(promoted_at, NOW()), updated_at = NOW()
+WHERE company_id = :cid AND candidate_id = :uid AND job_id = :jid
+```
+
+`COALESCE` makes this idempotent: calling promote twice does not move `promoted_at` forward.
+
+### `get_job_applicants` — server-side pagination
+
+New signature: `get_job_applicants(job_id, company_id, view="", page=1, limit=50) -> dict`
+
+| `view` value | SQL filter | Notes |
+|---|---|---|
+| `""` (default) | none | Legacy mode — returns all rows, no pagination |
+| `"applicants"` | `jpe.promoted_at IS NULL` | Includes rows with no pipeline entry (LEFT JOIN NULL) |
+| `"candidates"` | `jpe.promoted_at IS NOT NULL` | Only rows with a non-NULL promoted_at |
+
+`limit` is clamped server-side to `1–100`. `page` is 1-based.
+
+Return shape (always a dict now):
+```json
+{
+  "applicants": [...],
+  "total": 42,
+  "page": 1,
+  "limit": 50,
+  "view": "applicants"
+}
+```
+
+### `GET /jobs/{job_id}/applicants` endpoint update
+
+New query params: `view`, `page`, `limit`.
+
+**Backward compatibility:** when `view=""` (not provided), the response is returned in the legacy shape `{"applicants": [...], "count": N}` so the existing frontend (`data.applicants`) keeps working unchanged.
+
+When `view` is provided, the full paginated dict is returned:
+
+```json
+{
+  "applicants": [...],
+  "total":            100,
+  "page":             1,
+  "limit":            50,
+  "view":             "applicants",
+  "total_applicants": 80,
+  "total_candidates": 20,
+  "total_all":        100
+}
+```
+
+**Tab counter fields (view-mode only):**
+
+| Field | Meaning | SQL |
+|---|---|---|
+| `total_applicants` | Applications never promoted (`promoted_at IS NULL`) | `COUNT(*) FILTER (WHERE jpe.promoted_at IS NULL)` |
+| `total_candidates` | Applications promoted to pipeline (`promoted_at IS NOT NULL`) | `COUNT(*) FILTER (WHERE jpe.promoted_at IS NOT NULL)` |
+| `total_all` | All applications for the job (no membership filter) | `COUNT(*)` |
+| `total` | Count for the current view (drives pagination math) | `= total_applicants` when `view='applicants'`, else `total_candidates` |
+
+All four counters come from **one aggregate SQL query** (`COUNT(*) FILTER (WHERE …)`) — no extra round-trips. `total_applicants`, `total_candidates`, `total_all` are absent from the legacy no-view response.
+
+### Forbidden patterns (permanent)
+
+```
+❌ Using stage alone to determine candidate membership (stage='shortlisted' ≠ candidate)
+❌ Clearing promoted_at once set — it is a permanent membership marker
+❌ Writing promoted_at from any path other than promote_application_to_shortlist
+❌ Frontend reading promoted_at directly — use the view filter in the API
+❌ Adding a separate "candidates" table — promoted_at on job_pipeline_entries is the source
+```

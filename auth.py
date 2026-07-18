@@ -2340,35 +2340,105 @@ def apply_job(job_id: int, user_id: int, cover_letter: str = "") -> dict:
     finally:
         release_conn(conn)
 
-def get_job_applicants(job_id: int, company_id: int = 0) -> list:
+def get_job_applicants(job_id: int, company_id: int = 0,
+                       view: str = "", page: int = 1, limit: int = 50) -> dict:
     """
-    Returns applicants for a job. Additive pipeline fields (PR-5):
-      pipeline_entry_id, stage, pipeline_notes_count, next_appointment.
-    Reading is allowed even for archived jobs (archived_at check is creation-only).
+    Returns applicants (and/or candidates) for a job.
+
+    view:  ""           → legacy mode — no filter, no pagination, returns all
+           "applicants" → promoted_at IS NULL (not yet promoted to candidate)
+           "candidates" → promoted_at IS NOT NULL (explicitly promoted)
+
+    page:  1-based (for paginated views only)
+    limit: rows per page, clamped to 1-100 (for paginated views only)
+
+    Returns a dict:
+      { applicants: [...], total: N, total_applicants: A, total_candidates: C,
+        total_all: T, page: P, limit: L, view: V }
+    When view="" (legacy), total_applicants/total_candidates/total_all are omitted
+    and the server.py endpoint returns {applicants:[...], count:N} unchanged.
     """
+    safe_limit = min(max(1, limit), 100)
+    safe_page  = max(1, page)
+    offset     = (safe_page - 1) * safe_limit
+
+    # Build the view-specific WHERE fragment (safe — no user input interpolated into SQL)
+    view_filter = ""
+    if view == "applicants":
+        view_filter = " AND (jpe.promoted_at IS NULL)"
+    elif view == "candidates":
+        view_filter = " AND (jpe.promoted_at IS NOT NULL)"
+
+    _SELECT_COLS = (
+        "SELECT ja.id, ja.job_id, ja.user_id, ja.status, ja.cover_letter, ja.applied_at, "
+        "u.full_name, u.user_type, u.tw_id, "
+        "p.avatar_url, "
+        "CASE WHEN sc.candidate_id IS NOT NULL THEN true ELSE false END AS is_saved, "
+        "jpe.id AS pipeline_entry_id, "
+        "jpe.stage, "
+        "(SELECT COUNT(*) FROM pipeline_notes pn "
+        " WHERE pn.pipeline_entry_id = jpe.id AND pn.deleted_at IS NULL) AS pipeline_notes_count "
+    )
+    _FROM_WHERE = (
+        "FROM job_applications ja "
+        "JOIN users u ON u.id=ja.user_id "
+        "LEFT JOIN profiles p ON p.user_id=ja.user_id "
+        "LEFT JOIN company_saved_candidates sc "
+        "  ON sc.company_id=:cid AND sc.candidate_id=ja.user_id "
+        "LEFT JOIN job_pipeline_entries jpe ON jpe.application_id=ja.id "
+        "WHERE ja.job_id=:jid" + view_filter
+    )
+
     conn = get_conn()
     try:
-        rows = conn.run(
-            "SELECT ja.id, ja.job_id, ja.user_id, ja.status, ja.cover_letter, ja.applied_at, "
-            "u.full_name, u.user_type, u.tw_id, "
-            "p.avatar_url, "
-            "CASE WHEN sc.candidate_id IS NOT NULL THEN true ELSE false END AS is_saved, "
-            "jpe.id AS pipeline_entry_id, "
-            "jpe.stage, "
-            "(SELECT COUNT(*) FROM pipeline_notes pn "
-            " WHERE pn.pipeline_entry_id = jpe.id AND pn.deleted_at IS NULL) "
-            " AS pipeline_notes_count "
-            "FROM job_applications ja "
-            "JOIN users u ON u.id=ja.user_id "
-            "LEFT JOIN profiles p ON p.user_id=ja.user_id "
-            "LEFT JOIN company_saved_candidates sc "
-            "  ON sc.company_id=:cid AND sc.candidate_id=ja.user_id "
-            "LEFT JOIN job_pipeline_entries jpe ON jpe.application_id=ja.id "
-            "WHERE ja.job_id=:jid ORDER BY ja.applied_at DESC",
-            jid=job_id, cid=company_id
-        )
-        cols = [c["name"] for c in conn.columns]
+        total            = None
+        total_applicants = None
+        total_candidates = None
+        total_all        = None
+
+        if view:
+            # Single aggregate: fetch all three tab counters in one DB round-trip.
+            # COUNT(*) FILTER is standard PostgreSQL and avoids two extra queries.
+            #   total_applicants = promoted_at IS NULL  (includes rejected-before-promotion)
+            #   total_candidates = promoted_at IS NOT NULL (includes promoted-then-rejected)
+            #   total_all        = all applications for this job regardless of membership
+            agg_rows = conn.run(
+                "SELECT "
+                "COUNT(*) AS total_all, "
+                "COUNT(*) FILTER (WHERE jpe.promoted_at IS NULL) AS total_applicants, "
+                "COUNT(*) FILTER (WHERE jpe.promoted_at IS NOT NULL) AS total_candidates "
+                "FROM job_applications ja "
+                "LEFT JOIN job_pipeline_entries jpe ON jpe.application_id=ja.id "
+                "WHERE ja.job_id=:jid",
+                jid=job_id
+            )
+            if agg_rows:
+                total_all        = int(agg_rows[0][0] or 0)
+                total_applicants = int(agg_rows[0][1] or 0)
+                total_candidates = int(agg_rows[0][2] or 0)
+            else:
+                total_all = total_applicants = total_candidates = 0
+
+            # total = count for the current view (used for pagination math)
+            total = total_applicants if view == "applicants" else total_candidates
+
+            rows = conn.run(
+                _SELECT_COLS + _FROM_WHERE
+                + " ORDER BY ja.applied_at DESC LIMIT :lmt OFFSET :off",
+                jid=job_id, cid=company_id, lmt=safe_limit, off=offset
+            )
+        else:
+            # Legacy path: no pagination — fetch everything
+            rows = conn.run(
+                _SELECT_COLS + _FROM_WHERE + " ORDER BY ja.applied_at DESC",
+                jid=job_id, cid=company_id
+            )
+
+        cols  = [c["name"] for c in conn.columns]
         items = [_serialize(_row_to_dict(cols, r)) for r in rows]
+
+        if total is None:
+            total = len(items)
 
         # Convert pipeline_notes_count to int (pg8000 may return Decimal)
         for a in items:
@@ -2428,7 +2498,18 @@ def get_job_applicants(job_id: int, company_id: int = 0) -> list:
             for a in items:
                 a['other_job_titles'] = []
 
-        return items
+        result = {
+            "applicants": items,
+            "total":      total,
+            "page":       safe_page if view else 1,
+            "limit":      safe_limit if view else total,
+            "view":       view,
+        }
+        if view:
+            result["total_applicants"] = total_applicants
+            result["total_candidates"] = total_candidates
+            result["total_all"]        = total_all
+        return result
     finally:
         release_conn(conn)
 
@@ -6180,6 +6261,16 @@ def promote_application_to_shortlist(app_id: int, company_id: int) -> dict:
                 job_title_snapshot=None,
                 initial_event_reason="application_shortlisted",
             )
+
+            # ── 5b. Stamp promoted_at — idempotent (COALESCE never overwrites) ──
+            # This is what separates "candidate" from "applicant" in the PR-6 split.
+            conn.run(
+                "UPDATE job_pipeline_entries "
+                "SET promoted_at = COALESCE(promoted_at, NOW()), updated_at = NOW() "
+                "WHERE company_id = :cid AND candidate_id = :uid AND job_id = :jid",
+                cid=int(company_id), uid=int(applicant_id), jid=int(job_id),
+            )
+
             _pipeline_update_stage(
                 conn,
                 company_id=int(company_id),
@@ -10076,3 +10167,73 @@ def delete_pipeline_note(note_id: int, company_id: int) -> None:
 
 
 _APPT_PIPELINE_VALID_TYPES = {'interview', 'call', 'task', 'other'}
+
+
+# ── PR-6: Applicants vs Candidates — schema migration ─────────────────────────
+
+def _migrate_applicants_candidates_split() -> None:
+    """
+    PR-6 additive migration — idempotent, safe to run multiple times.
+
+    Changes:
+      1. Adds promoted_at TIMESTAMPTZ NULL to job_pipeline_entries.
+         promoted_at IS NULL  → applicant only (not yet promoted)
+         promoted_at IS NOT NULL → confirmed candidate (promoted via promote_application_to_shortlist)
+
+      2. Evidence-based backfill: sets promoted_at = earliest 'shortlisted'
+         pipeline_stage_events.created_at for entries that already passed through
+         shortlisting (safe: only updates rows where promoted_at IS NULL).
+
+    Ambiguous entries (advanced stage but no shortlisted event recorded) are left
+    with promoted_at = NULL and reported as a warning. They are treated as
+    applicants until explicitly promoted.
+    """
+    conn = get_conn()
+    try:
+        # 1. Add column (idempotent — IF NOT EXISTS prevents duplicate-column errors)
+        conn.run(
+            "ALTER TABLE job_pipeline_entries "
+            "ADD COLUMN IF NOT EXISTS promoted_at TIMESTAMPTZ NULL"
+        )
+
+        # 2. Evidence-based backfill using pipeline_stage_events audit trail.
+        #    Sets promoted_at = MIN(event.created_at) for entries where:
+        #      - at least one pipeline_stage_events row exists with to_stage='shortlisted'
+        #      - promoted_at is still NULL (never overwrites an already-set value)
+        conn.run(
+            "UPDATE job_pipeline_entries "
+            "SET promoted_at = sub.first_promoted_at, updated_at = NOW() "
+            "FROM ("
+            "  SELECT pse.pipeline_entry_id, MIN(pse.created_at) AS first_promoted_at "
+            "  FROM pipeline_stage_events pse "
+            "  WHERE pse.to_stage = 'shortlisted' "
+            "  GROUP BY pse.pipeline_entry_id"
+            ") sub "
+            "WHERE job_pipeline_entries.id = sub.pipeline_entry_id "
+            "AND job_pipeline_entries.promoted_at IS NULL"
+        )
+
+        # 3. Count ambiguous entries for operator awareness (not a blocking error)
+        ambiguous_rows = conn.run(
+            "SELECT COUNT(*) FROM job_pipeline_entries "
+            "WHERE stage NOT IN ('new', 'reviewing') "
+            "AND promoted_at IS NULL "
+            "AND NOT EXISTS ("
+            "  SELECT 1 FROM pipeline_stage_events pse "
+            "  WHERE pse.pipeline_entry_id = job_pipeline_entries.id "
+            "  AND pse.to_stage = 'shortlisted'"
+            ")"
+        )
+        ambiguous_count = int(ambiguous_rows[0][0]) if ambiguous_rows else 0
+
+        print(
+            "✅ PR-6 (applicants-candidates-split): promoted_at column ready, "
+            f"ambiguous_entries={ambiguous_count}"
+        )
+        if ambiguous_count:
+            print(
+                f"   ⚠️  {ambiguous_count} pipeline entries advanced past new/reviewing "
+                "but have no shortlisted event → promoted_at=NULL (treated as applicants)."
+            )
+    finally:
+        release_conn(conn)
