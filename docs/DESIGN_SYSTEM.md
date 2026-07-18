@@ -7,7 +7,7 @@
 
 ## AI Reading Protocol
 
-**قبل أي تنفيذ أو تعديل يمس زراً أو عنصراً تفاعلياً:**
+**قبل أي تنفيذ أو تعديل يمس زراً أو عنصراً تفاعلياً أو صلاحية:**
 
 1. ابدأ من جدول **Quick Routes** أدناه.
 2. حدِّد نوع مهمتك.
@@ -31,6 +31,10 @@
 | إجراء خطير / حذف | [BUTTONS.md](design-system/BUTTONS.md) | BTN-13 + BTN-11 |
 | زر جديد معروف النوع | [BUTTONS.md](design-system/BUTTONS.md) | BTN-02 → BTN-03 → BTN-04 → BTN-11 |
 | نوع زر غير معروف | [BUTTONS.md](design-system/BUTTONS.md) | **BTN-00 → BTN-01 → STOP** |
+| زر مرتبط بصلاحية / Viewer Mode | [BUTTONS.md](design-system/BUTTONS.md) + [VIEWER-MODES.md](design-system/VIEWER-MODES.md) | **BTN-17** + VM-05 + VM-06 + VM-07 |
+| من يرى عنصراً / تحديد Viewer Mode | [VIEWER-MODES.md](design-system/VIEWER-MODES.md) | VM-01 + VM-02 |
+| فهم Authentication vs Authorization vs Ownership | [VIEWER-MODES.md](design-system/VIEWER-MODES.md) | VM-05 |
+| Backend كمرجع نهائي للصلاحيات | [VIEWER-MODES.md](design-system/VIEWER-MODES.md) | VM-06 + VM-07 |
 
 > **إذا لم يوجد Route مناسب:**
 > لا تختر أقرب نظام. **STOP** واسأل صاحب المشروع.
@@ -42,6 +46,7 @@
 | كود | النظام | الملف | الحالة |
 |-----|--------|-------|--------|
 | [DS-BTN] | Button System V1 | [design-system/BUTTONS.md](design-system/BUTTONS.md) | مستقر |
+| [DS-VM] | Viewer Modes & Permissions System V1 | [design-system/VIEWER-MODES.md](design-system/VIEWER-MODES.md) | مستقر |
 
 ---
 
@@ -49,7 +54,8 @@
 
 | طبقة | الحالة |
 |------|--------|
-| Documentation (هذا الملف + BUTTONS.md) | مكتمل ✓ |
+| Documentation — `BUTTONS.md` (BTN-00 → BTN-17) | مكتمل ✓ |
+| Documentation — `VIEWER-MODES.md` (VM-00 → VM-09) | مكتمل ✓ |
 | CSS Layer (`static/shared/tw-ui-tokens.css`) | **لم تُنشأ بعد** — انظر FUTURE_ROADMAP.md |
 
 > `tw-ui-tokens.css` **ممنوع إنشاؤها** حتى يُطلب صراحةً.
