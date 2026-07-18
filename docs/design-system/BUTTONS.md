@@ -2,55 +2,95 @@
 
 > **نظام الأزرار الرسمي لمنصة تواصلنا.**
 > هذا الملف هو مرجع الـ contract المعماري للأزرار — web أولاً، مع مراعاة Flutter مستقبلاً (F1).
-> لا يحتوي هذا الملف على كود CSS جاهز — التنفيذ يتبع Contract.
+> المحتوى: سلوك + هوية بصرية + دورة حياة + قواعد لا استثناء منها.
+> الأمثلة التقنية للتوضيح فقط — هذا ليس CSS Manual ولا JavaScript Manual.
 
 ---
 
 ## [BTN-00] Button System Routing Contract
 
-| إذا كنت تعمل على... | ابدأ من |
-|---------------------|---------|
-| زر حفظ / إلغاء تعديل | [BTN-09] Action Save Button Lifecycle |
-| زر toggle (حفظ منشور، متابعة) | [BTN-10] Toggle Save Button Lifecycle |
-| زر navigation أو tab | [BTN-12] Navigation Element Semantics |
-| زر حذف / إجراء مدمِّر | [BTN-13] Dangerous Actions |
-| أي زر جديد | [BTN-02] → [BTN-03] → [BTN-04] |
-| استثناء خارج الـ contract | [BTN-15] Custom Button Exception |
+**الخطوة الأولى دائماً:** حدِّد نوع المهمة ثم اقرأ الأقسام المرتبطة فقط.
+
+| المهمة | اقرأ |
+|--------|------|
+| زر حفظ / إرسال / تأكيد | **BTN-09** + BTN-07 عند الحاجة |
+| زر toggle (حفظ، متابعة، تعليق) | **BTN-10** + BTN-07 عند الحاجة |
+| زر أيقونة (header، toolbar) | **BTN-06** + BTN-07 |
+| زر navigation / tab / رابط | **BTN-12** + BTN-11 |
+| إجراء خطير / حذف | **BTN-13** + BTN-11 |
+| زر جديد معروف النوع | **BTN-02 → BTN-03 → BTN-04 → BTN-11** |
+| نوع زر غير معروف أو لا يطابق | **BTN-00 → BTN-01 → STOP** |
+
+> **لا تقرأ BUTTONS.md كاملاً تلقائياً.** اقرأ فقط الأقسام التي تخص مهمتك.
+> هدف هذا النظام: تقليل Context/Token وتركيز القراءة على ما يخص المهمة فعلاً.
 
 ---
 
-## [BTN-01] No Matching System Contract
+## [BTN-01] No Matching System Contract — قاعدة STOP
 
-> قبل إنشاء أي زر جديد — تحقق من هذا القسم أولاً.
+> **هذه القاعدة الأولى والحاكمة. تُطبَّق قبل أي تنفيذ.**
 
-**الأنظمة الموجودة حالياً:** لا يوجد shared button component أو CSS class موحَّد بعد.
-كل صفحة تعرِّف أزرارها داخل ملف CSS الخاص بها.
+**إذا طُلب إنشاء أو تعديل زر ولم يوجد نوع أو قاعدة أو Lifecycle معتمدة تطابقه في هذا الملف:**
 
-**النتيجة المطلوبة:**
-- لا تنسخ styles من صفحة لأخرى.
-- استخدم نفس الـ contract الموثَّق هنا في كل صفحة جديدة.
-- عند إنشاء `tw-ui-tokens.css` مستقبلاً — ستُحوَّل هذه الـ contracts إلى shared classes.
+### STOP — ممنوع التنفيذ
+
+الممنوعات عند عدم وجود نظام مطابق:
+
+```
+❌ اختيار أقرب نوع زر بالاجتهاد
+❌ اختيار Primary أو Secondary أو Danger باجتهاد شخصي
+❌ نسخ نظام زر مشابه من صفحة أخرى
+❌ اختراع Visual Style جديد
+❌ اختراع Lifecycle جديد
+❌ تنفيذ Custom Button من تلقاء نفسك (AI أو مطور)
+❌ تنفيذ الزر أولاً ثم توثيقه لاحقاً
+❌ اعتبار غياب القاعدة تصريحاً بالاختيار الشخصي
+```
+
+### الإجراء المطلوب: إيقاف التنفيذ والرجوع لصاحب المشروع
+
+الرسالة الإلزامية:
+
+> "لا يوجد حالياً نظام معتمد لهذا النوع من الأزرار داخل Tawasolna Button System.
+> يجب تحديد نظامه أو إضافته إلى Button System قبل التنفيذ."
+
+ثم انتظار قرار صاحب المشروع.
+
+**عدم وجود نظام لا يعني السماح بالاجتهاد.**
 
 ---
 
 ## [BTN-02] Base Button Visual Contract
 
-### الخصائص الأساسية (مطلوبة في كل زر)
+### الهوية البصرية الأساسية
 
-| خاصية | القيمة المطلوبة | السبب |
-|--------|----------------|--------|
-| `cursor` | `pointer` | UX — لا يُترك للمتصفح |
-| `user-select` | `none` | BTN-08 — لا يُحدَّد نص الزر |
-| `border` | explicit (لا `border: none` ضمني) | يمنع تضارب الـ reset |
-| `border-radius` | consistent per page | تحديد في كل صفحة بشكل صريح |
-| `font-family` | `inherit` أو `'Cairo', sans-serif` | يحافظ على الـ RTL font |
-| `direction` | يرث من `<html dir="rtl">` | لا تحتاج تحديد صريح عادةً |
-| `transition` | `opacity`, `background-color`, `transform` | لا تضيف transition غير ضرورية |
+- **الشكل:** مستطيل — ليس Pill، ليس Capsule.
+- **الارتفاع:** منخفض ومشدود بصرياً (slim).
+- **الخلفية:** شفافة افتراضياً — **لا Solid Fill كتصميم افتراضي**.
+- **الحدود:** Border مضيء Glow خفيف — من نفس الـ Semantic Color Family للزر.
+- **اللون:** Border + Text + Icon + Glow كلها من نفس Semantic Color Family.
+- **Hover:** يقوي الـ Glow قليلاً — يُسمح بـ Tint شفاف خفيف جداً.
+- **Pressed:** Press Feedback بسيط جداً — بدون Layout Shift.
+- **الأنيميشن:** قصيرة وهادئة — لا Glow ثقيل، لا Animation مستمرة.
 
-### ما لا يجوز في أي زر
+### الخصائص التقنية الإلزامية
+
+| الخاصية | المطلوب | السبب |
+|---------|---------|--------|
+| `cursor` | `pointer` | لا يُترك للمتصفح |
+| `user-select` | `none` → BTN-08 | لا يُحدَّد نص الزر |
+| `border` | explicit | يمنع تضارب الـ reset |
+| `border-radius` | صغير وموحَّد | شكل مستطيل slim |
+| `font-family` | `inherit` | يحافظ على Cairo + RTL |
+| `transition` | محددة ومنطقية | لا transitions غير ضرورية |
+
+### الممنوعات البصرية
 
 ```
-❌ outline: none   بدون بديل focus visible
+❌ Solid Fill كتصميم افتراضي
+❌ Pill أو Capsule كشكل افتراضي
+❌ Glow ثقيل أو متحرك باستمرار
+❌ outline: none بدون :focus-visible بديل
 ❌ pointer-events: none إلا في حالة disabled الموثَّقة
 ❌ تعديل z-index داخل الزر نفسه
 ```
@@ -59,211 +99,285 @@
 
 ## [BTN-03] Semantic Button Types
 
-أربعة أنواع دلالية — كل نوع له لون ثابت من design tokens المنصة:
+أربعة أنواع دلالية. الـ Semantic Color يتحكم في:
+**Border + Text + Icon + Glow — وليس Solid Background افتراضياً.**
 
-| النوع | الاسم | اللون | الاستخدام |
-|-------|-------|-------|-----------|
-| **Primary** | زر رئيسي | `#00c896` (--ac) | الإجراء الرئيسي الوحيد في الصفحة/المودال |
-| **Secondary** | زر ثانوي | `rgba(255,255,255,.08)` | إلغاء، رجوع، إجراءات ثانوية |
-| **Danger** | زر خطر | `#ef4444` | حذف، إزالة، إجراءات لا رجعة فيها |
-| **Success** | زر نجاح | `#22c55e` | تأكيد ناجح (نادراً — بعد backend confirmation) |
+| النوع | المرجع الحالي (existing token) | الاستخدام |
+|-------|-------------------------------|-----------|
+| **Primary** | `#00c896` (`--ac`) | الإجراء الأبرز في Action Group أو Modal |
+| **Secondary** | محايد / subdued | إلغاء، رجوع، إجراءات مساندة |
+| **Danger** | `#ef4444` | إجراءات مدمِّرة أو سلبية حقيقية فقط |
+| **Success** | `#22c55e` | حالة تأكيد نجاح — لا تظهر ابتداءً |
+
+> **ملاحظة:** الألوان المذكورة هي existing tokens مرجعية — ليست final Design Tokens.
+> المصدر النهائي مستقبلاً سيكون Shared Design Tokens عند بناء `tw-ui-tokens.css`.
 
 ### قواعد الاستخدام
 
-1. **Primary واحد فقط** في كل سياق (مودال، section، صفحة). لا يوجد اثنان Primary في نفس المكان.
-2. **Danger لا يُستخدم إلا للإجراءات المدمِّرة** — راجع [BTN-13].
-3. **Success لا يظهر ابتداءً** — يظهر فقط كحالة تأكيد بعد backend response ناجح.
-4. اللون يُحدَّد على `background-color` — لا تستخدم `background` shorthand إذا أردت دعم transparency.
+1. **Primary مفضَّل واحداً** داخل نفس Action Group أو Modal — ليس منعاً مطلقاً على مستوى الصفحة إذا كانت هناك سياقات مستقلة.
+2. **Danger** للإجراءات المدمِّرة أو السلبية الحقيقية فقط — راجع [BTN-13].
+3. **Success** لا يظهر كحالة ابتدائية — يظهر فقط بعد Backend Confirmation.
+4. **لا تستخدم Danger باللون الأخضر، ولا Primary باللون الأحمر.**
 
 ---
 
-## [BTN-04] Button Size & Layout Contract
+## [BTN-04] Button Size & Layout
 
-### الأحجام المستخدمة (reference — ليست global classes بعد)
+### المبدأ الأساسي
 
-| الحجم | height | padding horizontal | font-size | استخدام |
-|-------|--------|--------------------|-----------|---------|
-| SM | 27px | 18px | 11px | Profile V2 action buttons (مجمَّدة — CLAUDE.md) |
+- الزر **Slim بصرياً** — الارتفاع يبقى منخفضاً.
+- **العرض** يتحدد حسب المحتوى أو الـ Layout — ليس Full Width افتراضياً.
+- **Button Group أو Container** مسؤول عن width وspacing وposition.
+- **Base Button لا يحمل margins خارجية** — الـ spacing ينتمي للـ container.
+
+### قيم موجودة (Existing Constraints — ليست Universal Tokens)
+
+| الحجم | height | padding أفقي | font-size | تنطبق على |
+|-------|--------|--------------|-----------|-----------|
+| SM | 27px | 18px | 11px | Profile V2 action buttons — **مجمَّدة في CLAUDE.md** |
 | MD | 36px | 20px | 13px | مودالات، forms |
-| LG | 44px | 28px | 15px | CTA رئيسية في الصفحة |
+| LG | 44px | 28px | 15px | CTAs رئيسية |
 
-> **ملاحظة:** القيم SM مجمَّدة في `.sc-btn` — راجع CLAUDE.md قسم "Profile V2 Action Buttons Rule".
-> لا تعدِّل هذه القيم إلا بـ PR مخصص.
+> هذه قيم قائمة في صفحات محددة — **ليست Design Tokens موحَّدة معتمدة**.
+> لا تطبِّقها على صفحات جديدة بدون قرار موثَّق.
+> القيم SM مجمَّدة في `.sc-btn` — راجع CLAUDE.md قبل أي تعديل.
 
 ### Layout داخل الزر
 
 - `display: inline-flex`
 - `align-items: center`
 - `justify-content: center`
-- `gap`: المسافة بين أيقونة ونص — ثابتة per size (5px لـ SM، 6px لـ MD، 8px لـ LG)
+- `gap`: المسافة بين أيقونة ونص — تُحدَّد حسب السياق
 - `flex-shrink: 0` — الزر لا يتقلص داخل flex container
+
+### على الموبايل
+
+يبقى الشكل المرئي Slim مع الحفاظ على Touch Target مريح حوله (لا تقلص الـ target).
 
 ---
 
 ## [BTN-05] Button Groups
 
-عند وجود مجموعة أزرار في سياق واحد:
+### أزرار عمودية (فوق بعضها)
 
-1. استخدم `display: flex` + `gap` على container — لا `margin` على الأزرار أنفسها.
-2. RTL الترتيب: **الزر الأبرز (Primary/Danger) على اليسار** في RTL flex-row (يظهر على اليمين بصرياً).
-3. لا تختلط secondary وdanger في نفس المجموعة إلا إذا كان هناك سبب UX واضح.
-4. في المودالات: Primary يأتي أولاً في DOM (يظهر يميناً في RTL)، Secondary يأتي ثانياً.
-
-```html
-<!-- مثال RTL صحيح — DOM order يعكس أهمية الإجراء -->
-<div class="modal-actions">
-  <button class="btn-primary">حفظ</button>    <!-- يظهر يميناً -->
-  <button class="btn-secondary">إلغاء</button> <!-- يظهر يساراً -->
-</div>
 ```
+✓ نفس العرض تماماً
+✓ نفس الارتفاع
+✓ نفس الـ border-radius
+✓ نفس المحاذاة
+✓ نفس المسافات بين الأزرار
+✓ الحواف تبدأ وتنتهي على نفس الخط العمودي
+❌ ممنوع: عرض مختلف يدوياً لكل زر
+```
+
+### أزرار أفقية (بجانب بعضها)
+
+- نفس الارتفاع.
+- محاذاة رأسية موحَّدة.
+
+### Container
+
+- `display: flex` + `gap` على الـ container.
+- لا `margin` على الأزرار أنفسها للـ spacing.
+
+### ترتيب DOM في RTL
+
+في RTL flex-row: أول عنصر في DOM يظهر على اليمين بصرياً.
+الزر الأبرز (Primary أو Danger) يُوضع أولاً في DOM — يظهر على اليمين.
+الزر الثانوي (Secondary، إلغاء) يأتي ثانياً — يظهر على اليسار.
 
 ---
 
 ## [BTN-06] Icon Buttons
 
-### أزرار بأيقونة فقط (no text)
+### أزرار الأيقونة في Header وToolbars
 
-- يجب أن يحتوي على `aria-label` بالعربية يصف الإجراء.
-- الأيقونة: SVG inline فقط — لا font-icon، لا emoji.
-- حجم الأيقونة: `14×14px` (SM context)، `16×16px` (MD)، `18×18px` (LG).
-- `stroke-width`: `1.8` (SM)، `2` (MD/LG).
-- `flex-shrink: 0` على الـ SVG داخل الزر.
+**الافتراضي: Borderless.**
+
+```
+✓ لا Permanent Border افتراضياً
+✓ لا Solid Background افتراضياً
+✓ الأيقونة تحمل Glow خفيفاً عند الحاجة
+✓ Hover/Touch: Halo أو Tint شفاف خفيف (اختياري)
+✓ Touch Area ثابت ومريح للموبايل
+✓ No Text Selection → BTN-08
+✓ aria-label إلزامي عند غياب النص
+```
+
+أمثلة: Back، Close، Settings، More، Search، Notifications، Share.
+
+### مصدر الأيقونات
+
+استخدم نظام الأيقونات الرسمي عند وجوده.
+إذا لم يوجد نظام: SVG inline مقبول.
+ممنوع: font-icon، emoji كأيقونة احترافية.
 
 ### أزرار بأيقونة + نص
 
-- الأيقونة تأتي قبل النص في DOM (تظهر يميناً في RTL).
-- `gap` بينهما: راجع [BTN-04].
+الأيقونة تأتي قبل النص في DOM (تظهر يميناً في RTL).
 
 ---
 
 ## [BTN-07] Button Interaction States
 
-كل زر يجب أن يعرِّف الحالات التالية بشكل صريح:
+### الحالات الممكنة
 
 | الحالة | المطلوب |
 |--------|---------|
-| `default` | base styles من [BTN-02] |
-| `hover` | تغيير `opacity` أو `background-color` — لا transform مبالغ فيه |
-| `active` (mousedown) | `transform: scale(0.97)` أو تأثير مماثل — اختياري لكن موحَّد |
-| `focus-visible` | حد مرئي (`outline: 2px solid var(--ac)`) — إلزامي للـ accessibility |
-| `disabled` | `opacity: 0.45`، `cursor: not-allowed`، `pointer-events: none` |
-| `loading` | راجع [BTN-09] |
+| **Default** | الـ base visual من BTN-02 |
+| **Hover** | Glow يقوى قليلاً — Tint شفاف خفيف اختياري — لا تغيير layout |
+| **Pressed** | Press Feedback بسيط جداً — لا Layout Shift |
+| **Focus** | `focus-visible` واضح من نفس Semantic Color Family — إلزامي للـ accessibility |
+| **Loading** | راجع BTN-09 أو BTN-10 |
+| **Success** | راجع BTN-09 أو BTN-10 |
+| **Error** | عودة لحالة قابلة للاستخدام + إظهار الخطأ |
+| **Disabled** | Visual State فقط — `opacity ~0.45`، `cursor: not-allowed`، `pointer-events: none` |
+| **Selected** | Glow أقوى بدرجة بسيطة أو Accent Indicator |
 
-### ما هو ممنوع
+كل زر يستخدم **فقط الحالات التي يحتاجها** — لا تضيف حالات غير مبررة.
+
+### ملاحظات مهمة
+
+- **Disabled ليس بديلاً عن Backend Permission** — التحكم الأمني يبقى server-side دائماً.
+- **لا تخترع States جديدة** من داخل صفحة — الإضافة تكون على مستوى النظام فقط.
+- **Focus يجب أن يكون مرئياً** — لا `:focus { outline: none }` بدون `:focus-visible` بديل.
+
+### الممنوعات
 
 ```
 ❌ :focus { outline: none } بدون :focus-visible بديل
 ❌ حالة hover تغير layout (width, height, padding)
-❌ حالة disabled تغير اللون إلى أحمر (لا يوجد error state على disabled)
+❌ حالة disabled تغير اللون إلى أحمر
 ```
 
 ---
 
 ## [BTN-08] No Text Selection Contract
 
-```css
-/* مطلوب على كل زر */
-user-select: none;
--webkit-user-select: none;
+```
+user-select: none
+-webkit-user-select: none
+-webkit-touch-callout: none
 ```
 
-المستخدم لا يحدِّد نص الزر. هذا ليس اختيارياً.
-
-لا تطبِّقه على النص المجاور للزر — فقط على `<button>` نفسه.
+تنطبق على كل زر رسمي وعلى Custom Button — ما لم يطلب صاحب المشروع عكس ذلك صراحةً.
+لا تطبِّقها على النص المجاور للزر — فقط على الزر نفسه.
 
 ---
 
 ## [BTN-09] Action Save Button Lifecycle
 
-> زر "حفظ" يُرسل بيانات إلى backend ثم يُغلق مودال أو يُحدِّث UI.
+> زر "حفظ" أو "إرسال" يُرسل بيانات إلى backend.
 
-### دورة حياة الزر
+### دورة الحياة الرسمية
 
 ```
-Default
+حفظ  (Default — هادئ)
   ↓ [user clicks]
-Loading  (spinner + disabled + نص "جارٍ الحفظ...")
-  ↓ [fetch resolves]
-  ├─ Success → UI updates + modal closes (لا تغيير لوني دائم على الزر)
-  └─ Error   → Default (مع toast يوضح الخطأ)
+جارٍ الحفظ…  (Loading — يمنع duplicate click)
+  ↓ [Backend Success]
+✓ تم الحفظ  (Success State — Glow Pulse واحد قصير)
+  ↓ [بعد مدة قصيرة أو عند بدء تعديل جديد]
+حفظ  (Default — هادئ مجدداً)
 ```
+
+**عند تعديل البيانات من جديد:** يصبح زر الحفظ Active/Ready.
+
+**State Flow:** Default → Loading → Success → Default
 
 ### قواعد إلزامية
 
-1. **تعطيل الزر فوراً** عند click — `btn.disabled = true` — قبل الـ fetch.
-2. **نص Loading** يجب أن يكون وصفياً: `"جارٍ الحفظ..."` لا `"..."` فقط.
-3. **لا تغيير لوني دائم** على الزر بعد النجاح — التأكيد يكون بإغلاق المودال أو toast.
-4. **على الخطأ:** أعِد الزر لحالة Default + أظهر toast يصف الخطأ — لا تُخفِ الزر.
-5. **لا تستخدم `setTimeout` لمحاكاة Loading** — Loading حقيقي فقط، مرتبط بـ fetch promise.
+1. **لا Success قبل Backend Confirmation** — النجاح يأتي فقط بعد response إيجابي من الـ server.
+2. **Loading يمنع Duplicate Click** — الزر لا يقبل نقرة ثانية أثناء الـ fetch.
+3. **على Success:** Success State داخل الزر (✓ تم الحفظ) + Glow Pulse واحد قصير.
+4. **على Error:** الزر يعود لحالة Default قابلة للاستخدام + الخطأ يظهر عبر Error System.
+5. **الزر لا يختفي** بعد النجاح.
+6. **عرض الزر لا يتغير** بين الحالات — لا Layout Shift.
 
-```javascript
-// النمط الإلزامي
-async function handleSave(btn) {
-  btn.disabled = true;
-  const orig = btn.textContent;
-  btn.textContent = 'جارٍ الحفظ...';
-  try {
-    await fetch(...);
-    // نجاح: أغلق المودال أو حدِّث UI
-  } catch (e) {
-    btn.disabled = false;
-    btn.textContent = orig;
-    showToast('حدث خطأ، حاول مجدداً');
-  }
-}
-```
+### قواعد السياق
+
+- **إغلاق Modal بعد النجاح:** يعتمد على سياق الـ flow — ليس قاعدة عامة إلزامية.
+- **Toast بعد النجاح:** اختياري حسب السياق — Success State داخل الزر هو الإلزامي.
+- **لا تستخدم `setTimeout` لمحاكاة Loading** — Loading حقيقي مرتبط بـ fetch promise فقط.
 
 ---
 
 ## [BTN-10] Toggle Save Button Lifecycle
 
-> زر يحمل حالة ثنائية: محفوظ / غير محفوظ (bookmark, follow, appreciation).
+> زر يحمل حالة ثنائية: نشط / غير نشط (حفظ، متابعة، تقدير...).
 
-### دورة حياة الزر
+### دورة الحياة الرسمية (Backend-Confirmed — الافتراضي)
 
 ```
-State A (inactive)
+حفظ في بنك المواهب  (Default — غير نشط)
   ↓ [user clicks]
-Optimistic UI → switch to State B immediately
-  ↓ [fetch in background]
-  ├─ Success → keep State B
-  └─ Error   → rollback to State A + toast
+جارٍ الحفظ…  (Loading)
+  ↓ [Backend Success]
+✓ محفوظ في بنك المواهب  (Active/Selected)
+
+ثم عند الضغط مجدداً:
+
+✓ محفوظ في بنك المواهب  (Active)
+  ↓ [user clicks]
+جارٍ الإزالة…  (Loading)
+  ↓ [Backend Success]
+حفظ في بنك المواهب  (Default — غير نشط)
 ```
 
 ### قواعد إلزامية
 
-1. **Optimistic UI إلزامي** — اعكس الحالة فوراً لا بعد response.
-2. **Desired State Queue إلزامي** — راجع Post Appreciation / Post Save rules في CLAUDE.md.
-   - متغيرات: `_desired[id]`, `_inFlight[id]`, `_origState[id]`
-3. **لا تستخدم `disabled` أثناء في الـ flight** — الزر يبقى قابلاً للنقر (قد يُعيد الضغط).
-4. **الحالتان لهما visual contract ثابت** — راجع "Post Save System Rules" في CLAUDE.md:
-   - `active=true`: أيقونة مملوءة + لون accent
-   - `active=false`: أيقونة outline + لون محايد
+1. **لا تظهر Saved State قبل Backend Confirmation** — هذا هو النظام العام لتواصلنا.
+2. **لا Optimistic UI كقاعدة عامة** — لا تعكس الحالة بصرياً ثم تعمل rollback.
+3. **Desired State Queue ليس إلزامياً** على كل Toggle Button — راجع الـ carve-out أدناه.
+4. **يمنع Duplicate/Race** حسب Lifecycle الخاص بالزر والنظام المرتبط به.
+5. **حالة Selected** تحصل على Glow أقوى أو Accent Indicator بسيط.
+
+### Carve-out: الأنظمة ذات Contract خاص
+
+Post Save وPost Appreciation في CLAUDE.md لهما contract خاص (Optimistic UI + Desired State Queue).
+هذا الـ contract يخص **هذين النظامين تحديداً** — لا يُعمَّم على كل أزرار Toggle في المنصة.
 
 ---
 
 ## [BTN-11] Button Lifecycle Contract
 
-> الـ contract الشامل لكل زر — مجموع [BTN-09] و[BTN-10].
+> فحص شامل لأي زر جديد أو مُعدَّل.
 
-**كل زر في المنصة يجب أن يحدِّد:**
+### الأسئلة الإلزامية
 
-| العنصر | المطلوب |
-|--------|---------|
-| نوعه الدلالي | Primary / Secondary / Danger / Success |
-| حجمه | SM / MD / LG |
-| حالاته | Default, Hover, Focus, Disabled, Loading (إن وُجد) |
-| سلوك النقر | Action (BTN-09) / Toggle (BTN-10) / Navigation (BTN-12) |
-| backend confirmation | كيف تُعكَس النتيجة على الـ UI |
+**الوجود:**
+- لماذا هذا الزر موجود؟
+- ما نوعه؟ (Action / Toggle / Navigation / Dangerous)
 
-**ممنوع:**
+**السلوك عند الضغط:**
+- ماذا يحدث؟ (Operation / Modal / Drawer / Overlay / Navigation / Toggle / State Change)
+- هل هو Operation يستدعي backend؟
+
+**التنقل:**
+- ما هو Canonical Route بعد الإجراء؟
+- أين يعود المستخدم عند الضغط على Back؟
+- هل Back يغلق UI Layer أولاً قبل التنقل؟
+
+**الحالات الطارئة:**
+- ماذا يحدث عند الضغط السريع المتكرر؟
+- ماذا يحدث أثناء API Loading؟
+- ماذا يحدث عند Success؟
+- ماذا يحدث عند Failure؟
+- ماذا يحدث بعد Page Refresh؟
+
+**الصلاحيات والبيانات:**
+- هل Direct/Deep Link يعمل؟
+- هل Permissions محمية Backend-side؟
+- هل الحالة المهمة مصدرها Backend/DB؟
+
+### اختبار الحياة الأساسي
 
 ```
-❌ زر بدون تعريف حالة disabled
-❌ زر Loading بدون تعطيل النقر
-❌ زر يُخفي نفسه بدلاً من showing error state
-❌ زر يغيّر لونه بشكل دائم بعد نجاح الحفظ (إلا إذا كان toggle)
+Before → Click → Loading → Result → Back → Refresh
 ```
+
+أي زر Navigation يلتزم بـ Back Button Navigation Contract في ARCHITECTURE.md،
+وبنظام Navigation الرسمي مستقبلاً عند إنشائه.
 
 ---
 
@@ -273,64 +387,101 @@ Optimistic UI → switch to State B immediately
 
 ### قواعد
 
-1. **استخدم `<a>` لا `<button>`** عندما الإجراء هو navigation (تغيير URL أو page route).
-2. **استخدم `<button>`** عندما الإجراء هو سلوك داخل الصفحة (toggle panel، فتح مودال).
-3. **لا تخلط الاثنين** — `<a>` مع `onclick` يغير state داخلي = خطأ معماري.
+1. **استخدم `<a>`** عندما الإجراء هو navigation (تغيير URL أو page route).
+2. **استخدم `<button>`** عندما الإجراء هو سلوك داخل الصفحة (toggle panel، فتح modal).
+3. **لا تخلط الاثنين** — `<a>` مع onclick يغير state داخلي = خطأ معماري.
 4. **Tab المحدد:** `aria-current="page"` على الـ `<a>` النشط.
-5. **Bottom nav active state:** class `active` على container + visual indicator (dot أو underline) — لا تعتمد على اللون وحده.
+5. **Bottom nav active state:** class `active` + visual indicator (dot أو underline) — لا تعتمد على اللون وحده.
 
 ---
 
 ## [BTN-13] Dangerous Actions
 
-> حذف، إزالة، reset، إجراء لا رجعة فيه.
+> إجراء مدمِّر أو سلبي — حذف، إزالة، reset.
 
-### Pattern الإلزامي
+### القرار حسب قابلية التراجع
 
-1. **الزر نفسه:** Danger type (أحمر `#ef4444`) — لا يُخفَى، لا يُعطَّل ابتداءً.
-2. **عند النقر:** مودال تأكيد يصف الإجراء بوضوح ("هل تريد حذف الوظيفة؟ لا يمكن التراجع.").
-3. **داخل مودال التأكيد:**
-   - زر Danger للتأكيد النهائي.
-   - زر Secondary للإلغاء — يُغلق المودال فقط.
-4. **لا تستخدم `confirm()` المدمج في المتصفح** — يخالف تصميم المنصة.
-5. **بعد التنفيذ:** toast يؤكد الإجراء + redirect أو UI update فوري.
+**الإجراء قابل للتراجع بسهولة:**
+يمكن استخدام Undo إذا كان هناك نظام Undo رسمي مناسب — لا يستلزم Confirmation Modal.
+
+**الإجراء غير قابل للتراجع أو عالي الخطورة:**
+استخدم Confirmation مناسباً لمستوى الخطورة.
+
+**لا تستخدم Confirmation مزعجاً** لكل إجراء صغير قابل للتراجع.
+
+### عند استخدام Confirmation
+
+1. الزر Danger type — لا يُخفى، لا يُعطَّل ابتداءً.
+2. Modal تأكيد يصف الإجراء بوضوح + يذكر عدم إمكانية التراجع عند الاقتضاء.
+3. داخل Modal: زر Danger للتأكيد النهائي + زر Secondary للإلغاء.
+4. **لا `confirm()` المدمج في المتصفح** — يخالف تصميم المنصة.
+5. بعد التنفيذ: Feedback مناسب (toast أو UI update فوري).
+
+### الممنوعات
 
 ```
-❌ حذف مباشر بدون تأكيد
-❌ زر الحذف باللون الأخضر (Primary)
-❌ مودال تأكيد بزرَّين Primary
+❌ حذف مباشر بدون أي feedback أو confirmation لإجراء غير قابل للتراجع
+❌ زر Danger باللون الأخضر (Primary)
+❌ modal تأكيد بزرَّين Primary
+❌ Confirmation مزعج على كل إجراء صغير
 ```
 
 ---
 
 ## [BTN-14] Performance Contract
 
-1. **لا تُنشئ event listener على الزر في كل render** — استخدم delegation أو أنشئ الزر مرة واحدة.
-2. **لا `innerHTML = '...<button>...'` داخل loop** لأزرار كثيرة — استخدم `createElement`.
-3. **لا fetch داخل mouseenter/mouseover** — الـ prefetch يكون بطريقة أخرى.
-4. **الزر لا يقرأ من DOM لاسترجاع state** — الـ state يُحفظ في متغير JS، لا في الـ DOM.
+### قواعد الـ Glow والـ Animation
+
+```
+✓ Default: Glow خفيف ثابت
+✓ Hover: يقوى قليلاً
+✓ Success: Pulse واحد قصير فقط
+✓ Animations قصيرة وهادئة
+✓ احترام prefers-reduced-motion عند التنفيذ
+❌ Glow ثقيل جداً
+❌ Animation مستمرة بلا سبب
+❌ Glow متحرك دائماً على عشرات الأزرار
+❌ عدة box-shadows ثقيلة متراكبة
+❌ مؤثرات تسبب Layout Reflow متكرراً
+```
+
+### قواعد الـ Event Handling
+
+- لا تُنشئ event listener على الزر في كل render — استخدم delegation أو أنشئ مرة واحدة.
+- لا fetch داخل `mouseenter` أو `mouseover`.
+- الـ state يُحفظ في متغير JS، لا يُقرأ من DOM.
 
 ---
 
 ## [BTN-15] Custom Button Exception
 
-> عندما يكون الزر المطلوب خارج هذا الـ contract.
+> يتطلب طلباً صريحاً من صاحب المشروع — ليس قراراً مستقلاً للمطور أو الـ AI.
 
-**الإجراء المطلوب قبل البناء:**
+### عند عدم وجود نظام مطابق
 
-1. وثِّق سبب الاستثناء في PR description.
-2. أضف تعليقاً في الكود يشير إلى هذا الـ section.
-3. لا تعمِّم الاستثناء — يبقى محدوداً في الموقع الذي يحتاجه.
+```
+لا تنشئ Custom Button.
+لا توثِّق استثناءً من تلقاء نفسك.
+لا تنفِّذ.
+ارجع لصاحب المشروع → BTN-01.
+```
 
-**أمثلة مقبولة:**
+### عند طلب Custom Button صراحةً من صاحب المشروع
 
-- زر chip في محتوى ديناميكي (job chip popover) — له سلوك خاص بسياقه.
-- زر داخل SVG أو canvas — قواعد HTML لا تنطبق.
+القواعد الوظيفية الأساسية تبقى مطبَّقة افتراضياً:
 
-**أمثلة غير مقبولة:**
+```
+✓ No Text Selection — BTN-08
+✓ Touch Target مريح
+✓ Loading عند الحاجة
+✓ Duplicate Click Prevention
+✓ Backend-confirmed Success
+✓ Lifecycle Review — BTN-11
+✓ Accessibility (aria-label، focus-visible)
+```
 
-- "أريد لوناً مختلفاً" — استخدم [BTN-03].
-- "المودال هذا خاص" — المودالات تتبع نفس الـ contract.
+**Custom Button لا يصبح جزءاً من النظام العام تلقائياً.**
+يُضاف للنظام فقط بقرار منفصل من صاحب المشروع.
 
 ---
 
@@ -339,23 +490,39 @@ Optimistic UI → switch to State B immediately
 قائمة شاملة بما هو ممنوع في أي زر في المنصة:
 
 ```
+❌ اختراع نوع زر غير موجود في النظام
+❌ اختيار أقرب Variant عند عدم وجود match
+❌ اختيار Primary/Secondary/Danger باجتهاد شخصي بدون نظام مطابق
+❌ إنشاء Custom Button بدون طلب صريح من صاحب المشروع
+❌ إنشاء CSS خاص لزر جديد خارج النظام بدون طلب صريح
+❌ تنفيذ الزر ثم توثيقه لاحقاً
+❌ اعتبار غياب القاعدة إذناً بالاختيار الشخصي
+
+❌ Solid Fill كافتراضي
+❌ Pill أو Capsule كافتراضي
+❌ Glow ثقيل أو متحرك باستمرار
+❌ Success قبل Backend Confirmation
+❌ Optimistic UI على Toggle Button بدون contract خاص موثَّق
+❌ Desired State Queue كقاعدة عامة على كل toggle
+
 ❌ <div> أو <span> كزر بدون role="button" و tabindex="0"
 ❌ <a> بـ href="#" كزر — استخدم <button>
 ❌ <button type="submit"> خارج <form> حقيقي
 ❌ onclick="location.href='...'" — استخدم <a href>
 ❌ outline: none بدون :focus-visible بديل
-❌ تحديد نص الزر (user-select: text على button)
+❌ user-select: text على button
 ❌ Loading state بـ setTimeout وهمي
-❌ حذف مباشر بدون confirmation modal
+❌ حذف مباشر بدون feedback لإجراء غير قابل للتراجع
 ❌ Primary button أحمر اللون
 ❌ Danger button أخضر اللون
-❌ استنساخ style من صفحة أخرى بدون مراجعة هذا الملف
-❌ زر بدون حالة disabled موثَّقة
-❌ إخفاء الزر بدلاً من تعطيله في حالة Loading
+❌ زر بدون تعريف حالة disabled
+❌ إخفاء الزر في حالة Loading بدلاً من تعطيله
 ❌ تغيير width/height عند hover
 ❌ <button> داخل <button>
+❌ Glow متحرك دائماً على عشرات الأزرار في نفس الوقت
+❌ إضافة حالة State جديدة داخل صفحة بدون قرار على مستوى النظام
 ```
 
 ---
 
-*آخر تحديث: 2026-07-18 — Button System V1 (foundation documentation only — no CSS implementation)*
+*آخر تحديث: 2026-07-18 — Button System V1 rev.2 (corrections: BTN-01 STOP rule, BTN-02 outlined/glow visual, BTN-03 semantic color clarification, BTN-04 slim principle + existing constraints, BTN-05 vertical stack rules, BTN-06 borderless header icons, BTN-07 full states list, BTN-08 touch-callout, BTN-09 correct save lifecycle, BTN-10 backend-confirmed toggle, BTN-11 full checklist, BTN-13 context-based confirmation, BTN-14 glow performance, BTN-15 owner-request-only, BTN-16 expanded)*
