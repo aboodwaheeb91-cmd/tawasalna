@@ -526,4 +526,161 @@ Before → Click → Loading → Result → Back → Refresh
 
 ---
 
-*آخر تحديث: 2026-07-18 — Button System V1 rev.2 (corrections: BTN-01 STOP rule, BTN-02 outlined/glow visual, BTN-03 semantic color clarification, BTN-04 slim principle + existing constraints, BTN-05 vertical stack rules, BTN-06 borderless header icons, BTN-07 full states list, BTN-08 touch-callout, BTN-09 correct save lifecycle, BTN-10 backend-confirmed toggle, BTN-11 full checklist, BTN-13 context-based confirmation, BTN-14 glow performance, BTN-15 owner-request-only, BTN-16 expanded)*
+## [BTN-17] Button Visibility & Permission Contract
+
+> **العقد الرسمي لكل زر مرتبط بصلاحية أو Viewer Mode.**
+>
+> يُقرأ هذا القسم مع:
+> → **[VM-05]** — الفصل بين Authentication / Authorization / Ownership / Visibility
+> → **[VM-06]** — Backend كمرجع نهائي
+> → **[VM-07]** — Frontend Visibility = UX فقط
+> من ملف `docs/design-system/VIEWER-MODES.md`
+
+---
+
+### ثلاثة أحوال للزر من منظور الصلاحية
+
+| الحال | التعريف | متى يُستخدَم |
+|-------|---------|-------------|
+| **Visible & Enabled** | الزر ظاهر وقابل للضغط | الـ Viewer Mode يُتيح الإجراء لهذا المستخدم |
+| **Hidden** | الزر غير موجود في الـ DOM أو مخفي | هذا الـ Viewer Mode لا يُفترض أن يرى هذا الزر أصلاً |
+| **Disabled** | الزر ظاهر لكن غير تفاعلي | المستخدم يرى الإجراء لكن الشروط لا تسمح به حالياً |
+
+---
+
+### السبعة بنود الإلزامية لكل زر مرتبط بصلاحية
+
+**عند توثيق أو تنفيذ أي زر مرتبط بصلاحية، يجب الإجابة على هذه البنود السبعة:**
+
+#### 1. من يرى الزر؟
+
+حدِّد بوضوح أيٌّ من الأوضاع التالية يرى الزر:
+
+```
+□ Owner فقط
+□ Registered User فقط (كل الأنواع)
+□ Registered User من نوع محدد (emp / co / edu)
+□ Guest فقط
+□ الجميع (بما في ذلك Guest)
+□ Owner + Registered User (لكن ليس Guest)
+□ تركيبة أخرى — وضِّحها بدقة
+```
+
+#### 2. من لا يرى الزر؟
+
+حدِّد من يُفترض ألَّا يرى الزر نهائياً (Hidden — ليس Disabled):
+
+```
+□ Guest لا يرى زر "متابعة" — يرى بدلاً منه زر "سجّل للمتابعة"
+□ Registered User لا يرى أزرار التحرير في صفحة شخص آخر
+□ emp لا يرى زر "حفظ مرشح" في صفحة الموظف (هذا للشركات)
+```
+
+#### 3. متى يكون الزر Disabled؟
+
+الـ Disabled للحالة، لا للصلاحية. أمثلة:
+
+```
+□ زر "إرسال" معطَّل لأن الـ form فارغ — ليس لأن المستخدم ليس مالكاً
+□ زر "التقديم" معطَّل لأن الوظيفة مُغلقة — ليس لأن المستخدم emp
+□ زر "حفظ" معطَّل في حالة Loading
+```
+
+**ممنوع:** استخدام Disabled كبديل عن Hidden عند اختلاف Viewer Mode.
+
+#### 4. من يملك الصلاحية الفعلية؟
+
+```
+□ المالك فقط (jwt.user_id == owner_id في DB)
+□ نوع حساب محدد (user_type من JWT)
+□ المالك + نوع محدد
+□ أي مستخدم مسجَّل
+□ لا أحد (الإجراء مقيَّد حالياً)
+```
+
+#### 5. مصدر قرار الرؤية (Visibility Source)
+
+```
+□ window._scViewerType (Profile V2)
+□ companyState.permissions.isOwner (Company Profile)
+□ مقارنة session.id مع owner_id من API response
+□ user_type من localStorage.tw_user (للعرض فقط — ليس أمناً)
+□ غياب JWT في localStorage (للتمييز بين guest والبقية)
+```
+
+> **تذكير:** أي من هذه المصادر هي UX signal فقط (VM-07). لا توفِّر أماناً.
+
+#### 6. مصدر قرار الصلاحية (Permission Source)
+
+```
+□ JWT: user_type من الـ token (server-side)
+□ DB: مقارنة jwt.user_id مع owner_id في الجدول المعني
+□ DB: حقل محدد يحدد الصلاحية (مثل: jobs.status, profiles.is_verified)
+□ تركيبة من الأعلى
+```
+
+> **إلزامي:** الصلاحية الفعلية تُتحقَّق دائماً server-side — ليس من frontend signal.
+
+#### 7. سلوك الـ Backend عند محاولة الوصول غير المُصرَّح بها
+
+```
+□ 401 — لا يوجد JWT أو JWT منتهٍ
+□ 403 — JWT صالح لكن بدون صلاحية
+□ 404 — المورد غير موجود أو الوصول إليه محجوب (لإخفاء وجوده)
+```
+
+يجب تحديد الكود المتوقَّع وصياغة الـ response body عند توثيق كل زر.
+
+---
+
+### مثال: زر "تعديل الملف الشخصي" في Profile V2
+
+| البند | القيمة |
+|-------|--------|
+| من يرى؟ | Owner فقط |
+| من لا يرى؟ | Registered User + Guest → Hidden |
+| متى Disabled؟ | لا يُعطَّل — إما ظاهر (Owner) أو مخفي (غيره) |
+| من يملك الصلاحية؟ | المالك — `jwt.user_id == profiles.user_id` في DB |
+| مصدر الرؤية | `window._scViewerType === 'owner'` |
+| مصدر الصلاحية | DB: `profiles.user_id == jwt.user_id` في PUT endpoint |
+| Backend لغير المالك | `403 Forbidden` |
+
+---
+
+### مثال: زر "التقديم للوظيفة"
+
+| البند | القيمة |
+|-------|--------|
+| من يرى؟ | Registered User من نوع `emp` فقط |
+| من لا يرى؟ | Owner (صاحب الشركة) → Hidden · Guest → زر "سجّل للتقديم" |
+| متى Disabled؟ | الوظيفة مؤرشفة / مُغلقة · المستخدم طبَّق مسبقاً |
+| من يملك الصلاحية؟ | أي `emp` مُتحقَّق منه + الوظيفة لا تزال نشطة |
+| مصدر الرؤية | `user_type === 'emp'` من `localStorage.tw_user` (عرض فقط) |
+| مصدر الصلاحية | JWT `user_type == 'emp'` + `jobs.archived_at IS NULL` في server.py |
+| Backend للشركة | `403 Forbidden` |
+| Backend للوظيفة المؤرشفة | `409 {"code":"job_archived"}` |
+
+---
+
+### قواعد BTN-17 الإلزامية
+
+```
+✓ كل زر مرتبط بصلاحية يجب توثيق البنود السبعة قبل التنفيذ
+✓ Hidden هو قرار UX/Visibility فقط — سواء كان غياباً من DOM أو display:none،
+  كلاهما ليس حماية أمنية. الحماية الفعلية دائماً في Backend endpoint بصرف النظر عن DOM state
+✓ Disabled يُعني حالة وظيفية، لا صلاحية — أوضح للمستخدم لماذا
+✓ الـ Backend endpoint مُؤمَّن دائماً بصرف النظر عن الـ UI
+✓ مصدر الصلاحية دائماً server-side — Visibility Source مجرد UX
+```
+
+```
+❌ استخدام Disabled بدلاً من Hidden عند اختلاف Viewer Mode
+❌ الاعتماد على UI state وحده لمنع إجراء
+❌ إرسال بيانات خاصة من الـ backend دون تحقق من الصلاحية
+❌ نقل منطق الصلاحية من backend إلى frontend
+❌ تنفيذ زر صلاحياته غير موثَّقة في البنود السبعة
+```
+
+---
+
+*آخر تحديث: 2026-07-18 — Button System V1 rev.2 (corrections: BTN-01 STOP rule, BTN-02 outlined/glow visual, BTN-03 semantic color clarification, BTN-04 slim principle + existing constraints, BTN-05 vertical stack rules, BTN-06 borderless header icons, BTN-07 full states list, BTN-08 touch-callout, BTN-09 correct save lifecycle, BTN-10 backend-confirmed toggle, BTN-11 full checklist, BTN-13 context-based confirmation, BTN-14 glow performance, BTN-15 owner-request-only, BTN-16 expanded) · BTN-17 Visibility & Permission Contract (links to VIEWER-MODES.md)*
