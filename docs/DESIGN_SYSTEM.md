@@ -35,6 +35,10 @@
 | من يرى عنصراً / تحديد Viewer Mode | [VIEWER-MODES.md](design-system/VIEWER-MODES.md) | VM-01 + VM-02 |
 | فهم Authentication vs Authorization vs Ownership | [VIEWER-MODES.md](design-system/VIEWER-MODES.md) | VM-05 |
 | Backend كمرجع نهائي للصلاحيات | [VIEWER-MODES.md](design-system/VIEWER-MODES.md) | VM-06 + VM-07 |
+| Back Button / History / سلوك الرجوع | [NAVIGATION.md](design-system/NAVIGATION.md) | NAV-05 + NAV-06 |
+| رابط navigation أو URL جديد | [NAVIGATION.md](design-system/NAVIGATION.md) | NAV-02 + BTN-12 |
+| Deep Link / صفحة تعمل من URL مباشر | [NAVIGATION.md](design-system/NAVIGATION.md) | NAV-08 |
+| Auth redirect + ?next= | [NAVIGATION.md](design-system/NAVIGATION.md) | NAV-10 + NAV-07 |
 
 > **إذا لم يوجد Route مناسب:**
 > لا تختر أقرب نظام. **STOP** واسأل صاحب المشروع.
@@ -47,6 +51,7 @@
 |-----|--------|-------|--------|
 | [DS-BTN] | Button System V1 | [design-system/BUTTONS.md](design-system/BUTTONS.md) | مستقر |
 | [DS-VM] | Viewer Modes & Permissions System V1 | [design-system/VIEWER-MODES.md](design-system/VIEWER-MODES.md) | مستقر |
+| [DS-NAV] | Navigation System V1 | [design-system/NAVIGATION.md](design-system/NAVIGATION.md) | موثَّق — التنفيذ مؤجَّل |
 
 ---
 
@@ -56,10 +61,13 @@
 |------|--------|
 | Documentation — `BUTTONS.md` (BTN-00 → BTN-17) | مكتمل ✓ |
 | Documentation — `VIEWER-MODES.md` (VM-00 → VM-09) | مكتمل ✓ |
+| Documentation — `NAVIGATION.md` (NAV-00 → NAV-12) | مكتمل ✓ |
 | CSS Layer (`static/shared/tw-ui-tokens.css`) | **لم تُنشأ بعد** — انظر FUTURE_ROADMAP.md |
+| Navigation Implementation (Layer Stack، Back Contract، ?next=) | **لم تُنفَّذ بعد** — موثَّقة في NAVIGATION.md |
 
 > `tw-ui-tokens.css` **ممنوع إنشاؤها** حتى يُطلب صراحةً.
-> التوثيق الحالي يصف الـ contract المعماري فقط — ليس تنفيذاً CSS.
+> `Navigation Implementation` **ممنوع تنفيذها** حتى يُطلب صراحةً.
+> التوثيق الحالي يصف الـ contracts المعمارية فقط — ليس تنفيذاً.
 
 ---
 
