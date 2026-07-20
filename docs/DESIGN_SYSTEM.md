@@ -7,12 +7,12 @@
 
 ## AI Reading Protocol
 
-**قبل أي تنفيذ أو تعديل يمس زراً أو عنصراً تفاعلياً أو صلاحية:**
+**قبل أي تنفيذ أو تعديل يمس زراً أو عنصراً تفاعلياً أو صلاحية أو navigation:**
 
 1. ابدأ من جدول **Quick Routes** أدناه.
 2. حدِّد نوع مهمتك.
 3. افتح الملف المرتبط واقرأ **الأقسام المحددة فقط** — لا تقرأ الملف كاملاً.
-4. إذا لم يوجد Route مناسب → **BTN-01 → STOP** → اسأل صاحب المشروع.
+4. إذا لم يوجد Route مناسب → **STOP** → اسأل صاحب المشروع. لا تختر أقرب نظام.
 5. تحقق من أن التعديل لا يخالف قواعد "Forbidden Patterns" في القسم ذي الصلة.
 
 **هدف هذا النظام:** تقليل Context/Token وتركيز القراءة على ما يخص المهمة فعلاً.
@@ -27,7 +27,8 @@
 | زر حفظ / إرسال | [BUTTONS.md](design-system/BUTTONS.md) | BTN-09 + BTN-07 |
 | Toggle Button (bookmark، follow) | [BUTTONS.md](design-system/BUTTONS.md) | BTN-10 + BTN-07 |
 | Icon Button (header، toolbar) | [BUTTONS.md](design-system/BUTTONS.md) | BTN-06 + BTN-07 |
-| Navigation / Tab / رابط | [BUTTONS.md](design-system/BUTTONS.md) | BTN-12 + BTN-11 |
+| Navigation / Tab / رابط (دلالة العنصر) | [BUTTONS.md](design-system/BUTTONS.md) | BTN-12 + BTN-11 |
+| Navigation / Back / سلوك URL / route behavior | [NAVIGATION.md](design-system/NAVIGATION.md) | NAV-02 + BTN-12 |
 | إجراء خطير / حذف | [BUTTONS.md](design-system/BUTTONS.md) | BTN-13 + BTN-11 |
 | زر جديد معروف النوع | [BUTTONS.md](design-system/BUTTONS.md) | BTN-02 → BTN-03 → BTN-04 → BTN-11 |
 | نوع زر غير معروف | [BUTTONS.md](design-system/BUTTONS.md) | **BTN-00 → BTN-01 → STOP** |
@@ -35,9 +36,14 @@
 | من يرى عنصراً / تحديد Viewer Mode | [VIEWER-MODES.md](design-system/VIEWER-MODES.md) | VM-01 + VM-02 |
 | فهم Authentication vs Authorization vs Ownership | [VIEWER-MODES.md](design-system/VIEWER-MODES.md) | VM-05 |
 | Backend كمرجع نهائي للصلاحيات | [VIEWER-MODES.md](design-system/VIEWER-MODES.md) | VM-06 + VM-07 |
+| Back Button / History / سلوك الرجوع | [NAVIGATION.md](design-system/NAVIGATION.md) | NAV-05 + NAV-06 |
+| رابط navigation أو URL جديد | [NAVIGATION.md](design-system/NAVIGATION.md) | NAV-02 + BTN-12 |
+| Deep Link / صفحة تعمل من URL مباشر | [NAVIGATION.md](design-system/NAVIGATION.md) | NAV-08 |
+| Auth redirect + ?next= | [NAVIGATION.md](design-system/NAVIGATION.md) | NAV-10 + NAV-07 |
 
-> **إذا لم يوجد Route مناسب:**
+> **إذا لم يوجد Route مناسب في الجدول:**
 > لا تختر أقرب نظام. **STOP** واسأل صاحب المشروع.
+> الأنظمة الحالية: [DS-BTN] · [DS-VM] · [DS-NAV] — لا تبني نظاماً موازياً لأيٍّ منها.
 
 ---
 
@@ -47,6 +53,7 @@
 |-----|--------|-------|--------|
 | [DS-BTN] | Button System V1 | [design-system/BUTTONS.md](design-system/BUTTONS.md) | مستقر |
 | [DS-VM] | Viewer Modes & Permissions System V1 | [design-system/VIEWER-MODES.md](design-system/VIEWER-MODES.md) | مستقر |
+| [DS-NAV] | Navigation System V1 | [design-system/NAVIGATION.md](design-system/NAVIGATION.md) | موثَّق — التنفيذ مؤجَّل |
 
 ---
 
@@ -56,10 +63,13 @@
 |------|--------|
 | Documentation — `BUTTONS.md` (BTN-00 → BTN-17) | مكتمل ✓ |
 | Documentation — `VIEWER-MODES.md` (VM-00 → VM-09) | مكتمل ✓ |
+| Documentation — `NAVIGATION.md` (NAV-00 → NAV-12) | مكتمل ✓ |
 | CSS Layer (`static/shared/tw-ui-tokens.css`) | **لم تُنشأ بعد** — انظر FUTURE_ROADMAP.md |
+| Navigation Implementation (Layer Stack، Back Contract، ?next=) | **لم تُنفَّذ بعد** — موثَّقة في NAVIGATION.md |
 
 > `tw-ui-tokens.css` **ممنوع إنشاؤها** حتى يُطلب صراحةً.
-> التوثيق الحالي يصف الـ contract المعماري فقط — ليس تنفيذاً CSS.
+> `Navigation Implementation` **ممنوع تنفيذها** حتى يُطلب صراحةً.
+> التوثيق الحالي يصف الـ contracts المعمارية فقط — ليس تنفيذاً.
 
 ---
 

@@ -377,13 +377,14 @@ Before → Click → Loading → Result → Back → Refresh
 ```
 
 أي زر Navigation يلتزم بـ Back Button Navigation Contract في ARCHITECTURE.md،
-وبنظام Navigation الرسمي مستقبلاً عند إنشائه.
+وبـ [DS-NAV] Navigation System V1 — انظر **NAV-05** لـ Back Intent و**NAV-02** للروابط.
 
 ---
 
 ## [BTN-12] Navigation Element Semantics
 
 > Tab bars، bottom nav، sidebar links، breadcrumbs.
+> للـ URL contract والروابط الرسمية: انظر **[NAV-02]** في `docs/design-system/NAVIGATION.md`.
 
 ### قواعد
 
@@ -392,6 +393,7 @@ Before → Click → Loading → Result → Back → Refresh
 3. **لا تخلط الاثنين** — `<a>` مع onclick يغير state داخلي = خطأ معماري.
 4. **Tab المحدد:** `aria-current="page"` على الـ `<a>` النشط.
 5. **Bottom nav active state:** class `active` + visual indicator (dot أو underline) — لا تعتمد على اللون وحده.
+6. **روابط Back:** استخدم `<button>` (ليس `<a>`) مع fallback check قبل `history.back()` — انظر NAV-05.
 
 ---
 
