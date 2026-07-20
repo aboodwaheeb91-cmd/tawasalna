@@ -7,12 +7,12 @@
 
 ## AI Reading Protocol
 
-**قبل أي تنفيذ أو تعديل يمس زراً أو عنصراً تفاعلياً أو صلاحية:**
+**قبل أي تنفيذ أو تعديل يمس زراً أو عنصراً تفاعلياً أو صلاحية أو navigation:**
 
 1. ابدأ من جدول **Quick Routes** أدناه.
 2. حدِّد نوع مهمتك.
 3. افتح الملف المرتبط واقرأ **الأقسام المحددة فقط** — لا تقرأ الملف كاملاً.
-4. إذا لم يوجد Route مناسب → **BTN-01 → STOP** → اسأل صاحب المشروع.
+4. إذا لم يوجد Route مناسب → **STOP** → اسأل صاحب المشروع. لا تختر أقرب نظام.
 5. تحقق من أن التعديل لا يخالف قواعد "Forbidden Patterns" في القسم ذي الصلة.
 
 **هدف هذا النظام:** تقليل Context/Token وتركيز القراءة على ما يخص المهمة فعلاً.
@@ -27,7 +27,8 @@
 | زر حفظ / إرسال | [BUTTONS.md](design-system/BUTTONS.md) | BTN-09 + BTN-07 |
 | Toggle Button (bookmark، follow) | [BUTTONS.md](design-system/BUTTONS.md) | BTN-10 + BTN-07 |
 | Icon Button (header، toolbar) | [BUTTONS.md](design-system/BUTTONS.md) | BTN-06 + BTN-07 |
-| Navigation / Tab / رابط | [BUTTONS.md](design-system/BUTTONS.md) | BTN-12 + BTN-11 |
+| Navigation / Tab / رابط (دلالة العنصر) | [BUTTONS.md](design-system/BUTTONS.md) | BTN-12 + BTN-11 |
+| Navigation / Back / سلوك URL / route behavior | [NAVIGATION.md](design-system/NAVIGATION.md) | NAV-02 + BTN-12 |
 | إجراء خطير / حذف | [BUTTONS.md](design-system/BUTTONS.md) | BTN-13 + BTN-11 |
 | زر جديد معروف النوع | [BUTTONS.md](design-system/BUTTONS.md) | BTN-02 → BTN-03 → BTN-04 → BTN-11 |
 | نوع زر غير معروف | [BUTTONS.md](design-system/BUTTONS.md) | **BTN-00 → BTN-01 → STOP** |
@@ -40,8 +41,9 @@
 | Deep Link / صفحة تعمل من URL مباشر | [NAVIGATION.md](design-system/NAVIGATION.md) | NAV-08 |
 | Auth redirect + ?next= | [NAVIGATION.md](design-system/NAVIGATION.md) | NAV-10 + NAV-07 |
 
-> **إذا لم يوجد Route مناسب:**
+> **إذا لم يوجد Route مناسب في الجدول:**
 > لا تختر أقرب نظام. **STOP** واسأل صاحب المشروع.
+> الأنظمة الحالية: [DS-BTN] · [DS-VM] · [DS-NAV] — لا تبني نظاماً موازياً لأيٍّ منها.
 
 ---
 

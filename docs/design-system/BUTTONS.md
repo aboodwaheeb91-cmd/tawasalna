@@ -377,7 +377,7 @@ Before → Click → Loading → Result → Back → Refresh
 ```
 
 أي زر Navigation يلتزم بـ Back Button Navigation Contract في ARCHITECTURE.md،
-وبنظام Navigation الرسمي مستقبلاً عند إنشائه.
+وبـ [DS-NAV] Navigation System V1 — انظر **NAV-05** لـ Back Intent و**NAV-02** للروابط.
 
 ---
 

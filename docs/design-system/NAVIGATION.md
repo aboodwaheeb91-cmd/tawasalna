@@ -137,6 +137,9 @@
 // الـ namespace المعتمد لأي push/replace في نظام Navigation
 history.pushState({
   nav: {
+    entryType: 'push',       // 'push' | 'replace-init'
+                             // 'push'  = navigation داخلي متحكَّم فيه صراحةً
+                             // 'replace-init' = تهيئة الصفحة فقط (replaceState عند load)
     layer: 'modal',          // 'page' | 'modal' | 'drawer' | 'overlay'
     layerStack: ['modal-a'], // مصفوفة أسماء الـ layers المفتوحة حالياً
     context: {               // سياق Navigation للـ Back Trust check
@@ -144,10 +147,18 @@ history.pushState({
       from: '/home',         // الصفحة التي جاء منها المستخدم
       id: 123                // resource ID اختياري — لا بيانات أمان
     },
-    scrollY: 420             // موضع التمرير قبل فتح الـ layer
+    scrollY: 420             // موضع التمرير للـ baseline — انظر NAV-09
   }
 }, '', location.href)
 ```
+
+**`entryType` هو المعيار الفاصل بين الـ entries:**
+
+| القيمة | المعنى | استخدام Back |
+|--------|--------|-------------|
+| `'push'` | navigation داخلي متحكَّم فيه — pushed صراحةً بكود تواصلنا | آمن — history.back() يعود إلى entry تواصلنا سابق |
+| `'replace-init'` | تهيئة أولية فقط (replaceState عند load) | **غير آمن** — الـ previous browser entry غير معروف |
+| `undefined` / غير موجود | entry خارجي أو قديم بدون namespace | **غير آمن** — لا يمكن التحقق |
 
 > هذا الـ namespace مقترح للتوحيد المستقبلي. الصفحات الحالية تستخدم `{ modal: 'name' }` —
 > اقرأ NAV-04 لفهم الـ pattern الحالي قبل تعديله.
@@ -226,14 +237,40 @@ Target stack:  ['A']
 ```js
 // Reconciliation pseudocode (للتوثيق — لا تنفيذ الآن)
 function reconcileLayers(currentStack, targetStack) {
-  // إيجاد الـ layers التي يجب إغلاقها: موجودة في current وليست في target
-  const toClose = currentStack
-    .filter(layer => !targetStack.includes(layer))
-    .reverse() // LIFO — الأحدث أولاً
+  // 1. احسب أطول prefix مشترك (ترتيبياً — ليس set membership)
+  let commonLen = 0
+  while (
+    commonLen < currentStack.length &&
+    commonLen < targetStack.length &&
+    currentStack[commonLen] === targetStack[commonLen]
+  ) { commonLen++ }
 
+  // 2. أغلق فقط الـ suffix فوق الـ common prefix، من الأعلى (LIFO)
+  const toClose = currentStack.slice(commonLen).reverse()
   toClose.forEach(layer => window.NavLayers?.[layer]?.close?.())
+
+  // 3. إذا كان targetStack لا يتوافق مع المتوقع → لا تخترع reconciliation صامتاً
+  //    (مثلاً: targetStack يحتوي layers لم تُفتح في currentStack)
+  //    → STOP واطلب من المستخدم التعامل مع الحالة صراحةً
 }
 ```
+
+**لماذا common-prefix وليس set membership:**
+
+```
+// خطأ — set membership تتجاهل الترتيب
+current: ['A', 'B', 'C']
+target:  ['B', 'C']
+→ toClose = ['A']  ← يُغلق A مع أن B وC مفتوحتان فوقه → خطأ LIFO
+
+// صحيح — common-prefix
+current: ['A', 'B', 'C']
+target:  ['B', 'C']
+→ common prefix = [] (A ≠ B)
+→ toClose = ['C', 'B', 'A'] ← يغلق كل شيء
+```
+
+إذا كان الـ target stack لا يبدأ بنفس prefix الـ current — فهذا تناقض في الـ state يجب التعامل معه صراحةً، وليس دمج صامت.
 
 > التنفيذ مؤجَّل. الـ Pattern الحالي يبقى كما هو حتى PR مخصص.
 
@@ -267,14 +304,17 @@ function reconcileLayers(currentStack, targetStack) {
    ↳ نعم → أغلق آخر Layer (LIFO) → STOP
    ↳ لا  → تابع
 
-2. هل يوجد Internal Navigation State موثوق؟
-   (أي: تم push state صريح بـ nav.context.origin === 'tawasalna')
-   ↳ نعم → ارجع إليه — استخدم history.back() لأنه navigation داخلي مضمون
+2. هل الـ current history entry عبارة عن Internal Controlled Push؟
+   (أي: history.state.nav.entryType === 'push')
+   ↳ نعم → history.back() آمن — الـ previous entry هو بالضرورة entry تواصلنا السابق
+             لأن هذا الـ entry نفسه تم push صراحةً فوق entry تواصلنا → STOP
    ↳ لا  → تابع
+           (entryType === 'replace-init' أو undefined → الـ previous entry غير معروف)
 
 3. هل يوجد Previous Navigation Context موثوق داخل تواصلنا؟
-   (أي: history.state يُثبت أن الصفحة السابقة كانت داخل تواصلنا)
-   ↳ نعم → navigate إلى ذلك الـ context → STOP
+   (أي: history.state.nav.context.from يُحدِّد وجهة داخلية صالحة)
+   ↳ نعم → navigate صراحةً إلى تلك الوجهة (window.location.href = context.from) → STOP
+           (لا تستخدم history.back() — الـ browser entry السابق قد يكون خارجياً)
    ↳ لا  → تابع (Deep Link أو أول صفحة في التاب أو مصدر خارجي)
 
 4. هل يوجد Contextual Canonical Fallback للصفحة الحالية؟ (NAV-06)
@@ -288,12 +328,14 @@ function reconcileLayers(currentStack, targetStack) {
    ↳ guest → /
 ```
 
-### لماذا لا `history.length > 1`
+### لماذا لا `history.length > 1` — ولماذا لا يكفي `origin === 'tawasalna'` وحده
 
-`history.length > 1` لا يعني أن الـ history السابق داخل تواصلنا.
-المستخدم ربما وصل بعد زيارة مواقع أخرى، وعندها `history.back()` يخرجه من تواصلنا نهائياً.
+- **`history.length > 1`:** لا يعني أن الـ history السابق داخل تواصلنا — المستخدم قد وصل من موقع آخر.
+- **`nav.context.origin === 'tawasalna'` في الـ current entry:** يُثبت فقط أن *هذا الـ entry* جاء من code تواصلنا — لا يثبت شيئاً عن الـ *previous* browser entry.
+- **`entryType === 'push'`:** يثبت أن هذا الـ entry تم push صراحةً فوق entry سابق داخلي — وبالتالي فإن `history.back()` آمن.
+- **الفرق الجوهري:** `replaceState` عند تهيئة الصفحة لا يُنشئ entry جديد في stack المتصفح — بل يُعدِّل الـ current entry فقط. لذلك بعد `replace-init`، الـ previous entry غير معروف.
 
-**المعيار الصحيح:** وجود `nav.context.origin === 'tawasalna'` في الـ history state الحالي — هذا يثبت أن الـ state جاء من code داخل تواصلنا.
+**ملاحظة:** هذا UX/Navigation trust فقط — ليس Security Boundary. الـ authorization يبقى server-side.
 
 ### قواعد ثابتة
 
@@ -465,21 +507,38 @@ history.scrollRestoration = 'auto'
 
 ### تخزين scrollY للـ Layers
 
+**المبدأ:** `popstate event.state` يمثل الـ destination entry الذي أصبح active بعد التنقل — وليس الـ entry الذي خُرج منه. لذلك يجب حفظ `scrollY` في الـ **baseline/destination** entry قبل push الـ layer، لا في الـ layer entry نفسه.
+
 ```js
-// عند فتح layer — احفظ الموضع الحالي في history.state
-const scrollY = window.scrollY
+// Pattern صحيح — حفظ scrollY في الـ baseline entry قبل فتح الـ layer
+// 1. قبل push: ابحث عن الـ current baseline entry وحدّثه
+const currentScrollY = window.scrollY
+
+// حفظ في الـ baseline entry (replaceState على الـ current entry)
+const baselineState = history.state ?? {}
+history.replaceState(
+  { ...baselineState, nav: { ...(baselineState.nav ?? {}), scrollY: currentScrollY } },
+  '', location.href
+)
+
+// 2. الآن push الـ layer entry
 history.pushState({
-  nav: { layer: 'modal', scrollY, context: { origin: 'tawasalna' } }
+  nav: { entryType: 'push', layer: 'modal', layerStack: ['modal-a'],
+         context: { origin: 'tawasalna', from: location.pathname } }
 }, '', location.href)
 
-// عند غلق layer عبر Back — استعد الموضع
+// 3. عند Back — e.state هو الـ baseline entry (الـ destination)
+//    scrollY محفوظ فيه من الخطوة 1
 window.addEventListener('popstate', e => {
-  const { layer, scrollY } = e.state?.nav ?? {}
-  if (!layer && scrollY != null) {
-    window.scrollTo({ top: scrollY, behavior: 'instant' })
+  const nav = e.state?.nav ?? {}
+  if (!nav.layer && nav.scrollY != null) {
+    window.scrollTo({ top: nav.scrollY, behavior: 'instant' })
   }
 })
 ```
+
+> هذا توثيق للـ pattern المعماري الصحيح — لا تنفيذ فعلي في هذا الـ PR.
+> الـ pattern الحالي في `company.main.js` يحتاج مراجعة عند تنفيذ Layer Stack الموحَّد.
 
 ---
 
