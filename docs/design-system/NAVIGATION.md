@@ -156,9 +156,14 @@ history.pushState({
 
 | القيمة | المعنى | استخدام Back |
 |--------|--------|-------------|
-| `'push'` | navigation داخلي متحكَّم فيه — pushed صراحةً بكود تواصلنا | آمن — history.back() يعود إلى entry تواصلنا سابق |
+| `'push'` | navigation داخلي متحكَّم فيه — pushed صراحةً بكود تواصلنا | آمن — يعود إلى entry تواصلنا سابق |
 | `'replace-init'` | تهيئة أولية فقط (replaceState عند load) | **غير آمن** — الـ previous browser entry غير معروف |
 | `undefined` / غير موجود | entry خارجي أو قديم بدون namespace | **غير آمن** — لا يمكن التحقق |
+
+**سياق قراءة `entryType` (مهم):**
+- **قبل `history.back()` من زر برمجي:** يُقرأ من `history.state.nav.entryType` الحالي — هذا هو الـ source entry الذي سيُغادَر. الفحص صحيح هنا.
+- **داخل `popstate` handler:** `event.state` هو الـ destination entry الذي أصبح active — ليس الـ source الذي غادرناه. فحص `entryType` في الـ popstate يقرأ حالة الـ **target**، وليس الـ source.
+- **لـ Layer popstack:** المقارنة تكون بين in-memory active stack snapshot (قبل الانتقال) وبين `event.state.nav.layerStack` (الـ target). انظر NAV-04.
 
 > هذا الـ namespace مقترح للتوحيد المستقبلي. الصفحات الحالية تستخدم `{ modal: 'name' }` —
 > اقرأ NAV-04 لفهم الـ pattern الحالي قبل تعديله.
@@ -236,41 +241,52 @@ Target stack:  ['A']
 
 ```js
 // Reconciliation pseudocode (للتوثيق — لا تنفيذ الآن)
+// currentStack = in-memory snapshot للـ active stack قبل الانتقال
+//               (يجب تتبعه في module-level var — ليس e.state.nav.layerStack)
+// targetStack  = e.state.nav.layerStack الموجود في الـ destination entry
 function reconcileLayers(currentStack, targetStack) {
-  // 1. احسب أطول prefix مشترك (ترتيبياً — ليس set membership)
-  let commonLen = 0
-  while (
-    commonLen < currentStack.length &&
-    commonLen < targetStack.length &&
-    currentStack[commonLen] === targetStack[commonLen]
-  ) { commonLen++ }
 
-  // 2. أغلق فقط الـ suffix فوق الـ common prefix، من الأعلى (LIFO)
-  const toClose = currentStack.slice(commonLen).reverse()
+  // ── VALIDATION FIRST — قبل أي mutation ──────────────────────────────
+
+  // حالة A: targetStack أطول من currentStack → Forward/Reopen
+  // هذه ليست Back-close reconciliation — خارج نطاق V1
+  if (targetStack.length > currentStack.length) {
+    return // لا تتعامل معه بإغلاق صامت
+  }
+
+  // حالة B: targetStack يجب أن يكون prefix حقيقي من currentStack
+  // ['A'] هو prefix من ['A','B','C'] ✓
+  // ['B'] ليس prefix من ['A','B']   ✗ (A≠B في index 0)
+  const isValidPrefix = targetStack.every(
+    (layer, i) => currentStack[i] === layer
+  )
+  if (!isValidPrefix) {
+    return // STOP — state غير متسق → لا تغلق أي شيء
+  }
+
+  // ── CLOSE — الـ suffix فوق الـ target prefix فقط، LIFO ──────────────
+  const toClose = currentStack.slice(targetStack.length).reverse()
   toClose.forEach(layer => window.NavLayers?.[layer]?.close?.())
-
-  // 3. إذا كان targetStack لا يتوافق مع المتوقع → لا تخترع reconciliation صامتاً
-  //    (مثلاً: targetStack يحتوي layers لم تُفتح في currentStack)
-  //    → STOP واطلب من المستخدم التعامل مع الحالة صراحةً
 }
 ```
 
-**لماذا common-prefix وليس set membership:**
+**أمثلة:**
 
 ```
-// خطأ — set membership تتجاهل الترتيب
-current: ['A', 'B', 'C']
-target:  ['B', 'C']
-→ toClose = ['A']  ← يُغلق A مع أن B وC مفتوحتان فوقه → خطأ LIFO
+Current: ['A','B','C'] / Target: ['A']
+→ isValidPrefix = true  → toClose = ['C','B'] → أغلق C ثم B → A يبقى
 
-// صحيح — common-prefix
-current: ['A', 'B', 'C']
-target:  ['B', 'C']
-→ common prefix = [] (A ≠ B)
-→ toClose = ['C', 'B', 'A'] ← يغلق كل شيء
+Current: ['A','B']     / Target: ['B']
+→ isValidPrefix = false (currentStack[0]='A' ≠ targetStack[0]='B')
+→ STOP — لا تغلق أي شيء
+
+Current: ['A']         / Target: ['A','B','C']
+→ targetStack.length > currentStack.length → Forward/Reopen → خارج نطاق V1
 ```
 
-إذا كان الـ target stack لا يبدأ بنفس prefix الـ current — فهذا تناقض في الـ state يجب التعامل معه صراحةً، وليس دمج صامت.
+**لماذا validation قبل mutation:**
+الـ pseudocode السابق كان يحسب `toClose` ثم يُغلق ثم يعلّق على الـ invalid state.
+الترتيب الصحيح: تحقق من صحة الـ state كاملاً **قبل** أي `close()` — لأن الإغلاق الجزئي يُخلّف state غير متسق.
 
 > التنفيذ مؤجَّل. الـ Pattern الحالي يبقى كما هو حتى PR مخصص.
 
@@ -278,43 +294,58 @@ target:  ['B', 'C']
 
 ## [NAV-05] Unified Back Contract
 
-### Back Intent — من أي مصدر
+### Back Intent — نوعان من Back
 
-**الـ "Back" في تواصلنا هو Back Intent** — نية الرجوع تصدر من أي مصدر:
+الـ "Back" في تواصلنا يصدر من مصادر متعددة، لكنه ينقسم إلى نوعين بحسب إمكانية الاعتراض:
 
-| المصدر | الوصف |
-|--------|-------|
-| زر Back داخل الواجهة | `<button>` يُنفِّذ Back Logic |
-| زر Back في المتصفح | يُطلق Back Intent |
-| Android Back button | يُطلق Back Intent |
-| Back Gesture (mobile) | يُطلق Back Intent |
-| `history.back()` برمجياً | يُطلق Back Intent |
+#### أ) Interceptable Back — يمر بالـ Navigation Back Resolver
 
-**النظام يُوحِّد السلوك، ليس آلية التنفيذ التقنية:**
-- على الويب قد تكون الآلية: History API / popstate event.
-- في Flutter مستقبلاً قد تكون آلية مختلفة تماماً.
-- الـ contract هنا يصف **ماذا يحدث** عند Back Intent، بصرف النظر عن **كيف يصل** هذا الـ Intent.
+| المصدر | ملاحظة |
+|--------|--------|
+| زر Back داخل الواجهة (`<button>`) | Back Logic يُنفَّذ صراحةً من JS |
+| إغلاق Layer عبر same-document popstate | `history.back()` داخل الصفحة → popstate في نفس document |
+| WebView / Flutter — حين توفر المنصة interception | مرحلة مستقبلية (NAV-12) |
+
+هذه الحالات تستخدم الـ 5-step Back Priority Resolution التالية.
+
+#### ب) Native Browser Page-level Back — يتبع Browser History الطبيعي
+
+| المصدر | ملاحظة |
+|--------|--------|
+| زر Back في المتصفح (page navigation) | المتصفح قد يُغادر الصفحة قبل تنفيذ JS |
+| Android Back / Back Gesture (page-level) | platform navigation — غير مضمون الاعتراض في MPA |
+
+**القواعد الثابتة لـ Native Browser Back:**
+- **لا History Trap:** ممنوع استخدام `beforeunload` أو أي آلية لمنع المستخدم من مغادرة الصفحة.
+- **لا ادعاء باعتراض مضمون:** `popstate` في Web MPA يُعالج الـ same-document navigation فقط — لا يمنع خروج المستخدم من الموقع.
+- **Contextual Fallback ليس بديلاً عن Browser Back:** الـ fallback هو الوجهة الصحيحة لزر Back **داخل الواجهة** — ليس اعتراضاً لزر Back في المتصفح.
+
+**النظام يُوحِّد سلوك Interceptable Back** قدر الإمكان، بدون ادعاء قدرة تقنية غير موجودة أو تخريب Browser History الطبيعي.
 
 ### خمس خطوات الأولوية (Back Priority Resolution)
 
-عند Back Intent، يُحلَّل الموقف بهذا الترتيب بدون استثناء:
+> **نطاق الـ Resolver:** يُطبَّق على **Interceptable Back** فقط (زر Back داخل الواجهة + same-document Layer close).
+> **لا يُطبَّق** على Native Browser Page-level Back — الذي يتبع Browser History الطبيعي.
+
+عند Interceptable Back، يُحلَّل الموقف بهذا الترتيب:
 
 ```
 1. هل يوجد Layer مفتوح في الـ Stack؟
-   ↳ نعم → أغلق آخر Layer (LIFO) → STOP
+   ↳ نعم → أغلق آخر Layer (LIFO) — see NAV-04 → STOP
    ↳ لا  → تابع
 
 2. هل الـ current history entry عبارة عن Internal Controlled Push؟
-   (أي: history.state.nav.entryType === 'push')
-   ↳ نعم → history.back() آمن — الـ previous entry هو بالضرورة entry تواصلنا السابق
-             لأن هذا الـ entry نفسه تم push صراحةً فوق entry تواصلنا → STOP
+   ↳ فحص: history.state?.nav?.entryType === 'push'
+     (يُقرأ من الـ current active entry — قبل استدعاء history.back())
+   ↳ نعم → history.back() آمن — الـ previous entry هو entry تواصلنا السابق
+             (لأن هذا الـ entry pushed صراحةً فوقه) → STOP
    ↳ لا  → تابع
-           (entryType === 'replace-init' أو undefined → الـ previous entry غير معروف)
+     (entryType === 'replace-init' أو undefined → previous entry غير معروف)
 
-3. هل يوجد Previous Navigation Context موثوق داخل تواصلنا؟
-   (أي: history.state.nav.context.from يُحدِّد وجهة داخلية صالحة)
-   ↳ نعم → navigate صراحةً إلى تلك الوجهة (window.location.href = context.from) → STOP
-           (لا تستخدم history.back() — الـ browser entry السابق قد يكون خارجياً)
+3. هل يوجد context.from موثوق وصالح؟
+   ↳ فحص: history.state?.nav?.context?.from مع validation (انظر أدناه)
+   ↳ نعم → window.location.href = validated_from → STOP
+     (لا تستخدم history.back() — browser entry السابق قد يكون خارجياً)
    ↳ لا  → تابع (Deep Link أو أول صفحة في التاب أو مصدر خارجي)
 
 4. هل يوجد Contextual Canonical Fallback للصفحة الحالية؟ (NAV-06)
@@ -323,17 +354,30 @@ target:  ['B', 'C']
 
 5. Global Fallback المناسب لنوع الحساب:
    ↳ emp → /home
-   ↳ co  → /u/{co_tw_id} (صفحة الشركة)
+   ↳ co  → /u/{co_tw_id}
    ↳ edu → /edu-profile
    ↳ guest → /
 ```
 
+### context.from Validation (إلزامي قبل الاستخدام في خطوة 3)
+
+```
+context.from يُقبَل فقط إذا تحقق كل ما يلي:
+✓ string غير فارغ
+✓ يبدأ بـ / (internal relative path)
+✓ لا يبدأ بـ //
+✓ same-origin (new URL(from, origin).origin === origin)
+✓ لا يبدأ بـ /login (يمنع الـ loop)
+```
+
+هذا **Navigation Safety** — ليس Security Boundary. الـ `history.state` ليس مصدراً موثوقاً للـ authorization.
+
 ### لماذا لا `history.length > 1` — ولماذا لا يكفي `origin === 'tawasalna'` وحده
 
-- **`history.length > 1`:** لا يعني أن الـ history السابق داخل تواصلنا — المستخدم قد وصل من موقع آخر.
-- **`nav.context.origin === 'tawasalna'` في الـ current entry:** يُثبت فقط أن *هذا الـ entry* جاء من code تواصلنا — لا يثبت شيئاً عن الـ *previous* browser entry.
-- **`entryType === 'push'`:** يثبت أن هذا الـ entry تم push صراحةً فوق entry سابق داخلي — وبالتالي فإن `history.back()` آمن.
-- **الفرق الجوهري:** `replaceState` عند تهيئة الصفحة لا يُنشئ entry جديد في stack المتصفح — بل يُعدِّل الـ current entry فقط. لذلك بعد `replace-init`، الـ previous entry غير معروف.
+- **`history.length > 1`:** لا يعني أن الـ history السابق داخل تواصلنا.
+- **`nav.context.origin === 'tawasalna'` في الـ current entry:** يُثبت أن *هذا الـ entry* جاء من code تواصلنا فقط — لا يثبت شيئاً عن الـ *previous* browser entry.
+- **`entryType === 'push'`:** يثبت أن هذا الـ entry pushed فوق entry سابق داخلي — `history.back()` آمن. لكن انتبه: هذا الفحص يُقرأ من الـ **current active state قبل** `history.back()` — ليس من `event.state` في الـ popstate.
+- **`replaceState` عند init:** لا يُضيف entry جديداً في stack المتصفح — بل يُعدِّل الـ current entry. لذلك بعد `replace-init`، الـ previous entry غير معروف.
 
 **ملاحظة:** هذا UX/Navigation trust فقط — ليس Security Boundary. الـ authorization يبقى server-side.
 
@@ -650,6 +694,12 @@ if (!_u) { location.href = '/login' }
 ❌ ?next= داخل Back Resolution (NAV-05) — خطأ معماري
 ❌ history.back() مباشر بدون back-trust check
 ❌ history.length > 1 كدليل أن الرجوع داخل تواصلنا
+❌ nav.context.origin === 'tawasalna' وحده كدليل أن الـ previous entry داخلي
+❌ فحص entryType من event.state في popstate كبديل عن in-memory source snapshot
+❌ History Trap — beforeunload أو أي آلية لمنع Browser Back الطبيعي
+❌ ادعاء أن Contextual Fallback يستبدل Browser Back دائماً في Web MPA
+❌ Layer Reconciliation بدون validation مسبق لـ targetStack كـ prefix صحيح
+❌ context.from بدون validation قبل الاستخدام كوجهة navigate
 ❌ استخدام URL أو query params كمصدر للـ authorization
 ❌ ربط Viewer Mode بالـ URL
 ❌ توجيه co أو edu إلى /home كـ fallback
