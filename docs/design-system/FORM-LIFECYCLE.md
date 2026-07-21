@@ -110,10 +110,10 @@
                      │   SUCCESS    │  │    ERROR     │
                      └──────┬───────┘  └──────┬───────┘
                        ┌────┴────┐             │
-                       ▼         ▼             ▼
-                   CLOSING   READY-      READY-DIRTY
-                   → CLOSED  PRISTINE    (فورم يبقى مفتوحاً)
-                             (إذا بقي
+                       ▼         ▼             ▼ (يحافظ على Dirty/Pristine)
+                   CLOSING   READY-      READY-DIRTY (كان Dirty)
+                   → CLOSED  PRISTINE    أو READY-PRISTINE (كان Pristine)
+                             (إذا بقي    (فورم يبقى مفتوحاً)
                              الفورم
                              مفتوحاً)
 ```
@@ -126,15 +126,17 @@
 | `OPENING` | يجهِّز DOM ويُهيِّئ state | CLOSED | RESETTING |
 | `RESETTING` | يمسح القيم والأخطاء السابقة | OPENING | HYDRATING (Edit) / READY-PRISTINE (Add) |
 | `HYDRATING` | يجلب ويُطبِّق البيانات الموجودة | RESETTING | READY-PRISTINE |
-| `READY-PRISTINE` | الفورم جاهز، لا تغييرات | HYDRATING / RESETTING | READY-DIRTY · VALIDATING (إذا ضغط Save مباشرةً — FRM-13) |
-| `READY-DIRTY` | فيه تغييرات لم تُحفَظ | READY-PRISTINE / ERROR | VALIDATING / CLOSING |
+| `READY-PRISTINE` | الفورم جاهز، لا تغييرات | HYDRATING / RESETTING / VALIDATING (فشل — FRM-13) / ERROR (كان Pristine) | READY-DIRTY · VALIDATING (إذا ضغط Save مباشرةً — FRM-13) |
+| `READY-DIRTY` | فيه تغييرات لم تُحفَظ | READY-PRISTINE / ERROR (كان Dirty) / VALIDATING (فشل من Dirty) | VALIDATING / CLOSING |
 | `VALIDATING` | يتحقق client-side | READY-DIRTY · READY-PRISTINE (Save بدون تعديل — FRM-13) | SUBMITTING (نجاح) · READY-DIRTY (فشل، كان Dirty) · READY-PRISTINE (فشل، كان Pristine) |
 | `SUBMITTING` | طلب في الطريق | VALIDATING | SUCCESS / ERROR |
 | `SUCCESS` | حُفِظ بنجاح | SUBMITTING | CLOSING (إذا كان الفورم يُغلَق بعد الحفظ) أو READY-PRISTINE (إذا بقي مفتوحاً) |
-| `ERROR` | فشل الحفظ | SUBMITTING | READY-DIRTY |
+| `ERROR` | فشل الحفظ | SUBMITTING | READY-DIRTY (كان Dirty قبل Submit) · READY-PRISTINE (كان Pristine قبل Submit) |
 | `CLOSING` | يُعالِج الإغلاق | SUCCESS / READY-DIRTY (cancel) | CLOSED |
 
 > **READY-PRISTINE → VALIDATING (FRM-13):** يمكن ضغط Save من READY-PRISTINE مباشرةً — الفورم لا يشترط الـ Dirty state قبل Submission. عند فشل Validation يعود إلى READY-PRISTINE (القيم لم تتغير — لا يتحول الفورم إلى DIRTY بسبب Validation وحده).
+>
+> **ERROR يحتفظ بحالة Dirty/Pristine (FRM-21):** Backend Failure لا يجعل النموذج Dirty من تلقاء نفسه. Dirty/Pristine يعتمد فقط على: `current normalized values ≠ original canonical values` — لا على حدوث Failure في الحفظ.
 
 ---
 
@@ -206,6 +208,13 @@ Reset يُعيد **كل حالة النموذج** — وليس القيم الن
 13. حذف أي `_pendingValue` أو Async/session generation state من جولة سابقة
 14. مسح Temporary form state (بيانات مؤقتة لا تنتمي للـ record)
 15. مسح Success/Error state من الحفظ السابق
+
+> **Generation Counter — Invalidate بزيادة لا بصفر (راجع FRM-10):**
+> البند 13 يخص **pending values والـ temporary async state** — هذه تُمسح.
+> لكن **Generation Counter** (`_editSession`) لا يُعاد إلى 0 — يُزاد دائماً (`++_editSession`).
+> إعادته إلى 0 أثناء عمر الصفحة تجعل الأرقام قابلة لإعادة الاستخدام:
+> request قديم بجيل 1 قد يطابق session جديدة بجيل 1 بعد الصفر ويتسرب إلى Hydration خاطئة.
+> **الإبطال الصحيح: `++_editSession`** — session جديدة تحمل رقماً جديداً لا سبق أن استُخدم.
 
 **عناصر العرض:**
 16. إعادة Counters لقيمتها الافتراضية (عند وجودها)
@@ -437,7 +446,9 @@ function openEdit(id) {
     })
     .catch(err => {
       if (err.name === 'AbortError') return
-      showFormError(err)
+      // ❌ لا تمرر err خاماً — ممنوع عرض Error object أو stack trace مباشرةً للمستخدم
+      console.error('[FRM-10] Hydration failed:', err)  // diagnostic — Development فقط
+      showFormError('تعذر تحميل البيانات حالياً، حاول مرة أخرى.')  // رسالة آمنة عبر DS-VAL
     })
 }
 ```
@@ -817,6 +828,14 @@ function openModal() {
 1. **الفورم يبقى مفتوحاً** — لا إغلاق تلقائي
 2. **قيم المستخدم تُحفَظ** — لا Reset، لا Hydration
 3. **زر الحفظ يُستعاد** — يخرج من Loading ويعود للعمل
+
+**حالة Dirty/Pristine تُحفَظ كما هي بعد ERROR:**
+
+Backend Failure لا يجعل النموذج Dirty من تلقاء نفسه:
+- كان READY-DIRTY قبل Submit → يبقى READY-DIRTY بعد ERROR
+- كان READY-PRISTINE قبل Submit (إعادة حفظ بدون تغيير — FRM-13) → يبقى READY-PRISTINE بعد ERROR
+
+الـ Dirty/Pristine يعتمد فقط على: `current normalized values ≠ original canonical values` — لا على حدوث Failure في الحفظ.
 
 ```js
 function handleSaveError(errorData) {

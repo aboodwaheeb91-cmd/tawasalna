@@ -171,8 +171,16 @@ DS-VAL يستهلك **النموذج الداخلي الموحَّد** من `nor
 // normalized = { fieldErrors: [...], generalError: {...} | null }
 function routeErrors(normalized) {
   // 1. أخطاء الحقول المحددة → Inline
+  //    API field name → Control ID عبر Mapping مستوى النموذج (راجع VAL-07a)
   for (const err of normalized.fieldErrors) {
-    showFieldError(err.field, err.message)
+    const controlId = resolveFieldControl(err.field)  // لا تفترض err.field === DOM id
+    if (controlId) {
+      showFieldError(controlId, err.message)
+    } else {
+      // لا mapping معروف → Form-level fallback آمن (لا إسقاط بصمت)
+      showFormError(err.message)
+      // console.warn('[DS-VAL] Unmapped API field:', err.field)  // Development فقط
+    }
   }
 
   // 2. الخطأ العام → Form-level
@@ -180,7 +188,7 @@ function routeErrors(normalized) {
     showFormError(normalized.generalError.message)
   }
 
-  // 3. Focus على أول حقل به خطأ
+  // 3. Focus على أول حقل به خطأ (يستهدف الـ Control المعروض — ناتج الـ Mapping)
   if (normalized.fieldErrors.length > 0) focusFirstError()
 }
 
@@ -188,6 +196,37 @@ function routeErrors(normalized) {
 // const normalized = normalizeErrorResponse(body)  // API-MUT-11
 // routeErrors(normalized)
 ```
+
+---
+
+## VAL-07a API Field → Control Mapping Contract
+
+**API field name (من Backend) ليس بالضرورة نفس DOM id.** يجب Mapping على مستوى النموذج أو الـ Shared validation layer.
+
+### مثال توضيحي (Pseudocode — ليس Runtime API)
+
+```js
+// Mapping يُعرَّف على مستوى كل نموذج أو shared layer
+const FIELD_TO_CONTROL = {
+  'email':    'reg-email-input',    // API field → DOM control id
+  'password': 'reg-password-input',
+  'phone':    'profile-phone',
+  // ...
+}
+
+function resolveFieldControl(apiField) {
+  return FIELD_TO_CONTROL[apiField] ?? null  // null = لا mapping معروف
+}
+```
+
+### القواعد الإلزامية
+
+- **DS-VAL لا يفترض `err.field === DOM id`** — يمر دائماً من `resolveFieldControl()`
+- **`showFieldError(controlId, ...)`** يستقبل Control ID بعد الـ mapping — لا API field name خاماً
+- **`focusFirstError()`** يستهدف `.has-error input/select/textarea` — يعمل بشكل طبيعي بعد الـ mapping
+- **Custom Select (DS-SEL عند توثيقه):** يوجَّه للـ visible trigger عبر نفس الـ mapping — ليس الـ `<select>` المخفي
+- **حقل بدون mapping معروف:** لا يسقط الخطأ بصمت — يُعرَض Form-level كـ fallback آمن (راجع `else` في `routeErrors`)
+- **Diagnostic:** `console.warn()` في Development فقط — بدون كشف secrets أو stack traces
 
 ---
 
@@ -211,6 +250,8 @@ function routeErrors(normalized) {
 ```
 
 ### تطبيق الخطأ بـ JS
+
+> **`fieldId` هو ID الـ Control المرئي** — الناتج من `resolveFieldControl()` (VAL-07a)، ليس API field name مباشرةً. لا تمرر `err.field` من API إلى هذه الدالة بدون المرور من Mapping أولاً.
 
 ```js
 function showFieldError(fieldId, message) {

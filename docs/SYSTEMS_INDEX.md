@@ -764,7 +764,7 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 ---
 
 ### 43. Form Lifecycle System V1 [DS-FRM]
-**Purpose:** الـ contract الرسمي لدورة حياة النماذج — من الفتح حتى الإغلاق: Open→Reset→Hydrate→Ready-Pristine→Ready-Dirty→Validating→Submitting→ Success→CLOSING أو READY-PRISTINE (حسب الـ flow، راجع FRM-03) · Error→READY-DIRTY. يُعرِّف Tri-state Payload Building، Async-safe Hydration، Dirty State، Cancel+Unsaved Changes، Mutation Confirmation، Failure Contract، Regression Matrix.
+**Purpose:** الـ contract الرسمي لدورة حياة النماذج — من الفتح حتى الإغلاق: Open→Reset→Hydrate→Ready-Pristine→Ready-Dirty→Validating→Submitting→ Success→CLOSING أو READY-PRISTINE (حسب الـ flow، راجع FRM-03) · Error→READY-DIRTY أو READY-PRISTINE (حسب حالة ما قبل Submit — FRM-21). يُعرِّف Tri-state Payload Building، Async-safe Hydration، Dirty State، Cancel+Unsaved Changes، Mutation Confirmation، Failure Contract، Regression Matrix.
 **Source of Truth:** `docs/design-system/FORM-LIFECYCLE.md` · `docs/DESIGN_SYSTEM.md` (فهرس)
 **Details:** `docs/design-system/FORM-LIFECYCLE.md` — 26 قسماً: FRM-00 (Routing) → FRM-25 (Migration). أبرز قواعد: Reset إلزامي قبل Hydration (FRM-05)، Generation Counter للـ Async (FRM-10)، لا Validation أثناء Hydration (FRM-11)، Tri-state payload: omit/value/null (FRM-09)، لا Reset عند Retry (FRM-21)، Canonical Response بعد النجاح (FRM-16)، لا Optimistic Update في Mutation Forms — Backend-first فقط (FRM-17)، Auth forms تشترك في Submission+Failure Contract فقط (FRM-02).
 **Do not recreate:**
