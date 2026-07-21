@@ -157,25 +157,31 @@ Frontend validation = UX Layer فقط — يُقلِّل رحلات البيان
 ### التصنيف بالأولوية
 
 ```
-1. normalized.errors[].field موجود → Inline على الحقل المحدد
-2. normalized.errors[] بدون field  → Form-level (خطأ عام)
-3. Network error / Timeout / 5xx → General toast أو form-level message
-4. HTTP status وحده              → Signal ثانوي فقط (ليس المصدر الأساسي للتصنيف)
+1. normalized.fieldErrors[] غير فارغ → Inline على كل حقل محدد
+2. normalized.generalError غير null  → Form-level (خطأ عام)
+3. Network error / Timeout / 5xx     → General toast أو form-level message
+4. HTTP status وحده                  → Signal ثانوي فقط (ليس المصدر الأساسي للتصنيف)
 ```
 
 ### التوجيه بعد Normalization
 
+DS-VAL يستهلك **النموذج الداخلي الموحَّد** من `normalizeErrorResponse()` (API-MUT-11) مباشرةً — بدون Parser ثانٍ:
+
 ```js
-// DS-VAL يستهلك النموذج الموحَّد من API-MUT-11
+// normalized = { fieldErrors: [...], generalError: {...} | null }
 function routeErrors(normalized) {
-  for (const err of normalized.errors) {
-    if (err.field) {
-      showFieldError(err.field, err.message)  // Inline
-    } else {
-      showFormError(err.message || 'حدث خطأ، حاول مجدداً')  // Form-level
-    }
+  // 1. أخطاء الحقول المحددة → Inline
+  for (const err of normalized.fieldErrors) {
+    showFieldError(err.field, err.message)
   }
-  if (normalized.errors.length > 0) focusFirstError()
+
+  // 2. الخطأ العام → Form-level
+  if (normalized.generalError) {
+    showFormError(normalized.generalError.message)
+  }
+
+  // 3. Focus على أول حقل به خطأ
+  if (normalized.fieldErrors.length > 0) focusFirstError()
 }
 
 // للاستخدام:

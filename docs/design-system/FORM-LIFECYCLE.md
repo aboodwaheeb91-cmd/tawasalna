@@ -492,6 +492,11 @@ Dirty = current normalized values ≠ original hydrated values
 
 ## FRM-15 Submission Integration
 
+> **ملاحظة — Pseudocode التعامل مع DS-BTN:**
+> الأسماء `enterSaveLoadingViaButtonSystem(btn)`، `applySaveSuccessViaButtonSystem(btn)`، `restoreSaveButtonViaButtonSystem(btn)` المستخدَمة في أمثلة FRM-15/16/21 هي **Pseudocode توضيحي فقط** — وليست Runtime APIs موجودة حالياً.
+> التنفيذ الفعلي يستهلك واجهة **DS-BTN BTN-09** الرسمية المتاحة وقت التنفيذ.
+> **ممنوع إنشاء هذه الدوال من تلقاء نفسه لمجرد ظهورها في المثال.**
+
 ### خطوات Submission
 
 ```
@@ -761,7 +766,7 @@ function handleSaveError(errorData) {
 |-----------|---------|
 | **Add: فتح نظيف** | لا قيم من جلسة سابقة، لا أخطاء |
 | **Edit: Prefill صحيح** | كل الحقول تعكس البيانات المحفوظة |
-| **Save Success** | الفورم يُغلَق + Display يتحدث |
+| **Save Success** | Canonical state/display يتحدث بعد تأكيد Backend، ثم ينتقل إلى CLOSING أو READY-PRISTINE حسب عقد الـflow (FRM-03) |
 | **Save Failure: الفورم يبقى** | قيم المستخدم محفوظة + زر يُستعاد |
 | **Reopen: لا stale** | بيانات سجل جديد، لا بيانات سجل سابق |
 | **Double Submit** | الضغط المزدوج لا يُرسِل طلبَين |

@@ -45,7 +45,7 @@
 - حقول البحث البسيطة
 
 **خارج النطاق V1 — انظر INP-16:**
-- `<select>` والقوائم المنسدلة → `static/shared/tw-select.js` (موجود وموثَّق)
+- `<select>` والقوائم المنسدلة → `static/shared/tw-select.js` موجود Runtime — لكن **DS-SEL غير موثَّق كنظام Design System رسمي بعد**؛ STOP عند الحاجة إلى Select جديد (F30)
 - Datepicker / Date range
 - Multi-select / Tags input
 - File upload → `static/shared/tw-upload.js`
@@ -461,7 +461,7 @@ CSS الحقول موزَّع عبر ملفات متعددة:
 | Upload Input UI (drag & drop) | `[DS-UPLOAD]` — لم يُوثَّق كـ DS | راجع `tw-upload.js` للـ HTTP upload |
 | Overlay / Modal لعرض Input معقد | `[DS-OVL]` — لم يُوثَّق | **ممنوع البناء قبل توثيق DS-OVL** |
 | Reference Data Picker | `[DS-REF]` — `tw-options-data.js` موجود | غير موثَّق كـ DS كامل |
-| Feedback / Toast من نتيجة Input | Notification System أو `[DS-OVL]` | **ممنوع البناء قبل توثيق** |
+| Feedback / Toast من نتيجة Input | `[DS-FEEDBACK]` Feedback / Toast System — غير موثَّق بعد | **STOP — ممنوع البناء قبل توثيق DS-FEEDBACK (F30)** |
 
 > **قاعدة الأنظمة المستقبلية:** لا يُبنى على أي نظام في هذا الجدول لم يُوثَّق في PR مستقل.
 > إذا احتاجت المهمة أحد هذه الأنظمة — **STOP** واسأل صاحب المشروع (F30).

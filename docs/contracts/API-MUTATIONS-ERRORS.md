@@ -92,10 +92,10 @@ def update_profile(user_id: int, data: dict):
 
     for field, value in data.items():
         if field not in ALLOWED_FIELDS:
-            # الخيار A: تجاهُل صامت — يجب أن يكون موثَّقاً صراحةً لهذا الـ endpoint
-            continue
-            # الخيار B (بديل مقبول): رفض صريح بـ Field error
-            # raise ValueError(f"حقل غير مسموح: {field}")
+            # ✅ الافتراضي: رفض صريح بـ Field error — لا تجاهُل صامت
+            raise ValueError(f"حقل غير مسموح: {field}")
+            # استثناء: تجاهُل صامت — فقط إذا كان الـ endpoint يوثِّق هذه السياسة صراحةً:
+            # continue
 
         if value is None:
             if field not in CLEARABLE_FIELDS:
@@ -341,8 +341,12 @@ if (body.errors?.length) {
 }
 ```
 
-> **ملاحظة حرجة:** `errors[]` هو الشكل الرسمي **للأخطاء على حقول محددة فقط**. الخطأ العام يستخدم `{"error": {...}}` — وليس `errors[]`.
-> `errors[]` بدون `field` مقبول كـ fallback فقط إذا كان الـ endpoint لا يستطيع التمييز بين الخطأ العام والحقل — وليس الحالة الاعتيادية.
+> **ملاحظة حرجة:** الشكلان **منفصلان تماماً** — لا تخلط بينهما في endpoints جديدة:
+> - أخطاء الحقول المحددة → `errors[]` (API-MUT-08) ← يحتوي `field`
+> - الخطأ العام → `{"error": {"code", "message"}}` (هذا القسم) ← لا `field`
+>
+> `errors[]` بدون `field` **ليس** شكلاً رسمياً للخطأ العام في endpoints جديدة.
+> Legacy Adapter (API-MUT-11) يتعامل معه إذا أتى من endpoints قديمة — لا يصبح Target Contract.
 
 **Frontend يعرض الخطأ العام كـ Form-level error (DS-VAL VAL-09).**
 
@@ -355,36 +359,70 @@ if (body.errors?.length) {
 
 ### قاعدة التعامل
 
-Frontend يطبِّق **adapter** لتوحيد الأشكال الموروثة — ويمنع ظهور `[object Object]` للمستخدم:
+Frontend يطبِّق **adapter** لتوحيد الأشكال الموروثة — ويمنع ظهور `[object Object]` للمستخدم.
+
+### النموذج الداخلي الموحَّد (Internal Normalized Error Model)
+
+```ts
+// النموذج الذي يُعيده normalizeErrorResponse() دائماً:
+{
+  fieldErrors: Array<{ field: string, code?: string, message: string }>,
+  generalError: { code?: string, message: string } | null
+}
+```
+
+- `fieldErrors` — أخطاء مرتبطة بحقول محددة → DS-VAL يوجِّهها Inline (VAL-08)
+- `generalError` — خطأ عام (بدون حقل) → DS-VAL يوجِّهه Form-level (VAL-09)
+- **لا يوجد parser آخر** خارج هذه الدالة — DS-VAL يستهلك هذا النموذج مباشرةً
 
 ```js
 function normalizeErrorResponse(body) {
-  // الشكل الرسمي الجديد: { errors: [{ field?, code, message }] }
-  if (Array.isArray(body?.errors)) return body.errors
+  const fieldErrors = []
+  let generalError = null
 
-  // { error: { code, message } } — كائن مُنظَّم (الشكل الرسمي الثاني)
-  if (body?.error && typeof body.error === 'object' && body.error.message) {
-    return [{ message: body.error.message, code: body.error.code }]
+  // الشكل الرسمي للحقول: { errors: [{ field, code, message }] }
+  if (Array.isArray(body?.errors)) {
+    for (const err of body.errors) {
+      if (err.field) {
+        fieldErrors.push({ field: err.field, code: err.code, message: err.message })
+      } else {
+        // errors[] بدون field — يُعامَل كـ generalError (Legacy / غير مفضَّل للجديد)
+        generalError = { code: err.code, message: err.message || 'حدث خطأ، حاول مجدداً' }
+      }
+    }
+  }
+
+  // الشكل الرسمي للخطأ العام: { error: { code, message } }
+  if (!generalError && body?.error && typeof body.error === 'object' && body.error.message) {
+    generalError = { code: body.error.code, message: body.error.message }
   }
 
   // { error: "string" } — الشكل القديم المباشر
-  if (typeof body?.error === 'string') {
-    return [{ message: body.error }]
+  if (!generalError && typeof body?.error === 'string') {
+    generalError = { message: body.error }
   }
 
   // { message: "..." } — الشكل القديم
-  if (body?.message) return [{ message: body.message }]
+  if (!generalError && body?.message) {
+    generalError = { message: body.message }
+  }
 
-  // { detail: { message: "..." } } — كائن مُنظَّم
-  if (body?.detail && typeof body.detail === 'object' && body.detail.message) {
-    return [{ message: body.detail.message }]
+  // { detail: { message: "..." } } — FastAPI validation error مُنظَّم
+  if (!generalError && body?.detail && typeof body.detail === 'object' && body.detail.message) {
+    generalError = { message: body.detail.message }
   }
 
   // { detail: "string" } — FastAPI default validation error
-  if (typeof body?.detail === 'string') return [{ message: body.detail }]
+  if (!generalError && typeof body?.detail === 'string') {
+    generalError = { message: body.detail }
+  }
 
-  // Fallback
-  return [{ message: 'حدث خطأ، حاول مجدداً' }]
+  // Fallback إذا لا شيء
+  if (fieldErrors.length === 0 && !generalError) {
+    generalError = { message: 'حدث خطأ، حاول مجدداً' }
+  }
+
+  return { fieldErrors, generalError }
 }
 ```
 
@@ -423,7 +461,7 @@ HTTP status يوجِّه التصنيف لكن **Response body هو المصدر
 - **أن للمستخدم صلاحية** تعديل هذا الـ record
 - **أن القيم ضمن الـ constraints** (طول، format، uniqueness)
 - **أن الـ FK references** موجودة في DB
-- **أن الـ allowlist مُحترَمة** — حقول خارج allowlist تُتجاهَل
+- **أن الـ allowlist مُحترَمة** — حقول خارج allowlist تُرفَض بـ error contract (الافتراضي)، أو تُتجاهَل إذا كان الـ endpoint يوثِّق ذلك صراحةً (انظر API-MUT-05)
 
 ### ما يُوفِّره Frontend (UX فقط)
 
