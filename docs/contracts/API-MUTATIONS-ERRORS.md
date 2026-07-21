@@ -158,15 +158,23 @@ payload.bio = bioInput.value  // قد يكون ""
 
 كل endpoint يملك **allowlist صريحة** للحقول المقبولة.
 
+**الحقل غير المعروف (ليس في الـ allowlist):**
+
 ```python
-# ✅ صحيح
+# ✅ الافتراضي: رفض صريح بـ error contract
 ALLOWED = {'name', 'bio', 'city', 'country', 'website'}
 
 for field in incoming_data:
     if field not in ALLOWED:
-        continue  # تُتجاهَل صامتةً — لا HTTP 400
+        return 400_error(field, 'unknown_field', f'الحقل {field} غير مقبول')
 
-# ❌ خطأ
+# ✅ استثناء: تجاهُل صامت — فقط إذا كان الـ endpoint يوثِّق هذه السياسة صراحةً
+# (مثال: endpoints مفتوحة لمدخلات موسَّعة مع allowlist جزئية)
+for field in incoming_data:
+    if field not in ALLOWED:
+        continue  # تُتجاهَل صامتةً — يجب توثيق هذا الاختيار في وصف الـ endpoint
+
+# ❌ خطأ: بدون allowlist أصلاً
 for field in incoming_data:
     db_update(field, incoming_data[field])  # SQL injection risk + unintended writes
 ```
@@ -306,9 +314,23 @@ if (body.errors?.length) {
 
 ## API-MUT-10 Target General Error Shape
 
-### الشكل الرسمي (Official Shape)
+### الشكلان الرسميان (Official Shapes) — منفصلان
 
-الشكل الرسمي للخطأ العام (بدون حقل محدد):
+**شكل خطأ الحقل المحدد** (API-MUT-08 — فيه `field`):
+
+```json
+{
+  "errors": [
+    {
+      "field": "email",
+      "code": "already_exists",
+      "message": "البريد الإلكتروني مستخدم مسبقاً"
+    }
+  ]
+}
+```
+
+**شكل الخطأ العام** (لا حقل محدد — بدون `field`):
 
 ```json
 {
@@ -319,24 +341,10 @@ if (body.errors?.length) {
 }
 ```
 
-أو عبر `errors[]` (للتوحيد مع API-MUT-08):
+> **ملاحظة حرجة:** `errors[]` هو الشكل الرسمي **للأخطاء على حقول محددة فقط**. الخطأ العام يستخدم `{"error": {...}}` — وليس `errors[]`.
+> `errors[]` بدون `field` مقبول كـ fallback فقط إذا كان الـ endpoint لا يستطيع التمييز بين الخطأ العام والحقل — وليس الحالة الاعتيادية.
 
-```json
-{
-  "errors": [
-    {
-      "code": "permission_denied",
-      "message": "ليس لديك صلاحية تنفيذ هذا الإجراء"
-    }
-  ]
-}
-```
-
-### الشكل المفضَّل للـ endpoints الجديدة
-
-`errors[]` هو الشكل الموحَّد — يُستخدَم لكل من الأخطاء العامة والأخطاء على حقل محدد.
-
-**Frontend يعرضه كـ Form-level error (DS-VAL VAL-09).**
+**Frontend يعرض الخطأ العام كـ Form-level error (DS-VAL VAL-09).**
 
 > الشكل القديم `{"error": "string"}` موثَّق في Legacy Adapter (API-MUT-11) فقط — لا يُستخدَم في endpoints جديدة.
 ## API-MUT-11 Legacy Adapter
@@ -453,7 +461,11 @@ HTTP status يوجِّه التصنيف لكن **Response body هو المصدر
 
 1. **لا `undefined` في JSON** — استخدم `null` أو احذف الـ field
 2. **لا أنواع ديناميكية** — حقل `value` إما `string` دائماً أو `number` دائماً، ليس مرةً `string` ومرةً `number`
-3. **Error shape موحَّدة** — `errors: [{ field?, code, message }]` ثابتة لا تتغير بالـ status code
+3. **Error shapes للـ Flutter:**
+   - أخطاء الحقول المحددة → `errors: [{ field, code, message }]` (API-MUT-08)
+   - الخطأ العام → `error: { code, message }` (API-MUT-10)
+   - `code` هو المرجع البرمجي في Dart — لا `message` (لأن اللغة قد تتغير)
+   - **ممنوع** استخدام `errors[]` للأخطاء العامة في Flutter — يُربِك الـ Dart parser
 4. **لا HTML في رسائل الخطأ** — Flutter لا يُعالِج HTML
 5. **`data` wrapper للـ Success** — يسهِّل parsing في Dart
 

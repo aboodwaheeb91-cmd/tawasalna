@@ -937,7 +937,7 @@ profiles.country   → المصدر الوحيد للدولة (ISO code للمو
 
 - **مصدر Canonical واحد للقراءة والكتابة** — كل نقاط الـ UI التي تعرض أو تُعدِّل نفس البيانات تقرأ من وتكتب إلى نفس المصدر
 - **سطوح UI متعددة مقبولة** — يمكن أن يكون للبيانات سطح عرض في header + modal + card، شريطة أن كلها تُحدَّث من نفس الـ canonical response بعد الحفظ
-- **حقل يُكتَب من مكانَين مقبول** إذا كانا متزامنَين صراحةً ويكتبان لنفس المصدر (مثل: modal + inline edit يكتبان لـ `profiles.headline` عبر نفس endpoint)
+- **حقل يُكتَب من مكانَين مقبول** إذا توفَّرت الشروط الأربعة: (١) نفس المصدر الـ Canonical (نفس DB column/table)، (٢) نفس الـ contract المعتمد (ليس بالضرورة نفس الـ endpoint — يمكن endpointَين إذا كلاهما يكتب للمصدر ذاته بدون تضارب)، (٣) تزامن صريح (كل نقاط العرض تُحدَّث من الـ canonical response)، (٤) لا parallel state (مثال: modal + inline edit يكتبان لـ `profiles.headline`)
 - **مصدر Display واحد** — بعد الحفظ، كل نقاط العرض تُحدَّث من نفس الـ canonical response
 
 ### تطبيقه على Validation
@@ -950,7 +950,7 @@ profiles.country   → المصدر الوحيد للدولة (ISO code للمو
 ```
 ❌ availability_status و avail يحكمان نفس البيانات في نفس الوقت
 ❌ قواعد Validation مكتوبةً مرتَين في ملفَّين مختلفَين (مكرَّرة لا مشتركة)
-❌ حقل يُكتَب من مكانَين بدون تزامن صريح وبدون نفس endpoint
+❌ حقل يُكتَب من مكانَين بدون تزامن صريح أو بدون نفس مصدر Canonical
 ❌ جدول ثانٍ لنفس البيانات بحجة "تسريع القراءة" بدون invalidation strategy
 ```
 ## F30 — [P0] No Matching System = Stop and Report

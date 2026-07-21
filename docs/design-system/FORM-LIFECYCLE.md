@@ -109,10 +109,13 @@
                      ┌──────────────┐  ┌──────────────┐
                      │   SUCCESS    │  │    ERROR     │
                      └──────┬───────┘  └──────┬───────┘
-                            │                  │
-                            ▼                  ▼
-                        CLOSING           READY-DIRTY
-                        → CLOSED          (فورم يبقى مفتوحاً)
+                       ┌────┴────┐             │
+                       ▼         ▼             ▼
+                   CLOSING   READY-      READY-DIRTY
+                   → CLOSED  PRISTINE    (فورم يبقى مفتوحاً)
+                             (إذا بقي
+                             الفورم
+                             مفتوحاً)
 ```
 
 ### وصف الحالات
@@ -127,7 +130,7 @@
 | `READY-DIRTY` | فيه تغييرات لم تُحفَظ | READY-PRISTINE / ERROR | VALIDATING / CLOSING |
 | `VALIDATING` | يتحقق client-side | READY-DIRTY | SUBMITTING / READY-DIRTY |
 | `SUBMITTING` | طلب في الطريق | VALIDATING | SUCCESS / ERROR |
-| `SUCCESS` | حُفِظ بنجاح | SUBMITTING | CLOSING |
+| `SUCCESS` | حُفِظ بنجاح | SUBMITTING | CLOSING (إذا كان الفورم يُغلَق بعد الحفظ) أو READY-PRISTINE (إذا بقي مفتوحاً) |
 | `ERROR` | فشل الحفظ | SUBMITTING | READY-DIRTY |
 | `CLOSING` | يُعالِج الإغلاق | SUCCESS / READY-DIRTY (cancel) | CLOSED |
 
@@ -508,13 +511,13 @@ let _submitting = false
 async function handleSave() {
   if (_submitting) return  // احتياط إضافي
   _submitting = true
-  saveBtn.disabled = true
+  enterSaveLoadingViaButtonSystem(saveBtn)  // DS-BTN BTN-09 يتولى Loading + Disabled
 
   try {
     // ... validation + fetch
   } finally {
     _submitting = false
-    saveBtn.disabled = false  // يُستعاد في كلتا الحالتين (نجاح/فشل)
+    // DS-BTN BTN-09 يتولى إعادة الزر — استدعَه من FRM-16 (نجاح) أو FRM-21 (فشل)
   }
 }
 ```
@@ -541,8 +544,8 @@ async function handleSave() {
   // 2. Build payload (FRM-09)
   const payload = buildPayload()
 
-  // 3. Submit
-  saveBtn.disabled = true
+  // 3. Submit — DS-BTN BTN-09 يتولى Loading + Disabled
+  enterSaveLoadingViaButtonSystem(saveBtn)
   const res = await fetch('/api/profile', { method: 'PUT', body: JSON.stringify(payload) })
 
   if (!res.ok) {
@@ -556,8 +559,9 @@ async function handleSave() {
   renderDisplayViews(saved)   // تحديث كل نقاط العرض
   updateOriginalValues(saved) // تحديث مرجع Dirty State
 
-  // 5. Close form
-  closeModal()
+  // 5. DS-BTN يطبِّق حالة النجاح — ثم إغلاق الفورم (إذا اقتضى السياق)
+  applySaveSuccessViaButtonSystem(saveBtn)
+  // closeModal()  ← context-dependent: انظر BTN-09 — ليس إلزامياً في كل الحالات
 }
 ```
 
@@ -689,6 +693,32 @@ nextTick()      → يضمن render cycle فقط — لا يضمن وجود عن
 select.value = record.country
 if (window.scSelectInit) scSelectInit()  // إعادة تهيئة custom dropdown
 ```
+
+### Idempotent Initialization — قواعد إلزامية
+
+**الإشكالية:** كل مرة يُفتح فيها Modal، قد تُضاف Event Listeners جديدة على نفس العناصر → تراكم الاستجابات.
+
+| القاعدة | التطبيق |
+|---------|---------|
+| **لا Listener تراكمي** | لا تُضِف `addEventListener` عند كل فتح — أضِفه مرةً واحدة عند التهيئة (init) |
+| **Event Delegation مفضَّل** | استمع على container ثابت واستخدم `e.target.closest()` بدلاً من Listeners على عناصر ديناميكية |
+| **Cleanup عند الإزالة** | إذا أُنشئ Modal ديناميكياً وأُزيل، نظِّف Listeners باستخدام `AbortController` أو `removeEventListener` |
+| **عناصر إلزامية** | إذا كان عنصر مطلوب (`querySelector` returns `null`) → `console.error` واضح + الصفحة تبقى تعمل (لا تكسر بقية الوظائف) |
+| **Tests على العناصر** | اختبارات تتحقق من وجود العناصر الإلزامية في DOM قبل التنفيذ |
+
+```js
+// ✅ صحيح: Listener مرةً واحدة عند DOMContentLoaded
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('save-btn')?.addEventListener('click', handleSave)
+  // لا تُعيد هذا في كل مرة يُفتح الـ modal
+})
+
+// ❌ خطأ: Listener يتراكم عند كل فتح
+function openModal() {
+  document.getElementById('save-btn').addEventListener('click', handleSave)  // ← يتراكم
+}
+```
+
 ## FRM-21 Failure Contract
 
 ### ما يجب أن يحدث عند فشل الحفظ
@@ -701,11 +731,10 @@ if (window.scSelectInit) scSelectInit()  // إعادة تهيئة custom dropdow
 
 ```js
 function handleSaveError(errorData) {
-  // 1. زر Save يُستعاد
-  saveBtn.disabled = false
-  saveBtn.classList.remove('loading')
+  // 1. DS-BTN BTN-09 يُستعاد زر Save (يخرج من Loading ويعود للعمل)
+  restoreSaveButtonViaButtonSystem(saveBtn)
 
-  // 2. DS-VAL يعرض الأخطاء المناسبة
+  // 2. DS-VAL يعرض الأخطاء المناسبة — عبر normalizeErrorResponse() من API-MUT-11
   displayErrors(errorData)  // inline أو form-level حسب DS-VAL
 
   // 3. الفورم يبقى مفتوحاً
@@ -755,7 +784,7 @@ function handleSaveError(errorData) {
 
 | الحالة | السبب |
 |--------|-------|
-| نماذج تسجيل الدخول / الاشتراك | مسار مختلف — لا Dirty State، لا Record |
+| نماذج تسجيل الدخول / الاشتراك (جزئي) | خارج النطاق: Dirty State، Hydration، Edit Record. **داخل النطاق:** Submission، Failure، DS-BTN، DS-VAL، API error contract |
 | نماذج البحث والفلترة | لا حفظ، لا Reset، لا Dirty |
 | Wizard / Multi-step | يحتاج sub-states خاصة — DS-FRM V2 |
 | Compose Message | no persistence model |

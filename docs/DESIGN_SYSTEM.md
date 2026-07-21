@@ -58,6 +58,16 @@
 | شكل Error Response من Backend | [API-MUTATIONS-ERRORS.md](contracts/API-MUTATIONS-ERRORS.md) | API-MUT-08 + API-MUT-10 |
 | تصنيف أخطاء HTTP | [API-MUTATIONS-ERRORS.md](contracts/API-MUTATIONS-ERRORS.md) | API-MUT-12 |
 
+| قائمة منسدلة / select / searchable picker | [DS-SEL] | **STOP — غير موثَّق بعد (tw-select.js موجود)** |
+| تاريخ / وقت / date picker | [DS-DATE] | **STOP — غير موثَّق بعد** |
+| هاتف دولي / dial code | [DS-PHONE] | **STOP — غير موثَّق بعد** |
+| رفع ملف / Upload UI (drag & drop) | [DS-UPLOAD] | **STOP — غير موثَّق بعد (tw-upload.js يغطي HTTP فقط)** |
+| أيقونة / علامة / ملف مشترك | [DS-ASSET] | **STOP — غير موثَّق بعد** |
+| Modal / Drawer / Overlay | [DS-OVL] | **STOP — غير موثَّق بعد** |
+| Toast / Snackbar / Feedback | [DS-FEEDBACK] | **STOP — غير موثَّق بعد** |
+| بيانات مرجعية (مهن / مهارات / دول) | [DS-REF] | **STOP — غير موثَّق بعد (tw-options-data.js موجود)** |
+| Content Moderation | [DS-MODERATION] | **STOP — غير موثَّق بعد** |
+
 > **إذا لم يوجد Route مناسب في الجدول:**
 > لا تختر أقرب نظام. **STOP** واسأل صاحب المشروع. (F30)
 > الأنظمة الحالية: [DS-BTN] · [DS-VM] · [DS-NAV] · [DS-INP] · [DS-FRM] · [DS-VAL] · [API-MUT] — لا تبني نظاماً موازياً لأيٍّ منها.
@@ -90,6 +100,7 @@
 | [DS-RICH] | Rich Text / WYSIWYG System | غير مخطط في V1 |
 | [DS-MODERATION] | Content Moderation / Profanity Filter | مؤجَّل |
 | [DS-FEEDBACK] | Toast / Snackbar / Feedback System | مؤجَّل |
+| [DS-ASSET] | Icon & Asset System (أيقونات وعلامات وملفات مشتركة) | مؤجَّل — Placeholder فقط |
 
 > **قاعدة إلزامية (F30):** لا يُبنى على أي نظام في هذا الجدول حتى يُوثَّق في PR مستقل.
 > إذا احتاجت المهمة أحد هذه الأنظمة — **STOP** واسأل صاحب المشروع.
