@@ -92,11 +92,15 @@ def update_profile(user_id: int, data: dict):
 
     for field, value in data.items():
         if field not in ALLOWED_FIELDS:
-            continue  # حقول غير مصرَّح بها تُتجاهَل صامتةً
+            # الخيار A: تجاهُل صامت — يجب أن يكون موثَّقاً صراحةً لهذا الـ endpoint
+            continue
+            # الخيار B (بديل مقبول): رفض صريح بـ Field error
+            # raise ValueError(f"حقل غير مسموح: {field}")
 
         if value is None:
             if field not in CLEARABLE_FIELDS:
-                continue  # لا يُمسَح حقل non-clearable
+                # null على حقل non-clearable → Field error — لا تجاهُل صامت
+                raise ValueError(f"{field}: لا يمكن مسح هذا الحقل")
             updates.append(f"{field} = NULL")
         else:
             updates.append(f"{field} = :{field}")
@@ -172,16 +176,16 @@ for field in incoming_data:
 ```python
 ALLOWED   = {'name', 'bio', 'city', 'country', 'website', 'is_public'}
 CLEARABLE = {'bio', 'city', 'country', 'website'}
-# → name و is_public في ALLOWED لكن ليسا في CLEARABLE → null مُتجاهَل
+# → name و is_public في ALLOWED لكن ليسا في CLEARABLE → null يُنتِج Field error (لا تجاهُل صامت)
 ```
 
 ---
 
 ## API-MUT-06 One Source of Truth Reference
 
-### المبدأ (من ARCHITECTURE_FOUNDATION.md — F5)
+### المبدأ (من ARCHITECTURE_FOUNDATION.md — F29)
 
-**لا حقلان يحكمان نفس البيانات.**
+**مفهوم واحد = مصدر بيانات Canonical واحد.**
 
 تطبيقه على API Mutations:
 - `profiles.avail` هو المصدر الوحيد لحالة التوفر — لا `availability_status`
@@ -245,7 +249,7 @@ CLEARABLE = {'bio', 'city', 'country', 'website'}
 
 | الحقل | النوع | الوصف |
 |-------|-------|-------|
-| `field` | string | اسم الـ field في Frontend (يطابق `id` أو `name` الـ input) |
+| `field` | string | اسم الـ field الرسمي في Backend API — Frontend يحتفظ بـ mapping من اسم API إلى DOM control المقابل |
 | `code` | string | رمز آلي للخطأ (للـ Frontend logic) |
 | `message` | string | رسالة بالعربية للمستخدم |
 
@@ -302,7 +306,20 @@ if (body.errors?.length) {
 
 ## API-MUT-10 Target General Error Shape
 
-### شكل الخطأ العام (بدون حقل محدد)
+### الشكل الرسمي (Official Shape)
+
+الشكل الرسمي للخطأ العام (بدون حقل محدد):
+
+```json
+{
+  "error": {
+    "code": "permission_denied",
+    "message": "ليس لديك صلاحية تنفيذ هذا الإجراء"
+  }
+}
+```
+
+أو عبر `errors[]` (للتوحيد مع API-MUT-08):
 
 ```json
 {
@@ -315,18 +332,13 @@ if (body.errors?.length) {
 }
 ```
 
-أو للأخطاء البسيطة:
+### الشكل المفضَّل للـ endpoints الجديدة
 
-```json
-{
-  "error": "ليس لديك صلاحية تنفيذ هذا الإجراء"
-}
-```
+`errors[]` هو الشكل الموحَّد — يُستخدَم لكل من الأخطاء العامة والأخطاء على حقل محدد.
 
 **Frontend يعرضه كـ Form-level error (DS-VAL VAL-09).**
 
----
-
+> الشكل القديم `{"error": "string"}` موثَّق في Legacy Adapter (API-MUT-11) فقط — لا يُستخدَم في endpoints جديدة.
 ## API-MUT-11 Legacy Adapter
 
 ### السياق
@@ -335,18 +347,33 @@ if (body.errors?.length) {
 
 ### قاعدة التعامل
 
-Frontend يطبِّق **adapter** لتوحيد الأشكال الموروثة:
+Frontend يطبِّق **adapter** لتوحيد الأشكال الموروثة — ويمنع ظهور `[object Object]` للمستخدم:
 
 ```js
 function normalizeErrorResponse(body) {
-  // الشكل الجديد: { errors: [{ field, code, message }] }
+  // الشكل الرسمي الجديد: { errors: [{ field?, code, message }] }
   if (Array.isArray(body?.errors)) return body.errors
 
-  // الشكل القديم: { message: "..." }
+  // { error: { code, message } } — كائن مُنظَّم (الشكل الرسمي الثاني)
+  if (body?.error && typeof body.error === 'object' && body.error.message) {
+    return [{ message: body.error.message, code: body.error.code }]
+  }
+
+  // { error: "string" } — الشكل القديم المباشر
+  if (typeof body?.error === 'string') {
+    return [{ message: body.error }]
+  }
+
+  // { message: "..." } — الشكل القديم
   if (body?.message) return [{ message: body.message }]
 
-  // الشكل القديم: { detail: "..." }
-  if (body?.detail) return [{ message: body.detail }]
+  // { detail: { message: "..." } } — كائن مُنظَّم
+  if (body?.detail && typeof body.detail === 'object' && body.detail.message) {
+    return [{ message: body.detail.message }]
+  }
+
+  // { detail: "string" } — FastAPI default validation error
+  if (typeof body?.detail === 'string') return [{ message: body.detail }]
 
   // Fallback
   return [{ message: 'حدث خطأ، حاول مجدداً' }]
@@ -358,8 +385,7 @@ function normalizeErrorResponse(body) {
 **الـ endpoint الجديد يستخدم الشكل الرسمي فقط** (API-MUT-08 / API-MUT-10).
 الشكل القديم يُحتفَظ به فقط لـ backward compat مع endpoints موجودة.
 
----
-
+> **ممنوع:** تمرير `body.error` أو `body.detail` مباشرةً لـ `textContent` إذا كانا كائناً — يُنتِج `[object Object]` مرئياً للمستخدم.
 ## API-MUT-12 Error Classification
 
 ### التصنيف
@@ -489,13 +515,55 @@ HTTP status يوجِّه التصنيف لكن **Response body هو المصدر
 | الحالة | السبب |
 |--------|-------|
 | `GET` endpoints | read-only — لا mutations |
-| `DELETE` endpoints | مسار مختلف — لا payload |
-| Auth endpoints (login/register) | contract منفصل |
+| Auth endpoints (login/register) | داخل النطاق جزئياً — انظر API-MUT-18b أدناه |
 | Upload endpoints | `tw-upload.js` contract |
 | GraphQL mutations | ليس مستخدَماً في V1 |
 | Optimistic Updates مع conflict resolution | DS-FRM V2 |
 | Idempotency keys | V2 |
 
+---
+
+## API-MUT-18a DELETE Success Response
+
+تأكيد الحذف الناجح **داخل نطاق هذا الـ contract** — ليس خارجه.
+
+### الشكل الرسمي لـ DELETE ناجح
+
+```json
+{
+  "status": "ok",
+  "data": { "id": 42, "deleted": true }
+}
+```
+
+أو مبسَّط:
+
+```json
+{ "status": "ok" }
+```
+
+### القواعد
+
+- HTTP `200 OK` (ليس `204 No Content`) — لضمان response body يمكن تفسيره
+- الـ response يُفيد Frontend بالـ id المحذوف لتحديث الـ display
+- **ممنوع:** `204 No Content` — يُجبِر على Refetch (راجع API-MUT-16)
+- معالجة الخطأ في DELETE: نفس شكل API-MUT-08 / API-MUT-10
+
+---
+
+## API-MUT-18b Auth Endpoints Scope
+
+نماذج المصادقة (login/register) **تشترك جزئياً** في هذا الـ contract:
+
+**داخل النطاق (مشترك):**
+- شكل Error Response (API-MUT-08 / API-MUT-10) — نفس الـ `errors[]` shape
+- تصنيف أخطاء HTTP (API-MUT-12) — نفس mapping
+- Legacy Adapter (API-MUT-11) — للـ endpoints القديمة
+
+**قواعد Auth إضافية (خارج نطاق API-MUT):**
+- Rate Limiting — `429 Too Many Requests` + "حاول بعد X ثانية"
+- Account Lockout بعد محاولات فاشلة — contract أمني منفصل
+- CSRF Token إذا مطلوب — contract أمني منفصل
 ---
 
 *[API-MUT] V1 — أُنشئ في PR docs/design-system-forms-v1 — 2026-07-21*

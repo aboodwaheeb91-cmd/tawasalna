@@ -80,7 +80,7 @@
 **قواعد الهيكل:**
 1. `.field-wrapper` يحتوي الحقل كاملاً ويستقبل state classes (`.has-error`، `.is-disabled`)
 2. `<label>` يأتي **قبل** `<input>` دائماً في DOM — لا يُوضع بعده حتى لو يُعرَض بصرياً بشكل مختلف
-3. `.field-error` و `.field-hint` لا يظهران في نفس الوقت — الخطأ يأخذ الأولوية
+3. `.field-error` و `.field-hint` يرتبطان معاً بالحقل عبر `aria-describedby` — يُعرَض كلاهما أو أحدهما حسب السياق؛ الخطأ يأخذ الأولوية البصرية لكن إخفاء `.field-hint` عند الخطأ ليس إلزامياً
 4. لا يوجد `.field-success` — لا حالة "Valid" مرئية بعد الكتابة (انظر INP-05)
 
 ---
@@ -89,30 +89,32 @@
 
 ### القاعدة الأساسية
 
-**الإجباري (Required):** يُعلَّم صراحةً إذا الفورم يحتوي 2+ حقل اختياري.
+**الإجباري (Required):** يُعرَض باسم الحقل فقط — **ممنوع استخدام `*` للإشارة للإجباري**.
 
-**الاختياري (Optional):** يُكتب `(اختياري)` بجانب الـ Label — **ممنوع استخدام `*` للاختياري**.
+**الاختياري (Optional):** يُكتب `(اختياري)` بجانب الـ Label.
 
-**`*` للإجباري:** يُعلَّم بـ `*` أحمر (`aria-hidden="true"`) **ولا يُعتمد عليه وحده** — الـ label يذكر الوضع صراحةً للـ screen readers.
+**عند وجود 2+ حقل اختياري:** يُضاف تنبيه واحد أسفل العنوان أو أعلى الفورم:
+> *"جميع الحقول مطلوبة إلا المشار إليها بأنها اختيارية."*
 
 ### المعادلة
 
 ```
-إذا (عدد الاختياري >= 2):
-  الإجباري  → label + * أحمر
-  الاختياري → label + " (اختياري)"
-إذا (كل الحقول إجبارية أو حقل واحد اختياري):
+إذا (كل الحقول إجبارية):
   لا تعليم مرئي — الـ aria-required يكفي
+
+إذا (حقل واحد اختياري):
+  الاختياري → label + " (اختياري)"
+
+إذا (عدد الاختياري >= 2):
+  الاختياري     → label + " (اختياري)"
+  تنبيه واحد   → "جميع الحقول مطلوبة إلا المشار إليها بأنها اختيارية."
 ```
 
 ### مثال HTML
 
 ```html
-<!-- إجباري -->
-<label for="field-email">
-  البريد الإلكتروني
-  <span class="required-star" aria-hidden="true">*</span>
-</label>
+<!-- إجباري: لا علامة مرئية إضافية -->
+<label for="field-email">البريد الإلكتروني</label>
 <input id="field-email" type="email" required aria-required="true" />
 
 <!-- اختياري -->
@@ -122,8 +124,12 @@
 <input id="field-bio" type="text" />
 ```
 
----
+### ممنوعات INP-04
 
+```
+❌ <span class="required-star">*</span> — لا نجمة لأي غرض
+❌ الاعتماد على اللون أو الرمز وحده للتفريق بين إجباري واختياري — يجب نص صريح
+```
 ## INP-05 Visual States
 
 ### الحالات المعرَّفة
@@ -161,14 +167,15 @@ Disabled > Error > Focus > Filled/Normal
 }
 
 .has-error .field-input {
-  border-color: var(--error-red, #ef4444);
+  border-color: var(--error-border);  /* Design Token — لا قيم hex مباشرة */
 }
 
 .has-error .field-input:focus {
   /* Red border stays; optional: extra focus ring */
-  outline: 2px solid rgba(239, 68, 68, 0.25);
+  outline: 2px solid var(--error-ring);  /* Design Token */
   outline-offset: 1px;
 }
+
 
 .field-input:disabled {
   opacity: 0.5;
@@ -218,9 +225,10 @@ Disabled > Error > Focus > Filled/Normal
 ### Textarea — قواعد خاصة
 
 - `rows` الابتدائي: 3–4 أسطر مرئية كحد أدنى
-- Auto-resize مسموح (عبر JS) — لا يتجاوز `max-height` محدداً مسبقاً (مثلاً 240px)
 - `resize: vertical` فقط إذا كان مسموحاً — `resize: none` إذا كان المحتوى ذو حجم مُقيَّد
 - نفس الـ visual states المطبَّقة على `<input>`
+
+> **Auto-resize / Auto-grow:** خارج نطاق V1 — انظر INP-16.
 
 ---
 
@@ -436,19 +444,27 @@ CSS الحقول موزَّع عبر ملفات متعددة:
 
 الأنظمة التالية **خارج** نطاق هذا التوثيق:
 
-| العنصر | النظام المسؤول |
-|--------|---------------|
-| `<select>` والقوائم المنسدلة | `static/shared/tw-select.js` (موجود) |
-| Skills / Tags autocomplete | `static/shared/tw-skills.js` (موجود) |
-| File upload | `static/shared/tw-upload.js` (موجود) |
-| Image crop | `static/shared/tw-image-cropper.js` (موجود) |
-| Datepicker | غير موجود — يُضاف عند الحاجة |
-| Multi-select | غير موجود — يُضاف عند الحاجة |
-| OTP / Pin input | غير موجود — يُضاف عند الحاجة |
-| Radio / Checkbox / Toggle | غير موثَّق — يُضاف في DS-INP V2 |
-| Slider / Range | غير موثَّق — يُضاف في DS-INP V2 |
-| Rich text / WYSIWYG | غير مخطط في V1 |
+| العنصر | النظام المسؤول | الحالة |
+|--------|---------------|--------|
+| `<select>` والقوائم المنسدلة | `[DS-SEL]` — `static/shared/tw-select.js` | موجود — غير موثَّق في DESIGN_SYSTEM |
+| Skills / Tags autocomplete | `static/shared/tw-skills.js` | موجود |
+| File upload | `static/shared/tw-upload.js` | موجود |
+| Image crop | `static/shared/tw-image-cropper.js` | موجود |
+| Datepicker / Date range | `[DS-DATE]` — لم يُوثَّق | **ممنوع البناء قبل توثيق DS-DATE** |
+| Phone input / Dial code picker | `[DS-PHONE]` — لم يُوثَّق | **ممنوع البناء قبل توثيق DS-PHONE** |
+| Multi-select / Tags input | `[DS-SEL]` — لم يُوثَّق كاملاً | **ممنوع البناء قبل توثيق** |
+| OTP / Pin input | `[DS-OTP]` — لم يُوثَّق | **ممنوع البناء قبل توثيق** |
+| Radio / Checkbox / Toggle | `[DS-INP V2]` — مؤجَّل | **ممنوع البناء قبل توثيق** |
+| Slider / Range | `[DS-INP V2]` — مؤجَّل | **ممنوع البناء قبل توثيق** |
+| Rich text / WYSIWYG | `[DS-RICH]` — لم يُخطَّط | **ممنوع في V1** |
+| Auto-resize / Auto-grow Textarea | `[DS-INP V2]` — مؤجَّل | **ممنوع البناء قبل توثيق** |
+| Upload Input UI (drag & drop) | `[DS-UPLOAD]` — لم يُوثَّق كـ DS | راجع `tw-upload.js` للـ HTTP upload |
+| Overlay / Modal لعرض Input معقد | `[DS-OVL]` — لم يُوثَّق | **ممنوع البناء قبل توثيق DS-OVL** |
+| Reference Data Picker | `[DS-REF]` — `tw-options-data.js` موجود | غير موثَّق كـ DS كامل |
+| Feedback / Toast من نتيجة Input | Notification System أو `[DS-OVL]` | **ممنوع البناء قبل توثيق** |
 
+> **قاعدة الأنظمة المستقبلية:** لا يُبنى على أي نظام في هذا الجدول لم يُوثَّق في PR مستقل.
+> إذا احتاجت المهمة أحد هذه الأنظمة — **STOP** واسأل صاحب المشروع (F30).
 ---
 
 *[DS-INP] V1 — أُنشئ في PR docs/design-system-forms-v1 — 2026-07-21*

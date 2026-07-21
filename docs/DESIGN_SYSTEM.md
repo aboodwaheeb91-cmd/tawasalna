@@ -76,15 +76,23 @@
 | [DS-VAL] | Validation & Error Contract V1 | [design-system/VALIDATION-ERRORS.md](design-system/VALIDATION-ERRORS.md) | موثَّق — V1 (توثيق) |
 | [API-MUT] | API Mutation & Error Contract V1 | [contracts/API-MUTATIONS-ERRORS.md](contracts/API-MUTATIONS-ERRORS.md) | موثَّق — V1 (توثيق) |
 
-**أنظمة مستقبلية (لم تُوثَّق بعد):**
+**أنظمة مستقبلية (لم تُوثَّق بعد — انظر INP-16 للقائمة الكاملة):**
 
 | كود (مؤقت) | النظام | الحالة |
 |-----------|--------|--------|
 | [DS-SEL] | Select & Dropdown System | مؤجَّل — tw-select.js موجود لكن غير موثَّق في DESIGN_SYSTEM |
 | [DS-OVL] | Overlay / Modal / Sheet System | مؤجَّل |
 | [DS-REF] | Reference Data System | مؤجَّل — tw-options-data.js موجود |
+| [DS-DATE] | Date & Time Picker System | مؤجَّل |
+| [DS-PHONE] | Phone Input / Dial Code System | مؤجَّل |
+| [DS-OTP] | OTP / Pin Input System | مؤجَّل |
+| [DS-UPLOAD] | Upload Input UI System (drag & drop) | مؤجَّل — tw-upload.js يُغطي HTTP فقط |
+| [DS-RICH] | Rich Text / WYSIWYG System | غير مخطط في V1 |
+| [DS-MODERATION] | Content Moderation / Profanity Filter | مؤجَّل |
+| [DS-FEEDBACK] | Toast / Snackbar / Feedback System | مؤجَّل |
 
-> الأنظمة المستقبلية لا يُبنى عليها حتى تُوثَّق في PR مستقل.
+> **قاعدة إلزامية (F30):** لا يُبنى على أي نظام في هذا الجدول حتى يُوثَّق في PR مستقل.
+> إذا احتاجت المهمة أحد هذه الأنظمة — **STOP** واسأل صاحب المشروع.
 
 ---
 

@@ -48,14 +48,23 @@
 - نماذج الإعدادات والمعلومات الشخصية
 - نماذج نشر المحتوى (وظيفة، منشور، دورة)
 
+**داخل النطاق جزئياً — نماذج المصادقة (تسجيل الدخول / الاشتراك):**
+نماذج المصادقة تشترك مع DS-FRM في:
+- **Submission Integration** (FRM-15) — نفس خطوات الإرسال
+- **Failure Contract** (FRM-21) — الفورم يبقى مفتوحاً + زر يُستعاد عند الفشل
+- **DS-BTN** — سلوك زر الإرسال (Loading / Disabled)
+- **DS-VAL** — توقيت الأخطاء وعرضها
+- **API-MUT** — تفسير Error Response من Backend
+
+نماذج المصادقة **لا تشترك** في:
+- Dirty State / تحذير التغييرات (FRM-13 + FRM-14) — لا معنى لها في login/register
+- Hydration (FRM-06) — لا record موجود يُحمَّل
+- Edit Record lifecycle — مسار إنشاء فقط
+
 **خارج النطاق V1 — انظر FRM-23:**
-- نماذج المصادقة (تسجيل الدخول / الاشتراك) — مسار مختلف
 - نماذج البحث والفلترة — لا حفظ، لا Reset، لا Dirty State
 - نماذج الرسائل (compose message)
 - Wizard / Multi-step forms
-
----
-
 ## FRM-03 Canonical Lifecycle — الحالات الرسمية
 
 ```
@@ -570,11 +579,8 @@ async function handleSave() {
 ### إذا كان الـ Response غير كافٍ
 
 - Background Sync مقبول (FRM-18)
-- Optimistic Update مقبول للقيم المتوقعة
+- **ممنوع Optimistic Update** — لا تُعرَض قيم تخمينية قبل تأكيد Backend
 - **ممنوع:** عرض قيم stale للمستخدم واعتبار الحفظ ناجحاً
-
----
-
 ## FRM-18 Background Synchronization Safety
 
 ### متى يُستخدَم
@@ -607,7 +613,7 @@ fetch('/api/profile')
 ### السياق
 
 عندما يُحذَف `skill` أو `language` أو أي tag:
-- يُحذَف من قائمة العرض فوراً (Optimistic)
+- يُحذَف من قائمة العرض فقط بعد تأكيد Backend — لا Optimistic delete
 - يُرسَل `null` أو `[]` في الـ payload
 - عند النجاح: تُؤكَّد البيانات من الـ response
 
@@ -630,27 +636,59 @@ countrySelect.addEventListener('change', () => {
 
 لا تُطبِّق Hydration على حقل قبل أن يكون في DOM.
 
-```js
-// ❌ خطأ: الـ modal قد لا يكون مرئياً بعد
-document.getElementById('edit-modal').hidden = false
-applyHydration(record)  // ← قد تفشل querySelector داخله
+مرئية العنصر (`hidden = false`) ≠ وجوده في DOM. الحقل يجب أن يكون موجوداً بالفعل في الـ DOM قبل أي `querySelector` أو `value =` عليه.
 
-// ✅ صحيح: افتح أولاً، اضبط ثانياً
-document.getElementById('edit-modal').hidden = false
-await nextTick()  // أو requestAnimationFrame
-applyHydration(record)
+### الحلول الصحيحة للـ DOM Readiness
+
+| السيناريو | الحل الصحيح |
+|-----------|------------|
+| Modal موجود في HTML من البداية | HTML `<script defer>` أو `DOMContentLoaded` |
+| Modal يُضاف ديناميكياً بـ JS | `applyHydration()` مباشرةً بعد `appendChild()` في نفس الـ call stack |
+| Bootstrap Modal | استخدم حدث `shown.bs.modal` الرسمي |
+| Custom show/hide بـ `hidden` | `hidden = false` ثم استدعاء `applyHydration()` في نفس الـ call stack |
+
+```js
+// ✅ Modal موجود في HTML — DOMContentLoaded
+document.addEventListener('DOMContentLoaded', () => {
+  // الآن الحقول موجودة في DOM
+  initFormHandlers()
+})
+
+// ✅ Modal يُنشأ ديناميكياً
+function openModal(record) {
+  const modal = buildModalDOM(record)  // يُنشئ العناصر
+  document.body.appendChild(modal)     // يضيفها للـ DOM
+  applyHydration(record)               // الآن querySelector يعمل
+}
+
+// ✅ Bootstrap Modal
+document.getElementById('editModal').addEventListener('shown.bs.modal', () => {
+  applyHydration(currentRecord)
+})
+
+// ❌ خطأ: await nextTick() / requestAnimationFrame — ليسا ضماناً لوجود الـ DOM
+// document.getElementById('edit-modal').hidden = false
+// await nextTick()  // ← لا يضمن وجود العناصر — يضمن فقط render cycle
+// applyHydration(record)  // ← قد تفشل إذا العناصر لم تُضَف للـ DOM بعد
 ```
 
-### initializing Select Elements
+### الفرق الجوهري
+
+```
+Visible ≠ In DOM
+
+hidden = false  → العنصر موجود في DOM ولكن كان مخفياً — querySelector يعمل
+appendChild()   → العنصر يُضاف للـ DOM — querySelector يعمل بعده مباشرةً
+nextTick()      → يضمن render cycle فقط — لا يضمن وجود عناصر لم تُضَف بعد
+```
+
+### Initializing Select Elements
 
 ```js
 // ✅ بعد ملء الـ <select> بخيارات جديدة:
 select.value = record.country
 if (window.scSelectInit) scSelectInit()  // إعادة تهيئة custom dropdown
 ```
-
----
-
 ## FRM-21 Failure Contract
 
 ### ما يجب أن يحدث عند فشل الحفظ
@@ -688,7 +726,7 @@ function handleSaveError(errorData) {
 
 ## FRM-22 Core & Extended Regression Matrix
 
-### Core Regression (إلزامي عند أي تغيير يمس الفورم)
+### Core Regression (إلزامي عند تعديل Lifecycle أو Save أو Hydration — لا يُطبَّق على تغييرات Label أو Placeholder أو CSS فقط)
 
 | السيناريو | الاختبار |
 |-----------|---------|
@@ -699,7 +737,7 @@ function handleSaveError(errorData) {
 | **Reopen: لا stale** | بيانات سجل جديد، لا بيانات سجل سابق |
 | **Double Submit** | الضغط المزدوج لا يُرسِل طلبَين |
 
-### Extended Regression (بناءً على ما تغيَّر)
+### Extended Regression (يُضاف فوق Core عندما يمس التغيير هذه السيناريوهات تحديداً)
 
 | السيناريو | متى يُطبَّق |
 |-----------|------------|

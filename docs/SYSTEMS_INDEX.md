@@ -766,13 +766,14 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 ### 43. Form Lifecycle System V1 [DS-FRM]
 **Purpose:** الـ contract الرسمي لدورة حياة النماذج — من الفتح حتى الإغلاق: Open→Reset→Hydrate→Ready-Pristine→Ready-Dirty→Validating→Submitting→Success/Error→Closing. يُعرِّف Tri-state Payload Building، Async-safe Hydration، Dirty State، Cancel+Unsaved Changes، Mutation Confirmation، Failure Contract، Regression Matrix.
 **Source of Truth:** `docs/design-system/FORM-LIFECYCLE.md` · `docs/DESIGN_SYSTEM.md` (فهرس)
-**Details:** `docs/design-system/FORM-LIFECYCLE.md` — 26 قسماً: FRM-00 (Routing) → FRM-25 (Migration). أبرز قواعد: Reset إلزامي قبل Hydration (FRM-05)، Generation Counter للـ Async (FRM-10)، لا Validation أثناء Hydration (FRM-11)، Tri-state payload: omit/value/null (FRM-09)، لا Reset عند Retry (FRM-21)، Canonical Response بعد النجاح (FRM-16).
+**Details:** `docs/design-system/FORM-LIFECYCLE.md` — 26 قسماً: FRM-00 (Routing) → FRM-25 (Migration). أبرز قواعد: Reset إلزامي قبل Hydration (FRM-05)، Generation Counter للـ Async (FRM-10)، لا Validation أثناء Hydration (FRM-11)، Tri-state payload: omit/value/null (FRM-09)، لا Reset عند Retry (FRM-21)، Canonical Response بعد النجاح (FRM-16)، لا Optimistic Update في Mutation Forms — Backend-first فقط (FRM-17)، Auth forms تشترك في Submission+Failure Contract فقط (FRM-02).
 **Do not recreate:**
 - لا تكتب Form lifecycle logic خارج هذا الـ contract.
 - لا Reset عند Retry بعد Failure — يُفقِد تعديلات المستخدم.
 - لا `if (value) payload.field = value` — يُسقِط null/false/0.
 - لا partial Hydration — Hydrate كل الحقول أو لا شيء.
 - لا Validation events أثناء Hydration.
+- لا Optimistic Update في Mutation Forms — حتى للقيم المتوقعة. UI يتغير فقط بعد Backend confirmation.
 **Dependencies:** DS-INP (عرض الحقول) · DS-VAL (Validation) · DS-BTN (زر Save) · API-MUT (إرسال الـ payload)
 **Quick route keywords:** form open, edit modal, hydration, reset form, dirty state, payload building, save success, save failure, retry, double submit, cancel unsaved
 **Runtime adoption:** V1 توثيق فقط — جزئياً موجود في company.main.js + profile-v2.*.js
@@ -782,9 +783,9 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 ### 44. Validation & Error Contract V1 [DS-VAL]
 **Purpose:** الـ contract الرسمي لتوقيت التحقق وعرض رسائل الخطأ — Timing (Keystroke/Blur/Submit/Live)، Error Classification (Frontend vs Backend field vs general)، Inline Field Errors، Form-level Errors، Focus+Scroll after Submit، Error Cleanup Lifecycle، ARIA requirements، Error Message Quality.
 **Source of Truth:** `docs/design-system/VALIDATION-ERRORS.md` · `docs/DESIGN_SYSTEM.md` (فهرس)
-**Details:** `docs/design-system/VALIDATION-ERRORS.md` — 21 قسماً: VAL-00 (Routing) → VAL-20 (Out of Scope). أبرز قواعد: Required errors فقط عند Submit (VAL-05)، Server errors تختفي عند أول keystroke (VAL-12)، Backend هو المرجع النهائي (VAL-03)، Unified validate() للـ Add والـ Edit (VAL-13)، لا innerHTML لرسائل الخطأ (VAL-08)، Focus أول حقل خاطئ (VAL-10).
+**Details:** `docs/design-system/VALIDATION-ERRORS.md` — 21 قسماً: VAL-00 (Routing) → VAL-20 (Out of Scope). أبرز قواعد: Required errors فقط عند Submit (VAL-05)، Server errors تختفي عند أول تغيير فعلي يجعل القيمة تختلف عن المُرسَلة (VAL-12)، Backend هو المرجع النهائي (VAL-03)، Shared Validation Core للـ Add والـ Edit — wrapper functions مقبولة لكن القواعد لا تُكرَّر (VAL-13)، لا innerHTML لرسائل الخطأ (VAL-08)، Focus أول حقل خاطئ (VAL-10).
 **Do not recreate:**
-- لا تُنشئ `validateAddForm()` و`validateEditForm()` منفصلتَين.
+- لا تُكرِّر قواعد Validation بين Add وEdit في منطقَين مستقلَّين — wrapper functions مقبولة لكن Shared Core إلزامي.
 - لا تُظهِر Required error عند Blur — عند Submit فقط.
 - لا `errorEl.innerHTML = message` — دائماً `textContent`.
 - لا تُغلِق الفورم عند فشل الحفظ — يبقى مع رسائل الخطأ.
