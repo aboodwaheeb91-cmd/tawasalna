@@ -300,15 +300,16 @@ Backend يُعيد أخطاء لأكثر من حقل في نفس الوقت:
 
 ### المعالجة في Frontend
 
+**لا تُحلِّل `body.errors` مباشرةً هنا.** `normalizeErrorResponse()` (API-MUT-11) هو المالك الوحيد للتحليل، يُعيد Internal Normalized Error Model `{fieldErrors[], generalError|null}` ← DS-VAL يتولى التوجيه عبر `routeErrors()`.
+
 ```js
-if (body.errors?.length) {
-  body.errors.forEach(err => {
-    if (err.field) showFieldError(err.field, err.message)
-    else showFormError(err.message)
-  })
-  focusFirstError()
-}
+// ✅ الطريقة الصحيحة — API-MUT-11 يملك التحليل، DS-VAL يملك العرض
+const normalized = normalizeErrorResponse(body)  // → {fieldErrors[], generalError|null}
+routeErrors(normalized)                           // DS-VAL (VAL-07)
+focusFirstError()                                 // DS-VAL (VAL-10)
 ```
+
+> **ممنوع:** قراءة `body.errors`، `body.error`، `body.message`، أو `body.detail` مباشرةً خارج `normalizeErrorResponse()` (API-MUT-11).
 
 ---
 

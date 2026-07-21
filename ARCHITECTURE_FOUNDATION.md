@@ -1005,8 +1005,8 @@ profiles.country   → المصدر الوحيد للدولة (ISO code للمو
 | زر Save، Loading state | DS-BTN |
 | منطق navigation، history | DS-NAV |
 | صلاحية من يرى العنصر | DS-VM |
-| قاموس مهارات أو مهن | tw-skills.js / tw-options-data.js |
-| dropdown أو select | tw-select.js |
+| قاموس مهارات أو مهن | DS-REF → **STOP** (tw-skills.js / tw-options-data.js موجود كـ Runtime — DS-REF غير موثَّق رسمياً بعد؛ راجع F30) |
+| dropdown أو select | DS-SEL → **STOP** (tw-select.js موجود كـ Runtime — DS-SEL غير موثَّق رسمياً بعد؛ راجع F30) |
 
 ### لماذا هذه القاعدة؟
 
@@ -1033,7 +1033,8 @@ profiles.country   → المصدر الوحيد للدولة (ISO code للمو
 async function handleSave() {
   if (!validateForm()) return          // DS-VAL
   buildPayload()                       // DS-FRM
-  saveBtn.disabled = true              // DS-BTN
+  enterSaveLoadingState()              // DS-BTN — pseudo-call توضيحي
+                                       // (DS-BTN يملك "كيف"، DS-FRM/Orchestration يقرِّر "متى")
   const res = await sendRequest()      // API-MUT
   applyCanonicalResponse(res)          // DS-FRM
 }
