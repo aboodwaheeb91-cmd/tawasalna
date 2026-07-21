@@ -54,6 +54,9 @@
 | F26 | Multi-language Ready Rule | **P2** |
 | F27 | Soft Delete Rule | **P1** |
 | F28 | Admin-ready Rule | **P2** |
+| F29 | One Concept = One Source of Truth (Form & UI) | **P0** |
+| F30 | No Matching System = Stop and Report | **P0** |
+| F31 | System Routing Before Implementation | **P0** |
 
 ---
 
@@ -919,6 +922,102 @@ def admin_hide_post(post_id: int, token = Depends(verify_admin)):
 
 ---
 
+## F29 — [P0] One Concept = One Source of Truth (Form & UI)
+
+امتداد من F5، مُخصَّص لطبقة الـ UI والنماذج:
+
+**القاعدة:** لا يوجد حقلان يتحكمان في نفس البيانات — لا في الـ Frontend ولا في الـ Backend.
+
+```
+profiles.avail     → المصدر الوحيد لحالة التوفر
+profiles.country   → المصدر الوحيد للدولة (ISO code للموظف)
+job_pipeline_entries → المصدر الوحيد لمرحلة المرشح في وظيفة
+```
+
+### التطبيق على النماذج
+
+- **حقل واحد = قيمة واحدة في DB** — لا حقلان مختلفان يكتبان على نفس العمود
+- **حالة بصرية واحدة** — لا منطق validation مكرر في Add وEdit بشكل منفصل
+- **مصدر Display واحد** — بعد الحفظ، كل نقاط العرض تُحدَّث من نفس الـ canonical response
+
+### ممنوعات F29
+
+```
+❌ availability_status و avail في نفس الوقت
+❌ validateAddForm() و validateEditForm() بمنطق مكرر
+❌ حقل يُكتَب من modal و من inline edit بدون تزامن صريح
+❌ جدول ثانٍ لنفس البيانات بحجة "تسريع القراءة" بدون invalidation strategy
+```
+
+---
+
+## F30 — [P0] No Matching System = Stop and Report
+
+**القاعدة:** إذا لم يوجد نظام موثَّق لما تُنشئه — **STOP** واسأل قبل البناء.
+
+### خطوات الفحص الإلزامية
+
+```
+1. اقرأ docs/SYSTEMS_INDEX.md (33+ نظاماً)
+2. هل يوجد نظام يُغطي هذه الحاجة؟
+   → نعم: استخدمه (F4)
+   → جزئياً: وسِّعه
+   → لا: STOP — أبلِغ المستخدم واشرح ما ينقص قبل البناء
+```
+
+### لماذا هذه القاعدة؟
+
+- منع بناء أنظمة موازية تُنشئ تضارباً (F5)
+- منع استهلاك رصيد في بناء شيء موجود
+- منع ديون تقنية صعبة التنظيف
+
+### ممنوعات F30
+
+```
+❌ بناء نظام dropdown بديل عندما tw-select.js موجود
+❌ إنشاء جدول DB عندما جدول بنفس الغرض موجود
+❌ كتابة validation logic بدون مراجعة DS-VAL
+❌ كتابة form lifecycle بدون مراجعة DS-FRM
+❌ بناء نظام "مشابه لكن أبسط" — أبسط = ديون مستقبلية
+```
+
+---
+
+## F31 — [P0] System Routing Before Implementation
+
+**القاعدة:** قبل كتابة أي سطر كود، حدِّد **إلى أي نظام ينتمي** هذا السطر.
+
+### جدول التوجيه الرسمي
+
+| إذا كنت تكتب... | تنتمي إلى |
+|----------------|-----------|
+| شكل حقل إدخال، border، states | DS-INP |
+| دورة حياة الفورم، Reset، Hydration، Dirty | DS-FRM |
+| توقيت الخطأ، رسالة الخطأ | DS-VAL |
+| شكل Payload للـ API | DS-FRM (FRM-09) + API-MUT |
+| زر Save، Loading state | DS-BTN |
+| منطق navigation، history | DS-NAV |
+| صلاحية من يرى العنصر | DS-VM |
+| قاموس مهارات أو مهن | tw-skills.js / tw-options-data.js |
+| dropdown أو select | tw-select.js |
+
+### لماذا هذه القاعدة؟
+
+تمنع "الكود اليتيم" — منطق لا ينتمي لأي نظام وصعب اكتشافه لاحقاً.
+تُجبر على اتخاذ قرار معماري قبل التنفيذ.
+
+### ممنوعات F31
+
+```
+❌ validation logic داخل click handler مباشرةً
+❌ border color مُغيَّر في JS بدون .has-error class
+❌ form.reset() مباشرةً بدون الـ Reset Contract (DS-FRM FRM-05)
+❌ payload.field = value بدون Tri-state check (DS-FRM FRM-09)
+❌ منطق يخص 3 أنظمة مختلفة في نفس الوظيفة
+```
+
+---
+
 ## أنظمة الحالة الأساسية (System State References)
 
 ### Employment Pipeline — مصدر الحالة الوحيد لكل مرشح داخل وظيفة
@@ -961,3 +1060,4 @@ def admin_hide_post(post_id: int, token = Depends(verify_admin)):
 
 *أُنشئ في PR #420 — 2026-07-09 — الدستور المعماري الأساسي لمشروع تواصلنا.*
 *حُدِّث في PR #420 (commit 2) — 2026-07-09 — أُضيفت القواعد F14–F28 (15 قاعدة مستقبلية). المجموع: 28 قاعدة عليا.*
+*حُدِّث في PR docs/design-system-forms-v1 — 2026-07-21 — أُضيفت القواعد F29–F31: One Concept = One Source of Truth (Form & UI) · No Matching System = Stop and Report · System Routing Before Implementation. المجموع: 31 قاعدة عليا.*
