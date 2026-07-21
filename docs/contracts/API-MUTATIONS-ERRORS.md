@@ -305,9 +305,10 @@ Backend يُعيد أخطاء لأكثر من حقل في نفس الوقت:
 ```js
 // ✅ الطريقة الصحيحة — API-MUT-11 يملك التحليل، DS-VAL يملك العرض
 const normalized = normalizeErrorResponse(body)  // → {fieldErrors[], generalError|null}
-routeErrors(normalized)                           // DS-VAL (VAL-07)
-focusFirstError()                                 // DS-VAL (VAL-10)
+routeErrors(normalized)                           // DS-VAL (VAL-07) — يُوجِّه الأخطاء ويُركِّز أول حقل خاطئ تلقائياً
 ```
+
+> **لا تستدعِ `focusFirstError()` هنا مستقلاً** — `routeErrors()` (VAL-07) يستدعيه داخلياً عند وجود `fieldErrors`. استدعاؤه مرةً ثانية من نقطة الاستدعاء يُسبِّب double-focus.
 
 > **ممنوع:** قراءة `body.errors`، `body.error`، `body.message`، أو `body.detail` مباشرةً خارج `normalizeErrorResponse()` (API-MUT-11).
 

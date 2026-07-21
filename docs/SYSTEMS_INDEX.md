@@ -756,7 +756,7 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 - لا تكتب validation logic داخل Input component — ذلك من DS-VAL.
 - لا تُضيف border-color مباشرةً بـ JS — استخدم `.has-error` class فقط.
 - لا تُعيد تعريف Visual States خارج INP-05.
-- `<select>` وما شابهها → `tw-select.js` (موجود)، لا DS-INP.
+- `<select>` / searchable picker → DS-SEL → **STOP** حتى توثيق DS-SEL رسمياً (tw-select.js موجود كـ Runtime حالياً وسيُدقَّق عند توثيق DS-SEL — ليس Design System موثَّقاً بعد)، لا DS-INP.
 **Dependencies:** DS-VAL (يُطلِق حالة Error) · DS-FRM (يُرسِل القيمة) · DS-BTN (زر الحفظ)
 **Quick route keywords:** input field, حقل إدخال, focus border, error border, placeholder, label, textarea, password show/hide, character counter, dir="ltr"
 **Runtime adoption:** V1 توثيق فقط — التطبيق الحالي موزَّع per-page (company.css / profile-v2.css)

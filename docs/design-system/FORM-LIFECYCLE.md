@@ -126,13 +126,15 @@
 | `OPENING` | يجهِّز DOM ويُهيِّئ state | CLOSED | RESETTING |
 | `RESETTING` | يمسح القيم والأخطاء السابقة | OPENING | HYDRATING (Edit) / READY-PRISTINE (Add) |
 | `HYDRATING` | يجلب ويُطبِّق البيانات الموجودة | RESETTING | READY-PRISTINE |
-| `READY-PRISTINE` | الفورم جاهز، لا تغييرات | HYDRATING / RESETTING | READY-DIRTY |
+| `READY-PRISTINE` | الفورم جاهز، لا تغييرات | HYDRATING / RESETTING | READY-DIRTY · VALIDATING (إذا ضغط Save مباشرةً — FRM-13) |
 | `READY-DIRTY` | فيه تغييرات لم تُحفَظ | READY-PRISTINE / ERROR | VALIDATING / CLOSING |
-| `VALIDATING` | يتحقق client-side | READY-DIRTY | SUBMITTING / READY-DIRTY |
+| `VALIDATING` | يتحقق client-side | READY-DIRTY · READY-PRISTINE (Save بدون تعديل — FRM-13) | SUBMITTING (نجاح) · READY-DIRTY (فشل، كان Dirty) · READY-PRISTINE (فشل، كان Pristine) |
 | `SUBMITTING` | طلب في الطريق | VALIDATING | SUCCESS / ERROR |
 | `SUCCESS` | حُفِظ بنجاح | SUBMITTING | CLOSING (إذا كان الفورم يُغلَق بعد الحفظ) أو READY-PRISTINE (إذا بقي مفتوحاً) |
 | `ERROR` | فشل الحفظ | SUBMITTING | READY-DIRTY |
 | `CLOSING` | يُعالِج الإغلاق | SUCCESS / READY-DIRTY (cancel) | CLOSED |
+
+> **READY-PRISTINE → VALIDATING (FRM-13):** يمكن ضغط Save من READY-PRISTINE مباشرةً — الفورم لا يشترط الـ Dirty state قبل Submission. عند فشل Validation يعود إلى READY-PRISTINE (القيم لم تتغير — لا يتحول الفورم إلى DIRTY بسبب Validation وحده).
 
 ---
 
@@ -155,12 +157,24 @@ Open()
 ```
 Open(recordId)
   → RESETTING: مسح القيم والأخطاء السابقة
-  → HYDRATING: جلب البيانات أو أخذها من cache
+  → HYDRATING: جلب البيانات من Backend مباشرةً، أو من أحدث canonical state ثابت مؤكَّد من Backend
+               (**ممنوع:** localStorage، stale cache، أو قيمة من جلسة سابقة — راجع FRM-04-trust)
   → Apply values to fields
   → READY-PRISTINE: القيم = النسخة المحفوظة
 ```
 
 **القاعدة الذهبية:** فتح Edit على سجل مختلف = Reset كامل. لا يُفترَض أن البيانات السابقة لا تزال صالحة.
+
+### FRM-04-trust مصدر الـ Hydration الموثوق
+
+**Hydration تستخدم أحد مصدرَين فقط:**
+1. **Fetch مباشر من Backend** — أحدث حالة مؤكَّدة
+2. **In-memory canonical state** — ثابت، صادر عن أحدث Backend-confirmed response، لم يمر عليه تعديل local
+
+**ممنوع كمصدر Hydration:**
+- `localStorage` — لا يُعتَمد كـ Source of Truth لبيانات Edit
+- Stale page cache — قيمة قديمة لا تعكس آخر حالة في Backend
+- قيمة من جلسة سابقة لم تُحدَّث منذ آخر تعديل
 
 ---
 
@@ -170,12 +184,33 @@ Open(recordId)
 
 ### ما يفعله Reset
 
-1. مسح قيم كل الحقول (`value = ''`)
-2. إزالة `.has-error` من كل الـ wrappers
-3. إخفاء `.field-error` messages
-4. إعادة `aria-invalid` إلى الوضع الافتراضي
-5. حذف أي `_pendingValue` أو Async state من جولة سابقة
-6. إعادة زر الحفظ لحالته الطبيعية (إذا كان Disabled/Loading من جولة سابقة)
+Reset يُعيد **كل حالة النموذج** — وليس القيم النصية فقط:
+
+**قيم الحقول:**
+1. مسح كل الـ Inputs والـ Textareas (`value = ''`)
+2. إعادة كل الـ Selects لقيمتها الافتراضية
+3. مسح Searchable picker state (القيمة المحددة + النص المعروض)
+4. إعادة Checkboxes وToggles لحالتها الافتراضية
+5. مسح Chips (المحددة أو المضافة)
+6. مسح Dependent fields (القيم + الخيارات المتاحة)
+7. إخفاء Conditional fields ومسح قيمها
+
+**حالة الأخطاء:**
+8. إزالة `.has-error` من كل الـ wrappers
+9. إخفاء `.field-error` messages
+10. إعادة `aria-invalid` إلى الوضع الافتراضي
+11. مسح Form-level messages (رسائل الخطأ العامة)
+
+**حالة الجلسة:**
+12. حذف `editId` / `recordId` الخاص بجلسة التعديل السابقة
+13. حذف أي `_pendingValue` أو Async/session generation state من جولة سابقة
+14. مسح Temporary form state (بيانات مؤقتة لا تنتمي للـ record)
+15. مسح Success/Error state من الحفظ السابق
+
+**عناصر العرض:**
+16. إعادة Counters لقيمتها الافتراضية (عند وجودها)
+17. إزالة Loading placeholders من جولة سابقة (عند وجودها)
+18. إعادة زر الحفظ لحالته الطبيعية (إذا كان Disabled/Loading من جولة سابقة)
 
 ### ما لا يفعله Reset
 
@@ -185,13 +220,13 @@ Open(recordId)
 
 ### متى يحدث Reset
 
-| الحدث | Reset؟ |
-|-------|--------|
-| فتح فورم Add | ✅ دائماً |
-| فتح فورم Edit (سجل جديد) | ✅ دائماً |
-| فتح نفس السجل مجدداً | ✅ دائماً |
-| فشل الحفظ (Retry) | ❌ لا — احتفظ بالقيم |
-| إلغاء المستخدم (Cancel) | ✅ عند الفتح التالي |
+| الحدث | Reset؟ | ما يلي Reset |
+|-------|--------|--------------|
+| فتح فورم Add | ✅ Reset كامل | الفورم فارغ → READY-PRISTINE |
+| فتح فورم Edit (سجل جديد) | ✅ Reset كامل | Hydrate من Backend → READY-PRISTINE |
+| فتح نفس السجل مجدداً | ✅ Reset كامل | Hydrate من Backend → READY-PRISTINE |
+| فشل الحفظ (Retry) | ❌ لا Reset — قيم المستخدم تبقى، لا Hydrate | تنظيف Error State فقط (DS-VAL VAL-12) |
+| إلغاء المستخدم (Cancel) | ✅ عند الفتح التالي | — |
 
 ---
 
@@ -199,7 +234,19 @@ Open(recordId)
 
 ### ما يجب أن تُطبِّقه Hydration
 
-**كل حقل في الفورم يجب أن يأخذ قيمته من البيانات المجلوبة:**
+**كل حقل في الفورم يجب أن يأخذ قيمته من البيانات المجلوبة — بما يشمل:**
+
+| نوع الحقل | ما يجب ضبطه |
+|-----------|-------------|
+| Input / Textarea | `value = record.field ?? ''` |
+| Select | `select.value = record.field ?? ''` + إعادة تهيئة custom dropdown |
+| Searchable picker | القيمة المحددة + النص المعروض (لا يكفي ID وحده) |
+| Checkbox | `el.checked = Boolean(record.field)` |
+| Toggle | حالة On/Off من `record.field` |
+| Chips (tags) | قائمة كاملة من `record.field[]` |
+| Conditional field | أظهِر/أخفِ + اضبط قيمة Child بعد ضبط Parent (FRM-12) |
+| Dependent field | أعِد تحميل الخيارات + اضبط القيمة بالترتيب الصحيح |
+| Derived visible state | أي counter أو badge يعكس قيمة record |
 
 ```js
 // ✅ صحيح: Hydrate كل الحقول
@@ -207,17 +254,27 @@ function hydrateForm(record) {
   nameInput.value      = record.name ?? ''
   bioInput.value       = record.bio  ?? ''
   citySelect.value     = record.city ?? ''
-  websiteInput.value   = record.website ?? ''
-  // ... كل الحقول
+  isPublicToggle.checked = Boolean(record.is_public)
+  // ... كل الحقول بما فيها conditional و dependent
 }
 ```
+
+### Edit API — يجب أن يُعيد كل بيانات الفورم
+
+**قاعدة إلزامية:** الـ API المستخدَم لفتح Edit يجب أن يُعيد **كل الحقول اللازمة** لتعبئة الفورم كاملاً.
+
+**ممنوع:**
+- حقل يُعبَّأ في الفورم لكنه لا يُعاد من الـ API عند فتح Edit
+- نسيان حقل في Main query أو في retry/fallback
+- ترك حقل على قيمته الافتراضية لأنه غير موجود في الـ response
+- اعتبار ظهور Modal دليلاً على اكتمال Hydration — الظهور والاكتمال مستقلان
 
 ### ممنوع: Partial Hydration
 
 ```js
 // ❌ خطأ: بعض الحقول تُترَك بقيم سابقة
 function hydrateForm(record) {
-  nameInput.value = record.name  // ما بالـ bio؟ ما بالـ city؟
+  nameInput.value = record.name  // ما بالـ bio؟ ما بالـ city؟ ما بالـ toggle؟
   // المستخدم قد يحفظ بيانات سجل A في حقل كان يُحرِّر سجل B
 }
 ```
@@ -226,18 +283,32 @@ function hydrateForm(record) {
 
 ## FRM-07 Canonical Fields Only
 
-### القاعدة
+### 1 — تطابق الحقول مع Backend
 
 الحقول التي تظهر في الفورم يجب أن تتطابق مع الحقول التي يستطيع Backend قبولها.
 
-**أمثلة على المشاكل:**
-- حقل `website` في الفورم لكنه **محذوف من الـ allowlist** في Backend → القيمة تُهمَل صامتةً
-- حقل لا يظهر في الفورم لكنه يُرسَل بقيم افتراضية في الـ payload → يُعيِّن قيم المستخدم لم يقصدها
+**عند حذف حقل من UI:** احذفه أيضاً من `payload builder` (FRM-09).
+**عند إضافة حقل للـ allowlist:** أضفه للـ UI أو تأكد أنه لا يُرسَل بقيمة افتراضية تؤثر على البيانات.
 
-### الحل
+**حقل غير موجود في allowlist:** الافتراضي = **رفض صريح** بـ Error contract (API-MUT).
+التجاهل الصامت استثناء يجب توثيقه صراحةً في الـ endpoint — لا يُفترَض تلقائياً.
 
-عند حذف حقل من UI → احذفه أيضاً من `payload builder` (FRM-09).
-عند إضافة حقل للـ allowlist → أضفه للـ UI أو تأكد أنه لا يُرسَل بقيمة افتراضية تؤثر على البيانات.
+### 2 — Canonical Fields في الـ Hydration
+
+**Hydration يستخدم الحقول الـ Canonical الأصلية مباشرةً — لا يُعيد اشتقاقها من Display strings.**
+
+**ممنوع:**
+- استخراج `first_name` / `middle_name` / `last_name` من `full_name` إذا الحقول الأصلية موجودة في الـ response
+- تفكيك `location` display text لاستخراج `country` / `city` IDs
+- استخراج ID من Label أو نص ظاهر بأي طريقة
+- إعادة تكوين Toggle/Checkbox state من نص العرض
+- استخدام Display String كـ Source of Truth لأي حقل
+
+**Legacy Fallback مسموح فقط إذا توافرت الشروط الأربعة معاً:**
+1. **موثَّق صراحةً** في الـ endpoint
+2. **مؤقت** — له Sunset condition محددة
+3. **مخصص لبيانات قديمة** لا تحتوي الحقل الأصلي
+4. **لا يصبح المصدر الرسمي** للبيانات الجديدة
 
 ---
 
@@ -460,6 +531,9 @@ Dirty = current normalized values ≠ original hydrated values
 - عند Cancel/Close بحالة Dirty: أظهِر تأكيداً (FRM-14)
 - لا تُعطِّل زر Save بناءً على Pristine وحده — قد يريد المستخدم إعادة الحفظ
 
+**VALIDATING failure من READY-PRISTINE:**
+إذا فشل Validation عند ضغط Save من READY-PRISTINE، يبقى الفورم **READY-PRISTINE** (القيم لم تتغير). لا يتحول إلى READY-DIRTY بسبب Validation وحده — DIRTY يعني أن القيم اختلفت عن الأصل، لا أن الزر ضُغِط.
+
 ---
 
 ## FRM-14 Cancel & Unsaved Changes
@@ -514,18 +588,28 @@ Dirty = current normalized values ≠ original hydrated values
 let _submitting = false
 
 async function handleSave() {
-  if (_submitting) return  // احتياط إضافي
+  // 1. Validation أولاً — قبل أي guard أو Loading (DS-VAL)
+  //    Client validation فشل → لا _submitting، لا Loading، لا Request
+  if (!validateForm()) return
+
+  // 2. Double-submit guard — بعد نجاح Validation فقط
+  if (_submitting) return
   _submitting = true
+
+  // 3. DS-BTN Loading — بعد نجاح Validation وبعد Guard
   enterSaveLoadingViaButtonSystem(saveBtn)  // DS-BTN BTN-09 يتولى Loading + Disabled
 
   try {
-    // ... validation + fetch
+    // 4. Build payload + send (FRM-09, API-MUT)
+    // ... fetch
   } finally {
     _submitting = false
     // DS-BTN BTN-09 يتولى إعادة الزر — استدعَه من FRM-16 (نجاح) أو FRM-21 (فشل)
   }
 }
 ```
+
+> **قاعدة ثابتة:** Client Validation failure لا يُدخِل الزر في Loading ولا يُغيِّر `_submitting`. الـ guard (`_submitting`) يُفعَّل **بعد** نجاح Validation — لا قبله.
 
 ---
 
