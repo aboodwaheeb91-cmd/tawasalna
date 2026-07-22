@@ -54,6 +54,9 @@
 | F26 | Multi-language Ready Rule | **P2** |
 | F27 | Soft Delete Rule | **P1** |
 | F28 | Admin-ready Rule | **P2** |
+| F29 | One Concept = One Source of Truth (Form & UI) | **P0** |
+| F30 | No Matching System = Stop and Report | **P0** |
+| F31 | System Routing Before Implementation | **P0** |
 
 ---
 
@@ -919,6 +922,128 @@ def admin_hide_post(post_id: int, token = Depends(verify_admin)):
 
 ---
 
+## F29 — [P0] One Concept = One Source of Truth (Form & UI)
+
+امتداد من F5، مُخصَّص لطبقة الـ UI والنماذج:
+
+**القاعدة:** مفهوم واحد = مصدر بيانات Canonical واحد — في الـ Backend وفي الـ Frontend.
+
+```
+profiles.avail     → المصدر الوحيد لحالة التوفر
+profiles.country   → المصدر الوحيد للدولة (ISO code للموظف)
+```
+
+### التطبيق على النماذج
+
+- **مصدر Canonical واحد للقراءة والكتابة** — كل نقاط الـ UI التي تعرض أو تُعدِّل نفس البيانات تقرأ من وتكتب إلى نفس المصدر
+- **سطوح UI متعددة مقبولة** — يمكن أن يكون للبيانات سطح عرض في header + modal + card، شريطة أن كلها تُحدَّث من نفس الـ canonical response بعد الحفظ
+- **حقل يُكتَب من مكانَين مقبول** إذا توفَّرت الشروط الأربعة: (١) نفس المصدر الـ Canonical (نفس DB column/table)، (٢) نفس الـ contract المعتمد (ليس بالضرورة نفس الـ endpoint — يمكن endpointَين إذا كلاهما يكتب للمصدر ذاته بدون تضارب)، (٣) تزامن صريح (كل نقاط العرض تُحدَّث من الـ canonical response)، (٤) لا parallel state (مثال: modal + inline edit يكتبان لـ `profiles.headline`)
+- **مصدر Display واحد** — بعد الحفظ، كل نقاط العرض تُحدَّث من نفس الـ canonical response
+
+### تطبيقه على Validation
+
+- **Shared Core إلزامي** — القواعد والرسائل والـ schema تُعرَّف مرةً واحدة
+- `validateAdd()` و `validateEdit()` كـ wrapper functions **مقبولتان** — الانتهاك هو تكرار القواعد نفسها في منطقَين مستقلَّين
+
+### ممنوعات F29
+
+```
+❌ availability_status و avail يحكمان نفس البيانات في نفس الوقت
+❌ قواعد Validation مكتوبةً مرتَين في ملفَّين مختلفَين (مكرَّرة لا مشتركة)
+❌ حقل يُكتَب من مكانَين بدون تزامن صريح أو بدون نفس مصدر Canonical
+❌ جدول ثانٍ لنفس البيانات بحجة "تسريع القراءة" بدون invalidation strategy
+```
+## F30 — [P0] No Matching System = Stop and Report
+
+**القاعدة:** إذا لم يوجد نظام موثَّق لما تُنشئه — **STOP** واسأل قبل البناء.
+
+### خطوات الفحص الإلزامية
+
+```
+1. اقرأ docs/SYSTEMS_INDEX.md (33+ نظاماً)
+2. هل يوجد نظام يُغطي هذه الحاجة؟
+   → نعم: استخدمه (F4)
+   → جزئياً: STOP — وضِّح أي جزء يحتاج توسيع، ونفِّذ فقط إذا كانت المهمة الحالية مُفوَّضة صراحةً بتعديل ذلك النظام
+   → لا: STOP — أبلِغ المستخدم واشرح ما ينقص قبل البناء
+```
+
+### إذا غطّى النظام الحاجة جزئياً
+
+لا تبتكر حلاً موازياً لـ "الجزء المفقود". توقّف وأبلِغ:
+- ما الجزء الموجود الذي يُغطي الحاجة
+- ما الجزء المفقود وما الذي يحتاج توسيعاً
+- هل توسيع النظام داخل نطاق المهمة الحالية؟
+
+### لماذا هذه القاعدة؟
+
+- منع بناء أنظمة موازية تُنشئ تضارباً (F5)
+- منع استهلاك رصيد في بناء شيء موجود
+- منع ديون تقنية صعبة التنظيف
+
+### ممنوعات F30
+
+```
+❌ بناء نظام dropdown بديل عندما tw-select.js موجود
+❌ إنشاء جدول DB عندما جدول بنفس الغرض موجود
+❌ كتابة validation logic بدون مراجعة DS-VAL
+❌ كتابة form lifecycle بدون مراجعة DS-FRM
+❌ بناء نظام "مشابه لكن أبسط" — أبسط = ديون مستقبلية
+❌ توسيع نظام موجود بدون موافقة صريحة على التوسيع في نفس المهمة
+```
+## F31 — [P0] System Routing Before Implementation
+
+**القاعدة:** قبل كتابة أي سطر كود، حدِّد **إلى أي نظام ينتمي** هذا السطر.
+
+### جدول التوجيه الرسمي
+
+| إذا كنت تكتب... | تنتمي إلى |
+|----------------|-----------|
+| شكل حقل إدخال، border، states | DS-INP |
+| دورة حياة الفورم، Reset، Hydration، Dirty | DS-FRM |
+| توقيت الخطأ، رسالة الخطأ | DS-VAL |
+| شكل Payload للـ API | DS-FRM (FRM-09) + API-MUT |
+| زر Save، Loading state | DS-BTN |
+| منطق navigation، history | DS-NAV |
+| صلاحية من يرى العنصر | DS-VM |
+| قاموس مهارات أو مهن | DS-REF → **STOP** (tw-skills.js / tw-options-data.js موجود كـ Runtime — DS-REF غير موثَّق رسمياً بعد؛ راجع F30) |
+| dropdown أو select | DS-SEL → **STOP** (tw-select.js موجود كـ Runtime — DS-SEL غير موثَّق رسمياً بعد؛ راجع F30) |
+
+### لماذا هذه القاعدة؟
+
+تمنع "الكود اليتيم" — منطق لا ينتمي لأي نظام وصعب اكتشافه لاحقاً.
+تُجبر على اتخاذ قرار معماري قبل التنفيذ.
+
+### ممنوعات F31
+
+```
+❌ validation logic داخل click handler مباشرةً (بدون DS-VAL)
+❌ border color مُغيَّر في JS بدون .has-error class (DS-INP يملك هذا)
+❌ form.reset() مباشرةً بدون الـ Reset Contract (DS-FRM FRM-05)
+❌ payload.field = value بدون Tri-state check (DS-FRM FRM-09)
+❌ إعادة تعريف قواعد نظام داخل نظام آخر (مثلاً: Validation Timing في DS-FRM بدلاً من DS-VAL)
+❌ خلط مسؤوليات الأنظمة (DS-INP يُقرِّر متى يظهر الخطأ بدلاً من DS-VAL)
+```
+
+### مسموح — Orchestration Functions
+
+وظائف الـ submit handler تنسِّق بين أنظمة متعددة — هذا مقبول وإلزامي:
+
+```js
+// ✅ مقبول: submit handler يُنسِّق DS-VAL + DS-FRM + DS-BTN
+async function handleSave() {
+  if (!validateForm()) return          // DS-VAL
+  buildPayload()                       // DS-FRM
+  enterSaveLoadingState()              // DS-BTN — pseudo-call توضيحي
+                                       // (DS-BTN يملك "كيف"، DS-FRM/Orchestration يقرِّر "متى")
+  const res = await sendRequest()      // API-MUT
+  applyCanonicalResponse(res)          // DS-FRM
+}
+```
+
+الوظيفة تستدعي الأنظمة — لا تُعيد تعريف قواعدها.
+
+---
+
 ## أنظمة الحالة الأساسية (System State References)
 
 ### Employment Pipeline — مصدر الحالة الوحيد لكل مرشح داخل وظيفة
@@ -961,3 +1086,4 @@ def admin_hide_post(post_id: int, token = Depends(verify_admin)):
 
 *أُنشئ في PR #420 — 2026-07-09 — الدستور المعماري الأساسي لمشروع تواصلنا.*
 *حُدِّث في PR #420 (commit 2) — 2026-07-09 — أُضيفت القواعد F14–F28 (15 قاعدة مستقبلية). المجموع: 28 قاعدة عليا.*
+*حُدِّث في PR docs/design-system-forms-v1 — 2026-07-21 — أُضيفت القواعد F29–F31: One Concept = One Source of Truth (Form & UI) · No Matching System = Stop and Report · System Routing Before Implementation. المجموع: 31 قاعدة عليا.*
