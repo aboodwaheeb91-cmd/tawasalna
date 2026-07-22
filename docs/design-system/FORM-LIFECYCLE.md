@@ -205,16 +205,26 @@ Reset يُعيد **كل حالة النموذج** — وليس القيم الن
 
 **حالة الجلسة:**
 12. حذف `editId` / `recordId` الخاص بجلسة التعديل السابقة
-13. حذف أي `_pendingValue` أو Async/session generation state من جولة سابقة
+13. مسح Pending values والـ Temporary async state (مثل `_pendingValue`) من جولة سابقة — **لا يشمل Generation Counter** (له مالك مستقل — راجع النقطة أدناه)
 14. مسح Temporary form state (بيانات مؤقتة لا تنتمي للـ record)
 15. مسح Success/Error state من الحفظ السابق
 
-> **Generation Counter — Invalidate بزيادة لا بصفر (راجع FRM-10):**
-> البند 13 يخص **pending values والـ temporary async state** — هذه تُمسح.
-> لكن **Generation Counter** (`_editSession`) لا يُعاد إلى 0 — يُزاد دائماً (`++_editSession`).
-> إعادته إلى 0 أثناء عمر الصفحة تجعل الأرقام قابلة لإعادة الاستخدام:
-> request قديم بجيل 1 قد يطابق session جديدة بجيل 1 بعد الصفر ويتسرب إلى Hydration خاطئة.
-> **الإبطال الصحيح: `++_editSession`** — session جديدة تحمل رقماً جديداً لا سبق أن استُخدم.
+> **Pending State vs Generation Identity — الفصل الإلزامي (راجع FRM-10):**
+>
+> البند 13 يخص **Pending values والـ Temporary async state** — هذه تُمسح.
+> **Generation Counter** (`_editSession`) ليس ضمن البند 13 — له مالك واضح مستقل:
+>
+> | المفهوم | ما يحدث | المالك |
+> |---------|---------|--------|
+> | Pending values / Temp async state | **تُمسح** (البند 13) | `resetFormState()` |
+> | Generation Counter (`_editSession`) | **يُزاد فقط** — لا يُمسح ولا يُصفَّر أثناء عمر الصفحة | نقطة lifecycle transition (مثل `openEdit`) |
+>
+> **قاعدة المالك الواحد:** Generation Counter له نقطة تعديل رسمية واحدة لكل lifecycle transition.
+> ممنوع أن يزيده كل من `openEdit()` و`resetFormState()` لنفس الانتقال —
+> هذا يجعل الجلسة الجديدة stale فوراً ويمنع تطبيق الـ Hydration.
+>
+> **ممنوع:** `_editSession = 0` في أي وقت أثناء عمر الصفحة.
+> الإبطال الصحيح: `++_editSession` — request قديم بجيل N لن يطابق جلسة جديدة بجيل N+k.
 
 **عناصر العرض:**
 16. إعادة Counters لقيمتها الافتراضية (عند وجودها)
@@ -418,13 +428,19 @@ payload.field = value  // value قد يكون ''
 let _editSession = 0
 
 function openEdit(id) {
-  const mySession = ++_editSession  // رقم فريد لكل فتح
-  resetForm()
+  const mySession = ++_editSession  // (1) Invalidate الجلسة القديمة — openEdit هو المالك الوحيد للعداد
+  resetFormState()                  // (2) يمسح UI/pending state — لا يلمس _editSession أبداً
   loadOptions(id).then(data => {
     if (mySession !== _editSession) return  // stale — تجاهَل
     applyHydration(data)
   })
 }
+
+// ❌ ممنوع — resetFormState لا تملك العداد:
+// function resetFormState() {
+//   ...
+//   ++_editSession  // ❌ يجعل mySession في openEdit() stale فوراً → Hydration لن تُطبَّق
+// }
 ```
 
 ### AbortController (اختياري — للطلبات الثقيلة فقط)
@@ -433,10 +449,11 @@ function openEdit(id) {
 let _editController = null
 
 function openEdit(id) {
-  _editController?.abort()
+  _editController?.abort()           // ألغِ الطلب القديم إن وجد
   _editController = new AbortController()
   const { signal } = _editController
-  const mySession = ++_editSession
+  const mySession = ++_editSession   // (1) Invalidate — openEdit هو المالك الوحيد للعداد
+  resetFormState()                   // (2) يمسح UI/pending state — لا يلمس _editSession
 
   fetch(`/api/records/${id}`, { signal })
     .then(r => r.json())
@@ -458,6 +475,15 @@ function openEdit(id) {
 - **Generation Counter** إلزامي في كل حالة Async Hydration
 - **AbortController** اختياري — يُضاف إذا كان الطلب ثقيلاً ومُكلِفاً
 - كلاهما معاً لا ضرر منه
+
+### القاعدة المعمارية — مالك واحد للعداد لكل انتقال
+
+- **`_editSession` له مالك واحد لكل lifecycle transition** — وظيفة الفتح (`openEdit`)
+  أو وظيفة الإغلاق/الإلغاء عند الحاجة لإبطال طلب معلَّق.
+- **`resetFormState()` لا تملك العداد** — تمسح UI state والـ pending values فقط (FRM-05 البند 13).
+- **الترتيب الصحيح:** `++_editSession` أولاً (Invalidate)، ثم `resetFormState()` — ليكون الـ UI
+  نظيفاً مع جلسة صالحة.
+- **ممنوع:** إعادة `_editSession` إلى 0 أثناء عمر الصفحة — يُسرِّب بيانات Async قديمة.
 
 ---
 
