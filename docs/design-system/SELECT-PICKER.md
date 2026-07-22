@@ -235,7 +235,7 @@ Search:      inactive
 | الحدث | الانتقال |
 |-------|---------|
 | Trigger click | `closed → open` (إذا Interaction = enabled) |
-| Option selection | `open → closed` (بعد تأكيد الاختيار) |
+| Option selection | `open → closed` (بعد تأكيد الاختيار — single/searchable فقط؛ multi لا يُغلَق عند كل اختيار — راجع SEL-28) |
 | Outside click | `open → closed` |
 | Escape key | `open → closed` (SEL-26) |
 | Tab key أثناء الفتح | `open → closed` |
@@ -304,12 +304,11 @@ unresolved → value موجود في DB لكن الـ option:
 | | `disabled` | `readonly` |
 |--|-----------|-----------|
 | يُفتح؟ | ❌ لا | ❌ لا |
-| يُرسَل في payload؟ | ❌ لا (API-MUT) | ✅ نعم |
 | Visual cue | تعتيم (opacity) | border مختلف أو خلفية مختلفة |
 | ARIA | `aria-disabled="true"` | `aria-readonly="true"` |
 | Keyboard focus | لا يقبل focus | يقبل focus للقراءة |
 
-**قاعدة payload (API-MUT):** إذا كان الـ picker `disabled` → لا تُضمِّنه في payload.
+**ملاحظة:** قرار إضافة حقل الـ picker في الـ payload أو حذفه (disabled omit / readonly include) يملكه **DS-FRM وAPI-MUT** — راجع SEL-29 وSEL-31. DS-SEL يملك الـ Interaction State (سلوك الـ UI) فقط.
 
 ---
 
@@ -446,11 +445,26 @@ mode: searchable → الـ Trigger حقل نص — typing يفتح القائم
 6. **حالة empty** — رسالة "لا توجد نتائج" داخل القائمة.
 7. **حالة error (remote)** — رسالة خطأ آمنة + زر "إعادة المحاولة".
 
-### ترتيب الخيارات
+### ترتيب الخيارات (Baseline — بدون بحث)
 
 - **`local` source** — الترتيب كما يُمرَّر من DS-REF.
 - **`remote` source** — الترتيب يعود من الـ API.
-- **لا تُعيد ترتيب الـ options تلقائياً** — الترتيب قرار DS-REF وليس DS-SEL.
+- **لا تُعيد ترتيب الـ options تلقائياً** بدون بحث — الترتيب الأساسي قرار DS-REF وليس DS-SEL.
+
+### V1 Search Ranking — ترتيب نتائج البحث
+
+قاعدة "لا تُعيد ترتيب" تخص **الترتيب الأساسي** (baseline) بدون بحث نشط.
+**عند تفعيل البحث (`Search: active`)**, DS-SEL يُرتِّب النتائج المفلترة بأولوية التطابق:
+
+| الأولوية | معيار المطابقة | مثال (بحث: "سع") |
+|---------|--------------|-----------------|
+| 1 | تطابق تام بعد التطبيع | "سع" يساوي الـ label كاملاً (نادر) |
+| 2 | الـ label يبدأ بنص البحث (`startsWith`) | "السعودية" يبدأ بـ "سع" |
+| 3 | كلمة في الـ label تبدأ بنص البحث (word-starts-with) | "مملكة السعودية" — "السعودية" تبدأ بـ "سع" |
+| 4 | الـ label يحتوي نص البحث في أي مكان (`includes`) | "عمان السعيدة" — يحتوي "سع" |
+| 5 | مطابقة في `meta.keywords`/aliases فقط | label لا يطابق لكن الـ keywords تطابق |
+
+**تنبيه:** هذا ترتيب بحث نصي داخل DS-SEL — لا علاقة له بـ "match score" أعمالي أو domain scoring (راجع SEL-36).
 
 ---
 
@@ -498,8 +512,24 @@ picker._pendingSelection = null  // تنظيف بعد Resolution
 
 - **لا `setTimeout`** — Hydration يكتمل فقط بعد تأكيد جاهزية الـ catalog.
 - **`_pendingSelection`** هو المتغير الوحيد المرخَّص لحمل القيمة أثناء الانتظار.
-- **`_displayLabel`** لا يُعيَّن بناءً على `_pendingSelection` وحده — يتطلب `resolved` state.
+- **`_displayLabel`** لا يُعيَّن من `value` مجرَّد (bare value) وحده — يتطلب إما `resolved` state أو backend-confirmed label (راجع "Backend-confirmed Label" أدناه).
 - **لا Partial Hydration** — إما تُعيَّن القيمة كاملةً أو تبقى `empty`/`unresolved`.
+
+### Backend-confirmed Label — العرض الفوري
+
+إذا أرسل الـ backend **{value, label}** معاً (مُؤكَّد من المصدر)، يمكن عرض الـ label فوراً قبل اكتمال Resolution:
+
+```js
+// Backend أرسل القيمة والـ label معاً
+picker._pendingSelection = { value: "JO", label: "الأردن" }
+
+// ✅ يمكن عرض الـ label فوراً — قبل اكتمال Resolution
+picker._displayLabel = picker._pendingSelection.label
+```
+
+- الـ Resolution يستمر في الخلفية ليُحدِّد `resolved`/`unresolved` بناءً على مطابقة الـ catalog.
+- عرض الـ label فوراً ≠ إلغاء الـ Resolution — الاثنان مستقلان.
+- إذا كانت `_pendingSelection` مجرَّد value فقط (string/number) → لا تُعيِّن `_displayLabel` حتى يكتمل الـ Resolution.
 
 ---
 
@@ -752,8 +782,10 @@ DS-SEL يستقبل فقط `loadOptions({parentValue})` أو القائمة ال
 | الخطوة | ما يحدث | مثال |
 |--------|---------|------|
 | 1 — Trim | إزالة المسافات من البداية والنهاية | `" الأردن "` → `"الأردن"` |
-| 2 — إزالة التشكيل | حذف حركات الإعراب والمد والسكون | `"أُردُنّ"` → `"اردن"` |
-| 3 — توحيد أشكال الألف | `أ إ آ ٱ` → `ا` | `"إردن"` → `"اردن"` |
+| 2 — Collapse whitespace | تحويل المسافات المتعددة إلى مسافة واحدة | `"الأردن  عمان"` → `"الأردن عمان"` |
+| 3 — إزالة التطويل (tatweel) | حذف حرف التطويل `ـ` (U+0640) | `"بيـروت"` → `"بيروت"` |
+| 4 — إزالة التشكيل | حذف حركات الإعراب والمد والسكون | `"أُردُنّ"` → `"اردن"` |
+| 5 — توحيد أشكال الألف | `أ إ آ ٱ` → `ا` | `"إردن"` → `"اردن"` |
 
 ### ما هو ممنوع كتطبيع إلزامي عالمي
 
@@ -772,8 +804,10 @@ function normalizeArabic(text) {
   if (!text) return ''
   return text
     .trim()
-    .replace(/[ً-ٰٟ]/g, '')  // إزالة التشكيل والمد والسكون
-    .replace(/[أإآٱ]/g, 'ا')               // توحيد أشكال الألف
+    .replace(/\s+/g, ' ')                // collapse whitespace
+    .replace(/\u0640/g, '')              // إزالة التطويل (tatweel U+0640)
+    .replace(/[ً-ٰٟ]/g, '')  // إزالة التشكيل والمد والسكون
+    .replace(/[أإآٱ]/g, 'ا')           // توحيد أشكال الألف
     .toLowerCase()
 }
 
@@ -911,7 +945,8 @@ function close() {
 // يقرأ القيمة من CSS custom property تُعرِّفها DS-OVL:
 const zIndex = getComputedStyle(document.documentElement)
                 .getPropertyValue('--tw-drop-z').trim()
-              || '9500'  // fallback إذا لم تُعرَّف القيمة بعد
+// ملاحظة: إذا لم تُعرَّف --tw-drop-z بعد (DS-OVL مؤجَّل)،
+// القيمة الاحتياطية يُحدِّدها DS-OVL — لا رقم مُشفَّر هنا (راجع SEL-35).
 
 dropdownEl.style.zIndex = zIndex
 ```
@@ -943,7 +978,7 @@ document.addEventListener('click', (e) => {
 | `Space` / `Enter` على Trigger | يفتح القائمة (`Disclosure → open`) |
 | `ArrowDown` | ينتقل إلى الخيار التالي |
 | `ArrowUp` | ينتقل إلى الخيار السابق |
-| `Enter` على خيار | يُؤكِّد الاختيار → يُغلِق القائمة |
+| `Enter` على خيار | يُؤكِّد الاختيار → يُغلِق القائمة (single/searchable) · يُضيف/يُزيل من `_selections` بدون إغلاق (multi — راجع SEL-28) |
 | `Escape` | يُغلِق القائمة بدون اختيار |
 | `Home` | ينتقل إلى أول خيار مرئي |
 | `End` | ينتقل إلى آخر خيار مرئي |
@@ -961,7 +996,7 @@ document.addEventListener('click', (e) => {
 
 ## SEL-27 — Accessibility / ARIA
 
-### الـ Pattern المطلوب: Combobox (ARIA 1.2)
+### الـ Pattern المطلوب: Combobox + Listbox (Current WAI-ARIA / APG)
 
 ```html
 <!-- Trigger -->
@@ -1061,7 +1096,7 @@ payload.skills = []  // أو null حسب API-MUT contract للحقل
 2. **لا حد افتراضي** — الحد يُحدَّد من سياق الاستخدام (مثلاً: max 5 مهارات).
 3. **Escape يُغلِق** بدون تغيير `_selections` الحالية.
 4. **`aria-multiselectable="true"`** على الـ listbox.
-5. **كل خيار مختار** له `aria-checked="true"` بالإضافة لـ `aria-selected`.
+5. **كل خيار مختار** له `aria-selected="true"` (في `role="listbox"` مع `aria-multiselectable="true"` — لا تستخدم `aria-checked` وهو للـ checkbox/menuitem فقط).
 
 ---
 
@@ -1311,7 +1346,7 @@ V4 (PR مستقل):    multi-select mode implementation
 ❌ لا تُنشئ "وضعاً" رابعاً باسم "dependent" — الـ Dependency علاقة وليست mode
 ❌ لا تستخدم <select> native كعنصر مرئي رئيسي
 ❌ لا تُشفِّر z-index أرقاماً مباشرةً في DS-SEL — اقرأ من CSS var تُعرِّفها DS-OVL
-❌ لا تُحدِّث _displayLabel بناءً على _pendingSelection وحده (قبل Resolution)
+❌ لا تُحدِّث _displayLabel من value مجرَّد (bare value) بدون backend-confirmed label أو resolved state
 ❌ لا تستخدم عداد global للـ remote search — كل picker له _searchGen مستقل
 ❌ لا تُنشئ قيمة حرة من النص المكتوب في حقل البحث (SEL-22)
 ❌ لا تُعرِّف منطق "أي picker parent لأي child" داخل DS-SEL — ذلك DS-FRM
@@ -1341,7 +1376,7 @@ V4 (PR مستقل):    multi-select mode implementation
 | OTP / Pin input | DS-OTP (غير موثَّق بعد) |
 | Upload / File picker | DS-UPLOAD |
 | Rich text / WYSIWYG | DS-RICH |
-| ترتيب الخيارات بـ match score | Domain logic في page module |
+| ترتيب الخيارات بـ business/domain match score (مثال: ملاءمة السيرة الذاتية للوظيفة — ليس ترتيب بحث نصي داخل DS-SEL؛ راجع SEL-14) | Domain logic في page module |
 | بيانات الـ catalog نفسها (ليس عرضها) | DS-REF |
 | Content moderation لنصوص البحث | DS-MODERATION |
 | Profanity filter | DS-MODERATION |
