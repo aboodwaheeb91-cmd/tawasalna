@@ -1006,7 +1006,7 @@ profiles.country   → المصدر الوحيد للدولة (ISO code للمو
 | منطق navigation، history | DS-NAV |
 | صلاحية من يرى العنصر | DS-VM |
 | قاموس مهارات أو مهن | DS-REF → **STOP** (tw-skills.js / tw-options-data.js موجود كـ Runtime — DS-REF غير موثَّق رسمياً بعد؛ راجع F30) |
-| dropdown أو select | DS-SEL → **STOP** (tw-select.js موجود كـ Runtime — DS-SEL غير موثَّق رسمياً بعد؛ راجع F30) |
+| dropdown أو select / picker / searchable picker / multi-select | DS-SEL → `docs/design-system/SELECT-PICKER.md` — اقرأ SEL-00 (Routing) ثم القسم المناسب |
 
 ### لماذا هذه القاعدة؟
 
@@ -1087,3 +1087,4 @@ async function handleSave() {
 *أُنشئ في PR #420 — 2026-07-09 — الدستور المعماري الأساسي لمشروع تواصلنا.*
 *حُدِّث في PR #420 (commit 2) — 2026-07-09 — أُضيفت القواعد F14–F28 (15 قاعدة مستقبلية). المجموع: 28 قاعدة عليا.*
 *حُدِّث في PR docs/design-system-forms-v1 — 2026-07-21 — أُضيفت القواعد F29–F31: One Concept = One Source of Truth (Form & UI) · No Matching System = Stop and Report · System Routing Before Implementation. المجموع: 31 قاعدة عليا.*
+*حُدِّث في PR #508 — 2026-07-22 — F31 جدول التوجيه: صف dropdown/select حُدِّث للإشارة إلى `docs/design-system/SELECT-PICKER.md` بعد توثيق DS-SEL V1 رسمياً — STOP أُزيل من هذا الصف.*
