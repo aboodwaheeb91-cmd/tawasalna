@@ -1326,10 +1326,10 @@ DS-SEL يُوفِّر القيمة الحالية حسب الـ mode. اسم `ge
 ```
 // Pseudocode concept — اسم getCanonicalValue() ليس Runtime API موجوداً
 
-// single / searchable → scalar أو null
+// single / searchable → string | number | null  (حسب SEL-04 OptionItem.value)
 picker.getCanonicalValue()   //  picker._canonicalSelection?.value ?? null
 
-// multi → array من canonical IDs/codes (SEL-28 — _selections)
+// multi → Array<string | number>  (حسب SEL-04 OptionItem.value — SEL-28 _selections)
 picker.getCanonicalValue()   //  picker._selections.map(s => s.value)   // [] إذا لا اختيارات
 ```
 
@@ -1344,15 +1344,15 @@ DS-SEL لا يُقرِّر شكل المقارنة ولا معنى ترتيب ا
 // fieldContract: { clearable, emptyPayloadValue, orderSignificant? }
 function buildPickerPayload(picker, fieldName, { originalHydratedValue, fieldContract }) {
   const { clearable, emptyPayloadValue, orderSignificant } = fieldContract
-  const currentValue = picker.getCanonicalValue()   // Pseudocode — scalar لـ single، array لـ multi
+  const currentValue = picker.getCanonicalValue()   // Pseudocode — (string | number | null) لـ single، Array<string | number> لـ multi
 
   // ① unresolved لم يمسّه المستخدم → omit (SEL-18)
   if (picker._selectionState === 'unresolved') return
 
   // ② القيمة لم تتغير (مقارنة مُعيَّرة) → omit (FRM-09: "omitted = no change")
   // valuesEqualNormalized: Pseudocode — ليس Runtime API
-  // single: normalized string comparison (trim ± case حسب fieldContract)
-  // multi: set comparison إذا !orderSignificant — ordered comparison إذا orderSignificant
+  // single/searchable: مقارنة canonical scalar مُعيَّرة (string | number) حسب fieldContract — لا تُحوِّل number → string عالمياً
+  // multi: set comparison إذا !orderSignificant — ordered comparison إذا orderSignificant — عناصر string | number
   if (valuesEqualNormalized(currentValue, originalHydratedValue, { orderSignificant })) return
 
   // ③ فارغ بعد Clear (null لـ single/searchable، [] لـ multi) → null أو []
@@ -1366,8 +1366,8 @@ function buildPickerPayload(picker, fieldName, { originalHydratedValue, fieldCon
   }
 
   // ④ قيمة مختلفة عن الأصلية → أرسِل canonical value فقط، لا labels (API-MUT)
-  // single/searchable: scalar string/number
-  // multi: string[] من canonical IDs/codes
+  // single/searchable: string | number | null  (حسب SEL-04 — لا تغيير للـ canonical type)
+  // multi: Array<string | number>  (حسب SEL-04 — لا تُحوِّل number IDs إلى string)
   payload[fieldName] = currentValue
 }
 ```
@@ -1378,8 +1378,8 @@ function buildPickerPayload(picker, fieldName, { originalHydratedValue, fieldCon
 
 | `orderSignificant` | المقارنة | مثال |
 |---|---|---|
-| `false` (الأكثر شيوعاً — مهارات، لغات، اهتمامات) | set comparison | `["JS","PY"]` == `["PY","JS"]` → equal |
-| `true` (الترتيب جزء من القيمة — أولوية، تسلسل) | ordered comparison | `["JS","PY"]` ≠ `["PY","JS"]` → different |
+| `false` (الأكثر شيوعاً — مهارات، لغات، اهتمامات) | set comparison | `["JS","PY"]` == `["PY","JS"]` → equal · `[4,18]` == `[18,4]` → equal |
+| `true` (الترتيب جزء من القيمة — أولوية، تسلسل) | ordered comparison | `["JS","PY"]` ≠ `["PY","JS"]` → different · `[4,18]` ≠ `[18,4]` → different |
 
 DS-SEL لا يُقرِّر قيمة `orderSignificant` — DS-FRM يُحدِّدها حسب field contract حصراً.
 
@@ -1392,7 +1392,7 @@ DS-SEL لا يُقرِّر قيمة `orderSignificant` — DS-FRM يُحدِّد
 | `null` / `[]` | `clearable: true` | `null` أو `[]` حسب API-MUT-03 |
 | `null` / `[]` | `clearable: false` | **omit** |
 | single/searchable changed | scalar مختلف عن الأصلي | **أرسِل scalar** |
-| multi changed | array مختلف عن الأصلي | **أرسِل `string[]`** |
+| multi changed | array مختلف عن الأصلي | **أرسِل `Array<string \| number>`** |
 
 **الأخطاء الشائعة:**
 
@@ -1616,6 +1616,8 @@ V4 (PR مستقل):    multi-select mode implementation
 ❌ لا تستخدم `picker._canonicalSelection?.value ?? null` في Generic Payload Contract — multi canonical value هو `picker._selections.map(s => s.value)` (SEL-28 × SEL-29)
 ❌ لا تقارن canonical values بـ `===` في Payload Building — مقارنة مرجعية لا دلالية؛ استخدم مقارنة مُعيَّرة حسب fieldContract (SEL-29 × FRM-13)
 ❌ لا تُقرِّر DS-SEL قيمة `orderSignificant` للـ multi — هذا ملك DS-FRM وfield contract حصراً (SEL-29 × FRM-13)
+❌ لا تُحوِّل number IDs إلى string في Payload Building أو المقارنة — canonical type يحدده API/field contract (SEL-04 × SEL-29)
+❌ لا تكتب `string[]` كعقد عام للـ multi canonical value — العقد الصحيح: `Array<string | number>` (SEL-04 × SEL-28 × SEL-29)
 ```
 
 ---
