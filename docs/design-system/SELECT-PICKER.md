@@ -1316,22 +1316,51 @@ function onSelectionConfirmed(newOption) {
 
 ### نقطة 4 — Payload Building (FRM-09 + API-MUT)
 
+DS-FRM يملك منطق الـ Payload Building — DS-SEL يُوفِّر الحالة والقيمة الحالية **فقط**.
+القرار يعتمد على مقارنة القيمة الحالية بالقيمة الأصلية عند الـ Hydration، **لا على `_selectionState` وحدها**.
+
 ```js
-// DS-FRM يقرأ من DS-SEL عند بناء الـ payload
-function buildPickerPayload(picker, fieldName) {
-  switch (picker._selectionState) {
-    case 'empty':
-      // omit أو null حسب semantics الحقل (API-MUT-03)
-      break
-    case 'resolved':
-      payload[fieldName] = picker._canonicalSelection.value
-      break
-    case 'unresolved':
-      // لم يُغيِّره المستخدم → omit (SEL-18)
-      // غيَّره المستخدم → resolved بالفعل (تحول قبل بناء الـ payload)
-      break
+// Pseudocode concept — هذه الدالة ملك DS-FRM، ليس DS-SEL
+// originalHydratedValue: القيمة التي حفظها DS-FRM عند Hydration (FRM-06)
+// clearable: هل يدعم الحقل المسح؟ (حسب field contract)
+// emptyPayloadValue: null | [] حسب API-MUT-03 للحقل
+function buildPickerPayload(picker, fieldName, { originalHydratedValue, clearable, emptyPayloadValue }) {
+  const currentValue = picker._canonicalSelection?.value ?? null
+
+  // ① unresolved لم يمسّه المستخدم → omit (SEL-18)
+  if (picker._selectionState === 'unresolved') return
+
+  // ② القيمة لم تتغير عن الأصلية → omit (FRM-09: "omitted = no change")
+  if (currentValue === originalHydratedValue) return
+
+  // ③ المستخدم مسح حقل clearable (كانت هناك قيمة → صارت null) → null أو []
+  if (currentValue === null) {
+    if (clearable) payload[fieldName] = emptyPayloadValue  // null | [] حسب API-MUT-03
+    // غير clearable → omit (لا تُرسِل null لحقل لا يدعم المسح)
+    return
   }
+
+  // ④ قيمة جديدة (resolved → changed) → أرسِل canonical value فقط، لا label (API-MUT)
+  payload[fieldName] = currentValue
 }
+```
+
+**قواعد Payload Building — الملكية DS-FRM:**
+
+| الحالة | الشرط | الإجراء |
+|--------|--------|---------|
+| `unresolved` | لم يمسّه المستخدم | **omit** (SEL-18) |
+| أي حالة | `currentValue === originalHydratedValue` | **omit** (FRM-09) |
+| `empty` / `null` | `clearable: true` | `null` أو `[]` حسب API-MUT-03 |
+| `empty` / `null` | `clearable: false` | **omit** |
+| `resolved` | `currentValue ≠ originalHydratedValue` | **أرسِل `currentValue`** |
+
+**الأخطاء الشائعة:**
+
+```
+❌ resolved → payload مباشرةً (بدون مقارنة بالأصلية) — يُرسِل قيماً لم تتغير
+❌ empty → omit دائماً — يُفوِّت Clear متعمد (يجب null/[] للـ clearable)
+❌ switch على _selectionState وحدها — المعيار هو المقارنة بـ originalHydratedValue
 ```
 
 ---
@@ -1540,6 +1569,8 @@ V4 (PR مستقل):    multi-select mode implementation
 ❌ لا تعتبر الخيار الـ `disabled: true` resolved — موجود في catalog ≠ selectable active (SEL-15 `isActive` check × SEL-16)
 ❌ لا تستدعي ما يعادل `markDirty()` من DS-SEL — DS-SEL يُبلِّغ بتغيير القيمة فقط؛ DS-FRM يحسب Dirty/Pristine (SEL-29 × FRM-13)
 ❌ لا تزيد `_searchGen` مرتين لنفس transition — استخدم `invalidateSearchContext(reason)` كمالك واحد؛ `close()` الداخلي من Reset لا يُعيد الإبطال (SEL-19)
+❌ لا تُضِف resolved picker إلى payload دون مقارنة القيمة الحالية بـ originalHydratedValue — resolved ≠ always send (FRM-09: omitted = no change)
+❌ لا تعتبر empty دائماً omit — empty بعد Clear المتعمد يُرسَل كـ null/[] حسب API-MUT-03 للحقل (SEL-29 × FRM-09)
 ```
 
 ---
