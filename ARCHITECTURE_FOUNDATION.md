@@ -1057,7 +1057,7 @@ async function handleSave() {
 3. **الخيارات الزمنية تُوَلَّد بالكود** — الأيام والشهور والسنوات والساعات والدقائق تُنشأ برمجياً. لا جداول DB لهذه القيم.
 4. **الاعتماديات الزمنية تنتمي لـ DS-DATE** — حساب أيام الشهر (Leap Year)، تقييد نطاق نهاية بناءً على البداية، Cascade Clear عند تغيير الشهر — كلها DS-DATE وليست منطقاً مستقلاً في كل page.
 5. **DS-FRM/DS-VAL/API-MUT تحتفظ بمسؤولياتها** — DS-DATE يُنتج Canonical Values؛ DS-FRM يبني الـ Payload؛ DS-VAL يُقرِّر توقيت الخطأ وشكله؛ API-MUT يحكم Tri-state (null/omit/value).
-6. **"حتى الآن" = `null` في DB** — ليست Magic String. DS-DATE يُعرِّف حالة `is_current: true` + `end: null` كـ Open-ended Range.
+6. **Open-ended Range = null كـ Canonical End Value** — Magic String ممنوعة كـ Canonical Temporal Value. DS-DATE يُعبِّر عن الحالة المفتوحة النهاية بـ End = null. DB representation واسم Domain State (is_current / ongoing / active) يملكهما Feature Contract — ليس DS-DATE.
 7. **لا Auto-select** — DS-DATE لا يُخمِّن قيمة للمستخدم عند فتح الحقل أو تغيير Dependent.
 
 ### ممنوعات F32
@@ -1065,7 +1065,8 @@ async function handleSave() {
 ```
 ❌ <input type="date"> أو <input type="time"> مرئية للمستخدم في الصفحات الموحدة
 ❌ حساب daysInMonth داخل page module بدون مرجع DS-DATE
-❌ "حتى الآن" كـ magic string في DB أو في Payload
+❌ "حتى الآن" أو أي نص كـ Canonical Temporal Value
+❌ فرض is_current أو أي Domain State name من DS-DATE — يملكه Feature Contract
 ❌ قيمة وهمية لإكمال الدقة (2022 → 2022-01-01)
 ❌ نطاق سنوات Global hardcoded خارج contract الحقل
 ❌ <input type="number"> لإدخال السنة

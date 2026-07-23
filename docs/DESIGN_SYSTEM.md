@@ -60,15 +60,23 @@
 
 | قائمة منسدلة / select / searchable picker / multi-select | [SELECT-PICKER.md](design-system/SELECT-PICKER.md) | SEL-00 (Routing) → ثم القسم المناسب |
 | تاريخ / وقت / date picker / month-year / year-only / datetime | [DATE-TIME-FIELDS.md](design-system/DATE-TIME-FIELDS.md) | DATE-00 (Routing Protocol) → DATE-03A–G |
-| حقل تاريخ مستقل (Year-only) | [DATE-TIME-FIELDS.md](design-system/DATE-TIME-FIELDS.md) | DATE-00 → DATE-03A |
-| حقل تاريخ مستقل (Month+Year) | [DATE-TIME-FIELDS.md](design-system/DATE-TIME-FIELDS.md) | DATE-00 → DATE-03B |
-| حقل تاريخ كامل (Day+Month+Year) | [DATE-TIME-FIELDS.md](design-system/DATE-TIME-FIELDS.md) | DATE-00 → DATE-03C |
-| نطاق تاريخ (Start → End / "حتى الآن") | [DATE-TIME-FIELDS.md](design-system/DATE-TIME-FIELDS.md) | DATE-10 + DATE-11 |
-| حقل وقت (Time / TimeRange) | [DATE-TIME-FIELDS.md](design-system/DATE-TIME-FIELDS.md) | DATE-03E + DATE-12 |
-| حقل DateTime (تاريخ + وقت معاً) | [DATE-TIME-FIELDS.md](design-system/DATE-TIME-FIELDS.md) | DATE-03F + DATE-13 |
+| حقل سنة فقط (Year-only) | [DATE-TIME-FIELDS.md](design-system/DATE-TIME-FIELDS.md) | DATE-03A + DATE-05 + DATE-06 |
+| حقل شهر + سنة (Month+Year) | [DATE-TIME-FIELDS.md](design-system/DATE-TIME-FIELDS.md) | DATE-03B + DATE-08 + DATE-10 |
+| حقل تاريخ كامل (Day+Month+Year) | [DATE-TIME-FIELDS.md](design-system/DATE-TIME-FIELDS.md) | DATE-03C + DATE-08 + DATE-09 |
+| حقل وقت (Time field) | [DATE-TIME-FIELDS.md](design-system/DATE-TIME-FIELDS.md) | DATE-03D + DATE-12 |
+| حقل موعد (DateTime = تاريخ + وقت) | [DATE-TIME-FIELDS.md](design-system/DATE-TIME-FIELDS.md) | DATE-03E + DATE-13 + DATE-14 |
+| نطاق تاريخ (Temporal Range، Start → End) | [DATE-TIME-FIELDS.md](design-system/DATE-TIME-FIELDS.md) | DATE-03F + DATE-10 |
+| نطاق مفتوح النهاية (Open-ended Range / "حتى الآن") | [DATE-TIME-FIELDS.md](design-system/DATE-TIME-FIELDS.md) | DATE-03G + DATE-11 |
 | Leap Year / أيام الشهر | [DATE-TIME-FIELDS.md](design-system/DATE-TIME-FIELDS.md) | DATE-08 |
-| Hydration / تعبئة حقل تاريخ من API | [DATE-TIME-FIELDS.md](design-system/DATE-TIME-FIELDS.md) | DATE-22 |
-| Payload بناء تاريخ / Serialization | [DATE-TIME-FIELDS.md](design-system/DATE-TIME-FIELDS.md) | DATE-20 + DATE-21 |
+| Hydration / تعبئة حقل تاريخ من API | [DATE-TIME-FIELDS.md](design-system/DATE-TIME-FIELDS.md) | DATE-17 |
+| Serialization تاريخ / تحويل Canonical Value للـ API | [DATE-TIME-FIELDS.md](design-system/DATE-TIME-FIELDS.md) | DATE-16 |
+| Payload Ownership في حقل تاريخ | [DATE-TIME-FIELDS.md](design-system/DATE-TIME-FIELDS.md) | DATE-23 |
+| Partial Composite / حقل تاريخ ناقص | [DATE-TIME-FIELDS.md](design-system/DATE-TIME-FIELDS.md) | DATE-20 |
+| Dirty/Pristine في حقل تاريخ | [DATE-TIME-FIELDS.md](design-system/DATE-TIME-FIELDS.md) | DATE-22 |
+| Clear / إفراغ حقل تاريخ | [DATE-TIME-FIELDS.md](design-system/DATE-TIME-FIELDS.md) | DATE-21 |
+| Disabled / Readonly في حقل تاريخ | [DATE-TIME-FIELDS.md](design-system/DATE-TIME-FIELDS.md) | DATE-24 + DATE-25 |
+| Validation / أخطاء حقل تاريخ | [DATE-TIME-FIELDS.md](design-system/DATE-TIME-FIELDS.md) | DATE-26 + DATE-27 |
+| Timezone / حدود مسؤولية DS-DATE | [DATE-TIME-FIELDS.md](design-system/DATE-TIME-FIELDS.md) | DATE-14 |
 | هاتف دولي / dial code | [DS-PHONE] | **STOP — غير موثَّق بعد** |
 | رفع ملف / Upload UI (drag & drop) | [DS-UPLOAD] | **STOP — غير موثَّق بعد (tw-upload.js يغطي HTTP فقط)** |
 | أيقونة / علامة / ملف مشترك | [DS-ASSET] | **STOP — غير موثَّق بعد** |

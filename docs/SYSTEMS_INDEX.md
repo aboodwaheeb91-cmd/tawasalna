@@ -833,10 +833,10 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 - **Leap Year** (DATE-08): `daysInMonth(year, month)` + `isLeapYear(y)` ← DS-DATE يملكهما
 - **Parent-Change Cascade** (DATE-09): تغيير الشهر → Day يُفرَّغ (لا Auto-replace)؛ تغيير السنة → Day يُعاد حساب maxDay
 - **Start/End Dependency** (DATE-10): End يُفرَّغ فقط إذا أصبح End < Start بعد تغيير Start
-- **"حتى الآن"** (DATE-11): `is_current: true` + `end: null` في DB — ليست Magic String
-- **No Auto-select** (DATE-23): DS-DATE لا يُخمِّن قيمة للمستخدم أبداً
+- **"حتى الآن"** (DATE-11): Open-ended Range — DS-DATE يُنتج End = null كـ Canonical Value؛ اسم Domain State (is_current / ongoing) يحدده Feature Contract — Magic String ممنوعة كـ Canonical Temporal Value
+- **No Auto-select** (DATE-18): DS-DATE لا يُخمِّن قيمة للمستخدم أبداً
 - **4 State Axes** (DATE-19): Interaction × Completion × Validation × Range — مستقلة
-- **Canonical Value = Pseudocode** (DATE-20): لا Runtime API names في DS-DATE
+- **Canonical Value = Pseudocode** (DATE-15): لا Runtime API names في DS-DATE
 - **Legacy Migration P1–P3** (DATE-33): 11+ patterns legacy محددة بأولويات (لم تُنفَّذ بعد)
 **Do not recreate:**
 - لا `<input type="date">` أو `<input type="time">` مرئية في الصفحات الموحدة (F32)

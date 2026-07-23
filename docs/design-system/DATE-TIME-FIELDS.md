@@ -261,9 +261,23 @@ Start وEnd يجب أن يستخدموا نفس Precision (لا Year Start + Ful
 - بداية الخبرة `مارس 2022` لا تعني اليوم الأول من مارس.
 - اختراع قيم وهمية = تشويه معنى البيانات + صعوبة الـ migration لاحقاً.
 
-### الاستثناء المقبول
+### Legacy Adapter / Compatibility Boundary
 
-إذا كان الـ Backend API يتطلب صراحةً تاريخاً كاملاً لحقل Month-Year، يُنص على ذلك صراحةً في Field/API Contract مع وضع convention محدد (مثل: أول يوم من الشهر)، ويُوثَّق في Feature docs — **ليس كقاعدة عامة في DS-DATE**.
+إذا كان Legacy API حالي يتطلب صراحةً تاريخاً كاملاً لحقل Month-Year (مثل: "أرسِل `2022-03-01` لتمثيل مارس 2022")، هذا يُعالَج عبر **Legacy Adapter مستقل** — طبقة تحويل بين الـ Canonical Temporal Value وحاجة الـ Legacy API.
+
+```
+// Concept — ليس Runtime API
+// Legacy Adapter (مستقل عن DS-DATE)
+function toMonthYearLegacy(canonicalMonthYear):
+  // { year: 2022, month: 3 } → "2022-03-01"
+  // Convention رسمي محدد في Feature/API Contract
+```
+
+**الـ Canonical Precision تبقى كما هي:**
+`مارس 2022` يبقى `{year:2022, month:3}` داخل DS-DATE.
+التحويل يحدث فقط في طبقة الـ Adapter — ليس داخل DS-DATE وليس كاستثناء معماري.
+
+هذا Compatibility Boundary — ليس إذناً بتغيير معنى البيانات في القاعدة.
 
 ---
 
@@ -555,13 +569,15 @@ Open-ended Range يُعبَّر عنه بـ:
 ### مثال تطبيقي
 
 ```
-// Label: "أعمل هنا حالياً"
-// Domain State: is_current = true
+// Pseudocode concept — أسماء API وDomain State تحددها Feature Contract
+// Label: "أعمل هنا حالياً" (مثال — Feature يملك النص)
+// Domain State: feature-defined — مثل: is_current أو ongoing أو active
 
-السلوك عند تفعيل Domain State:
+السلوك عند تفعيل Domain State (الحالة مستمرة):
   1. DS-DATE: يُخفي End Group
-  2. DS-DATE: يُنتج End = null
+  2. DS-DATE: يُنتج End = null  ← Canonical End Value
   3. Feature: يُرسل { end_date: null, is_current: true }
+     ← أسماء الـ fields (end_date, is_current) تحددها Feature/API Contract
 
 السلوك عند تعطيل Domain State:
   1. DS-DATE: يُظهر End Group
@@ -644,16 +660,30 @@ Time Group:
 }
 ```
 
-### التحويل إلى ISO String
+### حدود مسؤولية DS-DATE في DateTime
 
-التحويل من Canonical Value إلى ISO string (للـ Backend) هو مسؤولية Feature/API Contract — وليس DS-DATE.
+DS-DATE يُنتج **Local Temporal Components** فقط:
 
-مثال:
 ```
-// Feature layer (Pseudocode)
-const iso = new Date(`${year}-${month}-${day}T${hour}:${minute}:00`).toISOString()
-// أو: localDateTime.toISOString() حسب Timezone Contract
+// Canonical DateTime Value (Pseudocode)
+{ year, month, day, hour, minute }
+// هذه قيم محلية — DS-DATE لا يعرف الـ timezone ولا يُحوِّل للـ UTC
 ```
+
+**ما يجب على Feature/API Contract تحديده:**
+- هل الوقت محلي أم UTC؟
+- ما الـ timezone المرجعية للـ Feature؟
+- كيف يُحوَّل `{ year, month, day, hour, minute }` لـ ISO string أو TIMESTAMPTZ؟
+
+**ممنوع:**
+```
+❌ new Date(`${year}-${month}-${day}T${hour}:${minute}:00`).toISOString()
+   ← يعتمد ضمنياً على timezone جهاز المستخدم
+   ← النتيجة تختلف بين مستخدمين في دول/timezones مختلفة
+```
+
+التحويل الصحيح لـ instant/UTC يتطلب timezone context صريح تملكه طبقة Feature/API.
+Backend هو المرجع النهائي للتحقق من المواعيد وتحويلات التوقيت (DATE-14).
 
 ---
 
@@ -732,7 +762,7 @@ example: { year: 2025, month: 12, day: 15, hour: 9, minute: 0 }
 ### Temporal Range
 ```
 canonical type (concept): { start: TemporalValue, end: TemporalValue | null }
-// null end = open-ended (is_current = true حسب Feature Contract)
+// null end = open-ended — اسم Domain State (is_current / ongoing / ...) يحدده Feature Contract
 ```
 
 ---
@@ -1005,7 +1035,8 @@ DS-DATE لا يبني Mutation Payload النهائي.
 
 ```
 // Pseudocode — ليس Runtime API
-getTemporalValue() → CanonicalValue | null | PartialValue
+getTemporalValue() → CanonicalValue | null
+// partial → null (لا Canonical Value جزئية — DATE-20)
 getCompletionState() → 'empty' | 'partial' | 'complete'
 ```
 
@@ -1045,10 +1076,14 @@ function buildDatePayload(dateField, fieldName, { originalHydratedValue, fieldCo
 ```
 Disabled:
 - لا يفتح Dropdown
-- لا يسمح بأي تغيير
+- لا يسمح بأي تغيير من المستخدم
 - يظهر بالشكل الرسمي من DS-SEL (Disabled presentation)
-- لا يُعيد بناء Options
 ```
+
+**Disabled يمنع User Interaction فقط — لا يمنع:**
+- Hydration (تعبئة الحقل برمجياً من قيمة محفوظة)
+- إعادة بناء Options بعد تغيير parent dependency (قبل إعادة تمكين الحقل)
+- Programmatic sync رسمي من نظام آخر
 
 ### ملاحظات إضافية
 
@@ -1358,7 +1393,6 @@ company_saved_candidates.follow_up_at → TIMESTAMPTZ
 ❌ Calculation/display systems مشتقة من التاريخ (حساب العمر، "منذ 3 أيام")
 ❌ Relative timestamps ("قبل 5 دقائق")
 ❌ Recurrence / scheduling rules
-❌ Countdown logic
 ❌ DB migration
 ❌ Runtime migration لملفات موجودة
 ❌ Historical data cleanup
