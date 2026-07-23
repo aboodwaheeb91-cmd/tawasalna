@@ -1316,51 +1316,93 @@ function onSelectionConfirmed(newOption) {
 
 ### نقطة 4 — Payload Building (FRM-09 + API-MUT)
 
-DS-FRM يملك منطق الـ Payload Building — DS-SEL يُوفِّر الحالة والقيمة الحالية **فقط**.
-القرار يعتمد على مقارنة القيمة الحالية بالقيمة الأصلية عند الـ Hydration، **لا على `_selectionState` وحدها**.
+DS-FRM يملك منطق الـ Payload Building — DS-SEL يُوفِّر الحالة والقيمة الحالية **فقط** عبر مفهوم موحَّد لجميع الـ modes.
+القرار يعتمد على مقارنة **مُعيَّرة** (normalized) للقيمة الحالية بالأصلية — لا `strict ===` ولا `_selectionState` وحدها.
 
-```js
-// Pseudocode concept — هذه الدالة ملك DS-FRM، ليس DS-SEL
-// originalHydratedValue: القيمة التي حفظها DS-FRM عند Hydration (FRM-06)
-// clearable: هل يدعم الحقل المسح؟ (حسب field contract)
-// emptyPayloadValue: null | [] حسب API-MUT-03 للحقل
-function buildPickerPayload(picker, fieldName, { originalHydratedValue, clearable, emptyPayloadValue }) {
-  const currentValue = picker._canonicalSelection?.value ?? null
+#### Canonical Value — ما يُوفِّره DS-SEL
+
+DS-SEL يُوفِّر القيمة الحالية حسب الـ mode. اسم `getCanonicalValue()` Pseudocode concept — ليس Runtime API:
+
+```
+// Pseudocode concept — اسم getCanonicalValue() ليس Runtime API موجوداً
+
+// single / searchable → scalar أو null
+picker.getCanonicalValue()   //  picker._canonicalSelection?.value ?? null
+
+// multi → array من canonical IDs/codes (SEL-28 — _selections)
+picker.getCanonicalValue()   //  picker._selections.map(s => s.value)   // [] إذا لا اختيارات
+```
+
+DS-SEL لا يُقرِّر شكل المقارنة ولا معنى ترتيب العناصر في الـ multi — هذا ملك DS-FRM وفق field contract.
+
+#### Comparison & Payload — ما يملكه DS-FRM
+
+```
+// Pseudocode concept — buildPickerPayload, getCanonicalValue, valuesEqualNormalized
+// أسماء Pseudocode جميعها — ليست Runtime API موجودة
+// originalHydratedValue: حفظه DS-FRM عند Hydration (FRM-06) — scalar | array
+// fieldContract: { clearable, emptyPayloadValue, orderSignificant? }
+function buildPickerPayload(picker, fieldName, { originalHydratedValue, fieldContract }) {
+  const { clearable, emptyPayloadValue, orderSignificant } = fieldContract
+  const currentValue = picker.getCanonicalValue()   // Pseudocode — scalar لـ single، array لـ multi
 
   // ① unresolved لم يمسّه المستخدم → omit (SEL-18)
   if (picker._selectionState === 'unresolved') return
 
-  // ② القيمة لم تتغير عن الأصلية → omit (FRM-09: "omitted = no change")
-  if (currentValue === originalHydratedValue) return
+  // ② القيمة لم تتغير (مقارنة مُعيَّرة) → omit (FRM-09: "omitted = no change")
+  // valuesEqualNormalized: Pseudocode — ليس Runtime API
+  // single: normalized string comparison (trim ± case حسب fieldContract)
+  // multi: set comparison إذا !orderSignificant — ordered comparison إذا orderSignificant
+  if (valuesEqualNormalized(currentValue, originalHydratedValue, { orderSignificant })) return
 
-  // ③ المستخدم مسح حقل clearable (كانت هناك قيمة → صارت null) → null أو []
-  if (currentValue === null) {
-    if (clearable) payload[fieldName] = emptyPayloadValue  // null | [] حسب API-MUT-03
-    // غير clearable → omit (لا تُرسِل null لحقل لا يدعم المسح)
+  // ③ فارغ بعد Clear (null لـ single/searchable، [] لـ multi) → null أو []
+  const isEmpty = Array.isArray(currentValue)
+    ? currentValue.length === 0
+    : currentValue === null
+  if (isEmpty) {
+    if (clearable) payload[fieldName] = emptyPayloadValue   // null | [] حسب API-MUT-03
+    // غير clearable → omit
     return
   }
 
-  // ④ قيمة جديدة (resolved → changed) → أرسِل canonical value فقط، لا label (API-MUT)
+  // ④ قيمة مختلفة عن الأصلية → أرسِل canonical value فقط، لا labels (API-MUT)
+  // single/searchable: scalar string/number
+  // multi: string[] من canonical IDs/codes
   payload[fieldName] = currentValue
 }
 ```
 
-**قواعد Payload Building — الملكية DS-FRM:**
+#### Multi Order Contract
+
+`valuesEqualNormalized()` (Pseudocode) تعتمد على `fieldContract.orderSignificant`:
+
+| `orderSignificant` | المقارنة | مثال |
+|---|---|---|
+| `false` (الأكثر شيوعاً — مهارات، لغات، اهتمامات) | set comparison | `["JS","PY"]` == `["PY","JS"]` → equal |
+| `true` (الترتيب جزء من القيمة — أولوية، تسلسل) | ordered comparison | `["JS","PY"]` ≠ `["PY","JS"]` → different |
+
+DS-SEL لا يُقرِّر قيمة `orderSignificant` — DS-FRM يُحدِّدها حسب field contract حصراً.
+
+#### قواعد Payload Building — الملكية DS-FRM
 
 | الحالة | الشرط | الإجراء |
 |--------|--------|---------|
 | `unresolved` | لم يمسّه المستخدم | **omit** (SEL-18) |
-| أي حالة | `currentValue === originalHydratedValue` | **omit** (FRM-09) |
-| `empty` / `null` | `clearable: true` | `null` أو `[]` حسب API-MUT-03 |
-| `empty` / `null` | `clearable: false` | **omit** |
-| `resolved` | `currentValue ≠ originalHydratedValue` | **أرسِل `currentValue`** |
+| أي حالة | `valuesEqualNormalized(...)` → true | **omit** (FRM-09) |
+| `null` / `[]` | `clearable: true` | `null` أو `[]` حسب API-MUT-03 |
+| `null` / `[]` | `clearable: false` | **omit** |
+| single/searchable changed | scalar مختلف عن الأصلي | **أرسِل scalar** |
+| multi changed | array مختلف عن الأصلي | **أرسِل `string[]`** |
 
 **الأخطاء الشائعة:**
 
 ```
+❌ picker._canonicalSelection?.value ?? null لـ multi — يُحوِّل multi إلى null
+❌ currentValue === originalHydratedValue لـ arrays — مقارنة مرجعية (reference) لا دلالية (semantic)
+❌ DS-SEL يُقرِّر orderSignificant — هذا ملك DS-FRM وfield contract
 ❌ resolved → payload مباشرةً (بدون مقارنة بالأصلية) — يُرسِل قيماً لم تتغير
-❌ empty → omit دائماً — يُفوِّت Clear متعمد (يجب null/[] للـ clearable)
-❌ switch على _selectionState وحدها — المعيار هو المقارنة بـ originalHydratedValue
+❌ empty/[] → omit دائماً — يُفوِّت Clear متعمد (يجب null/[] للـ clearable)
+❌ switch على _selectionState وحدها — المعيار هو valuesEqualNormalized مقارنةً بـ originalHydratedValue
 ```
 
 ---
@@ -1571,6 +1613,9 @@ V4 (PR مستقل):    multi-select mode implementation
 ❌ لا تزيد `_searchGen` مرتين لنفس transition — استخدم `invalidateSearchContext(reason)` كمالك واحد؛ `close()` الداخلي من Reset لا يُعيد الإبطال (SEL-19)
 ❌ لا تُضِف resolved picker إلى payload دون مقارنة القيمة الحالية بـ originalHydratedValue — resolved ≠ always send (FRM-09: omitted = no change)
 ❌ لا تعتبر empty دائماً omit — empty بعد Clear المتعمد يُرسَل كـ null/[] حسب API-MUT-03 للحقل (SEL-29 × FRM-09)
+❌ لا تستخدم `picker._canonicalSelection?.value ?? null` في Generic Payload Contract — multi canonical value هو `picker._selections.map(s => s.value)` (SEL-28 × SEL-29)
+❌ لا تقارن canonical values بـ `===` في Payload Building — مقارنة مرجعية لا دلالية؛ استخدم مقارنة مُعيَّرة حسب fieldContract (SEL-29 × FRM-13)
+❌ لا تُقرِّر DS-SEL قيمة `orderSignificant` للـ multi — هذا ملك DS-FRM وfield contract حصراً (SEL-29 × FRM-13)
 ```
 
 ---
