@@ -57,6 +57,7 @@
 | F29 | One Concept = One Source of Truth (Form & UI) | **P0** |
 | F30 | No Matching System = Stop and Report | **P0** |
 | F31 | System Routing Before Implementation | **P0** |
+| F32 | Date & Time Fields System (DS-DATE) | **P0** |
 
 ---
 
@@ -1007,6 +1008,7 @@ profiles.country   → المصدر الوحيد للدولة (ISO code للمو
 | صلاحية من يرى العنصر | DS-VM |
 | قاموس مهارات أو مهن | DS-REF → **STOP** (tw-skills.js / tw-options-data.js موجود كـ Runtime — DS-REF غير موثَّق رسمياً بعد؛ راجع F30) |
 | dropdown أو select / picker / searchable picker / multi-select | DS-SEL → `docs/design-system/SELECT-PICKER.md` — اقرأ SEL-00 (Routing) ثم القسم المناسب |
+| تاريخ / وقت / date picker / month-year / year-only / datetime | DS-DATE → `docs/design-system/DATE-TIME-FIELDS.md` — اقرأ DATE-00 (Routing Protocol) ثم DATE-03A–G |
 
 ### لماذا هذه القاعدة؟
 
@@ -1041,6 +1043,37 @@ async function handleSave() {
 ```
 
 الوظيفة تستدعي الأنظمة — لا تُعيد تعريف قواعدها.
+
+---
+
+## F32 — [P0] Date & Time Fields System (DS-DATE)
+
+**DS-DATE هو النظام الرسمي الوحيد لكل حقول التاريخ والوقت في منصة تواصلنا.**
+
+### القواعد الأساسية
+
+1. **DS-SEL هو المحرك البصري** — كل Date/Time field مرئي للمستخدم يستخدم Custom DS-SEL Dropdown لا native `<input type="date">` ولا native `<select>`.
+2. **Data Precision Contract صارم** — Year-only ≠ Full Date ≠ Month+Year. لا قيم وهمية لإكمال الدقة المفقودة (مثل: `2022` لا تصبح `2022-01-01`).
+3. **الخيارات الزمنية تُوَلَّد بالكود** — الأيام والشهور والسنوات والساعات والدقائق تُنشأ برمجياً. لا جداول DB لهذه القيم.
+4. **الاعتماديات الزمنية تنتمي لـ DS-DATE** — حساب أيام الشهر (Leap Year)، تقييد نطاق نهاية بناءً على البداية، Cascade Clear عند تغيير الشهر — كلها DS-DATE وليست منطقاً مستقلاً في كل page.
+5. **DS-FRM/DS-VAL/API-MUT تحتفظ بمسؤولياتها** — DS-DATE يُنتج Canonical Values؛ DS-FRM يبني الـ Payload؛ DS-VAL يُقرِّر توقيت الخطأ وشكله؛ API-MUT يحكم Tri-state (null/omit/value).
+6. **Open-ended Range = null كـ Canonical End Value** — Magic String ممنوعة كـ Canonical Temporal Value. DS-DATE يُعبِّر عن الحالة المفتوحة النهاية بـ End = null. DB representation واسم Domain State (is_current / ongoing / active) يملكهما Feature Contract — ليس DS-DATE.
+7. **لا Auto-select** — DS-DATE لا يُخمِّن قيمة للمستخدم عند فتح الحقل أو تغيير Dependent.
+
+### ممنوعات F32
+
+```
+❌ <input type="date"> أو <input type="time"> مرئية للمستخدم في الصفحات الموحدة
+❌ حساب daysInMonth داخل page module بدون مرجع DS-DATE
+❌ "حتى الآن" أو أي نص كـ Canonical Temporal Value
+❌ فرض is_current أو أي Domain State name من DS-DATE — يملكه Feature Contract
+❌ قيمة وهمية لإكمال الدقة (2022 → 2022-01-01)
+❌ نطاق سنوات Global hardcoded خارج contract الحقل
+❌ <input type="number"> لإدخال السنة
+❌ منطق Temporal Dependency منفصل لكل صفحة
+```
+
+**المرجع التفصيلي:** `docs/design-system/DATE-TIME-FIELDS.md` (DATE-00 → DATE-35)
 
 ---
 
@@ -1088,3 +1121,4 @@ async function handleSave() {
 *حُدِّث في PR #420 (commit 2) — 2026-07-09 — أُضيفت القواعد F14–F28 (15 قاعدة مستقبلية). المجموع: 28 قاعدة عليا.*
 *حُدِّث في PR docs/design-system-forms-v1 — 2026-07-21 — أُضيفت القواعد F29–F31: One Concept = One Source of Truth (Form & UI) · No Matching System = Stop and Report · System Routing Before Implementation. المجموع: 31 قاعدة عليا.*
 *حُدِّث في PR #508 — 2026-07-22 — F31 جدول التوجيه: صف dropdown/select حُدِّث للإشارة إلى `docs/design-system/SELECT-PICKER.md` بعد توثيق DS-SEL V1 رسمياً — STOP أُزيل من هذا الصف.*
+*حُدِّث في PR docs/ds-date-v1 — 2026-07-23 — أُضيفت القاعدة F32: Date & Time Fields System (DS-DATE). F31 جدول التوجيه: صف تاريخ/وقت أُضيف للإشارة إلى `docs/design-system/DATE-TIME-FIELDS.md`. المجموع: 32 قاعدة عليا.*
