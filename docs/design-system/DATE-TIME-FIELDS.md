@@ -560,7 +560,7 @@ Open-ended Range يُعبَّر عنه بـ:
 | الجانب | المالك |
 |--------|--------|
 | Display label ("أعمل هنا حالياً"، "أدرس حالياً") | Feature / UI |
-| Toggle behavior (checkbox/switch) | Feature / DS-SEL |
+| نوع الـ UI control (checkbox / switch / غيره) | Feature / UI control رسمي حسب النظام الذي يملكه |
 | إخفاء/إظهار مجموعة End | DS-DATE |
 | قيمة End = null | DS-DATE (يُنتج null) |
 | API field name (`is_current`، `ongoing`...) | Feature Contract |
