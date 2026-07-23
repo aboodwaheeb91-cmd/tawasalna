@@ -707,7 +707,7 @@ DOB: 1991-11-10
 موعد: 2025-12-15 09:00 (محلي)
 → DS-DATE يُنتج: { year:2025, month:12, day:15, hour:9, minute:0 }
 → Timezone conversion (UTC/local): ملك Feature layer
-→ ISO Z-suffix: ملك Feature layer (مثل: new Date(...).toISOString())
+→ ISO Z-suffix: ملك Feature layer — يتطلب timezone context صريح (انظر DATE-13)
 → Backend تحقق: ملك Backend (TIMESTAMPTZ)
 ```
 
