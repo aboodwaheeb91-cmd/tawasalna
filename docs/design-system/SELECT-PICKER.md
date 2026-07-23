@@ -520,15 +520,18 @@ if (picker._pendingSelection.confirmedLabel) {
 // عند انتهاء load الـ options
 const pending = picker._pendingSelection
 const match   = options.find(o => o.value === pending.value)  // دائماً pending.value
+// تحقق من Active: الخيار موجود AND غير معطَّل
+const isActive = match && !match.disabled
 
-if (match) {
-  // ✅ موجود في الـ catalog → resolved
+if (isActive) {
+  // ✅ موجود في الـ catalog وقابل للاختيار → resolved
   picker._canonicalSelection = match                     // full OptionItem من الـ catalog
   picker._displayLabel       = match.label               // label من الـ catalog هو الـ canonical
   picker._selectionState     = 'resolved'
 } else {
-  // ❌ غير موجود أو معطَّل → unresolved (SEL-18)
+  // ❌ غير موجود في الـ catalog، أو موجود لكن disabled: true → unresolved (SEL-16 + SEL-18)
   // القيمة لا تضيع — تُحفَظ في _canonicalSelection
+  // الخيار المعطَّل لا يصبح resolved — يبقى inactive/unresolved حتى يختار المستخدم بديلاً
   picker._canonicalSelection = {
     value: pending.value,
     label: pending.confirmedLabel  // قد يكون null — راجع SEL-16 unresolved
@@ -546,6 +549,7 @@ picker._pendingSelection = null
 - **لا `setTimeout`** — Hydration يكتمل فقط بعد تأكيد جاهزية الـ catalog.
 - **`_pendingSelection` دائماً `{value, confirmedLabel}` أو `null`** — ممنوع scalar (string/number مجرَّد).
 - **Resolution يستخدم دائماً `pending.value`** — لا `pending` مباشرةً (لأنه object).
+- **`resolved` يتطلب match نشط** — الخيار موجود في catalog AND `!match.disabled`. الخيار الموجود لكن `disabled:true` يبقى `unresolved`.
 - **`_canonicalSelection.value` لا تضيع أبداً** — حتى في `unresolved` state.
 - **`_displayLabel` لا يُعيَّن من `value` وحده** — يتطلب `confirmedLabel` أو `resolved` state.
 - **لا Partial Hydration** — إما تُعيَّن القيمة كاملةً أو تبقى `empty`/`unresolved`.
@@ -593,9 +597,11 @@ picker._pendingSelection = null
 - **`_displayLabel`** — يُعرض ما أرسله Backend (إن توفر)؛ أو `null` (يُعرض placeholder أو مؤشر unresolved).
 
 الـ `unresolved` يحدث عندما:
-- القيمة موجودة في DB لكن الخيار `disabled: true` في الـ catalog
+- الخيار موجود في الـ catalog لكن `disabled: true` — **موجود ≠ selectable** (SEL-15 `isActive` check)
 - الخيار غير موجود في الـ catalog الحالي أصلاً
 - الـ catalog لا يزال في `loading` والـ `_pendingSelection` لم يُحلَّل بعد
+
+**قاعدة:** الخيار الـ `disabled` لا يصبح `resolved` — يبقى `unresolved` حتى يختار المستخدم بديلاً نشطاً.
 
 راجع SEL-18 لقواعد التعامل مع `unresolved`.
 
@@ -694,12 +700,16 @@ if (picker._selectionState === 'unresolved') {
 **قاعدة أساسية: العداد per-instance وليس global.**
 
 ```js
-// ✅ صحيح — كل picker له عداده الخاص
+// ✅ صحيح — كل picker له عداده الخاص، وinvalidateSearchContext هي المالك الوحيد للـ ++
 const pickerState = {
   _searchGen: 0,
 
+  invalidateSearchContext(reason) {
+    return ++this._searchGen  // يُعيد القيمة الجديدة لاستخدامها كـ generation token
+  },
+
   async search(query) {
-    const myGen = ++this._searchGen   // زِد عداد هذا الـ picker فقط
+    const myGen = this.invalidateSearchContext('new-search')  // مالك واحد — لا ++_searchGen مباشرةً
 
     try {
       const results = await fetchOptions(query)
@@ -734,7 +744,7 @@ const pickerState = {
   async search(query) {
     this._searchAbort?.abort()
     this._searchAbort = new AbortController()
-    const myGen = ++this._searchGen
+    const myGen = this.invalidateSearchContext('new-search')  // مالك واحد
 
     try {
       const results = await fetchOptions(query, {signal: this._searchAbort.signal})
@@ -758,27 +768,48 @@ const pickerState = {
 إذا حدث Reset أو Destroy بعد طلب ولم يُطلَق بحث جديد،
 يبقى العداد بدون تغيير → يصل الـ response القديم بـ `myGen === _searchGen` → stale result يُطبَّق.
 
-### الأحداث التي تُبطل context البحث وتستوجب `++_searchGen`
+### الأحداث التي تستوجب `invalidateSearchContext(reason)`
 
-| الحدث | هل يزيد `_searchGen`؟ |
-|-------|----------------------|
-| بحث جديد (أي كتابة في searchable) | ✅ دائماً (المبدأ الأصلي) |
-| `resetPickerState()` | ✅ يبطل أي search قيد التنفيذ |
-| Destroy / unmount | ✅ يبطل أي search قيد التنفيذ |
-| تغيير parent في Dependent Select (SEL-20) | ✅ context الـ catalog تغيَّر |
-| Close بعد بحث نشط | ✅ وفق قرار التصميم — نتائج قديمة لا تُطبَّق بعد الإغلاق |
+| الحدث | السبب المُمرَّر |
+|-------|----------------|
+| بحث جديد (أي كتابة في searchable) | `'new-search'` |
+| `resetPickerState()` | `'reset'` |
+| Destroy / unmount | `'destroy'` |
+| تغيير parent في Dependent Select (SEL-20) | `'dependency-change'` |
+| `close()` standalone بعد بحث نشط | `'close'` |
+| `close()` داخلي من `resetPickerState()` | **لا invalidation** — الـ Reset سبق وأبطل |
 
-### قاعدة المالك الواحد
+### قاعدة المالك الواحد — `invalidateSearchContext(reason)`
 
-لا تزيد `_searchGen` مرتين لنفس الـ transition.
-مثال: `resetPickerState()` يزيده مرة واحدة — لا تزيده أيضاً في `onClose()` للـ Reset ذاته.
+`++_searchGen` لها مالك واحد فقط: الـ concept **`invalidateSearchContext(reason)`** (Pseudocode — ليس Runtime API name).
+لا تستدعي `++_searchGen` مباشرةً من أي transition — ادمجها في هذا الـ concept الواحد:
+
+```js
+// Pseudocode concept — يُركِّز كل increment في نقطة واحدة
+function invalidateSearchContext(reason) {
+  ++_searchGen   // increment فقط، لا reset إلى 0 (راجع FRM-10)
+  // _searchAbort?.abort()  // اختياري مع AbortController
+}
+```
+
+| من يستدعي `invalidateSearchContext`؟ | السبب |
+|--------------------------------------|--------|
+| `search(query)` — كل بحث جديد | `'new-search'` |
+| `resetPickerState()` — مرة واحدة | `'reset'` |
+| Destroy / unmount | `'destroy'` |
+| `onParentChange()` — SEL-20 | `'dependency-change'` |
+| `close()` — standalone بعد بحث نشط | `'close'` |
+
+**قاعدة Double-increment المحظور:**
+`close()` الذي يُستدعى كجزء داخلي من `resetPickerState()` **لا تستدعي** `invalidateSearchContext` مرة ثانية.
+الـ Reset يستدعيها مرة واحدة قبل `close()` — والـ `close()` الداخلي يُنفَّذ بدون invalidation إضافية.
 
 ```js
 // ❌ ممنوع — reset إلى 0 يُتيح collision مع طلبات قديمة
 this._searchGen = 0
 
-// ✅ صحيح — increment فقط، راجع FRM-10
-++this._searchGen
+// ✅ صحيح — increment عبر المالك الواحد
+invalidateSearchContext('reset')
 ```
 
 ---
@@ -801,12 +832,17 @@ function onParentChange(newValue) {
   childPicker._displayLabel       = null
   childPicker._selectionState     = 'empty'
 
+  // إبطال أي request بحث قديم للـ child قبل تحميل options جديدة
+  // Pseudocode concept — المالك الوحيد لـ ++_searchGen، راجع SEL-19
+  childPicker.invalidateSearchContext('dependency-change')
+
   // ثم جلب الـ child options المناسبة لـ newValue
   childPicker.loadOptions({parentValue: newValue})
 }
 ```
 
 **الفراغ في form state أولاً** — لا تنتظر جلب الـ options الجديدة قبل الإفراغ.
+**Invalidation قبل loadOptions** — أي response قديم يصل بعد تغيير الـ parent يُتجاهَل فوراً.
 
 **القاعدة 2 — الـ child يكون `disabled` بدون parent:**
 
@@ -1230,8 +1266,8 @@ function resetPickerState() {
   _searchQuery        = ''
   _searchState        = 'inactive'
   _pendingSelection   = null
-  ++_searchGen  // يُبطل أي search قيد التنفيذ — increment فقط، لا reset إلى 0 (راجع SEL-19)
-  if (isOpen) close()
+  invalidateSearchContext('reset')  // Pseudocode — المالك الوحيد لـ ++_searchGen (راجع SEL-19)
+  if (isOpen) close()  // close() الداخلي هنا لا يُعيد invalidation — مرة واحدة فقط لهذا الـ Reset
 }
 ```
 
@@ -1239,21 +1275,44 @@ function resetPickerState() {
 
 ### نقطة 2 — Hydration (FRM-06 + SEL-15)
 
-DS-FRM يُمرِّر القيمة الـ canonical كـ `_pendingSelection` إلى DS-SEL.
-DS-SEL يكمل الـ Resolution بعد جاهزية الـ catalog.
+DS-FRM يُمرِّر بيانات الـ Hydration إلى DS-SEL وفق العقد الرسمي الثابت في SEL-15:
+
+```js
+// الشكل الوحيد المرخَّص — Pseudocode concept (ليس Runtime API name)
+picker._pendingSelection = {
+  value:          canonicalValue,           // القيمة الـ canonical من DB — إلزامي
+  confirmedLabel: backendConfirmedLabel ?? null  // label من Backend — أو null
+}
+```
+
+**ممنوع** أن يُمرِّر DS-FRM قيمة scalar مباشرةً:
+
+```js
+// ❌ ممنوع — scalar يكسر Resolution ويخالف SEL-15
+picker._pendingSelection = "JO"
+picker._pendingSelection = savedValue
+```
+
+DS-SEL يكمل الـ Resolution بعد جاهزية الـ catalog (SEL-15 خطوة 3).
 
 ### نقطة 3 — Dirty State (FRM-13)
 
-DS-SEL يُبلِّغ DS-FRM عند كل تغيير في `_canonicalSelection`:
+DS-SEL **لا يقرر** Dirty/Pristine — هذا ملك DS-FRM حصراً (FRM-13).
+DS-SEL يُبلِّغ DS-FRM بأن القيمة تغيَّرت؛ DS-FRM يُعيد حساب Dirty/Pristine مقارنةً بالقيمة الأصلية عند الـ Hydration.
+إذا أعاد المستخدم اختيار القيمة الأصلية، قد يعود الفورم `Pristine` — DS-SEL لا يقرر ذلك.
 
 ```js
+// Pseudocode concept — اسم الدالة ليس Runtime API
 function onSelectionConfirmed(newOption) {
   _canonicalSelection = newOption
   _selectionState     = 'resolved'
-  formLifecycleHook.markDirty()  // إبلاغ DS-FRM
+  // DS-SEL يُبلِّغ DS-FRM بالقيمة الجديدة؛ DS-FRM يحسب Dirty/Pristine بنفسه
+  formLifecycleHook.onFieldValueChanged(newOption.value)  // إشعار — ليس قرار Dirty
   onChange?.(newOption.value)    // integration hook
 }
 ```
+
+**ممنوع** استدعاء ما يعادل `markDirty()` مباشرةً من DS-SEL — ذلك تدخل في FRM-13.
 
 ### نقطة 4 — Payload Building (FRM-09 + API-MUT)
 
@@ -1477,6 +1536,10 @@ V4 (PR مستقل):    multi-select mode implementation
 ❌ لا تُعيِّن `_pendingSelection` كـ scalar (string أو number مجرَّد) — الشكل الوحيد المرخَّص: `{value, confirmedLabel}` أو `null` (SEL-15)
 ❌ لا تستخدم `_savedDisplayLabel` — متغير غير مُعرَّف؛ استخدم `_canonicalSelection?.label ?? null` (SEL-17)
 ❌ لا تتجاهل `++_searchGen` عند Reset أو تغيير Dependency أو Destroy — إبطال lifecycle إلزامي (SEL-19)
+❌ لا تُمرِّر DS-FRM قيمة scalar مباشرةً كـ `_pendingSelection` — الشكل الإلزامي: `{value, confirmedLabel}` (SEL-15 × SEL-29)
+❌ لا تعتبر الخيار الـ `disabled: true` resolved — موجود في catalog ≠ selectable active (SEL-15 `isActive` check × SEL-16)
+❌ لا تستدعي ما يعادل `markDirty()` من DS-SEL — DS-SEL يُبلِّغ بتغيير القيمة فقط؛ DS-FRM يحسب Dirty/Pristine (SEL-29 × FRM-13)
+❌ لا تزيد `_searchGen` مرتين لنفس transition — استخدم `invalidateSearchContext(reason)` كمالك واحد؛ `close()` الداخلي من Reset لا يُعيد الإبطال (SEL-19)
 ```
 
 ---
