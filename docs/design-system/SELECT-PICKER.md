@@ -295,9 +295,9 @@ unresolved → value موجود في DB لكن الـ option:
 
 | الحالة | الوصف |
 |--------|-------|
-| `enabled` | قابل للتفاعل — المستخدم يستطيع فتحه واختيار خيار |
-| `disabled` | معطَّل كلياً — لا يُفتح، لا تُرسَل قيمته في payload |
-| `readonly` | للعرض فقط — يُعرض لكن لا يُعدَّل؛ قيمته تُرسَل في payload |
+| `enabled` | قابل للتفاعل — المستخدم يستطيع فتحه والاختيار منه |
+| `disabled` | غير قابل للتفاعل — لا يُفتح، لا يُعدَّل، يُتجاوَز في Keyboard nav |
+| `readonly` / `display-only` | يعرض القيمة الحالية ولا يسمح بتغييرها — للقراءة فقط |
 
 ### الفرق الجوهري بين disabled و readonly
 
@@ -308,7 +308,11 @@ unresolved → value موجود في DB لكن الـ option:
 | ARIA | `aria-disabled="true"` | `aria-readonly="true"` |
 | Keyboard focus | لا يقبل focus | يقبل focus للقراءة |
 
-**ملاحظة:** قرار إضافة حقل الـ picker في الـ payload أو حذفه (disabled omit / readonly include) يملكه **DS-FRM وAPI-MUT** — راجع SEL-29 وSEL-31. DS-SEL يملك الـ Interaction State (سلوك الـ UI) فقط.
+**حد المسؤولية:** DS-SEL يملك **سلوك الـ UI** فقط — قابلية الفتح والتغيير والعرض.
+قرار تضمين الحقل في الـ payload أو حذفه يملكه **DS-FRM وAPI-MUT** — راجع SEL-29 وSEL-31.
+
+> مثال: picker `disabled` قد يُرسَل أو لا يُرسَل في payload حسب semantics الحقل في DS-FRM؛
+> picker `readonly` قد يُرسَل في payload الحفظ لأنه part of the record — DS-SEL لا يقرر هذا.
 
 ---
 
@@ -481,11 +485,31 @@ setTimeout(() => {
 }, 80)
 ```
 
+### شكل `_pendingSelection` — عقد ثابت
+
+**`_pendingSelection` دائماً object بشكل واحد أو null — لا scalar أبداً:**
+
+```js
+// الشكل الوحيد المرخَّص:
+picker._pendingSelection = {
+  value:          "JO",       // القيمة الـ canonical من DB — إلزامي دائماً
+  confirmedLabel: "الأردن"    // label مُؤكَّد من Backend — أو null إذا لم يُرسَل
+}
+```
+
 ### عقد الـ Hydration الصحيح
 
-**خطوة 1 — حفظ القيمة الـ canonical كـ pending:**
+**خطوة 1 — بناء pending wrapper وعرض label فوري إذا متاح:**
 ```js
-picker._pendingSelection = savedValue  // مثال: "JO"
+picker._pendingSelection = {
+  value:          savedValue,        // e.g. "JO"
+  confirmedLabel: backendLabel ?? null  // e.g. "الأردن" أو null
+}
+
+// إذا وصل confirmedLabel → اعرضه فوراً بدون انتظار Resolution
+if (picker._pendingSelection.confirmedLabel) {
+  picker._displayLabel = picker._pendingSelection.confirmedLabel
+}
 ```
 
 **خطوة 2 — تحميل الـ catalog:**
@@ -494,42 +518,37 @@ picker._pendingSelection = savedValue  // مثال: "JO"
 **خطوة 3 — Resolution بعد اكتمال التحميل:**
 ```js
 // عند انتهاء load الـ options
-const match = options.find(o => o.value === picker._pendingSelection)
+const pending = picker._pendingSelection
+const match   = options.find(o => o.value === pending.value)  // دائماً pending.value
 
 if (match) {
-  picker._canonicalSelection = match
-  picker._displayLabel       = match.label
+  // ✅ موجود في الـ catalog → resolved
+  picker._canonicalSelection = match                     // full OptionItem من الـ catalog
+  picker._displayLabel       = match.label               // label من الـ catalog هو الـ canonical
   picker._selectionState     = 'resolved'
 } else {
-  // القيمة غير موجودة في الـ catalog الحالي
-  picker._selectionState     = 'unresolved'   // راجع SEL-18
+  // ❌ غير موجود أو معطَّل → unresolved (SEL-18)
+  // القيمة لا تضيع — تُحفَظ في _canonicalSelection
+  picker._canonicalSelection = {
+    value: pending.value,
+    label: pending.confirmedLabel  // قد يكون null — راجع SEL-16 unresolved
+  }
+  picker._displayLabel       = pending.confirmedLabel    // أو null إذا لم يتوفر
+  picker._selectionState     = 'unresolved'
 }
 
-picker._pendingSelection = null  // تنظيف بعد Resolution
+// تنظيف الـ wrapper — القيمة منقولة الآن إلى _canonicalSelection
+picker._pendingSelection = null
 ```
 
 ### القواعد الصارمة
 
 - **لا `setTimeout`** — Hydration يكتمل فقط بعد تأكيد جاهزية الـ catalog.
-- **`_pendingSelection`** هو المتغير الوحيد المرخَّص لحمل القيمة أثناء الانتظار.
-- **`_displayLabel`** لا يُعيَّن من `value` مجرَّد (bare value) وحده — يتطلب إما `resolved` state أو backend-confirmed label (راجع "Backend-confirmed Label" أدناه).
+- **`_pendingSelection` دائماً `{value, confirmedLabel}` أو `null`** — ممنوع scalar (string/number مجرَّد).
+- **Resolution يستخدم دائماً `pending.value`** — لا `pending` مباشرةً (لأنه object).
+- **`_canonicalSelection.value` لا تضيع أبداً** — حتى في `unresolved` state.
+- **`_displayLabel` لا يُعيَّن من `value` وحده** — يتطلب `confirmedLabel` أو `resolved` state.
 - **لا Partial Hydration** — إما تُعيَّن القيمة كاملةً أو تبقى `empty`/`unresolved`.
-
-### Backend-confirmed Label — العرض الفوري
-
-إذا أرسل الـ backend **{value, label}** معاً (مُؤكَّد من المصدر)، يمكن عرض الـ label فوراً قبل اكتمال Resolution:
-
-```js
-// Backend أرسل القيمة والـ label معاً
-picker._pendingSelection = { value: "JO", label: "الأردن" }
-
-// ✅ يمكن عرض الـ label فوراً — قبل اكتمال Resolution
-picker._displayLabel = picker._pendingSelection.label
-```
-
-- الـ Resolution يستمر في الخلفية ليُحدِّد `resolved`/`unresolved` بناءً على مطابقة الـ catalog.
-- عرض الـ label فوراً ≠ إلغاء الـ Resolution — الاثنان مستقلان.
-- إذا كانت `_pendingSelection` مجرَّد value فقط (string/number) → لا تُعيِّن `_displayLabel` حتى يكتمل الـ Resolution.
 
 ---
 
@@ -563,11 +582,15 @@ picker._displayLabel = picker._pendingSelection.label
 
 ```js
 {
-  _canonicalSelection: { value: "oldValue", label: null },
-  _displayLabel:       null,  // أو "(قيمة محفوظة غير متاحة حالياً)"
+  _canonicalSelection: { value: "oldValue", label: "confirmedLabelOrNull" },  // value لا تضيع أبداً
+  _displayLabel:       "confirmedLabelOrNull",  // قد يكون null إذا لم يُرسَل Backend label
   _selectionState:     'unresolved'
 }
 ```
+
+- **`_canonicalSelection.value`** — القيمة الـ canonical من DB، لا تضيع أبداً حتى في `unresolved`.
+- **`_canonicalSelection.label`** — الـ `confirmedLabel` الذي أرسله Backend، أو `null` إذا لم يُرسَل.
+- **`_displayLabel`** — يُعرض ما أرسله Backend (إن توفر)؛ أو `null` (يُعرض placeholder أو مؤشر unresolved).
 
 الـ `unresolved` يحدث عندما:
 - القيمة موجودة في DB لكن الخيار `disabled: true` في الـ catalog
@@ -601,8 +624,8 @@ function onPickerBlur() {
   // _canonicalSelection يبقى كما هو
   
   if (_selectionState !== 'empty') {
-    // استعادة الـ displayLabel الصحيح
-    _displayLabel = _canonicalSelection?.label || _savedDisplayLabel
+    // استعادة الـ displayLabel من canonicalSelection فقط — لا _savedDisplayLabel (غير مُعرَّف)
+    _displayLabel = _canonicalSelection?.label ?? null
   }
   
   close()
@@ -724,6 +747,38 @@ const pickerState = {
     }
   }
 }
+```
+
+### الإبطال عند الـ Lifecycle Transitions — Lifecycle Invalidation
+
+الـ generation check يحمي حالة "search while searching" فقط:
+المستخدم يكتب بسرعة → طلبات متعددة في الجو → العداد يميز الأحدث.
+
+**ثغرة لا تُعالجها هذه الحالة:**
+إذا حدث Reset أو Destroy بعد طلب ولم يُطلَق بحث جديد،
+يبقى العداد بدون تغيير → يصل الـ response القديم بـ `myGen === _searchGen` → stale result يُطبَّق.
+
+### الأحداث التي تُبطل context البحث وتستوجب `++_searchGen`
+
+| الحدث | هل يزيد `_searchGen`؟ |
+|-------|----------------------|
+| بحث جديد (أي كتابة في searchable) | ✅ دائماً (المبدأ الأصلي) |
+| `resetPickerState()` | ✅ يبطل أي search قيد التنفيذ |
+| Destroy / unmount | ✅ يبطل أي search قيد التنفيذ |
+| تغيير parent في Dependent Select (SEL-20) | ✅ context الـ catalog تغيَّر |
+| Close بعد بحث نشط | ✅ وفق قرار التصميم — نتائج قديمة لا تُطبَّق بعد الإغلاق |
+
+### قاعدة المالك الواحد
+
+لا تزيد `_searchGen` مرتين لنفس الـ transition.
+مثال: `resetPickerState()` يزيده مرة واحدة — لا تزيده أيضاً في `onClose()` للـ Reset ذاته.
+
+```js
+// ❌ ممنوع — reset إلى 0 يُتيح collision مع طلبات قديمة
+this._searchGen = 0
+
+// ✅ صحيح — increment فقط، راجع FRM-10
+++this._searchGen
 ```
 
 ---
@@ -972,25 +1027,69 @@ document.addEventListener('click', (e) => {
 
 ## SEL-26 — Keyboard Navigation
 
+DS-SEL يُعرِّف ثلاثة أنماط Keyboard مختلفة بحسب نوع الـ picker.
+**لا يوجد جدول عالمي واحد** — كل نمط له قواعده الخاصة.
+المرجع النهائي للتفاصيل: Current WAI-ARIA / APG Combobox + Listbox patterns وقت تنفيذ الـ Runtime.
+
+---
+
+### النمط A — `single` (Select-only)
+
 | المفتاح | السلوك |
 |---------|--------|
-| `Tab` (على Trigger) | ينتقل focus إلى الـ picker |
+| `Tab` | ينتقل focus إلى الـ Trigger |
 | `Space` / `Enter` على Trigger | يفتح القائمة (`Disclosure → open`) |
-| `ArrowDown` | ينتقل إلى الخيار التالي |
-| `ArrowUp` | ينتقل إلى الخيار السابق |
-| `Enter` على خيار | يُؤكِّد الاختيار → يُغلِق القائمة (single/searchable) · يُضيف/يُزيل من `_selections` بدون إغلاق (multi — راجع SEL-28) |
+| `ArrowDown` / `ArrowUp` | ينقل DOM focus إلى الخيارات — التالي / السابق |
+| `Home` | ينتقل بـ DOM focus إلى أول خيار مرئي |
+| `End` | ينتقل بـ DOM focus إلى آخر خيار مرئي |
+| `Enter` على خيار | يُؤكِّد الاختيار → يُغلِق القائمة |
 | `Escape` | يُغلِق القائمة بدون اختيار |
-| `Home` | ينتقل إلى أول خيار مرئي |
-| `End` | ينتقل إلى آخر خيار مرئي |
 | `Tab` أثناء فتح القائمة | يُغلِق القائمة وينتقل للعنصر التالي |
 
-### قواعد Keyboard Navigation
+**نموذج Focus:** DOM focus ينتقل فعلياً إلى عناصر `role="option"` داخل القائمة.
 
-1. **Focus management:** عند فتح القائمة، يُنتقَل focus إلى أول خيار مرئي أو يُحافَظ على Trigger.
-2. **Wrap-around:** `ArrowDown` من الأخير → يعود للأول؛ `ArrowUp` من الأول → ينتقل للآخر.
-3. **disabled options:** مُتجاهَلة في التنقل — السهم يتجاوزها تلقائياً.
-4. **Scroll-into-view:** كل انتقال يُظهِر الخيار المحدد داخل القائمة المنسدلة.
-5. **`aria-activedescendant`:** يُحدَّث عند كل انتقال بـ id الخيار المحدد (راجع SEL-27).
+---
+
+### النمط B — `searchable` (Editable Combobox)
+
+| المفتاح | السلوك |
+|---------|--------|
+| `Tab` | ينتقل focus إلى الـ Trigger (combobox input) |
+| أي حرف قابل للطباعة + `Space` | يُدخَل في حقل البحث — يُفتح الـ dropdown إذا كان مغلقاً |
+| `ArrowDown` / `ArrowUp` | virtual focus عبر `aria-activedescendant` — DOM focus يبقى على الـ input |
+| `Home` / `End` | يُحرِّك cursor الـ text داخل الـ input — لا يُسرَق لصالح القائمة |
+| `Enter` | يُؤكِّد الخيار الـ virtually-highlighted → يُغلِق القائمة |
+| `Escape` | يُغلِق القائمة بدون اختيار |
+| `Tab` أثناء فتح القائمة | يُغلِق القائمة وينتقل للعنصر التالي |
+
+**نموذج Focus:** DOM focus يبقى على الـ combobox input طوال التنقل.
+`aria-activedescendant` يتتبع virtual focus على الخيارات — لا نقل DOM focus إلى `role="option"`.
+
+---
+
+### النمط C — `multi` (Multi-select Listbox)
+
+| المفتاح | السلوك |
+|---------|--------|
+| `Tab` | ينتقل focus إلى الـ Trigger |
+| أي حرف قابل للطباعة + `Space` | يُدخَل في حقل البحث (إذا وُجد) |
+| `ArrowDown` / `ArrowUp` | virtual focus عبر `aria-activedescendant` — DOM focus يبقى على الـ input/trigger |
+| `Home` / `End` | cursor في حقل البحث (إذا وُجد)؛ أو virtual focus إلى أول/آخر خيار |
+| `Enter` | يُضيف أو يُزيل الخيار المُحدَّد **بدون إغلاق القائمة** |
+| `Escape` | يُغلِق القائمة بدون تغيير `_selections` |
+| `Tab` أثناء فتح القائمة | يُغلِق القائمة |
+
+**نموذج Focus:** DOM focus يبقى على الـ Trigger/input — `aria-activedescendant` للتنقل بين الخيارات.
+
+---
+
+### القواعد المشتركة (جميع الأنماط)
+
+1. **Wrap-around:** `ArrowDown` من الأخير → يعود للأول؛ `ArrowUp` من الأول → ينتقل للآخر.
+2. **disabled options:** مُتجاهَلة في التنقل — السهم يتجاوزها تلقائياً.
+3. **Scroll-into-view:** كل انتقال يُظهِر الخيار المُحدَّد داخل القائمة المنسدلة.
+4. **`aria-activedescendant`:** يُحدَّث عند كل انتقال بـ id الخيار المُحدَّد (راجع SEL-27).
+5. **المرجع النهائي:** Current WAI-ARIA / APG Combobox + Listbox patterns — هذا الـ contract يُطبَّق وقت Runtime implementation.
 
 ---
 
@@ -1051,6 +1150,21 @@ document.addEventListener('click', (e) => {
 
 يجب معالجة هذه الـ Gaps عند Runtime implementation.
 
+### نموذج Focus حسب نوع الـ picker
+
+| الوضع | نموذج Focus | آلية التنقل |
+|-------|------------|------------|
+| `single` | DOM focus ينتقل إلى `role="option"` | ArrowKeys تُحرِّك DOM focus بين الخيارات |
+| `searchable` | DOM focus يبقى على الـ combobox input | `aria-activedescendant` يتتبع virtual focus |
+| `multi` | DOM focus يبقى على الـ Trigger/input | `aria-activedescendant` للتنقل بين الخيارات |
+
+**قاعدة ثابتة لـ `searchable`:**
+لا تنقل DOM focus إلى `role="option"` أثناء الكتابة —
+الكتابة في الـ input يجب أن تستمر بدون انقطاع.
+استخدم `aria-activedescendant` على الـ combobox input وحدِّثه مع كل انتقال ArrowKey.
+
+راجع SEL-26 النمط B و C للتفاصيل الكاملة.
+
 ---
 
 ## SEL-28 — Multi-select Contract
@@ -1097,6 +1211,7 @@ payload.skills = []  // أو null حسب API-MUT contract للحقل
 3. **Escape يُغلِق** بدون تغيير `_selections` الحالية.
 4. **`aria-multiselectable="true"`** على الـ listbox.
 5. **كل خيار مختار** له `aria-selected="true"` (في `role="listbox"` مع `aria-multiselectable="true"` — لا تستخدم `aria-checked` وهو للـ checkbox/menuitem فقط).
+6. **Keyboard navigation** — راجع SEL-26 النمط C للقواعد الكاملة (virtual focus، Enter بدون إغلاق، Space في البحث).
 
 ---
 
@@ -1115,7 +1230,7 @@ function resetPickerState() {
   _searchQuery        = ''
   _searchState        = 'inactive'
   _pendingSelection   = null
-  // لا تُلمَس: _searchGen (يبقى يزيد فقط — راجع FRM-10)
+  ++_searchGen  // يُبطل أي search قيد التنفيذ — increment فقط، لا reset إلى 0 (راجع SEL-19)
   if (isOpen) close()
 }
 ```
@@ -1359,6 +1474,9 @@ V4 (PR مستقل):    multi-select mode implementation
 ❌ لا تُفرِّغ الـ child picker في UI قبل form state (الفراغ في state أولاً)
 ❌ لا تُرسِل قيمة unresolved في payload كأنها تغيير جديد (SEL-18)
 ❌ لا تُنفِّذ Runtime implementation في PR توثيقي
+❌ لا تُعيِّن `_pendingSelection` كـ scalar (string أو number مجرَّد) — الشكل الوحيد المرخَّص: `{value, confirmedLabel}` أو `null` (SEL-15)
+❌ لا تستخدم `_savedDisplayLabel` — متغير غير مُعرَّف؛ استخدم `_canonicalSelection?.label ?? null` (SEL-17)
+❌ لا تتجاهل `++_searchGen` عند Reset أو تغيير Dependency أو Destroy — إبطال lifecycle إلزامي (SEL-19)
 ```
 
 ---
