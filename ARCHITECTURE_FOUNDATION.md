@@ -1126,11 +1126,11 @@ async function handleSave() {
 1. **Single Global Feedback Surface** — سطح Snackbar واحد عالمي فقط. لا Stack، لا Queue في V1.
 2. **Latest Replaces Current** — كل رسالة جديدة تُلغي الحالية فوراً. `clearTimeout` قبل أي timer جديد إلزامي.
 3. **4 أنواع رسمية** — `success / error / warning / info`. جميعها مدعومة في V1.
-4. **Duration Policy مركزية** — `FBK_DURATION = { success: 2800, info: 3200, warning: 4000, error: 4500 }`. ممنوع قيمة `dur` عشوائية.
-5. **Mobile Behavior Contract** — لا أرقام hardcoded. `--tw-feedback-bottom` CSS custom property تُحدَّد من Feature layer.
+4. **Duration Policy مركزية** — DS-FEEDBACK يملك مدة كل نوع. Feature code لا تختار مدتها الخاصة. القيم الفعلية في FBK-07.
+5. **Mobile Behavior Contract** — الـ Feedback Surface يجب أن تبقى ظاهرة فوق Bottom Navigation وSafe Areas وأي UI ثابت في أسفل الصفحة. لا offset global hardcoded. التفاصيل في FBK-09.
 6. **Layer Architecture** — Conceptual Level 4 (Global Feedback Band). `z-index: 9999` placeholder حتى Global Layer Tokens. ممنوع hardcode z-index في Feature layer.
 7. **Accessibility V1** — جميع أنواع V1: `role="status"` + `aria-live="polite"` + `aria-atomic="true"`. `role="alert"` مؤجَّل لـ V2.
-8. **RTL Centering** — `left: 50%; transform: translateX(-50%)` — physical positioning. ممنوع `inset-inline-start: 50%` على centered element.
+8. **RTL Centering** — الـ Snackbar يتمركز على المنتصف المادي للـ viewport بصرف النظر عن `dir="rtl"`. ممنوع Logical Properties (`inset-inline-start`) للـ centering على عناصر مُمركَزة. التفاصيل في FBK-10.
 9. **DS-FEEDBACK يستقبل رسالة آمنة جاهزة** — لا يُحلِّل API errors. السلسلة: API-MUT-11 → Feature Orchestration → DS-FEEDBACK.
 10. **XSS P0 Runtime Debt** — `tw_shared.js:22` يستخدم `innerHTML` مع dynamic `msg`. مُوثَّق في FBK-21 وFBK-24. Runtime fix يحتاج PR مستقل.
 

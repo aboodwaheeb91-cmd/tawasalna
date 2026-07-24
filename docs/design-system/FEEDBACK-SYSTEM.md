@@ -217,7 +217,7 @@ Flutter Runtime ستستخدم `SnackBar` widget بنفس semantics.
 
 ### التنفيذ الحالي
 
-`tw_shared.js` يحتفظ بـ `_twToast` كـ reference للعنصر الحالي. هذا النمط صحيح ويجب الحفاظ عليه في Runtime المستقبلي مع إضافة `_twTimer` reference للـ timeout (FBK-24 — Runtime Debt M11).
+`tw_shared.js` يحتفظ بـ `_twToast` كـ reference للعنصر الحالي. هذا النمط صحيح ويجب الحفاظ عليه في Runtime المستقبلي مع إضافة `_twTimer` reference للـ timeout (FBK-24 — Runtime Debt M2).
 
 ---
 
@@ -248,7 +248,7 @@ Flutter Runtime ستستخدم `SnackBar` widget بنفس semantics.
 ### الـ clearTimeout ضروري
 
 ```js
-// ممنوع (M11 — Runtime Debt الحالي):
+// ممنوع (M2 — Runtime Debt الحالي):
 // setTimeout جديد بدون إلغاء القديم → timer القديم يُخفي الرسالة الجديدة
 
 // الصحيح:
@@ -1133,4 +1133,4 @@ window.showToast = showToast;
 
 ---
 
-*أُنشئ في PR docs/ds-feedback-v1 — 2026-07-24 — [DS-FEEDBACK] Operational Feedback System V1 Architecture Contract (FBK-00 → FBK-29، 30 قسماً). Single Global Surface. 4 Types (success/error/warning/info). Duration Policy مركزية. Lifecycle محدد. Mobile Behavior Contract. RTL Centering. Layer Architecture (Level 4). Accessibility V1 (role=status + polite). Operation Identity V1 Policy + V2 Concept. Action Zone V2 Concept. XSS P0 Runtime Debt. Error Normalization Ownership. DS-VAL Boundary + Orchestration Decision Rule. Flutter Platform-neutral Semantics. Migration Inventory (6 implementations + alert() audit). Runtime Debts Catalogue (15 items). Must-Have V1 (19 items). Forbidden Patterns (30+). ARCHITECTURE_FOUNDATION.md + docs/DESIGN_SYSTEM.md + docs/SYSTEMS_INDEX.md مُحدَّثة في نفس الـ PR.*
+*أُنشئ في PR docs/ds-feedback-v1 — 2026-07-24 — [DS-FEEDBACK] Operational Feedback System V1 Architecture Contract (FBK-00 → FBK-29، 30 قسماً). Single Global Surface. 4 Types (success/error/warning/info). Duration Policy مركزية. Lifecycle محدد. Mobile Behavior Contract. RTL Centering. Layer Architecture (Level 4). Accessibility V1 (role=status + polite). Operation Identity V1 Policy + V2 Concept. Action Zone V2 Concept. XSS P0 Runtime Debt. Error Normalization Ownership. DS-VAL Boundary + Orchestration Decision Rule. Flutter Platform-neutral Semantics. Migration Inventory (6 implementations + alert() audit). Runtime Debts Catalogue (16 items). Must-Have V1 (19 items). Forbidden Patterns (30+). ARCHITECTURE_FOUNDATION.md + docs/DESIGN_SYSTEM.md + docs/SYSTEMS_INDEX.md مُحدَّثة في نفس الـ PR.*
