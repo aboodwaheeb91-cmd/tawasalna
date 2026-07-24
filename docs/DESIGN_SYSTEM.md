@@ -80,14 +80,14 @@
 | هاتف دولي / dial code | [DS-PHONE] | **STOP — غير موثَّق بعد** |
 | رفع ملف / Upload UI (drag & drop) | [DS-UPLOAD] | **STOP — غير موثَّق بعد (tw-upload.js يغطي HTTP فقط)** |
 | أيقونة / علامة / ملف مشترك | [DS-ASSET] | **STOP — غير موثَّق بعد** |
-| Modal / Drawer / Overlay | [DS-OVL] | **STOP — غير موثَّق بعد** |
+| Modal / Drawer / Overlay / Confirmation / Sheet | [OVERLAY-SYSTEM.md](design-system/OVERLAY-SYSTEM.md) | OVL-00 (Routing Protocol) → القسم المناسب |
 | Toast / Snackbar / Feedback | [DS-FEEDBACK] | **STOP — غير موثَّق بعد** |
 | بيانات مرجعية (مهن / مهارات / دول) | [DS-REF] | **STOP — غير موثَّق بعد (tw-options-data.js موجود)** |
 | Content Moderation | [DS-MODERATION] | **STOP — غير موثَّق بعد** |
 
 > **إذا لم يوجد Route مناسب في الجدول:**
 > لا تختر أقرب نظام. **STOP** واسأل صاحب المشروع. (F30)
-> الأنظمة الحالية: [DS-BTN] · [DS-VM] · [DS-NAV] · [DS-INP] · [DS-FRM] · [DS-VAL] · [API-MUT] · [DS-SEL] · [DS-DATE] — لا تبني نظاماً موازياً لأيٍّ منها.
+> الأنظمة الحالية: [DS-BTN] · [DS-VM] · [DS-NAV] · [DS-INP] · [DS-FRM] · [DS-VAL] · [API-MUT] · [DS-SEL] · [DS-DATE] · [DS-OVL] — لا تبني نظاماً موازياً لأيٍّ منها.
 
 ---
 
@@ -104,12 +104,12 @@
 | [API-MUT] | API Mutation & Error Contract V1 | [contracts/API-MUTATIONS-ERRORS.md](contracts/API-MUTATIONS-ERRORS.md) | موثَّق — V1 (توثيق) |
 | [DS-SEL] | Select & Searchable Picker System V1 | [design-system/SELECT-PICKER.md](design-system/SELECT-PICKER.md) | موثَّق — V1 (توثيق) |
 | [DS-DATE] | Date & Time Fields System V1 | [design-system/DATE-TIME-FIELDS.md](design-system/DATE-TIME-FIELDS.md) | موثَّق — V1 (توثيق) |
+| [DS-OVL] | Overlay System V1 | [design-system/OVERLAY-SYSTEM.md](design-system/OVERLAY-SYSTEM.md) | موثَّق — V1 (توثيق) |
 
 **أنظمة مستقبلية (لم تُوثَّق بعد — انظر INP-16 للقائمة الكاملة):**
 
 | كود (مؤقت) | النظام | الحالة |
 |-----------|--------|--------|
-| [DS-OVL] | Overlay / Modal / Sheet System | مؤجَّل |
 | [DS-REF] | Reference Data System | مؤجَّل — tw-options-data.js موجود |
 | [DS-PHONE] | Phone Input / Dial Code System | مؤجَّل |
 | [DS-OTP] | OTP / Pin Input System | مؤجَّل |
@@ -137,6 +137,7 @@
 | Documentation — `contracts/API-MUTATIONS-ERRORS.md` (API-MUT-00 → API-MUT-18) | مكتمل ✓ — V1 توثيق |
 | Documentation — `design-system/SELECT-PICKER.md` (SEL-00 → SEL-36) | مكتمل ✓ — V1 توثيق |
 | Documentation — `design-system/DATE-TIME-FIELDS.md` (DATE-00 → DATE-35) | مكتمل ✓ — V1 توثيق |
+| Documentation — `design-system/OVERLAY-SYSTEM.md` (OVL-00 → OVL-37) | مكتمل ✓ — V1 توثيق |
 | CSS Layer (`static/shared/tw-ui-tokens.css`) | **لم تُنشأ بعد** — انظر FUTURE_ROADMAP.md |
 | Navigation Implementation (Layer Stack، Back Contract، ?next=) | **لم تُنفَّذ بعد** — موثَّقة في NAVIGATION.md |
 | Input / Form / Validation Runtime Implementation | **لم تُنفَّذ بعد** — موثَّقة في INP/FRM/VAL |
@@ -145,6 +146,7 @@
 > `Navigation Implementation` **ممنوع تنفيذها** حتى يُطلب صراحةً.
 > `Input/Form/Validation Runtime` **ممنوع تنفيذها** حتى يُطلب صراحةً.
 > `DS-DATE Runtime` (tw-date.js أو ما شابه) **ممنوع إنشاؤه** حتى يُطلب صراحةً — التوثيق الحالي Contract فقط.
+> `DS-OVL Runtime` (tw-overlay.js أو ما شابه) **ممنوع إنشاؤه** حتى يُطلب صراحةً — التوثيق الحالي Contract فقط.
 > التوثيق الحالي يصف الـ contracts المعمارية فقط — ليس تنفيذاً.
 
 ---

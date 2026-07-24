@@ -58,6 +58,7 @@
 | F30 | No Matching System = Stop and Report | **P0** |
 | F31 | System Routing Before Implementation | **P0** |
 | F32 | Date & Time Fields System (DS-DATE) | **P0** |
+| F33 | Overlay System (DS-OVL) | **P0** |
 
 ---
 
@@ -1009,6 +1010,7 @@ profiles.country   → المصدر الوحيد للدولة (ISO code للمو
 | قاموس مهارات أو مهن | DS-REF → **STOP** (tw-skills.js / tw-options-data.js موجود كـ Runtime — DS-REF غير موثَّق رسمياً بعد؛ راجع F30) |
 | dropdown أو select / picker / searchable picker / multi-select | DS-SEL → `docs/design-system/SELECT-PICKER.md` — اقرأ SEL-00 (Routing) ثم القسم المناسب |
 | تاريخ / وقت / date picker / month-year / year-only / datetime | DS-DATE → `docs/design-system/DATE-TIME-FIELDS.md` — اقرأ DATE-00 (Routing Protocol) ثم DATE-03A–G |
+| Overlay / Modal / Drawer / Confirmation / Sheet / Dialog / Popover | DS-OVL → `docs/design-system/OVERLAY-SYSTEM.md` — اقرأ OVL-00 (Routing Protocol) ثم القسم المناسب |
 
 ### لماذا هذه القاعدة؟
 
@@ -1077,6 +1079,41 @@ async function handleSave() {
 
 ---
 
+## F33 — [P0] Overlay System (DS-OVL)
+
+**DS-OVL هو النظام الرسمي الوحيد لكل Overlays في منصة تواصلنا (Modals / Drawers / Sheets / Confirmations / Dialogs).**
+
+### القواعد الأساسية
+
+1. **Orthogonal Model إلزامي** — كل Overlay يُعرَّف بأربعة محاور مستقلة: Modality × Presentation × Semantics × Close Policy. ممنوع Flat Type Enum.
+2. **لا Overlay engine موازٍ** — ممنوع إنشاء Modal system أو Overlay handler داخل أي page module خارج DS-OVL contract.
+3. **Close Guard Generic** — DS-OVL لا يعتمد على DS-FRM مباشرةً. أي Dirty-state integration يمر عبر Generic Close Guard Interface (`allow | block | require-confirmation`) — لا coupling مباشر بين DS-OVL وDS-FRM.
+4. **Background Isolation طوال دورة الحياة** — Isolation تبقى نشطة حتى نهاية Close Animation (حتى في حالة `closing`). ممنوع رفعها مبكراً.
+5. **Layer Context ينتجه DS-OVL فقط** — DS-SEL يستهلكه (اختياري). Integration Layer تربط الاثنين — لا coupling CSS أو global query.
+6. **DS-NAV يملك Back Intent** — DS-OVL يسجّل Overlay في Layer Stack فقط. ممنوع لأي Overlay بناء `popstate` listener مستقل.
+7. **Scroll Lock مركزي** — DS-OVL يملك Reference Counter. Unlock فقط عند count=0.
+8. **Responsive = Strategy Presets** — 6 Presets رسمية (OVL-22). ممنوع rule global واحد لكل الـ Overlays.
+9. **Semantic Override للـ Initial Focus:** `standard` → `surface-heading` (default) · `confirmation` → `safe-action` (default) · Feature يمكنه Override.
+10. **force-close داخلي فقط** — ليس public Close Reason ولا مُعرَّضاً للـ Feature layer.
+
+### ممنوعات F33
+
+```
+❌ Modal أو Drawer أو Confirmation يُنفَّذ خارج DS-OVL contract
+❌ Flat Type Enum بدلاً من Orthogonal Model
+❌ CSS class name كـ Trigger لأي Overlay سلوك
+❌ body.overflow-hidden مباشرةً من page module (DS-OVL يملك Scroll Lock)
+❌ popstate listener مستقل داخل Overlay — DS-NAV يملك Back Intent
+❌ window.confirm() في أي code جديد
+❌ DS-OVL Runtime implementation قبل موافقة صريحة
+❌ Layer Context binding مباشر بين DS-OVL وDS-SEL (Integration Layer فقط)
+❌ إغلاق Background Isolation قبل نهاية Close Animation
+```
+
+**المرجع التفصيلي:** `docs/design-system/OVERLAY-SYSTEM.md` (OVL-00 → OVL-37)
+
+---
+
 ## أنظمة الحالة الأساسية (System State References)
 
 ### Employment Pipeline — مصدر الحالة الوحيد لكل مرشح داخل وظيفة
@@ -1122,3 +1159,4 @@ async function handleSave() {
 *حُدِّث في PR docs/design-system-forms-v1 — 2026-07-21 — أُضيفت القواعد F29–F31: One Concept = One Source of Truth (Form & UI) · No Matching System = Stop and Report · System Routing Before Implementation. المجموع: 31 قاعدة عليا.*
 *حُدِّث في PR #508 — 2026-07-22 — F31 جدول التوجيه: صف dropdown/select حُدِّث للإشارة إلى `docs/design-system/SELECT-PICKER.md` بعد توثيق DS-SEL V1 رسمياً — STOP أُزيل من هذا الصف.*
 *حُدِّث في PR docs/ds-date-v1 — 2026-07-23 — أُضيفت القاعدة F32: Date & Time Fields System (DS-DATE). F31 جدول التوجيه: صف تاريخ/وقت أُضيف للإشارة إلى `docs/design-system/DATE-TIME-FIELDS.md`. المجموع: 32 قاعدة عليا.*
+*حُدِّث في PR docs/ds-ovl-v1 — 2026-07-24 — أُضيفت القاعدة F33: Overlay System (DS-OVL). F31 جدول التوجيه: صف Overlay/Modal/Drawer أُضيف للإشارة إلى `docs/design-system/OVERLAY-SYSTEM.md`. المجموع: 33 قاعدة عليا.*
