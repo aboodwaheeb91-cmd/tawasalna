@@ -82,6 +82,7 @@
 | أيقونة / علامة / ملف مشترك | [DS-ASSET] | **STOP — غير موثَّق بعد** |
 | Modal / Drawer / Overlay / Confirmation / Sheet | [OVERLAY-SYSTEM.md](design-system/OVERLAY-SYSTEM.md) | OVL-00 (Routing Protocol) → القسم المناسب |
 | Toast / Snackbar / Feedback | [DS-FEEDBACK] | **STOP — غير موثَّق بعد** |
+| Tooltip / Popover / Floating label / Context menu | [DS-TOOLTIP] | **STOP — غير موثَّق بعد (خارج DS-OVL V1 — راجع OVL-37)** |
 | بيانات مرجعية (مهن / مهارات / دول) | [DS-REF] | **STOP — غير موثَّق بعد (tw-options-data.js موجود)** |
 | Content Moderation | [DS-MODERATION] | **STOP — غير موثَّق بعد** |
 
