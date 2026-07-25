@@ -910,7 +910,7 @@ P4 (إزالة): إزالة Local implementations بعد انتهاء مستخد
 ## FBK-24 — Runtime Debts Catalogue
 
 > **feat/ds-feedback-runtime-v1** أصلح: M0 M1 M2 M3 M4 M6 M7 M16 في الـ Canonical Implementation.
-> الباقي (M5 M8–M15) يبقى دَيناً للـ PRs اللاحقة.
+> الباقي (M5 M8–M15 M17) يبقى دَيناً للـ PRs اللاحقة.
 
 | معرّف | الملف | المشكلة | الأولوية | الحل |
 |-------|-------|---------|---------|------|
@@ -937,7 +937,7 @@ P4 (إزالة): إزالة Local implementations بعد انتهاء مستخد
 
 ## FBK-25 — Must-Have V1
 
-الـ Runtime المستقبلي لـ DS-FEEDBACK يجب أن يُطبِّق جميع هذه البنود:
+Canonical Runtime V1 (`tw_shared.js`) يُطبِّق جميع هذه البنود — البنود غير المُكتملة تبقى ديناً موثَّقاً في FBK-24:
 
 | # | المتطلب |
 |---|---------|
@@ -1022,13 +1022,13 @@ P4 (إزالة): إزالة Local implementations بعد انتهاء مستخد
 
 ---
 
-## FBK-28 — Runtime Direction (Non-binding)
+## FBK-28 — Canonical Runtime V1 — التنفيذ الفعلي في `tw_shared.js` / `tw_shared.css`
 
-> **هذا القسم غير مُلزِم.** يصف اتجاهاً مقترحاً للـ Runtime phase عند طلبه. لا تُنشئ أي Runtime file قبل موافقة صريحة.
+DS-FEEDBACK V1 Runtime **مُطبَّق فعلياً** في `tw_shared.js` و`tw_shared.css` ضمن `feat/ds-feedback-runtime-v1`. هذا القسم يوثِّق التنفيذ الحالي — وليس اقتراحاً مستقبلياً.
 
-### الملف المقترح: `tw_shared.js` (تحديث — لا ملف جديد)
+### الملف الفعلي: `tw_shared.js` (تحديث موجود — لا ملف جديد)
 
-DS-FEEDBACK V1 Runtime يُطبَّق **بتحسين `tw_shared.js` الموجود** — لا بإنشاء `tw-feedback.js` منفصل.
+DS-FEEDBACK V1 Runtime مُطبَّق **بتحسين `tw_shared.js` الموجود** — لا بإنشاء `tw-feedback.js` منفصل.
 
 `showToast(msg, type, dur)` هو المدخل الوحيد في V1. `dur` يُتجاهَل إذا كانت Duration Policy مركزية (`dur` للـ backward compat فقط).
 
