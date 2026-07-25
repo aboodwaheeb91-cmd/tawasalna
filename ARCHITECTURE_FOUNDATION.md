@@ -1132,7 +1132,7 @@ async function handleSave() {
 7. **Accessibility V1** — جميع أنواع V1: `role="status"` + `aria-live="polite"` + `aria-atomic="true"`. `role="alert"` مؤجَّل لـ V2.
 8. **RTL Centering** — الـ Snackbar يتمركز على المنتصف المادي للـ viewport بصرف النظر عن `dir="rtl"`. ممنوع Logical Properties (`inset-inline-start`) للـ centering على عناصر مُمركَزة. التفاصيل في FBK-10.
 9. **DS-FEEDBACK يستقبل رسالة آمنة جاهزة** — لا يُحلِّل API errors. السلسلة: API-MUT-11 → Feature Orchestration → DS-FEEDBACK.
-10. **XSS P0 Runtime Debt** — `tw_shared.js:22` يستخدم `innerHTML` مع dynamic `msg`. مُوثَّق في FBK-21 وFBK-24. Runtime fix يحتاج PR مستقل.
+10. **XSS P0 — مُصلَح** — `tw_shared.js` يستخدم الآن `textContent` حصراً (feat/ds-feedback-runtime-v1). Local copies (M9 FBK-24) تُصلَح تدريجياً في PRs Migration.
 
 ### ممنوعات F34
 

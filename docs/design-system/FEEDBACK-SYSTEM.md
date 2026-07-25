@@ -902,19 +902,22 @@ P4 (إزالة): إزالة Local implementations بعد انتهاء مستخد
 
 ## FBK-24 — Runtime Debts Catalogue
 
+> **feat/ds-feedback-runtime-v1** أصلح: M0 M1 M2 M3 M4 M6 M7 في الـ Canonical Implementation.
+> الباقي (M5 M8–M15) يبقى دَيناً للـ PRs اللاحقة.
+
 | معرّف | الملف | المشكلة | الأولوية | الحل |
 |-------|-------|---------|---------|------|
-| **M0** | `tw_shared.js:22` | `t.innerHTML = '<span>'+msg+'</span>'` — XSS | **P0** | `textContent` + DOM construction آمن |
-| **M1** | `tw_shared.css` | `bottom: 24px` على Mobile — يغطي Bottom Nav | P1 | `--tw-feedback-bottom: 80px` + media query |
-| **M2** | `tw_shared.js` | لا `clearTimeout(_twTimer)` — timer قديم يخفي Feedback أحدث | P1 | إضافة `_twTimer` reference + `clearTimeout` |
-| **M3** | `tw_shared.js` | لا `role="status" aria-live="polite" aria-atomic="true"` | P1 | إضافة ARIA attributes عند إنشاء العنصر |
-| **M4** | `tw_shared.css` | `left: 50%; transform: translateX(-50%)` بحاجة تحقق RTL | P1 | تأكيد behavior في RTL context |
+| **M0** ✅ | `tw_shared.js` | `t.innerHTML = '<span>'+msg+'</span>'` — XSS | ~~P0~~ **مُصلَح** | `textContent` + DOM construction آمن — `tw_shared.js` + `index.ui.js` |
+| **M1** ✅ | `tw_shared.css` | `bottom: 24px` على Mobile — يغطي Bottom Nav | ~~P1~~ **مُصلَح** | `--tw-feedback-bottom: 80px` (`:root`) + media query `@600px → 24px` |
+| **M2** ✅ | `tw_shared.js` | لا `clearTimeout(_twTimer)` — timer قديم يخفي Feedback أحدث | ~~P1~~ **مُصلَح** | `_twTimer` + `clearTimeout` في كل استدعاء |
+| **M3** ✅ | `tw_shared.js` | لا `role="status" aria-live="polite" aria-atomic="true"` | ~~P1~~ **مُصلَح** | ARIA attributes عند إنشاء `.tw-snackbar` |
+| **M4** ✅ | `tw_shared.css` | `left: 50%; transform: translateX(-50%)` بحاجة تحقق RTL | ~~P1~~ **مؤكَّد** | تأكيد اختبار RTL: left=50% يعمل صحيحاً |
 | **M5** | `tw_shared.css` | `z-index: 9999` hardcoded — ليس Global Layer Token | P2 | استبدال بـ token عند إنشاء Global Layer Tokens |
-| **M6** | `tw_shared.css` | `white-space: nowrap` بدون `max-width` | P2 | `max-width: min(90vw, 400px); white-space: normal` |
-| **M7** | `tw_shared.css` | لا `warning` type border-color | P2 | إضافة `.warning { border-color: rgba(251,191,36,.3); }` |
+| **M6** ✅ | `tw_shared.css` | `white-space: nowrap` بدون `max-width` | ~~P2~~ **مُصلَح** | `max-width: min(90vw, 400px); white-space: normal` في `.tw-snackbar` |
+| **M7** ✅ | `tw_shared.css` | لا `warning` type border-color | ~~P2~~ **مُصلَح** | `.tw-snackbar.warning { border-color: rgba(251,191,36,.3); }` |
 | **M8** | `profile-v2.utils.js` | `toast(msg)` — API مختلف، لا type، مدة مختلفة (2200ms) | P2 | يستدعي Canonical API أو يتماشى معه |
-| **M9** | `settings.html:478` | Local `showToast` مكررة | P2 | حذف + استخدام `tw_shared.js` |
-| **M10** | متعدد | Emoji `✅ ❌ ℹ️` كـ icon — Placeholder | P3 | استبدال بـ Icon System رسمي (DS-ASSET) |
+| **M9** | `settings.html:478` و10 ملفات أخرى | Local `showToast` مكررة (XSS) | P2 | Migration FBK-23 — PR منفصل لكل صفحة |
+| **M10** | متعدد | Emoji `✅ ❌ ℹ️` كـ icon — Canonical أزالها، Local copies ما زالت تستخدمها | P3 | استبدال بـ Icon System رسمي (DS-ASSET) |
 | **M11** | `tw_shared.js` | لا `pointer-events: none` على المستوى الصحيح | P3 | توضيح لا يكسر V2 Action Zone |
 | **M12** | `company.html` `appointment-room.html` `appointments.html` | `alert()` Category A+B | P2 | استبدال بـ DS-FEEDBACK |
 | **M13** | `appointment-room.html` `appointments.html` | `alert()` Category C — validation | P2 | استبدال بـ DS-VAL |

@@ -149,26 +149,7 @@ function checkPassStrength(val){
   label.style.color = level.c;
 }
 
-// ── ITQAN shared utilities ────────────────────────────────────────────────────
-var _twToast = null;
-function showToast(msg, type, dur){
-  type = type || 'success'; dur = dur || 2800;
-  if(_twToast){ _twToast.remove(); }
-  var t = document.createElement('div');
-  t.className = 'tw-toast ' + type;
-  t.setAttribute('aria-live', 'polite');
-  var ico = type === 'success' ? '✅' : type === 'error' ? '❌' : 'ℹ️';
-  t.innerHTML = '<span>' + ico + '</span><span>' + msg + '</span>';
-  document.body.appendChild(t);
-  _twToast = t;
-  requestAnimationFrame(function(){
-    requestAnimationFrame(function(){ t.classList.add('show'); });
-  });
-  setTimeout(function(){
-    t.classList.remove('show');
-    setTimeout(function(){ if(t.parentNode) t.remove(); }, 350);
-  }, dur);
-}
+// showToast provided by tw_shared.js (loaded before this file)
 
 function setBtnLoad(btn, loading){
   if(!btn) return;

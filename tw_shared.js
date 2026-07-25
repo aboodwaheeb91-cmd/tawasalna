@@ -10,26 +10,48 @@ function getAuthHeaders(json){
 // ══ tw_shared.js - Shared Utilities ══
 // تواصلنا - Shared JavaScript Utilities
 
-var _twToast = null;
+// DS-FEEDBACK V1 — F34 · docs/design-system/FEEDBACK-SYSTEM.md
+var _twTimer   = null;
+var _twSurface = null;
+var FBK_DURATION = { success: 2800, info: 3200, warning: 4000, error: 4500 };
 
-function showToast(msg, type, dur) {
-  type = type || 'success';
-  dur  = dur  || 2800;
-  if (_twToast) { _twToast.remove(); }
-  var t = document.createElement('div');
-  t.className = 'tw-toast ' + type;
-  var ico = type === 'success' ? '✅' : type === 'error' ? '❌' : 'ℹ️';
-  t.innerHTML = '<span>' + ico + '</span><span>' + msg + '</span>';
-  document.body.appendChild(t);
-  _twToast = t;
-  requestAnimationFrame(function(){
-    requestAnimationFrame(function(){ t.classList.add('show'); });
+function showToast(msg, type, _legacyDur) {
+  if (msg == null) return;
+  if (type !== 'success' && type !== 'error' && type !== 'warning' && type !== 'info') type = 'success';
+  var dur = FBK_DURATION[type];   // centralized duration — _legacyDur ignored (FBK-07)
+
+  clearTimeout(_twTimer);         // Latest Replaces Current (FBK-06)
+  if (_twSurface) { _twSurface.remove(); _twSurface = null; }
+
+  // DOM construction — textContent only, never innerHTML (FBK-21 XSS P0 fix)
+  var surface = document.createElement('div');
+  surface.className = 'tw-snackbar ' + type;
+  surface.setAttribute('role', 'status');
+  surface.setAttribute('aria-live', 'polite');
+  surface.setAttribute('aria-atomic', 'true');
+  var msgSpan = document.createElement('span');
+  msgSpan.textContent = msg;
+  surface.appendChild(msgSpan);
+  document.body.appendChild(surface);
+  _twSurface = surface;
+
+  // Lifecycle: hidden → entering → visible (FBK-08)
+  requestAnimationFrame(function() {
+    requestAnimationFrame(function() { surface.classList.add('show'); });
   });
-  setTimeout(function(){
-    t.classList.remove('show');
-    setTimeout(function(){ if (t.parentNode) t.remove(); }, 350);
+
+  // Lifecycle: visible → exiting → hidden (FBK-08)
+  _twTimer = setTimeout(function() {
+    surface.classList.remove('show');
+    setTimeout(function() {   // DOM cleanup after 300ms CSS transition
+      if (surface.parentNode) { surface.remove(); if (_twSurface === surface) _twSurface = null; }
+    }, 350);
+    setTimeout(function() {   // Stuck State Guard (FBK-08): force hidden after 1000ms
+      if (surface.parentNode) { surface.remove(); if (_twSurface === surface) _twSurface = null; }
+    }, 1000);
   }, dur);
 }
+window.showToast = showToast;
 
 function setBtnLoad(btn, loading) {
   if (!btn) return;
