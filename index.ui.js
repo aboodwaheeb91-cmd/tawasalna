@@ -188,8 +188,9 @@ function initScrollProg(){
     passEl.type = show ? 'text' : 'password';
     eyeBtn.setAttribute('aria-pressed', show ? 'true' : 'false');
     eyeBtn.setAttribute('aria-label', show ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور');
-    if(eyeShow) eyeShow.hidden = show;
-    if(eyeHide) eyeHide.hidden = !show;
+    // SVGElement does not reflect .hidden as a DOM attribute; use setAttribute/removeAttribute
+    if(eyeShow){ if(show) eyeShow.setAttribute('hidden',''); else eyeShow.removeAttribute('hidden'); }
+    if(eyeHide){ if(!show) eyeHide.setAttribute('hidden',''); else eyeHide.removeAttribute('hidden'); }
   });
 }());
 

@@ -1,7 +1,7 @@
 // index.auth.js — Auth Gateway: redirect logic, login, register
 // Responsibilities: redirect(), doLogin(), doRegister(), on-load session check.
 // Does NOT touch DOM appearance — UI effects live in index.ui.js.
-// Version: auth-gw-v4
+// Version: auth-gw-v5
 
 'use strict';
 
@@ -33,7 +33,9 @@ function redirect(u){
 }());
 
 // ── DS-VAL helpers (login form — not used outside login) ─────────────────────
-var _submitting = false;
+var _submitting       = false;
+var _lSubmitAttempted = false;  // arms Required re-show after first submit
+var _lEmailErrorKind  = null;   // 'required' | 'format' | null — never compare message text
 
 function _lShowFieldError(wrapperId, errorId, msg){
   var wrapper = document.getElementById(wrapperId);
@@ -79,17 +81,24 @@ async function doLogin(){
   var email   = emailEl ? emailEl.value.trim() : '';
   var pass    = passEl  ? passEl.value          : '';
 
+  // Arm state machine so input handlers know a submit has been attempted
+  _lSubmitAttempted = true;
+
   // Clear server error on fresh submit (DS-VAL VAL-12)
   _lClearFormError();
 
   // Client-side validation — collect all errors, show at once (DS-VAL VAL-08)
   var hasError = false;
   if(!email){
+    _lEmailErrorKind = 'required';
     _lShowFieldError('wrapper-lEmail', 'l-email-error', 'البريد الإلكتروني مطلوب');
     hasError = true;
   } else if(!_lIsValidEmail(email)){
+    _lEmailErrorKind = 'format';
     _lShowFieldError('wrapper-lEmail', 'l-email-error', 'صيغة البريد الإلكتروني غير صحيحة');
     hasError = true;
+  } else {
+    _lEmailErrorKind = null;
   }
   if(!pass){
     _lShowFieldError('wrapper-lPass', 'l-pass-error', 'كلمة المرور مطلوبة');
@@ -111,15 +120,19 @@ async function doLogin(){
   var _success = false;
 
   try {
-    var res  = await fetch('/auth/login', {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({email: email, password: pass})
+    var res = await fetch('/auth/login', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({email: email, password: pass})
     });
-    var data = await res.json();
+
+    // Safe JSON parse — non-JSON body (e.g. 502 HTML) must not throw to network handler
+    var data;
+    try { data = await res.json(); } catch(_e){ data = null; }
+
     if(!res.ok){
       // DS-VAL VAL-09: auth failure → form-level banner (not DS-FEEDBACK toast)
-      // Use HTTP-status-based safe messages — never expose raw data.detail (API-MUT-11)
+      // HTTP-status-based safe messages only — never expose raw data.detail (API-MUT-11)
       var safeMsg;
       if(res.status === 429){
         safeMsg = 'محاولات كثيرة جداً، حاول مرة أخرى لاحقاً';
@@ -131,17 +144,28 @@ async function doLogin(){
       _lShowFormError(safeMsg);
       return;
     }
-    // Write session — inner try-catch so storage failure shows a safe error
+
+    // Validate 2xx structure before writing storage — malformed success must not redirect
+    if(!data || !data.user || !data.user.id ||
+       !data.token || typeof data.token !== 'string' || !data.token.trim()){
+      _lShowFormError('تعذّر إكمال تسجيل الدخول، حاول مرة أخرى');
+      return;
+    }
+
+    // Atomic session write — rollback both keys on any storage failure
     try {
       Object.keys(localStorage)
         .filter(function(k){ return k.startsWith('tw_'); })
         .forEach(function(k){ localStorage.removeItem(k); });
       localStorage.setItem('tw_user', JSON.stringify(data.user));
-      if(data.token) localStorage.setItem('tw_jwt', data.token);
+      localStorage.setItem('tw_jwt', data.token);
     } catch(storageErr){
+      try { localStorage.removeItem('tw_user'); } catch(e){}
+      try { localStorage.removeItem('tw_jwt');  } catch(e){}
       _lShowFormError('حدث خطأ أثناء تسجيل الدخول، حاول مرة أخرى');
       return;
     }
+
     // Only mark success AFTER all critical writes complete
     _success = true;
     // Success operational feedback via DS-FEEDBACK F34 (success is not a form error)
@@ -160,6 +184,8 @@ async function doLogin(){
 }
 
 // ── Login field validation events (DS-VAL VAL-05, VAL-12) ────────────────────
+// State machine — _lEmailErrorKind and _lSubmitAttempted are the source of truth.
+// Never compare error message text to determine state.
 ;(function(){
   var emailEl = document.getElementById('lEmail');
   if(emailEl){
@@ -167,32 +193,45 @@ async function doLogin(){
     emailEl.addEventListener('blur', function(){
       var v = emailEl.value.trim();
       if(v && !_lIsValidEmail(v)){
+        _lEmailErrorKind = 'format';
         _lShowFieldError('wrapper-lEmail', 'l-email-error', 'صيغة البريد الإلكتروني غير صحيحة');
       }
     });
-    // Input: clear server error; VAL-12 cleanup rules:
-    //   - empty value → keep Required error as-is (do not clear it here)
-    //   - non-empty + valid → clear any field error
-    //   - non-empty + invalid → show/keep Format error (not Required)
+    // Input: state machine drives all transitions
+    //   valid           → clear error
+    //   empty + attempted  → Required (re-arm)
+    //   empty + not attempted + was format → clear (no Required before first submit)
+    //   non-empty invalid   → Format
     emailEl.addEventListener('input', function(){
       _lClearFormError();
       var v = emailEl.value.trim();
-      var errEl = document.getElementById('l-email-error');
-      var hasVisibleError = errEl && !errEl.hidden;
       if(_lIsValidEmail(v)){
+        _lEmailErrorKind = null;
         _lClearFieldError('wrapper-lEmail', 'l-email-error');
-      } else if(v && hasVisibleError && errEl.textContent !== 'صيغة البريد الإلكتروني غير صحيحة'){
-        // Transition from Required → Format once user starts typing
+      } else if(!v){
+        if(_lSubmitAttempted){
+          _lEmailErrorKind = 'required';
+          _lShowFieldError('wrapper-lEmail', 'l-email-error', 'البريد الإلكتروني مطلوب');
+        } else if(_lEmailErrorKind === 'format'){
+          _lEmailErrorKind = null;
+          _lClearFieldError('wrapper-lEmail', 'l-email-error');
+        }
+      } else {
+        _lEmailErrorKind = 'format';
         _lShowFieldError('wrapper-lEmail', 'l-email-error', 'صيغة البريد الإلكتروني غير صحيحة');
       }
     });
   }
   var passEl = document.getElementById('lPass');
   if(passEl){
-    // Input: clear server error and Required error once non-empty (VAL-12)
+    // Input: clear server error; Required re-arms when field goes empty after a submit attempt
     passEl.addEventListener('input', function(){
       _lClearFormError();
-      if(passEl.value) _lClearFieldError('wrapper-lPass', 'l-pass-error');
+      if(passEl.value){
+        _lClearFieldError('wrapper-lPass', 'l-pass-error');
+      } else if(_lSubmitAttempted){
+        _lShowFieldError('wrapper-lPass', 'l-pass-error', 'كلمة المرور مطلوبة');
+      }
     });
   }
 }());

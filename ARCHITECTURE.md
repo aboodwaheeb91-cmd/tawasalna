@@ -8114,15 +8114,32 @@ The **login-only** fields apply DS-INP / DS-VAL / DS-BTN contracts. Register fie
 
 `index.ui.js` toggles `passEl.type`, `aria-pressed`, `aria-label`, and sets `eyeShow.hidden` / `eyeHide.hidden`. No `innerHTML` — static two-icon approach avoids DOM mutation.
 
-#### Validation timing (DS-VAL VAL-05, VAL-12)
+#### Validation state machine (DS-VAL VAL-05, VAL-12)
 
-| Event | Email | Password |
-|-------|-------|----------|
-| Blur | Format error if non-empty | — |
-| Input (empty) | Clear server banner only; Required error stays | Clear server banner only |
-| Input (non-empty, valid) | Clear field error + server banner | Clear server banner + Required error |
-| Input (non-empty, invalid) | Show/keep Format error; transition from Required | — |
-| Submit | Required + Format (all at once, VAL-08) | Required |
+Two module-level variables drive all email-field error transitions. **Never compare error message text as source of truth.**
+
+| Variable | Type | Purpose |
+|----------|------|---------|
+| `_lSubmitAttempted` | `boolean` | `false` until first `doLogin()` call; stays `true` forever after |
+| `_lEmailErrorKind` | `'required' \| 'format' \| null` | current error kind for email field |
+
+**Transition rules:**
+
+| Trigger | Condition | Outcome |
+|---------|-----------|---------|
+| `doLogin()` called | email empty | `_lEmailErrorKind = 'required'`; show Required |
+| `doLogin()` called | email non-empty invalid | `_lEmailErrorKind = 'format'`; show Format |
+| `doLogin()` called | email valid | `_lEmailErrorKind = null`; clear error |
+| `doLogin()` always | — | `_lSubmitAttempted = true` |
+| blur on email | non-empty invalid | `_lEmailErrorKind = 'format'`; show Format |
+| blur on email | empty | no-op (never show Required on blur) |
+| input on email | valid | `_lEmailErrorKind = null`; clear error |
+| input on email | empty + `_lSubmitAttempted` | `_lEmailErrorKind = 'required'`; show Required |
+| input on email | empty + `!_lSubmitAttempted` + was format | `_lEmailErrorKind = null`; clear error |
+| input on email | non-empty invalid (any) | `_lEmailErrorKind = 'format'`; show Format |
+| input on password | `passEl.value` non-empty | clear Required error |
+| input on password | `passEl.value` empty + `_lSubmitAttempted` | show Required |
+| input on password | `passEl.value` empty + `!_lSubmitAttempted` | no-op |
 
 #### Error channels (DS-VAL)
 
@@ -8135,9 +8152,54 @@ The **login-only** fields apply DS-INP / DS-VAL / DS-BTN contracts. Register fie
   - localStorage write failure → `'حدث خطأ أثناء تسجيل الدخول، حاول مرة أخرى'`
 - **Success** → `toast('مرحباً بك', 'success')` via DS-FEEDBACK F34 (no emoji; success is operational)
 
+#### Safe JSON parse
+
+`res.json()` is wrapped in try-catch so a non-JSON body (e.g. HTML 502 error page from a proxy) does not throw to the outer network-error handler:
+
+```javascript
+var data;
+try { data = await res.json(); } catch(_e){ data = null; }
+```
+
+On `!res.ok`, the status-based safe message is shown regardless of whether `data` is null.
+
+#### Response structure validation (invalid 2xx)
+
+Before writing to `localStorage`, the 2xx response body is validated:
+
+```javascript
+if(!data || !data.user || !data.user.id ||
+   !data.token || typeof data.token !== 'string' || !data.token.trim()){
+  _lShowFormError('تعذّر إكمال تسجيل الدخول، حاول مرة أخرى');
+  return;
+}
+```
+
+A malformed 2xx (missing `user.id`, missing `token`, empty token) is treated as a failure — `_success` stays `false`, button is restored, no redirect.
+
+#### Session write atomicity and rollback
+
+Storage is written inside an inner try-catch. On any write failure, BOTH keys are rolled back before showing the error:
+
+```javascript
+try {
+  // Clear all tw_* keys first (atomic pre-clear)
+  Object.keys(localStorage).filter(k => k.startsWith('tw_')).forEach(k => localStorage.removeItem(k));
+  localStorage.setItem('tw_user', JSON.stringify(data.user));
+  localStorage.setItem('tw_jwt', data.token);
+} catch(storageErr) {
+  try { localStorage.removeItem('tw_user'); } catch(e) {}
+  try { localStorage.removeItem('tw_jwt');  } catch(e) {}
+  _lShowFormError('حدث خطأ أثناء تسجيل الدخول، حاول مرة أخرى');
+  return;
+}
+```
+
+Invariant: after a storage failure, neither `tw_user` nor `tw_jwt` must be present in `localStorage`.
+
 #### Button lifecycle (DS-BTN BTN-09)
 
-- `_submitting` guard prevents double-submit
+- `_submitting` guard prevents double-submit; checked at top of `doLogin()` before any state mutation
 - `_success` flag set only **after** all localStorage writes complete (inner try-catch for storage errors)
 - On failure: `finally { if(!_success){ _submitting = false; setBtnLoad(btn, false); } }` restores button
 - On success: `_submitting` stays `true`; button stays loading until redirect (600 ms) — prevents re-submit during transition

@@ -227,6 +227,9 @@ body{font-family:'Cairo',sans-serif;background:#070b18;min-height:100vh;display:
 /* ── DS-INP: Email field direction override (INP-09) ── */
 #lEmail{direction:ltr;text-align:left;}
 
+/* Explicit [hidden] rule — UA stylesheet cannot always be relied on for SVG/inline elements */
+[hidden]{display:none!important;}
+
 /* ── DS-VAL: Field error state (scoped to #loginSection) ── */
 #loginSection .field.has-error input{border-color:rgb(var(--danger-rgb,239,68,68));}
 #loginSection .field-error{display:block;font-size:.65rem;color:rgb(var(--danger-rgb,239,68,68));margin-top:4px;font-family:'Cairo',sans-serif;font-weight:600;}
