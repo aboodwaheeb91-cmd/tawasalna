@@ -77,14 +77,38 @@
   <div class="bubble" id="loginBubble">
     <div id="loginSection">
       <div class="form-title">دخول</div>
-      <div class="field">
-        <label>البريد الإلكتروني</label>
-        <input id="lEmail" autocomplete="email" type="email" placeholder="example@email.com">
+
+      <!-- DS-VAL VAL-09: auth failure banner (form-level, not field-level) -->
+      <div id="l-form-error" class="l-form-error" role="alert" aria-live="assertive" hidden>
+        <span class="l-form-error-text"></span>
       </div>
-      <div class="field">
-        <label>كلمة المرور</label>
-        <input id="lPass" autocomplete="current-password" type="password" placeholder="••••••••">
+
+      <!-- DS-INP: email field -->
+      <div class="field" id="wrapper-lEmail">
+        <label for="lEmail">البريد الإلكتروني</label>
+        <input id="lEmail" autocomplete="email" type="email" placeholder="example@email.com"
+               dir="ltr"
+               aria-required="true"
+               aria-invalid="false"
+               aria-describedby="l-email-error">
+        <span id="l-email-error" class="field-error" role="alert" aria-live="polite" hidden></span>
       </div>
+
+      <!-- DS-INP: password field with show/hide toggle (INP-11) -->
+      <div class="field" id="wrapper-lPass">
+        <label for="lPass">كلمة المرور</label>
+        <div class="pass-wrap">
+          <input id="lPass" autocomplete="current-password" type="password" placeholder="••••••••"
+                 aria-required="true"
+                 aria-invalid="false"
+                 aria-describedby="l-pass-error">
+          <button type="button" id="lPassEye" class="pass-eye"
+                  aria-label="إظهار كلمة المرور"
+                  aria-pressed="false">👁</button>
+        </div>
+        <span id="l-pass-error" class="field-error" role="alert" aria-live="polite" hidden></span>
+      </div>
+
       <div class="forgot-wrap">
         <span class="forgot-link">نسيت كلمة المرور؟</span>
       </div>

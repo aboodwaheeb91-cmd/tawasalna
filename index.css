@@ -113,7 +113,7 @@ body{font-family:'Cairo',sans-serif;background:#070b18;min-height:100vh;display:
   width:100%;padding:13px;border:none;border-radius:13px;
   background:linear-gradient(135deg,var(--ac),var(--ac2));
   color:#fff;font-family:'Cairo',sans-serif;font-size:.9rem;font-weight:900;
-  cursor:pointer;transition:all .25s;margin-top:4px;
+  cursor:pointer;transition:all .25s;margin-top:4px;user-select:none;
 }
 .cta:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,200,150,.35);}
 .cta:disabled{opacity:.6;transform:none;cursor:wait;}
@@ -196,3 +196,24 @@ body{font-family:'Cairo',sans-serif;background:#070b18;min-height:100vh;display:
 .tw-card-lift{transition:transform .2s,box-shadow .2s;}
 .tw-card-lift:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.3);}
 .tw-verified{animation:tw-verified 2.5s ease-in-out infinite;}
+
+/* ── DS-BTN: focus-visible (all .cta) ── */
+.cta:focus-visible{outline:2px solid var(--ac);outline-offset:3px;}
+
+/* ── DS-BTN: Login button — outlined/glow (scoped to #loginSection only) ── */
+#loginSection .cta{background:transparent;border:1.5px solid var(--ac);color:var(--ac);}
+#loginSection .cta:hover{background:rgba(0,200,150,.07);box-shadow:0 0 18px rgba(0,200,150,.22);transform:translateY(-1px);}
+#loginSection .cta:disabled{opacity:.55;transform:none;cursor:wait;background:transparent;}
+
+/* ── DS-INP: Email field direction override (INP-09) ── */
+#lEmail{direction:ltr;text-align:left;}
+
+/* ── DS-VAL: Field error state (scoped to #loginSection) ── */
+#loginSection .field.has-error input{border-color:rgb(var(--danger-rgb,239,68,68));}
+.field-error{display:block;font-size:.65rem;color:rgb(var(--danger-rgb,239,68,68));margin-top:4px;font-family:'Cairo',sans-serif;font-weight:600;}
+.field-error[hidden]{display:none;}
+
+/* ── DS-VAL: Form-level auth error banner (VAL-09) ── */
+.l-form-error{display:flex;align-items:center;padding:9px 12px;border-radius:10px;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.22);margin-bottom:12px;}
+.l-form-error[hidden]{display:none;}
+.l-form-error-text{font-size:.75rem;color:rgb(var(--danger-rgb,239,68,68));font-family:'Cairo',sans-serif;font-weight:600;line-height:1.4;}

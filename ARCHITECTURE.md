@@ -8089,6 +8089,49 @@ Three explicit cards replace the old 2-button + dropdown:
 - Do NOT use `localStorage.tw_user.user_type` to gate features or permissions — only for display/routing hints; validate with API when security matters
 - Do NOT add a role selector inside the login form — role is login-derived from the API only
 
+### Login Form DS Runtime Adoption (PR feat/login-ds-runtime-adoption)
+
+The **login-only** fields apply DS-INP / DS-VAL / DS-BTN contracts. Register fields are unchanged.
+
+#### HTML anatomy (DS-INP)
+
+| Element | id / class | Notes |
+|---------|------------|-------|
+| Email wrapper | `#wrapper-lEmail.field` | `.has-error` added by JS on error |
+| Email input | `#lEmail` | `dir="ltr"`, `aria-required`, `aria-invalid`, `aria-describedby` |
+| Email error span | `#l-email-error.field-error` | `role="alert"`, `aria-live="polite"`, `hidden` by default |
+| Password wrapper | `#wrapper-lPass.field` | `.has-error` added by JS on error |
+| Password input | `#lPass` | inside `.pass-wrap`; `aria-required`, `aria-invalid`, `aria-describedby` |
+| Eye button | `#lPassEye.pass-eye` | `type="button"`, `aria-pressed`, `aria-label` — toggled by `index.ui.js` |
+| Password error span | `#l-pass-error.field-error` | `role="alert"`, `aria-live="polite"`, `hidden` by default |
+| Auth error banner | `#l-form-error.l-form-error` | `role="alert"`, `aria-live="assertive"` — auth/network failures only |
+
+#### Validation timing (DS-VAL VAL-05)
+
+| Event | Email | Password |
+|-------|-------|----------|
+| Blur | Format error if non-empty | — |
+| Input | Clear server error; clear format error when valid | Clear server error; clear Required when non-empty |
+| Submit | Required + Format | Required |
+
+#### Error channels (DS-VAL)
+
+- **Required / format errors** → inline `.field-error` span (never DS-FEEDBACK toast) — `_lShowFieldError()` in `index.auth.js`
+- **Auth failure / network error** → `#l-form-error` banner (VAL-09) — `_lShowFormError()` in `index.auth.js`
+- **Success** → `toast('مرحباً بك! 👋')` via DS-FEEDBACK (F34 — success is operational, not a form error)
+
+#### Button lifecycle (DS-BTN BTN-09)
+
+- `_submitting` guard in `index.auth.js` prevents double-submit
+- On error: `setBtnLoad(btn, false)` restores button
+- On success: button stays in loading state until page navigation (600 ms)
+
+#### CSS scope
+
+- `#loginSection .cta` — outlined/glow button (register `.cta` unaffected)
+- `#loginSection .field.has-error input` — danger border (register fields unaffected)
+- `.field-error` / `.l-form-error` — scoped by JS to login form only
+
 ---
 
 ## Company Profile Edit Form (PR #248)
