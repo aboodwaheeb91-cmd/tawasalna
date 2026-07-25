@@ -97,11 +97,14 @@ async function doLogin(){
   }
   if(hasError){
     var firstErr = document.querySelector('#loginSection .field.has-error input');
-    if(firstErr) firstErr.focus();
+    if(firstErr){
+      firstErr.focus();
+      firstErr.scrollIntoView({behavior:'smooth', block:'nearest'});
+    }
     return;
   }
 
-  // DS-BTN BTN-09: guard double-submit; button stays loading on success (user is leaving)
+  // DS-BTN BTN-09: guard double-submit; button stays loading until redirect (user is leaving)
   _submitting = true;
   var btn = document.getElementById('loginBtn');
   setBtnLoad(btn, true);
@@ -111,29 +114,48 @@ async function doLogin(){
     var res  = await fetch('/auth/login', {
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({email, password:pass})
+      body:JSON.stringify({email: email, password: pass})
     });
     var data = await res.json();
     if(!res.ok){
-      // DS-VAL VAL-09: auth failure → form-level banner, not DS-FEEDBACK toast (F34)
-      _lShowFormError(data.detail || 'بيانات الدخول غير صحيحة');
+      // DS-VAL VAL-09: auth failure → form-level banner (not DS-FEEDBACK toast)
+      // Use HTTP-status-based safe messages — never expose raw data.detail (API-MUT-11)
+      var safeMsg;
+      if(res.status === 429){
+        safeMsg = 'محاولات كثيرة جداً، حاول مرة أخرى لاحقاً';
+      } else if(res.status >= 500){
+        safeMsg = 'تعذّر تسجيل الدخول حالياً، حاول مرة أخرى لاحقاً';
+      } else {
+        safeMsg = 'بيانات الدخول غير صحيحة';
+      }
+      _lShowFormError(safeMsg);
       return;
     }
+    // Write session — inner try-catch so storage failure shows a safe error
+    try {
+      Object.keys(localStorage)
+        .filter(function(k){ return k.startsWith('tw_'); })
+        .forEach(function(k){ localStorage.removeItem(k); });
+      localStorage.setItem('tw_user', JSON.stringify(data.user));
+      if(data.token) localStorage.setItem('tw_jwt', data.token);
+    } catch(storageErr){
+      _lShowFormError('حدث خطأ أثناء تسجيل الدخول، حاول مرة أخرى');
+      return;
+    }
+    // Only mark success AFTER all critical writes complete
     _success = true;
-    // Clear any stale tw_ keys before writing new session (prevents cross-account leaks)
-    Object.keys(localStorage)
-      .filter(function(k){ return k.startsWith('tw_'); })
-      .forEach(function(k){ localStorage.removeItem(k); });
-    localStorage.setItem('tw_user', JSON.stringify(data.user));
-    if(data.token) localStorage.setItem('tw_jwt', data.token);
-    // Success operational feedback via DS-FEEDBACK (F34 — success is not a form error)
-    toast('مرحباً بك! 👋');
+    // Success operational feedback via DS-FEEDBACK F34 (success is not a form error)
+    toast('مرحباً بك', 'success');
     setTimeout(function(){ redirect(data.user); }, 600);
   } catch(e){
     _lShowFormError('تعذّر الاتصال بالخادم، تحقق من اتصالك وحاول مرة أخرى');
   } finally {
-    _submitting = false;
-    if(!_success) setBtnLoad(btn, false);
+    // On failure only: restore button and unlock guard
+    // On success: _submitting stays true, button stays loading until redirect
+    if(!_success){
+      _submitting = false;
+      setBtnLoad(btn, false);
+    }
   }
 }
 
@@ -141,18 +163,28 @@ async function doLogin(){
 ;(function(){
   var emailEl = document.getElementById('lEmail');
   if(emailEl){
-    // Blur: email format check on non-empty value (VAL-05 — no Required on blur)
+    // Blur: format error only on non-empty value (VAL-05 — no Required on blur)
     emailEl.addEventListener('blur', function(){
       var v = emailEl.value.trim();
       if(v && !_lIsValidEmail(v)){
         _lShowFieldError('wrapper-lEmail', 'l-email-error', 'صيغة البريد الإلكتروني غير صحيحة');
       }
     });
-    // Input: clear server error; clear format error once valid (VAL-12)
+    // Input: clear server error; VAL-12 cleanup rules:
+    //   - empty value → keep Required error as-is (do not clear it here)
+    //   - non-empty + valid → clear any field error
+    //   - non-empty + invalid → show/keep Format error (not Required)
     emailEl.addEventListener('input', function(){
       _lClearFormError();
       var v = emailEl.value.trim();
-      if(!v || _lIsValidEmail(v)) _lClearFieldError('wrapper-lEmail', 'l-email-error');
+      var errEl = document.getElementById('l-email-error');
+      var hasVisibleError = errEl && !errEl.hidden;
+      if(_lIsValidEmail(v)){
+        _lClearFieldError('wrapper-lEmail', 'l-email-error');
+      } else if(v && hasVisibleError && errEl.textContent !== 'صيغة البريد الإلكتروني غير صحيحة'){
+        // Transition from Required → Format once user starts typing
+        _lShowFieldError('wrapper-lEmail', 'l-email-error', 'صيغة البريد الإلكتروني غير صحيحة');
+      }
     });
   }
   var passEl = document.getElementById('lPass');
@@ -201,10 +233,20 @@ async function doRegister(){
 // ── Enter key shortcut ────────────────────────────────────────────────────────
 // Guard: only fire when user is actively focused on an INPUT element.
 // Prevents autofill from triggering doLogin() without explicit user action.
+// Login: Enter in email → focus password (DS-INP sequential nav); Enter in password → submit.
 document.addEventListener('keydown', function(e){
   if(e.key !== 'Enter') return;
   if(!e.target || e.target.tagName !== 'INPUT') return;
   var login = document.getElementById('loginSection');
-  if(login && !login.classList.contains('hidden')) doLogin();
-  else doRegister();
+  if(login && !login.classList.contains('hidden')){
+    e.preventDefault();
+    if(e.target.id === 'lEmail'){
+      var passEl = document.getElementById('lPass');
+      if(passEl) passEl.focus();
+    } else {
+      doLogin();
+    }
+  } else {
+    doRegister();
+  }
 });

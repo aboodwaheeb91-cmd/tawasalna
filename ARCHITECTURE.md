@@ -8098,39 +8098,64 @@ The **login-only** fields apply DS-INP / DS-VAL / DS-BTN contracts. Register fie
 | Element | id / class | Notes |
 |---------|------------|-------|
 | Email wrapper | `#wrapper-lEmail.field` | `.has-error` added by JS on error |
-| Email input | `#lEmail` | `dir="ltr"`, `aria-required`, `aria-invalid`, `aria-describedby` |
+| Email input wrapper | `.l-input-wrap` inside `#wrapper-lEmail` | canonical `position:relative` container |
+| Email input | `#lEmail` | `dir="ltr"`, `required`, `aria-required`, `aria-invalid`, `aria-describedby` |
 | Email error span | `#l-email-error.field-error` | `role="alert"`, `aria-live="polite"`, `hidden` by default |
 | Password wrapper | `#wrapper-lPass.field` | `.has-error` added by JS on error |
-| Password input | `#lPass` | inside `.pass-wrap`; `aria-required`, `aria-invalid`, `aria-describedby` |
+| Password input wrapper | `.l-input-wrap.pass-wrap` inside `#wrapper-lPass` | shares both classes |
+| Password input | `#lPass` | `required`, `aria-required`, `aria-invalid`, `aria-describedby` |
 | Eye button | `#lPassEye.pass-eye` | `type="button"`, `aria-pressed`, `aria-label` — toggled by `index.ui.js` |
+| Eye icon (show) | `#lEyeShow` | inline Lucide `eye` SVG, `aria-hidden="true"`, visible by default |
+| Eye icon (hide) | `#lEyeHide` | inline Lucide `eye-off` SVG, `aria-hidden="true"`, `hidden` by default |
 | Password error span | `#l-pass-error.field-error` | `role="alert"`, `aria-live="polite"`, `hidden` by default |
 | Auth error banner | `#l-form-error.l-form-error` | `role="alert"`, `aria-live="assertive"` — auth/network failures only |
 
-#### Validation timing (DS-VAL VAL-05)
+#### Eye button toggle (INP-11)
+
+`index.ui.js` toggles `passEl.type`, `aria-pressed`, `aria-label`, and sets `eyeShow.hidden` / `eyeHide.hidden`. No `innerHTML` — static two-icon approach avoids DOM mutation.
+
+#### Validation timing (DS-VAL VAL-05, VAL-12)
 
 | Event | Email | Password |
 |-------|-------|----------|
 | Blur | Format error if non-empty | — |
-| Input | Clear server error; clear format error when valid | Clear server error; clear Required when non-empty |
-| Submit | Required + Format | Required |
+| Input (empty) | Clear server banner only; Required error stays | Clear server banner only |
+| Input (non-empty, valid) | Clear field error + server banner | Clear server banner + Required error |
+| Input (non-empty, invalid) | Show/keep Format error; transition from Required | — |
+| Submit | Required + Format (all at once, VAL-08) | Required |
 
 #### Error channels (DS-VAL)
 
-- **Required / format errors** → inline `.field-error` span (never DS-FEEDBACK toast) — `_lShowFieldError()` in `index.auth.js`
-- **Auth failure / network error** → `#l-form-error` banner (VAL-09) — `_lShowFormError()` in `index.auth.js`
-- **Success** → `toast('مرحباً بك! 👋')` via DS-FEEDBACK (F34 — success is operational, not a form error)
+- **Required / format errors** → inline `#loginSection .field-error` span (never DS-FEEDBACK toast) — `_lShowFieldError()` in `index.auth.js`
+- **Auth failure** → `#l-form-error` banner (VAL-09) — HTTP-status-based safe message, never raw `data.detail` (API-MUT-11)
+  - 400/401 → `'بيانات الدخول غير صحيحة'`
+  - 429 → `'محاولات كثيرة جداً، حاول مرة أخرى لاحقاً'`
+  - 5xx → `'تعذّر تسجيل الدخول حالياً، حاول مرة أخرى لاحقاً'`
+  - network failure → `'تعذّر الاتصال بالخادم، تحقق من اتصالك وحاول مرة أخرى'`
+  - localStorage write failure → `'حدث خطأ أثناء تسجيل الدخول، حاول مرة أخرى'`
+- **Success** → `toast('مرحباً بك', 'success')` via DS-FEEDBACK F34 (no emoji; success is operational)
 
 #### Button lifecycle (DS-BTN BTN-09)
 
-- `_submitting` guard in `index.auth.js` prevents double-submit
-- On error: `setBtnLoad(btn, false)` restores button
-- On success: button stays in loading state until page navigation (600 ms)
+- `_submitting` guard prevents double-submit
+- `_success` flag set only **after** all localStorage writes complete (inner try-catch for storage errors)
+- On failure: `finally { if(!_success){ _submitting = false; setBtnLoad(btn, false); } }` restores button
+- On success: `_submitting` stays `true`; button stays loading until redirect (600 ms) — prevents re-submit during transition
 
-#### CSS scope
+#### Enter key behaviour
 
-- `#loginSection .cta` — outlined/glow button (register `.cta` unaffected)
-- `#loginSection .field.has-error input` — danger border (register fields unaffected)
-- `.field-error` / `.l-form-error` — scoped by JS to login form only
+- Focus in `#lEmail` + Enter → `e.preventDefault()` + `passEl.focus()` (sequential field nav)
+- Focus in `#lPass` + Enter → `doLogin()`
+- Any input in register form (login hidden) + Enter → `doRegister()` (unchanged)
+
+#### CSS scope (permanent rules)
+
+- `#loginSection .cta` — outlined/glow button + `user-select:none` (register `.cta` unaffected)
+- `#loginSection .cta:focus-visible` — focus ring (register `.cta:focus-visible` unaffected)
+- `#loginSection .field.has-error input` — danger border
+- `#loginSection .field-error` — error text (scoped; does NOT affect register)
+- `.l-input-wrap` — `position:relative; display:flex; align-items:center` (shared by both fields)
+- `.pass-eye` — icon button: `background:transparent; border:0; min-width/height:44px; inset-inline-end:0`
 
 ---
 

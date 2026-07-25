@@ -102,18 +102,37 @@ body{font-family:'Cairo',sans-serif;background:#070b18;min-height:100vh;display:
 .field select{cursor:pointer;}
 .field select option{background:#0d1526;color:#fff;}
 
-/* ── Password eye ── */
+/* ── DS-INP: input wrapper (canonical anatomy) ── */
+.l-input-wrap{position:relative;display:flex;align-items:center;}
+.l-input-wrap input{width:100%;}
+
+/* ── Password eye icon button (INP-11) ── */
 .pass-wrap{position:relative;display:flex;align-items:center;}
-.pass-wrap input{width:100%;padding-left:36px!important;}
-.pass-eye{position:absolute;left:10px;cursor:pointer;font-size:1rem;opacity:.5;user-select:none;transition:opacity .2s;}
-.pass-eye:hover{opacity:.9;}
+#wrapper-lPass .l-input-wrap input{padding-inline-end:44px;}
+.pass-eye{
+  position:absolute;
+  inset-inline-end:0;
+  top:50%;
+  transform:translateY(-50%);
+  display:flex;align-items:center;justify-content:center;
+  min-width:44px;min-height:44px;
+  background:transparent;border:0;
+  cursor:pointer;
+  color:rgba(255,255,255,.45);
+  padding:0;
+  transition:color .2s;
+  appearance:none;-webkit-appearance:none;
+  flex-shrink:0;
+}
+.pass-eye:hover{color:rgba(255,255,255,.85);}
+.pass-eye:focus-visible{outline:2px solid var(--ac);outline-offset:2px;border-radius:6px;}
 
 /* ── CTA button ── */
 .cta{
   width:100%;padding:13px;border:none;border-radius:13px;
   background:linear-gradient(135deg,var(--ac),var(--ac2));
   color:#fff;font-family:'Cairo',sans-serif;font-size:.9rem;font-weight:900;
-  cursor:pointer;transition:all .25s;margin-top:4px;user-select:none;
+  cursor:pointer;transition:all .25s;margin-top:4px;
 }
 .cta:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,200,150,.35);}
 .cta:disabled{opacity:.6;transform:none;cursor:wait;}
@@ -197,11 +216,11 @@ body{font-family:'Cairo',sans-serif;background:#070b18;min-height:100vh;display:
 .tw-card-lift:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.3);}
 .tw-verified{animation:tw-verified 2.5s ease-in-out infinite;}
 
-/* ── DS-BTN: focus-visible (all .cta) ── */
-.cta:focus-visible{outline:2px solid var(--ac);outline-offset:3px;}
+/* ── DS-BTN: focus-visible + user-select (scoped to #loginSection only) ── */
+#loginSection .cta:focus-visible{outline:2px solid var(--ac);outline-offset:3px;}
 
 /* ── DS-BTN: Login button — outlined/glow (scoped to #loginSection only) ── */
-#loginSection .cta{background:transparent;border:1.5px solid var(--ac);color:var(--ac);}
+#loginSection .cta{background:transparent;border:1.5px solid var(--ac);color:var(--ac);user-select:none;}
 #loginSection .cta:hover{background:rgba(0,200,150,.07);box-shadow:0 0 18px rgba(0,200,150,.22);transform:translateY(-1px);}
 #loginSection .cta:disabled{opacity:.55;transform:none;cursor:wait;background:transparent;}
 
@@ -210,8 +229,8 @@ body{font-family:'Cairo',sans-serif;background:#070b18;min-height:100vh;display:
 
 /* ── DS-VAL: Field error state (scoped to #loginSection) ── */
 #loginSection .field.has-error input{border-color:rgb(var(--danger-rgb,239,68,68));}
-.field-error{display:block;font-size:.65rem;color:rgb(var(--danger-rgb,239,68,68));margin-top:4px;font-family:'Cairo',sans-serif;font-weight:600;}
-.field-error[hidden]{display:none;}
+#loginSection .field-error{display:block;font-size:.65rem;color:rgb(var(--danger-rgb,239,68,68));margin-top:4px;font-family:'Cairo',sans-serif;font-weight:600;}
+#loginSection .field-error[hidden]{display:none;}
 
 /* ── DS-VAL: Form-level auth error banner (VAL-09) ── */
 .l-form-error{display:flex;align-items:center;padding:9px 12px;border-radius:10px;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.22);margin-bottom:12px;}
