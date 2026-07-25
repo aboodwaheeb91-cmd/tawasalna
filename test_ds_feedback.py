@@ -5,7 +5,14 @@ Tests: XSS, 4 types, timer race, identity guard, ARIA, positioning contract,
        reduced motion, semantic tokens, login surface unification.
 
 Run:  python test_ds_feedback.py
-Requires: playwright (pip install playwright) + Chromium at /opt/pw-browsers/chromium
+
+Requirements:
+  pip install playwright
+  playwright install chromium   # OR set PLAYWRIGHT_CHROMIUM_PATH to an existing binary
+
+Chromium resolution order:
+  1. PLAYWRIGHT_CHROMIUM_PATH env var (e.g. /opt/pw-browsers/chromium)
+  2. Playwright's default installed Chromium (playwright install chromium)
 """
 
 import asyncio
@@ -20,8 +27,8 @@ except ImportError:
 
 # Load runtime files from repo root
 _ROOT = os.path.dirname(os.path.abspath(__file__))
-SHARED_JS  = open(os.path.join(_ROOT, 'tw_shared.js')).read()
-SHARED_CSS = open(os.path.join(_ROOT, 'tw_shared.css')).read()
+SHARED_JS  = open(os.path.join(_ROOT, 'tw_shared.js'), encoding='utf-8').read()
+SHARED_CSS = open(os.path.join(_ROOT, 'tw_shared.css'), encoding='utf-8').read()
 
 TEST_HTML = f"""<!DOCTYPE html>
 <html dir="rtl" lang="ar">
@@ -49,10 +56,13 @@ async def run():
         print(f"{marker} {name}" + (f" — {detail}" if detail else ""))
 
     async with async_playwright() as p:
-        browser = await p.chromium.launch(
-            executable_path='/opt/pw-browsers/chromium',
-            args=['--no-sandbox']
-        )
+        # Portable Chromium: honour PLAYWRIGHT_CHROMIUM_PATH if set (e.g. CI / dev env).
+        # Falls back to Playwright's own installed Chromium when the var is absent.
+        _chromium_path = os.environ.get('PLAYWRIGHT_CHROMIUM_PATH')
+        launch_kwargs = {'args': ['--no-sandbox']}
+        if _chromium_path:
+            launch_kwargs['executable_path'] = _chromium_path
+        browser = await p.chromium.launch(**launch_kwargs)
         # Use mobile viewport so --tw-feedback-bottom stays at 80px (mobile value)
         # and @media(min-width:600px) desktop override does not fire.
         page = await browser.new_page(viewport={'width': 375, 'height': 812})
@@ -251,7 +261,7 @@ async def run():
         if not os.path.exists(index_ui_path):
             index_ui_path = os.path.join(_ROOT, 'index.ui.js')
         if os.path.exists(index_ui_path):
-            ui_src = open(index_ui_path).read()
+            ui_src = open(index_ui_path, encoding='utf-8').read()
             log("Login: toast() delegates to window.showToast (wrapper)",
                 'window.showToast' in ui_src and 'document.getElementById' not in ui_src.split('function toast')[1].split('function')[0])
             log("Login: no local DOM engine (no getElementById(\"toast\") in toast())",
@@ -262,7 +272,7 @@ async def run():
         # ── 24: index.html has no #toast element ─────────────────────────────
         index_html_path = os.path.join(_ROOT, 'index.html')
         if os.path.exists(index_html_path):
-            html_src = open(index_html_path).read()
+            html_src = open(index_html_path, encoding='utf-8').read()
             log("Login: no <div id=\"toast\"> in index.html",
                 'id="toast"' not in html_src)
         else:
@@ -271,7 +281,7 @@ async def run():
         # ── 25: index.css has no .toast engine CSS ───────────────────────────
         index_css_path = os.path.join(_ROOT, 'index.css')
         if os.path.exists(index_css_path):
-            css_src = open(index_css_path).read()
+            css_src = open(index_css_path, encoding='utf-8').read()
             log("Login: .toast CSS removed from index.css",
                 '.toast{' not in css_src and '.toast.show' not in css_src)
             log("Login: .tw-toast local CSS removed from index.css",
