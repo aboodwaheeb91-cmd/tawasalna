@@ -1,6 +1,6 @@
 """
 test_login_ds.py — Login Form DS-INP / DS-VAL / DS-BTN runtime tests
-Scenarios A–T (20 total). Requires server at http://127.0.0.1:8000.
+Scenarios A–V (22 total). Requires server at http://127.0.0.1:8000.
 Run: python test_login_ds.py
 
 Fetch mock strategy: queue-based mock injected via page.evaluate().
@@ -10,6 +10,9 @@ Fetch mock strategy: queue-based mock injected via page.evaluate().
   _cnt(page) — return request count so far
 """
 import json, os, sys, time, traceback
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent
 
 BASE     = 'http://127.0.0.1:8000'
 CHROMIUM = os.environ.get('PLAYWRIGHT_CHROMIUM_PATH', None)
@@ -316,32 +319,46 @@ def test_o_invalid_2xx_no_redirect(page):
     btn = page.locator('#loginBtn')
     assert btn.get_attribute('disabled') is None, 'button must be restored on invalid 2xx'
 
-# ── P: Partial storage failure → rollback both keys, safe error ───────────────
+# ── P: Partial storage write → tw_user written, tw_jwt throws → full rollback ──
 def test_p_storage_failure_rollback(page):
     _fresh(page)
     _q(page, 200, _GOOD_RESP)
-    # Override localStorage.setItem to throw on tw_user write
+    # Partial write: tw_user setItem succeeds; tw_jwt setItem throws.
+    # The override is added as an own property on localStorage; 'delete' restores the prototype.
     page.evaluate("""() => {
-        const _origSet = localStorage.setItem.bind(localStorage);
+        const _orig = localStorage.setItem.bind(localStorage);
         localStorage.setItem = function(k, v) {
-            if(k === 'tw_user') throw new DOMException('QuotaExceededError');
-            return _origSet(k, v);
+            if(k === 'tw_jwt') throw new DOMException('QuotaExceededError');
+            return _orig(k, v);
         };
     }""")
     _fill(page, email='a@b.com', password='pass123')
     page.click('#loginBtn')
     page.wait_for_timeout(400)
+    # Must not redirect (rollback path returns early)
     redirected = page.evaluate('window.__mockRedirectUser')
-    assert not redirected, 'storage failure must NOT redirect'
-    # tw_user must not be present (rollback)
+    assert not redirected, 'partial write must NOT redirect'
+    # tw_user was written then rolled back — must be absent
     tw_user = page.evaluate("localStorage.getItem('tw_user')")
-    assert tw_user is None, f'tw_user must be rolled back on storage error, got: {tw_user}'
-    tw_jwt  = page.evaluate("localStorage.getItem('tw_jwt')")
-    assert tw_jwt  is None, f'tw_jwt must be rolled back on storage error, got: {tw_jwt}'
-    banner = page.locator('#l-form-error')
-    assert banner.is_visible(), 'storage error must show banner'
+    assert tw_user is None, \
+        f'tw_user must be rolled back after partial write (tw_jwt failure), got: {tw_user}'
+    # tw_jwt was never written — must be absent
+    tw_jwt = page.evaluate("localStorage.getItem('tw_jwt')")
+    assert tw_jwt is None, \
+        f'tw_jwt must not exist after rollback, got: {tw_jwt}'
+    # Form-level error banner must be visible
+    assert page.locator('#l-form-error').is_visible(), 'storage error must show form-level banner'
+    # Button must be restored (not stuck loading) — finally{} ran with _success=false
     btn = page.locator('#loginBtn')
-    assert btn.get_attribute('disabled') is None, 'button must be restored on storage failure'
+    assert btn.get_attribute('disabled') is None, 'button must be restored after storage failure'
+    # _submitting must have been reset — verify by confirming a retry fires a new request.
+    # delete removes the own-property override; Storage.prototype.setItem becomes visible again.
+    page.evaluate("delete localStorage.setItem")
+    _q(page, 401, {'detail': 'bad'})
+    page.click('#loginBtn')
+    page.wait_for_timeout(300)
+    assert _cnt(page) == 2, \
+        f'_submitting must be false after rollback — retry must fire; expected 2 requests, got {_cnt(page)}'
 
 # ── Q: Eye toggle — type, icons, aria-pressed, no request ─────────────────────
 def test_q_eye_toggle_full(page):
@@ -451,7 +468,7 @@ def test_u_autofill_clears_stale_errors(page):
 
 # ── V: Autofill CSS selectors scoped to #loginSection (source check) ────────────
 def test_v_autofill_selectors_scoped(page):
-    with open('/home/user/tawasalna/index.css', 'r', encoding='utf-8') as f:
+    with open(ROOT / 'index.css', encoding='utf-8') as f:
         css = f.read()
     # Must contain the scoped selector
     assert '#loginSection input:-webkit-autofill' in css, \

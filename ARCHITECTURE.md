@@ -8225,7 +8225,13 @@ Input event handlers remain in place for UX (real-time feedback), but the `doLog
 }
 ```
 
-Scoped to `#loginSection` only — register fields are intentionally not covered. `#0d1526` matches the existing `field select option` background (dark card surface). Manual check on Chromium: visual parity confirmed by automated Playwright test (test U autofill simulation).
+Scoped to `#loginSection` only — register fields are intentionally not covered. `#0d1526` matches the existing `field select option` background (dark card surface).
+
+**Test coverage:**
+- **Test U** — autofill-like stale-error simulation: sets `input.value` via JS without dispatching `input` events (mimics how browser autofill populates fields), then submits and verifies stale Required/Format errors are cleared. Test U does **not** trigger the actual `:-webkit-autofill` CSS pseudo-class — that requires a real browser autofill gesture.
+- **Test V** — CSS source check: verifies `#loginSection input:-webkit-autofill` exists in `index.css` and that no bare (unscoped) `input:-webkit-autofill` selector remains.
+
+Visual autofill styling (background colour override via `-webkit-box-shadow` inset) remains a **manual browser check** — automated Playwright tests cannot activate the `:-webkit-autofill` CSS state.
 
 #### `[hidden]` CSS scope
 
@@ -8246,8 +8252,8 @@ Scoped to `#loginSection` only — register fields are intentionally not covered
 
 #### CSS scope (permanent rules)
 
-- `#loginSection .cta` — outlined/glow button + `user-select:none` (register `.cta` unaffected)
-- `#loginSection .cta:focus-visible` — focus ring (register `.cta:focus-visible` unaffected)
+- `#loginSection .cta` — outlined/glow button, `user-select:none` (register `.cta` unaffected — base `.cta` unchanged)
+- `#loginSection .cta:focus-visible` — focus ring scoped to login only (register unaffected)
 - `#loginSection .field.has-error input` — danger border
 - `#loginSection .field-error` — error text (scoped; does NOT affect register)
 - `.l-input-wrap` — `position:relative; display:flex; align-items:center` (shared by both fields)
