@@ -126,11 +126,6 @@ body{font-family:'Cairo',sans-serif;background:#070b18;min-height:100vh;display:
 /* ── Utility ── */
 .hidden{display:none!important;}
 
-/* ── Simple toast ── */
-.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);padding:10px 18px;border-radius:12px;font-size:.78rem;font-weight:700;z-index:9999;transition:transform .3s;pointer-events:none;white-space:nowrap;}
-.toast.show{transform:translateX(-50%) translateY(0);}
-.toast.success{background:#065f46;color:#6ee7b7;border:1px solid rgba(110,231,183,.2);}
-.toast.error{background:#7f1d1d;color:#fca5a5;border:1px solid rgba(252,165,165,.2);}
 
 /* ── Logo image — centered, 130-160px wide ── */
 .logo-img{width:145px;height:auto;object-fit:contain;display:block;margin:0 auto;}
@@ -186,11 +181,7 @@ body{font-family:'Cairo',sans-serif;background:#070b18;min-height:100vh;display:
 @keyframes tw-spin{to{transform:translateY(-50%) rotate(360deg);}}
 @keyframes tw-fadein{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:none;}}
 @keyframes tw-verified{0%,100%{box-shadow:0 0 0 0 rgba(0,200,150,0);}50%{box-shadow:0 0 0 5px rgba(0,200,150,.15);}}
-.tw-toast[aria-live="polite"]{position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(20px);background:rgba(7,11,24,.97);border:1px solid rgba(255,255,255,.1);backdrop-filter:blur(20px);border-radius:14px;padding:12px 20px;display:flex;align-items:center;gap:10px;font-size:.82rem;font-family:Cairo,sans-serif;color:rgba(255,255,255,.92);opacity:0;transition:all .3s cubic-bezier(.34,1.56,.64,1);z-index:9999;white-space:nowrap;min-width:180px;justify-content:center;box-shadow:0 8px 32px rgba(0,0,0,.4);}
-.tw-toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
-.tw-toast.success{border-color:rgba(0,200,150,.3);}
-.tw-toast.error{border-color:rgba(239,68,68,.3);}
-.tw-toast.info{border-color:rgba(37,99,255,.3);}
+
 .tw-skeleton{background:linear-gradient(90deg,rgba(255,255,255,.04) 25%,rgba(255,255,255,.09) 50%,rgba(255,255,255,.04) 75%);background-size:2000px 100%;animation:tw-shimmer 1.5s infinite linear;border-radius:8px;}
 .tw-btn-loading{position:relative;pointer-events:none;opacity:.8;}
 .tw-btn-loading::after{content:'';position:absolute;width:14px;height:14px;border-radius:50%;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;animation:tw-spin .7s linear infinite;right:12px;top:50%;transform:translateY(-50%);}

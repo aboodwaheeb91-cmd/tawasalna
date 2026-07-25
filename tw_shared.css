@@ -20,9 +20,18 @@
   --t2:    rgba(255,255,255,.7);
   --t3:    rgba(255,255,255,.4);
   --t4:    rgba(255,255,255,.2);
+  --tw-feedback-bottom: 80px;   /* DS-FEEDBACK V1 — FBK-09 mobile offset (80px over bottom nav) */
   --danger: #f87171;
   --warning: #fbbf24;
   --success: #34d399;
+  --danger-rgb:  248,113,113;   /* = --danger: #f87171 */
+  --warning-rgb: 251,191,36;    /* = --warning: #fbbf24 */
+  --ac2-rgb:     37,99,255;     /* = --ac2: #2563ff */
+  /* DS-FEEDBACK V1 — Feedback Semantic Tokens (FBK-04) */
+  --fbk-bdr-success: rgba(var(--ac-rgb), .3);
+  --fbk-bdr-error:   rgba(var(--danger-rgb), .3);
+  --fbk-bdr-warning: rgba(var(--warning-rgb), .3);
+  --fbk-bdr-info:    rgba(var(--ac2-rgb), .3);
 }
 
 /* ══════════════════════════════════════
@@ -284,6 +293,48 @@ body {
 .tw-toast.success { border-color: rgba(0,200,150,.3); }
 .tw-toast.error   { border-color: rgba(239,68,68,.3); }
 .tw-toast.info    { border-color: rgba(37,99,255,.3); }
+
+/* ── DS-FEEDBACK V1 Canonical (FBK-28 Runtime Direction) ── */
+.tw-snackbar {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  bottom: var(--tw-feedback-bottom, 24px);   /* FBK-09: --tw-feedback-bottom in :root = 80px (over bottom nav) */
+  opacity: 0;
+  background: rgba(7,11,24,.97);
+  border: 1px solid var(--bdr);
+  border-radius: 14px;
+  padding: 10px 16px;
+  font-size: .78rem;
+  font-weight: 700;
+  font-family: 'Cairo', sans-serif;
+  z-index: 9999;   /* placeholder — Global Layer Token pending (FBK-11) */
+  transition: opacity .3s, transform .3s;
+  pointer-events: none;   /* Message Body V1 — FBK-13 */
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: min(90vw, 400px);   /* FBK-25 #16 */
+  white-space: normal;           /* FBK-25 #17 */
+}
+
+.tw-snackbar.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+.tw-snackbar.success { border-color: var(--fbk-bdr-success); }   /* FBK-04 */
+.tw-snackbar.error   { border-color: var(--fbk-bdr-error); }
+.tw-snackbar.warning { border-color: var(--fbk-bdr-warning); }
+.tw-snackbar.info    { border-color: var(--fbk-bdr-info); }
+
+@media (prefers-reduced-motion: reduce) {
+  .tw-snackbar { transition-duration: 0.01ms !important; }   /* FBK-18 */
+}
+
+@media (min-width: 600px) {
+  :root { --tw-feedback-bottom: 24px; }   /* FBK-09 Desktop: no bottom nav — update variable, not property */
+}
 
 /* ══════════════════════════════════════
    9. Status Badges

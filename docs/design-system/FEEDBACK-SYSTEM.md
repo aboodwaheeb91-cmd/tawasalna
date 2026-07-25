@@ -217,7 +217,12 @@ Flutter Runtime ستستخدم `SnackBar` widget بنفس semantics.
 
 ### التنفيذ الحالي
 
-`tw_shared.js` يحتفظ بـ `_twToast` كـ reference للعنصر الحالي. هذا النمط صحيح ويجب الحفاظ عليه في Runtime المستقبلي مع إضافة `_twTimer` reference للـ timeout (FBK-24 — Runtime Debt M2).
+`tw_shared.js` يحتفظ بمتغيرين على مستوى الوحدة:
+
+- `_twSurface` — reference للعنصر الوحيد الحالي (Single Global Surface). يُستخدم لإزالة السطح القديم قبل إنشاء سطح جديد.
+- `_twTimer` — reference لأحدث `setTimeout` نشط. `clearTimeout(_twTimer)` يُستدعى في بداية كل `showToast()` لتطبيق Latest Replaces Current (FBK-06).
+
+كلا المتغيرين مُطبَّقان ونشطان في `tw_shared.js` الحالي (feat/ds-feedback-runtime-v1).
 
 ---
 
@@ -539,23 +544,26 @@ Surface Architecture [Conceptual]:
 
 الأيقونة `aria-hidden="true"` لأن Screen Reader يقرأ النص فقط.
 
-### Icon System المطلوب
+### الوضع الحالي في Canonical V1
 
-الـ Runtime الحالي يستخدم Emoji (`✅ ❌ ℹ️`) كـ placeholder. هذه **ليست** Architecture Contract النهائي.
+**Canonical DS-FEEDBACK Runtime (`tw_shared.js`) لا يعرض icons في V1.** لا Emoji ولا SVG. الـ Snackbar يعرض نص الرسالة فقط داخل `<span>`. هذا القرار المعماري لـ V1 ولا يُعتبر نقصاً — Icon System مؤجَّل لـ DS-ASSET.
 
-**المطلوب في Runtime Phase:**
-- استخدام Icon System الرسمي للمشروع عند توثيقه (DS-ASSET — مؤجل).
+**Local legacy copies** (M9 — settings.html وغيرها) قد ما زالت تستخدم Emoji كـ placeholder داخل `showToast()` محلية. هذه مرشحة للمحو في PRs Migration، ولا تُمثِّل Architecture Contract.
+
+### Icon System المستقبلي (DS-ASSET — مؤجل)
+
+**المطلوب عند توثيق DS-ASSET:**
+- استخدام Icon System الرسمي للمشروع.
 - إذا لم يُوثَّق DS-ASSET: استخدم SVG icons مضمَّنة بـ `aria-hidden="true"`.
 - ممنوع تعريف Icon Contract محلي داخل DS-FEEDBACK — يُدخَّر لـ DS-ASSET.
 
-### العلامات الحالية كـ Runtime Placeholder
+### ممنوعات دائمة
 
-| النوع | Emoji الحالي | ملاحظة |
-|-------|-------------|---------|
-| `success` | `✅` | Placeholder — ليس Architecture Contract |
-| `error` | `❌` | Placeholder — ليس Architecture Contract |
-| `info` | `ℹ️` | Placeholder — ليس Architecture Contract |
-| `warning` | لا يوجد | يُضاف في Runtime Phase |
+```
+❌ إضافة Emoji كـ Architecture Contract في Canonical Runtime
+❌ اختراع SVG Icon Contract محلي داخل DS-FEEDBACK قبل DS-ASSET
+❌ التوثيق بأن Canonical V1 يستخدم Emoji — لم يعد صحيحاً
+```
 
 ---
 
@@ -773,42 +781,41 @@ Orchestration تستدعي الاثنين — لا coupling مباشر.
 
 ---
 
-## FBK-21 — XSS Security Contract — P0 Runtime Debt
+## FBK-21 — XSS Security Contract (P0 — مُصلَح في Canonical)
 
-### المشكلة الحالية (P0)
+### الوضع الحالي
 
-في `tw_shared.js` السطر الحالي:
+**Canonical Runtime (`tw_shared.js`) مُصلَح** — feat/ds-feedback-runtime-v1 أزال `innerHTML` واستبدله بـ DOM construction آمن + `textContent` حصراً. لم تعد هذه ثغرة نشطة في الـ Canonical Runtime.
 
-```js
-t.innerHTML = '<span>' + ico + '</span><span>' + msg + '</span>';
-```
+**Local legacy copies** (M9 — settings.html وغيرها) قد ما زالت تستخدم `innerHTML` — تُصلَح تدريجياً في PRs Migration المستقلة.
 
-`msg` يدخل مباشرةً في `innerHTML`. إذا كانت `msg` تحتوي على نص مصدره API أو input خارجي — هذا **XSS Vulnerability نشط**.
-
-### الـ Architecture Contract (إلزامي في Runtime Phase)
+### الـ Architecture Contract الدائم
 
 ```
-قاعدة P0: أي نص dynamic داخل DS-FEEDBACK يجب أن يُعيَّن عبر textContent فقط.
-ممنوع innerHTML للنص الديناميكي.
+قاعدة P0 ثابتة: أي نص dynamic داخل DS-FEEDBACK يُعيَّن عبر textContent فقط.
+ممنوع innerHTML للنص الديناميكي — في Canonical وفي أي نسخة محلية.
 ```
 
 ```js
-// ✅ الصحيح في Runtime Phase
-const surface = document.createElement('div')
-const icoSpan = document.createElement('span')
-const msgSpan = document.createElement('span')
-icoSpan.setAttribute('aria-hidden', 'true')
-icoSpan.textContent = ico         // ← الأيقونة — safe أيضاً
-msgSpan.textContent = msg         // ← XSS-safe
-surface.appendChild(icoSpan)
-surface.appendChild(msgSpan)
+// ✅ الصحيح — Canonical tw_shared.js (مُطبَّق)
+var msgSpan = document.createElement('span');
+surface.appendChild(msgSpan);
+document.body.appendChild(surface);  // live region أولاً (FBK-12)
+_twSurface = surface;
+msgSpan.textContent = msg;           // textContent بعد إدراج الـ surface — XSS-safe + ARIA-correct
 ```
 
-### الأثر
+### الأثر على المتصل
 
-- لا يُصلَح هذا في Documentation PR الحالي.
-- كل مسؤول عن استدعاء `showToast()` يجب أن يُمرِّر رسائل مُصنَّفة لا HTML خام.
-- الـ Runtime Fix مُدرَج في FBK-24 (Runtime Debts Catalogue) Priority P0.
+- كل مسؤول عن استدعاء `showToast()` يجب أن يُمرِّر رسائل مُصنَّفة — لا HTML خام، لا response body مباشر. السلسلة: API-MUT-11 → Feature Orchestration → DS-FEEDBACK.
+- المتصل لا يحتاج HTML encoding — `textContent` تتولى ذلك تلقائياً.
+
+### ممنوعات دائمة
+
+```
+❌ innerHTML لأي نص dynamic في DS-FEEDBACK Runtime — في أي صفحة
+❌ توثيق أن XSS ما زالت نشطة في Canonical Runtime — مُصلَحة في feat/ds-feedback-runtime-v1
+```
 
 ---
 
@@ -902,30 +909,35 @@ P4 (إزالة): إزالة Local implementations بعد انتهاء مستخد
 
 ## FBK-24 — Runtime Debts Catalogue
 
+> **feat/ds-feedback-runtime-v1** أصلح: M0 M1 M2 M3 M4 M6 M7 M16 في الـ Canonical Implementation.
+> الباقي (M5 M8–M15 M17) يبقى دَيناً للـ PRs اللاحقة.
+
 | معرّف | الملف | المشكلة | الأولوية | الحل |
 |-------|-------|---------|---------|------|
-| **M0** | `tw_shared.js:22` | `t.innerHTML = '<span>'+msg+'</span>'` — XSS | **P0** | `textContent` + DOM construction آمن |
-| **M1** | `tw_shared.css` | `bottom: 24px` على Mobile — يغطي Bottom Nav | P1 | `--tw-feedback-bottom: 80px` + media query |
-| **M2** | `tw_shared.js` | لا `clearTimeout(_twTimer)` — timer قديم يخفي Feedback أحدث | P1 | إضافة `_twTimer` reference + `clearTimeout` |
-| **M3** | `tw_shared.js` | لا `role="status" aria-live="polite" aria-atomic="true"` | P1 | إضافة ARIA attributes عند إنشاء العنصر |
-| **M4** | `tw_shared.css` | `left: 50%; transform: translateX(-50%)` بحاجة تحقق RTL | P1 | تأكيد behavior في RTL context |
+| **M0** ✅ | `tw_shared.js` | `t.innerHTML = '<span>'+msg+'</span>'` — XSS | ~~P0~~ **مُصلَح** | `textContent` + DOM construction آمن — `tw_shared.js` + `index.ui.js` |
+| **M1** ✅ | `tw_shared.css` | `bottom: 24px` على Mobile — يغطي Bottom Nav؛ Desktop media query كان يُعيِّن `bottom` مباشرةً بدلاً من تحديث المتغير | ~~P1~~ **مُصلَح** | `--tw-feedback-bottom: 80px` في `:root` (Mobile)؛ `@media(min-width:600px){ :root { --tw-feedback-bottom: 24px; } }` (Desktop — يُحدِّث المتغير لا الخاصية). تكامل Layout-specific offsets موثَّق في M17 |
+| **M2** ✅ | `tw_shared.js` | لا `clearTimeout(_twTimer)` — timer قديم يخفي Feedback أحدث | ~~P1~~ **مُصلَح** | `_twTimer` + `clearTimeout` في كل استدعاء |
+| **M3** ✅ | `tw_shared.js` | لا `role="status" aria-live="polite" aria-atomic="true"` — وكان `textContent` يُعيَّن قبل الإدراج في DOM | ~~P1~~ **مُصلَح** | ARIA attributes عند إنشاء `.tw-snackbar`؛ `document.body.appendChild(surface)` يُستدعى قبل `msgSpan.textContent = msg` (FBK-12 announcement lifecycle) |
+| **M4** ✅ | `tw_shared.css` | `left: 50%; transform: translateX(-50%)` بحاجة تحقق RTL | ~~P1~~ **مؤكَّد** | تأكيد اختبار RTL: left=50% يعمل صحيحاً |
 | **M5** | `tw_shared.css` | `z-index: 9999` hardcoded — ليس Global Layer Token | P2 | استبدال بـ token عند إنشاء Global Layer Tokens |
-| **M6** | `tw_shared.css` | `white-space: nowrap` بدون `max-width` | P2 | `max-width: min(90vw, 400px); white-space: normal` |
-| **M7** | `tw_shared.css` | لا `warning` type border-color | P2 | إضافة `.warning { border-color: rgba(251,191,36,.3); }` |
+| **M6** ✅ | `tw_shared.css` | `white-space: nowrap` بدون `max-width` | ~~P2~~ **مُصلَح** | `max-width: min(90vw, 400px); white-space: normal` في `.tw-snackbar` |
+| **M7** ✅ | `tw_shared.css` | لا `warning`/`error`/`info` type border-color؛ كانت القيم hardcoded rgba بدلاً من Semantic Tokens (FBK-04) | ~~P2~~ **مُصلَح** | أُضيف `--danger-rgb`، `--warning-rgb`، `--ac2-rgb` إلى `:root`؛ Feedback Semantic Tokens: `--fbk-bdr-success/error/warning/info: rgba(var(--*-rgb),.3)`؛ type rules تستخدم `var(--fbk-bdr-*)` |
 | **M8** | `profile-v2.utils.js` | `toast(msg)` — API مختلف، لا type، مدة مختلفة (2200ms) | P2 | يستدعي Canonical API أو يتماشى معه |
-| **M9** | `settings.html:478` | Local `showToast` مكررة | P2 | حذف + استخدام `tw_shared.js` |
-| **M10** | متعدد | Emoji `✅ ❌ ℹ️` كـ icon — Placeholder | P3 | استبدال بـ Icon System رسمي (DS-ASSET) |
+| **M9** | `settings.html:478` و10 ملفات أخرى | Local `showToast` مكررة (XSS) | P2 | Migration FBK-23 — PR منفصل لكل صفحة |
+| **M10** | متعدد | Emoji `✅ ❌ ℹ️` كـ icon — Canonical أزالها، Local copies ما زالت تستخدمها | P3 | استبدال بـ Icon System رسمي (DS-ASSET) |
 | **M11** | `tw_shared.js` | لا `pointer-events: none` على المستوى الصحيح | P3 | توضيح لا يكسر V2 Action Zone |
 | **M12** | `company.html` `appointment-room.html` `appointments.html` | `alert()` Category A+B | P2 | استبدال بـ DS-FEEDBACK |
 | **M13** | `appointment-room.html` `appointments.html` | `alert()` Category C — validation | P2 | استبدال بـ DS-VAL |
 | **M14** | `company.html:624` | `alert()` لعرض قائمة متقدمين | P3 | Modal أو DS-OVL solution |
 | **M15** | متعدد | `showToast(res.detail, 'error')` بدون normalization | P2 | Wrap بـ `normalizeErrorResponse()` |
+| **M16** ✅ | `index.ui.js` / `index.html` / `index.css` | Login page كانت تملك محرك Feedback منفصل (`#toast` + CSS محلي) يتعارض مع Single Global Surface | ~~P1~~ **مُصلَح** | `toast()` في `index.ui.js` أصبح Compatibility Wrapper (`window.showToast(msg, type||'success')`)؛ `#toast` div أُزيل من `index.html`؛ `.toast`/`.toast.show` + `.tw-toast[aria-live]` CSS أُزيل من `index.css` |
+| **M17** | صفحات ذات Bottom UI ثابت (مثال: `messages.html` — composer) | `--tw-feedback-bottom` يحتاج override محلياً في كل صفحة تملك UI ثابت في أسفلها يرتفع فوق قيمة `:root` الافتراضية | P2 | كل صفحة مؤهَّلة تُضيف `:root { --tw-feedback-bottom: Xpx; }` أو `.page-class { --tw-feedback-bottom: Xpx; }` حسب ارتفاع UI الخاص بها — PR منفصل لكل صفحة |
 
 ---
 
 ## FBK-25 — Must-Have V1
 
-الـ Runtime المستقبلي لـ DS-FEEDBACK يجب أن يُطبِّق جميع هذه البنود:
+Canonical Runtime V1 (`tw_shared.js`) يُطبِّق جميع هذه البنود — البنود غير المُكتملة تبقى ديناً موثَّقاً في FBK-24:
 
 | # | المتطلب |
 |---|---------|
@@ -1010,69 +1022,93 @@ P4 (إزالة): إزالة Local implementations بعد انتهاء مستخد
 
 ---
 
-## FBK-28 — Runtime Direction (Non-binding)
+## FBK-28 — Canonical Runtime V1 — التنفيذ الفعلي في `tw_shared.js` / `tw_shared.css`
 
-> **هذا القسم غير مُلزِم.** يصف اتجاهاً مقترحاً للـ Runtime phase عند طلبه. لا تُنشئ أي Runtime file قبل موافقة صريحة.
+DS-FEEDBACK V1 Runtime **مُطبَّق فعلياً** في `tw_shared.js` و`tw_shared.css` ضمن `feat/ds-feedback-runtime-v1`. هذا القسم يوثِّق التنفيذ الحالي — وليس اقتراحاً مستقبلياً.
 
-### الملف المقترح: `tw_shared.js` (تحديث — لا ملف جديد)
+### الملف الفعلي: `tw_shared.js` (تحديث موجود — لا ملف جديد)
 
-DS-FEEDBACK V1 Runtime يُطبَّق **بتحسين `tw_shared.js` الموجود** — لا بإنشاء `tw-feedback.js` منفصل.
+DS-FEEDBACK V1 Runtime مُطبَّق **بتحسين `tw_shared.js` الموجود** — لا بإنشاء `tw-feedback.js` منفصل.
 
 `showToast(msg, type, dur)` هو المدخل الوحيد في V1. `dur` يُتجاهَل إذا كانت Duration Policy مركزية (`dur` للـ backward compat فقط).
 
-### نمط منشئ العنصر الآمن
+### نمط منشئ العنصر الآمن (الكود الفعلي المُطبَّق)
+
+> الكود أدناه هو التنفيذ الفعلي في `tw_shared.js` — وليس مجرد اقتراح.
 
 ```js
-// نمط V1 Runtime المقترح
-var _twTimer = null;
+// DS-FEEDBACK V1 — F34 · tw_shared.js (feat/ds-feedback-runtime-v1)
+var _twTimer   = null;
 var _twSurface = null;
-
 var FBK_DURATION = { success: 2800, info: 3200, warning: 4000, error: 4500 };
 
 function showToast(msg, type, _legacyDur) {
-  type = type || 'success';
-  var dur = FBK_DURATION[type] || FBK_DURATION.success;
+  if (msg == null) return;
+  if (type !== 'success' && type !== 'error' && type !== 'warning' && type !== 'info') type = 'success';
+  var dur = FBK_DURATION[type];   // مدة مركزية — _legacyDur مُتجاهَل (FBK-07)
 
-  clearTimeout(_twTimer);           // إلغاء timer القديم
-  if (_twSurface) _twSurface.remove();
+  clearTimeout(_twTimer);         // Latest Replaces Current (FBK-06)
+  if (_twSurface) { _twSurface.remove(); _twSurface = null; }
 
+  // DOM construction — textContent فقط، ممنوع innerHTML (FBK-21 XSS P0)
   var surface = document.createElement('div');
+  surface.className = 'tw-snackbar ' + type;
   surface.setAttribute('role', 'status');
   surface.setAttribute('aria-live', 'polite');
   surface.setAttribute('aria-atomic', 'true');
-  surface.className = 'tw-snackbar ' + type;
-
   var msgSpan = document.createElement('span');
-  msgSpan.textContent = msg;        // XSS-safe
   surface.appendChild(msgSpan);
-
-  document.body.appendChild(surface);
+  document.body.appendChild(surface);  // live region يُدرَج في DOM أولاً (FBK-12)
   _twSurface = surface;
+  msgSpan.textContent = msg;           // textContent بعد الإدراج — يُشغِّل إعلان AT
 
+  // Lifecycle: hidden → entering → visible (FBK-08)
   requestAnimationFrame(function() {
-    requestAnimationFrame(function() {
-      surface.classList.add('show');
-    });
+    requestAnimationFrame(function() { surface.classList.add('show'); });
   });
 
+  // Lifecycle: visible → exiting → hidden (FBK-08)
   _twTimer = setTimeout(function() {
     surface.classList.remove('show');
-    setTimeout(function() {
-      if (surface.parentNode) surface.remove();
+    setTimeout(function() {   // تنظيف DOM بعد CSS transition (300ms)
+      if (surface.parentNode) { surface.remove(); if (_twSurface === surface) _twSurface = null; }
     }, 350);
+    setTimeout(function() {   // Stuck State Guard (FBK-08): إزالة قسرية بعد 1000ms
+      if (surface.parentNode) { surface.remove(); if (_twSurface === surface) _twSurface = null; }
+    }, 1000);
   }, dur);
 }
 window.showToast = showToast;
 ```
 
-### نمط الـ CSS (V1)
+**الملاحظات المعمارية على الكود:**
+- `_twSurface === surface` — identity guard يمنع timer قديم من إزالة surface أحدث (FBK-06)
+- `document.body.appendChild(surface)` قبل `msgSpan.textContent` — ARIA Announcement Lifecycle (FBK-12)
+- لا icons ولا Emoji في V1 — نص الرسالة فقط
+- `_legacyDur` مقبول كـ parameter للتوافق العكسي لكنه مُتجاهَل
+
+### نمط الـ CSS (الكود الفعلي المُطبَّق)
+
+> الكود أدناه هو التنفيذ الفعلي في `tw_shared.css` — وليس مجرد اقتراح.
 
 ```css
+:root {
+  --tw-feedback-bottom: 80px;     /* FBK-09 Mobile: فوق Bottom Nav */
+  /* Feedback Semantic Tokens (FBK-04) */
+  --danger-rgb:  248,113,113;
+  --warning-rgb: 251,191,36;
+  --ac2-rgb:     37,99,255;
+  --fbk-bdr-success: rgba(var(--ac-rgb), .3);
+  --fbk-bdr-error:   rgba(var(--danger-rgb), .3);
+  --fbk-bdr-warning: rgba(var(--warning-rgb), .3);
+  --fbk-bdr-info:    rgba(var(--ac2-rgb), .3);
+}
+
 .tw-snackbar {
   position: fixed;
   left: 50%;
   transform: translateX(-50%) translateY(20px);
-  bottom: var(--tw-feedback-bottom, 24px);
+  bottom: var(--tw-feedback-bottom, 24px);  /* FBK-09: variable-driven */
   opacity: 0;
   background: rgba(7,11,24,.97);
   border: 1px solid var(--bdr);
@@ -1081,9 +1117,9 @@ window.showToast = showToast;
   font-size: .78rem;
   font-weight: 700;
   font-family: 'Cairo', sans-serif;
-  z-index: 9999;  /* placeholder — سيُستبدَل بـ Global Layer Token */
+  z-index: 9999;  /* placeholder — سيُستبدَل بـ Global Layer Token (M5) */
   transition: opacity .3s, transform .3s;
-  pointer-events: none;   /* Message Body — V1 */
+  pointer-events: none;   /* FBK-13 */
   max-width: min(90vw, 400px);
   white-space: normal;
   display: flex;
@@ -1096,17 +1132,19 @@ window.showToast = showToast;
   transform: translateX(-50%) translateY(0);
 }
 
-.tw-snackbar.success { border-color: rgba(0,200,150,.3); }
-.tw-snackbar.error   { border-color: rgba(248,113,113,.3); }
-.tw-snackbar.warning { border-color: rgba(251,191,36,.3); }
-.tw-snackbar.info    { border-color: rgba(37,99,255,.3); }
+/* Semantic Tokens — ممنوع rgba hardcoded (FBK-04) */
+.tw-snackbar.success { border-color: var(--fbk-bdr-success); }
+.tw-snackbar.error   { border-color: var(--fbk-bdr-error); }
+.tw-snackbar.warning { border-color: var(--fbk-bdr-warning); }
+.tw-snackbar.info    { border-color: var(--fbk-bdr-info); }
 
 @media (prefers-reduced-motion: reduce) {
-  .tw-snackbar { transition-duration: 0.01ms !important; }
+  .tw-snackbar { transition-duration: 0.01ms !important; }   /* FBK-18 */
 }
 
+/* FBK-09 Desktop: يُحدِّث المتغير لا الخاصية مباشرةً */
 @media (min-width: 600px) {
-  .tw-snackbar { bottom: 24px; }
+  :root { --tw-feedback-bottom: 24px; }
 }
 ```
 

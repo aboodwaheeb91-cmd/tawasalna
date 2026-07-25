@@ -1,5 +1,5 @@
 // index.ui.js — Auth Gateway: UI effects, form switching, role selector, utilities
-// Responsibilities: selectType(), showRegister(), showLogin(), toast(),
+// Responsibilities: selectType(), showRegister(), showLogin(), toast() (→ showToast wrapper),
 //                   checkPassStrength(), ITQAN utilities, hash-based auto-route.
 // Does NOT contain any auth logic — login/register/redirect live in index.auth.js.
 // Version: auth-gw-v8
@@ -112,14 +112,10 @@ function showLogin(){
   if(typeRow) typeRow.classList.remove('has-selection');
 }
 
-// ── Simple inline toast ───────────────────────────────────────────────────────
+// ── Toast compatibility wrapper ───────────────────────────────────────────────
+// Delegates to canonical DS-FEEDBACK runtime (tw_shared.js showToast). No local Surface.
 function toast(msg, type){
-  type = type || 'success';
-  var t = document.getElementById('toast');
-  if(!t) return;
-  t.textContent = msg;
-  t.className = 'toast ' + type + ' show';
-  setTimeout(function(){ t.classList.remove('show'); }, 3200);
+  window.showToast(msg, type || 'success');
 }
 
 // ── Password strength bar ─────────────────────────────────────────────────────
@@ -149,26 +145,7 @@ function checkPassStrength(val){
   label.style.color = level.c;
 }
 
-// ── ITQAN shared utilities ────────────────────────────────────────────────────
-var _twToast = null;
-function showToast(msg, type, dur){
-  type = type || 'success'; dur = dur || 2800;
-  if(_twToast){ _twToast.remove(); }
-  var t = document.createElement('div');
-  t.className = 'tw-toast ' + type;
-  t.setAttribute('aria-live', 'polite');
-  var ico = type === 'success' ? '✅' : type === 'error' ? '❌' : 'ℹ️';
-  t.innerHTML = '<span>' + ico + '</span><span>' + msg + '</span>';
-  document.body.appendChild(t);
-  _twToast = t;
-  requestAnimationFrame(function(){
-    requestAnimationFrame(function(){ t.classList.add('show'); });
-  });
-  setTimeout(function(){
-    t.classList.remove('show');
-    setTimeout(function(){ if(t.parentNode) t.remove(); }, 350);
-  }, dur);
-}
+// showToast provided by tw_shared.js (loaded before this file)
 
 function setBtnLoad(btn, loading){
   if(!btn) return;
