@@ -227,8 +227,26 @@ body{font-family:'Cairo',sans-serif;background:#070b18;min-height:100vh;display:
 /* ── DS-INP: Email field direction override (INP-09) ── */
 #lEmail{direction:ltr;text-align:left;}
 
-/* Explicit [hidden] rule — UA stylesheet cannot always be relied on for SVG/inline elements */
-[hidden]{display:none!important;}
+/* Scoped [hidden] rule — SVGElement does not reflect .hidden as a DOM attribute;
+   this covers lEyeHide, field-error spans, and l-form-error banner inside loginSection only. */
+#loginSection [hidden]{display:none!important;}
+
+/* ── DS-INP INP-11: Autofill visual contract (Login only) ──
+   Prevents Chrome/Android/password-manager autofill from imposing a yellow/white background
+   that breaks the dark design. box-shadow trick overrides Chromium's internal UA autofill style.
+   Scoped to #loginSection; register fields are intentionally not covered here. */
+#loginSection input:-webkit-autofill,
+#loginSection input:-webkit-autofill:hover,
+#loginSection input:-webkit-autofill:focus{
+  -webkit-box-shadow:0 0 0 1000px #0d1526 inset!important;
+  -webkit-text-fill-color:#fff!important;
+  caret-color:#fff;
+  transition:background-color 5000s ease-in-out 0s;
+}
+#loginSection input:autofill{
+  background-color:#0d1526!important;
+  color:#fff!important;
+}
 
 /* ── DS-VAL: Field error state (scoped to #loginSection) ── */
 #loginSection .field.has-error input{border-color:rgb(var(--danger-rgb,239,68,68));}

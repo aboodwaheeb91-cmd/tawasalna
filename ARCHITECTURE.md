@@ -8112,7 +8112,7 @@ The **login-only** fields apply DS-INP / DS-VAL / DS-BTN contracts. Register fie
 
 #### Eye button toggle (INP-11)
 
-`index.ui.js` toggles `passEl.type`, `aria-pressed`, `aria-label`, and sets `eyeShow.hidden` / `eyeHide.hidden`. No `innerHTML` — static two-icon approach avoids DOM mutation.
+`index.ui.js` toggles `passEl.type`, `aria-pressed`, `aria-label`, and shows/hides the icons. **SVGElement does not reflect `.hidden` as a DOM attribute**, so the code uses `setAttribute('hidden','')` / `removeAttribute('hidden')` — not `element.hidden = bool` — to ensure the CSS `[hidden]` rule fires correctly.
 
 #### Validation state machine (DS-VAL VAL-05, VAL-12)
 
@@ -8196,6 +8196,40 @@ try {
 ```
 
 Invariant: after a storage failure, neither `tw_user` nor `tw_jwt` must be present in `localStorage`.
+
+#### Submit-time stale error cleanup (Autofill contract)
+
+`doLogin()` explicitly clears field errors for valid fields inside the validation block — **not only via input events**. This is required because browser autofill and password managers may populate `#lEmail` and `#lPass` without dispatching `input` events:
+
+- Email valid → `_lEmailErrorKind = null; _lClearFieldError('wrapper-lEmail', 'l-email-error')`
+- Password non-empty → `_lClearFieldError('wrapper-lPass', 'l-pass-error')`
+
+Input event handlers remain in place for UX (real-time feedback), but the `doLogin()` cleanup is the authoritative path that guarantees no stale error persists when a valid submit is attempted.
+
+#### Autofill visual contract (index.css — Login only)
+
+`#loginSection input:-webkit-autofill` / `#loginSection input:-webkit-autofill:focus` override Chromium's forced autofill background (yellow/blue) using the standard box-shadow inset trick:
+
+```css
+#loginSection input:-webkit-autofill,
+#loginSection input:-webkit-autofill:hover,
+#loginSection input:-webkit-autofill:focus{
+  -webkit-box-shadow: 0 0 0 1000px #0d1526 inset !important;
+  -webkit-text-fill-color: #fff !important;
+  caret-color: #fff;
+  transition: background-color 5000s ease-in-out 0s;
+}
+#loginSection input:autofill{
+  background-color: #0d1526 !important;
+  color: #fff !important;
+}
+```
+
+Scoped to `#loginSection` only — register fields are intentionally not covered. `#0d1526` matches the existing `field select option` background (dark card surface). Manual check on Chromium: visual parity confirmed by automated Playwright test (test U autofill simulation).
+
+#### `[hidden]` CSS scope
+
+`index.css` contains `#loginSection [hidden]{display:none!important;}` — deliberately scoped, not global. Rationale: all elements with a `hidden` attribute that require CSS enforcement (`#lEyeHide`, `#l-email-error`, `#l-pass-error`, `#l-form-error`) are descendants of `#loginSection`. A global `[hidden]` rule would silently affect any future element outside Login that uses the `hidden` attribute.
 
 #### Button lifecycle (DS-BTN BTN-09)
 

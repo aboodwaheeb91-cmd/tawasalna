@@ -369,16 +369,36 @@ def test_q_eye_toggle_full(page):
     assert not eyeHide.is_visible(), 'lEyeHide must hide again'
     assert _cnt(page) == 0, 'eye toggle must not fire any login requests'
 
-# ── R: Register button has gradient bg, login button has outline style ─────────
+# ── R: Login outlined, Register gradient — confirmed by computed style ────────
 def test_r_button_styles(page):
     _fresh(page)
-    login_bg = page.evaluate(
-        "getComputedStyle(document.getElementById('loginBtn')).backgroundColor"
+    # Login button: #loginSection .cta overrides to background:transparent + green border
+    login_bg_img = page.evaluate(
+        "getComputedStyle(document.getElementById('loginBtn')).backgroundImage"
     )
-    # Login CTA inside #loginSection should be transparent/outline, not solid gradient fill
-    # background should either be transparent or rgba(0,0,0,0)
-    assert 'rgba(0, 0, 0, 0)' in login_bg or 'transparent' in login_bg, \
-        f'#loginBtn background must be transparent (outlined), got: {login_bg}'
+    assert login_bg_img == 'none', \
+        f'#loginBtn must have no background-image (outlined), got: {login_bg_img}'
+    login_border = page.evaluate(
+        "getComputedStyle(document.getElementById('loginBtn')).borderColor"
+    )
+    # var(--ac) = #00c896 = rgb(0,200,150)
+    assert '0, 200, 150' in login_border or 'rgb(0, 200, 150)' in login_border, \
+        f'#loginBtn must have green (#00c896) outlined border, got: {login_border}'
+
+    # Register button: .cta base = linear-gradient — must NOT be overridden to transparent
+    # Show register section first to make #regBtn accessible
+    page.evaluate('showRegister()')
+    page.wait_for_timeout(50)
+    reg_bg_img = page.evaluate(
+        "getComputedStyle(document.getElementById('regBtn')).backgroundImage"
+    )
+    assert 'linear-gradient' in reg_bg_img, \
+        f'#regBtn must retain gradient background (Login scope must not leak), got: {reg_bg_img}'
+    reg_border_w = page.evaluate(
+        "getComputedStyle(document.getElementById('regBtn')).borderWidth"
+    )
+    assert reg_border_w == '0px', \
+        f'#regBtn must have no border (border:none from .cta base), got: {reg_border_w}'
 
 # ── S: Mobile 375px — no overflow, 44px eye touch target, errors visible ──────
 def test_s_mobile_375px(page):
@@ -400,6 +420,55 @@ def test_s_mobile_375px(page):
     assert page.locator('#l-pass-error').is_visible(),  'pass error must be visible at 375px'
     # Reset viewport
     page.set_viewport_size({'width': 1280, 'height': 800})
+
+# ── U: Autofill simulation — stale errors cleared inside Submit, no input events ─
+def test_u_autofill_clears_stale_errors(page):
+    _fresh(page)
+    # Step 1: submit empty → both Required errors appear
+    page.click('#loginBtn')
+    assert page.locator('#l-email-error').is_visible(), 'email error must appear on empty submit'
+    assert page.locator('#l-pass-error').is_visible(),  'pass error must appear on empty submit'
+    # Step 2: simulate autofill — set values via JS WITHOUT dispatching any input event
+    page.evaluate("""() => {
+        document.getElementById('lEmail').value = 'valid@example.com';
+        document.getElementById('lPass').value = 'password123';
+        // Intentionally no dispatchEvent — mimics browser autofill behaviour
+    }""")
+    # Step 3: queue a 401 (fields are valid so doLogin() proceeds to fetch)
+    _q(page, 401, {'detail': 'wrong password'})
+    # Step 4: click Login again
+    page.click('#loginBtn')
+    page.wait_for_timeout(400)
+    # Both field errors must be gone (cleared by doLogin() submit-time cleanup)
+    assert not page.locator('#l-email-error').is_visible(), \
+        'email error must be cleared by submit-time cleanup when field is valid'
+    assert not page.locator('#l-pass-error').is_visible(), \
+        'pass error must be cleared by submit-time cleanup when field is non-empty'
+    # Auth failure banner must show (401 → safe message)
+    assert page.locator('#l-form-error').is_visible(), \
+        'form error banner must appear on 401'
+    assert _cnt(page) == 1, f'must fire exactly 1 login request, got {_cnt(page)}'
+
+# ── V: Autofill CSS selectors scoped to #loginSection (source check) ────────────
+def test_v_autofill_selectors_scoped(page):
+    with open('/home/user/tawasalna/index.css', 'r', encoding='utf-8') as f:
+        css = f.read()
+    # Must contain the scoped selector
+    assert '#loginSection input:-webkit-autofill' in css, \
+        'index.css must contain #loginSection input:-webkit-autofill'
+    # Must NOT contain a bare (global) autofill selector
+    css_without_scoped = css.replace('#loginSection input:-webkit-autofill', '')
+    assert 'input:-webkit-autofill' not in css_without_scoped, \
+        'input:-webkit-autofill must appear only under #loginSection scope'
+    # [hidden] rule must be scoped to #loginSection, not global
+    assert '#loginSection [hidden]' in css, \
+        'index.css must contain #loginSection [hidden] (scoped)'
+    css_without_scoped_hidden = css.replace('#loginSection [hidden]', '')
+    # Bare [hidden] (no #loginSection prefix) must not remain
+    import re
+    bare_hidden = re.search(r'(?<!\S)\[hidden\]\s*\{', css_without_scoped_hidden)
+    assert not bare_hidden, \
+        f'[hidden] rule must be scoped to #loginSection, not global; found: {bare_hidden}'
 
 # ── T: No JS syntax/runtime errors on load (network 404s from test server excluded)
 def test_t_no_console_errors(page):
@@ -459,9 +528,11 @@ with sync_playwright() as p:
     run('O: invalid 2xx → no redirect, safe error, button restored',   test_o_invalid_2xx_no_redirect,      pg)
     run('P: storage failure → rollback both keys, safe error',         test_p_storage_failure_rollback,     pg)
     run('Q: eye toggle — type, icons, aria-pressed, 0 requests',       test_q_eye_toggle_full,              pg)
-    run('R: login button outlined, not solid gradient',                test_r_button_styles,                pg)
+    run('R: login outlined + register gradient — no scope leak',       test_r_button_styles,                pg)
     run('S: mobile 375px — no overflow, 44px touch target, errors OK', test_s_mobile_375px,                 pg)
     run('T: no JS console errors on load',                             test_t_no_console_errors,            pg)
+    run('U: autofill simulation — stale errors cleared on submit',     test_u_autofill_clears_stale_errors, pg)
+    run('V: autofill CSS scoped to #loginSection, [hidden] scoped',    test_v_autofill_selectors_scoped,    pg)
 
     br.close()
 

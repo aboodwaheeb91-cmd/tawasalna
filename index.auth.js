@@ -88,6 +88,8 @@ async function doLogin(){
   _lClearFormError();
 
   // Client-side validation — collect all errors, show at once (DS-VAL VAL-08)
+  // Also clears any stale errors for valid fields: autofill / password-manager may
+  // populate fields without firing input events, so we cannot rely solely on those handlers.
   var hasError = false;
   if(!email){
     _lEmailErrorKind = 'required';
@@ -99,10 +101,13 @@ async function doLogin(){
     hasError = true;
   } else {
     _lEmailErrorKind = null;
+    _lClearFieldError('wrapper-lEmail', 'l-email-error');
   }
   if(!pass){
     _lShowFieldError('wrapper-lPass', 'l-pass-error', 'كلمة المرور مطلوبة');
     hasError = true;
+  } else {
+    _lClearFieldError('wrapper-lPass', 'l-pass-error');
   }
   if(hasError){
     var firstErr = document.querySelector('#loginSection .field.has-error input');
