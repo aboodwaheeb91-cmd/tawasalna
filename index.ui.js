@@ -176,6 +176,24 @@ function initScrollProg(){
   });
 }
 
+// ── Login password show/hide toggle (DS-INP INP-11) ─────────────────────────
+;(function(){
+  var eyeBtn  = document.getElementById('lPassEye');
+  var passEl  = document.getElementById('lPass');
+  var eyeShow = document.getElementById('lEyeShow');
+  var eyeHide = document.getElementById('lEyeHide');
+  if(!eyeBtn || !passEl) return;
+  eyeBtn.addEventListener('click', function(){
+    var show = passEl.type === 'password';
+    passEl.type = show ? 'text' : 'password';
+    eyeBtn.setAttribute('aria-pressed', show ? 'true' : 'false');
+    eyeBtn.setAttribute('aria-label', show ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور');
+    // SVGElement does not reflect .hidden as a DOM attribute; use setAttribute/removeAttribute
+    if(eyeShow){ if(show) eyeShow.setAttribute('hidden',''); else eyeShow.removeAttribute('hidden'); }
+    if(eyeHide){ if(!show) eyeHide.setAttribute('hidden',''); else eyeHide.removeAttribute('hidden'); }
+  });
+}());
+
 // ── Lucide icon init ──────────────────────────────────────────────────────────
 if(window.lucide && lucide.createIcons) lucide.createIcons();
 

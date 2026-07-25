@@ -8089,6 +8089,176 @@ Three explicit cards replace the old 2-button + dropdown:
 - Do NOT use `localStorage.tw_user.user_type` to gate features or permissions — only for display/routing hints; validate with API when security matters
 - Do NOT add a role selector inside the login form — role is login-derived from the API only
 
+### Login Form DS Runtime Adoption (PR feat/login-ds-runtime-adoption)
+
+The **login-only** fields apply DS-INP / DS-VAL / DS-BTN contracts. Register fields are unchanged.
+
+#### HTML anatomy (DS-INP)
+
+| Element | id / class | Notes |
+|---------|------------|-------|
+| Email wrapper | `#wrapper-lEmail.field` | `.has-error` added by JS on error |
+| Email input wrapper | `.l-input-wrap` inside `#wrapper-lEmail` | canonical `position:relative` container |
+| Email input | `#lEmail` | `dir="ltr"`, `required`, `aria-required`, `aria-invalid`, `aria-describedby` |
+| Email error span | `#l-email-error.field-error` | `role="alert"`, `aria-live="polite"`, `hidden` by default |
+| Password wrapper | `#wrapper-lPass.field` | `.has-error` added by JS on error |
+| Password input wrapper | `.l-input-wrap.pass-wrap` inside `#wrapper-lPass` | shares both classes |
+| Password input | `#lPass` | `required`, `aria-required`, `aria-invalid`, `aria-describedby` |
+| Eye button | `#lPassEye.pass-eye` | `type="button"`, `aria-pressed`, `aria-label` — toggled by `index.ui.js` |
+| Eye icon (show) | `#lEyeShow` | inline Lucide `eye` SVG, `aria-hidden="true"`, visible by default |
+| Eye icon (hide) | `#lEyeHide` | inline Lucide `eye-off` SVG, `aria-hidden="true"`, `hidden` by default |
+| Password error span | `#l-pass-error.field-error` | `role="alert"`, `aria-live="polite"`, `hidden` by default |
+| Auth error banner | `#l-form-error.l-form-error` | `role="alert"`, `aria-live="assertive"` — auth/network failures only |
+
+#### Eye button toggle (INP-11)
+
+`index.ui.js` toggles `passEl.type`, `aria-pressed`, `aria-label`, and shows/hides the icons. **SVGElement does not reflect `.hidden` as a DOM attribute**, so the code uses `setAttribute('hidden','')` / `removeAttribute('hidden')` — not `element.hidden = bool` — to ensure the CSS `[hidden]` rule fires correctly.
+
+#### Validation state machine (DS-VAL VAL-05, VAL-12)
+
+Two module-level variables drive all email-field error transitions. **Never compare error message text as source of truth.**
+
+| Variable | Type | Purpose |
+|----------|------|---------|
+| `_lSubmitAttempted` | `boolean` | `false` until first `doLogin()` call; stays `true` forever after |
+| `_lEmailErrorKind` | `'required' \| 'format' \| null` | current error kind for email field |
+
+**Transition rules:**
+
+| Trigger | Condition | Outcome |
+|---------|-----------|---------|
+| `doLogin()` called | email empty | `_lEmailErrorKind = 'required'`; show Required |
+| `doLogin()` called | email non-empty invalid | `_lEmailErrorKind = 'format'`; show Format |
+| `doLogin()` called | email valid | `_lEmailErrorKind = null`; clear error |
+| `doLogin()` always | — | `_lSubmitAttempted = true` |
+| blur on email | non-empty invalid | `_lEmailErrorKind = 'format'`; show Format |
+| blur on email | empty | no-op (never show Required on blur) |
+| input on email | valid | `_lEmailErrorKind = null`; clear error |
+| input on email | empty + `_lSubmitAttempted` | `_lEmailErrorKind = 'required'`; show Required |
+| input on email | empty + `!_lSubmitAttempted` + was format | `_lEmailErrorKind = null`; clear error |
+| input on email | non-empty invalid (any) | `_lEmailErrorKind = 'format'`; show Format |
+| input on password | `passEl.value` non-empty | clear Required error |
+| input on password | `passEl.value` empty + `_lSubmitAttempted` | show Required |
+| input on password | `passEl.value` empty + `!_lSubmitAttempted` | no-op |
+
+#### Error channels (DS-VAL)
+
+- **Required / format errors** → inline `#loginSection .field-error` span (never DS-FEEDBACK toast) — `_lShowFieldError()` in `index.auth.js`
+- **Auth failure** → `#l-form-error` banner (VAL-09) — HTTP-status-based safe message, never raw `data.detail` (API-MUT-11)
+  - 400/401 → `'بيانات الدخول غير صحيحة'`
+  - 429 → `'محاولات كثيرة جداً، حاول مرة أخرى لاحقاً'`
+  - 5xx → `'تعذّر تسجيل الدخول حالياً، حاول مرة أخرى لاحقاً'`
+  - network failure → `'تعذّر الاتصال بالخادم، تحقق من اتصالك وحاول مرة أخرى'`
+  - localStorage write failure → `'حدث خطأ أثناء تسجيل الدخول، حاول مرة أخرى'`
+- **Success** → `toast('مرحباً بك', 'success')` via DS-FEEDBACK F34 (no emoji; success is operational)
+
+#### Safe JSON parse
+
+`res.json()` is wrapped in try-catch so a non-JSON body (e.g. HTML 502 error page from a proxy) does not throw to the outer network-error handler:
+
+```javascript
+var data;
+try { data = await res.json(); } catch(_e){ data = null; }
+```
+
+On `!res.ok`, the status-based safe message is shown regardless of whether `data` is null.
+
+#### Response structure validation (invalid 2xx)
+
+Before writing to `localStorage`, the 2xx response body is validated:
+
+```javascript
+if(!data || !data.user || !data.user.id ||
+   !data.token || typeof data.token !== 'string' || !data.token.trim()){
+  _lShowFormError('تعذّر إكمال تسجيل الدخول، حاول مرة أخرى');
+  return;
+}
+```
+
+A malformed 2xx (missing `user.id`, missing `token`, empty token) is treated as a failure — `_success` stays `false`, button is restored, no redirect.
+
+#### Session write atomicity and rollback
+
+Storage is written inside an inner try-catch. On any write failure, BOTH keys are rolled back before showing the error:
+
+```javascript
+try {
+  // Clear all tw_* keys first (atomic pre-clear)
+  Object.keys(localStorage).filter(k => k.startsWith('tw_')).forEach(k => localStorage.removeItem(k));
+  localStorage.setItem('tw_user', JSON.stringify(data.user));
+  localStorage.setItem('tw_jwt', data.token);
+} catch(storageErr) {
+  try { localStorage.removeItem('tw_user'); } catch(e) {}
+  try { localStorage.removeItem('tw_jwt');  } catch(e) {}
+  _lShowFormError('حدث خطأ أثناء تسجيل الدخول، حاول مرة أخرى');
+  return;
+}
+```
+
+Invariant: after a storage failure, neither `tw_user` nor `tw_jwt` must be present in `localStorage`.
+
+#### Submit-time stale error cleanup (Autofill contract)
+
+`doLogin()` explicitly clears field errors for valid fields inside the validation block — **not only via input events**. This is required because browser autofill and password managers may populate `#lEmail` and `#lPass` without dispatching `input` events:
+
+- Email valid → `_lEmailErrorKind = null; _lClearFieldError('wrapper-lEmail', 'l-email-error')`
+- Password non-empty → `_lClearFieldError('wrapper-lPass', 'l-pass-error')`
+
+Input event handlers remain in place for UX (real-time feedback), but the `doLogin()` cleanup is the authoritative path that guarantees no stale error persists when a valid submit is attempted.
+
+#### Autofill visual contract (index.css — Login only)
+
+`#loginSection input:-webkit-autofill` / `#loginSection input:-webkit-autofill:focus` override Chromium's forced autofill background (yellow/blue) using the standard box-shadow inset trick:
+
+```css
+#loginSection input:-webkit-autofill,
+#loginSection input:-webkit-autofill:hover,
+#loginSection input:-webkit-autofill:focus{
+  -webkit-box-shadow: 0 0 0 1000px #0d1526 inset !important;
+  -webkit-text-fill-color: #fff !important;
+  caret-color: #fff;
+  transition: background-color 5000s ease-in-out 0s;
+}
+#loginSection input:autofill{
+  background-color: #0d1526 !important;
+  color: #fff !important;
+}
+```
+
+Scoped to `#loginSection` only — register fields are intentionally not covered. `#0d1526` matches the existing `field select option` background (dark card surface).
+
+**Test coverage:**
+- **Test U** — autofill-like stale-error simulation: sets `input.value` via JS without dispatching `input` events (mimics how browser autofill populates fields), then submits and verifies stale Required/Format errors are cleared. Test U does **not** trigger the actual `:-webkit-autofill` CSS pseudo-class — that requires a real browser autofill gesture.
+- **Test V** — CSS source check: verifies `#loginSection input:-webkit-autofill` exists in `index.css` and that no bare (unscoped) `input:-webkit-autofill` selector remains.
+
+Visual autofill styling (background colour override via `-webkit-box-shadow` inset) remains a **manual browser check** — automated Playwright tests cannot activate the `:-webkit-autofill` CSS state.
+
+#### `[hidden]` CSS scope
+
+`index.css` contains `#loginSection [hidden]{display:none!important;}` — deliberately scoped, not global. Rationale: all elements with a `hidden` attribute that require CSS enforcement (`#lEyeHide`, `#l-email-error`, `#l-pass-error`, `#l-form-error`) are descendants of `#loginSection`. A global `[hidden]` rule would silently affect any future element outside Login that uses the `hidden` attribute.
+
+#### Button lifecycle (DS-BTN BTN-09)
+
+- `_submitting` guard prevents double-submit; checked at top of `doLogin()` before any state mutation
+- `_success` flag set only **after** all localStorage writes complete (inner try-catch for storage errors)
+- On failure: `finally { if(!_success){ _submitting = false; setBtnLoad(btn, false); } }` restores button
+- On success: `_submitting` stays `true`; button stays loading until redirect (600 ms) — prevents re-submit during transition
+
+#### Enter key behaviour
+
+- Focus in `#lEmail` + Enter → `e.preventDefault()` + `passEl.focus()` (sequential field nav)
+- Focus in `#lPass` + Enter → `doLogin()`
+- Any input in register form (login hidden) + Enter → `doRegister()` (unchanged)
+
+#### CSS scope (permanent rules)
+
+- `#loginSection .cta` — outlined/glow button, `user-select:none` (register `.cta` unaffected — base `.cta` unchanged)
+- `#loginSection .cta:focus-visible` — focus ring scoped to login only (register unaffected)
+- `#loginSection .field.has-error input` — danger border
+- `#loginSection .field-error` — error text (scoped; does NOT affect register)
+- `.l-input-wrap` — `position:relative; display:flex; align-items:center` (shared by both fields)
+- `.pass-eye` — icon button: `background:transparent; border:0; min-width/height:44px; inset-inline-end:0`
+
 ---
 
 ## Company Profile Edit Form (PR #248)
