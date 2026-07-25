@@ -24,6 +24,14 @@
   --danger: #f87171;
   --warning: #fbbf24;
   --success: #34d399;
+  --danger-rgb:  248,113,113;   /* = --danger: #f87171 */
+  --warning-rgb: 251,191,36;    /* = --warning: #fbbf24 */
+  --ac2-rgb:     37,99,255;     /* = --ac2: #2563ff */
+  /* DS-FEEDBACK V1 — Feedback Semantic Tokens (FBK-04) */
+  --fbk-bdr-success: rgba(var(--ac-rgb), .3);
+  --fbk-bdr-error:   rgba(var(--danger-rgb), .3);
+  --fbk-bdr-warning: rgba(var(--warning-rgb), .3);
+  --fbk-bdr-info:    rgba(var(--ac2-rgb), .3);
 }
 
 /* ══════════════════════════════════════
@@ -315,17 +323,17 @@ body {
   transform: translateX(-50%) translateY(0);
 }
 
-.tw-snackbar.success { border-color: rgba(0,200,150,.3); }
-.tw-snackbar.error   { border-color: rgba(248,113,113,.3); }
-.tw-snackbar.warning { border-color: rgba(251,191,36,.3); }   /* FBK-04: warning V1 */
-.tw-snackbar.info    { border-color: rgba(37,99,255,.3); }
+.tw-snackbar.success { border-color: var(--fbk-bdr-success); }   /* FBK-04 */
+.tw-snackbar.error   { border-color: var(--fbk-bdr-error); }
+.tw-snackbar.warning { border-color: var(--fbk-bdr-warning); }
+.tw-snackbar.info    { border-color: var(--fbk-bdr-info); }
 
 @media (prefers-reduced-motion: reduce) {
   .tw-snackbar { transition-duration: 0.01ms !important; }   /* FBK-18 */
 }
 
 @media (min-width: 600px) {
-  .tw-snackbar { bottom: 24px; }   /* FBK-09 Desktop: no bottom nav */
+  :root { --tw-feedback-bottom: 24px; }   /* FBK-09 Desktop: no bottom nav — update variable, not property */
 }
 
 /* ══════════════════════════════════════

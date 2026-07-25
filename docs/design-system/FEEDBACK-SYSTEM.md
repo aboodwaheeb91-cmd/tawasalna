@@ -902,19 +902,19 @@ P4 (إزالة): إزالة Local implementations بعد انتهاء مستخد
 
 ## FBK-24 — Runtime Debts Catalogue
 
-> **feat/ds-feedback-runtime-v1** أصلح: M0 M1 M2 M3 M4 M6 M7 في الـ Canonical Implementation.
+> **feat/ds-feedback-runtime-v1** أصلح: M0 M1 M2 M3 M4 M6 M7 M16 في الـ Canonical Implementation.
 > الباقي (M5 M8–M15) يبقى دَيناً للـ PRs اللاحقة.
 
 | معرّف | الملف | المشكلة | الأولوية | الحل |
 |-------|-------|---------|---------|------|
 | **M0** ✅ | `tw_shared.js` | `t.innerHTML = '<span>'+msg+'</span>'` — XSS | ~~P0~~ **مُصلَح** | `textContent` + DOM construction آمن — `tw_shared.js` + `index.ui.js` |
-| **M1** ✅ | `tw_shared.css` | `bottom: 24px` على Mobile — يغطي Bottom Nav | ~~P1~~ **مُصلَح** | `--tw-feedback-bottom: 80px` (`:root`) + media query `@600px → 24px` |
+| **M1** ✅ | `tw_shared.css` | `bottom: 24px` على Mobile — يغطي Bottom Nav؛ Desktop media query كان يُعيِّن `bottom` مباشرةً بدلاً من تحديث المتغير | ~~P1~~ **مُصلَح** | `--tw-feedback-bottom: 80px` في `:root` (Mobile)؛ `@media(min-width:600px){ :root { --tw-feedback-bottom: 24px; } }` (Desktop — يُحدِّث المتغير لا الخاصية) — ديون التكامل لـ layout-specific offsets (e.g. messages page composer) تبقى P2 في M8–M9 |
 | **M2** ✅ | `tw_shared.js` | لا `clearTimeout(_twTimer)` — timer قديم يخفي Feedback أحدث | ~~P1~~ **مُصلَح** | `_twTimer` + `clearTimeout` في كل استدعاء |
-| **M3** ✅ | `tw_shared.js` | لا `role="status" aria-live="polite" aria-atomic="true"` | ~~P1~~ **مُصلَح** | ARIA attributes عند إنشاء `.tw-snackbar` |
+| **M3** ✅ | `tw_shared.js` | لا `role="status" aria-live="polite" aria-atomic="true"` — وكان `textContent` يُعيَّن قبل الإدراج في DOM | ~~P1~~ **مُصلَح** | ARIA attributes عند إنشاء `.tw-snackbar`؛ `document.body.appendChild(surface)` يُستدعى قبل `msgSpan.textContent = msg` (FBK-12 announcement lifecycle) |
 | **M4** ✅ | `tw_shared.css` | `left: 50%; transform: translateX(-50%)` بحاجة تحقق RTL | ~~P1~~ **مؤكَّد** | تأكيد اختبار RTL: left=50% يعمل صحيحاً |
 | **M5** | `tw_shared.css` | `z-index: 9999` hardcoded — ليس Global Layer Token | P2 | استبدال بـ token عند إنشاء Global Layer Tokens |
 | **M6** ✅ | `tw_shared.css` | `white-space: nowrap` بدون `max-width` | ~~P2~~ **مُصلَح** | `max-width: min(90vw, 400px); white-space: normal` في `.tw-snackbar` |
-| **M7** ✅ | `tw_shared.css` | لا `warning` type border-color | ~~P2~~ **مُصلَح** | `.tw-snackbar.warning { border-color: rgba(251,191,36,.3); }` |
+| **M7** ✅ | `tw_shared.css` | لا `warning`/`error`/`info` type border-color؛ كانت القيم hardcoded rgba بدلاً من Semantic Tokens (FBK-04) | ~~P2~~ **مُصلَح** | أُضيف `--danger-rgb`، `--warning-rgb`، `--ac2-rgb` إلى `:root`؛ Feedback Semantic Tokens: `--fbk-bdr-success/error/warning/info: rgba(var(--*-rgb),.3)`؛ type rules تستخدم `var(--fbk-bdr-*)` |
 | **M8** | `profile-v2.utils.js` | `toast(msg)` — API مختلف، لا type، مدة مختلفة (2200ms) | P2 | يستدعي Canonical API أو يتماشى معه |
 | **M9** | `settings.html:478` و10 ملفات أخرى | Local `showToast` مكررة (XSS) | P2 | Migration FBK-23 — PR منفصل لكل صفحة |
 | **M10** | متعدد | Emoji `✅ ❌ ℹ️` كـ icon — Canonical أزالها، Local copies ما زالت تستخدمها | P3 | استبدال بـ Icon System رسمي (DS-ASSET) |
@@ -923,6 +923,7 @@ P4 (إزالة): إزالة Local implementations بعد انتهاء مستخد
 | **M13** | `appointment-room.html` `appointments.html` | `alert()` Category C — validation | P2 | استبدال بـ DS-VAL |
 | **M14** | `company.html:624` | `alert()` لعرض قائمة متقدمين | P3 | Modal أو DS-OVL solution |
 | **M15** | متعدد | `showToast(res.detail, 'error')` بدون normalization | P2 | Wrap بـ `normalizeErrorResponse()` |
+| **M16** ✅ | `index.ui.js` / `index.html` / `index.css` | Login page كانت تملك محرك Feedback منفصل (`#toast` + CSS محلي) يتعارض مع Single Global Surface | ~~P1~~ **مُصلَح** | `toast()` في `index.ui.js` أصبح Compatibility Wrapper (`window.showToast(msg, type||'success')`)؛ `#toast` div أُزيل من `index.html`؛ `.toast`/`.toast.show` + `.tw-toast[aria-live]` CSS أُزيل من `index.css` |
 
 ---
 

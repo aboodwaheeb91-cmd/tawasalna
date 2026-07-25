@@ -30,10 +30,10 @@ function showToast(msg, type, _legacyDur) {
   surface.setAttribute('aria-live', 'polite');
   surface.setAttribute('aria-atomic', 'true');
   var msgSpan = document.createElement('span');
-  msgSpan.textContent = msg;
   surface.appendChild(msgSpan);
-  document.body.appendChild(surface);
+  document.body.appendChild(surface);  // live region must be in DOM before content (FBK-12)
   _twSurface = surface;
+  msgSpan.textContent = msg;            // content set AFTER DOM insertion — triggers announcement
 
   // Lifecycle: hidden → entering → visible (FBK-08)
   requestAnimationFrame(function() {
