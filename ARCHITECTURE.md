@@ -8091,7 +8091,7 @@ Three explicit cards replace the old 2-button + dropdown:
 
 ### Login Form DS Runtime Adoption (PR feat/login-ds-runtime-adoption)
 
-The **login-only** fields apply DS-INP / DS-VAL / DS-BTN contracts. Register fields are unchanged.
+The **login-only** fields apply DS-INP / DS-VAL / DS-BTN contracts.
 
 #### HTML anatomy (DS-INP)
 
@@ -8258,6 +8258,103 @@ Visual autofill styling (background colour override via `-webkit-box-shadow` ins
 - `#loginSection .field-error` — error text (scoped; does NOT affect register)
 - `.l-input-wrap` — `position:relative; display:flex; align-items:center` (shared by both fields)
 - `.pass-eye` — icon button: `background:transparent; border:0; min-width/height:44px; inset-inline-end:0`
+
+---
+
+### Register Form DS Runtime Adoption (PR feat/register-ds-inp-val)
+
+DS-INP / DS-VAL contracts applied to the three register fields: `rName`, `rEmail`, `rPass`.
+
+#### HTML anatomy (DS-INP)
+
+| Element | id / class | Notes |
+|---------|------------|-------|
+| Name wrapper | `#wrapper-rName.field` | `.has-error` added by JS on error |
+| Name input wrapper | `.l-input-wrap` inside `#wrapper-rName` | canonical `position:relative` container |
+| Name label | `#nameLabel` with `for="rName"` | `id` kept for `_applyRegLabels()` (changes text on type switch) |
+| Name input | `#rName` | `type="text"`, `autocomplete="name"`, `aria-required`, `aria-invalid`, `aria-describedby` |
+| Name error span | `#r-name-error.field-error` | `role="alert"`, `aria-live="polite"`, `hidden` by default |
+| Email wrapper | `#wrapper-rEmail.field` | `.has-error` added by JS on error |
+| Email input | `#rEmail` | `type="email"`, `dir="ltr"`, `autocomplete="email"`, `aria-required`, `aria-invalid`, `aria-describedby` |
+| Email error span | `#r-email-error.field-error` | `role="alert"`, `aria-live="polite"`, `hidden` by default |
+| Password wrapper | `#wrapper-rPass.field` | `.has-error` added by JS on error |
+| Password input wrapper | `.l-input-wrap.pass-wrap` inside `#wrapper-rPass` | shares both classes |
+| Password input | `#rPass` | `type="password"`, `autocomplete="new-password"`, `aria-required`, `aria-invalid`, `aria-describedby` |
+| Eye button | `#rPassEye.pass-eye` | `type="button"`, `aria-pressed`, `aria-label` — toggled by `index.ui.js` |
+| Eye icon (show) | `#rEyeShow` | inline SVG, `aria-hidden="true"`, visible by default |
+| Eye icon (hide) | `#rEyeHide` | inline SVG, `aria-hidden="true"`, `hidden` by default |
+| Password error span | `#r-pass-error.field-error` | `role="alert"`, `aria-live="polite"`, `hidden` by default |
+| Register error banner | `#r-form-error.l-form-error` | `role="alert"`, `aria-live="assertive"` — backend/network failures only |
+
+#### `rName` label/placeholder switching
+
+`_applyRegLabels(type)` in `index.ui.js` mutates `#nameLabel.textContent` and `#rName.placeholder` on account-type switch (emp/co/edu). The wrapper ID (`#wrapper-rName`), ARIA attributes, and error span are unchanged by type switching.
+
+#### Eye button toggle (INP-11)
+
+Same pattern as login: `index.ui.js` toggles `passEl.type`, `aria-pressed`, `aria-label`, and shows/hides icons using `setAttribute('hidden','')` / `removeAttribute('hidden')` (SVGElement does not reflect `.hidden` as a DOM attribute).
+
+Password strength bar listener moved from inline `oninput` attribute to a JS listener IIFE in `index.ui.js`.
+
+#### Validation state machine (DS-VAL VAL-05, VAL-12)
+
+Two module-level variables drive email-field transitions. **Never compare error message text as source of truth.**
+
+| Variable | Type | Purpose |
+|----------|------|---------|
+| `_rSubmitAttempted` | `boolean` | `false` until first `doRegister()` call; stays `true` after |
+| `_rEmailErrorKind` | `'required' \| 'format' \| null` | current error kind for register email field |
+
+**Transition rules (email):**
+
+| Trigger | Condition | Outcome |
+|---------|-----------|---------|
+| `doRegister()` | email empty | `_rEmailErrorKind = 'required'`; show Required |
+| `doRegister()` | email non-empty invalid | `_rEmailErrorKind = 'format'`; show Format |
+| `doRegister()` | email valid | `_rEmailErrorKind = null`; clear error |
+| `doRegister()` always | — | `_rSubmitAttempted = true` |
+| blur on email | non-empty invalid | `_rEmailErrorKind = 'format'`; show Format |
+| blur on email | empty | no-op (never show Required on blur) |
+| input on email | valid | `_rEmailErrorKind = null`; clear error |
+| input on email | empty + `_rSubmitAttempted` | `_rEmailErrorKind = 'required'`; show Required |
+| input on email | empty + `!_rSubmitAttempted` + was format | `_rEmailErrorKind = null`; clear error |
+| input on email | non-empty invalid | `_rEmailErrorKind = 'format'`; show Format |
+
+**Name field:** Required error shown on `doRegister()` when empty; cleared live on input after `_rSubmitAttempted`.
+
+**Password field:** Required or short-password error shown on `doRegister()`; live re-check after `_rSubmitAttempted` (empty → Required; < 6 chars → short; ≥ 6 chars → clear).
+
+#### Shared helpers
+
+Register validation reuses `_lShowFieldError(wrapperId, errorId, msg)` and `_lClearFieldError(wrapperId, errorId)` from the login section — they accept explicit IDs and are not login-specific.
+
+#### Error channels (DS-VAL)
+
+- **Required / format / short-password** → inline `.field-error` spans (never toast) — `_lShowFieldError()` in `index.auth.js`
+- **Backend error** → `#r-form-error` banner (VAL-09)
+  - 400 → raw `data.detail` (register errors are user-visible and not auth-sensitive, e.g. "البريد مستخدم مسبقاً")
+  - 429 → `'محاولات كثيرة جداً، حاول مرة أخرى لاحقاً'`
+  - 5xx → `'تعذّر إنشاء الحساب حالياً، حاول مرة أخرى لاحقاً'`
+  - network failure → `'تعذّر الاتصال بالخادم، تحقق من اتصالك وحاول مرة أخرى'`
+- **Success** → `toast('تم إنشاء حسابك! 🎉')` unchanged (DS-FEEDBACK operational success)
+
+#### Submit-time stale error cleanup
+
+`doRegister()` explicitly clears field errors for valid fields inside the validation block — required because browser autofill and password managers may populate inputs without dispatching `input` events (same pattern as login's `doLogin()`).
+
+#### Autofill visual contract (index.css — Register panel)
+
+`#registerPanel input:-webkit-autofill` rules use the same box-shadow inset trick as `#loginSection`, scoped to prevent the autofill background from breaking the dark card surface. Scope isolation: login and register selectors are separate — neither affects the other.
+
+#### CSS scope (permanent rules)
+
+- `#registerPanel [hidden]{display:none!important;}` — covers SVGElement (eye icons), error spans, form banner
+- `#rEmail{direction:ltr;text-align:left;}` — LTR for email field (INP-09)
+- `#wrapper-rPass .l-input-wrap input{padding-inline-end:44px;}` — space for eye button
+- `#registerPanel .field.has-error input` — danger border
+- `#registerPanel .field-error` — error text (does NOT affect `#loginSection`)
+- `#registerPanel.open` max-height raised from 640 px → 780 px to accommodate error spans when visible
+- `.l-form-error`, `.l-form-error-text` — shared global classes (also used by login banner)
 
 ---
 
