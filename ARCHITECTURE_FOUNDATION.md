@@ -59,6 +59,7 @@
 | F31 | System Routing Before Implementation | **P0** |
 | F32 | Date & Time Fields System (DS-DATE) | **P0** |
 | F33 | Overlay System (DS-OVL) | **P0** |
+| F34 | Operational Feedback System (DS-FEEDBACK) | **P0** |
 
 ---
 
@@ -1011,6 +1012,7 @@ profiles.country   → المصدر الوحيد للدولة (ISO code للمو
 | dropdown أو select / picker / searchable picker / multi-select | DS-SEL → `docs/design-system/SELECT-PICKER.md` — اقرأ SEL-00 (Routing) ثم القسم المناسب |
 | تاريخ / وقت / date picker / month-year / year-only / datetime | DS-DATE → `docs/design-system/DATE-TIME-FIELDS.md` — اقرأ DATE-00 (Routing Protocol) ثم DATE-03A–G |
 | Overlay / Modal / Drawer / Confirmation / Sheet / Dialog | DS-OVL → `docs/design-system/OVERLAY-SYSTEM.md` — اقرأ OVL-00 (Routing Protocol) ثم القسم المناسب |
+| Toast / Snackbar / Operational Feedback | DS-FEEDBACK → `docs/design-system/FEEDBACK-SYSTEM.md` — اقرأ FBK-00 (Routing Protocol) ثم القسم المناسب |
 | Tooltip / Popover / Floating label / Context menu | **STOP** — غير موثَّق بعد؛ خارج DS-OVL V1 — راجع `docs/design-system/OVERLAY-SYSTEM.md` OVL-37 |
 
 ### لماذا هذه القاعدة؟
@@ -1115,6 +1117,41 @@ async function handleSave() {
 
 ---
 
+## F34 — [P0] Operational Feedback System (DS-FEEDBACK)
+
+**DS-FEEDBACK هو النظام الرسمي الوحيد لـ Operational Feedback (Toast / Snackbar) في منصة تواصلنا.**
+
+### القواعد الأساسية
+
+1. **Single Global Feedback Surface** — سطح Snackbar واحد عالمي فقط. لا Stack، لا Queue في V1.
+2. **Latest Replaces Current** — كل رسالة جديدة تُلغي الحالية فوراً. `clearTimeout` قبل أي timer جديد إلزامي.
+3. **4 أنواع رسمية** — `success / error / warning / info`. جميعها مدعومة في V1.
+4. **Duration Policy مركزية** — DS-FEEDBACK يملك مدة كل نوع. Feature code لا تختار مدتها الخاصة. القيم الفعلية في FBK-07.
+5. **Mobile Behavior Contract** — الـ Feedback Surface يجب أن تبقى ظاهرة فوق Bottom Navigation وSafe Areas وأي UI ثابت في أسفل الصفحة. لا offset global hardcoded. التفاصيل في FBK-09.
+6. **Layer Architecture** — Conceptual Level 4 (Global Feedback Band). `z-index: 9999` placeholder حتى Global Layer Tokens. ممنوع hardcode z-index في Feature layer.
+7. **Accessibility V1** — جميع أنواع V1: `role="status"` + `aria-live="polite"` + `aria-atomic="true"`. `role="alert"` مؤجَّل لـ V2.
+8. **RTL Centering** — الـ Snackbar يتمركز على المنتصف المادي للـ viewport بصرف النظر عن `dir="rtl"`. ممنوع Logical Properties (`inset-inline-start`) للـ centering على عناصر مُمركَزة. التفاصيل في FBK-10.
+9. **DS-FEEDBACK يستقبل رسالة آمنة جاهزة** — لا يُحلِّل API errors. السلسلة: API-MUT-11 → Feature Orchestration → DS-FEEDBACK.
+10. **XSS P0 Runtime Debt** — `tw_shared.js:22` يستخدم `innerHTML` مع dynamic `msg`. مُوثَّق في FBK-21 وFBK-24. Runtime fix يحتاج PR مستقل.
+
+### ممنوعات F34
+
+```
+❌ Toast / Snackbar implementation خارج DS-FEEDBACK contract
+❌ showFeedback مع raw API body — normalizeErrorResponse() أولاً
+❌ z-index hardcoded في Feature module للـ Snackbar
+❌ role="alert" في V1 — polite فقط (assertive مؤجَّل لـ V2 critical:true)
+❌ loading state داخل Snackbar V1 — يبقى في Button / Component
+❌ dur=99999 كبديل loading — ممنوع
+❌ innerHTML لعرض msg في Runtime — textContent حصراً
+❌ DS-FEEDBACK Runtime Implementation قبل موافقة صريحة
+❌ inset-inline-start: 50% على Snackbar المُمركَز
+```
+
+**المرجع التفصيلي:** `docs/design-system/FEEDBACK-SYSTEM.md` (FBK-00 → FBK-29)
+
+---
+
 ## أنظمة الحالة الأساسية (System State References)
 
 ### Employment Pipeline — مصدر الحالة الوحيد لكل مرشح داخل وظيفة
@@ -1161,3 +1198,4 @@ async function handleSave() {
 *حُدِّث في PR #508 — 2026-07-22 — F31 جدول التوجيه: صف dropdown/select حُدِّث للإشارة إلى `docs/design-system/SELECT-PICKER.md` بعد توثيق DS-SEL V1 رسمياً — STOP أُزيل من هذا الصف.*
 *حُدِّث في PR docs/ds-date-v1 — 2026-07-23 — أُضيفت القاعدة F32: Date & Time Fields System (DS-DATE). F31 جدول التوجيه: صف تاريخ/وقت أُضيف للإشارة إلى `docs/design-system/DATE-TIME-FIELDS.md`. المجموع: 32 قاعدة عليا.*
 *حُدِّث في PR docs/ds-ovl-v1 — 2026-07-24 — أُضيفت القاعدة F33: Overlay System (DS-OVL). F31 جدول التوجيه: صف Overlay/Modal/Drawer أُضيف للإشارة إلى `docs/design-system/OVERLAY-SYSTEM.md`؛ تعارض Routing أُصلح: Popover حُذف من صف DS-OVL (OVL-00 + OVL-37 يُصرِّحان أنه خارج DS-OVL V1)؛ صف Tooltip/Popover/Floating label/Context menu أُضيف → STOP. المجموع: 33 قاعدة عليا.*
+*حُدِّث في PR docs/ds-feedback-v1 — 2026-07-24 — أُضيفت القاعدة F34: Operational Feedback System (DS-FEEDBACK). F31 جدول التوجيه: صف Toast/Snackbar/Operational Feedback أُضيف للإشارة إلى `docs/design-system/FEEDBACK-SYSTEM.md`. المجموع: 34 قاعدة عليا.*
