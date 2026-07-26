@@ -284,3 +284,10 @@ body{font-family:'Cairo',sans-serif;background:#070b18;min-height:100vh;display:
 /* ── DS-VAL: Field error state (scoped to #registerPanel) ── */
 #registerPanel .field.has-error input{border-color:rgb(var(--danger-rgb,239,68,68));}
 #registerPanel .field-error{display:block;font-size:.65rem;color:rgb(var(--danger-rgb,239,68,68));margin-top:4px;font-family:'Cairo',sans-serif;font-weight:600;}
+
+/* ── DS-BTN: Register submit button — Primary outlined/glow (BTN-02 + BTN-03) ── */
+#registerPanel .cta{background:transparent;border:1.5px solid var(--ac);color:var(--ac);user-select:none;}
+#registerPanel .cta:hover{background:rgba(0,200,150,.07);box-shadow:0 0 18px rgba(0,200,150,.22);transform:translateY(-1px);}
+#registerPanel .cta:active{transform:translateY(0);}
+#registerPanel .cta:disabled{opacity:.55;transform:none;cursor:wait;background:transparent;}
+#registerPanel .cta:focus-visible{outline:2px solid var(--ac);outline-offset:3px;}
