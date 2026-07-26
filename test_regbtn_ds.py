@@ -1,16 +1,15 @@
 """
-Register Submit Button — DS-BTN Runtime Tests (A–J, 10 tests)
+Register Submit Button — DS-BTN Runtime Tests (A–L, 12 tests)
 
 Tests BTN-02 (outlined), BTN-03 (Primary color), BTN-07 (interaction states),
 BTN-08 (user-select), BTN-09 (Action Save lifecycle: guard + loading + aria-busy
 + success-locked + error-restore).
 """
-import asyncio, threading, json, os, shutil
+import asyncio, sys, threading, json, os, shutil
 from pathlib import Path
 from playwright.async_api import async_playwright
 
 HOST = 'http://127.0.0.1:8000'
-ROOT = Path('/home/user/tawasalna')
 
 PASS_COUNT = 0
 FAIL_COUNT = 0
@@ -53,7 +52,7 @@ async def main():
         ctx     = await browser.new_context()
         page    = await ctx.new_page()
 
-        print('\n\033[1m── Register Submit Button DS-BTN Tests (A–J, 10 tests) ──\033[0m')
+        print('\n\033[1m── Register Submit Button DS-BTN Tests (A–L, 12 tests) ──\033[0m')
 
         # ── helpers ───────────────────────────────────────────────────────────
 
@@ -62,13 +61,14 @@ async def main():
             await page.wait_for_load_state('networkidle')
             await page.evaluate("showRegister()")
             await page.evaluate("selectType('emp')")
-            await page.wait_for_selector('#registerPanel.open', timeout=3000)
+            # state='attached': verify selectType() added the open class (DOM check).
+            # Visual visibility check is unreliable during the 320ms CSS transition.
+            await page.wait_for_selector('#registerPanel.open', timeout=3000, state='attached')
 
         async def fill_valid_form():
             await page.fill('#rName',  'اختبار مستخدم')
             await page.fill('#rEmail', 'test@example.com')
             await page.fill('#rPass',  'password123')
-            # ensure emp is selected (default)
             await page.evaluate("window.curType = 'emp'")
 
         async def get_btn_style(prop):
@@ -90,7 +90,7 @@ async def main():
                 };
             """)
 
-        # ── A: BTN-02 — regBtn is outlined (transparent bg, --ac border/color) ──
+        # ── A: BTN-02 — regBtn is outlined ────────────────────────────────────
         label = 'A: BTN-02 outlined — transparent bg, --ac border + color, no gradient'
         try:
             await open_register()
@@ -101,12 +101,10 @@ async def main():
             errors = []
             if 'gradient' in (bg or '').lower():
                 errors.append(f'backgroundImage has gradient: {bg[:60]}')
-            # transparent = rgba(0,0,0,0) or similar
             if bg_col and 'rgba(0, 0, 0, 0)' not in bg_col and 'transparent' not in bg_col:
                 errors.append(f'backgroundColor not transparent: {bg_col}')
             if 'solid' not in (border or ''):
                 errors.append(f'border not solid: {border}')
-            # color should be greenish (--ac = #00c896 ≈ rgb(0,200,150))
             if color and not ('0, 200' in color or '0,200' in color):
                 errors.append(f'color not --ac green: {color}')
             if errors:
@@ -149,32 +147,29 @@ async def main():
         except Exception as ex:
             fail(label, str(ex))
 
-        # ── D: BTN-09 duplicate-submit guard — only 1 request ─────────────────
-        label = 'D: BTN-09 duplicate-submit guard — only 1 request on rapid clicks'
+        # ── D: duplicate rapid clicks — only 1 request ────────────────────────
+        label = 'D: BTN-09 duplicate rapid clicks — only 1 request'
         try:
             await open_register()
             await fill_valid_form()
             await setup_request_counter()
 
-            # Route register endpoint to stall so button stays loading
             stall_event = threading.Event()
 
-            async def handle_register(route):
+            async def handle_register_d(route):
                 await asyncio.get_event_loop().run_in_executor(None, stall_event.wait)
                 await route.fulfill(status=409, body='{"detail":"email exists"}',
                                     headers={'content-type': 'application/json'})
 
-            await page.route('**/auth/register', handle_register)
+            await page.route('**/auth/register', handle_register_d)
 
-            # First click — enters loading, _rSubmitting = true
             await page.click('#regBtn')
             await page.wait_for_timeout(50)
-            # Second invocation — bypasses disabled UI state to test the JS guard
+            # Call JS function directly to bypass the disabled UI and test the _rSubmitting guard
             await page.evaluate("doRegister()")
             await page.wait_for_timeout(100)
             reqs = await count_register_requests()
 
-            # Unblock
             stall_event.set()
             await page.wait_for_timeout(300)
             await page.unroute('**/auth/register')
@@ -186,7 +181,7 @@ async def main():
         except Exception as ex:
             fail(label, str(ex))
 
-        # ── E: BTN-09 loading state — disabled + aria-busy="true" + spinner ──
+        # ── E: loading state — disabled + aria-busy="true" + spinner ──────────
         label = 'E: BTN-09 loading — disabled, aria-busy="true", spinner class while in-flight'
         try:
             await open_register()
@@ -194,12 +189,12 @@ async def main():
 
             stall_event = threading.Event()
 
-            async def handle_register_stall(route):
+            async def handle_register_e(route):
                 await asyncio.get_event_loop().run_in_executor(None, stall_event.wait)
                 await route.fulfill(status=409, body='{"detail":"email exists"}',
                                     headers={'content-type': 'application/json'})
 
-            await page.route('**/auth/register', handle_register_stall)
+            await page.route('**/auth/register', handle_register_e)
 
             await page.click('#regBtn')
             await page.wait_for_timeout(80)
@@ -228,17 +223,17 @@ async def main():
         except Exception as ex:
             fail(label, str(ex))
 
-        # ── F: BTN-09 error restore — button re-enabled, aria-busy="false" ────
-        label = 'F: BTN-09 error restore — re-enabled + aria-busy="false" after 4xx/network error'
+        # ── F: error restore — button re-enabled, aria-busy="false" ───────────
+        label = 'F: BTN-09 error restore — re-enabled + aria-busy="false" after 4xx error'
         try:
             await open_register()
             await fill_valid_form()
 
-            async def handle_409(route):
+            async def handle_409_f(route):
                 await route.fulfill(status=409, body='{"detail":"البريد الإلكتروني مستخدم بالفعل"}',
                                     headers={'content-type': 'application/json'})
 
-            await page.route('**/auth/register', handle_409)
+            await page.route('**/auth/register', handle_409_f)
             await page.click('#regBtn')
             await page.wait_for_timeout(600)
             await page.unroute('**/auth/register')
@@ -262,58 +257,71 @@ async def main():
         except Exception as ex:
             fail(label, str(ex))
 
-        # ── G: BTN-09 success locked — button stays loading until redirect ─────
-        label = 'G: BTN-09 success locked — button stays disabled/loading during 700ms gap'
+        # ── G: success locked — button locked on submit, redirect fires exactly once
+        label = 'G: BTN-09 success locked — button locked on submit, redirect fires exactly once'
         try:
             await open_register()
             await fill_valid_form()
+            await setup_request_counter()
 
             fake_user = {'id': 99, 'tw_id': 'U9620test', 'full_name': 'Test',
                          'email': 'test@example.com', 'user_type': 'emp',
                          'country_code': '9620', 'created_at': '2026-01-01T00:00:00'}
 
-            async def handle_success(route):
+            async def handle_success_g(route):
                 await route.fulfill(
                     status=200,
                     body=json.dumps({'user': fake_user, 'token': 'fake.jwt.token'}),
                     headers={'content-type': 'application/json'}
                 )
 
-            await page.route('**/auth/register', handle_success)
+            await page.route('**/auth/register', handle_success_g)
 
-            await page.evaluate("window._redir_intercepted = false;")
-            # Override redirect so we can inspect state in the gap
+            # Stub redirect: count calls, do NOT navigate
             await page.evaluate("""
+                window._redir_call_count = 0;
                 window._origRedirect = window.redirect;
                 window.redirect = function(u) {
-                    window._redir_intercepted = true;
-                    // do NOT actually navigate
+                    window._redir_call_count++;
                 };
             """)
 
             await page.click('#regBtn')
-            await page.wait_for_timeout(100)  # inside 700ms gap
 
-            disabled  = await page.evaluate("document.getElementById('regBtn').disabled")
-            aria_busy = await page.evaluate("document.getElementById('regBtn').getAttribute('aria-busy')")
-            has_spin  = await page.evaluate(
-                "document.getElementById('regBtn').classList.contains('tw-btn-loading')"
-            )
-            intercepted = await page.evaluate("window._redir_intercepted")
+            # Wait for redirect to fire — event-driven, no fixed sleep.
+            # The success-locked pattern sets _success=true then setTimeout(redirect, 700).
+            # The button must stay locked from click until redirect fires (finally skips restore).
+            await page.wait_for_function("window._redir_call_count >= 1", timeout=3000)
+
+            # After redirect fires: verify success-locked state
+            after = await page.evaluate("""({
+                disabled: document.getElementById('regBtn').disabled,
+                ariaBusy: document.getElementById('regBtn').getAttribute('aria-busy'),
+                hasSpin:  document.getElementById('regBtn').classList.contains('tw-btn-loading'),
+                redirCount: window._redir_call_count
+            })""")
+            reqs = await count_register_requests()
 
             await page.unroute('**/auth/register')
-            # Clear localStorage so the login page auth guard doesn't redirect in subsequent tests
-            await page.evaluate("localStorage.removeItem('tw_user'); localStorage.removeItem('tw_jwt');")
+            await page.evaluate("""
+                window.redirect = window._origRedirect;
+                localStorage.removeItem('tw_user');
+                localStorage.removeItem('tw_jwt');
+            """)
 
             errors = []
-            if not intercepted:
-                errors.append('redirect was not called (check test setup)')
-            if not disabled:
-                errors.append('regBtn should remain disabled in success gap')
-            if aria_busy != 'true':
-                errors.append(f'aria-busy in success gap: {aria_busy}')
-            if not has_spin:
-                errors.append('tw-btn-loading should remain in success gap')
+            # Button must still be locked — if finally ran on success, it would be restored
+            if not after['disabled']:
+                errors.append('button restored before redirect — finally ran on success path')
+            if after['ariaBusy'] != 'true':
+                errors.append(f"aria-busy restored before redirect: {after['ariaBusy']}")
+            if not after['hasSpin']:
+                errors.append('spinner removed before redirect — finally ran on success path')
+            if after['redirCount'] != 1:
+                errors.append(f"redirect call count: {after['redirCount']} (expected exactly 1)")
+            if reqs != 1:
+                errors.append(f'{reqs} register requests (expected 1)')
+
             if errors:
                 fail(label, '; '.join(errors))
             else:
@@ -321,16 +329,16 @@ async def main():
         except Exception as ex:
             fail(label, str(ex))
 
-        # ── H: BTN-09 network abort — button restored ─────────────────────────
+        # ── H: network abort — button restored ────────────────────────────────
         label = 'H: BTN-09 network error — button restored after abort'
         try:
             await open_register()
             await fill_valid_form()
 
-            async def handle_abort(route):
+            async def handle_abort_h(route):
                 await route.abort()
 
-            await page.route('**/auth/register', handle_abort)
+            await page.route('**/auth/register', handle_abort_h)
             await page.click('#regBtn')
             await page.wait_for_timeout(600)
             await page.unroute('**/auth/register')
@@ -349,8 +357,8 @@ async def main():
         except Exception as ex:
             fail(label, str(ex))
 
-        # ── I: Enter in rPass fires doRegister (same guard applies) ───────────
-        label = 'I: Enter in rPass triggers doRegister + guard prevents duplicate'
+        # ── I: Enter + Enter guard ─────────────────────────────────────────────
+        label = 'I: Enter+Enter — first Enter submits, second Enter while in-flight → 1 request'
         try:
             await open_register()
             await fill_valid_form()
@@ -358,18 +366,15 @@ async def main():
 
             stall_event = threading.Event()
 
-            async def handle_stall(route):
+            async def handle_stall_i(route):
                 await asyncio.get_event_loop().run_in_executor(None, stall_event.wait)
                 await route.fulfill(status=409, body='{"detail":"exists"}',
                                     headers={'content-type': 'application/json'})
 
-            await page.route('**/auth/register', handle_stall)
+            await page.route('**/auth/register', handle_stall_i)
 
-            # Enter in rPass
             await page.press('#rPass', 'Enter')
             await page.wait_for_timeout(80)
-
-            # Try Enter again while in-flight
             await page.press('#rPass', 'Enter')
             await page.wait_for_timeout(80)
 
@@ -385,7 +390,7 @@ async def main():
         except Exception as ex:
             fail(label, str(ex))
 
-        # ── J: empty-form submit — 0 requests, button never enters loading ─────
+        # ── J: empty submit — validation blocks, 0 requests ───────────────────
         label = 'J: empty submit — validation blocks — 0 requests, button stays default'
         try:
             await open_register()
@@ -414,9 +419,115 @@ async def main():
         except Exception as ex:
             fail(label, str(ex))
 
+        # ── K: Click + Enter — distinct from D (click+click) and I (Enter+Enter)
+        label = 'K: Click+Enter — click #regBtn then Enter in #rPass while in-flight → 1 request'
+        try:
+            await open_register()
+            await fill_valid_form()
+            await setup_request_counter()
+
+            stall_event = threading.Event()
+
+            async def handle_stall_k(route):
+                await asyncio.get_event_loop().run_in_executor(None, stall_event.wait)
+                await route.fulfill(status=409, body='{"detail":"exists"}',
+                                    headers={'content-type': 'application/json'})
+
+            await page.route('**/auth/register', handle_stall_k)
+
+            # Click button (first submit — enters loading)
+            await page.click('#regBtn')
+            await page.wait_for_timeout(80)
+            # While in-flight, press Enter in rPass (tests keydown guard)
+            await page.press('#rPass', 'Enter')
+            await page.wait_for_timeout(80)
+
+            reqs = await count_register_requests()
+            stall_event.set()
+            await page.wait_for_timeout(300)
+            await page.unroute('**/auth/register')
+
+            if reqs != 1:
+                fail(label, f'{reqs} requests fired (expected 1)')
+            else:
+                ok(label)
+        except Exception as ex:
+            fail(label, str(ex))
+
+        # ── L: Failure + Retry — _rSubmitting resets after error ──────────────
+        label = 'L: Failure+Retry — 409 restores guard; second attempt fires → 2 total requests'
+        try:
+            await open_register()
+            await fill_valid_form()
+            await setup_request_counter()
+
+            # First attempt: 409 error
+            async def handle_409_l(route):
+                await route.fulfill(status=409, body='{"detail":"البريد الإلكتروني مستخدم بالفعل"}',
+                                    headers={'content-type': 'application/json'})
+
+            await page.route('**/auth/register', handle_409_l)
+            await page.click('#regBtn')
+            await page.wait_for_timeout(500)  # let error restore run
+            await page.unroute('**/auth/register')
+
+            disabled_after_err = await page.evaluate("document.getElementById('regBtn').disabled")
+            aria_after_err     = await page.evaluate("document.getElementById('regBtn').getAttribute('aria-busy')")
+
+            # Second attempt: success
+            fake_user = {'id': 99, 'tw_id': 'U9620test', 'full_name': 'Test',
+                         'email': 'test@example.com', 'user_type': 'emp',
+                         'country_code': '9620', 'created_at': '2026-01-01T00:00:00'}
+
+            async def handle_success_l(route):
+                await route.fulfill(
+                    status=200,
+                    body=json.dumps({'user': fake_user, 'token': 'fake.jwt.token'}),
+                    headers={'content-type': 'application/json'}
+                )
+
+            await page.route('**/auth/register', handle_success_l)
+            await page.evaluate("""
+                window._redir_count_l = 0;
+                window._origRedirectL = window.redirect;
+                window.redirect = function(u) { window._redir_count_l++; };
+            """)
+
+            await page.click('#regBtn')
+            # Wait for redirect to fire — event-driven, no fixed sleep
+            await page.wait_for_function("window._redir_count_l >= 1", timeout=3000)
+
+            reqs        = await count_register_requests()
+            redir_count = await page.evaluate("window._redir_count_l")
+
+            await page.unroute('**/auth/register')
+            await page.evaluate("""
+                window.redirect = window._origRedirectL;
+                localStorage.removeItem('tw_user');
+                localStorage.removeItem('tw_jwt');
+            """)
+
+            errors = []
+            if disabled_after_err:
+                errors.append('button still disabled after 409 (guard not reset)')
+            if aria_after_err != 'false':
+                errors.append(f'aria-busy after error: {aria_after_err}')
+            if reqs != 2:
+                errors.append(f'{reqs} total requests (expected 2)')
+            if redir_count != 1:
+                errors.append(f'redirect count: {redir_count} (expected 1 on success)')
+            if errors:
+                fail(label, '; '.join(errors))
+            else:
+                ok(label)
+        except Exception as ex:
+            fail(label, str(ex))
+
         await browser.close()
 
     print(f'\n\033[1m── {PASS_COUNT} passed, {FAIL_COUNT} failed, 0 skipped ──\033[0m\n')
+    return FAIL_COUNT
 
 
-asyncio.run(main())
+if __name__ == '__main__':
+    sys.exit(asyncio.run(main()))
