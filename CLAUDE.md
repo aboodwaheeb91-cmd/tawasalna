@@ -1318,6 +1318,10 @@ Full specification: `docs/design-system/COLOR-SYSTEM.md` (CLR-00 → CLR-34, 35 
 ❌ Using --t4 as a canonical Semantic token (--t4 remains raw rgba(255,255,255,.2) pending Phase 2 consumer separation)
 ```
 
+### Non-CSS Color Mirror (mandatory — added Phase 2)
+
+`<meta name="theme-color" content="#00c896">` in `index.html` cannot reference CSS custom properties. It must stay as a literal hex value. **During any Brand Redesign that changes `--color-brand-primary`, this `<meta>` tag must be updated manually to match the new value.** Do NOT remove the meta tag; do NOT set it to a CSS var string (browsers ignore it). Document the alignment check in the PR description of any Brand Redesign PR.
+
 ---
 
 ## Shared Upload Client Rules (mandatory for all AI sessions)

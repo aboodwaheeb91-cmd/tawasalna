@@ -51,6 +51,7 @@
   --color-surface-page:          var(--color-prim-dark-950);
   --color-surface-card-solid:    var(--color-prim-dark-900);
   --color-surface-card:          rgba(255,255,255,.03); /* translucent glassmorphism card */
+  --color-surface-input:         rgba(255,255,255,.06); /* input/select field background — confirmed consumer: index.css + Phase 2 */
 
   /* Border */
   --color-border-default: rgba(255,255,255,.08);

@@ -63,6 +63,12 @@
 - DS-INP يملك **متى وأين** يُطبَّق كل لون (أي state → أي token).
 - **DS-COLOR يملك القيم الفعلية** (`--color-border-focus`, `--color-text-placeholder`, `--color-text-disabled`, إلخ). راجع `docs/design-system/COLOR-SYSTEM.md` CLR-20 للحدود الرسمية.
 
+**`--color-surface-input` — Surface Token Contract (Phase 2 confirmed):**
+- **Token:** `--color-surface-input: rgba(255,255,255,.06)` — معرَّف في `tw_shared.css` Section B Surface.
+- **الاستخدام:** `background` لعناصر `<input>` و `<select>` فقط — خلفية حقل الإدخال.
+- **لماذا مستقل عن `--color-surface-card`:** القيمة `.06` (أعلى تباين من `.03`) مقصودة — حقل الإدخال يحتاج مستوى ظهور أعلى من الكرت العادي ليُميَّز كعنصر تفاعلي.
+- **ممنوع:** استخدام `--color-surface-card` أو `--color-surface-card-solid` كخلفية لحقول الإدخال. ممنوع تعريف قيمة hex مباشرة في page CSS بدلاً من هذا الـ token.
+
 ---
 
 ## INP-03 Canonical Field Anatomy
