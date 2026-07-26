@@ -288,8 +288,8 @@ Disabled > Error > Focus > Filled/Normal
 - **Latin / أرقام:** `dir="ltr"` على الحقل نفسه للأرقام والروابط والبريد الإلكتروني
 
 ```html
-<!-- بريد إلكتروني: LTR دائماً -->
-<input type="email" dir="ltr" placeholder="example@domain.com" />
+<!-- بريد إلكتروني: LTR + spellcheck=false (إلزامي — انظر INP-09A) -->
+<input type="email" dir="ltr" autocomplete="email" spellcheck="false" placeholder="example@domain.com" />
 
 <!-- هاتف: LTR -->
 <input type="tel" dir="ltr" placeholder="+962799..." />
@@ -299,6 +299,50 @@ Disabled > Error > Focus > Filled/Normal
 
 <!-- اسم عربي: RTL (الافتراضي) -->
 <input type="text" placeholder="أحمد محمد" />
+```
+
+---
+
+## INP-09A Email Field Mandatory Attributes Contract
+
+### الـ Attributes الإلزامية لكل Email Input
+
+```html
+<input
+  type="email"
+  dir="ltr"
+  autocomplete="email"
+  spellcheck="false"
+  placeholder="example@domain.com"
+/>
+```
+
+| الـ Attribute | القيمة | السبب |
+|--------------|--------|-------|
+| `type="email"` | إلزامي | keyboard مناسب على mobile |
+| `dir="ltr"` | إلزامي | البريد دائماً LTR |
+| `autocomplete="email"` | إلزامي | يُحسِّن UX ويسهِّل autofill |
+| `spellcheck="false"` | **إلزامي** | البريد ليس نصاً لغوياً؛ يمنع browser/keyboard spelling and grammar checking وما يرتبط به من decorations أو تدخلات تحريرية غير مرغوبة على قيمة البريد |
+
+### لماذا `spellcheck="false"` إلزامي لـ Email
+
+البريد الإلكتروني ليس نصاً لغوياً — الـ local-part (مثل `aboodwaheeb`) هو معرِّف تقني لا كلمة في أي لغة. إخضاعه للتدقيق الإملائي غير صحيح دلالياً ويُسبِّب:
+
+- ظهور spell-check decorations (خطوط تحت النص) على قيمة البريد
+- تدخلات تحريرية من الـ keyboard/browser (اقتراحات تصحيح، autocorrect)
+- سلوكيات rendering غير متوقعة مرتبطة بـ spell checking على بعض المنصات
+
+`spellcheck="false"` يُوقف هذه التدخلات ويضمن أن قيمة البريد تُعرَض وتُحرَّر دون تدخل spelling/grammar layer.
+
+#### ملاحظة ميدانية (Observation — لم تُثبَت بقياس)
+
+على Android Chrome + Gboard لوحظ أن الـ local-part يظهر أسود مع خط تدقيق إملائي أحمر عند focus، بينما `@domain.com` يبقى أبيض. `spellcheck` هو **عامل مشتبه قوي** بناءً على هذا الـ pattern. التحقق اليدوي على الجهاز بعد deployment هو الذي يُحدِّد إذا كان `spellcheck="false"` يحل مشكلة اللون المرصودة بالكامل.
+
+### الممنوعات الدائمة
+
+```
+❌ Email input بدون spellcheck="false"
+❌ إضافة autocorrect="off" كبديل — غير قياسي على Android، لا يُغني عن spellcheck="false"
 ```
 
 ---

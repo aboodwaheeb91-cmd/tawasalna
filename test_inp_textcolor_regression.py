@@ -153,6 +153,23 @@ async def main():
         except Exception as ex:
             fail(label, str(ex))
 
+        # ── E: spellcheck="false" on email fields ────────────────────────────────
+        label = 'E: #lEmail and #rEmail — spellcheck attribute is "false" (INP-09A)'
+        try:
+            l_sc = await page.evaluate("document.getElementById('lEmail').getAttribute('spellcheck')")
+            r_sc = await page.evaluate("document.getElementById('rEmail').getAttribute('spellcheck')")
+            errors = []
+            if l_sc != 'false':
+                errors.append(f'#lEmail spellcheck={l_sc!r} (expected "false")')
+            if r_sc != 'false':
+                errors.append(f'#rEmail spellcheck={r_sc!r} (expected "false")')
+            if errors:
+                fail(label, '; '.join(errors))
+            else:
+                ok(label)
+        except Exception as ex:
+            fail(label, str(ex))
+
         await browser.close()
 
     # ── C: CSS source check — -webkit-text-fill-color in .field input ─────────
