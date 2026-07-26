@@ -322,24 +322,26 @@ Disabled > Error > Focus > Filled/Normal
 | `type="email"` | إلزامي | keyboard مناسب على mobile |
 | `dir="ltr"` | إلزامي | البريد دائماً LTR |
 | `autocomplete="email"` | إلزامي | يُحسِّن UX ويسهِّل autofill |
-| `spellcheck="false"` | **إلزامي** | يمنع Android Chrome/Gboard من الدخول في IME composition mode |
+| `spellcheck="false"` | **إلزامي** | البريد ليس نصاً لغوياً؛ يمنع browser/keyboard spelling and grammar checking وما يرتبط به من decorations أو تدخلات تحريرية غير مرغوبة على قيمة البريد |
 
 ### لماذا `spellcheck="false"` إلزامي لـ Email
 
-على Android Chrome + Gboard، عند غياب `spellcheck="false"`:
+البريد الإلكتروني ليس نصاً لغوياً — الـ local-part (مثل `aboodwaheeb`) هو معرِّف تقني لا كلمة في أي لغة. إخضاعه للتدقيق الإملائي غير صحيح دلالياً ويُسبِّب:
 
-1. المتصفح يُطبِّق spellcheck على الـ **local-part** (النص قبل `@`) — لأنه يبدو كلمة لغوية
-2. الـ local-part يدخل في **IME composition mode** — طبقة OS/IME بدلاً من CSS layer
-3. `-webkit-text-fill-color:#fff` (من INP-10A) يعمل على CSS layer فقط — لا يُغطي IME composition rendering
-4. النتيجة: local-part يظهر **أسود** مع **خط تدقيق إملائي أحمر**، بينما `@domain.com` يبقى أبيض
+- ظهور spell-check decorations (خطوط تحت النص) على قيمة البريد
+- تدخلات تحريرية من الـ keyboard/browser (اقتراحات تصحيح، autocorrect)
+- سلوكيات rendering غير متوقعة مرتبطة بـ spell checking على بعض المنصات
 
-`spellcheck="false"` يمنع المتصفح من الدخول في composition/spellcheck mode كلياً — يُبقي النص تحت CSS rendering حيث `color` و `-webkit-text-fill-color` يعملان بشكل صحيح.
+`spellcheck="false"` يُوقف هذه التدخلات ويضمن أن قيمة البريد تُعرَض وتُحرَّر دون تدخل spelling/grammar layer.
+
+#### ملاحظة ميدانية (Observation — لم تُثبَت بقياس)
+
+على Android Chrome + Gboard لوحظ أن الـ local-part يظهر أسود مع خط تدقيق إملائي أحمر عند focus، بينما `@domain.com` يبقى أبيض. `spellcheck` هو **عامل مشتبه قوي** بناءً على هذا الـ pattern. التحقق اليدوي على الجهاز بعد deployment هو الذي يُحدِّد إذا كان `spellcheck="false"` يحل مشكلة اللون المرصودة بالكامل.
 
 ### الممنوعات الدائمة
 
 ```
 ❌ Email input بدون spellcheck="false"
-❌ محاولة إصلاح هذه المشكلة بـ CSS وحده — IME composition layer لا يخضع لـ CSS
 ❌ إضافة autocorrect="off" كبديل — غير قياسي على Android، لا يُغني عن spellcheck="false"
 ```
 
