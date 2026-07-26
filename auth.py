@@ -834,7 +834,8 @@ def _unique_tw_id(conn, user_type: str, country_code: str) -> str:
 # ══ المستخدمون ══
 def create_user(
     full_name: str, email: str, password: str,
-    user_type: str, country_code: str = 'DEFAULT'
+    user_type: str, country_code: str = 'DEFAULT',
+    first_name=None, middle_name=None, last_name=None
 ) -> dict:
     conn = get_conn()
     try:
@@ -849,7 +850,22 @@ def create_user(
             utype=user_type, cc=country_code
         )
         cols = [c["name"] for c in conn.columns]
-        return _serialize(_row_to_dict(cols, rows[0]))
+        user_row = _row_to_dict(cols, rows[0])
+        # G-contract: store structured name parts in profiles for emp accounts at registration.
+        # No backfill for existing accounts — only new emp registrations with parts provided.
+        if user_type == 'emp' and (first_name or last_name):
+            uid = user_row['id']
+            conn.run(
+                "INSERT INTO profiles (user_id, first_name, middle_name, last_name) "
+                "VALUES (:uid, :fn, :mn, :ln) "
+                "ON CONFLICT (user_id) DO UPDATE SET "
+                "first_name=EXCLUDED.first_name, middle_name=EXCLUDED.middle_name, last_name=EXCLUDED.last_name",
+                uid=uid,
+                fn=first_name or None,
+                mn=middle_name or None,
+                ln=last_name or None
+            )
+        return _serialize(user_row)
     except Exception as e:
         if "unique" in str(e).lower() or "duplicate" in str(e).lower():
             raise ValueError("البريد الإلكتروني مسجل مسبقاً")

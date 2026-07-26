@@ -743,7 +743,7 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 - لا تُخزِّن navigation state في localStorage.
 - `?next=` محجوز لـ Auth Return Destination فقط — ليس Back fallback عام.
 **Gaps documented (not fixed):** `history.back()` بدون fallback في `job-detail.js:729`، `popstate` listener مزدوج في `company.main.js:1975+4624`، `redirect()` لا تحفظ `?next=` في `index.auth.js`.
-**Status:** V1 Documentation ✅ · Implementation 🔜
+**Status:** V1 Documentation ✅ · First Implementation ✅ (Auth Gateway — auth-gw-v9 · NAV-09)
 
 ---
 

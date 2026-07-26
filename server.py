@@ -1344,8 +1344,13 @@ def admin_page(): return read_html("admin.html")
 # Schemas
 # ══════════════════════════════════════════
 class RegisterInput(BaseModel):
-    full_name: str
-    email: str
+    # Structured name for emp (G-contract): first_name + last_name required, middle_name optional.
+    # full_name for co/edu (single org name). Both paths cannot be present simultaneously.
+    full_name:   Optional[str] = None
+    first_name:  Optional[str] = None
+    middle_name: Optional[str] = None
+    last_name:   Optional[str] = None
+    email:    str
     password: str
     user_type: Optional[str] = "emp"
 
@@ -2889,18 +2894,37 @@ def ping():
 # ══════════════════════════════════════════
 @app.post("/auth/register")
 def register(data: RegisterInput, request: Request):
-    if not data.full_name.strip():
-        raise HTTPException(400, detail="الاسم الكامل مطلوب")
+    if data.user_type not in ("emp", "co", "edu"):
+        raise HTTPException(400, detail="نوع الحساب غير صحيح")
     if not data.email.strip():
         raise HTTPException(400, detail="البريد الإلكتروني مطلوب")
     if len(data.password) < 6:
         raise HTTPException(400, detail="كلمة المرور يجب أن تكون 6 أحرف على الأقل")
-    if data.user_type not in ("emp", "co", "edu"):
-        raise HTTPException(400, detail="نوع الحساب غير صحيح")
+
+    # G-contract: emp uses structured name; co/edu use full_name
+    first_name_val = middle_name_val = last_name_val = None
+    if data.user_type == "emp":
+        first  = (data.first_name  or "").strip()
+        last   = (data.last_name   or "").strip()
+        middle = (data.middle_name or "").strip()
+        if not first or not last:
+            raise HTTPException(400, detail="الاسم الأول واسم العائلة مطلوبان")
+        full_name      = " ".join(p for p in [first, middle, last] if p)
+        first_name_val = first
+        middle_name_val = middle or None
+        last_name_val  = last
+    else:
+        full_name = (data.full_name or "").strip()
+        if not full_name:
+            raise HTTPException(400, detail="الاسم الكامل مطلوب")
+
     try:
         client_ip = get_client_ip(request)
         country_code = get_country_from_ip(client_ip)
-        user = create_user(data.full_name, data.email, data.password, data.user_type, country_code)
+        user = create_user(
+            full_name, data.email, data.password, data.user_type, country_code,
+            first_name=first_name_val, middle_name=middle_name_val, last_name=last_name_val
+        )
         token = _jwt_encode({"user_id": user.get("id"), "user_type": user.get("user_type"), "tw_id": user.get("tw_id","")})
         return {"status": "success", "user": user, "token": token}
     except ValueError as e:

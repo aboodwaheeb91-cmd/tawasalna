@@ -1,7 +1,7 @@
 # Navigation System V1 — تواصلنا
 
 > **[DS-NAV] — Architecture & Contract Documentation**
-> **الحالة:** V1 Documentation ✅ · Implementation 🔜 (لا تنفيذ في هذا الـ PR)
+> **الحالة:** V1 Documentation ✅ · Implementation ✅ (Auth Gateway — auth-gw-v9)
 
 ---
 
@@ -713,5 +713,62 @@ if (!_u) { location.href = '/login' }
 
 ---
 
-*آخر تحديث: 2026-07-20 — §41 in SYSTEMS_INDEX.md.*
-*الحالة: V1 Documentation ✅ · Implementation 🔜*
+## [NAV-09] Auth Gateway Back Pattern — Reference Implementation
+
+**الصفحة:** `/login` (index.html + index.ui.js)  
+**الحالة:** ✅ Implemented (auth-gw-v9)
+
+هذا هو أول تطبيق فعلي لـ DS-NAV في المشروع ويُعتبر المرجع لتطبيقات مستقبلية.
+
+### المشكلة
+
+بدون History State، الضغط على زر Back (Android/Browser) في صفحة Register يخرج من `/login` مباشرةً.
+
+### التطبيق في index.ui.js
+
+```js
+// 1. replaceState عند تهيئة الصفحة (login هو الحالة الأساسية)
+history.replaceState({ds_nav:'auth-login'}, '');
+
+// 2. pushState عند الانتقال للـ register (مرة واحدة فقط)
+if(!_authViewPushed){
+  history.pushState({ds_nav:'auth-register'}, '');
+  _authViewPushed = true;
+}
+
+// 3. showLogin() يستخدم history.back() إذا كانت register مدفوعة
+function showLogin(){
+  if(_authViewPushed){ history.back(); return; }
+  _applyLoginUI();
+}
+
+// 4. popstate handler — pure render فقط، لا pushState/back() هنا
+window.addEventListener('popstate', function(e){
+  if(e.state && e.state.ds_nav === 'auth-register'){ /* forward */ }
+  else { _applyLoginUI(); } // login state or initial
+});
+```
+
+### القواعد المستمدة من هذا التطبيق
+
+```
+✅ replaceState عند init — يضع baseline entry للـ login
+✅ pushState عند أول انتقال للـ register فقط — مرة واحدة (يحميه _authViewPushed)
+✅ history.back() في showLogin() فقط إذا _authViewPushed === true
+✅ popstate handler: pure render فقط — لا history manipulation داخله
+✅ _applyLoginUI: pure function — تُعيد render الـ login UI بدون side effects
+❌ ممنوع: pushState متكرر في كل مرة يضغط المستخدم "سجل الآن"
+❌ ممنوع: beforeunload أو history trapping
+❌ ممنوع: popstate يستدعي pushState أو history.back() (حلقة لا نهاية لها)
+❌ ممنوع: client-side router — تواصلنا MPA خالص
+```
+
+### ما لا يُغطيه هذا النمط
+
+- المتصفحات التي تُعيد تشغيل الصفحة عند restore من bfcache (حالة نادرة، مقبولة)
+- Back بعد redirect (بعد login ناجح) — خارج نطاق Auth Gateway
+- Sessions timeout أثناء التنقل — معالجة خاصة في `/auth/verify-token` مستقبلاً
+
+---
+
+*آخر تحديث: 2026-07-26 — NAV-09 Auth Gateway Back Pattern (Implementation) · الحالة: V1 Implementation ✅*
