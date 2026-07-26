@@ -1161,11 +1161,11 @@ async function handleSave() {
 ### القواعد الأساسية
 
 1. **`--color-*` namespace محجوز حصراً لـ DS-COLOR** — لا يُعرَّف أو يُعاد تعريف `--color-*` خارج `tw_shared.css`. Page CSS files ممنوعة من إنشاء أو override أي `--color-*` variable.
-2. **Three Logical Layers** — Foundation/Primitive (`--color-prim-*`) → Semantic (`--color-brand-*`, `--color-bg-*`, `--color-border-*`, `--color-text-*`, `--color-status-*`, `--color-categorical-*`) → Legacy Aliases (`--ac: var(--color-brand-primary)` إلخ). Feature CSS يستخدم Semantic فقط — لا يلمس Foundation مباشرةً.
+2. **Three Logical Layers** — Foundation/Primitive (`--color-prim-*`) → Semantic (`--color-brand-*`, `--color-surface-*`, `--color-border-*`, `--color-text-*`, `--color-status-*`, `--color-categorical-*`) → Legacy Aliases (`--ac: var(--color-brand-primary)` إلخ). Feature CSS يستخدم Semantic فقط — لا يلمس Foundation مباشرةً. Feature CSS تستخدم Semantic RGB channels (`--color-brand-primary-rgb`, `--color-status-success-rgb`) — لا Primitive RGB channels مباشرةً.
 3. **Token Identity ≠ Token Value** — رمزان مختلفان قد يتشاركان نفس hex value ويبقيان مستقلَّين. تغيير قيمة `--color-brand-primary` لا يُغيِّر `--color-categorical-teal` تلقائياً حتى لو القيمة الحالية متساوية.
 4. **Semantic ≠ Categorical** — `--color-status-warning` إشارة UX (خلل/تحذير). `--color-categorical-amber` تمييز بيانات (مستوى مهارة/فئة). ممنوع استخدام Status tokens للتصنيف والعكس.
 5. **Domain/Feature Mapping Policy** — DS-COLOR يملك القيمة والهوية. Feature/Domain يملك المعنى (Tier 2 alias يُشير إلى DS-COLOR، لا يُعرِّف قيمة hex بنفسه).
-6. **Three-Tier Local Token Policy** — T1: Global DS-COLOR في `tw_shared.css`. T2: Domain Alias في feature CSS (`--co-accent: var(--color-brand-secondary)` — يُشير إلى T1). T3: Local non-color tokens (sizes, durations). T2 ممنوع أن يُعرِّف ألوانه بنفسه (no `--co-accent: #2563ff`).
+6. **Three-Tier Local Token Policy** — T1: Global DS-COLOR في `tw_shared.css`. T2: Domain Alias في feature CSS (`--co-accent: var(--color-brand-secondary)` — يُشير إلى T1). T3: Local non-color tokens (sizes, durations) + Local Color Role مسموح بشروط (راجع CLR-15). T2 ممنوع أن يُعرِّف ألوانه بنفسه (no `--co-accent: #2563ff`).
 7. **Migration ≠ Redesign** — `#00c896 → var(--color-brand-primary)` = ترحيل (لا تغيير بصري). `#00c896 → #00b386` = إعادة تصميم تحتاج موافقة معمارية. ممنوع الخلط.
 8. **No Token Without Real Consumer in V1** — لا tokens افتراضية بدون مستهلك حقيقي في نطاق V1.
 9. **Phase 0 = Documentation Only** — لا tokens مُضافة إلى `tw_shared.css` بعد. Phase 1 يُضيف الـ `--color-*` tokens. Phase 4 يُزيل Legacy Aliases. ممنوع تخطي المراحل.
@@ -1184,7 +1184,9 @@ async function handleSave() {
 ❌ Token مُضاف بدون مستهلك حقيقي في V1 scope
 ```
 
-**المرجع التفصيلي:** `docs/design-system/COLOR-SYSTEM.md` (CLR-00 → CLR-33)
+10. **Color Role Assignment** — كل عنصر مرئي يجب أن يحمل Color Role مقصود ومعروف (Brand / Surface / Text / Status / Categorical). الوراثة مسموحة فقط إذا كانت مقصودة وقابلة للتتبع إلى Color Role رسمي. راجع CLR-33.
+
+**المرجع التفصيلي:** `docs/design-system/COLOR-SYSTEM.md` (CLR-00 → CLR-34, 35 قسماً)
 
 ---
 

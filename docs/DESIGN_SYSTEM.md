@@ -142,7 +142,7 @@
 | Documentation — `design-system/DATE-TIME-FIELDS.md` (DATE-00 → DATE-35) | مكتمل ✓ — V1 توثيق |
 | Documentation — `design-system/OVERLAY-SYSTEM.md` (OVL-00 → OVL-37) | مكتمل ✓ — V1 توثيق |
 | Documentation — `design-system/FEEDBACK-SYSTEM.md` (FBK-00 → FBK-29) | مكتمل ✓ — V1 توثيق |
-| Documentation — `design-system/COLOR-SYSTEM.md` (CLR-00 → CLR-33) | مكتمل ✓ — Phase 0 توثيق |
+| Documentation — `design-system/COLOR-SYSTEM.md` (CLR-00 → CLR-34, 35 قسماً) | مكتمل ✓ — Phase 0 توثيق (تصحيح موثَّق 2026-07-26) |
 | CSS Layer (`static/shared/tw-ui-tokens.css`) | **لم تُنشأ بعد** — انظر FUTURE_ROADMAP.md |
 | Navigation Implementation (Layer Stack، Back Contract، ?next=) | **لم تُنفَّذ بعد** — موثَّقة في NAVIGATION.md |
 | Input / Form / Validation Runtime Implementation | **لم تُنفَّذ بعد** — موثَّقة في INP/FRM/VAL |

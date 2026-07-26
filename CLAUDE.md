@@ -1265,13 +1265,13 @@ Full technical specification: `ARCHITECTURE.md §65`.
 ## Color System V1 (DS-COLOR) Rules (mandatory for all AI sessions)
 
 These rules are permanent and apply to all future AI sessions.
-Full specification: `docs/design-system/COLOR-SYSTEM.md` (CLR-00 → CLR-33).
+Full specification: `docs/design-system/COLOR-SYSTEM.md` (CLR-00 → CLR-34, 35 sections).
 
 1. **Always check CLR-00 first.** Any task involving color (adding a new color, changing a color, defining a token, migrating a hardcoded hex) must start at CLR-00 (Routing Protocol) in `COLOR-SYSTEM.md`. Do NOT guess which token to use — follow the routing table.
 
 2. **`--color-*` namespace is reserved for DS-COLOR exclusively.** No page CSS file (e.g. `company.css`, `profile-v2.css`, `index.css`) may define or redefine any `--color-*` variable. All `--color-*` tokens live only in `tw_shared.css` (Phase 1 target).
 
-3. **Feature CSS uses Semantic layer tokens only.** Feature CSS files reference `--color-brand-*`, `--color-bg-*`, `--color-border-*`, `--color-text-*`, `--color-status-*`, or `--color-categorical-*`. They never reference Foundation/Primitive tokens (`--color-prim-*`) directly.
+3. **Feature CSS uses Semantic layer tokens only.** Feature CSS files reference `--color-brand-*`, `--color-surface-*`, `--color-border-*`, `--color-text-*`, `--color-status-*`, or `--color-categorical-*`. They never reference Foundation/Primitive tokens (`--color-prim-*`) directly. For alpha/rgba variants, use Semantic RGB channels (`--color-brand-primary-rgb`, `--color-status-success-rgb`) — never `--color-prim-*-rgb` directly.
 
 4. **Domain Aliases (Tier 2) reference DS-COLOR — they never define their own hex values.**
    ```css
@@ -1283,8 +1283,9 @@ Full specification: `docs/design-system/COLOR-SYSTEM.md` (CLR-00 → CLR-33).
 
 6. **Semantic ≠ Categorical — never cross-use.**
    - `--color-status-warning` = UX signal (something is wrong/risky). Use for: form errors, expiration notices, warnings.
-   - `--color-categorical-amber` = data category marker (e.g. "intermediate" skill level). Use for: charts, skill tiers, badges.
+   - `--color-categorical-amber` = data category marker (e.g. "expert" skill level in Tawasolna). Use for: charts, skill tiers, badges.
    - Using a Status token for data categorization (or vice versa) is a permanent violation.
+   - **Tawasolna skill level mapping:** beginner=`--color-categorical-neutral`, intermediate=`--color-categorical-blue`, good=`--color-categorical-purple`, advanced=`--color-categorical-teal`, expert=`--color-categorical-amber`.
 
 7. **Migration ≠ Redesign.**
    - `#00c896` → `var(--color-brand-primary)` = migration (zero visual change, approved).
@@ -1293,9 +1294,11 @@ Full specification: `docs/design-system/COLOR-SYSTEM.md` (CLR-00 → CLR-33).
 
 8. **`company.css` architectural debt (CLR-16).** `company.css` redefines `--ac: #2563ff` and `--ac2: #00c896` (swapping the global teal/blue values). This is a known architectural debt — do NOT "fix" it by further overriding tokens. The planned migration path is: replace with `--co-accent: var(--color-brand-secondary)` in a dedicated Phase 1+ PR.
 
-9. **Phase 0 = Documentation Only. Phase 1 = add tokens to `tw_shared.css`.** Do not add any `--color-*` tokens to `tw_shared.css` until DS-COLOR Phase 1 is explicitly requested. The documentation exists, the runtime does not.
+9. **Phase 0 = Documentation Only. Phase 1 = add tokens to `tw_shared.css` (zero visual change).** Phase 2+ = gradual page migration when pages are touched. Do not add any `--color-*` tokens to `tw_shared.css` until DS-COLOR Phase 1 is explicitly requested.
 
 10. **Alpha values follow the 6-level scale (CLR-19).** Values outside the scale require justification in the PR description. The scale is a text contract — not CSS custom properties.
+
+11. **Color Role Assignment (CLR-33).** Every visible UI element must have an intentional known Color Role. Do not let color be determined by accidental inheritance or browser defaults. When no suitable role exists in DS-COLOR, use a Tier 2/3 domain role and document it as a gap if it could become shared.
 
 ### Forbidden (permanent)
 
@@ -1310,6 +1313,9 @@ Full specification: `docs/design-system/COLOR-SYSTEM.md` (CLR-00 → CLR-33).
 ❌ Adding a token with no real V1 consumer
 ❌ DS-COLOR Phase 1 implementation without explicit user approval
 ❌ Parallel color system outside DS-COLOR
+❌ --color-prim-*-rgb used directly in feature CSS (use Semantic RGB channels)
+❌ --color-status-info: var(--color-brand-secondary) (Semantic→Semantic coupling — both must reference --color-prim-blue independently)
+❌ Assuming --t3/--t4 canonical mapping before Phase 1 consumer audit
 ```
 
 ---

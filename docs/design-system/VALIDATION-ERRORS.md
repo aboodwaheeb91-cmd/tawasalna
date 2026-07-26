@@ -50,6 +50,7 @@
 
 **DS-VAL لا يملك:**
 - الشكل البصري للحقل (حد أحمر، background) → DS-INP
+- **قيم الألوان الفعلية للـ error states** → DS-COLOR (راجع `COLOR-SYSTEM.md` CLR-20). DS-VAL يُحدِّد توقيت الخطأ؛ DS-INP يُحدِّد الشكل البصري؛ DS-COLOR يملك token اللون (`--color-status-danger`, `--color-border-focus`, إلخ).
 - دورة حياة الفورم (Reset، Hydration، Retry) → DS-FRM
 - شكل Response الخطأ من Backend → API-MUT
 - Content Moderation / Profanity → نظام Moderation منفصل (غير موثَّق بعد)

@@ -59,6 +59,10 @@
 - CSS الحالي: موزَّع per-page (`company.css`، `profile-v2.css`، إلخ)
 - ممنوع إنشاء `tw-input.css` حتى يُطلب صراحةً
 
+**ملكية الألوان:**
+- DS-INP يملك **متى وأين** يُطبَّق كل لون (أي state → أي token).
+- **DS-COLOR يملك القيم الفعلية** (`--color-border-focus`, `--color-text-placeholder`, `--color-text-disabled`, إلخ). راجع `docs/design-system/COLOR-SYSTEM.md` CLR-20 للحدود الرسمية.
+
 ---
 
 ## INP-03 Canonical Field Anatomy

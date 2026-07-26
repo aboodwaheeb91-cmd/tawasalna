@@ -60,6 +60,15 @@
 
 ---
 
+## [BTN-01B] Color Ownership Cross-Reference
+
+**DS-BTN يملك:** متى وكيف يُطبَّق كل لون على الزر (state، type، variant).
+**DS-COLOR يملك:** القيم الفعلية لكل token مُستخدَم (`--color-brand-primary`, `--color-brand-secondary`, إلخ).
+
+راجع `docs/design-system/COLOR-SYSTEM.md` CLR-20 لحدود الملكية الرسمية بين DS-BTN وDS-COLOR.
+
+---
+
 ## [BTN-02] Base Button Visual Contract
 
 ### الهوية البصرية الأساسية
