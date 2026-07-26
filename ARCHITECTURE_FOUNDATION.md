@@ -1168,16 +1168,16 @@ async function handleSave() {
 6. **Three-Tier Local Token Policy** — T1: Global DS-COLOR في `tw_shared.css`. T2: Domain Alias في feature CSS (`--co-accent: var(--color-brand-secondary)` — يُشير إلى T1). T3: Local non-color tokens (sizes, durations) + Local Color Role مسموح بشروط (راجع CLR-15). T2 ممنوع أن يُعرِّف ألوانه بنفسه (no `--co-accent: #2563ff`).
 7. **Migration ≠ Redesign** — `#00c896 → var(--color-brand-primary)` = ترحيل (لا تغيير بصري). `#00c896 → #00b386` = إعادة تصميم تحتاج موافقة معمارية. ممنوع الخلط.
 8. **No Token Without Real Consumer in V1** — لا tokens افتراضية بدون مستهلك حقيقي في نطاق V1.
-9. **Phase 0 = Documentation Only** — لا tokens مُضافة إلى `tw_shared.css` بعد. Phase 1 يُضيف الـ `--color-*` tokens. Phase 4 يُزيل Legacy Aliases. ممنوع تخطي المراحل.
+9. **Phase 0 ✅ Documentation Only (مكتمل). Phase 1 ✅ Runtime Tokens Foundation (مكتمل — PR #520)**: `tw_shared.css` يحتوي الآن على `--color-*` tokens في ثلاثة أقسام (Foundation/Semantic/Legacy Aliases). `--t3` → `var(--color-text-muted)` ✅ (audit مكتمل). `--t4` يبقى raw `rgba(255,255,255,.2)` — mapping مؤجَّل Phase 2 (consumers مختلطة). Phase 2 = page-by-page migration تدريجي عند لمس الصفحات — يحتاج موافقة صريحة لكل صفحة. Phase 4 = حذف Legacy Aliases عند zero consumers. أي تغيير مستقبلي على DS-COLOR يحتاج PR معلن يُحدِّد نوع التغيير (migration / redesign / phase change).
 
 ### ممنوعات F35
 
 ```
 ❌ `--color-*` variable تُعرَّف أو تُعاد تعريفها خارج `tw_shared.css`
 ❌ Page CSS file تُنشئ أو تُعيد تعريف `--color-*` (override DS-COLOR)
-❌ تغيير قيمة legacy token (--ac, --bg, إلخ) بدون PR DS-COLOR Phase 1 صريح
+❌ تغيير قيمة أي DS-COLOR token أو Legacy Alias بدون PR DS-COLOR معلن
 ❌ Color system موازٍ خارج DS-COLOR
-❌ DS-COLOR Phase 1 Runtime (إضافة tokens لـ tw_shared.css) قبل موافقة صريحة
+❌ DS-COLOR Phase 2 (page migration) بدون موافقة صريحة لكل صفحة/نظام
 ❌ `--color-status-*` tokens لتصنيف البيانات (Categorical)
 ❌ `--color-categorical-*` tokens لإشارات UX (Semantic Status)
 ❌ Domain Alias (T2) يُعرِّف قيمة hex بنفسه بدلاً من الإشارة إلى DS-COLOR
@@ -1237,3 +1237,4 @@ async function handleSave() {
 *حُدِّث في PR docs/ds-date-v1 — 2026-07-23 — أُضيفت القاعدة F32: Date & Time Fields System (DS-DATE). F31 جدول التوجيه: صف تاريخ/وقت أُضيف للإشارة إلى `docs/design-system/DATE-TIME-FIELDS.md`. المجموع: 32 قاعدة عليا.*
 *حُدِّث في PR docs/ds-ovl-v1 — 2026-07-24 — أُضيفت القاعدة F33: Overlay System (DS-OVL). F31 جدول التوجيه: صف Overlay/Modal/Drawer أُضيف للإشارة إلى `docs/design-system/OVERLAY-SYSTEM.md`؛ تعارض Routing أُصلح: Popover حُذف من صف DS-OVL (OVL-00 + OVL-37 يُصرِّحان أنه خارج DS-OVL V1)؛ صف Tooltip/Popover/Floating label/Context menu أُضيف → STOP. المجموع: 33 قاعدة عليا.*
 *حُدِّث في PR docs/ds-feedback-v1 — 2026-07-24 — أُضيفت القاعدة F34: Operational Feedback System (DS-FEEDBACK). F31 جدول التوجيه: صف Toast/Snackbar/Operational Feedback أُضيف للإشارة إلى `docs/design-system/FEEDBACK-SYSTEM.md`. المجموع: 34 قاعدة عليا.*
+*حُدِّث في PR #520 (DS-COLOR Phase 1 Final Documentation Sync) — 2026-07-26 — F35 قاعدة 9 حُدِّثت: Phase 0 ✅ + Phase 1 ✅ (Runtime Tokens Foundation مكتمل). ممنوعات F35 حُدِّثت: Phase 1 Runtime restriction أُزيلت (مكتملة)؛ Phase 2 page migration restriction أُضيفت.*

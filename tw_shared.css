@@ -6,28 +6,114 @@
 ╚══════════════════════════════════════════════════╝
 */
 
-/* ══════════════════════════════════════
-   1. CSS Variables (الألوان الأساسية)
-   ══════════════════════════════════════ */
+/* ══════════════════════════════════════════════════════════════════
+   1. DS-COLOR Phase 1 — Runtime Tokens Foundation
+   Runtime Source of Truth (CLR-02): three sections per CLR-03.
+   Zero Visual Change Contract (CLR-27): hex values unchanged.
+   ══════════════════════════════════════════════════════════════════ */
+
+/* ─── Section A: Foundation / Primitive ────────────────────────────
+   Raw named values. Only Section B (Semantic) may reference these.
+   Feature CSS must NOT use --color-prim-* directly.              */
 :root {
-  --ac:    #00c896;
-  --ac2:   #2563ff;
-  --ac-rgb: 0,200,150;
-  --bg:    #070b18;
-  --bg2:   #0d1426;
-  --bdr:   rgba(255,255,255,.08);
-  --t1:    #ffffff;
-  --t2:    rgba(255,255,255,.7);
-  --t3:    rgba(255,255,255,.4);
-  --t4:    rgba(255,255,255,.2);
-  --tw-feedback-bottom: 80px;   /* DS-FEEDBACK V1 — FBK-09 mobile offset (80px over bottom nav) */
-  --danger: #f87171;
-  --warning: #fbbf24;
-  --success: #34d399;
-  --danger-rgb:  248,113,113;   /* = --danger: #f87171 */
-  --warning-rgb: 251,191,36;    /* = --warning: #fbbf24 */
-  --ac2-rgb:     37,99,255;     /* = --ac2: #2563ff */
-  /* DS-FEEDBACK V1 — Feedback Semantic Tokens (FBK-04) */
+  /* Hue primitives */
+  --color-prim-teal:     #00c896;
+  --color-prim-blue:     #2563ff;
+  --color-prim-purple:   #8b5cf6;
+  --color-prim-dark-950: #070b18;
+  --color-prim-dark-900: #0d1426;
+  --color-prim-white:    #ffffff;
+  --color-prim-green:    #34d399;
+  --color-prim-amber:    #fbbf24;
+  --color-prim-red:      #f87171;
+
+  /* Primitive RGB channels — for Semantic RGB only, never for feature CSS */
+  --color-prim-teal-rgb:  0,200,150;
+  --color-prim-blue-rgb:  37,99,255;
+  --color-prim-red-rgb:   248,113,113;
+  --color-prim-amber-rgb: 251,191,36;
+  --color-prim-green-rgb: 52,211,153;
+}
+
+/* ─── Section B: Semantic ───────────────────────────────────────────
+   Role-based tokens. Feature CSS uses ONLY these (and Legacy in §C).
+   Never reference --color-prim-* from page CSS files.            */
+:root {
+  /* Brand */
+  --color-brand-primary:         var(--color-prim-teal);
+  --color-brand-secondary:       var(--color-prim-blue);
+  --color-brand-accent:          var(--color-prim-purple);
+  /* Brand RGB channels — for rgba() in feature CSS (e.g. hover states) */
+  --color-brand-primary-rgb:     var(--color-prim-teal-rgb);
+  --color-brand-secondary-rgb:   var(--color-prim-blue-rgb);
+
+  /* Surface */
+  --color-surface-page:          var(--color-prim-dark-950);
+  --color-surface-card-solid:    var(--color-prim-dark-900);
+  --color-surface-card:          rgba(255,255,255,.03); /* translucent glassmorphism card */
+
+  /* Border */
+  --color-border-default: rgba(255,255,255,.08);
+  --color-border-strong:  rgba(255,255,255,.16);
+  --color-border-focus:   var(--color-brand-primary);
+
+  /* Text */
+  --color-text-primary:     var(--color-prim-white);
+  --color-text-secondary:   rgba(255,255,255,.7);
+  --color-text-muted:       rgba(255,255,255,.4);
+  --color-text-placeholder: rgba(255,255,255,.28);
+  --color-text-disabled:    rgba(255,255,255,.20);
+
+  /* Status */
+  --color-status-success: var(--color-prim-green);
+  --color-status-warning: var(--color-prim-amber);
+  --color-status-danger:  var(--color-prim-red);
+  --color-status-info:    var(--color-prim-blue);
+  /* Status RGB channels */
+  --color-status-success-rgb: var(--color-prim-green-rgb);
+  --color-status-danger-rgb:  var(--color-prim-red-rgb);
+  --color-status-warning-rgb: var(--color-prim-amber-rgb);
+  --color-status-info-rgb:    var(--color-prim-blue-rgb);
+
+  /* Categorical — data classification; never use for UX status signals (CLR-13) */
+  /* Skill level mapping: beginner=neutral, intermediate=blue, good=purple,
+     advanced=teal, expert=amber  (CLR-11, CLR-13, CLR-14)                    */
+  --color-categorical-neutral: rgba(255,255,255,.4);
+  --color-categorical-blue:    var(--color-prim-blue);
+  --color-categorical-purple:  var(--color-prim-purple);
+  --color-categorical-teal:    var(--color-prim-teal);
+  --color-categorical-amber:   var(--color-prim-amber);
+}
+
+/* ─── Section C: Legacy Aliases ────────────────────────────────────
+   Backward-compat names pointing to Semantic tokens (CLR-31).
+   Do NOT add new --color-* tokens here; use Section B instead.
+   New code must reference Section B tokens directly.            */
+:root {
+  /* Color aliases */
+  --ac:      var(--color-brand-primary);
+  --ac2:     var(--color-brand-secondary);
+  --bg:      var(--color-surface-page);
+  --bg2:     var(--color-surface-card-solid);
+  --bdr:     var(--color-border-default);
+  --t1:      var(--color-text-primary);
+  --t2:      var(--color-text-secondary);
+  --t3:      var(--color-text-muted);        /* audit: all consumers are muted-role text — safe */
+  --t4:      rgba(255,255,255,.2);           /* audit: mixed consumers (placeholder + subtitle) — mapping deferred Phase 2 */
+  --danger:  var(--color-status-danger);
+  --warning: var(--color-status-warning);
+  --success: var(--color-status-success);
+
+  /* Legacy RGB aliases — now chain through Semantic RGB (DS-FEEDBACK --fbk-bdr-* reads these) */
+  --ac-rgb:      var(--color-brand-primary-rgb);
+  --ac2-rgb:     var(--color-brand-secondary-rgb);
+  --danger-rgb:  var(--color-status-danger-rgb);
+  --warning-rgb: var(--color-status-warning-rgb);
+
+  /* Non-color token — DS-FEEDBACK V1 layout offset (FBK-09); not part of DS-COLOR */
+  --tw-feedback-bottom: 80px;
+
+  /* DS-FEEDBACK Semantic Tokens (FBK-04) — owned by DS-FEEDBACK, not DS-COLOR canonical */
   --fbk-bdr-success: rgba(var(--ac-rgb), .3);
   --fbk-bdr-error:   rgba(var(--danger-rgb), .3);
   --fbk-bdr-warning: rgba(var(--warning-rgb), .3);

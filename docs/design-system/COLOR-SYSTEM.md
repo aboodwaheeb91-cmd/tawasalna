@@ -1,10 +1,11 @@
 # DS-COLOR — Color System V1
 
-> **Phase 0 — Architecture & Documentation Foundation**
+> **Phase 0 ✅ Architecture & Documentation Foundation (مكتمل)**
+> **Phase 1 ✅ Runtime Tokens Foundation (مكتمل — PR #520)**
 >
 > هذا الملف هو الـ contract المعماري الرسمي لنظام الألوان في منصة تواصلنا.
-> المحتوى: توثيق وقواعد فقط — لا تعديل CSS أو Runtime في Phase 0.
-> التنفيذ الفعلي (إضافة `--color-*` tokens إلى `tw_shared.css`) يبدأ في Phase 1.
+> `tw_shared.css` يحتوي الآن على `--color-*` tokens في ثلاثة أقسام (Foundation/Semantic/Legacy Aliases).
+> Phase 2 = page-by-page migration تدريجي (يحتاج موافقة صريحة لكل صفحة).
 
 ---
 
@@ -23,7 +24,7 @@
 | تريد ترحيل لون hardcoded إلى token | CLR-27 — Migration ≠ Redesign |
 | تريد تعديل company.css (blue/teal swap) | CLR-16 — Migration Intent only; لا تغيير الآن |
 | لون يبدو محلياً (مثل الـ cyan في messages.css) | CLR-26 — Promotion Criteria |
-| تعمل على Phase 1 (إضافة tokens إلى tw_shared.css) | CLR-02 + CLR-03 + CLR-05 → CLR-11 + CLR-27 + CLR-30 |
+| تعمل على Phase 2 (migration لون hardcoded → Semantic token في page CSS) | CLR-27 — Migration ≠ Redesign + CLR-28 — تأكد من مستهلك حقيقي |
 | تحتاج تعيين Color Role لعنصر UI جديد | CLR-33 — Color Role Assignment Contract |
 
 ---
@@ -42,7 +43,7 @@ DS-COLOR هو نظام الألوان المركزي لمنصة تواصلنا. 
 **داخل النطاق (DS-COLOR يملكه):**
 - كل `--color-*` tokens في `tw_shared.css`
 - الـ palette الأساسي (Brand / Surface / Border / Text / Status / Categorical)
-- الـ Legacy Aliases (`--ac`, `--ac2`, `--bg`, إلخ) بعد Phase 1
+- الـ Legacy Aliases (`--ac`, `--ac2`, `--bg`, إلخ) — ✅ أُضيفت في Phase 1
 - قواعد Alpha Policy
 - قواعد Light/Dark theme (Dark Only في V1)
 - الـ conceptual naming للـ Flutter
@@ -61,23 +62,23 @@ DS-COLOR هو نظام الألوان المركزي لمنصة تواصلنا. 
 **المصدر الوحيد لكل `--color-*` tokens هو `tw_shared.css` .**
 
 ```
-tw_shared.css (السطر 11–34 حالياً)
-└── :root { ... }
-    ├── Foundation / Primitive tokens  (يُضاف في Phase 1)
-    ├── Semantic tokens                (يُضاف في Phase 1)
-    └── Legacy Aliases                 (يُضاف في Phase 1 — يُزال في Phase 4)
+tw_shared.css
+└── :root { ... }  ×3 أقسام (Section A + B + C)
+    ├── Foundation / Primitive tokens  ✅ (أُضيف في Phase 1)
+    ├── Semantic tokens                ✅ (أُضيف في Phase 1)
+    └── Legacy Aliases                 ✅ (أُضيف في Phase 1 — يُزال في Phase 4)
 ```
 
-### الحالة الحالية (Phase 0 — قبل التغيير)
+### الحالة السابقة (Phase 0 — قبل Phase 1)
 
-`tw_shared.css` يحتوي حالياً:
-- `--ac`, `--ac2`, `--bg`, `--bg2`, `--bdr`, `--t1`–`--t4` — (Legacy names; ستُحوَّل إلى Aliases في Phase 1)
-- `--danger`, `--warning`, `--success` — (Status tokens; ستُحوَّل إلى Aliases في Phase 1)
-- `--ac-rgb`, `--danger-rgb`, `--warning-rgb`, `--ac2-rgb` — (RGB channels; راجع CLR-05)
+`tw_shared.css` كان يحتوي:
+- `--ac`, `--ac2`, `--bg`, `--bg2`, `--bdr`, `--t1`–`--t4` — (Legacy names؛ تُحوِّلت إلى Aliases في Phase 1 ✅)
+- `--danger`, `--warning`, `--success` — (Status tokens؛ تُحوِّلت إلى Aliases في Phase 1 ✅)
+- `--ac-rgb`, `--danger-rgb`, `--warning-rgb`, `--ac2-rgb` — (RGB channels؛ راجع CLR-05)
 - `--tw-feedback-bottom` — **ليس color token** — DS-FEEDBACK يملكه (FBK-09)
 - `--fbk-bdr-*` — **ليست DS-COLOR canonical** — DS-FEEDBACK يملكها (CLR-21)
 
-### الحالة المستهدفة (Phase 1 — بعد التغيير)
+### الحالة الحالية (Phase 1 ✅ — مكتمل)
 
 ```css
 /* Section 1: Foundation / Primitive */
@@ -193,8 +194,7 @@ DS-FEEDBACK يعرِّف `--fbk-bdr-*` tokens — هذه ليست في `--color-
 
 ## CLR-05 — Foundation / Primitive Layer (V1 Palette)
 
-هذا الجدول هو **الـ Phase 1 target** — القيم التي ستُضاف عند تنفيذ Phase 1.
-*في Phase 0، هذه قيم موجودة في tw_shared.css بأسماء قديمة (--ac، إلخ).*
+هذا الجدول هو **V1 الفعلي** — القيم الموجودة حالياً في `tw_shared.css` (Phase 1 ✅ مكتمل).
 
 ### Brand Primitives
 
@@ -257,8 +257,8 @@ DS-FEEDBACK يعرِّف `--fbk-bdr-*` tokens — هذه ليست في `--color-
 
 **الاستخدام:** أزرار CTA، highlight، شريط التقدم، أيقونات النوع.
 
-**تعارض الأسماء الحالية في V1:**
-- `--color-brand-accent` (purple `#8b5cf6`) يُذكَر في CLAUDE.md كـ "Accent" لكنه **غير موجود في tw_shared.css** حالياً. يُضاف كـ Foundation + Semantic في Phase 1 عند وجود consumer حقيقي.
+**ملاحظة V1:**
+- `--color-brand-accent` (purple `#8b5cf6`) ✅ أُضيف في Phase 1 — consumer audit أكَّد وجوده في `profile-v2.css`, `messages.css`, `company.css`, `home-v2.css`.
 
 ### Semantic RGB Channels — Brand
 
@@ -305,10 +305,9 @@ DS-FEEDBACK يعرِّف `--fbk-bdr-*` tokens — هذه ليست في `--color-
 | `--color-text-placeholder` | `rgba(255,255,255,.28)` | نص placeholder |
 | `--color-text-disabled` | `rgba(255,255,255,.20)` | نص حقول معطَّلة (Disabled state) |
 
-**ملاحظة — --t3 / --t4 (Phase 1 Audit Required):**
-- `--t3` (`rgba(255,255,255,.4)`) → tentatively `var(--color-text-muted)` — يُؤكَّد بعد consumer audit في Phase 1
-- `--t4` (`rgba(255,255,255,.2)`) → **mapping مؤجَّل** — يحتاج consumer audit في Phase 1 قبل ربطه بـ Canonical token
-- لا تفترض أن `--t3` = `--color-text-muted` أو `--t4` = token معين قبل Phase 1 audit
+**ملاحظة — --t3 / --t4 (Phase 1 Audit Results ✅):**
+- `--t3` (`rgba(255,255,255,.4)`) → `var(--color-text-muted)` ✅ — consumer audit أكَّده: كل المستهلكين بدور muted-role text
+- `--t4` (`rgba(255,255,255,.2)`) → **mapping مؤجَّل Phase 2** — consumers مختلطة (placeholder + subtitle)؛ تبقى raw `rgba(255,255,255,.2)` كـ temporary backward-compat exception
 
 **هام — راجع CLR-17:** `--color-text-placeholder` و`--color-text-disabled` **رمزان مستقلان** حتى لو كانت قيمهما متشابهة في V1. سبب الفصل: دلالة مختلفة + يمكن اختلاف القيم في Light Theme أو إصدارات مستقبلية.
 
@@ -605,10 +604,9 @@ feature CSS:
 | `--color-text-placeholder` | 28% | placeholder text في input fields |
 | `--color-text-disabled` | 20% | نص حقل معطَّل (Disabled state) |
 
-**ملاحظة — Legacy Mapping (Phase 1 Audit Required):**
-- `--t3` tentatively maps to `--color-text-muted` — يُؤكَّد بعد consumer audit في Phase 1
-- `--t4` mapping مؤجَّل — يحتاج consumer audit قبل ربطه بـ Canonical token
-- لا تفترض أي mapping لـ `--t3/--t4` قبل Phase 1 audit
+**ملاحظة — Legacy Mapping (Phase 1 Audit Results ✅):**
+- `--t3` → `var(--color-text-muted)` ✅ — consumer audit أكَّده: كل المستهلكين بدور muted-role text
+- `--t4` → **mapping مؤجَّل Phase 2** — consumers مختلطة (placeholder + subtitle)؛ تبقى raw `rgba(255,255,255,.2)` كـ temporary backward-compat exception
 
 ### سبب الفصل بين Placeholder وDisabled
 
@@ -970,15 +968,15 @@ Phase 1 ممنوع:   تغيير #00c896 إلى #00b386  حتى لو "أفضل"
 
 قائمة البنود الإلزامية التي يجب أن تُكتمَل في Phase 1:
 
-- [ ] إضافة Foundation / Primitive tokens إلى `tw_shared.css` (Section 1)
-- [ ] إضافة Semantic tokens: Brand, Surface, Border, Text, Status, Categorical + Semantic RGB Channels (Section 2)
-- [ ] إضافة Legacy Aliases لكل tokens الحالية: `--ac`, `--ac2`, `--bg`, `--bg2`, `--bdr`, `--t1`–`--t4`, `--danger`, `--warning`, `--success`, `--ac-rgb`, `--danger-rgb`, `--warning-rgb`, `--ac2-rgb` (Section 3)
-- [ ] التحقق من وجود consumer حقيقي لكل Categorical token قبل إضافته
-- [ ] التحقق من أن `--color-text-placeholder` و`--color-text-disabled` موثَّقان كـ tokens مستقلة
-- [ ] عدم تغيير أي قيمة لونية مرئية (Migration Only — CLR-27)
-- [ ] توثيق Phase 1 في ARCHITECTURE.md
-- [ ] تحديث SYSTEMS_INDEX.md بعد Phase 1
-- [ ] تحديث Changelog هذا الملف
+- [x] إضافة Foundation / Primitive tokens إلى `tw_shared.css` (Section A — 9 hue primitives + 5 RGB channels)
+- [x] إضافة Semantic tokens: Brand, Surface, Border, Text, Status, Categorical + Semantic RGB Channels (Section B — 30 tokens)
+- [x] إضافة Legacy Aliases لكل tokens الحالية: `--ac`, `--ac2`, `--bg`, `--bg2`, `--bdr`, `--t1`–`--t4`, `--danger`, `--warning`, `--success`, `--ac-rgb`, `--danger-rgb`, `--warning-rgb`, `--ac2-rgb` (Section C)
+- [x] التحقق من وجود consumer حقيقي لكل Categorical token قبل إضافته (purple audit: profile-v2, messages, company, home-v2 — confirmed)
+- [x] التحقق من أن `--color-text-placeholder` و`--color-text-disabled` موثَّقان كـ tokens مستقلة (أُضيفا في Section B)
+- [x] عدم تغيير أي قيمة لونية مرئية (Migration Only — CLR-27) — zero visual change verified
+- [x] توثيق Phase 1 في الملفات الحاكمة: SYSTEMS_INDEX.md §50 (Runtime ✅) · CLAUDE.md (DS-COLOR rules updated) · ARCHITECTURE_FOUNDATION.md F35 (Phase 1 ✅ noted) — ARCHITECTURE.md مخصَّص لـ backend/routes/DB schema؛ DS-COLOR Phase 1 = CSS فقط فلا يستدعي قسماً فيه
+- [x] تحديث SYSTEMS_INDEX.md بعد Phase 1
+- [x] تحديث Changelog هذا الملف
 
 ---
 
@@ -986,22 +984,22 @@ Phase 1 ممنوع:   تغيير #00c896 إلى #00b386  حتى لو "أفضل"
 
 | Legacy Alias | الـ Semantic Target | الحالة |
 |--------------|---------------------|--------|
-| `--ac` | `var(--color-brand-primary)` | يُضاف في Phase 1 |
-| `--ac2` | `var(--color-brand-secondary)` | يُضاف في Phase 1 |
-| `--ac-rgb` | `var(--color-brand-primary-rgb)` | يُضاف في Phase 1 |
-| `--bg` | `var(--color-surface-page)` | يُضاف في Phase 1 |
-| `--bg2` | `var(--color-surface-card-solid)` | يُضاف في Phase 1 |
-| `--bdr` | `var(--color-border-default)` | يُضاف في Phase 1 |
-| `--t1` | `var(--color-text-primary)` | يُضاف في Phase 1 |
-| `--t2` | `var(--color-text-secondary)` | يُضاف في Phase 1 |
-| `--t3` | `var(--color-text-muted)` ⚠️ | tentative — Phase 1 consumer audit required |
-| `--t4` | مؤجَّل ⚠️ | Phase 1 consumer audit required — لا تفترض mapping |
-| `--danger` | `var(--color-status-danger)` | يُضاف في Phase 1 |
-| `--warning` | `var(--color-status-warning)` | يُضاف في Phase 1 |
-| `--success` | `var(--color-status-success)` | يُضاف في Phase 1 |
-| `--danger-rgb` | `var(--color-status-danger-rgb)` | يُضاف في Phase 1 |
-| `--warning-rgb` | `var(--color-status-warning-rgb)` | يُضاف في Phase 1 |
-| `--ac2-rgb` | `var(--color-brand-secondary-rgb)` | يُضاف في Phase 1 |
+| `--ac` | `var(--color-brand-primary)` | ✅ أُضيف في Phase 1 |
+| `--ac2` | `var(--color-brand-secondary)` | ✅ أُضيف في Phase 1 |
+| `--ac-rgb` | `var(--color-brand-primary-rgb)` | ✅ أُضيف في Phase 1 |
+| `--bg` | `var(--color-surface-page)` | ✅ أُضيف في Phase 1 |
+| `--bg2` | `var(--color-surface-card-solid)` | ✅ أُضيف في Phase 1 |
+| `--bdr` | `var(--color-border-default)` | ✅ أُضيف في Phase 1 |
+| `--t1` | `var(--color-text-primary)` | ✅ أُضيف في Phase 1 |
+| `--t2` | `var(--color-text-secondary)` | ✅ أُضيف في Phase 1 |
+| `--t3` | `var(--color-text-muted)` | ✅ أُضيف في Phase 1 → `var(--color-text-muted)` (audit ✅) |
+| `--t4` | backward-compat exception ⚠️ | ✅ أُضيف في Phase 1 — raw `rgba(255,255,255,.2)`؛ consumers مختلطة؛ mapping مؤجَّل Phase 2 |
+| `--danger` | `var(--color-status-danger)` | ✅ أُضيف في Phase 1 |
+| `--warning` | `var(--color-status-warning)` | ✅ أُضيف في Phase 1 |
+| `--success` | `var(--color-status-success)` | ✅ أُضيف في Phase 1 |
+| `--danger-rgb` | `var(--color-status-danger-rgb)` | ✅ أُضيف في Phase 1 |
+| `--warning-rgb` | `var(--color-status-warning-rgb)` | ✅ أُضيف في Phase 1 |
+| `--ac2-rgb` | `var(--color-brand-secondary-rgb)` | ✅ أُضيف في Phase 1 |
 
 ### دورة الحياة
 
@@ -1116,5 +1114,6 @@ Color Role هو تعيين وظيفي: هذا العنصر يحمل لون كذ�
 | التاريخ | التغيير |
 |---------|---------|
 | 2026-07-26 | Phase 0 — Document created. DS-COLOR V1 Architecture & Documentation Foundation. 33 sections (CLR-00 → CLR-32). No runtime changes. SYSTEMS_INDEX.md §50 added. ARCHITECTURE_FOUNDATION.md F35 + F31 row added. DESIGN_SYSTEM.md updated. CLAUDE.md DS-COLOR routing rule added. |
+| 2026-07-26 | **DS-COLOR Phase 1 — Runtime Tokens Foundation** — Three-section `:root` block added to `tw_shared.css`. Section A (Foundation/Primitive): 9 hue primitives (teal/blue/purple/dark-950/dark-900/white/green/amber/red) + 5 RGB channels. Section B (Semantic): Brand (primary/secondary/accent + 2 RGB), Surface (page/card-solid/card), Border (default/strong/focus), Text (primary/secondary/muted/placeholder/disabled), Status (success/warning/danger/info + 4 RGB), Categorical (neutral/blue/purple/teal/amber). Section C (Legacy Aliases): 16 legacy entries preserved — 15 map to Semantic tokens; --t4 remains raw rgba(255,255,255,.2) as temporary backward-compat exception pending Phase 2 consumer separation. Consumer audit results: `--t3` → `var(--color-text-muted)` safe (all muted-role consumers). `--t4` → raw `rgba(255,255,255,.2)` kept (mixed consumers: placeholder + subtitle; mapping deferred Phase 2). `--color-brand-accent` (purple) added after confirming consumers across profile-v2/messages/company/home-v2. No Categorical RGB channels added (no alpha consumers found). Zero visual change — all hex values identical to pre-Phase-1 state. DS-FEEDBACK `--fbk-bdr-*` chain verified: `--ac-rgb → --color-brand-primary-rgb → --color-prim-teal-rgb = 0,200,150` unchanged. company.css not touched (CLR-16 architectural debt; separate PR). CLR-30 checklist: all items complete. |
 | 2026-07-26 | Documentation Correction Round (13 corrections) — Primitive naming: green/amber/red/dark-950/dark-900 (hue-based). Surface token namespace: --color-surface-* (replaces --color-bg-*). Text: --color-text-muted as V1 canonical (replaces tertiary/quaternary); --t3/--t4 mapping deferred to Phase 1 audit. CLR-10: --color-status-info decoupled from --color-brand-secondary (both reference --color-prim-blue independently). Categorical V1 updated: neutral added, red/green removed; correct Tawasolna skill mapping documented. Tier 3 Local Color Role policy clarified. Theme Readiness corrected: Semantic layer remapping only (Primitives stay stable). Accessibility: placeholder contrast documented as Legacy Debt (no false WCAG claim). Semantic RGB channels added (CLR-06, CLR-10). CLR-33 Color Role Assignment Contract added. Total: 35 sections (CLR-00 → CLR-34). |
 | 2026-07-26 | Final Consistency Fix (7 items) — CLR-00 routing: migration → CLR-27, local color promotion → CLR-26 (numbers were off by one). CLR-13: amber example corrected from "متوسط/intermediate" to "خبير/expert". CLR-14: purple mapping corrected from "expert" to "good" throughout (description, code example, alias name --skill-expert → --skill-good; --skill-adv → --skill-inter). CLR-25: "Text tertiary" replaced with "Text muted / --color-text-muted". CLR-28: categorical-purple consumer corrected from "Expert level chips" to "Good level chips". SYSTEMS_INDEX.md footer: CLR-00–CLR-33/34-sections → CLR-00–CLR-34/35-sections. Categorical RGB sanity check: no alpha consumers found in static/ — no new tokens added per No Token Without Real Consumer rule. |
