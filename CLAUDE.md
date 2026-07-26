@@ -248,7 +248,7 @@ Returns `top_k` best-matching jobs (default 5). This is intentionally simple —
 | Font | Cairo (Google Fonts) |
 
 > **DS-COLOR:** النظام الرسمي لكل color tokens موثَّق في `docs/design-system/COLOR-SYSTEM.md`.
-> قبل تعريف لون جديد أو ترحيل hex value → اقرأ CLR-00 أولاً. لا تعدّل `--ac / --bg / --t1` إلخ بدون PR DS-COLOR Phase 1 صريح.
+> قبل تعريف لون جديد أو ترحيل hex value → اقرأ CLR-00 أولاً. لا تعدّل `--ac / --bg / --t1` إلخ بدون PR DS-COLOR معلن.
 
 ### Patterns
 - All pages are **RTL** (`dir="rtl"`, `font-family: 'Cairo'`)
@@ -1269,7 +1269,7 @@ Full specification: `docs/design-system/COLOR-SYSTEM.md` (CLR-00 → CLR-34, 35 
 
 1. **Always check CLR-00 first.** Any task involving color (adding a new color, changing a color, defining a token, migrating a hardcoded hex) must start at CLR-00 (Routing Protocol) in `COLOR-SYSTEM.md`. Do NOT guess which token to use — follow the routing table.
 
-2. **`--color-*` namespace is reserved for DS-COLOR exclusively.** No page CSS file (e.g. `company.css`, `profile-v2.css`, `index.css`) may define or redefine any `--color-*` variable. All `--color-*` tokens live only in `tw_shared.css` (Phase 1 target).
+2. **`--color-*` namespace is reserved for DS-COLOR exclusively.** No page CSS file (e.g. `company.css`, `profile-v2.css`, `index.css`) may define or redefine any `--color-*` variable. All `--color-*` tokens live only in `tw_shared.css` (Runtime Source of Truth — Phase 1 ✅ complete).
 
 3. **Feature CSS uses Semantic layer tokens only.** Feature CSS files reference `--color-brand-*`, `--color-surface-*`, `--color-border-*`, `--color-text-*`, `--color-status-*`, or `--color-categorical-*`. They never reference Foundation/Primitive tokens (`--color-prim-*`) directly. For alpha/rgba variants, use Semantic RGB channels (`--color-brand-primary-rgb`, `--color-status-success-rgb`) — never `--color-prim-*-rgb` directly.
 
@@ -1294,7 +1294,7 @@ Full specification: `docs/design-system/COLOR-SYSTEM.md` (CLR-00 → CLR-34, 35 
 
 8. **`company.css` architectural debt (CLR-16).** `company.css` redefines `--ac: #2563ff` and `--ac2: #00c896` (swapping the global teal/blue values). This is a known architectural debt — do NOT "fix" it by further overriding tokens. The planned migration path is: replace with `--co-accent: var(--color-brand-secondary)` in a dedicated Phase 1+ PR.
 
-9. **Phase 0 = Documentation Only. Phase 1 = add tokens to `tw_shared.css` (zero visual change).** Phase 2+ = gradual page migration when pages are touched. Do not add any `--color-*` tokens to `tw_shared.css` until DS-COLOR Phase 1 is explicitly requested.
+9. **Phase 0 ✅ Documentation Only (complete). Phase 1 ✅ Runtime Tokens Foundation (complete — PR #520).** `tw_shared.css` now contains `--color-*` tokens in three sections (Foundation/Semantic/Legacy Aliases). `--t3` consumer audit complete: `--t3` → `var(--color-text-muted)` ✅ (all consumers are muted-role text). `--t4` mapping deferred to Phase 2: `--t4` remains raw `rgba(255,255,255,.2)` (mixed consumers — placeholder + subtitle; requires Phase 2 consumer separation before canonical mapping). Phase 2+ = gradual page-by-page migration when pages are touched — requires explicit approval per page/system. Phase 4 = remove Legacy Aliases at zero consumers. Any DS-COLOR change needs a declared PR specifying the change type (migration / redesign / phase change).
 
 10. **Alpha values follow the 6-level scale (CLR-19).** Values outside the scale require justification in the PR description. The scale is a text contract — not CSS custom properties.
 
@@ -1305,17 +1305,17 @@ Full specification: `docs/design-system/COLOR-SYSTEM.md` (CLR-00 → CLR-34, 35 
 ```
 ❌ --color-* variable defined or overridden outside tw_shared.css
 ❌ Page CSS overriding any --color-* token
-❌ Changing --ac / --bg / --t1 etc. without DS-COLOR Phase 1 PR
-❌ color: #00c896 hardcoded in new feature CSS (use var(--color-brand-primary) in Phase 1+)
+❌ Changing any DS-COLOR token or Legacy Alias value without a declared DS-COLOR PR
+❌ color: #00c896 hardcoded in new feature CSS (use var(--color-brand-primary))
 ❌ --color-status-* used for data categorization
 ❌ --color-categorical-* used for UX status signals
 ❌ T2 domain alias with a hardcoded hex value
 ❌ Adding a token with no real V1 consumer
-❌ DS-COLOR Phase 1 implementation without explicit user approval
+❌ DS-COLOR Phase 2 page migration without explicit approval per page/system
 ❌ Parallel color system outside DS-COLOR
 ❌ --color-prim-*-rgb used directly in feature CSS (use Semantic RGB channels)
 ❌ --color-status-info: var(--color-brand-secondary) (Semantic→Semantic coupling — both must reference --color-prim-blue independently)
-❌ Assuming --t3/--t4 canonical mapping before Phase 1 consumer audit
+❌ Using --t4 as a canonical Semantic token (--t4 remains raw rgba(255,255,255,.2) pending Phase 2 consumer separation)
 ```
 
 ---

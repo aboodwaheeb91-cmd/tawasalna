@@ -108,7 +108,7 @@
 | [DS-DATE] | Date & Time Fields System V1 | [design-system/DATE-TIME-FIELDS.md](design-system/DATE-TIME-FIELDS.md) | موثَّق — V1 (توثيق) |
 | [DS-OVL] | Overlay System V1 | [design-system/OVERLAY-SYSTEM.md](design-system/OVERLAY-SYSTEM.md) | موثَّق — V1 (توثيق) |
 | [DS-FEEDBACK] | Operational Feedback System V1 | [design-system/FEEDBACK-SYSTEM.md](design-system/FEEDBACK-SYSTEM.md) | موثَّق — V1 (توثيق) |
-| [DS-COLOR] | Color System V1 | [design-system/COLOR-SYSTEM.md](design-system/COLOR-SYSTEM.md) | موثَّق — Phase 0 (توثيق) |
+| [DS-COLOR] | Color System V1 | [design-system/COLOR-SYSTEM.md](design-system/COLOR-SYSTEM.md) | Phase 0 ✅ توثيق + Phase 1 ✅ Runtime Tokens |
 
 **أنظمة مستقبلية (لم تُوثَّق بعد — انظر INP-16 للقائمة الكاملة):**
 
@@ -143,6 +143,7 @@
 | Documentation — `design-system/OVERLAY-SYSTEM.md` (OVL-00 → OVL-37) | مكتمل ✓ — V1 توثيق |
 | Documentation — `design-system/FEEDBACK-SYSTEM.md` (FBK-00 → FBK-29) | مكتمل ✓ — V1 توثيق |
 | Documentation — `design-system/COLOR-SYSTEM.md` (CLR-00 → CLR-34, 35 قسماً) | مكتمل ✓ — Phase 0 توثيق (تصحيح موثَّق 2026-07-26) |
+| DS-COLOR Phase 1 — Runtime Tokens Foundation (`tw_shared.css` three-section `:root`) | مكتمل ✓ — PR #520 (2026-07-26) |
 | CSS Layer (`static/shared/tw-ui-tokens.css`) | **لم تُنشأ بعد** — انظر FUTURE_ROADMAP.md |
 | Navigation Implementation (Layer Stack، Back Contract، ?next=) | **لم تُنفَّذ بعد** — موثَّقة في NAVIGATION.md |
 | Input / Form / Validation Runtime Implementation | **لم تُنفَّذ بعد** — موثَّقة في INP/FRM/VAL |
@@ -153,7 +154,7 @@
 > `DS-DATE Runtime` (tw-date.js أو ما شابه) **ممنوع إنشاؤه** حتى يُطلب صراحةً — التوثيق الحالي Contract فقط.
 > `DS-OVL Runtime` (tw-overlay.js أو ما شابه) **ممنوع إنشاؤه** حتى يُطلب صراحةً — التوثيق الحالي Contract فقط.
 > `DS-FEEDBACK Runtime` (tw-feedback.js أو ما شابه) **ممنوع إنشاؤه** حتى يُطلب صراحةً — التوثيق الحالي Contract فقط.
-> `DS-COLOR Phase 1 Runtime` (إضافة `--color-*` tokens لـ `tw_shared.css`) **ممنوع** حتى يُطلب صراحةً — التوثيق الحالي Phase 0 (Architecture Documentation) فقط.
+> `DS-COLOR Phase 2` (page-by-page migration of hardcoded hex → Semantic tokens in page CSS) **ممنوع** حتى يُطلب صراحةً لكل صفحة/نظام على حدة. Phase 1 Runtime ✅ مكتمل.
 > التوثيق الحالي يصف الـ contracts المعمارية فقط — ليس تنفيذاً.
 
 ---
