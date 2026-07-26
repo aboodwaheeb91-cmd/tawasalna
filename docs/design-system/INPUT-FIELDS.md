@@ -288,8 +288,8 @@ Disabled > Error > Focus > Filled/Normal
 - **Latin / أرقام:** `dir="ltr"` على الحقل نفسه للأرقام والروابط والبريد الإلكتروني
 
 ```html
-<!-- بريد إلكتروني: LTR دائماً -->
-<input type="email" dir="ltr" placeholder="example@domain.com" />
+<!-- بريد إلكتروني: LTR + spellcheck=false (إلزامي — انظر INP-09A) -->
+<input type="email" dir="ltr" autocomplete="email" spellcheck="false" placeholder="example@domain.com" />
 
 <!-- هاتف: LTR -->
 <input type="tel" dir="ltr" placeholder="+962799..." />
@@ -299,6 +299,48 @@ Disabled > Error > Focus > Filled/Normal
 
 <!-- اسم عربي: RTL (الافتراضي) -->
 <input type="text" placeholder="أحمد محمد" />
+```
+
+---
+
+## INP-09A Email Field Mandatory Attributes Contract
+
+### الـ Attributes الإلزامية لكل Email Input
+
+```html
+<input
+  type="email"
+  dir="ltr"
+  autocomplete="email"
+  spellcheck="false"
+  placeholder="example@domain.com"
+/>
+```
+
+| الـ Attribute | القيمة | السبب |
+|--------------|--------|-------|
+| `type="email"` | إلزامي | keyboard مناسب على mobile |
+| `dir="ltr"` | إلزامي | البريد دائماً LTR |
+| `autocomplete="email"` | إلزامي | يُحسِّن UX ويسهِّل autofill |
+| `spellcheck="false"` | **إلزامي** | يمنع Android Chrome/Gboard من الدخول في IME composition mode |
+
+### لماذا `spellcheck="false"` إلزامي لـ Email
+
+على Android Chrome + Gboard، عند غياب `spellcheck="false"`:
+
+1. المتصفح يُطبِّق spellcheck على الـ **local-part** (النص قبل `@`) — لأنه يبدو كلمة لغوية
+2. الـ local-part يدخل في **IME composition mode** — طبقة OS/IME بدلاً من CSS layer
+3. `-webkit-text-fill-color:#fff` (من INP-10A) يعمل على CSS layer فقط — لا يُغطي IME composition rendering
+4. النتيجة: local-part يظهر **أسود** مع **خط تدقيق إملائي أحمر**، بينما `@domain.com` يبقى أبيض
+
+`spellcheck="false"` يمنع المتصفح من الدخول في composition/spellcheck mode كلياً — يُبقي النص تحت CSS rendering حيث `color` و `-webkit-text-fill-color` يعملان بشكل صحيح.
+
+### الممنوعات الدائمة
+
+```
+❌ Email input بدون spellcheck="false"
+❌ محاولة إصلاح هذه المشكلة بـ CSS وحده — IME composition layer لا يخضع لـ CSS
+❌ إضافة autocorrect="off" كبديل — غير قياسي على Android، لا يُغني عن spellcheck="false"
 ```
 
 ---
