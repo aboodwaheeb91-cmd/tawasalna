@@ -244,9 +244,12 @@ async function doLogin(){
 // ── DS-VAL helpers (register form) ──────────────────────────────────────────
 var _rSubmitAttempted = false;  // arms Required re-show after first submit
 var _rEmailErrorKind  = null;   // 'required' | 'format' | null — never compare message text
+var _rSubmitting      = false;  // BTN-09: duplicate-submit guard (register only)
 
 // ── Register ──────────────────────────────────────────────────────────────────
 async function doRegister(){
+  if(_rSubmitting) return;  // BTN-09: block duplicate submit
+
   var nameEl  = document.getElementById('rName');
   var emailEl = document.getElementById('rEmail');
   var passEl  = document.getElementById('rPass');
@@ -299,9 +302,11 @@ async function doRegister(){
     return;
   }
 
+  _rSubmitting = true;                       // BTN-09: lock before fetch (synchronous)
   var btn = document.getElementById('regBtn');
-  btn._orig = 'إنشاء حساب';
+  btn.setAttribute('aria-busy', 'true');     // BTN-07: loading state ARIA
   setBtnLoad(btn, true);
+  var _success = false;
   try {
     var res  = await fetch('/auth/register', {
       method:'POST',
@@ -313,11 +318,17 @@ async function doRegister(){
     localStorage.setItem('tw_user', JSON.stringify(data.user));
     if(data.token) localStorage.setItem('tw_jwt', data.token);
     toast('تم إنشاء حسابك! 🎉');
+    _success = true;                         // BTN-09: mark before redirect timer
     setTimeout(function(){ redirect(data.user); }, 700);
   } catch(e){
     toast('تعذّر الاتصال بالخادم', 'error');
   } finally {
-    setBtnLoad(btn, false);
+    // BTN-09: restore only on failure — stay locked on success until redirect
+    if(!_success){
+      _rSubmitting = false;
+      btn.setAttribute('aria-busy', 'false');
+      setBtnLoad(btn, false);
+    }
   }
 }
 

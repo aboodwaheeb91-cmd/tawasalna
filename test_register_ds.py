@@ -338,7 +338,7 @@ async def run():
         except Exception as ex:
             fail(label, str(ex))
 
-        # ── K: regBtn gradient, not outlined like login ────────────────────────
+        # ── K: both loginBtn + regBtn are BTN-02 outlined — no gradient, no scope leak ──
         label = 'K: regBtn gradient — login outlined + register gradient — no scope leak'
         try:
             await open_register()
@@ -351,12 +351,30 @@ async def run():
             login_border = await page.evaluate(
                 "getComputedStyle(document.getElementById('loginBtn')).borderStyle"
             )
+            reg_border = await page.evaluate(
+                "getComputedStyle(document.getElementById('regBtn')).borderStyle"
+            )
+            reg_aria_busy = await page.evaluate(
+                "document.getElementById('regBtn').getAttribute('aria-busy')"
+            )
+            reg_type = await page.evaluate(
+                "document.getElementById('regBtn').type"
+            )
+            errors = []
             if 'gradient' in (login_bg or '').lower():
-                fail(label, 'loginBtn should not be gradient (should be outlined)')
-            elif 'solid' not in (login_border or ''):
-                fail(label, f'loginBtn border style: {login_border}')
-            elif 'gradient' not in (reg_bg or '').lower():
-                fail(label, f'regBtn should be gradient, got: {reg_bg[:60]}')
+                errors.append('loginBtn should not be gradient (should be outlined)')
+            if 'solid' not in (login_border or ''):
+                errors.append(f'loginBtn border style: {login_border}')
+            if 'gradient' in (reg_bg or '').lower():
+                errors.append(f'regBtn should be outlined (BTN-02), got gradient: {(reg_bg or "")[:60]}')
+            if 'solid' not in (reg_border or ''):
+                errors.append(f'regBtn border style should be solid, got: {reg_border}')
+            if reg_aria_busy != 'false':
+                errors.append(f'regBtn aria-busy default should be "false", got: {reg_aria_busy}')
+            if reg_type != 'button':
+                errors.append(f'regBtn type should be "button", got: {reg_type}')
+            if errors:
+                fail(label, '; '.join(errors))
             else:
                 ok(label)
         except Exception as ex:

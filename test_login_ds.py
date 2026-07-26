@@ -400,10 +400,10 @@ def test_q_eye_toggle_full(page):
     assert not eyeHide.is_visible(), 'lEyeHide must hide again'
     assert _cnt(page) == 0, 'eye toggle must not fire any login requests'
 
-# ── R: Login outlined, Register gradient — confirmed by computed style ────────
+# ── R: Both loginBtn + regBtn are BTN-02 outlined — no gradient, no scope leak ──
 def test_r_button_styles(page):
     _fresh(page)
-    # Login button: #loginSection .cta overrides to background:transparent + green border
+    # Login button: #loginSection .cta → transparent + green border
     login_bg_img = page.evaluate(
         "getComputedStyle(document.getElementById('loginBtn')).backgroundImage"
     )
@@ -416,20 +416,24 @@ def test_r_button_styles(page):
     assert '0, 200, 150' in login_border or 'rgb(0, 200, 150)' in login_border, \
         f'#loginBtn must have green (#00c896) outlined border, got: {login_border}'
 
-    # Register button: .cta base = linear-gradient — must NOT be overridden to transparent
-    # Show register section first to make #regBtn accessible
+    # Register button: #registerPanel .cta → also BTN-02 outlined (PR feat/register-submit-btn-ds)
     page.evaluate('showRegister()')
     page.wait_for_timeout(50)
     reg_bg_img = page.evaluate(
         "getComputedStyle(document.getElementById('regBtn')).backgroundImage"
     )
-    assert 'linear-gradient' in reg_bg_img, \
-        f'#regBtn must retain gradient background (Login scope must not leak), got: {reg_bg_img}'
-    reg_border_w = page.evaluate(
-        "getComputedStyle(document.getElementById('regBtn')).borderWidth"
+    assert reg_bg_img == 'none', \
+        f'#regBtn must have no background-image (BTN-02 outlined), got: {reg_bg_img}'
+    reg_border = page.evaluate(
+        "getComputedStyle(document.getElementById('regBtn')).borderColor"
     )
-    assert reg_border_w == '0px', \
-        f'#regBtn must have no border (border:none from .cta base), got: {reg_border_w}'
+    assert '0, 200, 150' in reg_border or 'rgb(0, 200, 150)' in reg_border, \
+        f'#regBtn must have green (#00c896) outlined border (BTN-02), got: {reg_border}'
+    reg_aria_busy = page.evaluate(
+        "document.getElementById('regBtn').getAttribute('aria-busy')"
+    )
+    assert reg_aria_busy == 'false', \
+        f'#regBtn aria-busy default must be "false", got: {reg_aria_busy}'
 
 # ── S: Mobile 375px — no overflow, 44px eye touch target, errors visible ──────
 def test_s_mobile_375px(page):

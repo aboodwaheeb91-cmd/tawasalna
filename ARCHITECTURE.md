@@ -8356,6 +8356,83 @@ Register validation reuses `_lShowFieldError(wrapperId, errorId, msg)` and `_lCl
 
 ---
 
+## Register Submit Button — DS-BTN Runtime Adoption (PR feat/register-submit-btn-ds)
+
+### Scope
+
+`#regBtn` only. `#empBtn`, `#coBtn`, `#eduBtn`, `#regBackStep1`, `#regBackPanel`, `#rPassEye` are unchanged.
+
+### BTN-02 — Outlined / Glow (Primary)
+
+`#regBtn` changed from the default `.cta` gradient to BTN-02 Primary outlined style, scoped via `#registerPanel .cta`:
+
+| Property | Value |
+|----------|-------|
+| `background` | `transparent` |
+| `border` | `1.5px solid var(--ac)` (`#00c896`) |
+| `color` | `var(--ac)` |
+| `user-select` | `none` (BTN-08) |
+| `:hover` | Faint green tint + glow shadow + slight lift |
+| `:active` | No layout shift (`translateY(0)`) |
+| `:disabled` | `opacity:.55`, `cursor:wait`, `background:transparent` |
+| `:focus-visible` | `outline:2px solid var(--ac); outline-offset:3px` |
+
+This mirrors the identical pattern already applied to `#loginSection .cta` (index.css).
+
+### BTN-07 — Semantic Attributes
+
+- `type="button"` — prevents accidental form submit when nested in a `<form>`
+- `aria-busy="false"` — default; set to `"true"` during loading; restored to `"false"` on error
+
+### BTN-09 — Action Save Lifecycle
+
+State machine in `doRegister()` in `index.auth.js`:
+
+```
+Default → Loading → Success (locked) → redirect()
+                 ↘ Error → Default (restored)
+```
+
+**Guard variable:** `_rSubmitting` (module-level, separate from login's `_submitting`)
+- Set to `true` synchronously before `await fetch` (prevents concurrent requests)
+- Reset to `false` in `finally` only when `_success === false`
+
+**Loading entry:**
+1. `_rSubmitting = true`
+2. `btn.setAttribute('aria-busy', 'true')`
+3. `setBtnLoad(btn, true)` → `disabled=true` + `.tw-btn-loading` spinner
+
+**Success locked:**
+- `_success = true` set before `setTimeout(redirect, 700)`
+- `finally` block skips restore when `_success === true`
+- Button stays disabled/loading until page navigates away
+
+**Error restore (`finally`, only when `!_success`):**
+1. `_rSubmitting = false`
+2. `btn.setAttribute('aria-busy', 'false')`
+3. `setBtnLoad(btn, false)` → `disabled=false`, removes `.tw-btn-loading`
+
+### Files Changed
+
+| File | Change |
+|------|--------|
+| `index.html` | Added `type="button"` + `aria-busy="false"` to `#regBtn` |
+| `index.css` | Added `#registerPanel .cta` scoped BTN-02 override block |
+| `index.auth.js` | Added `_rSubmitting` variable; rewrote `doRegister()` with guard + aria-busy + success-locked pattern |
+| `test_register_ds.py` | Updated test K to verify BTN-02 outlined (not gradient) + aria-busy + type |
+| `test_regbtn_ds.py` | New 10-test file (A–J) covering all BTN-09 scenarios |
+
+### Forbidden Scope (permanent)
+
+```
+❌ Changing any other button via this PR
+❌ Merging setBtnLoad changes for aria-busy into setBtnLoad itself (login uses setBtnLoad too)
+❌ Using _submitting (login guard) for register — always use _rSubmitting
+❌ Restoring regBtn in the 700ms success gap
+```
+
+---
+
 ## Company Profile Edit Form (PR #248)
 
 ### Location Field Mapping
