@@ -8320,7 +8320,8 @@ Two module-level variables drive email-field transitions. **Never compare error 
 | input on email | valid | `_rEmailErrorKind = null`; clear error |
 | input on email | empty + `_rSubmitAttempted` | `_rEmailErrorKind = 'required'`; show Required |
 | input on email | empty + `!_rSubmitAttempted` + was format | `_rEmailErrorKind = null`; clear error |
-| input on email | non-empty invalid | `_rEmailErrorKind = 'format'`; show Format |
+| input on email | non-empty invalid + (`_rSubmitAttempted` OR `_rEmailErrorKind==='format'`) | `_rEmailErrorKind = 'format'`; show Format |
+| input on email | non-empty invalid + (!`_rSubmitAttempted` AND no prior format) | no-op — wait for blur (VAL-05 timing rule) |
 
 **Name field:** Required error shown on `doRegister()` when empty; cleared live on input after `_rSubmitAttempted`.
 

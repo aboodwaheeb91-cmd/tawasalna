@@ -171,14 +171,46 @@ async def run():
         except Exception as ex:
             fail(label, str(ex))
 
-        # ── E: Required→Format→Required cycle (email, after submit) ──────────
-        label = 'E: Required→Format→Required cycle after submit (email)'
+        # ── E: email pre-blur timing — no Format on input before blur/submit ────
+        label = 'E: email pre-blur timing — no Format on input before blur/submit'
+        try:
+            await open_register()
+            await page.fill('#rEmail', 'bad@')
+            await page.evaluate("document.getElementById('rEmail').dispatchEvent(new Event('input'))")
+            await page.wait_for_timeout(80)
+            hidden_before   = await field_error_hidden('r-email-error')
+            has_err_before  = await wrapper_has_error('wrapper-rEmail')
+            aria_inv_before = await input_aria_invalid('rEmail')
+            await page.evaluate("document.getElementById('rEmail').dispatchEvent(new Event('blur'))")
+            await page.wait_for_timeout(80)
+            hidden_after_blur   = await field_error_hidden('r-email-error')
+            aria_inv_after_blur = await input_aria_invalid('rEmail')
+            await page.fill('#rEmail', 'valid@example.com')
+            await page.evaluate("document.getElementById('rEmail').dispatchEvent(new Event('input'))")
+            await page.wait_for_timeout(80)
+            hidden_after_fix   = await field_error_hidden('r-email-error')
+            aria_inv_after_fix = await input_aria_invalid('rEmail')
+            errors = []
+            if not hidden_before:         errors.append('Format shown during input before blur/submit')
+            if has_err_before:            errors.append('has-error before blur/submit')
+            if aria_inv_before != 'false':errors.append(f'aria-invalid={aria_inv_before} before blur/submit')
+            if hidden_after_blur:         errors.append('Format not shown after blur')
+            if aria_inv_after_blur != 'true': errors.append(f'aria-invalid={aria_inv_after_blur} after blur')
+            if not hidden_after_fix:      errors.append('Format not cleared after typing valid email')
+            if aria_inv_after_fix != 'false': errors.append(f'aria-invalid={aria_inv_after_fix} after fix')
+            if errors: fail(label, '; '.join(errors))
+            else: ok(label)
+        except Exception as ex:
+            fail(label, str(ex))
+
+        # ── F: Required→Format→Required cycle (email, after submit) ──────────
+        label = 'F: Required→Format→Required cycle after submit (email)'
         try:
             await open_register()
             await page.evaluate("doRegister()")   # Required on empty email
             await page.wait_for_timeout(80)
             txt_req = await field_error_text('r-email-error')
-            await page.fill('#rEmail', 'bad@@')   # non-empty invalid → Format live
+            await page.fill('#rEmail', 'bad@@')   # non-empty invalid → Format live (after submit)
             await page.evaluate("document.getElementById('rEmail').dispatchEvent(new Event('input'))")
             await page.wait_for_timeout(80)
             txt_fmt = await field_error_text('r-email-error')
@@ -197,8 +229,8 @@ async def run():
         except Exception as ex:
             fail(label, str(ex))
 
-        # ── F: password Required re-shows after submit + clear ────────────────
-        label = 'F: password Required re-shows after submit + clear'
+        # ── G: password Required re-shows after submit + clear ────────────────
+        label = 'G: password Required re-shows after submit + clear'
         try:
             await open_register()
             await page.evaluate("doRegister()")
@@ -223,8 +255,8 @@ async def run():
         except Exception as ex:
             fail(label, str(ex))
 
-        # ── G: password short error on submit ─────────────────────────────────
-        label = 'G: password short error (< 6 chars) on submit'
+        # ── H: password short error on submit ─────────────────────────────────
+        label = 'H: password short error (< 6 chars) on submit'
         try:
             await open_register()
             await page.fill('#rName', 'أحمد')
@@ -240,8 +272,8 @@ async def run():
         except Exception as ex:
             fail(label, str(ex))
 
-        # ── H: short error clears live when >= 6 chars ────────────────────────
-        label = 'H: short error clears live when >= 6 chars typed'
+        # ── I: short error clears live when >= 6 chars ────────────────────────
+        label = 'I: short error clears live when >= 6 chars typed'
         try:
             await open_register()
             await page.fill('#rName', 'أحمد')
@@ -261,8 +293,8 @@ async def run():
         except Exception as ex:
             fail(label, str(ex))
 
-        # ── I: eye toggle — type, icons, aria-pressed, aria-label ─────────────
-        label = 'I: eye toggle — type, icons, aria-pressed, aria-label, 0 requests'
+        # ── J: eye toggle — type, icons, aria-pressed, aria-label ─────────────
+        label = 'J: eye toggle — type, icons, aria-pressed, aria-label, 0 requests'
         try:
             await open_register()
             reqs = []
@@ -306,8 +338,8 @@ async def run():
         except Exception as ex:
             fail(label, str(ex))
 
-        # ── J: regBtn gradient, not outlined like login ────────────────────────
-        label = 'J: regBtn gradient — login outlined + register gradient — no scope leak'
+        # ── K: regBtn gradient, not outlined like login ────────────────────────
+        label = 'K: regBtn gradient — login outlined + register gradient — no scope leak'
         try:
             await open_register()
             login_bg = await page.evaluate(
@@ -330,8 +362,8 @@ async def run():
         except Exception as ex:
             fail(label, str(ex))
 
-        # ── K: [hidden] scoped to #registerPanel ──────────────────────────────
-        label = 'K: [hidden] scoped to #registerPanel, not global'
+        # ── L: [hidden] scoped to #registerPanel ──────────────────────────────
+        label = 'L: [hidden] scoped to #registerPanel, not global'
         try:
             css_text = (ROOT / 'index.css').read_text(encoding='utf-8')
             has_reg_hidden   = '#registerPanel [hidden]' in css_text
@@ -349,8 +381,8 @@ async def run():
         except Exception as ex:
             fail(label, str(ex))
 
-        # ── L: autofill CSS scoped to #registerPanel ──────────────────────────
-        label = 'L: autofill CSS scoped to #registerPanel, [hidden] scoped'
+        # ── M: autofill CSS scoped to #registerPanel ──────────────────────────
+        label = 'M: autofill CSS scoped to #registerPanel, [hidden] scoped'
         try:
             css_text = (ROOT / 'index.css').read_text(encoding='utf-8')
             reg_autofill    = '#registerPanel input:-webkit-autofill' in css_text
@@ -367,33 +399,37 @@ async def run():
         except Exception as ex:
             fail(label, str(ex))
 
-        # ── M: no JS console errors on load ───────────────────────────────────
-        label = 'M: no JS console errors on load'
+        # ── N: no JS console errors on load ───────────────────────────────────
+        label = 'N: no JS console errors on load'
         try:
-            await page.goto(f'{BASE}/login')
-            await page.wait_for_load_state('networkidle')
-            errors_on_load = []
+            errors_on_load    = []
+            pageerrors_on_load = []
             def on_console(msg):
                 if msg.type == 'error':
                     errors_on_load.append(msg.text)
+            def on_pageerror(err):
+                pageerrors_on_load.append(str(err))
             page.on('console', on_console)
+            page.on('pageerror', on_pageerror)
+            await page.goto(f'{BASE}/login')
+            await page.wait_for_load_state('networkidle')
             await page.wait_for_timeout(300)
             page.remove_listener('console', on_console)
-            # Filter CDN / third-party script errors (Lucide unpkg, sw.js workers)
-            # — only surface errors originating from localhost
+            page.remove_listener('pageerror', on_pageerror)
             local_errors = [e for e in errors_on_load
                             if 'unpkg.com' not in e and 'fonts.googleapis' not in e
                             and 'ERR_CONNECTION_RESET' not in e
                             and 'sw.js' not in e]
-            if local_errors:
-                fail(label, '; '.join(local_errors[:3]))
+            all_errors = local_errors + pageerrors_on_load
+            if all_errors:
+                fail(label, '; '.join(all_errors[:3]))
             else:
                 ok(label)
         except Exception as ex:
             fail(label, str(ex))
 
-        # ── N: stale errors cleared on re-submit with valid data (autofill sim) ─
-        label = 'N: autofill simulation — stale errors cleared on re-submit'
+        # ── O: stale errors cleared on re-submit with valid data (autofill sim) ─
+        label = 'O: autofill simulation — stale errors cleared on re-submit'
         try:
             await open_register()
             await page.evaluate("doRegister()")   # trigger all errors
@@ -441,8 +477,8 @@ async def run():
         except Exception as ex:
             fail(label, str(ex))
 
-        # ── O: strength bar appears on password input ──────────────────────────
-        label = 'O: strength bar appears when rPass gets input'
+        # ── P: strength bar appears on password input ──────────────────────────
+        label = 'P: strength bar appears when rPass gets input'
         try:
             await open_register()
             bar_before = await page.evaluate("document.getElementById('passStrengthBar').style.display")
@@ -457,8 +493,8 @@ async def run():
         except Exception as ex:
             fail(label, str(ex))
 
-        # ── P: ARIA anatomy on all 3 fields ───────────────────────────────────
-        label = 'P: DS-INP ARIA anatomy — aria-required, aria-invalid, aria-describedby'
+        # ── Q: ARIA anatomy on all 3 fields ───────────────────────────────────
+        label = 'Q: DS-INP ARIA anatomy — aria-required, aria-invalid, aria-describedby'
         try:
             await open_register()
             checks = [
@@ -485,8 +521,8 @@ async def run():
         except Exception as ex:
             fail(label, str(ex))
 
-        # ── Q: selectType switches label, placeholder, autocomplete — all 3 types ──
-        label = 'Q: selectType label/placeholder/autocomplete — emp / co / edu'
+        # ── R: selectType switches label, placeholder, autocomplete — all 3 types ──
+        label = 'R: selectType label/placeholder/autocomplete — emp / co / edu'
         try:
             errors = []
             type_specs = [
@@ -524,8 +560,8 @@ async def run():
         except Exception as ex:
             fail(label, str(ex))
 
-        # ── R: mobile 375×812 — no overflow, errors not clipped, eye touch target ──
-        label = 'R: mobile 375×812 — no horizontal overflow, errors visible, eye ≥44px'
+        # ── S: mobile 375×812 — no overflow, errors not clipped, eye touch target ──
+        label = 'S: mobile 375×812 — no horizontal overflow, errors visible, eye ≥44px'
         try:
             mob_ctx  = await browser.new_context(viewport={'width': 375, 'height': 812})
             mob_page = await mob_ctx.new_page()
@@ -553,17 +589,19 @@ async def run():
                 if h:
                     mob_errors.append(f'{eid} hidden on mobile')
 
-            # Error spans not clipped by #registerPanel overflow:hidden — height > 0
-            for eid in ('r-name-error', 'r-email-error', 'r-pass-error'):
-                h = await mob_page.evaluate(f"""
-                    (function(){{
-                        var el = document.getElementById('{eid}');
-                        if(!el) return 0;
-                        return el.getBoundingClientRect().height;
-                    }})()
-                """)
-                if h <= 0:
-                    mob_errors.append(f'{eid} height=0 — clipped by overflow:hidden')
+            # Panel not clipping content — scrollHeight must not exceed clientHeight
+            panel_overflow = await mob_page.evaluate("""
+                (function(){
+                    var p = document.getElementById('registerPanel');
+                    if(!p) return null;
+                    return {scrollH: p.scrollHeight, clientH: p.clientHeight};
+                })()
+            """)
+            if panel_overflow:
+                if panel_overflow['scrollH'] > panel_overflow['clientH'] + 2:
+                    mob_errors.append(
+                        f'content clipped: scrollHeight={panel_overflow["scrollH"]} > clientHeight={panel_overflow["clientH"]}'
+                    )
 
             # Eye button touch target ≥ 44×44 (min-width/height: 44px in .pass-eye CSS)
             eye_size = await mob_page.evaluate("""
@@ -582,7 +620,7 @@ async def run():
             else:
                 mob_errors.append('rPassEye not found on mobile')
 
-            # Strength bar visible after password input
+            # Strength bar visible after password input; re-check panel clipping
             await mob_page.fill('#rPass', 'abc')
             await mob_page.evaluate("document.getElementById('rPass').dispatchEvent(new Event('input'))")
             await mob_page.wait_for_timeout(80)
@@ -591,6 +629,18 @@ async def run():
             )
             if bar_display == 'none' or bar_display == '':
                 mob_errors.append(f'strength bar not visible on mobile (display={bar_display})')
+
+            panel_overflow2 = await mob_page.evaluate("""
+                (function(){
+                    var p = document.getElementById('registerPanel');
+                    if(!p) return null;
+                    return {scrollH: p.scrollHeight, clientH: p.clientHeight};
+                })()
+            """)
+            if panel_overflow2 and panel_overflow2['scrollH'] > panel_overflow2['clientH'] + 2:
+                mob_errors.append(
+                    f'clipped after strength bar: scrollHeight={panel_overflow2["scrollH"]} > clientHeight={panel_overflow2["clientH"]}'
+                )
 
             await mob_ctx.close()
 
@@ -610,6 +660,6 @@ async def run():
 
 if __name__ == '__main__':
     print()
-    print('\033[1m── Register DS Runtime Tests ──\033[0m')
+    print('\033[1m── Register DS Runtime Tests (A–S, 19 tests) ──\033[0m')
     exit_code = asyncio.run(run())
     sys.exit(exit_code)

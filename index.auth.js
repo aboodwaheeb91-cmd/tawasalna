@@ -362,10 +362,11 @@ async function doRegister(){
           _rEmailErrorKind = null;
           _lClearFieldError('wrapper-rEmail', 'r-email-error');
         }
-      } else {
+      } else if(_rSubmitAttempted || _rEmailErrorKind === 'format'){
         _rEmailErrorKind = 'format';
         _lShowFieldError('wrapper-rEmail', 'r-email-error', 'صيغة البريد الإلكتروني غير صحيحة');
       }
+      // else: non-empty invalid before submit and before any blur Format — wait for blur
     });
   }
 
