@@ -376,12 +376,64 @@ Disabled > Error > Focus > Filled/Normal
 ✅ قيمة النص المكتوبة (value text)    → ثابتة على لون الثيم في كل الحالات
 ✅ Caret (مؤشر الكتابة)               → لون الثيم (لا يختفي على خلفية داكنة)
 
-❌ Placeholder text                    → له Contract منفصل (color مخففة، ليس #fff)
+❌ Placeholder text                    → له Contract منفصل — انظر INP-10B أدناه
 ❌ Label text                          → خارج نطاق هذا الـ Contract
 ❌ Field error message                 → DS-VAL يتحكم فيه
 ❌ Border color                        → INP-05 يتحكم فيه
 ❌ Selection highlight / text-select   → لم يُثبَت أنه سبب المشكلة — خارج النطاق
 ```
+
+---
+
+## INP-10B Placeholder Text Color Separation Contract
+
+### المشكلة (Regression من INP-10A)
+
+عند تعريف `-webkit-text-fill-color` على `.field input` لحماية لون القيمة (INP-10A)، تَرِث هذه الخاصية تلقائياً إلى `::placeholder` في Chromium/WebKit. والنتيجة: placeholder يظهر بـ `#fff` (أبيض كامل) بدلاً من اللون الخافت المعتمد — حتى لو كانت `color` على `::placeholder` صحيحة.
+
+**السبب التقني:** `-webkit-text-fill-color` خاصية موروثة (inherited). `::placeholder` يرث القيمة من `input` الأب عند غياب تعريف صريح على `::placeholder` نفسه.
+
+### قاعدة الفصل الإلزامية
+
+**Value Text و Placeholder Text قناتان بصريتان منفصلتان ومستقلتان.**
+
+| القناة | الحالة | الخاصية المعتمدة | القيمة |
+|--------|--------|------------------|--------|
+| Value Text (normal/focus/filled) | `-webkit-text-fill-color` | `#fff` |
+| Value Text (autofill) | `-webkit-text-fill-color !important` | `#fff` |
+| **Placeholder Text** | **`-webkit-text-fill-color` صريح على `::placeholder`** | **`rgba(255,255,255,.28)`** |
+
+### قاعدة التطبيق CSS
+
+```css
+/* قاعدة Placeholder — تعريف صريح يمنع inheritance من الـ input الأب */
+.field input::placeholder {
+  color: rgba(255,255,255,.28);
+  -webkit-text-fill-color: rgba(255,255,255,.28);  /* يُلغي الـ inherited value من .field input */
+}
+```
+
+### Contract الرسمي للـ Placeholder
+
+| الحالة | المطلوب |
+|--------|---------|
+| Normal (حقل فارغ) | placeholder خافت `rgba(255,255,255,.28)` |
+| Focus (حقل فارغ مُحدَّد) | placeholder خافت — لا يصبح أبيض |
+| Blur (بعد التحديد) | placeholder خافت — يبقى كما هو |
+| بعد مسح القيمة | placeholder يرجع خافت |
+
+### الممنوعات الدائمة
+
+```
+❌ -webkit-text-fill-color: #fff على ::placeholder
+❌ ترك ::placeholder بدون -webkit-text-fill-color صريح عند وجود -webkit-text-fill-color على الـ input الأب
+❌ استخدام !important على ::placeholder — لا يلزم إذا كان التعريف صريحاً
+❌ تغيير قيمة لون الـ placeholder عن rgba(255,255,255,.28)
+```
+
+### ملاحظة معمارية
+
+هذا الـ Bug كشف Gap في INP-10A: عند تعريف `-webkit-text-fill-color` لحماية Value Text، يجب تعريفها أيضاً على `::placeholder` صراحةً في نفس الـ PR — الخاصيتان مرتبطتان inheritance-حتماً في Chromium/WebKit.
 
 ### Browser Notes
 
