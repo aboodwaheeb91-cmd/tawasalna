@@ -100,7 +100,7 @@ body{font-family:'Cairo',sans-serif;background:#070b18;min-height:100vh;display:
 }
 .field input:focus,
 .field select:focus{border-color:var(--ac);}
-.field input::placeholder{color:rgba(255,255,255,.28);}
+.field input::placeholder{color:rgba(255,255,255,.28);-webkit-text-fill-color:rgba(255,255,255,.28);}
 .field select{cursor:pointer;}
 .field select option{background:#0d1526;color:#fff;}
 

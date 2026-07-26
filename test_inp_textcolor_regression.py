@@ -65,7 +65,7 @@ async def main():
         await page.goto(f'{HOST}/login')
         await page.wait_for_load_state('networkidle')
 
-        # ── A: Login #lEmail — color must not change on focus ─────────────────
+        # ── A: Login #lEmail — value color stable + placeholder not white ────────
         label = 'A: Login #lEmail — computed color stable in normal and focus'
         try:
             normal_color = await page.evaluate(
@@ -91,7 +91,23 @@ async def main():
         except Exception as ex:
             fail(label, str(ex))
 
-        # ── B: Register #rEmail — color must not change on focus ──────────────
+        label = 'A2: Login #lEmail placeholder — webkit-text-fill-color is not #fff (white)'
+        try:
+            ph_fill = await page.evaluate("""
+                (() => {
+                    const el = document.getElementById('lEmail');
+                    const st = getComputedStyle(el, '::placeholder');
+                    return st.getPropertyValue('-webkit-text-fill-color') || st.color;
+                })()
+            """)
+            if ph_fill and ph_fill.strip() in ('rgb(255, 255, 255)', '#fff', '#ffffff', 'white'):
+                fail(label, f'placeholder -webkit-text-fill-color is solid white: {ph_fill}')
+            else:
+                ok(label)
+        except Exception as ex:
+            fail(label, str(ex))
+
+        # ── B: Register #rEmail — value color stable + placeholder not white ──
         label = 'B: Register #rEmail — computed color stable in normal and focus'
         try:
             await page.evaluate("showRegister()")
@@ -121,6 +137,22 @@ async def main():
         except Exception as ex:
             fail(label, str(ex))
 
+        label = 'B2: Register #rEmail placeholder — webkit-text-fill-color is not #fff (white)'
+        try:
+            ph_fill = await page.evaluate("""
+                (() => {
+                    const el = document.getElementById('rEmail');
+                    const st = getComputedStyle(el, '::placeholder');
+                    return st.getPropertyValue('-webkit-text-fill-color') || st.color;
+                })()
+            """)
+            if ph_fill and ph_fill.strip() in ('rgb(255, 255, 255)', '#fff', '#ffffff', 'white'):
+                fail(label, f'placeholder -webkit-text-fill-color is solid white: {ph_fill}')
+            else:
+                ok(label)
+        except Exception as ex:
+            fail(label, str(ex))
+
         await browser.close()
 
     # ── C: CSS source check — -webkit-text-fill-color in .field input ─────────
@@ -140,6 +172,28 @@ async def main():
                 fail(label, '-webkit-text-fill-color missing from .field input block')
             elif 'caret-color' not in field_block:
                 fail(label, 'caret-color missing from .field input block')
+            else:
+                ok(label)
+    except Exception as ex:
+        fail(label, str(ex))
+
+    # ── D: CSS source check — ::placeholder has -webkit-text-fill-color ────────
+    label = 'D: index.css — .field input::placeholder has -webkit-text-fill-color (not solid white)'
+    try:
+        css_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'index.css')
+        with open(css_path, 'r', encoding='utf-8') as f:
+            css = f.read()
+
+        ph_start = css.find('.field input::placeholder')
+        if ph_start == -1:
+            fail(label, '.field input::placeholder rule not found in index.css')
+        else:
+            ph_end = css.find('}', ph_start)
+            ph_block = css[ph_start:ph_end]
+            if '-webkit-text-fill-color' not in ph_block:
+                fail(label, '-webkit-text-fill-color missing from ::placeholder block')
+            elif '-webkit-text-fill-color:#fff' in ph_block or '-webkit-text-fill-color: #fff' in ph_block:
+                fail(label, '::placeholder -webkit-text-fill-color is solid #fff — regression')
             else:
                 ok(label)
     except Exception as ex:
