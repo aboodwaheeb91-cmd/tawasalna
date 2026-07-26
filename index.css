@@ -89,6 +89,8 @@ body{font-family:'Cairo',sans-serif;background:#070b18;min-height:100vh;display:
   border:1.5px solid rgba(255,255,255,.09);
   border-radius:12px;
   color:#fff;
+  -webkit-text-fill-color:#fff;
+  caret-color:#fff;
   font-family:'Cairo',sans-serif;
   font-size:.84rem;
   outline:none;

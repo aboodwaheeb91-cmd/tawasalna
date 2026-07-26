@@ -325,6 +325,88 @@ Disabled > Error > Focus > Filled/Normal
 
 ---
 
+## INP-10A Input Value Text Color Stability Contract
+
+### المشكلة
+
+على Android Chrome (وبعض إصدارات Chromium/WebKit)، الـ UA stylesheet يُطبِّق `-webkit-text-fill-color` على الـ input المُوجَّه أو المُملَّء من المتصفح. هذه القيمة **تتغلب على `color`** لأن `-webkit-text-fill-color` ذو أولوية أعلى في Chromium. النتيجة: نص الـ input يظهر بلون مختلف عن الثيم عند Focus أو Autofill.
+
+### Contract الرسمي
+
+**قيمة الـ Input المكتوبة من المستخدم يجب أن تحافظ على لون النص المخصص للثيم في جميع الحالات:**
+
+| الحالة | السلوك المطلوب |
+|--------|---------------|
+| Normal | لون النص = لون الثيم |
+| Focus | لون النص = لون الثيم — لا تغيير عند التحديد |
+| Filled (قيمة مكتوبة + blur) | لون النص = لون الثيم |
+| Autofill | لون النص = لون الثيم |
+| Autofill + Focus | لون النص = لون الثيم |
+| Password-manager / browser-filled | لون النص = لون الثيم |
+
+### قواعد التطبيق CSS
+
+```css
+/* القاعدة الأساسية — تغطي Normal + Focus + Filled */
+.field input,
+.field select {
+  color: #fff;                    /* للمتصفحات غير WebKit */
+  -webkit-text-fill-color: #fff;  /* يمنع Chromium UA من تغيير لون النص عند Focus */
+  caret-color: #fff;              /* الـ cursor يبقى مرئياً على خلفية داكنة */
+}
+
+/* Autofill: تحتاج !important لأن browser-injected autofill styling ذو specificity أعلى */
+.field input:-webkit-autofill,
+.field input:-webkit-autofill:hover,
+.field input:-webkit-autofill:focus {
+  -webkit-text-fill-color: #fff !important;
+  caret-color: #fff;
+}
+```
+
+### لماذا `-webkit-text-fill-color` ليس `color` وحده
+
+- `color` يُعيَّن في الـ Author stylesheet لكن Chromium قد يُطبِّق UA override بـ `-webkit-text-fill-color`
+- `-webkit-text-fill-color` في Author stylesheet يأخذ أولوية فوق UA override بدون `!important`
+- Autofill rules تستخدم `!important` لأن الـ browser-injected autofill styling يأتي بـ specificity مرتفعة
+
+### ما لا يُغيِّره هذا الـ Contract
+
+```
+✅ قيمة النص المكتوبة (value text)    → ثابتة على لون الثيم في كل الحالات
+✅ Caret (مؤشر الكتابة)               → لون الثيم (لا يختفي على خلفية داكنة)
+
+❌ Placeholder text                    → له Contract منفصل (color مخففة، ليس #fff)
+❌ Label text                          → خارج نطاق هذا الـ Contract
+❌ Field error message                 → DS-VAL يتحكم فيه
+❌ Border color                        → INP-05 يتحكم فيه
+❌ Selection highlight / text-select   → لم يُثبَت أنه سبب المشكلة — خارج النطاق
+```
+
+### Browser Notes
+
+- **Desktop Chrome/Chromium:** `color:#fff` قد يكفي في بعض الإصدارات، لكن `-webkit-text-fill-color` ضروري للاتساق
+- **Android Chrome:** UA stylesheet يُطبِّق `-webkit-text-fill-color` عند Focus → يجب تعريفه صراحةً
+- **Safari/iOS:** نفس سلوك WebKit — `-webkit-text-fill-color` مطلوب
+- **Firefox:** لا يدعم `-webkit-text-fill-color` لكن يحترم `color` — القاعدة الحالية تعمل
+
+### التحقق النهائي
+
+الاختبار الآلي بـ Playwright Desktop **لا يُعيد إنتاج** Android Chrome UA behavior. التحقق البصري النهائي يتطلب:
+
+```
+المسار التدريجي:
+  1. Email filled (ليس focused) → النص أبيض ✓
+  2. Click/focus الحقل → النص يبقى أبيض ✓
+  3. Blur الحقل → النص يبقى أبيض ✓
+  4. Browser autofill → النص أبيض ✓
+  5. Password manager fill + focus → النص أبيض ✓
+```
+
+يُختبَر يدوياً على Android Chrome بعد deployment.
+
+---
+
 ## INP-11 Password Field Visual Contract
 
 ### العناصر الإلزامية
