@@ -20,9 +20,9 @@
 | تحتاج لون من `--fbk-bdr-*` أو DS-FEEDBACK | CLR-21 — هذه ليست DS-COLOR canonical |
 | تريد تعديل `--ac` أو `--ac2` مباشرة | CLR-04 + CLR-27 — ممنوع؛ استخدم Semantic token |
 | تريد إضافة `--color-*` token جديد | CLR-28 — V1 Scope Rule (No Token Without Real Consumer) |
-| تريد ترحيل لون hardcoded إلى token | CLR-26 — Migration ≠ Redesign |
+| تريد ترحيل لون hardcoded إلى token | CLR-27 — Migration ≠ Redesign |
 | تريد تعديل company.css (blue/teal swap) | CLR-16 — Migration Intent only; لا تغيير الآن |
-| لون يبدو محلياً (مثل الـ cyan في messages.css) | CLR-25 — Promotion Criteria |
+| لون يبدو محلياً (مثل الـ cyan في messages.css) | CLR-26 — Promotion Criteria |
 | تعمل على Phase 1 (إضافة tokens إلى tw_shared.css) | CLR-02 + CLR-03 + CLR-05 → CLR-11 + CLR-27 + CLR-30 |
 | تحتاج تعيين Color Role لعنصر UI جديد | CLR-33 — Color Role Assignment Contract |
 
@@ -443,11 +443,11 @@ expert       → --color-categorical-amber
 
 ```
 --color-status-warning (amber) → يُستخدم لتحذير المستخدم من شيء مهم
---color-categorical-amber      → يُستخدم لتمييز مستوى "متوسط" في جدول مهارات
+--color-categorical-amber      → يُستخدم لتمييز مستوى "خبير" في جدول مهارات
 
-✅ مستوى المهارة "متوسط" يُعرَض بـ --color-categorical-amber
-❌ مستوى المهارة "متوسط" لا يُعرَض بـ --color-status-warning
-    (لأن "متوسط" ليس "تحذيراً" — هو تصنيف بيانات فقط)
+✅ مستوى المهارة "خبير" يُعرَض بـ --color-categorical-amber
+❌ مستوى المهارة "خبير" لا يُعرَض بـ --color-status-warning
+    (لأن "خبير" ليس "تحذيراً" — هو تصنيف بيانات فقط)
 ```
 
 ### قاعدة التحقق
@@ -462,7 +462,7 @@ expert       → --color-categorical-amber
 
 **DS-COLOR يُحدِّد اللون. Feature / Domain يُحدِّد المعنى.**
 
-DS-COLOR لا يعرف ماذا تعني "مستوى خبير" أو "حالة محقق". Feature هو من يُقرِّر أن `--color-categorical-purple` تُمثِّل مستوى expert في نظام المهارات.
+DS-COLOR لا يعرف ماذا تعني "مستوى جيد" أو "حالة محقق". Feature هو من يُقرِّر أن `--color-categorical-purple` تُمثِّل مستوى good في نظام المهارات.
 
 ### نمط الـ Mapping
 
@@ -471,21 +471,21 @@ DS-COLOR:
   --color-categorical-purple: #8b5cf6   ← لون فقط
 
 Feature (profile-v2.css أو skills.css):
-  .skill-level-expert { color: var(--color-categorical-purple); }   ← الربط بالمعنى
+  .skill-level-good { color: var(--color-categorical-purple); }   ← الربط بالمعنى
 ```
 
 ### القاعدة
 
 - **DS-COLOR** يُعرِّف `--color-categorical-purple` فقط (لون + identity)
-- **Feature** يربطه بـ "expert" أو "advanced" أو أي تصنيف domain
-- **لا يوجد** `--color-skill-expert` في DS-COLOR — هذا feature-specific alias
+- **Feature** يربطه بـ "good" أو أي تصنيف domain
+- **لا يوجد** `--color-skill-good` في DS-COLOR — هذا feature-specific alias
 
 ### Domain Alias المسموح
 
 ```css
 /* في static/shared/tw-skills.css أو profile-v2.css: */
---skill-expert:  var(--color-categorical-purple);  ✅ مسموح (Tier 2 Alias)
---skill-adv:     var(--color-categorical-blue);    ✅ مسموح (Tier 2 Alias)
+--skill-good:    var(--color-categorical-purple);  ✅ مسموح (Tier 2 Alias)
+--skill-inter:   var(--color-categorical-blue);    ✅ مسموح (Tier 2 Alias)
 ```
 
 ---
@@ -852,7 +852,7 @@ DS-COLOR V1 يُوثِّق **Conceptual Mapping فقط** — لا JSON، لا bu
 
 ```
 حالة Pending → لا تستخدم Status tokens (success / warning / danger / info)
-              → استخدم Categorical gray أو Text tertiary
+              → استخدم Categorical gray أو Text muted / --color-text-muted
 
 ✅ .status-badge--pending { color: var(--color-text-muted); }
 ❌ .status-badge--pending { color: var(--color-status-warning); }
@@ -934,7 +934,7 @@ Phase 1 ممنوع:   تغيير #00c896 إلى #00b386  حتى لو "أفضل"
 
 ```
 ✅ --color-brand-primary موجود: consumer = كل الأزرار الأساسية، الشريط العلوي
-✅ --color-categorical-purple موجود: consumer = Expert level chips في profile
+✅ --color-categorical-purple موجود: consumer = Good level chips في profile
 ❌ --color-brand-quaternary: لا يوجد له consumer حالي — لا يُضاف في V1
 ❌ --color-categorical-pink: لا يوجد له consumer حالي — يُؤجَّل لـ V2
 ```
@@ -1117,3 +1117,4 @@ Color Role هو تعيين وظيفي: هذا العنصر يحمل لون كذ�
 |---------|---------|
 | 2026-07-26 | Phase 0 — Document created. DS-COLOR V1 Architecture & Documentation Foundation. 33 sections (CLR-00 → CLR-32). No runtime changes. SYSTEMS_INDEX.md §50 added. ARCHITECTURE_FOUNDATION.md F35 + F31 row added. DESIGN_SYSTEM.md updated. CLAUDE.md DS-COLOR routing rule added. |
 | 2026-07-26 | Documentation Correction Round (13 corrections) — Primitive naming: green/amber/red/dark-950/dark-900 (hue-based). Surface token namespace: --color-surface-* (replaces --color-bg-*). Text: --color-text-muted as V1 canonical (replaces tertiary/quaternary); --t3/--t4 mapping deferred to Phase 1 audit. CLR-10: --color-status-info decoupled from --color-brand-secondary (both reference --color-prim-blue independently). Categorical V1 updated: neutral added, red/green removed; correct Tawasolna skill mapping documented. Tier 3 Local Color Role policy clarified. Theme Readiness corrected: Semantic layer remapping only (Primitives stay stable). Accessibility: placeholder contrast documented as Legacy Debt (no false WCAG claim). Semantic RGB channels added (CLR-06, CLR-10). CLR-33 Color Role Assignment Contract added. Total: 35 sections (CLR-00 → CLR-34). |
+| 2026-07-26 | Final Consistency Fix (7 items) — CLR-00 routing: migration → CLR-27, local color promotion → CLR-26 (numbers were off by one). CLR-13: amber example corrected from "متوسط/intermediate" to "خبير/expert". CLR-14: purple mapping corrected from "expert" to "good" throughout (description, code example, alias name --skill-expert → --skill-good; --skill-adv → --skill-inter). CLR-25: "Text tertiary" replaced with "Text muted / --color-text-muted". CLR-28: categorical-purple consumer corrected from "Expert level chips" to "Good level chips". SYSTEMS_INDEX.md footer: CLR-00–CLR-33/34-sections → CLR-00–CLR-34/35-sections. Categorical RGB sanity check: no alpha consumers found in static/ — no new tokens added per No Token Without Real Consumer rule. |
