@@ -141,17 +141,17 @@ function checkPassStrength(val){
   if(/[0-9]/.test(val)) score++;
   if(/[^A-Za-z0-9]/.test(val)) score++;
   var levels = [
-    {w:'20%',c:'#ef4444',t:'ضعيف جداً'},
-    {w:'40%',c:'#f97316',t:'ضعيف'},
-    {w:'60%',c:'#eab308',t:'متوسط'},
-    {w:'80%',c:'#22c55e',t:'قوي'},
-    {w:'100%',c:'#00c896',t:'قوي جداً'}
+    {w:'20%',tok:'--auth-strength-very-weak',t:'ضعيف جداً'},
+    {w:'40%',tok:'--auth-strength-weak',t:'ضعيف'},
+    {w:'60%',tok:'--auth-strength-medium',t:'متوسط'},
+    {w:'80%',tok:'--auth-strength-strong',t:'قوي'},
+    {w:'100%',tok:'--auth-strength-very-strong',t:'قوي جداً'}
   ];
   var level = levels[Math.min(score, 4)];
   fill.style.width = level.w;
-  fill.style.background = level.c;
+  fill.style.background = 'var(' + level.tok + ')';
   label.textContent = level.t;
-  label.style.color = level.c;
+  label.style.color = 'var(' + level.tok + ')';
 }
 
 // showToast provided by tw_shared.js (loaded before this file)
