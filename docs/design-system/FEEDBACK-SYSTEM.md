@@ -132,6 +132,7 @@ DS-FEEDBACK هو النظام الموحد الرسمي لـ **Operational Feedb
 - Form Dirty State — يملكه DS-FRM
 - Scroll Lock — يملكه DS-OVL
 - Focus Management — يملكه DS-OVL (للـ Overlays) · DS-FEEDBACK لا يسرق Focus
+- **قيم الألوان الفعلية** — تملكها DS-COLOR. DS-FEEDBACK يُعرِّف `--fbk-bdr-*` namespace لكن يجب أن تُشير إلى Semantic RGB channels من DS-COLOR (راجع `COLOR-SYSTEM.md` CLR-21). مثال صحيح: `--fbk-bdr-success: rgba(var(--color-status-success-rgb), .3)`.
 
 ### مبدأ الفصل
 

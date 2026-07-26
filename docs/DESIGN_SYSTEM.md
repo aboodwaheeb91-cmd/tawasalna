@@ -82,13 +82,14 @@
 | أيقونة / علامة / ملف مشترك | [DS-ASSET] | **STOP — غير موثَّق بعد** |
 | Modal / Drawer / Overlay / Confirmation / Sheet | [OVERLAY-SYSTEM.md](design-system/OVERLAY-SYSTEM.md) | OVL-00 (Routing Protocol) → القسم المناسب |
 | Toast / Snackbar / Operational Feedback | [FEEDBACK-SYSTEM.md](design-system/FEEDBACK-SYSTEM.md) | FBK-00 (Routing Protocol) → القسم المناسب |
+| color token / `--color-*` / palette / تعريف لون / ترحيل لون | [COLOR-SYSTEM.md](design-system/COLOR-SYSTEM.md) | CLR-00 (Routing Protocol) → القسم المناسب |
 | Tooltip / Popover / Floating label / Context menu | [DS-TOOLTIP] | **STOP — غير موثَّق بعد (خارج DS-OVL V1 — راجع OVL-37)** |
 | بيانات مرجعية (مهن / مهارات / دول) | [DS-REF] | **STOP — غير موثَّق بعد (tw-options-data.js موجود)** |
 | Content Moderation | [DS-MODERATION] | **STOP — غير موثَّق بعد** |
 
 > **إذا لم يوجد Route مناسب في الجدول:**
 > لا تختر أقرب نظام. **STOP** واسأل صاحب المشروع. (F30)
-> الأنظمة الحالية: [DS-BTN] · [DS-VM] · [DS-NAV] · [DS-INP] · [DS-FRM] · [DS-VAL] · [API-MUT] · [DS-SEL] · [DS-DATE] · [DS-OVL] · [DS-FEEDBACK] — لا تبني نظاماً موازياً لأيٍّ منها.
+> الأنظمة الحالية: [DS-BTN] · [DS-VM] · [DS-NAV] · [DS-INP] · [DS-FRM] · [DS-VAL] · [API-MUT] · [DS-SEL] · [DS-DATE] · [DS-OVL] · [DS-FEEDBACK] · [DS-COLOR] — لا تبني نظاماً موازياً لأيٍّ منها.
 
 ---
 
@@ -107,6 +108,7 @@
 | [DS-DATE] | Date & Time Fields System V1 | [design-system/DATE-TIME-FIELDS.md](design-system/DATE-TIME-FIELDS.md) | موثَّق — V1 (توثيق) |
 | [DS-OVL] | Overlay System V1 | [design-system/OVERLAY-SYSTEM.md](design-system/OVERLAY-SYSTEM.md) | موثَّق — V1 (توثيق) |
 | [DS-FEEDBACK] | Operational Feedback System V1 | [design-system/FEEDBACK-SYSTEM.md](design-system/FEEDBACK-SYSTEM.md) | موثَّق — V1 (توثيق) |
+| [DS-COLOR] | Color System V1 | [design-system/COLOR-SYSTEM.md](design-system/COLOR-SYSTEM.md) | موثَّق — Phase 0 (توثيق) |
 
 **أنظمة مستقبلية (لم تُوثَّق بعد — انظر INP-16 للقائمة الكاملة):**
 
@@ -140,6 +142,7 @@
 | Documentation — `design-system/DATE-TIME-FIELDS.md` (DATE-00 → DATE-35) | مكتمل ✓ — V1 توثيق |
 | Documentation — `design-system/OVERLAY-SYSTEM.md` (OVL-00 → OVL-37) | مكتمل ✓ — V1 توثيق |
 | Documentation — `design-system/FEEDBACK-SYSTEM.md` (FBK-00 → FBK-29) | مكتمل ✓ — V1 توثيق |
+| Documentation — `design-system/COLOR-SYSTEM.md` (CLR-00 → CLR-34, 35 قسماً) | مكتمل ✓ — Phase 0 توثيق (تصحيح موثَّق 2026-07-26) |
 | CSS Layer (`static/shared/tw-ui-tokens.css`) | **لم تُنشأ بعد** — انظر FUTURE_ROADMAP.md |
 | Navigation Implementation (Layer Stack، Back Contract، ?next=) | **لم تُنفَّذ بعد** — موثَّقة في NAVIGATION.md |
 | Input / Form / Validation Runtime Implementation | **لم تُنفَّذ بعد** — موثَّقة في INP/FRM/VAL |
@@ -150,6 +153,7 @@
 > `DS-DATE Runtime` (tw-date.js أو ما شابه) **ممنوع إنشاؤه** حتى يُطلب صراحةً — التوثيق الحالي Contract فقط.
 > `DS-OVL Runtime` (tw-overlay.js أو ما شابه) **ممنوع إنشاؤه** حتى يُطلب صراحةً — التوثيق الحالي Contract فقط.
 > `DS-FEEDBACK Runtime` (tw-feedback.js أو ما شابه) **ممنوع إنشاؤه** حتى يُطلب صراحةً — التوثيق الحالي Contract فقط.
+> `DS-COLOR Phase 1 Runtime` (إضافة `--color-*` tokens لـ `tw_shared.css`) **ممنوع** حتى يُطلب صراحةً — التوثيق الحالي Phase 0 (Architecture Documentation) فقط.
 > التوثيق الحالي يصف الـ contracts المعمارية فقط — ليس تنفيذاً.
 
 ---
