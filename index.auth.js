@@ -241,16 +241,63 @@ async function doLogin(){
   }
 }());
 
+// ── DS-VAL helpers (register form) ──────────────────────────────────────────
+var _rSubmitAttempted = false;  // arms Required re-show after first submit
+var _rEmailErrorKind  = null;   // 'required' | 'format' | null — never compare message text
+
 // ── Register ──────────────────────────────────────────────────────────────────
 async function doRegister(){
-  var full_name = document.getElementById('rName').value.trim();
-  var email     = document.getElementById('rEmail').value.trim();
-  var password  = document.getElementById('rPass').value;
+  var nameEl  = document.getElementById('rName');
+  var emailEl = document.getElementById('rEmail');
+  var passEl  = document.getElementById('rPass');
+  var name    = nameEl  ? nameEl.value.trim()  : '';
+  var email   = emailEl ? emailEl.value.trim() : '';
+  var pass    = passEl  ? passEl.value         : '';
 
-  if(!full_name){ toast('أدخل الاسم', 'error'); return; }
-  if(!email)    { toast('أدخل البريد الإلكتروني', 'error'); return; }
-  if(password.length < 6){ toast('كلمة المرور قصيرة جداً', 'error'); return; }
-  if(!['emp','co','edu'].includes(curType)){ toast('اختر نوع الحساب', 'error'); return; }
+  _rSubmitAttempted = true;
+
+  // Inline field validation — collect all errors, show at once (DS-VAL VAL-06)
+  // Clears stale errors for valid fields (autofill / password-manager)
+  var hasError = false;
+  if(!name){
+    _lShowFieldError('wrapper-rName', 'r-name-error', 'الاسم مطلوب');
+    hasError = true;
+  } else {
+    _lClearFieldError('wrapper-rName', 'r-name-error');
+  }
+  if(!email){
+    _rEmailErrorKind = 'required';
+    _lShowFieldError('wrapper-rEmail', 'r-email-error', 'البريد الإلكتروني مطلوب');
+    hasError = true;
+  } else if(!_lIsValidEmail(email)){
+    _rEmailErrorKind = 'format';
+    _lShowFieldError('wrapper-rEmail', 'r-email-error', 'صيغة البريد الإلكتروني غير صحيحة');
+    hasError = true;
+  } else {
+    _rEmailErrorKind = null;
+    _lClearFieldError('wrapper-rEmail', 'r-email-error');
+  }
+  if(!pass){
+    _lShowFieldError('wrapper-rPass', 'r-pass-error', 'كلمة المرور مطلوبة');
+    hasError = true;
+  } else if(pass.length < 6){
+    _lShowFieldError('wrapper-rPass', 'r-pass-error', 'كلمة المرور قصيرة جداً (6 أحرف على الأقل)');
+    hasError = true;
+  } else {
+    _lClearFieldError('wrapper-rPass', 'r-pass-error');
+  }
+  if(!['emp','co','edu'].includes(curType)){
+    toast('اختر نوع الحساب', 'error');
+    hasError = true;
+  }
+  if(hasError){
+    var firstErr = document.querySelector('#registerPanel .field.has-error input');
+    if(firstErr){
+      firstErr.focus();
+      firstErr.scrollIntoView({behavior:'smooth', block:'nearest'});
+    }
+    return;
+  }
 
   var btn = document.getElementById('regBtn');
   btn._orig = 'إنشاء حساب';
@@ -259,7 +306,7 @@ async function doRegister(){
     var res  = await fetch('/auth/register', {
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({full_name, email, password, user_type: curType})
+      body:JSON.stringify({full_name:name, email:email, password:pass, user_type:curType})
     });
     var data = await res.json();
     if(!res.ok){ toast(data.detail || 'خطأ في التسجيل', 'error'); return; }
@@ -267,12 +314,77 @@ async function doRegister(){
     if(data.token) localStorage.setItem('tw_jwt', data.token);
     toast('تم إنشاء حسابك! 🎉');
     setTimeout(function(){ redirect(data.user); }, 700);
-  } catch(e) {
+  } catch(e){
     toast('تعذّر الاتصال بالخادم', 'error');
   } finally {
     setBtnLoad(btn, false);
   }
 }
+
+// ── Register field validation events (DS-VAL VAL-05, VAL-12) ─────────────────
+// State machine — _rEmailErrorKind and _rSubmitAttempted are the source of truth.
+;(function(){
+  var rNameEl  = document.getElementById('rName');
+  var rEmailEl = document.getElementById('rEmail');
+  var rPassEl  = document.getElementById('rPass');
+
+  if(rNameEl){
+    rNameEl.addEventListener('input', function(){
+      if(!_rSubmitAttempted) return;
+      if(rNameEl.value.trim()){
+        _lClearFieldError('wrapper-rName', 'r-name-error');
+      } else {
+        _lShowFieldError('wrapper-rName', 'r-name-error', 'الاسم مطلوب');
+      }
+    });
+  }
+
+  if(rEmailEl){
+    // Blur: format error only on non-empty invalid value (VAL-05 — no Required on blur)
+    rEmailEl.addEventListener('blur', function(){
+      var v = rEmailEl.value.trim();
+      if(v && !_lIsValidEmail(v)){
+        _rEmailErrorKind = 'format';
+        _lShowFieldError('wrapper-rEmail', 'r-email-error', 'صيغة البريد الإلكتروني غير صحيحة');
+      }
+    });
+    // Input: state machine drives all transitions
+    rEmailEl.addEventListener('input', function(){
+      var v = rEmailEl.value.trim();
+      if(_lIsValidEmail(v)){
+        _rEmailErrorKind = null;
+        _lClearFieldError('wrapper-rEmail', 'r-email-error');
+      } else if(!v){
+        if(_rSubmitAttempted){
+          _rEmailErrorKind = 'required';
+          _lShowFieldError('wrapper-rEmail', 'r-email-error', 'البريد الإلكتروني مطلوب');
+        } else if(_rEmailErrorKind === 'format'){
+          _rEmailErrorKind = null;
+          _lClearFieldError('wrapper-rEmail', 'r-email-error');
+        }
+      } else if(_rSubmitAttempted || _rEmailErrorKind === 'format'){
+        _rEmailErrorKind = 'format';
+        _lShowFieldError('wrapper-rEmail', 'r-email-error', 'صيغة البريد الإلكتروني غير صحيحة');
+      }
+      // else: non-empty invalid before submit and before any blur Format — wait for blur
+    });
+  }
+
+  if(rPassEl){
+    // Input: Required / short error re-arms after first submit attempt
+    rPassEl.addEventListener('input', function(){
+      if(!_rSubmitAttempted) return;
+      var v = rPassEl.value;
+      if(!v){
+        _lShowFieldError('wrapper-rPass', 'r-pass-error', 'كلمة المرور مطلوبة');
+      } else if(v.length < 6){
+        _lShowFieldError('wrapper-rPass', 'r-pass-error', 'كلمة المرور قصيرة جداً (6 أحرف على الأقل)');
+      } else {
+        _lClearFieldError('wrapper-rPass', 'r-pass-error');
+      }
+    });
+  }
+}());
 
 // ── Enter key shortcut ────────────────────────────────────────────────────────
 // Guard: only fire when user is actively focused on an INPUT element.

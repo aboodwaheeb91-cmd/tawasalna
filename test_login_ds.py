@@ -9,13 +9,27 @@ Fetch mock strategy: queue-based mock injected via page.evaluate().
   _q(page, status, body, delay) — enqueue one response
   _cnt(page) — return request count so far
 """
-import json, os, sys, time, traceback
+import json, os, shutil, sys, time, traceback
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 
-BASE     = 'http://127.0.0.1:8000'
-CHROMIUM = os.environ.get('PLAYWRIGHT_CHROMIUM_PATH', None)
+BASE = 'http://127.0.0.1:8000'
+
+
+def _find_chromium():
+    p = os.environ.get('PLAYWRIGHT_CHROMIUM_PATH', '')
+    if p and os.path.isfile(p):
+        return p
+    if os.path.isfile('/opt/pw-browsers/chromium'):
+        return '/opt/pw-browsers/chromium'
+    for name in ('chromium', 'chromium-browser', 'google-chrome'):
+        found = shutil.which(name)
+        if found:
+            return found
+    return None
+
+CHROMIUM = _find_chromium()
 
 PASS_STR  = '\033[92mPASS\033[0m'
 FAIL_STR  = '\033[91mFAIL\033[0m'
@@ -473,19 +487,21 @@ def test_v_autofill_selectors_scoped(page):
     # Must contain the scoped selector
     assert '#loginSection input:-webkit-autofill' in css, \
         'index.css must contain #loginSection input:-webkit-autofill'
-    # Must NOT contain a bare (global) autofill selector
+    # Must NOT contain a bare (global) autofill selector — strip all known scoped rules first
     css_without_scoped = css.replace('#loginSection input:-webkit-autofill', '')
+    css_without_scoped = css_without_scoped.replace('#registerPanel input:-webkit-autofill', '')
     assert 'input:-webkit-autofill' not in css_without_scoped, \
-        'input:-webkit-autofill must appear only under #loginSection scope'
+        'input:-webkit-autofill must appear only under a scoped selector (#loginSection or #registerPanel)'
     # [hidden] rule must be scoped to #loginSection, not global
     assert '#loginSection [hidden]' in css, \
         'index.css must contain #loginSection [hidden] (scoped)'
+    # Strip all known scoped [hidden] rules, then check no bare one remains
     css_without_scoped_hidden = css.replace('#loginSection [hidden]', '')
-    # Bare [hidden] (no #loginSection prefix) must not remain
+    css_without_scoped_hidden = css_without_scoped_hidden.replace('#registerPanel [hidden]', '')
     import re
     bare_hidden = re.search(r'(?<!\S)\[hidden\]\s*\{', css_without_scoped_hidden)
     assert not bare_hidden, \
-        f'[hidden] rule must be scoped to #loginSection, not global; found: {bare_hidden}'
+        f'[hidden] rule must be scoped (#loginSection or #registerPanel), not global; found: {bare_hidden}'
 
 # ── T: No JS syntax/runtime errors on load (network 404s from test server excluded)
 def test_t_no_console_errors(page):

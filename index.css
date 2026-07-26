@@ -180,7 +180,7 @@ body{font-family:'Cairo',sans-serif;background:#070b18;min-height:100vh;display:
   margin-top:0;
 }
 #registerPanel.open{
-  max-height:640px;
+  max-height:780px;
   opacity:1;
   transform:translateY(0);
   margin-top:12px;
@@ -257,3 +257,30 @@ body{font-family:'Cairo',sans-serif;background:#070b18;min-height:100vh;display:
 .l-form-error{display:flex;align-items:center;padding:9px 12px;border-radius:10px;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.22);margin-bottom:12px;}
 .l-form-error[hidden]{display:none;}
 .l-form-error-text{font-size:.75rem;color:rgb(var(--danger-rgb,239,68,68));font-family:'Cairo',sans-serif;font-weight:600;line-height:1.4;}
+
+/* ── DS-INP: Register email direction (INP-09) ── */
+#rEmail{direction:ltr;text-align:left;}
+
+/* ── DS-INP: Register password field eye-button padding (INP-11) ── */
+#wrapper-rPass .l-input-wrap input{padding-inline-end:44px;}
+
+/* Scoped [hidden] rule for register panel — same SVGElement rationale as #loginSection */
+#registerPanel [hidden]{display:none!important;}
+
+/* ── DS-INP INP-11: Autofill visual contract (Register panel only) ── */
+#registerPanel input:-webkit-autofill,
+#registerPanel input:-webkit-autofill:hover,
+#registerPanel input:-webkit-autofill:focus{
+  -webkit-box-shadow:0 0 0 1000px #0d1526 inset!important;
+  -webkit-text-fill-color:#fff!important;
+  caret-color:#fff;
+  transition:background-color 5000s ease-in-out 0s;
+}
+#registerPanel input:autofill{
+  background-color:#0d1526!important;
+  color:#fff!important;
+}
+
+/* ── DS-VAL: Field error state (scoped to #registerPanel) ── */
+#registerPanel .field.has-error input{border-color:rgb(var(--danger-rgb,239,68,68));}
+#registerPanel .field-error{display:block;font-size:.65rem;color:rgb(var(--danger-rgb,239,68,68));margin-top:4px;font-family:'Cairo',sans-serif;font-weight:600;}

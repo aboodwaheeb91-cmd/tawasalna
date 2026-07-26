@@ -68,13 +68,22 @@ function _applyRegLabels(type){
   var rName     = document.getElementById('rName');
   if(type === 'co'){
     if(nameLabel) nameLabel.textContent = 'اسم الشركة / الجهة';
-    if(rName)     rName.placeholder = 'اسم شركتك أو مؤسستك...';
+    if(rName){
+      rName.placeholder = 'اسم شركتك أو مؤسستك...';
+      rName.setAttribute('autocomplete', 'organization');
+    }
   } else if(type === 'edu'){
     if(nameLabel) nameLabel.textContent = 'اسم المؤسسة التعليمية';
-    if(rName)     rName.placeholder = 'اسم الجامعة أو المركز...';
+    if(rName){
+      rName.placeholder = 'اسم الجامعة أو المركز...';
+      rName.setAttribute('autocomplete', 'organization');
+    }
   } else {
     if(nameLabel) nameLabel.textContent = 'الاسم الكامل';
-    if(rName)     rName.placeholder = 'اكتب اسمك...';
+    if(rName){
+      rName.placeholder = 'اكتب اسمك...';
+      rName.setAttribute('autocomplete', 'name');
+    }
   }
 }
 
@@ -192,6 +201,29 @@ function initScrollProg(){
     if(eyeShow){ if(show) eyeShow.setAttribute('hidden',''); else eyeShow.removeAttribute('hidden'); }
     if(eyeHide){ if(!show) eyeHide.setAttribute('hidden',''); else eyeHide.removeAttribute('hidden'); }
   });
+}());
+
+// ── Register password show/hide toggle (DS-INP INP-11) ───────────────────────
+;(function(){
+  var eyeBtn  = document.getElementById('rPassEye');
+  var passEl  = document.getElementById('rPass');
+  var eyeShow = document.getElementById('rEyeShow');
+  var eyeHide = document.getElementById('rEyeHide');
+  if(!eyeBtn || !passEl) return;
+  eyeBtn.addEventListener('click', function(){
+    var show = passEl.type === 'password';
+    passEl.type = show ? 'text' : 'password';
+    eyeBtn.setAttribute('aria-pressed', show ? 'true' : 'false');
+    eyeBtn.setAttribute('aria-label', show ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور');
+    if(eyeShow){ if(show) eyeShow.setAttribute('hidden',''); else eyeShow.removeAttribute('hidden'); }
+    if(eyeHide){ if(!show) eyeHide.setAttribute('hidden',''); else eyeHide.removeAttribute('hidden'); }
+  });
+}());
+
+// ── Register password strength listener (replaces oninput attr removed from HTML) ──
+;(function(){
+  var passEl = document.getElementById('rPass');
+  if(passEl) passEl.addEventListener('input', function(){ checkPassStrength(passEl.value); });
 }());
 
 // ── Lucide icon init ──────────────────────────────────────────────────────────
