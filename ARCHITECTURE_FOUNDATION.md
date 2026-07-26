@@ -60,6 +60,7 @@
 | F32 | Date & Time Fields System (DS-DATE) | **P0** |
 | F33 | Overlay System (DS-OVL) | **P0** |
 | F34 | Operational Feedback System (DS-FEEDBACK) | **P0** |
+| F35 | Color System V1 (DS-COLOR) | **P0** |
 
 ---
 
@@ -1013,6 +1014,7 @@ profiles.country   → المصدر الوحيد للدولة (ISO code للمو
 | تاريخ / وقت / date picker / month-year / year-only / datetime | DS-DATE → `docs/design-system/DATE-TIME-FIELDS.md` — اقرأ DATE-00 (Routing Protocol) ثم DATE-03A–G |
 | Overlay / Modal / Drawer / Confirmation / Sheet / Dialog | DS-OVL → `docs/design-system/OVERLAY-SYSTEM.md` — اقرأ OVL-00 (Routing Protocol) ثم القسم المناسب |
 | Toast / Snackbar / Operational Feedback | DS-FEEDBACK → `docs/design-system/FEEDBACK-SYSTEM.md` — اقرأ FBK-00 (Routing Protocol) ثم القسم المناسب |
+| color token / `--color-*` / palette / لون / تعريف لون جديد | DS-COLOR → `docs/design-system/COLOR-SYSTEM.md` — اقرأ CLR-00 (Routing Protocol) ثم القسم المناسب |
 | Tooltip / Popover / Floating label / Context menu | **STOP** — غير موثَّق بعد؛ خارج DS-OVL V1 — راجع `docs/design-system/OVERLAY-SYSTEM.md` OVL-37 |
 
 ### لماذا هذه القاعدة؟
@@ -1149,6 +1151,40 @@ async function handleSave() {
 ```
 
 **المرجع التفصيلي:** `docs/design-system/FEEDBACK-SYSTEM.md` (FBK-00 → FBK-29)
+
+---
+
+## F35 — [P0] Color System V1 (DS-COLOR)
+
+**DS-COLOR هو النظام الرسمي الوحيد لكل color tokens في منصة تواصلنا.**
+
+### القواعد الأساسية
+
+1. **`--color-*` namespace محجوز حصراً لـ DS-COLOR** — لا يُعرَّف أو يُعاد تعريف `--color-*` خارج `tw_shared.css`. Page CSS files ممنوعة من إنشاء أو override أي `--color-*` variable.
+2. **Three Logical Layers** — Foundation/Primitive (`--color-prim-*`) → Semantic (`--color-brand-*`, `--color-bg-*`, `--color-border-*`, `--color-text-*`, `--color-status-*`, `--color-categorical-*`) → Legacy Aliases (`--ac: var(--color-brand-primary)` إلخ). Feature CSS يستخدم Semantic فقط — لا يلمس Foundation مباشرةً.
+3. **Token Identity ≠ Token Value** — رمزان مختلفان قد يتشاركان نفس hex value ويبقيان مستقلَّين. تغيير قيمة `--color-brand-primary` لا يُغيِّر `--color-categorical-teal` تلقائياً حتى لو القيمة الحالية متساوية.
+4. **Semantic ≠ Categorical** — `--color-status-warning` إشارة UX (خلل/تحذير). `--color-categorical-amber` تمييز بيانات (مستوى مهارة/فئة). ممنوع استخدام Status tokens للتصنيف والعكس.
+5. **Domain/Feature Mapping Policy** — DS-COLOR يملك القيمة والهوية. Feature/Domain يملك المعنى (Tier 2 alias يُشير إلى DS-COLOR، لا يُعرِّف قيمة hex بنفسه).
+6. **Three-Tier Local Token Policy** — T1: Global DS-COLOR في `tw_shared.css`. T2: Domain Alias في feature CSS (`--co-accent: var(--color-brand-secondary)` — يُشير إلى T1). T3: Local non-color tokens (sizes, durations). T2 ممنوع أن يُعرِّف ألوانه بنفسه (no `--co-accent: #2563ff`).
+7. **Migration ≠ Redesign** — `#00c896 → var(--color-brand-primary)` = ترحيل (لا تغيير بصري). `#00c896 → #00b386` = إعادة تصميم تحتاج موافقة معمارية. ممنوع الخلط.
+8. **No Token Without Real Consumer in V1** — لا tokens افتراضية بدون مستهلك حقيقي في نطاق V1.
+9. **Phase 0 = Documentation Only** — لا tokens مُضافة إلى `tw_shared.css` بعد. Phase 1 يُضيف الـ `--color-*` tokens. Phase 4 يُزيل Legacy Aliases. ممنوع تخطي المراحل.
+
+### ممنوعات F35
+
+```
+❌ `--color-*` variable تُعرَّف أو تُعاد تعريفها خارج `tw_shared.css`
+❌ Page CSS file تُنشئ أو تُعيد تعريف `--color-*` (override DS-COLOR)
+❌ تغيير قيمة legacy token (--ac, --bg, إلخ) بدون PR DS-COLOR Phase 1 صريح
+❌ Color system موازٍ خارج DS-COLOR
+❌ DS-COLOR Phase 1 Runtime (إضافة tokens لـ tw_shared.css) قبل موافقة صريحة
+❌ `--color-status-*` tokens لتصنيف البيانات (Categorical)
+❌ `--color-categorical-*` tokens لإشارات UX (Semantic Status)
+❌ Domain Alias (T2) يُعرِّف قيمة hex بنفسه بدلاً من الإشارة إلى DS-COLOR
+❌ Token مُضاف بدون مستهلك حقيقي في V1 scope
+```
+
+**المرجع التفصيلي:** `docs/design-system/COLOR-SYSTEM.md` (CLR-00 → CLR-33)
 
 ---
 
