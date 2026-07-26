@@ -4,7 +4,7 @@ Tests DS-INP anatomy (wrappers, labels, aria, eye toggle) and DS-VAL timing
 (Required only after submit, Format on blur, live correction, state machine)
 for the three register fields: rName, rEmail, rPass.
 """
-import asyncio, sys
+import asyncio, os, shutil, sys
 from pathlib import Path
 from playwright.async_api import async_playwright
 
@@ -12,6 +12,22 @@ ROOT    = Path(__file__).resolve().parent
 BASE    = 'http://127.0.0.1:8000'
 PASS_OK = 0
 FAIL_OK = 0
+
+
+def _find_chromium():
+    p = os.environ.get('PLAYWRIGHT_CHROMIUM_PATH', '')
+    if p and os.path.isfile(p):
+        return p
+    if os.path.isfile('/opt/pw-browsers/chromium'):
+        return '/opt/pw-browsers/chromium'
+    for name in ('chromium', 'chromium-browser', 'google-chrome'):
+        found = shutil.which(name)
+        if found:
+            return found
+    return None
+
+CHROMIUM = _find_chromium()
+
 
 def ok(label):
     global PASS_OK
@@ -25,10 +41,10 @@ def fail(label, reason):
 
 async def run():
     async with async_playwright() as pw:
-        browser = await pw.chromium.launch(
-            executable_path='/opt/pw-browsers/chromium',
-            args=['--no-sandbox']
-        )
+        launch_kwargs = {'args': ['--no-sandbox']}
+        if CHROMIUM:
+            launch_kwargs['executable_path'] = CHROMIUM
+        browser = await pw.chromium.launch(**launch_kwargs)
         ctx  = await browser.new_context(viewport={'width': 390, 'height': 844})
         page = await ctx.new_page()
 
@@ -376,72 +392,8 @@ async def run():
         except Exception as ex:
             fail(label, str(ex))
 
-        # ── N: 400 backend error → form-level banner ──────────────────────────
-        label = 'N: 400 backend error → form-level banner, not toast'
-        try:
-            await open_register()
-            await page.fill('#rName', 'أحمد محمد')
-            await page.fill('#rEmail', 'used@example.com')
-            await page.fill('#rPass', 'abc123!')
-            # Mock fetch to return 400
-            await page.evaluate("""
-                window.__origFetch = window.fetch;
-                window.fetch = function(url, opts){
-                    if(url === '/auth/register'){
-                        return Promise.resolve({
-                            ok: false, status: 400,
-                            json: function(){ return Promise.resolve({detail:'البريد الإلكتروني مستخدم مسبقاً'}); }
-                        });
-                    }
-                    return window.__origFetch(url, opts);
-                };
-            """)
-            await page.evaluate("doRegister()")
-            await page.wait_for_timeout(200)
-            await page.evaluate("window.fetch = window.__origFetch; delete window.__origFetch;")
-            banner_hidden  = await page.evaluate("document.getElementById('r-form-error').hasAttribute('hidden')")
-            banner_text    = await page.evaluate("document.getElementById('r-form-error').querySelector('.l-form-error-text').textContent.trim()")
-            if banner_hidden:
-                fail(label, 'r-form-error banner should be visible')
-            elif not banner_text:
-                fail(label, 'r-form-error banner text is empty')
-            else:
-                ok(label)
-        except Exception as ex:
-            fail(label, str(ex))
-
-        # ── O: network abort → form-level banner ──────────────────────────────
-        label = 'O: network abort → form-level banner, button restored'
-        try:
-            await open_register()
-            await page.fill('#rName', 'أحمد محمد')
-            await page.fill('#rEmail', 'a@b.com')
-            await page.fill('#rPass', 'abc123!')
-            await page.evaluate("""
-                window.__origFetch = window.fetch;
-                window.fetch = function(url, opts){
-                    if(url === '/auth/register'){
-                        return Promise.reject(new TypeError('Failed to fetch'));
-                    }
-                    return window.__origFetch(url, opts);
-                };
-            """)
-            await page.evaluate("doRegister()")
-            await page.wait_for_timeout(300)
-            await page.evaluate("window.fetch = window.__origFetch; delete window.__origFetch;")
-            banner_hidden = await page.evaluate("document.getElementById('r-form-error').hasAttribute('hidden')")
-            btn_disabled  = await page.evaluate("document.getElementById('regBtn').disabled")
-            if banner_hidden:
-                fail(label, 'r-form-error banner should be visible on network error')
-            elif btn_disabled:
-                fail(label, 'regBtn should be restored (not disabled) after error')
-            else:
-                ok(label)
-        except Exception as ex:
-            fail(label, str(ex))
-
-        # ── P: stale errors cleared on re-submit with valid data (autofill sim) ─
-        label = 'P: autofill simulation — stale errors cleared on re-submit'
+        # ── N: stale errors cleared on re-submit with valid data (autofill sim) ─
+        label = 'N: autofill simulation — stale errors cleared on re-submit'
         try:
             await open_register()
             await page.evaluate("doRegister()")   # trigger all errors
@@ -452,7 +404,7 @@ async def run():
                 document.getElementById('rEmail').value = 'test@example.com';
                 document.getElementById('rPass').value  = 'abc123!';
             """)
-            # Mock fetch for valid response; also stub redirect to avoid navigation
+            # Mock fetch for valid response; stub redirect to avoid navigation
             await page.evaluate("""
                 window.__origFetch = window.fetch;
                 window.__origRedirect = window.redirect;
@@ -474,14 +426,14 @@ async def run():
             """)
             await page.evaluate("doRegister()")   # stale errors should be cleared by submit logic
             await page.wait_for_timeout(300)
+            e_name  = await field_error_hidden('r-name-error')
+            e_email = await field_error_hidden('r-email-error')
+            e_pass  = await field_error_hidden('r-pass-error')
             await page.evaluate("""
                 window.fetch = window.__origFetch; delete window.__origFetch;
                 window.redirect = window.__origRedirect; delete window.__origRedirect;
                 localStorage.clear();
             """)
-            e_name  = await field_error_hidden('r-name-error')
-            e_email = await field_error_hidden('r-email-error')
-            e_pass  = await field_error_hidden('r-pass-error')
             if not e_name or not e_email or not e_pass:
                 fail(label, f'stale errors still visible: name={not e_name} email={not e_email} pass={not e_pass}')
             else:
@@ -489,8 +441,8 @@ async def run():
         except Exception as ex:
             fail(label, str(ex))
 
-        # ── Q: strength bar appears on password input ──────────────────────────
-        label = 'Q: strength bar appears when rPass gets input'
+        # ── O: strength bar appears on password input ──────────────────────────
+        label = 'O: strength bar appears when rPass gets input'
         try:
             await open_register()
             bar_before = await page.evaluate("document.getElementById('passStrengthBar').style.display")
@@ -505,8 +457,8 @@ async def run():
         except Exception as ex:
             fail(label, str(ex))
 
-        # ── R: ARIA anatomy on all 3 fields ───────────────────────────────────
-        label = 'R: DS-INP ARIA anatomy — aria-required, aria-invalid, aria-describedby'
+        # ── P: ARIA anatomy on all 3 fields ───────────────────────────────────
+        label = 'P: DS-INP ARIA anatomy — aria-required, aria-invalid, aria-describedby'
         try:
             await open_register()
             checks = [
@@ -533,23 +485,117 @@ async def run():
         except Exception as ex:
             fail(label, str(ex))
 
-        # ── S: selectType label change preserves wrapper/aria ─────────────────
-        label = 'S: selectType label change preserves wrapper id and aria attributes'
+        # ── Q: selectType switches label, placeholder, autocomplete — all 3 types ──
+        label = 'Q: selectType label/placeholder/autocomplete — emp / co / edu'
         try:
-            await open_register('emp')
-            lbl_emp = await page.evaluate("document.getElementById('nameLabel').textContent.trim()")
-            wrap_id = await page.evaluate("document.getElementById('wrapper-rName') !== null")
-            await page.evaluate("selectType('co')")
-            await page.wait_for_timeout(400)
-            lbl_co  = await page.evaluate("document.getElementById('nameLabel').textContent.trim()")
-            wrap_ok = await page.evaluate("document.getElementById('wrapper-rName') !== null")
-            req_ok  = await page.evaluate("document.getElementById('rName').getAttribute('aria-required')")
-            if lbl_emp == lbl_co:
-                fail(label, f'label did not change: {lbl_emp}')
-            elif not wrap_id or not wrap_ok:
-                fail(label, 'wrapper-rName disappeared after type switch')
-            elif req_ok != 'true':
-                fail(label, f'aria-required changed to {req_ok} after type switch')
+            errors = []
+            type_specs = [
+                ('emp', 'الاسم الكامل',            'اكتب اسمك...',           'name'),
+                ('co',  'اسم الشركة / الجهة',      'اسم شركتك أو مؤسستك...', 'organization'),
+                ('edu', 'اسم المؤسسة التعليمية',   'اسم الجامعة أو المركز...','organization'),
+            ]
+            for (t, exp_label, exp_ph, exp_ac) in type_specs:
+                await open_register(t)
+                got_label = await page.evaluate("document.getElementById('nameLabel').textContent.trim()")
+                got_ph    = await page.evaluate("document.getElementById('rName').placeholder")
+                got_ac    = await page.evaluate("document.getElementById('rName').getAttribute('autocomplete')")
+                wrap_ok   = await page.evaluate("document.getElementById('wrapper-rName') !== null")
+                req_ok    = await page.evaluate("document.getElementById('rName').getAttribute('aria-required')")
+                # No new input elements created
+                n_inputs  = await page.evaluate(
+                    "document.getElementById('registerPanel').querySelectorAll('input').length"
+                )
+                if got_label != exp_label:
+                    errors.append(f'{t}: label="{got_label}" (expected "{exp_label}")')
+                if got_ph != exp_ph:
+                    errors.append(f'{t}: placeholder="{got_ph}" (expected "{exp_ph}")')
+                if got_ac != exp_ac:
+                    errors.append(f'{t}: autocomplete="{got_ac}" (expected "{exp_ac}")')
+                if not wrap_ok:
+                    errors.append(f'{t}: wrapper-rName disappeared')
+                if req_ok != 'true':
+                    errors.append(f'{t}: aria-required={req_ok}')
+                if n_inputs != 3:
+                    errors.append(f'{t}: unexpected input count={n_inputs} (expected 3)')
+            if errors:
+                fail(label, '; '.join(errors))
+            else:
+                ok(label)
+        except Exception as ex:
+            fail(label, str(ex))
+
+        # ── R: mobile 375×812 — no overflow, errors not clipped, eye touch target ──
+        label = 'R: mobile 375×812 — no horizontal overflow, errors visible, eye ≥44px'
+        try:
+            mob_ctx  = await browser.new_context(viewport={'width': 375, 'height': 812})
+            mob_page = await mob_ctx.new_page()
+            await mob_page.goto(f'{BASE}/login')
+            await mob_page.wait_for_load_state('networkidle')
+            await mob_page.evaluate("showRegister()")
+            await mob_page.evaluate("selectType('emp')")
+            await mob_page.wait_for_selector('#registerPanel.open', timeout=2000)
+            # Submit with all fields empty → all 3 Required errors simultaneously
+            await mob_page.evaluate("doRegister()")
+            await mob_page.wait_for_timeout(150)
+
+            mob_errors = []
+
+            # No horizontal overflow
+            overflow = await mob_page.evaluate(
+                "document.body.scrollWidth > document.body.clientWidth"
+            )
+            if overflow:
+                mob_errors.append('horizontal overflow on body')
+
+            # All 3 errors visible (not hidden) — tests simultaneous display
+            for eid in ('r-name-error', 'r-email-error', 'r-pass-error'):
+                h = await mob_page.evaluate(f"document.getElementById('{eid}').hasAttribute('hidden')")
+                if h:
+                    mob_errors.append(f'{eid} hidden on mobile')
+
+            # Error spans not clipped by #registerPanel overflow:hidden — height > 0
+            for eid in ('r-name-error', 'r-email-error', 'r-pass-error'):
+                h = await mob_page.evaluate(f"""
+                    (function(){{
+                        var el = document.getElementById('{eid}');
+                        if(!el) return 0;
+                        return el.getBoundingClientRect().height;
+                    }})()
+                """)
+                if h <= 0:
+                    mob_errors.append(f'{eid} height=0 — clipped by overflow:hidden')
+
+            # Eye button touch target ≥ 44×44 (min-width/height: 44px in .pass-eye CSS)
+            eye_size = await mob_page.evaluate("""
+                (function(){
+                    var b = document.getElementById('rPassEye');
+                    if(!b) return null;
+                    var r = b.getBoundingClientRect();
+                    return {w: r.width, h: r.height};
+                })()
+            """)
+            if eye_size:
+                if eye_size['w'] < 44:
+                    mob_errors.append(f'eye button width={eye_size["w"]:.0f}px < 44px')
+                if eye_size['h'] < 44:
+                    mob_errors.append(f'eye button height={eye_size["h"]:.0f}px < 44px')
+            else:
+                mob_errors.append('rPassEye not found on mobile')
+
+            # Strength bar visible after password input
+            await mob_page.fill('#rPass', 'abc')
+            await mob_page.evaluate("document.getElementById('rPass').dispatchEvent(new Event('input'))")
+            await mob_page.wait_for_timeout(80)
+            bar_display = await mob_page.evaluate(
+                "document.getElementById('passStrengthBar').style.display"
+            )
+            if bar_display == 'none' or bar_display == '':
+                mob_errors.append(f'strength bar not visible on mobile (display={bar_display})')
+
+            await mob_ctx.close()
+
+            if mob_errors:
+                fail(label, '; '.join(mob_errors))
             else:
                 ok(label)
         except Exception as ex:

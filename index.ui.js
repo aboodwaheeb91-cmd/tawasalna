@@ -68,13 +68,22 @@ function _applyRegLabels(type){
   var rName     = document.getElementById('rName');
   if(type === 'co'){
     if(nameLabel) nameLabel.textContent = 'اسم الشركة / الجهة';
-    if(rName)     rName.placeholder = 'اسم شركتك أو مؤسستك...';
+    if(rName){
+      rName.placeholder = 'اسم شركتك أو مؤسستك...';
+      rName.setAttribute('autocomplete', 'organization');
+    }
   } else if(type === 'edu'){
     if(nameLabel) nameLabel.textContent = 'اسم المؤسسة التعليمية';
-    if(rName)     rName.placeholder = 'اسم الجامعة أو المركز...';
+    if(rName){
+      rName.placeholder = 'اسم الجامعة أو المركز...';
+      rName.setAttribute('autocomplete', 'organization');
+    }
   } else {
     if(nameLabel) nameLabel.textContent = 'الاسم الكامل';
-    if(rName)     rName.placeholder = 'اكتب اسمك...';
+    if(rName){
+      rName.placeholder = 'اكتب اسمك...';
+      rName.setAttribute('autocomplete', 'name');
+    }
   }
 }
 

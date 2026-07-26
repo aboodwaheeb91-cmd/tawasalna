@@ -245,19 +245,6 @@ async function doLogin(){
 var _rSubmitAttempted = false;  // arms Required re-show after first submit
 var _rEmailErrorKind  = null;   // 'required' | 'format' | null — never compare message text
 
-function _rShowFormError(msg){
-  var banner = document.getElementById('r-form-error');
-  if(!banner) return;
-  var textEl = banner.querySelector('.l-form-error-text');
-  if(textEl) textEl.textContent = msg;
-  banner.removeAttribute('hidden');
-}
-
-function _rClearFormError(){
-  var banner = document.getElementById('r-form-error');
-  if(banner) banner.setAttribute('hidden', '');
-}
-
 // ── Register ──────────────────────────────────────────────────────────────────
 async function doRegister(){
   var nameEl  = document.getElementById('rName');
@@ -268,7 +255,6 @@ async function doRegister(){
   var pass    = passEl  ? passEl.value         : '';
 
   _rSubmitAttempted = true;
-  _rClearFormError();
 
   // Inline field validation — collect all errors, show at once (DS-VAL VAL-06)
   // Clears stale errors for valid fields (autofill / password-manager)
@@ -301,7 +287,7 @@ async function doRegister(){
     _lClearFieldError('wrapper-rPass', 'r-pass-error');
   }
   if(!['emp','co','edu'].includes(curType)){
-    _rShowFormError('اختر نوع الحساب أولاً');
+    toast('اختر نوع الحساب', 'error');
     hasError = true;
   }
   if(hasError){
@@ -317,30 +303,19 @@ async function doRegister(){
   btn._orig = 'إنشاء حساب';
   setBtnLoad(btn, true);
   try {
-    var res = await fetch('/auth/register', {
+    var res  = await fetch('/auth/register', {
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({full_name:name, email:email, password:pass, user_type:curType})
     });
-    var data;
-    try { data = await res.json(); } catch(_e){ data = null; }
-    if(!res.ok){
-      var safeMsg = (res.status === 429) ? 'محاولات كثيرة جداً، حاول مرة أخرى لاحقاً' :
-                   (res.status >= 500)   ? 'تعذّر إنشاء الحساب حالياً، حاول مرة أخرى لاحقاً' :
-                   ((data && data.detail) ? data.detail : 'تعذّر إنشاء الحساب');
-      _rShowFormError(safeMsg);
-      return;
-    }
-    if(!data || !data.user || !data.user.id){
-      _rShowFormError('تعذّر إكمال إنشاء الحساب، حاول مرة أخرى');
-      return;
-    }
+    var data = await res.json();
+    if(!res.ok){ toast(data.detail || 'خطأ في التسجيل', 'error'); return; }
     localStorage.setItem('tw_user', JSON.stringify(data.user));
     if(data.token) localStorage.setItem('tw_jwt', data.token);
     toast('تم إنشاء حسابك! 🎉');
     setTimeout(function(){ redirect(data.user); }, 700);
   } catch(e){
-    _rShowFormError('تعذّر الاتصال بالخادم، تحقق من اتصالك وحاول مرة أخرى');
+    toast('تعذّر الاتصال بالخادم', 'error');
   } finally {
     setBtnLoad(btn, false);
   }
@@ -355,7 +330,6 @@ async function doRegister(){
 
   if(rNameEl){
     rNameEl.addEventListener('input', function(){
-      _rClearFormError();
       if(!_rSubmitAttempted) return;
       if(rNameEl.value.trim()){
         _lClearFieldError('wrapper-rName', 'r-name-error');
@@ -376,7 +350,6 @@ async function doRegister(){
     });
     // Input: state machine drives all transitions
     rEmailEl.addEventListener('input', function(){
-      _rClearFormError();
       var v = rEmailEl.value.trim();
       if(_lIsValidEmail(v)){
         _rEmailErrorKind = null;
@@ -399,7 +372,6 @@ async function doRegister(){
   if(rPassEl){
     // Input: Required / short error re-arms after first submit attempt
     rPassEl.addEventListener('input', function(){
-      _rClearFormError();
       if(!_rSubmitAttempted) return;
       var v = rPassEl.value;
       if(!v){

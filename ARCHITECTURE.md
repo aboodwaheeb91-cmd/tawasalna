@@ -8284,11 +8284,13 @@ DS-INP / DS-VAL contracts applied to the three register fields: `rName`, `rEmail
 | Eye icon (show) | `#rEyeShow` | inline SVG, `aria-hidden="true"`, visible by default |
 | Eye icon (hide) | `#rEyeHide` | inline SVG, `aria-hidden="true"`, `hidden` by default |
 | Password error span | `#r-pass-error.field-error` | `role="alert"`, `aria-live="polite"`, `hidden` by default |
-| Register error banner | `#r-form-error.l-form-error` | `role="alert"`, `aria-live="assertive"` — backend/network failures only |
+#### `rName` label/placeholder/autocomplete switching
 
-#### `rName` label/placeholder switching
+`_applyRegLabels(type)` in `index.ui.js` mutates `#nameLabel.textContent`, `#rName.placeholder`, and `#rName.autocomplete` on account-type switch (emp/co/edu):
+- `emp` → `autocomplete="name"` (personal name)
+- `co` / `edu` → `autocomplete="organization"` (organization name)
 
-`_applyRegLabels(type)` in `index.ui.js` mutates `#nameLabel.textContent` and `#rName.placeholder` on account-type switch (emp/co/edu). The wrapper ID (`#wrapper-rName`), ARIA attributes, and error span are unchanged by type switching.
+The wrapper ID (`#wrapper-rName`), ARIA attributes, and error span are unchanged by type switching.
 
 #### Eye button toggle (INP-11)
 
@@ -8331,12 +8333,8 @@ Register validation reuses `_lShowFieldError(wrapperId, errorId, msg)` and `_lCl
 #### Error channels (DS-VAL)
 
 - **Required / format / short-password** → inline `.field-error` spans (never toast) — `_lShowFieldError()` in `index.auth.js`
-- **Backend error** → `#r-form-error` banner (VAL-09)
-  - 400 → raw `data.detail` (register errors are user-visible and not auth-sensitive, e.g. "البريد مستخدم مسبقاً")
-  - 429 → `'محاولات كثيرة جداً، حاول مرة أخرى لاحقاً'`
-  - 5xx → `'تعذّر إنشاء الحساب حالياً، حاول مرة أخرى لاحقاً'`
-  - network failure → `'تعذّر الاتصال بالخادم، تحقق من اتصالك وحاول مرة أخرى'`
-- **Success** → `toast('تم إنشاء حسابك! 🎉')` unchanged (DS-FEEDBACK operational success)
+- **Backend / network error** → `toast(msg, 'error')` — original register error handling unchanged from pre-DS-INP adoption
+- **Success** → `toast('تم إنشاء حسابك! 🎉')` (DS-FEEDBACK operational success)
 
 #### Submit-time stale error cleanup
 
@@ -8348,13 +8346,12 @@ Register validation reuses `_lShowFieldError(wrapperId, errorId, msg)` and `_lCl
 
 #### CSS scope (permanent rules)
 
-- `#registerPanel [hidden]{display:none!important;}` — covers SVGElement (eye icons), error spans, form banner
+- `#registerPanel [hidden]{display:none!important;}` — covers SVGElement (eye icons) and error spans
 - `#rEmail{direction:ltr;text-align:left;}` — LTR for email field (INP-09)
 - `#wrapper-rPass .l-input-wrap input{padding-inline-end:44px;}` — space for eye button
 - `#registerPanel .field.has-error input` — danger border
 - `#registerPanel .field-error` — error text (does NOT affect `#loginSection`)
 - `#registerPanel.open` max-height raised from 640 px → 780 px to accommodate error spans when visible
-- `.l-form-error`, `.l-form-error-text` — shared global classes (also used by login banner)
 
 ---
 
