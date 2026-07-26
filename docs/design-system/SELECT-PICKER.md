@@ -1465,6 +1465,7 @@ Backend response
 | Visual assets داخل الـ Options | DS-ASSET | — |
 | omit/value/null semantics في payload | API-MUT | API-MUT-03 |
 | Mutation response shapes | API-MUT | API-MUT-08 + API-MUT-10 |
+| Color tokens (القيم الفعلية للألوان) | DS-COLOR | COLOR-SYSTEM.md CLR-07 + CLR-20 — DS-COLOR يملك WHAT (القيمة والدور). DS-SEL قد يستهلك `--color-surface-input` على سطح الـ control/trigger عند تطابق الدور. ممنوع افتراض أن popup/options list يستخدم نفس token الـ input. |
 
 ---
 

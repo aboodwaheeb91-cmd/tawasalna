@@ -65,7 +65,7 @@
 
 **`--color-surface-input` — Surface Token Contract (Phase 2 confirmed):**
 - **Token:** `--color-surface-input: rgba(255,255,255,.06)` — معرَّف في `tw_shared.css` Section B Surface.
-- **الاستخدام:** `background` لعناصر `<input>` و `<select>` فقط — خلفية حقل الإدخال.
+- **الاستخدام:** `background` لعناصر `<input>` و `<textarea>` فقط — خلفية حقل الإدخال. **DS-INP يملك متى وأين** يُطبَّق هذا الـ token على Input وTextarea. DS-COLOR يملك القيمة والدور (WHAT). DS-SEL قد يستهلك `--color-surface-input` على سطح الـ control/trigger عند تطابق الدور — لكن DS-SEL يملك متى وأين لعناصر Select/Picker (SEL-31). ممنوع افتراض أن popup/options list يستخدم نفس الـ token.
 - **لماذا مستقل عن `--color-surface-card`:** القيمة `.06` (أعلى تباين من `.03`) مقصودة — حقل الإدخال يحتاج مستوى ظهور أعلى من الكرت العادي ليُميَّز كعنصر تفاعلي.
 - **ممنوع:** استخدام `--color-surface-card` أو `--color-surface-card-solid` كخلفية لحقول الإدخال. ممنوع تعريف قيمة hex مباشرة في page CSS بدلاً من هذا الـ token.
 
