@@ -8125,6 +8125,8 @@ Server composes: full_name = [first, middle?, last].join(' ')
 ✅ profiles.first_name / middle_name / last_name are the structured storage (columns exist since PR §migrations)
 ✅ full_name is composed server-side — never from frontend string concat alone
 ✅ No backfill of old accounts — existing records unaffected
+✅ Name parts are server-side trimmed + internal whitespace collapsed via _norm_name() before composition and storage
+✅ users row + structured profiles row creation is atomic (single BEGIN/COMMIT transaction); profiles failure rolls back users INSERT — no orphan users
 ❌ ممنوع: استخدام full_name كـ text input واحد لـ emp في UI الجديد
 ❌ ممنوع: Parsing/backfill تخميني لأسماء المستخدمين القدامى
 ❌ ممنوع: حذف users.full_name

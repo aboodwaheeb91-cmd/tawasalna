@@ -664,8 +664,8 @@ CSS الحقول موزَّع عبر ملفات متعددة:
 
 ### المشكلة التقنية المشتركة
 
-`-webkit-box-shadow: 0 0 0 1000px <color> inset !important` هو الطريقة الوحيدة لتغليف الـ autofill background في Chromium.
-**هذه الطريقة تتطلب لوناً معتماً (opaque)**. الألوان الشفافة/semitransparent تُهمَل من قِبَل المتصفح — وهذا قيد UA خاص بالـ autofill override، لا قانون عام.
+`-webkit-box-shadow: 0 0 0 1000px <color> inset !important` هو خيار implementation شائع لتغليف الـ autofill background في Chromium — ليس الطريقة الوحيدة، لكنه الأسلوب العملي الأكثر انتشاراً.
+**في التصاميم الداكنة، قد يحتاج الـ autofill background إلى masking.** Auth Gateway يختار لوناً معتماً (opaque) كـ implementation choice للحصول على full visual masking — إذ أن Chromium UA قد لا يُنتج نتيجة مقصودة مع ألوان شفافة في سياق autofill override. هذا سلوك مُلاحَظ تجريبياً، لا قانون UA عام مكتوب في المواصفات.
 
 ### Contract (لكل صفحة تُطبِّق autofill override)
 
@@ -674,7 +674,7 @@ CSS الحقول موزَّع عبر ملفات متعددة:
 ✅ Error border override مطلوب بعد autofill selectors (higher specificity) إذا كان للصفحة error states
 ✅ border: 1.5px solid var(--*-input-border) في autofill selector (يمنع UA border override)
 ✅ اختر قيمة opaque تمثّل السطح الفعلي المُرنَّد تحت الحقل (ليس page background وحده)
-❌ ممنوع: استخدام semitransparent color في -webkit-box-shadow autofill (تُهمَل بصرياً)
+❌ ممنوع: الادعاء بأن semitransparent colors مضمونة عمل كـ full visual masking في autofill override — السلوك مُلاحَظ تجريبياً في Chromium، ليس قانون UA عام؛ اختبر على الجهاز الحقيقي
 ❌ ممنوع: ادّعاء "Zero Visual Change" أو "Parity Confirmed" بدون تحقق يدوي على الجهاز الحقيقي
 ❌ ممنوع: فرض visual redesign كجزء من autofill fix (تصحيح فقط، لا تغيير تصميمي)
 ```

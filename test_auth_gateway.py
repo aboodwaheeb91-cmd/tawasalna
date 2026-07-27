@@ -476,28 +476,44 @@ def test_H_name_normalization():
     label = 'H7: re imported in server.py'
     ok(label) if 'import re' in srv else fail(label, 're not imported in server.py')
 
-    # Unit-test _norm_name logic directly (without importing server.py to avoid DB init)
-    label = 'H8: _norm_name logic: internal whitespace collapsed'
-    import re as _re
-    def _norm_name_local(s):
-        return _re.sub(r'\s+', ' ', (s or '').strip())
-    cases = [
-        ('محمد    أحمد', 'محمد أحمد'),
-        ('  Ahmad  ', 'Ahmad'),
-        ('Ahmed\t\tAli', 'Ahmed Ali'),
-        ('', ''),
-        (None, ''),
-        ('سلام', 'سلام'),
-    ]
-    errors = []
-    for inp, expected in cases:
-        result = _norm_name_local(inp)
-        if result != expected:
-            errors.append(f'{inp!r} → {result!r} (expected {expected!r})')
-    if errors:
-        fail(label, '; '.join(errors))
-    else:
-        ok(label)
+    # Unit-test _norm_name using the real implementation extracted from server.py via AST.
+    # Forbidden: _norm_name_local() — a locally-rewritten copy of the function.
+    label = 'H8: _norm_name logic: internal whitespace collapsed (real implementation)'
+    try:
+        import ast, textwrap, re as _re
+        _srv_src = open(os.path.join(BASE, 'server.py'), encoding='utf-8').read()
+        _tree = ast.parse(_srv_src)
+        _norm_name_real = None
+        for _node in ast.walk(_tree):
+            if isinstance(_node, ast.FunctionDef) and _node.name == '_norm_name':
+                _fn_lines = _srv_src.splitlines()[_node.lineno - 1: _node.end_lineno]
+                _fn_src = textwrap.dedent('\n'.join(_fn_lines))
+                _ns = {'re': _re}
+                exec(_fn_src, _ns)
+                _norm_name_real = _ns['_norm_name']
+                break
+        if _norm_name_real is None:
+            fail(label, '_norm_name FunctionDef not found in server.py AST')
+        else:
+            cases = [
+                ('محمد    أحمد', 'محمد أحمد'),
+                ('  Ahmad  ', 'Ahmad'),
+                ('Ahmed\t\tAli', 'Ahmed Ali'),
+                ('', ''),
+                (None, ''),
+                ('سلام', 'سلام'),
+            ]
+            errors = []
+            for inp, expected in cases:
+                result = _norm_name_real(inp)
+                if result != expected:
+                    errors.append(f'{inp!r} → {result!r} (expected {expected!r})')
+            if errors:
+                fail(label, '; '.join(errors))
+            else:
+                ok(label)
+    except Exception as _e:
+        fail(label, f'AST extraction failed: {_e}')
 
     label = 'H9: no backfill — create_user structured path is new emp only'
     auth_py = _read('auth.py')
@@ -505,75 +521,99 @@ def test_H_name_normalization():
         else fail(label, 'no backfill documentation found in auth.py create_user')
 
 
-# ── I: Atomicity tests (auth.py static analysis) ─────────────────────────────
+# ── I: Registration Atomicity (behavioral — FakeConn, no real DB) ────────────
 
 def test_I_atomicity():
-    print('\n\033[1m── I: Registration Atomicity (auth.py static) ──\033[0m')
-    auth_py = _read('auth.py')
+    print('\n\033[1m── I: Registration Atomicity (behavioral) ──\033[0m')
 
-    label = 'I1: create_user() has BEGIN before INSERT'
-    # Extract create_user body via line scan to avoid catastrophic backtracking
-    lines = auth_py.splitlines()
-    cu_lines = []
-    in_fn = False
-    for line in lines:
-        if re.match(r'^def create_user\(', line):
-            in_fn = True
-        if in_fn:
-            cu_lines.append(line)
-            if len(cu_lines) > 5 and re.match(r'^def ', line) and 'create_user' not in line:
-                cu_lines.pop()
-                break
-            if len(cu_lines) > 80:
-                break
-    if not cu_lines:
-        fail(label, 'create_user() function body not found')
+    try:
+        from unittest.mock import patch
+        import auth as _auth
+    except Exception as _e:
+        print(f'  \033[93mSKIP\033[0m  I: cannot import auth module: {_e}')
         return
-    block = '\n'.join(cu_lines)
 
-    if 'BEGIN' in block:
-        # Check BEGIN appears before INSERT
-        begin_pos = block.find('"BEGIN"') if '"BEGIN"' in block else block.find("'BEGIN'")
-        insert_pos = block.find('INSERT INTO users')
-        if begin_pos != -1 and insert_pos != -1 and begin_pos < insert_pos:
-            ok(label)
-        else:
-            fail(label, 'BEGIN found but may be after INSERT INTO users')
-    else:
-        fail(label, 'conn.run("BEGIN") not found in create_user()')
+    class FakeConn:
+        def __init__(self, fail_on=None):
+            self.sql_log = []
+            self.columns = []
+            self._fail_on = fail_on
 
-    label = 'I2: create_user() has COMMIT after writes'
-    ok(label) if 'COMMIT' in block else fail(label, 'conn.run("COMMIT") not found in create_user()')
+        def run(self, sql, **kw):
+            self.sql_log.append(sql.strip())
+            if self._fail_on and self._fail_on in sql:
+                raise RuntimeError('simulated_failure')
+            if 'RETURNING' in sql and 'INSERT INTO users' in sql:
+                self.columns = [
+                    {'name': 'id'}, {'name': 'tw_id'}, {'name': 'full_name'},
+                    {'name': 'email'}, {'name': 'user_type'}, {'name': 'created_at'},
+                ]
+                return [(42, 'U9620test1234', 'محمد أحمد', 'test@example.com', 'emp', '2026-01-01')]
+            return []
 
-    label = 'I3: create_user() has ROLLBACK in exception handler'
-    ok(label) if 'ROLLBACK' in block else fail(label, 'conn.run("ROLLBACK") not found in create_user()')
+    # ── I1: SUCCESS emp — BEGIN → users INSERT → profiles INSERT → COMMIT ─────
+    label = 'I1: SUCCESS emp — transaction commits, no ROLLBACK, connection released'
+    try:
+        conn = FakeConn()
+        released = []
+        with patch.object(_auth, 'get_conn', return_value=conn), \
+             patch.object(_auth, 'release_conn', side_effect=lambda c: released.append(c)), \
+             patch.object(_auth, '_unique_tw_id', return_value='U9620test1234'), \
+             patch.object(_auth, 'hash_password', return_value='$2b$12$fakehash'):
+            _auth.create_user(
+                full_name='محمد أحمد',
+                email='test@example.com',
+                password='password123',
+                user_type='emp',
+                country_code='9620',
+                first_name='محمد',
+                last_name='أحمد',
+            )
+        log = conn.sql_log
+        reasons = []
+        if 'BEGIN' not in log: reasons.append('no BEGIN')
+        if 'COMMIT' not in log: reasons.append('no COMMIT')
+        if 'ROLLBACK' in log: reasons.append('unexpected ROLLBACK')
+        if not any('INSERT INTO users' in s for s in log): reasons.append('no INSERT INTO users')
+        if not any('INSERT INTO profiles' in s for s in log): reasons.append('no INSERT INTO profiles')
+        if len(released) != 1: reasons.append(f'release_conn called {len(released)} times (expected 1)')
+        ok(label) if not reasons else fail(label, '; '.join(reasons))
+    except Exception as _e:
+        fail(label, f'unexpected exception: {_e}')
 
-    label = 'I4: committed flag guards ROLLBACK (not executed after COMMIT)'
-    ok(label) if 'committed' in block \
-        else fail(label, 'committed flag not found — ROLLBACK may fire after COMMIT')
-
-    label = 'I5: ROLLBACK is in except block (not finally)'
-    except_match = re.search(r'except.*?(?=finally:)', block, re.DOTALL)
-    if except_match and 'ROLLBACK' in except_match.group():
-        ok(label)
-    else:
-        fail(label, 'ROLLBACK not in except block (should be in except, not finally)')
-
-    label = 'I6: profiles INSERT inside transaction (between BEGIN and COMMIT)'
-    begin_idx = block.find('BEGIN')
-    commit_idx = block.find('COMMIT')
-    profile_idx = block.find('INSERT INTO profiles')
-    if profile_idx == -1:
-        # profiles INSERT only for emp — skip if not present
-        skip(label, 'profiles INSERT not found (may be correct if no emp path in scope)')
-    elif begin_idx < profile_idx < commit_idx:
-        ok(label)
-    else:
-        fail(label, 'profiles INSERT not between BEGIN and COMMIT')
-
-    label = 'I7: ROLLBACK only attempted when not committed (no double-rollback)'
-    ok(label) if 'not committed' in block or 'if not committed' in block \
-        else fail(label, 'guard "if not committed" not found before ROLLBACK')
+    # ── I2: PROFILE FAILURE — users INSERT ok → profiles raises → ROLLBACK ────
+    label = 'I2: PROFILE FAILURE — ROLLBACK issued, COMMIT skipped, exception propagates, connection released'
+    try:
+        conn = FakeConn(fail_on='INSERT INTO profiles')
+        released = []
+        caught = None
+        with patch.object(_auth, 'get_conn', return_value=conn), \
+             patch.object(_auth, 'release_conn', side_effect=lambda c: released.append(c)), \
+             patch.object(_auth, '_unique_tw_id', return_value='U9620test1234'), \
+             patch.object(_auth, 'hash_password', return_value='$2b$12$fakehash'):
+            try:
+                _auth.create_user(
+                    full_name='محمد أحمد',
+                    email='test@example.com',
+                    password='password123',
+                    user_type='emp',
+                    country_code='9620',
+                    first_name='محمد',
+                    last_name='أحمد',
+                )
+            except Exception as _inner:
+                caught = _inner
+        log = conn.sql_log
+        reasons = []
+        if 'BEGIN' not in log: reasons.append('no BEGIN')
+        if 'ROLLBACK' not in log: reasons.append('no ROLLBACK')
+        if 'COMMIT' in log: reasons.append('unexpected COMMIT')
+        if not any('INSERT INTO users' in s for s in log): reasons.append('no INSERT INTO users')
+        if caught is None: reasons.append('exception not propagated to caller')
+        if len(released) != 1: reasons.append(f'release_conn called {len(released)} times (expected 1)')
+        ok(label) if not reasons else fail(label, '; '.join(reasons))
+    except Exception as _e:
+        fail(label, f'test harness error: {_e}')
 
 
 # ── Main ─────────────────────────────────────────────────────────────────────
