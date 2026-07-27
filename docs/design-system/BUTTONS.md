@@ -698,7 +698,7 @@ Before → Click → Loading → Result → Back → Refresh
 
 **Source:** Auth Gateway PR (auth-gw-v9) — fix/spinner-centering  
 **Scope:** Any button using `.tw-btn-loading` class  
-**Platforms:** All (Desktop and Android Chrome verified)
+**Verification:** Static/Source verification ✅ · Android Chrome manual verification ⏳
 
 ### المشكلة الأصلية
 
@@ -728,12 +728,13 @@ Before → Click → Loading → Result → Back → Refresh
 
 ```
 ✅ @keyframes tw-spin: rotate(360deg) فقط — بدون translateY
-✅ .tw-btn-loading::after: left:50%; top:50%; margin-top:-7px; margin-left:-7px
-✅ الـ spinner يجب أن يكون في المركز الهندسي للزر في جميع الحالات
+✅ .tw-btn-loading::after: يجب أن يكون في المركز الهندسي للزر (behavioral contract)
+✅ margin-top / margin-left = −(spinner_size / 2) — مرتبط بحجم العنصر، ليس ثابتاً
+   (مثال مرجعي للحجم 14px: margin-top:-7px; margin-left:-7px)
 ❌ ممنوع: translateY داخل @keyframes tw-spin
 ❌ ممنوع: right/left fixed offset بدلاً من margin-based centering
 ❌ ممنوع: transform-based centering مع animated transform (تضارب)
-❌ ممنوع: تغيير حجم الـ spinner (14px) بدون تعديل margin بنفس النسبة
+❌ ممنوع: تغيير حجم الـ spinner بدون تعديل margin بنفس النسبة
 ```
 
 ### تطبيق في tw_shared.css

@@ -155,15 +155,17 @@ function showRegister(){
   _setBackLink(false); // back link below role cards
   // DS-NAV: push register state once so Android/Browser Back returns to login
   if(!_authViewPushed){
-    history.pushState({ds_nav:'auth-register'}, '');
+    var _ex = history.state || {};
+    history.pushState(Object.assign({}, _ex, {nav: Object.assign({}, _ex.nav||{}, {entryType:'push', authView:'register'})}), '');
     _authViewPushed = true;
   }
 }
 
 function showLogin(){
-  // DS-NAV: if register was pushed to history, use history.back() so
-  // the browser Back button doesn't leave /login after the link click.
-  if(_authViewPushed){
+  // DS-NAV: use history.back() only when BOTH the in-memory flag AND the canonical
+  // history.state.nav confirm a register push is on the stack (NAV-13 back-trust check).
+  var _nav = history.state && history.state.nav;
+  if(_authViewPushed && _nav && _nav.entryType === 'push' && _nav.authView === 'register'){
     history.back(); // popstate will call _applyLoginUI
     return;
   }
@@ -174,7 +176,8 @@ function showLogin(){
 // Fires on Android Back, Browser Back, and history.back() calls from showLogin().
 window.addEventListener('popstate', function(e){
   var state = e.state;
-  if(state && state.ds_nav === 'auth-register'){
+  var _nav = state && state.nav;
+  if(_nav && _nav.authView === 'register'){
     // Forward navigation to register (unusual but handle gracefully)
     if(!_authViewPushed){
       _authViewPushed = true;
@@ -186,7 +189,7 @@ window.addEventListener('popstate', function(e){
       if(s1) s1.classList.remove('hidden');
     }
   } else {
-    // Back to login (auth-login state or initial state)
+    // Back to login (entryType:'replace-init' state or browser-initial null state)
     _applyLoginUI();
   }
 });
@@ -305,11 +308,13 @@ function initScrollProg(){
 if(window.lucide && lucide.createIcons) lucide.createIcons();
 
 // ── DS-NAV: Replace initial history entry with login state ───────────────────
-// This ensures Android/Browser Back on the register view returns to login
-// rather than navigating away from /login. Done before hash routing so that
-// hash-triggered showRegister() pushes on top of this baseline.
+// Sets canonical nav.entryType='replace-init' + nav.authView='login' baseline.
+// Merges with any existing state so no other system's state is overwritten.
+// Done before hash routing so hash-triggered showRegister() pushes on top.
+// Ref: DS-NAV NAV-13 Auth Gateway Back Pattern.
 ;(function(){
-  history.replaceState({ds_nav:'auth-login'}, '');
+  var _ex = history.state || {};
+  history.replaceState(Object.assign({}, _ex, {nav: Object.assign({}, _ex.nav||{}, {entryType:'replace-init', authView:'login'})}), '');
 }());
 
 // ── Hash-based auto-route ─────────────────────────────────────────────────────

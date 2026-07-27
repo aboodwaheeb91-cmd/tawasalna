@@ -15,9 +15,11 @@
   /* --auth-ctrl-surface is #0d1526 — intentionally ≠ --color-surface-card-solid (#0d1426);
      green channel differs by 1 unit. Do not replace with the Semantic token.           */
   --auth-ctrl-surface:         #0d1526;
-  /* --auth-autofill-surface is the opaque solid of rgba(255,255,255,.06) composited over
-     --color-surface-page (#070b18): r=7+round(0.06×248)=22, g=11+round(0.06×244)=26, b=24+round(0.06×231)=38.
-     Must be opaque — translucent values are ignored by -webkit-box-shadow autofill trick. */
+  /* --auth-autofill-surface: opaque approximation for the -webkit-box-shadow autofill trick.
+     Translucent values are ignored by Chromium's autofill override.
+     Inputs sit inside .bubble (linear-gradient(rgba(20,30,55,.9),rgba(10,18,38,.95)) over #070b18),
+     so the rendered surface is gradient-dependent and cannot be computed statically.
+     #161a26 is a best-effort dark approximation — manual Android Chrome verification pending. */
   --auth-autofill-surface:     #161a26;
   --auth-surface-idle:         rgba(255,255,255,.04);
   --auth-surface-hover:        rgba(255,255,255,.07);

@@ -87,33 +87,78 @@ def test_A_spinner():
 def test_B_nav():
     print('\n\033[1m── B: DS-NAV Auth Back (JS) ──\033[0m')
     js = _read('index.ui.js')
+    nav_md = _read('docs/design-system/NAVIGATION.md')
 
     label = 'B1: _authViewPushed flag declared'
     ok(label) if '_authViewPushed' in js else fail(label, '_authViewPushed not found')
 
-    label = 'B2: history.replaceState with auth-login state present'
-    ok(label) if "ds_nav:'auth-login'" in js or 'ds_nav:"auth-login"' in js \
-        else fail(label, 'replaceState auth-login not found')
+    label = 'B2: NO flat ds_nav namespace — canonical history.state.nav used'
+    if "ds_nav:'auth-login'" in js or 'ds_nav:"auth-login"' in js \
+            or "ds_nav:'auth-register'" in js or 'ds_nav:"auth-register"' in js:
+        fail(label, 'flat ds_nav namespace still present — must use history.state.nav')
+    else:
+        ok(label)
 
-    label = 'B3: history.pushState with auth-register state present'
-    ok(label) if "ds_nav:'auth-register'" in js or 'ds_nav:"auth-register"' in js \
-        else fail(label, 'pushState auth-register not found')
+    label = 'B3: replaceState uses canonical entryType:replace-init + authView:login'
+    if "entryType:'replace-init'" in js or 'entryType:"replace-init"' in js:
+        ok(label)
+    else:
+        fail(label, 'entryType:replace-init not found in replaceState call')
 
-    label = 'B4: popstate listener present'
+    label = 'B4-push: pushState uses canonical entryType:push + authView:register'
+    if ("entryType:'push'" in js or 'entryType:"push"' in js) and \
+       ("authView:'register'" in js or 'authView:"register"' in js):
+        ok(label)
+    else:
+        fail(label, 'entryType:push or authView:register not found in pushState call')
+
+    label = 'B5: replaceState merges state (Object.assign pattern)'
+    if 'Object.assign' in js and ('history.state' in js or '_ex' in js):
+        ok(label)
+    else:
+        fail(label, 'Object.assign merge pattern not found for replaceState')
+
+    label = 'B6: popstate listener present'
     ok(label) if 'popstate' in js else fail(label, 'popstate listener not found')
 
-    label = 'B5: showLogin() calls history.back() when _authViewPushed'
-    ok(label) if 'history.back()' in js and '_authViewPushed' in js \
-        else fail(label, 'history.back() or _authViewPushed missing from showLogin')
+    label = 'B7: showLogin() uses dual back-trust check (flag + canonical nav state)'
+    # Find showLogin function via simple substring search
+    show_login_idx = js.find('function showLogin()')
+    if show_login_idx == -1:
+        fail(label, 'showLogin() not found')
+    else:
+        # Extract up to the next top-level function (search for next 'function ' at col 0)
+        snippet = js[show_login_idx:show_login_idx + 500]
+        if ('_authViewPushed' in snippet and
+            ('entryType' in snippet) and
+            'history.back()' in snippet):
+            ok(label)
+        else:
+            fail(label, 'showLogin() missing dual check: _authViewPushed + nav.entryType')
 
-    label = 'B6: popstate handler does NOT call history.back() or pushState (no loop)'
+    label = 'B8: popstate checks nav.authView (not ds_nav)'
     pop_match = re.search(r"addEventListener\('popstate'.*?\}\s*\)", js, re.DOTALL)
     if not pop_match:
         fail(label, 'popstate listener block not found')
     else:
         block = pop_match.group()
         errors = []
-        if 'history.back()' in block and 'popstate' not in block[:block.find('history.back()')]:
+        if 'ds_nav' in block:
+            errors.append('flat ds_nav still checked in popstate — should use nav.authView')
+        if 'authView' not in block and 'nav' not in block:
+            errors.append('nav.authView check not found in popstate')
+        if errors:
+            fail(label, '; '.join(errors))
+        else:
+            ok(label)
+
+    label = 'B9: popstate handler does NOT call history.back() or pushState (no loop)'
+    if not pop_match:
+        fail(label, 'popstate listener block not found')
+    else:
+        block = pop_match.group()
+        errors = []
+        if 'history.back()' in block:
             errors.append('history.back() inside popstate listener — potential infinite loop')
         if 'history.pushState' in block:
             errors.append('history.pushState inside popstate listener')
@@ -121,6 +166,17 @@ def test_B_nav():
             fail(label, '; '.join(errors))
         else:
             ok(label)
+
+    label = 'B10: NAVIGATION.md has no duplicate NAV-09 sections'
+    nav09_count = nav_md.count('[NAV-09]')
+    if nav09_count > 1:
+        fail(label, f'[NAV-09] appears {nav09_count} times — duplicate IDs forbidden')
+    else:
+        ok(label)
+
+    label = 'B11: NAVIGATION.md has NAV-13 Auth Gateway section (not duplicate NAV-09)'
+    ok(label) if '[NAV-13]' in nav_md \
+        else fail(label, '[NAV-13] Auth Gateway section not found in NAVIGATION.md')
 
 
 # ── C: Form lifecycle (JS static) ────────────────────────────────────────────
@@ -166,9 +222,11 @@ def test_D_autofill():
         else fail(label, '--auth-autofill-surface token not found in :root block')
 
     label = 'D2: --auth-autofill-surface is opaque hex (not rgba/transparent)'
-    match = re.search(r'--auth-autofill-surface\s*:\s*([^;]+);', css)
+    # Strip block comments before searching to avoid matching token inside /* comment */
+    css_no_comments = re.sub(r'/\*.*?\*/', '', css, flags=re.DOTALL)
+    match = re.search(r'--auth-autofill-surface\s*:\s*([^;]+);', css_no_comments)
     if not match:
-        fail(label, 'token value not found')
+        fail(label, 'token value not found (outside comments)')
     elif 'rgba' in match.group(1) or 'rgb(' in match.group(1):
         fail(label, f'value is not opaque: {match.group(1).strip()!r}')
     else:
@@ -353,12 +411,177 @@ def test_G_structured_name():
         else fail(label, 'full_name may have been removed from users table')
 
 
+# ── H: Name normalization unit tests (no DB needed) ──────────────────────────
+
+def test_H_name_normalization():
+    print('\n\033[1m── H: Name Normalization (server.py static) ──\033[0m')
+    srv = _read('server.py')
+
+    label = 'H1: _norm_name helper defined in server.py'
+    ok(label) if '_norm_name' in srv else fail(label, '_norm_name not found in server.py')
+
+    label = 'H2: _norm_name uses re.sub for whitespace collapse'
+    # Simple line-by-line search around the function definition
+    lines = srv.splitlines()
+    fn_lines = []
+    in_fn = False
+    for line in lines:
+        if 'def _norm_name(' in line:
+            in_fn = True
+        if in_fn:
+            fn_lines.append(line)
+            if len(fn_lines) > 1 and line.strip() and not line.startswith(' ') and not line.startswith('\t'):
+                break  # hit next top-level definition
+            if len(fn_lines) > 5:
+                break  # short function, stop after 5 lines
+    fn_body = '\n'.join(fn_lines)
+    if not fn_lines:
+        fail(label, '_norm_name function body not found')
+    elif 're.sub' in fn_body:
+        ok(label)
+    else:
+        fail(label, '_norm_name does not use re.sub for internal whitespace collapse')
+
+    label = 'H3: register() applies _norm_name to first_name/last_name/middle_name'
+    # Extract register function body via line scan (avoids catastrophic backtracking on large file)
+    lines = srv.splitlines()
+    reg_lines = []
+    in_reg = False
+    for line in lines:
+        if re.match(r'^def register\(', line):
+            in_reg = True
+        if in_reg:
+            reg_lines.append(line)
+            if len(reg_lines) > 50:
+                break
+    block = '\n'.join(reg_lines)
+    if '_norm_name' in block and 'first_name' in block and 'last_name' in block:
+        ok(label)
+    else:
+        fail(label, '_norm_name not applied to name parts in register()')
+
+    label = 'H4: first_name required for emp (validation present)'
+    ok(label) if 'الاسم الأول واسم العائلة مطلوبان' in srv \
+        else fail(label, 'missing validation for first_name/last_name required for emp')
+
+    label = 'H5: middle_name is optional (not in required check)'
+    # The required check should only check first and last, not middle
+    req_check = re.search(r'if not first or not last', srv)
+    ok(label) if req_check else fail(label, 'required check not found or includes middle_name')
+
+    label = 'H6: full_name composed from normalized parts only'
+    ok(label) if '.join(' in srv and '_norm_name' in srv \
+        else fail(label, 'full_name not composed from normalized parts')
+
+    label = 'H7: re imported in server.py'
+    ok(label) if 'import re' in srv else fail(label, 're not imported in server.py')
+
+    # Unit-test _norm_name logic directly (without importing server.py to avoid DB init)
+    label = 'H8: _norm_name logic: internal whitespace collapsed'
+    import re as _re
+    def _norm_name_local(s):
+        return _re.sub(r'\s+', ' ', (s or '').strip())
+    cases = [
+        ('محمد    أحمد', 'محمد أحمد'),
+        ('  Ahmad  ', 'Ahmad'),
+        ('Ahmed\t\tAli', 'Ahmed Ali'),
+        ('', ''),
+        (None, ''),
+        ('سلام', 'سلام'),
+    ]
+    errors = []
+    for inp, expected in cases:
+        result = _norm_name_local(inp)
+        if result != expected:
+            errors.append(f'{inp!r} → {result!r} (expected {expected!r})')
+    if errors:
+        fail(label, '; '.join(errors))
+    else:
+        ok(label)
+
+    label = 'H9: no backfill — create_user structured path is new emp only'
+    auth_py = _read('auth.py')
+    ok(label) if 'No backfill' in auth_py or 'backfill' in auth_py.lower() \
+        else fail(label, 'no backfill documentation found in auth.py create_user')
+
+
+# ── I: Atomicity tests (auth.py static analysis) ─────────────────────────────
+
+def test_I_atomicity():
+    print('\n\033[1m── I: Registration Atomicity (auth.py static) ──\033[0m')
+    auth_py = _read('auth.py')
+
+    label = 'I1: create_user() has BEGIN before INSERT'
+    # Extract create_user body via line scan to avoid catastrophic backtracking
+    lines = auth_py.splitlines()
+    cu_lines = []
+    in_fn = False
+    for line in lines:
+        if re.match(r'^def create_user\(', line):
+            in_fn = True
+        if in_fn:
+            cu_lines.append(line)
+            if len(cu_lines) > 5 and re.match(r'^def ', line) and 'create_user' not in line:
+                cu_lines.pop()
+                break
+            if len(cu_lines) > 80:
+                break
+    if not cu_lines:
+        fail(label, 'create_user() function body not found')
+        return
+    block = '\n'.join(cu_lines)
+
+    if 'BEGIN' in block:
+        # Check BEGIN appears before INSERT
+        begin_pos = block.find('"BEGIN"') if '"BEGIN"' in block else block.find("'BEGIN'")
+        insert_pos = block.find('INSERT INTO users')
+        if begin_pos != -1 and insert_pos != -1 and begin_pos < insert_pos:
+            ok(label)
+        else:
+            fail(label, 'BEGIN found but may be after INSERT INTO users')
+    else:
+        fail(label, 'conn.run("BEGIN") not found in create_user()')
+
+    label = 'I2: create_user() has COMMIT after writes'
+    ok(label) if 'COMMIT' in block else fail(label, 'conn.run("COMMIT") not found in create_user()')
+
+    label = 'I3: create_user() has ROLLBACK in exception handler'
+    ok(label) if 'ROLLBACK' in block else fail(label, 'conn.run("ROLLBACK") not found in create_user()')
+
+    label = 'I4: committed flag guards ROLLBACK (not executed after COMMIT)'
+    ok(label) if 'committed' in block \
+        else fail(label, 'committed flag not found — ROLLBACK may fire after COMMIT')
+
+    label = 'I5: ROLLBACK is in except block (not finally)'
+    except_match = re.search(r'except.*?(?=finally:)', block, re.DOTALL)
+    if except_match and 'ROLLBACK' in except_match.group():
+        ok(label)
+    else:
+        fail(label, 'ROLLBACK not in except block (should be in except, not finally)')
+
+    label = 'I6: profiles INSERT inside transaction (between BEGIN and COMMIT)'
+    begin_idx = block.find('BEGIN')
+    commit_idx = block.find('COMMIT')
+    profile_idx = block.find('INSERT INTO profiles')
+    if profile_idx == -1:
+        # profiles INSERT only for emp — skip if not present
+        skip(label, 'profiles INSERT not found (may be correct if no emp path in scope)')
+    elif begin_idx < profile_idx < commit_idx:
+        ok(label)
+    else:
+        fail(label, 'profiles INSERT not between BEGIN and COMMIT')
+
+    label = 'I7: ROLLBACK only attempted when not committed (no double-rollback)'
+    ok(label) if 'not committed' in block or 'if not committed' in block \
+        else fail(label, 'guard "if not committed" not found before ROLLBACK')
+
+
 # ── Main ─────────────────────────────────────────────────────────────────────
 
 async def main():
     global PASS_COUNT, FAIL_COUNT
 
-    print('\n\033[1m══ Auth Gateway Regression Tests (auth-gw-v9) ══\033[0m')
+    print('\n\033[1m══ Auth Gateway Regression Tests (auth-gw-v9 · corrections) ══\033[0m')
 
     test_A_spinner()
     test_B_nav()
@@ -367,10 +590,13 @@ async def main():
     test_E_email_validation()
     test_F_strength_reset()
     test_G_structured_name()
+    test_H_name_normalization()
+    test_I_atomicity()
 
     print(f'\n\033[1m── {PASS_COUNT} passed, {FAIL_COUNT} failed ──\033[0m')
     print('\nNote: These tests verify static code correctness.')
-    print('      UI/UX behavior (autofill on Android, real Back button) requires manual device testing.\n')
+    print('      Autofill surface: best-effort approximation — Android Chrome manual verification pending.')
+    print('      BTN-18 spinner centering: source analysis only — Android Chrome manual verification pending.\n')
     return FAIL_COUNT
 
 

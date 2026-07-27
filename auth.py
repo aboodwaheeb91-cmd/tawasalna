@@ -838,7 +838,9 @@ def create_user(
     first_name=None, middle_name=None, last_name=None
 ) -> dict:
     conn = get_conn()
+    committed = False
     try:
+        conn.run("BEGIN")
         tw_id = _unique_tw_id(conn, user_type, country_code)
         rows = conn.run(
             "INSERT INTO users (tw_id, full_name, email, password_hash, user_type, country_code) "
@@ -853,6 +855,7 @@ def create_user(
         user_row = _row_to_dict(cols, rows[0])
         # G-contract: store structured name parts in profiles for emp accounts at registration.
         # No backfill for existing accounts — only new emp registrations with parts provided.
+        # Atomically with the user INSERT — a profile write failure rolls back the entire user.
         if user_type == 'emp' and (first_name or last_name):
             uid = user_row['id']
             conn.run(
@@ -865,8 +868,13 @@ def create_user(
                 mn=middle_name or None,
                 ln=last_name or None
             )
+        conn.run("COMMIT")
+        committed = True
         return _serialize(user_row)
     except Exception as e:
+        if not committed:
+            try: conn.run("ROLLBACK")
+            except: pass
         if "unique" in str(e).lower() or "duplicate" in str(e).lower():
             raise ValueError("البريد الإلكتروني مسجل مسبقاً")
         raise

@@ -957,5 +957,49 @@ function handleSaveError(errorData) {
 
 ---
 
-*[DS-FRM] V1 — أُنشئ في PR docs/design-system-forms-v1 — 2026-07-21*
+---
+
+## FRM-26 Auth Mode Switching — Persistent vs Transient State
+
+**الصفحة:** `/login` (index.auth.js + index.ui.js)  
+**الحالة:** ✅ Implemented (auth-gw-v9)
+
+يُعرِّف هذا القسم ما يُحفَظ وما يُسحَب عند التبديل بين Login و Register في Auth Gateway.
+
+### الحالة المستمرة (Persistent — يُحتفَظ بها عبر التبديل)
+
+| الحقل | السبب |
+|-------|-------|
+| قيمة حقل email | المستخدم قد كتبه بالفعل — حذفه يُعيق التجربة |
+| قيمة حقل password | بنفس المنطق — القيمة المُدخَلة تُحفَظ |
+
+### الحالة المؤقتة (Transient — تُمسَح عند كل تبديل)
+
+| الحالة | الإجراء |
+|--------|---------|
+| أعلام validation (errors) | تُمسَح — `_resetRegisterTransientState()` |
+| `_rSubmitAttempted` flag | يُصفَّر — لا يُنقَل من register إلى login |
+| field focus state | `blur()` بعد `setTimeout(0)` |
+| loading state / spinner | لا يجب أن يكون active أثناء التبديل |
+| password strength UI | لا تُعرَض عند العودة للـ login (strength تعتمد على الـ register password field) |
+
+### حالة name fields بين Account Types
+
+- **emp → co/edu:** قيم name fields (`rFirstName`, `rLastName`, `rMiddleName`) تُمسَح — لأن معنى الحقل يتغير بين اسم شخص واسم منظمة.
+- **co/edu → emp:** قيمة `rName` (org name) تُمسَح بنفس المنطق.
+- **co → edu أو العكس:** `rName` يُحتفَظ به — نفس نوع الحقل (org name).
+- **Back/Forward داخل نفس النوع:** لا مسح — `_applyRegLabels` يُعيد الـ labels فقط، لا يمسح القيم.
+
+```
+✅ _resetRegisterTransientState() تُمسَح عند كل انتقال login ↔ register
+✅ email/password يُحتفَظ بهما — لا يُمسَحان عند التبديل
+❌ ممنوع: مسح email/password عند Back من register إلى login
+❌ ممنوع: نقل _rSubmitAttempted أو error states إلى login form
+❌ ممنوع: إبقاء strength bar مرئياً في login view
+```
+
+---
+
+*[DS-FRM] V1 — أُنشئ في PR docs/design-system-forms-v1 — 2026-07-21*  
+*تحديث 2026-07-27: FRM-26 Auth Mode Switching Persistent/Transient State Contract (corrections round)*  
 *يُكمله: [DS-INP] INPUT-FIELDS.md · [DS-VAL] VALIDATION-ERRORS.md · [API-MUT] API-MUTATIONS-ERRORS.md*

@@ -8131,11 +8131,11 @@ Server composes: full_name = [first, middle?, last].join(' ')
 ❌ ممنوع: first_name/last_name required for co/edu
 ```
 
-### DS-NAV Auth Gateway Back Pattern (auth-gw-v9)
+### DS-NAV Auth Gateway Back Pattern (auth-gw-v9, corrected auth-gw-v9-corrections)
 
-See `docs/design-system/NAVIGATION.md § NAV-09` for full spec.
+See `docs/design-system/NAVIGATION.md § NAV-13` for full spec.
 
-Summary: `index.ui.js` uses `history.replaceState` + `history.pushState` to ensure Android/Browser Back from register view returns to login view without leaving `/login`. `_authViewPushed` flag prevents duplicate history entries. `popstate` handler is pure render only.
+Summary: `index.ui.js` uses canonical `history.state.nav` namespace (NAV-03). `replaceState` on init merges with existing state and sets `{nav:{entryType:'replace-init', authView:'login'}}`. `showRegister()` does one `pushState` with `{nav:{entryType:'push', authView:'register'}}`. `showLogin()` uses dual back-trust check: `_authViewPushed` flag AND `nav.entryType === 'push' && nav.authView === 'register'`. `popstate` handler checks `nav.authView` and is pure render only (no pushState/back() inside).
 
 ### Login Form DS Runtime Adoption (PR feat/login-ds-runtime-adoption)
 

@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 import base64, mimetypes
 from typing import List, Optional
 from datetime import datetime
-import secrets, json, os, time, asyncio
+import re, secrets, json, os, time, asyncio
 try:
     import asyncpg as _asyncpg
 except ImportError:
@@ -1343,9 +1343,15 @@ def admin_page(): return read_html("admin.html")
 # ══════════════════════════════════════════
 # Schemas
 # ══════════════════════════════════════════
+def _norm_name(s) -> str:
+    """Normalize a structured name part: trim + collapse internal whitespace."""
+    return re.sub(r'\s+', ' ', (s or '').strip())
+
+
 class RegisterInput(BaseModel):
     # Structured name for emp (G-contract): first_name + last_name required, middle_name optional.
-    # full_name for co/edu (single org name). Both paths cannot be present simultaneously.
+    # For emp: full_name is ignored if first_name/last_name are provided (structured path takes precedence).
+    # For co/edu: full_name is used; first_name/last_name are ignored even if sent.
     full_name:   Optional[str] = None
     first_name:  Optional[str] = None
     middle_name: Optional[str] = None
@@ -2901,12 +2907,13 @@ def register(data: RegisterInput, request: Request):
     if len(data.password) < 6:
         raise HTTPException(400, detail="كلمة المرور يجب أن تكون 6 أحرف على الأقل")
 
-    # G-contract: emp uses structured name; co/edu use full_name
+    # G-contract: emp uses structured name; co/edu use full_name.
+    # _norm_name: trim + collapse internal whitespace (e.g. "محمد   أحمد" → "محمد أحمد").
     first_name_val = middle_name_val = last_name_val = None
     if data.user_type == "emp":
-        first  = (data.first_name  or "").strip()
-        last   = (data.last_name   or "").strip()
-        middle = (data.middle_name or "").strip()
+        first  = _norm_name(data.first_name)
+        last   = _norm_name(data.last_name)
+        middle = _norm_name(data.middle_name)
         if not first or not last:
             raise HTTPException(400, detail="الاسم الأول واسم العائلة مطلوبان")
         full_name      = " ".join(p for p in [first, middle, last] if p)
