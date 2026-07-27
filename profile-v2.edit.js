@@ -339,7 +339,8 @@
     var shortBioEl = document.getElementById('epShortBio');
     if(shortBioEl) shortBioEl.value = p.short_bio || '';
 
-    _profListLoaded = true;
+    // Only mark loaded when list is non-empty; empty = load failure → omit profession_id on save
+    _profListLoaded = !!(profList && profList.length);
 
     // Dirty State snapshot (§14) — capture after all fields are set
     _snapshot = _captureSnapshot();

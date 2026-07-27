@@ -628,7 +628,8 @@ body.preview-guest       .owner-only { display: none !important; }
    --ep-note-bg:        legacy-name info note background
    --ep-note-border:    legacy-name info note border
    --ep-border-focus:   input focus ring colour
-   --ep-input-bg:       input/select/textarea background (.05)
+   --ep-input-bg:       input/select/textarea background (.05 — Tier 3 primitive direct;
+                       NOT via --color-surface-input which is .06 — direct value preserves zero visual change)
    --ep-danger:         error text colour  (→ --color-status-danger)
    --ep-label:          field label colour (→ --color-text-muted)
    --ep-cancel-text:    cancel button text (→ --color-text-secondary)
@@ -645,7 +646,7 @@ body.preview-guest       .owner-only { display: none !important; }
   --ep-note-bg:        rgba(37,99,255,.08);
   --ep-note-border:    rgba(37,99,255,.2);
   --ep-border-focus:   var(--color-border-focus, var(--color-brand-primary, #00c896));
-  --ep-input-bg:       var(--color-surface-input, rgba(255,255,255,.05));
+  --ep-input-bg:       rgba(255,255,255,.05);
   --ep-danger:         var(--color-status-danger, #f87171);
   --ep-label:          var(--color-text-muted, var(--t3, #6b7686));
   --ep-cancel-text:    var(--color-text-secondary, var(--t2, #9aa5b4));
@@ -729,8 +730,8 @@ body.preview-guest       .owner-only { display: none !important; }
 .ep-field-err.show { display:block; }
 .ep-input.ep-input-err,
 .ep-textarea.ep-input-err {
-  border-color:rgba(248,113,113,.55) !important;
-  box-shadow:0 0 0 2px rgba(248,113,113,.1);
+  border-color:rgba(var(--color-status-danger-rgb),.55) !important;
+  box-shadow:0 0 0 2px rgba(var(--color-status-danger-rgb),.1);
 }
 .ep-note {
   display:flex; align-items:flex-start; gap:7px;

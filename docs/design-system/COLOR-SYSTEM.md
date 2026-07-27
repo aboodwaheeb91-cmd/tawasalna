@@ -561,7 +561,7 @@ feature CSS:
 | `--ep-cancel-text` | `var(--color-text-secondary, var(--t2, #9aa5b4))` | نص زر إلغاء → Semantic token |
 | `--ep-border-focus` | `var(--color-border-focus, var(--color-brand-primary, #00c896))` | تركيز الحقل → Semantic token |
 | `--ep-save-from` | `var(--color-brand-primary, #00c896)` | تدرج زر الحفظ → Semantic token |
-| `--ep-input-bg` | `var(--color-surface-input, rgba(255,255,255,.05))` | خلفية الحقول → Semantic token |
+| `--ep-input-bg` | `rgba(255,255,255,.05)` | خلفية الحقول — Primitive direct (لا عبر `--color-surface-input` = .06 ≠ zero visual change) |
 | `--ep-sheet-border` | `rgba(255,255,255,.10)` | حدود الـ sheet + الحقول (Local — لا معنى مشترك بعد) |
 | `--ep-divider` | `rgba(255,255,255,.08)` | الفواصل الأفقية (Local) |
 | `--ep-cancel-border` | `rgba(255,255,255,.12)` | حدود زر الإلغاء (Local) |

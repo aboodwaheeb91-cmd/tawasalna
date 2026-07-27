@@ -716,8 +716,12 @@ def test_N_async_race_inflight():
     ok(label) if '_profListLoaded' in src else fail(label, '_profListLoaded flag not found')
 
     label = 'N6: session guard at top of _hydrateForm (before DOM access) (§Corr-8)'
-    # _hydrateForm must return early when session is stale
     ok(label) if '_editSession !== session' in src else fail(label, 'session guard not found in _hydrateForm')
+
+    label = 'N7: _profListLoaded set to false when profList empty (load failure safety) (§Corr-MC)'
+    # Must use profList.length check, not unconditional true
+    ok(label) if '_profListLoaded = !!(profList && profList.length)' in src \
+        else fail(label, '_profListLoaded must be false when profList is empty (load failure) — unconditional true found')
 
 
 # ── O: Canonical / no payload contamination (§Corr-G) ────────────────────────
@@ -789,8 +793,15 @@ def test_Q_dscolor_tokens():
     print('\n\033[1m── Q: DS-COLOR zero visual change tokens (§Corr-I) ──\033[0m')
     src = _read('profile-v2.css')
 
-    label = 'Q1: --ep-input-bg fallback is .05 not .06 (§Corr-11)'
-    ok(label) if 'rgba(255,255,255,.05)' in src else fail(label, 'ep-input-bg fallback should be .05 — found .06 or different value')
+    label = 'Q1: --ep-input-bg is direct primitive .05 (NOT via --color-surface-input which is .06) (§Corr-11/MC)'
+    import re as _re_q1
+    # Skip comment lines — match only the CSS property assignment (value starts with rgba or var)
+    _bg_match = _re_q1.search(r'--ep-input-bg:\s*(rgba\([^)]+\)|var\([^)]+\))\s*;', src)
+    if _bg_match:
+        _bg_val = _bg_match.group(1).strip()
+        ok(label) if _bg_val == 'rgba(255,255,255,.05)' else fail(label, f'--ep-input-bg = {_bg_val!r} (should be direct rgba .05, not semantic token)')
+    else:
+        fail(label, '--ep-input-bg CSS token assignment not found in profile-v2.css')
 
     label = 'Q2: --ep-divider defined (separate from --ep-sheet-border) (§Corr-11)'
     ok(label) if '--ep-divider' in src else fail(label, '--ep-divider not defined in profile-v2.css')
@@ -843,6 +854,10 @@ def test_Q_dscolor_tokens():
     label = 'Q15: --ep-cancel-border fallback is .12 (§Corr-11)'
     ok(label) if '--ep-cancel-border:' in src and 'rgba(255,255,255,.12)' in src \
         else fail(label, '--ep-cancel-border fallback .12 not found')
+
+    label = 'Q16: .ep-input-err uses --color-status-danger-rgb (no raw rgba(248,...)) (§Corr-MC)'
+    ok(label) if 'color-status-danger-rgb' in src and 'ep-input-err' in src \
+        else fail(label, '.ep-input-err not using --color-status-danger-rgb token')
 
 
 # ── R: Docs integrity (DATE-36, OVL-38 orthogonal) (§Corr-J) ─────────────────

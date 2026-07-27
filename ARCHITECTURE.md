@@ -2211,11 +2211,22 @@ PUT /profile { first_name, middle_name?, last_name }
 ### Legacy Name Mode (§1)
 ```
 if (!p.first_name && p.full_name):
-  → show #epLegacyNameRow (read-only note with full_name)
-  → hide #epNameRow inputs
-  → if user starts typing in first/last → migration mode
-  → first + last become required; payload includes name parts
-  → after save: account transitions to structured mode
+  → show #epLegacyNameRow (info note with full_name text — display:block)
+  → #epNameRow inputs REMAIN VISIBLE with EMPTY fields (NOT hidden)
+  → aria-required="false" on first/last initially (JS-managed via _setNameRequired)
+  → Fields start empty — user types to begin migration
+
+  _isMigrating() = ANY of first_name / middle_name / last_name non-empty
+  → when migrating: _setNameRequired(true) — first + last required
+  → payload: if all three empty → omit name keys entirely (no change)
+  → payload: if any typed → include name parts; backend requires first + last
+  → after save: server persists first_name + last_name; account → structured mode
+  → middle_name-only payload rejected by backend (atomic group rule)
+
+  _profListLoaded flag:
+  → set true ONLY when profList.length > 0 (real data loaded)
+  → empty profList (load failure) → _profListLoaded stays false
+  → on save: if _profListLoaded=false and profession_id empty → OMIT from payload (no accidental clear)
 ```
 
 ### Profession Dropdown (§10 — DOM APIs)
@@ -2271,13 +2282,24 @@ Frontend:
 
 ### DS-COLOR Phase 2 (§17)
 ```
-Scoped --ep-* domain aliases in profile-v2.css:
-  --ep-danger:     var(--color-status-danger)
-  --ep-label:      var(--color-text-muted)
-  --ep-input-bg:   var(--color-surface-input)
-  --ep-border:     var(--color-border-default)
-  --ep-save-from:  var(--color-brand-primary)
-  --ep-cancel-text: var(--color-text-secondary)
+Scoped --ep-* domain aliases in profile-v2.css (Tier 3 — CLR-15):
+  Semantic references:
+    --ep-danger:       var(--color-status-danger, #f87171)
+    --ep-label:        var(--color-text-muted, ...)
+    --ep-border-focus: var(--color-border-focus, ...)
+    --ep-save-from:    var(--color-brand-primary, #00c896)
+    --ep-cancel-text:  var(--color-text-secondary, ...)
+  Primitive Tier 3 (direct values — zero visual change contract):
+    --ep-input-bg:     rgba(255,255,255,.05)  ← NOT via --color-surface-input (.06)
+    --ep-sheet-border: rgba(255,255,255,.10)
+    --ep-divider:      rgba(255,255,255,.08)
+    --ep-cancel-border: rgba(255,255,255,.12)
+    --ep-backdrop:     rgba(0,0,0,.65)
+    --ep-close-bg:     rgba(255,255,255,.08)
+    --ep-note-bg:      rgba(37,99,255,.08)
+    --ep-note-border:  rgba(37,99,255,.2)
+  Error state (consumer, not token):
+    .ep-input-err border/shadow: rgba(var(--color-status-danger-rgb),.55/.1)
 ```
 
 ### ممنوعات (Phase 1)
