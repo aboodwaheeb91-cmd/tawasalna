@@ -1,7 +1,7 @@
 # Navigation System V1 — تواصلنا
 
 > **[DS-NAV] — Architecture & Contract Documentation**
-> **الحالة:** V1 Documentation ✅ · Implementation 🔜 (لا تنفيذ في هذا الـ PR)
+> **الحالة:** V1 Documentation ✅ · Partial Runtime Adoption ✅ — Auth Gateway (auth-gw-v9) · Remaining migrations 🔄/🔜
 
 ---
 
@@ -713,5 +713,91 @@ if (!_u) { location.href = '/login' }
 
 ---
 
-*آخر تحديث: 2026-07-20 — §41 in SYSTEMS_INDEX.md.*
-*الحالة: V1 Documentation ✅ · Implementation 🔜*
+## [NAV-13] Auth Gateway Back Pattern — Reference Implementation
+
+**الصفحة:** `/login` (index.html + index.ui.js)  
+**الحالة:** ✅ Implemented (auth-gw-v9 · corrected in auth-gw-v9-corrections)
+
+هذا هو أول تطبيق فعلي لـ DS-NAV في المشروع ويُعتبر المرجع لتطبيقات مستقبلية.
+
+### المشكلة
+
+بدون History State، الضغط على زر Back (Android/Browser) في صفحة Register يخرج من `/login` مباشرةً.
+
+### الحالة الكنونية لـ history.state.nav (NAV-03 namespace)
+
+```js
+// Login baseline (init — replaceState):
+{ nav: { entryType: 'replace-init', authView: 'login' } }
+
+// Register pushed state (pushState):
+{ nav: { entryType: 'push', authView: 'register' } }
+```
+
+`entryType` و `authView` هما Sub-keys داخل الـ NAV-03 canonical namespace `history.state.nav`.
+
+### التطبيق في index.ui.js
+
+```js
+// 1. replaceState عند تهيئة الصفحة — يدمج مع أي state موجود (NAV-03 merge pattern)
+var _ex = history.state || {};
+history.replaceState(Object.assign({}, _ex, {nav: Object.assign({}, _ex.nav||{}, {entryType:'replace-init', authView:'login'})}), '');
+
+// 2. pushState عند الانتقال للـ register (مرة واحدة فقط)
+if(!_authViewPushed){
+  var _ex2 = history.state || {};
+  history.pushState(Object.assign({}, _ex2, {nav: Object.assign({}, _ex2.nav||{}, {entryType:'push', authView:'register'})}), '');
+  _authViewPushed = true;
+}
+
+// 3. showLogin() — dual check: in-memory flag + canonical nav state (back-trust NAV-05)
+function showLogin(){
+  var _nav = history.state && history.state.nav;
+  if(_authViewPushed && _nav && _nav.entryType === 'push' && _nav.authView === 'register'){
+    history.back(); // popstate will call _applyLoginUI
+    return;
+  }
+  _applyLoginUI();
+}
+
+// 4. popstate handler — pure render فقط، لا pushState/back() هنا
+window.addEventListener('popstate', function(e){
+  var _nav = e.state && e.state.nav;
+  if(_nav && _nav.authView === 'register'){ /* forward nav to register */ }
+  else { _applyLoginUI(); } // entryType:'replace-init' or browser-initial null state
+});
+```
+
+### القواعد المستمدة من هذا التطبيق
+
+```
+✅ replaceState عند init — يضع baseline entry، يدمج مع state الموجود (Object.assign)
+✅ pushState عند أول انتقال للـ register فقط — مرة واحدة (يحميه _authViewPushed)
+✅ back-trust check مزدوج: _authViewPushed flag + nav.entryType === 'push' + nav.authView === 'register'
+✅ popstate handler: pure render فقط — لا history manipulation داخله
+✅ _applyLoginUI: pure function — تُعيد render الـ login UI بدون side effects
+❌ ممنوع: flat namespace موازٍ مثل {ds_nav:'auth-register'} — يخالف NAV-03
+❌ ممنوع: replaceState يُلغي الـ state الكامل — يجب دمجه بـ Object.assign
+❌ ممنوع: back-trust check يعتمد على flag وحده (in-memory flag ليس المصدر الكنوني)
+❌ ممنوع: pushState متكرر في كل مرة يضغط المستخدم "سجل الآن"
+❌ ممنوع: beforeunload أو history trapping
+❌ ممنوع: popstate يستدعي pushState أو history.back() (حلقة لا نهاية لها)
+❌ ممنوع: client-side router — تواصلنا MPA خالص
+```
+
+### Hash URL Coherence — Legacy Auth Compatibility
+
+`/login#register-emp` (والـ variants co/edu) هي روابط خارجية تفتح Register مسبقاً.
+بعد Back navigation، الـ URL قد يحتفظ بالـ hash fragment لأن `replaceState`/`pushState` لا تُغيّر الـ URL.
+هذا مقبول: الـ hash في هذا السياق هو hint للـ client فقط ولا يؤثر على server routing أو auth.
+موثَّق كـ **Legacy Auth Compatibility exception** — لا يُعدّ خللاً في DS-NAV.
+
+### ما لا يُغطيه هذا النمط
+
+- المتصفحات التي تُعيد تشغيل الصفحة عند restore من bfcache (حالة نادرة، مقبولة)
+- Back بعد redirect (بعد login ناجح) — خارج نطاق Auth Gateway
+- Sessions timeout أثناء التنقل — معالجة خاصة في `/auth/verify-token` مستقبلاً
+
+---
+
+*آخر تحديث: 2026-07-27 — NAV-13 Auth Gateway Back Pattern (corrected: canonical nav namespace, merge replaceState, dual back-trust check)*

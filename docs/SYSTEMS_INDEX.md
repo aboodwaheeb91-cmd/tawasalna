@@ -732,7 +732,7 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 ### 41. Navigation System V1 [DS-NAV]
 **Purpose:** الـ contract المعماري الرسمي لسلوك التنقل في المنصة. يُوثِّق Route & URL Contract، Layer Stack (LIFO)، Unified Back Contract (5 خطوات بالترتيب)، Safe Fallback (Context-aware)، Return Destination (`?next=` للـ Auth فقط)، Deep Link Safety، وScroll Restoration.
 **Source of Truth:** `docs/design-system/NAVIGATION.md` · `docs/DESIGN_SYSTEM.md` (فهرس النظام)
-**Details:** `docs/design-system/NAVIGATION.md` — 13 قسماً: NAV-00 (Routing Protocol) → NAV-12 (Flutter Readiness)
+**Details:** `docs/design-system/NAVIGATION.md` — 14 قسماً: NAV-00 (Routing Protocol) → NAV-13 (Auth Gateway Back Pattern)
 **Do not recreate:**
 - لا تُضيف client-side router — ممنوع (F7).
 - لا تستخدم `#` hash routing لأغراض navigation.
@@ -742,8 +742,10 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 - لا تستخدم URL أو query params كمصدر للـ Authorization.
 - لا تُخزِّن navigation state في localStorage.
 - `?next=` محجوز لـ Auth Return Destination فقط — ليس Back fallback عام.
+- لا تستخدم flat namespace موازٍ مثل `{ds_nav:'*'}` — canonical namespace هو `history.state.nav` (NAV-03).
+- `replaceState` يجب أن يدمج مع الـ state الموجود (Object.assign pattern) — لا يُلغيه.
 **Gaps documented (not fixed):** `history.back()` بدون fallback في `job-detail.js:729`، `popstate` listener مزدوج في `company.main.js:1975+4624`، `redirect()` لا تحفظ `?next=` في `index.auth.js`.
-**Status:** V1 Documentation ✅ · Implementation 🔜
+**Status:** V1 Documentation ✅ · Partial Runtime Adoption ✅ — Auth Gateway (NAV-13) · Remaining migrations 🔄/🔜
 
 ---
 

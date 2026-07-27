@@ -655,5 +655,66 @@ CSS الحقول موزَّع عبر ملفات متعددة:
 > إذا احتاجت المهمة أحد هذه الأنظمة — **STOP** واسأل صاحب المشروع (F30).
 ---
 
-*[DS-INP] V1 — أُنشئ في PR docs/design-system-forms-v1 — 2026-07-21*
+---
+
+## INP-17 Autofill Visual Parity — Generic DS-INP Contract
+
+**المبدأ:** Autofill هي حالة **Data Population** — ليست حالة Theme أو Color Role مستقلة.
+تهدف هذه القاعدة إلى الحفاظ على **السطح المقصود للحقل + semantics حالته** عند autofill، لا فرض لون محدد.
+
+### المشكلة التقنية المشتركة
+
+`-webkit-box-shadow: 0 0 0 1000px <color> inset !important` هو خيار implementation شائع لتغليف الـ autofill background في Chromium — ليس الطريقة الوحيدة، لكنه الأسلوب العملي الأكثر انتشاراً.
+**في التصاميم الداكنة، قد يحتاج الـ autofill background إلى masking.** Auth Gateway يختار لوناً معتماً (opaque) كـ implementation choice للحصول على full visual masking — إذ أن Chromium UA قد لا يُنتج نتيجة مقصودة مع ألوان شفافة في سياق autofill override. هذا سلوك مُلاحَظ تجريبياً، لا قانون UA عام مكتوب في المواصفات.
+
+### Contract (لكل صفحة تُطبِّق autofill override)
+
+```
+✅ استخدم لوناً معتماً (opaque hex) في -webkit-box-shadow autofill override
+✅ Error border override مطلوب بعد autofill selectors (higher specificity) إذا كان للصفحة error states
+✅ border: 1.5px solid var(--*-input-border) في autofill selector (يمنع UA border override)
+✅ اختر قيمة opaque تمثّل السطح الفعلي المُرنَّد تحت الحقل (ليس page background وحده)
+❌ ممنوع: الادعاء بأن semitransparent colors مضمونة عمل كـ full visual masking في autofill override — السلوك مُلاحَظ تجريبياً في Chromium، ليس قانون UA عام؛ اختبر على الجهاز الحقيقي
+❌ ممنوع: ادّعاء "Zero Visual Change" أو "Parity Confirmed" بدون تحقق يدوي على الجهاز الحقيقي
+❌ ممنوع: فرض visual redesign كجزء من autofill fix (تصحيح فقط، لا تغيير تصميمي)
+```
+
+### مرجع التطبيق: Auth Gateway — `/login` (`index.css`)
+
+هذا التطبيق هو local exception موثَّق (CLR-15 Tier 3) — الـ token `--auth-autofill-surface` ليس token مشترك إلزامي.
+
+```css
+:root {
+  /* Best-effort approximation — inputs sit inside .bubble gradient,
+     so exact surface color is gradient-dependent and cannot be statically computed.
+     Manual Android Chrome verification pending.                          */
+  --auth-autofill-surface: #161a26;
+}
+```
+
+```css
+/* Login autofill selectors */
+#loginSection input:-webkit-autofill,
+#loginSection input:-webkit-autofill:hover,
+#loginSection input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 1000px var(--auth-autofill-surface) inset !important;
+  -webkit-text-fill-color: var(--color-text-primary) !important;
+  border: 1.5px solid var(--auth-input-border);
+  caret-color: var(--color-text-primary);
+  transition: background-color 5000s ease-in-out 0s;
+}
+/* Error border must win even during autofill */
+#loginSection .field.has-error input:-webkit-autofill {
+  border-color: rgb(var(--color-status-danger-rgb)) !important;
+}
+```
+
+**ملاحظة:** Desktop Playwright لا يُعيد إنتاج سلوك Android Chrome UA للـ autofill.
+التحقق النهائي يتطلب اختباراً يدوياً على Android Chrome الحقيقي.
+
+---
+
+*[DS-INP] V1 — أُنشئ في PR docs/design-system-forms-v1 — 2026-07-21*  
+*تحديث 2026-07-26: INP-17 Autofill Visual Parity Contract (auth-gw-v9)*  
+*تحديث 2026-07-27: INP-17 rewritten as generic DS-INP contract — auth implementation = local exception (corrections round)*  
 *يُكمله: [DS-FRM] FORM-LIFECYCLE.md · [DS-VAL] VALIDATION-ERRORS.md · [API-MUT] API-MUTATIONS-ERRORS.md*

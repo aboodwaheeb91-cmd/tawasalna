@@ -15,6 +15,13 @@
   /* --auth-ctrl-surface is #0d1526 — intentionally ≠ --color-surface-card-solid (#0d1426);
      green channel differs by 1 unit. Do not replace with the Semantic token.           */
   --auth-ctrl-surface:         #0d1526;
+  /* --auth-autofill-surface: opaque value — implementation choice for full visual masking.
+     Chromium UA autofill override may not produce the intended result with translucent values
+     in dark UI contexts (observed behavior, not a guaranteed UA spec rule).
+     Inputs sit inside .bubble (linear-gradient(rgba(20,30,55,.9),rgba(10,18,38,.95)) over #070b18),
+     so exact surface color is gradient-dependent and cannot be statically computed.
+     #161a26 is a best-effort dark approximation — manual Android Chrome verification pending. */
+  --auth-autofill-surface:     #161a26;
   --auth-surface-idle:         rgba(255,255,255,.04);
   --auth-surface-hover:        rgba(255,255,255,.07);
   --auth-icon-bg-idle:         rgba(255,255,255,.10);
@@ -245,13 +252,13 @@ body{font-family:'Cairo',sans-serif;background:var(--color-surface-page);min-hei
 
 /* ── ITQAN shared utilities (scoped to this page) ── */
 @keyframes tw-shimmer{0%{background-position:-1000px 0}100%{background-position:1000px 0}}
-@keyframes tw-spin{to{transform:translateY(-50%) rotate(360deg);}}
+@keyframes tw-spin{to{transform:rotate(360deg);}}
 @keyframes tw-fadein{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:none;}}
 @keyframes tw-verified{0%,100%{box-shadow:0 0 0 0 rgba(var(--color-brand-primary-rgb),0);}50%{box-shadow:0 0 0 5px rgba(var(--color-brand-primary-rgb),.15);}}
 
 .tw-skeleton{background:linear-gradient(90deg,var(--auth-skeleton-base) 25%,var(--auth-skeleton-shine) 50%,var(--auth-skeleton-base) 75%);background-size:2000px 100%;animation:tw-shimmer 1.5s infinite linear;border-radius:8px;}
 .tw-btn-loading{position:relative;pointer-events:none;opacity:.8;}
-.tw-btn-loading::after{content:'';position:absolute;width:14px;height:14px;border-radius:50%;border:2px solid var(--auth-text-spinner-border);border-top-color:var(--color-text-primary);animation:tw-spin .7s linear infinite;right:12px;top:50%;transform:translateY(-50%);}
+.tw-btn-loading::after{content:'';position:absolute;width:14px;height:14px;border-radius:50%;border:2px solid var(--auth-text-spinner-border);border-top-color:var(--color-text-primary);animation:tw-spin .7s linear infinite;left:50%;top:50%;margin-top:-7px;margin-left:-7px;}
 .tw-scroll-prog{position:fixed;top:0;left:0;height:2px;z-index:999;background:linear-gradient(90deg,var(--color-brand-primary),var(--color-brand-secondary));transition:width .1s;width:0%;}
 .tw-fab{position:fixed;bottom:80px;left:18px;width:50px;height:50px;border-radius:50%;border:none;font-size:1.4rem;background:linear-gradient(135deg,var(--color-brand-primary),var(--color-brand-secondary));color:var(--color-text-primary);cursor:pointer;box-shadow:0 4px 20px rgba(var(--color-brand-primary-rgb),.35);transition:all .25s cubic-bezier(.34,1.56,.64,1);z-index:50;display:flex;align-items:center;justify-content:center;}
 .tw-fab:hover{transform:scale(1.12) rotate(90deg);}
@@ -281,19 +288,27 @@ body{font-family:'Cairo',sans-serif;background:var(--color-surface-page);min-hei
 
 /* ── DS-INP INP-11: Autofill visual contract (Login only) ──
    Prevents Chrome/Android/password-manager autofill from imposing a yellow/white background
-   that breaks the dark design. box-shadow trick overrides Chromium's internal UA autofill style.
-   Scoped to #loginSection; register fields are intentionally not covered here. */
+   that breaks the dark design. box-shadow trick requires --auth-autofill-surface (opaque)
+   — translucent colors are not applied by Chromium's internal autofill override.
+   Scoped to #loginSection; register fields are covered below. */
 #loginSection input:-webkit-autofill,
 #loginSection input:-webkit-autofill:hover,
 #loginSection input:-webkit-autofill:focus{
-  -webkit-box-shadow:0 0 0 1000px var(--auth-ctrl-surface) inset!important;
+  -webkit-box-shadow:0 0 0 1000px var(--auth-autofill-surface) inset!important;
   -webkit-text-fill-color:var(--color-text-primary)!important;
+  border:1.5px solid var(--auth-input-border);
   caret-color:var(--color-text-primary);
   transition:background-color 5000s ease-in-out 0s;
 }
 #loginSection input:autofill{
-  background-color:var(--auth-ctrl-surface)!important;
+  background-color:var(--auth-autofill-surface)!important;
   color:var(--color-text-primary)!important;
+}
+/* Error border must show even when field is autofilled (specificity override) */
+#loginSection .field.has-error input:-webkit-autofill,
+#loginSection .field.has-error input:-webkit-autofill:hover,
+#loginSection .field.has-error input:-webkit-autofill:focus{
+  border-color:rgb(var(--color-status-danger-rgb))!important;
 }
 
 /* ── DS-VAL: Field error state (scoped to #loginSection) ── */
@@ -319,19 +334,29 @@ body{font-family:'Cairo',sans-serif;background:var(--color-surface-page);min-hei
 #registerPanel input:-webkit-autofill,
 #registerPanel input:-webkit-autofill:hover,
 #registerPanel input:-webkit-autofill:focus{
-  -webkit-box-shadow:0 0 0 1000px var(--auth-ctrl-surface) inset!important;
+  -webkit-box-shadow:0 0 0 1000px var(--auth-autofill-surface) inset!important;
   -webkit-text-fill-color:var(--color-text-primary)!important;
+  border:1.5px solid var(--auth-input-border);
   caret-color:var(--color-text-primary);
   transition:background-color 5000s ease-in-out 0s;
 }
 #registerPanel input:autofill{
-  background-color:var(--auth-ctrl-surface)!important;
+  background-color:var(--auth-autofill-surface)!important;
   color:var(--color-text-primary)!important;
+}
+/* Error border must show even when field is autofilled (specificity override) */
+#registerPanel .field.has-error input:-webkit-autofill,
+#registerPanel .field.has-error input:-webkit-autofill:hover,
+#registerPanel .field.has-error input:-webkit-autofill:focus{
+  border-color:rgb(var(--color-status-danger-rgb))!important;
 }
 
 /* ── DS-VAL: Field error state (scoped to #registerPanel) ── */
 #registerPanel .field.has-error input{border-color:rgb(var(--color-status-danger-rgb));}
 #registerPanel .field-error{display:block;font-size:.65rem;color:rgb(var(--color-status-danger-rgb));margin-top:4px;font-family:'Cairo',sans-serif;font-weight:600;}
+
+/* ── DS-INP: Employee structured name optional label tag ── */
+.optional-tag{font-size:.6rem;color:var(--auth-text-subdued);font-weight:400;margin-inline-start:4px;}
 
 /* ── DS-BTN: Register submit button — Primary outlined/glow (BTN-02 + BTN-03) ── */
 #registerPanel .cta{background:transparent;border:1.5px solid var(--color-brand-primary);color:var(--color-brand-primary);user-select:none;}

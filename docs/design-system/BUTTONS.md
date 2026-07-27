@@ -694,4 +694,55 @@ Before → Click → Loading → Result → Back → Refresh
 
 ---
 
-*آخر تحديث: 2026-07-18 — Button System V1 rev.2 (corrections: BTN-01 STOP rule, BTN-02 outlined/glow visual, BTN-03 semantic color clarification, BTN-04 slim principle + existing constraints, BTN-05 vertical stack rules, BTN-06 borderless header icons, BTN-07 full states list, BTN-08 touch-callout, BTN-09 correct save lifecycle, BTN-10 backend-confirmed toggle, BTN-11 full checklist, BTN-13 context-based confirmation, BTN-14 glow performance, BTN-15 owner-request-only, BTN-16 expanded) · BTN-17 Visibility & Permission Contract (links to VIEWER-MODES.md)*
+## [BTN-18] Loading Indicator Alignment Contract
+
+**Source:** Auth Gateway PR (auth-gw-v9) — fix/spinner-centering  
+**Scope:** Any button using `.tw-btn-loading` class  
+**Verification:** Static/Source verification ✅ · Android Chrome manual verification ⏳
+
+### المشكلة الأصلية
+
+`@keyframes tw-spin` في `index.css` كان يحتوي `translateY(-50%)` داخل الـ keyframe:
+```css
+/* ❌ قديم — خاطئ */
+@keyframes tw-spin { to { transform: translateY(-50%) rotate(360deg); } }
+.tw-btn-loading::after { right: 12px; top: 50%; transform: translateY(-50%); }
+```
+
+هذا كان يسبب مشكلتين:
+1. `translateY(-50%)` في الـ keyframe يتضارب مع نفس القيمة في `transform` الأساسي — animation تُلغي الـ transform.
+2. `right: 12px` يضع الـ spinner قرب الحافة بدلاً من مركز الزر.
+
+### الحل الصحيح (permanent contract)
+
+```css
+/* ✅ صحيح — margin-based centering لا يتضارب مع animation */
+@keyframes tw-spin { to { transform: rotate(360deg); } }
+.tw-btn-loading::after {
+  left: 50%; top: 50%;
+  margin-top: -7px; margin-left: -7px; /* half of 14px element size */
+}
+```
+
+### قواعد BTN-18 الإلزامية
+
+```
+✅ @keyframes tw-spin: rotate(360deg) فقط — بدون translateY
+✅ .tw-btn-loading::after: يجب أن يكون في المركز الهندسي للزر (behavioral contract)
+✅ margin-top / margin-left = −(spinner_size / 2) — مرتبط بحجم العنصر، ليس ثابتاً
+   (مثال مرجعي للحجم 14px: margin-top:-7px; margin-left:-7px)
+❌ ممنوع: translateY داخل @keyframes tw-spin
+❌ ممنوع: right/left fixed offset بدلاً من margin-based centering
+❌ ممنوع: transform-based centering مع animated transform (تضارب)
+❌ ممنوع: تغيير حجم الـ spinner بدون تعديل margin بنفس النسبة
+```
+
+### تطبيق في tw_shared.css
+
+`tw_shared.css` يحتوي على تعريف صحيح لـ `@keyframes tw-spin` (rotate فقط).
+إذا تم تحميل `index.css` بعد `tw_shared.css`، فإن التعريف المحلي في `index.css` يُلغي المشترك.
+**القاعدة:** أي صفحة تُعرّف `@keyframes tw-spin` محلياً يجب أن تستخدم `rotate(360deg)` فقط.
+
+---
+
+*آخر تحديث: 2026-07-26 — BTN-18 Loading Indicator Alignment Contract (fix/spinner-centering: margin-based centering, no transform conflict) — Button System V1 rev.2 (corrections: BTN-01 STOP rule, BTN-02 outlined/glow visual, BTN-03 semantic color clarification, BTN-04 slim principle + existing constraints, BTN-05 vertical stack rules, BTN-06 borderless header icons, BTN-07 full states list, BTN-08 touch-callout, BTN-09 correct save lifecycle, BTN-10 backend-confirmed toggle, BTN-11 full checklist, BTN-13 context-based confirmation, BTN-14 glow performance, BTN-15 owner-request-only, BTN-16 expanded) · BTN-17 Visibility & Permission Contract (links to VIEWER-MODES.md)*

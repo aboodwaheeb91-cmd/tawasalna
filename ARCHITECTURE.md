@@ -8089,6 +8089,56 @@ Three explicit cards replace the old 2-button + dropdown:
 - Do NOT use `localStorage.tw_user.user_type` to gate features or permissions — only for display/routing hints; validate with API when security matters
 - Do NOT add a role selector inside the login form — role is login-derived from the API only
 
+### Structured Employee Name (G-contract — auth-gw-v9)
+
+Employees (`user_type = 'emp'`) register with 3 separate name fields. Company and Education users keep a single org name field.
+
+#### Frontend (index.html + index.auth.js)
+
+| Account Type | Fields shown | Fields sent to API |
+|---|---|---|
+| `emp` | `#rFirstName` (required), `#rMiddleName` (optional), `#rLastName` (required) | `{first_name, middle_name?, last_name}` |
+| `co` / `edu` | `#rName` (required) | `{full_name}` |
+
+DOM structure: `#empNameFields` (emp fields container) · `#wrapper-rName` (org name, `hidden` by default).  
+`_applyRegLabels(type)` in `index.ui.js` toggles visibility on type switch.
+
+#### API (`POST /auth/register`)
+
+```
+Request (emp):   { first_name, middle_name?, last_name, email, password, user_type: "emp" }
+Request (co/edu): { full_name, email, password, user_type: "co"|"edu" }
+Server composes: full_name = [first, middle?, last].join(' ')
+```
+
+`RegisterInput` Pydantic model: `full_name`, `first_name`, `middle_name`, `last_name` are all `Optional[str]`. Server validates required fields based on `user_type`.
+
+#### DB (`auth.py create_user()`)
+
+1. `INSERT INTO users` with composed `full_name` — `users.full_name` is the canonical display name, unchanged.
+2. For `emp` with structured parts: `INSERT INTO profiles (user_id, first_name, middle_name, last_name) ... ON CONFLICT (user_id) DO UPDATE SET ...`
+
+#### Permanent constraints
+
+```
+✅ users.full_name is the canonical display name — never removed
+✅ profiles.first_name / middle_name / last_name are the structured storage (columns exist since PR §migrations)
+✅ full_name is composed server-side — never from frontend string concat alone
+✅ No backfill of old accounts — existing records unaffected
+✅ Name parts are server-side trimmed + internal whitespace collapsed via _norm_name() before composition and storage
+✅ users row + structured profiles row creation is atomic (single BEGIN/COMMIT transaction); profiles failure rolls back users INSERT — no orphan users
+❌ ممنوع: استخدام full_name كـ text input واحد لـ emp في UI الجديد
+❌ ممنوع: Parsing/backfill تخميني لأسماء المستخدمين القدامى
+❌ ممنوع: حذف users.full_name
+❌ ممنوع: first_name/last_name required for co/edu
+```
+
+### DS-NAV Auth Gateway Back Pattern (auth-gw-v9, corrected auth-gw-v9-corrections)
+
+See `docs/design-system/NAVIGATION.md § NAV-13` for full spec.
+
+Summary: `index.ui.js` uses canonical `history.state.nav` namespace (NAV-03). `replaceState` on init merges with existing state and sets `{nav:{entryType:'replace-init', authView:'login'}}`. `showRegister()` does one `pushState` with `{nav:{entryType:'push', authView:'register'}}`. `showLogin()` uses dual back-trust check: `_authViewPushed` flag AND `nav.entryType === 'push' && nav.authView === 'register'`. `popstate` handler checks `nav.authView` and is pure render only (no pushState/back() inside).
+
 ### Login Form DS Runtime Adoption (PR feat/login-ds-runtime-adoption)
 
 The **login-only** fields apply DS-INP / DS-VAL / DS-BTN contracts.

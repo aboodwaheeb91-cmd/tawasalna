@@ -142,11 +142,43 @@
     <div class="bubble">
       <div class="form-title">تسجيل جديد</div>
 
-      <!-- DS-INP: name field -->
-      <div class="field" id="wrapper-rName">
+      <!-- DS-INP: Employee structured name (3 fields, emp type only) -->
+      <div id="empNameFields">
+        <div class="field" id="wrapper-rFirstName">
+          <label for="rFirstName">الاسم الأول</label>
+          <div class="l-input-wrap">
+            <input id="rFirstName" type="text" autocomplete="given-name" placeholder="الاسم الأول"
+                   aria-required="true"
+                   aria-invalid="false"
+                   aria-describedby="r-first-name-error">
+          </div>
+          <span id="r-first-name-error" class="field-error" role="alert" aria-live="polite" hidden></span>
+        </div>
+        <div class="field" id="wrapper-rMiddleName">
+          <label for="rMiddleName">الاسم الأوسط <span class="optional-tag">(اختياري)</span></label>
+          <div class="l-input-wrap">
+            <input id="rMiddleName" type="text" autocomplete="additional-name" placeholder="الاسم الأوسط (اختياري)"
+                   aria-required="false"
+                   aria-invalid="false">
+          </div>
+        </div>
+        <div class="field" id="wrapper-rLastName">
+          <label for="rLastName">اسم العائلة</label>
+          <div class="l-input-wrap">
+            <input id="rLastName" type="text" autocomplete="family-name" placeholder="اسم العائلة"
+                   aria-required="true"
+                   aria-invalid="false"
+                   aria-describedby="r-last-name-error">
+          </div>
+          <span id="r-last-name-error" class="field-error" role="alert" aria-live="polite" hidden></span>
+        </div>
+      </div>
+
+      <!-- DS-INP: Org name field (co/edu type only) -->
+      <div class="field" id="wrapper-rName" hidden>
         <label id="nameLabel" for="rName">الاسم الكامل</label>
         <div class="l-input-wrap">
-          <input id="rName" type="text" autocomplete="name" placeholder="اكتب اسمك..."
+          <input id="rName" type="text" autocomplete="organization" placeholder="اكتب الاسم..."
                  aria-required="true"
                  aria-invalid="false"
                  aria-describedby="r-name-error">

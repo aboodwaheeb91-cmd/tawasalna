@@ -1,7 +1,7 @@
 // index.auth.js — Auth Gateway: redirect logic, login, register
 // Responsibilities: redirect(), doLogin(), doRegister(), on-load session check.
 // Does NOT touch DOM appearance — UI effects live in index.ui.js.
-// Version: auth-gw-v5
+// Version: auth-gw-v9
 
 'use strict';
 
@@ -203,10 +203,11 @@ async function doLogin(){
       }
     });
     // Input: state machine drives all transitions
-    //   valid           → clear error
-    //   empty + attempted  → Required (re-arm)
-    //   empty + not attempted + was format → clear (no Required before first submit)
-    //   non-empty invalid   → Format
+    //   valid                                        → clear error
+    //   empty + attempted                            → Required (re-arm)
+    //   empty + not attempted + was format           → clear (no Required before first submit)
+    //   non-empty invalid + attempted or was format  → Format (live correction)
+    //   non-empty invalid + not attempted + no prior → wait for blur (VAL-05)
     emailEl.addEventListener('input', function(){
       _lClearFormError();
       var v = emailEl.value.trim();
@@ -221,10 +222,11 @@ async function doLogin(){
           _lEmailErrorKind = null;
           _lClearFieldError('wrapper-lEmail', 'l-email-error');
         }
-      } else {
+      } else if(_lSubmitAttempted || _lEmailErrorKind === 'format'){
         _lEmailErrorKind = 'format';
         _lShowFieldError('wrapper-lEmail', 'l-email-error', 'صيغة البريد الإلكتروني غير صحيحة');
       }
+      // else: non-empty invalid, no submit attempted, no prior blur format — wait for blur
     });
   }
   var passEl = document.getElementById('lPass');
@@ -250,23 +252,50 @@ var _rSubmitting      = false;  // BTN-09: duplicate-submit guard (register only
 async function doRegister(){
   if(_rSubmitting) return;  // BTN-09: block duplicate submit
 
-  var nameEl  = document.getElementById('rName');
   var emailEl = document.getElementById('rEmail');
   var passEl  = document.getElementById('rPass');
-  var name    = nameEl  ? nameEl.value.trim()  : '';
   var email   = emailEl ? emailEl.value.trim() : '';
   var pass    = passEl  ? passEl.value         : '';
+
+  // Collect name based on account type
+  var _regFirstName = '', _regMiddleName = '', _regLastName = '', _regOrgName = '';
+  if(curType === 'emp'){
+    var firstEl  = document.getElementById('rFirstName');
+    var middleEl = document.getElementById('rMiddleName');
+    var lastEl   = document.getElementById('rLastName');
+    _regFirstName  = firstEl  ? firstEl.value.trim()  : '';
+    _regMiddleName = middleEl ? middleEl.value.trim()  : '';
+    _regLastName   = lastEl   ? lastEl.value.trim()   : '';
+  } else {
+    var nameEl = document.getElementById('rName');
+    _regOrgName = nameEl ? nameEl.value.trim() : '';
+  }
 
   _rSubmitAttempted = true;
 
   // Inline field validation — collect all errors, show at once (DS-VAL VAL-06)
   // Clears stale errors for valid fields (autofill / password-manager)
   var hasError = false;
-  if(!name){
-    _lShowFieldError('wrapper-rName', 'r-name-error', 'الاسم مطلوب');
-    hasError = true;
+  if(curType === 'emp'){
+    if(!_regFirstName){
+      _lShowFieldError('wrapper-rFirstName', 'r-first-name-error', 'الاسم الأول مطلوب');
+      hasError = true;
+    } else {
+      _lClearFieldError('wrapper-rFirstName', 'r-first-name-error');
+    }
+    if(!_regLastName){
+      _lShowFieldError('wrapper-rLastName', 'r-last-name-error', 'اسم العائلة مطلوب');
+      hasError = true;
+    } else {
+      _lClearFieldError('wrapper-rLastName', 'r-last-name-error');
+    }
   } else {
-    _lClearFieldError('wrapper-rName', 'r-name-error');
+    if(!_regOrgName){
+      _lShowFieldError('wrapper-rName', 'r-name-error', 'الاسم مطلوب');
+      hasError = true;
+    } else {
+      _lClearFieldError('wrapper-rName', 'r-name-error');
+    }
   }
   if(!email){
     _rEmailErrorKind = 'required';
@@ -308,10 +337,19 @@ async function doRegister(){
   setBtnLoad(btn, true);
   var _success = false;
   try {
+    // Build payload: structured name for emp, full_name for co/edu
+    var payload = {email: email, password: pass, user_type: curType};
+    if(curType === 'emp'){
+      payload.first_name  = _regFirstName;
+      if(_regMiddleName) payload.middle_name = _regMiddleName;
+      payload.last_name   = _regLastName;
+    } else {
+      payload.full_name = _regOrgName;
+    }
     var res  = await fetch('/auth/register', {
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({full_name:name, email:email, password:pass, user_type:curType})
+      body:JSON.stringify(payload)
     });
     var data = await res.json();
     if(!res.ok){ toast(data.detail || 'خطأ في التسجيل', 'error'); return; }
@@ -335,10 +373,37 @@ async function doRegister(){
 // ── Register field validation events (DS-VAL VAL-05, VAL-12) ─────────────────
 // State machine — _rEmailErrorKind and _rSubmitAttempted are the source of truth.
 ;(function(){
+  var rFirstEl = document.getElementById('rFirstName');
+  var rLastEl  = document.getElementById('rLastName');
   var rNameEl  = document.getElementById('rName');
   var rEmailEl = document.getElementById('rEmail');
   var rPassEl  = document.getElementById('rPass');
 
+  // Emp first name — live clear after submit attempt
+  if(rFirstEl){
+    rFirstEl.addEventListener('input', function(){
+      if(!_rSubmitAttempted) return;
+      if(rFirstEl.value.trim()){
+        _lClearFieldError('wrapper-rFirstName', 'r-first-name-error');
+      } else {
+        _lShowFieldError('wrapper-rFirstName', 'r-first-name-error', 'الاسم الأول مطلوب');
+      }
+    });
+  }
+
+  // Emp last name — live clear after submit attempt
+  if(rLastEl){
+    rLastEl.addEventListener('input', function(){
+      if(!_rSubmitAttempted) return;
+      if(rLastEl.value.trim()){
+        _lClearFieldError('wrapper-rLastName', 'r-last-name-error');
+      } else {
+        _lShowFieldError('wrapper-rLastName', 'r-last-name-error', 'اسم العائلة مطلوب');
+      }
+    });
+  }
+
+  // Org name (co/edu)
   if(rNameEl){
     rNameEl.addEventListener('input', function(){
       if(!_rSubmitAttempted) return;
@@ -396,6 +461,18 @@ async function doRegister(){
     });
   }
 }());
+
+// ── Transient state reset helpers (called from index.ui.js on form switch) ───
+// Clears errors and submit flags without touching field values (fix H).
+function _resetRegisterTransientState(){
+  _rSubmitAttempted = false;
+  _rEmailErrorKind  = null;
+  _lClearFieldError('wrapper-rName',       'r-name-error');
+  _lClearFieldError('wrapper-rFirstName',  'r-first-name-error');
+  _lClearFieldError('wrapper-rLastName',   'r-last-name-error');
+  _lClearFieldError('wrapper-rEmail',      'r-email-error');
+  _lClearFieldError('wrapper-rPass',       'r-pass-error');
+}
 
 // ── Enter key shortcut ────────────────────────────────────────────────────────
 // Guard: only fire when user is actively focused on an INPUT element.
