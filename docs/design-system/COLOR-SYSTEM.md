@@ -548,6 +548,34 @@ feature CSS:
   color: var(--ac2);                    ⚠️ مقبول مؤقتاً (Legacy Alias) — يُستبدَل عند migration
 ```
 
+### Tier 3 موثَّقة — `.ep-*` (Edit Profile — `profile-v2.css`)
+
+**أُضيف في PR feat/edit-profile-phase1 — 2026-07-27**
+
+`profile-v2.css` (`.ep-*` namespace) هو **DS-COLOR Phase 2 Partial Adopter** — يُطبِّق Tier 3 Local Color Roles بشكل صحيح:
+
+| الرمز | القيمة / المرجع | الدور |
+|-------|----------------|-------|
+| `--ep-danger` | `var(--color-status-danger, #f87171)` | حالة خطأ → Semantic token |
+| `--ep-label` | `var(--color-text-muted, var(--t3, #6b7686))` | تسمية حقل → Semantic token |
+| `--ep-cancel-text` | `var(--color-text-secondary, var(--t2, #9aa5b4))` | نص زر إلغاء → Semantic token |
+| `--ep-border-focus` | `var(--color-border-focus, var(--color-brand-primary, #00c896))` | تركيز الحقل → Semantic token |
+| `--ep-save-from` | `var(--color-brand-primary, #00c896)` | تدرج زر الحفظ → Semantic token |
+| `--ep-input-bg` | `var(--color-surface-input, rgba(255,255,255,.05))` | خلفية الحقول → Semantic token |
+| `--ep-sheet-border` | `rgba(255,255,255,.10)` | حدود الـ sheet + الحقول (Local — لا معنى مشترك بعد) |
+| `--ep-divider` | `rgba(255,255,255,.08)` | الفواصل الأفقية (Local) |
+| `--ep-cancel-border` | `rgba(255,255,255,.12)` | حدود زر الإلغاء (Local) |
+| `--ep-backdrop` | `rgba(0,0,0,.65)` | طبقة التعتيم (Local — نفس قيمة DS-OVL المستقبلية) |
+| `--ep-close-bg` | `rgba(255,255,255,.08)` | خلفية زر الإغلاق (Local) |
+| `--ep-note-bg` | `rgba(37,99,255,.08)` | خلفية ملاحظة الاسم القديم (Local) |
+| `--ep-note-border` | `rgba(37,99,255,.2)` | حدود ملاحظة الاسم القديم (Local) |
+| `--ep-surface` | `#0f1420` | خلفية الـ sheet (Local) |
+
+**قواعد دائمة:**
+- الرموز التي تُشير لـ DS-COLOR Semantic tokens تُرقَّى تلقائياً عند تحديث الـ token
+- الرموز Local (raw rgba) تظل كما هي حتى DS-OVL Runtime يُوحِّدها
+- **Zero Visual Change contract:** كل قيم rgba مطابقة للقيم الأصلية ما قبل Phase 2 — ممنوع تغييرها دون PR مُعلَن
+
 ---
 
 ## CLR-16 — company.css — Architectural Debt & Migration Intent

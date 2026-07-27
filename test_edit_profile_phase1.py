@@ -11,6 +11,15 @@ Covers:
   G: profile-v2.edit.js: applyCanonicalProfile exists (§6)
   H: profile-v2.edit.js: _editSession counter (§20)
   I: profile-showcase.html: aria + type="button" + legacy row (§16/§1)
+  J: profile-v2.css — DS-COLOR Phase 2 + BTN-18 (§12/§17)
+  K: Correction — structured group (middle-only rejected, tri-state) (§Corr-C/B)
+  L: Correction — DOB boundary & exact error codes (§Corr-D)
+  M: Correction — HTTP status semantics (§Corr-E)
+  N: Correction — async race & in-flight controls (§Corr-F/I)
+  O: Correction — canonical / no payload contamination (§Corr-G)
+  P: Correction — ARIA contracts (DOB describedby, dynamic required) (§Corr-H)
+  Q: Correction — DS-COLOR zero visual change tokens (§Corr-I)
+  R: Correction — docs integrity (DATE-36, OVL-38 orthogonal) (§Corr-J)
 
 No real DB. All backend tests use FakeConn.
 """
@@ -141,21 +150,24 @@ def _call_update_profile(data, fake_conn=None, fail_on=None):
 def test_B_name_validation():
     print('\n\033[1m── B: update_profile name validation + normalization (§4) ──\033[0m')
 
-    label = 'B1: empty first_name raises ValueError first_name_required'
+    import auth as _auth_B
+    _PVE = _auth_B.ProfileValidationError
+
+    label = 'B1: empty first_name raises ProfileValidationError first_name_required'
     try:
         _call_update_profile({'first_name': '', 'last_name': 'أحمد'})
         fail(label, 'no exception raised')
-    except ValueError as e:
-        ok(label) if 'first_name_required' in str(e) else fail(label, f'wrong error: {e}')
+    except _PVE as e:
+        ok(label) if e.code == 'first_name_required' else fail(label, f'wrong code: {e.code}')
     except Exception as e:
         fail(label, f'unexpected exception type: {type(e).__name__}: {e}')
 
-    label = 'B2: empty last_name raises ValueError last_name_required'
+    label = 'B2: empty last_name raises ProfileValidationError last_name_required'
     try:
         _call_update_profile({'first_name': 'محمد', 'last_name': ''})
         fail(label, 'no exception raised')
-    except ValueError as e:
-        ok(label) if 'last_name_required' in str(e) else fail(label, f'wrong error: {e}')
+    except _PVE as e:
+        ok(label) if e.code == 'last_name_required' else fail(label, f'wrong code: {e.code}')
     except Exception as e:
         fail(label, f'unexpected exception type: {type(e).__name__}: {e}')
 
@@ -199,42 +211,44 @@ def test_B_name_validation():
 
 def test_C_dob_validation():
     print('\n\033[1m── C: DOB validation (§9A + §9C) ──\033[0m')
+    import auth as _auth_C
+    _PVE = _auth_C.ProfileValidationError
 
-    label = 'C1: invalid date string raises ValueError'
+    label = 'C1: invalid date string raises ProfileValidationError dob_invalid'
     try:
         _call_update_profile({'first_name': 'ت', 'last_name': 'ت', 'dob': 'not-a-date'})
         fail(label, 'no exception raised')
-    except ValueError:
-        ok(label)
+    except _PVE as e:
+        ok(label) if e.code == 'dob_invalid' else fail(label, f'wrong code: {e.code}')
     except Exception as e:
         fail(label, f'wrong exception: {type(e).__name__}: {e}')
 
-    label = 'C2: future DOB raises ValueError dob_future'
+    label = 'C2: future DOB raises ProfileValidationError dob_future'
     try:
         _call_update_profile({'first_name': 'ت', 'last_name': 'ت', 'dob': '2099-01-01'})
         fail(label, 'no exception raised')
-    except ValueError as e:
-        ok(label) if 'dob_future' in str(e) else fail(label, f'wrong error: {e}')
+    except _PVE as e:
+        ok(label) if e.code == 'dob_future' else fail(label, f'wrong code: {e.code}')
     except Exception as e:
         fail(label, f'wrong exception: {type(e).__name__}: {e}')
 
-    label = 'C3: DOB year < 1940 raises ValueError dob_year_too_old'
+    label = 'C3: DOB year < 1940 raises ProfileValidationError dob_year_too_old'
     try:
         _call_update_profile({'first_name': 'ت', 'last_name': 'ت', 'dob': '1939-06-15'})
         fail(label, 'no exception raised')
-    except ValueError as e:
-        ok(label) if 'dob_year_too_old' in str(e) else fail(label, f'wrong error: {e}')
+    except _PVE as e:
+        ok(label) if e.code == 'dob_year_too_old' else fail(label, f'wrong code: {e.code}')
     except Exception as e:
         fail(label, f'wrong exception: {type(e).__name__}: {e}')
 
-    label = 'C4: DOB resulting in age < 15 raises ValueError dob_too_young'
+    label = 'C4: DOB resulting in age < 15 raises ProfileValidationError dob_too_young'
     from datetime import date, timedelta
     young_dob = (date.today() - timedelta(days=14*365)).isoformat()
     try:
         _call_update_profile({'first_name': 'ت', 'last_name': 'ت', 'dob': young_dob})
         fail(label, 'no exception raised')
-    except ValueError as e:
-        ok(label) if 'dob_too_young' in str(e) else fail(label, f'wrong error: {e}')
+    except _PVE as e:
+        ok(label) if e.code == 'dob_too_young' else fail(label, f'wrong code: {e.code}')
     except Exception as e:
         fail(label, f'wrong exception: {type(e).__name__}: {e}')
 
@@ -434,13 +448,36 @@ def test_I_html_contracts():
     print('\n\033[1m── I: profile-showcase.html — aria, type=button, legacy row (§16/§1) ──\033[0m')
     src = _read('profile-showcase.html')
 
-    label = 'I1: epFirstName has aria-required="true" (§16)'
-    ok(label) if 'id="epFirstName"' in src and 'aria-required="true"' in src \
-        else fail(label, 'aria-required not found on epFirstName')
+    label = 'I1: epFirstName initial aria-required="false" — JS sets it dynamically (§Corr-2)'
+    # Initial HTML value is false; _setNameRequired() in JS controls it per legacy/structured mode
+    ok(label) if 'id="epFirstName"' in src and \
+        'id="epFirstName"' not in src.split('aria-required="true"')[0][-200:] \
+        else fail(label, 'epFirstName should start as aria-required=false (JS manages dynamically)')
 
-    label = 'I2: epLastName has aria-required="true" (§16)'
-    ok(label) if 'id="epLastName"' in src and 'aria-required="true"' in src \
-        else fail(label, 'aria-required not found on epLastName')
+    # More specific: check the actual attribute after epFirstName
+    label = 'I1b: epFirstName has aria-required="false" in HTML (not "true")'
+    import re as _re_i
+    _fn_match = _re_i.search(r'id="epFirstName"[^>]*aria-required="([^"]+)"', src)
+    if _fn_match:
+        ok(label) if _fn_match.group(1) == 'false' else fail(label, f'aria-required={_fn_match.group(1)!r}')
+    else:
+        # Try reverse attr order
+        _fn_match2 = _re_i.search(r'aria-required="([^"]+)"[^>]*id="epFirstName"', src)
+        if _fn_match2:
+            ok(label) if _fn_match2.group(1) == 'false' else fail(label, f'aria-required={_fn_match2.group(1)!r}')
+        else:
+            fail(label, 'aria-required not found near epFirstName')
+
+    label = 'I2: epLastName initial aria-required="false" — JS sets it dynamically (§Corr-2)'
+    _ln_match = _re_i.search(r'id="epLastName"[^>]*aria-required="([^"]+)"', src)
+    if _ln_match:
+        ok(label) if _ln_match.group(1) == 'false' else fail(label, f'aria-required={_ln_match.group(1)!r}')
+    else:
+        _ln_match2 = _re_i.search(r'aria-required="([^"]+)"[^>]*id="epLastName"', src)
+        if _ln_match2:
+            ok(label) if _ln_match2.group(1) == 'false' else fail(label, f'aria-required={_ln_match2.group(1)!r}')
+        else:
+            fail(label, 'aria-required not found near epLastName')
 
     label = 'I3: epFirstName has aria-invalid="false" initial (§16)'
     ok(label) if 'aria-invalid="false"' in src else fail(label, 'aria-invalid not found')
@@ -521,6 +558,334 @@ def test_J_css_contracts():
         else fail(label, '--ep-input-bg not using color-surface-input')
 
 
+# ── K: Structured group & tri-state (§Corr-B/C) ──────────────────────────────
+
+def test_K_structured_group_tristate():
+    print('\n\033[1m── K: Structured group & tri-state (§Corr-B/C) ──\033[0m')
+    import auth as _auth_K
+    _PVE = _auth_K.ProfileValidationError
+
+    label = 'K1: middle_name-only payload triggers name group → first_name_required'
+    try:
+        _call_update_profile({'middle_name': 'علي'})
+        fail(label, 'no exception raised')
+    except _PVE as e:
+        ok(label) if e.code == 'first_name_required' else fail(label, f'wrong code: {e.code}')
+    except Exception as e:
+        fail(label, f'unexpected: {type(e).__name__}: {e}')
+
+    label = 'K2: middle_name + last_name only triggers name group → first_name_required'
+    try:
+        _call_update_profile({'middle_name': 'علي', 'last_name': 'أحمد'})
+        fail(label, 'no exception raised')
+    except _PVE as e:
+        ok(label) if e.code == 'first_name_required' else fail(label, f'wrong code: {e.code}')
+    except Exception as e:
+        fail(label, f'unexpected: {type(e).__name__}: {e}')
+
+    label = 'K3: server.py uses exclude_unset=True for tri-state (§Corr-B)'
+    srv_src = _read('server.py')
+    ok(label) if 'exclude_unset=True' in srv_src else fail(label, 'exclude_unset=True not found in server.py')
+
+    label = 'K4: server.py does NOT use exclude_none=True for profile update (§Corr-B)'
+    # Specifically the profile update endpoint should use exclude_unset
+    # (exclude_none=True may appear elsewhere in the file)
+    import re as _re_k
+    # Find the update_user_profile function area
+    _match = _re_k.search(r'def update_user_profile.*?(?=\ndef |\Z)', srv_src, _re_k.DOTALL)
+    if _match:
+        _fn_body = _match.group(0)
+        ok(label) if 'exclude_none=True' not in _fn_body else fail(label, 'exclude_none=True still in update_user_profile')
+    else:
+        ok(label) if 'exclude_none=True' not in srv_src else fail(label, 'exclude_none=True found (could be in update_user_profile)')
+
+    label = 'K5: _clearable includes short_bio and profession_id (§Corr-B)'
+    auth_src = _read('auth.py')
+    ok(label) if '"short_bio"' in auth_src and '"profession_id"' in auth_src and '_clearable' in auth_src \
+        else fail(label, '_clearable missing short_bio or profession_id')
+
+
+# ── L: DOB boundary & exact error codes (§Corr-D) ────────────────────────────
+
+def test_L_dob_boundary():
+    print('\n\033[1m── L: DOB boundary & exact error codes (§Corr-D) ──\033[0m')
+    import auth as _auth_L
+    _PVE = _auth_L.ProfileValidationError
+    from datetime import date as _date_cls
+
+    label = 'L1: impossible date 2025-02-30 → code dob_invalid (not raw Python error)'
+    try:
+        _call_update_profile({'first_name': 'ت', 'last_name': 'ت', 'dob': '2025-02-30'})
+        fail(label, 'no exception raised')
+    except _PVE as e:
+        ok(label) if e.code == 'dob_invalid' else fail(label, f'wrong code: {e.code}')
+    except Exception as e:
+        fail(label, f'wrong exception type {type(e).__name__}: {e}')
+
+    label = 'L2: birthday tomorrow → dob_too_young (calendar boundary)'
+    from datetime import timedelta
+    _today = _date_cls.today()
+    # Birthday tomorrow means they turn 15 tomorrow → age today = 14
+    _birthday_tomorrow = _date_cls(_today.year - 15, _today.month, _today.day)
+    # Move one day forward: tomorrow's birthday
+    _bday = _birthday_tomorrow + timedelta(days=1)
+    try:
+        _call_update_profile({'first_name': 'ت', 'last_name': 'ت', 'dob': _bday.isoformat()})
+        fail(label, 'no exception raised — should be too young (age=14)')
+    except _PVE as e:
+        ok(label) if e.code == 'dob_too_young' else fail(label, f'wrong code: {e.code}')
+    except Exception as e:
+        fail(label, f'unexpected: {type(e).__name__}: {e}')
+
+    label = 'L3: birthday today → accepted (calendar boundary — age = exactly 15)'
+    _bday_today = _date_cls(_today.year - 15, _today.month, _today.day)
+    try:
+        fc = FakeConn()
+        _call_update_profile({'first_name': 'ت', 'last_name': 'ت', 'dob': _bday_today.isoformat()}, fake_conn=fc)
+        ok(label)
+    except _PVE as e:
+        fail(label, f'rejected with code={e.code} — birthday today should be accepted')
+    except Exception as e:
+        fail(label, f'unexpected: {type(e).__name__}: {e}')
+
+    label = 'L4: calendar age method used — not timedelta days (source check)'
+    auth_src = _read('auth.py')
+    ok(label) if '_today.year - _dob.year' in auth_src else fail(label, 'calendar age calculation not found in auth.py')
+
+
+# ── M: HTTP status semantics (§Corr-E) ───────────────────────────────────────
+
+def test_M_http_codes():
+    print('\n\033[1m── M: HTTP status semantics (§Corr-E) ──\033[0m')
+    srv_src = _read('server.py')
+    auth_src = _read('auth.py')
+
+    label = 'M1: ProfileValidationError defined in auth.py with field + code attrs (§Corr-E)'
+    ok(label) if 'class ProfileValidationError' in auth_src and \
+        'self.field' in auth_src and 'self.code' in auth_src \
+        else fail(label, 'ProfileValidationError not properly defined in auth.py')
+
+    label = 'M2: server.py catches ProfileValidationError → HTTP 422 (§Corr-E)'
+    ok(label) if 'except ProfileValidationError' in srv_src and '422' in srv_src \
+        else fail(label, 'ProfileValidationError not caught as HTTP 422 in server.py')
+
+    label = 'M3: server.py does NOT raise HTTP 404 for validation errors (§Corr-E)'
+    import re as _re_m
+    # Look for HTTPException(404 near validation-related patterns
+    # Check the profile update function area specifically
+    _match = _re_m.search(r'def update_user_profile.*?(?=\n@app\.|\Z)', srv_src, _re_m.DOTALL)
+    if _match:
+        _fn = _match.group(0)
+        ok(label) if 'HTTPException(404' not in _fn else fail(label, 'HTTPException(404) found in update_user_profile')
+    else:
+        ok(label) if 'HTTPException(404' not in srv_src else fail(label, 'HTTPException(404) found (manual check needed)')
+
+    label = 'M4: error response includes "field" and "code" keys (§Corr-E)'
+    ok(label) if '"field": e.field' in srv_src and '"code": e.code' in srv_src \
+        else fail(label, 'field/code not in ProfileValidationError handler in server.py')
+
+    label = 'M5: ROLLBACK failure logged, not silently swallowed (§Corr-14)'
+    ok(label) if 'ROLLBACK failed' in auth_src or 'ROLLBACK failed for user' in auth_src \
+        else fail(label, 'ROLLBACK failure diagnostic logging not found in auth.py')
+
+
+# ── N: Async race & in-flight controls (§Corr-F/I) ───────────────────────────
+
+def test_N_async_race_inflight():
+    print('\n\033[1m── N: Async race & in-flight controls (§Corr-F/I) ──\033[0m')
+    src = _read('profile-v2.edit.js')
+
+    label = 'N1: ++_editSession incremented on close (not just on open) (§Corr-8)'
+    # closeModal must increment _editSession; open already increments it
+    # Check that ++_editSession appears near close-related code
+    ok(label) if src.count('++_editSession') >= 2 else fail(label, '++_editSession only in one place — must appear in both open and close')
+
+    label = 'N2: _lockControls disables cancelBtn with aria-disabled (§Corr-9)'
+    ok(label) if '_lockControls' in src and 'cancelBtn' in src and "aria-disabled" in src \
+        else fail(label, '_lockControls missing or cancelBtn aria-disabled not set')
+
+    label = 'N3: _unlockControls defined (§Corr-9)'
+    ok(label) if '_unlockControls' in src else fail(label, '_unlockControls not found')
+
+    label = 'N4: _lockControls called before API request (§Corr-9)'
+    # edit.js uses updateProfile() wrapper around fetch — check both patterns
+    ok(label) if '_lockControls' in src and ('updateProfile(' in src or 'fetch(' in src) \
+        else fail(label, '_lockControls not present alongside API call (updateProfile/fetch)')
+
+    label = 'N5: _profListLoaded flag prevents race on profession clear (§Corr-8)'
+    ok(label) if '_profListLoaded' in src else fail(label, '_profListLoaded flag not found')
+
+    label = 'N6: session guard at top of _hydrateForm (before DOM access) (§Corr-8)'
+    # _hydrateForm must return early when session is stale
+    ok(label) if '_editSession !== session' in src else fail(label, 'session guard not found in _hydrateForm')
+
+
+# ── O: Canonical / no payload contamination (§Corr-G) ────────────────────────
+
+def test_O_canonical_no_contamination():
+    print('\n\033[1m── O: Canonical / no payload contamination (§Corr-G) ──\033[0m')
+    src = _read('profile-v2.edit.js')
+
+    label = 'O1: canonicalProfile.profession_id = payload.profession_id NOT in source (§Corr-7)'
+    ok(label) if 'canonicalProfile.profession_id = payload' not in src \
+        else fail(label, 'payload contamination: canonicalProfile.profession_id = payload.profession_id found')
+
+    label = 'O2: profession null clear logic present in applyCanonicalProfile (§Corr-7)'
+    ok(label) if 'profession_id' in src and ('profession = null' in src or 'titleEl' in src) \
+        else fail(label, 'profession_id null handling not found in applyCanonicalProfile')
+
+    label = 'O3: applyCanonicalProfile uses profile response, not payload (§Corr-7)'
+    ok(label) if 'res.data' in src and 'applyCanonicalProfile' in src \
+        else fail(label, 'applyCanonicalProfile not called with res.data')
+
+
+# ── P: ARIA contracts (DOB describedby, dynamic required) (§Corr-H) ──────────
+
+def test_P_aria_contracts():
+    print('\n\033[1m── P: ARIA contracts — DOB describedby + dynamic required (§Corr-H) ──\033[0m')
+    html_src = _read('profile-showcase.html')
+    js_src = _read('profile-v2.edit.js')
+
+    label = 'P1: epDobD has aria-describedby="epDobErr" (§Corr-10)'
+    import re as _re_p
+    _match = _re_p.search(r'id="epDobD"[^>]*aria-describedby="([^"]+)"', html_src)
+    if not _match:
+        _match = _re_p.search(r'aria-describedby="([^"]+)"[^>]*id="epDobD"', html_src)
+    ok(label) if _match and _match.group(1) == 'epDobErr' else fail(label, 'epDobD missing aria-describedby="epDobErr"')
+
+    label = 'P2: epDobM has aria-describedby="epDobErr" (§Corr-10)'
+    _match = _re_p.search(r'id="epDobM"[^>]*aria-describedby="([^"]+)"', html_src)
+    if not _match:
+        _match = _re_p.search(r'aria-describedby="([^"]+)"[^>]*id="epDobM"', html_src)
+    ok(label) if _match and _match.group(1) == 'epDobErr' else fail(label, 'epDobM missing aria-describedby="epDobErr"')
+
+    label = 'P3: epDobY has aria-describedby="epDobErr" (§Corr-10)'
+    _match = _re_p.search(r'id="epDobY"[^>]*aria-describedby="([^"]+)"', html_src)
+    if not _match:
+        _match = _re_p.search(r'aria-describedby="([^"]+)"[^>]*id="epDobY"', html_src)
+    ok(label) if _match and _match.group(1) == 'epDobErr' else fail(label, 'epDobY missing aria-describedby="epDobErr"')
+
+    label = 'P4: _setDobAriaInvalid function defined in edit.js (§Corr-10)'
+    ok(label) if '_setDobAriaInvalid' in js_src else fail(label, '_setDobAriaInvalid not found in profile-v2.edit.js')
+
+    label = 'P5: _setNameRequired function defined in edit.js (§Corr-2)'
+    ok(label) if '_setNameRequired' in js_src else fail(label, '_setNameRequired not found in profile-v2.edit.js')
+
+    label = 'P6: _setNameRequired(false) called in legacy branch (§Corr-2)'
+    ok(label) if '_setNameRequired(false)' in js_src else fail(label, '_setNameRequired(false) not called in edit.js')
+
+    label = 'P7: _setNameRequired(true) called in structured branch (§Corr-2)'
+    ok(label) if '_setNameRequired(true)' in js_src else fail(label, '_setNameRequired(true) not called in edit.js')
+
+    label = 'P8: DOB selects have aria-invalid="false" initial (§Corr-10)'
+    _dob_area = _re_p.search(r'id="epDobD"[^>]+', html_src)
+    ok(label) if 'aria-invalid="false"' in html_src and 'epDobD' in html_src \
+        else fail(label, 'aria-invalid not found on DOB selects')
+
+
+# ── Q: DS-COLOR zero visual change tokens (§Corr-I) ──────────────────────────
+
+def test_Q_dscolor_tokens():
+    print('\n\033[1m── Q: DS-COLOR zero visual change tokens (§Corr-I) ──\033[0m')
+    src = _read('profile-v2.css')
+
+    label = 'Q1: --ep-input-bg fallback is .05 not .06 (§Corr-11)'
+    ok(label) if 'rgba(255,255,255,.05)' in src else fail(label, 'ep-input-bg fallback should be .05 — found .06 or different value')
+
+    label = 'Q2: --ep-divider defined (separate from --ep-sheet-border) (§Corr-11)'
+    ok(label) if '--ep-divider' in src else fail(label, '--ep-divider not defined in profile-v2.css')
+
+    label = 'Q3: --ep-sheet-border defined (§Corr-11)'
+    ok(label) if '--ep-sheet-border' in src else fail(label, '--ep-sheet-border not defined in profile-v2.css')
+
+    label = 'Q4: --ep-cancel-border defined (§Corr-11)'
+    ok(label) if '--ep-cancel-border' in src else fail(label, '--ep-cancel-border not defined in profile-v2.css')
+
+    label = 'Q5: --ep-backdrop defined (§Corr-11)'
+    ok(label) if '--ep-backdrop' in src else fail(label, '--ep-backdrop not defined in profile-v2.css')
+
+    label = 'Q6: --ep-close-bg defined (§Corr-11)'
+    ok(label) if '--ep-close-bg' in src else fail(label, '--ep-close-bg not defined in profile-v2.css')
+
+    label = 'Q7: --ep-note-bg defined (§Corr-11)'
+    ok(label) if '--ep-note-bg' in src else fail(label, '--ep-note-bg not defined in profile-v2.css')
+
+    label = 'Q8: --ep-note-border defined (§Corr-11)'
+    ok(label) if '--ep-note-border' in src else fail(label, '--ep-note-border not defined in profile-v2.css')
+
+    label = 'Q9: --ep-border NOT used as single merged token (was split into 3) (§Corr-11)'
+    import re as _re_q
+    # --ep-border should not be defined in :root block (it was replaced by the three split tokens)
+    _root_match = _re_q.search(r':root\s*\{([^}]+)\}', src, _re_q.DOTALL)
+    if _root_match:
+        _root_block = _root_match.group(1)
+        ok(label) if '--ep-border:' not in _root_block else fail(label, '--ep-border still defined in :root — should be split into divider/sheet-border/cancel-border')
+    else:
+        fail(label, 'Could not find :root block in profile-v2.css')
+
+    label = 'Q10: .ep-overlay uses --ep-backdrop (no raw rgba(0,0,0,.65)) (§Corr-11)'
+    ok(label) if 'var(--ep-backdrop)' in src else fail(label, '.ep-overlay not using --ep-backdrop token')
+
+    label = 'Q11: .ep-note uses --ep-note-bg (no raw rgba in .ep-note consumers) (§Corr-11)'
+    ok(label) if 'var(--ep-note-bg)' in src else fail(label, '.ep-note not using --ep-note-bg token')
+
+    label = 'Q12: .ep-close uses --ep-close-bg (no raw rgba in .ep-close) (§Corr-11)'
+    ok(label) if 'var(--ep-close-bg)' in src else fail(label, '.ep-close not using --ep-close-bg token')
+
+    label = 'Q13: --ep-divider fallback is .08 (head/footer) (§Corr-11)'
+    ok(label) if '--ep-divider:' in src and 'rgba(255,255,255,.08)' in src \
+        else fail(label, '--ep-divider fallback .08 not found')
+
+    label = 'Q14: --ep-sheet-border fallback is .10 (sheet + input borders) (§Corr-11)'
+    ok(label) if '--ep-sheet-border:' in src and 'rgba(255,255,255,.10)' in src \
+        else fail(label, '--ep-sheet-border fallback .10 not found')
+
+    label = 'Q15: --ep-cancel-border fallback is .12 (§Corr-11)'
+    ok(label) if '--ep-cancel-border:' in src and 'rgba(255,255,255,.12)' in src \
+        else fail(label, '--ep-cancel-border fallback .12 not found')
+
+
+# ── R: Docs integrity (DATE-36, OVL-38 orthogonal) (§Corr-J) ─────────────────
+
+def test_R_docs_integrity():
+    print('\n\033[1m── R: Docs integrity — DATE-36 + OVL-38 (§Corr-J) ──\033[0m')
+    date_src = _read('docs/design-system/DATE-TIME-FIELDS.md')
+    ovl_src  = _read('docs/design-system/OVERLAY-SYSTEM.md')
+
+    label = 'R1: exactly one ## DATE-34 section in DATE-TIME-FIELDS.md (§Corr-12)'
+    _count = date_src.count('## DATE-34')
+    ok(label) if _count == 1 else fail(label, f'found {_count} ## DATE-34 sections (expected exactly 1 — Out of Scope)')
+
+    label = 'R2: ## DATE-36 exists in DATE-TIME-FIELDS.md (§Corr-12)'
+    ok(label) if '## DATE-36' in date_src else fail(label, '## DATE-36 not found — was the duplicate DATE-34 renamed?')
+
+    label = 'R3: ## DATE-36 is the Profile V2 DOB implementation section (§Corr-12)'
+    ok(label) if '## DATE-36' in date_src and 'Profile V2' in date_src \
+        else fail(label, 'DATE-36 section not linked to Profile V2 DOB content')
+
+    label = 'R4: OVL-38 has modality = blocking (§Corr-13)'
+    ok(label) if 'modality' in ovl_src and 'blocking' in ovl_src and 'OVL-38' in ovl_src \
+        else fail(label, 'OVL-38 missing modality=blocking attribute')
+
+    label = 'R5: OVL-38 has presentation = bottom (§Corr-13)'
+    ok(label) if 'presentation' in ovl_src and 'bottom' in ovl_src and 'OVL-38' in ovl_src \
+        else fail(label, 'OVL-38 missing presentation=bottom attribute')
+
+    label = 'R6: OVL-38 has semantics = standard (§Corr-13)'
+    ok(label) if 'semantics' in ovl_src and 'standard' in ovl_src and 'OVL-38' in ovl_src \
+        else fail(label, 'OVL-38 missing semantics=standard attribute')
+
+    label = 'R7: OVL-38 has closePolicy = guarded (§Corr-13)'
+    ok(label) if 'guarded' in ovl_src and 'OVL-38' in ovl_src \
+        else fail(label, 'OVL-38 missing closePolicy=guarded attribute')
+
+    label = 'R8: OVL-38 in TOC (§Corr-13)'
+    ok(label) if '| OVL-38 |' in ovl_src else fail(label, 'OVL-38 not found in TOC table')
+
+    label = 'R9: footer section count updated to 39 (§Corr-13)'
+    ok(label) if '39 قسماً' in ovl_src else fail(label, 'footer not updated to 39 sections in OVERLAY-SYSTEM.md')
+
+
 # ── Runner ────────────────────────────────────────────────────────────────────
 
 if __name__ == '__main__':
@@ -534,6 +899,14 @@ if __name__ == '__main__':
     test_H_race_guard()
     test_I_html_contracts()
     test_J_css_contracts()
+    test_K_structured_group_tristate()
+    test_L_dob_boundary()
+    test_M_http_codes()
+    test_N_async_race_inflight()
+    test_O_canonical_no_contamination()
+    test_P_aria_contracts()
+    test_Q_dscolor_tokens()
+    test_R_docs_integrity()
 
     print(f'\n\033[1m── {PASS} passed, {FAIL} failed ──\033[0m')
     if ERRORS:

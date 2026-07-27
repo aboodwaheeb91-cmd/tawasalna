@@ -36,6 +36,15 @@ class ContentValidationError(ValueError):
         self.message = message
 
 
+class ProfileValidationError(Exception):
+    """Typed profile field validation error — maps to HTTP 422 with field+code."""
+    def __init__(self, field: str, code: str, message: str):
+        super().__init__(code)
+        self.field = field
+        self.code = code
+        self.message = message
+
+
 class EmojiError(ContentValidationError):
     """Raised when a text field contains emoji / pictographic symbols."""
     def __init__(self, field: str):
@@ -1181,33 +1190,36 @@ def update_profile(user_id: int, data: dict) -> dict:
     _middle = _norm_name(data.get("middle_name")) if "middle_name" in data else None
     _last   = _norm_name(data.get("last_name"))   if "last_name"   in data else None
 
-    # Structured-name validation (§4): reject empty first/last when structured path triggered
-    if _first is not None or _last is not None:
+    # Structured-name = atomic group (§4): ANY of first/middle/last in payload triggers mutation.
+    # middle-only request is rejected — full_name cannot be composed without first + last.
+    _name_keys = {'first_name', 'middle_name', 'last_name'}
+    _name_mutation = bool(_name_keys & set(data.keys()))
+    if _name_mutation:
         if not _first:
-            raise ValueError("first_name_required")
+            raise ProfileValidationError(field='first_name', code='first_name_required', message='الاسم الأول مطلوب')
         if not _last:
-            raise ValueError("last_name_required")
+            raise ProfileValidationError(field='last_name', code='last_name_required', message='اسم العائلة مطلوب')
     # Empty middle → null (§4)
     if _middle is not None and not _middle:
         _middle = None
 
-    # DOB validation (§9A)
+    # DOB validation (§9A) — calendar age, no raw Python error messages
     _dob_str = data.get("dob")
     if _dob_str:
+        from datetime import date as _date_cls
         try:
-            from datetime import date as _date_cls
             _dob = _date_cls.fromisoformat(_dob_str)
-            _today = _date_cls.today()
-            if _dob >= _today:
-                raise ValueError("dob_future")
-            if _dob.year < _DOB_MIN_YEAR:
-                raise ValueError("dob_year_too_old")
-            if (_today - _dob).days < _DOB_MIN_AGE * 365:
-                raise ValueError("dob_too_young")
-        except ValueError:
-            raise
-        except Exception:
-            raise ValueError("dob_invalid")
+        except (ValueError, Exception):
+            raise ProfileValidationError(field='dob', code='dob_invalid', message='تاريخ الميلاد غير صحيح')
+        _today = _date_cls.today()
+        if _dob >= _today:
+            raise ProfileValidationError(field='dob', code='dob_future', message='تاريخ الميلاد لا يمكن أن يكون في المستقبل')
+        if _dob.year < _DOB_MIN_YEAR:
+            raise ProfileValidationError(field='dob', code='dob_year_too_old', message=f'سنة الميلاد يجب أن تكون بعد {_DOB_MIN_YEAR}')
+        # Calendar age: (year diff) minus 1 if birthday hasn't occurred yet this year
+        _age = (_today.year - _dob.year) - (1 if (_today.month, _today.day) < (_dob.month, _dob.day) else 0)
+        if _age < _DOB_MIN_AGE:
+            raise ProfileValidationError(field='dob', code='dob_too_young', message=f'يجب أن يكون العمر {_DOB_MIN_AGE} سنوات على الأقل')
 
     _t0 = _time_mod.time()
     _cache_del('profile:'+str(user_id))
@@ -1239,7 +1251,7 @@ def update_profile(user_id: int, data: dict) -> dict:
 
             # Schema guaranteed by init_db — no runtime ALTER TABLE needed
             allowed = ["headline", "bio", "short_bio", "location", "skills", "avatar_url", "website", "phone", "sections_order", "custom_sections", "dob", "country", "city", "avail", "title", "profile_color", "profile_style", "profession_id", "first_name", "middle_name", "last_name", "cover_url"]
-            _clearable = {"dob", "country", "city", "avail", "middle_name"}
+            _clearable = {"dob", "country", "city", "avail", "middle_name", "short_bio", "profession_id"}
             fields = {k: v for k, v in data.items() if k in allowed and (v is not None or k in _clearable)}
             print(f"[update_profile] user={user_id} saving fields: {list(fields.keys())}")
 
@@ -1264,10 +1276,12 @@ def update_profile(user_id: int, data: dict) -> dict:
                 )
             conn.run("COMMIT")
             _committed = True
-        except Exception:
+        except Exception as _outer_exc:
             if not _committed:
-                try: conn.run("ROLLBACK")
-                except Exception: pass
+                try:
+                    conn.run("ROLLBACK")
+                except Exception as _rb_exc:
+                    print(f"[update_profile] ROLLBACK failed for user={user_id}: {_rb_exc} (original error: {_outer_exc})")
             raise
     finally:
         release_conn(conn)

@@ -131,7 +131,7 @@ from auth import (
     get_pipeline_application_index_status,
     _APPLICANT_SORT_MAP,
 )
-from auth import ContentValidationError, validate_professional_text, JobArchivedError, _norm_name
+from auth import ContentValidationError, validate_professional_text, JobArchivedError, _norm_name, ProfileValidationError
 
 # ── Secrets from environment — NEVER hardcoded in source ──
 # Required Railway Variables:
@@ -3431,8 +3431,10 @@ def update_user_profile(user_id: int, data: ProfileUpdateInput, token=Depends(ve
     if str(tok_uid) != str(user_id):
         print(f"[PUT /profile] MISMATCH: token={tok_uid} url={user_id}")
         raise HTTPException(403, "Unauthorized")
-    payload = data.dict(exclude_none=True)
-    if "profession_id" in payload:
+    # exclude_unset=True preserves explicit null (field=null = CLEAR) vs omitted (no change)
+    payload = data.dict(exclude_unset=True)
+    # Validate profession_id only when it is explicitly set to a non-null value
+    if payload.get("profession_id") is not None:
         conn = get_conn()
         try:
             rows = conn.run("SELECT id FROM profession_categories WHERE id = :pid AND is_active = TRUE", pid=payload["profession_id"])
@@ -3446,12 +3448,16 @@ def update_user_profile(user_id: int, data: ProfileUpdateInput, token=Depends(ve
         updated_keys = list(payload.keys())
         print(f"[PUT /profile] ✅ user={user_id} fields={updated_keys} — {_time.time()-_t0:.3f}s total")
         return {"status": "success", "profile": profile, "updated_fields": updated_keys}
+    except ProfileValidationError as e:
+        raise HTTPException(422, detail={"ok": False, "field": e.field, "code": e.code, "error": e.message})
     except ContentValidationError as e:
         raise HTTPException(422, detail={"status": "error", "message": e.message, "field": e.field})
     except ValueError as e:
-        raise HTTPException(404, detail=str(e))
+        # no_profile_row or other internal data errors — not a client validation error
+        print(f"[PUT /profile] ValueError user={user_id}: {e}")
+        raise HTTPException(500, detail="خطأ في الخادم")
     except Exception as e:
-        print(f"Profile update error: {e}")
+        print(f"[PUT /profile] ERROR user={user_id}: {e}")
         raise HTTPException(500, detail="خطأ في الخادم")
 
 @app.post("/experience/{user_id}")

@@ -1,4 +1,4 @@
-// profile-v2.edit.js — Edit Profile Modal  Phase 1
+// profile-v2.edit.js — Edit Profile Modal Phase 1 (Correction Round)
 // Depends on: profile-v2.state.js, profile-v2.api.js, profile-v2.render.js, profile-v2.utils.js
 
 (function(){
@@ -13,25 +13,21 @@
 
   // cached professions list
   var _profList = [];
+  var _profListLoaded = false;  // true once hydration completes with a loaded list
 
   // ── DS-FRM async race guard (§20) ──
-  // Incremented on every modal open. Async callbacks capture the generation at
+  // Incremented on open AND on close. Async callbacks capture the generation at
   // call-time and bail if it no longer matches the current value.
   var _editSession = 0;
 
   // ── Dirty State snapshot (§14) ──
-  // Captured from canonical profile during hydration. NOT reset between sessions
-  // (only re-captured on open). NO window.confirm / ESC / popstate in this PR.
   var _snapshot = null;
 
   // ── In-flight guard (§13) ──
-  // True while a save request is in-flight; blocks close handlers.
   var _inFlight = false;
 
   // ── Legacy name mode (§1) ──
-  // Detected when profile has full_name but no first_name/last_name.
-  // _legacyMode = true → show read-only note, leave fields blank.
-  // _migrating  = true → user has typed something in first/last fields.
+  // true when profile has full_name but no first_name/last_name.
   var _legacyMode = false;
 
   // ── DOB year/day option population ──
@@ -104,6 +100,24 @@
     if(errEl){ errEl.textContent = ''; errEl.classList.remove('show'); }
   }
 
+  function _setDobAriaInvalid(msg){
+    ['epDobD','epDobM','epDobY'].forEach(function(id){
+      var el = document.getElementById(id);
+      if(el) el.setAttribute('aria-invalid', 'true');
+    });
+    var dobErrEl = document.getElementById('epDobErr');
+    if(dobErrEl){ dobErrEl.textContent = msg || 'تاريخ ميلاد غير صحيح'; dobErrEl.classList.add('show'); }
+  }
+
+  function _clearDobAriaInvalid(){
+    ['epDobD','epDobM','epDobY'].forEach(function(id){
+      var el = document.getElementById(id);
+      if(el) el.setAttribute('aria-invalid', 'false');
+    });
+    var dobErrEl = document.getElementById('epDobErr');
+    if(dobErrEl){ dobErrEl.textContent = ''; dobErrEl.classList.remove('show'); }
+  }
+
   function _clearAllFieldErrs(){
     ['epFirstName','epMidName','epLastName'].forEach(function(id){
       var el = document.getElementById(id);
@@ -115,8 +129,23 @@
     var bioErr  = document.getElementById('epShortBioErr');
     if(bioEl){ bioEl.classList.remove('ep-input-err'); bioEl.setAttribute('aria-invalid','false'); }
     if(bioErr){ bioErr.textContent=''; bioErr.classList.remove('show'); }
-    var dobErr  = document.getElementById('epDobErr');
-    if(dobErr){ dobErr.textContent=''; dobErr.classList.remove('show'); }
+    _clearDobAriaInvalid();
+  }
+
+  // ── Helpers: set aria-required on name inputs dynamically ──
+  function _setNameRequired(required){
+    ['epFirstName','epLastName'].forEach(function(id){
+      var el = document.getElementById(id);
+      if(el) el.setAttribute('aria-required', required ? 'true' : 'false');
+    });
+  }
+
+  // ── Migration detection: any of first/mid/last is typed → migration started ──
+  function _isMigrating(){
+    var first = ((document.getElementById('epFirstName')||{}).value||'').trim();
+    var mid   = ((document.getElementById('epMidName')  ||{}).value||'').trim();
+    var last  = ((document.getElementById('epLastName') ||{}).value||'').trim();
+    return !!(first || mid || last);
   }
 
   // Auto-clear name errors on input
@@ -124,6 +153,12 @@
     var el = document.getElementById(id);
     if(!el) return;
     el.addEventListener('input', function(){
+      // In legacy mode, once user starts typing → migration → fields become required
+      if(_legacyMode && _isMigrating()){
+        _setNameRequired(true);
+      } else if(_legacyMode && !_isMigrating()){
+        _setNameRequired(false);
+      }
       if(el.classList.contains('ep-input-err') && (!window._scCheckProfessional || !window._scCheckProfessional(el.value))){
         el.classList.remove('ep-input-err');
         el.setAttribute('aria-invalid','false');
@@ -136,7 +171,7 @@
         var div = document.getElementById('epNameErr');
         if(div){ div.textContent=''; div.classList.remove('show'); }
       }
-      // Also clear required error once user types
+      // Clear required error once user types the required field
       var first = ((document.getElementById('epFirstName')||{}).value||'').trim();
       var last  = ((document.getElementById('epLastName') ||{}).value||'').trim();
       if(first){
@@ -160,7 +195,6 @@
 
   // ── DS-FRM Reset (§5/§19) ──
   function _resetForm(){
-    // Field values
     ['epFirstName','epMidName','epLastName'].forEach(function(id){
       var el = document.getElementById(id); if(el) el.value = '';
     });
@@ -169,23 +203,22 @@
     });
     var avEl = document.getElementById('epAvail'); if(avEl) avEl.value = '';
     var sh   = document.getElementById('epShortBio'); if(sh) sh.value = '';
-    // Profession placeholder
     var profEl = document.getElementById('epProfession');
     if(profEl){
       profEl.innerHTML = '';
       var ph = document.createElement('option'); ph.value=''; ph.text='جاري التحميل…';
       profEl.appendChild(ph);
     }
-    // Legacy name row
+    // Legacy row hidden by default; name row visible
     var legRow = document.getElementById('epLegacyNameRow');
     if(legRow) legRow.style.display = 'none';
     var nameRow = document.getElementById('epNameRow');
     if(nameRow) nameRow.style.display = '';
     _legacyMode = false;
-    // Error state
+    _profListLoaded = false;
+    _setNameRequired(true);
     _clearAllFieldErrs();
     if(errEl){ errEl.textContent=''; errEl.style.display='none'; }
-    // Button state
     _setSaveBtnNormal();
   }
 
@@ -204,6 +237,16 @@
     saveBtn.setAttribute('aria-busy','false');
     saveBtn.classList.remove('ep-save--loading');
     saveBtn.textContent = saveBtn.dataset.origText || 'حفظ التغييرات';
+  }
+
+  // ── In-flight: lock/unlock Cancel + X (§9) ──
+  function _lockControls(){
+    if(cancelBtn){ cancelBtn.disabled = true; cancelBtn.setAttribute('aria-disabled','true'); }
+    if(closeBtn){ closeBtn.disabled = true; closeBtn.setAttribute('aria-disabled','true'); }
+  }
+  function _unlockControls(){
+    if(cancelBtn){ cancelBtn.disabled = false; cancelBtn.setAttribute('aria-disabled','false'); }
+    if(closeBtn){ closeBtn.disabled = false; closeBtn.setAttribute('aria-disabled','false'); }
   }
 
   // ── Profession options via DOM APIs (§10) ──
@@ -235,27 +278,30 @@
 
   // ── DS-FRM Hydration (§6/§19) ──
   function _hydrateForm(p, profList, session){
+    if(_editSession !== session) return;  // stale — abort (§20 + §8 close invalidation)
+
     // Detect legacy name mode (§1)
     var hasStructured = !!(p.first_name && p.last_name);
     _legacyMode = !hasStructured && !!(p.full_name);
 
     var legRow  = document.getElementById('epLegacyNameRow');
-    var nameRow = document.getElementById('epNameRow');
     var legText = document.getElementById('epLegacyNameText');
 
     if(_legacyMode){
+      // Show the info note — name row stays visible with empty fields
       if(legRow){ legRow.style.display = ''; }
-      if(nameRow){ nameRow.style.display = 'none'; }
       if(legText) legText.textContent = p.full_name || '';
+      // Fields start empty; aria-required false until migration starts
+      _setNameRequired(false);
     } else {
       if(legRow){ legRow.style.display = 'none'; }
-      if(nameRow){ nameRow.style.display = ''; }
       var fn = document.getElementById('epFirstName');
       var mn = document.getElementById('epMidName');
       var ln = document.getElementById('epLastName');
       if(fn) fn.value = p.first_name  || '';
       if(mn) mn.value = p.middle_name || '';
       if(ln) ln.value = p.last_name   || '';
+      _setNameRequired(true);
     }
 
     // DOB
@@ -293,10 +339,10 @@
     var shortBioEl = document.getElementById('epShortBio');
     if(shortBioEl) shortBioEl.value = p.short_bio || '';
 
+    _profListLoaded = true;
+
     // Dirty State snapshot (§14) — capture after all fields are set
-    if(_editSession === session){
-      _snapshot = _captureSnapshot();
-    }
+    _snapshot = _captureSnapshot();
 
     if(window.scSelectInit) scSelectInit();
     if(window.lucide && lucide.createIcons) lucide.createIcons();
@@ -340,13 +386,12 @@
 
   // ── Open Modal (§19) ──
   function openModal(){
-    var session = ++_editSession;   // advance generation before any async work
-    _resetForm();                   // DS-FRM: Reset before Hydrate
+    var session = ++_editSession;   // advance generation before any async work (§20/§8)
+    _resetForm();
     overlay.classList.add('open');
 
     var p = window._scProfile || {};
 
-    // Profession async (§10 — DOM APIs, §20 race guard)
     var profEl = document.getElementById('epProfession');
     if(profEl && (!_profList || !_profList.length)){
       getProfessions()
@@ -363,19 +408,18 @@
             errOpt.value = ''; errOpt.text = 'تعذّر تحميل التخصصات';
             profEl.appendChild(errOpt);
           }
-          // Still hydrate the rest of the form
           _hydrateForm(p, [], session);
         });
     } else {
-      // Already have the professions cached
       _hydrateForm(p, _profList, session);
     }
     if(window.lucide && lucide.createIcons) lucide.createIcons();
   }
 
-  // ── Close Modal (§19) ──
+  // ── Close Modal (§19/§8) ──
   function closeModal(){
     if(_inFlight) return;   // §13: lock close during save
+    ++_editSession;         // §8: invalidate any pending async work (open session → closed)
     overlay.classList.remove('open');
     _clearAllFieldErrs();
     if(errEl){ errEl.textContent=''; errEl.style.display='none'; }
@@ -387,8 +431,7 @@
   overlay.addEventListener('click', function(e){ if(e.target === overlay) closeModal(); });
 
   // ── Canonical profile update (§6) ──
-  // Called with the profile object from the server PUT response (§6).
-  // Uses server-confirmed canonical values — request payload is never used as source.
+  // Uses server-confirmed response values — request payload is never used as source.
   function applyCanonicalProfile(profile){
     if(!profile) return;
 
@@ -403,6 +446,14 @@
       if(profile.country    !== undefined) window._scProfile.country     = profile.country;
       if(profile.city       !== undefined) window._scProfile.city        = profile.city;
       if(profile.avail      !== undefined) window._scProfile.avail       = profile.avail;
+      // profession: update from server canonical response (never from payload)
+      if('profession_id' in profile){
+        if(profile.profession_id === null || profile.profession_id === undefined){
+          window._scProfile.profession = null;
+        } else if(window._scProfile.profession && window._scProfile.profession.id !== profile.profession_id){
+          // will be resolved below from _profList
+        }
+      }
     }
 
     // Name (§7) — use canonical full_name from server
@@ -415,7 +466,7 @@
     // Short bio (header)
     if(profile.short_bio !== undefined){
       var headerBioEl = document.getElementById('scBio');
-      if(headerBioEl) headerBioEl.textContent = profile.short_bio;
+      if(headerBioEl) headerBioEl.textContent = profile.short_bio || '';
       requestAnimationFrame(function(){
         if(headerBioEl){
           var moreBtn = document.getElementById('scBioMore');
@@ -476,23 +527,46 @@
     if(profile.avail !== undefined && window._renderAvailDot)
       window._renderAvailDot(profile.avail || null, true);
 
-    // Profession — look up from cached list using id from server response
-    if(profile.profession_id && _profList.length){
-      var prof = null;
-      for(var i=0; i<_profList.length; i++){
-        if(_profList[i].id === profile.profession_id){ prof = _profList[i]; break; }
-      }
-      if(prof){
-        var titleEl = document.getElementById('scTitle');
-        if(titleEl){
-          titleEl.innerHTML = '<i data-lucide="' + (prof.icon || 'briefcase') + '" class="ico-sm"></i> ';
-          var profSpan = document.createElement('span'); profSpan.textContent = prof.name_ar;
-          titleEl.appendChild(profSpan);
+    // Profession — from server response canonical profession_id (§7: no payload contamination)
+    if('profession_id' in profile){
+      var titleEl = document.getElementById('scTitle');
+      if(profile.profession_id && _profList.length){
+        var prof = null;
+        for(var i=0; i<_profList.length; i++){
+          if(_profList[i].id === profile.profession_id){ prof = _profList[i]; break; }
         }
-        if(window._scProfile) window._scProfile.profession = prof;
-        if(window.lucide && lucide.createIcons) lucide.createIcons();
+        if(prof){
+          if(titleEl){
+            titleEl.innerHTML = '<i data-lucide="' + (prof.icon || 'briefcase') + '" class="ico-sm"></i> ';
+            var profSpan = document.createElement('span'); profSpan.textContent = prof.name_ar;
+            titleEl.appendChild(profSpan);
+          }
+          if(window._scProfile) window._scProfile.profession = prof;
+          if(window.lucide && lucide.createIcons) lucide.createIcons();
+        }
+      } else if(!profile.profession_id){
+        // Cleared — show empty state
+        if(titleEl) titleEl.innerHTML = '';
+        if(window._scProfile) window._scProfile.profession = null;
       }
     }
+  }
+
+  // ── Route field-level error from 422 response to correct error element ──
+  function _routeFieldError(detail){
+    var code    = detail.code  || '';
+    var field   = detail.field || '';
+    var message = detail.error || detail.message || 'حدث خطأ في التحقق من البيانات';
+    if(code === 'first_name_required' || code === 'last_name_required' || field === 'first_name' || field === 'last_name' || field === 'name'){
+      var nameErrEl = document.getElementById('epNameErr');
+      var inputId = (code === 'first_name_required' || field === 'first_name') ? 'epFirstName' : 'epLastName';
+      _setAriaInvalid(document.getElementById(inputId), nameErrEl, message);
+    } else if(code.indexOf('dob') === 0 || field === 'dob'){
+      _setDobAriaInvalid(message);
+    } else {
+      if(errEl){ errEl.textContent = message; errEl.style.display = 'block'; }
+    }
+    if(window.toast) window.toast(message);
   }
 
   // ── Save ──
@@ -503,7 +577,6 @@
       return;
     }
 
-    // Collect raw values
     var first = ((document.getElementById('epFirstName')||{}).value||'').trim();
     var mid   = ((document.getElementById('epMidName')  ||{}).value||'').trim();
     var last  = ((document.getElementById('epLastName') ||{}).value||'').trim();
@@ -516,7 +589,6 @@
     var profVal    = ((document.getElementById('epProfession')||{}).value||'').trim();
     var shortBioVal= ((document.getElementById('epShortBio')||{}).value||'').trim();
 
-    // DS-VAL: clear previous errors
     _clearAllFieldErrs();
     if(errEl){ errEl.textContent=''; errEl.style.display='none'; }
 
@@ -548,8 +620,12 @@
       return;
     }
 
-    // DS-VAL: required name fields (§8) — skip in true legacy mode (no migration started)
-    if(!_legacyMode || first || last){
+    // DS-VAL: name required fields
+    // Legacy mode untouched: skip entirely (no name mutation)
+    // Legacy mode + migration started (any of first/mid/last typed): require first + last
+    // Structured mode: always require first + last
+    var _nameMutation = !_legacyMode || _isMigrating();
+    if(_nameMutation){
       var nameErrEl = document.getElementById('epNameErr');
       if(!first){
         _setAriaInvalid(document.getElementById('epFirstName'), nameErrEl, 'الاسم الأول مطلوب');
@@ -567,64 +643,82 @@
     }
     if(hasErr) return;
 
-    // DS-VAL: DOB partial completion (§9B) — all 3 fields or none
+    // DS-VAL: DOB partial completion — all 3 or none
     var dobFilled = [dobY, dobM, dobD].filter(Boolean).length;
     if(dobFilled > 0 && dobFilled < 3){
-      var dobErrEl = document.getElementById('epDobErr');
-      if(dobErrEl){ dobErrEl.textContent='يرجى اختيار اليوم والشهر والسنة كاملاً'; dobErrEl.classList.add('show'); }
+      _setDobAriaInvalid('يرجى اختيار اليوم والشهر والسنة كاملاً');
       return;
     }
-    var dob = (dobY && dobM && dobD) ? (dobY + '-' + dobM + '-' + dobD) : '';
+    var dob = (dobY && dobM && dobD) ? (dobY + '-' + dobM + '-' + dobD) : null;
 
-    // Build payload
-    var payload = { short_bio: shortBioVal };
+    // Build payload (§3 Tri-state: send null = CLEAR, omit = no change, value = set)
+    var payload = {};
 
-    // Name — only include in payload when structured mode or migration started
-    if(!_legacyMode || first || last){
+    // short_bio: always send (user can clear it with empty textarea → null)
+    payload.short_bio = shortBioVal || null;
+
+    // Name — only include when mutation started
+    if(_nameMutation){
       payload.first_name  = first;
       payload.middle_name = mid  || null;
       payload.last_name   = last;
     }
 
-    payload.dob     = dob     || null;
+    // DOB: null = clear
+    payload.dob     = dob;
+    // Location: null = clear
     payload.country = country || null;
     payload.city    = city    || null;
+    // Availability: null = clear
     payload.avail   = avail   || null;
-    if(profVal) payload.profession_id = parseInt(profVal, 10);
 
-    // BTN-18 loading (§12) + in-flight lock (§13)
+    // Profession: null = clear (only when list is loaded — prevents clearing on async race)
+    if(_profListLoaded){
+      payload.profession_id = profVal ? parseInt(profVal, 10) : null;
+    } else if(profVal){
+      payload.profession_id = parseInt(profVal, 10);
+    }
+    // If _profListLoaded is false and profVal is empty: omit profession_id (no change)
+
+    // BTN-18 loading (§12) + in-flight lock (§13) + controls lock (§9)
     _inFlight = true;
     _setSaveBtnLoading();
+    _lockControls();
 
     updateProfile(uid, payload)
       .then(function(res){
         if(!res.ok){
           var _det = res.data && res.data.detail;
-          var msg  = (_det && typeof _det === 'object' && _det.message)
-            ? _det.message
-            : (typeof _det === 'string' ? _det : 'حدث خطأ أثناء الحفظ');
-          if(window.toast) window.toast(msg);
-          if(errEl){ errEl.textContent = msg; errEl.style.display = 'block'; }
+          if(_det && typeof _det === 'object' && _det.code){
+            // Typed ProfileValidationError — route to correct field
+            _routeFieldError(_det);
+          } else {
+            var msg = (_det && typeof _det === 'object' && _det.message)
+              ? _det.message
+              : (typeof _det === 'string' ? _det : 'حدث خطأ أثناء الحفظ');
+            if(window.toast) window.toast(msg);
+            if(errEl){ errEl.textContent = msg; errEl.style.display = 'block'; }
+          }
           return;
         }
-        // 1. Close + toast
-        _inFlight = false;   // release lock before closeModal
+        // 1. Release lock + close + toast
+        _inFlight = false;
+        _unlockControls();
         closeModal();
         if(window.toast) window.toast('تم حفظ التغييرات بنجاح');
-        // 2. Canonical update from server response (§6)
+        // 2. Canonical update from server response (§6 — no payload contamination)
         var canonicalProfile = (res.data && res.data.profile) ? res.data.profile : null;
-        if(canonicalProfile){
-          if(payload.profession_id) canonicalProfile.profession_id = payload.profession_id;
-          applyCanonicalProfile(canonicalProfile);
-        }
+        if(canonicalProfile) applyCanonicalProfile(canonicalProfile);
         if(window._updateCompletion) window._updateCompletion();
-        // 3. Background re-fetch for full sync
+        // 3. Background re-fetch for full sync — log on failure (no silent catch)
         getProfile(_scProfileKey)
           .then(function(freshRes){
             if(freshRes && window.renderProfile) window.renderProfile(freshRes);
             if(window.lucide && lucide.createIcons) lucide.createIcons();
           })
-          .catch(function(){ /* silent — canonical update already applied */ });
+          .catch(function(syncErr){
+            console.warn('[edit-profile] background sync failed after successful save:', syncErr);
+          });
       })
       .catch(function(){
         var _msg = 'خطأ في الاتصال بالخادم';
@@ -633,6 +727,7 @@
       })
       .finally(function(){
         _inFlight = false;
+        _unlockControls();
         _setSaveBtnNormal();
       });
   });

@@ -471,12 +471,12 @@
           <label class="ep-label">الاسم</label>
           <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
             <input type="text" class="ep-input" id="epFirstName" placeholder="الأول"
-              autocomplete="off" aria-required="true" aria-invalid="false"
+              autocomplete="off" aria-required="false" aria-invalid="false"
               aria-describedby="epNameErr">
             <input type="text" class="ep-input" id="epMidName" placeholder="الأوسط"
               autocomplete="off" aria-invalid="false" aria-describedby="epNameErr">
             <input type="text" class="ep-input" id="epLastName" placeholder="العائلة"
-              autocomplete="off" aria-required="true" aria-invalid="false"
+              autocomplete="off" aria-required="false" aria-invalid="false"
               aria-describedby="epNameErr">
           </div>
           <div class="ep-field-err" id="epNameErr" role="alert"></div>
@@ -485,8 +485,8 @@
         <div class="ep-field">
           <label class="ep-label">تاريخ الميلاد</label>
           <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
-            <select class="ep-select" id="epDobD"><option value="">اليوم</option></select>
-            <select class="ep-select" id="epDobM">
+            <select class="ep-select" id="epDobD" aria-describedby="epDobErr" aria-invalid="false"><option value="">اليوم</option></select>
+            <select class="ep-select" id="epDobM" aria-describedby="epDobErr" aria-invalid="false">
               <option value="">الشهر</option>
               <option value="01">يناير</option><option value="02">فبراير</option>
               <option value="03">مارس</option><option value="04">أبريل</option>
@@ -495,7 +495,7 @@
               <option value="09">سبتمبر</option><option value="10">أكتوبر</option>
               <option value="11">نوفمبر</option><option value="12">ديسمبر</option>
             </select>
-            <select class="ep-select" id="epDobY"><option value="">السنة</option></select>
+            <select class="ep-select" id="epDobY" aria-describedby="epDobErr" aria-invalid="false"><option value="">السنة</option></select>
           </div>
           <div class="ep-field-err" id="epDobErr" role="alert"></div>
         </div>

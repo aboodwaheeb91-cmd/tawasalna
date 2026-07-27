@@ -1438,11 +1438,11 @@ company_saved_candidates.follow_up_at → TIMESTAMPTZ
 ---
 
 *أُنشئ في PR docs/ds-date-v1 — 2026-07-23*
-*DS-DATE V1: 36 قسماً (DATE-00 → DATE-35) — Documentation Only — لا Runtime.*
+*DS-DATE V1: 37 قسماً (DATE-00 → DATE-36) — Documentation Only — لا Runtime.*
 
 ---
 
-## DATE-34 — Profile V2 Edit DOB Implementation (Migration Inventory Update)
+## DATE-36 — Profile V2 Edit DOB Implementation (Migration Inventory Update)
 
 > **أُضيف في PR feat/edit-profile-phase1 — 2026-07-27**
 

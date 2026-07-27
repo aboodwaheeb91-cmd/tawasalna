@@ -52,6 +52,7 @@
 | OVL-35 | الأمان والصلاحيات (Security & Permission Separation) |
 | OVL-36 | Runtime Direction (Non-binding) |
 | OVL-37 | خارج النطاق — V1 |
+| OVL-38 | Pre-DS-OVL Implementation Inventory |
 
 ---
 
@@ -1418,7 +1419,7 @@ Architecture Contract (هذا الملف) يصف capabilities/ownership/behavior
 
 ---
 
-*أُنشئ في PR docs/ds-ovl-v1 — 2026-07-24 — [DS-OVL] Overlay System V1 Architecture Contract (OVL-00 → OVL-37، 38 قسماً). Orthogonal Model (Modality × Presentation × Semantics × Close Policy). Layer Context contract مع DS-SEL. DS-NAV integration. Generic Close Guard (بلا DS-FRM dependency). Focus Contract (surface-heading / safe-action defaults + fallback chains). Background Isolation active during closing. Reference-counted Scroll Lock. Migration Strategy مع 3 transition constraints. 25+ Forbidden Patterns. Must-Have V1 (30 items). DESIGN_SYSTEM.md + SYSTEMS_INDEX.md + ARCHITECTURE_FOUNDATION.md F33 مُحدَّثة في نفس الـ PR.*
+*أُنشئ في PR docs/ds-ovl-v1 — 2026-07-24 — [DS-OVL] Overlay System V1 Architecture Contract (OVL-00 → OVL-38، 39 قسماً). Orthogonal Model (Modality × Presentation × Semantics × Close Policy). Layer Context contract مع DS-SEL. DS-NAV integration. Generic Close Guard (بلا DS-FRM dependency). Focus Contract (surface-heading / safe-action defaults + fallback chains). Background Isolation active during closing. Reference-counted Scroll Lock. Migration Strategy مع 3 transition constraints. 25+ Forbidden Patterns. Must-Have V1 (30 items). DESIGN_SYSTEM.md + SYSTEMS_INDEX.md + ARCHITECTURE_FOUNDATION.md F33 مُحدَّثة في نفس الـ PR.*
 
 ---
 
@@ -1437,6 +1438,16 @@ Architecture Contract (هذا الملف) يصف capabilities/ownership/behavior
 
 ### `#epOverlay` (Edit Profile) — Phase 1 State
 
+**Orthogonal Model Classification:**
+
+| البُعد | القيمة |
+|--------|--------|
+| modality | blocking |
+| presentation | bottom |
+| semantics | standard |
+| desired closePolicy | guarded |
+
 - **لا DS-OVL Runtime:** لا `TwOverlay`, لا focus trap مشترك, لا scroll lock
-- **close guard:** `_inFlight` flag يمنع الإغلاق أثناء الحفظ (local implementation)
-- **Migration Target:** عند تطبيق DS-OVL Runtime — يُرحَّل `#epOverlay` إلى `TwOverlay` API
+- **close guard:** `_inFlight` flag + `++_editSession` يمنعان الإغلاق أثناء الحفظ (local implementation)
+- **guarded justification:** الإغلاق محمي — backdrop click لا يُغلق أثناء SUBMITTING (`_inFlight`); cancel يتحقق من dirty state
+- **Migration Target:** عند تطبيق DS-OVL Runtime — يُرحَّل `#epOverlay` إلى `TwOverlay` API بنفس orthogonal attributes
