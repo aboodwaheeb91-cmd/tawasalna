@@ -19,6 +19,7 @@ Covers:
   O: Correction — canonical / no payload contamination (§Corr-G)
   P: Correction — ARIA contracts (DOB describedby, dynamic required) (§Corr-H)
   Q: Correction — DS-COLOR zero visual change tokens (§Corr-I)
+  Q17: Micro-fix — Raw Consumer Color Gate (.ep-* no raw hex/rgba) (§MC-gate)
   R: Correction — docs integrity (DATE-36, OVL-38 orthogonal) (§Corr-J)
 
 No real DB. All backend tests use FakeConn.
@@ -860,6 +861,55 @@ def test_Q_dscolor_tokens():
         else fail(label, '.ep-input-err not using --color-status-danger-rgb token')
 
 
+# ── Q17: Raw Consumer Color Gate (§MC-gate) ───────────────────────────────────
+
+def test_Q17_ep_consumer_raw_color_gate():
+    print('\n\033[1m── Q17: Raw Consumer Color Gate — .ep-* selectors (§MC-gate) ──\033[0m')
+    src = _read('profile-v2.css')
+
+    # Remove :root block(s) — token definitions are allowed to have raw values
+    src_no_root = re.sub(r':root\s*\{[^}]*?\}', '', src, flags=re.DOTALL)
+
+    violations = []
+    in_ep = False
+    depth = 0
+
+    for lineno, line in enumerate(src_no_root.splitlines(), 1):
+        s = line.strip()
+
+        if not in_ep:
+            if re.search(r'(?:,|\s|^)\.ep-', s) and '{' in s:
+                in_ep = True
+                depth = s.count('{') - s.count('}')
+                if depth <= 0:
+                    in_ep = False
+            continue
+
+        depth += s.count('{') - s.count('}')
+
+        if s.startswith('/*') or s.startswith('*'):
+            if depth <= 0:
+                in_ep = False
+            continue
+
+        # Check raw hex
+        for m in re.finditer(r'(?<![-\w])#[0-9a-fA-F]{3,8}(?!\w)', s):
+            violations.append(f'L{lineno}: {s[:80]!r}  hex={m.group()!r}')
+
+        # Check raw rgb/rgba — allow rgba(var(--color-*-rgb), ...) exception
+        for m in re.finditer(r'\brgba?\s*\(', s):
+            rest = s[m.start():]
+            if re.match(r'rgba\(var\(--color-[a-z-]+-rgb\)', rest):
+                continue
+            violations.append(f'L{lineno}: {s[:80]!r}  rgba literal')
+
+        if depth <= 0:
+            in_ep = False
+
+    label = 'Q17: Raw Consumer Color Gate — .ep-* selectors have no direct #hex/rgb/rgba (§MC-gate)'
+    ok(label) if not violations else fail(label, f'{len(violations)} violation(s) — first: {violations[0][:120]}')
+
+
 # ── R: Docs integrity (DATE-36, OVL-38 orthogonal) (§Corr-J) ─────────────────
 
 def test_R_docs_integrity():
@@ -921,6 +971,7 @@ if __name__ == '__main__':
     test_O_canonical_no_contamination()
     test_P_aria_contracts()
     test_Q_dscolor_tokens()
+    test_Q17_ep_consumer_raw_color_gate()
     test_R_docs_integrity()
 
     print(f'\n\033[1m── {PASS} passed, {FAIL} failed ──\033[0m')

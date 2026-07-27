@@ -634,6 +634,11 @@ body.preview-guest       .owner-only { display: none !important; }
    --ep-label:          field label colour (→ --color-text-muted)
    --ep-cancel-text:    cancel button text (→ --color-text-secondary)
    --ep-save-from/to:   save button gradient stops (→ --color-brand-primary variants)
+   --ep-text-primary:   input/close button text (→ --color-text-primary)
+   --ep-save-text:      save button label colour (→ --color-text-primary)
+   --ep-spinner-track:  loading spinner border track (.3 alpha white)
+   --ep-spinner-head:   loading spinner active arc (→ --color-text-primary)
+   --ep-note-icon:      icon inside legacy-name note (→ --color-brand-secondary)
    Zero visual change: all raw fallback values match pre-Phase-2 originals.
 */
 :root {
@@ -652,6 +657,11 @@ body.preview-guest       .owner-only { display: none !important; }
   --ep-cancel-text:    var(--color-text-secondary, var(--t2, #9aa5b4));
   --ep-save-from:      var(--color-brand-primary, #00c896);
   --ep-save-to:        #00b386;
+  --ep-text-primary:   var(--color-text-primary, var(--t1,#fff));
+  --ep-save-text:      var(--color-text-primary, #fff);
+  --ep-spinner-track:  rgba(255,255,255,.3);
+  --ep-spinner-head:   var(--color-text-primary, #fff);
+  --ep-note-icon:      var(--color-brand-secondary, #2563ff);
 }
 
 .ep-overlay {
@@ -676,7 +686,7 @@ body.preview-guest       .owner-only { display: none !important; }
 .ep-title { font-size:.95rem; font-weight:700; }
 .ep-close {
   width:30px; height:30px; border-radius:50%; border:none; cursor:pointer;
-  background:var(--ep-close-bg); color:var(--color-text-primary, var(--t1,#fff));
+  background:var(--ep-close-bg); color:var(--ep-text-primary);
   display:flex; align-items:center; justify-content:center;
 }
 .ep-body { flex:1; overflow-y:auto; padding:18px 20px 24px; }
@@ -685,7 +695,7 @@ body.preview-guest       .owner-only { display: none !important; }
 .ep-input, .ep-select, .ep-textarea {
   width:100%; background:var(--ep-input-bg);
   border:1px solid var(--ep-sheet-border); border-radius:10px;
-  color:var(--color-text-primary, var(--t1,#fff)); font-family:inherit; font-size:.84rem; padding:10px 13px;
+  color:var(--ep-text-primary); font-family:inherit; font-size:.84rem; padding:10px 13px;
   outline:none; transition:border-color .15s;
 }
 .ep-input:focus, .ep-select:focus, .ep-textarea:focus { border-color:var(--ep-border-focus); }
@@ -699,7 +709,7 @@ body.preview-guest       .owner-only { display: none !important; }
 .ep-save {
   flex:1; height:42px; border-radius:11px; border:none; cursor:pointer;
   background:linear-gradient(135deg, var(--ep-save-from), var(--ep-save-to));
-  color:#fff; font-family:inherit; font-size:.9rem; font-weight:700;
+  color:var(--ep-save-text); font-family:inherit; font-size:.9rem; font-weight:700;
   transition:opacity .15s; position:relative; overflow:hidden;
 }
 .ep-save:disabled { opacity:.5; cursor:not-allowed; }
@@ -711,8 +721,8 @@ body.preview-guest       .owner-only { display: none !important; }
   width:14px; height:14px;
   left:50%; top:50%;
   margin-top:-7px; margin-left:-7px;
-  border:2px solid rgba(255,255,255,.3);
-  border-top-color:#fff;
+  border:2px solid var(--ep-spinner-track);
+  border-top-color:var(--ep-spinner-head);
   border-radius:50%;
   animation:tw-spin .7s linear infinite;
 }
@@ -739,7 +749,7 @@ body.preview-guest       .owner-only { display: none !important; }
   border-radius:9px; padding:10px 12px; margin-bottom:4px;
   color:var(--ep-cancel-text); font-size:.76rem; line-height:1.6;
 }
-.ep-note .ico-sm { color:var(--color-brand-secondary, #2563ff); flex-shrink:0; margin-top:1px; }
+.ep-note .ico-sm { color:var(--ep-note-icon); flex-shrink:0; margin-top:1px; }
 
 /* ── Section add button — unified across all sections (exp/edu/courses/skills/langs/links) ── */
 .sc-section-add {
