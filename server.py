@@ -131,7 +131,7 @@ from auth import (
     get_pipeline_application_index_status,
     _APPLICANT_SORT_MAP,
 )
-from auth import ContentValidationError, validate_professional_text, JobArchivedError
+from auth import ContentValidationError, validate_professional_text, JobArchivedError, _norm_name
 
 # ── Secrets from environment — NEVER hardcoded in source ──
 # Required Railway Variables:
@@ -1343,11 +1343,6 @@ def admin_page(): return read_html("admin.html")
 # ══════════════════════════════════════════
 # Schemas
 # ══════════════════════════════════════════
-def _norm_name(s) -> str:
-    """Normalize a structured name part: trim + collapse internal whitespace."""
-    return re.sub(r'\s+', ' ', (s or '').strip())
-
-
 class RegisterInput(BaseModel):
     # Structured name for emp (G-contract): first_name + last_name required, middle_name optional.
     # For emp: full_name is ignored if first_name/last_name are provided (structured path takes precedence).

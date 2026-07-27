@@ -1419,3 +1419,24 @@ Architecture Contract (هذا الملف) يصف capabilities/ownership/behavior
 ---
 
 *أُنشئ في PR docs/ds-ovl-v1 — 2026-07-24 — [DS-OVL] Overlay System V1 Architecture Contract (OVL-00 → OVL-37، 38 قسماً). Orthogonal Model (Modality × Presentation × Semantics × Close Policy). Layer Context contract مع DS-SEL. DS-NAV integration. Generic Close Guard (بلا DS-FRM dependency). Focus Contract (surface-heading / safe-action defaults + fallback chains). Background Isolation active during closing. Reference-counted Scroll Lock. Migration Strategy مع 3 transition constraints. 25+ Forbidden Patterns. Must-Have V1 (30 items). DESIGN_SYSTEM.md + SYSTEMS_INDEX.md + ARCHITECTURE_FOUNDATION.md F33 مُحدَّثة في نفس الـ PR.*
+
+---
+
+## OVL-38 — Pre-DS-OVL Implementation Inventory
+
+> **أُضيف في PR feat/edit-profile-phase1 — 2026-07-27**
+> هذا القسم توثيق للواقع الحالي — ليس Source of Truth.
+
+### Overlays الحالية قبل DS-OVL Runtime
+
+| الملف | العنصر | النمط الحالي | الملاحظة |
+|-------|--------|-------------|----------|
+| `profile-showcase.html` | `#epOverlay (.ep-overlay)` | `position:fixed; inset:0; display:flex` + `open` class | Edit Profile Sheet — Pre-DS-OVL |
+| `profile-showcase.html` | `.sc-modal-overlay` | نفس pattern | Add/Edit Sections modals |
+| `company-profile.html` | `.ep-overlay` | نفس pattern | Company Edit Sheet |
+
+### `#epOverlay` (Edit Profile) — Phase 1 State
+
+- **لا DS-OVL Runtime:** لا `TwOverlay`, لا focus trap مشترك, لا scroll lock
+- **close guard:** `_inFlight` flag يمنع الإغلاق أثناء الحفظ (local implementation)
+- **Migration Target:** عند تطبيق DS-OVL Runtime — يُرحَّل `#epOverlay` إلى `TwOverlay` API

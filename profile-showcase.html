@@ -448,24 +448,38 @@
     </div>
   </div>
 
-  <!-- Edit Profile Modal — Phase 2: name, dob, country/city, avail, profession, bio -->
+  <!-- Edit Profile Modal — Phase 1: data, form, validation, DS-BTN, DS-COLOR contracts -->
   <!-- Must be in DOM before profile-v2.edit.js runs -->
-  <div class="ep-overlay" id="epOverlay">
+  <div class="ep-overlay" id="epOverlay" role="dialog" aria-modal="true" aria-labelledby="epTitle">
     <div class="ep-sheet">
       <div class="ep-head">
-        <span class="ep-title"><i data-lucide="pencil" class="ico-sm" style="color:var(--ac,#00c896);vertical-align:middle;margin-left:6px"></i> تعديل الملف الشخصي</span>
-        <button class="ep-close" id="epClose"><i data-lucide="x" class="ico-sm"></i></button>
+        <span class="ep-title" id="epTitle"><i data-lucide="pencil" class="ico-sm" style="color:var(--ac,#00c896);vertical-align:middle;margin-left:6px"></i> تعديل الملف الشخصي</span>
+        <button type="button" class="ep-close" id="epClose" aria-label="إغلاق"><i data-lucide="x" class="ico-sm"></i></button>
       </div>
       <div class="ep-body">
 
-        <div class="ep-field">
+        <!-- Legacy name row (§1) — shown when profile has full_name but no structured parts -->
+        <div class="ep-field" id="epLegacyNameRow" style="display:none">
+          <div class="ep-note">
+            <i data-lucide="info" class="ico-sm"></i>
+            <span>الاسم الحالي: <strong id="epLegacyNameText"></strong><br>
+            لتغيير اسمك، أدخل الاسم الأول والعائلة في الحقول أدناه.</span>
+          </div>
+        </div>
+
+        <div class="ep-field" id="epNameRow">
           <label class="ep-label">الاسم</label>
           <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
-            <input class="ep-input" id="epFirstName" placeholder="الأول" autocomplete="off">
-            <input class="ep-input" id="epMidName"   placeholder="الأوسط" autocomplete="off">
-            <input class="ep-input" id="epLastName"  placeholder="العائلة" autocomplete="off">
+            <input type="text" class="ep-input" id="epFirstName" placeholder="الأول"
+              autocomplete="off" aria-required="true" aria-invalid="false"
+              aria-describedby="epNameErr">
+            <input type="text" class="ep-input" id="epMidName" placeholder="الأوسط"
+              autocomplete="off" aria-invalid="false" aria-describedby="epNameErr">
+            <input type="text" class="ep-input" id="epLastName" placeholder="العائلة"
+              autocomplete="off" aria-required="true" aria-invalid="false"
+              aria-describedby="epNameErr">
           </div>
-          <div class="ep-field-err" id="epNameErr"></div>
+          <div class="ep-field-err" id="epNameErr" role="alert"></div>
         </div>
 
         <div class="ep-field">
@@ -483,6 +497,7 @@
             </select>
             <select class="ep-select" id="epDobY"><option value="">السنة</option></select>
           </div>
+          <div class="ep-field-err" id="epDobErr" role="alert"></div>
         </div>
 
         <div class="ep-field">
@@ -519,15 +534,17 @@
 
         <div class="ep-field">
           <label class="ep-label">نبذة الهيدر <span style="font-size:.75rem;opacity:.6;font-weight:400">— النص القصير تحت الاسم</span></label>
-          <textarea class="ep-textarea" id="epShortBio" placeholder="وصف قصير يظهر تحت اسمك مباشرةً…" maxlength="160" rows="2"></textarea>
-          <div class="ep-field-err" id="epShortBioErr"></div>
+          <textarea class="ep-textarea" id="epShortBio" placeholder="وصف قصير يظهر تحت اسمك مباشرةً…"
+            maxlength="160" rows="2" aria-invalid="false"
+            aria-describedby="epShortBioErr"></textarea>
+          <div class="ep-field-err" id="epShortBioErr" role="alert"></div>
         </div>
 
-        <div class="ep-err" id="epErr"></div>
+        <div class="ep-err" id="epErr" role="alert"></div>
       </div>
       <div class="ep-footer">
-        <button class="ep-cancel" id="epCancelBtn">إلغاء</button>
-        <button class="ep-save" id="epSaveBtn">حفظ التغييرات</button>
+        <button type="button" class="ep-cancel" id="epCancelBtn">إلغاء</button>
+        <button type="button" class="ep-save" id="epSaveBtn">حفظ التغييرات</button>
       </div>
     </div>
   </div>

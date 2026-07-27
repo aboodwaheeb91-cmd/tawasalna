@@ -70,6 +70,7 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 **Details:** `ARCHITECTURE.md §22–30` · `CLAUDE.md → Profile Completion Card Rules` · `CLAUDE.md → Profile V2 Action Buttons Rule`
 **Do not recreate:** Do not add profile sections outside the established modular file structure (`static/profile/profile-v2.*.js`). Do not add a new section save handler without calling `window._updateCompletion()`.
 **Action Buttons:** `.sc-actions` button dimensions are frozen (height/padding/gap/icon size) — see `CLAUDE.md → Profile V2 Action Buttons Rule` before touching `profile-v2.css` or `profile-showcase.html`.
+**Edit Profile Modal (Phase 1 — PR feat/edit-profile-phase1):** `profile-v2.edit.js` manages the edit modal. Key contracts: `_norm_name()` shared from `auth.py` · atomic `update_profile()` transaction · `applyCanonicalProfile(res.data.profile)` — never request payload · legacy name mode for accounts without first/last parts · DOB: `_DOB_MIN_YEAR=1940`, `_DOB_MIN_AGE=15`. Full spec: `ARCHITECTURE.md → Profile V2 Edit Profile Modal`.
 
 ---
 

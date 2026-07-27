@@ -2178,7 +2178,7 @@ cropper.reset();
 
 ## Profile V2 — Edit Profile Modal
 
-**الحالة:** Done / Stable
+**الحالة:** Done / Phase 1 Complete (PR feat/edit-profile-phase1)
 
 ### الملف
 `profile-v2.edit.js` — IIFE مستقل
@@ -2187,47 +2187,112 @@ cropper.reset();
 
 | الحقل | النوع | الإرسال |
 |-------|-------|---------|
-| الاسم الأول | text input | `first_name` |
+| الاسم الأول | text input (aria-required) | `first_name` |
 | الاسم الأوسط | text input | `middle_name` (اختياري) |
-| الاسم الأخير | text input | `last_name` |
+| الاسم الأخير | text input (aria-required) | `last_name` |
 | تاريخ الميلاد | 3 selects (يوم/شهر/سنة) | `dob` بصيغة `YYYY-MM-DD` |
-| الدولة | select (18 دولة عربية) | `country` |
-| المدينة | select ديناميكي من `EP_CITIES` | `city` |
+| الدولة | select | `country` (ISO code) |
+| المدينة | select ديناميكي | `city` |
 | الإتاحة | select | `avail` |
 | التخصص | select مع optgroups + data-icon | `profession_id` |
-| النبذة | textarea | `bio` |
+| النبذة | textarea | `short_bio` |
 
-### Name Architecture
+### Name Architecture (Phase 1)
 ```
-PUT /profile { first_name, middle_name, last_name }
-← backend يبني full_name تلقائياً
-← applyLocalUpdate يبني full_name محلياً فوراً بدون re-fetch
-← openModal يقرأ الأجزاء من window._scProfile مباشرة
-```
-
-### Profession Dropdown
-```
-1. openModal() → fetch('/professions')
-2. بناء <optgroup> لكل category_group
-3. كل <option> يحمل data-icon = profession.icon
-4. Custom Select يقرأ data-icon ويعرض الأيقونة في الـ trigger
-5. onSave() → profession_id في payload
+PUT /profile { first_name, middle_name?, last_name }
+← backend: _norm_name() normalizes each part
+← backend: UPDATE users + profiles in BEGIN/COMMIT/ROLLBACK (atomic)
+← response: { full_name, first_name, middle_name, last_name } (canonical)
+← frontend: applyCanonicalProfile(res.data.profile) — NO payload-based update
+← openModal: reads from window._scProfile (in-memory canonical)
+← background re-fetch: renderProfile() for full sync
 ```
 
-### Confirmed Local Update Pattern
+### Legacy Name Mode (§1)
 ```
-PUT → onSuccess():
-  1. closeModal() + toast فوراً
-  2. applyLocalUpdate(payload) → تحديث name/bio/age/profession في DOM فوراً
-  3. getProfile() في الخلفية → renderProfile() صامت
+if (!p.first_name && p.full_name):
+  → show #epLegacyNameRow (read-only note with full_name)
+  → hide #epNameRow inputs
+  → if user starts typing in first/last → migration mode
+  → first + last become required; payload includes name parts
+  → after save: account transitions to structured mode
 ```
 
-### ممنوعات
+### Profession Dropdown (§10 — DOM APIs)
 ```
-❌ profession list hardcoded في edit.js
-❌ full_name كـ text input واحد (يجب 3 أجزاء منفصلة)
+1. openModal() → getProfessions() (async, race-guarded by _editSession)
+2. _buildProfessionOptions() → createElement per option/optgroup
+3. onSave() → profession_id in payload
+4. MutationObserver in tw-select.js handles re-init (not a bug — §0)
+```
+
+### DS-FRM Lifecycle (§5/§6/§14/§19/§20)
+```
+openModal():
+  1. ++_editSession (async race guard)
+  2. _resetForm()  (DS-FRM Reset)
+  3. overlay.classList.add('open')
+  4. getProfessions() [if not cached] → _hydrateForm(p, list, session) [race-guarded]
+  5. _snapshot = _captureSnapshot()  (Dirty State baseline)
+
+save():
+  1. _clearAllFieldErrs()
+  2. content validation → aria-invalid + aria-describedby
+  3. required fields check (first_name + last_name)
+  4. DOB all-or-none check
+  5. _inFlight = true + _setSaveBtnLoading() [BTN-18]
+  6. updateProfile(uid, payload)
+  7. SUCCESS: _inFlight=false → closeModal() → applyCanonicalProfile() → background re-fetch
+  8. FAILURE: restore button, show errEl
+
+close() [§13]:
+  guards: if(_inFlight) return;
+```
+
+### Canonical Response (§6/§18)
+```
+PUT /profile response shape (additive — backward-compatible):
+  { status: "success",
+    profile: { id, updated, full_name, first_name, middle_name, last_name,
+               short_bio, dob, country, city, avail, profession_id, ... },
+    updated_fields: [...] }
+```
+
+### DOB Validation (§9A/§9B/§9C)
+```
+Backend (auth.py):
+  _DOB_MIN_YEAR = 1940  (dob_year_too_old)
+  _DOB_MIN_AGE  = 15    (dob_too_young)
+  dob >= today          (dob_future)
+  unparseable string    (dob_invalid)
+Frontend:
+  dobFilled ∈ {0, 3} only — partial DOB shows epDobErr
+```
+
+### DS-COLOR Phase 2 (§17)
+```
+Scoped --ep-* domain aliases in profile-v2.css:
+  --ep-danger:     var(--color-status-danger)
+  --ep-label:      var(--color-text-muted)
+  --ep-input-bg:   var(--color-surface-input)
+  --ep-border:     var(--color-border-default)
+  --ep-save-from:  var(--color-brand-primary)
+  --ep-cancel-text: var(--color-text-secondary)
+```
+
+### ممنوعات (Phase 1)
+```
+✅ _norm_name shared — لا نسخ محلية
+✅ atomic BEGIN/COMMIT — لا partial updates
+✅ applyCanonicalProfile من server response — لا payload-based update
+✅ DOM APIs للـ profession options — لا innerHTML string
+✅ DOB validation backend — لا client-side date math فقط
+❌ DS-OVL Runtime — Pre-DS-OVL overlay
+❌ DS-DATE Runtime — native selects مؤقتاً
+❌ window.confirm / ESC / popstate — في Phase 2
+❌ full_name.split() legacy fallback — محذوف
+❌ profession list hardcoded
 ❌ re-fetch قبل إغلاق المودال
-❌ DOM manipulation خارج المودال من edit.js
 ```
 
 ---

@@ -1162,61 +1162,127 @@ def get_full_profile(user_id: int) -> Optional[dict]:
         release_conn(conn)
 
 
+# ── Shared name normalizer (§2) — used by update_profile() here and register() in server.py ──
+_DOB_MIN_YEAR = 1940
+_DOB_MIN_AGE  = 15
+
+def _norm_name(s) -> str:
+    """Normalize a structured name part: trim + collapse internal whitespace."""
+    return re.sub(r'\s+', ' ', (s or '').strip())
+
+
 def update_profile(user_id: int, data: dict) -> dict:
     _TEXT_FIELDS = ("full_name", "first_name", "middle_name", "last_name", "bio", "short_bio", "headline", "title", "location", "phone", "website")
     for _f in _TEXT_FIELDS:
         validate_professional_text(data.get(_f), _f)
+
+    # Normalize name parts via shared _norm_name (§2)
+    _first  = _norm_name(data.get("first_name"))  if "first_name"  in data else None
+    _middle = _norm_name(data.get("middle_name")) if "middle_name" in data else None
+    _last   = _norm_name(data.get("last_name"))   if "last_name"   in data else None
+
+    # Structured-name validation (§4): reject empty first/last when structured path triggered
+    if _first is not None or _last is not None:
+        if not _first:
+            raise ValueError("first_name_required")
+        if not _last:
+            raise ValueError("last_name_required")
+    # Empty middle → null (§4)
+    if _middle is not None and not _middle:
+        _middle = None
+
+    # DOB validation (§9A)
+    _dob_str = data.get("dob")
+    if _dob_str:
+        try:
+            from datetime import date as _date_cls
+            _dob = _date_cls.fromisoformat(_dob_str)
+            _today = _date_cls.today()
+            if _dob >= _today:
+                raise ValueError("dob_future")
+            if _dob.year < _DOB_MIN_YEAR:
+                raise ValueError("dob_year_too_old")
+            if (_today - _dob).days < _DOB_MIN_AGE * 365:
+                raise ValueError("dob_too_young")
+        except ValueError:
+            raise
+        except Exception:
+            raise ValueError("dob_invalid")
 
     _t0 = _time_mod.time()
     _cache_del('profile:'+str(user_id))
     _THEME_FIELDS = {"profile_color", "profile_style"}
     conn = get_conn()
     try:
-        # Clear theme cache only when theme fields change — saves SELECT round-trip on normal saves
-        if _THEME_FIELDS & set(data.keys()):
-            try:
-                _tw = conn.run("SELECT tw_id FROM users WHERE id=:uid", uid=user_id)
-                if _tw and _tw[0][0]: _cache_del('theme:'+str(_tw[0][0]))
-            except Exception: pass
+        conn.run("BEGIN")
+        _committed = False
+        try:
+            # Clear theme cache only when theme fields change
+            if _THEME_FIELDS & set(data.keys()):
+                try:
+                    _tw = conn.run("SELECT tw_id FROM users WHERE id=:uid", uid=user_id)
+                    if _tw and _tw[0][0]: _cache_del('theme:'+str(_tw[0][0]))
+                except Exception: pass
 
-        # Build full_name from name parts if provided (Profile V2 flow)
-        _name_parts = [data.get("first_name"), data.get("middle_name"), data.get("last_name")]
-        _built_name = " ".join(p for p in _name_parts if p and p.strip())
-        if _built_name:
-            conn.run("UPDATE users SET full_name = :name WHERE id = :uid", name=_built_name, uid=user_id)
-        elif data.get("full_name"):
-            conn.run("UPDATE users SET full_name = :name WHERE id = :uid", name=data["full_name"], uid=user_id)
+            # Build canonical full_name from normalized parts (§2 + §3)
+            _built_name = None
+            if _first is not None or _last is not None:
+                # Write normalized values back so fields dict gets the clean versions
+                data["first_name"]  = _first
+                data["middle_name"] = _middle  # may be None
+                data["last_name"]   = _last
+                _built_name = " ".join(p for p in [_first, _middle, _last] if p)
+                conn.run("UPDATE users SET full_name = :name WHERE id = :uid", name=_built_name, uid=user_id)
+            elif data.get("full_name"):
+                _built_name = data["full_name"]
+                conn.run("UPDATE users SET full_name = :name WHERE id = :uid", name=_built_name, uid=user_id)
 
-        # Schema guaranteed by init_db — no runtime ALTER TABLE needed
-        allowed = ["headline", "bio", "short_bio", "location", "skills", "avatar_url", "website", "phone", "sections_order", "custom_sections", "dob", "country", "city", "avail", "title", "profile_color", "profile_style", "profession_id", "first_name", "middle_name", "last_name", "cover_url"]
-        _clearable = {"dob", "country", "city", "avail"}
-        fields = {k: v for k, v in data.items() if k in allowed and (v is not None or k in _clearable)}
-        print(f"[update_profile] user={user_id} saving fields: {list(fields.keys())}")
+            # Schema guaranteed by init_db — no runtime ALTER TABLE needed
+            allowed = ["headline", "bio", "short_bio", "location", "skills", "avatar_url", "website", "phone", "sections_order", "custom_sections", "dob", "country", "city", "avail", "title", "profile_color", "profile_style", "profession_id", "first_name", "middle_name", "last_name", "cover_url"]
+            _clearable = {"dob", "country", "city", "avail", "middle_name"}
+            fields = {k: v for k, v in data.items() if k in allowed and (v is not None or k in _clearable)}
+            print(f"[update_profile] user={user_id} saving fields: {list(fields.keys())}")
 
-        rows = conn.run("SELECT id FROM profiles WHERE user_id = :uid", uid=user_id)
-        if rows:
-            if fields:
-                set_clause = ", ".join(f"{k} = :{k}" for k in fields)
-                update_rows = conn.run(
-                    f"UPDATE profiles SET {set_clause}, updated_at = NOW() WHERE user_id = :uid RETURNING id",
-                    uid=user_id, **fields
+            rows = conn.run("SELECT id FROM profiles WHERE user_id = :uid", uid=user_id)
+            if rows:
+                if fields:
+                    set_clause = ", ".join(f"{k} = :{k}" for k in fields)
+                    update_rows = conn.run(
+                        f"UPDATE profiles SET {set_clause}, updated_at = NOW() WHERE user_id = :uid RETURNING id",
+                        uid=user_id, **fields
+                    )
+                    if not update_rows:
+                        print(f"[update_profile] ⚠️ UPDATE returned 0 rows for user {user_id} — running INSERT")
+                        raise ValueError("no_profile_row")
+                    print(f"[update_profile] ✅ DB UPDATE success for user {user_id}, rows={len(update_rows)} — {_time_mod.time()-_t0:.3f}s")
+            else:
+                cols_list = ["user_id"] + list(fields.keys())
+                placeholders = ", ".join(f":{c}" for c in cols_list)
+                conn.run(
+                    f"INSERT INTO profiles ({', '.join(cols_list)}) VALUES ({placeholders})",
+                    user_id=user_id, **fields
                 )
-                if not update_rows:
-                    print(f"[update_profile] ⚠️ UPDATE returned 0 rows for user {user_id} — running INSERT")
-                    raise ValueError("no_profile_row")
-                print(f"[update_profile] ✅ DB UPDATE success for user {user_id}, rows={len(update_rows)} — {_time_mod.time()-_t0:.3f}s")
-        else:
-            cols_list = ["user_id"] + list(fields.keys())
-            placeholders = ", ".join(f":{c}" for c in cols_list)
-            conn.run(
-                f"INSERT INTO profiles ({', '.join(cols_list)}) VALUES ({placeholders})",
-                user_id=user_id, **fields
-            )
+            conn.run("COMMIT")
+            _committed = True
+        except Exception:
+            if not _committed:
+                try: conn.run("ROLLBACK")
+                except Exception: pass
+            raise
     finally:
         release_conn(conn)
+
+    # Canonical response (§6/§18): include normalized name parts + built full_name
     resp = {"id": user_id, "updated": True}
     resp.update(fields)
-    if data.get("full_name"):
+    if _built_name:
+        resp["full_name"] = _built_name
+    if _first  is not None: resp["first_name"]  = _first
+    if _middle is not None: resp["middle_name"] = _middle
+    else:
+        if "middle_name" in data: resp["middle_name"] = None
+    if _last is not None: resp["last_name"] = _last
+    if data.get("full_name") and not _built_name:
         resp["full_name"] = data["full_name"]
     print(f"[update_profile] ⏱ total: {_time_mod.time()-_t0:.3f}s")
     return resp

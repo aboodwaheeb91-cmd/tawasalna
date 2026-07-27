@@ -1,23 +1,40 @@
-// profile-v2.edit.js — Edit Profile Modal (Phase 2 + Confirmed Local Update)
+// profile-v2.edit.js — Edit Profile Modal  Phase 1
 // Depends on: profile-v2.state.js, profile-v2.api.js, profile-v2.render.js, profile-v2.utils.js
 
 (function(){
-  var overlay   = document.getElementById('epOverlay');
-  var closeBtn  = document.getElementById('epClose');
-  var cancelBtn = document.getElementById('epCancelBtn');
-  var saveBtn   = document.getElementById('epSaveBtn');
-  var editBtn   = document.getElementById('scEditProfileBtn');
-  var errEl     = document.getElementById('epErr');
+  var overlay    = document.getElementById('epOverlay');
+  var closeBtn   = document.getElementById('epClose');
+  var cancelBtn  = document.getElementById('epCancelBtn');
+  var saveBtn    = document.getElementById('epSaveBtn');
+  var editBtn    = document.getElementById('scEditProfileBtn');
+  var errEl      = document.getElementById('epErr');
 
   if(!overlay || !editBtn) return;
 
-  // EP_CITIES removed — city data is now in TW.CITIES (tw-options-data.js).
-  // City lookup: TW.countryEntry(isoCode).name_ar → TW.CITIES[name_ar]
-
-  // cached professions list — set on open, used in applyLocalUpdate
+  // cached professions list
   var _profList = [];
 
-  // ── Populate DOB day options ──
+  // ── DS-FRM async race guard (§20) ──
+  // Incremented on every modal open. Async callbacks capture the generation at
+  // call-time and bail if it no longer matches the current value.
+  var _editSession = 0;
+
+  // ── Dirty State snapshot (§14) ──
+  // Captured from canonical profile during hydration. NOT reset between sessions
+  // (only re-captured on open). NO window.confirm / ESC / popstate in this PR.
+  var _snapshot = null;
+
+  // ── In-flight guard (§13) ──
+  // True while a save request is in-flight; blocks close handlers.
+  var _inFlight = false;
+
+  // ── Legacy name mode (§1) ──
+  // Detected when profile has full_name but no first_name/last_name.
+  // _legacyMode = true → show read-only note, leave fields blank.
+  // _migrating  = true → user has typed something in first/last fields.
+  var _legacyMode = false;
+
+  // ── DOB year/day option population ──
   (function(){
     var d = document.getElementById('epDobD');
     if(!d) return;
@@ -28,12 +45,11 @@
     }
   })();
 
-  // ── Populate DOB year options ──
   (function(){
     var y = document.getElementById('epDobY');
     if(!y) return;
     var cur = new Date().getFullYear();
-    for(var i=cur-15; i>=1940; i--){
+    for(var i = cur - 15; i >= 1940; i--){
       var o = document.createElement('option');
       o.value = i; o.text = i;
       y.appendChild(o);
@@ -41,8 +57,6 @@
   })();
 
   // ── City loader — global so onchange="epLoadCities()" works ──
-  // Profile V2 country select stores ISO codes (JO, SA, …); TW.CITIES is keyed by Arabic name.
-  // TW.countryEntry(isoCode) bridges the two.
   window.epLoadCities = function(selectedCity){
     var cc       = (document.getElementById('epCountry')||{}).value || '';
     var cityWrap = document.getElementById('epCityWrap');
@@ -52,11 +66,14 @@
     var cities = entry ? (TW.CITIES[entry.name_ar] || []) : [];
     if(!cities.length){
       if(cityWrap) cityWrap.style.display = 'none';
-      cityEl.innerHTML = '<option value="">— اختر المدينة —</option>';
+      var ph = document.createElement('option'); ph.value = ''; ph.text = '— اختر المدينة —';
+      cityEl.innerHTML = ''; cityEl.appendChild(ph);
       if(window.scSelectInit) scSelectInit();
       return;
     }
-    cityEl.innerHTML = '<option value="">— اختر المدينة —</option>';
+    cityEl.innerHTML = '';
+    var ph2 = document.createElement('option'); ph2.value = ''; ph2.text = '— اختر المدينة —';
+    cityEl.appendChild(ph2);
     cities.forEach(function(c){
       var o = document.createElement('option');
       o.value = c; o.text = c;
@@ -67,124 +84,178 @@
     if(window.scSelectInit) scSelectInit();
   };
 
-  // ── Confirmed Local Update — runs immediately after PUT succeeds ──
-  function applyLocalUpdate(payload){
-    // Name — update from parts (backend builds full_name, we mirror it locally)
-    var _builtName = [payload.first_name, payload.middle_name, payload.last_name]
-      .filter(function(x){ return x && x.trim(); }).join(' ');
-    if(_builtName){
-      var nameEl = document.getElementById('scName');
-      if(nameEl) nameEl.textContent = _builtName;
-      if(window._scProfile){
-        window._scProfile.full_name   = _builtName;
-        window._scProfile.first_name  = payload.first_name  || '';
-        window._scProfile.middle_name = payload.middle_name || '';
-        window._scProfile.last_name   = payload.last_name   || '';
-      }
-      requestAnimationFrame(function(){ if(window._fitName) window._fitName(); });
-    }
+  // ── DS-VAL field error helpers (§8/§16) ──
+  var _CONTENT_MSG = 'لا يسمح باستخدام كلمات غير لائقة أو غير مهنية داخل هذا الحقل';
 
-    // نبذة رقم 1 (header) — short_bio only, never touches About tab
-    if(payload.short_bio !== undefined){
-      var headerBioEl = document.getElementById('scBio');
-      if(headerBioEl) headerBioEl.textContent = payload.short_bio;
-      requestAnimationFrame(function(){
-        if(headerBioEl){
-          var moreBtn = document.getElementById('scBioMore');
-          if(moreBtn) moreBtn.style.display = headerBioEl.scrollHeight > headerBioEl.clientHeight + 2 ? 'inline-block' : 'none';
-        }
-      });
-      if(window._scProfile) window._scProfile.short_bio = payload.short_bio;
+  function _setAriaInvalid(inputEl, errEl, msg){
+    if(inputEl){
+      inputEl.classList.add('ep-input-err');
+      inputEl.setAttribute('aria-invalid', 'true');
     }
-
-    // DOB → compute and display age
-    if('dob' in payload){
-      if(payload.dob){
-        var birth = new Date(payload.dob);
-        if(!isNaN(birth.getTime())){
-          var age = Math.floor((Date.now() - birth.getTime()) / (365.25*24*3600*1000));
-          var ageEl = document.getElementById('scAge');
-          if(ageEl){
-            if(age > 0 && age < 150){
-              ageEl.innerHTML = '<i data-lucide="cake" class="ico-sm"></i> ' + age + ' سنة';
-              ageEl.style.display = 'flex';
-            }
-          }
-        }
-      } else {
-        var ageEl = document.getElementById('scAge');
-        if(ageEl) ageEl.style.display = 'none';
-      }
-      if(window._scProfile) window._scProfile.dob = payload.dob;
-    }
-
-    // Country / city — update cache then refresh scLoc DOM immediately
-    if('country' in payload && window._scProfile) window._scProfile.country = payload.country || '';
-    if('city'    in payload && window._scProfile) window._scProfile.city    = payload.city    || '';
-    if(payload.avail !== undefined && window._scProfile) window._scProfile.avail = payload.avail;
-    if(payload.avail !== undefined && window._renderAvailDot) window._renderAvailDot(payload.avail || null, true);
-    (function(){
-      var _p   = window._scProfile || {};
-      var _loc = document.getElementById('scLoc');
-      if(!_loc || !window._buildLocText) return;
-      var _lt = window._buildLocText(_p.country || '', _p.city || '', _p.location || '');
-      if(_lt){
-        _loc.innerHTML = '';
-        if(window.TW && TW.countryFlagEl && _p.country){
-          var _fl = TW.countryFlagEl(_p.country);
-          if(_fl) _loc.appendChild(_fl);
-        }
-        var _pin2 = document.createElement('i');
-        _pin2.setAttribute('data-lucide','map-pin');
-        _pin2.className = 'ico-sm';
-        _loc.appendChild(_pin2);
-        var _ltSp = document.createElement('span');
-        _ltSp.textContent = _lt;
-        _loc.appendChild(_ltSp);
-        _loc.style.display = 'inline-flex';
-        _loc.style.alignItems = 'center';
-        _loc.style.gap = '4px';
-      } else {
-        _loc.innerHTML = '';
-        _loc.style.display = '';
-      }
-      if(window.lucide && lucide.createIcons) lucide.createIcons();
-    })();
-
-    // Profession — look up from cached list to get name_ar + icon
-    if(payload.profession_id && _profList.length){
-      var prof = null;
-      for(var i=0; i<_profList.length; i++){
-        if(_profList[i].id === payload.profession_id){ prof = _profList[i]; break; }
-      }
-      if(prof){
-        var titleEl = document.getElementById('scTitle');
-        if(titleEl){
-          titleEl.innerHTML = '<i data-lucide="' + (prof.icon || 'briefcase') + '" class="ico-sm"></i> ' + prof.name_ar;
-        }
-        if(window._scProfile) window._scProfile.profession = prof;
-        if(window.lucide && lucide.createIcons) lucide.createIcons();
-      }
-    }
+    if(errEl){ errEl.textContent = msg || _CONTENT_MSG; errEl.classList.add('show'); }
+    if(errEl) errEl.scrollIntoView({behavior:'smooth', block:'nearest'});
   }
 
-  // ── Open Modal — prefill all fields ──
-  function openModal(){
-    var p = window._scProfile || {};
+  function _clearAriaInvalid(inputEl, errEl){
+    if(inputEl){
+      inputEl.classList.remove('ep-input-err');
+      inputEl.setAttribute('aria-invalid', 'false');
+    }
+    if(errEl){ errEl.textContent = ''; errEl.classList.remove('show'); }
+  }
 
-    // Name: use stored name parts if available, split only as legacy fallback
-    var fn = document.getElementById('epFirstName');
-    var mn = document.getElementById('epMidName');
-    var ln = document.getElementById('epLastName');
-    if(p.first_name){
-      if(fn) fn.value = p.first_name;
+  function _clearAllFieldErrs(){
+    ['epFirstName','epMidName','epLastName'].forEach(function(id){
+      var el = document.getElementById(id);
+      if(el){ el.classList.remove('ep-input-err'); el.setAttribute('aria-invalid','false'); }
+    });
+    var nameErr = document.getElementById('epNameErr');
+    if(nameErr){ nameErr.textContent=''; nameErr.classList.remove('show'); }
+    var bioEl   = document.getElementById('epShortBio');
+    var bioErr  = document.getElementById('epShortBioErr');
+    if(bioEl){ bioEl.classList.remove('ep-input-err'); bioEl.setAttribute('aria-invalid','false'); }
+    if(bioErr){ bioErr.textContent=''; bioErr.classList.remove('show'); }
+    var dobErr  = document.getElementById('epDobErr');
+    if(dobErr){ dobErr.textContent=''; dobErr.classList.remove('show'); }
+  }
+
+  // Auto-clear name errors on input
+  ['epFirstName','epMidName','epLastName'].forEach(function(id){
+    var el = document.getElementById(id);
+    if(!el) return;
+    el.addEventListener('input', function(){
+      if(el.classList.contains('ep-input-err') && (!window._scCheckProfessional || !window._scCheckProfessional(el.value))){
+        el.classList.remove('ep-input-err');
+        el.setAttribute('aria-invalid','false');
+      }
+      var anyBad = ['epFirstName','epMidName','epLastName'].some(function(i){
+        var e = document.getElementById(i);
+        return e && window._scCheckProfessional && window._scCheckProfessional(e.value);
+      });
+      if(!anyBad){
+        var div = document.getElementById('epNameErr');
+        if(div){ div.textContent=''; div.classList.remove('show'); }
+      }
+      // Also clear required error once user types
+      var first = ((document.getElementById('epFirstName')||{}).value||'').trim();
+      var last  = ((document.getElementById('epLastName') ||{}).value||'').trim();
+      if(first){
+        var fn = document.getElementById('epFirstName');
+        if(fn){ fn.classList.remove('ep-input-err'); fn.setAttribute('aria-invalid','false'); }
+      }
+      if(last){
+        var ln = document.getElementById('epLastName');
+        if(ln){ ln.classList.remove('ep-input-err'); ln.setAttribute('aria-invalid','false'); }
+        var nameErr = document.getElementById('epNameErr');
+        if(nameErr && nameErr.textContent.indexOf('مطلوب') !== -1){ nameErr.textContent=''; nameErr.classList.remove('show'); }
+      }
+    });
+  });
+
+  var _epShortBioInput = document.getElementById('epShortBio');
+  if(_epShortBioInput) _epShortBioInput.addEventListener('input', function(){
+    if(!window._scCheckProfessional || !window._scCheckProfessional(_epShortBioInput.value))
+      _clearAriaInvalid(_epShortBioInput, document.getElementById('epShortBioErr'));
+  });
+
+  // ── DS-FRM Reset (§5/§19) ──
+  function _resetForm(){
+    // Field values
+    ['epFirstName','epMidName','epLastName'].forEach(function(id){
+      var el = document.getElementById(id); if(el) el.value = '';
+    });
+    ['epDobD','epDobM','epDobY'].forEach(function(id){
+      var el = document.getElementById(id); if(el) el.value = '';
+    });
+    var avEl = document.getElementById('epAvail'); if(avEl) avEl.value = '';
+    var sh   = document.getElementById('epShortBio'); if(sh) sh.value = '';
+    // Profession placeholder
+    var profEl = document.getElementById('epProfession');
+    if(profEl){
+      profEl.innerHTML = '';
+      var ph = document.createElement('option'); ph.value=''; ph.text='جاري التحميل…';
+      profEl.appendChild(ph);
+    }
+    // Legacy name row
+    var legRow = document.getElementById('epLegacyNameRow');
+    if(legRow) legRow.style.display = 'none';
+    var nameRow = document.getElementById('epNameRow');
+    if(nameRow) nameRow.style.display = '';
+    _legacyMode = false;
+    // Error state
+    _clearAllFieldErrs();
+    if(errEl){ errEl.textContent=''; errEl.style.display='none'; }
+    // Button state
+    _setSaveBtnNormal();
+  }
+
+  // ── BTN-18 save button loading state (§12) ──
+  function _setSaveBtnLoading(){
+    if(!saveBtn) return;
+    saveBtn.disabled = true;
+    saveBtn.setAttribute('aria-busy','true');
+    saveBtn.classList.add('ep-save--loading');
+    saveBtn.dataset.origText = saveBtn.textContent;
+    saveBtn.textContent = '';
+  }
+  function _setSaveBtnNormal(){
+    if(!saveBtn) return;
+    saveBtn.disabled = false;
+    saveBtn.setAttribute('aria-busy','false');
+    saveBtn.classList.remove('ep-save--loading');
+    saveBtn.textContent = saveBtn.dataset.origText || 'حفظ التغييرات';
+  }
+
+  // ── Profession options via DOM APIs (§10) ──
+  function _buildProfessionOptions(profEl, list, currentProfession){
+    var groups = {};
+    list.forEach(function(pr){
+      var g = pr.category_group || 'أخرى';
+      if(!groups[g]) groups[g] = [];
+      groups[g].push(pr);
+    });
+    profEl.innerHTML = '';
+    var placeholder = document.createElement('option');
+    placeholder.value = ''; placeholder.text = '— اختر التخصص —';
+    profEl.appendChild(placeholder);
+    Object.keys(groups).forEach(function(g){
+      var og = document.createElement('optgroup');
+      og.label = g;
+      groups[g].forEach(function(pr){
+        var opt = document.createElement('option');
+        opt.value = String(pr.id);
+        opt.text  = pr.name_ar;
+        opt.dataset.icon = (pr.icon || 'briefcase').replace(/"/g,'');
+        if(currentProfession && currentProfession.id === pr.id) opt.selected = true;
+        og.appendChild(opt);
+      });
+      profEl.appendChild(og);
+    });
+  }
+
+  // ── DS-FRM Hydration (§6/§19) ──
+  function _hydrateForm(p, profList, session){
+    // Detect legacy name mode (§1)
+    var hasStructured = !!(p.first_name && p.last_name);
+    _legacyMode = !hasStructured && !!(p.full_name);
+
+    var legRow  = document.getElementById('epLegacyNameRow');
+    var nameRow = document.getElementById('epNameRow');
+    var legText = document.getElementById('epLegacyNameText');
+
+    if(_legacyMode){
+      if(legRow){ legRow.style.display = ''; }
+      if(nameRow){ nameRow.style.display = 'none'; }
+      if(legText) legText.textContent = p.full_name || '';
+    } else {
+      if(legRow){ legRow.style.display = 'none'; }
+      if(nameRow){ nameRow.style.display = ''; }
+      var fn = document.getElementById('epFirstName');
+      var mn = document.getElementById('epMidName');
+      var ln = document.getElementById('epLastName');
+      if(fn) fn.value = p.first_name  || '';
       if(mn) mn.value = p.middle_name || '';
       if(ln) ln.value = p.last_name   || '';
-    } else {
-      var parts = (p.full_name || '').trim().split(/\s+/).filter(Boolean);
-      if(fn) fn.value = parts[0] || '';
-      if(ln) ln.value = parts.length > 1 ? parts[parts.length-1] : '';
-      if(mn) mn.value = parts.length > 2 ? parts.slice(1,-1).join(' ') : '';
     }
 
     // DOB
@@ -194,13 +265,9 @@
       var dy = document.getElementById('epDobY'); if(dy) dy.value = dp[0];
       var dm = document.getElementById('epDobM'); if(dm) dm.value = dp[1];
       var dd = document.getElementById('epDobD'); if(dd) dd.value = dp[2];
-    } else {
-      var dy = document.getElementById('epDobY'); if(dy) dy.value = '';
-      var dm = document.getElementById('epDobM'); if(dm) dm.value = '';
-      var dd = document.getElementById('epDobD'); if(dd) dd.value = '';
     }
 
-    // Country + City — populate with flags via TW (Profile V2 stores ISO codes)
+    // Country + City
     var countryEl = document.getElementById('epCountry');
     if(countryEl && window.TW && TW.fillCountries){
       TW.fillCountries(countryEl, '— اختر البلد —', { valueMode: 'code', withFlags: true, force: true });
@@ -212,112 +279,221 @@
     var avEl = document.getElementById('epAvail');
     if(avEl) avEl.value = p.avail || '';
 
-    // Profession — load list and cache it
+    // Profession (§10 — DOM APIs)
     var profEl = document.getElementById('epProfession');
-    if(profEl){
-      profEl.innerHTML = '<option value="">جاري التحميل…</option>';
-      getProfessions()
-        .then(function(list){
-          _profList = list;
-          var groups = {};
-          list.forEach(function(pr){
-            var g = pr.category_group || 'أخرى';
-            if(!groups[g]) groups[g] = [];
-            groups[g].push(pr);
-          });
-          var html = '<option value="">— اختر التخصص —</option>';
-          Object.keys(groups).forEach(function(g){
-            html += '<optgroup label="' + g + '">';
-            groups[g].forEach(function(pr){
-              var sel  = (p.profession && p.profession.id === pr.id) ? ' selected' : '';
-              var icon = (pr.icon || 'briefcase').replace(/"/g,'');
-              html += '<option value="' + pr.id + '"' + sel + ' data-icon="' + icon + '">' + pr.name_ar + '</option>';
-            });
-            html += '</optgroup>';
-          });
-          profEl.innerHTML = html;
-          if(window.lucide && lucide.createIcons) lucide.createIcons();
-        })
-        .catch(function(){ profEl.innerHTML = '<option value="">تعذّر تحميل التخصصات</option>'; });
+    if(profEl && profList && profList.length){
+      _buildProfessionOptions(profEl, profList, p.profession || null);
+    } else if(profEl && profList){
+      var errOpt = document.createElement('option');
+      errOpt.value = ''; errOpt.text = '— اختر التخصص —';
+      profEl.innerHTML = ''; profEl.appendChild(errOpt);
     }
 
-    // Short bio (header — نبذة رقم 1)
+    // Short bio
     var shortBioEl = document.getElementById('epShortBio');
     if(shortBioEl) shortBioEl.value = p.short_bio || '';
 
-    if(errEl) errEl.style.display = 'none';
-    overlay.classList.add('open');
+    // Dirty State snapshot (§14) — capture after all fields are set
+    if(_editSession === session){
+      _snapshot = _captureSnapshot();
+    }
+
     if(window.scSelectInit) scSelectInit();
     if(window.lucide && lucide.createIcons) lucide.createIcons();
   }
 
-  // ── Inline field-error helpers ──
-  var _CONTENT_MSG = 'لا يسمح باستخدام كلمات غير لائقة أو غير مهنية داخل هذا الحقل';
-
-  function _showFieldErr(inputEl, errId, msg){
-    var div = document.getElementById(errId);
-    if(inputEl) inputEl.classList.add('ep-input-err');
-    if(div){ div.textContent = msg || _CONTENT_MSG; div.classList.add('show'); }
-    if(div) div.scrollIntoView({behavior:'smooth', block:'nearest'});
+  // ── Dirty State snapshot capture (§14) ──
+  function _captureSnapshot(){
+    return {
+      firstName:  ((document.getElementById('epFirstName')||{}).value||'').trim(),
+      midName:    ((document.getElementById('epMidName')  ||{}).value||'').trim(),
+      lastName:   ((document.getElementById('epLastName') ||{}).value||'').trim(),
+      dobY:       ((document.getElementById('epDobY')||{}).value||'').trim(),
+      dobM:       ((document.getElementById('epDobM')||{}).value||'').trim(),
+      dobD:       ((document.getElementById('epDobD')||{}).value||'').trim(),
+      country:    ((document.getElementById('epCountry')   ||{}).value||'').trim(),
+      city:       ((document.getElementById('epCity')      ||{}).value||'').trim(),
+      avail:      ((document.getElementById('epAvail')     ||{}).value||'').trim(),
+      profId:     ((document.getElementById('epProfession')||{}).value||'').trim(),
+      shortBio:   ((document.getElementById('epShortBio')||{}).value||'').trim(),
+    };
   }
 
-  function _clearFieldErr(inputEl, errId){
-    var div = document.getElementById(errId);
-    if(inputEl) inputEl.classList.remove('ep-input-err');
-    if(div){ div.textContent = ''; div.classList.remove('show'); }
+  function _isDirty(){
+    if(!_snapshot) return false;
+    var cur = _captureSnapshot();
+    return (
+      cur.firstName !== _snapshot.firstName ||
+      cur.midName   !== _snapshot.midName   ||
+      cur.lastName  !== _snapshot.lastName  ||
+      cur.dobY      !== _snapshot.dobY      ||
+      cur.dobM      !== _snapshot.dobM      ||
+      cur.dobD      !== _snapshot.dobD      ||
+      cur.country   !== _snapshot.country   ||
+      cur.city      !== _snapshot.city      ||
+      cur.avail     !== _snapshot.avail     ||
+      cur.profId    !== _snapshot.profId    ||
+      cur.shortBio  !== _snapshot.shortBio
+    );
   }
+  window._epIsDirty = _isDirty;
 
-  function _clearAllFieldErrs(){
-    ['epFirstName','epMidName','epLastName'].forEach(function(id){
-      var el = document.getElementById(id); if(el) el.classList.remove('ep-input-err');
-    });
-    ['epNameErr','epShortBioErr'].forEach(function(id){
-      var div = document.getElementById(id);
-      if(div){ div.textContent=''; div.classList.remove('show'); }
-    });
-    var shortBio = document.getElementById('epShortBio');
-    if(shortBio) shortBio.classList.remove('ep-input-err');
-  }
+  // ── Open Modal (§19) ──
+  function openModal(){
+    var session = ++_editSession;   // advance generation before any async work
+    _resetForm();                   // DS-FRM: Reset before Hydrate
+    overlay.classList.add('open');
 
-  // Auto-clear name row when user edits and content is now clean
-  function _checkNameErr(){
-    ['epFirstName','epMidName','epLastName'].forEach(function(id){
-      var el = document.getElementById(id);
-      if(el && el.classList.contains('ep-input-err') && !window._scCheckProfessional(el.value)){
-        el.classList.remove('ep-input-err');
-      }
-    });
-    var anyBad = ['epFirstName','epMidName','epLastName'].some(function(id){
-      var el = document.getElementById(id);
-      return el && window._scCheckProfessional && window._scCheckProfessional(el.value);
-    });
-    if(!anyBad){
-      var div = document.getElementById('epNameErr');
-      if(div){ div.textContent=''; div.classList.remove('show'); }
+    var p = window._scProfile || {};
+
+    // Profession async (§10 — DOM APIs, §20 race guard)
+    var profEl = document.getElementById('epProfession');
+    if(profEl && (!_profList || !_profList.length)){
+      getProfessions()
+        .then(function(list){
+          if(_editSession !== session) return;  // stale session — abort
+          _profList = list;
+          _hydrateForm(p, list, session);
+        })
+        .catch(function(){
+          if(_editSession !== session) return;
+          if(profEl){
+            profEl.innerHTML = '';
+            var errOpt = document.createElement('option');
+            errOpt.value = ''; errOpt.text = 'تعذّر تحميل التخصصات';
+            profEl.appendChild(errOpt);
+          }
+          // Still hydrate the rest of the form
+          _hydrateForm(p, [], session);
+        });
+    } else {
+      // Already have the professions cached
+      _hydrateForm(p, _profList, session);
     }
+    if(window.lucide && lucide.createIcons) lucide.createIcons();
   }
-  ['epFirstName','epMidName','epLastName'].forEach(function(id){
-    var el = document.getElementById(id);
-    if(el) el.addEventListener('input', _checkNameErr);
-  });
 
-  // Auto-clear short bio error
-  var _epShortBioInput = document.getElementById('epShortBio');
-  if(_epShortBioInput) _epShortBioInput.addEventListener('input', function(){
-    if(!window._scCheckProfessional || !window._scCheckProfessional(_epShortBioInput.value))
-      _clearFieldErr(_epShortBioInput, 'epShortBioErr');
-  });
-
+  // ── Close Modal (§19) ──
   function closeModal(){
+    if(_inFlight) return;   // §13: lock close during save
     overlay.classList.remove('open');
     _clearAllFieldErrs();
-    if(errEl) errEl.style.display = 'none';
+    if(errEl){ errEl.textContent=''; errEl.style.display='none'; }
   }
 
   editBtn.addEventListener('click', openModal);
   closeBtn.addEventListener('click', closeModal);
   cancelBtn.addEventListener('click', closeModal);
   overlay.addEventListener('click', function(e){ if(e.target === overlay) closeModal(); });
+
+  // ── Canonical profile update (§6) ──
+  // Called with the profile object from the server PUT response (§6).
+  // Uses server-confirmed canonical values — request payload is never used as source.
+  function applyCanonicalProfile(profile){
+    if(!profile) return;
+
+    // Update in-memory canonical state
+    if(window._scProfile){
+      if(profile.full_name  !== undefined) window._scProfile.full_name   = profile.full_name;
+      if(profile.first_name !== undefined) window._scProfile.first_name  = profile.first_name;
+      if(profile.middle_name!== undefined) window._scProfile.middle_name = profile.middle_name;
+      if(profile.last_name  !== undefined) window._scProfile.last_name   = profile.last_name;
+      if(profile.short_bio  !== undefined) window._scProfile.short_bio   = profile.short_bio;
+      if(profile.dob        !== undefined) window._scProfile.dob         = profile.dob;
+      if(profile.country    !== undefined) window._scProfile.country     = profile.country;
+      if(profile.city       !== undefined) window._scProfile.city        = profile.city;
+      if(profile.avail      !== undefined) window._scProfile.avail       = profile.avail;
+    }
+
+    // Name (§7) — use canonical full_name from server
+    if(profile.full_name){
+      var nameEl = document.getElementById('scName');
+      if(nameEl) nameEl.textContent = profile.full_name;
+      requestAnimationFrame(function(){ if(window._fitName) window._fitName(); });
+    }
+
+    // Short bio (header)
+    if(profile.short_bio !== undefined){
+      var headerBioEl = document.getElementById('scBio');
+      if(headerBioEl) headerBioEl.textContent = profile.short_bio;
+      requestAnimationFrame(function(){
+        if(headerBioEl){
+          var moreBtn = document.getElementById('scBioMore');
+          if(moreBtn) moreBtn.style.display = headerBioEl.scrollHeight > headerBioEl.clientHeight + 2 ? 'inline-block' : 'none';
+        }
+      });
+    }
+
+    // DOB → age display
+    if('dob' in profile){
+      if(profile.dob){
+        var birth = new Date(profile.dob);
+        if(!isNaN(birth.getTime())){
+          var age = Math.floor((Date.now() - birth.getTime()) / (365.25*24*3600*1000));
+          var ageEl = document.getElementById('scAge');
+          if(ageEl){
+            if(age > 0 && age < 150){
+              ageEl.innerHTML = '<i data-lucide="cake" class="ico-sm"></i> ' + age + ' سنة';
+              ageEl.style.display = 'flex';
+            }
+          }
+        }
+      } else {
+        var ageEl2 = document.getElementById('scAge');
+        if(ageEl2) ageEl2.style.display = 'none';
+      }
+    }
+
+    // Country / city location block
+    if('country' in profile && window._scProfile) window._scProfile.country = profile.country || '';
+    if('city'    in profile && window._scProfile) window._scProfile.city    = profile.city    || '';
+    (function(){
+      var _p   = window._scProfile || {};
+      var _loc = document.getElementById('scLoc');
+      if(!_loc || !window._buildLocText) return;
+      var _lt = window._buildLocText(_p.country || '', _p.city || '', _p.location || '');
+      if(_lt){
+        _loc.innerHTML = '';
+        if(window.TW && TW.countryFlagEl && _p.country){
+          var _fl = TW.countryFlagEl(_p.country);
+          if(_fl) _loc.appendChild(_fl);
+        }
+        var _pin = document.createElement('i');
+        _pin.setAttribute('data-lucide','map-pin'); _pin.className = 'ico-sm';
+        _loc.appendChild(_pin);
+        var _ltSp = document.createElement('span'); _ltSp.textContent = _lt;
+        _loc.appendChild(_ltSp);
+        _loc.style.display = 'inline-flex';
+        _loc.style.alignItems = 'center';
+        _loc.style.gap = '4px';
+      } else {
+        _loc.innerHTML = ''; _loc.style.display = '';
+      }
+      if(window.lucide && lucide.createIcons) lucide.createIcons();
+    })();
+
+    // Availability dot
+    if(profile.avail !== undefined && window._renderAvailDot)
+      window._renderAvailDot(profile.avail || null, true);
+
+    // Profession — look up from cached list using id from server response
+    if(profile.profession_id && _profList.length){
+      var prof = null;
+      for(var i=0; i<_profList.length; i++){
+        if(_profList[i].id === profile.profession_id){ prof = _profList[i]; break; }
+      }
+      if(prof){
+        var titleEl = document.getElementById('scTitle');
+        if(titleEl){
+          titleEl.innerHTML = '<i data-lucide="' + (prof.icon || 'briefcase') + '" class="ico-sm"></i> ';
+          var profSpan = document.createElement('span'); profSpan.textContent = prof.name_ar;
+          titleEl.appendChild(profSpan);
+        }
+        if(window._scProfile) window._scProfile.profession = prof;
+        if(window.lucide && lucide.createIcons) lucide.createIcons();
+      }
+    }
+  }
 
   // ── Save ──
   saveBtn.addEventListener('click', function(){
@@ -327,41 +503,31 @@
       return;
     }
 
+    // Collect raw values
     var first = ((document.getElementById('epFirstName')||{}).value||'').trim();
     var mid   = ((document.getElementById('epMidName')  ||{}).value||'').trim();
     var last  = ((document.getElementById('epLastName') ||{}).value||'').trim();
-    var fullName = [first, mid, last].filter(Boolean).join(' ');
+    var dobY  = ((document.getElementById('epDobY')||{}).value||'').trim();
+    var dobM  = ((document.getElementById('epDobM')||{}).value||'').trim();
+    var dobD  = ((document.getElementById('epDobD')||{}).value||'').trim();
+    var country    = ((document.getElementById('epCountry')   ||{}).value||'').trim();
+    var city       = ((document.getElementById('epCity')      ||{}).value||'').trim();
+    var avail      = ((document.getElementById('epAvail')     ||{}).value||'').trim();
+    var profVal    = ((document.getElementById('epProfession')||{}).value||'').trim();
+    var shortBioVal= ((document.getElementById('epShortBio')||{}).value||'').trim();
 
-    var dobY = ((document.getElementById('epDobY')||{}).value||'').trim();
-    var dobM = ((document.getElementById('epDobM')||{}).value||'').trim();
-    var dobD = ((document.getElementById('epDobD')||{}).value||'').trim();
-    var dob  = (dobY && dobM && dobD) ? (dobY + '-' + dobM + '-' + dobD) : '';
-
-    var country = ((document.getElementById('epCountry')   ||{}).value||'').trim();
-    var city    = ((document.getElementById('epCity')      ||{}).value||'').trim();
-    var avail   = ((document.getElementById('epAvail')     ||{}).value||'').trim();
-    var profVal = ((document.getElementById('epProfession')||{}).value||'').trim();
-    var shortBioVal = ((document.getElementById('epShortBio')||{}).value||'').trim();
-
-    var payload = { short_bio: shortBioVal };
-    // Send name parts — backend builds full_name automatically
-    payload.first_name  = first;
-    payload.middle_name = mid;
-    payload.last_name   = last;
-    payload.dob     = dob     || null;
-    payload.country = country || null;
-    payload.city    = city    || null;
-    payload.avail   = avail   || null;
-    if(profVal) payload.profession_id = parseInt(profVal, 10);
-
-    // Professional content guard — clear previous state, then mark ALL offending fields
+    // DS-VAL: clear previous errors
     _clearAllFieldErrs();
-    var _contentErr = false;
+    if(errEl){ errEl.textContent=''; errEl.style.display='none'; }
+
+    var hasErr = false;
+
+    // Professional content guard
     var _checkFields = [
-      {v: first,  inputId: 'epFirstName', errId: 'epNameErr'},
-      {v: mid,    inputId: 'epMidName',   errId: 'epNameErr'},
-      {v: last,   inputId: 'epLastName',  errId: 'epNameErr'},
-      {v: shortBioVal, inputId: 'epShortBio', errId: 'epShortBioErr'}
+      {v: first,       inputId: 'epFirstName', errId: 'epNameErr'},
+      {v: mid,         inputId: 'epMidName',   errId: 'epNameErr'},
+      {v: last,        inputId: 'epLastName',  errId: 'epNameErr'},
+      {v: shortBioVal, inputId: 'epShortBio',  errId: 'epShortBioErr'}
     ];
     var _lastErrMsg = _CONTENT_MSG;
     for(var _ei=0; _ei<_checkFields.length; _ei++){
@@ -369,48 +535,96 @@
       var _pcErr = window._scCheckProfessional && window._scCheckProfessional(_ef.v);
       if(_pcErr){
         var _inp = document.getElementById(_ef.inputId);
-        if(_inp) _inp.classList.add('ep-input-err');
         var _div = document.getElementById(_ef.errId);
-        if(_div){ _div.textContent = _pcErr; _div.classList.add('show'); }
+        _setAriaInvalid(_inp, _div, _pcErr);
         _lastErrMsg = _pcErr;
-        _contentErr = true;
+        hasErr = true;
       }
     }
-    if(_contentErr){
+    if(hasErr){
       var _fe = document.querySelector('#epOverlay .ep-field-err.show');
       if(_fe) _fe.scrollIntoView({behavior:'smooth', block:'nearest'});
       if(window.toast) window.toast(_lastErrMsg);
       return;
     }
 
-    if(errEl) errEl.style.display = 'none';
-    saveBtn.disabled = true;
-    saveBtn.textContent = 'جاري الحفظ…';
+    // DS-VAL: required name fields (§8) — skip in true legacy mode (no migration started)
+    if(!_legacyMode || first || last){
+      var nameErrEl = document.getElementById('epNameErr');
+      if(!first){
+        _setAriaInvalid(document.getElementById('epFirstName'), nameErrEl, 'الاسم الأول مطلوب');
+        hasErr = true;
+      }
+      if(!last){
+        if(!hasErr){
+          _setAriaInvalid(document.getElementById('epLastName'), nameErrEl, 'اسم العائلة مطلوب');
+        } else {
+          var ln = document.getElementById('epLastName');
+          if(ln){ ln.classList.add('ep-input-err'); ln.setAttribute('aria-invalid','true'); }
+        }
+        hasErr = true;
+      }
+    }
+    if(hasErr) return;
+
+    // DS-VAL: DOB partial completion (§9B) — all 3 fields or none
+    var dobFilled = [dobY, dobM, dobD].filter(Boolean).length;
+    if(dobFilled > 0 && dobFilled < 3){
+      var dobErrEl = document.getElementById('epDobErr');
+      if(dobErrEl){ dobErrEl.textContent='يرجى اختيار اليوم والشهر والسنة كاملاً'; dobErrEl.classList.add('show'); }
+      return;
+    }
+    var dob = (dobY && dobM && dobD) ? (dobY + '-' + dobM + '-' + dobD) : '';
+
+    // Build payload
+    var payload = { short_bio: shortBioVal };
+
+    // Name — only include in payload when structured mode or migration started
+    if(!_legacyMode || first || last){
+      payload.first_name  = first;
+      payload.middle_name = mid  || null;
+      payload.last_name   = last;
+    }
+
+    payload.dob     = dob     || null;
+    payload.country = country || null;
+    payload.city    = city    || null;
+    payload.avail   = avail   || null;
+    if(profVal) payload.profession_id = parseInt(profVal, 10);
+
+    // BTN-18 loading (§12) + in-flight lock (§13)
+    _inFlight = true;
+    _setSaveBtnLoading();
 
     updateProfile(uid, payload)
       .then(function(res){
         if(!res.ok){
           var _det = res.data && res.data.detail;
-          var msg = (_det && typeof _det === 'object' && _det.message)
+          var msg  = (_det && typeof _det === 'object' && _det.message)
             ? _det.message
             : (typeof _det === 'string' ? _det : 'حدث خطأ أثناء الحفظ');
           if(window.toast) window.toast(msg);
           if(errEl){ errEl.textContent = msg; errEl.style.display = 'block'; }
           return;
         }
-        // 1. Close modal + toast immediately
+        // 1. Close + toast
+        _inFlight = false;   // release lock before closeModal
         closeModal();
         if(window.toast) window.toast('تم حفظ التغييرات بنجاح');
-        // 2. Confirmed Local Update — no waiting for re-fetch
-        applyLocalUpdate(payload);
+        // 2. Canonical update from server response (§6)
+        var canonicalProfile = (res.data && res.data.profile) ? res.data.profile : null;
+        if(canonicalProfile){
+          if(payload.profession_id) canonicalProfile.profession_id = payload.profession_id;
+          applyCanonicalProfile(canonicalProfile);
+        }
         if(window._updateCompletion) window._updateCompletion();
-        // 3. Background re-fetch for full sync (score not included, runs separately)
+        // 3. Background re-fetch for full sync
         getProfile(_scProfileKey)
           .then(function(freshRes){
             if(freshRes && window.renderProfile) window.renderProfile(freshRes);
             if(window.lucide && lucide.createIcons) lucide.createIcons();
           })
-          .catch(function(){ /* silent — local update already applied */ });
+          .catch(function(){ /* silent — canonical update already applied */ });
       })
       .catch(function(){
         var _msg = 'خطأ في الاتصال بالخادم';
@@ -418,8 +632,8 @@
         if(errEl){ errEl.textContent = _msg; errEl.style.display = 'block'; }
       })
       .finally(function(){
-        saveBtn.disabled = false;
-        saveBtn.textContent = 'حفظ التغييرات';
+        _inFlight = false;
+        _setSaveBtnNormal();
       });
   });
 })();

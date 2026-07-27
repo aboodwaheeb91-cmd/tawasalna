@@ -1439,3 +1439,26 @@ company_saved_candidates.follow_up_at → TIMESTAMPTZ
 
 *أُنشئ في PR docs/ds-date-v1 — 2026-07-23*
 *DS-DATE V1: 36 قسماً (DATE-00 → DATE-35) — Documentation Only — لا Runtime.*
+
+---
+
+## DATE-34 — Profile V2 Edit DOB Implementation (Migration Inventory Update)
+
+> **أُضيف في PR feat/edit-profile-phase1 — 2026-07-27**
+
+### `profile-showcase.html` / `profile-v2.edit.js` — DOB في Edit Modal
+
+| الملف | الحقل / العنصر | النمط الحالي | الحالة |
+|-------|--------------|-------------|--------|
+| `profile-showcase.html` | `#epDobD/M/Y` | 3 native `<select>` via `.ep-select` (DS-SEL class) | Pre-DS-DATE — لا Runtime بعد |
+| `profile-v2.edit.js` | DOB hydration + payload | YYYY-MM-DD string from `profiles.dob` | مقبول مؤقتاً — لا DS-DATE Runtime |
+
+### Business Domain Rules (Profile V2 Edit)
+
+- **DOB_MIN_YEAR = 1940** — سنة ميلاد قبل 1940 مرفوضة (ثابت في `auth.py`)
+- **DOB_MIN_AGE = 15** — عمر أقل من 15 سنة مرفوض (ثابت في `auth.py`)
+- **All-or-none:** إما الثلاثة حقول (Y+M+D) أو لا شيء — validation في frontend + backend
+- **DOB مستقبلي:** مرفوض server-side (`dob_future`)
+- **تاريخ غير صحيح:** مرفوض server-side (`dob_invalid`)
+
+> قواعد Business Domain (min age, min year) هي ملكية التطبيق — ليست Global DS-DATE rules.
