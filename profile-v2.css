@@ -715,7 +715,7 @@ body.preview-guest       .owner-only { display: none !important; }
   color:var(--ep-placeholder);
   -webkit-text-fill-color:var(--ep-placeholder);
 }
-.ep-input::placeholder, .ep-textarea::placeholder { color:var(--ep-placeholder); }
+.ep-input::placeholder, .ep-textarea::placeholder { color:var(--ep-placeholder); -webkit-text-fill-color:var(--ep-placeholder); }
 /* DS-INP Chromium autofill override — prevents forced yellow/blue background */
 .ep-input:-webkit-autofill,
 .ep-input:-webkit-autofill:hover,

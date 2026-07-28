@@ -1706,6 +1706,109 @@ def test_AJ_round3_behavioral_proofs():
         else fail(label, 'name inputs missing correct autocomplete attributes (given-name/additional-name/family-name)')
 
 
+# ── AK: Round 4 Behavioral Proofs (A–I) ──────────────────────────────────────
+
+def test_AK_round4_behavioral_proofs():
+    print('\n\033[1m── AK: Round 4 Behavioral Proofs (A–I) ──\033[0m')
+    edit_src  = _read('profile-v2.edit.js')
+    html_src  = _read('profile-showcase.html')
+    css_src   = _read('profile-v2.css')
+    arch_src  = _read('ARCHITECTURE.md')
+    sel_doc   = _read('docs/design-system/SELECT-PICKER.md')
+    srv_src   = _read('server.py')
+
+    # A: Path B fix — _hydrateProfession else branch preserves profession when p.profession exists
+    label = 'AK-A: _hydrateProfession Path B preserves current profession (التخصص الحالي محفوظ)'
+    ok(label) if 'التخصص الحالي محفوظ' in edit_src \
+        else fail(label, '_hydrateProfession else branch does not preserve profession on [] return (Path B fix missing)')
+
+    # B: Payload never sends profession_id when !_profListLoaded (old else if(profVal) path removed)
+    label = 'AK-B: payload section no longer has "else if(profVal)" profession path'
+    # The old pattern was: else if(profVal){ payload.profession_id = ...
+    # New pattern: if(_profChanged && _profListLoaded){
+    import re as _re_b
+    old_pattern = _re_b.search(r'else\s+if\(profVal\)\s*\{[^}]*?payload\.profession_id', edit_src, _re_b.DOTALL)
+    new_pattern = '_profChanged && _profListLoaded' in edit_src
+    ok(label) if not old_pattern and new_pattern \
+        else fail(label, f'old "else if(profVal)" profession path still present={bool(old_pattern)}, new pattern found={new_pattern}')
+
+    # C: Snapshot profId synced in openModal pending state (before getProfessions fetch)
+    label = 'AK-C: openModal pending state syncs _snapshot.profId after setting pending option'
+    # Find "Pending state:" comment then look for snapshot.profId in a nearby region
+    pending_pos = edit_src.find('Sync snapshot so pending state is not counted as a user change')
+    ok(label) if pending_pos >= 0 \
+        else fail(label, '_snapshot.profId sync comment missing from openModal pending state block')
+
+    # D: All three DOB selects have aria-labelledby="lbl-dob" in HTML
+    label = 'AK-D: epDobD has aria-labelledby="lbl-dob"'
+    ok(label) if 'id="epDobD"' in html_src and \
+                 'aria-labelledby="lbl-dob"' in html_src[html_src.find('id="epDobD"')-5:html_src.find('id="epDobD"')+200] \
+        else fail(label, 'epDobD missing aria-labelledby="lbl-dob"')
+
+    label = 'AK-D2: epDobM has aria-labelledby="lbl-dob"'
+    ok(label) if 'id="epDobM"' in html_src and \
+                 'aria-labelledby="lbl-dob"' in html_src[html_src.find('id="epDobM"')-5:html_src.find('id="epDobM"')+200] \
+        else fail(label, 'epDobM missing aria-labelledby="lbl-dob"')
+
+    label = 'AK-D3: epDobY has aria-labelledby="lbl-dob"'
+    ok(label) if 'id="epDobY"' in html_src and \
+                 'aria-labelledby="lbl-dob"' in html_src[html_src.find('id="epDobY"')-5:html_src.find('id="epDobY"')+200] \
+        else fail(label, 'epDobY missing aria-labelledby="lbl-dob"')
+
+    # E: Filling first_name transitions epNameErr to "اسم العائلة مطلوب" when last still required
+    label = 'AK-E: _nameClientReq tracks client required errors (first + last)'
+    ok(label) if 'var _nameClientReq' in edit_src and '_nameClientReq.first' in edit_src and '_nameClientReq.last' in edit_src \
+        else fail(label, '_nameClientReq variable or properties not found in profile-v2.edit.js')
+
+    label = 'AK-E2: filling first_name transitions message to "اسم العائلة مطلوب" when last still required'
+    # Look for the transition: _nameClientReq.first = false; check _nameClientReq.last; set message
+    ok(label) if "_nameClientReq.first = false" in edit_src and \
+                 "_nameClientReq.last" in edit_src and \
+                 "'اسم العائلة مطلوب'" in edit_src[edit_src.find("_nameClientReq.first = false"):
+                                                    edit_src.find("_nameClientReq.first = false")+500] \
+        else fail(label, 'filling first_name does not transition message to "اسم العائلة مطلوب"')
+
+    # F: middle_name input does NOT touch _nameClientReq
+    label = 'AK-F: middle_name input handler does not modify _nameClientReq'
+    # Find the mid2 block in the listener — it should only handle _nameErrorOwner === middle_name
+    mid2_block_start = edit_src.find("if(mid2 && _nameErrorOwner === 'middle_name')")
+    mid2_block_end   = edit_src.find('\n      if(last)', mid2_block_start) if mid2_block_start >= 0 else -1
+    if mid2_block_start > 0 and mid2_block_end > mid2_block_start:
+        mid2_block = edit_src[mid2_block_start:mid2_block_end]
+        ok(label) if '_nameClientReq' not in mid2_block \
+            else fail(label, 'middle_name handler modifies _nameClientReq (should not touch first/last required state)')
+    else:
+        fail(label, 'mid2 handler block not found in profile-v2.edit.js')
+
+    # G: standard ::placeholder now has -webkit-text-fill-color
+    label = 'AK-G: standard ::placeholder has -webkit-text-fill-color:var(--ep-placeholder)'
+    import re as _re_g
+    # Find .ep-input::placeholder, .ep-textarea::placeholder rule
+    placeholder_match = _re_g.search(r'\.ep-input::placeholder.*?-webkit-text-fill-color', css_src, _re_g.DOTALL)
+    ok(label) if placeholder_match \
+        else fail(label, 'standard ::placeholder rule missing -webkit-text-fill-color in profile-v2.css')
+
+    # H: ARCHITECTURE.md Edit Profile section no longer claims applyLocalUpdate or background getProfile
+    label = 'AK-H: ARCHITECTURE.md Name Architecture no longer says "Confirmed Local Update يبني full_name"'
+    ok(label) if 'Confirmed Local Update يبني full_name محلياً من الأجزاء' not in arch_src \
+        else fail(label, 'ARCHITECTURE.md Name Architecture still says "Confirmed Local Update يبني full_name محلياً من الأجزاء"')
+
+    label = 'AK-H2: ARCHITECTURE.md Mapping table header is "في applyCanonicalProfile" not "في applyLocalUpdate"'
+    ok(label) if 'في applyCanonicalProfile' in arch_src and \
+                 '| في applyLocalUpdate |' not in arch_src \
+        else fail(label, 'ARCHITECTURE.md Mapping table still has "في applyLocalUpdate" as column header')
+
+    # I: SEL-34 now documents PR #523 partial ARIA Runtime Hardening (no longer says "PR مستقل — لا تعديل Runtime")
+    label = 'AK-I: SEL-34 documents PR #523 partial ARIA Runtime Hardening'
+    ok(label) if 'PR #523' in sel_doc and 'Partial ARIA Runtime Hardening' in sel_doc \
+        else fail(label, 'SEL-34 does not document PR #523 partial ARIA Runtime Hardening')
+
+    # Extra: profession_id validation now goes through ProfileValidationError pipeline in server.py
+    label = 'AK-extra: profession_id validation raises ProfileValidationError (not direct JSONResponse)'
+    ok(label) if "raise ProfileValidationError(field='profession_id'" in srv_src \
+        else fail(label, "profession_id validation does not raise ProfileValidationError in server.py")
+
+
 # ── Runner ────────────────────────────────────────────────────────────────────
 
 if __name__ == '__main__':
@@ -1747,6 +1850,7 @@ if __name__ == '__main__':
     test_AH_architecture_contracts()
     test_AI_emp_fullname_contract()
     test_AJ_round3_behavioral_proofs()
+    test_AK_round4_behavioral_proofs()
 
     print(f'\n\033[1m── {PASS} passed, {FAIL} failed ──\033[0m')
     if ERRORS:

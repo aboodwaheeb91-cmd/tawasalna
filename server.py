@@ -3433,20 +3433,18 @@ def update_user_profile(user_id: int, data: ProfileUpdateInput, token=Depends(ve
         raise HTTPException(403, "Unauthorized")
     # exclude_unset=True preserves explicit null (field=null = CLEAR) vs omitted (no change)
     payload = data.dict(exclude_unset=True)
-    # Validate profession_id only when it is explicitly set to a non-null value
-    if payload.get("profession_id") is not None:
-        conn = get_conn()
-        try:
-            rows = conn.run("SELECT id FROM profession_categories WHERE id = :pid AND is_active = TRUE", pid=payload["profession_id"])
-            if not rows:
-                return JSONResponse(status_code=422, content={
-                    "errors": [{"field": "profession_id", "code": "profession_invalid", "message": "التخصص غير موجود أو غير فعال"}],
-                    "detail": {"ok": False, "field": "profession_id", "code": "profession_invalid", "error": "التخصص غير موجود أو غير فعال"}
-                })
-        finally:
-            release_conn(conn)
     user_type = token.get('user_type')
     try:
+        # Validate profession_id only when it is explicitly set to a non-null value
+        if payload.get("profession_id") is not None:
+            conn = get_conn()
+            try:
+                rows = conn.run("SELECT id FROM profession_categories WHERE id = :pid AND is_active = TRUE", pid=payload["profession_id"])
+                if not rows:
+                    raise ProfileValidationError(field='profession_id', code='profession_invalid',
+                        message='التخصص غير موجود أو غير فعال')
+            finally:
+                release_conn(conn)
         profile = update_profile(user_id, payload, user_type=user_type)
         if not profile:
             raise HTTPException(500, "Profile update failed")

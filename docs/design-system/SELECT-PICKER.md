@@ -1560,22 +1560,35 @@ Backend response
 - توثيق Legacy Systems والقرار بشأنها
 - تعريف حدود المسؤولية مع DS-REF وDS-FRM وDS-VAL وDS-OVL وDS-ASSET
 
+### ما أنجزه PR #523 (Partial ARIA Runtime Hardening) ✅
+
+| المهمة | الحالة |
+|--------|--------|
+| aria-invalid propagation (native → trigger) | ✅ PR #523 |
+| aria-describedby propagation | ✅ PR #523 |
+| aria-labelledby propagation | ✅ PR #523 |
+| disabled propagation | ✅ PR #523 |
+| Visible trigger resolver (`window.scSelectTriggerFor`) | ✅ PR #523 |
+| Error/focus visual: `.sc-sel-err .sc-sel-trg:focus-visible` | ✅ PR #523 |
+| MutationObserver attributeFilter extended | ✅ PR #523 |
+
 ### ما يتطلب PR مستقل 🔜
 
 | المهمة | الحالة |
 |--------|--------|
 | Runtime implementation: searchable mode | PR مستقل |
 | Runtime implementation: multi-select | PR مستقل |
-| ترقية tw-select.js (ARIA gaps) | PR مستقل |
+| aria-activedescendant + combobox role semantics | PR مستقل |
 | توحيد الأنظمة القديمة (co-dp-*, profile-v2.select.js) | قرار مستقل |
 | CSS layer (`tw-ui-tokens.css` لـ DS-SEL tokens) | FUTURE_ROADMAP |
 | Bottom Sheet على mobile (DS-OVL أولاً) | بعد توثيق DS-OVL |
 
-### مسار الانتقال المقترح
+### مسار الانتقال المحدَّث
 
 ```
-V1 (هذا PR):      Contract موثَّق — لا تعديل Runtime
-V2 (PR مستقل):    ترقية tw-select.js (ARIA + Hydration)
+V1 (PR DS-SEL):   Contract موثَّق — لا تعديل Runtime
+V1.5 (PR #523):   Partial ARIA Runtime Hardening (state propagation + trigger resolver)
+V2 (PR مستقل):    ترقية tw-select.js (combobox semantics + aria-activedescendant)
 V3 (PR مستقل):    searchable mode implementation
 V4 (PR مستقل):    multi-select mode implementation
 ```

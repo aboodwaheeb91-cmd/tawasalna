@@ -2504,7 +2504,7 @@ Experience Modal:    exCountry, exCity, exStart, exEnd
 ```
 PUT /profile { first_name, middle_name, last_name }
 backend يبني full_name ← frontend يعرض 3 حقول منفصلة
-Confirmed Local Update يبني full_name محلياً من الأجزاء
+Backend يبني full_name من الأجزاء → يُعرض عبر applyCanonicalProfile() (لا local rebuild)
 ```
 
 ### Profession Architecture
@@ -2552,7 +2552,7 @@ MutationObserver يتابع التغييرات ← لا حاجة لاستدعا�
 | 4 أزرار على كل بطاقة خبرة | قائمة ⋮ واحدة نظيفة |
 | لا ترتيب للخبرات | ترتيب بأزرار ↑↓ مع Optimistic Update + Rollback |
 | لا رفع صور | upload + crop للـ avatar (1:1) والـ cover (6:1) |
-| لا Edit Modal كامل | Edit Modal بـ 9 حقول + Confirmed Local Update |
+| لا Edit Modal كامل | Edit Modal بـ 9 حقول + applyCanonicalProfile (server-confirmed, لا applyLocalUpdate) |
 
 ---
 
@@ -2580,8 +2580,11 @@ MutationObserver يتابع التغييرات ← لا حاجة لاستدعا�
 
 ### Mapping كامل — Edit Profile Modal
 
-| الحقل | Input ID | Payload Key | DOM Element | في applyLocalUpdate |
-|-------|---------|-------------|-------------|---------------------|
+> **Edit Profile Modal** يستخدم `applyCanonicalProfile(res.data.profile)` — ليس `applyLocalUpdate(payload)`.
+> لا background re-fetch (FRM-18). القيم المعروضة مؤكدة من الخادم فقط.
+
+| الحقل | Input ID | Payload Key | DOM Element | في applyCanonicalProfile |
+|-------|---------|-------------|-------------|--------------------------|
 | الاسم الأول | epFirstName | first_name | scName | ✅ |
 | الاسم الأوسط | epMidName | middle_name | scName | ✅ |
 | الاسم الأخير | epLastName | last_name | scName | ✅ |

@@ -35,6 +35,11 @@
   // 'first_name'|'last_name'|'middle_name'|'name'|null
   var _nameErrorOwner = null;
 
+  // ── Name client-side required validation state (Item 4) ──
+  // Separate from _nameErrorOwner: tracks which name fields have active client-side required errors.
+  // Enables multi-error transition: filling first_name transitions epNameErr to "اسم العائلة مطلوب".
+  var _nameClientReq = {first: false, last: false};
+
   // ── DOB year/day option population ──
   (function(){
     var d = document.getElementById('epDobD');
@@ -140,6 +145,7 @@
 
   function _clearAllFieldErrs(){
     _nameErrorOwner = null;
+    _nameClientReq = {first: false, last: false};
     ['epFirstName','epMidName','epLastName'].forEach(function(id){
       var el = document.getElementById(id);
       if(el){ el.classList.remove('ep-input-err'); el.setAttribute('aria-invalid','false'); }
@@ -193,23 +199,33 @@
         return e && window._scCheckProfessional && window._scCheckProfessional(e.value);
       });
       if(!anyBad){
-        // Clear nameErr only when _nameErrorOwner is null (content-violation message, safe to auto-clear)
-        // If _nameErrorOwner is set, the error is from the server — only clear when the owner field is filled
+        // Clear nameErr only when neither server error nor client required error owns it
         var div = document.getElementById('epNameErr');
-        if(div && div.textContent && _nameErrorOwner === null){
+        if(div && div.textContent && _nameErrorOwner === null && !_nameClientReq.first && !_nameClientReq.last){
           div.textContent=''; div.classList.remove('show');
         }
       }
-      // Clear field error once user provides a value for the field that owns the server error
+      // Clear field error once user provides a value for the field that owns the error
       var first = ((document.getElementById('epFirstName')||{}).value||'').trim();
       var mid2  = ((document.getElementById('epMidName')  ||{}).value||'').trim();
       var last  = ((document.getElementById('epLastName') ||{}).value||'').trim();
       if(first){
         var fn = document.getElementById('epFirstName');
         if(fn){ fn.classList.remove('ep-input-err'); fn.setAttribute('aria-invalid','false'); }
-        if(_nameErrorOwner === 'first_name'){
+        if(_nameClientReq.first){
+          _nameClientReq.first = false;
           var _ne1 = document.getElementById('epNameErr');
-          if(_ne1){ _ne1.textContent=''; _ne1.classList.remove('show'); }
+          if(_nameClientReq.last){
+            // last is still required — transition message
+            if(_ne1){ _ne1.textContent = 'اسم العائلة مطلوب'; _ne1.classList.add('show'); }
+          } else if(_nameErrorOwner === null){
+            // neither required errors remain (and no server error) — clear
+            if(_ne1){ _ne1.textContent=''; _ne1.classList.remove('show'); }
+          }
+        }
+        if(_nameErrorOwner === 'first_name'){
+          var _ne1s = document.getElementById('epNameErr');
+          if(_ne1s){ _ne1s.textContent=''; _ne1s.classList.remove('show'); }
           _nameErrorOwner = null;
         }
       }
@@ -223,9 +239,16 @@
       if(last){
         var ln = document.getElementById('epLastName');
         if(ln){ ln.classList.remove('ep-input-err'); ln.setAttribute('aria-invalid','false'); }
+        if(_nameClientReq.last){
+          _nameClientReq.last = false;
+          if(!_nameClientReq.first && _nameErrorOwner === null){
+            var _ne3 = document.getElementById('epNameErr');
+            if(_ne3){ _ne3.textContent=''; _ne3.classList.remove('show'); }
+          }
+        }
         if(_nameErrorOwner === 'last_name'){
-          var _ne3 = document.getElementById('epNameErr');
-          if(_ne3){ _ne3.textContent=''; _ne3.classList.remove('show'); }
+          var _ne3s = document.getElementById('epNameErr');
+          if(_ne3s){ _ne3s.textContent=''; _ne3s.classList.remove('show'); }
           _nameErrorOwner = null;
         }
       }
@@ -418,12 +441,20 @@
       _buildProfessionOptions(profEl, profList, p.profession || null);
       profEl.disabled = false;  // enable after successful load (Item 5)
     } else {
-      profEl.innerHTML = '';
-      var errOpt = document.createElement('option');
-      errOpt.value = ''; errOpt.text = '— اختر التخصص —';
-      profEl.appendChild(errOpt);
+      // Path B: getProfessions returned [] — preserve current profession option when available
+      if(p.profession){
+        // Keep the pending option the openModal already set; show error notice + disable
+        var profErrEl = document.getElementById('epProfErr');
+        if(profErrEl){ profErrEl.textContent = 'تعذّر تحميل قائمة التخصصات — التخصص الحالي محفوظ'; profErrEl.classList.add('show'); }
+      } else {
+        profEl.innerHTML = '';
+        var errOpt = document.createElement('option');
+        errOpt.value = ''; errOpt.text = '— اختر التخصص —';
+        profEl.appendChild(errOpt);
+      }
+      profEl.disabled = true;
     }
-    // Update snapshot with profession value now that it's loaded
+    // Update snapshot with profession value now that it's loaded (or preserved on failure)
     if(_snapshot) _snapshot.profId = ((document.getElementById('epProfession')||{}).value||'').trim();
     if(window.scSelectInit) scSelectInit();
   }
@@ -485,6 +516,8 @@
           var _pOpt = document.createElement('option');
           _pOpt.value = String(p.profession.id || ''); _pOpt.text = p.profession.name_ar || '';
           _pOpt.selected = true; _pEl.appendChild(_pOpt);
+          // Sync snapshot so pending state is not counted as a user change
+          if(_snapshot) _snapshot.profId = String(p.profession.id || '');
           if(window.scSelectInit) scSelectInit();
         }
       }
@@ -750,11 +783,14 @@
     var _nameMutation = !_legacyMode || _isMigrating();
     if(_nameMutation){
       var nameErrEl = document.getElementById('epNameErr');
+      _nameClientReq = {first: false, last: false};
       if(!first){
+        _nameClientReq.first = true;
         _setAriaInvalid(document.getElementById('epFirstName'), nameErrEl, 'الاسم الأول مطلوب');
         hasErr = true;
       }
       if(!last){
+        _nameClientReq.last = true;
         if(!hasErr){
           _setAriaInvalid(document.getElementById('epLastName'), nameErrEl, 'اسم العائلة مطلوب');
         } else {
@@ -818,14 +854,10 @@
     if(_availChanged) payload.avail = avail || null;
 
     // Profession: null = clear (only when list is loaded — prevents clearing on async race)
-    // Include only if changed
+    // Include only if changed AND list loaded; always omit when !_profListLoaded (displayed value may be stale pending)
     var _profChanged = !_snap || profVal !== _snap.profId;
-    if(_profChanged){
-      if(_profListLoaded){
-        payload.profession_id = profVal ? parseInt(profVal, 10) : null;
-      } else if(profVal){
-        payload.profession_id = parseInt(profVal, 10);
-      }
+    if(_profChanged && _profListLoaded){
+      payload.profession_id = profVal ? parseInt(profVal, 10) : null;
     }
 
     // BTN-18 loading (§12) + in-flight lock (§13) + controls lock (§9)
