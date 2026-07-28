@@ -3438,7 +3438,11 @@ def update_user_profile(user_id: int, data: ProfileUpdateInput, token=Depends(ve
         conn = get_conn()
         try:
             rows = conn.run("SELECT id FROM profession_categories WHERE id = :pid AND is_active = TRUE", pid=payload["profession_id"])
-            if not rows: raise HTTPException(400, detail="التخصص غير موجود أو غير فعال")
+            if not rows:
+                return JSONResponse(status_code=422, content={
+                    "errors": [{"field": "profession_id", "code": "profession_invalid", "message": "التخصص غير موجود أو غير فعال"}],
+                    "detail": {"ok": False, "field": "profession_id", "code": "profession_invalid", "error": "التخصص غير موجود أو غير فعال"}
+                })
         finally:
             release_conn(conn)
     user_type = token.get('user_type')

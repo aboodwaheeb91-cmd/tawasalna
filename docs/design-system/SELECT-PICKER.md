@@ -1646,11 +1646,11 @@ V4 (PR مستقل):    multi-select mode implementation
 
 ---
 
-## SEL-37 — الـ Runtime القائم — tw-select.js (تحديث PR #523)
+## SEL-37 — الـ Runtime القائم — tw-select.js (تحديث PR #523 Round 3)
 
 ### `_syncAriaState(native, trg, wrap)` — ARIA Propagation Pattern
 
-**الغرض:** مزامنة `aria-invalid`, `aria-describedby`, و `disabled` من الـ native select (المخفي)
+**الغرض:** مزامنة `aria-invalid`, `aria-describedby`, `aria-labelledby`, و `disabled` من الـ native select (المخفي)
 إلى الـ custom trigger button (المرئي) — حتى يتمكن screen reader من قراءة حالة الـ validation.
 
 ```javascript
@@ -1665,6 +1665,11 @@ function _syncAriaState(native, trg, wrap){
   if(desc) trg.setAttribute('aria-describedby', desc);
   else     trg.removeAttribute('aria-describedby');
 
+  // aria-labelledby — propagate when native has it (e.g. DOB group label).
+  // Do NOT remove from trigger when native lacks it — trigger may have it from label[for] init.
+  var lbl = native.getAttribute('aria-labelledby');
+  if(lbl) trg.setAttribute('aria-labelledby', lbl);
+
   // disabled
   trg.disabled = !!native.disabled;
 
@@ -1676,20 +1681,61 @@ function _syncAriaState(native, trg, wrap){
 }
 ```
 
+### MutationObserver attributeFilter
+
+يشمل الآن `'aria-labelledby'` بالإضافة إلى الثلاثة الأصلية:
+
+```javascript
+.observe(native, {attributes:true, attributeFilter:['aria-invalid','aria-describedby','aria-labelledby','disabled']});
+```
+
 ### متى تُستدعى
 
 | الحدث | الآلية |
 |-------|--------|
 | init (أول مرة) | `_syncAriaState` مباشرةً في `_init()` |
-| تغيير `aria-invalid`/`aria-describedby`/`disabled` على الـ native | `MutationObserver` per-select (يُغلَق على `wrap` داخل IIFE) |
+| تغيير `aria-invalid`/`aria-describedby`/`aria-labelledby`/`disabled` على الـ native | `MutationObserver` per-select (يُغلَق على `wrap` داخل IIFE) |
 | تغيير options (cities, professions) | `MutationObserver` childList يستدعي `_syncTrigger` |
 
-### قواعد ثابتة (PR #523)
+### قواعد ثابتة (PR #523 Round 3)
 
 1. **Native select هو مصدر الحقيقة لـ ARIA.** الـ page modules تضع `aria-invalid="true"` على الـ native select → `_syncAriaState` تنقله للـ trigger.
 2. **`.sc-sel-err` يُضاف على wrapper (`.sc-sel`)** — ليس على الـ trigger مباشرةً. CSS يستهدف `.sc-sel-err .sc-sel-trg` للـ error border.
 3. **MutationObserver مُغلَق (IIFE)** على `wrap` لتجنب مشكلة الـ closure في حلقات `forEach`.
 4. **لا تُضع `aria-invalid` على الـ trigger مباشرةً من page module** — ضعها على الـ native select وdع `_syncAriaState` تُنشرها.
+5. **`aria-labelledby` — أحادي الاتجاه فقط من native → trigger.** لا تحذف `aria-labelledby` من الـ trigger إذا كان الـ native لا يملكه (قد يكون مضبوطاً من `label[for]` init).
+
+### `window.scSelectTriggerFor(nativeOrId)` — Focus-first-invalid Helper
+
+دالة مساعدة تُعيد الـ custom trigger المرئي لأي native select مُهيَّأ:
+
+```javascript
+window.scSelectTriggerFor = function(nativeOrId){
+  var native = typeof nativeOrId === 'string' ? document.getElementById(nativeOrId) : nativeOrId;
+  if(!native || !native.hasAttribute('data-sc-sel')) return null;
+  var wrap = native.parentNode;
+  if(!wrap || !wrap.classList.contains('sc-sel')) return null;
+  return wrap.querySelector('.sc-sel-trg');
+};
+```
+
+**الاستخدام في page modules (مثال — focus-first-invalid):**
+```javascript
+// بدلاً من: firstErr.focus() مباشرةً على native
+var errEls = document.querySelectorAll('#epOverlay [aria-invalid="true"]');
+for(var i=0; i<errEls.length; i++){
+  var el = errEls[i];
+  if(el.tagName === 'SELECT'){
+    var trg = window.scSelectTriggerFor ? scSelectTriggerFor(el) : null;
+    if(trg){ trg.focus(); break; }
+  } else { el.focus(); break; }
+}
+```
+
+**سبب الحاجة:** `MutationObserver` callbacks هي microtasks — لا تُنفَّذ حتى نهاية الـ current task.
+إذا نادت `_setSelectErr()` الـ `setAttribute('aria-invalid','true')` على الـ native، فإن الـ MutationObserver
+لم ينشر بعد `aria-invalid` للـ trigger. الـ selector `[aria-invalid="true"]` يجد الـ native المخفي، لا الـ trigger.
+`scSelectTriggerFor` يحل هذه المشكلة بإيجاد الـ trigger مباشرةً عبر DOM structure.
 
 ### CSS Error State (tw-select.css)
 
@@ -1697,6 +1743,10 @@ function _syncAriaState(native, trg, wrap){
 .sc-sel-err .sc-sel-trg {
   border-color: rgba(var(--color-status-danger-rgb, 248,113,113), .7);
   box-shadow: 0 0 0 2px rgba(var(--color-status-danger-rgb, 248,113,113), .12);
+}
+/* Error state takes priority over focus-visible outline */
+.sc-sel-err .sc-sel-trg:focus-visible {
+  outline-color: rgba(var(--color-status-danger-rgb, 248,113,113), .7);
 }
 ```
 
@@ -1738,6 +1788,7 @@ function _syncAriaState(native, trg, wrap){
 
 ---
 
-*DS-SEL V1 — توثيق فقط — أُنشئ في PR #508 — 2026-07-22.*
-*SEL-37 و SEL-38 — أُضيفا في PR #523 — 2026-07-28.*
-*الـ Runtime القائم: `static/shared/tw-select.js` — لا تعديل عليه في هذا PR.*
+*DS-SEL V1 — أُنشئ في PR #508 — 2026-07-22.*
+*SEL-37 و SEL-38 — أُضيفا في PR #523 Round 2 — 2026-07-28.*
+*SEL-37 محدَّث في PR #523 Round 3: aria-labelledby propagation + MutationObserver filter + scSelectTriggerFor + error-priority focus-visible.*
+*الـ Runtime القائم: `static/shared/tw-select.js`.*

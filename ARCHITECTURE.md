@@ -2529,6 +2529,11 @@ PUT /profile → onSuccess:
   3. getProfile() ← re-fetch صامت في الخلفية
 ```
 
+> **Exception — Edit Profile Modal:** لا تتبع هذا النمط.
+> تستخدم `applyCanonicalProfile(res.data.profile)` (قيم مؤكدة من الخادم — لا payload-based update)
+> وليس لها background re-fetch (FRM-17/FRM-18 compliant).
+> انظر قسم "Profile V2 — Edit Profile Modal" أعلاه للـ save flow الكامل.
+
 ### Custom Select Load Order
 ```
 select.js يُحمَّل LAST ← يحتاج جميع options مبنية مسبقاً

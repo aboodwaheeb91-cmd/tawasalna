@@ -29,6 +29,10 @@
   border-color:rgba(var(--color-status-danger-rgb,248,113,113),.7);
   box-shadow:0 0 0 2px rgba(var(--color-status-danger-rgb,248,113,113),.12);
 }
+/* Error state takes priority over focus-visible outline — keep error border color */
+.sc-sel-err .sc-sel-trg:focus-visible {
+  outline-color:rgba(var(--color-status-danger-rgb,248,113,113),.7);
+}
 
 /* ── Disabled state (Interaction = disabled, SEL-09) ─────────── */
 .sc-sel-trg[disabled],

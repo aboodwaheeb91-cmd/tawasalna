@@ -302,6 +302,11 @@ Backend يُعيد أخطاء لأكثر من حقل في نفس الوقت:
 
 **لا تُحلِّل `body.errors` مباشرةً هنا.** `normalizeErrorResponse()` (API-MUT-11) هو المالك الوحيد للتحليل، يُعيد Internal Normalized Error Model `{fieldErrors[], generalError|null}` ← DS-VAL يتولى التوجيه عبر `routeErrors()`.
 
+> **API-MUT-11 Runtime:** `window.normalizeErrorResponse` في `tw_shared.js` هو التطبيق الرسمي الوحيد لهذا الـ parser.
+> الـ function موثَّقة بـ contract comment كامل في `tw_shared.js` (PR #523).
+> **ممنوع** كتابة parser موازٍ في أي page module — استخدم `window.normalizeErrorResponse` مباشرةً.
+> **ممنوع** قراءة `body.errors` / `body.error` / `body.message` / `body.detail` مباشرةً خارجها.
+
 ```js
 // ✅ الطريقة الصحيحة — API-MUT-11 يملك التحليل، DS-VAL يملك العرض
 const normalized = normalizeErrorResponse(body)  // → {fieldErrors[], generalError|null}

@@ -1190,6 +1190,11 @@ def update_profile(user_id: int, data: dict, user_type: str = None) -> dict:
     _middle = _norm_name(data.get("middle_name")) if "middle_name" in data else None
     _last   = _norm_name(data.get("last_name"))   if "last_name"   in data else None
 
+    # Pre-check: emp cannot send full_name at all — BEFORE structured-name branch (F6 bypass prevention)
+    if user_type == 'emp' and 'full_name' in data:
+        raise ProfileValidationError(field='full_name', code='emp_name_mutation_forbidden',
+            message='لتغيير الاسم استخدم حقول الاسم الأول والعائلة')
+
     # Structured-name = atomic group (§4): ANY of first/middle/last in payload triggers mutation.
     # middle-only request is rejected — full_name cannot be composed without first + last.
     _name_keys = {'first_name', 'middle_name', 'last_name'}

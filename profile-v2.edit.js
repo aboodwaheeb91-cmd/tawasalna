@@ -30,6 +30,11 @@
   // true when profile has full_name but no first_name/last_name.
   var _legacyMode = false;
 
+  // ── Name error ownership (§2) ──
+  // Tracks which name field currently owns the server error shown in #epNameErr.
+  // 'first_name'|'last_name'|'middle_name'|'name'|null
+  var _nameErrorOwner = null;
+
   // ── DOB year/day option population ──
   (function(){
     var d = document.getElementById('epDobD');
@@ -134,6 +139,7 @@
   }
 
   function _clearAllFieldErrs(){
+    _nameErrorOwner = null;
     ['epFirstName','epMidName','epLastName'].forEach(function(id){
       var el = document.getElementById(id);
       if(el){ el.classList.remove('ep-input-err'); el.setAttribute('aria-invalid','false'); }
@@ -187,25 +193,41 @@
         return e && window._scCheckProfessional && window._scCheckProfessional(e.value);
       });
       if(!anyBad){
-        // Only clear nameErr if it shows a content-violation message, not a required-field message.
-        // Required-field errors (مطلوب) are cleared field-specifically below.
+        // Clear nameErr only when _nameErrorOwner is null (content-violation message, safe to auto-clear)
+        // If _nameErrorOwner is set, the error is from the server — only clear when the owner field is filled
         var div = document.getElementById('epNameErr');
-        if(div && div.textContent && div.textContent.indexOf('مطلوب') === -1){
+        if(div && div.textContent && _nameErrorOwner === null){
           div.textContent=''; div.classList.remove('show');
         }
       }
-      // Clear required error once user types the required field
+      // Clear field error once user provides a value for the field that owns the server error
       var first = ((document.getElementById('epFirstName')||{}).value||'').trim();
+      var mid2  = ((document.getElementById('epMidName')  ||{}).value||'').trim();
       var last  = ((document.getElementById('epLastName') ||{}).value||'').trim();
       if(first){
         var fn = document.getElementById('epFirstName');
         if(fn){ fn.classList.remove('ep-input-err'); fn.setAttribute('aria-invalid','false'); }
+        if(_nameErrorOwner === 'first_name'){
+          var _ne1 = document.getElementById('epNameErr');
+          if(_ne1){ _ne1.textContent=''; _ne1.classList.remove('show'); }
+          _nameErrorOwner = null;
+        }
+      }
+      if(mid2 && _nameErrorOwner === 'middle_name'){
+        var mn2 = document.getElementById('epMidName');
+        if(mn2){ mn2.classList.remove('ep-input-err'); mn2.setAttribute('aria-invalid','false'); }
+        var _ne2 = document.getElementById('epNameErr');
+        if(_ne2){ _ne2.textContent=''; _ne2.classList.remove('show'); }
+        _nameErrorOwner = null;
       }
       if(last){
         var ln = document.getElementById('epLastName');
         if(ln){ ln.classList.remove('ep-input-err'); ln.setAttribute('aria-invalid','false'); }
-        var nameErr = document.getElementById('epNameErr');
-        if(nameErr && nameErr.textContent.indexOf('مطلوب') !== -1){ nameErr.textContent=''; nameErr.classList.remove('show'); }
+        if(_nameErrorOwner === 'last_name'){
+          var _ne3 = document.getElementById('epNameErr');
+          if(_ne3){ _ne3.textContent=''; _ne3.classList.remove('show'); }
+          _nameErrorOwner = null;
+        }
       }
     });
   });
@@ -250,12 +272,13 @@
     if(cityWrap) cityWrap.style.display = 'none';
     var avEl = document.getElementById('epAvail'); if(avEl) avEl.value = '';
     var sh   = document.getElementById('epShortBio'); if(sh) sh.value = '';
-    // Profession transient state reset
+    // Profession transient state reset — disabled until list loads (Item 5)
     var profEl = document.getElementById('epProfession');
     if(profEl){
       profEl.innerHTML = '';
       var ph = document.createElement('option'); ph.value=''; ph.text='جاري التحميل…';
       profEl.appendChild(ph);
+      profEl.disabled = true;
     }
     // Legacy row hidden by default; name row visible
     var legRow = document.getElementById('epLegacyNameRow');
@@ -393,6 +416,7 @@
     _profListLoaded = !!(profList && profList.length);
     if(_profListLoaded){
       _buildProfessionOptions(profEl, profList, p.profession || null);
+      profEl.disabled = false;  // enable after successful load (Item 5)
     } else {
       profEl.innerHTML = '';
       var errOpt = document.createElement('option');
@@ -453,6 +477,17 @@
 
     // Professions async — update ONLY the profession control, never canonical fields
     if(!_profList || !_profList.length){
+      // Pending state: show current profession value while fetching so user sees context (Item 5)
+      if(p.profession){
+        var _pEl = document.getElementById('epProfession');
+        if(_pEl){
+          _pEl.innerHTML = '';
+          var _pOpt = document.createElement('option');
+          _pOpt.value = String(p.profession.id || ''); _pOpt.text = p.profession.name_ar || '';
+          _pOpt.selected = true; _pEl.appendChild(_pOpt);
+          if(window.scSelectInit) scSelectInit();
+        }
+      }
       getProfessions()
         .then(function(list){
           if(_editSession !== session) return;
@@ -461,12 +496,17 @@
         })
         .catch(function(){
           if(_editSession !== session) return;
+          // Failure: preserve current value + disabled; only use error text when no profession set (Item 5)
+          _profListLoaded = false;
           var profEl = document.getElementById('epProfession');
           if(profEl){
-            profEl.innerHTML = '';
-            var errOpt = document.createElement('option');
-            errOpt.value = ''; errOpt.text = 'تعذّر تحميل التخصصات';
-            profEl.appendChild(errOpt);
+            if(!p.profession){
+              profEl.innerHTML = '';
+              var errOpt = document.createElement('option');
+              errOpt.value = ''; errOpt.text = 'تعذّر تحميل التخصصات';
+              profEl.appendChild(errOpt);
+            }
+            profEl.disabled = true;
             if(window.scSelectInit) scSelectInit();  // sync custom trigger label
           }
         });
@@ -626,9 +666,13 @@
     var message = err.message || 'حدث خطأ في التحقق من البيانات';
     if(code === 'first_name_required' || code === 'last_name_required' ||
        code === 'emp_name_mutation_forbidden' ||
-       field === 'first_name' || field === 'last_name' || field === 'name' || field === 'full_name'){
+       field === 'first_name' || field === 'last_name' || field === 'middle_name' ||
+       field === 'name' || field === 'full_name'){
       var nameErrEl = document.getElementById('epNameErr');
-      var inputId = (code === 'last_name_required' || field === 'last_name') ? 'epLastName' : 'epFirstName';
+      var inputId = (code === 'last_name_required' || field === 'last_name') ? 'epLastName'
+                  : field === 'middle_name' ? 'epMidName' : 'epFirstName';
+      _nameErrorOwner = (code === 'last_name_required' || field === 'last_name') ? 'last_name'
+                      : field === 'middle_name' ? 'middle_name' : 'first_name';
       _setAriaInvalid(document.getElementById(inputId), nameErrEl, message);
     } else if(code.indexOf('dob') === 0 || field === 'dob'){
       _setDobAriaInvalid(message);
@@ -797,7 +841,16 @@
           if(_norm.fieldErrors.length){
             _norm.fieldErrors.forEach(function(fe){ _routeFieldError(fe); });
             // Focus first invalid control per DOM order
-            var firstErr = document.querySelector('#epOverlay .ep-input-err, #epOverlay [aria-invalid="true"]');
+            // For custom selects, MutationObserver may not have fired yet — use scSelectTriggerFor
+            var _errEls = document.querySelectorAll('#epOverlay .ep-input-err, #epOverlay [aria-invalid="true"]');
+            var firstErr = null;
+            for(var _fi=0; _fi < _errEls.length; _fi++){
+              var _errEl = _errEls[_fi];
+              if(_errEl.tagName === 'SELECT'){
+                var _selTrg = window.scSelectTriggerFor ? scSelectTriggerFor(_errEl) : null;
+                if(_selTrg){ firstErr = _selTrg; break; }
+              } else { firstErr = _errEl; break; }
+            }
             if(firstErr) firstErr.focus();
           } else {
             var _msg = (_norm.generalError && _norm.generalError.message) || 'حدث خطأ أثناء الحفظ';

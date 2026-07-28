@@ -1169,8 +1169,10 @@ def test_X_dsval_live_correction():
     print('\n\033[1m── X: DS-VAL live-correction scoping (§Corr-5/7) ──\033[0m')
     src = _read('profile-v2.edit.js')
 
-    label = 'X1: anyBad clear block guards against clearing required errors (§Corr-5)'
-    ok(label) if "indexOf('مطلوب') === -1" in src else fail(label, 'anyBad block does not guard against clearing required errors')
+    label = 'X1: anyBad clear block guards against clearing server-owned name errors (§Corr-5)'
+    # Old: indexOf('مطلوب') === -1.  New (Round 3): _nameErrorOwner === null — tracks ownership precisely
+    ok(label) if "_nameErrorOwner === null" in src or "indexOf('مطلوب') === -1" in src \
+        else fail(label, 'anyBad block does not guard against clearing required errors')
 
     label = 'X2: required-field clear is field-specific (first_name clears first error) (§Corr-5)'
     ok(label) if 'if(first)' in src and 'epFirstName' in src else fail(label, 'no field-specific first_name required clear')
@@ -1601,6 +1603,109 @@ def test_AI_emp_fullname_contract():
         else fail(label, 'normalizeErrorResponse contract comment missing or incomplete')
 
 
+# ── AJ: Round 3 Behavioral Proofs (Items 1–7 + 12) ──────────────────────────
+
+def test_AJ_round3_behavioral_proofs():
+    print('\n\033[1m── AJ: Round 3 Behavioral Proofs (A–M) ──\033[0m')
+    auth_src   = _read('auth.py')
+    server_src = _read('server.py')
+    edit_src   = _read('profile-v2.edit.js')
+    sel_js     = _read('static/shared/tw-select.js')
+    sel_css    = _read('static/shared/tw-select.css')
+    css_src    = _read('profile-v2.css')
+    html_src   = _read('profile-showcase.html')
+
+    # A: emp full_name pre-check exists BEFORE _name_mutation in auth.py
+    label = "AJ-A: emp+'full_name' pre-check BEFORE _name_mutation in auth.py"
+    precheck_pos    = auth_src.find("user_type == 'emp' and 'full_name' in data")
+    name_mut_pos    = auth_src.find("_name_mutation = bool(_name_keys")
+    ok(label) if precheck_pos > 0 and name_mut_pos > 0 and precheck_pos < name_mut_pos \
+        else fail(label, 'emp full_name pre-check not found or comes AFTER _name_mutation')
+
+    # B: emp_name_mutation_forbidden raised in pre-check (before elif data.get)
+    label = 'AJ-B: emp_name_mutation_forbidden raised in pre-check before elif data.get(full_name)'
+    elif_pos       = auth_src.find('elif data.get("full_name")')
+    precheck_raise = auth_src.find("'emp_name_mutation_forbidden'")
+    ok(label) if precheck_raise > 0 and elif_pos > 0 and precheck_raise < elif_pos \
+        else fail(label, 'emp_name_mutation_forbidden not raised before elif in auth.py')
+
+    # C: middle_name routed to epNameErr in _routeFieldError
+    label = "AJ-C: field === 'middle_name' added to _routeFieldError name branch"
+    ok(label) if "field === 'middle_name'" in edit_src \
+        else fail(label, "_routeFieldError missing field === 'middle_name'")
+
+    # D: _nameErrorOwner state variable declared
+    label = 'AJ-D: _nameErrorOwner state variable declared in profile-v2.edit.js'
+    ok(label) if 'var _nameErrorOwner' in edit_src \
+        else fail(label, '_nameErrorOwner variable not declared')
+
+    # E: _nameErrorOwner reset inside _clearAllFieldErrs
+    label = 'AJ-E: _nameErrorOwner = null reset inside _clearAllFieldErrs'
+    clear_pos     = edit_src.find('function _clearAllFieldErrs()')
+    ep_first_pos  = edit_src.find("'epFirstName'", clear_pos)  # next meaningful line
+    owner_reset   = edit_src.find('_nameErrorOwner = null', clear_pos)
+    ok(label) if clear_pos > 0 and owner_reset > clear_pos and owner_reset < ep_first_pos \
+        else fail(label, '_nameErrorOwner not reset at top of _clearAllFieldErrs')
+
+    # F: aria-labelledby propagation in _syncAriaState body
+    label = "AJ-F: aria-labelledby propagation added inside _syncAriaState"
+    sync_pos = sel_js.find('function _syncAriaState')
+    disabled_pos = sel_js.find('trg.disabled', sync_pos)
+    lbl_prop = sel_js.find("'aria-labelledby'", sync_pos)
+    ok(label) if sync_pos > 0 and lbl_prop > sync_pos and lbl_prop < disabled_pos \
+        else fail(label, "aria-labelledby not propagated inside _syncAriaState body")
+
+    # G: MutationObserver attributeFilter includes aria-labelledby
+    label = "AJ-G: MutationObserver attributeFilter includes 'aria-labelledby'"
+    ok(label) if "attributeFilter:['aria-invalid','aria-describedby','aria-labelledby','disabled']" in sel_js \
+        else fail(label, "MutationObserver attributeFilter missing 'aria-labelledby'")
+
+    # H: window.scSelectTriggerFor helper exported
+    label = 'AJ-H: window.scSelectTriggerFor helper in tw-select.js'
+    ok(label) if 'window.scSelectTriggerFor' in sel_js \
+        else fail(label, 'scSelectTriggerFor helper not found in tw-select.js')
+
+    # I: .sc-sel-err .sc-sel-trg:focus-visible overrides outline color
+    label = 'AJ-I: .sc-sel-err .sc-sel-trg:focus-visible rule in tw-select.css'
+    ok(label) if '.sc-sel-err .sc-sel-trg:focus-visible' in sel_css \
+        else fail(label, '.sc-sel-err .sc-sel-trg:focus-visible not in tw-select.css')
+
+    # J: profEl.disabled = true set in _resetForm for pending state
+    label = 'AJ-J: profEl.disabled = true in _resetForm (pending state)'
+    reset_pos    = edit_src.find('function _resetForm()')
+    hydrate_pos  = edit_src.find('function _hydrateProfession(')
+    disabled_pos = edit_src.find('profEl.disabled = true', reset_pos)
+    ok(label) if reset_pos > 0 and hydrate_pos > 0 and \
+                 reset_pos < disabled_pos < hydrate_pos \
+        else fail(label, 'profEl.disabled = true not found inside _resetForm')
+
+    # K: _profListLoaded = false in catch block (near تعذّر تحميل التخصصات)
+    label = 'AJ-K: _profListLoaded = false in profession fetch catch block'
+    catch_text_pos = edit_src.find('تعذّر تحميل التخصصات')
+    if catch_text_pos > 0:
+        region = edit_src[max(0, catch_text_pos - 500):catch_text_pos + 50]
+        ok(label) if '_profListLoaded = false' in region \
+            else fail(label, '_profListLoaded = false not found in catch block region')
+    else:
+        fail(label, "catch fallback text 'تعذّر تحميل التخصصات' not found in file")
+
+    # L: profession_id returns JSONResponse 422 (not HTTPException 400)
+    label = 'AJ-L: profession_id validation returns JSONResponse 422 not HTTPException 400'
+    ok(label) if ('profession_invalid' in server_src) and \
+                 ('JSONResponse(status_code=422' in server_src) and \
+                 ('HTTPException(400' not in server_src or
+                  'profession' not in server_src[server_src.find('HTTPException(400')-30:server_src.find('HTTPException(400')+80]
+                  if 'HTTPException(400' in server_src else True) \
+        else fail(label, 'profession_id still uses HTTPException(400) or missing JSONResponse(422)')
+
+    # M: correct autocomplete attributes on name fields
+    label = 'AJ-M: name fields have correct autocomplete attributes'
+    ok(label) if 'autocomplete="given-name"' in html_src and \
+                 'autocomplete="additional-name"' in html_src and \
+                 'autocomplete="family-name"' in html_src \
+        else fail(label, 'name inputs missing correct autocomplete attributes (given-name/additional-name/family-name)')
+
+
 # ── Runner ────────────────────────────────────────────────────────────────────
 
 if __name__ == '__main__':
@@ -1641,6 +1746,7 @@ if __name__ == '__main__':
     test_AG_webkit_contract()
     test_AH_architecture_contracts()
     test_AI_emp_fullname_contract()
+    test_AJ_round3_behavioral_proofs()
 
     print(f'\n\033[1m── {PASS} passed, {FAIL} failed ──\033[0m')
     if ERRORS:

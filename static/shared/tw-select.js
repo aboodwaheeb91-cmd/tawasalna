@@ -230,7 +230,8 @@
     }
   }
 
-  // ── DS-SEL accessibility: sync aria-invalid, aria-describedby, disabled from native → trigger ──
+  // ── DS-SEL accessibility: sync aria-invalid, aria-describedby, aria-labelledby, disabled ──
+  // Propagates from native select (source of truth) → custom trigger button (visible).
   function _syncAriaState(native, trg, wrap){
     var inv = native.getAttribute('aria-invalid');
     if(inv) trg.setAttribute('aria-invalid', inv);
@@ -238,6 +239,10 @@
     var desc = native.getAttribute('aria-describedby');
     if(desc) trg.setAttribute('aria-describedby', desc);
     else trg.removeAttribute('aria-describedby');
+    // aria-labelledby: propagate when native has it (e.g. DOB group label).
+    // Do NOT remove from trigger when native lacks it — trigger may have it from label[for] init.
+    var lbl = native.getAttribute('aria-labelledby');
+    if(lbl) trg.setAttribute('aria-labelledby', lbl);
     trg.disabled = !!native.disabled;
     // Visual error state: mirror ep-input-err class
     if(wrap){
@@ -308,9 +313,9 @@
       }
     }).observe(native, {childList:true, subtree:true});
 
-    // MutationObserver: propagate aria-invalid/describedby/disabled changes to trigger
+    // MutationObserver: propagate ARIA attribute changes from native → trigger
     (function(_w){ new MutationObserver(function(){ _syncAriaState(native, trg, _w); })
-      .observe(native, {attributes:true, attributeFilter:['aria-invalid','aria-describedby','disabled']}); })(wrap);
+      .observe(native, {attributes:true, attributeFilter:['aria-invalid','aria-describedby','aria-labelledby','disabled']}); })(wrap);
 
     // Sync trigger on native change (e.g. programmatic native.value = x followed by change event)
     native.addEventListener('change', function(){ _syncTrigger(wrap, native); });
@@ -341,6 +346,16 @@
     var sels = document.querySelectorAll('.ep-select:not([data-sc-sel])');
     for(var i=0; i<sels.length; i++) _init(sels[i]);
     _syncAll();
+  };
+
+  // ── scSelectTriggerFor: return the visible trigger for a native select (or null) ──
+  // Used by focus-first-invalid to focus the trigger instead of the hidden native select.
+  window.scSelectTriggerFor = function(nativeOrId){
+    var native = typeof nativeOrId === 'string' ? document.getElementById(nativeOrId) : nativeOrId;
+    if(!native || !native.hasAttribute('data-sc-sel')) return null;
+    var wrap = native.parentNode;
+    if(!wrap || !wrap.classList.contains('sc-sel')) return null;
+    return wrap.querySelector('.sc-sel-trg');
   };
 
   // Expose close for history.js back-button handler
