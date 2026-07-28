@@ -1890,6 +1890,46 @@ def test_AM_docs_final_corrections():
         else fail(label, 'SEL-32 still wrongly attributes aria-haspopup to PR #523, or omits aria-haspopup as present')
 
 
+# ── AN: Edit Profile Modal — Field DOM Order ─────────────────────────────────
+
+def test_AN_field_dom_order():
+    print('\n\033[1m── AN: Edit Profile Modal — Field DOM Order ──\033[0m')
+    src = _read('profile-showcase.html')
+
+    ids = ['epProfession', 'epAvail', 'epFirstName', 'epMidName', 'epLastName',
+           'epCountry', 'epCity', 'epDobD', 'epDobM', 'epDobY', 'epShortBio']
+    positions = {i: src.find(f'id="{i}"') for i in ids}
+
+    for i in ids:
+        label = f'AN-present: id="{i}" exists in HTML'
+        ok(label) if positions[i] >= 0 else fail(label, f'id="{i}" not found in profile-showcase.html')
+
+    order_checks = [
+        ('epProfession', 'epAvail'),
+        ('epAvail', 'epFirstName'),
+        ('epFirstName', 'epMidName'),
+        ('epMidName', 'epLastName'),
+        ('epLastName', 'epCountry'),
+        ('epCountry', 'epCity'),
+        ('epCity', 'epDobD'),
+        ('epDobD', 'epDobM'),
+        ('epDobM', 'epDobY'),
+        ('epDobY', 'epShortBio'),
+    ]
+    for a, b in order_checks:
+        label = f'AN-order: {a} before {b}'
+        if positions[a] < 0 or positions[b] < 0:
+            fail(label, f'one or both IDs missing')
+        elif positions[a] < positions[b]:
+            ok(label)
+        else:
+            fail(label, f'{a} pos={positions[a]} is NOT before {b} pos={positions[b]}')
+
+    for btn_id in ('epSaveBtn', 'epCancelBtn', 'epClose'):
+        label = f'AN-buttons: id="{btn_id}" present'
+        ok(label) if f'id="{btn_id}"' in src else fail(label, f'{btn_id} missing from HTML')
+
+
 # ── Runner ────────────────────────────────────────────────────────────────────
 
 if __name__ == '__main__':
@@ -1934,6 +1974,7 @@ if __name__ == '__main__':
     test_AK_round4_behavioral_proofs()
     test_AL_round5_corrections()
     test_AM_docs_final_corrections()
+    test_AN_field_dom_order()
 
     print(f'\n\033[1m── {PASS} passed, {FAIL} failed ──\033[0m')
     if ERRORS:

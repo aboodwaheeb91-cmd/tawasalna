@@ -458,6 +458,26 @@
       </div>
       <div class="ep-body">
 
+        <div class="ep-field">
+          <label class="ep-label" for="epProfession">التخصص المهني</label>
+          <select class="ep-select" id="epProfession" aria-invalid="false" aria-describedby="epProfErr">
+            <option value="">جاري التحميل…</option>
+          </select>
+          <div class="ep-field-err" id="epProfErr" role="alert"></div>
+        </div>
+
+        <div class="ep-field">
+          <label class="ep-label" for="epAvail">حالة التوظيف</label>
+          <select class="ep-select" id="epAvail" aria-invalid="false" aria-describedby="epAvailErr">
+            <option value="">— اختر —</option>
+            <option value="available">متاح للعمل</option>
+            <option value="open_to_offers">منفتح على فرص</option>
+            <option value="busy">مشغول حالياً</option>
+            <option value="not_available">غير متاح حالياً</option>
+          </select>
+          <div class="ep-field-err" id="epAvailErr" role="alert"></div>
+        </div>
+
         <!-- Legacy name row (§1) — shown when profile has full_name but no structured parts -->
         <div class="ep-field" id="epLegacyNameRow" style="display:none">
           <div class="ep-note">
@@ -491,24 +511,6 @@
         </div>
 
         <div class="ep-field">
-          <label class="ep-label" id="lbl-dob">تاريخ الميلاد</label>
-          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
-            <select class="ep-select" id="epDobD" aria-describedby="epDobErr" aria-invalid="false" aria-labelledby="lbl-dob"><option value="">اليوم</option></select>
-            <select class="ep-select" id="epDobM" aria-describedby="epDobErr" aria-invalid="false" aria-labelledby="lbl-dob">
-              <option value="">الشهر</option>
-              <option value="01">يناير</option><option value="02">فبراير</option>
-              <option value="03">مارس</option><option value="04">أبريل</option>
-              <option value="05">مايو</option><option value="06">يونيو</option>
-              <option value="07">يوليو</option><option value="08">أغسطس</option>
-              <option value="09">سبتمبر</option><option value="10">أكتوبر</option>
-              <option value="11">نوفمبر</option><option value="12">ديسمبر</option>
-            </select>
-            <select class="ep-select" id="epDobY" aria-describedby="epDobErr" aria-invalid="false" aria-labelledby="lbl-dob"><option value="">السنة</option></select>
-          </div>
-          <div class="ep-field-err" id="epDobErr" role="alert"></div>
-        </div>
-
-        <div class="ep-field">
           <label class="ep-label" for="epCountry">البلد</label>
           <select class="ep-select" id="epCountry" onchange="epLoadCities()" aria-invalid="false" aria-describedby="epCountryErr">
             <option value="">— اختر البلد —</option>
@@ -525,23 +527,21 @@
         </div>
 
         <div class="ep-field">
-          <label class="ep-label" for="epAvail">حالة التوظيف</label>
-          <select class="ep-select" id="epAvail" aria-invalid="false" aria-describedby="epAvailErr">
-            <option value="">— اختر —</option>
-            <option value="available">متاح للعمل</option>
-            <option value="open_to_offers">منفتح على فرص</option>
-            <option value="busy">مشغول حالياً</option>
-            <option value="not_available">غير متاح حالياً</option>
-          </select>
-          <div class="ep-field-err" id="epAvailErr" role="alert"></div>
-        </div>
-
-        <div class="ep-field">
-          <label class="ep-label" for="epProfession">التخصص المهني</label>
-          <select class="ep-select" id="epProfession" aria-invalid="false" aria-describedby="epProfErr">
-            <option value="">جاري التحميل…</option>
-          </select>
-          <div class="ep-field-err" id="epProfErr" role="alert"></div>
+          <label class="ep-label" id="lbl-dob">تاريخ الميلاد</label>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+            <select class="ep-select" id="epDobD" aria-describedby="epDobErr" aria-invalid="false" aria-labelledby="lbl-dob"><option value="">اليوم</option></select>
+            <select class="ep-select" id="epDobM" aria-describedby="epDobErr" aria-invalid="false" aria-labelledby="lbl-dob">
+              <option value="">الشهر</option>
+              <option value="01">يناير</option><option value="02">فبراير</option>
+              <option value="03">مارس</option><option value="04">أبريل</option>
+              <option value="05">مايو</option><option value="06">يونيو</option>
+              <option value="07">يوليو</option><option value="08">أغسطس</option>
+              <option value="09">سبتمبر</option><option value="10">أكتوبر</option>
+              <option value="11">نوفمبر</option><option value="12">ديسمبر</option>
+            </select>
+            <select class="ep-select" id="epDobY" aria-describedby="epDobErr" aria-invalid="false" aria-labelledby="lbl-dob"><option value="">السنة</option></select>
+          </div>
+          <div class="ep-field-err" id="epDobErr" role="alert"></div>
         </div>
 
         <div class="ep-field">
