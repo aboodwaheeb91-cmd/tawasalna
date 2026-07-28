@@ -1504,9 +1504,11 @@ def test_AF_profession_hydration():
     ok(label) if catch_pos >= 0 and sc_in_catch > catch_pos \
         else fail(label, '.catch path missing scSelectInit() after setting error option')
 
-    label = 'AF2: _hydrateProfession failure path uses "— اختر التخصص —" placeholder'
-    ok(label) if '— اختر التخصص —' in edit_src \
-        else fail(label, '_hydrateProfession failure path missing placeholder text')
+    label = 'AF2: _buildProfessionOptions includes normal "— اختر التخصص —" placeholder'
+    build_pos = edit_src.find('_buildProfessionOptions')
+    build_region = edit_src[build_pos:build_pos + 500] if build_pos >= 0 else ''
+    ok(label) if '— اختر التخصص —' in build_region \
+        else fail(label, '_buildProfessionOptions missing normal "— اختر التخصص —" placeholder')
 
     label = 'AF3: _snapshot.profId update line exists in _hydrateProfession'
     ok(label) if '_snapshot.profId' in edit_src \

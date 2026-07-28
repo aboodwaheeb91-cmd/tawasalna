@@ -2237,7 +2237,7 @@ if (!p.first_name && p.full_name):
   _profListLoaded flag:
   → set true ONLY when profList.length > 0 (real data loaded)
   → empty profList (load failure) → _profListLoaded stays false
-  → on save: if _profListLoaded=false and profession_id empty → OMIT from payload (no accidental clear)
+  → on save: if _profListLoaded=false → profession_id OMIT دائماً (مهما كانت القيمة الظاهرة في الـ select)
 ```
 
 ### Profession Dropdown (§10 — DOM APIs)
@@ -2246,9 +2246,12 @@ if (!p.first_name && p.full_name):
 2. _buildProfessionOptions() → createElement per option/optgroup
 3. _hydrateProfession(p, profList, session):
    → success: builds options, selects saved value, calls scSelectInit()
-   → failure (empty list): shows "— اختر التخصص —" placeholder, _profListLoaded=false
-4. .catch in openModal: shows "تعذّر تحميل التخصصات", calls scSelectInit() to sync trigger
-5. onSave() → profession_id in payload (omitted if _profListLoaded=false and value empty)
+   → failure (empty list, Path B):
+       if p.profession exists → يبقى الخيار الحالي ظاهراً + disabled + notice "تعذّر تحميل قائمة التخصصات — التخصص الحالي محفوظ"
+       if p.profession absent → يظهر "تعذّر تحميل التخصصات" + disabled
+       _profListLoaded=false في كلتا الحالتين
+4. .catch in openModal (Path A): shows "تعذّر تحميل التخصصات", _profListLoaded=false, calls scSelectInit()
+5. onSave() → profession_id OMIT إذا _profListLoaded=false (دائماً — مهما كانت القيمة الظاهرة)
 6. MutationObserver in tw-select.js handles re-init (not a bug — §0)
 ```
 
@@ -2285,7 +2288,7 @@ normalizeErrorResponse(body) in tw_shared.js:
   → unknown shape fallback → generalError.message = 'حدث خطأ، حاول مجدداً'
 
 _routeFieldError(err) — complete field → control mapping:
-  first_name / last_name / name / full_name / emp_name_mutation_forbidden → #epNameErr
+  first_name / middle_name / last_name / name / full_name / emp_name_mutation_forbidden → #epNameErr
   dob* codes / field=dob → #epDobErr
   short_bio → #epShortBioErr (via _setAriaInvalid)
   country → #epCountryErr (via _setSelectErr)
