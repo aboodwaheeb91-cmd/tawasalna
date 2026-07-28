@@ -582,8 +582,12 @@ feature CSS:
 
 **قواعد دائمة:**
 - الرموز التي تُشير لـ DS-COLOR Semantic tokens تُرقَّى تلقائياً عند تحديث الـ token
-- الرموز Local (raw rgba) تظل كما هي حتى DS-OVL Runtime يُوحِّدها
-- **Zero Visual Change contract:** كل قيم rgba مطابقة للقيم الأصلية ما قبل Phase 2 — ممنوع تغييرها دون PR مُعلَن
+- الرموز Local (raw rgba) تبقى Local ما دام لا يوجد **Shared Meaning** حقيقي عبر features مختلفة (CLR-26). الترقية/التوحيد مستقبلاً يعتمد على **النظام المالك للدور**:
+  - Overlay-specific roles (مثل `--ep-backdrop`, `--ep-sheet-border`) → قد تنتقل إلى DS-OVL عند توحيد Overlay.
+  - Button interaction roles (مثل `--ep-cancel-hover-*`, `--ep-cancel-active-*`) → تخص DS-BTN مع DS-COLOR كمصدر اللون — ليست DS-OVL.
+  - **لا تُنسب جميع Local Color Roles إلى DS-OVL.**
+- **Zero Visual Change contract (Phase-2 Migration scope only):** قيم rgba التي رُحِّلت تحت DS-COLOR Phase 2 (PR feat/edit-profile-phase1 — 2026-07-27) مطابقة للقيم الأصلية ما قبل Phase 2 — ممنوع تغييرها دون PR مُعلَن.
+  - **مستثنى من هذا العقد:** Local Color Roles أُضيفت لاحقاً بتغيير بصري معلَن وموافق عليه — تحديداً `--ep-cancel-hover-bg`, `--ep-cancel-hover-border`, `--ep-cancel-active-bg` (PR #525 DS-BTN intentional interaction visuals). هذه ليست ترحيل Phase 2 وليست خاضعة لـ Zero Visual Change.
 
 ---
 

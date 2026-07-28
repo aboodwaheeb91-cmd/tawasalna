@@ -2361,18 +2361,19 @@ Scoped --ep-* domain aliases in profile-v2.css (Tier 3 — CLR-15):
     --ep-cancel-text:  var(--color-text-secondary, ...)
     --ep-title-icon:   var(--color-brand-primary, #00c896)  ← PR #523
     --ep-placeholder:  var(--color-text-placeholder, rgba(255,255,255,.3))  ← PR #523
-  Primitive Tier 3 (direct values — zero visual change contract):
+  Primitive Tier 3 — Phase-2 Local values (zero visual change contract):
     --ep-input-bg:     rgba(255,255,255,.05)  ← NOT via --color-surface-input (.06)
     --ep-sheet-border: rgba(255,255,255,.10)
     --ep-divider:      rgba(255,255,255,.08)
     --ep-cancel-border: rgba(255,255,255,.12)
-    --ep-cancel-hover-bg:     rgba(255,255,255,.04)  ← Local Color Role (DS-BTN PR #525)
-    --ep-cancel-hover-border: rgba(255,255,255,.22)  ← Local Color Role
-    --ep-cancel-active-bg:    rgba(255,255,255,.08)  ← Local Color Role
     --ep-backdrop:     rgba(0,0,0,.65)
     --ep-close-bg:     rgba(255,255,255,.08)
     --ep-note-bg:      rgba(37,99,255,.08)
     --ep-note-border:  rgba(37,99,255,.2)
+  DS-BTN Intentional Interaction Roles — PR #525 (NOT zero visual change):
+    --ep-cancel-hover-bg:     rgba(255,255,255,.04)  ← cancel hover bg (DS-BTN BTN-07)
+    --ep-cancel-hover-border: rgba(255,255,255,.22)  ← cancel hover border
+    --ep-cancel-active-bg:    rgba(255,255,255,.08)  ← cancel pressed bg
   Error state (consumer, not token):
     .ep-input-err border/shadow: rgba(var(--color-status-danger-rgb),.55/.1)
 ```

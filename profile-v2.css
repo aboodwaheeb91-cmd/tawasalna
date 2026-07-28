@@ -641,7 +641,8 @@ body.preview-guest       .owner-only { display: none !important; }
    --ep-spinner-track:  loading spinner border track (.3 alpha white)
    --ep-spinner-head:   loading spinner active arc (→ --color-text-primary)
    --ep-note-icon:      icon inside legacy-name note (→ --color-brand-secondary)
-   Zero visual change: all raw fallback values match pre-Phase-2 originals.
+   Zero visual change: Phase-2-migrated raw values match pre-Phase-2 originals.
+   Excludes PR #525 DS-BTN intentional interaction roles (--ep-cancel-hover-*, --ep-cancel-active-bg).
 */
 :root {
   --ep-surface:        #0f1420;

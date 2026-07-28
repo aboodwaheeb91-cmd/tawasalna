@@ -624,6 +624,24 @@ def test_J_css_contracts():
     ok(label) if 'تدرج زر الحفظ' not in _clr_src \
         else fail(label, '--ep-save-from still described as gradient stop in COLOR-SYSTEM.md')
 
+    # Ownership / Zero-VC scope correctness
+    label = 'J21: COLOR-SYSTEM.md does not say all Local rgba wait for DS-OVL (ownership-based rule)'
+    ok(label) if 'تظل كما هي حتى DS-OVL Runtime يُوحِّدها' not in _clr_src \
+        else fail(label, 'COLOR-SYSTEM.md still says all Local raw rgba wait for DS-OVL (old overgeneralised rule)')
+
+    label = 'J22: COLOR-SYSTEM.md Zero-VC contract excludes cancel interaction roles explicitly'
+    ok(label) if 'مستثنى' in _clr_src and '--ep-cancel-hover-bg' in _clr_src and 'PR #525' in _clr_src \
+        else fail(label, 'COLOR-SYSTEM.md Zero-VC scope clarification missing for cancel interaction roles')
+
+    label = 'J23: ARCHITECTURE.md §17 classifies cancel hover/active as DS-BTN Intentional (not zero-vc)'
+    _arch_src = _read('ARCHITECTURE.md')
+    ok(label) if 'DS-BTN Intentional Interaction Roles' in _arch_src and 'NOT zero visual change' in _arch_src \
+        else fail(label, 'ARCHITECTURE.md §17 still classifies cancel interaction roles under zero-visual-change')
+
+    label = 'J24: CSS cancel hover declarations unchanged (runtime preserved)'
+    ok(label) if 'background:var(--ep-cancel-hover-bg)' in src and 'border-color:var(--ep-cancel-hover-border)' in src \
+        else fail(label, 'cancel hover CSS declarations changed (runtime must be preserved)')
+
 
 # ── K: Structured group & tri-state (§Corr-B/C) ──────────────────────────────
 
