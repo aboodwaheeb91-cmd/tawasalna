@@ -1854,6 +1854,40 @@ def test_AL_round5_corrections():
         else fail(label, 'ARCHITECTURE Edit Profile mapping still has epBio/bio — should use epShortBio/short_bio')
 
 
+# ── AM: Final Docs-Only Micro Corrections ────────────────────────────────────
+
+def test_AM_docs_final_corrections():
+    print('\n\033[1m── AM: Final Docs-Only Micro Corrections ──\033[0m')
+    arch_src = _read('ARCHITECTURE.md')
+    sel_doc  = _read('docs/design-system/SELECT-PICKER.md')
+
+    # A: ARCHITECTURE responsibility table carves out applyCanonicalProfile exception for edit.js
+    label = 'AM-A: ARCHITECTURE responsibility table allows applyCanonicalProfile as edit.js exception'
+    # Search inside the responsibility table (after its header) for the edit.js row
+    resp_tbl_pos = arch_src.find('مسؤولية كل ملف وممنوعاته')
+    resp_tbl_end = arch_src.find('\n---', resp_tbl_pos) if resp_tbl_pos >= 0 else -1
+    resp_section = arch_src[resp_tbl_pos:resp_tbl_end] if resp_tbl_pos >= 0 and resp_tbl_end > resp_tbl_pos else ''
+    ok(label) if 'applyCanonicalProfile' in resp_section \
+        else fail(label, 'ARCHITECTURE responsibility table does not carve out applyCanonicalProfile exception for profile-v2.edit.js')
+
+    # B: Custom Select Load Order does not claim tw-select.js must be last script globally
+    label = 'AM-B: Custom Select Load Order does not claim select.js must be last script globally'
+    clo_pos = arch_src.find('### Custom Select Load Order')
+    clo_region = arch_src[clo_pos:clo_pos + 600] if clo_pos >= 0 else ''
+    ok(label) if clo_pos >= 0 and 'يُحمَّل LAST ← يحتاج' not in clo_region \
+        else fail(label, 'Custom Select Load Order still has stale "select.js يُحمَّل LAST ← يحتاج" claim')
+
+    # C: SEL-32 does not attribute aria-haspopup/aria-expanded to PR #523 and still documents them as present
+    label = 'AM-C: SEL-32 does not attribute aria-haspopup/aria-expanded to PR #523; documents them as present'
+    sel32_pos = sel_doc.find('## SEL-32 —')
+    sel33_pos = sel_doc.find('## SEL-33 —', sel32_pos)
+    sel32_section = sel_doc[sel32_pos:sel33_pos] if sel32_pos >= 0 and sel33_pos >= 0 else ''
+    ok(label) if sel32_section and \
+                 "PR #523 أضاف `aria-haspopup" not in sel32_section and \
+                 'aria-haspopup' in sel32_section \
+        else fail(label, 'SEL-32 still wrongly attributes aria-haspopup to PR #523, or omits aria-haspopup as present')
+
+
 # ── Runner ────────────────────────────────────────────────────────────────────
 
 if __name__ == '__main__':
@@ -1897,6 +1931,7 @@ if __name__ == '__main__':
     test_AJ_round3_behavioral_proofs()
     test_AK_round4_behavioral_proofs()
     test_AL_round5_corrections()
+    test_AM_docs_final_corrections()
 
     print(f'\n\033[1m── {PASS} passed, {FAIL} failed ──\033[0m')
     if ERRORS:

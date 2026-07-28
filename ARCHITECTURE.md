@@ -1400,7 +1400,7 @@ profile-showcase.html       ← HTML skeleton + <link>/<script> فقط. لا sty
 | `profile-v2.api.js` | wrapper functions لكل fetch: `getProfile`, `getScore`, `getProfessions`, `updateProfile` | DOM rendering، window.* غير API |
 | `profile-v2.qr.js` | `renderQR(el, showcaseUrl)` فقط | أي fetch غير QR external service |
 | `profile-v2.render.js` | `renderProfile()`, header wiring، initial fetch، Eye Button IIFE | fetch مباشر (يستدعي api.js)، Edit Modal logic |
-| `profile-v2.edit.js` | Edit Modal IIFE كاملاً | business permissions من localStorage، DOM manipulation خارج المودال |
+| `profile-v2.edit.js` | Edit Modal IIFE: form lifecycle، validation، hydration، save | business permissions من localStorage؛ DOM manipulation خارج المودال — الاستثناء الوحيد: `applyCanonicalProfile(res.data.profile)` بعد حفظ ناجح (canonical-success projection)؛ ممنوع payload-based أو optimistic DOM updates خارج المودال |
 | `profile-v2.exp.js` | Experience: add/edit/delete/reorder + three-dots menu IIFE | fetch مباشر (يستدعي api.js)، تعديل state خارج IIFE |
 | `profile-v2.cover.js` | Cover upload + crop 6:1 IIFE | fetch مباشر (يستدعي api.js)، DOM خارج cover scope |
 | `profile-v2.avatar.js` | Avatar upload + crop 1:1 IIFE | fetch مباشر (يستدعي api.js)، DOM خارج avatar scope |
@@ -2537,8 +2537,13 @@ PUT /profile → onSuccess:
 
 ### Custom Select Load Order
 ```
-select.js يُحمَّل LAST ← يحتاج جميع options مبنية مسبقاً
-MutationObserver يتابع التغييرات ← لا حاجة لاستدعاء يدوي عند تغيير options
+Runtime الحالي: static/shared/tw-select.js
+← tw-options-data.js يجب أن يسبقه عند الاعتماد على TW.* reference data
+← Option builders الأولية (DOB days/years، profession options) يمكن تشغيلها قبل scSelectInit()
+← التغييرات الديناميكية في options بعد init: MutationObserver يلتقطها تلقائياً
+← scSelectInit() idempotent — استدعاؤه بعد dynamic option fill للمزامنة الفورية مقبول
+← profile-v2.select.js: Legacy — غير مُحمَّل
+← لا يُشترط أن يكون tw-select.js آخر script في الصفحة عالمياً
 ```
 
 ---

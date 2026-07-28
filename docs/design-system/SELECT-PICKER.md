@@ -1179,7 +1179,7 @@ DS-SEL يُعرِّف ثلاثة أنماط Keyboard مختلفة بحسب نو�
 
 ### ملاحظة على tw-select.js الحالي
 
-`tw-select.js` يملك `role="listbox"` و `role="option"` و `aria-haspopup="listbox"` (مُنفَّذ PR #523) لكنه يفتقر إلى:
+`tw-select.js` يملك `role="listbox"` و `role="option"` و `aria-haspopup="listbox"` و `aria-expanded` lifecycle (جميعها موجودة مسبقاً قبل PR #523) لكنه يفتقر إلى:
 - `aria-activedescendant` على الـ Trigger (Gap موثَّق — SEL-32)
 - `role="combobox"` صريح (Gap موثَّق)
 
@@ -1480,7 +1480,9 @@ Backend response
 |--------|--------|
 | Single-select | ✅ مُنفَّذ |
 | Portal إلى `document.body` (position:fixed) | ✅ مُنفَّذ |
-| `role="listbox"` و `role="option"` | ✅ موجود |
+| `role="listbox"` و `role="option"` | ✅ موجود (pre-existing) |
+| `aria-haspopup="listbox"` على الـ Trigger | ✅ موجود (pre-existing — قبل PR #523) |
+| `aria-expanded` lifecycle (open/close) | ✅ موجود (pre-existing — قبل PR #523) |
 | CSS custom property `--tw-drop-z` (fallback 9500) | ✅ موجود |
 | MutationObserver + modal-open watcher | ✅ موجود (بقيود — راجع أدناه) |
 | Scroll-to-close | ✅ موجود |
@@ -1500,7 +1502,8 @@ Backend response
 
 ### القرار المعماري
 
-PR #523 أضاف `aria-haspopup="listbox"` و `aria-expanded` hardening جزئياً.
+`aria-haspopup="listbox"` و `aria-expanded` lifecycle كانا موجودَين في tw-select.js قبل PR #523 — لا تنسبهما له.
+PR #523 أضاف: `aria-invalid` / `aria-describedby` / `aria-labelledby` / `disabled` propagation + MutationObserver attributeFilter sync + `scSelectTriggerFor()` + error/focus visual integration.
 الـ Gaps المتبقية (`aria-activedescendant`، `role="combobox"`) مُؤجَّلة لـ DS-SEL Runtime PR مستقل.
 مناسب لـ `mode: single` البسيط مع إدراك الـ Gaps المُوثَّقة.
 
