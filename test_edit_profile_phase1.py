@@ -1021,6 +1021,21 @@ def test_T_delta_payload():
     label = 'T8: snapshot null treated as all-changed fallback (§Corr-3)'
     ok(label) if '!_snap ||' in src else fail(label, 'no null-snapshot fallback (!_snap) in delta comparisons')
 
+    label = 'T9: structured name delta: snapshot comparison present (_snap.firstName) (§Round2-1)'
+    ok(label) if '_snap.firstName' in src else fail(label, 'structured name snapshot comparison missing (_snap.firstName)')
+
+    label = 'T10: structured name delta: _nameGroupChanged used (not bare _nameMutation) (§Round2-1)'
+    ok(label) if '_nameGroupChanged' in src else fail(label, '_nameGroupChanged variable not found — structured name delta not implemented')
+
+    label = 'T11: legacy name delta: _nameGroupChanged = _isMigrating() path exists (§Round2-1)'
+    ok(label) if '_isMigrating()' in src and '_nameGroupChanged' in src else fail(label, '_isMigrating() not driving _nameGroupChanged in payload builder')
+
+    label = 'T12: name payload sent via _nameGroupChanged guard (§Round2-1)'
+    # The pattern: if(_nameGroupChanged){ payload.first_name = ...
+    import re as _re_t12
+    ok(label) if _re_t12.search(r'if\(_nameGroupChanged\)\s*\{[^}]*payload\.first_name', src, _re_t12.DOTALL) \
+        else fail(label, 'name payload not guarded by _nameGroupChanged')
+
 
 # ── U: API-MUT normalizer (§Corr-4/5/6) ──────────────────────────────────────
 
@@ -1056,6 +1071,35 @@ def test_U_api_mut_normalizer():
 
     label = 'U9: server backward compat: detail key preserved (§Corr-4)'
     ok(label) if '"detail"' in srv_src or "'detail'" in srv_src else fail(label, 'server.py does not preserve detail key for backward compat')
+
+    label = 'U10: ProfileValidationError response has NO top-level error{} key (§Round2-2)'
+    # Extract only the ProfileValidationError except block (lines until next "except ")
+    _pve_lines = []
+    _in_pve = False
+    for _line in srv_src.splitlines():
+        if 'except ProfileValidationError' in _line:
+            _in_pve = True
+        elif _in_pve and _line.strip().startswith('except '):
+            break
+        if _in_pve:
+            _pve_lines.append(_line)
+    _pve_block = '\n'.join(_pve_lines)
+    if not _pve_block:
+        fail(label, 'except ProfileValidationError block not found in server.py')
+    else:
+        import re as _re_u10
+        _has_errors_arr = '"errors"' in _pve_block
+        _has_error_obj  = bool(_re_u10.search(r'"error"\s*:\s*\{', _pve_block))
+        ok(label) if _has_errors_arr and not _has_error_obj \
+            else fail(label, f'ProfileValidationError block: has errors[]={_has_errors_arr}, has error{{}}={_has_error_obj}')
+
+    label = 'U11: normalizeErrorResponse guards body.error{} with !fieldErrors.length (§Round2-3)'
+    ok(label) if '!fieldErrors.length && !generalError && body.error' in shared_src \
+        else fail(label, 'body.error{} guard missing !fieldErrors.length — could produce spurious generalError')
+
+    label = 'U12: normalizeErrorResponse has unknown-shape fallback message (§Round2-3)'
+    ok(label) if 'حدث خطأ، حاول مجدداً' in shared_src \
+        else fail(label, 'unknown-shape fallback message missing from normalizeErrorResponse')
 
 
 # ── V: Employee full_name bypass prevention (§Corr-13) ────────────────────────

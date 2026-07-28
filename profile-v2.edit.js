@@ -690,8 +690,19 @@
     var payload = {};
     var _snap = _snapshot;  // may be null if modal was opened before hydration (safety fallback)
 
-    // Name — only include when mutation started
-    if(_nameMutation){
+    // Name — Atomic Group: send all or none
+    // Structured account: compare each part vs snapshot — omit group if unchanged
+    // Legacy account: only if migration started (user typed into name fields)
+    var _nameGroupChanged;
+    if(_legacyMode){
+      _nameGroupChanged = _isMigrating();
+    } else {
+      _nameGroupChanged = !_snap ||
+        first !== _snap.firstName ||
+        mid   !== _snap.midName   ||
+        last  !== _snap.lastName;
+    }
+    if(_nameGroupChanged){
       payload.first_name  = first;
       payload.middle_name = mid  || null;
       payload.last_name   = last;

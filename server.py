@@ -3450,18 +3450,24 @@ def update_user_profile(user_id: int, data: ProfileUpdateInput, token=Depends(ve
         print(f"[PUT /profile] ✅ user={user_id} fields={updated_keys} — {_time.time()-_t0:.3f}s total")
         return {"status": "success", "profile": profile, "updated_fields": updated_keys}
     except ProfileValidationError as e:
-        # API-MUT official shape: errors[] at top level; detail preserved for backward compat
+        # Field-specific: errors[] is the official shape; no top-level error{} (API-MUT)
         return JSONResponse(status_code=422, content={
             "errors": [{"field": e.field, "code": e.code, "message": e.message}],
-            "error": {"code": e.code, "message": e.message},
             "detail": {"ok": False, "field": e.field, "code": e.code, "error": e.message}
         })
     except ContentValidationError as e:
-        return JSONResponse(status_code=422, content={
-            "errors": [{"field": e.field or "", "code": "content_violation", "message": e.message}],
-            "error": {"code": "content_violation", "message": e.message},
-            "detail": {"status": "error", "message": e.message, "field": e.field}
-        })
+        if e.field:
+            # Field-specific content violation: errors[] only
+            return JSONResponse(status_code=422, content={
+                "errors": [{"field": e.field, "code": "content_violation", "message": e.message}],
+                "detail": {"status": "error", "message": e.message, "field": e.field}
+            })
+        else:
+            # General content violation: error{} only
+            return JSONResponse(status_code=422, content={
+                "error": {"code": "content_violation", "message": e.message},
+                "detail": {"status": "error", "message": e.message}
+            })
     except ValueError as e:
         # no_profile_row or other internal data errors — not a client validation error
         print(f"[PUT /profile] ValueError user={user_id}: {e}")

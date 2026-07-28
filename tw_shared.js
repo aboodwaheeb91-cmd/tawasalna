@@ -87,25 +87,26 @@ function initScrollProg() {
 // Official shape: body.errors[] + body.error{} (new)
 // Legacy shape: body.detail (FastAPI HTTPException backward compat)
 function normalizeErrorResponse(body) {
-  if (!body) return { fieldErrors: [], generalError: null };
+  if (!body) return { fieldErrors: [], generalError: { code: 'unknown', message: 'حدث خطأ، حاول مجدداً' } };
   var fieldErrors = [];
   var generalError = null;
-  // Official shape: body.errors[]
+  // Official field-specific shape: body.errors[]
   if (Array.isArray(body.errors)) {
     for (var i = 0; i < body.errors.length; i++) {
       var e = body.errors[i];
       if (e && e.field) {
         fieldErrors.push({ field: e.field, code: e.code || '', message: e.message || '' });
       } else if (e && e.code && !generalError) {
+        // entry in errors[] with no field → treat as general
         generalError = { code: e.code, message: e.message || '' };
       }
     }
   }
-  // Official general: body.error{}
-  if (!generalError && body.error && typeof body.error === 'object' && body.error.code) {
+  // Official general shape: body.error{} — only when no field errors (separate shapes per API-MUT)
+  if (!fieldErrors.length && !generalError && body.error && typeof body.error === 'object' && body.error.code) {
     generalError = { code: body.error.code, message: body.error.message || '' };
   }
-  // Legacy FastAPI detail (backward compat)
+  // Legacy FastAPI detail (backward compat — only when official shapes absent)
   if (!fieldErrors.length && !generalError) {
     var det = body.detail;
     if (det && typeof det === 'object') {
@@ -117,6 +118,10 @@ function normalizeErrorResponse(body) {
     } else if (typeof det === 'string') {
       generalError = { code: '', message: det };
     }
+  }
+  // Unknown shape fallback: caller always has something to display
+  if (!fieldErrors.length && !generalError) {
+    generalError = { code: 'unknown', message: 'حدث خطأ، حاول مجدداً' };
   }
   return { fieldErrors: fieldErrors, generalError: generalError };
 }
