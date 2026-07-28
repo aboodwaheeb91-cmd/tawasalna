@@ -1180,7 +1180,7 @@ def _norm_name(s) -> str:
     return re.sub(r'\s+', ' ', (s or '').strip())
 
 
-def update_profile(user_id: int, data: dict) -> dict:
+def update_profile(user_id: int, data: dict, user_type: str = None) -> dict:
     _TEXT_FIELDS = ("full_name", "first_name", "middle_name", "last_name", "bio", "short_bio", "headline", "title", "location", "phone", "website")
     for _f in _TEXT_FIELDS:
         validate_professional_text(data.get(_f), _f)
@@ -1212,10 +1212,10 @@ def update_profile(user_id: int, data: dict) -> dict:
         except (ValueError, Exception):
             raise ProfileValidationError(field='dob', code='dob_invalid', message='تاريخ الميلاد غير صحيح')
         _today = _date_cls.today()
-        if _dob >= _today:
+        if _dob > _today:
             raise ProfileValidationError(field='dob', code='dob_future', message='تاريخ الميلاد لا يمكن أن يكون في المستقبل')
         if _dob.year < _DOB_MIN_YEAR:
-            raise ProfileValidationError(field='dob', code='dob_year_too_old', message=f'سنة الميلاد يجب أن تكون بعد {_DOB_MIN_YEAR}')
+            raise ProfileValidationError(field='dob', code='dob_year_too_old', message=f'سنة الميلاد يجب أن تكون {_DOB_MIN_YEAR} أو بعدها')
         # Calendar age: (year diff) minus 1 if birthday hasn't occurred yet this year
         _age = (_today.year - _dob.year) - (1 if (_today.month, _today.day) < (_dob.month, _dob.day) else 0)
         if _age < _DOB_MIN_AGE:
@@ -1234,7 +1234,8 @@ def update_profile(user_id: int, data: dict) -> dict:
                 try:
                     _tw = conn.run("SELECT tw_id FROM users WHERE id=:uid", uid=user_id)
                     if _tw and _tw[0][0]: _cache_del('theme:'+str(_tw[0][0]))
-                except Exception: pass
+                except Exception as _tcache_exc:
+                    print(f"[update_profile] theme cache clear failed (non-critical, continuing): {_tcache_exc}")
 
             # Build canonical full_name from normalized parts (§2 + §3)
             _built_name = None
@@ -1246,6 +1247,10 @@ def update_profile(user_id: int, data: dict) -> dict:
                 _built_name = " ".join(p for p in [_first, _middle, _last] if p)
                 conn.run("UPDATE users SET full_name = :name WHERE id = :uid", name=_built_name, uid=user_id)
             elif data.get("full_name"):
+                # emp users must use structured name parts — direct full_name mutation is forbidden (F6)
+                if user_type == 'emp':
+                    raise ProfileValidationError(field='full_name', code='emp_name_mutation_forbidden',
+                        message='لتغيير الاسم استخدم حقول الاسم الأول والعائلة')
                 _built_name = data["full_name"]
                 conn.run("UPDATE users SET full_name = :name WHERE id = :uid", name=_built_name, uid=user_id)
 

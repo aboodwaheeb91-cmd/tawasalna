@@ -1449,5 +1449,5 @@ Architecture Contract (هذا الملف) يصف capabilities/ownership/behavior
 
 - **لا DS-OVL Runtime:** لا `TwOverlay`, لا focus trap مشترك, لا scroll lock
 - **close guard:** `_inFlight` flag + `++_editSession` يمنعان الإغلاق أثناء الحفظ (local implementation)
-- **guarded justification:** الإغلاق محمي — backdrop click لا يُغلق أثناء SUBMITTING (`_inFlight`); cancel يتحقق من dirty state
+- **guarded justification:** الإغلاق محمي — backdrop click لا يُغلق أثناء SUBMITTING (`_inFlight`); X + cancel يُعطَّلان (`disabled`+`aria-disabled`) أثناء SUBMITTING. **ملاحظة:** لا يوجد unsaved-change confirmation في V1 — أساس `_snapshot/_isDirty` موجود للاستخدام المستقبلي؛ close guard للـ dirty state ينتظر DS-OVL Runtime migration
 - **Migration Target:** عند تطبيق DS-OVL Runtime — يُرحَّل `#epOverlay` إلى `TwOverlay` API بنفس orthogonal attributes

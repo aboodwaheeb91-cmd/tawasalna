@@ -450,10 +450,10 @@
 
   <!-- Edit Profile Modal — Phase 1: data, form, validation, DS-BTN, DS-COLOR contracts -->
   <!-- Must be in DOM before profile-v2.edit.js runs -->
-  <div class="ep-overlay" id="epOverlay" role="dialog" aria-modal="true" aria-labelledby="epTitle">
+  <div class="ep-overlay" id="epOverlay" role="dialog" aria-labelledby="epTitle">
     <div class="ep-sheet">
       <div class="ep-head">
-        <span class="ep-title" id="epTitle"><i data-lucide="pencil" class="ico-sm" style="color:var(--ac,#00c896);vertical-align:middle;margin-left:6px"></i> تعديل الملف الشخصي</span>
+        <span class="ep-title" id="epTitle"><i data-lucide="pencil" class="ico-sm ep-title-ico"></i> تعديل الملف الشخصي</span>
         <button type="button" class="ep-close" id="epClose" aria-label="إغلاق"><i data-lucide="x" class="ico-sm"></i></button>
       </div>
       <div class="ep-body">
@@ -468,24 +468,32 @@
         </div>
 
         <div class="ep-field" id="epNameRow">
-          <label class="ep-label">الاسم</label>
           <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
-            <input type="text" class="ep-input" id="epFirstName" placeholder="الأول"
-              autocomplete="off" aria-required="false" aria-invalid="false"
-              aria-describedby="epNameErr">
-            <input type="text" class="ep-input" id="epMidName" placeholder="الأوسط"
-              autocomplete="off" aria-invalid="false" aria-describedby="epNameErr">
-            <input type="text" class="ep-input" id="epLastName" placeholder="العائلة"
-              autocomplete="off" aria-required="false" aria-invalid="false"
-              aria-describedby="epNameErr">
+            <div>
+              <label class="ep-label" for="epFirstName">الاسم الأول</label>
+              <input type="text" class="ep-input" id="epFirstName"
+                autocomplete="off" aria-required="false" aria-invalid="false"
+                aria-describedby="epNameErr">
+            </div>
+            <div>
+              <label class="ep-label" for="epMidName">الاسم الأوسط <span style="font-size:.7em;opacity:.55;font-weight:400">(اختياري)</span></label>
+              <input type="text" class="ep-input" id="epMidName"
+                autocomplete="off" aria-invalid="false" aria-describedby="epNameErr">
+            </div>
+            <div>
+              <label class="ep-label" for="epLastName">اسم العائلة</label>
+              <input type="text" class="ep-input" id="epLastName"
+                autocomplete="off" aria-required="false" aria-invalid="false"
+                aria-describedby="epNameErr">
+            </div>
           </div>
           <div class="ep-field-err" id="epNameErr" role="alert"></div>
         </div>
 
         <div class="ep-field">
-          <label class="ep-label">تاريخ الميلاد</label>
+          <label class="ep-label" id="lbl-dob">تاريخ الميلاد</label>
           <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
-            <select class="ep-select" id="epDobD" aria-describedby="epDobErr" aria-invalid="false"><option value="">اليوم</option></select>
+            <select class="ep-select" id="epDobD" aria-describedby="epDobErr" aria-invalid="false" aria-labelledby="lbl-dob"><option value="">اليوم</option></select>
             <select class="ep-select" id="epDobM" aria-describedby="epDobErr" aria-invalid="false">
               <option value="">الشهر</option>
               <option value="01">يناير</option><option value="02">فبراير</option>
@@ -501,21 +509,21 @@
         </div>
 
         <div class="ep-field">
-          <label class="ep-label">البلد</label>
+          <label class="ep-label" for="epCountry">البلد</label>
           <select class="ep-select" id="epCountry" onchange="epLoadCities()">
             <option value="">— اختر البلد —</option>
           </select>
         </div>
 
         <div class="ep-field" id="epCityWrap" style="display:none">
-          <label class="ep-label">المدينة</label>
+          <label class="ep-label" for="epCity">المدينة</label>
           <select class="ep-select" id="epCity">
             <option value="">— اختر المدينة —</option>
           </select>
         </div>
 
         <div class="ep-field">
-          <label class="ep-label">حالة التوظيف</label>
+          <label class="ep-label" for="epAvail">حالة التوظيف</label>
           <select class="ep-select" id="epAvail">
             <option value="">— اختر —</option>
             <option value="available">متاح للعمل</option>
@@ -526,14 +534,14 @@
         </div>
 
         <div class="ep-field">
-          <label class="ep-label">التخصص المهني</label>
+          <label class="ep-label" for="epProfession">التخصص المهني</label>
           <select class="ep-select" id="epProfession">
             <option value="">جاري التحميل…</option>
           </select>
         </div>
 
         <div class="ep-field">
-          <label class="ep-label">نبذة الهيدر <span style="font-size:.75rem;opacity:.6;font-weight:400">— النص القصير تحت الاسم</span></label>
+          <label class="ep-label" for="epShortBio">نبذة الهيدر <span style="font-size:.75rem;opacity:.6;font-weight:400">— النص القصير تحت الاسم</span></label>
           <textarea class="ep-textarea" id="epShortBio" placeholder="وصف قصير يظهر تحت اسمك مباشرةً…"
             maxlength="160" rows="2" aria-invalid="false"
             aria-describedby="epShortBioErr"></textarea>

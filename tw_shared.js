@@ -82,6 +82,46 @@ function initScrollProg() {
   });
 }
 
+// ══ API-MUT Error Normalizer (System Gap fill — API-MUT-11) ══
+// Single parser for all API error shapes. Frontend modules must use this exclusively.
+// Official shape: body.errors[] + body.error{} (new)
+// Legacy shape: body.detail (FastAPI HTTPException backward compat)
+function normalizeErrorResponse(body) {
+  if (!body) return { fieldErrors: [], generalError: null };
+  var fieldErrors = [];
+  var generalError = null;
+  // Official shape: body.errors[]
+  if (Array.isArray(body.errors)) {
+    for (var i = 0; i < body.errors.length; i++) {
+      var e = body.errors[i];
+      if (e && e.field) {
+        fieldErrors.push({ field: e.field, code: e.code || '', message: e.message || '' });
+      } else if (e && e.code && !generalError) {
+        generalError = { code: e.code, message: e.message || '' };
+      }
+    }
+  }
+  // Official general: body.error{}
+  if (!generalError && body.error && typeof body.error === 'object' && body.error.code) {
+    generalError = { code: body.error.code, message: body.error.message || '' };
+  }
+  // Legacy FastAPI detail (backward compat)
+  if (!fieldErrors.length && !generalError) {
+    var det = body.detail;
+    if (det && typeof det === 'object') {
+      if (det.field || det.code) {
+        fieldErrors.push({ field: det.field || '', code: det.code || '', message: det.error || det.message || '' });
+      } else if (typeof det === 'string') {
+        generalError = { code: '', message: det };
+      }
+    } else if (typeof det === 'string') {
+      generalError = { code: '', message: det };
+    }
+  }
+  return { fieldErrors: fieldErrors, generalError: generalError };
+}
+window.normalizeErrorResponse = normalizeErrorResponse;
+
 // Keyboard shortcuts
 document.addEventListener('keydown', function(e){
   if (e.key === 'Escape') {

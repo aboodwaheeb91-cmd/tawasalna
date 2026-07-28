@@ -168,8 +168,12 @@
         return e && window._scCheckProfessional && window._scCheckProfessional(e.value);
       });
       if(!anyBad){
+        // Only clear nameErr if it shows a content-violation message, not a required-field message.
+        // Required-field errors (مطلوب) are cleared field-specifically below.
         var div = document.getElementById('epNameErr');
-        if(div){ div.textContent=''; div.classList.remove('show'); }
+        if(div && div.textContent && div.textContent.indexOf('مطلوب') === -1){
+          div.textContent=''; div.classList.remove('show');
+        }
       }
       // Clear required error once user types the required field
       var first = ((document.getElementById('epFirstName')||{}).value||'').trim();
@@ -201,8 +205,20 @@
     ['epDobD','epDobM','epDobY'].forEach(function(id){
       var el = document.getElementById(id); if(el) el.value = '';
     });
+    // Country + city reset
+    var countryEl = document.getElementById('epCountry');
+    if(countryEl) countryEl.value = '';
+    var cityEl = document.getElementById('epCity');
+    if(cityEl){
+      cityEl.innerHTML = '';
+      var phCity = document.createElement('option'); phCity.value=''; phCity.text='— اختر المدينة —';
+      cityEl.appendChild(phCity);
+    }
+    var cityWrap = document.getElementById('epCityWrap');
+    if(cityWrap) cityWrap.style.display = 'none';
     var avEl = document.getElementById('epAvail'); if(avEl) avEl.value = '';
     var sh   = document.getElementById('epShortBio'); if(sh) sh.value = '';
+    // Profession transient state reset
     var profEl = document.getElementById('epProfession');
     if(profEl){
       profEl.innerHTML = '';
@@ -216,6 +232,7 @@
     if(nameRow) nameRow.style.display = '';
     _legacyMode = false;
     _profListLoaded = false;
+    _snapshot = null;  // invalidate stale snapshot
     _setNameRequired(true);
     _clearAllFieldErrs();
     if(errEl){ errEl.textContent=''; errEl.style.display='none'; }
@@ -276,9 +293,10 @@
     });
   }
 
-  // ── DS-FRM Hydration (§6/§19) ──
-  function _hydrateForm(p, profList, session){
-    if(_editSession !== session) return;  // stale — abort (§20 + §8 close invalidation)
+  // ── DS-FRM Hydration — canonical fields (§6/§19) ──
+  // Hydrates ALL fields except profession. Called IMMEDIATELY on open.
+  function _hydrateCanonicalFields(p, session){
+    if(_editSession !== session) return;
 
     // Detect legacy name mode (§1)
     var hasStructured = !!(p.first_name && p.last_name);
@@ -288,10 +306,8 @@
     var legText = document.getElementById('epLegacyNameText');
 
     if(_legacyMode){
-      // Show the info note — name row stays visible with empty fields
       if(legRow){ legRow.style.display = ''; }
       if(legText) legText.textContent = p.full_name || '';
-      // Fields start empty; aria-required false until migration starts
       _setNameRequired(false);
     } else {
       if(legRow){ legRow.style.display = 'none'; }
@@ -325,28 +341,35 @@
     var avEl = document.getElementById('epAvail');
     if(avEl) avEl.value = p.avail || '';
 
-    // Profession (§10 — DOM APIs)
-    var profEl = document.getElementById('epProfession');
-    if(profEl && profList && profList.length){
-      _buildProfessionOptions(profEl, profList, p.profession || null);
-    } else if(profEl && profList){
-      var errOpt = document.createElement('option');
-      errOpt.value = ''; errOpt.text = '— اختر التخصص —';
-      profEl.innerHTML = ''; profEl.appendChild(errOpt);
-    }
-
     // Short bio
     var shortBioEl = document.getElementById('epShortBio');
     if(shortBioEl) shortBioEl.value = p.short_bio || '';
 
-    // Only mark loaded when list is non-empty; empty = load failure → omit profession_id on save
-    _profListLoaded = !!(profList && profList.length);
-
-    // Dirty State snapshot (§14) — capture after all fields are set
+    // Snapshot captured after canonical fields (profession added when it loads)
     _snapshot = _captureSnapshot();
 
     if(window.scSelectInit) scSelectInit();
     if(window.lucide && lucide.createIcons) lucide.createIcons();
+  }
+
+  // ── DS-FRM Hydration — profession control only (async) ──
+  // Updates ONLY the profession <select>. Never touches canonical fields or snapshot.
+  function _hydrateProfession(p, profList, session){
+    if(_editSession !== session) return;
+    var profEl = document.getElementById('epProfession');
+    if(!profEl) return;
+    _profListLoaded = !!(profList && profList.length);
+    if(_profListLoaded){
+      _buildProfessionOptions(profEl, profList, p.profession || null);
+    } else {
+      profEl.innerHTML = '';
+      var errOpt = document.createElement('option');
+      errOpt.value = ''; errOpt.text = '— اختر التخصص —';
+      profEl.appendChild(errOpt);
+    }
+    // Update snapshot with profession value now that it's loaded
+    if(_snapshot) _snapshot.profId = ((document.getElementById('epProfession')||{}).value||'').trim();
+    if(window.scSelectInit) scSelectInit();
   }
 
   // ── Dirty State snapshot capture (§14) ──
@@ -393,26 +416,29 @@
 
     var p = window._scProfile || {};
 
-    var profEl = document.getElementById('epProfession');
-    if(profEl && (!_profList || !_profList.length)){
+    // Canonical fields hydrate IMMEDIATELY — never gated on professions (FRM-06)
+    _hydrateCanonicalFields(p, session);
+
+    // Professions async — update ONLY the profession control, never canonical fields
+    if(!_profList || !_profList.length){
       getProfessions()
         .then(function(list){
-          if(_editSession !== session) return;  // stale session — abort
+          if(_editSession !== session) return;
           _profList = list;
-          _hydrateForm(p, list, session);
+          _hydrateProfession(p, list, session);
         })
         .catch(function(){
           if(_editSession !== session) return;
+          var profEl = document.getElementById('epProfession');
           if(profEl){
             profEl.innerHTML = '';
             var errOpt = document.createElement('option');
             errOpt.value = ''; errOpt.text = 'تعذّر تحميل التخصصات';
             profEl.appendChild(errOpt);
           }
-          _hydrateForm(p, [], session);
         });
     } else {
-      _hydrateForm(p, _profList, session);
+      _hydrateProfession(p, _profList, session);
     }
     if(window.lucide && lucide.createIcons) lucide.createIcons();
   }
@@ -538,12 +564,19 @@
         }
         if(prof){
           if(titleEl){
-            titleEl.innerHTML = '<i data-lucide="' + (prof.icon || 'briefcase') + '" class="ico-sm"></i> ';
+            titleEl.innerHTML = '';
+            var _profIcon = document.createElement('i');
+            // Sanitize icon name: Lucide names are [a-z0-9-] only
+            var _iconName = String(prof.icon || 'briefcase').replace(/[^a-z0-9-]/g, '') || 'briefcase';
+            _profIcon.setAttribute('data-lucide', _iconName);
+            _profIcon.className = 'ico-sm';
+            titleEl.appendChild(_profIcon);
+            titleEl.appendChild(document.createTextNode(' '));
             var profSpan = document.createElement('span'); profSpan.textContent = prof.name_ar;
             titleEl.appendChild(profSpan);
           }
           if(window._scProfile) window._scProfile.profession = prof;
-          if(window.lucide && lucide.createIcons) lucide.createIcons();
+          if(window.lucide && lucide.createIcons) lucide.createIcons({nodes:[titleEl]});
         }
       } else if(!profile.profession_id){
         // Cleared — show empty state
@@ -553,11 +586,11 @@
     }
   }
 
-  // ── Route field-level error from 422 response to correct error element ──
-  function _routeFieldError(detail){
-    var code    = detail.code  || '';
-    var field   = detail.field || '';
-    var message = detail.error || detail.message || 'حدث خطأ في التحقق من البيانات';
+  // ── Route normalized field error to correct error element (API-MUT-11 consumer) ──
+  function _routeFieldError(err){
+    var code    = err.code    || '';
+    var field   = err.field   || '';
+    var message = err.message || 'حدث خطأ في التحقق من البيانات';
     if(code === 'first_name_required' || code === 'last_name_required' || field === 'first_name' || field === 'last_name' || field === 'name'){
       var nameErrEl = document.getElementById('epNameErr');
       var inputId = (code === 'first_name_required' || field === 'first_name') ? 'epFirstName' : 'epLastName';
@@ -652,11 +685,10 @@
     }
     var dob = (dobY && dobM && dobD) ? (dobY + '-' + dobM + '-' + dobD) : null;
 
-    // Build payload (§3 Tri-state: send null = CLEAR, omit = no change, value = set)
+    // Build delta payload (FRM-09 tri-state: send value = SET, send null = CLEAR, omit = no change)
+    // Only send fields that changed from snapshot. If snapshot is null, treat all as changed.
     var payload = {};
-
-    // short_bio: always send (user can clear it with empty textarea → null)
-    payload.short_bio = shortBioVal || null;
+    var _snap = _snapshot;  // may be null if modal was opened before hydration (safety fallback)
 
     // Name — only include when mutation started
     if(_nameMutation){
@@ -665,21 +697,36 @@
       payload.last_name   = last;
     }
 
-    // DOB: null = clear
-    payload.dob     = dob;
-    // Location: null = clear
-    payload.country = country || null;
-    payload.city    = city    || null;
-    // Availability: null = clear
-    payload.avail   = avail   || null;
+    // short_bio: include only if changed
+    var _sbChanged = !_snap || shortBioVal !== _snap.shortBio;
+    if(_sbChanged) payload.short_bio = shortBioVal || null;
+
+    // DOB: include only if changed (compare all three parts)
+    var _dobChanged = !_snap || (dobY !== _snap.dobY || dobM !== _snap.dobM || dobD !== _snap.dobD);
+    if(_dobChanged) payload.dob = dob;
+
+    // Country: include only if changed
+    var _countryChanged = !_snap || country !== _snap.country;
+    if(_countryChanged) payload.country = country || null;
+
+    // City: include only if changed
+    var _cityChanged = !_snap || city !== _snap.city;
+    if(_cityChanged) payload.city = city || null;
+
+    // Availability: include only if changed
+    var _availChanged = !_snap || avail !== _snap.avail;
+    if(_availChanged) payload.avail = avail || null;
 
     // Profession: null = clear (only when list is loaded — prevents clearing on async race)
-    if(_profListLoaded){
-      payload.profession_id = profVal ? parseInt(profVal, 10) : null;
-    } else if(profVal){
-      payload.profession_id = parseInt(profVal, 10);
+    // Include only if changed
+    var _profChanged = !_snap || profVal !== _snap.profId;
+    if(_profChanged){
+      if(_profListLoaded){
+        payload.profession_id = profVal ? parseInt(profVal, 10) : null;
+      } else if(profVal){
+        payload.profession_id = parseInt(profVal, 10);
+      }
     }
-    // If _profListLoaded is false and profVal is empty: omit profession_id (no change)
 
     // BTN-18 loading (§12) + in-flight lock (§13) + controls lock (§9)
     _inFlight = true;
@@ -689,16 +736,17 @@
     updateProfile(uid, payload)
       .then(function(res){
         if(!res.ok){
-          var _det = res.data && res.data.detail;
-          if(_det && typeof _det === 'object' && _det.code){
-            // Typed ProfileValidationError — route to correct field
-            _routeFieldError(_det);
+          // Use single normalizer — no direct detail parsing (API-MUT-11)
+          var _norm = window.normalizeErrorResponse ? normalizeErrorResponse(res.data) : {fieldErrors:[], generalError:null};
+          if(_norm.fieldErrors.length){
+            _norm.fieldErrors.forEach(function(fe){ _routeFieldError(fe); });
+            // Focus first invalid control per DOM order
+            var firstErr = document.querySelector('#epOverlay .ep-input-err, #epOverlay [aria-invalid="true"]');
+            if(firstErr) firstErr.focus();
           } else {
-            var msg = (_det && typeof _det === 'object' && _det.message)
-              ? _det.message
-              : (typeof _det === 'string' ? _det : 'حدث خطأ أثناء الحفظ');
-            if(window.toast) window.toast(msg);
-            if(errEl){ errEl.textContent = msg; errEl.style.display = 'block'; }
+            var _msg = (_norm.generalError && _norm.generalError.message) || 'حدث خطأ أثناء الحفظ';
+            if(window.toast) window.toast(_msg);
+            if(errEl){ errEl.textContent = _msg; errEl.style.display = 'block'; }
           }
           return;
         }
@@ -707,19 +755,12 @@
         _unlockControls();
         closeModal();
         if(window.toast) window.toast('تم حفظ التغييرات بنجاح');
-        // 2. Canonical update from server response (§6 — no payload contamination)
+        // 2. Canonical update from server response (§6 — no payload contamination; FRM-17)
+        // No background re-fetch: applyCanonicalProfile handles all display updates (FRM-18)
         var canonicalProfile = (res.data && res.data.profile) ? res.data.profile : null;
         if(canonicalProfile) applyCanonicalProfile(canonicalProfile);
         if(window._updateCompletion) window._updateCompletion();
-        // 3. Background re-fetch for full sync — log on failure (no silent catch)
-        getProfile(_scProfileKey)
-          .then(function(freshRes){
-            if(freshRes && window.renderProfile) window.renderProfile(freshRes);
-            if(window.lucide && lucide.createIcons) lucide.createIcons();
-          })
-          .catch(function(syncErr){
-            console.warn('[edit-profile] background sync failed after successful save:', syncErr);
-          });
+        if(window.lucide && lucide.createIcons) lucide.createIcons();
       })
       .catch(function(){
         var _msg = 'خطأ في الاتصال بالخادم';

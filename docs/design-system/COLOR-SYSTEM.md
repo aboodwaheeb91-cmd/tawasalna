@@ -570,6 +570,13 @@ feature CSS:
 | `--ep-note-bg` | `rgba(37,99,255,.08)` | خلفية ملاحظة الاسم القديم (Local) |
 | `--ep-note-border` | `rgba(37,99,255,.2)` | حدود ملاحظة الاسم القديم (Local) |
 | `--ep-surface` | `#0f1420` | خلفية الـ sheet (Local) |
+| `--ep-text-primary` | `var(--color-text-primary, var(--t1,#fff))` | نص الحقول وزر الإغلاق → Semantic token |
+| `--ep-save-text` | `var(--color-text-primary, #fff)` | نص زر الحفظ → Semantic token |
+| `--ep-spinner-track` | `rgba(255,255,255,.3)` | مسار دوّار التحميل (Local) |
+| `--ep-spinner-head` | `var(--color-text-primary, #fff)` | قوس دوّار التحميل → Semantic token |
+| `--ep-note-icon` | `var(--color-brand-secondary, #2563ff)` | أيقونة ملاحظة الاسم القديم → Semantic token |
+| `--ep-title-icon` | `var(--color-brand-primary, #00c896)` | أيقونة قلم عنوان المودال → Semantic token |
+| `--ep-placeholder` | `var(--color-text-placeholder, rgba(255,255,255,.3))` | نص placeholder للحقول → Semantic token |
 
 **قواعد دائمة:**
 - الرموز التي تُشير لـ DS-COLOR Semantic tokens تُرقَّى تلقائياً عند تحديث الـ token

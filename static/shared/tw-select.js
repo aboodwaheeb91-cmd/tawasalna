@@ -230,6 +230,22 @@
     }
   }
 
+  // ── DS-SEL accessibility: sync aria-invalid, aria-describedby, disabled from native → trigger ──
+  function _syncAriaState(native, trg, wrap){
+    var inv = native.getAttribute('aria-invalid');
+    if(inv) trg.setAttribute('aria-invalid', inv);
+    else trg.removeAttribute('aria-invalid');
+    var desc = native.getAttribute('aria-describedby');
+    if(desc) trg.setAttribute('aria-describedby', desc);
+    else trg.removeAttribute('aria-describedby');
+    trg.disabled = !!native.disabled;
+    // Visual error state: mirror ep-input-err class
+    if(wrap){
+      if(inv === 'true') wrap.classList.add('sc-sel-err');
+      else wrap.classList.remove('sc-sel-err');
+    }
+  }
+
   // ── Initialize one native <select> ──
   function _init(native){
     if(!native || native.hasAttribute('data-sc-sel')) return;
@@ -250,6 +266,15 @@
     trg.setAttribute('aria-expanded','false');
     trg.setAttribute('dir','rtl');
 
+    // Propagate label association from native select to trigger (DS-SEL accessibility)
+    if(native.id){
+      var _lbl = document.querySelector('label[for="' + native.id + '"]');
+      if(_lbl){
+        if(!_lbl.id) _lbl.id = 'lbl-' + native.id;
+        trg.setAttribute('aria-labelledby', _lbl.id);
+      }
+    }
+
     var txt = document.createElement('span');
     txt.className = 'sc-sel-txt sc-sel-ph';
     trg.appendChild(txt);
@@ -261,6 +286,7 @@
 
     wrap.insertBefore(trg, native);
     _syncTrigger(wrap, native);
+    _syncAriaState(native, trg, wrap);
 
     // Toggle on click
     trg.addEventListener('click', function(e){
@@ -281,6 +307,10 @@
         }, 20);
       }
     }).observe(native, {childList:true, subtree:true});
+
+    // MutationObserver: propagate aria-invalid/describedby/disabled changes to trigger
+    (function(_w){ new MutationObserver(function(){ _syncAriaState(native, trg, _w); })
+      .observe(native, {attributes:true, attributeFilter:['aria-invalid','aria-describedby','disabled']}); })(wrap);
 
     // Sync trigger on native change (e.g. programmatic native.value = x followed by change event)
     native.addEventListener('change', function(){ _syncTrigger(wrap, native); });
