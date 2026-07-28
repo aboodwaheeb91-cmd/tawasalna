@@ -584,13 +584,45 @@ def test_J_css_contracts():
     ok(label) if '.ep-save:not(:disabled):hover' in src and '--color-brand-primary-rgb' in src \
         else fail(label, '.ep-save:not(:disabled):hover or --color-brand-primary-rgb missing (BTN-07)')
 
-    label = 'J12: .ep-cancel:hover rule exists (DS-BTN BTN-07 Secondary hover)'
-    ok(label) if '.ep-cancel:hover' in src \
-        else fail(label, '.ep-cancel:hover rule missing (BTN-07)')
+    label = 'J12: .ep-cancel:not(:disabled):hover rule exists (DS-BTN BTN-07 Secondary hover)'
+    ok(label) if '.ep-cancel:not(:disabled):hover' in src \
+        else fail(label, '.ep-cancel:not(:disabled):hover rule missing (BTN-07)')
 
     label = 'J13: --ep-save-to removed from :root (unused gradient-stop token cleaned)'
     ok(label) if '--ep-save-to' not in src \
         else fail(label, '--ep-save-to still defined in :root (should be removed)')
+
+    label = 'J14: .ep-save hover has no transform/translateY (DS-BTN BTN-07 — no layout shift)'
+    _hover_start = src.find('.ep-save:not(:disabled):hover')
+    _hover_end   = src.find('}', _hover_start)
+    _hover_block = src[_hover_start:_hover_end + 1] if _hover_start >= 0 else ''
+    ok(label) if _hover_start >= 0 and 'translateY' not in _hover_block \
+        else fail(label, 'translateY still in .ep-save:not(:disabled):hover (BTN-07 no-shift rule)')
+
+    label = 'J15: .ep-cancel hover/active use var() tokens, not raw rgba (CLR-15 Local Color Role)'
+    ok(label) if 'var(--ep-cancel-hover-bg)' in src and 'var(--ep-cancel-active-bg)' in src \
+        else fail(label, 'cancel hover/active not using Local Color Role var() tokens (CLR-15 violation)')
+
+    label = 'J16: --ep-cancel-hover-bg, --ep-cancel-hover-border, --ep-cancel-active-bg defined in :root'
+    ok(label) if '--ep-cancel-hover-bg' in src and '--ep-cancel-hover-border' in src and '--ep-cancel-active-bg' in src \
+        else fail(label, 'cancel hover/active Local Color Role tokens missing from :root')
+
+    label = 'J17: .ep-save:disabled has pointer-events:none (DS-BTN Disabled contract)'
+    ok(label) if 'pointer-events:none' in src or 'pointer-events: none' in src \
+        else fail(label, 'pointer-events:none not found in disabled rules')
+
+    label = 'J18: .ep-save and .ep-cancel have -webkit-touch-callout:none (BTN-08)'
+    ok(label) if '-webkit-touch-callout:none' in src or '-webkit-touch-callout: none' in src \
+        else fail(label, '-webkit-touch-callout:none missing from ep-save/ep-cancel (BTN-08)')
+
+    label = 'J19: COLOR-SYSTEM.md no longer documents --ep-save-text (token removed)'
+    _clr_src = _read('docs/design-system/COLOR-SYSTEM.md')
+    ok(label) if '--ep-save-text' not in _clr_src \
+        else fail(label, '--ep-save-text still documented in COLOR-SYSTEM.md (token removed at runtime)')
+
+    label = 'J20: COLOR-SYSTEM.md --ep-save-from described as border/text, not gradient'
+    ok(label) if 'تدرج زر الحفظ' not in _clr_src \
+        else fail(label, '--ep-save-from still described as gradient stop in COLOR-SYSTEM.md')
 
 
 # ── K: Structured group & tri-state (§Corr-B/C) ──────────────────────────────

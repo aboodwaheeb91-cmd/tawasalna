@@ -2366,6 +2366,9 @@ Scoped --ep-* domain aliases in profile-v2.css (Tier 3 — CLR-15):
     --ep-sheet-border: rgba(255,255,255,.10)
     --ep-divider:      rgba(255,255,255,.08)
     --ep-cancel-border: rgba(255,255,255,.12)
+    --ep-cancel-hover-bg:     rgba(255,255,255,.04)  ← Local Color Role (DS-BTN PR #525)
+    --ep-cancel-hover-border: rgba(255,255,255,.22)  ← Local Color Role
+    --ep-cancel-active-bg:    rgba(255,255,255,.08)  ← Local Color Role
     --ep-backdrop:     rgba(0,0,0,.65)
     --ep-close-bg:     rgba(255,255,255,.08)
     --ep-note-bg:      rgba(37,99,255,.08)
