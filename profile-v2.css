@@ -617,15 +617,64 @@ body.preview-public-user .owner-only,
 body.preview-guest       .owner-only { display: none !important; }
 
 /* ── Edit Profile Modal ── */
+/* ── Edit Profile overlay — DS-COLOR Phase 2 (§17) ──
+   Scoped domain aliases (Tier 3 — .ep-* namespace):
+   --ep-surface:        sheet background
+   --ep-sheet-border:   sheet + input/select/textarea borders (.10)
+   --ep-divider:        head + footer horizontal dividers (.08)
+   --ep-cancel-border:  cancel button border (.12)
+   --ep-backdrop:       overlay dim layer
+   --ep-close-bg:       close button fill
+   --ep-note-bg:        legacy-name info note background
+   --ep-note-border:    legacy-name info note border
+   --ep-border-focus:   input focus ring colour
+   --ep-input-bg:       input/select/textarea background (.05 — Tier 3 primitive direct;
+                       NOT via --color-surface-input which is .06 — direct value preserves zero visual change)
+   --ep-danger:         error text colour  (→ --color-status-danger)
+   --ep-label:          field label colour (→ --color-text-muted)
+   --ep-cancel-text:    cancel button text (→ --color-text-secondary)
+   --ep-save-from/to:   save button gradient stops (→ --color-brand-primary variants)
+   --ep-text-primary:   input/close button text (→ --color-text-primary)
+   --ep-save-text:      save button label colour (→ --color-text-primary)
+   --ep-spinner-track:  loading spinner border track (.3 alpha white)
+   --ep-spinner-head:   loading spinner active arc (→ --color-text-primary)
+   --ep-note-icon:      icon inside legacy-name note (→ --color-brand-secondary)
+   Zero visual change: all raw fallback values match pre-Phase-2 originals.
+*/
+:root {
+  --ep-surface:        #0f1420;
+  --ep-sheet-border:   rgba(255,255,255,.10);
+  --ep-divider:        rgba(255,255,255,.08);
+  --ep-cancel-border:  rgba(255,255,255,.12);
+  --ep-backdrop:       rgba(0,0,0,.65);
+  --ep-close-bg:       rgba(255,255,255,.08);
+  --ep-note-bg:        rgba(37,99,255,.08);
+  --ep-note-border:    rgba(37,99,255,.2);
+  --ep-border-focus:   var(--color-border-focus, var(--color-brand-primary, #00c896));
+  --ep-input-bg:       rgba(255,255,255,.05);
+  --ep-danger:         var(--color-status-danger, #f87171);
+  --ep-label:          var(--color-text-muted, var(--t3, #6b7686));
+  --ep-cancel-text:    var(--color-text-secondary, var(--t2, #9aa5b4));
+  --ep-save-from:      var(--color-brand-primary, #00c896);
+  --ep-save-to:        #00b386;
+  --ep-text-primary:   var(--color-text-primary, var(--t1,#fff));
+  --ep-save-text:      var(--color-text-primary, #fff);
+  --ep-spinner-track:  rgba(255,255,255,.3);
+  --ep-spinner-head:   var(--color-text-primary, #fff);
+  --ep-note-icon:      var(--color-brand-secondary, #2563ff);
+  --ep-title-icon:     var(--color-brand-primary, #00c896);
+  --ep-placeholder:    var(--color-text-placeholder, rgba(255,255,255,.3));
+}
+
 .ep-overlay {
   display:none; position:fixed; inset:0; z-index:300;
-  background:rgba(0,0,0,.65); backdrop-filter:blur(4px);
+  background:var(--ep-backdrop); backdrop-filter:blur(4px);
   align-items:flex-end; justify-content:center;
 }
 .ep-overlay.open { display:flex; }
 .ep-sheet {
-  background:#0f1420; border-radius:22px 22px 0 0;
-  border:1px solid rgba(255,255,255,.1); border-bottom:none;
+  background:var(--ep-surface); border-radius:22px 22px 0 0;
+  border:1px solid var(--ep-sheet-border); border-bottom:none;
   width:100%; max-width:560px; max-height:92vh;
   display:flex; flex-direction:column; overflow:hidden;
   animation:slideUp .25s ease;
@@ -633,61 +682,103 @@ body.preview-guest       .owner-only { display: none !important; }
 @keyframes slideUp { from{transform:translateY(40px);opacity:0;} to{transform:translateY(0);opacity:1;} }
 .ep-head {
   display:flex; align-items:center; justify-content:space-between;
-  padding:16px 20px 12px; border-bottom:1px solid rgba(255,255,255,.08);
+  padding:16px 20px 12px; border-bottom:1px solid var(--ep-divider);
   flex-shrink:0;
 }
 .ep-title { font-size:.95rem; font-weight:700; }
+.ep-title .ep-title-ico { color:var(--ep-title-icon); vertical-align:middle; margin-left:6px; }
 .ep-close {
   width:30px; height:30px; border-radius:50%; border:none; cursor:pointer;
-  background:rgba(255,255,255,.08); color:var(--t1,#fff);
+  background:var(--ep-close-bg); color:var(--ep-text-primary);
   display:flex; align-items:center; justify-content:center;
 }
 .ep-body { flex:1; overflow-y:auto; padding:18px 20px 24px; }
 .ep-field { margin-bottom:16px; }
-.ep-label { display:block; font-size:.76rem; font-weight:600; color:var(--t3,#6b7686); margin-bottom:6px; }
+.ep-label { display:block; font-size:.76rem; font-weight:600; color:var(--ep-label); margin-bottom:6px; }
 .ep-input, .ep-select, .ep-textarea {
-  width:100%; background:rgba(255,255,255,.05);
-  border:1px solid rgba(255,255,255,.1); border-radius:10px;
-  color:var(--t1,#fff); font-family:inherit; font-size:.84rem; padding:10px 13px;
+  width:100%; background:var(--ep-input-bg);
+  border:1px solid var(--ep-sheet-border); border-radius:10px;
+  color:var(--ep-text-primary); font-family:inherit; font-size:.84rem; padding:10px 13px;
   outline:none; transition:border-color .15s;
 }
-.ep-input:focus, .ep-select:focus, .ep-textarea:focus { border-color:var(--ac,#00c896); }
-.ep-select option { background:#0f1420; }
+.ep-input, .ep-textarea {
+  -webkit-appearance:none; appearance:none;
+  /* DS-INP INP-10A/INP-10B: explicit text color for Chromium/WebKit (normal state) */
+  -webkit-text-fill-color:var(--ep-text-primary);
+  caret-color:var(--ep-text-primary);
+}
+.ep-input:focus, .ep-select:focus, .ep-textarea:focus { border-color:var(--ep-border-focus); }
+.ep-select option { background:var(--ep-surface); }
+/* DS-INP Chromium/WebKit placeholder contract — prefixed form for older Safari */
+.ep-input::-webkit-input-placeholder,
+.ep-textarea::-webkit-input-placeholder {
+  color:var(--ep-placeholder);
+  -webkit-text-fill-color:var(--ep-placeholder);
+}
+.ep-input::placeholder, .ep-textarea::placeholder { color:var(--ep-placeholder); -webkit-text-fill-color:var(--ep-placeholder); }
+/* DS-INP Chromium autofill override — prevents forced yellow/blue background */
+.ep-input:-webkit-autofill,
+.ep-input:-webkit-autofill:hover,
+.ep-input:-webkit-autofill:focus {
+  -webkit-box-shadow:0 0 0 1000px var(--ep-surface) inset;
+  -webkit-text-fill-color:var(--ep-text-primary);
+  caret-color:var(--ep-text-primary);
+}
 .ep-textarea { resize:vertical; min-height:80px; line-height:1.7; }
 .ep-row2 { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
 .ep-footer {
   display:flex; gap:10px; padding:14px 20px;
-  border-top:1px solid rgba(255,255,255,.08); flex-shrink:0;
+  border-top:1px solid var(--ep-divider); flex-shrink:0;
 }
 .ep-save {
   flex:1; height:42px; border-radius:11px; border:none; cursor:pointer;
-  background:linear-gradient(135deg,#00c896,#00b386);
-  color:#fff; font-family:inherit; font-size:.9rem; font-weight:700;
-  transition:opacity .15s;
+  background:linear-gradient(135deg, var(--ep-save-from), var(--ep-save-to));
+  color:var(--ep-save-text); font-family:inherit; font-size:.9rem; font-weight:700;
+  transition:opacity .15s; position:relative; overflow:hidden;
 }
 .ep-save:disabled { opacity:.5; cursor:not-allowed; }
+
+/* BTN-18 loading state (§12) — margin-based centering, no transform conflict */
+.ep-save--loading { color:transparent; }
+.ep-save--loading::after {
+  content:''; position:absolute;
+  width:14px; height:14px;
+  left:50%; top:50%;
+  margin-top:-7px; margin-left:-7px;
+  border:2px solid var(--ep-spinner-track);
+  border-top-color:var(--ep-spinner-head);
+  border-radius:50%;
+  animation:tw-spin .7s linear infinite;
+}
+
 .ep-cancel {
-  height:42px; padding:0 22px; border-radius:11px; border:1px solid rgba(255,255,255,.12);
-  background:none; color:var(--t2,#9aa5b4); cursor:pointer;
+  height:42px; padding:0 22px; border-radius:11px;
+  border:1px solid var(--ep-cancel-border);
+  background:none; color:var(--ep-cancel-text); cursor:pointer;
   font-family:inherit; font-size:.9rem; font-weight:600;
 }
-.ep-err  { color:#f87171; font-size:.78rem; margin-top:4px; display:none; }
+/* DS-BTN compliance: focus-visible + no text selection on all ep-* buttons */
+.ep-save:focus-visible, .ep-cancel:focus-visible, .ep-close:focus-visible {
+  outline:2px solid var(--ep-border-focus); outline-offset:2px;
+}
+.ep-save, .ep-cancel, .ep-close { user-select:none; -webkit-user-select:none; }
+.ep-err  { color:var(--ep-danger); font-size:.78rem; margin-top:4px; display:none; }
 
-/* Inline field-level error — shown under the specific offending input */
-.ep-field-err { color:#f87171; font-size:.74rem; margin-top:5px; display:none; line-height:1.4; }
+/* Inline field-level errors */
+.ep-field-err { color:var(--ep-danger); font-size:.74rem; margin-top:5px; display:none; line-height:1.4; }
 .ep-field-err.show { display:block; }
 .ep-input.ep-input-err,
 .ep-textarea.ep-input-err {
-  border-color:rgba(248,113,113,.55) !important;
-  box-shadow:0 0 0 2px rgba(248,113,113,.1);
+  border-color:rgba(var(--color-status-danger-rgb),.55) !important;
+  box-shadow:0 0 0 2px rgba(var(--color-status-danger-rgb),.1);
 }
 .ep-note {
   display:flex; align-items:flex-start; gap:7px;
-  background:rgba(37,99,255,.08); border:1px solid rgba(37,99,255,.2);
+  background:var(--ep-note-bg); border:1px solid var(--ep-note-border);
   border-radius:9px; padding:10px 12px; margin-bottom:4px;
-  color:var(--t2,#9aa5b4); font-size:.76rem; line-height:1.6;
+  color:var(--ep-cancel-text); font-size:.76rem; line-height:1.6;
 }
-.ep-note .ico-sm { color:#2563ff; flex-shrink:0; margin-top:1px; }
+.ep-note .ico-sm { color:var(--ep-note-icon); flex-shrink:0; margin-top:1px; }
 
 /* ── Section add button — unified across all sections (exp/edu/courses/skills/langs/links) ── */
 .sc-section-add {

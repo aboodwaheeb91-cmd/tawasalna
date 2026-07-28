@@ -414,15 +414,20 @@ def test_G_structured_name():
 # ── H: Name normalization unit tests (no DB needed) ──────────────────────────
 
 def test_H_name_normalization():
-    print('\n\033[1m── H: Name Normalization (server.py static) ──\033[0m')
-    srv = _read('server.py')
+    print('\n\033[1m── H: Name Normalization ──\033[0m')
+    srv      = _read('server.py')
+    auth_src = _read('auth.py')
 
-    label = 'H1: _norm_name helper defined in server.py'
-    ok(label) if '_norm_name' in srv else fail(label, '_norm_name not found in server.py')
+    # §2: _norm_name now lives in auth.py (shared); server.py imports it from auth.
+    label = 'H1: _norm_name helper defined in auth.py (shared location §2)'
+    ok(label) if 'def _norm_name(' in auth_src else fail(label, '_norm_name not found in auth.py')
 
-    label = 'H2: _norm_name uses re.sub for whitespace collapse'
-    # Simple line-by-line search around the function definition
-    lines = srv.splitlines()
+    label = 'H1b: server.py imports _norm_name from auth (not a local copy)'
+    ok(label) if '_norm_name' in srv and 'def _norm_name(' not in srv \
+        else fail(label, 'server.py still defines _norm_name locally — should import from auth')
+
+    label = 'H2: _norm_name uses re.sub for whitespace collapse (auth.py)'
+    lines = auth_src.splitlines()
     fn_lines = []
     in_fn = False
     for line in lines:
@@ -431,19 +436,18 @@ def test_H_name_normalization():
         if in_fn:
             fn_lines.append(line)
             if len(fn_lines) > 1 and line.strip() and not line.startswith(' ') and not line.startswith('\t'):
-                break  # hit next top-level definition
+                break
             if len(fn_lines) > 5:
-                break  # short function, stop after 5 lines
+                break
     fn_body = '\n'.join(fn_lines)
     if not fn_lines:
-        fail(label, '_norm_name function body not found')
+        fail(label, '_norm_name function body not found in auth.py')
     elif 're.sub' in fn_body:
         ok(label)
     else:
         fail(label, '_norm_name does not use re.sub for internal whitespace collapse')
 
     label = 'H3: register() applies _norm_name to first_name/last_name/middle_name'
-    # Extract register function body via line scan (avoids catastrophic backtracking on large file)
     lines = srv.splitlines()
     reg_lines = []
     in_reg = False
@@ -460,12 +464,32 @@ def test_H_name_normalization():
     else:
         fail(label, '_norm_name not applied to name parts in register()')
 
-    label = 'H4: first_name required for emp (validation present)'
+    label = 'H3b: update_profile() applies _norm_name to name parts (auth.py §2)'
+    lines = auth_src.splitlines()
+    up_lines = []
+    in_up = False
+    for line in lines:
+        if re.match(r'^def update_profile\(', line):
+            in_up = True
+        if in_up:
+            up_lines.append(line)
+            if len(up_lines) > 30:
+                break
+    up_block = '\n'.join(up_lines)
+    if '_norm_name' in up_block and 'first_name' in up_block and 'last_name' in up_block:
+        ok(label)
+    else:
+        fail(label, '_norm_name not applied in update_profile()')
+
+    label = 'H4: first_name required for emp (validation present in server.py)'
     ok(label) if 'الاسم الأول واسم العائلة مطلوبان' in srv \
         else fail(label, 'missing validation for first_name/last_name required for emp')
 
+    label = 'H4b: first_name/last_name required check in update_profile (auth.py §4)'
+    ok(label) if 'first_name_required' in auth_src and 'last_name_required' in auth_src \
+        else fail(label, 'update_profile missing first/last name required validation (§4)')
+
     label = 'H5: middle_name is optional (not in required check)'
-    # The required check should only check first and last, not middle
     req_check = re.search(r'if not first or not last', srv)
     ok(label) if req_check else fail(label, 'required check not found or includes middle_name')
 
@@ -476,24 +500,24 @@ def test_H_name_normalization():
     label = 'H7: re imported in server.py'
     ok(label) if 'import re' in srv else fail(label, 're not imported in server.py')
 
-    # Unit-test _norm_name using the real implementation extracted from server.py via AST.
+    # Unit-test _norm_name using the real implementation extracted from auth.py via AST (§2).
     # Forbidden: _norm_name_local() — a locally-rewritten copy of the function.
-    label = 'H8: _norm_name logic: internal whitespace collapsed (real implementation)'
+    label = 'H8: _norm_name logic: internal whitespace collapsed (extracted from auth.py §2)'
     try:
         import ast, textwrap, re as _re
-        _srv_src = open(os.path.join(BASE, 'server.py'), encoding='utf-8').read()
-        _tree = ast.parse(_srv_src)
+        _auth_src = open(os.path.join(BASE, 'auth.py'), encoding='utf-8').read()
+        _tree = ast.parse(_auth_src)
         _norm_name_real = None
         for _node in ast.walk(_tree):
             if isinstance(_node, ast.FunctionDef) and _node.name == '_norm_name':
-                _fn_lines = _srv_src.splitlines()[_node.lineno - 1: _node.end_lineno]
+                _fn_lines = _auth_src.splitlines()[_node.lineno - 1: _node.end_lineno]
                 _fn_src = textwrap.dedent('\n'.join(_fn_lines))
                 _ns = {'re': _re}
                 exec(_fn_src, _ns)
                 _norm_name_real = _ns['_norm_name']
                 break
         if _norm_name_real is None:
-            fail(label, '_norm_name FunctionDef not found in server.py AST')
+            fail(label, '_norm_name FunctionDef not found in auth.py AST')
         else:
             cases = [
                 ('محمد    أحمد', 'محمد أحمد'),
@@ -516,8 +540,7 @@ def test_H_name_normalization():
         fail(label, f'AST extraction failed: {_e}')
 
     label = 'H9: no backfill — create_user structured path is new emp only'
-    auth_py = _read('auth.py')
-    ok(label) if 'No backfill' in auth_py or 'backfill' in auth_py.lower() \
+    ok(label) if 'No backfill' in auth_src or 'backfill' in auth_src.lower() \
         else fail(label, 'no backfill documentation found in auth.py create_user')
 
 

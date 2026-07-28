@@ -36,6 +36,15 @@ class ContentValidationError(ValueError):
         self.message = message
 
 
+class ProfileValidationError(Exception):
+    """Typed profile field validation error — maps to HTTP 422 with field+code."""
+    def __init__(self, field: str, code: str, message: str):
+        super().__init__(code)
+        self.field = field
+        self.code = code
+        self.message = message
+
+
 class EmojiError(ContentValidationError):
     """Raised when a text field contains emoji / pictographic symbols."""
     def __init__(self, field: str):
@@ -1162,61 +1171,142 @@ def get_full_profile(user_id: int) -> Optional[dict]:
         release_conn(conn)
 
 
-def update_profile(user_id: int, data: dict) -> dict:
+# ── Shared name normalizer (§2) — used by update_profile() here and register() in server.py ──
+_DOB_MIN_YEAR = 1940
+_DOB_MIN_AGE  = 15
+
+def _norm_name(s) -> str:
+    """Normalize a structured name part: trim + collapse internal whitespace."""
+    return re.sub(r'\s+', ' ', (s or '').strip())
+
+
+def update_profile(user_id: int, data: dict, user_type: str = None) -> dict:
     _TEXT_FIELDS = ("full_name", "first_name", "middle_name", "last_name", "bio", "short_bio", "headline", "title", "location", "phone", "website")
     for _f in _TEXT_FIELDS:
         validate_professional_text(data.get(_f), _f)
+
+    # Normalize name parts via shared _norm_name (§2)
+    _first  = _norm_name(data.get("first_name"))  if "first_name"  in data else None
+    _middle = _norm_name(data.get("middle_name")) if "middle_name" in data else None
+    _last   = _norm_name(data.get("last_name"))   if "last_name"   in data else None
+
+    # Pre-check: emp cannot send full_name at all — BEFORE structured-name branch (F6 bypass prevention)
+    if user_type == 'emp' and 'full_name' in data:
+        raise ProfileValidationError(field='full_name', code='emp_name_mutation_forbidden',
+            message='لتغيير الاسم استخدم حقول الاسم الأول والعائلة')
+
+    # Structured-name = atomic group (§4): ANY of first/middle/last in payload triggers mutation.
+    # middle-only request is rejected — full_name cannot be composed without first + last.
+    _name_keys = {'first_name', 'middle_name', 'last_name'}
+    _name_mutation = bool(_name_keys & set(data.keys()))
+    if _name_mutation:
+        if not _first:
+            raise ProfileValidationError(field='first_name', code='first_name_required', message='الاسم الأول مطلوب')
+        if not _last:
+            raise ProfileValidationError(field='last_name', code='last_name_required', message='اسم العائلة مطلوب')
+    # Empty middle → null (§4)
+    if _middle is not None and not _middle:
+        _middle = None
+
+    # DOB validation (§9A) — calendar age, no raw Python error messages
+    _dob_str = data.get("dob")
+    if _dob_str:
+        from datetime import date as _date_cls
+        try:
+            _dob = _date_cls.fromisoformat(_dob_str)
+        except (ValueError, Exception):
+            raise ProfileValidationError(field='dob', code='dob_invalid', message='تاريخ الميلاد غير صحيح')
+        _today = _date_cls.today()
+        if _dob > _today:
+            raise ProfileValidationError(field='dob', code='dob_future', message='تاريخ الميلاد لا يمكن أن يكون في المستقبل')
+        if _dob.year < _DOB_MIN_YEAR:
+            raise ProfileValidationError(field='dob', code='dob_year_too_old', message=f'سنة الميلاد يجب أن تكون {_DOB_MIN_YEAR} أو بعدها')
+        # Calendar age: (year diff) minus 1 if birthday hasn't occurred yet this year
+        _age = (_today.year - _dob.year) - (1 if (_today.month, _today.day) < (_dob.month, _dob.day) else 0)
+        if _age < _DOB_MIN_AGE:
+            raise ProfileValidationError(field='dob', code='dob_too_young', message=f'يجب أن يكون العمر {_DOB_MIN_AGE} سنوات على الأقل')
 
     _t0 = _time_mod.time()
     _cache_del('profile:'+str(user_id))
     _THEME_FIELDS = {"profile_color", "profile_style"}
     conn = get_conn()
     try:
-        # Clear theme cache only when theme fields change — saves SELECT round-trip on normal saves
-        if _THEME_FIELDS & set(data.keys()):
-            try:
-                _tw = conn.run("SELECT tw_id FROM users WHERE id=:uid", uid=user_id)
-                if _tw and _tw[0][0]: _cache_del('theme:'+str(_tw[0][0]))
-            except Exception: pass
+        conn.run("BEGIN")
+        _committed = False
+        try:
+            # Clear theme cache only when theme fields change
+            if _THEME_FIELDS & set(data.keys()):
+                try:
+                    _tw = conn.run("SELECT tw_id FROM users WHERE id=:uid", uid=user_id)
+                    if _tw and _tw[0][0]: _cache_del('theme:'+str(_tw[0][0]))
+                except Exception as _tcache_exc:
+                    print(f"[update_profile] theme cache clear failed (non-critical, continuing): {_tcache_exc}")
 
-        # Build full_name from name parts if provided (Profile V2 flow)
-        _name_parts = [data.get("first_name"), data.get("middle_name"), data.get("last_name")]
-        _built_name = " ".join(p for p in _name_parts if p and p.strip())
-        if _built_name:
-            conn.run("UPDATE users SET full_name = :name WHERE id = :uid", name=_built_name, uid=user_id)
-        elif data.get("full_name"):
-            conn.run("UPDATE users SET full_name = :name WHERE id = :uid", name=data["full_name"], uid=user_id)
+            # Build canonical full_name from normalized parts (§2 + §3)
+            _built_name = None
+            if _first is not None or _last is not None:
+                # Write normalized values back so fields dict gets the clean versions
+                data["first_name"]  = _first
+                data["middle_name"] = _middle  # may be None
+                data["last_name"]   = _last
+                _built_name = " ".join(p for p in [_first, _middle, _last] if p)
+                conn.run("UPDATE users SET full_name = :name WHERE id = :uid", name=_built_name, uid=user_id)
+            elif data.get("full_name"):
+                # emp users must use structured name parts — direct full_name mutation is forbidden (F6)
+                if user_type == 'emp':
+                    raise ProfileValidationError(field='full_name', code='emp_name_mutation_forbidden',
+                        message='لتغيير الاسم استخدم حقول الاسم الأول والعائلة')
+                _built_name = data["full_name"]
+                conn.run("UPDATE users SET full_name = :name WHERE id = :uid", name=_built_name, uid=user_id)
 
-        # Schema guaranteed by init_db — no runtime ALTER TABLE needed
-        allowed = ["headline", "bio", "short_bio", "location", "skills", "avatar_url", "website", "phone", "sections_order", "custom_sections", "dob", "country", "city", "avail", "title", "profile_color", "profile_style", "profession_id", "first_name", "middle_name", "last_name", "cover_url"]
-        _clearable = {"dob", "country", "city", "avail"}
-        fields = {k: v for k, v in data.items() if k in allowed and (v is not None or k in _clearable)}
-        print(f"[update_profile] user={user_id} saving fields: {list(fields.keys())}")
+            # Schema guaranteed by init_db — no runtime ALTER TABLE needed
+            allowed = ["headline", "bio", "short_bio", "location", "skills", "avatar_url", "website", "phone", "sections_order", "custom_sections", "dob", "country", "city", "avail", "title", "profile_color", "profile_style", "profession_id", "first_name", "middle_name", "last_name", "cover_url"]
+            _clearable = {"dob", "country", "city", "avail", "middle_name", "short_bio", "profession_id"}
+            fields = {k: v for k, v in data.items() if k in allowed and (v is not None or k in _clearable)}
+            print(f"[update_profile] user={user_id} saving fields: {list(fields.keys())}")
 
-        rows = conn.run("SELECT id FROM profiles WHERE user_id = :uid", uid=user_id)
-        if rows:
-            if fields:
-                set_clause = ", ".join(f"{k} = :{k}" for k in fields)
-                update_rows = conn.run(
-                    f"UPDATE profiles SET {set_clause}, updated_at = NOW() WHERE user_id = :uid RETURNING id",
-                    uid=user_id, **fields
+            rows = conn.run("SELECT id FROM profiles WHERE user_id = :uid", uid=user_id)
+            if rows:
+                if fields:
+                    set_clause = ", ".join(f"{k} = :{k}" for k in fields)
+                    update_rows = conn.run(
+                        f"UPDATE profiles SET {set_clause}, updated_at = NOW() WHERE user_id = :uid RETURNING id",
+                        uid=user_id, **fields
+                    )
+                    if not update_rows:
+                        print(f"[update_profile] ⚠️ UPDATE returned 0 rows for user {user_id} — running INSERT")
+                        raise ValueError("no_profile_row")
+                    print(f"[update_profile] ✅ DB UPDATE success for user {user_id}, rows={len(update_rows)} — {_time_mod.time()-_t0:.3f}s")
+            else:
+                cols_list = ["user_id"] + list(fields.keys())
+                placeholders = ", ".join(f":{c}" for c in cols_list)
+                conn.run(
+                    f"INSERT INTO profiles ({', '.join(cols_list)}) VALUES ({placeholders})",
+                    user_id=user_id, **fields
                 )
-                if not update_rows:
-                    print(f"[update_profile] ⚠️ UPDATE returned 0 rows for user {user_id} — running INSERT")
-                    raise ValueError("no_profile_row")
-                print(f"[update_profile] ✅ DB UPDATE success for user {user_id}, rows={len(update_rows)} — {_time_mod.time()-_t0:.3f}s")
-        else:
-            cols_list = ["user_id"] + list(fields.keys())
-            placeholders = ", ".join(f":{c}" for c in cols_list)
-            conn.run(
-                f"INSERT INTO profiles ({', '.join(cols_list)}) VALUES ({placeholders})",
-                user_id=user_id, **fields
-            )
+            conn.run("COMMIT")
+            _committed = True
+        except Exception as _outer_exc:
+            if not _committed:
+                try:
+                    conn.run("ROLLBACK")
+                except Exception as _rb_exc:
+                    print(f"[update_profile] ROLLBACK failed for user={user_id}: {_rb_exc} (original error: {_outer_exc})")
+            raise
     finally:
         release_conn(conn)
+
+    # Canonical response (§6/§18): include normalized name parts + built full_name
     resp = {"id": user_id, "updated": True}
     resp.update(fields)
-    if data.get("full_name"):
+    if _built_name:
+        resp["full_name"] = _built_name
+    if _first  is not None: resp["first_name"]  = _first
+    if _middle is not None: resp["middle_name"] = _middle
+    else:
+        if "middle_name" in data: resp["middle_name"] = None
+    if _last is not None: resp["last_name"] = _last
+    if data.get("full_name") and not _built_name:
         resp["full_name"] = data["full_name"]
     print(f"[update_profile] ⏱ total: {_time_mod.time()-_t0:.3f}s")
     return resp

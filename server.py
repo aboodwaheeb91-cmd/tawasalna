@@ -131,7 +131,7 @@ from auth import (
     get_pipeline_application_index_status,
     _APPLICANT_SORT_MAP,
 )
-from auth import ContentValidationError, validate_professional_text, JobArchivedError
+from auth import ContentValidationError, validate_professional_text, JobArchivedError, _norm_name, ProfileValidationError
 
 # ── Secrets from environment — NEVER hardcoded in source ──
 # Required Railway Variables:
@@ -1343,11 +1343,6 @@ def admin_page(): return read_html("admin.html")
 # ══════════════════════════════════════════
 # Schemas
 # ══════════════════════════════════════════
-def _norm_name(s) -> str:
-    """Normalize a structured name part: trim + collapse internal whitespace."""
-    return re.sub(r'\s+', ' ', (s or '').strip())
-
-
 class RegisterInput(BaseModel):
     # Structured name for emp (G-contract): first_name + last_name required, middle_name optional.
     # For emp: full_name is ignored if first_name/last_name are provided (structured path takes precedence).
@@ -3436,27 +3431,51 @@ def update_user_profile(user_id: int, data: ProfileUpdateInput, token=Depends(ve
     if str(tok_uid) != str(user_id):
         print(f"[PUT /profile] MISMATCH: token={tok_uid} url={user_id}")
         raise HTTPException(403, "Unauthorized")
-    payload = data.dict(exclude_none=True)
-    if "profession_id" in payload:
-        conn = get_conn()
-        try:
-            rows = conn.run("SELECT id FROM profession_categories WHERE id = :pid AND is_active = TRUE", pid=payload["profession_id"])
-            if not rows: raise HTTPException(400, detail="التخصص غير موجود أو غير فعال")
-        finally:
-            release_conn(conn)
+    # exclude_unset=True preserves explicit null (field=null = CLEAR) vs omitted (no change)
+    payload = data.dict(exclude_unset=True)
+    user_type = token.get('user_type')
     try:
-        profile = update_profile(user_id, payload)
+        # Validate profession_id only when it is explicitly set to a non-null value
+        if payload.get("profession_id") is not None:
+            conn = get_conn()
+            try:
+                rows = conn.run("SELECT id FROM profession_categories WHERE id = :pid AND is_active = TRUE", pid=payload["profession_id"])
+                if not rows:
+                    raise ProfileValidationError(field='profession_id', code='profession_invalid',
+                        message='التخصص غير موجود أو غير فعال')
+            finally:
+                release_conn(conn)
+        profile = update_profile(user_id, payload, user_type=user_type)
         if not profile:
             raise HTTPException(500, "Profile update failed")
         updated_keys = list(payload.keys())
         print(f"[PUT /profile] ✅ user={user_id} fields={updated_keys} — {_time.time()-_t0:.3f}s total")
         return {"status": "success", "profile": profile, "updated_fields": updated_keys}
+    except ProfileValidationError as e:
+        # Field-specific: errors[] is the official shape; no top-level error{} (API-MUT)
+        return JSONResponse(status_code=422, content={
+            "errors": [{"field": e.field, "code": e.code, "message": e.message}],
+            "detail": {"ok": False, "field": e.field, "code": e.code, "error": e.message}
+        })
     except ContentValidationError as e:
-        raise HTTPException(422, detail={"status": "error", "message": e.message, "field": e.field})
+        if e.field:
+            # Field-specific content violation: errors[] only
+            return JSONResponse(status_code=422, content={
+                "errors": [{"field": e.field, "code": "content_violation", "message": e.message}],
+                "detail": {"status": "error", "message": e.message, "field": e.field}
+            })
+        else:
+            # General content violation: error{} only
+            return JSONResponse(status_code=422, content={
+                "error": {"code": "content_violation", "message": e.message},
+                "detail": {"status": "error", "message": e.message}
+            })
     except ValueError as e:
-        raise HTTPException(404, detail=str(e))
+        # no_profile_row or other internal data errors — not a client validation error
+        print(f"[PUT /profile] ValueError user={user_id}: {e}")
+        raise HTTPException(500, detail="خطأ في الخادم")
     except Exception as e:
-        print(f"Profile update error: {e}")
+        print(f"[PUT /profile] ERROR user={user_id}: {e}")
         raise HTTPException(500, detail="خطأ في الخادم")
 
 @app.post("/experience/{user_id}")

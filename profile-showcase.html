@@ -448,31 +448,53 @@
     </div>
   </div>
 
-  <!-- Edit Profile Modal — Phase 2: name, dob, country/city, avail, profession, bio -->
+  <!-- Edit Profile Modal — Phase 1: data, form, validation, DS-BTN, DS-COLOR contracts -->
   <!-- Must be in DOM before profile-v2.edit.js runs -->
-  <div class="ep-overlay" id="epOverlay">
+  <div class="ep-overlay" id="epOverlay" role="dialog" aria-labelledby="epTitle">
     <div class="ep-sheet">
       <div class="ep-head">
-        <span class="ep-title"><i data-lucide="pencil" class="ico-sm" style="color:var(--ac,#00c896);vertical-align:middle;margin-left:6px"></i> تعديل الملف الشخصي</span>
-        <button class="ep-close" id="epClose"><i data-lucide="x" class="ico-sm"></i></button>
+        <span class="ep-title" id="epTitle"><i data-lucide="pencil" class="ico-sm ep-title-ico"></i> تعديل الملف الشخصي</span>
+        <button type="button" class="ep-close" id="epClose" aria-label="إغلاق"><i data-lucide="x" class="ico-sm"></i></button>
       </div>
       <div class="ep-body">
 
-        <div class="ep-field">
-          <label class="ep-label">الاسم</label>
-          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
-            <input class="ep-input" id="epFirstName" placeholder="الأول" autocomplete="off">
-            <input class="ep-input" id="epMidName"   placeholder="الأوسط" autocomplete="off">
-            <input class="ep-input" id="epLastName"  placeholder="العائلة" autocomplete="off">
+        <!-- Legacy name row (§1) — shown when profile has full_name but no structured parts -->
+        <div class="ep-field" id="epLegacyNameRow" style="display:none">
+          <div class="ep-note">
+            <i data-lucide="info" class="ico-sm"></i>
+            <span>الاسم الحالي: <strong id="epLegacyNameText"></strong><br>
+            لتغيير اسمك، أدخل الاسم الأول والعائلة في الحقول أدناه.</span>
           </div>
-          <div class="ep-field-err" id="epNameErr"></div>
+        </div>
+
+        <div class="ep-field" id="epNameRow">
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+            <div>
+              <label class="ep-label" for="epFirstName">الاسم الأول</label>
+              <input type="text" class="ep-input" id="epFirstName"
+                autocomplete="given-name" aria-required="false" aria-invalid="false"
+                aria-describedby="epNameErr">
+            </div>
+            <div>
+              <label class="ep-label" for="epMidName">الاسم الأوسط <span style="font-size:.7em;opacity:.55;font-weight:400">(اختياري)</span></label>
+              <input type="text" class="ep-input" id="epMidName"
+                autocomplete="additional-name" aria-invalid="false" aria-describedby="epNameErr">
+            </div>
+            <div>
+              <label class="ep-label" for="epLastName">اسم العائلة</label>
+              <input type="text" class="ep-input" id="epLastName"
+                autocomplete="family-name" aria-required="false" aria-invalid="false"
+                aria-describedby="epNameErr">
+            </div>
+          </div>
+          <div class="ep-field-err" id="epNameErr" role="alert"></div>
         </div>
 
         <div class="ep-field">
-          <label class="ep-label">تاريخ الميلاد</label>
+          <label class="ep-label" id="lbl-dob">تاريخ الميلاد</label>
           <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
-            <select class="ep-select" id="epDobD"><option value="">اليوم</option></select>
-            <select class="ep-select" id="epDobM">
+            <select class="ep-select" id="epDobD" aria-describedby="epDobErr" aria-invalid="false" aria-labelledby="lbl-dob"><option value="">اليوم</option></select>
+            <select class="ep-select" id="epDobM" aria-describedby="epDobErr" aria-invalid="false" aria-labelledby="lbl-dob">
               <option value="">الشهر</option>
               <option value="01">يناير</option><option value="02">فبراير</option>
               <option value="03">مارس</option><option value="04">أبريل</option>
@@ -481,53 +503,60 @@
               <option value="09">سبتمبر</option><option value="10">أكتوبر</option>
               <option value="11">نوفمبر</option><option value="12">ديسمبر</option>
             </select>
-            <select class="ep-select" id="epDobY"><option value="">السنة</option></select>
+            <select class="ep-select" id="epDobY" aria-describedby="epDobErr" aria-invalid="false" aria-labelledby="lbl-dob"><option value="">السنة</option></select>
           </div>
+          <div class="ep-field-err" id="epDobErr" role="alert"></div>
         </div>
 
         <div class="ep-field">
-          <label class="ep-label">البلد</label>
-          <select class="ep-select" id="epCountry" onchange="epLoadCities()">
+          <label class="ep-label" for="epCountry">البلد</label>
+          <select class="ep-select" id="epCountry" onchange="epLoadCities()" aria-invalid="false" aria-describedby="epCountryErr">
             <option value="">— اختر البلد —</option>
           </select>
+          <div class="ep-field-err" id="epCountryErr" role="alert"></div>
         </div>
 
         <div class="ep-field" id="epCityWrap" style="display:none">
-          <label class="ep-label">المدينة</label>
-          <select class="ep-select" id="epCity">
+          <label class="ep-label" for="epCity">المدينة</label>
+          <select class="ep-select" id="epCity" aria-invalid="false" aria-describedby="epCityErr">
             <option value="">— اختر المدينة —</option>
           </select>
+          <div class="ep-field-err" id="epCityErr" role="alert"></div>
         </div>
 
         <div class="ep-field">
-          <label class="ep-label">حالة التوظيف</label>
-          <select class="ep-select" id="epAvail">
+          <label class="ep-label" for="epAvail">حالة التوظيف</label>
+          <select class="ep-select" id="epAvail" aria-invalid="false" aria-describedby="epAvailErr">
             <option value="">— اختر —</option>
             <option value="available">متاح للعمل</option>
             <option value="open_to_offers">منفتح على فرص</option>
             <option value="busy">مشغول حالياً</option>
             <option value="not_available">غير متاح حالياً</option>
           </select>
+          <div class="ep-field-err" id="epAvailErr" role="alert"></div>
         </div>
 
         <div class="ep-field">
-          <label class="ep-label">التخصص المهني</label>
-          <select class="ep-select" id="epProfession">
+          <label class="ep-label" for="epProfession">التخصص المهني</label>
+          <select class="ep-select" id="epProfession" aria-invalid="false" aria-describedby="epProfErr">
             <option value="">جاري التحميل…</option>
           </select>
+          <div class="ep-field-err" id="epProfErr" role="alert"></div>
         </div>
 
         <div class="ep-field">
-          <label class="ep-label">نبذة الهيدر <span style="font-size:.75rem;opacity:.6;font-weight:400">— النص القصير تحت الاسم</span></label>
-          <textarea class="ep-textarea" id="epShortBio" placeholder="وصف قصير يظهر تحت اسمك مباشرةً…" maxlength="160" rows="2"></textarea>
-          <div class="ep-field-err" id="epShortBioErr"></div>
+          <label class="ep-label" for="epShortBio">نبذة الهيدر <span style="font-size:.75rem;opacity:.6;font-weight:400">— النص القصير تحت الاسم</span></label>
+          <textarea class="ep-textarea" id="epShortBio" placeholder="وصف قصير يظهر تحت اسمك مباشرةً…"
+            maxlength="160" rows="2" aria-invalid="false"
+            aria-describedby="epShortBioErr"></textarea>
+          <div class="ep-field-err" id="epShortBioErr" role="alert"></div>
         </div>
 
-        <div class="ep-err" id="epErr"></div>
+        <div class="ep-err" id="epErr" role="alert"></div>
       </div>
       <div class="ep-footer">
-        <button class="ep-cancel" id="epCancelBtn">إلغاء</button>
-        <button class="ep-save" id="epSaveBtn">حفظ التغييرات</button>
+        <button type="button" class="ep-cancel" id="epCancelBtn">إلغاء</button>
+        <button type="button" class="ep-save" id="epSaveBtn">حفظ التغييرات</button>
       </div>
     </div>
   </div>

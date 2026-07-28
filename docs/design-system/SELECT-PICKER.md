@@ -5,7 +5,7 @@
 > V1 — توثيق فقط · لا يمس أي Runtime code.
 > المرجع الرسمي للـ AI sessions والمطورين عند كل مهمة تخص القوائم المنسدلة أو الـ Pickers.
 >
-> **الـ Runtime القائم:** `static/shared/tw-select.js` (321 سطر) — لا تعديل عليه في هذا PR.
+> **الـ Runtime القائم:** `static/shared/tw-select.js` — تحديث جزئي لـ ARIA hardening في PR #523 (راجع SEL-32/SEL-34/SEL-37).
 
 ---
 
@@ -1179,10 +1179,9 @@ DS-SEL يُعرِّف ثلاثة أنماط Keyboard مختلفة بحسب نو�
 
 ### ملاحظة على tw-select.js الحالي
 
-`tw-select.js` يملك `role="listbox"` و `role="option"` لكنه يفتقر إلى:
+`tw-select.js` يملك `role="listbox"` و `role="option"` و `aria-haspopup="listbox"` و `aria-expanded` lifecycle (جميعها موجودة مسبقاً قبل PR #523) لكنه يفتقر إلى:
 - `aria-activedescendant` على الـ Trigger (Gap موثَّق — SEL-32)
 - `role="combobox"` صريح (Gap موثَّق)
-- `aria-haspopup="listbox"` (Gap موثَّق)
 
 يجب معالجة هذه الـ Gaps عند Runtime implementation.
 
@@ -1471,9 +1470,9 @@ Backend response
 
 ## SEL-32 — الـ Runtime الحالي — tw-select.js
 
-> **توثيق للحالة القائمة فقط** — لا تعديل على أي Runtime في هذا PR.
+> **توثيق للحالة القائمة** — PR #523 أضاف partial ARIA hardening (راجع SEL-34/SEL-37).
 
-الـ Runtime الحالي هو `static/shared/tw-select.js` (321 سطر، `scSelectInit()` نقطة دخول).
+الـ Runtime الحالي هو `static/shared/tw-select.js` (`scSelectInit()` نقطة دخول).
 
 ### ما يُوفِّره tw-select.js حالياً ✅
 
@@ -1481,7 +1480,9 @@ Backend response
 |--------|--------|
 | Single-select | ✅ مُنفَّذ |
 | Portal إلى `document.body` (position:fixed) | ✅ مُنفَّذ |
-| `role="listbox"` و `role="option"` | ✅ موجود |
+| `role="listbox"` و `role="option"` | ✅ موجود (pre-existing) |
+| `aria-haspopup="listbox"` على الـ Trigger | ✅ موجود (pre-existing — قبل PR #523) |
+| `aria-expanded` lifecycle (open/close) | ✅ موجود (pre-existing — قبل PR #523) |
 | CSS custom property `--tw-drop-z` (fallback 9500) | ✅ موجود |
 | MutationObserver + modal-open watcher | ✅ موجود (بقيود — راجع أدناه) |
 | Scroll-to-close | ✅ موجود |
@@ -1492,7 +1493,6 @@ Backend response
 |--------|-----------------|
 | `aria-activedescendant` مفقود | Accessibility gap — SEL-27 |
 | `role="combobox"` غير صريح | ARIA pattern ناقص — SEL-27 |
-| `aria-haspopup="listbox"` مفقود | ARIA pattern ناقص — SEL-27 |
 | Hydration عبر `setTimeout(80ms)` | هش — يُخالِف SEL-15 |
 | MutationObserver يُغطي overlays وقت التحميل فقط | Modal ديناميكي بعد التحميل لا يُرصَد — SEL-25 |
 | لا `mode: searchable` | لا بحث — SEL-02 |
@@ -1502,7 +1502,9 @@ Backend response
 
 ### القرار المعماري
 
-`tw-select.js` يبقى بدون تعديل حتى يُقرَّر تنفيذ DS-SEL Runtime في PR مستقل.
+`aria-haspopup="listbox"` و `aria-expanded` lifecycle كانا موجودَين في tw-select.js قبل PR #523 — لا تنسبهما له.
+PR #523 أضاف: `aria-invalid` / `aria-describedby` / `aria-labelledby` / `disabled` propagation + MutationObserver attributeFilter sync + `scSelectTriggerFor()` + error/focus visual integration.
+الـ Gaps المتبقية (`aria-activedescendant`، `role="combobox"`) مُؤجَّلة لـ DS-SEL Runtime PR مستقل.
 مناسب لـ `mode: single` البسيط مع إدراك الـ Gaps المُوثَّقة.
 
 ---
@@ -1560,22 +1562,35 @@ Backend response
 - توثيق Legacy Systems والقرار بشأنها
 - تعريف حدود المسؤولية مع DS-REF وDS-FRM وDS-VAL وDS-OVL وDS-ASSET
 
+### ما أنجزه PR #523 (Partial ARIA Runtime Hardening) ✅
+
+| المهمة | الحالة |
+|--------|--------|
+| aria-invalid propagation (native → trigger) | ✅ PR #523 |
+| aria-describedby propagation | ✅ PR #523 |
+| aria-labelledby propagation | ✅ PR #523 |
+| disabled propagation | ✅ PR #523 |
+| Visible trigger resolver (`window.scSelectTriggerFor`) | ✅ PR #523 |
+| Error/focus visual: `.sc-sel-err .sc-sel-trg:focus-visible` | ✅ PR #523 |
+| MutationObserver attributeFilter extended | ✅ PR #523 |
+
 ### ما يتطلب PR مستقل 🔜
 
 | المهمة | الحالة |
 |--------|--------|
 | Runtime implementation: searchable mode | PR مستقل |
 | Runtime implementation: multi-select | PR مستقل |
-| ترقية tw-select.js (ARIA gaps) | PR مستقل |
+| aria-activedescendant + combobox role semantics | PR مستقل |
 | توحيد الأنظمة القديمة (co-dp-*, profile-v2.select.js) | قرار مستقل |
 | CSS layer (`tw-ui-tokens.css` لـ DS-SEL tokens) | FUTURE_ROADMAP |
 | Bottom Sheet على mobile (DS-OVL أولاً) | بعد توثيق DS-OVL |
 
-### مسار الانتقال المقترح
+### مسار الانتقال المحدَّث
 
 ```
-V1 (هذا PR):      Contract موثَّق — لا تعديل Runtime
-V2 (PR مستقل):    ترقية tw-select.js (ARIA + Hydration)
+V1 (PR DS-SEL):   Contract موثَّق — لا تعديل Runtime
+V1.5 (PR #523):   Partial ARIA Runtime Hardening (state propagation + trigger resolver)
+V2 (PR مستقل):    ترقية tw-select.js (combobox semantics + aria-activedescendant)
 V3 (PR مستقل):    searchable mode implementation
 V4 (PR مستقل):    multi-select mode implementation
 ```
@@ -1644,6 +1659,151 @@ V4 (PR مستقل):    multi-select mode implementation
 
 ---
 
-*DS-SEL V1 — توثيق فقط — أُنشئ في PR #508 — 2026-07-22.*
-*الـ Runtime implementation مؤجَّل لـ PR مستقل بطلب صريح.*
-*الـ Runtime القائم: `static/shared/tw-select.js` — لا تعديل عليه في هذا PR.*
+---
+
+## SEL-37 — الـ Runtime القائم — tw-select.js (تحديث PR #523 Round 3)
+
+### `_syncAriaState(native, trg, wrap)` — ARIA Propagation Pattern
+
+**الغرض:** مزامنة `aria-invalid`, `aria-describedby`, `aria-labelledby`, و `disabled` من الـ native select (المخفي)
+إلى الـ custom trigger button (المرئي) — حتى يتمكن screen reader من قراءة حالة الـ validation.
+
+```javascript
+function _syncAriaState(native, trg, wrap){
+  // aria-invalid
+  var inv = native.getAttribute('aria-invalid');
+  if(inv) trg.setAttribute('aria-invalid', inv);
+  else    trg.removeAttribute('aria-invalid');
+
+  // aria-describedby — points to the field error div
+  var desc = native.getAttribute('aria-describedby');
+  if(desc) trg.setAttribute('aria-describedby', desc);
+  else     trg.removeAttribute('aria-describedby');
+
+  // aria-labelledby — propagate when native has it (e.g. DOB group label).
+  // Do NOT remove from trigger when native lacks it — trigger may have it from label[for] init.
+  var lbl = native.getAttribute('aria-labelledby');
+  if(lbl) trg.setAttribute('aria-labelledby', lbl);
+
+  // disabled
+  trg.disabled = !!native.disabled;
+
+  // .sc-sel-err on wrapper → CSS error border
+  if(wrap){
+    if(inv === 'true') wrap.classList.add('sc-sel-err');
+    else               wrap.classList.remove('sc-sel-err');
+  }
+}
+```
+
+### MutationObserver attributeFilter
+
+يشمل الآن `'aria-labelledby'` بالإضافة إلى الثلاثة الأصلية:
+
+```javascript
+.observe(native, {attributes:true, attributeFilter:['aria-invalid','aria-describedby','aria-labelledby','disabled']});
+```
+
+### متى تُستدعى
+
+| الحدث | الآلية |
+|-------|--------|
+| init (أول مرة) | `_syncAriaState` مباشرةً في `_init()` |
+| تغيير `aria-invalid`/`aria-describedby`/`aria-labelledby`/`disabled` على الـ native | `MutationObserver` per-select (يُغلَق على `wrap` داخل IIFE) |
+| تغيير options (cities, professions) | `MutationObserver` childList يستدعي `_syncTrigger` |
+
+### قواعد ثابتة (PR #523 Round 3)
+
+1. **Native select هو مصدر الحقيقة لـ ARIA.** الـ page modules تضع `aria-invalid="true"` على الـ native select → `_syncAriaState` تنقله للـ trigger.
+2. **`.sc-sel-err` يُضاف على wrapper (`.sc-sel`)** — ليس على الـ trigger مباشرةً. CSS يستهدف `.sc-sel-err .sc-sel-trg` للـ error border.
+3. **MutationObserver مُغلَق (IIFE)** على `wrap` لتجنب مشكلة الـ closure في حلقات `forEach`.
+4. **لا تُضع `aria-invalid` على الـ trigger مباشرةً من page module** — ضعها على الـ native select وdع `_syncAriaState` تُنشرها.
+5. **`aria-labelledby` — أحادي الاتجاه فقط من native → trigger.** لا تحذف `aria-labelledby` من الـ trigger إذا كان الـ native لا يملكه (قد يكون مضبوطاً من `label[for]` init).
+
+### `window.scSelectTriggerFor(nativeOrId)` — Focus-first-invalid Helper
+
+دالة مساعدة تُعيد الـ custom trigger المرئي لأي native select مُهيَّأ:
+
+```javascript
+window.scSelectTriggerFor = function(nativeOrId){
+  var native = typeof nativeOrId === 'string' ? document.getElementById(nativeOrId) : nativeOrId;
+  if(!native || !native.hasAttribute('data-sc-sel')) return null;
+  var wrap = native.parentNode;
+  if(!wrap || !wrap.classList.contains('sc-sel')) return null;
+  return wrap.querySelector('.sc-sel-trg');
+};
+```
+
+**الاستخدام في page modules (مثال — focus-first-invalid):**
+```javascript
+// بدلاً من: firstErr.focus() مباشرةً على native
+var errEls = document.querySelectorAll('#epOverlay [aria-invalid="true"]');
+for(var i=0; i<errEls.length; i++){
+  var el = errEls[i];
+  if(el.tagName === 'SELECT'){
+    var trg = window.scSelectTriggerFor ? scSelectTriggerFor(el) : null;
+    if(trg){ trg.focus(); break; }
+  } else { el.focus(); break; }
+}
+```
+
+**سبب الحاجة:** `MutationObserver` callbacks هي microtasks — لا تُنفَّذ حتى نهاية الـ current task.
+إذا نادت `_setSelectErr()` الـ `setAttribute('aria-invalid','true')` على الـ native، فإن الـ MutationObserver
+لم ينشر بعد `aria-invalid` للـ trigger. الـ selector `[aria-invalid="true"]` يجد الـ native المخفي، لا الـ trigger.
+`scSelectTriggerFor` يحل هذه المشكلة بإيجاد الـ trigger مباشرةً عبر DOM structure.
+
+### CSS Error State (tw-select.css)
+
+```css
+.sc-sel-err .sc-sel-trg {
+  border-color: rgba(var(--color-status-danger-rgb, 248,113,113), .7);
+  box-shadow: 0 0 0 2px rgba(var(--color-status-danger-rgb, 248,113,113), .12);
+}
+/* Error state takes priority over focus-visible outline */
+.sc-sel-err .sc-sel-trg:focus-visible {
+  outline-color: rgba(var(--color-status-danger-rgb, 248,113,113), .7);
+}
+```
+
+### CSS Disabled State (tw-select.css)
+
+```css
+.sc-sel-trg[disabled],
+.sc-sel-trg:disabled { opacity: .45; cursor: not-allowed; }
+```
+
+### CSS Focus-visible (tw-select.css)
+
+```css
+.sc-sel-trg:focus-visible { outline: 2px solid var(--ac, #00c896); outline-offset: 2px; }
+```
+
+---
+
+## SEL-38 — الـ Accessible Name Pattern للـ Select Fields
+
+كيفية ربط labels بالـ select fields في Edit Profile Modal (نموذج — قابل للتطبيق عالمياً):
+
+```html
+<!-- اسم واحد: for/id مباشر -->
+<label class="ep-label" for="epCountry">البلد</label>
+<select id="epCountry" aria-invalid="false" aria-describedby="epCountryErr">...</select>
+<div class="ep-field-err" id="epCountryErr" role="alert"></div>
+
+<!-- مجموعة تاريخ (DOB): aria-labelledby يربط بعنصر مجموعة -->
+<span id="lbl-dob" class="ep-label">تاريخ الميلاد</span>
+<select id="epDobD" aria-labelledby="lbl-dob" aria-describedby="epDobErr">...</select>
+<div class="ep-field-err" id="epDobErr" role="alert"></div>
+```
+
+**القواعد:**
+- كل select له `aria-describedby` يشير لـ `#ep*Err` — فارغ حتى يظهر خطأ (screen reader يعلن تلقائياً).
+- `role="alert"` على عناصر الخطأ — أي تغيير في `textContent` يُعلَن فوراً.
+- الـ native select hidden → `_syncAriaState` تنقل `aria-invalid`/`aria-describedby` للـ trigger.
+
+---
+
+*DS-SEL V1 — أُنشئ في PR #508 — 2026-07-22.*
+*SEL-37 و SEL-38 — أُضيفا في PR #523 Round 2 — 2026-07-28.*
+*SEL-37 محدَّث في PR #523 Round 3: aria-labelledby propagation + MutationObserver filter + scSelectTriggerFor + error-priority focus-visible.*
+*الـ Runtime القائم: `static/shared/tw-select.js`.*

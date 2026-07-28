@@ -309,6 +309,17 @@ user-select: none
 - **Toast بعد النجاح:** اختياري حسب السياق — Success State داخل الزر هو الإلزامي.
 - **لا تستخدم `setTimeout` لمحاكاة Loading** — Loading حقيقي مرتبط بـ fetch promise فقط.
 
+### BTN-09 Close-on-Success Exception (مُعلَن — `#epOverlay`)
+
+**الاستثناء المُعلَن:** `#epSaveBtn` في Edit Profile Modal (`#epOverlay`) لا يُظهر Success State داخل الزر. يُغلِق المودال فور تأكيد الـ backend. يُعوَّض بـ:
+1. Backend-confirmed success (response 200)
+2. `applyCanonicalProfile` يُطبِّق التغييرات على الصفحة مباشرةً
+3. Toast "تم حفظ التغييرات بنجاح" يُؤكِّد النجاح للمستخدم
+
+**تبرير:** في حالة Modal ذو غرض واحد (edit-then-close)، الإغلاق الفوري + التغذية الراجعة عبر Toast = تجربة أكثر سلاسة من بقاء المودال مفتوحاً بزر "تم". هذا الاستثناء لا يُطبَّق على أزرار إرسال Forms مفتوحة.
+
+*أُضيف: PR feat/edit-profile-phase1-corrections — 2026-07-28*
+
 ---
 
 ## [BTN-10] Toggle Save Button Lifecycle

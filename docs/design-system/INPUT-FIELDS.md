@@ -718,3 +718,16 @@ CSS الحقول موزَّع عبر ملفات متعددة:
 *تحديث 2026-07-26: INP-17 Autofill Visual Parity Contract (auth-gw-v9)*  
 *تحديث 2026-07-27: INP-17 rewritten as generic DS-INP contract — auth implementation = local exception (corrections round)*  
 *يُكمله: [DS-FRM] FORM-LIFECYCLE.md · [DS-VAL] VALIDATION-ERRORS.md · [API-MUT] API-MUTATIONS-ERRORS.md*
+
+
+---
+
+## INP-18 — DS-COLOR Zero-Visual Migration Exception (`.ep-input-bg`)
+
+**سياق:** خلال migration PR feat/edit-profile-phase1-corrections، كانت القيمة الأصلية لـ `--ep-input-bg` هي `rgba(255,255,255,.05)`.
+
+**القاعدة:** `--color-surface-input` يُساوي `rgba(255,255,255,.06)` (أعلى بـ `.01`). استخدامه سيُغيِّر المظهر البصري → هذا يُعدُّ Redesign وليس Migration.
+
+**الاستثناء المُعلَن:** يُسمح لـ `--ep-input-bg` بالبقاء على `rgba(255,255,255,.05)` (Primitive direct — Local Tier 3) خلال DS-COLOR Zero-Visual Migration. الاستخدام الصريح لـ `--color-surface-input` في `.ep-*` يتطلب PR مُعلَن يُقرّ بالتغيير البصري الطفيف.
+
+*أُضيف: PR feat/edit-profile-phase1-corrections — 2026-07-28*

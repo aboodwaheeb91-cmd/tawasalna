@@ -462,6 +462,22 @@ If docs are genuinely not needed, replace the "Docs updated" line with:
 
 ---
 
+## Employee Name Fields Contract (mandatory for all AI sessions)
+
+These rules are permanent and apply to all future AI sessions.
+
+1. **`first_name` + `middle_name` + `last_name` are the ONLY channels** for mutating an employee's displayed name. The `full_name` column in `users` is auto-built by `_norm_name()` — never written directly by the frontend or via a direct `full_name` field in the payload.
+
+2. **`emp_name_mutation_forbidden` is a permanent server error code (HTTP 422).** It fires in `update_profile()` when a payload includes `full_name` while `user_type === 'emp'`. Frontend must never send `full_name` in any employee profile save call.
+
+3. **Atomic Name Group Rule:** `first_name`, `middle_name`, `last_name` must be sent together or omitted entirely (DS-FRM Tri-state Delta). Sending only `middle_name` without `first_name` + `last_name` is rejected server-side.
+
+4. **`update_profile()` in `auth.py` enforces this via the `user_type` parameter** — passed from JWT by the endpoint. Do NOT bypass the user_type check or add logic that allows emp accounts to write `full_name` directly.
+
+5. **Frontend `_routeFieldError()` in `profile-v2.edit.js`** routes `emp_name_mutation_forbidden` to `#epNameErr` — the same element as `first_name_required`. This is intentional: the error surfaces near the name inputs.
+
+---
+
 ## Employment / Availability Status Rules (mandatory)
 
 These rules are permanent and apply to all future AI sessions:

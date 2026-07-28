@@ -18,10 +18,25 @@
   background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.1); border-radius:10px;
   color:var(--t1,#fff); font-family:inherit; font-size:.84rem; padding:10px 13px;
   cursor:pointer; text-align:right; direction:rtl; outline:none;
-  transition:border-color .15s; min-height:40px;
+  transition:border-color .15s,box-shadow .15s; min-height:40px;
 }
 .sc-sel-trg:focus,
 .sc-sel-open .sc-sel-trg { border-color:var(--ac,#00c896); }
+.sc-sel-trg:focus-visible { outline:2px solid var(--ac,#00c896); outline-offset:2px; }
+
+/* ── Error state (Validation Modifier = error, SEL-10) ────────── */
+.sc-sel-err .sc-sel-trg {
+  border-color:rgba(var(--color-status-danger-rgb,248,113,113),.7);
+  box-shadow:0 0 0 2px rgba(var(--color-status-danger-rgb,248,113,113),.12);
+}
+/* Error state takes priority over focus-visible outline — keep error border color */
+.sc-sel-err .sc-sel-trg:focus-visible {
+  outline-color:rgba(var(--color-status-danger-rgb,248,113,113),.7);
+}
+
+/* ── Disabled state (Interaction = disabled, SEL-09) ─────────── */
+.sc-sel-trg[disabled],
+.sc-sel-trg:disabled { opacity:.45; cursor:not-allowed; }
 
 /* ── Trigger text span ────────────────────────────────────────── */
 .sc-sel-txt {

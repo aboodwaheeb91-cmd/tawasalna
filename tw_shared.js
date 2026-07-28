@@ -82,6 +82,59 @@ function initScrollProg() {
   });
 }
 
+// ══ API-MUT Error Normalizer (System Gap fill — API-MUT-11) ══
+// Contract (permanent — PR #523):
+//   Input:  raw JSON body from any profile API response (may be null/undefined)
+//   Output: { fieldErrors: [{field, code, message}], generalError: {code, message} | null }
+//   Rules:
+//     1. body.errors[] (field-specific) is consumed first — each entry with .field → fieldErrors
+//     2. body.error{} (general) is only consumed if fieldErrors.length === 0 AND no generalError yet
+//        (Separation of shapes: field-specific shape NEVER coexists with body.error{})
+//     3. body.detail → legacy FastAPI backward compat (only when both official shapes absent)
+//     4. Unknown/null body → generalError.message = 'حدث خطأ، حاول مجدداً' (F9 — no silent failure)
+//   Consumers: profile-v2.edit.js save handler → _routeFieldError() per fieldError
+//   DO NOT call fetch('/profile') directly — use tw_shared.js exports only
+function normalizeErrorResponse(body) {
+  if (!body) return { fieldErrors: [], generalError: { code: 'unknown', message: 'حدث خطأ، حاول مجدداً' } };
+  var fieldErrors = [];
+  var generalError = null;
+  // Official field-specific shape: body.errors[]
+  if (Array.isArray(body.errors)) {
+    for (var i = 0; i < body.errors.length; i++) {
+      var e = body.errors[i];
+      if (e && e.field) {
+        fieldErrors.push({ field: e.field, code: e.code || '', message: e.message || '' });
+      } else if (e && e.code && !generalError) {
+        // entry in errors[] with no field → treat as general
+        generalError = { code: e.code, message: e.message || '' };
+      }
+    }
+  }
+  // Official general shape: body.error{} — only when no field errors (separate shapes per API-MUT)
+  if (!fieldErrors.length && !generalError && body.error && typeof body.error === 'object' && body.error.code) {
+    generalError = { code: body.error.code, message: body.error.message || '' };
+  }
+  // Legacy FastAPI detail (backward compat — only when official shapes absent)
+  if (!fieldErrors.length && !generalError) {
+    var det = body.detail;
+    if (det && typeof det === 'object') {
+      if (det.field || det.code) {
+        fieldErrors.push({ field: det.field || '', code: det.code || '', message: det.error || det.message || '' });
+      } else if (typeof det === 'string') {
+        generalError = { code: '', message: det };
+      }
+    } else if (typeof det === 'string') {
+      generalError = { code: '', message: det };
+    }
+  }
+  // Unknown shape fallback: caller always has something to display
+  if (!fieldErrors.length && !generalError) {
+    generalError = { code: 'unknown', message: 'حدث خطأ، حاول مجدداً' };
+  }
+  return { fieldErrors: fieldErrors, generalError: generalError };
+}
+window.normalizeErrorResponse = normalizeErrorResponse;
+
 // Keyboard shortcuts
 document.addEventListener('keydown', function(e){
   if (e.key === 'Escape') {
