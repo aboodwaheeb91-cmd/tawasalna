@@ -458,6 +458,26 @@
       </div>
       <div class="ep-body">
 
+        <div class="ep-field">
+          <label class="ep-label" for="epProfession">التخصص المهني</label>
+          <select class="ep-select" id="epProfession" aria-invalid="false" aria-describedby="epProfErr">
+            <option value="">جاري التحميل…</option>
+          </select>
+          <div class="ep-field-err" id="epProfErr" role="alert"></div>
+        </div>
+
+        <div class="ep-field">
+          <label class="ep-label" for="epAvail">حالة التوظيف</label>
+          <select class="ep-select" id="epAvail" aria-invalid="false" aria-describedby="epAvailErr">
+            <option value="">— اختر —</option>
+            <option value="available">متاح للعمل</option>
+            <option value="open_to_offers">منفتح على فرص</option>
+            <option value="busy">مشغول حالياً</option>
+            <option value="not_available">غير متاح حالياً</option>
+          </select>
+          <div class="ep-field-err" id="epAvailErr" role="alert"></div>
+        </div>
+
         <!-- Legacy name row (§1) — shown when profile has full_name but no structured parts -->
         <div class="ep-field" id="epLegacyNameRow" style="display:none">
           <div class="ep-note">
@@ -491,6 +511,22 @@
         </div>
 
         <div class="ep-field">
+          <label class="ep-label" for="epCountry">البلد</label>
+          <select class="ep-select" id="epCountry" onchange="epLoadCities()" aria-invalid="false" aria-describedby="epCountryErr">
+            <option value="">— اختر البلد —</option>
+          </select>
+          <div class="ep-field-err" id="epCountryErr" role="alert"></div>
+        </div>
+
+        <div class="ep-field" id="epCityWrap" style="display:none">
+          <label class="ep-label" for="epCity">المدينة</label>
+          <select class="ep-select" id="epCity" aria-invalid="false" aria-describedby="epCityErr">
+            <option value="">— اختر المدينة —</option>
+          </select>
+          <div class="ep-field-err" id="epCityErr" role="alert"></div>
+        </div>
+
+        <div class="ep-field">
           <label class="ep-label" id="lbl-dob">تاريخ الميلاد</label>
           <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
             <select class="ep-select" id="epDobD" aria-describedby="epDobErr" aria-invalid="false" aria-labelledby="lbl-dob"><option value="">اليوم</option></select>
@@ -509,42 +545,6 @@
         </div>
 
         <div class="ep-field">
-          <label class="ep-label" for="epCountry">البلد</label>
-          <select class="ep-select" id="epCountry" onchange="epLoadCities()" aria-invalid="false" aria-describedby="epCountryErr">
-            <option value="">— اختر البلد —</option>
-          </select>
-          <div class="ep-field-err" id="epCountryErr" role="alert"></div>
-        </div>
-
-        <div class="ep-field" id="epCityWrap" style="display:none">
-          <label class="ep-label" for="epCity">المدينة</label>
-          <select class="ep-select" id="epCity" aria-invalid="false" aria-describedby="epCityErr">
-            <option value="">— اختر المدينة —</option>
-          </select>
-          <div class="ep-field-err" id="epCityErr" role="alert"></div>
-        </div>
-
-        <div class="ep-field">
-          <label class="ep-label" for="epAvail">حالة التوظيف</label>
-          <select class="ep-select" id="epAvail" aria-invalid="false" aria-describedby="epAvailErr">
-            <option value="">— اختر —</option>
-            <option value="available">متاح للعمل</option>
-            <option value="open_to_offers">منفتح على فرص</option>
-            <option value="busy">مشغول حالياً</option>
-            <option value="not_available">غير متاح حالياً</option>
-          </select>
-          <div class="ep-field-err" id="epAvailErr" role="alert"></div>
-        </div>
-
-        <div class="ep-field">
-          <label class="ep-label" for="epProfession">التخصص المهني</label>
-          <select class="ep-select" id="epProfession" aria-invalid="false" aria-describedby="epProfErr">
-            <option value="">جاري التحميل…</option>
-          </select>
-          <div class="ep-field-err" id="epProfErr" role="alert"></div>
-        </div>
-
-        <div class="ep-field">
           <label class="ep-label" for="epShortBio">نبذة الهيدر <span style="font-size:.75rem;opacity:.6;font-weight:400">— النص القصير تحت الاسم</span></label>
           <textarea class="ep-textarea" id="epShortBio" placeholder="وصف قصير يظهر تحت اسمك مباشرةً…"
             maxlength="160" rows="2" aria-invalid="false"
@@ -555,8 +555,8 @@
         <div class="ep-err" id="epErr" role="alert"></div>
       </div>
       <div class="ep-footer">
-        <button type="button" class="ep-cancel" id="epCancelBtn">إلغاء</button>
         <button type="button" class="ep-save" id="epSaveBtn">حفظ التغييرات</button>
+        <button type="button" class="ep-cancel" id="epCancelBtn">إلغاء</button>
       </div>
     </div>
   </div>

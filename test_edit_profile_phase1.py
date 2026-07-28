@@ -1890,6 +1890,60 @@ def test_AM_docs_final_corrections():
         else fail(label, 'SEL-32 still wrongly attributes aria-haspopup to PR #523, or omits aria-haspopup as present')
 
 
+# ── AN: Edit Profile Modal — Field DOM Order ─────────────────────────────────
+
+def test_AN_field_dom_order():
+    print('\n\033[1m── AN: Edit Profile Modal — Field DOM Order ──\033[0m')
+    src = _read('profile-showcase.html')
+
+    ids = ['epProfession', 'epAvail', 'epFirstName', 'epMidName', 'epLastName',
+           'epCountry', 'epCity', 'epDobD', 'epDobM', 'epDobY', 'epShortBio']
+    positions = {i: src.find(f'id="{i}"') for i in ids}
+
+    for i in ids:
+        label = f'AN-present: id="{i}" exists in HTML'
+        ok(label) if positions[i] >= 0 else fail(label, f'id="{i}" not found in profile-showcase.html')
+
+    order_checks = [
+        ('epProfession', 'epAvail'),
+        ('epAvail', 'epFirstName'),
+        ('epFirstName', 'epMidName'),
+        ('epMidName', 'epLastName'),
+        ('epLastName', 'epCountry'),
+        ('epCountry', 'epCity'),
+        ('epCity', 'epDobD'),
+        ('epDobD', 'epDobM'),
+        ('epDobM', 'epDobY'),
+        ('epDobY', 'epShortBio'),
+    ]
+    for a, b in order_checks:
+        label = f'AN-order: {a} before {b}'
+        if positions[a] < 0 or positions[b] < 0:
+            fail(label, f'one or both IDs missing')
+        elif positions[a] < positions[b]:
+            ok(label)
+        else:
+            fail(label, f'{a} pos={positions[a]} is NOT before {b} pos={positions[b]}')
+
+    for btn_id in ('epSaveBtn', 'epCancelBtn', 'epClose'):
+        label = f'AN-buttons: id="{btn_id}" present'
+        ok(label) if f'id="{btn_id}"' in src else fail(label, f'{btn_id} missing from HTML')
+
+    # BTN-05 RTL DOM Contract: Primary (Save) before Secondary (Cancel) in .ep-footer
+    footer_start = src.find('class="ep-footer"', src.find('id="epOverlay"'))
+    footer_end   = src.find('</div>', footer_start) if footer_start >= 0 else -1
+    footer_src   = src[footer_start:footer_end] if footer_start >= 0 and footer_end > footer_start else ''
+    label = 'AN-footer: epSaveBtn inside .ep-footer'
+    ok(label) if 'id="epSaveBtn"' in footer_src else fail(label, 'epSaveBtn not found inside .ep-footer of #epOverlay')
+    label = 'AN-footer: epCancelBtn inside .ep-footer'
+    ok(label) if 'id="epCancelBtn"' in footer_src else fail(label, 'epCancelBtn not found inside .ep-footer of #epOverlay')
+    label = 'AN-footer: epSaveBtn before epCancelBtn in DOM (BTN-05 RTL)'
+    save_pos   = footer_src.find('id="epSaveBtn"')
+    cancel_pos = footer_src.find('id="epCancelBtn"')
+    ok(label) if save_pos >= 0 and cancel_pos >= 0 and save_pos < cancel_pos \
+        else fail(label, f'epSaveBtn pos={save_pos} is NOT before epCancelBtn pos={cancel_pos} in .ep-footer')
+
+
 # ── Runner ────────────────────────────────────────────────────────────────────
 
 if __name__ == '__main__':
@@ -1934,6 +1988,7 @@ if __name__ == '__main__':
     test_AK_round4_behavioral_proofs()
     test_AL_round5_corrections()
     test_AM_docs_final_corrections()
+    test_AN_field_dom_order()
 
     print(f'\n\033[1m── {PASS} passed, {FAIL} failed ──\033[0m')
     if ERRORS:
