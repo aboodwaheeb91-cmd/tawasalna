@@ -1366,7 +1366,7 @@ profile-showcase.html       ← HTML skeleton + <link>/<script> فقط. لا sty
   profile-v2.exp.js         ← Experience Module: add/edit/delete/reorder + three-dots menu
   profile-v2.cover.js       ← Cover Upload + Crop 6:1 (720×120 JPEG)
   profile-v2.avatar.js      ← Avatar Upload + Crop 1:1 (circular)
-  profile-v2.select.js      ← Custom Select: dark-themed dropdown لكل modal selects
+  profile-v2.select.js      ← Legacy — غير مُحمَّل من profile-showcase.html (الـ Runtime الفعلي هو tw-select.js)
 ```
 
 ### ترتيب التحميل (ثابت — لا يتغير)
@@ -1382,7 +1382,8 @@ profile-showcase.html       ← HTML skeleton + <link>/<script> فقط. لا sty
 <script src="/static/profile-v2.exp.js"></script>     <!-- needs: state, api, render -->
 <script src="/static/profile-v2.cover.js"></script>   <!-- needs: state, api -->
 <script src="/static/profile-v2.avatar.js"></script>  <!-- needs: state, api -->
-<script src="/static/profile-v2.select.js"></script>  <!-- LAST: reads all .ep-select -->
+<script src="/static/shared/tw-options-data.js"></script>  <!-- بيانات الدول/المدن/التصنيفات -->
+<script src="/static/shared/tw-select.js"></script>     <!-- Custom Select Runtime — scSelectInit() -->
 ```
 
 **القاعدة:** كل ملف يعتمد فقط على ملفات تُحمَّل قبله في الترتيب أعلاه.
@@ -1403,7 +1404,7 @@ profile-showcase.html       ← HTML skeleton + <link>/<script> فقط. لا sty
 | `profile-v2.exp.js` | Experience: add/edit/delete/reorder + three-dots menu IIFE | fetch مباشر (يستدعي api.js)، تعديل state خارج IIFE |
 | `profile-v2.cover.js` | Cover upload + crop 6:1 IIFE | fetch مباشر (يستدعي api.js)، DOM خارج cover scope |
 | `profile-v2.avatar.js` | Avatar upload + crop 1:1 IIFE | fetch مباشر (يستدعي api.js)، DOM خارج avatar scope |
-| `profile-v2.select.js` | Custom Select IIFE: يستبدل كل `.ep-select` بـ dark dropdown | fetch، direct DOM mutations خارج scope |
+| `profile-v2.select.js` | **Legacy** — لم يعد مُحمَّلاً في profile-showcase.html. الـ Runtime الفعلي هو `tw-select.js` | — |
 
 ---
 
@@ -2449,10 +2450,10 @@ dropdown (.sc-sel-drop) → z-index: 600  ← فوق المودال
 
 ### Loading Order Rule
 ```
-profile-v2.select.js يجب أن يُحمَّل LAST
-← بعد edit.js (يبني DOB day/year options)
-← بعد exp.js (يبني experience year options)
-← window.scSelectInit() يعمل مرة عند load
+الـ Runtime الفعلي: static/shared/tw-options-data.js ← ثم static/shared/tw-select.js
+← tw-options-data.js يُحمَّل أولاً (توفِّر TW.* data)
+← tw-select.js يُحمَّل بعده (scSelectInit() idempotent — يُعاد استدعاؤه بعد كل dynamic option fill)
+← profile-v2.select.js: Legacy — غير مُحمَّل من profile-showcase.html
 ```
 
 ### Supported Selects (11 total)
@@ -2493,8 +2494,8 @@ Experience Modal:    exCountry, exCity, exStart, exEnd
 | Experience Module (add/edit/delete) | profile-v2.exp.js | ✅ Stable | #44 |
 | Experience Sort Order (reorder ↑↓) | exp.js + server.py | ✅ Stable | #48 |
 | Three-dots Action Menu (⋮) | exp.js + render.js | ✅ Stable | #49+#50 |
-| Custom Select System (11 selects) | profile-v2.select.js | ✅ Stable | #53 |
-| Custom Select Scroll Fix | profile-v2.select.js | ✅ Stable | #54 |
+| Custom Select System (11 selects) | tw-select.js (active runtime) — profile-v2.select.js (Legacy, not loaded) | ✅ Stable | #53 |
+| Custom Select Scroll Fix | tw-select.js | ✅ Stable | #54 |
 
 ---
 
@@ -2592,10 +2593,8 @@ MutationObserver يتابع التغييرات ← لا حاجة لاستدعا�
 | البلد | epCountry | country | scLoc | ✅ (PR #73) |
 | المدينة | epCity | city | scLoc | ✅ (PR #73) |
 | التخصص | epProfession | profession_id | scTitle + icon | ✅ |
-| النبذة (header) | epBio | bio | scBio | ✅ |
-| النبذة (tab نبذة عني) | epBio | bio | scAboutText | ✅ (PR #73) |
-| زر اقرأ المزيد | epBio | bio | scBioMore | ✅ (PR #73) |
-| حالة التوظيف | epAvail | avail | — | cache فقط (لا عرض مخصص) |
+| النبذة القصيرة | epShortBio | short_bio | scBio | ✅ |
+| حالة التوظيف | epAvail | avail | dot (via _renderAvailDot) | ✅ (_renderAvailDot في applyCanonicalProfile) |
 
 ---
 

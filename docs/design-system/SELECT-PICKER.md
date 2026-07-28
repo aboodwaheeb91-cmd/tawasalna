@@ -5,7 +5,7 @@
 > V1 — توثيق فقط · لا يمس أي Runtime code.
 > المرجع الرسمي للـ AI sessions والمطورين عند كل مهمة تخص القوائم المنسدلة أو الـ Pickers.
 >
-> **الـ Runtime القائم:** `static/shared/tw-select.js` (321 سطر) — لا تعديل عليه في هذا PR.
+> **الـ Runtime القائم:** `static/shared/tw-select.js` — تحديث جزئي لـ ARIA hardening في PR #523 (راجع SEL-32/SEL-34/SEL-37).
 
 ---
 
@@ -1179,10 +1179,9 @@ DS-SEL يُعرِّف ثلاثة أنماط Keyboard مختلفة بحسب نو�
 
 ### ملاحظة على tw-select.js الحالي
 
-`tw-select.js` يملك `role="listbox"` و `role="option"` لكنه يفتقر إلى:
+`tw-select.js` يملك `role="listbox"` و `role="option"` و `aria-haspopup="listbox"` (مُنفَّذ PR #523) لكنه يفتقر إلى:
 - `aria-activedescendant` على الـ Trigger (Gap موثَّق — SEL-32)
 - `role="combobox"` صريح (Gap موثَّق)
-- `aria-haspopup="listbox"` (Gap موثَّق)
 
 يجب معالجة هذه الـ Gaps عند Runtime implementation.
 
@@ -1471,9 +1470,9 @@ Backend response
 
 ## SEL-32 — الـ Runtime الحالي — tw-select.js
 
-> **توثيق للحالة القائمة فقط** — لا تعديل على أي Runtime في هذا PR.
+> **توثيق للحالة القائمة** — PR #523 أضاف partial ARIA hardening (راجع SEL-34/SEL-37).
 
-الـ Runtime الحالي هو `static/shared/tw-select.js` (321 سطر، `scSelectInit()` نقطة دخول).
+الـ Runtime الحالي هو `static/shared/tw-select.js` (`scSelectInit()` نقطة دخول).
 
 ### ما يُوفِّره tw-select.js حالياً ✅
 
@@ -1492,7 +1491,6 @@ Backend response
 |--------|-----------------|
 | `aria-activedescendant` مفقود | Accessibility gap — SEL-27 |
 | `role="combobox"` غير صريح | ARIA pattern ناقص — SEL-27 |
-| `aria-haspopup="listbox"` مفقود | ARIA pattern ناقص — SEL-27 |
 | Hydration عبر `setTimeout(80ms)` | هش — يُخالِف SEL-15 |
 | MutationObserver يُغطي overlays وقت التحميل فقط | Modal ديناميكي بعد التحميل لا يُرصَد — SEL-25 |
 | لا `mode: searchable` | لا بحث — SEL-02 |
@@ -1502,7 +1500,8 @@ Backend response
 
 ### القرار المعماري
 
-`tw-select.js` يبقى بدون تعديل حتى يُقرَّر تنفيذ DS-SEL Runtime في PR مستقل.
+PR #523 أضاف `aria-haspopup="listbox"` و `aria-expanded` hardening جزئياً.
+الـ Gaps المتبقية (`aria-activedescendant`، `role="combobox"`) مُؤجَّلة لـ DS-SEL Runtime PR مستقل.
 مناسب لـ `mode: single` البسيط مع إدراك الـ Gaps المُوثَّقة.
 
 ---

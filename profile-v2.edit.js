@@ -449,7 +449,7 @@
       } else {
         profEl.innerHTML = '';
         var errOpt = document.createElement('option');
-        errOpt.value = ''; errOpt.text = '— اختر التخصص —';
+        errOpt.value = ''; errOpt.text = 'تعذّر تحميل التخصصات';
         profEl.appendChild(errOpt);
       }
       profEl.disabled = true;

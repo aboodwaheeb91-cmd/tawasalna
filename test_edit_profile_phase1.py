@@ -1681,13 +1681,16 @@ def test_AJ_round3_behavioral_proofs():
 
     # K: _profListLoaded = false in catch block (near تعذّر تحميل التخصصات)
     label = 'AJ-K: _profListLoaded = false in profession fetch catch block'
-    catch_text_pos = edit_src.find('تعذّر تحميل التخصصات')
+    # The text now appears in both _hydrateProfession AND the .catch block in openModal.
+    # Search for the .catch block occurrence (after 'function openModal()').
+    om_pos = edit_src.find('function openModal()')
+    catch_text_pos = edit_src.find('تعذّر تحميل التخصصات', om_pos) if om_pos >= 0 else -1
     if catch_text_pos > 0:
         region = edit_src[max(0, catch_text_pos - 500):catch_text_pos + 50]
         ok(label) if '_profListLoaded = false' in region \
-            else fail(label, '_profListLoaded = false not found in catch block region')
+            else fail(label, '_profListLoaded = false not found in catch block region (searched after openModal)')
     else:
-        fail(label, "catch fallback text 'تعذّر تحميل التخصصات' not found in file")
+        fail(label, "catch fallback text 'تعذّر تحميل التخصصات' not found after 'function openModal()'")
 
     # L: profession_id returns JSONResponse 422 (not HTTPException 400)
     label = 'AJ-L: profession_id validation returns JSONResponse 422 not HTTPException 400'
@@ -1809,6 +1812,48 @@ def test_AK_round4_behavioral_proofs():
         else fail(label, "profession_id validation does not raise ProfileValidationError in server.py")
 
 
+# ── AL: Round 5 Corrections ──────────────────────────────────────────────────
+
+def test_AL_round5_corrections():
+    print('\n\033[1m── AL: Round 5 Corrections ──\033[0m')
+    edit_src = _read('profile-v2.edit.js')
+    sel_doc  = _read('docs/design-system/SELECT-PICKER.md')
+    arch_src = _read('ARCHITECTURE.md')
+
+    # 1: _hydrateProfession Path B (no current profession) shows correct failure text
+    label = 'AL-1: _hydrateProfession Path B (no profession) uses تعذّر تحميل التخصصات'
+    om_pos = edit_src.find('function openModal()')
+    hydrate_text_pos = edit_src.find('تعذّر تحميل التخصصات')
+    ok(label) if 0 < hydrate_text_pos < om_pos \
+        else fail(label, 'تعذّر تحميل التخصصات not found in _hydrateProfession body (before function openModal())')
+
+    # 2: SEL-32 gap table no longer claims aria-haspopup="listbox" is missing
+    label = 'AL-2: SEL-32 gap table does not claim aria-haspopup="listbox" is missing'
+    ok(label) if 'aria-haspopup="listbox" مفقود' not in sel_doc \
+        else fail(label, 'SEL-32 still has stale "aria-haspopup=\\"listbox\\" مفقود" row in gap table')
+
+    # 3: SEL-32 no longer says tw-select.js was not modified
+    label = 'AL-3: SEL-32 no longer claims no runtime changes were made in this PR'
+    ok(label) if 'لا تعديل على أي Runtime في هذا PR' not in sel_doc \
+        else fail(label, 'SEL-32 still has stale "لا تعديل على أي Runtime في هذا PR" claim')
+
+    # 4: ARCHITECTURE milestone table no longer names profile-v2.select.js as sole Custom Select runtime
+    label = 'AL-4: ARCHITECTURE milestone table no longer names profile-v2.select.js as sole runtime'
+    old_milestone = '| Custom Select System (11 selects) | profile-v2.select.js | ✅ Stable | #53 |'
+    ok(label) if old_milestone not in arch_src \
+        else fail(label, 'ARCHITECTURE milestone table still names profile-v2.select.js alone as Custom Select runtime')
+
+    # 5: ARCHITECTURE Edit Profile mapping uses epShortBio/short_bio not epBio/bio
+    label = 'AL-5: ARCHITECTURE Edit Profile mapping uses epShortBio/short_bio not epBio/bio'
+    mapping_pos = arch_src.find('Mapping كامل — Edit Profile Modal')
+    mapping_end = arch_src.find('\n---', mapping_pos) if mapping_pos >= 0 else -1
+    mapping_section = arch_src[mapping_pos:mapping_end] if mapping_pos >= 0 and mapping_end > mapping_pos else ''
+    ok(label) if 'epShortBio' in mapping_section and \
+                 'short_bio' in mapping_section and \
+                 'epBio' not in mapping_section \
+        else fail(label, 'ARCHITECTURE Edit Profile mapping still has epBio/bio — should use epShortBio/short_bio')
+
+
 # ── Runner ────────────────────────────────────────────────────────────────────
 
 if __name__ == '__main__':
@@ -1851,6 +1896,7 @@ if __name__ == '__main__':
     test_AI_emp_fullname_contract()
     test_AJ_round3_behavioral_proofs()
     test_AK_round4_behavioral_proofs()
+    test_AL_round5_corrections()
 
     print(f'\n\033[1m── {PASS} passed, {FAIL} failed ──\033[0m')
     if ERRORS:
