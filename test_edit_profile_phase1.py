@@ -1929,6 +1929,20 @@ def test_AN_field_dom_order():
         label = f'AN-buttons: id="{btn_id}" present'
         ok(label) if f'id="{btn_id}"' in src else fail(label, f'{btn_id} missing from HTML')
 
+    # BTN-05 RTL DOM Contract: Primary (Save) before Secondary (Cancel) in .ep-footer
+    footer_start = src.find('class="ep-footer"', src.find('id="epOverlay"'))
+    footer_end   = src.find('</div>', footer_start) if footer_start >= 0 else -1
+    footer_src   = src[footer_start:footer_end] if footer_start >= 0 and footer_end > footer_start else ''
+    label = 'AN-footer: epSaveBtn inside .ep-footer'
+    ok(label) if 'id="epSaveBtn"' in footer_src else fail(label, 'epSaveBtn not found inside .ep-footer of #epOverlay')
+    label = 'AN-footer: epCancelBtn inside .ep-footer'
+    ok(label) if 'id="epCancelBtn"' in footer_src else fail(label, 'epCancelBtn not found inside .ep-footer of #epOverlay')
+    label = 'AN-footer: epSaveBtn before epCancelBtn in DOM (BTN-05 RTL)'
+    save_pos   = footer_src.find('id="epSaveBtn"')
+    cancel_pos = footer_src.find('id="epCancelBtn"')
+    ok(label) if save_pos >= 0 and cancel_pos >= 0 and save_pos < cancel_pos \
+        else fail(label, f'epSaveBtn pos={save_pos} is NOT before epCancelBtn pos={cancel_pos} in .ep-footer')
+
 
 # ── Runner ────────────────────────────────────────────────────────────────────
 
