@@ -100,6 +100,21 @@
     if(errEl){ errEl.textContent = ''; errEl.classList.remove('show'); }
   }
 
+  // ── Select error helpers — sets aria-invalid on native; MutationObserver in tw-select.js propagates to trigger ──
+  function _setSelectErr(selectId, errElId, msg){
+    var sel = document.getElementById(selectId);
+    var err = document.getElementById(errElId);
+    if(sel) sel.setAttribute('aria-invalid','true');
+    if(err){ err.textContent = msg || _CONTENT_MSG; err.classList.add('show'); }
+    if(err) err.scrollIntoView({behavior:'smooth',block:'nearest'});
+  }
+  function _clearSelectErr(selectId, errElId){
+    var sel = document.getElementById(selectId);
+    var err = document.getElementById(errElId);
+    if(sel) sel.setAttribute('aria-invalid','false');
+    if(err){ err.textContent=''; err.classList.remove('show'); }
+  }
+
   function _setDobAriaInvalid(msg){
     ['epDobD','epDobM','epDobY'].forEach(function(id){
       var el = document.getElementById(id);
@@ -130,6 +145,10 @@
     if(bioEl){ bioEl.classList.remove('ep-input-err'); bioEl.setAttribute('aria-invalid','false'); }
     if(bioErr){ bioErr.textContent=''; bioErr.classList.remove('show'); }
     _clearDobAriaInvalid();
+    _clearSelectErr('epCountry',    'epCountryErr');
+    _clearSelectErr('epCity',       'epCityErr');
+    _clearSelectErr('epAvail',      'epAvailErr');
+    _clearSelectErr('epProfession', 'epProfErr');
   }
 
   // ── Helpers: set aria-required on name inputs dynamically ──
@@ -195,6 +214,19 @@
   if(_epShortBioInput) _epShortBioInput.addEventListener('input', function(){
     if(!window._scCheckProfessional || !window._scCheckProfessional(_epShortBioInput.value))
       _clearAriaInvalid(_epShortBioInput, document.getElementById('epShortBioErr'));
+  });
+
+  // Field-specific server error lifetime for custom selects (Item 5 — SEL-10/DS-VAL)
+  // tw-select.js dispatches native change event on selection; clears only that field's error
+  [
+    {id:'epCountry',    errId:'epCountryErr'},
+    {id:'epCity',       errId:'epCityErr'},
+    {id:'epAvail',      errId:'epAvailErr'},
+    {id:'epProfession', errId:'epProfErr'},
+  ].forEach(function(f){
+    var el = document.getElementById(f.id);
+    if(!el) return;
+    el.addEventListener('change', function(){ _clearSelectErr(f.id, f.errId); });
   });
 
   // ── DS-FRM Reset (§5/§19) ──
@@ -435,6 +467,7 @@
             var errOpt = document.createElement('option');
             errOpt.value = ''; errOpt.text = 'تعذّر تحميل التخصصات';
             profEl.appendChild(errOpt);
+            if(window.scSelectInit) scSelectInit();  // sync custom trigger label
           }
         });
     } else {
@@ -591,12 +624,24 @@
     var code    = err.code    || '';
     var field   = err.field   || '';
     var message = err.message || 'حدث خطأ في التحقق من البيانات';
-    if(code === 'first_name_required' || code === 'last_name_required' || field === 'first_name' || field === 'last_name' || field === 'name'){
+    if(code === 'first_name_required' || code === 'last_name_required' ||
+       code === 'emp_name_mutation_forbidden' ||
+       field === 'first_name' || field === 'last_name' || field === 'name' || field === 'full_name'){
       var nameErrEl = document.getElementById('epNameErr');
-      var inputId = (code === 'first_name_required' || field === 'first_name') ? 'epFirstName' : 'epLastName';
+      var inputId = (code === 'last_name_required' || field === 'last_name') ? 'epLastName' : 'epFirstName';
       _setAriaInvalid(document.getElementById(inputId), nameErrEl, message);
     } else if(code.indexOf('dob') === 0 || field === 'dob'){
       _setDobAriaInvalid(message);
+    } else if(field === 'short_bio'){
+      _setAriaInvalid(document.getElementById('epShortBio'), document.getElementById('epShortBioErr'), message);
+    } else if(field === 'country'){
+      _setSelectErr('epCountry', 'epCountryErr', message);
+    } else if(field === 'city'){
+      _setSelectErr('epCity', 'epCityErr', message);
+    } else if(field === 'avail'){
+      _setSelectErr('epAvail', 'epAvailErr', message);
+    } else if(field === 'profession_id' || field === 'profession'){
+      _setSelectErr('epProfession', 'epProfErr', message);
     } else {
       if(errEl){ errEl.textContent = message; errEl.style.display = 'block'; }
     }

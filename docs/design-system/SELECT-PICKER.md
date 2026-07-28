@@ -1644,6 +1644,100 @@ V4 (PR مستقل):    multi-select mode implementation
 
 ---
 
+---
+
+## SEL-37 — الـ Runtime القائم — tw-select.js (تحديث PR #523)
+
+### `_syncAriaState(native, trg, wrap)` — ARIA Propagation Pattern
+
+**الغرض:** مزامنة `aria-invalid`, `aria-describedby`, و `disabled` من الـ native select (المخفي)
+إلى الـ custom trigger button (المرئي) — حتى يتمكن screen reader من قراءة حالة الـ validation.
+
+```javascript
+function _syncAriaState(native, trg, wrap){
+  // aria-invalid
+  var inv = native.getAttribute('aria-invalid');
+  if(inv) trg.setAttribute('aria-invalid', inv);
+  else    trg.removeAttribute('aria-invalid');
+
+  // aria-describedby — points to the field error div
+  var desc = native.getAttribute('aria-describedby');
+  if(desc) trg.setAttribute('aria-describedby', desc);
+  else     trg.removeAttribute('aria-describedby');
+
+  // disabled
+  trg.disabled = !!native.disabled;
+
+  // .sc-sel-err on wrapper → CSS error border
+  if(wrap){
+    if(inv === 'true') wrap.classList.add('sc-sel-err');
+    else               wrap.classList.remove('sc-sel-err');
+  }
+}
+```
+
+### متى تُستدعى
+
+| الحدث | الآلية |
+|-------|--------|
+| init (أول مرة) | `_syncAriaState` مباشرةً في `_init()` |
+| تغيير `aria-invalid`/`aria-describedby`/`disabled` على الـ native | `MutationObserver` per-select (يُغلَق على `wrap` داخل IIFE) |
+| تغيير options (cities, professions) | `MutationObserver` childList يستدعي `_syncTrigger` |
+
+### قواعد ثابتة (PR #523)
+
+1. **Native select هو مصدر الحقيقة لـ ARIA.** الـ page modules تضع `aria-invalid="true"` على الـ native select → `_syncAriaState` تنقله للـ trigger.
+2. **`.sc-sel-err` يُضاف على wrapper (`.sc-sel`)** — ليس على الـ trigger مباشرةً. CSS يستهدف `.sc-sel-err .sc-sel-trg` للـ error border.
+3. **MutationObserver مُغلَق (IIFE)** على `wrap` لتجنب مشكلة الـ closure في حلقات `forEach`.
+4. **لا تُضع `aria-invalid` على الـ trigger مباشرةً من page module** — ضعها على الـ native select وdع `_syncAriaState` تُنشرها.
+
+### CSS Error State (tw-select.css)
+
+```css
+.sc-sel-err .sc-sel-trg {
+  border-color: rgba(var(--color-status-danger-rgb, 248,113,113), .7);
+  box-shadow: 0 0 0 2px rgba(var(--color-status-danger-rgb, 248,113,113), .12);
+}
+```
+
+### CSS Disabled State (tw-select.css)
+
+```css
+.sc-sel-trg[disabled],
+.sc-sel-trg:disabled { opacity: .45; cursor: not-allowed; }
+```
+
+### CSS Focus-visible (tw-select.css)
+
+```css
+.sc-sel-trg:focus-visible { outline: 2px solid var(--ac, #00c896); outline-offset: 2px; }
+```
+
+---
+
+## SEL-38 — الـ Accessible Name Pattern للـ Select Fields
+
+كيفية ربط labels بالـ select fields في Edit Profile Modal (نموذج — قابل للتطبيق عالمياً):
+
+```html
+<!-- اسم واحد: for/id مباشر -->
+<label class="ep-label" for="epCountry">البلد</label>
+<select id="epCountry" aria-invalid="false" aria-describedby="epCountryErr">...</select>
+<div class="ep-field-err" id="epCountryErr" role="alert"></div>
+
+<!-- مجموعة تاريخ (DOB): aria-labelledby يربط بعنصر مجموعة -->
+<span id="lbl-dob" class="ep-label">تاريخ الميلاد</span>
+<select id="epDobD" aria-labelledby="lbl-dob" aria-describedby="epDobErr">...</select>
+<div class="ep-field-err" id="epDobErr" role="alert"></div>
+```
+
+**القواعد:**
+- كل select له `aria-describedby` يشير لـ `#ep*Err` — فارغ حتى يظهر خطأ (screen reader يعلن تلقائياً).
+- `role="alert"` على عناصر الخطأ — أي تغيير في `textContent` يُعلَن فوراً.
+- الـ native select hidden → `_syncAriaState` تنقل `aria-invalid`/`aria-describedby` للـ trigger.
+
+---
+
 *DS-SEL V1 — توثيق فقط — أُنشئ في PR #508 — 2026-07-22.*
-*الـ Runtime implementation مؤجَّل لـ PR مستقل بطلب صريح.*
+*SEL-37 و SEL-38 — أُضيفا في PR #523 — 2026-07-28.*
 *الـ Runtime القائم: `static/shared/tw-select.js` — لا تعديل عليه في هذا PR.*

@@ -2178,24 +2178,24 @@ cropper.reset();
 
 ## Profile V2 — Edit Profile Modal
 
-**الحالة:** Done / Phase 1 Complete (PR feat/edit-profile-phase1)
+**الحالة:** Done / Phase 1 Complete + Final Corrections (PR feat/edit-profile-phase1 + PR #523)
 
 ### الملف
 `profile-v2.edit.js` — IIFE مستقل
 
-### حقول المودال
+### حقول المودال وعناصر الخطأ
 
-| الحقل | النوع | الإرسال |
-|-------|-------|---------|
-| الاسم الأول | text input (aria-required) | `first_name` |
-| الاسم الأوسط | text input | `middle_name` (اختياري) |
-| الاسم الأخير | text input (aria-required) | `last_name` |
-| تاريخ الميلاد | 3 selects (يوم/شهر/سنة) | `dob` بصيغة `YYYY-MM-DD` |
-| الدولة | select | `country` (ISO code) |
-| المدينة | select ديناميكي | `city` |
-| الإتاحة | select | `avail` |
-| التخصص | select مع optgroups + data-icon | `profession_id` |
-| النبذة | textarea | `short_bio` |
+| الحقل | النوع | الإرسال | عنصر الخطأ |
+|-------|-------|---------|------------|
+| الاسم الأول | text input (aria-required) | `first_name` | `#epNameErr` |
+| الاسم الأوسط | text input | `middle_name` (اختياري) | `#epNameErr` |
+| الاسم الأخير | text input (aria-required) | `last_name` | `#epNameErr` |
+| تاريخ الميلاد | 3 selects (يوم/شهر/سنة) | `dob` بصيغة `YYYY-MM-DD` | `#epDobErr` |
+| الدولة | select | `country` (ISO code) | `#epCountryErr` |
+| المدينة | select ديناميكي | `city` | `#epCityErr` |
+| الإتاحة | select | `avail` | `#epAvailErr` |
+| التخصص | select مع optgroups + data-icon | `profession_id` | `#epProfErr` |
+| النبذة | textarea | `short_bio` | `#epShortBioErr` |
 
 ### Name Architecture (Phase 1)
 ```
@@ -2205,7 +2205,17 @@ PUT /profile { first_name, middle_name?, last_name }
 ← response: { full_name, first_name, middle_name, last_name } (canonical)
 ← frontend: applyCanonicalProfile(res.data.profile) — NO payload-based update
 ← openModal: reads from window._scProfile (in-memory canonical)
-← background re-fetch: renderProfile() for full sync
+← NO background re-fetch after save (FRM-18 compliant — PR #523)
+```
+
+### Employee Name Mutation — Permanent Constraint (PR #523)
+```
+full_name direct mutation is FORBIDDEN for emp accounts (F6 — Backend Owns Permissions):
+  → backend: update_profile() receives user_type from JWT
+  → if user_type == 'emp' and payload contains full_name:
+      raise ProfileValidationError(field='full_name', code='emp_name_mutation_forbidden', ...)
+  → HTTP 422 returned; frontend routes to #epNameErr via _routeFieldError()
+  → emp accounts MUST use first_name/middle_name/last_name structured fields only
 ```
 
 ### Legacy Name Mode (§1)
@@ -2233,31 +2243,73 @@ if (!p.first_name && p.full_name):
 ```
 1. openModal() → getProfessions() (async, race-guarded by _editSession)
 2. _buildProfessionOptions() → createElement per option/optgroup
-3. onSave() → profession_id in payload
-4. MutationObserver in tw-select.js handles re-init (not a bug — §0)
+3. _hydrateProfession(p, profList, session):
+   → success: builds options, selects saved value, calls scSelectInit()
+   → failure (empty list): shows "— اختر التخصص —" placeholder, _profListLoaded=false
+4. .catch in openModal: shows "تعذّر تحميل التخصصات", calls scSelectInit() to sync trigger
+5. onSave() → profession_id in payload (omitted if _profListLoaded=false and value empty)
+6. MutationObserver in tw-select.js handles re-init (not a bug — §0)
 ```
 
-### DS-FRM Lifecycle (§5/§6/§14/§19/§20)
+### DS-FRM Lifecycle (§5/§6/§14/§19/§20) — corrected PR #523
 ```
 openModal():
   1. ++_editSession (async race guard)
   2. _resetForm()  (DS-FRM Reset)
   3. overlay.classList.add('open')
-  4. getProfessions() [if not cached] → _hydrateForm(p, list, session) [race-guarded]
-  5. _snapshot = _captureSnapshot()  (Dirty State baseline)
+  4. _hydrateCanonicalFields(p, session)  [IMMEDIATE — never async-gated]
+  5. _snapshot = _captureSnapshot()  (Dirty State baseline; profId = "" initially)
+  6. _hydrateProfession(p, profList, session)  [ASYNC — profession only]
+     → _snapshot.profId updated after profession hydration (not at step 5)
 
 save():
-  1. _clearAllFieldErrs()
+  1. _clearAllFieldErrs()  (clears all 9 field error elements)
   2. content validation → aria-invalid + aria-describedby
   3. required fields check (first_name + last_name)
   4. DOB all-or-none check
   5. _inFlight = true + _setSaveBtnLoading() [BTN-18]
-  6. updateProfile(uid, payload)
-  7. SUCCESS: _inFlight=false → closeModal() → applyCanonicalProfile() → background re-fetch
-  8. FAILURE: restore button, show errEl
+  6. updateProfile(uid, payload) — Tri-state delta (DS-FRM FRM-09)
+  7. SUCCESS: _inFlight=false → closeModal() → applyCanonicalProfile() [NO background re-fetch]
+  8. FAILURE: normalizeErrorResponse(body) → route field errors + restore button
 
 close() [§13]:
   guards: if(_inFlight) return;
+```
+
+### API-MUT Error Handling (PR #523)
+```
+normalizeErrorResponse(body) in tw_shared.js:
+  → body.errors[] (field-specific) → _norm.fieldErrors
+  → body.error{} (general, guarded by !fieldErrors.length) → _norm.generalError
+  → unknown shape fallback → generalError.message = 'حدث خطأ، حاول مجدداً'
+
+_routeFieldError(err) — complete field → control mapping:
+  first_name / last_name / name / full_name / emp_name_mutation_forbidden → #epNameErr
+  dob* codes / field=dob → #epDobErr
+  short_bio → #epShortBioErr (via _setAriaInvalid)
+  country → #epCountryErr (via _setSelectErr)
+  city → #epCityErr (via _setSelectErr)
+  avail → #epAvailErr (via _setSelectErr)
+  profession_id / profession → #epProfErr (via _setSelectErr)
+  all others → #epErr (general error block)
+
+Backend error shapes (ProfileValidationError / ContentValidationError):
+  → field-specific: HTTP 422, { "errors": [{ field, code, message }] }
+  → general (no field): HTTP 422, { "error": { code, message } }
+```
+
+### Field-specific Server Error Lifetime (PR #523)
+```
+Each field clears its own server error independently on user interaction:
+  name inputs (input event)    → clear #epNameErr for that input
+  epShortBio (input event)     → clear #epShortBioErr
+  epCountry (change event)     → clear #epCountryErr via _clearSelectErr
+  epCity (change event)        → clear #epCityErr via _clearSelectErr
+  epAvail (change event)       → clear #epAvailErr via _clearSelectErr
+  epProfession (change event)  → clear #epProfErr via _clearSelectErr
+  
+tw-select.js dispatches native 'change' event on the hidden select
+when user picks an option → listeners fire naturally.
 ```
 
 ### Canonical Response (§6/§18)
@@ -2269,18 +2321,32 @@ PUT /profile response shape (additive — backward-compatible):
     updated_fields: [...] }
 ```
 
-### DOB Validation (§9A/§9B/§9C)
+### DOB Validation (§9A/§9B/§9C) — corrected PR #523
 ```
 Backend (auth.py):
-  _DOB_MIN_YEAR = 1940  (dob_year_too_old)
+  _DOB_MIN_YEAR = 1940  (dob_year_too_old — message: "سنة الميلاد يجب أن تكون 1940 أو بعدها")
   _DOB_MIN_AGE  = 15    (dob_too_young)
-  dob >= today          (dob_future)
+  dob > today           (dob_future — strict: today itself is NOT future)
   unparseable string    (dob_invalid)
 Frontend:
   dobFilled ∈ {0, 3} only — partial DOB shows epDobErr
 ```
 
-### DS-COLOR Phase 2 (§17)
+### Accessibility (PR #523)
+```
+#epOverlay: role="dialog" aria-labelledby="epTitle"
+  → aria-modal REMOVED (Pre-DS-OVL — no focus trap; aria-modal without trap misleads AT)
+  → Correct per OVL-38 inventory
+
+Select fields: aria-invalid="false" + aria-describedby="ep*Err" on native select
+  → tw-select.js _syncAriaState() propagates to custom trigger button via MutationObserver
+  → Error state → .sc-sel-err wrapper class → CSS border-color override
+
+Name inputs: individual <label for="epFirstName/epMidName/epLastName">
+DOB selects: aria-labelledby="lbl-dob" (group label pattern)
+```
+
+### DS-COLOR Phase 2 (§17) — updated PR #523
 ```
 Scoped --ep-* domain aliases in profile-v2.css (Tier 3 — CLR-15):
   Semantic references:
@@ -2289,6 +2355,8 @@ Scoped --ep-* domain aliases in profile-v2.css (Tier 3 — CLR-15):
     --ep-border-focus: var(--color-border-focus, ...)
     --ep-save-from:    var(--color-brand-primary, #00c896)
     --ep-cancel-text:  var(--color-text-secondary, ...)
+    --ep-title-icon:   var(--color-brand-primary, #00c896)  ← PR #523
+    --ep-placeholder:  var(--color-text-placeholder, rgba(255,255,255,.3))  ← PR #523
   Primitive Tier 3 (direct values — zero visual change contract):
     --ep-input-bg:     rgba(255,255,255,.05)  ← NOT via --color-surface-input (.06)
     --ep-sheet-border: rgba(255,255,255,.10)
@@ -2302,6 +2370,16 @@ Scoped --ep-* domain aliases in profile-v2.css (Tier 3 — CLR-15):
     .ep-input-err border/shadow: rgba(var(--color-status-danger-rgb),.55/.1)
 ```
 
+### DS-INP Chromium/WebKit Contract (PR #523)
+```
+.ep-input, .ep-textarea:
+  -webkit-appearance: none; appearance: none;  (remove native styling)
+  ::-webkit-input-placeholder  (older Safari placeholder compat)
+  :-webkit-autofill{-webkit-box-shadow: 0 0 0 1000px var(--ep-surface) inset}
+  (prevents Chromium yellow/blue forced autofill background)
+Note: .ep-select gets -webkit-appearance:none from tw-select.js (display:none on native).
+```
+
 ### ممنوعات (Phase 1)
 ```
 ✅ _norm_name shared — لا نسخ محلية
@@ -2309,12 +2387,14 @@ Scoped --ep-* domain aliases in profile-v2.css (Tier 3 — CLR-15):
 ✅ applyCanonicalProfile من server response — لا payload-based update
 ✅ DOM APIs للـ profession options — لا innerHTML string
 ✅ DOB validation backend — لا client-side date math فقط
+✅ aria-modal removed from #epOverlay (OVL-38 — Pre-DS-OVL)
+✅ no background re-fetch after save (FRM-18)
+✅ emp full_name direct mutation rejected (emp_name_mutation_forbidden)
 ❌ DS-OVL Runtime — Pre-DS-OVL overlay
 ❌ DS-DATE Runtime — native selects مؤقتاً
 ❌ window.confirm / ESC / popstate — في Phase 2
 ❌ full_name.split() legacy fallback — محذوف
 ❌ profession list hardcoded
-❌ re-fetch قبل إغلاق المودال
 ```
 
 ---

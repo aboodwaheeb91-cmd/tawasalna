@@ -701,9 +701,23 @@ body.preview-guest       .owner-only { display: none !important; }
   color:var(--ep-text-primary); font-family:inherit; font-size:.84rem; padding:10px 13px;
   outline:none; transition:border-color .15s;
 }
+.ep-input, .ep-textarea {
+  -webkit-appearance:none; appearance:none;
+}
 .ep-input:focus, .ep-select:focus, .ep-textarea:focus { border-color:var(--ep-border-focus); }
 .ep-select option { background:var(--ep-surface); }
+/* DS-INP Chromium/WebKit placeholder contract — prefixed form for older Safari */
+.ep-input::-webkit-input-placeholder,
+.ep-textarea::-webkit-input-placeholder { color:var(--ep-placeholder); }
 .ep-input::placeholder, .ep-textarea::placeholder { color:var(--ep-placeholder); }
+/* DS-INP Chromium autofill override — prevents forced yellow/blue background */
+.ep-input:-webkit-autofill,
+.ep-input:-webkit-autofill:hover,
+.ep-input:-webkit-autofill:focus {
+  -webkit-box-shadow:0 0 0 1000px var(--ep-surface) inset;
+  -webkit-text-fill-color:var(--ep-text-primary);
+  caret-color:var(--ep-text-primary);
+}
 .ep-textarea { resize:vertical; min-height:80px; line-height:1.7; }
 .ep-row2 { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
 .ep-footer {

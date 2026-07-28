@@ -510,34 +510,38 @@
 
         <div class="ep-field">
           <label class="ep-label" for="epCountry">البلد</label>
-          <select class="ep-select" id="epCountry" onchange="epLoadCities()">
+          <select class="ep-select" id="epCountry" onchange="epLoadCities()" aria-invalid="false" aria-describedby="epCountryErr">
             <option value="">— اختر البلد —</option>
           </select>
+          <div class="ep-field-err" id="epCountryErr" role="alert"></div>
         </div>
 
         <div class="ep-field" id="epCityWrap" style="display:none">
           <label class="ep-label" for="epCity">المدينة</label>
-          <select class="ep-select" id="epCity">
+          <select class="ep-select" id="epCity" aria-invalid="false" aria-describedby="epCityErr">
             <option value="">— اختر المدينة —</option>
           </select>
+          <div class="ep-field-err" id="epCityErr" role="alert"></div>
         </div>
 
         <div class="ep-field">
           <label class="ep-label" for="epAvail">حالة التوظيف</label>
-          <select class="ep-select" id="epAvail">
+          <select class="ep-select" id="epAvail" aria-invalid="false" aria-describedby="epAvailErr">
             <option value="">— اختر —</option>
             <option value="available">متاح للعمل</option>
             <option value="open_to_offers">منفتح على فرص</option>
             <option value="busy">مشغول حالياً</option>
             <option value="not_available">غير متاح حالياً</option>
           </select>
+          <div class="ep-field-err" id="epAvailErr" role="alert"></div>
         </div>
 
         <div class="ep-field">
           <label class="ep-label" for="epProfession">التخصص المهني</label>
-          <select class="ep-select" id="epProfession">
+          <select class="ep-select" id="epProfession" aria-invalid="false" aria-describedby="epProfErr">
             <option value="">جاري التحميل…</option>
           </select>
+          <div class="ep-field-err" id="epProfErr" role="alert"></div>
         </div>
 
         <div class="ep-field">

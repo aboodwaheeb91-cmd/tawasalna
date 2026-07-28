@@ -1395,6 +1395,212 @@ def test_Q17_ep_consumer_raw_color_gate_v2():
     ok(label) if not html_violations else fail(label, f'{len(html_violations)} HTML violation(s) — first: {html_violations[0][:120]}')
 
 
+# ── AC: Complete API Field → Control Mapping (Item 4) ────────────────────────
+
+def test_AC_field_control_mapping():
+    print('\n\033[1m── AC: API Field → Control Mapping (Item 4) ──\033[0m')
+    html_src  = _read('profile-showcase.html')
+    edit_src  = _read('profile-v2.edit.js')
+
+    for fid, eid in [('epCountry','epCountryErr'),('epCity','epCityErr'),
+                     ('epAvail','epAvailErr'),('epProfession','epProfErr')]:
+        label = f'AC1-{fid}: #{eid} error div exists in HTML'
+        ok(label) if f'id="{eid}"' in html_src else fail(label, f'#{eid} not found in HTML')
+
+    for fid, eid in [('epCountry','epCountryErr'),('epAvail','epAvailErr'),('epProfession','epProfErr')]:
+        label = f'AC2-{fid}: aria-describedby="{eid}" on select'
+        ok(label) if f'aria-describedby="{eid}"' in html_src else fail(label, f'select missing aria-describedby="{eid}"')
+
+    label = 'AC3: _routeFieldError routes country → _setSelectErr(epCountry'
+    ok(label) if "_setSelectErr('epCountry'" in edit_src or '_setSelectErr("epCountry"' in edit_src \
+        else fail(label, '_routeFieldError missing country → epCountry routing')
+
+    label = "AC4: _routeFieldError routes profession_id → _setSelectErr(epProfession"
+    ok(label) if "_setSelectErr('epProfession'" in edit_src or '_setSelectErr("epProfession"' in edit_src \
+        else fail(label, '_routeFieldError missing profession_id routing')
+
+    label = 'AC5: _routeFieldError routes short_bio → _setAriaInvalid(epShortBio)'
+    ok(label) if ("field === 'short_bio'" in edit_src or 'field === "short_bio"' in edit_src) \
+                 and ('epShortBio' in edit_src) \
+        else fail(label, '_routeFieldError missing short_bio routing')
+
+    label = 'AC6: _routeFieldError routes emp_name_mutation_forbidden → epNameErr'
+    ok(label) if 'emp_name_mutation_forbidden' in edit_src \
+        else fail(label, '_routeFieldError missing emp_name_mutation_forbidden code')
+
+    label = 'AC7: _clearAllFieldErrs calls _clearSelectErr for all 4 selects'
+    count = edit_src.count('_clearSelectErr(')
+    # 1 definition + 4 in _clearAllFieldErrs + 1 in forEach body = 6 minimum
+    ok(label) if count >= 6 else fail(label, f'Only {count} _clearSelectErr calls found (expected ≥6)')
+
+    label = 'AC8: _setSelectErr helper defined'
+    ok(label) if 'function _setSelectErr(' in edit_src else fail(label, '_setSelectErr function not defined')
+
+    label = 'AC9: _clearSelectErr helper defined'
+    ok(label) if 'function _clearSelectErr(' in edit_src else fail(label, '_clearSelectErr function not defined')
+
+
+# ── AD: Field-specific Server Error Lifetime (Item 5) ────────────────────────
+
+def test_AD_server_error_lifetime():
+    print('\n\033[1m── AD: Field-specific Server Error Lifetime (Item 5) ──\033[0m')
+    edit_src = _read('profile-v2.edit.js')
+
+    label = 'AD1: change listener registered for select fields to clear errors'
+    ok(label) if "el.addEventListener('change'" in edit_src and '_clearSelectErr(f.id' in edit_src \
+        else fail(label, 'select field change listener for _clearSelectErr not found')
+
+    label = 'AD2: epCountry in field-specific lifetime array'
+    ok(label) if ("'epCountry'" in edit_src or '"epCountry"' in edit_src) and \
+                 ("'epCountryErr'" in edit_src or '"epCountryErr"' in edit_src) \
+        else fail(label, 'epCountry/epCountryErr not in field-lifetime array')
+
+    label = 'AD3: epProfession in field-specific lifetime array'
+    ok(label) if ("'epProfession'" in edit_src or '"epProfession"' in edit_src) and \
+                 ("'epProfErr'" in edit_src or '"epProfErr"' in edit_src) \
+        else fail(label, 'epProfession/epProfErr not in field-lifetime array')
+
+
+# ── AE: DS-SEL Visible Error / Disabled / Focus-visible (Items 6 & 7) ────────
+
+def test_AE_ds_sel_css():
+    print('\n\033[1m── AE: DS-SEL Error/Disabled/Focus CSS (Items 6 & 7) ──\033[0m')
+    sel_css = _read('static/shared/tw-select.css')
+    sel_js  = _read('static/shared/tw-select.js')
+
+    label = 'AE1: .sc-sel-err .sc-sel-trg error border CSS exists'
+    ok(label) if '.sc-sel-err .sc-sel-trg' in sel_css \
+        else fail(label, '.sc-sel-err .sc-sel-trg rule missing from tw-select.css')
+
+    label = 'AE2: .sc-sel-trg disabled opacity CSS exists'
+    ok(label) if '.sc-sel-trg[disabled]' in sel_css or '.sc-sel-trg:disabled' in sel_css \
+        else fail(label, '.sc-sel-trg disabled state missing from tw-select.css')
+
+    label = 'AE3: .sc-sel-trg:focus-visible CSS exists'
+    ok(label) if '.sc-sel-trg:focus-visible' in sel_css \
+        else fail(label, '.sc-sel-trg:focus-visible missing from tw-select.css')
+
+    label = 'AE4: tw-select.js has _syncAriaState function'
+    ok(label) if '_syncAriaState' in sel_js \
+        else fail(label, '_syncAriaState not found in tw-select.js')
+
+    label = 'AE5: sc-sel-err uses DS-COLOR danger-rgb (not hardcoded hex)'
+    ok(label) if 'color-status-danger-rgb' in sel_css \
+        else fail(label, '.sc-sel-err uses hardcoded color instead of --color-status-danger-rgb')
+
+
+# ── AF: Profession Canonical Hydration during Failure (Item 8) ───────────────
+
+def test_AF_profession_hydration():
+    print('\n\033[1m── AF: Profession Canonical Hydration (Item 8) ──\033[0m')
+    edit_src = _read('profile-v2.edit.js')
+
+    label = 'AF1: .catch in openModal calls scSelectInit() after error option'
+    # Find "تعذّر تحميل التخصصات" then look for scSelectInit AFTER that position
+    catch_pos = edit_src.find('تعذّر تحميل التخصصات')
+    sc_in_catch = edit_src.find('scSelectInit', catch_pos) if catch_pos >= 0 else -1
+    ok(label) if catch_pos >= 0 and sc_in_catch > catch_pos \
+        else fail(label, '.catch path missing scSelectInit() after setting error option')
+
+    label = 'AF2: _hydrateProfession failure path uses "— اختر التخصص —" placeholder'
+    ok(label) if '— اختر التخصص —' in edit_src \
+        else fail(label, '_hydrateProfession failure path missing placeholder text')
+
+    label = 'AF3: _snapshot.profId update line exists in _hydrateProfession'
+    ok(label) if '_snapshot.profId' in edit_src \
+        else fail(label, '_snapshot.profId update missing from _hydrateProfession')
+
+
+# ── AG: DS-INP Chromium/WebKit Contract (Item 9) ─────────────────────────────
+
+def test_AG_webkit_contract():
+    print('\n\033[1m── AG: DS-INP Chromium/WebKit Contract (Item 9) ──\033[0m')
+    css_src = _read('profile-v2.css')
+
+    label = 'AG1: -webkit-appearance:none on .ep-input/.ep-textarea'
+    ok(label) if '-webkit-appearance:none' in css_src or '-webkit-appearance: none' in css_src \
+        else fail(label, '-webkit-appearance:none not found in profile-v2.css')
+
+    label = 'AG2: :-webkit-autofill override in profile-v2.css'
+    ok(label) if ':-webkit-autofill' in css_src \
+        else fail(label, ':-webkit-autofill override missing from profile-v2.css')
+
+    label = 'AG3: ::-webkit-input-placeholder compat rule exists'
+    ok(label) if '::-webkit-input-placeholder' in css_src \
+        else fail(label, '::-webkit-input-placeholder compat rule missing from profile-v2.css')
+
+    label = 'AG4: autofill override uses -webkit-box-shadow inset technique'
+    ok(label) if '-webkit-box-shadow' in css_src and 'inset' in css_src \
+        else fail(label, '-webkit-box-shadow inset autofill override missing')
+
+
+# ── AH: ARCHITECTURE.md stale contracts (Item 10) ────────────────────────────
+
+def test_AH_architecture_contracts():
+    print('\n\033[1m── AH: ARCHITECTURE.md stale contracts (Item 10) ──\033[0m')
+    arch_src = _read('ARCHITECTURE.md')
+
+    label = 'AH1: ARCHITECTURE.md no longer says _hydrateForm (renamed/split in PR #523)'
+    # _hydrateForm should not appear in the Edit Profile Modal section
+    # The section starts at "## Profile V2 — Edit Profile Modal"
+    modal_start = arch_src.find('## Profile V2 — Edit Profile Modal')
+    modal_end   = arch_src.find('\n## ', modal_start + 1)
+    modal_block = arch_src[modal_start:modal_end] if modal_end > 0 else arch_src[modal_start:]
+    ok(label) if '_hydrateForm' not in modal_block \
+        else fail(label, 'ARCHITECTURE.md Edit Profile Modal still references _hydrateForm')
+
+    label = 'AH2: ARCHITECTURE.md mentions _hydrateCanonicalFields in modal section'
+    ok(label) if '_hydrateCanonicalFields' in modal_block \
+        else fail(label, '_hydrateCanonicalFields not in ARCHITECTURE.md modal section')
+
+    label = 'AH3: ARCHITECTURE.md documents NO background re-fetch (FRM-18)'
+    ok(label) if ('NO background re-fetch' in modal_block or 'no background re-fetch' in modal_block.lower()) \
+        else fail(label, 'FRM-18 no-re-fetch contract not in ARCHITECTURE.md modal section')
+
+    label = 'AH4: ARCHITECTURE.md documents emp_name_mutation_forbidden'
+    ok(label) if 'emp_name_mutation_forbidden' in modal_block \
+        else fail(label, 'emp_name_mutation_forbidden not documented in ARCHITECTURE.md')
+
+    label = 'AH5: ARCHITECTURE.md documents normalizeErrorResponse'
+    ok(label) if 'normalizeErrorResponse' in modal_block \
+        else fail(label, 'normalizeErrorResponse not documented in ARCHITECTURE.md modal section')
+
+    label = 'AH6: ARCHITECTURE.md has field-to-control mapping for country/avail/prof'
+    ok(label) if ('epCountryErr' in modal_block or 'country' in modal_block) and \
+                 ('epProfErr' in modal_block or 'profession_id' in modal_block) \
+        else fail(label, 'ARCHITECTURE.md missing field→control mapping table')
+
+
+# ── AI: Employee full_name Contract Tightening (Item 11) ─────────────────────
+
+def test_AI_emp_fullname_contract():
+    print('\n\033[1m── AI: Employee full_name Contract Tightening (Item 11) ──\033[0m')
+    claude_src = _read('CLAUDE.md')
+
+    label = 'AI1: CLAUDE.md documents emp_name_mutation_forbidden error code'
+    ok(label) if 'emp_name_mutation_forbidden' in claude_src \
+        else fail(label, 'emp_name_mutation_forbidden not in CLAUDE.md')
+
+    label = 'AI2: CLAUDE.md documents Atomic Name Group Rule'
+    ok(label) if 'Atomic Name Group' in claude_src or 'atomic name group' in claude_src.lower() \
+        else fail(label, 'Atomic Name Group rule not in CLAUDE.md')
+
+    label = 'AI3: CLAUDE.md prohibits full_name direct mutation for emp'
+    ok(label) if 'full_name' in claude_src and 'emp' in claude_src \
+        else fail(label, 'CLAUDE.md does not reference emp + full_name prohibition')
+
+    label = 'AI4: SELECT-PICKER.md has SEL-37 _syncAriaState documentation'
+    sel_doc = _read('docs/design-system/SELECT-PICKER.md')
+    ok(label) if 'SEL-37' in sel_doc and '_syncAriaState' in sel_doc \
+        else fail(label, 'SEL-37 _syncAriaState not documented in SELECT-PICKER.md')
+
+    label = 'AI5: tw_shared.js normalizeErrorResponse has contract comment'
+    tw_src = _read('tw_shared.js')
+    ok(label) if ('fieldErrors' in tw_src and 'generalError' in tw_src and
+                  'DO NOT call fetch' in tw_src) \
+        else fail(label, 'normalizeErrorResponse contract comment missing or incomplete')
+
+
 # ── Runner ────────────────────────────────────────────────────────────────────
 
 if __name__ == '__main__':
@@ -1428,6 +1634,13 @@ if __name__ == '__main__':
     test_AA_docs_corrections()
     test_AB_no_silent_failures()
     test_Q17_ep_consumer_raw_color_gate_v2()
+    test_AC_field_control_mapping()
+    test_AD_server_error_lifetime()
+    test_AE_ds_sel_css()
+    test_AF_profession_hydration()
+    test_AG_webkit_contract()
+    test_AH_architecture_contracts()
+    test_AI_emp_fullname_contract()
 
     print(f'\n\033[1m── {PASS} passed, {FAIL} failed ──\033[0m')
     if ERRORS:

@@ -83,9 +83,17 @@ function initScrollProg() {
 }
 
 // ══ API-MUT Error Normalizer (System Gap fill — API-MUT-11) ══
-// Single parser for all API error shapes. Frontend modules must use this exclusively.
-// Official shape: body.errors[] + body.error{} (new)
-// Legacy shape: body.detail (FastAPI HTTPException backward compat)
+// Contract (permanent — PR #523):
+//   Input:  raw JSON body from any profile API response (may be null/undefined)
+//   Output: { fieldErrors: [{field, code, message}], generalError: {code, message} | null }
+//   Rules:
+//     1. body.errors[] (field-specific) is consumed first — each entry with .field → fieldErrors
+//     2. body.error{} (general) is only consumed if fieldErrors.length === 0 AND no generalError yet
+//        (Separation of shapes: field-specific shape NEVER coexists with body.error{})
+//     3. body.detail → legacy FastAPI backward compat (only when both official shapes absent)
+//     4. Unknown/null body → generalError.message = 'حدث خطأ، حاول مجدداً' (F9 — no silent failure)
+//   Consumers: profile-v2.edit.js save handler → _routeFieldError() per fieldError
+//   DO NOT call fetch('/profile') directly — use tw_shared.js exports only
 function normalizeErrorResponse(body) {
   if (!body) return { fieldErrors: [], generalError: { code: 'unknown', message: 'حدث خطأ، حاول مجدداً' } };
   var fieldErrors = [];
