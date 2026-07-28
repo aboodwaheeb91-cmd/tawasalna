@@ -633,9 +633,8 @@ body.preview-guest       .owner-only { display: none !important; }
    --ep-danger:         error text colour  (→ --color-status-danger)
    --ep-label:          field label colour (→ --color-text-muted)
    --ep-cancel-text:    cancel button text (→ --color-text-secondary)
-   --ep-save-from/to:   save button gradient stops (→ --color-brand-primary variants)
+   --ep-save-from:      save button border + text colour (→ --color-brand-primary)
    --ep-text-primary:   input/close button text (→ --color-text-primary)
-   --ep-save-text:      save button label colour (→ --color-text-primary)
    --ep-spinner-track:  loading spinner border track (.3 alpha white)
    --ep-spinner-head:   loading spinner active arc (→ --color-text-primary)
    --ep-note-icon:      icon inside legacy-name note (→ --color-brand-secondary)
@@ -656,9 +655,7 @@ body.preview-guest       .owner-only { display: none !important; }
   --ep-label:          var(--color-text-muted, var(--t3, #6b7686));
   --ep-cancel-text:    var(--color-text-secondary, var(--t2, #9aa5b4));
   --ep-save-from:      var(--color-brand-primary, #00c896);
-  --ep-save-to:        #00b386;
   --ep-text-primary:   var(--color-text-primary, var(--t1,#fff));
-  --ep-save-text:      var(--color-text-primary, #fff);
   --ep-spinner-track:  rgba(255,255,255,.3);
   --ep-spinner-head:   var(--color-text-primary, #fff);
   --ep-note-icon:      var(--color-brand-secondary, #2563ff);
@@ -731,11 +728,17 @@ body.preview-guest       .owner-only { display: none !important; }
   border-top:1px solid var(--ep-divider); flex-shrink:0;
 }
 .ep-save {
-  flex:1; height:42px; border-radius:11px; border:none; cursor:pointer;
-  background:linear-gradient(135deg, var(--ep-save-from), var(--ep-save-to));
-  color:var(--ep-save-text); font-family:inherit; font-size:.9rem; font-weight:700;
-  transition:opacity .15s; position:relative; overflow:hidden;
+  flex:1; height:42px; border-radius:11px;
+  border:1.5px solid var(--ep-save-from); background:transparent; cursor:pointer;
+  color:var(--ep-save-from); font-family:inherit; font-size:.9rem; font-weight:700;
+  transition:background .15s, box-shadow .15s, transform .1s; position:relative; overflow:hidden;
 }
+.ep-save:not(:disabled):hover {
+  background:rgba(var(--color-brand-primary-rgb),.07);
+  box-shadow:0 0 14px rgba(var(--color-brand-primary-rgb),.22);
+  transform:translateY(-1px);
+}
+.ep-save:not(:disabled):active { transform:translateY(0); box-shadow:none; }
 .ep-save:disabled { opacity:.5; cursor:not-allowed; }
 
 /* BTN-18 loading state (§12) — margin-based centering, no transform conflict */
@@ -756,7 +759,10 @@ body.preview-guest       .owner-only { display: none !important; }
   border:1px solid var(--ep-cancel-border);
   background:none; color:var(--ep-cancel-text); cursor:pointer;
   font-family:inherit; font-size:.9rem; font-weight:600;
+  transition:background .15s, border-color .15s;
 }
+.ep-cancel:hover { background:rgba(255,255,255,.04); border-color:rgba(255,255,255,.22); }
+.ep-cancel:active { background:rgba(255,255,255,.08); }
 /* DS-BTN compliance: focus-visible + no text selection on all ep-* buttons */
 .ep-save:focus-visible, .ep-cancel:focus-visible, .ep-close:focus-visible {
   outline:2px solid var(--ep-border-focus); outline-offset:2px;

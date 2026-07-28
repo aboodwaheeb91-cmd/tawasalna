@@ -563,6 +563,35 @@ def test_J_css_contracts():
     ok(label) if '--ep-input-bg' in src and '--color-surface-input' in src \
         else fail(label, '--ep-input-bg not using color-surface-input')
 
+    # DS-BTN BTN-02/03/07 compliance for .ep-save and .ep-cancel
+    _ep_save_start = src.find('.ep-save {')
+    _ep_save_end   = src.find('}', _ep_save_start)
+    _ep_save_block = src[_ep_save_start:_ep_save_end + 1] if _ep_save_start >= 0 else ''
+
+    label = 'J8: .ep-save has no linear-gradient (DS-BTN BTN-02 — no solid/gradient fill)'
+    ok(label) if _ep_save_start >= 0 and 'linear-gradient' not in _ep_save_block \
+        else fail(label, '.ep-save still uses linear-gradient (violates BTN-02)')
+
+    label = 'J9: .ep-save border uses --ep-save-from (DS-BTN BTN-03 outlined Primary)'
+    ok(label) if 'solid var(--ep-save-from)' in src \
+        else fail(label, '.ep-save border not using --ep-save-from (BTN-03 outlined)')
+
+    label = 'J10: .ep-save color uses --ep-save-from (DS-BTN BTN-03 teal text)'
+    ok(label) if 'color:var(--ep-save-from)' in _ep_save_block or 'color: var(--ep-save-from)' in _ep_save_block \
+        else fail(label, '.ep-save color not using --ep-save-from')
+
+    label = 'J11: .ep-save:hover glow uses --color-brand-primary-rgb (DS-BTN BTN-07)'
+    ok(label) if '.ep-save:not(:disabled):hover' in src and '--color-brand-primary-rgb' in src \
+        else fail(label, '.ep-save:not(:disabled):hover or --color-brand-primary-rgb missing (BTN-07)')
+
+    label = 'J12: .ep-cancel:hover rule exists (DS-BTN BTN-07 Secondary hover)'
+    ok(label) if '.ep-cancel:hover' in src \
+        else fail(label, '.ep-cancel:hover rule missing (BTN-07)')
+
+    label = 'J13: --ep-save-to removed from :root (unused gradient-stop token cleaned)'
+    ok(label) if '--ep-save-to' not in src \
+        else fail(label, '--ep-save-to still defined in :root (should be removed)')
+
 
 # ── K: Structured group & tri-state (§Corr-B/C) ──────────────────────────────
 
