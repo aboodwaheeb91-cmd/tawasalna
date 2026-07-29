@@ -1051,6 +1051,12 @@ async function handleSave() {
 
 الوظيفة تستدعي الأنظمة — لا تُعيد تعريف قواعدها.
 
+### See also: CRS — Change Routing System
+
+إذا كان السؤال "هذا الطلب — ما نطاقه؟ من يملكه؟ كيف أُحدِّد أقل قراءة لازمة؟"
+→ انظر `docs/CHANGE_ROUTER.md` (CRS). ليس بديلاً عن F31 — هو orchestration layer فوقه.
+الترتيب: `ARCHITECTURE_FOUNDATION → CRS → SYSTEMS_INDEX → Governing System → Runtime`
+
 ---
 
 ## F32 — [P0] Date & Time Fields System (DS-DATE)
