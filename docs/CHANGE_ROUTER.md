@@ -27,8 +27,9 @@ CRS لا يُقدَّم على F30/F31 — بل يُطبِّقهما:
 User Request
 ↓ A: Scope Detection
 ↓ B: Change Classification
-↓ C: Owner Resolution (via F31 + SYSTEMS_INDEX)
-↓ D: Required Reading
+↓ C: Primary Owner Resolution (via F31 + SYSTEMS_INDEX)
+↓ D: Supporting Owner Resolution
+↓ E: Required Reading
 ↓ F: Architectural Check (CRS-02)
 ↓ G: Impact Matrix
 ↓ H: Verdict — PROCEED / STOP / DISCUSS
@@ -66,7 +67,7 @@ User Request
 
 لا تُوسِّع القائمة بنوع جديد إلا إذا كان النوع غير مُغطَّى فعلاً.
 
-### C — Owner Resolution
+### C — Primary Owner Resolution
 
 بعد تحديد Change Type، حدِّد النظام المالك بهذا الترتيب:
 
@@ -76,8 +77,6 @@ User Request
 3. افتح Routing Protocol للنظام المُحدَّد (مثلاً BTN-00, CLR-00, OVL-00)
 4. لا نظام موثَّق → F30 = STOP + وضِّح النقص
 ```
-
-**Supporting Owners:** الأنظمة التي يدخل نطاقها نوع التغيير فعلاً — لا تُقرأ تلقائياً.
 
 **API Subclassification** — عند نوع `API`، صنِّف أولاً:
 
@@ -95,7 +94,14 @@ API-MUT يملك mutation contract فقط — لا يغطي GET/auth/upload/WebS
 **أنواع بدون F31 row** (CONTENT / LAYOUT / DATA / NOTIFICATION):
 → SYSTEMS_INDEX مباشرةً → إذا لا يوجد نظام موثَّق → F30 STOP.
 
-### D — Required Reading
+### D — Supporting Owner Resolution
+
+الأنظمة التي يدخل نطاقها نوع التغيير فعلاً — لا تُقرأ تلقائياً.
+
+تُحدَّد Supporting Owners فقط إذا كان نوع التغيير يتقاطع مع نظام آخر بشكل مباشر.
+لا تُدرَج أنظمة مُسمَّاة دون تقاطع حقيقي.
+
+### E — Required Reading
 
 ```
 Read:
@@ -115,7 +121,7 @@ Do Not Read:
 | السؤال | إذا YES |
 |--------|---------|
 | هل يخالف الطلب Contract موجود؟ | `STOP` — أذكر العقد المخالَف |
-| هل يوجد Shared System يجب استخدامه؟ | `DISCUSS` — اقترح النظام |
+| هل طريقة التنفيذ تتجاوز أو تكرر Shared System موجوداً بدلاً من استخدامه؟ | `DISCUSS` — اقترح النظام |
 | هل الحل يُنشئ Duplicate Implementation؟ | `DISCUSS` |
 | هل هو Local Workaround بدلاً من Root-Cause Fix؟ | `DISCUSS` |
 | هل يُضع Security Logic في Frontend؟ | `STOP` — F6 + F17 |
@@ -222,7 +228,7 @@ Tests:         YES / NO / INSPECT
 Notifications: NOT NEEDED / NEEDED / INSPECT
 ```
 
-- **Persistent / bell notifications** → Notification System (§19/§36 · ARCHITECTURE.md).
+- **Persistent / bell notifications** → Notification System (SYSTEMS_INDEX §19 → `docs/NOTIFICATIONS_PLAN.md`).
 - **Operational transient feedback** (toast/snackbar) → DS-FEEDBACK — دور مستقل تماماً.
 
 لا تفتح Notification System إلا إذا `NEEDED` أو `INSPECT`.
