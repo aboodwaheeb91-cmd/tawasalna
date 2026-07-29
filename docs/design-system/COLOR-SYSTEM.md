@@ -560,18 +560,20 @@ feature CSS:
 | `--ep-label` | `var(--color-text-muted, var(--t3, #6b7686))` | تسمية حقل → Semantic token |
 | `--ep-cancel-text` | `var(--color-text-secondary, var(--t2, #9aa5b4))` | نص زر إلغاء → Semantic token |
 | `--ep-border-focus` | `var(--color-border-focus, var(--color-brand-primary, #00c896))` | تركيز الحقل → Semantic token |
-| `--ep-save-from` | `var(--color-brand-primary, #00c896)` | تدرج زر الحفظ → Semantic token |
+| `--ep-save-from` | `var(--color-brand-primary, #00c896)` | حدود ونص زر الحفظ → Semantic token (DS-BTN PR #525) |
 | `--ep-input-bg` | `rgba(255,255,255,.05)` | خلفية الحقول — Primitive direct (لا عبر `--color-surface-input` = .06 ≠ zero visual change) |
 | `--ep-sheet-border` | `rgba(255,255,255,.10)` | حدود الـ sheet + الحقول (Local — لا معنى مشترك بعد) |
 | `--ep-divider` | `rgba(255,255,255,.08)` | الفواصل الأفقية (Local) |
 | `--ep-cancel-border` | `rgba(255,255,255,.12)` | حدود زر الإلغاء (Local) |
+| `--ep-cancel-hover-bg` | `rgba(255,255,255,.04)` | خلفية Hover زر الإلغاء (Local Color Role — CLR-15 Tier 3; لا معنى مشترك حالياً) |
+| `--ep-cancel-hover-border` | `rgba(255,255,255,.22)` | حدود Hover زر الإلغاء (Local Color Role — CLR-15 Tier 3) |
+| `--ep-cancel-active-bg` | `rgba(255,255,255,.08)` | خلفية Pressed زر الإلغاء (Local Color Role — CLR-15 Tier 3) |
 | `--ep-backdrop` | `rgba(0,0,0,.65)` | طبقة التعتيم (Local — نفس قيمة DS-OVL المستقبلية) |
 | `--ep-close-bg` | `rgba(255,255,255,.08)` | خلفية زر الإغلاق (Local) |
 | `--ep-note-bg` | `rgba(37,99,255,.08)` | خلفية ملاحظة الاسم القديم (Local) |
 | `--ep-note-border` | `rgba(37,99,255,.2)` | حدود ملاحظة الاسم القديم (Local) |
 | `--ep-surface` | `#0f1420` | خلفية الـ sheet (Local) |
 | `--ep-text-primary` | `var(--color-text-primary, var(--t1,#fff))` | نص الحقول وزر الإغلاق → Semantic token |
-| `--ep-save-text` | `var(--color-text-primary, #fff)` | نص زر الحفظ → Semantic token |
 | `--ep-spinner-track` | `rgba(255,255,255,.3)` | مسار دوّار التحميل (Local) |
 | `--ep-spinner-head` | `var(--color-text-primary, #fff)` | قوس دوّار التحميل → Semantic token |
 | `--ep-note-icon` | `var(--color-brand-secondary, #2563ff)` | أيقونة ملاحظة الاسم القديم → Semantic token |
@@ -580,8 +582,12 @@ feature CSS:
 
 **قواعد دائمة:**
 - الرموز التي تُشير لـ DS-COLOR Semantic tokens تُرقَّى تلقائياً عند تحديث الـ token
-- الرموز Local (raw rgba) تظل كما هي حتى DS-OVL Runtime يُوحِّدها
-- **Zero Visual Change contract:** كل قيم rgba مطابقة للقيم الأصلية ما قبل Phase 2 — ممنوع تغييرها دون PR مُعلَن
+- الرموز Local (raw rgba) تبقى Local ما دام لا يوجد **Shared Meaning** حقيقي عبر features مختلفة (CLR-26). الترقية/التوحيد مستقبلاً يعتمد على **النظام المالك للدور**:
+  - Overlay-specific roles (مثل `--ep-backdrop`, `--ep-sheet-border`) → قد تنتقل إلى DS-OVL عند توحيد Overlay.
+  - Button interaction roles (مثل `--ep-cancel-hover-*`, `--ep-cancel-active-*`) → تخص DS-BTN مع DS-COLOR كمصدر اللون — ليست DS-OVL.
+  - **لا تُنسب جميع Local Color Roles إلى DS-OVL.**
+- **Zero Visual Change contract (Phase-2 Migration scope only):** قيم rgba التي رُحِّلت تحت DS-COLOR Phase 2 (PR feat/edit-profile-phase1 — 2026-07-27) مطابقة للقيم الأصلية ما قبل Phase 2 — ممنوع تغييرها دون PR مُعلَن.
+  - **مستثنى من هذا العقد:** Local Color Roles أُضيفت لاحقاً بتغيير بصري معلَن وموافق عليه — تحديداً `--ep-cancel-hover-bg`, `--ep-cancel-hover-border`, `--ep-cancel-active-bg` (PR #525 DS-BTN intentional interaction visuals). هذه ليست ترحيل Phase 2 وليست خاضعة لـ Zero Visual Change.
 
 ---
 

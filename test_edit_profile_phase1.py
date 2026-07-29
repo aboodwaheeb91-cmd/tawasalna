@@ -563,6 +563,85 @@ def test_J_css_contracts():
     ok(label) if '--ep-input-bg' in src and '--color-surface-input' in src \
         else fail(label, '--ep-input-bg not using color-surface-input')
 
+    # DS-BTN BTN-02/03/07 compliance for .ep-save and .ep-cancel
+    _ep_save_start = src.find('.ep-save {')
+    _ep_save_end   = src.find('}', _ep_save_start)
+    _ep_save_block = src[_ep_save_start:_ep_save_end + 1] if _ep_save_start >= 0 else ''
+
+    label = 'J8: .ep-save has no linear-gradient (DS-BTN BTN-02 — no solid/gradient fill)'
+    ok(label) if _ep_save_start >= 0 and 'linear-gradient' not in _ep_save_block \
+        else fail(label, '.ep-save still uses linear-gradient (violates BTN-02)')
+
+    label = 'J9: .ep-save border uses --ep-save-from (DS-BTN BTN-03 outlined Primary)'
+    ok(label) if 'solid var(--ep-save-from)' in src \
+        else fail(label, '.ep-save border not using --ep-save-from (BTN-03 outlined)')
+
+    label = 'J10: .ep-save color uses --ep-save-from (DS-BTN BTN-03 teal text)'
+    ok(label) if 'color:var(--ep-save-from)' in _ep_save_block or 'color: var(--ep-save-from)' in _ep_save_block \
+        else fail(label, '.ep-save color not using --ep-save-from')
+
+    label = 'J11: .ep-save:hover glow uses --color-brand-primary-rgb (DS-BTN BTN-07)'
+    ok(label) if '.ep-save:not(:disabled):hover' in src and '--color-brand-primary-rgb' in src \
+        else fail(label, '.ep-save:not(:disabled):hover or --color-brand-primary-rgb missing (BTN-07)')
+
+    label = 'J12: .ep-cancel:not(:disabled):hover rule exists (DS-BTN BTN-07 Secondary hover)'
+    ok(label) if '.ep-cancel:not(:disabled):hover' in src \
+        else fail(label, '.ep-cancel:not(:disabled):hover rule missing (BTN-07)')
+
+    label = 'J13: --ep-save-to removed from :root (unused gradient-stop token cleaned)'
+    ok(label) if '--ep-save-to' not in src \
+        else fail(label, '--ep-save-to still defined in :root (should be removed)')
+
+    label = 'J14: .ep-save hover has no transform/translateY (DS-BTN BTN-07 — no layout shift)'
+    _hover_start = src.find('.ep-save:not(:disabled):hover')
+    _hover_end   = src.find('}', _hover_start)
+    _hover_block = src[_hover_start:_hover_end + 1] if _hover_start >= 0 else ''
+    ok(label) if _hover_start >= 0 and 'translateY' not in _hover_block \
+        else fail(label, 'translateY still in .ep-save:not(:disabled):hover (BTN-07 no-shift rule)')
+
+    label = 'J15: .ep-cancel hover/active use var() tokens, not raw rgba (CLR-15 Local Color Role)'
+    ok(label) if 'var(--ep-cancel-hover-bg)' in src and 'var(--ep-cancel-active-bg)' in src \
+        else fail(label, 'cancel hover/active not using Local Color Role var() tokens (CLR-15 violation)')
+
+    label = 'J16: --ep-cancel-hover-bg, --ep-cancel-hover-border, --ep-cancel-active-bg defined in :root'
+    ok(label) if '--ep-cancel-hover-bg' in src and '--ep-cancel-hover-border' in src and '--ep-cancel-active-bg' in src \
+        else fail(label, 'cancel hover/active Local Color Role tokens missing from :root')
+
+    label = 'J17: .ep-save:disabled has pointer-events:none (DS-BTN Disabled contract)'
+    ok(label) if 'pointer-events:none' in src or 'pointer-events: none' in src \
+        else fail(label, 'pointer-events:none not found in disabled rules')
+
+    label = 'J18: .ep-save and .ep-cancel have -webkit-touch-callout:none (BTN-08)'
+    ok(label) if '-webkit-touch-callout:none' in src or '-webkit-touch-callout: none' in src \
+        else fail(label, '-webkit-touch-callout:none missing from ep-save/ep-cancel (BTN-08)')
+
+    label = 'J19: COLOR-SYSTEM.md no longer documents --ep-save-text (token removed)'
+    _clr_src = _read('docs/design-system/COLOR-SYSTEM.md')
+    ok(label) if '--ep-save-text' not in _clr_src \
+        else fail(label, '--ep-save-text still documented in COLOR-SYSTEM.md (token removed at runtime)')
+
+    label = 'J20: COLOR-SYSTEM.md --ep-save-from described as border/text, not gradient'
+    ok(label) if 'تدرج زر الحفظ' not in _clr_src \
+        else fail(label, '--ep-save-from still described as gradient stop in COLOR-SYSTEM.md')
+
+    # Ownership / Zero-VC scope correctness
+    label = 'J21: COLOR-SYSTEM.md does not say all Local rgba wait for DS-OVL (ownership-based rule)'
+    ok(label) if 'تظل كما هي حتى DS-OVL Runtime يُوحِّدها' not in _clr_src \
+        else fail(label, 'COLOR-SYSTEM.md still says all Local raw rgba wait for DS-OVL (old overgeneralised rule)')
+
+    label = 'J22: COLOR-SYSTEM.md Zero-VC contract excludes cancel interaction roles explicitly'
+    ok(label) if 'مستثنى' in _clr_src and '--ep-cancel-hover-bg' in _clr_src and 'PR #525' in _clr_src \
+        else fail(label, 'COLOR-SYSTEM.md Zero-VC scope clarification missing for cancel interaction roles')
+
+    label = 'J23: ARCHITECTURE.md §17 classifies cancel hover/active as DS-BTN Intentional (not zero-vc)'
+    _arch_src = _read('ARCHITECTURE.md')
+    ok(label) if 'DS-BTN Intentional Interaction Roles' in _arch_src and 'NOT zero visual change' in _arch_src \
+        else fail(label, 'ARCHITECTURE.md §17 still classifies cancel interaction roles under zero-visual-change')
+
+    label = 'J24: CSS cancel hover declarations unchanged (runtime preserved)'
+    ok(label) if 'background:var(--ep-cancel-hover-bg)' in src and 'border-color:var(--ep-cancel-hover-border)' in src \
+        else fail(label, 'cancel hover CSS declarations changed (runtime must be preserved)')
+
 
 # ── K: Structured group & tri-state (§Corr-B/C) ──────────────────────────────
 

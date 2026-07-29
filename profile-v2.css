@@ -632,21 +632,27 @@ body.preview-guest       .owner-only { display: none !important; }
                        NOT via --color-surface-input which is .06 — direct value preserves zero visual change)
    --ep-danger:         error text colour  (→ --color-status-danger)
    --ep-label:          field label colour (→ --color-text-muted)
-   --ep-cancel-text:    cancel button text (→ --color-text-secondary)
-   --ep-save-from/to:   save button gradient stops (→ --color-brand-primary variants)
+   --ep-cancel-text:         cancel button text (→ --color-text-secondary)
+   --ep-cancel-hover-bg:     cancel button hover bg (Local Color Role — CLR-15 Tier 3)
+   --ep-cancel-hover-border: cancel button hover border alpha (Local Color Role — CLR-15 Tier 3)
+   --ep-cancel-active-bg:    cancel button pressed bg (Local Color Role — CLR-15 Tier 3)
+   --ep-save-from:           save button border + text colour (→ --color-brand-primary)
    --ep-text-primary:   input/close button text (→ --color-text-primary)
-   --ep-save-text:      save button label colour (→ --color-text-primary)
    --ep-spinner-track:  loading spinner border track (.3 alpha white)
    --ep-spinner-head:   loading spinner active arc (→ --color-text-primary)
    --ep-note-icon:      icon inside legacy-name note (→ --color-brand-secondary)
-   Zero visual change: all raw fallback values match pre-Phase-2 originals.
+   Zero visual change: Phase-2-migrated raw values match pre-Phase-2 originals.
+   Excludes PR #525 DS-BTN intentional interaction roles (--ep-cancel-hover-*, --ep-cancel-active-bg).
 */
 :root {
   --ep-surface:        #0f1420;
   --ep-sheet-border:   rgba(255,255,255,.10);
   --ep-divider:        rgba(255,255,255,.08);
-  --ep-cancel-border:  rgba(255,255,255,.12);
-  --ep-backdrop:       rgba(0,0,0,.65);
+  --ep-cancel-border:       rgba(255,255,255,.12);
+  --ep-cancel-hover-bg:     rgba(255,255,255,.04);
+  --ep-cancel-hover-border: rgba(255,255,255,.22);
+  --ep-cancel-active-bg:    rgba(255,255,255,.08);
+  --ep-backdrop:            rgba(0,0,0,.65);
   --ep-close-bg:       rgba(255,255,255,.08);
   --ep-note-bg:        rgba(37,99,255,.08);
   --ep-note-border:    rgba(37,99,255,.2);
@@ -656,9 +662,7 @@ body.preview-guest       .owner-only { display: none !important; }
   --ep-label:          var(--color-text-muted, var(--t3, #6b7686));
   --ep-cancel-text:    var(--color-text-secondary, var(--t2, #9aa5b4));
   --ep-save-from:      var(--color-brand-primary, #00c896);
-  --ep-save-to:        #00b386;
   --ep-text-primary:   var(--color-text-primary, var(--t1,#fff));
-  --ep-save-text:      var(--color-text-primary, #fff);
   --ep-spinner-track:  rgba(255,255,255,.3);
   --ep-spinner-head:   var(--color-text-primary, #fff);
   --ep-note-icon:      var(--color-brand-secondary, #2563ff);
@@ -731,12 +735,17 @@ body.preview-guest       .owner-only { display: none !important; }
   border-top:1px solid var(--ep-divider); flex-shrink:0;
 }
 .ep-save {
-  flex:1; height:42px; border-radius:11px; border:none; cursor:pointer;
-  background:linear-gradient(135deg, var(--ep-save-from), var(--ep-save-to));
-  color:var(--ep-save-text); font-family:inherit; font-size:.9rem; font-weight:700;
-  transition:opacity .15s; position:relative; overflow:hidden;
+  flex:1; height:42px; border-radius:11px;
+  border:1.5px solid var(--ep-save-from); background:transparent; cursor:pointer;
+  color:var(--ep-save-from); font-family:inherit; font-size:.9rem; font-weight:700;
+  transition:background .15s, box-shadow .15s; position:relative; overflow:hidden;
 }
-.ep-save:disabled { opacity:.5; cursor:not-allowed; }
+.ep-save:not(:disabled):hover {
+  background:rgba(var(--color-brand-primary-rgb),.07);
+  box-shadow:0 0 14px rgba(var(--color-brand-primary-rgb),.22);
+}
+.ep-save:not(:disabled):active { box-shadow:none; }
+.ep-save:disabled { opacity:.45; cursor:not-allowed; pointer-events:none; }
 
 /* BTN-18 loading state (§12) — margin-based centering, no transform conflict */
 .ep-save--loading { color:transparent; }
@@ -756,12 +765,17 @@ body.preview-guest       .owner-only { display: none !important; }
   border:1px solid var(--ep-cancel-border);
   background:none; color:var(--ep-cancel-text); cursor:pointer;
   font-family:inherit; font-size:.9rem; font-weight:600;
+  transition:background .15s, border-color .15s;
 }
+.ep-cancel:not(:disabled):hover { background:var(--ep-cancel-hover-bg); border-color:var(--ep-cancel-hover-border); }
+.ep-cancel:not(:disabled):active { background:var(--ep-cancel-active-bg); }
+.ep-cancel:disabled { opacity:.45; cursor:not-allowed; pointer-events:none; }
 /* DS-BTN compliance: focus-visible + no text selection on all ep-* buttons */
 .ep-save:focus-visible, .ep-cancel:focus-visible, .ep-close:focus-visible {
   outline:2px solid var(--ep-border-focus); outline-offset:2px;
 }
 .ep-save, .ep-cancel, .ep-close { user-select:none; -webkit-user-select:none; }
+.ep-save, .ep-cancel { -webkit-touch-callout:none; }
 .ep-err  { color:var(--ep-danger); font-size:.78rem; margin-top:4px; display:none; }
 
 /* Inline field-level errors */
