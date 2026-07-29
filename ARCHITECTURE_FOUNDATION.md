@@ -1054,8 +1054,9 @@ async function handleSave() {
 ### See also: CRS — Change Routing System
 
 إذا كان السؤال "هذا الطلب — ما نطاقه؟ من يملكه؟ كيف أُحدِّد أقل قراءة لازمة؟"
-→ انظر `docs/CHANGE_ROUTER.md` (CRS). ليس بديلاً عن F31 — هو orchestration layer فوقه.
-الترتيب: `ARCHITECTURE_FOUNDATION → CRS → SYSTEMS_INDEX → Governing System → Runtime`
+→ انظر `docs/CHANGE_ROUTER.md` (CRS). CRS يُطبِّق F30/F31 على مستوى الطلب — ليس طبقة فوقهما.
+Workflow order: `ARCHITECTURE_FOUNDATION → SYSTEMS_INDEX → CRS → Governing System → Runtime`
+Authority يبقى دائماً: `ARCHITECTURE_FOUNDATION F1–F35`
 
 ---
 

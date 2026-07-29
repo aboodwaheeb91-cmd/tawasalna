@@ -1,70 +1,48 @@
 # CRS — Change Routing System
 # نظام توجيه التعديلات
 
-> **CRS هو Router/Orchestration Layer فقط — ليس Source of Truth لأي نظام.**
+> **CRS هو Workflow يُطبِّق F30/F31 على مستوى الطلب — ليس Source of Truth لأي نظام، وليس طبقة فوق القواعد العليا.**
 >
-> CRS يُحدِّد من يملك القرار ومتى يُقرأ ماذا.
-> القرار نفسه يملكه النظام الحاكم.
->
-> الترتيب: `ARCHITECTURE_FOUNDATION → CRS → SYSTEMS_INDEX → Governing System → Runtime`
+> القرار النهائي يملكه النظام الحاكم. ARCHITECTURE_FOUNDATION يبقى أعلى سلطة دائماً.
 
 ---
 
-## Constitutional Position
+## Workflow Order (ليس Authority Hierarchy)
 
-CRS يجلس بين طلب صاحب المشروع وبين F31 (System Routing Before Implementation).
+```
+Workflow:  ARCHITECTURE_FOUNDATION → SYSTEMS_INDEX → CRS → Governing System → Runtime
+Authority: ARCHITECTURE_FOUNDATION F1–F35 > كل ما عداه دائماً
+```
 
-- **F31** يجيب على: "هذا السطر من الكود ينتمي لأي نظام؟"
-- **CRS** يجيب على: "هذا الطلب — ما نطاقه؟ من يملكه؟ كيف يُحدَّد أقل قراءة لازمة؟ هل نُنفِّذ؟"
-
-CRS لا يتجاوز ARCHITECTURE_FOUNDATION ولا يُعيد تعريف عقود أي نظام آخر.
+CRS لا يُقدَّم على F30/F31 — بل يُطبِّقهما:
+- **F30:** لا نظام موثَّق → STOP وبلِّغ
+- **F31:** قبل كتابة أي سطر، حدِّد النظام الحاكم
+- **CRS:** ينظِّم عملية تحديد النطاق + المالك + الحد الأدنى للقراءة + الحكم
 
 ---
 
 ## CRS-01 — Routing Engine
 
-كل طلب يمر بهذه المراحل بالترتيب:
-
 ```
 User Request
-↓
-A: Scope Detection
-↓
-B: Change Classification
-↓
-C: Primary Owner
-↓
-D: Supporting Owners
-↓
-E: Required Reading
-↓
-F: Architectural Check (CRS-02)
-↓
-G: Impact Matrix
-↓
-H: Verdict — PROCEED / STOP / DISCUSS
-↓
-I: Execution Scope
+↓ A: Scope Detection
+↓ B: Change Classification
+↓ C: Owner Resolution (via F31 + SYSTEMS_INDEX)
+↓ D: Required Reading
+↓ F: Architectural Check (CRS-02)
+↓ G: Impact Matrix
+↓ H: Verdict — PROCEED / STOP / DISCUSS
+↓ I: Execution Scope
 ```
 
 ### A — Scope Detection
 
 حدِّد Target بأكبر دقة ممكنة من الطلب قبل أي قراءة.
 
-```
-Example:
-Employee Profile
-→ Edit Profile Modal (#epOverlay)
-→ Footer Actions
-→ #epSaveBtn Visual Style
-```
-
 - Target محدد → لا full-page audit تلقائياً.
 - Target غامض → `Verdict: DISCUSS` + سؤال واحد محدد.
 
 ### B — Change Types
-
-الطلب يُصنَّف في واحدة أو أكثر من:
 
 | نوع | وصف |
 |-----|-----|
@@ -79,72 +57,73 @@ Employee Profile
 | `FORM` | lifecycle، payload، hydration |
 | `VALIDATION` | توقيت خطأ، رسالة خطأ، field error |
 | `OVERLAY` | modal، drawer، sheet، dialog |
-| `FEEDBACK` | toast، snackbar |
+| `FEEDBACK` | operational toast/snackbar |
 | `NAVIGATION` | routing، history، back |
 | `PERMISSION` | visibility، access control |
 | `API` | endpoint، payload shape، contract |
 | `DATA` | DB schema، table، migration |
-| `NOTIFICATION` | إشعار، hook، event |
+| `NOTIFICATION` | persistent notification، hook، event |
 
 لا تُوسِّع القائمة بنوع جديد إلا إذا كان النوع غير مُغطَّى فعلاً.
 
-### C — Primary Owner / Supporting Owners
+### C — Owner Resolution
 
-**Primary Owner:** النظام صاحب القرار الأساسي للتغيير.
-**Supporting Owners:** أنظمة قد تتأثر بناءً على نوع التغيير المحدد فقط.
+بعد تحديد Change Type، حدِّد النظام المالك بهذا الترتيب:
 
-| Change Type | Primary Owner | Supporting (inspect only if affected) |
-|-------------|---------------|---------------------------------------|
-| `BUTTON` | DS-BTN | DS-COLOR (للألوان) · DS-FRM (lifecycle) |
-| `COLOR_ROLE` | DS-COLOR | Feature CSS (consumer) |
-| `VISUAL` | DS-BTN / DS-INP / DS-COLOR | حسب العنصر |
-| `INPUT` | DS-INP | DS-VAL (errors) · DS-COLOR (colors) |
-| `SELECT` | DS-SEL | DS-INP (parent form field) |
-| `DATE` | DS-DATE | DS-SEL (UI engine) · DS-FRM (payload) |
-| `FORM` | DS-FRM | DS-VAL · API-MUT · DS-BTN |
-| `VALIDATION` | DS-VAL | DS-INP (field states) · DS-FRM |
-| `OVERLAY` | DS-OVL | DS-FRM (Dirty Guard) |
-| `FEEDBACK` | DS-FEEDBACK | DS-VAL (form context) |
-| `NAVIGATION` | DS-NAV | — |
-| `PERMISSION` | DS-VM | Backend (always final authority) |
-| `API` | API-MUT | DS-FRM · Backend |
-| `NOTIFICATION` | Notification System | DS-FEEDBACK (delivery) |
+```
+1. ابحث في F31 جدول التوجيه (ARCHITECTURE_FOUNDATION.md)
+2. إذا لم يكن في F31 → ابحث في SYSTEMS_INDEX (docs/SYSTEMS_INDEX.md)
+3. افتح Routing Protocol للنظام المُحدَّد (مثلاً BTN-00, CLR-00, OVL-00)
+4. لا نظام موثَّق → F30 = STOP + وضِّح النقص
+```
 
-قاعدة: لا تقرأ Supporting Systems تلقائياً. اقرأها فقط إذا كان نوع التغيير يدخل نطاقها فعلاً.
+**Supporting Owners:** الأنظمة التي يدخل نطاقها نوع التغيير فعلاً — لا تُقرأ تلقائياً.
+
+**API Subclassification** — عند نوع `API`، صنِّف أولاً:
+
+| API Kind | Route |
+|----------|-------|
+| mutation (POST/PUT/PATCH/DELETE) | API-MUT + governing feature/backend |
+| GET / read-only | governing feature/API contract via SYSTEMS_INDEX |
+| auth | Auth governing contract |
+| upload | Upload System (§29a SYSTEMS_INDEX) |
+| WebSocket | Messaging/WebSocket governing system |
+| لا نظام موثَّق | F30 STOP |
+
+API-MUT يملك mutation contract فقط — لا يغطي GET/auth/upload/WebSocket.
+
+**أنواع بدون F31 row** (CONTENT / LAYOUT / DATA / NOTIFICATION):
+→ SYSTEMS_INDEX مباشرةً → إذا لا يوجد نظام موثَّق → F30 STOP.
 
 ### D — Required Reading
 
-بعد تحديد Primary + Supporting، حدِّد:
-
 ```
 Read:
-- [Primary Owner § or section that governs this specific change]
-- [Supporting Owner section — only if change type intersects]
+- [Primary Owner — القسم الحاكم لهذا التغيير تحديداً]
+- [Supporting — فقط إذا تقاطع نوع التغيير فعلاً]
 
 Do Not Read:
-- [Anything outside the resolved route]
-- [Full-file reads if a specific section suffices]
-- [Systems that are named but not intersecting]
+- أي شيء خارج الـ Route المحدد
+- قراءة كاملة إذا قسم محدد يكفي
+- أنظمة مُسمَّاة لكن غير متقاطعة
 ```
 
 ---
 
 ## CRS-02 — Architectural Sanity Check
 
-قبل إصدار Verdict، اسأل هذه الأسئلة:
-
 | السؤال | إذا YES |
 |--------|---------|
 | هل يخالف الطلب Contract موجود؟ | `STOP` — أذكر العقد المخالَف |
-| هل يوجد Shared System يجب استخدامه بدل بناء جديد؟ | `DISCUSS` — اقترح الـ Shared System |
+| هل يوجد Shared System يجب استخدامه؟ | `DISCUSS` — اقترح النظام |
 | هل الحل يُنشئ Duplicate Implementation؟ | `DISCUSS` |
 | هل هو Local Workaround بدلاً من Root-Cause Fix؟ | `DISCUSS` |
-| هل يُضع Business/Security Logic في Frontend؟ | `STOP` — Security يملكه Backend (F6 + F17) |
-| هل يؤثر على API Contract (Flutter / Mobile Future)؟ | لاحظ في Impact Matrix |
-| هل يوجد System Gap (نقص في العقد الحاكم)؟ | وثِّق كـ Gap — انظر System Gap Contract |
-| هل يوجد حل معماري أفضل أو أبسط؟ | `DISCUSS` — اشرح الاقتراح |
+| هل يُضع Security Logic في Frontend؟ | `STOP` — F6 + F17 |
+| هل يؤثر على API Contract (Mobile Future)؟ | لاحظ في Impact Matrix |
+| هل يوجد System Gap؟ | وثِّق — انظر System Gap Contract |
+| هل يوجد حل معماري أفضل؟ | `DISCUSS` |
 
-إذا لا توجد مشكلة → `PROCEED`.
+لا توجد مشكلة → `PROCEED`.
 
 ---
 
@@ -152,10 +131,10 @@ Do Not Read:
 
 إذا كشف الطلب عن غياب أو خطأ في عقد النظام الحاكم:
 
-1. **حدِّد النظام المالك.**
-2. **حدِّد: هل العقد ناقص؟ أم فقط Runtime Adoption مخالف؟**
-3. إذا **Gap حقيقي** (العقد غائب أو متناقض) → حدِّث الـ Governing Docs في نفس الـ PR مع الـ Runtime.
-4. إذا **Adoption فقط** (العقد واضح، التنفيذ مخالف) → صحِّح الـ Runtime فقط. لا تُعدِّل الـ Docs بدون داعٍ.
+1. حدِّد النظام المالك.
+2. هل العقد ناقص؟ أم فقط Runtime Adoption مخالف؟
+3. **Gap حقيقي** → حدِّث Governing Docs في نفس PR مع Runtime.
+4. **Adoption فقط** → صحِّح Runtime فقط.
 
 ```
 System Gap: NONE / POSSIBLE / CONFIRMED
@@ -163,40 +142,36 @@ System Gap: NONE / POSSIBLE / CONFIRMED
 
 ---
 
-## Shared System First (CRS Enforcement)
+## Shared System First
 
-قبل بناء أي CSS pattern / helper / component / behavior:
+```
+1. نظام موثَّق موجود ويغطي الحاجة → استخدمه.
+2. نظام موجود جزئياً → F30 STOP + وضِّح الجزء الناقص.
+3. لا نظام موثَّق → F30 STOP + اشرح ما هو مطلوب.
+```
 
-1. هل يوجد نظام مشترك موجود بالفعل؟ (SYSTEMS_INDEX → الملف الحاكم)
-2. هل يغطي الحاجة الفعلية؟ نعم → استخدمه.
-3. لا → هل الحاجة ستتكرر في صفحتين أو أكثر؟ نعم → أنشئ Shared System أولاً.
-
+إنشاء أو توسيع نظام يتم فقط إذا كانت المهمة الحالية تُفوِّض ذلك صراحةً.
 لا repo-wide search غير ضروري. الفحص يبدأ من SYSTEMS_INDEX.
 
 ---
 
 ## CRS-03 — Execution Scope / Credit Control
 
-### حجم المهمة (تقريبي)
-
-| الحجم | الوصف | الحد التقريبي للقراءة |
-|-------|-------|----------------------|
-| `TINY` | تعديل صغير محدد النطاق | نظام واحد أو قسمان |
+| الحجم | الوصف | نطاق القراءة |
+|-------|-------|-------------|
+| `TINY` | تعديل صغير محدد | نظام واحد أو قسمان |
 | `MEDIUM` | يتقاطع مع عدة Contracts | الأنظمة المتأثرة مباشرة فقط |
 | `ARCHITECTURAL` | Auth / Permission / API / Navigation / System creation | قراءة أوسع عند الحاجة الفعلية |
 
-هذه تقديرات ضد القراءة العشوائية — ليست حدوداً صارمة بالأرقام.
-
-**القاعدة الإلزامية:**
-> Do not read documentation that the resolved Route does not require.
+**القاعدة الإلزامية:** لا تقرأ توثيقاً لا يستلزمه الـ Route المحدد.
 
 ---
 
 ## Context Reuse
 
-إذا تم Audit لنفس Target في نفس جلسة الـ AI ولم يتغير الـ HEAD بشكل يؤثر على الـ Target:
-- **Reuse existing context.** لا تُعيد نفس الـ Audit.
-- إذا تغيَّر الكود في الـ Target بعد الـ Audit: يجوز إعادة الفحص المحدد للجزء المتغير فقط.
+إذا تم Audit لنفس Target في نفس جلسة الـ AI ولم يتغير HEAD بشكل يؤثر على الـ Target:
+- **Reuse existing context.** لا تُعيد الـ Audit.
+- إذا تغيَّر الكود في الـ Target: أعِد الفحص للجزء المتغير فقط.
 
 ---
 
@@ -206,79 +181,74 @@ System Gap: NONE / POSSIBLE / CONFIRMED
 Routing Confidence: HIGH / MEDIUM / LOW
 ```
 
-- **HIGH** — Target محدد، نوع التغيير واضح.
-- **MEDIUM** — Target معقول لكن يمكن أن يُفسَّر بأكثر من طريقة.
-- **LOW** — Target غامض.
-
-إذا `LOW` أو Target مبهم: `Verdict = DISCUSS` + سؤال واحد محدد فقط.
-إذا `HIGH`: لا أسئلة إضافية — نفِّذ مباشرة.
+- **HIGH** — Target محدد، نوع التغيير واضح → نفِّذ مباشرة.
+- **MEDIUM** — يمكن تفسيره بأكثر من طريقة.
+- **LOW** → `Verdict = DISCUSS` + سؤال واحد محدد فقط.
 
 ---
 
 ## Impact Matrix (Template)
 
 ```
-Frontend:     YES / NO / INSPECT
-Backend:      YES / NO / INSPECT
-API Contract: YES / NO / INSPECT
-DB:           YES / NO / INSPECT
-Permissions:  YES / NO / INSPECT
-Navigation:   YES / NO / INSPECT
-Notifications:NOT NEEDED / NEEDED / INSPECT
-Mobile:       YES / NO / INSPECT
-Docs:         YES / NO / INSPECT
-Tests:        YES / NO / INSPECT
+Frontend:      YES / NO / INSPECT
+Backend:       YES / NO / INSPECT
+API Contract:  YES / NO / INSPECT
+DB:            YES / NO / INSPECT
+Permissions:   YES / NO / INSPECT
+Navigation:    YES / NO / INSPECT
+Notifications: NOT NEEDED / NEEDED / INSPECT
+Mobile:        YES / NO / INSPECT
+Docs:          YES / NO / INSPECT
+Tests:         YES / NO / INSPECT
 ```
 
 لا تُشغِّل Audit كامل لكل بند إذا النتيجة واضحة من الـ Scope.
+**الـ Output يكون قصيراً إذا المهمة بسيطة.** لا تملأ كل بند إذا الجواب N/A.
 
 ---
 
 ## Mobile / API-First Guard
 
-Web و Flutter في المستقبل كلاهما Frontend لنفس Backend / API / DB / Auth / Permissions.
-
 - إخفاء زر = UX فقط → Frontend.
-- منع صلاحية = Backend authority → لا Frontend-only security.
+- منع صلاحية = Backend authority — لا Frontend-only security (F6).
 
-أي تغيير يؤثر على API Shape → لاحظ "Mobile: INSPECT" في Impact Matrix.
+أي تغيير يؤثر على API Shape → لاحظ "Mobile: INSPECT".
 
 ---
 
 ## Notification Routing
 
-كل Feature change يُحدِّد:
 ```
 Notifications: NOT NEEDED / NEEDED / INSPECT
 ```
 
+- **Persistent / bell notifications** → Notification System (§19/§36 · ARCHITECTURE.md).
+- **Operational transient feedback** (toast/snackbar) → DS-FEEDBACK — دور مستقل تماماً.
+
 لا تفتح Notification System إلا إذا `NEEDED` أو `INSPECT`.
+لا تستخدم DS-FEEDBACK كـ delivery channel للإشعارات الدائمة.
 
 ---
 
 ## User Intent ≠ Implementation Method
 
-طلب صاحب المشروع يُحدِّد **الهدف** — لا يُلزِم بطريقة التنفيذ.
+طلب صاحب المشروع يُحدِّد الهدف — لا يُلزِم بطريقة التنفيذ.
 
-إذا طريقة التنفيذ المقترحة تخالف نظاماً قائماً أو يوجد حل Shared أفضل:
+إذا طريقة التنفيذ تخالف نظاماً قائماً أو يوجد حل Shared أفضل:
 ```
-Verdict: DISCUSS
+Verdict: DISCUSS — اشرح الحل الأفضل بجملة واحدة قبل التنفيذ.
 ```
-اشرح الحل الأفضل بجملة واحدة قبل التنفيذ.
-
-مثال: صاحب المشروع طلب Select محلي → النظام يملك DS-SEL → اقترح DS-SEL.
 
 ---
 
 ## Audit Mode / Execution Mode
 
-**AUDIT MODE** — يُستخدم عند طلب فحص Target:
+**AUDIT MODE** — عند طلب فحص Target:
 - ناتجه: Target + الموجود + Change Types + Governing Systems + Violations/Gaps.
 - لا تعديلات Runtime.
 
 **EXECUTION MODE** — بعد Audit موثوق:
 - لا يُعيد الـ Audit من الصفر.
-- يستخدم النتيجة الحالية.
 - يُحدِّد الملفات والعقود اللازمة فقط.
 - تنفيذ محدود ودقيق.
 
@@ -286,9 +256,7 @@ Verdict: DISCUSS
 
 ## No Auto-Fix
 
-CRS نفسه لا يُعدِّل Runtime تلقائياً لمجرد اكتشاف مشكلة.
-
-وظيفة CRS: Route · Inspect · Classify · Recommend · Verdict.
+CRS لا يُعدِّل Runtime تلقائياً. وظيفته: Route · Inspect · Classify · Recommend · Verdict.
 التنفيذ يحدث فقط ضمن Task مصرح به.
 
 ---
@@ -300,7 +268,7 @@ Existing contract + Runtime adoption only → لا docs update.
 Actual System Gap / Contract change       → update governing docs in same PR.
 ```
 
-لا Documentation Spam. القاعدة الكاملة: `ARCHITECTURE_FOUNDATION.md F12`.
+القاعدة الكاملة: `ARCHITECTURE_FOUNDATION.md F12`.
 
 ---
 
@@ -309,57 +277,27 @@ Actual System Gap / Contract change       → update governing docs in same PR.
 ```
 CHANGE ROUTE
 
-Target:
-[صفحة → عنصر → sub-element بأكبر دقة متاحة]
-
-Requested Change:
-[وصف مختصر]
-
-Change Type:
-[BUTTON / VISUAL / COLOR_ROLE / ...]
-
-Primary Owner:
-[DS-BTN / DS-COLOR / DS-FRM / ...]
-
-Supporting Owners:
-[أنظمة فقط إذا نوع التغيير يدخل نطاقها]
+Target:         [صفحة → عنصر → sub-element]
+Requested Change: [وصف مختصر]
+Change Type:    [BUTTON / VISUAL / ...]
+Primary Owner:  [from F31 / SYSTEMS_INDEX / F30 STOP]
+Supporting:     [فقط إذا تقاطع نوع التغيير فعلاً]
 
 Read:
 - [قسم محدد في النظام الحاكم]
-- [قسم في Supporting إذا لازم]
 
 Do Not Read:
 - [ما لا علاقة له بهذا الطلب]
 
 Impact:
-Frontend:      YES / NO / INSPECT
-Backend:       YES / NO / INSPECT
-API Contract:  YES / NO / INSPECT
-DB:            YES / NO / INSPECT
-Permissions:   YES / NO / INSPECT
-Navigation:    YES / NO / INSPECT
-Notifications: NOT NEEDED / NEEDED / INSPECT
-Mobile:        YES / NO / INSPECT
-Docs:          YES / NO / INSPECT
-Tests:         YES / NO / INSPECT
+Frontend/Backend/API Contract/DB/Permissions/Navigation/Notifications/Mobile/Docs/Tests
 
-Architectural Check:
-[PASS / أو وصف مشكلة محددة]
-
-System Gap:
-NONE / POSSIBLE / CONFIRMED [+ تفاصيل إذا وجدت]
-
-Routing Confidence:
-HIGH / MEDIUM / LOW
-
-Verdict:
-PROCEED / STOP / DISCUSS
-
-Next Action:
-AUDIT / EXECUTE / ASK ONE CLARIFICATION
+Architectural Check: PASS / [مشكلة محددة]
+System Gap:          NONE / POSSIBLE / CONFIRMED
+Routing Confidence:  HIGH / MEDIUM / LOW
+Verdict:             PROCEED / STOP / DISCUSS
+Next Action:         AUDIT / EXECUTE / ASK ONE CLARIFICATION
 ```
-
-**الـ Output يكون قصيراً إذا المهمة بسيطة.** لا تملأ كل بند إذا الجواب "N/A".
 
 ---
 
@@ -367,36 +305,24 @@ AUDIT / EXECUTE / ASK ONE CLARIFICATION
 
 CRS لا يُحوِّل الـ AI إلى منفذ أعمى.
 
-قبل التنفيذ، يجب على الـ AI إبداء رأيه إذا:
+أبدِ رأيك إذا:
 - يوجد حل معماري أفضل أو أضمن.
 - يوجد خطأ معماري أو System Gap.
 - يوجد خطر مستقبلي على API / Mobile / Permissions.
 - يوجد تعارض مع Shared System قائم.
 
-أما إذا لا يوجد شيء مهم: لا يستهلك الرصيد بعبارات عامة. ينفِّذ مباشرة.
+لا يوجد شيء مهم → لا تستهلك الرصيد. نفِّذ مباشرة.
 
 ---
 
 ## Cross-references
 
-| النظام | المرجع |
-|--------|--------|
-| ARCHITECTURE_FOUNDATION.md | F4 (Shared System First) · F31 (System Routing Before Implementation) |
-| docs/SYSTEMS_INDEX.md | فهرس 50+ نظام — المرجع الأول لتحديد Primary Owner |
-| docs/design-system/BUTTONS.md | DS-BTN — BUTTON Change Type |
-| docs/design-system/COLOR-SYSTEM.md | DS-COLOR — COLOR_ROLE Change Type |
-| docs/design-system/INPUT-FIELDS.md | DS-INP — INPUT Change Type |
-| docs/design-system/SELECT-PICKER.md | DS-SEL — SELECT Change Type |
-| docs/design-system/DATE-TIME-FIELDS.md | DS-DATE — DATE Change Type |
-| docs/design-system/OVERLAY-SYSTEM.md | DS-OVL — OVERLAY Change Type |
-| docs/design-system/FEEDBACK-SYSTEM.md | DS-FEEDBACK — FEEDBACK Change Type |
-| docs/design-system/FORM-LIFECYCLE.md | DS-FRM — FORM Change Type |
-| docs/design-system/VALIDATION-ERRORS.md | DS-VAL — VALIDATION Change Type |
-| docs/design-system/NAVIGATION.md | DS-NAV — NAVIGATION Change Type |
-| docs/design-system/VIEWER-MODES.md | DS-VM — PERMISSION Change Type |
-| docs/contracts/API-MUTATIONS-ERRORS.md | API-MUT — API Change Type |
+`ARCHITECTURE_FOUNDATION.md` — F4 · F30 · F31 (Constitutional Source of Truth)
+`docs/SYSTEMS_INDEX.md` — الفهرس الرسمي لتحديد Primary Owner
+
+الـ Routing Protocols التفصيلية داخل كل نظام (BTN-00 / CLR-00 / OVL-00 / …) هي المرجع الحاكم — ليس هذا الملف.
 
 ---
 
-*أُنشئ في PR claude/crs-change-routing-system — 2026-07-29*
+*أُنشئ في PR #526 — 2026-07-29*
 *Status: ✅ Architecture Documentation*
