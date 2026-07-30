@@ -557,7 +557,7 @@ feature CSS:
 | الرمز | القيمة / المرجع | الدور |
 |-------|----------------|-------|
 | `--ep-danger` | `var(--color-status-danger, #f87171)` | حالة خطأ → Semantic token |
-| `--ep-label` | `var(--color-text-muted, var(--t3, #6b7686))` | تسمية حقل → Semantic token |
+| `--ep-label` | `var(--color-text-secondary, var(--t2, #9aa5b4))` | تسمية حقل وظيفي → Semantic token |
 | `--ep-cancel-text` | `var(--color-text-secondary, var(--t2, #9aa5b4))` | نص زر إلغاء → Semantic token |
 | `--ep-border-focus` | `var(--color-border-focus, var(--color-brand-primary, #00c896))` | تركيز الحقل → Semantic token |
 | `--ep-save-from` | `var(--color-brand-primary, #00c896)` | حدود ونص زر الحفظ → Semantic token (DS-BTN PR #525) |
