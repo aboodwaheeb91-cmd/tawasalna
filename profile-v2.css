@@ -631,7 +631,7 @@ body.preview-guest       .owner-only { display: none !important; }
    --ep-input-bg:       input/select/textarea background (.05 — Tier 3 primitive direct;
                        NOT via --color-surface-input which is .06 — direct value preserves zero visual change)
    --ep-danger:         error text colour  (→ --color-status-danger)
-   --ep-label:          field label colour (→ --color-text-muted)
+   --ep-label:          field label colour (→ --color-text-secondary)
    --ep-cancel-text:         cancel button text (→ --color-text-secondary)
    --ep-cancel-hover-bg:     cancel button hover bg (Local Color Role — CLR-15 Tier 3)
    --ep-cancel-hover-border: cancel button hover border alpha (Local Color Role — CLR-15 Tier 3)
@@ -659,7 +659,7 @@ body.preview-guest       .owner-only { display: none !important; }
   --ep-border-focus:   var(--color-border-focus, var(--color-brand-primary, #00c896));
   --ep-input-bg:       rgba(255,255,255,.05);
   --ep-danger:         var(--color-status-danger, #f87171);
-  --ep-label:          var(--color-text-muted, var(--t3, #6b7686));
+  --ep-label:          var(--color-text-secondary, var(--t2, #9aa5b4));
   --ep-cancel-text:    var(--color-text-secondary, var(--t2, #9aa5b4));
   --ep-save-from:      var(--color-brand-primary, #00c896);
   --ep-text-primary:   var(--color-text-primary, var(--t1,#fff));
@@ -729,6 +729,7 @@ body.preview-guest       .owner-only { display: none !important; }
   caret-color:var(--ep-text-primary);
 }
 .ep-textarea { resize:vertical; min-height:80px; line-height:1.7; }
+#epShortBio { resize:none; }
 .ep-row2 { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
 .ep-footer {
   display:flex; gap:10px; padding:14px 20px;

@@ -2023,6 +2023,70 @@ def test_AN_field_dom_order():
         else fail(label, f'epSaveBtn pos={save_pos} is NOT before epCancelBtn pos={cancel_pos} in .ep-footer')
 
 
+# ── AO: Bio Label + #epShortBio resize + --ep-label Color Role (PR #527) ─────
+
+def test_AO_bio_label_resize_color_role():
+    print('\n\033[1m── AO: Bio Label + resize:none + --ep-label Color Role (PR #527) ──\033[0m')
+    html_src  = _read('profile-showcase.html')
+    css_src   = _read('profile-v2.css')
+    inp_doc   = _read('docs/design-system/INPUT-FIELDS.md')
+    color_doc = _read('docs/design-system/COLOR-SYSTEM.md')
+    arch_src  = _read('ARCHITECTURE.md')
+
+    label = 'AO1: bio label text is "نبذة قصيرة" (exact)'
+    ok(label) if '<label class="ep-label" for="epShortBio">نبذة قصيرة</label>' in html_src \
+        else fail(label, '"نبذة قصيرة" label not found verbatim in profile-showcase.html')
+
+    label = 'AO2: old "نبذة الهيدر" text no longer in bio label'
+    ok(label) if 'نبذة الهيدر' not in html_src \
+        else fail(label, '"نبذة الهيدر" still present in profile-showcase.html')
+
+    label = 'AO3: old suffix "النص القصير تحت الاسم" no longer in bio label'
+    ok(label) if 'النص القصير تحت الاسم' not in html_src \
+        else fail(label, '"النص القصير تحت الاسم" still present in profile-showcase.html')
+
+    label = 'AO4: #epShortBio { resize:none; } present in profile-v2.css'
+    ok(label) if '#epShortBio' in css_src and 'resize:none' in css_src \
+        else fail(label, '#epShortBio resize:none rule missing from profile-v2.css')
+
+    label = 'AO5: global .ep-textarea still has resize:vertical (unchanged)'
+    ok(label) if '.ep-textarea { resize:vertical' in css_src \
+        else fail(label, '.ep-textarea resize:vertical rule was removed — must remain')
+
+    label = 'AO6: --ep-label uses --color-text-secondary in profile-v2.css'
+    ok(label) if '--ep-label:          var(--color-text-secondary' in css_src or \
+                 '--ep-label: var(--color-text-secondary' in css_src \
+        else fail(label, '--ep-label does not reference --color-text-secondary in profile-v2.css')
+
+    label = 'AO7: --ep-label no longer uses --color-text-muted in profile-v2.css'
+    import re as _re_ao7
+    _muted_in_ep_label = _re_ao7.search(r'--ep-label\s*:\s*var\(--color-text-muted', css_src)
+    ok(label) if not _muted_in_ep_label \
+        else fail(label, '--ep-label still references --color-text-muted in profile-v2.css')
+
+    label = 'AO8: INP-06 documents functional labels → --color-text-secondary'
+    ok(label) if '--color-text-secondary' in inp_doc and 'INP-06' in inp_doc \
+        else fail(label, 'INP-06 Color Role contract (--color-text-secondary) missing from INPUT-FIELDS.md')
+
+    label = 'AO9: INP-06 documents meta/suffix → --color-text-muted permitted'
+    ok(label) if '--color-text-muted' in inp_doc \
+        else fail(label, 'INP-06 meta suffix rule (--color-text-muted) missing from INPUT-FIELDS.md')
+
+    label = 'AO10: COLOR-SYSTEM.md --ep-label row references --color-text-secondary'
+    ok(label) if '--ep-label' in color_doc and '--color-text-secondary' in \
+                 color_doc[color_doc.find('--ep-label'):color_doc.find('--ep-label')+100] \
+        else fail(label, '--ep-label table row in COLOR-SYSTEM.md does not reference --color-text-secondary')
+
+    label = 'AO11: ARCHITECTURE.md --ep-label references --color-text-secondary'
+    ok(label) if '--ep-label' in arch_src and '--color-text-secondary' in \
+                 arch_src[arch_src.find('--ep-label'):arch_src.find('--ep-label')+100] \
+        else fail(label, '--ep-label in ARCHITECTURE.md does not reference --color-text-secondary')
+
+    label = 'AO12: .ep-cancel rules not changed (cancel button out of scope)'
+    ok(label) if '.ep-cancel' in css_src \
+        else fail(label, '.ep-cancel rules missing — may have been accidentally removed')
+
+
 # ── Runner ────────────────────────────────────────────────────────────────────
 
 if __name__ == '__main__':
@@ -2068,6 +2132,7 @@ if __name__ == '__main__':
     test_AL_round5_corrections()
     test_AM_docs_final_corrections()
     test_AN_field_dom_order()
+    test_AO_bio_label_resize_color_role()
 
     print(f'\n\033[1m── {PASS} passed, {FAIL} failed ──\033[0m')
     if ERRORS:

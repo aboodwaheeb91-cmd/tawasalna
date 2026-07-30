@@ -2355,7 +2355,7 @@ DOB selects: aria-labelledby="lbl-dob" (group label pattern)
 Scoped --ep-* domain aliases in profile-v2.css (Tier 3 — CLR-15):
   Semantic references:
     --ep-danger:       var(--color-status-danger, #f87171)
-    --ep-label:        var(--color-text-muted, ...)
+    --ep-label:        var(--color-text-secondary, ...)  ← Color Role fix (PR #527)
     --ep-border-focus: var(--color-border-focus, ...)
     --ep-save-from:    var(--color-brand-primary, #00c896)
     --ep-cancel-text:  var(--color-text-secondary, ...)

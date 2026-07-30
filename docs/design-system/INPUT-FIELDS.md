@@ -205,6 +205,17 @@ Disabled > Error > Focus > Filled/Normal
 - يُكتب بالعربية، يعبِّر عن محتوى الحقل (لا عن الإجراء)
 - ✅ `"الاسم الكامل"` — ❌ `"أدخل اسمك الكامل"`
 
+#### INP-06 Label Color Role Contract
+
+| نوع التسمية | الرمز الصحيح |
+|-------------|-------------|
+| تسمية حقل وظيفية مرئية | `--color-text-secondary` |
+| ملاحظة meta أو suffix اختياري | `--color-text-muted` مسموح |
+
+- DS-INP يملك متى وكيف يُطبَّق الدور — DS-COLOR يملك قيمة الـ Semantic token
+- Domain alias مسموح (`--ep-label: var(--color-text-secondary, ...)`) إذا كان مرتبطاً بالدور الصحيح
+- **ممنوع:** لون خام أو درجة opacity يدوية لتسميات الحقول الوظيفية
+
 ### Placeholder
 
 - **مكمِّل** للـ Label — لا يُستخدم **بديلاً** عنه
