@@ -17,37 +17,6 @@
   function f(id){ return document.getElementById(id); }
   function fv(id){ return ((f(id)||{}).value||'').trim(); }
 
-  // ── Country → Arabic name map (for building location string) ──
-  var EXP_COUNTRIES = {
-    JO:'الأردن', SA:'السعودية', AE:'الإمارات', KW:'الكويت',
-    QA:'قطر',    BH:'البحرين', OM:'عُمان',    EG:'مصر',
-    IQ:'العراق', SY:'سوريا',  LB:'لبنان',    PS:'فلسطين',
-    YE:'اليمن',  MA:'المغرب', DZ:'الجزائر',  TN:'تونس',
-    LY:'ليبيا',  SD:'السودان'
-  };
-
-  // ── City lists by country code ──
-  var EXP_CITIES = {
-    JO:['عمان','إربد','الزرقاء','العقبة','السلط','مادبا','الكرك','معان','جرش','عجلون','الطفيلة'],
-    SA:['الرياض','جدة','مكة المكرمة','المدينة المنورة','الدمام','الخبر','الطائف','أبها','تبوك','بريدة'],
-    AE:['دبي','أبوظبي','الشارقة','عجمان','رأس الخيمة','الفجيرة','أم القيوين','العين'],
-    KW:['مدينة الكويت','حولي','الفروانية','الأحمدي','الجهراء','مبارك الكبير'],
-    QA:['الدوحة','الريان','الوكرة','أم صلال','الخور'],
-    BH:['المنامة','المحرق','الرفاع','مدينة عيسى','مدينة حمد'],
-    OM:['مسقط','صلالة','نزوى','صحار','السيب','مطرح'],
-    EG:['القاهرة','الإسكندرية','الجيزة','شرم الشيخ','الأقصر','أسوان','طنطا','المنصورة','بورسعيد'],
-    IQ:['بغداد','البصرة','الموصل','أربيل','كربلاء','النجف','السليمانية','كركوك'],
-    SY:['دمشق','حلب','حمص','اللاذقية','حماة','دير الزور'],
-    LB:['بيروت','طرابلس','صيدا','صور','جونية','زحلة'],
-    PS:['رام الله','القدس','غزة','نابلس','الخليل','جنين','أريحا','بيت لحم'],
-    YE:['صنعاء','عدن','تعز','الحديدة','إب','ذمار'],
-    LY:['طرابلس','بنغازي','مصراتة','الزاوية','البيضاء'],
-    TN:['تونس','صفاقس','سوسة','بنزرت','قابس','القيروان'],
-    DZ:['الجزائر','وهران','قسنطينة','عنابة','سطيف','تلمسان'],
-    MA:['الرباط','الدار البيضاء','فاس','مراكش','مكناس','أكادير','طنجة'],
-    SD:['الخرطوم','أم درمان','بورتسودان','كسلا','الأبيض']
-  };
-
   var CUR_YEAR = new Date().getFullYear();
 
   // ── Populate start year select (newest first) ──
@@ -92,23 +61,23 @@
     var cityWrap= f('exCityWrap');
     var cityEl  = f('exCity');
     if(!cityEl) return;
-    var cities = EXP_CITIES[cc] || [];
-    if(!cities.length){
+    if(!cc || !window.TW || !window.TW.fillCities){
       if(cityWrap) cityWrap.style.display = 'none';
       cityEl.innerHTML = '<option value="">— اختر المدينة —</option>';
       return;
     }
-    cityEl.innerHTML = '<option value="">— اختر المدينة —</option>';
-    cities.forEach(function(c){
-      var o = document.createElement('option');
-      o.value = c; o.text = c;
-      if(selectedCity && c === selectedCity) o.selected = true;
-      cityEl.appendChild(o);
-    });
-    if(cityWrap) cityWrap.style.display = 'block';
+    TW.fillCities(cityEl, cc, selectedCity || '');
+    var hasOptions = cityEl.options.length > 1;
+    if(cityWrap) cityWrap.style.display = hasOptions ? 'block' : 'none';
+    if(!hasOptions) cityEl.innerHTML = '<option value="">— اختر المدينة —</option>';
+    if(window.scSelectInit) scSelectInit();
   }
 
   var countrySel = f('exCountry');
+  if(window.TW && window.TW.fillCountries){
+    TW.fillCountries(countrySel, '— اختر الدولة —', {valueMode:'code', withFlags:true, force:true});
+    if(window.scSelectInit) scSelectInit();
+  }
   if(countrySel) countrySel.addEventListener('change', function(){ _expLoadCities(''); });
 
   // ── is_current toggle ──
@@ -125,7 +94,7 @@
     var cc   = fv('exCountry');
     var city = fv('exCity');
     if(!cc) return null;
-    var name = EXP_COUNTRIES[cc] || cc;
+    var name = (window.TW && window.TW.countryName) ? (TW.countryName(cc) || cc) : cc;
     return city ? (name + ' - ' + city) : name;
   }
 
@@ -135,11 +104,9 @@
     var parts = loc.split(' - ');
     var countryName = parts[0].trim();
     var cityName    = parts.length > 1 ? parts[1].trim() : '';
-    var code = '';
-    for(var cc in EXP_COUNTRIES){
-      if(EXP_COUNTRIES[cc] === countryName){ code = cc; break; }
-    }
+    var code = (window.TW && window.TW.countryCode) ? (TW.countryCode(countryName) || '') : '';
     if(f('exCountry')) f('exCountry').value = code;
+    if(window.scSelectInit) scSelectInit();
     _expLoadCities(cityName);
   }
 
@@ -150,6 +117,7 @@
     if(f('exDesc'))    f('exDesc').value    = '';
     if(f('exStart'))   f('exStart').value   = '';
     if(f('exCountry')) f('exCountry').value = '';
+    if(window.scSelectInit) scSelectInit();
     var cw = f('exCityWrap'); if(cw) cw.style.display = 'none';
     if(f('exCity'))    f('exCity').innerHTML = '<option value="">— اختر المدينة —</option>';
     if(curChk)         curChk.checked = false;
