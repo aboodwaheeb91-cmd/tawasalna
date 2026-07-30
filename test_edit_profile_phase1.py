@@ -2086,6 +2086,18 @@ def test_AO_bio_label_resize_color_role():
     ok(label) if '.ep-cancel' in css_src \
         else fail(label, '.ep-cancel rules missing — may have been accidentally removed')
 
+    label = 'AO13: profile-v2.css link exists in profile-showcase.html'
+    ok(label) if '/static/profile-v2.css' in html_src \
+        else fail(label, '/static/profile-v2.css link not found in profile-showcase.html')
+
+    label = 'AO13b: CSS version query is no longer compl-v6'
+    ok(label) if 'profile-v2.css?v=compl-v6' not in html_src \
+        else fail(label, 'CSS link still has old ?v=compl-v6 — cache bust not applied')
+
+    label = 'AO13c: CSS version query is ep-bio-v1'
+    ok(label) if 'profile-v2.css?v=ep-bio-v1' in html_src \
+        else fail(label, 'CSS link does not have ?v=ep-bio-v1 in profile-showcase.html')
+
 
 # ── Runner ────────────────────────────────────────────────────────────────────
 
