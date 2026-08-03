@@ -920,15 +920,46 @@ import unittest as _unittest_l
 from datetime import date as _date_l, timedelta as _td_l
 
 
+class _FakeConn:
+    """Minimal fake DB connection for update_profile() mock tests.
+
+    Returns appropriate row lists based on SQL content:
+    - SELECT id FROM profiles  → [(1,)]  (profile row exists → trigger UPDATE path)
+    - UPDATE … RETURNING id    → [(1,)]  (UPDATE succeeded)
+    - Everything else          → []      (BEGIN / COMMIT / ROLLBACK / users queries)
+    """
+    def __init__(self):
+        self.columns = []
+        self._sqls = []
+
+    def run(self, sql, **kw):
+        normalized = sql.strip()
+        self._sqls.append(normalized)
+        if "RETURNING id" in normalized:
+            self.columns = [{"name": "id"}]
+            return [(1,)]
+        if "SELECT id FROM profiles" in normalized:
+            self.columns = [{"name": "id"}]
+            return [(1,)]
+        if "SELECT tw_id FROM users" in normalized:
+            self.columns = [{"name": "tw_id"}]
+            return []
+        self.columns = []
+        return []
+
+
 class TestDerivedAge(_unittest_l.TestCase):
     """Group L — static tests (no DB, no server).
 
     L1-L8:   calculate_age_from_dob() unit tests
     L9-L14:  project_public_profile() — age present, dob absent
     L15-L18: project_owner_profile()  — dob present, age added
-    L19-L22: update_profile() canonical response — age injected when dob updated
+    L19-L22: update_profile() real function + mocked DB — age injected when dob updated
     L23-L32: Frontend contract static checks (render.js / edit.js source)
     L33-L40: Privacy regression — dob never leaks in public projection
+    L41-L48: Edge case date inputs for calculate_age_from_dob
+    L49-L52: Documentation consistency checks
+    L53-L54: get_public_profile() pipeline structural checks
     """
 
     def setUp(self):
@@ -1045,40 +1076,69 @@ class TestDerivedAge(_unittest_l.TestCase):
         result = self._auth.project_owner_profile(raw)
         self.assertNotIn("age", result)
 
-    # ── L19-L22: update_profile canonical response ──────────────
+    # ── L19-L22: update_profile() real function + mocked DB ─────────────────────
 
-    def test_l19_update_profile_response_age_matches_dob(self):
+    def test_l19_update_profile_with_dob_returns_age(self):
+        """Real update_profile() with mocked DB — dob update returns computed age."""
+        from unittest.mock import patch
         today = _date_l.today()
-        birth = today.replace(year=today.year - 25)
-        # Simulate the canonical response builder
-        fields = {"dob": birth.isoformat(), "headline": "test"}
-        resp = {"id": 1, "updated": True}
-        resp.update(fields)
-        resp["age"] = self._auth.calculate_age_from_dob(fields.get("dob"))
+        try:
+            dob_str = today.replace(year=today.year - 25).isoformat()
+        except ValueError:
+            self.skipTest("Cannot construct dob 25 years ago (Feb 29 edge case)")
+        fake = _FakeConn()
+        with patch.object(self._auth, 'get_conn', return_value=fake), \
+             patch.object(self._auth, 'release_conn'), \
+             patch.object(self._auth, '_cache_del'):
+            resp = self._auth.update_profile(99, {"dob": dob_str, "headline": "test"}, user_type="emp")
+        self.assertIn("age", resp)
         self.assertEqual(resp["age"], 25)
+        self.assertNotIn("password_hash", resp)
 
-    def test_l20_update_profile_response_no_age_when_no_dob_change(self):
-        fields = {"headline": "test"}
-        resp = {"id": 1, "updated": True}
-        resp.update(fields)
-        if "dob" in fields:
-            resp["age"] = self._auth.calculate_age_from_dob(fields.get("dob"))
+    def test_l20_update_profile_without_dob_has_no_age(self):
+        """Real update_profile() with mocked DB — headline-only update returns no age."""
+        from unittest.mock import patch
+        fake = _FakeConn()
+        with patch.object(self._auth, 'get_conn', return_value=fake), \
+             patch.object(self._auth, 'release_conn'), \
+             patch.object(self._auth, '_cache_del'):
+            resp = self._auth.update_profile(99, {"headline": "test"}, user_type="emp")
         self.assertNotIn("age", resp)
+        self.assertNotIn("dob", resp)
 
-    def test_l21_update_profile_age_none_when_dob_cleared(self):
-        fields = {"dob": None}
-        resp = {"id": 1, "updated": True}
-        resp.update(fields)
-        if "dob" in fields:
-            resp["age"] = self._auth.calculate_age_from_dob(fields.get("dob"))
-        self.assertIsNone(resp.get("age"))
-
-    def test_l22_update_profile_age_correct_for_exact_birthday_today(self):
+    def test_l21_update_profile_sql_never_sets_age_column(self):
+        """Real update_profile() — UPDATE SQL must not contain 'age' in the SET clause."""
+        from unittest.mock import patch
+        import re as _re
         today = _date_l.today()
-        birth = today.replace(year=today.year - 20)
-        fields = {"dob": birth.isoformat()}
-        age = self._auth.calculate_age_from_dob(fields["dob"])
-        self.assertEqual(age, 20)
+        try:
+            dob_str = today.replace(year=today.year - 25).isoformat()
+        except ValueError:
+            self.skipTest("Cannot construct dob 25 years ago (Feb 29 edge case)")
+        fake = _FakeConn()
+        with patch.object(self._auth, 'get_conn', return_value=fake), \
+             patch.object(self._auth, 'release_conn'), \
+             patch.object(self._auth, '_cache_del'):
+            self._auth.update_profile(99, {"dob": dob_str, "headline": "test"}, user_type="emp")
+        update_sqls = [s for s in fake._sqls if s.upper().startswith("UPDATE PROFILES")]
+        self.assertTrue(update_sqls, "No UPDATE profiles SQL was executed")
+        for sql in update_sqls:
+            m = _re.search(r'SET\s+(.*?)\s+WHERE', sql, _re.IGNORECASE | _re.DOTALL)
+            if m:
+                set_clause = m.group(1)
+                self.assertNotIn("age", set_clause.lower(),
+                                 f"'age' found in UPDATE SET clause — age is derived, never stored: {set_clause}")
+
+    def test_l22_update_profile_clears_dob_returns_none_age(self):
+        """Real update_profile() — clearing dob (None) returns age=None in response."""
+        from unittest.mock import patch
+        fake = _FakeConn()
+        with patch.object(self._auth, 'get_conn', return_value=fake), \
+             patch.object(self._auth, 'release_conn'), \
+             patch.object(self._auth, '_cache_del'):
+            resp = self._auth.update_profile(99, {"dob": None}, user_type="emp")
+        self.assertIsNone(resp.get("age"),
+                          "Clearing dob must produce age=None (calculate_age_from_dob(None) returns None)")
 
     # ── L23-L32: Frontend static checks ─────────────────────────
 
@@ -1167,12 +1227,22 @@ class TestDerivedAge(_unittest_l.TestCase):
         result = self._auth.project_public_profile(raw)
         self.assertNotIn("password_hash", result)
 
-    def test_l38_age_not_stored_in_db_column(self):
-        # age is a derived field — must NOT appear in _PUBLIC_PROFILE_FIELDS allowlist
-        # (it is computed dynamically, not fetched from DB)
+    def test_l38_age_is_derived_not_raw_allowlisted(self):
+        # age must be COMPUTED at projection time, not passed through _PUBLIC_PROFILE_FIELDS.
+        # Proof: raw dict with age=999 → projected age is computed from dob (25), not 999.
         from auth import _PUBLIC_PROFILE_FIELDS
+        today = _date_l.today()
+        try:
+            birth = today.replace(year=today.year - 25)
+        except ValueError:
+            self.skipTest("Cannot construct birth date (Feb 29 edge case)")
+        raw = {"tw_id": "U001", "full_name": "Test", "age": 999, "dob": birth.isoformat()}
+        result = self._auth.project_public_profile(raw)
+        self.assertEqual(result.get("age"), 25,
+                         "age in public profile must be computed from dob (25), not passed through raw value (999)")
+        self.assertNotIn("dob", result)
         self.assertNotIn("age", _PUBLIC_PROFILE_FIELDS,
-                         "age must NOT be in the DB allowlist — it is derived at projection time")
+                         "age must NOT be in _PUBLIC_PROFILE_FIELDS — it is injected after the allowlist filter")
 
     def test_l39_two_profiles_different_dob_get_correct_ages(self):
         today = _date_l.today()
@@ -1193,9 +1263,160 @@ class TestDerivedAge(_unittest_l.TestCase):
         own = self._auth.project_owner_profile(raw)
         self.assertEqual(pub.get("age"), own.get("age"))
 
+    # ── L41-L48: Edge case date inputs ──────────────────────────
+
+    def test_l41_birthday_today_gives_correct_age(self):
+        """Birthday is exactly today → age is exactly N years."""
+        from datetime import date as _d
+        today = _d.today()
+        try:
+            birth = today.replace(year=today.year - 20)
+        except ValueError:
+            self.skipTest("Feb 29 leap day today — cannot construct test date")
+        result = self._auth.calculate_age_from_dob(birth)
+        self.assertEqual(result, 20)
+
+    def test_l42_birthday_tomorrow_gives_age_minus_one(self):
+        """Birthday is tomorrow → age is N-1 (birthday not yet occurred this year)."""
+        from datetime import date as _d, timedelta as _td
+        tomorrow = _d.today() + _td(days=1)
+        try:
+            birth = tomorrow.replace(year=tomorrow.year - 30)
+        except ValueError:
+            self.skipTest(f"Cannot construct date 30 years before {tomorrow}")
+        result = self._auth.calculate_age_from_dob(birth.isoformat())
+        self.assertEqual(result, 29)
+
+    def test_l43_birthday_already_passed_this_year_gives_correct_age(self):
+        """Birthday was yesterday → age is N (birthday already occurred this year)."""
+        from datetime import date as _d, timedelta as _td
+        yesterday = _d.today() - _td(days=1)
+        try:
+            birth = yesterday.replace(year=yesterday.year - 30)
+        except ValueError:
+            self.skipTest(f"Cannot construct date 30 years before {yesterday}")
+        result = self._auth.calculate_age_from_dob(birth.isoformat())
+        self.assertEqual(result, 30)
+
+    def test_l44_feb29_leap_year_dob_does_not_crash(self):
+        """Feb 29 leap year DOB — must not raise regardless of today's date."""
+        result = self._auth.calculate_age_from_dob("2000-02-29")
+        self.assertTrue(result is None or isinstance(result, int),
+                        "Feb 29 leap year DOB must not raise — must return int or None")
+
+    def test_l45_datetime_object_input(self):
+        """datetime object input — must be accepted and converted via .date()."""
+        from datetime import datetime as _dt
+        born = _dt(1991, 11, 10, 0, 0, 0)
+        result = self._auth.calculate_age_from_dob(born)
+        self.assertIsInstance(result, int)
+        self.assertGreaterEqual(result, 15)
+
+    def test_l46_date_object_input(self):
+        """date object input — must be accepted directly."""
+        from datetime import date as _d
+        born = _d(1991, 11, 10)
+        result = self._auth.calculate_age_from_dob(born)
+        self.assertIsInstance(result, int)
+        self.assertGreaterEqual(result, 15)
+
+    def test_l47_iso_datetime_string(self):
+        """ISO datetime string (with time component) — must parse via dob[:10]."""
+        result = self._auth.calculate_age_from_dob("1991-11-10T00:00:00")
+        self.assertIsInstance(result, int)
+        self.assertGreaterEqual(result, 15)
+
+    def test_l48_invalid_type_int_returns_none(self):
+        """Non-date type (int) — must return None, not raise."""
+        result = self._auth.calculate_age_from_dob(12345)
+        self.assertIsNone(result)
+
+    # ── L49-L52: Documentation consistency checks ────────────────
+
+    def test_l49_tier1_docs_do_not_list_verify_request_as_returned(self):
+        """verify_request must not be in _PUBLIC_PROFILE_FIELDS or listed as a returned Tier 1 field.
+
+        It is acceptable — and correct — for it to appear in a 'Never in Tier 1' exclusion note.
+        """
+        import re as _re
+        from auth import _PUBLIC_PROFILE_FIELDS
+        # Definitive runtime check
+        self.assertNotIn("verify_request", _PUBLIC_PROFILE_FIELDS,
+                         "verify_request must not be in _PUBLIC_PROFILE_FIELDS — it is owner-only")
+        with open("docs/security/PROFILE-DATA-VISIBILITY.md", encoding="utf-8") as f:
+            src = f.read()
+        t1_m = _re.search(r'### Tier 1.*?(?=### Tier 2)', src, _re.DOTALL)
+        self.assertIsNotNone(t1_m, "Tier 1 section not found in PROFILE-DATA-VISIBILITY.md")
+        t1_text = t1_m.group(0)
+        if "verify_request" in t1_text:
+            # verify_request may only appear inside a "Never" exclusion clause
+            self.assertIn("Never in Tier 1", t1_text,
+                          "verify_request appears in Tier 1 without a 'Never in Tier 1' exclusion guard")
+            never_idx = t1_text.find("Never in Tier 1")
+            self.assertIn("verify_request", t1_text[never_idx:],
+                          "verify_request appears in Tier 1 positive fields section — must only be in the 'Never' list")
+
+    def test_l50_tier3_docs_match_kyc_owner_fields(self):
+        """Tier 3 Fields: line must contain exactly _KYC_OWNER_FIELDS; forbidden fields not in Fields: line.
+
+        kyc_status / docs_submitted may appear in an explicit exclusion note — that is correct
+        documentation. They must NOT appear as listed returned fields.
+        """
+        import re as _re
+        from auth import _KYC_OWNER_FIELDS
+        with open("docs/security/PROFILE-DATA-VISIBILITY.md", encoding="utf-8") as f:
+            src = f.read()
+        t3_m = _re.search(r'### Tier 3.*?(?=### Tier 4)', src, _re.DOTALL)
+        self.assertIsNotNone(t3_m, "Tier 3 section not found in PROFILE-DATA-VISIBILITY.md")
+        t3_text = t3_m.group(0)
+        # All real KYC fields must appear in the section
+        for field in _KYC_OWNER_FIELDS:
+            self.assertIn(field, t3_text,
+                          f"'{field}' from _KYC_OWNER_FIELDS missing from Tier 3 documentation")
+        # Forbidden fields must NOT appear in the 'Fields:' positive list
+        fields_line_m = _re.search(r'Fields:\s*(.*)', t3_text)
+        if fields_line_m:
+            fields_line = fields_line_m.group(1)
+            for forbidden in ("kyc_status", "docs_submitted"):
+                self.assertNotIn(f"`{forbidden}`", fields_line,
+                                 f"'{forbidden}' must not appear in Tier 3 Fields: line — not in _KYC_OWNER_FIELDS")
+
+    def test_l51_docs_use_langs_not_languages(self):
+        """PROFILE-DATA-VISIBILITY.md must use langs[] not languages[] (matches runtime key)."""
+        with open("docs/security/PROFILE-DATA-VISIBILITY.md", encoding="utf-8") as f:
+            src = f.read()
+        self.assertNotIn("languages[]", src,
+                         "docs must use langs[] not languages[] — runtime JSON key is langs")
+
+    def test_l52_render_js_comment_accurate_about_owner_dob(self):
+        """render.js must not claim dob is absent from owner responses — dob IS in Tier 2."""
+        with open("profile-v2.render.js", encoding="utf-8") as f:
+            src = f.read()
+        self.assertNotIn(
+            "dob is never included in public or owner responses",
+            src,
+            "render.js has wrong comment — dob IS present in owner full response (Tier 2)"
+        )
+
+    # ── L53-L54: get_public_profile() pipeline structural checks ──
+
+    def test_l53_get_public_profile_sql_fetches_dob(self):
+        """get_public_profile() SQL must include p.dob — proof dob is available for age derivation."""
+        import inspect
+        src = inspect.getsource(self._auth.get_public_profile)
+        self.assertIn("p.dob", src,
+                      "get_public_profile SQL must fetch p.dob to derive age at the projection boundary")
+
+    def test_l54_get_public_profile_returns_through_projection(self):
+        """get_public_profile() must return via project_public_profile() — never raw dict."""
+        import inspect
+        src = inspect.getsource(self._auth.get_public_profile)
+        self.assertIn("return project_public_profile(", src,
+                      "get_public_profile must RETURN the result of project_public_profile — not bypass it")
+
 
 def _run_group_l():
-    print("\n[L] Derived Age — calculate_age_from_dob + projection static tests")
+    print("\n[L] Derived Age — calculate_age_from_dob + projection + edge cases + docs consistency (L1-L54)")
     suite = _unittest_l.TestLoader().loadTestsFromTestCase(TestDerivedAge)
     runner = _unittest_l.TextTestRunner(stream=open(os.devnull, 'w'), verbosity=0)
     result = runner.run(suite)

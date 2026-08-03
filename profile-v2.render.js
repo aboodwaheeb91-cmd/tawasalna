@@ -411,10 +411,12 @@ window._buildLocText = function(country, city, fallback){
 };
 
 // ── Derived-age helper — uses backend-computed age, never recomputes from dob ──
+// age is absent from PUBLIC responses (derived only); dob is present in OWNER FULL responses.
+// This function is called from renderProfile() (public path) and applyCanonicalProfile() (owner path).
 window._renderProfileAge = function(age) {
   var ageEl = document.getElementById('scAge');
   if (!ageEl) return;
-  if (typeof age === 'number' && age > 0) {
+  if (Number.isInteger(age) && age >= 15 && age <= 110) {
     ageEl.innerHTML = '<i data-lucide="cake" class="ico-sm"></i> ' + age + ' سنة';
     ageEl.style.display = 'flex';
   } else {
@@ -501,7 +503,7 @@ window.renderProfile = function renderProfile(res){
     }
   }
 
-  // Age — backend-derived (dob is never included in public or owner responses as a computable field)
+  // Age — backend-derived integer from dob; absent from public responses; present in owner full response alongside dob
   _renderProfileAge(p.age != null ? p.age : null);
 
   // Cover image — use cover_url from API if available, else keep CSS default

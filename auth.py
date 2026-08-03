@@ -1235,21 +1235,32 @@ _DOB_MIN_AGE  = 15
 
 
 def calculate_age_from_dob(dob) -> 'int | None':
-    """Derive integer age from a date, ISO date-string, or datetime.
+    """Derive integer age from a date object, ISO date-string, or datetime object.
 
-    Returns None for: missing dob, unparseable value, future date,
-    year before _DOB_MIN_YEAR, or age below _DOB_MIN_AGE.
+    Accepted input types:
+      - str             → ISO date string; only dob[:10] is parsed (e.g. "1991-11-10" or "1991-11-10T00:00:00")
+      - datetime.date   → used directly
+      - datetime        → .date() is called to extract the date component
+      - anything else   → None (silent reject — not a programming error)
 
-    Calendar-accurate: subtracts 1 when the birthday has not yet occurred
-    in the current year (never divides milliseconds by 365.25).
+    Returns None for: missing/falsy input, unparseable string, future date,
+    year before _DOB_MIN_YEAR, or computed age below _DOB_MIN_AGE.
+
+    Calendar contract: uses date.today() (local system date, not UTC — correct for
+    age calculation which is calendar-date-based, not clock-time-based).
+    Subtracts 1 when the birthday has not yet occurred in the current year.
+    Never divides milliseconds by 365.25.
+
+    Only expected parse errors (ValueError, TypeError, OverflowError) are silenced.
+    Unexpected programming errors propagate normally — they are not age-input errors.
     """
     if not dob:
         return None
+    from datetime import date as _d, datetime as _dt
     try:
-        from datetime import date as _d
         if isinstance(dob, str):
             parsed = _d.fromisoformat(dob[:10])
-        elif hasattr(dob, 'date'):
+        elif isinstance(dob, _dt):
             parsed = dob.date()
         elif isinstance(dob, _d):
             parsed = dob
@@ -1266,7 +1277,7 @@ def calculate_age_from_dob(dob) -> 'int | None':
         if age < _DOB_MIN_AGE:
             return None
         return age
-    except Exception:
+    except (ValueError, TypeError, OverflowError):
         return None
 
 
