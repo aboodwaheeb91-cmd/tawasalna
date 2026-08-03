@@ -367,32 +367,32 @@
   </div>
 
   <!-- Experience Modal -->
-  <div class="ep-overlay" id="exOverlay">
+  <div class="ep-overlay" id="exOverlay" role="dialog" aria-labelledby="exModalTitle">
     <div class="ep-sheet">
       <div class="ep-head">
         <span class="ep-title" id="exModalTitle">إضافة خبرة</span>
-        <button class="ep-close" id="exClose"><i data-lucide="x" class="ico-sm"></i></button>
+        <button type="button" class="ep-close" id="exClose" aria-label="إغلاق"><i data-lucide="x" class="ico-sm"></i></button>
       </div>
       <div class="ep-body" id="exForm">
         <div class="ep-field">
-          <label class="ep-label">المسمى الوظيفي *</label>
+          <label class="ep-label" for="exTitle">المسمى الوظيفي *</label>
           <input class="ep-input" id="exTitle" placeholder="مثال: مطور ويب" autocomplete="off">
           <div class="ep-field-err" id="exTitleErr"></div>
         </div>
         <div class="ep-field">
-          <label class="ep-label">اسم الشركة / جهة العمل *</label>
+          <label class="ep-label" for="exCompany">اسم الشركة / جهة العمل *</label>
           <input class="ep-input" id="exCompany" placeholder="مثال: شركة تقنية" autocomplete="off">
           <div class="ep-field-err" id="exCompanyErr"></div>
         </div>
         <div class="ep-row2">
           <div class="ep-field">
-            <label class="ep-label">سنة البداية</label>
+            <label class="ep-label" for="exStart">سنة البداية</label>
             <select class="ep-select" id="exStart">
               <option value="">— اختر —</option>
             </select>
           </div>
           <div class="ep-field" id="exEndWrap">
-            <label class="ep-label">سنة الانتهاء</label>
+            <label class="ep-label" for="exEnd">سنة الانتهاء</label>
             <select class="ep-select" id="exEnd">
               <option value="">— اختر —</option>
             </select>
@@ -405,19 +405,19 @@
           </label>
         </div>
         <div class="ep-field">
-          <label class="ep-label">الدولة (اختياري)</label>
+          <label class="ep-label" for="exCountry">الدولة (اختياري)</label>
           <select class="ep-select" id="exCountry">
             <option value="">— اختر الدولة —</option>
           </select>
         </div>
         <div class="ep-field" id="exCityWrap" style="display:none">
-          <label class="ep-label">المدينة (اختياري)</label>
+          <label class="ep-label" for="exCity">المدينة (اختياري)</label>
           <select class="ep-select" id="exCity">
             <option value="">— اختر المدينة —</option>
           </select>
         </div>
         <div class="ep-field">
-          <label class="ep-label">الوصف (اختياري)</label>
+          <label class="ep-label" for="exDesc">الوصف (اختياري)</label>
           <textarea class="ep-textarea" id="exDesc" placeholder="نبذة عن مهامك وإنجازاتك…" maxlength="600"></textarea>
           <div class="ep-field-err" id="exDescErr"></div>
         </div>
@@ -545,19 +545,19 @@
 
 
   <!-- ── Education modal ── -->
-  <div class="sc-modal-overlay" id="eduOverlay">
+  <div class="sc-modal-overlay" id="eduOverlay" role="dialog" aria-labelledby="eduMTitle">
     <div class="sc-modal">
       <div class="sc-modal-head">
-        <input type="text" class="sc-modal-title-inp" id="eduMTitle" readonly value="إضافة شهادة">
-        <button class="sc-modal-close" id="eduClose">×</button>
+        <span class="sc-modal-title-inp" id="eduMTitle">إضافة شهادة</span>
+        <button type="button" class="sc-modal-close" id="eduClose" aria-label="إغلاق">×</button>
       </div>
       <div class="sc-form-group">
-        <label>المؤسسة التعليمية *</label>
+        <label for="eduInst">المؤسسة التعليمية *</label>
         <input type="text" id="eduInst" placeholder="اسم الجامعة أو المدرسة">
       </div>
       <div class="sc-form-row">
         <div class="sc-form-group">
-          <label>الدرجة العلمية</label>
+          <label for="eduDeg">الدرجة العلمية</label>
           <select class="ep-select" id="eduDeg">
             <option value="">— اختر —</option>
             <option value="ثانوية عامة">ثانوية عامة</option>
@@ -573,19 +573,19 @@
           </select>
         </div>
         <div class="sc-form-group">
-          <label>التخصص</label>
+          <label for="eduField">التخصص</label>
           <input type="text" id="eduField" placeholder="علوم الحاسوب...">
         </div>
       </div>
       <div class="sc-form-row">
         <div class="sc-form-group">
-          <label>سنة البداية</label>
+          <label for="eduSY">سنة البداية</label>
           <select class="ep-select" id="eduSY">
             <option value="">— اختر —</option>
           </select>
         </div>
         <div class="sc-form-group" id="eduEYWrap">
-          <label id="eduEYLabel">سنة التخرج</label>
+          <label id="eduEYLabel" for="eduEY">سنة التخرج</label>
           <select class="ep-select" id="eduEY">
             <option value="">— اختر —</option>
           </select>
@@ -598,7 +598,7 @@
         </label>
       </div>
       <div class="sc-form-group">
-        <label>وصف إضافي</label>
+        <label for="eduDesc">وصف إضافي</label>
         <textarea id="eduDesc" placeholder="أي معلومات إضافية..."></textarea>
       </div>
       <div class="sc-modal-actions">
@@ -609,32 +609,32 @@
   </div>
 
   <!-- ── Courses modal ── -->
-  <div class="sc-modal-overlay" id="courseOverlay">
+  <div class="sc-modal-overlay" id="courseOverlay" role="dialog" aria-labelledby="courseMTitle">
     <div class="sc-modal">
       <div class="sc-modal-head">
-        <input type="text" class="sc-modal-title-inp" id="courseMTitle" readonly value="إضافة دورة">
-        <button class="sc-modal-close" id="courseClose">×</button>
+        <span class="sc-modal-title-inp" id="courseMTitle">إضافة دورة</span>
+        <button type="button" class="sc-modal-close" id="courseClose" aria-label="إغلاق">×</button>
       </div>
       <div class="sc-form-group">
-        <label>اسم الدورة *</label>
+        <label for="courseTitle">اسم الدورة *</label>
         <input type="text" id="courseTitle" placeholder="اسم الدورة أو البرنامج التدريبي">
       </div>
       <div class="sc-form-group">
-        <label>الجهة المانحة</label>
+        <label for="courseProv">الجهة المانحة</label>
         <input type="text" id="courseProv" placeholder="Coursera، Udemy، LinkedIn Learning...">
       </div>
       <div class="sc-form-group">
-        <label>سنة الإتمام</label>
+        <label for="courseCD">سنة الإتمام</label>
         <select class="ep-select" id="courseCD">
           <option value="">— اختر السنة —</option>
         </select>
       </div>
       <div class="sc-form-group">
-        <label>رابط الشهادة</label>
+        <label for="courseCurl">رابط الشهادة</label>
         <input type="url" id="courseCurl" placeholder="https://..." dir="ltr">
       </div>
       <div class="sc-form-group">
-        <label>وصف</label>
+        <label for="courseDesc">وصف</label>
         <textarea id="courseDesc" placeholder="مختصر عن محتوى الدورة..."></textarea>
       </div>
       <div class="sc-modal-actions">
@@ -645,21 +645,21 @@
   </div>
 
   <!-- ── Skills modal ── -->
-  <div class="sc-modal-overlay" id="skillOverlay">
+  <div class="sc-modal-overlay" id="skillOverlay" role="dialog" aria-labelledby="skillModalTitle">
     <div class="sc-modal">
       <div class="sc-modal-head">
-        <span style="font-size:1rem;font-weight:800;color:#fff">إضافة مهارة</span>
-        <button class="sc-modal-close" id="skillClose">×</button>
+        <span id="skillModalTitle" style="font-size:1rem;font-weight:800;color:#fff">إضافة مهارة</span>
+        <button type="button" class="sc-modal-close" id="skillClose" aria-label="إغلاق">×</button>
       </div>
       <div class="sc-form-group">
-        <label>اسم المهارة *</label>
+        <label for="skillName">اسم المهارة *</label>
         <div class="sk-ac-wrap">
           <input type="text" class="ep-input" id="skillName" autocomplete="off" placeholder="اكتب للبحث… مثال: Java، SQL، Excel">
           <div class="sk-ac-drop" id="skillDrop"></div>
         </div>
       </div>
       <div class="sc-form-group">
-        <label>المستوى (اختياري)</label>
+        <label for="skillLevel">المستوى (اختياري)</label>
         <select class="ep-select" id="skillLevel">
           <option value="">— اختر المستوى —</option>
           <option value="مبتدئ">مبتدئ</option>
@@ -670,7 +670,7 @@
         </select>
       </div>
       <div class="sc-form-group">
-        <label>ملاحظة (اختياري)</label>
+        <label for="skillNote">ملاحظة (اختياري)</label>
         <textarea class="ep-input sk-note-input" id="skillNote" maxlength="160" rows="2"
           placeholder="مثال: أين استخدمت هذه المهارة أو مستوى خبرتك فيها؟"></textarea>
         <div class="sk-note-count" id="skillNoteCount">0 / 160</div>
@@ -683,14 +683,14 @@
   </div>
 
   <!-- ── Languages modal ── -->
-  <div class="sc-modal-overlay" id="langOverlay">
+  <div class="sc-modal-overlay" id="langOverlay" role="dialog" aria-labelledby="langModalTitle">
     <div class="sc-modal">
       <div class="sc-modal-head">
-        <span style="font-size:1rem;font-weight:800;color:#fff">إضافة لغة</span>
-        <button class="sc-modal-close" id="langClose">×</button>
+        <span id="langModalTitle" style="font-size:1rem;font-weight:800;color:#fff">إضافة لغة</span>
+        <button type="button" class="sc-modal-close" id="langClose" aria-label="إغلاق">×</button>
       </div>
       <div class="sc-form-group">
-        <label>اللغة *</label>
+        <label for="langName">اللغة *</label>
         <select class="ep-select" id="langName">
           <option value="">— اختر اللغة —</option>
           <optgroup label="الأكثر استخداماً">
@@ -724,7 +724,7 @@
         </select>
       </div>
       <div class="sc-form-group">
-        <label>مستوى الإتقان (اختياري)</label>
+        <label for="langLevel">مستوى الإتقان (اختياري)</label>
         <select class="ep-select" id="langLevel">
           <option value="">— اختر المستوى —</option>
           <option value="مبتدئ">مبتدئ</option>
@@ -743,14 +743,14 @@
   </div>
 
   <!-- ── Links modal ── -->
-  <div class="sc-modal-overlay" id="linkOverlay">
+  <div class="sc-modal-overlay" id="linkOverlay" role="dialog" aria-labelledby="linkModalTitle">
     <div class="sc-modal">
       <div class="sc-modal-head">
-        <span style="font-size:1rem;font-weight:800;color:#fff">إضافة رابط</span>
-        <button class="sc-modal-close" id="linkClose">×</button>
+        <span id="linkModalTitle" style="font-size:1rem;font-weight:800;color:#fff">إضافة رابط</span>
+        <button type="button" class="sc-modal-close" id="linkClose" aria-label="إغلاق">×</button>
       </div>
       <div class="sc-form-group">
-        <label>نوع الرابط</label>
+        <label for="linkType">نوع الرابط</label>
         <select class="ep-select" id="linkType">
           <option value="linkedin">LinkedIn</option>
           <option value="github">GitHub</option>
@@ -763,7 +763,7 @@
         </select>
       </div>
       <div class="sc-form-group">
-        <label>الرابط *</label>
+        <label for="linkUrl">الرابط *</label>
         <input type="url" id="linkUrl" placeholder="https://..." dir="ltr">
       </div>
       <div class="sc-modal-actions">
@@ -823,8 +823,8 @@
   <script src="/static/profile-v2.avatar.js?v=compl-v1"></script>
   <script src="/static/shared/tw-select.js"></script>
   <script src="/static/shared/tw-skills.js?v=taxonomy-v1"></script>
-  <script src="/static/profile-v2.edu.js?v=compl-v1"></script>
-  <script src="/static/profile-v2.courses.js?v=compl-v1"></script>
+  <script src="/static/profile-v2.edu.js?v=modal-a11y-v1"></script>
+  <script src="/static/profile-v2.courses.js?v=modal-a11y-v1"></script>
   <script src="/static/profile-v2.skills.js?v=taxonomy-v1"></script>
   <script src="/static/profile-v2.langs.js?v=compl-v1"></script>
   <script src="/static/profile-v2.links.js?v=compl-v1"></script>

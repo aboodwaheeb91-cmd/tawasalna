@@ -24,9 +24,14 @@
     sel.innerHTML = opts;
   })();
 
+  function _setCourseTitle(text){
+    var el = f('courseMTitle');
+    if(el) el.textContent = text || '';
+  }
+
   function openAdd(){
     _editId = null;
-    sv('courseMTitle','إضافة دورة');
+    _setCourseTitle('إضافة دورة');
     sv('courseTitle',''); sv('courseProv',''); sv('courseCD','');
     sv('courseCurl',''); sv('courseDesc','');
     overlay.classList.add('open');
@@ -35,7 +40,7 @@
 
   function openEdit(entry){
     _editId = entry.id;
-    sv('courseMTitle','تعديل الدورة');
+    _setCourseTitle('تعديل الدورة');
     sv('courseTitle', entry.title           || '');
     sv('courseProv',  entry.provider        || '');
     // completion_date may be stored as "YYYY-MM-DD" or "YYYY" — extract year only
