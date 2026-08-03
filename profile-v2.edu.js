@@ -59,9 +59,14 @@
     _refreshEndYear(this.value, cbCurrent ? cbCurrent.checked : false, fv('eduEY'));
   });
 
+  function _setModalTitle(text){
+    var el = f('eduMTitle');
+    if(el) el.textContent = text || '';
+  }
+
   function openAdd(){
     _editId = null;
-    sv('eduMTitle','إضافة شهادة');
+    _setModalTitle('إضافة شهادة');
     sv('eduInst',''); sv('eduDeg',''); sv('eduField','');
     sv('eduSY',''); sv('eduDesc','');
     if(cbCurrent){ cbCurrent.checked = false; }
@@ -74,7 +79,7 @@
   function openEdit(entry){
     _editId = entry.id;
     var isCur = !!entry.is_current;
-    sv('eduMTitle','تعديل الشهادة');
+    _setModalTitle('تعديل الشهادة');
     sv('eduInst',  entry.institution || '');
     sv('eduDeg',   entry.degree      || '');
     sv('eduField', entry.field       || '');
