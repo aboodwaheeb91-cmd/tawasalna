@@ -1183,8 +1183,8 @@ _PUBLIC_PROFILE_FIELDS = frozenset({
     "title", "profile_color", "profile_style", "profession_id", "profession",
     "sections_order", "custom_sections",
     "first_name", "middle_name", "last_name",
-    "experience", "education", "courses", "skills_data", "langs", "links",
-    "verify_requests", "following_count",
+    "experience", "education", "courses", "skills", "langs", "links",
+    "following_count",
 })
 
 _OWNER_EXTRA_FIELDS = frozenset({

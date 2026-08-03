@@ -9,7 +9,7 @@ from fastapi import FastAPI, HTTPException, Request, Response, Depends, Backgrou
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 import base64, mimetypes
 from typing import List, Optional
 from datetime import datetime
@@ -189,10 +189,10 @@ def verify_token(request: Request):
     return {"valid": True, "user_id": payload.get("user_id"), "user_type": payload.get("user_type")}
 
 
-def _dev_otp_log(label: str, uid: int, code: str) -> None:
-    """Log OTP only when DEV_OTP_LOG env var is set. Never used in production."""
+def _dev_otp_log(label: str, uid: int) -> None:
+    """Log OTP event (not the code) when DEV_OTP_LOG env var is set."""
     if os.environ.get("DEV_OTP_LOG"):
-        print(f"[{label}] uid={uid} code=***")
+        print(f"[DEV_OTP] {label} triggered for uid={uid}")
 
 
 # ── App ──
@@ -1175,6 +1175,11 @@ def get_company_profile(company_id: str, request: Request):
     permissions["is_following"] = extras["is_following"]
     permissions["my_rating"]    = extras["my_rating"]
 
+    # ── Strip private fields from profile for non-owners ──
+    if not is_owner:
+        for _private in ("email", "phone", "created_at"):
+            profile.pop(_private, None)
+
     return {
         "status":      "success",
         "profile":     profile,
@@ -1441,19 +1446,19 @@ class MessageInput(BaseModel):
     content: str
 
 class KYCEmailInput(BaseModel):
-    user_id: int
+    model_config = ConfigDict(extra='ignore')
     email: str
 
 class KYCCodeInput(BaseModel):
-    user_id: int
+    model_config = ConfigDict(extra='ignore')
     code: str
 
 class KYCPhoneInput(BaseModel):
-    user_id: int
+    model_config = ConfigDict(extra='ignore')
     phone: str
 
 class KYCDocsInput(BaseModel):
-    user_id: int
+    model_config = ConfigDict(extra='ignore')
     id_front_url: str
     selfie_url: Optional[str] = None
 
@@ -3973,7 +3978,7 @@ def kyc_send_email(data: KYCEmailInput, token=Depends(verify_token)):
         uid = int(token.get("user_id"))
         start_kyc(uid)
         code = send_email_code(uid, data.email)
-        _dev_otp_log("KYC Email", uid, code)
+        _dev_otp_log("KYC Email", uid)
         return {"status": "success", "message": "تم إرسال الرمز على بريدك الإلكتروني"}
     except HTTPException:
         raise
@@ -3998,7 +4003,7 @@ def kyc_send_phone(data: KYCPhoneInput, token=Depends(verify_token)):
     try:
         uid = int(token.get("user_id"))
         code = send_phone_code(uid, data.phone)
-        _dev_otp_log("KYC Phone", uid, code)
+        _dev_otp_log("KYC Phone", uid)
         return {"status": "success", "message": "تم إرسال الرمز على هاتفك"}
     except HTTPException:
         raise

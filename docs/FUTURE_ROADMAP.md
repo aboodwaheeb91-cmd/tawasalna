@@ -1034,6 +1034,8 @@ Phase 11: Realtime / Push
 | Verification documents storage | أين تُخزَّن وثائق توثيق الشركات/المؤسسات؟ نفس Supabase bucket؟ bucket منفصل؟ |
 | Setup Wizard completion state — backend or localStorage? | هل نحفظ تقدم المستخدم في الـ wizard في backend (user preferences table) أم يكفي localStorage مؤقتاً؟ |
 | Guided Tour completion state — backend or localStorage? | نفس قرار الـ Setup Wizard. localStorage مقبول كحل مؤقت إذا وُثِّق صراحةً. |
+| Global People & Companies Search | يحتاج قرار: search index strategy (pg_trgm vs full-text vs external engine)، what fields are indexed (name, skill, title, location, profession)، who can search whom (emp ↔ co ↔ edu)، pagination + rate limiting model، whether company visibility is opt-out or opt-in. لا يُنفَّذ قبل قرار data-at-rest privacy model للموظفين. |
+| Company-to-Company Business Network | يحتاج قرار: DB schema للعلاقات بين الشركات (partnership / vendor / client / investor)، visibility model (public or private per-relation)، هل يستخدم `company_follows` table الموجودة أم جدول مستقل `company_relations`، connection-request flow vs direct link، وما الفرق بين follow (unilateral) وconnect (bilateral). لا يُبنى قبل تحديد الـ privacy model وما الذي يُعرض على صفحات `/u/{tw_id}` للزوار. |
 
 ---
 

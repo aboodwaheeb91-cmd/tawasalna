@@ -93,11 +93,28 @@ def _test_group_a():
         assert r.status_code == 403, f"Expected 403 for non-owner, got {r.status_code}"
 
     def a4_owner_profile_has_private_fields():
-        r = requests.get(f"{BASE}/profile/{uid}/full", headers=_auth(jwt))
-        assert r.status_code == 200
+        # Register a fresh user with a known email so we can verify it round-trips
+        known_email = f"tw_a4_{_rand()}@tw-security.test"
+        r0 = requests.post(f"{BASE}/auth/register", json={
+            "full_name": f"A4 Owner {_rand()}",
+            "email": known_email,
+            "password": "TwTest@9999",
+            "user_type": "emp",
+            "country_code": "9620",
+        })
+        assert r0.status_code == 200, f"A4 register failed: {r0.text}"
+        d0 = r0.json()
+        a4_uid = (d0.get("user") or d0).get("id")
+        a4_jwt = d0.get("token") or d0.get("access_token") or ""
+        if not a4_jwt:
+            lr = requests.post(f"{BASE}/auth/login", json={"email": known_email, "password": "TwTest@9999"})
+            a4_jwt = lr.json().get("token") or lr.json().get("access_token") or ""
+        r = requests.get(f"{BASE}/profile/{a4_uid}/full", headers=_auth(a4_jwt))
+        assert r.status_code == 200, f"A4 owner /full failed: {r.status_code}"
         profile = r.json().get("profile", {})
-        # Owner should get email
-        assert "email" in profile or "id" in profile, "Owner profile missing expected fields"
+        assert "email" in profile, f"Owner profile missing 'email': {list(profile.keys())}"
+        assert profile["email"] == known_email, f"email mismatch: got {profile.get('email')!r}, want {known_email!r}"
+        assert "id" in profile, f"Owner profile missing 'id': {list(profile.keys())}"
 
     def a5_private_fields_not_in_public():
         r = requests.get(f"{BASE}/profile/{uid}")
@@ -234,9 +251,13 @@ def _test_group_d():
 
     def d6_kyc_status_has_safe_fields():
         r = requests.get(f"{BASE}/kyc/status/{uid}", headers=_auth(jwt))
+        assert r.status_code == 200, f"Expected 200, got {r.status_code}"
         kyc = r.json().get("kyc", {})
-        # Either not_started or has step/status
-        assert "step" in kyc or kyc == {}, f"Unexpected kyc response shape: {kyc}"
+        assert kyc != {}, f"kyc is empty dict — projection or serialization bug: {r.json()}"
+        assert "step" in kyc, f"'step' missing from kyc: {list(kyc.keys())}"
+        assert "status" in kyc, f"'status' missing from kyc: {list(kyc.keys())}"
+        assert "email_code" not in kyc, "email_code must never appear in kyc/status"
+        assert "phone_code" not in kyc, "phone_code must never appear in kyc/status"
 
     _test("D1 — no JWT → 401", d1_no_jwt_returns_401)
     _test("D2 — owner JWT → 200", d2_owner_returns_200)
@@ -262,16 +283,26 @@ def _test_group_e():
 
     def e2_kyc_start_with_jwt_uses_token_uid():
         r = requests.post(f"{BASE}/kyc/start", headers=_auth(jwt))
-        # Should not fail with 422 (no body user_id needed)
-        assert r.status_code in (200, 400, 500), f"Unexpected: {r.status_code}"
+        # 200 = started OK; 400 = already started (also fine — not a 422 schema error)
+        assert r.status_code in (200, 400), \
+            f"Expected 200 or 400, got {r.status_code} — 422 means schema still requires user_id in body: {r.text}"
 
     def e3_kyc_email_send_ignores_body_user_id():
-        # Sending a different user_id in body — server must use token's uid
+        # Send body user_id=uid2 with jwt belonging to uid.
+        # Server must extract uid from JWT and ignore body user_id entirely.
         r = requests.post(f"{BASE}/kyc/email/send",
                           headers=_auth(jwt),
                           json={"user_id": uid2, "email": "test@example.com"})
-        # Should not 403 (server ignores body user_id, uses token's uid)
-        assert r.status_code != 403, f"Got 403 — server may be checking body user_id: {r.text}"
+        # Must not be 422 (schema no longer requires user_id in body)
+        assert r.status_code != 422, f"422 — schema still requires user_id in body: {r.text}"
+        # Must not be 403 (server must not auth-check uid2 from body)
+        assert r.status_code != 403, f"403 — server may be checking body user_id: {r.text}"
+        # Verify uid was affected (not uid2): uid2's KYC must still be not_started
+        r2 = requests.get(f"{BASE}/kyc/status/{uid2}", headers=_auth(jwt2))
+        if r2.status_code == 200:
+            kyc2 = r2.json().get("kyc", {})
+            assert kyc2.get("status") in ("not_started", None), \
+                f"uid2's KYC was mutated by uid's token request — IDOR: {kyc2}"
 
     def e4_kyc_phone_verify_no_jwt_returns_401():
         r = requests.post(f"{BASE}/kyc/phone/verify",
@@ -297,15 +328,15 @@ def _test_group_f():
         r = requests.post(f"{BASE}/kyc/email/send",
                           headers=_auth(jwt),
                           json={"email": "test@example.com"})
-        if r.status_code == 200:
-            assert "dev_code" not in r.json(), f"dev_code in email/send response: {r.json()}"
+        assert r.status_code == 200, f"Expected 200 from kyc/email/send, got {r.status_code}: {r.text}"
+        assert "dev_code" not in r.json(), f"dev_code leaked in email/send response: {r.json()}"
 
     def f2_phone_send_no_dev_code():
         r = requests.post(f"{BASE}/kyc/phone/send",
                           headers=_auth(jwt),
                           json={"phone": "+962799000000"})
-        if r.status_code == 200:
-            assert "dev_code" not in r.json(), f"dev_code in phone/send response: {r.json()}"
+        assert r.status_code == 200, f"Expected 200 from kyc/phone/send, got {r.status_code}: {r.text}"
+        assert "dev_code" not in r.json(), f"dev_code leaked in phone/send response: {r.json()}"
 
     def f3_kyc_status_no_otp_fields():
         r = requests.get(f"{BASE}/kyc/status/{uid}", headers=_auth(jwt))

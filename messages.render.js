@@ -246,7 +246,7 @@ function renderConvList(convs) {
       + '<div class="ci-name-row"><span class="ci-name">' + esc(_activeConvMeta.name) + '</span>' + typeBadgePillHtml(phType) + '</div>'
       + '<div class="ci-preview">محادثة جديدة</div></div>';
     ph.addEventListener('click', function() {
-      openConversation(_activeConvMeta.id, _activeConvMeta.name, _activeConvMeta.type, _activeConvMeta.avatarUrl, _activeConvMeta.headline);
+      openConversation(_activeConvMeta.id, _activeConvMeta.name, _activeConvMeta.type, _activeConvMeta.avatarUrl, _activeConvMeta.headline, _activeConvMeta.twId || '');
     });
     items.insertAdjacentElement('afterbegin', ph);
   }
@@ -636,8 +636,9 @@ function handleWithParam(twId) {
         + avatarHtml(data.full_name, '') + '</div></div>'
         + '<div class="ci-body"><div class="ci-name-row"><span class="ci-name">'
         + esc(data.full_name || 'مستخدم') + '</span>' + typeBadgePillHtml(type) + '</div></div>';
+      ph.setAttribute('data-twid', data.tw_id || twId || '');
       if (convItems) convItems.insertAdjacentElement('afterbegin', ph);
-      openConversation(data.id, data.full_name || 'مستخدم', type, '');
+      openConversation(data.id, data.full_name || 'مستخدم', type, '', '', data.tw_id || twId);
     }
     // loadConversations runs AFTER _currentConvId is set → active state preserved
     loadConversations();

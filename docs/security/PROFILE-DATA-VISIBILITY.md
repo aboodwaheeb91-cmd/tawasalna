@@ -17,7 +17,7 @@ Returned by `GET /profile/{user_id}` to any caller including unauthenticated req
 `headline`, `bio`, `location`, `country`, `city`, `avatar_url`, `cover_url`, `avail`, `website`
 
 **Derived / computed:**  
-`viewer_type`, skills[], experience[], education[], courses[], links[], languages[], `verify_requests` (approved only — `status='approved'`)
+`viewer_type`, skills[], experience[], education[], courses[], links[], languages[], `following_count`
 
 ### Tier 2 — Owner-Only (JWT required, `token.user_id == uid`)
 Returned by `GET /profile/{user_id}/full` when caller owns the profile.
@@ -28,7 +28,7 @@ Includes all Tier 1 fields plus:
 ### Tier 3 — KYC Owner (JWT required, `token.user_id == uid`)
 Returned by `GET /kyc/status/{user_id}` when caller owns the KYC record.
 
-Allowlist: `kyc_status`, `email_verified`, `phone_verified`, `docs_submitted`, `is_verified`, `created_at`, `updated_at`
+Allowlist: `step`, `status`, `email_verified`, `phone_verified`, `is_verified`, `submitted_at`, `reviewed_at`
 
 **Never returned:** `email_code`, `phone_code`, `otp_*` columns, any raw OTP value
 
@@ -51,13 +51,13 @@ Allowlist: `kyc_status`, `email_verified`, `phone_verified`, `docs_submitted`, `
 | `POST /kyc/phone/send` | **Required JWT** | `uid = token.user_id` | No body user_id |
 | `POST /kyc/phone/verify` | **Required JWT** | `uid = token.user_id` | No body user_id |
 | `POST /kyc/docs` | **Required JWT** | `uid = token.user_id` | No body user_id |
-| `GET /user/lookup/{tw_id}` | Optional | None (public tw_id lookup) | Limited fields only |
+| `GET /user/lookup/{tw_id}` | **Required JWT** | None (caller must be authenticated) | `id`, `tw_id`, `full_name`, `user_type` only |
 
 ---
 
 ## Cross-User Lookup: `/user/lookup/{tw_id}`
 
-For cases where one user needs basic info (name, avatar, tw_id) about another user (e.g. messaging), use this public lookup endpoint. It returns only: `tw_id`, `full_name`, `avatar_url`, `user_type`. It never returns `email`, `phone`, `dob`.
+For cases where one authenticated user needs basic info about another user (e.g. opening a message thread), use this endpoint. **JWT is required.** It returns only: `id`, `tw_id`, `full_name`, `user_type`. It never returns `email`, `phone`, `dob`, or `avatar_url`.
 
 `/auth/user/{id}` is **owner-only** — it must not be called with another user's ID.
 
@@ -72,7 +72,7 @@ When adding a new DB column:
 4. If KYC: add to `project_owner_kyc_status()` allowlist in `auth.py`.
 5. If Never or unsure: do NOT add it anywhere. It stays hidden by default.
 
-The `{**user, **profile}` dict-merge pattern is **permanently forbidden** for any sensitive endpoint. Only explicit projection functions are allowed.
+The `{**user, **profile}` dict-merge pattern is **permanently forbidden** for all endpoints that return user data to external callers. Passing the raw merged dict directly as a response leaks all DB columns including those that should never be public. Only `project_public_profile()`, `project_owner_profile()`, or `project_owner_kyc_status()` may be used to shape responses. The dict-merge `{**user, **profile, **extras}` is still used internally (inside `get_full_profile()`, `get_public_profile()`) as input to these projection functions — that is correct and intentional. What is forbidden is bypassing the projection step and returning the raw merged dict directly.
 
 ---
 
@@ -93,8 +93,8 @@ The `{**user, **profile}` dict-merge pattern is **permanently forbidden** for an
 ## OTP Security
 
 - `dev_code` must never appear in production API responses.
-- Raw OTP values must not appear in production application logs.
-- Dev visibility is controlled by `DEV_OTP_LOG` environment variable (default: disabled).
+- Raw OTP codes must never appear in any log, response, or error message — not even under `DEV_OTP_LOG`.
+- `DEV_OTP_LOG` environment variable enables event-only logging (e.g. "KYC Email triggered for uid=5") — it logs the event, never the code value itself.
 - `email_code` and `phone_code` columns must never appear in `GET /kyc/status` response.
 
 ---
