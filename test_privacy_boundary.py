@@ -8,6 +8,7 @@ Run against a live server:
   python test_privacy_boundary.py
 """
 
+import os
 import requests
 import json
 import random
@@ -320,23 +321,35 @@ def _test_group_e():
 # ═══════════════════════════════════════════════════════════════
 
 def _test_group_f():
-    print("\n[F] OTP not in API responses")
+    print("\n[F] OTP Fail-Closed + no OTP in responses")
 
     uid, jwt = _register_and_login("emp")
 
-    def f1_email_send_no_dev_code():
+    def f1_email_send_returns_503_no_provider():
         r = requests.post(f"{BASE}/kyc/email/send",
                           headers=_auth(jwt),
                           json={"email": "test@example.com"})
-        assert r.status_code == 200, f"Expected 200 from kyc/email/send, got {r.status_code}: {r.text}"
-        assert "dev_code" not in r.json(), f"dev_code leaked in email/send response: {r.json()}"
+        assert r.status_code == 503, \
+            f"Expected 503 (no provider — Fail Closed), got {r.status_code}: {r.text}"
+        data = r.json()
+        detail = data.get("detail", {})
+        assert (isinstance(detail, dict) and detail.get("code") == "otp_delivery_unavailable") or \
+               detail == "otp_delivery_unavailable", \
+            f"Expected code=otp_delivery_unavailable in detail, got: {detail}"
+        assert "dev_code" not in data, f"dev_code leaked in 503 response: {data}"
 
-    def f2_phone_send_no_dev_code():
+    def f2_phone_send_returns_503_no_provider():
         r = requests.post(f"{BASE}/kyc/phone/send",
                           headers=_auth(jwt),
                           json={"phone": "+962799000000"})
-        assert r.status_code == 200, f"Expected 200 from kyc/phone/send, got {r.status_code}: {r.text}"
-        assert "dev_code" not in r.json(), f"dev_code leaked in phone/send response: {r.json()}"
+        assert r.status_code == 503, \
+            f"Expected 503 (no provider — Fail Closed), got {r.status_code}: {r.text}"
+        data = r.json()
+        detail = data.get("detail", {})
+        assert (isinstance(detail, dict) and detail.get("code") == "otp_delivery_unavailable") or \
+               detail == "otp_delivery_unavailable", \
+            f"Expected code=otp_delivery_unavailable in detail, got: {detail}"
+        assert "dev_code" not in data, f"dev_code leaked in 503 response: {data}"
 
     def f3_kyc_status_no_otp_fields():
         r = requests.get(f"{BASE}/kyc/status/{uid}", headers=_auth(jwt))
@@ -344,9 +357,25 @@ def _test_group_f():
         for field in ("email_code", "phone_code", "dev_code"):
             assert field not in kyc, f"{field} leaked in kyc/status response"
 
-    _test("F1 — kyc/email/send has no dev_code", f1_email_send_no_dev_code)
-    _test("F2 — kyc/phone/send has no dev_code", f2_phone_send_no_dev_code)
+    def f4_email_send_503_no_db_mutation():
+        """503 response must not mutate KYC state as if send succeeded."""
+        r = requests.post(f"{BASE}/kyc/email/send",
+                          headers=_auth(jwt),
+                          json={"email": "should_not_store@example.com"})
+        assert r.status_code == 503
+        # KYC status must not advance to a "sending" state
+        r_status = requests.get(f"{BASE}/kyc/status/{uid}", headers=_auth(jwt))
+        if r_status.status_code == 200:
+            kyc = r_status.json().get("kyc", {})
+            step = kyc.get("step", "")
+            # Step must not imply a send was completed
+            assert step not in ("email_sent", "email_verified"), \
+                f"KYC step advanced to '{step}' despite 503 send failure"
+
+    _test("F1 — kyc/email/send returns 503 (no provider, Fail Closed)", f1_email_send_returns_503_no_provider)
+    _test("F2 — kyc/phone/send returns 503 (no provider, Fail Closed)", f2_phone_send_returns_503_no_provider)
     _test("F3 — kyc/status has no otp fields", f3_kyc_status_no_otp_fields)
+    _test("F4 — 503 on email/send does not mutate KYC state", f4_email_send_503_no_db_mutation)
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -595,6 +624,295 @@ def _test_group_i():
 
 
 # ═══════════════════════════════════════════════════════════════
+# J — Static: Fail-Closed + settings.html OTP handling
+# ═══════════════════════════════════════════════════════════════
+
+def _test_group_j():
+    print("\n[J] Static — OTP Fail-Closed contract + settings.html error handling")
+
+    def _read(path):
+        with open(path, encoding="utf-8") as f:
+            return f.read()
+
+    def j1_server_has_otp_availability_helpers():
+        src = _read("server.py")
+        assert "is_email_otp_delivery_available" in src, \
+            "server.py: is_email_otp_delivery_available helper not found"
+        assert "is_phone_otp_delivery_available" in src, \
+            "server.py: is_phone_otp_delivery_available helper not found"
+
+    def j2_helpers_return_false_by_default():
+        src = _read("server.py")
+        import re as _re
+        # Both functions must contain 'return False'
+        email_fn = _re.search(
+            r'def is_email_otp_delivery_available\(\)[^#\n]*\n(.*?)(?=\ndef |\Z)',
+            src, _re.DOTALL)
+        phone_fn = _re.search(
+            r'def is_phone_otp_delivery_available\(\)[^#\n]*\n(.*?)(?=\ndef |\Z)',
+            src, _re.DOTALL)
+        assert email_fn and "return False" in email_fn.group(0), \
+            "is_email_otp_delivery_available does not return False by default"
+        assert phone_fn and "return False" in phone_fn.group(0), \
+            "is_phone_otp_delivery_available does not return False by default"
+
+    def j3_email_send_endpoint_checks_availability_before_generate():
+        src = _read("server.py")
+        # The 503 guard must appear before send_email_code call inside the endpoint
+        ep_idx = src.find("def kyc_send_email(")
+        assert ep_idx != -1, "server.py: kyc_send_email endpoint not found"
+        ep_body = src[ep_idx: ep_idx + 800]
+        avail_idx = ep_body.find("is_email_otp_delivery_available")
+        generate_idx = ep_body.find("send_email_code")
+        assert avail_idx != -1, "kyc_send_email: availability check missing"
+        assert generate_idx != -1, "kyc_send_email: send_email_code call missing"
+        assert avail_idx < generate_idx, \
+            "kyc_send_email: availability check must appear before send_email_code"
+
+    def j4_phone_send_endpoint_checks_availability_before_generate():
+        src = _read("server.py")
+        ep_idx = src.find("def kyc_send_phone(")
+        assert ep_idx != -1, "server.py: kyc_send_phone endpoint not found"
+        ep_body = src[ep_idx: ep_idx + 800]
+        avail_idx = ep_body.find("is_phone_otp_delivery_available")
+        generate_idx = ep_body.find("send_phone_code")
+        assert avail_idx != -1, "kyc_send_phone: availability check missing"
+        assert generate_idx != -1, "kyc_send_phone: send_phone_code call missing"
+        assert avail_idx < generate_idx, \
+            "kyc_send_phone: availability check must appear before send_phone_code"
+
+    def j5_server_returns_503_for_unavailable_provider():
+        src = _read("server.py")
+        # Both endpoints must raise HTTPException(status_code=503)
+        assert "503" in src and "otp_delivery_unavailable" in src, \
+            "server.py: 503 + otp_delivery_unavailable contract not found"
+
+    def j6_settings_html_handles_otp_delivery_unavailable():
+        src = _read("settings.html")
+        assert "otp_delivery_unavailable" in src, \
+            "settings.html: otp_delivery_unavailable code not handled"
+        assert "قريباً" in src or "غير متاحة" in src, \
+            "settings.html: user-facing unavailable message missing"
+
+    def j7_settings_html_checks_response_status():
+        src = _read("settings.html")
+        # Both kycSendEmail and kycSendPhone must read the HTTP status before parsing JSON
+        email_idx = src.find("function kycSendEmail")
+        phone_idx = src.find("function kycSendPhone")
+        assert email_idx != -1 and phone_idx != -1, \
+            "settings.html: kycSendEmail or kycSendPhone not found"
+        email_body = src[email_idx: email_idx + 600]
+        phone_body = src[phone_idx: phone_idx + 600]
+        assert "r.status" in email_body or "status" in email_body, \
+            "settings.html: kycSendEmail does not check HTTP status"
+        assert "r.status" in phone_body or "status" in phone_body, \
+            "settings.html: kycSendPhone does not check HTTP status"
+
+    def j8_settings_html_no_success_toast_without_status_check():
+        src = _read("settings.html")
+        # Must NOT show success toast without checking o.s===200
+        # i.e. the success toast must be inside a conditional block checking status
+        # Check that 'تم إرسال الرمز' only appears after a status=200 check
+        email_idx = src.find("function kycSendEmail")
+        phone_idx = src.find("function kycSendPhone")
+        if email_idx != -1:
+            email_body = src[email_idx: email_idx + 600]
+            assert "s===200" in email_body or "status===200" in email_body or "s == 200" in email_body, \
+                "settings.html: kycSendEmail shows success without HTTP 200 check"
+
+    def j9_settings_html_handles_401():
+        src = _read("settings.html")
+        # Must handle 401 (session expired) in OTP send flow
+        assert "401" in src, "settings.html: 401 not handled in OTP send flow"
+
+    def j10_no_otp_print_in_server():
+        src = _read("server.py")
+        import re as _re
+        # The success return in kyc_send_email must not include the OTP variable
+        ep_email_idx = src.find("def kyc_send_email(")
+        if ep_email_idx != -1:
+            ep_body = src[ep_email_idx: ep_email_idx + 800]
+            # Find the success return statement (after start_kyc/send_email_code calls)
+            # It must not contain 'code' as a response key pointing to the OTP variable
+            success_return = _re.search(r'return \{[^}]*\}', ep_body)
+            if success_return:
+                ret = success_return.group(0)
+                # The OTP code variable (named 'code' internally) must not be in the return dict value
+                # "status": "success" is fine; "code": otp_var would not be fine
+                # Simple check: the return dict must not contain the pattern: "code": code
+                assert not _re.search(r'"code"\s*:\s*code\b', ret), \
+                    "server.py: kyc_send_email success return includes OTP code variable"
+        # Also check that _dev_otp_log does not print the code value
+        log_fn_idx = src.find("def _dev_otp_log(")
+        if log_fn_idx != -1:
+            log_body = src[log_fn_idx: log_fn_idx + 300]
+            assert "code" not in log_body or "uid=" in log_body, \
+                "server.py: _dev_otp_log may log OTP code value"
+
+    def j11_owner_hydration_failure_shows_toast():
+        src = _read("profile-v2.edit.js")
+        # Both hydration failure paths must call window.toast
+        # Path 1: _scOwnerProfile is null after promise resolves
+        # Path 2: _scOwnerProfile is null at open time
+        assert src.count("window.toast") >= 3, \
+            "profile-v2.edit.js: owner hydration failure paths must call window.toast"
+
+    _test("J1  — server.py has otp availability helpers", j1_server_has_otp_availability_helpers)
+    _test("J2  — helpers return False by default", j2_helpers_return_false_by_default)
+    _test("J3  — kyc_send_email checks availability before generating OTP", j3_email_send_endpoint_checks_availability_before_generate)
+    _test("J4  — kyc_send_phone checks availability before generating OTP", j4_phone_send_endpoint_checks_availability_before_generate)
+    _test("J5  — server returns 503 for unavailable provider", j5_server_returns_503_for_unavailable_provider)
+    _test("J6  — settings.html handles otp_delivery_unavailable", j6_settings_html_handles_otp_delivery_unavailable)
+    _test("J7  — settings.html checks HTTP response status", j7_settings_html_checks_response_status)
+    _test("J8  — settings.html no success toast without HTTP 200 check", j8_settings_html_no_success_toast_without_status_check)
+    _test("J9  — settings.html handles 401 in OTP flow", j9_settings_html_handles_401)
+    _test("J10 — server.py does not print OTP in endpoint response", j10_no_otp_print_in_server)
+    _test("J11 — owner hydration failure shows visible toast", j11_owner_hydration_failure_shows_toast)
+
+
+# ═══════════════════════════════════════════════════════════════
+# K — Mock Provider unit tests (no live server, no DB)
+# ═══════════════════════════════════════════════════════════════
+
+import unittest
+from unittest.mock import patch, MagicMock
+
+class TestKYCOTPMockProvider(unittest.TestCase):
+    """Unit tests for KYC OTP send endpoints using mocked delivery provider and DB.
+
+    Uses FastAPI's app.dependency_overrides to bypass verify_token (no JWT_SECRET needed),
+    and unittest.mock.patch to isolate OTP generation. No real DB or credentials touched.
+    """
+
+    def setUp(self):
+        from fastapi.testclient import TestClient
+        import server as srv
+        self.srv = srv
+        self.client = TestClient(srv.app, raise_server_exceptions=False)
+
+    def tearDown(self):
+        # Always clear dependency overrides after each test
+        self.srv.app.dependency_overrides.clear()
+
+    def _override_token(self, uid=42):
+        """Override verify_token dependency to return a fixed payload."""
+        payload = {"valid": True, "user_id": uid, "user_type": "emp"}
+        self.srv.app.dependency_overrides[self.srv.verify_token] = lambda: payload
+
+    def test_k1_email_send_returns_503_when_provider_unavailable(self):
+        """Default state: no provider → 503, no OTP generated."""
+        self._override_token(uid=42)
+        with patch.object(self.srv, "is_email_otp_delivery_available", return_value=False):
+            r = self.client.post("/kyc/email/send", json={"email": "test@example.com"})
+        self.assertEqual(r.status_code, 503,
+                         f"Expected 503 (Fail Closed), got {r.status_code}: {r.text}")
+        detail = r.json().get("detail", {})
+        self.assertEqual(detail.get("code"), "otp_delivery_unavailable")
+        self.assertNotIn("dev_code", r.json())
+
+    def test_k2_phone_send_returns_503_when_provider_unavailable(self):
+        """Default state: no provider → 503."""
+        self._override_token(uid=43)
+        with patch.object(self.srv, "is_phone_otp_delivery_available", return_value=False):
+            r = self.client.post("/kyc/phone/send", json={"phone": "+962799000000"})
+        self.assertEqual(r.status_code, 503)
+        detail = r.json().get("detail", {})
+        self.assertEqual(detail.get("code"), "otp_delivery_unavailable")
+
+    def test_k3_email_send_success_with_mock_provider(self):
+        """With mocked provider + mocked DB: returns 200, OTP not in response."""
+        self._override_token(uid=10)
+        mock_code = "123456"
+        with patch.object(self.srv, "is_email_otp_delivery_available", return_value=True), \
+             patch.object(self.srv, "start_kyc", return_value=None), \
+             patch.object(self.srv, "send_email_code", return_value=mock_code) as mock_send:
+            r = self.client.post("/kyc/email/send", json={"email": "user@example.com"})
+        self.assertEqual(r.status_code, 200,
+                         f"Expected 200 with mocked provider, got {r.status_code}: {r.text}")
+        data = r.json()
+        self.assertEqual(data.get("status"), "success")
+        # OTP code must NOT appear in HTTP response
+        self.assertNotIn(mock_code, str(data))
+        self.assertNotIn("dev_code", data)
+        # Delivery function called with correct uid
+        mock_send.assert_called_once()
+        self.assertEqual(mock_send.call_args[0][0], 10)
+
+    def test_k4_phone_send_success_with_mock_provider(self):
+        """With mocked provider + mocked DB: returns 200, OTP not in response."""
+        self._override_token(uid=20)
+        mock_code = "654321"
+        with patch.object(self.srv, "is_phone_otp_delivery_available", return_value=True), \
+             patch.object(self.srv, "send_phone_code", return_value=mock_code) as mock_send:
+            r = self.client.post("/kyc/phone/send", json={"phone": "+966500000001"})
+        self.assertEqual(r.status_code, 200,
+                         f"Expected 200 with mocked provider, got {r.status_code}: {r.text}")
+        data = r.json()
+        self.assertEqual(data.get("status"), "success")
+        self.assertNotIn(mock_code, str(data))
+        self.assertNotIn("dev_code", data)
+        mock_send.assert_called_once()
+        self.assertEqual(mock_send.call_args[0][0], 20)
+
+    def test_k5_503_does_not_call_send_email_code(self):
+        """503 path: send_email_code must NOT be called (no OTP generated or stored)."""
+        self._override_token()
+        with patch.object(self.srv, "is_email_otp_delivery_available", return_value=False), \
+             patch.object(self.srv, "send_email_code") as mock_send:
+            r = self.client.post("/kyc/email/send", json={"email": "test@example.com"})
+        self.assertEqual(r.status_code, 503)
+        mock_send.assert_not_called()
+
+    def test_k6_503_does_not_call_send_phone_code(self):
+        """503 path: send_phone_code must NOT be called (no OTP generated or stored)."""
+        self._override_token()
+        with patch.object(self.srv, "is_phone_otp_delivery_available", return_value=False), \
+             patch.object(self.srv, "send_phone_code") as mock_send:
+            r = self.client.post("/kyc/phone/send", json={"phone": "+962799000000"})
+        self.assertEqual(r.status_code, 503)
+        mock_send.assert_not_called()
+
+    def test_k7_user_isolation_email_send(self):
+        """Two separate users both get 503; send_email_code never called for either."""
+        # Test calls are sequential so we can override per-call
+        call_count = [0]
+        uids = [1, 2]
+        def dynamic_token():
+            uid = uids[min(call_count[0], len(uids)-1)]
+            call_count[0] += 1
+            return {"valid": True, "user_id": uid, "user_type": "emp"}
+        self.srv.app.dependency_overrides[self.srv.verify_token] = dynamic_token
+
+        with patch.object(self.srv, "is_email_otp_delivery_available", return_value=False), \
+             patch.object(self.srv, "send_email_code") as mock_send:
+            r_a = self.client.post("/kyc/email/send", json={"email": "a@example.com"})
+            r_b = self.client.post("/kyc/email/send", json={"email": "b@example.com"})
+        self.assertEqual(r_a.status_code, 503)
+        self.assertEqual(r_b.status_code, 503)
+        mock_send.assert_not_called()
+
+
+def _run_group_k():
+    print("\n[K] Mock Provider unit tests (TestClient + unittest.mock)")
+    suite = unittest.TestLoader().loadTestsFromTestCase(TestKYCOTPMockProvider)
+    runner = unittest.TextTestRunner(stream=open(os.devnull, 'w'), verbosity=0)
+    result = runner.run(suite)
+    for test, err in result.failures + result.errors:
+        _RESULTS["failed"] += 1
+        print(f"  FAIL  {test}: {err.splitlines()[-1] if err else 'unknown'}")
+    passed = result.testsRun - len(result.failures) - len(result.errors)
+    _RESULTS["passed"] += passed
+    for i in range(passed):
+        pass  # count already accumulated
+    # Print summary
+    for test in suite:
+        name = str(test).split(" ")[0]
+        is_fail = any(str(t) == str(test) for t, _ in result.failures + result.errors)
+        if not is_fail:
+            print(f"  PASS  {name}")
+
+
+# ═══════════════════════════════════════════════════════════════
 # Main
 # ═══════════════════════════════════════════════════════════════
 
@@ -612,6 +930,8 @@ def main():
     _test_group_g()
     _test_group_h()
     _test_group_i()
+    _test_group_j()
+    _run_group_k()
 
     total = sum(_RESULTS.values())
     print("\n" + "=" * 60)

@@ -508,7 +508,9 @@
       window._scOwnerProfilePromise.then(function(){
         editBtn.disabled = false;
         if (!window._scOwnerProfile) {
-          if (errEl){ errEl.textContent = 'انتهت جلستك أو غير مصرح. يرجى تسجيل الدخول مجدداً.'; errEl.style.display = ''; }
+          var _msg1 = 'انتهت جلستك أو غير مصرح. يرجى تسجيل الدخول مجدداً.';
+          if (window.toast) window.toast(_msg1);
+          if (errEl){ errEl.textContent = _msg1; errEl.style.display = ''; }
           return;
         }
         openModal();
@@ -516,7 +518,9 @@
       return;
     }
     if (!window._scOwnerProfile && window._scViewerType === 'owner') {
-      if (errEl){ errEl.textContent = 'تعذر تحميل بيانات التعديل. يرجى تحديث الصفحة.'; errEl.style.display = ''; }
+      var _msg2 = 'تعذر تحميل بيانات التعديل. يرجى تحديث الصفحة.';
+      if (window.toast) window.toast(_msg2);
+      if (errEl){ errEl.textContent = _msg2; errEl.style.display = ''; }
       return;
     }
 

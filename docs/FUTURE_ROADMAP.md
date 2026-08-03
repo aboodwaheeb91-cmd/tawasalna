@@ -1179,6 +1179,38 @@ draft → sent → viewed → under_negotiation → countered → accepted
 
 ---
 
+## Future Feature Notes — KYC OTP Delivery Providers
+
+> **هذا توثيق فكرة — وليس إذناً بالتنفيذ.**
+> وجود هذه الفكرة في الـRoadmap لا يُعطي إذناً لأي AI أو مطوّر بتنفيذها إلا بطلب صريح من المستخدم.
+
+### الوضع الحالي
+
+`POST /kyc/email/send` و `POST /kyc/phone/send` تعمل **Fail Closed** وترجع `503 otp_delivery_unavailable` لأنه لا يوجد Email/SMS Provider حقيقي. توليد الرمز لا يعني إيصاله.
+
+### المطلوب لتفعيل KYC OTP Delivery
+
+| العنصر | التفاصيل |
+|--------|----------|
+| **Email Provider** | تكامل مع SendGrid / AWS SES / Resend أو بديل. إعداد Domain/DKIM/SPF. Template عربي. |
+| **SMS Provider** | تكامل مع Twilio / Vonage / أي provider يدعم الأرقام العربية (+962, +966, ...). |
+| **Rate Limits** | حد إعادة الإرسال (مثال: مرة كل 60 ثانية لنفس المستخدم). |
+| **OTP Expiry** | انتهاء صلاحية الرمز (مثال: 10 دقائق). تحتاج `expires_at` column في `kyc_submissions`. |
+| **Attempt Limits** | حد محاولات التحقق الخاطئة (مثال: 5 محاولات ثم block). |
+| **Abuse Prevention** | Rate limiting per IP + per user_id. تسجيل الأحداث في event_log. |
+| **Provider Observability** | تسجيل نجاح/فشل الإرسال (لا الرمز نفسه). |
+| **Web + Flutter** | نفس API، نفس Backend — لا provider منفصل لكل client. |
+| **تفعيل Helpers** | `is_email_otp_delivery_available()` و `is_phone_otp_delivery_available()` في `server.py` تُبقى `False` حتى يُكتمل التكامل والاختبار في Production. |
+
+### قواعد دائمة (لا تتغير حتى بعد بناء النظام)
+
+- الرمز لا يظهر في Response أو Logs في أي بيئة.
+- `DEV_OTP_LOG` يسجل حدثاً فقط — لا يجعل Provider متاحاً.
+- Mock Provider للاختبارات فقط — لا يُفعَّل في Production.
+- هوية المستخدم من JWT فقط — ممنوع `user_id` في body.
+
+---
+
 ## Done
 
 | البند | PR | التاريخ |

@@ -561,18 +561,34 @@ function resetKYC(){
   fetch('/kyc/start',{method:'POST',headers:_kycAuthHdr()}).then(function(){showKYCStep(1);}).catch(function(){showKYCStep(1);});
 }
 
+// Shared OTP send error handler — covers 503 (no provider), 401 (session), and generic errors.
+// detail may be a string or {code, message} object (both shapes from server.py HTTPException).
+function _kycHandleOtpSendErr(status, data, btn){
+  setBtnLoad(btn, false);
+  if(status === 401){showToast('انتهت جلستك، يرجى تسجيل الدخول مجدداً','error');return;}
+  var detail = data && data.detail;
+  var code = detail && (typeof detail === 'object' ? detail.code : detail);
+  if(status === 503 || code === 'otp_delivery_unavailable'){
+    showToast('خدمة إرسال رمز التحقق غير متاحة حالياً، وسيتم توفيرها قريباً.','error');
+    return;
+  }
+  var msg = (detail && (typeof detail === 'object' ? detail.message : detail)) || 'حدث خطأ، حاول مجدداً';
+  showToast(msg,'error');
+}
+
 function kycSendEmail(btn){
   var email=document.getElementById('kyc-email').value.trim();
   if(!email){showToast('أدخل البريد الإلكتروني','error');return;}
   setBtnLoad(btn,true);
   fetch('/kyc/email/send',{method:'POST',headers:_kycAuthHdr(),body:JSON.stringify({email:email})})
-  .then(function(r){return r.json();}).then(function(data){
-    setBtnLoad(btn,false);
-    if(data.status==='success'){
+  .then(function(r){var s=r.status;return r.json().then(function(d){return{s:s,d:d};});})
+  .then(function(o){
+    if(o.s===200&&o.d.status==='success'){
+      setBtnLoad(btn,false);
       document.getElementById('kyc-email-code-wrap').style.display='block';
       showToast('تم إرسال الرمز ✅');
-    }
-  }).catch(function(){setBtnLoad(btn,false);showToast('خطأ','error');});
+    }else{_kycHandleOtpSendErr(o.s,o.d,btn);}
+  }).catch(function(){setBtnLoad(btn,false);showToast('خطأ في الاتصال','error');});
 }
 
 function kycVerifyEmail(btn){
@@ -592,13 +608,14 @@ function kycSendPhone(btn){
   if(!phone){showToast('أدخل رقم الهاتف','error');return;}
   setBtnLoad(btn,true);
   fetch('/kyc/phone/send',{method:'POST',headers:_kycAuthHdr(),body:JSON.stringify({phone:phone})})
-  .then(function(r){return r.json();}).then(function(data){
-    setBtnLoad(btn,false);
-    if(data.status==='success'){
+  .then(function(r){var s=r.status;return r.json().then(function(d){return{s:s,d:d};});})
+  .then(function(o){
+    if(o.s===200&&o.d.status==='success'){
+      setBtnLoad(btn,false);
       document.getElementById('kyc-phone-code-wrap').style.display='block';
       showToast('تم إرسال الرمز ✅');
-    }
-  }).catch(function(){setBtnLoad(btn,false);showToast('خطأ','error');});
+    }else{_kycHandleOtpSendErr(o.s,o.d,btn);}
+  }).catch(function(){setBtnLoad(btn,false);showToast('خطأ في الاتصال','error');});
 }
 
 function kycVerifyPhone(btn){

@@ -99,8 +99,62 @@ The `{**user, **profile}` dict-merge pattern is **permanently forbidden** for al
 
 ---
 
+## OTP Delivery Fail-Closed Contract
+
+**Generating an OTP code ≠ Delivering it.** `send_email_code()` and `send_phone_code()` in `auth.py` only store the code in DB. Without a real delivery provider, the user has no way to receive the code.
+
+### When no provider is configured (current state):
+
+`POST /kyc/email/send` and `POST /kyc/phone/send` return:
+
+```
+HTTP 503 Service Unavailable
+{
+  "detail": {
+    "code": "otp_delivery_unavailable",
+    "message": "خدمة إرسال رمز التحقق غير متاحة حالياً"
+  }
+}
+```
+
+**Behavior contract:**
+- No OTP is generated.
+- No OTP is stored in DB.
+- KYC state is not mutated.
+- `status=success` is never returned.
+- `send_email_code()` / `send_phone_code()` are never called.
+- The user sees a clear message in the UI (settings.html).
+
+### Availability gates:
+
+`is_email_otp_delivery_available()` and `is_phone_otp_delivery_available()` in `server.py` return `False` by default. These must return `True` **only when** a real provider is integrated, tested, and configured with production credentials. `DEV_OTP_LOG` does NOT make a provider available.
+
+### Test / Mock contract:
+
+When tests need a success path:
+- Patch `server.is_email_otp_delivery_available` / `server.is_phone_otp_delivery_available` to return `True` in the test only.
+- Patch `auth.send_email_code` / `auth.send_phone_code` to capture the call without hitting the DB.
+- The OTP code must not appear in any HTTP response.
+- Tests capture the code internally from the Mock only.
+- Mock must never be activated outside the test scope.
+
+### Frontend (settings.html):
+
+On 503 with `code=otp_delivery_unavailable`:
+- Show: `خدمة إرسال رمز التحقق غير متاحة حالياً، وسيتم توفيرها قريباً.`
+- Stop loading state.
+- Do NOT show the code input field.
+- Do NOT show a success toast.
+- Do NOT advance to the next step.
+
+On 401: show session-expired message.
+On other errors: show safe generic message from `detail.message` if present.
+
+---
+
 ## Version History
 
 | Version | PR | Date | Description |
 |---------|----|------|-------------|
 | V1 | fix/profile-kyc-privacy-boundary | 2026-08-03 | Initial privacy boundary enforcement |
+| V1.1 | fix/profile-kyc-privacy-boundary | 2026-08-03 | OTP Delivery Fail-Closed contract; `is_*_otp_delivery_available()` helpers; 503 on send endpoints; settings.html 503 handling; owner hydration toast feedback |

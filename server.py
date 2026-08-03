@@ -195,6 +195,22 @@ def _dev_otp_log(label: str, uid: int) -> None:
         print(f"[DEV_OTP] {label} triggered for uid={uid}")
 
 
+def is_email_otp_delivery_available() -> bool:
+    """Returns True only when a real email delivery provider is configured.
+    No email provider is currently implemented. Enable this function body
+    when an actual provider (SendGrid, SES, Resend, etc.) is integrated.
+    DEV_OTP_LOG does NOT count as a delivery provider."""
+    return False
+
+
+def is_phone_otp_delivery_available() -> bool:
+    """Returns True only when a real SMS delivery provider is configured.
+    No SMS provider is currently implemented. Enable this function body
+    when an actual provider (Twilio, Vonage, etc.) is integrated.
+    DEV_OTP_LOG does NOT count as a delivery provider."""
+    return False
+
+
 # ── App ──
 app = FastAPI(title="تواصلنا API", version="1.0.0")
 
@@ -3974,6 +3990,11 @@ def kyc_status(user_id: int, token=Depends(verify_token)):
 
 @app.post("/kyc/email/send")
 def kyc_send_email(data: KYCEmailInput, token=Depends(verify_token)):
+    # Fail Closed: no OTP generated or stored until a real provider is available.
+    if not is_email_otp_delivery_available():
+        return JSONResponse(status_code=503, content={
+            "detail": {"code": "otp_delivery_unavailable", "message": "خدمة إرسال رمز التحقق غير متاحة حالياً"}
+        })
     try:
         uid = int(token.get("user_id"))
         start_kyc(uid)
@@ -4000,6 +4021,11 @@ def kyc_verify_email(data: KYCCodeInput, token=Depends(verify_token)):
 
 @app.post("/kyc/phone/send")
 def kyc_send_phone(data: KYCPhoneInput, token=Depends(verify_token)):
+    # Fail Closed: no OTP generated or stored until a real provider is available.
+    if not is_phone_otp_delivery_available():
+        return JSONResponse(status_code=503, content={
+            "detail": {"code": "otp_delivery_unavailable", "message": "خدمة إرسال رمز التحقق غير متاحة حالياً"}
+        })
     try:
         uid = int(token.get("user_id"))
         code = send_phone_code(uid, data.phone)
