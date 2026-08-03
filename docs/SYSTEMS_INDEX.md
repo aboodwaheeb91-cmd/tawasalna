@@ -475,6 +475,23 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 
 ---
 
+### 53. Global Session UI Visibility System (VM-10) ✅ Implemented
+**Purpose:** Permanent, session-aware header menu and declarative element visibility. Prevents Settings/Logout from appearing to guests; prevents Login/Register from appearing to authenticated users. Single source of truth for all header menu items — no per-page session checks.
+**Source of Truth:** `static/shared/auth-sync.js` (`TwAuthSync.getSessionSnapshot`, `TwAuthSync.invalidateSession`) · `tw_shared.js` (`_TW_HEADER_MENU_POLICY`, `_twMenuItemsForSnapshot`, `initGlobalHeaderMenu`, `_twApplyDeclarativeVisibility`)
+**Details:** `docs/design-system/VIEWER-MODES.md §VM-10` (VM-10A through VM-10F) · `CLAUDE.md` (all relevant mandatory rules sections)
+**Session States:** `guest | authenticated | expired | invalid | stale` — returned by `TwAuthSync.getSessionSnapshot()`
+**Menu Policy:** `_TW_HEADER_MENU_POLICY` in `tw_shared.js` — each item declares `show: 'auth' | 'guest' | 'all'`. Settings + Logout = `auth`. Login + Register = `guest`. Contact/Report/Suggest = `all` (disabled).
+**Declarative Visibility:** `data-tw-session="authenticated|guest|all"` on any element + `data-tw-account-types="co"` for account-type filtering. Elements with `data-tw-session="authenticated" hidden` start hidden on public pages and are revealed by `_twApplyDeclarativeVisibility()`.
+**Pages adopted:** `profile-showcase.html` · `company-profile.html` · `notifications.html` · `messages.html`
+**Do not recreate:**
+- Never add `show: settings` or `show: logout` logic per page — use `_TW_HEADER_MENU_POLICY`
+- Never repeat session check inside a page module — use `initGlobalHeaderMenu` + `data-tw-session`
+- Never use `viewer_type` or `isOwner` in `_twApplyDeclarativeVisibility` — that's VM-01 not VM-10
+- Never call `TwAuthSync.invalidateSession` from logout button onclick inline — use `twLogout()` global
+- Never add a new menu item without a `show` field in `_TW_HEADER_MENU_POLICY`
+
+---
+
 ## G — Platform Infrastructure
 
 ### 30a. Architecture Foundation ✅

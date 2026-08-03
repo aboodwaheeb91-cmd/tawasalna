@@ -346,7 +346,98 @@ companyState.permissions.isOwner = true | false
 
 ---
 
+## [VM-10] Global Session UI Visibility System
+
+> **الفرق الجوهري بين VM-10 و VM-01–VM-09:**
+> VM-01–VM-09 تُعالج صلاحيات الموارد (Resource Permissions) — من يملك/يعدّل/يرى مورداً محدداً.
+> VM-10 يُعالج حالة جلسة المستخدم عالمياً — هل هو مسجّل دخوله أم لا — وينعكس على الهيدر والقوائم فقط.
+> الفصل بينهما إلزامي. لا يجوز لـ VM-10 قراءة `viewer_type` أو `isOwner`.
+
+### [VM-10A] Session States (حالات الجلسة)
+
+`TwAuthSync.getSessionSnapshot()` يُعيد كائناً بـ 5 حقول:
+
+| الحالة | الوصف | `isAuthenticated` |
+|--------|-------|-------------------|
+| `guest` | لا يوجد JWT في localStorage | `false` |
+| `authenticated` | JWT صالح + user object موجود | `true` |
+| `expired` | JWT منتهي الصلاحية (claims.exp < now) | `false` |
+| `invalid` | JWT موجود لكن malformed | `false` |
+| `stale` | JWT صالح لكن tw_user غائب | `false` |
+
+### [VM-10B] Global Header Menu Policy
+
+مصدر الحقيقة: `_TW_HEADER_MENU_POLICY` في `tw_shared.js`
+
+كل بند له `show: 'auth' | 'guest' | 'all'`:
+
+| البند | show | يظهر لـ |
+|-------|------|---------|
+| الإعدادات | `auth` | مسجّلون فقط |
+| تواصل معنا | `all` | الجميع (disabled) |
+| الإبلاغ عن مشكلة | `all` | الجميع (disabled) |
+| اقترح ميزة | `all` | الجميع (disabled) |
+| تسجيل الخروج | `auth` | مسجّلون فقط |
+| تسجيل الدخول | `guest` | زوار غير مسجّلين |
+| إنشاء حساب | `guest` | زوار غير مسجّلين |
+
+**ممنوع:** إضافة بند بدون تعريف `show` صريح في `_TW_HEADER_MENU_POLICY`.
+
+### [VM-10C] Idempotent Header Renderer
+
+`initGlobalHeaderMenu(btnId, ddId, dynId)` في `tw_shared.js`:
+- Idempotent — استدعاء ثانٍ بنفس `btnId` يُتجاهَل صامتاً
+- يُسجِّل listener واحداً على TwAuthSync للصفحة كلها (عبر `_ghListenerRegistered`)
+- يُعيد عرض القائمة تلقائياً عند كل تغيير في الجلسة
+- يستدعي `_twApplyDeclarativeVisibility()` مباشرةً في أول استدعاء
+
+### [VM-10D] Declarative Session Visibility
+
+`data-tw-session="authenticated|guest|all"` على أي element في HTML:
+- `authenticated` + `hidden` → مخفي بالافتراضي، يظهر فقط لمسجّلي الدخول
+- `guest` → يظهر فقط للزوار
+- `all` → يظهر للجميع دائماً
+- خاصية `data-tw-account-types="co,emp"` تضيّق الظهور لأنواع حسابات محددة
+
+`_twApplyDeclarativeVisibility()` هي الدالة الوحيدة المسؤولة عن معالجة هذه الخاصية.
+
+**استخدام على صفحات عامة (بدون Auth Guard):**
+```html
+<a href="/messages" data-tw-session="authenticated" hidden>...</a>
+```
+
+### [VM-10E] Preview Boundary
+
+Preview modes (VM-03: `preview-public-user`, `preview-guest`) لا تُغيّر حالة الجلسة العامة.
+- `_twApplyDeclarativeVisibility()` تعتمد على `TwAuthSync.getSessionSnapshot()` فقط
+- لا تقرأ body classes ولا window._scViewerType
+- Preview يُغيّر Resource Viewer Mode (VM-01) — لا يُغيّر Global Session State (VM-10A)
+
+**النتيجة:** زر تسجيل الخروج يبقى ظاهراً أثناء المعاينة لأن المالك ما زال مسجّل الدخول.
+
+### [VM-10F] Security Boundary
+
+```
+VM-10 = UX فقط — ليس ضماناً أمنياً.
+إخفاء زر الإعدادات للزوار لا يمنعهم من الوصول لـ /settings.
+كل endpoint يتحقق من JWT server-side مستقلاً.
+```
+
+### Forbidden (VM-10)
+
+```
+❌ إضافة بند لـ _TW_HEADER_MENU_POLICY بدون show صريح
+❌ قراءة viewer_type أو isOwner في _twApplyDeclarativeVisibility
+❌ اعتبار data-tw-session حماية أمنية
+❌ إضافة منطق session check مكرر داخل صفحة جديدة بدلاً من initGlobalHeaderMenu
+❌ Preview body class تُؤثر على Global Session menu
+❌ إنشاء نظام visibility موازٍ خارج tw_shared.js/_twApplyDeclarativeVisibility
+```
+
+---
+
 *آخر تحديث: 2026-07-18 — V1: Viewer Modes & Permissions System foundation.
 يُغطي: VM-00 (Routing Protocol) → VM-09 (Forbidden Patterns).
 موثَّق في: docs/DESIGN_SYSTEM.md + docs/SYSTEMS_INDEX.md §40.
-rev.2: تصحيح VM-01 (Guest بدون localStorage)، VM-02 (admin auth contract مستقل)، VM-05 (Resource Identifiers vs identity claims)، VM-06 (JWT ليس مطلقاً + قاعدة البيانات الحساسة إلزامية)، VM-08 (Authentication Contract بدلاً من JWT).*
+rev.2: تصحيح VM-01 (Guest بدون localStorage)، VM-02 (admin auth contract مستقل)، VM-05 (Resource Identifiers vs identity claims)، VM-06 (JWT ليس مطلقاً + قاعدة البيانات الحساسة إلزامية)، VM-08 (Authentication Contract بدلاً من JWT).
+rev.3 (2026-08-03): إضافة VM-10 — Global Session UI Visibility System (PR fix/global-ui-visibility-system).*
