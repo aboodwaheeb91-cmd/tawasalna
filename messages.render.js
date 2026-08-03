@@ -235,19 +235,22 @@ function renderConvList(convs) {
   items.innerHTML = frag;
 
   // Placeholder for conversations not yet in DB (new conv via ?with=)
+  // All metadata set as data-* attributes so the single general loop below handles the click.
+  // No explicit addEventListener here — avoids double-listener when the loop iterates this card.
   if (_currentConvId && _activeConvMeta && !items.querySelector('[data-uid="' + _currentConvId + '"]')) {
     var phType = _activeConvMeta.type || 'emp';
     var ph = document.createElement('div');
     ph.className = 'conv-item ' + accentClass(phType) + ' active';
-    ph.setAttribute('data-uid', String(_activeConvMeta.id));
+    ph.setAttribute('data-uid',      String(_activeConvMeta.id));
+    ph.setAttribute('data-type',     phType);
+    ph.setAttribute('data-avatar',   _activeConvMeta.avatarUrl || '');
+    ph.setAttribute('data-headline', _activeConvMeta.headline  || '');
+    ph.setAttribute('data-twid',     _activeConvMeta.twId      || '');
     ph.innerHTML = '<div class="ci-ava-wrap"><div class="ci-ava ' + typeInfo(phType).cls + '">'
       + avatarHtml(_activeConvMeta.name, _activeConvMeta.avatarUrl) + '</div></div>'
       + '<div class="ci-body">'
       + '<div class="ci-name-row"><span class="ci-name">' + esc(_activeConvMeta.name) + '</span>' + typeBadgePillHtml(phType) + '</div>'
       + '<div class="ci-preview">محادثة جديدة</div></div>';
-    ph.addEventListener('click', function() {
-      openConversation(_activeConvMeta.id, _activeConvMeta.name, _activeConvMeta.type, _activeConvMeta.avatarUrl, _activeConvMeta.headline, _activeConvMeta.twId || '');
-    });
     items.insertAdjacentElement('afterbegin', ph);
   }
 
@@ -631,12 +634,15 @@ function handleWithParam(twId) {
       var convItems = document.querySelector('.conv-items');
       var ph = document.createElement('div');
       ph.className = 'conv-item ' + accentClass(type);
-      ph.setAttribute('data-uid', String(data.id));
+      ph.setAttribute('data-uid',      String(data.id));
+      ph.setAttribute('data-type',     type);
+      ph.setAttribute('data-avatar',   '');
+      ph.setAttribute('data-headline', '');
+      ph.setAttribute('data-twid',     data.tw_id || twId || '');
       ph.innerHTML = '<div class="ci-ava-wrap"><div class="ci-ava ' + typeInfo(type).cls + '">'
         + avatarHtml(data.full_name, '') + '</div></div>'
         + '<div class="ci-body"><div class="ci-name-row"><span class="ci-name">'
         + esc(data.full_name || 'مستخدم') + '</span>' + typeBadgePillHtml(type) + '</div></div>';
-      ph.setAttribute('data-twid', data.tw_id || twId || '');
       if (convItems) convItems.insertAdjacentElement('afterbegin', ph);
       openConversation(data.id, data.full_name || 'مستخدم', type, '', '', data.tw_id || twId);
     }

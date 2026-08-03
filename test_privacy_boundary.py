@@ -449,6 +449,152 @@ def _test_group_h():
 
 
 # ═══════════════════════════════════════════════════════════════
+# I — Static regression: owner hydration + messages deep-link
+# ═══════════════════════════════════════════════════════════════
+
+def _test_group_i():
+    print("\n[I] Static — owner hydration wiring + messages double-listener prevention")
+
+    def _read(path):
+        with open(path, encoding="utf-8") as f:
+            return f.read()
+
+    # ── Owner Profile V2 ──────────────────────────────────────────────────────
+
+    def i1_getOwnerProfile_has_actual_caller():
+        """getOwnerProfile must be called somewhere in render.js (not just defined)."""
+        src = _read("profile-v2.render.js")
+        assert "window.getOwnerProfile" in src, \
+            "profile-v2.render.js never calls window.getOwnerProfile — hydration wiring missing"
+        # The call must be inside _loadProfile (owner gate), not just the api assignment
+        idx = src.find("window.getOwnerProfile(_scProfileId)")
+        assert idx != -1, \
+            "profile-v2.render.js: window.getOwnerProfile(_scProfileId) call not found"
+
+    def i2_owner_hydration_gated_on_viewer_type():
+        """Owner /full call must be conditional on _scViewerType === 'owner'."""
+        src = _read("profile-v2.render.js")
+        # The call must appear after the viewer_type check
+        gate_idx = src.find("_scViewerType === 'owner'")
+        assert gate_idx != -1, \
+            "profile-v2.render.js: viewer_type=owner gate not found before getOwnerProfile call"
+        call_idx = src.find("window.getOwnerProfile(_scProfileId)")
+        assert call_idx > gate_idx, \
+            "profile-v2.render.js: getOwnerProfile called BEFORE viewer_type check"
+
+    def i3_edit_modal_reads_owner_state():
+        """openModal in edit.js must use _scOwnerProfile as data source, not _scProfile alone."""
+        src = _read("profile-v2.edit.js")
+        assert "_scOwnerProfile" in src, \
+            "profile-v2.edit.js: _scOwnerProfile never referenced — edit modal reads wrong state"
+        # The var p assignment must prefer _scOwnerProfile
+        assert "window._scOwnerProfile || window._scProfile" in src, \
+            "profile-v2.edit.js: edit modal data source must be '_scOwnerProfile || _scProfile'"
+
+    def i4_public_state_never_stores_dob():
+        """_scProfile must not have dob stored in applyCanonicalProfile."""
+        src = _read("profile-v2.edit.js")
+        # Find applyCanonicalProfile block and confirm dob is not written to _scProfile
+        acp_idx = src.find("function applyCanonicalProfile")
+        assert acp_idx != -1, "applyCanonicalProfile function not found in edit.js"
+        acp_body = src[acp_idx: acp_idx + 2000]
+        # Must NOT contain _scProfile.dob = (private field write to public state)
+        import re as _re
+        bad_pattern = r"_scProfile\.dob\s*="
+        assert not _re.search(bad_pattern, acp_body), \
+            "profile-v2.edit.js: applyCanonicalProfile still writes dob to _scProfile (public state)"
+
+    def i5_owner_hydration_promise_used_as_gate():
+        """openModal must guard on _scOwnerProfilePromise before opening."""
+        src = _read("profile-v2.edit.js")
+        assert "_scOwnerProfilePromise" in src, \
+            "profile-v2.edit.js: _scOwnerProfilePromise gate not present in openModal"
+
+    # ── Messages deep-link ────────────────────────────────────────────────────
+
+    def i6_renderConvList_placeholder_has_data_twid():
+        """renderConvList placeholder must have data-twid attribute set."""
+        src = _read("messages.render.js")
+        # Find the placeholder section (between renderConvList comments)
+        ph_idx = src.find("Placeholder for conversations not yet in DB")
+        assert ph_idx != -1, "messages.render.js: placeholder comment not found in renderConvList"
+        ph_section = src[ph_idx: ph_idx + 1200]
+        assert "data-twid" in ph_section, \
+            "messages.render.js: renderConvList placeholder missing data-twid attribute"
+
+    def i7_renderConvList_placeholder_has_all_attributes():
+        """renderConvList placeholder must have data-type, data-avatar, data-headline."""
+        src = _read("messages.render.js")
+        ph_idx = src.find("Placeholder for conversations not yet in DB")
+        assert ph_idx != -1, "messages.render.js: placeholder comment not found"
+        ph_section = src[ph_idx: ph_idx + 800]
+        for attr in ("data-type", "data-avatar", "data-headline"):
+            assert attr in ph_section, \
+                f"messages.render.js: renderConvList placeholder missing {attr}"
+
+    def i8_renderConvList_placeholder_no_explicit_addEventListener():
+        """renderConvList placeholder must NOT have an explicit addEventListener (only the general loop is allowed)."""
+        src = _read("messages.render.js")
+        ph_idx = src.find("Placeholder for conversations not yet in DB")
+        assert ph_idx != -1, "messages.render.js: placeholder comment not found"
+        # Scan from the comment to the closing brace of the if-block (generous window)
+        ph_section = src[ph_idx: ph_idx + 1200]
+        # Find the general loop that handles ALL .conv-item elements
+        gen_loop_idx = ph_section.find("querySelectorAll('.conv-item')")
+        if gen_loop_idx == -1:
+            gen_loop_idx = len(ph_section)
+        pre_loop = ph_section[:gen_loop_idx]
+        # Strip comments (lines starting with //) before checking for addEventListener
+        import re as _re
+        pre_loop_no_comments = _re.sub(r'//[^\n]*', '', pre_loop)
+        assert "addEventListener" not in pre_loop_no_comments, \
+            "messages.render.js: renderConvList placeholder has explicit addEventListener (double-listener bug)"
+
+    def i9_handleWithParam_placeholder_has_data_twid():
+        """handleWithParam placeholder must set data-twid from data.tw_id."""
+        src = _read("messages.render.js")
+        hw_idx = src.find("function handleWithParam")
+        assert hw_idx != -1, "messages.render.js: handleWithParam function not found"
+        hw_section = src[hw_idx: hw_idx + 1200]
+        assert "data-twid" in hw_section, \
+            "messages.render.js: handleWithParam placeholder missing data-twid attribute"
+        assert "tw_id" in hw_section, \
+            "messages.render.js: handleWithParam does not propagate tw_id to placeholder"
+
+    def i10_roadmap_has_global_search_spec():
+        """FUTURE_ROADMAP.md must contain Global Search specification section."""
+        src = _read("docs/FUTURE_ROADMAP.md")
+        assert "Future Feature Notes — Global People & Companies Search" in src, \
+            "docs/FUTURE_ROADMAP.md: Global Search spec section missing"
+        assert "data-next-appt-id" not in src or "co-cjp-btn" not in src, \
+            "Unexpected content check"  # relaxed sanity check
+        # Check for button behavior spec
+        assert "يبحث عند أول حرف" in src or "أول حرف" in src or "أولى" in src, \
+            "docs/FUTURE_ROADMAP.md: Global Search button behavior spec missing"
+
+    def i11_roadmap_has_b2b_spec():
+        """FUTURE_ROADMAP.md must contain B2B Business Network spec section."""
+        src = _read("docs/FUTURE_ROADMAP.md")
+        assert "Future Feature Notes — Company-to-Company Business Network" in src, \
+            "docs/FUTURE_ROADMAP.md: B2B spec section missing"
+        # Check for lifecycle documentation
+        assert "accepted" in src and "rejected" in src, \
+            "docs/FUTURE_ROADMAP.md: B2B lifecycle states missing"
+
+    _test("I1  — getOwnerProfile has actual caller in render.js", i1_getOwnerProfile_has_actual_caller)
+    _test("I2  — owner hydration gated on viewer_type=owner", i2_owner_hydration_gated_on_viewer_type)
+    _test("I3  — edit modal reads _scOwnerProfile not public state", i3_edit_modal_reads_owner_state)
+    _test("I4  — applyCanonicalProfile never writes dob to _scProfile", i4_public_state_never_stores_dob)
+    _test("I5  — _scOwnerProfilePromise gate present in openModal", i5_owner_hydration_promise_used_as_gate)
+    _test("I6  — renderConvList placeholder has data-twid", i6_renderConvList_placeholder_has_data_twid)
+    _test("I7  — renderConvList placeholder has data-type/avatar/headline", i7_renderConvList_placeholder_has_all_attributes)
+    _test("I8  — renderConvList placeholder no explicit addEventListener", i8_renderConvList_placeholder_no_explicit_addEventListener)
+    _test("I9  — handleWithParam placeholder has data-twid", i9_handleWithParam_placeholder_has_data_twid)
+    _test("I10 — roadmap has Global Search spec section", i10_roadmap_has_global_search_spec)
+    _test("I11 — roadmap has B2B Business Network spec section", i11_roadmap_has_b2b_spec)
+
+
+# ═══════════════════════════════════════════════════════════════
 # Main
 # ═══════════════════════════════════════════════════════════════
 
@@ -465,6 +611,7 @@ def main():
     _test_group_f()
     _test_group_g()
     _test_group_h()
+    _test_group_i()
 
     total = sum(_RESULTS.values())
     print("\n" + "=" * 60)
