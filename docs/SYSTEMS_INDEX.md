@@ -937,15 +937,16 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 
 ## J — Security Systems
 
-### 52. Profile Data Visibility System V1
+### 52. Profile Data Visibility System V1.2
 **Purpose:** Governs which profile and KYC fields are visible to which callers. Defines four field visibility tiers: Public / Owner-Only / KYC-Owner / Never-Returned. Enforces Fail Closed — new DB columns are private by default until explicitly allowlisted.
-**Source of Truth:** `docs/security/PROFILE-DATA-VISIBILITY.md` · `project_public_profile()` / `project_owner_profile()` / `project_owner_kyc_status()` projection functions in `auth.py`
-**Details:** `docs/security/PROFILE-DATA-VISIBILITY.md` (field tiers, endpoint ownership contract, cross-user lookup, cache boundary, OTP security, projection function contracts)
-**Tier 1 — Public** (no auth): `tw_id`, `full_name`, `user_type`, `is_verified`, `headline`, `bio`, `location`, `country`, `city`, `avatar_url`, `cover_url`, `avail`, `website`, skills[], experience[], education[], courses[], links[], languages[], verify_requests (approved only). Via `GET /profile/{id}`.
-**Tier 2 — Owner-Only** (JWT, `token.user_id == uid`): all Tier 1 + `phone`, `dob`, `country_code`, `created_at`, `email`. Via `GET /profile/{id}/full`.
-**Tier 3 — KYC-Owner** (JWT, `token.user_id == uid`): `kyc_status`, `email_verified`, `phone_verified`, `docs_submitted`, `is_verified`, `created_at`, `updated_at` — **never** `email_code`, `phone_code`, OTP values. Via `GET /kyc/status/{id}`.
-**Tier 4 — Never Returned**: `password_hash`, `email_code`, `phone_code`, raw OTP values, internal tokens.
-**Do not recreate:** Do not use `{**user, **profile}` dict-merge pattern for any sensitive endpoint. Do not add a new endpoint that returns owner fields without `Depends(verify_token)` + ownership check. Do not read the `profile:{user_id}` cache key from the public code path. Do not add a new DB column to a public response without first classifying its tier.
+**Source of Truth:** `docs/security/PROFILE-DATA-VISIBILITY.md` · `project_public_profile()` / `project_owner_profile()` / `project_owner_kyc_status()` / `calculate_age_from_dob()` in `auth.py`
+**Details:** `docs/security/PROFILE-DATA-VISIBILITY.md` (field tiers, endpoint ownership contract, cross-user lookup, cache boundary, OTP security, projection function contracts, derived public fields rule)
+**Tier 1 — Public** (no auth): `id`, `tw_id`, `full_name`, `user_type`, `is_verified`, `headline`, `bio`, `short_bio`, `location`, `country`, `city`, `avatar_url`, `cover_url`, `avail`, `website`, `title`, `profile_color`, `profile_style`, `profession_id`, `profession`, `sections_order`, `custom_sections`, `first_name`, `middle_name`, `last_name`, `experience[]`, `education[]`, `courses[]`, `skills[]`, `langs[]`, `links[]`, `following_count`, `age` (backend-derived from `dob` — never `dob` itself in Tier 1). Never: `dob`, `phone`, `email`, `verify_request`, `password_hash`. Via `GET /profile/{id}`.
+**Tier 2 — Owner-Only** (JWT, `token.user_id == uid`): all Tier 1 + `email`, `phone`, `dob`, `country_code`, `created_at`, `updated_at`, `verify_request`. Also includes `age` alongside `dob` for UI convenience. Via `GET /profile/{id}/full`.
+**Tier 3 — KYC-Owner** (JWT, `token.user_id == uid`): exactly 7 fields: `step`, `status`, `email_verified`, `phone_verified`, `is_verified`, `submitted_at`, `reviewed_at` — **never** `email_code`, `phone_code`, OTP values, `kyc_status`, `docs_submitted`, `created_at`, `updated_at`. Via `GET /kyc/status/{id}`.
+**Tier 4 — Never Returned**: `password_hash`, `email_code`, `phone_code`, raw OTP values, internal tokens, `dob` in public responses.
+**Derived Public Fields Rule:** Derived fields may be computed from private source fields only inside the backend projection boundary. The private source field must never be copied into the public response. `age` is the canonical example: `dob` → `calculate_age_from_dob()` → `age` in response, `dob` discarded.
+**Do not recreate:** Do not use `{**user, **profile}` dict-merge pattern for any sensitive endpoint. Do not add a new endpoint that returns owner fields without `Depends(verify_token)` + ownership check. Do not read the `profile:{user_id}` cache key from the public code path. Do not add a new DB column to a public response without first classifying its tier. Do not compute age from `p.dob` in frontend — use `p.age` from the API response.
 
 ---
 

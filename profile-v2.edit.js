@@ -607,6 +607,7 @@
       if(profile.country    !== undefined) window._scProfile.country     = profile.country;
       if(profile.city       !== undefined) window._scProfile.city        = profile.city;
       if(profile.avail      !== undefined) window._scProfile.avail       = profile.avail;
+      if(profile.age        !== undefined) window._scProfile.age         = profile.age != null ? profile.age : null;
       // profession: update from server canonical response (never from payload)
       if('profession_id' in profile){
         if(profile.profession_id === null || profile.profession_id === undefined){
@@ -629,6 +630,7 @@
       if(profile.country    !== undefined) window._scOwnerProfile.country     = profile.country;
       if(profile.city       !== undefined) window._scOwnerProfile.city        = profile.city;
       if(profile.avail      !== undefined) window._scOwnerProfile.avail       = profile.avail;
+      if(profile.age        !== undefined) window._scOwnerProfile.age         = profile.age != null ? profile.age : null;
     }
 
     // Name (§7) — use canonical full_name from server
@@ -650,24 +652,9 @@
       });
     }
 
-    // DOB → age display
-    if('dob' in profile){
-      if(profile.dob){
-        var birth = new Date(profile.dob);
-        if(!isNaN(birth.getTime())){
-          var age = Math.floor((Date.now() - birth.getTime()) / (365.25*24*3600*1000));
-          var ageEl = document.getElementById('scAge');
-          if(ageEl){
-            if(age > 0 && age < 150){
-              ageEl.innerHTML = '<i data-lucide="cake" class="ico-sm"></i> ' + age + ' سنة';
-              ageEl.style.display = 'flex';
-            }
-          }
-        }
-      } else {
-        var ageEl2 = document.getElementById('scAge');
-        if(ageEl2) ageEl2.style.display = 'none';
-      }
+    // Age display — uses backend-derived age from canonical response (dob is owner-only, never recomputed here)
+    if('age' in profile){
+      if(window._renderProfileAge) window._renderProfileAge(profile.age != null ? profile.age : null);
     }
 
     // Country / city location block

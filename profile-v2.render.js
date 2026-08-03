@@ -410,6 +410,22 @@ window._buildLocText = function(country, city, fallback){
   return fallback || '';
 };
 
+// ── Derived-age helper — age is a backend-derived PUBLIC field; dob is owner-only ──
+// age is present in PUBLIC and OWNER responses as a backend-derived field.
+// dob is present only in OWNER FULL responses and is never exposed publicly.
+// This function is called from renderProfile() (public path) and applyCanonicalProfile() (owner path).
+window._renderProfileAge = function(age) {
+  var ageEl = document.getElementById('scAge');
+  if (!ageEl) return;
+  if (Number.isInteger(age) && age >= 15 && age <= 110) {
+    ageEl.innerHTML = '<i data-lucide="cake" class="ico-sm"></i> ' + age + ' سنة';
+    ageEl.style.display = 'flex';
+  } else {
+    ageEl.innerHTML = '';
+    ageEl.style.display = 'none';
+  }
+};
+
 // ── Main render function (Doctrine §26) ──
 window.renderProfile = function renderProfile(res){
   var p = (res && res.profile) ? res.profile : {};
@@ -488,21 +504,8 @@ window.renderProfile = function renderProfile(res){
     }
   }
 
-  // Age from dob
-  if(p.dob){
-    var birth=new Date(p.dob);
-    if(!isNaN(birth.getTime())){
-      var diff=Date.now()-birth.getTime();
-      var age=Math.floor(diff/(365.25*24*3600*1000));
-      if(age>0 && age<150){
-        var ageEl=document.getElementById('scAge');
-        if(ageEl){
-          ageEl.innerHTML='<i data-lucide="cake" class="ico-sm"></i> ' + age + ' سنة';
-          ageEl.style.display='flex';
-        }
-      }
-    }
-  }
+  // Age — backend-derived public field; dob remains owner-only.
+  _renderProfileAge(p.age != null ? p.age : null);
 
   // Cover image — use cover_url from API if available, else keep CSS default
   var coverEl = document.getElementById('scCover');

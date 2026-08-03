@@ -1,4 +1,4 @@
-# Profile Data Visibility System V1
+# Profile Data Visibility System V1.2
 
 **Status:** Active — enforced server-side since PR fix/profile-kyc-privacy-boundary  
 **Principle:** Fail Closed — every new DB column is Private by default until explicitly added to a tier allowlist.
@@ -7,33 +7,62 @@
 
 ## Field Visibility Tiers
 
+> **Runtime Authority:** The four allowlists in `auth.py` are the machine-enforced contract.
+> This document must mirror them exactly. If a discrepancy is found, `auth.py` wins.
+
 ### Tier 1 — Public (no auth required)
 Returned by `GET /profile/{user_id}` to any caller including unauthenticated requests.
+Allowlist: `_PUBLIC_PROFILE_FIELDS` in `auth.py`.
 
-**`users` table:**  
+**From `users` table:**  
 `id`, `tw_id`, `full_name`, `user_type`, `is_verified`
 
-**`profiles` table:**  
-`headline`, `bio`, `location`, `country`, `city`, `avatar_url`, `cover_url`, `avail`, `website`
+**From `profiles` table:**  
+`headline`, `bio`, `short_bio`, `location`, `country`, `city`,  
+`avatar_url`, `cover_url`, `avail`, `website`,  
+`title`, `profile_color`, `profile_style`,  
+`profession_id`, `profession`, `sections_order`, `custom_sections`,  
+`first_name`, `middle_name`, `last_name`
 
-**Derived / computed:**  
-`viewer_type`, skills[], experience[], education[], courses[], links[], languages[], `following_count`
+**Collections (fetched separately):**  
+`experience[]`, `education[]`, `courses[]`, `skills[]`, `langs[]`, `links[]`, `following_count`
+
+> `langs[]` is the runtime JSON key (from `user_langs` table). It represents the user's language proficiencies.
+
+**Derived (computed at projection time, no DB column):**  
+`age` — integer derived from `dob` inside `project_public_profile()`. `dob` is consumed internally and **never** copied to the public response. Returns absent/null when `dob` is missing, invalid, future, pre-1940, or results in age < 15.
+
+**Never in Tier 1:**  
+`dob`, `phone`, `email`, `country_code`, `verify_request`, `password_hash`, any OTP field.
+
+**Projection rule (permanent):** Derived public fields may be computed from private source fields only inside the backend projection boundary. The private source field must never be copied into the public response.
 
 ### Tier 2 — Owner-Only (JWT required, `token.user_id == uid`)
 Returned by `GET /profile/{user_id}/full` when caller owns the profile.
+Allowlist: `_PUBLIC_PROFILE_FIELDS ∪ _OWNER_EXTRA_FIELDS` in `auth.py`.
 
 Includes all Tier 1 fields plus:  
-`phone`, `dob`, `country_code`, `created_at`, `email` (from users), `avail` (writable form value)
+`email`, `phone`, `dob`, `country_code`, `created_at`, `updated_at`, `verify_request`
+
+**Also includes derived:**  
+`age` — same calendar-accurate derivation as Tier 1; present alongside `dob` for UI convenience.
+
+> `avail` and `skills` are already in Tier 1. Do not list them again here as if they were owner-only.  
+> `verify_request` contains the user's most-recent credential verification request.
 
 ### Tier 3 — KYC Owner (JWT required, `token.user_id == uid`)
 Returned by `GET /kyc/status/{user_id}` when caller owns the KYC record.
+Allowlist: `_KYC_OWNER_FIELDS` in `auth.py`.
 
-Allowlist: `step`, `status`, `email_verified`, `phone_verified`, `is_verified`, `submitted_at`, `reviewed_at`
+Fields: `step`, `status`, `email_verified`, `phone_verified`, `is_verified`, `submitted_at`, `reviewed_at`
 
-**Never returned:** `email_code`, `phone_code`, `otp_*` columns, any raw OTP value
+**Never returned:** `email_code`, `phone_code`, any raw OTP value, document URLs, admin notes.
+
+> The KYC allowlist is exactly these 7 fields. `kyc_status`, `docs_submitted`, `created_at`, `updated_at` are NOT in the allowlist as of this version.
 
 ### Tier 4 — Never Returned via API
-`password_hash`, `email_code`, `phone_code`, any raw OTP, internal tokens, admin flags
+`password_hash`, `email_code`, `phone_code`, raw OTP values, internal tokens, admin flags.  
+`dob` is never in any public (Tier 1) response — only in Tier 2 (owner).
 
 ---
 
@@ -84,9 +113,10 @@ The `{**user, **profile}` dict-merge pattern is **permanently forbidden** for al
 
 ## Response Projection Functions (auth.py)
 
-- `project_public_profile(raw_dict) → dict` — strips to Tier 1 allowlist
-- `project_owner_profile(raw_dict) → dict` — returns Tier 1 + Tier 2 fields
+- `project_public_profile(raw_dict) → dict` — strips to Tier 1 allowlist; derives `age` from `raw_dict["dob"]` internally (dob never copied to result)
+- `project_owner_profile(raw_dict) → dict` — returns Tier 1 + Tier 2 fields; also adds derived `age` for UI convenience
 - `project_owner_kyc_status(raw_dict) → dict` — returns Tier 3 KYC allowlist only
+- `calculate_age_from_dob(dob) → int | None` — calendar-accurate age derivation helper; returns None for missing/invalid/future/pre-1940/under-15 values
 
 ---
 
@@ -158,3 +188,4 @@ On other errors: show safe generic message from `detail.message` if present.
 |---------|----|------|-------------|
 | V1 | fix/profile-kyc-privacy-boundary | 2026-08-03 | Initial privacy boundary enforcement |
 | V1.1 | fix/profile-kyc-privacy-boundary | 2026-08-03 | OTP Delivery Fail-Closed contract; `is_*_otp_delivery_available()` helpers; 503 on send endpoints; settings.html 503 handling; owner hydration toast feedback |
+| V1.2 | fix/profile-public-derived-age | 2026-08-03 | Restore public derived `age` field; `calculate_age_from_dob()` helper; projection functions compute age at boundary; frontend uses `p.age` never `p.dob` |
