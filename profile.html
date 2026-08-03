@@ -4328,7 +4328,7 @@ window.addEventListener('load', initQR);
 
 // Check KYC status
 if(_sessionUser && _sessionUser.id){
-  fetch('/kyc/status/'+_sessionUser.id).then(function(r){return r.json();}).then(function(data){
+  fetch('/kyc/status/'+_sessionUser.id,{headers:{'Authorization':'Bearer '+(localStorage.getItem('tw_jwt')||'')}}).then(function(r){return r.json();}).then(function(data){
     var kyc=data.kyc||{};
     var badge=document.getElementById('profileVerifiedBadge');
     if(kyc.status==='approved' && badge){

@@ -935,6 +935,20 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 
 ---
 
+## J — Security Systems
+
+### 52. Profile Data Visibility System V1
+**Purpose:** Governs which profile and KYC fields are visible to which callers. Defines four field visibility tiers: Public / Owner-Only / KYC-Owner / Never-Returned. Enforces Fail Closed — new DB columns are private by default until explicitly allowlisted.
+**Source of Truth:** `docs/security/PROFILE-DATA-VISIBILITY.md` · `project_public_profile()` / `project_owner_profile()` / `project_owner_kyc_status()` projection functions in `auth.py`
+**Details:** `docs/security/PROFILE-DATA-VISIBILITY.md` (field tiers, endpoint ownership contract, cross-user lookup, cache boundary, OTP security, projection function contracts)
+**Tier 1 — Public** (no auth): `tw_id`, `full_name`, `user_type`, `is_verified`, `headline`, `bio`, `location`, `country`, `city`, `avatar_url`, `cover_url`, `avail`, `website`, skills[], experience[], education[], courses[], links[], languages[], verify_requests (approved only). Via `GET /profile/{id}`.
+**Tier 2 — Owner-Only** (JWT, `token.user_id == uid`): all Tier 1 + `phone`, `dob`, `country_code`, `created_at`, `email`. Via `GET /profile/{id}/full`.
+**Tier 3 — KYC-Owner** (JWT, `token.user_id == uid`): `kyc_status`, `email_verified`, `phone_verified`, `docs_submitted`, `is_verified`, `created_at`, `updated_at` — **never** `email_code`, `phone_code`, OTP values. Via `GET /kyc/status/{id}`.
+**Tier 4 — Never Returned**: `password_hash`, `email_code`, `phone_code`, raw OTP values, internal tokens.
+**Do not recreate:** Do not use `{**user, **profile}` dict-merge pattern for any sensitive endpoint. Do not add a new endpoint that returns owner fields without `Depends(verify_token)` + ownership check. Do not read the `profile:{user_id}` cache key from the public code path. Do not add a new DB column to a public response without first classifying its tier.
+
+---
+
 ## I — Systems Needing Documentation
 
 These systems exist in code but lack formal documentation in ARCHITECTURE.md or CLAUDE.md:

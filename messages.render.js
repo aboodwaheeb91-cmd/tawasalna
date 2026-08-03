@@ -220,7 +220,8 @@ function renderConvList(convs) {
     var avatarUrl = c.avatar_url || '';
     frag += '<div class="conv-item ' + accentClass(type) + isActive + unreadCls + '" data-uid="' + c.other_id
           + '" data-type="' + type + '" data-avatar="' + esc(avatarUrl)
-          + '" data-headline="' + esc(profession(c)) + '">'
+          + '" data-headline="' + esc(profession(c))
+          + '" data-twid="' + esc(c.tw_id || '') + '">'
           + '<div class="ci-ava-wrap"><div class="ci-ava ' + typeInfo(type).cls + '">'
           + avatarHtml(c.full_name, avatarUrl) + '</div></div>'
           + '<div class="ci-body">'
@@ -256,7 +257,8 @@ function renderConvList(convs) {
     var type      = el.getAttribute('data-type') || 'emp';
     var avatarUrl = el.getAttribute('data-avatar') || '';
     var headline  = el.getAttribute('data-headline') || '';
-    el.addEventListener('click', function() { openConversation(uid, name, type, avatarUrl, headline); });
+    var twId      = el.getAttribute('data-twid') || '';
+    el.addEventListener('click', function() { openConversation(uid, name, type, avatarUrl, headline, twId); });
   });
 
   applyConvFilter(_convFilterMode);
@@ -299,7 +301,7 @@ function renderBubble(isMe, content, time, statusHtml, msgId) {
 
 // ── Open conversation — THE ONLY ENTRY POINT ─────────────────────────────
 
-function openConversation(otherId, name, type, avatarUrl, headline) {
+function openConversation(otherId, name, type, avatarUrl, headline, twId) {
   // Signal inactive on previous conversation before switching
   if (_currentConvId && _currentConvId !== otherId) {
     sendInactiveConversation(_currentConvId);
@@ -314,7 +316,7 @@ function openConversation(otherId, name, type, avatarUrl, headline) {
   }
   type = type || 'emp';
   _currentConvId  = otherId;
-  _activeConvMeta = { id: otherId, name: name, type: type, avatarUrl: avatarUrl, headline: headline || '' };
+  _activeConvMeta = { id: otherId, name: name, type: type, avatarUrl: avatarUrl, headline: headline || '', twId: twId || '' };
   // Signal active conversation to server (enables immediate read receipts)
   sendActiveConversation(otherId);
 
@@ -529,28 +531,24 @@ function reloadMessagesQuiet() {
 
 function viewConvProfile() {
   if (!_activeConvMeta || !_activeConvMeta.id) return;
-  apiGetUser(_activeConvMeta.id).then(function(data) {
-    var tw = data && data.user && data.user.tw_id;
-    if (tw) {
-      window.location.href = '/u/' + tw;
-    } else {
-      showToast('تعذر فتح الملف الشخصي', 'error');
-    }
-  }).catch(function() { showToast('تعذر فتح الملف الشخصي', 'error'); });
+  var tw = _activeConvMeta.twId;
+  if (tw) {
+    window.location.href = '/u/' + tw;
+  } else {
+    showToast('تعذر فتح الملف الشخصي', 'error');
+  }
 }
 
 function copyConvProfileLink() {
   if (!_activeConvMeta || !_activeConvMeta.id) return;
   var dd = document.getElementById('chMenuDropdown');
   if (dd) dd.classList.remove('open');
-  apiGetUser(_activeConvMeta.id).then(function(data) {
-    var tw = data && data.user && data.user.tw_id;
-    if (!tw) { showToast('تعذر نسخ الرابط', 'error'); return; }
-    var url = window.location.origin + '/u/' + tw;
-    navigator.clipboard.writeText(url)
-      .then(function() { showToast('تم نسخ رابط الملف', 'success'); })
-      .catch(function() { showToast('تعذر نسخ الرابط', 'error'); });
-  }).catch(function() { showToast('تعذر نسخ الرابط', 'error'); });
+  var tw = _activeConvMeta.twId;
+  if (!tw) { showToast('تعذر نسخ الرابط', 'error'); return; }
+  var url = window.location.origin + '/u/' + tw;
+  navigator.clipboard.writeText(url)
+    .then(function() { showToast('تم نسخ رابط الملف', 'success'); })
+    .catch(function() { showToast('تعذر نسخ الرابط', 'error'); });
 }
 
 // ── Exit conversation back to the conversation list ───────────────────────

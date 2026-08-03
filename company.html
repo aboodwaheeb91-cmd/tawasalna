@@ -482,21 +482,15 @@ function saveCandidate(id,e){
 }
 
 function viewProfile(id){
-  fetch('/auth/user/'+id)
-    .then(function(r){ return r.ok?r.json():null; })
-    .then(function(data){
-      var tw=data&&data.user&&data.user.tw_id;
-      if(tw){ window.open('/u/'+tw,'_blank'); }
-      else if(typeof showToast==='function') showToast('تعذر فتح الملف','error');
-    }).catch(function(){});
+  var card=document.querySelector('[data-twid="'+id+'"]');
+  var tw=card&&card.getAttribute('data-twid');
+  if(tw){ window.open('/u/'+tw,'_blank'); }
+  else if(typeof showToast==='function') showToast('بيانات تجريبية — ربط الملف الشخصي يتطلب بيانات حقيقية','info');
 }
 function msgEmp(id){
-  fetch('/auth/user/'+id)
-    .then(function(r){ return r.ok?r.json():null; })
-    .then(function(data){
-      var tw=data&&data.user&&data.user.tw_id;
-      window.location.href=tw?'/messages?with='+tw:'/messages';
-    }).catch(function(){ window.location.href='/messages'; });
+  var card=document.querySelector('[data-twid="'+id+'"]');
+  var tw=card&&card.getAttribute('data-twid');
+  window.location.href=tw?'/messages?with='+tw:'/messages';
 }
 function goProfile(){ if(_user) window.location.href='company-profile.html?id='+_user.id; }
 function logout(){

@@ -426,7 +426,7 @@ else{
   document.getElementById('uAva').textContent=icoMap[t]||'👤';
   document.getElementById('navAva').textContent=icoMap[t]||'👤';
 
-  fetch('/profile/'+(_u.tw_id||_u.id)+'/full').then(r=>r.json()).then(d=>{
+  fetch('/profile/'+(_u.tw_id||_u.id)+'/full',{headers:{'Authorization':'Bearer '+(localStorage.getItem('tw_jwt')||'')}}).then(r=>r.json()).then(d=>{
     const p=d.profile||{};
     const hasExp=(p.experience||[]).length>0;
     const hasEdu=(p.education||[]).length>0;
