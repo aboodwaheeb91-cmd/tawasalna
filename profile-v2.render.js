@@ -940,7 +940,24 @@ window.renderProfile = function renderProfile(res){
     if(ld){ ld.style.display=''; }
     if(errEl){ errEl.style.display='none'; }
     getProfile(_scProfileId)
-      .then(window.renderProfile)
+      .then(function(res){
+        window.renderProfile(res);
+        // Owner-only hydration: start loading /full AFTER renderProfile confirms viewer_type.
+        // Public state (window._scProfile) must never contain dob/phone/email.
+        // Private fields live only in window._scOwnerProfile (edit modal source).
+        if (window._scViewerType === 'owner' && window.getOwnerProfile) {
+          window._scOwnerProfile = null;
+          window._scOwnerProfilePromise = window.getOwnerProfile(_scProfileId)
+            .then(function(ownerRes){
+              window._scOwnerProfile = (ownerRes && ownerRes.profile) ? ownerRes.profile : null;
+              window._scOwnerProfilePromise = null;
+            })
+            .catch(function(){
+              window._scOwnerProfile = null;
+              window._scOwnerProfilePromise = null;
+            });
+        }
+      })
       .catch(function(){
         if(ld){ ld.style.display='none'; }
         if(errEl){ errEl.style.display=''; }

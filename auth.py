@@ -1074,7 +1074,7 @@ def get_public_profile(user_id: int) -> Optional[dict]:
             profile.pop(k, None)
         profile['profession'] = profession
 
-        return {**user, **profile, **_get_extras(conn, user_id)}
+        return project_public_profile({**user, **profile, **_get_extras(conn, user_id)})
     finally:
         release_conn(conn)
 
@@ -1169,6 +1169,49 @@ def get_full_profile(user_id: int) -> Optional[dict]:
         return result
     finally:
         release_conn(conn)
+
+
+# ─── Profile Data Visibility System V1 — Projection Functions ────────────────
+# Governs which fields are returned for each caller tier.
+# Full spec: docs/security/PROFILE-DATA-VISIBILITY.md
+# Fail Closed: any new DB column is private by default until added to one of these sets.
+
+_PUBLIC_PROFILE_FIELDS = frozenset({
+    "id", "tw_id", "full_name", "user_type", "is_verified",
+    "headline", "bio", "short_bio", "location", "country", "city",
+    "avatar_url", "cover_url", "avail", "website",
+    "title", "profile_color", "profile_style", "profession_id", "profession",
+    "sections_order", "custom_sections",
+    "first_name", "middle_name", "last_name",
+    "experience", "education", "courses", "skills", "langs", "links",
+    "following_count",
+})
+
+_OWNER_EXTRA_FIELDS = frozenset({
+    "email", "phone", "dob", "country_code", "created_at", "updated_at",
+    "verify_request", "skills",
+})
+
+_KYC_OWNER_FIELDS = frozenset({
+    "step", "status", "email_verified", "phone_verified",
+    "is_verified", "submitted_at", "reviewed_at",
+})
+
+
+def project_public_profile(raw: dict) -> dict:
+    """Tier 1 allowlist — strips dob, phone, email, and all private fields before public response."""
+    return {k: v for k, v in raw.items() if k in _PUBLIC_PROFILE_FIELDS}
+
+
+def project_owner_profile(raw: dict) -> dict:
+    """Tier 1 + Tier 2 — returns public fields plus owner-only fields (phone, dob, email)."""
+    return {k: v for k, v in raw.items()
+            if k in _PUBLIC_PROFILE_FIELDS or k in _OWNER_EXTRA_FIELDS}
+
+
+def project_owner_kyc_status(raw: dict) -> dict:
+    """Tier 3 KYC allowlist — never returns email_code, phone_code, document URLs, or admin notes."""
+    return {k: v for k, v in raw.items() if k in _KYC_OWNER_FIELDS}
 
 
 # ── Shared name normalizer (§2) — used by update_profile() here and register() in server.py ──
@@ -3145,11 +3188,12 @@ def upload_kyc_docs(user_id: int, id_url: str, selfie_url: str = None) -> dict:
         release_conn(conn)
 
 def get_kyc_status(user_id: int) -> dict:
-    """Get current KYC status"""
+    """Get current KYC status — explicit field allowlist, never returns OTP or document columns."""
     conn = get_conn()
     try:
         rows = conn.run(
-            "SELECT ks.*, u.is_verified, u.email_verified, u.phone_verified "
+            "SELECT ks.step, ks.status, ks.email_verified, ks.phone_verified, "
+            "ks.submitted_at, ks.reviewed_at, u.is_verified "
             "FROM kyc_submissions ks JOIN users u ON u.id=ks.user_id WHERE ks.user_id=:uid",
             uid=user_id
         )

@@ -9,7 +9,7 @@ from fastapi import FastAPI, HTTPException, Request, Response, Depends, Backgrou
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 import base64, mimetypes
 from typing import List, Optional
 from datetime import datetime
@@ -68,6 +68,7 @@ from auth import (
     create_user, authenticate_user, get_user_by_id,
     get_public_profile, get_full_profile, update_profile,
     get_profile_by_tw_id, get_full_profile_by_tw_id, get_user_id_by_tw_id, get_user_info_by_tw_id,
+    project_public_profile, project_owner_profile, project_owner_kyc_status,
     add_experience, update_experience, reorder_experience, add_education, add_course, update_education, update_course, create_verify_request,
     add_job, get_jobs, get_job, apply_job,
     start_kyc, send_email_code, verify_email_code,
@@ -186,6 +187,28 @@ def verify_token(request: Request):
     payload = _jwt_decode(token) if token else {}
     if not payload: raise HTTPException(401, "Token invalid or expired")
     return {"valid": True, "user_id": payload.get("user_id"), "user_type": payload.get("user_type")}
+
+
+def _dev_otp_log(label: str, uid: int) -> None:
+    """Log OTP event (not the code) when DEV_OTP_LOG env var is set."""
+    if os.environ.get("DEV_OTP_LOG"):
+        print(f"[DEV_OTP] {label} triggered for uid={uid}")
+
+
+def is_email_otp_delivery_available() -> bool:
+    """Returns True only when a real email delivery provider is configured.
+    No email provider is currently implemented. Enable this function body
+    when an actual provider (SendGrid, SES, Resend, etc.) is integrated.
+    DEV_OTP_LOG does NOT count as a delivery provider."""
+    return False
+
+
+def is_phone_otp_delivery_available() -> bool:
+    """Returns True only when a real SMS delivery provider is configured.
+    No SMS provider is currently implemented. Enable this function body
+    when an actual provider (Twilio, Vonage, etc.) is integrated.
+    DEV_OTP_LOG does NOT count as a delivery provider."""
+    return False
 
 
 # ── App ──
@@ -1168,6 +1191,11 @@ def get_company_profile(company_id: str, request: Request):
     permissions["is_following"] = extras["is_following"]
     permissions["my_rating"]    = extras["my_rating"]
 
+    # ── Strip private fields from profile for non-owners ──
+    if not is_owner:
+        for _private in ("email", "phone", "created_at"):
+            profile.pop(_private, None)
+
     return {
         "status":      "success",
         "profile":     profile,
@@ -1434,19 +1462,19 @@ class MessageInput(BaseModel):
     content: str
 
 class KYCEmailInput(BaseModel):
-    user_id: int
+    model_config = ConfigDict(extra='ignore')
     email: str
 
 class KYCCodeInput(BaseModel):
-    user_id: int
+    model_config = ConfigDict(extra='ignore')
     code: str
 
 class KYCPhoneInput(BaseModel):
-    user_id: int
+    model_config = ConfigDict(extra='ignore')
     phone: str
 
 class KYCDocsInput(BaseModel):
-    user_id: int
+    model_config = ConfigDict(extra='ignore')
     id_front_url: str
     selfie_url: Optional[str] = None
 
@@ -2968,7 +2996,9 @@ async def update_user_name(user_id: int, request: Request, token=Depends(verify_
         raise HTTPException(500, str(e))
 
 @app.get("/auth/user/{user_id}")
-def get_user(user_id: int):
+def get_user(user_id: int, token=Depends(verify_token)):
+    if str(token.get("user_id")) != str(user_id):
+        raise HTTPException(403, detail="غير مصرح")
     user = get_user_by_id(user_id)
     if not user:
         raise HTTPException(404, detail="المستخدم غير موجود")
@@ -3174,15 +3204,19 @@ def profile_metrics(user_id: str, request: Request):
     }
 
 @app.get("/profile/{user_id}/full")
-def full_profile(user_id: str):
+def full_profile(user_id: str, token=Depends(verify_token)):
     try:
         uid = int(user_id)
-        profile = get_full_profile(uid)
     except ValueError:
-        profile = get_full_profile_by_tw_id(user_id)
+        uid = get_user_id_by_tw_id(user_id)
+        if uid is None:
+            raise HTTPException(404, detail="الملف الشخصي غير موجود")
+    if str(token.get("user_id")) != str(uid):
+        raise HTTPException(403, detail="غير مصرح")
+    profile = get_full_profile(uid)
     if not profile:
         raise HTTPException(404, detail="الملف الشخصي غير موجود")
-    return {"status": "success", "profile": profile}
+    return {"status": "success", "profile": project_owner_profile(profile)}
 
 
 # ══ Profile Follow Endpoints ══
@@ -3932,35 +3966,51 @@ async def upload_image(data: ImageUploadInput, token=Depends(verify_token)):
 # ══ KYC Endpoints ══
 
 @app.post("/kyc/start")
-def kyc_start(user_id: int, token=Depends(verify_token)):
+def kyc_start(token=Depends(verify_token)):
     try:
-        result = start_kyc(user_id)
+        uid = int(token.get("user_id"))
+        result = start_kyc(uid)
         return {"status": "success", "kyc": result}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(500, str(e))
 
 @app.get("/kyc/status/{user_id}")
-def kyc_status(user_id: int):
+def kyc_status(user_id: int, token=Depends(verify_token)):
+    if str(token.get("user_id")) != str(user_id):
+        raise HTTPException(403, detail="غير مصرح")
     try:
         result = get_kyc_status(user_id)
-        return {"status": "success", "kyc": result}
+        return {"status": "success", "kyc": project_owner_kyc_status(result)}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(500, str(e))
 
 @app.post("/kyc/email/send")
 def kyc_send_email(data: KYCEmailInput, token=Depends(verify_token)):
+    # Fail Closed: no OTP generated or stored until a real provider is available.
+    if not is_email_otp_delivery_available():
+        return JSONResponse(status_code=503, content={
+            "detail": {"code": "otp_delivery_unavailable", "message": "خدمة إرسال رمز التحقق غير متاحة حالياً"}
+        })
     try:
-        start_kyc(data.user_id)
-        code = send_email_code(data.user_id, data.email)
-        print(f"[KYC] Email code for user {data.user_id}: {code}")  # In prod: send via email
-        return {"status": "success", "message": "تم إرسال الرمز على بريدك الإلكتروني", "dev_code": code}
+        uid = int(token.get("user_id"))
+        start_kyc(uid)
+        code = send_email_code(uid, data.email)
+        _dev_otp_log("KYC Email", uid)
+        return {"status": "success", "message": "تم إرسال الرمز على بريدك الإلكتروني"}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(500, str(e))
 
 @app.post("/kyc/email/verify")
 def kyc_verify_email(data: KYCCodeInput, token=Depends(verify_token)):
     try:
-        ok = verify_email_code(data.user_id, data.code)
+        uid = int(token.get("user_id"))
+        ok = verify_email_code(uid, data.code)
         if not ok:
             raise HTTPException(400, "الرمز غير صحيح أو منتهي الصلاحية")
         return {"status": "success", "message": "تم تأكيد البريد الإلكتروني ✅"}
@@ -3971,17 +4021,26 @@ def kyc_verify_email(data: KYCCodeInput, token=Depends(verify_token)):
 
 @app.post("/kyc/phone/send")
 def kyc_send_phone(data: KYCPhoneInput, token=Depends(verify_token)):
+    # Fail Closed: no OTP generated or stored until a real provider is available.
+    if not is_phone_otp_delivery_available():
+        return JSONResponse(status_code=503, content={
+            "detail": {"code": "otp_delivery_unavailable", "message": "خدمة إرسال رمز التحقق غير متاحة حالياً"}
+        })
     try:
-        code = send_phone_code(data.user_id, data.phone)
-        print(f"[KYC] Phone code for user {data.user_id}: {code}")  # In prod: send via SMS
-        return {"status": "success", "message": "تم إرسال الرمز على هاتفك", "dev_code": code}
+        uid = int(token.get("user_id"))
+        code = send_phone_code(uid, data.phone)
+        _dev_otp_log("KYC Phone", uid)
+        return {"status": "success", "message": "تم إرسال الرمز على هاتفك"}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(500, str(e))
 
 @app.post("/kyc/phone/verify")
 def kyc_verify_phone(data: KYCCodeInput, token=Depends(verify_token)):
     try:
-        ok = verify_phone_code(data.user_id, data.code)
+        uid = int(token.get("user_id"))
+        ok = verify_phone_code(uid, data.code)
         if not ok:
             raise HTTPException(400, "الرمز غير صحيح")
         return {"status": "success", "message": "تم تأكيد رقم الهاتف ✅"}
@@ -3993,8 +4052,11 @@ def kyc_verify_phone(data: KYCCodeInput, token=Depends(verify_token)):
 @app.post("/kyc/docs")
 def kyc_upload_docs(data: KYCDocsInput, token=Depends(verify_token)):
     try:
-        result = upload_kyc_docs(data.user_id, data.id_front_url, data.selfie_url)
+        uid = int(token.get("user_id"))
+        result = upload_kyc_docs(uid, data.id_front_url, data.selfie_url)
         return {"status": "success", **result}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(500, str(e))
 

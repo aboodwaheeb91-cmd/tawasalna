@@ -498,10 +498,38 @@
   // ── Open Modal (§19) ──
   function openModal(){
     var session = ++_editSession;   // advance generation before any async work (§20/§8)
+
+    // Gate: owner hydration (/full) must complete before edit modal can open.
+    // This ensures dob/phone/email are available for pre-population.
+    // Public state (window._scProfile) never carries these private fields.
+    if (window._scOwnerProfilePromise) {
+      // Still in-flight — disable button and wait
+      editBtn.disabled = true;
+      window._scOwnerProfilePromise.then(function(){
+        editBtn.disabled = false;
+        if (!window._scOwnerProfile) {
+          var _msg1 = 'انتهت جلستك أو غير مصرح. يرجى تسجيل الدخول مجدداً.';
+          if (window.toast) window.toast(_msg1);
+          if (errEl){ errEl.textContent = _msg1; errEl.style.display = ''; }
+          return;
+        }
+        openModal();
+      });
+      return;
+    }
+    if (!window._scOwnerProfile && window._scViewerType === 'owner') {
+      var _msg2 = 'تعذر تحميل بيانات التعديل. يرجى تحديث الصفحة.';
+      if (window.toast) window.toast(_msg2);
+      if (errEl){ errEl.textContent = _msg2; errEl.style.display = ''; }
+      return;
+    }
+
     _resetForm();
     overlay.classList.add('open');
 
-    var p = window._scProfile || {};
+    // Owner-only state is the source for edit modal — includes dob/phone/email.
+    // Falls back to public state only for non-owner (shouldn't happen, but safe guard).
+    var p = window._scOwnerProfile || window._scProfile || {};
 
     // Canonical fields hydrate IMMEDIATELY — never gated on professions (FRM-06)
     _hydrateCanonicalFields(p, session);
@@ -568,14 +596,14 @@
   function applyCanonicalProfile(profile){
     if(!profile) return;
 
-    // Update in-memory canonical state
+    // Update in-memory canonical state — public fields only in _scProfile
     if(window._scProfile){
       if(profile.full_name  !== undefined) window._scProfile.full_name   = profile.full_name;
       if(profile.first_name !== undefined) window._scProfile.first_name  = profile.first_name;
       if(profile.middle_name!== undefined) window._scProfile.middle_name = profile.middle_name;
       if(profile.last_name  !== undefined) window._scProfile.last_name   = profile.last_name;
       if(profile.short_bio  !== undefined) window._scProfile.short_bio   = profile.short_bio;
-      if(profile.dob        !== undefined) window._scProfile.dob         = profile.dob;
+      // dob is private — intentionally NOT synced to _scProfile (see _scOwnerProfile below)
       if(profile.country    !== undefined) window._scProfile.country     = profile.country;
       if(profile.city       !== undefined) window._scProfile.city        = profile.city;
       if(profile.avail      !== undefined) window._scProfile.avail       = profile.avail;
@@ -587,6 +615,20 @@
           // will be resolved below from _profList
         }
       }
+    }
+
+    // Sync owner state: private fields + public fields (owner state is a superset).
+    // dob must never be stored in _scProfile; it lives only here.
+    if(window._scOwnerProfile){
+      if(profile.dob        !== undefined) window._scOwnerProfile.dob         = profile.dob;
+      if(profile.full_name  !== undefined) window._scOwnerProfile.full_name   = profile.full_name;
+      if(profile.first_name !== undefined) window._scOwnerProfile.first_name  = profile.first_name;
+      if(profile.middle_name!== undefined) window._scOwnerProfile.middle_name = profile.middle_name;
+      if(profile.last_name  !== undefined) window._scOwnerProfile.last_name   = profile.last_name;
+      if(profile.short_bio  !== undefined) window._scOwnerProfile.short_bio   = profile.short_bio;
+      if(profile.country    !== undefined) window._scOwnerProfile.country     = profile.country;
+      if(profile.city       !== undefined) window._scOwnerProfile.city        = profile.city;
+      if(profile.avail      !== undefined) window._scOwnerProfile.avail       = profile.avail;
     }
 
     // Name (§7) — use canonical full_name from server

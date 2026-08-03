@@ -1034,6 +1034,180 @@ Phase 11: Realtime / Push
 | Verification documents storage | أين تُخزَّن وثائق توثيق الشركات/المؤسسات؟ نفس Supabase bucket؟ bucket منفصل؟ |
 | Setup Wizard completion state — backend or localStorage? | هل نحفظ تقدم المستخدم في الـ wizard في backend (user preferences table) أم يكفي localStorage مؤقتاً؟ |
 | Guided Tour completion state — backend or localStorage? | نفس قرار الـ Setup Wizard. localStorage مقبول كحل مؤقت إذا وُثِّق صراحةً. |
+| Global People & Companies Search | يحتاج قرار: search index strategy (pg_trgm vs full-text vs external engine)، what fields are indexed (name, skill, title, location, profession)، who can search whom (emp ↔ co ↔ edu)، pagination + rate limiting model، whether company visibility is opt-out or opt-in. لا يُنفَّذ قبل قرار data-at-rest privacy model للموظفين. |
+| Company-to-Company Business Network | يحتاج قرار: DB schema للعلاقات بين الشركات (partnership / vendor / client / investor)، visibility model (public or private per-relation)، هل يستخدم `company_follows` table الموجودة أم جدول مستقل `company_relations`، connection-request flow vs direct link، وما الفرق بين follow (unilateral) وconnect (bilateral). لا يُبنى قبل تحديد الـ privacy model وما الذي يُعرض على صفحات `/u/{tw_id}` للزوار. |
+| Global Search — هل متاح للضيف؟ | الزوار غير المسجّلين: هل يحق لهم البحث عن أشخاص وشركات؟ أم يتطلب تسجيل دخول؟ يؤثر على privacy model وRate limiting وDB index strategy. |
+| Global Search — عدد الأحرف الأدنى | هل يبدأ البحث من حرف واحد أم حرفين؟ Starts-with على حرف واحد قد يُعيد نتائج كثيرة جداً وتحتاج index قوي. |
+| Global Search — Recent Searches | هل نحفظ recent searches في Backend (user preferences table) أم localStorage فقط؟ localStorage مقبول مؤقتاً إذا وُثِّق صراحةً. |
+| Global Search — المؤسسات التعليمية في V1 | هل تظهر edu accounts في بحث V1؟ أم نقصره على emp + co أولاً ونضيف edu لاحقاً؟ |
+| B2B — إرسال العروض: كل الشركات أم الموثقة؟ | هل يحق لكل شركة إرسال Business Offers؟ أم الموثقة (`is_verified=true`) فقط؟ يؤثر على قيمة التوثيق وجدية المنصة. |
+| B2B — إغلاق استقبال العروض | هل يمكن للشركة تعطيل استقبال العروض؟ مثل "inbox closed" لشركات مشغولة. يحتاج حقل في DB. |
+| B2B — قبول العلاقة: طرف واحد أم اثنان؟ | هل العلاقة تحتاج قبول الطرفين (bilateral)؟ أم طرف واحد يعلن العلاقة (unilateral)؟ |
+| B2B — العرض المقابل Counter-Offer | هل ندعم Counter-Offer من V1؟ أم يبقى الـ Lifecycle أبسط (accept/reject فقط)؟ |
+| B2B — القيمة المالية والعملة | هل حقل القيمة (amount + currency) إلزامي؟ اختياري؟ أم لا يُضاف في V1؟ |
+| B2B — طبيعة القبول القانوني | هل قبول العرض اتفاق مبدئي غير ملزم؟ أم له قوة قانونية (عقد إلكتروني)؟ يؤثر على الصياغة القانونية والـ UX. |
+| B2B — المؤسسات التعليمية في B2B | هل edu accounts تشارك في B2B مستقبلاً؟ أم يقتصر على co ↔ co؟ |
+
+---
+
+## Future Feature Notes — Global People & Companies Search
+
+> **هذا توثيق فكرة — وليس إذناً بالتنفيذ.**
+> لا تُنفَّذ هذه الفكرة حتى يُطلب صراحةً. راجع Usage Rules أعلاه.
+
+### الفكرة العامة
+
+زر بحث عالمي يتيح للمستخدم البحث عن أشخاص (موظفين) وشركات داخل المنصة من أي صفحة.
+
+### موقع الزر وسلوكه
+
+- يظهر بجانب زر الصفحة الرئيسية في الهيدر.
+- يظهر افتراضياً كأيقونة مغلقة (🔍) بدون خانة نص.
+- عند الضغط عليه يتمدد ويفتح خانة البحث داخل الهيدر.
+- ينتقل Focus تلقائياً إلى خانة البحث عند الفتح.
+- تبدأ الاقتراحات فوراً من أول حرف يكتبه المستخدم.
+- Escape يغلق البحث ويعود إلى الأيقونة.
+- الضغط خارج خانة البحث يغلقها أيضاً.
+- على Mobile: خانة البحث full-width عند الفتح.
+
+### هيكل النتائج
+
+النتائج مقسمة إلى مجموعتين:
+
+**أشخاص / موظفين:**
+- صورة المستخدم (avatar دائري)
+- الاسم الكامل
+- المسمى المهني / التخصص
+- الدولة أو المدينة العامة (إن كانت مُعبأة وعامة)
+- علامة التوثيق (✓) إن كان الحساب موثقاً
+
+**شركات:**
+- شعار الشركة (rounded square أو دائري)
+- اسم الشركة
+- تصنيف الشركة (نوع الصناعة)
+- الدولة أو المدينة العامة
+- علامة التوثيق (✓) إن كانت موثقة
+
+الضغط على أي نتيجة يفتح: `/u/{tw_id}`
+
+### القواعد التقنية المستقبلية
+
+- **API-first:** Backend search — ممنوع تحميل جميع الحسابات في المتصفح.
+- **Web + Flutter على نفس API + DB.**
+- **Debounce:** 250–300ms بعد آخر حرف قبل إرسال الطلب.
+- **Stale Response Guard:** إلغاء طلب قديم أو تجاهل نتائجه إذا جاء طلب أحدث.
+- **ترتيب النتائج:** starts-with قبل contains؛ verified قبل unverified.
+- **Limit:** حد أقصى لعدد النتائج المعروضة (10–20 نتيجة).
+- **Pagination:** للنتائج الكاملة (صفحة نتائج منفصلة إذا احتجنا).
+- **Rate limiting:** server-side لكل مستخدم أو IP.
+- **الحقول العامة فقط:** name, title, profession, location, avatar, is_verified.
+- **ممنوع:** phone / email / dob في أي نتيجة بحث.
+- **قابل للتوسع:** مستقبلاً يدعم البحث في الوظائف والمؤسسات التعليمية.
+- **Recent Searches:** قرار مستقل (راجع Needs Decision).
+
+---
+
+## Future Feature Notes — Company-to-Company Business Network
+
+> **هذا توثيق فكرة — وليس إذناً بالتنفيذ.**
+> لا تُنفَّذ هذه الفكرة حتى يُطلب صراحةً. راجع Usage Rules أعلاه.
+
+### الفكرة العامة
+
+نظام علاقات وعروض بين الشركات — تتجاوز Follow العادي والرسائل المباشرة نحو تعاون عمل رسمي ومنظم.
+
+### القدرات المستقبلية (Capabilities)
+
+- **زر «تواصل للأعمال»** على صفحة الشركة — يبدأ طلب علاقة أو عرض.
+- **زر «إرسال عرض»** — يفتح نموذج تفاصيل العرض.
+- **طلب علاقة أو تعاون** — أحد الطرفين يبادر، الآخر يقبل أو يرفض.
+- **قبول / رفض العلاقة** — actions رسمية مسجّلة.
+- **إنهاء العلاقة** — طرف واحد يقدر ينهيها.
+- **عرض علاقات الشركة الخاصة** — visible للمالك فقط، لا للعامة افتراضياً.
+
+### أنواع العروض (Offer Types)
+
+| النوع | الوصف |
+|-------|-------|
+| توريد | Supply / Procurement |
+| تقديم خدمة | Service Provision |
+| شراكة | Partnership |
+| توزيع أو وكالة | Distribution / Agency |
+| رعاية | Sponsorship |
+| تعاون في مشروع | Project Collaboration |
+| مشروع مشترك | Joint Venture |
+| عرض مخصص | Custom Offer |
+
+### بيانات العرض (Offer Data)
+
+| الحقل | الوصف |
+|-------|-------|
+| sender_company_id | الشركة المرسِلة (من JWT فقط) |
+| receiver_company_id | الشركة المستقبِلة |
+| offer_type | نوع العرض من القائمة أعلاه |
+| title | عنوان العرض |
+| description | وصف تفصيلي |
+| amount + currency | القيمة والعملة (اختياري — راجع Needs Decision) |
+| expires_at | تاريخ انتهاء العرض |
+| terms_notes | شروط وملاحظات |
+| event_log | سجل الأحداث والقرارات (كل تغيير حالة) |
+| linked_conversation_id | محادثة مرتبطة (يستخدم Messaging System الحالي) |
+| linked_documents | مرفقات عبر Documents/Evidence System المستقبلي |
+
+### Lifecycle مفاهيمي (غير معتمد للتنفيذ — للتوثيق فقط)
+
+```
+draft → sent → viewed → under_negotiation → countered → accepted
+                                                       → rejected
+                                            → withdrawn
+                                            → expired
+                         accepted → completed
+                                  → cancelled
+```
+
+### القواعد الدائمة
+
+- **العرض سجل مستقل** — ليس نصاً داخل رسالة عادية.
+- **القبول والرفض Actions رسمية** — مسجّلة في event_log.
+- **لا خلط مع `company_follows`** — follows = unilateral follow؛ Business Network = bilateral formal relation.
+- **لا تخزين حالة العرض داخل الرسائل** — الرسالة للتواصل، والسجل للعلاقة.
+- **هوية الشركة من JWT فقط** — ممنوع sender_company_id من الـbody.
+- **Backend Final Authority** — كل تحقق وصلاحية server-side.
+- **Web + Flutter على نفس Backend / API / DB.**
+- **Notifications عبر النظام المشترك** — لا نظام إشعارات منفصل لـB2B.
+- **لا تنفيذ حالياً** — هذا توثيق فكرة فقط.
+
+---
+
+## Future Feature Notes — KYC OTP Delivery Providers
+
+> **هذا توثيق فكرة — وليس إذناً بالتنفيذ.**
+> وجود هذه الفكرة في الـRoadmap لا يُعطي إذناً لأي AI أو مطوّر بتنفيذها إلا بطلب صريح من المستخدم.
+
+### الوضع الحالي
+
+`POST /kyc/email/send` و `POST /kyc/phone/send` تعمل **Fail Closed** وترجع `503 otp_delivery_unavailable` لأنه لا يوجد Email/SMS Provider حقيقي. توليد الرمز لا يعني إيصاله.
+
+### المطلوب لتفعيل KYC OTP Delivery
+
+| العنصر | التفاصيل |
+|--------|----------|
+| **Email Provider** | تكامل مع SendGrid / AWS SES / Resend أو بديل. إعداد Domain/DKIM/SPF. Template عربي. |
+| **SMS Provider** | تكامل مع Twilio / Vonage / أي provider يدعم الأرقام العربية (+962, +966, ...). |
+| **Rate Limits** | حد إعادة الإرسال (مثال: مرة كل 60 ثانية لنفس المستخدم). |
+| **OTP Expiry** | انتهاء صلاحية الرمز (مثال: 10 دقائق). تحتاج `expires_at` column في `kyc_submissions`. |
+| **Attempt Limits** | حد محاولات التحقق الخاطئة (مثال: 5 محاولات ثم block). |
+| **Abuse Prevention** | Rate limiting per IP + per user_id. تسجيل الأحداث في event_log. |
+| **Provider Observability** | تسجيل نجاح/فشل الإرسال (لا الرمز نفسه). |
+| **Web + Flutter** | نفس API، نفس Backend — لا provider منفصل لكل client. |
+| **تفعيل Helpers** | `is_email_otp_delivery_available()` و `is_phone_otp_delivery_available()` في `server.py` تُبقى `False` حتى يُكتمل التكامل والاختبار في Production. |
+
+### قواعد دائمة (لا تتغير حتى بعد بناء النظام)
+
+- الرمز لا يظهر في Response أو Logs في أي بيئة.
+- `DEV_OTP_LOG` يسجل حدثاً فقط — لا يجعل Provider متاحاً.
+- Mock Provider للاختبارات فقط — لا يُفعَّل في Production.
+- هوية المستخدم من JWT فقط — ممنوع `user_id` في body.
 
 ---
 

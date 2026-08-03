@@ -509,10 +509,13 @@ function initScrollProg(){
 // ══ KYC System ══
 var _kycStep=1,_kycIdB64='',_kycSelfieB64='';
 
+function _kycJwt(){ return localStorage.getItem('tw_jwt')||''; }
+function _kycAuthHdr(){ return {'Authorization':'Bearer '+_kycJwt(),'Content-Type':'application/json'}; }
+
 function openKYC(){
   if(!_user||!_user.id) return;
   document.getElementById('kycOverlay').style.display='flex';
-  fetch('/kyc/status/'+_user.id).then(function(r){return r.json();}).then(function(data){
+  fetch('/kyc/status/'+_user.id,{headers:{'Authorization':'Bearer '+_kycJwt()}}).then(function(r){return r.json();}).then(function(data){
     var kyc=data.kyc||{};
     var step=kyc.step||'none';
     if(step==='none'||step==='email'){ showKYCStep(1); if(_user.email) document.getElementById('kyc-email').value=_user.email; }
@@ -555,29 +558,44 @@ function showKYCRejected(note){
 
 function resetKYC(){
   _kycIdB64=''; _kycSelfieB64='';
-  fetch('/kyc/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:_user.id})}).then(function(){showKYCStep(1);}).catch(function(){showKYCStep(1);});
+  fetch('/kyc/start',{method:'POST',headers:_kycAuthHdr()}).then(function(){showKYCStep(1);}).catch(function(){showKYCStep(1);});
+}
+
+// Shared OTP send error handler — covers 503 (no provider), 401 (session), and generic errors.
+// detail may be a string or {code, message} object (both shapes from server.py HTTPException).
+function _kycHandleOtpSendErr(status, data, btn){
+  setBtnLoad(btn, false);
+  if(status === 401){showToast('انتهت جلستك، يرجى تسجيل الدخول مجدداً','error');return;}
+  var detail = data && data.detail;
+  var code = detail && (typeof detail === 'object' ? detail.code : detail);
+  if(status === 503 || code === 'otp_delivery_unavailable'){
+    showToast('خدمة إرسال رمز التحقق غير متاحة حالياً، وسيتم توفيرها قريباً.','error');
+    return;
+  }
+  var msg = (detail && (typeof detail === 'object' ? detail.message : detail)) || 'حدث خطأ، حاول مجدداً';
+  showToast(msg,'error');
 }
 
 function kycSendEmail(btn){
   var email=document.getElementById('kyc-email').value.trim();
   if(!email){showToast('أدخل البريد الإلكتروني','error');return;}
   setBtnLoad(btn,true);
-  fetch('/kyc/email/send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:_user.id,email:email})})
-  .then(function(r){return r.json();}).then(function(data){
-    setBtnLoad(btn,false);
-    if(data.status==='success'){
+  fetch('/kyc/email/send',{method:'POST',headers:_kycAuthHdr(),body:JSON.stringify({email:email})})
+  .then(function(r){var s=r.status;return r.json().then(function(d){return{s:s,d:d};});})
+  .then(function(o){
+    if(o.s===200&&o.d.status==='success'){
+      setBtnLoad(btn,false);
       document.getElementById('kyc-email-code-wrap').style.display='block';
       showToast('تم إرسال الرمز ✅');
-      if(data.dev_code) console.log('[KYC] Email code:',data.dev_code);
-    }
-  }).catch(function(){setBtnLoad(btn,false);showToast('خطأ','error');});
+    }else{_kycHandleOtpSendErr(o.s,o.d,btn);}
+  }).catch(function(){setBtnLoad(btn,false);showToast('خطأ في الاتصال','error');});
 }
 
 function kycVerifyEmail(btn){
   var code=document.getElementById('kyc-email-code').value.trim();
   if(code.length!==6){showToast('الرمز 6 أرقام','error');return;}
   setBtnLoad(btn,true);
-  fetch('/kyc/email/verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:_user.id,code:code})})
+  fetch('/kyc/email/verify',{method:'POST',headers:_kycAuthHdr(),body:JSON.stringify({code:code})})
   .then(function(r){return r.json();}).then(function(data){
     setBtnLoad(btn,false);
     if(data.status==='success'){showToast('✅ تم تأكيد البريد');setTimeout(function(){showKYCStep(2);},700);}
@@ -589,22 +607,22 @@ function kycSendPhone(btn){
   var phone=document.getElementById('kyc-phone').value.trim();
   if(!phone){showToast('أدخل رقم الهاتف','error');return;}
   setBtnLoad(btn,true);
-  fetch('/kyc/phone/send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:_user.id,phone:phone})})
-  .then(function(r){return r.json();}).then(function(data){
-    setBtnLoad(btn,false);
-    if(data.status==='success'){
+  fetch('/kyc/phone/send',{method:'POST',headers:_kycAuthHdr(),body:JSON.stringify({phone:phone})})
+  .then(function(r){var s=r.status;return r.json().then(function(d){return{s:s,d:d};});})
+  .then(function(o){
+    if(o.s===200&&o.d.status==='success'){
+      setBtnLoad(btn,false);
       document.getElementById('kyc-phone-code-wrap').style.display='block';
       showToast('تم إرسال الرمز ✅');
-      if(data.dev_code) console.log('[KYC] Phone code:',data.dev_code);
-    }
-  }).catch(function(){setBtnLoad(btn,false);showToast('خطأ','error');});
+    }else{_kycHandleOtpSendErr(o.s,o.d,btn);}
+  }).catch(function(){setBtnLoad(btn,false);showToast('خطأ في الاتصال','error');});
 }
 
 function kycVerifyPhone(btn){
   var code=document.getElementById('kyc-phone-code').value.trim();
   if(!code){showToast('أدخل الرمز','error');return;}
   setBtnLoad(btn,true);
-  fetch('/kyc/phone/verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:_user.id,code:code})})
+  fetch('/kyc/phone/verify',{method:'POST',headers:_kycAuthHdr(),body:JSON.stringify({code:code})})
   .then(function(r){return r.json();}).then(function(data){
     setBtnLoad(btn,false);
     if(data.status==='success'){showToast('✅ تم تأكيد الهاتف');setTimeout(function(){showKYCStep(3);},700);}
@@ -647,8 +665,8 @@ function kycSubmitDocs(btn){
   ]).then(function(results){
     var idUrl=results[0].url||_kycIdB64;
     var selfieUrl=results[1]?results[1].url:null;
-    return fetch('/kyc/docs',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({user_id:_user.id,id_front_url:idUrl,selfie_url:selfieUrl})
+    return fetch('/kyc/docs',{method:'POST',headers:_kycAuthHdr(),
+      body:JSON.stringify({id_front_url:idUrl,selfie_url:selfieUrl})
     }).then(function(r){return r.json();});
   }).then(function(data){
     setBtnLoad(btn,false);
@@ -665,7 +683,7 @@ function kycSubmitDocs(btn){
 
 (function(){
   if(!_user||!_user.id) return;
-  fetch('/kyc/status/'+_user.id).then(function(r){return r.json();}).then(function(data){
+  fetch('/kyc/status/'+_user.id,{headers:{'Authorization':'Bearer '+_kycJwt()}}).then(function(r){return r.json();}).then(function(data){
     var kyc=data.kyc||{};
     if(kyc.status==='approved'){
       document.getElementById('kycBadge').style.display='inline-block';

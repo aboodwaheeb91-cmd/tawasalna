@@ -6,6 +6,14 @@ function getProfile(id){
     .then(function(r){ if(!r.ok) throw new Error('profile ' + r.status); return r.json(); });
 }
 
+// Owner-only hydration: fetches /full to get phone/dob/email for the edit modal.
+// Never called for visitors — only when window._scViewerType === 'owner'.
+function getOwnerProfile(id){
+  return fetch('/profile/' + encodeURIComponent(id) + '/full', {
+    headers: { 'Authorization': 'Bearer ' + _currentJwt() }
+  }).then(function(r){ if(!r.ok) throw new Error('owner_profile ' + r.status); return r.json(); });
+}
+
 function getProfileMetrics(id){
   return fetch('/profile/' + encodeURIComponent(id) + '/metrics', { headers: { 'Authorization': 'Bearer ' + _currentJwt() } })
     .then(function(r){ return r.ok ? r.json() : null; });
@@ -85,7 +93,8 @@ function uploadAvatar(userId, dataUrl){
 window.addExperience    = addExperience;
 window.updateExperience = updateExperience;
 window.deleteExperience = deleteExperience;
-window.getProfile     = getProfile;
+window.getProfile      = getProfile;
+window.getOwnerProfile = getOwnerProfile;
 window.getScore       = getScore;
 window.getProfessions = getProfessions;
 window.updateProfile  = updateProfile;

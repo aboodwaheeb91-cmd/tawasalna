@@ -608,7 +608,7 @@ document.head.appendChild(style);
   var urlId = _urlId;
   var uid = urlId || (_user && _user.id);
   if(!uid) return;
-  fetch('/profile/'+uid+'/full').then(function(r){return r.json();}).then(function(data){
+  fetch('/profile/'+uid).then(function(r){return r.json();}).then(function(data){
     var p = data.profile || {};
     if(p.full_name){ _data.name = p.full_name; updateDisplay(); }
     if(p.bio){ _data.desc = p.bio; updateDisplay(); }
