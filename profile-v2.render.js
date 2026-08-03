@@ -410,8 +410,9 @@ window._buildLocText = function(country, city, fallback){
   return fallback || '';
 };
 
-// ── Derived-age helper — uses backend-computed age, never recomputes from dob ──
-// age is absent from PUBLIC responses (derived only); dob is present in OWNER FULL responses.
+// ── Derived-age helper — age is a backend-derived PUBLIC field; dob is owner-only ──
+// age is present in PUBLIC and OWNER responses as a backend-derived field.
+// dob is present only in OWNER FULL responses and is never exposed publicly.
 // This function is called from renderProfile() (public path) and applyCanonicalProfile() (owner path).
 window._renderProfileAge = function(age) {
   var ageEl = document.getElementById('scAge');
@@ -503,7 +504,7 @@ window.renderProfile = function renderProfile(res){
     }
   }
 
-  // Age — backend-derived integer from dob; absent from public responses; present in owner full response alongside dob
+  // Age — backend-derived public field; dob remains owner-only.
   _renderProfileAge(p.age != null ? p.age : null);
 
   // Cover image — use cover_url from API if available, else keep CSS default

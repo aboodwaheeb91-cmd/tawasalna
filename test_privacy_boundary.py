@@ -1388,15 +1388,43 @@ class TestDerivedAge(_unittest_l.TestCase):
         self.assertNotIn("languages[]", src,
                          "docs must use langs[] not languages[] — runtime JSON key is langs")
 
-    def test_l52_render_js_comment_accurate_about_owner_dob(self):
-        """render.js must not claim dob is absent from owner responses — dob IS in Tier 2."""
+    def test_l52_render_js_comment_contract_accurate(self):
+        """render.js comments must state the correct age/dob contract.
+
+        Correct contract:
+        - age IS present in PUBLIC and OWNER responses (backend-derived field).
+        - dob is NEVER in public responses; present ONLY in owner full responses.
+
+        Forbidden patterns (any of these strings in render.js = wrong):
+        - "age is absent from PUBLIC responses"
+        - "absent from public responses; present in owner full response"
+        - "dob is never included in public or owner responses"
+
+        Required in comments:
+        - age described as present in PUBLIC response (backend-derived public field)
+        - dob described as owner-only / not exposed publicly
+        """
         with open("profile-v2.render.js", encoding="utf-8") as f:
             src = f.read()
-        self.assertNotIn(
+        # ── Forbidden patterns ──
+        for wrong in (
+            "age is absent from PUBLIC responses",
+            "absent from public responses; present in owner full response",
             "dob is never included in public or owner responses",
-            src,
-            "render.js has wrong comment — dob IS present in owner full response (Tier 2)"
+        ):
+            self.assertNotIn(wrong, src,
+                             f"render.js has wrong comment: '{wrong}'")
+        # ── Required: comments reflect correct age/dob contract ──
+        self.assertIn("backend-derived", src,
+                      "render.js must describe age as backend-derived in comments")
+        # dob must be described as owner-only (not publicly exposed)
+        self.assertTrue(
+            "owner-only" in src or "owner FULL" in src or "never exposed publicly" in src,
+            "render.js must state dob is owner-only / not publicly exposed"
         )
+        # Bonus: renderProfile must use p.age not p.dob (covered by L25/L23, but confirmed here)
+        self.assertNotIn("p.dob", src,
+                         "render.js must not reference p.dob — age is read from p.age")
 
     # ── L53-L54: get_public_profile() pipeline structural checks ──
 
