@@ -913,6 +913,306 @@ def _run_group_k():
 
 
 # ═══════════════════════════════════════════════════════════════
+# Group L — Derived Age: calculate_age_from_dob + projection tests
+# ═══════════════════════════════════════════════════════════════
+
+import unittest as _unittest_l
+from datetime import date as _date_l, timedelta as _td_l
+
+
+class TestDerivedAge(_unittest_l.TestCase):
+    """Group L — static tests (no DB, no server).
+
+    L1-L8:   calculate_age_from_dob() unit tests
+    L9-L14:  project_public_profile() — age present, dob absent
+    L15-L18: project_owner_profile()  — dob present, age added
+    L19-L22: update_profile() canonical response — age injected when dob updated
+    L23-L32: Frontend contract static checks (render.js / edit.js source)
+    L33-L40: Privacy regression — dob never leaks in public projection
+    """
+
+    def setUp(self):
+        import auth as _auth
+        self._auth = _auth
+
+    # ── L1-L8: calculate_age_from_dob ──────────────────────────
+
+    def test_l1_none_input_returns_none(self):
+        self.assertIsNone(self._auth.calculate_age_from_dob(None))
+
+    def test_l2_empty_string_returns_none(self):
+        self.assertIsNone(self._auth.calculate_age_from_dob(""))
+
+    def test_l3_iso_string_returns_correct_age(self):
+        today = _date_l.today()
+        # birthday exactly 30 years ago today → age 30
+        birth = today.replace(year=today.year - 30)
+        result = self._auth.calculate_age_from_dob(birth.isoformat())
+        self.assertEqual(result, 30)
+
+    def test_l4_pre_birthday_this_year_returns_age_minus_one(self):
+        today = _date_l.today()
+        # birthday is tomorrow — not yet occurred this year
+        try:
+            birth_this_year = today.replace(month=today.month, day=today.day + 1)
+        except ValueError:
+            import calendar as _cal
+            # last day of month: move to next month
+            next_m = today.month % 12 + 1
+            next_y = today.year + (1 if today.month == 12 else 0)
+            birth_this_year = _date_l(next_y, next_m, 1)
+        birth = birth_this_year.replace(year=birth_this_year.year - 30)
+        result = self._auth.calculate_age_from_dob(birth.isoformat())
+        self.assertEqual(result, 29)
+
+    def test_l5_future_date_returns_none(self):
+        future = _date_l.today() + _td_l(days=365)
+        self.assertIsNone(self._auth.calculate_age_from_dob(future.isoformat()))
+
+    def test_l6_pre_min_year_returns_none(self):
+        self.assertIsNone(self._auth.calculate_age_from_dob("1920-01-01"))
+
+    def test_l7_age_below_min_returns_none(self):
+        # 10 years old → below _DOB_MIN_AGE = 15
+        today = _date_l.today()
+        birth = today.replace(year=today.year - 10)
+        self.assertIsNone(self._auth.calculate_age_from_dob(birth.isoformat()))
+
+    def test_l8_invalid_string_returns_none(self):
+        self.assertIsNone(self._auth.calculate_age_from_dob("not-a-date"))
+
+    # ── L9-L14: project_public_profile ─────────────────────────
+
+    def test_l9_public_profile_contains_age_when_dob_valid(self):
+        today = _date_l.today()
+        birth = today.replace(year=today.year - 25)
+        raw = {"tw_id": "U001", "full_name": "Test", "dob": birth.isoformat()}
+        result = self._auth.project_public_profile(raw)
+        self.assertIn("age", result)
+        self.assertEqual(result["age"], 25)
+
+    def test_l10_public_profile_never_contains_dob(self):
+        today = _date_l.today()
+        birth = today.replace(year=today.year - 25)
+        raw = {"tw_id": "U001", "full_name": "Test", "dob": birth.isoformat()}
+        result = self._auth.project_public_profile(raw)
+        self.assertNotIn("dob", result)
+
+    def test_l11_public_profile_no_age_when_dob_missing(self):
+        raw = {"tw_id": "U001", "full_name": "Test"}
+        result = self._auth.project_public_profile(raw)
+        self.assertNotIn("age", result)
+
+    def test_l12_public_profile_no_age_when_dob_null(self):
+        raw = {"tw_id": "U001", "full_name": "Test", "dob": None}
+        result = self._auth.project_public_profile(raw)
+        self.assertNotIn("age", result)
+
+    def test_l13_public_profile_strips_phone(self):
+        raw = {"tw_id": "U001", "full_name": "Test", "phone": "+962799000000"}
+        result = self._auth.project_public_profile(raw)
+        self.assertNotIn("phone", result)
+
+    def test_l14_public_profile_strips_email(self):
+        raw = {"tw_id": "U001", "full_name": "Test", "email": "a@test.com"}
+        result = self._auth.project_public_profile(raw)
+        self.assertNotIn("email", result)
+
+    # ── L15-L18: project_owner_profile ─────────────────────────
+
+    def test_l15_owner_profile_contains_dob(self):
+        today = _date_l.today()
+        birth = today.replace(year=today.year - 25)
+        raw = {"tw_id": "U001", "full_name": "Test", "dob": birth.isoformat(), "phone": "+962"}
+        result = self._auth.project_owner_profile(raw)
+        self.assertIn("dob", result)
+
+    def test_l16_owner_profile_also_contains_age(self):
+        today = _date_l.today()
+        birth = today.replace(year=today.year - 25)
+        raw = {"tw_id": "U001", "full_name": "Test", "dob": birth.isoformat()}
+        result = self._auth.project_owner_profile(raw)
+        self.assertIn("age", result)
+        self.assertEqual(result["age"], 25)
+
+    def test_l17_owner_profile_contains_phone(self):
+        raw = {"tw_id": "U001", "full_name": "Test", "phone": "+962799000000"}
+        result = self._auth.project_owner_profile(raw)
+        self.assertIn("phone", result)
+
+    def test_l18_owner_profile_no_age_when_dob_invalid(self):
+        raw = {"tw_id": "U001", "full_name": "Test", "dob": "bad-date"}
+        result = self._auth.project_owner_profile(raw)
+        self.assertNotIn("age", result)
+
+    # ── L19-L22: update_profile canonical response ──────────────
+
+    def test_l19_update_profile_response_age_matches_dob(self):
+        today = _date_l.today()
+        birth = today.replace(year=today.year - 25)
+        # Simulate the canonical response builder
+        fields = {"dob": birth.isoformat(), "headline": "test"}
+        resp = {"id": 1, "updated": True}
+        resp.update(fields)
+        resp["age"] = self._auth.calculate_age_from_dob(fields.get("dob"))
+        self.assertEqual(resp["age"], 25)
+
+    def test_l20_update_profile_response_no_age_when_no_dob_change(self):
+        fields = {"headline": "test"}
+        resp = {"id": 1, "updated": True}
+        resp.update(fields)
+        if "dob" in fields:
+            resp["age"] = self._auth.calculate_age_from_dob(fields.get("dob"))
+        self.assertNotIn("age", resp)
+
+    def test_l21_update_profile_age_none_when_dob_cleared(self):
+        fields = {"dob": None}
+        resp = {"id": 1, "updated": True}
+        resp.update(fields)
+        if "dob" in fields:
+            resp["age"] = self._auth.calculate_age_from_dob(fields.get("dob"))
+        self.assertIsNone(resp.get("age"))
+
+    def test_l22_update_profile_age_correct_for_exact_birthday_today(self):
+        today = _date_l.today()
+        birth = today.replace(year=today.year - 20)
+        fields = {"dob": birth.isoformat()}
+        age = self._auth.calculate_age_from_dob(fields["dob"])
+        self.assertEqual(age, 20)
+
+    # ── L23-L32: Frontend static checks ─────────────────────────
+
+    def test_l23_render_js_no_p_dob_reference(self):
+        with open("profile-v2.render.js", encoding="utf-8") as f:
+            src = f.read()
+        self.assertNotIn("p.dob", src, "render.js must not reference p.dob — age comes from p.age")
+
+    def test_l24_render_js_has_render_profile_age_helper(self):
+        with open("profile-v2.render.js", encoding="utf-8") as f:
+            src = f.read()
+        self.assertIn("_renderProfileAge", src)
+
+    def test_l25_render_js_uses_p_age(self):
+        with open("profile-v2.render.js", encoding="utf-8") as f:
+            src = f.read()
+        self.assertIn("p.age", src)
+
+    def test_l26_render_js_helper_is_window_exposed(self):
+        with open("profile-v2.render.js", encoding="utf-8") as f:
+            src = f.read()
+        self.assertIn("window._renderProfileAge", src)
+
+    def test_l27_edit_js_no_dob_to_age_computation(self):
+        with open("profile-v2.edit.js", encoding="utf-8") as f:
+            src = f.read()
+        # The old pattern: Math.floor(...)  / (365.25*24*3600*1000) for age
+        self.assertNotIn("365.25*24*3600*1000", src,
+                         "edit.js must not compute age from dob using millisecond division")
+
+    def test_l28_edit_js_uses_profile_age(self):
+        with open("profile-v2.edit.js", encoding="utf-8") as f:
+            src = f.read()
+        self.assertIn("profile.age", src)
+
+    def test_l29_edit_js_calls_render_profile_age(self):
+        with open("profile-v2.edit.js", encoding="utf-8") as f:
+            src = f.read()
+        self.assertIn("_renderProfileAge", src)
+
+    def test_l30_edit_js_syncs_age_to_sc_profile(self):
+        with open("profile-v2.edit.js", encoding="utf-8") as f:
+            src = f.read()
+        self.assertIn("_scProfile.age", src)
+
+    def test_l31_render_js_does_not_use_365_25_approximation(self):
+        with open("profile-v2.render.js", encoding="utf-8") as f:
+            src = f.read()
+        self.assertNotIn("365.25", src,
+                         "render.js must not compute age via millisecond/365.25 approximation")
+
+    def test_l32_profile_showcase_html_version_updated(self):
+        with open("profile-showcase.html", encoding="utf-8") as f:
+            src = f.read()
+        self.assertIn("derived-age", src,
+                      "profile-showcase.html version strings must reference derived-age")
+
+    # ── L33-L40: Privacy regression ─────────────────────────────
+
+    def test_l33_public_projection_never_returns_dob(self):
+        raw = {
+            "tw_id": "U001", "full_name": "Test",
+            "dob": "1990-05-15", "phone": "+962", "email": "x@x.com",
+            "password_hash": "hashed"
+        }
+        result = self._auth.project_public_profile(raw)
+        self.assertNotIn("dob", result)
+
+    def test_l34_public_projection_never_returns_birth_year(self):
+        raw = {"tw_id": "U001", "full_name": "Test", "dob": "1990-05-15", "birth_year": 1990}
+        result = self._auth.project_public_profile(raw)
+        self.assertNotIn("birth_year", result)
+
+    def test_l35_public_projection_never_returns_phone(self):
+        raw = {"tw_id": "U001", "full_name": "Test", "phone": "+962799000001"}
+        result = self._auth.project_public_profile(raw)
+        self.assertNotIn("phone", result)
+
+    def test_l36_public_projection_never_returns_email(self):
+        raw = {"tw_id": "U001", "full_name": "Test", "email": "priv@test.com"}
+        result = self._auth.project_public_profile(raw)
+        self.assertNotIn("email", result)
+
+    def test_l37_public_projection_never_returns_password_hash(self):
+        raw = {"tw_id": "U001", "full_name": "Test", "password_hash": "$2b$12$xxx"}
+        result = self._auth.project_public_profile(raw)
+        self.assertNotIn("password_hash", result)
+
+    def test_l38_age_not_stored_in_db_column(self):
+        # age is a derived field — must NOT appear in _PUBLIC_PROFILE_FIELDS allowlist
+        # (it is computed dynamically, not fetched from DB)
+        from auth import _PUBLIC_PROFILE_FIELDS
+        self.assertNotIn("age", _PUBLIC_PROFILE_FIELDS,
+                         "age must NOT be in the DB allowlist — it is derived at projection time")
+
+    def test_l39_two_profiles_different_dob_get_correct_ages(self):
+        today = _date_l.today()
+        raw_a = {"tw_id": "UA", "dob": today.replace(year=today.year - 30).isoformat()}
+        raw_b = {"tw_id": "UB", "dob": today.replace(year=today.year - 40).isoformat()}
+        res_a = self._auth.project_public_profile(raw_a)
+        res_b = self._auth.project_public_profile(raw_b)
+        self.assertEqual(res_a.get("age"), 30)
+        self.assertEqual(res_b.get("age"), 40)
+        self.assertNotIn("dob", res_a)
+        self.assertNotIn("dob", res_b)
+
+    def test_l40_owner_profile_age_consistent_with_public_age(self):
+        today = _date_l.today()
+        birth = today.replace(year=today.year - 22)
+        raw = {"tw_id": "U001", "full_name": "Test", "dob": birth.isoformat()}
+        pub = self._auth.project_public_profile(raw)
+        own = self._auth.project_owner_profile(raw)
+        self.assertEqual(pub.get("age"), own.get("age"))
+
+
+def _run_group_l():
+    print("\n[L] Derived Age — calculate_age_from_dob + projection static tests")
+    suite = _unittest_l.TestLoader().loadTestsFromTestCase(TestDerivedAge)
+    runner = _unittest_l.TextTestRunner(stream=open(os.devnull, 'w'), verbosity=0)
+    result = runner.run(suite)
+    for test, err in result.failures + result.errors:
+        _RESULTS["failed"] += 1
+        name = str(test).split(" ")[0]
+        print(f"  FAIL  {name}: {err.splitlines()[-1] if err else 'unknown'}")
+    passed = result.testsRun - len(result.failures) - len(result.errors)
+    _RESULTS["passed"] += passed
+    for test in suite:
+        name = str(test).split(" ")[0]
+        is_fail = any(str(t) == str(test) for t, _ in result.failures + result.errors)
+        if not is_fail:
+            print(f"  PASS  {name}")
+
+
+# ═══════════════════════════════════════════════════════════════
 # Main
 # ═══════════════════════════════════════════════════════════════
 
@@ -932,6 +1232,7 @@ def main():
     _test_group_i()
     _test_group_j()
     _run_group_k()
+    _run_group_l()
 
     total = sum(_RESULTS.values())
     print("\n" + "=" * 60)

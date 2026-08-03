@@ -410,6 +410,19 @@ window._buildLocText = function(country, city, fallback){
   return fallback || '';
 };
 
+// ── Derived-age helper — uses backend-computed age, never recomputes from dob ──
+window._renderProfileAge = function(age) {
+  var ageEl = document.getElementById('scAge');
+  if (!ageEl) return;
+  if (typeof age === 'number' && age > 0) {
+    ageEl.innerHTML = '<i data-lucide="cake" class="ico-sm"></i> ' + age + ' سنة';
+    ageEl.style.display = 'flex';
+  } else {
+    ageEl.innerHTML = '';
+    ageEl.style.display = 'none';
+  }
+};
+
 // ── Main render function (Doctrine §26) ──
 window.renderProfile = function renderProfile(res){
   var p = (res && res.profile) ? res.profile : {};
@@ -488,21 +501,8 @@ window.renderProfile = function renderProfile(res){
     }
   }
 
-  // Age from dob
-  if(p.dob){
-    var birth=new Date(p.dob);
-    if(!isNaN(birth.getTime())){
-      var diff=Date.now()-birth.getTime();
-      var age=Math.floor(diff/(365.25*24*3600*1000));
-      if(age>0 && age<150){
-        var ageEl=document.getElementById('scAge');
-        if(ageEl){
-          ageEl.innerHTML='<i data-lucide="cake" class="ico-sm"></i> ' + age + ' سنة';
-          ageEl.style.display='flex';
-        }
-      }
-    }
-  }
+  // Age — backend-derived (dob is never included in public or owner responses as a computable field)
+  _renderProfileAge(p.age != null ? p.age : null);
 
   // Cover image — use cover_url from API if available, else keep CSS default
   var coverEl = document.getElementById('scCover');

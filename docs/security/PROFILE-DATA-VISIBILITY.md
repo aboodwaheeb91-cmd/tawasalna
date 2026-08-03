@@ -1,4 +1,4 @@
-# Profile Data Visibility System V1
+# Profile Data Visibility System V1.2
 
 **Status:** Active — enforced server-side since PR fix/profile-kyc-privacy-boundary  
 **Principle:** Fail Closed — every new DB column is Private by default until explicitly added to a tier allowlist.
@@ -17,7 +17,12 @@ Returned by `GET /profile/{user_id}` to any caller including unauthenticated req
 `headline`, `bio`, `location`, `country`, `city`, `avatar_url`, `cover_url`, `avail`, `website`
 
 **Derived / computed:**  
-`viewer_type`, skills[], experience[], education[], courses[], links[], languages[], `following_count`
+`viewer_type`, skills[], experience[], education[], courses[], links[], languages[], `following_count`, `age`
+
+> `age` is an integer derived from `dob` inside the backend projection boundary.  
+> The source field `dob` is **never** copied into the public response — only the derived `age` is exposed.  
+> Returns `null`/absent when `dob` is missing, invalid, future, pre-1940, or results in age < 15.  
+> **Projection rule:** Derived public fields may be computed from private source fields only inside the Backend projection boundary (`project_public_profile()` / `project_owner_profile()`). The private source field must never be copied into the public response.
 
 ### Tier 2 — Owner-Only (JWT required, `token.user_id == uid`)
 Returned by `GET /profile/{user_id}/full` when caller owns the profile.
@@ -84,9 +89,10 @@ The `{**user, **profile}` dict-merge pattern is **permanently forbidden** for al
 
 ## Response Projection Functions (auth.py)
 
-- `project_public_profile(raw_dict) → dict` — strips to Tier 1 allowlist
-- `project_owner_profile(raw_dict) → dict` — returns Tier 1 + Tier 2 fields
+- `project_public_profile(raw_dict) → dict` — strips to Tier 1 allowlist; derives `age` from `raw_dict["dob"]` internally (dob never copied to result)
+- `project_owner_profile(raw_dict) → dict` — returns Tier 1 + Tier 2 fields; also adds derived `age` for UI convenience
 - `project_owner_kyc_status(raw_dict) → dict` — returns Tier 3 KYC allowlist only
+- `calculate_age_from_dob(dob) → int | None` — calendar-accurate age derivation helper; returns None for missing/invalid/future/pre-1940/under-15 values
 
 ---
 
@@ -158,3 +164,4 @@ On other errors: show safe generic message from `detail.message` if present.
 |---------|----|------|-------------|
 | V1 | fix/profile-kyc-privacy-boundary | 2026-08-03 | Initial privacy boundary enforcement |
 | V1.1 | fix/profile-kyc-privacy-boundary | 2026-08-03 | OTP Delivery Fail-Closed contract; `is_*_otp_delivery_available()` helpers; 503 on send endpoints; settings.html 503 handling; owner hydration toast feedback |
+| V1.2 | fix/profile-public-derived-age | 2026-08-03 | Restore public derived `age` field; `calculate_age_from_dob()` helper; projection functions compute age at boundary; frontend uses `p.age` never `p.dob` |

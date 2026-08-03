@@ -1199,14 +1199,29 @@ _KYC_OWNER_FIELDS = frozenset({
 
 
 def project_public_profile(raw: dict) -> dict:
-    """Tier 1 allowlist — strips dob, phone, email, and all private fields before public response."""
-    return {k: v for k, v in raw.items() if k in _PUBLIC_PROFILE_FIELDS}
+    """Tier 1 allowlist — strips dob, phone, email, and all private fields before public response.
+
+    Derives age from raw['dob'] internally and includes it as a public computed field.
+    dob is consumed inside the projection boundary and never copied to the response.
+    """
+    projected = {k: v for k, v in raw.items() if k in _PUBLIC_PROFILE_FIELDS}
+    age = calculate_age_from_dob(raw.get("dob"))
+    if age is not None:
+        projected["age"] = age
+    return projected
 
 
 def project_owner_profile(raw: dict) -> dict:
-    """Tier 1 + Tier 2 — returns public fields plus owner-only fields (phone, dob, email)."""
-    return {k: v for k, v in raw.items()
-            if k in _PUBLIC_PROFILE_FIELDS or k in _OWNER_EXTRA_FIELDS}
+    """Tier 1 + Tier 2 — returns public fields plus owner-only fields (phone, dob, email).
+
+    Also includes derived age alongside dob for UI convenience.
+    """
+    projected = {k: v for k, v in raw.items()
+                 if k in _PUBLIC_PROFILE_FIELDS or k in _OWNER_EXTRA_FIELDS}
+    age = calculate_age_from_dob(raw.get("dob"))
+    if age is not None:
+        projected["age"] = age
+    return projected
 
 
 def project_owner_kyc_status(raw: dict) -> dict:
@@ -1217,6 +1232,43 @@ def project_owner_kyc_status(raw: dict) -> dict:
 # ── Shared name normalizer (§2) — used by update_profile() here and register() in server.py ──
 _DOB_MIN_YEAR = 1940
 _DOB_MIN_AGE  = 15
+
+
+def calculate_age_from_dob(dob) -> 'int | None':
+    """Derive integer age from a date, ISO date-string, or datetime.
+
+    Returns None for: missing dob, unparseable value, future date,
+    year before _DOB_MIN_YEAR, or age below _DOB_MIN_AGE.
+
+    Calendar-accurate: subtracts 1 when the birthday has not yet occurred
+    in the current year (never divides milliseconds by 365.25).
+    """
+    if not dob:
+        return None
+    try:
+        from datetime import date as _d
+        if isinstance(dob, str):
+            parsed = _d.fromisoformat(dob[:10])
+        elif hasattr(dob, 'date'):
+            parsed = dob.date()
+        elif isinstance(dob, _d):
+            parsed = dob
+        else:
+            return None
+        today = _d.today()
+        if parsed > today:
+            return None
+        if parsed.year < _DOB_MIN_YEAR:
+            return None
+        age = (today.year - parsed.year) - (
+            1 if (today.month, today.day) < (parsed.month, parsed.day) else 0
+        )
+        if age < _DOB_MIN_AGE:
+            return None
+        return age
+    except Exception:
+        return None
+
 
 def _norm_name(s) -> str:
     """Normalize a structured name part: trim + collapse internal whitespace."""
@@ -1351,6 +1403,8 @@ def update_profile(user_id: int, data: dict, user_type: str = None) -> dict:
     if _last is not None: resp["last_name"] = _last
     if data.get("full_name") and not _built_name:
         resp["full_name"] = data["full_name"]
+    if "dob" in fields:
+        resp["age"] = calculate_age_from_dob(fields.get("dob"))
     print(f"[update_profile] ⏱ total: {_time_mod.time()-_t0:.3f}s")
     return resp
 
