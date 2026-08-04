@@ -5,20 +5,24 @@
  * exercising the logic with mock DOM and WebSocket objects.
  * No real server required.
  *
- * 13 scenarios:
+ * 34 scenarios:
  *   T01  connectWS without _user → no socket
  *   T02  onopen sends {type:'auth',token:...} as first message
  *   T03  auth_ok with correct uid sets _wsReady = true
  *   T04  auth_ok with wrong uid closes socket
  *   T05  Messages before auth_ok are dropped
  *   T06  Messages after auth_ok are processed (badge_update)
- *   T07  onclose with code 4001 → no reconnect
- *   T08  onclose with code 4007 → no reconnect
- *   T09  onclose with code 1006 → reconnect scheduled
+ *   T07  onclose with code 4001 → no reconnect (_wsReconnectTimer === null)
+ *   T08  onclose with code 4007 → no reconnect (_wsReconnectTimer === null)
+ *   T09  onclose with code 1006 → reconnect scheduled (_wsReconnectTimer !== null)
  *  T10  Generation counter prevents stale reconnect
  *  T11  _wsReady reset to false on close
  *  T12  _wsGen increments on each connectWS call
  *  T13  Client-side auth timeout scheduled in onopen
+ *  T31  5-cycle retry lifecycle → _wsRetries not reset in onopen, stops at 5
+ *  T32  Auth timeout timer cleared on auth_ok
+ *  T33  Auth timeout timer cleared on onclose
+ *  T34  Badge WS V2 snapshot (no jwt) + localStorage JWT → socket created
  *
  * Run:  node test_ws_client.mjs
  */
@@ -209,17 +213,17 @@ console.log('\n── Client lifecycle tests (messages.ws.js) ──────
 })();
 
 // T07: onclose with code 4001 → no reconnect timer
+// (auth timer is cancelled in onclose, so timer-count comparison breaks;
+//  use ctx._wsReconnectTimer instead)
 (function test_T07() {
   const ctx = makeFreshContext();
   ctx._user = { id: 42 };
   ctx.connectWS();
   const ws = MockWebSocket.last();
   ws.onopen && ws.onopen();
-  const timersBefore = scheduledTimers.filter(t => !t.cancelled).length;
   ws.close(4001);
-  const timersAfter = scheduledTimers.filter(t => !t.cancelled).length;
-  check('T07  onclose code=4001 → no reconnect timer added',
-        timersAfter === timersBefore);
+  check('T07  onclose code=4001 → no reconnect timer scheduled',
+        ctx._wsReconnectTimer === null);
 })();
 
 // T08: onclose with code 4007 → no reconnect
@@ -229,25 +233,23 @@ console.log('\n── Client lifecycle tests (messages.ws.js) ──────
   ctx.connectWS();
   const ws = MockWebSocket.last();
   ws.onopen && ws.onopen();
-  const timersBefore = scheduledTimers.filter(t => !t.cancelled).length;
   ws.close(4007);
-  const timersAfter = scheduledTimers.filter(t => !t.cancelled).length;
-  check('T08  onclose code=4007 → no reconnect timer added',
-        timersAfter === timersBefore);
+  check('T08  onclose code=4007 → no reconnect timer scheduled',
+        ctx._wsReconnectTimer === null);
 })();
 
 // T09: onclose with code 1006 → reconnect scheduled
+// (auth timer cancelled + reconnect timer added = net-count unchanged;
+//  verify directly via ctx._wsReconnectTimer)
 (function test_T09() {
   const ctx = makeFreshContext();
   ctx._user = { id: 42 };
   ctx.connectWS();
   const ws = MockWebSocket.last();
   ws.onopen && ws.onopen();
-  const timersBefore = scheduledTimers.filter(t => !t.cancelled).length;
   ws.close(1006);
-  const timersAfter = scheduledTimers.filter(t => !t.cancelled).length;
   check('T09  onclose code=1006 → reconnect timer scheduled',
-        timersAfter > timersBefore);
+        ctx._wsReconnectTimer !== null);
 })();
 
 // T10: Generation counter prevents stale reconnect
@@ -406,8 +408,9 @@ function firePendingTimer() {
 })();
 
 // T16: Account switch → new socket URL contains new user ID
+// Uses V2 snapshot format: no jwt field; JWT comes from info.jwt
 (function test_T16() {
-  const snapshot = { isAuthenticated: true, userId: 55, jwt: 'user.b.jwt' };
+  const snapshot = { state: 'authenticated', isAuthenticated: true, userType: 'emp', userId: 55, reason: 'ok' };
   const ctx = makeFreshContextWithAuth(snapshot);
   ctx.connectWS();
   const ws1 = MockWebSocket.last();
@@ -420,13 +423,14 @@ function firePendingTimer() {
   if (switchTimer) { switchTimer.cancelled = true; switchTimer.fn(); }
 
   const ws2 = MockWebSocket.last();
-  check('T16  Account switch → new socket created to new user URL',
+  check('T16  Account switch (V2 snapshot, no jwt field) → new socket to new user URL',
         ws2 !== null && ws2 !== ws1 && ws2.url.includes('/55'));
 })();
 
-// T17: Account switch → new socket sends fresh JWT in auth frame
+// T17: Account switch → new socket sends fresh JWT from info.jwt (not snapshot.jwt)
+// V2 contract: snapshot has no jwt field; JWT sourced from info.jwt captured at callback entry
 (function test_T17() {
-  const snapshot = { isAuthenticated: true, userId: 55, jwt: 'fresh.b.jwt' };
+  const snapshot = { state: 'authenticated', isAuthenticated: true, userType: 'emp', userId: 55, reason: 'ok' };
   const ctx = makeFreshContextWithAuth(snapshot);
   ctx.connectWS();
 
@@ -438,13 +442,14 @@ function firePendingTimer() {
   const ws2 = MockWebSocket.last();
   ws2 && ws2.onopen && ws2.onopen();
   const authMsg = ws2 && ws2.sent.length > 0 ? (() => { try { return JSON.parse(ws2.sent[0]); } catch { return {}; } })() : {};
-  check('T17  Account switch → new connection sends fresh JWT in auth frame',
+  check('T17  Account switch → auth frame uses info.jwt (fresh.b.jwt), not snapshot.jwt',
         authMsg.type === 'auth' && authMsg.token === 'fresh.b.jwt');
 })();
 
 // T18: getSessionSnapshot returns isAuthenticated=false → no new socket
+// V2 snapshot format with explicit unauthenticated state
 (function test_T18() {
-  const snapshot = { isAuthenticated: false };
+  const snapshot = { state: 'unauthenticated', isAuthenticated: false, userType: null, userId: null, reason: 'ok' };
   const ctx = makeFreshContextWithAuth(snapshot);
   ctx.connectWS();
 
@@ -453,7 +458,7 @@ function firePendingTimer() {
   const switchTimer = scheduledTimers.find(t => !t.cancelled && t.delay === 500);
   if (switchTimer) { switchTimer.cancelled = true; switchTimer.fn(); }
 
-  check('T18  isAuthenticated=false snapshot → no new WebSocket',
+  check('T18  V2 snapshot isAuthenticated=false → no new WebSocket',
         MockWebSocket._instances.length === 0);
 })();
 
@@ -528,6 +533,7 @@ function firePendingTimer() {
 })();
 
 // T23: Retry count (_wsRetries) at max 5 → no further reconnect timer
+// (auth timer is cancelled in onclose, so use ctx._wsReconnectTimer for the check)
 (function test_T23() {
   const ctx = makeFreshContextWithAuth();
   ctx.connectWS();
@@ -535,13 +541,11 @@ function firePendingTimer() {
   ws.onopen && ws.onopen();
   ws._receive({ type: 'auth_ok', user_id: 42 });
 
-  // Set retries to max
+  // auth_ok resets retries to 0; manually set to max
   ctx._wsRetries = 5;
-  const timersBefore = scheduledTimers.filter(t => !t.cancelled).length;
   ws.close(1006);
-  const timersAfter = scheduledTimers.filter(t => !t.cancelled).length;
   check('T23  _wsRetries at limit (5) → no reconnect timer scheduled',
-        timersAfter === timersBefore);
+        ctx._wsReconnectTimer === null);
 })();
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -754,6 +758,75 @@ function makeBadgeContext(opts = {}) {
 
   check('T30  Badge WS auth_ok success resets _retries → retry still allowed',
         afterClose > 0);
+})();
+
+// ─────────────────────────────────────────────────────────────────────────────
+// New lifecycle and contract tests (T31–T34)
+// ─────────────────────────────────────────────────────────────────────────────
+
+console.log('\n── Retry lifecycle and auth-timer contract tests (T31–T34) ─────────────');
+
+// T31: Real 5-cycle retry lifecycle — _wsRetries NOT reset in onopen
+// Simulates 5 failed connections (auth never arrives) and verifies retries accumulate
+(function test_T31() {
+  const ctx = makeFreshContextWithAuth();
+  ctx._user = { id: 42 };
+  ctx.connectWS();
+
+  let reconnTimersScheduled = 0;
+  for (let attempt = 0; attempt <= 6; attempt++) {
+    const ws = MockWebSocket.last();
+    if (!ws) break;
+    ws.onopen && ws.onopen();                           // auth timeout scheduled, retries NOT reset
+    const wsReconnBefore = ctx._wsReconnectTimer;
+    ws.onclose && ws.onclose({ code: 1006 });           // auth timeout cancelled, retry counter++
+    const wsReconnAfter = ctx._wsReconnectTimer;
+    const timerAdded = wsReconnAfter !== null && wsReconnAfter !== wsReconnBefore;
+    if (timerAdded) {
+      reconnTimersScheduled++;
+      const t = scheduledTimers.find(t2 => t2.id === wsReconnAfter && !t2.cancelled);
+      if (t) { t.cancelled = true; t.fn(); }            // fire reconnect → new connectWS()
+    } else { break; }
+  }
+  check('T31  5-cycle retry: _wsRetries not reset in onopen → stops at exactly 5',
+        reconnTimersScheduled === 5 && ctx._wsRetries === 5);
+})();
+
+// T32: Auth timeout timer cleared on auth_ok
+(function test_T32() {
+  const ctx = makeFreshContext();
+  ctx._user = { id: 42 };
+  ctx.connectWS();
+  const ws = MockWebSocket.last();
+  ws.onopen && ws.onopen();                             // schedules _wsAuthTimeoutTimer
+  const timerSetAfterOpen = ctx._wsAuthTimeoutTimer !== null;
+  ws._receive({ type: 'auth_ok', user_id: 42 });        // should cancel and null the timer
+  check('T32  Auth timeout timer cleared on auth_ok',
+        timerSetAfterOpen === true && ctx._wsAuthTimeoutTimer === null);
+})();
+
+// T33: Auth timeout timer cleared on onclose
+(function test_T33() {
+  const ctx = makeFreshContext();
+  ctx._user = { id: 42 };
+  ctx.connectWS();
+  const ws = MockWebSocket.last();
+  ws.onopen && ws.onopen();                             // schedules _wsAuthTimeoutTimer
+  const timerSetAfterOpen = ctx._wsAuthTimeoutTimer !== null;
+  ws.onclose && ws.onclose({ code: 1006 });             // should cancel timer (ws === _ws)
+  check('T33  Auth timeout timer cleared on onclose (ws === _ws)',
+        timerSetAfterOpen === true && ctx._wsAuthTimeoutTimer === null);
+})();
+
+// T34: Badge WS V2 snapshot (no jwt field) + localStorage JWT → socket created
+(function test_T34() {
+  const v2snapshot = { state: 'authenticated', isAuthenticated: true, userType: 'emp', userId: 42, reason: 'ok' };
+  const b = makeBadgeContext({ uid: 42, jwt: 'ls.badge.jwt', snapshot: v2snapshot });
+  b.fireLoad();
+  const initTimer = scheduledTimers.find(t => !t.cancelled);
+  if (initTimer) { initTimer.cancelled = true; initTimer.fn(); }
+  check('T34  Badge WS V2 snapshot (no jwt field) + localStorage JWT → socket created at /42',
+        MockWebSocket._instances.length === 1 && (MockWebSocket.last() || {}).url?.includes('/42'));
 })();
 
 // ── Summary ──────────────────────────────────────────────────────────────

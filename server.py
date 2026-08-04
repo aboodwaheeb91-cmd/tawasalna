@@ -1921,17 +1921,16 @@ class ConnectionManager:
         if user_id not in self.active or not self.active[user_id]:
             return False
         sent, dead = False, []
-        for ws in self.active[user_id]:
+        for ws in list(self.active[user_id]):   # iterate a snapshot
             try:
                 await ws.send_text(json.dumps(data))
                 sent = True
             except Exception:
                 dead.append(ws)
         for d in dead:
-            if d in self.active.get(user_id, []):
-                self.active[user_id].remove(d)
-        if user_id in self.active and not self.active[user_id]:
-            del self.active[user_id]
+            self.disconnect(user_id, d)         # handles _conv_ws_owner + active_conversations
+        if dead and user_id not in self.active: # last conn died — clean rate-limit state
+            _ws_cleanup_typing_log(user_id)
         return sent
 
 
@@ -2020,7 +2019,15 @@ async def websocket_endpoint(websocket: WebSocket, user_id: int):
                     pass
                 break
 
-            msg_type = msg.get("type", "")
+            msg_type_raw = msg.get("type")
+            if not isinstance(msg_type_raw, str) or not msg_type_raw or len(msg_type_raw) > 80:
+                print(f"[WS-SEC] INVALID_TYPE uid={auth_uid}")
+                try:
+                    await websocket.close(code=4004)
+                except Exception:
+                    pass
+                break
+            msg_type = msg_type_raw
 
             if msg_type == "active_conversation":
                 other_id = msg.get("other_id")
@@ -2076,7 +2083,7 @@ async def websocket_endpoint(websocket: WebSocket, user_id: int):
             else:
                 count = _ws_event_violations.get(auth_uid, 0) + 1
                 _ws_event_violations[auth_uid] = count
-                logged_type = msg_type[:80] if len(msg_type) <= 80 else msg_type[:80] + '…'
+                logged_type = msg_type[:80]  # already validated ≤ 80 chars
                 print(f"[WS-SEC] UNKNOWN_TYPE type={logged_type!r} uid={auth_uid} violation={count}")
                 if count >= _WS_MAX_VIOLATIONS:
                     print(f"[WS-SEC] VIOLATION_LIMIT uid={auth_uid}")

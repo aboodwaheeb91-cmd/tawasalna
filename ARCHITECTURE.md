@@ -3867,12 +3867,15 @@ Custom override:
 
 | Event type | Order | Authorization check |
 |-----------|-------|---------------------|
-| `active_conversation` | 1. validate `other_id` int > 0; 2. `_ws_conversation_exists_async(auth_uid, other_id)` | Conversation must exist |
+| `active_conversation` | 1. validate `other_id` int > 0; 2. **`_ws_ctrl_rate_ok(auth_uid)` first**; 3. `_ws_conversation_exists_async(auth_uid, other_id)` | Ctrl rate limit (30/10s) BEFORE DB; conversation must exist |
 | `inactive_conversation` | — | Only clears state for the owner WS (no DB check needed) |
-| `typing` / `typing_stop` | 1. **Rate limit first**; 2. conversation check | `_ws_typing_rate_ok(auth_uid)` BEFORE `_ws_conversation_exists_async(auth_uid, to_id)` |
-| Any other type | — | Violation counter incremented; close 4005 after `_WS_MAX_VIOLATIONS = 10` |
+| `typing` / `typing_stop` | 1. **`_ws_typing_rate_ok(auth_uid)` first**; 2. `_ws_conversation_exists_async(auth_uid, to_id)` | Typing rate limit (10/10s) BEFORE DB; conversation must exist |
+| Message with non-string, empty, or >80-char `type` field | — | Close 4004 immediately — validated BEFORE violation counter |
+| Any other valid string `type` | — | Violation counter incremented; close 4005 after `_WS_MAX_VIOLATIONS = 10` |
 
-**Rate-limit-before-DB ordering is permanent.** Never call `_ws_conversation_exists_async` before the rate limiter for typing events.
+**Rate-limit-before-DB ordering is permanent for both `typing` AND `active_conversation`.** Never call `_ws_conversation_exists_async` before the respective rate limiter. This ordering must never be reversed.
+
+**Ctrl rate limiter:** `_ws_ctrl_rate_ok(auth_uid)` — sliding window: 30 events / 10 seconds per `user_id` (`_WS_CTRL_MAX=30`, `_WS_CTRL_WINDOW=10.0s`). Used for `active_conversation`. Exceeded → close 4005.
 
 ### Conversation Membership Cache (`_ws_conv_cache`)
 
@@ -3889,12 +3892,18 @@ Class: `_BoundedTTLCache`
 - **asyncpg pool available (`_asyncpg_pool is not None`):** uses `async with pool.acquire()` — non-blocking
 - **asyncpg unavailable (pg8000 fallback):** wraps sync pg8000 call in `asyncio.to_thread` with `release_conn()` in `finally` — no event-loop blocking, no connection leak
 
-### Typing Rate Limiter
+### Rate Limiters
 
-- Sliding window: 10 events / 10 seconds per `user_id`
+**Typing rate limiter (`_ws_typing_rate_ok`):**
+- Sliding window: **10 events / 10 seconds** per `user_id` (`_WS_TYPING_MAX=10`, `_WS_TYPING_WINDOW=10.0s`)
 - Implementation: `_ws_typing_log: Dict[int, deque]` (module-level)
 - Exceeded → close 4005
 - Cleaned up in `_ws_cleanup_typing_log(user_id)` from the `finally` block of the endpoint
+
+**Control rate limiter (`_ws_ctrl_rate_ok`):**
+- Sliding window: **30 events / 10 seconds** per `user_id` (`_WS_CTRL_MAX=30`, `_WS_CTRL_WINDOW=10.0s`)
+- Implementation: `_ws_ctrl_log: Dict[int, deque]` (module-level)
+- Used for `active_conversation` events; exceeded → close 4005
 
 ### Message Flow
 
@@ -3921,7 +3930,8 @@ Note: the legacy WS send path (`{receiver_id, content}` without `type`) has been
 
 - In-memory `active` dict — NOT distributed (single Heroku dyno only)
 - Message persisted to `messages` table via HTTP before WS delivery
-- Dead connection cleanup: `WebSocketDisconnect` → `ws_manager.disconnect()`
+- **Dead socket cleanup contract:** `send_to_user()` routes failed sends through `self.disconnect(user_id, dead_ws)` — never direct list removal. This ensures `_conv_ws_owner` and `active_conversations` are cleared for dead sockets. When the last connection dies, `_ws_cleanup_typing_log(user_id)` is also called to clear rate-limit state.
+- `disconnect()` called in `finally` block of `websocket_endpoint` for normal connection lifecycle
 - If receiver offline: message saved in DB, delivered next time they poll `GET /messages`
 - Multi-tab: same `user_id` can have multiple WebSockets in `active[user_id]` (max 10)
 
@@ -3930,16 +3940,35 @@ Note: the legacy WS send path (`{receiver_id, content}` without `type`) has been
 - `_wsGen: number` — increments on each `connectWS()` call; all closures capture `capturedGen` and self-cancel when stale
 - `_ws: WebSocket|null` — module-level reference to current active socket
 - `_wsReady: bool` — set `true` only after `auth_ok`; guards all operational sends
-- Auth timeout: 5s client-side `setTimeout`; closes socket if `!_wsReady` after 5s
+- `_wsRetries: number` — retry counter; **reset rules (permanent):**
+  - Reset to `0` on successful `auth_ok` (connection authenticated)
+  - Reset to `0` on session change (new session resets the counter)
+  - **NOT reset in `onopen`** — this would allow infinite retries across failed connections
+- `_wsAuthTimeoutTimer: number|null` — cancellable handle for the 5s client-side auth timeout
+  - Set in `onopen` after auth frame is sent
+  - Cancelled on `auth_ok` success (timer clears itself to null; retries also reset here)
+  - Cancelled in `onclose` **only when `ws === _ws`** (prevents stale socket from cancelling the current connection's timer)
+  - Cancelled in session change handler (alongside reconnect and switch timers)
 - Reconnect: exponential backoff `2^n * 1s + jitter`, max 5 retries, 30s cap
-- `TwAuthSync.onSessionChange`: closes socket + advances `_wsGen` on logout/account-switch
+- `TwAuthSync.onSessionChange`: closes socket + advances `_wsGen` + resets `_wsRetries` on logout/account-switch
+
+**TwAuthSync V2 snapshot contract (permanent):**
+`TwAuthSync.getSessionSnapshot()` returns `{ state, isAuthenticated, userType, userId, reason }` — **no `jwt` field**. JWT is always sourced from:
+1. `info.jwt` (callback parameter) — captured synchronously before any `setTimeout` delay
+2. `localStorage.getItem('tw_jwt')` — fallback when no JWT in `info`
+
+**Never read `snapshot.jwt`** — it does not exist in V2. Any code that reads `snapshot.jwt` is a contract violation.
 
 ### Badge WS Client (tw_shared.js IIFE)
 
 - Uses same generation counter (`_gen`) and per-connection `wsReady` flag
 - `auth_ok.user_id` validated against `capturedUid`
 - Close codes 4001–4007 prevent reconnect
-- `TwAuthSync.onSessionChange` integration via `_clearSocket()` helper
+- `_retries: number` — IIFE-level (persists across `_initBadgeWS()` calls); reset on `auth_ok` success or new session
+- `_sessionReinitTimer: number|null` — cancellable handle for 300ms session-switch reinit; **cancelled by `_clearSocket()`** so fast logout-after-switch doesn't produce a stale reconnect
+- `_initBadgeWS(pendingJwt?)` — accepts optional JWT captured synchronously from `info.jwt`; uses V2 snapshot (no `snapshot.jwt`); JWT sourced from `pendingJwt || localStorage.getItem('tw_jwt')`
+- `TwAuthSync.onSessionChange` integration via `_clearSocket()` helper (also cancels `_sessionReinitTimer`)
+- **Same V2 snapshot contract as messages.ws.js** — no `snapshot.jwt`
 
 ### ممنوعات
 
@@ -3952,10 +3981,14 @@ Note: the legacy WS send path (`{receiver_id, content}` without `type`) has been
 ❌ لا تسجّل JWT token في أي print أو log
 ❌ لا تنشئ مسار WebSocket ثانياً
 ❌ لا تضبط WS_ALLOWED_ORIGINS="*" — RuntimeError عند بدء التشغيل
-❌ لا تستدعِ _ws_conversation_exists_async قبل rate limiter في typing events
+❌ لا تستدعِ _ws_conversation_exists_async قبل rate limiter في typing/active_conversation events
 ❌ لا تستخدم _ws_conversation_exists (sync) مباشرة في async endpoint — استخدم الـ async version فقط
 ❌ لا تحفظ JWT في logs أو URL params
 ❌ لا تقبل close codes 4001-4007 كمبرر لإعادة الاتصال في الـ client
+❌ لا تعيد تشغيل _wsRetries = 0 داخل onopen — يُعيَّن فقط عند auth_ok أو session change
+❌ لا تقرأ snapshot.jwt — لا يوجد في V2 TwAuthSync snapshot؛ JWT من info.jwt أو localStorage فقط
+❌ لا تحذف dead socket مباشرة من self.active في send_to_user — يجب المرور عبر disconnect()
+❌ لا تترك _sessionReinitTimer بدون إلغاء في _clearSocket() — يسبب reconnect stale بعد logout
 ```
 
 ---

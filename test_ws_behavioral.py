@@ -6,9 +6,9 @@ No live DB or running server required: _jwt_decode, _ws_conversation_exists_asyn
 and ws_manager are monkeypatched; _asyncpg_pool is left None (sync fallback path).
 
 Scenarios:
-  P — websocket_endpoint() production scenarios  (15 tests)
+  P — websocket_endpoint() production scenarios  (22 tests: P01-P22)
   A — _BoundedTTLCache                           ( 5 tests)
-  B — ConnectionManager                          ( 6 tests)
+  B — ConnectionManager                          ( 8 tests: B01-B08)
   C — _ws_validate_auth_frame()                  ( 7 tests)
   D — _ws_origin_ok()                            ( 4 tests)
   E — _ws_typing_rate_ok() / _ws_ctrl_rate_ok()  ( 4 tests)
@@ -358,9 +358,121 @@ def test_P15():
           uid in disconnect_calls)
 
 
+def test_P16():
+    """Non-string type field (integer) → close 4004 before violation counter."""
+    uid = 6001
+    server._ws_event_violations.pop(uid, None)
+    ws, _, _ = run(_run_ws(
+        recv=[
+            json.dumps({"type": "auth", "token": "tok"}),
+            json.dumps({"type": 42}),   # integer type — not a string
+        ],
+        uid=uid, path_uid=uid, jwt_uid=uid,
+    ))
+    check("P16  Non-string type → close 4004", ws.closed_code == 4004)
+    server._ws_event_violations.pop(uid, None)
+
+
+def test_P17():
+    """Null type field → close 4004."""
+    uid = 6002
+    server._ws_event_violations.pop(uid, None)
+    ws, _, _ = run(_run_ws(
+        recv=[
+            json.dumps({"type": "auth", "token": "tok"}),
+            json.dumps({"type": None}),
+        ],
+        uid=uid, path_uid=uid, jwt_uid=uid,
+    ))
+    check("P17  Null type → close 4004", ws.closed_code == 4004)
+    server._ws_event_violations.pop(uid, None)
+
+
+def test_P18():
+    """Empty string type → close 4004."""
+    uid = 6003
+    server._ws_event_violations.pop(uid, None)
+    ws, _, _ = run(_run_ws(
+        recv=[
+            json.dumps({"type": "auth", "token": "tok"}),
+            json.dumps({"type": ""}),
+        ],
+        uid=uid, path_uid=uid, jwt_uid=uid,
+    ))
+    check("P18  Empty string type → close 4004", ws.closed_code == 4004)
+    server._ws_event_violations.pop(uid, None)
+
+
+def test_P19():
+    """Oversized type string (>80 chars) → close 4004."""
+    uid = 6004
+    server._ws_event_violations.pop(uid, None)
+    ws, _, _ = run(_run_ws(
+        recv=[
+            json.dumps({"type": "auth", "token": "tok"}),
+            json.dumps({"type": "x" * 81}),
+        ],
+        uid=uid, path_uid=uid, jwt_uid=uid,
+    ))
+    check("P19  Oversized type (>80 chars) → close 4004", ws.closed_code == 4004)
+    server._ws_event_violations.pop(uid, None)
+
+
+def test_P20():
+    """Valid unknown string type → violation path taken, not close 4004.
+    Note: violation counter is cleared by _ws_cleanup_typing_log on disconnect,
+    so we verify the code path via ws.closed_code (None = natural disconnect, not 4004 = invalid type).
+    """
+    uid = 6005
+    server._ws_event_violations.pop(uid, None)
+    ws, _, _ = run(_run_ws(
+        recv=[
+            json.dumps({"type": "auth", "token": "tok"}),
+            json.dumps({"type": "unknown_event_xyz"}),
+        ],
+        uid=uid, path_uid=uid, jwt_uid=uid,
+    ))
+    # closed_code is None (natural disconnect) — not 4004 (invalid type path)
+    check("P20  Valid unknown string type → not 4004 (violation path, not invalid-type path)",
+          ws.closed_code != 4004)
+    server._ws_event_violations.pop(uid, None)
+
+
+def test_P21():
+    """Type field missing entirely → close 4004."""
+    uid = 6006
+    server._ws_event_violations.pop(uid, None)
+    ws, _, _ = run(_run_ws(
+        recv=[
+            json.dumps({"type": "auth", "token": "tok"}),
+            json.dumps({"content": "hello"}),  # no type key at all
+        ],
+        uid=uid, path_uid=uid, jwt_uid=uid,
+    ))
+    check("P21  Missing type field (None from get) → close 4004", ws.closed_code == 4004)
+    server._ws_event_violations.pop(uid, None)
+
+
+def test_P22():
+    """Exactly 80-char type string → valid (enters violation counter, not 4004)."""
+    uid = 6007
+    server._ws_event_violations.pop(uid, None)
+    ws, _, _ = run(_run_ws(
+        recv=[
+            json.dumps({"type": "auth", "token": "tok"}),
+            json.dumps({"type": "x" * 80}),
+        ],
+        uid=uid, path_uid=uid, jwt_uid=uid,
+    ))
+    check("P22  Exactly 80-char type string → not 4004 (valid, enters violation counter)",
+          ws.closed_code != 4004)
+    server._ws_event_violations.pop(uid, None)
+
+
 test_P01(); test_P02(); test_P03(); test_P04(); test_P05()
 test_P06(); test_P07(); test_P08(); test_P09(); test_P10()
 test_P11(); test_P12(); test_P13(); test_P14(); test_P15()
+test_P16(); test_P17(); test_P18(); test_P19(); test_P20(); test_P21(); test_P22()
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -468,7 +580,62 @@ def test_B06():
           1 not in mgr.active_conversations)
 
 
+def test_B07():
+    """send_to_user() dead socket cleanup routes through disconnect() — owner state cleared."""
+    mgr = server.ConnectionManager()
+
+    class DeadWS:
+        async def send_text(self, _):
+            raise RuntimeError("socket dead")
+
+    uid = 8001
+    dead = DeadWS()
+    dummy_alive = object()  # something that won't be called (it's a plain object, not async-capable)
+
+    mgr.active[uid] = [dead]
+    mgr.active_conversations[uid] = 99
+    mgr._conv_ws_owner[uid] = dead
+
+    with patch.object(server, "ws_manager", mgr):
+        result = asyncio.get_event_loop().run_until_complete(
+            mgr.send_to_user(uid, {"type": "ping"})
+        )
+
+    check("B07  send_to_user() dead socket cleanup via disconnect() clears conv_owner",
+          uid not in mgr.active_conversations and
+          uid not in mgr._conv_ws_owner and
+          uid not in mgr.active)
+
+
+def test_B08():
+    """send_to_user() last dead socket removed → _ws_cleanup_typing_log() called."""
+    mgr = server.ConnectionManager()
+
+    class DeadWS:
+        async def send_text(self, _):
+            raise RuntimeError("socket dead")
+
+    uid = 8002
+
+    class DeadWS2:
+        async def send_text(self, _):
+            raise RuntimeError("dead too")
+
+    mgr.active[uid] = [DeadWS(), DeadWS2()]
+    server._ws_typing_log[uid] = deque([time.time()])
+    server._ws_ctrl_log[uid]   = deque([time.time()])
+
+    with patch.object(server, "ws_manager", mgr):
+        asyncio.get_event_loop().run_until_complete(
+            mgr.send_to_user(uid, {"type": "ping"})
+        )
+
+    check("B08  send_to_user() all sockets dead → rate-limit state cleared",
+          uid not in server._ws_typing_log and uid not in server._ws_ctrl_log)
+
+
 test_B01(); test_B02(); test_B03(); test_B04(); test_B05(); test_B06()
+test_B07(); test_B08()
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

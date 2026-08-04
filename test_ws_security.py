@@ -5,9 +5,9 @@ Verifies implementation correctness by inspecting source code, not by
 establishing live WebSocket connections (which would require a running DB).
 
 Coverage:
-  A — Backend (server.py): 22 checks
-  B — Messages client (messages.ws.js): 9 checks
-  C — Badge WS client (tw_shared.js): 9 checks
+  A — Backend (server.py): 29 checks (A01-A29)
+  B — Messages client (messages.ws.js): 14 checks (B01-B14)
+  C — Badge WS client (tw_shared.js): 12 checks (C01-C12)
 
 Run:  python test_ws_security.py
 """
@@ -239,6 +239,20 @@ check("B11  _wsSessionSwitchTimer declared at module level",
 check("B12  getSessionSnapshot referenced in TwAuthSync.onSessionChange handler",
       "getSessionSnapshot" in ws)
 
+# B13: _wsAuthTimeoutTimer declared at module level
+check("B13  _wsAuthTimeoutTimer declared at module level in messages.ws.js",
+      re.search(r"var\s+_wsAuthTimeoutTimer\s*=\s*null", ws) is not None)
+
+# B14: _wsRetries NOT reset inside onopen body (must only reset on auth_ok or session change)
+onopen_match_b14 = re.search(r"\bws\.onopen\s*=\s*function\(\)", ws)
+onmsg_match_b14  = re.search(r"\bws\.onmessage\s*=\s*function\(", ws)
+if onopen_match_b14 and onmsg_match_b14:
+    onopen_body_b14 = ws[onopen_match_b14.start():onmsg_match_b14.start()]
+else:
+    onopen_body_b14 = ""
+check("B14  _wsRetries NOT reset inside onopen (only on auth_ok / session change)",
+      "_wsRetries = 0" not in onopen_body_b14)
+
 print("\n── C  Badge WS client (tw_shared.js) ──────────────────────────────────")
 
 # Find the IIFE badge WS block
@@ -296,6 +310,10 @@ init_fn_body  = badge_block[init_fn_start:init_fn_end] if init_fn_start != -1 an
 check("C11  _retries at IIFE level (not var retries inside _initBadgeWS)",
       re.search(r"var\s+_retries\s*=\s*0", badge_block) is not None and
       re.search(r"\bvar\s+retries\s*=\s*0", init_fn_body) is None)
+
+# C12: _sessionReinitTimer declared at IIFE level in Badge WS
+check("C12  _sessionReinitTimer declared at IIFE level in Badge WS",
+      re.search(r"var\s+_sessionReinitTimer\s*=\s*null", badge_block) is not None)
 
 # ── Summary ───────────────────────────────────────────────────────────────
 

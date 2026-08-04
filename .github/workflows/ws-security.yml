@@ -24,6 +24,7 @@ on:
       - 'Procfile'
       - 'messages.html'
       - 'static/shared/auth-sync.js'
+      - '.github/workflows/ws-security.yml'
 
 jobs:
   ws-security:
@@ -52,6 +53,9 @@ jobs:
 
       - name: Syntax check — messages.ws.js
         run: node --check messages.ws.js
+
+      - name: Syntax check — tw_shared.js
+        run: node --check tw_shared.js
 
       - name: A — Static verification (source inspection)
         run: python test_ws_security.py

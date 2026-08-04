@@ -7,6 +7,7 @@ var _wsReady        = false;   // true only after server sends auth_ok
 var _wsReconnectTimer      = null;  // active reconnect timer handle
 var _wsSessionSwitchTimer  = null;  // account-switch reconnect timer (cancellable)
 var _wsPendingJwt   = '';      // fresh JWT staged for next onopen auth frame (account switch)
+var _wsAuthTimeoutTimer = null; // cancellable handle for the 5s client-side auth timeout
 
 // ── Active conversation signalling ───────────────────────────────────────
 
@@ -117,14 +118,14 @@ function connectWS() {
 
   ws.onopen = function() {
     if (capturedGen !== _wsGen || ws !== _ws) { ws.close(); return; }
-    _wsRetries = 0;
     _wsReady = false;
     // First message must be auth — no operational events until auth_ok received
     var jwt = _wsPendingJwt || (typeof localStorage !== 'undefined' && localStorage.getItem('tw_jwt')) || '';
     _wsPendingJwt = '';  // consume the pending JWT; fall back to localStorage on reconnects
     ws.send(JSON.stringify({type: 'auth', token: jwt}));
-    // Client-side auth timeout: if server hasn't confirmed auth in 5s, close
-    setTimeout(function() {
+    // Client-side auth timeout: store handle so onclose and auth_ok can cancel it
+    _wsAuthTimeoutTimer = setTimeout(function() {
+      _wsAuthTimeoutTimer = null;
       if (capturedGen === _wsGen && ws === _ws && !_wsReady) {
         ws.close(1000, 'auth_timeout');
       }
@@ -147,6 +148,8 @@ function connectWS() {
           ws.close(4003);
           return;
         }
+        if (_wsAuthTimeoutTimer) { clearTimeout(_wsAuthTimeoutTimer); _wsAuthTimeoutTimer = null; }
+        _wsRetries = 0;
         _wsReady = true;
         // Signal active conversation now that the connection is authenticated
         if (_currentConvId) sendActiveConversation(_currentConvId);
@@ -210,6 +213,8 @@ function connectWS() {
   };
 
   ws.onclose = function(event) {
+    // Cancel auth timeout only for the connection that owns it (prevent cross-connection cancellation)
+    if (ws === _ws && _wsAuthTimeoutTimer) { clearTimeout(_wsAuthTimeoutTimer); _wsAuthTimeoutTimer = null; }
     if (capturedGen !== _wsGen) return;  // superseded by newer session — ignore
     _wsReady = false;
     if (ws === _ws) _ws = null;
@@ -232,7 +237,9 @@ if (typeof TwAuthSync !== 'undefined' && TwAuthSync.onSessionChange) {
   TwAuthSync.onSessionChange(function(info) {
     // Invalidate all active closures by advancing the generation counter
     _wsGen++;
+    _wsRetries = 0;  // new session resets the retry counter
     _wsReady = false;
+    if (_wsAuthTimeoutTimer) { clearTimeout(_wsAuthTimeoutTimer); _wsAuthTimeoutTimer = null; }
     if (_wsReconnectTimer) { clearTimeout(_wsReconnectTimer); _wsReconnectTimer = null; }
     if (_wsSessionSwitchTimer) { clearTimeout(_wsSessionSwitchTimer); _wsSessionSwitchTimer = null; }
     var sock = _ws;
@@ -240,19 +247,23 @@ if (typeof TwAuthSync !== 'undefined' && TwAuthSync.onSessionChange) {
     if (sock) { try { sock.close(); } catch(e) {} }
     // Reconnect on account-switch (new JWT exists); stay disconnected on logout
     if (info && info.jwt) {
+      var capturedJwt = info.jwt;  // capture before async delay — info may not be in scope later
       _wsSessionSwitchTimer = setTimeout(function() {
         _wsSessionSwitchTimer = null;
-        // Read fresh session — prefer V2 getSessionSnapshot() over stale localStorage
-        var snapshot = (typeof TwAuthSync !== 'undefined' && typeof TwAuthSync.getSessionSnapshot === 'function')
-            ? TwAuthSync.getSessionSnapshot() : null;
-        var freshUser = null, freshJwt = '';
+        // V2 contract: getSessionSnapshot() returns {state,isAuthenticated,userType,userId,reason}
+        // — no jwt field. JWT always comes from info.jwt (capturedJwt) or localStorage.
+        var snapshot = (info && info.snapshot) ||
+            ((typeof TwAuthSync !== 'undefined' && typeof TwAuthSync.getSessionSnapshot === 'function')
+            ? TwAuthSync.getSessionSnapshot() : null);
+        var freshUser = null;
+        var freshJwt = capturedJwt || (typeof localStorage !== 'undefined' && localStorage.getItem('tw_jwt')) || '';
         if (snapshot) {
           if (!snapshot.isAuthenticated) return;
           freshUser = { id: snapshot.userId };
-          freshJwt  = snapshot.jwt || '';
+          // V2 snapshot has no jwt — freshJwt is already sourced above
         } else {
           try { freshUser = JSON.parse((typeof localStorage !== 'undefined' && localStorage.getItem('tw_user')) || 'null'); } catch(e) {}
-          freshJwt = (typeof localStorage !== 'undefined' && localStorage.getItem('tw_jwt')) || '';
+          if (!freshJwt) freshJwt = (typeof localStorage !== 'undefined' && localStorage.getItem('tw_jwt')) || '';
         }
         if (!freshUser || !freshUser.id || !freshJwt) return;
         _user = freshUser;
