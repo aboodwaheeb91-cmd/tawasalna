@@ -142,6 +142,35 @@ check("A23  Fail-closed origin policy: null origin rejected and prod defaults se
 check("A24  Legacy WS send path (receiver_id+content without type) removed",
       "receiver_id" not in ep_body or "send_message(" not in ep_body)
 
+# A25: _ws_ctrl_rate_ok defined in server.py
+check("A25  _ws_ctrl_rate_ok() defined in server.py",
+      "def _ws_ctrl_rate_ok(" in srv)
+
+# A26: _ws_ctrl_log declared
+check("A26  _ws_ctrl_log declared at module level",
+      "_ws_ctrl_log" in srv and "deque" in srv)
+
+# A27: _ws_ctrl_rate_ok() called BEFORE _ws_conversation_exists_async() for active_conversation
+# Find the active_conversation block
+ac_start = ep_body.find('"active_conversation"')
+ac_end   = ep_body.find('"inactive_conversation"', ac_start) if ac_start != -1 else -1
+ac_block = ep_body[ac_start:ac_end] if ac_start != -1 and ac_end != -1 else ""
+ctrl_rate_pos_ac = ac_block.find("_ws_ctrl_rate_ok(")
+conv_pos_ac      = ac_block.find("_ws_conversation_exists_async(", ctrl_rate_pos_ac if ctrl_rate_pos_ac != -1 else 0)
+check("A27  _ws_ctrl_rate_ok() called BEFORE _ws_conversation_exists_async() for active_conversation",
+      ctrl_rate_pos_ac != -1 and conv_pos_ac != -1 and ctrl_rate_pos_ac < conv_pos_ac)
+
+# A28: _ws_cleanup_typing_log checks ws_manager.active before clearing
+cleanup_fn_start = srv.find("def _ws_cleanup_typing_log(")
+cleanup_fn_end   = srv.find("\ndef ", cleanup_fn_start + 10) if cleanup_fn_start != -1 else -1
+cleanup_fn_body  = srv[cleanup_fn_start:cleanup_fn_end] if cleanup_fn_start != -1 and cleanup_fn_end != -1 else ""
+check("A28  _ws_cleanup_typing_log() checks ws_manager.active before clearing state",
+      "ws_manager.active" in cleanup_fn_body)
+
+# A29: Log truncation present for msg_type in unknown event handler
+check("A29  msg_type truncated before logging in unknown event handler",
+      "logged_type" in ep_body or re.search(r"msg_type\[:\d+\]", ep_body) is not None)
+
 print("\n── B  Messages client (messages.ws.js) ────────────────────────────────")
 
 # Detect onopen and onmessage blocks — supports both _ws.onopen and ws.onopen patterns
@@ -197,6 +226,19 @@ check("B08  _wsGen generation counter declared at module level",
 check("B09  auth_ok.user_id validated against capturedUid in onmessage",
       "data.user_id" in ws and "capturedUid" in ws)
 
+# B10: auth_ok mismatch closes with code 4003 (Forbidden) in messages.ws.js
+check("B10  auth_ok uid mismatch closes with 4003 in messages.ws.js",
+      re.search(r"auth_ok.*?4003|4003.*?auth_ok", ws, re.DOTALL) is not None and
+      re.search(r"ws\.close\(4003\)", ws) is not None)
+
+# B11: _wsSessionSwitchTimer declared at module level
+check("B11  _wsSessionSwitchTimer declared at module level",
+      re.search(r"var\s+_wsSessionSwitchTimer\s*=\s*null", ws) is not None)
+
+# B12: getSessionSnapshot referenced in session change handler (account-switch fresh read)
+check("B12  getSessionSnapshot referenced in TwAuthSync.onSessionChange handler",
+      "getSessionSnapshot" in ws)
+
 print("\n── C  Badge WS client (tw_shared.js) ──────────────────────────────────")
 
 # Find the IIFE badge WS block
@@ -239,6 +281,21 @@ check("C08  Badge WS onclose stops reconnect when generation superseded",
 # C9: auth_ok.user_id validated against capturedUid in Badge WS
 check("C09  auth_ok.user_id validated against capturedUid in Badge WS",
       "data.user_id" in badge_block and "capturedUid" in badge_block)
+
+# C10: Badge WS auth_ok mismatch advances _gen and closes with 4003
+check("C10  Badge WS auth_ok uid mismatch advances _gen and closes with 4003",
+      re.search(r"_gen\+\+.*?4003|4003.*?_gen\+\+", badge_block, re.DOTALL) is not None and
+      re.search(r"ws\.close\(4003\)", badge_block) is not None)
+
+# C11: _retries at IIFE level (not var retries inside _initBadgeWS)
+# Check that _retries (underscore prefix) is declared at IIFE level, and
+# var retries (no underscore) is NOT present inside _initBadgeWS function body
+init_fn_start = badge_block.find("function _initBadgeWS(")
+init_fn_end   = badge_block.find("\n  }", init_fn_start + 10) if init_fn_start != -1 else -1
+init_fn_body  = badge_block[init_fn_start:init_fn_end] if init_fn_start != -1 and init_fn_end != -1 else ""
+check("C11  _retries at IIFE level (not var retries inside _initBadgeWS)",
+      re.search(r"var\s+_retries\s*=\s*0", badge_block) is not None and
+      re.search(r"\bvar\s+retries\s*=\s*0", init_fn_body) is None)
 
 # ── Summary ───────────────────────────────────────────────────────────────
 

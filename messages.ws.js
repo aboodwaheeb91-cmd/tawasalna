@@ -4,7 +4,9 @@ var _ws             = null;    // current active socket reference
 var _wsGen          = 0;       // increments on each connectWS() call — stale closures self-cancel
 var _wsRetries      = 0;
 var _wsReady        = false;   // true only after server sends auth_ok
-var _wsReconnectTimer = null;  // active reconnect timer handle
+var _wsReconnectTimer      = null;  // active reconnect timer handle
+var _wsSessionSwitchTimer  = null;  // account-switch reconnect timer (cancellable)
+var _wsPendingJwt   = '';      // fresh JWT staged for next onopen auth frame (account switch)
 
 // ── Active conversation signalling ───────────────────────────────────────
 
@@ -118,7 +120,8 @@ function connectWS() {
     _wsRetries = 0;
     _wsReady = false;
     // First message must be auth — no operational events until auth_ok received
-    var jwt = (typeof localStorage !== 'undefined' && localStorage.getItem('tw_jwt')) || '';
+    var jwt = _wsPendingJwt || (typeof localStorage !== 'undefined' && localStorage.getItem('tw_jwt')) || '';
+    _wsPendingJwt = '';  // consume the pending JWT; fall back to localStorage on reconnects
     ws.send(JSON.stringify({type: 'auth', token: jwt}));
     // Client-side auth timeout: if server hasn't confirmed auth in 5s, close
     setTimeout(function() {
@@ -138,7 +141,10 @@ function connectWS() {
       if (data.type === 'auth_ok') {
         // Validate server echoed the correct user_id
         if (Number(data.user_id) !== capturedUid) {
-          ws.close();
+          // Mismatch: advance generation so stale closures self-cancel, close with Forbidden
+          _wsGen++;
+          _wsReady = false;
+          ws.close(4003);
           return;
         }
         _wsReady = true;
@@ -228,12 +234,31 @@ if (typeof TwAuthSync !== 'undefined' && TwAuthSync.onSessionChange) {
     _wsGen++;
     _wsReady = false;
     if (_wsReconnectTimer) { clearTimeout(_wsReconnectTimer); _wsReconnectTimer = null; }
+    if (_wsSessionSwitchTimer) { clearTimeout(_wsSessionSwitchTimer); _wsSessionSwitchTimer = null; }
     var sock = _ws;
     _ws = null;
     if (sock) { try { sock.close(); } catch(e) {} }
     // Reconnect on account-switch (new JWT exists); stay disconnected on logout
     if (info && info.jwt) {
-      setTimeout(connectWS, 500);
+      _wsSessionSwitchTimer = setTimeout(function() {
+        _wsSessionSwitchTimer = null;
+        // Read fresh session — prefer V2 getSessionSnapshot() over stale localStorage
+        var snapshot = (typeof TwAuthSync !== 'undefined' && typeof TwAuthSync.getSessionSnapshot === 'function')
+            ? TwAuthSync.getSessionSnapshot() : null;
+        var freshUser = null, freshJwt = '';
+        if (snapshot) {
+          if (!snapshot.isAuthenticated) return;
+          freshUser = { id: snapshot.userId };
+          freshJwt  = snapshot.jwt || '';
+        } else {
+          try { freshUser = JSON.parse((typeof localStorage !== 'undefined' && localStorage.getItem('tw_user')) || 'null'); } catch(e) {}
+          freshJwt = (typeof localStorage !== 'undefined' && localStorage.getItem('tw_jwt')) || '';
+        }
+        if (!freshUser || !freshUser.id || !freshJwt) return;
+        _user = freshUser;
+        _wsPendingJwt = freshJwt;  // stage fresh JWT for onopen auth frame
+        connectWS();
+      }, 500);
     }
   });
 }

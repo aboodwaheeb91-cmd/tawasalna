@@ -1706,6 +1706,10 @@ _ws_typing_log: Dict[int, deque] = {}
 _ws_event_violations: Dict[int, int] = {}
 _WS_MAX_VIOLATIONS = 10
 
+_WS_CTRL_MAX    = 30
+_WS_CTRL_WINDOW = 10.0
+_ws_ctrl_log: Dict[int, deque] = {}
+
 # ── Origin policy — fail closed ───────────────────────────────────────────────
 # Production: only tawasolna.com and www.tawasolna.com are allowed.
 # Development (APP_ENV=development): localhost variants are also allowed.
@@ -1791,9 +1795,25 @@ def _ws_typing_rate_ok(user_id: int) -> bool:
     return True
 
 
+# ORDERING CONTRACT: _ws_ctrl_rate_ok() MUST be called BEFORE _ws_conversation_exists_async().
+def _ws_ctrl_rate_ok(user_id: int) -> bool:
+    now = time.time()
+    q = _ws_ctrl_log.setdefault(user_id, deque())
+    while q and now - q[0] > _WS_CTRL_WINDOW:
+        q.popleft()
+    if len(q) >= _WS_CTRL_MAX:
+        return False
+    q.append(now)
+    return True
+
+
 def _ws_cleanup_typing_log(user_id: int) -> None:
-    _ws_typing_log.pop(user_id, None)
-    _ws_event_violations.pop(user_id, None)
+    """Only clears rate-limit state when no WS connections remain.
+    Prevents a Tab-B disconnect from resetting Tab-A's rate-limit counters."""
+    if user_id not in ws_manager.active or not ws_manager.active[user_id]:
+        _ws_typing_log.pop(user_id, None)
+        _ws_ctrl_log.pop(user_id, None)
+        _ws_event_violations.pop(user_id, None)
 
 
 async def _ws_conversation_exists_async(a: int, b: int) -> bool:
@@ -2011,6 +2031,14 @@ async def websocket_endpoint(websocket: WebSocket, user_id: int):
                             raise ValueError()
                     except (ValueError, TypeError):
                         continue
+                    # ORDERING CONTRACT: rate limit BEFORE DB lookup — must never be reversed
+                    if not _ws_ctrl_rate_ok(auth_uid):
+                        print(f"[WS-SEC] CTRL_RATE_LIMIT uid={auth_uid}")
+                        try:
+                            await websocket.close(code=4005)
+                        except Exception:
+                            pass
+                        break
                     if not await _ws_conversation_exists_async(auth_uid, other_id):
                         print(f"[WS-SEC] ACTIVE_CONV_UNAUTH uid={auth_uid} other={other_id}")
                         continue
@@ -2048,7 +2076,8 @@ async def websocket_endpoint(websocket: WebSocket, user_id: int):
             else:
                 count = _ws_event_violations.get(auth_uid, 0) + 1
                 _ws_event_violations[auth_uid] = count
-                print(f"[WS-SEC] UNKNOWN_TYPE type={msg_type!r} uid={auth_uid} violation={count}")
+                logged_type = msg_type[:80] if len(msg_type) <= 80 else msg_type[:80] + '…'
+                print(f"[WS-SEC] UNKNOWN_TYPE type={logged_type!r} uid={auth_uid} violation={count}")
                 if count >= _WS_MAX_VIOLATIONS:
                     print(f"[WS-SEC] VIOLATION_LIMIT uid={auth_uid}")
                     try:

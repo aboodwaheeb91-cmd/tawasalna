@@ -423,6 +423,7 @@ function initGlobalHeaderMenu(btnId, ddId, dynId) {
   var _activeUid = 0;
   var _activeSocket = null;   // current active WS reference
   var _reconnectTimer = null; // active reconnect timer handle
+  var _retries = 0;           // IIFE-level: persists across _initBadgeWS() calls; reset on auth_ok or new session
 
   function _clearSocket() {
     _gen++;
@@ -433,21 +434,32 @@ function initGlobalHeaderMenu(btnId, ddId, dynId) {
   }
 
   function _initBadgeWS() {
-    var u = null;
-    try { u = JSON.parse(localStorage.getItem('tw_user') || 'null'); } catch(e){}
-    var jwt = localStorage.getItem('tw_jwt') || '';
-    if (!u || !u.id || !jwt) return;
+    // Prefer V2 getSessionSnapshot() for fresh session data; fall back to localStorage
+    var snapshot = (typeof TwAuthSync !== 'undefined' && typeof TwAuthSync.getSessionSnapshot === 'function')
+        ? TwAuthSync.getSessionSnapshot() : null;
+    var uid, jwt;
+    if (snapshot) {
+      if (!snapshot.isAuthenticated) return;
+      uid = snapshot.userId;
+      jwt = snapshot.jwt || '';
+    } else {
+      var u = null;
+      try { u = JSON.parse(localStorage.getItem('tw_user') || 'null'); } catch(e){}
+      jwt = localStorage.getItem('tw_jwt') || '';
+      if (!u || !u.id || !jwt) return;
+      uid = u.id;
+    }
+    if (!uid || !jwt) return;
 
     _gen++;
-    _activeUid = u.id;
+    _activeUid = uid;
     var capturedGen = _gen;
-    var capturedUid = Number(u.id);
+    var capturedUid = Number(uid);
 
     var protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     var ws;
-    try { ws = new WebSocket(protocol + '//' + window.location.host + '/ws/' + u.id); } catch(e) { return; }
+    try { ws = new WebSocket(protocol + '//' + window.location.host + '/ws/' + uid); } catch(e) { return; }
     _activeSocket = ws;
-    var retries = 0;
     var wsReady = false;
 
     ws.onopen = function() {
@@ -462,7 +474,13 @@ function initGlobalHeaderMenu(btnId, ddId, dynId) {
         var data = JSON.parse(e.data);
         if (data.type === 'auth_ok') {
           // Validate server echoed the correct user_id
-          if (Number(data.user_id) !== capturedUid) { ws.close(); return; }
+          if (Number(data.user_id) !== capturedUid) {
+            // Mismatch: advance generation to cancel stale closures, close with Forbidden
+            _gen++;
+            ws.close(4003);
+            return;
+          }
+          _retries = 0;  // reset retry counter on successful auth
           wsReady = true;
           return;
         }
@@ -483,9 +501,9 @@ function initGlobalHeaderMenu(btnId, ddId, dynId) {
       if (event.code >= 4001 && event.code <= 4007) return;
       // Superseded by a newer session — do not reconnect
       if (capturedGen !== _gen) return;
-      if (retries < 5) {
-        retries++;
-        var delay = Math.min(30000, Math.pow(2, retries) * 1000 + Math.floor(Math.random() * 1000));
+      if (_retries < 5) {
+        _retries++;
+        var delay = Math.min(30000, Math.pow(2, _retries) * 1000 + Math.floor(Math.random() * 1000));
         _reconnectTimer = setTimeout(_initBadgeWS, delay);
       }
     };
@@ -501,6 +519,7 @@ function initGlobalHeaderMenu(btnId, ddId, dynId) {
   if (typeof TwAuthSync !== 'undefined' && TwAuthSync.onSessionChange) {
     TwAuthSync.onSessionChange(function(info) {
       _clearSocket();
+      _retries = 0;  // new session resets the retry counter
       // Reinitialize only when a new JWT is present (account-switch); logout = stay disconnected
       if (info && info.jwt) {
         setTimeout(_initBadgeWS, 300);

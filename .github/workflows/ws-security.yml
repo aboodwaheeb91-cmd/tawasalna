@@ -9,6 +9,9 @@ on:
       - 'test_ws_security.py'
       - 'test_ws_behavioral.py'
       - 'test_ws_client.mjs'
+      - 'Procfile'
+      - 'messages.html'
+      - 'static/shared/auth-sync.js'
       - '.github/workflows/ws-security.yml'
   pull_request:
     paths:
@@ -18,6 +21,9 @@ on:
       - 'test_ws_security.py'
       - 'test_ws_behavioral.py'
       - 'test_ws_client.mjs'
+      - 'Procfile'
+      - 'messages.html'
+      - 'static/shared/auth-sync.js'
 
 jobs:
   ws-security:
