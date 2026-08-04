@@ -416,20 +416,42 @@ function initGlobalHeaderMenu(btnId, ddId, dynId) {
 // ══ Global Real-time Badge WebSocket ══
 // Opens a WS on EVERY page using the authenticated viewer's ID (not profile owner).
 // Handles badge_update events to update [data-badge="msgs"] in real time.
+// Auth protocol: sends {"type":"auth","token":"..."} as the first message;
+// only processes badge_update after server confirms with auth_ok.
 (function() {
+  var _gen = 0;      // increments on each _initBadgeWS call; stale loops self-cancel
+  var _activeUid = 0;
+
   function _initBadgeWS() {
     var u = null;
     try { u = JSON.parse(localStorage.getItem('tw_user') || 'null'); } catch(e){}
     var jwt = localStorage.getItem('tw_jwt') || '';
     if (!u || !u.id || !jwt) return;
 
+    _gen++;
+    _activeUid = u.id;
+    var capturedGen = _gen;
+    var capturedUid = u.id;
+
     var protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     var ws = new WebSocket(protocol + '//' + window.location.host + '/ws/' + u.id);
     var retries = 0;
+    var wsReady = false;
 
+    ws.onopen = function() {
+      wsReady = false;
+      ws.send(JSON.stringify({type: 'auth', token: jwt}));
+    };
     ws.onmessage = function(e) {
+      // Stale-connection guard: superseded by newer login or _initBadgeWS call
+      if (capturedGen !== _gen || capturedUid !== _activeUid) return;
       try {
         var data = JSON.parse(e.data);
+        if (data.type === 'auth_ok') {
+          wsReady = true;
+          return;
+        }
+        if (!wsReady) return;
         if (data.type === 'badge_update' && data.badge === 'messages') {
           var count = data.count || 0;
           document.querySelectorAll('[data-badge="msgs"]').forEach(function(el) {
@@ -439,7 +461,12 @@ function initGlobalHeaderMenu(btnId, ddId, dynId) {
         }
       } catch(ex) {}
     };
-    ws.onclose = function() {
+    ws.onclose = function(event) {
+      wsReady = false;
+      // Auth/Policy close codes — do not reconnect
+      if (event.code >= 4001 && event.code <= 4006) return;
+      // Superseded by a newer session — do not reconnect
+      if (capturedGen !== _gen) return;
       if (retries < 5) { retries++; setTimeout(_initBadgeWS, retries * 2000); }
     };
     ws.onerror = function() { ws.close(); };

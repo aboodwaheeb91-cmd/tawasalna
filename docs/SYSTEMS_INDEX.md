@@ -181,10 +181,11 @@ Status markers: ✅ implemented · ⚠️ needs documentation · 🔜 planned (n
 
 ### 18. Messaging / Direct Messaging
 **Purpose:** Direct messaging between users with typing indicators, delivery/read receipts, active-conversation signalling.
-**Source of Truth:** `messages` table + `conversations` table · WebSocket route `/ws/{user_id}` in `server.py` (line 1346) · client in `messages.ws.js` · shared badge client in `tw_shared.js`
-**Transport (current):** WebSocket (`/ws/{user_id}`) — **implemented and in use**. ⚠️ P0 Security Debt: the route currently accepts any `user_id` from the URL without JWT verification. Hardening deferred to "Step 3 — WebSocket Security Hardening" (see `messages.ws.js` header comment).
+**Source of Truth:** `messages` table + `conversations` table · WebSocket route `/ws/{user_id}` in `server.py` · client in `messages.ws.js` · shared badge client in `tw_shared.js`
+**Transport (current):** WebSocket (`/ws/{user_id}`) — **implemented and in use**. ✅ P0 Security Debt Resolved: First-Message JWT Authentication implemented (PR `security/ws-auth-hardening`). The route now requires `{"type":"auth","token":"<jwt>"}` as the first message; operational events are rejected until `auth_ok` is received from the server.
+**Auth Protocol:** 5-step handshake — accept HTTP upgrade → origin check → 5s auth window → JWT decode + uid match → register + send `auth_ok`. Close codes: 4001 (Unauthorized), 4003 (Forbidden), 4004 (Bad Payload), 4005 (Policy), 4006 (Origin).
 **Details:** `ARCHITECTURE.md §47–48` · `ARCHITECTURE.md Messenger Premium UI Contract`
-**Do not recreate:** Do not create a second WebSocket route for messaging. Do not switch messages back to polling. The security debt (unauthenticated `/ws/{user_id}`) must be resolved in a dedicated security PR — do not ship new features on top of it without fixing auth first.
+**Do not recreate:** Do not create a second WebSocket route for messaging. Do not switch messages back to polling. Do not call `ws_manager.register()` before JWT verification. Do not use URL path `user_id` as identity — identity always from JWT claims.
 
 ---
 

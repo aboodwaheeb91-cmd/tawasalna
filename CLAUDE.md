@@ -339,9 +339,11 @@ Tests: CV matching endpoint, feedback logging, stats endpoint. Tests are minimal
    - Passwords are never returned from any endpoint
 
 6. **Real-time transport is WebSocket for messages, polling for notifications.**
-   - Messaging: WebSocket IS implemented — `/ws/{user_id}` in `server.py` + `messages.ws.js` client. ⚠️ P0 Security Debt: the route accepts any `user_id` without JWT verification (hardening deferred). Do not build new features on top of the WebSocket until the auth debt is resolved.
+   - Messaging: WebSocket IS implemented — `/ws/{user_id}` in `server.py` + `messages.ws.js` client. ✅ P0 Security Debt Resolved (PR `security/ws-auth-hardening`): the route now uses First-Message JWT Authentication. Client must send `{"type":"auth","token":"<jwt>"}` as the very first message; server responds with `{"type":"auth_ok"}` before any operational events flow. Application close codes 4001–4006 signal auth/policy failures — clients must not reconnect on these codes.
    - Notifications: HTTP polling only — `fetch('/notifications/{user_id}')`. No WebSocket for notifications.
    - Do not add a second WebSocket route for messages or notifications.
+   - Do not call `ws_manager.register()` before JWT verification completes.
+   - Identity is always from JWT claims (`auth_uid`) — the URL path `user_id` is a routing hint only and must match JWT but never overrides it.
 
 7. **Supabase is the only database** — `SUPABASE_DB_URL` must be set. There is no local SQLite fallback.
 

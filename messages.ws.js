@@ -1,32 +1,30 @@
-/* ── WebSocket Real-time ───────────────────────────────────────────────────
- * Security Debt (P0): /ws/{user_id} accepts any user_id from URL with no
- * JWT verification. Fix deferred to Step 3 — WebSocket Security Hardening.
- * ───────────────────────────────────────────────────────────────────────── */
+/* ── WebSocket Real-time ─────────────────────────────────────────────────── */
 
 var _ws = null;
 var _wsRetries = 0;
+var _wsReady = false; // true only after server sends auth_ok
 
 // ── Active conversation signalling ───────────────────────────────────────
 
 function sendActiveConversation(otherId) {
-  if (_ws && _ws.readyState === WebSocket.OPEN)
+  if (_wsReady && _ws && _ws.readyState === WebSocket.OPEN)
     _ws.send(JSON.stringify({type: 'active_conversation', other_id: otherId}));
 }
 
 function sendInactiveConversation(otherId) {
-  if (_ws && _ws.readyState === WebSocket.OPEN)
+  if (_wsReady && _ws && _ws.readyState === WebSocket.OPEN)
     _ws.send(JSON.stringify({type: 'inactive_conversation', other_id: otherId}));
 }
 
 // ── Typing events ──────────────────────────────────────────────────────────
 
 function sendTyping(toUserId) {
-  if (_ws && _ws.readyState === WebSocket.OPEN)
+  if (_wsReady && _ws && _ws.readyState === WebSocket.OPEN)
     _ws.send(JSON.stringify({type: 'typing', to_user_id: toUserId}));
 }
 
 function sendTypingStop(toUserId) {
-  if (_ws && _ws.readyState === WebSocket.OPEN)
+  if (_wsReady && _ws && _ws.readyState === WebSocket.OPEN)
     _ws.send(JSON.stringify({type: 'typing_stop', to_user_id: toUserId}));
 }
 
@@ -107,12 +105,24 @@ function connectWS() {
     _ws = new WebSocket(wsUrl);
     _ws.onopen = function() {
       _wsRetries = 0;
-      // If a conversation was opened before WS connected (e.g. ?with= deep-link), signal it now
-      if (_currentConvId) sendActiveConversation(_currentConvId);
+      _wsReady = false;
+      // First message must be auth — no operational events until auth_ok received
+      var jwt = (typeof localStorage !== 'undefined' && localStorage.getItem('tw_jwt')) || '';
+      _ws.send(JSON.stringify({type: 'auth', token: jwt}));
     };
     _ws.onmessage = function(e) {
       try {
         var data = JSON.parse(e.data);
+
+        // Auth handshake — must be first exchange
+        if (data.type === 'auth_ok') {
+          _wsReady = true;
+          // Signal active conversation now that the connection is authenticated
+          if (_currentConvId) sendActiveConversation(_currentConvId);
+          return;
+        }
+        // Drop all operational events until auth is confirmed
+        if (!_wsReady) return;
 
         // Normalize to number for all id comparisons — prevents string/number mismatch
         var fromId = Number(data.from || data.from_user_id);
@@ -167,7 +177,10 @@ function connectWS() {
 
       } catch(ex) {}
     };
-    _ws.onclose = function() {
+    _ws.onclose = function(event) {
+      _wsReady = false;
+      // Auth/Policy close codes (4001-4006) — do not reconnect
+      if (event.code >= 4001 && event.code <= 4006) return;
       if (_wsRetries < 5) { _wsRetries++; setTimeout(connectWS, _wsRetries * 2000); }
     };
     _ws.onerror = function() { _ws.close(); };

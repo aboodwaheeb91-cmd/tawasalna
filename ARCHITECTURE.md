@@ -3773,38 +3773,98 @@ API calls use: `Authorization: Bearer ${_jwt || ''}`
 
 ## [P0] 47. WebSocket Real-time Messages
 
-**Location:** `server.py` lines 810–866
+**Location:** `server.py` — `ConnectionManager` class + `websocket_endpoint`
 
 ### ConnectionManager Class
 
 ```python
 class ConnectionManager:
     def __init__(self):
-        self.active: Dict[int, list] = {}  # {user_id: [ws1, ws2, ...]} — supports multi-tab
+        self.active: Dict[int, list] = {}          # {user_id: [ws1, ws2, ...]} — multi-tab
+        self.active_conversations: Dict[int, int] = {}  # {user_id: other_id}
+        self._conv_ws_owner: Dict[int, object] = {}     # tracks which WS set the conv
 
-    async def connect(self, user_id: int, ws: WebSocket)     # Accepts + registers
-    def disconnect(self, user_id: int, ws: WebSocket)         # Removes from active list
-    async def send_to_user(self, user_id: int, data: dict)    # Sends to all tabs of user
+    def register(self, user_id: int, ws: WebSocket)      # Called ONLY after JWT auth succeeds
+    def disconnect(self, user_id: int, ws: WebSocket)     # Removes from active list
+    async def send_to_user(self, user_id: int, data: dict) -> bool  # Sends to all tabs
 ```
+
+**`register()` rule:** Never call `ws.accept()` inside `register()`. The HTTP upgrade is accepted in step 1; `register()` is called in step 4 after JWT verification. This ordering is permanent.
 
 ### Endpoint
 
 - **Path:** `WS /ws/{user_id}`
-- **Auth:** None (user_id in path param serves as identifier)
+- **Auth:** First-Message JWT (`auth_ok` protocol — see below)
 - **Protocol:** Text-based JSON
+
+### First-Message JWT Authentication Protocol
+
+1. **Accept HTTP upgrade** — `await websocket.accept()` (no registration yet)
+2. **Origin check** — validate against `WS_ALLOWED_ORIGINS` env var (empty = open, System Gap)
+3. **Auth window** — wait up to `_WS_AUTH_TIMEOUT = 5.0s` for first message
+4. **Validate first message** — must be `{"type":"auth","token":"<jwt>"}`, max `_WS_MAX_PAYLOAD = 65536` bytes
+5. **Decode JWT** — `_jwt_decode(token)`; identity is always from JWT (`auth_uid = jwt.user_id`)
+6. **Match URL** — `auth_uid` must equal URL path `user_id`; if mismatch → close 4003
+7. **Register + confirm** — `ws_manager.register(auth_uid, ws)` then send `{"type":"auth_ok","user_id":...}`
+8. **Message loop** — only events from the allowlist are processed
+
+**Client must:**
+- Send auth message as the very first thing in `onopen`
+- Not send operational events before receiving `auth_ok`
+- Stop reconnecting on close codes 4001–4006
+
+### Application Close Codes
+
+| Code | Name | Trigger |
+|------|------|---------|
+| 4001 | Unauthorized | Auth timeout, missing/invalid JWT, no token |
+| 4003 | Forbidden | JWT uid ≠ URL path user_id |
+| 4004 | Bad Payload | JSON parse error, oversized frame |
+| 4005 | Policy Violation | Typing rate limit exceeded |
+| 4006 | Origin Denied | `WS_ALLOWED_ORIGINS` configured and origin not in list |
+
+### Per-Event Authorization (Authenticated Loop)
+
+| Event type | Authorization check |
+|-----------|---------------------|
+| `active_conversation` | Accepted (user sets own view state) |
+| `inactive_conversation` | Accepted (user clears own view state) |
+| `typing` / `typing_stop` | `_ws_conversation_exists(auth_uid, to_id)` + `_ws_typing_rate_ok(auth_uid)` |
+| Legacy send (no type) | `receiver_id` from payload only; `sender_id` always from `auth_uid` |
+| Any other | Logged, ignored — no close |
+
+### Conversation Membership Cache (`_WS_CONV_CACHE`)
+
+- Key: `(min(a,b), max(a,b))` tuple
+- Value: `(bool, timestamp)` — TTL 5 minutes
+- Purpose: prevents typing spam to strangers without a DB query per event
+- Warmed automatically on legacy WS send (first message creates the conversation)
+
+### Typing Rate Limiter
+
+- Sliding window: 10 events / 10 seconds per `user_id`
+- Implementation: `_ws_typing_log: Dict[int, deque]` (module-level)
+- Exceeded → close 4005
 
 ### Message Flow
 
-**Client → Server (send):**
+**Client → Server (auth):**
+```json
+{ "type": "auth", "token": "<jwt>" }
+```
+**Server → Client (confirmed):**
+```json
+{ "type": "auth_ok", "user_id": <int> }
+```
+
+**Client → Server (send — legacy path):**
 ```json
 { "receiver_id": <int>, "content": <str> }
 ```
-
 **Server → Receiver (receive):**
 ```json
 { "type": "message", "from": <int>, "content": <str>, "created_at": "<ISO>" }
 ```
-
 **Server → Sender (confirmation):**
 ```json
 { "type": "sent", "id": <msg_id> }
@@ -3814,15 +3874,20 @@ class ConnectionManager:
 
 - In-memory `active` dict — NOT distributed (single Heroku dyno only)
 - Message persisted to `messages` table via `send_message()` before WS delivery
-- Dead connection cleanup: WebSocketDisconnect → `manager.disconnect()`
+- Dead connection cleanup: WebSocketDisconnect → `ws_manager.disconnect()`
 - If receiver offline: message saved in DB, delivered next time they poll GET /messages
 - Multi-tab: same user_id can have multiple websockets in `active[user_id]` list
 
 ### ممنوعات
 
 ```
+❌ لا تستدعِ ws_manager.register() قبل التحقق من JWT
+❌ لا تضع ws.accept() داخل register()
+❌ لا تستخدم user_id من URL كهوية — الهوية من JWT فقط
 ❌ لا تفترض أن الـ WS متاح على multi-dyno (in-memory فقط)
 ❌ لا تستبدل HTTP polling بـ WS وحده — WS للـ real-time، HTTP للـ history
+❌ لا تسجّل JWT token في أي print أو log
+❌ لا تنشئ مسار WebSocket ثانياً
 ```
 
 ---
@@ -3884,11 +3949,6 @@ if int(token.get("user_id") or 0) != user_id:
 - `messages.html` uses `tw_user` key in localStorage (legacy pattern — different from `tawasalna_user` used in profile)
 - `_jwt = localStorage.getItem('tw_jwt') || ''` — injected at top of script block after user session load
 
-### Security Debt (Known — Not Fixed in Step 1)
-
-- WebSocket `/ws/{user_id}` — `user_id` comes from URL path, no JWT verification on WS upgrade.
-  No change made to avoid breaking real-time delivery. Tracked for a future hardening step.
-
 ### Frontend Security Rules (messages.html — Step 1)
 
 - **`esc(s)` helper** must be called before injecting ANY user-supplied string into `innerHTML`.
@@ -3899,8 +3959,6 @@ if int(token.get("user_id") or 0) != user_id:
 - **`?with=` race condition fix** — resolve `tw_id` first, call `openConversation` (sets `_currentConvId`), then `loadConversations()`. `_activeConvMeta` preserves active item if conversation isn't in DB list yet.
 - **Mobile back button** — `toggleConvList()` toggles `.mobile-show` on `#convList`. `openConversation` removes `.mobile-show` on selection.
 - **`loadUnreadCount()` called after `openConversation`** — count refreshes when messages are marked read.
-- **WebSocket security debt** — `/ws/{user_id}` has no JWT check. Deferred to a dedicated future Step.
-
 ---
 
 ## [P0] 49. Messenger V1 — Modular Architecture
@@ -3995,7 +4053,7 @@ body / .layout  → height: 100dvh (fallback: 100vh) — prevents Chrome Android
 
 | Ref | Debt | Severity | Status |
 |-----|------|----------|--------|
-| P0 | `/ws/{user_id}` — no JWT verification on WebSocket upgrade | Critical | Open |
+| P0 | `/ws/{user_id}` — no JWT verification on WebSocket upgrade | Critical | **Resolved (PR security/ws-auth-hardening)** |
 | P1 | `get_conversations` sorted by `other_id` not recency | High | **Fixed** (subquery wrap) |
 | P2 | `create_notification()` deep-link was `/messages` without sender tw_id | Low | **Fixed** |
 

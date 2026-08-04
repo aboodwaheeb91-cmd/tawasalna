@@ -277,7 +277,7 @@ async def security_headers(request, call_next):
     return response
 
 # ── Simple Rate Limiting ──
-from collections import defaultdict
+from collections import defaultdict, deque
 import time as _time
 _rate_store = defaultdict(list)
 _RATE_LIMIT = 60  # requests per minute
@@ -1674,20 +1674,99 @@ def icon():
                    headers={"Cache-Control": "public, max-age=604800"})
 
 
-# ── WebSocket Real-time Messages ──
+# ── WebSocket Real-time Messages ──────────────────────────────────────────────
+# First-Message JWT Authentication Protocol (security/ws-auth-hardening)
+#
+# Application Close Codes:
+#   4001 — Unauthorized  : missing/invalid/expired JWT; no auth message; missing claims
+#   4002 — (reserved — same meaning as 4001, kept for future granularity)
+#   4003 — Forbidden     : JWT user_id ≠ URL path user_id
+#   4004 — Bad Payload   : malformed JSON; message exceeds _WS_MAX_PAYLOAD bytes
+#   4005 — Policy        : typing rate limit exceeded
+#   4006 — Origin Denied : Origin header not in WS_ALLOWED_ORIGINS
+#
+# Identity source: JWT claims only. URL path user_id is used for routing
+# and MUST match JWT; it is never trusted as identity by itself.
+# ──────────────────────────────────────────────────────────────────────────────
 from fastapi import WebSocket, WebSocketDisconnect
 from typing import Dict
+
+# Auth timeout and payload size
+_WS_AUTH_TIMEOUT  = 5.0      # seconds to wait for first auth message
+_WS_MAX_PAYLOAD   = 65_536   # 64 KB hard ceiling per WebSocket frame
+
+# Typing rate limit: _WS_TYPING_MAX events within _WS_TYPING_WINDOW seconds per user
+_WS_TYPING_MAX    = 10
+_WS_TYPING_WINDOW = 10.0
+_ws_typing_log: Dict[int, deque] = {}
+
+# Origin policy — inherits existing project CORS policy (allow_origins=["*"]).
+# Set WS_ALLOWED_ORIGINS env var to restrict (comma-separated origins, e.g.
+# "https://app.tawasalna.com").
+# SYSTEM GAP: current project CORS is allow_origins=["*"] (open).
+# Production deployments MUST set WS_ALLOWED_ORIGINS to a closed list.
+# Non-browser clients (Flutter) may omit Origin — allowed only with valid JWT.
+_WS_ALLOWED_ORIGINS_RAW = os.environ.get("WS_ALLOWED_ORIGINS", "").strip()
+_WS_ALLOWED_ORIGINS: list = (
+    [o.strip() for o in _WS_ALLOWED_ORIGINS_RAW.split(",") if o.strip()]
+    if _WS_ALLOWED_ORIGINS_RAW and _WS_ALLOWED_ORIGINS_RAW != "*"
+    else []  # empty = open (current project default)
+)
+
+# Conversation membership cache — prevents typing spam to strangers
+_WS_CONV_CACHE: Dict[tuple, tuple] = {}  # (min_uid, max_uid) → (exists: bool, ts: float)
+_WS_CONV_CACHE_TTL = 300.0  # 5 minutes
+
+
+def _ws_origin_ok(websocket: WebSocket) -> bool:
+    if not _WS_ALLOWED_ORIGINS:
+        return True  # open policy
+    origin = websocket.headers.get("origin", "")
+    return not origin or origin in _WS_ALLOWED_ORIGINS
+
+
+def _ws_typing_rate_ok(user_id: int) -> bool:
+    now = time.time()
+    q = _ws_typing_log.setdefault(user_id, deque())
+    while q and now - q[0] > _WS_TYPING_WINDOW:
+        q.popleft()
+    if len(q) >= _WS_TYPING_MAX:
+        return False
+    q.append(now)
+    return True
+
+
+def _ws_conversation_exists(a: int, b: int) -> bool:
+    key = (min(a, b), max(a, b))
+    cached = _WS_CONV_CACHE.get(key)
+    if cached is not None and (time.time() - cached[1]) < _WS_CONV_CACHE_TTL:
+        return cached[0]
+    try:
+        conn = get_conn()
+        rows = conn.run(
+            "SELECT 1 FROM messages "
+            "WHERE (sender_id=:a AND receiver_id=:b) OR (sender_id=:b AND receiver_id=:a) "
+            "LIMIT 1",
+            a=a, b=b,
+        )
+        result = bool(rows)
+    except Exception as exc:
+        print(f"[WS-SEC] conv_exists error a={a} b={b}: {exc}")
+        result = False
+    _WS_CONV_CACHE[key] = (result, time.time())
+    return result
+
 
 class ConnectionManager:
     def __init__(self):
         self.active: Dict[int, list] = {}
         self.active_conversations: Dict[int, int] = {}
-        # Tracks which specific WebSocket connection last set active_conversations
-        # so that only the messenger WS — never the badge WS — can clear it on disconnect.
+        # Tracks which specific WebSocket last set active_conversations,
+        # so only the messenger WS (never the badge WS) can clear it on disconnect.
         self._conv_ws_owner: Dict[int, object] = {}
 
-    async def connect(self, user_id: int, ws: WebSocket):
-        await ws.accept()
+    def register(self, user_id: int, ws: WebSocket):
+        """Register a WebSocket AFTER JWT auth succeeds. Never call before auth."""
         if user_id not in self.active:
             self.active[user_id] = []
         self.active[user_id].append(ws)
@@ -1695,10 +1774,6 @@ class ConnectionManager:
     def disconnect(self, user_id: int, ws: WebSocket):
         if user_id in self.active:
             self.active[user_id] = [w for w in self.active[user_id] if w != ws]
-            # Only clear active_conversation if the WS that OWNS it disconnected,
-            # or if there are no connections left at all.
-            # This prevents the global badge WS (tw_shared.js) from clearing
-            # the messenger conversation state when it briefly disconnects.
             if self._conv_ws_owner.get(user_id) is ws or not self.active[user_id]:
                 self.active_conversations.pop(user_id, None)
                 self._conv_ws_owner.pop(user_id, None)
@@ -1713,71 +1788,197 @@ class ConnectionManager:
             try:
                 await ws.send_text(json.dumps(data))
                 sent = True
-            except:
+            except Exception:
                 dead.append(ws)
         for d in dead:
             self.active[user_id].remove(d)
         return sent
 
+
 ws_manager = ConnectionManager()
+
 
 @app.websocket("/ws/{user_id}")
 async def websocket_endpoint(websocket: WebSocket, user_id: int):
-    await ws_manager.connect(user_id, websocket)
+    import json
+
+    # ── Step 1: Accept HTTP upgrade (no registration yet) ─────────────────────
+    await websocket.accept()
+
+    # ── Step 2: Origin check ──────────────────────────────────────────────────
+    if not _ws_origin_ok(websocket):
+        print(f"[WS-SEC] ORIGIN_DENIED path_uid={user_id} origin={websocket.headers.get('origin','<none>')}")
+        await websocket.close(code=4006)
+        return
+
+    # ── Step 3: First-message JWT authentication (5-second window) ───────────
+    try:
+        raw = await asyncio.wait_for(websocket.receive_text(), timeout=_WS_AUTH_TIMEOUT)
+    except asyncio.TimeoutError:
+        print(f"[WS-SEC] AUTH_TIMEOUT path_uid={user_id}")
+        await websocket.close(code=4001)
+        return
+    except Exception:
+        return  # connection dropped before auth message
+
+    if len(raw) > _WS_MAX_PAYLOAD:
+        print(f"[WS-SEC] AUTH_OVERSIZE path_uid={user_id}")
+        await websocket.close(code=4004)
+        return
+
+    try:
+        auth_msg = json.loads(raw)
+    except (ValueError, TypeError):
+        print(f"[WS-SEC] AUTH_INVALID_JSON path_uid={user_id}")
+        await websocket.close(code=4004)
+        return
+
+    if auth_msg.get("type") != "auth":
+        print(f"[WS-SEC] AUTH_WRONG_TYPE type={auth_msg.get('type')!r} path_uid={user_id}")
+        await websocket.close(code=4001)
+        return
+
+    token = auth_msg.get("token", "")
+    if not isinstance(token, str) or not token:
+        print(f"[WS-SEC] AUTH_NO_TOKEN path_uid={user_id}")
+        await websocket.close(code=4001)
+        return
+
+    # JWT validation — never log the token itself
+    payload = _jwt_decode(token)
+    if not payload:
+        print(f"[WS-SEC] AUTH_JWT_INVALID path_uid={user_id}")
+        await websocket.close(code=4001)
+        return
+
+    jwt_user_id = payload.get("user_id")
+    if jwt_user_id is None:
+        print(f"[WS-SEC] AUTH_MISSING_CLAIMS path_uid={user_id}")
+        await websocket.close(code=4001)
+        return
+
+    # Identity is ALWAYS from JWT — URL path must match but never overrides JWT
+    auth_uid = int(jwt_user_id)
+    if auth_uid != user_id:
+        print(f"[WS-SEC] AUTH_UID_MISMATCH jwt_uid={auth_uid} path_uid={user_id}")
+        await websocket.close(code=4003)
+        return
+
+    # ── Step 4: Register only after successful auth ───────────────────────────
+    ws_manager.register(auth_uid, websocket)
+    print(f"[WS] CONNECTED uid={auth_uid}")
+    try:
+        await websocket.send_text(json.dumps({"type": "auth_ok", "user_id": auth_uid}))
+    except Exception:
+        ws_manager.disconnect(auth_uid, websocket)
+        return
+
+    # ── Step 5: Authenticated message loop ────────────────────────────────────
     try:
         while True:
-            data = await websocket.receive_text()
-            import json
             try:
-                msg = json.loads(data)
-                msg_type = msg.get("type", "")
+                raw = await websocket.receive_text()
+            except WebSocketDisconnect:
+                break
+            except Exception:
+                break
 
-                if msg_type == "active_conversation":
-                    other_id = msg.get("other_id")
-                    if other_id:
-                        ws_manager.active_conversations[user_id] = int(other_id)
-                        ws_manager._conv_ws_owner[user_id] = websocket
+            if len(raw) > _WS_MAX_PAYLOAD:
+                print(f"[WS-SEC] OVERSIZE uid={auth_uid}")
+                try:
+                    await websocket.close(code=4004)
+                except Exception:
+                    pass
+                break
 
-                elif msg_type == "inactive_conversation":
-                    if ws_manager._conv_ws_owner.get(user_id) is websocket:
-                        ws_manager.active_conversations.pop(user_id, None)
-                        ws_manager._conv_ws_owner.pop(user_id, None)
+            try:
+                msg = json.loads(raw)
+            except (ValueError, TypeError):
+                print(f"[WS-SEC] INVALID_JSON uid={auth_uid}")
+                try:
+                    await websocket.close(code=4004)
+                except Exception:
+                    pass
+                break
 
-                elif msg_type == "typing":
-                    to_id = msg.get("to_user_id")
-                    if to_id:
-                        await ws_manager.send_to_user(int(to_id), {"type": "typing", "from_user_id": user_id})
+            msg_type = msg.get("type", "")
 
-                elif msg_type == "typing_stop":
-                    to_id = msg.get("to_user_id")
-                    if to_id:
-                        await ws_manager.send_to_user(int(to_id), {"type": "typing_stop", "from_user_id": user_id})
+            if msg_type == "active_conversation":
+                other_id = msg.get("other_id")
+                if other_id is not None:
+                    try:
+                        ws_manager.active_conversations[auth_uid] = int(other_id)
+                        ws_manager._conv_ws_owner[auth_uid] = websocket
+                    except (ValueError, TypeError):
+                        pass
 
-                else:
-                    # Legacy WS send path (HTTP is primary)
-                    receiver_id = msg.get("receiver_id")
-                    content = msg.get("content", "")
-                    if receiver_id and content:
+            elif msg_type == "inactive_conversation":
+                if ws_manager._conv_ws_owner.get(auth_uid) is websocket:
+                    ws_manager.active_conversations.pop(auth_uid, None)
+                    ws_manager._conv_ws_owner.pop(auth_uid, None)
+
+            elif msg_type in ("typing", "typing_stop"):
+                to_id = msg.get("to_user_id")
+                if to_id is not None:
+                    try:
+                        to_id = int(to_id)
+                    except (ValueError, TypeError):
+                        continue
+                    # Authorization: conversation must already exist between both users
+                    if not _ws_conversation_exists(auth_uid, to_id):
+                        print(f"[WS-SEC] TYPING_UNAUTH uid={auth_uid} to={to_id}")
+                        continue
+                    if not _ws_typing_rate_ok(auth_uid):
+                        print(f"[WS-SEC] TYPING_RATE_LIMIT uid={auth_uid}")
+                        try:
+                            await websocket.close(code=4005)
+                        except Exception:
+                            pass
+                        break
+                    await ws_manager.send_to_user(to_id, {"type": msg_type, "from_user_id": auth_uid})
+
+            elif not msg_type:
+                # Legacy WS send path (HTTP send is primary — this is fallback only).
+                # Sender is ALWAYS auth_uid from JWT; receiver_id comes from payload only.
+                receiver_id = msg.get("receiver_id")
+                content = msg.get("content", "")
+                if receiver_id and content:
+                    try:
                         receiver_id = int(receiver_id)
-                        saved = send_message(user_id, receiver_id, content)
-                        msg_id = saved.get("id")
-                        receiver_has_conv_open = ws_manager.active_conversations.get(receiver_id) == user_id
-                        if receiver_has_conv_open:
-                            mark_message_read_immediate(msg_id)
-                            await ws_manager.send_to_user(receiver_id, {"type": "message", "from": user_id, "id": msg_id, "content": content, "created_at": saved.get("created_at", ""), "is_read": True})
-                            await websocket.send_text(json.dumps({"type": "status_update", "id": msg_id, "status": "read"}))
-                        else:
-                            was_delivered = await ws_manager.send_to_user(receiver_id, {"type": "message", "from": user_id, "id": msg_id, "content": content, "created_at": saved.get("created_at", "")})
-                            if was_delivered:
-                                mark_message_delivered(msg_id)
-                                await websocket.send_text(json.dumps({"type": "status_update", "id": msg_id, "status": "delivered"}))
-                        await websocket.send_text(json.dumps({"type": "sent", "id": msg_id}))
-                        unread = get_unread_count(receiver_id)
-                        await ws_manager.send_to_user(receiver_id, {"type": "badge_update", "badge": "messages", "count": unread})
-            except Exception as e:
-                print(f"[WS] Error: {e}")
-    except WebSocketDisconnect:
-        ws_manager.disconnect(user_id, websocket)
+                    except (ValueError, TypeError):
+                        continue
+                    saved = send_message(auth_uid, receiver_id, content)
+                    msg_id = saved.get("id")
+                    receiver_has_conv_open = ws_manager.active_conversations.get(receiver_id) == auth_uid
+                    if receiver_has_conv_open:
+                        mark_message_read_immediate(msg_id)
+                        await ws_manager.send_to_user(receiver_id, {
+                            "type": "message", "from": auth_uid, "id": msg_id,
+                            "content": content, "created_at": saved.get("created_at", ""),
+                            "is_read": True,
+                        })
+                        await websocket.send_text(json.dumps({"type": "status_update", "id": msg_id, "status": "read"}))
+                    else:
+                        was_delivered = await ws_manager.send_to_user(receiver_id, {
+                            "type": "message", "from": auth_uid, "id": msg_id,
+                            "content": content, "created_at": saved.get("created_at", ""),
+                        })
+                        if was_delivered:
+                            mark_message_delivered(msg_id)
+                            await websocket.send_text(json.dumps({"type": "status_update", "id": msg_id, "status": "delivered"}))
+                    await websocket.send_text(json.dumps({"type": "sent", "id": msg_id}))
+                    unread = get_unread_count(receiver_id)
+                    await ws_manager.send_to_user(receiver_id, {"type": "badge_update", "badge": "messages", "count": unread})
+                    # Warm the conversation cache so typing is allowed immediately after first send
+                    _WS_CONV_CACHE[(min(auth_uid, receiver_id), max(auth_uid, receiver_id))] = (True, time.time())
+
+            else:
+                # Unknown / disallowed event type — log and ignore
+                print(f"[WS-SEC] UNKNOWN_TYPE type={msg_type!r} uid={auth_uid}")
+
+    finally:
+        ws_manager.disconnect(auth_uid, websocket)
+        print(f"[WS] DISCONNECTED uid={auth_uid}")
 
 
 # In-memory error log (last 100 errors)
