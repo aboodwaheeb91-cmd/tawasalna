@@ -243,6 +243,31 @@ check("E06 — eye preview static section preserved",
 
 
 # ═══════════════════════════════════════════════════════
+# J — messages.html (VM-10 adoption)
+# ═══════════════════════════════════════════════════════
+print("\nJ — messages.html")
+
+msg = read("messages.html")
+msg_render = read("messages.render.js")
+
+check("J01 — auth-sync.js loaded in messages.html",
+      "auth-sync.js" in msg)
+check("J02 — auth-sync.js loads before messages.render.js",
+      "auth-sync.js" in msg
+      and msg.index("auth-sync.js") < msg.index("messages.render.js"))
+check("J03 — notifications button has data-tw-session=authenticated",
+      'onclick="location.href=\'/notifications\'"' in msg
+      and 'data-tw-session="authenticated"' in msg)
+check("J04 — profile button has data-tw-session=authenticated",
+      'onclick="goMessengerProfile()"' in msg
+      and msg.count('data-tw-session="authenticated"') >= 2)
+check("J05 — both nav icons start hidden (hidden attribute)",
+      msg.count('data-tw-session="authenticated" hidden') >= 2)
+check("J06 — initGlobalHeaderMenu wired in messages.render.js",
+      "initGlobalHeaderMenu('scMenuBtn'" in msg_render)
+
+
+# ═══════════════════════════════════════════════════════
 # F — company.main.js
 # ═══════════════════════════════════════════════════════
 print("\nF — company.main.js")
@@ -341,7 +366,7 @@ for f in html_files:
 
 # I01: Pages that explicitly adopted VM-10 (load auth-sync.js) must not also
 # have old inline multi-step logout. Legacy pages not yet migrated are excluded.
-_VM10_PAGES = {"company-profile.html", "notifications.html", "profile-showcase.html"}
+_VM10_PAGES = {"company-profile.html", "notifications.html", "profile-showcase.html", "messages.html"}
 old_logout_violators_vm10 = []
 for f in html_files:
     bn = f.split("/")[-1]
